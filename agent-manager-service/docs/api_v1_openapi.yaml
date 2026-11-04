@@ -16682,7 +16682,8 @@ components:
         orgId:
           type: string
           description: >-
-            OU ID of the organization the gateway belongs to.
+            Optional. OU ID of the caller's organization. The organization
+            always comes from the token; a different value is refused with 403.
           example: 550e8400-e29b-41d4-a716-446655440000
 
     SelfHostedGatewayRequest:
@@ -16754,7 +16755,8 @@ components:
         orgId:
           type: string
           description: >-
-            OU ID of the organization the gateway belongs to.
+            Optional. OU ID of the caller's organization. The organization
+            always comes from the token; a different value is refused with 403.
           example: 550e8400-e29b-41d4-a716-446655440000
 
     UpdateGatewayRequest:

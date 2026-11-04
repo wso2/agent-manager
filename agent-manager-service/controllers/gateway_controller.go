@@ -201,6 +201,18 @@ func handleGatewayErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 	}
 }
 
+const errBodyOrgMismatch = "orgId does not match the caller's organization"
+
+// bodyOrgIsCallerOrg reports whether an optional orgId in a request body names
+// the caller's own org. The org always comes from the token; the body field is
+// accepted only so that existing clients that send it keep working.
+func bodyOrgIsCallerOrg(bodyOrg *string, callerOUID string) bool {
+	if bodyOrg == nil || *bodyOrg == "" {
+		return true
+	}
+	return strings.EqualFold(*bodyOrg, callerOUID)
+}
+
 func (c *gatewayController) RegisterGateway(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
@@ -211,16 +223,10 @@ func (c *gatewayController) RegisterGateway(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// Use the OU ID from the request body if provided, otherwise fall back to the one from the request context.
 	ouID := middleware.OUIDFromRequest(r)
-	if req.OrgId != nil && *req.OrgId != "" {
-		ouID = *req.OrgId
-		// Re-stash the effective org so downstream context consumers (e.g. the
-		// OpenChoreo client's org header) see the org actually operated on
-		// rather than the caller's token org.
-		org, _ := middleware.GetResolvedOrg(ctx)
-		org.OUID = ouID
-		ctx = middleware.WithResolvedOrg(ctx, org)
+	if !bodyOrgIsCallerOrg(req.OrgId, ouID) {
+		utils.WriteErrorResponse(w, http.StatusForbidden, errBodyOrgMismatch)
+		return
 	}
 
 	// Validate environments if present
@@ -735,10 +741,9 @@ func (c *gatewayController) rotateGatewayToken(w http.ResponseWriter, r *http.Re
 			utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 			return
 		}
-
-		// Use the OU ID from the request body if provided, otherwise fall back to the one from the request context.
-		if req.OrgId != nil && *req.OrgId != "" {
-			ouID = *req.OrgId
+		if !bodyOrgIsCallerOrg(req.OrgId, ouID) {
+			utils.WriteErrorResponse(w, http.StatusForbidden, errBodyOrgMismatch)
+			return
 		}
 	}
 
