@@ -41,7 +41,15 @@ func main() {
 		cfg.Observer.ClientID,
 		cfg.Observer.ClientSecret,
 	)
-	if err := app.Run(cfg, authProvider, app.Options{}); err != nil {
+	opts := app.Options{}
+	if cfg.Observer.Store == "sqlite" {
+		opts, err = newStoreOptions(cfg)
+		if err != nil {
+			slog.Error("Failed to open observer store", "error", err)
+			os.Exit(1)
+		}
+	}
+	if err := app.Run(cfg, authProvider, opts); err != nil {
 		slog.Error("Observer stopped", "error", err)
 		os.Exit(1)
 	}

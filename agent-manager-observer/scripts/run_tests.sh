@@ -20,7 +20,7 @@ exec 6>&1 7>&2
 # Redirect both stdout and stderr to log file
 exec > data/test_output.log 2>&1
 
-go test -v --race ./...
+go test -v --race ${GO_TEST_TAGS:+-tags "$GO_TEST_TAGS"} ./...
 
 testExitCode=$?
 

@@ -40,30 +40,55 @@ import (
 )
 
 // Options holds deployment-specific hooks for Run; the zero value is the OSS default.
-type Options struct{}
+type Options struct {
+	// Client replaces the default OpenChoreo-backed observer client.
+	Client observer.Client
+	// Ingest, when set, is served on IngestAddr alongside the API server.
+	Ingest     http.Handler
+	IngestAddr string
+	// Close releases resources owned by the hooks, after both servers stop.
+	Close func() error
+}
 
 // Run serves the observer API until SIGINT or SIGTERM, then shuts down gracefully.
-func Run(cfg *config.Config, tokenProvider observer.TokenProvider, _ Options) error {
+func Run(cfg *config.Config, tokenProvider observer.TokenProvider, opts Options) error {
 	setupLogger(cfg)
+
+	client := opts.Client
+	if client == nil {
+		client = observer.NewClient(cfg.Observer.BaseURL, tokenProvider, cfg.Observer.DefaultNamespace)
+	}
 
 	slog.Info("Starting agent-manager-observer", "port", cfg.Server.Port)
 
 	// Create server
 	server := &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.Server.Port),
-		Handler:      newHandler(cfg, tokenProvider),
+		Handler:      newHandler(cfg, client),
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 30 * time.Second,
 	}
 
 	// Start server in a goroutine
-	serveErr := make(chan error, 1)
-	go func() {
-		slog.Info("Server listening", "port", cfg.Server.Port)
-		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+	serveErr := make(chan error, 2)
+	serve := func(s *http.Server) {
+		slog.Info("Server listening", "addr", s.Addr)
+		if err := s.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			serveErr <- err
 		}
-	}()
+	}
+	go serve(server)
+
+	servers := []*http.Server{server}
+	if opts.Ingest != nil {
+		ingestServer := &http.Server{
+			Addr:        opts.IngestAddr,
+			Handler:     opts.Ingest,
+			ReadTimeout: 30 * time.Second,
+		}
+		servers = append(servers, ingestServer)
+		go serve(ingestServer)
+	}
 
 	// Wait for interrupt signal
 	quit := make(chan os.Signal, 1)
@@ -81,15 +106,22 @@ func Run(cfg *config.Config, tokenProvider observer.TokenProvider, _ Options) er
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	if err := server.Shutdown(ctx); err != nil {
-		return fmt.Errorf("server forced to shutdown: %w", err)
+	for _, s := range servers {
+		if err := s.Shutdown(ctx); err != nil {
+			return fmt.Errorf("server forced to shutdown: %w", err)
+		}
+	}
+	if opts.Close != nil {
+		if err := opts.Close(); err != nil {
+			return fmt.Errorf("closing observer store: %w", err)
+		}
 	}
 
 	slog.Info("Server exited")
 	return nil
 }
 
-func newHandler(cfg *config.Config, tokenProvider observer.TokenProvider) http.Handler {
+func newHandler(cfg *config.Config, observerClient observer.Client) http.Handler {
 	// Setup routes
 	mux := http.NewServeMux()
 
@@ -108,7 +140,6 @@ func newHandler(cfg *config.Config, tokenProvider observer.TokenProvider) http.H
 	apiMux := http.NewServeMux()
 
 	// v1 routes — observer-backed
-	observerClient := observer.NewClient(cfg.Observer.BaseURL, tokenProvider, cfg.Observer.DefaultNamespace)
 	controller := controllers.NewTracingController(observerClient)
 	obsController := controllers.NewObservabilityController(observerClient)
 	handler := handlers.NewHandler(controller, obsController)

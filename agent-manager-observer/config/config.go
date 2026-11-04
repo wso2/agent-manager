@@ -39,6 +39,8 @@ type ObserverConfig struct {
 	ClientSecret string
 	// DefaultNamespace scopes all trace queries to a single namespace.
 	DefaultNamespace string
+	// Store selects the backend: "openchoreo" (default) or "sqlite".
+	Store string
 }
 
 // AuthConfig holds JWT authentication configuration
@@ -83,6 +85,7 @@ func Load() (*Config, error) {
 			ClientID:         getEnv("IDP_CLIENT_ID", ""),
 			ClientSecret:     getEnv("IDP_CLIENT_SECRET", ""),
 			DefaultNamespace: getEnv("OBSERVER_DEFAULT_NAMESPACE", "default"),
+			Store:            getEnv("OBSERVER_STORE", "openchoreo"),
 		},
 		LogLevel: getEnv("LOG_LEVEL", "INFO"),
 		Auth: AuthConfig{
@@ -121,7 +124,12 @@ func (o *ObserverConfig) validate() error {
 	if strings.TrimSpace(o.BaseURL) == "" {
 		return fmt.Errorf("OPENCHOREO_OBSERVER_URL is required")
 	}
-	return nil
+	switch o.Store {
+	case "openchoreo", "sqlite":
+		return nil
+	default:
+		return fmt.Errorf("unknown OBSERVER_STORE %q", o.Store)
+	}
 }
 
 // ValidateClientCredentials checks the IDP settings needed by observer.NewAuthProvider.
