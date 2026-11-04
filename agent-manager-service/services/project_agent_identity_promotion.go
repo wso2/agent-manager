@@ -149,9 +149,11 @@ func (s *agentThunderProvisioningService) writePromotionBindings(
 			}
 		} else if !requestedByResolved {
 			requestedByResolved = true
-			if home, getErr := s.repo.Get(ctx, ref.OUID, ref.ProjectName, ref.AgentName, steps[0].Environment); getErr == nil {
-				requestedBy = home.RequestedBy
+			home, getErr := s.repo.Get(ctx, ref.OUID, ref.ProjectName, ref.AgentName, steps[0].Environment)
+			if getErr != nil {
+				return created, fmt.Errorf("read project AgentID source binding for requestedBy: %w", getErr)
 			}
+			requestedBy = home.RequestedBy
 		}
 		binding := models.AgentThunderClient{
 			OUID: ref.OUID, ProjectName: ref.ProjectName, AgentName: ref.AgentName,

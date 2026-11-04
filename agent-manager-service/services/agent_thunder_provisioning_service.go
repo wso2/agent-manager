@@ -1592,8 +1592,8 @@ func (s *agentThunderProvisioningService) DeleteAllBindings(ctx context.Context,
 				}); err != nil {
 					if isSource {
 						sourceDeleteFailed = true
-						leftovers = append(leftovers, b.EnvironmentName+"="+b.ThunderAgentID)
 					}
+					leftovers = append(leftovers, b.EnvironmentName+"="+b.ThunderAgentID)
 					s.logger.Warn("Failed to delete project AgentID from the identity control plane",
 						"ouID", ouID, "projectName", projectName, "agentName", agentName, "env", b.EnvironmentName,
 						"source", isSource, "error", err)
@@ -1613,7 +1613,7 @@ func (s *agentThunderProvisioningService) DeleteAllBindings(ctx context.Context,
 	if len(leftovers) > 0 {
 		// The binding rows are already deleted, so nothing else records these.
 		// Environment=AgentID pairs only; never a secret.
-		s.logger.Error("AgentIDs remain in the identity control plane and need manual cleanup: the source environment's AgentID could not be deleted",
+		s.logger.Error("AgentIDs remain in the identity control plane and need manual cleanup: one or more AgentIDs could not be deleted",
 			"ouID", ouID, "projectName", projectName, "agentName", agentName, "leftoverAgentIDs", leftovers)
 	}
 }

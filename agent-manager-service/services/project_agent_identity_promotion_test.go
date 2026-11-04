@@ -1297,7 +1297,7 @@ func TestWritePromotionBindingsTakesRequestedByFromTheSourceBinding(t *testing.T
 		require.Len(t, repo.GetCalls(), 3)
 	})
 
-	t.Run("an unreadable source still writes the rows", func(t *testing.T) {
+	t.Run("an unreadable source prevents target rows", func(t *testing.T) {
 		impl, repo := newService(func(call int) (*models.AgentThunderClient, error) {
 			if call == 1 {
 				return &models.AgentThunderClient{EnvironmentName: "development"}, nil
@@ -1305,10 +1305,8 @@ func TestWritePromotionBindingsTakesRequestedByFromTheSourceBinding(t *testing.T
 			return nil, errors.New("database unavailable")
 		})
 		created, err := impl.writePromotionBindings(context.Background(), ref, steps, "")
-		require.NoError(t, err)
-		require.Len(t, created, 2)
-		for _, call := range repo.UpsertCalls() {
-			require.Empty(t, call.Client.RequestedBy)
-		}
+		require.ErrorContains(t, err, "read project AgentID source binding for requestedBy")
+		require.Empty(t, created)
+		require.Empty(t, repo.UpsertCalls())
 	})
 }

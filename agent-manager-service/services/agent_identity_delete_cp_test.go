@@ -200,14 +200,17 @@ func TestDeleteAllBindingsCPManagedSourceFailureSkipsPromotedDeletions(t *testin
 	}
 }
 
-func TestDeleteAllBindingsCPManagedDoesNotLogLeftoversWhenEverythingIsDeleted(t *testing.T) {
+func TestDeleteAllBindingsCPManagedLogsPromotedDeletionFailureAsLeftover(t *testing.T) {
 	f := newCPDeleteFixture(t, models.AgentProvisioningTypeInternal)
 	f.deleteErr["stage"] = errors.New("stage unavailable")
 	svc := f.service(f.failIfUsedResolver(), thundersvc.IdentityManagementCPManaged, f.deletionProvider())
 
 	svc.DeleteAllBindings(context.Background(), "org-a", "project-a", "agent-a")
 
-	assert.NotContains(t, f.logs.String(), "need manual cleanup", "a promoted failure alone is not the skipped-deletions case")
+	logs := f.logs.String()
+	assert.Equal(t, 1, strings.Count(logs, "need manual cleanup"))
+	assert.Contains(t, logs, "level=ERROR")
+	assert.Contains(t, logs, "stage=agent-id-stage")
 }
 
 func TestDeleteAllBindingsCPManagedPromotedFailureDoesNotStopTheRest(t *testing.T) {
