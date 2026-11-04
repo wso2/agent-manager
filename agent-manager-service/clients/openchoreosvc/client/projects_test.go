@@ -114,6 +114,13 @@ func TestProjectScopedCalls_NotFoundIsProjectNotFound(t *testing.T) {
 			require.NotErrorIs(t, err, utils.ErrProjectNotFound)
 			require.NotErrorIs(t, err, utils.ErrNotFound)
 		})
+		t.Run(name+"/404 with a proxy's JSON body", func(t *testing.T) {
+			c := newTestClient(t, proxyNotFoundServer())
+			err := call(c)
+			require.Error(t, err)
+			require.NotErrorIs(t, err, utils.ErrProjectNotFound)
+			require.NotErrorIs(t, err, utils.ErrNotFound)
+		})
 		t.Run(name+"/500", func(t *testing.T) {
 			c := newTestClient(t, statusServer(http.StatusInternalServerError, gen.INTERNALERROR))
 			err := call(c)
@@ -121,6 +128,30 @@ func TestProjectScopedCalls_NotFoundIsProjectNotFound(t *testing.T) {
 			require.NotErrorIs(t, err, utils.ErrProjectNotFound)
 		})
 	}
+}
+
+// The pipeline lookup must not report a missing project as ErrNotFound:
+// translatePipelineError would relabel it as a missing pipeline.
+func TestGetProjectDeploymentPipeline_ProjectNotFound(t *testing.T) {
+	ctx := context.Background()
+
+	c := newTestClient(t, statusServer(http.StatusNotFound, gen.NOTFOUND))
+	_, err := c.GetProjectDeploymentPipeline(ctx, "acme", "missing")
+	require.ErrorIs(t, err, utils.ErrProjectNotFound)
+	require.NotErrorIs(t, err, utils.ErrNotFound)
+
+	c = newTestClient(t, proxyNotFoundServer())
+	_, err = c.GetProjectDeploymentPipeline(ctx, "acme", "missing")
+	require.Error(t, err)
+	require.NotErrorIs(t, err, utils.ErrProjectNotFound)
+	require.NotErrorIs(t, err, utils.ErrNotFound)
+}
+
+func proxyNotFoundServer() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`{"message":"no Route matched with those values"}`))
+	})
 }
 
 func statusServer(status int, code gen.ErrorResponseCode) http.Handler {
@@ -136,17 +167,18 @@ func TestGetProject_ErrorMapping(t *testing.T) {
 	for _, tc := range []struct {
 		name   string
 		status int
+		code   gen.ErrorResponseCode
 		want   error
 	}{
-		{"missing project", http.StatusNotFound, utils.ErrProjectNotFound},
-		{"server failure", http.StatusInternalServerError, utils.ErrInternalServerError},
-		{"forbidden", http.StatusForbidden, utils.ErrForbidden},
+		{"missing project", http.StatusNotFound, gen.NOTFOUND, utils.ErrProjectNotFound},
+		{"server failure", http.StatusInternalServerError, gen.INTERNALERROR, utils.ErrInternalServerError},
+		{"forbidden", http.StatusForbidden, gen.FORBIDDEN, utils.ErrForbidden},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			c := newTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(tc.status)
-				require.NoError(t, json.NewEncoder(w).Encode(map[string]string{"error": tc.name}))
+				require.NoError(t, json.NewEncoder(w).Encode(gen.ErrorResponse{Code: tc.code, Error: tc.name}))
 			}))
 			_, err := c.GetProject(context.Background(), "acme", "deleted-project")
 			require.ErrorIs(t, err, tc.want)
