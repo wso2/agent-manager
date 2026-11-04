@@ -1,0 +1,6 @@
+# Dev-only: run amp-observer on its SQLite store. Pair with
+# deployments/values/observer-lite.k8s.yaml, which holds the cluster resources
+# this mode needs.
+amObserver:
+  store: sqlite
+  developmentMode: true

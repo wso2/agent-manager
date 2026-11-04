@@ -33,6 +33,10 @@ spec:
         app.kubernetes.io/component: observer
         app.kubernetes.io/name: {{ include "amp-observability-extension.name" . }}
     spec:
+      {{- if eq .Values.amObserver.store "sqlite" }}
+      # Must match the ServiceAccount in deployments/values/observer-lite.k8s.yaml
+      serviceAccountName: amp-observer-lite
+      {{- end }}
       {{- if .Values.global.imagePullSecrets }}
       {{- include "amp-observability-extension.imagePullSecrets" . | trim | nindent 6 }}
       {{- end }}
@@ -49,6 +53,10 @@ spec:
             - name: http
               containerPort: {{ .Values.amObserver.port }}
           env:
+            {{- if eq .Values.amObserver.store "sqlite" }}
+            - name: OBSERVER_STORE
+              value: sqlite
+            {{- end }}
             - name: AM_OBSERVER_PORT
               value: "{{ .Values.amObserver.port }}"
             - name: OPENCHOREO_OBSERVER_URL

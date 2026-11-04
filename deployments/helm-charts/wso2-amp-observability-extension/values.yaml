@@ -6,6 +6,8 @@ global:
 amObserver:
   enabled: true
   developmentMode: false
+  # openchoreo (default) or sqlite, the dev-only store used by `make setup-lite`.
+  store: openchoreo
   name: amp-observer
   replicaCount: 1
   image:
