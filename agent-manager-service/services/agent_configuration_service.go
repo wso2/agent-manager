@@ -2085,12 +2085,7 @@ func (s *agentConfigurationService) processEnvProxyUpdate(
 		return rollbackResource{}, fmt.Errorf("existing proxy not found for environment %s", envName)
 	}
 
-	// An external agent's proxy may sit on a self-hosted gateway; a platform-hosted one's may not.
-	resolveGateway := s.resolveGatewayForProxy
-	if policy.external() {
-		resolveGateway = s.resolveGatewayForExternalProxy
-	}
-	gateway, err := resolveGateway(ctx, existingMapping.LLMProxy.Handle, ouID, envUUID)
+	gateway, err := s.llmProxyGateway(ctx, policy, existingMapping.LLMProxy.Handle, ouID, envUUID)
 	if err != nil {
 		return rollbackResource{}, fmt.Errorf("failed to resolve gateway for environment %s: %w", envName, err)
 	}
@@ -3805,7 +3800,7 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 							if parseErr != nil {
 								continue
 							}
-							gateway, gwErr := s.resolveGatewayForProxy(ctx, mapping.LLMProxy.Handle, ouID, envEnvUUID)
+							gateway, gwErr := s.llmProxyGateway(ctx, platformAgentPolicy, mapping.LLMProxy.Handle, ouID, envEnvUUID)
 							if gwErr != nil {
 								s.logger.Warn("Phase 1b: failed to resolve gateway for re-injection", "environment", envName, "err", gwErr)
 								continue
@@ -4689,29 +4684,16 @@ func (s *agentConfigurationService) requireProviderPlacements(
 	return nil
 }
 
-// resolveGatewayForProxy returns the managed gateway a platform-hosted agent's LLM proxy is placed on, whatever
-// the placement's status, refusing a self-hosted one.
-func (s *agentConfigurationService) resolveGatewayForProxy(
-	ctx context.Context, proxyHandle, ouID string, envUUID uuid.UUID,
+// llmProxyGateway is the gateway the agent's LLM proxy is placed on in the environment, whatever the placement's
+// status (placementPolicy.ownGateway).
+func (s *agentConfigurationService) llmProxyGateway(
+	ctx context.Context, policy placementPolicy, proxyHandle, ouID string, envUUID uuid.UUID,
 ) (*models.Gateway, error) {
 	placed, err := s.placedGatewaysOfProxy(ctx, proxyHandle, ouID)
 	if err != nil {
 		return nil, err
 	}
-	return resolveManagedPlacement(s.gatewayRepo, ouID, envUUID, placed)
-}
-
-// resolveGatewayForExternalProxy returns the gateway an external agent's LLM proxy is placed on, whatever the
-// placement's status or the gateway's hosting. It infers one only when the proxy is placed nowhere in the
-// environment.
-func (s *agentConfigurationService) resolveGatewayForExternalProxy(
-	ctx context.Context, proxyHandle, ouID string, envUUID uuid.UUID,
-) (*models.Gateway, error) {
-	placed, err := s.placedGatewaysOfProxy(ctx, proxyHandle, ouID)
-	if err != nil {
-		return nil, err
-	}
-	return resolveEgressGatewayForArtifact(s.gatewayRepo, ouID, envUUID, placed, nil)
+	return policy.ownGateway(s.gatewayRepo, ouID, envUUID, placed)
 }
 
 // placedGatewaysOfProxy is the gateways the LLM proxy is placed on; none when the proxy is gone.
@@ -5884,7 +5866,7 @@ func (s *agentConfigurationService) buildConfigResponse(ctx context.Context, con
 
 			// Add proxy URL for external agents (subsequent GET calls)
 			if includeProxyURL {
-				gateway, err := s.resolveGatewayForExternalProxy(ctx, mapping.LLMProxy.Handle, config.OUID, mapping.EnvironmentUUID)
+				gateway, err := s.llmProxyGateway(ctx, policy, mapping.LLMProxy.Handle, config.OUID, mapping.EnvironmentUUID)
 				if err == nil {
 					url := buildPublicProxyURL(gateway, mapping.LLMProxy.Configuration.Context)
 					proxyInfo.URL = &url
@@ -6330,7 +6312,7 @@ func (s *agentConfigurationService) systemManagedLLMURL(
 		return "", fmt.Errorf("LLM proxy handle not found for mapping in environment %s", environmentName)
 	}
 
-	gateway, err := s.resolveGatewayForProxy(ctx, proxyHandle, ouID, envUUID)
+	gateway, err := s.llmProxyGateway(ctx, platformAgentPolicy, proxyHandle, ouID, envUUID)
 	if err != nil {
 		return "", fmt.Errorf("failed to resolve gateway for LLM proxy in %s: %w", environmentName, err)
 	}

@@ -396,7 +396,7 @@ func TestPlacedAnchor(t *testing.T) {
 
 // An agent's or monitor's proxy runs in OpenChoreo, so its URL may never point at a self-hosted gateway, and a
 // self-hosted placement must not be swapped for another gateway it isn't on.
-func TestResolveManagedPlacement_RefusesSelfHostedPlacement(t *testing.T) {
+func TestOwnGateway_PlatformAgentRefusesSelfHostedPlacement(t *testing.T) {
 	env := uuid.New()
 	selfHosted := newGateway(t, models.GatewayRoleEgress, true)
 	selfHosted.Hosting = models.GatewayHostingSelfHosted
@@ -404,14 +404,14 @@ func TestResolveManagedPlacement_RefusesSelfHostedPlacement(t *testing.T) {
 	repo := gatewayFixtureRepo(t, env.String(), []*models.Gateway{selfHosted, managed})
 
 	t.Run("placed on a self-hosted gateway", func(t *testing.T) {
-		got, err := resolveManagedPlacement(repo, "org", env, []string{selfHosted.UUID.String()})
+		got, err := platformAgentPolicy.ownGateway(repo, "org", env, []string{selfHosted.UUID.String()})
 
 		require.ErrorIs(t, err, errSelfHostedAnchor)
 		assert.Nil(t, got)
 	})
 
 	t.Run("placed on a managed gateway", func(t *testing.T) {
-		got, err := resolveManagedPlacement(repo, "org", env, []string{managed.UUID.String()})
+		got, err := platformAgentPolicy.ownGateway(repo, "org", env, []string{managed.UUID.String()})
 
 		require.NoError(t, err)
 		assert.Equal(t, managed.UUID, got.UUID)

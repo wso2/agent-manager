@@ -204,6 +204,10 @@ func (k *LLMProxyKind) PlacedOn(ctx context.Context, tx *gorm.DB, env, gateway u
 			WHERE `+monitors, append(agentArgs, monitorArgs...))
 }
 
+// placementPassPolicy is the policy the placement pass applies to every unplaced LLM proxy, whoever its consumer:
+// an external agent's self-hosted placement is chosen when its binding is saved, never here.
+var placementPassPolicy = platformAgentPolicy
+
 // Targets is the environment's egress gateway, anchored on where the proxy, or else its provider, is placed, so
 // a proxy lands next to its provider.
 func (k *LLMProxyKind) Targets(ctx context.Context, record reconcile.Record) (uuid.UUID, bool, error) {
@@ -225,7 +229,7 @@ func (k *LLMProxyKind) Targets(ctx context.Context, record reconcile.Record) (uu
 		if err != nil {
 			return uuid.Nil, false, err
 		}
-		if anchor, err = placedAnchor(gateways, record.EnvironmentUUID, providerGateways, managedOnly); err != nil {
+		if anchor, err = placementPassPolicy.providerAnchor(gateways, record.EnvironmentUUID, providerGateways); err != nil {
 			return uuid.Nil, false, err
 		}
 	}
@@ -239,7 +243,7 @@ func (k *LLMProxyKind) Targets(ctx context.Context, record reconcile.Record) (uu
 	// Only placement-pass records from UnplacedRecords (agent and monitor mappings) reach here: the public deploy
 	// paths always name their gateway. An external agent's self-hosted placement is chosen when its binding is saved
 	// (resolveGatewayForProvider), so a self-hosted result here is refused and retried on every pass.
-	if !gateway.IsManaged() {
+	if placementPassPolicy.consumerRefuses(gateway) {
 		return uuid.Nil, false, errSelfHostedAnchor
 	}
 	return gateway.UUID, true, nil

@@ -220,22 +220,6 @@ func placedAnchor(
 	return selfHosted, nil
 }
 
-// resolveManagedPlacement is resolveEgressGatewayForArtifact for an AMS-owned proxy, refusing a self-hosted
-// result rather than resolving again: another gateway would be one the proxy isn't on.
-func resolveManagedPlacement(
-	repo repositories.GatewayRepository, ouID string, envUUID uuid.UUID, placed []string,
-) (*models.Gateway, error) {
-	gateway, err := resolveEgressGatewayForArtifact(repo, ouID, envUUID, placed, nil)
-	if err != nil {
-		return nil, err
-	}
-	if !gateway.IsManaged() {
-		return nil, fmt.Errorf("%w: gateway %s (%s) in environment %s",
-			errSelfHostedAnchor, gateway.Name, gateway.UUID, envUUID)
-	}
-	return gateway, nil
-}
-
 // placedOn runs a kind's PlacedOn query, records whose artifacts PlacedCondition finds placed, through tx.
 func placedOn(ctx context.Context, tx *gorm.DB, records string, args []any) (bool, error) {
 	var placed bool

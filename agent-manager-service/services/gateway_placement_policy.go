@@ -112,6 +112,23 @@ func (p placementPolicy) refusedBy(gw *models.Gateway, security *models.Security
 // private address (SSRF guard).
 func gatewayNeedsPublicUpstream(gw *models.Gateway) bool { return gw.IsManaged() }
 
+// ownGateway is the gateway the consumer's own LLM or MCP artifact is placed on in envUUID, whatever the placement's
+// hosting, refused when the consumer may not use it rather than resolved again: another gateway would be one the
+// artifact isn't on.
+func (p placementPolicy) ownGateway(
+	repo repositories.GatewayRepository, ouID string, envUUID uuid.UUID, placed []string,
+) (*models.Gateway, error) {
+	gateway, err := resolveEgressGatewayForArtifact(repo, ouID, envUUID, placed, nil)
+	if err != nil {
+		return nil, err
+	}
+	if p.consumerRefuses(gateway) {
+		return nil, fmt.Errorf("%w: gateway %s (%s) in environment %s",
+			errSelfHostedAnchor, gateway.Name, gateway.UUID, envUUID)
+	}
+	return gateway, nil
+}
+
 // providerAnchor is the gateway in envUUID among placed that the consumer's LLM provider placement may use, or nil.
 func (p placementPolicy) providerAnchor(
 	repo repositories.GatewayRepository, envUUID uuid.UUID, placed []string,
