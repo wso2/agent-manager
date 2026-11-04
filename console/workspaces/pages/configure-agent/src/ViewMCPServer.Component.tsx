@@ -773,10 +773,10 @@ export const ViewMCPServerComponent = () => {
               authInfoByEnv?.[selectedEnvName] ?? providerConfig.authInfo;
             const headerName = apiKeyHeaderName || authEntry?.name || "api-key";
             const headerValue = authEntry?.value || "<api-key>";
-            const curlCode = buildMCPCurlSnippet(providerConfig.url, {
-              name: headerName,
-              value: headerValue,
-            });
+            const curlCode = [
+              `curl -N ${providerConfig.url || "<endpoint-url>"}`,
+              `  --header "${headerName}: ${headerValue}"`,
+            ].join(" \\\n");
             return (
               <Stack spacing={3}>
                 {authEntry?.value ? (
@@ -872,7 +872,7 @@ export const ViewMCPServerComponent = () => {
               <Form.Section>
                 <Form.Subheader>Example cURL</Form.Subheader>
                 <CodeBlock
-                  code={buildMCPCurlSnippet(providerConfig.url)}
+                  code={`curl -N ${providerConfig.url || "<endpoint-url>"}`}
                   language="bash"
                   fieldId="mcp-curl"
                 />
@@ -1188,21 +1188,6 @@ function describeMCPEnvVar(key: string): string {
 
 function isAPIKeyEnvVarKey(key: string): boolean {
   return /api[-_]?key/i.test(key);
-}
-
-// Streamable HTTP MCP servers accept only POSTed JSON-RPC and require the
-// client to accept both JSON and SSE responses.
-function buildMCPCurlSnippet(
-  url: string | undefined,
-  authHeader?: { name: string; value: string },
-): string {
-  return [
-    `curl ${url || "<endpoint-url>"}`,
-    ...(authHeader ? [`  -H "${authHeader.name}: ${authHeader.value}"`] : []),
-    `  -H "Content-Type: application/json"`,
-    `  -H "Accept: application/json, text/event-stream"`,
-    `  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'`,
-  ].join(" \\\n");
 }
 
 function buildMCPPythonSnippet(rows: { key: string; name: string }[]): string {
