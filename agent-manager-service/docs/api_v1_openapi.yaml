@@ -13242,6 +13242,11 @@ components:
           enum: [Pending, Running, Succeeded, Completed, Failed]
         buildParameters:
           $ref: "#/components/schemas/BuildParameters"
+        # The health checks this build recorded when it started; an environment running this
+        # build, including after a redeploy or rollback, runs them. Absent when the build
+        # recorded none, so the defaults apply.
+        healthChecks:
+          $ref: "#/components/schemas/HealthChecks"
       required:
         - buildName
         - projectName
@@ -13559,7 +13564,7 @@ components:
         path:
           type: string
           pattern: "^/"
-          description: Path for an HTTP check. Defaults to "/".
+          description: Path for an HTTP check. Required when type is HTTP.
           example: "/health"
         port:
           type: integer

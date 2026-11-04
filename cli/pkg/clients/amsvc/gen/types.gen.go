@@ -2048,7 +2048,10 @@ type BuildDetailsResponse struct {
 	// DurationSeconds Build duration in seconds
 	DurationSeconds *int       `json:"durationSeconds,omitempty"`
 	EndedAt         *time.Time `json:"endedAt,omitempty"`
-	ImageId         *string    `json:"imageId,omitempty"`
+
+	// HealthChecks Startup, readiness and liveness checks for the agent's container. A check that is not set uses the default: startup and readiness are TCP checks on the agent's port, and there is no liveness check.
+	HealthChecks *HealthChecks `json:"healthChecks,omitempty"`
+	ImageId      *string       `json:"imageId,omitempty"`
 
 	// InputInterface Endpoint configurations
 	InputInterface *InputInterface `json:"inputInterface,omitempty"`
@@ -2104,9 +2107,12 @@ type BuildResponse struct {
 	// BuildParameters Parameters used for the build
 	BuildParameters BuildParameters `json:"buildParameters"`
 	EndedAt         *time.Time      `json:"endedAt,omitempty"`
-	ImageId         *string         `json:"imageId,omitempty"`
-	ProjectName     string          `json:"projectName"`
-	StartedAt       time.Time       `json:"startedAt"`
+
+	// HealthChecks Startup, readiness and liveness checks for the agent's container. A check that is not set uses the default: startup and readiness are TCP checks on the agent's port, and there is no liveness check.
+	HealthChecks *HealthChecks `json:"healthChecks,omitempty"`
+	ImageId      *string       `json:"imageId,omitempty"`
+	ProjectName  string        `json:"projectName"`
+	StartedAt    time.Time     `json:"startedAt"`
 
 	// Status Overall build status, derived from the underlying workflow phase. Succeeded means the image was built and pushed; Completed additionally means the workload CR was updated. Per-step progress is in `steps`.
 	Status *BuildResponseStatus `json:"status,omitempty"`
@@ -3627,7 +3633,7 @@ type HealthCheck struct {
 	// InitialDelaySeconds Seconds to wait after the container starts before the first check.
 	InitialDelaySeconds *int `json:"initialDelaySeconds,omitempty"`
 
-	// Path Path for an HTTP check. Defaults to "/".
+	// Path Path for an HTTP check. Required when type is HTTP.
 	Path *string `json:"path,omitempty"`
 
 	// PeriodSeconds Seconds between checks.

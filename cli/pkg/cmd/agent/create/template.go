@@ -66,7 +66,7 @@ spec:
   # healthChecks:                       # internal only; anything left out uses the defaults
   #   readiness:
   #     type: HTTP                      # or TCP (the default)
-  #     path: /health                   # HTTP only; must start with /
+  #     path: /health                   # required for HTTP; must start with /
   #     periodSeconds: 10               # optional: initialDelaySeconds, periodSeconds,
   #                                     #   timeoutSeconds, failureThreshold, port
   #   liveness:                         # off unless set

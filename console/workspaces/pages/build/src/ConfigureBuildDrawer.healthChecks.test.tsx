@@ -94,4 +94,15 @@ describe("ConfigureBuildDrawer health checks", () => {
       readiness: { type: "HTTP", path: "/health", periodSeconds: 10 },
     });
   });
+
+  // Liveness without startup restarts an agent that is still starting, so the drawer warns.
+  it("warns when liveness is on and startup is off", () => {
+    renderDrawer(makeAgent({ healthChecks: { startup: { enabled: false }, liveness: { type: "TCP" } } }));
+    expect(screen.getByText(/Liveness is on and startup is off/)).toBeInTheDocument();
+  });
+
+  it("does not warn when the startup check is on", () => {
+    renderDrawer(makeAgent({ healthChecks: { liveness: { type: "TCP" } } }));
+    expect(screen.queryByText(/Liveness is on and startup is off/)).not.toBeInTheDocument();
+  });
 });

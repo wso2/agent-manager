@@ -272,6 +272,8 @@ func ConvertToBuildResponse(build *models.BuildResponse) spec.BuildResponse {
 		BuildName:       build.Name,
 		EndedAt:         build.EndedAt,
 		BuildParameters: convertToBuildParameters(build.BuildParameters),
+		// The checks this build runs with wherever it is deployed; nil when it recorded none.
+		HealthChecks: convertToHealthChecks(build.HealthChecks),
 	}
 }
 
@@ -331,6 +333,7 @@ func ConvertToBuildDetailsResponse(buildDetails *models.BuildDetailsResponse) sp
 		DurationSeconds: &buildDetails.DurationSeconds,
 		EndedAt:         buildDetails.EndedAt,
 		BuildParameters: convertToBuildParameters(buildDetails.BuildParameters),
+		HealthChecks:    convertToHealthChecks(buildDetails.HealthChecks),
 		InputInterface:  convertToInputInterface(buildDetails.InputInterface),
 	}
 

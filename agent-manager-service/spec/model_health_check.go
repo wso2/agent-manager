@@ -23,7 +23,7 @@ type HealthCheck struct {
 	Enabled *bool `json:"enabled,omitempty"`
 	// TCP opens a connection to the port; HTTP sends a GET request to the path. Defaults to TCP.
 	Type *string `json:"type,omitempty"`
-	// Path for an HTTP check. Defaults to \"/\".
+	// Path for an HTTP check. Required when type is HTTP.
 	Path *string `json:"path,omitempty"`
 	// Port to check. Defaults to the agent's port.
 	Port *int32 `json:"port,omitempty"`

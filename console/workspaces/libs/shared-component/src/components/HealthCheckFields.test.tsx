@@ -101,6 +101,14 @@ describe("healthCheckFieldErrors", () => {
     expect(healthCheckFieldErrors(goodCheck, "readiness", READINESS_CHECK_DEFAULTS)).toEqual({});
   });
 
+  // Without a path an HTTP check would quietly check "/", so a path is required.
+  it("requires a path for an HTTP check", () => {
+    expect(
+      healthCheckFieldErrors({ type: "HTTP" }, "readiness", READINESS_CHECK_DEFAULTS).path,
+    ).toBe("Path is required for HTTP GET");
+    expect(healthCheckFieldErrors({ type: "TCP" }, "readiness", READINESS_CHECK_DEFAULTS)).toEqual({});
+  });
+
   // The backend rejects ".." in a path, so the form must too.
   it("rejects a path with ..", () => {
     const check = { type: "HTTP" as const, path: "/a/../health" };

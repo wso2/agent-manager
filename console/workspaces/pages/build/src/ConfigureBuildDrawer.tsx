@@ -49,6 +49,7 @@ import {
   READINESS_CHECK_DEFAULTS,
   STARTUP_CHECK_DEFAULTS,
   healthChecksAreValid,
+  healthChecksInEffect,
   healthChecksToSend,
   suggestedHealthCheckPath,
   type HealthChecks,
@@ -505,6 +506,10 @@ export function ConfigureBuildDrawer({
       setFieldError("healthChecks", undefined);
     }
   };
+  // Without a startup check, liveness starts after its own initial delay (0s by default), so an
+  // agent still starting by then is restarted again and again.
+  const [startupInEffect, , livenessInEffect] = healthChecksInEffect(formData.healthChecks);
+  const livenessWithoutStartup = livenessInEffect.enabled && !startupInEffect.enabled;
   // A chat agent always listens on 8000; the others on the port set above.
   const healthCheckAgentPort = formData.interfaceType === "DEFAULT" ? 8000 : formData.port;
   const healthCheckSuggestedPath = suggestedHealthCheckPath(
@@ -895,6 +900,15 @@ export function ConfigureBuildDrawer({
                     agentPort={healthCheckAgentPort}
                     disabled={isPending}
                   />
+                  {livenessWithoutStartup && (
+                    <Alert severity="warning">
+                      Liveness is on and startup is off, so liveness starts checking after
+                      its initial delay ({livenessInEffect.initialDelaySeconds}s). An agent that
+                      is still starting by then is restarted again and again. Turn the startup
+                      check on, or give liveness an initial delay longer than the agent takes
+                      to start.
+                    </Alert>
+                  )}
                 </Box>
               </CardContent>
             </Card>

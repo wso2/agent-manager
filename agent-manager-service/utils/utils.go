@@ -351,6 +351,16 @@ func ValidateAgentCreatePayload(payload spec.CreateAgentRequest) error {
 			return err
 		}
 	}
+	// Only an agent built from source runs health checks of its own choosing. The platform
+	// does not run an external agent, and a catalog agent runs the checks of its version's
+	// build, so health checks sent for either would be dropped without effect.
+	if payload.HealthChecks != nil &&
+		(payload.Provisioning.Type != string(InternalAgent) || payload.Provisioning.AgentKind != nil) {
+		return NewValidationErrorf(
+			"Health checks can only be set for agents built from source",
+			"healthChecks is only allowed for internal agents built from a repository",
+		)
+	}
 	if err := validateHealthChecks(payload.HealthChecks); err != nil {
 		return err
 	}
@@ -893,6 +903,14 @@ func validateHealthCheck(checkName string, check *spec.HealthCheck, defaults hea
 		return NewValidationErrorf(
 			"Health check type must be TCP or HTTP",
 			"%s.type must be TCP or HTTP, got %q", field, checkType,
+		)
+	}
+	// An HTTP check needs its path: without one it would quietly check "/", a path the user
+	// never chose.
+	if checkType == string(HealthCheckTypeHTTP) && check.Path == nil {
+		return NewValidationErrorf(
+			"An HTTP health check needs a path, such as /health",
+			"%s.path is required when %s.type is HTTP", field, field,
 		)
 	}
 	// A path is only meaningful for an HTTP check; it becomes the GET request's path.

@@ -22,6 +22,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
 )
 
@@ -56,6 +57,9 @@ func TestValidateHealthChecks(t *testing.T) {
 		}},
 		{name: "path on a check whose type defaults to TCP", wantErr: true, healthChecks: &spec.HealthChecks{
 			Readiness: &spec.HealthCheck{Path: stringOf("/health")},
+		}},
+		{name: "HTTP check without a path", wantErr: true, healthChecks: &spec.HealthChecks{
+			Readiness: &spec.HealthCheck{Type: stringOf("HTTP")},
 		}},
 		{name: "path without a leading slash", wantErr: true, healthChecks: &spec.HealthChecks{
 			Readiness: &spec.HealthCheck{Type: stringOf("HTTP"), Path: stringOf("health")},
@@ -130,11 +134,30 @@ func TestPayloadValidatorsCheckHealthChecks(t *testing.T) {
 	badType := "GRPC"
 	badHealthChecks := &spec.HealthChecks{Readiness: &spec.HealthCheck{Type: &badType}}
 
+	subType := string(AgentSubTypeA2A)
+	port := int32(9099)
+	provisioning := spec.Provisioning{
+		Type: string(InternalAgent),
+		Repository: &spec.RepositoryConfig{
+			Url:     "https://github.com/wso2/agent-manager",
+			Branch:  "main",
+			AppPath: "/",
+		},
+	}
+	agentType := spec.AgentType{Type: string(AgentTypeAPI), SubType: &subType}
+	build := spec.DockerBuildAsBuild(&spec.DockerBuild{
+		Type:   "docker",
+		Docker: spec.DockerConfig{DockerfilePath: "/Dockerfile"},
+	})
+	inputInterface := spec.InputInterface{Type: "HTTP", Port: &port}
+
 	createRequest := spec.CreateAgentRequest{
-		Name:         "support-bot",
-		DisplayName:  "Support Bot",
-		Provisioning: spec.Provisioning{Type: string(ExternalAgent)},
-		AgentType:    &spec.AgentType{Type: string(AgentTypeExternalAPI)},
+		Name:           "support-bot",
+		DisplayName:    "Support Bot",
+		Provisioning:   provisioning,
+		AgentType:      &agentType,
+		Build:          &build,
+		InputInterface: &inputInterface,
 	}
 	require.NoError(t, ValidateAgentCreatePayload(createRequest))
 	createRequest.HealthChecks = badHealthChecks
@@ -142,27 +165,63 @@ func TestPayloadValidatorsCheckHealthChecks(t *testing.T) {
 	require.Error(t, createErr)
 	assert.Contains(t, createErr.Error(), "TCP or HTTP")
 
-	subType := string(AgentSubTypeA2A)
-	port := int32(9099)
 	updateRequest := spec.UpdateAgentBuildParametersRequest{
-		Provisioning: spec.Provisioning{
-			Type: string(InternalAgent),
-			Repository: &spec.RepositoryConfig{
-				Url:     "https://github.com/wso2/agent-manager",
-				Branch:  "main",
-				AppPath: "/",
-			},
-		},
-		AgentType: spec.AgentType{Type: string(AgentTypeAPI), SubType: &subType},
-		Build: spec.DockerBuildAsBuild(&spec.DockerBuild{
-			Type:   "docker",
-			Docker: spec.DockerConfig{DockerfilePath: "/Dockerfile"},
-		}),
-		InputInterface: spec.InputInterface{Type: "HTTP", Port: &port},
+		Provisioning:   provisioning,
+		AgentType:      agentType,
+		Build:          build,
+		InputInterface: inputInterface,
 	}
 	require.NoError(t, ValidateAgentBuildParametersUpdatePayload(updateRequest))
 	updateRequest.HealthChecks = badHealthChecks
 	updateErr := ValidateAgentBuildParametersUpdatePayload(updateRequest)
 	require.Error(t, updateErr)
 	assert.Contains(t, updateErr.Error(), "TCP or HTTP")
+}
+
+// The platform does not run an external agent, and a catalog agent runs its version's build's
+// checks, so health checks sent when creating either are rejected rather than dropped.
+func TestCreateRejectsHealthChecksForExternalAndCatalogAgents(t *testing.T) {
+	tcp := "TCP"
+	healthChecks := &spec.HealthChecks{Readiness: &spec.HealthCheck{Type: &tcp}}
+
+	externalRequest := spec.CreateAgentRequest{
+		Name:         "support-bot",
+		DisplayName:  "Support Bot",
+		Provisioning: spec.Provisioning{Type: string(ExternalAgent)},
+		AgentType:    &spec.AgentType{Type: string(AgentTypeExternalAPI)},
+	}
+	require.NoError(t, ValidateAgentCreatePayload(externalRequest))
+	externalRequest.HealthChecks = healthChecks
+	assert.ErrorContains(t, ValidateAgentCreatePayload(externalRequest), "only allowed for internal agents built from a repository")
+
+	catalogRequest := spec.CreateAgentRequest{
+		Name:        "support-bot",
+		DisplayName: "Support Bot",
+		Provisioning: spec.Provisioning{
+			Type:      string(InternalAgent),
+			AgentKind: &spec.ProvisioningAgentKind{Name: "support-kind", Version: "1.0.0"},
+		},
+		HealthChecks: healthChecks,
+	}
+	assert.ErrorContains(t, ValidateAgentCreatePayload(catalogRequest), "only allowed for internal agents built from a repository")
+}
+
+// A build's own health checks are what it runs wherever it is deployed, so both build
+// responses return them; a build that recorded none returns none.
+func TestBuildResponsesReturnTheBuildsHealthChecks(t *testing.T) {
+	path := "/health"
+	httpCheck := "HTTP"
+	build := models.BuildResponse{
+		Name: "build-1",
+		HealthChecks: &models.HealthChecks{
+			Readiness: &models.HealthCheck{Type: &httpCheck, Path: &path},
+		},
+	}
+	want := &spec.HealthChecks{Readiness: &spec.HealthCheck{Type: &httpCheck, Path: &path}}
+
+	assert.Equal(t, want, ConvertToBuildResponse(&build).HealthChecks)
+	assert.Equal(t, want, ConvertToBuildDetailsResponse(&models.BuildDetailsResponse{BuildResponse: build}).HealthChecks)
+
+	build.HealthChecks = nil
+	assert.Nil(t, ConvertToBuildResponse(&build).HealthChecks)
 }
