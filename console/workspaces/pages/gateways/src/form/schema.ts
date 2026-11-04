@@ -22,6 +22,21 @@ import { isGatewayBaseUrl } from "../subComponents/selfHostedSetup";
 export const GATEWAY_DISPLAY_NAME_MAX_LENGTH = 128;
 const GATEWAY_DISPLAY_NAME_MIN_LENGTH = 3;
 
+export const GATEWAY_NAME_MAX_LENGTH = 64;
+const GATEWAY_NAME_MIN_LENGTH = 3;
+
+/** The default name for a display name: lowercase letters, numbers and single hyphens. */
+export function deriveGatewayName(displayName: string): string {
+  return displayName
+    .toLowerCase()
+    .replace(/\s+/g, "-")
+    .replace(/[^a-z0-9-]/g, "")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, GATEWAY_NAME_MAX_LENGTH)
+    .replace(/-$/, "");
+}
+
 const displayName = (minMessage: string) =>
   z
     .string()
@@ -40,6 +55,15 @@ export const addSelfHostedGatewaySchema = z.object({
   displayName: displayName(
     `Display name must be at least ${GATEWAY_DISPLAY_NAME_MIN_LENGTH} characters`,
   ),
+  name: z
+    .string()
+    .trim()
+    .min(GATEWAY_NAME_MIN_LENGTH, `Name must be at least ${GATEWAY_NAME_MIN_LENGTH} characters`)
+    .max(GATEWAY_NAME_MAX_LENGTH, `Name must be at most ${GATEWAY_NAME_MAX_LENGTH} characters`)
+    .regex(
+      /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/,
+      "Use lowercase letters, numbers and hyphens, not starting or ending with a hyphen",
+    ),
   environment: z.string().min(1, "Select an environment"),
   publicUrl: z
     .string()

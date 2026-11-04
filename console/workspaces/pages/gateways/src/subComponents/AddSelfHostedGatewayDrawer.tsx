@@ -45,7 +45,9 @@ import { getErrorMessage } from "@agent-management-platform/shared-component";
 import type { GatewayResponse } from "@agent-management-platform/types";
 import {
   addSelfHostedGatewaySchema,
+  deriveGatewayName,
   GATEWAY_DISPLAY_NAME_MAX_LENGTH,
+  GATEWAY_NAME_MAX_LENGTH,
   type AddSelfHostedGatewayFormValues,
 } from "../form/schema";
 import { SelfHostedSetupSteps } from "./SelfHostedSetupSteps";
@@ -58,6 +60,7 @@ interface AddSelfHostedGatewayDrawerProps {
 
 const EMPTY_FORM: AddSelfHostedGatewayFormValues = {
   displayName: "",
+  name: "",
   environment: "",
   publicUrl: "",
   description: "",
@@ -100,10 +103,23 @@ export function AddSelfHostedGatewayDrawer({
     setCreated(null);
   }, [open, clearErrors]);
 
-  const setField = (field: keyof AddSelfHostedGatewayFormValues, value: string) => {
-    const next = { ...values, [field]: value };
+  const update = (next: AddSelfHostedGatewayFormValues) => {
     setValues(next);
     if (submitted) validateForm(next);
+  };
+
+  const setField = (field: keyof AddSelfHostedGatewayFormValues, value: string) =>
+    update({ ...values, [field]: value });
+
+  // The name follows the display name until the user edits it.
+  const setDisplayName = (displayName: string) => {
+    const nameFollowsDisplayName =
+      values.name === "" || values.name === deriveGatewayName(values.displayName);
+    update({
+      ...values,
+      displayName,
+      name: nameFollowsDisplayName ? deriveGatewayName(displayName) : values.name,
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -111,7 +127,7 @@ export function AddSelfHostedGatewayDrawer({
     setSubmitted(true);
     if (!validateForm(values)) return;
     setSubmitError(null);
-    const { displayName, environment, publicUrl, description } = values;
+    const { displayName, name, environment, publicUrl, description } = values;
 
     let gateway: GatewayResponse;
     try {
@@ -119,6 +135,7 @@ export function AddSelfHostedGatewayDrawer({
         params: { orgName: orgId },
         body: {
           displayName: displayName.trim(),
+          handle: name.trim(),
           description: description.trim() || undefined,
           environment,
           endpoints: [publicUrl.trim()],
@@ -189,10 +206,27 @@ export function AddSelfHostedGatewayDrawer({
                       fullWidth
                       size="small"
                       value={values.displayName}
-                      onChange={(e) => setField("displayName", e.target.value)}
+                      onChange={(e) => setDisplayName(e.target.value)}
                       placeholder="e.g., Production Gateway"
                       error={Boolean(errors.displayName)}
                       helperText={errors.displayName}
+                      disabled={isPending}
+                    />
+                  </FormControl>
+                  <FormControl fullWidth error={Boolean(errors.name)}>
+                    <FormLabel required>Name</FormLabel>
+                    <TextField
+                      slotProps={{ htmlInput: { maxLength: GATEWAY_NAME_MAX_LENGTH } }}
+                      fullWidth
+                      size="small"
+                      value={values.name}
+                      onChange={(e) => setField("name", e.target.value)}
+                      placeholder="e.g., production-gateway"
+                      error={Boolean(errors.name)}
+                      helperText={
+                        errors.name ??
+                        "The resource name used by the API. Unique in the organization; it can't be changed later."
+                      }
                       disabled={isPending}
                     />
                   </FormControl>
