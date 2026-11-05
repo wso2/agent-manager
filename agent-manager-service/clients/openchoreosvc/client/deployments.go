@@ -500,6 +500,53 @@ func (c *openChoreoClient) EnsureReleaseBindingRuntimeClass(ctx context.Context,
 	})
 }
 
+// secretSyncRevisionKey is the agent-api ComponentType environmentConfigs field that drives the
+// force-sync annotation of the secret-env ExternalSecret.
+const secretSyncRevisionKey = "secretSyncRevision"
+
+// SetReleaseBindingSecretSyncRevision sets secretSyncRevision on the release binding's
+// ComponentTypeEnvironmentConfigs for (component, environment). A changed value makes the
+// ComponentType re-render the secret-env ExternalSecret with a new force-sync annotation, which
+// makes the external-secrets operator re-fetch the secret at once. It deliberately does NOT bump
+// restartedAt: the pod restart is a separate, later write.
+//
+// Returns an error when the binding does not exist, and also when the write was accepted but the
+// field did not survive (an installed ComponentType without the field prunes it), so callers can
+// fall back to waiting out the ExternalSecret refresh interval.
+func (c *openChoreoClient) SetReleaseBindingSecretSyncRevision(ctx context.Context, ouID, componentName, environment, revision string) error {
+	namespaceName := c.NamespaceFor(ouID)
+	binding, err := c.findReleaseBindingForEnv(ctx, namespaceName, componentName, environment)
+	if err != nil {
+		return err
+	}
+	if binding == nil {
+		return fmt.Errorf("no release binding found for component %q in environment %q: %w", componentName, environment, utils.ErrNotFound)
+	}
+	bindingName := binding.Metadata.Name
+
+	if err := c.retryReleaseBindingUpdate(ctx, namespaceName, bindingName, func(rb *gen.ReleaseBinding) {
+		if rb.Spec.ComponentTypeEnvironmentConfigs == nil {
+			overrides := make(map[string]interface{})
+			rb.Spec.ComponentTypeEnvironmentConfigs = &overrides
+		}
+		(*rb.Spec.ComponentTypeEnvironmentConfigs)[secretSyncRevisionKey] = revision
+	}); err != nil {
+		return err
+	}
+
+	getResp, err := c.ocClient.GetReleaseBindingWithResponse(ctx, namespaceName, bindingName)
+	if err != nil {
+		return fmt.Errorf("failed to read back release binding %q: %w", bindingName, err)
+	}
+	if getResp.JSON200 == nil || getResp.JSON200.Spec == nil || getResp.JSON200.Spec.ComponentTypeEnvironmentConfigs == nil {
+		return fmt.Errorf("release binding %q did not keep %s", bindingName, secretSyncRevisionKey)
+	}
+	if got, _ := (*getResp.JSON200.Spec.ComponentTypeEnvironmentConfigs)[secretSyncRevisionKey].(string); got != revision {
+		return fmt.Errorf("release binding %q did not keep %s", bindingName, secretSyncRevisionKey)
+	}
+	return nil
+}
+
 // ReplaceReleaseBindingWorkloadOverrides replaces the container env vars and file mounts on the
 // release binding for the given (component, environment), and sets restartedAt to trigger a
 // pod rollout — all in a single Get→mutate→Update cycle.

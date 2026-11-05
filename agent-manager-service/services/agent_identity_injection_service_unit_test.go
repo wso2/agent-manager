@@ -17,8 +17,11 @@
 package services
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log/slog"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -111,6 +114,9 @@ func injectableOCClient() *clientmocks.OpenChoreoClientMock {
 	return &clientmocks.OpenChoreoClientMock{
 		CreateSecretReferenceFunc: func(context.Context, string, client.CreateSecretReferenceRequest) (*client.SecretReferenceInfo, error) {
 			panic("injection must not create a second SecretReference")
+		},
+		SetReleaseBindingSecretSyncRevisionFunc: func(context.Context, string, string, string, string) error {
+			return nil
 		},
 	}
 }
@@ -642,7 +648,143 @@ func TestAgentIdentityInjection_RefreshAfterRotation_WaitsAndRollsPod(t *testing
 	case <-time.After(2 * time.Second):
 		t.Fatal("rotation must roll the pod (after the wait) so it starts with the refreshed secret value")
 	}
-	assert.Equal(t, secretSyncWaitDuration("1h"), slept, "the roll must wait out the configured refresh cadence before rolling")
+	assert.Equal(t, defaultForceSyncWait, slept, "after a successful force-sync the roll must wait only the short force-sync wait")
+}
+
+// TestAgentIdentityInjection_RefreshAfterRotation_ForceSync guards the
+// rotation contract: the revision write precedes the restart, the wait is the
+// short configured one (not the refresh interval), and the revision differs
+// between rotations.
+func TestAgentIdentityInjection_RefreshAfterRotation_ForceSync(t *testing.T) {
+	repo := identityRepoReturning(completedInternalBinding(), nil)
+
+	var mu sync.Mutex
+	var events []string
+	var revisions []string
+	oc := injectableOCClient()
+	oc.SetReleaseBindingSecretSyncRevisionFunc = func(_ context.Context, ouID, component, env, revision string) error {
+		mu.Lock()
+		defer mu.Unlock()
+		assert.Equal(t, testIdentityOrg, ouID)
+		assert.Equal(t, testIdentityAgent, component)
+		assert.Equal(t, testIdentityEnv, env)
+		assert.NotEmpty(t, revision)
+		events = append(events, "revision")
+		revisions = append(revisions, revision)
+		return nil
+	}
+	rolled := make(chan struct{}, 2)
+	oc.UpdateReleaseBindingEnvVarsFunc = func(context.Context, string, string, string, string, []client.EnvVar) error {
+		mu.Lock()
+		events = append(events, "restart")
+		mu.Unlock()
+		rolled <- struct{}{}
+		return nil
+	}
+
+	svc := NewAgentIdentityInjectionService(repo, noMCPConfigRepo(), noMCPProxyScopeRepo(), oc, "1h", discardLogger(),
+		WithAgentIdentityForceSyncWait("7s"))
+	impl, ok := svc.(*agentIdentityInjectionService)
+	require.True(t, ok)
+	var waitMu sync.Mutex
+	var waits []time.Duration
+	impl.after = func(d time.Duration) <-chan time.Time {
+		waitMu.Lock()
+		waits = append(waits, d)
+		waitMu.Unlock()
+		ch := make(chan time.Time, 1)
+		ch <- time.Now()
+		return ch
+	}
+
+	for i := 0; i < 2; i++ {
+		require.NoError(t, svc.RefreshAfterRotation(context.Background(), testIdentityOrg, testIdentityProject, testIdentityAgent, testIdentityEnv))
+		select {
+		case <-rolled:
+		case <-time.After(2 * time.Second):
+			t.Fatal("rotation must still restart the pod")
+		}
+		time.Sleep(2 * time.Millisecond) // guarantee a distinct UnixNano between rotations
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	assert.Equal(t, []string{"revision", "restart", "revision", "restart"}, events, "the revision write must precede each restart")
+	require.Len(t, revisions, 2)
+	assert.NotEqual(t, revisions[0], revisions[1], "each rotation must write a fresh revision")
+	waitMu.Lock()
+	defer waitMu.Unlock()
+	assert.Equal(t, []time.Duration{7 * time.Second, 7 * time.Second}, waits)
+}
+
+// TestAgentIdentityInjection_RefreshAfterRotation_ForceSyncFails_FallsBack
+// guards compatibility with installs whose ComponentType predates the
+// secretSyncRevision field: warn once, wait the refresh interval, still restart.
+func TestAgentIdentityInjection_RefreshAfterRotation_ForceSyncFails_FallsBack(t *testing.T) {
+	repo := identityRepoReturning(completedInternalBinding(), nil)
+	oc := injectableOCClient()
+	oc.SetReleaseBindingSecretSyncRevisionFunc = func(context.Context, string, string, string, string) error {
+		return errors.New("field not supported secret-value-must-not-matter")
+	}
+	rolled := make(chan struct{})
+	oc.UpdateReleaseBindingEnvVarsFunc = func(context.Context, string, string, string, string, []client.EnvVar) error {
+		close(rolled)
+		return nil
+	}
+
+	logs := &syncBuffer{}
+	logger := slog.New(slog.NewTextHandler(logs, nil))
+	svc := NewAgentIdentityInjectionService(repo, noMCPConfigRepo(), noMCPProxyScopeRepo(), oc, "1h", logger,
+		WithAgentIdentityForceSyncWait("7s"))
+	impl, ok := svc.(*agentIdentityInjectionService)
+	require.True(t, ok)
+	var slept time.Duration
+	impl.after = func(d time.Duration) <-chan time.Time {
+		slept = d
+		ch := make(chan time.Time, 1)
+		ch <- time.Now()
+		return ch
+	}
+
+	require.NoError(t, svc.RefreshAfterRotation(context.Background(), testIdentityOrg, testIdentityProject, testIdentityAgent, testIdentityEnv))
+	select {
+	case <-rolled:
+	case <-time.After(2 * time.Second):
+		t.Fatal("a failed force-sync must not prevent the restart")
+	}
+	assert.Equal(t, time.Hour, slept, "fallback must wait out the refresh interval")
+	assert.Equal(t, 1, strings.Count(logs.String(), "level=WARN"), "exactly one warning expected")
+}
+
+// syncBuffer is a goroutine-safe log sink: the rotation goroutine logs while
+// the test reads.
+type syncBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *syncBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *syncBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
+}
+
+func TestAgentIdentityInjection_RefreshAfterRotation_NoEnvVars_NoForceSync(t *testing.T) {
+	binding := completedInternalBinding()
+	binding.SecretRefPath = ""
+	oc := injectableOCClient()
+	oc.SetReleaseBindingSecretSyncRevisionFunc = func(context.Context, string, string, string, string) error {
+		t.Error("nothing to refresh must not force a sync")
+		return nil
+	}
+	svc := newTestIdentityInjectionService(identityRepoReturning(binding, nil), oc)
+	assert.NoError(t, svc.RefreshAfterRotation(context.Background(), testIdentityOrg, testIdentityProject, testIdentityAgent, testIdentityEnv))
 }
 
 // TestAgentIdentityInjection_RefreshAfterRotation_CoalescesRapidRotations

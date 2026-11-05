@@ -228,6 +228,9 @@ import (
 //			ReplaceReleaseBindingWorkloadOverridesFunc: func(ctx context.Context, ouID string, componentName string, environment string, envOverrides []client.EnvVar, fileOverrides []client.FileVar) error {
 //				panic("mock out the ReplaceReleaseBindingWorkloadOverrides method")
 //			},
+//			SetReleaseBindingSecretSyncRevisionFunc: func(ctx context.Context, ouID string, componentName string, envName string, revision string) error {
+//				panic("mock out the SetReleaseBindingSecretSyncRevision method")
+//			},
 //			TriggerBuildFunc: func(ctx context.Context, ouID string, projectName string, componentName string, commitID string, workflowRunName string, runEnvVars []client.EnvVar) (*models.BuildResponse, error) {
 //				panic("mock out the TriggerBuild method")
 //			},
@@ -483,6 +486,9 @@ type OpenChoreoClientMock struct {
 
 	// ReplaceReleaseBindingWorkloadOverridesFunc mocks the ReplaceReleaseBindingWorkloadOverrides method.
 	ReplaceReleaseBindingWorkloadOverridesFunc func(ctx context.Context, ouID string, componentName string, environment string, envOverrides []client.EnvVar, fileOverrides []client.FileVar) error
+
+	// SetReleaseBindingSecretSyncRevisionFunc mocks the SetReleaseBindingSecretSyncRevision method.
+	SetReleaseBindingSecretSyncRevisionFunc func(ctx context.Context, ouID string, componentName string, envName string, revision string) error
 
 	// TriggerBuildFunc mocks the TriggerBuild method.
 	TriggerBuildFunc func(ctx context.Context, ouID string, projectName string, componentName string, commitID string, workflowRunName string, runEnvVars []client.EnvVar) (*models.BuildResponse, error)
@@ -1275,6 +1281,19 @@ type OpenChoreoClientMock struct {
 			// FileOverrides is the fileOverrides argument value.
 			FileOverrides []client.FileVar
 		}
+		// SetReleaseBindingSecretSyncRevision holds details about calls to the SetReleaseBindingSecretSyncRevision method.
+		SetReleaseBindingSecretSyncRevision []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// OuID is the ouID argument value.
+			OuID string
+			// ComponentName is the componentName argument value.
+			ComponentName string
+			// EnvName is the envName argument value.
+			EnvName string
+			// Revision is the revision argument value.
+			Revision string
+		}
 		// TriggerBuild holds details about calls to the TriggerBuild method.
 		TriggerBuild []struct {
 			// Ctx is the ctx argument value.
@@ -1523,6 +1542,7 @@ type OpenChoreoClientMock struct {
 	lockReplaceComponentFileMounts             sync.RWMutex
 	lockReplaceReleaseBindingEnvVars           sync.RWMutex
 	lockReplaceReleaseBindingWorkloadOverrides sync.RWMutex
+	lockSetReleaseBindingSecretSyncRevision    sync.RWMutex
 	lockTriggerBuild                           sync.RWMutex
 	lockUpdateComponentBasicInfo               sync.RWMutex
 	lockUpdateComponentBuildParameters         sync.RWMutex
@@ -4575,6 +4595,54 @@ func (mock *OpenChoreoClientMock) ReplaceReleaseBindingWorkloadOverridesCalls() 
 	mock.lockReplaceReleaseBindingWorkloadOverrides.RLock()
 	calls = mock.calls.ReplaceReleaseBindingWorkloadOverrides
 	mock.lockReplaceReleaseBindingWorkloadOverrides.RUnlock()
+	return calls
+}
+
+// SetReleaseBindingSecretSyncRevision calls SetReleaseBindingSecretSyncRevisionFunc.
+func (mock *OpenChoreoClientMock) SetReleaseBindingSecretSyncRevision(ctx context.Context, ouID string, componentName string, envName string, revision string) error {
+	if mock.SetReleaseBindingSecretSyncRevisionFunc == nil {
+		panic("OpenChoreoClientMock.SetReleaseBindingSecretSyncRevisionFunc: method is nil but OpenChoreoClient.SetReleaseBindingSecretSyncRevision was just called")
+	}
+	callInfo := struct {
+		Ctx           context.Context
+		OuID          string
+		ComponentName string
+		EnvName       string
+		Revision      string
+	}{
+		Ctx:           ctx,
+		OuID:          ouID,
+		ComponentName: componentName,
+		EnvName:       envName,
+		Revision:      revision,
+	}
+	mock.lockSetReleaseBindingSecretSyncRevision.Lock()
+	mock.calls.SetReleaseBindingSecretSyncRevision = append(mock.calls.SetReleaseBindingSecretSyncRevision, callInfo)
+	mock.lockSetReleaseBindingSecretSyncRevision.Unlock()
+	return mock.SetReleaseBindingSecretSyncRevisionFunc(ctx, ouID, componentName, envName, revision)
+}
+
+// SetReleaseBindingSecretSyncRevisionCalls gets all the calls that were made to SetReleaseBindingSecretSyncRevision.
+// Check the length with:
+//
+//	len(mockedOpenChoreoClient.SetReleaseBindingSecretSyncRevisionCalls())
+func (mock *OpenChoreoClientMock) SetReleaseBindingSecretSyncRevisionCalls() []struct {
+	Ctx           context.Context
+	OuID          string
+	ComponentName string
+	EnvName       string
+	Revision      string
+} {
+	var calls []struct {
+		Ctx           context.Context
+		OuID          string
+		ComponentName string
+		EnvName       string
+		Revision      string
+	}
+	mock.lockSetReleaseBindingSecretSyncRevision.RLock()
+	calls = mock.calls.SetReleaseBindingSecretSyncRevision
+	mock.lockSetReleaseBindingSecretSyncRevision.RUnlock()
 	return calls
 }
 

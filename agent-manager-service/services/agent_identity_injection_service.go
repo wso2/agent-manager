@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -227,7 +228,10 @@ type agentIdentityInjectionService struct {
 	mcpProxyScopeRepo repositories.MCPProxyScopeRepository
 	ocClient          client.OpenChoreoClient
 	refreshInterval   string
-	logger            *slog.Logger
+	// forceSyncWait is the bounded wait after a successful force-sync write,
+	// as a duration string. See RefreshAfterRotation's doc comment.
+	forceSyncWait string
+	logger        *slog.Logger
 	// resolveTokenEndpoint optionally overrides the agent-facing env-Thunder
 	// token URL. nil keeps the standard in-cluster on-premises endpoint.
 	resolveTokenEndpoint func(context.Context, string, string, string) (string, error)
@@ -246,6 +250,16 @@ type agentIdentityInjectionService struct {
 	shutdownCtx   context.Context
 }
 
+// AgentIdentityInjectionOption tunes optional behavior of the service.
+type AgentIdentityInjectionOption func(*agentIdentityInjectionService)
+
+// WithAgentIdentityForceSyncWait sets how long RefreshAfterRotation waits
+// after forcing the workload's ExternalSecret to re-sync, before rolling the
+// pod. Unset or invalid falls back to defaultForceSyncWait.
+func WithAgentIdentityForceSyncWait(wait string) AgentIdentityInjectionOption {
+	return func(s *agentIdentityInjectionService) { s.forceSyncWait = wait }
+}
+
 // NewAgentIdentityInjectionService creates a new AgentIdentityInjectionService.
 // refreshInterval is the data-plane SecretReference's refresh cadence (same
 // value secretmanagersvc uses elsewhere, e.g. "1h").
@@ -256,8 +270,9 @@ func NewAgentIdentityInjectionService(
 	ocClient client.OpenChoreoClient,
 	refreshInterval string,
 	logger *slog.Logger,
+	opts ...AgentIdentityInjectionOption,
 ) AgentIdentityInjectionService {
-	return NewAgentIdentityInjectionServiceWithTokenEndpointResolver(repo, agentConfigRepo, mcpProxyScopeRepo, ocClient, refreshInterval, logger, nil)
+	return NewAgentIdentityInjectionServiceWithTokenEndpointResolver(repo, agentConfigRepo, mcpProxyScopeRepo, ocClient, refreshInterval, logger, nil, opts...)
 }
 
 // NewAgentIdentityInjectionServiceWithTokenEndpointResolver creates the service
@@ -271,8 +286,9 @@ func NewAgentIdentityInjectionServiceWithTokenEndpointResolver(
 	refreshInterval string,
 	logger *slog.Logger,
 	resolveTokenEndpoint func(context.Context, string, string, string) (string, error),
+	opts ...AgentIdentityInjectionOption,
 ) AgentIdentityInjectionService {
-	return &agentIdentityInjectionService{
+	svc := &agentIdentityInjectionService{
 		repo:                 repo,
 		agentConfigRepo:      agentConfigRepo,
 		mcpProxyScopeRepo:    mcpProxyScopeRepo,
@@ -284,6 +300,10 @@ func NewAgentIdentityInjectionServiceWithTokenEndpointResolver(
 		rolloutTokens:        make(map[string]uint64),
 		shutdownCtx:          context.Background(),
 	}
+	for _, opt := range opts {
+		opt(svc)
+	}
+	return svc
 }
 
 // SetShutdownContext implements AgentIdentityShutdownContextSetter.
@@ -302,6 +322,18 @@ func (s *agentIdentityInjectionService) currentShutdownContext() context.Context
 // defaultSecretSyncWait is the fallback wait when refreshInterval is unset or
 // invalid — defensive only, should not normally trigger.
 const defaultSecretSyncWait = 30 * time.Second
+
+// defaultForceSyncWait is the fallback wait after a successful force-sync
+// write when forceSyncWait is unset or invalid.
+const defaultForceSyncWait = 20 * time.Second
+
+func (s *agentIdentityInjectionService) forceSyncWaitDuration() time.Duration {
+	d, err := time.ParseDuration(s.forceSyncWait)
+	if err != nil || d <= 0 {
+		return defaultForceSyncWait
+	}
+	return d
+}
 
 // secretSyncWaitDuration parses refreshInterval — how long the workload's
 // secret-env ExternalSecret takes to pick up a rotated value — into the wait
@@ -595,6 +627,17 @@ func identityEnvVarsInSync(desired []client.EnvVar, current []models.EnvVars) bo
 // catches up and keeps the stale, already-invalidated secret for its whole
 // lifetime (secretKeyRef env vars resolve once at container start, never
 // hot-reload). So refreshInterval must cover that ExternalSecret's interval.
+//
+// Rotation does not depend on that interval. Before waiting, a best-effort
+// write sets secretSyncRevision on the environment's ReleaseBinding, which the
+// agent-api ComponentType renders into a force-sync annotation on the
+// ExternalSecret so ESO re-fetches at once; the wait then shrinks to
+// forceSyncWait. Waiting for the Kubernetes Secret to actually hold the new
+// value is not possible from this service (no read access to data plane
+// Secrets), so that wait is bounded and configurable. If the write fails for
+// any reason (e.g. the installed ComponentType predates the field), a warning
+// is logged and the behavior above applies unchanged: wait refreshInterval,
+// then roll. The force-sync write and the roll are separate writes.
 // The roll itself runs detached so a manual regenerate call never blocks on
 // the wait; a roll failure is only logged, not returned. The wait, and the
 // roll itself once started, both stop early if the app starts shutting down
@@ -620,9 +663,14 @@ func (s *agentIdentityInjectionService) RefreshAfterRotation(ctx context.Context
 	myToken := s.rolloutTokens[key]
 	s.rolloutTokensMu.Unlock()
 
-	wait := secretSyncWaitDuration(s.refreshInterval)
 	shutdownCtx := s.currentShutdownContext()
 	go func() {
+		wait := secretSyncWaitDuration(s.refreshInterval)
+		if err := s.forceSecretSync(ctx, shutdownCtx, ouID, agentName, envName); err != nil {
+			s.logger.Warn("Could not force the agent identity ExternalSecret to re-sync; falling back to waiting out the refresh interval", "agentName", agentName, "envName", envName, "error", err)
+		} else {
+			wait = s.forceSyncWaitDuration()
+		}
 		select {
 		case <-s.after(wait):
 		case <-shutdownCtx.Done():
@@ -666,6 +714,19 @@ func (s *agentIdentityInjectionService) RefreshAfterRotation(ctx context.Context
 		s.logger.Info("Refreshed agent identity credentials in workload after rotation", "agentName", agentName, "envName", envName)
 	}()
 	return nil
+}
+
+// forceSecretSync sets a fresh secretSyncRevision on the binding, run inside
+// the detached goroutine so a manual regenerate call never blocks on it.
+func (s *agentIdentityInjectionService) forceSecretSync(ctx, shutdownCtx context.Context, ouID, agentName, envName string) error {
+	syncCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), releaseBindingUpdateRetries*releaseBindingUpdateRetryDelay+30*time.Second)
+	defer cancel()
+	stop := context.AfterFunc(shutdownCtx, cancel)
+	defer stop()
+	revision := strconv.FormatInt(time.Now().UnixNano(), 10)
+	return withReleaseBindingRetry(syncCtx, func() error {
+		return s.ocClient.SetReleaseBindingSecretSyncRevision(syncCtx, ouID, agentName, envName, revision)
+	})
 }
 
 func (s *agentIdentityInjectionService) RemoveForEnvironment(ctx context.Context, ouID, projectName, agentName, envName string, includeWorkloadLevel bool) error {

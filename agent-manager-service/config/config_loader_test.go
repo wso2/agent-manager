@@ -561,7 +561,7 @@ func TestValidateSecretManagerConfig(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			cfg := &Config{SecretManager: SecretManagerConfig{AgentIdentityRefreshInterval: tc.interval}}
+			cfg := &Config{SecretManager: SecretManagerConfig{AgentIdentityRefreshInterval: tc.interval, AgentIdentityForceSyncWait: "20s"}}
 			r := &configReader{}
 			validateSecretManagerConfig(cfg, r)
 
@@ -1184,4 +1184,46 @@ func TestRequirePositiveReportsEachNonPositiveField(t *testing.T) {
 			t.Errorf("error %d = %q, want %q", i, r.errors[i], msg)
 		}
 	}
+}
+
+func TestValidateSecretManagerConfig_ForceSyncWait(t *testing.T) {
+	for _, tc := range []struct {
+		wait    string
+		wantErr bool
+	}{{"20s", false}, {"1m", false}, {"bad", true}, {"0s", true}, {"-1s", true}} {
+		cfg := &Config{SecretManager: SecretManagerConfig{AgentIdentityRefreshInterval: "15s", AgentIdentityForceSyncWait: tc.wait}}
+		r := &configReader{}
+		validateSecretManagerConfig(cfg, r)
+		if (len(r.errors) > 0) != tc.wantErr {
+			t.Errorf("wait %q: wantErr=%v got %v", tc.wait, tc.wantErr, r.errors)
+		}
+	}
+}
+
+func TestLoadEnvs_AgentIdentityForceSyncWait(t *testing.T) {
+	for k, v := range map[string]string{
+		"OPEN_CHOREO_BASE_URL": "http://localhost/api/v1",
+		"DB_HOST":              "localhost",
+		"DB_USER":              "unit",
+		"DB_PASSWORD":          "unit",
+		"DB_NAME":              "unit",
+	} {
+		t.Setenv(k, v)
+	}
+
+	t.Run("defaults to 20s", func(t *testing.T) {
+		t.Setenv("AGENT_IDENTITY_FORCE_SYNC_WAIT", "")
+		loadEnvs()
+		if got := config.SecretManager.AgentIdentityForceSyncWait; got != "20s" {
+			t.Errorf("AgentIdentityForceSyncWait = %q, want 20s", got)
+		}
+	})
+
+	t.Run("override is honored", func(t *testing.T) {
+		t.Setenv("AGENT_IDENTITY_FORCE_SYNC_WAIT", "45s")
+		loadEnvs()
+		if got := config.SecretManager.AgentIdentityForceSyncWait; got != "45s" {
+			t.Errorf("AgentIdentityForceSyncWait = %q, want 45s", got)
+		}
+	})
 }
