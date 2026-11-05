@@ -65,6 +65,7 @@ type removeLLMProviderGuardrailInput struct {
 }
 type listLLMGuardrailsInput struct {
 	ProviderID string `json:"provider_id,omitempty"`
+	Name       string `json:"name,omitempty"`
 }
 type guardrailInput struct {
 	Name    string         `json:"name"`
@@ -222,11 +223,13 @@ func (t *Toolsets) registerLLMProviderTools(server *gomcp.Server, reg *toolRegis
 
 	addTool(reg, server, &gomcp.Tool{
 		Name: "list_llm_guardrails",
-		Description: "List the guardrail policies the organization's gateways can enforce on LLM traffic, such as PII masking, content-length or word-count checks, " +
-			"with each policy's parameter schema. Use the results as `guardrails` in create_llm_provider (applies to every agent using the provider) " +
-			"or attach_llm_provider_to_agent (applies to one agent).",
+		Description: "List the guardrails the organization's gateways can enforce on LLM traffic, such as PII masking, word-count or content-length checks. " +
+			"Without `name` it returns each guardrail's name, version and description. " +
+			"Call it again with `name` to get that guardrail's parameter schema, which says what `params` it takes. " +
+			"Use the results as `guardrails` in create_llm_provider, add_llm_provider_guardrails or attach_llm_provider_to_agent.",
 		InputSchema: createSchema(map[string]any{
 			"provider_id": stringProperty("Optional. LLM provider id; limits the result to guardrails on the gateways that provider is deployed to."),
+			"name":        stringProperty("Optional. A guardrail name from an earlier call; returns only that guardrail, with its parameter schema."),
 		}, nil),
 	}, audit.ActionLLMProviderRead, listLLMGuardrails(t.LLMProviderToolset), rbac.LLMProviderRead)
 
@@ -482,20 +485,69 @@ func listLLMGuardrails(handler LLMProviderToolsetHandler) func(context.Context, 
 		if err != nil {
 			return nil, nil, wrapToolError("list_llm_guardrails", err)
 		}
-		items := []guardrailItem{}
+		var policies []models.LLMPolicyDefinition
 		if resp != nil {
-			for _, p := range resp.List {
-				items = append(items, guardrailItem{
-					Name:        p.Name,
-					Version:     p.Version,
-					DisplayName: p.DisplayName,
-					Description: p.Description,
-					Parameters:  p.Parameters,
-				})
+			policies = resp.List
+		}
+
+		// One guardrail with its schema. The full list with every schema runs to
+		// well over 100 KB, past what MCP clients pass to the model, so schemas
+		// are only returned one at a time.
+		if name := strings.TrimSpace(input.Name); name != "" {
+			for _, p := range policies {
+				if p.Name == name && !nonGuardrailPolicies[p.Name] {
+					item := guardrailItem{Name: p.Name, Version: p.Version, DisplayName: p.DisplayName, Description: p.Description, Parameters: p.Parameters}
+					return handleToolResult(listLLMGuardrailsOutput{Total: 1, Guardrails: []guardrailItem{item}}, nil)
+				}
 			}
+			return nil, nil, fmt.Errorf("list_llm_guardrails: no guardrail named %q. Call list_llm_guardrails without name to see valid guardrails", name)
+		}
+
+		items := []guardrailItem{}
+		for _, p := range policies {
+			if nonGuardrailPolicies[p.Name] {
+				continue
+			}
+			items = append(items, guardrailItem{Name: p.Name, Version: p.Version, DisplayName: p.DisplayName, Description: p.Description})
 		}
 		return handleToolResult(listLLMGuardrailsOutput{Total: len(items), Guardrails: items}, nil)
 	}
+}
+
+// nonGuardrailPolicies are gateway policies that are not LLM guardrails: auth,
+// CORS, rate limiting (managed separately), MCP-only and mediation policies.
+// The gateways report them alongside the guardrails, and the console hides them
+// from its guardrail picker with this same list; keep the two in step:
+// console/workspaces/libs/api-client/src/hooks/guardrails.ts,
+// NON_GUARDRAIL_POLICY_EXCLUDELIST.
+var nonGuardrailPolicies = map[string]bool{
+	"api-key-auth":             true,
+	"basic-auth":               true,
+	"jwt-auth":                 true,
+	"cors":                     true,
+	"advanced-ratelimit":       true,
+	"basic-ratelimit":          true,
+	"token-based-ratelimit":    true,
+	"llm-cost-based-ratelimit": true,
+	"llm-cost":                 true,
+	"mcp-acl-list":             true,
+	"mcp-auth":                 true,
+	"mcp-authz":                true,
+	"mcp-rewrite":              true,
+	"mcp-ratelimit":            true,
+	"respond":                  true,
+	"redirect":                 true,
+	"semantic-tool-filtering":  true,
+	"analytics-header-filter":  true,
+	"backend-jwt":              true,
+	"dynamic-endpoint":         true,
+	"host-rewrite":             true,
+	"json-xml-mediator":        true,
+	"log-message":              true,
+	"remove-headers":           true,
+	"request-rewrite":          true,
+	"set-headers":              true,
+	"subscription-validation":  true,
 }
 
 func createLLMProvider(handler LLMProviderToolsetHandler) func(context.Context, *gomcp.CallToolRequest, createLLMProviderInput) (*gomcp.CallToolResult, any, error) {

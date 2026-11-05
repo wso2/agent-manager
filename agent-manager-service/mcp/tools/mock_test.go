@@ -202,8 +202,10 @@ func (m *MockToolsetHandler) ListLLMGuardrails(
 	ctx context.Context, ouID string, providerID string,
 ) (*models.LLMPolicyAvailabilityResponse, error) {
 	m.recordCall("ListLLMGuardrails", ouID, providerID)
-	return &models.LLMPolicyAvailabilityResponse{Count: 1, List: []models.LLMPolicyDefinition{
-		{Name: testGuardrailName, Version: "v1"},
+	schema := map[string]interface{}{"type": "object", "properties": map[string]interface{}{"mask": map[string]interface{}{"type": "boolean"}}}
+	return &models.LLMPolicyAvailabilityResponse{Count: 2, List: []models.LLMPolicyDefinition{
+		{Name: testGuardrailName, Version: "v1", Parameters: schema},
+		{Name: "cors", Version: "v1", Parameters: schema},
 	}}, nil
 }
 
