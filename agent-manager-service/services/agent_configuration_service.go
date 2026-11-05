@@ -4678,7 +4678,7 @@ func (s *agentConfigurationService) requireProviderPlacements(
 		}
 		if err := policy.requireProvider(ctx, s.llmProxyDeploymentService, s.gatewayRepo,
 			ouID, provider.UUID, envUUID); err != nil {
-			return fmt.Errorf("environment %s: %w", envName, err)
+			return fmt.Errorf("LLM provider %q in environment %s: %w", requested[envName].ProviderName, envName, err)
 		}
 	}
 	return nil
