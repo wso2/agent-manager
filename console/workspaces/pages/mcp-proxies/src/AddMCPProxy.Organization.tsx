@@ -27,7 +27,7 @@ export const AddMCPProxyOrganization = () => {
     <PageLayout
       title="Register MCP Server"
       backHref={backHref}
-      backLabel="Back to MCP Server list"
+      backLabel="Back to MCP server list"
       disableIcon
     >
       <AddMCPProxyForm onCancel={() => navigate(backHref)} />

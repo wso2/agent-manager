@@ -408,6 +408,9 @@ func TestGetTraceOverviews_IncludeQueryParam(t *testing.T) {
 		{name: "spans is rejected", query: "&include=spans", wantStatus: http.StatusBadRequest},
 		{name: "Models is rejected", query: "&include=Models", wantStatus: http.StatusBadRequest},
 		{name: "one bad item rejects the list", query: "&include=models,spans", wantStatus: http.StatusBadRequest},
+		{name: "all three values are accepted", query: "&include=models,tools,mcpServers", wantModels: true, wantStatus: http.StatusOK},
+		{name: "duplicates beyond three items are accepted", query: "&include=models,tools,mcpServers,models", wantModels: true, wantStatus: http.StatusOK},
+		{name: "duplicates across repeated parameters are accepted", query: "&include=models,tools&include=models,tools", wantModels: true, wantStatus: http.StatusOK},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -755,4 +758,20 @@ func TestGetMetrics_MethodNotAllowed(t *testing.T) {
 	rec := httptest.NewRecorder()
 	h.GetMetrics(rec, r)
 	assertStatus(t, rec, http.StatusMethodNotAllowed)
+}
+
+func TestParseMissingRepeatedValues(t *testing.T) {
+	for _, raw := range [][]string{
+		{"conversationId,conversationId"},
+		{"conversationId", "conversationId"},
+		{" conversationId, ", "conversationId"},
+	} {
+		got, err := parseMissing(raw)
+		if err != nil || !got.ConversationID {
+			t.Errorf("parseMissing(%q) = %+v, %v; want conversationId without error", raw, got, err)
+		}
+	}
+	if _, err := parseMissing([]string{"conversationId,conversationId,unknown"}); err == nil {
+		t.Error("unknown fields must still be rejected after duplicates")
+	}
 }

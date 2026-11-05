@@ -11,21 +11,20 @@ execution can be delayed.
 | NuGet | .NET agent project package references |
 | Docker | .NET agent and Insurance Support agent/MCP server Dockerfiles, including `Dockerfile.ecs` |
 
-Version updates are grouped by sample and ecosystem, including major, minor,
-and patch versions. Related libraries can therefore update together rather than
-leaving major upgrades in individual PRs. Hotel Booking's two Python directories
-share a group; Insurance Support's agent and MCP server share a Python group
-and a separate Docker group. Its web dependencies have their own npm group.
-Updates for different samples are kept separate.
+All sample version updates share the `sample-dependencies` multi-ecosystem
+group. Python, npm, NuGet, and Docker updates across all covered directories
+are proposed together in one PR, including major, minor, and patch versions.
+There are no separate version-update groups or unmatched dependency patterns.
 
-Security fixes have separate groups for each sample and ecosystem with no
-version-level restriction. Docker receives version updates only; Dependabot
-does not support Docker security-update PRs or scan container contents.
+Security updates are handled separately by GitHub, with wildcard security groups
+for Python, npm, and NuGet. They can create additional PRs independently of the
+weekly version-update group. This configuration does not impose a global
+one-PR limit on automatic security updates. Docker receives version updates only;
+Dependabot does not support Docker security-update PRs or scan container contents.
 
 Grouping does not guarantee a compatible dependency set or perform code and
-configuration migrations. Major upgrades still need review and passing smoke
-tests. There is no repository-wide limit of one or two PRs: different samples,
-ecosystems, and security updates can produce separate PRs.
+configuration migrations. A failing sample check can block the combined PR;
+review release notes and run all applicable smoke tests before merging.
 
 ## Enable after merging
 
@@ -52,36 +51,22 @@ View update jobs under **Insights → Dependency graph → Dependabot**, and
 outstanding vulnerabilities under **Security → Dependabot alerts**. The initial
 check may raise PRs for dependencies that are already outdated.
 
-## Google Chat summary
+## Google Chat notifications
 
-`.github/workflows/dependabot-pr-summary.yaml` sends one weekly digest on Monday
-at 09:00 Sri Lanka time (`Asia/Colombo`, UTC+05:30), the day after Sunday's
-Dependabot version-update schedule. Its UTC cron is `30 3 * * 1`.
-It uses the existing `GCHAT_PR_WEBHOOK_URL`; no separate bot webhook is needed.
-Individual Dependabot PR notifications are suppressed in `wso2/agent-manager`.
-Forks keep individual notifications because the digest runs only upstream.
-Other authors keep their immediate notifications.
+The existing `.github/workflows/pr-open-notify.yaml` announces ready PRs,
+including Dependabot PRs, immediately to the existing `GCHAT_PR_WEBHOOK_URL`.
+The combined sample dependency PR uses the same message with its linked number,
+title, author, and base branch. Opening or reopening a ready PR sends a notice;
+a draft is announced when marked ready for review.
 
-The digest lists all open, non-draft Dependabot PRs with linked numbers, titles,
-and aggregate check results from both the head and available PR merge commit.
-A mixture of successful and skipped/neutral checks is shown as `passed`;
-`skipped / neutral` means all reported checks were skipped or neutral with no
-commit statuses. Failed, cancelled, and pending checks affect the aggregate.
-It does not wait for CI to finish. If there are no eligible PRs, it sends a short "no open PRs" summary. Open PRs appear again in
-subsequent weekly digests until closed or merged. New PRs and results after the
-snapshot appear in the next digest; security updates can arrive outside Sunday's
-schedule and their GitHub alerts remain available immediately.
+There is no weekly digest workflow, scheduled Chat report, or separate bot
+webhook. Notification delivery requires the existing repository secret. Because
+`pull_request_target` uses the base branch workflow, the restored notification
+behavior takes effect after this change is merged.
 
-There is no polling, batch timer, or stored notification state. **Run workflow**
-on the default branch sends an additional on-demand digest; manually rerunning a
-successful run also sends another message. Failed GitHub reads or Chat delivery
-fail the workflow. The report describes observed checks, not branch-protection
-approval or mergeability.
-
-The workflow runs only in `wso2/agent-manager` on the default branch, using its
-existing GitHub token with read permissions and the existing Chat webhook secret.
-It never checks out PR code. GitHub can delay scheduled runs, so 09:00 is the
-scheduled time rather than a guaranteed delivery time.
+Existing per-sample Dependabot PRs are not closed or merged by this change.
+After merging, check the Dependabot update job and retire superseded PRs once
+the new combined PR is available.
 
 ## Coverage limits and upkeep
 
@@ -101,7 +86,7 @@ scheduled time rather than a guaranteed delivery time.
   monitoring of every installed transitive dependency. Continue Mend and
   installed-dependency/container scans. Some fixes require upgrading a parent
   package or changing a manifest.
-- Add new sample manifest directories to the corresponding sample/ecosystem entry in
+- Add new sample manifest directories to the corresponding ecosystem entry in
   `.github/dependabot.yml`.
 
 References: [configuration options](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference),

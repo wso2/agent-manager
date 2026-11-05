@@ -18,13 +18,15 @@
 
 import React, { useState } from "react";
 import { render, screen, fireEvent, within } from "@testing-library/react";
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { ThemeProvider, createTheme } from "@wso2/oxygen-ui";
-import type {
-  Environment,
-  GatewayDeploymentStatus,
-  GatewayResponse,
-  GatewayType,
+import {
+  globalConfig,
+  type Environment,
+  type GatewayDeploymentStatus,
+  type GatewayHosting,
+  type GatewayResponse,
+  type GatewayType,
 } from "@agent-management-platform/types";
 // Only EnvironmentGatewaySelectorView is under test, but importing the module
 // drags in api-client, whose auth dependency crashes at import time outside a
@@ -53,12 +55,14 @@ const makeGateway = (
   uuid: string,
   envId: string,
   gatewayType: GatewayType = "EGRESS",
+  hosting: GatewayHosting = "MANAGED",
 ): GatewayResponse => ({
   uuid,
   organizationName: "org",
   name: uuid,
   displayName: `Gateway ${uuid}`,
   gatewayType,
+  hosting,
   vhost: "example.com",
   isCritical: false,
   status: "ACTIVE",
@@ -205,6 +209,17 @@ describe("EnvironmentGatewaySelectorView", () => {
     chooseOption("Egress gateway for Alpha", "Gateway gw-2");
     expect(onChangeSpy).toHaveBeenLastCalledWith(["gw-2"]);
     expect(onValidityChange).toHaveBeenLastCalledWith(true);
+  });
+
+  it("labels the row as an environment and counts its gateways before it is checked", () => {
+    renderWithTheme(
+      <ControlledSelector
+        environments={[makeEnvironment("env-a", "default")]}
+        gateways={[makeGateway("gw-1", "env-a"), makeGateway("gw-2", "env-a", "EGRESS", "SELF_HOSTED")]}
+      />,
+    );
+    expect(screen.getByText("Environment:", { exact: false })).toBeInTheDocument();
+    expect(screen.getByText("2 gateways available")).toBeInTheDocument();
   });
 
   it("does not block validity while a 2-candidate row is unchecked and unresolved", () => {
@@ -631,4 +646,196 @@ describe("EnvironmentGatewaySelectorView placement invariant", () => {
       expect(emissions.length).toBeGreaterThan(0);
     },
   );
+});
+
+describe("EnvironmentGatewaySelectorView hosting", () => {
+  const environments = [makeEnvironment("env-a", "Alpha"), makeEnvironment("env-b", "Beta")];
+
+  afterEach(() => {
+    delete globalConfig.featureFlags?.enableSelfHostedGateways;
+  });
+
+  it("preselects the managed gateway when a self-hosted one is also mapped", () => {
+    const onChangeSpy = vi.fn();
+    renderWithTheme(
+      <ControlledSelector
+        environments={environments}
+        gateways={[
+          makeGateway("managed", "env-a", "BOTH", "MANAGED"),
+          makeGateway("own", "env-a", "EGRESS", "SELF_HOSTED"),
+        ]}
+        onChangeSpy={onChangeSpy}
+      />,
+    );
+    fireEvent.click(getCheckbox("Alpha"));
+    expect(onChangeSpy).toHaveBeenLastCalledWith(["managed"]);
+    expect(screen.queryByText("Select an egress gateway for this environment.")).toBeNull();
+    expect(
+      screen.getByRole("combobox", { name: "Egress gateway for Alpha", hidden: true }),
+    ).toHaveTextContent("Gateway managed");
+  });
+
+  it("still lets the user pick the self-hosted gateway", () => {
+    const onChangeSpy = vi.fn();
+    renderWithTheme(
+      <ControlledSelector
+        environments={environments}
+        gateways={[
+          makeGateway("managed", "env-a", "BOTH", "MANAGED"),
+          makeGateway("own", "env-a", "EGRESS", "SELF_HOSTED"),
+        ]}
+        onChangeSpy={onChangeSpy}
+      />,
+    );
+    fireEvent.click(getCheckbox("Alpha"));
+    chooseOption("Egress gateway for Alpha", "Gateway own Self-hosted");
+    expect(onChangeSpy).toHaveBeenLastCalledWith(["own"]);
+  });
+
+  it("never commits a lone self-hosted gateway on the user's behalf", () => {
+    const onChangeSpy = vi.fn();
+    const onSingleChoiceChange = vi.fn();
+    renderWithTheme(
+      <ControlledSelector
+        environments={[makeEnvironment("env-a", "Alpha")]}
+        gateways={[makeGateway("own", "env-a", "EGRESS", "SELF_HOSTED")]}
+        onChangeSpy={onChangeSpy}
+        onSingleChoiceChange={onSingleChoiceChange}
+      />,
+    );
+    expect(onChangeSpy).not.toHaveBeenCalled();
+    expect(onSingleChoiceChange).not.toHaveBeenCalledWith(true);
+    expect(getCheckbox("Alpha")).not.toBeChecked();
+
+    fireEvent.click(getCheckbox("Alpha"));
+    expect(onChangeSpy).toHaveBeenLastCalledWith(["own"]);
+  });
+
+  it("does not default a lone self-hosted gateway in one of several environments", () => {
+    const onChangeSpy = vi.fn();
+    renderWithTheme(
+      <ControlledSelector
+        environments={environments}
+        gateways={[
+          makeGateway("own", "env-a", "EGRESS", "SELF_HOSTED"),
+          makeGateway("managed", "env-b", "BOTH", "MANAGED"),
+        ]}
+        onChangeSpy={onChangeSpy}
+      />,
+    );
+    expect(onChangeSpy).not.toHaveBeenCalled();
+    fireEvent.click(getCheckbox("Alpha"));
+    expect(onChangeSpy).toHaveBeenLastCalledWith(["own"]);
+  });
+
+  it("two managed gateways still require a choice", () => {
+    const onValidityChange = vi.fn();
+    renderWithTheme(
+      <ControlledSelector
+        environments={environments}
+        gateways={[
+          makeGateway("m1", "env-a", "EGRESS", "MANAGED"),
+          makeGateway("m2", "env-a", "EGRESS", "MANAGED"),
+        ]}
+        onValidityChange={onValidityChange}
+      />,
+    );
+    fireEvent.click(getCheckbox("Alpha"));
+    expect(screen.getByText("Select an egress gateway for this environment.")).toBeTruthy();
+    expect(onValidityChange).toHaveBeenLastCalledWith(false);
+  });
+
+  it("shows a hosting chip per option when self-hosted gateways are enabled", () => {
+    globalConfig.featureFlags = { ...globalConfig.featureFlags, enableSelfHostedGateways: true };
+    renderWithTheme(
+      <ControlledSelector
+        environments={environments}
+        gateways={[
+          makeGateway("managed", "env-a", "BOTH", "MANAGED"),
+          makeGateway("own", "env-a", "EGRESS", "SELF_HOSTED"),
+        ]}
+      />,
+    );
+    fireEvent.click(getCheckbox("Alpha"));
+    fireEvent.mouseDown(
+      screen.getByRole("combobox", { name: "Egress gateway for Alpha", hidden: true }),
+    );
+    const listbox = screen.getAllByRole("listbox", { hidden: true }).at(-1)!;
+    const options = within(listbox).getAllByRole("option", { hidden: true });
+    expect(options[0]).toHaveTextContent("Gateway managedManaged");
+    expect(options[1]).toHaveTextContent("Gateway ownSelf-hosted");
+  });
+
+  it("shows the hosting chip on a deployed row with several candidates", () => {
+    globalConfig.featureFlags = { ...globalConfig.featureFlags, enableSelfHostedGateways: true };
+    renderWithTheme(
+      <ControlledSelector
+        environments={environments}
+        gateways={[
+          makeGateway("managed", "env-a", "BOTH", "MANAGED"),
+          makeGateway("own", "env-a", "EGRESS", "SELF_HOSTED"),
+        ]}
+        initialValue={["own"]}
+        lockedGatewayIds={["own"]}
+      />,
+    );
+    expect(screen.getByText("Deployed")).toBeTruthy();
+    expect(screen.getByText("Self-hosted")).toBeTruthy();
+  });
+
+  it("shows an existing self-hosted gateway's chip when self-hosted gateways are disabled", () => {
+    globalConfig.featureFlags = { ...globalConfig.featureFlags, enableSelfHostedGateways: false };
+    renderWithTheme(
+      <ControlledSelector
+        environments={environments}
+        gateways={[
+          makeGateway("managed", "env-a", "BOTH", "MANAGED"),
+          makeGateway("own", "env-a", "EGRESS", "SELF_HOSTED"),
+        ]}
+      />,
+    );
+    fireEvent.click(getCheckbox("Alpha"));
+    fireEvent.mouseDown(
+      screen.getByRole("combobox", { name: "Egress gateway for Alpha", hidden: true }),
+    );
+    const listboxes = screen.getAllByRole("listbox", { hidden: true });
+    const listbox = listboxes[listboxes.length - 1];
+    const options = within(listbox).getAllByRole("option", { hidden: true });
+    expect(options[1]).toHaveTextContent("Gateway ownSelf-hosted");
+  });
+
+  it("shows the hosting chip on a deployed self-hosted row when self-hosted gateways are disabled", () => {
+    globalConfig.featureFlags = { ...globalConfig.featureFlags, enableSelfHostedGateways: false };
+    renderWithTheme(
+      <ControlledSelector
+        environments={environments}
+        gateways={[
+          makeGateway("managed", "env-a", "BOTH", "MANAGED"),
+          makeGateway("own", "env-a", "EGRESS", "SELF_HOSTED"),
+        ]}
+        initialValue={["own"]}
+        lockedGatewayIds={["own"]}
+      />,
+    );
+    expect(screen.getByText("Deployed")).toBeTruthy();
+    expect(screen.getByText("Self-hosted")).toBeTruthy();
+  });
+
+  it("shows no hosting chip with only managed gateways when self-hosted gateways are disabled", () => {
+    globalConfig.featureFlags = { ...globalConfig.featureFlags, enableSelfHostedGateways: false };
+    renderWithTheme(
+      <ControlledSelector
+        environments={environments}
+        gateways={[
+          makeGateway("m1", "env-a", "BOTH", "MANAGED"),
+          makeGateway("m2", "env-a", "EGRESS", "MANAGED"),
+        ]}
+        initialValue={["m1"]}
+        lockedGatewayIds={["m1"]}
+      />,
+    );
+    expect(screen.getByText("Deployed")).toBeTruthy();
+    expect(screen.queryByText("Managed")).toBeNull();
+    expect(screen.queryByText("Self-hosted")).toBeNull();
+  });
 });

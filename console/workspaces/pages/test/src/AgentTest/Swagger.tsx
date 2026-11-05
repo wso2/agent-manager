@@ -25,8 +25,11 @@ import {
   useListAgentDeployments,
   useTestAgentAPIKey,
 } from "@agent-management-platform/api-client";
+import { StateNotice } from "@agent-management-platform/views";
 import { getErrorMessage } from "@agent-management-platform/shared-component";
 import { Alert, Box, Button, Skeleton, Typography } from "@wso2/oxygen-ui";
+import { FileQuestion, FileX, KeyRound, RefreshCw, ServerCrash } from "@wso2/oxygen-ui-icons-react";
+
 import { useParams } from "react-router-dom";
 import { useMemo, useState, lazy, Suspense } from "react";
 
@@ -239,15 +242,35 @@ export function Swagger() {
     return <Skeleton variant="rounded" height={500} />;
   }
 
+  const reloadAction = (
+    <Button variant="outlined" startIcon={<RefreshCw size={16} />} onClick={() => window.location.reload()}>
+      Reload page
+    </Button>
+  );
+
   if (error) {
-    return <Alert severity="error">{getErrorMessage(error)}</Alert>;
+    return (
+      <StateNotice
+        icon={ServerCrash}
+        tone="error"
+        title="Couldn't load this agent's endpoints"
+        description={getErrorMessage(error)}
+        actions={reloadAction}
+      />
+    );
   }
 
   if (securityEnabled && isTestKeyError) {
     return (
-      <Alert severity="error">
-        Failed to fetch test API key{testKeyError instanceof Error ? `: ${testKeyError.message}` : ""}.
-      </Alert>
+      <StateNotice
+        icon={KeyRound}
+        tone="error"
+        title="Couldn't get a test API key"
+        description={`Requests from this page need a test key, and fetching one failed${
+          testKeyError instanceof Error ? `: ${testKeyError.message}` : ""
+        }.`}
+        actions={reloadAction}
+      />
     );
   }
 
@@ -257,18 +280,24 @@ export function Swagger() {
   // irrelevant then.
   if (!specContent && specLookupError) {
     return (
-      <Alert severity="error">
-        Could not load the API schema for this agent:{" "}
-        {getErrorMessage(specLookupError)}
-      </Alert>
+      <StateNotice
+        icon={FileX}
+        tone="error"
+        title="Couldn't load the API schema"
+        description={getErrorMessage(specLookupError)}
+        actions={reloadAction}
+      />
     );
   }
 
   if (!specContent) {
     return (
-      <Alert severity="warning">
-        No API schema available for this endpoint.
-      </Alert>
+      <StateNotice
+        icon={FileQuestion}
+        tone="warning"
+        title="No API schema to show"
+        description="This agent hasn't published an OpenAPI schema for this endpoint, so there is nothing to try out here."
+      />
     );
   }
 

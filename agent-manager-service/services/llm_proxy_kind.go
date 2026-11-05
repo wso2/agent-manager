@@ -204,6 +204,10 @@ func (k *LLMProxyKind) PlacedOn(ctx context.Context, tx *gorm.DB, env, gateway u
 			WHERE `+monitors, append(agentArgs, monitorArgs...))
 }
 
+// placementPassPolicy is the policy the placement pass applies to every unplaced LLM proxy, whoever its consumer:
+// an external agent's self-hosted placement is chosen when its binding is saved, never here.
+var placementPassPolicy = platformAgentPolicy
+
 // Targets is the environment's egress gateway, anchored on where the proxy, or else its provider, is placed, so
 // a proxy lands next to its provider.
 func (k *LLMProxyKind) Targets(ctx context.Context, record reconcile.Record) (uuid.UUID, bool, error) {
@@ -212,23 +216,35 @@ func (k *LLMProxyKind) Targets(ctx context.Context, record reconcile.Record) (uu
 		return uuid.Nil, false, err
 	}
 	deployments, gateways := placementReposIn(ctx, k.deploymentRepo, k.gatewayRepo)
-	anchors, err := deployments.PlacedGateways(ctx, record.OUID, record.ArtifactUUID)
+	placed, err := deployments.PlacedGateways(ctx, record.OUID, record.ArtifactUUID)
 	if err != nil {
 		return uuid.Nil, false, err
 	}
-	if providerUUID, err := uuid.Parse(proxy.Configuration.Provider); err == nil {
+	anchor, err := placedAnchor(gateways, record.EnvironmentUUID, placed, anyHosting)
+	if err != nil {
+		return uuid.Nil, false, err
+	}
+	if providerUUID, parseErr := uuid.Parse(proxy.Configuration.Provider); anchor == nil && parseErr == nil {
 		providerGateways, err := deployments.PlacedGateways(ctx, record.OUID, providerUUID)
 		if err != nil {
 			return uuid.Nil, false, err
 		}
-		anchors = append(anchors, providerGateways...)
+		if anchor, err = placementPassPolicy.providerAnchor(gateways, record.EnvironmentUUID, providerGateways); err != nil {
+			return uuid.Nil, false, err
+		}
 	}
-	gateway, err := resolveEgressGatewayForArtifact(gateways, record.OUID, record.EnvironmentUUID, anchors, nil)
+	gateway, err := resolveEgressGatewayFromAnchor(gateways, record.OUID, record.EnvironmentUUID, anchor, nil)
 	if errors.Is(err, errNoGatewayForEnvironment) || errors.Is(err, errNoEgressGatewayForEnvironment) {
 		return uuid.Nil, false, nil
 	}
 	if err != nil {
 		return uuid.Nil, false, err
+	}
+	// Only placement-pass records from UnplacedRecords (agent and monitor mappings) reach here: the public deploy
+	// paths always name their gateway. An external agent's self-hosted placement is chosen when its binding is saved
+	// (placementPolicy.providerGateway), so a self-hosted result here is refused and retried on every pass.
+	if placementPassPolicy.consumerRefuses(gateway) {
+		return uuid.Nil, false, errSelfHostedAnchor
 	}
 	return gateway.UUID, true, nil
 }

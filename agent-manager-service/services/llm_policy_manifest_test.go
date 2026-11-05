@@ -187,6 +187,42 @@ func TestIntersectActiveGatewayLLMPolicies_SingleGateway(t *testing.T) {
 	assert.Contains(t, available, "word-count-guardrail\x00v1")
 }
 
+// A gateway that has not reported a manifest yet (no push, empty row) must not empty the
+// org's guardrail picker: it is left out until it reports.
+func TestIntersectActiveGatewayLLMPolicies_SkipsGatewayThatHasNotReported(t *testing.T) {
+	clearGatewayManifestCache(t)
+	reported := newGateway(t, models.GatewayRoleBoth, true)
+	require.NoError(t, gatewayManifestCache.Set(context.Background(), reported.UUID.String(),
+		policyManifest("word-count-guardrail", "v1")))
+	silent := newGateway(t, models.GatewayRoleBoth, true)
+	repo := &repomocks.GatewayRepositoryMock{
+		ListWithFiltersFunc: func(_ repositories.GatewayFilterOptions) ([]*models.Gateway, error) {
+			return []*models.Gateway{reported, silent}, nil
+		},
+	}
+
+	available, err := intersectActiveGatewayLLMPolicies(repo, "org-uuid")
+
+	require.NoError(t, err)
+	require.Len(t, available, 1)
+	assert.Contains(t, available, "word-count-guardrail\x00v1")
+}
+
+// When no gateway has reported, nothing is available (the cold-start behaviour).
+func TestIntersectActiveGatewayLLMPolicies_NothingReportedIsEmpty(t *testing.T) {
+	clearGatewayManifestCache(t)
+	repo := &repomocks.GatewayRepositoryMock{
+		ListWithFiltersFunc: func(_ repositories.GatewayFilterOptions) ([]*models.Gateway, error) {
+			return []*models.Gateway{newGateway(t, models.GatewayRoleBoth, true)}, nil
+		},
+	}
+
+	available, err := intersectActiveGatewayLLMPolicies(repo, "org-uuid")
+
+	require.NoError(t, err)
+	assert.Empty(t, available)
+}
+
 func TestIntersectActiveGatewayLLMPolicies_OverlappingPoliciesSurvive(t *testing.T) {
 	repo := &repomocks.GatewayRepositoryMock{
 		ListWithFiltersFunc: func(_ repositories.GatewayFilterOptions) ([]*models.Gateway, error) {
@@ -319,6 +355,7 @@ func TestIntersectActiveGatewayLLMPolicies_OnlyActiveGatewaysQueried(t *testing.
 	assert.Equal(t, "org-uuid", capturedFilters.OrganizationID)
 	require.NotNil(t, capturedFilters.Status)
 	assert.True(t, *capturedFilters.Status)
+	assert.Equal(t, models.GatewayHostingManaged, capturedFilters.Hosting)
 }
 
 func TestIntersectActiveGatewayLLMPolicies_RepoErrorIsWrapped(t *testing.T) {

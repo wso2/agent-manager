@@ -3,7 +3,7 @@
 A researcher (with one tool) and an editor run two sequential tasks. The
 researcher answers the question using the lookup tool, and the editor shortens
 the answer. Each /chat call runs both agents and the model behind them, so a
-single request produces a small multi-agent trace. Pinned to crewai 1.1.0 for
+single request produces a small multi-agent trace. Pinned to crewai 1.15.34 for
 dependency compatibility.
 """
 from __future__ import annotations

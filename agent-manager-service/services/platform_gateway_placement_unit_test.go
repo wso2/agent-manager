@@ -17,6 +17,7 @@
 package services
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -26,6 +27,8 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/reconcile"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -103,8 +106,102 @@ func TestRegisterGatewayPlacesItsEnvironment(t *testing.T) {
 	svc := NewPlatformGatewayService(mappingRepo(gw, 0), nil).WithEnvironmentPlacer(placer)
 
 	_, err := svc.RegisterGateway("ou-1", "gw1", "GW", "", "https://ext.example.com", "", false, "EGRESS", nil,
-		[]string{env.String(), env.String()})
+		[]string{env.String(), env.String()}, models.GatewayHostingManaged)
 	require.NoError(t, err)
 
 	assert.Equal(t, []placedEnv{{ouID: "ou-1", env: env}}, placer.placed(t, 1))
+}
+
+func TestSelfHostedGatewayDoesNotChangeManagedPlacement(t *testing.T) {
+	env := uuid.New()
+	managed := &models.Gateway{
+		UUID: uuid.New(), Name: "managed", GatewayFunctionalityType: models.GatewayRoleBoth,
+		Hosting: models.GatewayHostingManaged,
+	}
+	selfHosted := &models.Gateway{
+		UUID: uuid.New(), Name: "self-hosted", GatewayFunctionalityType: models.GatewayRoleEgress,
+		Hosting: models.GatewayHostingSelfHosted,
+	}
+	repo := &repomocks.GatewayRepositoryMock{
+		ListWithFiltersFunc: func(repositories.GatewayFilterOptions) ([]*models.Gateway, error) {
+			return []*models.Gateway{managed, selfHosted}, nil
+		},
+		EnvironmentMappingExistsFunc: func(string, string) (bool, error) { return true, nil },
+		GetByUUIDFunc: func(id string) (*models.Gateway, error) {
+			if id == selfHosted.UUID.String() {
+				return selfHosted, nil
+			}
+			return managed, nil
+		},
+		GetEnvironmentMappingsByGatewayIDFunc: func(string) ([]models.GatewayEnvironmentMapping, error) {
+			return []models.GatewayEnvironmentMapping{{EnvironmentUUID: env}}, nil
+		},
+	}
+
+	t.Run("no gateway named resolves to the managed gateway", func(t *testing.T) {
+		got, err := resolveEgressGatewayForEnvironment(repo, "ou-1", env, nil)
+		require.NoError(t, err)
+		require.NoError(t, validateEgressPlacement(repo, got, nil))
+		assert.Equal(t, managed.UUID, got.UUID)
+	})
+
+	t.Run("naming the self-hosted gateway places there", func(t *testing.T) {
+		named := selfHosted.UUID.String()
+		got, err := resolveEgressGatewayForEnvironment(repo, "ou-1", env, &named)
+		require.NoError(t, err)
+		require.NoError(t, validateEgressPlacement(repo, got, nil))
+		assert.Equal(t, selfHosted.UUID, got.UUID)
+	})
+
+	t.Run("an artifact anchored to the self-hosted gateway keeps it", func(t *testing.T) {
+		anchors := []string{selfHosted.UUID.String()}
+		got, err := resolveEgressGatewayForArtifact(repo, "ou-1", env, anchors, nil)
+		require.NoError(t, err)
+		require.NoError(t, validateEgressPlacement(repo, got, anchors))
+		assert.Equal(t, selfHosted.UUID, got.UUID)
+	})
+
+	t.Run("naming another gateway for an anchored artifact is refused", func(t *testing.T) {
+		named := managed.UUID.String()
+		_, err := resolveEgressGatewayForArtifact(repo, "ou-1", env, []string{selfHosted.UUID.String()}, &named)
+		assert.ErrorIs(t, err, errPlacementFixed)
+	})
+
+	record := reconcile.Record{
+		ArtifactRef:     models.ArtifactRef{OUID: "ou-1", ArtifactUUID: uuid.New()},
+		EnvironmentUUID: env,
+	}
+	unplaced := &repomocks.DeploymentRepositoryMock{
+		PlacedGatewaysFunc: func(context.Context, string, uuid.UUID) ([]string, error) { return nil, nil },
+	}
+
+	t.Run("an unplaced LLM proxy and provider target the managed gateway", func(t *testing.T) {
+		proxy := goldenProxy()
+		kind := &LLMProxyKind{
+			gatewayRepo: repo, deploymentRepo: unplaced,
+			load: func(context.Context, models.ArtifactRef) (*models.LLMProxy, *models.LLMProvider, error) {
+				return proxy, goldenProvider(), nil
+			},
+		}
+
+		got, ok, err := kind.Targets(context.Background(), record)
+
+		require.NoError(t, err)
+		require.True(t, ok)
+		assert.Equal(t, managed.UUID, got)
+	})
+
+	t.Run("an unplaced MCP proxy targets the managed gateway", func(t *testing.T) {
+		kind := &MCPProxyKind{gatewayRepo: repo, deploymentRepo: unplaced, load: func(context.Context, models.ArtifactRef) (*mcpArtifact, error) {
+			return &mcpArtifact{deployable: &models.MCPProxy{Configuration: models.MCPProxyConfig{
+				Upstream: models.UpstreamConfig{Main: &models.UpstreamEndpoint{URL: "https://93.184.216.34/mcp"}},
+			}}}, nil
+		}}
+
+		got, ok, err := kind.Targets(context.Background(), record)
+
+		require.NoError(t, err)
+		require.True(t, ok)
+		assert.Equal(t, managed.UUID, got)
+	})
 }

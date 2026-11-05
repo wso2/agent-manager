@@ -26,6 +26,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
+	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -46,6 +47,7 @@ func (g *stubGuard) ServesEnvironment(_ context.Context, _ *gorm.DB, env, gatewa
 // unmapRepo deletes the mapping inside its transaction; rolledBack reports whether that transaction failed.
 func unmapRepo(rolledBack *bool) *repomocks.GatewayRepositoryMock {
 	repo := &repomocks.GatewayRepositoryMock{
+		GetByUUIDFunc:                func(string) (*models.Gateway, error) { return &models.Gateway{}, nil },
 		DeleteEnvironmentMappingFunc: func(string, string) error { return nil },
 	}
 	repo.TransactionFunc = func(fn func(tx *gorm.DB) error) error {

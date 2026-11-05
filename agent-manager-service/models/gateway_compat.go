@@ -34,6 +34,7 @@ type GatewayResponse struct {
 	Name             string `json:"name"`
 	DisplayName      string `json:"displayName"`
 	GatewayType      string `json:"gatewayType"`
+	Hosting          string `json:"hosting"`
 	VHost            string `json:"vhost"`
 	IsCritical       bool   `json:"isCritical"`
 	Status           string `json:"status"`

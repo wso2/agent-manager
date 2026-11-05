@@ -17,6 +17,9 @@
 
 import React, { useState } from "react";
 import { PageLayout } from "@agent-management-platform/views";
+import { Button } from "@wso2/oxygen-ui";
+import { Plus } from "@wso2/oxygen-ui-icons-react";
+import { useListGateways } from "@agent-management-platform/api-client";
 import {
   generatePath,
   Navigate,
@@ -24,30 +27,28 @@ import {
   Routes,
   useParams,
 } from "react-router-dom";
-import {
-  absoluteRouteMap,
-  type GatewayResponse,
-} from "@agent-management-platform/types";
+import { absoluteRouteMap, globalConfig } from "@agent-management-platform/types";
 import { AIGatewaysTable } from "./subComponents/AIGatewaysTable";
 import { ViewGateway } from "./subComponents/ViewGateway";
-import { EditGatewayDrawer } from "./subComponents/EditGatewayDrawer";
+import { EditGateway } from "./subComponents/EditGateway";
+import { AddSelfHostedGatewayDrawer } from "./subComponents/AddSelfHostedGatewayDrawer";
 
 export const GatewaysOrganization: React.FC = () => {
   const { orgId } = useParams<{ orgId: string }>();
-  const [editDrawerOpen, setEditDrawerOpen] = useState(false);
-  const [gatewayToEdit, setGatewayToEdit] = useState<GatewayResponse | null>(
-    null,
-  );
-
-  const handleEditGateway = (gateway: GatewayResponse) => {
-    setGatewayToEdit(gateway);
-    setEditDrawerOpen(true);
-  };
-
-  const handleEditDrawerClose = () => {
-    setEditDrawerOpen(false);
-    setGatewayToEdit(null);
-  };
+  const [addDrawerOpen, setAddDrawerOpen] = useState(false);
+  const selfHostedEnabled = globalConfig.featureFlags?.enableSelfHostedGateways === true;
+  // Shares the table's query; an empty list offers Add Gateway in its empty state instead.
+  const { data: gatewaysData } = useListGateways({ orgName: orgId });
+  const hasGateways = (gatewaysData?.gateways?.length ?? 0) > 0;
+  const addGatewayButton = selfHostedEnabled && hasGateways ? (
+    <Button
+      variant="contained"
+      startIcon={<Plus size={16} />}
+      onClick={() => setAddDrawerOpen(true)}
+    >
+      Add Gateway
+    </Button>
+  ) : undefined;
 
   return (
     <>
@@ -55,12 +56,13 @@ export const GatewaysOrganization: React.FC = () => {
         <Route
           index
           element={
-            <PageLayout title="Gateways" disableIcon>
-              <AIGatewaysTable onEditGateway={handleEditGateway} />
+            <PageLayout title="Gateways" disableIcon actions={addGatewayButton}>
+              <AIGatewaysTable onAddGateway={() => setAddDrawerOpen(true)} />
             </PageLayout>
           }
         />
         <Route path="view/:gatewayId" element={<ViewGateway />} />
+        <Route path="edit/:gatewayId" element={<EditGateway />} />
         <Route
           path="*"
           element={
@@ -74,15 +76,11 @@ export const GatewaysOrganization: React.FC = () => {
         />
       </Routes>
 
-      {gatewayToEdit && (
-        <EditGatewayDrawer
-          open={editDrawerOpen}
-          onClose={handleEditDrawerClose}
-          gateway={gatewayToEdit}
-          orgId={orgId ?? ""}
-          onSuccess={handleEditDrawerClose}
-        />
-      )}
+      <AddSelfHostedGatewayDrawer
+        open={addDrawerOpen}
+        onClose={() => setAddDrawerOpen(false)}
+        orgId={orgId ?? ""}
+      />
     </>
   );
 };

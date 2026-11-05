@@ -378,6 +378,7 @@ func convertToSpecGatewayResponse(gw *models.GatewayResponse) spec.GatewayRespon
 		Name:        gw.Name,
 		DisplayName: gw.DisplayName,
 		GatewayType: canonicalGatewayType(gw.GatewayType),
+		Hosting:     spec.GatewayHosting(gw.Hosting),
 		Vhost:       gw.VHost,
 		IsCritical:  gw.IsCritical,
 		Status:      spec.GatewayStatus(gw.Status),

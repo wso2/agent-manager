@@ -31,6 +31,7 @@ func main() {
 	// Parse command-line flags
 	serverFlag := flag.Bool("server", true, "start the http Server")
 	migrateFlag := flag.Bool("migrate", false, "migrate the database")
+	waitForMigrationsFlag := flag.Bool("wait-for-migrations", false, "wait until the database migrations are applied")
 	flag.Parse()
 
 	cfg := config.GetConfig()
@@ -53,6 +54,7 @@ func main() {
 	app.Run(authProvider, secretProvider, app.Options{
 		Server:                   *serverFlag,
 		Migrate:                  *migrateFlag,
+		WaitForMigrations:        *waitForMigrationsFlag,
 		AgentThunderProvisioning: agentThunderProvisioning,
 	})
 }

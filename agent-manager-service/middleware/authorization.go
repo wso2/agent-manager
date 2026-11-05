@@ -27,7 +27,9 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
-// recordAuthzDeny records a refused authorization decision.
+// RecordAuthzDeny records a refused authorization decision. Handlers that
+// refuse a request on authorization grounds the route middleware cannot see
+// (such as a body naming another org) call it too.
 //
 // Denied privilege escalation is the first thing a security reviewer looks for,
 // and until now every deny site here wrote a 403 and nothing else — two of them
@@ -36,7 +38,7 @@ import (
 //
 // It suppresses the coverage tier's envelope event so a single refusal produces
 // one record rather than two.
-func recordAuthzDeny(r *http.Request, reason string, opts ...audit.Option) {
+func RecordAuthzDeny(r *http.Request, reason string, opts ...audit.Option) {
 	ctx := r.Context()
 
 	all := make([]audit.Option, 0, len(opts)+3)
@@ -84,13 +86,13 @@ func resolveOrgFromToken() func(http.HandlerFunc) http.HandlerFunc {
 			claims := jwtassertion.GetTokenClaims(r.Context())
 			if claims == nil {
 				slog.Warn("RequireOrgMatch rejected", "reason", "missing token claims", "path", r.URL.Path)
-				recordAuthzDeny(r, "missing-token-claims")
+				RecordAuthzDeny(r, "missing-token-claims")
 				utils.WriteErrorResponse(w, http.StatusForbidden, "missing token claims")
 				return
 			}
 			if claims.OuId == "" || claims.OuHandle == "" {
 				slog.Warn("RequireOrgMatch rejected", "reason", "missing ou identity in token", "sub", claims.Sub, "path", r.URL.Path)
-				recordAuthzDeny(r, "missing-ou-identity")
+				RecordAuthzDeny(r, "missing-ou-identity")
 				utils.WriteErrorResponse(w, http.StatusForbidden, "missing ou identity in token")
 				return
 			}
@@ -208,7 +210,7 @@ func requireScopes(mode scopeMode, allowRootOU bool, perms ...rbac.Permission) f
 				// them as required so the event says what the route actually demands.
 				opts = append(opts, audit.Detail("missingScope", missing.Scope()))
 			}
-			recordAuthzDeny(r, reason, opts...)
+			RecordAuthzDeny(r, reason, opts...)
 			utils.WriteErrorResponse(w, http.StatusForbidden, "insufficient permissions")
 		}
 	}

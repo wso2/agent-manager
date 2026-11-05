@@ -386,7 +386,7 @@ export const ViewMonitorComponent: React.FC = () => {
           <PageLayout
             title={`Run History ${monitorData?.displayName ? `(${monitorData.displayName})` : ""}`}
             disableIcon
-            backLabel={`Back to ${monitorData?.displayName ?? "Monitor"}`}
+            backLabel={`Back to ${monitorData?.displayName ?? "monitor"}`}
             backHref={generatePath(
               absoluteRouteMap.children.org.children.projects.children.agents
                 .children.environment.children.evaluation.children.monitor
@@ -429,7 +429,7 @@ export const ViewMonitorComponent: React.FC = () => {
               ) : undefined
             }
             disableIcon
-            backLabel="Back to Monitors"
+            backLabel="Back to monitors"
             backHref={generatePath(
               absoluteRouteMap.children.org.children.projects.children.agents
                 .children.environment.children.evaluation.children.monitor.path,
