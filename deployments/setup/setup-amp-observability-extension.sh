@@ -7,7 +7,6 @@ set -euo pipefail
 # amp-observer image must already be loaded into the cluster
 # (`make -C agent-manager-observer docker-load-k3d`).
 
-# In lite mode the dev manifest (deployments/dev/observer-lite/k8s.yaml) supplies the ServiceMonitor CRD and the observer Service.
 PROJECT_ROOT="$1"
 
 echo "📦 Observability Extension (Agent Manager Observer)"

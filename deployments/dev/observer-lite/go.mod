@@ -2,6 +2,7 @@ module github.com/wso2/agent-manager/deployments/dev/observer-lite
 
 go 1.26.10
 
+// After an amp-observer dependency bump, run `go mod tidy` here too: the replace couples the two go.sum files.
 replace github.com/wso2/agent-manager/agent-manager-observer => ../../../agent-manager-observer
 
 require (

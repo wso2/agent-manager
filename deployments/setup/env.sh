@@ -5,7 +5,7 @@ CLUSTER_NAME="${CLUSTER_NAME:-openchoreo-local-setup}"
 CLUSTER_CONTEXT="k3d-${CLUSTER_NAME}"
 
 # Observability backend: "full" installs the OpenChoreo observability plane,
-# "lite" (make setup-lite) runs amp-observer on its dev SQLite store instead.
+# "lite" (make setup-lite) runs the dev-only observer-lite stand-in (deployments/dev/observer-lite) instead.
 AMP_OBSERVABILITY="${AMP_OBSERVABILITY:-full}"
 
 # WSO2 API Platform / Gateway Operator versions

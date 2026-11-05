@@ -1,6 +1,8 @@
 // Copyright 2026 The OpenChoreo Authors
 // SPDX-License-Identifier: Apache-2.0
 
+// Ported from openchoreo community-modules (version 0.5.4) extractLogLevel, modified for observer-lite.
+
 package store
 
 import (

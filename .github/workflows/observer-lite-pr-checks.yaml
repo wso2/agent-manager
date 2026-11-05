@@ -5,8 +5,7 @@ on:
     branches: ["main"]
     paths:
       - "deployments/dev/observer-lite/**"
-      - "agent-manager-observer/observer/**"
-      - "agent-manager-observer/go.mod"
+      - "agent-manager-observer/**"
       - ".github/workflows/observer-lite-pr-checks.yaml"
 
 permissions:
