@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -32,18 +33,116 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
+	"github.com/wso2/agent-manager/agent-manager-service/services"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
-// The service is never reached when the project cannot be resolved, so these tests pass a
-// nil service.
+// storedProxyService is the project proxy service over a repository holding proxies (handle -> proxy). It records
+// the (org, project name) of every lookup by stored project name.
+func storedProxyService(oc *clientmocks.OpenChoreoClientMock, lookups *[]string, proxies ...*models.MCPProxy) *services.ProjectMCPProxyService {
+	repo := &repomocks.MCPProxyRepositoryMock{
+		GetInProjectByNameFunc: func(_ context.Context, handle, ouID, projectName string) (*models.MCPProxy, error) {
+			*lookups = append(*lookups, ouID+"/"+projectName)
+			for _, p := range proxies {
+				if p.Artifact.Handle == handle && p.ProjectUUID != nil && *p.ProjectName == projectName && ouID == "ou" {
+					return p, nil
+				}
+			}
+			return nil, utils.ErrMCPProxyNotFound
+		},
+		ListFunc: func(_ context.Context, ouID string, f repositories.MCPProxyListFilter) ([]*models.MCPProxy, int64, error) {
+			*lookups = append(*lookups, ouID+"/"+*f.ProjectName)
+			out := []*models.MCPProxy{}
+			for _, p := range proxies {
+				if f.ProjectUUID == nil && p.ProjectUUID != nil && *p.ProjectName == *f.ProjectName && ouID == "ou" {
+					out = append(out, p)
+				}
+			}
+			return out, int64(len(out)), nil
+		},
+	}
+	base := services.NewMCPProxyService(nil, repo, nil, nil, nil, nil, nil, nil, nil, nil, nil, slog.New(slog.DiscardHandler), nil,
+		nil, nil, nil, nil, oc)
+	return services.NewProjectMCPProxyService(base, oc)
+}
+
+func projectRouteRequest(method, body string) *http.Request {
+	req := httptest.NewRequest(method, "/x", strings.NewReader(body))
+	req.SetPathValue(utils.PathParamProjName, "p2")
+	req.SetPathValue(utils.PathParamProxyId, "orders")
+	req.SetPathValue("envName", "development")
+	return req.WithContext(middleware.WithResolvedOrg(req.Context(), middleware.ResolvedOrg{OUID: "ou", OuHandle: "org"}))
+}
+
+// A project OpenChoreo no longer has still serves what it published: the read and delete routes reach the proxies
+// stored under its name, in the caller's org only; PUT still refuses, since nothing can be deployed into it.
+func TestDeletedProject_ReadAndDeleteRoutesReachStoredProxies(t *testing.T) {
+	oc := &clientmocks.OpenChoreoClientMock{
+		GetProjectFunc: func(context.Context, string, string) (*models.ProjectResponse, error) {
+			return nil, fmt.Errorf("project p2: %w", utils.ErrProjectNotFound)
+		},
+	}
+	staleUUID, projName := "deleted-uuid", "p2"
+	orphan := &models.MCPProxy{
+		ProjectUUID: &staleUUID, ProjectName: &projName,
+		Artifact:      &models.Artifact{Handle: "orders"},
+		Configuration: models.MCPProxyConfig{Name: "Orders"},
+	}
+	var lookups []string
+	ctrl := NewProjectMCPProxyController(storedProxyService(oc, &lookups, orphan), oc)
+
+	rec := httptest.NewRecorder()
+	ctrl.GetProjectMCPProxy(rec, projectRouteRequest(http.MethodGet, ""))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	var got struct{ ID, ProjectName string }
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&got))
+	assert.Equal(t, "orders", got.ID)
+	assert.Equal(t, "p2", got.ProjectName)
+
+	rec = httptest.NewRecorder()
+	ctrl.ListProjectMCPProxies(rec, projectRouteRequest(http.MethodGet, ""))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	var list struct{ Count int }
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&list))
+	assert.Equal(t, 1, list.Count)
+
+	rec = httptest.NewRecorder()
+	ctrl.GetProjectMCPProxyEnvironment(rec, projectRouteRequest(http.MethodGet, ""))
+	assert.Equal(t, http.StatusNotFound, rec.Code, "the proxy is reached; it has no binding in the environment")
+	assert.Contains(t, rec.Body.String(), utils.ErrMCPProxyEnvironmentNotBound.Error())
+
+	assert.Equal(t, []string{"ou/p2", "ou/p2", "ou/p2"}, lookups, "looked up in the caller's org by the path's project name")
+
+	for name, tc := range map[string]struct {
+		body    string
+		handler http.HandlerFunc
+	}{
+		"upsert":  {`{"name":"x","source":{"componentName":"c","endpointName":"e"}}`, ctrl.UpsertProjectMCPProxy},
+		"put env": {`{}`, ctrl.PutProjectMCPProxyEnvironment},
+	} {
+		t.Run(name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			tc.handler(rec, projectRouteRequest(http.MethodPut, tc.body))
+			assert.Equal(t, http.StatusNotFound, rec.Code)
+			var body struct{ Code string }
+			require.NoError(t, json.NewDecoder(rec.Body).Decode(&body))
+			assert.Equal(t, utils.ErrCodeProjectNotFound, body.Code)
+		})
+	}
+	assert.Len(t, lookups, 3, "PUT never reaches the stored proxies")
+}
+
+// A project that does not exist and left nothing behind is 404 PROJECT_NOT_FOUND on every route.
 func TestUnknownProject_404(t *testing.T) {
 	oc := &clientmocks.OpenChoreoClientMock{
 		GetProjectFunc: func(context.Context, string, string) (*models.ProjectResponse, error) {
 			return nil, utils.ErrProjectNotFound
 		},
 	}
-	ctrl := NewProjectMCPProxyController(nil, oc)
+	var lookups []string
+	ctrl := NewProjectMCPProxyController(storedProxyService(oc, &lookups), oc)
 
 	cases := map[string]struct {
 		method  string

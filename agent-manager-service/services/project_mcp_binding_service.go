@@ -316,6 +316,24 @@ func (s *ProjectMCPProxyService) GetEnvironment(
 	if err != nil {
 		return nil, err
 	}
+	return s.environmentOf(ctx, ouID, proxy, envName)
+}
+
+// GetEnvironmentInDeletedProject is GetEnvironment for a project OpenChoreo no longer has: the binding of the proxy
+// stored under projectName, whatever project UUID it carries.
+func (s *ProjectMCPProxyService) GetEnvironmentInDeletedProject(
+	ctx context.Context, ouID, projectName, handle, envName string,
+) (*models.MCPProxyEnvironmentResponse, error) {
+	proxy, err := s.getInDeletedProject(ctx, ouID, projectName, handle)
+	if err != nil {
+		return nil, err
+	}
+	return s.environmentOf(ctx, ouID, proxy, envName)
+}
+
+func (s *ProjectMCPProxyService) environmentOf(
+	ctx context.Context, ouID string, proxy *models.MCPProxy, envName string,
+) (*models.MCPProxyEnvironmentResponse, error) {
 	endpoint, ee := bindingByEnvironmentName(proxy, strings.TrimSpace(envName))
 	if ee == nil {
 		return nil, utils.ErrMCPProxyEnvironmentNotBound
@@ -335,6 +353,20 @@ func (s *ProjectMCPProxyService) DeleteEnvironment(ctx context.Context, ouID, pr
 	if err != nil {
 		return err
 	}
+	return s.deleteEnvironmentOf(ctx, ouID, proxy, envName)
+}
+
+// DeleteEnvironmentInDeletedProject is DeleteEnvironment for a project OpenChoreo no longer has: it drops the binding
+// of the proxy stored under projectName, whatever project UUID it carries, with the same teardown and in-use refusal.
+func (s *ProjectMCPProxyService) DeleteEnvironmentInDeletedProject(ctx context.Context, ouID, projectName, handle, envName string) error {
+	proxy, err := s.getInDeletedProject(ctx, ouID, projectName, handle)
+	if err != nil {
+		return err
+	}
+	return s.deleteEnvironmentOf(ctx, ouID, proxy, envName)
+}
+
+func (s *ProjectMCPProxyService) deleteEnvironmentOf(ctx context.Context, ouID string, proxy *models.MCPProxy, envName string) error {
 	envName = strings.TrimSpace(envName)
 	_, ee := bindingByEnvironmentName(proxy, envName)
 	if ee == nil {

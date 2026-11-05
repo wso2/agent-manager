@@ -174,6 +174,23 @@ func (s *ProjectMCPProxyService) Get(
 	if err != nil {
 		return nil, err
 	}
+	return s.proxyResponse(ctx, ouID, proxy)
+}
+
+// GetInDeletedProject is Get for a project OpenChoreo no longer has: it returns the proxy stored under
+// projectName, whatever project UUID it carries. A handle stored under another project name, or an org
+// proxy, is not found.
+func (s *ProjectMCPProxyService) GetInDeletedProject(
+	ctx context.Context, ouID, projectName, handle string,
+) (*models.ProjectMCPProxyResponse, error) {
+	proxy, err := s.getInDeletedProject(ctx, ouID, projectName, handle)
+	if err != nil {
+		return nil, err
+	}
+	return s.proxyResponse(ctx, ouID, proxy)
+}
+
+func (s *ProjectMCPProxyService) proxyResponse(ctx context.Context, ouID string, proxy *models.MCPProxy) (*models.ProjectMCPProxyResponse, error) {
 	resp := projectMCPProxyResponse(proxy)
 	if err := s.fillEnvironments(ctx, ouID, proxy, resp); err != nil {
 		return nil, err
@@ -185,13 +202,37 @@ func (s *ProjectMCPProxyService) Get(
 func (s *ProjectMCPProxyService) List(
 	ctx context.Context, ouID, projectUUID, component, endpoint string, limit, offset int,
 ) (*models.ProjectMCPProxyListResponse, error) {
-	proxies, total, err := s.base.repo.List(ctx, ouID, repositories.MCPProxyListFilter{
+	return s.list(ctx, ouID, repositories.MCPProxyListFilter{
 		ProjectUUID: &projectUUID,
 		Component:   component,
 		Endpoint:    endpoint,
 		Limit:       limit,
 		Offset:      offset,
 	})
+}
+
+// ListInDeletedProject is List for a project OpenChoreo no longer has: the proxies stored under projectName,
+// whatever project UUID they carry.
+func (s *ProjectMCPProxyService) ListInDeletedProject(
+	ctx context.Context, ouID, projectName, component, endpoint string, limit, offset int,
+) (*models.ProjectMCPProxyListResponse, error) {
+	if strings.TrimSpace(projectName) == "" {
+		return nil, utils.ErrInvalidInput
+	}
+	return s.list(ctx, ouID, repositories.MCPProxyListFilter{
+		ProjectName: &projectName,
+		Component:   component,
+		Endpoint:    endpoint,
+		Limit:       limit,
+		Offset:      offset,
+	})
+}
+
+func (s *ProjectMCPProxyService) list(
+	ctx context.Context, ouID string, filter repositories.MCPProxyListFilter,
+) (*models.ProjectMCPProxyListResponse, error) {
+	limit, offset := filter.Limit, filter.Offset
+	proxies, total, err := s.base.repo.List(ctx, ouID, filter)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list MCP proxies: %w", err)
 	}
@@ -226,6 +267,20 @@ func (s *ProjectMCPProxyService) Delete(ctx context.Context, ouID, projectUUID, 
 	if err != nil {
 		return err
 	}
+	return s.deleteLoaded(ctx, ouID, proxy)
+}
+
+// DeleteInDeletedProject is Delete for a project OpenChoreo no longer has: it removes the proxy stored under
+// projectName, whatever project UUID it carries, with the same teardown and in-use refusal.
+func (s *ProjectMCPProxyService) DeleteInDeletedProject(ctx context.Context, ouID, projectName, handle string) error {
+	proxy, err := s.getInDeletedProject(ctx, ouID, projectName, handle)
+	if err != nil {
+		return err
+	}
+	return s.deleteLoaded(ctx, ouID, proxy)
+}
+
+func (s *ProjectMCPProxyService) deleteLoaded(ctx context.Context, ouID string, proxy *models.MCPProxy) error {
 	if err := s.base.ensureMCPProxyNotInUse(ctx, ouID, proxy); err != nil {
 		return err
 	}
@@ -240,6 +295,25 @@ func (s *ProjectMCPProxyService) getInProject(
 		return nil, utils.ErrInvalidInput
 	}
 	proxy, err := s.base.repo.GetInProject(ctx, handle, ouID, projectUUID)
+	if err != nil {
+		if errors.Is(err, utils.ErrMCPProxyNotFound) {
+			return nil, utils.ErrMCPProxyNotFound
+		}
+		return nil, fmt.Errorf("failed to get MCP proxy: %w", err)
+	}
+	return proxy, nil
+}
+
+// getInDeletedProject loads the project proxy stored under projectName, whatever project UUID it carries: the
+// lookup for a project OpenChoreo no longer has. It never matches an org proxy or another project name's proxy.
+func (s *ProjectMCPProxyService) getInDeletedProject(
+	ctx context.Context, ouID, projectName, handle string,
+) (*models.MCPProxy, error) {
+	handle = strings.TrimSpace(handle)
+	if handle == "" || strings.TrimSpace(projectName) == "" {
+		return nil, utils.ErrInvalidInput
+	}
+	proxy, err := s.base.repo.GetInProjectByName(ctx, handle, ouID, projectName)
 	if err != nil {
 		if errors.Is(err, utils.ErrMCPProxyNotFound) {
 			return nil, utils.ErrMCPProxyNotFound

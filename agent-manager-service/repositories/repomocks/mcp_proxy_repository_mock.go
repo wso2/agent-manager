@@ -42,6 +42,9 @@ import (
 //			GetInProjectFunc: func(ctx context.Context, handle string, orgUUID string, projectUUID string) (*models.MCPProxy, error) {
 //				panic("mock out the GetInProject method")
 //			},
+//			GetInProjectByNameFunc: func(ctx context.Context, handle string, orgUUID string, projectName string) (*models.MCPProxy, error) {
+//				panic("mock out the GetInProjectByName method")
+//			},
 //			ListFunc: func(ctx context.Context, orgUUID string, f repositories.MCPProxyListFilter) ([]*models.MCPProxy, int64, error) {
 //				panic("mock out the List method")
 //			},
@@ -78,6 +81,9 @@ type MCPProxyRepositoryMock struct {
 
 	// GetInProjectFunc mocks the GetInProject method.
 	GetInProjectFunc func(ctx context.Context, handle string, orgUUID string, projectUUID string) (*models.MCPProxy, error)
+
+	// GetInProjectByNameFunc mocks the GetInProjectByName method.
+	GetInProjectByNameFunc func(ctx context.Context, handle string, orgUUID string, projectName string) (*models.MCPProxy, error)
 
 	// ListFunc mocks the List method.
 	ListFunc func(ctx context.Context, orgUUID string, f repositories.MCPProxyListFilter) ([]*models.MCPProxy, int64, error)
@@ -173,6 +179,17 @@ type MCPProxyRepositoryMock struct {
 			// ProjectUUID is the projectUUID argument value.
 			ProjectUUID string
 		}
+		// GetInProjectByName holds details about calls to the GetInProjectByName method.
+		GetInProjectByName []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Handle is the handle argument value.
+			Handle string
+			// OrgUUID is the orgUUID argument value.
+			OrgUUID string
+			// ProjectName is the projectName argument value.
+			ProjectName string
+		}
 		// List holds details about calls to the List method.
 		List []struct {
 			// Ctx is the ctx argument value.
@@ -202,6 +219,7 @@ type MCPProxyRepositoryMock struct {
 	lockGetByHandleForUpdate sync.RWMutex
 	lockGetByUUID            sync.RWMutex
 	lockGetInProject         sync.RWMutex
+	lockGetInProjectByName   sync.RWMutex
 	lockList                 sync.RWMutex
 	lockUpdate               sync.RWMutex
 }
@@ -551,6 +569,50 @@ func (mock *MCPProxyRepositoryMock) GetInProjectCalls() []struct {
 	mock.lockGetInProject.RLock()
 	calls = mock.calls.GetInProject
 	mock.lockGetInProject.RUnlock()
+	return calls
+}
+
+// GetInProjectByName calls GetInProjectByNameFunc.
+func (mock *MCPProxyRepositoryMock) GetInProjectByName(ctx context.Context, handle string, orgUUID string, projectName string) (*models.MCPProxy, error) {
+	if mock.GetInProjectByNameFunc == nil {
+		panic("MCPProxyRepositoryMock.GetInProjectByNameFunc: method is nil but MCPProxyRepository.GetInProjectByName was just called")
+	}
+	callInfo := struct {
+		Ctx         context.Context
+		Handle      string
+		OrgUUID     string
+		ProjectName string
+	}{
+		Ctx:         ctx,
+		Handle:      handle,
+		OrgUUID:     orgUUID,
+		ProjectName: projectName,
+	}
+	mock.lockGetInProjectByName.Lock()
+	mock.calls.GetInProjectByName = append(mock.calls.GetInProjectByName, callInfo)
+	mock.lockGetInProjectByName.Unlock()
+	return mock.GetInProjectByNameFunc(ctx, handle, orgUUID, projectName)
+}
+
+// GetInProjectByNameCalls gets all the calls that were made to GetInProjectByName.
+// Check the length with:
+//
+//	len(mockedMCPProxyRepository.GetInProjectByNameCalls())
+func (mock *MCPProxyRepositoryMock) GetInProjectByNameCalls() []struct {
+	Ctx         context.Context
+	Handle      string
+	OrgUUID     string
+	ProjectName string
+} {
+	var calls []struct {
+		Ctx         context.Context
+		Handle      string
+		OrgUUID     string
+		ProjectName string
+	}
+	mock.lockGetInProjectByName.RLock()
+	calls = mock.calls.GetInProjectByName
+	mock.lockGetInProjectByName.RUnlock()
 	return calls
 }
 

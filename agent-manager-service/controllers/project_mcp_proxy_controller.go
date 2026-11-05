@@ -62,19 +62,39 @@ func NewProjectMCPProxyController(
 // resolveProject maps {projName} to the OpenChoreo project. On failure it has written the
 // response and returns ok=false.
 func (c *projectMCPProxyController) resolveProject(w http.ResponseWriter, r *http.Request, ouID string) (*models.ProjectResponse, bool) {
+	project, deleted, ok := c.resolveProjectOrDeleted(w, r, ouID)
+	if ok && deleted {
+		writeProjectNotFound(w)
+		return nil, false
+	}
+	return project, ok
+}
+
+// resolveProjectOrDeleted is resolveProject for the routes that read or remove what a project
+// published. A project OpenChoreo does not have is reported as deleted=true (project nil)
+// instead of a 404, so those routes can reach the proxies a deleted project left, stored
+// under its name in the caller's org. On failure it has written the response and returns ok=false.
+func (c *projectMCPProxyController) resolveProjectOrDeleted(
+	w http.ResponseWriter, r *http.Request, ouID string,
+) (project *models.ProjectResponse, deleted, ok bool) {
 	log := logger.GetLogger(r.Context())
 	projName := r.PathValue(utils.PathParamProjName)
 	project, err := c.ocClient.GetProject(r.Context(), ouID, projName)
 	if err != nil && !errors.Is(err, utils.ErrProjectNotFound) {
 		log.Error("project MCP proxy: failed to resolve project", "ouID", ouID, "project", projName, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to resolve project")
-		return nil, false
+		return nil, false, false
 	}
 	if err != nil || project == nil {
-		utils.WriteErrorResponseWithReason(w, http.StatusNotFound, "Project not found", "", utils.ErrCodeProjectNotFound)
-		return nil, false
+		return nil, true, true
 	}
-	return project, true
+	return project, false, true
+}
+
+// writeProjectNotFound is the 404 for a project OpenChoreo does not have. A route that falls
+// back to a deleted project's stored proxies answers it when nothing is stored for the request.
+func writeProjectNotFound(w http.ResponseWriter) {
+	utils.WriteErrorResponseWithReason(w, http.StatusNotFound, "Project not found", "", utils.ErrCodeProjectNotFound)
 }
 
 // UpsertProjectMCPProxy handles PUT /orgs/{orgName}/projects/{projName}/mcp-proxies/{proxyId}.
@@ -143,15 +163,25 @@ func (c *projectMCPProxyController) ListProjectMCPProxies(w http.ResponseWriter,
 		offset = utils.DefaultOffset
 	}
 
-	project, ok := c.resolveProject(w, r, ouID)
+	project, deleted, ok := c.resolveProjectOrDeleted(w, r, ouID)
 	if !ok {
 		return
 	}
-	resp, err := c.service.List(ctx, ouID, project.UUID,
-		r.URL.Query().Get("component"), r.URL.Query().Get("endpoint"), limit, offset)
+	component, endpoint := r.URL.Query().Get("component"), r.URL.Query().Get("endpoint")
+	var resp *models.ProjectMCPProxyListResponse
+	var err error
+	if deleted {
+		resp, err = c.service.ListInDeletedProject(ctx, ouID, r.PathValue(utils.PathParamProjName), component, endpoint, limit, offset)
+	} else {
+		resp, err = c.service.List(ctx, ouID, project.UUID, component, endpoint, limit, offset)
+	}
 	if err != nil {
 		log.Error("ListProjectMCPProxies: failed", "ouID", ouID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list MCP proxies")
+		return
+	}
+	if deleted && resp.Pagination.Count == 0 {
+		writeProjectNotFound(w)
 		return
 	}
 	utils.WriteSuccessResponse(w, http.StatusOK, resp)
@@ -164,13 +194,21 @@ func (c *projectMCPProxyController) GetProjectMCPProxy(w http.ResponseWriter, r 
 	ouID := middleware.OUIDFromRequest(r)
 	handle := r.PathValue(utils.PathParamProxyId)
 
-	project, ok := c.resolveProject(w, r, ouID)
+	project, deleted, ok := c.resolveProjectOrDeleted(w, r, ouID)
 	if !ok {
 		return
 	}
-	resp, err := c.service.Get(ctx, ouID, project.UUID, handle)
+	var resp *models.ProjectMCPProxyResponse
+	var err error
+	if deleted {
+		resp, err = c.service.GetInDeletedProject(ctx, ouID, r.PathValue(utils.PathParamProjName), handle)
+	} else {
+		resp, err = c.service.Get(ctx, ouID, project.UUID, handle)
+	}
 	if err != nil {
 		switch {
+		case deleted && errors.Is(err, utils.ErrMCPProxyNotFound):
+			writeProjectNotFound(w)
 		case errors.Is(err, utils.ErrMCPProxyNotFound):
 			utils.WriteErrorResponse(w, http.StatusNotFound, "MCP proxy not found")
 		case errors.Is(err, utils.ErrInvalidInput):
@@ -191,12 +229,20 @@ func (c *projectMCPProxyController) DeleteProjectMCPProxy(w http.ResponseWriter,
 	ouID := middleware.OUIDFromRequest(r)
 	handle := r.PathValue(utils.PathParamProxyId)
 
-	project, ok := c.resolveProject(w, r, ouID)
+	project, deleted, ok := c.resolveProjectOrDeleted(w, r, ouID)
 	if !ok {
 		return
 	}
-	if err := c.service.Delete(ctx, ouID, project.UUID, handle); err != nil {
+	var err error
+	if deleted {
+		err = c.service.DeleteInDeletedProject(ctx, ouID, r.PathValue(utils.PathParamProjName), handle)
+	} else {
+		err = c.service.Delete(ctx, ouID, project.UUID, handle)
+	}
+	if err != nil {
 		switch {
+		case deleted && errors.Is(err, utils.ErrMCPProxyNotFound):
+			writeProjectNotFound(w)
 		case errors.Is(err, utils.ErrMCPProxyNotFound):
 			utils.WriteErrorResponse(w, http.StatusNotFound, "MCP proxy not found")
 		case errors.Is(err, utils.ErrMCPProxyHasMappings):
@@ -254,12 +300,22 @@ func (c *projectMCPProxyController) GetProjectMCPProxyEnvironment(w http.Respons
 	handle := r.PathValue(utils.PathParamProxyId)
 	envName := r.PathValue(pathParamEnvName)
 
-	project, ok := c.resolveProject(w, r, ouID)
+	project, deleted, ok := c.resolveProjectOrDeleted(w, r, ouID)
 	if !ok {
 		return
 	}
-	resp, err := c.service.GetEnvironment(ctx, ouID, project.Name, project.UUID, handle, envName)
+	var resp *models.MCPProxyEnvironmentResponse
+	var err error
+	if deleted {
+		resp, err = c.service.GetEnvironmentInDeletedProject(ctx, ouID, r.PathValue(utils.PathParamProjName), handle, envName)
+	} else {
+		resp, err = c.service.GetEnvironment(ctx, ouID, project.Name, project.UUID, handle, envName)
+	}
 	if err != nil {
+		if deleted && errors.Is(err, utils.ErrMCPProxyNotFound) {
+			writeProjectNotFound(w)
+			return
+		}
 		if !writeProjectMCPBindingError(w, err) {
 			log.Error("GetProjectMCPProxyEnvironment: failed", "ouID", ouID, "handle", handle, "environment", envName, "error", err)
 			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get the MCP proxy binding")
@@ -277,11 +333,21 @@ func (c *projectMCPProxyController) DeleteProjectMCPProxyEnvironment(w http.Resp
 	handle := r.PathValue(utils.PathParamProxyId)
 	envName := r.PathValue(pathParamEnvName)
 
-	project, ok := c.resolveProject(w, r, ouID)
+	project, deleted, ok := c.resolveProjectOrDeleted(w, r, ouID)
 	if !ok {
 		return
 	}
-	if err := c.service.DeleteEnvironment(ctx, ouID, project.Name, project.UUID, handle, envName); err != nil {
+	var err error
+	if deleted {
+		err = c.service.DeleteEnvironmentInDeletedProject(ctx, ouID, r.PathValue(utils.PathParamProjName), handle, envName)
+	} else {
+		err = c.service.DeleteEnvironment(ctx, ouID, project.Name, project.UUID, handle, envName)
+	}
+	if err != nil {
+		if deleted && errors.Is(err, utils.ErrMCPProxyNotFound) {
+			writeProjectNotFound(w)
+			return
+		}
 		if !writeProjectMCPBindingError(w, err) {
 			log.Error("DeleteProjectMCPProxyEnvironment: failed", "ouID", ouID, "handle", handle, "environment", envName, "error", err)
 			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to delete the MCP proxy binding")

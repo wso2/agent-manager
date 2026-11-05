@@ -7204,7 +7204,10 @@ paths:
       - name: projName
         in: path
         required: true
-        description: OpenChoreo project name. Unknown project returns 404 PROJECT_NOT_FOUND.
+        description: >-
+          OpenChoreo project name. Unknown project returns 404 PROJECT_NOT_FOUND, except that the GET and
+          DELETE routes of a project OpenChoreo no longer has reach the proxies it left, stored under this
+          name in the caller's org; with none stored they return 404 PROJECT_NOT_FOUND.
         schema:
           type: string
       - name: X-Impersonate-Org
@@ -7224,7 +7227,9 @@ paths:
       summary: List the project's MCP proxies
       description: >-
         Lists proxies owned by this project. Org-level proxies and other projects' proxies are never
-        listed. Each item carries a summary per environment binding.
+        listed. Each item carries a summary per environment binding. For a project OpenChoreo no longer
+        has, lists the proxies it left (stored under this project name in the caller's org), or returns
+        404 PROJECT_NOT_FOUND when there are none.
       operationId: listProjectMCPProxies
       parameters:
         - name: component
@@ -7294,7 +7299,10 @@ paths:
       - name: projName
         in: path
         required: true
-        description: OpenChoreo project name. Unknown project returns 404 PROJECT_NOT_FOUND.
+        description: >-
+          OpenChoreo project name. Unknown project returns 404 PROJECT_NOT_FOUND, except that the GET and
+          DELETE routes of a project OpenChoreo no longer has reach the proxies it left, stored under this
+          name in the caller's org; with none stored they return 404 PROJECT_NOT_FOUND.
         schema:
           type: string
       - name: proxyId
@@ -7331,6 +7339,8 @@ paths:
         not exist returns 400. Updating name, description, version or context re-renders every bound
         environment. A new context that equals, contains or sits under another artifact's context on a
         gateway a binding is placed on returns 409 CONTEXT_IN_USE and nothing is stored.
+
+        A project that does not exist in OpenChoreo returns 404 PROJECT_NOT_FOUND.
       operationId: upsertProjectMCPProxy
       requestBody:
         required: true
@@ -7392,6 +7402,9 @@ paths:
       tags:
         - Project MCP Proxies
       summary: Get a project MCP proxy with its environment bindings
+      description: >-
+        For a project OpenChoreo no longer has, returns the proxy it left under this project name in
+        the caller's org.
       operationId: getProjectMCPProxy
       responses:
         "200":
@@ -7431,7 +7444,8 @@ paths:
       summary: Delete a project MCP proxy
       description: >-
         Undeploys every environment and deletes the proxy. Refuses while AM agents use the proxy as a
-        tool: 409 MCP_PROXY_IN_USE, and nothing is deleted.
+        tool: 409 MCP_PROXY_IN_USE, and nothing is deleted. For a project OpenChoreo no longer has,
+        deletes the proxy it left under this project name in the caller's org.
       operationId: deleteProjectMCPProxy
       responses:
         "204":
@@ -7478,7 +7492,10 @@ paths:
       - name: projName
         in: path
         required: true
-        description: OpenChoreo project name. Unknown project returns 404 PROJECT_NOT_FOUND.
+        description: >-
+          OpenChoreo project name. Unknown project returns 404 PROJECT_NOT_FOUND, except that the GET and
+          DELETE routes of a project OpenChoreo no longer has reach the proxies it left, stored under this
+          name in the caller's org; with none stored they return 404 PROJECT_NOT_FOUND.
         schema:
           type: string
       - name: proxyId
@@ -7598,6 +7615,7 @@ paths:
       summary: Get the proxy's binding in one environment
       description: >-
         Reads the stored binding and its deployment status; makes no call to OpenChoreo, so it is cheap to poll.
+        For a project OpenChoreo no longer has, reads the binding of the proxy it left under this project name.
       operationId: getProjectMCPProxyEnvironment
       responses:
         "200":
@@ -7638,7 +7656,8 @@ paths:
       description: >-
         Deletes the binding and its gateway artifact. Returns once the transaction commits; the
         gateway removal is not awaited. Refuses with 409 MCP_PROXY_IN_USE while an AM agent is mapped
-        to the proxy in this environment, as the proxy delete does; nothing is deleted.
+        to the proxy in this environment, as the proxy delete does; nothing is deleted. For a project
+        OpenChoreo no longer has, drops the binding of the proxy it left under this project name.
       operationId: deleteProjectMCPProxyEnvironment
       responses:
         "204":

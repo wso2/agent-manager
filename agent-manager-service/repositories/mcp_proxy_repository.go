@@ -49,6 +49,11 @@ type MCPProxyRepository interface {
 	// GetInProject returns the proxy only when it belongs to the project;
 	// utils.ErrMCPProxyNotFound when it is in another project or is org-owned.
 	GetInProject(ctx context.Context, handle, orgUUID, projectUUID string) (*models.MCPProxy, error)
+	// GetInProjectByName returns the project proxy stored under projectName, whatever project
+	// UUID it carries: the lookup for a project that no longer exists in OpenChoreo, whose
+	// proxies keep the UUID of the deleted project. utils.ErrMCPProxyNotFound when there is
+	// none, or the handle is an org proxy or another project's.
+	GetInProjectByName(ctx context.Context, handle, orgUUID, projectName string) (*models.MCPProxy, error)
 	Delete(ctx context.Context, handle, orgUUID string) error
 	Count(ctx context.Context, orgUUID string) (int, error)
 	Exists(ctx context.Context, handle, orgUUID string) (bool, error)
@@ -66,6 +71,10 @@ type MCPProxyListFilter struct {
 	// IncludeOrgOwned additionally lists organization-level proxies. It has no effect
 	// without ProjectUUID.
 	IncludeOrgOwned bool
+	// ProjectName, when set and ProjectUUID is not, lists the project proxies stored under
+	// that project name whatever project UUID they carry: the listing for a project that no
+	// longer exists in OpenChoreo. Org proxies are never included.
+	ProjectName *string
 	// Component and Endpoint, when non-empty, match configuration.source.
 	Component, Endpoint string
 	// Limit <= 0 means no limit.
@@ -78,6 +87,8 @@ func (f MCPProxyListFilter) apply(q *gorm.DB, orgUUID string) *gorm.DB {
 	q = q.Where("a.ou_id = ? AND a.kind = ?", orgUUID, models.KindMCPProxy)
 	switch {
 	case f.AllProjects:
+	case f.ProjectUUID == nil && f.ProjectName != nil:
+		q = q.Where("mcp_proxies.project_uuid IS NOT NULL AND mcp_proxies.project_name = ?", *f.ProjectName)
 	case f.ProjectUUID == nil:
 		q = q.Where("mcp_proxies.project_uuid IS NULL")
 	case f.IncludeOrgOwned:
@@ -266,6 +277,26 @@ func (r *MCPProxyRepo) GetInProject(ctx context.Context, handle, orgUUID, projec
 		Joins("JOIN artifacts a ON mcp_proxies.uuid = a.uuid").
 		Where("a.handle = ? AND a.ou_id = ? AND a.kind = ? AND mcp_proxies.project_uuid = ?",
 			handle, orgUUID, models.KindMCPProxy, projectUUID).
+		First(&proxy).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, utils.ErrMCPProxyNotFound
+		}
+		return nil, err
+	}
+	return &proxy, nil
+}
+
+// GetInProjectByName retrieves a project proxy by handle and stored project name, whatever its project UUID.
+func (r *MCPProxyRepo) GetInProjectByName(ctx context.Context, handle, orgUUID, projectName string) (*models.MCPProxy, error) {
+	var proxy models.MCPProxy
+	err := r.db.WithContext(ctx).
+		Preload("Artifact").
+		Preload("Endpoints").
+		Preload("Endpoints.Environments").
+		Joins("JOIN artifacts a ON mcp_proxies.uuid = a.uuid").
+		Where("a.handle = ? AND a.ou_id = ? AND a.kind = ? AND mcp_proxies.project_uuid IS NOT NULL AND mcp_proxies.project_name = ?",
+			handle, orgUUID, models.KindMCPProxy, projectName).
 		First(&proxy).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {

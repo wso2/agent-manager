@@ -70,6 +70,14 @@ func newProjectProxyFixture(t *testing.T) *projectProxyFixture {
 			cp := *p
 			return &cp, nil
 		},
+		GetInProjectByNameFunc: func(_ context.Context, handle, _, projectName string) (*models.MCPProxy, error) {
+			p, ok := f.proxies[handle]
+			if !ok || p.ProjectUUID == nil || p.ProjectName == nil || *p.ProjectName != projectName {
+				return nil, utils.ErrMCPProxyNotFound
+			}
+			cp := *p
+			return &cp, nil
+		},
 		ExistsFunc: func(_ context.Context, handle, _ string) (bool, error) {
 			_, ok := f.proxies[handle]
 			return ok, nil
@@ -90,7 +98,11 @@ func newProjectProxyFixture(t *testing.T) *projectProxyFixture {
 		ListFunc: func(_ context.Context, _ string, flt repositories.MCPProxyListFilter) ([]*models.MCPProxy, int64, error) {
 			var out []*models.MCPProxy
 			for _, p := range f.proxies {
-				if flt.ProjectUUID != nil && p.ProjectUUID != nil && *p.ProjectUUID == *flt.ProjectUUID {
+				switch {
+				case flt.ProjectUUID != nil && p.ProjectUUID != nil && *p.ProjectUUID == *flt.ProjectUUID:
+					out = append(out, p)
+				case flt.ProjectUUID == nil && flt.ProjectName != nil && p.ProjectUUID != nil &&
+					p.ProjectName != nil && *p.ProjectName == *flt.ProjectName:
 					out = append(out, p)
 				}
 			}
