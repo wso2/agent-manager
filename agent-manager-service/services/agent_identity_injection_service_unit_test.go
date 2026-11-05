@@ -888,17 +888,21 @@ func TestAgentIdentityInjection_RefreshAfterRotation_WaitsForApply(t *testing.T)
 	assert.NotContains(t, logs.String(), "level=WARN")
 }
 
-// A revision never seen applied: one Warn, the pod still rolls after the short wait.
+// A revision never seen applied: one Warn, the pod still rolls, but after the
+// refresh interval wait, not the short force-sync wait.
 func TestAgentIdentityInjection_RefreshAfterRotation_ApplyTimeoutStillRolls(t *testing.T) {
 	oc := injectableOCClient()
 	oc.IsSecretSyncRevisionAppliedFunc = func(context.Context, string, string, string, string) (bool, error) {
 		return false, nil
 	}
 	slowAfter := func(time.Duration) <-chan time.Time { return time.After(time.Millisecond) }
-	_, logs, rolled := rotateAndCollect(t, oc, []AgentIdentityInjectionOption{
+	waits, logs, rolled := rotateAndCollect(t, oc, []AgentIdentityInjectionOption{
 		WithAgentIdentityForceSyncWait("7s"), WithAgentIdentityForceSyncApplyTimeout("30ms"),
 	}, slowAfter, nil)
 	require.True(t, rolled(2*time.Second), "a poll timeout must not stop the roll")
+	got := waits()
+	require.NotEmpty(t, got)
+	assert.Equal(t, time.Hour, got[len(got)-1], "an unconfirmed apply waits the refresh interval, not the short force-sync wait")
 	assert.Equal(t, 1, strings.Count(logs.String(), "level=WARN"))
 	assert.Eventually(t, func() bool { return strings.Contains(logs.String(), "forceSync=apply-unconfirmed") }, 2*time.Second, 5*time.Millisecond)
 }

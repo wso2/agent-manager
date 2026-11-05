@@ -671,7 +671,8 @@ func identityEnvVarsInSync(desired []client.EnvVar, current []models.EnvVars) bo
 // or the write fails for any reason (installed ComponentType predates the
 // field, missing binding, retries used up), a log line says so and the
 // behavior above applies unchanged: wait refreshInterval, then roll. If the
-// apply poll times out, one warning is logged and the roll still happens. So
+// apply poll times out, one warning is logged and the pod rolls after the
+// refreshInterval wait, because an unconfirmed apply is no sync guarantee. So
 // the ExternalSecret refreshInterval and refreshInterval here must be raised
 // together, and only after the new ComponentType is deployed. The force-sync
 // write and the roll are separate writes.
@@ -712,9 +713,11 @@ func (s *agentIdentityInjectionService) RefreshAfterRotation(ctx context.Context
 		switch result {
 		case forceSyncAbandoned:
 			return // shutting down, or a later rotation superseded this one
-		case forceSyncApplied, forceSyncApplyUnconfirmed:
+		case forceSyncApplied:
 			wait = s.forceSyncWaitDuration()
-		case forceSyncNotUsed:
+		case forceSyncApplyUnconfirmed, forceSyncNotUsed:
+			// An unconfirmed apply means the force-sync did not demonstrably
+			// happen, so the refresh interval is the only sync guarantee.
 		}
 		select {
 		case <-s.after(wait):
@@ -769,7 +772,7 @@ const (
 	// forceSyncApplied: the live ExternalSecret carries the new revision.
 	forceSyncApplied
 	// forceSyncApplyUnconfirmed: the revision was written but never seen applied
-	// within the timeout.
+	// within the timeout; wait refreshInterval, like forceSyncNotUsed.
 	forceSyncApplyUnconfirmed
 	// forceSyncAbandoned: shutdown or a later rotation ended this rollout.
 	forceSyncAbandoned

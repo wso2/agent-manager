@@ -323,7 +323,8 @@ type SecretManagerConfig struct {
 	// AgentIdentityForceSyncApplyTimeout bounds how long to wait, before the
 	// AgentIdentityForceSyncWait above, for the new force-sync revision to show
 	// up on the live ExternalSecret (default: "2m"). On timeout a warning is
-	// logged and the pod is rolled anyway.
+	// logged and the pod is rolled after AgentIdentityRefreshInterval, not the
+	// short force-sync wait, because the force-sync was not confirmed.
 	AgentIdentityForceSyncApplyTimeout string
 }
 
