@@ -19,10 +19,10 @@ import React, { useMemo, useState } from "react";
 import {
   Alert,
   Autocomplete,
-  Box,
   Button,
   CircularProgress,
   Form,
+  Grid,
   IconButton,
   ListingTable,
   Stack,
@@ -117,24 +117,26 @@ function AssignmentTab<T extends AssignableItem>({
       )}
 
       {canEdit && (
-        <Box sx={{ mt: 1, mb: 2 }}>
-          {isLoadingCatalog ? (
-            <CircularProgress size={20} />
-          ) : (
-            <Form.ElementWrapper label={addLabel} name={addLabel}>
-              <Autocomplete
-                options={availableItems}
-                getOptionLabel={(option) => option.name}
-                onChange={onAdd}
-                value={null}
-                renderInput={(autocompleteParams) => (
-                  <TextField {...autocompleteParams} placeholder={addPlaceholder} />
-                )}
-                noOptionsText={noOptionsText}
-              />
-            </Form.ElementWrapper>
-          )}
-        </Box>
+        <Grid container spacing={2}>
+          <Grid size={{ xs: 12, md: 12, xl: 8 }}>
+            {isLoadingCatalog ? (
+              <CircularProgress size={20} />
+            ) : (
+              <Form.ElementWrapper label={addLabel} name={addLabel}>
+                <Autocomplete
+                  options={availableItems}
+                  getOptionLabel={(option) => option.name}
+                  onChange={onAdd}
+                  value={null}
+                  renderInput={(autocompleteParams) => (
+                    <TextField {...autocompleteParams} placeholder={addPlaceholder} />
+                  )}
+                  noOptionsText={noOptionsText}
+                />
+              </Form.ElementWrapper>
+            )}
+          </Grid>
+        </Grid>
       )}
 
       {displayedItems.length === 0 ? (
@@ -347,7 +349,7 @@ export const AgentDetailPage: React.FC = () => {
 
   if (isLoading) {
     return (
-      <PageLayout title={title} backHref={agentsPath} backLabel="Back to Agents" disableIcon>
+      <PageLayout title={title} backHref={agentsPath} backLabel="Back to agents" disableIcon>
         <EditFormSkeleton tabs={2} />
       </PageLayout>
     );
@@ -359,7 +361,7 @@ export const AgentDetailPage: React.FC = () => {
     <PageLayout
       title={title}
       backHref={agentsPath}
-      backLabel="Back to Agents"
+      backLabel="Back to agents"
       description={projectData?.displayName || projectName}
       disableIcon
     >

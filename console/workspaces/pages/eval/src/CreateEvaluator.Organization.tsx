@@ -74,7 +74,7 @@ export const CreateEvaluatorOrganization: React.FC = () => {
   return (
     <PageLayout
       title="Create Evaluator"
-      backLabel="Back to Evaluators"
+      backLabel="Back to evaluators"
       backHref={backHref}
       disableIcon
     >

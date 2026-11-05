@@ -20,6 +20,15 @@ import { Box, Button, Card, Divider, Typography, type SxProps, type Theme } from
 import { ChevronRight } from "@wso2/oxygen-ui-icons-react";
 import { Link } from "react-router-dom";
 
+/**
+ * Oxygen paints Card/Paper with `background.acrylic`, which is translucent
+ * (25% alpha), so a card inside another card composites that tint twice and
+ * lands on a different colour than an unnested one. Nested cards opt into the
+ * opaque surface token instead, so their background no longer depends on how
+ * deeply they sit or where the page gradient falls behind them.
+ */
+export const NESTED_CARD_SX = { bgcolor: "background.paper" } as const;
+
 interface OverviewSectionCardProps {
   /** Uppercase caption shown in the section's own header row. */
   title: string;
@@ -94,7 +103,10 @@ export const OverviewSectionCard: React.FC<OverviewSectionCardProps> = ({
   }
 
   return (
-    <Card variant="outlined" sx={{ px: 2, my: 0.5, pt: 0.5, pb: 3, ...sx }}>
+    <Card
+      variant="outlined"
+      sx={{ ...NESTED_CARD_SX, px: 2, my: 0.5, pt: 0.5, pb: 3, ...sx }}
+    >
       {content}
     </Card>
   );

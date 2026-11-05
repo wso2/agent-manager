@@ -35,6 +35,7 @@ import {
 } from "@agent-management-platform/api-client";
 import { useParams } from "react-router-dom";
 import { ChatMessage } from "./subComponents/ChatMessage";
+import { OAuthNotice } from "./subComponents/OAuthNotice";
 import { FadeIn, useSnackBar } from "@agent-management-platform/views";
 import { readSSEStream, parseStreamChunk } from "./utils/sse";
 import { INPUT_LIMITS } from "@agent-management-platform/types";
@@ -446,14 +447,7 @@ export function AgentChat() {
   const sendDisabled = inputDisabled || !message.trim();
 
   if (oauthOnly) {
-    return (
-      <Alert severity="info">
-        <Typography variant="caption">
-          Testing is unavailable while OAuth is enabled. Test this endpoint out-of-band with a
-          valid token.
-        </Typography>
-      </Alert>
-    );
+    return <OAuthNotice endpoint={endpoint} />;
   }
 
   if (messages.length === 0) {

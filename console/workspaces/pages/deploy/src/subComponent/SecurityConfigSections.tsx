@@ -539,7 +539,7 @@ export const SecurityConfigSections = forwardRef<SecurityConfigHandle, SecurityC
                   </Alert>
                 )}
                 <FormControl fullWidth error={oauthInvalid}>
-                  <FormLabel required>Identity Providers</FormLabel>
+                  <FormLabel>Identity Providers</FormLabel>
                   <Autocomplete
                     multiple
                     options={identityProviderOptions}

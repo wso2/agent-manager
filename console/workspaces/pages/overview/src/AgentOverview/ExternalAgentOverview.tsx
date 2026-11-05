@@ -30,6 +30,7 @@ import {
   usePipelineEnvironmentsState,
 } from "@agent-management-platform/shared-component";
 import { InstrumentationDrawer } from "./InstrumentationDrawer";
+import { otelGatewayVhost } from "./otelGateway";
 import { NoDataFound } from "@agent-management-platform/views";
 import { EnvironmentSectionsContent } from "./EnvironmentSectionsContent";
 import { EnvironmentSingleHeader } from "./EnvironmentSingleHeader";
@@ -69,7 +70,7 @@ export const ExternalAgentOverview = () => {
     { environment: selectedEnvironmentId },
   );
   const envGatewayVhost = derivesUrlFromGateway
-    ? envGatewayList?.gateways?.[0]?.vhost
+    ? otelGatewayVhost(envGatewayList?.gateways)
     : undefined;
   const agentInstrumentationUrl = envGatewayVhost
     ? `${envGatewayVhost.replace(/\/$/, "")}/otel`

@@ -150,6 +150,20 @@ func (s *monitorManagerService) CreateMonitor(ctx context.Context, ouID string, 
 		return nil, fmt.Errorf("failed to resolve environment: %w", err)
 	}
 
+	var provider *models.LLMProvider
+	if req.LLMProvider != nil {
+		envUUID, err := uuid.Parse(env.UUID)
+		if err != nil {
+			return nil, fmt.Errorf("invalid environment UUID: %w", err)
+		}
+		if provider, err = s.monitorLLMProvider(ouID, req.LLMProvider.ProviderName); err != nil {
+			return nil, err
+		}
+		if err := s.requireManagedMonitorProvider(ctx, ouID, req.LLMProvider.ProviderName, provider, env.Name, envUUID); err != nil {
+			return nil, err
+		}
+	}
+
 	// Set defaults
 	samplingRate := models.DefaultSamplingRate
 	if req.SamplingRate != nil {
@@ -219,17 +233,6 @@ func (s *monitorManagerService) CreateMonitor(ctx context.Context, ouID string, 
 				s.logger.Error("Failed to rollback monitor on error", "error", delErr)
 			}
 			return nil, fmt.Errorf("invalid environment UUID: %w", err)
-		}
-
-		provider, err := s.llmProvisioner.ProviderRepo().GetByHandle(req.LLMProvider.ProviderName, ouID)
-		if err != nil {
-			if delErr := s.monitorRepo.DeleteMonitor(monitor); delErr != nil {
-				s.logger.Error("Failed to rollback monitor on error", "error", delErr)
-			}
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				err = fmt.Errorf("%w: %s", utils.ErrLLMProviderNotFound, req.LLMProvider.ProviderName)
-			}
-			return nil, fmt.Errorf("failed to resolve LLM provider %q: %w", req.LLMProvider.ProviderName, err)
 		}
 
 		gateway, err := s.resolveMonitorGateway(ctx, ouID, envUUID, provider.UUID.String())
@@ -523,6 +526,33 @@ func (s *monitorManagerService) UpdateMonitor(ctx context.Context, ouID, project
 		}
 	}
 
+	// newProvider is set only when the provider is changing. The frontend always echoes the current llmProvider in
+	// PATCH requests, so receiving req.LLMProvider != nil does not mean the provider is changing.
+	var (
+		oldMappings []models.MonitorLLMMapping
+		newProvider *models.LLMProvider
+		envUUID     uuid.UUID
+	)
+	if req.LLMProvider != nil && !req.ClearLLMProvider {
+		oldMappings, err = s.monitorLLMMappingRepo.ListByMonitorID(ctx, monitor.ID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list existing LLM mappings: %w", err)
+		}
+		if !s.monitorProviderUnchanged(ouID, monitor, oldMappings, req.LLMProvider.ProviderName) {
+			envUUID, err = uuid.Parse(monitor.EnvironmentID)
+			if err != nil {
+				return nil, fmt.Errorf("invalid environment UUID: %w", err)
+			}
+			if newProvider, err = s.monitorLLMProvider(ouID, req.LLMProvider.ProviderName); err != nil {
+				return nil, err
+			}
+			if err := s.requireManagedMonitorProvider(ctx, ouID, req.LLMProvider.ProviderName, newProvider,
+				monitor.EnvironmentName, envUUID); err != nil {
+				return nil, err
+			}
+		}
+	}
+
 	// Apply partial updates
 	if req.DisplayName != nil {
 		monitor.DisplayName = *req.DisplayName
@@ -535,146 +565,106 @@ func (s *monitorManagerService) UpdateMonitor(ctx context.Context, ouID, project
 		if err := s.cleanupLLMProxies(ctx, ouID, monitor.ID); err != nil {
 			s.logger.Error("Failed to cleanup LLM proxy during update", "error", err)
 		}
-	} else if req.LLMProvider != nil {
-		// Load old mappings to check whether the provider is actually changing.
-		oldMappings, err := s.monitorLLMMappingRepo.ListByMonitorID(ctx, monitor.ID)
+	} else if newProvider != nil {
+		gateway, err := s.resolveMonitorGateway(ctx, ouID, envUUID, newProvider.UUID.String())
 		if err != nil {
-			return nil, fmt.Errorf("failed to list existing LLM mappings: %w", err)
+			return nil, fmt.Errorf("failed to resolve gateway: %w", err)
 		}
 
-		// Skip re-provisioning when the requested provider is already configured.
-		// The frontend always echoes the current llmProvider in PATCH requests, so
-		// receiving req.LLMProvider != nil does not mean the provider is changing.
-		providerUnchanged := false
-		if len(oldMappings) > 0 {
-			if oldMappings[0].LLMProxy == nil {
-				s.logger.Error("Existing monitor LLM mapping points at a missing proxy — orphaned gateway resources may exist",
-					"monitorID", monitor.ID, "proxyUUID", oldMappings[0].LLMProxyUUID)
-			} else {
-				existingProvider, err := s.llmProvisioner.ProviderRepo().GetByUUID(
-					oldMappings[0].LLMProxy.ProviderUUID.String(), ouID,
-				)
-				if err == nil && existingProvider != nil &&
-					existingProvider.Configuration.Handle == req.LLMProvider.ProviderName {
-					providerUnchanged = true
-				}
-			}
+		project, err := s.ocClient.GetProject(ctx, ouID, monitor.ProjectName)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get project: %w", err)
+		}
+		projectUUID, err := uuid.Parse(project.UUID)
+		if err != nil {
+			return nil, fmt.Errorf("invalid project UUID: %w", err)
 		}
 
-		if !providerUnchanged {
-			envUUID, err := uuid.Parse(monitor.EnvironmentID)
-			if err != nil {
-				return nil, fmt.Errorf("invalid environment UUID: %w", err)
-			}
+		mapping, rollbackState, proxyAPIKey, err := s.provisionLLMProxy(ctx, ouID, monitor, *req.LLMProvider, gateway, projectUUID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to provision LLM proxy: %w", err)
+		}
 
-			provider, err := s.llmProvisioner.ProviderRepo().GetByHandle(req.LLMProvider.ProviderName, ouID)
-			if err != nil {
-				if errors.Is(err, gorm.ErrRecordNotFound) {
-					err = fmt.Errorf("%w: %s", utils.ErrLLMProviderNotFound, req.LLMProvider.ProviderName)
-				}
-				return nil, fmt.Errorf("failed to resolve LLM provider %q: %w", req.LLMProvider.ProviderName, err)
+		// Delete old mapping rows and insert the new one atomically so that the
+		// UNIQUE(monitor_id) constraint is never violated mid-transaction. If Create
+		// fails the transaction rolls back, restoring the old rows, so the monitor
+		// always retains a provider.
+		if err := s.db.Transaction(func(tx *gorm.DB) error {
+			if err := s.monitorLLMMappingRepo.DeleteByMonitorID(ctx, tx, monitor.ID); err != nil {
+				return fmt.Errorf("failed to delete old LLM mappings: %w", err)
 			}
+			return s.monitorLLMMappingRepo.Create(ctx, tx, mapping)
+		}); err != nil {
+			s.llmProvisioner.RollbackProxy(ctx, rollbackState, ouID)
+			return nil, fmt.Errorf("failed to save monitor LLM mapping: %w", err)
+		}
 
-			gateway, err := s.resolveMonitorGateway(ctx, ouID, envUUID, provider.UUID.String())
-			if err != nil {
-				return nil, fmt.Errorf("failed to resolve gateway: %w", err)
+		// Write composite secret only after the new DB row is committed.
+		compositeLoc := monitorCompositeSecretLocation(ouID, monitor.ID)
+		secretRefName, err := s.llmProvisioner.SecretClient().CreateSecret(ctx, compositeLoc,
+			map[string]string{"LLM_API_KEY": proxyAPIKey})
+		if err != nil {
+			s.llmProvisioner.RollbackProxy(ctx, rollbackState, ouID)
+			// Remove the newly-committed mapping row so the monitor is not left pointing
+			// at a proxy with no valid secret.
+			if delErr := s.monitorLLMMappingRepo.DeleteByMonitorIDAndProxyUUID(ctx, s.db, monitor.ID, mapping.LLMProxyUUID); delErr != nil {
+				s.logger.Error("Failed to rollback monitor LLM mapping on secret write failure", "error", delErr)
 			}
+			// Re-insert the previous mappings so the monitor retains its old provider.
+			for _, old := range oldMappings {
+				if reErr := s.monitorLLMMappingRepo.Create(ctx, s.db, &models.MonitorLLMMapping{
+					MonitorID:    old.MonitorID,
+					LLMProxyUUID: old.LLMProxyUUID,
+				}); reErr != nil {
+					s.logger.Error("Failed to restore old LLM mapping after secret write failure", "error", reErr)
+				}
+			}
+			return nil, fmt.Errorf("failed to write composite LLM proxy secret: %w", err)
+		}
 
-			project, err := s.ocClient.GetProject(ctx, ouID, monitor.ProjectName)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get project: %w", err)
+		// Resolve the SecretReference to get the remoteRef key/property.
+		resolvedKVPath, resolvedSecretKey, err := s.resolveMonitorSecretRef(ctx, ouID, secretRefName)
+		if err != nil {
+			s.llmProvisioner.RollbackProxy(ctx, rollbackState, ouID)
+			if delErr := s.monitorLLMMappingRepo.DeleteByMonitorIDAndProxyUUID(ctx, s.db, monitor.ID, mapping.LLMProxyUUID); delErr != nil {
+				s.logger.Error("Failed to rollback monitor LLM mapping on secret ref resolve failure", "error", delErr)
 			}
-			projectUUID, err := uuid.Parse(project.UUID)
-			if err != nil {
-				return nil, fmt.Errorf("invalid project UUID: %w", err)
+			for _, old := range oldMappings {
+				if reErr := s.monitorLLMMappingRepo.Create(ctx, s.db, &models.MonitorLLMMapping{
+					MonitorID:    old.MonitorID,
+					LLMProxyUUID: old.LLMProxyUUID,
+				}); reErr != nil {
+					s.logger.Error("Failed to restore old LLM mapping after secret ref resolve failure", "error", reErr)
+				}
 			}
+			return nil, fmt.Errorf("failed to resolve LLM proxy SecretReference: %w", err)
+		}
 
-			mapping, rollbackState, proxyAPIKey, err := s.provisionLLMProxy(ctx, ouID, monitor, *req.LLMProvider, gateway, projectUUID)
-			if err != nil {
-				return nil, fmt.Errorf("failed to provision LLM proxy: %w", err)
+		mapping.SecretKVPath = resolvedKVPath
+		mapping.SecretKey = resolvedSecretKey
+		if err := s.monitorLLMMappingRepo.Update(ctx, s.db, mapping); err != nil {
+			s.llmProvisioner.RollbackProxy(ctx, rollbackState, ouID)
+			if delErr := s.monitorLLMMappingRepo.DeleteByMonitorIDAndProxyUUID(ctx, s.db, monitor.ID, mapping.LLMProxyUUID); delErr != nil {
+				s.logger.Error("Failed to rollback monitor LLM mapping on secret ref persist failure", "error", delErr)
 			}
-
-			// Delete old mapping rows and insert the new one atomically so that the
-			// UNIQUE(monitor_id) constraint is never violated mid-transaction. If Create
-			// fails the transaction rolls back, restoring the old rows, so the monitor
-			// always retains a provider.
-			if err := s.db.Transaction(func(tx *gorm.DB) error {
-				if err := s.monitorLLMMappingRepo.DeleteByMonitorID(ctx, tx, monitor.ID); err != nil {
-					return fmt.Errorf("failed to delete old LLM mappings: %w", err)
+			for _, old := range oldMappings {
+				if reErr := s.monitorLLMMappingRepo.Create(ctx, s.db, &models.MonitorLLMMapping{
+					MonitorID:    old.MonitorID,
+					LLMProxyUUID: old.LLMProxyUUID,
+				}); reErr != nil {
+					s.logger.Error("Failed to restore old LLM mapping after secret ref persist failure", "error", reErr)
 				}
-				return s.monitorLLMMappingRepo.Create(ctx, tx, mapping)
-			}); err != nil {
-				s.llmProvisioner.RollbackProxy(ctx, rollbackState, ouID)
-				return nil, fmt.Errorf("failed to save monitor LLM mapping: %w", err)
 			}
+			return nil, fmt.Errorf("failed to persist LLM proxy secret reference: %w", err)
+		}
 
-			// Write composite secret only after the new DB row is committed.
-			compositeLoc := monitorCompositeSecretLocation(ouID, monitor.ID)
-			secretRefName, err := s.llmProvisioner.SecretClient().CreateSecret(ctx, compositeLoc,
-				map[string]string{"LLM_API_KEY": proxyAPIKey})
-			if err != nil {
-				s.llmProvisioner.RollbackProxy(ctx, rollbackState, ouID)
-				// Remove the newly-committed mapping row so the monitor is not left pointing
-				// at a proxy with no valid secret.
-				if delErr := s.monitorLLMMappingRepo.DeleteByMonitorIDAndProxyUUID(ctx, s.db, monitor.ID, mapping.LLMProxyUUID); delErr != nil {
-					s.logger.Error("Failed to rollback monitor LLM mapping on secret write failure", "error", delErr)
-				}
-				// Re-insert the previous mappings so the monitor retains its old provider.
-				for _, old := range oldMappings {
-					if reErr := s.monitorLLMMappingRepo.Create(ctx, s.db, &models.MonitorLLMMapping{
-						MonitorID:    old.MonitorID,
-						LLMProxyUUID: old.LLMProxyUUID,
-					}); reErr != nil {
-						s.logger.Error("Failed to restore old LLM mapping after secret write failure", "error", reErr)
-					}
-				}
-				return nil, fmt.Errorf("failed to write composite LLM proxy secret: %w", err)
+		// Clean up old proxy infrastructure now that the new mapping is committed.
+		for _, oldMapping := range oldMappings {
+			if oldMapping.LLMProxy == nil {
+				continue
 			}
-
-			// Resolve the SecretReference to get the remoteRef key/property.
-			resolvedKVPath, resolvedSecretKey, err := s.resolveMonitorSecretRef(ctx, ouID, secretRefName)
-			if err != nil {
-				s.llmProvisioner.RollbackProxy(ctx, rollbackState, ouID)
-				if delErr := s.monitorLLMMappingRepo.DeleteByMonitorIDAndProxyUUID(ctx, s.db, monitor.ID, mapping.LLMProxyUUID); delErr != nil {
-					s.logger.Error("Failed to rollback monitor LLM mapping on secret ref resolve failure", "error", delErr)
-				}
-				for _, old := range oldMappings {
-					if reErr := s.monitorLLMMappingRepo.Create(ctx, s.db, &models.MonitorLLMMapping{
-						MonitorID:    old.MonitorID,
-						LLMProxyUUID: old.LLMProxyUUID,
-					}); reErr != nil {
-						s.logger.Error("Failed to restore old LLM mapping after secret ref resolve failure", "error", reErr)
-					}
-				}
-				return nil, fmt.Errorf("failed to resolve LLM proxy SecretReference: %w", err)
-			}
-
-			mapping.SecretKVPath = resolvedKVPath
-			mapping.SecretKey = resolvedSecretKey
-			if err := s.monitorLLMMappingRepo.Update(ctx, s.db, mapping); err != nil {
-				s.llmProvisioner.RollbackProxy(ctx, rollbackState, ouID)
-				if delErr := s.monitorLLMMappingRepo.DeleteByMonitorIDAndProxyUUID(ctx, s.db, monitor.ID, mapping.LLMProxyUUID); delErr != nil {
-					s.logger.Error("Failed to rollback monitor LLM mapping on secret ref persist failure", "error", delErr)
-				}
-				for _, old := range oldMappings {
-					if reErr := s.monitorLLMMappingRepo.Create(ctx, s.db, &models.MonitorLLMMapping{
-						MonitorID:    old.MonitorID,
-						LLMProxyUUID: old.LLMProxyUUID,
-					}); reErr != nil {
-						s.logger.Error("Failed to restore old LLM mapping after secret ref persist failure", "error", reErr)
-					}
-				}
-				return nil, fmt.Errorf("failed to persist LLM proxy secret reference: %w", err)
-			}
-
-			// Clean up old proxy infrastructure now that the new mapping is committed.
-			for _, oldMapping := range oldMappings {
-				if oldMapping.LLMProxy == nil {
-					continue
-				}
-				if err := s.llmProvisioner.CleanupProxy(ctx, oldMapping.LLMProxy, ouID, ProxySecretContext{}); err != nil {
-					s.logger.Error("Failed to cleanup old LLM proxy during update", "error", err)
-				}
+			if err := s.llmProvisioner.CleanupProxy(ctx, oldMapping.LLMProxy, ouID, ProxySecretContext{}); err != nil {
+				s.logger.Error("Failed to cleanup old LLM proxy during update", "error", err)
 			}
 		}
 	}
@@ -1530,22 +1520,54 @@ func monitorProxyName(monitorID uuid.UUID, monitorName, providerName string) str
 	return fmt.Sprintf("%s-%s-%s-proxy", name, providerFingerprint, monitorSuffix)
 }
 
-// resolveMonitorGateway anchors on the LLM provider's existing deployment, exactly as
-// resolveGatewayForProvider does, so a second egress gateway in the environment never
-// makes monitor create/update impossible. CreateMonitorRequest and UpdateMonitorRequest
+// monitorProviderUnchanged reports whether the monitor's current proxy already points at the named provider.
+func (s *monitorManagerService) monitorProviderUnchanged(
+	ouID string, monitor *models.Monitor, oldMappings []models.MonitorLLMMapping, providerName string,
+) bool {
+	if len(oldMappings) == 0 {
+		return false
+	}
+	if oldMappings[0].LLMProxy == nil {
+		s.logger.Error("Existing monitor LLM mapping points at a missing proxy — orphaned gateway resources may exist",
+			"monitorID", monitor.ID, "proxyUUID", oldMappings[0].LLMProxyUUID)
+		return false
+	}
+	existingProvider, err := s.llmProvisioner.ProviderRepo().GetByUUID(oldMappings[0].LLMProxy.ProviderUUID.String(), ouID)
+	return err == nil && existingProvider != nil && existingProvider.Configuration.Handle == providerName
+}
+
+// monitorLLMProvider is the organization's LLM provider with handle providerName.
+func (s *monitorManagerService) monitorLLMProvider(ouID, providerName string) (*models.LLMProvider, error) {
+	provider, err := s.llmProvisioner.ProviderRepo().GetByHandle(providerName, ouID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			err = fmt.Errorf("%w: %s", utils.ErrLLMProviderNotFound, providerName)
+		}
+		return nil, fmt.Errorf("failed to resolve LLM provider %q: %w", providerName, err)
+	}
+	return provider, nil
+}
+
+// requireManagedMonitorProvider refuses, before anything is created or changed, a monitor whose evaluation
+// jobs would run in OpenChoreo through a provider with no deployment on a managed gateway in the environment.
+func (s *monitorManagerService) requireManagedMonitorProvider(
+	ctx context.Context, ouID, providerName string, provider *models.LLMProvider, envName string, envUUID uuid.UUID,
+) error {
+	if err := monitorPolicy.requireProvider(ctx, s.llmProvisioner.ProxyDeploymentService(), s.llmProvisioner.gatewayRepo,
+		ouID, provider.UUID, envUUID); err != nil {
+		return fmt.Errorf("LLM provider %q in environment %s: %w", providerName, envName, err)
+	}
+	return nil
+}
+
+// resolveMonitorGateway anchors on the LLM provider's existing managed deployment, so a second egress gateway in
+// the environment never makes monitor create/update impossible. CreateMonitorRequest and UpdateMonitorRequest
 // carry no gateway field, so inference is the only path available here.
 func (s *monitorManagerService) resolveMonitorGateway(
 	ctx context.Context, ouID string, envUUID uuid.UUID, providerUUIDStr string,
 ) (*models.Gateway, error) {
-	var deployed []string
-	if providerUUID, err := uuid.Parse(providerUUIDStr); err == nil {
-		ids, depErr := s.llmProvisioner.ProxyDeploymentService().PlacedGateways(ctx, ouID, providerUUID)
-		if depErr != nil {
-			return nil, fmt.Errorf("failed to list deployed gateways for provider %s: %w", providerUUIDStr, depErr)
-		}
-		deployed = ids
-	}
-	return resolveEgressGatewayForArtifact(s.llmProvisioner.gatewayRepo, ouID, envUUID, deployed, nil)
+	return monitorPolicy.providerGateway(ctx, s.llmProvisioner.ProxyDeploymentService(), s.llmProvisioner.gatewayRepo,
+		ouID, providerUUIDStr, envUUID)
 }
 
 // monitorEnvironmentOf is the monitor's environment id, an OpenChoreo UUID stored as text; nil when it isn't one.

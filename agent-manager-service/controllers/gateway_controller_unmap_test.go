@@ -31,6 +31,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
+	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 type servingGuard struct{}
@@ -68,5 +69,35 @@ func TestRemoveGatewayFromEnvironment_ServedEnvironmentIsAConflict(t *testing.T)
 	}
 	if !strings.Contains(w.Body.String(), "undeploy") {
 		t.Errorf("body = %s, want it to say to undeploy first", w.Body.String())
+	}
+}
+
+func TestRemoveGatewayFromEnvironment_SelfHostedIsAConflict(t *testing.T) {
+	gateway := &models.Gateway{UUID: uuid.New(), Hosting: models.GatewayHostingSelfHosted}
+	repo := &repomocks.GatewayRepositoryMock{
+		GetByUUIDFunc: func(string) (*models.Gateway, error) { return gateway, nil },
+		// TransactionFunc left nil: the refusal must come before any mutation.
+	}
+	ocClient := &clientmocks.OpenChoreoClientMock{
+		ListEnvironmentsFunc: func(context.Context, string) ([]*models.EnvironmentResponse, error) {
+			return []*models.EnvironmentResponse{{UUID: defaultEnvUUID, Name: "default"}}, nil
+		},
+	}
+	ctrl := &gatewayController{
+		gatewayService: services.NewPlatformGatewayService(repo, nil),
+		ocClient:       ocClient,
+	}
+	req := httptest.NewRequest(http.MethodDelete, "/orgs/acme/gateways/"+gateway.UUID.String()+"/environments/default", nil)
+	req.SetPathValue("gatewayID", gateway.UUID.String())
+	req.SetPathValue("envID", "default")
+	w := httptest.NewRecorder()
+
+	ctrl.RemoveGatewayFromEnvironment(w, req)
+
+	if w.Code != http.StatusConflict {
+		t.Fatalf("status = %d, want 409; body=%s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), utils.ErrCodeGatewayEnvironmentFixed) {
+		t.Errorf("body = %s, want reason code %s", w.Body.String(), utils.ErrCodeGatewayEnvironmentFixed)
 	}
 }

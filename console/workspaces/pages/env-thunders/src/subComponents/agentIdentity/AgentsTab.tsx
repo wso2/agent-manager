@@ -31,6 +31,7 @@ import {
   useListAgentIdentityAgents,
   useOrgAgentDisplayNames,
 } from "@agent-management-platform/api-client";
+import { isListEmpty } from "@agent-management-platform/shared-component";
 import { absoluteRouteMap, type AgentIdentityAgentResponse } from "@agent-management-platform/types";
 import { withSearchParams } from "../../utils/withSearchParams";
 
@@ -60,6 +61,12 @@ export const AgentsTab: React.FC = () => {
   const { resolveAgentName, resolveProjectName } = useOrgAgentDisplayNames({ orgName: orgId });
 
   const agents = useMemo(() => data?.agents ?? [], [data]);
+
+  const isEmpty = isListEmpty({
+    isLoading,
+    count: agents.length,
+    isFiltered: Boolean(search),
+  });
 
   // Resolve each row's display name/project display name once here — every
   // downstream consumer (search filtering, the rendered cells) reads the
@@ -118,7 +125,9 @@ export const AgentsTab: React.FC = () => {
   return (
     <ListingTable.Provider searchValue={search} onSearchChange={setSearch}>
       <ListingTable.Container>
-        <ListingTable.Toolbar showSearch searchPlaceholder="Search agents..." />
+        {!isEmpty && (
+          <ListingTable.Toolbar showSearch searchPlaceholder="Search agents..." />
+        )}
         {!isLoading && filteredAgents.length === 0 ? (
           search ? (
             <ListingTable.EmptyState

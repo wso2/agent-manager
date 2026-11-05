@@ -31,7 +31,7 @@ import {
   useDeleteGroup,
   useListGroups,
 } from "@agent-management-platform/api-client";
-import { useConfirmationDialog } from "@agent-management-platform/shared-component";
+import { isListEmpty, useConfirmationDialog } from "@agent-management-platform/shared-component";
 import {
   absoluteRouteMap,
   globalConfig,
@@ -59,6 +59,13 @@ export const GroupsPage: React.FC = () => {
 
   const groups = useMemo(() => data?.groups ?? [], [data]);
   const total = data?.total ?? 0;
+  const hasItems = !isLoading && total > 0;
+
+  const isEmpty = isListEmpty({
+    isLoading,
+    count: groups.length,
+    isFiltered: Boolean(search),
+  });
 
   useEffect(() => {
     if (groups.length === 0 && total > 0) {
@@ -106,6 +113,18 @@ export const GroupsPage: React.FC = () => {
     });
   };
 
+  // One definition, used by the toolbar and by the empty state's CTA.
+  const createButton = (
+    <Button
+      variant="contained"
+      startIcon={<Plus />}
+      onClick={() => navigate(createPath)}
+      disabled={!isUserManagementEnabled}
+    >
+      Create Group
+    </Button>
+  );
+
   return (
     <>
       {error != null && (
@@ -116,20 +135,13 @@ export const GroupsPage: React.FC = () => {
 
       <ListingTable.Provider searchValue={search} onSearchChange={setSearch}>
         <ListingTable.Container>
-          <ListingTable.Toolbar
-            showSearch
-            searchPlaceholder="Search groups..."
-            actions={
-              <Button
-                variant="contained"
-                startIcon={<Plus />}
-                onClick={() => navigate(createPath)}
-                disabled={!isUserManagementEnabled}
-              >
-                Create Group
-              </Button>
-            }
-          />
+          {!isEmpty && (
+            <ListingTable.Toolbar
+              showSearch
+              searchPlaceholder="Search groups..."
+              actions={hasItems ? createButton : undefined}
+            />
+          )}
           {!isLoading && filteredGroups.length === 0 ? (
             search ? (
               <ListingTable.EmptyState
@@ -141,7 +153,8 @@ export const GroupsPage: React.FC = () => {
               <ListingTable.EmptyState
                 illustration={<Folder size={64} />}
                 title="No groups yet"
-                description='Click "Create Group" to add one.'
+                description="Create a group to manage a set of users together."
+                action={createButton}
               />
             )
           ) : (
@@ -195,7 +208,7 @@ export const GroupsPage: React.FC = () => {
               </ListingTable.Body>
             </ListingTable>
           )}
-          {!isLoading && total >= 5 && (
+          {!isLoading && total > 5 && (
             <TablePagination
               component="div"
               count={total}

@@ -41,7 +41,7 @@ import (
 	mcpproxyop "github.com/wso2/agent-manager/test/e2e/operations/mcpproxy"
 )
 
-var _ = Describe("amctl agent mcp (CLI-owned agent)", Label("cli", "agent", "mcp"), Ordered, func() {
+var _ = Describe("amctl agent mcp (CLI-owned agent)", Label("cli", "agent", "mcp"), Ordered, Serial, func() {
 	const (
 		// Distinct from the llm spec: config names are unique per agent across types and both specs share this agent.
 		configName = "mcp-primary"

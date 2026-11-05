@@ -20,14 +20,12 @@ import {
   Accordion,
   AccordionDetails,
   AccordionSummary,
-  FormControl,
-  FormLabel,
-  Stack,
-  TextField,
+  Grid,
   Typography,
 } from "@wso2/oxygen-ui";
 import { ChevronDown } from "@wso2/oxygen-ui-icons-react";
 import { INPUT_LIMITS } from "@agent-management-platform/types";
+import { TextInput } from "@agent-management-platform/views";
 
 // Gateway defaults applied when a value is omitted (RouteTimeoutMs / RouteIdleTimeoutMs).
 export const DEFAULT_REQUEST_TIMEOUT = "60s";
@@ -65,12 +63,12 @@ export function ResilienceTimeoutFields({
         </Typography>
       </AccordionSummary>
       <AccordionDetails>
-        <Stack direction={{ xs: "column", md: "row" }} spacing={2} useFlexGap>
-          <FormControl sx={{ flex: 1 }} fullWidth error={Boolean(requestTimeoutError)}>
-            <FormLabel>Request Timeout</FormLabel>
-            <TextField
-              slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.KEY } }}
-              size="small"
+        <Grid container spacing={2}>
+          <Grid size={{ xs: 12, md: 6 }}>
+            <TextInput
+              label="Request Timeout"
+              maxLength={INPUT_LIMITS.KEY}
+              hideCharacterCount
               value={requestTimeout}
               onChange={(e) => onRequestTimeoutChange(e.target.value)}
               onBlur={onRequestTimeoutBlur}
@@ -78,12 +76,12 @@ export function ResilienceTimeoutFields({
               error={Boolean(requestTimeoutError)}
               helperText={requestTimeoutError}
             />
-          </FormControl>
-          <FormControl sx={{ flex: 1 }} fullWidth error={Boolean(idleTimeoutError)}>
-            <FormLabel>Idle Timeout</FormLabel>
-            <TextField
-              slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.KEY } }}
-              size="small"
+          </Grid>
+          <Grid size={{ xs: 12, md: 6 }}>
+            <TextInput
+              label="Idle Timeout"
+              maxLength={INPUT_LIMITS.KEY}
+              hideCharacterCount
               value={idleTimeout}
               onChange={(e) => onIdleTimeoutChange(e.target.value)}
               onBlur={onIdleTimeoutBlur}
@@ -91,8 +89,8 @@ export function ResilienceTimeoutFields({
               error={Boolean(idleTimeoutError)}
               helperText={idleTimeoutError}
             />
-          </FormControl>
-        </Stack>
+          </Grid>
+        </Grid>
       </AccordionDetails>
     </Accordion>
   );

@@ -35,3 +35,32 @@ func TestHandleGatewayErrorsEnvironmentFixedIs409WithItsCode(t *testing.T) {
 	assert.Equal(t, http.StatusConflict, w.Code)
 	assert.Contains(t, w.Body.String(), `"code":"GATEWAY_ENVIRONMENT_FIXED"`)
 }
+
+func TestHandleGatewayErrors_Status(t *testing.T) {
+	cases := []struct {
+		name       string
+		err        error
+		wantStatus int
+		wantBody   string
+	}{
+		{"token limit", fmt.Errorf("rotate: %w", utils.ErrGatewayTokenLimitReached), http.StatusConflict, "Revoke"},
+		{"token not found", utils.ErrGatewayTokenNotFound, http.StatusNotFound, "Token not found"},
+		{
+			"validation error",
+			utils.NewInvalidInputError("Gateway name must be 3 to 64 characters", "gateway name must not exceed 64 characters"),
+			http.StatusBadRequest, "Gateway name must be 3 to 64 characters",
+		},
+		{"bare invalid input", fmt.Errorf("internal detail: %w", utils.ErrInvalidInput), http.StatusBadRequest, "Invalid input"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+
+			handleGatewayErrors(w, tc.err, "fallback")
+
+			assert.Equal(t, tc.wantStatus, w.Code)
+			assert.Contains(t, w.Body.String(), tc.wantBody)
+			assert.NotContains(t, w.Body.String(), "internal detail")
+		})
+	}
+}

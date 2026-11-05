@@ -94,6 +94,11 @@ export const generatedRouteMap =  {
               "path": "/org/:orgId/llm-providers/view/:providerId",
               "wildPath": "/org/:orgId/llm-providers/view/:providerId/*",
               "children": {
+                "edit": {
+                  "path": "/org/:orgId/llm-providers/view/:providerId/edit",
+                  "wildPath": "/org/:orgId/llm-providers/view/:providerId/edit/*",
+                  "children": {}
+                },
                 "deploy": {
                   "path": "/org/:orgId/llm-providers/view/:providerId/deploy",
                   "wildPath": "/org/:orgId/llm-providers/view/:providerId/deploy/*",
@@ -160,7 +165,13 @@ export const generatedRouteMap =  {
             "view": {
               "path": "/org/:orgId/mcp-proxies/view/:proxyId",
               "wildPath": "/org/:orgId/mcp-proxies/view/:proxyId/*",
-              "children": {}
+              "children": {
+                "edit": {
+                  "path": "/org/:orgId/mcp-proxies/view/:proxyId/edit",
+                  "wildPath": "/org/:orgId/mcp-proxies/view/:proxyId/edit/*",
+                  "children": {}
+                }
+              }
             }
           }
         },
@@ -209,6 +220,11 @@ export const generatedRouteMap =  {
               "path": "/org/:orgId/environments/:envName",
               "wildPath": "/org/:orgId/environments/:envName/*",
               "children": {
+                "edit": {
+                  "path": "/org/:orgId/environments/:envName/edit",
+                  "wildPath": "/org/:orgId/environments/:envName/edit/*",
+                  "children": {}
+                },
                 "identityProvider": {
                   "path": "/org/:orgId/environments/:envName/identity-provider",
                   "wildPath": "/org/:orgId/environments/:envName/identity-provider/*",
@@ -234,6 +250,11 @@ export const generatedRouteMap =  {
           "wildPath": "/org/:orgId/newProject/*",
           "children": {}
         },
+        "projectListing": {
+          "path": "/org/:orgId/projects",
+          "wildPath": "/org/:orgId/projects/*",
+          "children": {}
+        },
         "projects": {
           "path": "/org/:orgId/project/:projectId",
           "wildPath": "/org/:orgId/project/:projectId/*",
@@ -241,6 +262,16 @@ export const generatedRouteMap =  {
             "events": {
               "path": "/org/:orgId/project/:projectId/events",
               "wildPath": "/org/:orgId/project/:projectId/events/*",
+              "children": {}
+            },
+            "agentListing": {
+              "path": "/org/:orgId/project/:projectId/agents",
+              "wildPath": "/org/:orgId/project/:projectId/agents/*",
+              "children": {}
+            },
+            "edit": {
+              "path": "/org/:orgId/project/:projectId/edit",
+              "wildPath": "/org/:orgId/project/:projectId/edit/*",
               "children": {}
             },
             "newAgent": {
@@ -280,6 +311,11 @@ export const generatedRouteMap =  {
               "path": "/org/:orgId/project/:projectId/agents/:agentId",
               "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/*",
               "children": {
+                "edit": {
+                  "path": "/org/:orgId/project/:projectId/agents/:agentId/edit",
+                  "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/edit/*",
+                  "children": {}
+                },
                 "agentId": {
                   "path": "/org/:orgId/project/:projectId/agents/:agentId/agent-id",
                   "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/agent-id/*",

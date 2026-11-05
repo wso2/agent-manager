@@ -17,7 +17,6 @@
  */
 
 import { Alert, Box, Button, Collapse } from "@wso2/oxygen-ui";
-import { Rocket as RocketOutlined, Link } from "@wso2/oxygen-ui-icons-react";
 
 interface SummaryPanelProps {
     lastSubmittedValidationErrors: Record<string, string | undefined>;
@@ -57,16 +56,13 @@ export const CreateButtons = (
                     variant="contained"
                     color="primary"
                     size='medium'
-                    startIcon={isConnectMode ?
-                        <Link size={16} /> :
-                        <RocketOutlined size={16} />}
                     onClick={onSubmit}
                     disabled={
                         isPending || isNameEmpty || hasLLMVarConflicts ||
                         hasUnresolvedMCPSecurity
                     }
                 >
-                    {isConnectMode ? 'Register' : 'Deploy'}
+                    {isConnectMode ? 'Register' : 'Create and deploy'}
                 </Button>
             </Box>
         </Box>

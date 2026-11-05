@@ -9,6 +9,11 @@ on:
       - "Makefile"
       - ".github/workflows/cli-codegen-check.yaml"
 
+# Default token scope is read-only; jobs that publish, push or deploy
+# request the extra scopes they need at job level.
+permissions:
+  contents: read
+
 jobs:
   drift-check:
     name: Regenerate & Diff

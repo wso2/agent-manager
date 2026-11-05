@@ -33,6 +33,8 @@ import { ErrorPages } from "@agent-management-platform/shared-component";
 import {
   Login,
   LazyOverviewOrg,
+  LazyProjectListing,
+  LazyAgentListing,
   LazyOverviewProject,
   LazyOverviewComponent,
   LazyConfigureComponent,
@@ -55,6 +57,8 @@ import {
   LazyCatalogOrg,
   LazyAddNewAgent,
   LazyAddNewProject,
+  LazyEditProject,
+  LazyEditAgent,
   LazyBuildComponent,
   LazySecurityComponent,
   LazyDeploymentComponent,
@@ -270,6 +274,14 @@ export function RootRouter() {
             element={<OrgGuard />}
           >
             <Route index element={<LazyOverviewOrg />} />
+            <Route
+              path={relativeRouteMap.children.org.children.projectListing.path}
+              element={
+                <Suspense fallback={<LoadingFallback />}>
+                  <LazyProjectListing />
+                </Suspense>
+              }
+            />
             {orgPageModules.map((module) => (
               <Route
                 key={module.path}
@@ -400,6 +412,28 @@ export function RootRouter() {
               element={<ProjectGuard />}
             >
               <Route index element={<LazyOverviewProject />} />
+              <Route
+                path={
+                  relativeRouteMap.children.org.children.projects.children
+                    .agentListing.path
+                }
+                element={
+                  <Suspense fallback={<LoadingFallback />}>
+                    <LazyAgentListing />
+                  </Suspense>
+                }
+              />
+              <Route
+                path={
+                  relativeRouteMap.children.org.children.projects.children.edit
+                    .path
+                }
+                element={
+                  <Suspense fallback={<LoadingFallback />}>
+                    <LazyEditProject />
+                  </Suspense>
+                }
+              />
               {projectPageModules.map((module) => (
                 <Route
                   key={module.path}
@@ -441,6 +475,17 @@ export function RootRouter() {
                 element={<AgentGuard />}
               >
                 <Route index element={<LazyOverviewComponent />} />
+                <Route
+                  path={
+                    relativeRouteMap.children.org.children.projects.children
+                      .agents.children.edit.path
+                  }
+                  element={
+                    <Suspense fallback={<LoadingFallback />}>
+                      <LazyEditAgent />
+                    </Suspense>
+                  }
+                />
                 {componentPageModules.map((module) => (
                   <Route
                     key={module.path}

@@ -41,7 +41,8 @@ const (
 	// from GetTraceSpans. The tool intentionally has no "limit" input (its
 	// job is "show me this trace", not a paginated span list), so it always
 	// asks for the controller's hard per-request cap rather than the REST
-	// route's paginated default of 10.
+	// route's paginated default of 10. A trace with more spans is truncated;
+	// the result's totalCount exceeds len(spans) when that happens.
 	traceDetailsSpanLimit = controllers.MaxSpansPerRequest
 
 	// traceDetailsSortOrder is the fixed sort order get_trace_details

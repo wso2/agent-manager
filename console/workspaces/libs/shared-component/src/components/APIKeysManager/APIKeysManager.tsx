@@ -36,10 +36,17 @@ import {
 import {
   Key,
   Plus,
+  ServerCrash,
   Trash2 as DeleteIcon,
 } from "@wso2/oxygen-ui-icons-react";
 import { endOfDay, format } from "date-fns";
-import { DrawerContent, DrawerHeader, DrawerWrapper, TextInput } from "@agent-management-platform/views";
+import {
+  DrawerContent,
+  DrawerHeader,
+  DrawerWrapper,
+  StateNotice,
+  TextInput,
+} from "@agent-management-platform/views";
 import { capitalize } from "../../utils/format";
 import { monospaceInputSx } from "../AgentIdentityCredentials/AgentIdentityCredentials";
 import { useConfirmationDialog } from "../ConfirmationDialog/ConfirmationDialogProvider";
@@ -310,9 +317,17 @@ export function APIKeysManager({
       )}
 
       {isError ? (
-        <Alert severity="error">
-          Failed to load API keys. Please refresh the page.
-        </Alert>
+        <StateNotice
+          icon={ServerCrash}
+          tone="error"
+          title="Couldn't load API keys"
+          description="The key list failed to load. Reload the page to try again."
+          actions={
+            <Button variant="outlined" onClick={() => window.location.reload()}>
+              Reload page
+            </Button>
+          }
+        />
       ) : hasKeys ? (
         <ListingTable.Container>
           <Box display="flex" justifyContent="flex-end" sx={{ p: 2 }}>
@@ -381,14 +396,12 @@ export function APIKeysManager({
           </ListingTable>
         </ListingTable.Container>
       ) : (
-        <ListingTable.Container>
-          <ListingTable.EmptyState
-            illustration={<Key size={48} />}
-            title="No API keys"
-            description={emptyDescription}
-            action={createButton}
-          />
-        </ListingTable.Container>
+        <StateNotice
+          icon={Key}
+          title="Create your first API key"
+          description={emptyDescription}
+          actions={createButton}
+        />
       )}
 
       <CreateAPIKeyDrawer

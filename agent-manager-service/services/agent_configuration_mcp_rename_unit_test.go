@@ -565,7 +565,7 @@ func TestUpdateMCPConfigEnvironmentVariableNames_CommitFailureRestoresLiveValues
 			}
 			config := &models.AgentConfiguration{UUID: configUUID, OUID: f.ouID, ProjectName: "default", AgentID: "agent", Name: "github"}
 			err = svc.updateMCPConfigEnvironmentVariableNames(context.Background(), config, f.ouID, "default", "agent",
-				map[string]string{f.envUUID.String(): "default"}, false, "default", []models.EnvironmentVariableConfig{
+				map[string]string{f.envUUID.String(): "default"}, platformAgentPolicy, "default", []models.EnvironmentVariableConfig{
 					{Key: "url", Name: "GITHUB_URL"}, {Key: "apikey", Name: "GITHUB_API_KEY"},
 				})
 			require.Equal(t, 1, tx.commits)
@@ -833,7 +833,11 @@ func TestUpdateMCPConfigEnvironmentVariableNames_RejectsOtherConfigOwnership(t *
 			}
 			// No client methods are configured: rejected requests must never write live values.
 			svc.ocClient = &clientmocks.OpenChoreoClientMock{}
-			err = svc.updateMCPConfigEnvironmentVariableNames(context.Background(), &models.AgentConfiguration{UUID: configID, Name: "github"}, f.ouID, "project", "agent", nil, scenario == "own names allowed", "default", []models.EnvironmentVariableConfig{{Key: "url", Name: "GITHUB_URL"}})
+			policy := platformAgentPolicy
+			if scenario == "own names allowed" {
+				policy = externalAgentPolicy
+			}
+			err = svc.updateMCPConfigEnvironmentVariableNames(context.Background(), &models.AgentConfiguration{UUID: configID, Name: "github"}, f.ouID, "project", "agent", nil, policy, "default", []models.EnvironmentVariableConfig{{Key: "url", Name: "GITHUB_URL"}})
 			switch scenario {
 			case "collision":
 				require.ErrorIs(t, err, utils.ErrInvalidInput)

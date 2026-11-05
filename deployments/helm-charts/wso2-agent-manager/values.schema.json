@@ -1122,7 +1122,7 @@
             },
             "gatewayManifestCache": {
               "additionalProperties": false,
-              "description": "Gateway-reported policy manifest cache. Manifests are large and every gateway re-pushes its whole manifest on a fixed heartbeat, so they are cached in-process rather than persisted to the database.",
+              "description": "Gateway-reported policy manifest cache. A gateway pushes its whole manifest each time it (re)connects to the control plane; manifests are large, so they are cached per gateway rather than persisted to the database. An entry lasts until that gateway's next connect, the gateway is deleted, or (Redis) the key is lost.",
               "properties": {
                 "backend": {
                   "default": "memory",
@@ -1850,6 +1850,12 @@
                   "default": true,
                   "description": "When false, the Add User, Invite User, Create Role, and Create Group buttons on the Settings page are disabled.",
                   "title": "enableUserManagement",
+                  "type": "boolean"
+                },
+                "enableSelfHostedGateways": {
+                  "default": false,
+                  "description": "When true, the console offers self-hosted gateways: adding a gateway the customer runs and issuing its registration tokens.",
+                  "title": "enableSelfHostedGateways",
                   "type": "boolean"
                 }
               },
