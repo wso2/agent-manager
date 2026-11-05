@@ -153,7 +153,7 @@ func buildMCPProxyEnvArtifact(source *models.MCPProxy, endpoint *models.MCPProxy
 		contextPath = &gatewayContext
 		displayArtifact = &models.Artifact{
 			UUID: ee.ArtifactUUID, Handle: handle, Version: version, Kind: models.KindMCPMapping,
-			Name: models.MCPProxyArtifactName(source.ProjectName, source.Configuration.Name),
+			Name: models.MCPProxyGatewayDisplayName(source.ProjectName, source.Configuration.Name),
 		}
 	}
 

@@ -19,10 +19,20 @@ package models
 import "time"
 
 // MCPProxyArtifactName is the artifacts.name of an MCP proxy. An org-level proxy uses its
-// display name as is. A project proxy is "<project> <name>", which is also the gateway
-// display name and keeps uq_artifact_name_version_ou_id from rejecting two projects that
-// use the same display name.
-func MCPProxyArtifactName(projectName *string, name string) string {
+// display name as is. A project proxy uses its handle, which is unique in the org, so
+// uq_artifact_name_version_ou_id (unique across every artifact kind) never rejects a display
+// name that another proxy, in this project or another, already uses. Its display name is
+// kept in its configuration; MCPProxyGatewayDisplayName is what the gateway shows.
+func MCPProxyArtifactName(projectName *string, handle, name string) string {
+	if projectName == nil || *projectName == "" {
+		return name
+	}
+	return handle
+}
+
+// MCPProxyGatewayDisplayName is the display name a proxy's gateway artifact carries: an
+// org-level proxy's display name, or "<project> <name>" for a project proxy.
+func MCPProxyGatewayDisplayName(projectName *string, name string) string {
 	if projectName == nil || *projectName == "" {
 		return name
 	}

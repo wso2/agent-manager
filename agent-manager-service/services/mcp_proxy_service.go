@@ -1243,7 +1243,9 @@ func convertModelMCPProxyToSpec(proxy *models.MCPProxy) *models.MCPProxyDTO {
 		updatedAt = proxy.Artifact.UpdatedAt
 		inCatalog = proxy.Artifact.InCatalog
 	}
-	if name == "" {
+	// A project proxy's artifact name is its handle (models.MCPProxyArtifactName); its display name is the
+	// configured one.
+	if name == "" || proxy.ProjectUUID != nil {
 		name = proxy.Configuration.Name
 	}
 	if version == "" {
@@ -1279,7 +1281,9 @@ func convertModelMCPProxyToListItem(proxy *models.MCPProxy) models.MCPProxyListI
 		createdAt = proxy.Artifact.CreatedAt
 		updatedAt = proxy.Artifact.UpdatedAt
 	}
-	if name == "" {
+	// A project proxy's artifact name is its handle (models.MCPProxyArtifactName); its display name is the
+	// configured one.
+	if name == "" || proxy.ProjectUUID != nil {
 		name = proxy.Configuration.Name
 	}
 	if version == "" {

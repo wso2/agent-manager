@@ -402,7 +402,7 @@ func (s *ProjectMCPProxyService) create(
 	}
 	// A project proxy has no endpoint until it is bound: each environment binding is its own endpoint row
 	// (PutEnvironment), since the upstream and security differ per environment.
-	artifactName := models.MCPProxyArtifactName(&projectName, d.name)
+	artifactName := models.MCPProxyArtifactName(&projectName, handle, d.name)
 
 	if err := s.base.tx(ctx, func(tx *gorm.DB) error {
 		return s.base.repo.Create(ctx, tx, proxy, handle, artifactName, d.version, ouID, &projectUUID, &projectName)

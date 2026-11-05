@@ -214,6 +214,36 @@ func TestProjectMCPProxyCRUD(t *testing.T) {
 		assert.Equal(t, http.StatusNoContent, rr.Code)
 	})
 
+	t.Run("one project may use the same display name twice, and org routes read it back as sent", func(t *testing.T) {
+		twin := map[string]any{"name": req["name"], "context": "/twin-" + suffix, "source": req["source"]}
+		rr := h.do(http.MethodPut, projA, "/twin-"+handle, twin)
+		require.Equal(t, http.StatusCreated, rr.Code, rr.Body.String())
+		t.Cleanup(func() { h.do(http.MethodDelete, projA, "/twin-"+handle, nil) })
+
+		orgGet := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/orgs/%s/mcp-proxies/%s", h.org, handle), nil)
+		got := httptest.NewRecorder()
+		h.app.ServeHTTP(got, orgGet)
+		require.Equal(t, http.StatusOK, got.Code, got.Body.String())
+		var name string
+		require.NoError(t, json.Unmarshal(mustField(t, got.Body.Bytes(), "name"), &name))
+		assert.Equal(t, req["name"], name, "the org GET does not carry the project")
+
+		orgList := httptest.NewRequest(http.MethodGet,
+			fmt.Sprintf("/api/v1/orgs/%s/mcp-proxies?project=%s&limit=100", h.org, projA), nil)
+		listed := httptest.NewRecorder()
+		h.app.ServeHTTP(listed, orgList)
+		require.Equal(t, http.StatusOK, listed.Code, listed.Body.String())
+		var list models.MCPProxyListResponse
+		require.NoError(t, json.Unmarshal(listed.Body.Bytes(), &list))
+		var names []string
+		for _, item := range list.List {
+			if item.ID != nil && item.Name != nil && (*item.ID == handle || *item.ID == "twin-"+handle) {
+				names = append(names, *item.Name)
+			}
+		}
+		assert.Equal(t, []string{req["name"].(string), req["name"].(string)}, names, "the picker sees the name as sent")
+	})
+
 	t.Run("unknown project is 404 PROJECT_NOT_FOUND", func(t *testing.T) {
 		rr := h.do(http.MethodGet, "nonexistent-proj", "", nil)
 		require.Equal(t, http.StatusNotFound, rr.Code)
