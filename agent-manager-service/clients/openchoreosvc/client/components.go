@@ -1426,45 +1426,66 @@ func (c *openChoreoClient) DeleteComponent(ctx context.Context, ouID, projectNam
 
 func (c *openChoreoClient) ListComponents(ctx context.Context, ouID, projectName string) ([]*models.AgentResponse, error) {
 	namespaceName := c.NamespaceFor(ouID)
-	resp, err := c.ocClient.ListComponentsWithResponse(ctx, namespaceName, &gen.ListComponentsParams{
-		Project: &projectName,
-		Limit:   &defaultListLimit,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to list components: %w", err)
-	}
-	if resp.StatusCode() != http.StatusOK {
-		return nil, handleErrorResponse(resp.StatusCode(), ErrorResponses{
-			JSON401: resp.JSON401,
-			JSON403: resp.JSON403,
-			JSON404: resp.JSON404,
-			JSON500: resp.JSON500,
+	// OpenChoreo pages the list, so reading only the first page would drop every agent
+	// past it once a project outgrows one page, and callers would total and paginate a
+	// truncated set. Follow the cursor so they always see the complete set.
+	components := []*models.AgentResponse{}
+	var cursor *gen.CursorParam
+	for page := 0; page < maxListPages; page++ {
+		resp, err := c.ocClient.ListComponentsWithResponse(ctx, namespaceName, &gen.ListComponentsParams{
+			Project: &projectName,
+			Limit:   &defaultListLimit,
+			Cursor:  cursor,
 		})
-	}
-	if resp.JSON200 == nil || len(resp.JSON200.Items) == 0 {
-		return []*models.AgentResponse{}, nil
-	}
-
-	components := make([]*models.AgentResponse, 0, len(resp.JSON200.Items))
-	for i := range resp.JSON200.Items {
-		item := &resp.JSON200.Items[i]
-		if isTerminating(item.Metadata) {
-			// Already deleted and waiting on its cleanup finalizer — see isTerminating.
-			continue
-		}
-		if item.Spec == nil || !isAgentComponentType(item.Spec.ComponentType.Name) {
-			// Projects are shared across WSO2 Cloud products, so a project can contain
-			// components other products created (e.g. a plain "deployment/service").
-			// Agent Manager should only ever list components it itself provisions.
-			continue
-		}
-		comp, err := convertComponentFromTyped(item)
 		if err != nil {
-			slog.Error("failed to convert component", "component", item.Metadata.Name, "error", err)
-			continue
+			return nil, fmt.Errorf("failed to list components: %w", err)
 		}
-		components = append(components, comp)
+		if resp.StatusCode() != http.StatusOK {
+			return nil, handleErrorResponse(resp.StatusCode(), ErrorResponses{
+				JSON401: resp.JSON401,
+				JSON403: resp.JSON403,
+				JSON404: resp.JSON404,
+				JSON500: resp.JSON500,
+			})
+		}
+		if resp.JSON200 == nil {
+			return components, nil
+		}
+
+		for i := range resp.JSON200.Items {
+			item := &resp.JSON200.Items[i]
+			if isTerminating(item.Metadata) {
+				// Already deleted and waiting on its cleanup finalizer — see isTerminating.
+				continue
+			}
+			if item.Spec == nil || !isAgentComponentType(item.Spec.ComponentType.Name) {
+				// Projects are shared across WSO2 Cloud products, so a project can contain
+				// components other products created (e.g. a plain "deployment/service").
+				// Agent Manager should only ever list components it itself provisions.
+				continue
+			}
+			comp, err := convertComponentFromTyped(item)
+			if err != nil {
+				slog.Error("failed to convert component", "component", item.Metadata.Name, "error", err)
+				continue
+			}
+			components = append(components, comp)
+		}
+
+		nextCursor := resp.JSON200.Pagination.NextCursor
+		if nextCursor == nil || *nextCursor == "" {
+			return components, nil
+		}
+		// A cursor that points back at the page just fetched would list the same agents
+		// again until the page cap; fail rather than return duplicates and a wrong total.
+		if cursor != nil && *nextCursor == string(*cursor) {
+			return nil, fmt.Errorf("failed to list components: pagination cursor did not advance past %q", *cursor)
+		}
+		next := gen.CursorParam(*nextCursor)
+		cursor = &next
 	}
+	slog.Warn("component list truncated after reaching the maximum number of pages",
+		"ouID", ouID, "projectName", projectName, "maxPages", maxListPages)
 	return components, nil
 }
 

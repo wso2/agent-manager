@@ -60,7 +60,6 @@ func TestToolPermissionsMatchSpecs(t *testing.T) {
 		DeploymentToolset:  mock,
 		EnvironmentToolset: mock,
 		LLMProviderToolset: mock,
-		GatewayToolset:     mock,
 		MCPProxyToolset:    mock,
 		AgentConfigToolset: mock,
 	}

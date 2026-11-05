@@ -59,7 +59,6 @@ func setupTestServer(t *testing.T) (*gomcp.ClientSession, *MockToolsetHandler) {
 		DeploymentToolset:  mock,
 		EnvironmentToolset: mock,
 		LLMProviderToolset: mock,
-		GatewayToolset:     mock,
 		MCPProxyToolset:    mock,
 		AgentConfigToolset: mock,
 	}
@@ -145,7 +144,6 @@ var allToolSpecs = func() []toolTestSpec {
 	specs = append(specs, deploymentToolSpecs()...)
 	specs = append(specs, environmentToolSpecs()...)
 	specs = append(specs, llmProviderToolSpecs()...)
-	specs = append(specs, gatewayToolSpecs()...)
 	specs = append(specs, mcpProxyToolSpecs()...)
 	specs = append(specs, agentConfigToolSpecs()...)
 	return specs

@@ -32,7 +32,6 @@ type Toolsets struct {
 	DeploymentToolset  DeploymentToolsetHandler
 	EnvironmentToolset EnvironmentToolsetHandler
 	LLMProviderToolset LLMProviderToolsetHandler
-	GatewayToolset     GatewayToolsetHandler
 	MCPProxyToolset    MCPProxyToolsetHandler
 	AgentConfigToolset AgentConfigToolsetHandler
 }
@@ -66,25 +65,21 @@ type EnvironmentToolsetHandler interface {
 }
 
 type LLMProviderToolsetHandler interface {
-	ListLLMProviderTemplates(ctx context.Context, ouID string, limit int, offset int) ([]*models.LLMProviderTemplate, int, error)
 	ListLLMProviders(ctx context.Context, ouID string, limit int, offset int) ([]*models.LLMProvider, int, error)
 	ListLLMGuardrails(ctx context.Context, ouID string, providerID string) (*models.LLMPolicyAvailabilityResponse, error)
-	CreateLLMProvider(ctx context.Context, ouID string, req *spec.CreateLLMProviderRequest) (*models.LLMProvider, []services.DeploymentResult, error)
 	GetLLMProvider(ctx context.Context, ouID string, providerID string) (*models.LLMProvider, []*models.Deployment, error)
-	SetLLMProviderGuardrails(ctx context.Context, ouID string, providerID string, guardrails []models.LLMPolicy) (*models.LLMProvider, []services.DeploymentResult, error)
-}
-
-type GatewayToolsetHandler interface {
-	ListGateways(ctx context.Context, ouID string, environmentID string, limit int, offset int) (*services.GatewayListResponse, error)
+	// UpdateLLMProviderGuardrails reads the provider once, saves change(its guardrails) and redeploys it. An
+	// error from change is returned as is, and nothing is saved.
+	UpdateLLMProviderGuardrails(ctx context.Context, ouID string, providerID string, change func([]models.LLMPolicy) ([]models.LLMPolicy, error)) (*models.LLMProvider, []services.DeploymentResult, error)
 }
 
 type MCPProxyToolsetHandler interface {
 	ListMCPProxies(ctx context.Context, ouID string, limit int, offset int) (*models.MCPProxyListResponse, error)
-	FetchMCPServerInfo(ctx context.Context, req *models.MCPServerInfoFetchRequest) (*models.MCPServerInfoFetchResponse, error)
-	CreateMCPProxy(ctx context.Context, ouID string, req *models.MCPProxyDTO) (*models.MCPProxyDTO, error)
 	GetMCPProxy(ctx context.Context, ouID string, proxyID string) (*models.MCPProxyDTO, error)
 }
 
 type AgentConfigToolsetHandler interface {
 	CreateAgentConfig(ctx context.Context, ouID string, projectName string, agentName string, req models.CreateAgentModelConfigRequest) (*models.AgentModelConfigResponse, error)
+	// ProviderEnvironments lists the environments where the agent can use the LLM provider.
+	ProviderEnvironments(ctx context.Context, ouID string, projectName string, agentName string, providerHandle string) ([]string, error)
 }

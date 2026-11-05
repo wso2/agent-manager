@@ -75,7 +75,7 @@ func (t *Toolsets) registerAgentConfigTools(server *gomcp.Server, reg *toolRegis
 			"agent_name":   stringProperty("Required. Name of the agent."),
 			"provider":     stringProperty("Required. LLM provider id from list_llm_providers."),
 			"config_name":  stringProperty("Optional. Name of the agent's model configuration; also the prefix of the injected variables. Defaults to the provider id."),
-			"environments": arrayProperty("Optional. Environment names to configure. Defaults to every environment.", map[string]any{"type": "string"}),
+			"environments": arrayProperty("Optional. Environment names to configure. Defaults to every environment where the provider is deployed to a gateway this agent can use.", map[string]any{"type": "string"}),
 			"guardrails":   arrayProperty("Optional. Guardrails for this agent's LLM traffic, on top of any on the provider.", guardrailSchema()),
 		}, []string{"project_name", "agent_name", "provider"}),
 	}, audit.ActionAgentUpdate, attachLLMProvider(t.AgentConfigToolset, t.EnvironmentToolset), rbac.AgentUpdate)
@@ -107,8 +107,8 @@ func attachLLMProvider(handler AgentConfigToolsetHandler, envHandler Environment
 		if err != nil {
 			return nil, nil, err
 		}
-		for _, g := range input.Guardrails {
-			out.Guardrails = append(out.Guardrails, g.Name)
+		for _, p := range policies {
+			out.Guardrails = append(out.Guardrails, p.Name)
 		}
 		return handleToolResult(out, nil)
 	}
@@ -153,7 +153,15 @@ func attachConfig(
 	}
 
 	ouID := resolveOUID(ctx)
-	envNames, err := resolveEnvironmentNames(ctx, toolName, envHandler, ouID, environments)
+	var envNames []string
+	var err error
+	if configType == models.AgentConfigTypeLLM && !hasEnvironmentNames(environments) {
+		// Create refuses the whole config on any environment where the provider is not placed, so
+		// "every environment" would fail for a provider deployed to only some of them.
+		envNames, err = defaultProviderEnvironments(ctx, toolName, handler, ouID, projectName, agentName, target)
+	} else {
+		envNames, err = resolveEnvironmentNames(ctx, toolName, envHandler, ouID, environments)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -188,6 +196,69 @@ func attachConfig(
 	// freshly issued key for external agents, and that must not land in a chat.
 	for _, v := range resp.EnvironmentVariables {
 		out.EnvironmentVariables = append(out.EnvironmentVariables, envVarItem{Name: v.Name, Key: v.Key})
+	}
+	return out, nil
+}
+
+func hasEnvironmentNames(names []string) bool {
+	for _, n := range names {
+		if strings.TrimSpace(n) != "" {
+			return true
+		}
+	}
+	return false
+}
+
+// defaultProviderEnvironments is every environment where the agent can use the LLM provider,
+// which is what the console offers when it lists providers per environment.
+func defaultProviderEnvironments(ctx context.Context, toolName string, handler AgentConfigToolsetHandler, ouID, projectName, agentName, provider string) ([]string, error) {
+	names, err := handler.ProviderEnvironments(ctx, ouID, projectName, agentName, provider)
+	if err != nil {
+		return nil, wrapToolError(toolName, err)
+	}
+	if len(names) == 0 {
+		return nil, fmt.Errorf("%s: LLM provider %q is not deployed to a gateway agent %q can use in any environment. "+
+			"Deploy it from the LLM provider's Deployment tab, then retry; get_llm_provider shows where it is deployed", toolName, provider, agentName)
+	}
+	return names, nil
+}
+
+// resolveEnvironmentNames returns the given environment names, trimmed, or
+// every environment in the org when none are given.
+func resolveEnvironmentNames(ctx context.Context, toolName string, handler EnvironmentToolsetHandler, ouID string, names []string) ([]string, error) {
+	out := make([]string, 0, len(names))
+	for _, n := range names {
+		// Create rejects an unknown name before writing anything, so names are not looked up here.
+		if n = strings.TrimSpace(n); n != "" {
+			out = append(out, n)
+		}
+	}
+	if len(out) > 0 {
+		return out, nil
+	}
+	if handler == nil {
+		return nil, fmt.Errorf("%s: environment lookup is not available", toolName)
+	}
+	// Read every page: attaching to only the first page would leave the
+	// remaining environments unconfigured without saying so.
+	for offset := int32(utils.DefaultOffset); ; {
+		result, err := handler.ListEnvironments(ctx, ouID, int32(utils.MaxLimit), offset)
+		if err != nil {
+			return nil, wrapToolError(toolName, err)
+		}
+		if result == nil || len(result.Environments) == 0 {
+			break
+		}
+		for _, env := range result.Environments {
+			out = append(out, env.Name)
+		}
+		offset += int32(len(result.Environments))
+		if offset >= result.Total {
+			break
+		}
+	}
+	if len(out) == 0 {
+		return nil, fmt.Errorf("%s: no environments are configured for your organization", toolName)
 	}
 	return out, nil
 }
