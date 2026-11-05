@@ -156,6 +156,9 @@ type MCPEndpointConfig struct {
 	Policies     []MCPPolicy           `json:"policies,omitempty"`
 	Capabilities *MCPProxyCapabilities `json:"capabilities,omitempty"`
 	Security     *SecurityConfig       `json:"security,omitempty"`
+	// ReleaseBindingName is the source component's release binding a project proxy binding was resolved from,
+	// when it was given one. Unset on org proxies.
+	ReleaseBindingName string `json:"releaseBindingName,omitempty"`
 }
 
 // MCP proxy per-environment deployment status values reported on read.

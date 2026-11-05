@@ -52,10 +52,13 @@ type ProjectMCPProxyRequest struct {
 // MCPProxyEnvironmentRequest is the body of PUT .../mcp-proxies/{proxyId}/environments/{envName}.
 // It replaces the binding's configuration: an omitted field resets to its default.
 type MCPProxyEnvironmentRequest struct {
-	GatewayID    *string                          `json:"gatewayId,omitempty"`
-	Security     *MCPProxyEnvironmentSecurity     `json:"security,omitempty"`
-	Policies     []MCPPolicy                      `json:"policies,omitempty"`
-	UpstreamAuth *MCPProxyEnvironmentUpstreamAuth `json:"upstreamAuth,omitempty"`
+	GatewayID *string `json:"gatewayId,omitempty"`
+	// ReleaseBindingName picks the source component's release binding when it has more than one in the
+	// environment, one per deployment track for example.
+	ReleaseBindingName *string                          `json:"releaseBindingName,omitempty"`
+	Security           *MCPProxyEnvironmentSecurity     `json:"security,omitempty"`
+	Policies           []MCPPolicy                      `json:"policies,omitempty"`
+	UpstreamAuth       *MCPProxyEnvironmentUpstreamAuth `json:"upstreamAuth,omitempty"`
 }
 
 // MCPProxyEnvironmentSecurity is a binding's SecurityConfig: SecurityConfig with a jwt variant.
@@ -98,6 +101,8 @@ type MCPProxyEnvironmentResponse struct {
 	// DeploymentStatus is absent.
 	DeploymentStatusReason string `json:"deploymentStatusReason,omitempty"`
 	GatewayID              string `json:"gatewayId,omitempty"`
+	// ReleaseBindingName is the release binding the binding was given, if any.
+	ReleaseBindingName string `json:"releaseBindingName,omitempty"`
 	// Context reads back as the proxy was given it, without the project prefix.
 	Context string `json:"context"`
 	// PublicURL is the gateway URL, with the /<project><context> path the gateway serves.

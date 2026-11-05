@@ -84,7 +84,7 @@ func newAgentProjectProxyFixture(t *testing.T) *agentProjectProxyFixture {
 	oc.ListEnvironmentsFunc = func(context.Context, string) ([]*models.EnvironmentResponse, error) {
 		return []*models.EnvironmentResponse{{UUID: envUUID.String(), Name: f.devEnv}}, nil
 	}
-	oc.GetReleaseBindingEndpointServiceURLFunc = func(context.Context, string, string, string, string, string) (string, error) {
+	oc.GetReleaseBindingEndpointServiceURLFunc = func(context.Context, string, string, string, string, string, string) (string, error) {
 		return "http://weather.dp-ns.svc.cluster.local:8080", nil
 	}
 	oc.UpdateReleaseBindingEnvVarsFunc = func(context.Context, string, string, string, string, []client.EnvVar) error { return nil }

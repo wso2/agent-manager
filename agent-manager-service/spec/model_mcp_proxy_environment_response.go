@@ -27,6 +27,8 @@ type MCPProxyEnvironmentResponse struct {
 	DeploymentStatusReason *string `json:"deploymentStatusReason,omitempty"`
 	// Absent while the environment has no gateway.
 	GatewayId *string `json:"gatewayId,omitempty"`
+	// The release binding the binding was given. Absent when none was given.
+	ReleaseBindingName *string `json:"releaseBindingName,omitempty"`
 	// The proxy's context, as given, without the project prefix.
 	Context string `json:"context"`
 	// Gateway URL of the MCP endpoint: the gateway vhost plus /<projName><context>/mcp. Absent if the gateway has no vhost.
@@ -199,6 +201,38 @@ func (o *MCPProxyEnvironmentResponse) HasGatewayId() bool {
 // SetGatewayId gets a reference to the given string and assigns it to the GatewayId field.
 func (o *MCPProxyEnvironmentResponse) SetGatewayId(v string) {
 	o.GatewayId = &v
+}
+
+// GetReleaseBindingName returns the ReleaseBindingName field value if set, zero value otherwise.
+func (o *MCPProxyEnvironmentResponse) GetReleaseBindingName() string {
+	if o == nil || IsNil(o.ReleaseBindingName) {
+		var ret string
+		return ret
+	}
+	return *o.ReleaseBindingName
+}
+
+// GetReleaseBindingNameOk returns a tuple with the ReleaseBindingName field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *MCPProxyEnvironmentResponse) GetReleaseBindingNameOk() (*string, bool) {
+	if o == nil || IsNil(o.ReleaseBindingName) {
+		return nil, false
+	}
+	return o.ReleaseBindingName, true
+}
+
+// HasReleaseBindingName returns a boolean if a field has been set.
+func (o *MCPProxyEnvironmentResponse) HasReleaseBindingName() bool {
+	if o != nil && !IsNil(o.ReleaseBindingName) {
+		return true
+	}
+
+	return false
+}
+
+// SetReleaseBindingName gets a reference to the given string and assigns it to the ReleaseBindingName field.
+func (o *MCPProxyEnvironmentResponse) SetReleaseBindingName(v string) {
+	o.ReleaseBindingName = &v
 }
 
 // GetContext returns the Context field value
@@ -405,6 +439,9 @@ func (o MCPProxyEnvironmentResponse) ToMap() (map[string]interface{}, error) {
 	}
 	if !IsNil(o.GatewayId) {
 		toSerialize["gatewayId"] = o.GatewayId
+	}
+	if !IsNil(o.ReleaseBindingName) {
+		toSerialize["releaseBindingName"] = o.ReleaseBindingName
 	}
 	toSerialize["context"] = o.Context
 	if !IsNil(o.PublicUrl) {

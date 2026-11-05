@@ -100,7 +100,7 @@ func TestIPFlow_EndToEnd(t *testing.T) {
 	oc.ListEnvironmentsFunc = func(context.Context, string) ([]*models.EnvironmentResponse, error) {
 		return []*models.EnvironmentResponse{{UUID: envUUID.String(), Name: devEnv}}, nil
 	}
-	oc.GetReleaseBindingEndpointServiceURLFunc = func(context.Context, string, string, string, string, string) (string, error) {
+	oc.GetReleaseBindingEndpointServiceURLFunc = func(context.Context, string, string, string, string, string, string) (string, error) {
 		mu.Lock()
 		defer mu.Unlock()
 		return serviceURL, nil

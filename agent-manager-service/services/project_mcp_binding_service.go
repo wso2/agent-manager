@@ -82,11 +82,19 @@ func (s *ProjectMCPProxyService) PutEnvironment(
 		return nil, false, err
 	}
 	source := projectMCPProxySource(proxy)
+	releaseBindingName := strings.TrimSpace(valueOrEmpty(req.ReleaseBindingName))
 
 	// (1) Upstream. AMS resolved this URL itself from OpenChoreo, so unlike a user-supplied upstream
 	// (validateMCPEndpoints) it is not put through the SSRF check: it is an in-cluster service address by design.
-	serviceURL, err := s.ocClient.GetReleaseBindingEndpointServiceURL(ctx, ouID, projectName, source.ComponentName, source.EndpointName, envName)
+	// A component deployed on several tracks has a release binding per track in the environment; releaseBindingName
+	// picks one, and without it such a component is refused rather than one of its bindings picked at random.
+	serviceURL, err := s.ocClient.GetReleaseBindingEndpointServiceURL(
+		ctx, ouID, projectName, source.ComponentName, source.EndpointName, envName, releaseBindingName)
 	switch {
+	case errors.Is(err, occlient.ErrAmbiguousReleaseBinding):
+		return nil, false, fmt.Errorf("%w: set releaseBindingName to pick one: %w", utils.ErrInvalidInput, err)
+	case errors.Is(err, occlient.ErrReleaseBindingMismatch):
+		return nil, false, fmt.Errorf("%w: releaseBindingName: %w", utils.ErrInvalidInput, err)
 	case errors.Is(err, occlient.ErrReleaseBindingNotFound), errors.Is(err, occlient.ErrEndpointNotFound):
 		return nil, false, fmt.Errorf("%w: %w", utils.ErrMCPUpstreamNotReady, err)
 	case err != nil:
@@ -126,9 +134,10 @@ func (s *ProjectMCPProxyService) PutEnvironment(
 	}
 
 	desired := models.MCPEndpointConfig{
-		Upstream: &models.UpstreamEndpoint{URL: upstreamURL, Auth: auth},
-		Policies: policies,
-		Security: security,
+		Upstream:           &models.UpstreamEndpoint{URL: upstreamURL, Auth: auth},
+		Policies:           policies,
+		Security:           security,
+		ReleaseBindingName: releaseBindingName,
 	}
 	if exists && s.sameBindingConfig(endpoint.Configuration, desired) {
 		shown, err := s.shownStatus(ctx, ouID, ee.ArtifactUUID)
@@ -615,6 +624,7 @@ func (s *ProjectMCPProxyService) sameBindingConfig(stored, desired models.MCPEnd
 		desiredURL, desiredAuth = desired.Upstream.URL, desired.Upstream.Auth
 	}
 	return storedURL == desiredURL &&
+		stored.ReleaseBindingName == desired.ReleaseBindingName &&
 		s.sameUpstreamAuth(storedAuth, desiredAuth) &&
 		sameJSON(stored.Security, desired.Security) &&
 		sameJSON(nilIfEmptyPolicies(stored.Policies), nilIfEmptyPolicies(desired.Policies)) &&
@@ -671,12 +681,13 @@ func (s *ProjectMCPProxyService) environmentResponse(
 ) (*models.MCPProxyEnvironmentResponse, error) {
 	cfg := endpoint.Configuration
 	resp := &models.MCPProxyEnvironmentResponse{
-		EnvironmentName: endpoint.Name,
-		EnvironmentUUID: ee.EnvironmentUUID.String(),
-		Context:         valueOrEmpty(proxy.Configuration.Context),
-		Security:        bindingSecurityResponse(cfg.Security),
-		Policies:        copyMCPPolicies(cfg.Policies),
-		UpdatedAt:       timePtrIfNotZero(endpoint.UpdatedAt),
+		EnvironmentName:    endpoint.Name,
+		EnvironmentUUID:    ee.EnvironmentUUID.String(),
+		Context:            valueOrEmpty(proxy.Configuration.Context),
+		ReleaseBindingName: cfg.ReleaseBindingName,
+		Security:           bindingSecurityResponse(cfg.Security),
+		Policies:           copyMCPPolicies(cfg.Policies),
+		UpdatedAt:          timePtrIfNotZero(endpoint.UpdatedAt),
 	}
 	if cfg.Upstream != nil && cfg.Upstream.Auth != nil {
 		resp.UpstreamAuth = &models.MCPProxyEnvironmentUpstreamAuthRedacted{

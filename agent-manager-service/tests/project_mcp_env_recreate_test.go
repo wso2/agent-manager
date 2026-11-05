@@ -79,7 +79,7 @@ func TestProjectMCPBinding_EnvironmentRecreatedWithSameName(t *testing.T) {
 		return &models.EnvironmentResponse{UUID: id.String(), Name: name}, nil
 	}
 	oc.DeleteEnvironmentFunc = func(context.Context, string, string) error { return nil }
-	oc.GetReleaseBindingEndpointServiceURLFunc = func(context.Context, string, string, string, string, string) (string, error) {
+	oc.GetReleaseBindingEndpointServiceURLFunc = func(context.Context, string, string, string, string, string, string) (string, error) {
 		return "http://recreate.dp-ns.svc.cluster.local:8080", nil
 	}
 	app := apitestutils.MakeAppClientWithDeps(t, wiring.TestClients{OpenChoreoClient: oc}, jwtassertion.NewMockMiddleware(t))

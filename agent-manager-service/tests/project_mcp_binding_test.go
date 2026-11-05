@@ -21,6 +21,7 @@ package tests
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -89,7 +90,7 @@ func TestProjectMCPBindingLifecycle(t *testing.T) {
 		}
 		return &models.EnvironmentResponse{UUID: id.String(), Name: name}, nil
 	}
-	oc.GetReleaseBindingEndpointServiceURLFunc = func(_ context.Context, _, projectName, component, endpoint, _ string) (string, error) {
+	oc.GetReleaseBindingEndpointServiceURLFunc = func(_ context.Context, _, projectName, component, endpoint, _, _ string) (string, error) {
 		assert.Equal(t, project, projectName)
 		mu.Lock()
 		defer mu.Unlock()
@@ -188,6 +189,15 @@ func TestProjectMCPBindingLifecycle(t *testing.T) {
 		assert.Equal(t, utils.ErrCodeUpstreamNotReady, errorCode(t, rr))
 		assert.Zero(t, bindingRows(t, weather))
 		assert.Zero(t, endpointRows(t, weather), "an unbound project proxy has no endpoint")
+	})
+
+	t.Run("several release bindings without a name is 400 VALIDATION_ERROR and stores nothing", func(t *testing.T) {
+		setUpstream("", fmt.Errorf("component %q has 2 release bindings: %w", weather, occlient.ErrAmbiguousReleaseBinding))
+		rr := h.do(http.MethodPut, project, envPath(weather, devEnv), map[string]any{})
+		require.Equal(t, http.StatusBadRequest, rr.Code, rr.Body.String())
+		assert.Equal(t, utils.ErrCodeValidation, errorCode(t, rr))
+		assert.Contains(t, rr.Body.String(), "releaseBindingName")
+		assert.Zero(t, bindingRows(t, weather))
 	})
 
 	setUpstream("http://weather.dp-ns.svc.cluster.local:8080", nil)

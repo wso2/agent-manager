@@ -18397,6 +18397,14 @@ components:
             Required only when the environment has more than one egress-capable gateway. Cannot change
             once placed. Must name a managed gateway: a self-hosted gateway has no route to the in-cluster
             upstream, so naming one is rejected with 400 VALIDATION_ERROR.
+        releaseBindingName:
+          type: string
+          description: >-
+            The source component's release binding to front. Required only when the component has more
+            than one release binding in the environment, one per deployment track for example; without it
+            such a component is rejected with 400 VALIDATION_ERROR. It must be a binding of the source
+            component in this project and environment, or it is rejected with 400 VALIDATION_ERROR.
+          example: orders-main-development
         security:
           $ref: "#/components/schemas/MCPProxyEnvironmentSecurity"
         policies:
@@ -18496,6 +18504,9 @@ components:
           type: string
           format: uuid
           description: Absent while the environment has no gateway.
+        releaseBindingName:
+          type: string
+          description: The release binding the binding was given. Absent when none was given.
         context:
           type: string
           description: The proxy's context, as given, without the project prefix.

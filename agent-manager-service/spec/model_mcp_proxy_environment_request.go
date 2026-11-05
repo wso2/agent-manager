@@ -20,8 +20,10 @@ var _ MappedNullable = &MCPProxyEnvironmentRequest{}
 // MCPProxyEnvironmentRequest Replaces the binding's configuration. Every field is optional; an omitted field resets to its default.
 type MCPProxyEnvironmentRequest struct {
 	// Required only when the environment has more than one egress-capable gateway. Cannot change once placed. Must name a managed gateway: a self-hosted gateway has no route to the in-cluster upstream, so naming one is rejected with 400 VALIDATION_ERROR.
-	GatewayId *string                      `json:"gatewayId,omitempty"`
-	Security  *MCPProxyEnvironmentSecurity `json:"security,omitempty"`
+	GatewayId *string `json:"gatewayId,omitempty"`
+	// The source component's release binding to front. Required only when the component has more than one release binding in the environment, one per deployment track for example; without it such a component is rejected with 400 VALIDATION_ERROR. It must be a binding of the source component in this project and environment, or it is rejected with 400 VALIDATION_ERROR.
+	ReleaseBindingName *string                      `json:"releaseBindingName,omitempty"`
+	Security           *MCPProxyEnvironmentSecurity `json:"security,omitempty"`
 	// Gateway policies, e.g. CORS and basic-ratelimit. Each needs a name and a version.
 	Policies     []MCPPolicy                      `json:"policies,omitempty"`
 	UpstreamAuth *MCPProxyEnvironmentUpstreamAuth `json:"upstreamAuth,omitempty"`
@@ -74,6 +76,38 @@ func (o *MCPProxyEnvironmentRequest) HasGatewayId() bool {
 // SetGatewayId gets a reference to the given string and assigns it to the GatewayId field.
 func (o *MCPProxyEnvironmentRequest) SetGatewayId(v string) {
 	o.GatewayId = &v
+}
+
+// GetReleaseBindingName returns the ReleaseBindingName field value if set, zero value otherwise.
+func (o *MCPProxyEnvironmentRequest) GetReleaseBindingName() string {
+	if o == nil || IsNil(o.ReleaseBindingName) {
+		var ret string
+		return ret
+	}
+	return *o.ReleaseBindingName
+}
+
+// GetReleaseBindingNameOk returns a tuple with the ReleaseBindingName field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *MCPProxyEnvironmentRequest) GetReleaseBindingNameOk() (*string, bool) {
+	if o == nil || IsNil(o.ReleaseBindingName) {
+		return nil, false
+	}
+	return o.ReleaseBindingName, true
+}
+
+// HasReleaseBindingName returns a boolean if a field has been set.
+func (o *MCPProxyEnvironmentRequest) HasReleaseBindingName() bool {
+	if o != nil && !IsNil(o.ReleaseBindingName) {
+		return true
+	}
+
+	return false
+}
+
+// SetReleaseBindingName gets a reference to the given string and assigns it to the ReleaseBindingName field.
+func (o *MCPProxyEnvironmentRequest) SetReleaseBindingName(v string) {
+	o.ReleaseBindingName = &v
 }
 
 // GetSecurity returns the Security field value if set, zero value otherwise.
@@ -184,6 +218,9 @@ func (o MCPProxyEnvironmentRequest) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
 	if !IsNil(o.GatewayId) {
 		toSerialize["gatewayId"] = o.GatewayId
+	}
+	if !IsNil(o.ReleaseBindingName) {
+		toSerialize["releaseBindingName"] = o.ReleaseBindingName
 	}
 	if !IsNil(o.Security) {
 		toSerialize["security"] = o.Security

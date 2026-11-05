@@ -67,7 +67,7 @@ func TestGatewayContextClashAcrossKinds(t *testing.T) {
 		}
 		return &models.EnvironmentResponse{UUID: envUUID.String(), Name: name}, nil
 	}
-	oc.GetReleaseBindingEndpointServiceURLFunc = func(context.Context, string, string, string, string, string) (string, error) {
+	oc.GetReleaseBindingEndpointServiceURLFunc = func(context.Context, string, string, string, string, string, string) (string, error) {
 		return "http://mcp.dp-ns.svc.cluster.local:8080", nil
 	}
 	app := apitestutils.MakeAppClientWithDeps(t, wiring.TestClients{OpenChoreoClient: oc}, jwtassertion.NewMockMiddleware(t))

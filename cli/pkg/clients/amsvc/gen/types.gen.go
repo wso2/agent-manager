@@ -4518,6 +4518,9 @@ type MCPProxyEnvironmentRequest struct {
 	// Policies Gateway policies, e.g. CORS and basic-ratelimit. Each needs a name and a version.
 	Policies *[]MCPPolicy `json:"policies,omitempty"`
 
+	// ReleaseBindingName The source component's release binding to front. Required only when the component has more than one release binding in the environment, one per deployment track for example; without it such a component is rejected with 400 VALIDATION_ERROR. It must be a binding of the source component in this project and environment, or it is rejected with 400 VALIDATION_ERROR.
+	ReleaseBindingName *string `json:"releaseBindingName,omitempty"`
+
 	// Security A binding's security. Phase 1 accepts apiKey, which is also the default when the field is omitted or names no variant (an api key in the X-API-Key header), and no security (enabled false only). An apiKey with enabled false while security is not disabled is rejected with 400 VALIDATION_ERROR. jwt is rejected with 400 "jwt security is not available yet", and identity with 400.
 	Security *MCPProxyEnvironmentSecurity `json:"security,omitempty"`
 
@@ -4544,6 +4547,9 @@ type MCPProxyEnvironmentResponse struct {
 
 	// PublicUrl Gateway URL of the MCP endpoint: the gateway vhost plus /<projName><context>/mcp. Absent if the gateway has no vhost.
 	PublicUrl *string `json:"publicUrl,omitempty"`
+
+	// ReleaseBindingName The release binding the binding was given. Absent when none was given.
+	ReleaseBindingName *string `json:"releaseBindingName,omitempty"`
 
 	// Security A binding's security. Phase 1 accepts apiKey, which is also the default when the field is omitted or names no variant (an api key in the X-API-Key header), and no security (enabled false only). An apiKey with enabled false while security is not disabled is rejected with 400 VALIDATION_ERROR. jwt is rejected with 400 "jwt security is not available yet", and identity with 400.
 	Security     *MCPProxyEnvironmentSecurity             `json:"security,omitempty"`

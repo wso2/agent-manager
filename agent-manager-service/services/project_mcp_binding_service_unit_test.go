@@ -72,6 +72,8 @@ type bindingFixture struct {
 
 	serviceURL    string
 	serviceURLErr error
+	// releaseBindingNames are the release binding names the upstream lookups were given, in order.
+	releaseBindingNames []string
 
 	// status rows by artifact UUID; StartDeploy writes a DEPLOYING one.
 	status map[uuid.UUID]*models.DeploymentStatusRecord
@@ -310,7 +312,8 @@ func newBindingFixture(t *testing.T) *bindingFixture {
 			}
 			return &models.EnvironmentResponse{UUID: f.envUUID.String(), Name: name}, nil
 		},
-		GetReleaseBindingEndpointServiceURLFunc: func(_ context.Context, _, projectName, component, endpoint, env string) (string, error) {
+		GetReleaseBindingEndpointServiceURLFunc: func(_ context.Context, _, projectName, component, endpoint, env, bindingName string) (string, error) {
+			f.releaseBindingNames = append(f.releaseBindingNames, bindingName)
 			assert.Equal(t, bindingProject, projectName, "the release binding lookup is always project-scoped")
 			assert.Equal(t, "weather", component)
 			assert.Equal(t, "mcp", endpoint)
@@ -508,6 +511,54 @@ func TestPutEnv_IdenticalOnDeployed_NoRedeploy(t *testing.T) {
 		require.Len(t, f.deployed, 2)
 		assert.Equal(t, "http://weather-v2.dp-p1-development.svc.cluster.local:8080/mcp", deployedYAML(t, f.deployed[1]).Spec.Upstream.URL)
 	})
+}
+
+// A component deployed on several tracks has a release binding per track in the environment: without a name the PUT
+// is refused, not resolved to whichever binding OpenChoreo lists first.
+func TestPutEnv_SeveralReleaseBindings_400NothingStored(t *testing.T) {
+	for name, lookupErr := range map[string]error{
+		"no name, several bindings":            occlient.ErrAmbiguousReleaseBinding,
+		"named binding of another environment": occlient.ErrReleaseBindingMismatch,
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := newBindingFixture(t)
+			f.serviceURLErr = lookupErr
+			_, _, err := f.put(t, models.MCPProxyEnvironmentRequest{})
+			require.ErrorIs(t, err, utils.ErrInvalidInput)
+			assert.NotErrorIs(t, err, utils.ErrMCPUpstreamNotReady)
+			assert.Zero(t, f.endpointWrites, "nothing is stored")
+			assert.Empty(t, f.deployed)
+		})
+	}
+}
+
+func TestPutEnv_ReleaseBindingNamePassedStoredAndReadBack(t *testing.T) {
+	f := newBindingFixture(t)
+	name := " weather-beta-development "
+	resp, _, err := f.put(t, models.MCPProxyEnvironmentRequest{ReleaseBindingName: &name})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"weather-beta-development"}, f.releaseBindingNames, "the trimmed name picks the binding")
+	assert.Equal(t, "weather-beta-development", resp.ReleaseBindingName)
+	endpoint, _ := f.binding()
+	assert.Equal(t, "weather-beta-development", endpoint.Configuration.ReleaseBindingName)
+
+	got, err := f.svc.GetEnvironment(context.Background(), testOrg, bindingProject, bindingProjectUUID, bindingHandle, bindingEnv)
+	require.NoError(t, err)
+	assert.Equal(t, "weather-beta-development", got.ReleaseBindingName)
+}
+
+func TestPutEnv_ChangedReleaseBindingName_Redeploys(t *testing.T) {
+	f := newBindingFixture(t)
+	_, _, err := f.put(t, models.MCPProxyEnvironmentRequest{})
+	require.NoError(t, err)
+	_, ee := f.binding()
+	f.status[ee.ArtifactUUID].Status = models.DeploymentStatusDeployed
+
+	// Same upstream URL, as two tracks' services can share one: the name alone makes the binding differ.
+	name := "weather-beta-development"
+	_, _, err = f.put(t, models.MCPProxyEnvironmentRequest{ReleaseBindingName: &name})
+	require.NoError(t, err)
+	assert.Len(t, f.deployed, 2)
 }
 
 // A newcomer that came to overlap a live binding never makes the binding's identical ensure-PUT fail: the no-op
