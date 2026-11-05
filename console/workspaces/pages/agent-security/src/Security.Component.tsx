@@ -19,7 +19,7 @@
 import React from "react";
 import { Link, generatePath, useParams } from "react-router-dom";
 import { Alert, Button, Skeleton } from "@wso2/oxygen-ui";
-import { KeyRound, Network, Rocket, ServerCrash, ShieldOff } from "@wso2/oxygen-ui-icons-react";
+import { KeyRound, Lock, Network, Rocket, ServerCrash, ShieldOff } from "@wso2/oxygen-ui-icons-react";
 import {
   useCreateAgentAPIKey,
   useGetA2AProxy,
@@ -41,7 +41,7 @@ import {
   StateNotice,
 } from "@agent-management-platform/views";
 import { absoluteRouteMap } from "@agent-management-platform/types";
-import { useResourceAccess } from "@agent-management-platform/feature-management";
+import { useFeatureAccess } from "@agent-management-platform/feature-management";
 
 const agentRoutes = absoluteRouteMap.children.org.children.projects.children.agents;
 
@@ -93,7 +93,10 @@ export const SecurityComponent: React.FC = () => {
   const servedByGateway = isExternal
     ? !!proxy
     : currentDeployment?.status === "active";
+  // Listing keys needs the same permission as managing them.
+  const canManageKeys = useFeatureAccess("agent_api_key_manage");
   const shouldLoadKeys =
+    canManageKeys &&
     !isLoadingConfig &&
     !isLoadingDeployments &&
     servedByGateway &&
@@ -120,8 +123,6 @@ export const SecurityComponent: React.FC = () => {
     useCreateAgentAPIKey();
   const { mutate: revokeKey, isPending: isRevoking } = useRevokeAgentAPIKey();
   const [gatewayOffline, setGatewayOffline] = React.useState(false);
-  const { canWrite } = useResourceAccess("agent");
-
   const handleCreate = async ({ displayName, expiresAt }: CreateAPIKeyInput) => {
     const data = await createKey({
       params: {
@@ -229,6 +230,13 @@ export const SecurityComponent: React.FC = () => {
           : "Enable API Key Security in the deployment settings and redeploy to manage API keys.",
         actions: isExternal ? a2aSettingsAction : deploySettingsAction,
       }
+    : !canManageKeys
+    ? {
+        icon: Lock,
+        title: "You don't have access to API keys",
+        description:
+          "Viewing and managing this agent's API keys needs the API key management permission. Ask an administrator for access.",
+      }
     : null;
 
   return (
@@ -259,7 +267,6 @@ export const SecurityComponent: React.FC = () => {
           emptyDescription="Create an API key to authenticate requests to this agent."
           onCreate={handleCreate}
           onRevoke={handleRevoke}
-          readOnly={!canWrite}
         />
         </>
       )}

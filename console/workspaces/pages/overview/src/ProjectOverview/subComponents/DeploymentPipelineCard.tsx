@@ -37,7 +37,7 @@ import {
   Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
-import { ArrowLeftRight, Edit, GitBranch } from "@wso2/oxygen-ui-icons-react";
+import { ArrowLeftRight, Edit, Eye, GitBranch } from "@wso2/oxygen-ui-icons-react";
 import { useMemo, useState } from "react";
 import { generatePath, Link, useParams } from "react-router-dom";
 import { SelectPipelineDrawer } from "./SelectPipelineDrawer";
@@ -51,7 +51,7 @@ const CARD_SX = {
 export function DeploymentPipelineCard() {
   const { orgId, projectId } = useParams<{ orgId: string; projectId: string }>();
   const [selectDrawerOpen, setSelectDrawerOpen] = useState(false);
-  const { canWrite: canEditPipelines } = usePipelineFeatures();
+  const { canView: canViewPipelines, canWrite: canEditPipelines } = usePipelineFeatures();
   const { canWrite: canWriteProject } = useResourceAccess("project");
   const [selectDrawerKey, setSelectDrawerKey] = useState(0);
 
@@ -181,11 +181,11 @@ export function DeploymentPipelineCard() {
 
               <Box display="flex" flexWrap="wrap" alignItems="center" gap={0.75}>
                 <PromotionChainChips chain={promotionChain} envMap={envMap} />
-                {canEditPipelines && (
-                  <Tooltip title="Edit Promotion Chain">
+                {canViewPipelines && (
+                  <Tooltip title={canEditPipelines ? "Edit Promotion Chain" : "View Promotion Chain"}>
                     <Button
                       size="small"
-                      startIcon={<Edit size={14} />}
+                      startIcon={canEditPipelines ? <Edit size={14} /> : <Eye size={14} />}
                       component={Link}
                       to={generatePath(
                         absoluteRouteMap.children.org.children.deploymentPipelines.children.view
@@ -193,7 +193,7 @@ export function DeploymentPipelineCard() {
                         { orgId, pipelineName: pipeline.name },
                       )}
                     >
-                      Edit
+                      {canEditPipelines ? "Edit" : "View"}
                     </Button>
                   </Tooltip>
                 )}

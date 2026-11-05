@@ -22,6 +22,7 @@ import {
   FeatureManagementProvider,
   type FeatureFlags,
 } from "@agent-management-platform/feature-management";
+import { FullPageLoader } from "@agent-management-platform/views";
 import type { UseFeatureAccess } from "../../types/featureAccess";
 
 const allowAll: UseFeatureAccess = () => ({ isLoading: false });
@@ -45,6 +46,9 @@ export function FeatureAccessBridge({
     () => ({ ...globalConfig.featureFlags, ...featureFlags }),
     [featureFlags],
   );
+  // Hold the app until access is known: hasAccess allows unset keys, so rendering
+  // now would flash (or auto-run) actions the user can't perform.
+  if (isLoading) return <FullPageLoader />;
   return (
     <FeatureManagementProvider
       featureFlags={resolvedFeatureFlags}

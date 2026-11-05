@@ -27,7 +27,7 @@ import { Wrench as BuildOutlined, Settings } from "@wso2/oxygen-ui-icons-react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { BuildPanel } from "@agent-management-platform/shared-component";
 import { useGetAgent } from "@agent-management-platform/api-client";
-import { useResourceAccess } from "@agent-management-platform/feature-management";
+import { useFeatureAccess, useResourceAccess } from "@agent-management-platform/feature-management";
 import { ConfigureBuildDrawer } from "./ConfigureBuildDrawer";
 
 export const BuildComponent: React.FC = () => {
@@ -35,6 +35,8 @@ export const BuildComponent: React.FC = () => {
 
   const { orgId, projectId, agentId } = useParams();
   const { canWrite } = useResourceAccess("agent");
+  // Triggering a build is its own permission, separate from editing the agent.
+  const canBuild = useFeatureAccess("agent_build");
 
   const isBuildPanelOpen = searchParams.get("buildPanel") === "open";
   const isConfigureBuildOpen = searchParams.get("configureBuild") === "open";
@@ -74,9 +76,9 @@ export const BuildComponent: React.FC = () => {
         title="Build"
         disableIcon
         actions={
-          canWrite && (
+          (canWrite || canBuild) && (
           <Box display="flex" gap={1}>
-            {agent?.provisioning.type === 'internal' && (
+            {canWrite && agent?.provisioning.type === 'internal' && (
               <Button
                 onClick={handleConfigureBuild}
                 variant="outlined"
@@ -86,20 +88,22 @@ export const BuildComponent: React.FC = () => {
                 Configure Build
               </Button>
             )}
-            <Button
-              onClick={handleBuild}
-              variant="contained"
-              color="primary"
-              startIcon={<BuildOutlined size={16} />}
-            >
-              Trigger a Build
-            </Button>
+            {canBuild && (
+              <Button
+                onClick={handleBuild}
+                variant="contained"
+                color="primary"
+                startIcon={<BuildOutlined size={16} />}
+              >
+                Trigger a Build
+              </Button>
+            )}
           </Box>
           )
         }
       >
         <AgentBuild />
-        <DrawerWrapper open={canWrite && isBuildPanelOpen} onClose={closeBuildPanel}>
+        <DrawerWrapper open={canBuild && isBuildPanelOpen} onClose={closeBuildPanel}>
           <BuildPanel
             onClose={closeBuildPanel}
             orgName={orgId || ""}

@@ -97,6 +97,12 @@ export interface FeatureAccessConfig {
   agent_deploy_production: boolean;
   /** Suspend or resume an agent's deployment. */
   agent_suspend: boolean;
+  /** Trigger an agent build. */
+  agent_build: boolean;
+  /** Create and revoke agent API keys, including config-scoped keys. */
+  agent_api_key_manage: boolean;
+  /** Generate agent access tokens. */
+  agent_token_manage: boolean;
 }
 
 export type FeatureFlagKey = keyof FeatureFlags;

@@ -88,6 +88,9 @@ export const SCOPE_RULES: Record<keyof FeatureAccessConfig, ScopeRule> = {
   agent_deploy: { anyOf: ['amp:agent:env-non-production'] },
   agent_deploy_production: { anyOf: ['amp:agent:env-production'] },
   agent_suspend: { anyOf: ['amp:agent:suspend'] },
+  agent_build: { anyOf: ['amp:agent:build'] },
+  agent_api_key_manage: { anyOf: ['amp:agent:api-key-manage'] },
+  agent_token_manage: { anyOf: ['amp:agent:token-manage'] },
 };
 
 export function accessFromScopes(scopes: ReadonlySet<string>): FeatureAccessConfig {
