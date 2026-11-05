@@ -28,6 +28,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/reconcile"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -118,4 +119,109 @@ func TestLLMProxyKindEvents(t *testing.T) {
 	deleted := kind.DeleteEvent(ref)
 	assert.Equal(t, "llmproxy.deleted", string(deleted.EventType))
 	assert.Equal(t, map[string]any{"proxyId": proxy.Handle}, eventPayload(t, deleted.EventData))
+}
+
+// A provider placed on a self-hosted and a managed gateway in the environment: the self-hosted UUID sorts first
+// (PlacedGateways is in UUID order), yet the agent's proxy must land on the managed one.
+func TestLLMProxyTargets_PrefersManagedProviderAnchor(t *testing.T) {
+	env := uuid.New()
+	selfHosted := &models.Gateway{
+		UUID: uuid.MustParse("00000000-0000-0000-0000-000000000001"), GatewayFunctionalityType: models.GatewayRoleBoth,
+		Hosting: models.GatewayHostingSelfHosted, IsActive: true,
+	}
+	managed := &models.Gateway{UUID: uuid.MustParse("ffffffff-0000-0000-0000-000000000002"), GatewayFunctionalityType: models.GatewayRoleBoth, IsActive: true}
+	proxy := goldenProxy()
+	kind := goldenProxyKind(proxy)
+	kind.gatewayRepo = gatewayFixtureRepo(t, env.String(), []*models.Gateway{selfHosted, managed})
+	kind.deploymentRepo = &repomocks.DeploymentRepositoryMock{
+		PlacedGatewaysFunc: func(_ context.Context, _ string, artifact uuid.UUID) ([]string, error) {
+			if artifact == proxy.UUID {
+				return nil, nil
+			}
+			return []string{selfHosted.UUID.String(), managed.UUID.String()}, nil
+		},
+	}
+
+	got, ok, err := kind.Targets(context.Background(), reconcile.Record{
+		ArtifactRef: models.ArtifactRef{OUID: "ou-1", ArtifactUUID: proxy.UUID, Handle: proxy.Handle}, EnvironmentUUID: env,
+	})
+
+	require.NoError(t, err)
+	require.True(t, ok)
+	assert.Equal(t, managed.UUID, got)
+}
+
+// A provider placed only on a self-hosted gateway never anchors an agent's proxy, which runs in OpenChoreo:
+// the proxy goes to the environment's managed gateway, or is not targeted when there is none.
+func TestLLMProxyTargets_IgnoresSelfHostedOnlyProviderAnchor(t *testing.T) {
+	env := uuid.New()
+	selfHosted := &models.Gateway{
+		UUID: uuid.MustParse("00000000-0000-0000-0000-000000000001"), GatewayFunctionalityType: models.GatewayRoleBoth,
+		Hosting: models.GatewayHostingSelfHosted, IsActive: true,
+	}
+	managed := &models.Gateway{UUID: uuid.MustParse("ffffffff-0000-0000-0000-000000000002"), GatewayFunctionalityType: models.GatewayRoleBoth, IsActive: true}
+	proxy := goldenProxy()
+	placedOnSelfHostedOnly := &repomocks.DeploymentRepositoryMock{
+		PlacedGatewaysFunc: func(_ context.Context, _ string, artifact uuid.UUID) ([]string, error) {
+			if artifact == proxy.UUID {
+				return nil, nil
+			}
+			return []string{selfHosted.UUID.String()}, nil
+		},
+	}
+	record := reconcile.Record{
+		ArtifactRef: models.ArtifactRef{OUID: "ou-1", ArtifactUUID: proxy.UUID, Handle: proxy.Handle}, EnvironmentUUID: env,
+	}
+
+	t.Run("environment has a managed gateway", func(t *testing.T) {
+		kind := goldenProxyKind(proxy)
+		kind.gatewayRepo = gatewayFixtureRepo(t, env.String(), []*models.Gateway{selfHosted, managed})
+		kind.deploymentRepo = placedOnSelfHostedOnly
+
+		got, ok, err := kind.Targets(context.Background(), record)
+
+		require.NoError(t, err)
+		require.True(t, ok)
+		assert.Equal(t, managed.UUID, got)
+	})
+
+	t.Run("environment has only the self-hosted gateway", func(t *testing.T) {
+		kind := goldenProxyKind(proxy)
+		kind.gatewayRepo = gatewayFixtureRepo(t, env.String(), []*models.Gateway{selfHosted})
+		kind.deploymentRepo = placedOnSelfHostedOnly
+
+		_, ok, err := kind.Targets(context.Background(), record)
+
+		require.NoError(t, err)
+		assert.False(t, ok)
+	})
+}
+
+// An agent's or monitor's proxy anchored on a self-hosted gateway is refused rather than placed there or moved
+// elsewhere.
+func TestLLMProxyKindTargets_RefusesSelfHostedAnchor(t *testing.T) {
+	env := uuid.New()
+	selfHosted := &models.Gateway{
+		UUID: uuid.New(), GatewayFunctionalityType: models.GatewayRoleEgress,
+		Hosting: models.GatewayHostingSelfHosted, IsActive: true,
+	}
+	managed := &models.Gateway{UUID: uuid.New(), GatewayFunctionalityType: models.GatewayRoleEgress, IsActive: true}
+	proxy := goldenProxy()
+	kind := goldenProxyKind(proxy)
+	kind.gatewayRepo = gatewayFixtureRepo(t, env.String(), []*models.Gateway{selfHosted, managed})
+	kind.deploymentRepo = &repomocks.DeploymentRepositoryMock{
+		PlacedGatewaysFunc: func(_ context.Context, _ string, artifact uuid.UUID) ([]string, error) {
+			if artifact == proxy.UUID {
+				return []string{selfHosted.UUID.String()}, nil
+			}
+			return nil, nil
+		},
+	}
+
+	_, ok, err := kind.Targets(context.Background(), reconcile.Record{
+		ArtifactRef: models.ArtifactRef{OUID: "ou-1", ArtifactUUID: proxy.UUID, Handle: proxy.Handle}, EnvironmentUUID: env,
+	})
+
+	require.ErrorIs(t, err, errSelfHostedAnchor)
+	assert.False(t, ok)
 }

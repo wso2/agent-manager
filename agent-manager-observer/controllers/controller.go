@@ -33,8 +33,10 @@ import (
 )
 
 const (
-	// MaxSpansPerRequest is the hard cap on spans fetched per trace (used in export).
-	MaxSpansPerRequest = 10000
+	// MaxSpansPerRequest is the hard cap on spans fetched per trace. It must
+	// not exceed the OpenChoreo observer's per-query limit (config.MaxLimit,
+	// 1000),
+	MaxSpansPerRequest = 1000
 	// maxConcurrentFetches limits concurrent GetSpanDetails calls to the Observer.
 	maxConcurrentFetches = 50
 	// maxConcurrentTraces limits concurrent per-trace goroutines in ExportTraces.

@@ -19,13 +19,14 @@
 import {
   useGetAgent,
   useGetAgentConfigurations,
+  useGetAllAgentBuilds,
   useGetAgentMetrics,
   useGetAgentResourceConfigs,
   useGetDeploymentPipeline,
   useListAgentDeployments,
   useUpdateDeploymentState,
 } from "@agent-management-platform/api-client";
-import { NoDataFound, TextInput } from "@agent-management-platform/views";
+import { NoDataFound, StateNotice, TextInput } from "@agent-management-platform/views";
 import {
   ArrowRightFromLine,
   Clock,
@@ -72,11 +73,12 @@ import {
   ALLOWED,
   DeploymentStatus,
   EnvStatus,
+  formatRelativeTime,
+  formatUsagePercent,
+  getUsagePercentVariant,
   IsolationTierBadge,
   ResourceMetricChip,
   RestrictedAction,
-  formatUsagePercent,
-  getUsagePercentVariant,
   useAgentEnvironmentAccess,
 } from "@agent-management-platform/shared-component";
 import { EditDeployConfigDrawer } from "./EditDeployConfigDrawer";
@@ -95,7 +97,6 @@ import {
   isInstrumentableLanguage,
   normalizePythonMinor,
 } from "../utils/instrumentation";
-import { formatDistanceToNow } from "date-fns";
 import { useCallback, useMemo, useState } from "react";
 import { EditResourceConfigsDrawer } from "./EditResourceConfigsDrawer";
 import { PromoteAgentDrawer } from "./PromoteAgentDrawer";
@@ -329,6 +330,16 @@ export function DeployCard(props: DeployCardProps) {
   }, [searchParams, setSearchParams]);
 
 
+  // Same query as the build card, so no extra request.
+  const { data: allBuilds } = useGetAllAgentBuilds({
+    orgName: orgId,
+    projName: projectId,
+    agentName: agentId,
+  });
+  const noSuccessfulBuild = !!allBuilds && !allBuilds.builds.some(
+    (b) => b.status === "Completed" || b.status === "Succeeded",
+  );
+
   const { data: deployments, isLoading: isDeploymentsLoading } =
     useListAgentDeployments({
       orgName: orgId,
@@ -471,9 +482,7 @@ export function DeployCard(props: DeployCardProps) {
 
   const selectedBuildId = extractBuildIdFromImageId(currentDeployment?.imageId);
   const lastDeployedText = currentDeployment?.lastDeployed
-    ? formatDistanceToNow(new Date(currentDeployment.lastDeployed), {
-      addSuffix: true,
-    })
+    ? formatRelativeTime(currentDeployment.lastDeployed)
     : "Unknown";
 
   const handleStop = () => {
@@ -531,19 +540,22 @@ export function DeployCard(props: DeployCardProps) {
         variant="outlined"
         sx={{
           height: "fit-content",
+          minHeight: noSuccessfulBuild ? 280 : undefined,
           width: 350,
           minWidth: 350,
         }}
       >
         <CardContent>
-          <Stack gap={2} alignItems="center">
-            <NoDataFound
-              message="No Deployment found"
-              subtitle={`Build your agent first to deploy it to ${currentEnvironment.displayName} environment.`}
-              icon={<Rocket size={32} />}
-              disableBackground
-            />
-          </Stack>
+          <StateNotice
+            compact
+            icon={Rocket}
+            title={noSuccessfulBuild ? "Nothing to deploy yet" : "Not deployed here yet"}
+            description={
+              noSuccessfulBuild
+                ? "Once the agent is built, you can deploy it to this environment."
+                : `Deploy a build to ${currentEnvironment.displayName} to see it running here.`
+            }
+          />
         </CardContent>
       </Card>
     );

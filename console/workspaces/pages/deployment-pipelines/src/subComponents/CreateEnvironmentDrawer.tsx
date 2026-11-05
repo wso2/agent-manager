@@ -47,6 +47,7 @@ import {
 import { globalConfig, type DataPlane } from "@agent-management-platform/types";
 import {
   buildScriptCommand,
+  deriveResourceName,
   getAgentManagerUrl,
   getAmpRegistry,
   getInstalledChartVersion,
@@ -129,20 +130,8 @@ const DEFAULT_FORM: CreateEnvironmentFormValues = {
   thunderHandle: "",
 };
 
-// Capped at the schema's name limit: the display name allows more characters
-// than the name, and the name input's maxLength does not constrain this derived
-// state, so an uncapped result would fail validation and land in the copied
-// script. The trailing hyphen is stripped again in case the cut lands on one.
-function deriveNameFromDisplayName(displayName: string): string {
-  return displayName
-    .toLowerCase()
-    .replace(/\s+/g, "-")
-    .replace(/[^a-z0-9-]/g, "")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "")
-    .slice(0, ENVIRONMENT_NAME_MAX_LENGTH)
-    .replace(/-$/, "");
-}
+const deriveNameFromDisplayName = (displayName: string) =>
+  deriveResourceName(displayName, ENVIRONMENT_NAME_MAX_LENGTH);
 
 // Suggests "<name>-idp" as a starting point for the Thunder handle — truncated
 // so the result never exceeds the backend's 63-char limit. Purely a default;
@@ -516,7 +505,7 @@ export function CreateEnvironmentDrawer({
           <Stack spacing={2}>
             {planes.length > 1 && (
               <FormControl fullWidth error={Boolean(errors.dataplaneRef)}>
-                <FormLabel required>Data Plane</FormLabel>
+                <FormLabel>Data Plane</FormLabel>
                 <Select
                   size="small"
                   value={formData.dataplaneRef}
@@ -540,7 +529,7 @@ export function CreateEnvironmentDrawer({
             )}
 
             <FormControl fullWidth error={Boolean(errors.displayName)}>
-              <FormLabel required>Display Name</FormLabel>
+              <FormLabel>Display Name</FormLabel>
               <TextField
                 slotProps={{ htmlInput: { maxLength: ENVIRONMENT_DISPLAY_NAME_MAX_LENGTH } }}
                 size="small"
@@ -679,13 +668,6 @@ export function CreateEnvironmentDrawer({
                 position: "relative",
                 bgcolor: "grey.900",
                 borderRadius: 1,
-                p: 2,
-                pr: 8,
-                fontFamily: "monospace",
-                fontSize: "0.8125rem",
-                color: "grey.100",
-                whiteSpace: "pre",
-                overflowX: "auto",
               }}
             >
               <Box
@@ -730,7 +712,20 @@ export function CreateEnvironmentDrawer({
                   </span>
                 </Tooltip>
               </Box>
-              {displayScript}
+              {/* Scrolls on its own so the copy/show icons stay put. */}
+              <Box
+                sx={{
+                  p: 2,
+                  pr: 9,
+                  fontFamily: "monospace",
+                  fontSize: "0.8125rem",
+                  color: "grey.100",
+                  whiteSpace: "pre",
+                  overflowX: "auto",
+                }}
+              >
+                {displayScript}
+              </Box>
             </Box>
             <Typography variant="caption" color="text.secondary">
               {scriptFieldsValid
@@ -746,7 +741,7 @@ export function CreateEnvironmentDrawer({
             list. The script is idempotent — safe to re-run.
           </Alert>
 
-          <Box display="flex" justifyContent="flex-end">
+          <Box display="flex" justifyContent="flex-start">
             <Button variant="outlined" color="inherit" onClick={onClose}>
               Close
             </Button>

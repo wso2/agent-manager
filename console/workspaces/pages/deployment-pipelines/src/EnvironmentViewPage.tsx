@@ -18,6 +18,7 @@
 import {
   Alert,
   Avatar,
+  Button,
   Chip,
   Grid,
   IconButton,
@@ -27,11 +28,11 @@ import {
   Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
-import { AlertTriangle, Copy, DoorClosedLocked, KeyRound } from "@wso2/oxygen-ui-icons-react";
-import { formatDistanceToNow } from "date-fns";
+import { AlertTriangle, Copy, DoorClosedLocked, Edit, KeyRound } from "@wso2/oxygen-ui-icons-react";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
 import {
   copyToClipboard,
+  formatRelativeTime,
   GatewayTypeChip,
   getAvatarInitials,
   getErrorMessage,
@@ -121,14 +122,33 @@ export function EnvironmentViewPage() {
     <PageLayout
       title={displayName}
       backHref={backHref}
-      backLabel="Back to Environments"
+      backLabel="Back to environments"
       description={
         env?.createdAt
-          ? `Created ${formatDistanceToNow(new Date(env.createdAt), { addSuffix: true })}`
+          ? `Created ${formatRelativeTime(env.createdAt)}`
           : undefined
       }
       isLoading={isLoadingEnv}
       disableIcon
+      actions={
+        <Button
+          variant="outlined"
+          size="small"
+          startIcon={<Edit size={16} />}
+          disabled={!env}
+          onClick={() =>
+            navigate(
+              generatePath(
+                absoluteRouteMap.children.org.children.environments.children.view
+                  .children.edit.path,
+                { orgId: orgId ?? "", envName: envName ?? "" },
+              ),
+            )
+          }
+        >
+          Edit Environment
+        </Button>
+      }
       titleTail={
         env ? (
           <Stack direction="row" alignItems="center" spacing={1}>

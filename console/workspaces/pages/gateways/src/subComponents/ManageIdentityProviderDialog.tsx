@@ -48,6 +48,7 @@ import {
 } from "@agent-management-platform/api-client";
 import {
   globalConfig,
+  isManagedGateway,
   type GatewayEnvironmentResponse,
   type IdentityProvider,
   INPUT_LIMITS,
@@ -158,13 +159,16 @@ export function ManageIdentityProviderDialog({
   ]);
 
   const { data: environments } = useListEnvironments({ orgName: orgId });
-  // Gateways belonging to the selected environment populate the gateway picker
-  // (only used when no gateway is locked in).
+  // The selected environment's managed gateways populate the gateway picker (only used
+  // when no gateway is locked in): a self-hosted gateway has no identity providers here.
   const { data: gatewaysResp } = useListGateways(
     { orgName: orgId },
     envName ? { environment: envName } : undefined,
   );
-  const gateways = useMemo(() => gatewaysResp?.gateways ?? [], [gatewaysResp]);
+  const gateways = useMemo(
+    () => (gatewaysResp?.gateways ?? []).filter(isManagedGateway),
+    [gatewaysResp],
+  );
 
   // Environment choices: scoped to the locked gateway when present, otherwise
   // every environment in the org.
@@ -291,7 +295,7 @@ export function ManageIdentityProviderDialog({
 
   const environmentField = (
     <FormControl fullWidth disabled={isDelete}>
-      <FormLabel required>Environment</FormLabel>
+      <FormLabel>Environment</FormLabel>
       <Select
         size="small"
         value={envName}
@@ -314,7 +318,7 @@ export function ManageIdentityProviderDialog({
 
   const gatewayField = (
     <FormControl fullWidth disabled={isDelete || (!isGatewayLocked && !envName)}>
-      <FormLabel required>Gateway</FormLabel>
+      <FormLabel>Gateway</FormLabel>
       {isGatewayLocked ? (
         <TextField
           size="small"
@@ -387,7 +391,7 @@ export function ManageIdentityProviderDialog({
             )}
 
             <FormControl fullWidth disabled={isDelete}>
-              <FormLabel required>Name</FormLabel>
+              <FormLabel>Name</FormLabel>
               <TextField
                 slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.NAME } }}
                 size="small"
@@ -429,7 +433,7 @@ export function ManageIdentityProviderDialog({
                 {discoveryError && <Alert severity="warning">{discoveryError}</Alert>}
 
                 <FormControl fullWidth>
-                  <FormLabel required>Issuer</FormLabel>
+                  <FormLabel>Issuer</FormLabel>
                   <TextField
                     slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.URL } }}
                     size="small"
@@ -441,7 +445,7 @@ export function ManageIdentityProviderDialog({
                 </FormControl>
 
                 <FormControl fullWidth>
-                  <FormLabel required>JWKS URI</FormLabel>
+                  <FormLabel>JWKS URI</FormLabel>
                   <TextField
                     slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.URL } }}
                     size="small"
@@ -473,13 +477,6 @@ export function ManageIdentityProviderDialog({
                 position: "relative",
                 bgcolor: "grey.900",
                 borderRadius: 1,
-                p: 2,
-                pr: 8,
-                fontFamily: "monospace",
-                fontSize: "0.8125rem",
-                color: "grey.100",
-                whiteSpace: "pre",
-                overflowX: "auto",
               }}
             >
               <Box sx={{ position: "absolute", top: 6, right: 6, display: "flex", gap: 0.5 }}>
@@ -498,7 +495,20 @@ export function ManageIdentityProviderDialog({
                   </IconButton>
                 </Tooltip>
               </Box>
-              {displayScript}
+              {/* Scrolls on its own so the copy/show icons stay put. */}
+              <Box
+                sx={{
+                  p: 2,
+                  pr: 9,
+                  fontFamily: "monospace",
+                  fontSize: "0.8125rem",
+                  color: "grey.100",
+                  whiteSpace: "pre",
+                  overflowX: "auto",
+                }}
+              >
+                {displayScript}
+              </Box>
             </Box>
             <Typography variant="caption" color="text.secondary">
               Your access token will be substituted when you copy.

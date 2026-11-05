@@ -440,9 +440,9 @@ export function SelectPresetMonitors({
     : undefined;
 
   return (
-    <Form.Stack>
-      <Form.Section>
-        <Form.Header>
+    <Form.Stack spacing={3}>
+      <Stack spacing={2}>
+        <Box>
           <Stack spacing={0.5}>
             <Stack
               direction="row"
@@ -450,7 +450,7 @@ export function SelectPresetMonitors({
               justifyContent="space-between"
               spacing={1}
             >
-              Evaluators
+              <Typography variant="subtitle1">Evaluators</Typography>
               <Stack direction="row" alignItems="center" spacing={2}>
                 {selectedProviderName ? (
                   <Tooltip title="Change LLM provider" placement="top" arrow>
@@ -544,12 +544,12 @@ export function SelectPresetMonitors({
               </Typography>
             )}
           </Stack>
-        </Form.Header>
+        </Box>
         {selectedChipEvaluators.length > 0 && (
-          <Form.Section>
-            <Form.Header>
+          <Stack spacing={2}>
+            <Typography variant="subtitle1">
               Selected Evaluators ({selectedChipEvaluators.length})
-            </Form.Header>
+            </Typography>
             <Stack
               direction="row"
               spacing={2}
@@ -610,7 +610,7 @@ export function SelectPresetMonitors({
                 );
               })}
             </Stack>
-          </Form.Section>
+          </Stack>
         )}
         {!orgId && (
           <Alert severity="warning" sx={{ mt: 2 }}>
@@ -875,7 +875,7 @@ export function SelectPresetMonitors({
             {error}
           </Typography>
         )}
-      </Form.Section>
+      </Stack>
       <EvaluatorDetailsDrawer
         providerTemplate={selectedProviderTemplate}
         evaluator={drawerEvaluator}

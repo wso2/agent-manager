@@ -59,6 +59,8 @@ export function OxygenLayout() {
   const externalTopRightComponentModules =
     useExternalComponentModules(MountPoints.TopRightPanel);
   const externalLogoComponentModules = useExternalComponentModules(MountPoints.TopLogo);
+  const externalTopStartComponentModules =
+    useExternalComponentModules(MountPoints.TopStartPanel);
   const externalTopLeftComponentModules =
     useExternalComponentModules(MountPoints.TopLeftPanel);
   const externalBottomLeftComponentModules =
@@ -104,6 +106,11 @@ export function OxygenLayout() {
       <AppShell>
         <AppShell.Navbar>
           <Header>
+            {externalTopStartComponentModules?.map((module) => (
+              <div key={module.moduleName}>
+                <module.component />
+              </div>
+            ))}
             <Header.Toggle
               collapsed={collapsed}
               onToggle={() => setCollapsed(!collapsed)}

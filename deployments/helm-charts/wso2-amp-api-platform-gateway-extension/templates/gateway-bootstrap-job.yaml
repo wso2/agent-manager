@@ -63,7 +63,7 @@ roleRef:
 # Bootstrap Job:
 #   1. Waits for Agent Manager API to be healthy
 #   2. Gets a JWT from Thunder IDP using amp-api-client credentials
-#   3. Registers the Gateway in Agent Manager (idempotent)
+#   3. Registers the Gateway in Agent Manager and maps it to its environment (idempotent)
 #   4. Generates a registration token (skipped on upgrades if Secret already exists)
 #   5. Writes the token to a Secret in apiGateway.namespace so the gateway-operator
 #      can reference it via the APIGateway CR spec.controlPlane.tokenSecretRef
@@ -128,6 +128,10 @@ spec:
               value: {{ .Values.gateway.type | quote }}
             - name: ENVIRONMENT_NAME
               value: {{ .Values.gateway.environment | quote }}
+            # The same Job runs for install, upgrade and rollback; only an install
+            # maps a reused gateway to its environment (ensure_environment_mapping).
+            - name: RELEASE_IS_INSTALL
+              value: {{ .Release.IsInstall | quote }}
             - name: TOKEN_SECRET_NAME
               value: {{ include "wso2-amp-gateway-extension.tokenSecretName" . | quote }}
             - name: TOKEN_SECRET_KEY
@@ -267,6 +271,43 @@ spec:
                 return 0
               }
 
+              # ensure_environment_mapping — maps a reused gateway to ENVIRONMENT_NAME.
+              # Conflict model: fills an empty mapping on install, never overrides a console
+              # change (upgrades and rollbacks skip it; a rollback to the first revision
+              # replays its install-time hook). Non-fatal like sync_runtime_url.
+              ensure_environment_mapping() {
+                # _em_ prefix: POSIX sh has no portable `local`, so these leak as globals.
+                if [ "${RELEASE_IS_INSTALL}" != "true" ]; then
+                  return 0
+                fi
+                log_info "Mapping gateway '${GATEWAY_NAME}' to environment '${ENVIRONMENT_NAME}'..."
+                # The API checks the mapping under its locks; both "another environment"
+                # and the ingress cap are 409s, told apart by the code. Plain curl because
+                # http_post drops the body on a non-2xx.
+                _em_tmp=$(mktemp)
+                _em_status=$(curl -s --max-time 30 --retry 3 --retry-delay 5 -X POST \
+                  -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+                  -o "${_em_tmp}" -w "%{http_code}" \
+                  "${AMP_API_URL}/orgs/${ORG_NAME}/gateways/${GATEWAY_ID}/environments/${ENVIRONMENT_NAME}") || true
+                _em_body=$(cat "${_em_tmp}"); rm -f "${_em_tmp}"
+                case "${_em_status}" in
+                  2*)
+                    log_info "Gateway serves environment '${ENVIRONMENT_NAME}'."
+                    ;;
+                  409)
+                    if echo "${_em_body}" | grep -q '"code":"GATEWAY_ENVIRONMENT_FIXED"'; then
+                      log_error "Gateway '${GATEWAY_NAME}' serves another environment, so it was not mapped to '${ENVIRONMENT_NAME}' (continuing). Move it under Gateways in the console."
+                    else
+                      log_error "Environment '${ENVIRONMENT_NAME}' did not accept gateway '${GATEWAY_NAME}' (continuing): ${_em_body}"
+                    fi
+                    ;;
+                  *)
+                    log_error "Failed to map gateway '${GATEWAY_NAME}' to environment '${ENVIRONMENT_NAME}' (HTTP ${_em_status}, continuing): ${_em_body}. Assign it under Gateways in the console."
+                    ;;
+                esac
+                return 0
+              }
+
               # ----------------------------------------------------------------
               # Step 1: Wait for Agent Manager API to be healthy
               # ----------------------------------------------------------------
@@ -350,6 +391,8 @@ spec:
                   grep -o '"name":"'"${GATEWAY_NAME}"'"[^}]*"vhost":"[^"]*"' | \
                   grep -o '"vhost":"[^"]*"' | cut -d'"' -f4 | head -1)
                 warn_vhost_drift "${GATEWAY_VHOST}" "${REGISTERED_VHOST}"
+
+                ensure_environment_mapping
               else
                 # ----------------------------------------------------------------
                 # Step 4: Find the environment by name
@@ -473,5 +516,6 @@ spec:
                 amp.wso2.com/environment="${ENVIRONMENT_NAME}" \
                 --overwrite
 
-              log_info "Bootstrap complete. Gateway '${GATEWAY_NAME}' registered with ID: ${GATEWAY_ID} in environment '${ENVIRONMENT_NAME}'"
+              # The mapping outcome is logged where it happens, so this line does not repeat it.
+              log_info "Bootstrap complete. Gateway '${GATEWAY_NAME}' registered with ID: ${GATEWAY_ID}"
 {{- end }}

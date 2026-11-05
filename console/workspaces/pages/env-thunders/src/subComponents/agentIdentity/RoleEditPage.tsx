@@ -24,6 +24,7 @@ import {
   Chip,
   CircularProgress,
   Form,
+  Grid,
   IconButton,
   ListingTable,
   Stack,
@@ -295,7 +296,7 @@ export const RoleEditPage: React.FC = () => {
 
   if (isLoading) {
     return (
-      <PageLayout title="Role" backHref={rolesPath} backLabel="Back to Roles" disableIcon>
+      <PageLayout title="Role" backHref={rolesPath} backLabel="Back to roles" disableIcon>
         <EditFormSkeleton tabs={3} />
       </PageLayout>
     );
@@ -305,7 +306,7 @@ export const RoleEditPage: React.FC = () => {
     <PageLayout
       title={roleData?.name || "Role"}
       backHref={rolesPath}
-      backLabel="Back to Roles"
+      backLabel="Back to roles"
       description={roleData?.description}
       disableIcon
       titleTail={isPermissionsReadOnly ? <Chip label="Read-only" size="small" /> : undefined}
@@ -359,7 +360,8 @@ export const RoleEditPage: React.FC = () => {
                     Search and add agents to this role.
                   </Typography>
 
-                  <Box sx={{ mt: 1, mb: 2 }}>
+                  <Grid container spacing={2}>
+                    <Grid size={{ xs: 12, md: 12, xl: 8 }}>
                     <Form.ElementWrapper label="Add Agent" name="addAgent">
                       <Autocomplete
                         id="addAgent"
@@ -389,7 +391,8 @@ export const RoleEditPage: React.FC = () => {
                         noOptionsText="No agents available"
                       />
                     </Form.ElementWrapper>
-                  </Box>
+                    </Grid>
+                  </Grid>
 
                   {displayedAgentIds.length === 0 ? (
                     <ListingTable.Container>
@@ -458,7 +461,8 @@ export const RoleEditPage: React.FC = () => {
                     </Alert>
                   )}
 
-                  <Box sx={{ mt: 1, mb: 2 }}>
+                  <Grid container spacing={2}>
+                    <Grid size={{ xs: 12, md: 12, xl: 8 }}>
                     <Form.ElementWrapper label="Add Group" name="addGroup">
                       <Autocomplete
                         id="addGroup"
@@ -472,7 +476,8 @@ export const RoleEditPage: React.FC = () => {
                         noOptionsText="No groups available"
                       />
                     </Form.ElementWrapper>
-                  </Box>
+                    </Grid>
+                  </Grid>
 
                   {displayedGroups.length === 0 ? (
                     <ListingTable.Container>

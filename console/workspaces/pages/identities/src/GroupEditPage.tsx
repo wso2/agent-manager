@@ -23,6 +23,7 @@ import {
   Button,
   CircularProgress,
   Form,
+  Grid,
   IconButton,
   ListingTable,
   Stack,
@@ -249,7 +250,8 @@ export const GroupEditPage: React.FC = () => {
                 Search and add users to this group.
               </Typography>
 
-              <Box sx={{ mt: 1 }}>
+              <Grid container spacing={2}>
+                <Grid size={{ xs: 12, md: 12, xl: 8 }}>
                 <Form.ElementWrapper label="Add User" name="addUser">
                   <Autocomplete
                     id="addUser"
@@ -265,7 +267,8 @@ export const GroupEditPage: React.FC = () => {
                     noOptionsText="No users available"
                   />
                 </Form.ElementWrapper>
-              </Box>
+                </Grid>
+              </Grid>
 
               {pendingAdds.length > 0 && (
                 <Box mb={2}>
@@ -345,18 +348,20 @@ export const GroupEditPage: React.FC = () => {
                       ))}
                     </ListingTable.Body>
                   </ListingTable>
-                  <TablePagination
-                    component="div"
-                    count={membersTotal}
-                    page={membersPage}
-                    rowsPerPage={membersRowsPerPage}
-                    onPageChange={(_e, newPage) => setMembersPage(newPage)}
-                    onRowsPerPageChange={(e) => {
-                      setMembersRowsPerPage(parseInt(e.target.value, 10));
-                      setMembersPage(0);
-                    }}
-                    rowsPerPageOptions={[5, 10, 25, 50]}
-                  />
+                  {membersTotal > 5 && (
+                    <TablePagination
+                      component="div"
+                      count={membersTotal}
+                      page={membersPage}
+                      rowsPerPage={membersRowsPerPage}
+                      onPageChange={(_e, newPage) => setMembersPage(newPage)}
+                      onRowsPerPageChange={(e) => {
+                        setMembersRowsPerPage(parseInt(e.target.value, 10));
+                        setMembersPage(0);
+                      }}
+                      rowsPerPageOptions={[5, 10, 25, 50]}
+                    />
+                  )}
                 </ListingTable.Container>
               ) : null}
             </>

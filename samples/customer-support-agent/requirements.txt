@@ -5,6 +5,7 @@ tavily-python==0.8.5
 openai==3.42.1
 fastapi==0.162.0
 uvicorn==0.54.0
-sqlalchemy==2.0.55
+sqlalchemy==2.0.55; python_version < "3.11"
+sqlalchemy==2.1.6; python_version >= "3.11"
 psycopg2-binary==2.9.13
 pytz==2026.6

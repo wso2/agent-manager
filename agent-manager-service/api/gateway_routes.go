@@ -45,6 +45,21 @@ func RegisterGatewayRoutes(rr *middleware.RouteRegistrar, ctrl controllers.Gatew
 		growthanalytics.Track("amp.deployment-ops.register-gateway.token", actionDims("revoked-gateway-token"), ctrl.RevokeGatewayToken))
 	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/gateways/status", rbac.GatewayRead, ctrl.GetGatewayStatus)
 
+	// Self-hosted gateways: the same operations, restricted to gateways the customer runs.
+	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/self-hosted-gateways", rbac.GatewayRead, ctrl.ListSelfHostedGateways)
+	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/self-hosted-gateways", rbac.GatewayCreate,
+		growthanalytics.Track("amp.deployment-ops.register-gateway", actionDims("registered-gateway"), ctrl.RegisterSelfHostedGateway))
+	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/self-hosted-gateways/{gatewayID}", rbac.GatewayRead, ctrl.GetSelfHostedGateway)
+	rr.HandleFuncWithValidationAndAuthz("PUT /orgs/{orgName}/self-hosted-gateways/{gatewayID}", rbac.GatewayUpdate,
+		growthanalytics.Track("amp.deployment-ops.register-gateway", actionDims("updated-gateway"), ctrl.UpdateSelfHostedGateway))
+	rr.HandleFuncWithValidationAndAuthz("DELETE /orgs/{orgName}/self-hosted-gateways/{gatewayID}", rbac.GatewayDelete,
+		growthanalytics.Track("amp.deployment-ops.register-gateway", actionDims("deleted-gateway"), ctrl.DeleteSelfHostedGateway))
+	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/self-hosted-gateways/{gatewayID}/tokens", rbac.GatewayTokenManage, ctrl.ListSelfHostedGatewayTokens)
+	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/self-hosted-gateways/{gatewayID}/tokens", rbac.GatewayTokenManage,
+		growthanalytics.Track("amp.deployment-ops.register-gateway.token", actionDims("rotated-gateway-token"), ctrl.RotateSelfHostedGatewayToken))
+	rr.HandleFuncWithValidationAndAuthz("DELETE /orgs/{orgName}/self-hosted-gateways/{gatewayID}/tokens/{tokenID}", rbac.GatewayTokenManage,
+		growthanalytics.Track("amp.deployment-ops.register-gateway.token", actionDims("revoked-gateway-token"), ctrl.RevokeSelfHostedGatewayToken))
+
 	// Identity providers (token issuers mirrored from the gateway runtime config)
 	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/identity-providers", rbac.GatewayRead, ctrl.ListIdentityProviders)
 	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/identity-providers/discover", rbac.GatewayUpdate, ctrl.DiscoverOidcConfiguration)

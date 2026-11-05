@@ -246,6 +246,13 @@ func TestAgentThunderAppName_DifferentEnvsProduceDifferentNames(t *testing.T) {
 	}
 }
 
+func TestProjectAgentThunderAppNameIsEnvironmentIndependent(t *testing.T) {
+	got := ProjectAgentThunderAppName("acme", "support", "triage-agent")
+	if got != "amp-agent-acme-support-triage-agent" {
+		t.Fatalf("unexpected project AgentID name %q", got)
+	}
+}
+
 func TestAgentThunderAppName_TruncatesAt100Chars(t *testing.T) {
 	got := AgentThunderAppName(
 		strings.Repeat("o", 40), strings.Repeat("e", 40), strings.Repeat("p", 40), strings.Repeat("a", 40),

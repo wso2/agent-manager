@@ -387,6 +387,20 @@ func (s *LLMProxyDeploymentService) UndeployEverywhere(ctx context.Context, prox
 	})
 }
 
+// RequireUserManaged refuses a proxy AMS created for an agent's LLM configuration or a monitor. The public routes
+// call it; AMS's own lifecycle calls the service functions behind them directly. A missing proxy passes, so the
+// caller reports it as it would anyway.
+func (s *LLMProxyDeploymentService) RequireUserManaged(ctx context.Context, proxyHandle, ouID string) error {
+	owned, err := s.proxyRepo.IsAgentOrMonitorProxy(ctx, proxyHandle, ouID)
+	if err != nil {
+		return fmt.Errorf("check LLM proxy ownership: %w", err)
+	}
+	if owned {
+		return utils.ErrLLMProxyManagedByAMS
+	}
+	return nil
+}
+
 // proxyByID is the proxy with the id or handle; utils.ErrLLMProxyNotFound when there is none.
 func (s *LLMProxyDeploymentService) proxyByID(proxyID, ouID string) (*models.LLMProxy, error) {
 	proxy, err := s.proxyRepo.GetByID(proxyID, ouID)

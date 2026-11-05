@@ -23,6 +23,7 @@ import { Button, Stack } from "@wso2/oxygen-ui";
 import { Plus } from "@wso2/oxygen-ui-icons-react";
 import { generatePath, Link, useParams } from "react-router-dom";
 import { absoluteRouteMap } from "@agent-management-platform/types";
+import { useListMonitors } from "@agent-management-platform/api-client";
 import { MonitorTable } from "./subComponents/MonitorTable";
 
 export const EvalMonitorsComponent: React.FC = () => {
@@ -33,6 +34,35 @@ export const EvalMonitorsComponent: React.FC = () => {
     projectId: string;
   }>();
 
+  // Same query as the table (deduped); the header CTA only shows once the list has items.
+  const { data: monitorsList } = useListMonitors(
+    { orgName: orgId, projName: projectId, agentName: agentId },
+    { environmentName: envId },
+  );
+  const hasItems = (monitorsList?.monitors?.length ?? 0) > 0;
+
+  // One definition, used both as the page action and as the empty state's CTA.
+  const createButton = (
+    <Button
+      variant="contained"
+      component={Link}
+      to={generatePath(
+        absoluteRouteMap.children.org.children.projects.children.agents.children
+          .environment.children.evaluation.children.monitor.children.create.path,
+        {
+          orgId: orgId,
+          projectId: projectId,
+          agentId: agentId,
+          envId: envId,
+        },
+      )}
+      startIcon={<Plus />}
+      color="primary"
+    >
+      Add monitor
+    </Button>
+  );
+
   return (
     <PageLayout
       title="Eval Monitors"
@@ -40,29 +70,11 @@ export const EvalMonitorsComponent: React.FC = () => {
       actions={
         <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
           <EnvironmentSelector />
-          <Button
-            variant="contained"
-            component={Link}
-            to={generatePath(
-              absoluteRouteMap.children.org.children.projects.children.agents
-                .children.environment.children.evaluation.children.monitor
-                .children.create.path,
-              {
-                orgId: orgId,
-                projectId: projectId,
-                agentId: agentId,
-                envId: envId,
-              },
-            )}
-            startIcon={<Plus />}
-            color="primary"
-          >
-            Add monitor
-          </Button>
+          {hasItems && createButton}
         </Stack>
       }
     >
-      <MonitorTable />
+      <MonitorTable createAction={createButton} />
     </PageLayout>
   );
 };

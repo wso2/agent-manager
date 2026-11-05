@@ -51,7 +51,7 @@ export interface EndpointsEditorSectionProps {
   onEndpointFormDirtyChange?: (dirty: boolean) => void;
 }
 
-// Shared by AddMCPProxyForm and EditMCPProxyDrawer: renders the endpoint list with
+// Shared by AddMCPProxyForm and EditMCPProxy: renders the endpoint list with
 // add-below-list / edit-in-place inline forms, guarding so only one form (add or
 // edit) is open at a time. `endpoints`/`addOpen`/`editingId` are controlled by the
 // parent since it also needs them to build its submit payload and to hide its own

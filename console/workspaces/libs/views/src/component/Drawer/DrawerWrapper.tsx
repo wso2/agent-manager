@@ -16,54 +16,59 @@
  * under the License.
  */
 
-import { Drawer, useTheme, type DrawerProps } from "@wso2/oxygen-ui";
+import { DrawerPanel, useTheme, type SxProps, type Theme } from "@wso2/oxygen-ui";
 import type { ReactNode } from "react";
 
-export interface DrawerWrapperProps extends Omit<DrawerProps, "children"> {
+/** Used when a drawer names no width of its own. */
+const DEFAULT_WIDTH = 700;
+
+export interface DrawerWrapperProps {
+  open: boolean;
+  onClose: () => void;
   children: ReactNode;
+  /**
+   * Panel width. DrawerPanel takes a single width rather than a range, so
+   * `minWidth` wins when both are given and `maxWidth` is the fallback.
+   */
   minWidth?: number | string;
   maxWidth?: number | string;
+  /**
+   * @deprecated DrawerPanel scrolls its own body; nothing reads this.
+   */
   disableScroll?: boolean;
+  /** Widens the panel to the full viewport. */
   fullscreen?: boolean;
+  sx?: SxProps<Theme>;
 }
 
+/**
+ * Thin adapter over Oxygen's {@link DrawerPanel}, kept so the drawers already
+ * written against this API pick up the panel's behaviour — focus handling,
+ * Escape/backdrop close, the expand toggle and a scrollable body — without
+ * each one being rewritten.
+ */
 export function DrawerWrapper({
   children,
-  minWidth = 700,
-  maxWidth = 1000,
+  minWidth,
+  maxWidth,
+  fullscreen,
   sx,
-  disableScroll = false,
-  fullscreen = false,
-  ...drawerProps
+  ...panelProps
 }: DrawerWrapperProps) {
   const theme = useTheme();
 
   return (
-    <Drawer
-      anchor="right"
-      variant="temporary"
-      {...drawerProps}
+    <DrawerPanel
+      {...panelProps}
+      width={minWidth ?? maxWidth ?? DEFAULT_WIDTH}
+      expanded={fullscreen}
       sx={[
-        {
-          "& .MuiDrawer-paper": {
-            minWidth: fullscreen ? "100vw" : { xs: "100vw", sm: minWidth },
-            maxWidth: fullscreen ? "100vw" : { xs: "100vw", sm: maxWidth },
-            width: fullscreen ? "100vw" : "auto",
-            transition: "width 0.2s ease, min-width 0.2s ease, max-width 0.2s ease",
-            backgroundColor: theme.vars?.palette.background.default,
-            px: 2,
-            py: 1,
-            overflow: "visible",
-            overflowY: disableScroll ? "visible" : "auto",
-            borderRadius: 0,
-          },
-          zIndex: theme.zIndex.drawer + 2,
-        },
+        // Drawers here open over other drawer-level surfaces.
+        { zIndex: theme.zIndex.drawer + 2 },
         ...(Array.isArray(sx) ? sx : sx ? [sx] : []),
       ]}
     >
       {children}
-    </Drawer>
+    </DrawerPanel>
   );
 }
-
