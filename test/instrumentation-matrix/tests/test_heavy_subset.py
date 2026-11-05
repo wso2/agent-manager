@@ -101,15 +101,16 @@ def test_subset_excludes_non_deployable_frameworks():
 
 
 def test_subset_preserves_python310_for_langchain_and_requires_python311_for_crewai():
+    """Bound CrewAI runtime selection without reducing other samples' coverage."""
     m = _multi_manifest()
-    m.python_versions = ["3.10", "3.11", "3.12", "3.13"]
+    m.python_versions = ["3.10", "3.11", "3.12", "3.13", "3.14"]
     cells = expand_matrix(m)
     sub = select_heavy_subset(cells, m)
     # Python is a heavy axis: the agent is rebuilt on each interpreter.
-    assert {c.python for c in sub if c.framework_name == "langchain"} == {"3.10", "3.11", "3.12", "3.13"}
+    assert {c.python for c in sub if c.framework_name == "langchain"} == {"3.10", "3.11", "3.12", "3.13", "3.14"}
     assert {c.python for c in sub if c.framework_name == "crewai"} == {"3.11", "3.12", "3.13"}
-    # 2 provider versions x (4 LangChain Pythons + 3 CrewAI Pythons).
-    assert len(sub) == 14
+    # 2 provider versions x (5 LangChain Pythons + 3 CrewAI Pythons).
+    assert len(sub) == 16
 
 
 def test_per_provider_axis_pins_each_framework_to_its_representative_version():
@@ -171,6 +172,7 @@ def test_select_heavy_run_cell_id_ignores_filters():
 
 
 def test_select_heavy_run_cannot_force_unsupported_python_by_cell_id():
+    """An explicit cell ID cannot bypass sample runtime constraints."""
     m = _multi_manifest()
     m.python_versions = ["3.10", "3.11"]
     assert select_heavy_run(m, cell_id="traceloop-0.60.0-crewai-1.1.0-py3.10") == []

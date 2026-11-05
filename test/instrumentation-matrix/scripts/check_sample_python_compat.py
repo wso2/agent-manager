@@ -25,6 +25,7 @@ from harness.deployable_samples import DEPLOYABLE_SAMPLES  # noqa: E402
 
 
 def main() -> int:
+    """Resolve each sample on its supported matrix runtimes, reporting failures."""
     pythons = yaml.safe_load((HERE / "matrix.yaml").read_text())["python"]["versions"]
     samples = {s.app_path.lstrip("/"): s for s in DEPLOYABLE_SAMPLES.values()}
 
@@ -35,7 +36,7 @@ def main() -> int:
             reqs = ROOT / sample / "requirements.txt"
             for py in pythons:
                 if not config.supports_python(py):
-                    print(f"Skipping {sample} on Python {py}: requires Python {config.min_python}+")
+                    print(f"Skipping {sample} on Python {py}: unsupported sample runtime")
                     continue
                 print(f"::group::{sample} on Python {py}", flush=True)
                 rc = subprocess.run(

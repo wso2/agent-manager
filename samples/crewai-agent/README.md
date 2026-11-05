@@ -88,6 +88,9 @@ What is the capital of France?
 
 ## Run Locally
 
+Use an installed supported interpreter: replace `python3.11` below with
+`python3.12` or `python3.13` as appropriate.
+
 ```bash
 cd samples/crewai-agent
 python3.11 -m venv .venv && source .venv/bin/activate
