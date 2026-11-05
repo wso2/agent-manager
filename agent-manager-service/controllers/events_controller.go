@@ -284,12 +284,22 @@ func (c *eventsController) ForScope(scope string) EventScopeHandlers {
 			fn(w, r, target(r), id)
 		}
 	}
-	// respond writes one subscription with its destination and counts.
-	respond := func(w http.ResponseWriter, r *http.Request, t repositories.EventTarget, status int, sub *models.EventSubscription) {
+	// respond writes one subscription with its destination and counts. After
+	// a create or update (saved) the change is already committed, so failing
+	// to load the rest only logs: a client retrying a 500 would create the
+	// subscription twice.
+	respond := func(
+		w http.ResponseWriter, r *http.Request, t repositories.EventTarget, status int, sub *models.EventSubscription, saved bool,
+	) {
 		detail, err := c.subscriptions.Describe(r.Context(), t, sub)
 		if err != nil {
-			writeEventsError(w, r, err, "Failed to load event subscription")
-			return
+			if !saved {
+				writeEventsError(w, r, err, "Failed to load event subscription")
+				return
+			}
+			logger.GetLogger(r.Context()).Error("Failed to load a saved event subscription's destination and counts",
+				"subscription", sub.ID, "error", err)
+			detail = &services.SubscriptionDetail{}
 		}
 		stats := map[uuid.UUID]repositories.DestinationStats{}
 		if detail.Destination != nil {
@@ -332,7 +342,7 @@ func (c *eventsController) ForScope(scope string) EventScopeHandlers {
 				writeEventsError(w, r, err, "Failed to create event subscription")
 				return
 			}
-			respond(w, r, t, http.StatusCreated, sub)
+			respond(w, r, t, http.StatusCreated, sub, true)
 		},
 		GetSubscription: withID(func(w http.ResponseWriter, r *http.Request, t repositories.EventTarget, id uuid.UUID) {
 			sub, err := c.subscriptions.Get(r.Context(), t, id)
@@ -340,7 +350,7 @@ func (c *eventsController) ForScope(scope string) EventScopeHandlers {
 				writeEventsError(w, r, err, "Failed to get event subscription")
 				return
 			}
-			respond(w, r, t, http.StatusOK, sub)
+			respond(w, r, t, http.StatusOK, sub, false)
 		}),
 		UpdateSubscription: withID(func(w http.ResponseWriter, r *http.Request, t repositories.EventTarget, id uuid.UUID) {
 			in, ok := decodeSubscriptionRequest(w, r)
@@ -352,7 +362,7 @@ func (c *eventsController) ForScope(scope string) EventScopeHandlers {
 				writeEventsError(w, r, err, "Failed to update event subscription")
 				return
 			}
-			respond(w, r, t, http.StatusOK, sub)
+			respond(w, r, t, http.StatusOK, sub, true)
 		}),
 		DeleteSubscription: withID(func(w http.ResponseWriter, r *http.Request, t repositories.EventTarget, id uuid.UUID) {
 			if err := c.subscriptions.Delete(r.Context(), t, id); err != nil {
