@@ -326,9 +326,9 @@ func TestGetFromOtherProject_404(t *testing.T) {
 	_, _, err := f.svc.Upsert(ctx, testOrg, "proj-b", testProjB, "orders", orderReq())
 	require.NoError(t, err)
 
-	_, err = f.svc.Get(ctx, testOrg, testProjA, "orders")
+	_, err = f.svc.Get(ctx, testOrg, testProjName, testProjA, "orders")
 	assert.ErrorIs(t, err, utils.ErrMCPProxyNotFound)
-	got, err := f.svc.Get(ctx, testOrg, testProjB, "orders")
+	got, err := f.svc.Get(ctx, testOrg, "proj-b", testProjB, "orders")
 	require.NoError(t, err)
 	assert.Equal(t, "orders", got.ID)
 }
@@ -354,7 +354,7 @@ func TestDeleteFromOtherProject_404(t *testing.T) {
 	_, _, err := f.svc.Upsert(ctx, testOrg, "proj-b", testProjB, "orders", orderReq())
 	require.NoError(t, err)
 
-	err = f.svc.Delete(ctx, testOrg, testProjA, "orders")
+	err = f.svc.Delete(ctx, testOrg, testProjName, testProjA, "orders")
 	assert.ErrorIs(t, err, utils.ErrMCPProxyNotFound)
 	assert.Empty(t, f.deletedProxy)
 }
@@ -366,7 +366,7 @@ func TestDeleteWithAgentMapping_409McpProxyInUse(t *testing.T) {
 	require.NoError(t, err)
 	f.mappings = []models.EnvAgentMCPMapping{{}}
 
-	err = f.svc.Delete(ctx, testOrg, testProjA, "orders")
+	err = f.svc.Delete(ctx, testOrg, testProjName, testProjA, "orders")
 	assert.ErrorIs(t, err, utils.ErrMCPProxyHasMappings)
 	assert.Empty(t, f.deletedProxy, "nothing is deleted while agents use the proxy")
 }
@@ -385,7 +385,7 @@ func TestDeleteUndeploysAllEnvironments(t *testing.T) {
 		return nil
 	}
 
-	require.NoError(t, f.svc.Delete(ctx, testOrg, testProjA, "orders"))
+	require.NoError(t, f.svc.Delete(ctx, testOrg, testProjName, testProjA, "orders"))
 	assert.Equal(t, 2, f.txCalls, "one teardown per environment artifact")
 	assert.Equal(t, []string{"orders"}, f.deletedProxy)
 }

@@ -744,20 +744,22 @@ func (s *MCPProxyService) Delete(ctx context.Context, orgUUID, orgName, proxyID 
 }
 
 // projectGone reports whether OpenChoreo no longer has the project a project proxy was published by, looked up
-// by the project name stored on the proxy. A lookup failure other than not-found is returned, never taken for a
-// gone project.
+// by the project name stored on the proxy. A project of that name with another UUID was re-created after the
+// proxy's was deleted, so the proxy's own project is gone too. A lookup failure other than not-found is returned,
+// never taken for a gone project.
 func (s *MCPProxyService) projectGone(ctx context.Context, orgUUID string, proxy *models.MCPProxy) (bool, error) {
 	projectName := valueOrEmpty(proxy.ProjectName)
 	if s.getProject == nil || projectName == "" {
 		return false, nil
 	}
-	if _, err := s.getProject(ctx, orgUUID, projectName); err != nil {
+	project, err := s.getProject(ctx, orgUUID, projectName)
+	if err != nil {
 		if errors.Is(err, utils.ErrProjectNotFound) {
 			return true, nil
 		}
 		return false, fmt.Errorf("failed to resolve the MCP proxy's project: %w", err)
 	}
-	return false, nil
+	return project != nil && proxy.ProjectUUID != nil && project.UUID != *proxy.ProjectUUID, nil
 }
 
 // ensureMCPProxyNotInUse refuses (utils.ErrMCPProxyHasMappings) while an agent still

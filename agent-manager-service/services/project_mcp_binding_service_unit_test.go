@@ -137,6 +137,12 @@ func newBindingFixture(t *testing.T) *bindingFixture {
 			}
 			return copyProxy(), nil
 		},
+		GetInProjectByNameFunc: func(_ context.Context, handle, _, projectName string) (*models.MCPProxy, error) {
+			if handle != bindingHandle || projectName != bindingProject {
+				return nil, utils.ErrMCPProxyNotFound
+			}
+			return copyProxy(), nil
+		},
 		UpdateFunc: func(_ context.Context, _ *gorm.DB, p *models.MCPProxy, _ string) error {
 			f.proxyUpdates++
 			f.proxy.Configuration = p.Configuration
@@ -784,7 +790,7 @@ func TestGetEnv_NotBound_404AndBoundReadsStatus(t *testing.T) {
 	assert.Equal(t, "/weather", resp.Context)
 	assert.Equal(t, "https://dev-gw.example.com/p1/weather/mcp", resp.PublicURL)
 
-	proxy, err := f.svc.Get(context.Background(), testOrg, bindingProjectUUID, bindingHandle)
+	proxy, err := f.svc.Get(context.Background(), testOrg, bindingProject, bindingProjectUUID, bindingHandle)
 	require.NoError(t, err)
 	require.Len(t, proxy.Environments, 1, "the proxy GET lists its bindings")
 	assert.Equal(t, *resp, proxy.Environments[0])

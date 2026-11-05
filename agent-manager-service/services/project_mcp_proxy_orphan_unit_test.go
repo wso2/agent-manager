@@ -54,7 +54,7 @@ func TestUpsertAdoptsProxyLeftBySameNamedDeletedProject(t *testing.T) {
 	assert.Equal(t, []string{"orders:" + staleProjUUID + "->" + testProjA}, f.reassigned)
 	assert.Zero(t, f.updateCalls, "an identical body changes nothing but the project")
 
-	got, err := f.svc.Get(ctx, testOrg, testProjA, "orders")
+	got, err := f.svc.Get(ctx, testOrg, testProjName, testProjA, "orders")
 	require.NoError(t, err, "the re-created project now owns the proxy")
 	assert.Equal(t, "orders", got.ID)
 	list, err := f.svc.List(ctx, testOrg, testProjA, "", "", 50, 0)
@@ -190,6 +190,13 @@ func TestOrgDeleteOfProjectProxy(t *testing.T) {
 		require.ErrorIs(t, f.svc.base.Delete(context.Background(), testOrg, "org", "orders"), utils.ErrMCPProxyProjectOwned)
 		assert.Empty(t, f.deletedProxy)
 	})
+	// A project re-created with the same name is another project: the proxy's own is gone.
+	t.Run("allowed once the project is re-created with another UUID", func(t *testing.T) {
+		f := orphanFixture(t)
+		lookup(f, &models.ProjectResponse{Name: testProjName, UUID: testProjA}, nil)
+		require.NoError(t, f.svc.base.Delete(context.Background(), testOrg, "org", "orders"))
+		assert.Equal(t, []string{"orders"}, f.deletedProxy)
+	})
 	t.Run("a lookup failure is not taken for a gone project", func(t *testing.T) {
 		f := orphanFixture(t)
 		lookup(f, nil, errors.New("openchoreo down"))
@@ -203,5 +210,42 @@ func TestOrgDeleteOfProjectProxy(t *testing.T) {
 		lookup(f, nil, utils.ErrProjectNotFound)
 		_, err := f.svc.base.Update(context.Background(), testOrg, "orders", &models.MCPProxyDTO{ID: "orders", Name: "x", Version: "v1"})
 		require.ErrorIs(t, err, utils.ErrMCPProxyProjectOwned)
+	})
+}
+
+// A project re-created without the proxy's source component can't adopt the proxy (its PUT is
+// SOURCE_COMPONENT_NOT_FOUND), so its routes read and remove what the deleted project left, as a deleted
+// project's routes do.
+func TestRecreatedProjectRoutesReachProxyLeftByDeletedProject(t *testing.T) {
+	t.Run("get", func(t *testing.T) {
+		f := orphanFixture(t)
+		got, err := f.svc.Get(context.Background(), testOrg, testProjName, testProjA, "orders")
+		require.NoError(t, err)
+		assert.Equal(t, "orders", got.ID)
+		assert.Empty(t, f.reassigned, "reading does not adopt")
+	})
+	t.Run("get binding", func(t *testing.T) {
+		f := orphanFixture(t)
+		_, err := f.svc.GetEnvironment(context.Background(), testOrg, testProjName, testProjA, "orders", "development")
+		assert.ErrorIs(t, err, utils.ErrMCPProxyEnvironmentNotBound, "the proxy is found; it has no binding")
+	})
+	t.Run("delete", func(t *testing.T) {
+		f := orphanFixture(t)
+		require.NoError(t, f.svc.Delete(context.Background(), testOrg, testProjName, testProjA, "orders"))
+		assert.Equal(t, []string{"orders"}, f.deletedProxy)
+	})
+	t.Run("delete refused while agents use it", func(t *testing.T) {
+		f := orphanFixture(t)
+		f.mappings = []models.EnvAgentMCPMapping{{}}
+		err := f.svc.Delete(context.Background(), testOrg, testProjName, testProjA, "orders")
+		require.ErrorIs(t, err, utils.ErrMCPProxyHasMappings)
+		assert.Empty(t, f.deletedProxy)
+	})
+	t.Run("another project name's proxy stays not found", func(t *testing.T) {
+		f := orphanFixture(t)
+		_, err := f.svc.Get(context.Background(), testOrg, "proj-other", "proj-other-uuid", "orders")
+		assert.ErrorIs(t, err, utils.ErrMCPProxyNotFound)
+		require.ErrorIs(t, f.svc.Delete(context.Background(), testOrg, "proj-other", "proj-other-uuid", "orders"), utils.ErrMCPProxyNotFound)
+		assert.Empty(t, f.deletedProxy)
 	})
 }

@@ -206,7 +206,7 @@ func (c *projectMCPProxyController) GetProjectMCPProxy(w http.ResponseWriter, r 
 	if deleted {
 		resp, err = c.service.GetInDeletedProject(ctx, ouID, r.PathValue(utils.PathParamProjName), handle)
 	} else {
-		resp, err = c.service.Get(ctx, ouID, project.UUID, handle)
+		resp, err = c.service.Get(ctx, ouID, project.Name, project.UUID, handle)
 	}
 	if err != nil {
 		switch {
@@ -240,7 +240,7 @@ func (c *projectMCPProxyController) DeleteProjectMCPProxy(w http.ResponseWriter,
 	if deleted {
 		err = c.service.DeleteInDeletedProject(ctx, ouID, r.PathValue(utils.PathParamProjName), handle)
 	} else {
-		err = c.service.Delete(ctx, ouID, project.UUID, handle)
+		err = c.service.Delete(ctx, ouID, project.Name, project.UUID, handle)
 	}
 	if err != nil {
 		switch {

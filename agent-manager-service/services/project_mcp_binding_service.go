@@ -317,11 +317,12 @@ func orphanedBindingEndpoint(proxy *models.MCPProxy, handle string) *models.MCPP
 	return nil
 }
 
-// GetEnvironment returns the project proxy's binding in envName, with its deployment status.
+// GetEnvironment returns the project proxy's binding in envName, with its deployment status. Like Get, it also finds
+// a proxy a deleted project of the same name left.
 func (s *ProjectMCPProxyService) GetEnvironment(
 	ctx context.Context, ouID, projectName, projectUUID, handle, envName string,
 ) (*models.MCPProxyEnvironmentResponse, error) {
-	proxy, err := s.getInProject(ctx, ouID, projectUUID, handle)
+	proxy, err := s.getInProjectOrOrphan(ctx, ouID, projectName, projectUUID, handle)
 	if err != nil {
 		return nil, err
 	}
@@ -358,7 +359,7 @@ func (s *ProjectMCPProxyService) environmentOf(
 // they are never re-sent to. The proxy row is locked as PUT locks it, so a PUT and a DELETE on the same binding
 // don't interleave.
 func (s *ProjectMCPProxyService) DeleteEnvironment(ctx context.Context, ouID, projectName, projectUUID, handle, envName string) error {
-	proxy, err := s.getInProject(ctx, ouID, projectUUID, handle)
+	proxy, err := s.getInProjectOrOrphan(ctx, ouID, projectName, projectUUID, handle)
 	if err != nil {
 		return err
 	}

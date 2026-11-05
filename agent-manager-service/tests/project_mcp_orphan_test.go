@@ -71,6 +71,18 @@ func TestProjectMCPProxyOfDeletedProject(t *testing.T) {
 		}
 		return &models.ProjectResponse{Name: name, UUID: projectUUID}, nil
 	}
+	// missingComponents are source components the live project does not have.
+	missingComponents := map[string]bool{}
+	baseComponent := oc.GetComponentFunc
+	oc.GetComponentFunc = func(ctx context.Context, ns, projectName, name string) (*models.AgentResponse, error) {
+		mu.Lock()
+		missing := missingComponents[name]
+		mu.Unlock()
+		if missing {
+			return nil, fmt.Errorf("component %s: %w", name, utils.ErrNotFound)
+		}
+		return baseComponent(ctx, ns, projectName, name)
+	}
 	oc.GetEnvironmentFunc = func(_ context.Context, _, name string) (*models.EnvironmentResponse, error) {
 		if name != devEnv {
 			return nil, utils.ErrNotFound
@@ -229,9 +241,8 @@ func TestProjectMCPProxyOfDeletedProject(t *testing.T) {
 		var list models.ProjectMCPProxyListResponse
 		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &list))
 		assert.Empty(t, list.List, "the re-created project owns nothing yet")
-		rr = orgDo(http.MethodDelete, "/mcp-proxies/"+stock, nil)
-		require.Equal(t, http.StatusConflict, rr.Code, "a project of that name exists: the org route still refuses")
-		assert.Equal(t, utils.ErrCodeProjectOwned, errorCode(t, rr))
+		rr = h.do(http.MethodGet, project, "/"+stock, nil)
+		require.Equal(t, http.StatusOK, rr.Code, "the re-created project's route reads what the deleted one left: %s", rr.Body.String())
 
 		rr = h.do(http.MethodPut, project, "/"+stock, body(stock))
 		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
@@ -253,6 +264,34 @@ func TestProjectMCPProxyOfDeletedProject(t *testing.T) {
 		require.Equal(t, http.StatusNoContent, rr.Code, rr.Body.String())
 		tornDown(t, artifact)
 		proxyGone(t, stock)
+	})
+
+	// A project re-created without the source component can't adopt the proxy, so its routes, and the org route, read
+	// and remove what the deleted project left.
+	t.Run("a project re-created without the source component can still read and remove the proxy", func(t *testing.T) {
+		setProject(uuid.NewString())
+		keep := "keep-" + suffix
+		artifact := publish(t, keep)
+		setProject(uuid.NewString())
+		mu.Lock()
+		missingComponents[keep] = true
+		mu.Unlock()
+
+		rr := h.do(http.MethodPut, project, "/"+keep, body(keep))
+		require.Equal(t, http.StatusBadRequest, rr.Code, rr.Body.String())
+		assert.Equal(t, utils.ErrCodeSourceComponentNotFound, errorCode(t, rr), "no adoption without the component")
+
+		rr = h.do(http.MethodGet, project, "/"+keep, nil)
+		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+		rr = h.do(http.MethodGet, project, envPath(keep), nil)
+		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+
+		rr = h.do(http.MethodDelete, project, envPath(keep), nil)
+		require.Equal(t, http.StatusNoContent, rr.Code, rr.Body.String())
+		tornDown(t, artifact)
+		rr = orgDo(http.MethodDelete, "/mcp-proxies/"+keep, nil)
+		require.Equal(t, http.StatusNoContent, rr.Code, "the org route removes it: its project is gone: %s", rr.Body.String())
+		proxyGone(t, keep)
 	})
 
 	t.Run("an org handle is never adopted", func(t *testing.T) {

@@ -187,11 +187,12 @@ func (s *ProjectMCPProxyService) fillEnvironments(
 	return nil
 }
 
-// Get returns the project's proxy. A handle in another project, or an org proxy, is not found.
+// Get returns the project's proxy, or one a deleted project of the same name left (getInProjectOrOrphan). A handle in
+// another project, or an org proxy, is not found.
 func (s *ProjectMCPProxyService) Get(
-	ctx context.Context, ouID, projectUUID, handle string,
+	ctx context.Context, ouID, projectName, projectUUID, handle string,
 ) (*models.ProjectMCPProxyResponse, error) {
-	proxy, err := s.getInProject(ctx, ouID, projectUUID, handle)
+	proxy, err := s.getInProjectOrOrphan(ctx, ouID, projectName, projectUUID, handle)
 	if err != nil {
 		return nil, err
 	}
@@ -281,10 +282,11 @@ func (s *ProjectMCPProxyService) list(
 	return resp, nil
 }
 
-// Delete removes the project's proxy and tears down every environment's gateway artifact.
-// It refuses with utils.ErrMCPProxyHasMappings while agents use the proxy.
-func (s *ProjectMCPProxyService) Delete(ctx context.Context, ouID, projectUUID, handle string) error {
-	proxy, err := s.getInProject(ctx, ouID, projectUUID, handle)
+// Delete removes the project's proxy, or one a deleted project of the same name left (getInProjectOrOrphan), and
+// tears down every environment's gateway artifact. It refuses with utils.ErrMCPProxyHasMappings while agents use the
+// proxy.
+func (s *ProjectMCPProxyService) Delete(ctx context.Context, ouID, projectName, projectUUID, handle string) error {
+	proxy, err := s.getInProjectOrOrphan(ctx, ouID, projectName, projectUUID, handle)
 	if err != nil {
 		return err
 	}
@@ -323,6 +325,28 @@ func (s *ProjectMCPProxyService) getInProject(
 		return nil, fmt.Errorf("failed to get MCP proxy: %w", err)
 	}
 	return proxy, nil
+}
+
+// getInProjectOrOrphan is getInProject that also finds a proxy left by a deleted project of the same name: one stored
+// under projectName with another project UUID. Project names are unique at any time, so that proxy's project is gone
+// and was re-created, and the re-created project's routes read and remove what it left, as the routes of a project
+// that is not re-created do (getInDeletedProject). A re-created project that has the proxy's source adopts it on PUT
+// instead.
+func (s *ProjectMCPProxyService) getInProjectOrOrphan(
+	ctx context.Context, ouID, projectName, projectUUID, handle string,
+) (*models.MCPProxy, error) {
+	proxy, err := s.getInProject(ctx, ouID, projectUUID, handle)
+	if !errors.Is(err, utils.ErrMCPProxyNotFound) || strings.TrimSpace(projectName) == "" {
+		return proxy, err
+	}
+	orphan, err := s.getInDeletedProject(ctx, ouID, projectName, handle)
+	if err != nil {
+		return nil, err
+	}
+	if orphan.ProjectUUID == nil || *orphan.ProjectUUID == projectUUID {
+		return nil, utils.ErrMCPProxyNotFound
+	}
+	return orphan, nil
 }
 
 // getInDeletedProject loads the project proxy stored under projectName, whatever project UUID it carries: the
