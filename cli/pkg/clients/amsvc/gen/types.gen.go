@@ -6092,6 +6092,10 @@ type ListCatalogResourcesParams struct {
 	// EnvironmentId Filter by environment UUID (only applicable for LlmProvider kind)
 	EnvironmentId *openapi_types.UUID `form:"environmentId,omitempty" json:"environmentId,omitempty"`
 
+	// GatewayHosting With `environmentId`, count only deployments on gateways with this hosting. Monitors and
+	// platform-hosted agents can only use LLM providers deployed to `MANAGED` gateways.
+	GatewayHosting *GatewayHosting `form:"gatewayHosting,omitempty" json:"gatewayHosting,omitempty"`
+
 	// Limit Maximum number of results to return
 	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
 

@@ -15,6 +15,8 @@
  * under the License.
  */
 
+import type { GatewayHosting } from "./gateways";
+
 export interface CatalogDeploymentSummary {
   gatewayId: string;
   gatewayName: string;
@@ -81,4 +83,6 @@ export interface ListCatalogLLMProvidersQuery {
   limit?: number;
   offset?: number;
   environmentId?: string;
+  /** With environmentId, count only deployments on gateways with this hosting. */
+  gatewayHosting?: GatewayHosting;
 }
