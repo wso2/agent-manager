@@ -106,6 +106,11 @@ type Options struct {
 	// deployment-specific component source binding. nil preserves the standard
 	// anonymous/static-token and PAT-backed repository behavior.
 	RepositoryCommitProvider services.RepositoryCommitProvider
+	// EntitlementChecker asks whether the organization's subscription allows an
+	// agent create. nil (the open-source default) allows every create; cloud
+	// deployments inject a check against their billing system. See
+	// services.EntitlementChecker.
+	EntitlementChecker services.EntitlementChecker
 	// ResourceLabels are stamped on every Component and ReleaseBinding Agent
 	// Manager writes to OpenChoreo. nil (the open-source default) stamps none;
 	// cloud deployments inject their own, e.g. the product label WSO2 Cloud's
@@ -245,6 +250,7 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 		setter.SetWorkloadInjector(dependencies.AgentIdentityInjectionService)
 	}
 	dependencies.RepositoryService.SetCommitProvider(opts.RepositoryCommitProvider)
+	dependencies.AgentManagerService.SetEntitlementChecker(opts.EntitlementChecker)
 
 	// Background workers have no request behind them, so nothing installs a
 	// recorder on their contexts the way the HTTP middleware does. Install one
