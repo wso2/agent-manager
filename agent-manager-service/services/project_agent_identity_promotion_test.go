@@ -1454,9 +1454,17 @@ func TestProviderRequestCarriesTheAgentCreator(t *testing.T) {
 		require.Equal(t, "only-known", provisioned.RequestedBy)
 	})
 
-	t.Run("the oldest binding with a requester wins over an older empty one", func(t *testing.T) {
+	t.Run("the oldest binding wins even when its requester is empty", func(t *testing.T) {
 		provisioned, activated, _ := creatorRequest(t, "repair-caller", []models.AgentThunderClient{
 			row("newer", time.Minute), row("", 3*time.Hour), row("older", time.Hour),
+		})
+		require.Empty(t, provisioned.RequestedBy, "a system-created agent has no creator")
+		require.Empty(t, activated.RequestedBy)
+	})
+
+	t.Run("the oldest binding with a requester still wins when it is the oldest", func(t *testing.T) {
+		provisioned, activated, _ := creatorRequest(t, "repair-caller", []models.AgentThunderClient{
+			row("newer", time.Minute), row("older", time.Hour), row("", 30*time.Minute),
 		})
 		require.Equal(t, "older", provisioned.RequestedBy)
 		require.Equal(t, "older", activated.RequestedBy)

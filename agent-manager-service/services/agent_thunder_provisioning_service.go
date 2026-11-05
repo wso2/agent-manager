@@ -1137,14 +1137,14 @@ func (s *agentThunderProvisioningService) AttemptProvision(ctx context.Context, 
 }
 
 // agentCreator returns the subject recorded as the agent's creator in a provider
-// request: the RequestedBy of the agent's oldest binding that has one, since the
-// first binding is written at agent creation by the creator. A binding created
-// later by a repair or promotion kick-off carries that caller instead. When no
-// binding has a requester, the agent has no
-// earlier binding to tell us otherwise, so binding.RequestedBy is the only known
-// person and is returned. When the bindings cannot be read it returns the error,
-// so the caller defers the attempt instead of sending an unverified subject. It
-// never logs a subject.
+// request: the RequestedBy of the agent's oldest binding, since the first binding
+// is written at agent creation by the creator. That value is empty when the agent
+// was created without a user, for example by a system, and it stays empty: a
+// later binding written by a repair or promotion kick-off carries that caller, who
+// must not become the owner. When the agent has no bindings at all, the binding
+// itself is the only one known, so its own requester is returned. When the
+// bindings cannot be read it returns the error, so the caller defers the attempt
+// instead of sending an unverified subject. It never logs a subject.
 func (s *agentThunderProvisioningService) agentCreator(ctx context.Context, binding models.AgentThunderClient) (string, error) {
 	bindings, err := s.repo.FindByAgent(ctx, binding.OUID, binding.ProjectName, binding.AgentName)
 	if err != nil {
@@ -1152,18 +1152,16 @@ func (s *agentThunderProvisioningService) agentCreator(ctx context.Context, bind
 			"ouID", binding.OUID, "projectName", binding.ProjectName, "agentName", binding.AgentName, "error", err)
 		return "", err
 	}
-	creator := binding.RequestedBy
-	var oldest time.Time
-	found := false
-	for _, b := range bindings {
-		if b.RequestedBy == "" {
-			continue
-		}
-		if !found || b.CreatedAt.Before(oldest) {
-			creator, oldest, found = b.RequestedBy, b.CreatedAt, true
+	if len(bindings) == 0 {
+		return binding.RequestedBy, nil
+	}
+	oldest := bindings[0]
+	for _, b := range bindings[1:] {
+		if b.CreatedAt.Before(oldest.CreatedAt) {
+			oldest = b
 		}
 	}
-	return creator, nil
+	return oldest.RequestedBy, nil
 }
 
 // deferPromotion puts a promotion target back to pending until the reconciler's
