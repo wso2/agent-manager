@@ -96,20 +96,19 @@ func (m *monitorRunEvents) PrepareMonitorRunFinished(
 		evaluators, err := m.scoreRepo.GetEvaluatorsByMonitorAndRunID(monitor.ID, run.ID)
 		if err != nil {
 			return nil, fmt.Errorf("load committed scores for monitor run event: %w", err)
-		} else {
-			scores := make([]map[string]any, 0, len(evaluators))
-			for _, e := range evaluators {
-				scores = append(scores, map[string]any{
-					"evaluator":    e.EvaluatorName,
-					"identifier":   e.Identifier,
-					"level":        e.Level,
-					"count":        e.Count,
-					"skippedCount": e.SkippedCount,
-					"aggregations": e.Aggregations,
-				})
-			}
-			data["scores"] = scores
 		}
+		scores := make([]map[string]any, 0, len(evaluators))
+		for _, e := range evaluators {
+			scores = append(scores, map[string]any{
+				"evaluator":    e.EvaluatorName,
+				"identifier":   e.Identifier,
+				"level":        e.Level,
+				"count":        e.Count,
+				"skippedCount": e.SkippedCount,
+				"aggregations": e.Aggregations,
+			})
+		}
+		data["scores"] = scores
 	}
 
 	// The ID is derived from the run, so a run synced twice publishes one
