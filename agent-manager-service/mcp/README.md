@@ -81,6 +81,16 @@ Internal agents only — external agents are never built by the platform.
 | --- | --- |
 | `list_environments` | Paginated list of the org's environments (name, display name, production flag). Discovers valid names for tools that take an `environment` argument |
 
+### LLM providers
+
+Creating a provider is not an MCP tool: its request carries the upstream API key, and a secret must not be a tool argument.
+
+| Tool | Purpose |
+| --- | --- |
+| `list_llm_providers` | Paginated list of the org's LLM providers (id, name, template, status, catalog flag). No upstream configuration or credentials |
+| `add_llm_provider_to_catalog` | Put a provider in the org's catalog, which `attach_llm_provider` requires. New providers are in the catalog by default |
+| `attach_llm_provider` | Attach a catalog provider to an agent as a model configuration in one or more environments. Never returns API key values |
+
 ## Configuration
 
 ### docker-compose (local dev)

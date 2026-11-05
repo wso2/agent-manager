@@ -76,6 +76,7 @@ const (
 	ActionAgentRead       Action = "agent:read"
 	ActionProjectRead     Action = "project:read"
 	ActionEnvironmentRead Action = "environment:read"
+	ActionLLMProviderRead Action = "llm-provider:read"
 
 	// Agent lifecycle.
 	ActionAgentCreate                Action = "agent:create"
@@ -86,6 +87,11 @@ const (
 	ActionAgentChangeDeploymentState Action = "agent:change-deployment-state"
 	ActionAgentDelete                Action = "agent:delete"
 	ActionProjectDelete              Action = "project:delete"
+
+	// The labels the equivalent REST routes record, so an MCP call and the REST
+	// call answer one query.
+	ActionAgentUpdate              Action = "agent:update"
+	ActionLLMProviderUpdateCatalog Action = "llm-provider:update-catalog"
 
 	// Agent configuration (model and MCP configs attached to an agent).
 	ActionAgentConfigUpdate Action = "agent-config:update"
@@ -334,6 +340,12 @@ func init() {
 	RegisterDetailSchema(ActionProjectRead, nil)
 	Register(ActionEnvironmentRead, ClassRead, SeverityInfo)
 	RegisterDetailSchema(ActionEnvironmentRead, nil)
+	Register(ActionLLMProviderRead, ClassRead, SeverityInfo)
+	RegisterDetailSchema(ActionLLMProviderRead, nil)
+	Register(ActionAgentUpdate, ClassConfig, SeverityInfo)
+	RegisterDetailSchema(ActionAgentUpdate, nil)
+	Register(ActionLLMProviderUpdateCatalog, ClassConfig, SeverityInfo)
+	RegisterDetailSchema(ActionLLMProviderUpdateCatalog, nil)
 
 	Register(ActionAgentCreate, ClassConfig, SeverityNotice)
 	RegisterDetailSchema(ActionAgentCreate, map[string]FieldKind{

@@ -53,5 +53,8 @@ func (tools *Toolsets) register(server *gomcp.Server) *toolRegistry {
 	if tools.EnvironmentToolset != nil {
 		tools.registerEnvironmentTools(server, reg)
 	}
+	if tools.LLMProviderToolset != nil {
+		tools.registerLLMProviderTools(server, reg)
+	}
 	return reg
 }

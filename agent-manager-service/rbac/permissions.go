@@ -50,7 +50,10 @@ func MainMCPScopes() []string {
 		AgentBuild,
 		AgentEnvNonProduction,
 		AgentSuspend,
+		AgentUpdate,
 		EnvironmentRead,
+		LLMProviderRead,
+		LLMProviderUpdate,
 	}
 	scopes := make([]string, 0, len(permissions))
 	for _, permission := range permissions {

@@ -64,6 +64,17 @@ func TestDomainActionsMatchRouteDerivedActions(t *testing.T) {
 			[]rbac.Permission{rbac.AgentUpdate, rbac.AgentEnvNonProduction},
 			ActionAgentRemoveA2AProxy,
 		},
+		{"GET /orgs/{orgName}/llm-providers", []rbac.Permission{rbac.LLMProviderRead}, ActionLLMProviderRead},
+		{
+			"PUT /orgs/{orgName}/llm-providers/{providerId}/catalog",
+			[]rbac.Permission{rbac.LLMProviderUpdate},
+			ActionLLMProviderUpdateCatalog,
+		},
+		{
+			"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/model-configs",
+			[]rbac.Permission{rbac.AgentUpdate},
+			ActionAgentUpdate,
+		},
 		{"POST /orgs/{orgName}/llm-providers/{id}/api-keys", nil, ActionAPIKeyCreate},
 		{"PUT /orgs/{orgName}/llm-providers/{id}/api-keys/{keyName}", nil, ActionAPIKeyRotate},
 		{"DELETE /orgs/{orgName}/llm-providers/{id}/api-keys/{keyName}", nil, ActionAPIKeyRevoke},

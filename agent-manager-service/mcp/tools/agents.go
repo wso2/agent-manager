@@ -358,7 +358,7 @@ func createExternalAgent(handler AgentToolsetHandler, envHandler EnvironmentTool
 
 		// resolve the token environment before creating the agent so a bad
 		// environment never leaves an agent behind without a token
-		environment, err := resolveTokenEnvironment(ctx, "create_external_agent", envHandler, ouID, input.Environment)
+		environment, err := resolveTokenEnvironment(ctx, "create_external_agent", envHandler, ouID, "environment", input.Environment)
 		if err != nil {
 			return nil, nil, err
 		}

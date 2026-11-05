@@ -20,6 +20,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -29,6 +31,11 @@ import (
 type MockToolsetHandler struct {
 	calls          map[string][]interface{}
 	createAgentErr error
+	attachErr      error
+	environments   []models.GatewayEnvironmentResponse
+	// platformAgent makes AttachLLMProvider answer as the service does for a
+	// platform agent: no proxy URL and no API key value.
+	platformAgent bool
 }
 
 func NewMockToolsetHandler() *MockToolsetHandler {
@@ -150,13 +157,17 @@ func (m *MockToolsetHandler) ListEnvironments(
 	ctx context.Context, ouID string, limit int32, offset int32,
 ) (*models.EnvironmentListResponse, error) {
 	m.recordCall("ListEnvironments", ouID, limit, offset)
-	return &models.EnvironmentListResponse{
-		Environments: []models.GatewayEnvironmentResponse{
+	envs := m.environments
+	if envs == nil {
+		envs = []models.GatewayEnvironmentResponse{
 			{Name: testEnvName, DisplayName: "Default Env", IsProduction: false},
-		},
-		Total:  1,
-		Limit:  limit,
-		Offset: offset,
+		}
+	}
+	return &models.EnvironmentListResponse{
+		Environments: envs,
+		Total:        int32(len(envs)),
+		Limit:        limit,
+		Offset:       offset,
 	}, nil
 }
 
@@ -168,4 +179,66 @@ func (m *MockToolsetHandler) GetEnvironment(
 		return nil, utils.ErrEnvironmentNotFound
 	}
 	return &models.GatewayEnvironmentResponse{Name: testEnvName, DisplayName: "Default Env", IsProduction: false}, nil
+}
+
+// LLM Provider Toolset Handler
+
+func testLLMProvider(inCatalog bool) *models.LLMProvider {
+	return &models.LLMProvider{
+		UUID:           uuid.MustParse("11111111-1111-1111-1111-111111111111"),
+		TemplateHandle: "openai",
+		Status:         "deployed",
+		InCatalog:      inCatalog,
+		Artifact:       &models.Artifact{Handle: testProviderID, Name: "Test Provider", InCatalog: inCatalog},
+		Configuration: models.LLMProviderConfig{
+			Upstream: &models.UpstreamConfig{Main: &models.UpstreamEndpoint{
+				URL:  "https://api.openai.example",
+				Auth: &models.UpstreamAuth{Value: utils.StrAsStrPointer(testUpstreamSecret)},
+			}},
+		},
+	}
+}
+
+func (m *MockToolsetHandler) ListLLMProviders(
+	ctx context.Context, ouID string, limit int, offset int,
+) ([]*models.LLMProvider, int, error) {
+	m.recordCall("ListLLMProviders", ouID, limit, offset)
+	return []*models.LLMProvider{testLLMProvider(true)}, 1, nil
+}
+
+func (m *MockToolsetHandler) AddLLMProviderToCatalog(
+	ctx context.Context, ouID string, providerID string,
+) (*models.LLMProvider, bool, error) {
+	m.recordCall("AddLLMProviderToCatalog", ouID, providerID)
+	if providerID != testProviderID {
+		return nil, false, utils.ErrLLMProviderNotFound
+	}
+	return testLLMProvider(true), true, nil
+}
+
+func (m *MockToolsetHandler) AttachLLMProvider(
+	ctx context.Context, ouID string, projectName string, agentName string,
+	req models.CreateAgentModelConfigRequest,
+) (*models.AgentModelConfigResponse, error) {
+	m.recordCall("AttachLLMProvider", ouID, projectName, agentName, req)
+	if m.attachErr != nil {
+		return nil, m.attachErr
+	}
+	envs := make(map[string]models.EnvModelConfigResponse, len(req.EnvMappings))
+	for name, mapping := range req.EnvMappings {
+		proxy := &models.LLMProxyInfo{ProviderName: utils.StrAsStrPointer(mapping.ProviderName)}
+		if !m.platformAgent {
+			proxy.URL = utils.StrAsStrPointer("https://gw.example/" + name)
+			proxy.APIKey = utils.StrAsStrPointer(testProxyAPIKey)
+		}
+		envs[name] = models.EnvModelConfigResponse{EnvironmentName: name, LLMProxy: proxy}
+	}
+	return &models.AgentModelConfigResponse{
+		UUID:                 "22222222-2222-2222-2222-222222222222",
+		Name:                 req.Name,
+		Type:                 req.Type,
+		ProjectName:          projectName,
+		EnvModelConfig:       envs,
+		EnvironmentVariables: req.EnvironmentVariables,
+	}, nil
 }

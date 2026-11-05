@@ -17,7 +17,6 @@
 package controllers
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -83,7 +82,7 @@ func (c *agentConfigurationController) CreateAgentModelConfig(w http.ResponseWri
 	// The token subject, not a hardcoded literal. This column previously
 	// recorded "system" for every config a user created, so it attributed real
 	// user actions to the platform.
-	createdBy := callerSubject(ctx)
+	createdBy := jwtassertion.CallerSubject(ctx)
 
 	// Bind request body
 	r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1MB limit
@@ -380,7 +379,7 @@ func (c *agentConfigurationController) CreateAgentMCPConfig(w http.ResponseWrite
 	ouID := middleware.OUIDFromRequest(r)
 	projectName := r.PathValue(utils.PathParamProjName)
 	agentName := r.PathValue(utils.PathParamAgentName)
-	createdBy := callerSubject(ctx)
+	createdBy := jwtassertion.CallerSubject(ctx)
 
 	r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1MB limit
 	var specReq spec.CreateAgentModelConfigRequest
@@ -1214,14 +1213,4 @@ func (c *agentConfigurationController) RevokeLLMConfigAPIKey(w http.ResponseWrit
 	}
 	attempt.Complete(ctx, nil)
 	w.WriteHeader(http.StatusNoContent)
-}
-
-// callerSubject returns the acting user's token subject for created_by
-// attribution, falling back to a marker when there is no user behind the call
-// (a system client) rather than to a literal that would misattribute the change.
-func callerSubject(ctx context.Context) string {
-	if claims := jwtassertion.GetTokenClaims(ctx); claims != nil && claims.Sub != "" {
-		return claims.Sub
-	}
-	return "system"
 }

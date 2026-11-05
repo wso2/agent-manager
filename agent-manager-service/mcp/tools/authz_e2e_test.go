@@ -49,6 +49,7 @@ func newFullToolsets() (*Toolsets, *MockToolsetHandler) {
 		BuildToolset:       mock,
 		DeploymentToolset:  mock,
 		EnvironmentToolset: mock,
+		LLMProviderToolset: mock,
 	}, mock
 }
 

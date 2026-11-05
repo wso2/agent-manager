@@ -129,6 +129,14 @@ func wrapToolError(toolName string, err error) error {
 		return fmt.Errorf("%s: invalid agent name. Call list_agents or list_project_agent_pairs to see valid agents", toolName)
 	case errors.Is(err, utils.ErrEnvironmentNotFound):
 		return fmt.Errorf("%s: invalid environment name. Call list_environments to see valid environments", toolName)
+	case errors.Is(err, utils.ErrLLMProviderNotFound):
+		return fmt.Errorf("%s: LLM provider not found. Call list_llm_providers to see valid providers", toolName)
+	case errors.Is(err, utils.ErrAgentConfigAlreadyExists):
+		return fmt.Errorf("%s: the agent already has a model configuration with this name. Use another config_name", toolName)
+	case errors.Is(err, utils.ErrLLMProxyExists):
+		return fmt.Errorf("%s: another agent in the organization already uses this model configuration name. Use another config_name", toolName)
+	case errors.Is(err, utils.ErrBuildInProgress):
+		return fmt.Errorf("%s: a build is in progress for this agent. Try again after it finishes", toolName)
 	case errors.Is(err, utils.ErrEvaluatorNotFound):
 		return fmt.Errorf("%s: invalid evaluator id. Call list_evaluators to see valid evaluators", toolName)
 	case errors.Is(err, utils.ErrCustomEvaluatorNotFound):

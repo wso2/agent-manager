@@ -363,6 +363,7 @@ The registry is the source of truth (`audit/actions.go`, `audit/actions_domain.g
 | `agent:remove-card-source` | config | 2 notice | `agentName` |
 | `agent:set-a2a-proxy` | credential | 4 critical | `agentName`, `upstreamAuthChanged`, `upstreamAuthHeader` |
 | `agent:set-card-source` | config | 1 info | `agentName`, `sourceUrl` |
+| `agent:update` | config | 1 info | — |
 | `api-key:create` | credential | 4 critical | `expiresAt`, `gatewayConnected`, `gatewayCount`, `keyName`, `ownerName`, `ownerType` |
 | `api-key:issue-test` | credential | 2 notice | `expiresAt`, `keyName`, `ownerName`, `ownerType`, `rotated` |
 | `api-key:revoke` | credential | 4 critical | `gatewayCount`, `keyName`, `ownerName`, `ownerType` |
@@ -386,6 +387,8 @@ The registry is the source of truth (`audit/actions.go`, `audit/actions_domain.g
 | `git-secret:delete` | credential | 4 critical | — |
 | `group:add-member` | identity | 4 critical | `groupName`, `memberCount`, `memberTypes`, `members` |
 | `group:remove-member` | identity | 4 critical | `groupName`, `memberCount`, `memberTypes`, `members` |
+| `llm-provider:read` | read | 1 info | — |
+| `llm-provider:update-catalog` | config | 1 info | — |
 | `monitor-score:publish` | config | 1 info | `monitorId`, `runId`, `scoreCount` |
 | `monitor:create` | config | 1 info | `agentName`, `evaluators`, `monitorName`, `monitorType` |
 | `monitor:delete` | config | 2 notice | `agentName`, `evaluators`, `monitorName`, `monitorType` |
@@ -412,7 +415,7 @@ The registry is the source of truth (`audit/actions.go`, `audit/actions_domain.g
 | `user:invite` | identity | 4 critical | `attributeCount`, `attributeKeys`, `containsSensitiveKey`, `email`, `groups`, `userType`, `username` |
 | `user:update` | identity | 4 critical | `attributeCount`, `attributeKeys`, `containsSensitiveKey`, `email`, `groups`, `userType`, `username` |
 
-Read actions (`agent:read`, `project:read`, `environment:read`) are declared so every MCP tool can name what it does; they are classified as reads and not recorded.
+Read actions (`agent:read`, `project:read`, `environment:read`, `llm-provider:read`) are declared so every MCP tool can name what it does; they are classified as reads and not recorded.
 
 ### Sample records
 

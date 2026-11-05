@@ -296,6 +296,16 @@ func GetTokenClaims(ctx context.Context) *TokenClaims {
 	return claims
 }
 
+// CallerSubject returns the acting user's token subject for created_by
+// attribution, falling back to a marker when there is no user behind the call
+// (a system client) rather than to a literal that would misattribute the change.
+func CallerSubject(ctx context.Context) string {
+	if claims := GetTokenClaims(ctx); claims != nil && claims.Sub != "" {
+		return claims.Sub
+	}
+	return "system"
+}
+
 // ContextWithTokenClaims returns ctx carrying the given claims, as if the
 // assertion middleware had validated a token. Intended for tests and
 // non-HTTP entry points that establish identity out of band.

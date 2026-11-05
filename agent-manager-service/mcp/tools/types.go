@@ -30,6 +30,7 @@ type Toolsets struct {
 	BuildToolset       BuildToolsetHandler
 	DeploymentToolset  DeploymentToolsetHandler
 	EnvironmentToolset EnvironmentToolsetHandler
+	LLMProviderToolset LLMProviderToolsetHandler
 }
 
 type ProjectToolsetHandler interface {
@@ -58,4 +59,10 @@ type DeploymentToolsetHandler interface {
 type EnvironmentToolsetHandler interface {
 	ListEnvironments(ctx context.Context, ouID string, limit int32, offset int32) (*models.EnvironmentListResponse, error)
 	GetEnvironment(ctx context.Context, ouID string, envName string) (*models.GatewayEnvironmentResponse, error)
+}
+
+type LLMProviderToolsetHandler interface {
+	ListLLMProviders(ctx context.Context, ouID string, limit int, offset int) ([]*models.LLMProvider, int, error)
+	AddLLMProviderToCatalog(ctx context.Context, ouID string, providerID string) (*models.LLMProvider, bool, error)
+	AttachLLMProvider(ctx context.Context, ouID string, projectName string, agentName string, req models.CreateAgentModelConfigRequest) (*models.AgentModelConfigResponse, error)
 }

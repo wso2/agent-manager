@@ -34,6 +34,10 @@ const (
 	testBuildName   = "default-build"
 	testEnvName     = "default-env"
 	testDisplayName = "Default Display Name"
+	testProviderID  = "test-provider"
+
+	testUpstreamSecret = "sk-upstream-secret-value"
+	testProxyAPIKey    = "amp-proxy-key-secret-value"
 )
 
 // Creates an MCP server with all toolsets backed by the same mock handler,
@@ -49,6 +53,7 @@ func setupTestServer(t *testing.T) (*gomcp.ClientSession, *MockToolsetHandler) {
 		BuildToolset:       mock,
 		DeploymentToolset:  mock,
 		EnvironmentToolset: mock,
+		LLMProviderToolset: mock,
 	}
 	return setupTestServerWithToolsets(t, toolsets), mock
 }
@@ -103,7 +108,7 @@ type toolTestSpec struct {
 	name string
 
 	// Toolset group names, used by partial-registration tests
-	toolset string // "project", "agent", "build", "deployment", "environment"
+	toolset string // "project", "agent", "build", "deployment", "environment", "llm-provider"
 
 	// Permissions the tool must declare via addTool. Required: the
 	// registration test fails any tool whose spec leaves this empty.
@@ -131,6 +136,7 @@ var allToolSpecs = func() []toolTestSpec {
 	specs = append(specs, buildToolSpecs()...)
 	specs = append(specs, deploymentToolSpecs()...)
 	specs = append(specs, environmentToolSpecs()...)
+	specs = append(specs, llmProviderToolSpecs()...)
 	return specs
 }()
 

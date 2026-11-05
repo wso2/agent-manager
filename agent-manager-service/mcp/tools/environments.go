@@ -90,8 +90,9 @@ func listEnvironments(handler EnvironmentToolsetHandler) func(context.Context, *
 }
 
 // resolveTokenEnvironment validates an explicit environment name, or resolves
-// the org's only environment when the name is empty.
-func resolveTokenEnvironment(ctx context.Context, toolName string, handler EnvironmentToolsetHandler, ouID string, name string) (string, error) {
+// the org's only environment when the name is empty. param names the tool
+// argument that the caller must set when the org has several environments.
+func resolveTokenEnvironment(ctx context.Context, toolName string, handler EnvironmentToolsetHandler, ouID string, param string, name string) (string, error) {
 	if name = strings.TrimSpace(name); name != "" {
 		if _, err := handler.GetEnvironment(ctx, ouID, name); err != nil {
 			return "", wrapToolError(toolName, err)
@@ -106,7 +107,7 @@ func resolveTokenEnvironment(ctx context.Context, toolName string, handler Envir
 		return "", fmt.Errorf("%s: no environments are configured for your organization", toolName)
 	}
 	if len(result.Environments) > 1 {
-		return "", fmt.Errorf("%s: environment is required when the organization has more than one environment. Call list_environments to see valid names", toolName)
+		return "", fmt.Errorf("%s: %s is required when the organization has more than one environment. Call list_environments to see valid names", toolName, param)
 	}
 	return result.Environments[0].Name, nil
 }

@@ -106,6 +106,8 @@ func MakeHTTPHandler(params *wiring.AppParams, extraAPIRoutes func(*http.ServeMu
 		AgentManagerService:      params.AgentManagerService,
 		AgentTokenManagerService: params.AgentTokenManagerService,
 		EnvironmentService:       params.EnvironmentService,
+		LLMProviderService:       params.LLMProviderService,
+		AgentConfigService:       params.AgentConfigurationService,
 	}, mcpMiddleware)
 
 	// Authentication is rejected before route matching, so the audit middleware
