@@ -52,6 +52,9 @@ import (
 //			GetMonitorRunsByMonitorIDFunc: func(monitorID uuid.UUID) ([]models.MonitorRun, error) {
 //				panic("mock out the GetMonitorRunsByMonitorID method")
 //			},
+//			HasPendingOrRunningRunFunc: func(monitorID uuid.UUID) (bool, error) {
+//				panic("mock out the HasPendingOrRunningRun method")
+//			},
 //			ListDueMonitorsFunc: func(monitorType string, dueBy time.Time) ([]models.Monitor, error) {
 //				panic("mock out the ListDueMonitors method")
 //			},
@@ -121,6 +124,9 @@ type MonitorRepositoryMock struct {
 
 	// GetMonitorRunsByMonitorIDFunc mocks the GetMonitorRunsByMonitorID method.
 	GetMonitorRunsByMonitorIDFunc func(monitorID uuid.UUID) ([]models.MonitorRun, error)
+
+	// HasPendingOrRunningRunFunc mocks the HasPendingOrRunningRun method.
+	HasPendingOrRunningRunFunc func(monitorID uuid.UUID) (bool, error)
 
 	// ListDueMonitorsFunc mocks the ListDueMonitors method.
 	ListDueMonitorsFunc func(monitorType string, dueBy time.Time) ([]models.Monitor, error)
@@ -219,6 +225,11 @@ type MonitorRepositoryMock struct {
 			// MonitorID is the monitorID argument value.
 			MonitorID uuid.UUID
 		}
+		// HasPendingOrRunningRun holds details about calls to the HasPendingOrRunningRun method.
+		HasPendingOrRunningRun []struct {
+			// MonitorID is the monitorID argument value.
+			MonitorID uuid.UUID
+		}
 		// ListDueMonitors holds details about calls to the ListDueMonitors method.
 		ListDueMonitors []struct {
 			// MonitorType is the monitorType argument value.
@@ -301,6 +312,7 @@ type MonitorRepositoryMock struct {
 	lockGetMonitorByName                        sync.RWMutex
 	lockGetMonitorRunByID                       sync.RWMutex
 	lockGetMonitorRunsByMonitorID               sync.RWMutex
+	lockHasPendingOrRunningRun                  sync.RWMutex
 	lockListDueMonitors                         sync.RWMutex
 	lockListMonitorRuns                         sync.RWMutex
 	lockListMonitorsByAgent                     sync.RWMutex
@@ -682,6 +694,38 @@ func (mock *MonitorRepositoryMock) GetMonitorRunsByMonitorIDCalls() []struct {
 	mock.lockGetMonitorRunsByMonitorID.RLock()
 	calls = mock.calls.GetMonitorRunsByMonitorID
 	mock.lockGetMonitorRunsByMonitorID.RUnlock()
+	return calls
+}
+
+// HasPendingOrRunningRun calls HasPendingOrRunningRunFunc.
+func (mock *MonitorRepositoryMock) HasPendingOrRunningRun(monitorID uuid.UUID) (bool, error) {
+	if mock.HasPendingOrRunningRunFunc == nil {
+		panic("MonitorRepositoryMock.HasPendingOrRunningRunFunc: method is nil but MonitorRepository.HasPendingOrRunningRun was just called")
+	}
+	callInfo := struct {
+		MonitorID uuid.UUID
+	}{
+		MonitorID: monitorID,
+	}
+	mock.lockHasPendingOrRunningRun.Lock()
+	mock.calls.HasPendingOrRunningRun = append(mock.calls.HasPendingOrRunningRun, callInfo)
+	mock.lockHasPendingOrRunningRun.Unlock()
+	return mock.HasPendingOrRunningRunFunc(monitorID)
+}
+
+// HasPendingOrRunningRunCalls gets all the calls that were made to HasPendingOrRunningRun.
+// Check the length with:
+//
+//	len(mockedMonitorRepository.HasPendingOrRunningRunCalls())
+func (mock *MonitorRepositoryMock) HasPendingOrRunningRunCalls() []struct {
+	MonitorID uuid.UUID
+} {
+	var calls []struct {
+		MonitorID uuid.UUID
+	}
+	mock.lockHasPendingOrRunningRun.RLock()
+	calls = mock.calls.HasPendingOrRunningRun
+	mock.lockHasPendingOrRunningRun.RUnlock()
 	return calls
 }
 

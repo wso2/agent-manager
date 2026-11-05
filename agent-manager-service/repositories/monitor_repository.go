@@ -55,6 +55,7 @@ type MonitorRepository interface {
 	GetLatestMonitorRuns(monitorIDs []uuid.UUID) (map[uuid.UUID]models.MonitorRun, error)
 	UpdateMonitorRun(run *models.MonitorRun, updates map[string]interface{}) error
 	ListPendingOrRunningRuns(limit int) ([]models.MonitorRun, error)
+	HasPendingOrRunningRun(monitorID uuid.UUID) (bool, error)
 }
 
 // MonitorRepo implements MonitorRepository using GORM
@@ -247,4 +248,14 @@ func (r *MonitorRepo) ListPendingOrRunningRuns(limit int) ([]models.MonitorRun, 
 	}
 	err := query.Find(&runs).Error
 	return runs, err
+}
+
+// HasPendingOrRunningRun reports whether the monitor has a run that has not finished
+func (r *MonitorRepo) HasPendingOrRunningRun(monitorID uuid.UUID) (bool, error) {
+	var count int64
+	err := r.db.Model(&models.MonitorRun{}).
+		Where("monitor_id = ? AND status IN ?", monitorID, []string{models.RunStatusPending, models.RunStatusRunning}).
+		Limit(1).
+		Count(&count).Error
+	return count > 0, err
 }
