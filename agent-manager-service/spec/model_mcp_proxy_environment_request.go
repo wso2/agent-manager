@@ -19,7 +19,7 @@ var _ MappedNullable = &MCPProxyEnvironmentRequest{}
 
 // MCPProxyEnvironmentRequest Replaces the binding's configuration. Every field is optional; an omitted field resets to its default.
 type MCPProxyEnvironmentRequest struct {
-	// Required only when the environment has more than one egress-capable gateway. Cannot change once placed.
+	// Required only when the environment has more than one egress-capable gateway. Cannot change once placed. Must name a managed gateway: a self-hosted gateway has no route to the in-cluster upstream, so naming one is rejected with 400 VALIDATION_ERROR.
 	GatewayId *string                      `json:"gatewayId,omitempty"`
 	Security  *MCPProxyEnvironmentSecurity `json:"security,omitempty"`
 	// Gateway policies, e.g. CORS and basic-ratelimit. Each needs a name and a version.

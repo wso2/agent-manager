@@ -18393,7 +18393,8 @@ components:
           format: uuid
           description: >-
             Required only when the environment has more than one egress-capable gateway. Cannot change
-            once placed.
+            once placed. Must name a managed gateway: a self-hosted gateway has no route to the in-cluster
+            upstream, so naming one is rejected with 400 VALIDATION_ERROR.
         security:
           $ref: "#/components/schemas/MCPProxyEnvironmentSecurity"
         policies:

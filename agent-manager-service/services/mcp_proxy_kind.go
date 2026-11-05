@@ -223,7 +223,31 @@ func (k *MCPProxyKind) Targets(ctx context.Context, record reconcile.Record) (uu
 			return uuid.Nil, false, err
 		}
 	}
+	if !gateway.IsManaged() {
+		projectScoped, err := k.isProjectScoped(ctx, record)
+		if err != nil || projectScoped {
+			return uuid.Nil, false, err
+		}
+	}
 	return gateway.UUID, true, nil
+}
+
+// isProjectScoped reports whether the artifact is a project proxy's binding. A project binding's upstream is an
+// in-cluster address that a customer-run, self-hosted gateway has no route to, so it is never placed on one. An
+// artifact that is gone is not: Render reports it.
+func (k *MCPProxyKind) isProjectScoped(ctx context.Context, record reconcile.Record) (bool, error) {
+	a, err := k.load(ctx, record.ArtifactRef)
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if a.projectScoped {
+		logger.GetLogger(ctx).Warn("Not placing a project MCP proxy binding on a self-hosted gateway",
+			"ouID", record.OUID, "artifactUUID", record.ArtifactUUID, "environmentUUID", record.EnvironmentUUID)
+	}
+	return a.projectScoped, nil
 }
 
 // upstreamIsPublic re-runs the private-address check on the artifact's upstreams for a managed target. An

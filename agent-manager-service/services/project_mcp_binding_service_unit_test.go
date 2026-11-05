@@ -866,3 +866,26 @@ func TestPutEnv_AmbiguousGateway_400AmbiguousGateway(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, created)
 }
+
+// A self-hosted gateway is customer-run and has no route to the in-cluster upstream: naming one is refused before
+// anything is stored, and an environment whose only egress gateway is self-hosted stores the binding as no gateway.
+func TestPutEnv_SelfHostedGateway(t *testing.T) {
+	t.Run("named is a 400 and nothing is stored", func(t *testing.T) {
+		f := newBindingFixture(t)
+		f.gateway.Hosting = models.GatewayHostingSelfHosted
+		id := f.gateway.UUID.String()
+		_, _, err := f.put(t, models.MCPProxyEnvironmentRequest{GatewayID: &id})
+		require.ErrorIs(t, err, utils.ErrInvalidInput)
+		assert.Contains(t, err.Error(), "managed gateways")
+		assert.Zero(t, f.endpointWrites, "nothing is stored")
+		assert.Empty(t, f.deployed)
+	})
+	t.Run("the only egress gateway is stored as no gateway", func(t *testing.T) {
+		f := newBindingFixture(t)
+		f.gateway.Hosting = models.GatewayHostingSelfHosted
+		resp, _, err := f.put(t, models.MCPProxyEnvironmentRequest{})
+		require.NoError(t, err)
+		assert.Equal(t, "NO_GATEWAY", resp.DeploymentStatusReason)
+		assert.Empty(t, f.deployed, "nothing is sent to the self-hosted gateway")
+	})
+}

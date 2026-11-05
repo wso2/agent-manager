@@ -4512,7 +4512,7 @@ type MCPProxyEndpoint struct {
 
 // MCPProxyEnvironmentRequest Replaces the binding's configuration. Every field is optional; an omitted field resets to its default.
 type MCPProxyEnvironmentRequest struct {
-	// GatewayId Required only when the environment has more than one egress-capable gateway. Cannot change once placed.
+	// GatewayId Required only when the environment has more than one egress-capable gateway. Cannot change once placed. Must name a managed gateway: a self-hosted gateway has no route to the in-cluster upstream, so naming one is rejected with 400 VALIDATION_ERROR.
 	GatewayId *openapi_types.UUID `json:"gatewayId,omitempty"`
 
 	// Policies Gateway policies, e.g. CORS and basic-ratelimit. Each needs a name and a version.

@@ -503,6 +503,13 @@ func (s *ProjectMCPProxyService) bindingGateway(
 	case err != nil:
 		return nil, fmt.Errorf("failed to resolve the environment's gateway: %w", err)
 	}
+	// A self-hosted gateway is customer-run: it has no route to the in-cluster upstream, and must not be sent the
+	// internal hostname or the upstream auth. The environment never infers one, so only a named one, or a placement
+	// on one, gets here.
+	if !gateway.IsManaged() {
+		return nil, fmt.Errorf("%w: gatewayId: project MCP proxies deploy only on managed gateways, and %s is self-hosted",
+			utils.ErrInvalidInput, gateway.UUID)
+	}
 	return &gateway.UUID, nil
 }
 

@@ -87,7 +87,8 @@ func TestGatewayContextClashAcrossKinds(t *testing.T) {
 		return rr
 	}
 
-	// A self-hosted gateway takes an org proxy's upstream without the public-address check; it must be egress.
+	// A managed egress gateway, the only kind a project binding is placed on. The org artifacts below use a literal
+	// public upstream, so the managed gateway's public-address check passes without a DNS lookup.
 	gatewayID := uuid.New()
 	t.Cleanup(func() {
 		gdb.Exec(`DELETE FROM artifacts WHERE ou_id = ? AND handle LIKE ?`, ouID, "%"+suffix+"%")
@@ -98,7 +99,7 @@ func TestGatewayContextClashAcrossKinds(t *testing.T) {
 		`INSERT INTO gateways (uuid, name, display_name, vhost, gateway_functionality_type, ou_id, is_active, hosting)
 		 VALUES (?, ?, ?, ?, ?, ?, TRUE, ?)`,
 		gatewayID, "cc-gw-"+suffix, "cc-gw-"+suffix, "cc-gw.example.com", models.GatewayRoleEgress, ouID,
-		models.GatewayHostingSelfHosted).Error)
+		models.GatewayHostingManaged).Error)
 	require.NoError(t, gdb.Exec(
 		`INSERT INTO gateway_environment_mappings (gateway_uuid, environment_uuid) VALUES (?, ?)`, gatewayID, envUUID).Error)
 
@@ -108,7 +109,7 @@ func TestGatewayContextClashAcrossKinds(t *testing.T) {
 			"id": handle, "name": "Org " + handle, "version": "v1", "context": ctxPath,
 			"endpoints": []map[string]any{{
 				"id":           "main",
-				"upstream":     map[string]any{"main": map[string]any{"url": "https://mcp.example.com/mcp"}},
+				"upstream":     map[string]any{"main": map[string]any{"url": "https://1.1.1.1/mcp"}},
 				"environments": []map[string]any{{"environmentUuid": envUUID.String(), "gatewayId": gatewayID.String()}},
 			}},
 		}
@@ -187,7 +188,7 @@ func TestGatewayContextClashAcrossKinds(t *testing.T) {
 		provider := "llm-tools-" + suffix
 		rr = orgDo(http.MethodPost, "/llm-providers", map[string]any{
 			"id": provider, "name": "LLM " + suffix, "version": "v1.0", "context": "/" + project,
-			"template": template, "upstream": map[string]any{"main": map[string]any{"url": "https://api.openai.com/v1"}},
+			"template": template, "upstream": map[string]any{"main": map[string]any{"url": "https://1.1.1.1/v1"}},
 		})
 		require.Equal(t, http.StatusCreated, rr.Code, rr.Body.String())
 		rr = orgDo(http.MethodPost, "/llm-providers/"+provider+"/deployments", map[string]any{"gatewayId": gatewayID.String()})
@@ -238,7 +239,7 @@ func TestGatewayContextClashAcrossKinds(t *testing.T) {
 			"id": handle, "name": "Org " + handle, "version": "v1", "context": "/" + project + "/tools/x",
 			"endpoints": []map[string]any{{
 				"id":       "main",
-				"upstream": map[string]any{"main": map[string]any{"url": "https://mcp.example.com/mcp"}},
+				"upstream": map[string]any{"main": map[string]any{"url": "https://1.1.1.1/mcp"}},
 				"environments": []map[string]any{{
 					"environmentUuid": envUUID.String(), "gatewayId": gatewayID.String(),
 				}},
