@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -282,6 +283,11 @@ func (c *openChoreoClient) retryReleaseBindingUpdate(
 // "no binding" is signalled by a nil return value, not utils.ErrNotFound, because most callers
 // want to distinguish "binding does not exist yet" from "the list call failed."
 func (c *openChoreoClient) findReleaseBindingForEnv(ctx context.Context, namespaceName, componentName, env string) (*gen.ReleaseBinding, error) {
+	return c.findReleaseBinding(ctx, namespaceName, "", componentName, env)
+}
+
+// listComponentReleaseBindings lists the release bindings of the named component, in every project and environment.
+func (c *openChoreoClient) listComponentReleaseBindings(ctx context.Context, namespaceName, componentName string) ([]gen.ReleaseBinding, error) {
 	listResp, err := c.ocClient.ListReleaseBindingsWithResponse(ctx, namespaceName, &gen.ListReleaseBindingsParams{
 		Component: &componentName,
 		Limit:     &defaultListLimit,
@@ -300,10 +306,25 @@ func (c *openChoreoClient) findReleaseBindingForEnv(ctx context.Context, namespa
 	if listResp.JSON200 == nil {
 		return nil, fmt.Errorf("invalid OpenChoreo response: missing release binding list payload for component %q", componentName)
 	}
-	for i, b := range listResp.JSON200.Items {
-		if b.Spec != nil && b.Spec.Environment == env {
-			return &listResp.JSON200.Items[i], nil
+	return listResp.JSON200.Items, nil
+}
+
+// findReleaseBinding lists the component's bindings and picks the one for env. The list is
+// keyed by component name alone, so when projectName is non-empty a binding owned by another
+// project's same-named component is skipped (spec.owner.projectName).
+func (c *openChoreoClient) findReleaseBinding(ctx context.Context, namespaceName, projectName, componentName, env string) (*gen.ReleaseBinding, error) {
+	items, err := c.listComponentReleaseBindings(ctx, namespaceName, componentName)
+	if err != nil {
+		return nil, err
+	}
+	for i, b := range items {
+		if b.Spec == nil || b.Spec.Environment != env {
+			continue
 		}
+		if projectName != "" && b.Spec.Owner.ProjectName != projectName {
+			continue
+		}
+		return &items[i], nil
 	}
 	return nil, nil //nolint:nilnil // documented sentinel: callers distinguish "no binding" from "list failed"
 }
@@ -498,6 +519,177 @@ func (c *openChoreoClient) EnsureReleaseBindingRuntimeClass(ctx context.Context,
 		// isolation node. Only runs on correction (current != desired), so there is no restart loop.
 		(*rb.Spec.ComponentTypeEnvironmentConfigs)["restartedAt"] = time.Now().Format(time.RFC3339Nano)
 	})
+}
+
+// SecretSyncRevisionField is the agent-api ComponentType environmentConfigs field that drives the
+// force-sync annotation of the secret-env ExternalSecret.
+const SecretSyncRevisionField = "secretSyncRevision"
+
+// forceSyncAnnotation is the ExternalSecret annotation the agent-api ComponentType renders from
+// secretSyncRevision.
+const forceSyncAnnotation = "force-sync"
+
+// ComponentTypeDeclaresEnvironmentConfig reports whether the ComponentType (or ClusterComponentType,
+// per the component's own reference) of the component declares field as a property of its
+// environmentConfigs schema. OpenChoreo keeps unknown keys in a ReleaseBinding's
+// componentTypeEnvironmentConfigs and does not prune or reject them at render time, so a key
+// written for an older ComponentType is accepted and silently has no effect; this is the only
+// way to tell. Any failure to read the component or the type is returned as an error so callers
+// can treat "cannot tell" like "not declared".
+func (c *openChoreoClient) ComponentTypeDeclaresEnvironmentConfig(ctx context.Context, ouID, componentName, field string) (bool, error) {
+	namespaceName := c.NamespaceFor(ouID)
+	compResp, err := c.ocClient.GetComponentWithResponse(ctx, namespaceName, componentName)
+	if err != nil {
+		return false, fmt.Errorf("failed to get component %q: %w", componentName, err)
+	}
+	if compResp.StatusCode() != http.StatusOK {
+		return false, handleErrorResponse(compResp.StatusCode(), ErrorResponses{
+			JSON401: compResp.JSON401,
+			JSON403: compResp.JSON403,
+			JSON404: compResp.JSON404,
+			JSON500: compResp.JSON500,
+		})
+	}
+	if compResp.JSON200 == nil || compResp.JSON200.Spec == nil {
+		return false, fmt.Errorf("empty response from get component %q", componentName)
+	}
+
+	ref := compResp.JSON200.Spec.ComponentType
+	// The name is "{workloadType}/{componentTypeName}".
+	ctName := ref.Name
+	if idx := strings.LastIndex(ctName, "/"); idx >= 0 {
+		ctName = ctName[idx+1:]
+	}
+
+	var schema *gen.SchemaSection
+	if ref.Kind != nil && *ref.Kind == gen.ComponentSpecComponentTypeKindClusterComponentType {
+		ctResp, err := c.ocClient.GetClusterComponentTypeWithResponse(ctx, ctName)
+		if err != nil {
+			return false, fmt.Errorf("failed to get cluster component type %q: %w", ctName, err)
+		}
+		if ctResp.StatusCode() != http.StatusOK {
+			return false, handleErrorResponse(ctResp.StatusCode(), ErrorResponses{
+				JSON401: ctResp.JSON401,
+				JSON403: ctResp.JSON403,
+				JSON404: ctResp.JSON404,
+				JSON500: ctResp.JSON500,
+			})
+		}
+		if ctResp.JSON200 == nil || ctResp.JSON200.Spec == nil {
+			return false, fmt.Errorf("empty response from get cluster component type %q", ctName)
+		}
+		schema = ctResp.JSON200.Spec.EnvironmentConfigs
+	} else {
+		ctResp, err := c.ocClient.GetComponentTypeWithResponse(ctx, namespaceName, ctName)
+		if err != nil {
+			return false, fmt.Errorf("failed to get component type %q: %w", ctName, err)
+		}
+		if ctResp.StatusCode() != http.StatusOK {
+			return false, handleErrorResponse(ctResp.StatusCode(), ErrorResponses{
+				JSON401: ctResp.JSON401,
+				JSON403: ctResp.JSON403,
+				JSON404: ctResp.JSON404,
+				JSON500: ctResp.JSON500,
+			})
+		}
+		if ctResp.JSON200 == nil || ctResp.JSON200.Spec == nil {
+			return false, fmt.Errorf("empty response from get component type %q", ctName)
+		}
+		schema = ctResp.JSON200.Spec.EnvironmentConfigs
+	}
+
+	if schema == nil || schema.OpenAPIV3Schema == nil {
+		return false, nil
+	}
+	props, _ := (*schema.OpenAPIV3Schema)["properties"].(map[string]interface{})
+	_, declared := props[field]
+	return declared, nil
+}
+
+// SetReleaseBindingSecretSyncRevision sets secretSyncRevision on the release binding's
+// ComponentTypeEnvironmentConfigs for (component, environment). A changed value makes the
+// ComponentType re-render the secret-env ExternalSecret with a new force-sync annotation, which
+// makes the external-secrets operator re-fetch the secret at once. It deliberately does NOT bump
+// restartedAt: the pod restart is a separate, later write.
+//
+// No read-back is done: OpenChoreo keeps unknown keys in this map, so a read-back cannot detect a
+// ComponentType that lacks the field (callers check that with ComponentTypeDeclaresEnvironmentConfig
+// first), and IsSecretSyncRevisionApplied is the real confirmation.
+func (c *openChoreoClient) SetReleaseBindingSecretSyncRevision(ctx context.Context, ouID, componentName, environment, revision string) error {
+	namespaceName := c.NamespaceFor(ouID)
+	binding, err := c.findReleaseBindingForEnv(ctx, namespaceName, componentName, environment)
+	if err != nil {
+		return err
+	}
+	if binding == nil {
+		return fmt.Errorf("no release binding found for component %q in environment %q: %w", componentName, environment, utils.ErrNotFound)
+	}
+
+	return c.retryReleaseBindingUpdate(ctx, namespaceName, binding.Metadata.Name, func(rb *gen.ReleaseBinding) {
+		if rb.Spec.ComponentTypeEnvironmentConfigs == nil {
+			overrides := make(map[string]interface{})
+			rb.Spec.ComponentTypeEnvironmentConfigs = &overrides
+		}
+		(*rb.Spec.ComponentTypeEnvironmentConfigs)[SecretSyncRevisionField] = revision
+	})
+}
+
+// IsSecretSyncRevisionApplied reports whether the live ExternalSecrets of the binding's data
+// plane resources carry force-sync == revision, i.e. OpenChoreo has re-rendered the binding and
+// applied the result. It reads the binding's resource tree, whose nodes hold the live objects.
+// True requires at least one ExternalSecret with the annotation and none carrying a different
+// non-empty value. It says nothing about whether the external-secrets operator has re-fetched the
+// secret since; that is not observable here.
+func (c *openChoreoClient) IsSecretSyncRevisionApplied(ctx context.Context, ouID, componentName, environment, revision string) (bool, error) {
+	namespaceName := c.NamespaceFor(ouID)
+	binding, err := c.findReleaseBindingForEnv(ctx, namespaceName, componentName, environment)
+	if err != nil {
+		return false, err
+	}
+	if binding == nil {
+		return false, fmt.Errorf("no release binding found for component %q in environment %q: %w", componentName, environment, utils.ErrNotFound)
+	}
+
+	resp, err := c.ocClient.GetReleaseBindingK8sResourceTreeWithResponse(ctx, namespaceName, binding.Metadata.Name)
+	if err != nil {
+		return false, fmt.Errorf("failed to get resource tree of release binding %q: %w", binding.Metadata.Name, err)
+	}
+	if resp.StatusCode() != http.StatusOK {
+		return false, handleErrorResponse(resp.StatusCode(), ErrorResponses{
+			JSON401: resp.JSON401,
+			JSON403: resp.JSON403,
+			JSON404: resp.JSON404,
+			JSON500: resp.JSON500,
+		})
+	}
+	return forceSyncRevisionApplied(resp.JSON200, revision), nil
+}
+
+// forceSyncRevisionApplied implements IsSecretSyncRevisionApplied over a resource tree.
+func forceSyncRevisionApplied(tree *gen.K8sResourceTreeResponse, revision string) bool {
+	if tree == nil || revision == "" {
+		return false
+	}
+	matched := false
+	for _, rendered := range tree.RenderedReleases {
+		for i := range rendered.Nodes {
+			node := &rendered.Nodes[i]
+			if node.Kind != "ExternalSecret" {
+				continue
+			}
+			meta, _ := node.Object["metadata"].(map[string]interface{})
+			annotations, _ := meta["annotations"].(map[string]interface{})
+			got, _ := annotations[forceSyncAnnotation].(string)
+			switch got {
+			case "":
+			case revision:
+				matched = true
+			default:
+				return false
+			}
+		}
+	}
+	return matched
 }
 
 // ReplaceReleaseBindingWorkloadOverrides replaces the container env vars and file mounts on the
@@ -1912,6 +2104,95 @@ func (c *openChoreoClient) GetReleaseBindingServiceURL(ctx context.Context, ouID
 		return "", fmt.Errorf("failed to find release binding for %s: %w", componentName, err)
 	}
 	return bindingServiceURL(binding), nil
+}
+
+// ErrReleaseBindingNotFound means the component has no release binding in the environment.
+// It also matches utils.ErrNotFound.
+var ErrReleaseBindingNotFound = fmt.Errorf("release binding: %w", utils.ErrNotFound)
+
+// ErrEndpointNotFound means the binding has no endpoint with the requested name.
+var ErrEndpointNotFound = errors.New("endpoint not found on release binding")
+
+// ErrAmbiguousReleaseBinding means the component has more than one release binding in the environment, one per
+// deployment track for example, and no binding name was given to pick one.
+var ErrAmbiguousReleaseBinding = errors.New("more than one release binding")
+
+// ErrReleaseBindingMismatch means the named release binding is for another project or environment.
+var ErrReleaseBindingMismatch = errors.New("release binding is for another project or environment")
+
+// GetReleaseBindingEndpointServiceURL returns the in-cluster service URL of the named endpoint
+// of a component's release binding in an environment, scoped to the project so a same-named
+// component in another project is never picked. releaseBindingName picks the binding when the
+// component has more than one in the environment; empty, the environment's only binding is used.
+// It returns "" with a nil error while the binding exists but has not reconciled the endpoint's
+// URL yet, ErrReleaseBindingNotFound when there is no such binding, ErrAmbiguousReleaseBinding
+// when no name is given and there is more than one, ErrReleaseBindingMismatch when the named
+// binding is for another project or environment, and ErrEndpointNotFound when the binding has
+// reconciled endpoints and none is named endpointName.
+func (c *openChoreoClient) GetReleaseBindingEndpointServiceURL(
+	ctx context.Context, ouID, projectName, componentName, endpointName, environment, releaseBindingName string,
+) (string, error) {
+	items, err := c.listComponentReleaseBindings(ctx, c.NamespaceFor(ouID), componentName)
+	if err != nil {
+		return "", fmt.Errorf("failed to find release binding for %s: %w", componentName, err)
+	}
+	binding, err := selectProjectReleaseBinding(items, projectName, componentName, environment, releaseBindingName)
+	if err != nil {
+		return "", err
+	}
+	if binding.Status == nil || binding.Status.Endpoints == nil || len(*binding.Status.Endpoints) == 0 {
+		return "", nil
+	}
+	for _, ep := range *binding.Status.Endpoints {
+		if ep.Name != endpointName {
+			continue
+		}
+		if ep.ServiceURL == nil || strings.TrimSpace(ep.ServiceURL.Host) == "" {
+			return "", nil
+		}
+		svc := *ep.ServiceURL
+		if svc.Scheme == nil || strings.TrimSpace(*svc.Scheme) == "" {
+			scheme := "http"
+			svc.Scheme = &scheme
+		}
+		return buildEndpointURLString(&svc), nil
+	}
+	return "", fmt.Errorf("endpoint %q on component %q: %w", endpointName, componentName, ErrEndpointNotFound)
+}
+
+// selectProjectReleaseBinding picks the component's binding in the project and environment: the one named
+// bindingName, or else the only one.
+func selectProjectReleaseBinding(items []gen.ReleaseBinding, projectName, componentName, env, bindingName string) (*gen.ReleaseBinding, error) {
+	if bindingName != "" {
+		for i, b := range items {
+			if b.Metadata.Name != bindingName {
+				continue
+			}
+			if b.Spec == nil || b.Spec.Environment != env || b.Spec.Owner.ProjectName != projectName {
+				return nil, fmt.Errorf("release binding %q of component %q: %w", bindingName, componentName, ErrReleaseBindingMismatch)
+			}
+			return &items[i], nil
+		}
+		return nil, fmt.Errorf("no release binding %q for component %q: %w", bindingName, componentName, ErrReleaseBindingNotFound)
+	}
+	var matches []int
+	for i, b := range items {
+		if b.Spec != nil && b.Spec.Environment == env && b.Spec.Owner.ProjectName == projectName {
+			matches = append(matches, i)
+		}
+	}
+	switch len(matches) {
+	case 0:
+		return nil, fmt.Errorf("no release binding for component %q in environment %q: %w", componentName, env, ErrReleaseBindingNotFound)
+	case 1:
+		return &items[matches[0]], nil
+	}
+	names := make([]string, 0, len(matches))
+	for _, i := range matches {
+		names = append(names, items[i].Metadata.Name)
+	}
+	return nil, fmt.Errorf("component %q has %d release bindings in environment %q (%s): %w",
+		componentName, len(matches), env, strings.Join(names, ", "), ErrAmbiguousReleaseBinding)
 }
 
 // ReleaseBindingRollout is the release an environment's binding points at, and whether it serves it yet.

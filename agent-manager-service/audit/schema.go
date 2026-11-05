@@ -90,6 +90,11 @@ var detailSchema = map[Action]map[string]FieldKind{
 	ActionAuthzRootOUBypass: {
 		"rootOUBypass": KindFlag,
 	},
+	ActionAuthzOrgOverride: {
+		"clientId":   KindIdentifier,
+		"tokenOuID":  KindIdentifier,
+		"targetOuID": KindIdentifier,
+	},
 	ActionSystemStartup: {
 		"version":  KindName,
 		"sinks":    KindNameList,

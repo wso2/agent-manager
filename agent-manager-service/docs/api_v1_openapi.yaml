@@ -6972,7 +6972,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "409":
-          description: MCP proxy already exists
+          description: "MCP proxy already exists, or CONTEXT_IN_USE: its context equals, contains or sits under another artifact's context on the same vhost of a gateway it deploys to; nothing is stored"
           content:
             application/json:
               schema:
@@ -6991,6 +6991,14 @@ paths:
       description: Retrieve a paginated list of MCP proxies in an organization.
       operationId: listMCPProxies
       parameters:
+        - name: project
+          in: query
+          description: >-
+            Also include this project's proxies, read only. Without it only org-level proxies are
+            returned. Unknown project returns 404 PROJECT_NOT_FOUND. The agent Tools picker passes the
+            agent's project.
+          schema:
+            type: string
         - name: limit
           in: query
           description: Maximum number of results to return
@@ -7027,6 +7035,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Project not found (PROJECT_NOT_FOUND)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "500":
           description: Internal server error
           content:
@@ -7053,7 +7067,10 @@ paths:
       tags:
         - MCP Proxies
       summary: Get MCP proxy details
-      description: Retrieve detailed information about an MCP proxy.
+      description: >-
+        Retrieve detailed information about an MCP proxy. Also returns a project's proxy (read only),
+        with projectName set and no endpoints; its per-environment data (security, deployment status)
+        is on GET /orgs/{orgName}/projects/{projName}/mcp-proxies/{proxyId}.
       operationId: getMCPProxy
       responses:
         "200":
@@ -7124,6 +7141,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: "PROJECT_OWNED. The proxy belongs to a project and is managed only through the project routes; or CONTEXT_IN_USE: its context equals, contains or sits under another artifact's context on the same vhost of a gateway it deploys to, and nothing is stored"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "500":
           description: Internal server error
           content:
@@ -7135,7 +7158,10 @@ paths:
       tags:
         - MCP Proxies
       summary: Delete MCP proxy
-      description: Deletes an MCP proxy if no agent mappings still reference it.
+      description: >-
+        Deletes an MCP proxy if no agent mappings still reference it. A project proxy is refused with
+        409 PROJECT_OWNED while its project exists in OpenChoreo; once the project is gone (looked up by
+        the project name stored on the proxy), this route deletes it with the same teardown.
       operationId: deleteMCPProxy
       responses:
         "204":
@@ -7159,7 +7185,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "409":
-          description: MCP proxy has agent mappings
+          description: PROJECT_OWNED (the proxy belongs to a project that still exists) or MCP proxy has agent mappings
           content:
             application/json:
               schema:
@@ -7170,6 +7196,533 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/projects/{projName}/mcp-proxies:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: >-
+          Organization handle. The org comes from the token, or from X-Impersonate-Org, in which
+          case this must be that org's handle.
+        schema:
+          type: string
+      - name: projName
+        in: path
+        required: true
+        description: >-
+          OpenChoreo project name. Unknown project returns 404 PROJECT_NOT_FOUND, except that the GET and
+          DELETE routes of a project OpenChoreo no longer has reach the proxies it left, stored under this
+          name in the caller's org; with none stored they return 404 PROJECT_NOT_FOUND.
+        schema:
+          type: string
+      - name: X-Impersonate-Org
+        in: header
+        required: false
+        description: >-
+          Tenant org UUID for trusted service callers. Honoured only for
+          clients that the deployment's org override resolver allow-lists; otherwise the request is
+          refused with 403. Replaces both the org UUID and the handle for the request. The orgName
+          path segment must then be that org's handle, or the request is refused with 403.
+          A 403 here is final, not a missing grant on the org: it means the caller may not
+          impersonate, the org does not exist, or the path names another org; do not retry it.
+          A 502 means the org's handle could not be looked up and is retryable.
+        schema:
+          type: string
+          format: uuid
+
+    get:
+      tags:
+        - Project MCP Proxies
+      summary: List the project's MCP proxies
+      description: >-
+        Lists proxies owned by this project. Org-level proxies and other projects' proxies are never
+        listed. Each item carries a summary per environment binding. For a project OpenChoreo no longer
+        has, lists the proxies it left (stored under this project name in the caller's org), or returns
+        404 PROJECT_NOT_FOUND when there are none.
+      operationId: listProjectMCPProxies
+      parameters:
+        - name: component
+          in: query
+          description: Only proxies whose source.componentName matches
+          schema:
+            type: string
+        - name: endpoint
+          in: query
+          description: Only proxies whose source.endpointName matches
+          schema:
+            type: string
+        - name: limit
+          in: query
+          description: Maximum number of results to return. Values outside 1..100 fall back to 50.
+          schema:
+            type: integer
+            format: int32
+            default: 50
+        - name: offset
+          in: query
+          description: Number of results to skip. A negative value falls back to 0.
+          schema:
+            type: integer
+            format: int32
+            default: 0
+      responses:
+        "200":
+          description: Proxies owned by this project
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectMCPProxyListResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden, or an impersonation that is not allowed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Project not found (PROJECT_NOT_FOUND)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/projects/{projName}/mcp-proxies/{proxyId}:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: >-
+          Organization handle. The org comes from the token, or from X-Impersonate-Org, in which
+          case this must be that org's handle.
+        schema:
+          type: string
+      - name: projName
+        in: path
+        required: true
+        description: >-
+          OpenChoreo project name. Unknown project returns 404 PROJECT_NOT_FOUND, except that the GET and
+          DELETE routes of a project OpenChoreo no longer has reach the proxies it left, stored under this
+          name in the caller's org; with none stored they return 404 PROJECT_NOT_FOUND.
+        schema:
+          type: string
+      - name: proxyId
+        in: path
+        required: true
+        description: Proxy handle, unique across the org.
+        schema:
+          type: string
+          pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+          maxLength: 100
+      - name: X-Impersonate-Org
+        in: header
+        required: false
+        description: >-
+          Tenant org UUID for trusted service callers. Honoured only for
+          clients that the deployment's org override resolver allow-lists; otherwise the request is
+          refused with 403. Replaces both the org UUID and the handle for the request. The orgName
+          path segment must then be that org's handle, or the request is refused with 403.
+          A 403 here is final, not a missing grant on the org: it means the caller may not
+          impersonate, the org does not exist, or the path names another org; do not retry it.
+          A 502 means the org's handle could not be looked up and is retryable.
+        schema:
+          type: string
+          format: uuid
+
+    put:
+      tags:
+        - Project MCP Proxies
+      summary: Create or update a project MCP proxy (idempotent)
+      description: |
+        Creates the proxy if no proxy with this handle exists in the org, otherwise updates it. Handles
+        are unique across the org: a handle already used by an org-level proxy or by another project's
+        proxy returns 409 HANDLE_IN_USE. Creating needs the amp:mcp-server:create scope; updating an
+        existing proxy needs amp:mcp-server:update.
+
+        An identical body is a no-op and returns 200. `source` is fixed after create: changing it returns
+        400 IMMUTABLE_FIELD. A source whose component is of type mi-mcp-server (legacy HTTP+SSE) or does
+        not exist returns 400. Updating name, description, version or context re-renders every bound
+        environment. A new context that equals, contains or sits under another artifact's context on a
+        gateway a binding is placed on returns 409 CONTEXT_IN_USE and nothing is stored.
+
+        A project that does not exist in OpenChoreo returns 404 PROJECT_NOT_FOUND. A project deleted and
+        re-created with the same name adopts the proxies its predecessor left: a PUT of such a handle moves
+        the proxy to the re-created project and applies the body as an update (200), in one transaction.
+        Only a project proxy stored under this project's name is adopted, never an org-level proxy or
+        another project's. Its bindings stay; re-PUT each binding to refresh its upstream from the
+        re-created project's component.
+      operationId: upsertProjectMCPProxy
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProjectMCPProxyRequest"
+      responses:
+        "200":
+          description: Updated, or unchanged
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectMCPProxyResponse"
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectMCPProxyResponse"
+        "400":
+          description: >-
+            VALIDATION_ERROR for an invalid body or an unsupported source component, IMMUTABLE_FIELD,
+            or SOURCE_COMPONENT_NOT_FOUND when the source component is not in the project, which
+            includes an update after the component was deleted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden, or the caller may update but not create
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Project not found (PROJECT_NOT_FOUND)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: HANDLE_IN_USE. The handle belongs to an org-level proxy or another project's proxy; or CONTEXT_IN_USE. The new context clashes on a bound gateway
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    get:
+      tags:
+        - Project MCP Proxies
+      summary: Get a project MCP proxy with its environment bindings
+      description: >-
+        For a project OpenChoreo no longer has, returns the proxy it left under this project name in
+        the caller's org.
+      operationId: getProjectMCPProxy
+      responses:
+        "200":
+          description: The proxy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectMCPProxyResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Project or proxy not found. Also returned when the proxy belongs to another project or to the org
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    delete:
+      tags:
+        - Project MCP Proxies
+      summary: Delete a project MCP proxy
+      description: >-
+        Undeploys every environment and deletes the proxy. Refuses while AM agents use the proxy as a
+        tool: 409 MCP_PROXY_IN_USE, and nothing is deleted. For a project OpenChoreo no longer has,
+        deletes the proxy it left under this project name in the caller's org.
+      operationId: deleteProjectMCPProxy
+      responses:
+        "204":
+          description: Deleted
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Project or proxy not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: MCP_PROXY_IN_USE. AM agents use the proxy as a tool
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/projects/{projName}/mcp-proxies/{proxyId}/environments/{envName}:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: >-
+          Organization handle. The org comes from the token, or from X-Impersonate-Org, in which
+          case this must be that org's handle.
+        schema:
+          type: string
+      - name: projName
+        in: path
+        required: true
+        description: >-
+          OpenChoreo project name. Unknown project returns 404 PROJECT_NOT_FOUND, except that the GET and
+          DELETE routes of a project OpenChoreo no longer has reach the proxies it left, stored under this
+          name in the caller's org; with none stored they return 404 PROJECT_NOT_FOUND.
+        schema:
+          type: string
+      - name: proxyId
+        in: path
+        required: true
+        description: Proxy handle, unique across the org.
+        schema:
+          type: string
+          pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+          maxLength: 100
+      - name: envName
+        in: path
+        required: true
+        description: Environment name, e.g. development. Unknown environment returns 404 ENVIRONMENT_NOT_FOUND.
+        schema:
+          type: string
+      - name: X-Impersonate-Org
+        in: header
+        required: false
+        description: >-
+          Tenant org UUID for trusted service callers. Honoured only for
+          clients that the deployment's org override resolver allow-lists; otherwise the request is
+          refused with 403. Replaces both the org UUID and the handle for the request. The orgName
+          path segment must then be that org's handle, or the request is refused with 403.
+          A 403 here is final, not a missing grant on the org: it means the caller may not
+          impersonate, the org does not exist, or the path names another org; do not retry it.
+          A 502 means the org's handle could not be looked up and is retryable.
+        schema:
+          type: string
+          format: uuid
+
+    put:
+      tags:
+        - Project MCP Proxy Environments
+      summary: Bind (or re-bind) the proxy to an environment and deploy it
+      description: |
+        Synchronous. Each call:
+        1. Resolves the upstream: the in-cluster service URL of source.componentName/source.endpointName
+           from that component's release binding in this environment, with the MCP path /mcp appended.
+           If the component is not deployed there yet, returns 409 UPSTREAM_NOT_READY and stores nothing.
+        2. Picks the gateway: gatewayId if given, otherwise the environment's egress gateway. More than
+           one candidate without gatewayId returns 400 AMBIGUOUS_GATEWAY. The gateway cannot change once
+           placed (400 IMMUTABLE_FIELD). No gateway in the environment is not an error: the binding is saved and
+           validated by a render, deploymentStatus is absent and deploymentStatusReason is NO_GATEWAY.
+           The binding is deployed once a gateway is mapped to the environment.
+        3. Validates security. Phase 1 accepts apiKey (the default when security is omitted) and no
+           security (security.enabled false, or no variant enabled). jwt returns 400 "jwt security is not
+           available yet"; identity returns 400.
+        4. Checks the gateway context /<projName><context> against every other artifact on that gateway:
+           equal, containing or nested is 409 CONTEXT_IN_USE and nothing is stored. With no gateway yet,
+           the check runs at placement and a clash shows as Failed with reason CONTEXT_IN_USE.
+        5. Stores the binding and moves its deployment to Deploying. The gateway's acknowledgement later
+           turns it into Deployed or Failed; poll GET for the result.
+
+        An identical PUT on a Deployed or Deploying binding returns 200 with no new deployment. A PUT
+        re-queues a Failed binding even when nothing changed. The request body replaces the binding's
+        security, policies and upstream auth; an omitted field resets to its default.
+      operationId: putProjectMCPProxyEnvironment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MCPProxyEnvironmentRequest"
+      responses:
+        "200":
+          description: Binding updated, or unchanged
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MCPProxyEnvironmentResponse"
+        "201":
+          description: Binding created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MCPProxyEnvironmentResponse"
+        "400":
+          description: >-
+            AMBIGUOUS_GATEWAY, IMMUTABLE_FIELD (the gateway is fixed once placed), or VALIDATION_ERROR (an invalid
+            request, jwt/identity security, or an invalid policy or upstream auth). A malformed body gives
+            `Invalid request body`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Project or proxy not found (NOT_FOUND), or ENVIRONMENT_NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: UPSTREAM_NOT_READY or CONTEXT_IN_USE. Nothing was stored
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    get:
+      tags:
+        - Project MCP Proxy Environments
+      summary: Get the proxy's binding in one environment
+      description: >-
+        Reads the stored binding and its deployment status; makes no call to OpenChoreo, so it is cheap to poll.
+        For a project OpenChoreo no longer has, reads the binding of the proxy it left under this project name.
+      operationId: getProjectMCPProxyEnvironment
+      responses:
+        "200":
+          description: The binding
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MCPProxyEnvironmentResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: NOT_FOUND. No such proxy, or it is not bound to this environment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    delete:
+      tags:
+        - Project MCP Proxy Environments
+      summary: Undeploy the proxy from an environment and drop the binding
+      description: >-
+        Deletes the binding and its gateway artifact. Returns once the transaction commits; the
+        gateway removal is not awaited. Refuses with 409 MCP_PROXY_IN_USE while an AM agent is mapped
+        to the proxy in this environment, as the proxy delete does; nothing is deleted. For a project
+        OpenChoreo no longer has, drops the binding of the proxy it left under this project name.
+      operationId: deleteProjectMCPProxyEnvironment
+      responses:
+        "204":
+          description: Unbound
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: NOT_FOUND. No such proxy, or it is not bound to this environment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: MCP_PROXY_IN_USE. An AM agent uses the proxy in this environment; nothing is deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 
   /orgs/{orgName}/mcp-proxies/{proxyId}/scopes:
     get:
@@ -7350,6 +7903,12 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Provider or gateway not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: "CONTEXT_IN_USE. The context equals, contains or sits under another artifact's context on the same vhost of the gateway"
           content:
             application/json:
               schema:
@@ -7564,7 +8123,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "409":
-          description: The deployment is already the gateway's current deployment, DEPLOYED or DEPLOYING
+          description: "The deployment is already the gateway's current deployment, DEPLOYED or DEPLOYING; or CONTEXT_IN_USE: its context equals, contains or sits under another artifact's context on the same vhost of the gateway"
           content:
             application/json:
               schema:
@@ -7944,6 +8503,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: "CONTEXT_IN_USE. The context equals, contains or sits under another artifact's context on the same vhost of the gateway"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "500":
           description: Internal server error
           content:
@@ -8166,7 +8731,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "409":
-          description: The deployment is already the gateway's current deployment, DEPLOYED or DEPLOYING
+          description: "The deployment is already the gateway's current deployment, DEPLOYED or DEPLOYING; or CONTEXT_IN_USE: its context equals, contains or sits under another artifact's context on the same vhost of the gateway"
           content:
             application/json:
               schema:
@@ -18440,7 +19005,7 @@ components:
           minItems: 1
           description: >-
             Deployable endpoint definitions of the MCP proxy. Each endpoint
-            reports its per-environment deployment status.
+            reports its per-environment deployment status. Absent for a project-owned proxy.
           items:
             $ref: "#/components/schemas/MCPProxyEndpoint"
         inCatalog:
@@ -18452,6 +19017,10 @@ components:
           items:
             type: string
             format: uuid
+        projectName:
+          type: string
+          description: Set for a project-owned proxy; absent for an org-level one
+          readOnly: true
         createdBy:
           type: string
           description: User who created the MCP proxy
@@ -18488,6 +19057,10 @@ components:
         mcpSpecVersion:
           type: string
           description: MCP specification version implemented by the upstream server
+        projectName:
+          type: string
+          description: Set for a project-owned proxy; absent for an org-level one
+          readOnly: true
         status:
           type: string
           description: MCP proxy status
@@ -18504,6 +19077,321 @@ components:
           type: string
           format: date-time
           description: Timestamp when the resource was last updated
+          readOnly: true
+
+    MCPProxySource:
+      type: object
+      description: The OpenChoreo component endpoint a project MCP proxy fronts. Fixed after create.
+      required:
+        - componentName
+        - endpointName
+      properties:
+        componentName:
+          type: string
+          example: orders-mcp
+        endpointName:
+          type: string
+          example: mcp
+
+    ProjectMCPProxyRequest:
+      type: object
+      required:
+        - name
+        - source
+      properties:
+        name:
+          type: string
+          description: Display name
+          example: Orders MCP
+        description:
+          type: string
+        version:
+          type: string
+          description: Defaults to v1
+          example: v1
+        context:
+          type: string
+          description: >-
+            Context path relative to the project. Defaults to /<proxyId>. Must start with / and have no
+            empty, "." or ".." segments (400 VALIDATION_ERROR otherwise). The gateway serves it at
+            /<projName><context>; reads return it as sent.
+          example: /orders-mcp
+        mcpSpecVersion:
+          type: string
+          description: MCP protocol version of the upstream server, if known
+          example: "2025-06-18"
+        source:
+          $ref: "#/components/schemas/MCPProxySource"
+
+    ProjectMCPProxyResponse:
+      type: object
+      required:
+        - id
+        - name
+        - version
+        - context
+        - projectName
+        - source
+        - environments
+      properties:
+        id:
+          type: string
+          description: Handle
+        name:
+          type: string
+        description:
+          type: string
+        version:
+          type: string
+        context:
+          type: string
+        mcpSpecVersion:
+          type: string
+        projectName:
+          type: string
+        source:
+          $ref: "#/components/schemas/MCPProxySource"
+        environments:
+          type: array
+          items:
+            $ref: "#/components/schemas/MCPProxyEnvironmentResponse"
+        createdBy:
+          type: string
+          readOnly: true
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          readOnly: true
+
+    ProjectMCPProxyEnvironmentSummary:
+      type: object
+      required:
+        - environmentName
+      properties:
+        environmentName:
+          type: string
+        deploymentStatus:
+          $ref: "#/components/schemas/MCPProjectDeploymentStatus"
+        deploymentStatusReason:
+          type: string
+        publicUrl:
+          type: string
+          description: >-
+            The environment binding's publicUrl. It already ends in the MCP path, so clients use it
+            as is and do not append /mcp.
+          example: https://dev-gw.example.com/orders/orders-mcp/mcp
+
+    ProjectMCPProxyListItem:
+      type: object
+      required:
+        - id
+        - name
+        - version
+        - context
+        - source
+        - environments
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        version:
+          type: string
+        context:
+          type: string
+        source:
+          $ref: "#/components/schemas/MCPProxySource"
+        environments:
+          type: array
+          description: A summary per binding. GET the binding for its security and policies.
+          items:
+            $ref: "#/components/schemas/ProjectMCPProxyEnvironmentSummary"
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          readOnly: true
+
+    ProjectMCPProxyListResponse:
+      type: object
+      required:
+        - count
+        - list
+        - pagination
+      properties:
+        count:
+          type: integer
+          format: int32
+          description: Items in this page
+        list:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProjectMCPProxyListItem"
+        pagination:
+          $ref: "#/components/schemas/PaginationInfo"
+
+    MCPProjectDeploymentStatus:
+      type: string
+      description: >-
+        Deployment status of a project proxy binding. A pending deployment, or a redeploy still waiting,
+        shows as Deploying. Absent when the environment has no gateway (see deploymentStatusReason).
+        Undeploying and Undeployed do not occur: bindings are deleted, never undeployed.
+      enum:
+        - Deploying
+        - Deployed
+        - Failed
+
+    MCPProxyEnvironmentRequest:
+      type: object
+      description: Replaces the binding's configuration. Every field is optional; an omitted field resets to its default.
+      properties:
+        gatewayId:
+          type: string
+          format: uuid
+          description: >-
+            Required only when the environment has more than one egress-capable gateway. Cannot change
+            once placed. Must name a managed gateway: a self-hosted gateway has no route to the in-cluster
+            upstream, so naming one is rejected with 400 VALIDATION_ERROR.
+        releaseBindingName:
+          type: string
+          description: >-
+            The source component's release binding to front. Required only when the component has more
+            than one release binding in the environment, one per deployment track for example; without it
+            such a component is rejected with 400 VALIDATION_ERROR. It must be a binding of the source
+            component in this project and environment, or it is rejected with 400 VALIDATION_ERROR.
+          example: orders-main-development
+        security:
+          $ref: "#/components/schemas/MCPProxyEnvironmentSecurity"
+        policies:
+          type: array
+          description: Gateway policies, e.g. CORS and basic-ratelimit. Each needs a name and a version.
+          items:
+            $ref: "#/components/schemas/MCPPolicy"
+        upstreamAuth:
+          $ref: "#/components/schemas/MCPProxyEnvironmentUpstreamAuth"
+
+    MCPProxyEnvironmentSecurity:
+      type: object
+      description: >-
+        A binding's security. Phase 1 accepts apiKey, which is also the default when the field is omitted
+        or names no variant (an api key in the X-API-Key header), and no security (enabled false only). An
+        apiKey with enabled false while security is not disabled is rejected with 400 VALIDATION_ERROR. jwt
+        is rejected with 400 "jwt security is not available yet", and identity with 400.
+      properties:
+        enabled:
+          type: boolean
+        apiKey:
+          $ref: "#/components/schemas/APIKeySecurity"
+        jwt:
+          $ref: "#/components/schemas/MCPProxyJWTSecurity"
+        identity:
+          $ref: "#/components/schemas/IdentitySecurity"
+
+    MCPProxyJWTSecurity:
+      type: object
+      description: Reserved. Not available yet; a request that enables it is rejected with 400.
+      properties:
+        enabled:
+          type: boolean
+        issuers:
+          type: array
+          items:
+            type: string
+        audiences:
+          type: array
+          items:
+            type: string
+
+    MCPProxyEnvironmentUpstreamAuth:
+      type: object
+      description: Credentials the gateway adds when it calls the upstream.
+      required:
+        - type
+      properties:
+        type:
+          type: string
+          enum:
+            - api-key
+            - none
+        header:
+          type: string
+          example: Authorization
+        value:
+          type: string
+          writeOnly: true
+          description: Required with api-key. Stored encrypted; never returned.
+
+    MCPProxyEnvironmentUpstreamAuthRedacted:
+      type: object
+      required:
+        - type
+      properties:
+        type:
+          type: string
+          enum:
+            - api-key
+            - none
+        header:
+          type: string
+
+    MCPProxyEnvironmentResponse:
+      type: object
+      required:
+        - environmentName
+        - environmentUuid
+        - context
+      properties:
+        environmentName:
+          type: string
+          example: development
+        environmentUuid:
+          type: string
+          format: uuid
+        deploymentStatus:
+          $ref: "#/components/schemas/MCPProjectDeploymentStatus"
+        deploymentStatusReason:
+          type: string
+          description: >-
+            The ack's error code (or DEPLOYMENT_TIMEOUT) for Failed, the render reason for a waiting
+            Deploying (CONTEXT_IN_USE when a clash was found at placement), and NO_GATEWAY when
+            deploymentStatus is absent.
+        gatewayId:
+          type: string
+          format: uuid
+          description: Absent while the environment has no gateway.
+        releaseBindingName:
+          type: string
+          description: The release binding the binding was given. Absent when none was given.
+        context:
+          type: string
+          description: The proxy's context, as given, without the project prefix.
+        publicUrl:
+          type: string
+          description: >-
+            Gateway URL of the MCP endpoint: the gateway vhost plus /<projName><context>/mcp. It already
+            ends in the MCP path, so clients use it as is and do not append /mcp. Absent if the gateway
+            has no vhost.
+          example: https://dev-gw.example.com/orders/orders-mcp/mcp
+        security:
+          $ref: "#/components/schemas/MCPProxyEnvironmentSecurity"
+        policies:
+          type: array
+          items:
+            $ref: "#/components/schemas/MCPPolicy"
+        upstreamAuth:
+          $ref: "#/components/schemas/MCPProxyEnvironmentUpstreamAuthRedacted"
+        updatedAt:
+          type: string
+          format: date-time
           readOnly: true
 
     MCPProxyListResponse:

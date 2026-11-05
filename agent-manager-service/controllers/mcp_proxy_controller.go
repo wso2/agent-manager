@@ -24,6 +24,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/growthanalytics"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
@@ -46,6 +47,7 @@ type MCPProxyController interface {
 type mcpProxyController struct {
 	mcpProxyService    *services.MCPProxyService
 	agentConfigService services.AgentConfigurationService
+	ocClient           client.OpenChoreoClient
 }
 
 // NewMCPProxyController creates a new MCP proxy controller.
@@ -56,10 +58,12 @@ type mcpProxyController struct {
 func NewMCPProxyController(
 	mcpProxyService *services.MCPProxyService,
 	agentConfigService services.AgentConfigurationService,
+	ocClient client.OpenChoreoClient,
 ) MCPProxyController {
 	return &mcpProxyController{
 		mcpProxyService:    mcpProxyService,
 		agentConfigService: agentConfigService,
+		ocClient:           ocClient,
 	}
 }
 
@@ -87,6 +91,10 @@ func (c *mcpProxyController) CreateMCPProxy(w http.ResponseWriter, r *http.Reque
 	resp, err := c.mcpProxyService.Create(ctx, ouID, "system", &req)
 	if err != nil {
 		switch {
+		case errors.Is(err, utils.ErrContextInUse):
+			log.Warn("CreateMCPProxy: context in use on the gateway", "ouID", ouID, "error", err)
+			utils.WriteErrorResponseWithReason(w, http.StatusConflict, utils.ErrContextInUse.Error(), err.Error(),
+				utils.ErrCodeContextInUse)
 		case errors.Is(err, utils.ErrInvalidInput), errors.Is(err, utils.ErrInvalidURL):
 			log.Error("CreateMCPProxy: invalid request", "ouID", ouID, "error", err)
 			utils.WriteErrorResponseWithReason(w, http.StatusBadRequest, "Bad request", err.Error(), utils.ErrCodeBadRequest)
@@ -125,9 +133,26 @@ func (c *mcpProxyController) ListMCPProxies(w http.ResponseWriter, r *http.Reque
 		offset = utils.DefaultOffset
 	}
 
+	// ?project=<name> adds that project's proxies to the org-level ones (the agent Tools
+	// picker). Without it the MCP proxy page keeps seeing org-level proxies only.
+	var projectUUID *string
+	if projName := r.URL.Query().Get("project"); projName != "" {
+		project, err := c.ocClient.GetProject(ctx, ouID, projName)
+		if err != nil && !errors.Is(err, utils.ErrProjectNotFound) {
+			log.Error("ListMCPProxies: failed to resolve project", "ouID", ouID, "project", projName, "error", err)
+			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to resolve project")
+			return
+		}
+		if err != nil || project == nil {
+			utils.WriteErrorResponseWithReason(w, http.StatusNotFound, "Project not found", "", utils.ErrCodeProjectNotFound)
+			return
+		}
+		projectUUID = &project.UUID
+	}
+
 	log.Info("ListMCPProxies: starting", "ouID", ouID, "limit", limit, "offset", offset)
 
-	resp, err := c.mcpProxyService.List(ctx, ouID, limit, offset)
+	resp, err := c.mcpProxyService.List(ctx, ouID, projectUUID, limit, offset)
 	if err != nil {
 		log.Error("ListMCPProxies: failed", "ouID", ouID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list MCP proxies")
@@ -205,9 +230,17 @@ func (c *mcpProxyController) UpdateMCPProxy(w http.ResponseWriter, r *http.Reque
 	resp, err := c.mcpProxyService.Update(ctx, ouID, proxyID, &req)
 	if err != nil {
 		switch {
+		case errors.Is(err, utils.ErrContextInUse):
+			log.Warn("UpdateMCPProxy: context in use on the gateway", "ouID", ouID, "error", err)
+			utils.WriteErrorResponseWithReason(w, http.StatusConflict, utils.ErrContextInUse.Error(), err.Error(),
+				utils.ErrCodeContextInUse)
 		case errors.Is(err, utils.ErrMCPProxyNotFound):
 			log.Warn("UpdateMCPProxy: MCP proxy not found", "ouID", ouID, "proxyID", proxyID)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "MCP proxy not found")
+		case errors.Is(err, utils.ErrMCPProxyProjectOwned):
+			log.Warn("UpdateMCPProxy: project-owned MCP proxy", "ouID", ouID, "proxyID", proxyID)
+			utils.WriteErrorResponseWithReason(w, http.StatusConflict, "MCP proxy belongs to a project",
+				err.Error(), utils.ErrCodeProjectOwned)
 		case errors.Is(err, utils.ErrInvalidInput), errors.Is(err, utils.ErrInvalidURL):
 			log.Error("UpdateMCPProxy: invalid request", "ouID", ouID, "proxyID", proxyID, "error", err)
 			utils.WriteErrorResponseWithReason(w, http.StatusBadRequest, "Bad request", err.Error(), utils.ErrCodeBadRequest)
@@ -268,6 +301,10 @@ func (c *mcpProxyController) DeleteMCPProxy(w http.ResponseWriter, r *http.Reque
 		case errors.Is(err, utils.ErrMCPProxyNotFound):
 			log.Warn("DeleteMCPProxy: MCP proxy not found", "ouID", ouID, "proxyID", proxyID)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "MCP proxy not found")
+		case errors.Is(err, utils.ErrMCPProxyProjectOwned):
+			log.Warn("DeleteMCPProxy: project-owned MCP proxy", "ouID", ouID, "proxyID", proxyID)
+			utils.WriteErrorResponseWithReason(w, http.StatusConflict, "MCP proxy belongs to a project",
+				err.Error(), utils.ErrCodeProjectOwned)
 		case errors.Is(err, utils.ErrMCPProxyHasMappings):
 			log.Warn("DeleteMCPProxy: MCP proxy has mappings", "ouID", ouID, "proxyID", proxyID)
 			utils.WriteErrorResponse(w, http.StatusConflict, utils.ErrMCPProxyHasMappings.Error())

@@ -95,6 +95,11 @@ func (c *llmProxyDeploymentController) DeployLLMProxy(w http.ResponseWriter, r *
 	deployment, err := c.deploymentService.DeployLLMProxy(proxyID, &req, ouID)
 	if err != nil {
 		switch {
+		case errors.Is(err, utils.ErrContextInUse):
+			log.Warn("DeployLLMProxy: context in use on the gateway", "ouID", ouID, "error", err)
+			utils.WriteErrorResponseWithReason(w, http.StatusConflict, utils.ErrContextInUse.Error(), err.Error(),
+				utils.ErrCodeContextInUse)
+			return
 		case errors.Is(err, utils.ErrLLMProxyNotFound):
 			log.Warn("DeployLLMProxy: proxy not found", "ouID", ouID, "proxyID", proxyID)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "LLM proxy not found")
@@ -249,6 +254,11 @@ func (c *llmProxyDeploymentController) RestoreLLMProxyDeployment(w http.Response
 	deployment, err := c.deploymentService.RestoreLLMProxyDeployment(proxyID, deploymentID, gatewayID, ouID)
 	if err != nil {
 		switch {
+		case errors.Is(err, utils.ErrContextInUse):
+			log.Warn("RestoreLLMProxyDeployment: context in use on the gateway", "ouID", ouID, "error", err)
+			utils.WriteErrorResponseWithReason(w, http.StatusConflict, utils.ErrContextInUse.Error(), err.Error(),
+				utils.ErrCodeContextInUse)
+			return
 		case errors.Is(err, utils.ErrLLMProxyNotFound):
 			log.Warn("RestoreLLMProxyDeployment: proxy not found", "ouID", ouID, "proxyID", proxyID)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "LLM proxy not found")

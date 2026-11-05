@@ -29,6 +29,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/gen"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 func TestMergeAgentAPIKeySecretRef(t *testing.T) {
@@ -892,5 +893,117 @@ func TestToDeploymentDetailsResponse_ReportsTheEnvironmentsHealthChecks(t *testi
 
 	t.Run("an unreadable value is left out instead of failing the deployment", func(t *testing.T) {
 		assert.Nil(t, deploymentOf(t, bindingWith(map[string]interface{}{"healthChecks": "not an object"})).HealthChecks)
+	})
+}
+
+func TestEndpointServiceURL(t *testing.T) {
+	port := int32(8080)
+	binding := func(project, component, env string, eps *[]gen.EndpointURLStatus) gen.ReleaseBinding {
+		b := bindingWithConfigs(nil, nil)
+		b.Metadata.Name = component + "-" + env
+		b.Spec.Environment = env
+		b.Spec.Owner.ProjectName = project
+		b.Spec.Owner.ComponentName = component
+		b.Status = &gen.ReleaseBindingStatus{Endpoints: eps}
+		return b
+	}
+	serve := func(t *testing.T, items ...gen.ReleaseBinding) *openChoreoClient {
+		t.Helper()
+		return newTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			require.True(t, strings.HasSuffix(r.URL.Path, "/releasebindings"), r.URL.Path)
+			require.NoError(t, json.NewEncoder(w).Encode(gen.ReleaseBindingList{Items: items}))
+		}))
+	}
+	twoEndpoints := &[]gen.EndpointURLStatus{
+		{Name: "http", ServiceURL: &gen.EndpointURL{Host: "http.svc", Port: &port}},
+		{Name: "mcp", ServiceURL: &gen.EndpointURL{Host: "mcp.svc", Port: &port}},
+	}
+
+	t.Run("PicksNamedEndpoint", func(t *testing.T) {
+		c := serve(t, binding("proj", "orders", "dev", twoEndpoints))
+		got, err := c.GetReleaseBindingEndpointServiceURL(context.Background(), "acme", "proj", "orders", "mcp", "dev", "")
+		require.NoError(t, err)
+		assert.Equal(t, "http://mcp.svc:8080", got)
+	})
+
+	t.Run("NotReconciled_Empty", func(t *testing.T) {
+		c := serve(t, binding("proj", "orders", "dev", nil))
+		got, err := c.GetReleaseBindingEndpointServiceURL(context.Background(), "acme", "proj", "orders", "mcp", "dev", "")
+		require.NoError(t, err)
+		assert.Empty(t, got)
+	})
+
+	t.Run("EndpointWithoutHost_Empty", func(t *testing.T) {
+		c := serve(t, binding("proj", "orders", "dev", &[]gen.EndpointURLStatus{{Name: "mcp"}}))
+		got, err := c.GetReleaseBindingEndpointServiceURL(context.Background(), "acme", "proj", "orders", "mcp", "dev", "")
+		require.NoError(t, err)
+		assert.Empty(t, got)
+	})
+
+	t.Run("UnknownEndpoint_ErrEndpointNotFound", func(t *testing.T) {
+		c := serve(t, binding("proj", "orders", "dev", twoEndpoints))
+		_, err := c.GetReleaseBindingEndpointServiceURL(context.Background(), "acme", "proj", "orders", "nope", "dev", "")
+		require.ErrorIs(t, err, ErrEndpointNotFound)
+	})
+
+	t.Run("NoBinding_ErrReleaseBindingNotFound", func(t *testing.T) {
+		c := serve(t, binding("proj", "orders", "prod", twoEndpoints))
+		_, err := c.GetReleaseBindingEndpointServiceURL(context.Background(), "acme", "proj", "orders", "mcp", "dev", "")
+		require.ErrorIs(t, err, ErrReleaseBindingNotFound)
+		require.ErrorIs(t, err, utils.ErrNotFound)
+	})
+
+	t.Run("SameNamedComponentInAnotherProjectIsIgnored", func(t *testing.T) {
+		other := binding("other-proj", "orders", "dev", &[]gen.EndpointURLStatus{
+			{Name: "mcp", ServiceURL: &gen.EndpointURL{Host: "other.svc", Port: &port}},
+		})
+		mine := binding("proj", "orders", "dev", twoEndpoints)
+		got, err := serve(t, other, mine).GetReleaseBindingEndpointServiceURL(context.Background(), "acme", "proj", "orders", "mcp", "dev", "")
+		require.NoError(t, err)
+		assert.Equal(t, "http://mcp.svc:8080", got)
+
+		_, err = serve(t, other).GetReleaseBindingEndpointServiceURL(context.Background(), "acme", "proj", "orders", "mcp", "dev", "")
+		require.ErrorIs(t, err, ErrReleaseBindingNotFound)
+	})
+
+	// IP keeps a binding per deployment track, so a component can have more than one in an environment.
+	trackBinding := func(name, env, host string) gen.ReleaseBinding {
+		b := binding("proj", "orders", env, &[]gen.EndpointURLStatus{
+			{Name: "mcp", ServiceURL: &gen.EndpointURL{Host: host, Port: &port}},
+		})
+		b.Metadata.Name = name
+		return b
+	}
+	main, beta := trackBinding("orders-main-dev", "dev", "main.svc"), trackBinding("orders-beta-dev", "dev", "beta.svc")
+
+	t.Run("TwoBindingsWithoutName_ErrAmbiguousReleaseBinding", func(t *testing.T) {
+		_, err := serve(t, main, beta).GetReleaseBindingEndpointServiceURL(context.Background(), "acme", "proj", "orders", "mcp", "dev", "")
+		require.ErrorIs(t, err, ErrAmbiguousReleaseBinding)
+		assert.Contains(t, err.Error(), "orders-main-dev")
+		assert.Contains(t, err.Error(), "orders-beta-dev")
+	})
+
+	t.Run("NamePicksTheBinding", func(t *testing.T) {
+		got, err := serve(t, main, beta).GetReleaseBindingEndpointServiceURL(context.Background(), "acme", "proj", "orders", "mcp", "dev", "orders-beta-dev")
+		require.NoError(t, err)
+		assert.Equal(t, "http://beta.svc:8080", got)
+	})
+
+	t.Run("NameOfAnotherEnvironment_ErrReleaseBindingMismatch", func(t *testing.T) {
+		prod := trackBinding("orders-beta-prod", "prod", "prod.svc")
+		_, err := serve(t, main, prod).GetReleaseBindingEndpointServiceURL(context.Background(), "acme", "proj", "orders", "mcp", "dev", "orders-beta-prod")
+		require.ErrorIs(t, err, ErrReleaseBindingMismatch)
+	})
+
+	t.Run("NameOfAnotherProject_ErrReleaseBindingMismatch", func(t *testing.T) {
+		other := trackBinding("orders-other-dev", "dev", "other.svc")
+		other.Spec.Owner.ProjectName = "other-proj"
+		_, err := serve(t, main, other).GetReleaseBindingEndpointServiceURL(context.Background(), "acme", "proj", "orders", "mcp", "dev", "orders-other-dev")
+		require.ErrorIs(t, err, ErrReleaseBindingMismatch)
+	})
+
+	t.Run("UnknownName_ErrReleaseBindingNotFound", func(t *testing.T) {
+		_, err := serve(t, main, beta).GetReleaseBindingEndpointServiceURL(context.Background(), "acme", "proj", "orders", "mcp", "dev", "orders-gone-dev")
+		require.ErrorIs(t, err, ErrReleaseBindingNotFound)
 	})
 }

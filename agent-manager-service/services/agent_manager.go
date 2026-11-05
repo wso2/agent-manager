@@ -1761,7 +1761,7 @@ func (s *agentManagerService) createComponentAgent(ctx context.Context, ouID, pr
 		for _, mc := range req.McpConfig {
 			handles = append(handles, mc.ProxyName)
 		}
-		if err := s.agentConfigurationService.ValidateMCPProxiesInCatalog(ctx, ouID, handles); err != nil {
+		if err := s.agentConfigurationService.ValidateMCPProxiesInCatalog(ctx, ouID, projectName, handles); err != nil {
 			return err
 		}
 	}

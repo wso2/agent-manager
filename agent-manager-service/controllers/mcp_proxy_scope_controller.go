@@ -112,6 +112,10 @@ func (c *mcpProxyScopeController) CreateMCPProxyScope(w http.ResponseWriter, r *
 		case errors.Is(err, utils.ErrInvalidInput):
 			log.Error("CreateMCPProxyScope: invalid request", "ouID", ouID, "proxyID", proxyID, "error", err)
 			utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
+		case errors.Is(err, utils.ErrMCPProxyProjectOwned):
+			log.Warn("CreateMCPProxyScope: project-owned MCP proxy", "ouID", ouID, "proxyID", proxyID)
+			utils.WriteErrorResponseWithReason(w, http.StatusConflict, "MCP proxy belongs to a project",
+				err.Error(), utils.ErrCodeProjectOwned)
 		case errors.Is(err, utils.ErrMCPProxyNotFound):
 			log.Warn("CreateMCPProxyScope: MCP proxy not found", "ouID", ouID, "proxyID", proxyID)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "MCP proxy not found")
@@ -156,6 +160,10 @@ func (c *mcpProxyScopeController) UpdateMCPProxyScope(w http.ResponseWriter, r *
 		case errors.Is(err, utils.ErrInvalidInput):
 			log.Error("UpdateMCPProxyScope: invalid request", "ouID", ouID, "proxyID", proxyID, "action", action, "error", err)
 			utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
+		case errors.Is(err, utils.ErrMCPProxyProjectOwned):
+			log.Warn("UpdateMCPProxyScope: project-owned MCP proxy", "ouID", ouID, "proxyID", proxyID)
+			utils.WriteErrorResponseWithReason(w, http.StatusConflict, "MCP proxy belongs to a project",
+				err.Error(), utils.ErrCodeProjectOwned)
 		case errors.Is(err, utils.ErrMCPProxyNotFound), errors.Is(err, utils.ErrScopeNotFound):
 			log.Warn("UpdateMCPProxyScope: not found", "ouID", ouID, "proxyID", proxyID, "action", action)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "MCP proxy or scope not found")
@@ -183,6 +191,10 @@ func (c *mcpProxyScopeController) DeleteMCPProxyScope(w http.ResponseWriter, r *
 
 	if err := c.svc.Delete(ctx, ouID, orgName, proxyID, action); err != nil {
 		switch {
+		case errors.Is(err, utils.ErrMCPProxyProjectOwned):
+			log.Warn("DeleteMCPProxyScope: project-owned MCP proxy", "ouID", ouID, "proxyID", proxyID)
+			utils.WriteErrorResponseWithReason(w, http.StatusConflict, "MCP proxy belongs to a project",
+				err.Error(), utils.ErrCodeProjectOwned)
 		case errors.Is(err, utils.ErrMCPProxyNotFound), errors.Is(err, utils.ErrScopeNotFound):
 			log.Warn("DeleteMCPProxyScope: not found", "ouID", ouID, "proxyID", proxyID, "action", action)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "MCP proxy or scope not found")

@@ -34,6 +34,7 @@ import {
   useAgentIdentityCredentials,
   usePipelineEnvironmentsState,
   useConfirmIfUnsaved,
+  useMCPProxyEndpoints,
   useThunderInstanceForEnv,
   useUnsavedChangesGuard,
 } from "@agent-management-platform/shared-component";
@@ -68,7 +69,6 @@ import {
 import {
   useGetAgent,
   useGetAgentMCPConfig,
-  useGetMCPProxy,
   useListEnvironments,
   useListMCPProxies,
   useListMCPProxyScopes,
@@ -395,7 +395,7 @@ export const ViewMCPServerComponent = () => {
   );
   const { data: proxiesData } = useListMCPProxies(
     { orgName: orgId },
-    { limit: 50, offset: 0 },
+    { limit: 50, offset: 0, project: projectId },
   );
   const servers = useMemo(() => proxiesData?.list ?? [], [proxiesData]);
   const updateConfig = useUpdateAgentMCPConfig();
@@ -432,8 +432,10 @@ export const ViewMCPServerComponent = () => {
     () => servers.find((s) => s.id === configProxyName),
     [servers, configProxyName],
   );
+  // A project proxy is owned by its project and is not shown on the organization's MCP proxy
+  // page, so only an org proxy links there.
   const configProxyHref =
-    orgId && configProxyName
+    orgId && configProxyName && configProxy && !configProxy.projectName
       ? generatePath(
           absoluteRouteMap.children.org.children.mcpProxies.children.view.path,
           { orgId, proxyId: configProxyName },
@@ -451,11 +453,13 @@ export const ViewMCPServerComponent = () => {
 
   const providerConfig = config?.envMappings?.[selectedEnvName]?.configuration;
 
+  // An org proxy's endpoints, or a project proxy's environments (read from its
+  // project route) in the same shape.
   const {
-    data: sourceProxyDetails,
+    proxy: sourceProxyDetails,
     isLoading: isLoadingProxyDetails,
     isError: isProxyDetailsError,
-  } = useGetMCPProxy({
+  } = useMCPProxyEndpoints({
     orgName: orgId,
     proxyId: configProxyName ?? "",
   });

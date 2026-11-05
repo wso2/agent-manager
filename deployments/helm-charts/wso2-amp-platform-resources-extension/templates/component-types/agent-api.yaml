@@ -171,6 +171,13 @@ spec:
         restartedAt:
           type: string
           default: ""
+        # Bumped by Agent Manager on AgentID secret rotation. It drives the
+        # force-sync annotation of the secret-env ExternalSecret so the rotated
+        # value is fetched at once instead of at the next refreshInterval.
+        # Empty (never rotated) renders a stable, harmless annotation value.
+        secretSyncRevision:
+          type: string
+          default: ""
         runtimeClassName:
           type: string
           default: ""
@@ -488,7 +495,16 @@ spec:
         metadata:
           name: ${secretEnv.resourceName}
           namespace: ${metadata.namespace}
+          annotations:
+            # ESO syncs immediately whenever this annotation value changes.
+            force-sync: ${environmentConfigs.secretSyncRevision}
         spec:
+          # Rotation uses force-sync above and does not wait on this interval,
+          # but only while this ComponentType is deployed. Agent Manager falls
+          # back to AGENT_IDENTITY_REFRESH_INTERVAL (default 15s) when the
+          # force-sync cannot be used (missing binding, retries used up, field
+          # not declared), so raise this interval and that setting together,
+          # and only after this ComponentType is deployed.
           refreshInterval: 15s
           secretStoreRef:
             name: ${dataplane.secretStore}

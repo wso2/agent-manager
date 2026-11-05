@@ -814,6 +814,9 @@ func (s *agentThunderProvisioningService) AttemptProvision(ctx context.Context, 
 	clientID := binding.ThunderClientID
 	var clientSecret string
 	promoted := false
+	// The agent's creator for the provider request, resolved in the source branch
+	// below. The stored binding.RequestedBy is untouched (audit attribution).
+	requestedBy := binding.RequestedBy
 
 	if s.identityManagementMode == thundersvc.IdentityManagementCPManaged {
 		if binding.PromotionSource != "" {
@@ -965,11 +968,21 @@ func (s *agentThunderProvisioningService) AttemptProvision(ctx context.Context, 
 				return
 			}
 
+			creator, creatorErr := s.agentCreator(ctx, binding)
+			if creatorErr != nil {
+				// An unverified subject could record the wrong person as the owner:
+				// a repair binding carries the repair caller. Try again later
+				// without using up an attempt.
+				s.deferPromotionUntil(ctx, binding, time.Now().Add(reconcilerTickInterval),
+					"Waiting to find the agent's creator.")
+				return
+			}
+			requestedBy = creator
 			request := ProjectAgentIdentityRequest{
 				OrganizationID: binding.OUID, ProjectID: binding.ProjectName, ProjectName: binding.ProjectName,
 				Environment: binding.EnvironmentName, AgentName: binding.AgentName,
 				ProvisioningType: binding.ProvisioningType, ExistingAgentID: thunderAgentID,
-				ExistingClientID: clientID,
+				ExistingClientID: clientID, RequestedBy: requestedBy,
 				// An external agent also asks for a secret: in CP mode the control
 				// plane needs a secret value on the environment to apply the AgentID,
 				// so the provider returns one. It is passed to Activate below and
@@ -1061,7 +1074,8 @@ func (s *agentThunderProvisioningService) AttemptProvision(ctx context.Context, 
 			OrganizationID: binding.OUID, ProjectID: binding.ProjectName, ProjectName: binding.ProjectName,
 			Environment: binding.EnvironmentName, AgentName: binding.AgentName,
 			ProvisioningType: binding.ProvisioningType, ExistingAgentID: thunderAgentID,
-			ExistingClientID: clientID, ClientSecret: clientSecret, NeedsSecret: !isExternal,
+			ExistingClientID: clientID, ClientSecret: clientSecret, RequestedBy: requestedBy,
+			NeedsSecret: !isExternal,
 		}
 		if err := s.projectIdentityProvider.Activate(ctx, request, thunderAgentID); err != nil {
 			s.recordFailure(ctx, binding, thunderAgentID, clientID, secretRefPath, fmt.Errorf("activate project agent identity: %w", err))
@@ -1120,6 +1134,34 @@ func (s *agentThunderProvisioningService) AttemptProvision(ctx context.Context, 
 	// reconciler's periodic sweep lands the credentials once the workload
 	// appears — see reconcileWorkloadInjection.
 	reconcileWorkloadInjection(ctx, s.getWorkloadInjector(), binding, s.logger)
+}
+
+// agentCreator returns the subject recorded as the agent's creator in a provider
+// request: the RequestedBy of the agent's oldest binding, since the first binding
+// is written at agent creation by the creator. That value is empty when the agent
+// was created without a user, for example by a system, and it stays empty: a
+// later binding written by a repair or promotion kick-off carries that caller, who
+// must not become the owner. When the agent has no bindings at all, the binding
+// itself is the only one known, so its own requester is returned. When the
+// bindings cannot be read it returns the error, so the caller defers the attempt
+// instead of sending an unverified subject. It never logs a subject.
+func (s *agentThunderProvisioningService) agentCreator(ctx context.Context, binding models.AgentThunderClient) (string, error) {
+	bindings, err := s.repo.FindByAgent(ctx, binding.OUID, binding.ProjectName, binding.AgentName)
+	if err != nil {
+		s.logger.Warn("Failed to read the agent's bindings to find its creator; deferring the attempt",
+			"ouID", binding.OUID, "projectName", binding.ProjectName, "agentName", binding.AgentName, "error", err)
+		return "", err
+	}
+	if len(bindings) == 0 {
+		return binding.RequestedBy, nil
+	}
+	oldest := bindings[0]
+	for _, b := range bindings[1:] {
+		if b.CreatedAt.Before(oldest.CreatedAt) {
+			oldest = b
+		}
+	}
+	return oldest.RequestedBy, nil
 }
 
 // deferPromotion puts a promotion target back to pending until the reconciler's

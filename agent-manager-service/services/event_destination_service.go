@@ -313,7 +313,7 @@ func (s *eventDestinationService) Update(
 		if d.SecretEncrypted, err = s.encrypt(credential); err != nil {
 			return nil, err
 		}
-	} else if _, ok := driver.(eventdestinations.CredentialDriver); ok && !sameJSON(in.Config, d.Config) {
+	} else if _, ok := driver.(eventdestinations.CredentialDriver); ok && !equalJSONValue(in.Config, d.Config) {
 		// The stored credential belongs to the old settings (another
 		// service's URL), so it cannot be kept.
 		return nil, fmt.Errorf("%w: enter the url again when changing the service", utils.ErrInvalidInput)
@@ -560,9 +560,9 @@ func (s *eventDestinationService) auditOpts(
 	return opts
 }
 
-// sameJSON reports whether a and b encode the same value; stored JSON comes
-// back from the database reformatted.
-func sameJSON(a, b json.RawMessage) bool {
+// equalJSONValue reports whether a and b encode the same value; stored JSON
+// comes back from the database reformatted.
+func equalJSONValue(a, b json.RawMessage) bool {
 	var va, vb any
 	if json.Unmarshal(a, &va) != nil || json.Unmarshal(b, &vb) != nil {
 		return false
