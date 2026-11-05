@@ -22,12 +22,14 @@ import type {
   DeleteMCPProxyPathParams,
   FetchMCPProxyServerInfoPathParams,
   GetMCPProxyPathParams,
+  GetProjectMCPProxyPathParams,
   ListMCPProxiesPathParams,
   ListMCPProxiesQuery,
   MCPProxy,
   MCPProxyListResponse,
   MCPServerInfoFetchRequest,
   MCPServerInfoFetchResponse,
+  ProjectMCPProxy,
   UpdateMCPProxyPathParams,
 } from "@agent-management-platform/types";
 import {
@@ -35,6 +37,7 @@ import {
   deleteMCPProxy,
   fetchMCPProxyServerInfo,
   getMCPProxy,
+  getProjectMCPProxy,
   listMCPProxies,
   updateMCPProxy,
 } from "../apis";
@@ -74,6 +77,16 @@ export function useGetMCPProxy(params: GetMCPProxyPathParams) {
     queryKey: ["mcp-proxy", params],
     queryFn: () => getMCPProxy(params, getToken),
     enabled: !!params.orgName && !!params.proxyId,
+  });
+}
+
+/** A project-owned proxy from its project route; off until org, project and proxy are known. */
+export function useGetProjectMCPProxy(params: GetProjectMCPProxyPathParams) {
+  const { getToken } = useAuthHooks();
+  return useApiQuery<ProjectMCPProxy>({
+    queryKey: ["project-mcp-proxy", params],
+    queryFn: () => getProjectMCPProxy(params, getToken),
+    enabled: !!params.orgName && !!params.projName && !!params.proxyId,
   });
 }
 

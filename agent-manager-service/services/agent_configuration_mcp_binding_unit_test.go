@@ -25,6 +25,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -364,11 +365,11 @@ func TestMCPProxiesBoundToEnvironment_SelectsOnlyProxiesServingTheEnvironment(t 
 
 	svc := &agentConfigurationService{
 		mcpProxyRepo: &repomocks.MCPProxyRepositoryMock{
-			ListFunc: func(_ context.Context, _ string, _, offset int) ([]*models.MCPProxy, error) {
-				if offset > 0 {
-					return []*models.MCPProxy{}, nil
+			ListFunc: func(_ context.Context, _ string, f repositories.MCPProxyListFilter) ([]*models.MCPProxy, int64, error) {
+				if f.Offset > 0 {
+					return []*models.MCPProxy{}, 0, nil
 				}
-				return []*models.MCPProxy{serving, notServing}, nil
+				return []*models.MCPProxy{serving, notServing}, 0, nil
 			},
 		},
 	}
@@ -394,12 +395,12 @@ func TestMCPProxiesBoundToEnvironment_PagesUntilExhausted(t *testing.T) {
 	pagesRequested := 0
 	svc := &agentConfigurationService{
 		mcpProxyRepo: &repomocks.MCPProxyRepositoryMock{
-			ListFunc: func(_ context.Context, _ string, _, offset int) ([]*models.MCPProxy, error) {
+			ListFunc: func(_ context.Context, _ string, f repositories.MCPProxyListFilter) ([]*models.MCPProxy, int64, error) {
 				pagesRequested++
-				if offset == 0 {
-					return firstPage, nil
+				if f.Offset == 0 {
+					return firstPage, 0, nil
 				}
-				return []*models.MCPProxy{onSecondPage}, nil
+				return []*models.MCPProxy{onSecondPage}, 0, nil
 			},
 		},
 	}

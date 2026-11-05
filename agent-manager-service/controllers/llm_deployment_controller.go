@@ -89,6 +89,11 @@ func (c *llmDeploymentController) DeployLLMProvider(w http.ResponseWriter, r *ht
 	deployment, err := c.deploymentService.DeployLLMProvider(providerID, &req, ouID)
 	if err != nil {
 		switch {
+		case errors.Is(err, utils.ErrContextInUse):
+			log.Warn("DeployLLMProvider: context in use on the gateway", "ouID", ouID, "error", err)
+			utils.WriteErrorResponseWithReason(w, http.StatusConflict, utils.ErrContextInUse.Error(), err.Error(),
+				utils.ErrCodeContextInUse)
+			return
 		case errors.Is(err, utils.ErrLLMProviderNotFound):
 			log.Warn("DeployLLMProvider: provider not found", "ouID", ouID, "providerID", providerID)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
@@ -233,6 +238,11 @@ func (c *llmDeploymentController) RestoreLLMProviderDeployment(w http.ResponseWr
 	deployment, err := c.deploymentService.RestoreLLMProviderDeployment(providerID, deploymentID, gatewayID, ouID)
 	if err != nil {
 		switch {
+		case errors.Is(err, utils.ErrContextInUse):
+			log.Warn("RestoreLLMProviderDeployment: context in use on the gateway", "ouID", ouID, "error", err)
+			utils.WriteErrorResponseWithReason(w, http.StatusConflict, utils.ErrContextInUse.Error(), err.Error(),
+				utils.ErrCodeContextInUse)
+			return
 		case errors.Is(err, utils.ErrLLMProviderNotFound):
 			log.Warn("RestoreLLMProviderDeployment: provider not found", "ouID", ouID, "providerID", providerID)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")

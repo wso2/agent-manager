@@ -71,7 +71,8 @@ func mappedEverywhere(context.Context, *gorm.DB, uuid.UUID, uuid.UUID) (bool, er
 }
 
 // withMCPCore gives svc a reconcile core over its deployment repository and event hub, with an MCP kind that
-// renders a minimal artifact for whatever binding it is asked for. A mock repository locks status rows as a no-op.
+// renders a minimal artifact for whatever binding it is asked for. Mock repositories lock status rows and gateways as
+// no-ops.
 func withMCPCore(svc *MCPProxyService) {
 	if deployments, ok := svc.deploymentRepo.(*repomocks.DeploymentRepositoryMock); ok {
 		if deployments.WithTxFunc == nil {
@@ -80,6 +81,9 @@ func withMCPCore(svc *MCPProxyService) {
 		if deployments.LockStatusRowsFunc == nil {
 			deployments.LockStatusRowsFunc = func(context.Context, *gorm.DB, string, []uuid.UUID) error { return nil }
 		}
+	}
+	if gateways, ok := svc.gatewayRepo.(*repomocks.GatewayRepositoryMock); ok && gateways.AcquireGatewayLockFunc == nil {
+		gateways.AcquireGatewayLockFunc = func(*gorm.DB, string) error { return nil }
 	}
 	svc.kind = &MCPProxyKind{load: func(_ context.Context, ref models.ArtifactRef) (*mcpArtifact, error) {
 		return &mcpArtifact{proxyHandle: "proxy-handle", deployable: &models.MCPProxy{
@@ -632,4 +636,49 @@ func TestMCPEnvGatewayReadsThroughTheSavesTransaction(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, both.UUID, *gateway, "anchored on the placed gateway")
+}
+
+// A save takes its gateway locks before its status-row locks, the order a render's write-back takes them (gateway, then
+// the status row), so the two cannot deadlock.
+func TestDeployMCPProxyEndpoints_LocksGatewaysBeforeStatusRows(t *testing.T) {
+	env := uuid.New()
+	both := newGateway(t, models.GatewayRoleBoth, true)
+	var order []string
+	gateways := gatewayFixtureRepo(t, env.String(), []*models.Gateway{both})
+	gateways.AcquireGatewayLockFunc = func(_ *gorm.DB, gatewayID string) error {
+		order = append(order, "gateway "+gatewayID)
+		return nil
+	}
+	hub := &stubEventHub{}
+	svc := &MCPProxyService{
+		gatewayRepo:       gateways,
+		mcpProxyScopeRepo: &repomocks.MCPProxyScopeRepositoryMock{ListByProxyFunc: func(context.Context, uuid.UUID) ([]models.MCPProxyScope, error) { return nil, nil }},
+		deploymentRepo: &repomocks.DeploymentRepositoryMock{
+			PlacedGatewaysFunc: func(context.Context, string, uuid.UUID) ([]string, error) {
+				return []string{both.UUID.String()}, nil
+			},
+			LockStatusRowsFunc: func(context.Context, *gorm.DB, string, []uuid.UUID) error {
+				order = append(order, "status rows")
+				return nil
+			},
+			LockEnvironmentMappingFunc: mappedEverywhere,
+			StartDeployFunc:            startDeployStub,
+		},
+		tx:                   sentinelTx,
+		gatewayEventsService: &GatewayEventsService{hub: hub},
+		logger:               discardLogger(),
+	}
+	withMCPCore(svc)
+	proxy := &models.MCPProxy{
+		UUID: uuid.New(), Handle: "proxy-handle",
+		Endpoints: []models.MCPProxyEndpoint{{
+			UUID: uuid.New(), Handle: "endpoint-handle",
+			Configuration: models.MCPEndpointConfig{Upstream: &models.UpstreamEndpoint{URL: "https://upstream.example.com"}},
+			Environments:  []models.MCPProxyEndpointEnvironment{{EnvironmentUUID: env, ArtifactUUID: uuid.New()}},
+		}},
+	}
+
+	require.NoError(t, svc.deployMCPProxyEndpoints(context.Background(), txSentinel, proxy, "org"))
+	require.GreaterOrEqual(t, len(order), 2)
+	assert.Equal(t, []string{"gateway " + both.UUID.String(), "status rows"}, order[:2])
 }

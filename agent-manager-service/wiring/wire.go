@@ -60,6 +60,7 @@ var clientProviderSet = wire.NewSet(
 	ProvidePublisherProvisioner,
 	ProvideIdentityClient,
 	ProvideOrgResolver,
+	ProvideOUHandleLookup,
 	thundersvc.NewProber,
 	// EnvThunderResolver is wired for AgentIdentityController's passthrough
 	// endpoints. AgentID provisioning itself is injected via
@@ -105,6 +106,7 @@ var serviceProviderSet = wire.NewSet(
 	services.NewAgentAPIKeyService,
 	services.NewLLMProxyDeploymentService,
 	services.NewMCPProxyService,
+	services.NewProjectMCPProxyService,
 	services.NewMCPProxyScopeService,
 	// MCPProxyScopeService only needs the narrow redeploy surface; bind it to
 	// the concrete service so scope mutations can re-emit gateway policies.
@@ -147,6 +149,7 @@ var controllerProviderSet = wire.NewSet(
 	controllers.NewA2AProxyController,
 	controllers.NewLLMProxyDeploymentController,
 	controllers.NewMCPProxyController,
+	controllers.NewProjectMCPProxyController,
 	ProvideWebSocketController,
 	controllers.NewGatewayInternalController,
 	controllers.NewMonitorController,
@@ -169,6 +172,7 @@ var testClientProviderSet = wire.NewSet(
 	ProvidePublisherProvisioner,
 	ProvideIdentityClient,
 	ProvideOrgResolver,
+	ProvideTestOUHandleLookup,
 	thundersvc.NewProber,
 	ProvideEnvThunderSecretReader,
 	ProvideEnvThunderURLReader,
@@ -500,10 +504,11 @@ func ProvideReconcileKinds(
 	return reconcile.Kinds{llmProvider, llmProxy, mcp, agent, restAgent}
 }
 
-// ProvideReconcileCore builds the reconcile core with the worker's intervals, lease and attempt budget from cfg.
+// ProvideReconcileCore builds the reconcile core with the worker's intervals, lease and attempt budget from cfg, and
+// the gateways it locks and checks contexts on.
 func ProvideReconcileCore(
-	db *gorm.DB, deploymentRepo repositories.DeploymentRepository, hub eventhub.EventHub, kinds reconcile.Kinds,
-	cfg *config.Config, logger *slog.Logger,
+	db *gorm.DB, deploymentRepo repositories.DeploymentRepository, gatewayRepo repositories.GatewayRepository,
+	hub eventhub.EventHub, kinds reconcile.Kinds, cfg *config.Config, logger *slog.Logger,
 ) *reconcile.Core {
 	seconds := func(n int) time.Duration { return time.Duration(n) * time.Second }
 	return reconcile.NewCore(db, deploymentRepo, hub, kinds, reconcile.Config{
@@ -512,7 +517,7 @@ func ProvideReconcileCore(
 		DriftInterval:  seconds(cfg.Reconcile.DriftIntervalSeconds),
 		Lease:          seconds(cfg.Reconcile.RenderLeaseSeconds),
 		AttemptBudget:  cfg.Reconcile.RenderAttemptBudget,
-	}, logger)
+	}, logger).WithGateways(gatewayRepo)
 }
 
 // ProvidePlatformGatewayService makes each new gateway-environment mapping place the environment's artifacts, and
@@ -742,6 +747,29 @@ func ProvideIdentityClient(cfg config.ThunderConfig) thundersvc.IdentityClient {
 		cfg.ResolveToHost,
 		cfg.ResolvedSystemResourceIdentifier(),
 	)
+}
+
+// ProvideOUHandleLookup maps an OU ID to its handle through the platform
+// Thunder, for the org override on the project MCP routes. It is deliberately
+// uncached: a handle can be renamed, and the lookup runs only on impersonated
+// requests. A missing OU is reported as middleware.ErrOverrideOrgNotFound.
+func ProvideOUHandleLookup(client thundersvc.IdentityClient) middleware.OUHandleLookup {
+	return func(ctx context.Context, ouID string) (string, error) {
+		handle, err := client.GetOUHandleByID(ctx, ouID)
+		if thundersvc.IsNotFound(err) {
+			return "", fmt.Errorf("%w: %w", middleware.ErrOverrideOrgNotFound, err)
+		}
+		return handle, err
+	}
+}
+
+// ProvideTestOUHandleLookup uses the test's lookup when it supplies one, and
+// the Thunder-backed lookup otherwise.
+func ProvideTestOUHandleLookup(testClients TestClients, client thundersvc.IdentityClient) middleware.OUHandleLookup {
+	if testClients.OUHandleLookup != nil {
+		return testClients.OUHandleLookup
+	}
+	return ProvideOUHandleLookup(client)
 }
 
 // ProvideOrgResolver creates the org resolver backed by Thunder, with a per-org OU ID cache.

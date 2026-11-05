@@ -96,6 +96,8 @@ type MCPProxyService struct {
 	core                   *reconcile.Core
 	kind                   *MCPProxyKind
 	isExternalAgent        externalAgentLookup
+	// getProject resolves a project by name in OpenChoreo; nil treats every project as existing.
+	getProject func(ctx context.Context, ouID, projectName string) (*models.ProjectResponse, error)
 }
 
 // externalAgentLookup reports whether the named agent of an organization is an external agent
@@ -123,8 +125,13 @@ func NewMCPProxyService(
 	kind *MCPProxyKind,
 	ocClient client.OpenChoreoClient,
 ) *MCPProxyService {
+	var getProject func(ctx context.Context, ouID, projectName string) (*models.ProjectResponse, error)
+	if ocClient != nil {
+		getProject = ocClient.GetProject
+	}
 	return &MCPProxyService{
 		isExternalAgent:      externalAgentLookupFrom(ocClient),
+		getProject:           getProject,
 		core:                 core,
 		kind:                 kind,
 		db:                   db,
@@ -180,13 +187,13 @@ func mcpDeployErrorIsFatal(err error) bool {
 		errors.Is(err, errPlacementFixed)
 }
 
-// mcpDeployRejection is the 4xx a save's deploy error maps to: an artifact that can't render, or one of the four
-// placement errors; nil for any other error.
+// mcpDeployRejection is the 4xx a save's deploy error maps to: an artifact that can't render, a context that clashes
+// on the gateway, or one of the four placement errors; nil for any other error.
 func mcpDeployRejection(err error) error {
 	switch {
 	case mcpDeployErrorIsFatal(err):
 		return fmt.Errorf("%w: %w", utils.ErrInvalidInput, err)
-	case errors.Is(err, utils.ErrInvalidInput):
+	case errors.Is(err, utils.ErrInvalidInput), errors.Is(err, utils.ErrContextInUse):
 		return err
 	}
 	return nil
@@ -272,7 +279,7 @@ func (s *MCPProxyService) Create(ctx context.Context, orgUUID, createdBy string,
 	// instead reuse the endpoint's per-environment artifacts. An environment with no gateway yet is placed when one
 	// is mapped.
 	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := s.repo.Create(ctx, tx, proxy, handle, name, version, orgUUID); err != nil {
+		if err := s.repo.Create(ctx, tx, proxy, handle, name, version, orgUUID, nil, nil); err != nil {
 			return err
 		}
 		if err := s.persistMCPEndpoints(ctx, tx, proxy.UUID, handle, version, endpoints, orgUUID); err != nil {
@@ -301,17 +308,20 @@ func (s *MCPProxyService) Create(ctx context.Context, orgUUID, createdBy string,
 	return convertModelMCPProxyToSpec(created), nil
 }
 
-// List retrieves MCP proxies for an organization.
-func (s *MCPProxyService) List(ctx context.Context, orgUUID string, limit, offset int) (*models.MCPProxyListResponse, error) {
-	proxies, err := s.repo.List(ctx, orgUUID, limit, offset)
+// List retrieves MCP proxies for an organization. With a nil projectUUID it returns
+// org-level proxies only; with one, it also includes that project's proxies (the agent
+// Tools picker). Callers resolve the project to its UUID first.
+func (s *MCPProxyService) List(ctx context.Context, orgUUID string, projectUUID *string, limit, offset int) (*models.MCPProxyListResponse, error) {
+	proxies, total64, err := s.repo.List(ctx, orgUUID, repositories.MCPProxyListFilter{
+		ProjectUUID:     projectUUID,
+		IncludeOrgOwned: projectUUID != nil,
+		Limit:           limit,
+		Offset:          offset,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list MCP proxies: %w", err)
 	}
-
-	total, err := s.repo.Count(ctx, orgUUID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to count MCP proxies: %w", err)
-	}
+	total := int(total64)
 
 	resp := &models.MCPProxyListResponse{
 		Count: len(proxies),
@@ -405,6 +415,12 @@ func (s *MCPProxyService) Get(ctx context.Context, orgUUID, proxyID string) (*mo
 	}
 
 	dto := convertModelMCPProxyToSpec(proxy)
+	if dto != nil && proxy.ProjectUUID != nil {
+		// A project proxy is read-only here: report its owner. Its endpoint rows are its
+		// environment bindings, an internal storage shape, so they are left out below; the
+		// per-environment view is the project route's.
+		dto.ProjectName = proxy.ProjectName
+	}
 	if dto != nil && s.deploymentRepo != nil {
 		// Deployments are keyed by each (endpoint, environment) artifact UUID (the proxy's
 		// and endpoint's own UUIDs are never deployed), so aggregate placed gateways across
@@ -451,6 +467,9 @@ func (s *MCPProxyService) Get(ctx context.Context, orgUUID, proxyID string) (*mo
 		}
 		dto.Gateways = gateways
 	}
+	if dto != nil && proxy.ProjectUUID != nil {
+		dto.Endpoints = nil
+	}
 	return dto, nil
 }
 
@@ -474,6 +493,12 @@ func (s *MCPProxyService) Update(ctx context.Context, orgUUID, proxyID string, r
 	version := strings.TrimSpace(req.Version)
 	if name == "" || version == "" {
 		return nil, utils.ErrInvalidInput
+	}
+
+	// Refuse a project proxy before any validation or network work; it is re-checked on
+	// the locked row below.
+	if existing, err := s.repo.GetByHandle(ctx, handle, orgUUID); err == nil && existing != nil && existing.ProjectUUID != nil {
+		return nil, utils.ErrMCPProxyProjectOwned
 	}
 
 	// Validate the endpoints outside the transaction so the placement check's DB reads and
@@ -523,6 +548,9 @@ func (s *MCPProxyService) Update(ctx context.Context, orgUUID, proxyID string, r
 				return utils.ErrMCPProxyNotFound
 			}
 			return fmt.Errorf("failed to get MCP proxy before update: %w", err)
+		}
+		if proxy.ProjectUUID != nil {
+			return utils.ErrMCPProxyProjectOwned
 		}
 
 		// Index the existing graph so buildMCPEndpointsForStorage can preserve per-env
@@ -680,6 +708,8 @@ func (s *MCPProxyService) refreshAgentsBoundToProxy(ctx context.Context, proxy *
 
 // Delete removes an MCP proxy by handle. MCP proxy mappings are deployable artifacts
 // derived from an MCP proxy, so the source proxy cannot be deleted while mappings exist.
+// A project proxy is refused (utils.ErrMCPProxyProjectOwned) unless OpenChoreo no longer
+// has its project.
 func (s *MCPProxyService) Delete(ctx context.Context, orgUUID, orgName, proxyID string) error {
 	_ = orgName // unused: cleanup now resolves env-Thunder by orgUUID (ouID), not orgName
 
@@ -695,8 +725,48 @@ func (s *MCPProxyService) Delete(ctx context.Context, orgUUID, orgName, proxyID 
 		}
 		return fmt.Errorf("failed to get MCP proxy before delete: %w", err)
 	}
+	if proxy.ProjectUUID != nil {
+		// A project proxy is removed through its project's routes, unless the project is gone:
+		// then the org route is the way to remove what it left.
+		gone, err := s.projectGone(ctx, orgUUID, proxy)
+		if err != nil {
+			return err
+		}
+		if !gone {
+			return utils.ErrMCPProxyProjectOwned
+		}
+	}
 
+	if err := s.ensureMCPProxyNotInUse(ctx, orgUUID, proxy); err != nil {
+		return err
+	}
+	return s.deleteLoadedMCPProxy(ctx, orgUUID, handle, proxy)
+}
+
+// projectGone reports whether OpenChoreo no longer has the project a project proxy was published by, looked up
+// by the project name stored on the proxy. A project of that name with another UUID was re-created after the
+// proxy's was deleted, so the proxy's own project is gone too. A lookup failure other than not-found is returned,
+// never taken for a gone project.
+func (s *MCPProxyService) projectGone(ctx context.Context, orgUUID string, proxy *models.MCPProxy) (bool, error) {
+	projectName := valueOrEmpty(proxy.ProjectName)
+	if s.getProject == nil || projectName == "" {
+		return false, nil
+	}
+	project, err := s.getProject(ctx, orgUUID, projectName)
+	if err != nil {
+		if errors.Is(err, utils.ErrProjectNotFound) {
+			return true, nil
+		}
+		return false, fmt.Errorf("failed to resolve the MCP proxy's project: %w", err)
+	}
+	return project != nil && proxy.ProjectUUID != nil && project.UUID != *proxy.ProjectUUID, nil
+}
+
+// ensureMCPProxyNotInUse refuses (utils.ErrMCPProxyHasMappings) while an agent still
+// references the proxy. Shared by the org and project delete paths.
+func (s *MCPProxyService) ensureMCPProxyNotInUse(ctx context.Context, orgUUID string, proxy *models.MCPProxy) error {
 	var mappings []models.EnvAgentMCPMapping
+	var err error
 	if s.envMCPMappingRepo != nil {
 		mappings, err = s.envMCPMappingRepo.ListByMCPProxy(ctx, proxy.UUID)
 		if err != nil {
@@ -731,7 +801,12 @@ func (s *MCPProxyService) Delete(ctx context.Context, orgUUID, orgName, proxyID 
 			return utils.ErrMCPProxyHasMappings
 		}
 	}
+	return nil
+}
 
+// deleteLoadedMCPProxy tears down the proxy's per-(endpoint,environment) gateway artifacts and
+// deletes the proxy. The caller has already loaded the proxy and checked it is not in use.
+func (s *MCPProxyService) deleteLoadedMCPProxy(ctx context.Context, orgUUID, handle string, proxy *models.MCPProxy) error {
 	// Capture the proxy's scope rows before the row delete cascades them away
 	// (mcp_proxy_scopes FK is ON DELETE CASCADE) — the Thunder cleanup below needs
 	// every scope string to strip from role permissions.
@@ -816,7 +891,10 @@ func (s *MCPProxyService) cleanupProxyResourceServers(ctx context.Context, ouID 
 // RemoveEnvironmentFromEndpoints removes an environment's endpoint bindings from a proxy
 // when that environment is deleted. For every endpoint of the proxy bound to the given
 // environment it tears down the (endpoint,env) gateway artifact and deletes the join row.
-// The endpoint rows themselves remain (they may still be bound to other environments).
+// An org proxy's endpoint rows remain (they may still be bound to other environments). A
+// project proxy's binding endpoint is bound to exactly that one environment and is named
+// after it, so it is deleted with the environment: left behind, it would hold the handle a
+// re-created environment of the same name needs (uq_mcp_endpoint_handle).
 // Best-effort: per-binding failures are aggregated and returned but never abort the sweep.
 func (s *MCPProxyService) RemoveEnvironmentFromEndpoints(ctx context.Context, proxy *models.MCPProxy, envUUID uuid.UUID, orgUUID string) error {
 	if proxy == nil {
@@ -832,15 +910,32 @@ func (s *MCPProxyService) RemoveEnvironmentFromEndpoints(ctx context.Context, pr
 			}
 			// Tear down the single gateway artifact this (endpoint,env) deployed before
 			// removing the binding row.
+			artifactGone := true
 			if ee.ArtifactUUID != uuid.Nil {
 				if err := s.deleteMCPProxyEnvironmentArtifacts(ctx, []uuid.UUID{ee.ArtifactUUID}, orgUUID); err != nil {
+					artifactGone = false
 					errs = append(errs, fmt.Errorf("delete env %s artifact for proxy %s endpoint %s: %w",
 						envUUID, proxy.UUID, endpoint.Handle, err))
 				}
 			}
+			// A project binding is found through its (endpoint, env) row: keep the row and the endpoint while the
+			// artifact is still there, so a retry can find and remove all three.
+			if proxy.ProjectUUID != nil && !artifactGone {
+				continue
+			}
+			dropEndpoint := proxy.ProjectUUID != nil && len(endpoint.Environments) == 1
 			if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-				return s.endpointRepo.RemoveEndpointEnvironment(ctx, tx, endpoint.UUID, envUUID)
-			}); err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+				if err := s.endpointRepo.RemoveEndpointEnvironment(ctx, tx, endpoint.UUID, envUUID); err != nil &&
+					!errors.Is(err, gorm.ErrRecordNotFound) {
+					return err
+				}
+				if dropEndpoint {
+					if err := s.endpointRepo.DeleteEndpoint(ctx, tx, endpoint.UUID); err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+						return err
+					}
+				}
+				return nil
+			}); err != nil {
 				errs = append(errs, fmt.Errorf("remove env %s binding from proxy %s endpoint %s: %w",
 					envUUID, proxy.UUID, endpoint.Handle, err))
 			}
@@ -1152,7 +1247,9 @@ func convertModelMCPProxyToSpec(proxy *models.MCPProxy) *models.MCPProxyDTO {
 		updatedAt = proxy.Artifact.UpdatedAt
 		inCatalog = proxy.Artifact.InCatalog
 	}
-	if name == "" {
+	// A project proxy's artifact name is its handle (models.MCPProxyArtifactName); its display name is the
+	// configured one.
+	if name == "" || proxy.ProjectUUID != nil {
 		name = proxy.Configuration.Name
 	}
 	if version == "" {
@@ -1188,7 +1285,9 @@ func convertModelMCPProxyToListItem(proxy *models.MCPProxy) models.MCPProxyListI
 		createdAt = proxy.Artifact.CreatedAt
 		updatedAt = proxy.Artifact.UpdatedAt
 	}
-	if name == "" {
+	// A project proxy's artifact name is its handle (models.MCPProxyArtifactName); its display name is the
+	// configured one.
+	if name == "" || proxy.ProjectUUID != nil {
 		name = proxy.Configuration.Name
 	}
 	if version == "" {
@@ -1202,6 +1301,7 @@ func convertModelMCPProxyToListItem(proxy *models.MCPProxy) models.MCPProxyListI
 		ID:             stringPtrIfNotEmpty(id),
 		McpSpecVersion: stringPtrIfNotEmpty(proxy.Configuration.SpecVersion),
 		Name:           stringPtrIfNotEmpty(name),
+		ProjectName:    proxy.ProjectName,
 		Status:         stringPtrIfNotEmpty(status),
 		UpdatedAt:      timePtrIfNotZero(updatedAt),
 		Version:        stringPtrIfNotEmpty(version),
@@ -1899,9 +1999,9 @@ func (s *MCPProxyService) mapMCPProxyWriteError(err error, handle, orgUUID strin
 	case "uq_artifact_handle_ou_id":
 		if conflicting, getErr := s.artifactRepo.GetByHandle(handle, orgUUID); getErr == nil &&
 			conflicting != nil && conflicting.Kind != models.KindMCPProxy {
-			return fmt.Errorf("%w: handle already in use by another artifact", utils.ErrArtifactExists)
+			return fmt.Errorf("%w: handle already in use by another artifact: %w", utils.ErrArtifactExists, utils.ErrMCPProxyHandleInUse)
 		}
-		return fmt.Errorf("%w: handle already in use", utils.ErrMCPProxyExists)
+		return fmt.Errorf("%w: handle already in use: %w", utils.ErrMCPProxyExists, utils.ErrMCPProxyHandleInUse)
 	case "uq_artifact_name_version_ou_id":
 		return fmt.Errorf("%w: another artifact already uses this name and version", utils.ErrInvalidInput)
 	default:

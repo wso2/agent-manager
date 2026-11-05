@@ -16,8 +16,13 @@
  */
 
 import { useMemo } from "react";
-import { useGetMCPProxy } from "@agent-management-platform/api-client";
 import {
+  useGetMCPProxy,
+  useGetProjectMCPProxy,
+} from "@agent-management-platform/api-client";
+import type { MCPProxy } from "@agent-management-platform/types";
+import {
+  projectMCPProxyEndpoints,
   resolveMCPEndpointForEnvironment,
   resolveMCPEnvVarSpec,
   resolveProxyAuthenticationType,
@@ -67,59 +72,116 @@ export interface UseMCPProxySecurityResult {
   isResolved: boolean;
 }
 
+export interface UseMCPProxyEndpointsResult {
+  /**
+   * The endpoints the security rules judge from: an org proxy's own, or a project
+   * proxy's environments in the same shape (see projectMCPProxyEndpoints).
+   * Undefined until there is an answer, and while no proxy is selected.
+   */
+  proxy: Pick<MCPProxy, "endpoints"> | undefined;
+  isLoading: boolean;
+  isError: boolean;
+}
+
+/**
+ * The endpoints of an MCP proxy, as far as how it is secured goes. An org proxy's
+ * are on its org GET. A project proxy (its org GET has `projectName` set) carries
+ * no endpoints there; its per-environment bindings are read from the project
+ * route instead, under the project the org GET names, so a caller needs no
+ * project context of its own.
+ */
+export function useMCPProxyEndpoints({
+  orgName,
+  proxyId,
+}: Pick<UseMCPProxySecurityParams, "orgName" | "proxyId">): UseMCPProxyEndpointsResult {
+  const {
+    data: orgProxy,
+    isLoading: isOrgLoading,
+    isError: isOrgError,
+  } = useGetMCPProxy({
+    orgName,
+    proxyId: proxyId ?? "",
+  });
+
+  // Only a project proxy asks its project route; for an org proxy the query stays
+  // disabled (no project, no proxy id).
+  const ownerProject = proxyId ? orgProxy?.projectName : undefined;
+  const {
+    data: projectProxy,
+    isLoading: isProjectLoading,
+    isError: isProjectError,
+  } = useGetProjectMCPProxy({
+    orgName,
+    projName: ownerProject ?? "",
+    proxyId: ownerProject ? (proxyId ?? "") : "",
+  });
+
+  const proxy = useMemo<Pick<MCPProxy, "endpoints"> | undefined>(() => {
+    if (!proxyId || !orgProxy) return undefined;
+    if (!ownerProject) return orgProxy;
+    if (!projectProxy) return undefined;
+    return { endpoints: projectMCPProxyEndpoints(projectProxy) };
+  }, [proxyId, orgProxy, ownerProject, projectProxy]);
+
+  return {
+    proxy,
+    isLoading: isOrgLoading || (Boolean(ownerProject) && isProjectLoading),
+    isError: isOrgError || (Boolean(ownerProject) && isProjectError),
+  };
+}
+
 /**
  * Resolves how an MCP proxy's endpoint is secured and, from that, which runtime
  * variables a tool binding needs. `MCPProxyListItem` carries no security data, so
  * the full proxy has to be fetched — this hook is the one place that does it.
  *
- * When `environmentUuid` is supplied and the proxy has an endpoint bound to it,
- * the answer is that endpoint's security, matching the server's per-environment
- * resolution. Otherwise it falls back to "every endpoint uses OAuth", which is
- * the sound answer when one binding covers all environments at once, and also
- * the safe answer when the environment simply has no uuid to match on.
+ * An org proxy's security is on its endpoints; a project proxy's is on its
+ * project route's environments (see useMCPProxyEndpoints).
+ *
+ * When `environmentUuid` is supplied and the proxy has an endpoint (or, for a
+ * project proxy, an environment) bound to it, the answer is that one's security,
+ * matching the server's per-environment resolution. Otherwise it falls back to
+ * the every-endpoint rule, which is the sound answer when one binding covers all
+ * environments at once, and also the safe answer when the environment simply has
+ * no uuid to match on.
  */
 export function useMCPProxySecurity({
   orgName,
   proxyId,
   environmentUuid,
 }: UseMCPProxySecurityParams): UseMCPProxySecurityResult {
-  const { data: proxy, isLoading, isError } = useGetMCPProxy({
-    orgName,
-    proxyId: proxyId ?? "",
-  });
+  const { proxy, isLoading, isError } = useMCPProxyEndpoints({ orgName, proxyId });
 
   // Resolved once, then reused: authenticationType needs it to derive one
   // label, and — for the fallback case — spec needs the whole proxy anyway to
   // union each endpoint's requirement rather than derive from that one label.
   const scopedEndpoint = useMemo(
-    () =>
-      proxyId && proxy
-        ? resolveMCPEndpointForEnvironment(proxy, environmentUuid)
-        : undefined,
-    [proxy, proxyId, environmentUuid],
+    () => (proxy ? resolveMCPEndpointForEnvironment(proxy, environmentUuid) : undefined),
+    [proxy, environmentUuid],
   );
 
   const authenticationType = useMemo<AuthenticationType>(() => {
-    if (!proxyId || !proxy) return "";
+    if (!proxy) return "";
     if (scopedEndpoint) return resolveAuthenticationType(scopedEndpoint);
     return resolveProxyAuthenticationType(proxy);
-  }, [proxy, proxyId, scopedEndpoint]);
+  }, [proxy, scopedEndpoint]);
 
   const spec = useMemo<MCPEnvVarSpec>(() => {
-    if (!proxyId || !proxy) return resolveMCPEnvVarSpec("");
+    if (!proxy) return resolveMCPEnvVarSpec("");
     // Scoped to one endpoint: a single label is the whole answer.
     if (scopedEndpoint) return resolveMCPEnvVarSpec(authenticationType);
     // Environment-agnostic: union every endpoint's requirement instead of
     // collapsing to one label first, or a proxy mixing an API-key endpoint
     // with an OAuth endpoint would lose the OAuth reference rows.
     return resolveProxyEnvVarSpec(proxy);
-  }, [proxy, proxyId, scopedEndpoint, authenticationType]);
+  }, [proxy, scopedEndpoint, authenticationType]);
 
   // No proxy selected yet means nothing to wait for, whatever the query says.
   const hasProxy = Boolean(proxyId);
-  // A proxy that fetched successfully but reports zero endpoints is not a
-  // state this hook can make a security determination from — treat it the
-  // same as an unresolved fetch rather than silently defaulting to None.
+  // A proxy that fetched successfully but reports zero endpoints (or a project
+  // proxy with no environments bound yet) is not a state this hook can make a
+  // security determination from — treat it the same as an unresolved fetch
+  // rather than silently defaulting to None.
   const hasEndpoints = Boolean(proxy?.endpoints?.length);
 
   return {
