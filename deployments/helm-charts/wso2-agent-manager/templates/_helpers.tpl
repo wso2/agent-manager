@@ -365,7 +365,7 @@ Event bus mode: nats, embedded or off. events.mode is the only setting; the
 bundled NATS and the service's EVENTS_* settings follow from it.
 */}}
 {{- define "agent-management-platform.eventsMode" -}}
-{{- .Values.agentManagerService.config.events.mode | default "nats" -}}
+{{- .Values.agentManagerService.config.events.mode | default "off" -}}
 {{- end }}
 
 {{/*
