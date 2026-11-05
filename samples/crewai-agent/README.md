@@ -10,9 +10,10 @@ Because the request flows through two agents and the underlying model, a single 
 
 ### Python runtime
 
-Python 3.11, 3.12, or 3.13 is required. The sample pins `crewai==1.15.34`
-and requires `pillow>=13.0.0,<14`. Pillow 13 requires Python 3.11 or later;
-CrewAI requires Python below 3.14.
+Python 3.11, 3.12, or 3.13 is required. The sample pins
+`crewai==1.15.34`, which requires Python below 3.14. Its `pdfplumber` dependency
+installs Pillow. The sample requires `pillow>=13.0.0,<14`, which needs Python
+3.11 or later.
 
 The compatibility checks and heavy instrumentation tests cover this sample on
 Python 3.11–3.13. Other samples retain their existing Python 3.10 coverage.

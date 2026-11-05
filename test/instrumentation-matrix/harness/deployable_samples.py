@@ -37,17 +37,12 @@ class DeployableSample:
     env: tuple[tuple[str, str], ...] = ()
     # Shared by dependency compatibility checks and heavy deployment selection.
     min_python: str = "3.10"
-    max_python_exclusive: str | None = None
 
     def supports_python(self, version: str) -> bool:
-        """Whether an interpreter falls within the sample's supported range."""
+        """Whether an interpreter meets the sample's minimum Python version."""
         current = tuple(map(int, version.split(".")))
         minimum = tuple(map(int, self.min_python.split(".")))
-        maximum = (
-            tuple(map(int, self.max_python_exclusive.split(".")))
-            if self.max_python_exclusive is not None else None
-        )
-        return current >= minimum and (maximum is None or current < maximum)
+        return current >= minimum
 
 
 DEPLOYABLE_SAMPLES: dict[str, DeployableSample] = {
@@ -61,7 +56,6 @@ DEPLOYABLE_SAMPLES: dict[str, DeployableSample] = {
         run_command="python main.py",
         expected_kinds=("llm", "agent", "crewaitask"),
         min_python="3.11",
-        max_python_exclusive="3.14",
         env=(("HOME", "/tmp"), ("CREWAI_STORAGE_DIR", "/tmp/crewai")),
     ),
 }

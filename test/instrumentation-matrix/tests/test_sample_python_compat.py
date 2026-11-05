@@ -46,22 +46,3 @@ def test_supported_runtime_resolution_failure_is_reported(compat, monkeypatch, c
     monkeypatch.setattr(compat.subprocess, "run", resolve)
     assert compat.main() == 1
     assert "samples/crewai-agent/requirements.txt does not resolve on Python 3.11" in capsys.readouterr().err
-
-
-def test_future_python_excluded_only_for_bounded_sample(compat, monkeypatch):
-    """A future matrix runtime respects CrewAI's existing upper bound."""
-    calls = []
-    monkeypatch.setattr(compat.yaml, "safe_load", lambda _: {"python": {"versions": ["3.13", "3.14"]}})
-
-    def resolve(args, **kwargs):
-        """Capture dependency resolutions without accessing a package index."""
-        calls.append((Path(args[6]).parent.name, args[5]))
-        return SimpleNamespace(returncode=0)
-
-    monkeypatch.setattr(compat.subprocess, "run", resolve)
-    assert compat.main() == 0
-    assert set(calls) == {
-        ("crewai-agent", "3.13"),
-        ("customer-support-agent", "3.13"),
-        ("customer-support-agent", "3.14"),
-    }

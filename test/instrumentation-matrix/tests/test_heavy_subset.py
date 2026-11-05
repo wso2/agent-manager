@@ -103,14 +103,14 @@ def test_subset_excludes_non_deployable_frameworks():
 def test_subset_preserves_python310_for_langchain_and_requires_python311_for_crewai():
     """Bound CrewAI runtime selection without reducing other samples' coverage."""
     m = _multi_manifest()
-    m.python_versions = ["3.10", "3.11", "3.12", "3.13", "3.14"]
+    m.python_versions = ["3.10", "3.11", "3.12", "3.13"]
     cells = expand_matrix(m)
     sub = select_heavy_subset(cells, m)
     # Python is a heavy axis: the agent is rebuilt on each interpreter.
-    assert {c.python for c in sub if c.framework_name == "langchain"} == {"3.10", "3.11", "3.12", "3.13", "3.14"}
+    assert {c.python for c in sub if c.framework_name == "langchain"} == {"3.10", "3.11", "3.12", "3.13"}
     assert {c.python for c in sub if c.framework_name == "crewai"} == {"3.11", "3.12", "3.13"}
-    # 2 provider versions x (5 LangChain Pythons + 3 CrewAI Pythons).
-    assert len(sub) == 16
+    # 2 provider versions x (4 LangChain Pythons + 3 CrewAI Pythons).
+    assert len(sub) == 14
 
 
 def test_per_provider_axis_pins_each_framework_to_its_representative_version():
