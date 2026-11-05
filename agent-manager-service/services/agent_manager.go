@@ -4525,19 +4525,37 @@ func (s *agentManagerService) RevokeAgentIdentitySecret(ctx context.Context, ouI
 	// reference the revoked credential.
 	var workloadRefreshWarning string
 	includeWorkloadLevel := false
+	lowestEnv := ""
 	if pipeline, pipeErr := s.ocClient.GetProjectDeploymentPipeline(ctx, ouID, projectName); pipeErr != nil {
 		s.logger.Warn("Failed to resolve deployment pipeline during identity revoke cleanup; skipping workload-level env removal",
 			"agentName", agentName, "environment", environmentName, "error", pipeErr)
 		workloadRefreshWarning = "Could not confirm whether this is the deployment pipeline's lowest environment, " +
 			"so its shared workload-level credentials were left untouched as a precaution."
 	} else {
-		includeWorkloadLevel = findLowestEnvironment(pipeline.PromotionPaths) == environmentName
+		lowestEnv = findLowestEnvironment(pipeline.PromotionPaths)
+		includeWorkloadLevel = lowestEnv == environmentName
 	}
 	if removeErr := s.agentIdentityInjection.RemoveForEnvironment(ctx, ouID, projectName, agentName, environmentName, includeWorkloadLevel); removeErr != nil {
 		s.logger.Warn("Failed to remove agent identity credentials from workload after revoke",
 			"agentName", agentName, "environment", environmentName, "error", removeErr)
 		workloadRefreshWarning = "The secret was revoked, but the running workload could not be refreshed automatically; " +
 			"it may keep referencing the revoked credential until this is confirmed or the workload is redeployed."
+	} else if s.identityManagedByControlPlane() && lowestEnv != "" && !includeWorkloadLevel {
+		// Removing a non-lowest environment's overrides would hand it the lowest
+		// environment's credential through the shared Workload, so keep it
+		// neutralized until a regenerate writes the environment's own.
+		placeholders, placeholderErr := s.neutralIdentityEnvVars(ctx, ouID, projectName, agentName, lowestEnv)
+		if placeholderErr == nil && len(placeholders) > 0 {
+			placeholderErr = withReleaseBindingRetry(ctx, func() error {
+				return s.ocClient.UpdateReleaseBindingEnvVars(ctx, ouID, projectName, agentName, environmentName, placeholders)
+			})
+		}
+		if placeholderErr != nil {
+			s.logger.Warn("Failed to neutralize agent identity env vars after revoke",
+				"agentName", agentName, "environment", environmentName, "error", placeholderErr)
+			workloadRefreshWarning = "The secret was revoked, but the running workload could not be refreshed automatically; " +
+				"it may keep referencing another environment's credential until this is confirmed or the workload is redeployed."
+		}
 	}
 
 	return models.AgentRevokeSecretResponse{
@@ -4815,7 +4833,13 @@ func (s *agentManagerService) PromoteAgent(ctx context.Context, ouID string, pro
 	// already resolved. Skipped when AgentThunder provisioning is disabled
 	// for this deployment — nothing can create a new binding in that case,
 	// but the readiness check and hard block below still apply.
-	if s.agentThunderProvisioning != nil {
+	//
+	// CP_MANAGED never triggers or waits for AgentID provisioning here: workload
+	// promotion and AgentID promotion are separate. AgentIDs are promoted only
+	// in the background (at agent creation and by the topology pass), so this
+	// request just reads whatever the target has.
+	cpManaged := s.identityManagedByControlPlane()
+	if !cpManaged && s.agentThunderProvisioning != nil {
 		var requestedBy string
 		if callerClaims := jwtassertion.GetTokenClaims(ctx); callerClaims != nil {
 			requestedBy = callerClaims.Sub
@@ -4832,13 +4856,16 @@ func (s *agentManagerService) PromoteAgent(ctx context.Context, ouID string, pro
 	// kick-off above), not reading one that already exists — a real
 	// credential can still be sitting in the shared Workload CR even after
 	// provisioning is later disabled for this deployment.
+	// identityNeutralized is set when the CP_MANAGED path below promotes with
+	// empty placeholders instead of the target's own credentials.
+	identityNeutralized := false
 	tgtIdentityEnvVars, idErr := s.agentIdentityInjection.EnvVarsForEnvironment(ctx, ouID, projectName, agentName, req.TargetEnvironment)
 	if idErr != nil {
 		s.logger.Error("Failed to build target env agent identity env vars, aborting promotion to prevent credential loss",
 			"agentName", agentName, "environment", req.TargetEnvironment, "error", idErr)
 		return fmt.Errorf("failed to build target env agent identity env vars: %w", idErr)
 	}
-	if len(tgtIdentityEnvVars) == 0 && s.agentThunderProvisioning != nil {
+	if len(tgtIdentityEnvVars) == 0 && !cpManaged && s.agentThunderProvisioning != nil {
 		// The kick-off above only just wrote a PENDING row and kicked off its
 		// Thunder call on a detached goroutine — checking readiness this soon
 		// virtually always sees it still in flight, so promoting to a brand
@@ -4851,24 +4878,46 @@ func (s *agentManagerService) PromoteAgent(ctx context.Context, ouID string, pro
 		tgtIdentityEnvVars = s.pollForTargetIdentityReady(ctx, ouID, projectName, agentName, req.TargetEnvironment)
 	}
 	if len(tgtIdentityEnvVars) == 0 {
-		// HARD BLOCK, not best-effort: the lowest environment's real identity
-		// is written into the shared OpenChoreo Workload CR, inherited by
-		// every environment unless a ReleaseBinding overrides it. If the
-		// target's own identity isn't ready, nothing overrides those keys and
-		// the promoted pod would silently start up with the lowest
-		// environment's real credentials — a cross-environment leak. Only
-		// enforced when the lowest environment actually holds a real
-		// credential; a pipeline that has never used AgentID has nothing to
-		// leak and must not be blocked from promoting.
 		lowestEnv := findLowestEnvironment(pipeline.PromotionPaths)
-		lowestEnvVars, lowestErr := s.agentIdentityInjection.EnvVarsForEnvironment(ctx, ouID, projectName, agentName, lowestEnv)
-		if lowestErr != nil {
-			s.logger.Error("Failed to check lowest env agent identity state for promotion safety, aborting promotion to prevent credential loss",
-				"agentName", agentName, "lowestEnvironment", lowestEnv, "error", lowestErr)
-			return fmt.Errorf("failed to check lowest environment agent identity state: %w", lowestErr)
-		}
-		if len(lowestEnvVars) > 0 {
-			return s.buildPromotionIdentityBlockedError(ctx, ouID, projectName, agentName, req.TargetEnvironment)
+		if cpManaged {
+			// CP_MANAGED: an AgentID problem must never stop the workload from
+			// promoting. Neutralize instead of blocking: an empty override for
+			// every identity key keeps the target pod from inheriting the
+			// lowest environment's credentials, and the real values replace the
+			// placeholders when the binding completes (see
+			// identityEnvVarsInSync and the reconcile after the promote below).
+			placeholders, placeholderErr := s.neutralIdentityEnvVars(ctx, ouID, projectName, agentName, lowestEnv)
+			if placeholderErr != nil {
+				s.logger.Error("Failed to check lowest env agent identity state for promotion safety, aborting promotion to prevent credential loss",
+					"agentName", agentName, "lowestEnvironment", lowestEnv, "error", placeholderErr)
+				return fmt.Errorf("failed to check lowest environment agent identity state: %w", placeholderErr)
+			}
+			if len(placeholders) > 0 {
+				tgtIdentityEnvVars = placeholders
+				identityNeutralized = true
+				s.logger.Warn("Promoting without the target environment's own AgentID; its credentials will be injected when ready",
+					"ouID", ouID, "projectName", projectName, "agentName", agentName,
+					"targetEnvironment", req.TargetEnvironment, "bindingStatus", s.identityBindingStatusForLog(ctx, ouID, projectName, agentName, req.TargetEnvironment))
+			}
+		} else {
+			// HARD BLOCK in LEGACY_DIRECT: the lowest environment's real
+			// identity is written into the shared OpenChoreo Workload CR,
+			// inherited by every environment unless a ReleaseBinding overrides
+			// it. If the target's own identity isn't ready, nothing overrides
+			// those keys and the promoted pod would silently start up with the
+			// lowest environment's real credentials: a cross-environment leak.
+			// Only enforced when the lowest environment actually holds a real
+			// credential; a pipeline that has never used AgentID has nothing to
+			// leak and must not be blocked from promoting.
+			lowestEnvVars, lowestErr := s.agentIdentityInjection.EnvVarsForEnvironment(ctx, ouID, projectName, agentName, lowestEnv)
+			if lowestErr != nil {
+				s.logger.Error("Failed to check lowest env agent identity state for promotion safety, aborting promotion to prevent credential loss",
+					"agentName", agentName, "lowestEnvironment", lowestEnv, "error", lowestErr)
+				return fmt.Errorf("failed to check lowest environment agent identity state: %w", lowestErr)
+			}
+			if len(lowestEnvVars) > 0 {
+				return s.buildPromotionIdentityBlockedError(ctx, ouID, projectName, agentName, req.TargetEnvironment)
+			}
 		}
 	}
 
@@ -5073,10 +5122,12 @@ func (s *agentManagerService) PromoteAgent(ctx context.Context, ouID string, pro
 		targetConfig = agentConfig
 	}
 
-	// Promote via OC client. The target environment's AgentID is already
-	// guaranteed to exist and be COMPLETED at this point — the pre-promote
-	// hard block above returns before reaching here otherwise — so there is
-	// nothing left to provision for it after a successful promote.
+	// Promote via OC client. Outside CP_MANAGED the target environment's AgentID
+	// is already guaranteed to exist and be COMPLETED at this point (the
+	// pre-promote hard block above returns before reaching here otherwise), so
+	// there is nothing left to provision for it after a successful promote. In
+	// CP_MANAGED it may still be on its way: the target then carries empty
+	// placeholders and the credentials are injected when it completes.
 	// A promotion is how an agent reaches production, so the record names both
 	// ends of the move rather than just the resource.
 	//
@@ -5108,6 +5159,17 @@ func (s *agentManagerService) PromoteAgent(ctx context.Context, ouID string, pro
 		return fmt.Errorf("failed to promote agent: %w", err)
 	}
 	promoteAttempt.Complete(ctx, nil)
+
+	if identityNeutralized {
+		// The binding may have completed after the read above and before the
+		// placeholders were written, and its own completion hook found nothing
+		// to replace then. Best-effort and cheap: a binding still not ready
+		// resolves to nothing to inject.
+		if reconcileErr := s.agentIdentityInjection.ReconcileForEnvironment(ctx, ouID, projectName, agentName, req.TargetEnvironment); reconcileErr != nil {
+			s.logger.Warn("Failed to reconcile AgentID credentials after promoting with placeholders",
+				"agentName", agentName, "environment", req.TargetEnvironment, "error", reconcileErr)
+		}
+	}
 
 	if targetConfig != nil {
 		var recordErr error
@@ -5391,6 +5453,82 @@ var (
 	promotionIdentityPollInterval = 300 * time.Millisecond
 	promotionIdentityPollBudget   = 3 * time.Second
 )
+
+// neutralIdentityEnvVars is the one rule for an environment that has no AgentID
+// credential of its own to write: empty placeholders for every identity key
+// when the pipeline's lowest environment holds a real credential, otherwise
+// nil. The lowest environment's credential lives in the shared Workload CR and
+// is inherited by every environment that does not override it, so anything that
+// writes a non-lowest environment's env overrides without its own credential
+// must write these instead. Only meaningful in CP_MANAGED, where promotion and
+// the AgentID are decoupled. An empty lowestEnv means the pipeline could not be
+// resolved and yields nil.
+func (s *agentManagerService) neutralIdentityEnvVars(ctx context.Context, ouID, projectName, agentName, lowestEnv string) ([]client.EnvVar, error) {
+	if lowestEnv == "" {
+		return nil, nil
+	}
+	lowestEnvVars, err := s.agentIdentityInjection.EnvVarsForEnvironment(ctx, ouID, projectName, agentName, lowestEnv)
+	if err != nil {
+		return nil, err
+	}
+	if len(lowestEnvVars) == 0 {
+		return nil, nil
+	}
+	return neutralAgentIdentityEnvVars(), nil
+}
+
+// identityEnvVarsOrPlaceholders returns the identity env vars to write into
+// envName's ReleaseBinding overrides when the write REPLACES them: the
+// environment's own vars when its identity is ready; empty placeholders when it
+// is not, the deployment is CP_MANAGED, envName is not the lowest environment
+// and the lowest environment holds a real credential (see
+// neutralIdentityEnvVars); otherwise nothing, as before. LEGACY_DIRECT never
+// gets placeholders (its paths keep their existing blocks). The second result
+// reports whether placeholders were returned.
+func (s *agentManagerService) identityEnvVarsOrPlaceholders(ctx context.Context, ouID, projectName, agentName, envName string) ([]client.EnvVar, bool, error) {
+	ready, err := s.agentIdentityInjection.EnvVarsForEnvironment(ctx, ouID, projectName, agentName, envName)
+	if err != nil || len(ready) > 0 || !s.identityManagedByControlPlane() {
+		return ready, false, err
+	}
+	pipeline, err := s.ocClient.GetProjectDeploymentPipeline(ctx, ouID, projectName)
+	if err != nil {
+		return nil, false, fmt.Errorf("resolve the project pipeline to keep AgentID placeholders: %w", err)
+	}
+	lowestEnv := findLowestEnvironment(pipeline.PromotionPaths)
+	if lowestEnv == envName {
+		return nil, false, nil
+	}
+	placeholders, err := s.neutralIdentityEnvVars(ctx, ouID, projectName, agentName, lowestEnv)
+	return placeholders, len(placeholders) > 0, err
+}
+
+// identityManagedByControlPlane reports whether AgentIDs are managed by the
+// identity control plane (CP_MANAGED). Anything that cannot say so, including a
+// deployment with AgentID provisioning disabled, is LEGACY_DIRECT.
+func (s *agentManagerService) identityManagedByControlPlane() bool {
+	provider, ok := s.agentThunderProvisioning.(IdentityManagementModeProvider)
+	return ok && provider.IdentityManagementMode() == thundersvc.IdentityManagementCPManaged
+}
+
+// identityBindingStatusForLog describes the target's AgentID binding for a log
+// line: its status, "missing" when there is no row, or "unknown" when it cannot
+// be read. Never fails the caller.
+func (s *agentManagerService) identityBindingStatusForLog(ctx context.Context, ouID, projectName, agentName, envName string) string {
+	if s.agentThunderProvisioning == nil {
+		return "unknown"
+	}
+	state, err := s.agentThunderProvisioning.GetBindingState(ctx, ouID, projectName, agentName, envName)
+	switch {
+	case err != nil:
+		return "unknown"
+	case state == nil:
+		return "missing"
+	case state.Status == models.AgentThunderStatusCompleted && !state.HasSecret:
+		return "completed without secret"
+	default:
+		return string(state.Status)
+	}
+}
 
 // pollForTargetIdentityReady gives a just-kicked-off AgentID provisioning
 // attempt (ProvisionForEnvironmentIfMissing's Thunder call runs on a detached
@@ -5739,11 +5877,24 @@ func (s *agentManagerService) UpdateAgentConfigurations(ctx context.Context, ouI
 	// the environment's entire env var set. Unlike the lenient LLM-var fallback
 	// above, an error here aborts: rewriting overrides without re-appending the
 	// identity vars would silently strip the agent's credentials.
-	identityEnvVars, idErr := s.agentIdentityInjection.EnvVarsForEnvironment(ctx, ouID, projectName, agentName, req.EnvironmentName)
-	if idErr != nil {
-		s.logger.Error("Failed to build agent identity env vars, aborting configurations update to prevent credential loss",
-			"agentName", agentName, "environment", req.EnvironmentName, "error", idErr)
-		return fmt.Errorf("failed to build agent identity env vars: %w", idErr)
+	//
+	// An environment whose identity is not ready yet (CP_MANAGED) keeps its empty
+	// placeholders, or the replace would hand it the lowest environment's
+	// credential through the shared Workload.
+	//
+	// Only a request that carries env rewrites the overrides; a files-only request
+	// leaves them alone, has nothing to protect and must not depend on the
+	// identity or pipeline lookups.
+	var identityEnvVars []client.EnvVar
+	identityNeutralized := false
+	if req.Env != nil {
+		var idErr error
+		identityEnvVars, identityNeutralized, idErr = s.identityEnvVarsOrPlaceholders(ctx, ouID, projectName, agentName, req.EnvironmentName)
+		if idErr != nil {
+			s.logger.Error("Failed to build agent identity env vars, aborting configurations update to prevent credential loss",
+				"agentName", agentName, "environment", req.EnvironmentName, "error", idErr)
+			return fmt.Errorf("failed to build agent identity env vars: %w", idErr)
+		}
 	}
 	systemManagedKeys = mergeAgentIdentityEnvVarKeys(systemManagedKeys)
 
@@ -5798,6 +5949,11 @@ func (s *agentManagerService) UpdateAgentConfigurations(ctx context.Context, ouI
 	if err := s.ocClient.ReplaceReleaseBindingWorkloadOverrides(ctx, ouID, agentName, req.EnvironmentName, envOverrides, fileOverrides); err != nil {
 		s.logger.Error("Failed to replace release binding workload overrides", "agentName", agentName, "environment", req.EnvironmentName, "error", err)
 		return fmt.Errorf("failed to update agent configurations: %w", err)
+	}
+
+	if identityNeutralized && envOverrides != nil {
+		s.logger.Warn("Kept empty AgentID placeholders while updating configurations; the environment's own AgentID is not ready",
+			"ouID", ouID, "projectName", projectName, "agentName", agentName, "environment", req.EnvironmentName)
 	}
 
 	s.logger.Info("Agent configurations updated successfully", "agentName", agentName, "environment", req.EnvironmentName)
