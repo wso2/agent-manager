@@ -22,6 +22,7 @@ import react from "@vitejs/plugin-react";
 export default defineConfig({
   plugins: [react()],
   test: {
+    server: { deps: { inline: ["@wso2/oxygen-ui", "@wso2/oxygen-ui-icons-react", "@mui/x-data-grid"] } },
     globals: true,
     environment: "jsdom",
     setupFiles: "./setupTests.tsx",
