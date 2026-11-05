@@ -126,6 +126,6 @@ func TestRegisterGatewayRejectsCrossOrganization(t *testing.T) {
 	req = req.WithContext(middleware.WithResolvedOrg(req.Context(), middleware.ResolvedOrg{OUID: "ou-1"}))
 	w := httptest.NewRecorder()
 	ctrl.RegisterGateway(w, req)
-	assert.Equal(t, http.StatusBadRequest, w.Code)
-	assert.Contains(t, w.Body.String(), "orgId must match")
+	assert.Equal(t, http.StatusForbidden, w.Code)
+	assert.Contains(t, w.Body.String(), "orgId does not match")
 }
