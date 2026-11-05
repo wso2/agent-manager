@@ -521,6 +521,177 @@ func (c *openChoreoClient) EnsureReleaseBindingRuntimeClass(ctx context.Context,
 	})
 }
 
+// SecretSyncRevisionField is the agent-api ComponentType environmentConfigs field that drives the
+// force-sync annotation of the secret-env ExternalSecret.
+const SecretSyncRevisionField = "secretSyncRevision"
+
+// forceSyncAnnotation is the ExternalSecret annotation the agent-api ComponentType renders from
+// secretSyncRevision.
+const forceSyncAnnotation = "force-sync"
+
+// ComponentTypeDeclaresEnvironmentConfig reports whether the ComponentType (or ClusterComponentType,
+// per the component's own reference) of the component declares field as a property of its
+// environmentConfigs schema. OpenChoreo keeps unknown keys in a ReleaseBinding's
+// componentTypeEnvironmentConfigs and does not prune or reject them at render time, so a key
+// written for an older ComponentType is accepted and silently has no effect; this is the only
+// way to tell. Any failure to read the component or the type is returned as an error so callers
+// can treat "cannot tell" like "not declared".
+func (c *openChoreoClient) ComponentTypeDeclaresEnvironmentConfig(ctx context.Context, ouID, componentName, field string) (bool, error) {
+	namespaceName := c.NamespaceFor(ouID)
+	compResp, err := c.ocClient.GetComponentWithResponse(ctx, namespaceName, componentName)
+	if err != nil {
+		return false, fmt.Errorf("failed to get component %q: %w", componentName, err)
+	}
+	if compResp.StatusCode() != http.StatusOK {
+		return false, handleErrorResponse(compResp.StatusCode(), ErrorResponses{
+			JSON401: compResp.JSON401,
+			JSON403: compResp.JSON403,
+			JSON404: compResp.JSON404,
+			JSON500: compResp.JSON500,
+		})
+	}
+	if compResp.JSON200 == nil || compResp.JSON200.Spec == nil {
+		return false, fmt.Errorf("empty response from get component %q", componentName)
+	}
+
+	ref := compResp.JSON200.Spec.ComponentType
+	// The name is "{workloadType}/{componentTypeName}".
+	ctName := ref.Name
+	if idx := strings.LastIndex(ctName, "/"); idx >= 0 {
+		ctName = ctName[idx+1:]
+	}
+
+	var schema *gen.SchemaSection
+	if ref.Kind != nil && *ref.Kind == gen.ComponentSpecComponentTypeKindClusterComponentType {
+		ctResp, err := c.ocClient.GetClusterComponentTypeWithResponse(ctx, ctName)
+		if err != nil {
+			return false, fmt.Errorf("failed to get cluster component type %q: %w", ctName, err)
+		}
+		if ctResp.StatusCode() != http.StatusOK {
+			return false, handleErrorResponse(ctResp.StatusCode(), ErrorResponses{
+				JSON401: ctResp.JSON401,
+				JSON403: ctResp.JSON403,
+				JSON404: ctResp.JSON404,
+				JSON500: ctResp.JSON500,
+			})
+		}
+		if ctResp.JSON200 == nil || ctResp.JSON200.Spec == nil {
+			return false, fmt.Errorf("empty response from get cluster component type %q", ctName)
+		}
+		schema = ctResp.JSON200.Spec.EnvironmentConfigs
+	} else {
+		ctResp, err := c.ocClient.GetComponentTypeWithResponse(ctx, namespaceName, ctName)
+		if err != nil {
+			return false, fmt.Errorf("failed to get component type %q: %w", ctName, err)
+		}
+		if ctResp.StatusCode() != http.StatusOK {
+			return false, handleErrorResponse(ctResp.StatusCode(), ErrorResponses{
+				JSON401: ctResp.JSON401,
+				JSON403: ctResp.JSON403,
+				JSON404: ctResp.JSON404,
+				JSON500: ctResp.JSON500,
+			})
+		}
+		if ctResp.JSON200 == nil || ctResp.JSON200.Spec == nil {
+			return false, fmt.Errorf("empty response from get component type %q", ctName)
+		}
+		schema = ctResp.JSON200.Spec.EnvironmentConfigs
+	}
+
+	if schema == nil || schema.OpenAPIV3Schema == nil {
+		return false, nil
+	}
+	props, _ := (*schema.OpenAPIV3Schema)["properties"].(map[string]interface{})
+	_, declared := props[field]
+	return declared, nil
+}
+
+// SetReleaseBindingSecretSyncRevision sets secretSyncRevision on the release binding's
+// ComponentTypeEnvironmentConfigs for (component, environment). A changed value makes the
+// ComponentType re-render the secret-env ExternalSecret with a new force-sync annotation, which
+// makes the external-secrets operator re-fetch the secret at once. It deliberately does NOT bump
+// restartedAt: the pod restart is a separate, later write.
+//
+// No read-back is done: OpenChoreo keeps unknown keys in this map, so a read-back cannot detect a
+// ComponentType that lacks the field (callers check that with ComponentTypeDeclaresEnvironmentConfig
+// first), and IsSecretSyncRevisionApplied is the real confirmation.
+func (c *openChoreoClient) SetReleaseBindingSecretSyncRevision(ctx context.Context, ouID, componentName, environment, revision string) error {
+	namespaceName := c.NamespaceFor(ouID)
+	binding, err := c.findReleaseBindingForEnv(ctx, namespaceName, componentName, environment)
+	if err != nil {
+		return err
+	}
+	if binding == nil {
+		return fmt.Errorf("no release binding found for component %q in environment %q: %w", componentName, environment, utils.ErrNotFound)
+	}
+
+	return c.retryReleaseBindingUpdate(ctx, namespaceName, binding.Metadata.Name, func(rb *gen.ReleaseBinding) {
+		if rb.Spec.ComponentTypeEnvironmentConfigs == nil {
+			overrides := make(map[string]interface{})
+			rb.Spec.ComponentTypeEnvironmentConfigs = &overrides
+		}
+		(*rb.Spec.ComponentTypeEnvironmentConfigs)[SecretSyncRevisionField] = revision
+	})
+}
+
+// IsSecretSyncRevisionApplied reports whether the live ExternalSecrets of the binding's data
+// plane resources carry force-sync == revision, i.e. OpenChoreo has re-rendered the binding and
+// applied the result. It reads the binding's resource tree, whose nodes hold the live objects.
+// True requires at least one ExternalSecret with the annotation and none carrying a different
+// non-empty value. It says nothing about whether the external-secrets operator has re-fetched the
+// secret since; that is not observable here.
+func (c *openChoreoClient) IsSecretSyncRevisionApplied(ctx context.Context, ouID, componentName, environment, revision string) (bool, error) {
+	namespaceName := c.NamespaceFor(ouID)
+	binding, err := c.findReleaseBindingForEnv(ctx, namespaceName, componentName, environment)
+	if err != nil {
+		return false, err
+	}
+	if binding == nil {
+		return false, fmt.Errorf("no release binding found for component %q in environment %q: %w", componentName, environment, utils.ErrNotFound)
+	}
+
+	resp, err := c.ocClient.GetReleaseBindingK8sResourceTreeWithResponse(ctx, namespaceName, binding.Metadata.Name)
+	if err != nil {
+		return false, fmt.Errorf("failed to get resource tree of release binding %q: %w", binding.Metadata.Name, err)
+	}
+	if resp.StatusCode() != http.StatusOK {
+		return false, handleErrorResponse(resp.StatusCode(), ErrorResponses{
+			JSON401: resp.JSON401,
+			JSON403: resp.JSON403,
+			JSON404: resp.JSON404,
+			JSON500: resp.JSON500,
+		})
+	}
+	return forceSyncRevisionApplied(resp.JSON200, revision), nil
+}
+
+// forceSyncRevisionApplied implements IsSecretSyncRevisionApplied over a resource tree.
+func forceSyncRevisionApplied(tree *gen.K8sResourceTreeResponse, revision string) bool {
+	if tree == nil || revision == "" {
+		return false
+	}
+	matched := false
+	for _, rendered := range tree.RenderedReleases {
+		for i := range rendered.Nodes {
+			node := &rendered.Nodes[i]
+			if node.Kind != "ExternalSecret" {
+				continue
+			}
+			meta, _ := node.Object["metadata"].(map[string]interface{})
+			annotations, _ := meta["annotations"].(map[string]interface{})
+			got, _ := annotations[forceSyncAnnotation].(string)
+			switch got {
+			case "":
+			case revision:
+				matched = true
+			default:
+				return false
+			}
+		}
+	}
+	return matched
+}
+
 // ReplaceReleaseBindingWorkloadOverrides replaces the container env vars and file mounts on the
 // release binding for the given (component, environment), and sets restartedAt to trigger a
 // pod rollout — all in a single Get→mutate→Update cycle.

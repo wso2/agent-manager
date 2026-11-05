@@ -251,11 +251,13 @@ func loadEnvs() {
 	}
 
 	config.SecretManager = SecretManagerConfig{
-		Provider:                     r.readOptionalString("SECRET_MANAGER_PROVIDER", "openchoreo"),
-		TargetPlaneKind:              r.readOptionalString("SECRET_MANAGER_TARGET_PLANE_KIND", "ClusterDataPlane"),
-		TargetPlaneName:              r.readOptionalString("SECRET_MANAGER_TARGET_PLANE_NAME", "default"),
-		RefreshInterval:              r.readOptionalString("SECRET_MANAGER_REFRESH_INTERVAL", "1h"),
-		AgentIdentityRefreshInterval: r.readOptionalString("AGENT_IDENTITY_REFRESH_INTERVAL", "15s"),
+		Provider:                           r.readOptionalString("SECRET_MANAGER_PROVIDER", "openchoreo"),
+		TargetPlaneKind:                    r.readOptionalString("SECRET_MANAGER_TARGET_PLANE_KIND", "ClusterDataPlane"),
+		TargetPlaneName:                    r.readOptionalString("SECRET_MANAGER_TARGET_PLANE_NAME", "default"),
+		RefreshInterval:                    r.readOptionalString("SECRET_MANAGER_REFRESH_INTERVAL", "1h"),
+		AgentIdentityRefreshInterval:       r.readOptionalString("AGENT_IDENTITY_REFRESH_INTERVAL", "15s"),
+		AgentIdentityForceSyncWait:         r.readOptionalString("AGENT_IDENTITY_FORCE_SYNC_WAIT", "20s"),
+		AgentIdentityForceSyncApplyTimeout: r.readOptionalString("AGENT_IDENTITY_FORCE_SYNC_APPLY_TIMEOUT", "2m"),
 	}
 
 	// OpenBao KV store configuration (data plane - for deployment secrets)
@@ -452,16 +454,18 @@ var validPostgresSSLModes = map[string]struct{}{
 // agentIdentityInjectionService's own default at first use (see
 // secretSyncWaitDuration's doc comment).
 func validateSecretManagerConfig(cfg *Config, r *configReader) {
-	d, err := time.ParseDuration(cfg.SecretManager.AgentIdentityRefreshInterval)
+	validatePositiveDuration(r, "AGENT_IDENTITY_REFRESH_INTERVAL", cfg.SecretManager.AgentIdentityRefreshInterval)
+	validatePositiveDuration(r, "AGENT_IDENTITY_FORCE_SYNC_WAIT", cfg.SecretManager.AgentIdentityForceSyncWait)
+	validatePositiveDuration(r, "AGENT_IDENTITY_FORCE_SYNC_APPLY_TIMEOUT", cfg.SecretManager.AgentIdentityForceSyncApplyTimeout)
+}
+
+func validatePositiveDuration(r *configReader, name, value string) {
+	d, err := time.ParseDuration(value)
 	switch {
 	case err != nil:
-		r.errors = append(r.errors, fmt.Errorf(
-			"AGENT_IDENTITY_REFRESH_INTERVAL %q is not a valid duration: %w", cfg.SecretManager.AgentIdentityRefreshInterval, err,
-		))
+		r.errors = append(r.errors, fmt.Errorf("%s %q is not a valid duration: %w", name, value, err))
 	case d <= 0:
-		r.errors = append(r.errors, fmt.Errorf(
-			"AGENT_IDENTITY_REFRESH_INTERVAL must be a positive duration, got %q", cfg.SecretManager.AgentIdentityRefreshInterval,
-		))
+		r.errors = append(r.errors, fmt.Errorf("%s must be a positive duration, got %q", name, value))
 	}
 }
 

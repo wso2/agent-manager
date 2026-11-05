@@ -1012,7 +1012,7 @@ func ProvideAgentIdentityInjectionService(
 	cfg config.Config,
 	logger *slog.Logger,
 ) services.AgentIdentityInjectionService {
-	return services.NewAgentIdentityInjectionService(repo, agentConfigRepo, mcpProxyScopeRepo, ocClient, cfg.SecretManager.AgentIdentityRefreshInterval, logger)
+	return services.NewAgentIdentityInjectionService(repo, agentConfigRepo, mcpProxyScopeRepo, ocClient, cfg.SecretManager.AgentIdentityRefreshInterval, logger, services.WithAgentIdentityForceSyncWait(cfg.SecretManager.AgentIdentityForceSyncWait), services.WithAgentIdentityForceSyncApplyTimeout(cfg.SecretManager.AgentIdentityForceSyncApplyTimeout))
 }
 
 func ProvideAgentIdentityInjectionServiceWithEndpointResolver(
@@ -1026,12 +1026,12 @@ func ProvideAgentIdentityInjectionServiceWithEndpointResolver(
 	logger *slog.Logger,
 ) services.AgentIdentityInjectionService {
 	if endpointResolver == nil {
-		return services.NewAgentIdentityInjectionService(repo, agentConfigRepo, mcpProxyScopeRepo, ocClient, cfg.SecretManager.AgentIdentityRefreshInterval, logger)
+		return services.NewAgentIdentityInjectionService(repo, agentConfigRepo, mcpProxyScopeRepo, ocClient, cfg.SecretManager.AgentIdentityRefreshInterval, logger, services.WithAgentIdentityForceSyncWait(cfg.SecretManager.AgentIdentityForceSyncWait), services.WithAgentIdentityForceSyncApplyTimeout(cfg.SecretManager.AgentIdentityForceSyncApplyTimeout))
 	}
 	resolveTokenEndpoint := func(ctx context.Context, ouID, orgNamespace, envName string) (string, error) {
 		return thundersvc.ResolveEnvThunderTokenEndpoint(ctx, endpointResolver, readThunderURL, ouID, orgNamespace, envName)
 	}
-	return services.NewAgentIdentityInjectionServiceWithTokenEndpointResolver(repo, agentConfigRepo, mcpProxyScopeRepo, ocClient, cfg.SecretManager.AgentIdentityRefreshInterval, logger, resolveTokenEndpoint)
+	return services.NewAgentIdentityInjectionServiceWithTokenEndpointResolver(repo, agentConfigRepo, mcpProxyScopeRepo, ocClient, cfg.SecretManager.AgentIdentityRefreshInterval, logger, resolveTokenEndpoint, services.WithAgentIdentityForceSyncWait(cfg.SecretManager.AgentIdentityForceSyncWait), services.WithAgentIdentityForceSyncApplyTimeout(cfg.SecretManager.AgentIdentityForceSyncApplyTimeout))
 }
 
 // ProvideEventBus connects to NATS, or starts the embedded in-memory server,
