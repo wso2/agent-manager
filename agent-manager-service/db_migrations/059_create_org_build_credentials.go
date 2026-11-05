@@ -25,8 +25,8 @@ import (
 // endpoint. Only its ID and the name of the SecretReference holding it are
 // stored; the secret itself stays in the secret store, which the build reads it
 // from through that SecretReference.
-var migration054 = migration{
-	ID: 54,
+var migration059 = migration{
+	ID: 59,
 	Migrate: func(db *gorm.DB) error {
 		return db.Transaction(func(tx *gorm.DB) error {
 			createTable := `
