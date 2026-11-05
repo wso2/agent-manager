@@ -126,7 +126,7 @@ func llmProviderToolSpecs() []toolTestSpec {
 			permissions:         []rbac.Permission{rbac.LLMProviderRead},
 			descriptionKeywords: []string{"guardrail"},
 			descriptionMinLen:   20,
-			optionalParams:      []string{"provider_id"},
+			optionalParams:      []string{"provider_id", "name"},
 			testArgs:            map[string]any{"provider_id": testProviderID},
 			expectedMethod:      "ListLLMGuardrails",
 			validateCall: func(t *testing.T, args []interface{}) {
@@ -390,5 +390,40 @@ func TestRemoveMissingGuardrailIsAnError(t *testing.T) {
 	}
 	if _, called := mock.calls["SetLLMProviderGuardrails"]; called {
 		t.Error("provider was saved and redeployed for a no-op removal")
+	}
+}
+
+// The guardrail list hides gateway policies that are not guardrails and leaves
+// out parameter schemas, which together run past what clients pass to the
+// model; a lookup by name returns the one schema.
+func TestListLLMGuardrailsFiltersAndReturnsSchemaByName(t *testing.T) {
+	session, _ := setupTestServer(t)
+	call := func(args map[string]any) (bool, string) {
+		t.Helper()
+		res, err := session.CallTool(context.Background(), &gomcp.CallToolParams{Name: "list_llm_guardrails", Arguments: args})
+		if err != nil {
+			t.Fatalf("CallTool: %v", err)
+		}
+		return res.IsError, res.Content[0].(*gomcp.TextContent).Text
+	}
+
+	isErr, text := call(map[string]any{})
+	if isErr || !strings.Contains(text, testGuardrailName) {
+		t.Fatalf("list: got %s", text)
+	}
+	if strings.Contains(text, `"cors"`) {
+		t.Errorf("list includes a non-guardrail policy: %s", text)
+	}
+	if strings.Contains(text, `"parameters"`) {
+		t.Errorf("list includes parameter schemas: %s", text)
+	}
+
+	isErr, text = call(map[string]any{"name": testGuardrailName})
+	if isErr || !strings.Contains(text, `"parameters"`) || !strings.Contains(text, `"mask"`) {
+		t.Errorf("lookup by name: got %s", text)
+	}
+
+	if isErr, _ = call(map[string]any{"name": "cors"}); !isErr {
+		t.Error("lookup of a non-guardrail policy by name succeeded")
 	}
 }
