@@ -18,6 +18,8 @@ package services
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -155,5 +157,51 @@ func TestDeleteInDeletedProject(t *testing.T) {
 		f := orphanFixture(t)
 		require.NoError(t, f.svc.DeleteInDeletedProject(context.Background(), testOrg, testProjName, "orders"))
 		assert.Equal(t, []string{"orders"}, f.deletedProxy)
+	})
+}
+
+func TestOrgDeleteOfProjectProxy(t *testing.T) {
+	lookup := func(f *projectProxyFixture, project *models.ProjectResponse, err error) *[]string {
+		var asked []string
+		f.svc.base.getProject = func(_ context.Context, _, name string) (*models.ProjectResponse, error) {
+			asked = append(asked, name)
+			return project, err
+		}
+		return &asked
+	}
+
+	t.Run("allowed once the project is gone", func(t *testing.T) {
+		f := orphanFixture(t)
+		asked := lookup(f, nil, fmt.Errorf("project %s: %w", testProjName, utils.ErrProjectNotFound))
+		require.NoError(t, f.svc.base.Delete(context.Background(), testOrg, "org", "orders"))
+		assert.Equal(t, []string{testProjName}, *asked, "looked up by the stored project name")
+		assert.Equal(t, []string{"orders"}, f.deletedProxy)
+	})
+	t.Run("refused while agents use it", func(t *testing.T) {
+		f := orphanFixture(t)
+		lookup(f, nil, utils.ErrProjectNotFound)
+		f.mappings = []models.EnvAgentMCPMapping{{}}
+		require.ErrorIs(t, f.svc.base.Delete(context.Background(), testOrg, "org", "orders"), utils.ErrMCPProxyHasMappings)
+		assert.Empty(t, f.deletedProxy)
+	})
+	t.Run("project owned while the project exists", func(t *testing.T) {
+		f := orphanFixture(t)
+		lookup(f, &models.ProjectResponse{Name: testProjName, UUID: staleProjUUID}, nil)
+		require.ErrorIs(t, f.svc.base.Delete(context.Background(), testOrg, "org", "orders"), utils.ErrMCPProxyProjectOwned)
+		assert.Empty(t, f.deletedProxy)
+	})
+	t.Run("a lookup failure is not taken for a gone project", func(t *testing.T) {
+		f := orphanFixture(t)
+		lookup(f, nil, errors.New("openchoreo down"))
+		err := f.svc.base.Delete(context.Background(), testOrg, "org", "orders")
+		require.Error(t, err)
+		assert.NotErrorIs(t, err, utils.ErrMCPProxyProjectOwned)
+		assert.Empty(t, f.deletedProxy)
+	})
+	t.Run("org update stays project owned when the project is gone", func(t *testing.T) {
+		f := orphanFixture(t)
+		lookup(f, nil, utils.ErrProjectNotFound)
+		_, err := f.svc.base.Update(context.Background(), testOrg, "orders", &models.MCPProxyDTO{ID: "orders", Name: "x", Version: "v1"})
+		require.ErrorIs(t, err, utils.ErrMCPProxyProjectOwned)
 	})
 }

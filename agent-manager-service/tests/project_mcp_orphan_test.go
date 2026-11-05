@@ -46,8 +46,8 @@ import (
 )
 
 // TestProjectMCPProxyOfDeletedProject drives the proxies a project leaves when it is deleted in OpenChoreo:
-// the project routes still read and remove them by the stored project name, PUT refuses, and a re-created project
-// of the same name adopts a proxy by re-PUTting its handle.
+// the project routes still read and remove them by the stored project name, PUT refuses, a re-created project of
+// the same name adopts a proxy by re-PUTting its handle, and the org route removes one whose project is gone.
 func TestProjectMCPProxyOfDeletedProject(t *testing.T) {
 	suffix := uuid.NewString()[:8]
 	project := "po-" + suffix
@@ -268,5 +268,25 @@ func TestProjectMCPProxyOfDeletedProject(t *testing.T) {
 		assert.Equal(t, utils.ErrCodeHandleInUse, errorCode(t, rr))
 		assert.EqualValues(t, 1, count(t, `SELECT count(*) FROM mcp_proxies m JOIN artifacts a ON a.uuid = m.uuid
 			WHERE a.ou_id = ? AND a.handle = ? AND m.project_uuid IS NULL`, ouID, orgHandle))
+	})
+
+	t.Run("the org route removes a proxy whose project is gone", func(t *testing.T) {
+		setProject(uuid.NewString())
+		ledger := "ledger-" + suffix
+		artifact := publish(t, ledger)
+
+		rr := orgDo(http.MethodDelete, "/mcp-proxies/"+ledger, nil)
+		require.Equal(t, http.StatusConflict, rr.Code, "refused while the project exists")
+		assert.Equal(t, utils.ErrCodeProjectOwned, errorCode(t, rr))
+
+		setProject("")
+		rr = orgDo(http.MethodPut, "/mcp-proxies/"+ledger, map[string]any{"id": ledger, "name": "x", "version": "v1"})
+		require.Equal(t, http.StatusConflict, rr.Code, "an org update still refuses: %s", rr.Body.String())
+		assert.Equal(t, utils.ErrCodeProjectOwned, errorCode(t, rr))
+
+		rr = orgDo(http.MethodDelete, "/mcp-proxies/"+ledger, nil)
+		require.Equal(t, http.StatusNoContent, rr.Code, rr.Body.String())
+		tornDown(t, artifact)
+		proxyGone(t, ledger)
 	})
 }

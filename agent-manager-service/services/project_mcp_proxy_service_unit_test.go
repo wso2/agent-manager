@@ -91,6 +91,14 @@ func newProjectProxyFixture(t *testing.T) *projectProxyFixture {
 			}
 			return utils.ErrMCPProxyNotFound
 		},
+		GetByHandleFunc: func(_ context.Context, handle, _ string) (*models.MCPProxy, error) {
+			p, ok := f.proxies[handle]
+			if !ok {
+				return nil, gorm.ErrRecordNotFound
+			}
+			cp := *p
+			return &cp, nil
+		},
 		ExistsFunc: func(_ context.Context, handle, _ string) (bool, error) {
 			_, ok := f.proxies[handle]
 			return ok, nil

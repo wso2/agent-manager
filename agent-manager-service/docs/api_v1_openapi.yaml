@@ -7157,7 +7157,10 @@ paths:
       tags:
         - MCP Proxies
       summary: Delete MCP proxy
-      description: Deletes an MCP proxy if no agent mappings still reference it.
+      description: >-
+        Deletes an MCP proxy if no agent mappings still reference it. A project proxy is refused with
+        409 PROJECT_OWNED while its project exists in OpenChoreo; once the project is gone (looked up by
+        the project name stored on the proxy), this route deletes it with the same teardown.
       operationId: deleteMCPProxy
       responses:
         "204":
@@ -7181,7 +7184,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "409":
-          description: PROJECT_OWNED (the proxy belongs to a project) or MCP proxy has agent mappings
+          description: PROJECT_OWNED (the proxy belongs to a project that still exists) or MCP proxy has agent mappings
           content:
             application/json:
               schema:

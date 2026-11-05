@@ -96,6 +96,8 @@ type MCPProxyService struct {
 	core                   *reconcile.Core
 	kind                   *MCPProxyKind
 	isExternalAgent        externalAgentLookup
+	// getProject resolves a project by name in OpenChoreo; nil treats every project as existing.
+	getProject func(ctx context.Context, ouID, projectName string) (*models.ProjectResponse, error)
 }
 
 // externalAgentLookup reports whether the named agent of an organization is an external agent
@@ -123,8 +125,13 @@ func NewMCPProxyService(
 	kind *MCPProxyKind,
 	ocClient client.OpenChoreoClient,
 ) *MCPProxyService {
+	var getProject func(ctx context.Context, ouID, projectName string) (*models.ProjectResponse, error)
+	if ocClient != nil {
+		getProject = ocClient.GetProject
+	}
 	return &MCPProxyService{
 		isExternalAgent:      externalAgentLookupFrom(ocClient),
+		getProject:           getProject,
 		core:                 core,
 		kind:                 kind,
 		db:                   db,
@@ -699,6 +706,8 @@ func (s *MCPProxyService) refreshAgentsBoundToProxy(ctx context.Context, proxy *
 
 // Delete removes an MCP proxy by handle. MCP proxy mappings are deployable artifacts
 // derived from an MCP proxy, so the source proxy cannot be deleted while mappings exist.
+// A project proxy is refused (utils.ErrMCPProxyProjectOwned) unless OpenChoreo no longer
+// has its project.
 func (s *MCPProxyService) Delete(ctx context.Context, orgUUID, orgName, proxyID string) error {
 	_ = orgName // unused: cleanup now resolves env-Thunder by orgUUID (ouID), not orgName
 
@@ -715,13 +724,38 @@ func (s *MCPProxyService) Delete(ctx context.Context, orgUUID, orgName, proxyID 
 		return fmt.Errorf("failed to get MCP proxy before delete: %w", err)
 	}
 	if proxy.ProjectUUID != nil {
-		return utils.ErrMCPProxyProjectOwned
+		// A project proxy is removed through its project's routes, unless the project is gone:
+		// then the org route is the way to remove what it left.
+		gone, err := s.projectGone(ctx, orgUUID, proxy)
+		if err != nil {
+			return err
+		}
+		if !gone {
+			return utils.ErrMCPProxyProjectOwned
+		}
 	}
 
 	if err := s.ensureMCPProxyNotInUse(ctx, orgUUID, proxy); err != nil {
 		return err
 	}
 	return s.deleteLoadedMCPProxy(ctx, orgUUID, handle, proxy)
+}
+
+// projectGone reports whether OpenChoreo no longer has the project a project proxy was published by, looked up
+// by the project name stored on the proxy. A lookup failure other than not-found is returned, never taken for a
+// gone project.
+func (s *MCPProxyService) projectGone(ctx context.Context, orgUUID string, proxy *models.MCPProxy) (bool, error) {
+	projectName := valueOrEmpty(proxy.ProjectName)
+	if s.getProject == nil || projectName == "" {
+		return false, nil
+	}
+	if _, err := s.getProject(ctx, orgUUID, projectName); err != nil {
+		if errors.Is(err, utils.ErrProjectNotFound) {
+			return true, nil
+		}
+		return false, fmt.Errorf("failed to resolve the MCP proxy's project: %w", err)
+	}
+	return false, nil
 }
 
 // ensureMCPProxyNotInUse refuses (utils.ErrMCPProxyHasMappings) while an agent still

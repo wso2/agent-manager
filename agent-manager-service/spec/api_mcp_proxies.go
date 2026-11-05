@@ -194,7 +194,7 @@ func (r ApiDeleteMCPProxyRequest) Execute() (*http.Response, error) {
 /*
 DeleteMCPProxy Delete MCP proxy
 
-Deletes an MCP proxy if no agent mappings still reference it.
+Deletes an MCP proxy if no agent mappings still reference it. A project proxy is refused with 409 PROJECT_OWNED while its project exists in OpenChoreo; once the project is gone (looked up by the project name stored on the proxy), this route deletes it with the same teardown.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param orgName Organization name/handle
