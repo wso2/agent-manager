@@ -693,6 +693,9 @@ importers:
       '@agent-management-platform/eslint-config':
         specifier: workspace:*
         version: link:../eslint-config
+      '@agent-management-platform/feature-management':
+        specifier: workspace:*
+        version: link:../feature-management
       '@thunderid/react':
         specifier: 1.0.6
         version: 1.0.6(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.3))(react@19.2.3)

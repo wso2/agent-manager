@@ -20,14 +20,14 @@ import { useMemo, type ReactNode } from "react";
 import { globalConfig } from "@agent-management-platform/types";
 import {
   FeatureManagementProvider,
-  type FeatureEnableConfig,
+  type FeatureFlags,
 } from "@agent-management-platform/feature-management";
 import type { UseFeatureAccess } from "../../types/featureAccess";
 
 const allowAll: UseFeatureAccess = () => ({ isLoading: false });
 
 interface FeatureAccessBridgeProps {
-  featureEnable?: Partial<FeatureEnableConfig>;
+  featureFlags?: Partial<FeatureFlags>;
   /** Must be the same function on every render, like any hook. */
   useAccess?: UseFeatureAccess;
   children: ReactNode;
@@ -35,19 +35,19 @@ interface FeatureAccessBridgeProps {
 
 /** Runs the app's access hook inside the auth providers and feeds feature management. */
 export function FeatureAccessBridge({
-  featureEnable,
+  featureFlags,
   useAccess = allowAll,
   children,
 }: FeatureAccessBridgeProps) {
   const { featureAccess, isLoading } = useAccess();
   // Props from the embedding app win over the runtime config.
-  const resolvedFeatureEnable = useMemo(
-    () => ({ ...globalConfig.featureEnable, ...featureEnable }),
-    [featureEnable],
+  const resolvedFeatureFlags = useMemo(
+    () => ({ ...globalConfig.featureFlags, ...featureFlags }),
+    [featureFlags],
   );
   return (
     <FeatureManagementProvider
-      featureEnable={resolvedFeatureEnable}
+      featureFlags={resolvedFeatureFlags}
       featureAccess={featureAccess}
       isAccessLoading={isLoading}
     >

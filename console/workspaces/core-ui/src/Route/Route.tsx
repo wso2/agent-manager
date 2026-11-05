@@ -82,7 +82,6 @@ import {
   relativeRouteMap,
   absoluteRouteMap,
   getBasePath,
-  isAgentIdentityEnabled,
 } from "@agent-management-platform/types";
 import {
   useExternalPageModules,
@@ -90,6 +89,7 @@ import {
 } from "@agent-management-platform/views";
 import {
   useEnvironmentFeatures,
+  useFeatureFlag,
   useGatewayFeatures,
   usePipelineFeatures,
 } from "@agent-management-platform/feature-management";
@@ -226,7 +226,7 @@ function AgentGuard() {
 export function RootRouter() {
   const externalOrgPageModules = useExternalPageModules();
   // Keep the Agent ID pages unreachable by URL too, not just hidden in the nav.
-  const agentIdEnabled = isAgentIdentityEnabled();
+  const agentIdEnabled = useFeatureFlag("enableAgentIdentity");
   const { canView: canViewEnvironments } = useEnvironmentFeatures();
   const { canView: canViewGateways } = useGatewayFeatures();
   const { canView: canViewPipelines } = usePipelineFeatures();

@@ -43,7 +43,6 @@ import {
   AgentResponse,
   UpdateAgentBuildParametersRequest,
   InputInterfaceType,
-  globalConfig,
   INPUT_LIMITS,
   LIVENESS_CHECK_DEFAULTS,
   READINESS_CHECK_DEFAULTS,
@@ -60,6 +59,7 @@ import {
 } from "@agent-management-platform/shared-component";
 import { useEffect, useCallback, useMemo, useState } from "react";
 import { GitSecretSelect } from "./components/GitSecretSelect";
+import { useFeatureFlag } from "@agent-management-platform/feature-management";
 
 interface ConfigureBuildDrawerProps {
   open: boolean;
@@ -251,7 +251,7 @@ export function ConfigureBuildDrawer({
   orgId,
   projectId,
 }: ConfigureBuildDrawerProps) {
-  const isPrivateRepoEnabled = globalConfig.featureFlags?.enablePrivateRepoSupport === true;
+  const isPrivateRepoEnabled = useFeatureFlag("enablePrivateRepoSupport");
   // An agent created before subtypes were recorded carries no subType, so fall
   // back to the shape of its input interface — a port or a schema means it was
   // configured as a custom API.

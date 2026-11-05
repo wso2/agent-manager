@@ -20,7 +20,7 @@ import { PageLayout } from "@agent-management-platform/views";
 import { Button } from "@wso2/oxygen-ui";
 import { Plus } from "@wso2/oxygen-ui-icons-react";
 import { useListGateways } from "@agent-management-platform/api-client";
-import { useGatewayFeatures } from "@agent-management-platform/feature-management";
+import { useFeatureFlag, useGatewayFeatures } from "@agent-management-platform/feature-management";
 import {
   generatePath,
   Navigate,
@@ -28,7 +28,7 @@ import {
   Routes,
   useParams,
 } from "react-router-dom";
-import { absoluteRouteMap, globalConfig } from "@agent-management-platform/types";
+import { absoluteRouteMap } from "@agent-management-platform/types";
 import { AIGatewaysTable } from "./subComponents/AIGatewaysTable";
 import { ViewGateway } from "./subComponents/ViewGateway";
 import { EditGateway } from "./subComponents/EditGateway";
@@ -38,7 +38,7 @@ export const GatewaysOrganization: React.FC = () => {
   const { orgId } = useParams<{ orgId: string }>();
   const [addDrawerOpen, setAddDrawerOpen] = useState(false);
   const { canWrite } = useGatewayFeatures();
-  const selfHostedEnabled = globalConfig.featureFlags?.enableSelfHostedGateways === true;
+  const selfHostedEnabled = useFeatureFlag("enableSelfHostedGateways");
   // Shares the table's query; an empty list offers Add Gateway in its empty state instead.
   const { data: gatewaysData } = useListGateways({ orgName: orgId });
   const hasGateways = (gatewaysData?.gateways?.length ?? 0) > 0;

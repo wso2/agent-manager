@@ -46,12 +46,9 @@ import {
   useListMCPProxies,
   useListProjects,
 } from "@agent-management-platform/api-client";
-import {
-  absoluteRouteMap,
-  isAgentIdentityEnabled,
-} from "@agent-management-platform/types";
+import { absoluteRouteMap } from "@agent-management-platform/types";
 import { returnToState } from "@agent-management-platform/views";
-import { useResourceAccess } from "@agent-management-platform/feature-management";
+import { useFeatureFlag, useResourceAccess } from "@agent-management-platform/feature-management";
 import { useRotatingSlots, CARD_SLOTS } from "./hooks/useRotatingSlots";
 import { CARD_GRID_SX } from "./cardGrid";
 import { ResourceCard, ResourceCount, type ResourceCardData } from "./subComponents/ResourceCard";
@@ -68,6 +65,7 @@ export const OrganizationOverview: React.FC = () => {
   const { canWrite: canWriteProject } = useResourceAccess("project");
   const { canWrite: canWriteLLM } = useResourceAccess("llm_provider");
   const { canWrite: canWriteMCP } = useResourceAccess("mcp_server");
+  const agentIdEnabled = useFeatureFlag("enableAgentIdentity");
 
   const { data: kinds, isLoading: isLoadingKinds } = useListAgentKinds(params);
   const { data: llmProviders, isLoading: isLoadingLLM } = useListLLMProviders(params);
@@ -118,7 +116,7 @@ export const OrganizationOverview: React.FC = () => {
       actionLabel: "Browse evaluators",
       to: generatePath(orgRoutes.children.evaluators.path, { orgId }),
     },
-    ...(isAgentIdentityEnabled()
+    ...(agentIdEnabled
       ? [
           {
             icon: <Users size={26} />,

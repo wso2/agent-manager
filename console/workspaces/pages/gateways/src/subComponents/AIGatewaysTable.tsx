@@ -49,11 +49,11 @@ import {
 } from "@agent-management-platform/shared-component";
 import {
   absoluteRouteMap,
-  globalConfig,
   isSelfHostedGateway,
   showGatewayHosting,
   type GatewayResponse,
 } from "@agent-management-platform/types";
+import { useFeatureFlag } from "@agent-management-platform/feature-management";
 
 interface AIGatewaysTableProps {
   onAddGateway?: () => void;
@@ -96,7 +96,7 @@ const matchesQuery = (gateway: GatewayResponse, query: string) => {
 };
 
 export function AIGatewaysTable({ onAddGateway, canDelete = true }: AIGatewaysTableProps) {
-  const selfHostedEnabled = globalConfig.featureFlags?.enableSelfHostedGateways === true;
+  const selfHostedEnabled = useFeatureFlag("enableSelfHostedGateways");
   const navigate = useNavigate();
   const { orgId } = useParams<{ orgId: string }>();
   const [searchQuery, setSearchQuery] = useState("");

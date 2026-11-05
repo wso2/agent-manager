@@ -36,10 +36,9 @@ import {
 import { isListEmpty, useConfirmationDialog } from "@agent-management-platform/shared-component";
 import {
   absoluteRouteMap,
-  globalConfig,
   type ThunderUser,
 } from "@agent-management-platform/types";
-import { useResourceAccess } from "@agent-management-platform/feature-management";
+import { useFeatureFlag, useResourceAccess } from "@agent-management-platform/feature-management";
 import { ListingSkeletonRows } from "./components/ListingSkeletonRows";
 
 const AVATAR_SX = { width: 28, height: 28, fontSize: 12 } as const;
@@ -47,7 +46,7 @@ const AVATAR_SX = { width: 28, height: 28, fontSize: 12 } as const;
 export const UsersPage: React.FC = () => {
   const { orgId } = useParams<{ orgId: string }>();
   const navigate = useNavigate();
-  const isUserManagementEnabled = globalConfig.featureFlags?.enableUserManagement === true;
+  const isUserManagementEnabled = useFeatureFlag("enableUserManagement");
   const { canWrite } = useResourceAccess("member");
 
   const [page, setPage] = useState(0);

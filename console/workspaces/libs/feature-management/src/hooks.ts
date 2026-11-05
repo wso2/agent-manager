@@ -17,10 +17,10 @@
  */
 
 import { useFeatureManagement } from "./FeatureManagementProvider";
-import type { AccessResource, FeatureAccessKey, FeatureEnableKey } from "./types";
+import type { AccessResource, FeatureAccessKey, FeatureFlagKey } from "./types";
 
-export function useFeatureDisabled(key: FeatureEnableKey): boolean {
-  return useFeatureManagement().isDisabled(key);
+export function useFeatureFlag(key: FeatureFlagKey): boolean {
+  return useFeatureManagement().isFlagOn(key);
 }
 
 export function useFeatureAccess(key: FeatureAccessKey): boolean {

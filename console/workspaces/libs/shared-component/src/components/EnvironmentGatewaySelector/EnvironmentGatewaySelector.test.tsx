@@ -21,7 +21,10 @@ import { render, screen, fireEvent, within } from "@testing-library/react";
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { ThemeProvider, createTheme } from "@wso2/oxygen-ui";
 import {
-  globalConfig,
+  FeatureManagementProvider,
+  type FeatureFlags,
+} from "@agent-management-platform/feature-management";
+import {
   type Environment,
   type GatewayDeploymentStatus,
   type GatewayHosting,
@@ -38,8 +41,14 @@ vi.mock("@agent-management-platform/api-client", () => ({
 
 import { EnvironmentGatewaySelectorView } from "./EnvironmentGatewaySelector";
 
+let featureFlags: Partial<FeatureFlags> = {};
+
 const renderWithTheme = (component: React.ReactElement) =>
-  render(<ThemeProvider theme={createTheme()}>{component}</ThemeProvider>);
+  render(
+    <FeatureManagementProvider featureFlags={featureFlags}>
+      <ThemeProvider theme={createTheme()}>{component}</ThemeProvider>
+    </FeatureManagementProvider>,
+  );
 
 const makeEnvironment = (id: string, name: string): Environment => ({
   id,
@@ -652,7 +661,7 @@ describe("EnvironmentGatewaySelectorView hosting", () => {
   const environments = [makeEnvironment("env-a", "Alpha"), makeEnvironment("env-b", "Beta")];
 
   afterEach(() => {
-    delete globalConfig.featureFlags?.enableSelfHostedGateways;
+    featureFlags = {};
   });
 
   it("preselects the managed gateway when a self-hosted one is also mapped", () => {
@@ -746,7 +755,7 @@ describe("EnvironmentGatewaySelectorView hosting", () => {
   });
 
   it("shows a hosting chip per option when self-hosted gateways are enabled", () => {
-    globalConfig.featureFlags = { ...globalConfig.featureFlags, enableSelfHostedGateways: true };
+    featureFlags = { enableSelfHostedGateways: true };
     renderWithTheme(
       <ControlledSelector
         environments={environments}
@@ -767,7 +776,7 @@ describe("EnvironmentGatewaySelectorView hosting", () => {
   });
 
   it("shows the hosting chip on a deployed row with several candidates", () => {
-    globalConfig.featureFlags = { ...globalConfig.featureFlags, enableSelfHostedGateways: true };
+    featureFlags = { enableSelfHostedGateways: true };
     renderWithTheme(
       <ControlledSelector
         environments={environments}
@@ -784,7 +793,7 @@ describe("EnvironmentGatewaySelectorView hosting", () => {
   });
 
   it("shows an existing self-hosted gateway's chip when self-hosted gateways are disabled", () => {
-    globalConfig.featureFlags = { ...globalConfig.featureFlags, enableSelfHostedGateways: false };
+    featureFlags = { enableSelfHostedGateways: false };
     renderWithTheme(
       <ControlledSelector
         environments={environments}
@@ -805,7 +814,7 @@ describe("EnvironmentGatewaySelectorView hosting", () => {
   });
 
   it("shows the hosting chip on a deployed self-hosted row when self-hosted gateways are disabled", () => {
-    globalConfig.featureFlags = { ...globalConfig.featureFlags, enableSelfHostedGateways: false };
+    featureFlags = { enableSelfHostedGateways: false };
     renderWithTheme(
       <ControlledSelector
         environments={environments}
@@ -822,7 +831,7 @@ describe("EnvironmentGatewaySelectorView hosting", () => {
   });
 
   it("shows no hosting chip with only managed gateways when self-hosted gateways are disabled", () => {
-    globalConfig.featureFlags = { ...globalConfig.featureFlags, enableSelfHostedGateways: false };
+    featureFlags = { enableSelfHostedGateways: false };
     renderWithTheme(
       <ControlledSelector
         environments={environments}

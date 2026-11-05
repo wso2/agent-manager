@@ -17,6 +17,7 @@
  */
 
 import type { ThunderIDProviderProps } from "@thunderid/react";
+import type { FeatureFlags } from "@agent-management-platform/feature-management";
 import { TraceListTimeRange } from "../api/traces";
 import { type Duration, sub } from "date-fns";
 export interface AppConfig {
@@ -146,54 +147,9 @@ export interface AppConfig {
     /** Path to the AMP instrumentation version mapping section. */
     versionMapping?: string;
   };
-  /** Feature flags. All default to false (disabled) unless explicitly enabled. */
-  featureFlags?: FeatureFlags;
-  /** Feature switches read by the feature-management package. Unset keys are false. */
-  featureEnable?: {
-    /** Environments are managed outside the console; hides the Environments pages. */
-    externally_managed_env?: boolean;
-    /** Gateways are managed outside the console; hides the Gateways pages. */
-    externally_managed_gateway?: boolean;
-    /** Deployment pipelines are managed outside the console; hides their pages. */
-    externally_managed_pipeline?: boolean;
-  };
+  /** Feature flags, read through @agent-management-platform/feature-management. */
+  featureFlags?: Partial<FeatureFlags>;
 }
-
-export type FeatureFlags = {
-  /** Hides the environment ThunderID console link; other Agent ID features are unchanged. */
-  disableThunderConsole?: boolean;
-  /** Shows the private Git repository option when building agents from source. */
-  enablePrivateRepoSupport?: boolean;
-  /**
-   * When true, identity provider management calls the REST API directly instead of
-   * rendering the self-hosted manage-identity-provider.sh script snippet.
-   */
-  enableIdentityProviderManagedMode?: boolean;
-  /**
-   * When false, the Profile Settings text fields and Save Changes button are
-   * hidden/disabled, and the Change Password tab is disabled. It also hides the
-   * organization Settings navigation (users, roles, groups) and the Profile
-   * Settings menu entry, for deployments where an external identity platform
-   * owns user and organization management.
-   */
-  enableProfileManagement?: boolean;
-  /**
-   * When false, the Add User, Invite User, Create Role, and Create Group
-   * buttons on the Settings page are disabled.
-   */
-  enableUserManagement?: boolean;
-  /**
-   * Shows the Agent ID surfaces: the per-agent Agent ID page, the
-   * organization-level identity groups/roles pages, and the roles & groups
-   * section on the agent overview.
-   */
-  enableAgentIdentity?: boolean;
-  /**
-   * When true, the console offers self-hosted gateways: registering a gateway
-   * the customer runs and issuing its registration tokens. Defaults to false.
-   */
-  enableSelfHostedGateways?: boolean;
-};
 
 export type GuardrailCapabilities = {
   /** Unlocks: aws-bedrock-guardrail */
@@ -216,15 +172,6 @@ declare global {
 }
 
 export const globalConfig: AppConfig = window.__RUNTIME_CONFIG__;
-
-/**
- * Whether the Agent ID surfaces are shown. Read through this rather than the
- * flag directly — the feature spans the nav, routes and the agent overview, and
- * every "value missing" path (older hand-written config.js, unsubstituted
- * template placeholder) has to land on disabled.
- */
-export const isAgentIdentityEnabled = (): boolean =>
-  globalConfig.featureFlags?.enableAgentIdentity === true;
 
 /**
  * Normalised base path: no trailing slash, leading slash when non-empty.

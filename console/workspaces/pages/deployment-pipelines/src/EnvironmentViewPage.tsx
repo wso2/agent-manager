@@ -29,7 +29,7 @@ import {
   Typography,
 } from "@wso2/oxygen-ui";
 import { AlertTriangle, Copy, DoorClosedLocked, Edit, KeyRound } from "@wso2/oxygen-ui-icons-react";
-import { useEnvironmentFeatures } from "@agent-management-platform/feature-management";
+import { useEnvironmentFeatures, useFeatureFlag } from "@agent-management-platform/feature-management";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
 import {
   copyToClipboard,
@@ -46,7 +46,6 @@ import {
 } from "@agent-management-platform/api-client";
 import {
   absoluteRouteMap,
-  isAgentIdentityEnabled,
   type GatewayResponse,
   type GatewayStatus,
 } from "@agent-management-platform/types";
@@ -100,7 +99,7 @@ export function EnvironmentViewPage() {
 
   // Thunder Id is part of the Agent ID feature set; skip the fetch entirely when
   // the flag is off so the hidden section costs nothing.
-  const agentIdEnabled = isAgentIdentityEnabled();
+  const agentIdEnabled = useFeatureFlag("enableAgentIdentity");
 
   const { data: thunderInstancesData, isLoading: isLoadingProviders } =
     useListThunderInstances({ orgName: agentIdEnabled ? orgId : undefined });

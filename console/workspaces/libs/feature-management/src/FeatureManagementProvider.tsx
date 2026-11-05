@@ -19,20 +19,20 @@
 import { createContext, useContext, useMemo, type ReactNode } from "react";
 import type {
   FeatureAccessConfig,
-  FeatureEnableConfig,
+  FeatureFlags,
   FeatureManagement,
 } from "./types";
 
 function createFeatureManagement(
-  featureEnable: Partial<FeatureEnableConfig>,
+  featureFlags: Partial<FeatureFlags>,
   featureAccess: Partial<FeatureAccessConfig>,
   isAccessLoading: boolean,
 ): FeatureManagement {
   return {
-    featureEnable,
+    featureFlags,
     featureAccess,
     isAccessLoading,
-    isDisabled: (key) => featureEnable[key] ?? false,
+    isFlagOn: (key) => featureFlags[key] ?? false,
     hasAccess: (key) => featureAccess[key] ?? true,
   };
 }
@@ -43,8 +43,8 @@ const FeatureManagementContext = createContext<FeatureManagement>(
 );
 
 export interface FeatureManagementProviderProps {
-  /** Feature switches; unset keys are `false` (feature on). */
-  featureEnable?: Partial<FeatureEnableConfig>;
+  /** Feature flags; unset keys are `false`. */
+  featureFlags?: Partial<FeatureFlags>;
   /** Access rights; unset keys are `true` (allowed). */
   featureAccess?: Partial<FeatureAccessConfig>;
   /** True while `featureAccess` is still being worked out, e.g. the token is decoding. */
@@ -54,7 +54,7 @@ export interface FeatureManagementProviderProps {
 
 /** Nested providers inherit from the outer one and override only the keys they set. */
 export function FeatureManagementProvider({
-  featureEnable,
+  featureFlags,
   featureAccess,
   isAccessLoading,
   children,
@@ -63,11 +63,11 @@ export function FeatureManagementProvider({
   const value = useMemo(
     () =>
       createFeatureManagement(
-        { ...parent.featureEnable, ...featureEnable },
+        { ...parent.featureFlags, ...featureFlags },
         { ...parent.featureAccess, ...featureAccess },
         isAccessLoading ?? parent.isAccessLoading,
       ),
-    [parent, featureEnable, featureAccess, isAccessLoading],
+    [parent, featureFlags, featureAccess, isAccessLoading],
   );
   return (
     <FeatureManagementContext.Provider value={value}>

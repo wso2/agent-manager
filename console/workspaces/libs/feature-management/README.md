@@ -1,28 +1,33 @@
 # @agent-management-platform/feature-management
 
-Turns console features off by config, and gates them by what the user may do.
+Console feature flags, and gating by what the user may do.
 
 `FeatureManagementProvider` props:
 
 | Prop | Example | Unset keys |
 | --- | --- | --- |
-| `featureEnable` | `{ externally_managed_env: true }` | `false` (feature on) |
+| `featureFlags` | `{ externallyManagedEnv: true }` | `false` |
 | `featureAccess` | `{ env_read: true, env_write: false }` | `true` (allowed) |
 | `isAccessLoading` | `true` while the token decodes | `false` |
 
-With no provider, or no props, every feature is on and every access is allowed.
+With no provider, every flag is off and every access is allowed.
 Nested providers inherit from the outer one and override only the keys they set.
 
-## Switches (`featureEnable`)
+## Flags (`featureFlags`)
 
-Only resources that can be managed outside the console have one. `true` hides the
-resource's nav item and pages.
+All console feature flags live here (`FeatureFlags` in `src/types.ts`); read them with
+`useFeatureFlag("enableSelfHostedGateways")`, not from `globalConfig`. In config.js each is
+`featureFlags.<name>`, set from a `FEATURE_FLAG_*` env var (Helm:
+`console.config.featureFlags`).
 
-| Key | Runtime config env var |
+Three flags hide a resource that is managed outside the console. They are off by
+default, so the pages show:
+
+| Flag | Env var |
 | --- | --- |
-| `externally_managed_env` | `FEATURE_EXTERNALLY_MANAGED_ENV` |
-| `externally_managed_gateway` | `FEATURE_EXTERNALLY_MANAGED_GATEWAY` |
-| `externally_managed_pipeline` | `FEATURE_EXTERNALLY_MANAGED_PIPELINE` |
+| `externallyManagedEnv` | `FEATURE_FLAG_EXTERNALLY_MANAGED_ENV` |
+| `externallyManagedGateway` | `FEATURE_FLAG_EXTERNALLY_MANAGED_GATEWAY` |
+| `externallyManagedPipeline` | `FEATURE_FLAG_EXTERNALLY_MANAGED_PIPELINE` |
 
 ## Access (`featureAccess`)
 
@@ -45,26 +50,27 @@ import {
   useResourceAccess,
 } from "@agent-management-platform/feature-management";
 
-const { canView, canWrite } = useEnvironmentFeatures(); // switch + access
+const { canView, canWrite } = useEnvironmentFeatures(); // flag + access
 const { canWrite: canEditAgents } = useResourceAccess("agent");
 ```
 
 `useEnvironmentFeatures`, `useGatewayFeatures` and `usePipelineFeatures` combine the
-switch with read/write access; use them for those three resources.
+flag with read/write access; use them for those three resources.
 
 ## Where the values come from
 
 The package doesn't know about tokens or scopes. In this console:
 
-- `featureEnable` comes from `window.__RUNTIME_CONFIG__.featureEnable` (Helm:
-  `console.config.featureEnable`), overridden by `<CoreUI featureEnable>`.
+- `featureFlags` comes from `window.__RUNTIME_CONFIG__.featureFlags`, overridden by
+  `<CoreUI featureFlags>`.
 - `featureAccess` comes from the `useFeatureAccess` hook passed to `<CoreUI>`. The
   web-ui app passes `useScopeAccess` (`apps/web-ui/src/access/`), which maps token
   scopes to access keys. Another app can pass its own hook.
 
 ## Add a key
 
-1. Add it to `FeatureEnableConfig` or `FeatureAccessConfig` in `src/types.ts`.
+1. Add it to `FeatureFlags` or `FeatureAccessConfig` in `src/types.ts` (and, for a
+   flag, to `config.template.js` and the Helm chart).
 2. For access, map it in the app (`apps/web-ui/src/access/scopeAccess.ts`).
 3. Gate the UI with `useResourceAccess` or a hook in `src/features/`.
 

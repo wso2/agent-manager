@@ -17,16 +17,33 @@
  */
 
 /**
- * Switches that turn a console feature off. Every key defaults to `false`, so all
- * features are on unless configured otherwise. Augment this interface to add keys.
+ * Feature flags, read from the runtime config's `featureFlags`. Every key defaults
+ * to `false`. Augment this interface to add keys.
  */
-export interface FeatureEnableConfig {
+export interface FeatureFlags {
+  /** Hides the environment ThunderID console link; other Agent ID features are unchanged. */
+  disableThunderConsole: boolean;
+  /** Shows the private Git repository option when building agents from source. */
+  enablePrivateRepoSupport: boolean;
+  /** Identity provider management calls the REST API instead of showing the script. */
+  enableIdentityProviderManagedMode: boolean;
+  /**
+   * Enables Profile Settings editing and the organization Settings navigation. Off for
+   * deployments where an external identity platform owns users and the organization.
+   */
+  enableProfileManagement: boolean;
+  /** Enables the Add User, Invite User, Create Role and Create Group buttons. */
+  enableUserManagement: boolean;
+  /** Shows the Agent ID pages, identity groups/roles, and the agent overview section. */
+  enableAgentIdentity: boolean;
+  /** Offers self-hosted gateways: registering one and issuing its tokens. */
+  enableSelfHostedGateways: boolean;
   /** Environments are managed outside the console; hides the Environments pages. */
-  externally_managed_env: boolean;
+  externallyManagedEnv: boolean;
   /** Gateways are managed outside the console; hides the Gateways pages. */
-  externally_managed_gateway: boolean;
+  externallyManagedGateway: boolean;
   /** Deployment pipelines are managed outside the console; hides their pages. */
-  externally_managed_pipeline: boolean;
+  externallyManagedPipeline: boolean;
 }
 
 /**
@@ -77,7 +94,7 @@ export interface FeatureAccessConfig {
   agent_suspend: boolean;
 }
 
-export type FeatureEnableKey = keyof FeatureEnableConfig;
+export type FeatureFlagKey = keyof FeatureFlags;
 export type FeatureAccessKey = keyof FeatureAccessConfig;
 
 /** Resources with a `<resource>_read` / `<resource>_write` access pair. */
@@ -88,12 +105,12 @@ export type AccessResource = {
 }[FeatureAccessKey];
 
 export interface FeatureManagement {
-  featureEnable: Partial<FeatureEnableConfig>;
+  featureFlags: Partial<FeatureFlags>;
   featureAccess: Partial<FeatureAccessConfig>;
   /** True while the user's access is still being worked out. */
   isAccessLoading: boolean;
-  /** Whether the feature is turned off; `false` when unset. */
-  isDisabled: (key: FeatureEnableKey) => boolean;
+  /** The flag's value; `false` when unset. */
+  isFlagOn: (key: FeatureFlagKey) => boolean;
   /** Whether the user has this access; `true` when unset. */
   hasAccess: (key: FeatureAccessKey) => boolean;
 }

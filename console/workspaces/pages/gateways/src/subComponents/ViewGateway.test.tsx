@@ -18,7 +18,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { globalConfig } from "@agent-management-platform/types";
+import {
+  FeatureManagementProvider,
+  type FeatureFlags,
+} from "@agent-management-platform/feature-management";
 import { ViewGateway } from "./ViewGateway";
 
 const getGateway = vi.hoisted(() => vi.fn());
@@ -52,6 +55,8 @@ vi.mock("./SelfHostedSetupSteps", () => ({
   SelfHostedSetupSteps: () => <div>setup steps</div>,
 }));
 
+let featureFlags: Partial<FeatureFlags> = {};
+
 const renderGateway = (hosting: "MANAGED" | "SELF_HOSTED") => {
   getGateway.mockReturnValue({
     data: {
@@ -66,24 +71,26 @@ const renderGateway = (hosting: "MANAGED" | "SELF_HOSTED") => {
     error: null,
   });
   render(
-    <MemoryRouter
-      initialEntries={["/org/acme/gateways/gw-1"]}
-      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-    >
-      <Routes>
-        <Route path="/org/:orgId/gateways/:gatewayId" element={<ViewGateway />} />
-      </Routes>
-    </MemoryRouter>,
+    <FeatureManagementProvider featureFlags={featureFlags}>
+      <MemoryRouter
+        initialEntries={["/org/acme/gateways/gw-1"]}
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
+        <Routes>
+          <Route path="/org/:orgId/gateways/:gatewayId" element={<ViewGateway />} />
+        </Routes>
+      </MemoryRouter>
+    </FeatureManagementProvider>,
   );
 };
 
 afterEach(() => {
-  delete globalConfig.featureFlags?.enableSelfHostedGateways;
+  featureFlags = {};
 });
 
 describe("ViewGateway with enableSelfHostedGateways off", () => {
   it("shows a self-hosted gateway's setup steps and tokens", () => {
-    globalConfig.featureFlags = { ...globalConfig.featureFlags, enableSelfHostedGateways: false };
+    featureFlags = { enableSelfHostedGateways: false };
     renderGateway("SELF_HOSTED");
 
     expect(screen.getByText("setup steps")).toBeInTheDocument();
@@ -92,7 +99,7 @@ describe("ViewGateway with enableSelfHostedGateways off", () => {
   });
 
   it("shows a managed gateway's identity providers", () => {
-    globalConfig.featureFlags = { ...globalConfig.featureFlags, enableSelfHostedGateways: false };
+    featureFlags = { enableSelfHostedGateways: false };
     renderGateway("MANAGED");
 
     expect(screen.getByText("identity providers card")).toBeInTheDocument();

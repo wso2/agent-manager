@@ -47,7 +47,6 @@ import {
   useUpsertIdentityProvider,
 } from "@agent-management-platform/api-client";
 import {
-  globalConfig,
   isManagedGateway,
   type GatewayEnvironmentResponse,
   type IdentityProvider,
@@ -62,6 +61,7 @@ import {
   type ManageIdentityProviderMode,
   type ScriptInputs,
 } from "./manageIdentityProviderScript";
+import { useFeatureFlag } from "@agent-management-platform/feature-management";
 
 export type { ManageIdentityProviderMode };
 
@@ -118,7 +118,7 @@ export function ManageIdentityProviderDialog({
   // Managed mode: when enabled, the server patches the gateway runtime config
   // directly. When off (self-hosted default), the dialog renders the script
   // snippet exactly as before.
-  const managedMode = globalConfig.featureFlags?.enableIdentityProviderManagedMode === true;
+  const managedMode = useFeatureFlag("enableIdentityProviderManagedMode");
   const upsertIdp = useUpsertIdentityProvider();
   const deleteIdp = useDeleteIdentityProvider();
   const isSubmitting = upsertIdp.isPending || deleteIdp.isPending;

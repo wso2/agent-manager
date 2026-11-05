@@ -25,7 +25,7 @@ import {
   type FeatureManagementProviderProps,
 } from "./FeatureManagementProvider";
 import { useEnvironmentFeatures, useGatewayFeatures, usePipelineFeatures } from "./features";
-import { useResourceAccess } from "./hooks";
+import { useFeatureFlag, useResourceAccess } from "./hooks";
 
 const withProvider = (props: Omit<FeatureManagementProviderProps, "children">) =>
   function Wrapper({ children }: { children: ReactNode }) {
@@ -53,7 +53,7 @@ describe("FeatureManagementProvider", () => {
         gateway: useGatewayFeatures(),
         pipeline: usePipelineFeatures(),
       }),
-      { wrapper: withProvider({ featureEnable: { externally_managed_gateway: true } }) },
+      { wrapper: withProvider({ featureFlags: { externallyManagedGateway: true } }) },
     );
     expect(result.current.gateway).toEqual({ canView: false, canWrite: false });
     expect(result.current.env).toEqual({ canView: true, canWrite: true });
@@ -72,6 +72,16 @@ describe("FeatureManagementProvider", () => {
       wrapper: withProvider({ featureAccess: { pipeline_read: false } }),
     });
     expect(result.current).toEqual({ canView: false, canWrite: false });
+  });
+
+  it("reads flags, defaulting to off", () => {
+    const { result } = renderHook(() => ({
+      selfHosted: useFeatureFlag("enableSelfHostedGateways"),
+      agentId: useFeatureFlag("enableAgentIdentity"),
+    }), {
+      wrapper: withProvider({ featureFlags: { enableSelfHostedGateways: true } }),
+    });
+    expect(result.current).toEqual({ selfHosted: true, agentId: false });
   });
 
   it("reads a resource's access pair", () => {

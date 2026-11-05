@@ -17,15 +17,15 @@
  */
 
 import type { ExternalModule } from '@agent-management-platform/views';
-import type { FeatureEnableConfig } from '@agent-management-platform/feature-management';
+import type { FeatureFlags } from '@agent-management-platform/feature-management';
 import type { UseFeatureAccess } from './types/featureAccess';
 import { GlobalProviders } from './Providers';
 import { RootRouter } from './Route';
 
 export interface CoreUIProps {
   externalPageModules?: ExternalModule[];
-  /** Feature switches; override the runtime config's `featureEnable`. */
-  featureEnable?: Partial<FeatureEnableConfig>;
+  /** Feature flags; override the runtime config's `featureFlags`. */
+  featureFlags?: Partial<FeatureFlags>;
   /**
    * Hook returning the user's access. It runs inside the auth providers, so it can
    * read the token. Pass the same function on every render. Omit to allow everything.
@@ -33,11 +33,11 @@ export interface CoreUIProps {
   useFeatureAccess?: UseFeatureAccess;
 }
 
-function CoreUI({ externalPageModules, featureEnable, useFeatureAccess }: CoreUIProps) {
+function CoreUI({ externalPageModules, featureFlags, useFeatureAccess }: CoreUIProps) {
   return (
     <GlobalProviders
       externalPageModules={externalPageModules}
-      featureEnable={featureEnable}
+      featureFlags={featureFlags}
       useFeatureAccess={useFeatureAccess}
     >
       <RootRouter />

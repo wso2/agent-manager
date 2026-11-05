@@ -25,7 +25,7 @@ import {
   ExternalModuleProvider,
   type ExternalModule,
 } from "@agent-management-platform/views";
-import type { FeatureEnableConfig } from "@agent-management-platform/feature-management";
+import type { FeatureFlags } from "@agent-management-platform/feature-management";
 import type { UseFeatureAccess } from "../../types/featureAccess";
 import { RuntimeConfigProvider } from "./RuntimeConfigProvider";
 import { FeatureAccessBridge } from "./FeatureAccessBridge";
@@ -33,12 +33,12 @@ import { FeatureAccessBridge } from "./FeatureAccessBridge";
 export const GlobalProviders = ({
   children,
   externalPageModules = [],
-  featureEnable,
+  featureFlags,
   useFeatureAccess,
 }: {
   children: React.ReactNode;
   externalPageModules?: ExternalModule[];
-  featureEnable?: Partial<FeatureEnableConfig>;
+  featureFlags?: Partial<FeatureFlags>;
   useFeatureAccess?: UseFeatureAccess;
 }) => {
   return (
@@ -47,7 +47,7 @@ export const GlobalProviders = ({
         <AuthProvider>
           <ClientProvider>
             <RuntimeConfigProvider>
-              <FeatureAccessBridge featureEnable={featureEnable} useAccess={useFeatureAccess}>
+              <FeatureAccessBridge featureFlags={featureFlags} useAccess={useFeatureAccess}>
                 <ConfirmationDialogProvider>
                   <ExternalModuleProvider externalPageModules={externalPageModules}>
                     {children}

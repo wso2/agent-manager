@@ -17,7 +17,7 @@
  */
 
 import { useFeatureManagement } from "../FeatureManagementProvider";
-import type { AccessResource, FeatureAccessKey, FeatureEnableKey } from "../types";
+import type { AccessResource, FeatureAccessKey, FeatureFlagKey } from "../types";
 
 export interface ManagedResourceFeatures {
   /** Show the nav item and pages. */
@@ -26,14 +26,14 @@ export interface ManagedResourceFeatures {
   canWrite: boolean;
 }
 
-/** Pages are shown when the feature is on and the user can read; writing also needs write. */
+/** Pages show unless managed outside the console, and need read; actions also need write. */
 function useManagedResourceFeatures(
-  disabledBy: FeatureEnableKey,
+  managedOutsideFlag: FeatureFlagKey,
   resource: AccessResource,
 ): ManagedResourceFeatures {
-  const { isDisabled, hasAccess } = useFeatureManagement();
+  const { isFlagOn, hasAccess } = useFeatureManagement();
   const canView =
-    !isDisabled(disabledBy) && hasAccess(`${resource}_read` as FeatureAccessKey);
+    !isFlagOn(managedOutsideFlag) && hasAccess(`${resource}_read` as FeatureAccessKey);
   return {
     canView,
     canWrite: canView && hasAccess(`${resource}_write` as FeatureAccessKey),
@@ -41,10 +41,10 @@ function useManagedResourceFeatures(
 }
 
 export const useEnvironmentFeatures = () =>
-  useManagedResourceFeatures("externally_managed_env", "env");
+  useManagedResourceFeatures("externallyManagedEnv", "env");
 
 export const useGatewayFeatures = () =>
-  useManagedResourceFeatures("externally_managed_gateway", "gateway");
+  useManagedResourceFeatures("externallyManagedGateway", "gateway");
 
 export const usePipelineFeatures = () =>
-  useManagedResourceFeatures("externally_managed_pipeline", "pipeline");
+  useManagedResourceFeatures("externallyManagedPipeline", "pipeline");

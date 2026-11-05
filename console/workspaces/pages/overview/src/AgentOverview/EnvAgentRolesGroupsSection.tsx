@@ -24,8 +24,7 @@ import {
   useProvisionAgentIdentity,
   useRetryAgentIdentityProvisioning,
 } from "@agent-management-platform/api-client";
-import { isAgentIdentityEnabled } from "@agent-management-platform/types";
-import { useResourceAccess } from "@agent-management-platform/feature-management";
+import { useFeatureFlag, useResourceAccess } from "@agent-management-platform/feature-management";
 import {
   OverviewSectionCard,
   useAgentRolesAndGroups,
@@ -54,7 +53,7 @@ export const EnvAgentRolesGroupsSection: React.FC<EnvAgentRolesGroupsSectionProp
 }) => {
   // useAgentIdentityBinding has no `enabled` option, so the ids are withheld
   // when Agent ID is disabled to keep the identity request from firing.
-  const agentIdEnabled = isAgentIdentityEnabled();
+  const agentIdEnabled = useFeatureFlag("enableAgentIdentity");
   const { canWrite } = useResourceAccess("agent_identity");
   const {
     binding, provisioned, isLoading: isLoadingIdentity, isError: isIdentityError,

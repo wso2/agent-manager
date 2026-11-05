@@ -52,8 +52,6 @@ import {
 } from "react-router-dom";
 import {
   absoluteRouteMap,
-  globalConfig,
-  isAgentIdentityEnabled,
 } from "@agent-management-platform/types";
 import {
   useGetAgent,
@@ -63,6 +61,7 @@ import {
 import { usePipelineEnvironmentsState } from "@agent-management-platform/shared-component";
 import {
   useEnvironmentFeatures,
+  useFeatureFlag,
   useFeatureManagement,
   useGatewayFeatures,
   usePipelineFeatures,
@@ -140,7 +139,8 @@ export function useNavigationItems(): Array<
   });
   const { environments, isLoading: isLoadingEnvironments } =
     usePipelineEnvironmentsState(orgId, projectId);
-  const agentIdEnabled = isAgentIdentityEnabled();
+  const agentIdEnabled = useFeatureFlag("enableAgentIdentity");
+  const profileManagementEnabled = useFeatureFlag("enableProfileManagement");
   const { canView: canViewEnvironments } = useEnvironmentFeatures();
   const { canView: canViewGateways } = useGatewayFeatures();
   const { canView: canViewPipelines } = usePipelineFeatures();
@@ -875,7 +875,7 @@ export function useNavigationItems(): Array<
       ...(navVisibility.events ? eventsItem(eventsOrgRoute, { orgId }) : []),
       // Settings is shown only when profile management is enabled, and then only if RBAC
       // grants access to at least one of its identity surfaces.
-      ...(globalConfig.featureFlags?.enableProfileManagement === true &&
+      ...(profileManagementEnabled &&
       (navVisibility.identityUsers ||
         navVisibility.identityRoles ||
         navVisibility.identityGroups)
