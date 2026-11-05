@@ -491,7 +491,7 @@ func (r ApiGetMCPProxyRequest) Execute() (*MCPProxyResponse, *http.Response, err
 /*
 GetMCPProxy Get MCP proxy details
 
-Retrieve detailed information about an MCP proxy. Also returns a project's proxy (read only), with projectName set; its endpoints are its environment bindings and the upstream URL is omitted.
+Retrieve detailed information about an MCP proxy. Also returns a project's proxy (read only), with projectName set and no endpoints; its per-environment data (security, deployment status) is on GET /orgs/{orgName}/projects/{projName}/mcp-proxies/{proxyId}.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param orgName Organization name/handle

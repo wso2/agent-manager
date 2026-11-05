@@ -34,7 +34,7 @@ type MCPProxyResponse struct {
 	Vhost *string `json:"vhost,omitempty"`
 	// MCP specification version implemented by the upstream server
 	McpSpecVersion *string `json:"mcpSpecVersion,omitempty"`
-	// Deployable endpoint definitions of the MCP proxy. Each endpoint reports its per-environment deployment status.
+	// Deployable endpoint definitions of the MCP proxy. Each endpoint reports its per-environment deployment status. Absent for a project-owned proxy.
 	Endpoints []MCPProxyEndpoint `json:"endpoints,omitempty"`
 	// Whether the MCP proxy is available in the catalog
 	InCatalog *bool `json:"inCatalog,omitempty"`

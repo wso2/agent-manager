@@ -7069,7 +7069,8 @@ paths:
       summary: Get MCP proxy details
       description: >-
         Retrieve detailed information about an MCP proxy. Also returns a project's proxy (read only),
-        with projectName set; its endpoints are its environment bindings and the upstream URL is omitted.
+        with projectName set and no endpoints; its per-environment data (security, deployment status)
+        is on GET /orgs/{orgName}/projects/{projName}/mcp-proxies/{proxyId}.
       operationId: getMCPProxy
       responses:
         "200":
@@ -18144,7 +18145,7 @@ components:
           minItems: 1
           description: >-
             Deployable endpoint definitions of the MCP proxy. Each endpoint
-            reports its per-environment deployment status.
+            reports its per-environment deployment status. Absent for a project-owned proxy.
           items:
             $ref: "#/components/schemas/MCPProxyEndpoint"
         inCatalog:

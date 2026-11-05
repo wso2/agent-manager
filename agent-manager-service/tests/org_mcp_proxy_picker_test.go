@@ -85,6 +85,11 @@ func TestOrgMCPProxyRoutesAndProjectProxies(t *testing.T) {
 	require.NoError(t, repositories.NewMCPProxyRepo(gdb).Create(context.Background(), gdb,
 		&models.MCPProxy{Configuration: models.MCPProxyConfig{Name: "Org " + suffix, Version: "v1"}},
 		orgHandle, "Org "+suffix, "v1", ouID, nil, nil))
+	// Give the org proxy an endpoint of its own, which its org GET keeps reporting.
+	require.NoError(t, gdb.Exec(`INSERT INTO mcp_proxy_endpoints (uuid, mcp_proxy_uuid, handle, name, configuration)
+		SELECT ?, uuid, 'primary', 'primary', '{}'::jsonb
+		FROM artifacts WHERE handle = ? AND ou_id = ?`,
+		uuid.New(), orgHandle, ouID).Error)
 	// Give the project proxy a binding's endpoint with an upstream, so the read-only view has something to strip.
 	const secretUpstream = "https://internal-upstream.example.com/mcp"
 	require.NoError(t, gdb.Exec(`INSERT INTO mcp_proxy_endpoints (uuid, mcp_proxy_uuid, handle, name, configuration)
@@ -128,18 +133,26 @@ func TestOrgMCPProxyRoutesAndProjectProxies(t *testing.T) {
 		assert.Equal(t, utils.ErrCodeProjectNotFound, errorCode(t, rr))
 	})
 
-	t.Run("get of a project proxy is read-only and hides the upstream", func(t *testing.T) {
+	t.Run("get of a project proxy is read-only and leaves its bindings out", func(t *testing.T) {
 		rr := orgDo(http.MethodGet, "/"+projHandle, nil)
 		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 		assert.NotContains(t, rr.Body.String(), "internal-upstream")
+		assert.NotContains(t, rr.Body.String(), `"endpoints"`, "the binding rows are internal; the field is omitted")
 		var dto models.MCPProxyDTO
 		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &dto))
 		require.NotNil(t, dto.ProjectName)
 		assert.Equal(t, projName, *dto.ProjectName)
-		require.NotEmpty(t, dto.Endpoints, "the binding's endpoint is listed")
-		for _, ep := range dto.Endpoints {
-			assert.Nil(t, ep.Upstream.Main)
-		}
+		assert.Empty(t, dto.Endpoints)
+	})
+
+	t.Run("get of an org proxy still reports its endpoints", func(t *testing.T) {
+		rr := orgDo(http.MethodGet, "/"+orgHandle, nil)
+		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+		var dto models.MCPProxyDTO
+		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &dto))
+		assert.Nil(t, dto.ProjectName)
+		require.Len(t, dto.Endpoints, 1)
+		assert.Equal(t, "primary", dto.Endpoints[0].ID)
 	})
 
 	t.Run("org put and delete of a project proxy are 409 PROJECT_OWNED and change nothing", func(t *testing.T) {

@@ -4684,7 +4684,7 @@ type MCPProxyResponse struct {
 	// Description Description of the MCP proxy
 	Description *string `json:"description,omitempty"`
 
-	// Endpoints Deployable endpoint definitions of the MCP proxy. Each endpoint reports its per-environment deployment status.
+	// Endpoints Deployable endpoint definitions of the MCP proxy. Each endpoint reports its per-environment deployment status. Absent for a project-owned proxy.
 	Endpoints *[]MCPProxyEndpoint `json:"endpoints,omitempty"`
 
 	// Gateways Gateway UUIDs associated with the MCP proxy

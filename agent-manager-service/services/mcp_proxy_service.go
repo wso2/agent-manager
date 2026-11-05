@@ -416,11 +416,10 @@ func (s *MCPProxyService) Get(ctx context.Context, orgUUID, proxyID string) (*mo
 
 	dto := convertModelMCPProxyToSpec(proxy)
 	if dto != nil && proxy.ProjectUUID != nil {
-		// A project proxy is read-only here: report its owner and never its upstream.
+		// A project proxy is read-only here: report its owner. Its endpoint rows are its
+		// environment bindings, an internal storage shape, so they are left out below; the
+		// per-environment view is the project route's.
 		dto.ProjectName = proxy.ProjectName
-		for i := range dto.Endpoints {
-			dto.Endpoints[i].Upstream = models.UpstreamConfig{}
-		}
 	}
 	if dto != nil && s.deploymentRepo != nil {
 		// Deployments are keyed by each (endpoint, environment) artifact UUID (the proxy's
@@ -467,6 +466,9 @@ func (s *MCPProxyService) Get(ctx context.Context, orgUUID, proxyID string) (*mo
 			gateways = append(gateways, gatewayID)
 		}
 		dto.Gateways = gateways
+	}
+	if dto != nil && proxy.ProjectUUID != nil {
+		dto.Endpoints = nil
 	}
 	return dto, nil
 }

@@ -18,6 +18,7 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"testing"
 
@@ -123,16 +124,18 @@ func TestOrgListWithProjectIncludesBoth(t *testing.T) {
 	assert.Equal(t, "p1", *byID["p1-mcp"].ProjectName)
 }
 
-func TestOrgGetProjectProxyIsReadOnlyNoUpstream(t *testing.T) {
+func TestOrgGetProjectProxyIsReadOnlyNoEndpoints(t *testing.T) {
 	svc := orgPickerSvc(nil, orgPickerProjectProxy())
 
 	resp, err := svc.Get(context.Background(), "org", "p1-mcp")
 	require.NoError(t, err)
 	require.NotNil(t, resp.ProjectName)
 	assert.Equal(t, "p1", *resp.ProjectName)
-	require.Len(t, resp.Endpoints, 1)
-	assert.Nil(t, resp.Endpoints[0].Upstream.Main, "upstream must not be exposed")
-	assert.Nil(t, resp.Endpoints[0].Upstream.Sandbox)
+	assert.Empty(t, resp.Endpoints, "a project proxy's bindings are internal; they are not reported as endpoints")
+	raw, err := json.Marshal(resp)
+	require.NoError(t, err)
+	assert.NotContains(t, string(raw), `"endpoints"`, "the field is omitted, not an empty list")
+	assert.NotContains(t, string(raw), orgPickerUpstream, "upstream must not be exposed")
 }
 
 func TestOrgGetOrgProxyKeepsUpstreamAndHasNoProjectName(t *testing.T) {
@@ -146,6 +149,7 @@ func TestOrgGetOrgProxyKeepsUpstreamAndHasNoProjectName(t *testing.T) {
 	resp, err := svc.Get(context.Background(), "org", "org-mcp")
 	require.NoError(t, err)
 	assert.Nil(t, resp.ProjectName)
+	require.Len(t, resp.Endpoints, 1, "an org proxy still reports its endpoints")
 	require.NotNil(t, resp.Endpoints[0].Upstream.Main)
 	assert.Equal(t, orgPickerUpstream, resp.Endpoints[0].Upstream.Main.URL)
 }
