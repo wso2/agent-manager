@@ -6768,43 +6768,43 @@ type ListProjectMCPProxiesParams struct {
 	// Offset Number of results to skip. A negative value falls back to 0.
 	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
 
-	// XImpersonateOrg Tenant org UUID for trusted service callers. Honoured only for clients that the deployment's org override resolver allow-lists; otherwise the request is refused with 403. Replaces both the org UUID and the handle for the request.
+	// XImpersonateOrg Tenant org UUID for trusted service callers. Honoured only for clients that the deployment's org override resolver allow-lists; otherwise the request is refused with 403. Replaces both the org UUID and the handle for the request. The orgName path segment must then be that org's handle, or the request is refused with 403.
 	XImpersonateOrg *openapi_types.UUID `json:"X-Impersonate-Org,omitempty"`
 }
 
 // DeleteProjectMCPProxyParams defines parameters for DeleteProjectMCPProxy.
 type DeleteProjectMCPProxyParams struct {
-	// XImpersonateOrg Tenant org UUID for trusted service callers. Honoured only for clients that the deployment's org override resolver allow-lists; otherwise the request is refused with 403. Replaces both the org UUID and the handle for the request.
+	// XImpersonateOrg Tenant org UUID for trusted service callers. Honoured only for clients that the deployment's org override resolver allow-lists; otherwise the request is refused with 403. Replaces both the org UUID and the handle for the request. The orgName path segment must then be that org's handle, or the request is refused with 403.
 	XImpersonateOrg *openapi_types.UUID `json:"X-Impersonate-Org,omitempty"`
 }
 
 // GetProjectMCPProxyParams defines parameters for GetProjectMCPProxy.
 type GetProjectMCPProxyParams struct {
-	// XImpersonateOrg Tenant org UUID for trusted service callers. Honoured only for clients that the deployment's org override resolver allow-lists; otherwise the request is refused with 403. Replaces both the org UUID and the handle for the request.
+	// XImpersonateOrg Tenant org UUID for trusted service callers. Honoured only for clients that the deployment's org override resolver allow-lists; otherwise the request is refused with 403. Replaces both the org UUID and the handle for the request. The orgName path segment must then be that org's handle, or the request is refused with 403.
 	XImpersonateOrg *openapi_types.UUID `json:"X-Impersonate-Org,omitempty"`
 }
 
 // UpsertProjectMCPProxyParams defines parameters for UpsertProjectMCPProxy.
 type UpsertProjectMCPProxyParams struct {
-	// XImpersonateOrg Tenant org UUID for trusted service callers. Honoured only for clients that the deployment's org override resolver allow-lists; otherwise the request is refused with 403. Replaces both the org UUID and the handle for the request.
+	// XImpersonateOrg Tenant org UUID for trusted service callers. Honoured only for clients that the deployment's org override resolver allow-lists; otherwise the request is refused with 403. Replaces both the org UUID and the handle for the request. The orgName path segment must then be that org's handle, or the request is refused with 403.
 	XImpersonateOrg *openapi_types.UUID `json:"X-Impersonate-Org,omitempty"`
 }
 
 // DeleteProjectMCPProxyEnvironmentParams defines parameters for DeleteProjectMCPProxyEnvironment.
 type DeleteProjectMCPProxyEnvironmentParams struct {
-	// XImpersonateOrg Tenant org UUID for trusted service callers. Honoured only for clients that the deployment's org override resolver allow-lists; otherwise the request is refused with 403. Replaces both the org UUID and the handle for the request.
+	// XImpersonateOrg Tenant org UUID for trusted service callers. Honoured only for clients that the deployment's org override resolver allow-lists; otherwise the request is refused with 403. Replaces both the org UUID and the handle for the request. The orgName path segment must then be that org's handle, or the request is refused with 403.
 	XImpersonateOrg *openapi_types.UUID `json:"X-Impersonate-Org,omitempty"`
 }
 
 // GetProjectMCPProxyEnvironmentParams defines parameters for GetProjectMCPProxyEnvironment.
 type GetProjectMCPProxyEnvironmentParams struct {
-	// XImpersonateOrg Tenant org UUID for trusted service callers. Honoured only for clients that the deployment's org override resolver allow-lists; otherwise the request is refused with 403. Replaces both the org UUID and the handle for the request.
+	// XImpersonateOrg Tenant org UUID for trusted service callers. Honoured only for clients that the deployment's org override resolver allow-lists; otherwise the request is refused with 403. Replaces both the org UUID and the handle for the request. The orgName path segment must then be that org's handle, or the request is refused with 403.
 	XImpersonateOrg *openapi_types.UUID `json:"X-Impersonate-Org,omitempty"`
 }
 
 // PutProjectMCPProxyEnvironmentParams defines parameters for PutProjectMCPProxyEnvironment.
 type PutProjectMCPProxyEnvironmentParams struct {
-	// XImpersonateOrg Tenant org UUID for trusted service callers. Honoured only for clients that the deployment's org override resolver allow-lists; otherwise the request is refused with 403. Replaces both the org UUID and the handle for the request.
+	// XImpersonateOrg Tenant org UUID for trusted service callers. Honoured only for clients that the deployment's org override resolver allow-lists; otherwise the request is refused with 403. Replaces both the org UUID and the handle for the request. The orgName path segment must then be that org's handle, or the request is refused with 403.
 	XImpersonateOrg *openapi_types.UUID `json:"X-Impersonate-Org,omitempty"`
 }
 

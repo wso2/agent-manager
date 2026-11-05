@@ -54,9 +54,15 @@ type overrideOutcome struct {
 	logs       string
 }
 
-// serveOverride runs a request through the chain the project MCP routes use
+// serveOverride runs a request naming the target org in its path through the chain the project MCP routes use
 // (audit → RequireOrgMatch → ApplyOrgOverride → handler).
 func serveOverride(t *testing.T, header string, lookup OUHandleLookup) overrideOutcome {
+	t.Helper()
+	return serveOverrideAt(t, overrideTargetHandle, header, lookup)
+}
+
+// serveOverrideAt is serveOverride with pathOrg as the {orgName} path segment.
+func serveOverrideAt(t *testing.T, pathOrg, header string, lookup OUHandleLookup) overrideOutcome {
 	t.Helper()
 
 	var logBuf bytes.Buffer
@@ -76,7 +82,9 @@ func serveOverride(t *testing.T, header string, lookup OUHandleLookup) overrideO
 	rec := &captureRecorder{}
 	handler := WithAudit(rec, meta)(RequireOrgMatch(stubResolver{})(ApplyOrgOverride(lookup)(next)))
 
-	req := httptest.NewRequest(http.MethodPut, "/orgs/x/projects/p1/mcp-proxies/h1", nil)
+	mux := http.NewServeMux()
+	mux.HandleFunc(pattern, handler)
+	req := httptest.NewRequest(http.MethodPut, "/orgs/"+pathOrg+"/projects/p1/mcp-proxies/h1", nil)
 	if header != "" {
 		req.Header.Set(occlient.HeaderImpersonateOrg, header)
 	}
@@ -87,7 +95,7 @@ func serveOverride(t *testing.T, header string, lookup OUHandleLookup) overrideO
 	req = req.WithContext(jwtassertion.ContextWithTokenClaims(req.Context(), claims))
 
 	w := httptest.NewRecorder()
-	handler(w, req)
+	mux.ServeHTTP(w, req)
 
 	out.status = w.Code
 	out.events = rec.events
@@ -239,4 +247,41 @@ func TestApplyOrgOverride_LookupReturnsEmptyHandle_502(t *testing.T) {
 
 func TestApplyOrgOverride_NilLookupPanics(t *testing.T) {
 	assert.Panics(t, func() { ApplyOrgOverride(nil) })
+}
+
+// An impersonating request names the tenant in its path; a path naming any other org, the caller's own included,
+// is refused, so the path never says one org while the request acts on another.
+func TestApplyOrgOverride_PathNotTargetOrg_403(t *testing.T) {
+	installOrgOverrideResolver(t, trustingResolver)
+	for _, pathOrg := range []string{"x", overrideTokenHandle} {
+		t.Run(pathOrg, func(t *testing.T) {
+			lookup, _ := staticLookup(overrideTargetHandle, nil)
+			out := serveOverrideAt(t, pathOrg, overrideTargetOUID, lookup)
+			assertDenied(t, out, "org-override-path-mismatch")
+			assert.Nil(t, findEvent(out.events, audit.ActionAuthzOrgOverride), "a refused override is not audited as applied")
+		})
+	}
+}
+
+// Impersonating the caller's own org is a no-op, but its path must still name that org.
+func TestApplyOrgOverride_OwnOrg_PathChecked(t *testing.T) {
+	installOrgOverrideResolver(t, func(*http.Request) (string, bool) { return overrideTokenOUID, true })
+	lookup, calls := staticLookup(overrideTargetHandle, nil)
+
+	out := serveOverrideAt(t, overrideTokenHandle, overrideTokenOUID, lookup)
+	require.Equal(t, http.StatusOK, out.status)
+	assert.Zero(t, *calls)
+
+	out = serveOverrideAt(t, overrideTargetHandle, overrideTokenOUID, lookup)
+	assertDenied(t, out, "org-override-path-mismatch")
+}
+
+// A request without the header keeps today's behavior: the token decides the org, whatever the path says.
+func TestApplyOrgOverride_NoHeader_PathNotChecked(t *testing.T) {
+	installOrgOverrideResolver(t, trustingResolver)
+	lookup, _ := staticLookup(overrideTargetHandle, nil)
+
+	out := serveOverrideAt(t, "x", "", lookup)
+	require.Equal(t, http.StatusOK, out.status)
+	assert.Equal(t, overrideTokenOUID, out.resolved.OUID)
 }

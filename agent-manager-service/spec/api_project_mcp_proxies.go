@@ -31,7 +31,7 @@ type ApiDeleteProjectMCPProxyRequest struct {
 	xImpersonateOrg *string
 }
 
-// Tenant org UUID for trusted service callers. Honoured only for clients that the deployment&#39;s org override resolver allow-lists; otherwise the request is refused with 403. Replaces both the org UUID and the handle for the request.
+// Tenant org UUID for trusted service callers. Honoured only for clients that the deployment&#39;s org override resolver allow-lists; otherwise the request is refused with 403. Replaces both the org UUID and the handle for the request. The orgName path segment must then be that org&#39;s handle, or the request is refused with 403.
 func (r ApiDeleteProjectMCPProxyRequest) XImpersonateOrg(xImpersonateOrg string) ApiDeleteProjectMCPProxyRequest {
 	r.xImpersonateOrg = &xImpersonateOrg
 	return r
@@ -198,7 +198,7 @@ type ApiGetProjectMCPProxyRequest struct {
 	xImpersonateOrg *string
 }
 
-// Tenant org UUID for trusted service callers. Honoured only for clients that the deployment&#39;s org override resolver allow-lists; otherwise the request is refused with 403. Replaces both the org UUID and the handle for the request.
+// Tenant org UUID for trusted service callers. Honoured only for clients that the deployment&#39;s org override resolver allow-lists; otherwise the request is refused with 403. Replaces both the org UUID and the handle for the request. The orgName path segment must then be that org&#39;s handle, or the request is refused with 403.
 func (r ApiGetProjectMCPProxyRequest) XImpersonateOrg(xImpersonateOrg string) ApiGetProjectMCPProxyRequest {
 	r.xImpersonateOrg = &xImpersonateOrg
 	return r
@@ -369,7 +369,7 @@ type ApiListProjectMCPProxiesRequest struct {
 	offset          *int32
 }
 
-// Tenant org UUID for trusted service callers. Honoured only for clients that the deployment&#39;s org override resolver allow-lists; otherwise the request is refused with 403. Replaces both the org UUID and the handle for the request.
+// Tenant org UUID for trusted service callers. Honoured only for clients that the deployment&#39;s org override resolver allow-lists; otherwise the request is refused with 403. Replaces both the org UUID and the handle for the request. The orgName path segment must then be that org&#39;s handle, or the request is refused with 403.
 func (r ApiListProjectMCPProxiesRequest) XImpersonateOrg(xImpersonateOrg string) ApiListProjectMCPProxiesRequest {
 	r.xImpersonateOrg = &xImpersonateOrg
 	return r
@@ -573,7 +573,7 @@ func (r ApiUpsertProjectMCPProxyRequest) ProjectMCPProxyRequest(projectMCPProxyR
 	return r
 }
 
-// Tenant org UUID for trusted service callers. Honoured only for clients that the deployment&#39;s org override resolver allow-lists; otherwise the request is refused with 403. Replaces both the org UUID and the handle for the request.
+// Tenant org UUID for trusted service callers. Honoured only for clients that the deployment&#39;s org override resolver allow-lists; otherwise the request is refused with 403. Replaces both the org UUID and the handle for the request. The orgName path segment must then be that org&#39;s handle, or the request is refused with 403.
 func (r ApiUpsertProjectMCPProxyRequest) XImpersonateOrg(xImpersonateOrg string) ApiUpsertProjectMCPProxyRequest {
 	r.xImpersonateOrg = &xImpersonateOrg
 	return r

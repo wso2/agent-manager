@@ -7220,7 +7220,8 @@ paths:
         description: >-
           Tenant org UUID for trusted service callers. Honoured only for
           clients that the deployment's org override resolver allow-lists; otherwise the request is
-          refused with 403. Replaces both the org UUID and the handle for the request.
+          refused with 403. Replaces both the org UUID and the handle for the request. The orgName
+          path segment must then be that org's handle, or the request is refused with 403.
         schema:
           type: string
           format: uuid
@@ -7323,7 +7324,8 @@ paths:
         description: >-
           Tenant org UUID for trusted service callers. Honoured only for
           clients that the deployment's org override resolver allow-lists; otherwise the request is
-          refused with 403. Replaces both the org UUID and the handle for the request.
+          refused with 403. Replaces both the org UUID and the handle for the request. The orgName
+          path segment must then be that org's handle, or the request is refused with 403.
         schema:
           type: string
           format: uuid
@@ -7527,7 +7529,8 @@ paths:
         description: >-
           Tenant org UUID for trusted service callers. Honoured only for
           clients that the deployment's org override resolver allow-lists; otherwise the request is
-          refused with 403. Replaces both the org UUID and the handle for the request.
+          refused with 403. Replaces both the org UUID and the handle for the request. The orgName
+          path segment must then be that org's handle, or the request is refused with 403.
         schema:
           type: string
           format: uuid

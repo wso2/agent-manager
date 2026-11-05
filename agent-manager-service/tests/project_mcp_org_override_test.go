@@ -168,16 +168,24 @@ func TestProjectMCPProxy_OrgOverride(t *testing.T) {
 	}
 
 	t.Run("root-OU client impersonating org B stores the proxy under org B", func(t *testing.T) {
-		rr := do(ip, http.MethodPut, "/orgs/x/projects/p1/mcp-proxies/"+handle, body, orgB)
+		rr := do(ip, http.MethodPut, "/orgs/"+orgBHandle+"/projects/p1/mcp-proxies/"+handle, body, orgB)
 		require.Equal(t, http.StatusCreated, rr.Code, rr.Body.String())
 		assert.Equal(t, int64(1), countProxy(orgB))
 		assert.Zero(t, countProxy(overrideRootOUID), "nothing is written under the caller's own org")
 		assert.Contains(t, lookups, orgB)
 
-		rr = do(ip, http.MethodGet, "/orgs/x/projects/p1/mcp-proxies/"+handle, nil, orgB)
+		rr = do(ip, http.MethodGet, "/orgs/"+orgBHandle+"/projects/p1/mcp-proxies/"+handle, nil, orgB)
 		assert.Equal(t, http.StatusOK, rr.Code, "reads act on org B too")
 		rr = do(ip, http.MethodGet, "/orgs/x/projects/p1/mcp-proxies/"+handle, nil, "")
 		assert.Equal(t, http.StatusNotFound, rr.Code, "without the header the caller is back on its own org")
+	})
+
+	t.Run("an impersonating path must name the impersonated org", func(t *testing.T) {
+		for _, pathOrg := range []string{"x", overrideRootHandle} {
+			rr := do(ip, http.MethodGet, "/orgs/"+pathOrg+"/projects/p1/mcp-proxies/"+handle, nil, orgB)
+			assert.Equal(t, http.StatusForbidden, rr.Code, pathOrg)
+			assert.Contains(t, rr.Body.String(), "not the impersonated organization", pathOrg)
+		}
 	})
 
 	t.Run("an org MCP route is not impersonated", func(t *testing.T) {
@@ -205,7 +213,7 @@ func TestProjectMCPProxy_OrgOverride(t *testing.T) {
 
 	t.Run("a user token sending the header is refused", func(t *testing.T) {
 		other := "user-attempt-" + suffix
-		rr := do(user, http.MethodPut, "/orgs/x/projects/p1/mcp-proxies/"+other, body, orgB)
+		rr := do(user, http.MethodPut, "/orgs/"+orgBHandle+"/projects/p1/mcp-proxies/"+other, body, orgB)
 		assert.Equal(t, http.StatusForbidden, rr.Code, rr.Body.String())
 		assert.Contains(t, rr.Body.String(), "org impersonation not permitted")
 		var n int64

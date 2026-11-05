@@ -160,7 +160,7 @@ func TestIPFlow_EndToEnd(t *testing.T) {
 	}
 	ipDo := func(method, suffixPath string, body any) *httptest.ResponseRecorder {
 		t.Helper()
-		return do(ip, method, fmt.Sprintf("/orgs/x/projects/%s/mcp-proxies%s", project, suffixPath), body, tenant)
+		return do(ip, method, fmt.Sprintf("/orgs/%s/projects/%s/mcp-proxies%s", tenantHandle, project, suffixPath), body, tenant)
 	}
 	deployments := func(artifact uuid.UUID) int64 {
 		t.Helper()

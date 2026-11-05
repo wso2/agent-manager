@@ -80,7 +80,7 @@ func TestRegistrarOrgOverride_AppliedOnlyWhereComposed(t *testing.T) {
 	mux, call := newOverrideRegistrar(t)
 	scope := rbac.MCPServerUpdate.Scope()
 
-	serveRegistrar(t, mux, call, "/orgs/x/projects/p1/mcp-proxies/h1", scope)
+	serveRegistrar(t, mux, call, "/orgs/handle-of-"+overrideTargetOUID+"/projects/p1/mcp-proxies/h1", scope)
 	require.Equal(t, http.StatusOK, call.status, call.body)
 	assert.Equal(t, ResolvedOrg{OUID: overrideTargetOUID, OuHandle: "handle-of-" + overrideTargetOUID}, call.resolved)
 
@@ -104,7 +104,7 @@ func TestRegistrarOrgOverride_OrderedBetweenOrgMatchAndAuthz(t *testing.T) {
 
 	installOrgOverrideResolver(t, trustingResolver)
 	*call = registrarCall{}
-	serveRegistrar(t, mux, call, "/orgs/x/projects/p1/mcp-proxies/h1", "")
+	serveRegistrar(t, mux, call, "/orgs/handle-of-"+overrideTargetOUID+"/projects/p1/mcp-proxies/h1", "")
 	assert.Equal(t, http.StatusForbidden, call.status)
 	assert.Contains(t, call.body, "insufficient permissions")
 	assert.False(t, call.ran)

@@ -50,6 +50,10 @@ var ErrOverrideOrgNotFound = errors.New("organization not found")
 //   - header present but no resolver installed, or the resolver refuses (or
 //     names no org): 403, recorded as an authz deny. An attempt to impersonate
 //     is never silently downgraded to the caller's own org;
+//   - the {orgName} path segment must be the target org's handle: an
+//     impersonating request names the tenant in its path as a user of that
+//     tenant would, and one naming any other org is refused with 403, so the
+//     path never says one org while the request acts on another;
 //   - resolver allows it: the whole ResolvedOrg — OUID and handle — is
 //     rewritten to the target, the handle being looked up because the header
 //     carries the UUID only. Handlers and the outbound OpenChoreo client then
@@ -94,6 +98,9 @@ func ApplyOrgOverride(lookup OUHandleLookup) func(http.HandlerFunc) http.Handler
 				return
 			}
 			if targetOUID == tokenOrg.OUID {
+				if !pathNamesOrg(w, r, tokenOrg.OuHandle) {
+					return
+				}
 				next(w, r)
 				return
 			}
@@ -113,6 +120,10 @@ func ApplyOrgOverride(lookup OUHandleLookup) func(http.HandlerFunc) http.Handler
 				return
 			}
 
+			if !pathNamesOrg(w, r, handle) {
+				return
+			}
+
 			ctx = WithResolvedOrg(ctx, ResolvedOrg{OUID: targetOUID, OuHandle: handle})
 			slog.Info("org override applied",
 				"clientId", clientID, "tokenOuID", tokenOrg.OUID, "targetOuID", targetOUID)
@@ -124,6 +135,20 @@ func ApplyOrgOverride(lookup OUHandleLookup) func(http.HandlerFunc) http.Handler
 			next(w, r.WithContext(ctx))
 		}
 	}
+}
+
+// pathNamesOrg refuses (403) an impersonating request whose {orgName} path segment is not handle, the handle of
+// the org it acts on. A route without the segment is refused too: it cannot show which org it acts on.
+func pathNamesOrg(w http.ResponseWriter, r *http.Request, handle string) bool {
+	pathOrg := r.PathValue("orgName")
+	if pathOrg == handle {
+		return true
+	}
+	slog.WarnContext(r.Context(), "org override refused: path org is not the impersonated org",
+		"clientId", tokenClientID(r.Context()), "pathOrg", sanitizeForLog(pathOrg), "targetHandle", handle)
+	RecordAuthzDeny(r, "org-override-path-mismatch")
+	utils.WriteErrorResponse(w, http.StatusForbidden, "the organization in the path is not the impersonated organization")
+	return false
 }
 
 // tokenClientID returns the OAuth client id the request's token was issued
