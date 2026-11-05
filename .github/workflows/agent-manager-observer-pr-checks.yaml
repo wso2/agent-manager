@@ -31,13 +31,6 @@ jobs:
           install-mode: none
           working-directory: agent-manager-observer
 
-      - name: Run golangci-lint (devstore)
-        uses: golangci/golangci-lint-action@v9
-        with:
-          install-mode: none
-          working-directory: agent-manager-observer
-          args: --build-tags devstore
-
   test:
     name: Test
     runs-on:
@@ -65,18 +58,6 @@ jobs:
         working-directory: ./agent-manager-observer
         run: make test
 
-      - name: Run devstore tests
-        working-directory: ./agent-manager-observer
-        run: make test-devstore
-
-      - name: Untagged build excludes devstore deps
-        working-directory: ./agent-manager-observer
-        run: |
-          deps=$(go list -deps .)
-          if grep -E '^(modernc\.org|k8s\.io|sigs\.k8s\.io|go\.opentelemetry\.io)' <<<"$deps"; then
-            echo "devstore-only packages leaked into the untagged build"; exit 1
-          fi
-
       - name: Upload test logs on failure
         if: failure()
         uses: actions/upload-artifact@v7
@@ -92,13 +73,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
-
-      - name: Setup Go
-        uses: ./.github/actions/setup-go
-
-      - name: Build with devstore tag
-        working-directory: ./agent-manager-observer
-        run: go build -tags devstore .
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3

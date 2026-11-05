@@ -19,7 +19,6 @@ package config
 import (
 	"os"
 	"reflect"
-	"strings"
 	"testing"
 )
 
@@ -198,25 +197,5 @@ func TestObserverConfig_ValidateClientCredentials(t *testing.T) {
 				t.Error("expected error, got nil")
 			}
 		})
-	}
-}
-
-func TestObserverValidate_UnknownStore(t *testing.T) {
-	o := ObserverConfig{BaseURL: "http://localhost:8085", Store: "mongo"}
-	err := o.validate()
-	if err == nil || !strings.Contains(err.Error(), `unknown OBSERVER_STORE "mongo"`) {
-		t.Fatalf("expected unknown store error, got %v", err)
-	}
-}
-
-func TestLoad_StoreDefault(t *testing.T) {
-	setRequiredEnv(t)
-
-	cfg, err := Load()
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-	if cfg.Observer.Store != "openchoreo" {
-		t.Errorf("expected default store openchoreo, got %q", cfg.Observer.Store)
 	}
 }

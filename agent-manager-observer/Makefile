@@ -1,4 +1,4 @@
-.PHONY: help build run stop clean test test-devstore docker-build docker-run docker-stop docker-clean mock-traces gen-instrumentation-contract
+.PHONY: help build run stop clean test docker-build docker-run docker-stop docker-clean mock-traces gen-instrumentation-contract
 
 # Pinned dev tools (`make tools` at the repo root); puts ../.tools/bin first on PATH.
 include $(dir $(lastword $(MAKEFILE_LIST)))../tools.mk
@@ -15,7 +15,6 @@ DOCKER_IMAGE=$(IMAGE_NAME):$(TAG)
 CONTAINER_NAME=$(APP_NAME)
 
 PORT=9098
-GO_TAGS ?=
 KIND_CLUSTER_NAME=openchoreo-local
 K3D_CLUSTER_NAME=openchoreo-local-setup
 
@@ -41,9 +40,6 @@ help: ## Show this help message
 # Testing
 test: ## Run unit tests
 	@bash scripts/run_tests.sh
-
-test-devstore: ## Run tests with the devstore build tag
-	@GO_TEST_TAGS=devstore bash scripts/run_tests.sh
 
 test-cover: ## Run tests with coverage report
 	@bash scripts/run_tests_with_coverage.sh
@@ -77,7 +73,7 @@ clean: ## Clean build artifacts
 # Docker commands
 docker-build: ## Build Docker image
 	@echo "Building Docker image..."
-	@docker build --build-arg GO_TAGS=$(GO_TAGS) -t $(DOCKER_IMAGE) .
+	@docker build -t $(DOCKER_IMAGE) .
 
 docker-run: ## Run Docker container
 	@echo "Running Docker container..."

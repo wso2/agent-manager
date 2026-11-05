@@ -19,12 +19,9 @@ package app
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"sync/atomic"
-	"syscall"
 	"testing"
 	"time"
 
@@ -32,7 +29,6 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-observer/config"
 	"github.com/wso2/agent-manager/agent-manager-observer/middleware"
-	"github.com/wso2/agent-manager/agent-manager-observer/observer"
 	"github.com/wso2/agent-manager/agent-manager-observer/rbac"
 )
 
@@ -53,7 +49,7 @@ func newTestHandler(t *testing.T, upstreamURL string) http.Handler {
 		Observer: config.ObserverConfig{BaseURL: upstreamURL, DefaultNamespace: "default"},
 		Auth:     config.AuthConfig{IsLocalDevEnv: true},
 	}
-	return newHandler(cfg, observer.NewClient(upstreamURL, requestTokenProvider{}, cfg.Observer.DefaultNamespace))
+	return newHandler(cfg, requestTokenProvider{})
 }
 
 func scopedToken(t *testing.T) string {
@@ -148,123 +144,4 @@ func TestRun_ReturnsListenError(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("Run did not return after failing to bind")
 	}
-}
-
-func TestRun_ReturnsIngestListenError(t *testing.T) {
-	held, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("listen: %v", err)
-	}
-	defer func() { _ = held.Close() }()
-
-	cfg := &config.Config{
-		Server:   config.ServerConfig{Port: freePort(t)},
-		Observer: config.ObserverConfig{BaseURL: "http://unused"},
-		Auth:     config.AuthConfig{IsLocalDevEnv: true},
-	}
-	opts := Options{Ingest: http.NotFoundHandler(), IngestAddr: held.Addr().String()}
-	done := make(chan error, 1)
-	go func() { done <- Run(cfg, requestTokenProvider{}, opts) }()
-
-	select {
-	case err := <-done:
-		if err == nil {
-			t.Fatal("expected error for an ingest port already in use, got nil")
-		}
-	case <-time.After(5 * time.Second):
-		t.Fatal("Run did not return after failing to bind the ingest listener")
-	}
-}
-
-func TestRun_CallsCloseOnShutdown(t *testing.T) {
-	cfg := &config.Config{
-		Server:   config.ServerConfig{Port: freePort(t)},
-		Observer: config.ObserverConfig{BaseURL: "http://unused"},
-		Auth:     config.AuthConfig{IsLocalDevEnv: true},
-	}
-	var closed atomic.Int32
-	opts := Options{Close: func() error { closed.Add(1); return nil }}
-	done := make(chan error, 1)
-	go func() { done <- Run(cfg, requestTokenProvider{}, opts) }()
-
-	waitForHealth(t, cfg.Server.Port)
-	if err := syscall.Kill(syscall.Getpid(), syscall.SIGTERM); err != nil {
-		t.Fatalf("signal: %v", err)
-	}
-
-	select {
-	case err := <-done:
-		if err != nil {
-			t.Fatalf("Run returned %v", err)
-		}
-	case <-time.After(5 * time.Second):
-		t.Fatal("Run did not return after SIGTERM")
-	}
-	if got := closed.Load(); got != 1 {
-		t.Fatalf("expected Close called once, got %d", got)
-	}
-}
-
-func TestRun_CallsCloseWhenServerFails(t *testing.T) {
-	held, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("listen: %v", err)
-	}
-	defer func() { _ = held.Close() }()
-
-	cfg := &config.Config{
-		Server:   config.ServerConfig{Port: freePort(t)},
-		Observer: config.ObserverConfig{BaseURL: "http://unused"},
-		Auth:     config.AuthConfig{IsLocalDevEnv: true},
-	}
-	var closed atomic.Int32
-	opts := Options{
-		Ingest:     http.NotFoundHandler(),
-		IngestAddr: held.Addr().String(),
-		Close:      func() error { closed.Add(1); return nil },
-	}
-	done := make(chan error, 1)
-	go func() { done <- Run(cfg, requestTokenProvider{}, opts) }()
-
-	select {
-	case err := <-done:
-		if err == nil {
-			t.Fatal("expected a server failure, got nil")
-		}
-	case <-time.After(5 * time.Second):
-		t.Fatal("Run did not return after a server failed")
-	}
-	if got := closed.Load(); got != 1 {
-		t.Fatalf("expected Close called once, got %d", got)
-	}
-	apiAddr := fmt.Sprintf("127.0.0.1:%d", cfg.Server.Port)
-	if conn, err := net.DialTimeout("tcp", apiAddr, time.Second); err == nil {
-		_ = conn.Close()
-		t.Fatal("API server still accepts connections after Run returned")
-	}
-}
-
-func freePort(t *testing.T) int {
-	t.Helper()
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("listen: %v", err)
-	}
-	defer func() { _ = ln.Close() }()
-	return ln.Addr().(*net.TCPAddr).Port
-}
-
-func waitForHealth(t *testing.T, port int) {
-	t.Helper()
-	url := fmt.Sprintf("http://127.0.0.1:%d/health", port)
-	deadline := time.Now().Add(5 * time.Second)
-	for time.Now().Before(deadline) {
-		resp, err := http.Get(url)
-		if err == nil {
-			_ = resp.Body.Close()
-			return
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
-	t.Fatal("server did not become healthy")
 }

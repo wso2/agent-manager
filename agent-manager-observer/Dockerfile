@@ -4,26 +4,22 @@ FROM --platform=$BUILDPLATFORM public.ecr.aws/docker/library/golang:1.26.10-alpi
 # Add build args for cross-platform support
 ARG TARGETOS
 ARG TARGETARCH
-ARG GO_TAGS=""
 
 WORKDIR /app
 
 COPY go.mod go.sum ./
 
 # Get dependencies - will also be cached if we won't change mod/sum
-RUN --mount=type=cache,target=/go/pkg/mod \
-    --mount=type=cache,target=/root/.cache/go-build \
-    go mod download
+RUN go mod download
 
 # Copy the source code as the last step
 COPY . .
 
 # Build the binary with optimizations using Go's native cross-compilation
 # This runs natively on the build platform (amd64) and cross-compiles for target platform
-RUN --mount=type=cache,target=/go/pkg/mod \
-    --mount=type=cache,target=/root/.cache/go-build \
-    CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
-    -tags "${GO_TAGS}" \
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
+    -a \
+    -installsuffix cgo \
     -ldflags="-w -s" \
     -o /go/bin/agent-manager-observer \
     -buildvcs=false
