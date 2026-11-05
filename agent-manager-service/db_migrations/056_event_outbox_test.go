@@ -37,7 +37,7 @@ func TestEventOutboxMigrationPreservesRuns(t *testing.T) {
 	require.NoError(t, tx.Exec("SET LOCAL search_path TO "+schema+", public").Error)
 	require.NoError(t, tx.Exec(`CREATE TABLE monitor_runs(id TEXT PRIMARY KEY,status TEXT,completed_at TIMESTAMPTZ);
  INSERT INTO monitor_runs(id,status) VALUES ('old-success','success'),('old-failed','failed'),('running','running')`).Error)
-	require.NoError(t, migration055.Migrate(tx))
+	require.NoError(t, migration056.Migrate(tx))
 	var marked int64
 	require.NoError(t, tx.Table("monitor_runs").Where("event_queued_at IS NOT NULL").Count(&marked).Error)
 	assert.EqualValues(t, 2, marked, "old terminal runs are not replayed")

@@ -20,10 +20,10 @@ import (
 	"gorm.io/gorm"
 )
 
-// migration054 creates the destination schema and its subscription/delivery
+// migration055 creates the destination schema and its subscription/delivery
 // references. Delivery workers are added in the next PR.
-var migration054 = migration{
-	ID: 54,
+var migration055 = migration{
+	ID: 55,
 	Migrate: func(db *gorm.DB) error {
 		return db.Exec(`
 		CREATE TABLE IF NOT EXISTS event_destinations (
