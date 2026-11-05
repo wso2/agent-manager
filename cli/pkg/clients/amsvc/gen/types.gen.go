@@ -2659,7 +2659,7 @@ type CreateGatewayRequest struct {
 	// Name Unique gateway name (lowercase, alphanumeric with hyphens)
 	Name string `json:"name"`
 
-	// OrgId OU ID of the organization the gateway belongs to.
+	// OrgId Optional. OU ID of the caller's organization. The organization always comes from the token; a different value is refused with 403.
 	OrgId *string `json:"orgId,omitempty"`
 
 	// Region Deployment region (optional)
@@ -5217,7 +5217,7 @@ type RoleResponse struct {
 
 // RotateGatewayTokenRequest defines model for RotateGatewayTokenRequest.
 type RotateGatewayTokenRequest struct {
-	// OrgId OU ID of the organization the gateway belongs to.
+	// OrgId Optional. OU ID of the caller's organization. The organization always comes from the token; a different value is refused with 403.
 	OrgId *string `json:"orgId,omitempty"`
 }
 

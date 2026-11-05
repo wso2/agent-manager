@@ -201,6 +201,22 @@ func handleGatewayErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 	}
 }
 
+// refusedForeignBodyOrg records an authorization denial, writes a 403 and
+// reports true when a request body's optional orgId names an org other than
+// the caller's. The org always comes from the token; the body field is
+// accepted only so that existing clients that send it keep working.
+func refusedForeignBodyOrg(w http.ResponseWriter, r *http.Request, bodyOrg *string, callerOUID string) bool {
+	if bodyOrg == nil || *bodyOrg == "" || strings.EqualFold(*bodyOrg, callerOUID) {
+		return false
+	}
+	middleware.RecordAuthzDeny(r, "body-org-mismatch",
+		audit.Org(callerOUID),
+		audit.Detail("requestedOrgId", *bodyOrg),
+	)
+	utils.WriteErrorResponse(w, http.StatusForbidden, "orgId does not match the caller's organization")
+	return true
+}
+
 func (c *gatewayController) RegisterGateway(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
@@ -211,16 +227,9 @@ func (c *gatewayController) RegisterGateway(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// Use the OU ID from the request body if provided, otherwise fall back to the one from the request context.
 	ouID := middleware.OUIDFromRequest(r)
-	if req.OrgId != nil && *req.OrgId != "" {
-		ouID = *req.OrgId
-		// Re-stash the effective org so downstream context consumers (e.g. the
-		// OpenChoreo client's org header) see the org actually operated on
-		// rather than the caller's token org.
-		org, _ := middleware.GetResolvedOrg(ctx)
-		org.OUID = ouID
-		ctx = middleware.WithResolvedOrg(ctx, org)
+	if refusedForeignBodyOrg(w, r, req.OrgId, ouID) {
+		return
 	}
 
 	// Validate environments if present
@@ -726,8 +735,8 @@ func (c *gatewayController) rotateGatewayToken(w http.ResponseWriter, r *http.Re
 	ouID := middleware.OUIDFromRequest(r)
 	gatewayID := strings.TrimSpace(r.PathValue("gatewayID"))
 
-	// The request body is optional; decode it only if one was sent so that
-	// callers can still rotate without providing an explicit org.
+	// The request body is optional; its only field, orgId, may name only the
+	// caller's own org.
 	if r.Body != nil && r.ContentLength != 0 {
 		var req spec.RotateGatewayTokenRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -735,10 +744,8 @@ func (c *gatewayController) rotateGatewayToken(w http.ResponseWriter, r *http.Re
 			utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 			return
 		}
-
-		// Use the OU ID from the request body if provided, otherwise fall back to the one from the request context.
-		if req.OrgId != nil && *req.OrgId != "" {
-			ouID = *req.OrgId
+		if refusedForeignBodyOrg(w, r, req.OrgId, ouID) {
+			return
 		}
 	}
 
