@@ -75,4 +75,5 @@ var migrations = []migration{
 	migration052,
 	migration053,
 	migration054,
+	migration055,
 }
