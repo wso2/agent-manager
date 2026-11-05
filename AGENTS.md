@@ -70,16 +70,15 @@ Run `make help` at the root for the full target list (gateway setup, port-forwar
 
 ### Lite setup
 
-`make setup-lite` is `make setup` without the OpenChoreo observability plane: no OpenSearch, Fluent Bit, OpenTelemetry collector, Prometheus stack or OpenChoreo observer. Traces and logs are served by the dev-only observer-lite service (`deployments/dev/observer-lite`), which stands in for the OpenChoreo observer. amp-observer runs unchanged. Its limits:
+`make setup-lite` is `make setup` without the OpenChoreo observability plane: no OpenSearch, Fluent Bit, Prometheus stack, or real OpenChoreo observer and collector. Traces and logs are served by the dev-only observer-lite service (`deployments/dev/observer-lite`), which stands in for both. It answers on the `observer` (8080) and `opentelemetry-collector` (4318) Services, so amp-observer and the gateway reach it with their default URLs. amp-observer runs unchanged. Its limits:
 
 - CPU and memory charts are empty; there is no metrics backend.
 - Build logs cover the last 24 hours.
 - Runtime logs cover only a pod's current and previous container.
 - Traces are lost when observer-lite restarts.
-- Traces reach only the in-cluster observer-lite, never an amp-observer started out of cluster with `make run`.
 - There is no span-count metric.
 - The mode is fixed when the cluster is set up. Switching between `make setup` and `make setup-lite` needs `make teardown` first.
-- `make port-forward` still starts every forward. The OpenSearch (9200) and OpenChoreo observer (8085) forwards fail silently. `localhost:21893` reaches observer-lite's trace ingest, which trusts the scope headers it is sent, so don't expose that port beyond your machine.
+- `make port-forward` still starts every forward. The OpenSearch (9200) forward fails silently. The observer API forward (8085) reaches observer-lite. `localhost:21893` reaches observer-lite's trace ingest, which trusts the scope headers it is sent, so don't expose that port beyond your machine.
 
 ## Cross-cutting engineering rules
 
