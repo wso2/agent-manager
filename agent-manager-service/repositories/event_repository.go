@@ -64,17 +64,6 @@ type DeliveryLocation struct {
 	EventScopes []string
 }
 
-// DeliveryFilter selects a page of a delivery log, newest first.
-type DeliveryFilter struct {
-	OUID           string
-	Location       DeliveryLocation
-	DestinationID  *uuid.UUID
-	SubscriptionID *uuid.UUID
-	Status         string
-	Limit          int
-	Offset         int
-}
-
 // SubscriptionCounts holds, per subscription, its deliveries by status.
 type SubscriptionCounts map[uuid.UUID]map[string]int
 
@@ -101,6 +90,9 @@ type EventRepository interface {
 	DeleteDestination(ctx context.Context, ouID string, id uuid.UUID) (bool, error)
 	// DestinationStats returns the stats of each of the org's destinations.
 	DestinationStats(ctx context.Context, ouID string) (map[uuid.UUID]DestinationStats, error)
+	// DestinationStatsOf returns the stats of one of the org's destinations,
+	// zero when it has none.
+	DestinationStatsOf(ctx context.Context, ouID string, id uuid.UUID) (DestinationStats, error)
 	// SubscriptionsUsing returns the subscriptions that send to a destination.
 	SubscriptionsUsing(ctx context.Context, ouID string, destinationID uuid.UUID) ([]models.EventSubscription, error)
 	// RemoveProjectFromDestinations takes a deleted project out of the
@@ -260,6 +252,33 @@ type destinationStatsRow struct {
 }
 
 func (r *eventRepository) DestinationStats(ctx context.Context, ouID string) (map[uuid.UUID]DestinationStats, error) {
+	return r.destinationStats(ctx, ouID, nil)
+}
+
+func (r *eventRepository) DestinationStatsOf(ctx context.Context, ouID string, id uuid.UUID) (DestinationStats, error) {
+	stats, err := r.destinationStats(ctx, ouID, &id)
+	if err != nil {
+		return DestinationStats{}, err
+	}
+	return stats[id], nil
+}
+
+// destinationStats reads the stats of the org's destinations, or of only the
+// one with id when id is set.
+func (r *eventRepository) destinationStats(
+	ctx context.Context, ouID string, id *uuid.UUID,
+) (map[uuid.UUID]DestinationStats, error) {
+	only := ""
+	args := []any{
+		models.EventDeliverySkipped,
+		models.EventDeliveryFailed, models.EventDeliveryPending,
+		models.EventDeliveryDelivered,
+		ouID,
+	}
+	if id != nil {
+		only = " AND d.id = ?"
+		args = append(args, *id)
+	}
 	var rows []destinationStatsRow
 	err := r.db.WithContext(ctx).Raw(`
 		SELECT d.id AS destination_id,
@@ -285,11 +304,8 @@ func (r *eventRepository) DestinationStats(ctx context.Context, ouID string) (ma
 					WHERE y.destination_id = d.id AND y.status = ?
 				), '-infinity'::timestamptz)
 		) f ON TRUE
-		WHERE d.ou_id = ?`,
-		models.EventDeliverySkipped,
-		models.EventDeliveryFailed, models.EventDeliveryPending,
-		models.EventDeliveryDelivered,
-		ouID,
+		WHERE d.ou_id = ?`+only,
+		args...,
 	).Scan(&rows).Error
 	if err != nil {
 		return nil, err
@@ -324,13 +340,17 @@ func (r *eventRepository) RemoveProjectFromDestinations(ctx context.Context, ouI
 		return err
 	}
 	// "@>" rather than the jsonb "?" operator, which gorm would read as a
-	// placeholder. A destination left with no project stays available to
-	// none, rather than silently to all.
+	// placeholder. A destination left with no project becomes org-only:
+	// available to none, rather than silently to all, and still valid to save
+	// unchanged.
 	return r.db.WithContext(ctx).Exec(`
 		UPDATE event_destinations
-		SET projects = projects - ?::text, updated_at = NOW()
+		SET projects = projects - ?::text,
+			availability = CASE WHEN jsonb_array_length(projects - ?::text) = 0 THEN ? ELSE availability END,
+			updated_at = NOW()
 		WHERE ou_id = ? AND availability = ? AND projects @> ?::jsonb`,
-		projectName, ouID, models.DestinationAvailableProjects, string(selected),
+		projectName, projectName, models.DestinationAvailableOrg,
+		ouID, models.DestinationAvailableProjects, string(selected),
 	).Error
 }
 

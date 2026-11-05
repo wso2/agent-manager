@@ -29,6 +29,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
+	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
 	"github.com/wso2/agent-manager/agent-manager-service/events"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
@@ -61,7 +62,30 @@ func putDestination(store *memEventStore, name, availability string, projects ..
 func newTestSubscriptionService() (EventSubscriptionService, *memEventStore, *repomocks.EventRepositoryMock) {
 	store := newMemEventStore()
 	repo := store.mock()
-	return NewEventSubscriptionService(repo, slog.New(slog.DiscardHandler)), store, repo
+	return NewEventSubscriptionService(repo, existingTargets(), slog.New(slog.DiscardHandler)), store, repo
+}
+
+// existingTargets is an OpenChoreo where every project and agent exists
+// except those named "missing", with development and production
+// environments.
+func existingTargets() *clientmocks.OpenChoreoClientMock {
+	return &clientmocks.OpenChoreoClientMock{
+		GetProjectFunc: func(_ context.Context, _, project string) (*models.ProjectResponse, error) {
+			if project == "missing" {
+				return nil, utils.ErrNotFound
+			}
+			return &models.ProjectResponse{Name: project}, nil
+		},
+		GetComponentFunc: func(_ context.Context, _, project, agent string) (*models.AgentResponse, error) {
+			if project == "missing" || agent == "missing" {
+				return nil, utils.ErrNotFound
+			}
+			return &models.AgentResponse{Name: agent, ProjectName: project}, nil
+		},
+		ListEnvironmentsFunc: func(context.Context, string) ([]*models.EnvironmentResponse, error) {
+			return []*models.EnvironmentResponse{{Name: "development"}, {Name: "production"}}, nil
+		},
+	}
 }
 
 func subscriptionInput(destination uuid.UUID, types ...string) EventSubscriptionInput {
@@ -87,6 +111,64 @@ func TestEventSubscriptionService_CreateNormalisesAndAudits(t *testing.T) {
 	assert.Equal(t, models.EventScopeAgent, sub.Scope)
 	assert.Equal(t, "refund-agent", sub.AgentName)
 	assert.Equal(t, []audit.Action{audit.ActionEventSubscriptionCreate, audit.ActionEventSubscriptionCreate}, rec.actions())
+}
+
+func TestEventSubscriptionService_RefusesUnknownTargetsAndEnvironments(t *testing.T) {
+	svc, store, _ := newTestSubscriptionService()
+	ctx := auditCtx(&recordingAuditor{})
+	all := putDestination(store, "Everyone", models.DestinationAvailableAll)
+
+	missingProject := projectTarget
+	missingProject.ProjectName = "missing"
+	_, err := svc.Create(ctx, missingProject, subscriptionInput(all.ID, "agent.deployed"))
+	assert.ErrorIs(t, err, utils.ErrProjectNotFound, "a later project of that name must not inherit it")
+
+	missingAgent := agentTarget
+	missingAgent.AgentName = "missing"
+	_, err = svc.Create(ctx, missingAgent, subscriptionInput(all.ID, "agent.deployed"))
+	assert.ErrorIs(t, err, utils.ErrAgentNotFound)
+
+	typo := subscriptionInput(all.ID, "agent.deployed")
+	typo.Environments = []string{"prodution"}
+	_, err = svc.Create(ctx, agentTarget, typo)
+	assert.ErrorIs(t, err, utils.ErrInvalidInput, "an environment the org lacks would never match")
+
+	sub, err := svc.Create(ctx, agentTarget, subscriptionInput(all.ID, "agent.deployed"))
+	require.NoError(t, err)
+	_, err = svc.Update(ctx, agentTarget, sub.ID, typo)
+	assert.ErrorIs(t, err, utils.ErrInvalidInput)
+	assert.Len(t, store.subscriptions, 1, "nothing refused was saved")
+}
+
+func TestEventSubscriptionService_DescribeLoadsOnlyItsOwnData(t *testing.T) {
+	svc, store, repo := newTestSubscriptionService()
+	ctx := auditCtx(&recordingAuditor{})
+	all := putDestination(store, "Everyone", models.DestinationAvailableAll)
+	sub, err := svc.Create(ctx, agentTarget, subscriptionInput(all.ID, "agent.deployed"))
+	require.NoError(t, err)
+	repo.SubscriptionCountsFunc = func(
+		_ context.Context, _ string, ids []uuid.UUID, _ time.Time, _ repositories.DeliveryLocation,
+	) (repositories.SubscriptionCounts, error) {
+		return repositories.SubscriptionCounts{ids[0]: {models.EventDeliveryDelivered: 2}}, nil
+	}
+
+	detail, err := svc.Describe(ctx, agentTarget, sub)
+	require.NoError(t, err)
+	require.NotNil(t, detail.Destination)
+	assert.Equal(t, all.ID, detail.Destination.ID)
+	assert.Equal(t, 1, detail.DestinationStats.UsedBy)
+	assert.Equal(t, map[string]int{models.EventDeliveryDelivered: 2}, detail.Counts)
+	assert.Empty(t, repo.ListSubscriptionsCalls()[1:], "only the create's limit check listed the level")
+	assert.Empty(t, repo.DestinationStatsCalls(), "no stats for the org's other destinations")
+	counts := repo.SubscriptionCountsCalls()
+	require.Len(t, counts, 1)
+	assert.Equal(t, []uuid.UUID{sub.ID}, counts[0].Ids)
+
+	gone := *sub
+	gone.DestinationID = uuid.New()
+	detail, err = svc.Describe(ctx, agentTarget, &gone)
+	require.NoError(t, err)
+	assert.Nil(t, detail.Destination, "a missing destination is shown as unknown, not an error")
 }
 
 func TestEventSubscriptionService_EventTypesFollowTheScope(t *testing.T) {
@@ -273,6 +355,7 @@ func TestEventSubscriptionService_ListInherited(t *testing.T) {
 func TestEventSubscriptionService_RemoveForProjectAndAgent(t *testing.T) {
 	svc, store, _ := newTestSubscriptionService()
 	payments := putDestination(store, "Payments", models.DestinationAvailableProjects, "payments", "claims")
+	only := putDestination(store, "Payments only", models.DestinationAvailableProjects, "payments")
 	putSubscription(store, projectTarget, "Project", payments.ID)
 	putSubscription(store, agentTarget, "Agent", payments.ID)
 	putSubscription(store, orgTarget, "Org", payments.ID)
@@ -290,6 +373,9 @@ func TestEventSubscriptionService_RemoveForProjectAndAgent(t *testing.T) {
 	}
 	assert.Equal(t, []string{"claims"}, store.destinations[payments.ID].Projects,
 		"the deleted project is no longer listed, so a new one by that name gets no access")
+	assert.Equal(t, models.DestinationAvailableOrg, store.destinations[only.ID].Availability,
+		"with no project left it becomes org-only, which can still be saved unchanged")
+	assert.Empty(t, store.destinations[only.ID].Projects)
 }
 
 func TestEventSubscriptionService_CleanupOutlivesCanceledRequest(t *testing.T) {
@@ -309,7 +395,7 @@ func TestEventSubscriptionService_CleanupOutlivesCanceledRequest(t *testing.T) {
 			return check(ctx)
 		},
 	}
-	svc := NewEventSubscriptionService(repo, slog.New(slog.DiscardHandler))
+	svc := NewEventSubscriptionService(repo, existingTargets(), slog.New(slog.DiscardHandler))
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 

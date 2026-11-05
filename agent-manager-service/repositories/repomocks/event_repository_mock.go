@@ -40,6 +40,9 @@ import (
 //			DestinationStatsFunc: func(ctx context.Context, ouID string) (map[uuid.UUID]repositories.DestinationStats, error) {
 //				panic("mock out the DestinationStats method")
 //			},
+//			DestinationStatsOfFunc: func(ctx context.Context, ouID string, id uuid.UUID) (repositories.DestinationStats, error) {
+//				panic("mock out the DestinationStatsOf method")
+//			},
 //			DestinationsByIDFunc: func(ctx context.Context, ouID string, ids []uuid.UUID) ([]models.EventDestination, error) {
 //				panic("mock out the DestinationsByID method")
 //			},
@@ -100,6 +103,9 @@ type EventRepositoryMock struct {
 
 	// DestinationStatsFunc mocks the DestinationStats method.
 	DestinationStatsFunc func(ctx context.Context, ouID string) (map[uuid.UUID]repositories.DestinationStats, error)
+
+	// DestinationStatsOfFunc mocks the DestinationStatsOf method.
+	DestinationStatsOfFunc func(ctx context.Context, ouID string, id uuid.UUID) (repositories.DestinationStats, error)
 
 	// DestinationsByIDFunc mocks the DestinationsByID method.
 	DestinationsByIDFunc func(ctx context.Context, ouID string, ids []uuid.UUID) ([]models.EventDestination, error)
@@ -198,6 +204,15 @@ type EventRepositoryMock struct {
 			Ctx context.Context
 			// OuID is the ouID argument value.
 			OuID string
+		}
+		// DestinationStatsOf holds details about calls to the DestinationStatsOf method.
+		DestinationStatsOf []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// OuID is the ouID argument value.
+			OuID string
+			// ID is the id argument value.
+			ID uuid.UUID
 		}
 		// DestinationsByID holds details about calls to the DestinationsByID method.
 		DestinationsByID []struct {
@@ -306,6 +321,7 @@ type EventRepositoryMock struct {
 	lockDeleteSubscription            sync.RWMutex
 	lockDeleteSubscriptionsUnder      sync.RWMutex
 	lockDestinationStats              sync.RWMutex
+	lockDestinationStatsOf            sync.RWMutex
 	lockDestinationsByID              sync.RWMutex
 	lockGetDestination                sync.RWMutex
 	lockGetSubscription               sync.RWMutex
@@ -596,6 +612,46 @@ func (mock *EventRepositoryMock) DestinationStatsCalls() []struct {
 	mock.lockDestinationStats.RLock()
 	calls = mock.calls.DestinationStats
 	mock.lockDestinationStats.RUnlock()
+	return calls
+}
+
+// DestinationStatsOf calls DestinationStatsOfFunc.
+func (mock *EventRepositoryMock) DestinationStatsOf(ctx context.Context, ouID string, id uuid.UUID) (repositories.DestinationStats, error) {
+	if mock.DestinationStatsOfFunc == nil {
+		panic("EventRepositoryMock.DestinationStatsOfFunc: method is nil but EventRepository.DestinationStatsOf was just called")
+	}
+	callInfo := struct {
+		Ctx  context.Context
+		OuID string
+		ID   uuid.UUID
+	}{
+		Ctx:  ctx,
+		OuID: ouID,
+		ID:   id,
+	}
+	mock.lockDestinationStatsOf.Lock()
+	mock.calls.DestinationStatsOf = append(mock.calls.DestinationStatsOf, callInfo)
+	mock.lockDestinationStatsOf.Unlock()
+	return mock.DestinationStatsOfFunc(ctx, ouID, id)
+}
+
+// DestinationStatsOfCalls gets all the calls that were made to DestinationStatsOf.
+// Check the length with:
+//
+//	len(mockedEventRepository.DestinationStatsOfCalls())
+func (mock *EventRepositoryMock) DestinationStatsOfCalls() []struct {
+	Ctx  context.Context
+	OuID string
+	ID   uuid.UUID
+} {
+	var calls []struct {
+		Ctx  context.Context
+		OuID string
+		ID   uuid.UUID
+	}
+	mock.lockDestinationStatsOf.RLock()
+	calls = mock.calls.DestinationStatsOf
+	mock.lockDestinationStatsOf.RUnlock()
 	return calls
 }
 

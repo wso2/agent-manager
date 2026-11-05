@@ -35,11 +35,6 @@ const (
 	EventsStream  = "AMP_EVENTS"
 	EventsSubject = "amp.events"
 
-	// EventFanoutConsumer and MonitorAlertFanoutConsumer are provisioned
-	// before publishing starts, so workers can attach without losing events.
-	EventFanoutConsumer        = "event-fanout"
-	MonitorAlertFanoutConsumer = "notification-fanout"
-
 	streamMaxAge = 72 * time.Hour
 	// natsAckWait is how long a handler has before an unanswered message is
 	// redelivered; it must outlast a delivery to a destination.
@@ -56,6 +51,13 @@ const (
 	// Bound poison-event retries so one bad event cannot occupy the consumer forever.
 	natsEventMaxDeliver = 20
 )
+
+// provisionedConsumers are the durable event consumers Setup creates before
+// publishing starts, so their workers can attach without losing events. A
+// consumer is listed together with the worker that reads it: one created
+// with no reader would hold every event until that worker ships, then
+// deliver up to streamMaxAge of them at once.
+var provisionedConsumers = []string{}
 
 // natsQueues maps work queue names to their JetStream streams and subjects.
 // A queue's subjects must stay outside amp.events.>, which AMP_EVENTS
@@ -130,7 +132,7 @@ func (b *NATSBus) Setup(ctx context.Context) error {
 	if _, err := b.js.CreateOrUpdateStream(ctx, eventsCfg); err != nil {
 		return fmt.Errorf("failed to set up stream %s: %w", EventsStream, err)
 	}
-	for _, name := range []string{EventFanoutConsumer, MonitorAlertFanoutConsumer} {
+	for _, name := range provisionedConsumers {
 		if _, err := b.js.CreateOrUpdateConsumer(ctx, EventsStream, eventConsumerConfig(name)); err != nil {
 			return fmt.Errorf("failed to set up consumer %s: %w", name, err)
 		}

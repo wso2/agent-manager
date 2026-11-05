@@ -29,6 +29,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
+	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/events"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
@@ -39,9 +40,7 @@ const (
 	maxEventSubscriptionsPerOwner = 25
 	// subscriptionCountsWindow is how far back a subscription's delivery
 	// counts look.
-	subscriptionCountsWindow  = 24 * time.Hour
-	defaultEventDeliveryLimit = 50
-	maxEventDeliveryLimit     = 100
+	subscriptionCountsWindow = 24 * time.Hour
 	// eventCleanupTimeout bounds each cleanup step after a project or agent
 	// delete, which no longer has the request's deadline.
 	eventCleanupTimeout = 30 * time.Second
@@ -79,23 +78,13 @@ type SubscriptionList struct {
 	Counts repositories.SubscriptionCounts
 }
 
-// DeliveryQuery selects a page of a level's delivery log.
-type DeliveryQuery struct {
-	DestinationID  *uuid.UUID
-	SubscriptionID *uuid.UUID
-	Status         string
-	Limit          int
-	Offset         int
-}
-
-// DeliveryLog is a page of a delivery log and the destinations and
-// subscriptions its deliveries name.
-type DeliveryLog struct {
-	Deliveries       []models.EventDelivery
-	Total            int64
-	Destinations     map[uuid.UUID]*models.EventDestination
-	DestinationStats map[uuid.UUID]repositories.DestinationStats
-	Subscriptions    map[uuid.UUID]*models.EventSubscription
+// SubscriptionDetail is what one of a level's own subscriptions shows: its
+// destination, if it still exists, the destination's stats, and its
+// deliveries of the last 24 hours by status.
+type SubscriptionDetail struct {
+	Destination      *models.EventDestination
+	DestinationStats repositories.DestinationStats
+	Counts           map[string]int
 }
 
 // EventsCleaner removes the subscriptions of a deleted project or agent, so
@@ -106,32 +95,36 @@ type EventsCleaner interface {
 }
 
 // EventSubscriptionService manages event subscriptions at org, project and
-// agent level, and serves each level's delivery log. Every change is
-// recorded fail-closed in the audit trail before it applies.
+// agent level. Every change is recorded fail-closed in the audit trail before
+// it applies.
 type EventSubscriptionService interface {
 	// EventTypes lists the event types a subscription at scope can name; all
 	// of them for an empty scope.
 	EventTypes(scope string) ([]events.Type, error)
 	List(ctx context.Context, target repositories.EventTarget) (*SubscriptionList, error)
 	Get(ctx context.Context, target repositories.EventTarget, id uuid.UUID) (*models.EventSubscription, error)
+	// Describe loads what one of target's own subscriptions shows, without
+	// the rest of the level.
+	Describe(ctx context.Context, target repositories.EventTarget, sub *models.EventSubscription) (*SubscriptionDetail, error)
 	Create(ctx context.Context, target repositories.EventTarget, in EventSubscriptionInput) (*models.EventSubscription, error)
 	Update(ctx context.Context, target repositories.EventTarget, id uuid.UUID, in EventSubscriptionInput) (*models.EventSubscription, error)
 	Delete(ctx context.Context, target repositories.EventTarget, id uuid.UUID) error
-	// Deliveries returns a page of the level's delivery log: the whole org's,
-	// a project's events, or an agent's.
 
 	EventsCleaner
 }
 
 type eventSubscriptionService struct {
 	repo   repositories.EventRepository
+	oc     client.OpenChoreoClient
 	logger *slog.Logger
 	now    func() time.Time
 }
 
 // NewEventSubscriptionService creates an EventSubscriptionService.
-func NewEventSubscriptionService(repo repositories.EventRepository, logger *slog.Logger) EventSubscriptionService {
-	return &eventSubscriptionService{repo: repo, logger: logger, now: time.Now}
+func NewEventSubscriptionService(
+	repo repositories.EventRepository, oc client.OpenChoreoClient, logger *slog.Logger,
+) EventSubscriptionService {
+	return &eventSubscriptionService{repo: repo, oc: oc, logger: logger, now: time.Now}
 }
 
 func (s *eventSubscriptionService) EventTypes(scope string) ([]events.Type, error) {
@@ -272,10 +265,36 @@ func (s *eventSubscriptionService) Get(
 	return sub, nil
 }
 
+func (s *eventSubscriptionService) Describe(
+	ctx context.Context, t repositories.EventTarget, sub *models.EventSubscription,
+) (*SubscriptionDetail, error) {
+	out := &SubscriptionDetail{}
+	d, err := s.repo.GetDestination(ctx, t.OUID, sub.DestinationID)
+	switch {
+	case err == nil:
+		out.Destination = d
+		if out.DestinationStats, err = s.repo.DestinationStatsOf(ctx, t.OUID, d.ID); err != nil {
+			return nil, fmt.Errorf("failed to read event destination stats: %w", err)
+		}
+	case !errors.Is(err, gorm.ErrRecordNotFound):
+		return nil, fmt.Errorf("failed to load event destination: %w", err)
+	}
+	counts, err := s.repo.SubscriptionCounts(ctx, t.OUID, []uuid.UUID{sub.ID},
+		s.now().Add(-subscriptionCountsWindow), repositories.DeliveryLocation{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to count event deliveries: %w", err)
+	}
+	out.Counts = counts[sub.ID]
+	return out, nil
+}
+
 func (s *eventSubscriptionService) Create(
 	ctx context.Context, t repositories.EventTarget, in EventSubscriptionInput,
 ) (*models.EventSubscription, error) {
 	if err := s.validate(t, &in); err != nil {
+		return nil, err
+	}
+	if err := s.checkTarget(ctx, t, in.Environments); err != nil {
 		return nil, err
 	}
 	existing, err := s.repo.ListSubscriptions(ctx, t)
@@ -322,6 +341,9 @@ func (s *eventSubscriptionService) Update(
 		return nil, err
 	}
 	if err := s.validate(t, &in); err != nil {
+		return nil, err
+	}
+	if err := s.checkTarget(ctx, t, in.Environments); err != nil {
 		return nil, err
 	}
 	sub.Name, sub.Description, sub.DestinationID = in.Name, in.Description, in.DestinationID
@@ -423,6 +445,40 @@ func (s *eventSubscriptionService) validate(t repositories.EventTarget, in *Even
 	}
 	in.EventTypes = types
 	in.Environments = uniqueTrimmed(in.Environments)
+	return nil
+}
+
+// checkTarget refuses a subscription for a project or agent that does not
+// exist, which would otherwise pass to whichever one later takes the name,
+// and one naming an environment the org does not have, which would never
+// match.
+func (s *eventSubscriptionService) checkTarget(ctx context.Context, t repositories.EventTarget, environments []string) error {
+	switch t.Scope {
+	case models.EventScopeProject:
+		if _, err := s.oc.GetProject(ctx, t.OUID, t.ProjectName); err != nil {
+			return translateProjectError(err)
+		}
+	case models.EventScopeAgent:
+		if _, err := getAgent(ctx, s.oc, t.OUID, t.ProjectName, t.AgentName); err != nil {
+			return err
+		}
+	}
+	if len(environments) == 0 {
+		return nil
+	}
+	envs, err := s.oc.ListEnvironments(ctx, t.OUID)
+	if err != nil {
+		return fmt.Errorf("failed to list environments: %w", err)
+	}
+	known := make(map[string]bool, len(envs))
+	for _, env := range envs {
+		known[env.Name] = true
+	}
+	for _, name := range environments {
+		if !known[name] {
+			return fmt.Errorf("%w: environment %q does not exist", utils.ErrInvalidInput, name)
+		}
+	}
 	return nil
 }
 

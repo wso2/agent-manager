@@ -136,7 +136,6 @@ var (
 	ErrEventDestinationInUse          = errors.New("event destination is used by one or more subscriptions")
 	ErrEventDestinationNameTaken      = errors.New("an event destination with this name already exists")
 	ErrEventSubscriptionNotFound      = errors.New("event subscription not found")
-	ErrNotificationNotFound           = errors.New("notification not found")
 	ErrEvaluatorNotFound              = errors.New("evaluator not found")
 	ErrCustomEvaluatorNotFound        = errors.New("custom evaluator not found")
 	ErrCustomEvaluatorAlreadyExists   = errors.New("custom evaluator already exists")

@@ -30,60 +30,77 @@ import (
 )
 
 func TestNATSSetupPreservesEventsBeforeWorkersStart(t *testing.T) {
-	for _, name := range []string{EventFanoutConsumer, MonitorAlertFanoutConsumer} {
-		t.Run(name, func(t *testing.T) {
-			bus, err := StartEmbedded(slog.New(slog.DiscardHandler))
-			require.NoError(t, err)
-			t.Cleanup(bus.Close)
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			t.Cleanup(cancel)
-			require.NoError(t, bus.Setup(ctx))
+	const name = "test-fanout"
+	prev := provisionedConsumers
+	provisionedConsumers = []string{name}
+	t.Cleanup(func() { provisionedConsumers = prev })
+	bus, err := StartEmbedded(slog.New(slog.DiscardHandler))
+	require.NoError(t, err)
+	t.Cleanup(bus.Close)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	t.Cleanup(cancel)
+	require.NoError(t, bus.Setup(ctx))
 
-			first := New("first", TypeMonitorRunSucceeded, ScopeAgent, "org", "project", "agent", time.Now())
-			require.NoError(t, bus.PublishEvent(ctx, first, []byte("first")))
-			// Another replica's setup must not move the durable's start point
-			// past events published while workers were starting.
-			require.NoError(t, bus.Setup(ctx))
-			received := make(chan Message, 4)
-			sub, err := bus.SubscribeEvents(ctx, name, func(msg Message) { received <- msg })
-			require.NoError(t, err)
-			t.Cleanup(sub.Stop)
-			select {
-			case msg := <-received:
-				assert.Equal(t, "first", string(msg.Data()))
-				require.NoError(t, msg.Ack())
-			case <-ctx.Done():
-				t.Fatal("event published before worker startup was lost")
-			}
-			consumer, err := bus.js.Consumer(ctx, EventsStream, name)
-			require.NoError(t, err)
-			require.Eventually(t, func() bool {
-				info, infoErr := consumer.Info(ctx)
-				return infoErr == nil && info.AckFloor.Stream == 1
-			}, time.Second, 10*time.Millisecond)
-			sub.Stop()
-			select {
-			case <-sub.(jetstream.ConsumeContext).Closed():
-			case <-ctx.Done():
-				t.Fatal("original consumer did not stop")
-			}
-			require.NoError(t, bus.nc.Flush())
-
-			second := New("second", TypeMonitorRunSucceeded, ScopeAgent, "org", "project", "agent", time.Now())
-			require.NoError(t, bus.PublishEvent(ctx, second, []byte("second")))
-			require.NoError(t, bus.Setup(ctx))
-			sub, err = bus.SubscribeEvents(ctx, name, func(msg Message) { received <- msg })
-			require.NoError(t, err)
-			t.Cleanup(sub.Stop)
-			select {
-			case msg := <-received:
-				assert.Equal(t, "second", string(msg.Data()), "existing durable must resume without replaying acknowledged events")
-				require.NoError(t, msg.Ack())
-			case <-ctx.Done():
-				t.Fatal("existing durable did not resume")
-			}
-		})
+	first := New("first", TypeMonitorRunSucceeded, ScopeAgent, "org", "project", "agent", time.Now())
+	require.NoError(t, bus.PublishEvent(ctx, first, []byte("first")))
+	// Another replica's setup must not move the durable's start point
+	// past events published while workers were starting.
+	require.NoError(t, bus.Setup(ctx))
+	received := make(chan Message, 4)
+	sub, err := bus.SubscribeEvents(ctx, name, func(msg Message) { received <- msg })
+	require.NoError(t, err)
+	t.Cleanup(sub.Stop)
+	select {
+	case msg := <-received:
+		assert.Equal(t, "first", string(msg.Data()))
+		require.NoError(t, msg.Ack())
+	case <-ctx.Done():
+		t.Fatal("event published before worker startup was lost")
 	}
+	consumer, err := bus.js.Consumer(ctx, EventsStream, name)
+	require.NoError(t, err)
+	require.Eventually(t, func() bool {
+		info, infoErr := consumer.Info(ctx)
+		return infoErr == nil && info.AckFloor.Stream == 1
+	}, time.Second, 10*time.Millisecond)
+	sub.Stop()
+	select {
+	case <-sub.(jetstream.ConsumeContext).Closed():
+	case <-ctx.Done():
+		t.Fatal("original consumer did not stop")
+	}
+	require.NoError(t, bus.nc.Flush())
+
+	second := New("second", TypeMonitorRunSucceeded, ScopeAgent, "org", "project", "agent", time.Now())
+	require.NoError(t, bus.PublishEvent(ctx, second, []byte("second")))
+	require.NoError(t, bus.Setup(ctx))
+	sub, err = bus.SubscribeEvents(ctx, name, func(msg Message) { received <- msg })
+	require.NoError(t, err)
+	t.Cleanup(sub.Stop)
+	select {
+	case msg := <-received:
+		assert.Equal(t, "second", string(msg.Data()), "existing durable must resume without replaying acknowledged events")
+		require.NoError(t, msg.Ack())
+	case <-ctx.Done():
+		t.Fatal("existing durable did not resume")
+	}
+}
+
+// Setup creates only the listed consumers: one with no worker would hold
+// every event until a worker ships, then deliver them all at once.
+func TestNATSSetupProvisionsOnlyListedConsumers(t *testing.T) {
+	bus, err := StartEmbedded(slog.New(slog.DiscardHandler))
+	require.NoError(t, err)
+	t.Cleanup(bus.Close)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	t.Cleanup(cancel)
+	require.NoError(t, bus.Setup(ctx))
+
+	stream, err := bus.js.Stream(ctx, EventsStream)
+	require.NoError(t, err)
+	info, err := stream.Info(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, len(provisionedConsumers), info.State.Consumers)
 }
 
 // Items waiting out a retry delay stay unacknowledged; a backlog of them

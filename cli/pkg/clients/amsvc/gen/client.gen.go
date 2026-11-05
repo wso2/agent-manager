@@ -25800,6 +25800,7 @@ type CreateAgentEventSubscriptionResp struct {
 	HTTPResponse *http.Response
 	JSON201      *EventSubscriptionResponse
 	JSON400      *ErrorResponse
+	JSON404      *ErrorResponse
 	JSON500      *ErrorResponse
 }
 
@@ -27141,6 +27142,7 @@ type CreateProjectEventSubscriptionResp struct {
 	HTTPResponse *http.Response
 	JSON201      *EventSubscriptionResponse
 	JSON400      *ErrorResponse
+	JSON404      *ErrorResponse
 	JSON500      *ErrorResponse
 }
 
@@ -39246,6 +39248,13 @@ func ParseCreateAgentEventSubscriptionResp(rsp *http.Response) (*CreateAgentEven
 		}
 		response.JSON400 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest ErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -41720,6 +41729,13 @@ func ParseCreateProjectEventSubscriptionResp(rsp *http.Response) (*CreateProject
 			return nil, err
 		}
 		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest ErrorResponse

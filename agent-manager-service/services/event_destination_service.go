@@ -121,6 +121,8 @@ type EventDestinationService interface {
 	// to, and their stats.
 	Available(ctx context.Context, ouID, project string) ([]models.EventDestination, map[uuid.UUID]repositories.DestinationStats, error)
 	Get(ctx context.Context, ouID string, id uuid.UUID) (*models.EventDestination, error)
+	// Stats returns one destination's stats.
+	Stats(ctx context.Context, ouID string, id uuid.UUID) (repositories.DestinationStats, error)
 	// Usage returns the subscriptions that send to a destination.
 	Usage(ctx context.Context, ouID string, id uuid.UUID) ([]models.EventSubscription, error)
 	// Create returns the new destination and its generated secret, if its
@@ -216,6 +218,16 @@ func (s *eventDestinationService) Get(ctx context.Context, ouID string, id uuid.
 		return nil, fmt.Errorf("failed to get event destination: %w", err)
 	}
 	return d, nil
+}
+
+func (s *eventDestinationService) Stats(
+	ctx context.Context, ouID string, id uuid.UUID,
+) (repositories.DestinationStats, error) {
+	stats, err := s.repo.DestinationStatsOf(ctx, ouID, id)
+	if err != nil {
+		return repositories.DestinationStats{}, fmt.Errorf("failed to read event destination stats: %w", err)
+	}
+	return stats, nil
 }
 
 func (s *eventDestinationService) Usage(ctx context.Context, ouID string, id uuid.UUID) ([]models.EventSubscription, error) {
