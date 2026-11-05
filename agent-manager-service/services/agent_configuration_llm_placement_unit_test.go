@@ -84,6 +84,7 @@ func newLLMPlacementFixture(t *testing.T, envNames ...string) *llmPlacementFixtu
 		},
 	}
 	f.svc = &agentConfigurationService{
+		logger:                    discardLogger(),
 		gatewayRepo:               f.gatewayRepo,
 		llmProviderRepo:           providerRepo,
 		llmProxyDeploymentService: &LLMProxyDeploymentService{deploymentRepo: deployments},
