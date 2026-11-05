@@ -79,7 +79,9 @@ export function HealthCheckFields({
   const enabled = value?.enabled ?? (value ? true : defaults.enabled);
   const checkType = value?.type ?? defaults.type;
 
-  // Sets one field; an empty value removes it, so it falls back to its default.
+  // Sets one field; an empty value removes it, so it falls back to its default. When that leaves
+  // the check empty, it becomes unset, except a check that is on but off by default (liveness):
+  // it stays {} ("on, with the defaults"), as unset would turn it off.
   const setField = <K extends keyof HealthCheck>(
     field: K,
     fieldValue: HealthCheck[K] | undefined,
@@ -90,7 +92,11 @@ export function HealthCheckFields({
     } else {
       next[field] = fieldValue;
     }
-    onChange(Object.keys(next).length === 0 ? undefined : next);
+    if (Object.keys(next).length > 0) {
+      onChange(next);
+    } else {
+      onChange(enabled && !defaults.enabled ? {} : undefined);
+    }
   };
   // Switching to HTTP fills in the suggested path, since an HTTP check with no path would
   // check "/"; switching back to TCP drops the path.

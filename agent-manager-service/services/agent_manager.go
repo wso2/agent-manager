@@ -767,25 +767,31 @@ func (s *agentManagerService) healthChecksOfImageBuild(ctx context.Context, ouID
 
 // kindAgentFirstBindingComponentTypeConfigs returns the component-type configs for the first
 // binding of an agent created from a kind version: the health checks of the build the version
-// was published from, as deploy writes them. Nil when that build has none, which writes no
-// component-type configs, exactly as before health checks existed. If the build can't be looked
-// up the agent is still created, with the default health checks; a later deploy of the version
-// writes the right ones.
+// was published from, as deploy writes them, or an explicit nil (the defaults) when that build
+// has none. If the build can't be looked up the agent is still created, with the default health
+// checks; a later deploy of the version writes the right ones. Nil for an agent that is not an
+// API agent (firstEnv is nil), which writes no component-type configs, as before.
 //
 // When there are health checks, the map also carries the first environment's runtimeClassName:
 // a non-nil map is authoritative for it, so without it a binding that already exists (an agent
 // recreated under the same name, or adopted on a 409) in a gVisor environment would lose it.
 func (s *agentManagerService) kindAgentFirstBindingComponentTypeConfigs(ctx context.Context, ouID, projectName, agentName, kindName, imageID string, firstEnv *models.EnvironmentResponse) map[string]interface{} {
+	// Only API agents get component-type configs, as on deploy; firstEnv is only read for them.
+	if firstEnv == nil {
+		return nil
+	}
+	configs := buildComponentTypeEnvConfigs(firstEnv)
 	healthChecks, err := s.healthChecksOfImageBuild(ctx, ouID, projectName, agentName, kindName, imageID)
 	if err != nil {
 		s.logger.Warn("Could not find the kind version build's health checks; the agent starts with the default ones",
 			"agentName", agentName, "imageId", imageID, "error", err)
-		return nil
 	}
-	if healthChecks == nil {
-		return nil
+	// An explicit (untyped) nil removes any health checks a binding of the same name already
+	// holds, so the agent starts with the defaults; a typed nil pointer would not match that rule.
+	if err != nil || healthChecks == nil {
+		configs["healthChecks"] = nil
+		return configs
 	}
-	configs := buildComponentTypeEnvConfigs(firstEnv)
 	configs["healthChecks"] = healthChecks
 	return configs
 }

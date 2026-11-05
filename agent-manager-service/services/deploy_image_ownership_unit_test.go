@@ -428,7 +428,16 @@ func TestKindAgentFirstBindingComponentTypeConfigs(t *testing.T) {
 		return &agentManagerService{ocClient: oc, agentKindService: newKindService(kindRepo, oc), logger: discardLogger()}
 	}
 	configsFor := func(svc *agentManagerService) map[string]interface{} {
-		return svc.kindAgentFirstBindingComponentTypeConfigs(context.Background(), "acme", "proj1", "my-copy", "my-kind", kindVersionImage, nil)
+		devEnv := &models.EnvironmentResponse{Name: "dev"}
+		return svc.kindAgentFirstBindingComponentTypeConfigs(context.Background(), "acme", "proj1", "my-copy", "my-kind", kindVersionImage, devEnv)
+	}
+	// hasExplicitNilHealthChecks: the key is present with an untyped nil, which removes any
+	// health checks an existing binding of the same name holds.
+	hasExplicitNilHealthChecks := func(t *testing.T, configs map[string]interface{}) {
+		t.Helper()
+		value, ok := configs["healthChecks"]
+		require.True(t, ok, "healthChecks must be present to clear an existing binding's")
+		assert.True(t, value == nil, "must be an untyped nil, got %#v", value)
 	}
 
 	t.Run("the version's build has health checks: the first binding gets them", func(t *testing.T) {
@@ -450,18 +459,25 @@ func TestKindAgentFirstBindingComponentTypeConfigs(t *testing.T) {
 		assert.Equal(t, utils.RuntimeClassGvisor, configs["runtimeClassName"])
 	})
 
-	t.Run("the version's build has none: no component-type configs, as before", func(t *testing.T) {
+	t.Run("the version's build has none: the defaults, clearing any earlier ones", func(t *testing.T) {
 		svc := newService(func() (*models.BuildDetailsResponse, error) {
 			return &models.BuildDetailsResponse{}, nil
 		})
-		assert.Nil(t, configsFor(svc))
+		hasExplicitNilHealthChecks(t, configsFor(svc))
 	})
 
 	t.Run("the version's build can't be read: created anyway, with the defaults", func(t *testing.T) {
 		svc := newService(func() (*models.BuildDetailsResponse, error) {
 			return nil, errors.New("openchoreo unavailable")
 		})
-		assert.Nil(t, configsFor(svc))
+		hasExplicitNilHealthChecks(t, configsFor(svc))
+	})
+
+	t.Run("an agent that is not an API agent gets no component-type configs, as before", func(t *testing.T) {
+		svc := newService(func() (*models.BuildDetailsResponse, error) {
+			return &models.BuildDetailsResponse{BuildResponse: models.BuildResponse{HealthChecks: versionBuildChecks}}, nil
+		})
+		assert.Nil(t, svc.kindAgentFirstBindingComponentTypeConfigs(context.Background(), "acme", "proj1", "my-copy", "my-kind", kindVersionImage, nil))
 	})
 }
 

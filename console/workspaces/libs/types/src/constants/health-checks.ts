@@ -85,9 +85,11 @@ export function healthCheckFieldErrors(
   if (!check) {
     return errors;
   }
-  // An HTTP check needs a path (without one it would check "/", which the user never chose).
-  // The path must start with / and must not contain "..", the same rules the backend applies.
-  if (check.type === "HTTP" && (check.path === undefined || check.path === "")) {
+  // An HTTP check that runs needs a path (without one it would check "/", which the user never
+  // chose); a check switched off never runs, so it needs none. The path must start with / and
+  // must not contain "..", the same rules the backend applies.
+  const isOn = check.enabled ?? true;
+  if (check.type === "HTTP" && isOn && (check.path === undefined || check.path === "")) {
     errors.path = "Path is required for HTTP GET";
   } else if (
     check.type === "HTTP" &&

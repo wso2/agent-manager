@@ -29,6 +29,7 @@ import (
 func TestValidateHealthChecks(t *testing.T) {
 	stringOf := func(s string) *string { return &s }
 	numberOf := func(n int32) *int32 { return &n }
+	boolOf := func(b bool) *bool { return &b }
 
 	tests := []struct {
 		name         string
@@ -60,6 +61,10 @@ func TestValidateHealthChecks(t *testing.T) {
 		}},
 		{name: "HTTP check without a path", wantErr: true, healthChecks: &spec.HealthChecks{
 			Readiness: &spec.HealthCheck{Type: stringOf("HTTP")},
+		}},
+		// A check switched off never runs, so it needs no path.
+		{name: "switched-off HTTP check without a path", healthChecks: &spec.HealthChecks{
+			Liveness: &spec.HealthCheck{Type: stringOf("HTTP"), Enabled: boolOf(false)},
 		}},
 		{name: "path without a leading slash", wantErr: true, healthChecks: &spec.HealthChecks{
 			Readiness: &spec.HealthCheck{Type: stringOf("HTTP"), Path: stringOf("health")},

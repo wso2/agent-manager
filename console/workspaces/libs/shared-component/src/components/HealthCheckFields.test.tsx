@@ -19,6 +19,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import {
+  LIVENESS_CHECK_DEFAULTS,
   READINESS_CHECK_DEFAULTS,
   STARTUP_CHECK_DEFAULTS,
   describeHealthChecksInEffect,
@@ -116,6 +117,10 @@ describe("healthCheckFieldErrors", () => {
       healthCheckFieldErrors({ type: "HTTP" }, "readiness", READINESS_CHECK_DEFAULTS).path,
     ).toBe("Path is required for HTTP GET");
     expect(healthCheckFieldErrors({ type: "TCP" }, "readiness", READINESS_CHECK_DEFAULTS)).toEqual({});
+    // A check switched off never runs, so it needs no path.
+    expect(
+      healthCheckFieldErrors({ type: "HTTP", enabled: false }, "liveness", READINESS_CHECK_DEFAULTS),
+    ).toEqual({});
   });
 
   // The backend rejects ".." in a path, so the form must too.
@@ -214,6 +219,38 @@ describe("HealthCheckFields", () => {
     expect(onChange).not.toHaveBeenCalled();
     fireEvent.change(screen.getByLabelText("Readiness interval (s)"), { target: { value: "10" } });
     expect(onChange).toHaveBeenLastCalledWith({ periodSeconds: 10 });
+  });
+
+  // Clearing the last field of liveness (off by default) must not turn it off.
+  it("keeps liveness on when its last field is cleared", () => {
+    const onChange = vi.fn();
+    render(
+      <HealthCheckFields
+        checkName="liveness"
+        title="Liveness"
+        value={{ port: 9000 }}
+        onChange={onChange}
+        defaults={LIVENESS_CHECK_DEFAULTS}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText("Liveness port"), { target: { value: "" } });
+    expect(onChange).toHaveBeenLastCalledWith({});
+  });
+
+  // For readiness (on by default), unset already means on, so clearing leaves it unset.
+  it("leaves readiness unset when its last field is cleared", () => {
+    const onChange = vi.fn();
+    render(
+      <HealthCheckFields
+        checkName="readiness"
+        title="Readiness"
+        value={{ port: 9000 }}
+        onChange={onChange}
+        defaults={READINESS_CHECK_DEFAULTS}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText("Readiness port"), { target: { value: "" } });
+    expect(onChange).toHaveBeenLastCalledWith(undefined);
   });
 
   // A check that is off is still validated, so an error must stay in view.

@@ -905,9 +905,9 @@ func validateHealthCheck(checkName string, check *spec.HealthCheck, defaults hea
 			"%s.type must be TCP or HTTP, got %q", field, checkType,
 		)
 	}
-	// An HTTP check needs its path: without one it would quietly check "/", a path the user
-	// never chose.
-	if checkType == string(HealthCheckTypeHTTP) && check.Path == nil {
+	// An HTTP check that runs needs its path: without one it would quietly check "/", a path
+	// the user never chose. A check switched off never runs, so it needs none.
+	if checkType == string(HealthCheckTypeHTTP) && check.Path == nil && BoolPointerAsBool(check.Enabled, true) {
 		return NewValidationErrorf(
 			"An HTTP health check needs a path, such as /health",
 			"%s.path is required when %s.type is HTTP", field, field,
