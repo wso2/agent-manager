@@ -299,26 +299,7 @@ func (s *agentThunderProvisioningService) storeCredential(ctx context.Context, o
 	}
 	refName, err := s.secretMgmtClient.CreateSecret(ctx, location, data)
 	if err != nil {
-		if !errors.Is(err, secretmanagersvc.ErrReferenceNameTaken) {
-			return "", err
-		}
-		// A binding provisioned before the provider owned this SecretReference
-		// still has one created directly by the identity injection service, not
-		// through the secret API. The API reports it missing, yet its name is
-		// taken, so the create conflicts and the fallback update fails. Delete
-		// that legacy SecretReference and create again: the retry is then a plain
-		// create, and from here on the provider owns it like any new binding's.
-		injector := s.getWorkloadInjector()
-		if injector == nil {
-			return "", err
-		}
-		if cleanupErr := injector.CleanupForEnvironment(ctx, ouID, agentName, envName); cleanupErr != nil {
-			return "", fmt.Errorf("clear legacy SecretReference before retry: %w: %w", cleanupErr, err)
-		}
-		refName, err = s.secretMgmtClient.CreateSecret(ctx, location, data)
-		if err != nil {
-			return "", err
-		}
+		return "", err
 	}
 
 	return refName, nil
@@ -1564,7 +1545,6 @@ func (s *agentThunderProvisioningService) DeleteAllBindings(ctx context.Context,
 	// otherwise a binding with a fast cleanup would still sit blocked behind
 	// however long its siblings' Thunder/OpenBao calls take, even though
 	// nothing about it depends on them.
-	injector := s.getWorkloadInjector()
 	// CP_MANAGED removes the source environment's AgentID first (it leaves the
 	// control plane configuration) and only then the promoted ones. A source
 	// deletion failure skips the promoted deletions: removing them while the
@@ -1588,23 +1568,11 @@ func (s *agentThunderProvisioningService) DeleteAllBindings(ctx context.Context,
 			// that never completed (a crash between storeCredential creating it and
 			// UpdateAfterAttempt persisting ThunderAgentID/SecretRefPath would
 			// otherwise leave it permanently orphaned, since it precedes the
-			// early-return below).
-			//
-			// The secret provider deletes first: it owns the SecretReference and
-			// its stored value, and finds them through the secret API. Deleting the
-			// SecretReference directly before that would hide it from the provider,
-			// which then skips the delete and leaves the stored value behind. The
-			// direct cleanup runs after, for a legacy SecretReference the identity
-			// injection service created itself, which the secret API cannot see.
+			// early-return below). The secret provider owns the SecretReference
+			// and deletes it with the stored value.
 			if b.ProvisioningType == models.AgentProvisioningTypeInternal {
 				if err := s.deleteCredential(ctx, ouID, projectName, agentName, b.EnvironmentName); err != nil {
 					s.logger.Warn("Failed to delete stored agent secret", "ouID", ouID, "bindingID", b.ID, "agentName", agentName, "env", b.EnvironmentName, "error", err)
-				}
-				if injector == nil {
-					s.logger.Warn("Skipping agent identity SecretReference cleanup: no workload injector configured",
-						"ouID", ouID, "bindingID", b.ID, "agentName", agentName, "env", b.EnvironmentName)
-				} else if err := injector.CleanupForEnvironment(ctx, ouID, agentName, b.EnvironmentName); err != nil {
-					s.logger.Warn("Failed to clean up agent identity data-plane SecretReference", "ouID", ouID, "bindingID", b.ID, "agentName", agentName, "env", b.EnvironmentName, "error", err)
 				}
 			}
 			if b.ThunderAgentID == "" {

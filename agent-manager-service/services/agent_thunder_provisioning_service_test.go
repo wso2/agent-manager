@@ -2300,36 +2300,25 @@ func TestKeyedMutex_EvictsEntryAfterCtxCancelWhileWaiting(t *testing.T) {
 // in-package AgentIdentityInjectionService interface (no moq mock — see the
 // service-unit-test conventions). A nil func field panics when called, so
 // tests can prove a path is never reached, mirroring moq semantics.
-// TestDeleteAllBindings_ProviderDeletesCredentialBeforeDirectCleanup guards the
-// cleanup order for internal bindings. The secret provider owns the
-// SecretReference and its stored value and finds them through the secret API;
-// deleting the SecretReference directly first hides it from the provider, which
-// then skips the delete and leaves the stored value behind. The direct cleanup
-// still runs afterwards for a legacy SecretReference the provider cannot see,
-// and both run even for a binding that never reached Thunder, since
-// storeCredential may already have written its credential.
-func TestDeleteAllBindings_ProviderDeletesCredentialBeforeDirectCleanup(t *testing.T) {
+// TestDeleteAllBindings_ProviderDeletesCredentialForEveryInternalBinding guards
+// that agent deletion removes each internal binding's credential through the
+// secret provider, which owns the SecretReference and deletes it with the
+// stored value. It runs even for a binding that never reached Thunder, since
+// storeCredential may already have written its credential. The injector stub
+// has no funcs set, so any direct SecretReference cleanup would panic.
+func TestDeleteAllBindings_ProviderDeletesCredentialForEveryInternalBinding(t *testing.T) {
 	tc := fakeThunderClientMock()
 	tc.DeleteAgentIdentityFunc = func(context.Context, string) (bool, error) { return true, nil }
 	resolver := &clientmocks.EnvThunderResolverMock{
 		ResolveFunc: func(_ context.Context, _, _, _ string) (thundersvc.ThunderClient, error) { return tc, nil },
 	}
 	var mu sync.Mutex
-	var calls []string
-	record := func(call string) {
-		mu.Lock()
-		defer mu.Unlock()
-		calls = append(calls, call)
-	}
+	var deletedEnvs []string
 	store := &clientmocks.SecretManagementClientMock{
 		DeleteSecretFunc: func(_ context.Context, location secretmanagersvc.SecretLocation, _ string) error {
-			record("provider-delete:" + location.EnvironmentName)
-			return nil
-		},
-	}
-	injector := &agentIdentityInjectorStub{
-		CleanupForEnvironmentFunc: func(_ context.Context, _, _, envName string) error {
-			record("direct-cleanup:" + envName)
+			mu.Lock()
+			defer mu.Unlock()
+			deletedEnvs = append(deletedEnvs, location.EnvironmentName)
 			return nil
 		},
 	}
@@ -2353,26 +2342,11 @@ func TestDeleteAllBindings_ProviderDeletesCredentialBeforeDirectCleanup(t *testi
 		DeleteByIDsFunc:     func(context.Context, []uuid.UUID) error { return nil },
 	}
 
-	svc := newTestProvisioningServiceWithInjector(repo, resolver, store, injector)
+	svc := newTestProvisioningServiceWithInjector(repo, resolver, store, &agentIdentityInjectorStub{})
 	svc.DeleteAllBindings(context.Background(), "acme", "proj1", "my-agent")
 
-	for _, env := range []string{"dev", "half-provisioned"} {
-		provider := indexOf(calls, "provider-delete:"+env)
-		direct := indexOf(calls, "direct-cleanup:"+env)
-		require.NotEqual(t, -1, provider, "the provider must delete %s's credential", env)
-		require.NotEqual(t, -1, direct, "the direct cleanup must still run for %s", env)
-		assert.Less(t, provider, direct, "the provider must delete %s's credential before the direct cleanup hides it", env)
-	}
-	assert.Len(t, calls, 4, "one provider delete and one direct cleanup per internal binding, no duplicates")
-}
-
-func indexOf(items []string, want string) int {
-	for i, item := range items {
-		if item == want {
-			return i
-		}
-	}
-	return -1
+	assert.ElementsMatch(t, []string{"dev", "half-provisioned"}, deletedEnvs,
+		"one provider delete per internal binding, no duplicates")
 }
 
 type agentIdentityInjectorStub struct {
@@ -2381,7 +2355,6 @@ type agentIdentityInjectorStub struct {
 	ReconcileForEnvironmentFunc func(ctx context.Context, orgName, projectName, agentName, envName string) error
 	RefreshAfterRotationFunc    func(ctx context.Context, orgName, projectName, agentName, envName string) error
 	RemoveForEnvironmentFunc    func(ctx context.Context, orgName, projectName, agentName, envName string, includeWorkloadLevel bool) error
-	CleanupForEnvironmentFunc   func(ctx context.Context, orgName, agentName, envName string) error
 }
 
 func (s *agentIdentityInjectorStub) EnvVarsForEnvironment(ctx context.Context, orgName, projectName, agentName, envName string) ([]client.EnvVar, error) {
@@ -2417,13 +2390,6 @@ func (s *agentIdentityInjectorStub) RemoveForEnvironment(ctx context.Context, or
 		panic("unexpected call to RemoveForEnvironment")
 	}
 	return s.RemoveForEnvironmentFunc(ctx, orgName, projectName, agentName, envName, includeWorkloadLevel)
-}
-
-func (s *agentIdentityInjectorStub) CleanupForEnvironment(ctx context.Context, orgName, agentName, envName string) error {
-	if s.CleanupForEnvironmentFunc == nil {
-		panic("unexpected call to CleanupForEnvironment")
-	}
-	return s.CleanupForEnvironmentFunc(ctx, orgName, agentName, envName)
 }
 
 // successfulProvisionMocks builds the resolver/store/repo trio for a
@@ -2680,18 +2646,12 @@ func TestAttemptProvision_RecordFailure_SkipsInjection(t *testing.T) {
 	})
 }
 
-// TestDeleteAllBindings_DeletesStoredSecretsForBindingsThatHaveOne guards two
-// separate cleanup paths at once: the stored credential
-// (secretMgmtClient.DeleteSecret, which also deletes CreateSecret's
-// auto-created SecretReference) for whichever binding actually has one, and
-// the AMS-owned data-plane SecretReference (injector.CleanupForEnvironment)
-// for every internal binding regardless of whether it has a stored secret —
-// DeleteAllBindings runs that cleanup for internal bindings that never
-// completed too, since a crash between storeCredential creating the
-// SecretReference and UpdateAfterAttempt persisting SecretRefPath would
-// otherwise leave it permanently orphaned. External bindings never have a
-// stored secret (SecretRefPath is always empty for them) and never get the
-// data-plane cleanup, since it's an internal-agent-only concept.
+// TestDeleteAllBindings_DeletesStoredSecretsForBindingsThatHaveOne guards that
+// the stored credential (secretMgmtClient.DeleteSecret, which also deletes
+// CreateSecret's auto-created SecretReference) is deleted for the internal
+// binding and skipped for the external one. External bindings never have a
+// stored secret (SecretRefPath is always empty for them). The injector stub has
+// no funcs set, so any direct SecretReference cleanup would panic.
 func TestDeleteAllBindings_DeletesStoredSecretsForBindingsThatHaveOne(t *testing.T) {
 	internalBinding := models.AgentThunderClient{
 		ID: uuid.New(), OUID: "acme", ProjectName: "proj1", AgentName: "my-agent",
@@ -2731,22 +2691,12 @@ func TestDeleteAllBindings_DeletesStoredSecretsForBindingsThatHaveOne(t *testing
 		DeleteByIDsFunc:     func(_ context.Context, _ []uuid.UUID) error { return nil },
 		UpdateSecretRefFunc: func(_ context.Context, _ uuid.UUID, _ string) error { return nil },
 	}
-	var cleanedUpEnvs []string
-	injector := &agentIdentityInjectorStub{
-		CleanupForEnvironmentFunc: func(_ context.Context, _, _, envName string) error {
-			cleanedUpEnvs = append(cleanedUpEnvs, envName)
-			return nil
-		},
-	}
-
-	svc := newTestProvisioningServiceWithInjector(repo, resolver, store, injector)
+	svc := newTestProvisioningServiceWithInjector(repo, resolver, store, &agentIdentityInjectorStub{})
 
 	svc.DeleteAllBindings(context.Background(), "acme", "proj1", "my-agent")
 
 	assert.Equal(t, []string{"dev"}, deletedEnvs,
 		"the stored secret is deleted only for the binding that actually has one")
-	assert.Equal(t, []string{"dev"}, cleanedUpEnvs,
-		"the data-plane SecretReference is cleaned up for the internal binding but not the external one")
 }
 
 func TestDeleteAllBindings_ContinuesExternalCleanupWhenDBRowDeleteFails(t *testing.T) {
@@ -2870,113 +2820,12 @@ func TestAttemptProvision_SerializesWithRegenerateSecret(t *testing.T) {
 	}
 }
 
-// TestStoreCredential_ReferenceNameTaken_CleansUpAndRetries guards the upgrade path
-// secretmanagersvc.ErrReferenceNameTaken exists for: a binding provisioned before the provider owned
-// its SecretReference still has a legacy one created by
-// AgentIdentityInjectionService, which collides with a fresh CreateSecret. With
-// a workload injector configured, storeCredential clears that legacy reference
-// and retries once, succeeding on a now-unobstructed create, and persists the
-// provider-managed SecretReference name.
-func TestStoreCredential_ReferenceNameTaken_CleansUpAndRetries(t *testing.T) {
-	tc := fakeThunderClientMock()
-	tc.RegenerateAgentSecretFunc = func(context.Context, string) (string, error) {
-		return "new-secret", nil
-	}
-	resolver := &clientmocks.EnvThunderResolverMock{
-		ResolveFunc: func(_ context.Context, _, _, _ string) (thundersvc.ThunderClient, error) { return tc, nil },
-	}
-	var createCalls int
-	store := &clientmocks.SecretManagementClientMock{
-		CreateSecretFunc: func(context.Context, secretmanagersvc.SecretLocation, map[string]string) (string, error) {
-			createCalls++
-			if createCalls == 1 {
-				return "", fmt.Errorf("failed to upsert secret: failed to update secret after create conflict: %w: %w", secretmanagersvc.ErrReferenceNameTaken, utils.ErrNotFound)
-			}
-			return "ref", nil
-		},
-	}
-	var cleanupCalls int
-	injector := &agentIdentityInjectorStub{
-		CleanupForEnvironmentFunc: func(_ context.Context, orgName, agentName, envName string) error {
-			cleanupCalls++
-			assert.Equal(t, "acme", orgName)
-			assert.Equal(t, "my-agent", agentName)
-			assert.Equal(t, "staging", envName)
-			return nil
-		},
-	}
-	var updatedPath string
-	repo := &repomocks.AgentThunderClientRepositoryMock{
-		GetFunc: func(context.Context, string, string, string, string) (*models.AgentThunderClient, error) {
-			return &models.AgentThunderClient{
-				ID: uuid.New(), ThunderAgentID: "thunder-agent-1", ThunderClientID: "client-abc",
-				ProvisioningType: models.AgentProvisioningTypeInternal,
-			}, nil
-		},
-		UpdateSecretRefFunc: func(_ context.Context, _ uuid.UUID, secretRefPath string) error {
-			updatedPath = secretRefPath
-			return nil
-		},
-	}
-
-	svc := newTestProvisioningServiceWithInjector(repo, resolver, store, injector)
-	_, _, newSecret, err := svc.RegenerateSecret(context.Background(), "acme", "proj1", "my-agent", "staging")
-
-	require.NoError(t, err)
-	assert.Equal(t, "new-secret", newSecret)
-	assert.Equal(t, 2, createCalls, "the first create hits the stray reference; the retry succeeds")
-	assert.Equal(t, 1, cleanupCalls)
-	assert.Equal(t, "ref", updatedPath, "the provider-managed SecretReference name is stored as-is")
-}
-
-// TestStoreCredential_PlainNotFound_IsNotRetried guards that recovery keys off
-// the provider's sentinel, not off error text: a not-found error without
-// secretmanagersvc.ErrReferenceNameTaken propagates on the first attempt and
-// never deletes a SecretReference, even if its message reads the same.
-func TestStoreCredential_PlainNotFound_IsNotRetried(t *testing.T) {
-	tc := fakeThunderClientMock()
-	tc.RegenerateAgentSecretFunc = func(context.Context, string) (string, error) {
-		return "new-secret", nil
-	}
-	resolver := &clientmocks.EnvThunderResolverMock{
-		ResolveFunc: func(_ context.Context, _, _, _ string) (thundersvc.ThunderClient, error) { return tc, nil },
-	}
-	var createCalls int
-	store := &clientmocks.SecretManagementClientMock{
-		CreateSecretFunc: func(context.Context, secretmanagersvc.SecretLocation, map[string]string) (string, error) {
-			createCalls++
-			return "", fmt.Errorf("failed to upsert secret: failed to update secret after create conflict: %w", utils.ErrNotFound)
-		},
-	}
-	injector := &agentIdentityInjectorStub{
-		CleanupForEnvironmentFunc: func(context.Context, string, string, string) error {
-			t.Fatal("a plain not-found must not delete any SecretReference")
-			return nil
-		},
-	}
-	repo := &repomocks.AgentThunderClientRepositoryMock{
-		GetFunc: func(context.Context, string, string, string, string) (*models.AgentThunderClient, error) {
-			return &models.AgentThunderClient{
-				ID: uuid.New(), ThunderAgentID: "thunder-agent-1", ThunderClientID: "client-abc",
-				ProvisioningType: models.AgentProvisioningTypeInternal,
-			}, nil
-		},
-	}
-
-	svc := newTestProvisioningServiceWithInjector(repo, resolver, store, injector)
-	_, _, _, err := svc.RegenerateSecret(context.Background(), "acme", "proj1", "my-agent", "staging")
-
-	require.Error(t, err)
-	assert.ErrorIs(t, err, utils.ErrNotFound)
-	assert.Equal(t, 1, createCalls, "no retry without the provider's sentinel")
-}
-
-// TestStoreCredential_ReferenceNameTaken_CleanupFails_WrapsBothErrors guards the
-// double-failure case: if the stray SecretReference can't even be cleaned up,
-// the original CreateSecret error must not be silently dropped — both are
-// wrapped together so the real cause (the cleanup failure blocking recovery)
-// is visible alongside what triggered the recovery attempt in the first place.
-func TestStoreCredential_ReferenceNameTaken_CleanupFails_WrapsBothErrors(t *testing.T) {
+// TestStoreCredential_ReferenceNameTaken_PropagatesWithoutCleanup guards that a
+// SecretReference name held by a legacy reference the provider cannot manage is
+// reported, not cleared: AMS never deletes a SecretReference directly, even
+// with a workload injector configured. The injector stub has no funcs set, so
+// any direct cleanup would panic.
+func TestStoreCredential_ReferenceNameTaken_PropagatesWithoutCleanup(t *testing.T) {
 	tc := fakeThunderClientMock()
 	tc.RegenerateAgentSecretFunc = func(context.Context, string) (string, error) {
 		return "new-secret", nil
@@ -2991,10 +2840,6 @@ func TestStoreCredential_ReferenceNameTaken_CleanupFails_WrapsBothErrors(t *test
 			return "", fmt.Errorf("failed to upsert secret: failed to update secret after create conflict: %w: %w", secretmanagersvc.ErrReferenceNameTaken, utils.ErrNotFound)
 		},
 	}
-	cleanupErr := errors.New("cleanup boom")
-	injector := &agentIdentityInjectorStub{
-		CleanupForEnvironmentFunc: func(context.Context, string, string, string) error { return cleanupErr },
-	}
 	repo := &repomocks.AgentThunderClientRepositoryMock{
 		GetFunc: func(context.Context, string, string, string, string) (*models.AgentThunderClient, error) {
 			return &models.AgentThunderClient{
@@ -3004,13 +2849,12 @@ func TestStoreCredential_ReferenceNameTaken_CleanupFails_WrapsBothErrors(t *test
 		},
 	}
 
-	svc := newTestProvisioningServiceWithInjector(repo, resolver, store, injector)
+	svc := newTestProvisioningServiceWithInjector(repo, resolver, store, &agentIdentityInjectorStub{})
 	_, _, _, err := svc.RegenerateSecret(context.Background(), "acme", "proj1", "my-agent", "staging")
 
 	require.Error(t, err)
-	assert.ErrorIs(t, err, cleanupErr)
-	assert.ErrorIs(t, err, utils.ErrNotFound, "the original CreateSecret error must still be reachable, not replaced by the cleanup error")
-	assert.Equal(t, 1, createCalls, "no retry attempted once cleanup itself failed")
+	assert.ErrorIs(t, err, secretmanagersvc.ErrReferenceNameTaken)
+	assert.Equal(t, 1, createCalls, "no retry — the error propagates on the first and only attempt")
 }
 
 // TestRegenerateSecret_External_NeverStoresSecret guards the invariant that an

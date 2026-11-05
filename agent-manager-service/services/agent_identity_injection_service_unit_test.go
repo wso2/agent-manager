@@ -816,7 +816,7 @@ func TestAgentIdentityInjection_RemoveForEnvironment_RemovesVars(t *testing.T) {
 			return nil
 		},
 		// RemoveWorkloadEnvVarsFunc nil — includeWorkloadLevel=false must not touch the workload.
-		DeleteSecretReferenceFunc: func(_ context.Context, _, _ string) error { return nil },
+		// DeleteSecretReferenceFunc nil — the secret provider owns the SecretReference.
 	}
 	svc := newTestIdentityInjectionService(repo, oc)
 
@@ -840,7 +840,6 @@ func TestAgentIdentityInjection_RemoveForEnvironment_IncludeWorkloadLevel(t *tes
 			assert.Len(t, keys, 4)
 			return nil
 		},
-		DeleteSecretReferenceFunc: func(_ context.Context, _, _ string) error { return nil },
 	}
 	svc := newTestIdentityInjectionService(repo, oc)
 
