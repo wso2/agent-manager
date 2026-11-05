@@ -7222,6 +7222,9 @@ paths:
           clients that the deployment's org override resolver allow-lists; otherwise the request is
           refused with 403. Replaces both the org UUID and the handle for the request. The orgName
           path segment must then be that org's handle, or the request is refused with 403.
+          A 403 here is final, not a missing grant on the org: it means the caller may not
+          impersonate, the org does not exist, or the path names another org; do not retry it.
+          A 502 means the org's handle could not be looked up and is retryable.
         schema:
           type: string
           format: uuid
@@ -7326,6 +7329,9 @@ paths:
           clients that the deployment's org override resolver allow-lists; otherwise the request is
           refused with 403. Replaces both the org UUID and the handle for the request. The orgName
           path segment must then be that org's handle, or the request is refused with 403.
+          A 403 here is final, not a missing grant on the org: it means the caller may not
+          impersonate, the org does not exist, or the path names another org; do not retry it.
+          A 502 means the org's handle could not be looked up and is retryable.
         schema:
           type: string
           format: uuid
@@ -7531,6 +7537,9 @@ paths:
           clients that the deployment's org override resolver allow-lists; otherwise the request is
           refused with 403. Replaces both the org UUID and the handle for the request. The orgName
           path segment must then be that org's handle, or the request is refused with 403.
+          A 403 here is final, not a missing grant on the org: it means the caller may not
+          impersonate, the org does not exist, or the path names another org; do not retry it.
+          A 502 means the org's handle could not be looked up and is retryable.
         schema:
           type: string
           format: uuid
