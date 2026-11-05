@@ -113,7 +113,7 @@ func (c *projectMCPProxyController) UpsertProjectMCPProxy(w http.ResponseWriter,
 			utils.WriteErrorResponseWithReason(w, http.StatusConflict,
 				utils.ErrMCPContextInUse.Error(), err.Error(), utils.ErrCodeContextInUse)
 		case errors.Is(err, utils.ErrInvalidInput):
-			utils.WriteErrorResponseWithReason(w, http.StatusBadRequest, "Bad request", err.Error(), utils.ErrCodeBadRequest)
+			utils.WriteErrorResponseWithReason(w, http.StatusBadRequest, "Bad request", err.Error(), utils.ErrCodeValidation)
 		default:
 			log.Error("UpsertProjectMCPProxy: failed", "ouID", ouID, "handle", handle, "error", err)
 			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to save MCP proxy")
@@ -318,7 +318,7 @@ func writeProjectMCPBindingError(w http.ResponseWriter, err error) bool {
 			utils.ErrMCPAmbiguousGateway.Error(), err.Error(), utils.ErrCodeAmbiguousGateway)
 	case errors.Is(err, utils.ErrInvalidInput):
 		message := strings.TrimPrefix(err.Error(), utils.ErrInvalidInput.Error()+": ")
-		utils.WriteErrorResponseWithReason(w, http.StatusBadRequest, message, err.Error(), utils.ErrCodeBadRequest)
+		utils.WriteErrorResponseWithReason(w, http.StatusBadRequest, message, err.Error(), utils.ErrCodeValidation)
 	default:
 		return false
 	}

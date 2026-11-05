@@ -7554,8 +7554,9 @@ paths:
                 $ref: "#/components/schemas/MCPProxyEnvironmentResponse"
         "400":
           description: >-
-            AMBIGUOUS_GATEWAY, IMMUTABLE_FIELD (the gateway is fixed once placed), or BAD_REQUEST (an invalid
-            request, jwt/identity security, or an invalid policy or upstream auth)
+            AMBIGUOUS_GATEWAY, IMMUTABLE_FIELD (the gateway is fixed once placed), or VALIDATION_ERROR (an invalid
+            request, jwt/identity security, or an invalid policy or upstream auth). A malformed body gives
+            `Invalid request body`.
           content:
             application/json:
               schema:
