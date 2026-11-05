@@ -51,6 +51,7 @@ import {
 } from "@agent-management-platform/types";
 import { TextInput } from "@agent-management-platform/views";
 import { useUnsavedChangesGuard } from "@agent-management-platform/shared-component";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 import { REWRITE_POLICY_NAME } from "../constants";
 import type { CapabilityKind } from "./mcpEndpoints";
 
@@ -354,6 +355,7 @@ export function MCPProxyRewriteTab({
   onUpdate,
   isUpdating,
 }: MCPProxyRewriteTabProps) {
+  const { canWrite } = useResourceAccess("mcp_server");
   const lastSavedRef = useRef<{
     enabled: boolean;
     state: RewriteState;
@@ -596,7 +598,7 @@ export function MCPProxyRewriteTab({
           <Switch
             checked={enabled}
             onChange={(_, checked) => setEnabled(checked)}
-            disabled={isUpdating}
+            disabled={isUpdating || !canWrite}
           />
         </Stack>
       </Stack>
@@ -725,6 +727,7 @@ export function MCPProxyRewriteTab({
             </Alert>
           )}
         </Collapse>
+        {canWrite && (
         <Stack direction="row" spacing={1.5} justifyContent="flex-end">
           <Button
             variant="outlined"
@@ -745,6 +748,7 @@ export function MCPProxyRewriteTab({
             {isUpdating ? "Saving..." : "Save"}
           </Button>
         </Stack>
+        )}
       </Stack>
     </Stack>
   );

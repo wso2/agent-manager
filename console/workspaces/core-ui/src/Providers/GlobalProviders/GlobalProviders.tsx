@@ -25,14 +25,21 @@ import {
   ExternalModuleProvider,
   type ExternalModule,
 } from "@agent-management-platform/views";
+import type { FeatureEnableConfig } from "@agent-management-platform/feature-management";
+import type { UseFeatureAccess } from "../../types/featureAccess";
 import { RuntimeConfigProvider } from "./RuntimeConfigProvider";
+import { FeatureAccessBridge } from "./FeatureAccessBridge";
 
 export const GlobalProviders = ({
   children,
   externalPageModules = [],
+  featureEnable,
+  useFeatureAccess,
 }: {
   children: React.ReactNode;
   externalPageModules?: ExternalModule[];
+  featureEnable?: Partial<FeatureEnableConfig>;
+  useFeatureAccess?: UseFeatureAccess;
 }) => {
   return (
     <OxygenUIThemeProvider theme={AmTheme}>
@@ -40,11 +47,13 @@ export const GlobalProviders = ({
         <AuthProvider>
           <ClientProvider>
             <RuntimeConfigProvider>
-              <ConfirmationDialogProvider>
-                <ExternalModuleProvider externalPageModules={externalPageModules}>
-                  {children}
-                </ExternalModuleProvider>
-              </ConfirmationDialogProvider>
+              <FeatureAccessBridge featureEnable={featureEnable} useAccess={useFeatureAccess}>
+                <ConfirmationDialogProvider>
+                  <ExternalModuleProvider externalPageModules={externalPageModules}>
+                    {children}
+                  </ExternalModuleProvider>
+                </ConfirmationDialogProvider>
+              </FeatureAccessBridge>
             </RuntimeConfigProvider>
           </ClientProvider>
         </AuthProvider>

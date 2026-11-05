@@ -69,7 +69,6 @@ import {
   useTheme,
 } from "@wso2/oxygen-ui";
 import {
-  AGENT_SUSPEND_SCOPE,
   ALLOWED,
   DeploymentStatus,
   EnvStatus,
@@ -358,7 +357,7 @@ export function DeployCard(props: DeployCardProps) {
   // demands the capability AND the tier of the environment being changed.
   const deploymentStateAccess = environmentAccess(
     currentEnvironment,
-    AGENT_SUSPEND_SCOPE,
+    "agent_suspend",
   );
 
   const hasPromotionTarget = useMemo(() => {

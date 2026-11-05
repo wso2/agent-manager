@@ -75,6 +75,8 @@ export interface PolicyListSectionProps {
   emptySearchDescription?: string;
   emptyCatalogTitle?: string;
   emptyCatalogDescription?: string;
+  /** Lists policies without add, edit, remove or reorder. */
+  readOnly?: boolean;
 }
 
 export const PolicyListSection: React.FC<PolicyListSectionProps> = ({
@@ -104,6 +106,7 @@ export const PolicyListSection: React.FC<PolicyListSectionProps> = ({
   emptySearchDescription,
   emptyCatalogTitle,
   emptyCatalogDescription,
+  readOnly = false,
 }) => {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editingPolicy, setEditingPolicy] = useState<PolicySelection | null>(
@@ -112,7 +115,7 @@ export const PolicyListSection: React.FC<PolicyListSectionProps> = ({
   const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
-  const reorderEnabled = !!onReorder;
+  const reorderEnabled = !readOnly && !!onReorder;
 
   const handleAdd = useCallback(
     (policy: GuardrailDefinition, settings: ParameterValues) => {
@@ -210,14 +213,16 @@ export const PolicyListSection: React.FC<PolicyListSectionProps> = ({
               {description}
             </Typography>
           </Stack>
-          <Button
-            variant="outlined"
-            size="small"
-            startIcon={<Plus size={16} />}
-            onClick={() => setDrawerOpen(true)}
-          >
-            {addButtonLabel}
-          </Button>
+          {!readOnly && (
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<Plus size={16} />}
+              onClick={() => setDrawerOpen(true)}
+            >
+              {addButtonLabel}
+            </Button>
+          )}
         </Stack>
 
         {policies.length === 0 ? (
@@ -252,18 +257,18 @@ export const PolicyListSection: React.FC<PolicyListSectionProps> = ({
                   onDragOver={handleDragOver(index)}
                   onDrop={handleDrop(index)}
                   onDragEnd={handleDragEnd}
-                  onClick={() => handleRowClick(policy)}
+                  onClick={readOnly ? undefined : () => handleRowClick(policy)}
                   sx={{
                     display: "flex",
                     alignItems: "center",
                     gap: 1,
                     px: 1.5,
                     py: 1.25,
-                    cursor: "pointer",
+                    cursor: readOnly ? "default" : "pointer",
                     opacity: isDragging ? 0.5 : 1,
                     borderColor: isDragOver ? "primary.main" : undefined,
                     transition: "border-color 120ms ease, opacity 120ms ease",
-                    "&:hover": { bgcolor: "action.hover" },
+                    "&:hover": readOnly ? undefined : { bgcolor: "action.hover" },
                   }}
                 >
                   {reorderEnabled && (
@@ -310,6 +315,7 @@ export const PolicyListSection: React.FC<PolicyListSectionProps> = ({
                   >
                     {label}
                   </Typography>
+                  {!readOnly && (
                   <Tooltip title="Remove" placement="top" arrow>
                     <IconButton
                       size="small"
@@ -323,6 +329,7 @@ export const PolicyListSection: React.FC<PolicyListSectionProps> = ({
                       <Trash size={14} />
                     </IconButton>
                   </Tooltip>
+                  )}
                 </Card>
               );
             })}

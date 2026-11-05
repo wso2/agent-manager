@@ -57,6 +57,8 @@ import {
 
 interface AIGatewaysTableProps {
   onAddGateway?: () => void;
+  /** Shows the row Delete action; defaults to true. */
+  canDelete?: boolean;
 }
 
 /** The timestamp gives way to the row actions on hover/focus; touch shows both. */
@@ -93,7 +95,7 @@ const matchesQuery = (gateway: GatewayResponse, query: string) => {
   return haystack.toLowerCase().includes(query);
 };
 
-export function AIGatewaysTable({ onAddGateway }: AIGatewaysTableProps) {
+export function AIGatewaysTable({ onAddGateway, canDelete = true }: AIGatewaysTableProps) {
   const selfHostedEnabled = globalConfig.featureFlags?.enableSelfHostedGateways === true;
   const navigate = useNavigate();
   const { orgId } = useParams<{ orgId: string }>();
@@ -265,6 +267,7 @@ export function AIGatewaysTable({ onAddGateway }: AIGatewaysTableProps) {
             >
               {lastUpdated}
             </Typography>
+            {canDelete && (
             <Box className="row-actions">
             <Button
                 variant="outlined"
@@ -290,6 +293,7 @@ export function AIGatewaysTable({ onAddGateway }: AIGatewaysTableProps) {
                 Delete
               </Button>
             </Box>
+            )}
           </Stack>
         </ListingTable.Cell>
       </ListingTable.Row>

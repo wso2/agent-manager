@@ -148,6 +148,15 @@ export interface AppConfig {
   };
   /** Feature flags. All default to false (disabled) unless explicitly enabled. */
   featureFlags?: FeatureFlags;
+  /** Feature switches read by the feature-management package. Unset keys are false. */
+  featureEnable?: {
+    /** Environments are managed outside the console; hides the Environments pages. */
+    externally_managed_env?: boolean;
+    /** Gateways are managed outside the console; hides the Gateways pages. */
+    externally_managed_gateway?: boolean;
+    /** Deployment pipelines are managed outside the console; hides their pages. */
+    externally_managed_pipeline?: boolean;
+  };
 }
 
 export type FeatureFlags = {

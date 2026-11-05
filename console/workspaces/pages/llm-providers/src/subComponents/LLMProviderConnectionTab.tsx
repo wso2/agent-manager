@@ -34,6 +34,7 @@ import {
   Stack,
 } from "@wso2/oxygen-ui";
 import { FormGridSpacer, TextInput } from "@agent-management-platform/views";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 import {
   ResilienceTimeoutFields,
   useUnsavedChangesGuard,
@@ -77,6 +78,7 @@ export function LLMProviderConnectionTab({
   onUpdate,
   isUpdating,
 }: LLMProviderConnectionTabProps) {
+  const { canWrite } = useResourceAccess("llm_provider");
   const initializedProviderIdRef = useRef<string | null>(null);
   const userActuallyTypedCredentialRef = useRef(false);
 
@@ -443,6 +445,7 @@ export function LLMProviderConnectionTab({
                   </Alert>
                 )}
               </Collapse>
+              {canWrite && (
               <Stack direction="row" spacing={1.5} justifyContent="flex-end">
                 <Button
                   variant="outlined"
@@ -465,6 +468,7 @@ export function LLMProviderConnectionTab({
                   {isUpdating ? "Saving..." : "Save"}
                 </Button>
               </Stack>
+              )}
             </Stack>
           </Grid>
         </Grid>

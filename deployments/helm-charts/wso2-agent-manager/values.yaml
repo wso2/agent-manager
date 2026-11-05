@@ -660,6 +660,12 @@ console:
       # When true, the console offers self-hosted gateways: adding a gateway
       # the customer runs and issuing its registration tokens.
       enableSelfHostedGateways: false
+    # Feature switches. All default to false, so every feature is on.
+    # When true, the resource is managed outside the console and its pages are hidden.
+    featureEnable:
+      externallyManagedEnv: false
+      externallyManagedGateway: false
+      externallyManagedPipeline: false
 
   # Pod-level configurations
   podAnnotations: {}

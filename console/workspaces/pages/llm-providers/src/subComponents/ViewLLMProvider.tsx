@@ -31,6 +31,7 @@ import {
   type UpdateLLMProviderRequest,
 } from "@agent-management-platform/types";
 import { CreatedMetadata, PageLayout } from "@agent-management-platform/views";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 import {
   Box,
   Button,
@@ -96,6 +97,7 @@ export const ViewLLMProvider: React.FC = () => {
     [confirmIfUnsaved, tabIndex],
   );
   const navigate = useNavigate();
+  const { canWrite } = useResourceAccess("llm_provider");
 
   const { providerId, orgId } = useParams<{
     providerId: string;
@@ -168,7 +170,7 @@ export const ViewLLMProvider: React.FC = () => {
           : undefined
       }
       actions={
-        providerData ? (
+        providerData && canWrite ? (
           <Button
             variant="outlined"
             size="small"

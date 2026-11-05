@@ -93,6 +93,7 @@ import {
 import { EnvironmentVariablesGuideDrawer } from "./Configure/subComponents/EnvironmentVariablesGuideDrawer";
 import { MCPServerDisplay } from "./Configure/subComponents/MCPServerDisplay";
 import { MCPProxyAPIKeysSection } from "./Configure/subComponents/MCPProxyAPIKeysSection";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 import { CONFIGURE_TAB_PARAM } from "./configureTabs";
 import {
   BUILD_IN_PROGRESS_REASON,
@@ -207,6 +208,7 @@ const ConnectIdentityCredentials: React.FC<{
   const {
     binding, provisioned, isLoading, isError, error, revealed, isRegenerating, regenerate,
   } = useAgentIdentityCredentials({ orgId, projectId, agentId, envId });
+  const { canWrite } = useResourceAccess("agent_identity");
 
   if (isLoading || isError) {
     return <ConnectQueryFallback isLoading={isLoading} error={error} />;
@@ -256,7 +258,7 @@ const ConnectIdentityCredentials: React.FC<{
             ? "This secret will not be shown again — copy it now."
             : "The client secret is only shown once, right after regenerating."}
         </Typography>
-        {provisioned && (
+        {canWrite && provisioned && (
           <Button
             variant="text"
             size="small"
@@ -340,6 +342,7 @@ export const ViewMCPServerComponent = () => {
   const environmentSelectId = useId();
   const environmentSelectLabelId = useId();
   const navigate = useNavigate();
+  const { canWrite } = useResourceAccess("agent");
   const location = useLocation();
 
   const authInfoByEnv = (
@@ -901,7 +904,7 @@ export const ViewMCPServerComponent = () => {
           resetEnvVarNames();
           setPanelOpen(false);
         }}
-        onSave={handleSave}
+        onSave={canWrite ? handleSave : undefined}
         isDirty={isDirty}
         isSaving={updateConfig.isPending}
         saveBlockedReason={
@@ -913,12 +916,11 @@ export const ViewMCPServerComponent = () => {
           "These variable names are injected into the agent at runtime with environment-specific values. Rename them here if your code already uses different names, then save."
         }
         rows={envVarReferenceRows}
-        onNameChange={(key, value) =>
+        onNameChange={canWrite ? (key, value) =>
           setEnvVarNames((prev) => ({
             ...prev,
             [key]: value,
-          }))
-        }
+          })) : undefined}
       >
         <Divider sx={{ my: 2 }} />
         {isMCPSecurityUnresolved ? (

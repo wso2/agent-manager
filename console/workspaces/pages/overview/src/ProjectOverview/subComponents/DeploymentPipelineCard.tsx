@@ -24,6 +24,10 @@ import {
 } from "@agent-management-platform/api-client";
 import { absoluteRouteMap, type Environment } from "@agent-management-platform/types";
 import {
+  usePipelineFeatures,
+  useResourceAccess,
+} from "@agent-management-platform/feature-management";
+import {
   Box,
   Button,
   Card,
@@ -47,6 +51,8 @@ const CARD_SX = {
 export function DeploymentPipelineCard() {
   const { orgId, projectId } = useParams<{ orgId: string; projectId: string }>();
   const [selectDrawerOpen, setSelectDrawerOpen] = useState(false);
+  const { canWrite: canEditPipelines } = usePipelineFeatures();
+  const { canWrite: canWriteProject } = useResourceAccess("project");
   const [selectDrawerKey, setSelectDrawerKey] = useState(0);
 
   const openSelectDrawer = () => {
@@ -128,9 +134,11 @@ export function DeploymentPipelineCard() {
             <Box display="flex" flexDirection="column" gap={1.5}>
               <Box display="flex" alignItems="center" justifyContent="space-between" gap={1}>
                 <Typography variant="h6">Deployment Environments</Typography>
-                <Button size="small" startIcon={<ArrowLeftRight size={14} />} onClick={openSelectDrawer}>
-                  Select Pipeline
-                </Button>
+                {canWriteProject && (
+                  <Button size="small" startIcon={<ArrowLeftRight size={14} />} onClick={openSelectDrawer}>
+                    Select Pipeline
+                  </Button>
+                )}
               </Box>
               <Divider />
               <Typography variant="body2" color="text.secondary" sx={{ fontStyle: "italic" }}>
@@ -149,16 +157,18 @@ export function DeploymentPipelineCard() {
                       {pipeline.displayName || pipeline.name}
                     </Typography>
                   </Box>
-                  <Tooltip title="Change Deployment Pipeline">
-                    <Button
-                      size="small"
-                      startIcon={<ArrowLeftRight size={14} />}
-                      onClick={openSelectDrawer}
-                      disabled={isUpdatingPipeline}
-                    >
-                      Change
-                    </Button>
-                  </Tooltip>
+                  {canWriteProject && (
+                    <Tooltip title="Change Deployment Pipeline">
+                      <Button
+                        size="small"
+                        startIcon={<ArrowLeftRight size={14} />}
+                        onClick={openSelectDrawer}
+                        disabled={isUpdatingPipeline}
+                      >
+                        Change
+                      </Button>
+                    </Tooltip>
+                  )}
                 </Box>
                 {pipeline.description && (
                   <Typography variant="body2" color="text.disabled" sx={{ pl: 2.75 }}>
@@ -171,25 +181,28 @@ export function DeploymentPipelineCard() {
 
               <Box display="flex" flexWrap="wrap" alignItems="center" gap={0.75}>
                 <PromotionChainChips chain={promotionChain} envMap={envMap} />
-                <Tooltip title="Edit Promotion Chain">
-                  <Button
-                    size="small"
-                    startIcon={<Edit size={14} />}
-                    component={Link}
-                    to={generatePath(
-                      absoluteRouteMap.children.org.children.deploymentPipelines.children.view.path,
-                      { orgId, pipelineName: pipeline.name },
-                    )}
-                  >
-                    Edit
-                  </Button>
-                </Tooltip>
+                {canEditPipelines && (
+                  <Tooltip title="Edit Promotion Chain">
+                    <Button
+                      size="small"
+                      startIcon={<Edit size={14} />}
+                      component={Link}
+                      to={generatePath(
+                        absoluteRouteMap.children.org.children.deploymentPipelines.children.view
+                          .path,
+                        { orgId, pipelineName: pipeline.name },
+                      )}
+                    >
+                      Edit
+                    </Button>
+                  </Tooltip>
+                )}
               </Box>
             </Box>
           )}
         </CardContent>
       </Card>
-      {project && (
+      {canWriteProject && project && (
         <SelectPipelineDrawer
           key={selectDrawerKey}
           open={selectDrawerOpen}

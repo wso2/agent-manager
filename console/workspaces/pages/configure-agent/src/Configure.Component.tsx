@@ -43,6 +43,7 @@ import {
 } from "./Configure/subComponents/AgentConfigTableSection";
 import { AddMCPToolConfigPanel } from "./Configure/subComponents/AddMCPToolConfigPanel";
 import { A2AConfigureTab } from "./Configure/subComponents/A2AConfigureTab";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 import {
   CONFIGURE_TAB_KEYS,
   CONFIGURE_TAB_PARAM,
@@ -132,6 +133,7 @@ export const ConfigureComponent: React.FC = () => {
   };
 
   const [isAddingMcp, setIsAddingMcp] = useState(false);
+  const { canWrite } = useResourceAccess("agent");
   const { orgId, projectId, agentId } = useParams<{
     orgId: string;
     projectId: string;
@@ -311,13 +313,15 @@ export const ConfigureComponent: React.FC = () => {
             }
           />
           {/* Single right-side drawer overlay; does not shrink the table. */}
-          <AddMCPToolConfigPanel
-            open={isAddingMcp}
-            orgId={orgId}
-            projectId={projectId}
-            agentId={agentId}
-            onClose={() => setIsAddingMcp(false)}
-          />
+          {canWrite && (
+            <AddMCPToolConfigPanel
+              open={isAddingMcp}
+              orgId={orgId}
+              projectId={projectId}
+              agentId={agentId}
+              onClose={() => setIsAddingMcp(false)}
+            />
+          )}
         </TabPanel>
 
         {isA2AAgent && orgId && projectId && agentId && (

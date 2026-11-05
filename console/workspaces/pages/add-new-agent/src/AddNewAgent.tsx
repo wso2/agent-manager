@@ -17,7 +17,7 @@
  */
 
 import React, { useCallback } from "react";
-import { Route, Routes, generatePath, useNavigate, useParams } from "react-router-dom";
+import { Navigate, Route, Routes, generatePath, useNavigate, useParams } from "react-router-dom";
 import { absoluteRouteMap, relativeRouteMap } from "@agent-management-platform/types";
 import { NewAgentOptions } from "./components/NewAgentOptions";
 import { NewAgentSourceOptions } from "./components/NewAgentSourceOptions";
@@ -26,6 +26,7 @@ import { CatalogAgentFlow } from "./components/CatalogAgentFlow";
 import { CatalogKindSelect } from "./components/CatalogKindSelect";
 import { ExternalAgentFlow } from "./components/ExternalAgentFlow";
 import { ConsoleAction, useTrack } from "@agent-management-platform/api-client";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 import { useAgentWizardReturn } from "./utils/useAgentWizardReturn";
 
 /**
@@ -45,6 +46,7 @@ import { useAgentWizardReturn } from "./utils/useAgentWizardReturn";
 export const AddNewAgent: React.FC = () => {
   const navigate = useNavigate();
   const { track } = useTrack();
+  const { canWrite } = useResourceAccess("agent");
   // Forwarded on each step so the final Cancel still knows where the wizard was opened from.
   const { wizardState } = useAgentWizardReturn();
   const { orgId, projectId } = useParams<{
@@ -95,6 +97,18 @@ export const AddNewAgent: React.FC = () => {
     });
     navigate(`${sourcePath}?sample=${encodeURIComponent(sampleId)}`, { state: wizardState });
   }, [navigate, orgId, projectId, CREATE_PATTERN, track, wizardState]);
+
+  if (!canWrite) {
+    return (
+      <Navigate
+        to={generatePath(absoluteRouteMap.children.org.children.projects.path, {
+          orgId: orgId ?? '',
+          projectId: projectId ?? 'default',
+        })}
+        replace
+      />
+    );
+  }
 
   return (
     <Routes>

@@ -41,6 +41,7 @@ import {
   StateNotice,
 } from "@agent-management-platform/views";
 import { absoluteRouteMap } from "@agent-management-platform/types";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 
 const agentRoutes = absoluteRouteMap.children.org.children.projects.children.agents;
 
@@ -119,6 +120,7 @@ export const SecurityComponent: React.FC = () => {
     useCreateAgentAPIKey();
   const { mutate: revokeKey, isPending: isRevoking } = useRevokeAgentAPIKey();
   const [gatewayOffline, setGatewayOffline] = React.useState(false);
+  const { canWrite } = useResourceAccess("agent");
 
   const handleCreate = async ({ displayName, expiresAt }: CreateAPIKeyInput) => {
     const data = await createKey({
@@ -257,6 +259,7 @@ export const SecurityComponent: React.FC = () => {
           emptyDescription="Create an API key to authenticate requests to this agent."
           onCreate={handleCreate}
           onRevoke={handleRevoke}
+          readOnly={!canWrite}
         />
         </>
       )}

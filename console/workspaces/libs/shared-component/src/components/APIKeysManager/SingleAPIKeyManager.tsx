@@ -86,6 +86,8 @@ export interface SingleAPIKeyManagerProps {
    * one-time plaintext key (or undefined).
    */
   onRegenerate: () => Promise<string | undefined>;
+  /** Shows the key without generate, regenerate or delete. */
+  readOnly?: boolean;
 }
 
 function NewKeyBanner({
@@ -193,6 +195,7 @@ export function SingleAPIKeyManager({
   onGenerate,
   onDelete,
   onRegenerate,
+  readOnly = false,
 }: SingleAPIKeyManagerProps) {
   const [newKeyValue, setNewKeyValue] = useState<string | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -251,7 +254,7 @@ export function SingleAPIKeyManager({
             </Typography>
           )}
         </Stack>
-        {!actionsDisabled && !isLoading && !isError && !apiKey && (
+        {!readOnly && !actionsDisabled && !isLoading && !isError && !apiKey && (
           <Button
             variant="contained"
             size="small"
@@ -322,6 +325,8 @@ export function SingleAPIKeyManager({
                     size="small"
                     color={apiKey.status === "active" ? "success" : "default"}
                   />
+                  {!readOnly && (
+                  <>
                   <Button
                     variant="outlined"
                     size="small"
@@ -353,6 +358,8 @@ export function SingleAPIKeyManager({
                   >
                     Delete
                   </Button>
+                  </>
+                  )}
                 </Stack>
               </Stack>
             </CardContent>
@@ -369,7 +376,7 @@ export function SingleAPIKeyManager({
               disableBackground
               icon={<Key size={48} />}
               message="No API key generated yet"
-              subtitle={emptyDescription}
+              subtitle={readOnly ? undefined : emptyDescription}
             />
           </Box>
         )}

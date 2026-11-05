@@ -42,6 +42,7 @@ import {
   useUnsavedChangesGuard,
   validateEndpointUrl,
 } from "@agent-management-platform/shared-component";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 import { AuthHeaderRow } from "./AuthHeaderRow";
 
 const MASKED_CREDENTIAL_VALUE = "••••••••••••";
@@ -62,6 +63,7 @@ export function MCPProxyConnectionTab({
   onUpdate,
   isUpdating,
 }: MCPProxyConnectionTabProps) {
+  const { canWrite } = useResourceAccess("mcp_server");
   const theme = useTheme();
   const initializedEnvIdRef = useRef<string | null>(null);
 
@@ -383,6 +385,7 @@ export function MCPProxyConnectionTab({
                 </Alert>
               )}
             </Collapse>
+            {canWrite && (
             <Stack direction="row" spacing={1.5} justifyContent="flex-end">
               <Button
                 variant="outlined"
@@ -405,6 +408,7 @@ export function MCPProxyConnectionTab({
                 {isUpdating ? "Saving..." : "Save"}
               </Button>
             </Stack>
+            )}
           </Stack>
         </Grid>
       </Grid>

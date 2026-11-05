@@ -19,6 +19,7 @@
 import { Box, Typography } from "@wso2/oxygen-ui";
 import { CollapsibleSection, OverviewSectionCard } from "@agent-management-platform/shared-component";
 import type { AgentModelConfigListItem } from "@agent-management-platform/types";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 import { AddConfigCard } from "./AddConfigCard";
 import { useEnvFilteredConfigs, type ConfigResolution } from "./useEnvFilteredConfigs";
 
@@ -75,6 +76,7 @@ export const EnvConfigGroup: React.FC<EnvConfigGroupProps> = ({
     const {
         visible, reportResolved, isSettled, extraCount, hasError,
     } = useEnvFilteredConfigs(configs, previewLimit, envId);
+    const { canWrite } = useResourceAccess("agent");
 
     if (!listError && configs.length === 0) {
         return null;
@@ -106,7 +108,7 @@ export const EnvConfigGroup: React.FC<EnvConfigGroupProps> = ({
                                     onResolved={reportResolved}
                                 />
                             ))}
-                            <AddConfigCard label={addLabel} href={addHref} />
+                            {canWrite && <AddConfigCard label={addLabel} href={addHref} />}
                         </Box>
                         {extraCount > 0 && (
                             <Typography variant="caption" color="text.disabled" sx={{ display: "block" }}>

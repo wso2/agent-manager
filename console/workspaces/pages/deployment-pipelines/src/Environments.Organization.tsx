@@ -24,6 +24,7 @@ import {
   PageLayout,
   useExternalComponentModulesByMountPoint,
 } from "@agent-management-platform/views";
+import { useEnvironmentFeatures } from "@agent-management-platform/feature-management";
 import {
   absoluteRouteMap,
   type Environment,
@@ -55,6 +56,7 @@ export function EnvironmentsOrganization() {
   const { orgId } = useParams<{ orgId: string }>();
   const [envToDelete, setEnvToDelete] = useState<Environment | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+  const { canWrite } = useEnvironmentFeatures();
 
   // Same query as the table, so React Query dedupes the request.
   const { data: environments, isLoading } = useListEnvironments({
@@ -92,7 +94,7 @@ export function EnvironmentsOrganization() {
               title="Environments"
               disableIcon
               actions={
-                hasItems ? (
+                hasItems && canWrite ? (
                 <Button
                   variant="contained"
                   color="primary"
@@ -105,19 +107,19 @@ export function EnvironmentsOrganization() {
               }
             >
               <EnvironmentTable
-                onCreateEnvironment={() => setCreateOpen(true)}
-                onDeleteEnvironment={setEnvToDelete}
+                onCreateEnvironment={canWrite ? () => setCreateOpen(true) : undefined}
+                onDeleteEnvironment={canWrite ? setEnvToDelete : undefined}
               />
             </PageLayout>
           }
         />
         <Route path=":envName" element={<EnvironmentViewPage />} />
-        <Route path=":envName/edit" element={<EnvironmentEditPage />} />
+        {canWrite && <Route path=":envName/edit" element={<EnvironmentEditPage />} />}
         <Route path=":envName/identity-provider" element={<ViewThunderInstance />} />
         <Route path="*" element={<Navigate to={listHref} replace />} />
       </Routes>
 
-      {createOpen && orgId && (
+      {canWrite && createOpen && orgId && (
         <CreateDrawer
           open={createOpen}
           onClose={() => setCreateOpen(false)}
@@ -125,7 +127,7 @@ export function EnvironmentsOrganization() {
         />
       )}
 
-      {envToDelete && orgId && (
+      {canWrite && envToDelete && orgId && (
         <DeleteDrawer
           open
           onClose={() => setEnvToDelete(null)}

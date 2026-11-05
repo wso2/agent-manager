@@ -44,6 +44,7 @@ import {
   type ThunderGroup,
 } from "@agent-management-platform/types";
 import { useUnsavedChangesGuard } from "@agent-management-platform/shared-component";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 import { BackButton } from "./components/BackButton";
 import { EditFormSkeleton } from "./components/EditFormSkeleton";
 import { EntityHeader } from "./components/EntityHeader";
@@ -53,6 +54,8 @@ type TabId = "groups" | "roles";
 export const UserEditPage: React.FC = () => {
   const { orgId, userId } = useParams<{ orgId: string; userId: string }>();
   const navigate = useNavigate();
+  // Group memberships are group data.
+  const { canWrite } = useResourceAccess("group");
   const [activeTab, setActiveTab] = useState<TabId>("groups");
 
   const { data: user, isLoading: isLoadingUser } = useGetUser({
@@ -201,10 +204,13 @@ export const UserEditPage: React.FC = () => {
             <>
               <Form.Header>Group Memberships</Form.Header>
               <Typography variant="body2" color="text.secondary">
-                Search and select groups to assign this user to.
+                {canWrite
+                  ? "Search and select groups to assign this user to."
+                  : "Groups this user belongs to."}
               </Typography>
 
               <Grid container spacing={2}>
+                {canWrite && (
                 <Grid size={{ xs: 12, md: 12, xl: 8 }}>
                 <Form.ElementWrapper label="Groups" name="groups">
                   <Autocomplete
@@ -228,6 +234,7 @@ export const UserEditPage: React.FC = () => {
                   />
                 </Form.ElementWrapper>
                 </Grid>
+                )}
 
                 {selectedGroups.length > 0 && (
                   <Grid size={{ xs: 12, md: 12, xl: 8 }}>
@@ -237,15 +244,26 @@ export const UserEditPage: React.FC = () => {
                         key={group.id}
                         label={group.name}
                         size="small"
-                        onDelete={() => {
-                          hasEdited.current = true;
-                          setSelectedGroups((prev) =>
-                            prev.filter((g) => g.id !== group.id),
-                          );
-                        }}
+                        onDelete={
+                          canWrite
+                            ? () => {
+                                hasEdited.current = true;
+                                setSelectedGroups((prev) =>
+                                  prev.filter((g) => g.id !== group.id),
+                                );
+                              }
+                            : undefined
+                        }
                       />
                     ))}
                   </Stack>
+                  </Grid>
+                )}
+                {!canWrite && selectedGroups.length === 0 && (
+                  <Grid size={{ xs: 12, md: 12, xl: 8 }}>
+                    <Typography variant="body2" color="text.secondary">
+                      This user is not a member of any group.
+                    </Typography>
                   </Grid>
                 )}
               </Grid>
@@ -278,7 +296,7 @@ export const UserEditPage: React.FC = () => {
         </Form.Section>
 
         {/* Action row shows only on the editable Groups tab once there are changes. */}
-        {activeTab === "groups" && isGroupsDirty && (
+        {canWrite && activeTab === "groups" && isGroupsDirty && (
           <Stack direction="row" spacing={1}>
             <Button
               variant="outlined"

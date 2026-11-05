@@ -80,4 +80,8 @@ data:
   FEATURE_FLAG_ENABLE_PROFILE_MANAGEMENT: {{ dig "featureFlags" "enableProfileManagement" false .Values.console.config | quote }}
   FEATURE_FLAG_ENABLE_USER_MANAGEMENT: {{ dig "featureFlags" "enableUserManagement" false .Values.console.config | quote }}
   FEATURE_FLAG_ENABLE_SELF_HOSTED_GATEWAYS: {{ dig "featureFlags" "enableSelfHostedGateways" false .Values.console.config | quote }}
+  # When true, the resource is managed outside the console and its pages are hidden.
+  FEATURE_EXTERNALLY_MANAGED_ENV: {{ dig "featureEnable" "externallyManagedEnv" false .Values.console.config | quote }}
+  FEATURE_EXTERNALLY_MANAGED_GATEWAY: {{ dig "featureEnable" "externallyManagedGateway" false .Values.console.config | quote }}
+  FEATURE_EXTERNALLY_MANAGED_PIPELINE: {{ dig "featureEnable" "externallyManagedPipeline" false .Values.console.config | quote }}
 {{- end }}

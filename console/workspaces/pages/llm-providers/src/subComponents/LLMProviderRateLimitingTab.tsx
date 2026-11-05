@@ -53,6 +53,7 @@ import {
 } from "@wso2/oxygen-ui";
 import { ChevronDown, FileCode, Search } from "@wso2/oxygen-ui-icons-react";
 import { useSearchParams } from "react-router-dom";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 import { useOpenApiSpec } from "../hooks/useOpenApiSpec";
 import {
   extractResourcesFromSpec,
@@ -477,6 +478,7 @@ export function LLMProviderRateLimitingTab({
   onUpdate,
   isUpdating,
 }: LLMProviderRateLimitingTabProps) {
+  const { canWrite } = useResourceAccess("llm_provider");
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Inner tab: 0 = Provider Level, 1 = Consumer Level
@@ -987,6 +989,7 @@ export function LLMProviderRateLimitingTab({
             </Alert>
           )}
         </Collapse>
+        {canWrite && (
         <Stack direction="row" spacing={1.5} justifyContent="flex-end">
           <Button variant="outlined" onClick={handleDiscard} disabled={!isDirty || isUpdating}>
             Discard
@@ -995,6 +998,7 @@ export function LLMProviderRateLimitingTab({
             {isUpdating ? "Saving..." : "Save"}
           </Button>
         </Stack>
+        )}
       </Stack>
     </Stack>
   );

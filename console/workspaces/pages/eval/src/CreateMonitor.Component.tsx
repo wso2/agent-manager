@@ -17,7 +17,14 @@
  */
 
 import React, { useCallback, useMemo } from "react";
-import { generatePath, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import {
+  generatePath,
+  Navigate,
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from "react-router-dom";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 import {
   absoluteRouteMap,
   type CreateMonitorRequest,
@@ -44,6 +51,7 @@ export const CreateMonitorComponent: React.FC = () => {
     envId: string;
   }>();
   const navigate = useNavigate();
+  const { canWrite } = useResourceAccess("monitor");
   const [searchParams] = useSearchParams();
   const duplicateFrom = searchParams.get("duplicateFrom") ?? undefined;
 
@@ -186,6 +194,10 @@ export const CreateMonitorComponent: React.FC = () => {
   const description = duplicateFrom && sourceMonitor
     ? `Pre-filled from "${sourceMonitor.displayName}". Make your changes and submit to create a new monitor.`
     : undefined;
+
+  if (!canWrite) {
+    return <Navigate to={backHref} replace />;
+  }
 
   if (duplicateFrom && isLoadingSource) {
     return (

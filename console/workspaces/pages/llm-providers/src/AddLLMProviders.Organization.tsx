@@ -18,7 +18,8 @@
 
 import React, { useCallback, useMemo, useState } from "react";
 import { PageLayout } from "@agent-management-platform/views";
-import { generatePath, useNavigate, useParams } from "react-router-dom";
+import { generatePath, Navigate, useNavigate, useParams } from "react-router-dom";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 import {
   getErrorMessage,
   useUnsavedChangesGuard,
@@ -42,6 +43,7 @@ import {
 export const AddLLMProvidersOrganization: React.FC = () => {
   const { orgId } = useParams<{ orgId: string }>();
   const navigate = useNavigate();
+  const { canWrite } = useResourceAccess("llm_provider");
   const [isDirty, setIsDirty] = useState(false);
   const { allowNavigation } = useUnsavedChangesGuard(isDirty);
 
@@ -121,6 +123,10 @@ export const AddLLMProvidersOrganization: React.FC = () => {
     },
     [createLLMProvider, navigate, allowNavigation, orgId, templates],
   );
+
+  if (!canWrite) {
+    return <Navigate to={backHref} replace />;
+  }
 
   return (
     <PageLayout

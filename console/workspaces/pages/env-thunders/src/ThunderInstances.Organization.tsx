@@ -19,6 +19,7 @@
 import React from "react";
 import { Navigate, Route, Routes, generatePath, useParams } from "react-router-dom";
 import { absoluteRouteMap } from "@agent-management-platform/types";
+import { useEnvironmentFeatures } from "@agent-management-platform/feature-management";
 import { AgentIdentityEnvironmentProvider } from "./context/AgentIdentityEnvironmentContext";
 import { AgentsOrganization } from "./AgentsOrganization";
 import { RolesOrganization } from "./RolesOrganization";
@@ -40,6 +41,7 @@ function LegacyThunderInstanceViewRedirect() {
     "*": string;
   }>();
   const [section, ...tail] = (rest ?? "").split("/").filter(Boolean);
+  const { canView: canViewEnvironments } = useEnvironmentFeatures();
 
   if (section === "agents" || section === "roles" || section === "groups") {
     const base = generatePath(thunderInstancesNode.children[section].path, { orgId });
@@ -47,12 +49,15 @@ function LegacyThunderInstanceViewRedirect() {
     return <Navigate to={`${target}?envName=${encodeURIComponent(envName ?? "")}`} replace />;
   }
 
+  // With the Environments pages hidden, fall back to the agent identity groups.
   return (
     <Navigate
-      to={generatePath(
-        absoluteRouteMap.children.org.children.environments.children.view.path,
-        { orgId, envName },
-      )}
+      to={canViewEnvironments
+        ? generatePath(
+          absoluteRouteMap.children.org.children.environments.children.view.path,
+          { orgId, envName },
+        )
+        : generatePath(thunderInstancesNode.children.groups.path, { orgId })}
       replace
     />
   );
@@ -60,6 +65,10 @@ function LegacyThunderInstanceViewRedirect() {
 
 export const ThunderInstancesOrganization: React.FC = () => {
   const { orgId } = useParams<{ orgId: string }>();
+  const { canView: canViewEnvironments } = useEnvironmentFeatures();
+  const fallbackPath = canViewEnvironments
+    ? absoluteRouteMap.children.org.children.environments.path
+    : thunderInstancesNode.children.groups.path;
 
   return (
     <AgentIdentityEnvironmentProvider>
@@ -72,10 +81,7 @@ export const ThunderInstancesOrganization: React.FC = () => {
           path="*"
           element={
             <Navigate
-              to={generatePath(
-                absoluteRouteMap.children.org.children.environments.path,
-                { orgId },
-              )}
+              to={generatePath(fallbackPath, { orgId })}
               replace
             />
           }

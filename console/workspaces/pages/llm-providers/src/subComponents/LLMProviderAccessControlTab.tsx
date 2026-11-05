@@ -29,6 +29,7 @@ import {
   type AccessControlStatus,
   useUnsavedChangesGuard,
 } from "@agent-management-platform/shared-component";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 import { useOpenApiSpec } from "../hooks/useOpenApiSpec";
 import {
   extractResourcesFromSpec,
@@ -99,6 +100,7 @@ export function LLMProviderAccessControlTab({
   onUpdate,
   isUpdating,
 }: LLMProviderAccessControlTabProps) {
+  const { canWrite } = useResourceAccess("llm_provider");
   const lastSavedRef = useRef<{
     mode: AccessControlMode;
     exceptionKeys: string[];
@@ -303,6 +305,7 @@ export function LLMProviderAccessControlTab({
       onExceptionKeysChange={setExceptionKeys}
       isLoading={isLoading || specLoading}
       isSaving={isUpdating}
+      readOnly={!canWrite}
       isDirty={isDirty}
       onSave={() => void updateAccessControl()}
       onDiscard={handleDiscard}

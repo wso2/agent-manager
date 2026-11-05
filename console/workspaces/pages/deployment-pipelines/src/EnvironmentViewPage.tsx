@@ -29,6 +29,7 @@ import {
   Typography,
 } from "@wso2/oxygen-ui";
 import { AlertTriangle, Copy, DoorClosedLocked, Edit, KeyRound } from "@wso2/oxygen-ui-icons-react";
+import { useEnvironmentFeatures } from "@agent-management-platform/feature-management";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
 import {
   copyToClipboard,
@@ -78,6 +79,7 @@ const GATEWAY_AVATAR_SX = {
 export function EnvironmentViewPage() {
   const { orgId, envName } = useParams<{ orgId: string; envName: string }>();
   const navigate = useNavigate();
+  const { canWrite } = useEnvironmentFeatures();
   const { pushSnackBar } = useSnackBar();
 
   const { data: env, isLoading: isLoadingEnv, error: envError } = useGetEnvironment({
@@ -131,6 +133,7 @@ export function EnvironmentViewPage() {
       isLoading={isLoadingEnv}
       disableIcon
       actions={
+        canWrite && (
         <Button
           variant="outlined"
           size="small"
@@ -148,6 +151,7 @@ export function EnvironmentViewPage() {
         >
           Edit Environment
         </Button>
+        )
       }
       titleTail={
         env ? (

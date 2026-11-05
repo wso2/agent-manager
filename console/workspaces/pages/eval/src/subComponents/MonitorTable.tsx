@@ -46,6 +46,7 @@ import {
   useDeleteMonitor,
   useListMonitors,
 } from "@agent-management-platform/api-client";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 import { MonitorStartStopButton } from "./MonitorStartStopButton";
 
 const getStatusColor = (status: MonitorStatus) => {
@@ -70,6 +71,7 @@ export function MonitorTable({ createAction }: MonitorTableProps) {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const { addConfirmation } = useConfirmationDialog();
+  const { canWrite } = useResourceAccess("monitor");
 
   const { agentId, orgId, projectId, envId } = useParams<{
     orgId: string;
@@ -213,7 +215,7 @@ export function MonitorTable({ createAction }: MonitorTableProps) {
             <ListingTable.Cell align="center">Status</ListingTable.Cell>
             <ListingTable.Cell>Data Source</ListingTable.Cell>
             <ListingTable.Cell>Evaluators</ListingTable.Cell>
-            <ListingTable.Cell>Actions</ListingTable.Cell>
+            {canWrite && <ListingTable.Cell>Actions</ListingTable.Cell>}
           </ListingTable.Row>
         </ListingTable.Head>
         <ListingTable.Body>
@@ -268,6 +270,7 @@ export function MonitorTable({ createAction }: MonitorTableProps) {
                   )}
                 </Stack>
               </ListingTable.Cell>
+              {canWrite && (
               <ListingTable.Cell onClick={(e) => e.stopPropagation()}>
                 <Stack direction="row" spacing={1} alignItems="center">
                   <MonitorStartStopButton
@@ -348,6 +351,7 @@ export function MonitorTable({ createAction }: MonitorTableProps) {
                   </Tooltip>
                 </Stack>
               </ListingTable.Cell>
+              )}
             </ListingTable.Row>
           ))}
         </ListingTable.Body>

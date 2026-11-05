@@ -22,6 +22,7 @@ import {
   useRotateLLMConfigAPIKey,
 } from "@agent-management-platform/api-client";
 import { SingleAPIKeyManager } from "@agent-management-platform/shared-component";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 
 export type LLMProxyAPIKeysSectionProps = {
   orgName: string | undefined;
@@ -46,6 +47,7 @@ export function LLMProxyAPIKeysSection({
   configId,
   envName,
 }: LLMProxyAPIKeysSectionProps) {
+  const { canWrite } = useResourceAccess("agent");
   const { data, isLoading, isError } = useListLLMConfigAPIKeys({
     orgName,
     projName,
@@ -104,6 +106,7 @@ export function LLMProxyAPIKeysSection({
       onGenerate={handleGenerate}
       onRegenerate={handleRegenerate}
       onDelete={handleDelete}
+      readOnly={!canWrite}
     />
   );
 }

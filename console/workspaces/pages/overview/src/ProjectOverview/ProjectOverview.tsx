@@ -23,6 +23,7 @@ import { PageLayout } from "@agent-management-platform/views";
 import { AgentList } from "@agent-management-platform/level-resource-listing";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
 import { absoluteRouteMap } from "@agent-management-platform/types";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 import {
   useListAgents,
   useGetProject,
@@ -38,6 +39,8 @@ export const ProjectOverview: React.FC = () => {
     projectId: string;
   }>();
   const navigate = useNavigate();
+  const { canWrite: canWriteProject } = useResourceAccess("project");
+  const { canWrite: canWriteAgent } = useResourceAccess("agent");
   const { data: project, isLoading } = useGetProject({
     orgName: orgId,
     projName: projectId,
@@ -51,13 +54,13 @@ export const ProjectOverview: React.FC = () => {
 
   // A project with no agents has nothing to overview; send the user to create one.
   useEffect(() => {
-    if (orgId && projectId && hasNoAgents && !isAgentsFetching) {
+    if (canWriteAgent && orgId && projectId && hasNoAgents && !isAgentsFetching) {
       // Replace so browser Back doesn't land here and redirect again.
       navigate(generatePath(projectRoutes.children.newAgent.path, { orgId, projectId }), {
         replace: true,
       });
     }
-  }, [orgId, projectId, hasNoAgents, isAgentsFetching, navigate]);
+  }, [canWriteAgent, orgId, projectId, hasNoAgents, isAgentsFetching, navigate]);
 
   return (
     <PageLayout
@@ -65,6 +68,7 @@ export const ProjectOverview: React.FC = () => {
       description={project?.description}
       isLoading={isLoading}
       actions={
+        canWriteProject && (
           <Button
             variant="outlined"
             size="small"
@@ -76,6 +80,7 @@ export const ProjectOverview: React.FC = () => {
           >
             Edit Project
           </Button>
+        )
       }
     >
       <Stack direction={{ xs: "column", lg: "row" }} gap={3} alignItems="flex-start">

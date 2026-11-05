@@ -22,6 +22,7 @@ import { KeyRound } from "@wso2/oxygen-ui-icons-react";
 import { CodeBlock, useConfirmationDialog } from "@agent-management-platform/shared-component";
 import { TokenExpirySelector, DEFAULT_TOKEN_EXPIRY } from "@agent-management-platform/views";
 import { useGenerateAgentToken } from "@agent-management-platform/api-client";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 import { StepNumberBadge } from "./StepNumberBadge";
 
 interface TokenGenerationStepProps {
@@ -49,6 +50,7 @@ export const TokenGenerationStep = ({
   const [enabled, setEnabled] = useState(false);
   const autoGenFired = useRef(false);
   const { addConfirmation } = useConfirmationDialog();
+  const { canWrite } = useResourceAccess("agent");
 
   // Session-scoped guard so a reopen never silently re-mints (#1140). Scoped per
   // (org, project, agent, environment).
@@ -82,7 +84,7 @@ export const TokenGenerationStep = ({
 
   // Auto-generate exactly once on first open after creation.
   useEffect(() => {
-    if (!autoGenerate || autoGenFired.current) return;
+    if (!autoGenerate || !canWrite || autoGenFired.current) return;
     let alreadyGenerated = false;
     try {
       alreadyGenerated = sessionStorage.getItem(sessionKey) === "1";
@@ -94,7 +96,7 @@ export const TokenGenerationStep = ({
       generate();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoGenerate, sessionKey]);
+  }, [autoGenerate, canWrite, sessionKey]);
 
   const handleGenerateClick = () => {
     let alreadyGenerated = false;
@@ -135,15 +137,17 @@ export const TokenGenerationStep = ({
           </Typography>
           <TokenExpirySelector value={duration} onChange={setDuration} disabled={isFetching} />
 
-          <Button
-            variant="text"
-            onClick={handleGenerateClick}
-            disabled={isFetching}
-            startIcon={isFetching ? <CircularProgress size={16} /> : <KeyRound size={16} />}
-            size="small"
-          >
-            {isFetching ? "Generating..." : token ? "Regenerate" : "Generate"}
-          </Button>
+          {canWrite && (
+            <Button
+              variant="text"
+              onClick={handleGenerateClick}
+              disabled={isFetching}
+              startIcon={isFetching ? <CircularProgress size={16} /> : <KeyRound size={16} />}
+              size="small"
+            >
+              {isFetching ? "Generating..." : token ? "Regenerate" : "Generate"}
+            </Button>
+          )}
         </Box>
       </Box>
 

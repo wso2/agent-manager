@@ -37,6 +37,7 @@ import {
   globalConfig,
   type ThunderRole,
 } from "@agent-management-platform/types";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 import { ListingSkeletonRows } from "./components/ListingSkeletonRows";
 
 const AVATAR_SX = { width: 28, height: 28, fontSize: 12 } as const;
@@ -45,6 +46,7 @@ export const RolesPage: React.FC = () => {
   const { orgId } = useParams<{ orgId: string }>();
   const navigate = useNavigate();
   const isUserManagementEnabled = globalConfig.featureFlags?.enableUserManagement === true;
+  const { canWrite } = useResourceAccess("role");
 
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -110,7 +112,7 @@ export const RolesPage: React.FC = () => {
   };
 
   // One definition, used by the toolbar and by the empty state's CTA.
-  const createButton = (
+  const createButton = canWrite ? (
     <Button
       variant="contained"
       startIcon={<Plus />}
@@ -119,7 +121,7 @@ export const RolesPage: React.FC = () => {
     >
       Create Role
     </Button>
-  );
+  ) : undefined;
 
   return (
     <>
@@ -184,22 +186,24 @@ export const RolesPage: React.FC = () => {
                         />
                       </ListingTable.Cell>
                       <ListingTable.Cell align="center">
-                        <ListingTable.RowActions visibility="hover">
-                          {!role.isReadOnly && (
-                            <Tooltip title="Delete role">
-                              <IconButton
-                                size="small"
-                                color="error"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleDelete(role);
-                                }}
-                              >
-                                <Trash size={16} />
-                              </IconButton>
-                            </Tooltip>
-                          )}
-                        </ListingTable.RowActions>
+                        {canWrite && (
+                          <ListingTable.RowActions visibility="hover">
+                            {!role.isReadOnly && (
+                              <Tooltip title="Delete role">
+                                <IconButton
+                                  size="small"
+                                  color="error"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDelete(role);
+                                  }}
+                                >
+                                  <Trash size={16} />
+                                </IconButton>
+                              </Tooltip>
+                            )}
+                          </ListingTable.RowActions>
+                        )}
                       </ListingTable.Cell>
                     </ListingTable.Row>
                   ))}

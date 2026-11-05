@@ -26,6 +26,7 @@ import {
   isApiKeyAuthEnabled,
   type CreateAPIKeyInput,
 } from "@agent-management-platform/shared-component";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 import type { LLMProviderResponse } from "@agent-management-platform/types";
 import { Alert, Button, ListingTable, Skeleton } from "@wso2/oxygen-ui";
 import { ShieldOff } from "@wso2/oxygen-ui-icons-react";
@@ -52,6 +53,7 @@ export function LLMProviderAPIKeysTab({
   error: providerError = null,
   onGoToSecurityTab,
 }: LLMProviderAPIKeysTabProps) {
+  const { canWrite } = useResourceAccess("llm_provider");
   const apiKeyEnabled = isApiKeyAuthEnabled(providerData?.security);
 
   const {
@@ -132,6 +134,7 @@ export function LLMProviderAPIKeysTab({
       emptyDescription="Create an API key to authenticate requests to this LLM provider."
       onCreate={handleCreate}
       onRevoke={handleRevoke}
+      readOnly={!canWrite}
     />
   );
 }

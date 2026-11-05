@@ -24,7 +24,8 @@ import {
   LoadErrorNotice,
 } from "@agent-management-platform/views";
 import { z } from "zod";
-import { generatePath, useNavigate, useParams } from "react-router-dom";
+import { generatePath, Navigate, useNavigate, useParams } from "react-router-dom";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 import { useGetAgent, useUpdateAgent } from "@agent-management-platform/api-client";
 import { absoluteRouteMap, AgentResponse, UpdateAgentRequest, INPUT_LIMITS } from "@agent-management-platform/types";
 import {
@@ -199,6 +200,7 @@ export function EditAgent() {
     projectId: string;
     agentId: string;
   }>();
+  const { canWrite } = useResourceAccess("agent");
   const { data: agent, isLoading, error, refetch } = useGetAgent({
     orgName: orgId,
     projName: projectId,
@@ -208,6 +210,10 @@ export function EditAgent() {
     absoluteRouteMap.children.org.children.projects.children.agents.path,
     { orgId, projectId, agentId },
   );
+
+  if (!canWrite) {
+    return <Navigate to={agentHref} replace />;
+  }
 
   return (
     <PageLayout

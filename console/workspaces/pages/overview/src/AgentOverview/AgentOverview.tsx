@@ -30,6 +30,7 @@ import {
     PageMetaItem,
 } from "@agent-management-platform/views";
 import { absoluteRouteMap } from "@agent-management-platform/types";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 import { AgentTypeChips, LabelChips } from "@agent-management-platform/shared-component";
 
 function AgentOverviewSkeleton() {
@@ -43,6 +44,7 @@ function AgentOverviewSkeleton() {
 export function AgentOverview() {
     const { orgId, agentId, projectId } = useParams();
     const navigate = useNavigate();
+    const { canWrite } = useResourceAccess("agent");
     const { data: agent, isLoading: isAgentLoading } = useGetAgent({
         orgName: orgId,
         projName: projectId,
@@ -90,23 +92,25 @@ export function AgentOverview() {
                 </>
             }
             actions={
-                <Button
-                    variant="outlined"
-                    size="small"
-                    startIcon={<Edit size={16} />}
-                    onClick={() =>
-                        navigate(
-                            generatePath(
-                                absoluteRouteMap.children.org.children.projects.children.agents
-                                    .children.edit.path,
-                                { orgId, projectId, agentId },
-                            ),
-                        )
-                    }
-                    disabled={!agent}
-                >
-                    Edit Agent
-                </Button>
+                canWrite && (
+                    <Button
+                        variant="outlined"
+                        size="small"
+                        startIcon={<Edit size={16} />}
+                        onClick={() =>
+                            navigate(
+                                generatePath(
+                                    absoluteRouteMap.children.org.children.projects.children.agents
+                                        .children.edit.path,
+                                    { orgId, projectId, agentId },
+                                ),
+                            )
+                        }
+                        disabled={!agent}
+                    >
+                        Edit Agent
+                    </Button>
+                )
             }
         >
             {isAgentLoading ? (
