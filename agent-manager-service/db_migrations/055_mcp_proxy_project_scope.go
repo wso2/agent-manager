@@ -25,7 +25,8 @@ import "gorm.io/gorm"
 // OpenChoreo lookup). Both are NULL for an organization-level proxy, which is
 // every row that exists today, so existing proxies and the previous version of
 // the service, which never reads the columns, are unaffected. They are set
-// together or not at all.
+// together or not at all, which chk_mcp_proxies_project_scope enforces; it is
+// added while no row has a project, so no existing row can violate it.
 var migration055 = migration{
 	ID: 55,
 	Migrate: func(db *gorm.DB) error {
@@ -36,6 +37,12 @@ var migration055 = migration{
 				`ALTER TABLE mcp_proxies ADD COLUMN IF NOT EXISTS project_name TEXT`,
 				`CREATE INDEX IF NOT EXISTS idx_mcp_proxies_project_uuid
 					ON mcp_proxies (project_uuid)`,
+				`DO $$ BEGIN
+					IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_mcp_proxies_project_scope') THEN
+						ALTER TABLE mcp_proxies ADD CONSTRAINT chk_mcp_proxies_project_scope
+							CHECK ((project_uuid IS NULL) = (project_name IS NULL));
+					END IF;
+				END $$`,
 			)
 		})
 	},

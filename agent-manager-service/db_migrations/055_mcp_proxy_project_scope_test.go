@@ -64,4 +64,19 @@ func TestMigration055AddsNullableProjectUUID(t *testing.T) {
 	assert.EqualValues(t, 1, idx)
 
 	require.NoError(t, migrateTo(g, 55), "re-running the migration must be a no-op")
+
+	// The two columns are set together or not at all.
+	project := uuid.New()
+	require.NoError(t, g.Exec(`UPDATE mcp_proxies SET project_uuid = ?, project_name = 'orders' WHERE uuid = ?`,
+		project, artifact).Error)
+	require.NoError(t, g.Exec(`UPDATE mcp_proxies SET project_uuid = ? WHERE uuid = ?`, uuid.New(), artifact).Error,
+		"moving a project proxy to another project UUID keeps its name")
+	for name, sql := range map[string]string{
+		"uuid without name": `UPDATE mcp_proxies SET project_name = NULL WHERE uuid = ?`,
+		"name without uuid": `UPDATE mcp_proxies SET project_uuid = NULL WHERE uuid = ?`,
+	} {
+		err := g.Exec(sql, artifact).Error
+		require.Error(t, err, name)
+		assert.Contains(t, err.Error(), "chk_mcp_proxies_project_scope", name)
+	}
 }
