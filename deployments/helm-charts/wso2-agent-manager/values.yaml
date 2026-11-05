@@ -172,7 +172,8 @@ agentManagerService:
       #   run, but queued events and pending retries are lost when the pod
       #   restarts, and it supports one replica only. For quick start.
       # off: no event bus; Events is hidden in the console.
-      mode: "nats"
+      # Disabled by default. Explicitly select nats or embedded to enable.
+      mode: "off"
       # An existing NATS server with JetStream, e.g. nats://nats.infra:4222.
       # Empty: use the bundled NATS.
       natsUrl: ""

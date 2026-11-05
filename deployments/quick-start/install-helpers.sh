@@ -207,8 +207,9 @@ install_registry_credentials() {
 
 # Quick start runs the event bus inside the service (embedded NATS, in memory)
 # instead of a NATS pod: one less workload on a laptop cluster, at the cost of
-# losing queued event deliveries on a restart. Production installs keep the
-# chart default (a NATS server). Autoscaling is off, as embedded supports
+# losing queued event deliveries on a restart. The chart defaults to events
+# off; quick start explicitly enables embedded mode. Production users can
+# explicitly enable a NATS server. Autoscaling is off, as embedded supports
 # one replica only. AMP_HELM_ARGS comes last, so passing
 # --set agentManagerService.config.events.mode=nats there switches a
 # quick-start install back to a NATS server.

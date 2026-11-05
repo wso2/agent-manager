@@ -1374,8 +1374,8 @@
                   "type": "integer"
                 },
                 "mode": {
-                  "default": "nats",
-                  "description": "nats: a NATS JetStream server (bundled unless natsUrl is set), events on disk; for production. embedded: NATS inside the service process, in memory, single replica only; for quick start. off: no event bus, Events hidden.",
+                  "default": "off",
+                  "description": "Disabled by default; explicitly enable nats or embedded. nats: a NATS JetStream server (bundled unless natsUrl is set), events on disk; for production. embedded: NATS inside the service process, in memory, single replica only; for quick start. off: no event bus, Events hidden.",
                   "enum": [
                     "nats",
                     "embedded",
