@@ -41,6 +41,7 @@ import {
   useUnsavedChangesGuard,
 } from "@agent-management-platform/shared-component";
 import {
+  Alert,
   Avatar,
   Box,
   Button,
@@ -74,8 +75,8 @@ interface MonitorLLMProviderDrawerProps {
   onClose: () => void;
   selectedProviderName?: string;
   onProviderChange: (name: string | undefined) => void;
-  // The monitor's environment. Only providers deployed to it are listed, as a monitor
-  // can't use a provider that isn't.
+  // The monitor's environment. Only providers deployed to a managed gateway in it are
+  // listed, as a monitor can't use any other.
   environmentName?: string;
 }
 
@@ -296,17 +297,30 @@ export function MonitorLLMProviderDrawer({
     [],
   );
 
-  const { data: environments } = useListEnvironments({ orgName: orgId });
+  const {
+    data: environments,
+    isLoading: isLoadingEnvironments,
+    isError: isEnvironmentsError,
+  } = useListEnvironments({ orgName: orgId });
   const environment = environmentName
     ? environments?.find((env) => env.name === environmentName)
     : undefined;
   const environmentLabel = environment?.displayName || environmentName;
-  // Wait for the environment's id rather than list every provider in the meantime.
+  // Without the environment's id the list can't be filtered, so it isn't fetched at all.
+  const environmentUnresolved =
+    !!environmentName && !isLoadingEnvironments && !environment?.id;
   const { data: catalogData, isFetching } = useListCatalogLLMProviders(
     { orgName: orgId },
-    { limit: PAGE_SIZE, offset: fetchOffset, environmentId: environment?.id },
-    { enabled: !environmentName || !!environment },
+    {
+      limit: PAGE_SIZE,
+      offset: fetchOffset,
+      environmentId: environment?.id,
+      gatewayHosting: environmentName ? "MANAGED" : undefined,
+    },
+    { enabled: !environmentName || !!environment?.id },
   );
+  const isLoadingProviders =
+    isFetching || (!!environmentName && isLoadingEnvironments);
   const { data: templatesData, isLoading: isLoadingTemplates } =
     useListLLMProviderTemplates(
       { orgName: orgId },
@@ -386,8 +400,9 @@ export function MonitorLLMProviderDrawer({
   // When the org has no LLM providers yet, open straight into the create view
   // so the user isn't shown an empty list they have to click through. Fires
   // once per open; if the user goes back to the (empty) list, we respect it.
-  // An empty list filtered to the environment may only mean the org's providers
-  // aren't deployed there, so it stays on the list, which says so.
+  // Only an unfiltered list does this: a monitor's list is filtered to its
+  // environment, and an empty one may only mean the org's providers aren't
+  // deployed there, which the list says.
   useEffect(() => {
     if (!open || autoSwitchDone.current || isFetching || !catalogData) return;
     autoSwitchDone.current = true;
@@ -479,7 +494,7 @@ export function MonitorLLMProviderDrawer({
               Select the LLM provider for all LLM-judge evaluators in this
               monitor.
               {environmentLabel &&
-                ` Only providers deployed to ${environmentLabel} are listed.`}
+                ` Only providers deployed to a managed gateway in ${environmentLabel} are listed.`}
             </Typography>
             <SearchBar
               placeholder="Search providers"
@@ -488,12 +503,21 @@ export function MonitorLLMProviderDrawer({
               value={search}
               onChange={handleSearchChange}
             />
-            {isFetching && filteredProviders.length === 0 && (
+            {environmentUnresolved && (
+              <Alert severity="error">
+                {isEnvironmentsError
+                  ? `Couldn't load environment ${environmentName}, so its LLM providers can't be listed.`
+                  : `Environment ${environmentName} wasn't found, so its LLM providers can't be listed.`}
+              </Alert>
+            )}
+            {isLoadingProviders && filteredProviders.length === 0 && (
               <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
                 <CircularProgress size={32} />
               </Box>
             )}
-            {filteredProviders.length === 0 && !isFetching && (
+            {filteredProviders.length === 0 &&
+              !isLoadingProviders &&
+              !environmentUnresolved && (
               <ListingTable.EmptyState
                 title={
                   search.trim()
@@ -506,7 +530,7 @@ export function MonitorLLMProviderDrawer({
                   search.trim()
                     ? "Try a different keyword."
                     : environmentLabel
-                      ? `Deploy an LLM provider to a gateway in ${environmentLabel}, or add one below.`
+                      ? `Deploy an LLM provider to a managed gateway in ${environmentLabel}, or add one below.`
                       : "Add an LLM service provider to get started."
                 }
               />
