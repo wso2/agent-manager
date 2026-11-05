@@ -66,7 +66,7 @@ import {
   Plus,
   Zap,
 } from "@wso2/oxygen-ui-icons-react";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import debounce from "lodash/debounce";
 
@@ -290,17 +290,24 @@ export function MonitorLLMProviderDrawer({
   // refreshKey increments each time the drawer opens so the accumulate effect
   // re-runs even when fetchOffset and catalogData haven't changed (cached data).
   const [refreshKey, setRefreshKey] = useState(0);
-  // processedOffsets prevents double-counting a page when the query key changes
-  // but catalogData briefly returns the previous page's cached value.
-  const processedOffsets = useRef(new Set<number>());
-  const [allProviders, setAllProviders] = useState<CatalogLLMProviderEntry[]>(
-    [],
+  // Each page by its response offset, so a page that comes back changed (a retry
+  // or a refetch) replaces the old one instead of being dropped or appended twice.
+  const [pages, setPages] = useState<Map<number, CatalogLLMProviderEntry[]>>(
+    () => new Map(),
+  );
+  const allProviders = useMemo(
+    () =>
+      [...pages.entries()]
+        .sort(([a], [b]) => a - b)
+        .flatMap(([, entries]) => entries),
+    [pages],
   );
 
   const {
     data: environment,
     isLoading: isLoadingEnvironment,
     isError: isEnvironmentError,
+    refetch: refetchEnvironment,
   } = useGetEnvironment({ orgName: orgId, envName: environmentName });
   const environmentLabel = environment?.displayName || environmentName;
   // Without the environment's id the list can't be filtered, so it isn't fetched at all.
@@ -383,8 +390,7 @@ export function MonitorLLMProviderDrawer({
   // catalogData is still the cached result from a previous open.
   useEffect(() => {
     if (open) {
-      processedOffsets.current = new Set();
-      setAllProviders([]);
+      setPages(new Map());
       setFetchOffset(0);
       setRefreshKey((k) => k + 1);
       setMode("list");
@@ -395,15 +401,16 @@ export function MonitorLLMProviderDrawer({
   // Accumulate each page as it arrives and trigger the next fetch if needed.
   useEffect(() => {
     if (!catalogData?.entries) return;
-    // Key on the response offset, not the requested fetchOffset, to avoid
-    // counting a stale cache hit for the new offset as a valid new page.
+    // Key on the response offset, not the requested fetchOffset, so a stale
+    // cache hit for the new offset only rewrites the page it belongs to.
     const responseOffset = catalogData.offset ?? 0;
-    if (processedOffsets.current.has(responseOffset)) return;
-    processedOffsets.current.add(responseOffset);
     const entries = catalogData.entries;
-    setAllProviders((prev) =>
-      responseOffset === 0 ? entries : [...prev, ...entries],
-    );
+    setPages((prev) => {
+      if (prev.get(responseOffset) === entries) return prev;
+      const next = new Map(prev);
+      next.set(responseOffset, entries);
+      return next;
+    });
     if (responseOffset + entries.length < catalogData.total) {
       setFetchOffset(responseOffset + entries.length);
     }
@@ -485,7 +492,16 @@ export function MonitorLLMProviderDrawer({
               onChange={handleSearchChange}
             />
             {environmentUnresolved && (
-              <Alert severity={environmentName ? "error" : "info"}>
+              <Alert
+                severity={environmentName ? "error" : "info"}
+                action={
+                  isEnvironmentError ? (
+                    <Button size="small" color="inherit" onClick={() => refetchEnvironment()}>
+                      Retry
+                    </Button>
+                  ) : undefined
+                }
+              >
                 {!environmentName
                   ? "Choose the monitor's environment first; its LLM providers are listed here."
                   : isEnvironmentError
