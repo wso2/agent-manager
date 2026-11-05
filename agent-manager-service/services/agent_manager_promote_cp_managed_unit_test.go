@@ -666,13 +666,18 @@ func TestUpdateAgentConfigurations_CPManaged_NothingToNeutralize(t *testing.T) {
 		assert.Equal(t, []client.EnvVar{{Key: client.EnvVarAgentIDClientID, Value: "dev-client-id"}}, identity)
 		assert.Zero(t, run.pipelineN)
 	})
-	t.Run("a files-only update leaves the env overrides alone", func(t *testing.T) {
+	t.Run("a files-only update leaves the env overrides alone and needs no pipeline", func(t *testing.T) {
 		run := updateConfigFixture(t, true, true, nil)
+		run.oc.GetProjectDeploymentPipelineFunc = func(context.Context, string, string) (*models.DeploymentPipelineResponse, error) {
+			run.pipelineN++
+			return nil, errors.New("openchoreo unavailable")
+		}
 		require.NoError(t, run.updateFunc(&spec.UpdateAgentConfigurationsRequest{
 			EnvironmentName: "staging", Files: []spec.FileMount{},
 		}))
 		require.Len(t, run.replaced, 1)
 		assert.Nil(t, run.replaced[0], "nil means leave the existing env overrides, placeholders included")
+		assert.Zero(t, run.pipelineN, "a files-only request must not look up the pipeline")
 	})
 }
 

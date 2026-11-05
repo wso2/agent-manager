@@ -197,6 +197,14 @@ var ErrProjectAgentIdentityEnvironmentNotInPipeline = errors.New(
 	"project AgentID environment is no longer part of the project pipeline",
 )
 
+// ErrProjectAgentIdentityEnvironmentIsPipelineSource marks a promotion target
+// that is now the first environment of the project's pipeline, so its identity
+// cannot be promoted from another environment. Re-homing an AgentID to a new
+// source environment is not supported.
+var ErrProjectAgentIdentityEnvironmentIsPipelineSource = errors.New(
+	"project AgentID environment is now the first environment of the project pipeline",
+)
+
 // ErrProjectAgentIdentityPromotionPathUnavailable is returned (wrapped is fine)
 // by a provider's Promote when the identity service has no promotion path for
 // the requested source to target edge yet. It is a wait, not a failure: AMS

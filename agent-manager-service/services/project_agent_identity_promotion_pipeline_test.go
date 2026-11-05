@@ -75,6 +75,23 @@ type promotionAttemptRun struct {
 	logs     string
 }
 
+// pipelineSourceOf is the first environment that no other environment promotes
+// to, or "x" when the list is empty (a pipeline read error case).
+func pipelineSourceOf(environments []ProjectIdentityEnvironment) string {
+	targets := map[string]bool{}
+	for _, environment := range environments {
+		for _, target := range environment.PromotesTo {
+			targets[target] = true
+		}
+	}
+	for _, environment := range environments {
+		if !targets[environment.Name] {
+			return environment.Name
+		}
+	}
+	return "x"
+}
+
 // runPromotedAttempt runs AttemptProvision for binding against a repository
 // holding bindings (environment name to row; missing means not found) and a
 // pipeline reader returning environments (or pipelineErr).
@@ -129,7 +146,7 @@ func runPromotedAttempt(
 		thundersvc.IdentityManagementCPManaged, provider))
 	svc.(ProjectPipelineReaderSetter).SetProjectPipelineReader(projectPipelineReaderFunc(
 		func(context.Context, string, string) (string, []ProjectIdentityEnvironment, error) {
-			return "x", environments, pipelineErr
+			return pipelineSourceOf(environments), environments, pipelineErr
 		}))
 
 	svc.AttemptProvision(context.Background(), binding)
@@ -485,4 +502,96 @@ func TestPromotionCompletesOnceThePathOpens(t *testing.T) {
 	require.Equal(t, models.AgentThunderStatusCompleted, updates[0].Status)
 	require.Equal(t, clientIDs[1], *updates[0].ThunderClientID, "the client ID applied by the successful promote is the one stored")
 	require.Len(t, released, 1, "only the first attempt waited")
+}
+
+func TestPromotionFailsDistinctlyWhenTheEnvironmentBecameThePipelineSource(t *testing.T) {
+	// x was removed from x -> a -> b, so a is now the first environment: it has no
+	// parent but is still in the pipeline.
+	environments := []ProjectIdentityEnvironment{{Name: "a", PromotesTo: []string{"b"}}, {Name: "b"}}
+	run := runPromotedAttempt(t, pendingA(models.AgentProvisioningTypeInternal), environments, nil,
+		map[string]*models.AgentThunderClient{"x": bindingIn("x", models.AgentThunderStatusCompleted)}, nil)
+
+	require.Empty(t, run.requests)
+	require.Empty(t, run.released)
+	require.Len(t, run.updates, 1, "the failure goes through the normal attempt accounting")
+	require.Equal(t, firstEnvironmentMessage, run.updates[0].LastError)
+	require.Contains(t, run.logs, ErrProjectAgentIdentityEnvironmentIsPipelineSource.Error())
+	require.NotContains(t, run.logs, ErrProjectAgentIdentityEnvironmentNotInPipeline.Error())
+
+	require.Equal(t, firstEnvironmentMessage,
+		userFacingProvisioningError(fmt.Errorf("%w: a", ErrProjectAgentIdentityEnvironmentIsPipelineSource)))
+}
+
+const firstEnvironmentMessage = "This environment is now the first environment of the project's pipeline, so its identity cannot be promoted from another environment."
+
+func TestEffectivePromotionSourceSentinels(t *testing.T) {
+	svc := newPromotionService(t, &repomocks.AgentThunderClientRepositoryMock{}, &clientmocks.SecretManagementClientMock{},
+		projectAgentIdentityPromotionProviderStub{}, nil).(*agentThunderProvisioningService)
+	withPipeline := func(environments []ProjectIdentityEnvironment) {
+		svc.pipelineReader = projectPipelineReaderFunc(func(context.Context, string, string) (string, []ProjectIdentityEnvironment, error) {
+			return pipelineSourceOf(environments), environments, nil
+		})
+	}
+	binding := pendingA(models.AgentProvisioningTypeInternal)
+
+	withPipeline([]ProjectIdentityEnvironment{{Name: "a", PromotesTo: []string{"b"}}, {Name: "b"}})
+	_, err := svc.effectivePromotionSource(context.Background(), binding)
+	require.ErrorIs(t, err, ErrProjectAgentIdentityEnvironmentIsPipelineSource)
+	require.NotErrorIs(t, err, ErrProjectAgentIdentityEnvironmentNotInPipeline)
+
+	withPipeline([]ProjectIdentityEnvironment{{Name: "x", PromotesTo: []string{"y"}}, {Name: "y"}})
+	_, err = svc.effectivePromotionSource(context.Background(), binding)
+	require.ErrorIs(t, err, ErrProjectAgentIdentityEnvironmentNotInPipeline)
+	require.NotErrorIs(t, err, ErrProjectAgentIdentityEnvironmentIsPipelineSource)
+
+	withPipeline(topologyXA())
+	source, err := svc.effectivePromotionSource(context.Background(), binding)
+	require.NoError(t, err)
+	require.Equal(t, "x", source, "a normal target with a parent is unchanged")
+}
+
+func promotionPathUnavailable(ProjectAgentIdentityPromotionRequest) (ProjectAgentIdentityResult, error) {
+	return ProjectAgentIdentityResult{}, fmt.Errorf("promote x to a: %w", ErrProjectAgentIdentityPromotionPathUnavailable)
+}
+
+const pathUnavailableMessage = "The identity service has no promotion path to this environment yet. Retry once it is enabled."
+
+func TestPromotionPathWaitIsBounded(t *testing.T) {
+	sources := map[string]*models.AgentThunderClient{"x": bindingIn("x", models.AgentThunderStatusCompleted)}
+
+	t.Run("a young binding keeps waiting without consuming an attempt", func(t *testing.T) {
+		binding := pendingA(models.AgentProvisioningTypeInternal)
+		binding.CreatedAt = time.Now().Add(-promotionPathWaitLimit / 2)
+		run := runPromotedAttempt(t, binding, topologyXA(), nil, sources, promotionPathUnavailable)
+
+		require.Equal(t, []string{stalePathNote}, run.released)
+		require.Empty(t, run.updates)
+	})
+
+	t.Run("an old binding fails through the normal attempt accounting", func(t *testing.T) {
+		binding := pendingA(models.AgentProvisioningTypeInternal)
+		binding.CreatedAt = time.Now().Add(-2 * promotionPathWaitLimit)
+		run := runPromotedAttempt(t, binding, topologyXA(), nil, sources, promotionPathUnavailable)
+
+		require.Empty(t, run.released, "no deferral past the limit")
+		require.Len(t, run.updates, 1, "the attempt is consumed like any other failure")
+		require.Equal(t, pathUnavailableMessage, run.updates[0].LastError)
+		require.Contains(t, run.logs, ErrProjectAgentIdentityPromotionPathUnavailable.Error())
+	})
+
+	t.Run("an old binding on its last attempt ends FAILED", func(t *testing.T) {
+		binding := pendingA(models.AgentProvisioningTypeInternal)
+		binding.CreatedAt = time.Now().Add(-2 * promotionPathWaitLimit)
+		binding.AttemptCount = maxProvisionAttempts - 1
+		run := runPromotedAttempt(t, binding, topologyXA(), nil, sources, promotionPathUnavailable)
+
+		require.Len(t, run.updates, 1)
+		require.Equal(t, models.AgentThunderStatusFailed, run.updates[0].Status)
+		require.Equal(t, pathUnavailableMessage, run.updates[0].LastError)
+	})
+
+	t.Run("the message mapping", func(t *testing.T) {
+		require.Equal(t, pathUnavailableMessage,
+			userFacingProvisioningError(fmt.Errorf("promote project AgentID: %w", ErrProjectAgentIdentityPromotionPathUnavailable)))
+	})
 }

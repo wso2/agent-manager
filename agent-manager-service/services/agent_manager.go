@@ -5699,11 +5699,20 @@ func (s *agentManagerService) UpdateAgentConfigurations(ctx context.Context, ouI
 	// An environment whose identity is not ready yet (CP_MANAGED) keeps its empty
 	// placeholders, or the replace would hand it the lowest environment's
 	// credential through the shared Workload.
-	identityEnvVars, identityNeutralized, idErr := s.identityEnvVarsOrPlaceholders(ctx, ouID, projectName, agentName, req.EnvironmentName)
-	if idErr != nil {
-		s.logger.Error("Failed to build agent identity env vars, aborting configurations update to prevent credential loss",
-			"agentName", agentName, "environment", req.EnvironmentName, "error", idErr)
-		return fmt.Errorf("failed to build agent identity env vars: %w", idErr)
+	//
+	// Only a request that carries env rewrites the overrides; a files-only request
+	// leaves them alone, has nothing to protect and must not depend on the
+	// identity or pipeline lookups.
+	var identityEnvVars []client.EnvVar
+	identityNeutralized := false
+	if req.Env != nil {
+		var idErr error
+		identityEnvVars, identityNeutralized, idErr = s.identityEnvVarsOrPlaceholders(ctx, ouID, projectName, agentName, req.EnvironmentName)
+		if idErr != nil {
+			s.logger.Error("Failed to build agent identity env vars, aborting configurations update to prevent credential loss",
+				"agentName", agentName, "environment", req.EnvironmentName, "error", idErr)
+			return fmt.Errorf("failed to build agent identity env vars: %w", idErr)
+		}
 	}
 	systemManagedKeys = mergeAgentIdentityEnvVarKeys(systemManagedKeys)
 

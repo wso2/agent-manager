@@ -107,8 +107,10 @@ func (s *agentThunderProvisioningService) projectPromotionSteps(
 // parent (sorted by name) whose binding is not FAILED is used, preferring a
 // COMPLETED one. When every parent is failed or missing the first parent is
 // returned so the caller's source lookup reports it as unavailable. A target
-// that is no longer an outgoing target of any environment fails with
-// ErrProjectAgentIdentityEnvironmentNotInPipeline. When the pipeline cannot be
+// that has no parent fails with ErrProjectAgentIdentityEnvironmentIsPipelineSource
+// when it is now the pipeline's first environment, and with
+// ErrProjectAgentIdentityEnvironmentNotInPipeline when it is not in the pipeline
+// at all. When the pipeline cannot be
 // read the stored source is kept. The stored column is never changed.
 func (s *agentThunderProvisioningService) effectivePromotionSource(
 	ctx context.Context, binding models.AgentThunderClient,
@@ -119,7 +121,7 @@ func (s *agentThunderProvisioningService) effectivePromotionSource(
 			"envName", binding.EnvironmentName, "promotionSource", binding.PromotionSource)
 		return binding.PromotionSource, nil
 	}
-	_, environments, err := s.pipelineReader.ProjectPipeline(ctx, binding.OUID, binding.ProjectName)
+	pipelineSource, environments, err := s.pipelineReader.ProjectPipeline(ctx, binding.OUID, binding.ProjectName)
 	if err != nil {
 		s.logger.Warn("Failed to read the project pipeline; using the stored AgentID promotion source",
 			"ouID", binding.OUID, "projectName", binding.ProjectName, "agentName", binding.AgentName,
@@ -136,6 +138,9 @@ func (s *agentThunderProvisioningService) effectivePromotionSource(
 		}
 	}
 	if len(parents) == 0 {
+		if binding.EnvironmentName == pipelineSource {
+			return "", fmt.Errorf("%w: %s", ErrProjectAgentIdentityEnvironmentIsPipelineSource, binding.EnvironmentName)
+		}
 		return "", fmt.Errorf("%w: %s", ErrProjectAgentIdentityEnvironmentNotInPipeline, binding.EnvironmentName)
 	}
 	sort.Strings(parents)

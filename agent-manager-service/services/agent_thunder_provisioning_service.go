@@ -70,6 +70,12 @@ const provisionRetryDelay = 3 * time.Minute
 // a wait for an external system, so it is slower than the source wait.
 const promotionPathRetryDelay = 3 * time.Minute
 
+// promotionPathWaitLimit bounds that wait, measured from the binding's creation.
+// Past it the missing path is treated like any other failure, so the binding
+// consumes attempts, ends FAILED and shows the retry button instead of staying
+// pending forever.
+const promotionPathWaitLimit = time.Hour
+
 // AgentThunderProvisioningService orchestrates AgentID provisioning: creating,
 // regenerating, revoking, and deleting Thunder identities per agent per
 // environment. Binding architecture (Section 7 — pushing a credential into the
@@ -875,9 +881,11 @@ func (s *agentThunderProvisioningService) AttemptProvision(ctx context.Context, 
 				NeedsSecret: !isExternal,
 			}
 			result, promotionErr := promoter.Promote(ctx, request)
-			if errors.Is(promotionErr, ErrProjectAgentIdentityPromotionPathUnavailable) {
+			if errors.Is(promotionErr, ErrProjectAgentIdentityPromotionPathUnavailable) &&
+				(binding.CreatedAt.IsZero() || time.Since(binding.CreatedAt) < promotionPathWaitLimit) {
 				// The identity service has no path for this edge yet. That is a wait,
-				// not a failure: defer without consuming an attempt. Nothing was
+				// not a failure: defer without consuming an attempt. Once the wait
+				// limit has passed it falls through to the failure path below. Nothing was
 				// applied, so the target client ID is not persisted here and the
 				// next attempt generates its own (ReleaseClaim cannot store it, and
 				// UpdateAfterAttempt would consume an attempt).
@@ -1210,6 +1218,10 @@ func userFacingProvisioningError(cause error) string {
 		return "Identity provider is temporarily unreachable. Please retry."
 	case errors.Is(cause, ErrProjectAgentIdentitySourceUnavailable):
 		return "The source environment's identity is missing or failed. Fix it first, then retry."
+	case errors.Is(cause, ErrProjectAgentIdentityPromotionPathUnavailable):
+		return "The identity service has no promotion path to this environment yet. Retry once it is enabled."
+	case errors.Is(cause, ErrProjectAgentIdentityEnvironmentIsPipelineSource):
+		return "This environment is now the first environment of the project's pipeline, so its identity cannot be promoted from another environment."
 	case errors.Is(cause, ErrProjectAgentIdentityEnvironmentNotInPipeline):
 		return "This environment is no longer a promotion target in the project's pipeline. Add it back to the pipeline, then retry."
 	default:
