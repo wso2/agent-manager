@@ -499,8 +499,12 @@ spec:
             # ESO syncs immediately whenever this annotation value changes.
             force-sync: ${environmentConfigs.secretSyncRevision}
         spec:
-          # Rotation no longer relies on this interval (see force-sync above),
-          # so it can be raised from 15s now.
+          # Rotation uses force-sync above and does not wait on this interval,
+          # but only while this ComponentType is deployed. Agent Manager falls
+          # back to AGENT_IDENTITY_REFRESH_INTERVAL (default 15s) when the
+          # force-sync cannot be used (missing binding, retries used up, field
+          # not declared), so raise this interval and that setting together,
+          # and only after this ComponentType is deployed.
           refreshInterval: 15s
           secretStoreRef:
             name: ${dataplane.secretStore}

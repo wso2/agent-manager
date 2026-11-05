@@ -231,7 +231,11 @@ type agentIdentityInjectionService struct {
 	// forceSyncWait is the bounded wait after a successful force-sync write,
 	// as a duration string. See RefreshAfterRotation's doc comment.
 	forceSyncWait string
-	logger        *slog.Logger
+	// forceSyncApplyTimeout bounds how long RefreshAfterRotation waits for the
+	// force-sync revision to show up on the live ExternalSecret, as a duration
+	// string.
+	forceSyncApplyTimeout string
+	logger                *slog.Logger
 	// resolveTokenEndpoint optionally overrides the agent-facing env-Thunder
 	// token URL. nil keeps the standard in-cluster on-premises endpoint.
 	resolveTokenEndpoint func(context.Context, string, string, string) (string, error)
@@ -258,6 +262,13 @@ type AgentIdentityInjectionOption func(*agentIdentityInjectionService)
 // pod. Unset or invalid falls back to defaultForceSyncWait.
 func WithAgentIdentityForceSyncWait(wait string) AgentIdentityInjectionOption {
 	return func(s *agentIdentityInjectionService) { s.forceSyncWait = wait }
+}
+
+// WithAgentIdentityForceSyncApplyTimeout sets the overall bound on waiting for
+// the force-sync revision to be applied to the live ExternalSecret. Unset or
+// invalid falls back to defaultForceSyncApplyTimeout.
+func WithAgentIdentityForceSyncApplyTimeout(timeout string) AgentIdentityInjectionOption {
+	return func(s *agentIdentityInjectionService) { s.forceSyncApplyTimeout = timeout }
 }
 
 // NewAgentIdentityInjectionService creates a new AgentIdentityInjectionService.
@@ -331,6 +342,22 @@ func (s *agentIdentityInjectionService) forceSyncWaitDuration() time.Duration {
 	d, err := time.ParseDuration(s.forceSyncWait)
 	if err != nil || d <= 0 {
 		return defaultForceSyncWait
+	}
+	return d
+}
+
+// defaultForceSyncApplyTimeout is the fallback bound on waiting for the
+// force-sync revision to be applied when forceSyncApplyTimeout is unset or
+// invalid; forceSyncPollInterval is how often that is checked.
+const (
+	defaultForceSyncApplyTimeout = 2 * time.Minute
+	forceSyncPollInterval        = 5 * time.Second
+)
+
+func (s *agentIdentityInjectionService) forceSyncApplyTimeoutDuration() time.Duration {
+	d, err := time.ParseDuration(s.forceSyncApplyTimeout)
+	if err != nil || d <= 0 {
+		return defaultForceSyncApplyTimeout
 	}
 	return d
 }
@@ -628,16 +655,26 @@ func identityEnvVarsInSync(desired []client.EnvVar, current []models.EnvVars) bo
 // lifetime (secretKeyRef env vars resolve once at container start, never
 // hot-reload). So refreshInterval must cover that ExternalSecret's interval.
 //
-// Rotation does not depend on that interval. Before waiting, a best-effort
-// write sets secretSyncRevision on the environment's ReleaseBinding, which the
-// agent-api ComponentType renders into a force-sync annotation on the
-// ExternalSecret so ESO re-fetches at once; the wait then shrinks to
-// forceSyncWait. Waiting for the Kubernetes Secret to actually hold the new
-// value is not possible from this service (no read access to data plane
-// Secrets), so that wait is bounded and configurable. If the write fails for
-// any reason (e.g. the installed ComponentType predates the field), a warning
-// is logged and the behavior above applies unchanged: wait refreshInterval,
-// then roll. The force-sync write and the roll are separate writes.
+// Rotation does not depend on that interval when the installed agent-api
+// ComponentType declares secretSyncRevision (checked first: OpenChoreo keeps
+// unknown ReleaseBinding config keys without effect, so writing it blindly
+// would look like success). A best-effort write then sets secretSyncRevision on
+// the environment's ReleaseBinding, which the ComponentType renders into a
+// force-sync annotation on the ExternalSecret so ESO re-fetches at once. The
+// service then polls (bounded by forceSyncApplyTimeout) the binding's resource
+// tree until the live ExternalSecret carries the new revision, which shows
+// OpenChoreo re-rendered and applied it, and only then waits forceSyncWait.
+// Waiting for the Kubernetes Secret to actually hold the new value is not
+// possible from this service (no read access to data plane Secrets, and the
+// ESO sync itself is not observable), so that last wait is bounded and
+// configurable and the final log says the sync is not verified. If the check
+// or the write fails for any reason (installed ComponentType predates the
+// field, missing binding, retries used up), a log line says so and the
+// behavior above applies unchanged: wait refreshInterval, then roll. If the
+// apply poll times out, one warning is logged and the roll still happens. So
+// the ExternalSecret refreshInterval and refreshInterval here must be raised
+// together, and only after the new ComponentType is deployed. The force-sync
+// write and the roll are separate writes.
 // The roll itself runs detached so a manual regenerate call never blocks on
 // the wait; a roll failure is only logged, not returned. The wait, and the
 // roll itself once started, both stop early if the app starts shutting down
@@ -665,11 +702,19 @@ func (s *agentIdentityInjectionService) RefreshAfterRotation(ctx context.Context
 
 	shutdownCtx := s.currentShutdownContext()
 	go func() {
+		isLatest := func() bool {
+			s.rolloutTokensMu.Lock()
+			defer s.rolloutTokensMu.Unlock()
+			return s.rolloutTokens[key] == myToken
+		}
 		wait := secretSyncWaitDuration(s.refreshInterval)
-		if err := s.forceSecretSync(ctx, shutdownCtx, ouID, agentName, envName); err != nil {
-			s.logger.Warn("Could not force the agent identity ExternalSecret to re-sync; falling back to waiting out the refresh interval", "agentName", agentName, "envName", envName, "error", err)
-		} else {
+		result := s.forceSecretSync(ctx, shutdownCtx, isLatest, ouID, agentName, envName)
+		switch result {
+		case forceSyncAbandoned:
+			return // shutting down, or a later rotation superseded this one
+		case forceSyncApplied, forceSyncApplyUnconfirmed:
 			wait = s.forceSyncWaitDuration()
+		case forceSyncNotUsed:
 		}
 		select {
 		case <-s.after(wait):
@@ -677,10 +722,7 @@ func (s *agentIdentityInjectionService) RefreshAfterRotation(ctx context.Context
 			return // app is shutting down; abandon this deferred rollout
 		}
 
-		s.rolloutTokensMu.Lock()
-		isLatest := s.rolloutTokens[key] == myToken
-		s.rolloutTokensMu.Unlock()
-		if !isLatest {
+		if !isLatest() {
 			return // a later rotation for this binding superseded this roll
 		}
 
@@ -711,22 +753,103 @@ func (s *agentIdentityInjectionService) RefreshAfterRotation(ctx context.Context
 			s.logger.Warn("Failed to roll out pod after agent identity secret rotation", "agentName", agentName, "envName", envName, "error", err)
 			return
 		}
-		s.logger.Info("Refreshed agent identity credentials in workload after rotation", "agentName", agentName, "envName", envName)
+		// The ExternalSecret's own re-fetch cannot be observed from here, so
+		// the new secret reaching the pod is never verified.
+		s.logger.Info("Rolled pod after agent identity secret rotation; the ExternalSecret sync itself is not verified", "agentName", agentName, "envName", envName, "forceSync", result.String(), "secretSyncVerified", false)
 	}()
 	return nil
 }
 
-// forceSecretSync sets a fresh secretSyncRevision on the binding, run inside
-// the detached goroutine so a manual regenerate call never blocks on it.
-func (s *agentIdentityInjectionService) forceSecretSync(ctx, shutdownCtx context.Context, ouID, agentName, envName string) error {
-	syncCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), releaseBindingUpdateRetries*releaseBindingUpdateRetryDelay+30*time.Second)
-	defer cancel()
+// forceSyncResult is what forceSecretSync achieved.
+type forceSyncResult int
+
+const (
+	// forceSyncNotUsed: the force-sync could not be used; wait refreshInterval.
+	forceSyncNotUsed forceSyncResult = iota
+	// forceSyncApplied: the live ExternalSecret carries the new revision.
+	forceSyncApplied
+	// forceSyncApplyUnconfirmed: the revision was written but never seen applied
+	// within the timeout.
+	forceSyncApplyUnconfirmed
+	// forceSyncAbandoned: shutdown or a later rotation ended this rollout.
+	forceSyncAbandoned
+)
+
+func (r forceSyncResult) String() string {
+	switch r {
+	case forceSyncApplied:
+		return "applied"
+	case forceSyncApplyUnconfirmed:
+		return "apply-unconfirmed"
+	case forceSyncAbandoned:
+		return "abandoned"
+	default:
+		return "not-used"
+	}
+}
+
+// boundedContext derives from ctx's values but not its cancellation, bounded by
+// timeout and cancelled when shutdownCtx is done.
+func boundedContext(ctx, shutdownCtx context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
+	bounded, cancel := context.WithTimeout(context.WithoutCancel(ctx), timeout)
 	stop := context.AfterFunc(shutdownCtx, cancel)
-	defer stop()
+	return bounded, func() {
+		stop()
+		cancel()
+	}
+}
+
+// forceSecretSync forces the workload's ExternalSecret to re-sync: it checks the
+// ComponentType declares secretSyncRevision, writes a fresh revision to the
+// binding and polls until the live ExternalSecret carries it. It runs inside
+// the detached goroutine so a manual regenerate call never blocks on it, and
+// logs why whenever it returns anything but forceSyncApplied.
+func (s *agentIdentityInjectionService) forceSecretSync(ctx, shutdownCtx context.Context, isLatest func() bool, ouID, agentName, envName string) forceSyncResult {
+	const fallback = "falling back to waiting out the refresh interval"
+
+	writeCtx, cancel := boundedContext(ctx, shutdownCtx, releaseBindingUpdateRetries*releaseBindingUpdateRetryDelay+30*time.Second)
+	defer cancel()
+
+	declared, err := s.ocClient.ComponentTypeDeclaresEnvironmentConfig(writeCtx, ouID, agentName, client.SecretSyncRevisionField)
+	switch {
+	case err != nil:
+		s.logger.Warn("Could not tell whether the ComponentType supports force-syncing the agent identity ExternalSecret; "+fallback, "agentName", agentName, "envName", envName, "error", err)
+		return forceSyncNotUsed
+	case !declared:
+		s.logger.Info("The installed ComponentType does not declare "+client.SecretSyncRevisionField+"; "+fallback, "agentName", agentName, "envName", envName)
+		return forceSyncNotUsed
+	}
+
 	revision := strconv.FormatInt(time.Now().UnixNano(), 10)
-	return withReleaseBindingRetry(syncCtx, func() error {
-		return s.ocClient.SetReleaseBindingSecretSyncRevision(syncCtx, ouID, agentName, envName, revision)
-	})
+	if err := withReleaseBindingRetry(writeCtx, func() error {
+		return s.ocClient.SetReleaseBindingSecretSyncRevision(writeCtx, ouID, agentName, envName, revision)
+	}); err != nil {
+		s.logger.Warn("Could not force the agent identity ExternalSecret to re-sync; "+fallback, "agentName", agentName, "envName", envName, "error", err)
+		return forceSyncNotUsed
+	}
+
+	pollCtx, cancelPoll := boundedContext(ctx, shutdownCtx, s.forceSyncApplyTimeoutDuration())
+	defer cancelPoll()
+	var lastErr error
+	for {
+		applied, err := s.ocClient.IsSecretSyncRevisionApplied(pollCtx, ouID, agentName, envName, revision)
+		if err == nil && applied {
+			return forceSyncApplied
+		}
+		lastErr = err
+		if !isLatest() {
+			return forceSyncAbandoned
+		}
+		select {
+		case <-s.after(forceSyncPollInterval):
+		case <-pollCtx.Done():
+			if shutdownCtx.Err() != nil {
+				return forceSyncAbandoned
+			}
+			s.logger.Warn("The force-sync revision was not seen applied to the agent identity ExternalSecret in time; rolling the pod anyway", "agentName", agentName, "envName", envName, "timeout", s.forceSyncApplyTimeoutDuration().String(), "lastError", lastErr)
+			return forceSyncApplyUnconfirmed
+		}
+	}
 }
 
 func (s *agentIdentityInjectionService) RemoveForEnvironment(ctx context.Context, ouID, projectName, agentName, envName string, includeWorkloadLevel bool) error {

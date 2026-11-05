@@ -561,7 +561,7 @@ func TestValidateSecretManagerConfig(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			cfg := &Config{SecretManager: SecretManagerConfig{AgentIdentityRefreshInterval: tc.interval, AgentIdentityForceSyncWait: "20s"}}
+			cfg := &Config{SecretManager: SecretManagerConfig{AgentIdentityRefreshInterval: tc.interval, AgentIdentityForceSyncWait: "20s", AgentIdentityForceSyncApplyTimeout: "2m"}}
 			r := &configReader{}
 			validateSecretManagerConfig(cfg, r)
 
@@ -1191,11 +1191,21 @@ func TestValidateSecretManagerConfig_ForceSyncWait(t *testing.T) {
 		wait    string
 		wantErr bool
 	}{{"20s", false}, {"1m", false}, {"bad", true}, {"0s", true}, {"-1s", true}} {
-		cfg := &Config{SecretManager: SecretManagerConfig{AgentIdentityRefreshInterval: "15s", AgentIdentityForceSyncWait: tc.wait}}
-		r := &configReader{}
-		validateSecretManagerConfig(cfg, r)
-		if (len(r.errors) > 0) != tc.wantErr {
-			t.Errorf("wait %q: wantErr=%v got %v", tc.wait, tc.wantErr, r.errors)
+		for _, name := range []string{"AGENT_IDENTITY_FORCE_SYNC_WAIT", "AGENT_IDENTITY_FORCE_SYNC_APPLY_TIMEOUT"} {
+			sm := SecretManagerConfig{AgentIdentityRefreshInterval: "15s", AgentIdentityForceSyncWait: "20s", AgentIdentityForceSyncApplyTimeout: "2m"}
+			if name == "AGENT_IDENTITY_FORCE_SYNC_WAIT" {
+				sm.AgentIdentityForceSyncWait = tc.wait
+			} else {
+				sm.AgentIdentityForceSyncApplyTimeout = tc.wait
+			}
+			r := &configReader{}
+			validateSecretManagerConfig(&Config{SecretManager: sm}, r)
+			if (len(r.errors) > 0) != tc.wantErr {
+				t.Errorf("%s %q: wantErr=%v got %v", name, tc.wait, tc.wantErr, r.errors)
+			}
+			if tc.wantErr && (len(r.errors) != 1 || !strings.Contains(r.errors[0].Error(), name)) {
+				t.Errorf("%s %q: expected one error naming the variable, got %v", name, tc.wait, r.errors)
+			}
 		}
 	}
 }
@@ -1224,6 +1234,19 @@ func TestLoadEnvs_AgentIdentityForceSyncWait(t *testing.T) {
 		loadEnvs()
 		if got := config.SecretManager.AgentIdentityForceSyncWait; got != "45s" {
 			t.Errorf("AgentIdentityForceSyncWait = %q, want 45s", got)
+		}
+	})
+
+	t.Run("apply timeout defaults to 2m and can be overridden", func(t *testing.T) {
+		t.Setenv("AGENT_IDENTITY_FORCE_SYNC_APPLY_TIMEOUT", "")
+		loadEnvs()
+		if got := config.SecretManager.AgentIdentityForceSyncApplyTimeout; got != "2m" {
+			t.Errorf("AgentIdentityForceSyncApplyTimeout = %q, want 2m", got)
+		}
+		t.Setenv("AGENT_IDENTITY_FORCE_SYNC_APPLY_TIMEOUT", "5m")
+		loadEnvs()
+		if got := config.SecretManager.AgentIdentityForceSyncApplyTimeout; got != "5m" {
+			t.Errorf("AgentIdentityForceSyncApplyTimeout = %q, want 5m", got)
 		}
 	})
 }

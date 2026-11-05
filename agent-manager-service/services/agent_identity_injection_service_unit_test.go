@@ -115,8 +115,14 @@ func injectableOCClient() *clientmocks.OpenChoreoClientMock {
 		CreateSecretReferenceFunc: func(context.Context, string, client.CreateSecretReferenceRequest) (*client.SecretReferenceInfo, error) {
 			panic("injection must not create a second SecretReference")
 		},
+		ComponentTypeDeclaresEnvironmentConfigFunc: func(context.Context, string, string, string) (bool, error) {
+			return true, nil
+		},
 		SetReleaseBindingSecretSyncRevisionFunc: func(context.Context, string, string, string, string) error {
 			return nil
+		},
+		IsSecretSyncRevisionAppliedFunc: func(context.Context, string, string, string, string) (bool, error) {
+			return true, nil
 		},
 	}
 }
@@ -773,6 +779,151 @@ func (b *syncBuffer) String() string {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	return b.buf.String()
+}
+
+// rotateAndCollect runs one rotation against oc and returns the waits the
+// service requested, the captured logs, and whether the pod was rolled.
+func rotateAndCollect(t *testing.T, oc *clientmocks.OpenChoreoClientMock, opts []AgentIdentityInjectionOption, fakeAfter func(time.Duration) <-chan time.Time, shutdownCtx context.Context) (waits func() []time.Duration, logs *syncBuffer, rolled func(time.Duration) bool) {
+	t.Helper()
+	repo := identityRepoReturning(completedInternalBinding(), nil)
+	rolledCh := make(chan struct{}, 1)
+	oc.UpdateReleaseBindingEnvVarsFunc = func(context.Context, string, string, string, string, []client.EnvVar) error {
+		rolledCh <- struct{}{}
+		return nil
+	}
+	logs = &syncBuffer{}
+	svc := NewAgentIdentityInjectionService(repo, noMCPConfigRepo(), noMCPProxyScopeRepo(), oc, "1h", slog.New(slog.NewTextHandler(logs, nil)), opts...)
+	impl, ok := svc.(*agentIdentityInjectionService)
+	require.True(t, ok)
+	if shutdownCtx != nil {
+		impl.SetShutdownContext(shutdownCtx)
+	}
+	var mu sync.Mutex
+	var got []time.Duration
+	impl.after = func(d time.Duration) <-chan time.Time {
+		mu.Lock()
+		got = append(got, d)
+		mu.Unlock()
+		return fakeAfter(d)
+	}
+	require.NoError(t, svc.RefreshAfterRotation(context.Background(), testIdentityOrg, testIdentityProject, testIdentityAgent, testIdentityEnv))
+	return func() []time.Duration {
+			mu.Lock()
+			defer mu.Unlock()
+			return append([]time.Duration(nil), got...)
+		}, logs, func(d time.Duration) bool {
+			select {
+			case <-rolledCh:
+				return true
+			case <-time.After(d):
+				return false
+			}
+		}
+}
+
+func immediateAfter(time.Duration) <-chan time.Time {
+	ch := make(chan time.Time, 1)
+	ch <- time.Now()
+	return ch
+}
+
+// The installed ComponentType does not declare the field, or cannot be read:
+// no revision is written, the old refresh-interval wait is used, the pod still rolls.
+func TestAgentIdentityInjection_RefreshAfterRotation_ComponentTypeCheckFallsBack(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		declared bool
+		err      error
+		level    string
+	}{
+		{"not declared", false, nil, "level=INFO"},
+		{"cannot be read", false, errors.New("boom"), "level=WARN"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			oc := injectableOCClient()
+			oc.ComponentTypeDeclaresEnvironmentConfigFunc = func(context.Context, string, string, string) (bool, error) {
+				return tc.declared, tc.err
+			}
+			oc.SetReleaseBindingSecretSyncRevisionFunc = func(context.Context, string, string, string, string) error {
+				t.Error("must not write a revision the ComponentType cannot use")
+				return nil
+			}
+			waits, logs, rolled := rotateAndCollect(t, oc, []AgentIdentityInjectionOption{WithAgentIdentityForceSyncWait("7s")}, immediateAfter, nil)
+			require.True(t, rolled(2*time.Second), "must still roll the pod")
+			assert.Equal(t, []time.Duration{time.Hour}, waits(), "must wait out the refresh interval")
+			var fallbackLines int
+			for _, line := range strings.Split(logs.String(), "\n") {
+				if strings.Contains(line, tc.level) && strings.Contains(line, "refresh interval") {
+					fallbackLines++
+				}
+			}
+			assert.Equal(t, 1, fallbackLines, "one fallback log line expected")
+			assert.Eventually(t, func() bool { return strings.Contains(logs.String(), "secretSyncVerified=false") }, 2*time.Second, 5*time.Millisecond)
+		})
+	}
+}
+
+// The revision is polled until the live ExternalSecret carries it; only then
+// does the short force-sync wait start.
+func TestAgentIdentityInjection_RefreshAfterRotation_WaitsForApply(t *testing.T) {
+	oc := injectableOCClient()
+	var calls int32
+	var wrote string
+	oc.SetReleaseBindingSecretSyncRevisionFunc = func(_ context.Context, _, _, _, revision string) error {
+		wrote = revision
+		return nil
+	}
+	oc.IsSecretSyncRevisionAppliedFunc = func(_ context.Context, _, _, _, revision string) (bool, error) {
+		assert.Equal(t, wrote, revision)
+		n := atomic.AddInt32(&calls, 1)
+		if n == 2 {
+			return false, errors.New("transient")
+		}
+		return n >= 3, nil
+	}
+	waits, logs, rolled := rotateAndCollect(t, oc, []AgentIdentityInjectionOption{WithAgentIdentityForceSyncWait("7s")}, immediateAfter, nil)
+	require.True(t, rolled(2*time.Second))
+	assert.Equal(t, int32(3), atomic.LoadInt32(&calls))
+	assert.Equal(t, []time.Duration{forceSyncPollInterval, forceSyncPollInterval, 7 * time.Second}, waits())
+	assert.NotContains(t, logs.String(), "level=WARN")
+}
+
+// A revision never seen applied: one Warn, the pod still rolls after the short wait.
+func TestAgentIdentityInjection_RefreshAfterRotation_ApplyTimeoutStillRolls(t *testing.T) {
+	oc := injectableOCClient()
+	oc.IsSecretSyncRevisionAppliedFunc = func(context.Context, string, string, string, string) (bool, error) {
+		return false, nil
+	}
+	slowAfter := func(time.Duration) <-chan time.Time { return time.After(time.Millisecond) }
+	_, logs, rolled := rotateAndCollect(t, oc, []AgentIdentityInjectionOption{
+		WithAgentIdentityForceSyncWait("7s"), WithAgentIdentityForceSyncApplyTimeout("30ms"),
+	}, slowAfter, nil)
+	require.True(t, rolled(2*time.Second), "a poll timeout must not stop the roll")
+	assert.Equal(t, 1, strings.Count(logs.String(), "level=WARN"))
+	assert.Eventually(t, func() bool { return strings.Contains(logs.String(), "forceSync=apply-unconfirmed") }, 2*time.Second, 5*time.Millisecond)
+}
+
+// Shutdown while polling abandons the rollout.
+func TestAgentIdentityInjection_RefreshAfterRotation_ShutdownDuringApplyPoll(t *testing.T) {
+	shutdownCtx, cancelShutdown := context.WithCancel(context.Background())
+	oc := injectableOCClient()
+	polled := make(chan struct{}, 1)
+	oc.IsSecretSyncRevisionAppliedFunc = func(context.Context, string, string, string, string) (bool, error) {
+		select {
+		case polled <- struct{}{}:
+		default:
+		}
+		return false, nil
+	}
+	neverAfter := func(time.Duration) <-chan time.Time { return make(chan time.Time) }
+	_, _, rolled := rotateAndCollect(t, oc, nil, neverAfter, shutdownCtx)
+	select {
+	case <-polled:
+	case <-time.After(2 * time.Second):
+		t.Fatal("the apply poll must start")
+	}
+	cancelShutdown()
+	assert.False(t, rolled(300*time.Millisecond), "shutdown during the apply poll must not roll the pod")
 }
 
 func TestAgentIdentityInjection_RefreshAfterRotation_NoEnvVars_NoForceSync(t *testing.T) {

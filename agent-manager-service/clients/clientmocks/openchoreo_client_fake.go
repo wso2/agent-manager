@@ -24,6 +24,9 @@ import (
 //			ComponentExistsFunc: func(ctx context.Context, ouID string, projectName string, componentName string) (bool, error) {
 //				panic("mock out the ComponentExists method")
 //			},
+//			ComponentTypeDeclaresEnvironmentConfigFunc: func(ctx context.Context, ouID string, componentName string, field string) (bool, error) {
+//				panic("mock out the ComponentTypeDeclaresEnvironmentConfig method")
+//			},
 //			CountProjectComponentsFunc: func(ctx context.Context, ouID string, projectName string) (int, error) {
 //				panic("mock out the CountProjectComponents method")
 //			},
@@ -168,6 +171,9 @@ import (
 //			IsDeploymentInProgressFunc: func(ctx context.Context, ouID string, componentName string, environment string) (bool, error) {
 //				panic("mock out the IsDeploymentInProgress method")
 //			},
+//			IsSecretSyncRevisionAppliedFunc: func(ctx context.Context, ouID string, componentName string, envName string, revision string) (bool, error) {
+//				panic("mock out the IsSecretSyncRevisionApplied method")
+//			},
 //			ListBuildsFunc: func(ctx context.Context, ouID string, projectName string, componentName string) ([]*models.BuildResponse, error) {
 //				panic("mock out the ListBuilds method")
 //			},
@@ -282,6 +288,9 @@ type OpenChoreoClientMock struct {
 
 	// ComponentExistsFunc mocks the ComponentExists method.
 	ComponentExistsFunc func(ctx context.Context, ouID string, projectName string, componentName string) (bool, error)
+
+	// ComponentTypeDeclaresEnvironmentConfigFunc mocks the ComponentTypeDeclaresEnvironmentConfig method.
+	ComponentTypeDeclaresEnvironmentConfigFunc func(ctx context.Context, ouID string, componentName string, field string) (bool, error)
 
 	// CountProjectComponentsFunc mocks the CountProjectComponents method.
 	CountProjectComponentsFunc func(ctx context.Context, ouID string, projectName string) (int, error)
@@ -427,6 +436,9 @@ type OpenChoreoClientMock struct {
 	// IsDeploymentInProgressFunc mocks the IsDeploymentInProgress method.
 	IsDeploymentInProgressFunc func(ctx context.Context, ouID string, componentName string, environment string) (bool, error)
 
+	// IsSecretSyncRevisionAppliedFunc mocks the IsSecretSyncRevisionApplied method.
+	IsSecretSyncRevisionAppliedFunc func(ctx context.Context, ouID string, componentName string, envName string, revision string) (bool, error)
+
 	// ListBuildsFunc mocks the ListBuilds method.
 	ListBuildsFunc func(ctx context.Context, ouID string, projectName string, componentName string) ([]*models.BuildResponse, error)
 
@@ -554,6 +566,17 @@ type OpenChoreoClientMock struct {
 			ProjectName string
 			// ComponentName is the componentName argument value.
 			ComponentName string
+		}
+		// ComponentTypeDeclaresEnvironmentConfig holds details about calls to the ComponentTypeDeclaresEnvironmentConfig method.
+		ComponentTypeDeclaresEnvironmentConfig []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// OuID is the ouID argument value.
+			OuID string
+			// ComponentName is the componentName argument value.
+			ComponentName string
+			// Field is the field argument value.
+			Field string
 		}
 		// CountProjectComponents holds details about calls to the CountProjectComponents method.
 		CountProjectComponents []struct {
@@ -1067,6 +1090,19 @@ type OpenChoreoClientMock struct {
 			// Environment is the environment argument value.
 			Environment string
 		}
+		// IsSecretSyncRevisionApplied holds details about calls to the IsSecretSyncRevisionApplied method.
+		IsSecretSyncRevisionApplied []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// OuID is the ouID argument value.
+			OuID string
+			// ComponentName is the componentName argument value.
+			ComponentName string
+			// EnvName is the envName argument value.
+			EnvName string
+			// Revision is the revision argument value.
+			Revision string
+		}
 		// ListBuilds holds details about calls to the ListBuilds method.
 		ListBuilds []struct {
 			// Ctx is the ctx argument value.
@@ -1474,6 +1510,7 @@ type OpenChoreoClientMock struct {
 	}
 	lockAttachTraits                           sync.RWMutex
 	lockComponentExists                        sync.RWMutex
+	lockComponentTypeDeclaresEnvironmentConfig sync.RWMutex
 	lockCountProjectComponents                 sync.RWMutex
 	lockCreateComponent                        sync.RWMutex
 	lockCreateDeploymentPipeline               sync.RWMutex
@@ -1522,6 +1559,7 @@ type OpenChoreoClientMock struct {
 	lockGetWorkloadSecretRefNames              sync.RWMutex
 	lockHasTrait                               sync.RWMutex
 	lockIsDeploymentInProgress                 sync.RWMutex
+	lockIsSecretSyncRevisionApplied            sync.RWMutex
 	lockListBuilds                             sync.RWMutex
 	lockListComponents                         sync.RWMutex
 	lockListComponentsByKind                   sync.RWMutex
@@ -1647,6 +1685,50 @@ func (mock *OpenChoreoClientMock) ComponentExistsCalls() []struct {
 	mock.lockComponentExists.RLock()
 	calls = mock.calls.ComponentExists
 	mock.lockComponentExists.RUnlock()
+	return calls
+}
+
+// ComponentTypeDeclaresEnvironmentConfig calls ComponentTypeDeclaresEnvironmentConfigFunc.
+func (mock *OpenChoreoClientMock) ComponentTypeDeclaresEnvironmentConfig(ctx context.Context, ouID string, componentName string, field string) (bool, error) {
+	if mock.ComponentTypeDeclaresEnvironmentConfigFunc == nil {
+		panic("OpenChoreoClientMock.ComponentTypeDeclaresEnvironmentConfigFunc: method is nil but OpenChoreoClient.ComponentTypeDeclaresEnvironmentConfig was just called")
+	}
+	callInfo := struct {
+		Ctx           context.Context
+		OuID          string
+		ComponentName string
+		Field         string
+	}{
+		Ctx:           ctx,
+		OuID:          ouID,
+		ComponentName: componentName,
+		Field:         field,
+	}
+	mock.lockComponentTypeDeclaresEnvironmentConfig.Lock()
+	mock.calls.ComponentTypeDeclaresEnvironmentConfig = append(mock.calls.ComponentTypeDeclaresEnvironmentConfig, callInfo)
+	mock.lockComponentTypeDeclaresEnvironmentConfig.Unlock()
+	return mock.ComponentTypeDeclaresEnvironmentConfigFunc(ctx, ouID, componentName, field)
+}
+
+// ComponentTypeDeclaresEnvironmentConfigCalls gets all the calls that were made to ComponentTypeDeclaresEnvironmentConfig.
+// Check the length with:
+//
+//	len(mockedOpenChoreoClient.ComponentTypeDeclaresEnvironmentConfigCalls())
+func (mock *OpenChoreoClientMock) ComponentTypeDeclaresEnvironmentConfigCalls() []struct {
+	Ctx           context.Context
+	OuID          string
+	ComponentName string
+	Field         string
+} {
+	var calls []struct {
+		Ctx           context.Context
+		OuID          string
+		ComponentName string
+		Field         string
+	}
+	mock.lockComponentTypeDeclaresEnvironmentConfig.RLock()
+	calls = mock.calls.ComponentTypeDeclaresEnvironmentConfig
+	mock.lockComponentTypeDeclaresEnvironmentConfig.RUnlock()
 	return calls
 }
 
@@ -3727,6 +3809,54 @@ func (mock *OpenChoreoClientMock) IsDeploymentInProgressCalls() []struct {
 	mock.lockIsDeploymentInProgress.RLock()
 	calls = mock.calls.IsDeploymentInProgress
 	mock.lockIsDeploymentInProgress.RUnlock()
+	return calls
+}
+
+// IsSecretSyncRevisionApplied calls IsSecretSyncRevisionAppliedFunc.
+func (mock *OpenChoreoClientMock) IsSecretSyncRevisionApplied(ctx context.Context, ouID string, componentName string, envName string, revision string) (bool, error) {
+	if mock.IsSecretSyncRevisionAppliedFunc == nil {
+		panic("OpenChoreoClientMock.IsSecretSyncRevisionAppliedFunc: method is nil but OpenChoreoClient.IsSecretSyncRevisionApplied was just called")
+	}
+	callInfo := struct {
+		Ctx           context.Context
+		OuID          string
+		ComponentName string
+		EnvName       string
+		Revision      string
+	}{
+		Ctx:           ctx,
+		OuID:          ouID,
+		ComponentName: componentName,
+		EnvName:       envName,
+		Revision:      revision,
+	}
+	mock.lockIsSecretSyncRevisionApplied.Lock()
+	mock.calls.IsSecretSyncRevisionApplied = append(mock.calls.IsSecretSyncRevisionApplied, callInfo)
+	mock.lockIsSecretSyncRevisionApplied.Unlock()
+	return mock.IsSecretSyncRevisionAppliedFunc(ctx, ouID, componentName, envName, revision)
+}
+
+// IsSecretSyncRevisionAppliedCalls gets all the calls that were made to IsSecretSyncRevisionApplied.
+// Check the length with:
+//
+//	len(mockedOpenChoreoClient.IsSecretSyncRevisionAppliedCalls())
+func (mock *OpenChoreoClientMock) IsSecretSyncRevisionAppliedCalls() []struct {
+	Ctx           context.Context
+	OuID          string
+	ComponentName string
+	EnvName       string
+	Revision      string
+} {
+	var calls []struct {
+		Ctx           context.Context
+		OuID          string
+		ComponentName string
+		EnvName       string
+		Revision      string
+	}
+	mock.lockIsSecretSyncRevisionApplied.RLock()
+	calls = mock.calls.IsSecretSyncRevisionApplied
+	mock.lockIsSecretSyncRevisionApplied.RUnlock()
 	return calls
 }
 

@@ -251,12 +251,13 @@ func loadEnvs() {
 	}
 
 	config.SecretManager = SecretManagerConfig{
-		Provider:                     r.readOptionalString("SECRET_MANAGER_PROVIDER", "openchoreo"),
-		TargetPlaneKind:              r.readOptionalString("SECRET_MANAGER_TARGET_PLANE_KIND", "ClusterDataPlane"),
-		TargetPlaneName:              r.readOptionalString("SECRET_MANAGER_TARGET_PLANE_NAME", "default"),
-		RefreshInterval:              r.readOptionalString("SECRET_MANAGER_REFRESH_INTERVAL", "1h"),
-		AgentIdentityRefreshInterval: r.readOptionalString("AGENT_IDENTITY_REFRESH_INTERVAL", "15s"),
-		AgentIdentityForceSyncWait:   r.readOptionalString("AGENT_IDENTITY_FORCE_SYNC_WAIT", "20s"),
+		Provider:                           r.readOptionalString("SECRET_MANAGER_PROVIDER", "openchoreo"),
+		TargetPlaneKind:                    r.readOptionalString("SECRET_MANAGER_TARGET_PLANE_KIND", "ClusterDataPlane"),
+		TargetPlaneName:                    r.readOptionalString("SECRET_MANAGER_TARGET_PLANE_NAME", "default"),
+		RefreshInterval:                    r.readOptionalString("SECRET_MANAGER_REFRESH_INTERVAL", "1h"),
+		AgentIdentityRefreshInterval:       r.readOptionalString("AGENT_IDENTITY_REFRESH_INTERVAL", "15s"),
+		AgentIdentityForceSyncWait:         r.readOptionalString("AGENT_IDENTITY_FORCE_SYNC_WAIT", "20s"),
+		AgentIdentityForceSyncApplyTimeout: r.readOptionalString("AGENT_IDENTITY_FORCE_SYNC_APPLY_TIMEOUT", "2m"),
 	}
 
 	// OpenBao KV store configuration (data plane - for deployment secrets)
@@ -442,6 +443,7 @@ var validPostgresSSLModes = map[string]struct{}{
 func validateSecretManagerConfig(cfg *Config, r *configReader) {
 	validatePositiveDuration(r, "AGENT_IDENTITY_REFRESH_INTERVAL", cfg.SecretManager.AgentIdentityRefreshInterval)
 	validatePositiveDuration(r, "AGENT_IDENTITY_FORCE_SYNC_WAIT", cfg.SecretManager.AgentIdentityForceSyncWait)
+	validatePositiveDuration(r, "AGENT_IDENTITY_FORCE_SYNC_APPLY_TIMEOUT", cfg.SecretManager.AgentIdentityForceSyncApplyTimeout)
 }
 
 func validatePositiveDuration(r *configReader, name, value string) {

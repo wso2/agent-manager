@@ -320,6 +320,11 @@ type SecretManagerConfig struct {
 	// (default: "20s"). Used instead of AgentIdentityRefreshInterval whenever
 	// the force-sync write succeeds.
 	AgentIdentityForceSyncWait string
+	// AgentIdentityForceSyncApplyTimeout bounds how long to wait, before the
+	// AgentIdentityForceSyncWait above, for the new force-sync revision to show
+	// up on the live ExternalSecret (default: "2m"). On timeout a warning is
+	// logged and the pod is rolled anyway.
+	AgentIdentityForceSyncApplyTimeout string
 }
 
 // OpenBaoConfig holds OpenBao KV store configuration.
