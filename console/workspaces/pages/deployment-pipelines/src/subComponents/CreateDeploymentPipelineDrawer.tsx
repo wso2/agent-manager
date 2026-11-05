@@ -153,7 +153,7 @@ export function CreateDeploymentPipelineDrawer(
               <Form.Header>Pipeline Details</Form.Header>
               <Form.Stack spacing={2}>
                 <FormControl fullWidth error={Boolean(errors.displayName)}>
-                  <FormLabel required>Display Name</FormLabel>
+                  <FormLabel>Display Name</FormLabel>
                   <TextField
                     slotProps={{ htmlInput: { maxLength: PIPELINE_DISPLAY_NAME_MAX_LENGTH } }}
                     fullWidth
@@ -168,7 +168,7 @@ export function CreateDeploymentPipelineDrawer(
                 </FormControl>
 
                 <FormControl fullWidth>
-                  <FormLabel>Description</FormLabel>
+                  <FormLabel>Description (optional)</FormLabel>
                   <TextField
                     slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.DESCRIPTION } }}
                     fullWidth
@@ -191,7 +191,7 @@ export function CreateDeploymentPipelineDrawer(
               disabled={isPending}
             />
 
-            <Box display="flex" justifyContent="flex-end" gap={1} mt={2}>
+            <Box display="flex" justifyContent="flex-start" gap={1} mt={2}>
               <Button variant="outlined" color="inherit" onClick={onClose} disabled={isPending}>
                 Cancel
               </Button>

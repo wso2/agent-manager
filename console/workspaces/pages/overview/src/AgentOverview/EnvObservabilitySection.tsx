@@ -17,6 +17,7 @@
  */
 
 import React, { useMemo } from "react";
+import { NESTED_CARD_SX } from "@agent-management-platform/shared-component";
 import {
     Box,
     Card,
@@ -66,7 +67,7 @@ interface MetricCardProps {
 }
 
 const MetricCard: React.FC<MetricCardProps> = ({ label, value, points, color = "currentColor", isLoading }) => (
-    <Card variant="outlined" sx={{ width: "100%" }}>
+    <Card variant="outlined" sx={{ ...NESTED_CARD_SX, width: "100%" }}>
         <CardContent sx={{ py: 1, px: 1.5, "&:last-child": { pb: 1 }, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
             <Box>
                 {isLoading
@@ -117,7 +118,7 @@ interface DonutMetricCardProps {
 
 const DonutMetricCard: React.FC<DonutMetricCardProps> =
     ({ label, value, percent, color, isLoading }) => (
-        <Card variant="outlined" sx={{ width: "100%" }}>
+        <Card variant="outlined" sx={{ ...NESTED_CARD_SX, width: "100%" }}>
             <CardContent sx={{ py: 1, px: 1.5, "&:last-child": { pb: 1 }, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
                 <Box>
                     {isLoading

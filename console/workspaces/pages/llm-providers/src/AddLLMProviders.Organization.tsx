@@ -127,7 +127,7 @@ export const AddLLMProvidersOrganization: React.FC = () => {
       title="Add LLM Service Provider"
       backHref={backHref}
       disableIcon
-      backLabel="Back to Providers List"
+      backLabel="Back to providers list"
     >
       <AddLLMProviderForm
         orgId={orgId ?? ""}

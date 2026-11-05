@@ -20945,6 +20945,7 @@ type RegisterGatewayResp struct {
 	JSON201      *GatewayResponse
 	JSON400      *ErrorResponse
 	JSON401      *ErrorResponse
+	JSON403      *ErrorResponse
 	JSON409      *ErrorResponse
 	JSON500      *ErrorResponse
 }
@@ -21256,6 +21257,7 @@ type RotateGatewayTokenResp struct {
 	JSON200      *GatewayTokenResponse
 	JSON400      *ErrorResponse
 	JSON401      *ErrorResponse
+	JSON403      *ErrorResponse
 	JSON404      *ErrorResponse
 	JSON500      *ErrorResponse
 }
@@ -30852,6 +30854,13 @@ func ParseRegisterGatewayResp(rsp *http.Response) (*RegisterGatewayResp, error) 
 		}
 		response.JSON401 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
 		var dest ErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -31480,6 +31489,13 @@ func ParseRotateGatewayTokenResp(rsp *http.Response) (*RotateGatewayTokenResp, e
 			return nil, err
 		}
 		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
 		var dest ErrorResponse

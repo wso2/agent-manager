@@ -25,6 +25,9 @@ import {
   useSearchParams,
 } from "react-router-dom";
 import { absoluteRouteMap } from "@agent-management-platform/types";
+import { Button } from "@wso2/oxygen-ui";
+import { Plus } from "@wso2/oxygen-ui-icons-react";
+import { useListDeploymentPipelines } from "@agent-management-platform/api-client";
 import { PageLayout } from "@agent-management-platform/views";
 import { DeploymentPipelineTable } from "./subComponents/DeploymentPipelineTable";
 import { CreateDeploymentPipelineDrawer } from "./subComponents/CreateDeploymentPipelineDrawer";
@@ -56,6 +59,11 @@ export function DeploymentPipelinesOrganization() {
   const { orgId } = useParams<{ orgId: string }>();
   const [createOpen, setCreateOpen] = useState(false);
 
+  // Same query as the table, so React Query dedupes the request.
+  const { data, isLoading } = useListDeploymentPipelines({ orgName: orgId });
+  const hasItems =
+    !isLoading && (data?.deploymentPipelines?.length ?? 0) > 0;
+
   const listHref = orgId
     ? generatePath(
         absoluteRouteMap.children.org.children.deploymentPipelines.path,
@@ -70,7 +78,22 @@ export function DeploymentPipelinesOrganization() {
           index
           element={
             <LegacyEditRedirect>
-              <PageLayout title="Deployment Pipelines" disableIcon>
+              <PageLayout
+                title="Deployment Pipelines"
+                disableIcon
+                actions={
+                  hasItems ? (
+                  <Button
+                    variant="contained"
+                    color="primary"
+                    startIcon={<Plus size={16} />}
+                    onClick={() => setCreateOpen(true)}
+                  >
+                    Create Pipeline
+                  </Button>
+                  ) : undefined
+                }
+              >
                 <DeploymentPipelineTable
                   onCreatePipeline={() => setCreateOpen(true)}
                 />

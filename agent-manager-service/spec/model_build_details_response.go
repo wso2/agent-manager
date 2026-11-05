@@ -30,6 +30,7 @@ type BuildDetailsResponse struct {
 	// Overall build status, derived from the underlying workflow phase. Succeeded means the image was built and pushed; Completed additionally means the workload CR was updated. Per-step progress is in `steps`.
 	Status          *string         `json:"status,omitempty"`
 	BuildParameters BuildParameters `json:"buildParameters"`
+	HealthChecks    *HealthChecks   `json:"healthChecks,omitempty"`
 	// Build completion percentage (0-100)
 	Percent *float32 `json:"percent,omitempty"`
 	// Array of build steps with their status
@@ -309,6 +310,38 @@ func (o *BuildDetailsResponse) SetBuildParameters(v BuildParameters) {
 	o.BuildParameters = v
 }
 
+// GetHealthChecks returns the HealthChecks field value if set, zero value otherwise.
+func (o *BuildDetailsResponse) GetHealthChecks() HealthChecks {
+	if o == nil || IsNil(o.HealthChecks) {
+		var ret HealthChecks
+		return ret
+	}
+	return *o.HealthChecks
+}
+
+// GetHealthChecksOk returns a tuple with the HealthChecks field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *BuildDetailsResponse) GetHealthChecksOk() (*HealthChecks, bool) {
+	if o == nil || IsNil(o.HealthChecks) {
+		return nil, false
+	}
+	return o.HealthChecks, true
+}
+
+// HasHealthChecks returns a boolean if a field has been set.
+func (o *BuildDetailsResponse) HasHealthChecks() bool {
+	if o != nil && !IsNil(o.HealthChecks) {
+		return true
+	}
+
+	return false
+}
+
+// SetHealthChecks gets a reference to the given HealthChecks and assigns it to the HealthChecks field.
+func (o *BuildDetailsResponse) SetHealthChecks(v HealthChecks) {
+	o.HealthChecks = &v
+}
+
 // GetPercent returns the Percent field value if set, zero value otherwise.
 func (o *BuildDetailsResponse) GetPercent() float32 {
 	if o == nil || IsNil(o.Percent) {
@@ -464,6 +497,9 @@ func (o BuildDetailsResponse) ToMap() (map[string]interface{}, error) {
 		toSerialize["status"] = o.Status
 	}
 	toSerialize["buildParameters"] = o.BuildParameters
+	if !IsNil(o.HealthChecks) {
+		toSerialize["healthChecks"] = o.HealthChecks
+	}
 	if !IsNil(o.Percent) {
 		toSerialize["percent"] = o.Percent
 	}

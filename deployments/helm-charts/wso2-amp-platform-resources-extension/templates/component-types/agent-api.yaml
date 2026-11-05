@@ -113,6 +113,47 @@ spec:
               type: integer
               default: 5
               minimum: 1
+        # One health check (startup, readiness or liveness). No defaults on
+        # purpose: an unset check must stay unset so the template can tell it
+        # apart and render today's fixed probe for it.
+        HealthCheck:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+            type:
+              type: string
+              enum:
+                - TCP
+                - HTTP
+            path:
+              type: string
+              pattern: "^/"
+            port:
+              type: integer
+              minimum: 1
+              maximum: 65535
+            initialDelaySeconds:
+              type: integer
+              minimum: 0
+            periodSeconds:
+              type: integer
+              minimum: 1
+            timeoutSeconds:
+              type: integer
+              minimum: 1
+            failureThreshold:
+              type: integer
+              minimum: 1
+        HealthChecks:
+          type: object
+          properties:
+            startup:
+              $ref: "#/$defs/HealthCheck"
+            readiness:
+              $ref: "#/$defs/HealthCheck"
+            liveness:
+              $ref: "#/$defs/HealthCheck"
       properties:
         replicas:
           type: integer
@@ -135,6 +176,13 @@ spec:
           default: ""
         autoscaling:
           $ref: "#/$defs/AutoscalingConfig"
+        # The health checks of the build this environment runs. Unlike the other
+        # settings here they belong to the build, not the environment: whatever
+        # switches this environment to a build also writes that build's checks.
+        # They live here only because this is the one place written in the same
+        # update as that switch.
+        healthChecks:
+          $ref: "#/$defs/HealthChecks"
 
   resources:
     - id: sandbox-template
@@ -197,17 +245,85 @@ spec:
                     limits:
                       cpu: ${environmentConfigs.resources.limits.?cpu.orValue(parameters.resources.limits.cpu)}
                       memory: ${environmentConfigs.resources.limits.?memory.orValue(parameters.resources.limits.memory)}
-                  startupProbe:
-                    tcpSocket:
-                      port: ${workload.endpoints.transformList(name, ep, [ep.port]).flatten()[0]}
-                    periodSeconds: 5
-                    failureThreshold: 60
-                    initialDelaySeconds: 10
-                  readinessProbe:
-                    tcpSocket:
-                      port: ${workload.endpoints.transformList(name, ep, [ep.port]).flatten()[0]}
-                    periodSeconds: 5
-                    failureThreshold: 6
+                  # Each probe is decided by environmentConfigs.healthChecks:
+                  #   - check not set: today's fixed probe, exactly as it was before
+                  #     health checks were configurable. Keep this branch as it is:
+                  #     it is what keeps existing agents' pod spec unchanged, so they
+                  #     are not restarted when this template is upgraded.
+                  #   - enabled is false: no probe.
+                  #   - otherwise: the configured probe. An unset field falls back to
+                  #     today's value, and an unset port to the agent's own port.
+                  startupProbe: |
+                    ${!environmentConfigs.?healthChecks.?startup.hasValue()
+                      ? {
+                          "tcpSocket": {"port": workload.endpoints.transformList(name, ep, [ep.port]).flatten()[0]},
+                          "periodSeconds": 5,
+                          "failureThreshold": 60,
+                          "initialDelaySeconds": 10
+                        }
+                      : !environmentConfigs.healthChecks.startup.?enabled.orValue(true)
+                        ? oc_omit()
+                        : oc_merge(
+                            environmentConfigs.healthChecks.startup.?type.orValue("TCP") == "HTTP"
+                              ? {"httpGet": {
+                                  "path": environmentConfigs.healthChecks.startup.?path.orValue("/"),
+                                  "port": environmentConfigs.healthChecks.startup.?port.orValue(workload.endpoints.transformList(name, ep, [ep.port]).flatten()[0])
+                                }}
+                              : {"tcpSocket": {
+                                  "port": environmentConfigs.healthChecks.startup.?port.orValue(workload.endpoints.transformList(name, ep, [ep.port]).flatten()[0])
+                                }},
+                            {
+                              "initialDelaySeconds": environmentConfigs.healthChecks.startup.?initialDelaySeconds.orValue(10),
+                              "periodSeconds": environmentConfigs.healthChecks.startup.?periodSeconds.orValue(5),
+                              "timeoutSeconds": environmentConfigs.healthChecks.startup.?timeoutSeconds.orValue(1),
+                              "failureThreshold": environmentConfigs.healthChecks.startup.?failureThreshold.orValue(60)
+                            })}
+                  readinessProbe: |
+                    ${!environmentConfigs.?healthChecks.?readiness.hasValue()
+                      ? {
+                          "tcpSocket": {"port": workload.endpoints.transformList(name, ep, [ep.port]).flatten()[0]},
+                          "periodSeconds": 5,
+                          "failureThreshold": 6
+                        }
+                      : !environmentConfigs.healthChecks.readiness.?enabled.orValue(true)
+                        ? oc_omit()
+                        : oc_merge(
+                            environmentConfigs.healthChecks.readiness.?type.orValue("TCP") == "HTTP"
+                              ? {"httpGet": {
+                                  "path": environmentConfigs.healthChecks.readiness.?path.orValue("/"),
+                                  "port": environmentConfigs.healthChecks.readiness.?port.orValue(workload.endpoints.transformList(name, ep, [ep.port]).flatten()[0])
+                                }}
+                              : {"tcpSocket": {
+                                  "port": environmentConfigs.healthChecks.readiness.?port.orValue(workload.endpoints.transformList(name, ep, [ep.port]).flatten()[0])
+                                }},
+                            {
+                              "initialDelaySeconds": environmentConfigs.healthChecks.readiness.?initialDelaySeconds.orValue(0),
+                              "periodSeconds": environmentConfigs.healthChecks.readiness.?periodSeconds.orValue(5),
+                              "timeoutSeconds": environmentConfigs.healthChecks.readiness.?timeoutSeconds.orValue(1),
+                              "failureThreshold": environmentConfigs.healthChecks.readiness.?failureThreshold.orValue(6)
+                            })}
+                  # There is no liveness probe today, so there is none unless one is
+                  # configured and enabled. Unset fields fall back to Kubernetes'
+                  # own defaults.
+                  livenessProbe: |
+                    ${!environmentConfigs.?healthChecks.?liveness.hasValue()
+                        || !environmentConfigs.healthChecks.liveness.?enabled.orValue(true)
+                      ? oc_omit()
+                      : oc_merge(
+                          environmentConfigs.healthChecks.liveness.?type.orValue("TCP") == "HTTP"
+                            ? {"httpGet": {
+                                "path": environmentConfigs.healthChecks.liveness.?path.orValue("/"),
+                                "port": environmentConfigs.healthChecks.liveness.?port.orValue(workload.endpoints.transformList(name, ep, [ep.port]).flatten()[0])
+                              }}
+                            : {"tcpSocket": {
+                                "port": environmentConfigs.healthChecks.liveness.?port.orValue(workload.endpoints.transformList(name, ep, [ep.port]).flatten()[0])
+                              }},
+                          {
+                            "initialDelaySeconds": environmentConfigs.healthChecks.liveness.?initialDelaySeconds.orValue(0),
+                            "periodSeconds": environmentConfigs.healthChecks.liveness.?periodSeconds.orValue(10),
+                            "timeoutSeconds": environmentConfigs.healthChecks.liveness.?timeoutSeconds.orValue(1),
+                            "failureThreshold": environmentConfigs.healthChecks.liveness.?failureThreshold.orValue(3)
+                          })}
                   env: ${dependencies.toContainerEnvs()}
                   envFrom: ${configurations.toContainerEnvFrom()}
                   volumeMounts: |

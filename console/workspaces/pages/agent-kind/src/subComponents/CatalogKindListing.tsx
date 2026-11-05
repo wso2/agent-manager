@@ -18,9 +18,10 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Box, ListingTable, SearchBar, Skeleton, Stack, TablePagination } from "@wso2/oxygen-ui";
-import { BookOpenText, Search as SearchIcon } from "@wso2/oxygen-ui-icons-react";
+import { Search as SearchIcon } from "@wso2/oxygen-ui-icons-react";
 import type { AgentKindResponse } from "@agent-management-platform/types";
 import { CatalogKindCard, CARD_HEIGHT } from "./CatalogKindCard";
+import { CatalogEmptyIntro } from "./CatalogEmptyIntro";
 
 const DEFAULT_ROWS_PER_PAGE = 6;
 const ROWS_PER_PAGE_OPTIONS = [6, 12, 24];
@@ -29,12 +30,15 @@ const SEARCH_DEBOUNCE_MS = 300;
 export interface CatalogKindListingProps {
   items: AgentKindResponse[];
   getViewPath: (item: AgentKindResponse) => string;
+  /** Router state for each card link (e.g. a wizard's return-to origin). */
+  viewState?: unknown;
   isLoading?: boolean;
 }
 
 export const CatalogKindListing: React.FC<CatalogKindListingProps> = ({
   items,
   getViewPath,
+  viewState,
   isLoading,
 }) => {
   const [page, setPage] = useState(0);
@@ -95,14 +99,17 @@ export const CatalogKindListing: React.FC<CatalogKindListingProps> = ({
 
   return (
     <Stack spacing={2}>
-      <Stack direction="row" justifyContent="flex-end">
-        <SearchBar
-          placeholder="Search agent kinds"
-          size="small"
-          value={search}
-          onChange={handleSearchChange}
-        />
-      </Stack>
+      {/* An empty catalog has nothing to search, so the field goes with the grid. */}
+      {(isLoading || items.length > 0) && (
+        <Stack direction="row" justifyContent="flex-end">
+          <SearchBar
+            placeholder="Search agent kinds"
+            size="small"
+            value={search}
+            onChange={handleSearchChange}
+          />
+        </Stack>
+      )}
 
       {isLoading ? (
         <Box
@@ -120,13 +127,7 @@ export const CatalogKindListing: React.FC<CatalogKindListingProps> = ({
           ))}
         </Box>
       ) : items.length === 0 ? (
-        <ListingTable.Container sx={{ my: 3 }}>
-          <ListingTable.EmptyState
-            illustration={<BookOpenText size={64} />}
-            title="No agent kinds available"
-            description="No agent kinds have been added to the catalog yet."
-          />
-        </ListingTable.Container>
+        <CatalogEmptyIntro />
       ) : filteredItems.length === 0 ? (
         <ListingTable.Container sx={{ my: 3 }}>
           <ListingTable.EmptyState
@@ -148,7 +149,12 @@ export const CatalogKindListing: React.FC<CatalogKindListingProps> = ({
             }}
           >
             {paginatedItems.map((item) => (
-              <CatalogKindCard key={item.name} item={item} viewPath={getViewPath(item)} />
+              <CatalogKindCard
+                key={item.name}
+                item={item}
+                viewPath={getViewPath(item)}
+                viewState={viewState}
+              />
             ))}
           </Box>
           {filteredItems.length > DEFAULT_ROWS_PER_PAGE && (

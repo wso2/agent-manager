@@ -42,6 +42,9 @@ type DeploymentResponse struct {
 	// for an agent the gateway does not serve.
 	GatewayStatus       string `json:"gatewayStatus,omitempty"`
 	GatewayStatusReason string `json:"gatewayStatusReason,omitempty"`
+	// HealthChecks are the health checks the environment runs: those of the build it runs.
+	// Nil when the build has none, so the defaults apply.
+	HealthChecks *HealthChecks `json:"healthChecks,omitempty"`
 }
 
 // PromotionTargetEnvironment represents environment promotion targets
@@ -98,6 +101,9 @@ type BuildResponse struct {
 	ImageId         string          `json:"imageId,omitempty"`
 	EndedAt         *time.Time      `json:"endedAt,omitempty"`
 	BuildParameters BuildParameters `json:"buildParameters"`
+	// HealthChecks are the health checks this build recorded when it started. Nil when it
+	// has none, so an environment running this build uses the defaults.
+	HealthChecks *HealthChecks `json:"healthChecks,omitempty"`
 }
 
 // BuildParameters represents parameters for a build
@@ -128,6 +134,27 @@ type InputInterface struct {
 	BasePath   string                `json:"basePath"`
 	Visibility []string              `json:"visibility"`
 	Schema     *InputInterfaceSchema `json:"schema,omitempty"`
+}
+
+// HealthChecks are an agent's startup, readiness and liveness checks. They are
+// saved in the agent's build settings under the same field names, so each build
+// records its own copy. A check that is nil uses the default.
+type HealthChecks struct {
+	Startup   *HealthCheck `json:"startup,omitempty"`
+	Readiness *HealthCheck `json:"readiness,omitempty"`
+	Liveness  *HealthCheck `json:"liveness,omitempty"`
+}
+
+// HealthCheck is one health check. A field that is nil uses its default.
+type HealthCheck struct {
+	Enabled             *bool   `json:"enabled,omitempty"`
+	Type                *string `json:"type,omitempty"`
+	Path                *string `json:"path,omitempty"`
+	Port                *int32  `json:"port,omitempty"`
+	InitialDelaySeconds *int32  `json:"initialDelaySeconds,omitempty"`
+	PeriodSeconds       *int32  `json:"periodSeconds,omitempty"`
+	TimeoutSeconds      *int32  `json:"timeoutSeconds,omitempty"`
+	FailureThreshold    *int32  `json:"failureThreshold,omitempty"`
 }
 
 // InputInterfaceSchema represents schema configuration

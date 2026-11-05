@@ -22,15 +22,18 @@ import {
   Checkbox,
   Form,
   FormControlLabel,
+  Grid,
   MenuItem,
   Select,
   SelectChangeEvent,
   Skeleton,
+  Stack,
   Typography,
 } from "@wso2/oxygen-ui";
 import { PageLayout, useFormValidation } from "@agent-management-platform/views";
 import { useUnsavedChangesGuard } from "@agent-management-platform/shared-component";
 import { generatePath, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useAgentWizardReturn } from "../utils/useAgentWizardReturn";
 import { absoluteRouteMap, type AgentKindVersionResponse, OrgProjPathParams } from "@agent-management-platform/types";
 import {
   useCreateAgent,
@@ -182,6 +185,7 @@ export const CatalogAgentFlow: React.FC = () => {
     [selectedVersion, llmProviders, mcpProxies, formData, initialFormData, catalogEnvSeed.env],
   );
   const { allowNavigation } = useUnsavedChangesGuard(isDirty);
+  const { returnTo, wizardState } = useAgentWizardReturn();
 
   const params = useMemo<OrgProjPathParams>(
     () => ({
@@ -226,15 +230,8 @@ export const CatalogAgentFlow: React.FC = () => {
   );
 
   const handleCancel = useCallback(() => {
-    allowNavigation(() =>
-      navigate(
-        generatePath(absoluteRouteMap.children.org.children.projects.path, {
-          orgId: orgId ?? "",
-          projectId: projectId ?? "default",
-        })
-      )
-    );
-  }, [allowNavigation, navigate, orgId, projectId]);
+    allowNavigation(() => navigate(returnTo));
+  }, [allowNavigation, navigate, returnTo]);
 
   const [lastSubmittedValidationErrors, setLastSubmittedValidationErrors] = useState<
     Record<string, string | undefined>
@@ -304,7 +301,8 @@ export const CatalogAgentFlow: React.FC = () => {
       description="Add agent details and configure deployment settings."
       disableIcon
       backHref={backHref}
-      backLabel="Back to Kind Selection"
+      backState={wizardState}
+      backLabel="Back to kind selection"
     >
       {isKindLoading && (
         <>
@@ -322,28 +320,30 @@ export const CatalogAgentFlow: React.FC = () => {
         />
 
         {sortedVersions.length > 0 && (
-          <Form.Section>
-            <Form.Subheader>Agent Kind Version</Form.Subheader>
-            <Form.Stack spacing={2}>
-              <Form.ElementWrapper
-                label="Version"
-                name="kindVersion"
-              >
-                <Select
-                  size="small"
-                  value={effectiveVersion}
-                  onChange={(e: SelectChangeEvent<string>) => setSelectedVersion(e.target.value)}
-                  sx={{ minWidth: 160 }}
+          <Stack spacing={2}>
+            <Typography variant="subtitle1">Agent Kind Version</Typography>
+            <Grid container spacing={2}>
+              <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+                <Form.ElementWrapper
+                  label="Version"
+                  name="kindVersion"
                 >
-                  {sortedVersions.map((v) => (
-                    <MenuItem key={v.version} value={v.version}>
-                      v{v.version}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </Form.ElementWrapper>
-            </Form.Stack>
-          </Form.Section>
+                  <Select
+                    size="small"
+                    value={effectiveVersion}
+                    onChange={(e: SelectChangeEvent<string>) => setSelectedVersion(e.target.value)}
+                    sx={{ minWidth: 160 }}
+                  >
+                    {sortedVersions.map((v) => (
+                      <MenuItem key={v.version} value={v.version}>
+                        v{v.version}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </Form.ElementWrapper>
+              </Grid>
+            </Grid>
+          </Stack>
         )}
 
         {/* Auto-instrumentation defaults on for every agent the platform can instrument.
@@ -351,8 +351,8 @@ export const CatalogAgentFlow: React.FC = () => {
             twice, so the choice is offered before the agent is created and auto-deployed
             rather than only afterwards. */}
         {isInstrumentableKind && (
-          <Form.Section>
-            <Form.Subheader>Tracing - Instrumentation</Form.Subheader>
+          <Stack spacing={2}>
+            <Typography variant="subtitle1">Tracing - Instrumentation</Typography>
             <Form.Stack spacing={1}>
               <FormControlLabel
                 control={
@@ -374,7 +374,7 @@ export const CatalogAgentFlow: React.FC = () => {
                 duplicate traces. You can change this per environment when deploying.
               </Typography>
             </Form.Stack>
-          </Form.Section>
+          </Stack>
         )}
 
         {firstEnvOnlyNotice && (

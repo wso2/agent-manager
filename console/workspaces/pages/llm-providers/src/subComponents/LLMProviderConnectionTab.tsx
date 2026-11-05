@@ -28,18 +28,12 @@ import {
   Alert,
   Button,
   Collapse,
-  FormControl,
-  FormLabel,
   Grid,
-  IconButton,
-  InputAdornment,
   MenuItem,
-  Select,
   Skeleton,
   Stack,
-  TextField,
 } from "@wso2/oxygen-ui";
-import { Eye, EyeOff } from "@wso2/oxygen-ui-icons-react";
+import { FormGridSpacer, TextInput } from "@agent-management-platform/views";
 import {
   ResilienceTimeoutFields,
   useUnsavedChangesGuard,
@@ -92,7 +86,6 @@ export function LLMProviderConnectionTab({
   const [authenticationHeader, setAuthenticationHeader] = useState("");
   const [credentialValue, setCredentialValue] = useState("");
   const [isCredentialMasked, setIsCredentialMasked] = useState(false);
-  const [showCredential, setShowCredential] = useState(false);
   const [resilienceTimeout, setResilienceTimeout] = useState("");
   const [resilienceIdleTimeout, setResilienceIdleTimeout] = useState("");
   const [status, setStatus] = useState<{
@@ -340,108 +333,84 @@ export function LLMProviderConnectionTab({
   return (
     <>
       <Stack spacing={2}>
-        <Grid container spacing={3}>
-          <Grid size={{ xs: 12 }}>
-            <FormControl fullWidth>
-              <FormLabel>Provider Endpoint</FormLabel>
-              <TextField
-                slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.URL } }}
-                size="small"
-                value={providerEndpoint}
-                onChange={(e) => {
-                  setProviderEndpoint(e.target.value);
-                  if (endpointError) validateEndpoint(e.target.value);
-                }}
-                onBlur={() => validateEndpoint(providerEndpoint)}
-                error={!!endpointError}
-                helperText={endpointError}
-                sx={{
-                  "& .MuiInputBase-input": {
-                    fontFamily: "monospace",
-                    fontSize: "0.875rem",
-                  },
-                }}
-              />
-            </FormControl>
+        <Grid container spacing={2}>
+          <Grid size={{ xs: 12, md: 12, xl: 8 }}>
+            <TextInput
+              label="Provider Endpoint"
+              maxLength={INPUT_LIMITS.URL}
+              hideCharacterCount={providerEndpoint.length < INPUT_LIMITS.URL}
+              size="small"
+              value={providerEndpoint}
+              onChange={(e) => {
+                setProviderEndpoint(e.target.value);
+                if (endpointError) validateEndpoint(e.target.value);
+              }}
+              onBlur={() => validateEndpoint(providerEndpoint)}
+              error={!!endpointError}
+              helperText={endpointError}
+              sx={{
+                "& .MuiInputBase-input": {
+                  fontFamily: "monospace",
+                  fontSize: "0.875rem",
+                },
+              }}
+            />
           </Grid>
-          <Grid size={{ xs: 12, sm: 6 }}>
-            <FormControl fullWidth>
-              <FormLabel>Authentication</FormLabel>
-              <Select
+          <FormGridSpacer />
+          <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+            <TextInput
+              select
+              label="Authentication"
                 size="small"
                 value={authenticationType || AUTH_TYPE_API_KEY}
                 onChange={(e) =>
                   setAuthenticationType(e.target.value as UpstreamAuthType)
                 }
-              >
+            >
                 {AUTH_TYPE_OPTIONS.map((opt) => (
                   <MenuItem key={opt.value} value={opt.value}>
                     {opt.label}
                   </MenuItem>
                 ))}
-              </Select>
-            </FormControl>
+            </TextInput>
           </Grid>
-          <Grid size={{ xs: 12, sm: 6 }}>
-            <FormControl fullWidth>
-              <FormLabel>Authentication Header</FormLabel>
-              <TextField
-                slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.KEY } }}
-                size="small"
-                value={authenticationHeader}
-                onChange={(e) => setAuthenticationHeader(e.target.value)}
-              />
-            </FormControl>
+          <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+            <TextInput
+              label="Authentication Header"
+              maxLength={INPUT_LIMITS.KEY}
+              hideCharacterCount={authenticationHeader.length < INPUT_LIMITS.KEY}
+              size="small"
+              value={authenticationHeader}
+              onChange={(e) => setAuthenticationHeader(e.target.value)}
+            />
           </Grid>
-          <Grid size={{ xs: 12 }}>
-            <FormControl fullWidth>
-              <FormLabel>Credentials</FormLabel>
-              <TextField
-                size="small"
-                type={showCredential ? "text" : "password"}
-                value={credentialValue}
-                onFocus={() => {
-                  if (isCredentialMasked) {
-                    setCredentialValue("");
-                    setIsCredentialMasked(false);
-                    userActuallyTypedCredentialRef.current = false;
-                  }
-                }}
-                onChange={(e) => {
-                  userActuallyTypedCredentialRef.current = true;
-                  setCredentialValue(e.target.value);
-                }}
-                slotProps={{
-                  htmlInput: { maxLength: INPUT_LIMITS.SECRET },
-                  input: {
-                    endAdornment: (
-                      <InputAdornment position="end">
-                        <IconButton
-                          size="small"
-                          onClick={() => setShowCredential((p) => !p)}
-                          aria-label={
-                            showCredential
-                              ? "Hide credentials"
-                              : "Show credentials"
-                          }
-                        >
-                          {showCredential ? (
-                            <EyeOff size={18} />
-                          ) : (
-                            <Eye size={18} />
-                          )}
-                        </IconButton>
-                      </InputAdornment>
-                    ),
-                  },
-                }}
-                sx={{
-                  "& .MuiInputBase-input": {
-                    fontFamily: "monospace",
-                  },
-                }}
-              />
-            </FormControl>
+          <FormGridSpacer />
+          <Grid size={{ xs: 12, md: 12, xl: 8 }}>
+            <TextInput
+              label="Credentials"
+              maxLength={INPUT_LIMITS.SECRET}
+              hideCharacterCount
+              size="small"
+              type="password"
+              showPasswordToggle
+              value={credentialValue}
+              onFocus={() => {
+                if (isCredentialMasked) {
+                  setCredentialValue("");
+                  setIsCredentialMasked(false);
+                  userActuallyTypedCredentialRef.current = false;
+                }
+              }}
+              onChange={(e) => {
+                userActuallyTypedCredentialRef.current = true;
+                setCredentialValue(e.target.value);
+              }}
+              sx={{
+                "& .MuiInputBase-input": {
+                  fontFamily: "monospace",
+                },
+              }}
+            />
           </Grid>
           <Grid size={{ xs: 12 }}>
             <ResilienceTimeoutFields

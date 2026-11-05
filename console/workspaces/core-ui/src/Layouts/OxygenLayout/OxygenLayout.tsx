@@ -59,6 +59,8 @@ export function OxygenLayout() {
   const externalTopRightComponentModules =
     useExternalComponentModules(MountPoints.TopRightPanel);
   const externalLogoComponentModules = useExternalComponentModules(MountPoints.TopLogo);
+  const externalTopStartComponentModules =
+    useExternalComponentModules(MountPoints.TopStartPanel);
   const externalTopLeftComponentModules =
     useExternalComponentModules(MountPoints.TopLeftPanel);
   const externalBottomLeftComponentModules =
@@ -82,7 +84,10 @@ export function OxygenLayout() {
     secondaryLine: userInfo?.orgName ?? userInfo?.email ?? userInfo?.username ?? userInfo?.givenName ?? "",
   };
 
-  const avatar = userProfile?.attributes?.picture || getUserAvatarInitials(user.primaryLine);
+  // UserMenu takes an image URL or initials as a string; profile attributes are untyped.
+  const picture = userProfile?.attributes?.picture;
+  const avatar =
+    (typeof picture === "string" && picture) || getUserAvatarInitials(user.primaryLine);
 
   const navigationItems = useNavigationItems();
   const mainItems = navigationItems.filter((item) => item.type === "item");
@@ -104,6 +109,11 @@ export function OxygenLayout() {
       <AppShell>
         <AppShell.Navbar>
           <Header>
+            {externalTopStartComponentModules?.map((module) => (
+              <div key={module.moduleName}>
+                <module.component />
+              </div>
+            ))}
             <Header.Toggle
               collapsed={collapsed}
               onToggle={() => setCollapsed(!collapsed)}

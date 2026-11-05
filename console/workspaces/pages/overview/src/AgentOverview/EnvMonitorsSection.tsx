@@ -17,6 +17,7 @@
  */
 
 import React, { useMemo } from "react";
+import { NESTED_CARD_SX } from "@agent-management-platform/shared-component";
 import {
     Box,
     Card,
@@ -109,7 +110,7 @@ const MonitorTile: React.FC<MonitorTileProps> = ({ monitor, orgId, projectId, ag
     }, [monitor.type, monitor.traceStart, monitor.traceEnd, monitor.intervalMinutes]);
 
     return (
-        <Card variant="outlined">
+        <Card variant="outlined" sx={NESTED_CARD_SX}>
             <CardContent sx={{ display: "flex", alignItems: "center", gap: 2, "&:last-child": { pb: 1.5 } }}>
                 {isLoading ? (
                     <Skeleton variant="circular" width={52} height={52} />

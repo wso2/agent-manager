@@ -31,7 +31,7 @@ import { PageLayout } from "@agent-management-platform/views";
 import { absoluteRouteMap } from "@agent-management-platform/types";
 import { useGetAgentKind, useGetAgentKindVersion, useGetBuild } from "@agent-management-platform/api-client";
 import { SwaggerSpecViewer, parseOpenApiSpecContent } from "@agent-management-platform/shared-component";
-import { SectionCard } from "./SectionCard";
+import { SectionCard } from "./subComponents/SectionCard";
 
 export const PublishVersionDetails: React.FC = () => {
   const { orgId, projectId, agentId, versionId } = useParams<{
@@ -84,7 +84,7 @@ export const PublishVersionDetails: React.FC = () => {
       description={version ? `Build Id: ${version.buildName ?? "—"}` : ""}
       disableIcon
       backHref={backHref}
-      backLabel="Back to Publish"
+      backLabel="Back to publish"
     >
       {isVersionLoading ? (
         <Box sx={{ p: 2 }}>

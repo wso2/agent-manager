@@ -16,14 +16,16 @@
  * under the License.
  */
 
-import { CircularProgress, Form, Stack, TextField, Typography } from "@wso2/oxygen-ui";
-import { useCallback, useEffect, useMemo } from "react";
+import { CircularProgress, Form, Grid, Stack, Typography } from "@wso2/oxygen-ui";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { debounce } from "lodash";
 import { useGenerateResourceName } from "@agent-management-platform/api-client";
 import { LabelsEditor, MarkdownEditor } from "@agent-management-platform/shared-component";
+import { AgentHandleField } from "../components/AgentHandleField";
 import type { CreateAgentFormValues } from "../form/schema";
 import { INPUT_LIMITS } from "@agent-management-platform/types";
+import { TextInput, FormGridSpacer } from "@agent-management-platform/views";
 
 interface CatalogAgentFormProps {
   formData: CreateAgentFormValues;
@@ -49,6 +51,7 @@ export const CatalogAgentForm = ({
 }: CatalogAgentFormProps) => {
   const { orgId, projectId } = useParams<{ orgId: string; projectId: string }>();
 
+  const [isHandleEditable, setIsHandleEditable] = useState(false);
   const { mutate: generateName, isPending: isGeneratingName } = useGenerateResourceName({
     orgName: orgId,
   });
@@ -100,29 +103,34 @@ export const CatalogAgentForm = ({
   }, [debouncedGenerateName]);
 
   useEffect(() => {
+    if (isHandleEditable) {
+      debouncedGenerateName.cancel();
+      return;
+    }
     if (formData.displayName && formData.displayName.length >= 3) {
       debouncedGenerateName(formData.displayName);
     } else {
       debouncedGenerateName.cancel();
       handleFieldChange("name", "");
     }
-  }, [formData.displayName, debouncedGenerateName, handleFieldChange]);
+  }, [formData.displayName, debouncedGenerateName, handleFieldChange, isHandleEditable]);
 
   return (
-    <Form.Section>
-      <Form.Subheader>Agent Details</Form.Subheader>
-      <Form.Stack spacing={2}>
-        <Form.ElementWrapper label="Name" name="displayName">
-          <TextField
-            slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.NAME } }}
+    <Form.Stack spacing={3}>
+      <Grid container spacing={2}>
+        <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+          <TextInput
+            label="Name"
             id="displayName"
+            maxLength={INPUT_LIMITS.NAME}
+            hideCharacterCount={formData.displayName.length < INPUT_LIMITS.NAME}
             placeholder="e.g., Customer Support Agent"
             value={formData.displayName}
             onChange={(e) => handleFieldChange("displayName", e.target.value)}
             error={!!errors.displayName}
             helperText={
               isGeneratingName ? (
-                <Stack direction="row" alignItems="center" gap={1}>
+                <Stack component="span" direction="row" alignItems="center" gap={1}>
                   <CircularProgress size={12} />
                   <Typography variant="caption">Validating name...</Typography>
                 </Stack>
@@ -130,28 +138,41 @@ export const CatalogAgentForm = ({
                 errors.displayName || "A name for your agent"
               )
             }
-            fullWidth
           />
-        </Form.ElementWrapper>
-        <Form.ElementWrapper label="Description (optional)" name="description">
-          <MarkdownEditor
-            id="description"
-            placeholder="Short description of what this agent does. Markdown is supported."
-            value={formData.description || ""}
-            onChange={(value) => handleFieldChange("description", value)}
-            error={!!errors.description}
-            helperText={errors.description}
+        </Grid>
+        <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+          <AgentHandleField
+            value={formData.name}
+            editable={isHandleEditable}
+            onEdit={() => setIsHandleEditable(true)}
+            onChange={(value) => handleFieldChange("name", value)}
+            error={errors.name}
           />
-        </Form.ElementWrapper>
-        <Form.ElementWrapper label="Labels (optional)" name="labels">
-          <LabelsEditor
-            hideTitle
-            description="Attach key/value labels to organize and filter agents."
-            value={formData.labels ?? {}}
-            onChange={(labels) => handleFieldChange("labels", labels)}
-          />
-        </Form.ElementWrapper>
-      </Form.Stack>
-    </Form.Section>
+        </Grid>
+        <FormGridSpacer />
+        <Grid size={{ xs: 12, md: 12, xl: 8 }}>
+          <Form.ElementWrapper label="Description (optional)" name="description">
+            <MarkdownEditor
+              id="description"
+              placeholder="Short description of what this agent does. Markdown is supported."
+              value={formData.description || ""}
+              onChange={(value) => handleFieldChange("description", value)}
+              error={!!errors.description}
+              helperText={errors.description}
+            />
+          </Form.ElementWrapper>
+        </Grid>
+        <Grid size={{ xs: 12, md: 12, xl: 8 }}>
+          <Form.ElementWrapper label="Labels (optional)" name="labels">
+            <LabelsEditor
+              hideTitle
+              description="Attach key/value labels to organize and filter agents."
+              value={formData.labels ?? {}}
+              onChange={(labels) => handleFieldChange("labels", labels)}
+            />
+          </Form.ElementWrapper>
+        </Grid>
+      </Grid>
+    </Form.Stack>
   );
 };

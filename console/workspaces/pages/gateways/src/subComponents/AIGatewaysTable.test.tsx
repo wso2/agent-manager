@@ -63,25 +63,19 @@ vi.mock("@agent-management-platform/shared-component", async () => {
     GatewayHostingChip: (props: { gateway: Parameters<typeof gatewayHostingLabel>[0] }) =>
       React.createElement("span", null, gatewayHostingLabel(props.gateway)),
     ResourceListShell: ({
-      addButton,
+      isEmpty,
+      emptyState,
       children,
     }: {
-      addButton?: { label: string; onClick?: () => void };
+      isEmpty?: boolean;
+      emptyState: { action?: React.ReactNode };
       children: React.ReactNode;
-    }) =>
-      React.createElement(
-        "div",
-        null,
-        addButton && React.createElement("button", { onClick: addButton.onClick }, addButton.label),
-        children,
-      ),
+    }) => React.createElement("div", null, isEmpty ? emptyState.action : children),
     formatRelativeTime: () => "now",
     getAvatarInitials: () => "G",
     useConfirmationDialog: () => ({ addConfirmation: hoisted.addConfirmation }),
   };
 });
-
-const onEditGateway = vi.fn();
 
 const renderTable = () =>
   render(
@@ -89,7 +83,7 @@ const renderTable = () =>
       initialEntries={["/org/acme"]}
       future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
     >
-      <AIGatewaysTable onEditGateway={onEditGateway} onAddGateway={vi.fn()} />
+      <AIGatewaysTable onAddGateway={vi.fn()} />
     </MemoryRouter>,
   );
 
@@ -124,43 +118,42 @@ describe("AIGatewaysTable self-hosted gating", () => {
     expect(screen.queryByText("Managed")).not.toBeInTheDocument();
   });
 
-  it("offers Add Gateway and hosting chips when enabled", () => {
+  it("offers Add Gateway in the empty state when enabled", () => {
     globalConfig.featureFlags = { ...globalConfig.featureFlags, enableSelfHostedGateways: true };
+    hoisted.gateways = [];
     renderTable();
 
     expect(screen.getByText("Add Gateway")).toBeInTheDocument();
+  });
+
+  it("shows hosting chips when enabled", () => {
+    globalConfig.featureFlags = { ...globalConfig.featureFlags, enableSelfHostedGateways: true };
+    renderTable();
+
     expect(screen.getByText("Self-hosted")).toBeInTheDocument();
     expect(screen.getByText("Managed")).toBeInTheDocument();
   });
 
   describe.each([true, false])("row actions with enableSelfHostedGateways=%s", (enabled) => {
-    it("lets managed rows edit and delete through the managed hooks", async () => {
+    it("lets managed rows delete through the managed hooks", async () => {
       globalConfig.featureFlags = {
         ...globalConfig.featureFlags,
         enableSelfHostedGateways: enabled,
       };
       renderTable();
 
-      const [managedEdit] = screen.getAllByLabelText("Edit");
-      fireEvent.click(managedEdit);
-      expect(onEditGateway).toHaveBeenCalledWith(expect.objectContaining({ uuid: "managed-1" }));
-
-      fireEvent.click(screen.getAllByLabelText("Delete")[0]);
+      fireEvent.click(screen.getAllByRole("button", { name: "Delete", hidden: true })[0]);
       await hoisted.addConfirmation.mock.calls[0][0].onConfirm();
       expect(hoisted.deleteManaged).toHaveBeenCalledWith({ orgName: "", gatewayId: "managed-1" });
       expect(hoisted.deleteSelfHosted).not.toHaveBeenCalled();
     });
   });
 
-  it("lets self-hosted rows edit and delete through the self-hosted hooks", async () => {
+  it("lets self-hosted rows delete through the self-hosted hooks", async () => {
     globalConfig.featureFlags = { ...globalConfig.featureFlags, enableSelfHostedGateways: true };
     renderTable();
 
-    expect(screen.getAllByLabelText("Edit")).toHaveLength(2);
-    fireEvent.click(screen.getAllByLabelText("Edit")[1]);
-    expect(onEditGateway).toHaveBeenCalledWith(expect.objectContaining({ uuid: "self-1" }));
-
-    fireEvent.click(screen.getAllByLabelText("Delete")[1]);
+    fireEvent.click(screen.getAllByRole("button", { name: "Delete", hidden: true })[1]);
     await hoisted.addConfirmation.mock.calls[0][0].onConfirm();
     await waitFor(() =>
       expect(hoisted.deleteSelfHosted).toHaveBeenCalledWith({ orgName: "", gatewayId: "self-1" }),
@@ -168,10 +161,9 @@ describe("AIGatewaysTable self-hosted gating", () => {
     expect(hoisted.deleteManaged).not.toHaveBeenCalled();
   });
 
-  it("shows Edit and Delete on every row when disabled", () => {
+  it("shows Delete on every row when disabled", () => {
     globalConfig.featureFlags = { ...globalConfig.featureFlags, enableSelfHostedGateways: false };
     renderTable();
-    expect(screen.getAllByLabelText("Edit")).toHaveLength(2);
-    expect(screen.getAllByLabelText("Delete")).toHaveLength(2);
+    expect(screen.getAllByRole("button", { name: "Delete", hidden: true })).toHaveLength(2);
   });
 });

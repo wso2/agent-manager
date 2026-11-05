@@ -16,24 +16,20 @@
  * under the License.
  */
 
-import { Box } from "@wso2/oxygen-ui";
+import { DrawerPanel } from "@wso2/oxygen-ui";
 import type { ReactNode } from "react";
 
 export interface DrawerContentProps {
   children: ReactNode;
 }
 
+/** Scrollable body of a {@link DrawerWrapper}. */
 export function DrawerContent({ children }: DrawerContentProps) {
   return (
-    <Box
-      display="flex"
-      flexDirection="column"
-      gap={2}
-      pt={1}
-      sx={{ flex: 1, overflow: "visible" }}
+    <DrawerPanel.Body
+      sx={{ display: "flex", flexDirection: "column", gap: 2 }}
     >
       {children}
-    </Box>
+    </DrawerPanel.Body>
   );
 }
-
