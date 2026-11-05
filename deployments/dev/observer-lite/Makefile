@@ -18,5 +18,5 @@ lint: ## Lint code (golangci-lint from `make tools`)
 docker-build: ## Build the observer-lite image
 	@docker build --build-context amp-observer=../../../agent-manager-observer -t $(IMAGE) .
 
-docker-load-k3d: ## Import the image into the k3d cluster
+docker-load-k3d: docker-build ## Import the image into the k3d cluster
 	@k3d image import $(IMAGE) --cluster $(K3D_CLUSTER_NAME)
