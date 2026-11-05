@@ -481,9 +481,15 @@ func normalizeBindingSecurity(in *models.MCPProxyEnvironmentSecurity) (*models.S
 	if in.Identity != nil && !isExplicitlyFalse(in.Identity.Enabled) {
 		return nil, fmt.Errorf("%w: identity security is not available on project MCP proxies", utils.ErrInvalidInput)
 	}
-	if isExplicitlyFalse(in.Enabled) || in.APIKey == nil || isExplicitlyFalse(in.APIKey.Enabled) {
+	// Only an explicit enabled false turns security off. Security left on with no variant defaults to the api
+	// key, as an omitted security does, so a caller asking for security never gets an open endpoint.
+	if isExplicitlyFalse(in.Enabled) {
 		disabled := false
 		return &models.SecurityConfig{Enabled: &disabled}, nil
+	}
+	if in.APIKey != nil && isExplicitlyFalse(in.APIKey.Enabled) {
+		return nil, fmt.Errorf("%w: security is enabled but no variant is; set security.enabled to false to turn it off",
+			utils.ErrInvalidInput)
 	}
 	var apiKey *models.APIKeySecurity
 	if in.APIKey != nil {

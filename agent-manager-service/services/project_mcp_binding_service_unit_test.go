@@ -558,12 +558,60 @@ func TestPutEnv_JWT_400(t *testing.T) {
 	assert.Zero(t, f.endpointWrites)
 }
 
-func TestPutEnv_NoSecurity_Accepted(t *testing.T) {
+// A body that leaves security enabled with no variant gets the default api key in X-API-Key, as an omitted security
+// does: only an explicit enabled false turns security off, so a caller never ends up with an open endpoint.
+func TestPutEnv_SecurityWithNoVariant_DefaultsToAPIKey(t *testing.T) {
+	enabled := true
+	for name, security := range map[string]*models.MCPProxyEnvironmentSecurity{
+		"empty":           {},
+		"enabled, no key": {Enabled: &enabled},
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := newBindingFixture(t)
+			_, _, err := f.put(t, models.MCPProxyEnvironmentRequest{Security: security})
+			require.NoError(t, err)
+
+			endpoint, ee := f.binding()
+			require.NotNil(t, endpoint.Configuration.Security)
+			require.NotNil(t, endpoint.Configuration.Security.APIKey)
+			assert.True(t, isBoolTrue(endpoint.Configuration.Security.Enabled))
+			assert.Equal(t, "X-API-Key", endpoint.Configuration.Security.APIKey.Key)
+			assert.Equal(t, "header", endpoint.Configuration.Security.APIKey.In)
+			assert.True(t, mcpProxyAPIKeySecurityEnabled(f.proxy, ee.EnvironmentUUID.String()))
+
+			require.Len(t, f.deployed, 1)
+			var names []string
+			for _, policy := range deployedYAML(t, f.deployed[0]).Spec.Policies {
+				names = append(names, policy.Name)
+			}
+			assert.Contains(t, names, apiKeyAuthPolicyName, "the endpoint is not left open")
+		})
+	}
+}
+
+// Turning off the only variant without turning security off is contradictory and refused, rather than read as no
+// security.
+func TestPutEnv_APIKeyOffWithSecurityOn_400(t *testing.T) {
 	enabled, disabled := true, false
 	for name, security := range map[string]*models.MCPProxyEnvironmentSecurity{
-		"enabled false": {Enabled: &disabled},
-		"no variant":    {Enabled: &enabled},
-		"apiKey off":    {Enabled: &enabled, APIKey: &models.APIKeySecurity{Enabled: &disabled}},
+		"security enabled": {Enabled: &enabled, APIKey: &models.APIKeySecurity{Enabled: &disabled}},
+		"security omitted": {APIKey: &models.APIKeySecurity{Enabled: &disabled}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := newBindingFixture(t)
+			_, _, err := f.put(t, models.MCPProxyEnvironmentRequest{Security: security})
+			require.ErrorIs(t, err, utils.ErrInvalidInput)
+			assert.Zero(t, f.endpointWrites, "nothing is stored")
+			assert.Empty(t, f.deployed)
+		})
+	}
+}
+
+func TestPutEnv_NoSecurity_Accepted(t *testing.T) {
+	disabled := false
+	for name, security := range map[string]*models.MCPProxyEnvironmentSecurity{
+		"enabled false":            {Enabled: &disabled},
+		"enabled false, key given": {Enabled: &disabled, APIKey: &models.APIKeySecurity{Key: "X-Key"}},
 	} {
 		t.Run(name, func(t *testing.T) {
 			f := newBindingFixture(t)

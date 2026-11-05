@@ -18381,7 +18381,8 @@ components:
       type: object
       description: >-
         A binding's security. Phase 1 accepts apiKey, which is also the default when the field is omitted
-        (an api key in the X-API-Key header), and no security (enabled false, or no variant enabled). jwt
+        or names no variant (an api key in the X-API-Key header), and no security (enabled false only). An
+        apiKey with enabled false while security is not disabled is rejected with 400 VALIDATION_ERROR. jwt
         is rejected with 400 "jwt security is not available yet", and identity with 400.
       properties:
         enabled:
