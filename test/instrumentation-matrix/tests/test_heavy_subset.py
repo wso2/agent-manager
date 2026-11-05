@@ -152,6 +152,7 @@ def test_filter_shard_keeps_only_that_provider_version():
 
 
 def test_select_heavy_run_applies_filters_to_the_subset():
+    """Manual filters preserve sample runtime restrictions."""
     m = _multi_manifest()
     m.python_versions = ["3.10", "3.11"]
     run = select_heavy_run(m, CellFilter(traceloop_versions={"0.61.0"}, frameworks={"crewai"}))

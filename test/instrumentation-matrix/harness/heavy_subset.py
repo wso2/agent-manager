@@ -32,6 +32,7 @@ from harness.manifest import Cell, Manifest, expand_matrix
 
 
 def select_heavy_subset(cells: list[Cell], manifest: Manifest) -> list[Cell]:
+    """Select representative deployments on each sample's supported runtimes."""
     default = manifest.default_cell
 
     # Pin one framework_version per deployable framework. The framework axis is
