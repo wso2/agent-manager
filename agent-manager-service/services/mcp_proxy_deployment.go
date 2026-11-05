@@ -248,10 +248,13 @@ func (s *MCPProxyService) deployMCPProxyEndpoints(ctx context.Context, tx *gorm.
 			return fmt.Errorf("%s: %w", d.label, err)
 		}
 	}
+	sort.SliceStable(deploys, func(i, j int) bool { return gatewayOrderKey(deploys[i].gateway) < gatewayOrderKey(deploys[j].gateway) })
+	if err := s.lockMCPGateways(tx, deploys); err != nil {
+		return err
+	}
 	if err := s.lockMCPStatusRows(ctx, tx, deploys, ouID); err != nil {
 		return err
 	}
-	sort.SliceStable(deploys, func(i, j int) bool { return gatewayOrderKey(deploys[i].gateway) < gatewayOrderKey(deploys[j].gateway) })
 	for _, d := range deploys {
 		if err := s.deployMCPArtifact(ctx, tx, d.artifact, ouID, d.env, d.gateway); err != nil {
 			return fmt.Errorf("%s: deploy: %w", d.label, err)
@@ -260,8 +263,29 @@ func (s *MCPProxyService) deployMCPProxyEndpoints(ctx context.Context, tx *gorm.
 	return nil
 }
 
-// lockMCPStatusRows takes the save's status-row locks before its first event takes a gateway's, the order a render of
-// one binding takes: deploying binding a publishes on the gateway before binding b's row is written.
+// lockMCPGateways takes the gateway lock of every binding with a gateway, in gateway order (deploys is sorted), before
+// lockMCPStatusRows. A render's write-back takes its gateway's lock and then writes the status row, so a save that held
+// status rows while waiting for a gateway could deadlock with it. The deploy takes the same locks again, which a
+// transaction-level advisory lock allows.
+func (s *MCPProxyService) lockMCPGateways(tx *gorm.DB, deploys []mcpEnvDeploy) error {
+	if s.gatewayRepo == nil {
+		return nil
+	}
+	var last uuid.UUID
+	for _, d := range deploys {
+		if d.gateway == nil || *d.gateway == last {
+			continue
+		}
+		last = *d.gateway
+		if err := s.gatewayRepo.AcquireGatewayLock(tx, last.String()); err != nil {
+			return fmt.Errorf("failed to lock gateway %s: %w", last, err)
+		}
+	}
+	return nil
+}
+
+// lockMCPStatusRows takes the save's status-row locks after its gateway locks (lockMCPGateways) and before its first
+// event: deploying binding a publishes on the gateway before binding b's row is written.
 func (s *MCPProxyService) lockMCPStatusRows(ctx context.Context, tx *gorm.DB, deploys []mcpEnvDeploy, ouID string) error {
 	if s.deploymentRepo == nil {
 		return nil
