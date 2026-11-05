@@ -497,6 +497,13 @@ data:
           - { name: Execute, handle: execute, description: "Start, stop, and rerun monitors" }
           - { name: Read Score, handle: score-read, description: "View scores, breakdowns, and timeseries" }
           - { name: Publish Score, handle: score-publish, description: "Publish monitor scores (internal/system use)" }
+      - name: Events
+        handle: events
+        parent: amp
+        description: Event destinations, organization event subscriptions and the delivery log
+        actions:
+          - { name: Read, handle: read, description: "View event destinations, organization subscriptions and the delivery log" }
+          - { name: Manage, handle: manage, description: "Add, change, test and delete event destinations and organization subscriptions" }
       - name: Observability
         handle: observability
         parent: amp
@@ -698,6 +705,8 @@ data:
           - "amp:monitor:execute"
           - "amp:monitor:score-read"
           - "amp:monitor:score-publish"
+          - "amp:events:read"
+          - "amp:events:manage"
           - "amp:observability:trace-read"
           - "amp:observability:log-read"
           - "amp:observability:build-log-read"

@@ -23,6 +23,8 @@ type ConfigResponse struct {
 	ObserverBaseUrl string `json:"observerBaseUrl"`
 	// Whether this deployment accepts console usage analytics. The console buffers and sends nothing when false, so CONSOLE_ANALYTICS_ENABLED on the service is the single switch for the whole path rather than one half of it. Absent is treated as false.
 	ConsoleAnalyticsEnabled *bool `json:"consoleAnalyticsEnabled,omitempty"`
+	// Whether this deployment delivers platform events to event destinations, that is, whether it runs an event bus (EVENTS_MODE is not off). The console hides Events when false. Absent is treated as false.
+	EventsEnabled *bool `json:"eventsEnabled,omitempty"`
 }
 
 // NewConfigResponse instantiates a new ConfigResponse object
@@ -99,6 +101,38 @@ func (o *ConfigResponse) SetConsoleAnalyticsEnabled(v bool) {
 	o.ConsoleAnalyticsEnabled = &v
 }
 
+// GetEventsEnabled returns the EventsEnabled field value if set, zero value otherwise.
+func (o *ConfigResponse) GetEventsEnabled() bool {
+	if o == nil || IsNil(o.EventsEnabled) {
+		var ret bool
+		return ret
+	}
+	return *o.EventsEnabled
+}
+
+// GetEventsEnabledOk returns a tuple with the EventsEnabled field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *ConfigResponse) GetEventsEnabledOk() (*bool, bool) {
+	if o == nil || IsNil(o.EventsEnabled) {
+		return nil, false
+	}
+	return o.EventsEnabled, true
+}
+
+// HasEventsEnabled returns a boolean if a field has been set.
+func (o *ConfigResponse) HasEventsEnabled() bool {
+	if o != nil && !IsNil(o.EventsEnabled) {
+		return true
+	}
+
+	return false
+}
+
+// SetEventsEnabled gets a reference to the given bool and assigns it to the EventsEnabled field.
+func (o *ConfigResponse) SetEventsEnabled(v bool) {
+	o.EventsEnabled = &v
+}
+
 func (o ConfigResponse) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -112,6 +146,9 @@ func (o ConfigResponse) ToMap() (map[string]interface{}, error) {
 	toSerialize["observerBaseUrl"] = o.ObserverBaseUrl
 	if !IsNil(o.ConsoleAnalyticsEnabled) {
 		toSerialize["consoleAnalyticsEnabled"] = o.ConsoleAnalyticsEnabled
+	}
+	if !IsNil(o.EventsEnabled) {
+		toSerialize["eventsEnabled"] = o.EventsEnabled
 	}
 	return toSerialize, nil
 }

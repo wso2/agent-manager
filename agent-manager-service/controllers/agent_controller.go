@@ -72,13 +72,19 @@ type AgentController interface {
 type agentController struct {
 	agentService     services.AgentManagerService
 	agentKindService services.AgentKindService
+	eventsCleaner    services.EventsCleaner
 }
 
 // NewAgentController returns a new AgentController instance.
-func NewAgentController(agentService services.AgentManagerService, agentKindService services.AgentKindService) AgentController {
+func NewAgentController(
+	agentService services.AgentManagerService,
+	agentKindService services.AgentKindService,
+	eventsCleaner services.EventsCleaner,
+) AgentController {
 	return &agentController{
 		agentService:     agentService,
 		agentKindService: agentKindService, // kept for PublishKind
+		eventsCleaner:    eventsCleaner,
 	}
 }
 
@@ -535,6 +541,9 @@ func (c *agentController) DeleteAgent(w http.ResponseWriter, r *http.Request) {
 		log.Error("DeleteAgent: failed to delete agent", "error", err)
 		handleCommonErrors(w, err, "Failed to delete agent")
 		return
+	}
+	if c.eventsCleaner != nil {
+		c.eventsCleaner.RemoveForAgent(ctx, ouID, projName, agentName)
 	}
 	utils.WriteSuccessResponse(w, http.StatusNoContent, "")
 }

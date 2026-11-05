@@ -55,6 +55,19 @@ const (
 	ActionThunderURLSet    Action = "thunder-url:set"
 	ActionThunderURLDelete Action = "thunder-url:delete"
 
+	// An event destination decides where event data leaves the platform and
+	// may hold a secret (a webhook's signing secret, a service URL's token).
+	ActionEventDestinationCreate       Action = "event-destination:create"
+	ActionEventDestinationUpdate       Action = "event-destination:update"
+	ActionEventDestinationDelete       Action = "event-destination:delete"
+	ActionEventDestinationRotateSecret Action = "event-destination:rotate-secret"
+	ActionEventDestinationTest         Action = "event-destination:test"
+
+	// An event subscription decides which events are sent to a destination.
+	ActionEventSubscriptionCreate Action = "event-subscription:create"
+	ActionEventSubscriptionUpdate Action = "event-subscription:update"
+	ActionEventSubscriptionDelete Action = "event-subscription:delete"
+
 	// Identity and privilege. These are the escalation path: a record that says
 	// only "a role was updated" is useless, so each names what actually changed.
 	ActionRoleGrantPermission  Action = "role:grant-permission"
@@ -146,18 +159,20 @@ const (
 // Resource type names used in records. Kept as constants so a query written
 // against one emit site matches every other.
 const (
-	ResourceAPIKey         = "api-key"
-	ResourceGitSecret      = "git-secret"
-	ResourceGateway        = "gateway"
-	ResourceGatewayToken   = "gateway-token"
-	ResourceAgent          = "agent"
-	ResourceRole           = "role"
-	ResourceGroup          = "group"
-	ResourceUser           = "user"
-	ResourceAgentIdentity  = "agent-identity"
-	ResourceEnvironment    = "environment"
-	ResourceServiceAccount = "service-account"
-	ResourceThunderURL     = "thunder-url"
+	ResourceAPIKey            = "api-key"
+	ResourceGitSecret         = "git-secret"
+	ResourceGateway           = "gateway"
+	ResourceGatewayToken      = "gateway-token"
+	ResourceAgent             = "agent"
+	ResourceRole              = "role"
+	ResourceGroup             = "group"
+	ResourceUser              = "user"
+	ResourceAgentIdentity     = "agent-identity"
+	ResourceEnvironment       = "environment"
+	ResourceServiceAccount    = "service-account"
+	ResourceThunderURL        = "thunder-url"
+	ResourceEventDestination  = "event-destination"
+	ResourceEventSubscription = "event-subscription"
 )
 
 // class, severity and permitted detail keys next to the action itself keeps the
@@ -259,6 +274,40 @@ func init() {
 	registerCredential(ActionServiceAccountRemove, map[string]FieldKind{
 		"environment": KindName,
 	})
+
+	// A destination is recorded as scheme and host only, since a URL path is
+	// often a credential. Secrets never reach the record.
+	eventDestinationFields := map[string]FieldKind{
+		"kind":         KindEnum,
+		"destination":  KindURL,
+		"availability": KindEnum,
+		"projects":     KindNameList,
+	}
+	registerCredential(ActionEventDestinationCreate, eventDestinationFields)
+	registerCredential(ActionEventDestinationUpdate, eventDestinationFields)
+	registerCredential(ActionEventDestinationDelete, eventDestinationFields)
+	registerCredential(ActionEventDestinationRotateSecret, eventDestinationFields)
+	// A test send changes nothing, but it does send a request to the
+	// configured destination, so it is recorded above info.
+	Register(ActionEventDestinationTest, ClassConfig, SeverityNotice)
+	RegisterDetailSchema(ActionEventDestinationTest, nil)
+
+	// A subscription holds no credential, but it decides which event data
+	// reaches a destination outside the platform.
+	eventSubscriptionFields := map[string]FieldKind{
+		"scope":         KindEnum,
+		"destinationId": KindIdentifier,
+		"eventCount":    KindCount,
+		"allEvents":     KindFlag,
+		"environments":  KindNameList,
+		"enabled":       KindFlag,
+	}
+	for _, action := range []Action{
+		ActionEventSubscriptionCreate, ActionEventSubscriptionUpdate, ActionEventSubscriptionDelete,
+	} {
+		Register(action, ClassConfig, SeverityNotice)
+		RegisterDetailSchema(action, eventSubscriptionFields)
+	}
 
 	// Identity and privilege changes. Critical for the same reason credential
 	// changes are: they decide who can do what.

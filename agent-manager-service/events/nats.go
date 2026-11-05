@@ -37,19 +37,33 @@ const (
 
 	streamMaxAge = 72 * time.Hour
 	// natsAckWait is how long a handler has before an unanswered message is
-	// redelivered; it must outlast a delivery to an alert channel.
+	// redelivered; it must outlast a delivery to a destination.
 	natsAckWait = 30 * time.Second
 	// natsPullBuffer bounds the messages fetched ahead of the handler. The
-	// ack timer starts at fetch, so a large buffer behind a few slow channel
+	// ack timer starts at fetch, so a large buffer behind a few slow
 	// deliveries would time out and be redelivered, sending them twice.
 	natsPullBuffer = 16
+	// natsQueueMaxAckPending bounds the work items a queue consumer holds
+	// unacknowledged. An item retried with a delay stays pending until the
+	// delay runs out, so the server's default of 1000 would let one failing
+	// destination's backlog of retries stop every delivery for hours.
+	natsQueueMaxAckPending = 50_000
 	// Bound poison-event retries so one bad event cannot occupy the consumer forever.
 	natsEventMaxDeliver = 20
 )
 
+// provisionedConsumers are the durable event consumers Setup creates before
+// publishing starts, so their workers can attach without losing events. A
+// consumer is listed together with the worker that reads it: one created
+// with no reader would hold every event until that worker ships, then
+// deliver up to streamMaxAge of them at once.
+var provisionedConsumers = []string{}
+
 // natsQueues maps work queue names to their JetStream streams and subjects.
+// A queue's subjects must stay outside amp.events.>, which AMP_EVENTS
+// captures: JetStream refuses streams with overlapping subjects.
 var natsQueues = map[string]struct{ stream, subject string }{
-	QueueAlertDeliveries: {stream: "AMP_ALERT_DELIVERIES", subject: "amp.alerts.deliveries"},
+	QueueEventDeliveries: {stream: "AMP_EVENT_DELIVERIES", subject: "amp.event-deliveries"},
 }
 
 // Subject is the NATS subject an event is published on.
@@ -71,11 +85,13 @@ type NATSBus struct {
 
 var _ Bus = (*NATSBus)(nil)
 
-// Connect dials a NATS server. It keeps retrying in the background when the
-// server is not up yet, so a slow NATS start does not stop the service.
-func Connect(url, name string, logger *slog.Logger) (*NATSBus, error) {
+// Connect dials a NATS server, authenticating with token when it is set. It
+// keeps retrying in the background when the server is not up yet, so a slow
+// NATS start does not stop the service.
+func Connect(url, token, name string, logger *slog.Logger) (*NATSBus, error) {
 	nc, err := nats.Connect(url,
 		nats.Name(name),
+		nats.Token(token),
 		nats.RetryOnFailedConnect(true),
 		nats.MaxReconnects(-1),
 		nats.ReconnectWait(2*time.Second),
@@ -97,7 +113,9 @@ func Connect(url, name string, logger *slog.Logger) (*NATSBus, error) {
 	return &NATSBus{nc: nc, js: js, storage: jetstream.FileStorage}, nil
 }
 
-// Setup creates or updates the event stream and the work queue streams.
+// Setup creates or updates the streams and durable event consumers. Every
+// replica provisions the same consumers before publishing, so DeliverNewPolicy
+// starts at initial setup rather than whenever the first worker attaches.
 func (b *NATSBus) Setup(ctx context.Context) error {
 	eventsCfg := jetstream.StreamConfig{
 		Name:       EventsStream,
@@ -113,6 +131,11 @@ func (b *NATSBus) Setup(ctx context.Context) error {
 	}
 	if _, err := b.js.CreateOrUpdateStream(ctx, eventsCfg); err != nil {
 		return fmt.Errorf("failed to set up stream %s: %w", EventsStream, err)
+	}
+	for _, name := range provisionedConsumers {
+		if _, err := b.js.CreateOrUpdateConsumer(ctx, EventsStream, eventConsumerConfig(name)); err != nil {
+			return fmt.Errorf("failed to set up consumer %s: %w", name, err)
+		}
 	}
 	for _, q := range natsQueues {
 		if _, err := b.js.CreateOrUpdateStream(ctx, jetstream.StreamConfig{
@@ -135,14 +158,18 @@ func (b *NATSBus) PublishEvent(ctx context.Context, e Event, body []byte) error 
 }
 
 func (b *NATSBus) SubscribeEvents(ctx context.Context, consumer string, handle func(Message)) (Subscription, error) {
-	return b.consume(ctx, EventsStream, jetstream.ConsumerConfig{
+	return b.consume(ctx, EventsStream, eventConsumerConfig(consumer), handle)
+}
+
+func eventConsumerConfig(consumer string) jetstream.ConsumerConfig {
+	return jetstream.ConsumerConfig{
 		Durable:       consumer,
 		MaxDeliver:    natsEventMaxDeliver,
 		AckPolicy:     jetstream.AckExplicitPolicy,
 		AckWait:       natsAckWait,
 		DeliverPolicy: jetstream.DeliverNewPolicy,
 		FilterSubject: EventsSubject + ".>",
-	}, handle)
+	}
 }
 
 func (b *NATSBus) Enqueue(ctx context.Context, queue, key string, body []byte) error {
@@ -160,9 +187,10 @@ func (b *NATSBus) Consume(ctx context.Context, queue, consumer string, handle fu
 		return nil, fmt.Errorf("unknown queue %q", queue)
 	}
 	return b.consume(ctx, q.stream, jetstream.ConsumerConfig{
-		Durable:   consumer,
-		AckPolicy: jetstream.AckExplicitPolicy,
-		AckWait:   natsAckWait,
+		Durable:       consumer,
+		AckPolicy:     jetstream.AckExplicitPolicy,
+		AckWait:       natsAckWait,
+		MaxAckPending: natsQueueMaxAckPending,
 	}, handle)
 }
 
@@ -177,7 +205,16 @@ func (b *NATSBus) consume(
 	if err != nil {
 		return nil, fmt.Errorf("failed to consume %s: %w", stream, err)
 	}
-	return cc, nil
+	return &natsSubscription{ConsumeContext: cc}, nil
+}
+
+// natsSubscription joins the consumer callback before Stop returns, so callers
+// may safely wait for workers after stopping intake.
+type natsSubscription struct{ jetstream.ConsumeContext }
+
+func (s *natsSubscription) Stop() {
+	s.ConsumeContext.Stop()
+	<-s.Closed()
 }
 
 // Close drains the connection, and stops the embedded server if there is one.

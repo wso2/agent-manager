@@ -16,8 +16,9 @@
 
 // Package events publishes platform events (a project created, an agent
 // deployed, a monitor run finished) to an event bus, NATS JetStream by
-// default. The alerting dispatcher subscribes to them and delivers each one to
-// the alert channels configured for its org, project or agent.
+// default. The event dispatcher subscribes to them and delivers each one to
+// the destinations of the subscriptions it matches, at its org, project or
+// agent.
 //
 // Events report what happened. They carry no judgement: there are no
 // thresholds or detections here, receivers decide what matters to them.
@@ -61,7 +62,7 @@ const (
 )
 
 // Event is a CloudEvents 1.0 event (https://cloudevents.io), in structured
-// JSON form: it is what is published to the bus and delivered to alert channels.
+// JSON form: it is what is published to the bus and delivered to destinations.
 //
 // The context attributes follow the specification. Extension attributes
 // (lowercase, alphanumeric) carry where the event belongs, so a receiver can

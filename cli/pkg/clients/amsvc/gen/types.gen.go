@@ -655,6 +655,153 @@ func (e EvaluatorScoreSummaryLevel) Valid() bool {
 	}
 }
 
+// Defines values for EventDestinationRequestAvailability.
+const (
+	EventDestinationRequestAvailabilityAll      EventDestinationRequestAvailability = "all"
+	EventDestinationRequestAvailabilityOrg      EventDestinationRequestAvailability = "org"
+	EventDestinationRequestAvailabilityProjects EventDestinationRequestAvailability = "projects"
+)
+
+// Valid indicates whether the value is a known member of the EventDestinationRequestAvailability enum.
+func (e EventDestinationRequestAvailability) Valid() bool {
+	switch e {
+	case EventDestinationRequestAvailabilityAll:
+		return true
+	case EventDestinationRequestAvailabilityOrg:
+		return true
+	case EventDestinationRequestAvailabilityProjects:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EventDestinationResponseAvailability.
+const (
+	EventDestinationResponseAvailabilityAll      EventDestinationResponseAvailability = "all"
+	EventDestinationResponseAvailabilityOrg      EventDestinationResponseAvailability = "org"
+	EventDestinationResponseAvailabilityProjects EventDestinationResponseAvailability = "projects"
+)
+
+// Valid indicates whether the value is a known member of the EventDestinationResponseAvailability enum.
+func (e EventDestinationResponseAvailability) Valid() bool {
+	switch e {
+	case EventDestinationResponseAvailabilityAll:
+		return true
+	case EventDestinationResponseAvailabilityOrg:
+		return true
+	case EventDestinationResponseAvailabilityProjects:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EventDestinationResponseHealth.
+const (
+	EventDestinationResponseHealthFailing EventDestinationResponseHealth = "failing"
+	EventDestinationResponseHealthHealthy EventDestinationResponseHealth = "healthy"
+	EventDestinationResponseHealthIdle    EventDestinationResponseHealth = "idle"
+)
+
+// Valid indicates whether the value is a known member of the EventDestinationResponseHealth enum.
+func (e EventDestinationResponseHealth) Valid() bool {
+	switch e {
+	case EventDestinationResponseHealthFailing:
+		return true
+	case EventDestinationResponseHealthHealthy:
+		return true
+	case EventDestinationResponseHealthIdle:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EventDestinationSummaryHealth.
+const (
+	EventDestinationSummaryHealthFailing EventDestinationSummaryHealth = "failing"
+	EventDestinationSummaryHealthHealthy EventDestinationSummaryHealth = "healthy"
+	EventDestinationSummaryHealthIdle    EventDestinationSummaryHealth = "idle"
+)
+
+// Valid indicates whether the value is a known member of the EventDestinationSummaryHealth enum.
+func (e EventDestinationSummaryHealth) Valid() bool {
+	switch e {
+	case EventDestinationSummaryHealthFailing:
+		return true
+	case EventDestinationSummaryHealthHealthy:
+		return true
+	case EventDestinationSummaryHealthIdle:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EventSubscriptionRefScope.
+const (
+	EventSubscriptionRefScopeAgent   EventSubscriptionRefScope = "agent"
+	EventSubscriptionRefScopeOrg     EventSubscriptionRefScope = "org"
+	EventSubscriptionRefScopeProject EventSubscriptionRefScope = "project"
+)
+
+// Valid indicates whether the value is a known member of the EventSubscriptionRefScope enum.
+func (e EventSubscriptionRefScope) Valid() bool {
+	switch e {
+	case EventSubscriptionRefScopeAgent:
+		return true
+	case EventSubscriptionRefScopeOrg:
+		return true
+	case EventSubscriptionRefScopeProject:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EventSubscriptionResponseScope.
+const (
+	EventSubscriptionResponseScopeAgent   EventSubscriptionResponseScope = "agent"
+	EventSubscriptionResponseScopeOrg     EventSubscriptionResponseScope = "org"
+	EventSubscriptionResponseScopeProject EventSubscriptionResponseScope = "project"
+)
+
+// Valid indicates whether the value is a known member of the EventSubscriptionResponseScope enum.
+func (e EventSubscriptionResponseScope) Valid() bool {
+	switch e {
+	case EventSubscriptionResponseScopeAgent:
+		return true
+	case EventSubscriptionResponseScopeOrg:
+		return true
+	case EventSubscriptionResponseScopeProject:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EventTypeScope.
+const (
+	EventTypeScopeAgent   EventTypeScope = "agent"
+	EventTypeScopeOrg     EventTypeScope = "org"
+	EventTypeScopeProject EventTypeScope = "project"
+)
+
+// Valid indicates whether the value is a known member of the EventTypeScope enum.
+func (e EventTypeScope) Valid() bool {
+	switch e {
+	case EventTypeScopeAgent:
+		return true
+	case EventTypeScopeOrg:
+		return true
+	case EventTypeScopeProject:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ExtractionIdentifierLocation.
 const (
 	ExtractionIdentifierLocationHeader     ExtractionIdentifierLocation = "header"
@@ -1345,6 +1492,27 @@ func (e ListCatalogResourcesParamsKind) Valid() bool {
 	case ListCatalogResourcesParamsKindLlmProvider:
 		return true
 	case ListCatalogResourcesParamsKindMcp:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListEventTypesParamsScope.
+const (
+	ListEventTypesParamsScopeAgent   ListEventTypesParamsScope = "agent"
+	ListEventTypesParamsScopeOrg     ListEventTypesParamsScope = "org"
+	ListEventTypesParamsScopeProject ListEventTypesParamsScope = "project"
+)
+
+// Valid indicates whether the value is a known member of the ListEventTypesParamsScope enum.
+func (e ListEventTypesParamsScope) Valid() bool {
+	switch e {
+	case ListEventTypesParamsScopeAgent:
+		return true
+	case ListEventTypesParamsScopeOrg:
+		return true
+	case ListEventTypesParamsScopeProject:
 		return true
 	default:
 		return false
@@ -2436,6 +2604,12 @@ type ConfigResponse struct {
 	// one half of it. Absent is treated as false.
 	ConsoleAnalyticsEnabled *bool `json:"consoleAnalyticsEnabled,omitempty"`
 
+	// EventsEnabled Whether this deployment delivers platform events to event
+	// destinations, that is, whether it runs an event bus (EVENTS_MODE is
+	// not off). The console hides Events when false. Absent is treated as
+	// false.
+	EventsEnabled *bool `json:"eventsEnabled,omitempty"`
+
 	// ObserverBaseUrl Base URL for the agent-manager-observer service
 	ObserverBaseUrl string `json:"observerBaseUrl"`
 }
@@ -3382,6 +3556,245 @@ type EvaluatorScoreSummary struct {
 
 // EvaluatorScoreSummaryLevel Evaluation level
 type EvaluatorScoreSummaryLevel string
+
+// EventDeliveryCounts defines model for EventDeliveryCounts.
+type EventDeliveryCounts struct {
+	Delivered int `json:"delivered"`
+	Failed    int `json:"failed"`
+	Pending   int `json:"pending"`
+	Skipped   int `json:"skipped"`
+}
+
+// EventDestinationKind defines model for EventDestinationKind.
+type EventDestinationKind struct {
+	// GeneratedSecret Destinations of this kind get a generated secret that can be rotated.
+	GeneratedSecret bool `json:"generatedSecret"`
+
+	// Kind webhook or notify.
+	Kind string `json:"kind"`
+
+	// Services The services the kind delivers to, if it has several.
+	Services []EventDestinationKindService `json:"services"`
+
+	// SuppliedCredential The kind's settings include a credential that is never returned.
+	SuppliedCredential bool `json:"suppliedCredential"`
+}
+
+// EventDestinationKindListResponse defines model for EventDestinationKindListResponse.
+type EventDestinationKindListResponse struct {
+	Kinds []EventDestinationKind `json:"kinds"`
+}
+
+// EventDestinationKindService defines model for EventDestinationKindService.
+type EventDestinationKindService struct {
+	Category string `json:"category"`
+
+	// DocsUrl How to get the values the URL needs.
+	DocsUrl string `json:"docsUrl"`
+
+	// Id The service, and the scheme of its URL, e.g. slack.
+	Id    string `json:"id"`
+	Label string `json:"label"`
+
+	// UrlFormat The shape of the service URL.
+	UrlFormat string `json:"urlFormat"`
+}
+
+// EventDestinationListResponse defines model for EventDestinationListResponse.
+type EventDestinationListResponse struct {
+	Destinations []EventDestinationResponse `json:"destinations"`
+}
+
+// EventDestinationRequest defines model for EventDestinationRequest.
+type EventDestinationRequest struct {
+	// Availability Which subscriptions below the organization may use the destination:
+	// those of every project, none, or those of the listed projects.
+	// Organization subscriptions may use any destination.
+	Availability EventDestinationRequestAvailability `json:"availability"`
+
+	// Config The kind's settings. webhook: {"url"}. notify: {"service", "url"},
+	// where url is the Shoutrrr service URL; it is stored encrypted and
+	// never returned. Leave url out on update to keep it.
+	Config      map[string]interface{} `json:"config"`
+	Description *string                `json:"description,omitempty"`
+
+	// Kind webhook or notify. Cannot change on update.
+	Kind string `json:"kind"`
+
+	// Name Unique in the organization, ignoring case.
+	Name string `json:"name"`
+
+	// Projects The projects whose subscriptions may use it, for availability projects.
+	Projects *[]string `json:"projects,omitempty"`
+}
+
+// EventDestinationRequestAvailability Which subscriptions below the organization may use the destination:
+// those of every project, none, or those of the listed projects.
+// Organization subscriptions may use any destination.
+type EventDestinationRequestAvailability string
+
+// EventDestinationResponse defines model for EventDestinationResponse.
+type EventDestinationResponse struct {
+	Availability EventDestinationResponseAvailability `json:"availability"`
+
+	// Config The kind's settings, masked for callers who cannot manage destinations.
+	Config map[string]interface{} `json:"config"`
+
+	// ConsecutiveFailures Deliveries that failed or are being retried since the latest success.
+	ConsecutiveFailures int       `json:"consecutiveFailures"`
+	CreatedAt           time.Time `json:"createdAt"`
+	CreatedBy           string    `json:"createdBy"`
+	Description         string    `json:"description"`
+
+	// Health healthy: the latest delivery succeeded. failing: deliveries failed,
+	// or are being retried, since the latest success. idle: nothing was
+	// delivered yet.
+	Health         EventDestinationResponseHealth `json:"health"`
+	Id             string                         `json:"id"`
+	Kind           string                         `json:"kind"`
+	LastDeliveryAt *time.Time                     `json:"lastDeliveryAt,omitempty"`
+	Name           string                         `json:"name"`
+	Projects       []string                       `json:"projects"`
+
+	// Secret The generated secret. Only in the response that creates it.
+	Secret *string `json:"secret,omitempty"`
+
+	// Service The notification service, for notify destinations.
+	Service *string `json:"service,omitempty"`
+
+	// Subscriptions The subscriptions that send to it. Only when getting one destination.
+	Subscriptions *[]EventSubscriptionRef `json:"subscriptions,omitempty"`
+	UpdatedAt     time.Time               `json:"updatedAt"`
+
+	// UsedBy The number of subscriptions that send to it.
+	UsedBy int `json:"usedBy"`
+}
+
+// EventDestinationResponseAvailability defines model for EventDestinationResponse.Availability.
+type EventDestinationResponseAvailability string
+
+// EventDestinationResponseHealth healthy: the latest delivery succeeded. failing: deliveries failed,
+// or are being retried, since the latest success. idle: nothing was
+// delivered yet.
+type EventDestinationResponseHealth string
+
+// EventDestinationSecretResponse defines model for EventDestinationSecretResponse.
+type EventDestinationSecretResponse struct {
+	Secret string `json:"secret"`
+}
+
+// EventDestinationSummary A destination as subscriptions below the organization see it, without its settings.
+type EventDestinationSummary struct {
+	Health  EventDestinationSummaryHealth `json:"health"`
+	Id      string                        `json:"id"`
+	Kind    string                        `json:"kind"`
+	Name    string                        `json:"name"`
+	Service *string                       `json:"service,omitempty"`
+}
+
+// EventDestinationSummaryHealth defines model for EventDestinationSummary.Health.
+type EventDestinationSummaryHealth string
+
+// EventDestinationSummaryListResponse defines model for EventDestinationSummaryListResponse.
+type EventDestinationSummaryListResponse struct {
+	Destinations []EventDestinationSummary `json:"destinations"`
+}
+
+// EventDestinationTestResponse defines model for EventDestinationTestResponse.
+type EventDestinationTestResponse struct {
+	Delivered  bool    `json:"delivered"`
+	Error      *string `json:"error,omitempty"`
+	StatusCode *int32  `json:"statusCode,omitempty"`
+}
+
+// EventSubscriptionListResponse defines model for EventSubscriptionListResponse.
+type EventSubscriptionListResponse struct {
+	// Inherited Wider levels' subscriptions that also send this level's events,
+	// read-only here. Their event types are narrowed to those that can
+	// happen at this level, and their counts to this level's events.
+	Inherited []EventSubscriptionResponse `json:"inherited"`
+
+	// Subscriptions The subscriptions this level owns.
+	Subscriptions []EventSubscriptionResponse `json:"subscriptions"`
+}
+
+// EventSubscriptionRef defines model for EventSubscriptionRef.
+type EventSubscriptionRef struct {
+	AgentName   *string                   `json:"agentName,omitempty"`
+	Id          string                    `json:"id"`
+	Name        string                    `json:"name"`
+	ProjectName *string                   `json:"projectName,omitempty"`
+	Scope       EventSubscriptionRefScope `json:"scope"`
+}
+
+// EventSubscriptionRefScope defines model for EventSubscriptionRef.Scope.
+type EventSubscriptionRefScope string
+
+// EventSubscriptionRequest defines model for EventSubscriptionRequest.
+type EventSubscriptionRequest struct {
+	Description *string `json:"description,omitempty"`
+
+	// DestinationId A destination available to the subscription's project.
+	DestinationId string `json:"destinationId"`
+
+	// Enabled Defaults to true.
+	Enabled *bool `json:"enabled,omitempty"`
+
+	// Environments Only events in these environments; empty or absent for every
+	// environment. Events tied to no environment, such as a build, are
+	// sent whatever it holds.
+	Environments *[]string `json:"environments,omitempty"`
+
+	// EventTypes Event types the subscription's scope can receive, or just "*" for
+	// every one, including types added later.
+	EventTypes []string `json:"eventTypes"`
+	Name       string   `json:"name"`
+}
+
+// EventSubscriptionResponse defines model for EventSubscriptionResponse.
+type EventSubscriptionResponse struct {
+	AgentName string    `json:"agentName"`
+	CreatedAt time.Time `json:"createdAt"`
+
+	// CreatedBy The ID of the user who created it.
+	CreatedBy   string `json:"createdBy"`
+	Description string `json:"description"`
+
+	// Destination A destination as subscriptions below the organization see it, without its settings.
+	Destination  EventDestinationSummary        `json:"destination"`
+	Enabled      bool                           `json:"enabled"`
+	Environments []string                       `json:"environments"`
+	EventTypes   []string                       `json:"eventTypes"`
+	Id           string                         `json:"id"`
+	Last24h      EventDeliveryCounts            `json:"last24h"`
+	Name         string                         `json:"name"`
+	ProjectName  string                         `json:"projectName"`
+	Scope        EventSubscriptionResponseScope `json:"scope"`
+	UpdatedAt    time.Time                      `json:"updatedAt"`
+}
+
+// EventSubscriptionResponseScope defines model for EventSubscriptionResponse.Scope.
+type EventSubscriptionResponseScope string
+
+// EventType defines model for EventType.
+type EventType struct {
+	Category    string `json:"category"`
+	Description string `json:"description"`
+
+	// Scope The level the event happens at.
+	Scope EventTypeScope `json:"scope"`
+
+	// Type The catalog name, e.g. agent.deployed.
+	Type string `json:"type"`
+}
+
+// EventTypeScope The level the event happens at.
+type EventTypeScope string
+
+// EventTypeListResponse defines model for EventTypeListResponse.
+type EventTypeListResponse struct {
+	EventTypes []EventType `json:"eventTypes"`
+}
 
 // ExtractionIdentifier defines model for ExtractionIdentifier.
 type ExtractionIdentifier struct {
@@ -6381,6 +6794,17 @@ type ListAgentIdentityRolesParams struct {
 	Limit *AgentIdentityLimit `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
+// ListEventTypesParams defines parameters for ListEventTypes.
+type ListEventTypesParams struct {
+	// Scope The event types a subscription at this scope can name: an org
+	// subscription any type, a project subscription project and agent
+	// types, an agent subscription agent types. Every type when absent.
+	Scope *ListEventTypesParamsScope `form:"scope,omitempty" json:"scope,omitempty"`
+}
+
+// ListEventTypesParamsScope defines parameters for ListEventTypes.
+type ListEventTypesParamsScope string
+
 // ListGatewaysParams defines parameters for ListGateways.
 type ListGatewaysParams struct {
 	// Limit Maximum number of results to return
@@ -6900,6 +7324,18 @@ type CreateCustomEvaluatorJSONRequestBody = CreateCustomEvaluatorRequest
 // UpdateCustomEvaluatorJSONRequestBody defines body for UpdateCustomEvaluator for application/json ContentType.
 type UpdateCustomEvaluatorJSONRequestBody = UpdateCustomEvaluatorRequest
 
+// CreateEventDestinationJSONRequestBody defines body for CreateEventDestination for application/json ContentType.
+type CreateEventDestinationJSONRequestBody = EventDestinationRequest
+
+// UpdateEventDestinationJSONRequestBody defines body for UpdateEventDestination for application/json ContentType.
+type UpdateEventDestinationJSONRequestBody = EventDestinationRequest
+
+// CreateOrgEventSubscriptionJSONRequestBody defines body for CreateOrgEventSubscription for application/json ContentType.
+type CreateOrgEventSubscriptionJSONRequestBody = EventSubscriptionRequest
+
+// UpdateOrgEventSubscriptionJSONRequestBody defines body for UpdateOrgEventSubscription for application/json ContentType.
+type UpdateOrgEventSubscriptionJSONRequestBody = EventSubscriptionRequest
+
 // RegisterGatewayJSONRequestBody defines body for RegisterGateway for application/json ContentType.
 type RegisterGatewayJSONRequestBody = CreateGatewayRequest
 
@@ -7014,6 +7450,12 @@ type CreateAgentAPIKeyJSONRequestBody = CreateLLMAPIKeyRequest
 // RotateAgentAPIKeyJSONRequestBody defines body for RotateAgentAPIKey for application/json ContentType.
 type RotateAgentAPIKeyJSONRequestBody = RotateLLMAPIKeyRequest
 
+// CreateAgentEventSubscriptionJSONRequestBody defines body for CreateAgentEventSubscription for application/json ContentType.
+type CreateAgentEventSubscriptionJSONRequestBody = EventSubscriptionRequest
+
+// UpdateAgentEventSubscriptionJSONRequestBody defines body for UpdateAgentEventSubscription for application/json ContentType.
+type UpdateAgentEventSubscriptionJSONRequestBody = EventSubscriptionRequest
+
 // RegenerateAgentIdentitySecretJSONRequestBody defines body for RegenerateAgentIdentitySecret for application/json ContentType.
 type RegenerateAgentIdentitySecretJSONRequestBody = AgentIdentityActionRequest
 
@@ -7064,6 +7506,12 @@ type GenerateAgentTokenJSONRequestBody = TokenRequest
 
 // RegenerateAgentTracingTokenJSONRequestBody defines body for RegenerateAgentTracingToken for application/json ContentType.
 type RegenerateAgentTracingTokenJSONRequestBody = TracingTokenRegenerateRequest
+
+// CreateProjectEventSubscriptionJSONRequestBody defines body for CreateProjectEventSubscription for application/json ContentType.
+type CreateProjectEventSubscriptionJSONRequestBody = EventSubscriptionRequest
+
+// UpdateProjectEventSubscriptionJSONRequestBody defines body for UpdateProjectEventSubscription for application/json ContentType.
+type UpdateProjectEventSubscriptionJSONRequestBody = EventSubscriptionRequest
 
 // CreateLLMProxyJSONRequestBody defines body for CreateLLMProxy for application/json ContentType.
 type CreateLLMProxyJSONRequestBody = CreateLLMProxyRequest
