@@ -292,6 +292,33 @@ func TestEventSubscriptionService_RemoveForProjectAndAgent(t *testing.T) {
 		"the deleted project is no longer listed, so a new one by that name gets no access")
 }
 
+func TestEventSubscriptionService_CleanupOutlivesCanceledRequest(t *testing.T) {
+	var calls int
+	repo := &repomocks.EventRepositoryMock{
+		DeleteSubscriptionsUnderFunc: func(ctx context.Context, _, _, _ string) error {
+			calls++
+			return ctx.Err()
+		},
+		RemoveProjectFromDestinationsFunc: func(ctx context.Context, _, _ string) error {
+			calls++
+			return ctx.Err()
+		},
+	}
+	svc := NewEventSubscriptionService(repo, slog.New(slog.DiscardHandler))
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	svc.RemoveForProject(ctx, "ou-1", "payments")
+	svc.RemoveForAgent(ctx, "ou-1", "payments", "refund-agent")
+	assert.Equal(t, 3, calls)
+	for _, c := range repo.DeleteSubscriptionsUnderCalls() {
+		assert.NoError(t, c.Ctx.Err(), "the delete already happened, so a client disconnect must not skip cleanup")
+	}
+	for _, c := range repo.RemoveProjectFromDestinationsCalls() {
+		assert.NoError(t, c.Ctx.Err())
+	}
+}
+
 func TestEventSubscriptionService_EventTypes(t *testing.T) {
 	svc, _, _ := newTestSubscriptionService()
 	agentTypes, err := svc.EventTypes(models.EventScopeAgent)

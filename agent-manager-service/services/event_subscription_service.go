@@ -357,19 +357,26 @@ func (s *eventSubscriptionService) Delete(ctx context.Context, t repositories.Ev
 }
 
 func (s *eventSubscriptionService) RemoveForProject(ctx context.Context, ouID, projectName string) {
+	// The project is already deleted: a client disconnecting now must not
+	// leave its subscriptions for a later project of the same name.
+	ctx = context.WithoutCancel(ctx)
 	if err := s.repo.DeleteSubscriptionsUnder(ctx, ouID, projectName, ""); err != nil {
-		s.logger.Error("Failed to remove the event subscriptions of a deleted project", "project", projectName, "error", err)
+		s.logger.Error("Failed to remove the event subscriptions of a deleted project",
+			"ouID", ouID, "project", projectName, "error", err)
 	}
 	if err := s.repo.RemoveProjectFromDestinations(ctx, ouID, projectName); err != nil {
-		s.logger.Error("Failed to remove a deleted project from event destinations", "project", projectName, "error", err)
+		s.logger.Error("Failed to remove a deleted project from event destinations",
+			"ouID", ouID, "project", projectName, "error", err)
 	}
 }
 
 // RemoveForAgent deletes an agent's subscriptions. Errors are logged: the
 // agent is already gone.
 func (s *eventSubscriptionService) RemoveForAgent(ctx context.Context, ouID, projectName, agentName string) {
+	ctx = context.WithoutCancel(ctx)
 	if err := s.repo.DeleteSubscriptionsUnder(ctx, ouID, projectName, agentName); err != nil {
-		s.logger.Error("Failed to remove the event subscriptions of a deleted agent", "agent", agentName, "error", err)
+		s.logger.Error("Failed to remove the event subscriptions of a deleted agent",
+			"ouID", ouID, "project", projectName, "agent", agentName, "error", err)
 	}
 }
 
