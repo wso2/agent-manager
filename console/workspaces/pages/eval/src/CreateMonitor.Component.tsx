@@ -192,7 +192,7 @@ export const CreateMonitorComponent: React.FC = () => {
       <PageLayout
         title="Create Monitor"
         disableIcon
-        backLabel="Back to Monitors"
+        backLabel="Back to monitors"
         backHref={backHref}
       >
         <Stack spacing={3}>
@@ -208,7 +208,7 @@ export const CreateMonitorComponent: React.FC = () => {
       <PageLayout
         title="Create Monitor"
         disableIcon
-        backLabel="Back to Monitors"
+        backLabel="Back to monitors"
         backHref={backHref}
       >
         <Alert severity="error">{getErrorMessage(sourceError)}</Alert>

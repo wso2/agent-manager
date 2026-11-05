@@ -16,12 +16,17 @@
  * under the License.
  */
 
-import { Box, Button, Card, CardContent, Typography } from "@wso2/oxygen-ui";
-import { Plus as Add } from "@wso2/oxygen-ui-icons-react";
+import { Box, Button, Stack, Typography } from "@wso2/oxygen-ui";
+import { Plus } from "@wso2/oxygen-ui-icons-react";
 import { FileMountEditor } from "@agent-management-platform/views";
 import { CreateAgentFormValues } from "../form/schema";
+import { SlotPortal } from "./OptionalSection";
 
 interface FileMountProps {
+  /** The parent already titles this section (e.g. an accordion). */
+  hideHeading?: boolean;
+  /** Render the add button(s) here (e.g. a parent accordion header) instead of below the rows. */
+  actionSlot?: HTMLElement | null;
   formData: CreateAgentFormValues;
   setFormData: React.Dispatch<React.SetStateAction<CreateAgentFormValues>>;
 }
@@ -29,6 +34,8 @@ interface FileMountProps {
 export const FileMount = ({
   formData,
   setFormData,
+  hideHeading = false,
+  actionSlot,
 }: FileMountProps) => {
   const fileMounts = formData.files || [];
   const isOneEmpty = fileMounts.some((f) => !f?.key || !f?.mountPath);
@@ -56,51 +63,50 @@ export const FileMount = ({
     }));
   };
 
+  const addButton = (
+    <Button
+      startIcon={<Plus size={16} />}
+      disabled={isOneEmpty}
+      variant="outlined"
+      color="primary"
+      size="small"
+      onClick={handleAdd}
+      sx={{ alignSelf: "flex-start" }}
+    >
+      Add file
+    </Button>
+  );
+
   return (
-    <Card variant="outlined">
-      <CardContent>
-        <Box display="flex" flexDirection="row" alignItems="center" gap={1}>
-          <Typography variant="h5">
-            File Mounts (Optional)
-          </Typography>
-        </Box>
-        <Box display="flex" flexDirection="column" py={2} gap={2}>
-          {fileMounts.map((item, index) => {
-            const siblingKeys = new Set(
-              fileMounts.flatMap((f, i) => (i !== index && f.key ? [f.key] : [])),
-            );
-            const keyError = item.key && siblingKeys.has(item.key)
-              ? "Duplicate file name"
-              : undefined;
-            return (
-              <FileMountEditor
-                key={`file-${index}`}
-                index={index}
-                keyValue={item.key || ''}
-                mountPathValue={item.mountPath || ''}
-                contentValue={item.value || ''}
-                isSensitive={item.isSensitive || false}
-                onKeyChange={(value) => handleChange(index, 'key', value)}
-                onMountPathChange={(value) => handleChange(index, 'mountPath', value)}
-                onContentChange={(value) => handleChange(index, 'value', value)}
-                onSensitiveChange={(value: boolean) => handleChange(index, 'isSensitive', value)}
-                onRemove={() => handleRemove(index)}
-                keyError={keyError}
-              />
-            );
-          })}
-        </Box>
-        <Button
-          startIcon={<Add fontSize="small" />}
-          disabled={isOneEmpty}
-          variant="outlined"
-          color="primary"
-          size="small"
-          onClick={handleAdd}
-        >
-          Add File
-        </Button>
-      </CardContent>
-    </Card>
+    <Stack spacing={2}>
+      {!hideHeading && <Typography variant="subtitle1">File Mounts (Optional)</Typography>}
+      <Box display="flex" flexDirection="column" gap={2}>
+        {fileMounts.map((item, index) => {
+          const siblingKeys = new Set(
+            fileMounts.flatMap((f, i) => (i !== index && f.key ? [f.key] : [])),
+          );
+          const keyError = item.key && siblingKeys.has(item.key)
+            ? "Duplicate file name"
+            : undefined;
+          return (
+            <FileMountEditor
+              key={`file-${index}`}
+              index={index}
+              keyValue={item.key || ''}
+              mountPathValue={item.mountPath || ''}
+              contentValue={item.value || ''}
+              isSensitive={item.isSensitive || false}
+              onKeyChange={(value) => handleChange(index, 'key', value)}
+              onMountPathChange={(value) => handleChange(index, 'mountPath', value)}
+              onContentChange={(value) => handleChange(index, 'value', value)}
+              onSensitiveChange={(value: boolean) => handleChange(index, 'isSensitive', value)}
+              onRemove={() => handleRemove(index)}
+              keyError={keyError}
+            />
+          );
+        })}
+      </Box>
+      <SlotPortal slot={actionSlot}>{addButton}</SlotPortal>
+    </Stack>
   );
 };

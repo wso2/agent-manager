@@ -41,14 +41,13 @@ import {
   Divider,
   Form,
   FormControl,
-  FormLabel,
   Stack,
-  TextField,
+  Grid,
   Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
 import { ChevronDown, HelpCircle } from "@wso2/oxygen-ui-icons-react";
-import { useSnackBar } from "@agent-management-platform/views";
+import { TextInput, useSnackBar } from "@agent-management-platform/views";
 import {
   EnvironmentGatewaySelectorView,
   getErrorMessage,
@@ -478,34 +477,35 @@ export function EndpointFormFields({
 
   return (
     <Form.Stack spacing={2.5}>
-      <FormControl fullWidth>
-        <FormLabel>Endpoint Name</FormLabel>
-        <TextField
-          slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.NAME } }}
-          fullWidth
-          value={name}
-          onChange={(event) => setName(event.target.value)}
-          placeholder="Primary"
-          helperText="Optional. A handle is derived from the name (or URL) when left blank."
-        />
-      </FormControl>
-
-      <FormControl fullWidth error={Boolean(urlError)}>
-        <FormLabel required>MCP Server Endpoint URL</FormLabel>
-        <TextField
-          slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.URL } }}
-          fullWidth
-          value={url}
-          onChange={(event) => {
-            setUrl(event.target.value);
-            clearFetched();
-            setUrlError(null);
-          }}
-          placeholder="Enter URL of your MCP Server"
-          error={Boolean(urlError)}
-          helperText={urlError}
-        />
-      </FormControl>
+      <Grid container spacing={2}>
+        <Grid size={{ xs: 12, md: 12, xl: 8 }}>
+          <TextInput
+            label="Endpoint Name (optional)"
+            maxLength={INPUT_LIMITS.NAME}
+            hideCharacterCount={(name?.length ?? 0) < INPUT_LIMITS.NAME}
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            placeholder="Primary"
+            helperText="A handle is derived from the name (or URL) when left blank."
+          />
+        </Grid>
+        <Grid size={{ xs: 12, md: 12, xl: 8 }}>
+          <TextInput
+            label="MCP Server Endpoint URL"
+            maxLength={INPUT_LIMITS.URL}
+            hideCharacterCount={(url?.length ?? 0) < INPUT_LIMITS.URL}
+            value={url}
+            onChange={(event) => {
+              setUrl(event.target.value);
+              clearFetched();
+              setUrlError(null);
+            }}
+            placeholder="Enter URL of your MCP Server"
+            error={Boolean(urlError)}
+            helperText={urlError}
+          />
+        </Grid>
+      </Grid>
 
       <Accordion
         expanded={advancedOpen}

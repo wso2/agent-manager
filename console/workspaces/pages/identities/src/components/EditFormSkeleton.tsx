@@ -25,14 +25,14 @@ interface EditFormSkeletonProps {
 
 /**
  * Placeholder for the identity edit pages (User / Role / Group) while their
- * data loads. Mirrors the real layout — a tabbed Form.Section card with a
+ * data loads. Mirrors the real layout — a tabbed form with a
  * header, description, an input, and a couple of list rows — so the page
  * keeps its shape instead of flashing a centered spinner.
  */
 export const EditFormSkeleton: React.FC<EditFormSkeletonProps> = ({
   tabs = 2,
 }) => (
-  <Form.Section>
+  <Form.Stack spacing={3}>
     <Stack
       direction="row"
       spacing={3}
@@ -52,5 +52,5 @@ export const EditFormSkeleton: React.FC<EditFormSkeletonProps> = ({
       <Skeleton variant="rounded" height={56} />
       <Skeleton variant="rounded" height={56} />
     </Stack>
-  </Form.Section>
+  </Form.Stack>
 );

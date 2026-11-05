@@ -17,11 +17,13 @@
 
 import React from "react";
 import {
-  getErrorMessage,
+  formatRelativeTime,
   GatewayTypeChip,
+  getErrorMessage,
 } from "@agent-management-platform/shared-component";
 import {
   Alert,
+  Button,
   Card,
   Chip,
   Grid,
@@ -29,9 +31,8 @@ import {
   Stack,
   Typography,
 } from "@wso2/oxygen-ui";
-import { AlertTriangle } from "@wso2/oxygen-ui-icons-react";
-import { formatDistanceToNow } from "date-fns";
-import { generatePath, useParams } from "react-router-dom";
+import { AlertTriangle, Edit } from "@wso2/oxygen-ui-icons-react";
+import { generatePath, useNavigate, useParams } from "react-router-dom";
 import { useGetGateway } from "@agent-management-platform/api-client";
 import {
   absoluteRouteMap,
@@ -47,6 +48,7 @@ export const ViewGateway: React.FC = () => {
     gatewayId: string;
     orgId: string;
   }>();
+  const navigate = useNavigate();
   const {
     data: gateway,
     isLoading,
@@ -71,16 +73,32 @@ export const ViewGateway: React.FC = () => {
           absoluteRouteMap.children.org.children.gateways.path,
           { orgId: orgId ?? "" },
         )}
-        backLabel="Back to Gateways"
+        backLabel="Back to gateways"
         description={
           gateway?.createdAt
-            ? `Created ${formatDistanceToNow(new Date(gateway.createdAt), {
-                addSuffix: true,
-              })}`
+            ? `Created ${formatRelativeTime(gateway.createdAt)}`
             : undefined
         }
         isLoading={isLoading}
         disableIcon
+        actions={
+          <Button
+            variant="outlined"
+            size="small"
+            startIcon={<Edit size={16} />}
+            disabled={!gateway}
+            onClick={() =>
+              navigate(
+                generatePath(
+                  absoluteRouteMap.children.org.children.gateways.children.edit.path,
+                  { orgId: orgId ?? "", gatewayId: gatewayId ?? "" },
+                ),
+              )
+            }
+          >
+            Edit Gateway
+          </Button>
+        }
         titleTail={
           gateway ? (
             <Stack

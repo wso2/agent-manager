@@ -426,7 +426,7 @@ export default function MonitorRunList() {
             })}
           </ListingTable.Body>
         </ListingTable>
-        {totalCount > rowsPerPage && (
+        {totalCount > 5 && (
           <TablePagination
             component="div"
             count={totalCount}

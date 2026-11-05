@@ -20,6 +20,7 @@ export enum MountPoints {
     ComponentLevelPage = "component-level-page",
     OrgLevelPage = "org-level-page",
     ProjectLevelPage = "project-level-page",
+    TopStartPanel = "top-start-panel",
     TopLeftPanel = "top-left-panel",
     TopRightPanel = "top-right-panel",
     TopLogo = "top-logo",

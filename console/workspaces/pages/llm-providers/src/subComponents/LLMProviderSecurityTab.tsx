@@ -23,19 +23,16 @@ import {
   INPUT_LIMITS,
 } from "@agent-management-platform/types";
 import { z } from "zod";
+import { TextInput } from "@agent-management-platform/views";
 import { useUnsavedChangesGuard } from "@agent-management-platform/shared-component";
 import {
   Alert,
   Button,
   Collapse,
-  FormControl,
-  FormLabel,
   Grid,
   MenuItem,
-  Select,
   Skeleton,
   Stack,
-  TextField,
   Typography,
 } from "@wso2/oxygen-ui";
 
@@ -213,51 +210,48 @@ export function LLMProviderSecurityTab({
         Authentication
       </Typography>
 
-      <Grid container spacing={3}>
-        <Grid size={{ xs: 12, md: 5 }}>
-          <FormControl fullWidth disabled={isDisabled}>
-            <FormLabel>Method</FormLabel>
-            <Select
+      <Grid container spacing={2}>
+        <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+          <TextInput
+            select
+            label="Method"
+            disabled={isDisabled}
               size="small"
               value={authenticationType}
               onChange={(e) =>
                 setAuthenticationType(e.target.value as "apiKey" | "none")
               }
-            >
+          >
               {/* "none" rather than "": MUI renders an empty-string value as no
                   selection at all, which left the field blank after picking None. */}
               <MenuItem value="none">None</MenuItem>
               <MenuItem value="apiKey">apiKey</MenuItem>
-            </Select>
-          </FormControl>
+          </TextInput>
         </Grid>
-      </Grid>
-
-      {authenticationType === "apiKey" && (
-        <Grid container spacing={3}>
-          <Grid size={{ xs: 12, md: 5 }}>
-            <FormControl fullWidth disabled={isDisabled} error={!!fieldErrors.keyValue}>
-              <FormLabel>Header Key</FormLabel>
-              <TextField
-                slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.KEY } }}
-                size="small"
-                value={keyValue}
-                onChange={(e) => {
-                  setKeyValue(e.target.value);
-                  if (fieldErrors.keyValue) setFieldErrors({});
-                }}
-                error={!!fieldErrors.keyValue}
-                helperText={fieldErrors.keyValue}
-                sx={{
-                  "& .MuiInputBase-input": {
-                    fontFamily: "monospace",
-                  },
-                }}
-              />
-            </FormControl>
+        {authenticationType === "apiKey" && (
+          <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+            <TextInput
+              label="Header Key"
+              maxLength={INPUT_LIMITS.KEY}
+              hideCharacterCount={(keyValue?.length ?? 0) < INPUT_LIMITS.KEY}
+              disabled={isDisabled}
+              size="small"
+              value={keyValue}
+              onChange={(e) => {
+                setKeyValue(e.target.value);
+                if (fieldErrors.keyValue) setFieldErrors({});
+              }}
+              error={!!fieldErrors.keyValue}
+              helperText={fieldErrors.keyValue}
+              sx={{
+                "& .MuiInputBase-input": {
+                  fontFamily: "monospace",
+                },
+              }}
+            />
           </Grid>
-        </Grid>
-      )}
+        )}
+      </Grid>
 
       <Stack spacing={1.5} width="100%">
         <Collapse in={!!status && !isDirty} timeout={300}>

@@ -65,7 +65,7 @@ export const ViewThunderInstance: React.FC = () => {
       <PageLayout
         title="ThunderID"
         backHref={backHref}
-        backLabel="Back to Environment"
+        backLabel="Back to environment"
         description={`The agent identity used to manage agents, users, roles, and groups for the ${envName} environment.`}
         disableIcon
         isLoading={isLoading}

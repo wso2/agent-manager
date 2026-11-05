@@ -505,7 +505,7 @@ export function CreateEnvironmentDrawer({
           <Stack spacing={2}>
             {planes.length > 1 && (
               <FormControl fullWidth error={Boolean(errors.dataplaneRef)}>
-                <FormLabel required>Data Plane</FormLabel>
+                <FormLabel>Data Plane</FormLabel>
                 <Select
                   size="small"
                   value={formData.dataplaneRef}
@@ -529,7 +529,7 @@ export function CreateEnvironmentDrawer({
             )}
 
             <FormControl fullWidth error={Boolean(errors.displayName)}>
-              <FormLabel required>Display Name</FormLabel>
+              <FormLabel>Display Name</FormLabel>
               <TextField
                 slotProps={{ htmlInput: { maxLength: ENVIRONMENT_DISPLAY_NAME_MAX_LENGTH } }}
                 size="small"
@@ -668,13 +668,6 @@ export function CreateEnvironmentDrawer({
                 position: "relative",
                 bgcolor: "grey.900",
                 borderRadius: 1,
-                p: 2,
-                pr: 8,
-                fontFamily: "monospace",
-                fontSize: "0.8125rem",
-                color: "grey.100",
-                whiteSpace: "pre",
-                overflowX: "auto",
               }}
             >
               <Box
@@ -719,7 +712,20 @@ export function CreateEnvironmentDrawer({
                   </span>
                 </Tooltip>
               </Box>
-              {displayScript}
+              {/* Scrolls on its own so the copy/show icons stay put. */}
+              <Box
+                sx={{
+                  p: 2,
+                  pr: 9,
+                  fontFamily: "monospace",
+                  fontSize: "0.8125rem",
+                  color: "grey.100",
+                  whiteSpace: "pre",
+                  overflowX: "auto",
+                }}
+              >
+                {displayScript}
+              </Box>
             </Box>
             <Typography variant="caption" color="text.secondary">
               {scriptFieldsValid
@@ -735,7 +741,7 @@ export function CreateEnvironmentDrawer({
             list. The script is idempotent — safe to re-run.
           </Alert>
 
-          <Box display="flex" justifyContent="flex-end">
+          <Box display="flex" justifyContent="flex-start">
             <Button variant="outlined" color="inherit" onClick={onClose}>
               Close
             </Button>

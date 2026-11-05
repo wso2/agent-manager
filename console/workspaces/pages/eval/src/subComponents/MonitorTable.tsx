@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   ListingTable,
   Chip,
@@ -59,7 +59,12 @@ const getStatusColor = (status: MonitorStatus) => {
   }
 };
 
-export function MonitorTable() {
+interface MonitorTableProps {
+  /** CTA shown in the empty state; the page owns how a monitor gets created. */
+  createAction?: ReactNode;
+}
+
+export function MonitorTable({ createAction }: MonitorTableProps) {
   const navigate = useNavigate();
   const [searchValue, setSearchValue] = useState("");
   const [page, setPage] = useState(0);
@@ -166,14 +171,15 @@ export function MonitorTable() {
     );
   }
 
+  // Nothing to search when there are no monitors at all, so the toolbar goes.
   if (!monitors.length) {
     return (
       <ListingTable.Container>
-        {toolbar}
         <ListingTable.EmptyState
           illustration={<Monitor size={64} />}
           title="No monitors yet"
           description="Create a monitor to start tracking your evaluations."
+          action={createAction}
         />
       </ListingTable.Container>
     );

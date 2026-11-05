@@ -40,7 +40,7 @@ export function PageLayout({
   useDocumentTitle(title);
 
   const content = (
-    <PageContent fullWidth={!disablePadding}>
+    <PageContent fullWidth noPadding={disablePadding}>
       <PageHeader {...headerProps} avatar={disableIcon ? null : avatar} />
       {children}
     </PageContent>
@@ -51,7 +51,7 @@ export function PageLayout({
   if (isLoading) return content;
 
   return (
-    <PageErrorBoundary title={title} fullWidth={!disablePadding}>
+    <PageErrorBoundary title={title}>
       {content}
     </PageErrorBoundary>
   );

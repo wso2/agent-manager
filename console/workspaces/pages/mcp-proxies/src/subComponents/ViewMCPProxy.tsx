@@ -79,7 +79,6 @@ import { MCPProxyOverviewTab } from "./MCPProxyOverviewTab";
 import { MCPProxyPoliciesTab } from "./MCPProxyPoliciesTab";
 import { MCPProxyRewriteTab } from "./MCPProxyRewriteTab";
 import { MCPProxySecurityTab } from "./MCPProxySecurityTab";
-import { EditMCPProxyDrawer } from "./EditMCPProxyDrawer";
 import { useCopyWithFeedback } from "./useCopyWithFeedback";
 
 // slug is a URL-safe stand-in for each tab, so the selected tab (and
@@ -240,7 +239,6 @@ export function ViewMCPProxy() {
     [guardUnsaved, setSearchParams],
   );
 
-  const [editDrawerOpen, setEditDrawerOpen] = useState(false);
   const handleCopy = useCopyWithFeedback();
 
   const {
@@ -375,10 +373,9 @@ export function ViewMCPProxy() {
   return (
     <>
       <PageLayout
-        variant="card"
         title={displayName}
         backHref={backHref}
-        backLabel="Back to MCP Servers"
+        backLabel="Back to MCP servers"
         isLoading={isLoading}
         titleTail={
           proxy?.version ? (
@@ -406,7 +403,15 @@ export function ViewMCPProxy() {
               variant="outlined"
               size="small"
               startIcon={<Edit size={16} />}
-              onClick={() => setEditDrawerOpen(true)}
+              onClick={() =>
+                navigate(
+                  generatePath(
+                    absoluteRouteMap.children.org.children.mcpProxies.children.view
+                      .children.edit.path,
+                    { orgId: orgId ?? "", proxyId: routeProxyId },
+                  ),
+                )
+              }
             >
               Edit MCP Server
             </Button>
@@ -626,16 +631,6 @@ export function ViewMCPProxy() {
           </Stack>
         )}
       </PageLayout>
-
-      {proxy && orgId && (
-        <EditMCPProxyDrawer
-          open={editDrawerOpen}
-          onClose={() => setEditDrawerOpen(false)}
-          proxy={proxy}
-          orgId={orgId}
-          environments={environments}
-        />
-      )}
 
       <Dialog open={pendingLeave !== null} onClose={handleStay}>
         <DialogTitle>You have unsaved changes</DialogTitle>

@@ -16,6 +16,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { TextInput } from "@agent-management-platform/views";
 import {
   type MCPEndpointConfig,
   type MCPProxy,
@@ -28,12 +29,9 @@ import {
   Alert,
   Button,
   Collapse,
-  FormControl,
-  FormLabel,
   Grid,
   Skeleton,
   Stack,
-  TextField,
   Tooltip,
   Typography,
   useTheme,
@@ -114,11 +112,12 @@ export function MCPProxyConnectionTab({
   }, [config]);
 
   useEffect(() => {
-    if (!selectedEndpointId) return;
+    // Wait for config too, or the form seeds empty and reads as dirty.
+    if (!selectedEndpointId || !config) return;
     if (initializedEnvIdRef.current === selectedEndpointId) return;
     initializedEnvIdRef.current = selectedEndpointId;
     resetFromConfig();
-  }, [selectedEndpointId, resetFromConfig]);
+  }, [selectedEndpointId, config, resetFromConfig]);
 
   const validateEndpoint = useCallback((value: string): string | null => {
     const err = validateEndpointUrl(value, {
@@ -284,30 +283,29 @@ export function MCPProxyConnectionTab({
 
   return (
     <Stack spacing={2}>
-      <Grid container spacing={3}>
-        <Grid size={{ xs: 12 }}>
-          <FormControl fullWidth>
-            <FormLabel required>MCP Server Endpoint URL</FormLabel>
-            <TextField
-              slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.URL } }}
-              size="small"
-              value={endpoint}
-              onChange={(e) => {
-                setEndpoint(e.target.value);
-                if (endpointError) validateEndpoint(e.target.value);
-              }}
-              onBlur={() => validateEndpoint(endpoint)}
-              error={!!endpointError}
-              helperText={endpointError}
-              placeholder="Enter URL of your MCP Server"
-              sx={{
-                "& .MuiInputBase-input": {
-                  fontFamily: "monospace",
-                  fontSize: theme.typography.body2?.fontSize,
-                },
-              }}
-            />
-          </FormControl>
+      <Grid container spacing={2}>
+        <Grid size={{ xs: 12, md: 12, xl: 8 }}>
+          <TextInput
+            label="MCP Server Endpoint URL"
+            maxLength={INPUT_LIMITS.URL}
+            hideCharacterCount={(endpoint?.length ?? 0) < INPUT_LIMITS.URL}
+            size="small"
+            value={endpoint}
+            onChange={(e) => {
+              setEndpoint(e.target.value);
+              if (endpointError) validateEndpoint(e.target.value);
+            }}
+            onBlur={() => validateEndpoint(endpoint)}
+            error={!!endpointError}
+            helperText={endpointError}
+            placeholder="Enter URL of your MCP Server"
+            sx={{
+              "& .MuiInputBase-input": {
+                fontFamily: "monospace",
+                fontSize: theme.typography.body2?.fontSize,
+              },
+            }}
+          />
         </Grid>
 
         <Grid size={{ xs: 12 }}>

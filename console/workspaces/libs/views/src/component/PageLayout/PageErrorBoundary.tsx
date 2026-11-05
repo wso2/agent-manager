@@ -23,7 +23,6 @@ import { Component, type ErrorInfo, type ReactNode } from 'react';
 export interface PageErrorBoundaryProps {
   children: ReactNode;
   title?: string;
-  fullWidth: boolean;
 }
 
 interface PageErrorBoundaryState {

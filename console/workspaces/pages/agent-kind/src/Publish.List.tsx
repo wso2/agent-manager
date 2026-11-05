@@ -31,9 +31,9 @@ import {
   Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
-import { Edit, BookOpenText, Plus, Trash } from "@wso2/oxygen-ui-icons-react";
+import { Edit, BookOpenText, Hammer, Plus, Trash } from "@wso2/oxygen-ui-icons-react";
 import { generatePath, Link, useLocation, useNavigate, useParams } from "react-router-dom";
-import { DrawerWrapper, DrawerHeader, DrawerContent, TextInput, PageLayout, DescriptionCard } from "@agent-management-platform/views";
+import { DrawerWrapper, DrawerHeader, DrawerContent, TextInput, PageLayout, DescriptionCard, StateNotice } from "@agent-management-platform/views";
 import {
   absoluteRouteMap,
   type AgentKindConfigSchemaItem,
@@ -47,10 +47,10 @@ import {
   useConfirmIfUnsaved,
   useUnsavedChangesGuard,
 } from "@agent-management-platform/shared-component";
-import { RuntimeConfigEditor, createRuntimeConfigRow, type RuntimeConfigRow } from "./RuntimeConfigEditor";
-import { KindDescriptionField } from "./KindDescriptionField";
-import { DangerZoneCard } from "./DangerZoneCard";
-import { useDeleteVersionAction } from "./useDeleteVersionAction";
+import { RuntimeConfigEditor, createRuntimeConfigRow, type RuntimeConfigRow } from "./subComponents/RuntimeConfigEditor";
+import { KindDescriptionField } from "./subComponents/KindDescriptionField";
+import { DangerZoneCard } from "./subComponents/DangerZoneCard";
+import { useDeleteVersionAction } from "./hooks/useDeleteVersionAction";
 import { useDeleteAgentKind, useGetAgent, useGetAllAgentBuilds, useGetAgentKind, useListAgentKindVersions, usePublishAgentKind, useUpdateAgentKind } from "@agent-management-platform/api-client";
 
 /** Order-independent equality for label maps — key insertion order shouldn't count as a change. */
@@ -291,6 +291,26 @@ export const PublishedList: React.FC = () => {
     );
   };
 
+  const noSucceededBuild = !isBuildsLoading && succeededBuilds.length === 0;
+  const buildPath = generatePath(
+    absoluteRouteMap.children.org.children.projects.children.agents.children.build.path,
+    { orgId: orgId ?? "", projectId: projectId ?? "", agentId: agentId ?? "" },
+  );
+
+  // One definition, used both as the page action and as the empty state's CTA.
+  const createVersionButton = (
+    <Button
+      key="create-version"
+      variant="contained"
+      component={Link}
+      to={createVersionPath}
+      startIcon={<Plus />}
+      color="primary"
+    >
+      Create Version
+    </Button>
+  );
+
   return (
     <>
       <PageLayout
@@ -309,16 +329,8 @@ export const PublishedList: React.FC = () => {
               Edit Kind
             </Button>
           ),
-          <Button
-            key="create-version"
-            variant="contained"
-            component={Link}
-            to={createVersionPath}
-            startIcon={<Plus />}
-            color="primary"
-          >
-            Create Version
-          </Button>,
+          // With no versions the empty state carries the call to action.
+          versions.length > 0 && createVersionButton,
         ].filter(Boolean)}
       >
         {existingKind?.description && (
@@ -334,10 +346,29 @@ export const PublishedList: React.FC = () => {
               <Skeleton variant="rounded" height={48} />
             </Box>
           ) : versions.length === 0 ? (
-            <ListingTable.EmptyState
-              illustration={<BookOpenText size={64} />}
-              title="No versions published yet"
-              description="Publish a build as a version to make this Agent Kind available in the catalog."
+            <StateNotice
+              contained={false}
+              icon={noSucceededBuild ? Hammer : BookOpenText}
+              title={noSucceededBuild ? "Build your agent first" : "Publish your first version"}
+              description={
+                noSucceededBuild
+                  ? "A version is published from a successful build, and this agent doesn't have one yet. Build it, then come back to publish."
+                  : "Publish a successful build as a version to make this Agent Kind available in the catalog."
+              }
+              steps={[
+                { label: "Build", state: noSucceededBuild ? "current" : "done" },
+                { label: "Publish", state: noSucceededBuild ? "todo" : "current" },
+                { label: "Catalog", state: "todo" },
+              ]}
+              actions={
+                noSucceededBuild ? (
+                  <Button variant="contained" component={Link} to={buildPath}>
+                    Go to Build
+                  </Button>
+                ) : (
+                  createVersionButton
+                )
+              }
             />
           ) : (
             <ListingTable>
