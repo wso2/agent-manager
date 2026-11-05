@@ -37,10 +37,15 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
+// The endpoint's own path is the MCP path when it declares one; /mcp is only the fallback for an endpoint with no path.
 func TestMCPUpstreamURL(t *testing.T) {
 	tests := map[string]string{
-		"http://svc:8080":  "http://svc:8080/mcp",
-		"http://svc:8080/": "http://svc:8080/mcp",
+		"http://svc:8080":                        "http://svc:8080/mcp",
+		"http://svc:8080/":                       "http://svc:8080/mcp",
+		"http://svc:8080/mcp":                    "http://svc:8080/mcp",
+		"http://svc:8080/mcp/":                   "http://svc:8080/mcp",
+		"http://svc:8080/api/v1/mcp-server":      "http://svc:8080/api/v1/mcp-server",
+		"http://svc.ns.svc.cluster.local/v1/mcp": "http://svc.ns.svc.cluster.local/v1/mcp",
 	}
 	for in, want := range tests {
 		t.Run(in, func(t *testing.T) {
@@ -388,7 +393,7 @@ func TestPutEnv_NoGateway_StoredWithReasonNoGateway(t *testing.T) {
 	assert.Equal(t, bindingEnv, endpoint.Handle)
 	assert.Equal(t, bindingEnv, endpoint.Name)
 	require.NotNil(t, endpoint.Configuration.Upstream)
-	assert.Equal(t, bindingServiceURL+"/mcp", endpoint.Configuration.Upstream.URL, "the stored upstream is the resolved URL plus /mcp")
+	assert.Equal(t, bindingServiceURL+"/mcp", endpoint.Configuration.Upstream.URL, "an endpoint with no path gets /mcp on the resolved URL")
 	require.NotNil(t, endpoint.Configuration.Security)
 	require.NotNil(t, endpoint.Configuration.Security.APIKey)
 	assert.Equal(t, "X-API-Key", endpoint.Configuration.Security.APIKey.Key, "default security is an X-API-Key header")

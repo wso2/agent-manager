@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
@@ -33,13 +34,18 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
-// mcpUpstreamPath is the path an MCP server serves Streamable HTTP on. The gateway forwards
-// to exactly the upstream URL's path, so the deployed upstream must carry it.
+// mcpUpstreamPath is the path an MCP server serves Streamable HTTP on when its endpoint declares none. The gateway
+// forwards to exactly the upstream URL's path, so the deployed upstream must carry it.
 const mcpUpstreamPath = "/mcp"
 
-// mcpUpstreamURL is the gateway upstream for an MCP server reachable at serviceURL.
+// mcpUpstreamURL is the gateway upstream for an MCP server reachable at serviceURL. The service URL already carries
+// the endpoint's own path when it declares one, and that path is the MCP path; /mcp is added only when it has none.
 func mcpUpstreamURL(serviceURL string) string {
-	return strings.TrimRight(serviceURL, "/") + mcpUpstreamPath
+	trimmed := strings.TrimRight(serviceURL, "/")
+	if u, err := url.Parse(trimmed); err == nil && u.Path != "" {
+		return trimmed
+	}
+	return trimmed + mcpUpstreamPath
 }
 
 // A project proxy's environment binding is its own mcp_proxy_endpoints row (handle and name are the
