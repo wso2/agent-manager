@@ -787,6 +787,7 @@ func TestExternalSourceUsesTemporarySecretForActivationWithoutStoringIt(t *testi
 	}
 	var update repositories.AgentThunderAttemptUpdate
 	repo := &repomocks.AgentThunderClientRepositoryMock{
+		FindByAgentFunc:     noExistingBindings,
 		ClaimForAttemptFunc: func(context.Context, uuid.UUID) (bool, error) { return true, nil },
 		UpdateAfterAttemptFunc: func(_ context.Context, _ uuid.UUID, value repositories.AgentThunderAttemptUpdate) error {
 			update = value
@@ -1319,6 +1320,7 @@ func provisionRequestedBy(t *testing.T, requestedBy string) string {
 		RequestedBy: requestedBy,
 	}
 	repo := &repomocks.AgentThunderClientRepositoryMock{
+		FindByAgentFunc:        noExistingBindings,
 		ClaimForAttemptFunc:    func(context.Context, uuid.UUID) (bool, error) { return true, nil },
 		UpdateAfterAttemptFunc: func(context.Context, uuid.UUID, repositories.AgentThunderAttemptUpdate) error { return nil },
 	}
@@ -1380,4 +1382,91 @@ func TestPromotedBindingRequestedByIsUnaffected(t *testing.T) {
 
 	require.Len(t, platform.requests, 1, "promotion still runs through Promote, never Provision")
 	require.Equal(t, "creator-sub", binding.RequestedBy)
+}
+
+// creatorRequest runs a source attempt for a repair binding (requestedBy is the
+// repair caller) against an agent whose other bindings are existing, and returns
+// the requests the provider saw, the update written, and the logs.
+func creatorRequest(
+	t *testing.T, repairCaller string, existing []models.AgentThunderClient, findErr error,
+) (provisioned, activated *ProjectAgentIdentityRequest, logs string) {
+	t.Helper()
+	binding := models.AgentThunderClient{
+		ID: uuid.New(), OUID: "org-a", ProjectName: "project-a", AgentName: "agent-a",
+		EnvironmentName: "development", ProvisioningType: models.AgentProvisioningTypeInternal,
+		RequestedBy: repairCaller,
+	}
+	repo := &repomocks.AgentThunderClientRepositoryMock{
+		ClaimForAttemptFunc: func(context.Context, uuid.UUID) (bool, error) { return true, nil },
+		FindByAgentFunc: func(context.Context, string, string, string) ([]models.AgentThunderClient, error) {
+			return existing, findErr
+		},
+		UpdateAfterAttemptFunc: func(context.Context, uuid.UUID, repositories.AgentThunderAttemptUpdate) error { return nil },
+	}
+	store := &clientmocks.SecretManagementClientMock{
+		CreateSecretFunc: func(context.Context, secretmanagersvc.SecretLocation, map[string]string) (string, error) {
+			return "secret-reference", nil
+		},
+	}
+	provider := projectAgentIdentityProviderStub{
+		provision: func(_ context.Context, request ProjectAgentIdentityRequest) (ProjectAgentIdentityResult, error) {
+			provisioned = &request
+			return ProjectAgentIdentityResult{AgentID: "agent-id", ClientID: "client-id", ClientSecret: "secret"}, nil
+		},
+		activate: func(_ context.Context, request ProjectAgentIdentityRequest, _ string) error {
+			activated = &request
+			return nil
+		},
+	}
+	var buf bytes.Buffer
+	svc := newPromotionService(t, repo, store, provider, sourceOnlyReader("development", nil))
+	svc.(*agentThunderProvisioningService).logger = slog.New(slog.NewTextHandler(&buf, nil))
+
+	svc.AttemptProvision(context.Background(), binding)
+
+	require.NotNil(t, provisioned)
+	require.NotNil(t, activated)
+	return provisioned, activated, buf.String()
+}
+
+func TestProviderRequestCarriesTheAgentCreator(t *testing.T) {
+	now := time.Now()
+	row := func(by string, age time.Duration) models.AgentThunderClient {
+		return models.AgentThunderClient{RequestedBy: by, CreatedAt: now.Add(-age)}
+	}
+
+	t.Run("a repair binding uses the creator of the older binding for Provision and Activate", func(t *testing.T) {
+		provisioned, activated, _ := creatorRequest(t, "repair-caller", []models.AgentThunderClient{
+			row("repair-caller", time.Minute), row("creator", time.Hour),
+		}, nil)
+		require.Equal(t, "creator", provisioned.RequestedBy)
+		require.Equal(t, "creator", activated.RequestedBy)
+	})
+
+	t.Run("the only binding is the agent's own", func(t *testing.T) {
+		provisioned, activated, _ := creatorRequest(t, "creator", []models.AgentThunderClient{row("creator", time.Minute)}, nil)
+		require.Equal(t, "creator", provisioned.RequestedBy)
+		require.Equal(t, "creator", activated.RequestedBy)
+	})
+
+	t.Run("no bindings at all falls back to the binding's requester", func(t *testing.T) {
+		provisioned, _, _ := creatorRequest(t, "only-known", nil, nil)
+		require.Equal(t, "only-known", provisioned.RequestedBy)
+	})
+
+	t.Run("the oldest binding with a requester wins over an older empty one", func(t *testing.T) {
+		provisioned, activated, _ := creatorRequest(t, "repair-caller", []models.AgentThunderClient{
+			row("newer", time.Minute), row("", 3*time.Hour), row("older", time.Hour),
+		}, nil)
+		require.Equal(t, "older", provisioned.RequestedBy)
+		require.Equal(t, "older", activated.RequestedBy)
+	})
+
+	t.Run("a read error falls back with one warning and never logs the subject", func(t *testing.T) {
+		provisioned, activated, logs := creatorRequest(t, "repair-caller", nil, errors.New("database unavailable"))
+		require.Equal(t, "repair-caller", provisioned.RequestedBy)
+		require.Equal(t, "repair-caller", activated.RequestedBy)
+		require.Equal(t, 1, strings.Count(logs, "to find its creator"), "exactly one creator warning")
+		require.NotContains(t, logs, "repair-caller")
+	})
 }

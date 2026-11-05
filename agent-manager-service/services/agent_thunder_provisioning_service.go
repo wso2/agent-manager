@@ -814,6 +814,9 @@ func (s *agentThunderProvisioningService) AttemptProvision(ctx context.Context, 
 	clientID := binding.ThunderClientID
 	var clientSecret string
 	promoted := false
+	// The agent's creator for the provider request, resolved in the source branch
+	// below. The stored binding.RequestedBy is untouched (audit attribution).
+	requestedBy := binding.RequestedBy
 
 	if s.identityManagementMode == thundersvc.IdentityManagementCPManaged {
 		if binding.PromotionSource != "" {
@@ -965,11 +968,12 @@ func (s *agentThunderProvisioningService) AttemptProvision(ctx context.Context, 
 				return
 			}
 
+			requestedBy = s.agentCreator(ctx, binding)
 			request := ProjectAgentIdentityRequest{
 				OrganizationID: binding.OUID, ProjectID: binding.ProjectName, ProjectName: binding.ProjectName,
 				Environment: binding.EnvironmentName, AgentName: binding.AgentName,
 				ProvisioningType: binding.ProvisioningType, ExistingAgentID: thunderAgentID,
-				ExistingClientID: clientID, RequestedBy: binding.RequestedBy,
+				ExistingClientID: clientID, RequestedBy: requestedBy,
 				// An external agent also asks for a secret: in CP mode the control
 				// plane needs a secret value on the environment to apply the AgentID,
 				// so the provider returns one. It is passed to Activate below and
@@ -1061,7 +1065,7 @@ func (s *agentThunderProvisioningService) AttemptProvision(ctx context.Context, 
 			OrganizationID: binding.OUID, ProjectID: binding.ProjectName, ProjectName: binding.ProjectName,
 			Environment: binding.EnvironmentName, AgentName: binding.AgentName,
 			ProvisioningType: binding.ProvisioningType, ExistingAgentID: thunderAgentID,
-			ExistingClientID: clientID, ClientSecret: clientSecret, RequestedBy: binding.RequestedBy,
+			ExistingClientID: clientID, ClientSecret: clientSecret, RequestedBy: requestedBy,
 			NeedsSecret: !isExternal,
 		}
 		if err := s.projectIdentityProvider.Activate(ctx, request, thunderAgentID); err != nil {
@@ -1121,6 +1125,34 @@ func (s *agentThunderProvisioningService) AttemptProvision(ctx context.Context, 
 	// reconciler's periodic sweep lands the credentials once the workload
 	// appears — see reconcileWorkloadInjection.
 	reconcileWorkloadInjection(ctx, s.getWorkloadInjector(), binding, s.logger)
+}
+
+// agentCreator returns the subject recorded as the agent's creator in a provider
+// request: the RequestedBy of the agent's oldest binding that has one, since the
+// first binding is written at agent creation by the creator. A binding created
+// later by a repair or promotion kick-off carries that caller instead. When no
+// binding has a requester, or the bindings cannot be read, the agent has no
+// earlier binding to tell us otherwise, so binding.RequestedBy is the only known
+// person and is returned. It never fails the attempt and never logs a subject.
+func (s *agentThunderProvisioningService) agentCreator(ctx context.Context, binding models.AgentThunderClient) string {
+	bindings, err := s.repo.FindByAgent(ctx, binding.OUID, binding.ProjectName, binding.AgentName)
+	if err != nil {
+		s.logger.Warn("Failed to read the agent's bindings to find its creator; using the binding's requester",
+			"ouID", binding.OUID, "projectName", binding.ProjectName, "agentName", binding.AgentName, "error", err)
+		return binding.RequestedBy
+	}
+	creator := binding.RequestedBy
+	var oldest time.Time
+	found := false
+	for _, b := range bindings {
+		if b.RequestedBy == "" {
+			continue
+		}
+		if !found || b.CreatedAt.Before(oldest) {
+			creator, oldest, found = b.RequestedBy, b.CreatedAt, true
+		}
+	}
+	return creator
 }
 
 // deferPromotion puts a promotion target back to pending until the reconciler's

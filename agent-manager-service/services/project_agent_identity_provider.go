@@ -39,9 +39,10 @@ type ProjectAgentIdentityRequest struct {
 	ExistingAgentID  string
 	ExistingClientID string
 	ClientSecret     string
-	// RequestedBy is the subject of the user who created the agent. It is empty
-	// when the agent was created without a user, for example by a system. A
-	// provider that records an owner uses it.
+	// RequestedBy is the subject of the agent's creator as far as Agent Manager
+	// knows: the requester of the agent's earliest binding. It is empty when the
+	// agent was created without a user, for example by a system. A provider that
+	// records an owner uses it.
 	RequestedBy string
 	// NeedsSecret asks Provision to return a client secret. It is set for
 	// internal agents, whose secret Agent Manager stores, and also for external
