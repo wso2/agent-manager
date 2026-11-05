@@ -56,6 +56,8 @@ type projectProxyFixture struct {
 
 	componentTypes  map[string]string // component name -> OpenChoreo component type (default agent-api)
 	getComponentErr error
+	// componentProjects overrides the project a component belongs to (default: the project it is looked up in).
+	componentProjects map[string]string
 }
 
 func newProjectProxyFixture(t *testing.T) *projectProxyFixture {
@@ -164,9 +166,10 @@ func newProjectProxyFixture(t *testing.T) *projectProxyFixture {
 		tx:     func(ctx context.Context, fn func(tx *gorm.DB) error) error { return fn(nil) },
 	}
 	f.componentTypes = map[string]string{}
+	f.componentProjects = map[string]string{}
 	f.getComponentErr = nil
 	oc := &clientmocks.OpenChoreoClientMock{
-		GetComponentFunc: func(_ context.Context, _, _, name string) (*models.AgentResponse, error) {
+		GetComponentFunc: func(_ context.Context, _, projectName, name string) (*models.AgentResponse, error) {
 			if f.getComponentErr != nil {
 				return nil, f.getComponentErr
 			}
@@ -174,7 +177,10 @@ func newProjectProxyFixture(t *testing.T) *projectProxyFixture {
 			if typ == "" {
 				typ = "agent-api"
 			}
-			return &models.AgentResponse{Name: name, Type: models.AgentType{Type: typ}}, nil
+			if project, ok := f.componentProjects[name]; ok {
+				projectName = project
+			}
+			return &models.AgentResponse{Name: name, ProjectName: projectName, Type: models.AgentType{Type: typ}}, nil
 		},
 	}
 	f.svc = NewProjectMCPProxyService(base, oc)
@@ -412,6 +418,25 @@ func TestUpsert_MIMCPServer_400(t *testing.T) {
 }
 
 func TestUpsert_SourceComponentLookup(t *testing.T) {
+	t.Run("a component in another project is a 400 and nothing is written", func(t *testing.T) {
+		for _, existing := range []bool{false, true} {
+			f := newProjectProxyFixture(t)
+			ctx := context.Background()
+			req := orderReq()
+			if existing {
+				_, _, err := f.svc.Upsert(ctx, testOrg, testProjName, testProjA, "orders", req)
+				require.NoError(t, err)
+				req.Description = "changed"
+			}
+			creates, updates := f.createCalls, f.updateCalls
+			f.componentProjects[req.Source.ComponentName] = "default"
+			_, _, err := f.svc.Upsert(ctx, testOrg, testProjName, testProjA, "orders", req)
+			require.ErrorIs(t, err, utils.ErrInvalidInput)
+			assert.Contains(t, err.Error(), "not found in project")
+			assert.Equal(t, creates, f.createCalls, "nothing written")
+			assert.Equal(t, updates, f.updateCalls, "nothing written")
+		}
+	})
 	t.Run("missing component is a 400", func(t *testing.T) {
 		f := newProjectProxyFixture(t)
 		f.getComponentErr = fmt.Errorf("get: %w", utils.ErrNotFound)

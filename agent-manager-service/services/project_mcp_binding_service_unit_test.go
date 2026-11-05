@@ -301,8 +301,8 @@ func newBindingFixture(t *testing.T) *bindingFixture {
 	base.core = reconcile.NewCore(nil, deployments, f.hub, reconcile.Kinds{base.kind}, reconcile.Config{}, discardLogger()).WithGateways(gatewayRepo)
 
 	oc := &clientmocks.OpenChoreoClientMock{
-		GetComponentFunc: func(_ context.Context, _, _, name string) (*models.AgentResponse, error) {
-			return &models.AgentResponse{Name: name}, nil
+		GetComponentFunc: func(_ context.Context, _, projectName, name string) (*models.AgentResponse, error) {
+			return &models.AgentResponse{Name: name, ProjectName: projectName}, nil
 		},
 		GetEnvironmentFunc: func(_ context.Context, _, name string) (*models.EnvironmentResponse, error) {
 			if name != bindingEnv {

@@ -71,6 +71,13 @@ func (s *ProjectMCPProxyService) ensureSourceSupported(
 		}
 		return fmt.Errorf("failed to get source component: %w", err)
 	}
+	// The lookup is by name in the namespace, so a same-named component of another project can come back. Its
+	// release bindings are never this project's, so its bindings could never resolve an upstream: refuse it as not
+	// found here, without saying where it lives.
+	if component.ProjectName != projectName {
+		return fmt.Errorf("%w: source component %q not found in project %q",
+			utils.ErrInvalidInput, source.ComponentName, projectName)
+	}
 	// The client reports the type without its "deployment/" prefix; tolerate either form.
 	typ := component.Type.Type
 	if i := strings.LastIndex(typ, "/"); i >= 0 {
