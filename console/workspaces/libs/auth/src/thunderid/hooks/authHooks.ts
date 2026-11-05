@@ -18,8 +18,21 @@
 
 import { useThunderID, useUser } from "@thunderid/react";
 import type { ThunderIDUserProfile, UserInfo } from "../../types";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { globalConfig, withBasePath } from "@agent-management-platform/types";
+import {
+  backendEndpoints,
+  endBackendSession,
+  isBackendSessionEnded,
+  subscribeBackendSessionEnded,
+} from "../backendSession";
 
 const decodeJWTPart = (part: string): Record<string, unknown> | null => {
   try {
@@ -95,7 +108,22 @@ export const useAuthHooks = (): AuthHooks => {
   // Sign-in on the backend (BFF): the gateway's oauth2-session holds the tokens
   // and the browser only an HttpOnly session cookie, so there is no access token
   // here to read claims from or to attach to API calls.
-  const isBackendAuth = Boolean(globalConfig.authConfig.endpoints?.backend);
+  const isBackendAuth = Boolean(backendEndpoints());
+  const isSessionEnded = useSyncExternalStore(
+    subscribeBackendSessionEnded,
+    isBackendSessionEnded,
+  );
+
+  const wasSignedIn = useRef(false);
+  useEffect(() => {
+    if (!isBackendAuth || !isInitialized) return;
+    if (isSignedIn) {
+      wasSignedIn.current = true;
+    } else if (wasSignedIn.current) {
+      wasSignedIn.current = false;
+      endBackendSession();
+    }
+  }, [isBackendAuth, isInitialized, isSignedIn]);
 
   const getAccessTokenRef = useRef(getAccessToken);
   getAccessTokenRef.current = getAccessToken;
@@ -148,9 +176,9 @@ export const useAuthHooks = (): AuthHooks => {
       familyName: profileAttributes?.family_name,
       givenName: profileAttributes?.given_name,
       username: profileAttributes?.username,
-      ...(accessTokenPayload ?? {}),
+      ...((isSessionEnded ? null : accessTokenPayload) ?? {}),
     } as UserInfo;
-  }, [profileAttributes, accessTokenPayload]);
+  }, [profileAttributes, accessTokenPayload, isSessionEnded]);
 
   const customLogin = () => {
     // signInOptions has to be passed explicitly. The provider prop is only
@@ -192,11 +220,11 @@ export const useAuthHooks = (): AuthHooks => {
     (() => Promise.reject(new Error("signInSilently is not available")));
 
   return {
-    isAuthenticated: isSignedIn && isInitialized,
+    isAuthenticated: isSignedIn && isInitialized && !isSessionEnded,
     userInfo,
     isLoadingUserInfo: isLoading,
     isLoadingIsAuthenticated: !isInitialized || isLoading,
-    isLoadingAccessToken: accessTokenPayload === undefined,
+    isLoadingAccessToken: !isSessionEnded && accessTokenPayload === undefined,
     getToken: safeGetToken,
     login: customLogin,
     logout: handleLogout,

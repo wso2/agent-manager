@@ -26,3 +26,4 @@ import { globalConfig } from '@agent-management-platform/types';
 export const AuthProvider = globalConfig.disableAuth ? NoAuthAuthProvider : ThunderIDAuthProvider;
 export const useAuthHooks = globalConfig.disableAuth ? useNoAuthHooks : useThunderIDAuthHooks;
 
+export { backendFetch } from './thunderid/backendSession';
