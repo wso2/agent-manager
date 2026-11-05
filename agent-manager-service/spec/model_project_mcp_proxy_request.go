@@ -24,7 +24,7 @@ type ProjectMCPProxyRequest struct {
 	Description *string `json:"description,omitempty"`
 	// Defaults to v1
 	Version *string `json:"version,omitempty"`
-	// Context path relative to the project. Defaults to /<proxyId>. The gateway serves it at /<projName><context>; reads return it as sent.
+	// Context path relative to the project. Defaults to /<proxyId>. Must start with / and have no empty, \".\" or \"..\" segments (400 VALIDATION_ERROR otherwise). The gateway serves it at /<projName><context>; reads return it as sent.
 	Context *string `json:"context,omitempty"`
 	// MCP protocol version of the upstream server, if known
 	McpSpecVersion *string        `json:"mcpSpecVersion,omitempty"`

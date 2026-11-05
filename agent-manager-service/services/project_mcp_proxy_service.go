@@ -380,6 +380,13 @@ func normalizeProjectMCPProxyRequest(handle string, req models.ProjectMCPProxyRe
 	} else if !strings.HasPrefix(d.context, "/") {
 		return d, fmt.Errorf("%w: context must start with \"/\"", utils.ErrInvalidInput)
 	}
+	// The gateway would resolve ., .. or an empty segment to another path than the one stored and checked for
+	// clashes, so the context must be a clean path.
+	for _, segment := range strings.Split(strings.TrimPrefix(d.context, "/"), "/") {
+		if segment == "" || segment == "." || segment == ".." {
+			return d, fmt.Errorf("%w: context must not have empty, \".\" or \"..\" segments", utils.ErrInvalidInput)
+		}
+	}
 	return d, nil
 }
 

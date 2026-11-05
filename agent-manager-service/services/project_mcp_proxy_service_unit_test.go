@@ -453,3 +453,28 @@ func TestUpsert_SourceComponentLookup(t *testing.T) {
 		assert.Zero(t, f.createCalls)
 	})
 }
+
+// A context is a clean absolute path: the gateway would resolve ., .. or an empty segment to a different path than
+// the one stored and clash-checked, so those are refused before anything is written.
+func TestUpsert_ContextSegments(t *testing.T) {
+	for _, bad := range []string{"/a/../b", "/a/./b", "/a//b", "/../a", "/a/", "/"} {
+		t.Run(bad, func(t *testing.T) {
+			f := newProjectProxyFixture(t)
+			req := orderReq()
+			req.Context = bad
+			_, _, err := f.svc.Upsert(context.Background(), testOrg, testProjName, testProjA, "orders", req)
+			require.ErrorIs(t, err, utils.ErrInvalidInput)
+			assert.Zero(t, f.createCalls, "nothing written")
+		})
+	}
+	for _, good := range []string{"/orders", "/a/b-c/v1.2", "/a/..b"} {
+		t.Run(good, func(t *testing.T) {
+			f := newProjectProxyFixture(t)
+			req := orderReq()
+			req.Context = good
+			resp, _, err := f.svc.Upsert(context.Background(), testOrg, testProjName, testProjA, "orders", req)
+			require.NoError(t, err)
+			assert.Equal(t, good, resp.Context, "reads back as sent")
+		})
+	}
+}

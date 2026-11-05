@@ -18252,7 +18252,8 @@ components:
         context:
           type: string
           description: >-
-            Context path relative to the project. Defaults to /<proxyId>. The gateway serves it at
+            Context path relative to the project. Defaults to /<proxyId>. Must start with / and have no
+            empty, "." or ".." segments (400 VALIDATION_ERROR otherwise). The gateway serves it at
             /<projName><context>; reads return it as sent.
           example: /orders-mcp
         mcpSpecVersion:
