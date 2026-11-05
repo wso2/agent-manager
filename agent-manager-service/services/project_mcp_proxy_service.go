@@ -109,12 +109,27 @@ func (s *ProjectMCPProxyService) UpsertWithCreateCheck(
 	existing, err := s.base.repo.GetInProject(ctx, handle, ouID, projectUUID)
 	switch {
 	case err == nil:
-		resp, err := s.update(ctx, ouID, existing, desired)
+		resp, err := s.update(ctx, ouID, existing, desired, "")
 		if err != nil {
 			return nil, false, err
 		}
 		return resp, false, s.fillEnvironments(ctx, ouID, existing, resp)
 	case !errors.Is(err, utils.ErrMCPProxyNotFound):
+		return nil, false, fmt.Errorf("failed to get MCP proxy: %w", err)
+	}
+
+	// A project deleted in OpenChoreo leaves its proxies under its old UUID. Project names are
+	// unique at any time, so a proxy stored under this project's name with another UUID was
+	// left by a deleted project of the same name: this re-created project adopts it.
+	orphan, err := s.base.repo.GetInProjectByName(ctx, handle, ouID, projectName)
+	switch {
+	case err == nil && orphan.ProjectUUID != nil && *orphan.ProjectUUID != projectUUID:
+		resp, err := s.update(ctx, ouID, orphan, desired, projectUUID)
+		if err != nil {
+			return nil, false, err
+		}
+		return resp, false, s.fillEnvironments(ctx, ouID, orphan, resp)
+	case err != nil && !errors.Is(err, utils.ErrMCPProxyNotFound):
 		return nil, false, fmt.Errorf("failed to get MCP proxy: %w", err)
 	}
 
@@ -141,7 +156,7 @@ func (s *ProjectMCPProxyService) UpsertWithCreateCheck(
 		if getErr != nil {
 			return nil, false, err
 		}
-		resp, updErr := s.update(ctx, ouID, existing, desired)
+		resp, updErr := s.update(ctx, ouID, existing, desired, "")
 		if updErr != nil {
 			return nil, false, updErr
 		}
@@ -399,14 +414,17 @@ func (s *ProjectMCPProxyService) create(
 }
 
 // update applies the request to an existing project proxy. A body equal to the stored
-// proxy writes nothing.
+// proxy writes nothing. A non-empty adoptInto is the UUID of the project adopting the proxy
+// (a re-created project taking over what its deleted predecessor left): the proxy is moved
+// to it in the same transaction as the update, even when the body changes nothing else.
 func (s *ProjectMCPProxyService) update(
-	ctx context.Context, ouID string, existing *models.MCPProxy, d desiredProjectMCPProxy,
+	ctx context.Context, ouID string, existing *models.MCPProxy, d desiredProjectMCPProxy, adoptInto string,
 ) (*models.ProjectMCPProxyResponse, error) {
 	cfg := existing.Configuration
 	if cfg.Source != nil && *cfg.Source != d.source {
 		return nil, fmt.Errorf("%w: source", utils.ErrImmutableFieldChange)
 	}
+	adopting := adoptInto != "" && existing.ProjectUUID != nil && *existing.ProjectUUID != adoptInto
 
 	storedContext := ""
 	if cfg.Context != nil {
@@ -415,7 +433,7 @@ func (s *ProjectMCPProxyService) update(
 	unchanged := cfg.Source != nil &&
 		cfg.Name == d.name && cfg.Version == d.version && storedContext == d.context &&
 		cfg.SpecVersion == d.specVersion && existing.Description == d.description
-	if unchanged {
+	if unchanged && !adopting {
 		return projectMCPProxyResponse(existing), nil
 	}
 
@@ -430,6 +448,15 @@ func (s *ProjectMCPProxyService) update(
 	updated.Configuration.Source = &source
 
 	if err := s.base.tx(ctx, func(tx *gorm.DB) error {
+		if adopting {
+			if err := s.base.repo.ReassignProject(ctx, tx, existing.UUID, ouID,
+				valueOrEmpty(existing.ProjectName), *existing.ProjectUUID, adoptInto); err != nil {
+				return err
+			}
+		}
+		if unchanged {
+			return nil
+		}
 		if mcpGatewayContext(&updated, "") != mcpGatewayContext(existing, "") {
 			if err := s.checkContextChange(ctx, tx, ouID, existing, mcpGatewayContext(&updated, "")); err != nil {
 				return err
@@ -437,7 +464,7 @@ func (s *ProjectMCPProxyService) update(
 		}
 		return s.base.repo.Update(ctx, tx, &updated, ouID)
 	}); err != nil {
-		if errors.Is(err, utils.ErrMCPContextInUse) {
+		if errors.Is(err, utils.ErrMCPContextInUse) || errors.Is(err, utils.ErrMCPProxyNotFound) {
 			return nil, err
 		}
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -447,6 +474,13 @@ func (s *ProjectMCPProxyService) update(
 			return nil, mapped
 		}
 		return nil, fmt.Errorf("failed to update MCP proxy: %w", err)
+	}
+	if adopting {
+		updated.ProjectUUID = &adoptInto
+	}
+	if unchanged {
+		// Only the project moved, and no gateway artifact carries it.
+		return projectMCPProxyResponse(&updated), nil
 	}
 	// The proxy's name, version and context are part of every bound environment's gateway artifact.
 	s.rerenderBindings(ctx, ouID, &updated)

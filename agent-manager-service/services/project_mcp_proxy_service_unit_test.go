@@ -52,6 +52,7 @@ type projectProxyFixture struct {
 	mappings     []models.EnvAgentMCPMapping
 	endpointEnvs []models.MCPProxyEndpointEnvironment
 	deletedProxy []string
+	reassigned   []string // "handle:from->to" per ReassignProject
 
 	componentTypes  map[string]string // component name -> OpenChoreo component type (default agent-api)
 	getComponentErr error
@@ -77,6 +78,18 @@ func newProjectProxyFixture(t *testing.T) *projectProxyFixture {
 			}
 			cp := *p
 			return &cp, nil
+		},
+		ReassignProjectFunc: func(_ context.Context, _ *gorm.DB, proxyUUID uuid.UUID, _, projectName, from, to string) error {
+			for handle, p := range f.proxies {
+				if p.UUID == proxyUUID && p.ProjectUUID != nil && *p.ProjectUUID == from && p.ProjectName != nil && *p.ProjectName == projectName {
+					f.reassigned = append(f.reassigned, handle+":"+from+"->"+to)
+					cp := *p
+					cp.ProjectUUID = &to
+					f.proxies[handle] = &cp
+					return nil
+				}
+			}
+			return utils.ErrMCPProxyNotFound
 		},
 		ExistsFunc: func(_ context.Context, handle, _ string) (bool, error) {
 			_, ok := f.proxies[handle]

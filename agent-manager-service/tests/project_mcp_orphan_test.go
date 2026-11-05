@@ -19,10 +19,12 @@
 package tests
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"sync"
 	"testing"
 	"time"
@@ -30,6 +32,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
@@ -43,7 +46,8 @@ import (
 )
 
 // TestProjectMCPProxyOfDeletedProject drives the proxies a project leaves when it is deleted in OpenChoreo:
-// the project routes still read and remove them by the stored project name, and PUT refuses.
+// the project routes still read and remove them by the stored project name, PUT refuses, and a re-created project
+// of the same name adopts a proxy by re-PUTting its handle.
 func TestProjectMCPProxyOfDeletedProject(t *testing.T) {
 	suffix := uuid.NewString()[:8]
 	project := "po-" + suffix
@@ -78,6 +82,16 @@ func TestProjectMCPProxyOfDeletedProject(t *testing.T) {
 	}
 	app := apitestutils.MakeAppClientWithDeps(t, wiring.TestClients{OpenChoreoClient: oc}, jwtassertion.NewMockMiddleware(t))
 	h := &projectProxyHarness{t: t, app: app, org: testOrgName}
+	orgDo := func(method, path string, body any) *httptest.ResponseRecorder {
+		t.Helper()
+		raw, err := json.Marshal(body)
+		require.NoError(t, err)
+		req := httptest.NewRequest(method, fmt.Sprintf("/api/v1/orgs/%s%s", testOrgName, path), bytes.NewReader(raw))
+		req.Header.Set("Content-Type", "application/json")
+		rr := httptest.NewRecorder()
+		app.ServeHTTP(rr, req)
+		return rr
+	}
 	ouID := jwtassertion.MockOUID
 	gdb := db.DB(context.Background())
 
@@ -200,5 +214,59 @@ func TestProjectMCPProxyOfDeletedProject(t *testing.T) {
 		require.Equal(t, http.StatusNoContent, rr.Code, rr.Body.String())
 		tornDown(t, artifact)
 		proxyGone(t, billing)
+	})
+
+	t.Run("a re-created project adopts the proxy by re-PUTting its handle", func(t *testing.T) {
+		setProject(uuid.NewString())
+		stock := "stock-" + suffix
+		artifact := publish(t, stock)
+		setProject("")
+		recreated := uuid.NewString()
+		setProject(recreated)
+
+		rr := h.do(http.MethodGet, project, "", nil)
+		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+		var list models.ProjectMCPProxyListResponse
+		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &list))
+		assert.Empty(t, list.List, "the re-created project owns nothing yet")
+		rr = orgDo(http.MethodDelete, "/mcp-proxies/"+stock, nil)
+		require.Equal(t, http.StatusConflict, rr.Code, "a project of that name exists: the org route still refuses")
+		assert.Equal(t, utils.ErrCodeProjectOwned, errorCode(t, rr))
+
+		rr = h.do(http.MethodPut, project, "/"+stock, body(stock))
+		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+		p := decodeProxy(t, rr)
+		assert.Equal(t, project, p.ProjectName)
+		require.Len(t, p.Environments, 1, "the binding stays")
+		assert.Equal(t, devEnv, p.Environments[0].EnvironmentName)
+		assert.EqualValues(t, 1, count(t, `SELECT count(*) FROM mcp_proxies m JOIN artifacts a ON a.uuid = m.uuid
+			WHERE a.ou_id = ? AND a.handle = ? AND m.project_uuid = ? AND m.project_name = ?`, ouID, stock, recreated, project))
+
+		rr = h.do(http.MethodGet, project, "", nil)
+		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &list))
+		require.Len(t, list.List, 1)
+		assert.Equal(t, stock, list.List[0].ID)
+		rr = h.do(http.MethodPut, project, envPath(stock), map[string]any{})
+		require.Equal(t, http.StatusOK, rr.Code, "re-PUTting the binding refreshes it in the re-created project: %s", rr.Body.String())
+
+		rr = h.do(http.MethodDelete, project, "/"+stock, nil)
+		require.Equal(t, http.StatusNoContent, rr.Code, rr.Body.String())
+		tornDown(t, artifact)
+		proxyGone(t, stock)
+	})
+
+	t.Run("an org handle is never adopted", func(t *testing.T) {
+		setProject(uuid.NewString())
+		orgHandle := "orgowned-" + suffix
+		require.NoError(t, gdb.Transaction(func(tx *gorm.DB) error {
+			return repositories.NewMCPProxyRepo(gdb).Create(context.Background(), tx, &models.MCPProxy{
+				Configuration: models.MCPProxyConfig{Name: orgHandle, Version: "v1"},
+			}, orgHandle, orgHandle, "v1", ouID, nil, nil)
+		}))
+		rr := h.do(http.MethodPut, project, "/"+orgHandle, body(orgHandle))
+		require.Equal(t, http.StatusConflict, rr.Code, rr.Body.String())
+		assert.Equal(t, utils.ErrCodeHandleInUse, errorCode(t, rr))
+		assert.EqualValues(t, 1, count(t, `SELECT count(*) FROM mcp_proxies m JOIN artifacts a ON a.uuid = m.uuid
+			WHERE a.ou_id = ? AND a.handle = ? AND m.project_uuid IS NULL`, ouID, orgHandle))
 	})
 }

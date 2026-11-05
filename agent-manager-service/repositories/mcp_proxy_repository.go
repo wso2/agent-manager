@@ -54,6 +54,11 @@ type MCPProxyRepository interface {
 	// proxies keep the UUID of the deleted project. utils.ErrMCPProxyNotFound when there is
 	// none, or the handle is an org proxy or another project's.
 	GetInProjectByName(ctx context.Context, handle, orgUUID, projectName string) (*models.MCPProxy, error)
+	// ReassignProject moves a project proxy stored under projectName from fromProjectUUID to
+	// toProjectUUID: a re-created project (same name, new UUID) adopting the proxy its
+	// deleted predecessor left. A proxy already on toProjectUUID is left as is.
+	// utils.ErrMCPProxyNotFound when no such proxy is in the organization.
+	ReassignProject(ctx context.Context, tx *gorm.DB, proxyUUID uuid.UUID, orgUUID, projectName, fromProjectUUID, toProjectUUID string) error
 	Delete(ctx context.Context, handle, orgUUID string) error
 	Count(ctx context.Context, orgUUID string) (int, error)
 	Exists(ctx context.Context, handle, orgUUID string) (bool, error)
@@ -305,6 +310,26 @@ func (r *MCPProxyRepo) GetInProjectByName(ctx context.Context, handle, orgUUID, 
 		return nil, err
 	}
 	return &proxy, nil
+}
+
+// ReassignProject moves a project proxy from fromProjectUUID to toProjectUUID, keeping its project name.
+func (r *MCPProxyRepo) ReassignProject(
+	ctx context.Context, tx *gorm.DB, proxyUUID uuid.UUID, orgUUID, projectName, fromProjectUUID, toProjectUUID string,
+) error {
+	db := tx.WithContext(ctx)
+	ownedByOrg := db.Session(&gorm.Session{NewDB: true}).Model(&models.Artifact{}).Select("uuid").
+		Where("ou_id = ? AND kind = ?", orgUUID, models.KindMCPProxy)
+	result := db.Model(&models.MCPProxy{}).
+		Where("uuid = ? AND project_name = ? AND project_uuid IN (?, ?)", proxyUUID, projectName, fromProjectUUID, toProjectUUID).
+		Where("uuid IN (?)", ownedByOrg).
+		Update("project_uuid", toProjectUUID)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return utils.ErrMCPProxyNotFound
+	}
+	return nil
 }
 
 // Delete removes an MCP proxy and its artifact row.

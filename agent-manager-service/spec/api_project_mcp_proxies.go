@@ -597,7 +597,12 @@ not exist returns 400. Updating name, description, version or context re-renders
 environment. A new context that equals, contains or sits under another artifact's context on a
 gateway a binding is placed on returns 409 CONTEXT_IN_USE and nothing is stored.
 
-A project that does not exist in OpenChoreo returns 404 PROJECT_NOT_FOUND.
+A project that does not exist in OpenChoreo returns 404 PROJECT_NOT_FOUND. A project deleted and
+re-created with the same name adopts the proxies its predecessor left: a PUT of such a handle moves
+the proxy to the re-created project and applies the body as an update (200), in one transaction.
+Only a project proxy stored under this project's name is adopted, never an org-level proxy or
+another project's. Its bindings stay; re-PUT each binding to refresh its upstream from the
+re-created project's component.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param orgName Organization name/handle. Routing only; the org comes from the token or from X-Impersonate-Org.

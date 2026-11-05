@@ -7,6 +7,7 @@ import (
 	"context"
 	"sync"
 
+	"github.com/google/uuid"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"gorm.io/gorm"
@@ -48,6 +49,9 @@ import (
 //			ListFunc: func(ctx context.Context, orgUUID string, f repositories.MCPProxyListFilter) ([]*models.MCPProxy, int64, error) {
 //				panic("mock out the List method")
 //			},
+//			ReassignProjectFunc: func(ctx context.Context, tx *gorm.DB, proxyUUID uuid.UUID, orgUUID string, projectName string, fromProjectUUID string, toProjectUUID string) error {
+//				panic("mock out the ReassignProject method")
+//			},
 //			UpdateFunc: func(ctx context.Context, tx *gorm.DB, p *models.MCPProxy, orgUUID string) error {
 //				panic("mock out the Update method")
 //			},
@@ -87,6 +91,9 @@ type MCPProxyRepositoryMock struct {
 
 	// ListFunc mocks the List method.
 	ListFunc func(ctx context.Context, orgUUID string, f repositories.MCPProxyListFilter) ([]*models.MCPProxy, int64, error)
+
+	// ReassignProjectFunc mocks the ReassignProject method.
+	ReassignProjectFunc func(ctx context.Context, tx *gorm.DB, proxyUUID uuid.UUID, orgUUID string, projectName string, fromProjectUUID string, toProjectUUID string) error
 
 	// UpdateFunc mocks the Update method.
 	UpdateFunc func(ctx context.Context, tx *gorm.DB, p *models.MCPProxy, orgUUID string) error
@@ -199,6 +206,23 @@ type MCPProxyRepositoryMock struct {
 			// F is the f argument value.
 			F repositories.MCPProxyListFilter
 		}
+		// ReassignProject holds details about calls to the ReassignProject method.
+		ReassignProject []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Tx is the tx argument value.
+			Tx *gorm.DB
+			// ProxyUUID is the proxyUUID argument value.
+			ProxyUUID uuid.UUID
+			// OrgUUID is the orgUUID argument value.
+			OrgUUID string
+			// ProjectName is the projectName argument value.
+			ProjectName string
+			// FromProjectUUID is the fromProjectUUID argument value.
+			FromProjectUUID string
+			// ToProjectUUID is the toProjectUUID argument value.
+			ToProjectUUID string
+		}
 		// Update holds details about calls to the Update method.
 		Update []struct {
 			// Ctx is the ctx argument value.
@@ -221,6 +245,7 @@ type MCPProxyRepositoryMock struct {
 	lockGetInProject         sync.RWMutex
 	lockGetInProjectByName   sync.RWMutex
 	lockList                 sync.RWMutex
+	lockReassignProject      sync.RWMutex
 	lockUpdate               sync.RWMutex
 }
 
@@ -653,6 +678,62 @@ func (mock *MCPProxyRepositoryMock) ListCalls() []struct {
 	mock.lockList.RLock()
 	calls = mock.calls.List
 	mock.lockList.RUnlock()
+	return calls
+}
+
+// ReassignProject calls ReassignProjectFunc.
+func (mock *MCPProxyRepositoryMock) ReassignProject(ctx context.Context, tx *gorm.DB, proxyUUID uuid.UUID, orgUUID string, projectName string, fromProjectUUID string, toProjectUUID string) error {
+	if mock.ReassignProjectFunc == nil {
+		panic("MCPProxyRepositoryMock.ReassignProjectFunc: method is nil but MCPProxyRepository.ReassignProject was just called")
+	}
+	callInfo := struct {
+		Ctx             context.Context
+		Tx              *gorm.DB
+		ProxyUUID       uuid.UUID
+		OrgUUID         string
+		ProjectName     string
+		FromProjectUUID string
+		ToProjectUUID   string
+	}{
+		Ctx:             ctx,
+		Tx:              tx,
+		ProxyUUID:       proxyUUID,
+		OrgUUID:         orgUUID,
+		ProjectName:     projectName,
+		FromProjectUUID: fromProjectUUID,
+		ToProjectUUID:   toProjectUUID,
+	}
+	mock.lockReassignProject.Lock()
+	mock.calls.ReassignProject = append(mock.calls.ReassignProject, callInfo)
+	mock.lockReassignProject.Unlock()
+	return mock.ReassignProjectFunc(ctx, tx, proxyUUID, orgUUID, projectName, fromProjectUUID, toProjectUUID)
+}
+
+// ReassignProjectCalls gets all the calls that were made to ReassignProject.
+// Check the length with:
+//
+//	len(mockedMCPProxyRepository.ReassignProjectCalls())
+func (mock *MCPProxyRepositoryMock) ReassignProjectCalls() []struct {
+	Ctx             context.Context
+	Tx              *gorm.DB
+	ProxyUUID       uuid.UUID
+	OrgUUID         string
+	ProjectName     string
+	FromProjectUUID string
+	ToProjectUUID   string
+} {
+	var calls []struct {
+		Ctx             context.Context
+		Tx              *gorm.DB
+		ProxyUUID       uuid.UUID
+		OrgUUID         string
+		ProjectName     string
+		FromProjectUUID string
+		ToProjectUUID   string
+	}
+	mock.lockReassignProject.RLock()
+	calls = mock.calls.ReassignProject
+	mock.lockReassignProject.RUnlock()
 	return calls
 }
 
