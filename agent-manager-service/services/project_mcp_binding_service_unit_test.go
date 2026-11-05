@@ -488,6 +488,25 @@ func TestPutEnv_IdenticalOnDeployed_NoRedeploy(t *testing.T) {
 	})
 }
 
+// A newcomer that came to overlap a live binding never makes the binding's identical ensure-PUT fail: the no-op
+// returns before the context check.
+func TestPutEnv_IdenticalOnDeployed_SkipsTheContextCheck(t *testing.T) {
+	f := newBindingFixture(t)
+	_, _, err := f.put(t, models.MCPProxyEnvironmentRequest{})
+	require.NoError(t, err)
+	_, ee := f.binding()
+	f.status[ee.ArtifactUUID].Status = models.DeploymentStatusDeployed
+	// Deployed rows the gateway holds, refreshed so the check would see an overlap if it ran.
+	f.others[uuid.New()] = []byte("spec:\n  context: /p1/weather/tools\n")
+	f.deployed[0].Content = []byte("spec:\n  context: /p1/elsewhere\n")
+
+	resp, created, err := f.put(t, models.MCPProxyEnvironmentRequest{})
+	require.NoError(t, err)
+	assert.False(t, created)
+	assert.Equal(t, models.MCPDeploymentStatusDeployed, resp.DeploymentStatus)
+	assert.Len(t, f.deployed, 1, "nothing is redeployed")
+}
+
 func TestPutEnv_IdenticalOnFailed_Requeues(t *testing.T) {
 	f := newBindingFixture(t)
 	_, _, err := f.put(t, models.MCPProxyEnvironmentRequest{})

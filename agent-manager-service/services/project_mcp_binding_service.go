@@ -54,7 +54,8 @@ func mcpUpstreamURL(serviceURL string) string {
 // (2) pick the gateway, (3) validate security, (4) check the gateway context against every other artifact on that
 // gateway, (5) store, render and deploy in one transaction. Steps 1-4 store nothing when they refuse.
 //
-// An identical PUT on a Deployed or Deploying binding is a no-op; on a Failed binding it re-queues the deploy.
+// An identical PUT on a Deployed or Deploying binding is a no-op, returned before step 4, so a binding that is
+// live is never refused over an artifact that came to overlap it; on a Failed binding it re-queues the deploy.
 func (s *ProjectMCPProxyService) PutEnvironment(
 	ctx context.Context, ouID, projectName, projectUUID, handle, envName string, req models.MCPProxyEnvironmentRequest,
 ) (*models.MCPProxyEnvironmentResponse, bool, error) {
@@ -118,13 +119,6 @@ func (s *ProjectMCPProxyService) PutEnvironment(
 		return nil, false, err
 	}
 
-	// (4) Context. The deploy checks again under the gateway lock; this check refuses before anything is stored.
-	if gateway != nil {
-		if err := s.checkBindingContext(ctx, ouID, *gateway, selfArtifact, mcpGatewayContext(proxy, projectName), proxy.Configuration.Vhost); err != nil {
-			return nil, false, err
-		}
-	}
-
 	desired := models.MCPEndpointConfig{
 		Upstream: &models.UpstreamEndpoint{URL: upstreamURL, Auth: auth},
 		Policies: policies,
@@ -143,6 +137,14 @@ func (s *ProjectMCPProxyService) PutEnvironment(
 		if live || (shown == nil && gateway == nil) {
 			resp, err := s.environmentResponse(ctx, ouID, proxy, endpoint, ee)
 			return resp, false, err
+		}
+	}
+
+	// (4) Context, checked after the no-op: an identical PUT on a live binding is never refused. The deploy checks
+	// again under the gateway lock; this check refuses before anything is stored.
+	if gateway != nil {
+		if err := s.checkBindingContext(ctx, ouID, *gateway, selfArtifact, mcpGatewayContext(proxy, projectName), proxy.Configuration.Vhost); err != nil {
+			return nil, false, err
 		}
 	}
 
