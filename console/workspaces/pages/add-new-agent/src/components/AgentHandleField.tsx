@@ -19,9 +19,7 @@
 import { IconButton, InputAdornment } from "@wso2/oxygen-ui";
 import { Edit } from "@wso2/oxygen-ui-icons-react";
 import { TextInput } from "@agent-management-platform/views";
-
-/** Matches the agent name limit in the form schema. */
-const AGENT_HANDLE_MAX_LENGTH = 50;
+import { AGENT_NAME_MAX_LENGTH } from "../form/schema";
 
 interface AgentHandleFieldProps {
   value: string;
@@ -47,8 +45,8 @@ export function AgentHandleField({
     <TextInput
       label="Agent handle"
       id="name"
-      maxLength={AGENT_HANDLE_MAX_LENGTH}
-      hideCharacterCount={!editable || value.length < AGENT_HANDLE_MAX_LENGTH}
+      maxLength={AGENT_NAME_MAX_LENGTH}
+      hideCharacterCount={!editable || value.length < AGENT_NAME_MAX_LENGTH}
       placeholder="e.g., customer-support-agent"
       value={value}
       onChange={(e) => onChange(e.target.value)}
