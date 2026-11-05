@@ -121,6 +121,7 @@ func convertToInternalAgentResponse(component *models.AgentResponse) spec.AgentR
 			SubType: &component.Type.SubType,
 		},
 		InputInterface: convertToInputInterface(component.InputInterface),
+		HealthChecks:   convertToHealthChecks(component.HealthChecks),
 		Build:          convertToBuild(component.Build),
 		Configurations: convertToConfigurations(component.Configurations),
 		KindName: func() *string {
@@ -271,6 +272,8 @@ func ConvertToBuildResponse(build *models.BuildResponse) spec.BuildResponse {
 		BuildName:       build.Name,
 		EndedAt:         build.EndedAt,
 		BuildParameters: convertToBuildParameters(build.BuildParameters),
+		// The checks this build runs with wherever it is deployed; nil when it recorded none.
+		HealthChecks: convertToHealthChecks(build.HealthChecks),
 	}
 }
 
@@ -330,10 +333,40 @@ func ConvertToBuildDetailsResponse(buildDetails *models.BuildDetailsResponse) sp
 		DurationSeconds: &buildDetails.DurationSeconds,
 		EndedAt:         buildDetails.EndedAt,
 		BuildParameters: convertToBuildParameters(buildDetails.BuildParameters),
+		HealthChecks:    convertToHealthChecks(buildDetails.HealthChecks),
 		InputInterface:  convertToInputInterface(buildDetails.InputInterface),
 	}
 
 	return response
+}
+
+// convertToHealthChecks converts the saved health checks to the API response. Nil stays nil,
+// meaning none are saved.
+func convertToHealthChecks(healthChecks *models.HealthChecks) *spec.HealthChecks {
+	if healthChecks == nil {
+		return nil
+	}
+	return &spec.HealthChecks{
+		Startup:   convertToHealthCheck(healthChecks.Startup),
+		Readiness: convertToHealthCheck(healthChecks.Readiness),
+		Liveness:  convertToHealthCheck(healthChecks.Liveness),
+	}
+}
+
+func convertToHealthCheck(healthCheck *models.HealthCheck) *spec.HealthCheck {
+	if healthCheck == nil {
+		return nil
+	}
+	return &spec.HealthCheck{
+		Enabled:             healthCheck.Enabled,
+		Type:                healthCheck.Type,
+		Path:                healthCheck.Path,
+		Port:                healthCheck.Port,
+		InitialDelaySeconds: healthCheck.InitialDelaySeconds,
+		PeriodSeconds:       healthCheck.PeriodSeconds,
+		TimeoutSeconds:      healthCheck.TimeoutSeconds,
+		FailureThreshold:    healthCheck.FailureThreshold,
+	}
 }
 
 func convertToInputInterface(input *models.InputInterface) *spec.InputInterface {
@@ -425,6 +458,7 @@ func ConvertToDeploymentDetailsResponse(deploymentDetails []*models.DeploymentRe
 			KindVersion:            stringToPtr(deployment.KindVersion),
 			GatewayStatus:          stringToPtr(deployment.GatewayStatus),
 			GatewayStatusReason:    stringToPtr(deployment.GatewayStatusReason),
+			HealthChecks:           convertToHealthChecks(deployment.HealthChecks),
 		}
 
 		// Add to result map with environment name as key

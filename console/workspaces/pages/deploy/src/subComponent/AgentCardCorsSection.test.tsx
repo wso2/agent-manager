@@ -17,7 +17,12 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { cardDraftFromConfig, cardDraftToPayload, isCardDraftInvalid } from "./AgentCardCorsSection";
+import {
+  agentCardCorsSummary,
+  cardDraftFromConfig,
+  cardDraftToPayload,
+  isCardDraftInvalid,
+} from "./AgentCardCorsSection";
 
 describe("agent card CORS draft", () => {
   it("defaults to inherit when nothing is stored", () => {
@@ -58,5 +63,15 @@ describe("agent card CORS draft", () => {
     expect(isCardDraftInvalid(draft)).toBe(true);
     expect(isCardDraftInvalid({ ...draft, enabled: false })).toBe(false);
     expect(isCardDraftInvalid({ ...draft, mode: "inherit" })).toBe(false);
+  });
+
+  // A "*" typed into the origins list allows all origins, so the summary must say so.
+  it("summarizes a typed * origin as all origins", () => {
+    const draft = {
+      ...cardDraftFromConfig(undefined), mode: "custom" as const, enabled: true,
+      allowAll: false, origins: ["https://a.example", "*"],
+    };
+    expect(agentCardCorsSummary(draft)).toBe("On · all origins");
+    expect(agentCardCorsSummary({ ...draft, origins: ["https://a.example"] })).toBe("On · 1 origin");
   });
 });

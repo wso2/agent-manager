@@ -23,6 +23,7 @@ import {
   ModelConfigRequest,
   OrgProjPathParams,
   PromotionPath,
+  healthChecksToSend,
 } from "@agent-management-platform/types";
 import {
   AddAgentFormValues,
@@ -217,6 +218,10 @@ export const buildAgentCreationPayload = (
 
   const labels =
     data.labels && Object.keys(data.labels).length > 0 ? data.labels : undefined;
+  // Sent only when they differ from the defaults, so an agent created without touching
+  // them is saved exactly as before health checks existed.
+  const healthChecks =
+    data.deploymentType === "new" ? healthChecksToSend(data.healthChecks) : {};
 
   if (data.deploymentType === "new") {
     return {
@@ -304,6 +309,7 @@ export const buildAgentCreationPayload = (
             ? { port: Number(data.port) }
             : {}),
         },
+        ...(Object.keys(healthChecks).length > 0 ? { healthChecks } : {}),
         ...(modelConfig ? { modelConfig } : {}),
         ...(mcpConfig ? { mcpConfig } : {}),
       },

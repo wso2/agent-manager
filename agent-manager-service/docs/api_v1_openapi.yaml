@@ -750,6 +750,10 @@ paths:
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/build-parameters:
     put:
       summary: Update agent build parameters
+      description: >-
+        Saves the agent's build parameters. They take effect with the next build.
+        healthChecks replaces the saved health checks when sent (an empty object
+        goes back to the defaults) and keeps them when omitted.
       operationId: updateAgentBuildParameters
       parameters:
         - name: agentName
@@ -12889,6 +12893,8 @@ components:
           $ref: "#/components/schemas/Configurations"
         inputInterface:
           $ref: "#/components/schemas/InputInterface"
+        healthChecks:
+          $ref: "#/components/schemas/HealthChecks"
         modelConfig:
           type: array
           description: >-
@@ -13014,6 +13020,8 @@ components:
           $ref: "#/components/schemas/Build"
         inputInterface:
           $ref: "#/components/schemas/InputInterface"
+        healthChecks:
+          $ref: "#/components/schemas/HealthChecks"
         configurations:
           $ref: "#/components/schemas/Configurations"
 
@@ -13336,6 +13344,8 @@ components:
           $ref: "#/components/schemas/Configurations"
         inputInterface:
           $ref: "#/components/schemas/InputInterface"
+        healthChecks:
+          $ref: "#/components/schemas/HealthChecks"
         build:
           $ref: "#/components/schemas/Build"
         kindName:
@@ -13652,6 +13662,11 @@ components:
           enum: [Pending, Running, Succeeded, Completed, Failed]
         buildParameters:
           $ref: "#/components/schemas/BuildParameters"
+        # The health checks this build recorded when it started; an environment running this
+        # build, including after a redeploy or rollback, runs them. Absent when the build
+        # recorded none, so the defaults apply.
+        healthChecks:
+          $ref: "#/components/schemas/HealthChecks"
       required:
         - buildName
         - projectName
@@ -13937,6 +13952,61 @@ components:
         basePath:
           type: string
           description: Base path for the endpoint
+    HealthChecks:
+      type: object
+      description: >-
+        Startup, readiness and liveness checks for the agent's container. A
+        check that is not set uses the default: startup and readiness are TCP
+        checks on the agent's port, and there is no liveness check.
+      properties:
+        startup:
+          $ref: "#/components/schemas/HealthCheck"
+        readiness:
+          $ref: "#/components/schemas/HealthCheck"
+        liveness:
+          $ref: "#/components/schemas/HealthCheck"
+    HealthCheck:
+      type: object
+      description: >-
+        One health check. A field that is not set uses its default value.
+      properties:
+        enabled:
+          type: boolean
+          description: Whether the check runs. Defaults to true.
+        type:
+          type: string
+          enum:
+            - TCP
+            - HTTP
+          description: >-
+            TCP opens a connection to the port; HTTP sends a GET request to the
+            path. Defaults to TCP.
+        path:
+          type: string
+          pattern: "^/"
+          description: Path for an HTTP check. Required when type is HTTP.
+          example: "/health"
+        port:
+          type: integer
+          minimum: 1
+          maximum: 65535
+          description: Port to check. Defaults to the agent's port.
+        initialDelaySeconds:
+          type: integer
+          minimum: 0
+          description: Seconds to wait after the container starts before the first check.
+        periodSeconds:
+          type: integer
+          minimum: 1
+          description: Seconds between checks.
+        timeoutSeconds:
+          type: integer
+          minimum: 1
+          description: Seconds before a check times out.
+        failureThreshold:
+          type: integer
+          minimum: 1
+          description: Failed checks in a row before the check is treated as failed.
     InputInterfaceSchema:
       type: object
       properties:
@@ -14047,6 +14117,8 @@ components:
           description: >-
             Why gatewayStatus is what it is: the gateway's error code, DEPLOYMENT_TIMEOUT, what a deploy is waiting
             for, or "no gateway in this environment". Empty when there is nothing to say.
+        healthChecks:
+          $ref: "#/components/schemas/HealthChecks"
       required:
         - imageId
         - status

@@ -405,6 +405,35 @@ func mapInputInterface(specInterface *spec.InputInterface) *client.InputInterfac
 	return config
 }
 
+// mapHealthChecks converts the request's health checks for the client, which saves them in
+// the build parameters. Nil stays nil, meaning "not sent".
+func mapHealthChecks(specHealthChecks *spec.HealthChecks) *client.HealthChecksConfig {
+	if specHealthChecks == nil {
+		return nil
+	}
+	return &client.HealthChecksConfig{
+		Startup:   mapHealthCheck(specHealthChecks.Startup),
+		Readiness: mapHealthCheck(specHealthChecks.Readiness),
+		Liveness:  mapHealthCheck(specHealthChecks.Liveness),
+	}
+}
+
+func mapHealthCheck(specHealthCheck *spec.HealthCheck) *client.HealthCheckConfig {
+	if specHealthCheck == nil {
+		return nil
+	}
+	return &client.HealthCheckConfig{
+		Enabled:             specHealthCheck.Enabled,
+		Type:                specHealthCheck.Type,
+		Path:                specHealthCheck.Path,
+		Port:                specHealthCheck.Port,
+		InitialDelaySeconds: specHealthCheck.InitialDelaySeconds,
+		PeriodSeconds:       specHealthCheck.PeriodSeconds,
+		TimeoutSeconds:      specHealthCheck.TimeoutSeconds,
+		FailureThreshold:    specHealthCheck.FailureThreshold,
+	}
+}
+
 // resolveResilienceTimeoutSeconds resolves the effective resilience timeout from
 // (in precedence order) an explicit request value, the persisted config, and the
 // default. An explicitly requested value outside [MinResilienceTimeoutSeconds,
@@ -639,6 +668,132 @@ func (s *agentManagerService) requireImageOwnedByAgent(ctx context.Context, ouID
 	return utils.NewInvalidInputError(
 		"The image does not belong to this agent. "+hint,
 		fmt.Sprintf("imageId %q is not a build, kind version or current deployment of agent %q", imageID, agentName))
+}
+
+// healthChecksForDeploy returns the health checks to write onto the environment when deploying
+// the image: those of the build that produced it (nil means the defaults).
+//
+// If the build can't be looked up (e.g. OpenChoreo's build list is unavailable), a redeploy of
+// the image the environment already runs must still work, as the ownership check allows, and the
+// environment's current health checks are that image's: keepCurrent is true and they are left as
+// they are. Any other image would run with another build's checks, so an error is returned and
+// the deploy fails before anything is written.
+func (s *agentManagerService) healthChecksForDeploy(ctx context.Context, ouID, projectName, pipelineName, agentName, kindName, environment, imageID string) (healthChecks *models.HealthChecks, keepCurrent bool, err error) {
+	healthChecks, lookupErr := s.healthChecksOfImageBuild(ctx, ouID, projectName, agentName, kindName, imageID)
+	if lookupErr == nil {
+		return healthChecks, false, nil
+	}
+	if !s.environmentRunsImage(ctx, ouID, projectName, pipelineName, agentName, environment, imageID) {
+		return nil, false, fmt.Errorf("failed to read the health checks of image %s: %w", imageID, lookupErr)
+	}
+	s.logger.Warn("Could not find the deployed build's health checks; the environment keeps its current ones, as it already runs this image",
+		"agentName", agentName, "imageId", imageID, "error", lookupErr)
+	return nil, true, nil
+}
+
+// environmentRunsImage reports whether the environment's current deployment of the agent runs
+// the image. A failed read counts as no: the caller only uses a yes to let a deploy through.
+func (s *agentManagerService) environmentRunsImage(ctx context.Context, ouID, projectName, pipelineName, agentName, environment, imageID string) bool {
+	deployments, err := s.ocClient.GetDeployments(ctx, ouID, pipelineName, projectName, agentName)
+	if err != nil {
+		s.logger.Warn("Could not read the agent's deployments to compare images",
+			"agentName", agentName, "environment", environment, "error", err)
+		return false
+	}
+	for _, deployment := range deployments {
+		if deployment != nil && deployment.Environment == environment && deployment.ImageId == imageID {
+			return true
+		}
+	}
+	return false
+}
+
+// healthChecksOfImageBuild returns the health checks recorded by the build that produced the
+// image being deployed, so an environment runs each build with that build's own checks.
+// A deploy names only the image, so the build is found from it:
+//
+//  1. one of the agent's own builds produced the image: that build's checks;
+//  2. the agent was created from a catalog version with this image: the checks of the
+//     build the version was published from;
+//  3. no build is found (e.g. its record was deleted): nil, so the environment uses the
+//     default checks rather than keeping another build's.
+//
+// Nil also means the build itself recorded no health checks. A lookup failure is returned
+// rather than treated as "no build", which would quietly switch the environment to the
+// defaults; the caller decides what a failed lookup means.
+func (s *agentManagerService) healthChecksOfImageBuild(ctx context.Context, ouID, projectName, agentName, kindName, imageID string) (*models.HealthChecks, error) {
+	// Step 1: the agent's own builds.
+	builds, err := s.ocClient.ListBuilds(ctx, ouID, projectName, agentName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list builds to find the deployed image's health checks: %w", err)
+	}
+	for _, build := range builds {
+		if build != nil && build.ImageId == imageID {
+			return build.HealthChecks, nil
+		}
+	}
+
+	// Step 2: the catalog version the agent was created from.
+	if kindName != "" {
+		kind, err := s.agentKindService.GetKind(ctx, ouID, kindName)
+		// The kind was deleted: none of its versions can name the build, so no build is found.
+		if errors.Is(err, utils.ErrAgentKindNotFound) {
+			kind = &models.AgentKindResponse{}
+		} else if err != nil {
+			return nil, fmt.Errorf("failed to read agent kind %q to find the deployed image's health checks: %w", kindName, err)
+		}
+		for _, version := range kind.Versions {
+			if version.ImageId != imageID || version.BuildName == "" {
+				continue
+			}
+			build, err := s.ocClient.GetBuildByName(ctx, ouID, version.BuildName)
+			// This version's build record is gone (e.g. its source agent was deleted). Another
+			// version published from the same image may still have its build, so keep looking.
+			if errors.Is(err, utils.ErrNotFound) {
+				continue
+			}
+			if err != nil {
+				return nil, fmt.Errorf("failed to read build %q of kind version %q: %w", version.BuildName, version.Version, err)
+			}
+			return build.HealthChecks, nil
+		}
+	}
+
+	// Step 3: no build found.
+	s.logger.Warn("No build found for the deployed image; the environment uses the default health checks",
+		"agentName", agentName, "ouID", ouID, "projectName", projectName, "imageId", imageID)
+	return nil, nil //nolint:nilnil // documented contract: nil means the default health checks
+}
+
+// kindAgentFirstBindingComponentTypeConfigs returns the component-type configs for the first
+// binding of an agent created from a kind version: the health checks of the build the version
+// was published from, as deploy writes them, or an explicit nil (the defaults) when that build
+// has none. If the build can't be looked up the agent is still created, with the default health
+// checks; a later deploy of the version writes the right ones. Nil for an agent that is not an
+// API agent (firstEnv is nil), which writes no component-type configs, as before.
+//
+// When there are health checks, the map also carries the first environment's runtimeClassName:
+// a non-nil map is authoritative for it, so without it a binding that already exists (an agent
+// recreated under the same name, or adopted on a 409) in a gVisor environment would lose it.
+func (s *agentManagerService) kindAgentFirstBindingComponentTypeConfigs(ctx context.Context, ouID, projectName, agentName, kindName, imageID string, firstEnv *models.EnvironmentResponse) map[string]interface{} {
+	// Only API agents get component-type configs, as on deploy; firstEnv is only read for them.
+	if firstEnv == nil {
+		return nil
+	}
+	configs := buildComponentTypeEnvConfigs(firstEnv)
+	healthChecks, err := s.healthChecksOfImageBuild(ctx, ouID, projectName, agentName, kindName, imageID)
+	if err != nil {
+		s.logger.Warn("Could not find the kind version build's health checks; the agent starts with the default ones",
+			"agentName", agentName, "imageId", imageID, "error", err)
+	}
+	// An explicit (untyped) nil removes any health checks a binding of the same name already
+	// holds, so the agent starts with the defaults; a typed nil pointer would not match that rule.
+	if err != nil || healthChecks == nil {
+		configs["healthChecks"] = nil
+		return configs
+	}
+	configs["healthChecks"] = healthChecks
+	return configs
 }
 
 // kindBuildInputInterface reads the input interface off the build that produced a
@@ -1572,8 +1727,11 @@ func (s *agentManagerService) createComponentAgent(ctx context.Context, ouID, pr
 	pipelineEnvs := client.PipelineEnvironments(pipeline.PromotionPaths)
 
 	var firstEnvUUID string
+	// Kept for the kind agent's first binding below, which needs its isolation tier.
+	var firstEnvDetails *models.EnvironmentResponse
 	if req.AgentType.Type == string(utils.AgentTypeAPI) {
-		firstEnvDetails, envErr := s.ocClient.GetEnvironment(ctx, ouID, firstEnv)
+		var envErr error
+		firstEnvDetails, envErr = s.ocClient.GetEnvironment(ctx, ouID, firstEnv)
 		if envErr != nil {
 			s.logger.Error("Failed to get environment details", "environment", firstEnv, "error", envErr)
 			return translateEnvironmentError(envErr)
@@ -1815,8 +1973,9 @@ func (s *agentManagerService) createComponentAgent(ctx context.Context, ouID, pr
 			// amp-generate-workload does for source-built agents; kind components are
 			// created with autoDeploy off so nothing else deploys them. Deploy goes through
 			// the same call, which is how a later kind-version switch reaches the pod.
+			kindComponentTypeConfigs := s.kindAgentFirstBindingComponentTypeConfigs(ctx, ouID, projectName, req.Name, req.Provisioning.AgentKind.Name, imageID, firstEnvDetails)
 			if err := s.ocClient.EnsureReleaseAndBinding(
-				ctx, ouID, projectName, req.Name, firstEnv, kindEnvVars, kindFileVars, nil, nil,
+				ctx, ouID, projectName, req.Name, firstEnv, kindEnvVars, kindFileVars, nil, kindComponentTypeConfigs,
 			); err != nil {
 				s.logger.Error("Failed to create release binding for kind-sourced agent",
 					"agentName", req.Name, "ouID", ouID, "projectName", projectName,
@@ -2144,6 +2303,7 @@ func (s *agentManagerService) toCreateAgentRequestWithSecrets(req *spec.CreateAg
 		AgentKind:        agentKindRef,
 		Build:            mapBuildConfig(req.Build),
 		InputInterface:   mapInputInterface(req.InputInterface),
+		HealthChecks:     mapHealthChecks(req.HealthChecks),
 		Labels:           labels,
 	}
 
@@ -2611,6 +2771,7 @@ func buildUpdateBuildParametersRequest(req *spec.UpdateAgentBuildParametersReque
 		Repository:     mapRepository(req.Provisioning.Repository),
 		Build:          mapBuildConfig(&req.Build),
 		InputInterface: mapInputInterface(&req.InputInterface),
+		HealthChecks:   mapHealthChecks(req.HealthChecks),
 		AgentType: client.AgentTypeConfig{
 			Type:    req.AgentType.Type,
 			SubType: subType,
@@ -3347,6 +3508,18 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, ouID string, proj
 		return "", err
 	}
 
+	// The health checks of the build being deployed, written onto the environment in the same
+	// update as its release. Only API agents run them (the component-type configs below are
+	// written for API agents only), so others skip the lookup.
+	var deployHealthChecks *models.HealthChecks
+	keepCurrentHealthChecks := false
+	if agent.Type.Type == string(utils.AgentTypeAPI) {
+		deployHealthChecks, keepCurrentHealthChecks, err = s.healthChecksForDeploy(ctx, ouID, projectName, pipeline.Name, agentName, agent.KindName, lowestEnv, req.ImageId)
+		if err != nil {
+			return "", err
+		}
+	}
+
 	// The cell namespace for (project, environment) is owned by a
 	// ProjectReleaseBinding. Without one the release binding this deploy creates
 	// fails to apply with `namespaces "dp-..." not found`. Ensure it here rather
@@ -3636,6 +3809,15 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, ouID string, proj
 	var deployCTConfigs map[string]interface{}
 	if isAPIAgent {
 		deployCTConfigs = buildComponentTypeEnvConfigs(targetEnv)
+		// The build's checks replace the environment's; an explicit nil (the build has none)
+		// removes them; leaving the key out keeps them (the build couldn't be looked up).
+		switch {
+		case keepCurrentHealthChecks:
+		case deployHealthChecks == nil:
+			deployCTConfigs["healthChecks"] = nil
+		default:
+			deployCTConfigs["healthChecks"] = deployHealthChecks
+		}
 	}
 
 	// Cut the release this deploy actually runs and pin the environment's binding to it, carrying

@@ -823,6 +823,24 @@ func (e GroupedScoresResponseLevel) Valid() bool {
 	}
 }
 
+// Defines values for HealthCheckType.
+const (
+	HTTP HealthCheckType = "HTTP"
+	TCP  HealthCheckType = "TCP"
+)
+
+// Valid indicates whether the value is a known member of the HealthCheckType enum.
+func (e HealthCheckType) Valid() bool {
+	switch e {
+	case HTTP:
+		return true
+	case TCP:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for HealthStatusResponseStatus.
 const (
 	HEALTHY     HealthStatusResponseStatus = "HEALTHY"
@@ -1919,6 +1937,9 @@ type AgentResponse struct {
 	Description string          `json:"description"`
 	DisplayName string          `json:"displayName"`
 
+	// HealthChecks Startup, readiness and liveness checks for the agent's container. A check that is not set uses the default: startup and readiness are TCP checks on the agent's port, and there is no liveness check.
+	HealthChecks *HealthChecks `json:"healthChecks,omitempty"`
+
 	// InputInterface Endpoint configurations
 	InputInterface *InputInterface `json:"inputInterface,omitempty"`
 
@@ -2064,7 +2085,10 @@ type BuildDetailsResponse struct {
 	// DurationSeconds Build duration in seconds
 	DurationSeconds *int       `json:"durationSeconds,omitempty"`
 	EndedAt         *time.Time `json:"endedAt,omitempty"`
-	ImageId         *string    `json:"imageId,omitempty"`
+
+	// HealthChecks Startup, readiness and liveness checks for the agent's container. A check that is not set uses the default: startup and readiness are TCP checks on the agent's port, and there is no liveness check.
+	HealthChecks *HealthChecks `json:"healthChecks,omitempty"`
+	ImageId      *string       `json:"imageId,omitempty"`
 
 	// InputInterface Endpoint configurations
 	InputInterface *InputInterface `json:"inputInterface,omitempty"`
@@ -2120,9 +2144,12 @@ type BuildResponse struct {
 	// BuildParameters Parameters used for the build
 	BuildParameters BuildParameters `json:"buildParameters"`
 	EndedAt         *time.Time      `json:"endedAt,omitempty"`
-	ImageId         *string         `json:"imageId,omitempty"`
-	ProjectName     string          `json:"projectName"`
-	StartedAt       time.Time       `json:"startedAt"`
+
+	// HealthChecks Startup, readiness and liveness checks for the agent's container. A check that is not set uses the default: startup and readiness are TCP checks on the agent's port, and there is no liveness check.
+	HealthChecks *HealthChecks `json:"healthChecks,omitempty"`
+	ImageId      *string       `json:"imageId,omitempty"`
+	ProjectName  string        `json:"projectName"`
+	StartedAt    time.Time     `json:"startedAt"`
 
 	// Status Overall build status, derived from the underlying workflow phase. Succeeded means the image was built and pushed; Completed additionally means the workload CR was updated. Per-step progress is in `steps`.
 	Status *BuildResponseStatus `json:"status,omitempty"`
@@ -2547,6 +2574,9 @@ type CreateAgentRequest struct {
 	// GithubApp Optional GitHub App source binding for cloud deployments. The control plane consumes this metadata, persists it through the deployment-provided repository source provider, and never forwards it to OpenChoreo. When omitted, public-repository and PAT-backed behavior is unchanged.
 	GithubApp *GitHubAppSource `json:"githubApp,omitempty"`
 
+	// HealthChecks Startup, readiness and liveness checks for the agent's container. A check that is not set uses the default: startup and readiness are TCP checks on the agent's port, and there is no liveness check.
+	HealthChecks *HealthChecks `json:"healthChecks,omitempty"`
+
 	// InputInterface Endpoint configurations
 	InputInterface *InputInterface `json:"inputInterface,omitempty"`
 
@@ -2938,6 +2968,9 @@ type DeploymentDetailsResponse struct {
 
 	// GatewayStatusReason Why gatewayStatus is what it is: the gateway's error code, DEPLOYMENT_TIMEOUT, what a deploy is waiting for, or "no gateway in this environment". Empty when there is nothing to say.
 	GatewayStatusReason *string `json:"gatewayStatusReason,omitempty"`
+
+	// HealthChecks Startup, readiness and liveness checks for the agent's container. A check that is not set uses the default: startup and readiness are TCP checks on the agent's port, and there is no liveness check.
+	HealthChecks *HealthChecks `json:"healthChecks,omitempty"`
 
 	// ImageId Container image ID
 	ImageId string `json:"imageId"`
@@ -3635,6 +3668,48 @@ type GroupedScoresResponse struct {
 
 // GroupedScoresResponseLevel defines model for GroupedScoresResponse.Level.
 type GroupedScoresResponseLevel string
+
+// HealthCheck One health check. A field that is not set uses its default value.
+type HealthCheck struct {
+	// Enabled Whether the check runs. Defaults to true.
+	Enabled *bool `json:"enabled,omitempty"`
+
+	// FailureThreshold Failed checks in a row before the check is treated as failed.
+	FailureThreshold *int `json:"failureThreshold,omitempty"`
+
+	// InitialDelaySeconds Seconds to wait after the container starts before the first check.
+	InitialDelaySeconds *int `json:"initialDelaySeconds,omitempty"`
+
+	// Path Path for an HTTP check. Required when type is HTTP.
+	Path *string `json:"path,omitempty"`
+
+	// PeriodSeconds Seconds between checks.
+	PeriodSeconds *int `json:"periodSeconds,omitempty"`
+
+	// Port Port to check. Defaults to the agent's port.
+	Port *int `json:"port,omitempty"`
+
+	// TimeoutSeconds Seconds before a check times out.
+	TimeoutSeconds *int `json:"timeoutSeconds,omitempty"`
+
+	// Type TCP opens a connection to the port; HTTP sends a GET request to the path. Defaults to TCP.
+	Type *HealthCheckType `json:"type,omitempty"`
+}
+
+// HealthCheckType TCP opens a connection to the port; HTTP sends a GET request to the path. Defaults to TCP.
+type HealthCheckType string
+
+// HealthChecks Startup, readiness and liveness checks for the agent's container. A check that is not set uses the default: startup and readiness are TCP checks on the agent's port, and there is no liveness check.
+type HealthChecks struct {
+	// Liveness One health check. A field that is not set uses its default value.
+	Liveness *HealthCheck `json:"liveness,omitempty"`
+
+	// Readiness One health check. A field that is not set uses its default value.
+	Readiness *HealthCheck `json:"readiness,omitempty"`
+
+	// Startup One health check. A field that is not set uses its default value.
+	Startup *HealthCheck `json:"startup,omitempty"`
+}
 
 // HealthStatusResponse defines model for HealthStatusResponse.
 type HealthStatusResponse struct {
@@ -5584,6 +5659,9 @@ type UpdateAgentBuildParametersRequest struct {
 	AgentType      AgentType       `json:"agentType"`
 	Build          Build           `json:"build"`
 	Configurations *Configurations `json:"configurations,omitempty"`
+
+	// HealthChecks Startup, readiness and liveness checks for the agent's container. A check that is not set uses the default: startup and readiness are TCP checks on the agent's port, and there is no liveness check.
+	HealthChecks *HealthChecks `json:"healthChecks,omitempty"`
 
 	// InputInterface Endpoint configurations
 	InputInterface InputInterface `json:"inputInterface"`
