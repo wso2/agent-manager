@@ -969,6 +969,9 @@ func TestFetchMCPServerInfo_WhenToFallBackToInitialize(t *testing.T) {
 		{name: "429 is reported", discoverStatus: 429, discoverBody: "slow down"},
 		{name: "500 without JSON-RPC is reported", discoverStatus: 500, discoverBody: "internal error"},
 		{name: "200 that is not JSON-RPC is reported", discoverStatus: 200, discoverBody: "<html>sign in</html>"},
+		{name: "200 with Method not found (-32601) refuses the method", discoverStatus: 200, discoverBody: jsonRPCError, wantFallBack: true},
+		{name: "200 unsupported protocol version (-32022) is reported", discoverStatus: 200, discoverBody: `{"jsonrpc":"2.0","id":1,"error":{"code":-32022,"message":"Unsupported protocol version","data":{"supported":["2027-03-01"],"requested":"2026-07-28"}}}`},
+		{name: "200 header mismatch (-32020) is reported", discoverStatus: 200, discoverBody: `{"jsonrpc":"2.0","id":1,"error":{"code":-32020,"message":"Header mismatch"}}`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

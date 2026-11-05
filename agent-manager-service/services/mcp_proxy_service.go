@@ -2143,8 +2143,8 @@ func buildRequestHeaders(protocolVersion string, method string) map[string]strin
 //   - The server answers with the MCP versions it supports: returns true.
 //   - The server refuses the method (see isServerDiscoverRefusal), so it is prior to
 //     MCP 2026-07-28: returns false and no error.
-//   - Any other error, e.g. 401, 403, 429, 5xx, unreachable, or a 2xx body that isn't JSON-RPC:
-//     returns the error.
+//   - Any other error, e.g. 401, 403, 429, 5xx, unreachable, a 2xx body that isn't JSON-RPC, or a
+//     2026-07-28 error (see isMCPJuly2026Error) with any status: returns the error.
 func (s *MCPProxyService) discoverMCPServer(ctx context.Context, endpointURL string, headerName string, headerValue string) (mcpServerDiscoverResult, bool, error) {
 	discoverReq := mcpJSONRPCRequest{JSONRPC: mcpJSONRPCVersion, ID: 1, Method: mcpMethodServerDiscover}
 
@@ -2159,7 +2159,13 @@ func (s *MCPProxyService) discoverMCPServer(ctx context.Context, endpointURL str
 	if err := json.Unmarshal(body, &discoverResult); err != nil {
 		return discoverResult, false, fmt.Errorf("failed to parse server/discover response: %w, body: %s", err, string(body))
 	}
-	// HTTP 200 with a JSON-RPC error, e.g. -32601 "Method not found", is also a refusal.
+	// HTTP 200 with a 2026-07-28 error, e.g. -32022 "Unsupported protocol version", comes from a
+	// new server that refused this request: report it, as with a 4xx, instead of trying initialize.
+	if isMCPJuly2026Error(string(body)) {
+		return discoverResult, false, fmt.Errorf("server/discover failed: %s (code %d)",
+			discoverResult.Error.Message, discoverResult.Error.Code)
+	}
+	// HTTP 200 with any other JSON-RPC error, e.g. -32601 "Method not found", is a refusal.
 	serverAnswered := discoverResult.Error == nil
 	return discoverResult, serverAnswered, nil
 }
