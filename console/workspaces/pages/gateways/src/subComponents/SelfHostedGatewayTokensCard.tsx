@@ -54,7 +54,7 @@ export function SelfHostedGatewayTokensCard({
   gatewayId,
 }: SelfHostedGatewayTokensCardProps) {
   const params = { orgName, gatewayId };
-  const { canWrite } = useGatewayFeatures();
+  const { canManageTokens } = useGatewayFeatures();
   const { data, isLoading, error } = useSelfHostedGatewayTokens(params);
   const { mutateAsync: createToken, isPending: creating } = useCreateSelfHostedGatewayToken();
   const { mutateAsync: revokeToken } = useRevokeSelfHostedGatewayToken();
@@ -94,7 +94,7 @@ export function SelfHostedGatewayTokensCard({
       <Stack spacing={2}>
         <Stack direction="row" justifyContent="space-between" alignItems="center">
           <Typography variant="h6">Registration tokens</Typography>
-          {canWrite && (
+          {canManageTokens && (
           <Tooltip
             title={
               activeCount >= MAX_ACTIVE_TOKENS
@@ -163,7 +163,7 @@ export function SelfHostedGatewayTokensCard({
               variant="outlined"
               color={token.status === "active" ? "success" : "default"}
             />
-            {canWrite && token.status === "active" && (
+            {canManageTokens && token.status === "active" && (
               <Tooltip title="Revoke">
                 <IconButton
                   size="small"

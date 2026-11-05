@@ -17,7 +17,8 @@
  */
 
 import { useFeatureManagement } from "../FeatureManagementProvider";
-import type { AccessResource, FeatureAccessKey, FeatureFlagKey } from "../types";
+import { useResourceAccess } from "../hooks";
+import type { AccessResource, FeatureFlagKey } from "../types";
 
 export interface ManagedResourceFeatures {
   /** Show the nav item and pages. */
@@ -31,20 +32,21 @@ function useManagedResourceFeatures(
   managedOutsideFlag: FeatureFlagKey,
   resource: AccessResource,
 ): ManagedResourceFeatures {
-  const { isFlagOn, hasAccess } = useFeatureManagement();
-  const canView =
-    !isFlagOn(managedOutsideFlag) && hasAccess(`${resource}_read` as FeatureAccessKey);
-  return {
-    canView,
-    canWrite: canView && hasAccess(`${resource}_write` as FeatureAccessKey),
-  };
+  const { isFlagOn } = useFeatureManagement();
+  const { canRead, canWrite } = useResourceAccess(resource);
+  const canView = !isFlagOn(managedOutsideFlag) && canRead;
+  return { canView, canWrite: canView && canWrite };
 }
 
 export const useEnvironmentFeatures = () =>
   useManagedResourceFeatures("externallyManagedEnv", "env");
 
-export const useGatewayFeatures = () =>
-  useManagedResourceFeatures("externallyManagedGateway", "gateway");
+export function useGatewayFeatures(): ManagedResourceFeatures & { canManageTokens: boolean } {
+  const features = useManagedResourceFeatures("externallyManagedGateway", "gateway");
+  const { hasAccess } = useFeatureManagement();
+  // Registration tokens have their own permission, separate from gateway write.
+  return { ...features, canManageTokens: features.canView && hasAccess("gateway_token_write") };
+}
 
 export const usePipelineFeatures = () =>
   useManagedResourceFeatures("externallyManagedPipeline", "pipeline");

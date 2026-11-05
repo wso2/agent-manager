@@ -10,7 +10,12 @@ Console feature flags, and gating by what the user may do.
 | `featureAccess` | `{ env_read: true, env_write: false }` | `true` (allowed) |
 | `isAccessLoading` | `true` while the token decodes | `false` |
 
-With no provider, every flag is off and every access is allowed.
+Objects are compared by value, so passing them inline is fine. While access is loading,
+pass no `featureAccess` (everything allowed) and set `isAccessLoading`; the nav waits on
+it, and pages don't redirect away before the real access is known.
+
+With no provider, every flag is off and every access is allowed. A flag is on only
+when its value is exactly `true`.
 Nested providers inherit from the outer one and override only the keys they set.
 
 ## Flags (`featureFlags`)
@@ -34,7 +39,11 @@ default, so the pages show:
 Each resource has `<resource>_read` and `<resource>_write` (create, update, delete):
 `project`, `agent`, `agent_kind`, `agent_identity`, `env`, `gateway`, `pipeline`,
 `git_secret`, `llm_provider`, `llm_provider_template`, `llm_proxy`, `mcp_server`,
-`evaluator`, `monitor`, `member`, `role`, `group`.
+`evaluator`, `monitor`, `role`, `group`.
+
+Some actions have their own permission and so their own key: `gateway_token_write`
+(self-hosted gateway registration tokens), and `member_read`, `member_invite` and
+`member_remove` (organization users).
 
 Deployments also use `agent_deploy` (non-production environments),
 `agent_deploy_production` (production, on top of `agent_deploy`) and `agent_suspend`.

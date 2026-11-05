@@ -56,8 +56,8 @@ import { validatePromotionChain } from "../utils/validatePromotionChain";
 
 interface DeploymentPipelineTableProps {
   onCreatePipeline?: () => void;
-  /** Row click opens the edit page and hover shows Delete; defaults to true. */
-  canEdit?: boolean;
+  /** Hover shows Delete; defaults to true. */
+  canDelete?: boolean;
 }
 
 interface EnvInfo {
@@ -140,7 +140,7 @@ function PromotionChainCell({
 
 export function DeploymentPipelineTable({
   onCreatePipeline,
-  canEdit = true,
+  canDelete = true,
 }: DeploymentPipelineTableProps) {
   const { orgId } = useParams<{ orgId: string }>();
   const navigate = useNavigate();
@@ -302,8 +302,8 @@ export function DeploymentPipelineTable({
               key={pipeline.name}
               variant="card"
               hover
-              clickable={canEdit}
-              onClick={canEdit ? () => navigate(pipelineHref(pipeline.name)) : undefined}
+              clickable
+              onClick={() => navigate(pipelineHref(pipeline.name))}
               onMouseEnter={() => setHoveredId(pipeline.name)}
               onMouseLeave={() => setHoveredId(null)}
               onFocus={() => setHoveredId(pipeline.name)}
@@ -343,7 +343,7 @@ export function DeploymentPipelineTable({
                   alignItems="center"
                   spacing={1}
                 >
-                  {canEdit && hoveredId === pipeline.name ? (
+                  {canDelete && hoveredId === pipeline.name ? (
                     <FadeIn>
                       <Stack direction="row" spacing={0.5}>
                           <Button

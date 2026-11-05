@@ -28,13 +28,15 @@ import { accessFromScopes } from './scopeAccess';
 export function useScopeAccess(): FeatureAccessResult {
   const { userInfo, isLoadingAccessToken } = useAuthHooks();
   const scopeString = userInfo?.scope;
+  const isLoading = !globalConfig.disableAuth && isLoadingAccessToken;
   const featureAccess = useMemo(
     () =>
-      // With auth disabled the server gates nothing, so neither does the console.
-      globalConfig.disableAuth
+      // No auth: the server gates nothing. Loading: allow until the token is read, so
+      // guarded pages don't redirect away before the real access is known.
+      globalConfig.disableAuth || isLoading
         ? undefined
         : accessFromScopes(new Set((scopeString ?? '').split(' ').filter(Boolean))),
-    [scopeString],
+    [scopeString, isLoading],
   );
-  return { featureAccess, isLoading: !globalConfig.disableAuth && isLoadingAccessToken };
+  return { featureAccess, isLoading };
 }

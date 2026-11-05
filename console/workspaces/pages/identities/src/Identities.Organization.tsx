@@ -24,7 +24,7 @@ import {
   generatePath,
 } from "react-router-dom";
 import { absoluteRouteMap } from "@agent-management-platform/types";
-import { useResourceAccess } from "@agent-management-platform/feature-management";
+import { useFeatureAccess, useResourceAccess } from "@agent-management-platform/feature-management";
 import { UsersPage } from "./UsersPage";
 import { UserInvitePage } from "./UserInvitePage";
 import { UserAddPage } from "./UserAddPage";
@@ -38,7 +38,7 @@ import { GroupEditPage } from "./GroupEditPage";
 
 export const IdentitiesOrganization: React.FC = () => {
   const { orgId } = useParams<{ orgId: string }>();
-  const { canWrite: canWriteMembers } = useResourceAccess("member");
+  const canInviteMembers = useFeatureAccess("member_invite");
   const { canWrite: canWriteRoles } = useResourceAccess("role");
   const { canWrite: canWriteGroups } = useResourceAccess("group");
   const identitiesRoute =
@@ -61,11 +61,11 @@ export const IdentitiesOrganization: React.FC = () => {
       />
       <Route
         path="users/invite"
-        element={canWriteMembers ? <UserInvitePage /> : toList("users")}
+        element={canInviteMembers ? <UserInvitePage /> : toList("users")}
       />
       <Route
         path="users/add"
-        element={canWriteMembers ? <UserAddPage /> : toList("users")}
+        element={canInviteMembers ? <UserAddPage /> : toList("users")}
       />
       <Route path="users/:userId" element={<UserEditPage />} />
       <Route path="users/*" element={<UsersPage />} />

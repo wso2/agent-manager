@@ -32,7 +32,9 @@ function createFeatureManagement(
     featureFlags,
     featureAccess,
     isAccessLoading,
-    isFlagOn: (key) => featureFlags[key] ?? false,
+    // Only a real `true` turns a flag on; strings such as "false" or an unfilled
+    // template placeholder stay off.
+    isFlagOn: (key) => featureFlags[key] === true,
     hasAccess: (key) => featureAccess[key] ?? true,
   };
 }
@@ -60,14 +62,18 @@ export function FeatureManagementProvider({
   children,
 }: FeatureManagementProviderProps) {
   const parent = useContext(FeatureManagementContext);
+  // Compare by value, so callers can pass inline objects without re-rendering every
+  // consumer on each render. The objects are small flat boolean maps.
+  const flagsKey = JSON.stringify(featureFlags ?? {});
+  const accessKey = JSON.stringify(featureAccess ?? {});
   const value = useMemo(
     () =>
       createFeatureManagement(
-        { ...parent.featureFlags, ...featureFlags },
-        { ...parent.featureAccess, ...featureAccess },
+        { ...parent.featureFlags, ...(JSON.parse(flagsKey) as Partial<FeatureFlags>) },
+        { ...parent.featureAccess, ...(JSON.parse(accessKey) as Partial<FeatureAccessConfig>) },
         isAccessLoading ?? parent.isAccessLoading,
       ),
-    [parent, featureFlags, featureAccess, isAccessLoading],
+    [parent, flagsKey, accessKey, isAccessLoading],
   );
   return (
     <FeatureManagementContext.Provider value={value}>

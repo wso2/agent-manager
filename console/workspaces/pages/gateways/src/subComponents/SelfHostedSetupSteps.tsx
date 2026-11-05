@@ -139,7 +139,7 @@ export function SelfHostedSetupSteps({
   const [justReconfigured, setJustReconfigured] = useState(false);
   const [reconfiguring, setReconfiguring] = useState(false);
   const [reconfigureError, setReconfigureError] = useState<string | null>(null);
-  const { canWrite } = useGatewayFeatures();
+  const { canManageTokens } = useGatewayFeatures();
 
   const params = { orgName, gatewayId };
   // Read only when reconfiguring, so nothing loads on mount.
@@ -172,7 +172,7 @@ export function SelfHostedSetupSteps({
     }
   };
 
-  const reconfigurePrompt = canWrite ? (
+  const reconfigurePrompt = canManageTokens ? (
     <Stack spacing={1} alignItems="flex-start">
       <StepText>
         A gateway you already set up keeps working with its previous token. To get a new token and

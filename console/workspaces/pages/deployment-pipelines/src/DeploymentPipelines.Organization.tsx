@@ -98,15 +98,13 @@ export function DeploymentPipelinesOrganization() {
               >
                 <DeploymentPipelineTable
                   onCreatePipeline={canWrite ? () => setCreateOpen(true) : undefined}
-                  canEdit={canWrite}
+                  canDelete={canWrite}
                 />
               </PageLayout>
             </LegacyEditRedirect>
           }
         />
-        {canWrite && (
-          <Route path=":pipelineName" element={<DeploymentPipelineEditPage />} />
-        )}
+        <Route path=":pipelineName" element={<DeploymentPipelineEditPage />} />
         <Route path="*" element={<Navigate to={listHref} replace />} />
       </Routes>
 

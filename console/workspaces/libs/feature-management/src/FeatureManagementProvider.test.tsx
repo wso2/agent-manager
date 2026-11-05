@@ -55,7 +55,11 @@ describe("FeatureManagementProvider", () => {
       }),
       { wrapper: withProvider({ featureFlags: { externallyManagedGateway: true } }) },
     );
-    expect(result.current.gateway).toEqual({ canView: false, canWrite: false });
+    expect(result.current.gateway).toEqual({
+      canView: false,
+      canWrite: false,
+      canManageTokens: false,
+    });
     expect(result.current.env).toEqual({ canView: true, canWrite: true });
     expect(result.current.pipeline).toEqual({ canView: true, canWrite: true });
   });
@@ -84,11 +88,48 @@ describe("FeatureManagementProvider", () => {
     expect(result.current).toEqual({ selfHosted: true, agentId: false });
   });
 
+  it("treats only a real true as on", () => {
+    // A hand-written config.js may carry strings; they must not turn a flag on.
+    const looseFlags = { enableAgentIdentity: "false", enableUserManagement: "$FLAG" };
+    const { result } = renderHook(() => ({
+      agentId: useFeatureFlag("enableAgentIdentity"),
+      users: useFeatureFlag("enableUserManagement"),
+    }), {
+      wrapper: withProvider({ featureFlags: looseFlags as unknown as Record<string, boolean> }),
+    });
+    expect(result.current).toEqual({ agentId: false, users: false });
+  });
+
+  it("keeps gateway token access separate from gateway write", () => {
+    const { result } = renderHook(() => useGatewayFeatures(), {
+      wrapper: withProvider({ featureAccess: { gateway_write: false } }),
+    });
+    expect(result.current).toEqual({ canView: true, canWrite: false, canManageTokens: true });
+  });
+
   it("reads a resource's access pair", () => {
     const { result } = renderHook(() => useResourceAccess("llm_provider"), {
       wrapper: withProvider({ featureAccess: { llm_provider_write: false } }),
     });
     expect(result.current).toEqual({ canRead: true, canWrite: false });
+  });
+
+  it("keeps the same value when re-rendered with equal inline objects", () => {
+    let flags = { enableAgentIdentity: true };
+    const { result, rerender } = renderHook(() => useFeatureManagement(), {
+      wrapper: ({ children }) => (
+        <FeatureManagementProvider featureFlags={{ ...flags }}>
+          {children}
+        </FeatureManagementProvider>
+      ),
+    });
+    const first = result.current;
+    rerender();
+    expect(result.current).toBe(first);
+    flags = { enableAgentIdentity: false };
+    rerender();
+    expect(result.current).not.toBe(first);
+    expect(result.current.isFlagOn("enableAgentIdentity")).toBe(false);
   });
 
   it("lets a nested provider override only the keys it sets", () => {

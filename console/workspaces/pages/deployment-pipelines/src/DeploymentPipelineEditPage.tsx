@@ -56,6 +56,7 @@ import {
 import { chainToPromotionPaths } from "./utils/chainUtils";
 import { validatePromotionChain } from "./utils/validatePromotionChain";
 import { PipelineChainEditor } from "./subComponents/PipelineChainEditor";
+import { usePipelineFeatures } from "@agent-management-platform/feature-management";
 
 function pipelineToChain(pipeline: DeploymentPipelineResponse): string[] {
   if (pipeline.promotionPaths.length === 0) return [""];
@@ -77,6 +78,8 @@ export function DeploymentPipelineEditPage() {
     pipelineName: string;
   }>();
   const navigate = useNavigate();
+  // Readers see the pipeline; only writers can change it.
+  const { canWrite } = usePipelineFeatures();
 
   const listHref = orgId
     ? generatePath(
@@ -158,7 +161,7 @@ export function DeploymentPipelineEditPage() {
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
-      if (!formData || !pipeline) return;
+      if (!canWrite || !formData || !pipeline) return;
 
       const result = editPipelineSchema.safeParse(formData);
       if (!result.success) {
@@ -270,7 +273,7 @@ export function DeploymentPipelineEditPage() {
                   placeholder="e.g., Production Pipeline"
                   error={Boolean(errors.displayName)}
                   helperText={errors.displayName}
-                  disabled={isUpdating}
+                  disabled={isUpdating || !canWrite}
                 />
               </Grid>
               <Grid size={{ xs: 12, md: 12, xl: 8 }}>
@@ -287,7 +290,7 @@ export function DeploymentPipelineEditPage() {
                     handleFieldChange("description", e.target.value)
                   }
                   placeholder="Optional description"
-                  disabled={isUpdating}
+                  disabled={isUpdating || !canWrite}
                 />
               </Grid>
             </Grid>
@@ -300,8 +303,10 @@ export function DeploymentPipelineEditPage() {
               setFormData((prev) => (prev ? { ...prev, chain } : prev))
             }
             disabled={isUpdating}
+            readOnly={!canWrite}
           />
 
+          {canWrite && (
           <Box display="flex" gap={1} mt={2}>
             <Button
               variant="outlined"
@@ -320,6 +325,7 @@ export function DeploymentPipelineEditPage() {
               {isUpdating ? "Saving..." : "Save"}
             </Button>
           </Box>
+          )}
         </Stack>
       </form>
     );

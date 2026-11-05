@@ -64,6 +64,8 @@ export interface FeatureAccessConfig {
   env_write: boolean;
   gateway_read: boolean;
   gateway_write: boolean;
+  /** Create and revoke self-hosted gateway registration tokens. */
+  gateway_token_write: boolean;
   pipeline_read: boolean;
   pipeline_write: boolean;
   git_secret_read: boolean;
@@ -81,7 +83,10 @@ export interface FeatureAccessConfig {
   monitor_read: boolean;
   monitor_write: boolean;
   member_read: boolean;
-  member_write: boolean;
+  /** Add or invite users to the organization. */
+  member_invite: boolean;
+  /** Remove users from the organization. */
+  member_remove: boolean;
   role_read: boolean;
   role_write: boolean;
   group_read: boolean;

@@ -38,7 +38,7 @@ import {
   absoluteRouteMap,
   type ThunderUser,
 } from "@agent-management-platform/types";
-import { useFeatureFlag, useResourceAccess } from "@agent-management-platform/feature-management";
+import { useFeatureAccess, useFeatureFlag } from "@agent-management-platform/feature-management";
 import { ListingSkeletonRows } from "./components/ListingSkeletonRows";
 
 const AVATAR_SX = { width: 28, height: 28, fontSize: 12 } as const;
@@ -47,7 +47,8 @@ export const UsersPage: React.FC = () => {
   const { orgId } = useParams<{ orgId: string }>();
   const navigate = useNavigate();
   const isUserManagementEnabled = useFeatureFlag("enableUserManagement");
-  const { canWrite } = useResourceAccess("member");
+  const canInvite = useFeatureAccess("member_invite");
+  const canRemove = useFeatureAccess("member_remove");
 
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -122,7 +123,7 @@ export const UsersPage: React.FC = () => {
   };
 
   // One definition, used by the toolbar and by the empty state's CTA.
-  const createButtons = canWrite ? (
+  const createButtons = canInvite ? (
     <Stack direction="row" spacing={1}>
       <Button
         variant="outlined"
@@ -217,7 +218,7 @@ export const UsersPage: React.FC = () => {
                           </Typography>
                         </ListingTable.Cell>
                         <ListingTable.Cell align="center">
-                          {canWrite && (
+                          {canRemove && (
                             <ListingTable.RowActions visibility="hover">
                               <Tooltip title="Delete user">
                                 <IconButton

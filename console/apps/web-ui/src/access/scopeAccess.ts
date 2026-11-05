@@ -58,7 +58,8 @@ export const SCOPE_RULES: Record<keyof FeatureAccessConfig, ScopeRule> = {
   env_read: environment.read,
   env_write: environment.write,
   gateway_read: gateway.read,
-  gateway_write: { anyOf: [...crud('gateway'), 'amp:gateway:token-manage'] },
+  gateway_write: gateway.write,
+  gateway_token_write: { anyOf: ['amp:gateway:token-manage'] },
   pipeline_read: pipeline.read,
   pipeline_write: pipeline.write,
   git_secret_read: { anyOf: ['amp:git-secret:read'] },
@@ -77,7 +78,8 @@ export const SCOPE_RULES: Record<keyof FeatureAccessConfig, ScopeRule> = {
   monitor_write: monitor.write,
   // The Users page has no read scope of its own; either member scope opens it.
   member_read: { anyOf: members },
-  member_write: { anyOf: members },
+  member_invite: { anyOf: ['amp:org:invite-member'] },
+  member_remove: { anyOf: ['amp:org:remove-member'] },
   // Any role or group scope opens its page, as the nav did before.
   role_read: { anyOf: roleScopes },
   role_write: { anyOf: crud('role') },
