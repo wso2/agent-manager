@@ -211,4 +211,47 @@ func TestGatewayContextClashAcrossKinds(t *testing.T) {
 		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 		assert.Equal(t, models.MCPDeploymentStatusDeployed, decodeBinding(t, rr).DeploymentStatus)
 	})
+
+	t.Run("a proxy context change that clashes on a bound gateway is 409 and stores nothing", func(t *testing.T) {
+		before := decodeBinding(t, h.do(http.MethodGet, project, bindingPath(tools), nil))
+		rr := orgProxy("org-new-"+suffix, "/"+project+"/new", nil)
+		require.Equal(t, http.StatusCreated, rr.Code, rr.Body.String())
+
+		rr = h.do(http.MethodPut, project, "/"+tools, map[string]any{
+			"name": "Proxy " + tools, "context": "/new",
+			"source": map[string]string{"componentName": tools, "endpointName": "mcp"},
+		})
+		require.Equal(t, http.StatusConflict, rr.Code, rr.Body.String())
+		assert.Equal(t, utils.ErrCodeContextInUse, errorCode(t, rr))
+
+		proxy := decodeProxy(t, h.do(http.MethodGet, project, "/"+tools, nil))
+		assert.Equal(t, "/tools", proxy.Context, "the proxy keeps its context")
+		after := decodeBinding(t, h.do(http.MethodGet, project, bindingPath(tools), nil))
+		assert.Equal(t, models.MCPDeploymentStatusDeployed, after.DeploymentStatus)
+		assert.Equal(t, before.PublicURL, after.PublicURL)
+		assert.Equal(t, "https://cc-gw.example.com/"+project+"/tools/mcp", after.PublicURL)
+	})
+
+	t.Run("an org proxy context change into a clash is 409 and stores nothing", func(t *testing.T) {
+		handle := "org-root-" + suffix
+		rr := orgDo(http.MethodPut, "/mcp-proxies/"+handle, map[string]any{
+			"id": handle, "name": "Org " + handle, "version": "v1", "context": "/" + project + "/tools/x",
+			"endpoints": []map[string]any{{
+				"id":       "main",
+				"upstream": map[string]any{"main": map[string]any{"url": "https://mcp.example.com/mcp"}},
+				"environments": []map[string]any{{
+					"environmentUuid": envUUID.String(), "gatewayId": gatewayID.String(),
+				}},
+			}},
+		})
+		require.Equal(t, http.StatusConflict, rr.Code, rr.Body.String())
+		assert.Equal(t, utils.ErrCodeContextInUse, errorCode(t, rr))
+
+		rr = orgDo(http.MethodGet, "/mcp-proxies/"+handle, nil)
+		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+		var dto models.MCPProxyDTO
+		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &dto))
+		require.NotNil(t, dto.Context)
+		assert.Equal(t, "/", *dto.Context, "the org proxy keeps its context")
+	})
 }

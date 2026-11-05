@@ -7329,7 +7329,8 @@ paths:
         An identical body is a no-op and returns 200. `source` is fixed after create: changing it returns
         400 IMMUTABLE_FIELD. A source whose component is of type mi-mcp-server (legacy HTTP+SSE) or does
         not exist returns 400. Updating name, description, version or context re-renders every bound
-        environment.
+        environment. A new context that equals, contains or sits under another artifact's context on a
+        gateway a binding is placed on returns 409 CONTEXT_IN_USE and nothing is stored.
       operationId: upsertProjectMCPProxy
       requestBody:
         required: true
@@ -7375,7 +7376,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "409":
-          description: HANDLE_IN_USE. The handle belongs to an org-level proxy or another project's proxy
+          description: HANDLE_IN_USE. The handle belongs to an org-level proxy or another project's proxy; or CONTEXT_IN_USE. The new context clashes on a bound gateway
           content:
             application/json:
               schema:

@@ -109,6 +109,9 @@ func (c *projectMCPProxyController) UpsertProjectMCPProxy(w http.ResponseWriter,
 		case errors.Is(err, utils.ErrImmutableFieldChange):
 			utils.WriteErrorResponseWithReason(w, http.StatusBadRequest,
 				"source cannot be changed", err.Error(), utils.ErrCodeImmutableField)
+		case errors.Is(err, utils.ErrMCPContextInUse):
+			utils.WriteErrorResponseWithReason(w, http.StatusConflict,
+				utils.ErrMCPContextInUse.Error(), err.Error(), utils.ErrCodeContextInUse)
 		case errors.Is(err, utils.ErrInvalidInput):
 			utils.WriteErrorResponseWithReason(w, http.StatusBadRequest, "Bad request", err.Error(), utils.ErrCodeBadRequest)
 		default:

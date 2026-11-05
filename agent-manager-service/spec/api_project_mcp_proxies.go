@@ -592,7 +592,8 @@ existing proxy needs amp:mcp-server:update.
 An identical body is a no-op and returns 200. `source` is fixed after create: changing it returns
 400 IMMUTABLE_FIELD. A source whose component is of type mi-mcp-server (legacy HTTP+SSE) or does
 not exist returns 400. Updating name, description, version or context re-renders every bound
-environment.
+environment. A new context that equals, contains or sits under another artifact's context on a
+gateway a binding is placed on returns 409 CONTEXT_IN_USE and nothing is stored.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param orgName Organization name/handle. Routing only; the org comes from the token or from X-Impersonate-Org.

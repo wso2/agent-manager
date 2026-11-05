@@ -17,12 +17,16 @@
 package services
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 
 	occlient "github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
@@ -352,8 +356,16 @@ func (s *ProjectMCPProxyService) update(
 	updated.Configuration.Source = &source
 
 	if err := s.base.tx(ctx, func(tx *gorm.DB) error {
+		if mcpGatewayContext(&updated, "") != mcpGatewayContext(existing, "") {
+			if err := s.checkContextChange(ctx, tx, ouID, existing, mcpGatewayContext(&updated, "")); err != nil {
+				return err
+			}
+		}
 		return s.base.repo.Update(ctx, tx, &updated, ouID)
 	}); err != nil {
+		if errors.Is(err, utils.ErrMCPContextInUse) {
+			return nil, err
+		}
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, utils.ErrMCPProxyNotFound
 		}
@@ -371,6 +383,46 @@ func (s *ProjectMCPProxyService) update(
 		updated.Artifact = &art
 	}
 	return projectMCPProxyResponse(&updated), nil
+}
+
+// checkContextChange refuses (utils.ErrMCPContextInUse) a new gateway context for the proxy that would clash on a
+// gateway one of its bindings is placed on, before the change is stored: the bindings' re-renders would otherwise
+// fail while the proxy reads back a context its gateways don't serve. The gateways are locked in tx in UUID order,
+// before the proxy row is written, as a binding deploy locks its gateway first.
+func (s *ProjectMCPProxyService) checkContextChange(
+	ctx context.Context, tx *gorm.DB, ouID string, proxy *models.MCPProxy, gatewayContext string,
+) error {
+	if s.base.deploymentRepo == nil || s.base.gatewayRepo == nil {
+		return nil
+	}
+	placed := map[uuid.UUID][]uuid.UUID{}
+	for _, artifact := range mcpProxyArtifacts(proxy, ouID) {
+		gateways, err := s.base.deploymentRepo.PlacedGateways(ctx, ouID, artifact.ArtifactUUID)
+		if err != nil {
+			return fmt.Errorf("failed to list the gateways the binding is placed on: %w", err)
+		}
+		for _, gw := range gateways {
+			gateway, err := uuid.Parse(gw)
+			if err != nil {
+				return fmt.Errorf("invalid gateway id %q: %w", gw, err)
+			}
+			placed[gateway] = append(placed[gateway], artifact.ArtifactUUID)
+		}
+	}
+	gateways := slices.SortedFunc(maps.Keys(placed), func(a, b uuid.UUID) int { return bytes.Compare(a[:], b[:]) })
+	for _, gateway := range gateways {
+		if err := s.base.gatewayRepo.AcquireGatewayLock(tx, gateway.String()); err != nil {
+			return fmt.Errorf("failed to lock the gateway: %w", err)
+		}
+	}
+	for _, gateway := range gateways {
+		for _, artifact := range placed[gateway] {
+			if err := s.checkBindingContext(ctx, ouID, gateway, artifact, gatewayContext, proxy.Configuration.Vhost); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func handleInUseError(handle string) error {

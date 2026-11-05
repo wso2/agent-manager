@@ -82,6 +82,10 @@ type bindingFixture struct {
 	// is taken, standing in for another binding that committed just before it.
 	gatewayLocks  []string
 	onGatewayLock func()
+
+	// proxyUpdates counts proxy row writes; rerenders counts redeploys queued for the proxy's bindings.
+	proxyUpdates int
+	rerenders    int
 }
 
 func newBindingFixture(t *testing.T) *bindingFixture {
@@ -125,6 +129,12 @@ func newBindingFixture(t *testing.T) *bindingFixture {
 				return nil, utils.ErrMCPProxyNotFound
 			}
 			return copyProxy(), nil
+		},
+		UpdateFunc: func(_ context.Context, _ *gorm.DB, p *models.MCPProxy, _ string) error {
+			f.proxyUpdates++
+			f.proxy.Configuration = p.Configuration
+			f.proxy.Description = p.Description
+			return nil
 		},
 		GetByHandleForUpdateFunc: func(_ context.Context, _ *gorm.DB, handle, _ string) (*models.MCPProxy, error) {
 			if handle != bindingHandle {
@@ -176,7 +186,11 @@ func newBindingFixture(t *testing.T) *bindingFixture {
 			}
 			return nil, nil
 		},
-		LockStatusRowsFunc:         func(context.Context, *gorm.DB, string, []uuid.UUID) error { return nil },
+		LockStatusRowsFunc: func(context.Context, *gorm.DB, string, []uuid.UUID) error { return nil },
+		QueueRenderFunc: func(context.Context, *gorm.DB, string, uuid.UUID, []uuid.UUID, string, repositories.QueueScope) (int64, error) {
+			f.rerenders++
+			return 0, nil
+		},
 		LockEnvironmentMappingFunc: mappedEverywhere,
 		StartDeployFunc: func(ctx context.Context, tx *gorm.DB, p models.Placement, d *models.Deployment) error {
 			if err := startDeployStub(ctx, tx, p, d); err != nil {
@@ -282,6 +296,9 @@ func newBindingFixture(t *testing.T) *bindingFixture {
 	base.core = reconcile.NewCore(nil, deployments, f.hub, reconcile.Kinds{base.kind}, reconcile.Config{}, discardLogger()).WithGateways(gatewayRepo)
 
 	oc := &clientmocks.OpenChoreoClientMock{
+		GetComponentFunc: func(_ context.Context, _, _, name string) (*models.AgentResponse, error) {
+			return &models.AgentResponse{Name: name}, nil
+		},
 		GetEnvironmentFunc: func(_ context.Context, _, name string) (*models.EnvironmentResponse, error) {
 			if name != bindingEnv {
 				return nil, utils.ErrNotFound
