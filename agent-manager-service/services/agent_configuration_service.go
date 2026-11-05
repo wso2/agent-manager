@@ -2387,23 +2387,36 @@ func (s *agentConfigurationService) processEnvRemoval(
 			}
 		}
 
-		// Delete SecretReference CR after consumer refs have been cleaned up (best-effort).
-		// Use the persisted SecretReference from AgentEnvConfigVariable (set at creation time)
-		// rather than deriving it from mutable fields like configName which may have been renamed.
-		vars, varLoadErr := s.envVariableRepo.ListByConfigAndEnv(ctx, configUUID, envUUIDParsed)
-		if varLoadErr != nil {
-			s.logger.Warn("failed to load env config variables for SecretReference lookup in Scenario D", "err", varLoadErr)
-		} else {
-			for _, v := range vars {
-				if v.SecretReference != "" {
-					s.logger.Info("Scenario D: using persisted SecretReference for deletion",
-						"secretRef", v.SecretReference, "variableName", v.VariableName,
-						"configUUID", configUUID, "environment", envName)
-					if delErr := s.ocClient.DeleteSecretReference(ctx, ouID, v.SecretReference); delErr != nil {
-						s.logger.Warn("failed to delete SecretReference in Scenario D", "name", v.SecretReference, "err", delErr)
+		// Delete the proxy API key secret after consumer refs have been cleaned up (best-effort).
+		// The Secret Manager API also removes the SecretReference it manages.
+		if mapping.LLMProxy != nil {
+			var persistedSecretRefName string
+			vars, varLoadErr := s.envVariableRepo.ListByConfigAndEnv(ctx, configUUID, envUUIDParsed)
+			if varLoadErr != nil {
+				s.logger.Warn("failed to load env config variables for SecretReference lookup in Scenario D", "err", varLoadErr)
+			} else {
+				for _, v := range vars {
+					if v.SecretReference != "" {
+						persistedSecretRefName = v.SecretReference
+						break // Only one secret ref per config+env
 					}
-					break // Only one secret ref per config+env
 				}
+			}
+			proxySecretLoc := secretmanagersvc.SecretLocation{
+				OrgName:         ouID,
+				ProjectName:     projectName,
+				AgentName:       agentName,
+				EnvironmentName: envName,
+				ConfigName:      configName,
+				EntityName:      mapping.LLMProxy.Handle,
+				SecretKey:       secretmanagersvc.SecretKeyAPIKey,
+			}
+			secretRefForDelete := persistedSecretRefName
+			if secretRefForDelete == "" {
+				secretRefForDelete = proxySecretLoc.SecretRefName()
+			}
+			if delErr := s.secretClient.DeleteSecret(ctx, proxySecretLoc, secretRefForDelete); delErr != nil {
+				s.logger.Warn("failed to delete proxy API key secret in Scenario D", "secretRef", secretRefForDelete, "err", delErr)
 			}
 		}
 	}
@@ -4219,22 +4232,6 @@ func (s *agentConfigurationService) deleteLLMConfig(ctx context.Context, existin
 				}
 			}
 		}
-		if persistedSecretRefName == "" {
-			s.logger.Warn("no persisted SecretReference found for config, skipping SecretReference deletion",
-				"configUUID", configUUID, "environment", env)
-		}
-
-		// Step 1b: Delete SecretReference CR (internal agents only, best-effort).
-		if !policy.external() && persistedSecretRefName != "" {
-			s.logger.Info("Delete: using persisted SecretReference for deletion",
-				"secretRef", persistedSecretRefName,
-				"configUUID", configUUID, "environment", env)
-			if err := s.ocClient.DeleteSecretReference(ctx, ouID, persistedSecretRefName); err != nil {
-				s.logger.Warn("failed to delete SecretReference on config delete",
-					"name", persistedSecretRefName, "err", err)
-			}
-		}
-
 		// Step 2: Undeploy proxy deployments.
 		s.logger.Info(
 			"Cleaning up proxy deployments for deleted config",
@@ -4270,8 +4267,7 @@ func (s *agentConfigurationService) deleteLLMConfig(ctx context.Context, existin
 		// Delete proxy API key secret
 		// Step 4: Delete KV secrets for proxy API key (used by SecretReference CR).
 		// Note: provider upstream auth is encrypted in the DB and deleted with the proxy record.
-		// SecretReference CR is already deleted in Step 1b above, so we pass the persisted name
-		// to avoid a redundant (and potentially incorrect) deletion attempt.
+		// The Secret Manager API also removes the SecretReference it manages.
 		proxySecretLoc := secretmanagersvc.SecretLocation{
 			OrgName:         existingConfig.OUID,
 			ProjectName:     existingConfig.ProjectName,
