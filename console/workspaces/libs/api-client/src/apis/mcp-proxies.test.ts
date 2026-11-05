@@ -18,7 +18,7 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { httpGET } from "../utils";
-import { listMCPProxies } from "./mcp-proxies";
+import { getProjectMCPProxy, listMCPProxies } from "./mcp-proxies";
 
 vi.mock("../utils", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../utils")>()),
@@ -45,5 +45,21 @@ describe("listMCPProxies", () => {
   it("omits project when not provided (org-only list)", async () => {
     await listMCPProxies({ orgName: "org" }, { limit: 50, offset: 0 });
     expect(mockGET.mock.calls[0][1]?.searchParams).toEqual({ limit: "50", offset: "0" });
+  });
+});
+
+describe("getProjectMCPProxy", () => {
+  it("reads the proxy from its project route", async () => {
+    await getProjectMCPProxy({ orgName: "org", projName: "p 1", proxyId: "orders" });
+    expect(String(mockGET.mock.calls[0][0])).toMatch(
+      /\/orgs\/org\/projects\/p%201\/mcp-proxies\/orders$/,
+    );
+  });
+
+  it("refuses a missing project rather than calling the org route", async () => {
+    await expect(
+      getProjectMCPProxy({ orgName: "org", projName: undefined, proxyId: "orders" }),
+    ).rejects.toThrow();
+    expect(mockGET).not.toHaveBeenCalled();
   });
 });

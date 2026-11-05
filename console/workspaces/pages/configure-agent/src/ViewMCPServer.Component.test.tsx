@@ -46,6 +46,7 @@ vi.mock("@agent-management-platform/api-client", () => ({
   useGetAgent: vi.fn(() => ({ data: undefined })),
   useGetAgentMCPConfig: vi.fn(() => configResult),
   useGetMCPProxy: vi.fn(() => idle),
+  useGetProjectMCPProxy: vi.fn(() => idle),
   useListEnvironments: vi.fn(() => envsResult),
   useListMCPProxies: vi.fn(() => proxiesResult),
   useListMCPProxyScopes: vi.fn(() => idle),
@@ -69,7 +70,11 @@ vi.mock("./utils/buildInProgress", () => ({
   useHasBuildInProgress: () => false,
 }));
 
-import { useListMCPProxies } from "@agent-management-platform/api-client";
+import {
+  useGetMCPProxy,
+  useGetProjectMCPProxy,
+  useListMCPProxies,
+} from "@agent-management-platform/api-client";
 import { ViewMCPServerComponent } from "./ViewMCPServer.Component";
 
 const renderPage = () =>
@@ -110,5 +115,22 @@ describe("ViewMCPServerComponent", () => {
     expect(
       screen.getByRole("button", { name: /Org Proxy Display in the organization/ }),
     ).toBeTruthy();
+  });
+
+  it("reads a project proxy's security from its project route", () => {
+    const projectProxyResult = {
+      data: { id: "proj-proxy", name: "Project Proxy Display", version: "v1", projectName: "p1" },
+      isLoading: false,
+      isError: false,
+    };
+    vi.mocked(useGetMCPProxy).mockReturnValue(
+      projectProxyResult as unknown as ReturnType<typeof useGetMCPProxy>,
+    );
+    renderPage();
+    expect(useGetProjectMCPProxy).toHaveBeenCalledWith({
+      orgName: "o",
+      projName: "p1",
+      proxyId: "proj-proxy",
+    });
   });
 });

@@ -34,6 +34,7 @@ import {
   useAgentIdentityCredentials,
   usePipelineEnvironmentsState,
   useConfirmIfUnsaved,
+  useMCPProxyEndpoints,
   useThunderInstanceForEnv,
   useUnsavedChangesGuard,
 } from "@agent-management-platform/shared-component";
@@ -68,7 +69,6 @@ import {
 import {
   useGetAgent,
   useGetAgentMCPConfig,
-  useGetMCPProxy,
   useListEnvironments,
   useListMCPProxies,
   useListMCPProxyScopes,
@@ -453,11 +453,13 @@ export const ViewMCPServerComponent = () => {
 
   const providerConfig = config?.envMappings?.[selectedEnvName]?.configuration;
 
+  // An org proxy's endpoints, or a project proxy's environments (read from its
+  // project route) in the same shape.
   const {
-    data: sourceProxyDetails,
+    proxy: sourceProxyDetails,
     isLoading: isLoadingProxyDetails,
     isError: isProxyDetailsError,
-  } = useGetMCPProxy({
+  } = useMCPProxyEndpoints({
     orgName: orgId,
     proxyId: configProxyName ?? "",
   });
