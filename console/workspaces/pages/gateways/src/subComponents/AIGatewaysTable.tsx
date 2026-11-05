@@ -27,6 +27,7 @@ import {
   Typography,
 } from "@wso2/oxygen-ui";
 import {
+  Plus,
   Search,
   DoorClosedLocked,
   Trash,
@@ -311,11 +312,6 @@ export function AIGatewaysTable({ onAddGateway }: AIGatewaysTableProps) {
             )
           : undefined
       }
-      addButton={
-        selfHostedEnabled && onAddGateway
-          ? { label: "Add Gateway", onClick: onAddGateway }
-          : undefined
-      }
       isLoading={isLoading}
       isEmpty={gateways.length === 0}
       isSearchEmpty={filteredGateways.length === 0}
@@ -324,6 +320,13 @@ export function AIGatewaysTable({ onAddGateway }: AIGatewaysTableProps) {
         illustration: <DoorClosedLocked size={64} />,
         title: "No available gateway",
         description: "No gateways have been configured yet.",
+        // The page header shows Add Gateway once there are gateways.
+        action:
+          selfHostedEnabled && onAddGateway ? (
+            <Button variant="contained" startIcon={<Plus size={16} />} onClick={onAddGateway}>
+              Add Gateway
+            </Button>
+          ) : undefined,
       }}
       searchEmptyState={{
         illustration: <Search size={64} />,
