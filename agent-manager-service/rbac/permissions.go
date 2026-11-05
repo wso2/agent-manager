@@ -52,14 +52,9 @@ func MainMCPScopes() []string {
 		AgentSuspend,
 		AgentUpdate,
 		EnvironmentRead,
-		GatewayRead,
-		LLMProviderTemplateRead,
 		LLMProviderRead,
-		LLMProviderCreate,
 		LLMProviderUpdate,
 		MCPServerRead,
-		MCPServerCreate,
-		MCPServerConnect,
 	}
 	scopes := make([]string, 0, len(permissions))
 	for _, permission := range permissions {

@@ -24,27 +24,11 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
-	"github.com/wso2/agent-manager/agent-manager-service/spec"
 )
 
 // Returns the test specs for tools registered by registerLLMProviderTools.
 func llmProviderToolSpecs() []toolTestSpec {
 	return []toolTestSpec{
-		{
-			name:                "list_llm_provider_templates",
-			toolset:             "llm-provider",
-			permissions:         []rbac.Permission{rbac.LLMProviderTemplateRead},
-			descriptionKeywords: []string{"list", "template"},
-			descriptionMinLen:   20,
-			optionalParams:      []string{"limit", "offset"},
-			testArgs:            map[string]any{},
-			expectedMethod:      "ListLLMProviderTemplates",
-			validateCall: func(t *testing.T, args []interface{}) {
-				if got := args[0]; got != testOrgName {
-					t.Errorf("ouID: got %v, want %q", got, testOrgName)
-				}
-			},
-		},
 		{
 			name:                "list_llm_providers",
 			toolset:             "llm-provider",
@@ -85,19 +69,19 @@ func llmProviderToolSpecs() []toolTestSpec {
 			testArgs: map[string]any{
 				"provider_id": testProviderID,
 				"guardrails": []any{
-					map[string]any{"name": testGuardrailName, "version": "v2", "params": map[string]any{"mask": false}},
+					map[string]any{"name": testGuardrailName, "version": "v1", "params": map[string]any{"mask": false}},
 					map[string]any{"name": "word-count", "version": "v1"},
 				},
 			},
-			expectedMethod: "SetLLMProviderGuardrails",
+			expectedMethod: "UpdateLLMProviderGuardrails",
 			validateCall: func(t *testing.T, args []interface{}) {
 				got, ok := args[2].([]models.LLMPolicy)
 				if !ok {
 					t.Fatalf("guardrails: got %T", args[2])
 				}
-				// The provider already has pii-masking v1: it is replaced in place,
-				// and word-count is appended.
-				if len(got) != 2 || got[0].Name != testGuardrailName || got[0].Version != "v2" || got[1].Name != "word-count" {
+				// The provider already has pii-masking v1: its settings are updated
+				// in place, and word-count is appended.
+				if len(got) != 2 || got[0].Name != testGuardrailName || got[0].Version != "v1" || got[1].Name != "word-count" {
 					t.Fatalf("guardrails: got %+v", got)
 				}
 				if got[0].Paths[0].Params["mask"] != false || got[0].Paths[0].Path != guardrailPathAll {
@@ -113,7 +97,7 @@ func llmProviderToolSpecs() []toolTestSpec {
 			descriptionMinLen:   20,
 			requiredParams:      []string{"provider_id", "name"},
 			testArgs:            map[string]any{"provider_id": testProviderID, "name": testGuardrailName},
-			expectedMethod:      "SetLLMProviderGuardrails",
+			expectedMethod:      "UpdateLLMProviderGuardrails",
 			validateCall: func(t *testing.T, args []interface{}) {
 				if got, ok := args[2].([]models.LLMPolicy); !ok || len(got) != 0 {
 					t.Fatalf("guardrails after removal: got %v", args[2])
@@ -132,65 +116,6 @@ func llmProviderToolSpecs() []toolTestSpec {
 			validateCall: func(t *testing.T, args []interface{}) {
 				if got := args[1]; got != testProviderID {
 					t.Errorf("providerID: got %v, want %q", got, testProviderID)
-				}
-			},
-		},
-		{
-			name:                "create_llm_provider",
-			toolset:             "llm-provider",
-			permissions:         []rbac.Permission{rbac.LLMProviderCreate},
-			descriptionKeywords: []string{"create", "provider", "guardrail"},
-			descriptionMinLen:   20,
-			requiredParams:      []string{"name", "template"},
-			optionalParams:      []string{"api_key", "upstream_url", "description", "version", "gateway_ids", "guardrails"},
-			testArgs: map[string]any{
-				"name":        "My OpenAI",
-				"template":    testTemplateID,
-				"api_key":     "sk-test",
-				"gateway_ids": []any{testGatewayID},
-				"guardrails":  []any{map[string]any{"name": testGuardrailName, "version": "v1", "params": map[string]any{"mask": true}}},
-			},
-			expectedMethod: "CreateLLMProvider",
-			validateCall: func(t *testing.T, args []interface{}) {
-				req, ok := args[1].(*spec.CreateLLMProviderRequest)
-				if !ok {
-					t.Fatalf("request: got %T", args[1])
-				}
-				if req.Id != "my-openai" || req.Context != "/my-openai" || req.Version != defaultLLMProviderVersion {
-					t.Errorf("handle/context/version: got %q %q %q", req.Id, req.Context, req.Version)
-				}
-				if req.Upstream.Main == nil || req.Upstream.Main.Url == nil || *req.Upstream.Main.Url != "https://api.openai.com" {
-					t.Errorf("upstream url not defaulted from template: %+v", req.Upstream.Main)
-				}
-				if a := req.Upstream.Main.Auth; a == nil || a.Value == nil || *a.Value != "Bearer sk-test" || a.Header == nil || *a.Header != "Authorization" {
-					t.Errorf("upstream auth not built from template: %+v", a)
-				}
-				if len(req.Gateways) != 1 || req.Gateways[0] != testGatewayID {
-					t.Errorf("gateways: got %v", req.Gateways)
-				}
-				if len(req.Policies) != 1 || req.Policies[0].Name != testGuardrailName || req.Policies[0].Paths[0].Path != guardrailPathAll {
-					t.Errorf("guardrails: got %+v", req.Policies)
-				}
-			},
-		},
-	}
-}
-
-// Returns the test specs for tools registered by registerGatewayTools.
-func gatewayToolSpecs() []toolTestSpec {
-	return []toolTestSpec{
-		{
-			name:                "list_gateways",
-			toolset:             "gateway",
-			permissions:         []rbac.Permission{rbac.GatewayRead},
-			descriptionKeywords: []string{"list", "gateway"},
-			descriptionMinLen:   20,
-			optionalParams:      []string{"environment", "limit", "offset"},
-			testArgs:            map[string]any{"environment": testEnvName},
-			expectedMethod:      "ListGateways",
-			validateCall: func(t *testing.T, args []interface{}) {
-				if got := args[1]; got != testEnvUUID {
-					t.Errorf("environmentID: got %v, want %q", got, testEnvUUID)
 				}
 			},
 		},
@@ -230,42 +155,6 @@ func mcpProxyToolSpecs() []toolTestSpec {
 				}
 			},
 		},
-		{
-			name:                "create_mcp_proxy",
-			toolset:             "mcp-proxy",
-			permissions:         []rbac.Permission{rbac.MCPServerCreate, rbac.MCPServerConnect},
-			descriptionKeywords: []string{"mcp", "proxy", "gateway"},
-			descriptionMinLen:   20,
-			requiredParams:      []string{"name", "url", "environments"},
-			optionalParams:      []string{"auth_header", "auth_value", "gateway_id", "description", "version"},
-			testArgs: map[string]any{
-				"name":         "Docs Search",
-				"url":          "https://mcp.example.com/mcp",
-				"environments": []any{testEnvName},
-				"auth_header":  "Authorization",
-				"auth_value":   "Bearer t",
-			},
-			expectedMethod: "CreateMCPProxy",
-			validateCall: func(t *testing.T, args []interface{}) {
-				dto, ok := args[1].(*models.MCPProxyDTO)
-				if !ok {
-					t.Fatalf("request: got %T", args[1])
-				}
-				if dto.ID != "docs-search" || dto.Version != defaultMCPProxyVersion || len(dto.Endpoints) != 1 {
-					t.Fatalf("proxy: got id=%q version=%q endpoints=%d", dto.ID, dto.Version, len(dto.Endpoints))
-				}
-				ep := dto.Endpoints[0]
-				if ep.Upstream.Main == nil || ep.Upstream.Main.URL != "https://mcp.example.com/mcp" || ep.Upstream.Main.Auth == nil {
-					t.Errorf("upstream: got %+v", ep.Upstream.Main)
-				}
-				if len(ep.Environments) != 1 || ep.Environments[0].EnvironmentUUID != testEnvUUID {
-					t.Errorf("environments: got %+v", ep.Environments)
-				}
-				if ep.Capabilities == nil || ep.Capabilities.Tools == nil || len(*ep.Capabilities.Tools) != 1 {
-					t.Errorf("capabilities not taken from the server probe: %+v", ep.Capabilities)
-				}
-			},
-		},
 	}
 }
 
@@ -300,7 +189,7 @@ func agentConfigToolSpecs() []toolTestSpec {
 				}
 				m, ok := req.EnvMappings[testEnvName]
 				if !ok || m.ProviderName != testProviderID {
-					t.Fatalf("env mapping not defaulted to every environment: %+v", req.EnvMappings)
+					t.Fatalf("env mapping not defaulted to the provider's environments: %+v", req.EnvMappings)
 				}
 				if len(m.Configuration.Policies) != 1 || m.Configuration.Policies[0].Name != testGuardrailName {
 					t.Errorf("guardrails: got %+v", m.Configuration.Policies)
@@ -344,10 +233,16 @@ func TestDetailToolsNeverReturnCredentials(t *testing.T) {
 		args map[string]any
 		want []string
 	}{
-		{"get_llm_provider", map[string]any{"provider_id": testProviderID},
-			[]string{`"upstream_url":"https://api.openai.com/v1"`, `"upstream_auth_configured":true`, testGuardrailName, `"status":"DEPLOYED"`}},
-		{"get_mcp_proxy", map[string]any{"proxy_id": testProxyID},
-			[]string{`"upstream_auth_configured":true`, `"tools":["search"]`, `"name":"` + testEnvName + `"`}},
+		{
+			"get_llm_provider",
+			map[string]any{"provider_id": testProviderID},
+			[]string{`"upstream_url":"https://api.openai.com/v1"`, `"upstream_auth_configured":true`, testGuardrailName, `"status":"DEPLOYED"`},
+		},
+		{
+			"get_mcp_proxy",
+			map[string]any{"proxy_id": testProxyID},
+			[]string{`"upstream_auth_configured":true`, `"tools":["search"]`, `"name":"` + testEnvName + `"`},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.tool, func(t *testing.T) {
@@ -388,7 +283,7 @@ func TestRemoveMissingGuardrailIsAnError(t *testing.T) {
 	if !res.IsError {
 		t.Fatal("expected an error for a guardrail the provider does not have")
 	}
-	if _, called := mock.calls["SetLLMProviderGuardrails"]; called {
+	if _, called := mock.calls["UpdateLLMProviderGuardrails"]; called {
 		t.Error("provider was saved and redeployed for a no-op removal")
 	}
 }
@@ -425,5 +320,58 @@ func TestListLLMGuardrailsFiltersAndReturnsSchemaByName(t *testing.T) {
 
 	if isErr, _ = call(map[string]any{"name": "cors"}); !isErr {
 		t.Error("lookup of a non-guardrail policy by name succeeded")
+	}
+}
+
+// credentialURLMock stores upstream URLs that carry credentials in their
+// userinfo and query, as an operator might configure them.
+type credentialURLMock struct {
+	*MockToolsetHandler
+}
+
+const (
+	urlSecret             = "sk-url-secret"
+	credentialUpstreamURL = "https://user:" + urlSecret + "@upstream.example.com/v1?api-version=1&api-key=" + urlSecret
+)
+
+func (m credentialURLMock) GetLLMProvider(ctx context.Context, ouID string, providerID string) (*models.LLMProvider, []*models.Deployment, error) {
+	p, d, err := m.MockToolsetHandler.GetLLMProvider(ctx, ouID, providerID)
+	p.Configuration.Upstream.Main.URL = credentialUpstreamURL
+	return p, d, err
+}
+
+func (m credentialURLMock) GetMCPProxy(ctx context.Context, ouID string, proxyID string) (*models.MCPProxyDTO, error) {
+	p, err := m.MockToolsetHandler.GetMCPProxy(ctx, ouID, proxyID)
+	for i := range p.Endpoints {
+		p.Endpoints[i].Upstream.Main.URL = credentialUpstreamURL
+	}
+	return p, err
+}
+
+func TestDetailToolsRedactUpstreamURLCredentials(t *testing.T) {
+	mock := credentialURLMock{NewMockToolsetHandler()}
+	session := setupTestServerWithToolsets(t, &Toolsets{
+		EnvironmentToolset: mock, LLMProviderToolset: mock, MCPProxyToolset: mock,
+	})
+	for tool, args := range map[string]map[string]any{
+		"get_llm_provider": {"provider_id": testProviderID},
+		"get_mcp_proxy":    {"proxy_id": testProxyID},
+	} {
+		t.Run(tool, func(t *testing.T) {
+			res, err := session.CallTool(context.Background(), &gomcp.CallToolParams{Name: tool, Arguments: args})
+			if err != nil {
+				t.Fatalf("CallTool: %v", err)
+			}
+			if res.IsError {
+				t.Fatalf("tool returned an error: %+v", res.Content)
+			}
+			text := res.Content[0].(*gomcp.TextContent).Text
+			if strings.Contains(text, urlSecret) {
+				t.Fatalf("response leaks the URL credential: %s", text)
+			}
+			if !strings.Contains(text, `"upstream_url":"https://upstream.example.com/v1?api-version=1"`) {
+				t.Errorf("response lost the non-sensitive URL parts: %s", text)
+			}
+		})
 	}
 }

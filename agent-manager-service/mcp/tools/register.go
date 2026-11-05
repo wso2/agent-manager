@@ -56,9 +56,6 @@ func (tools *Toolsets) register(server *gomcp.Server) *toolRegistry {
 	if tools.LLMProviderToolset != nil {
 		tools.registerLLMProviderTools(server, reg)
 	}
-	if tools.GatewayToolset != nil {
-		tools.registerGatewayTools(server, reg)
-	}
 	if tools.MCPProxyToolset != nil {
 		tools.registerMCPProxyTools(server, reg)
 	}

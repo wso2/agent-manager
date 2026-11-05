@@ -34,9 +34,13 @@ func NewAgentConfigHandler(configSvc services.AgentConfigurationService) *AgentC
 // CreateAgentConfig records the token subject as the creator, as the REST
 // controller does, so configs made over MCP are attributed to the caller.
 func (h *AgentConfigHandler) CreateAgentConfig(ctx context.Context, ouID string, projectName string, agentName string, req models.CreateAgentModelConfigRequest) (*models.AgentModelConfigResponse, error) {
-	createdBy := "system"
-	if claims := jwtassertion.GetTokenClaims(ctx); claims != nil && claims.Sub != "" {
-		createdBy = claims.Sub
+	createdBy := jwtassertion.CallerSubject(ctx)
+	if createdBy == "" {
+		createdBy = "system"
 	}
 	return h.configSvc.Create(ctx, ouID, projectName, agentName, req, createdBy)
+}
+
+func (h *AgentConfigHandler) ProviderEnvironments(ctx context.Context, ouID string, projectName string, agentName string, providerHandle string) ([]string, error) {
+	return h.configSvc.ProviderEnvironments(ctx, ouID, projectName, agentName, providerHandle)
 }

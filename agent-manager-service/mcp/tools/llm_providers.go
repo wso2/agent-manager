@@ -19,7 +19,7 @@ package tools
 import (
 	"context"
 	"fmt"
-	"regexp"
+	"slices"
 	"strings"
 
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -27,27 +27,17 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
-	"github.com/wso2/agent-manager/agent-manager-service/spec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 const (
-	defaultLLMProviderVersion = "v1.0"
 	// guardrailPathAll applies a guardrail to every route and method, as the
-	// console does when a guardrail is attached to a provider or an agent.
+	// console's agent and add-provider flows do. The provider's Guardrails tab
+	// can also scope a guardrail to single routes, one path entry each; these
+	// tools manage only the all-routes entry and leave route entries as they are.
 	guardrailPathAll = "/*"
 )
 
-var (
-	llmProviderVersionPattern = regexp.MustCompile(`^v\d+\.\d+$`)
-	nonHandleChars            = regexp.MustCompile(`[^a-z0-9]+`)
-)
-
-// input structs
-type listLLMProviderTemplatesInput struct {
-	Limit  *int `json:"limit,omitempty"`
-	Offset *int `json:"offset,omitempty"`
-}
 type listLLMProvidersInput struct {
 	Limit  *int `json:"limit,omitempty"`
 	Offset *int `json:"offset,omitempty"`
@@ -62,6 +52,7 @@ type addLLMProviderGuardrailsInput struct {
 type removeLLMProviderGuardrailInput struct {
 	ProviderID string `json:"provider_id"`
 	Name       string `json:"name"`
+	Version    string `json:"version,omitempty"`
 }
 type listLLMGuardrailsInput struct {
 	ProviderID string `json:"provider_id,omitempty"`
@@ -72,29 +63,7 @@ type guardrailInput struct {
 	Version string         `json:"version"`
 	Params  map[string]any `json:"params,omitempty"`
 }
-type createLLMProviderInput struct {
-	Name        string           `json:"name"`
-	Template    string           `json:"template"`
-	APIKey      string           `json:"api_key,omitempty"`
-	UpstreamURL string           `json:"upstream_url,omitempty"`
-	Description string           `json:"description,omitempty"`
-	Version     string           `json:"version,omitempty"`
-	GatewayIDs  []string         `json:"gateway_ids,omitempty"`
-	Guardrails  []guardrailInput `json:"guardrails,omitempty"`
-}
 
-// output structs
-type llmProviderTemplateItem struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	Description string `json:"description,omitempty"`
-	EndpointURL string `json:"endpoint_url,omitempty"`
-	AuthType    string `json:"auth_type,omitempty"`
-}
-type listLLMProviderTemplatesOutput struct {
-	Total     int                       `json:"total"`
-	Templates []llmProviderTemplateItem `json:"templates"`
-}
 type llmProviderItem struct {
 	ID       string `json:"id"`
 	UUID     string `json:"uuid"`
@@ -123,8 +92,17 @@ type providerDeploymentItem struct {
 	Error     string `json:"error,omitempty"`
 }
 type providerGuardrailItem struct {
-	Name    string         `json:"name"`
-	Version string         `json:"version"`
+	Name    string `json:"name"`
+	Version string `json:"version"`
+	// AllRoutes and Params describe the all-routes entry; Routes are the
+	// single routes the console scoped the guardrail to, each with its params.
+	AllRoutes bool                 `json:"all_routes"`
+	Params    map[string]any       `json:"params,omitempty"`
+	Routes    []guardrailRouteItem `json:"routes,omitempty"`
+}
+type guardrailRouteItem struct {
+	Path    string         `json:"path"`
+	Methods []string       `json:"methods"`
 	Params  map[string]any `json:"params,omitempty"`
 }
 type providerGatewayDeploymentItem struct {
@@ -147,12 +125,6 @@ type setGuardrailsOutput struct {
 	Deployments []providerDeploymentItem `json:"redeployments"`
 	Note        string                   `json:"note"`
 }
-type createLLMProviderOutput struct {
-	llmProviderItem
-	Guardrails  []string                 `json:"guardrails,omitempty"`
-	Deployments []providerDeploymentItem `json:"deployments,omitempty"`
-	Note        string                   `json:"note"`
-}
 
 func guardrailSchema() map[string]any {
 	return createSchema(map[string]any{
@@ -166,17 +138,6 @@ func guardrailSchema() map[string]any {
 }
 
 func (t *Toolsets) registerLLMProviderTools(server *gomcp.Server, reg *toolRegistry) {
-	addTool(reg, server, &gomcp.Tool{
-		Name: "list_llm_provider_templates",
-		Description: "List the LLM provider templates available in your organization, such as openai, anthropic or azure-openai. " +
-			"A template supplies the provider type, its default upstream URL and how it authenticates. " +
-			"Use the template `id` as the `template` argument of create_llm_provider.",
-		InputSchema: createSchema(map[string]any{
-			"limit":  intProperty(fmt.Sprintf("Optional. Max templates to return (default %d, min %d, max %d).", utils.DefaultLimit, utils.MinLimit, utils.MaxLimit)),
-			"offset": intProperty(fmt.Sprintf("Optional. Pagination offset (default %d, min %d).", utils.DefaultOffset, utils.MinOffset)),
-		}, nil),
-	}, audit.ActionLLMProviderTemplateRead, listLLMProviderTemplates(t.LLMProviderToolset), rbac.LLMProviderTemplateRead)
-
 	addTool(reg, server, &gomcp.Tool{
 		Name: "list_llm_providers",
 		Description: "List the LLM providers configured in your organization. " +
@@ -200,8 +161,9 @@ func (t *Toolsets) registerLLMProviderTools(server *gomcp.Server, reg *toolRegis
 
 	addTool(reg, server, &gomcp.Tool{
 		Name: "add_llm_provider_guardrails",
-		Description: "Add guardrails to an existing LLM provider; they apply to every agent that uses it. " +
-			"A guardrail with the same name as one already on the provider replaces it, so this also changes a guardrail's settings. " +
+		Description: "Add guardrails to an existing LLM provider on all of its routes; they apply to every agent that uses it. " +
+			"Adding a guardrail the provider already has, with the same name and version, updates its all-routes settings; " +
+			"routes the guardrail was scoped to in the console are kept. A different version of a guardrail already on the provider is refused. " +
 			"The provider is redeployed to the gateways it is already on so the change takes effect. " +
 			"Call list_llm_guardrails for valid guardrails and get_llm_provider to see the current ones.",
 		InputSchema: createSchema(map[string]any{
@@ -212,12 +174,14 @@ func (t *Toolsets) registerLLMProviderTools(server *gomcp.Server, reg *toolRegis
 
 	addTool(reg, server, &gomcp.Tool{
 		Name: "remove_llm_provider_guardrail",
-		Description: "Remove one guardrail from an LLM provider by name. " +
+		Description: "Remove a guardrail from an LLM provider's routes, by name. " +
+			"Only the all-routes guardrail is removed: routes the guardrail was scoped to in the console are kept, and are removed in the console. " +
 			"The provider is redeployed to the gateways it is already on so the change takes effect. " +
 			"Call get_llm_provider to see the provider's current guardrails.",
 		InputSchema: createSchema(map[string]any{
 			"provider_id": stringProperty("Required. LLM provider id from list_llm_providers."),
 			"name":        stringProperty("Required. Name of the guardrail to remove, as get_llm_provider lists it."),
+			"version":     stringProperty("Optional. Version of the guardrail to remove; required when the provider has more than one version of it."),
 		}, []string{"provider_id", "name"}),
 	}, audit.ActionLLMProviderUpdate, removeLLMProviderGuardrail(t.LLMProviderToolset), rbac.LLMProviderUpdate)
 
@@ -226,58 +190,12 @@ func (t *Toolsets) registerLLMProviderTools(server *gomcp.Server, reg *toolRegis
 		Description: "List the guardrails the organization's gateways can enforce on LLM traffic, such as PII masking, word-count or content-length checks. " +
 			"Without `name` it returns each guardrail's name, version and description. " +
 			"Call it again with `name` to get that guardrail's parameter schema, which says what `params` it takes. " +
-			"Use the results as `guardrails` in create_llm_provider, add_llm_provider_guardrails or attach_llm_provider_to_agent.",
+			"Use the results as `guardrails` in add_llm_provider_guardrails or attach_llm_provider_to_agent.",
 		InputSchema: createSchema(map[string]any{
 			"provider_id": stringProperty("Optional. LLM provider id; limits the result to guardrails on the gateways that provider is deployed to."),
 			"name":        stringProperty("Optional. A guardrail name from an earlier call; returns only that guardrail, with its parameter schema."),
 		}, nil),
 	}, audit.ActionLLMProviderRead, listLLMGuardrails(t.LLMProviderToolset), rbac.LLMProviderRead)
-
-	addTool(reg, server, &gomcp.Tool{
-		Name: "create_llm_provider",
-		Description: "Create an org-level LLM provider from a template, optionally with guardrails, and optionally deploy it to gateways in the same call. " +
-			"Call list_llm_provider_templates for `template`, list_gateways for `gateway_ids` and list_llm_guardrails for `guardrails`. " +
-			"Agents can only use a provider that is deployed to a gateway. The api_key is stored by the gateway and never returned.",
-		InputSchema: createSchema(map[string]any{
-			"name":         stringProperty("Required. Display name of the provider. Its id is derived from it (lowercase, dashes)."),
-			"template":     stringProperty("Required. Template id from list_llm_provider_templates, e.g. openai."),
-			"api_key":      stringProperty("Optional. The vendor API key the gateway uses to call the upstream. Required unless the template needs no auth."),
-			"upstream_url": stringProperty("Optional. Upstream base URL. Defaults to the template's endpoint URL."),
-			"description":  stringProperty("Optional. Description of the provider."),
-			"version":      stringProperty(fmt.Sprintf("Optional. Provider version in the form vMAJOR.MINOR (default %s).", defaultLLMProviderVersion)),
-			"gateway_ids": arrayProperty("Optional. Gateway ids from list_gateways to deploy the provider to. Omit to create it without deploying.",
-				map[string]any{"type": "string"}),
-			"guardrails": arrayProperty("Optional. Guardrails enforced on every request through this provider.", guardrailSchema()),
-		}, []string{"name", "template"}),
-	}, audit.ActionLLMProviderCreate, createLLMProvider(t.LLMProviderToolset), rbac.LLMProviderCreate)
-}
-
-func listLLMProviderTemplates(handler LLMProviderToolsetHandler) func(context.Context, *gomcp.CallToolRequest, listLLMProviderTemplatesInput) (*gomcp.CallToolResult, any, error) {
-	return func(ctx context.Context, _ *gomcp.CallToolRequest, input listLLMProviderTemplatesInput) (*gomcp.CallToolResult, any, error) {
-		limit, offset, err := resolvePagination(input.Limit, input.Offset)
-		if err != nil {
-			return nil, nil, err
-		}
-		templates, total, err := handler.ListLLMProviderTemplates(ctx, resolveOUID(ctx), limit, offset)
-		if err != nil {
-			return nil, nil, wrapToolError("list_llm_provider_templates", err)
-		}
-		items := make([]llmProviderTemplateItem, 0, len(templates))
-		for _, tpl := range templates {
-			if tpl == nil {
-				continue
-			}
-			item := llmProviderTemplateItem{ID: tpl.Handle, Name: tpl.Name, Description: tpl.Description}
-			if tpl.Metadata != nil {
-				item.EndpointURL = tpl.Metadata.EndpointURL
-				if tpl.Metadata.Auth != nil {
-					item.AuthType = tpl.Metadata.Auth.Type
-				}
-			}
-			items = append(items, item)
-		}
-		return handleToolResult(listLLMProviderTemplatesOutput{Total: total, Templates: items}, nil)
-	}
 }
 
 func listLLMProviders(handler LLMProviderToolsetHandler) func(context.Context, *gomcp.CallToolRequest, listLLMProvidersInput) (*gomcp.CallToolResult, any, error) {
@@ -319,20 +237,14 @@ func getLLMProvider(handler LLMProviderToolsetHandler) func(context.Context, *go
 			llmProviderItem: toLLMProviderItem(provider),
 			Description:     provider.Description,
 			Version:         cfg.Version,
-			Guardrails:      []providerGuardrailItem{},
+			Guardrails:      toProviderGuardrailItems(cfg.Policies),
 			Deployments:     []providerGatewayDeploymentItem{},
 		}
-		// Only the URL and whether auth is set: the auth value is the vendor key.
+		// Only the redacted URL and whether auth is set: the auth value is the
+		// vendor key, and a URL can carry credentials of its own.
 		if cfg.Upstream != nil && cfg.Upstream.Main != nil {
-			out.UpstreamURL = cfg.Upstream.Main.URL
+			out.UpstreamURL = redactURL(cfg.Upstream.Main.URL)
 			out.UpstreamAuth = cfg.Upstream.Main.Auth != nil
-		}
-		for _, p := range cfg.Policies {
-			g := providerGuardrailItem{Name: p.Name, Version: p.Version}
-			if len(p.Paths) > 0 {
-				g.Params = p.Paths[0].Params
-			}
-			out.Guardrails = append(out.Guardrails, g)
 		}
 		for _, d := range deployments {
 			// Archived rows are superseded history; showing them beside the live
@@ -370,21 +282,21 @@ func addLLMProviderGuardrails(handler LLMProviderToolsetHandler) func(context.Co
 			return nil, nil, err
 		}
 		return updateProviderGuardrails(ctx, toolName, handler, providerID, func(current []models.LLMPolicy) ([]models.LLMPolicy, error) {
-			next := make([]models.LLMPolicy, 0, len(current)+len(added))
-			replaced := make(map[string]bool, len(added))
-			for _, p := range current {
-				if g, ok := findGuardrail(added, p.Name); ok {
-					next = append(next, g)
-					replaced[p.Name] = true
+			next := append([]models.LLMPolicy(nil), current...)
+			for _, g := range added {
+				if i := indexGuardrail(next, g.Name, g.Version); i >= 0 {
+					// Same guardrail: update its all-routes settings and keep the
+					// routes the console scoped it to.
+					next[i] = withAllRoutesParams(next[i], g.Paths[0].Params)
 					continue
 				}
-				next = append(next, p)
-			}
-			for _, g := range added {
-				if !replaced[g.Name] {
-					next = append(next, g)
-					replaced[g.Name] = true
+				for _, p := range next {
+					if p.Name == g.Name {
+						return nil, fmt.Errorf("%s: provider %q already has %s version %s. Add version %s to change its settings, or remove it first",
+							toolName, providerID, g.Name, p.Version, p.Version)
+					}
 				}
+				next = append(next, g)
 			}
 			return next, nil
 		})
@@ -394,7 +306,7 @@ func addLLMProviderGuardrails(handler LLMProviderToolsetHandler) func(context.Co
 func removeLLMProviderGuardrail(handler LLMProviderToolsetHandler) func(context.Context, *gomcp.CallToolRequest, removeLLMProviderGuardrailInput) (*gomcp.CallToolResult, any, error) {
 	return func(ctx context.Context, _ *gomcp.CallToolRequest, input removeLLMProviderGuardrailInput) (*gomcp.CallToolResult, any, error) {
 		const toolName = "remove_llm_provider_guardrail"
-		providerID, name := strings.TrimSpace(input.ProviderID), strings.TrimSpace(input.Name)
+		providerID, name, version := strings.TrimSpace(input.ProviderID), strings.TrimSpace(input.Name), strings.TrimSpace(input.Version)
 		if providerID == "" {
 			return nil, nil, fmt.Errorf("provider_id is required. Call list_llm_providers to see valid providers")
 		}
@@ -402,16 +314,36 @@ func removeLLMProviderGuardrail(handler LLMProviderToolsetHandler) func(context.
 			return nil, nil, fmt.Errorf("name is required. Call get_llm_provider to see the provider's guardrails")
 		}
 		return updateProviderGuardrails(ctx, toolName, handler, providerID, func(current []models.LLMPolicy) ([]models.LLMPolicy, error) {
-			next := make([]models.LLMPolicy, 0, len(current))
-			for _, p := range current {
-				if p.Name != name {
-					next = append(next, p)
+			match := -1
+			var versions []string
+			for i, p := range current {
+				if p.Name == name && (version == "" || p.Version == version) {
+					match = i
+					versions = append(versions, p.Version)
 				}
 			}
-			if len(next) == len(current) {
+			switch {
+			case match < 0 && version != "":
+				return nil, fmt.Errorf("%s: provider %q has no guardrail %q at version %s. Call get_llm_provider to see its guardrails", toolName, providerID, name, version)
+			case match < 0:
 				return nil, fmt.Errorf("%s: provider %q has no guardrail named %q. Call get_llm_provider to see its guardrails", toolName, providerID, name)
+			case len(versions) > 1:
+				return nil, fmt.Errorf("%s: provider %q has versions %s of %q. Pass version to choose one", toolName, providerID, strings.Join(versions, ", "), name)
 			}
-			return next, nil
+
+			p := current[match]
+			routes := routeScopedPaths(p.Paths)
+			if len(p.Paths) > 0 && len(routes) == len(p.Paths) {
+				return nil, fmt.Errorf("%s: %q on provider %q applies only to routes chosen in the console (%s). Remove it from those routes in the console",
+					toolName, name, providerID, strings.Join(routeLabels(routes), ", "))
+			}
+			next := make([]models.LLMPolicy, 0, len(current))
+			next = append(next, current[:match]...)
+			if len(routes) > 0 {
+				p.Paths = routes
+				next = append(next, p)
+			}
+			return append(next, current[match+1:]...), nil
 		})
 	}
 }
@@ -423,35 +355,26 @@ func updateProviderGuardrails(
 	ctx context.Context, toolName string, handler LLMProviderToolsetHandler, providerID string,
 	change func([]models.LLMPolicy) ([]models.LLMPolicy, error),
 ) (*gomcp.CallToolResult, any, error) {
-	ouID := resolveOUID(ctx)
-	current, _, err := handler.GetLLMProvider(ctx, ouID, providerID)
-	if err != nil {
-		return nil, nil, wrapToolError(toolName, err)
+	// change's own errors already name the tool and say what to do, so they go
+	// back as they are; only service errors are wrapped.
+	var next []models.LLMPolicy
+	var changeErr error
+	updated, results, err := handler.UpdateLLMProviderGuardrails(ctx, resolveOUID(ctx), providerID, func(current []models.LLMPolicy) ([]models.LLMPolicy, error) {
+		next, changeErr = change(current)
+		return next, changeErr
+	})
+	if changeErr != nil {
+		return nil, nil, changeErr
 	}
-	if current == nil {
-		return nil, nil, fmt.Errorf("%s: provider service returned an empty response", toolName)
-	}
-	next, err := change(current.Configuration.Policies)
-	if err != nil {
-		return nil, nil, err
-	}
-	updated, results, err := handler.SetLLMProviderGuardrails(ctx, ouID, providerID, next)
 	if err != nil {
 		return nil, nil, wrapToolError(toolName, err)
 	}
 
-	out := setGuardrailsOutput{ProviderID: providerID, Guardrails: []providerGuardrailItem{}, Deployments: []providerDeploymentItem{}}
 	saved := next
 	if updated != nil {
 		saved = updated.Configuration.Policies
 	}
-	for _, p := range saved {
-		g := providerGuardrailItem{Name: p.Name, Version: p.Version}
-		if len(p.Paths) > 0 {
-			g.Params = p.Paths[0].Params
-		}
-		out.Guardrails = append(out.Guardrails, g)
-	}
+	out := setGuardrailsOutput{ProviderID: providerID, Guardrails: toProviderGuardrailItems(saved), Deployments: []providerDeploymentItem{}}
 	failed := 0
 	for _, d := range results {
 		out.Deployments = append(out.Deployments, providerDeploymentItem{GatewayID: d.GatewayID, Success: d.Success, Error: d.Error})
@@ -470,13 +393,79 @@ func updateProviderGuardrails(
 	return handleToolResult(out, nil)
 }
 
-func findGuardrail(guardrails []models.LLMPolicy, name string) (models.LLMPolicy, bool) {
-	for _, g := range guardrails {
-		if g.Name == name {
-			return g, true
+// indexGuardrail finds a policy by name and version, the pair the console keys
+// guardrails by; -1 when the provider has none.
+func indexGuardrail(policies []models.LLMPolicy, name, version string) int {
+	for i, p := range policies {
+		if p.Name == name && p.Version == version {
+			return i
 		}
 	}
-	return models.LLMPolicy{}, false
+	return -1
+}
+
+func isAllRoutesPath(p models.LLMPolicyPath) bool {
+	return p.Path == guardrailPathAll && (len(p.Methods) == 0 || slices.Contains(p.Methods, "*"))
+}
+
+// routeScopedPaths returns the paths the console scoped a guardrail to, leaving
+// out the all-routes entry.
+func routeScopedPaths(paths []models.LLMPolicyPath) []models.LLMPolicyPath {
+	var routes []models.LLMPolicyPath
+	for _, p := range paths {
+		if !isAllRoutesPath(p) {
+			routes = append(routes, p)
+		}
+	}
+	return routes
+}
+
+// withAllRoutesParams sets the params of the policy's all-routes entry, adding
+// that entry when the policy only had route entries, and keeps every route entry.
+func withAllRoutesParams(p models.LLMPolicy, params map[string]any) models.LLMPolicy {
+	paths := make([]models.LLMPolicyPath, 0, len(p.Paths)+1)
+	found := false
+	for _, path := range p.Paths {
+		if isAllRoutesPath(path) {
+			if found {
+				continue
+			}
+			path.Params, found = params, true
+		}
+		paths = append(paths, path)
+	}
+	if !found {
+		paths = append(paths, models.LLMPolicyPath{Path: guardrailPathAll, Methods: []string{"*"}, Params: params})
+	}
+	p.Paths = paths
+	return p
+}
+
+func routeLabels(paths []models.LLMPolicyPath) []string {
+	labels := make([]string, 0, len(paths))
+	for _, p := range paths {
+		labels = append(labels, strings.Join(p.Methods, ",")+" "+p.Path)
+	}
+	return labels
+}
+
+// toProviderGuardrailItems shows each guardrail with its full scope, so a
+// guardrail the console scoped to single routes never reads as provider-wide.
+// It is never nil, so an empty list is [] in JSON.
+func toProviderGuardrailItems(policies []models.LLMPolicy) []providerGuardrailItem {
+	items := make([]providerGuardrailItem, 0, len(policies))
+	for _, p := range policies {
+		g := providerGuardrailItem{Name: p.Name, Version: p.Version}
+		for _, path := range p.Paths {
+			if !isAllRoutesPath(path) {
+				g.Routes = append(g.Routes, guardrailRouteItem{Path: path.Path, Methods: path.Methods, Params: path.Params})
+			} else if !g.AllRoutes {
+				g.AllRoutes, g.Params = true, path.Params
+			}
+		}
+		items = append(items, g)
+	}
+	return items
 }
 
 func listLLMGuardrails(handler LLMProviderToolsetHandler) func(context.Context, *gomcp.CallToolRequest, listLLMGuardrailsInput) (*gomcp.CallToolResult, any, error) {
@@ -550,125 +539,6 @@ var nonGuardrailPolicies = map[string]bool{
 	"subscription-validation":  true,
 }
 
-func createLLMProvider(handler LLMProviderToolsetHandler) func(context.Context, *gomcp.CallToolRequest, createLLMProviderInput) (*gomcp.CallToolResult, any, error) {
-	return func(ctx context.Context, _ *gomcp.CallToolRequest, input createLLMProviderInput) (*gomcp.CallToolResult, any, error) {
-		name := strings.TrimSpace(input.Name)
-		if name == "" {
-			return nil, nil, fmt.Errorf("name is required")
-		}
-		templateID := strings.TrimSpace(input.Template)
-		if templateID == "" {
-			return nil, nil, fmt.Errorf("template is required. Call list_llm_provider_templates to see valid templates")
-		}
-		handle := toHandle(name)
-		if handle == "" {
-			return nil, nil, fmt.Errorf("name must contain at least one letter or digit")
-		}
-		version := strings.TrimSpace(input.Version)
-		if version == "" {
-			version = defaultLLMProviderVersion
-		}
-		if !llmProviderVersionPattern.MatchString(version) {
-			return nil, nil, fmt.Errorf("version must look like v1.0")
-		}
-		guardrails, err := toSpecGuardrails(input.Guardrails)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		ouID := resolveOUID(ctx)
-		template, err := findLLMProviderTemplate(ctx, handler, ouID, templateID)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		upstreamURL := strings.TrimSpace(input.UpstreamURL)
-		if upstreamURL == "" && template.Metadata != nil {
-			upstreamURL = template.Metadata.EndpointURL
-		}
-		if upstreamURL == "" {
-			return nil, nil, fmt.Errorf("upstream_url is required: template %q has no default endpoint URL", templateID)
-		}
-
-		req := &spec.CreateLLMProviderRequest{
-			Id:            handle,
-			Name:          name,
-			Version:       version,
-			Context:       "/" + handle,
-			Template:      template.Handle,
-			Upstream:      spec.UpstreamConfig{Main: &spec.UpstreamEndpoint{Url: &upstreamURL}},
-			AccessControl: &spec.LLMAccessControl{Mode: "allow_all", Exceptions: []spec.RouteException{}},
-			Gateways:      input.GatewayIDs,
-		}
-		if desc := strings.TrimSpace(input.Description); desc != "" {
-			req.Description = &desc
-		}
-		if len(guardrails) > 0 {
-			req.Policies = guardrails
-		}
-		// Built the way the console builds it: the template decides the header
-		// and value prefix, and an upstream key turns on API-key security at the
-		// gateway so agents need their own key to reach the provider.
-		if apiKey := strings.TrimSpace(input.APIKey); apiKey != "" {
-			authType, header, value := "api-key", "Authorization", apiKey
-			if template.Metadata != nil && template.Metadata.Auth != nil {
-				if template.Metadata.Auth.Type != "" {
-					authType = template.Metadata.Auth.Type
-				}
-				if template.Metadata.Auth.Header != "" {
-					header = template.Metadata.Auth.Header
-				}
-				value = template.Metadata.Auth.ValuePrefix + apiKey
-			}
-			req.Upstream.Main.Auth = &spec.UpstreamAuth{Type: authType, Header: &header, Value: &value}
-			enabled, in := true, "header"
-			req.Security = &spec.SecurityConfig{Enabled: &enabled, ApiKey: &spec.APIKeySecurity{Enabled: &enabled, In: &in}}
-		}
-
-		created, deployments, err := handler.CreateLLMProvider(ctx, ouID, req)
-		if err != nil {
-			return nil, nil, wrapToolError("create_llm_provider", err)
-		}
-		if created == nil {
-			return nil, nil, fmt.Errorf("create_llm_provider: provider service returned an empty response")
-		}
-
-		out := createLLMProviderOutput{llmProviderItem: toLLMProviderItem(created)}
-		for _, g := range input.Guardrails {
-			out.Guardrails = append(out.Guardrails, g.Name)
-		}
-		failed := 0
-		for _, d := range deployments {
-			out.Deployments = append(out.Deployments, providerDeploymentItem{GatewayID: d.GatewayID, Success: d.Success, Error: d.Error})
-			if !d.Success {
-				failed++
-			}
-		}
-		switch {
-		case len(input.GatewayIDs) == 0:
-			out.Note = "Provider created but not deployed. Agents can only use it once it is deployed to a gateway; recreate with gateway_ids or deploy it from the console."
-		case failed > 0:
-			out.Note = fmt.Sprintf("Provider created; %d of %d gateway deployments failed. See deployments for the errors.", failed, len(deployments))
-		default:
-			out.Note = "Provider created and deployed. Call attach_llm_provider_to_agent to let an agent use it."
-		}
-		return handleToolResult(out, nil)
-	}
-}
-
-func findLLMProviderTemplate(ctx context.Context, handler LLMProviderToolsetHandler, ouID, templateID string) (*models.LLMProviderTemplate, error) {
-	templates, _, err := handler.ListLLMProviderTemplates(ctx, ouID, utils.MaxLimit, utils.DefaultOffset)
-	if err != nil {
-		return nil, wrapToolError("create_llm_provider", err)
-	}
-	for _, tpl := range templates {
-		if tpl != nil && strings.EqualFold(tpl.Handle, templateID) {
-			return tpl, nil
-		}
-	}
-	return nil, fmt.Errorf("create_llm_provider: template %q not found. Call list_llm_provider_templates to see valid templates", templateID)
-}
-
 func toLLMProviderItem(p *models.LLMProvider) llmProviderItem {
 	item := llmProviderItem{
 		UUID:     p.UUID.String(),
@@ -690,25 +560,6 @@ func validateGuardrails(guardrails []guardrailInput) error {
 	return nil
 }
 
-func toSpecGuardrails(guardrails []guardrailInput) ([]spec.LLMPolicy, error) {
-	if err := validateGuardrails(guardrails); err != nil {
-		return nil, err
-	}
-	out := make([]spec.LLMPolicy, 0, len(guardrails))
-	for _, g := range guardrails {
-		params := g.Params
-		if params == nil {
-			params = map[string]any{}
-		}
-		out = append(out, spec.LLMPolicy{
-			Name:    strings.TrimSpace(g.Name),
-			Version: strings.TrimSpace(g.Version),
-			Paths:   []spec.LLMPolicyPath{{Path: guardrailPathAll, Methods: []string{"*"}, Params: params}},
-		})
-	}
-	return out, nil
-}
-
 func toModelGuardrails(guardrails []guardrailInput) ([]models.LLMPolicy, error) {
 	if err := validateGuardrails(guardrails); err != nil {
 		return nil, err
@@ -726,10 +577,4 @@ func toModelGuardrails(guardrails []guardrailInput) ([]models.LLMPolicy, error) 
 		})
 	}
 	return out, nil
-}
-
-// toHandle derives a resource handle from a display name the way the console
-// does: lowercase, runs of anything else collapsed to one dash.
-func toHandle(name string) string {
-	return strings.Trim(nonHandleChars.ReplaceAllString(strings.ToLower(strings.TrimSpace(name)), "-"), "-")
 }

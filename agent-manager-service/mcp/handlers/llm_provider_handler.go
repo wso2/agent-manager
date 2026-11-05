@@ -17,33 +17,23 @@ package handlers
 
 import (
 	"context"
+	"errors"
+	"fmt"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
-	"github.com/wso2/agent-manager/agent-manager-service/spec"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
-// createdBySystem matches the literal the REST controllers record for
-// org-level LLM providers and MCP proxies.
-const createdBySystem = "system"
-
 type LLMProviderHandler struct {
-	templateSvc   *services.LLMProviderTemplateService
 	providerSvc   *services.LLMProviderService
 	deploymentSvc *services.LLMProviderDeploymentService
 }
 
 func NewLLMProviderHandler(
-	templateSvc *services.LLMProviderTemplateService,
 	providerSvc *services.LLMProviderService,
 	deploymentSvc *services.LLMProviderDeploymentService,
 ) *LLMProviderHandler {
-	return &LLMProviderHandler{templateSvc: templateSvc, providerSvc: providerSvc, deploymentSvc: deploymentSvc}
-}
-
-func (h *LLMProviderHandler) ListLLMProviderTemplates(_ context.Context, ouID string, limit int, offset int) ([]*models.LLMProviderTemplate, int, error) {
-	return h.templateSvc.List(ouID, limit, offset)
+	return &LLMProviderHandler{providerSvc: providerSvc, deploymentSvc: deploymentSvc}
 }
 
 func (h *LLMProviderHandler) ListLLMProviders(_ context.Context, ouID string, limit int, offset int) ([]*models.LLMProvider, int, error) {
@@ -52,21 +42,6 @@ func (h *LLMProviderHandler) ListLLMProviders(_ context.Context, ouID string, li
 
 func (h *LLMProviderHandler) ListLLMGuardrails(ctx context.Context, ouID string, providerID string) (*models.LLMPolicyAvailabilityResponse, error) {
 	return h.providerSvc.ListAvailableLLMPolicies(ctx, ouID, providerID)
-}
-
-// CreateLLMProvider mirrors the REST controller: with gateways it creates and
-// deploys in one step, otherwise it only creates.
-func (h *LLMProviderHandler) CreateLLMProvider(ctx context.Context, ouID string, req *spec.CreateLLMProviderRequest) (*models.LLMProvider, []services.DeploymentResult, error) {
-	provider := utils.ConvertSpecToModelLLMProvider(req, ouID)
-	if len(req.Gateways) == 0 {
-		created, err := h.providerSvc.Create(ctx, ouID, createdBySystem, provider)
-		return created, nil, err
-	}
-	resp, err := h.providerSvc.CreateAndDeploy(ctx, ouID, createdBySystem, provider, req.Gateways, h.deploymentSvc)
-	if err != nil {
-		return nil, nil, err
-	}
-	return resp.Provider, resp.Deployments, nil
 }
 
 // GetLLMProvider returns the provider and its gateway deployments, the two
@@ -83,16 +58,28 @@ func (h *LLMProviderHandler) GetLLMProvider(_ context.Context, ouID string, prov
 	return provider, deployments, nil
 }
 
-// SetLLMProviderGuardrails replaces the provider's guardrails and redeploys it
-// to every gateway it is currently deployed to, which is what makes the change
-// reach live traffic. This is the console's guardrail save: it sends the
-// provider back with its current gateway list, and UpdateAndSync redeploys to
-// each gateway already in that list.
+// UpdateLLMProviderGuardrails sets the provider's guardrails to change(its
+// current ones) and redeploys it to every gateway it is currently deployed to,
+// which is what makes the change reach live traffic. This is the console's
+// guardrail save: it sends the provider back with its current gateway list, and
+// UpdateAndSync redeploys to each gateway already in that list.
 //
-// The stored provider is saved back as read, so the upstream credential stays
-// the encrypted reference it already is and nothing else changes.
-func (h *LLMProviderHandler) SetLLMProviderGuardrails(ctx context.Context, ouID string, providerID string, guardrails []models.LLMPolicy) (*models.LLMProvider, []services.DeploymentResult, error) {
+// The provider is read once, so the guardrails change is computed from the same
+// record that is saved, and the stored provider is saved back as read: the
+// upstream credential stays the encrypted reference it already is and nothing
+// else changes. An error from change is returned as is, before anything is saved.
+func (h *LLMProviderHandler) UpdateLLMProviderGuardrails(
+	ctx context.Context, ouID string, providerID string,
+	change func([]models.LLMPolicy) ([]models.LLMPolicy, error),
+) (*models.LLMProvider, []services.DeploymentResult, error) {
 	provider, err := h.providerSvc.Get(providerID, ouID)
+	if err != nil {
+		return nil, nil, err
+	}
+	if provider == nil {
+		return nil, nil, errors.New("provider service returned an empty provider")
+	}
+	guardrails, err := change(provider.Configuration.Policies)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -101,27 +88,20 @@ func (h *LLMProviderHandler) SetLLMProviderGuardrails(ctx context.Context, ouID 
 	// alone, so use the one the lookup resolved to from here on.
 	providerID = provider.UUID.String()
 
-	deployed := string(models.DeploymentStatusDeployed)
-	deployments, err := h.deploymentSvc.GetLLMProviderDeployments(providerID, ouID, nil, &deployed)
+	// The gateways the provider is placed on, read the way UpdateAndSync reads
+	// them: it undeploys every placed gateway missing from the list, so sending
+	// this list back unchanged redeploys to each and undeploys none, including a
+	// gateway still mid-rollout. With nothing placed it just saves the provider.
+	gateways, err := h.providerSvc.GetProviderGatewayMapping(ctx, provider.UUID, ouID, h.deploymentSvc)
 	if err != nil {
 		return nil, nil, err
 	}
-	gateways := make([]string, 0, len(deployments))
-	seen := make(map[string]bool, len(deployments))
-	for _, d := range deployments {
-		if d == nil {
-			continue
-		}
-		if gw := d.GatewayUUID.String(); !seen[gw] {
-			seen[gw] = true
-			gateways = append(gateways, gw)
-		}
-	}
-	if len(gateways) == 0 {
-		updated, err := h.providerSvc.Update(ctx, providerID, ouID, provider)
-		return updated, nil, err
-	}
 	resp, err := h.providerSvc.UpdateAndSync(ctx, providerID, ouID, provider, gateways, h.deploymentSvc)
+	if errors.Is(err, services.ErrAllGatewayDeploymentsFailed) {
+		// The guardrails were saved before the redeploys failed: say so, rather than read as a save that failed.
+		return nil, nil, fmt.Errorf("guardrails saved, but redeploying to every gateway failed, so the gateways "+
+			"the provider is deployed to still enforce the previous guardrails: %w", err)
+	}
 	if err != nil {
 		return nil, nil, err
 	}

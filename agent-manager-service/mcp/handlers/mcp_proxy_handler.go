@@ -34,14 +34,6 @@ func (h *MCPProxyHandler) ListMCPProxies(ctx context.Context, ouID string, limit
 	return h.proxySvc.List(ctx, ouID, nil, limit, offset)
 }
 
-func (h *MCPProxyHandler) FetchMCPServerInfo(ctx context.Context, req *models.MCPServerInfoFetchRequest) (*models.MCPServerInfoFetchResponse, error) {
-	return h.proxySvc.FetchServerInfo(ctx, req)
-}
-
-func (h *MCPProxyHandler) CreateMCPProxy(ctx context.Context, ouID string, req *models.MCPProxyDTO) (*models.MCPProxyDTO, error) {
-	return h.proxySvc.Create(ctx, ouID, createdBySystem, req)
-}
-
 func (h *MCPProxyHandler) GetMCPProxy(ctx context.Context, ouID string, proxyID string) (*models.MCPProxyDTO, error) {
 	return h.proxySvc.Get(ctx, ouID, proxyID)
 }
