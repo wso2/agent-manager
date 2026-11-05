@@ -141,14 +141,22 @@ func (b *NATSBus) Setup(ctx context.Context) error {
 		}
 	}
 	for _, q := range natsQueues {
-		if _, err := b.js.CreateOrUpdateStream(ctx, jetstream.StreamConfig{
+		queueCfg := jetstream.StreamConfig{
 			Name:       q.stream,
 			Subjects:   []string{q.subject + ".>"},
 			Storage:    b.storage,
 			Retention:  jetstream.WorkQueuePolicy,
 			MaxAge:     streamMaxAge,
 			Duplicates: 10 * time.Minute,
-		}); err != nil {
+		}
+		if b.storage == jetstream.MemoryStorage {
+			// The queues share what the event stream leaves, with headroom.
+			// A full queue refuses new items rather than dropping queued
+			// ones: the fan-out then retries the event later.
+			queueCfg.MaxBytes = embeddedMaxMemory / 4 / int64(len(natsQueues))
+			queueCfg.Discard = jetstream.DiscardNew
+		}
+		if _, err := b.js.CreateOrUpdateStream(ctx, queueCfg); err != nil {
 			return fmt.Errorf("failed to set up stream %s: %w", q.stream, err)
 		}
 	}
