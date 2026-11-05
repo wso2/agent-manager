@@ -36,6 +36,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
@@ -4679,7 +4680,8 @@ func (s *agentConfigurationService) requireProviderPlacements(
 		if err := policy.requireProvider(ctx, s.llmProxyDeploymentService, s.gatewayRepo,
 			ouID, provider.UUID, envUUID); err != nil {
 			// The returned message names the provider and environment; the ids are for operators.
-			s.logger.Info("Refused LLM provider placement", "providerUUID", provider.UUID, "environmentUUID", envUUID, "error", err)
+			logger.GetLogger(ctx).Info("Refused LLM provider placement",
+				"ouID", ouID, "providerUUID", provider.UUID, "environmentUUID", envUUID, "error", err)
 			return fmt.Errorf("LLM provider %q in environment %s: %w", requested[envName].ProviderName, envName, err)
 		}
 	}
