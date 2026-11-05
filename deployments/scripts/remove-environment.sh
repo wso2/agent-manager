@@ -3,7 +3,8 @@ set -euo pipefail
 
 # Removes an environment: deletes it via the Agent Manager API, then
 # deprovisions its Thunder ID instance, then uninstalls the API Platform
-# Gateway helm release. Thunder teardown runs only after a confirmed
+# Gateway helm release and deregisters the gateway from Agent Manager.
+# Thunder teardown runs only after a confirmed
 # 204/404 from AMS — tearing it down earlier would leave the environment
 # live in AMS while its identity layer is permanently gone.
 #
@@ -51,6 +52,11 @@ RELEASE_NAME=$(echo "$RELEASE_NAME" | head -c 53 | sed 's/-*$//')
 EGRESS_NAMESPACE="${GATEWAY_NAMESPACE}-egress"
 EGRESS_RELEASE_NAME=$(echo "api-platform-${ORG_NAME}-${ENV_NAME}-egress" | head -c 53 | sed 's/-*$//')
 
+# Gateway names MUST match what add-environment.sh registers; the egress gateway
+# exists only in split topology.
+GATEWAY_NAME=$(printf "api-platform-%s-%s" "${ORG_NAME}" "${ENV_NAME}" | head -c 63 | sed 's/-*$//')
+EGRESS_GATEWAY_NAME="api-platform-${ORG_NAME}-${ENV_NAME}-egress"
+
 echo "=== Removing Environment: ${ENV_NAME} ==="
 echo ""
 
@@ -84,10 +90,38 @@ until curl -sf "${AGENT_MANAGER_URL}/healthz" > /dev/null 2>&1; do
     ELAPSED=$((ELAPSED + 3))
 done
 
-echo ""
-echo "🌍 Deleting environment '${ENV_NAME}'..."
 RESP_FILE="$(mktemp)"
 trap 'rm -f "$RESP_FILE"' EXIT
+
+# gateway_owner NAME — prints owned, absent, unlisted, or the failed HTTP code.
+# Runs before the DELETE drops the mapping: only a gateway listed under this
+# environment is provably not shared, since an empty list can also mean the API
+# failed to read the mappings. Step 3b deregisters only an owned gateway.
+gateway_owner() {
+    local code
+    # Bounded so a stalled connection cannot hang the removal.
+    code=$(curl -s --connect-timeout 10 --max-time 30 -o "$RESP_FILE" -w "%{http_code}" \
+        "${AGENT_MANAGER_API_URL}/orgs/${ORG_NAME}/gateways/$1" \
+        -H "Authorization: Bearer ${AGENT_MANAGER_TOKEN}" || true)
+    case "$code" in
+        200)
+            # The gateway's own name is api-platform-<org>-<env>, so this matches
+            # only an environment entry.
+            if grep -qF "\"name\":\"${ENV_NAME}\"" "$RESP_FILE"; then
+                echo owned
+            else
+                echo unlisted
+            fi
+            ;;
+        404) echo absent ;;
+        *) echo "HTTP ${code}" ;;
+    esac
+}
+GATEWAY_OWNER=$(gateway_owner "${GATEWAY_NAME}")
+EGRESS_GATEWAY_OWNER=$(gateway_owner "${EGRESS_GATEWAY_NAME}")
+
+echo ""
+echo "🌍 Deleting environment '${ENV_NAME}'..."
 DEL_HTTP_CODE=$(curl -s -o "$RESP_FILE" -w "%{http_code}" -X DELETE \
     "${AGENT_MANAGER_API_URL}/orgs/${ORG_NAME}/environments/${ENV_NAME}" \
     -H "Authorization: Bearer ${AGENT_MANAGER_TOKEN}")
@@ -174,13 +208,94 @@ else
 fi
 
 # Wait for gateway operator to clean up the APIGateway CR
-GATEWAY_NAME=$(printf "api-platform-%s-%s" "${ORG_NAME}" "${ENV_NAME}" | head -c 63 | sed 's/-*$//')
 echo ""
 echo "⏳ Waiting for gateway resources to be cleaned up..."
 if kubectl wait --for=delete "apigateway/${GATEWAY_NAME}" -n "${GATEWAY_NAMESPACE}" --timeout=120s 2>/dev/null; then
     echo "✅ Gateway resources cleaned up"
 else
     echo "⚠️  Timed out or failed waiting for apigateway/${GATEWAY_NAME} to delete; continuing..."
+fi
+
+# --- Step 3b: Deregister the gateway(s) from Agent Manager ---
+# Nothing else removes the record the chart's install hook registered; left behind,
+# it lists as an Unassigned gateway. Only an owned gateway is deregistered (see
+# gateway_owner). Non-fatal: the environment itself is already gone.
+deregister_gateway() {
+    local name="$1" owner="$2" code gw_id
+    case "$owner" in
+        owned) ;;
+        absent)
+            echo "ℹ️  Gateway '${name}' is not registered, skipping..."
+            return 0
+            ;;
+        unlisted)
+            echo "ℹ️  Gateway '${name}' was not listed under '${ENV_NAME}', leaving it registered."
+            echo "    If no environment uses it, delete it under Gateways in the console."
+            return 0
+            ;;
+        *)
+            echo "⚠️  Could not look up gateway '${name}' before the removal (${owner}); leaving it registered."
+            return 0
+            ;;
+    esac
+
+    # Bounded so a stalled connection reaches the warning below instead of hanging Step 4.
+    code=$(curl -s --connect-timeout 10 --max-time 30 -o "$RESP_FILE" -w "%{http_code}" \
+        "${AGENT_MANAGER_API_URL}/orgs/${ORG_NAME}/gateways/${name}" \
+        -H "Authorization: Bearer ${AGENT_MANAGER_TOKEN}" || true)
+    case "$code" in
+        200) ;;
+        404)
+            echo "ℹ️  Gateway '${name}' is not registered, skipping..."
+            return 0
+            ;;
+        *)
+            echo "⚠️  Could not look up gateway '${name}' (HTTP ${code}); it may still be registered."
+            cat "$RESP_FILE" 2>/dev/null; echo
+            return 0
+            ;;
+    esac
+
+    # Step 1 dropped this environment's mapping, so an environment listed now was
+    # assigned since, and the gateway is no longer this environment's.
+    if grep -q '"environments":\[{' "$RESP_FILE"; then
+        echo "ℹ️  Gateway '${name}' is now mapped to another environment, leaving it registered."
+        return 0
+    fi
+
+    # The response keys are serialized in alphabetical order, so uuid comes after
+    # environments. A response that lists environments has already returned above,
+    # so the only "uuid" key left is the gateway's own.
+    gw_id=$(grep -o '"uuid":"[^"]*"' "$RESP_FILE" | head -1 | cut -d'"' -f4 || true)
+    if [ -z "$gw_id" ]; then
+        echo "⚠️  Could not read the ID of gateway '${name}'; it may still be registered."
+        return 0
+    fi
+
+    code=$(curl -s --connect-timeout 10 --max-time 30 -o "$RESP_FILE" -w "%{http_code}" -X DELETE \
+        "${AGENT_MANAGER_API_URL}/orgs/${ORG_NAME}/gateways/${gw_id}" \
+        -H "Authorization: Bearer ${AGENT_MANAGER_TOKEN}" || true)
+    case "$code" in
+        204) echo "✅ Gateway '${name}' deregistered" ;;
+        404) echo "ℹ️  Gateway '${name}' already deregistered" ;;
+        409)
+            echo "⚠️  Gateway '${name}' was not deregistered: it still has API deployments."
+            echo "    Undeploy them, then delete the gateway under Gateways in the console."
+            cat "$RESP_FILE" 2>/dev/null; echo
+            ;;
+        *)
+            echo "⚠️  Failed to deregister gateway '${name}' (HTTP ${code})"
+            cat "$RESP_FILE" 2>/dev/null; echo
+            ;;
+    esac
+}
+
+echo ""
+echo "🗑️  Deregistering the gateway from Agent Manager..."
+deregister_gateway "${GATEWAY_NAME}" "${GATEWAY_OWNER}"
+# Only split topology has an egress gateway, so stay quiet when it is absent.
+if [ "${EGRESS_GATEWAY_OWNER}" != absent ]; then
+    deregister_gateway "${EGRESS_GATEWAY_NAME}" "${EGRESS_GATEWAY_OWNER}"
 fi
 
 # --- Step 4: Delete the per-env gateway namespace ---

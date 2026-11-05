@@ -46,24 +46,36 @@ type llmPolicyManifestItem struct {
 }
 
 // intersectActiveGatewayLLMPolicies returns, keyed by "name\x00version", the full policy
-// definitions available across every active gateway in the org. Used when the caller has
-// no specific provider/deployment to scope to (e.g. a provider-agnostic listing).
+// definitions available across every active managed gateway in the org (listCatalogGateways).
+// Used when the caller has no specific provider/deployment to scope to (e.g. a
+// provider-agnostic listing).
 // See intersectLLMPolicies for the availability semantics.
 func intersectActiveGatewayLLMPolicies(gatewayRepo repositories.GatewayRepository, orgUUID string) (map[string]llmPolicyManifestItem, error) {
 	if gatewayRepo == nil {
 		return map[string]llmPolicyManifestItem{}, nil
 	}
 
+	gateways, err := listCatalogGateways(gatewayRepo, orgUUID)
+	if err != nil {
+		return nil, err
+	}
+	return intersectLLMPolicies(gateways), nil
+}
+
+// listCatalogGateways is the gateways whose reported policies make up an org-wide policy catalog: the active managed
+// ones. A self-hosted gateway runs whatever bundle its operator installed; one older bundle would narrow the catalog
+// for the whole org.
+func listCatalogGateways(gatewayRepo repositories.GatewayRepository, orgUUID string) ([]*models.Gateway, error) {
 	active := true
 	gateways, err := gatewayRepo.ListWithFilters(repositories.GatewayFilterOptions{
 		OrganizationID: orgUUID,
 		Status:         &active,
+		Hosting:        models.GatewayHostingManaged,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list active gateways: %w", err)
 	}
-
-	return intersectLLMPolicies(gateways), nil
+	return gateways, nil
 }
 
 // intersectDeployedGatewayLLMPolicies returns, keyed by "name\x00version", the full policy
@@ -111,6 +123,8 @@ func intersectDeployedGatewayLLMPolicies(ctx context.Context, gatewayRepo reposi
 // still report the old version — policies are assumed backward-compatible: the name falls
 // back to the LOWEST version reported by any of the given gateways, using that gateway's
 // own metadata, so a previously-applied policy doesn't disappear from the catalog mid-rollout.
+// A gateway that has not reported a manifest yet (see gatewayManifest) is left out of the
+// intersection rather than emptying it; if none has reported, nothing is available.
 func intersectLLMPolicies(gateways []*models.Gateway) map[string]llmPolicyManifestItem {
 	var perGatewayPolicies []map[string]llmPolicyManifestItem
 	// byName collects every (gateway, version) sighting per policy name, used for the
@@ -123,13 +137,14 @@ func intersectLLMPolicies(gateways []*models.Gateway) map[string]llmPolicyManife
 	gatewayCount := 0
 
 	for _, gateway := range gateways {
-		if gateway == nil {
+		manifest, known := gatewayManifest(gateway)
+		if !known {
 			continue
 		}
 		gatewayCount++
 		gatewayPolicies := map[string]llmPolicyManifestItem{}
 		namesOnThisGateway := map[string]struct{}{}
-		for _, policy := range extractLLMPolicyManifestItems(gatewayManifest(gateway)) {
+		for _, policy := range extractLLMPolicyManifestItems(manifest) {
 			if policy.Name == "" || policy.Version == "" {
 				continue
 			}

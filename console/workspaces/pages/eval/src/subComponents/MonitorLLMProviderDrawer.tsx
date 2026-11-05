@@ -35,7 +35,7 @@ import {
   DrawerWrapper,
 } from "@agent-management-platform/views";
 import {
-  getErrorMessage,
+  formatRelativeTime,
   useConfirmIfUnsaved,
   useUnsavedChangesGuard,
 } from "@agent-management-platform/shared-component";
@@ -64,7 +64,6 @@ import {
   Plus,
   Zap,
 } from "@wso2/oxygen-ui-icons-react";
-import { formatDistanceToNow } from "date-fns";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import debounce from "lodash/debounce";
@@ -233,7 +232,7 @@ function ProviderCardContent({
         {latest?.deployedAt && (
           <Typography variant="caption" color="text.secondary">
             Deployed{" "}
-            {formatDistanceToNow(new Date(latest.deployedAt), { addSuffix: true })}
+            {formatRelativeTime(latest.deployedAt)}
           </Typography>
         )}
         <Divider orientation="vertical" />
@@ -348,7 +347,6 @@ export function MonitorLLMProviderDrawer({
   const {
     mutate: createLLMProvider,
     isPending: isCreatingProvider,
-    error: createProviderError,
   } = useCreateLLMProvider();
 
   const debouncedSetSearch = useMemo(
@@ -548,11 +546,6 @@ export function MonitorLLMProviderDrawer({
               templates={templateCards}
               isLoadingTemplates={isLoadingTemplates}
               isSubmitting={isCreatingProvider}
-              errorMessage={
-                createProviderError
-                  ? getErrorMessage(createProviderError)
-                  : null
-              }
               submitLabel="Create & use provider"
               showAdvancedBasicDetails={false}
               showGuardrails={false}

@@ -72,6 +72,9 @@ const isBuildPath = (value: string): boolean =>
 const gitHubRepoUrlRe = /^https:\/\/github\.com\/[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+(?:\.git)?\/?$/;
 
 // Base fields shared by both flows
+/** The backend's MaxResourceNameLength for agent names. */
+export const AGENT_NAME_MAX_LENGTH = 25;
+
 const baseAgentFields = {
   displayName: z
     .string()
@@ -82,7 +85,11 @@ const baseAgentFields = {
   name: z
     .string()
     .trim()
-    .max(50, 'Name must be at most 50 characters'),
+    .max(AGENT_NAME_MAX_LENGTH, `Name must be at most ${AGENT_NAME_MAX_LENGTH} characters`)
+    .refine(
+      (v) => v === '' || /^[a-z][a-z0-9-]*[a-z0-9]$|^[a-z]$/.test(v),
+      'Name must be lowercase alphanumeric or "-", start with a letter and end with a letter or digit',
+    ),
   description: z
     .string()
     .trim()

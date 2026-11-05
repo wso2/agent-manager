@@ -205,12 +205,12 @@ func loadEnvs() {
 		Token: r.readOptionalString("GITHUB_TOKEN", ""),
 	}
 
-	// Gateway manifest cache backend. "memory" (default) is process-local and only
-	// safe for a single replica; HA deployments must set this to "redis" so every
-	// replica reads and writes the same cached manifest.
 	config.GatewayPublicVhostFallback = r.readOptionalBool("GATEWAY_PUBLIC_VHOST_FALLBACK", false)
 	config.EvalJobsUsePublicGatewayURL = r.readOptionalBool("EVAL_JOBS_USE_PUBLIC_GATEWAY_URL", false)
 
+	// Gateway manifest cache backend. "memory" (default) is process-local and only
+	// safe for a single replica; HA deployments must set this to "redis" so every
+	// replica reads and writes the same per-gateway cached manifests.
 	config.GatewayManifestCache = GatewayManifestCacheConfig{
 		Backend: r.readOptionalString("GATEWAY_MANIFEST_CACHE_BACKEND", "memory"),
 		Redis: GatewayManifestCacheRedisConfig{

@@ -33,7 +33,7 @@ import {
   useDeleteUser,
   useListUsers,
 } from "@agent-management-platform/api-client";
-import { useConfirmationDialog } from "@agent-management-platform/shared-component";
+import { isListEmpty, useConfirmationDialog } from "@agent-management-platform/shared-component";
 import {
   absoluteRouteMap,
   globalConfig,
@@ -61,6 +61,13 @@ export const UsersPage: React.FC = () => {
 
   const users = useMemo(() => data?.users ?? [], [data]);
   const total = data?.total ?? 0;
+  const hasItems = !isLoading && total > 0;
+
+  const isEmpty = isListEmpty({
+    isLoading,
+    count: users.length,
+    isFiltered: Boolean(search),
+  });
 
   useEffect(() => {
     if (users.length === 0 && total > 0) {
@@ -113,6 +120,28 @@ export const UsersPage: React.FC = () => {
     });
   };
 
+  // One definition, used by the toolbar and by the empty state's CTA.
+  const createButtons = (
+    <Stack direction="row" spacing={1}>
+      <Button
+        variant="outlined"
+        startIcon={<Plus />}
+        onClick={() => navigate(addUserPath)}
+        disabled={!isUserManagementEnabled}
+      >
+        Add User
+      </Button>
+      <Button
+        variant="contained"
+        startIcon={<Plus />}
+        onClick={() => navigate(invitePath)}
+        disabled={!isUserManagementEnabled}
+      >
+        Invite User
+      </Button>
+    </Stack>
+  );
+
   return (
     <>
       {error != null && (
@@ -123,30 +152,13 @@ export const UsersPage: React.FC = () => {
 
       <ListingTable.Provider searchValue={search} onSearchChange={setSearch}>
         <ListingTable.Container>
-          <ListingTable.Toolbar
-            showSearch
-            searchPlaceholder="Search users..."
-            actions={
-              <Stack direction="row" spacing={1}>
-                <Button
-                  variant="outlined"
-                  startIcon={<Plus />}
-                  onClick={() => navigate(addUserPath)}
-                  disabled={!isUserManagementEnabled}
-                >
-                  Add User
-                </Button>
-                <Button
-                  variant="contained"
-                  startIcon={<Plus />}
-                  onClick={() => navigate(invitePath)}
-                  disabled={!isUserManagementEnabled}
-                >
-                  Invite User
-                </Button>
-              </Stack>
-            }
-          />
+          {!isEmpty && (
+            <ListingTable.Toolbar
+              showSearch
+              searchPlaceholder="Search users..."
+              actions={hasItems ? createButtons : undefined}
+            />
+          )}
           {!isLoading && filteredUsers.length === 0 ? (
             search ? (
               <ListingTable.EmptyState
@@ -158,7 +170,8 @@ export const UsersPage: React.FC = () => {
               <ListingTable.EmptyState
                 illustration={<Users size={64} />}
                 title="No users yet"
-                description='Click "Add User" to create one or "Invite User" to invite someone.'
+                description="Add a user directly, or invite someone to join this organization."
+                action={createButtons}
               />
             )
           ) : (
@@ -224,7 +237,7 @@ export const UsersPage: React.FC = () => {
               </ListingTable.Body>
             </ListingTable>
           )}
-          {!isLoading && total >= 5 && (
+          {!isLoading && total > 5 && (
             <TablePagination
               component="div"
               count={total}

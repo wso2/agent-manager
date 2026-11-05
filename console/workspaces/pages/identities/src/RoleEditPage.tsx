@@ -23,6 +23,7 @@ import {
   Button,
   Chip,
   Form,
+  Grid,
   IconButton,
   ListingTable,
   Stack,
@@ -427,7 +428,8 @@ export const RoleEditPage: React.FC = () => {
                 Search and add users to this role.
               </Typography>
 
-              <Box sx={{ mt: 1, mb: 2 }}>
+              <Grid container spacing={2}>
+                <Grid size={{ xs: 12, md: 12, xl: 8 }}>
                 <Form.ElementWrapper label="Add User" name="addUser">
                   <Autocomplete
                     id="addUser"
@@ -443,7 +445,8 @@ export const RoleEditPage: React.FC = () => {
                     noOptionsText="No users available"
                   />
                 </Form.ElementWrapper>
-              </Box>
+                </Grid>
+              </Grid>
 
               {displayedUsers.length === 0 ? (
                 <ListingTable.Container>
@@ -497,7 +500,8 @@ export const RoleEditPage: React.FC = () => {
                 Search and add groups to this role.
               </Typography>
 
-              <Box sx={{ mt: 1, mb: 2 }}>
+              <Grid container spacing={2}>
+                <Grid size={{ xs: 12, md: 12, xl: 8 }}>
                 <Form.ElementWrapper label="Add Group" name="addGroup">
                   <Autocomplete
                     id="addGroup"
@@ -511,7 +515,8 @@ export const RoleEditPage: React.FC = () => {
                     noOptionsText="No groups available"
                   />
                 </Form.ElementWrapper>
-              </Box>
+                </Grid>
+              </Grid>
 
               {displayedGroups.length === 0 ? (
                 <ListingTable.Container>

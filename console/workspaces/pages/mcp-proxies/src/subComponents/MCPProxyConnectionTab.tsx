@@ -16,6 +16,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { TextInput } from "@agent-management-platform/views";
 import {
   type MCPEndpointConfig,
   type MCPProxy,
@@ -28,12 +29,9 @@ import {
   Alert,
   Button,
   Collapse,
-  FormControl,
-  FormLabel,
   Grid,
   Skeleton,
   Stack,
-  TextField,
   Tooltip,
   Typography,
   useTheme,
@@ -74,6 +72,7 @@ export function MCPProxyConnectionTab({
   const [authEnabled, setAuthEnabled] = useState(true);
   const [credentialValue, setCredentialValue] = useState("");
   const [isCredentialMasked, setIsCredentialMasked] = useState(false);
+  const [isCredentialEdited, setIsCredentialEdited] = useState(false);
   const [showCredential, setShowCredential] = useState(false);
   const [resilienceTimeout, setResilienceTimeout] = useState("");
   const [resilienceIdleTimeout, setResilienceIdleTimeout] = useState("");
@@ -103,6 +102,7 @@ export function MCPProxyConnectionTab({
     const hasCredential = Boolean(config?.upstream?.main?.auth?.header);
     setCredentialValue(hasCredential ? MASKED_CREDENTIAL_VALUE : "");
     setIsCredentialMasked(hasCredential);
+    setIsCredentialEdited(false);
     setShowCredential(false);
     setResilienceTimeout(config?.resilience?.timeout ?? "");
     setResilienceIdleTimeout(config?.resilience?.idleTimeout ?? "");
@@ -112,11 +112,12 @@ export function MCPProxyConnectionTab({
   }, [config]);
 
   useEffect(() => {
-    if (!selectedEndpointId) return;
+    // Wait for config too, or the form seeds empty and reads as dirty.
+    if (!selectedEndpointId || !config) return;
     if (initializedEnvIdRef.current === selectedEndpointId) return;
     initializedEnvIdRef.current = selectedEndpointId;
     resetFromConfig();
-  }, [selectedEndpointId, resetFromConfig]);
+  }, [selectedEndpointId, config, resetFromConfig]);
 
   const validateEndpoint = useCallback((value: string): string | null => {
     const err = validateEndpointUrl(value, {
@@ -146,10 +147,13 @@ export function MCPProxyConnectionTab({
     return err;
   }, []);
 
+  // An empty field only differs from what's saved when a credential is stored.
+  const typedCredential = credentialValue.trim();
   const credentialChanged =
     authEnabled &&
-    !isCredentialMasked &&
-    credentialValue.trim() !== MASKED_CREDENTIAL_VALUE;
+    isCredentialEdited &&
+    typedCredential !== MASKED_CREDENTIAL_VALUE &&
+    (typedCredential !== "" || hasStoredCredential);
   const effectiveAuthHeader = authEnabled ? authHeader.trim() : "";
 
   const isDirty = useMemo(() => {
@@ -209,7 +213,7 @@ export function MCPProxyConnectionTab({
           type: "api-key" as const,
           ...existingAuth,
           header: effectiveAuthHeader,
-          ...(credentialChanged ? { value: credentialValue.trim() } : {}),
+          ...(credentialChanged ? { value: typedCredential } : {}),
         }
       : undefined;
 
@@ -241,6 +245,7 @@ export function MCPProxyConnectionTab({
       if (credentialChanged) {
         setCredentialValue(MASKED_CREDENTIAL_VALUE);
         setIsCredentialMasked(true);
+        setIsCredentialEdited(false);
       }
     } catch {
       setStatus({ message: "Failed to update connection.", severity: "error" });
@@ -252,7 +257,7 @@ export function MCPProxyConnectionTab({
     resilienceTimeout,
     resilienceIdleTimeout,
     credentialChanged,
-    credentialValue,
+    typedCredential,
     onUpdate,
     validateEndpoint,
     validateResilienceTimeout,
@@ -278,30 +283,29 @@ export function MCPProxyConnectionTab({
 
   return (
     <Stack spacing={2}>
-      <Grid container spacing={3}>
-        <Grid size={{ xs: 12 }}>
-          <FormControl fullWidth>
-            <FormLabel required>MCP Server Endpoint URL</FormLabel>
-            <TextField
-              slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.URL } }}
-              size="small"
-              value={endpoint}
-              onChange={(e) => {
-                setEndpoint(e.target.value);
-                if (endpointError) validateEndpoint(e.target.value);
-              }}
-              onBlur={() => validateEndpoint(endpoint)}
-              error={!!endpointError}
-              helperText={endpointError}
-              placeholder="Enter URL of your MCP Server"
-              sx={{
-                "& .MuiInputBase-input": {
-                  fontFamily: "monospace",
-                  fontSize: theme.typography.body2?.fontSize,
-                },
-              }}
-            />
-          </FormControl>
+      <Grid container spacing={2}>
+        <Grid size={{ xs: 12, md: 12, xl: 8 }}>
+          <TextInput
+            label="MCP Server Endpoint URL"
+            maxLength={INPUT_LIMITS.URL}
+            hideCharacterCount={(endpoint?.length ?? 0) < INPUT_LIMITS.URL}
+            size="small"
+            value={endpoint}
+            onChange={(e) => {
+              setEndpoint(e.target.value);
+              if (endpointError) validateEndpoint(e.target.value);
+            }}
+            onBlur={() => validateEndpoint(endpoint)}
+            error={!!endpointError}
+            helperText={endpointError}
+            placeholder="Enter URL of your MCP Server"
+            sx={{
+              "& .MuiInputBase-input": {
+                fontFamily: "monospace",
+                fontSize: theme.typography.body2?.fontSize,
+              },
+            }}
+          />
         </Grid>
 
         <Grid size={{ xs: 12 }}>
@@ -329,7 +333,10 @@ export function MCPProxyConnectionTab({
                     setIsCredentialMasked(false);
                   }
                 }}
-                onValueChange={setCredentialValue}
+                onValueChange={(value) => {
+                  setCredentialValue(value);
+                  setIsCredentialEdited(true);
+                }}
                 showValue={showCredential}
                 onToggleShowValue={() => setShowCredential((p) => !p)}
                 caption={

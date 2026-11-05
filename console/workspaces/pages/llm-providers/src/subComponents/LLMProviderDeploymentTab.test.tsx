@@ -20,11 +20,11 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import { ThemeProvider, createTheme } from "@wso2/oxygen-ui";
-import type {
-  Environment,
-  GatewayResponse,
-  LLMDeploymentResponse,
-  LLMProviderResponse,
+import {
+  type Environment,
+  type GatewayResponse,
+  type LLMDeploymentResponse,
+  type LLMProviderResponse,
 } from "@agent-management-platform/types";
 
 // The tab renders the connected EnvironmentGatewaySelector, whose api-client
@@ -68,6 +68,7 @@ const makeGateway = (uuid: string, envIds: string[]): GatewayResponse => ({
   name: uuid,
   displayName: `Gateway ${uuid}`,
   gatewayType: "EGRESS",
+  hosting: "MANAGED",
   vhost: "example.com",
   isCritical: false,
   status: "ACTIVE",

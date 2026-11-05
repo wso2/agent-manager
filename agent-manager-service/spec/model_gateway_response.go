@@ -25,8 +25,9 @@ type GatewayResponse struct {
 	// Unique gateway name (lowercase, alphanumeric with hyphens)
 	Name string `json:"name"`
 	// Human-readable display name
-	DisplayName string      `json:"displayName"`
-	GatewayType GatewayType `json:"gatewayType"`
+	DisplayName string         `json:"displayName"`
+	GatewayType GatewayType    `json:"gatewayType"`
+	Hosting     GatewayHosting `json:"hosting"`
 	// Virtual host for the gateway
 	Vhost string `json:"vhost"`
 	// In-cluster base URL of the gateway runtime, used by sandboxed platform-hosted agents. Empty means no internal address is registered and the vhost is used instead. Must carry an explicit port other than 80 or 443 and a cluster-local host.
@@ -48,12 +49,13 @@ type GatewayResponse struct {
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewGatewayResponse(uuid string, name string, displayName string, gatewayType GatewayType, vhost string, isCritical bool, status GatewayStatus, createdAt time.Time, updatedAt time.Time) *GatewayResponse {
+func NewGatewayResponse(uuid string, name string, displayName string, gatewayType GatewayType, hosting GatewayHosting, vhost string, isCritical bool, status GatewayStatus, createdAt time.Time, updatedAt time.Time) *GatewayResponse {
 	this := GatewayResponse{}
 	this.Uuid = uuid
 	this.Name = name
 	this.DisplayName = displayName
 	this.GatewayType = gatewayType
+	this.Hosting = hosting
 	this.Vhost = vhost
 	this.IsCritical = isCritical
 	this.Status = status
@@ -164,6 +166,30 @@ func (o *GatewayResponse) GetGatewayTypeOk() (*GatewayType, bool) {
 // SetGatewayType sets field value
 func (o *GatewayResponse) SetGatewayType(v GatewayType) {
 	o.GatewayType = v
+}
+
+// GetHosting returns the Hosting field value
+func (o *GatewayResponse) GetHosting() GatewayHosting {
+	if o == nil {
+		var ret GatewayHosting
+		return ret
+	}
+
+	return o.Hosting
+}
+
+// GetHostingOk returns a tuple with the Hosting field value
+// and a boolean to check if the value has been set.
+func (o *GatewayResponse) GetHostingOk() (*GatewayHosting, bool) {
+	if o == nil {
+		return nil, false
+	}
+	return &o.Hosting, true
+}
+
+// SetHosting sets field value
+func (o *GatewayResponse) SetHosting(v GatewayHosting) {
+	o.Hosting = v
 }
 
 // GetVhost returns the Vhost field value
@@ -396,6 +422,7 @@ func (o GatewayResponse) ToMap() (map[string]interface{}, error) {
 	toSerialize["name"] = o.Name
 	toSerialize["displayName"] = o.DisplayName
 	toSerialize["gatewayType"] = o.GatewayType
+	toSerialize["hosting"] = o.Hosting
 	toSerialize["vhost"] = o.Vhost
 	if !IsNil(o.RuntimeUrl) {
 		toSerialize["runtimeUrl"] = o.RuntimeUrl

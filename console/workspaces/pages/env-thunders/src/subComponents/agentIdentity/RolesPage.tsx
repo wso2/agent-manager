@@ -15,30 +15,34 @@
  * under the License.
  */
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Alert,
   Avatar,
-  Button,
   IconButton,
   ListingTable,
   TablePagination,
   Tooltip,
 } from "@wso2/oxygen-ui";
-import { Plus, Shield, Trash } from "@wso2/oxygen-ui-icons-react";
+import { Shield, Trash } from "@wso2/oxygen-ui-icons-react";
 import { generatePath, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   useDeleteAgentIdentityRole,
   useListAgentIdentityRoles,
 } from "@agent-management-platform/api-client";
-import { ListingSkeletonRows, useConfirmationDialog } from "@agent-management-platform/shared-component";
+import { isListEmpty, ListingSkeletonRows, useConfirmationDialog } from "@agent-management-platform/shared-component";
 import { absoluteRouteMap, type ThunderRole } from "@agent-management-platform/types";
 import { withSearchParams } from "../../utils/withSearchParams";
 import { AgentIdentityEnvironmentTabs } from "./AgentIdentityEnvironmentTabs";
 
 const AVATAR_SX = { width: 28, height: 28, fontSize: 12 } as const;
 
-export const RolesPage: React.FC = () => {
+interface RolesPageProps {
+  /** CTA shown in the empty state; the page owns how a role gets created. */
+  createAction?: ReactNode;
+}
+
+export const RolesPage: React.FC<RolesPageProps> = ({ createAction }) => {
   const { orgId } = useParams<{ orgId: string }>();
   const [searchParams] = useSearchParams();
   const envName = searchParams.get("envName") ?? "";
@@ -58,6 +62,12 @@ export const RolesPage: React.FC = () => {
   const roles = useMemo(() => data?.roles ?? [], [data]);
   const total = data?.total ?? 0;
 
+  const isEmpty = isListEmpty({
+    isLoading,
+    count: roles.length,
+    isFiltered: Boolean(search),
+  });
+
   useEffect(() => {
     if (roles.length === 0 && total > 0) {
       const lastPage = Math.max(0, Math.ceil(total / rowsPerPage) - 1);
@@ -69,10 +79,6 @@ export const RolesPage: React.FC = () => {
 
   const rolesNode =
     absoluteRouteMap.children.org.children.thunderInstances.children.roles;
-
-  const createPath = orgId
-    ? withSearchParams(generatePath(rolesNode.children.create.path, { orgId }), searchParams)
-    : "#";
 
   const editRolePath = (roleId: string) =>
     orgId
@@ -115,20 +121,10 @@ export const RolesPage: React.FC = () => {
 
       <ListingTable.Provider searchValue={search} onSearchChange={setSearch}>
         <ListingTable.Container>
-          <AgentIdentityEnvironmentTabs />
-          <ListingTable.Toolbar
-            showSearch
-            searchPlaceholder="Search roles..."
-            actions={
-              <Button
-                variant="contained"
-                startIcon={<Plus />}
-                onClick={() => navigate(createPath)}
-              >
-                Create Role
-              </Button>
-            }
-          />
+          <AgentIdentityEnvironmentTabs action={isEmpty ? undefined : createAction} />
+          {!isEmpty && (
+            <ListingTable.Toolbar showSearch searchPlaceholder="Search roles..." />
+          )}
           {!isLoading && filteredRoles.length === 0 ? (
             search ? (
               <ListingTable.EmptyState
@@ -140,7 +136,8 @@ export const RolesPage: React.FC = () => {
               <ListingTable.EmptyState
                 illustration={<Shield size={64} />}
                 title="No roles yet"
-                description='Click "Create Role" to add one.'
+                description="Create a role to grant agent identities a set of permissions."
+                action={createAction}
               />
             )
           ) : (
@@ -196,7 +193,7 @@ export const RolesPage: React.FC = () => {
               </ListingTable.Body>
             </ListingTable>
           )}
-          {!isLoading && total >= 5 && (
+          {!isLoading && total > 5 && (
             <TablePagination
               component="div"
               count={total}

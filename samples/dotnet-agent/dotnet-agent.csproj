@@ -12,11 +12,11 @@
     <!-- Microsoft Agent Framework: the agent + its OpenTelemetry emission
          (.WithOpenTelemetry / .UseOpenTelemetry). Pinned; the framework is
          evolving, so bump deliberately. -->
-    <PackageReference Include="Microsoft.Agents.AI" Version="1.13.0" />
-    <PackageReference Include="Microsoft.Extensions.AI.OpenAI" Version="10.7.0" />
-    <PackageReference Include="OpenTelemetry.Exporter.Console" Version="1.16.0" />
+    <PackageReference Include="Microsoft.Agents.AI" Version="1.27.0" />
+    <PackageReference Include="Microsoft.Extensions.AI.OpenAI" Version="10.11.0" />
+    <PackageReference Include="OpenTelemetry.Exporter.Console" Version="1.20.1" />
     <!-- OTLP/HTTP exporter that ships the gen_ai.* spans to AMP. -->
-    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.16.0" />
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.20.1" />
   </ItemGroup>
 
 </Project>

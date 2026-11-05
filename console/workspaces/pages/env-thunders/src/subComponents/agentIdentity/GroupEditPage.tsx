@@ -23,6 +23,7 @@ import {
   Button,
   CircularProgress,
   Form,
+  Grid,
   IconButton,
   ListingTable,
   Stack,
@@ -270,7 +271,7 @@ export const GroupEditPage: React.FC = () => {
 
   if (isLoading) {
     return (
-      <PageLayout title="Group" backHref={groupsPath} backLabel="Back to Groups" disableIcon>
+      <PageLayout title="Group" backHref={groupsPath} backLabel="Back to groups" disableIcon>
         <EditFormSkeleton tabs={2} />
       </PageLayout>
     );
@@ -280,7 +281,7 @@ export const GroupEditPage: React.FC = () => {
     <PageLayout
       title={groupData?.name || "Group"}
       backHref={groupsPath}
-      backLabel="Back to Groups"
+      backLabel="Back to groups"
       description={groupData?.description}
       disableIcon
     >
@@ -314,7 +315,8 @@ export const GroupEditPage: React.FC = () => {
                 </Alert>
               )}
 
-              <Box sx={{ mt: 1 }}>
+              <Grid container spacing={2}>
+                <Grid size={{ xs: 12, md: 12, xl: 8 }}>
                 <Form.ElementWrapper label="Add Agent" name="addAgent">
                   <Autocomplete
                     id="addAgent"
@@ -344,7 +346,8 @@ export const GroupEditPage: React.FC = () => {
                     noOptionsText="No agents available"
                   />
                 </Form.ElementWrapper>
-              </Box>
+                </Grid>
+              </Grid>
 
               {displayedMemberIds.length === 0 ? (
                 <ListingTable.Container>
@@ -415,7 +418,8 @@ export const GroupEditPage: React.FC = () => {
                     </Alert>
                   )}
 
-                  <Box sx={{ mt: 1, mb: 2 }}>
+                  <Grid container spacing={2}>
+                    <Grid size={{ xs: 12, md: 12, xl: 8 }}>
                     <Form.ElementWrapper label="Add Role" name="addRole">
                       <Autocomplete
                         id="addRole"
@@ -429,7 +433,8 @@ export const GroupEditPage: React.FC = () => {
                         noOptionsText="No roles available"
                       />
                     </Form.ElementWrapper>
-                  </Box>
+                    </Grid>
+                  </Grid>
 
                   {displayedRoles.length === 0 ? (
                     <ListingTable.Container>

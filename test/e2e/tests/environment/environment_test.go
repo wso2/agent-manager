@@ -20,26 +20,45 @@
 package environment
 
 import (
+	"time"
+
 	"github.com/google/uuid"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	"github.com/wso2/agent-manager/test/e2e/framework"
 	envops "github.com/wso2/agent-manager/test/e2e/operations/environment"
+	"github.com/wso2/agent-manager/test/e2e/operations/gateway"
 )
 
 var _ = Describe("Environment management:", Label("environment"), Ordered, func() {
 	var (
 		envName      string
+		gatewayName  string
 		scriptParams *envops.ScriptParams
+		removed      bool
 	)
 
 	BeforeAll(func() {
 		suffix := uuid.New().String()[:6]
 		envName = framework.E2EEnvPrefix + suffix
+		// Same name add-environment.sh gives the gateway; short env names need no truncation.
+		gatewayName = "api-platform-" + Cfg.DefaultOrg + "-" + envName
 		scriptParams = envops.FromClient(Client)
 		scriptParams.EnvName = envName
 		scriptParams.DisplayName = "E2E Env " + suffix
+
+		// A failed spec skips the rest of this Ordered container, including the final
+		// removal, so tear down here unless that removal completed. Best effort: the
+		// stale sweep reaps anything this misses.
+		DeferCleanup(func() {
+			if removed {
+				return
+			}
+			if err := envops.RemoveEnvironment(scriptParams); err != nil {
+				GinkgoWriter.Printf("Cleanup of environment %s failed: %v\n", envName, err)
+			}
+		})
 	})
 
 	It("creates an environment via the add-environment script", func() {
@@ -53,6 +72,27 @@ var _ = Describe("Environment management:", Label("environment"), Ordered, func(
 	It("removes the environment via the remove-environment script", func() {
 		err := envops.RemoveEnvironment(scriptParams)
 		Expect(err).NotTo(HaveOccurred(), "remove-environment.sh failed for env %q", envName)
+
+		// Without deregistration the record stays behind as an Unassigned gateway.
+		gateway.ExpectGatewayNotRegistered(Default, Client, Cfg.DefaultOrg, gatewayName)
 		GinkgoWriter.Printf("Environment removed: %s\n", envName)
+	})
+
+	It("re-adds an environment with the same name and gives it a gateway", func() {
+		envops.AddEnvironment(scriptParams)
+
+		// The regression: a re-added environment of the same name ended up with
+		// no gateway, because the bootstrap reused the old record unmapped.
+		gatewayUUID := gateway.WaitForActiveGatewayForEnv(Client, Cfg.DefaultOrg, envName, 5*time.Minute)
+		Expect(gatewayUUID).NotTo(BeEmpty(), "re-added environment %q has no gateway", envName)
+		GinkgoWriter.Printf("Re-added environment %s has gateway %s\n", envName, gatewayUUID)
+	})
+
+	It("removes the re-added environment", func() {
+		err := envops.RemoveEnvironment(scriptParams)
+		Expect(err).NotTo(HaveOccurred(), "remove-environment.sh failed for env %q", envName)
+		gateway.ExpectGatewayNotRegistered(Default, Client, Cfg.DefaultOrg, gatewayName)
+		// Only now: a gateway left registered must still reach the cleanup's retry.
+		removed = true
 	})
 })

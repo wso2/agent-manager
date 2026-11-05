@@ -143,7 +143,10 @@ export function TopNavigation() {
                 closeLabel: "Close project",
                 onClose: () =>
                   navigate(
-                    generatePath(absoluteRouteMap.children.org.path, { orgId }),
+                    generatePath(
+                      absoluteRouteMap.children.org.children.projectListing.path,
+                      { orgId },
+                    ),
                   ),
                 content: (
                   <Typography variant="body1" noWrap sx={{ maxWidth: "100%" }}>

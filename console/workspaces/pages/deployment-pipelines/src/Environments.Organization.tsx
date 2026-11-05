@@ -17,6 +17,9 @@
 
 import { useState, type ComponentType } from "react";
 import { generatePath, Navigate, Route, Routes, useParams } from "react-router-dom";
+import { Button } from "@wso2/oxygen-ui";
+import { Plus } from "@wso2/oxygen-ui-icons-react";
+import { useListEnvironments } from "@agent-management-platform/api-client";
 import {
   PageLayout,
   useExternalComponentModulesByMountPoint,
@@ -26,10 +29,10 @@ import {
   type Environment,
 } from "@agent-management-platform/types";
 import { EnvironmentTable } from "./subComponents/EnvironmentTable";
-import { EditEnvironmentDrawer } from "./subComponents/EditEnvironmentDrawer";
 import { CreateEnvironmentDrawer } from "./subComponents/CreateEnvironmentDrawer";
 import { DeleteEnvironmentDrawer } from "./subComponents/DeleteEnvironmentDrawer";
 import { EnvironmentViewPage } from "./EnvironmentViewPage";
+import { EnvironmentEditPage } from "./EnvironmentEditPage";
 import { ViewThunderInstance } from "./subComponents/ViewThunderInstance";
 
 const ENVIRONMENT_CREATE_DRAWER_MOUNT_POINT = "environment-create-drawer";
@@ -50,9 +53,14 @@ type DeleteDrawerProps = {
 
 export function EnvironmentsOrganization() {
   const { orgId } = useParams<{ orgId: string }>();
-  const [envToEdit, setEnvToEdit] = useState<Environment | null>(null);
   const [envToDelete, setEnvToDelete] = useState<Environment | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+
+  // Same query as the table, so React Query dedupes the request.
+  const { data: environments, isLoading } = useListEnvironments({
+    orgName: orgId,
+  });
+  const hasItems = !isLoading && (environments?.length ?? 0) > 0;
 
   // A deployment can override the create/delete drawers; otherwise fall back to
   // the built-in script-based drawers.
@@ -80,9 +88,23 @@ export function EnvironmentsOrganization() {
         <Route
           index
           element={
-            <PageLayout title="Environments" disableIcon>
+            <PageLayout
+              title="Environments"
+              disableIcon
+              actions={
+                hasItems ? (
+                <Button
+                  variant="contained"
+                  color="primary"
+                  startIcon={<Plus size={16} />}
+                  onClick={() => setCreateOpen(true)}
+                >
+                  Create Environment
+                </Button>
+                ) : undefined
+              }
+            >
               <EnvironmentTable
-                onEditEnvironment={setEnvToEdit}
                 onCreateEnvironment={() => setCreateOpen(true)}
                 onDeleteEnvironment={setEnvToDelete}
               />
@@ -90,6 +112,7 @@ export function EnvironmentsOrganization() {
           }
         />
         <Route path=":envName" element={<EnvironmentViewPage />} />
+        <Route path=":envName/edit" element={<EnvironmentEditPage />} />
         <Route path=":envName/identity-provider" element={<ViewThunderInstance />} />
         <Route path="*" element={<Navigate to={listHref} replace />} />
       </Routes>
@@ -98,15 +121,6 @@ export function EnvironmentsOrganization() {
         <CreateDrawer
           open={createOpen}
           onClose={() => setCreateOpen(false)}
-          orgId={orgId}
-        />
-      )}
-
-      {envToEdit && orgId && (
-        <EditEnvironmentDrawer
-          open
-          onClose={() => setEnvToEdit(null)}
-          environment={envToEdit}
           orgId={orgId}
         />
       )}

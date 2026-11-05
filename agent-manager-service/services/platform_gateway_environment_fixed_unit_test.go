@@ -94,7 +94,7 @@ func TestRegisterGatewayWithTwoEnvironmentsRefused(t *testing.T) {
 	svc := NewPlatformGatewayService(repo, nil)
 
 	_, err := svc.RegisterGateway("ou-1", "gw1", "GW", "", "https://ext.example.com", "", false, "EGRESS", nil,
-		[]string{uuid.NewString(), uuid.NewString()})
+		[]string{uuid.NewString(), uuid.NewString()}, models.GatewayHostingManaged)
 
 	require.ErrorIs(t, err, utils.ErrGatewayEnvironmentFixed)
 }

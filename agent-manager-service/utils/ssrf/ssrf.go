@@ -70,29 +70,36 @@ var blockedIPPrefixes = []netip.Prefix{
 // ValidateURL validates that rawURL is a well-formed http(s) URL with no user
 // info and a host that resolves only to public IP addresses.
 func ValidateURL(ctx context.Context, rawURL string) error {
-	parsedURL, err := url.ParseRequestURI(rawURL)
+	parsedURL, err := ValidateURLShape(rawURL)
 	if err != nil {
 		return err
 	}
+	return ValidateHost(ctx, parsedURL.Hostname())
+}
+
+// ValidateURLShape parses rawURL as an http(s) URL with a host, a valid port if any, and no user info.
+// It does no network I/O.
+func ValidateURLShape(rawURL string) (*url.URL, error) {
+	parsedURL, err := url.ParseRequestURI(rawURL)
+	if err != nil {
+		return nil, err
+	}
 	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
-		return fmt.Errorf("url must use http or https")
+		return nil, fmt.Errorf("url must use http or https")
 	}
 	if parsedURL.User != nil {
-		return fmt.Errorf("url must not include user information")
+		return nil, fmt.Errorf("url must not include user information")
 	}
-	if parsedURL.Host == "" || parsedURL.Hostname() == "" {
-		return fmt.Errorf("url host is required")
+	if parsedURL.Hostname() == "" {
+		return nil, fmt.Errorf("url host is required")
 	}
 	if parsedURL.Port() != "" {
 		port, err := strconv.Atoi(parsedURL.Port())
 		if err != nil || port < 1 || port > 65535 {
-			return fmt.Errorf("url port is invalid")
+			return nil, fmt.Errorf("url port is invalid")
 		}
 	}
-	if err := ValidateHost(ctx, parsedURL.Hostname()); err != nil {
-		return err
-	}
-	return nil
+	return parsedURL, nil
 }
 
 // ErrHostNotPublic marks a host that is unresolvable, localhost or non-public; its detail can reveal internal DNS.

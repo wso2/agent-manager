@@ -19,7 +19,7 @@ var _ MappedNullable = &RotateGatewayTokenRequest{}
 
 // RotateGatewayTokenRequest struct for RotateGatewayTokenRequest
 type RotateGatewayTokenRequest struct {
-	// OU ID of the organization the gateway belongs to.
+	// Optional. OU ID of the caller's organization. The organization always comes from the token; a different value is refused with 403.
 	OrgId *string `json:"orgId,omitempty"`
 }
 

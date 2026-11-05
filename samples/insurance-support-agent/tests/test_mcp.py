@@ -16,7 +16,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs
 from unittest.mock import patch
 
-import httpx
+import httpx2 as httpx
 import uvicorn
 from agent import build_agent
 from config import Config
@@ -56,6 +56,7 @@ class MCPIntegrationTests(unittest.TestCase):
                 pass
 
             def do_POST(self):
+                """Issue fixture tokens or forward authorized calls to the real MCP server."""
                 body = self.rfile.read(int(self.headers.get("Content-Length", "0")))
                 if self.path == "/token":
                     cls.tokens.append(
@@ -94,6 +95,14 @@ class MCPIntegrationTests(unittest.TestCase):
                 }
                 headers["X-Insurance-Upstream-Key"] = "test-upstream"
                 response = httpx.post(cls.upstream_url, headers=headers, content=body)
+                request = json.loads(body)
+                cls.response_content_types.append(
+                    (
+                        request.get("method"),
+                        request.get("params", {}).get("name"),
+                        response.headers.get("content-type", ""),
+                    )
+                )
                 self.send_response(response.status_code)
                 self.send_header(
                     "Content-Type",
@@ -119,6 +128,7 @@ class MCPIntegrationTests(unittest.TestCase):
         type(self).tokens = []
         type(self).forwarded = 0
         type(self).denied = False
+        type(self).response_content_types = []
         self.env = {
             "OPENAI_API_KEY": "test-openai",
             "USE_MCP": "true",
@@ -255,18 +265,19 @@ class MCPIntegrationTests(unittest.TestCase):
             self.assertIsNone(application.MCP_TOOLS)
 
     def test_proxy_denial_never_reaches_upstream(self):
-        before = 0
-        # HTTP denial closes the SDK transport; shutdown propagates the failure.
-        with self.assertRaisesRegex(
-            RuntimeError, "Connection to the MCP server was closed"
-        ):
-            with create_mcp_client(self.cfg) as client:
-                client.list_tools_sync()
-                before = self.forwarded
-                type(self).denied = True
-                result = client.call_tool_sync("denied", "list_policies", {})
-                self.assertEqual(result["status"], "error")
-        self.assertEqual(self.forwarded, before)
+        # MCP 2.x reports denial per request and keeps the transport usable.
+        with create_mcp_client(self.cfg) as client:
+            client.list_tools_sync()
+            before = self.forwarded
+            type(self).denied = True
+            result = client.call_tool_sync("denied", "list_policies", {})
+            self.assertEqual(result["status"], "error")
+            self.assertEqual(self.forwarded, before)
+            type(self).denied = False
+            result = client.call_tool_sync("allowed", "list_policies", {})
+            self.assertEqual(result["status"], "success")
+            self.assertIn("OZ-AUTO-4417", json.dumps(result))
+            self.assertEqual(self.forwarded, before + 1)
 
     def test_upstream_requires_separate_key(self):
         response = httpx.post(
@@ -376,6 +387,31 @@ class MCPIntegrationTests(unittest.TestCase):
         with patch.dict(os.environ, {}, clear=True):
             with self.assertRaises(RuntimeError):
                 server_module.create_app()
+
+
+class MCPStreamingIntegrationTests(MCPIntegrationTests):
+    @classmethod
+    def setUpClass(cls):
+        create_http_app = server_module.MCPServer.streamable_http_app
+
+        def streaming_app(server, **kwargs):
+            return create_http_app(server, **(kwargs | {"json_response": False}))
+
+        with patch.object(server_module.MCPServer, "streamable_http_app", streaming_app):
+            super().setUpClass()
+
+    def test_real_mcp_discovery_lookup_and_proxy_denial(self):
+        """Require real discovery and tool calls to traverse an SSE response."""
+        super().test_real_mcp_discovery_lookup_and_proxy_denial()
+        self.assertTrue(
+            any(
+                method == "tools/call"
+                and tool_name in {"list_policies", "lookup_policy"}
+                and content_type.startswith("text/event-stream")
+                for method, tool_name, content_type in self.response_content_types
+            ),
+            "a policy tool call must return an SSE response",
+        )
 
 
 if __name__ == "__main__":

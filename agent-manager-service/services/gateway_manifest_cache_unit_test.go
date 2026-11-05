@@ -24,6 +24,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -54,22 +55,99 @@ func TestSaveGatewayPolicyManifestCachesWithoutWritingRow(t *testing.T) {
 	}
 	svc := NewPlatformGatewayService(repo, nil)
 
-	manifest := map[string]interface{}{
-		"policies": []interface{}{
-			map[string]interface{}{"name": "mcp-auth", "version": "v1"},
-		},
-	}
+	manifest := policyManifest("mcp-auth", "v1")
 	require.NoError(t, svc.SaveGatewayPolicyManifest(context.Background(), gateway.UUID.String(), manifest))
 
-	cached, ok, err := gatewayManifestCache.Get(context.Background())
+	cached, ok, err := gatewayManifestCache.Get(context.Background(), gateway.UUID.String())
 	require.NoError(t, err)
 	require.True(t, ok)
 	require.Equal(t, manifest, cached)
+	requireKnownManifest(t, manifest, gateway)
+}
 
-	// The one cached copy answers for every gateway, including ones whose row still
-	// carries an older manifest.
-	require.Equal(t, manifest, gatewayManifest(gateway))
-	require.Equal(t, manifest, gatewayManifest(newGateway(t, models.GatewayRoleEgress, true)))
+// TestGatewayManifestIsPerGateway: a push describes only the gateway that sent it. Any
+// other gateway, in this org or another, keeps answering with its own manifest.
+func TestGatewayManifestIsPerGateway(t *testing.T) {
+	clearGatewayManifestCache(t)
+	ctx := context.Background()
+
+	pusher := newGateway(t, models.GatewayRoleEgress, true)
+	other := newGateway(t, models.GatewayRoleEgress, true)
+	other.Manifest = policyManifest("row-policy", "v1")
+
+	require.NoError(t, gatewayManifestCache.Set(ctx, pusher.UUID.String(), policyManifest("pushed-policy", "v1")))
+
+	requireKnownManifest(t, policyManifest("pushed-policy", "v1"), pusher)
+	requireKnownManifest(t, other.Manifest, other)
+}
+
+// TestGatewayManifestUnknownUntilReported: a gateway with no cached push and an empty
+// row has not reported its policies yet; that is "unknown", not "supports nothing". A
+// push, even an empty one, or a non-empty row makes it known.
+func TestGatewayManifestUnknownUntilReported(t *testing.T) {
+	clearGatewayManifestCache(t)
+	ctx := context.Background()
+
+	silent := newGateway(t, models.GatewayRoleEgress, true)
+	_, known := gatewayManifest(silent)
+	require.False(t, known)
+
+	silent.Manifest = nil
+	_, known = gatewayManifest(silent)
+	require.False(t, known)
+
+	emptyPush := map[string]interface{}{}
+	require.NoError(t, gatewayManifestCache.Set(ctx, silent.UUID.String(), emptyPush))
+	requireKnownManifest(t, emptyPush, silent)
+
+	legacyRow := newGateway(t, models.GatewayRoleEgress, true)
+	legacyRow.Manifest = policyManifest("row-policy", "v1")
+	requireKnownManifest(t, legacyRow.Manifest, legacyRow)
+
+	_, known = gatewayManifest(nil)
+	require.False(t, known)
+}
+
+// TestGatewayManifestPushDoesNotLeakAcrossOrgs is the multi-tenant guarantee: a gateway
+// in one org (self-hosted, so its manifest is whatever its operator runs) must not change
+// the policies another org is offered or the Agent Identity check on its gateways.
+func TestGatewayManifestPushDoesNotLeakAcrossOrgs(t *testing.T) {
+	clearGatewayManifestCache(t)
+	ctx := context.Background()
+
+	foreign := newGateway(t, models.GatewayRoleEgress, true)
+	foreign.OUID = "org-a"
+	foreign.Hosting = models.GatewayHostingSelfHosted
+	ours := newGateway(t, models.GatewayRoleEgress, true)
+	ours.OUID = "org-b"
+
+	require.NoError(t, gatewayManifestCache.Set(ctx, ours.UUID.String(), policyManifest("word-count-guardrail", "v1")))
+	require.NoError(t, gatewayManifestCache.Set(ctx, foreign.UUID.String(),
+		policyManifest("mcp-auth", "v1", "mcp-authz", "v1", "injected-policy", "v1")))
+
+	repo := &repomocks.GatewayRepositoryMock{
+		ListWithFiltersFunc: func(opts repositories.GatewayFilterOptions) ([]*models.Gateway, error) {
+			require.Equal(t, "org-b", opts.OrganizationID)
+			return []*models.Gateway{ours}, nil
+		},
+	}
+
+	llm, err := intersectActiveGatewayLLMPolicies(repo, "org-b")
+	require.NoError(t, err)
+	require.Len(t, llm, 1)
+	require.Contains(t, llm, "word-count-guardrail\x00v1")
+
+	mcp, err := (&MCPProxyService{gatewayRepo: repo}).ListAvailableMCPPolicies(ctx, "org-b")
+	require.NoError(t, err)
+	require.Len(t, mcp.List, 1)
+	require.Equal(t, "word-count-guardrail", mcp.List[0].Name)
+
+	supported, reported := gatewayHasMCPIdentityPolicies(ours)
+	require.True(t, reported)
+	require.False(t, supported)
+	supported, reported = gatewayHasMCPIdentityPolicies(foreign)
+	require.True(t, reported)
+	require.True(t, supported)
 }
 
 // TestSaveGatewayPolicyManifestUnknownGateway keeps the endpoint's 404 behaviour: an
@@ -77,6 +155,7 @@ func TestSaveGatewayPolicyManifestCachesWithoutWritingRow(t *testing.T) {
 func TestSaveGatewayPolicyManifestUnknownGateway(t *testing.T) {
 	clearGatewayManifestCache(t)
 
+	const unknownID = "11111111-1111-1111-1111-111111111111"
 	repo := &repomocks.GatewayRepositoryMock{
 		GetByUUIDFunc: func(string) (*models.Gateway, error) {
 			//nolint:nilnil // GetByUUID reports "no such gateway" as (nil, nil).
@@ -85,46 +164,82 @@ func TestSaveGatewayPolicyManifestUnknownGateway(t *testing.T) {
 	}
 	svc := NewPlatformGatewayService(repo, nil)
 
-	err := svc.SaveGatewayPolicyManifest(context.Background(), "11111111-1111-1111-1111-111111111111", map[string]interface{}{})
+	err := svc.SaveGatewayPolicyManifest(context.Background(), unknownID, map[string]interface{}{})
 	require.ErrorIs(t, err, utils.ErrGatewayNotFound)
 
-	_, ok, getErr := gatewayManifestCache.Get(context.Background())
+	_, ok, getErr := gatewayManifestCache.Get(context.Background(), unknownID)
 	require.NoError(t, getErr)
 	require.False(t, ok)
 }
 
-// TestGatewayManifestFallsBackToRow covers the cold window after a restart: until some
-// gateway pushes again, the manifest still on the row is what readers evaluate.
+// TestDeleteGatewayDropsItsCachedManifest: a deleted gateway's manifest must not outlive
+// it, and other gateways' entries are untouched.
+func TestDeleteGatewayDropsItsCachedManifest(t *testing.T) {
+	clearGatewayManifestCache(t)
+	ctx := context.Background()
+
+	gateway := newGateway(t, models.GatewayRoleEgress, true)
+	survivor := newGateway(t, models.GatewayRoleEgress, true)
+	require.NoError(t, gatewayManifestCache.Set(ctx, gateway.UUID.String(), policyManifest("a", "v1")))
+	require.NoError(t, gatewayManifestCache.Set(ctx, survivor.UUID.String(), policyManifest("b", "v1")))
+
+	repo := &repomocks.GatewayRepositoryMock{
+		GetByUUIDFunc:             func(string) (*models.Gateway, error) { return gateway, nil },
+		HasGatewayDeploymentsFunc: func(string, string) (bool, error) { return false, nil },
+		DeleteFunc:                func(string, string) error { return nil },
+	}
+	svc := NewPlatformGatewayService(repo, nil)
+
+	require.NoError(t, svc.DeleteGateway(gateway.UUID.String(), gateway.OUID))
+
+	_, ok, err := gatewayManifestCache.Get(ctx, gateway.UUID.String())
+	require.NoError(t, err)
+	require.False(t, ok)
+	_, ok, err = gatewayManifestCache.Get(ctx, survivor.UUID.String())
+	require.NoError(t, err)
+	require.True(t, ok)
+}
+
+// TestGatewayManifestFallsBackToRow covers the cold window after a restart: until the
+// gateway pushes again, the manifest still on its row is what readers evaluate.
 func TestGatewayManifestFallsBackToRow(t *testing.T) {
 	clearGatewayManifestCache(t)
 
 	gateway := newGateway(t, models.GatewayRoleBoth, true)
 	gateway.Manifest = map[string]interface{}{"policies": []interface{}{}}
 
-	require.Equal(t, gateway.Manifest, gatewayManifest(gateway))
-	require.Nil(t, gatewayManifest(nil))
+	requireKnownManifest(t, gateway.Manifest, gateway)
+	manifest, _ := gatewayManifest(nil)
+	require.Nil(t, manifest)
 }
 
-// TestGatewayManifestCacheKeepsOnlyLatest documents the single-copy contract: a second
-// push replaces the first rather than accumulating.
-func TestGatewayManifestCacheKeepsOnlyLatest(t *testing.T) {
+// TestInMemoryGatewayManifestCacheKeepsLatestPerGateway: a second push from the same
+// gateway replaces its first; entries of different gateways are independent.
+func TestInMemoryGatewayManifestCacheKeepsLatestPerGateway(t *testing.T) {
 	ctx := context.Background()
 	cache := NewInMemoryGatewayManifestCache()
-	first := map[string]interface{}{"policies": []interface{}{"a"}}
-	second := map[string]interface{}{"policies": []interface{}{"b"}}
+	first := policyManifest("a", "v1")
+	second := policyManifest("b", "v1")
+	other := policyManifest("c", "v1")
 
-	require.NoError(t, cache.Set(ctx, first))
-	require.NoError(t, cache.Set(ctx, second))
+	require.NoError(t, cache.Set(ctx, "gw-1", first))
+	require.NoError(t, cache.Set(ctx, "gw-2", other))
+	require.NoError(t, cache.Set(ctx, "gw-1", second))
 
-	cached, ok, err := cache.Get(ctx)
+	cached, ok, err := cache.Get(ctx, "gw-1")
 	require.NoError(t, err)
 	require.True(t, ok)
 	require.Equal(t, second, cached)
 
-	require.NoError(t, cache.Clear(ctx))
-	_, ok, err = cache.Get(ctx)
+	require.NoError(t, cache.Delete(ctx, "gw-1"))
+	_, ok, err = cache.Get(ctx, "gw-1")
 	require.NoError(t, err)
 	require.False(t, ok)
+
+	cached, ok, err = cache.Get(ctx, "gw-2")
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, other, cached)
 }
 
 // TestGatewayManifest_CacheReadErrorFallsBackToRow covers a Redis-unreachable-style
@@ -137,21 +252,54 @@ func TestGatewayManifest_CacheReadErrorFallsBackToRow(t *testing.T) {
 	gateway := newGateway(t, models.GatewayRoleBoth, true)
 	gateway.Manifest = map[string]interface{}{"policies": []interface{}{}}
 
-	require.Equal(t, gateway.Manifest, gatewayManifest(gateway))
+	requireKnownManifest(t, gateway.Manifest, gateway)
+}
+
+// TestDeleteGatewaySucceedsWhenManifestCacheFails: the cache is advisory, so failing to
+// drop an entry must not fail a delete that already committed.
+func TestDeleteGatewaySucceedsWhenManifestCacheFails(t *testing.T) {
+	clearGatewayManifestCache(t)
+	gatewayManifestCache = &failingManifestCacheBackend{}
+
+	gateway := newGateway(t, models.GatewayRoleEgress, true)
+	repo := &repomocks.GatewayRepositoryMock{
+		GetByUUIDFunc:             func(string) (*models.Gateway, error) { return gateway, nil },
+		HasGatewayDeploymentsFunc: func(string, string) (bool, error) { return false, nil },
+		DeleteFunc:                func(string, string) error { return nil },
+	}
+
+	require.NoError(t, NewPlatformGatewayService(repo, nil).DeleteGateway(gateway.UUID.String(), gateway.OUID))
+}
+
+// requireKnownManifest asserts gatewayManifest reports want as the gateway's known manifest.
+func requireKnownManifest(t *testing.T, want map[string]interface{}, gateway *models.Gateway) {
+	t.Helper()
+	manifest, known := gatewayManifest(gateway)
+	require.True(t, known)
+	require.Equal(t, want, manifest)
+}
+
+// policyManifest builds a manifest in the shape gateways push, from name/version pairs.
+func policyManifest(nameVersionPairs ...string) map[string]interface{} {
+	items := make([]interface{}, 0, len(nameVersionPairs)/2)
+	for i := 0; i+1 < len(nameVersionPairs); i += 2 {
+		items = append(items, map[string]interface{}{"name": nameVersionPairs[i], "version": nameVersionPairs[i+1]})
+	}
+	return map[string]interface{}{"policies": items}
 }
 
 // failingManifestCacheBackend simulates an unreachable external cache backend.
 type failingManifestCacheBackend struct{}
 
-func (f *failingManifestCacheBackend) Set(context.Context, map[string]interface{}) error {
+func (f *failingManifestCacheBackend) Set(context.Context, string, map[string]interface{}) error {
 	return errCacheUnavailable
 }
 
-func (f *failingManifestCacheBackend) Get(context.Context) (map[string]interface{}, bool, error) {
+func (f *failingManifestCacheBackend) Get(context.Context, string) (map[string]interface{}, bool, error) {
 	return nil, false, errCacheUnavailable
 }
 
-func (f *failingManifestCacheBackend) Clear(context.Context) error {
+func (f *failingManifestCacheBackend) Delete(context.Context, string) error {
 	return errCacheUnavailable
 }
 

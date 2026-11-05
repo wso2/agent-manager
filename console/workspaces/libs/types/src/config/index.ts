@@ -179,6 +179,11 @@ export type FeatureFlags = {
    * section on the agent overview.
    */
   enableAgentIdentity?: boolean;
+  /**
+   * When true, the console offers self-hosted gateways: registering a gateway
+   * the customer runs and issuing its registration tokens. Defaults to false.
+   */
+  enableSelfHostedGateways?: boolean;
 };
 
 export type GuardrailCapabilities = {

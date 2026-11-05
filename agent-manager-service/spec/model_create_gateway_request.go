@@ -34,7 +34,7 @@ type CreateGatewayRequest struct {
 	IsCritical *bool `json:"isCritical,omitempty"`
 	// The environment UUID to assign the gateway to during creation. A gateway serves exactly one environment, so at most one is allowed.
 	EnvironmentIds []string `json:"environmentIds,omitempty"`
-	// OU ID of the organization the gateway belongs to.
+	// Optional. OU ID of the caller's organization. The organization always comes from the token; a different value is refused with 403.
 	OrgId *string `json:"orgId,omitempty"`
 }
 
