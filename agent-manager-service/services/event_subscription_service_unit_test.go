@@ -294,14 +294,19 @@ func TestEventSubscriptionService_RemoveForProjectAndAgent(t *testing.T) {
 
 func TestEventSubscriptionService_CleanupOutlivesCanceledRequest(t *testing.T) {
 	var calls int
+	// The context is checked inside each step, before its own deadline is
+	// released: live despite the canceled request, and bounded.
+	check := func(ctx context.Context) error {
+		calls++
+		assert.NoError(t, ctx.Err(), "the delete already happened, so a client disconnect must not skip cleanup")
+		_, bounded := ctx.Deadline()
+		assert.True(t, bounded, "a detached step still has a deadline")
+		return errors.New("stalled")
+	}
 	repo := &repomocks.EventRepositoryMock{
-		DeleteSubscriptionsUnderFunc: func(ctx context.Context, _, _, _ string) error {
-			calls++
-			return ctx.Err()
-		},
+		DeleteSubscriptionsUnderFunc: func(ctx context.Context, _, _, _ string) error { return check(ctx) },
 		RemoveProjectFromDestinationsFunc: func(ctx context.Context, _, _ string) error {
-			calls++
-			return ctx.Err()
+			return check(ctx)
 		},
 	}
 	svc := NewEventSubscriptionService(repo, slog.New(slog.DiscardHandler))
@@ -310,13 +315,7 @@ func TestEventSubscriptionService_CleanupOutlivesCanceledRequest(t *testing.T) {
 
 	svc.RemoveForProject(ctx, "ou-1", "payments")
 	svc.RemoveForAgent(ctx, "ou-1", "payments", "refund-agent")
-	assert.Equal(t, 3, calls)
-	for _, c := range repo.DeleteSubscriptionsUnderCalls() {
-		assert.NoError(t, c.Ctx.Err(), "the delete already happened, so a client disconnect must not skip cleanup")
-	}
-	for _, c := range repo.RemoveProjectFromDestinationsCalls() {
-		assert.NoError(t, c.Ctx.Err())
-	}
+	assert.Equal(t, 3, calls, "a failed step does not stop the next")
 }
 
 func TestEventSubscriptionService_EventTypes(t *testing.T) {
