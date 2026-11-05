@@ -309,6 +309,7 @@ export function MonitorLLMProviderDrawer({
     data: catalogData,
     isFetching,
     isError: isCatalogError,
+    refetch: refetchCatalog,
   } = useListCatalogLLMProviders(
     { orgName: orgId },
     {
@@ -493,9 +494,15 @@ export function MonitorLLMProviderDrawer({
               </Alert>
             )}
             {isCatalogError && !isFetching && (
-              <Alert severity="error">
-                Couldn&apos;t load the LLM providers. Close and reopen this
-                list to try again.
+              <Alert
+                severity="error"
+                action={
+                  <Button size="small" color="inherit" onClick={() => refetchCatalog()}>
+                    Retry
+                  </Button>
+                }
+              >
+                Couldn&apos;t load the LLM providers.
               </Alert>
             )}
             {isLoadingProviders && filteredProviders.length === 0 && (
