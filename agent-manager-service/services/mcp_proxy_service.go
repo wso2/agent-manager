@@ -1225,12 +1225,16 @@ func convertModelMCPProxyToListItem(proxy *models.MCPProxy) models.MCPProxyListI
 // update request, and rejects the request (400) if they're wrong, so the caller can fix them:
 //   - mcpSpecVersions and the deprecated mcpSpecVersion can't both be set.
 //   - mcpSpecVersions, when set, needs at least one version.
-//   - Every version must be a date (YYYY-MM-DD); the gateway rejects anything else on deploy.
+//   - Every version, in the list or the deprecated single field, must be a real date
+//     (YYYY-MM-DD); the gateway rejects anything else on deploy.
 //
 // The console sends versions that obtainValidMCPVersionsFromServer already cleaned, but any API
 // caller (amctl, scripts, curl) can send anything, so the request is checked here too.
 func validateMCPSpecVersionsInRequest(mcpSpecVersion *string, mcpSpecVersions *[]string) error {
 	if mcpSpecVersions == nil {
+		if mcpSpecVersion != nil && *mcpSpecVersion != "" && !isMCPVersionDate(*mcpSpecVersion) {
+			return fmt.Errorf("%w: mcpSpecVersion: %q is not an MCP version (YYYY-MM-DD)", utils.ErrInvalidInput, *mcpSpecVersion)
+		}
 		return nil
 	}
 	if mcpSpecVersion != nil {
@@ -1240,7 +1244,7 @@ func validateMCPSpecVersionsInRequest(mcpSpecVersion *string, mcpSpecVersions *[
 		return fmt.Errorf("%w: mcpSpecVersions must list at least one MCP version", utils.ErrInvalidInput)
 	}
 	for _, version := range *mcpSpecVersions {
-		if !mcpVersionPattern.MatchString(version) {
+		if !isMCPVersionDate(version) {
 			return fmt.Errorf("%w: mcpSpecVersions: %q is not an MCP version (YYYY-MM-DD)", utils.ErrInvalidInput, version)
 		}
 	}
@@ -2027,8 +2031,13 @@ func (s *MCPProxyService) fetchMCPServerInfo(ctx context.Context, endpointURL st
 		serverInfo, serverVersions), nil
 }
 
-// mcpVersionPattern is the shape of an MCP version: a date, YYYY-MM-DD.
-var mcpVersionPattern = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
+// isMCPVersionDate reports whether a version is a real date, YYYY-MM-DD, which is how MCP numbers
+// its versions. The gateway parses versions the same way and rejects the deploy otherwise, so a
+// shape-only check would let "2025-13-45" through to a failed deploy.
+func isMCPVersionDate(version string) bool {
+	parsed, err := time.Parse(time.DateOnly, version)
+	return err == nil && parsed.Format(time.DateOnly) == version
+}
 
 // obtainValidMCPVersionsFromServer cleans the MCP versions an upstream MCP server reported (in
 // server/discover or initialize): it keeps only values shaped like an MCP version (a date,
@@ -2038,7 +2047,7 @@ var mcpVersionPattern = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
 func obtainValidMCPVersionsFromServer(versions []string) *[]string {
 	kept := make([]string, 0, len(versions))
 	for _, version := range versions {
-		if mcpVersionPattern.MatchString(version) {
+		if isMCPVersionDate(version) {
 			kept = append(kept, version)
 		}
 	}

@@ -1109,7 +1109,7 @@ func TestFetchMCPServerInfo_ReportsSupportedVersions(t *testing.T) {
 // Only values shaped like an MCP version (a date) are reported; none left means no field.
 func TestObtainValidMCPVersionsFromServer(t *testing.T) {
 	assert.Equal(t, &[]string{"2026-07-28", "2025-06-18"},
-		obtainValidMCPVersionsFromServer([]string{"2026-07-28", "latest", "", "2025-06-18", "2026-7-28"}))
+		obtainValidMCPVersionsFromServer([]string{"2026-07-28", "latest", "", "2025-06-18", "2026-7-28", "2025-13-45", "2025-06-31"}))
 	assert.Nil(t, obtainValidMCPVersionsFromServer([]string{"latest"}))
 	assert.Nil(t, obtainValidMCPVersionsFromServer(nil))
 }
@@ -1126,6 +1126,8 @@ func TestValidateMCPSpecVersionsInRequest(t *testing.T) {
 		{name: "both set", req: models.MCPProxyDTO{McpSpecVersion: strPtr("2025-06-18"), McpSpecVersions: &[]string{"2026-07-28"}}, wantErr: true},
 		{name: "empty list", req: models.MCPProxyDTO{McpSpecVersions: &[]string{}}, wantErr: true},
 		{name: "a value that isn't a date", req: models.MCPProxyDTO{McpSpecVersions: &[]string{"2026-07-28", "latest"}}, wantErr: true},
+		{name: "a date-shaped value that isn't a real date", req: models.MCPProxyDTO{McpSpecVersions: &[]string{"2025-06-31"}}, wantErr: true},
+		{name: "a deprecated single version that isn't a real date", req: models.MCPProxyDTO{McpSpecVersion: strPtr("2025-13-45")}, wantErr: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
