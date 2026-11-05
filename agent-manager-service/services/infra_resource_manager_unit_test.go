@@ -27,6 +27,7 @@ package services
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"testing"
@@ -152,6 +153,30 @@ func TestInfraResourceManager_CreateProject(t *testing.T) {
 		_, err := newInfraManager(oc).CreateProject(context.Background(), org, payload)
 		assert.ErrorIs(t, err, boom)
 	})
+
+	for _, tc := range []struct {
+		name  string
+		input error
+		want  error
+	}{
+		{name: "duplicate", input: fmt.Errorf("%w: already exists", utils.ErrConflict), want: utils.ErrProjectAlreadyExists},
+		{name: "being deleted", input: utils.ErrResourceBeingDeleted, want: utils.ErrResourceBeingDeleted},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			oc := &clientmocks.OpenChoreoClientMock{
+				GetOrganizationFunc: okOrg(),
+				CreateProjectFunc: func(_ context.Context, _ string, _ occlient.CreateProjectRequest) error {
+					return tc.input
+				},
+			}
+			_, err := newInfraManager(oc).CreateProject(context.Background(), org, payload)
+			assert.ErrorIs(t, err, tc.want)
+			assert.ErrorIs(t, err, tc.input)
+			if tc.name == "being deleted" {
+				assert.NotErrorIs(t, err, utils.ErrProjectAlreadyExists)
+			}
+		})
+	}
 
 	t.Run("maps request and returns the created project on success", func(t *testing.T) {
 		var captured occlient.CreateProjectRequest
@@ -541,6 +566,32 @@ func TestInfraResourceManager_CreateOrgDeploymentPipeline(t *testing.T) {
 		}
 		_, err := newInfraManager(oc).CreateOrgDeploymentPipeline(context.Background(), org, "My Pipeline", nil, nil, nil)
 		assert.ErrorIs(t, err, boom)
+		assert.NotErrorIs(t, err, utils.ErrDeploymentPipelineAlreadyExists)
+	})
+
+	for _, displayName := range []string{"My Pipeline", "my-pipeline", "MY PIPELINE"} {
+		t.Run("duplicate "+displayName, func(t *testing.T) {
+			oc := &clientmocks.OpenChoreoClientMock{
+				CreateDeploymentPipelineFunc: func(_ context.Context, _, name string, _, _ *string, _ []models.PromotionPath) (*models.DeploymentPipelineResponse, error) {
+					assert.Equal(t, "my-pipeline", name)
+					return nil, fmt.Errorf("%w: already exists", utils.ErrConflict)
+				},
+			}
+			_, err := newInfraManager(oc).CreateOrgDeploymentPipeline(context.Background(), org, displayName, nil, nil, nil)
+			assert.ErrorIs(t, err, utils.ErrDeploymentPipelineAlreadyExists)
+			assert.ErrorIs(t, err, utils.ErrConflict)
+		})
+	}
+
+	t.Run("preserves resource being deleted", func(t *testing.T) {
+		oc := &clientmocks.OpenChoreoClientMock{
+			CreateDeploymentPipelineFunc: func(_ context.Context, _, _ string, _, _ *string, _ []models.PromotionPath) (*models.DeploymentPipelineResponse, error) {
+				return nil, utils.ErrResourceBeingDeleted
+			},
+		}
+		_, err := newInfraManager(oc).CreateOrgDeploymentPipeline(context.Background(), org, "My Pipeline", nil, nil, nil)
+		assert.ErrorIs(t, err, utils.ErrResourceBeingDeleted)
+		assert.NotErrorIs(t, err, utils.ErrDeploymentPipelineAlreadyExists)
 	})
 
 	t.Run("creates with a slugified name and no project linkage", func(t *testing.T) {

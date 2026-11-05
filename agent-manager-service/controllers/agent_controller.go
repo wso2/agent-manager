@@ -153,6 +153,9 @@ func handleCommonErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 	case errors.Is(err, utils.ErrProjectHasAssociatedAgents):
 		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
 			"Project has associated agents", err.Error(), utils.ErrCodeConflict)
+	case errors.Is(err, utils.ErrDeploymentPipelineAlreadyExists):
+		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
+			"A deployment pipeline with this name already exists. Choose a different name.", "", utils.ErrCodeConflict)
 	case errors.Is(err, utils.ErrDeploymentPipelineInUse):
 		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
 			"Deployment pipeline is referenced by one or more projects", err.Error(), utils.ErrCodeConflict)

@@ -18,7 +18,7 @@
 
 import { AuthProvider } from "@agent-management-platform/auth";
 import { ClientProvider } from "@agent-management-platform/api-client";
-import { AcrylicOrangeTheme as AmTheme, OxygenUIThemeProvider } from "@wso2/oxygen-ui";
+import { WSO2Theme as AmTheme, OxygenUIThemeProvider } from "@wso2/oxygen-ui";
 import { ConfirmationDialogProvider } from "@agent-management-platform/shared-component";
 import {
   SnackBarProvider,

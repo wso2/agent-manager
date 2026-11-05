@@ -41,6 +41,21 @@ type mcpArtifact struct {
 	deployable  *models.MCPProxy
 	proxyHandle string
 	scopes      []models.MCPProxyScope
+	// projectScoped: a project proxy's binding, whose upstream AMS resolved itself.
+	projectScoped bool
+}
+
+// newMCPArtifact is what the binding ee of endpoint renders from.
+func newMCPArtifact(
+	proxy *models.MCPProxy, endpoint *models.MCPProxyEndpoint, ee *models.MCPProxyEndpointEnvironment,
+	scopes []models.MCPProxyScope,
+) *mcpArtifact {
+	return &mcpArtifact{
+		deployable:    buildMCPProxyEnvArtifact(proxy, endpoint, ee),
+		proxyHandle:   mcpSourceHandle(proxy),
+		scopes:        scopes,
+		projectScoped: proxy.ProjectUUID != nil,
+	}
 }
 
 // MCPProxyKind deploys MCP proxies: one artifact per (endpoint, environment), recorded in
@@ -77,11 +92,7 @@ func loadMCPArtifact(ctx context.Context, artifact models.ArtifactRef) (*mcpArti
 		if err != nil {
 			return nil, fmt.Errorf("failed to load proxy scopes: %w", err)
 		}
-		return &mcpArtifact{
-			deployable:  buildMCPProxyEnvArtifact(proxy, endpoint, &binding),
-			proxyHandle: mcpSourceHandle(proxy),
-			scopes:      scopes,
-		}, nil
+		return newMCPArtifact(proxy, endpoint, &binding, scopes), nil
 	}
 	return nil, gorm.ErrRecordNotFound
 }
@@ -119,6 +130,15 @@ func (k *MCPProxyKind) Render(ctx context.Context, artifact models.ArtifactRef) 
 		return reconcile.Rendered{}, reconcile.Permanent(fmt.Errorf("%w: invalid MCP proxy configuration: %w", utils.ErrInvalidInput, err))
 	}
 	return renderedDeployment(a.deployable.Handle, []byte(content)), nil
+}
+
+// DescribeRenderError is the reason a binding shows for a failed render: CONTEXT_IN_USE for a context clash, the
+// error itself otherwise.
+func (k *MCPProxyKind) DescribeRenderError(err error) string {
+	if errors.Is(err, utils.ErrMCPContextInUse) {
+		return utils.ErrCodeContextInUse
+	}
+	return err.Error()
 }
 
 func (k *MCPProxyKind) DeployEvent(ref reconcile.EventRef) eventhub.Event {
@@ -203,11 +223,36 @@ func (k *MCPProxyKind) Targets(ctx context.Context, record reconcile.Record) (uu
 			return uuid.Nil, false, err
 		}
 	}
+	if !gateway.IsManaged() {
+		projectScoped, err := k.isProjectScoped(ctx, record)
+		if err != nil || projectScoped {
+			return uuid.Nil, false, err
+		}
+	}
 	return gateway.UUID, true, nil
 }
 
+// isProjectScoped reports whether the artifact is a project proxy's binding. A project binding's upstream is an
+// in-cluster address that a customer-run, self-hosted gateway has no route to, so it is never placed on one. An
+// artifact that is gone is not: Render reports it.
+func (k *MCPProxyKind) isProjectScoped(ctx context.Context, record reconcile.Record) (bool, error) {
+	a, err := k.load(ctx, record.ArtifactRef)
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if a.projectScoped {
+		logger.GetLogger(ctx).Warn("Not placing a project MCP proxy binding on a self-hosted gateway",
+			"ouID", record.OUID, "artifactUUID", record.ArtifactUUID, "environmentUUID", record.EnvironmentUUID)
+	}
+	return a.projectScoped, nil
+}
+
 // upstreamIsPublic re-runs the private-address check on the artifact's upstreams for a managed target. An
-// artifact that is gone passes: Render reports it.
+// artifact that is gone passes: Render reports it. A project proxy's binding passes too: its upstream is the
+// in-cluster address AMS resolved from the project's own release binding, never a caller-supplied URL.
 func (k *MCPProxyKind) upstreamIsPublic(ctx context.Context, record reconcile.Record, gateway *models.Gateway) (bool, error) {
 	a, err := k.load(ctx, record.ArtifactRef)
 	if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -215,6 +260,9 @@ func (k *MCPProxyKind) upstreamIsPublic(ctx context.Context, record reconcile.Re
 	}
 	if err != nil {
 		return false, err
+	}
+	if a.projectScoped {
+		return true, nil
 	}
 	upstream := a.deployable.Configuration.Upstream
 	for _, endpoint := range []*models.UpstreamEndpoint{upstream.Main, upstream.Sandbox} {

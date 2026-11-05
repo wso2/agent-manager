@@ -20,4 +20,6 @@ Key routing rules:
 
 ## Oxygen UI
 
-For Oxygen UI component guidelines and patterns, see [.claude/oxygen-ui/CLAUDE.md](.claude/oxygen-ui/CLAUDE.md).
+For Oxygen UI component guidelines and patterns, see [.claude/oxygen-ui/](.claude/oxygen-ui/) (`components.md`, `patterns.md`, `theming.md`, `migration.md`).
+
+For console UI/UX rules (page actions, create/edit pages, listings, empty states, forms), see [console/UX_GUIDELINES.md](console/UX_GUIDELINES.md).

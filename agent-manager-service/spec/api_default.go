@@ -8633,6 +8633,8 @@ func (r ApiUpdateAgentBuildParametersRequest) Execute() (*AgentResponse, *http.R
 /*
 UpdateAgentBuildParameters Update agent build parameters
 
+Saves the agent's build parameters. They take effect with the next build. healthChecks replaces the saved health checks when sent (an empty object goes back to the defaults) and keeps them when omitted.
+
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param agentName
 	@param orgName

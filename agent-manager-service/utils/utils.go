@@ -88,6 +88,9 @@ func ValidateAgentBuildParametersUpdatePayload(payload spec.UpdateAgentBuildPara
 	); err != nil {
 		return err
 	}
+	if err := validateHealthChecks(payload.HealthChecks); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -347,6 +350,19 @@ func ValidateAgentCreatePayload(payload spec.CreateAgentRequest) error {
 		if err := ValidateLabels(*payload.Labels); err != nil {
 			return err
 		}
+	}
+	// Only an agent built from source runs health checks of its own choosing. The platform
+	// does not run an external agent, and a catalog agent runs the checks of its version's
+	// build, so health checks sent for either would be dropped without effect.
+	if payload.HealthChecks != nil &&
+		(payload.Provisioning.Type != string(InternalAgent) || payload.Provisioning.AgentKind != nil) {
+		return NewValidationErrorf(
+			"Health checks can only be set for agents built from source",
+			"healthChecks is only allowed for internal agents built from a repository",
+		)
+	}
+	if err := validateHealthChecks(payload.HealthChecks); err != nil {
+		return err
 	}
 	return validateAgentPayload(agentPayload{
 		name:           payload.Name,
@@ -832,6 +848,142 @@ func validateInputInterfacePort(port *int32) error {
 		return NewValidationError(
 			"Please provide a valid port number between 1 and 65535",
 			"inputInterface.port must be a valid port number (1-65535)",
+		)
+	}
+	return nil
+}
+
+// healthCheckDefaults are the values a check uses for a field that is not set. They must match
+// the fallbacks in the agent-api ComponentType (agent-api.yaml).
+type healthCheckDefaults struct {
+	initialDelaySeconds int32
+	periodSeconds       int32
+	timeoutSeconds      int32
+	failureThreshold    int32
+}
+
+var (
+	startupCheckDefaults   = healthCheckDefaults{initialDelaySeconds: 10, periodSeconds: 5, timeoutSeconds: 1, failureThreshold: 60}
+	readinessCheckDefaults = healthCheckDefaults{initialDelaySeconds: 0, periodSeconds: 5, timeoutSeconds: 1, failureThreshold: 6}
+	livenessCheckDefaults  = healthCheckDefaults{initialDelaySeconds: 0, periodSeconds: 10, timeoutSeconds: 1, failureThreshold: 3}
+)
+
+// maxHealthCheckSeconds caps a health check's initial delay, interval and timeout, and the
+// total time the startup check may take (initial delay + interval × failures allowed). A
+// longer interval means a broken agent goes unnoticed for longer; a longer startup lets a
+// broken agent sit in "starting" without being restarted.
+const maxHealthCheckSeconds = 3600
+
+// validateHealthChecks checks the startup, readiness and liveness checks when sent.
+// OpenChoreo checks the same rules only when it renders the pod, so a bad value
+// saved here would fail every later deploy instead of this request.
+func validateHealthChecks(healthChecks *spec.HealthChecks) error {
+	// Not sent: nothing to check.
+	if healthChecks == nil {
+		return nil
+	}
+	if err := validateHealthCheck("startup", healthChecks.Startup, startupCheckDefaults); err != nil {
+		return err
+	}
+	if err := validateHealthCheck("readiness", healthChecks.Readiness, readinessCheckDefaults); err != nil {
+		return err
+	}
+	return validateHealthCheck("liveness", healthChecks.Liveness, livenessCheckDefaults)
+}
+
+func validateHealthCheck(checkName string, check *spec.HealthCheck, defaults healthCheckDefaults) error {
+	// Not set: the default check is used.
+	if check == nil {
+		return nil
+	}
+	field := "healthChecks." + checkName
+	// The type is TCP or HTTP; when not set it defaults to TCP.
+	checkType := StrPointerAsStr(check.Type, string(HealthCheckTypeTCP))
+	if checkType != string(HealthCheckTypeTCP) && checkType != string(HealthCheckTypeHTTP) {
+		return NewValidationErrorf(
+			"Health check type must be TCP or HTTP",
+			"%s.type must be TCP or HTTP, got %q", field, checkType,
+		)
+	}
+	// An HTTP check that runs needs its path: without one it would quietly check "/", a path
+	// the user never chose. A check switched off never runs, so it needs none.
+	if checkType == string(HealthCheckTypeHTTP) && check.Path == nil && BoolPointerAsBool(check.Enabled, true) {
+		return NewValidationErrorf(
+			"An HTTP health check needs a path, such as /health",
+			"%s.path is required when %s.type is HTTP", field, field,
+		)
+	}
+	// A path is only meaningful for an HTTP check; it becomes the GET request's path.
+	if check.Path != nil {
+		if checkType != string(HealthCheckTypeHTTP) {
+			return NewValidationErrorf(
+				"A health check path can only be set for an HTTP check",
+				"%s.path is set but %s.type is %s", field, field, checkType,
+			)
+		}
+		if err := validateSafePath(*check.Path, field+".path", "Please provide a valid health check path starting with /"); err != nil {
+			return err
+		}
+	}
+	// The port, when set, must be a real port; when not set the agent's port is used.
+	if check.Port != nil && (*check.Port < 1 || *check.Port > 65535) {
+		return NewValidationErrorf(
+			"Please provide a valid health check port between 1 and 65535",
+			"%s.port must be between 1 and 65535", field,
+		)
+	}
+	// The first check may run immediately, so the initial delay can be 0.
+	if check.InitialDelaySeconds != nil && *check.InitialDelaySeconds < 0 {
+		return NewValidationErrorf(
+			"Health check initial delay cannot be negative",
+			"%s.initialDelaySeconds must be 0 or more", field,
+		)
+	}
+	// The interval, timeout and failures allowed must each be at least 1.
+	if check.PeriodSeconds != nil && *check.PeriodSeconds < 1 {
+		return NewValidationErrorf("Health check interval must be at least 1 second", "%s.periodSeconds must be 1 or more", field)
+	}
+	if check.TimeoutSeconds != nil && *check.TimeoutSeconds < 1 {
+		return NewValidationErrorf("Health check timeout must be at least 1 second", "%s.timeoutSeconds must be 1 or more", field)
+	}
+	if check.FailureThreshold != nil && *check.FailureThreshold < 1 {
+		return NewValidationErrorf("Health check failures allowed must be at least 1", "%s.failureThreshold must be 1 or more", field)
+	}
+	// The rules below combine fields, so a field that is not set counts as its default.
+	// int64, so interval × failures allowed can't overflow and slip under the cap.
+	initialDelay := int64(IntPointerAsInt(check.InitialDelaySeconds, defaults.initialDelaySeconds))
+	period := int64(IntPointerAsInt(check.PeriodSeconds, defaults.periodSeconds))
+	timeout := int64(IntPointerAsInt(check.TimeoutSeconds, defaults.timeoutSeconds))
+	failures := int64(IntPointerAsInt(check.FailureThreshold, defaults.failureThreshold))
+	// The initial delay, interval and timeout are each capped.
+	if initialDelay > maxHealthCheckSeconds || period > maxHealthCheckSeconds || timeout > maxHealthCheckSeconds {
+		return NewValidationErrorf(
+			fmt.Sprintf("Health check initial delay, interval and timeout can each be at most %d seconds", maxHealthCheckSeconds),
+			"%s initial delay, interval and timeout must each be %d or less", field, maxHealthCheckSeconds,
+		)
+	}
+	// A check still waiting when the next one is due makes no sense.
+	if timeout > period {
+		return NewValidationErrorf(
+			"Health check timeout cannot be longer than its interval",
+			"%s.timeoutSeconds (%d) must not exceed %s.periodSeconds (%d)", field, timeout, field, period,
+		)
+	}
+	// Startup may take at most maxHealthCheckSeconds in total before the agent is restarted.
+	if checkName == "startup" && initialDelay+period*failures > maxHealthCheckSeconds {
+		return NewValidationErrorf(
+			fmt.Sprintf("Startup can take at most %d seconds: initial delay + interval × failures allowed", maxHealthCheckSeconds),
+			"%s allows %d seconds (%d + %d × %d), more than %d", field, initialDelay+period*failures,
+			initialDelay, period, failures, maxHealthCheckSeconds,
+		)
+	}
+	// Readiness and liveness act after interval × failures allowed; capping that also caps
+	// failures allowed, which otherwise has no upper limit.
+	if checkName != "startup" && period*failures > maxHealthCheckSeconds {
+		return NewValidationErrorf(
+			fmt.Sprintf("Health check interval × failures allowed can be at most %d seconds", maxHealthCheckSeconds),
+			"%s allows %d seconds (%d × %d), more than %d", field, period*failures,
+			period, failures, maxHealthCheckSeconds,
 		)
 	}
 	return nil

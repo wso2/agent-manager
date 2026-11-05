@@ -68,6 +68,13 @@ const (
 	// the one path to a protected route that does not require its permission,
 	// so it is recorded even though the request succeeded.
 	ActionAuthzRootOUBypass Action = "authz:root-ou-bypass"
+	// ActionAuthzOrgOverride records a request whose organization was switched
+	// from its token's to the one named in X-Impersonate-Org, as permitted by
+	// the deployment's OrgOverrideResolver. The handler then reads and writes
+	// another tenant's data, so it is recorded even though the request
+	// succeeded. The event is filed under the target org; ActorOUID keeps the
+	// token's.
+	ActionAuthzOrgOverride Action = "authz:org-override"
 	// ActionSystemStartup records that the audit trail began, which bounds any
 	// gap in the record to a restart.
 	ActionSystemStartup Action = "system:startup"
@@ -88,6 +95,7 @@ var registry = map[Action]actionMeta{
 	ActionAuthnFailure:       {class: ClassAuthn, severity: SeverityWarning},
 	ActionAuthzDeny:          {class: ClassAuthz, severity: SeverityWarning},
 	ActionAuthzRootOUBypass:  {class: ClassAuthz, severity: SeverityCritical},
+	ActionAuthzOrgOverride:   {class: ClassAuthz, severity: SeverityCritical},
 	ActionSystemStartup:      {class: ClassSystem, severity: SeverityNotice},
 	ActionSystemAuditDropped: {class: ClassSystem, severity: SeverityCritical},
 }

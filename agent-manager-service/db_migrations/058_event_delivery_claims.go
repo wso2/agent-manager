@@ -21,8 +21,8 @@ import "gorm.io/gorm"
 // claimed_until is the lease a delivery worker takes before sending, so a
 // job the bus redelivers while the first worker is still sending is not
 // sent twice. Additive: rows start unclaimed.
-var migration057 = migration{
-	ID: 57,
+var migration058 = migration{
+	ID: 58,
 	Migrate: func(db *gorm.DB) error {
 		return db.Exec(`ALTER TABLE event_deliveries ADD COLUMN IF NOT EXISTS claimed_until TIMESTAMPTZ`).Error
 	},

@@ -40,8 +40,8 @@
   "description": "Organization and project level resource listing pages (projects, agents)",
   "dependencies": {
     "react-router-dom": "6.30.6",
-    "@wso2/oxygen-ui": "0.19.0",
-    "@wso2/oxygen-ui-icons-react": "0.19.0",
+    "@wso2/oxygen-ui": "0.20.0",
+    "@wso2/oxygen-ui-icons-react": "0.20.0",
     "@agent-management-platform/views": "workspace:*",
     "@agent-management-platform/api-client": "workspace:*",
     "@agent-management-platform/types": "workspace:*",

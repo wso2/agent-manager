@@ -106,6 +106,6 @@ Matching, queuing, retries, the delivery log and the API stay as they are.
 
 ## Upgrading event durability
 
-Migration 055 adds the outbox and `monitor_runs.event_queued_at`. It preserves existing rows and marks pre-upgrade terminal runs as already handled; pending/running and newly created runs remain replayable. New workers coexist through expiring leases. Old application replicas still use their original publication behavior, so complete the rollout before relying on durable acceptance.
+Migration 057 adds the outbox and `monitor_runs.event_queued_at`. It preserves existing rows and marks pre-upgrade terminal runs as already handled; pending/running and newly created runs remain replayable. New workers coexist through expiring leases. Old application replicas still use their original publication behavior, so complete the rollout before relying on durable acceptance.
 
 Rollback leaves the additive table and column in place, preserving pending work for a subsequent upgrade. Start the older binary without running its migration command (its migration validator rejects newer schema versions). Do not drop pending outbox rows. Embedded mode still loses events already published into its in-memory bus on restart; use NATS mode for durable downstream delivery.

@@ -207,6 +207,149 @@ else
   FAILURES=$((FAILURES + 1))
 fi
 
+# --- generate-workload Step 7: the build's health checks on the binding --------
+# Health checks belong to the build: Step 7 reads them from the build's own
+# WorkflowRun and writes them in the same update as the release pin, for a new
+# binding and an existing one alike, removing an earlier build's when this build
+# has none. Everything else an existing binding holds (env vars, runtime class)
+# belongs to the environment and must come through untouched. These run the real
+# script under sh against a stubbed API server and check the binding body it sends.
+BINDING_TEST_DIR="$(mktemp -d)"
+trap 'rm -rf "$BINDING_TEST_DIR"' EXIT
+mkdir -p "$BINDING_TEST_DIR/bin" "$BINDING_TEST_DIR/vol/source"
+
+# The script hardcodes its scratch volume; point it at the temp dir instead.
+sed "s#/mnt/vol#$BINDING_TEST_DIR/vol#g" <<<"$SCRIPT" >"$BINDING_TEST_DIR/script.sh"
+
+printf '#!/bin/sh\nexit 0\n' >"$BINDING_TEST_DIR/bin/apk"
+printf '#!/bin/sh\nexit 0\n' >"$BINDING_TEST_DIR/bin/podman"
+# curl stub: answers each API route the script calls and records the body of the
+# ReleaseBinding write. BUILD_RECORD names the file holding this build's
+# WorkflowRun; EXISTING_BINDING names the file holding the binding the GET
+# returns, or is empty when the binding does not exist yet.
+cat >"$BINDING_TEST_DIR/bin/curl" <<'STUB'
+#!/bin/sh
+method=GET url="" data="" code_fmt=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -X) method="$2"; shift ;;
+    -d) data="$2"; shift ;;
+    -w) code_fmt=1; shift ;;
+    -H) shift ;;
+    http*) url="$1" ;;
+  esac
+  shift
+done
+reply() { printf '%s' "$2"; [ -n "$code_fmt" ] && printf '\n%s' "$1"; exit 0; }
+case "$method $url" in
+  "POST http://token"*) reply 200 '{"access_token":"t"}' ;;
+  "GET "*"/workflowruns/"*) reply 200 "$(cat "$BUILD_RECORD")" ;;
+  "PUT "*"/workflowruns/"*) reply 200 '{}' ;;
+  "POST "*"/workloads") touch "$WORKLOAD_WRITTEN"; reply 201 '{}' ;;
+  "POST "*"/generate-release") reply 201 '{}' ;;
+  "GET "*"/projects/"*) reply 200 '{"spec":{"deploymentPipelineRef":{"name":"pipeline"}}}' ;;
+  "GET "*"/deploymentpipelines/"*)
+    reply 200 '{"spec":{"promotionPaths":[{"sourceEnvironmentRef":{"name":"dev"},"targetEnvironmentRefs":[{"name":"prod"}]}]}}' ;;
+  "GET "*"/releasebindings/"*)
+    if [ -n "$EXISTING_BINDING" ]; then reply 200 "$(cat "$EXISTING_BINDING")"; fi
+    reply 404 '{}' ;;
+  "POST "*"/releasebindings"|"PUT "*"/releasebindings/"*)
+    cp "${data#@}" "$RECORDED_BINDING"
+    reply 200 '{}' ;;
+esac
+reply 500 "unexpected $method $url"
+STUB
+chmod +x "$BINDING_TEST_DIR/bin/"*
+
+# run_generate_workload <build's healthChecks JSON, or "" for none> <existing binding JSON, or ""
+# for none> — runs the script and prints the binding body it wrote, or nothing if the
+# run failed (the script's output is then in $BINDING_TEST_DIR/out.log).
+run_generate_workload() {
+  local existing=""
+  rm -f "$BINDING_TEST_DIR/recorded.json" "$BINDING_TEST_DIR/workload-written"
+  if [[ -n "$1" ]]; then
+    printf '{"metadata":{"name":"run-2"},"spec":{"workflow":{"parameters":{"healthChecks":%s}}}}' "$1" >"$BINDING_TEST_DIR/record.json"
+  else
+    printf '{"metadata":{"name":"run-2"},"spec":{"workflow":{"parameters":{}}}}' >"$BINDING_TEST_DIR/record.json"
+  fi
+  if [[ -n "$2" ]]; then
+    existing="$BINDING_TEST_DIR/existing.json"
+    printf '%s' "$2" >"$existing"
+  fi
+  if ! env PATH="$BINDING_TEST_DIR/bin:$PATH" \
+      BUILD_RECORD="$BINDING_TEST_DIR/record.json" EXISTING_BINDING="$existing" RECORDED_BINDING="$BINDING_TEST_DIR/recorded.json" \
+      WORKLOAD_WRITTEN="$BINDING_TEST_DIR/workload-written" \
+      IMAGE=registry/agent:v2 PROJECT_NAME=proj COMPONENT_NAME=agent NAMESPACE=ns APP_PATH=. \
+      ENDPOINTS='[{"name":"agent-endpoint","port":8000}]' ENV_VARS='[]' FILE_MOUNTS='[]' \
+      RUN_NAME=run-2 OAUTH_URL=http://token OAUTH_HOST=h CLIENT_ID=c OAUTH_CLIENT_SECRET=s \
+      API_URL=http://api API_HOST=h \
+      sh "$BINDING_TEST_DIR/script.sh" >"$BINDING_TEST_DIR/out.log" 2>&1; then
+    return
+  fi
+  cat "$BINDING_TEST_DIR/recorded.json"
+}
+
+# assert_written_binding <label> <jq expression that must be true of the written body> <body>
+assert_written_binding() {
+  if [[ -n "$3" ]] && jq -e "$2" <<<"$3" >/dev/null 2>&1; then
+    printf 'ok   - step 7 %s\n' "$1"
+  else
+    printf 'FAIL - step 7 %s\n      check: %s\n      body:  %s\n' "$1" "$2" "$3"
+    FAILURES=$((FAILURES + 1))
+  fi
+}
+
+BUILD_HEALTH_CHECKS_JSON='{"readiness":{"type":"HTTP","path":"/health","periodSeconds":3}}'
+EXISTING_BINDING_JSON='{"metadata":{"name":"agent-dev"},"spec":{"environment":"dev","releaseName":"run-1",
+  "workloadOverrides":{"container":{"env":[{"key":"LOG_LEVEL","value":"debug"}]}},
+  "componentTypeEnvironmentConfigs":{"runtimeClassName":"gvisor",
+    "healthChecks":{"readiness":{"type":"TCP"}}}}}'
+
+WRITTEN_BINDING="$(run_generate_workload "$BUILD_HEALTH_CHECKS_JSON" "")"
+assert_written_binding "writes the build's health checks on a new binding" \
+  ".spec.releaseName == \"run-2\" and .spec.componentTypeEnvironmentConfigs.healthChecks == $BUILD_HEALTH_CHECKS_JSON" "$WRITTEN_BINDING"
+
+WRITTEN_BINDING="$(run_generate_workload "" "")"
+assert_written_binding "leaves health checks off a new binding when the build has none" \
+  '.spec.releaseName == "run-2" and (.spec | has("componentTypeEnvironmentConfigs") | not)' "$WRITTEN_BINDING"
+
+WRITTEN_BINDING="$(run_generate_workload '{}' "")"
+assert_written_binding "treats the build's empty health checks as none" \
+  '.spec.releaseName == "run-2" and (.spec | has("componentTypeEnvironmentConfigs") | not)' "$WRITTEN_BINDING"
+
+WRITTEN_BINDING="$(run_generate_workload "$BUILD_HEALTH_CHECKS_JSON" "$EXISTING_BINDING_JSON")"
+assert_written_binding "replaces an existing binding's health checks with the build's, with the pin" \
+  ".spec.releaseName == \"run-2\" and .spec.componentTypeEnvironmentConfigs.healthChecks == $BUILD_HEALTH_CHECKS_JSON" "$WRITTEN_BINDING"
+assert_written_binding "keeps an existing binding's environment settings" \
+  '.spec.workloadOverrides.container.env == [{"key":"LOG_LEVEL","value":"debug"}]
+   and .spec.componentTypeEnvironmentConfigs.runtimeClassName == "gvisor"' "$WRITTEN_BINDING"
+
+WRITTEN_BINDING="$(run_generate_workload "" "$EXISTING_BINDING_JSON")"
+assert_written_binding "removes an earlier build's health checks when this build has none" \
+  '.spec.releaseName == "run-2"
+   and (.spec.componentTypeEnvironmentConfigs | has("healthChecks") | not)
+   and .spec.componentTypeEnvironmentConfigs.runtimeClassName == "gvisor"' "$WRITTEN_BINDING"
+
+# A malformed value fails the build before Step 4 writes the Workload, so nothing changes.
+WRITTEN_BINDING="$(run_generate_workload '[1,2]' "")"
+if [[ -z "$WRITTEN_BINDING" ]] && grep -q "healthChecks is not an object" "$BINDING_TEST_DIR/out.log" \
+    && [[ ! -e "$BINDING_TEST_DIR/workload-written" ]]; then
+  printf 'ok   - refuses a build whose health checks are not an object, before writing the Workload\n'
+else
+  printf 'FAIL - a build whose health checks are not an object was accepted, or wrote the Workload first\n'
+  FAILURES=$((FAILURES + 1))
+fi
+
+# A check that is not an object is refused the same way, before the Workload.
+WRITTEN_BINDING="$(run_generate_workload '{"readiness":"x"}' "")"
+if [[ -z "$WRITTEN_BINDING" ]] && grep -q "healthChecks is not an object" "$BINDING_TEST_DIR/out.log" \
+    && [[ ! -e "$BINDING_TEST_DIR/workload-written" ]]; then
+  printf 'ok   - refuses a build whose readiness check is not an object, before writing the Workload\n'
+else
+  printf 'FAIL - a build whose readiness check is not an object was accepted, or wrote the Workload first\n'
+  FAILURES=$((FAILURES + 1))
+fi
+
 # --- checkout-source ---------------------------------------------------------
 # The repository URL, branch and commit are user input on the same path, and this
 # step holds the git credential secret, so a spliced value runs next to it.

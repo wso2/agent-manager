@@ -104,7 +104,24 @@ func TestWithEvents_OmitDataRoutesCarryNoBody(t *testing.T) {
 	require.Len(t, pub.got, 1)
 	assert.Nil(t, pub.got[0].Data, "a route returning a credential sends no data")
 	assert.Equal(t, "prod", pub.got[0].Environment, "the environment comes from the path")
-	assert.Equal(t, "prod", pub.got[0].Subject, "the subject is the last path parameter")
+}
+
+func TestWithEvents_APIKeyEventNamesKeyAndEnvironment(t *testing.T) {
+	// The API key service resolves envID, which may be a UUID, to the
+	// environment name, and adds the created key's name.
+	pub := serveEvent(t, "POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys",
+		map[string]string{"orgName": "acme", "projName": "p1", "agentName": "a1", "envID": "6f1c0c1e-env-uuid"},
+		func(w http.ResponseWriter, r *http.Request) {
+			events.SetEnvironment(r.Context(), "prod")
+			events.AddData(r.Context(), "name", "k1")
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{"keyId":"k1","apiKey":"the-key"}`))
+		})
+	require.Len(t, pub.got, 1)
+	e := pub.got[0]
+	assert.Equal(t, "prod", e.Environment, "the resolved name wins over the path value")
+	assert.Equal(t, "k1", e.Subject, "the subject is the created key")
+	assert.Equal(t, map[string]any{"name": "k1"}, e.Data, "only the key name is sent, never the key")
 }
 
 func TestWithEvents_HandlerAnnotations(t *testing.T) {

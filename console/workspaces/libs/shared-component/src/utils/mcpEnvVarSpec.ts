@@ -15,7 +15,11 @@
  * under the License.
  */
 
-import type { MCPProxy, MCPProxyEndpoint } from "@agent-management-platform/types";
+import type {
+  MCPProxy,
+  MCPProxyEndpoint,
+  ProjectMCPProxy,
+} from "@agent-management-platform/types";
 import {
   resolveAuthenticationType,
   type AuthenticationType,
@@ -71,6 +75,25 @@ export const AGENTID_ENV_VAR_ROWS: readonly EnvVarReferenceRow[] = [
   }),
 ];
 Object.freeze(AGENTID_ENV_VAR_ROWS);
+
+/**
+ * A project proxy's environments in the endpoint shape the resolvers below read,
+ * one per environment. A project proxy's org GET carries no endpoints, so its
+ * security comes from the project route; this lets the same rules judge both
+ * kinds of proxy. Project bindings secure with an API key or nothing (identity is
+ * not available to them), so only `enabled` and `apiKey` are carried over.
+ */
+export function projectMCPProxyEndpoints(
+  proxy: Pick<ProjectMCPProxy, "environments"> | null | undefined,
+): MCPProxyEndpoint[] {
+  return (proxy?.environments ?? []).map((environment) => ({
+    id: environment.environmentName,
+    security: environment.security
+      ? { enabled: environment.security.enabled, apiKey: environment.security.apiKey }
+      : undefined,
+    environments: [{ environmentUuid: environment.environmentUuid }],
+  }));
+}
 
 /**
  * The endpoint bound to `environmentUuid`, or undefined when the proxy has none.

@@ -84,7 +84,10 @@ export function OxygenLayout() {
     secondaryLine: userInfo?.orgName ?? userInfo?.email ?? userInfo?.username ?? userInfo?.givenName ?? "",
   };
 
-  const avatar = userProfile?.attributes?.picture || getUserAvatarInitials(user.primaryLine);
+  // UserMenu takes an image URL or initials as a string; profile attributes are untyped.
+  const picture = userProfile?.attributes?.picture;
+  const avatar =
+    (typeof picture === "string" && picture) || getUserAvatarInitials(user.primaryLine);
 
   const navigationItems = useNavigationItems();
   const mainItems = navigationItems.filter((item) => item.type === "item");

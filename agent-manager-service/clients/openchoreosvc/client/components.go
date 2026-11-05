@@ -468,7 +468,95 @@ func buildWorkflowParameters(req CreateComponentRequest) (map[string]any, error)
 	}
 	params["endpoints"] = endpoints
 
+	// Add health checks, when sent, so the first build records them
+	setHealthChecksWorkflowParameter(params, req.HealthChecks)
+
 	return params, nil
+}
+
+// workflowParamHealthChecks is the build parameter holding the agent's health checks. Every
+// build copies the build parameters into its record, so each build keeps its own checks.
+const workflowParamHealthChecks = "healthChecks"
+
+// setHealthChecksWorkflowParameter saves the health checks in the build parameters, replacing
+// any saved ones. Empty health checks remove the saved ones, so the next build uses the
+// defaults. Nil leaves the build parameters unchanged.
+func setHealthChecksWorkflowParameter(params map[string]any, healthChecks *HealthChecksConfig) {
+	if healthChecks == nil {
+		return
+	}
+	healthChecksParam := map[string]any{}
+	if healthChecks.Startup != nil {
+		healthChecksParam["startup"] = healthCheckToWorkflowParameter(healthChecks.Startup)
+	}
+	if healthChecks.Readiness != nil {
+		healthChecksParam["readiness"] = healthCheckToWorkflowParameter(healthChecks.Readiness)
+	}
+	if healthChecks.Liveness != nil {
+		healthChecksParam["liveness"] = healthCheckToWorkflowParameter(healthChecks.Liveness)
+	}
+	if len(healthChecksParam) == 0 {
+		delete(params, workflowParamHealthChecks)
+		return
+	}
+	params[workflowParamHealthChecks] = healthChecksParam
+}
+
+// healthCheckToWorkflowParameter turns one health check into the value saved in the build
+// parameters, keeping only the fields that are set. Its field names are the ones the
+// agent-api ComponentType reads.
+func healthCheckToWorkflowParameter(healthCheck *HealthCheckConfig) map[string]any {
+	healthCheckParam := map[string]any{}
+	if healthCheck.Enabled != nil {
+		healthCheckParam["enabled"] = *healthCheck.Enabled
+	}
+	if healthCheck.Type != nil {
+		healthCheckParam["type"] = *healthCheck.Type
+	}
+	if healthCheck.Path != nil {
+		healthCheckParam["path"] = *healthCheck.Path
+	}
+	if healthCheck.Port != nil {
+		healthCheckParam["port"] = *healthCheck.Port
+	}
+	if healthCheck.InitialDelaySeconds != nil {
+		healthCheckParam["initialDelaySeconds"] = *healthCheck.InitialDelaySeconds
+	}
+	if healthCheck.PeriodSeconds != nil {
+		healthCheckParam["periodSeconds"] = *healthCheck.PeriodSeconds
+	}
+	if healthCheck.TimeoutSeconds != nil {
+		healthCheckParam["timeoutSeconds"] = *healthCheck.TimeoutSeconds
+	}
+	if healthCheck.FailureThreshold != nil {
+		healthCheckParam["failureThreshold"] = *healthCheck.FailureThreshold
+	}
+	return healthCheckParam
+}
+
+// healthChecksFromWorkflowParameters reads the saved health checks from the build parameters.
+// Returns nil when none are saved.
+func healthChecksFromWorkflowParameters(params map[string]any) (*models.HealthChecks, error) {
+	return healthChecksFromMap(params)
+}
+
+// healthChecksFromMap reads the "healthChecks" entry of a map that holds them under the API's
+// field names: an agent's build parameters, or a binding's component-type configs. Returns nil
+// when there is none.
+func healthChecksFromMap(values map[string]any) (*models.HealthChecks, error) {
+	value, ok := values[workflowParamHealthChecks]
+	if !ok || value == nil {
+		return nil, nil //nolint:nilnil // documented contract: nil means "none saved", not an error
+	}
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read saved health checks: %w", err)
+	}
+	var healthChecks models.HealthChecks
+	if err := json.Unmarshal(encoded, &healthChecks); err != nil {
+		return nil, fmt.Errorf("failed to read saved health checks: %w", err)
+	}
+	return &healthChecks, nil
 }
 
 func isGoogleBuildpack(language string) bool {
@@ -3236,6 +3324,13 @@ func convertComponentFromTyped(comp *gen.Component) (*models.AgentResponse, erro
 					agent.InputInterface.Visibility = inputInterface.Visibility
 				}
 			}
+			// A saved value that can't be read is left out rather than failing: callers drop an
+			// agent that fails to convert from the agent list, and builds copy the value as is.
+			healthChecks, err := healthChecksFromWorkflowParameters(params)
+			if err != nil {
+				slog.Warn("failed to read saved health checks", "component", comp.Metadata.Name, "error", err)
+			}
+			agent.HealthChecks = healthChecks
 		}
 	}
 

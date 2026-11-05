@@ -293,6 +293,14 @@ func (m *memEventStore) mock() *repomocks.EventRepositoryMock {
 			}
 			return out, nil
 		},
+		DestinationStatsOfFunc: func(_ context.Context, ouID string, id uuid.UUID) (repositories.DestinationStats, error) {
+			m.mu.Lock()
+			defer m.mu.Unlock()
+			if d, ok := m.destinations[id]; !ok || d.OUID != ouID {
+				return repositories.DestinationStats{}, nil
+			}
+			return repositories.DestinationStats{UsedBy: len(m.usingLocked(ouID, id))}, nil
+		},
 		SubscriptionsUsingFunc: func(_ context.Context, ouID string, id uuid.UUID) ([]models.EventSubscription, error) {
 			m.mu.Lock()
 			defer m.mu.Unlock()
@@ -304,6 +312,9 @@ func (m *memEventStore) mock() *repomocks.EventRepositoryMock {
 			for id, d := range m.destinations {
 				if d.OUID == ouID && d.Availability == models.DestinationAvailableProjects {
 					d.Projects = slices.DeleteFunc(slices.Clone(d.Projects), func(p string) bool { return p == project })
+					if len(d.Projects) == 0 {
+						d.Availability = models.DestinationAvailableOrg
+					}
 					m.destinations[id] = d
 				}
 			}
