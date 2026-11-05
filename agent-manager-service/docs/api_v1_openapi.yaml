@@ -18341,6 +18341,10 @@ components:
           type: string
         publicUrl:
           type: string
+          description: >-
+            The environment binding's publicUrl. It already ends in the MCP path, so clients use it
+            as is and do not append /mcp.
+          example: https://dev-gw.example.com/orders/orders-mcp/mcp
 
     ProjectMCPProxyListItem:
       type: object
@@ -18534,8 +18538,9 @@ components:
         publicUrl:
           type: string
           description: >-
-            Gateway URL of the MCP endpoint: the gateway vhost plus /<projName><context>/mcp. Absent if
-            the gateway has no vhost.
+            Gateway URL of the MCP endpoint: the gateway vhost plus /<projName><context>/mcp. It already
+            ends in the MCP path, so clients use it as is and do not append /mcp. Absent if the gateway
+            has no vhost.
           example: https://dev-gw.example.com/orders/orders-mcp/mcp
         security:
           $ref: "#/components/schemas/MCPProxyEnvironmentSecurity"

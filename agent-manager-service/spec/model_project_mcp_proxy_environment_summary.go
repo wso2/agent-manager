@@ -22,7 +22,8 @@ type ProjectMCPProxyEnvironmentSummary struct {
 	EnvironmentName        string                      `json:"environmentName"`
 	DeploymentStatus       *MCPProjectDeploymentStatus `json:"deploymentStatus,omitempty"`
 	DeploymentStatusReason *string                     `json:"deploymentStatusReason,omitempty"`
-	PublicUrl              *string                     `json:"publicUrl,omitempty"`
+	// The environment binding's publicUrl. It already ends in the MCP path, so clients use it as is and do not append /mcp.
+	PublicUrl *string `json:"publicUrl,omitempty"`
 }
 
 // NewProjectMCPProxyEnvironmentSummary instantiates a new ProjectMCPProxyEnvironmentSummary object

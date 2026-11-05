@@ -4545,7 +4545,7 @@ type MCPProxyEnvironmentResponse struct {
 	GatewayId *openapi_types.UUID `json:"gatewayId,omitempty"`
 	Policies  *[]MCPPolicy        `json:"policies,omitempty"`
 
-	// PublicUrl Gateway URL of the MCP endpoint: the gateway vhost plus /<projName><context>/mcp. Absent if the gateway has no vhost.
+	// PublicUrl Gateway URL of the MCP endpoint: the gateway vhost plus /<projName><context>/mcp. It already ends in the MCP path, so clients use it as is and do not append /mcp. Absent if the gateway has no vhost.
 	PublicUrl *string `json:"publicUrl,omitempty"`
 
 	// ReleaseBindingName The release binding the binding was given. Absent when none was given.
@@ -5078,7 +5078,9 @@ type ProjectMCPProxyEnvironmentSummary struct {
 	DeploymentStatus       *MCPProjectDeploymentStatus `json:"deploymentStatus,omitempty"`
 	DeploymentStatusReason *string                     `json:"deploymentStatusReason,omitempty"`
 	EnvironmentName        string                      `json:"environmentName"`
-	PublicUrl              *string                     `json:"publicUrl,omitempty"`
+
+	// PublicUrl The environment binding's publicUrl. It already ends in the MCP path, so clients use it as is and do not append /mcp.
+	PublicUrl *string `json:"publicUrl,omitempty"`
 }
 
 // ProjectMCPProxyListItem defines model for ProjectMCPProxyListItem.
