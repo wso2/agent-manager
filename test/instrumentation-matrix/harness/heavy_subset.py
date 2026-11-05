@@ -17,7 +17,7 @@ Three axes change what gets deployed, so the subset crosses all three:
 1. **instrumentation/Traceloop version** — pins the init-container image.
 2. **python version** — the buildpack builds (and instrumentation runs) the
    agent on that interpreter, so a py-version-specific break surfaces through
-   the deployed pipeline.
+   the deployed pipeline. Only sample-supported interpreters are selected.
 3. **framework** — but only frameworks in DEPLOYABLE_SAMPLES.
 
 So the subset is one cell per (Traceloop version x python) for each deployable
@@ -54,6 +54,8 @@ def select_heavy_subset(cells: list[Cell], manifest: Manifest) -> list[Cell]:
         if c.provider_name != default.provider:
             continue
         if c.framework_name not in pinned_version:
+            continue
+        if not DEPLOYABLE_SAMPLES[c.framework_name].supports_python(c.python):
             continue
         if c.framework_version != pinned_version[c.framework_name]:
             continue

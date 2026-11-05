@@ -10,16 +10,12 @@ Because the request flows through two agents and the underlying model, a single 
 
 ### Python runtime
 
-Use Python 3.11, 3.12, or 3.13 for new deployments. The sample pins
-`crewai==1.15.34`, which requires Python below 3.14. Its `pdfplumber` dependency
-installs Pillow. Pillow 13.0.0 includes image-parser fixes and requires Python
-3.11 or later. Python 3.10 instead resolves
-Pillow 12.3.0, which remains affected by the reported vulnerabilities.
+Python 3.11, 3.12, or 3.13 is required. The sample pins `crewai==1.15.34`
+and requires `pillow>=13.0.0,<14`. Pillow 13 requires Python 3.11 or later;
+CrewAI requires Python below 3.14.
 
-The instrumentation matrix still builds this sample on Python 3.10. Enforcing
-`pillow>=13.0.0` therefore requires a coordinated change to the sample's runtime
-coverage and deployment checks; upgrading CrewAI alone does not fix Python 3.10
-deployments. The platform's support for other Python workloads is unchanged.
+The compatibility checks and heavy instrumentation tests cover this sample on
+Python 3.11–3.13. Other samples retain their existing Python 3.10 coverage.
 
 ### Required API Keys
 
@@ -94,7 +90,7 @@ What is the capital of France?
 
 ```bash
 cd samples/crewai-agent
-python -m venv .venv && source .venv/bin/activate
+python3.11 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 export OPENAI_API_KEY=<your-openai-api-key>
 python main.py    # serves on http://localhost:8000
