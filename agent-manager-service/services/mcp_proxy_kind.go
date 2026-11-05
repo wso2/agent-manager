@@ -20,16 +20,19 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/eventhub"
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
+	"github.com/wso2/agent-manager/agent-manager-service/utils/ssrf"
 )
 
 // mcpArtifact is what one (endpoint, environment) artifact of an MCP proxy renders from.
@@ -178,7 +181,9 @@ func (k *MCPProxyKind) PlacedOn(ctx context.Context, tx *gorm.DB, env, gateway u
 		WHERE `+condition, args)
 }
 
-// Targets is the environment's egress gateway, anchored on where the artifact is already placed.
+// Targets is the environment's egress gateway, anchored on where the artifact is already placed. A managed
+// target is not taken unless the upstream is public: a private upstream was accepted for a self-hosted
+// gateway, and an anchor that has gone away falls back to the environment's managed gateway.
 func (k *MCPProxyKind) Targets(ctx context.Context, record reconcile.Record) (uuid.UUID, bool, error) {
 	deployments, gateways := placementReposIn(ctx, k.deploymentRepo, k.gatewayRepo)
 	anchors, err := deployments.PlacedGateways(ctx, record.OUID, record.ArtifactUUID)
@@ -192,5 +197,36 @@ func (k *MCPProxyKind) Targets(ctx context.Context, record reconcile.Record) (uu
 	if err != nil {
 		return uuid.Nil, false, err
 	}
+	if gatewayNeedsPublicUpstream(gateway) {
+		public, err := k.upstreamIsPublic(ctx, record, gateway)
+		if err != nil || !public {
+			return uuid.Nil, false, err
+		}
+	}
 	return gateway.UUID, true, nil
+}
+
+// upstreamIsPublic re-runs the private-address check on the artifact's upstreams for a managed target. An
+// artifact that is gone passes: Render reports it.
+func (k *MCPProxyKind) upstreamIsPublic(ctx context.Context, record reconcile.Record, gateway *models.Gateway) (bool, error) {
+	a, err := k.load(ctx, record.ArtifactRef)
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return true, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	upstream := a.deployable.Configuration.Upstream
+	for _, endpoint := range []*models.UpstreamEndpoint{upstream.Main, upstream.Sandbox} {
+		if endpoint == nil {
+			continue
+		}
+		if err := ssrf.ValidateURL(ctx, strings.TrimSpace(endpoint.URL)); err != nil {
+			logger.GetLogger(ctx).Warn("Not placing MCP proxy on a managed gateway; its upstream is not public",
+				"ouID", record.OUID, "artifactUUID", record.ArtifactUUID, "environmentUUID", record.EnvironmentUUID,
+				"gatewayUUID", gateway.UUID, "error", err)
+			return false, nil
+		}
+	}
+	return true, nil
 }

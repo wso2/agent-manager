@@ -109,3 +109,52 @@ func TestMCPProxyKindEvents(t *testing.T) {
 	assert.Equal(t, "DELETE", deleted.Action)
 	assert.Equal(t, map[string]any{"proxyId": ref.ArtifactUUID.String()}, eventPayload(t, deleted.EventData))
 }
+
+// mcpKindTargeting is an MCP kind whose one artifact, in testMCPEnvUUID, was placed on anchor and has upstream.
+func mcpKindTargeting(t *testing.T, anchor string, gateways []*models.Gateway, upstream string) *MCPProxyKind {
+	t.Helper()
+	return &MCPProxyKind{
+		gatewayRepo:    gatewayFixtureRepo(t, testMCPEnvUUID, gateways),
+		deploymentRepo: deployedTo(anchor),
+		load: func(context.Context, models.ArtifactRef) (*mcpArtifact, error) {
+			return &mcpArtifact{deployable: &models.MCPProxy{Configuration: models.MCPProxyConfig{
+				Upstream: models.UpstreamConfig{Main: &models.UpstreamEndpoint{URL: upstream}},
+			}}}, nil
+		},
+	}
+}
+
+// A private upstream is only ever accepted for a self-hosted gateway. If that gateway goes away, the
+// artifact falls back to the environment's managed gateway, which must not reach the private address.
+func TestMCPProxyKindTargets_RechecksTheUpstreamForAManagedTarget(t *testing.T) {
+	ctx := context.Background()
+	record := reconcile.Record{
+		ArtifactRef: models.ArtifactRef{OUID: "org1", ArtifactUUID: uuid.New()}, EnvironmentUUID: uuid.MustParse(testMCPEnvUUID),
+	}
+	managed := newGateway(t, models.GatewayRoleBoth, true)
+	selfHosted := selfHostedGateway(t)
+	goneSelfHosted := uuid.NewString()
+
+	t.Run("private upstream is not placed on the managed fallback", func(t *testing.T) {
+		kind := mcpKindTargeting(t, goneSelfHosted, []*models.Gateway{managed}, privateMCPUpstream)
+		_, ok, err := kind.Targets(ctx, record)
+		require.NoError(t, err)
+		assert.False(t, ok)
+	})
+
+	t.Run("public upstream is placed on the managed fallback", func(t *testing.T) {
+		kind := mcpKindTargeting(t, goneSelfHosted, []*models.Gateway{managed}, "https://93.184.216.34/mcp")
+		gateway, ok, err := kind.Targets(ctx, record)
+		require.NoError(t, err)
+		require.True(t, ok)
+		assert.Equal(t, managed.UUID, gateway)
+	})
+
+	t.Run("private upstream stays on its self-hosted anchor", func(t *testing.T) {
+		kind := mcpKindTargeting(t, selfHosted.UUID.String(), []*models.Gateway{managed, selfHosted}, privateMCPUpstream)
+		gateway, ok, err := kind.Targets(ctx, record)
+		require.NoError(t, err)
+		require.True(t, ok)
+		assert.Equal(t, selfHosted.UUID, gateway)
+	})
+}

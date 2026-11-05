@@ -48,6 +48,7 @@ type GatewayFilterOptions struct {
 	// Applied as IN (?) alongside, not instead of, FunctionalityType.
 	FunctionalityTypeIn []string
 	Status              *bool   // Filter by is_active
+	Hosting             string  // Filter by hosting (managed, self_hosted); empty for any
 	EnvironmentID       *string // Filter by environment (via gateway_environment_mappings)
 	Limit               int     // Pagination limit (0 = no limit)
 	Offset              int     // Pagination offset
@@ -270,6 +271,10 @@ func (r *GatewayRepo) buildFilterQuery(filters GatewayFilterOptions) *gorm.DB {
 		query = query.Where("gateway_functionality_type IN ?", filters.FunctionalityTypeIn)
 	}
 
+	if filters.Hosting != "" {
+		query = query.Where("hosting = ?", filters.Hosting)
+	}
+
 	// Filter by status (is_active)
 	if filters.Status != nil {
 		query = query.Where("is_active = ?", *filters.Status)
@@ -340,8 +345,8 @@ func (r *GatewayRepo) Delete(gatewayID, ouID string) error {
 }
 
 // UpdateGateway updates gateway details. The manifest column is deliberately not
-// written here: gateway-reported manifests are large and pushed on every heartbeat,
-// so they live in the in-process manifest cache instead. The column is left in place
+// written here: gateway-reported manifests are large and re-pushed on every gateway
+// (re)connect, so they live in the manifest cache instead. The column is left in place
 // (and still read as a fallback) for rows written before that move.
 func (r *GatewayRepo) UpdateGateway(gateway *models.Gateway) error {
 	gateway.UpdatedAt = time.Now()
@@ -701,7 +706,7 @@ func (r *GatewayRepo) CountIngressCapableInEnvironment(tx *gorm.DB, environmentI
 // whose row was edited while disconnected has a fresher updated_at and drops out
 // until the staleness threshold passes again, and a gateway whose holding pod
 // died without cleanup stays is_active=true and is never counted.
-const failedGatewayCondition = "is_active = false AND updated_at < ? AND updated_at >= ?"
+const failedGatewayCondition = managedGatewayCondition + " AND is_active = false AND updated_at < ? AND updated_at >= ?"
 
 // abandonedGatewayCondition matches the rows past the window's far edge:
 // disconnected, and untouched for longer than the caller is willing to call a
@@ -713,9 +718,12 @@ const failedGatewayCondition = "is_active = false AND updated_at < ? AND updated
 // would classify the healthiest gateways in the fleet as abandoned and pull them
 // out of the denominator, inflating the failure percentage instead of sharpening
 // it. Only a gateway that is both old and down is abandoned.
-const abandonedGatewayCondition = "is_active = false AND updated_at < ?"
+const abandonedGatewayCondition = managedGatewayCondition + " AND is_active = false AND updated_at < ?"
 
-// CountFailureSummaryAllOrgs counts every gateway in the deployment, how many
+// managedGatewayCondition limits the failure summary to the gateways the platform runs.
+const managedGatewayCondition = "hosting = '" + models.GatewayHostingManaged + "'"
+
+// CountFailureSummaryAllOrgs counts every managed gateway in the deployment, how many
 // are failed, and how many are abandoned, in one round trip.
 //
 // Conditional aggregation rather than three queries: all three counts must
@@ -736,7 +744,7 @@ func (r *GatewayRepo) CountFailureSummaryAllOrgs(
 			", COUNT(*) FILTER (WHERE "+failedGatewayCondition+") AS failed"+
 			", COUNT(*) FILTER (WHERE "+abandonedGatewayCondition+") AS abandoned",
 			window.StaleBefore, window.NotOlderThan, window.NotOlderThan).
-		Where("deleted_at IS NULL").
+		Where("deleted_at IS NULL AND " + managedGatewayCondition).
 		Scan(&counts).Error
 	if err != nil {
 		return GatewayFailureCounts{}, fmt.Errorf("failed to count gateway failure summary: %w", err)

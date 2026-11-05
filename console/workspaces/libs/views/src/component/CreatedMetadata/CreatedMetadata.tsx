@@ -16,14 +16,9 @@
  * under the License.
  */
 
+import { formatRelativeTime } from '@wso2/oxygen-ui';
 import { Clock, UserPen } from '@wso2/oxygen-ui-icons-react';
-import { formatDistanceToNow } from 'date-fns';
 import { PageMetaItem } from '../PageMeta';
-
-/** Shared by the timestamp rows below so they never drift in wording or format. */
-function relativeTime(value: string): string {
-  return formatDistanceToNow(new Date(value), { addSuffix: true });
-}
 
 export interface CreatedMetadataProps {
   createdAt?: string;
@@ -35,7 +30,7 @@ export function CreatedMetadata({ createdAt }: CreatedMetadataProps) {
 
   return (
     <PageMetaItem icon={<Clock size={12} />} label="Created">
-      {relativeTime(createdAt)}
+      {formatRelativeTime(new Date(createdAt))}
     </PageMetaItem>
   );
 }

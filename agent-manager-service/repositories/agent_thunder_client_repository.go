@@ -169,7 +169,9 @@ type AgentRef struct {
 	OUID             string
 	ProjectName      string
 	AgentName        string
+	EnvironmentName  string
 	ProvisioningType models.AgentProvisioningType
+	RequestedBy      string
 }
 
 // ReconcileCursor identifies the last row returned by a previous
@@ -484,7 +486,7 @@ func (r *AgentThunderClientRepo) SetLastError(ctx context.Context, id uuid.UUID,
 
 func (r *AgentThunderClientRepo) ListHomeAgents(ctx context.Context, after *AgentRef, limit int) ([]AgentRef, error) {
 	q := r.db.WithContext(ctx).Model(&models.AgentThunderClient{}).
-		Select("DISTINCT ON (ou_id, project_name, agent_name) ou_id, project_name, agent_name, provisioning_type").
+		Select("DISTINCT ON (ou_id, project_name, agent_name) ou_id, project_name, agent_name, environment_name, provisioning_type, requested_by").
 		Where("status = ? AND promotion_source = ''", models.AgentThunderStatusCompleted)
 	if after != nil {
 		q = q.Where("(ou_id, project_name, agent_name) > (?, ?, ?)", after.OUID, after.ProjectName, after.AgentName)
@@ -496,7 +498,8 @@ func (r *AgentThunderClientRepo) ListHomeAgents(ctx context.Context, after *Agen
 	refs := make([]AgentRef, 0, len(rows))
 	for _, row := range rows {
 		refs = append(refs, AgentRef{
-			OUID: row.OUID, ProjectName: row.ProjectName, AgentName: row.AgentName, ProvisioningType: row.ProvisioningType,
+			OUID: row.OUID, ProjectName: row.ProjectName, AgentName: row.AgentName,
+			EnvironmentName: row.EnvironmentName, ProvisioningType: row.ProvisioningType, RequestedBy: row.RequestedBy,
 		})
 	}
 	return refs, nil

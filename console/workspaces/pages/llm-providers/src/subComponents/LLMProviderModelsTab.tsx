@@ -36,7 +36,7 @@ import {
   Button,
   Chip,
   Collapse,
-  Drawer,
+  DrawerPanel,
   FormControl,
   FormLabel,
   Grid,
@@ -555,91 +555,94 @@ export function LLMProviderModelsTab({
         </Grid>
       </Grid>
 
-      <Drawer
-        anchor="right"
+      <DrawerPanel
         open={drawerOpen}
         onClose={() => {
           setDrawerOpen(false);
           setDrawerSelectedOption(null);
         }}
-        slotProps={{ paper: { sx: { width: 420 } } }}
+        width={420}
       >
-        <Box sx={{ p: 3, display: "flex", flexDirection: "column", height: "100%" }}>
-          <Typography variant="h6" component="h2" sx={{ mb: 0.5 }}>
-            Add Model Provider
-          </Typography>
+        <DrawerPanel.Header>
+          <DrawerPanel.Title>Add Model Provider</DrawerPanel.Title>
+          <DrawerPanel.Actions>
+            <DrawerPanel.CloseButton />
+          </DrawerPanel.Actions>
+        </DrawerPanel.Header>
+
+        <DrawerPanel.Body>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
             Select a provider to add its model catalog.
           </Typography>
 
-          <Stack spacing={1} sx={{ flex: 1, overflowY: "auto" }}>
-            {PROVIDER_OPTIONS.map((opt) => {
-              const isAdded = addedProviderIds.has(opt.id);
-              const isSelected = drawerSelectedOption === opt.id;
-              return (
-                <Box
-                  key={opt.id}
-                  onClick={() =>
-                    !isAdded && setDrawerSelectedOption(opt.id)
-                  }
-                  sx={{
-                    p: 2,
-                    border: "1px solid",
-                    borderColor: isSelected ? "primary.main" : "divider",
-                    borderRadius: 1,
-                    bgcolor: isSelected ? "action.selected" : "background.paper",
-                    cursor: isAdded ? "default" : "pointer",
-                    opacity: isAdded ? 0.7 : 1,
-                    "&:hover": isAdded ? {} : { bgcolor: "action.hover" },
-                  }}
+          <Stack spacing={1}>
+          {PROVIDER_OPTIONS.map((opt) => {
+            const isAdded = addedProviderIds.has(opt.id);
+            const isSelected = drawerSelectedOption === opt.id;
+            return (
+              <Box
+                key={opt.id}
+                onClick={() =>
+                  !isAdded && setDrawerSelectedOption(opt.id)
+                }
+                sx={{
+                  p: 2,
+                  border: "1px solid",
+                  borderColor: isSelected ? "primary.main" : "divider",
+                  borderRadius: 1,
+                  bgcolor: isSelected ? "action.selected" : "background.paper",
+                  cursor: isAdded ? "default" : "pointer",
+                  opacity: isAdded ? 0.7 : 1,
+                  "&:hover": isAdded ? {} : { bgcolor: "action.hover" },
+                }}
+              >
+                <Stack
+                  direction="row"
+                  alignItems="center"
+                  justifyContent="space-between"
                 >
-                  <Stack
-                    direction="row"
-                    alignItems="center"
-                    justifyContent="space-between"
-                  >
-                    <Stack>
-                      <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                        {opt.name}
+                  <Stack>
+                    <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                      {opt.name}
+                    </Typography>
+                    {opt.description && (
+                      <Typography variant="caption" color="text.secondary">
+                        {opt.description}
                       </Typography>
-                      {opt.description && (
-                        <Typography variant="caption" color="text.secondary">
-                          {opt.description}
-                        </Typography>
-                      )}
-                    </Stack>
-                    {isAdded && (
-                      <Chip label="Added" size="small" color="success" />
                     )}
                   </Stack>
-                </Box>
-              );
-            })}
+                  {isAdded && (
+                    <Chip label="Added" size="small" color="success" />
+                  )}
+                </Stack>
+              </Box>
+            );
+          })}
           </Stack>
+        </DrawerPanel.Body>
 
-          <Stack direction="row" spacing={1.5} justifyContent="flex-end" sx={{ mt: 2, pt: 2, borderTop: 1, borderColor: "divider" }}>
-            <Button
-              onClick={() => {
-                setDrawerOpen(false);
-                setDrawerSelectedOption(null);
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="contained"
-              onClick={handleAddProvider}
-              disabled={
-                !drawerSelectedOption ||
-                isSaving ||
-                addedProviderIds.has(drawerSelectedOption)
-              }
-            >
-              Add
-            </Button>
-          </Stack>
-        </Box>
-      </Drawer>
+        <DrawerPanel.Footer>
+          <Button
+            onClick={() => {
+              setDrawerOpen(false);
+              setDrawerSelectedOption(null);
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleAddProvider}
+            disabled={
+              !drawerSelectedOption ||
+              isSaving ||
+              addedProviderIds.has(drawerSelectedOption)
+            }
+          >
+            Add
+          </Button>
+        </DrawerPanel.Footer>
+      </DrawerPanel>
     </Stack>
   );
 }

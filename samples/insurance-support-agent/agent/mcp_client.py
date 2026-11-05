@@ -7,7 +7,7 @@ import time
 from urllib.parse import quote_plus
 
 import anyio
-import httpx
+import httpx2 as httpx
 from strands.tools.mcp import MCPClient
 from mcp.client.streamable_http import streamable_http_client
 

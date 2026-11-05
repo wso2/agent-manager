@@ -174,6 +174,38 @@ func TestGatewayRepo_FailureSummaryAllOrgs(t *testing.T) {
 	assert.False(t, byName["gw-long-lived-healthy"], "a connected gateway is never failed, however old its row")
 }
 
+// TestGatewayRepo_FailureSummaryIgnoresSelfHosted pins that a self-hosted gateway is the customer's to run: it is
+// neither failed nor abandoned, and it is not in the fleet total.
+func TestGatewayRepo_FailureSummaryIgnoresSelfHosted(t *testing.T) {
+	tx := snapshotTx(t)
+	repo := NewGatewayRepo(tx)
+	ctx := context.Background()
+	now := time.Now()
+	window := GatewayFailureWindow{
+		StaleBefore:  now.Add(-5 * time.Minute),
+		NotOlderThan: now.Add(-7 * 24 * time.Hour),
+	}
+
+	baseline, err := repo.CountFailureSummaryAllOrgs(ctx, window)
+	require.NoError(t, err)
+
+	const org = "ou-failure-summary-self-hosted"
+	stale := insertFailureFixture(t, tx, org, "gw-self-hosted-stale", false, time.Now().Add(-time.Hour), false)
+	abandoned := insertFailureFixture(t, tx, org, "gw-self-hosted-abandoned", false, time.Now().Add(-8*24*time.Hour), false)
+	require.NoError(t, tx.Exec("UPDATE gateways SET hosting = ? WHERE uuid IN (?, ?)",
+		models.GatewayHostingSelfHosted, stale, abandoned).Error)
+
+	got, err := repo.CountFailureSummaryAllOrgs(ctx, window)
+	require.NoError(t, err)
+	assert.Equal(t, baseline, got, "self-hosted gateways add nothing to total, failed or abandoned")
+
+	failed, err := repo.ListFailedGatewaysAllOrgs(ctx, window, 1000)
+	require.NoError(t, err)
+	for _, gw := range failed {
+		assert.NotEqual(t, stale, gw.UUID, "a stale self-hosted gateway must not be listed as failed")
+	}
+}
+
 // TestGatewayRepo_ListFailedGatewaysAllOrgs_Limit pins the cap and the ordering
 // it depends on. Oldest failure first is what makes a truncated list useful: it
 // keeps the longest-running failures rather than an arbitrary page.

@@ -19,8 +19,8 @@
 import type { Meta, StoryObj } from '@storybook/react';
 import { 
   OverviewComponent,
-  OverviewProject,
-  OverviewOrganization,
+  ProjectOverview,
+  OrganizationOverview,
 } from './index';
 
 // Component Level Stories
@@ -62,9 +62,9 @@ export const ComponentCustom: StoryComponent = {
 
 // Project Level Stories
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-const metaProject: Meta<typeof OverviewProject> = {
+const metaProject: Meta<typeof ProjectOverview> = {
   title: 'Pages/Overview/Project',
-  component: OverviewProject,
+  component: ProjectOverview,
   parameters: {
     layout: 'fullscreen',
   },
@@ -97,9 +97,9 @@ export const ProjectCustom: StoryObj<typeof metaProject> = {
 
 // Organization Level Stories
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-const metaOrganization: Meta<typeof OverviewOrganization> = {
+const metaOrganization: Meta<typeof OrganizationOverview> = {
   title: 'Pages/Overview/Organization',
-  component: OverviewOrganization,
+  component: OrganizationOverview,
   parameters: {
     layout: 'fullscreen',
   },

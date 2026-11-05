@@ -113,6 +113,11 @@ export const rootRouteMap: AppRoute = {
                             path: 'view/:providerId',
                             index: true,
                             children: {
+                                edit: {
+                                    path: 'edit',
+                                    index: true,
+                                    children: {},
+                                },
                                 deploy: {
                                     path: 'deploy',
                                     index: true,
@@ -179,7 +184,13 @@ export const rootRouteMap: AppRoute = {
                         view: {
                             path: 'view/:proxyId',
                             index: true,
-                            children: {},
+                            children: {
+                                edit: {
+                                    path: 'edit',
+                                    index: true,
+                                    children: {},
+                                },
+                            },
                         },
                     },
                 },
@@ -228,6 +239,11 @@ export const rootRouteMap: AppRoute = {
                             path: ':envName',
                             index: true,
                             children: {
+                                edit: {
+                                    path: 'edit',
+                                    index: true,
+                                    children: {},
+                                },
                                 identityProvider: {
                                     path: 'identity-provider',
                                     index: true,
@@ -253,12 +269,27 @@ export const rootRouteMap: AppRoute = {
                     index: true,
                     children: {},
                 },
+                projectListing: {
+                    path: 'projects',
+                    index: true,
+                    children: {},
+                },
                 projects: {
                     path: 'project/:projectId',
                     index: true,
                     children: {
                         events: {
                             path: 'events',
+                            index: true,
+                            children: {},
+                        },
+                        agentListing: {
+                            path: 'agents',
+                            index: true,
+                            children: {},
+                        },
+                        edit: {
+                            path: 'edit',
                             index: true,
                             children: {},
                         },
@@ -299,6 +330,11 @@ export const rootRouteMap: AppRoute = {
                             path: 'agents/:agentId',
                             index: true,
                             children: {
+                                edit: {
+                                    path: 'edit',
+                                    index: true,
+                                    children: {},
+                                },
                                 agentId: {
                                     path: 'agent-id',
                                     index: true,

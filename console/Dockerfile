@@ -92,5 +92,8 @@ EXPOSE 3000
 # Switch to non-root user
 USER nginx-app
 
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+    CMD wget -q -T 4 -O /dev/null http://127.0.0.1:3000/index.html || exit 1
+
 # Start nginx in foreground
 CMD ["nginx", "-g", "daemon off;"]

@@ -36,6 +36,28 @@ export const LazyOverviewComponent = lazy(() =>
     default: m.metaData.levels!.component as ComponentType,
   }))
 );
+export const LazyEditProject = lazy(() =>
+  import("@agent-management-platform/overview").then((m) => ({
+    default: m.EditProject,
+  }))
+);
+export const LazyEditAgent = lazy(() =>
+  import("@agent-management-platform/overview").then((m) => ({
+    default: m.EditAgent,
+  }))
+);
+
+// Resource listing
+export const LazyProjectListing = lazy(() =>
+  import("@agent-management-platform/level-resource-listing").then((m) => ({
+    default: m.metaData.levels!.organization as ComponentType,
+  }))
+);
+export const LazyAgentListing = lazy(() =>
+  import("@agent-management-platform/level-resource-listing").then((m) => ({
+    default: m.metaData.levels!.project as ComponentType,
+  }))
+);
 
 // Build
 export const LazyBuildComponent = lazy(() =>

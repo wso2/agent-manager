@@ -26,6 +26,7 @@ import {
   type GatewayResponse,
   type MCPServerInfoFetchResponse,
   INPUT_LIMITS,
+  inferredEgressGateway,
 } from "@agent-management-platform/types";
 import {
   Accordion,
@@ -40,14 +41,13 @@ import {
   Divider,
   Form,
   FormControl,
-  FormLabel,
   Stack,
-  TextField,
+  Grid,
   Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
 import { ChevronDown, HelpCircle } from "@wso2/oxygen-ui-icons-react";
-import { useSnackBar } from "@agent-management-platform/views";
+import { TextInput, useSnackBar } from "@agent-management-platform/views";
 import {
   EnvironmentGatewaySelectorView,
   getErrorMessage,
@@ -188,8 +188,7 @@ export function EndpointFormFields({
   );
 
   // Egress-capable gateways (EGRESS or BOTH), grouped by the environment UUIDs
-  // they're attached to. An environment with 0-1 candidates needs no picker: the
-  // server infers the sole candidate, or there's genuinely nothing to deploy to.
+  // they're attached to.
   const egressGatewaysByEnv = useMemo(() => {
     const map: Record<string, GatewayResponse[]> = {};
     gateways.forEach((gateway) => {
@@ -205,16 +204,15 @@ export function EndpointFormFields({
   }, [gateways]);
 
   // initialDraft.gatewayByEnv reflects what was actually persisted. An environment
-  // with exactly one egress candidate may have been saved before that gateway was
-  // recorded explicitly — filling it in here keeps the load-time change comparison
-  // (below) honest about real edits rather than flagging a since-changed convention.
+  // saved without an explicit gateway is on the one the server inferred — filling it
+  // in here keeps the load-time change comparison (below) honest about real edits.
   const normalizedInitialGatewayByEnv = useMemo(() => {
     if (!initialDraft) return {};
     const base: Record<string, string> = { ...(initialDraft.gatewayByEnv ?? {}) };
     initialDraft.environments.forEach((envId) => {
       if (base[envId]) return;
-      const candidates = egressGatewaysByEnv[envId] ?? [];
-      if (candidates.length === 1) base[envId] = candidates[0].uuid;
+      const inferred = inferredEgressGateway(egressGatewaysByEnv[envId] ?? []);
+      if (inferred) base[envId] = inferred.uuid;
     });
     return base;
   }, [initialDraft, egressGatewaysByEnv]);
@@ -479,34 +477,35 @@ export function EndpointFormFields({
 
   return (
     <Form.Stack spacing={2.5}>
-      <FormControl fullWidth>
-        <FormLabel>Endpoint Name</FormLabel>
-        <TextField
-          slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.NAME } }}
-          fullWidth
-          value={name}
-          onChange={(event) => setName(event.target.value)}
-          placeholder="Primary"
-          helperText="Optional. A handle is derived from the name (or URL) when left blank."
-        />
-      </FormControl>
-
-      <FormControl fullWidth error={Boolean(urlError)}>
-        <FormLabel required>MCP Server Endpoint URL</FormLabel>
-        <TextField
-          slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.URL } }}
-          fullWidth
-          value={url}
-          onChange={(event) => {
-            setUrl(event.target.value);
-            clearFetched();
-            setUrlError(null);
-          }}
-          placeholder="Enter URL of your MCP Server"
-          error={Boolean(urlError)}
-          helperText={urlError}
-        />
-      </FormControl>
+      <Grid container spacing={2}>
+        <Grid size={{ xs: 12, md: 12, xl: 8 }}>
+          <TextInput
+            label="Endpoint Name (optional)"
+            maxLength={INPUT_LIMITS.NAME}
+            hideCharacterCount={(name?.length ?? 0) < INPUT_LIMITS.NAME}
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            placeholder="Primary"
+            helperText="A handle is derived from the name (or URL) when left blank."
+          />
+        </Grid>
+        <Grid size={{ xs: 12, md: 12, xl: 8 }}>
+          <TextInput
+            label="MCP Server Endpoint URL"
+            maxLength={INPUT_LIMITS.URL}
+            hideCharacterCount={(url?.length ?? 0) < INPUT_LIMITS.URL}
+            value={url}
+            onChange={(event) => {
+              setUrl(event.target.value);
+              clearFetched();
+              setUrlError(null);
+            }}
+            placeholder="Enter URL of your MCP Server"
+            error={Boolean(urlError)}
+            helperText={urlError}
+          />
+        </Grid>
+      </Grid>
 
       <Accordion
         expanded={advancedOpen}

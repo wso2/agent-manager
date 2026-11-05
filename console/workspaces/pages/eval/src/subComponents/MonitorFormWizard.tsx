@@ -83,7 +83,7 @@ export function MonitorFormWizard({
   isSubmitting,
   serverError,
   missingParamsMessage,
-  backLabel = "Back to Monitors",
+  backLabel = "Back to monitors",
   isTypeEditable = true,
   environments = [],
   initialAlert = null,

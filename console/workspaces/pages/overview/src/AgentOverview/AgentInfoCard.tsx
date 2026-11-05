@@ -36,8 +36,7 @@ import {
     type RepositoryConfig,
     absoluteRouteMap,
 } from "@agent-management-platform/types";
-import { parseGitHubUrl } from "@agent-management-platform/shared-component";
-import { formatDistanceToNow } from "date-fns";
+import { formatRelativeTime, parseGitHubUrl } from "@agent-management-platform/shared-component";
 import { generatePath, Link } from "react-router-dom";
 import { UppercaseCaptionLabel } from "./SectionHeader";
 
@@ -158,7 +157,7 @@ function BuildStatusInfo({ isBuildsLoading, latestBuild }: BuildStatusInfoProps)
 
     return (
         <Tooltip
-            title={`Triggered ${formatDistanceToNow(new Date(latestBuild.startedAt), { addSuffix: true })}`}
+            title={`Triggered ${formatRelativeTime(latestBuild.startedAt)}`}
         >
             <Box
                 display="flex"

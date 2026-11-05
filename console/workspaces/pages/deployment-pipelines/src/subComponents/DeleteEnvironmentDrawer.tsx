@@ -139,13 +139,6 @@ export function DeleteEnvironmentDrawer({
                 position: "relative",
                 bgcolor: "grey.900",
                 borderRadius: 1,
-                p: 2,
-                pr: 8,
-                fontFamily: "monospace",
-                fontSize: "0.8125rem",
-                color: "grey.100",
-                whiteSpace: "pre",
-                overflowX: "auto",
               }}
             >
               <Box sx={{ position: "absolute", top: 6, right: 6, display: "flex", gap: 0.5 }}>
@@ -168,7 +161,20 @@ export function DeleteEnvironmentDrawer({
                   </IconButton>
                 </Tooltip>
               </Box>
-              {displayScript}
+              {/* Scrolls on its own so the copy/show icons stay put. */}
+              <Box
+                sx={{
+                  p: 2,
+                  pr: 9,
+                  fontFamily: "monospace",
+                  fontSize: "0.8125rem",
+                  color: "grey.100",
+                  whiteSpace: "pre",
+                  overflowX: "auto",
+                }}
+              >
+                {displayScript}
+              </Box>
             </Box>
             <Typography variant="caption" color="text.secondary">
               Your access token will be substituted when you copy.
@@ -180,7 +186,7 @@ export function DeleteEnvironmentDrawer({
             idempotent — safe to re-run.
           </Alert>
 
-          <Box display="flex" justifyContent="flex-end">
+          <Box display="flex" justifyContent="flex-start">
             <Button variant="outlined" color="inherit" onClick={onClose}>
               Close
             </Button>

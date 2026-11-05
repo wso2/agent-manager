@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
@@ -111,6 +112,36 @@ func TestResolveEgressGatewayForEnvironment(t *testing.T) {
 	egress := newGateway(t, models.GatewayRoleEgress, true)
 	ingress := newGateway(t, models.GatewayRoleIngress, true)
 	inactiveEgress := newGateway(t, models.GatewayRoleEgress, false)
+	selfHosted := newGateway(t, models.GatewayRoleEgress, true)
+	selfHosted.Hosting = models.GatewayHostingSelfHosted
+
+	t.Run("managed both plus self-hosted, none named, picks managed", func(t *testing.T) {
+		repo := gatewayFixtureRepo(t, env.String(), []*models.Gateway{both, selfHosted})
+		got, err := resolveEgressGatewayForEnvironment(repo, "org", env, nil)
+		require.NoError(t, err)
+		require.Equal(t, both.UUID, got.UUID)
+	})
+
+	t.Run("only self-hosted, none named, has no egress target and says to name one", func(t *testing.T) {
+		repo := gatewayFixtureRepo(t, env.String(), []*models.Gateway{selfHosted})
+		_, err := resolveEgressGatewayForEnvironment(repo, "org", env, nil)
+		require.ErrorIs(t, err, errNoEgressGatewayForEnvironment)
+		require.ErrorIs(t, err, errOnlySelfHostedEgress)
+	})
+
+	t.Run("naming a self-hosted gateway selects it", func(t *testing.T) {
+		repo := gatewayFixtureRepo(t, env.String(), []*models.Gateway{both, selfHosted})
+		id := selfHosted.UUID.String()
+		got, err := resolveEgressGatewayForEnvironment(repo, "org", env, &id)
+		require.NoError(t, err)
+		require.Equal(t, selfHosted.UUID, got.UUID)
+	})
+
+	t.Run("two managed plus self-hosted stays ambiguous", func(t *testing.T) {
+		repo := gatewayFixtureRepo(t, env.String(), []*models.Gateway{both, egress, selfHosted})
+		_, err := resolveEgressGatewayForEnvironment(repo, "org", env, nil)
+		require.ErrorIs(t, err, errAmbiguousEgressGateway)
+	})
 
 	t.Run("exactly one egress-capable is inferred", func(t *testing.T) {
 		repo := gatewayFixtureRepo(t, env.String(), []*models.Gateway{ingress, egress})
@@ -308,5 +339,82 @@ func TestValidateEgressPlacement(t *testing.T) {
 		})
 		err := validateEgressPlacement(repo, target, []string{existing.UUID.String()})
 		require.NoError(t, err)
+	})
+}
+
+func TestPlacedAnchor(t *testing.T) {
+	env := uuid.New()
+	selfHosted := func() *models.Gateway {
+		gw := newGateway(t, models.GatewayRoleBoth, true)
+		gw.Hosting = models.GatewayHostingSelfHosted
+		return gw
+	}
+	s1, s2 := selfHosted(), selfHosted()
+	m1 := newGateway(t, models.GatewayRoleBoth, true)
+	repo := gatewayFixtureRepo(t, env.String(), []*models.Gateway{s1, m1, s2})
+	deleted := uuid.NewString()
+	ids := func(gws ...*models.Gateway) []string {
+		out := []string{deleted}
+		for _, gw := range gws {
+			out = append(out, gw.UUID.String())
+		}
+		return out
+	}
+
+	t.Run("any hosting takes the first mapped gateway", func(t *testing.T) {
+		got, err := placedAnchor(repo, env, ids(s1, m1), anyHosting)
+		require.NoError(t, err)
+		assert.Equal(t, s1.UUID, got.UUID)
+	})
+
+	t.Run("managed only skips self-hosted gateways", func(t *testing.T) {
+		got, err := placedAnchor(repo, env, ids(s1, m1), managedOnly)
+		require.NoError(t, err)
+		assert.Equal(t, m1.UUID, got.UUID)
+
+		got, err = placedAnchor(repo, env, ids(s1, s2), managedOnly)
+		require.NoError(t, err)
+		assert.Nil(t, got)
+	})
+
+	// External agents may use a self-hosted placement, but a managed one in the same environment wins.
+	t.Run("managed first prefers a managed gateway, else the first self-hosted one", func(t *testing.T) {
+		got, err := placedAnchor(repo, env, ids(s1, s2, m1), managedFirst)
+		require.NoError(t, err)
+		assert.Equal(t, m1.UUID, got.UUID)
+
+		got, err = placedAnchor(repo, env, ids(s2, s1), managedFirst)
+		require.NoError(t, err)
+		assert.Equal(t, s2.UUID, got.UUID)
+	})
+
+	t.Run("gateways not mapped to the environment are skipped", func(t *testing.T) {
+		got, err := placedAnchor(repo, uuid.New(), ids(s1, m1), anyHosting)
+		require.NoError(t, err)
+		assert.Nil(t, got)
+	})
+}
+
+// An agent's or monitor's proxy runs in OpenChoreo, so its URL may never point at a self-hosted gateway, and a
+// self-hosted placement must not be swapped for another gateway it isn't on.
+func TestOwnGateway_PlatformAgentRefusesSelfHostedPlacement(t *testing.T) {
+	env := uuid.New()
+	selfHosted := newGateway(t, models.GatewayRoleEgress, true)
+	selfHosted.Hosting = models.GatewayHostingSelfHosted
+	managed := newGateway(t, models.GatewayRoleEgress, true)
+	repo := gatewayFixtureRepo(t, env.String(), []*models.Gateway{selfHosted, managed})
+
+	t.Run("placed on a self-hosted gateway", func(t *testing.T) {
+		got, err := platformAgentPolicy.ownGateway(repo, "org", env, []string{selfHosted.UUID.String()})
+
+		require.ErrorIs(t, err, errSelfHostedAnchor)
+		assert.Nil(t, got)
+	})
+
+	t.Run("placed on a managed gateway", func(t *testing.T) {
+		got, err := platformAgentPolicy.ownGateway(repo, "org", env, []string{managed.UUID.String()})
+
+		require.NoError(t, err)
+		assert.Equal(t, managed.UUID, got.UUID)
 	})
 }

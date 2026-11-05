@@ -15,6 +15,11 @@ concurrency:
 env:
   DOCS_URL: https://wso2.com/agent-platform/docs/
 
+# Default token scope is read-only; jobs that publish, push or deploy
+# request the extra scopes they need at job level.
+permissions:
+  contents: read
+
 jobs:
   build:
     name: Build redirect site

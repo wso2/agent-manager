@@ -31,6 +31,7 @@ import {
   Server,
   ShieldCheck,
   Boxes,
+  Bot,
   Network,
   GitBranch,
   Lock,
@@ -822,7 +823,7 @@ export function useNavigationItems(): Array<
   if (orgId && projectId) {
     return [
       {
-        label: "Agents",
+        label: "Overview",
         type: "item",
         icon: <Home size={20} />,
         href: generatePath(
@@ -832,6 +833,26 @@ export function useNavigationItems(): Array<
         isActive:
           !!matchPath(
             absoluteRouteMap.children.org.children.projects.path,
+            pathname,
+          ) ||
+          !!matchPath(
+            absoluteRouteMap.children.org.children.projects.children.edit.path,
+            pathname,
+          ),
+      },
+      {
+        label: "Agents",
+        type: "item",
+        icon: <Bot size={20} />,
+        href: generatePath(
+          absoluteRouteMap.children.org.children.projects.children
+            .agentListing.path,
+          { orgId, projectId },
+        ),
+        isActive:
+          !!matchPath(
+            absoluteRouteMap.children.org.children.projects.children
+              .agentListing.path,
             pathname,
           ) ||
           !!matchPath(
@@ -846,11 +867,24 @@ export function useNavigationItems(): Array<
   if (orgId) {
     return [
       {
+        label: "Overview",
+        type: "item",
+        icon: <Home size={20} />,
+        href: generatePath(absoluteRouteMap.children.org.path, { orgId }),
+        isActive: !!matchPath(absoluteRouteMap.children.org.path, pathname),
+      },
+      {
         label: "Projects",
         type: "item",
         icon: <Box size={20} />,
-        href: generatePath(absoluteRouteMap.children.org.path, { orgId }),
-        isActive: !!matchPath(absoluteRouteMap.children.org.path, pathname),
+        href: generatePath(
+          absoluteRouteMap.children.org.children.projectListing.path,
+          { orgId },
+        ),
+        isActive: !!matchPath(
+          absoluteRouteMap.children.org.children.projectListing.path,
+          pathname,
+        ),
       },
       {
         label: "Agent Catalog",

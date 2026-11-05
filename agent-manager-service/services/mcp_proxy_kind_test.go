@@ -68,6 +68,8 @@ func newMCPFixture(t *testing.T) *mcpFixture {
 	proxy.Handle = "mcp-" + proxy.UUID.String()[:8]
 	f.env, f.artifact = uuid.New(), uuid.New()
 	proxy.Endpoints[0].UUID = uuid.New()
+	// A public address the placement pass's private-upstream check accepts without a DNS lookup.
+	proxy.Endpoints[0].Configuration.Upstream.URL = "https://1.1.1.1/mcp"
 	proxy.Endpoints[0].Environments[0].EnvironmentUUID = f.env
 	proxy.Endpoints[0].Environments[0].ArtifactUUID = f.artifact
 	proxy.Endpoints[0].Environments[0].MCPProxyUUID = proxy.UUID

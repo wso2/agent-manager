@@ -555,6 +555,7 @@ func (s *environmentService) GetEnvironmentGateways(ctx context.Context, ouID st
 			Name:             gateway.Name,
 			DisplayName:      gateway.DisplayName,
 			GatewayType:      gateway.GatewayFunctionalityType,
+			Hosting:          gatewayHostingWire(gateway),
 			VHost:            gateway.Vhost,
 			IsCritical:       gateway.IsCritical,
 			Status:           status,

@@ -37,7 +37,7 @@ export interface EntityAvatarProps {
   color?: string;
   /** `rounded` (default) reads as an entity tile; `circular` as a person. */
   shape?: EntityAvatarShape;
-  /** Edge length in px. */
+  /** Edge length in px. Left unset, the host slot's own sizing applies. */
   size?: number;
   alt?: string;
   sx?: SxProps<Theme>;
@@ -79,7 +79,7 @@ export function resolveEntityAvatarProps({
   children,
   color,
   shape = 'rounded',
-  size = 40,
+  size,
   alt,
   sx,
 }: EntityAvatarProps): AvatarProps {
@@ -91,13 +91,17 @@ export function resolveEntityAvatarProps({
     variant: shape,
     children: children ?? getAvatarInitials(name, { maxChars: 1, fallback: '?' }),
     sx: {
-      width: size,
-      height: size,
-      fontSize: Math.round(size * 0.42),
+      // Omitted when `size` is unset so slots that size their own avatar —
+      // Oxygen's `PageTitle.Avatar` — keep their dimensions.
+      ...(size !== undefined && {
+        width: size,
+        height: size,
+        fontSize: Math.round(size * 0.42),
+      }),
       fontWeight: 600,
       bgcolor,
       color: contrastFor(bgcolor),
-      ...(shape === 'rounded' && { borderRadius: size >= 48 ? 2 : 1.5 }),
+      ...(shape === 'rounded' && { borderRadius: (size ?? 40) >= 48 ? 2 : 1.5 }),
       // Logos are rarely square — show them whole instead of cropping to fill.
       ...(src && { '& img': { objectFit: 'contain' } }),
       ...sx,
@@ -111,5 +115,5 @@ export function resolveEntityAvatarProps({
  * looks the same wherever it appears — lists, cards, and page headers.
  */
 export function EntityAvatar(props: EntityAvatarProps) {
-  return <Avatar {...resolveEntityAvatarProps(props)} />;
+  return <Avatar {...resolveEntityAvatarProps({ ...props, size: props.size ?? 40 })} />;
 }

@@ -27,6 +27,7 @@ import {
   Divider,
   Form,
   FormControl,
+  Grid,
   IconButton,
   ListingTable,
   MenuItem,
@@ -519,9 +520,9 @@ const AgentIdentitySection: React.FC<AgentIdentitySectionProps> = ({
 
       <TabPanel value={activeTab} index={0}>
         <Stack spacing={3}>
-          <Form.Section>
+          <Form.Stack spacing={3}>
             <Box display="flex" alignItems="center" justifyContent="space-between">
-              <Form.Subheader>Client Credentials</Form.Subheader>
+              <Typography variant="subtitle1">Client Credentials</Typography>
               {provisioned && (
                 <Button
                   variant="text"
@@ -540,20 +541,22 @@ const AgentIdentitySection: React.FC<AgentIdentitySectionProps> = ({
             {body}
 
             {thunderAgentId && (
-              <TextInput
-                slotProps={{ input: { readOnly: true } }}
-                label="Agent ID"
-                value={thunderAgentId}
-                copyable
-                fullWidth
-                size="small"
-                sx={monospaceInputSx}
-              />
+              <Grid container spacing={2}>
+                <Grid size={{ xs: 12, md: 12, xl: 8 }}>
+                  <TextInput
+                    slotProps={{ input: { readOnly: true } }}
+                    label="Agent ID"
+                    value={thunderAgentId}
+                    copyable
+                    fullWidth
+                    size="small"
+                    sx={monospaceInputSx}
+                  />
+                </Grid>
+              </Grid>
             )}
-          </Form.Section>
 
-          <Form.Section>
-            <Form.Subheader>OAuth2 Endpoints</Form.Subheader>
+            <Typography variant="subtitle1">OAuth2 Endpoints</Typography>
 
             {isLoadingThunderInstance || isThunderInstanceError || !thunderInstance ? (
               <QueryStateFallback
@@ -567,7 +570,8 @@ const AgentIdentitySection: React.FC<AgentIdentitySectionProps> = ({
                 emptyDescription="No identity provider found for this environment."
               />
             ) : (
-              <Stack spacing={1.5}>
+              <Grid container spacing={2}>
+                <Grid size={{ xs: 12, md: 12, xl: 8 }}>
                 <TextInput
                   slotProps={{ input: { readOnly: true } }}
                   label="Issuer URL"
@@ -577,6 +581,8 @@ const AgentIdentitySection: React.FC<AgentIdentitySectionProps> = ({
                   size="small"
                   sx={monospaceInputSx}
                 />
+                </Grid>
+                <Grid size={{ xs: 12, md: 12, xl: 8 }}>
                 <TextInput
                   slotProps={{ input: { readOnly: true } }}
                   label="Token Endpoint"
@@ -586,6 +592,8 @@ const AgentIdentitySection: React.FC<AgentIdentitySectionProps> = ({
                   size="small"
                   sx={monospaceInputSx}
                 />
+                </Grid>
+                <Grid size={{ xs: 12, md: 12, xl: 8 }}>
                 <TextInput
                   slotProps={{ input: { readOnly: true } }}
                   label="JWKS Endpoint"
@@ -595,9 +603,10 @@ const AgentIdentitySection: React.FC<AgentIdentitySectionProps> = ({
                   size="small"
                   sx={monospaceInputSx}
                 />
-              </Stack>
+                </Grid>
+              </Grid>
             )}
-          </Form.Section>
+          </Form.Stack>
 
           {isExternal && thunderInstance && (
             <Alert severity="info">
