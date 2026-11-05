@@ -39,6 +39,12 @@ type ProjectAgentIdentityRequest struct {
 	ExistingAgentID  string
 	ExistingClientID string
 	ClientSecret     string
+	// RequestedBy is the subject of the agent's creator as far as Agent Manager
+	// knows: the requester of the agent's earliest binding. It is empty when the
+	// agent was created without a user, for example by a system, and stays empty
+	// even if a later repair or promotion was requested by a user. A provider that
+	// records an owner uses it, and falls back to its own default when it is empty.
+	RequestedBy string
 	// NeedsSecret asks Provision to return a client secret. It is set for
 	// internal agents, whose secret Agent Manager stores, and also for external
 	// agents: in CP_MANAGED mode the control plane needs a secret value on the
