@@ -20,6 +20,7 @@ import { type CatalogLLMProviderEntry } from "@agent-management-platform/types";
 import {
   useCreateLLMProvider,
   useListCatalogLLMProviders,
+  useListEnvironments,
   useListLLMProviderTemplates,
 } from "@agent-management-platform/api-client";
 import {
@@ -73,6 +74,9 @@ interface MonitorLLMProviderDrawerProps {
   onClose: () => void;
   selectedProviderName?: string;
   onProviderChange: (name: string | undefined) => void;
+  // The monitor's environment. Only providers deployed to it are listed, as a monitor
+  // can't use a provider that isn't.
+  environmentName?: string;
 }
 
 function getLatestDeployment(
@@ -274,6 +278,7 @@ export function MonitorLLMProviderDrawer({
   onClose,
   selectedProviderName,
   onProviderChange,
+  environmentName,
 }: MonitorLLMProviderDrawerProps) {
   const { orgId } = useParams<{ orgId: string }>();
   const [search, setSearch] = useState("");
@@ -291,9 +296,16 @@ export function MonitorLLMProviderDrawer({
     [],
   );
 
+  const { data: environments } = useListEnvironments({ orgName: orgId });
+  const environment = environmentName
+    ? environments?.find((env) => env.name === environmentName)
+    : undefined;
+  const environmentLabel = environment?.displayName || environmentName;
+  // Wait for the environment's id rather than list every provider in the meantime.
   const { data: catalogData, isFetching } = useListCatalogLLMProviders(
     { orgName: orgId },
-    { limit: PAGE_SIZE, offset: fetchOffset },
+    { limit: PAGE_SIZE, offset: fetchOffset, environmentId: environment?.id },
+    { enabled: !environmentName || !!environment },
   );
   const { data: templatesData, isLoading: isLoadingTemplates } =
     useListLLMProviderTemplates(
@@ -374,13 +386,15 @@ export function MonitorLLMProviderDrawer({
   // When the org has no LLM providers yet, open straight into the create view
   // so the user isn't shown an empty list they have to click through. Fires
   // once per open; if the user goes back to the (empty) list, we respect it.
+  // An empty list filtered to the environment may only mean the org's providers
+  // aren't deployed there, so it stays on the list, which says so.
   useEffect(() => {
     if (!open || autoSwitchDone.current || isFetching || !catalogData) return;
     autoSwitchDone.current = true;
-    if ((catalogData.total ?? 0) === 0) {
+    if ((catalogData.total ?? 0) === 0 && !environmentName) {
       setMode("create");
     }
-  }, [open, isFetching, catalogData]);
+  }, [open, isFetching, catalogData, environmentName]);
 
   // Accumulate each page as it arrives and trigger the next fetch if needed.
   useEffect(() => {
@@ -464,6 +478,8 @@ export function MonitorLLMProviderDrawer({
             <Typography variant="body2" color="text.secondary">
               Select the LLM provider for all LLM-judge evaluators in this
               monitor.
+              {environmentLabel &&
+                ` Only providers deployed to ${environmentLabel} are listed.`}
             </Typography>
             <SearchBar
               placeholder="Search providers"
@@ -482,12 +498,16 @@ export function MonitorLLMProviderDrawer({
                 title={
                   search.trim()
                     ? "No providers match your search"
-                    : "No LLM providers configured"
+                    : environmentLabel
+                      ? `No LLM providers deployed to ${environmentLabel}`
+                      : "No LLM providers configured"
                 }
                 description={
                   search.trim()
                     ? "Try a different keyword."
-                    : "Add an LLM service provider to get started."
+                    : environmentLabel
+                      ? `Deploy an LLM provider to a gateway in ${environmentLabel}, or add one below.`
+                      : "Add an LLM service provider to get started."
                 }
               />
             )}

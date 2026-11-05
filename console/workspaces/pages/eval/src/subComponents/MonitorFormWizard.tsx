@@ -310,6 +310,7 @@ export function MonitorFormWizard({
             onHasLLMJudgeChange={handleHasLLMJudgeChange}
             error={errors.evaluators}
             llmProviderError={llmProviderError}
+            environmentName={formData.environmentName}
           />
         )}
         <Stack direction="row" gap={2}>
