@@ -18,6 +18,7 @@
 
 import { type AgentPathParams, type AgentCardCorsConfig, type CorsConfig, type OAuthConfig, type EnvironmentVariable, type FileMount, type EndpointSchema, type OrgProjPathParams, type PaginationMeta, type ListQuery } from './common';
 import type { GatewaySpec } from './gateways';
+import type { HealthChecks } from './agents';
 
 // Requests
 export interface DeployAgentRequest {
@@ -109,6 +110,8 @@ export interface DeploymentDetailsResponse {
   endpoints: DeploymentEndpoint[];
   environmentDisplayName?: string;
   promotionTargetEnvironment?: PromotionTargetEnvironment;
+  /** Health checks this environment runs: those of the build it runs. Absent means the defaults. */
+  healthChecks?: HealthChecks;
 }
 
 export type DeploymentListResponse = Record<string, DeploymentDetailsResponse>;

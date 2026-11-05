@@ -260,6 +260,32 @@ spec:
 
             echo "Successfully obtained access token"
 
+            # --- Step 3b: Read this build's health checks ---
+            # Read from its own WorkflowRun: when a build starts it copies the agent's build
+            # parameters, healthChecks included. Step 7 writes them onto the environment together
+            # with this build's release. Unset or empty means this build has none. Read and checked
+            # here, before Step 4 writes the Workload, so a malformed value fails the build before
+            # anything changes.
+            HC_RUN_RESPONSE=$(curl -s -w "\n%{http_code}" \
+              -X GET "${API_URL}/api/v1/namespaces/${NAMESPACE}/workflowruns/${RUN_NAME}" \
+              -H "Host: ${API_HOST}" \
+              -H "Authorization: Bearer ${ACCESS_TOKEN}")
+            HC_RUN_HTTP_CODE=$(echo "${HC_RUN_RESPONSE}" | tail -1)
+            if [ "${HC_RUN_HTTP_CODE}" -lt 200 ] || [ "${HC_RUN_HTTP_CODE}" -ge 300 ]; then
+              echo "Failed to get WorkflowRun for its health checks (HTTP ${HC_RUN_HTTP_CODE}): $(echo "${HC_RUN_RESPONSE}" | sed '$d')"
+              exit 1
+            fi
+            echo "${HC_RUN_RESPONSE}" | sed '$d' > /mnt/vol/workflowrun-health-checks.json
+            BUILD_HEALTH_CHECKS=$(jq -c '.spec.workflow.parameters.healthChecks // null | if . == {} then null else . end' \
+              /mnt/vol/workflowrun-health-checks.json)
+            # None, or an object whose startup, readiness and liveness are each unset or an object.
+            if ! printf '%s' "$BUILD_HEALTH_CHECKS" | jq -e \
+                '. == null or (type == "object" and ([.startup, .readiness, .liveness] | all(. == null or type == "object")))' \
+                >/dev/null; then
+              echo "Error: this build's healthChecks is not an object of startup, readiness and liveness objects: ${BUILD_HEALTH_CHECKS}"
+              exit 1
+            fi
+
             # --- Step 4: Create or update workload via API server ---
             WORKLOAD_NAME=$(jq -r '.metadata.name' "$OUT_JSON")
 
@@ -315,6 +341,7 @@ spec:
             fi
 
             echo "${WF_RUN_BODY}" > /mnt/vol/workflowrun-get.json
+
             jq --rawfile wl "$OUT_JSON" \
               '.metadata.annotations["openchoreo.dev/workload"] = ($wl | rtrimstr("\n"))' \
               /mnt/vol/workflowrun-get.json > /mnt/vol/workflowrun-updated.json
@@ -454,7 +481,8 @@ spec:
                   --arg componentName "$COMPONENT_NAME" \
                   --arg environment "$FIRST_ENV" \
                   --arg releaseName "$RELEASE_NAME" \
-                  --slurpfile overrides "$OUT_OVERRIDES_JSON" '
+                  --slurpfile overrides "$OUT_OVERRIDES_JSON" \
+                  --argjson healthChecks "$BUILD_HEALTH_CHECKS" '
                     {
                       metadata: { name: $name, namespace: $namespace },
                       spec: (
@@ -464,6 +492,9 @@ spec:
                           releaseName: $releaseName
                         }
                         + (if $overrides[0] != null then { workloadOverrides: $overrides[0] } else {} end)
+                        + (if $healthChecks != null
+                           then { componentTypeEnvironmentConfigs: { healthChecks: $healthChecks } }
+                           else {} end)
                       )
                     }
                   ' > /mnt/vol/releasebinding.json
@@ -475,14 +506,26 @@ spec:
                   -H "Authorization: Bearer ${ACCESS_TOKEN}" \
                   -d @/mnt/vol/releasebinding.json)
               elif [ "${BINDING_GET_HTTP_CODE}" -ge 200 ] && [ "${BINDING_GET_HTTP_CODE}" -lt 300 ]; then
-                # Only the release pin is advanced. Once the binding exists it owns the
-                # environment's configuration, which the backend edits directly; a
-                # rebuild must not roll that back to whatever the component-level
-                # parameters happened to hold.
+                # Only the release pin and this build's health checks change. Once the
+                # binding exists it owns the environment's configuration, which the
+                # backend edits directly; a rebuild must not roll that back to whatever
+                # the component-level parameters happened to hold.
+                #
+                # Health checks are the exception because they belong to the build, not
+                # the environment. They are set in the same update as the pin, so the
+                # environment never runs one build's release with another build's
+                # checks; a build without health checks removes the key, so the
+                # environment goes back to the default probes rather than keeping an
+                # earlier build's.
                 echo "Updating ReleaseBinding ${BINDING_NAME} to release ${RELEASE_NAME}..."
                 printf '%s' "${BINDING_GET_BODY}" > /mnt/vol/releasebinding-get.json
-                jq -c --arg releaseName "$RELEASE_NAME" '.spec.releaseName = $releaseName' \
-                  /mnt/vol/releasebinding-get.json > /mnt/vol/releasebinding.json
+                jq -c --arg releaseName "$RELEASE_NAME" --argjson healthChecks "$BUILD_HEALTH_CHECKS" '
+                    .spec.releaseName = $releaseName
+                    | if $healthChecks != null
+                      then .spec.componentTypeEnvironmentConfigs.healthChecks = $healthChecks
+                      else del(.spec.componentTypeEnvironmentConfigs.healthChecks)
+                      end
+                  ' /mnt/vol/releasebinding-get.json > /mnt/vol/releasebinding.json
 
                 BINDING_RESPONSE=$(curl -s -w "\n%{http_code}" \
                   -X PUT "${API_URL}/api/v1/namespaces/${NAMESPACE}/releasebindings/${BINDING_NAME}" \

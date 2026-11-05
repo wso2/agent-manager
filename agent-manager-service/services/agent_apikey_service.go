@@ -133,8 +133,7 @@ func (s *AgentAPIKeyService) resolveAgentAPIArtifact(ctx context.Context, ouID, 
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to get environment: %w", translateEnvironmentError(err))
 	}
-	// The route may name the environment by UUID; event subscriptions filter
-	// by name.
+	// envID may be a name or a UUID; events always carry the name.
 	events.SetEnvironment(ctx, environment.Name)
 
 	artifact, err := agentEnvAPIArtifact(s.artifactRepo, ouID, projectName, agentName, environment.UUID, models.AgentArtifactKinds...)
@@ -203,6 +202,9 @@ func (s *AgentAPIKeyService) CreateAPIKey(
 	resp, err := s.broadcaster.broadcastCreateToGateways(gateways, ouID, artifactUUID, artifactUUID, req)
 	if resp != nil {
 		resp.GatewayConnected = s.gatewaysConnected(gateways)
+		// The route's event omits the response, which holds the key itself,
+		// so the key name is added for the event's subject.
+		events.AddData(ctx, "name", resp.KeyID)
 	}
 	attempt.Complete(ctx, err, audit.Detail("gatewayConnected", s.gatewaysConnected(gateways) != nil))
 	return resp, err

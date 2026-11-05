@@ -319,6 +319,27 @@ func bumpRestartedAt(rb *gen.ReleaseBinding) {
 	(*rb.Spec.ComponentTypeEnvironmentConfigs)["restartedAt"] = time.Now().Format(time.RFC3339Nano)
 }
 
+// replaceHealthChecksInComponentTypeConfigs returns a copy of a binding's component-type configs with healthChecks set
+// to the given value, or removed when it is nil. A copy, so a map the caller passed in is not
+// changed. Nil configs with nil health checks stay nil.
+func replaceHealthChecksInComponentTypeConfigs(componentTypeConfigs *map[string]interface{}, healthChecks interface{}) *map[string]interface{} {
+	if componentTypeConfigs == nil && healthChecks == nil {
+		return nil
+	}
+	updated := map[string]interface{}{}
+	if componentTypeConfigs != nil {
+		for k, v := range *componentTypeConfigs {
+			updated[k] = v
+		}
+	}
+	if healthChecks == nil {
+		delete(updated, "healthChecks")
+	} else {
+		updated["healthChecks"] = healthChecks
+	}
+	return &updated
+}
+
 // mergeAgentAPIKeySecretRef carries the env-injection trait's agentApiKeySecretRef/Property
 // forward from existing into incoming when incoming doesn't already set its own value, so a
 // wholesale trait-config replacement can't silently drop it. Never mutates existing or incoming
@@ -644,11 +665,28 @@ func (c *openChoreoClient) EnsureReleaseAndBinding(
 				if _, ok := (*ctConfigs)["runtimeClassName"]; !ok {
 					delete(*rb.Spec.ComponentTypeEnvironmentConfigs, "runtimeClassName")
 				}
+				// healthChecks belong to the build this binding now runs. The caller sends the
+				// build's checks to replace the old ones (copied above), an explicit nil to clear
+				// an earlier build's (the build has none), or nothing to keep them unchanged
+				// (the build couldn't be looked up).
+				if value, ok := (*ctConfigs)["healthChecks"]; ok && value == nil {
+					delete(*rb.Spec.ComponentTypeEnvironmentConfigs, "healthChecks")
+				}
 			}
 			// Must run after the ComponentTypeEnvironmentConfigs merge above, which would
 			// otherwise leave a stale restartedAt untouched rather than bumping it.
 			bumpRestartedAt(rb)
 		})
+	}
+
+	// A new binding has no earlier build's health checks to clear, so an explicit nil (the
+	// build has none) is left out of the create rather than sent as null. ctConfigs itself is
+	// kept as is for the 409 adoption below, where the nil still clears the existing binding's.
+	createCTConfigs := ctConfigs
+	if ctConfigs != nil {
+		if value, ok := (*ctConfigs)["healthChecks"]; ok && value == nil {
+			createCTConfigs = replaceHealthChecksInComponentTypeConfigs(ctConfigs, nil)
+		}
 	}
 
 	createBody := gen.CreateReleaseBindingJSONRequestBody{
@@ -666,7 +704,7 @@ func (c *openChoreoClient) EnsureReleaseAndBinding(
 			// whose state round-trips through the read.
 			WorkloadOverrides:               workloadOverrides,
 			TraitEnvironmentConfigs:         traitConfigs,
-			ComponentTypeEnvironmentConfigs: ctConfigs,
+			ComponentTypeEnvironmentConfigs: createCTConfigs,
 			Owner: struct {
 				ComponentName string `json:"componentName"`
 				ProjectName   string `json:"projectName"`
@@ -712,6 +750,10 @@ func (c *openChoreoClient) EnsureReleaseAndBinding(
 				if _, ok := (*ctConfigs)["runtimeClassName"]; !ok {
 					delete(*rb.Spec.ComponentTypeEnvironmentConfigs, "runtimeClassName")
 				}
+				// As above: an explicit nil clears an earlier build's health checks.
+				if value, ok := (*ctConfigs)["healthChecks"]; ok && value == nil {
+					delete(*rb.Spec.ComponentTypeEnvironmentConfigs, "healthChecks")
+				}
 			}
 			bumpRestartedAt(rb)
 		})
@@ -749,8 +791,11 @@ func (c *openChoreoClient) PromoteComponent(ctx context.Context, ouID, projectNa
 		})
 	}
 
-	// Step 2: Find the release name deployed in the source environment
+	// Step 2: Find the release name deployed in the source environment, and the health checks
+	// of the build it runs: they belong to that build, so they travel with it to the target
+	// whatever the caller chose for the environment's own configuration.
 	var sourceReleaseName string
+	var sourceHealthChecks interface{}
 	if bindingsResp.JSON200 != nil {
 		for _, b := range bindingsResp.JSON200.Items {
 			if b.Spec == nil {
@@ -761,6 +806,9 @@ func (c *openChoreoClient) PromoteComponent(ctx context.Context, ouID, projectNa
 					return fmt.Errorf("no release found in source environment %s: %w", sourceEnvironment, utils.ErrNotFound)
 				}
 				sourceReleaseName = *b.Spec.ReleaseName
+				if b.Spec.ComponentTypeEnvironmentConfigs != nil {
+					sourceHealthChecks = (*b.Spec.ComponentTypeEnvironmentConfigs)["healthChecks"]
+				}
 				break
 			}
 		}
@@ -829,6 +877,10 @@ func (c *openChoreoClient) PromoteComponent(ctx context.Context, ouID, projectNa
 			if ctConfigs != nil {
 				binding.Spec.ComponentTypeEnvironmentConfigs = ctConfigs
 			}
+			// Set the target's health checks to those of the build it now runs (the source's), or
+			// remove them when the source has none. Must come after the line above, which for a
+			// gVisor target replaces all of the target's settings and would otherwise drop them.
+			binding.Spec.ComponentTypeEnvironmentConfigs = replaceHealthChecksInComponentTypeConfigs(binding.Spec.ComponentTypeEnvironmentConfigs, sourceHealthChecks)
 			// Force a pod rollout, for the same reason Deploy does: a re-promotion
 			// whose source release and resolved overrides are unchanged writes back a
 			// byte-identical spec, which Kubernetes treats as a no-op — no reconcile,
@@ -857,7 +909,7 @@ func (c *openChoreoClient) PromoteComponent(ctx context.Context, ouID, projectNa
 				State:                           &activeState,
 				WorkloadOverrides:               workloadOverrides,
 				TraitEnvironmentConfigs:         traitConfigs,
-				ComponentTypeEnvironmentConfigs: ctConfigs,
+				ComponentTypeEnvironmentConfigs: replaceHealthChecksInComponentTypeConfigs(ctConfigs, sourceHealthChecks),
 				Owner: struct {
 					ComponentName string `json:"componentName"`
 					ProjectName   string `json:"projectName"`
@@ -1623,6 +1675,18 @@ func toDeploymentDetailsResponse(binding *gen.ReleaseBinding, componentRelease *
 		lastDeployedAt = &t
 	}
 
+	// The health checks this environment runs: those of the build it runs, written onto the
+	// binding with its release. A value that can't be read is left out rather than failing the
+	// whole deployment list, as when reading an agent.
+	var healthChecks *models.HealthChecks
+	if binding.Spec.ComponentTypeEnvironmentConfigs != nil {
+		var err error
+		healthChecks, err = healthChecksFromMap(*binding.Spec.ComponentTypeEnvironmentConfigs)
+		if err != nil {
+			slog.Warn("failed to read an environment's health checks", "binding", binding.Metadata.Name, "error", err)
+		}
+	}
+
 	return &models.DeploymentResponse{
 		ImageId:                    deployedImage,
 		Status:                     status,
@@ -1632,6 +1696,7 @@ func toDeploymentDetailsResponse(binding *gen.ReleaseBinding, componentRelease *
 		PromotionTargetEnvironment: promotionTargetEnv,
 		LastDeployedAt:             lastDeployedAt,
 		Endpoints:                  endpoints,
+		HealthChecks:               healthChecks,
 	}, nil
 }
 

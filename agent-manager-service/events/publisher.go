@@ -86,7 +86,15 @@ func (p *AsyncPublisher) Stop() {
 		p.stopped = true
 		close(p.queue)
 	}
+	started := p.started
 	p.mu.Unlock()
+	if !started {
+		// The bus never became ready, so no worker reads the queue. Nothing
+		// can be added after close, so draining it here is safe.
+		for e := range p.queue {
+			p.logger.Warn("Event dropped: publisher stopped before the bus was ready", "type", e.Type, "id", e.ID)
+		}
+	}
 	timer := time.AfterFunc(shutdownTimeout, p.cancel)
 	p.wg.Wait()
 	timer.Stop()

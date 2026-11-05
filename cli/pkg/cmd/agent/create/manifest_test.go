@@ -196,3 +196,31 @@ func TestLoadManifest_FileNotFound(t *testing.T) {
 		t.Fatal("expected error for missing file")
 	}
 }
+
+// A manifest can set the agent's health checks: the field is part of the generated request
+// type, so the strict decoder accepts it and carries it to the API.
+func TestLoadManifest_HealthChecks(t *testing.T) {
+	path := writeManifest(t, internalManifest+`
+  healthChecks:
+    readiness:
+      type: HTTP
+      path: /health
+      periodSeconds: 10
+    liveness:
+      type: TCP
+`)
+	req, err := loadManifest(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if req.HealthChecks == nil || req.HealthChecks.Readiness == nil || req.HealthChecks.Liveness == nil {
+		t.Fatalf("healthChecks = %+v", req.HealthChecks)
+	}
+	readiness := req.HealthChecks.Readiness
+	if readiness.Type == nil || *readiness.Type != "HTTP" || readiness.Path == nil || *readiness.Path != "/health" {
+		t.Errorf("readiness = %+v", readiness)
+	}
+	if readiness.PeriodSeconds == nil || *readiness.PeriodSeconds != 10 {
+		t.Errorf("readiness.periodSeconds = %v", readiness.PeriodSeconds)
+	}
+}

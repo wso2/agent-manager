@@ -27,7 +27,13 @@ import {
 import { useCallback } from "react";
 import { SelectionDetails } from "./SelectionDetails";
 import type { CreateAgentFormValues } from "../form/schema";
-import { type InputInterfaceType, INPUT_LIMITS } from "@agent-management-platform/types";
+import {
+  type InputInterfaceType,
+  INPUT_LIMITS,
+  READINESS_CHECK_DEFAULTS,
+  suggestedHealthCheckPath,
+} from "@agent-management-platform/types";
+import { HealthCheckFields } from "@agent-management-platform/shared-component";
 import { AgentTypeIcon, selectionGridSx, SelectionCard, TextInput, FormGridSpacer } from "@agent-management-platform/views";
 
 interface InputInterfaceProps {
@@ -275,6 +281,23 @@ export const InputInterface = ({
             </Grid>
           </Form.Stack>
         </SelectionDetails>
+        {/* Only readiness is set here, with today's wait times; Configure Build has the
+            startup and liveness checks and the wait times. */}
+        <HealthCheckFields
+          checkName="readiness"
+          title="Readiness check"
+          description="How Kubernetes decides the agent is ready for traffic. TCP checks the port is open."
+          value={formData.healthChecks?.readiness}
+          onChange={(readiness) =>
+            handleFieldChange('healthChecks', readiness ? { readiness } : undefined)
+          }
+          defaults={READINESS_CHECK_DEFAULTS}
+          suggestedPath={suggestedHealthCheckPath(formData.interfaceType, formData.basePath)}
+          // A chat agent always listens on 8000; the others on the port set above.
+          agentPort={formData.interfaceType === "DEFAULT" ? 8000 : formData.port}
+          showEnabledSwitch={false}
+          showWaitTimes={false}
+        />
       </Form.Stack>
     </Stack>
   );

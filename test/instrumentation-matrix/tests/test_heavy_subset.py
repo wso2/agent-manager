@@ -100,15 +100,17 @@ def test_subset_excludes_non_deployable_frameworks():
     assert "llama-index" not in {c.framework_name for c in sub}
 
 
-def test_subset_covers_each_python_version_for_both_frameworks():
+def test_subset_preserves_python310_for_langchain_and_requires_python311_for_crewai():
+    """Bound CrewAI runtime selection without reducing other samples' coverage."""
     m = _multi_manifest()
-    m.python_versions = ["3.10", "3.11", "3.12"]
+    m.python_versions = ["3.10", "3.11", "3.12", "3.13"]
     cells = expand_matrix(m)
     sub = select_heavy_subset(cells, m)
     # Python is a heavy axis: the agent is rebuilt on each interpreter.
-    assert {c.python for c in sub} == {"3.10", "3.11", "3.12"}
-    # 2 provider versions x 3 pythons x 2 deployable frameworks.
-    assert len(sub) == 12
+    assert {c.python for c in sub if c.framework_name == "langchain"} == {"3.10", "3.11", "3.12", "3.13"}
+    assert {c.python for c in sub if c.framework_name == "crewai"} == {"3.11", "3.12", "3.13"}
+    # 2 provider versions x (4 LangChain Pythons + 3 CrewAI Pythons).
+    assert len(sub) == 14
 
 
 def test_per_provider_axis_pins_each_framework_to_its_representative_version():
@@ -150,11 +152,12 @@ def test_filter_shard_keeps_only_that_provider_version():
 
 
 def test_select_heavy_run_applies_filters_to_the_subset():
+    """Manual filters preserve sample runtime restrictions."""
     m = _multi_manifest()
     m.python_versions = ["3.10", "3.11"]
     run = select_heavy_run(m, CellFilter(traceloop_versions={"0.61.0"}, frameworks={"crewai"}))
     assert {(c.provider_version, c.framework_name) for c in run} == {("0.61.0", "crewai")}
-    assert {c.python for c in run} == {"3.10", "3.11"}
+    assert {c.python for c in run} == {"3.11"}
 
 
 def test_select_heavy_run_filter_to_non_deployable_framework_is_empty():
@@ -167,3 +170,10 @@ def test_select_heavy_run_cell_id_ignores_filters():
     target = "traceloop-0.60.0-crewai-1.1.0-py3.11"
     run = select_heavy_run(m, CellFilter(traceloop_versions={"0.61.0"}), cell_id=target)
     assert [c.id for c in run] == [target]
+
+
+def test_select_heavy_run_cannot_force_unsupported_python_by_cell_id():
+    """An explicit cell ID cannot bypass sample runtime constraints."""
+    m = _multi_manifest()
+    m.python_versions = ["3.10", "3.11"]
+    assert select_heavy_run(m, cell_id="traceloop-0.60.0-crewai-1.1.0-py3.10") == []

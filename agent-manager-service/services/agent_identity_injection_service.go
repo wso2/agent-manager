@@ -113,6 +113,25 @@ func mergeAgentIdentityEnvVarKeys(dst map[string]bool) map[string]bool {
 	return dst
 }
 
+// neutralAgentIdentityEnvVars returns one empty placeholder (empty plain value,
+// no secret reference) for every AgentID-owned env var key, in a stable order.
+// Written as a ReleaseBinding override, it stops an environment that has no
+// AgentID credential of its own from inheriting another environment's real one
+// out of the shared Workload CR. identityEnvVarsInSync treats these
+// placeholders as missing, so the real values replace them once available.
+func neutralAgentIdentityEnvVars() []client.EnvVar {
+	keys := make([]string, 0, len(agentIdentityEnvVarKeySet))
+	for key := range agentIdentityEnvVarKeySet {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	placeholders := make([]client.EnvVar, 0, len(keys))
+	for _, key := range keys {
+		placeholders = append(placeholders, client.EnvVar{Key: key})
+	}
+	return placeholders
+}
+
 // AgentIdentityInjectionService delivers an internal agent's AgentID
 // credentials (Thunder OAuth2 client) into its running workload — the
 // "Gateway Binding" phase of the AgentID feature. It never handles the secret
@@ -534,9 +553,12 @@ func (s *agentIdentityInjectionService) ReconcileForEnvironment(ctx context.Cont
 // ref / token endpoint are stable for a given (agent, environment) once set
 // (rotation re-asserts them through RefreshAfterRotation, a separate path), so
 // their mere presence is enough; the scope list is the value that legitimately
-// changes over time, so it is compared exactly. Absent the workload entirely
-// (nothing read back), this returns false so the caller attempts an inject —
-// which itself no-ops when there is no ReleaseBinding to write to.
+// changes over time, so it is compared exactly. An empty placeholder (see
+// neutralAgentIdentityEnvVars) is not a credential, so it never counts as
+// present while the desired var carries a value or a secret reference. Absent
+// the workload entirely (nothing read back), this returns false so the caller
+// attempts an inject, which itself no-ops when there is no ReleaseBinding to
+// write to.
 func identityEnvVarsInSync(desired []client.EnvVar, current []models.EnvVars) bool {
 	currentByKey := make(map[string]models.EnvVars, len(current))
 	for _, ev := range current {
@@ -545,6 +567,10 @@ func identityEnvVarsInSync(desired []client.EnvVar, current []models.EnvVars) bo
 	for _, want := range desired {
 		got, ok := currentByKey[want.Key]
 		if !ok {
+			return false
+		}
+		wantsCredential := want.Value != "" || want.ValueFrom != nil
+		if wantsCredential && got.Value == "" && got.SecretRef == "" {
 			return false
 		}
 		// The scope list is the only identity var whose value changes in place;

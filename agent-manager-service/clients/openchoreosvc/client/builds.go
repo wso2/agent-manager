@@ -463,6 +463,9 @@ func buildUpdatedWorkflowParameters(componentName string, existingParams map[str
 		existingParams["endpoints"] = endpoints
 	}
 
+	// Replace the saved health checks if sent; keep them if not
+	setHealthChecksWorkflowParameter(existingParams, req.HealthChecks)
+
 	return existingParams, nil
 }
 
@@ -570,6 +573,13 @@ func toWorkflowRunBuild(run *gen.WorkflowRun, componentName, projectName string)
 				build.BuildParameters.DockerfilePath = filePath
 			}
 		}
+		// The health checks this build recorded when it started. One that can't be read is left
+		// out, as when reading the agent, so the build is still listed.
+		healthChecks, err := healthChecksFromWorkflowParameters(params)
+		if err != nil {
+			slog.Warn("failed to read a build's health checks", "build", run.Metadata.Name, "error", err)
+		}
+		build.HealthChecks = healthChecks
 	}
 
 	return build, nil

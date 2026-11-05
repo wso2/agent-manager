@@ -17,9 +17,11 @@
 package events
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"log/slog"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -48,6 +50,20 @@ func TestPublisherLifecycle(t *testing.T) {
 	p.Stop()
 	if got := bus.count.Load(); got != 1 {
 		t.Fatalf("published %d events, want only the queued event", got)
+	}
+}
+
+func TestPublisherStopBeforeStartLogsQueuedEvents(t *testing.T) {
+	var logs bytes.Buffer
+	bus := &publisherTestBus{}
+	p := NewAsyncPublisher(bus, slog.New(slog.NewTextHandler(&logs, nil)))
+	p.Publish(context.Background(), Event{ID: "never-sent"})
+	p.Stop()
+	if got := bus.count.Load(); got != 0 {
+		t.Fatalf("published %d events, want none", got)
+	}
+	if !strings.Contains(logs.String(), "id=never-sent") {
+		t.Fatalf("dropped event was not logged: %s", logs.String())
 	}
 }
 

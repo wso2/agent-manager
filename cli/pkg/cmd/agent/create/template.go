@@ -63,6 +63,16 @@ spec:
     # An A2A agent needs only a port: it serves its own agent card, so there is
     # no OpenAPI document to point at.
     # port: 9099
+  # healthChecks:                       # internal only; anything left out uses the defaults
+  #   readiness:
+  #     type: HTTP                      # or TCP (the default)
+  #     path: /health                   # required for HTTP; must start with /
+  #     periodSeconds: 10               # optional: initialDelaySeconds, periodSeconds,
+  #                                     #   timeoutSeconds, failureThreshold, port
+  #   liveness:                         # off unless set
+  #     type: TCP
+  #   startup:
+  #     enabled: false                  # turns a check off
   # configurations:
   #   env:
   #     - key: <KEY>

@@ -35,6 +35,14 @@ class DeployableSample:
     # read-only, so both the CrewAI instrumentor and the app crash without
     # these. Tuple of pairs (not a dict) to keep the dataclass frozen-friendly.
     env: tuple[tuple[str, str], ...] = ()
+    # Shared by dependency compatibility checks and heavy deployment selection.
+    min_python: str = "3.10"
+
+    def supports_python(self, version: str) -> bool:
+        """Whether an interpreter meets the sample's minimum Python version."""
+        current = tuple(map(int, version.split(".")))
+        minimum = tuple(map(int, self.min_python.split(".")))
+        return current >= minimum
 
 
 DEPLOYABLE_SAMPLES: dict[str, DeployableSample] = {
@@ -47,6 +55,7 @@ DEPLOYABLE_SAMPLES: dict[str, DeployableSample] = {
         app_path="/samples/crewai-agent",
         run_command="python main.py",
         expected_kinds=("llm", "agent", "crewaitask"),
+        min_python="3.11",
         env=(("HOME", "/tmp"), ("CREWAI_STORAGE_DIR", "/tmp/crewai")),
     ),
 }

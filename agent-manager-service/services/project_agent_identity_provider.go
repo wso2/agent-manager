@@ -65,6 +65,8 @@ type ProjectIdentityEnvironment struct {
 // ProjectAgentIdentityPromotionRequest identifies one AgentID promotion. The
 // provider owns previewing the change and selecting only ExistingAgentID.
 // TargetClientID and TargetClientSecret are chosen by AMS (see Promote).
+// SourceEnvironment is always a direct parent of TargetEnvironment in the
+// project's current pipeline, so a provider may only promote along that edge.
 type ProjectAgentIdentityPromotionRequest struct {
 	OrganizationID     string
 	ProjectID          string
@@ -101,8 +103,14 @@ type ProjectAgentIdentityPromotionProvider interface {
 	ProjectAgentIdentityProvider
 
 	// Promote carries ONLY the AgentID (request.ExistingAgentID) from
-	// request.SourceEnvironment to request.TargetEnvironment. It must be
-	// idempotent. Contract for the target credential: the provider MUST set
+	// request.SourceEnvironment to request.TargetEnvironment. The source is
+	// always a direct parent of the target in the project's current pipeline;
+	// the provider may promote only along that edge, and returns
+	// ErrProjectAgentIdentityPromotionPathUnavailable (wrapped is fine) when its
+	// identity service has no such path yet, so AMS waits and asks again instead
+	// of failing the binding. It must be idempotent.
+	//
+	// Contract for the target credential: the provider MUST set
 	// request.TargetClientID and request.TargetClientSecret on the target
 	// environment unconditionally (overwrite, idempotent), whether or not the
 	// environment reports them missing. AMS generates a fresh secret on every
@@ -182,10 +190,47 @@ var ErrProjectAgentIdentitySourceUnavailable = errors.New(
 	"project AgentID source environment identity is missing or failed",
 )
 
+// ErrProjectAgentIdentityEnvironmentNotInPipeline marks a promotion target that
+// is no longer an outgoing target of any environment in the project's current
+// pipeline, so there is nothing to promote it from.
+var ErrProjectAgentIdentityEnvironmentNotInPipeline = errors.New(
+	"project AgentID environment is no longer part of the project pipeline",
+)
+
+// ErrProjectAgentIdentityEnvironmentIsPipelineSource marks a promotion target
+// that is now the first environment of the project's pipeline, so its identity
+// cannot be promoted from another environment. Re-homing an AgentID to a new
+// source environment is not supported.
+var ErrProjectAgentIdentityEnvironmentIsPipelineSource = errors.New(
+	"project AgentID environment is now the first environment of the project pipeline",
+)
+
+// ErrProjectAgentIdentityPromotionPathUnavailable is returned (wrapped is fine)
+// by a provider's Promote when the identity service has no promotion path for
+// the requested source to target edge yet. It is a wait, not a failure: AMS
+// defers the attempt and tries again later without consuming its retry budget.
+var ErrProjectAgentIdentityPromotionPathUnavailable = errors.New(
+	"project AgentID promotion path is not available yet",
+)
+
 // ProjectAgentIdentityProviderSetter is an optional deployment hook. The
 // open-source runtime defaults to LEGACY_DIRECT and needs no provider.
 type ProjectAgentIdentityProviderSetter interface {
 	SetProjectAgentIdentityProvider(mode thundersvc.IdentityManagementMode, provider ProjectAgentIdentityProvider) error
+}
+
+// IdentityManagementModeProvider is an optional capability of an
+// AgentThunderProvisioningService: it reports whether AgentIDs are managed by
+// the identity control plane. Callers type-assert for it, so an implementation
+// without project AgentID support is simply treated as LEGACY_DIRECT.
+type IdentityManagementModeProvider interface {
+	IdentityManagementMode() thundersvc.IdentityManagementMode
+}
+
+// IdentityManagementMode implements IdentityManagementModeProvider. The mode is
+// set once at startup by SetProjectAgentIdentityProvider.
+func (s *agentThunderProvisioningService) IdentityManagementMode() thundersvc.IdentityManagementMode {
+	return s.identityManagementMode
 }
 
 func (s *agentThunderProvisioningService) SetProjectAgentIdentityProvider(

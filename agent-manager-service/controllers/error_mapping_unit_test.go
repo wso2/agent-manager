@@ -78,3 +78,14 @@ func TestHandleCommonErrors_AuditRecorderUnavailable_Is503(t *testing.T) {
 	assert.Equal(t, utils.ErrCodeServiceUnavailable, body.Code)
 	assert.Nil(t, body.Reason, "the sink's error stays in the log")
 }
+
+func TestHandleCommonErrors_DeploymentPipelineAlreadyExists_IsActionable(t *testing.T) {
+	rr := httptest.NewRecorder()
+	handleCommonErrors(rr, fmt.Errorf("%w: %w", utils.ErrDeploymentPipelineAlreadyExists, utils.ErrConflict), "Failed to create deployment pipeline")
+	require.Equal(t, http.StatusConflict, rr.Code)
+	var body spec.ErrorResponse
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
+	assert.Equal(t, "A deployment pipeline with this name already exists. Choose a different name.", body.Message)
+	assert.Equal(t, utils.ErrCodeConflict, body.Code)
+	assert.Nil(t, body.Reason, "the actionable message needs no internal OpenChoreo details")
+}

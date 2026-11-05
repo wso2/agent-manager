@@ -65,6 +65,17 @@ const awaitEnvProvisionTimeout = 10 * time.Second
 // FAILED — within the 15-minute SLA.
 const provisionRetryDelay = 3 * time.Minute
 
+// promotionPathRetryDelay is how long a promotion target waits before asking
+// again when the identity service has no promotion path for its edge yet. It is
+// a wait for an external system, so it is slower than the source wait.
+const promotionPathRetryDelay = 3 * time.Minute
+
+// promotionPathWaitLimit bounds that wait, measured from the binding's creation.
+// Past it the missing path is treated like any other failure, so the binding
+// consumes attempts, ends FAILED and shows the retry button instead of staying
+// pending forever.
+const promotionPathWaitLimit = time.Hour
+
 // AgentThunderProvisioningService orchestrates AgentID provisioning: creating,
 // regenerating, revoking, and deleting Thunder identities per agent per
 // environment. Binding architecture (Section 7 — pushing a credential into the
@@ -812,14 +823,19 @@ func (s *agentThunderProvisioningService) AttemptProvision(ctx context.Context, 
 					errProjectAgentIdentityPromotionUnavailable)
 				return
 			}
-			source, sourceErr := s.repo.Get(ctx, binding.OUID, binding.ProjectName, binding.AgentName, binding.PromotionSource)
+			promotionSource, pipelineErr := s.effectivePromotionSource(ctx, binding)
+			if pipelineErr != nil {
+				s.recordFailure(ctx, binding, thunderAgentID, clientID, binding.SecretRefPath, pipelineErr)
+				return
+			}
+			source, sourceErr := s.repo.Get(ctx, binding.OUID, binding.ProjectName, binding.AgentName, promotionSource)
 			switch {
 			case errors.Is(sourceErr, repositories.ErrAgentThunderClientNotFound),
 				sourceErr == nil && source.Status == models.AgentThunderStatusFailed:
 				// Waiting cannot help: the source identity is gone or exhausted its
 				// retries. Fail this target so it surfaces instead of waiting forever.
 				s.recordFailure(ctx, binding, thunderAgentID, clientID, binding.SecretRefPath,
-					fmt.Errorf("%w: %s", ErrProjectAgentIdentitySourceUnavailable, binding.PromotionSource))
+					fmt.Errorf("%w: %s", ErrProjectAgentIdentitySourceUnavailable, promotionSource))
 				return
 			case sourceErr != nil:
 				// A read error says nothing about the source: defer without consuming
@@ -855,7 +871,7 @@ func (s *agentThunderProvisioningService) AttemptProvision(ctx context.Context, 
 			}
 			request := ProjectAgentIdentityPromotionRequest{
 				OrganizationID: binding.OUID, ProjectID: binding.ProjectName, ProjectName: binding.ProjectName,
-				AgentName: binding.AgentName, SourceEnvironment: binding.PromotionSource,
+				AgentName: binding.AgentName, SourceEnvironment: promotionSource,
 				TargetEnvironment: binding.EnvironmentName, ProvisioningType: binding.ProvisioningType,
 				ExistingAgentID: source.ThunderAgentID, ExistingClientID: source.ThunderClientID,
 				TargetClientID: targetClientID, TargetClientSecret: targetClientSecret,
@@ -865,6 +881,21 @@ func (s *agentThunderProvisioningService) AttemptProvision(ctx context.Context, 
 				NeedsSecret: !isExternal,
 			}
 			result, promotionErr := promoter.Promote(ctx, request)
+			if errors.Is(promotionErr, ErrProjectAgentIdentityPromotionPathUnavailable) &&
+				(binding.CreatedAt.IsZero() || time.Since(binding.CreatedAt) < promotionPathWaitLimit) {
+				// The identity service has no path for this edge yet. That is a wait,
+				// not a failure: defer without consuming an attempt. Once the wait
+				// limit has passed it falls through to the failure path below. Nothing was
+				// applied, so the target client ID is not persisted here and the
+				// next attempt generates its own (ReleaseClaim cannot store it, and
+				// UpdateAfterAttempt would consume an attempt).
+				s.logger.Warn("Project AgentID promotion path is not available yet, deferring",
+					"ouID", binding.OUID, "projectName", binding.ProjectName, "agentName", binding.AgentName,
+					"sourceEnvironment", promotionSource, "targetEnvironment", binding.EnvironmentName)
+				s.deferPromotionUntil(ctx, binding, time.Now().Add(promotionPathRetryDelay),
+					"Waiting for the identity service to open the promotion path to this environment.")
+				return
+			}
 			if promotionErr != nil {
 				// Promote may have applied the credential before its response was
 				// lost. Keep the generated ID so a retry is idempotent.
@@ -1095,8 +1126,15 @@ func (s *agentThunderProvisioningService) AttemptProvision(ctx context.Context, 
 // next tick, without consuming an attempt, while its source environment
 // identity is still being provisioned or cannot be read right now.
 func (s *agentThunderProvisioningService) deferPromotion(ctx context.Context, binding models.AgentThunderClient) {
-	next := time.Now().Add(reconcilerTickInterval)
-	if releaseErr := s.repo.ReleaseClaim(ctx, binding.ID, next, "Waiting for the source environment identity."); releaseErr != nil {
+	s.deferPromotionUntil(ctx, binding, time.Now().Add(reconcilerTickInterval), "Waiting for the source environment identity.")
+}
+
+// deferPromotionUntil releases the claim on a promotion target with the given
+// next attempt time and note, without consuming an attempt.
+func (s *agentThunderProvisioningService) deferPromotionUntil(
+	ctx context.Context, binding models.AgentThunderClient, next time.Time, note string,
+) {
+	if releaseErr := s.repo.ReleaseClaim(ctx, binding.ID, next, note); releaseErr != nil {
 		s.logger.Error("Failed to defer project AgentID promotion", "bindingID", binding.ID, "error", releaseErr)
 	}
 }
@@ -1180,6 +1218,12 @@ func userFacingProvisioningError(cause error) string {
 		return "Identity provider is temporarily unreachable. Please retry."
 	case errors.Is(cause, ErrProjectAgentIdentitySourceUnavailable):
 		return "The source environment's identity is missing or failed. Fix it first, then retry."
+	case errors.Is(cause, ErrProjectAgentIdentityPromotionPathUnavailable):
+		return "The identity service has no promotion path to this environment yet. Retry once it is enabled."
+	case errors.Is(cause, ErrProjectAgentIdentityEnvironmentIsPipelineSource):
+		return "This environment is now the first environment of the project's pipeline, so its identity cannot be promoted from another environment."
+	case errors.Is(cause, ErrProjectAgentIdentityEnvironmentNotInPipeline):
+		return "This environment is no longer a promotion target in the project's pipeline. Add it back to the pipeline, then retry."
 	default:
 		return "Identity provisioning failed. Please retry."
 	}
