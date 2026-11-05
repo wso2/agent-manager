@@ -969,7 +969,7 @@ func (s *agentThunderProvisioningService) AttemptProvision(ctx context.Context, 
 				OrganizationID: binding.OUID, ProjectID: binding.ProjectName, ProjectName: binding.ProjectName,
 				Environment: binding.EnvironmentName, AgentName: binding.AgentName,
 				ProvisioningType: binding.ProvisioningType, ExistingAgentID: thunderAgentID,
-				ExistingClientID: clientID,
+				ExistingClientID: clientID, RequestedBy: binding.RequestedBy,
 				// An external agent also asks for a secret: in CP mode the control
 				// plane needs a secret value on the environment to apply the AgentID,
 				// so the provider returns one. It is passed to Activate below and
@@ -1061,7 +1061,8 @@ func (s *agentThunderProvisioningService) AttemptProvision(ctx context.Context, 
 			OrganizationID: binding.OUID, ProjectID: binding.ProjectName, ProjectName: binding.ProjectName,
 			Environment: binding.EnvironmentName, AgentName: binding.AgentName,
 			ProvisioningType: binding.ProvisioningType, ExistingAgentID: thunderAgentID,
-			ExistingClientID: clientID, ClientSecret: clientSecret, NeedsSecret: !isExternal,
+			ExistingClientID: clientID, ClientSecret: clientSecret, RequestedBy: binding.RequestedBy,
+			NeedsSecret: !isExternal,
 		}
 		if err := s.projectIdentityProvider.Activate(ctx, request, thunderAgentID); err != nil {
 			s.recordFailure(ctx, binding, thunderAgentID, clientID, secretRefPath, fmt.Errorf("activate project agent identity: %w", err))

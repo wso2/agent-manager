@@ -1310,3 +1310,74 @@ func TestWritePromotionBindingsTakesRequestedByFromTheSourceBinding(t *testing.T
 		require.Empty(t, repo.UpsertCalls())
 	})
 }
+
+func provisionRequestedBy(t *testing.T, requestedBy string) string {
+	t.Helper()
+	binding := models.AgentThunderClient{
+		ID: uuid.New(), OUID: "org-a", ProjectName: "project-a", AgentName: "agent-a",
+		EnvironmentName: "development", ProvisioningType: models.AgentProvisioningTypeInternal,
+		RequestedBy: requestedBy,
+	}
+	repo := &repomocks.AgentThunderClientRepositoryMock{
+		ClaimForAttemptFunc:    func(context.Context, uuid.UUID) (bool, error) { return true, nil },
+		UpdateAfterAttemptFunc: func(context.Context, uuid.UUID, repositories.AgentThunderAttemptUpdate) error { return nil },
+	}
+	store := &clientmocks.SecretManagementClientMock{
+		CreateSecretFunc: func(context.Context, secretmanagersvc.SecretLocation, map[string]string) (string, error) {
+			return "secret-reference", nil
+		},
+	}
+	var provisioned, activated *ProjectAgentIdentityRequest
+	provider := projectAgentIdentityProviderStub{
+		provision: func(_ context.Context, request ProjectAgentIdentityRequest) (ProjectAgentIdentityResult, error) {
+			provisioned = &request
+			return ProjectAgentIdentityResult{AgentID: "agent-id", ClientID: "client-id", ClientSecret: "secret"}, nil
+		},
+		activate: func(_ context.Context, request ProjectAgentIdentityRequest, _ string) error {
+			activated = &request
+			return nil
+		},
+	}
+	svc := newPromotionService(t, repo, store, provider, sourceOnlyReader("development", nil))
+
+	svc.AttemptProvision(context.Background(), binding)
+
+	require.NotNil(t, provisioned)
+	require.NotNil(t, activated)
+	require.Equal(t, provisioned.RequestedBy, activated.RequestedBy)
+	return provisioned.RequestedBy
+}
+
+func TestProvisionRequestCarriesTheBindingRequestedBy(t *testing.T) {
+	require.Equal(t, "creator-sub", provisionRequestedBy(t, "creator-sub"))
+}
+
+func TestProvisionRequestKeepsAnEmptyRequestedByEmpty(t *testing.T) {
+	require.Empty(t, provisionRequestedBy(t, ""))
+}
+
+func TestPromotedBindingRequestedByIsUnaffected(t *testing.T) {
+	binding := promotedBinding(models.AgentProvisioningTypeInternal)
+	binding.RequestedBy = "creator-sub"
+	repo := &repomocks.AgentThunderClientRepositoryMock{
+		ClaimForAttemptFunc: func(context.Context, uuid.UUID) (bool, error) { return true, nil },
+		GetFunc: func(context.Context, string, string, string, string) (*models.AgentThunderClient, error) {
+			source := completedSource()
+			source.RequestedBy = "creator-sub"
+			return source, nil
+		},
+		UpdateAfterAttemptFunc: func(context.Context, uuid.UUID, repositories.AgentThunderAttemptUpdate) error { return nil },
+	}
+	store := &clientmocks.SecretManagementClientMock{
+		CreateSecretFunc: func(context.Context, secretmanagersvc.SecretLocation, map[string]string) (string, error) {
+			return "target-secret-reference", nil
+		},
+	}
+	platform := &fakeTargetPlatform{}
+	svc := newPromotionService(t, repo, store, platform.provider(t), nil)
+
+	svc.AttemptProvision(context.Background(), binding)
+
+	require.Len(t, platform.requests, 1, "promotion still runs through Promote, never Provision")
+	require.Equal(t, "creator-sub", binding.RequestedBy)
+}
