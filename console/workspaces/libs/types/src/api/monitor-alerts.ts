@@ -17,7 +17,7 @@
  */
 
 /** Which of a run's aggregated scores a threshold compares. */
-export type ScoreThresholdAggregation = 'mean' | 'pass_rate';
+export type ScoreThresholdAggregation = 'mean';
 
 export type ScoreThresholdOperator = 'below' | 'above';
 

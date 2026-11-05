@@ -136,7 +136,7 @@ func TestEvaluateAlert_ThresholdsNotifyOnChange(t *testing.T) {
 
 func TestEvaluateAlert_ThresholdEdgeCases(t *testing.T) {
 	below := models.ScoreThreshold{Evaluator: "Helpfulness", Aggregation: "mean", Operator: models.ThresholdBelow, Value: 0.7}
-	above := models.ScoreThreshold{Evaluator: "Toxicity", Aggregation: "pass_rate", Operator: models.ThresholdAbove, Value: 0.2}
+	above := models.ScoreThreshold{Evaluator: "Toxicity", Aggregation: "mean", Operator: models.ThresholdAbove, Value: 0.2}
 
 	t.Run("a missing score keeps the previous state", func(t *testing.T) {
 		alert := models.MonitorAlert{Thresholds: []models.ScoreThreshold{below}, Breached: []string{below.Key()}}
@@ -150,8 +150,8 @@ func TestEvaluateAlert_ThresholdEdgeCases(t *testing.T) {
 		out := evaluateAlert(&alert, runWithScores(
 			score("Helpfulness", "trace", map[string]any{"mean": 0.9}),
 			score("Helpfulness", "llm", map[string]any{"mean": 0.5}),
-			score("Toxicity", "trace", map[string]any{"pass_rate": 0.1}),
-			score("Toxicity", "agent", map[string]any{"pass_rate": 0.3}),
+			score("Toxicity", "trace", map[string]any{"mean": 0.1}),
+			score("Toxicity", "agent", map[string]any{"mean": 0.3}),
 		))
 		require.Len(t, out.Notifications, 1)
 		assert.Equal(t, "2 score thresholds crossed: Quality", out.Notifications[0].Title)

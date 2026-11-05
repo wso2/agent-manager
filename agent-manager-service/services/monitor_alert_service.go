@@ -169,8 +169,8 @@ func validateThresholds(m *models.Monitor, thresholds []models.ScoreThreshold) e
 		switch {
 		case !evaluators[t.Evaluator]:
 			return fmt.Errorf("%w: thresholds[%d]: %q is not an evaluator of this monitor", utils.ErrInvalidInput, i, t.Evaluator)
-		case t.Aggregation != models.ThresholdAggregationMean && t.Aggregation != models.ThresholdAggregationPassRate:
-			return fmt.Errorf("%w: thresholds[%d]: aggregation must be mean or pass_rate", utils.ErrInvalidInput, i)
+		case t.Aggregation != models.ThresholdAggregationMean:
+			return fmt.Errorf("%w: thresholds[%d]: aggregation must be mean", utils.ErrInvalidInput, i)
 		case t.Operator != models.ThresholdBelow && t.Operator != models.ThresholdAbove:
 			return fmt.Errorf("%w: thresholds[%d]: operator must be below or above", utils.ErrInvalidInput, i)
 		case math.IsNaN(t.Value) || math.IsInf(t.Value, 0) || t.Value < 0 || t.Value > 1:

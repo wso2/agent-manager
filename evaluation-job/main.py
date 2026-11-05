@@ -675,14 +675,10 @@ def main() -> None:
                 instance = builtin(identifier, **config)
             instance.name = display_name
             _apply_monitor_parameter_policy(instance, eval_type)
-            # Watches consume these stable keys. Preserve evaluator-specific
-            # aggregations and add the SDK's standard mean and pass rate
-            # (fraction of non-skipped scores >= 0.7).
+            # Monitor score alerts require a mean without replacing custom aggregations.
             aggregations = normalize_aggregations(instance.aggregations)
-            names = {aggregation.name for aggregation in aggregations}
-            for required in (AggregationType.MEAN, AggregationType.PASS_RATE):
-                if required.value not in names:
-                    aggregations.append(Aggregation(required))
+            if not any(aggregation.name == AggregationType.MEAN.value for aggregation in aggregations):
+                aggregations.append(Aggregation(AggregationType.MEAN))
             instance.aggregations = aggregations
             evaluator_instances.append(instance)
             display_name_to_identifier[display_name] = identifier

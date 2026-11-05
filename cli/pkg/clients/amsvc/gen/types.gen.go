@@ -1293,16 +1293,13 @@ func (e MonitorRunResponseStatus) Valid() bool {
 
 // Defines values for MonitorScoreThresholdAggregation.
 const (
-	Mean     MonitorScoreThresholdAggregation = "mean"
-	PassRate MonitorScoreThresholdAggregation = "pass_rate"
+	Mean MonitorScoreThresholdAggregation = "mean"
 )
 
 // Valid indicates whether the value is a known member of the MonitorScoreThresholdAggregation enum.
 func (e MonitorScoreThresholdAggregation) Valid() bool {
 	switch e {
 	case Mean:
-		return true
-	case PassRate:
 		return true
 	default:
 		return false

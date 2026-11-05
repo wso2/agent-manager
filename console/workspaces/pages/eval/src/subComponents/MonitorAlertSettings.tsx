@@ -64,11 +64,6 @@ export interface AlertSettingsValue {
   thresholds: ThresholdRow[];
 }
 
-const AGGREGATIONS: { value: ScoreThresholdAggregation; label: string }[] = [
-  { value: "mean", label: "Mean score" },
-  { value: "pass_rate", label: "Pass rate (score ≥ 0.7)" },
-];
-
 let nextRowKey = 0;
 
 const toRow = (t: MonitorScoreThreshold): ThresholdRow => ({
@@ -308,24 +303,6 @@ export function MonitorAlertSettings({
                   {evaluators.map((ev) => (
                     <MenuItem key={ev.displayName} value={ev.displayName}>
                       {ev.displayName}
-                    </MenuItem>
-                  ))}
-                </TextField>
-                <TextField
-                  select
-                  size="small"
-                  label="Score"
-                  value={row.aggregation}
-                  onChange={(e) =>
-                    updateRow(row.key, {
-                      aggregation: e.target.value as ScoreThresholdAggregation,
-                    })
-                  }
-                  sx={{ flex: 1.3, minWidth: 0 }}
-                >
-                  {AGGREGATIONS.map((a) => (
-                    <MenuItem key={a.value} value={a.value}>
-                      {a.label}
                     </MenuItem>
                   ))}
                 </TextField>

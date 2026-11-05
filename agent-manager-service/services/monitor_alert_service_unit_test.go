@@ -83,6 +83,7 @@ func TestMonitorAlertService_SaveAlertValidatesThresholds(t *testing.T) {
 		threshold models.ScoreThreshold
 	}{
 		{"unknown evaluator", models.ScoreThreshold{Evaluator: "Nope", Aggregation: "mean", Operator: "below", Value: 0.5}},
+		{"pass rate is unsupported", models.ScoreThreshold{Evaluator: "Helpfulness", Aggregation: "pass_rate", Operator: "below", Value: 0.5}},
 		{"unknown aggregation", models.ScoreThreshold{Evaluator: "Helpfulness", Aggregation: "p99", Operator: "below", Value: 0.5}},
 		{"unknown operator", models.ScoreThreshold{Evaluator: "Helpfulness", Aggregation: "mean", Operator: "equals", Value: 0.5}},
 		{"value out of range", models.ScoreThreshold{Evaluator: "Helpfulness", Aggregation: "mean", Operator: "below", Value: 1.5}},

@@ -112,7 +112,7 @@ Rollback leaves the additive table and column in place, preserving pending work 
 
 ## Monitor alerting
 
-Evaluation jobs publish `mean` and `pass_rate` for every evaluator with scores, alongside any evaluator-specific aggregations. Pass rate is the fraction of non-skipped scores greater than or equal to 0.7, using the evaluation SDK's standard pass threshold. An alert rule compares that fraction (0 to 1) with its configured threshold. Runs with no usable scores leave the monitor's previous breach state unchanged. Deploy the updated evaluation-job image before relying on pass-rate alerts; older jobs publish mean scores only by default.
+Score threshold alerts compare an evaluator's mean score (0 to 1) with the configured threshold. Evaluation jobs ensure the mean aggregation is published alongside any evaluator-specific aggregations. Runs with no usable scores leave the monitor's previous breach state unchanged.
 
 Subscription event-type and environment edits are rechecked before every pending delivery attempt. Database failures before a send do not consume the destination's send-attempt budget or advance its backoff.
 

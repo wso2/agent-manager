@@ -857,7 +857,7 @@ class TestMainIntegration:
         return self.BASE_ARGV + ["--evaluators", json.dumps(evaluators)]
 
     @pytest.mark.parametrize("custom_aggregations", [False, True])
-    def test_watch_aggregations_are_published_from_real_scores(self, custom_aggregations):
+    def test_monitor_mean_is_published_from_real_scores(self, custom_aggregations):
         from amp_evaluation import Monitor, builtin
         from amp_evaluation.models import EvaluatorScore
 
@@ -867,7 +867,7 @@ class TestMainIntegration:
         if custom_aggregations:
             from amp_evaluation.aggregators import Aggregation
 
-            instance.aggregations = [Aggregation("max"), Aggregation("pass_rate", threshold=0.9)]
+            instance.aggregations = [Aggregation("max")]
         configured = {}
 
         def make_monitor(**kwargs):
@@ -915,10 +915,9 @@ class TestMainIntegration:
             main()
         assert exit_info.value.code == 0
         assert configured["mean"] == pytest.approx(0.7)
-        assert configured["pass_rate"] == pytest.approx(2 / 3)
+        assert "pass_rate" not in configured
         if custom_aggregations:
             assert configured["max"] == 1.0
-            assert configured["pass_rate_threshold_0.9"] == pytest.approx(1 / 3)
         assert publish.call_args.kwargs["scores"]["Latency"].aggregated_scores == configured
 
     @patch("main.publish_scores", return_value=True)

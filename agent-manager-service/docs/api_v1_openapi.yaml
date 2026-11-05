@@ -21902,7 +21902,7 @@ components:
           description: Display name of one of the monitor's evaluators.
         aggregation:
           type: string
-          enum: [mean, pass_rate]
+          enum: [mean]
           description: Which of the run's aggregated scores to compare.
         operator:
           type: string

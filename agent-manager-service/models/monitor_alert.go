@@ -33,10 +33,9 @@ const (
 
 // Score threshold aggregations and operators.
 const (
-	ThresholdAggregationMean     = "mean"
-	ThresholdAggregationPassRate = "pass_rate"
-	ThresholdBelow               = "below"
-	ThresholdAbove               = "above"
+	ThresholdAggregationMean = "mean"
+	ThresholdBelow           = "below"
+	ThresholdAbove           = "above"
 )
 
 // MaxMonitorThresholds caps the thresholds of one monitor alert configuration.
