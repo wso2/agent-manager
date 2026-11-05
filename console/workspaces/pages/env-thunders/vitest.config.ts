@@ -16,11 +16,17 @@
  */
 
 /// <reference types="vitest" />
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
 export default defineConfig({
   plugins: [react()],
+  resolve: {
+    alias: {
+      "@agent-management-platform/types": fileURLToPath(new URL("../../libs/types/src/index.ts", import.meta.url)),
+    },
+  },
   test: {
     server: { deps: { inline: ["@wso2/oxygen-ui", "@wso2/oxygen-ui-icons-react", "@mui/x-data-grid"] } },
     globals: true,
