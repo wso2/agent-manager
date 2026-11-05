@@ -1388,7 +1388,7 @@ func TestPromotedBindingRequestedByIsUnaffected(t *testing.T) {
 // repair caller) against an agent whose other bindings are existing, and returns
 // the requests the provider saw, the update written, and the logs.
 func creatorRequest(
-	t *testing.T, repairCaller string, existing []models.AgentThunderClient, findErr error,
+	t *testing.T, repairCaller string, existing []models.AgentThunderClient,
 ) (provisioned, activated *ProjectAgentIdentityRequest, logs string) {
 	t.Helper()
 	binding := models.AgentThunderClient{
@@ -1399,7 +1399,7 @@ func creatorRequest(
 	repo := &repomocks.AgentThunderClientRepositoryMock{
 		ClaimForAttemptFunc: func(context.Context, uuid.UUID) (bool, error) { return true, nil },
 		FindByAgentFunc: func(context.Context, string, string, string) ([]models.AgentThunderClient, error) {
-			return existing, findErr
+			return existing, nil
 		},
 		UpdateAfterAttemptFunc: func(context.Context, uuid.UUID, repositories.AgentThunderAttemptUpdate) error { return nil },
 	}
@@ -1438,35 +1438,62 @@ func TestProviderRequestCarriesTheAgentCreator(t *testing.T) {
 	t.Run("a repair binding uses the creator of the older binding for Provision and Activate", func(t *testing.T) {
 		provisioned, activated, _ := creatorRequest(t, "repair-caller", []models.AgentThunderClient{
 			row("repair-caller", time.Minute), row("creator", time.Hour),
-		}, nil)
+		})
 		require.Equal(t, "creator", provisioned.RequestedBy)
 		require.Equal(t, "creator", activated.RequestedBy)
 	})
 
 	t.Run("the only binding is the agent's own", func(t *testing.T) {
-		provisioned, activated, _ := creatorRequest(t, "creator", []models.AgentThunderClient{row("creator", time.Minute)}, nil)
+		provisioned, activated, _ := creatorRequest(t, "creator", []models.AgentThunderClient{row("creator", time.Minute)})
 		require.Equal(t, "creator", provisioned.RequestedBy)
 		require.Equal(t, "creator", activated.RequestedBy)
 	})
 
 	t.Run("no bindings at all falls back to the binding's requester", func(t *testing.T) {
-		provisioned, _, _ := creatorRequest(t, "only-known", nil, nil)
+		provisioned, _, _ := creatorRequest(t, "only-known", nil)
 		require.Equal(t, "only-known", provisioned.RequestedBy)
 	})
 
 	t.Run("the oldest binding with a requester wins over an older empty one", func(t *testing.T) {
 		provisioned, activated, _ := creatorRequest(t, "repair-caller", []models.AgentThunderClient{
 			row("newer", time.Minute), row("", 3*time.Hour), row("older", time.Hour),
-		}, nil)
+		})
 		require.Equal(t, "older", provisioned.RequestedBy)
 		require.Equal(t, "older", activated.RequestedBy)
 	})
 
-	t.Run("a read error falls back with one warning and never logs the subject", func(t *testing.T) {
-		provisioned, activated, logs := creatorRequest(t, "repair-caller", nil, errors.New("database unavailable"))
-		require.Equal(t, "repair-caller", provisioned.RequestedBy)
-		require.Equal(t, "repair-caller", activated.RequestedBy)
-		require.Equal(t, 1, strings.Count(logs, "to find its creator"), "exactly one creator warning")
-		require.NotContains(t, logs, "repair-caller")
+	t.Run("a read error defers the attempt and never sends an unverified subject", func(t *testing.T) {
+		binding := models.AgentThunderClient{
+			ID: uuid.New(), OUID: "org-a", ProjectName: "project-a", AgentName: "agent-a",
+			EnvironmentName: "development", ProvisioningType: models.AgentProvisioningTypeInternal,
+			RequestedBy: "repair-caller",
+		}
+		var released int
+		repo := &repomocks.AgentThunderClientRepositoryMock{
+			ClaimForAttemptFunc: func(context.Context, uuid.UUID) (bool, error) { return true, nil },
+			FindByAgentFunc: func(context.Context, string, string, string) ([]models.AgentThunderClient, error) {
+				return nil, errors.New("database unavailable")
+			},
+			ReleaseClaimFunc: func(context.Context, uuid.UUID, time.Time, string) error { released++; return nil },
+		}
+		store := &clientmocks.SecretManagementClientMock{}
+		called := false
+		provider := projectAgentIdentityProviderStub{
+			provision: func(context.Context, ProjectAgentIdentityRequest) (ProjectAgentIdentityResult, error) {
+				called = true
+				return ProjectAgentIdentityResult{}, errors.New("must not be called")
+			},
+		}
+		var buf bytes.Buffer
+		svc := newPromotionService(t, repo, store, provider, sourceOnlyReader("development", nil))
+		svc.(*agentThunderProvisioningService).logger = slog.New(slog.NewTextHandler(&buf, nil))
+
+		svc.AttemptProvision(context.Background(), binding)
+
+		require.False(t, called, "no provider call with an unverified creator")
+		require.Equal(t, 1, released, "the claim is released for a later retry")
+		require.Len(t, repo.UpdateAfterAttemptCalls(), 0, "no attempt is consumed")
+		require.Equal(t, 1, strings.Count(buf.String(), "to find its creator"), "exactly one creator warning")
+		require.NotContains(t, buf.String(), "repair-caller")
 	})
 }

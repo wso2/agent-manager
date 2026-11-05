@@ -968,7 +968,16 @@ func (s *agentThunderProvisioningService) AttemptProvision(ctx context.Context, 
 				return
 			}
 
-			requestedBy = s.agentCreator(ctx, binding)
+			creator, creatorErr := s.agentCreator(ctx, binding)
+			if creatorErr != nil {
+				// An unverified subject could record the wrong person as the owner:
+				// a repair binding carries the repair caller. Try again later
+				// without using up an attempt.
+				s.deferPromotionUntil(ctx, binding, time.Now().Add(reconcilerTickInterval),
+					"Waiting to find the agent's creator.")
+				return
+			}
+			requestedBy = creator
 			request := ProjectAgentIdentityRequest{
 				OrganizationID: binding.OUID, ProjectID: binding.ProjectName, ProjectName: binding.ProjectName,
 				Environment: binding.EnvironmentName, AgentName: binding.AgentName,
@@ -1131,15 +1140,17 @@ func (s *agentThunderProvisioningService) AttemptProvision(ctx context.Context, 
 // request: the RequestedBy of the agent's oldest binding that has one, since the
 // first binding is written at agent creation by the creator. A binding created
 // later by a repair or promotion kick-off carries that caller instead. When no
-// binding has a requester, or the bindings cannot be read, the agent has no
+// binding has a requester, the agent has no
 // earlier binding to tell us otherwise, so binding.RequestedBy is the only known
-// person and is returned. It never fails the attempt and never logs a subject.
-func (s *agentThunderProvisioningService) agentCreator(ctx context.Context, binding models.AgentThunderClient) string {
+// person and is returned. When the bindings cannot be read it returns the error,
+// so the caller defers the attempt instead of sending an unverified subject. It
+// never logs a subject.
+func (s *agentThunderProvisioningService) agentCreator(ctx context.Context, binding models.AgentThunderClient) (string, error) {
 	bindings, err := s.repo.FindByAgent(ctx, binding.OUID, binding.ProjectName, binding.AgentName)
 	if err != nil {
-		s.logger.Warn("Failed to read the agent's bindings to find its creator; using the binding's requester",
+		s.logger.Warn("Failed to read the agent's bindings to find its creator; deferring the attempt",
 			"ouID", binding.OUID, "projectName", binding.ProjectName, "agentName", binding.AgentName, "error", err)
-		return binding.RequestedBy
+		return "", err
 	}
 	creator := binding.RequestedBy
 	var oldest time.Time
@@ -1152,7 +1163,7 @@ func (s *agentThunderProvisioningService) agentCreator(ctx context.Context, bind
 			creator, oldest, found = b.RequestedBy, b.CreatedAt, true
 		}
 	}
-	return creator
+	return creator, nil
 }
 
 // deferPromotion puts a promotion target back to pending until the reconciler's
