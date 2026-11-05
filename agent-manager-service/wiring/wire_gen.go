@@ -107,7 +107,7 @@ func InitializeAppParamsWithEnvThunderEndpoints(cfg *config.Config, db *gorm.DB,
 	a2AAgentKind := services.NewA2AAgentKind(txRunner, platformAgentExposures, a2AProxyRepository, a2AAgentCardRepository, deploymentRepository, agentConfigRepository, openChoreoClient, a2ACardFetcher, apiKeyRepository, gatewayEventsService, v, logger)
 	restAgentKind := services.NewRestAgentKind(platformAgentExposures, agentConfigRepository, deploymentRepository, apiKeyRepository, gatewayEventsService, logger)
 	kinds := ProvideReconcileKinds(llmProviderKind, llmProxyKind, mcpProxyKind, a2AAgentKind, restAgentKind)
-	core := ProvideReconcileCore(db, deploymentRepository, eventHub, kinds, cfg, logger)
+	core := ProvideReconcileCore(db, deploymentRepository, gatewayRepository, eventHub, kinds, cfg, logger)
 	mcpProxyService := services.NewMCPProxyService(db, mcpProxyRepository, mcpProxyEndpointRepository, deploymentRepository, gatewayRepository, envAgentMCPMappingRepository, agentConfigurationRepository, gatewayEventsService, apiKeyRepository, infraResourceManager, agentIdentityInjectionService, logger, v, mcpProxyScopeRepository, envThunderResolver, core, mcpProxyKind, openChoreoClient)
 	llmProxyDeploymentService := services.NewLLMProxyDeploymentService(txRunner, deploymentRepository, llmProxyRepository, llmProviderRepository, gatewayRepository, gatewayEventsService, core, llmProxyKind)
 	llmProxyAPIKeyService := services.NewLLMProxyAPIKeyService(llmProxyRepository, gatewayRepository, gatewayEventsService, apiKeyRepository, openChoreoClient)
@@ -332,7 +332,7 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	a2AAgentKind := services.NewA2AAgentKind(txRunner, platformAgentExposures, a2AProxyRepository, a2AAgentCardRepository, deploymentRepository, agentConfigRepository, openChoreoClient, a2ACardFetcher, apiKeyRepository, gatewayEventsService, v, logger)
 	restAgentKind := services.NewRestAgentKind(platformAgentExposures, agentConfigRepository, deploymentRepository, apiKeyRepository, gatewayEventsService, logger)
 	kinds := ProvideReconcileKinds(llmProviderKind, llmProxyKind, mcpProxyKind, a2AAgentKind, restAgentKind)
-	core := ProvideReconcileCore(db, deploymentRepository, eventHub, kinds, cfg, logger)
+	core := ProvideReconcileCore(db, deploymentRepository, gatewayRepository, eventHub, kinds, cfg, logger)
 	mcpProxyService := services.NewMCPProxyService(db, mcpProxyRepository, mcpProxyEndpointRepository, deploymentRepository, gatewayRepository, envAgentMCPMappingRepository, agentConfigurationRepository, gatewayEventsService, apiKeyRepository, infraResourceManager, agentIdentityInjectionService, logger, v, mcpProxyScopeRepository, envThunderResolver, core, mcpProxyKind, openChoreoClient)
 	llmProxyDeploymentService := services.NewLLMProxyDeploymentService(txRunner, deploymentRepository, llmProxyRepository, llmProviderRepository, gatewayRepository, gatewayEventsService, core, llmProxyKind)
 	llmProxyAPIKeyService := services.NewLLMProxyAPIKeyService(llmProxyRepository, gatewayRepository, gatewayEventsService, apiKeyRepository, openChoreoClient)
@@ -836,10 +836,11 @@ func ProvideReconcileKinds(
 	return reconcile.Kinds{llmProvider, llmProxy, mcp, agent, restAgent}
 }
 
-// ProvideReconcileCore builds the reconcile core with the worker's intervals, lease and attempt budget from cfg.
+// ProvideReconcileCore builds the reconcile core with the worker's intervals, lease and attempt budget from cfg, and
+// the gateways it locks and checks contexts on.
 func ProvideReconcileCore(
-	db *gorm.DB, deploymentRepo repositories.DeploymentRepository, hub eventhub.EventHub, kinds reconcile.Kinds,
-	cfg *config.Config, logger *slog.Logger,
+	db *gorm.DB, deploymentRepo repositories.DeploymentRepository, gatewayRepo repositories.GatewayRepository,
+	hub eventhub.EventHub, kinds reconcile.Kinds, cfg *config.Config, logger *slog.Logger,
 ) *reconcile.Core {
 	seconds := func(n int) time.Duration { return time.Duration(n) * time.Second }
 	return reconcile.NewCore(db, deploymentRepo, hub, kinds, reconcile.Config{
@@ -848,7 +849,7 @@ func ProvideReconcileCore(
 		DriftInterval:  seconds(cfg.Reconcile.DriftIntervalSeconds),
 		Lease:          seconds(cfg.Reconcile.RenderLeaseSeconds),
 		AttemptBudget:  cfg.Reconcile.RenderAttemptBudget,
-	}, logger)
+	}, logger).WithGateways(gatewayRepo)
 }
 
 // ProvidePlatformGatewayService makes each new gateway-environment mapping place the environment's artifacts, and

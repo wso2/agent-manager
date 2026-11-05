@@ -319,9 +319,11 @@ var (
 	// ErrMCPUpstreamNotReady means the proxy's source component has no reachable endpoint in the
 	// environment yet (409 UPSTREAM_NOT_READY); nothing was stored.
 	ErrMCPUpstreamNotReady = errors.New("the source component is not deployed in this environment yet")
-	// ErrMCPContextInUse means the proxy's gateway context equals, contains or sits under another
-	// artifact's context on the gateway (409 CONTEXT_IN_USE).
-	ErrMCPContextInUse = errors.New("the context is already in use on the gateway")
+	// ErrContextInUse means an artifact's gateway context, of any kind, equals, contains or sits under another
+	// artifact's context on the same vhost of the gateway (409 CONTEXT_IN_USE).
+	ErrContextInUse = errors.New("the context is already in use on the gateway")
+	// ErrMCPContextInUse is ErrContextInUse, under the name the MCP proxy routes have used for it.
+	ErrMCPContextInUse = ErrContextInUse
 	// ErrMCPProxyEnvironmentNotBound means the proxy has no binding in the environment (404).
 	ErrMCPProxyEnvironmentNotBound = errors.New("MCP proxy is not bound to this environment")
 	// ErrMCPJWTSecurityNotAvailable is the phase-1 refusal of jwt security (400).

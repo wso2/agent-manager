@@ -6972,7 +6972,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "409":
-          description: MCP proxy already exists
+          description: "MCP proxy already exists, or CONTEXT_IN_USE: its context equals, contains or sits under another artifact's context on the same vhost of a gateway it deploys to; nothing is stored"
           content:
             application/json:
               schema:
@@ -7141,7 +7141,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "409":
-          description: PROJECT_OWNED. The proxy belongs to a project and is managed only through the project routes
+          description: "PROJECT_OWNED. The proxy belongs to a project and is managed only through the project routes; or CONTEXT_IN_USE: its context equals, contains or sits under another artifact's context on the same vhost of a gateway it deploys to, and nothing is stored"
           content:
             application/json:
               schema:
@@ -7856,6 +7856,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: "CONTEXT_IN_USE. The context equals, contains or sits under another artifact's context on the same vhost of the gateway"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "500":
           description: Internal server error
           content:
@@ -8066,7 +8072,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "409":
-          description: The deployment is already the gateway's current deployment, DEPLOYED or DEPLOYING
+          description: "The deployment is already the gateway's current deployment, DEPLOYED or DEPLOYING; or CONTEXT_IN_USE: its context equals, contains or sits under another artifact's context on the same vhost of the gateway"
           content:
             application/json:
               schema:
@@ -8446,6 +8452,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: "CONTEXT_IN_USE. The context equals, contains or sits under another artifact's context on the same vhost of the gateway"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "500":
           description: Internal server error
           content:
@@ -8668,7 +8680,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "409":
-          description: The deployment is already the gateway's current deployment, DEPLOYED or DEPLOYING
+          description: "The deployment is already the gateway's current deployment, DEPLOYED or DEPLOYING; or CONTEXT_IN_USE: its context equals, contains or sits under another artifact's context on the same vhost of the gateway"
           content:
             application/json:
               schema:

@@ -91,6 +91,10 @@ func (c *mcpProxyController) CreateMCPProxy(w http.ResponseWriter, r *http.Reque
 	resp, err := c.mcpProxyService.Create(ctx, ouID, "system", &req)
 	if err != nil {
 		switch {
+		case errors.Is(err, utils.ErrContextInUse):
+			log.Warn("CreateMCPProxy: context in use on the gateway", "ouID", ouID, "error", err)
+			utils.WriteErrorResponseWithReason(w, http.StatusConflict, utils.ErrContextInUse.Error(), err.Error(),
+				utils.ErrCodeContextInUse)
 		case errors.Is(err, utils.ErrInvalidInput), errors.Is(err, utils.ErrInvalidURL):
 			log.Error("CreateMCPProxy: invalid request", "ouID", ouID, "error", err)
 			utils.WriteErrorResponseWithReason(w, http.StatusBadRequest, "Bad request", err.Error(), utils.ErrCodeBadRequest)
@@ -226,6 +230,10 @@ func (c *mcpProxyController) UpdateMCPProxy(w http.ResponseWriter, r *http.Reque
 	resp, err := c.mcpProxyService.Update(ctx, ouID, proxyID, &req)
 	if err != nil {
 		switch {
+		case errors.Is(err, utils.ErrContextInUse):
+			log.Warn("UpdateMCPProxy: context in use on the gateway", "ouID", ouID, "error", err)
+			utils.WriteErrorResponseWithReason(w, http.StatusConflict, utils.ErrContextInUse.Error(), err.Error(),
+				utils.ErrCodeContextInUse)
 		case errors.Is(err, utils.ErrMCPProxyNotFound):
 			log.Warn("UpdateMCPProxy: MCP proxy not found", "ouID", ouID, "proxyID", proxyID)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "MCP proxy not found")

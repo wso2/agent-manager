@@ -180,13 +180,13 @@ func mcpDeployErrorIsFatal(err error) bool {
 		errors.Is(err, errPlacementFixed)
 }
 
-// mcpDeployRejection is the 4xx a save's deploy error maps to: an artifact that can't render, or one of the four
-// placement errors; nil for any other error.
+// mcpDeployRejection is the 4xx a save's deploy error maps to: an artifact that can't render, a context that clashes
+// on the gateway, or one of the four placement errors; nil for any other error.
 func mcpDeployRejection(err error) error {
 	switch {
 	case mcpDeployErrorIsFatal(err):
 		return fmt.Errorf("%w: %w", utils.ErrInvalidInput, err)
-	case errors.Is(err, utils.ErrInvalidInput):
+	case errors.Is(err, utils.ErrInvalidInput), errors.Is(err, utils.ErrContextInUse):
 		return err
 	}
 	return nil

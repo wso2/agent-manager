@@ -24,27 +24,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 )
 
-func TestContextsOverlap(t *testing.T) {
-	cases := []struct {
-		a, b string
-		want bool
-	}{
-		{"/a", "/a", true},
-		{"/a", "/a/b", true},
-		{"/a/b", "/a", true},
-		{"/a", "/ab", false},
-		{"/ab", "/a", false},
-		{"/a/", "/a", true},
-		{"/p1/weather", "/p1/weather-v2", false},
-		{"/p1/weather", "/p1/weather/mcp", true},
-		{"/", "/anything", true},
-		{"/x", "/y", false},
-	}
-	for _, c := range cases {
-		assert.Equal(t, c.want, contextsOverlap(c.a, c.b), "contextsOverlap(%q, %q)", c.a, c.b)
-	}
-}
-
 func TestMCPGatewayContext(t *testing.T) {
 	ctx := "/weather"
 	project := "p1"

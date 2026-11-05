@@ -29,6 +29,7 @@ import (
 
 	occlient "github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -117,15 +118,10 @@ func (s *ProjectMCPProxyService) PutEnvironment(
 		return nil, false, err
 	}
 
-	// (4) Context.
+	// (4) Context. The deploy checks again under the gateway lock; this check refuses before anything is stored.
 	if gateway != nil {
-		gatewayContext := mcpGatewayContext(proxy, projectName)
-		other, err := gatewayContextClash(ctx, s.base.deploymentRepo, ouID, *gateway, selfArtifact, gatewayContext)
-		if err != nil {
+		if err := s.checkBindingContext(ctx, ouID, *gateway, selfArtifact, mcpGatewayContext(proxy, projectName), proxy.Configuration.Vhost); err != nil {
 			return nil, false, err
-		}
-		if other != "" {
-			return nil, false, fmt.Errorf("%w: %s overlaps %s", utils.ErrMCPContextInUse, gatewayContext, other)
 		}
 	}
 
@@ -184,6 +180,20 @@ func (s *ProjectMCPProxyService) PutEnvironment(
 	return resp, !exists, err
 }
 
+// checkBindingContext refuses (utils.ErrMCPContextInUse) a binding whose gateway context, on its vhost or else the
+// gateway's, overlaps another artifact's on gateway. self, the binding's own artifact, is excluded, and grandfathered
+// when it is already deployed there at that route.
+func (s *ProjectMCPProxyService) checkBindingContext(
+	ctx context.Context, ouID string, gateway, self uuid.UUID, gatewayContext string, vhost *string,
+) error {
+	gw, err := s.base.gatewayRepo.GetByUUID(gateway.String())
+	if err != nil {
+		return fmt.Errorf("failed to read gateway %s: %w", gateway, err)
+	}
+	return reconcile.CheckContext(ctx, s.base.deploymentRepo, ouID, gw, self,
+		reconcile.NewRoute(gatewayContext, valueOrEmpty(vhost), gw.Vhost))
+}
+
 // saveAndDeployBinding writes the binding in tx, the proxy row locked, and deploys it on gateway, or with no gateway
 // only renders it (DeployRecord). A Failed binding with unchanged input is not rewritten, only re-deployed.
 func (s *ProjectMCPProxyService) saveAndDeployBinding(
@@ -227,20 +237,10 @@ func (s *ProjectMCPProxyService) saveAndDeployBinding(
 		}
 	}
 	if s.base.deploymentRepo != nil {
+		// The deploy re-checks the context under the gateway lock (reconcile.Core), so two bindings with
+		// overlapping contexts can't both pass the check made before the store.
 		if err := s.base.deploymentRepo.LockStatusRows(ctx, tx, ouID, []uuid.UUID{artifactUUID}); err != nil {
 			return err
-		}
-		// Re-check under the gateway lock: the earlier check ran outside it, and a new binding has no placement
-		// yet, so the render-time check in the MCP kind would not see it.
-		if gateway != nil {
-			gatewayContext := mcpGatewayContext(locked, "")
-			other, err := gatewayContextClash(ctx, s.base.deploymentRepo, ouID, *gateway, artifactUUID, gatewayContext)
-			if err != nil {
-				return err
-			}
-			if other != "" {
-				return fmt.Errorf("%w: %s overlaps %s", utils.ErrMCPContextInUse, gatewayContext, other)
-			}
 		}
 	}
 	return s.base.deployMCPArtifact(ctx, tx, &models.MCPProxy{UUID: artifactUUID, Handle: artifactHandle}, ouID, envUUID, gateway)

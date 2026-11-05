@@ -504,10 +504,11 @@ func ProvideReconcileKinds(
 	return reconcile.Kinds{llmProvider, llmProxy, mcp, agent, restAgent}
 }
 
-// ProvideReconcileCore builds the reconcile core with the worker's intervals, lease and attempt budget from cfg.
+// ProvideReconcileCore builds the reconcile core with the worker's intervals, lease and attempt budget from cfg, and
+// the gateways it locks and checks contexts on.
 func ProvideReconcileCore(
-	db *gorm.DB, deploymentRepo repositories.DeploymentRepository, hub eventhub.EventHub, kinds reconcile.Kinds,
-	cfg *config.Config, logger *slog.Logger,
+	db *gorm.DB, deploymentRepo repositories.DeploymentRepository, gatewayRepo repositories.GatewayRepository,
+	hub eventhub.EventHub, kinds reconcile.Kinds, cfg *config.Config, logger *slog.Logger,
 ) *reconcile.Core {
 	seconds := func(n int) time.Duration { return time.Duration(n) * time.Second }
 	return reconcile.NewCore(db, deploymentRepo, hub, kinds, reconcile.Config{
@@ -516,7 +517,7 @@ func ProvideReconcileCore(
 		DriftInterval:  seconds(cfg.Reconcile.DriftIntervalSeconds),
 		Lease:          seconds(cfg.Reconcile.RenderLeaseSeconds),
 		AttemptBudget:  cfg.Reconcile.RenderAttemptBudget,
-	}, logger)
+	}, logger).WithGateways(gatewayRepo)
 }
 
 // ProvidePlatformGatewayService makes each new gateway-environment mapping place the environment's artifacts, and

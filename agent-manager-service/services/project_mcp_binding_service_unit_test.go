@@ -183,7 +183,7 @@ func newBindingFixture(t *testing.T) *bindingFixture {
 				return err
 			}
 			id := uuid.New()
-			d.DeploymentID = id
+			d.DeploymentID, d.ArtifactUUID = id, p.ArtifactUUID
 			f.deployed = append(f.deployed, d)
 			f.status[p.ArtifactUUID] = &models.DeploymentStatusRecord{
 				ArtifactUUID: p.ArtifactUUID, GatewayUUID: p.GatewayUUID, DeploymentID: &id,
@@ -219,7 +219,9 @@ func newBindingFixture(t *testing.T) *bindingFixture {
 				}
 				for _, d := range f.deployed {
 					if d.DeploymentID == id {
-						out = append(out, models.GatewayDeploymentContent{DeploymentID: id, Content: d.Content})
+						out = append(out, models.GatewayDeploymentContent{
+							ArtifactRef: models.ArtifactRef{ArtifactUUID: d.ArtifactUUID}, DeploymentID: id, Content: d.Content,
+						})
 					}
 				}
 			}
@@ -277,7 +279,7 @@ func newBindingFixture(t *testing.T) *bindingFixture {
 			return nil, gorm.ErrRecordNotFound
 		},
 	}
-	base.core = reconcile.NewCore(nil, deployments, f.hub, reconcile.Kinds{base.kind}, reconcile.Config{}, discardLogger())
+	base.core = reconcile.NewCore(nil, deployments, f.hub, reconcile.Kinds{base.kind}, reconcile.Config{}, discardLogger()).WithGateways(gatewayRepo)
 
 	oc := &clientmocks.OpenChoreoClientMock{
 		GetEnvironmentFunc: func(_ context.Context, _, name string) (*models.EnvironmentResponse, error) {
@@ -416,7 +418,10 @@ func TestPutEnv_ContextClashCommittedBeforeGatewayLock_409ContextInUse(t *testin
 	}
 	_, _, err := f.put(t, models.MCPProxyEnvironmentRequest{})
 	require.ErrorIs(t, err, utils.ErrMCPContextInUse)
-	assert.Equal(t, []string{f.gateway.UUID.String()}, f.gatewayLocks, "the binding transaction locks its gateway")
+	require.NotEmpty(t, f.gatewayLocks, "the binding transaction locks its gateway")
+	for _, locked := range f.gatewayLocks {
+		assert.Equal(t, f.gateway.UUID.String(), locked)
+	}
 	assert.Empty(t, f.deployed, "nothing is sent")
 }
 
@@ -652,34 +657,32 @@ func TestPlacement_LateGatewayClash_MarksFailed(t *testing.T) {
 	require.NoError(t, err)
 	_, ee := f.binding()
 
-	// A gateway registers, already serving an artifact at an overlapping context, and the placement pass puts the
-	// binding's PENDING row on it.
+	// A gateway registers, already serving an artifact at an overlapping context, and the placement pass deploys
+	// the binding there: the core refuses it.
 	f.gateway = newGateway(t, models.GatewayRoleBoth, true)
 	f.others[uuid.New()] = []byte("spec:\n  context: /p1\n")
-	f.status[ee.ArtifactUUID] = &models.DeploymentStatusRecord{
-		ArtifactUUID: ee.ArtifactUUID, GatewayUUID: f.gateway.UUID,
-		Status: models.DeploymentStatusPending, StatusDesired: models.DeploymentStatusDeployed,
+	placement := models.Placement{
+		ArtifactRef: models.ArtifactRef{OUID: testOrg, ArtifactUUID: ee.ArtifactUUID, Kind: models.KindMCPMapping},
+		GatewayUUID: f.gateway.UUID,
 	}
-
-	ref := models.ArtifactRef{OUID: testOrg, ArtifactUUID: ee.ArtifactUUID, Kind: models.KindMCPMapping}
-	_, err = f.svc.base.kind.Render(context.Background(), ref)
+	_, err = f.svc.base.core.Deploy(context.Background(), txSentinel, placement)
 	require.ErrorIs(t, err, utils.ErrMCPContextInUse)
 	assert.True(t, reconcile.IsPermanent(err), "a clash is given up at once, so the binding shows Failed")
 	assert.Equal(t, "CONTEXT_IN_USE", f.svc.base.kind.DescribeRenderError(err))
+	assert.Empty(t, f.deployed, "nothing is sent")
 
 	// What a given-up PENDING row reads as.
-	row := *f.status[ee.ArtifactUUID]
-	row.RenderReason = f.svc.base.kind.DescribeRenderError(err)
+	row := models.DeploymentStatusRecord{
+		ArtifactUUID: ee.ArtifactUUID, GatewayUUID: f.gateway.UUID, Status: models.DeploymentStatusPending,
+		StatusDesired: models.DeploymentStatusDeployed, RenderReason: f.svc.base.kind.DescribeRenderError(err),
+	}
 	assert.Equal(t, models.MCPDeploymentStatusFailed, models.MCPDeploymentStatusOf(models.UserStatusOf(row)))
 
-	resp, err := f.svc.GetEnvironment(context.Background(), testOrg, bindingProject, bindingProjectUUID, bindingHandle, bindingEnv)
-	require.NoError(t, err)
-	assert.Equal(t, models.MCPDeploymentStatusDeploying, resp.DeploymentStatus, "before the outcome is recorded")
-
-	// An org proxy's render never runs the check.
+	// An org proxy is checked the same way.
 	f.proxy.ProjectUUID, f.proxy.ProjectName = nil, nil
-	_, err = f.svc.base.kind.Render(context.Background(), ref)
-	require.NoError(t, err)
+	f.others[uuid.New()] = []byte("spec:\n  context: /weather/v2\n")
+	_, err = f.svc.base.core.Deploy(context.Background(), txSentinel, placement)
+	require.ErrorIs(t, err, utils.ErrMCPContextInUse)
 }
 
 // An agent mapped to the binding in its environment holds keys broadcast against the binding's artifact; deleting

@@ -41,8 +41,7 @@ type mcpArtifact struct {
 	deployable  *models.MCPProxy
 	proxyHandle string
 	scopes      []models.MCPProxyScope
-	// projectScoped: a project proxy's context must not overlap another artifact's on its gateway, which
-	// Render checks wherever the artifact is placed. Org proxies are not checked.
+	// projectScoped: a project proxy's binding, whose upstream AMS resolved itself.
 	projectScoped bool
 }
 
@@ -130,42 +129,7 @@ func (k *MCPProxyKind) Render(ctx context.Context, artifact models.ArtifactRef) 
 	if err != nil {
 		return reconcile.Rendered{}, reconcile.Permanent(fmt.Errorf("%w: invalid MCP proxy configuration: %w", utils.ErrInvalidInput, err))
 	}
-	if a.projectScoped {
-		if err := k.checkContextOnPlacedGateways(ctx, artifact, a.deployable); err != nil {
-			return reconcile.Rendered{}, err
-		}
-	}
 	return renderedDeployment(a.deployable.Handle, []byte(content)), nil
-}
-
-// checkContextOnPlacedGateways refuses, permanently, a project proxy whose gateway context overlaps another
-// artifact's on a gateway it is placed on. A binding PUT checks before it stores anything (409); this is the check
-// for a binding placed later, when its environment's gateway registers, or re-rendered after the proxy changed, so
-// a clash shows as Failed instead of shadowing the other artifact.
-func (k *MCPProxyKind) checkContextOnPlacedGateways(ctx context.Context, artifact models.ArtifactRef, deployable *models.MCPProxy) error {
-	if k.deploymentRepo == nil || k.gatewayRepo == nil || deployable.Configuration.Context == nil {
-		return nil
-	}
-	deployments, _ := placementReposIn(ctx, k.deploymentRepo, k.gatewayRepo)
-	gateways, err := deployments.PlacedGateways(ctx, artifact.OUID, artifact.ArtifactUUID)
-	if err != nil {
-		return err
-	}
-	for _, gw := range gateways {
-		gateway, err := uuid.Parse(gw)
-		if err != nil {
-			return fmt.Errorf("invalid gateway id %q: %w", gw, err)
-		}
-		other, err := gatewayContextClash(ctx, deployments, artifact.OUID, gateway, artifact.ArtifactUUID, *deployable.Configuration.Context)
-		if err != nil {
-			return err
-		}
-		if other != "" {
-			return reconcile.Permanent(fmt.Errorf("%w: %s overlaps %s on gateway %s",
-				utils.ErrMCPContextInUse, *deployable.Configuration.Context, other, gateway))
-		}
-	}
-	return nil
 }
 
 // DescribeRenderError is the reason a binding shows for a failed render: CONTEXT_IN_USE for a context clash, the
