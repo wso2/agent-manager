@@ -20,6 +20,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"testing"
 	"time"
@@ -316,4 +317,47 @@ func TestMCPBindingShowsDeployingUntilTheGatewayAcks(t *testing.T) {
 	}, nil)
 	require.NoError(t, err)
 	assert.Equal(t, models.MCPDeploymentStatusDeployed, binding().DeploymentStatus)
+}
+
+// bindingRows counts the fixture proxy's (endpoint, environment) rows and endpoint rows still stored.
+func (f *mcpFixture) bindingRows(t *testing.T) (environments, endpoints int64) {
+	t.Helper()
+	gormDB := db.GetDB()
+	require.NoError(t, gormDB.Table("mcp_proxy_endpoint_environments").
+		Where("artifact_uuid = ?", f.artifact).Count(&environments).Error)
+	require.NoError(t, gormDB.Table("mcp_proxy_endpoints").
+		Where("uuid = ?", f.proxy.Endpoints[0].UUID).Count(&endpoints).Error)
+	return environments, endpoints
+}
+
+// When an environment goes and its gateway artifact can't be deleted yet, a project proxy keeps the binding and its
+// endpoint, so the retry still finds the artifact; once the artifact is gone, both go.
+func TestRemoveEnvironmentFromEndpoints_ProjectProxyKeepsBindingUntilArtifactGone(t *testing.T) {
+	f := newMCPFixture(t)
+	project := uuid.NewString()
+	f.proxy.ProjectUUID = &project
+	tx := f.svc.tx
+	f.svc.tx = func(context.Context, func(*gorm.DB) error) error { return errors.New("gateway unreachable") }
+
+	require.Error(t, f.svc.RemoveEnvironmentFromEndpoints(context.Background(), f.proxy, f.env, f.sync.ouID))
+	environments, endpoints := f.bindingRows(t)
+	assert.EqualValues(t, 1, environments, "the binding stays, so a retry can find the artifact")
+	assert.EqualValues(t, 1, endpoints)
+
+	f.svc.tx = tx
+	require.NoError(t, f.svc.RemoveEnvironmentFromEndpoints(context.Background(), f.proxy, f.env, f.sync.ouID))
+	environments, endpoints = f.bindingRows(t)
+	assert.Zero(t, environments, "the retry removes the binding")
+	assert.Zero(t, endpoints, "and the project binding's endpoint")
+}
+
+// An org proxy removes the binding even when its artifact can't be deleted yet, and keeps the endpoint, as before.
+func TestRemoveEnvironmentFromEndpoints_OrgProxyUnchanged(t *testing.T) {
+	f := newMCPFixture(t)
+	f.svc.tx = func(context.Context, func(*gorm.DB) error) error { return errors.New("gateway unreachable") }
+
+	require.Error(t, f.svc.RemoveEnvironmentFromEndpoints(context.Background(), f.proxy, f.env, f.sync.ouID))
+	environments, endpoints := f.bindingRows(t)
+	assert.Zero(t, environments)
+	assert.EqualValues(t, 1, endpoints)
 }

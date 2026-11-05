@@ -880,8 +880,12 @@ func (s *MCPProxyService) RemoveEnvironmentFromEndpoints(ctx context.Context, pr
 						envUUID, proxy.UUID, endpoint.Handle, err))
 				}
 			}
-			// Keep the endpoint while its artifact is still there, so a retry can find and remove both.
-			dropEndpoint := proxy.ProjectUUID != nil && len(endpoint.Environments) == 1 && artifactGone
+			// A project binding is found through its (endpoint, env) row: keep the row and the endpoint while the
+			// artifact is still there, so a retry can find and remove all three.
+			if proxy.ProjectUUID != nil && !artifactGone {
+				continue
+			}
+			dropEndpoint := proxy.ProjectUUID != nil && len(endpoint.Environments) == 1
 			if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 				if err := s.endpointRepo.RemoveEndpointEnvironment(ctx, tx, endpoint.UUID, envUUID); err != nil &&
 					!errors.Is(err, gorm.ErrRecordNotFound) {
