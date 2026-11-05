@@ -155,46 +155,6 @@ else
   FAILURES=$((FAILURES + 1))
 fi
 
-# --- amObserver.store: the dev SQLite store -----------------------------------
-# The default render must not move at all; only the lite values file switches the
-# observer to SQLite, gives it its own ServiceAccount, and drops the collector
-# scrape objects (there is no collector in that mode).
-LITE_VALUES="$CHART_DIR/../../values/observer-lite.yaml"
-
-assert_render() {
-  local label="$1" pattern="$2" want="$3"
-  shift 3
-  local rendered
-  if ! rendered="$(helm template test-release "$CHART_DIR" "$@" 2>&1)"; then
-    printf 'FAIL - %s\n      helm template failed: %s\n' "$label" "$rendered"
-    FAILURES=$((FAILURES + 1))
-    return
-  fi
-  local found=no
-  grep -q -- "$pattern" <<<"$rendered" && found=yes
-  if [[ "$found" == "$want" ]]; then
-    printf 'ok   - %s\n' "$label"
-  else
-    printf 'FAIL - %s\n      pattern %q present: %s, wanted %s\n' "$label" "$pattern" "$found" "$want"
-    FAILURES=$((FAILURES + 1))
-  fi
-}
-
-assert_render "default render has no OBSERVER_STORE" 'OBSERVER_STORE' no
-assert_render "default render has no serviceAccountName" 'serviceAccountName' no
-assert_render "default render keeps the ServiceMonitor" 'kind: ServiceMonitor' yes
-assert_render "lite values set OBSERVER_STORE" 'OBSERVER_STORE' yes -f "$LITE_VALUES"
-assert_env "lite values set OBSERVER_STORE to sqlite" OBSERVER_STORE sqlite -f "$LITE_VALUES"
-assert_render "lite values use the amp-observer-lite ServiceAccount" \
-  'serviceAccountName: amp-observer-lite' yes -f "$LITE_VALUES"
-assert_render "lite values drop the ServiceMonitor" 'kind: ServiceMonitor' no -f "$LITE_VALUES"
-if helm template test-release "$CHART_DIR" --set amObserver.store=sqlite >/dev/null 2>&1; then
-  printf 'FAIL - sqlite store without developmentMode should not render\n'
-  FAILURES=$((FAILURES + 1))
-else
-  printf 'ok   - sqlite store without developmentMode is rejected\n'
-fi
-
 if ((FAILURES > 0)); then
   printf '\n%d assertion(s) failed\n' "$FAILURES"
   exit 1

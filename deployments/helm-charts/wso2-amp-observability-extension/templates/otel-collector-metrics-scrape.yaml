@@ -1,4 +1,3 @@
-{{- if ne .Values.amObserver.store "sqlite" }}
 # Scrape target for the span counter.
 #
 # The collector's own Service belongs to the OpenChoreo traces chart and exposes
@@ -46,4 +45,3 @@ spec:
     # it does not scale the value, unlike the recording-rule meters.
     - port: metrics
       interval: 30s
-{{- end }}

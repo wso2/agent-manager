@@ -20,13 +20,6 @@
           "title": "developmentMode",
           "type": "boolean"
         },
-        "store": {
-          "default": "openchoreo",
-          "description": "Where the observer reads traces, logs and metrics from. sqlite is a dev-only store and requires developmentMode.",
-          "enum": ["openchoreo", "sqlite"],
-          "title": "store",
-          "type": "string"
-        },
         "name": {
           "default": "amp-observer",
           "description": "Name used for the observer's Kubernetes resources.",
@@ -279,14 +272,6 @@
           "title": "oauth",
           "type": "object"
         }
-      },
-      "if": {
-        "properties": { "store": { "const": "sqlite" } },
-        "required": ["store"]
-      },
-      "then": {
-        "properties": { "developmentMode": { "const": true } },
-        "required": ["developmentMode"]
       },
       "required": [],
       "title": "amObserver",

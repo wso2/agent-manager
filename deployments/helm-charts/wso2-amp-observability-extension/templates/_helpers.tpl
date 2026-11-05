@@ -66,6 +66,17 @@ values.yaml for why it is derived.
 {{- end }}
 
 {{/*
+Create the name of the service account to use
+*/}}
+{{- define "amp-observability-extension.serviceAccountName" -}}
+{{- if .Values.serviceAccount.create }}
+{{- default (include "amp-observability-extension.fullname" .) .Values.serviceAccount.name }}
+{{- else }}
+{{- default "default" .Values.serviceAccount.name }}
+{{- end }}
+{{- end }}
+
+{{/*
 Image reference for the observer.
 
 global.ampImageRegistry, when set, replaces the registry and organization

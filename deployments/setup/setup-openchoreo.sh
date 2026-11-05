@@ -376,6 +376,10 @@ install_metrics_module() {
     echo "✅ Prometheus based metrics module installed"
 }
 
+build_observer_image() {
+    make -C "${PROJECT_ROOT}/agent-manager-observer" docker-load-k3d
+}
+
 # Function to install Observability Plane
 install_observability_full() {
     echo "📦 Installing OpenChoreo Observability Plane..."
@@ -472,7 +476,8 @@ install_observability_full() {
 # lite Gateway comes up while the workflow plane installs.
 install_observability_lite() {
     echo "📦 Applying the lite observability resources (no OpenChoreo observability plane)..."
-    kubectl apply -f "${PROJECT_ROOT}/deployments/values/observer-lite.k8s.yaml"
+    make -C "$PROJECT_ROOT/deployments/dev/observer-lite" docker-load-k3d
+    kubectl apply -f "${PROJECT_ROOT}/deployments/dev/observer-lite/k8s.yaml"
 }
 
 # Requires all planes to be registered.
@@ -498,6 +503,7 @@ integrate_observability_full() {
 integrate_observability_lite() {
     kubectl wait --for=condition=Programmed gateway/gateway-default \
         -n openchoreo-observability-plane --timeout=180s
+    kubectl rollout status deployment/observer-lite -n openchoreo-observability-plane --timeout=180s
 }
 
 # ============================================================================

@@ -725,14 +725,3 @@ observability_mode() {
         -o jsonpath='{.metadata.labels.amp\.wso2\.com/observability}') || return 1
     echo "${mode:-full}"
 }
-
-# The only place the observability mode maps to Go build tags: the lite
-# cluster's amp-observer needs the devstore store compiled in.
-build_observer_image() {
-    local mode tags=""
-    mode=$(observability_mode) || return 1
-    if [ "$mode" = "lite" ]; then
-        tags="devstore"
-    fi
-    make -C "$PROJECT_ROOT/agent-manager-observer" docker-load-k3d GO_TAGS="$tags"
-}

@@ -113,7 +113,7 @@ teardown-amp:
 
 setup-amp:
 	@cd deployments/setup && ./setup-amp-extensions.sh $(CURDIR)
-	@cd deployments/setup && bash -c 'source ./env.sh && source ./utils.sh && PROJECT_ROOT=$(CURDIR) build_observer_image'
+	@$(MAKE) -C agent-manager-observer docker-load-k3d
 	@cd deployments/setup && ./setup-amp-observability-extension.sh $(CURDIR)
 	@$(MAKE) setup-platform
 	@$(MAKE) dev-migrate
