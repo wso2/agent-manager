@@ -7202,7 +7202,9 @@ paths:
       - name: orgName
         in: path
         required: true
-        description: Organization name/handle. Routing only; the org comes from the token or from X-Impersonate-Org.
+        description: >-
+          Organization handle. The org comes from the token, or from X-Impersonate-Org, in which
+          case this must be that org's handle.
         schema:
           type: string
       - name: projName
@@ -7301,7 +7303,9 @@ paths:
       - name: orgName
         in: path
         required: true
-        description: Organization name/handle. Routing only; the org comes from the token or from X-Impersonate-Org.
+        description: >-
+          Organization handle. The org comes from the token, or from X-Impersonate-Org, in which
+          case this must be that org's handle.
         schema:
           type: string
       - name: projName
@@ -7379,7 +7383,10 @@ paths:
               schema:
                 $ref: "#/components/schemas/ProjectMCPProxyResponse"
         "400":
-          description: Invalid request, IMMUTABLE_FIELD, or an unsupported source component
+          description: >-
+            VALIDATION_ERROR for an invalid body or an unsupported source component, IMMUTABLE_FIELD,
+            or SOURCE_COMPONENT_NOT_FOUND when the source component is not in the project, which
+            includes an update after the component was deleted.
           content:
             application/json:
               schema:
@@ -7503,7 +7510,9 @@ paths:
       - name: orgName
         in: path
         required: true
-        description: Organization name/handle. Routing only; the org comes from the token or from X-Impersonate-Org.
+        description: >-
+          Organization handle. The org comes from the token, or from X-Impersonate-Org, in which
+          case this must be that org's handle.
         schema:
           type: string
       - name: projName

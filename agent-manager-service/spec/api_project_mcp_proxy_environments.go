@@ -48,7 +48,7 @@ DeleteProjectMCPProxyEnvironment Undeploy the proxy from an environment and drop
 Deletes the binding and its gateway artifact. Returns once the transaction commits; the gateway removal is not awaited. Refuses with 409 MCP_PROXY_IN_USE while an AM agent is mapped to the proxy in this environment, as the proxy delete does; nothing is deleted. For a project OpenChoreo no longer has, drops the binding of the proxy it left under this project name.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name/handle. Routing only; the org comes from the token or from X-Impersonate-Org.
+	@param orgName Organization handle. The org comes from the token, or from X-Impersonate-Org, in which case this must be that org's handle.
 	@param projName OpenChoreo project name. Unknown project returns 404 PROJECT_NOT_FOUND, except that the GET and DELETE routes of a project OpenChoreo no longer has reach the proxies it left, stored under this name in the caller's org; with none stored they return 404 PROJECT_NOT_FOUND.
 	@param proxyId Proxy handle, unique across the org.
 	@param envName Environment name, e.g. development. Unknown environment returns 404 ENVIRONMENT_NOT_FOUND.
@@ -219,7 +219,7 @@ GetProjectMCPProxyEnvironment Get the proxy's binding in one environment
 Reads the stored binding and its deployment status; makes no call to OpenChoreo, so it is cheap to poll. For a project OpenChoreo no longer has, reads the binding of the proxy it left under this project name.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name/handle. Routing only; the org comes from the token or from X-Impersonate-Org.
+	@param orgName Organization handle. The org comes from the token, or from X-Impersonate-Org, in which case this must be that org's handle.
 	@param projName OpenChoreo project name. Unknown project returns 404 PROJECT_NOT_FOUND, except that the GET and DELETE routes of a project OpenChoreo no longer has reach the proxies it left, stored under this name in the caller's org; with none stored they return 404 PROJECT_NOT_FOUND.
 	@param proxyId Proxy handle, unique across the org.
 	@param envName Environment name, e.g. development. Unknown environment returns 404 ENVIRONMENT_NOT_FOUND.
@@ -417,7 +417,7 @@ re-queues a Failed binding even when nothing changed. The request body replaces 
 security, policies and upstream auth; an omitted field resets to its default.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name/handle. Routing only; the org comes from the token or from X-Impersonate-Org.
+	@param orgName Organization handle. The org comes from the token, or from X-Impersonate-Org, in which case this must be that org's handle.
 	@param projName OpenChoreo project name. Unknown project returns 404 PROJECT_NOT_FOUND, except that the GET and DELETE routes of a project OpenChoreo no longer has reach the proxies it left, stored under this name in the caller's org; with none stored they return 404 PROJECT_NOT_FOUND.
 	@param proxyId Proxy handle, unique across the org.
 	@param envName Environment name, e.g. development. Unknown environment returns 404 ENVIRONMENT_NOT_FOUND.

@@ -319,6 +319,9 @@ var (
 	// ErrMCPUpstreamNotReady means the proxy's source component has no reachable endpoint in the
 	// environment yet (409 UPSTREAM_NOT_READY); nothing was stored.
 	ErrMCPUpstreamNotReady = errors.New("the source component is not deployed in this environment yet")
+	// ErrMCPSourceComponentNotFound: a project MCP proxy's source component is not in the project, deleted
+	// after the proxy was created for example. It wraps ErrInvalidInput, so it is a 400.
+	ErrMCPSourceComponentNotFound = fmt.Errorf("%w: source component not found", ErrInvalidInput)
 	// ErrContextInUse means an artifact's gateway context, of any kind, equals, contains or sits under another
 	// artifact's context on the same vhost of the gateway (409 CONTEXT_IN_USE).
 	ErrContextInUse = errors.New("the context is already in use on the gateway")

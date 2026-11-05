@@ -132,6 +132,9 @@ func (c *projectMCPProxyController) UpsertProjectMCPProxy(w http.ResponseWriter,
 		case errors.Is(err, utils.ErrMCPContextInUse):
 			utils.WriteErrorResponseWithReason(w, http.StatusConflict,
 				utils.ErrMCPContextInUse.Error(), err.Error(), utils.ErrCodeContextInUse)
+		case errors.Is(err, utils.ErrMCPSourceComponentNotFound):
+			utils.WriteErrorResponseWithReason(w, http.StatusBadRequest,
+				"Source component not found", err.Error(), utils.ErrCodeSourceComponentNotFound)
 		case errors.Is(err, utils.ErrInvalidInput):
 			utils.WriteErrorResponseWithReason(w, http.StatusBadRequest, "Bad request", err.Error(), utils.ErrCodeValidation)
 		default:

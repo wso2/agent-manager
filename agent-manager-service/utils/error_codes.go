@@ -36,6 +36,8 @@ const (
 	ErrCodeMCPProxyInUse = "MCP_PROXY_IN_USE"
 	// ErrCodeUpstreamNotReady: the project MCP proxy's source component isn't deployed in the environment yet.
 	ErrCodeUpstreamNotReady = "UPSTREAM_NOT_READY"
+	// ErrCodeSourceComponentNotFound: the project MCP proxy's source component is not in the project.
+	ErrCodeSourceComponentNotFound = "SOURCE_COMPONENT_NOT_FOUND"
 	// ErrCodeContextInUse: an artifact's gateway context overlaps another artifact's on that gateway.
 	ErrCodeContextInUse = "CONTEXT_IN_USE"
 	// ErrCodeAmbiguousGateway: the binding's environment has several egress gateways and no gatewayId was given.

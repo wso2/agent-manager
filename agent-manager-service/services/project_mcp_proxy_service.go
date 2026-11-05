@@ -67,7 +67,7 @@ func (s *ProjectMCPProxyService) ensureSourceSupported(
 	component, err := s.ocClient.GetComponent(ctx, ouID, projectName, source.ComponentName)
 	if err != nil {
 		if errors.Is(err, utils.ErrNotFound) {
-			return fmt.Errorf("%w: source component %q not found", utils.ErrInvalidInput, source.ComponentName)
+			return fmt.Errorf("%w: %q", utils.ErrMCPSourceComponentNotFound, source.ComponentName)
 		}
 		return fmt.Errorf("failed to get source component: %w", err)
 	}
@@ -75,8 +75,7 @@ func (s *ProjectMCPProxyService) ensureSourceSupported(
 	// release bindings are never this project's, so its bindings could never resolve an upstream: refuse it as not
 	// found here, without saying where it lives.
 	if component.ProjectName != projectName {
-		return fmt.Errorf("%w: source component %q not found in project %q",
-			utils.ErrInvalidInput, source.ComponentName, projectName)
+		return fmt.Errorf("%w: %q is not in project %q", utils.ErrMCPSourceComponentNotFound, source.ComponentName, projectName)
 	}
 	// The client reports the type without its "deployment/" prefix; tolerate either form.
 	typ := component.Type.Type

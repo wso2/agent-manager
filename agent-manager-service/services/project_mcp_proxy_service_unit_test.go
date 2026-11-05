@@ -431,11 +431,24 @@ func TestUpsert_SourceComponentLookup(t *testing.T) {
 			creates, updates := f.createCalls, f.updateCalls
 			f.componentProjects[req.Source.ComponentName] = "default"
 			_, _, err := f.svc.Upsert(ctx, testOrg, testProjName, testProjA, "orders", req)
+			require.ErrorIs(t, err, utils.ErrMCPSourceComponentNotFound)
 			require.ErrorIs(t, err, utils.ErrInvalidInput)
-			assert.Contains(t, err.Error(), "not found in project")
+			assert.Contains(t, err.Error(), "is not in project")
 			assert.Equal(t, creates, f.createCalls, "nothing written")
 			assert.Equal(t, updates, f.updateCalls, "nothing written")
 		}
+	})
+	// An ensure-PUT after the component was deleted tells "component gone" apart from a bad body.
+	t.Run("a component deleted after the proxy was created is SOURCE_COMPONENT_NOT_FOUND on update", func(t *testing.T) {
+		f := newProjectProxyFixture(t)
+		ctx := context.Background()
+		_, _, err := f.svc.Upsert(ctx, testOrg, testProjName, testProjA, "orders", orderReq())
+		require.NoError(t, err)
+		updates := f.updateCalls
+		f.getComponentErr = fmt.Errorf("get: %w", utils.ErrNotFound)
+		_, _, err = f.svc.Upsert(ctx, testOrg, testProjName, testProjA, "orders", orderReq())
+		require.ErrorIs(t, err, utils.ErrMCPSourceComponentNotFound)
+		assert.Equal(t, updates, f.updateCalls, "nothing written")
 	})
 	t.Run("missing component is a 400", func(t *testing.T) {
 		f := newProjectProxyFixture(t)
