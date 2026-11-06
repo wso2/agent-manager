@@ -171,6 +171,27 @@ func TestMonitorAlerts_RetriesOnStoreErrors(t *testing.T) {
 		newTestMonitorAlerts(repo).handleEvent(context.Background(), msg)
 		assert.Equal(t, "retry", msg.outcome)
 	})
+
+	// Retries wait longer each time, as the event fan-out's do, and the last
+	// delivery the bus makes gives up instead of asking for another.
+	t.Run("backing off until the bus gives up", func(t *testing.T) {
+		repo := &repomocks.MonitorAlertRepositoryMock{
+			ListAlertsFunc: func(context.Context, uuid.UUID) ([]models.MonitorAlert, error) {
+				return nil, errors.New("db down")
+			},
+		}
+		processor := newTestMonitorAlerts(repo)
+		msg := &answeredMessage{data: failed, attempt: 1}
+		processor.handleEvent(context.Background(), msg)
+		assert.Equal(t, eventFanoutRetryDelay, msg.delay)
+		msg.attempt = events.EventMaxDeliver - 1
+		processor.handleEvent(context.Background(), msg)
+		assert.Equal(t, "retry", msg.outcome)
+		assert.Equal(t, eventFanoutMaxRetryDelay, msg.delay)
+		msg.attempt = events.EventMaxDeliver
+		processor.handleEvent(context.Background(), msg)
+		assert.Equal(t, "drop", msg.outcome)
+	})
 }
 
 func TestMonitorAlerts_DropsMalformedEvents(t *testing.T) {

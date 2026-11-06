@@ -43,7 +43,7 @@ Lower levels see the wider levels' subscriptions that reach them, read-only and 
 ## Delivery guarantees
 
 - **Durable acceptance.** Events accepted by the publisher are stored in PostgreSQL's `event_outbox` before returning. A background worker leases rows, publishes to NATS, and removes them only after confirmation. Bus failures retry without a fixed attempt limit; interrupted leases expire after two minutes.
-- **Fan-out retries.** If matching an event to its subscriptions or queuing its deliveries fails, the dispatcher retries it after 5s, doubling up to 5 minutes, for 20 attempts (about 75 minutes). After that it logs an error and gives up on the event.
+- **Fan-out retries.** If matching an event to its subscriptions or monitor alerts, or queuing its deliveries, fails, the event is retried after 5s, doubling up to 5 minutes, for 20 attempts (about 75 minutes). After that it logs an error and gives up on the event.
 - **Monitor replay.** Terminal runs remain replayable until their complete event (including scores) is accepted by the outbox. A score-query or outbox-write failure retries on a later scheduler tick, without holding back the other runs waiting for replay. Replay retains the run's completion time and event ID.
 - **Publication boundary.** Monitor outcomes have a durable source. Other route events are recorded after the operation completes; a crash or database failure between that operation and outbox insertion is still outside the delivery guarantee. The route logs an explicit persistence failure.
 - **At least once.** A receiver may see an event twice after a crash or a lost acknowledgement; it should drop duplicates by `webhook-id`, which is the same on every attempt.

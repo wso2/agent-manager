@@ -21,17 +21,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"time"
 
 	"github.com/wso2/agent-manager/agent-manager-service/events"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 )
 
-const (
-	monitorAlertFanoutConsumer   = events.MonitorAlertFanoutConsumer
-	monitorAlertFanoutRetryDelay = 5 * time.Second
-)
+const monitorAlertFanoutConsumer = events.MonitorAlertFanoutConsumer
 
 // MonitorAlertProcessor evaluates runs and queues durable destination deliveries.
 type MonitorAlertProcessor interface {
@@ -116,7 +112,7 @@ func (n *monitorAlertProcessor) handleEvent(ctx context.Context, msg events.Mess
 	alerts, err := n.repo.ListAlerts(ctx, run.MonitorID)
 	if err != nil {
 		log.Error("Failed to load monitor alerts; will retry", "error", err)
-		_ = msg.Retry(monitorAlertFanoutRetryDelay)
+		n.retry(msg, log)
 		return
 	}
 	for i := range alerts {
@@ -139,25 +135,41 @@ func (n *monitorAlertProcessor) handleEvent(ctx context.Context, msg events.Mess
 		})
 		if err != nil {
 			log.Error("Failed to evaluate monitor alert; will retry", "alertId", w.ID, "error", err)
-			_ = msg.Retry(monitorAlertFanoutRetryDelay)
+			n.retry(msg, log)
 			return
 		}
 	}
 	deliveries, err := n.repo.AlertDeliveries(ctx, e.ID)
 	if err != nil {
-		_ = msg.Retry(monitorAlertFanoutRetryDelay)
+		log.Error("Failed to load monitor alert deliveries; will retry", "error", err)
+		n.retry(msg, log)
 		return
 	}
 	for _, delivery := range deliveries {
 		body, err := json.Marshal(eventDeliveryJob{DestinationID: delivery.DestinationID.String(), Event: delivery.Payload})
 		if err != nil {
-			_ = msg.Retry(monitorAlertFanoutRetryDelay)
+			log.Error("Failed to encode monitor alert delivery; will retry", "destinationId", delivery.DestinationID, "error", err)
+			n.retry(msg, log)
 			return
 		}
 		if err := n.bus.Enqueue(ctx, events.QueueEventDeliveries, delivery.EventID+":"+delivery.DestinationID.String(), body); err != nil {
-			_ = msg.Retry(monitorAlertFanoutRetryDelay)
+			log.Error("Failed to queue monitor alert delivery; will retry", "destinationId", delivery.DestinationID, "error", err)
+			n.retry(msg, log)
 			return
 		}
 	}
 	_ = msg.Ack()
+}
+
+// retry hands msg back for another evaluation, waiting longer each time as
+// the event fan-out does. On the bus's last delivery the event is dropped
+// and the loss logged: the alerts it would have sent are not sent.
+func (n *monitorAlertProcessor) retry(msg events.Message, log *slog.Logger) {
+	attempt := msg.Attempt()
+	if attempt >= events.EventMaxDeliver {
+		log.Error("Giving up on monitor alert evaluation; its alerts will not be sent", "attempts", attempt)
+		_ = msg.Drop()
+		return
+	}
+	_ = msg.Retry(eventFanoutDelay(attempt))
 }
