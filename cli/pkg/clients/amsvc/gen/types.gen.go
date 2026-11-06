@@ -3753,9 +3753,6 @@ type EventDestinationKindListResponse struct {
 type EventDestinationKindService struct {
 	Category string `json:"category"`
 
-	// DocsUrl How to get the values the URL needs.
-	DocsUrl string `json:"docsUrl"`
-
 	// Id The service, and the scheme of its URL, e.g. slack.
 	Id    string `json:"id"`
 	Label string `json:"label"`
