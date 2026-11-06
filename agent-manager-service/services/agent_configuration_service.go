@@ -2332,6 +2332,18 @@ func (s *agentConfigurationService) processNewEnv(
 	return rbRes, pendingBind, nil
 }
 
+// deleteProxyAPIKeySecret deletes a proxy API key secret and its SecretReference
+// through the Secret Manager API. It deletes by persistedSecretRefName, the name
+// returned when the secret was created, when there is one: loc derives the name
+// from the configuration's current name, which misses a secret created before
+// the configuration was renamed.
+func (s *agentConfigurationService) deleteProxyAPIKeySecret(ctx context.Context, loc secretmanagersvc.SecretLocation, persistedSecretRefName string) error {
+	if persistedSecretRefName != "" {
+		return s.secretClient.DeleteSecretByName(ctx, loc.OrgName, persistedSecretRefName)
+	}
+	return s.secretClient.DeleteSecret(ctx, loc, loc.SecretRefName())
+}
+
 // processEnvRemoval handles Scenario D: environment removed from the request.
 // Removes env vars from the ReleaseBinding and, only when this is the last
 // remaining environment (isLastEnv == true), also clears the Component CR.
@@ -2411,12 +2423,8 @@ func (s *agentConfigurationService) processEnvRemoval(
 				EntityName:      mapping.LLMProxy.Handle,
 				SecretKey:       secretmanagersvc.SecretKeyAPIKey,
 			}
-			secretRefForDelete := persistedSecretRefName
-			if secretRefForDelete == "" {
-				secretRefForDelete = proxySecretLoc.SecretRefName()
-			}
-			if delErr := s.secretClient.DeleteSecret(ctx, proxySecretLoc, secretRefForDelete); delErr != nil {
-				s.logger.Warn("failed to delete proxy API key secret in Scenario D", "secretRef", secretRefForDelete, "err", delErr)
+			if delErr := s.deleteProxyAPIKeySecret(ctx, proxySecretLoc, persistedSecretRefName); delErr != nil {
+				s.logger.Warn("failed to delete proxy API key secret in Scenario D", "secretRef", persistedSecretRefName, "err", delErr)
 			}
 		}
 	}
@@ -4277,14 +4285,7 @@ func (s *agentConfigurationService) deleteLLMConfig(ctx context.Context, existin
 			EntityName:      proxyHandle,
 			SecretKey:       secretmanagersvc.SecretKeyAPIKey,
 		}
-		// Use persisted name when available; fall back to computed name so the
-		// KV secret deletion (location-based) still proceeds and DeleteSecret
-		// receives a valid SecretReference name for its internal cleanup.
-		secretRefForDelete := persistedSecretRefName
-		if secretRefForDelete == "" {
-			secretRefForDelete = proxySecretLoc.SecretRefName()
-		}
-		if err := s.secretClient.DeleteSecret(ctx, proxySecretLoc, secretRefForDelete); err != nil {
+		if err := s.deleteProxyAPIKeySecret(ctx, proxySecretLoc, persistedSecretRefName); err != nil {
 			return fmt.Errorf("failed to delete proxy API key from KV for proxy %q: %w",
 				proxyHandle, err)
 		}
