@@ -125,7 +125,7 @@ export const RolesPage: React.FC<RolesPageProps> = ({ createAction }) => {
         <ListingTable.Container>
           <AgentIdentityEnvironmentTabs action={isEmpty ? undefined : createAction} />
           {!isEmpty && (
-            <ListingTable.Toolbar showSearch searchPlaceholder="Search roles..." />
+            <ListingTable.Toolbar showSearch searchPlaceholder="Search roles" />
           )}
           {!isLoading && filteredRoles.length === 0 ? (
             search ? (

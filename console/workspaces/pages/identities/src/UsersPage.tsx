@@ -157,7 +157,7 @@ export const UsersPage: React.FC = () => {
           {!isEmpty && (
             <ListingTable.Toolbar
               showSearch
-              searchPlaceholder="Search users..."
+              searchPlaceholder="Search users"
               actions={hasItems ? createButtons : undefined}
             />
           )}

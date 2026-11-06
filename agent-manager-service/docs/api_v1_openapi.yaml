@@ -13880,6 +13880,96 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/alerting:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name
+        schema:
+          type: string
+      - name: projName
+        in: path
+        required: true
+        description: Project name
+        schema:
+          type: string
+      - name: agentName
+        in: path
+        required: true
+        description: Agent name
+        schema:
+          type: string
+      - name: monitorName
+        in: path
+        required: true
+        description: Monitor name
+        schema:
+          type: string
+    get:
+      tags:
+        - Monitor Alerting
+      summary: Get shared monitor alert settings
+      operationId: getMonitorAlert
+      responses:
+        "200":
+          description: Monitor alert settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MonitorAlertResponse"
+        "404":
+          description: Monitor not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      tags:
+        - Monitor Alerting
+      summary: Configure shared monitor alerts to organization destinations
+      operationId: putMonitorAlert
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MonitorAlertRequest"
+      responses:
+        "200":
+          description: Monitor alert settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MonitorAlertResponse"
+        "400":
+          description: Invalid settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Monitor not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      tags:
+        - Monitor Alerting
+      summary: Disable monitor alerting
+      description: Removes shared monitor alert settings. Succeeds when absent.
+      operationId: deleteMonitorAlert
+      responses:
+        "204":
+          description: Alerting disabled
+        "404":
+          description: Monitor not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
   securitySchemes:
     bearerAuth:
@@ -22787,3 +22877,83 @@ components:
         total:
           type: integer
           description: Deliveries matching the query, ignoring limit and offset.
+
+    MonitorScoreThreshold:
+      type: object
+      description: |
+        Sends an alert when a score of the monitor's runs crosses a
+        value, and again when it crosses back.
+      required: [evaluator, aggregation, operator, value]
+      properties:
+        evaluator:
+          type: string
+          description: Display name of one of the monitor's evaluators.
+        aggregation:
+          type: string
+          enum: [mean]
+          description: Which of the run's aggregated scores to compare.
+        operator:
+          type: string
+          enum: [below, above]
+          description: The score is breached when it is below (or above) value.
+        value:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 1
+
+    MonitorAlertRequest:
+      type: object
+      required: [destinationIds, notifyOnFailure, notifyOnSuccess, thresholds]
+      properties:
+        destinationIds:
+          type: array
+          minItems: 1
+          maxItems: 20
+          uniqueItems: true
+          items:
+            type: string
+            format: uuid
+          description: Organization destinations available to this monitor's project.
+        notifyOnFailure:
+          type: boolean
+          description: Notify when a run fails or cannot start.
+        notifyOnSuccess:
+          type: boolean
+          description: Notify when a run completes.
+        thresholds:
+          type: array
+          maxItems: 20
+          items:
+            $ref: "#/components/schemas/MonitorScoreThreshold"
+
+    MonitorAlertResponse:
+      type: object
+      required: [enabled, destinationIds, notifyOnFailure, notifyOnSuccess, thresholds]
+      properties:
+        destinationIds:
+          type: array
+          maxItems: 20
+          items:
+            type: string
+            format: uuid
+          description: Organization destinations available to this monitor's project.
+        enabled:
+          type: boolean
+          description: Whether shared monitor alerting is enabled.
+        notifyOnFailure:
+          type: boolean
+        notifyOnSuccess:
+          type: boolean
+        thresholds:
+          type: array
+          items:
+            $ref: "#/components/schemas/MonitorScoreThreshold"
+        breached:
+          type: array
+          description: The thresholds the latest evaluated run breached.
+          items:
+            $ref: "#/components/schemas/MonitorScoreThreshold"
+        updatedAt:
+          type: string
+          format: date-time

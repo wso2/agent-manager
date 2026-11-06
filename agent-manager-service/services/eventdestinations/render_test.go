@@ -47,3 +47,36 @@ func TestRender_NotACloudEvent(t *testing.T) {
 	assert.Equal(t, "Agent Manager · Monitor run failed", text.Title)
 	assert.Contains(t, text.Body, "Event: monitor_run.failed (evt_2)")
 }
+
+func TestRender_MonitorAlerts(t *testing.T) {
+	for _, tc := range []struct{ kind, title, body string }{
+		{"score_threshold_breached", "Quality score dropped", "Accuracy mean 0.4 is below 0.8."},
+		{"score_threshold_recovered", "Quality score recovered", "Accuracy mean 0.9 is above 0.8 again."},
+		{"monitor_run_failed", "Monitor run failed", "Evaluation could not complete: provider unavailable."},
+	} {
+		t.Run(tc.kind, func(t *testing.T) {
+			evt := events.New("source:alert:"+tc.kind, "monitor.alert."+tc.kind, events.ScopeAgent, "org-1", "default", "assistant", time.Time{})
+			evt.Environment = "production"
+			evt.Data = map[string]any{"title": tc.title, "body": tc.body, "monitor": map[string]any{"monitorName": "quality", "monitorDisplayName": "Quality checks", "runId": "run-123"}}
+			body, err := json.Marshal(evt)
+			require.NoError(t, err)
+			text := Render(Message{ID: evt.ID, Type: evt.Type, Body: body})
+			assert.Equal(t, "Agent Manager · "+tc.title, text.Title)
+			assert.Contains(t, text.Body, tc.body)
+			assert.Contains(t, text.Body, "Monitor: Quality checks\nRun: run-123")
+			assert.Contains(t, text.Body, "Project: default · Agent: assistant · Environment: production")
+			assert.Contains(t, text.Body, "Event: monitor.alert."+tc.kind+" ("+evt.ID+")")
+		})
+	}
+}
+
+func TestRender_MonitorAlertMissingOptionalFields(t *testing.T) {
+	evt := events.New("evt-1", "monitor.alert.monitor_run_failed", events.ScopeAgent, "org-1", "default", "assistant", time.Time{})
+	evt.Data = map[string]any{"monitor": map[string]any{"monitorName": "quality"}}
+	body, err := json.Marshal(evt)
+	require.NoError(t, err)
+	text := Render(Message{ID: evt.ID, Type: evt.Type, Body: body})
+	assert.Equal(t, "Agent Manager · Monitor alert monitor run failed", text.Title)
+	assert.Contains(t, text.Body, "Monitor: quality")
+	assert.NotContains(t, text.Body, "Run:")
+}

@@ -83,6 +83,7 @@ type SubscriptionCounts map[uuid.UUID]map[string]int
 //
 //go:generate moq -rm -fmt goimports -skip-ensure -pkg repomocks -out repomocks/event_repository_mock.go . EventRepository:EventRepositoryMock
 type EventRepository interface {
+	MonitorAlertWants(ctx context.Context, ouID string, alertID, destinationID uuid.UUID, project, agent string) (bool, error)
 	ListDestinations(ctx context.Context, ouID string) ([]models.EventDestination, error)
 	// GetDestination returns the org's destination with id, or
 	// gorm.ErrRecordNotFound.
@@ -248,6 +249,15 @@ func (r *eventRepository) UpdateDestination(
 				return err
 			}
 		}
+		projects, err := monitorProjectsUsingDestination(tx, d.OUID, d.ID)
+		if err != nil {
+			return err
+		}
+		for _, project := range projects {
+			if !d.UsableBy(models.EventScopeAgent, project) {
+				return fmt.Errorf("%w: destination is used by monitor alerting in project %s", utils.ErrEventDestinationInUse, project)
+			}
+		}
 		// PostgreSQL stores microseconds. Keep the returned revision identical
 		// to the stored one and advance it even for writes in one clock tick.
 		d.UpdatedAt = time.Now().UTC().Truncate(time.Microsecond)
@@ -267,14 +277,31 @@ func (r *eventRepository) UpdateDestination(
 }
 
 func (r *eventRepository) DeleteDestination(ctx context.Context, ouID string, id uuid.UUID) (bool, error) {
-	res := r.db.WithContext(ctx).Where("ou_id = ? AND id = ?", ouID, id).Delete(&models.EventDestination{})
-	if res.Error != nil {
-		if pgErrorCode(res.Error) == pgForeignKeyViolation {
-			return false, utils.ErrEventDestinationInUse
+	deleted := false
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var destination models.EventDestination
+		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("ou_id = ? AND id = ?", ouID, id).First(&destination).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
 		}
-		return false, res.Error
+		if err != nil {
+			return err
+		}
+		projects, err := monitorProjectsUsingDestination(tx, ouID, id)
+		if err != nil {
+			return err
+		}
+		if len(projects) > 0 {
+			return fmt.Errorf("%w: remove the destination from monitor alert settings first", utils.ErrEventDestinationInUse)
+		}
+		res := tx.Delete(&destination)
+		deleted = res.RowsAffected > 0
+		return res.Error
+	})
+	if pgErrorCode(err) == pgForeignKeyViolation {
+		return false, utils.ErrEventDestinationInUse
 	}
-	return res.RowsAffected > 0, nil
+	return deleted, err
 }
 
 // destinationStatsRow is one row of the destination stats query.
@@ -651,4 +678,23 @@ func (r *eventRepository) FailStaleDeliveries(ctx context.Context, cutoff time.T
 func (r *eventRepository) PruneDeliveries(ctx context.Context, cutoff time.Time) (int64, error) {
 	res := r.db.WithContext(ctx).Where("created_at < ?", cutoff).Delete(&models.EventDelivery{})
 	return res.RowsAffected, res.Error
+}
+
+// MonitorAlertWants rechecks current shared settings and monitor ownership before delivery.
+func (r *eventRepository) MonitorAlertWants(ctx context.Context, ouID string, alertID, destinationID uuid.UUID, project, agent string) (bool, error) {
+	var count int64
+	err := r.db.WithContext(ctx).Table("monitor_alerts AS a").Joins("JOIN monitors m ON m.id = a.monitor_id").Where("a.id = ? AND a.ou_id = ? AND m.ou_id = ? AND m.project_name = ? AND m.agent_name = ? AND a.destination_ids @> ?::jsonb", alertID, ouID, ouID, project, agent, `[`+`"`+destinationID.String()+`"`+`]`).Count(&count).Error
+	return count > 0, err
+}
+
+// The destination row is locked by callers, serializing this check with alert saves.
+func monitorProjectsUsingDestination(tx *gorm.DB, ouID string, id uuid.UUID) ([]string, error) {
+	var projects []string
+	ids, err := json.Marshal([]string{id.String()})
+	if err != nil {
+		return nil, err
+	}
+	err = tx.Table("monitor_alerts AS a").Joins("JOIN monitors AS m ON m.id = a.monitor_id AND m.ou_id = a.ou_id").
+		Where("a.ou_id = ? AND a.destination_ids @> ?::jsonb", ouID, string(ids)).Pluck("m.project_name", &projects).Error
+	return projects, err
 }

@@ -260,7 +260,7 @@ export function DeploymentPipelineTable({
         setSearch(value);
         setPage(0);
       }}
-      searchPlaceholder="Search pipelines..."
+      searchPlaceholder="Search pipelines"
       searchDisabled={isLoading}
       error={
         error

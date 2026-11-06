@@ -420,6 +420,12 @@ func eventFanoutDelay(attempt int) time.Duration {
 func (d *eventDispatcher) stillWanted(
 	ctx context.Context, delivery *models.EventDelivery, dest *models.EventDestination, e events.Event,
 ) (bool, error) {
+	if delivery.MonitorAlertID != nil {
+		if !dest.UsableBy(models.EventScopeAgent, delivery.ProjectName) {
+			return false, nil
+		}
+		return d.repo.MonitorAlertWants(ctx, delivery.OUID, *delivery.MonitorAlertID, dest.ID, delivery.ProjectName, delivery.AgentName)
+	}
 	ids := make([]uuid.UUID, 0, len(delivery.SubscriptionIDs))
 	for _, raw := range delivery.SubscriptionIDs {
 		if id, err := uuid.Parse(raw); err == nil {

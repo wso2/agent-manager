@@ -132,12 +132,15 @@ func (EventSubscription) TableName() string { return "event_subscriptions" }
 // subscriptions may match the same event and send it to the same
 // destination; it is delivered once, and SubscriptionIDs lists them all.
 type EventDelivery struct {
-	ID              uuid.UUID `gorm:"column:id;primaryKey;type:uuid;default:gen_random_uuid()" json:"id"`
-	OUID            string    `gorm:"column:ou_id;not null" json:"ouId"`
-	DestinationID   uuid.UUID `gorm:"column:destination_id;type:uuid;not null" json:"destinationId"`
-	SubscriptionIDs []string  `gorm:"column:subscription_ids;type:jsonb;serializer:json;not null" json:"subscriptionIds"`
-	EventID         string    `gorm:"column:event_id;not null" json:"eventId"`
-	EventType       string    `gorm:"column:event_type;not null" json:"eventType"`
+	MonitorAlertID  *uuid.UUID      `gorm:"column:monitor_alert_id;type:uuid" json:"-"`
+	SourceEventID   string          `gorm:"column:source_event_id" json:"-"`
+	Payload         json.RawMessage `gorm:"column:payload;type:jsonb" json:"-"`
+	ID              uuid.UUID       `gorm:"column:id;primaryKey;type:uuid;default:gen_random_uuid()" json:"id"`
+	OUID            string          `gorm:"column:ou_id;not null" json:"ouId"`
+	DestinationID   uuid.UUID       `gorm:"column:destination_id;type:uuid;not null" json:"destinationId"`
+	SubscriptionIDs []string        `gorm:"column:subscription_ids;type:jsonb;serializer:json;not null" json:"subscriptionIds"`
+	EventID         string          `gorm:"column:event_id;not null" json:"eventId"`
+	EventType       string          `gorm:"column:event_type;not null" json:"eventType"`
 	// EventScope, ProjectName, AgentName and Environment say where the event
 	// happened, so each level's delivery log shows only its own events.
 	EventScope   string     `gorm:"column:event_scope;not null" json:"eventScope"`

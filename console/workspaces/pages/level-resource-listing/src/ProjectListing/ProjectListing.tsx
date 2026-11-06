@@ -182,9 +182,9 @@ export function ProjectListing() {
           <SearchBar
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search Projects"
+            placeholder="Search projects"
             size="small"
-            fullWidth
+            width="standard"
           />
 
           {filteredProjects.length === 0 && !isLoadingProjects ? (
