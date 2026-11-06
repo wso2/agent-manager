@@ -104,6 +104,21 @@ func (c *catalogController) ListCatalog(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 
+	// The API spells hosting in uppercase; the store in lowercase.
+	var gatewayHosting string
+	switch hosting := r.URL.Query().Get("gatewayHosting"); hosting {
+	case "":
+	case string(spec.GATEWAYHOSTING_MANAGED):
+		gatewayHosting = models.GatewayHostingManaged
+	case string(spec.GATEWAYHOSTING_SELF_HOSTED):
+		gatewayHosting = models.GatewayHostingSelfHosted
+	default:
+		log.Error("ListCatalog: invalid gatewayHosting parameter", "gatewayHosting", hosting)
+		utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("Invalid gatewayHosting parameter. Must be one of: %s, %s",
+			spec.GATEWAYHOSTING_MANAGED, spec.GATEWAYHOSTING_SELF_HOSTED))
+		return
+	}
+
 	// For llmProvider kind, use the enhanced service method with filters
 	if kind == models.CatalogKindLLMProvider {
 		// Build filter struct
@@ -112,6 +127,7 @@ func (c *catalogController) ListCatalog(w http.ResponseWriter, r *http.Request) 
 			Kind:             kind,
 			Name:             name,
 			EnvironmentUUID:  environmentUUID,
+			GatewayHosting:   gatewayHosting,
 			Limit:            limit,
 			Offset:           offset,
 		}

@@ -84,6 +84,7 @@ func newLLMPlacementFixture(t *testing.T, envNames ...string) *llmPlacementFixtu
 		},
 	}
 	f.svc = &agentConfigurationService{
+		logger:                    discardLogger(),
 		gatewayRepo:               f.gatewayRepo,
 		llmProviderRepo:           providerRepo,
 		llmProxyDeploymentService: &LLMProxyDeploymentService{deploymentRepo: deployments},
@@ -128,7 +129,8 @@ func TestLLMConfig_RefusesSelfHostedOnlyProvider(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			err := platformAgentPolicy.requireProvider(context.Background(), f.svc.llmProxyDeploymentService, f.svc.gatewayRepo, llmPlacementOU, p.UUID, f.env("dev"))
 			require.ErrorIs(t, err, utils.ErrInvalidInput)
-			assert.ErrorContains(t, err, "has no deployment on a managed gateway in environment "+f.envs["dev"].UUID)
+			assert.ErrorContains(t, err, "not deployed to a managed gateway in this environment (platform-hosted agents can only use")
+			assert.ErrorContains(t, err, deployProviderHint)
 		})
 	}
 
@@ -159,7 +161,7 @@ func TestLLMConfig_RefusalAppliesNothing(t *testing.T) {
 				"ok": {ProviderName: "managed-p"}, "bad": {ProviderName: "self-p"},
 			}}, "user", platformAgentPolicy)
 		require.ErrorIs(t, err, utils.ErrInvalidInput)
-		assert.ErrorContains(t, err, f.envs["bad"].UUID)
+		assert.ErrorContains(t, err, `LLM provider "self-p" in environment bad: `)
 	})
 
 	t.Run("update changing providers and adding an environment", func(t *testing.T) {
@@ -187,8 +189,7 @@ func TestLLMConfig_RefusalAppliesNothing(t *testing.T) {
 				"ok": {ProviderName: "managed-p"}, "bad": {ProviderName: "self-p"},
 			}})
 		require.ErrorIs(t, err, utils.ErrInvalidInput)
-		assert.ErrorContains(t, err, "environment bad: ")
-		assert.ErrorContains(t, err, f.envs["bad"].UUID)
+		assert.ErrorContains(t, err, `LLM provider "self-p" in environment bad: `)
 	})
 
 	t.Run("update changing the provider of an existing environment", func(t *testing.T) {
@@ -351,7 +352,7 @@ func TestLLMConfig_ExternalAgentRefusedWhenProviderNotInEnv(t *testing.T) {
 	f.gatewayRepo.EnvironmentMappingExistsFunc = func(gatewayID, _ string) (bool, error) {
 		return gatewayID != f.placedOn[elsewhere.UUID].UUID.String(), nil
 	}
-	notInEnv := "has no deployment on a gateway in environment " + f.envs["dev"].UUID
+	notInEnv := "not deployed to a gateway in this environment; " + deployProviderHint
 
 	for name, p := range map[string]*models.LLMProvider{"not deployed": unplaced, "deployed to another environment": elsewhere} {
 		t.Run(name, func(t *testing.T) {
@@ -391,7 +392,7 @@ func TestLLMConfig_ExternalAgentRefusedWhenProviderNotInEnv(t *testing.T) {
 				"dev": {ProviderName: "unplaced-p"},
 			}})
 		require.ErrorIs(t, err, utils.ErrInvalidInput)
-		assert.ErrorContains(t, err, "environment dev: ")
+		assert.ErrorContains(t, err, `LLM provider "unplaced-p" in environment dev: `)
 		assert.ErrorContains(t, err, notInEnv)
 	})
 }
