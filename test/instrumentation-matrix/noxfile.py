@@ -60,12 +60,6 @@ def emission(session, cell):
         "pytest",
         "pytest-recording",
         "vcrpy",
-        # vcrpy 8.1.1's aiohttp stub subclasses
-        # aiohttp.streams.AsyncStreamReaderMixin, which aiohttp 3.14.0 removed —
-        # so an unpinned resolve breaks every cell at vcr import time (F-011).
-        # aiohttp is only a transitive dep here (LLM calls go over httpx), so
-        # capping it is safe. Drop the cap when vcrpy ships aiohttp-3.14 support.
-        "aiohttp<3.14",
         "jsonschema",
         "pyyaml",
     ]

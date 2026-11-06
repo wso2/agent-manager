@@ -159,23 +159,3 @@ reused, so removed numbers just leave a gap.)
 - **Re-tighten when**: not applicable — these are forward pins to currently-
   compatible versions; if either SDK regresses or Traceloop pins httpx tight
   enough to require an older SDK, the matrix will surface it.
-
-## F-011 — vcrpy 8.1.1 breaks against aiohttp 3.14.0
-
-- **Status**: mitigated
-- **Combo**: any cell (test-infra only) — `vcrpy 8.1.1` × `aiohttp 3.14.0`
-- **Discovered**: 2026-06-02 (first fresh-venv run after aiohttp 3.14.0 released)
-- **Symptom**: every emission cell errors at collection with
-  `AttributeError: module 'aiohttp.streams' has no attribute
-  'AsyncStreamReaderMixin'` from `vcr/stubs/aiohttp_stubs.py`. vcrpy's aiohttp
-  stub does `class MockStream(asyncio.StreamReader, streams.AsyncStreamReaderMixin)`
-  at import time; aiohttp 3.14.0 removed that mixin.
-- **Cause**: test-infra deps (`vcrpy`, `aiohttp`) are unpinned, so a fresh
-  resolve picks the just-released aiohttp 3.14.0 that current vcrpy doesn't
-  support. Independent of the traceloop version — it was masked only because
-  older cell venvs were cached from before 3.14.0.
-- **Mitigation**: pin `aiohttp<3.14` in `noxfile.py`'s test-infra install
-  block. aiohttp is only a transitive dep (LLM calls go over httpx), so the
-  cap doesn't change what's under test.
-- **Re-tighten when**: vcrpy ships a release whose aiohttp stub supports
-  aiohttp 3.14 — then drop the `aiohttp<3.14` cap and let it float again.
