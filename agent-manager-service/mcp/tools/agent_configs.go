@@ -64,6 +64,22 @@ const attachNote = "The agent reads the connection from the environment variable
 	"An agent that is already running picks them up on its next deployment; use build_agent and deploy_agent, " +
 	"or update_deployment_state with redeploy."
 
+// externalAttachNote is the note for an agent that runs outside the platform:
+// nothing is injected or deployed, and the URL and key the create returned are
+// withheld from the chat, so it says where in the console the user gets them.
+// target is the console panel's subject ("LLM Provider" or "MCP Server").
+func externalAttachNote(target, keyHint string) string {
+	return "This is an external agent: nothing is injected into it and there is nothing to build or deploy, " +
+		"and the proxy URL and API key are not returned here. Open this configuration on the agent in the console: " +
+		"\"Connect to " + target + "\" shows each environment's proxy URL, and " + keyHint +
+		" (the key issued at creation is not shown again)."
+}
+
+const (
+	externalLLMKeyHint = "the API key section regenerates the key the agent sends"
+	externalMCPKeyHint = "when the proxy uses API key security, the API key section regenerates the key the agent sends"
+)
+
 func (t *Toolsets) registerAgentConfigTools(server *gomcp.Server, reg *toolRegistry) {
 	addTool(reg, server, &gomcp.Tool{
 		Name: "attach_llm_provider_to_agent",
@@ -78,7 +94,7 @@ func (t *Toolsets) registerAgentConfigTools(server *gomcp.Server, reg *toolRegis
 			"environments": arrayProperty("Optional. Environment names to configure. Defaults to every environment where the provider is deployed to a gateway this agent can use.", map[string]any{"type": "string"}),
 			"guardrails":   arrayProperty("Optional. Guardrails for this agent's LLM traffic, on top of any on the provider.", guardrailSchema()),
 		}, []string{"project_name", "agent_name", "provider_id"}),
-	}, audit.ActionAgentUpdate, attachLLMProvider(t.AgentConfigToolset, t.EnvironmentToolset), rbac.AgentUpdate)
+	}, audit.ActionAgentUpdate, attachLLMProvider(t.AgentConfigToolset, t.EnvironmentToolset, t.AgentToolset), rbac.AgentUpdate)
 
 	addTool(reg, server, &gomcp.Tool{
 		Name: "attach_mcp_proxy_to_agent",
@@ -94,17 +110,17 @@ func (t *Toolsets) registerAgentConfigTools(server *gomcp.Server, reg *toolRegis
 			"config_name":  stringProperty("Optional. Name of the agent's MCP configuration; also the prefix of the injected variables. Defaults to the proxy id."),
 			"environments": arrayProperty("Optional. Environment names to configure. Defaults to every environment, including ones the proxy is not deployed to yet.", map[string]any{"type": "string"}),
 		}, []string{"project_name", "agent_name", "proxy_id"}),
-	}, audit.ActionAgentUpdate, attachMCPProxy(t.AgentConfigToolset, t.EnvironmentToolset), rbac.AgentUpdate)
+	}, audit.ActionAgentUpdate, attachMCPProxy(t.AgentConfigToolset, t.EnvironmentToolset, t.AgentToolset), rbac.AgentUpdate)
 }
 
-func attachLLMProvider(handler AgentConfigToolsetHandler, envHandler EnvironmentToolsetHandler) func(context.Context, *gomcp.CallToolRequest, attachLLMProviderInput) (*gomcp.CallToolResult, any, error) {
+func attachLLMProvider(handler AgentConfigToolsetHandler, envHandler EnvironmentToolsetHandler, agentHandler AgentToolsetHandler) func(context.Context, *gomcp.CallToolRequest, attachLLMProviderInput) (*gomcp.CallToolResult, any, error) {
 	return func(ctx context.Context, _ *gomcp.CallToolRequest, input attachLLMProviderInput) (*gomcp.CallToolResult, any, error) {
 		const toolName = "attach_llm_provider_to_agent"
 		policies, err := toModelGuardrails(input.Guardrails)
 		if err != nil {
 			return nil, nil, err
 		}
-		out, err := attachConfig(ctx, toolName, handler, envHandler, models.AgentConfigTypeLLM,
+		out, err := attachConfig(ctx, toolName, handler, envHandler, agentHandler, models.AgentConfigTypeLLM,
 			input.ProjectName, input.AgentName, input.ProviderID, "provider_id", input.ConfigName, input.Environments, policies)
 		if err != nil {
 			return nil, nil, err
@@ -116,9 +132,9 @@ func attachLLMProvider(handler AgentConfigToolsetHandler, envHandler Environment
 	}
 }
 
-func attachMCPProxy(handler AgentConfigToolsetHandler, envHandler EnvironmentToolsetHandler) func(context.Context, *gomcp.CallToolRequest, attachMCPProxyInput) (*gomcp.CallToolResult, any, error) {
+func attachMCPProxy(handler AgentConfigToolsetHandler, envHandler EnvironmentToolsetHandler, agentHandler AgentToolsetHandler) func(context.Context, *gomcp.CallToolRequest, attachMCPProxyInput) (*gomcp.CallToolResult, any, error) {
 	return func(ctx context.Context, _ *gomcp.CallToolRequest, input attachMCPProxyInput) (*gomcp.CallToolResult, any, error) {
-		out, err := attachConfig(ctx, "attach_mcp_proxy_to_agent", handler, envHandler, models.AgentConfigTypeMCP,
+		out, err := attachConfig(ctx, "attach_mcp_proxy_to_agent", handler, envHandler, agentHandler, models.AgentConfigTypeMCP,
 			input.ProjectName, input.AgentName, input.ProxyID, "proxy_id", input.ConfigName, input.Environments, nil)
 		if err != nil {
 			return nil, nil, err
@@ -132,7 +148,7 @@ func attachMCPProxy(handler AgentConfigToolsetHandler, envHandler EnvironmentToo
 // create does after converting its request.
 func attachConfig(
 	ctx context.Context, toolName string,
-	handler AgentConfigToolsetHandler, envHandler EnvironmentToolsetHandler,
+	handler AgentConfigToolsetHandler, envHandler EnvironmentToolsetHandler, agentHandler AgentToolsetHandler,
 	configType, projectName, agentName, target, targetArg, configName string,
 	environments []string, policies []models.LLMPolicy,
 ) (*attachConfigOutput, error) {
@@ -155,8 +171,13 @@ func attachConfig(
 	}
 
 	ouID := resolveOUID(ctx)
+	// Read before the create, so a failed lookup never leaves a config behind
+	// with the wrong note.
+	note, err := attachNoteFor(ctx, agentHandler, ouID, projectName, agentName, configType)
+	if err != nil {
+		return nil, wrapToolError(toolName, err)
+	}
 	var envNames []string
-	var err error
 	if configType == models.AgentConfigTypeLLM && !hasEnvironmentNames(environments) {
 		// Create refuses the whole config on any environment where the provider is not placed, so
 		// "every environment" would fail for a provider deployed to only some of them.
@@ -192,7 +213,7 @@ func attachConfig(
 		AgentName:            agentName,
 		Environments:         envNames,
 		EnvironmentVariables: []envVarItem{},
-		Note:                 attachNote,
+		Note:                 note,
 	}
 	// Only the variable names go back to the model: the response can carry a
 	// freshly issued key for external agents, and that must not land in a chat.
@@ -200,6 +221,26 @@ func attachConfig(
 		out.EnvironmentVariables = append(out.EnvironmentVariables, envVarItem{Name: v.Name, Key: v.Key})
 	}
 	return out, nil
+}
+
+// attachNoteFor is the note for the agent's kind: a platform-hosted agent gets
+// the connection injected on its next deployment, an external agent gets it
+// from the console.
+func attachNoteFor(ctx context.Context, agentHandler AgentToolsetHandler, ouID, projectName, agentName, configType string) (string, error) {
+	if agentHandler == nil {
+		return attachNote, nil
+	}
+	agent, err := agentHandler.GetAgent(ctx, ouID, projectName, agentName)
+	if err != nil {
+		return "", err
+	}
+	if agent == nil || agent.Provisioning.Type != string(utils.ExternalAgent) {
+		return attachNote, nil
+	}
+	if configType == models.AgentConfigTypeMCP {
+		return externalAttachNote("MCP Server", externalMCPKeyHint), nil
+	}
+	return externalAttachNote("LLM Provider", externalLLMKeyHint), nil
 }
 
 func hasEnvironmentNames(names []string) bool {
