@@ -19,6 +19,7 @@ package services
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -32,6 +33,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
+	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 const bcOrg = "6f1e2c3d-0000-4000-8000-000000000001"
@@ -66,9 +68,119 @@ func TestBuildCredentialProvisioner_ReturnsStoredClientWithoutProvisioning(t *te
 			return &models.OrgBuildCredential{OUID: ouID, ClientID: "amp-build-" + ouID, SecretRefName: "amp-build-ref"}, nil
 		},
 	}
-	// Lock, Thunder, secret store and OpenChoreo funcs are nil: provisioning must not happen.
+	oc := &clientmocks.OpenChoreoClientMock{
+		GetSecretReferenceFunc: func(_ context.Context, _, name string) (*client.SecretReferenceInfo, error) {
+			assert.Equal(t, "amp-build-ref", name, "the stored SecretReference is checked before it is used")
+			return bothEntries(), nil
+		},
+	}
+	// Lock, Thunder and secret store funcs are nil: provisioning must not happen.
 	p := newBuildCredentialProvisioner(&clientmocks.ThunderClientMock{}, &clientmocks.SecretManagementClientMock{},
-		&clientmocks.OpenChoreoClientMock{}, repo, discardLogger())
+		oc, repo, discardLogger())
+
+	got, err := p.EnsureBuildClient(context.Background(), bcOrg)
+	require.NoError(t, err)
+	assert.Equal(t, &client.BuildClientParams{SecretRefName: "amp-build-ref"}, got)
+	assert.Len(t, oc.GetSecretReferenceCalls(), 1)
+}
+
+// staleStoredRepo stores a build client whose SecretReference is staleRef until
+// provisioning replaces it; upserted records the replacement.
+func staleStoredRepo(staleRef string, upserted **models.OrgBuildCredential) *repomocks.OrgBuildCredentialRepositoryMock {
+	return lockingRepo(&repomocks.OrgBuildCredentialRepositoryMock{
+		GetByOrgNameFunc: func(ouID string) (*models.OrgBuildCredential, error) {
+			if *upserted != nil {
+				return *upserted, nil
+			}
+			return &models.OrgBuildCredential{OUID: ouID, ClientID: "amp-build-" + ouID, SecretRefName: staleRef}, nil
+		},
+		UpsertFunc: func(cred *models.OrgBuildCredential) error {
+			*upserted = cred
+			return nil
+		},
+	}, nil)
+}
+
+// reprovisioningThunder answers for a build client app that already exists:
+// Thunder does not return its secret again, so the provisioner regenerates it.
+func reprovisioningThunder(regenerated *bool) *clientmocks.ThunderClientMock {
+	return &clientmocks.ThunderClientMock{
+		EnsureAppFunc: func(_ context.Context, appName, _ string) (string, string, bool, error) {
+			return appName, "", false, nil
+		},
+		RegenerateAppClientSecretFunc: func(context.Context, string) (string, error) {
+			*regenerated = true
+			return "new-secret", nil
+		},
+	}
+}
+
+func newSecretStore() *clientmocks.SecretManagementClientMock {
+	return &clientmocks.SecretManagementClientMock{
+		CreateSecretFunc: func(context.Context, secretmanagersvc.SecretLocation, map[string]string) (string, error) {
+			return "new-ref", nil
+		},
+	}
+}
+
+func TestBuildCredentialProvisioner_ProvisionsAgainWhenTheStoredSecretReferenceIsGone(t *testing.T) {
+	var upserted *models.OrgBuildCredential
+	regenerated := false
+	oc := &clientmocks.OpenChoreoClientMock{
+		GetSecretReferenceFunc: func(_ context.Context, _, name string) (*client.SecretReferenceInfo, error) {
+			if name == "old-ref" {
+				return nil, fmt.Errorf("%w: secret reference %s", utils.ErrNotFound, name)
+			}
+			return bothEntries(), nil
+		},
+	}
+	p := newBuildCredentialProvisioner(reprovisioningThunder(&regenerated), newSecretStore(), oc,
+		staleStoredRepo("old-ref", &upserted), discardLogger())
+
+	got, err := p.EnsureBuildClient(auditableCtx(t), bcOrg)
+	require.NoError(t, err)
+	assert.Equal(t, &client.BuildClientParams{SecretRefName: "new-ref"}, got)
+	assert.True(t, regenerated, "the existing app's secret is regenerated, since the stored one is lost")
+	require.NotNil(t, upserted, "the stale row is replaced")
+	assert.Equal(t, "new-ref", upserted.SecretRefName)
+}
+
+func TestBuildCredentialProvisioner_ProvisionsAgainWhenTheStoredSecretReferenceLostAnEntry(t *testing.T) {
+	var upserted *models.OrgBuildCredential
+	regenerated := false
+	oc := &clientmocks.OpenChoreoClientMock{
+		GetSecretReferenceFunc: func(_ context.Context, _, name string) (*client.SecretReferenceInfo, error) {
+			if name == "old-ref" {
+				return &client.SecretReferenceInfo{Data: bothEntries().Data[:1]}, nil // no client-secret
+			}
+			return bothEntries(), nil
+		},
+	}
+	p := newBuildCredentialProvisioner(reprovisioningThunder(&regenerated), newSecretStore(), oc,
+		staleStoredRepo("old-ref", &upserted), discardLogger())
+
+	got, err := p.EnsureBuildClient(auditableCtx(t), bcOrg)
+	require.NoError(t, err)
+	assert.Equal(t, &client.BuildClientParams{SecretRefName: "new-ref"}, got)
+	require.NotNil(t, upserted)
+	assert.Equal(t, "new-ref", upserted.SecretRefName)
+}
+
+func TestBuildCredentialProvisioner_KeepsTheStoredClientWhenItCannotBeChecked(t *testing.T) {
+	repo := &repomocks.OrgBuildCredentialRepositoryMock{
+		GetByOrgNameFunc: func(ouID string) (*models.OrgBuildCredential, error) {
+			return &models.OrgBuildCredential{OUID: ouID, SecretRefName: "amp-build-ref"}, nil
+		},
+	}
+	oc := &clientmocks.OpenChoreoClientMock{
+		GetSecretReferenceFunc: func(context.Context, string, string) (*client.SecretReferenceInfo, error) {
+			return nil, fmt.Errorf("%w: upstream unavailable", utils.ErrInternalServerError)
+		},
+	}
+	// Lock, Thunder and secret store funcs are nil: a transient failure must not
+	// regenerate a secret that may still work.
+	p := newBuildCredentialProvisioner(&clientmocks.ThunderClientMock{}, &clientmocks.SecretManagementClientMock{},
+		oc, repo, discardLogger())
 
 	got, err := p.EnsureBuildClient(context.Background(), bcOrg)
 	require.NoError(t, err)
@@ -134,8 +246,13 @@ func TestBuildCredentialProvisioner_UsesTheClientAnotherReplicaStoredWhileWaitin
 			return &models.OrgBuildCredential{OUID: ouID, SecretRefName: "stored-by-other-replica"}, nil
 		},
 	}, nil)
+	oc := &clientmocks.OpenChoreoClientMock{
+		GetSecretReferenceFunc: func(context.Context, string, string) (*client.SecretReferenceInfo, error) {
+			return bothEntries(), nil
+		},
+	}
 	// Thunder funcs are nil: the re-check under the lock must stop provisioning.
-	p := newBuildCredentialProvisioner(&clientmocks.ThunderClientMock{}, nil, nil, repo, discardLogger())
+	p := newBuildCredentialProvisioner(&clientmocks.ThunderClientMock{}, nil, oc, repo, discardLogger())
 
 	got, err := p.EnsureBuildClient(auditableCtx(t), bcOrg)
 	require.NoError(t, err)

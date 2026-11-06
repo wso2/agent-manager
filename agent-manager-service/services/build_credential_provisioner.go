@@ -34,6 +34,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
+	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // BuildCredentialProvisioner provisions an organization's build client: the OAuth2
@@ -128,7 +129,7 @@ func (p *buildCredentialProvisioner) EnsureBuildClient(ctx context.Context, ouID
 	if ouID == "" {
 		return nil, errors.New("build client: organization is required")
 	}
-	if params, found, err := p.storedBuildClient(ouID); err != nil || found {
+	if params, found, err := p.storedBuildClient(ctx, ouID); err != nil || found {
 		return params, err
 	}
 	result, err, _ := p.sfg.Do("build-client:"+ouID, func() (any, error) {
@@ -139,8 +140,9 @@ func (p *buildCredentialProvisioner) EnsureBuildClient(ctx context.Context, ouID
 		defer cancel()
 		var params *client.BuildClientParams
 		err := p.credRepo.WithProvisioningLock(runCtx, ouID, func() error {
-			// Another replica may have provisioned it while this one waited.
-			stored, found, err := p.storedBuildClient(ouID)
+			// Another replica may have provisioned it (or repaired a stale one)
+			// while this one waited.
+			stored, found, err := p.storedBuildClient(runCtx, ouID)
 			if err != nil || found {
 				params = stored
 				return err
@@ -157,17 +159,47 @@ func (p *buildCredentialProvisioner) EnsureBuildClient(ctx context.Context, ouID
 }
 
 // storedBuildClient returns the organization's stored build client; found is
-// false (with a nil error) when none is stored yet.
-func (p *buildCredentialProvisioner) storedBuildClient(ouID string) (*client.BuildClientParams, bool, error) {
+// false (with a nil error) when none is stored yet, or when the stored one is
+// stale and must be provisioned again.
+//
+// A stored row is only a record of where the secret was put, so its
+// SecretReference is checked on every use, as provisioning checks it: one that
+// no longer exists, or has lost an entry the workload step reads, would fail
+// every build in the organization at the workload step, and no one would ever
+// clean up the row. Such a row counts as not stored, and provisioning replaces
+// it. A check that fails for any other reason (OpenChoreo unreachable, say) is
+// not taken as proof that the row is stale: the stored client is used, rather
+// than regenerating a working secret because of a transient error.
+func (p *buildCredentialProvisioner) storedBuildClient(ctx context.Context, ouID string) (*client.BuildClientParams, bool, error) {
 	existing, err := p.credRepo.GetByOrgName(ouID)
 	switch {
 	case err == nil:
-		return &client.BuildClientParams{SecretRefName: existing.SecretRefName}, true, nil
 	case errors.Is(err, gorm.ErrRecordNotFound):
 		return nil, false, nil
 	default:
 		return nil, false, fmt.Errorf("failed to look up build client for org %s: %w", ouID, err)
 	}
+	if err := p.verifyClientSecretRef(ctx, ouID, existing.SecretRefName); err != nil {
+		if isStaleBuildClientSecretRef(err) {
+			p.logger.Warn("Stored build client's SecretReference is missing or unusable; provisioning the build client again",
+				"ouID", ouID, "secretRefName", existing.SecretRefName, "error", err)
+			return nil, false, nil
+		}
+		p.logger.Warn("Could not verify the stored build client's SecretReference; using it",
+			"ouID", ouID, "secretRefName", existing.SecretRefName, "error", err)
+	}
+	return &client.BuildClientParams{SecretRefName: existing.SecretRefName}, true, nil
+}
+
+// errBuildClientSecretRefUnusable marks a SecretReference that exists but lacks
+// an entry the workload step reads.
+var errBuildClientSecretRefUnusable = errors.New("build client SecretReference is unusable")
+
+// isStaleBuildClientSecretRef reports whether verifyClientSecretRef's error
+// proves the stored SecretReference cannot work: it no longer exists, or it has
+// lost an entry. Only these make the stored row stale.
+func isStaleBuildClientSecretRef(err error) bool {
+	return errors.Is(err, utils.ErrNotFound) || errors.Is(err, errBuildClientSecretRefUnusable)
 }
 
 // provisionAudited provisions the build client inside a fail-closed audit record.
@@ -191,7 +223,7 @@ func (p *buildCredentialProvisioner) provisionAudited(ctx context.Context, ouID 
 // provision creates (or adopts) the Thunder app, stores its secret and records
 // where the secret lives. Mirrors publisherCredentialProvisioner's flow.
 func (p *buildCredentialProvisioner) provision(ctx context.Context, ouID, appName string) (*client.BuildClientParams, error) {
-	p.logger.Info("No build client stored for org, provisioning", "ouID", ouID, "appName", appName)
+	p.logger.Info("No usable build client stored for org, provisioning", "ouID", ouID, "appName", appName)
 
 	clientID, clientSecret, created, err := p.thunderClient.EnsureApp(ctx, appName, ouID)
 	if err != nil {
@@ -257,7 +289,7 @@ func (p *buildCredentialProvisioner) verifyClientSecretRef(ctx context.Context, 
 			}
 		}
 		if !found {
-			return fmt.Errorf("build client SecretReference %s has no usable %q entry", secretRefName, key)
+			return fmt.Errorf("%w: %s has no usable %q entry", errBuildClientSecretRefUnusable, secretRefName, key)
 		}
 	}
 	return nil
