@@ -45,6 +45,13 @@ const (
 	eventFanoutMaxRetryDelay = 5 * time.Minute
 	eventDeliveryWorkers     = 8
 	eventPruneInterval       = time.Hour
+	// eventDeliveryLostAfter is how long a delivery may stay pending without
+	// activity before it is failed as lost. A delivery in progress is
+	// updated at least every couple of hours: the longest backoff plus the
+	// claim. Its job is gone after a restart in embedded mode, an outcome
+	// that could not be recorded, or a fan-out that gave up.
+	eventDeliveryLostAfter = 6 * time.Hour
+	eventDeliveryLostError = "delivery job was lost before it finished"
 	// eventDeliveryClaim is how long a worker holds a delivery while sending
 	// it. It outlasts a driver's send timeout, so a job the bus redelivers
 	// meanwhile waits instead of sending the event a second time.
@@ -475,13 +482,24 @@ func (d *eventDispatcher) pruneLoop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			days := max(d.cfg.DeliveryRetentionDays, 1)
-			cutoff := d.now().Add(-time.Duration(days) * 24 * time.Hour)
-			if n, err := d.repo.PruneDeliveries(ctx, cutoff); err != nil {
-				d.logger.Error("Failed to prune event deliveries", "error", err)
-			} else if n > 0 {
-				d.logger.Info("Pruned event deliveries", "count", n)
-			}
+			d.prune(ctx)
 		}
+	}
+}
+
+// prune fails deliveries whose jobs were lost, so the log does not show
+// them in progress until they age out, and deletes history past retention.
+func (d *eventDispatcher) prune(ctx context.Context) {
+	if n, err := d.repo.FailStaleDeliveries(ctx, d.now().Add(-eventDeliveryLostAfter), eventDeliveryLostError); err != nil {
+		d.logger.Error("Failed to fail lost event deliveries", "error", err)
+	} else if n > 0 {
+		d.logger.Warn("Failed event deliveries whose jobs were lost", "count", n)
+	}
+	days := max(d.cfg.DeliveryRetentionDays, 1)
+	cutoff := d.now().Add(-time.Duration(days) * 24 * time.Hour)
+	if n, err := d.repo.PruneDeliveries(ctx, cutoff); err != nil {
+		d.logger.Error("Failed to prune event deliveries", "error", err)
+	} else if n > 0 {
+		d.logger.Info("Pruned event deliveries", "count", n)
 	}
 }

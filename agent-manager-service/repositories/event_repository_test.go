@@ -133,3 +133,47 @@ func TestEventDeliveryClaimAndFinishedOutcomes(t *testing.T) {
 	assert.Equal(t, models.EventDeliveryDelivered, saved.Status)
 	assert.Equal(t, 2, saved.Attempts)
 }
+
+func TestEventDeliveryFailStaleDeliveries(t *testing.T) {
+	ctx := context.Background()
+	gdb := db.GetDB()
+	repo := NewEventRepository(gdb)
+	d := &models.EventDestination{
+		ID: uuid.New(), OUID: "ou-" + uuid.NewString(), Name: "webhook",
+		Kind: models.DestinationKindWebhook, Config: json.RawMessage(`{"url":"https://example.com"}`),
+		Availability: models.DestinationAvailableAll, Projects: []string{},
+	}
+	require.NoError(t, repo.CreateDestination(ctx, d))
+	t.Cleanup(func() { _, err := repo.DeleteDestination(ctx, d.OUID, d.ID); assert.NoError(t, err) })
+	old := time.Now().Add(-7 * time.Hour)
+	queue := func(status string, at time.Time, claimedUntil *time.Time) string {
+		row := &models.EventDelivery{
+			OUID: d.OUID, DestinationID: d.ID, SubscriptionIDs: []string{}, EventID: "evt-" + uuid.NewString(),
+			EventType: "agent.deployed", Status: status, CreatedAt: at,
+		}
+		require.NoError(t, repo.RecordQueuedDelivery(ctx, row))
+		require.NoError(t, gdb.Model(&models.EventDelivery{}).Where("event_id = ?", row.EventID).
+			Updates(map[string]any{"updated_at": at, "claimed_until": claimedUntil}).Error)
+		return row.EventID
+	}
+	inFuture := time.Now().Add(time.Minute)
+	lost := queue(models.EventDeliveryPending, old, nil)
+	fresh := queue(models.EventDeliveryPending, time.Now(), nil)
+	sending := queue(models.EventDeliveryPending, old, &inFuture)
+	delivered := queue(models.EventDeliveryDelivered, old, nil)
+
+	n, err := repo.FailStaleDeliveries(ctx, time.Now().Add(-6*time.Hour), "job lost")
+	require.NoError(t, err)
+	assert.EqualValues(t, 1, n)
+	for id, want := range map[string]string{
+		lost: models.EventDeliveryFailed, fresh: models.EventDeliveryPending,
+		sending: models.EventDeliveryPending, delivered: models.EventDeliveryDelivered,
+	} {
+		saved, err := repo.GetDelivery(ctx, d.ID, id)
+		require.NoError(t, err)
+		assert.Equal(t, want, saved.Status, id)
+		if want == models.EventDeliveryFailed {
+			assert.Equal(t, "job lost", saved.LastError)
+		}
+	}
+}

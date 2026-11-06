@@ -66,6 +66,9 @@ func WithEvents(publisher events.Publisher, meta audit.RouteMeta) func(http.Hand
 			if status < 200 || status > 299 {
 				return
 			}
+			// The response is complete. Send it now, so the client does not
+			// wait on the outbox insert below.
+			_ = http.NewResponseController(w).Flush()
 
 			// Actor and org resolve the same way the audit trail does.
 			ae := audit.BuildEvent(r.Context(), audit.Action(eventType))

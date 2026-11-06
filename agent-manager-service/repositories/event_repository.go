@@ -158,6 +158,9 @@ type EventRepository interface {
 	ListDeliveries(ctx context.Context, f DeliveryFilter) ([]models.EventDelivery, int64, error)
 	// PruneDeliveries deletes deliveries queued before cutoff.
 	PruneDeliveries(ctx context.Context, cutoff time.Time) (int64, error)
+	// FailStaleDeliveries marks as failed, with reason, the deliveries still
+	// pending and unclaimed with no activity since cutoff: their job is gone.
+	FailStaleDeliveries(ctx context.Context, cutoff time.Time, reason string) (int64, error)
 }
 
 type eventRepository struct {
@@ -633,6 +636,16 @@ func (r *eventRepository) ListDeliveries(ctx context.Context, f DeliveryFilter) 
 		return nil, 0, err
 	}
 	return out, total, nil
+}
+
+func (r *eventRepository) FailStaleDeliveries(ctx context.Context, cutoff time.Time, reason string) (int64, error) {
+	// created_at never follows updated_at, so it narrows the scan through
+	// its index.
+	res := r.db.WithContext(ctx).Exec(`
+  UPDATE event_deliveries SET status = ?, last_error = ?, claimed_until = NULL, updated_at = NOW()
+  WHERE status = ? AND created_at < ? AND updated_at < ? AND (claimed_until IS NULL OR claimed_until < NOW())`,
+		models.EventDeliveryFailed, reason, models.EventDeliveryPending, cutoff, cutoff)
+	return res.RowsAffected, res.Error
 }
 
 func (r *eventRepository) PruneDeliveries(ctx context.Context, cutoff time.Time) (int64, error) {

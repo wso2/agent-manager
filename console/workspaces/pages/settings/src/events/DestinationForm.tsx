@@ -35,7 +35,7 @@ import {
   Typography,
 } from "@wso2/oxygen-ui";
 import { MoreHorizontal } from "@wso2/oxygen-ui-icons-react";
-import { useDestinationKinds, useListProjects } from "@agent-management-platform/api-client";
+import { useDestinationKinds, useListAllProjects } from "@agent-management-platform/api-client";
 import type {
   DestinationAvailability,
   DestinationKind,
@@ -152,7 +152,7 @@ export function DestinationForm({
   onDirtyChange,
 }: DestinationFormProps) {
   const { data: kindList } = useDestinationKinds(orgName);
-  const { data: projectList } = useListProjects({ orgName }, { limit: 100 });
+  const { data: projectList } = useListAllProjects({ orgName });
   const services = useMemo<DestinationKindService[]>(
     () => kindList?.kinds.find((k) => k.kind === "notify")?.services ?? [],
     [kindList],
