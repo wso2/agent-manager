@@ -135,14 +135,10 @@ export async function fetchWithBackendToken(
   if (!backendEndpoints()?.token || !getToken || new Headers(init.headers).has("Authorization")) {
     return fetch(url, init);
   }
-  const send = async () => {
-    const headers = new Headers(init.headers);
-    const token = await getToken().catch(() => "");
-    if (token) headers.set("Authorization", `Bearer ${token}`);
-    return fetch(url, { ...init, headers });
-  };
-  const response = await send();
-  return response.status === 401 ? send() : response;
+  const headers = new Headers(init.headers);
+  const token = await getToken().catch(() => "");
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+  return fetch(url, { ...init, headers });
 }
 
 export function clearBrowserSignInSession(clientId: string | undefined): void {

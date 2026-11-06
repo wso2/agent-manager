@@ -269,17 +269,15 @@ describe("fetchWithBackendToken", () => {
     );
   });
 
-  it("gets a new token and retries once on a 401", async () => {
+  it("returns a 401 as it is, without sending again", async () => {
     const { fetchWithBackendToken, setBackendAccessTokenProvider } = await load(bffAuthConfig());
-    const getToken = vi.fn().mockResolvedValueOnce("old").mockResolvedValueOnce("new");
-    setBackendAccessTokenProvider(getToken);
-    fetchMock.mockResolvedValueOnce(json({}, 401)).mockResolvedValueOnce(json({}, 401));
+    setBackendAccessTokenProvider(() => Promise.resolve("obs-token"));
+    fetchMock.mockResolvedValueOnce(json({}, 401));
 
     const response = await fetchWithBackendToken(OBSERVER);
 
     expect(response.status).toBe(401);
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(authorization(fetchMock.mock.calls[1])).toBe("Bearer new");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("sends no Authorization when the token request fails", async () => {
