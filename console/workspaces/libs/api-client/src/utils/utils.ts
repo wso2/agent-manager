@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { backendFetch } from '@agent-management-platform/auth';
+import { backendFetch, fetchWithBackendToken } from '@agent-management-platform/auth';
 import {
     formatBytes,
     getMaxRequestBodyBytes,
@@ -219,7 +219,7 @@ export async function httpGETObserver(
         );
     }
     const baseUrl = obsUrl;
-    const response = await backendFetch(`${baseUrl}${context}?${new URLSearchParams(searchParams).toString()}`, {
+    const response = await fetchWithBackendToken(`${baseUrl}${context}?${new URLSearchParams(searchParams).toString()}`, {
         method: 'GET',
         headers: token ? {
             'Content-Type': 'application/json',

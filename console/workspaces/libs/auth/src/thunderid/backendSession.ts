@@ -119,6 +119,32 @@ export async function backendFetch(
   return response;
 }
 
+let accessTokenProvider: (() => Promise<string>) | undefined;
+
+export function setBackendAccessTokenProvider(
+  provider: (() => Promise<string>) | undefined,
+): void {
+  accessTokenProvider = provider;
+}
+
+export async function fetchWithBackendToken(
+  url: string,
+  init: RequestInit = {},
+): Promise<Response> {
+  const getToken = accessTokenProvider;
+  if (!backendEndpoints()?.token || !getToken || new Headers(init.headers).has("Authorization")) {
+    return fetch(url, init);
+  }
+  const send = async () => {
+    const headers = new Headers(init.headers);
+    const token = await getToken().catch(() => "");
+    if (token) headers.set("Authorization", `Bearer ${token}`);
+    return fetch(url, { ...init, headers });
+  };
+  const response = await send();
+  return response.status === 401 ? send() : response;
+}
+
 export function clearBrowserSignInSession(clientId: string | undefined): void {
   if (!clientId) return;
   const suffix = `-${clientId}`;
