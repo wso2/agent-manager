@@ -127,6 +127,22 @@ describe("resolveAuthConfig", () => {
   });
 });
 
+describe("isBackendAuthConfig", () => {
+  it("is true for a config with same-origin backend endpoints", async () => {
+    const { isBackendAuthConfig } = await load(bffAuthConfig());
+    expect(isBackendAuthConfig(bffAuthConfig())).toBe(true);
+  });
+
+  it.each([
+    ["browser sign-in", browserAuthConfig()],
+    ["a context on another host", bffAuthConfig({ session: "//evil.example.com/userinfo" })],
+    ["a context with a tab", bffAuthConfig({ checkSession: "/\t/evil.example.com/checksession" })],
+  ])("is false for %s", async (_, config) => {
+    const { isBackendAuthConfig } = await load(browserAuthConfig());
+    expect(isBackendAuthConfig(config)).toBe(false);
+  });
+});
+
 describe("backendFetch", () => {
   it("sends same-origin requests with X-Requested-With and the caller's headers", async () => {
     const { backendFetch } = await load(bffAuthConfig());

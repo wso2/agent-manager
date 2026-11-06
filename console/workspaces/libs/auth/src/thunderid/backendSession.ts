@@ -61,6 +61,10 @@ export function resolveAuthConfig(config: AuthConfig): AuthConfig {
   };
 }
 
+export function isBackendAuthConfig(config: AuthConfig): boolean {
+  return Boolean(resolveAuthConfig(config).endpoints?.backend);
+}
+
 export function backendEndpoints(): BackendEndpoints | undefined {
   if (globalConfig.disableAuth) return undefined;
   return resolveAuthConfig(globalConfig.authConfig).endpoints?.backend;
