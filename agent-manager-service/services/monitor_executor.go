@@ -26,6 +26,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/wso2/agent-manager/agent-manager-service/workloadpolicy"
+
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
@@ -120,6 +122,9 @@ func NewMonitorExecutor(
 
 // ExecuteMonitorRun creates a WorkflowRun and a MonitorRun DB record
 func (e *monitorExecutor) ExecuteMonitorRun(ctx context.Context, params ExecuteMonitorRunParams) (*ExecuteMonitorRunResult, error) {
+	if err := workloadpolicy.Check(ctx, params.OUID); err != nil {
+		return nil, err
+	}
 	// Pre-generate run ID so it can be included in the WorkflowRun for score publishing
 	runID := uuid.New()
 

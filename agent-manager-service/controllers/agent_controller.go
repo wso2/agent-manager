@@ -24,6 +24,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/wso2/agent-manager/agent-manager-service/workloadpolicy"
+
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/events"
@@ -86,6 +88,8 @@ func NewAgentController(agentService services.AgentManagerService, agentKindServ
 // If no common error matches, writes an internal server error with the provided fallback message.
 func handleCommonErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 	switch {
+	case errors.Is(err, workloadpolicy.ErrSuspended):
+		utils.WriteErrorResponseWithReason(w, http.StatusForbidden, "The Agent Manager subscription is suspended", "Renew the subscription to resume", "SUBSCRIPTION_SUSPENDED")
 	// A ValidationError raised below the controller (e.g. a stored agent kind
 	// version that can't be written as a label) is still a client-side problem —
 	// report it as a 400 naming the offending value instead of letting it reach

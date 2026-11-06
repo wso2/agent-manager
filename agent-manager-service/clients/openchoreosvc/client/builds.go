@@ -34,6 +34,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
+	"github.com/wso2/agent-manager/agent-manager-service/workloadpolicy"
 )
 
 // withRunEnvVars returns params with envVars appended to its environmentVariables, replacing
@@ -75,6 +76,9 @@ func withRunEnvVars(params map[string]interface{}, envVars []EnvVar) map[string]
 const workflowRunWorkloadAnnotationKey = "openchoreo.dev/workload"
 
 func (c *openChoreoClient) TriggerBuild(ctx context.Context, ouID, projectName, componentName, commitID, workflowRunName string, runEnvVars []EnvVar) (*models.BuildResponse, error) {
+	if err := workloadpolicy.Check(ctx, ouID); err != nil {
+		return nil, err
+	}
 	namespaceName := c.NamespaceFor(ouID)
 	// Get the component to find its workflow configuration
 	compResp, err := c.ocClient.GetComponentWithResponse(ctx, namespaceName, componentName)
