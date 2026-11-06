@@ -279,6 +279,7 @@ var (
 	ErrURLUnreachable            = errors.New("URL unreachable")
 	ErrMCPServerUnauthorized     = errors.New("MCP server unauthorized")
 	ErrMCPResponseTooLarge       = errors.New("MCP response body too large")
+	ErrTooManyRequests           = errors.New("too many requests")
 	ErrDeploymentIsDeployed      = errors.New("deployment is currently deployed")
 	ErrDeploymentAlreadyDeployed = errors.New("deployment already deployed")
 	ErrGatewayIDMismatch         = errors.New("gateway ID mismatch")

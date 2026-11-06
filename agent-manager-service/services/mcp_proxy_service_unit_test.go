@@ -25,6 +25,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -1003,6 +1004,51 @@ func TestFetchMCPServerInfo_UnreachableServerIsReported(t *testing.T) {
 	_, err := svc.fetchMCPServerInfo(context.Background(), srv.URL, "", "")
 
 	assert.ErrorIs(t, err, utils.ErrURLUnreachable)
+}
+
+// slowListsMCPServerForTest answers server/discover like a new server, then holds every list
+// request until the client gives up (or two seconds pass, so the test server can always close).
+type slowListsMCPServerForTest struct{ newMCPServerForTest }
+
+func (f *slowListsMCPServerForTest) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.Header.Get("Mcp-Method") != "server/discover" {
+		select {
+		case <-r.Context().Done():
+		case <-time.After(2 * time.Second):
+		}
+		return
+	}
+	f.newMCPServerForTest.ServeHTTP(w, r)
+}
+
+// A probe cut off by its deadline while listing is an error, not a partial success.
+func TestFetchMCPServerInfo_DeadlineDuringListsIsAnError(t *testing.T) {
+	srv := httptest.NewServer(&slowListsMCPServerForTest{})
+	t.Cleanup(srv.Close)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	svc := &MCPProxyService{client: srv.Client(), logger: discardLogger()}
+	resp, err := svc.fetchMCPServerInfo(ctx, srv.URL, "", "")
+
+	assert.Nil(t, resp)
+	assert.ErrorIs(t, err, utils.ErrURLUnreachable)
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
+}
+
+// A probe the caller cancels is not reported as an unreachable server.
+func TestFetchMCPServerInfo_CancelDuringListsIsNotUnreachable(t *testing.T) {
+	srv := httptest.NewServer(&slowListsMCPServerForTest{})
+	t.Cleanup(srv.Close)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	time.AfterFunc(200*time.Millisecond, cancel)
+	svc := &MCPProxyService{client: srv.Client(), logger: discardLogger()}
+	resp, err := svc.fetchMCPServerInfo(ctx, srv.URL, "", "")
+
+	assert.Nil(t, resp)
+	assert.ErrorIs(t, err, context.Canceled)
+	assert.NotErrorIs(t, err, utils.ErrURLUnreachable)
 }
 
 // The status error keeps the text it had before it became a type.
