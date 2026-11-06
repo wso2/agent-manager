@@ -25,6 +25,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
+	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -60,6 +61,8 @@ func writeIdentityRoleError(w http.ResponseWriter, r *http.Request, operation st
 		utils.WriteErrorResponse(w, http.StatusNotFound, "Role not found")
 	case errors.Is(err, services.ErrIdentityRoleUnavailable):
 		utils.WriteErrorResponse(w, http.StatusServiceUnavailable, "Role management through the identity control plane is not configured")
+	case errors.Is(err, services.ErrIdentityGroupUnsupported):
+		utils.WriteErrorResponse(w, http.StatusNotImplemented, "Groups are not supported through the identity control plane yet")
 	default:
 		logger.GetLogger(r.Context()).Error("agent-identity: role provider failed", "operation", operation,
 			"env", r.PathValue("envName"), "error", err)
@@ -321,9 +324,11 @@ func (c *agentIdentityController) agentsInEnvironment(w http.ResponseWriter, r *
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to check the agents of the environment")
 		return false
 	}
+	// Only a completed binding is in the environment. A failed promotion leaves the source
+	// environment's agent ID on the target binding, so the ID alone proves nothing.
 	known := make(map[string]struct{}, len(rows))
 	for _, row := range rows {
-		if row.ThunderAgentID != "" {
+		if row.ThunderAgentID != "" && row.Status == models.AgentThunderStatusCompleted {
 			known[row.ThunderAgentID] = struct{}{}
 		}
 	}
@@ -347,13 +352,17 @@ func (c *agentIdentityController) groupsInEnvironment(w http.ResponseWriter, r *
 		return false
 	}
 	for _, id := range groupIDs {
-		if _, err := provider.GetGroup(r.Context(), services.IdentityGroupRef{
+		group, err := provider.GetGroup(r.Context(), services.IdentityGroupRef{
 			OrganizationID: middleware.OUIDFromRequest(r), Environment: r.PathValue("envName"), GroupID: id,
-		}); err != nil {
-			if errors.Is(err, services.ErrIdentityGroupNotFound) {
-				utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("group %q is not a group of environment %q", id, r.PathValue("envName")))
-				return false
-			}
+		})
+		// A missing group, and the hidden native group, are not groups of the environment, as
+		// managedGroupViaProvider sees them.
+		if errors.Is(err, services.ErrIdentityGroupNotFound) ||
+			(err == nil && (group == nil || group.Name == thundersvc.NativeAdministratorsGroupName)) {
+			utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("group %q is not a group of environment %q", id, r.PathValue("envName")))
+			return false
+		}
+		if err != nil {
 			writeIdentityGroupError(w, r, "check the group", err)
 			return false
 		}

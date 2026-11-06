@@ -88,10 +88,12 @@ type IdentityRoleAssignmentWrite struct {
 // reported as ErrIdentityRoleNotFound. Every method is idempotent where repeating it can be.
 //
 // DeleteRole removes the role from the control plane and from the environment. GetRoleAssignments
-// returns the agents assigned to the role and the groups, resolved to the groups of the
-// environment. AddRoleAssignees and RemoveRoleAssignees change the assignees on the control plane
-// and apply the role. Group assignees need the groups of the environment (IdentityGroupProvider); a
-// deployment that cannot hold groups on the control plane reports ErrIdentityGroupUnsupported.
+// returns the agents assigned to the role and the groups it can resolve to groups of the
+// environment; a deployment that cannot hold groups on the control plane returns the agents and no
+// groups, not an error. AddRoleAssignees and RemoveRoleAssignees change the assignees on the control
+// plane and apply the role. Only adding a group assignee needs the groups of the environment
+// (IdentityGroupProvider), and a deployment that cannot hold groups reports
+// ErrIdentityGroupUnsupported for it. Removing an assignee that is no longer there succeeds.
 type IdentityRoleProvider interface {
 	ListRoles(ctx context.Context, request IdentityRoleListRequest) (IdentityRoleList, error)
 	GetRole(ctx context.Context, ref IdentityRoleRef) (*thundersvc.ThunderRole, error)

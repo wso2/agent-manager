@@ -146,8 +146,10 @@ func envAgentController(t *testing.T, agentIDs ...string) AgentIdentityControlle
 			assert.Equal(t, "dev", env)
 			rows := []models.AgentThunderClient{{AgentName: "no-identity-yet"}} // a binding without an AgentID is not offered
 			for _, id := range agentIDs {
-				rows = append(rows, models.AgentThunderClient{AgentName: "agent-" + id, ThunderAgentID: id})
+				rows = append(rows, models.AgentThunderClient{AgentName: "agent-" + id, ThunderAgentID: id, Status: models.AgentThunderStatusCompleted})
 			}
+			// A failed promotion leaves the source environment's agent ID on the target binding.
+			rows = append(rows, models.AgentThunderClient{AgentName: "failed-promotion", ThunderAgentID: "from-source", Status: models.AgentThunderStatusFailed})
 			return rows, nil
 		},
 	}
@@ -492,4 +494,71 @@ func TestGroupsLegacyModeIgnoresAProvider(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.True(t, listed, "the environment's own Thunder, as before")
 	assert.Empty(t, provider.calls)
+}
+
+func TestAgentsMustBeCompletedBindingsOfTheEnvironment(t *testing.T) {
+	provider := &fakeRoleProvider{role: &thundersvc.ThunderRole{ID: "role-1", Name: "readers"}}
+	useRoleMode(t, thundersvc.IdentityManagementCPManaged, provider)
+	w := httptest.NewRecorder()
+	// "from-source" is on a failed binding of this environment, so it is not in the environment.
+	envAgentController(t).AddRoleAssignees(w, cpRoleRequest(http.MethodPost, rolesPath+"/role-1/assignments/add", `{"assignments":[{"id":"from-source","type":"agent"}]}`))
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "not provisioned in environment")
+	assert.Empty(t, provider.assigned)
+
+	groups := &fakeGroupProvider{group: &thundersvc.ThunderGroup{ID: "grp-1", Name: "ops"}}
+	useGroupMode(t, thundersvc.IdentityManagementCPManaged, groups)
+	w = httptest.NewRecorder()
+	envAgentController(t).AddGroupMembers(w, groupReq(http.MethodPost, `{"agentIds":["from-source"]}`))
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Empty(t, groups.memberWrites)
+}
+
+func TestRoleAssigneeGroupsAreCheckedLikeGroupRoutes(t *testing.T) {
+	existing := &thundersvc.ThunderRole{ID: "role-1", Name: "readers"}
+	add := func(group *thundersvc.ThunderGroup) (*httptest.ResponseRecorder, *fakeRoleProvider) {
+		provider := &fakeRoleProvider{role: existing}
+		useRoleMode(t, thundersvc.IdentityManagementCPManaged, provider)
+		useGroupMode(t, thundersvc.IdentityManagementCPManaged, &fakeGroupProvider{group: group})
+		w := httptest.NewRecorder()
+		envAgentController(t).AddRoleAssignees(w, cpRoleRequest(http.MethodPost, rolesPath+"/role-1/assignments/add", `{"assignments":[{"id":"g1","type":"group"}]}`))
+		return w, provider
+	}
+
+	t.Run("a provider answering no group and no error does not let the role be assigned", func(t *testing.T) {
+		w, provider := add(nil)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Empty(t, provider.assigned)
+	})
+
+	t.Run("the hidden native group cannot be an assignee", func(t *testing.T) {
+		w, provider := add(&thundersvc.ThunderGroup{ID: "g1", Name: thundersvc.NativeAdministratorsGroupName})
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Empty(t, provider.assigned)
+	})
+
+	t.Run("an ordinary group still can", func(t *testing.T) {
+		w, provider := add(&thundersvc.ThunderGroup{ID: "g1", Name: "ops"})
+		assert.Equal(t, http.StatusOK, w.Code, w.Body.String())
+		assert.Len(t, provider.assigned, 1)
+	})
+}
+
+func TestUnsupportedGroupsFromTheRoleProviderGive501(t *testing.T) {
+	for name, call := range map[string]func(AgentIdentityController, http.ResponseWriter){
+		"get assignments": func(c AgentIdentityController, w http.ResponseWriter) {
+			c.GetRoleAssignments(w, cpRoleRequest(http.MethodGet, rolesPath+"/role-1/assignments", ""))
+		},
+		"remove assignees": func(c AgentIdentityController, w http.ResponseWriter) {
+			c.RemoveRoleAssignees(w, cpRoleRequest(http.MethodPost, rolesPath+"/role-1/assignments/remove", `{"assignments":[{"id":"g1","type":"group"}]}`))
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			useRoleMode(t, thundersvc.IdentityManagementCPManaged, &fakeRoleProvider{err: services.ErrIdentityGroupUnsupported})
+			w := httptest.NewRecorder()
+			call(envAgentController(t), w)
+			assert.Equal(t, http.StatusNotImplemented, w.Code)
+			assert.Contains(t, w.Body.String(), "not supported")
+		})
+	}
 }
