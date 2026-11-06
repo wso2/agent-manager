@@ -67,6 +67,8 @@ type EnvironmentToolsetHandler interface {
 type LLMProviderToolsetHandler interface {
 	ListLLMProviders(ctx context.Context, ouID string, limit int, offset int) ([]*models.LLMProvider, int, error)
 	ListLLMGuardrails(ctx context.Context, ouID string, providerID string) (*models.LLMPolicyAvailabilityResponse, error)
+	// GatewayEnvironmentIDs returns the UUIDs of the environments each gateway serves.
+	GatewayEnvironmentIDs(ctx context.Context, gatewayIDs []string) (map[string][]string, error)
 	GetLLMProvider(ctx context.Context, ouID string, providerID string) (*models.LLMProvider, []*models.Deployment, error)
 	// UpdateLLMProviderGuardrails reads the provider once, saves change(its guardrails) and redeploys it. An
 	// error from change is returned as is, and nothing is saved.

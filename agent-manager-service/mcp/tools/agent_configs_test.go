@@ -48,7 +48,7 @@ func (m *pagedEnvMock) ListEnvironments(ctx context.Context, ouID string, limit 
 	}
 	page := []models.GatewayEnvironmentResponse{}
 	for _, n := range m.envs[start:end] {
-		page = append(page, models.GatewayEnvironmentResponse{Name: n})
+		page = append(page, models.GatewayEnvironmentResponse{Name: n, UUID: "uuid-" + n})
 	}
 	return &models.EnvironmentListResponse{Environments: page, Total: m.total, Limit: limit, Offset: offset}, nil
 }
@@ -136,7 +136,7 @@ func mappedEnvs(t *testing.T, m *MockToolsetHandler) []string {
 // placed, so the default must be the provider's environments, not the org's.
 func TestAttachLLMProviderDefaultsToProviderEnvironments(t *testing.T) {
 	mock := providerEnvsMock{MockToolsetHandler: NewMockToolsetHandler(), envs: []string{"dev"}}
-	failed, text := callAttach(t, mock, "attach_llm_provider_to_agent", map[string]any{"provider": testProviderID})
+	failed, text := callAttach(t, mock, "attach_llm_provider_to_agent", map[string]any{"provider_id": testProviderID})
 	if failed {
 		t.Fatalf("tool failed: %s", text)
 	}
@@ -150,7 +150,7 @@ func TestAttachLLMProviderDefaultsToProviderEnvironments(t *testing.T) {
 
 func TestAttachLLMProviderFailsUpFrontWhenProviderIsNowhere(t *testing.T) {
 	mock := providerEnvsMock{MockToolsetHandler: NewMockToolsetHandler(), envs: []string{}}
-	failed, text := callAttach(t, mock, "attach_llm_provider_to_agent", map[string]any{"provider": testProviderID})
+	failed, text := callAttach(t, mock, "attach_llm_provider_to_agent", map[string]any{"provider_id": testProviderID})
 	if !failed {
 		t.Fatalf("want an error for a provider deployed nowhere the agent can use, got %s", text)
 	}
@@ -161,7 +161,7 @@ func TestAttachLLMProviderFailsUpFrontWhenProviderIsNowhere(t *testing.T) {
 
 func TestAttachLLMProviderUsesExplicitEnvironments(t *testing.T) {
 	mock := providerEnvsMock{MockToolsetHandler: NewMockToolsetHandler(), envs: []string{"dev"}}
-	failed, text := callAttach(t, mock, "attach_llm_provider_to_agent", map[string]any{"provider": testProviderID, "environments": []any{testEnvName}})
+	failed, text := callAttach(t, mock, "attach_llm_provider_to_agent", map[string]any{"provider_id": testProviderID, "environments": []any{testEnvName}})
 	if failed {
 		t.Fatalf("tool failed: %s", text)
 	}
@@ -177,7 +177,7 @@ func TestAttachLLMProviderUsesExplicitEnvironments(t *testing.T) {
 // so its default stays every environment.
 func TestAttachMCPProxyStillDefaultsToEveryEnvironment(t *testing.T) {
 	mock := providerEnvsMock{MockToolsetHandler: NewMockToolsetHandler(), envs: []string{"dev"}}
-	failed, text := callAttach(t, mock, "attach_mcp_proxy_to_agent", map[string]any{"proxy": testProxyID})
+	failed, text := callAttach(t, mock, "attach_mcp_proxy_to_agent", map[string]any{"proxy_id": testProxyID})
 	if failed {
 		t.Fatalf("tool failed: %s", text)
 	}
@@ -194,13 +194,71 @@ func TestAttachMCPProxyStillDefaultsToEveryEnvironment(t *testing.T) {
 func TestAttachLLMProviderEchoesSavedGuardrailNames(t *testing.T) {
 	mock := providerEnvsMock{MockToolsetHandler: NewMockToolsetHandler(), envs: []string{"dev"}}
 	failed, text := callAttach(t, mock, "attach_llm_provider_to_agent", map[string]any{
-		"provider":   testProviderID,
-		"guardrails": []any{map[string]any{"name": "  " + testGuardrailName + " ", "version": "v1"}},
+		"provider_id": testProviderID,
+		"guardrails":  []any{map[string]any{"name": "  " + testGuardrailName + " ", "version": "v1"}},
 	})
 	if failed {
 		t.Fatalf("tool failed: %s", text)
 	}
 	if want := `"guardrails":["` + testGuardrailName + `"]`; !strings.Contains(text, want) {
 		t.Errorf("response should list the saved name %s: %s", want, text)
+	}
+}
+
+// get_mcp_proxy and get_llm_provider name environments through this map, so
+// environments past the first page must be named too.
+func TestEnvironmentNamesByUUIDReadsEveryPage(t *testing.T) {
+	envs := make([]string, 150)
+	for i := range envs {
+		envs[i] = fmt.Sprintf("env-%d", i)
+	}
+	m := &pagedEnvMock{MockToolsetHandler: NewMockToolsetHandler(), envs: envs, total: int32(len(envs))}
+
+	names := environmentNamesByUUID(context.Background(), m, "ou")
+
+	if len(names) != len(envs) || names["uuid-env-149"] != "env-149" {
+		t.Fatalf("named %d of %d environments (uuid-env-149 -> %q)", len(names), len(envs), names["uuid-env-149"])
+	}
+}
+
+// An argument a tool does not declare, misspelled or under an old name, is an
+// error the model can correct rather than dropped for the default to apply.
+func TestAttachRejectsUndeclaredArguments(t *testing.T) {
+	for name, args := range map[string]map[string]any{
+		"misspelled environments": {"provider_id": testProviderID, "environment": testEnvName},
+		"old provider name":       {"provider": testProviderID},
+	} {
+		t.Run(name, func(t *testing.T) {
+			mock := providerEnvsMock{MockToolsetHandler: NewMockToolsetHandler(), envs: []string{"dev"}}
+			failed, text := callAttach(t, mock, "attach_llm_provider_to_agent", args)
+			if !failed {
+				t.Fatalf("an undeclared argument was accepted: %s", text)
+			}
+			if _, created := mock.calls["CreateAgentConfig"]; created {
+				t.Error("created a config despite the undeclared argument")
+			}
+		})
+	}
+}
+
+// Every tool's input schema refuses properties it does not declare.
+func TestEveryToolSchemaRefusesUndeclaredProperties(t *testing.T) {
+	session, _ := setupTestServer(t)
+	res, err := session.ListTools(context.Background(), &gomcp.ListToolsParams{})
+	if err != nil {
+		t.Fatalf("ListTools: %v", err)
+	}
+	if len(res.Tools) < 20 {
+		t.Fatalf("listed %d tools, want every registered tool", len(res.Tools))
+	}
+	for _, tool := range res.Tools {
+		schema, ok := tool.InputSchema.(map[string]any)
+		if !ok {
+			t.Errorf("%s: input schema is %T", tool.Name, tool.InputSchema)
+			continue
+		}
+		if schema["additionalProperties"] != false {
+			t.Errorf("%s: input schema allows undeclared properties", tool.Name)
+		}
 	}
 }
