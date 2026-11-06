@@ -53,6 +53,18 @@ func identityRoleProvider(w http.ResponseWriter) (provider services.IdentityRole
 	return provider, true, true
 }
 
+// controlPlaneNotSupported fails closed in CP_MANAGED mode for a route no provider covers yet. It
+// answers 503 and returns true, so the handler stops before it would use the environment's own
+// Thunder, which CP_MANAGED mode never does. In LEGACY_DIRECT mode it does nothing.
+func controlPlaneNotSupported(w http.ResponseWriter) bool {
+	if cp, _ := services.IdentityRolesViaControlPlane(); !cp {
+		return false
+	}
+	utils.WriteErrorResponse(w, http.StatusServiceUnavailable,
+		"This operation is not available through the identity control plane yet")
+	return true
+}
+
 // writeIdentityRoleError maps a provider failure to the response.
 func writeIdentityRoleError(w http.ResponseWriter, r *http.Request, operation string, err error) {
 	switch {
@@ -150,6 +162,10 @@ func (c *agentIdentityController) writeEnsureError(w http.ResponseWriter, r *htt
 			fmt.Sprintf("MCP proxy %q is not deployed to environment %q; deploy it there before granting its scopes", g.handle, envName))
 	case errors.Is(err, services.ErrMCPResourceServerUnavailable):
 		utils.WriteErrorResponse(w, http.StatusServiceUnavailable, "MCP resource servers are not configured for this deployment")
+	case errors.Is(err, services.ErrMCPResourceServerEnvironmentNotReady):
+		// A condition that clears on its own: the environment has not caught up with the change yet.
+		utils.WriteErrorResponse(w, http.StatusServiceUnavailable,
+			fmt.Sprintf("Environment %q is not ready for the scopes of MCP proxy %q yet; try again shortly", envName, g.handle))
 	default:
 		logger.GetLogger(r.Context()).Error("agent-identity: ensure proxy resource server failed", "proxy", g.handle, "env", envName, "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadGateway, "Failed to register scopes with the environment identity provider")
