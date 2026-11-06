@@ -147,6 +147,13 @@ export interface AppConfig {
     /** Path to the AMP instrumentation version mapping section. */
     versionMapping?: string;
   };
+  /** Documentation deep-link paths for alerting destinations, appended to docsUrl. */
+  alertingDocLinks?: {
+    /** Path to the webhook destination setup section. */
+    webhookDestination?: string;
+    /** Paths to each notification service's setup section, keyed by service ID. */
+    notificationServices?: Record<string, string>;
+  };
   /** Feature flags, read through @agent-management-platform/feature-management. */
   featureFlags?: Partial<FeatureFlags>;
 }

@@ -23,6 +23,7 @@ import {
   Button,
   FormControlLabel,
   Grid,
+  Link,
   ListSubheader,
   MenuItem,
   Radio,
@@ -33,12 +34,13 @@ import {
 import { MoreHorizontal } from "@wso2/oxygen-ui-icons-react";
 import { TextInput } from "@agent-management-platform/views";
 import { useDestinationKinds, useListAllProjects } from "@agent-management-platform/api-client";
-import type {
-  DestinationAvailability,
-  DestinationKind,
-  DestinationKindService,
-  EventDestinationRequest,
-  EventDestinationResponse,
+import {
+  globalConfig,
+  type DestinationAvailability,
+  type DestinationKind,
+  type DestinationKindService,
+  type EventDestinationRequest,
+  type EventDestinationResponse,
 } from "@agent-management-platform/types";
 import {
   DestinationIcon,
@@ -48,6 +50,12 @@ import {
   lookOf,
   SectionTitle,
 } from "./eventsUi";
+
+const alertingDocLinks = globalConfig.alertingDocLinks;
+const webhookGuideUrl =
+  globalConfig.docsUrl && alertingDocLinks?.webhookDestination
+    ? `${globalConfig.docsUrl}${alertingDocLinks.webhookDestination}`
+    : undefined;
 
 function isHttpUrl(value: string): boolean {
   try {
@@ -197,10 +205,18 @@ export function DestinationForm({
   const editing = !!destination;
   const isNotify = type.kind === "notify";
   const selectedService = services.find((s) => s.id === type.service);
+  const serviceGuidePath = alertingDocLinks?.notificationServices?.[type.service];
+  const serviceGuideUrl =
+    globalConfig.docsUrl && serviceGuidePath
+      ? `${globalConfig.docsUrl}${serviceGuidePath}`
+      : undefined;
   // Editing a notification destination keeps its URL unless a new one is
   // entered; a new destination, or another service, needs one.
-  const keepsUrl = isNotify && editing && type.service === (destination?.service ?? "");
-  const moreServices = services.filter((s) => !FEATURED_SERVICES.includes(s.id));
+  const keepsUrl =
+    isNotify && editing && type.service === (destination?.service ?? "");
+  const moreServices = services.filter(
+    (s) => !FEATURED_SERVICES.includes(s.id),
+  );
   const moreGroups = useMemo(() => {
     const byCategory = new Map<string, DestinationKindService[]>();
     for (const s of moreServices) {
@@ -394,21 +410,19 @@ export function DestinationForm({
                   onChange={(e) => setUrl(e.target.value)}
                   error={!!urlError}
                   helperText={
-                    urlError ?? (
-                      <>
-                        {"It holds the service's token, so it is stored encrypted and never shown again. "}
-                        <Typography
-                          component="a"
-                          variant="caption"
-                          href={selectedService.docsUrl}
+                    <>
+                      {urlError ??
+                        "It holds the service's token, so it is stored encrypted and never shown again."}{" "}
+                      {serviceGuideUrl && (
+                        <Link
+                          href={serviceGuideUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          sx={{ color: "primary.main" }}
                         >
-                          How to get these values
-                        </Typography>
-                      </>
-                    )
+                          Set up this destination
+                        </Link>
+                      )}
+                    </>
                   }
                 />
               ) : (
@@ -419,8 +433,19 @@ export function DestinationForm({
                   onChange={(e) => setUrl(e.target.value)}
                   error={!!urlError}
                   helperText={
-                    urlError ??
-                    "Each event is POSTed here as signed CloudEvents JSON (Standard Webhooks). The signing secret is shown once, after you add it."
+                    <>
+                      {urlError ??
+                        "Each event is POSTed here as signed CloudEvents JSON (Standard Webhooks). The signing secret is shown once, after you add it."}{" "}
+                      {webhookGuideUrl && (
+                        <Link
+                          href={webhookGuideUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          Set up this destination
+                        </Link>
+                      )}
+                    </>
                   }
                 />
               )}
