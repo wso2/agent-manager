@@ -1022,6 +1022,7 @@ func TestEndpointServiceURL(t *testing.T) {
 		require.ErrorIs(t, err, ErrReleaseBindingNotFound)
 	})
 }
+
 func TestReleaseAgentAPIKeyTrait(t *testing.T) {
 	envInjectionTrait := func(create map[string]interface{}) map[string]interface{} {
 		return map[string]interface{}{

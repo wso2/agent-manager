@@ -25,6 +25,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
+	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // GitCredentials holds the credentials for git authentication
@@ -43,9 +44,21 @@ type GitCredentialsService interface {
 	GetGitCredentials(ctx context.Context, ouID, secretRef string) (*GitCredentials, error)
 }
 
+// gitSecretKVMount is the workflow-plane OpenBao mount that holds git secrets.
+// OpenChoreo's git secret API pushes each secret to the remote key
+// "secret/{namespace}/git/{name}" (fixed in its gitsecret service), with the
+// token under "password" and the optional username under "username".
+const gitSecretKVMount = "secret"
+
+// kvReader reads a secret from the workflow-plane OpenBao. *vault.Logical
+// satisfies it; tests substitute a fake.
+type kvReader interface {
+	ReadWithContext(ctx context.Context, path string) (*vault.Secret, error)
+}
+
 type gitCredentialsService struct {
-	ocClient    client.OpenChoreoClient
-	vaultClient *vault.Client
+	ocClient client.OpenChoreoClient
+	kv       kvReader
 }
 
 // NewGitCredentialsService creates a new git credentials service
@@ -62,8 +75,8 @@ func NewGitCredentialsService(ocClient client.OpenChoreoClient, cfg config.Confi
 	vaultClient.SetToken(cfg.WorkflowPlaneOpenBao.Token)
 
 	return &gitCredentialsService{
-		ocClient:    ocClient,
-		vaultClient: vaultClient,
+		ocClient: ocClient,
+		kv:       vaultClient.Logical(),
 	}, nil
 }
 
@@ -79,33 +92,51 @@ func convertToKV2ReadPath(kvPath string) string {
 	return parts[0] + "/data/" + parts[1]
 }
 
-// GetGitCredentials fetches git credentials for a given secret reference
+// requireGitSecret returns an error unless OpenChoreo lists a git secret named
+// secretName in the namespace.
+func (s *gitCredentialsService) requireGitSecret(ctx context.Context, ouID, secretName string) error {
+	secrets, err := s.ocClient.ListGitSecrets(ctx, ouID)
+	if err != nil {
+		return fmt.Errorf("failed to list git secrets: %w", err)
+	}
+	for _, secret := range secrets {
+		if secret != nil && secret.Name == secretName {
+			return nil
+		}
+	}
+	return fmt.Errorf("git secret %q: %w", secretName, utils.ErrNotFound)
+}
+
+// gitSecretKVPath returns the workflow-plane OpenBao path of a git secret,
+// "{mount}/{namespace}/git/{name}", the remote key OpenChoreo's git secret API
+// pushes the secret to.
+func gitSecretKVPath(namespace, secretName string) string {
+	return gitSecretKVMount + "/" + namespace + "/git/" + secretName
+}
+
+// GetGitCredentials fetches the credentials of the git secret named secretRef.
+// The secret's OpenBao path is derived from its name and the namespace, so its
+// SecretReference is never read.
 func (s *gitCredentialsService) GetGitCredentials(ctx context.Context, ouID, secretRef string) (*GitCredentials, error) {
 	if secretRef == "" {
 		return nil, fmt.Errorf("secretRef is required")
 	}
-
-	// Get the SecretReference from OpenChoreo to find the OpenBao path
-	secretRefInfo, err := s.ocClient.GetSecretReference(ctx, ouID, secretRef)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get secret reference: %w", err)
+	// The name becomes a path segment, so only accept the characters a git
+	// secret name may contain. This keeps the read inside the namespace's git
+	// secrets.
+	if !isValidSecretName(secretRef) {
+		return nil, fmt.Errorf("invalid secretRef %q: must be 1-63 alphanumeric characters or hyphens", secretRef)
 	}
 
-	if secretRefInfo == nil || len(secretRefInfo.Data) == 0 {
-		return nil, fmt.Errorf("secret reference not found or has no data")
+	// Deleting a git secret can leave its value in OpenBao (OpenChoreo's push
+	// does not remove it), so only read secrets that still exist.
+	if err := s.requireGitSecret(ctx, ouID, secretRef); err != nil {
+		return nil, err
 	}
 
-	// Get the OpenBao path from the first data source
-	// The remoteRef.key format is "{mount}/{path}" (e.g., "secret/default/git/private")
-	// For KV v2, we need to convert it to "{mount}/data/{path}"
-	kvPath := secretRefInfo.Data[0].RemoteRef.Key
-	if kvPath == "" {
-		return nil, fmt.Errorf("secret reference has no KV path")
-	}
-
-	// Insert "/data/" after the mount path (first component)
-	secretPath := convertToKV2ReadPath(kvPath)
-	secret, err := s.vaultClient.Logical().ReadWithContext(ctx, secretPath)
+	// KV v2 reads go to "{mount}/data/{path}".
+	secretPath := convertToKV2ReadPath(gitSecretKVPath(s.ocClient.NamespaceFor(ouID), secretRef))
+	secret, err := s.kv.ReadWithContext(ctx, secretPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read secret from OpenBao: %w", err)
 	}
