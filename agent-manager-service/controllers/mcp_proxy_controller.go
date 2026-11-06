@@ -27,6 +27,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/growthanalytics"
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
@@ -337,7 +338,14 @@ func (c *mcpProxyController) FetchServerInfo(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	resp, err := c.mcpProxyService.FetchServerInfo(ctx, ouID, &req)
+	claims := jwtassertion.GetTokenClaims(ctx)
+	if claims == nil || claims.Sub == "" {
+		log.Warn("FetchMCPProxyServerInfo: missing token claims")
+		utils.WriteErrorResponse(w, http.StatusUnauthorized, "Missing token claims")
+		return
+	}
+
+	resp, err := c.mcpProxyService.FetchServerInfo(ctx, ouID, claims.Sub, &req)
 	if err != nil {
 		switch {
 		case errors.Is(err, utils.ErrInvalidInput), errors.Is(err, utils.ErrInvalidURL):

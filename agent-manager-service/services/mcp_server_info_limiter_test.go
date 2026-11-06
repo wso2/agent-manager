@@ -34,9 +34,9 @@ func TestConcurrencyLimiter_PerKeyLimit(t *testing.T) {
 	_, ok = l.tryAcquire("org1")
 	require.True(t, ok)
 	_, ok = l.tryAcquire("org1")
-	assert.False(t, ok, "third slot for the same org must be refused")
+	assert.False(t, ok, "third slot for the same key must be refused")
 	_, ok = l.tryAcquire("org2")
-	assert.True(t, ok, "another org is not affected")
+	assert.True(t, ok, "another key is not affected")
 
 	r1()
 	r1() // a second release must not free another slot
@@ -60,11 +60,11 @@ func TestConcurrencyLimiter_TotalLimit(t *testing.T) {
 	assert.Equal(t, 0, l.perKey["org2"])
 }
 
-func TestFetchServerInfo_RefusedWhenOrgOverLimit(t *testing.T) {
-	orgUUID := "org-limit-test"
+func TestFetchServerInfo_RefusedWhenUserOverLimit(t *testing.T) {
+	orgUUID, userID := "org-limit-test", "user-1"
 	var releases []func()
-	for range mcpServerInfoMaxInFlightPerOrg {
-		release, ok := mcpServerInfoLimiter.tryAcquire(orgUUID)
+	for range mcpServerInfoMaxInFlightPerUser {
+		release, ok := mcpServerInfoLimiter.tryAcquire(mcpServerInfoLimiterKey(orgUUID, userID))
 		require.True(t, ok)
 		releases = append(releases, release)
 	}
@@ -75,6 +75,11 @@ func TestFetchServerInfo_RefusedWhenOrgOverLimit(t *testing.T) {
 	})
 
 	url := "https://example.com/mcp"
-	_, err := (&MCPProxyService{}).FetchServerInfo(context.Background(), orgUUID, &models.MCPServerInfoFetchRequest{URL: &url})
+	_, err := (&MCPProxyService{}).FetchServerInfo(context.Background(), orgUUID, userID, &models.MCPServerInfoFetchRequest{URL: &url})
 	assert.ErrorIs(t, err, utils.ErrTooManyRequests)
+}
+
+func TestMCPServerInfoLimiterKey_SeparatesUsersAndOrgs(t *testing.T) {
+	assert.NotEqual(t, mcpServerInfoLimiterKey("org1", "user1"), mcpServerInfoLimiterKey("org1", "user2"))
+	assert.NotEqual(t, mcpServerInfoLimiterKey("org1", "user1"), mcpServerInfoLimiterKey("org2", "user1"))
 }

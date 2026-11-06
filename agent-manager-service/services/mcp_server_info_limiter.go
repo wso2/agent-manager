@@ -23,8 +23,8 @@ const (
 	// the service; each one can hold a goroutine and an upstream connection for up
 	// to mcpServerInfoDeadline.
 	mcpServerInfoMaxInFlight = 32
-	// mcpServerInfoMaxInFlightPerOrg keeps one organization from taking every slot.
-	mcpServerInfoMaxInFlightPerOrg = 4
+	// mcpServerInfoMaxInFlightPerUser keeps one user from taking every slot.
+	mcpServerInfoMaxInFlightPerUser = 4
 )
 
 // concurrencyLimiter bounds in-flight work both overall and per key. It never
@@ -66,5 +66,10 @@ func (l *concurrencyLimiter) tryAcquire(key string) (func(), bool) {
 	}, true
 }
 
+// mcpServerInfoLimiterKey identifies a user within an organization.
+func mcpServerInfoLimiterKey(orgUUID, userID string) string {
+	return orgUUID + "/" + userID
+}
+
 // mcpServerInfoLimiter is shared by every MCPProxyService so the limit holds per pod.
-var mcpServerInfoLimiter = newConcurrencyLimiter(mcpServerInfoMaxInFlight, mcpServerInfoMaxInFlightPerOrg)
+var mcpServerInfoLimiter = newConcurrencyLimiter(mcpServerInfoMaxInFlight, mcpServerInfoMaxInFlightPerUser)

@@ -1074,8 +1074,8 @@ func (s *MCPProxyService) prepareMCPUpstreamAuthForStorage(existing, updated *mo
 }
 
 // FetchServerInfo fetches server information from an MCP backend. Probes are
-// capped per organization and per pod, and each one has an overall deadline.
-func (s *MCPProxyService) FetchServerInfo(ctx context.Context, orgUUID string, req *models.MCPServerInfoFetchRequest) (*models.MCPServerInfoFetchResponse, error) {
+// capped per user and per pod, and each one has an overall deadline.
+func (s *MCPProxyService) FetchServerInfo(ctx context.Context, orgUUID, userID string, req *models.MCPServerInfoFetchRequest) (*models.MCPServerInfoFetchResponse, error) {
 	if req == nil || req.URL == nil || strings.TrimSpace(*req.URL) == "" {
 		return nil, utils.ErrInvalidInput
 	}
@@ -1083,7 +1083,7 @@ func (s *MCPProxyService) FetchServerInfo(ctx context.Context, orgUUID string, r
 		return nil, fmt.Errorf("proxyId refresh is not supported yet: %w", utils.ErrInvalidInput)
 	}
 
-	release, ok := mcpServerInfoLimiter.tryAcquire(orgUUID)
+	release, ok := mcpServerInfoLimiter.tryAcquire(mcpServerInfoLimiterKey(orgUUID, userID))
 	if !ok {
 		return nil, utils.ErrTooManyRequests
 	}
