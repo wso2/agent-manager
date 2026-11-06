@@ -2938,15 +2938,9 @@ func (s *agentManagerService) generateUniqueProjectName(ctx context.Context, ouI
 
 // generateUniqueEnvName creates a unique name by appending a random suffix
 func (s *agentManagerService) generateUniqueEnvName(ctx context.Context, ouID string, orgName string, baseName string) (string, error) {
-	// Bound the base so the resulting "<base>-XX" stays within the per-org env-name
-	// limit (which keeps the gateway runtime Service name ≤ 63 chars).
-	maxBaseLen := utils.MaxEnvNameLength(orgName) - utils.RandomSuffixLength - 1 // 1 for hyphen
-	if maxBaseLen < 1 {
-		maxBaseLen = 1
-	}
-	if len(baseName) > maxBaseLen {
-		baseName = strings.TrimRight(baseName[:maxBaseLen], "-")
-	}
+	// The unique name must stay within the per-org env-name limit (which keeps the
+	// gateway runtime Service name ≤ 63 chars), including the random suffix.
+	maxEnvLen := utils.MaxEnvNameLength(orgName)
 
 	// Create a name availability checker function that uses the project repository
 	nameChecker := func(name string) (bool, error) {
@@ -2964,7 +2958,7 @@ func (s *agentManagerService) generateUniqueEnvName(ctx context.Context, ouID st
 	}
 
 	// Use the common unique name generation logic from utils
-	uniqueName, err := utils.GenerateUniqueNameWithSuffix(baseName, nameChecker)
+	uniqueName, err := utils.GenerateUniqueNameWithinLength(baseName, maxEnvLen, nameChecker)
 	if err != nil {
 		s.logger.Error("Failed to generate unique env name", "baseName", baseName, "ouID", ouID, "error", err)
 		return "", fmt.Errorf("failed to generate unique env name: %w", err)
