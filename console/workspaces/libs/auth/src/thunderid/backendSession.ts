@@ -26,8 +26,14 @@ const REQUESTED_WITH_HEADER = "X-Requested-With";
 const REQUESTED_WITH_VALUE = "XMLHttpRequest";
 const OPTIONAL_CONTEXT_ENDPOINTS = ["refresh", "signOut", "token"] as const;
 
+const hasControlCharacter = (value: string): boolean =>
+  Array.from(value).some((character) => {
+    const code = character.charCodeAt(0);
+    return code <= 0x1f || code === 0x7f;
+  });
+
 export const isLocalPath = (value: unknown): value is string =>
-  typeof value === "string" && /^\/(?![/\\])/.test(value);
+  typeof value === "string" && /^\/(?![/\\])/.test(value) && !hasControlCharacter(value);
 
 export function resolveAuthConfig(config: AuthConfig): AuthConfig {
   const backend = config.endpoints?.backend;
