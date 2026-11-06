@@ -126,7 +126,7 @@ export const AgentsTab: React.FC = () => {
     <ListingTable.Provider searchValue={search} onSearchChange={setSearch}>
       <ListingTable.Container>
         {!isEmpty && (
-          <ListingTable.Toolbar showSearch searchPlaceholder="Search agents..." />
+          <ListingTable.Toolbar showSearch searchPlaceholder="Search agents" />
         )}
         {!isLoading && filteredAgents.length === 0 ? (
           search ? (

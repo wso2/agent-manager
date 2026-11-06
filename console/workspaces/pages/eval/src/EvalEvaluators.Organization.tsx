@@ -214,18 +214,16 @@ export const EvalEvaluatorsOrganization: React.FC = () => {
               flexWrap="wrap"
               useFlexGap
             >
-              <Box flexGrow={1}>
-                <SearchBar
-                  placeholder="Search evaluators"
-                  size="small"
-                  fullWidth
-                  value={search}
-                  onChange={(event) => {
-                    setSearch(event.target.value);
-                    debouncedSetSearch(event.target.value);
-                  }}
-                />
-              </Box>
+              <SearchBar
+                placeholder="Search evaluators"
+                size="small"
+                width="standard"
+                value={search}
+                onChange={(event) => {
+                  setSearch(event.target.value);
+                  debouncedSetSearch(event.target.value);
+                }}
+              />
               <Select
                 size="small"
                 variant="outlined"

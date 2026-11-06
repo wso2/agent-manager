@@ -78,7 +78,7 @@ export function MCPProxyTable({ createAction }: MCPProxyTableProps) {
       resourceName="mcp-proxies"
       searchValue={searchValue}
       onSearchChange={setSearchValue}
-      searchPlaceholder="Search MCP servers..."
+      searchPlaceholder="Search MCP servers"
       error={error}
       isLoading={isLoading}
       isEmpty={!proxies.length}

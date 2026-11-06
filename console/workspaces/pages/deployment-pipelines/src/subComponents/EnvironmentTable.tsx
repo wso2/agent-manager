@@ -162,7 +162,7 @@ export function EnvironmentTable({
       resourceName="environments"
       searchValue={search}
       onSearchChange={setSearch}
-      searchPlaceholder="Search environments..."
+      searchPlaceholder="Search environments"
       searchDisabled={isLoading}
       error={
         error

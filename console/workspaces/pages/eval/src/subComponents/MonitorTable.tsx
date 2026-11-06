@@ -140,7 +140,7 @@ export function MonitorTable({ createAction }: MonitorTableProps) {
       showSearch
       searchValue={searchValue}
       onSearchChange={setSearchValue}
-      searchPlaceholder="Search monitors..."
+      searchPlaceholder="Search monitors"
     />
   );
 
