@@ -515,6 +515,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "402":
+          description: >-
+            The organization's subscription does not allow another agent of this type (code
+            `ENTITLEMENT_DENIED`). Only returned by deployments that check subscriptions.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "500":
           description: Internal server error
           content:

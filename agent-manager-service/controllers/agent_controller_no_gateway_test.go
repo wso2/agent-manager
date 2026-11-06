@@ -36,3 +36,22 @@ func TestHandleCommonErrorsEnvironmentHasNoGatewayIs409WithItsCode(t *testing.T)
 	assert.Contains(t, w.Body.String(), `"code":"ENVIRONMENT_HAS_NO_GATEWAY"`)
 	assert.Contains(t, w.Body.String(), "environment dev has no ingress gateway")
 }
+
+func TestHandleCommonErrorsEntitlementDeniedIs402WithTheCheckersMessage(t *testing.T) {
+	w := httptest.NewRecorder()
+
+	handleCommonErrors(w, fmt.Errorf("create agent: %w", &utils.EntitlementDeniedError{Message: "Quota limit reached for platform_agents."}), "fallback")
+
+	assert.Equal(t, http.StatusPaymentRequired, w.Code)
+	assert.Contains(t, w.Body.String(), `"code":"ENTITLEMENT_DENIED"`)
+	assert.Contains(t, w.Body.String(), `"message":"Quota limit reached for platform_agents."`)
+}
+
+func TestHandleCommonErrorsEntitlementDeniedWithoutMessageIs402(t *testing.T) {
+	w := httptest.NewRecorder()
+
+	handleCommonErrors(w, fmt.Errorf("%w: refused by the control plane", utils.ErrEntitlementDenied), "fallback")
+
+	assert.Equal(t, http.StatusPaymentRequired, w.Code)
+	assert.Contains(t, w.Body.String(), "Upgrade your subscription to continue.")
+}

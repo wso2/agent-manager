@@ -90,6 +90,16 @@ func NewAgentController(
 
 // handleCommonErrors checks for common resource errors and writes appropriate responses.
 // If no common error matches, writes an internal server error with the provided fallback message.
+// entitlementDeniedMessage returns the message the subscription check gave for
+// a refused create, or a generic one when it gave none.
+func entitlementDeniedMessage(err error) string {
+	var denied *utils.EntitlementDeniedError
+	if errors.As(err, &denied) && denied.Message != "" {
+		return denied.Message
+	}
+	return "Your subscription does not allow this. Upgrade your subscription to continue."
+}
+
 func handleCommonErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 	switch {
 	// A ValidationError raised below the controller (e.g. a stored agent kind
@@ -104,6 +114,10 @@ func handleCommonErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 	// user-facing Message with "Invalid input provided".
 	case utils.IsValidationError(err) != nil:
 		utils.WriteValidationErrorResponse(w, err)
+
+	case errors.Is(err, utils.ErrEntitlementDenied):
+		utils.WriteErrorResponseWithReason(w, http.StatusPaymentRequired,
+			entitlementDeniedMessage(err), "", utils.ErrCodeEntitlementDenied)
 
 	// Not found errors
 	case errors.Is(err, utils.ErrOrganizationNotFound):
