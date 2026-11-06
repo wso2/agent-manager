@@ -50,8 +50,8 @@ import {
   ShieldOff,
   Trash,
 } from "@wso2/oxygen-ui-icons-react";
-import { useParams, useSearchParams } from "react-router-dom";
-import { IDENTITY_ENV_PARAM, type ThunderGroup, type ThunderRole } from "@agent-management-platform/types";
+import { generatePath, Link as RouterLink, useParams, useSearchParams } from "react-router-dom";
+import { absoluteRouteMap, IDENTITY_ENV_PARAM, OVERVIEW_ENV_PARAM, type ThunderGroup, type ThunderRole } from "@agent-management-platform/types";
 import { PageLayout, TextInput } from "@agent-management-platform/views";
 import {
   useAddAgentIdentityGroupMembers,
@@ -480,9 +480,26 @@ const AgentIdentitySection: React.FC<AgentIdentitySectionProps> = ({
     );
   } else if (binding.status === "failed") {
     body = (
-      <Typography variant="body2" color="text.secondary">
-        Provisioning failed — check the identity settings for details.
-      </Typography>
+      <Stack spacing={1} alignItems="flex-start">
+        <Typography variant="body2" color="text.secondary">
+          Provisioning failed. Go to the agent Overview to view details and retry.
+        </Typography>
+        <Button
+          component={RouterLink}
+          to={{
+            pathname: generatePath(
+              absoluteRouteMap.children.org.children.projects.children.agents.path,
+              { orgId, projectId, agentId },
+            ),
+            // Retry lives on Overview's per-environment tab, so open the one that failed.
+            search: `?${new URLSearchParams({ [OVERVIEW_ENV_PARAM]: envId })}`,
+          }}
+          size="small"
+          variant="outlined"
+        >
+          Go to Overview
+        </Button>
+      </Stack>
     );
   } else {
     body = (
