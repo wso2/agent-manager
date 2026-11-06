@@ -133,8 +133,13 @@ func (c *openChoreoClient) TriggerBuild(ctx context.Context, ouID, projectName, 
 	// never carry the token. Once the workflow does take it, a failure to issue
 	// it fails the build rather than starting one that cannot publish its
 	// Workload. The cause is reported as text, not wrapped: its sentinel (a
-	// secret store's not-found, say) is not this build's 404.
-	if c.attachBuildClient(ctx, namespaceName, workflowKind, workflowName, buildClient != nil) {
+	// secret store's not-found, say) is not this build's 404. A workflow that
+	// cannot be read fails the build here too (see attachBuildClient).
+	attach, err := c.attachBuildClient(ctx, namespaceName, workflowKind, workflowName, buildClient != nil)
+	if err != nil {
+		return nil, err
+	}
+	if attach {
 		buildToken, err := buildClient(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("failed to issue the build token: %v", err) //nolint:errorlint // deliberately not wrapped, see above

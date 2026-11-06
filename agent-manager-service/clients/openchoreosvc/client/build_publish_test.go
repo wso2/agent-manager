@@ -26,6 +26,7 @@ import (
 	"net/http/httptest"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -556,9 +557,28 @@ func TestAttachBuildClient(t *testing.T) {
 	orig := cfg.BuildClient.Workflows
 	t.Cleanup(func() { cfg.BuildClient.Workflows = orig })
 	cfg.BuildClient.Workflows = []string{"amp-docker", "amp-old"}
+	origDelay := buildWorkflowLookupRetryDelay
+	t.Cleanup(func() { buildWorkflowLookupRetryDelay = origDelay })
+	buildWorkflowLookupRetryDelay = time.Millisecond
 
+	flakyCalls := 0
+	brokenCalls := 0
 	c := newTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
+		case "/api/v1/clusterworkflows/amp-flaky":
+			flakyCalls++
+			if flakyCalls == 1 {
+				w.WriteHeader(http.StatusBadGateway)
+				_, _ = w.Write([]byte(`{"error":"bad gateway","code":"INTERNAL"}`))
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"metadata":{"name":"amp-flaky"},"spec":{"parameters":{"openAPIV3Schema":{
+				"type":"object","properties":{"ampBuild":{"type":"object"}}}}}}`))
+		case "/api/v1/clusterworkflows/amp-broken":
+			brokenCalls++
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = w.Write([]byte(`{"error":"boom","code":"INTERNAL"}`))
 		case "/api/v1/clusterworkflows/amp-docker", "/api/v1/namespaces/default/workflows/amp-docker":
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte(`{"metadata":{"name":"amp-docker"},"spec":{"parameters":{"openAPIV3Schema":{
@@ -574,17 +594,40 @@ func TestAttachBuildClient(t *testing.T) {
 	}))
 	ctx := context.Background()
 
-	assert.True(t, c.attachBuildClient(ctx, "default", gen.WorkflowRunConfigKindClusterWorkflow, "amp-docker", true))
-	assert.True(t, c.attachBuildClient(ctx, "default", gen.WorkflowRunConfigKindWorkflow, "amp-docker", true))
-	assert.False(t, c.attachBuildClient(ctx, "default", gen.WorkflowRunConfigKindClusterWorkflow, "amp-old", true),
-		"a workflow that does not declare ampBuild keeps its previous path")
-	assert.False(t, c.attachBuildClient(ctx, "default", gen.WorkflowRunConfigKindClusterWorkflow, "dockerfile-builder", true),
-		"a workflow not listed in AMP_BUILD_CLIENT_WORKFLOWS never receives it")
-	assert.False(t, c.attachBuildClient(ctx, "default", gen.WorkflowRunConfigKindClusterWorkflow, "amp-docker", false))
+	attach := func(kind gen.WorkflowRunConfigKind, name string, enabled bool) (bool, error) {
+		return c.attachBuildClient(ctx, "default", kind, name, enabled)
+	}
 
-	cfg.BuildClient.Workflows = []string{"amp-broken"}
-	assert.False(t, c.attachBuildClient(ctx, "default", gen.WorkflowRunConfigKindClusterWorkflow, "amp-broken", true),
-		"a workflow that cannot be read keeps its previous path rather than failing the build")
+	got, err := attach(gen.WorkflowRunConfigKindClusterWorkflow, "amp-docker", true)
+	require.NoError(t, err)
+	assert.True(t, got)
+	got, err = attach(gen.WorkflowRunConfigKindWorkflow, "amp-docker", true)
+	require.NoError(t, err)
+	assert.True(t, got)
+
+	got, err = attach(gen.WorkflowRunConfigKindClusterWorkflow, "amp-old", true)
+	require.NoError(t, err, "a workflow that is read and does not declare ampBuild is not an error")
+	assert.False(t, got, "a workflow that does not declare ampBuild keeps its previous path")
+
+	got, err = attach(gen.WorkflowRunConfigKindClusterWorkflow, "dockerfile-builder", true)
+	require.NoError(t, err)
+	assert.False(t, got, "a workflow not listed in AMP_BUILD_CLIENT_WORKFLOWS never receives it")
+
+	got, err = attach(gen.WorkflowRunConfigKindClusterWorkflow, "amp-docker", false)
+	require.NoError(t, err)
+	assert.False(t, got)
+
+	cfg.BuildClient.Workflows = []string{"amp-broken", "amp-flaky"}
+	got, err = attach(gen.WorkflowRunConfigKindClusterWorkflow, "amp-broken", true)
+	require.ErrorIs(t, err, utils.ErrServiceUnavailable,
+		"a workflow that cannot be read fails the build rather than silently keeping the previous path")
+	assert.False(t, got)
+	assert.Equal(t, 2, brokenCalls, "the lookup is retried exactly once")
+
+	got, err = attach(gen.WorkflowRunConfigKindClusterWorkflow, "amp-flaky", true)
+	require.NoError(t, err, "a lookup that fails once and then succeeds is not an error")
+	assert.True(t, got)
+	assert.Equal(t, 2, flakyCalls)
 }
 
 // triggerBuildStub serves the calls TriggerBuild makes for a component whose
@@ -611,6 +654,9 @@ func (s *triggerBuildStub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"metadata":{"name":"amp-old"},"spec":{"parameters":{"openAPIV3Schema":{
 			"type":"object","properties":{"repository":{"type":"object"}}}}}}`))
+	case r.Method == http.MethodGet && r.URL.Path == "/api/v1/clusterworkflows/amp-broken":
+		w.WriteHeader(http.StatusServiceUnavailable)
+		_, _ = w.Write([]byte(`{"error":"unavailable","code":"INTERNAL"}`))
 	case r.Method == http.MethodPost && r.URL.Path == ns+"/workflowruns":
 		body, _ := io.ReadAll(r.Body)
 		var run gen.WorkflowRun
@@ -628,7 +674,10 @@ func TestTriggerBuild_ProvisionsTheBuildClientOnlyForAWorkflowThatTakesIt(t *tes
 	cfg := config.GetConfig()
 	orig := cfg.BuildClient.Workflows
 	t.Cleanup(func() { cfg.BuildClient.Workflows = orig })
-	cfg.BuildClient.Workflows = []string{"amp-docker", "amp-old"}
+	cfg.BuildClient.Workflows = []string{"amp-docker", "amp-old", "amp-broken"}
+	origDelay := buildWorkflowLookupRetryDelay
+	t.Cleanup(func() { buildWorkflowLookupRetryDelay = origDelay })
+	buildWorkflowLookupRetryDelay = time.Millisecond
 
 	failing := func(context.Context) (*BuildClientParams, error) {
 		return nil, errors.New("thunder down")
@@ -688,6 +737,21 @@ func TestTriggerBuild_ProvisionsTheBuildClientOnlyForAWorkflowThatTakesIt(t *tes
 		_, err := c.TriggerBuild(context.Background(), "org-1", "proj1", "my-agent", "", "my-agent-1700", nil, notFound)
 		require.Error(t, err)
 		assert.NotErrorIs(t, err, utils.ErrNotFound)
+	})
+
+	t.Run("a workflow that cannot be read fails the build before a run is started", func(t *testing.T) {
+		stub := &triggerBuildStub{t: t, workflowName: "amp-broken"}
+		c := newTestClient(t, stub)
+		calls := 0
+		source := func(context.Context) (*BuildClientParams, error) {
+			calls++
+			return &BuildClientParams{SecretRefName: "cred-amp-build-token-org-1"}, nil
+		}
+
+		_, err := c.TriggerBuild(context.Background(), "org-1", "proj1", "my-agent", "", "my-agent-1700", nil, source)
+		require.ErrorIs(t, err, utils.ErrServiceUnavailable, "the caller gets a retryable 503 now, not a failed build later")
+		assert.Zero(t, calls, "no token is issued when it is unknown whether the run takes it")
+		assert.Nil(t, stub.createdRun, "no run is started on the previous path")
 	})
 
 	t.Run("disabled: no token and nothing issued", func(t *testing.T) {

@@ -70,34 +70,48 @@ func withBuildClient(params map[string]interface{}, buildClient *BuildClientPara
 
 // attachBuildClient reports whether a build token should ride on a run of the
 // given workflow: build tokens are enabled, the workflow is listed in
-// config.BuildClient.Workflows and its parameter schema declares ampBuild. A
-// workflow that does not declare it (an organization whose namespaced Workflows
-// predate it) would ignore or reject the parameter, so the run keeps its
-// previous path instead; so does a run whose workflow cannot be looked up,
-// rather than failing the build. Both are logged at Error: with build tokens
-// enabled, a run that keeps the previous path is a rollout gap that must not go
-// unnoticed.
-func (c *openChoreoClient) attachBuildClient(ctx context.Context, namespaceName string, kind gen.WorkflowRunConfigKind, workflowName string, enabled bool) bool {
+// config.BuildClient.Workflows and its parameter schema declares ampBuild.
+//
+// A workflow that is read and does not declare ampBuild (an organization whose
+// namespaced Workflows predate it) keeps its previous path: that is expected
+// during the rollout and is only logged at Warn. A workflow that cannot be read
+// is different: whether the run should carry the token is unknown, and starting
+// it on the previous path would let it build in full and fail only at publish
+// once that path is gone. So the lookup is retried once and, if it still fails,
+// the error is returned and the build is not started.
+func (c *openChoreoClient) attachBuildClient(ctx context.Context, namespaceName string, kind gen.WorkflowRunConfigKind, workflowName string, enabled bool) (bool, error) {
 	if !enabled {
-		return false
+		return false, nil
 	}
 	if !slices.Contains(config.GetConfig().BuildClient.Workflows, workflowName) {
 		slog.DebugContext(ctx, "Build workflow does not take the build token; not attaching it",
 			"workflow", workflowName)
-		return false
+		return false, nil
 	}
 	declared, err := c.workflowDeclaresParameter(ctx, namespaceName, kind, workflowName, workflowParamAMPBuild)
 	if err != nil {
-		slog.ErrorContext(ctx, "Could not read the build workflow's parameters; not attaching the build token",
+		select {
+		case <-ctx.Done():
+			return false, fmt.Errorf("%w: could not read build workflow %q: %v", utils.ErrServiceUnavailable, workflowName, err) //nolint:errorlint // the cause is reported as text, not as this build's error
+		case <-time.After(buildWorkflowLookupRetryDelay):
+		}
+		declared, err = c.workflowDeclaresParameter(ctx, namespaceName, kind, workflowName, workflowParamAMPBuild)
+	}
+	if err != nil {
+		slog.ErrorContext(ctx, "Could not read the build workflow's parameters; not starting the build",
 			"workflow", workflowName, "kind", string(kind), "error", err)
-		return false
+		return false, fmt.Errorf("%w: could not read build workflow %q: %v", utils.ErrServiceUnavailable, workflowName, err) //nolint:errorlint // the cause is reported as text, not as this build's error
 	}
 	if !declared {
-		slog.ErrorContext(ctx, "Build workflow does not declare ampBuild; not attaching the build token",
+		slog.WarnContext(ctx, "Build workflow does not declare ampBuild; using the previous publish path",
 			"workflow", workflowName, "kind", string(kind))
 	}
-	return declared
+	return declared, nil
 }
+
+// buildWorkflowLookupRetryDelay is how long attachBuildClient waits before its
+// one retry of a failed workflow lookup. A variable so tests need not wait.
+var buildWorkflowLookupRetryDelay = time.Second
 
 // workflowDeclaresParameter reports whether the Workflow or ClusterWorkflow's
 // openAPIV3Schema lists param among its top-level properties.
