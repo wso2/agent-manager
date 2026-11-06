@@ -67,6 +67,10 @@ type ThunderClient interface {
 	// RegenerateAppClientSecret regenerates the OAuth2 client secret for the app named appName.
 	RegenerateAppClientSecret(ctx context.Context, appName string) (clientSecret string, err error)
 
+	// GetAppOU returns the organization unit the app named appName belongs to.
+	// found is false (with a nil error) when no app of that name exists.
+	GetAppOU(ctx context.Context, appName string) (ouID string, found bool, err error)
+
 	// CreateAgentIdentity creates a client_credentials AgentID via Thunder's /agents
 	// endpoint (a distinct resource from /applications — see agent_client.go).
 	// Idempotent: a 409 name conflict is resolved by looking up the existing agent;
@@ -472,6 +476,36 @@ func (c *thunderClient) RegenerateAppClientSecret(ctx context.Context, appName s
 }
 
 // regenerateSecret regenerates the client secret for a Thunder application.
+// GetAppOU looks the app named appName up by name (findApp, which searches every
+// organization unit) and reads its ouId from the full application.
+func (c *thunderClient) GetAppOU(ctx context.Context, appName string) (string, bool, error) {
+	token, err := c.getSystemToken(ctx)
+	if err != nil {
+		return "", false, fmt.Errorf("failed to get system token: %w", err)
+	}
+	internalID, _, err := c.findApp(ctx, token, appName)
+	if err != nil {
+		return "", false, err
+	}
+	if internalID == "" {
+		return "", false, nil
+	}
+	body, err := c.doRequest(ctx, http.MethodGet, c.baseURL+"/applications/"+internalID, token, nil)
+	if err != nil {
+		return "", false, fmt.Errorf("thunder get application %s: %w", appName, err)
+	}
+	var app struct {
+		OUID string `json:"ouId"`
+	}
+	if err := json.Unmarshal(body, &app); err != nil {
+		return "", false, fmt.Errorf("thunder get application %s decode: %w", appName, err)
+	}
+	if app.OUID == "" {
+		return "", false, fmt.Errorf("thunder application %s has no ouId", appName)
+	}
+	return app.OUID, true, nil
+}
+
 func (c *thunderClient) regenerateSecret(ctx context.Context, token, appID string) (string, error) {
 	secret, err := c.regenerateResourceSecret(ctx, token, "applications", appID)
 	if err != nil {

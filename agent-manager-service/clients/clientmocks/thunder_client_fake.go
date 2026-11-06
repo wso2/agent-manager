@@ -32,6 +32,9 @@ import (
 //			EnsurePublisherAppFunc: func(ctx context.Context, orgName string, orgUUID string) (string, string, bool, error) {
 //				panic("mock out the EnsurePublisherApp method")
 //			},
+//			GetAppOUFunc: func(ctx context.Context, appName string) (string, bool, error) {
+//				panic("mock out the GetAppOU method")
+//			},
 //			GetDefaultOUIDFunc: func(ctx context.Context) (string, error) {
 //				panic("mock out the GetDefaultOUID method")
 //			},
@@ -68,6 +71,9 @@ type ThunderClientMock struct {
 
 	// EnsurePublisherAppFunc mocks the EnsurePublisherApp method.
 	EnsurePublisherAppFunc func(ctx context.Context, orgName string, orgUUID string) (string, string, bool, error)
+
+	// GetAppOUFunc mocks the GetAppOU method.
+	GetAppOUFunc func(ctx context.Context, appName string) (string, bool, error)
 
 	// GetDefaultOUIDFunc mocks the GetDefaultOUID method.
 	GetDefaultOUIDFunc func(ctx context.Context) (string, error)
@@ -133,6 +139,13 @@ type ThunderClientMock struct {
 			// OrgUUID is the orgUUID argument value.
 			OrgUUID string
 		}
+		// GetAppOU holds details about calls to the GetAppOU method.
+		GetAppOU []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// AppName is the appName argument value.
+			AppName string
+		}
 		// GetDefaultOUID holds details about calls to the GetDefaultOUID method.
 		GetDefaultOUID []struct {
 			// Ctx is the ctx argument value.
@@ -166,6 +179,7 @@ type ThunderClientMock struct {
 	lockDeletePublisherApp        sync.RWMutex
 	lockEnsureApp                 sync.RWMutex
 	lockEnsurePublisherApp        sync.RWMutex
+	lockGetAppOU                  sync.RWMutex
 	lockGetDefaultOUID            sync.RWMutex
 	lockRegenerateAgentSecret     sync.RWMutex
 	lockRegenerateAppClientSecret sync.RWMutex
@@ -401,6 +415,42 @@ func (mock *ThunderClientMock) EnsurePublisherAppCalls() []struct {
 	mock.lockEnsurePublisherApp.RLock()
 	calls = mock.calls.EnsurePublisherApp
 	mock.lockEnsurePublisherApp.RUnlock()
+	return calls
+}
+
+// GetAppOU calls GetAppOUFunc.
+func (mock *ThunderClientMock) GetAppOU(ctx context.Context, appName string) (string, bool, error) {
+	if mock.GetAppOUFunc == nil {
+		panic("ThunderClientMock.GetAppOUFunc: method is nil but ThunderClient.GetAppOU was just called")
+	}
+	callInfo := struct {
+		Ctx     context.Context
+		AppName string
+	}{
+		Ctx:     ctx,
+		AppName: appName,
+	}
+	mock.lockGetAppOU.Lock()
+	mock.calls.GetAppOU = append(mock.calls.GetAppOU, callInfo)
+	mock.lockGetAppOU.Unlock()
+	return mock.GetAppOUFunc(ctx, appName)
+}
+
+// GetAppOUCalls gets all the calls that were made to GetAppOU.
+// Check the length with:
+//
+//	len(mockedThunderClient.GetAppOUCalls())
+func (mock *ThunderClientMock) GetAppOUCalls() []struct {
+	Ctx     context.Context
+	AppName string
+} {
+	var calls []struct {
+		Ctx     context.Context
+		AppName string
+	}
+	mock.lockGetAppOU.RLock()
+	calls = mock.calls.GetAppOU
+	mock.lockGetAppOU.RUnlock()
 	return calls
 }
 

@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -62,6 +63,12 @@ func bothEntries() *client.SecretReferenceInfo {
 	}}
 }
 
+// appInOwnOU answers GetAppOU for an app that exists in the organization's own unit.
+func appInOwnOU(context.Context, string) (string, bool, error) { return bcOrg, true, nil }
+
+// noApp answers GetAppOU for an app that does not exist yet.
+func noApp(context.Context, string) (string, bool, error) { return "", false, nil }
+
 func TestBuildCredentialProvisioner_ReturnsStoredClientWithoutProvisioning(t *testing.T) {
 	repo := &repomocks.OrgBuildCredentialRepositoryMock{
 		GetByOrgNameFunc: func(ouID string) (*models.OrgBuildCredential, error) {
@@ -74,14 +81,122 @@ func TestBuildCredentialProvisioner_ReturnsStoredClientWithoutProvisioning(t *te
 			return bothEntries(), nil
 		},
 	}
-	// Lock, Thunder and secret store funcs are nil: provisioning must not happen.
-	p := newBuildCredentialProvisioner(&clientmocks.ThunderClientMock{}, &clientmocks.SecretManagementClientMock{},
+	thunder := &clientmocks.ThunderClientMock{GetAppOUFunc: appInOwnOU}
+	// Lock, secret store and other Thunder funcs are nil: provisioning must not happen.
+	p := newBuildCredentialProvisioner(thunder, &clientmocks.SecretManagementClientMock{},
 		oc, repo, discardLogger())
 
 	got, err := p.EnsureBuildClient(context.Background(), bcOrg)
 	require.NoError(t, err)
 	assert.Equal(t, &client.BuildClientParams{SecretRefName: "amp-build-ref"}, got)
 	assert.Len(t, oc.GetSecretReferenceCalls(), 1)
+	require.Len(t, thunder.GetAppOUCalls(), 1, "the stored client's Thunder app is checked before it is used")
+	assert.Equal(t, "amp-build-"+bcOrg, thunder.GetAppOUCalls()[0].AppName)
+}
+
+func TestBuildCredentialProvisioner_ChecksTheStoredClientAgainOnlyAfterTheRecheckInterval(t *testing.T) {
+	repo := &repomocks.OrgBuildCredentialRepositoryMock{
+		GetByOrgNameFunc: func(ouID string) (*models.OrgBuildCredential, error) {
+			return &models.OrgBuildCredential{OUID: ouID, SecretRefName: "amp-build-ref"}, nil
+		},
+	}
+	oc := &clientmocks.OpenChoreoClientMock{
+		GetSecretReferenceFunc: func(context.Context, string, string) (*client.SecretReferenceInfo, error) {
+			return bothEntries(), nil
+		},
+	}
+	thunder := &clientmocks.ThunderClientMock{GetAppOUFunc: appInOwnOU}
+	p := newBuildCredentialProvisioner(thunder, nil, oc, repo, discardLogger())
+	clock := time.Date(2026, 11, 6, 10, 0, 0, 0, time.UTC)
+	p.now = func() time.Time { return clock }
+
+	for range 3 {
+		_, err := p.EnsureBuildClient(context.Background(), bcOrg)
+		require.NoError(t, err)
+	}
+	assert.Len(t, thunder.GetAppOUCalls(), 1, "a client confirmed usable is not looked up on every build")
+	assert.Len(t, oc.GetSecretReferenceCalls(), 1)
+
+	clock = clock.Add(storedBuildClientRecheckInterval)
+	_, err := p.EnsureBuildClient(context.Background(), bcOrg)
+	require.NoError(t, err)
+	assert.Len(t, thunder.GetAppOUCalls(), 2, "it is checked again once the interval has passed")
+	assert.Len(t, oc.GetSecretReferenceCalls(), 2)
+}
+
+func TestBuildCredentialProvisioner_ProvisionsAgainWhenTheStoredClientsAppIsGone(t *testing.T) {
+	var upserted *models.OrgBuildCredential
+	oc := &clientmocks.OpenChoreoClientMock{
+		GetSecretReferenceFunc: func(context.Context, string, string) (*client.SecretReferenceInfo, error) {
+			return bothEntries(), nil
+		},
+	}
+	created := false
+	thunder := &clientmocks.ThunderClientMock{
+		GetAppOUFunc: func(context.Context, string) (string, bool, error) {
+			if created {
+				return bcOrg, true, nil
+			}
+			return "", false, nil
+		},
+		EnsureAppFunc: func(_ context.Context, appName, orgUUID string) (string, string, bool, error) {
+			assert.Equal(t, bcOrg, orgUUID)
+			created = true
+			return appName, "fresh-secret", true, nil
+		},
+	}
+	p := newBuildCredentialProvisioner(thunder, newSecretStore(), oc,
+		staleStoredRepo("old-ref", &upserted), discardLogger())
+
+	got, err := p.EnsureBuildClient(auditableCtx(t), bcOrg)
+	require.NoError(t, err)
+	assert.True(t, created, "the deleted Thunder app is created again")
+	assert.Equal(t, &client.BuildClientParams{SecretRefName: "new-ref"}, got)
+	require.NotNil(t, upserted)
+	assert.Equal(t, "new-ref", upserted.SecretRefName)
+}
+
+func TestBuildCredentialProvisioner_KeepsTheStoredClientWhenItsAppCannotBeLookedUp(t *testing.T) {
+	repo := &repomocks.OrgBuildCredentialRepositoryMock{
+		GetByOrgNameFunc: func(ouID string) (*models.OrgBuildCredential, error) {
+			return &models.OrgBuildCredential{OUID: ouID, SecretRefName: "amp-build-ref"}, nil
+		},
+	}
+	oc := &clientmocks.OpenChoreoClientMock{
+		GetSecretReferenceFunc: func(context.Context, string, string) (*client.SecretReferenceInfo, error) {
+			return bothEntries(), nil
+		},
+	}
+	thunder := &clientmocks.ThunderClientMock{
+		GetAppOUFunc: func(context.Context, string) (string, bool, error) {
+			return "", false, errors.New("thunder unavailable")
+		},
+	}
+	// Lock and the provisioning funcs are nil: a transient failure must not
+	// regenerate a secret that may still work.
+	p := newBuildCredentialProvisioner(thunder, nil, oc, repo, discardLogger())
+
+	got, err := p.EnsureBuildClient(context.Background(), bcOrg)
+	require.NoError(t, err)
+	assert.Equal(t, &client.BuildClientParams{SecretRefName: "amp-build-ref"}, got)
+
+	_, err = p.EnsureBuildClient(context.Background(), bcOrg)
+	require.NoError(t, err)
+	assert.Len(t, thunder.GetAppOUCalls(), 2, "a client that could not be checked is checked again on the next build")
+}
+
+func TestBuildCredentialProvisioner_RefusesToAdoptAnAppFromAnotherOrganizationUnit(t *testing.T) {
+	repo := lockingRepo(&repomocks.OrgBuildCredentialRepositoryMock{
+		GetByOrgNameFunc: func(string) (*models.OrgBuildCredential, error) { return nil, gorm.ErrRecordNotFound },
+	}, nil)
+	thunder := &clientmocks.ThunderClientMock{
+		GetAppOUFunc: func(context.Context, string) (string, bool, error) { return "other-ou", true, nil },
+		// EnsureApp and RegenerateAppClientSecret are nil: the app must not be adopted.
+	}
+	p := newBuildCredentialProvisioner(thunder, nil, nil, repo, discardLogger())
+
+	_, err := p.EnsureBuildClient(auditableCtx(t), bcOrg)
+	require.ErrorIs(t, err, errBuildClientAppInOtherOU)
 }
 
 // staleStoredRepo stores a build client whose SecretReference is staleRef until
@@ -105,6 +220,7 @@ func staleStoredRepo(staleRef string, upserted **models.OrgBuildCredential) *rep
 // Thunder does not return its secret again, so the provisioner regenerates it.
 func reprovisioningThunder(regenerated *bool) *clientmocks.ThunderClientMock {
 	return &clientmocks.ThunderClientMock{
+		GetAppOUFunc: appInOwnOU,
 		EnsureAppFunc: func(_ context.Context, appName, _ string) (string, string, bool, error) {
 			return appName, "", false, nil
 		},
@@ -200,6 +316,7 @@ func TestBuildCredentialProvisioner_ProvisionsOnFirstUseUnderTheLock(t *testing.
 		},
 	}, &locked)
 	thunder := &clientmocks.ThunderClientMock{
+		GetAppOUFunc: noApp,
 		EnsureAppFunc: func(_ context.Context, appName, orgUUID string) (string, string, bool, error) {
 			assert.True(t, locked, "the client must be provisioned under the per-organization lock")
 			assert.Equal(t, "amp-build-"+bcOrg, appName)
@@ -251,8 +368,8 @@ func TestBuildCredentialProvisioner_UsesTheClientAnotherReplicaStoredWhileWaitin
 			return bothEntries(), nil
 		},
 	}
-	// Thunder funcs are nil: the re-check under the lock must stop provisioning.
-	p := newBuildCredentialProvisioner(&clientmocks.ThunderClientMock{}, nil, oc, repo, discardLogger())
+	// Thunder's provisioning funcs are nil: the re-check under the lock must stop provisioning.
+	p := newBuildCredentialProvisioner(&clientmocks.ThunderClientMock{GetAppOUFunc: appInOwnOU}, nil, oc, repo, discardLogger())
 
 	got, err := p.EnsureBuildClient(auditableCtx(t), bcOrg)
 	require.NoError(t, err)
@@ -266,6 +383,7 @@ func TestBuildCredentialProvisioner_RegeneratesTheSecretOfAnExistingApp(t *testi
 		UpsertFunc:       func(*models.OrgBuildCredential) error { return nil },
 	}, nil)
 	thunder := &clientmocks.ThunderClientMock{
+		GetAppOUFunc: appInOwnOU,
 		EnsureAppFunc: func(_ context.Context, appName, _ string) (string, string, bool, error) {
 			return appName, "", false, nil
 		},
@@ -367,6 +485,7 @@ func TestBuildCredentialProvisioner_Failures(t *testing.T) {
 	t.Run("an app with another client ID is not adopted", func(t *testing.T) {
 		repo := lockingRepo(&repomocks.OrgBuildCredentialRepositoryMock{GetByOrgNameFunc: notFound}, nil)
 		thunder := &clientmocks.ThunderClientMock{
+			GetAppOUFunc: appInOwnOU,
 			EnsureAppFunc: func(context.Context, string, string) (string, string, bool, error) {
 				return "someone-elses-client", "s", false, nil
 			},
@@ -385,7 +504,7 @@ func TestBuildCredentialProvisioner_Failures(t *testing.T) {
 				}}, nil
 			},
 		}
-		p := newBuildCredentialProvisioner(&clientmocks.ThunderClientMock{EnsureAppFunc: createdApp},
+		p := newBuildCredentialProvisioner(&clientmocks.ThunderClientMock{GetAppOUFunc: noApp, EnsureAppFunc: createdApp},
 			&clientmocks.SecretManagementClientMock{CreateSecretFunc: storedSecret}, oc, repo, discardLogger())
 		_, err := p.EnsureBuildClient(auditableCtx(t), bcOrg)
 		require.Error(t, err)
@@ -397,6 +516,7 @@ func TestBuildCredentialProvisioner_Failures(t *testing.T) {
 			UpsertFunc:       func(*models.OrgBuildCredential) error { return nil },
 		}, nil)
 		thunder := &clientmocks.ThunderClientMock{
+			GetAppOUFunc: noApp,
 			EnsureAppFunc: func(ctx context.Context, appName, _ string) (string, string, bool, error) {
 				require.NoError(t, ctx.Err(), "the provisioning run must not inherit the caller's cancellation")
 				return appName, "s", true, nil
