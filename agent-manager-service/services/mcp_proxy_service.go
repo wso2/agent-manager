@@ -850,9 +850,9 @@ func (s *MCPProxyService) deleteLoadedMCPProxy(ctx context.Context, orgUUID, han
 // security was disabled.
 func (s *MCPProxyService) cleanupProxyResourceServers(ctx context.Context, ouID string, proxy *models.MCPProxy, scopes []models.MCPProxyScope) {
 	handle := proxyHandleOf(proxy)
-	scopeStrs := make([]string, len(scopes))
+	actions := make([]string, len(scopes))
 	for i, scope := range scopes {
-		scopeStrs[i] = scope.ScopeString(handle)
+		actions[i] = scope.Action
 	}
 
 	envs, err := s.infraManager.ListOrgEnvironments(ctx, ouID)
@@ -865,6 +865,7 @@ func (s *MCPProxyService) cleanupProxyResourceServers(ctx context.Context, ouID 
 		envName[env.UUID] = env.Name
 	}
 
+	provider := mcpResourceServerProviderFor(s.resolver, s.logger)
 	for i := range proxy.Endpoints {
 		endpoint := &proxy.Endpoints[i]
 		for j := range endpoint.Environments {
@@ -872,17 +873,12 @@ func (s *MCPProxyService) cleanupProxyResourceServers(ctx context.Context, ouID 
 			if !ok {
 				continue // environment no longer exists — nothing to clean
 			}
-			client, err := ResolveEnvThunderIdentity(ctx, s.resolver, ouID, name)
-			if err != nil {
-				s.logger.Warn("proxy delete: env-Thunder unavailable", "env", name, "proxy", handle, "error", err)
-				continue
+			request := MCPResourceServerRequest{
+				OrganizationID: ouID, ProxyHandle: handle, DisplayName: mcpResourceServerDisplayName(proxy),
+				Environment: name, Actions: actions,
 			}
-			if err := client.DeleteProxyResourceServer(ctx, handle); err != nil {
+			if err := provider.DeleteMCPResourceServer(ctx, request); err != nil {
 				s.logger.Warn("proxy delete: resource server delete failed", "env", name, "proxy", handle, "error", err)
-				continue
-			}
-			for _, scopeStr := range scopeStrs {
-				sweepRolePermission(ctx, s.logger, client, name, scopeStr)
 			}
 		}
 	}

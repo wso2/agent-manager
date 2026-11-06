@@ -78,6 +78,9 @@ type MCPResourceServerIdentifierResolver interface {
 	MCPResourceServerIdentifier(ctx context.Context, ouID string, envID uuid.UUID, proxy *models.MCPProxy) (string, error)
 	// EnsureResourceServer ensures proxy's resource server exists with exactly actions.
 	EnsureResourceServer(ctx context.Context, ouID string, envID uuid.UUID, client thundersvc.EnvIdentityClient, proxy *models.MCPProxy, actions []string) (string, error)
+	// EnsureResourceServerInEnv is EnsureResourceServer through the configured MCP resource server
+	// provider, so it needs no environment client. Role writes in CP_MANAGED mode use it.
+	EnsureResourceServerInEnv(ctx context.Context, ouID string, envID uuid.UUID, envName string, proxy *models.MCPProxy, actions []string) (string, error)
 }
 
 type agentIdentityController struct {
@@ -188,6 +191,12 @@ func (c *agentIdentityController) managedGroup(w http.ResponseWriter, r *http.Re
 }
 
 func (c *agentIdentityController) ListGroups(w http.ResponseWriter, r *http.Request) {
+	// CP_MANAGED: no provider covers this route yet, so it fails closed instead of using the
+	// environment's own Thunder.
+	if controlPlaneNotSupported(w) {
+		return
+	}
+	// LEGACY_DIRECT: the environment's own Thunder, below.
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
@@ -215,6 +224,12 @@ func (c *agentIdentityController) ListGroups(w http.ResponseWriter, r *http.Requ
 }
 
 func (c *agentIdentityController) CreateGroup(w http.ResponseWriter, r *http.Request) {
+	// CP_MANAGED: no provider covers this route yet, so it fails closed instead of using the
+	// environment's own Thunder.
+	if controlPlaneNotSupported(w) {
+		return
+	}
+	// LEGACY_DIRECT: the environment's own Thunder, below.
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
@@ -256,6 +271,12 @@ func (c *agentIdentityController) CreateGroup(w http.ResponseWriter, r *http.Req
 }
 
 func (c *agentIdentityController) GetGroup(w http.ResponseWriter, r *http.Request) {
+	// CP_MANAGED: no provider covers this route yet, so it fails closed instead of using the
+	// environment's own Thunder.
+	if controlPlaneNotSupported(w) {
+		return
+	}
+	// LEGACY_DIRECT: the environment's own Thunder, below.
 	groupID := r.PathValue(utils.PathParamGroupID)
 
 	client, ok := c.envClient(w, r)
@@ -270,6 +291,12 @@ func (c *agentIdentityController) GetGroup(w http.ResponseWriter, r *http.Reques
 }
 
 func (c *agentIdentityController) UpdateGroup(w http.ResponseWriter, r *http.Request) {
+	// CP_MANAGED: no provider covers this route yet, so it fails closed instead of using the
+	// environment's own Thunder.
+	if controlPlaneNotSupported(w) {
+		return
+	}
+	// LEGACY_DIRECT: the environment's own Thunder, below.
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	groupID := r.PathValue(utils.PathParamGroupID)
@@ -311,6 +338,12 @@ func (c *agentIdentityController) UpdateGroup(w http.ResponseWriter, r *http.Req
 }
 
 func (c *agentIdentityController) DeleteGroup(w http.ResponseWriter, r *http.Request) {
+	// CP_MANAGED: no provider covers this route yet, so it fails closed instead of using the
+	// environment's own Thunder.
+	if controlPlaneNotSupported(w) {
+		return
+	}
+	// LEGACY_DIRECT: the environment's own Thunder, below.
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	groupID := r.PathValue(utils.PathParamGroupID)
@@ -335,6 +368,12 @@ func (c *agentIdentityController) DeleteGroup(w http.ResponseWriter, r *http.Req
 }
 
 func (c *agentIdentityController) GetGroupMembers(w http.ResponseWriter, r *http.Request) {
+	// CP_MANAGED: no provider covers this route yet, so it fails closed instead of using the
+	// environment's own Thunder.
+	if controlPlaneNotSupported(w) {
+		return
+	}
+	// LEGACY_DIRECT: the environment's own Thunder, below.
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	groupID := r.PathValue(utils.PathParamGroupID)
@@ -359,6 +398,12 @@ func (c *agentIdentityController) GetGroupMembers(w http.ResponseWriter, r *http
 }
 
 func (c *agentIdentityController) AddGroupMembers(w http.ResponseWriter, r *http.Request) {
+	// CP_MANAGED: no provider covers this route yet, so it fails closed instead of using the
+	// environment's own Thunder.
+	if controlPlaneNotSupported(w) {
+		return
+	}
+	// LEGACY_DIRECT: the environment's own Thunder, below.
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	groupID := r.PathValue(utils.PathParamGroupID)
@@ -389,6 +434,12 @@ func (c *agentIdentityController) AddGroupMembers(w http.ResponseWriter, r *http
 }
 
 func (c *agentIdentityController) RemoveGroupMembers(w http.ResponseWriter, r *http.Request) {
+	// CP_MANAGED: no provider covers this route yet, so it fails closed instead of using the
+	// environment's own Thunder.
+	if controlPlaneNotSupported(w) {
+		return
+	}
+	// LEGACY_DIRECT: the environment's own Thunder, below.
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	groupID := r.PathValue(utils.PathParamGroupID)
@@ -419,6 +470,12 @@ func (c *agentIdentityController) RemoveGroupMembers(w http.ResponseWriter, r *h
 }
 
 func (c *agentIdentityController) GetGroupRoles(w http.ResponseWriter, r *http.Request) {
+	// CP_MANAGED: no provider covers this route yet, so it fails closed instead of using the
+	// environment's own Thunder.
+	if controlPlaneNotSupported(w) {
+		return
+	}
+	// LEGACY_DIRECT: the environment's own Thunder, below.
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	groupID := r.PathValue(utils.PathParamGroupID)
@@ -446,6 +503,12 @@ func (c *agentIdentityController) GetGroupRoles(w http.ResponseWriter, r *http.R
 // --- Roles ---
 
 func (c *agentIdentityController) ListRoles(w http.ResponseWriter, r *http.Request) {
+	if provider, cp, ok := identityRoleProvider(w); cp {
+		if ok {
+			c.listRolesViaProvider(w, r, provider)
+		}
+		return
+	}
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
@@ -477,6 +540,12 @@ func (c *agentIdentityController) ListRoles(w http.ResponseWriter, r *http.Reque
 // before any permission write means a role never references a permission the
 // environment does not yet know.
 func (c *agentIdentityController) CreateRole(w http.ResponseWriter, r *http.Request) {
+	if provider, cp, ok := identityRoleProvider(w); cp {
+		if ok {
+			c.createRoleViaProvider(w, r, provider)
+		}
+		return
+	}
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
@@ -591,6 +660,12 @@ func (c *agentIdentityController) managedRole(w http.ResponseWriter, r *http.Req
 }
 
 func (c *agentIdentityController) GetRole(w http.ResponseWriter, r *http.Request) {
+	if provider, cp, ok := identityRoleProvider(w); cp {
+		if ok {
+			c.getRoleViaProvider(w, r, provider)
+		}
+		return
+	}
 	roleID := r.PathValue(utils.PathParamRoleID)
 
 	client, ok := c.envClient(w, r)
@@ -610,6 +685,12 @@ func (c *agentIdentityController) GetRole(w http.ResponseWriter, r *http.Request
 // are removed; a proxy dropped from the role entirely has all its permissions
 // removed from its RS.
 func (c *agentIdentityController) UpdateRole(w http.ResponseWriter, r *http.Request) {
+	if provider, cp, ok := identityRoleProvider(w); cp {
+		if ok {
+			c.updateRoleViaProvider(w, r, provider)
+		}
+		return
+	}
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	roleID := r.PathValue(utils.PathParamRoleID)
@@ -732,6 +813,12 @@ func (c *agentIdentityController) UpdateRole(w http.ResponseWriter, r *http.Requ
 }
 
 func (c *agentIdentityController) DeleteRole(w http.ResponseWriter, r *http.Request) {
+	// CP_MANAGED: no provider covers this route yet, so it fails closed instead of using the
+	// environment's own Thunder.
+	if controlPlaneNotSupported(w) {
+		return
+	}
+	// LEGACY_DIRECT: the environment's own Thunder, below.
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	roleID := r.PathValue(utils.PathParamRoleID)
@@ -756,6 +843,12 @@ func (c *agentIdentityController) DeleteRole(w http.ResponseWriter, r *http.Requ
 }
 
 func (c *agentIdentityController) GetRoleAssignments(w http.ResponseWriter, r *http.Request) {
+	// CP_MANAGED: no provider covers this route yet, so it fails closed instead of using the
+	// environment's own Thunder.
+	if controlPlaneNotSupported(w) {
+		return
+	}
+	// LEGACY_DIRECT: the environment's own Thunder, below.
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	roleID := r.PathValue(utils.PathParamRoleID)
@@ -778,6 +871,12 @@ func (c *agentIdentityController) GetRoleAssignments(w http.ResponseWriter, r *h
 }
 
 func (c *agentIdentityController) AddRoleAssignees(w http.ResponseWriter, r *http.Request) {
+	// CP_MANAGED: no provider covers this route yet, so it fails closed instead of using the
+	// environment's own Thunder.
+	if controlPlaneNotSupported(w) {
+		return
+	}
+	// LEGACY_DIRECT: the environment's own Thunder, below.
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	roleID := r.PathValue(utils.PathParamRoleID)
@@ -804,6 +903,12 @@ func (c *agentIdentityController) AddRoleAssignees(w http.ResponseWriter, r *htt
 }
 
 func (c *agentIdentityController) RemoveRoleAssignees(w http.ResponseWriter, r *http.Request) {
+	// CP_MANAGED: no provider covers this route yet, so it fails closed instead of using the
+	// environment's own Thunder.
+	if controlPlaneNotSupported(w) {
+		return
+	}
+	// LEGACY_DIRECT: the environment's own Thunder, below.
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	roleID := r.PathValue(utils.PathParamRoleID)
