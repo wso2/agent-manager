@@ -24,7 +24,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
-	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
@@ -62,14 +61,6 @@ func regenerateOCClient() *clientmocks.OpenChoreoClientMock {
 		},
 		GetEnvironmentFunc: func(_ context.Context, _, name string) (*models.EnvironmentResponse, error) {
 			return &models.EnvironmentResponse{Name: name}, nil
-		},
-		GetSecretReferenceFunc: func(_ context.Context, _, secretRefName string) (*client.SecretReferenceInfo, error) {
-			return &client.SecretReferenceInfo{
-				Name: secretRefName,
-				Data: []client.SecretDataSourceInfo{
-					{SecretKey: secretmanagersvc.SecretKeyAPIKey, RemoteRef: client.RemoteRefInfo{Key: "kv/path"}},
-				},
-			}, nil
 		},
 	}
 }
