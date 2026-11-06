@@ -83,6 +83,12 @@ type Options struct {
 	// ProjectAgentIdentityProvider enables project-scoped AgentID creation in
 	// CP_MANAGED mode. nil is the safe default for LEGACY_DIRECT deployments.
 	ProjectAgentIdentityProvider services.ProjectAgentIdentityProvider
+	// MCPResourceServerProvider registers MCP resource servers through an identity
+	// control plane. It is used only when IDENTITY_MANAGEMENT_MODE is CP_MANAGED; in
+	// LEGACY_DIRECT mode (the default) MCP resource servers are registered in each
+	// environment's own Thunder and this is ignored. CP_MANAGED without it reports
+	// MCP resource servers as unavailable and never uses the per-environment Thunder.
+	MCPResourceServerProvider services.MCPResourceServerProvider
 	// BackgroundContextDecorator optionally marks contexts created for trusted
 	// background workers. Request contexts never pass through this hook.
 	BackgroundContextDecorator func(context.Context) context.Context
@@ -170,6 +176,8 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 		slog.Error("CP_MANAGED identity mode requires an AgentID provisioning implementation")
 		os.Exit(1)
 	}
+
+	services.SetMCPResourceServerProvider(thundersvc.IdentityManagementMode(cfg.IdentityManagementMode), opts.MCPResourceServerProvider)
 
 	// Get the raw DB instance without context - repositories will add context per-operation
 	database := db.GetDB()
