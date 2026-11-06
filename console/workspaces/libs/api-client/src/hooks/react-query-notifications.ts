@@ -164,6 +164,10 @@ export function extractServerErrorMessage(
  * parameter rather than a hook call because this is a plain function shared by
  * the query and mutation wrappers.
  */
+function isAbortError(error: unknown): boolean {
+  return (error as { name?: string } | null)?.name === "AbortError";
+}
+
 function handleAuthAndExpectedErrors(
   error: unknown,
   logout: () => void,
@@ -395,6 +399,8 @@ export function useApiMutation<
     onError: (error, variables, onMutateResult, context) => {
       if (
         showError &&
+        // A mutation is only aborted by its caller, on purpose: not an error to show.
+        !isAbortError(error) &&
         isAuthenticated &&
         !handleAuthAndExpectedErrors(error, logout, reportSessionExpired)
       ) {

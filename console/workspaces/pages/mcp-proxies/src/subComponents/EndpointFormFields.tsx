@@ -319,6 +319,10 @@ export function EndpointFormFields({
   // change fires the next one; without this, whichever resolves last wins, which isn't
   // necessarily the latest input.
   const fetchGenerationRef = useRef(0);
+  // The in-flight probe. A newer probe aborts it, so it stops holding one of the
+  // limited server-side probe slots for a result that would be dropped anyway.
+  const fetchAbortRef = useRef<AbortController | null>(null);
+  useEffect(() => () => fetchAbortRef.current?.abort(), []);
 
   const performFetch = useCallback(async () => {
     const urlValidationError = validateEndpointUrl(trimmedUrl, {
@@ -363,17 +367,23 @@ export function EndpointFormFields({
         : { url: trimmedUrl };
 
     const generation = ++fetchGenerationRef.current;
+    fetchAbortRef.current?.abort();
+    const controller = new AbortController();
+    fetchAbortRef.current = controller;
     try {
       const result = await fetchServerInfo.mutateAsync({
         params: { orgName: orgId },
         body,
+        signal: controller.signal,
       });
       // A newer fetch was started while this one was in flight — its result (or
       // the newer one still pending) takes precedence, so drop this stale one.
       if (generation !== fetchGenerationRef.current) return;
       setFetchedInfo(result);
     } catch (err: unknown) {
-      if (generation !== fetchGenerationRef.current) return;
+      if (generation !== fetchGenerationRef.current || controller.signal.aborted) {
+        return;
+      }
       setFetchedInfo(null);
       if (
         typeof err === "object" &&

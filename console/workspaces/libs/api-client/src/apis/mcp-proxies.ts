@@ -166,6 +166,7 @@ export async function fetchMCPProxyServerInfo(
   params: FetchMCPProxyServerInfoPathParams,
   body: MCPServerInfoFetchRequest,
   getToken?: () => Promise<string>,
+  signal?: AbortSignal,
 ): Promise<MCPServerInfoFetchResponse> {
   const org = encodeRequired(params.orgName, "orgName");
   const token = getToken ? await getToken() : undefined;
@@ -173,7 +174,7 @@ export async function fetchMCPProxyServerInfo(
   const res = await httpPOST(
     `${SERVICE_BASE}/orgs/${org}/mcp-proxies/fetch-server-info`,
     body,
-    { token },
+    { token, signal },
   );
   if (!res.ok) throw await res.json();
   return res.json();
