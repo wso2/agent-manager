@@ -44,9 +44,8 @@ const workflowParamAMPBuild = "ampBuild"
 
 // BuildClientParams names where a build run's build token is. It is not a
 // secret: SecretRefName names the SecretReference (access-token) in the
-// organization's own namespace. A name, rather than a secret store location, is
-// what keeps a run that a tenant creates directly from pointing the
-// ExternalSecret at another organization's secret.
+// organization's own namespace. A name, rather than a secret store location,
+// keeps the run's ExternalSecret resolving within the run's own namespace.
 type BuildClientParams struct {
 	SecretRefName string
 }

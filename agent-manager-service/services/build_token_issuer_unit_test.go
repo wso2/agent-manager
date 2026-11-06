@@ -42,7 +42,7 @@ import (
 const (
 	btOrg          = "6f1e2c3d-0000-4000-8000-000000000001"
 	btOtherOrg     = "6f1e2c3d-0000-4000-8000-000000000002"
-	btClientID     = "AGENT_MANAGER_SYSTEM_APP"
+	btClientID     = "amp-api-client"
 	btClientSecret = "system-secret"
 	btSecretRef    = "cred-amp-build-token-abc123"
 )

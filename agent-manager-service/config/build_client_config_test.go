@@ -25,7 +25,7 @@ import (
 func TestValidateBuildClientConfig(t *testing.T) {
 	validIDP := IDPConfig{
 		TokenURL:     "https://idp.example.com/oauth2/token",
-		ClientID:     "AGENT_MANAGER_SYSTEM_APP",
+		ClientID:     "amp-api-client",
 		ClientSecret: "secret",
 	}
 	enabled := BuildClientConfig{Enabled: true, Workflows: []string{"amp-docker"}}

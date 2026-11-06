@@ -50,10 +50,7 @@ import (
 // ever publish for the organization its token was issued for. The build is given
 // the token only, through the secret store: never the client secret.
 //
-// The token is this service's own client's token, scoped to the organization:
-// it carries no scope, but any other service that trusts this client (by its
-// client ID) for an organization will accept it for that organization until it
-// expires. Only the build's workload step is given it.
+// Only the build's workload step is given the token.
 type BuildTokenIssuer interface {
 	// IssueBuildToken obtains a token for the organization, stores it in the
 	// secret store and returns the SecretReference that holds it. The result names

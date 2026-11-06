@@ -29,7 +29,7 @@ import (
 
 const (
 	buildTestOrg    = "6f1e2c3d-0000-4000-8000-000000000001"
-	buildTestClient = "AGENT_MANAGER_SYSTEM_APP"
+	buildTestClient = "amp-api-client"
 )
 
 // withIssuingClient sets the service's identity provider client (the client build
@@ -72,7 +72,7 @@ func TestBuildClientOrg(t *testing.T) {
 		},
 		{
 			name:   "user token of the same organization",
-			claims: &TokenClaims{OuId: buildTestOrg, ClientID: "AGENT_MANAGER_CONSOLE", Sub: "user-1"},
+			claims: &TokenClaims{OuId: buildTestOrg, ClientID: "test-console-client", Sub: "user-1"},
 			want:   "",
 		},
 		{
@@ -163,7 +163,7 @@ func TestBuildClientAuthMiddleware(t *testing.T) {
 	}
 
 	t.Run("refuses a token issued to another client", func(t *testing.T) {
-		rec := serve(&TokenClaims{OuId: buildTestOrg, ClientID: "AGENT_MANAGER_CONSOLE"})
+		rec := serve(&TokenClaims{OuId: buildTestOrg, ClientID: "test-console-client"})
 		if rec.Code != http.StatusForbidden || reached {
 			t.Fatalf("status = %d, reached = %v; want 403 and not reached", rec.Code, reached)
 		}

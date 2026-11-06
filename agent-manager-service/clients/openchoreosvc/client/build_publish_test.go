@@ -358,13 +358,13 @@ func TestPublishBuildWorkload_UnreadableRecordedWorkloadWritesNothing(t *testing
 }
 
 func TestHasResourceLabels(t *testing.T) {
-	c := &openChoreoClient{resourceLabels: map[string]string{"cloud.wso2.com/managed-by": "amp"}}
+	c := &openChoreoClient{resourceLabels: map[string]string{"example.com/managed-by": "amp"}}
 	labels := &map[string]string{"other": "x"}
 
 	assert.False(t, c.hasResourceLabels(nil))
 	assert.False(t, c.hasResourceLabels(labels))
 	assert.Equal(t, map[string]string{"other": "x"}, *labels, "checking the labels does not change them")
-	assert.True(t, c.hasResourceLabels(&map[string]string{"other": "x", "cloud.wso2.com/managed-by": "amp"}))
+	assert.True(t, c.hasResourceLabels(&map[string]string{"other": "x", "example.com/managed-by": "amp"}))
 	assert.True(t, (&openChoreoClient{}).hasResourceLabels(nil), "no resource labels to carry")
 }
 
