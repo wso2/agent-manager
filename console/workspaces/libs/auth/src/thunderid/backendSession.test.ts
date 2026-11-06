@@ -358,7 +358,9 @@ describe("fetchWithBackendToken", () => {
   });
 
   it("leaves requests alone when the browser signs in itself", async () => {
-    const { fetchWithBackendToken, setBackendAccessTokenProvider } = await load(browserAuthConfig());
+    const { fetchWithBackendToken, setBackendAccessTokenProvider } = await load(
+      browserAuthConfig(),
+    );
     const getToken = vi.fn().mockResolvedValue("obs-token");
     setBackendAccessTokenProvider(getToken);
     const init = {};
