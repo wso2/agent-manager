@@ -45,8 +45,8 @@ importers:
         specifier: 5.90.5
         version: 5.90.5(react@19.2.3)
       '@thunderid/react':
-        specifier: 1.0.6
-        version: 1.0.6(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+        specifier: 1.12.0
+        version: 1.12.0(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       '@wso2/oxygen-ui':
         specifier: 0.20.0
         version: 0.20.0(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.20.0(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -233,8 +233,8 @@ importers:
         specifier: 5.90.5
         version: 5.90.5(react@19.2.3)
       '@thunderid/react':
-        specifier: 1.0.6
-        version: 1.0.6(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+        specifier: 1.12.0
+        version: 1.12.0(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       '@types/lodash':
         specifier: 4.17.17
         version: 4.17.17
@@ -320,8 +320,8 @@ importers:
         specifier: 5.90.5
         version: 5.90.5(react@19.2.3)
       '@thunderid/react':
-        specifier: 1.0.6
-        version: 1.0.6(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+        specifier: 1.12.0
+        version: 1.12.0(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       clsx:
         specifier: 2.1.1
         version: 2.1.1
@@ -387,8 +387,8 @@ importers:
         specifier: 5.90.5
         version: 5.90.5(react@19.2.3)
       '@thunderid/react':
-        specifier: 1.0.6
-        version: 1.0.6(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+        specifier: 1.12.0
+        version: 1.12.0(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       clsx:
         specifier: 2.1.1
         version: 2.1.1
@@ -423,9 +423,15 @@ importers:
       eslint:
         specifier: 9.36.0
         version: 9.36.0
+      jsdom:
+        specifier: 26.1.0
+        version: 26.1.0
       typescript:
         specifier: 5.9.3
         version: 5.9.3
+      vitest:
+        specifier: 3.1.3
+        version: 3.1.3(@types/debug@4.1.13)(@types/node@24.13.3)(jsdom@26.1.0)(less@4.3.0)(lightningcss@1.33.0)
 
   workspaces/libs/eslint-config:
     dependencies:
@@ -700,8 +706,8 @@ importers:
         specifier: workspace:*
         version: link:../feature-management
       '@thunderid/react':
-        specifier: 1.0.6
-        version: 1.0.6(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.3))(react@19.2.3)
+        specifier: 1.12.0
+        version: 1.12.0(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.3))(react@19.2.3)
       date-fns:
         specifier: 4.1.0
         version: 4.1.0
@@ -6132,14 +6138,14 @@ packages:
     peerDependencies:
       '@testing-library/dom': '>=7.21.4'
 
-  '@thunderid/browser@1.0.7':
-    resolution: {integrity: sha512-7X4VUQSgUF+o4JDBQA/5zCfxeDs1VoHO+OhzvuQhNVhEnegeBY06BJSMb8Y2ddeF80Pui+CdPnnL7dBxZ91kaw==}
+  '@thunderid/browser@1.10.0':
+    resolution: {integrity: sha512-1TxnEnomRYnhNCxLSCyEAfLr/xqAzXOODkOu4F48vAFysMXc2K2AnW31agdqEwvJi79JOvJiO06L46ZMyre2Kg==}
 
-  '@thunderid/javascript@1.0.7':
-    resolution: {integrity: sha512-s944YweBpDIN32PylpBhJR5a9zKEfYLPUrZc8yFytTv4+MJJyS36a4irYa1SY4abGNpDkDtGa6VJ53lN0l8esw==}
+  '@thunderid/javascript@1.11.0':
+    resolution: {integrity: sha512-wuVuJu391ykuAEQMp1VEJ24H//Jdp5mwz8UNKrmoIRfan9iYdvdw/xa7uqGL+YtkRbtWUfBZWVk6nZEKvjc3qw==}
 
-  '@thunderid/react@1.0.6':
-    resolution: {integrity: sha512-AhOgOBNVLcJkD10HdhYeB1tOu+fKS0uJULPoCAKboOXlePkYpbs3JgRPLvMixdBFVFioijfwoDlocSWRGtWOzg==}
+  '@thunderid/react@1.12.0':
+    resolution: {integrity: sha512-zDrQixOe4KXXymA22k+oM6WS/uGMjNguJoZcVaYMUhgW0Zkb6qNv/rrVoqJ+3NRutdo1nkuMFG/K6Fs89DyI9g==}
     peerDependencies:
       '@types/react': '>=16.8.0'
       react: '>=16.8.0'
@@ -12239,9 +12245,9 @@ snapshots:
     dependencies:
       '@testing-library/dom': 10.4.0
 
-  '@thunderid/browser@1.0.7':
+  '@thunderid/browser@1.10.0':
     dependencies:
-      '@thunderid/javascript': 1.0.7
+      '@thunderid/javascript': 1.11.0
       base64url: 3.0.1
       buffer: 6.0.3
       core-js: 3.42.0
@@ -12252,16 +12258,16 @@ snapshots:
       stream-browserify: 3.0.0
       tslib: 2.8.1
 
-  '@thunderid/javascript@1.0.7':
+  '@thunderid/javascript@1.11.0':
     dependencies:
       jose: 6.2.3
       tslib: 2.8.1
 
-  '@thunderid/react@1.0.6(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)':
+  '@thunderid/react@1.12.0(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)':
     dependencies:
       '@emotion/css': 11.13.5
       '@floating-ui/react': 0.27.12(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      '@thunderid/browser': 1.0.7
+      '@thunderid/browser': 1.10.0
       '@types/react': 19.2.14
       dompurify: 3.4.17
       react: 19.2.3
@@ -12270,11 +12276,11 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@thunderid/react@1.0.6(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.3))(react@19.2.3)':
+  '@thunderid/react@1.12.0(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.3))(react@19.2.3)':
     dependencies:
       '@emotion/css': 11.13.5
       '@floating-ui/react': 0.27.12(react-dom@19.2.4(react@19.2.3))(react@19.2.3)
-      '@thunderid/browser': 1.0.7
+      '@thunderid/browser': 1.10.0
       '@types/react': 19.2.14
       dompurify: 3.4.17
       react: 19.2.3

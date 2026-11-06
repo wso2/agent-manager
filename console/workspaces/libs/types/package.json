@@ -23,7 +23,7 @@
     "@types/react": "19.2.14"
   },
   "dependencies": {
-    "@thunderid/react": "1.0.6",
+    "@thunderid/react": "1.12.0",
     "@agent-management-platform/eslint-config": "workspace:*",
     "@agent-management-platform/feature-management": "workspace:*",
     "date-fns": "4.1.0",
