@@ -48,7 +48,7 @@ import {
 import { absoluteRouteMap, withBasePath } from "@agent-management-platform/types";
 import { formatRelativeTime, LabelChips, parseOpenApiSpecContent, SwaggerSpecViewer } from "@agent-management-platform/shared-component";
 import { useGetAgentKind, useGetBuild, useListKindAgents, useListProjects, useGetAgentKindVersion } from "@agent-management-platform/api-client";
-import { useResourceAccess } from "@agent-management-platform/feature-management";
+import { useFeatureAccess } from "@agent-management-platform/feature-management";
 import { SectionCard } from "./subComponents/SectionCard";
 import { Clock, ExternalLink, BookOpenText, Plus, Tag } from "@wso2/oxygen-ui-icons-react";
 
@@ -57,7 +57,7 @@ const KIND_AVATAR = { children: <BookOpenText size={32} />, color: "primary.main
 export const CatalogKindDetails: React.FC = () => {
   const navigate = useNavigate();
   // Add Instance creates an agent, so it follows agent write access.
-  const { canWrite: canCreateAgent } = useResourceAccess("agent");
+  const canCreateAgent = useFeatureAccess("agent_create");
   const location = useLocation();
   const { kindId, orgId } = useParams<{ kindId: string; orgId: string }>();
 

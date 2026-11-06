@@ -20,7 +20,7 @@ import React from "react";
 import { Button } from "@wso2/oxygen-ui";
 import { Plus as Add } from "@wso2/oxygen-ui-icons-react";
 import { PageLayout } from "@agent-management-platform/views";
-import { useResourceAccess } from "@agent-management-platform/feature-management";
+import { useFeatureAccess } from "@agent-management-platform/feature-management";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
 import { absoluteRouteMap } from "@agent-management-platform/types";
 import { useListAgents } from "@agent-management-platform/api-client";
@@ -32,7 +32,7 @@ export const AgentListing: React.FC = () => {
     projectId: string;
   }>();
   const navigate = useNavigate();
-  const { canWrite } = useResourceAccess("agent");
+  const canCreate = useFeatureAccess("agent_create");
   // The empty state carries its own create button, so the header one waits for data.
   const { data } = useListAgents({ orgName: orgId, projName: projectId });
   const hasAgents = (data?.agents?.length ?? 0) > 0;
@@ -42,7 +42,7 @@ export const AgentListing: React.FC = () => {
       title="Agents"
       avatar={null}
       actions={
-        hasAgents && canWrite && (
+        hasAgents && canCreate && (
         <Button
           variant="contained"
           color="primary"

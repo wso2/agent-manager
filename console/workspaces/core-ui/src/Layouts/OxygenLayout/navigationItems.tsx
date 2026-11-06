@@ -146,7 +146,7 @@ export function useNavigationItems(): Array<
   const { canView: canViewPipelines } = usePipelineFeatures();
 
   const externalNavItems = useExternalNavItems();
-  const { hasAccess, isAccessLoading } = useFeatureManagement();
+  const { hasAccess } = useFeatureManagement();
   // Events isn't a feature-management resource; it follows the token's scopes.
   const { enforced, scopes } = useTokenScopes();
   // Events needs the service's event bus; /api/v1/config says whether it runs.
@@ -290,12 +290,8 @@ export function useNavigationItems(): Array<
       ]
     : [];
 
-  // Wait for access too, so the sidebar doesn't rearrange once it loads.
-  if (
-    isLoadingAgent ||
-    (isLoadingEnvironments && agentId) ||
-    isAccessLoading
-  ) {
+  // Access is settled here: FeatureAccessBridge shows a loader until it resolves.
+  if (isLoadingAgent || (isLoadingEnvironments && agentId)) {
     return [];
   }
 

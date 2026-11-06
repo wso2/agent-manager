@@ -41,7 +41,7 @@ import {
 } from "@agent-management-platform/views";
 import { generatePath, useLocation, useNavigate, useParams } from "react-router-dom";
 import { absoluteRouteMap } from "@agent-management-platform/types";
-import { useResourceAccess } from "@agent-management-platform/feature-management";
+import { useFeatureAccess } from "@agent-management-platform/feature-management";
 import {
   useDeleteAgent,
   useListAgentKinds,
@@ -102,7 +102,8 @@ export const AgentList: React.FC<AgentListProps> = ({ showCreateAction = false }
     projName: projectId,
   });
   const { mutate: deleteAgent } = useDeleteAgent();
-  const { canWrite } = useResourceAccess("agent");
+  const canCreate = useFeatureAccess("agent_create");
+  const canDelete = useFeatureAccess("agent_delete");
   const { data: kindsData } = useListAgentKinds({ orgName: orgId });
   const { addConfirmation } = useConfirmationDialog();
 
@@ -186,7 +187,7 @@ export const AgentList: React.FC<AgentListProps> = ({ showCreateAction = false }
                 disabled={!data?.agents?.length}
               />
             </Box>
-            {showCreateAction && canWrite && (
+            {showCreateAction && canCreate && (
               <Button
                 variant="contained"
                 color="primary"
@@ -206,7 +207,7 @@ export const AgentList: React.FC<AgentListProps> = ({ showCreateAction = false }
           illustration: <User size={64} />,
           title: "No agents found",
           description: "Create a new agent to get started",
-          action: canWrite ? (
+          action: canCreate ? (
             <Button variant="contained" startIcon={<Add />} onClick={handleAddAgent}>
               New Agent
             </Button>
@@ -234,7 +235,7 @@ export const AgentList: React.FC<AgentListProps> = ({ showCreateAction = false }
                   variant="card"
                   hover
                   clickable
-                  sx={canWrite ? ROW_HOVER_SX : undefined}
+                  sx={canDelete ? ROW_HOVER_SX : undefined}
                   onClick={() =>
                     navigate(
                       generatePath(projectRoutes.children.agents.path, {
@@ -289,7 +290,7 @@ export const AgentList: React.FC<AgentListProps> = ({ showCreateAction = false }
                       >
                         {formatRelativeTime(agent.createdAt, { fallback: "—" })}
                       </Typography>
-                      {canWrite && (
+                      {canDelete && (
                         <Box className="agent-actions">
                           <Button
                             variant="outlined"

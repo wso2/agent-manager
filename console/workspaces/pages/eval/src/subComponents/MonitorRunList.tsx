@@ -48,7 +48,7 @@ import {
   type MonitorRunResponse,
 } from "@agent-management-platform/types";
 import { DrawerWrapper } from "@agent-management-platform/views";
-import { useResourceAccess } from "@agent-management-platform/feature-management";
+import { useFeatureAccess } from "@agent-management-platform/feature-management";
 import { MonitorRunDrawer } from "./MonitorRunDrawer";
 import ScoreChip from "./ScoreChip";
 
@@ -150,7 +150,7 @@ export default function MonitorRunList() {
   const theme = useTheme();
   const [searchParams, setSearchParams] = useSearchParams();
   const { mutate: rerunMonitor, isPending: isRerunning } = useRerunMonitor();
-  const { canWrite } = useResourceAccess("monitor");
+  const canExecute = useFeatureAccess("monitor_execute");
 
   const dateFormatter = useMemo(
     () =>
@@ -398,7 +398,7 @@ export default function MonitorRunList() {
                     align="center"
                     onClick={(e) => e.stopPropagation()}
                   >
-                    {canWrite && (
+                    {canExecute && (
                     <Tooltip title="Re-run">
                       <span>
                         <IconButton

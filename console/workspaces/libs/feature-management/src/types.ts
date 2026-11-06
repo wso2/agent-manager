@@ -56,6 +56,10 @@ export interface FeatureAccessConfig {
   project_write: boolean;
   agent_read: boolean;
   agent_write: boolean;
+  /** Create agents; checked on its own so update-only roles don't get the wizard. */
+  agent_create: boolean;
+  /** Delete agents. */
+  agent_delete: boolean;
   agent_kind_read: boolean;
   agent_kind_write: boolean;
   agent_identity_read: boolean;
@@ -84,6 +88,8 @@ export interface FeatureAccessConfig {
   evaluator_write: boolean;
   monitor_read: boolean;
   monitor_write: boolean;
+  /** Start, stop and re-run monitors. */
+  monitor_execute: boolean;
   member_read: boolean;
   /** Add or invite users to the organization. */
   member_invite: boolean;

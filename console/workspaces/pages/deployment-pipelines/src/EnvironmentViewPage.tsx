@@ -29,7 +29,11 @@ import {
   Typography,
 } from "@wso2/oxygen-ui";
 import { AlertTriangle, Copy, DoorClosedLocked, Edit, KeyRound } from "@wso2/oxygen-ui-icons-react";
-import { useEnvironmentFeatures, useFeatureFlag } from "@agent-management-platform/feature-management";
+import {
+  useEnvironmentFeatures,
+  useFeatureFlag,
+  useGatewayFeatures,
+} from "@agent-management-platform/feature-management";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
 import {
   copyToClipboard,
@@ -79,6 +83,8 @@ export function EnvironmentViewPage() {
   const { orgId, envName } = useParams<{ orgId: string; envName: string }>();
   const navigate = useNavigate();
   const { canWrite } = useEnvironmentFeatures();
+  // The gateway view route only exists when gateways are viewable.
+  const { canView: canViewGateway } = useGatewayFeatures();
   const { pushSnackBar } = useSnackBar();
 
   const { data: env, isLoading: isLoadingEnv, error: envError } = useGetEnvironment({
@@ -258,15 +264,19 @@ export function EnvironmentViewPage() {
                       <ListingTable.Row
                         key={gw.uuid}
                         variant="table"
-                        hover
-                        clickable
-                        onClick={() =>
-                          navigate(
-                            generatePath(
-                              absoluteRouteMap.children.org.children.gateways.children.view.path,
-                              { orgId: orgId ?? "", gatewayId: gw.uuid },
-                            ),
-                          )
+                        hover={canViewGateway}
+                        clickable={canViewGateway}
+                        onClick={
+                          canViewGateway
+                            ? () =>
+                                navigate(
+                                  generatePath(
+                                    absoluteRouteMap.children.org.children.gateways.children.view
+                                      .path,
+                                    { orgId: orgId ?? "", gatewayId: gw.uuid },
+                                  ),
+                                )
+                            : undefined
                         }
                       >
                         <ListingTable.Cell>

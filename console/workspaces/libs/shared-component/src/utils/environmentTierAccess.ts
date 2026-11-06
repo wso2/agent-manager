@@ -29,7 +29,7 @@ import type {
  */
 
 /** The parts of feature management the rule reads. */
-export type AccessState = Pick<FeatureManagement, "isAccessLoading" | "hasAccess">;
+export type AccessState = Pick<FeatureManagement, "hasAccess">;
 
 /** Only the part of an Environment that decides the tier. */
 export interface EnvironmentTier {
@@ -59,15 +59,14 @@ function deny(missingAccess: FeatureAccessKey, what: string): AccessDecision {
  * operation needs (e.g. `agent_suspend`). Checks run in the server's order:
  * capability, then the non-production floor, then production.
  *
- * Allows everything while access is loading, and checks only the floor while the
- * environment (and so its tier) is unknown, so controls don't flash disabled.
+ * Checks only the floor while the environment (and so its tier) is unknown, so
+ * controls don't flash disabled. Access itself is settled before pages render.
  */
 export function evaluateAgentEnvironmentAccess(
   state: AccessState,
   environment: EnvironmentTier | undefined,
   capability?: FeatureAccessKey,
 ): AccessDecision {
-  if (state.isAccessLoading) return ALLOWED;
   if (capability && !state.hasAccess(capability)) {
     return deny(capability, "perform this action");
   }

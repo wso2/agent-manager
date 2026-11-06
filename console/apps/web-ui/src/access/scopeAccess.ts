@@ -51,6 +51,8 @@ export const SCOPE_RULES: Record<keyof FeatureAccessConfig, ScopeRule> = {
   project_write: project.write,
   agent_read: agent.read,
   agent_write: agent.write,
+  agent_create: { anyOf: ['amp:agent:create'] },
+  agent_delete: { anyOf: ['amp:agent:delete'] },
   agent_kind_read: agentKind.read,
   agent_kind_write: agentKind.write,
   agent_identity_read: agentIdentity.read,
@@ -77,6 +79,7 @@ export const SCOPE_RULES: Record<keyof FeatureAccessConfig, ScopeRule> = {
   evaluator_write: evaluator.write,
   monitor_read: monitor.read,
   monitor_write: monitor.write,
+  monitor_execute: { anyOf: ['amp:monitor:execute'] },
   // The Users page has no read scope of its own; either member scope opens it.
   member_read: { anyOf: members },
   member_invite: { anyOf: ['amp:org:invite-member'] },

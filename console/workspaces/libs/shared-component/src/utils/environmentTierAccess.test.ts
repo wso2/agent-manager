@@ -20,8 +20,7 @@ import { describe, expect, it } from "vitest";
 import type { FeatureAccessKey } from "@agent-management-platform/feature-management";
 import { evaluateAgentEnvironmentAccess, type AccessState } from "./environmentTierAccess";
 
-const withAccess = (granted: FeatureAccessKey[], isAccessLoading = false): AccessState => ({
-  isAccessLoading,
+const withAccess = (granted: FeatureAccessKey[]): AccessState => ({
   hasAccess: (key) => granted.includes(key),
 });
 
@@ -83,18 +82,7 @@ describe("evaluateAgentEnvironmentAccess", () => {
     expect(evaluateAgentEnvironmentAccess(withAccess([]), undefined).allowed).toBe(false);
   });
 
-  // Denying before access loads would flash every gated control disabled.
-  it("allows everything while access is loading", () => {
-    const decision = evaluateAgentEnvironmentAccess(
-      withAccess([], true),
-      production,
-      "agent_suspend",
-    );
-    expect(decision.allowed).toBe(true);
-    expect(decision.reason).toBe("");
-  });
-
-  it("denies once access loads with nothing granted", () => {
+  it("denies when nothing is granted", () => {
     const decision = evaluateAgentEnvironmentAccess(withAccess([]), staging);
     expect(decision.allowed).toBe(false);
     expect(decision.missingAccess).toBe("agent_deploy");

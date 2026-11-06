@@ -208,7 +208,8 @@ const ConnectIdentityCredentials: React.FC<{
   const {
     binding, provisioned, isLoading, isError, error, revealed, isRegenerating, regenerate,
   } = useAgentIdentityCredentials({ orgId, projectId, agentId, envId });
-  const { canWrite } = useResourceAccess("agent_identity");
+  // The regenerate route is authorized by amp:agent:update, not an agent-identity scope.
+  const { canWrite } = useResourceAccess("agent");
 
   if (isLoading || isError) {
     return <ConnectQueryFallback isLoading={isLoading} error={error} />;
