@@ -19,6 +19,7 @@ package client
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"testing"
 
@@ -84,7 +85,41 @@ func TestListComponents_FailsOnStuckCursor(t *testing.T) {
 	_, err := c.ListComponents(context.Background(), "ou-acme", "proj")
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "did not advance")
+	assert.Contains(t, err.Error(), "repeated")
+}
+
+// A cursor that leads back to an earlier page, not just the last one, is a loop too.
+func TestListComponents_FailsOnCursorCycle(t *testing.T) {
+	c := newTestClient(t, componentPages(t, map[string]gen.ComponentList{
+		"":       {Items: []gen.Component{agentComponent(t, liveMeta("agent-1"))}, Pagination: cursorTo("page-2")},
+		"page-2": {Items: []gen.Component{agentComponent(t, liveMeta("agent-2"))}, Pagination: cursorTo("page-3")},
+		"page-3": {Items: []gen.Component{agentComponent(t, liveMeta("agent-3"))}, Pagination: cursorTo("page-2")},
+	}))
+
+	agents, err := c.ListComponents(context.Background(), "ou-acme", "proj")
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "repeated")
+	assert.Nil(t, agents)
+}
+
+// Past the page cap the list is incomplete, and ListAgents would total and paginate the part it got,
+// so it is an error rather than a truncated list.
+func TestListComponents_FailsAtPageCap(t *testing.T) {
+	pages := 0
+	c := newTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		pages++
+		require.NoError(t, json.NewEncoder(w).Encode(gen.ComponentList{
+			Items:      []gen.Component{agentComponent(t, liveMeta(fmt.Sprintf("agent-%d", pages)))},
+			Pagination: cursorTo(fmt.Sprintf("page-%d", pages+1)),
+		}))
+	}))
+
+	agents, err := c.ListComponents(context.Background(), "ou-acme", "proj")
+
+	require.Error(t, err)
+	assert.Nil(t, agents)
+	assert.Equal(t, maxListPages, pages, "stops at the cap")
 }
 
 // A failed later page must fail the list rather than return the earlier pages as if complete.

@@ -81,7 +81,7 @@ func (t *Toolsets) registerMCPProxyTools(server *gomcp.Server, reg *toolRegistry
 		Name: "get_mcp_proxy",
 		Description: "Get one MCP proxy's details: the upstream MCP server URL, the tools it exposes, its guardrails, " +
 			"and the environments it is deployed to with each deployment's status. " +
-			"Use it to check a proxy is deployed before attach_mcp_proxy_to_agent. Credentials are never returned.",
+			"Use it to see which environments an agent attached with attach_mcp_proxy_to_agent can reach the proxy in. Credentials are never returned.",
 		InputSchema: createSchema(map[string]any{
 			"proxy_id": stringProperty("Required. MCP proxy id from list_mcp_proxies."),
 		}, []string{"proxy_id"}),
