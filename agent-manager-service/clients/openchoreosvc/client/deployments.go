@@ -28,6 +28,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/wso2/agent-manager/agent-manager-service/workloadpolicy"
+
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/gen"
@@ -150,6 +152,9 @@ func (c *openChoreoClient) CreateInternalAgentFromKindWorkload(ctx context.Conte
 }
 
 func (c *openChoreoClient) Deploy(ctx context.Context, ouID, projectName, componentName string, req DeployRequest) error {
+	if err := workloadpolicy.Check(ctx, ouID); err != nil {
+		return err
+	}
 	namespaceName := c.NamespaceFor(ouID)
 	// List workloads to find the one for this component
 	workloadResp, err := c.ocClient.ListWorkloadsWithResponse(ctx, namespaceName, &gen.ListWorkloadsParams{
@@ -243,6 +248,9 @@ func (c *openChoreoClient) retryReleaseBindingUpdate(
 		binding := getResp.JSON200
 		before, beforeErr := json.Marshal(binding.Spec)
 		mutate(binding)
+		if binding.Spec.State != nil && *binding.Spec.State == gen.ReleaseBindingSpecStateActive && binding.Metadata.Annotations != nil && (*binding.Metadata.Annotations)["cloud.wso2.com/lifecycle-suspended-at"] != "" {
+			return workloadpolicy.ErrSuspended
+		}
 		if after, afterErr := json.Marshal(binding.Spec); beforeErr == nil && afterErr == nil && bytes.Equal(before, after) {
 			return nil // mutate changed nothing; skip the no-op write
 		}
@@ -762,6 +770,9 @@ func (c *openChoreoClient) EnsureReleaseAndBinding(
 	envOverrides []EnvVar, fileOverrides []FileVar,
 	traitEnvConfigs map[string]interface{}, componentTypeConfigs map[string]interface{},
 ) error {
+	if err := workloadpolicy.Check(ctx, ouID); err != nil {
+		return err
+	}
 	namespaceName := c.NamespaceFor(ouID)
 
 	// Step 1: cut the release from the component's current state. The name is left to the
@@ -966,6 +977,9 @@ func (c *openChoreoClient) EnsureReleaseAndBinding(
 // It finds the release name deployed in the source environment, then creates or updates
 // a release binding in the target environment using the naming convention {componentName}-{targetEnv}.
 func (c *openChoreoClient) PromoteComponent(ctx context.Context, ouID, projectName, componentName, sourceEnvironment, targetEnvironment string, envOverrides []EnvVar, fileOverrides []FileVar, traitEnvConfigs map[string]interface{}, componentTypeConfigs map[string]interface{}) error {
+	if err := workloadpolicy.Check(ctx, ouID); err != nil {
+		return err
+	}
 	namespaceName := c.NamespaceFor(ouID)
 	// Step 1: List release bindings for the component to find the source release name
 	bindingsResp, err := c.ocClient.ListReleaseBindingsWithResponse(ctx, namespaceName, &gen.ListReleaseBindingsParams{
@@ -1979,6 +1993,11 @@ func extractEndpointsFromBinding(binding *gen.ReleaseBinding, workloadEndpoints 
 
 // UpdateDeploymentState updates the state of a deployment (Active or Undeploy)
 func (c *openChoreoClient) UpdateDeploymentState(ctx context.Context, ouID, projectName, componentName, environment string, state gen.ReleaseBindingSpecState) error {
+	if state == gen.ReleaseBindingSpecStateActive {
+		if err := workloadpolicy.Check(ctx, ouID); err != nil {
+			return err
+		}
+	}
 	namespaceName := c.NamespaceFor(ouID)
 	// List release bindings for the component
 	bindingsResp, err := c.ocClient.ListReleaseBindingsWithResponse(ctx, namespaceName, &gen.ListReleaseBindingsParams{
@@ -2014,6 +2033,13 @@ func (c *openChoreoClient) UpdateDeploymentState(ctx context.Context, ouID, proj
 		return fmt.Errorf("no release binding found for environment %s: %w", environment, utils.ErrNotFound)
 	}
 
+	if state == gen.ReleaseBindingSpecStateActive && targetBinding.Metadata.Annotations != nil && (*targetBinding.Metadata.Annotations)["cloud.wso2.com/lifecycle-suspended-at"] != "" {
+		return workloadpolicy.ErrSuspended
+	}
+	// An explicit stop supersedes the lifecycle restore intent.
+	if state == gen.ReleaseBindingSpecStateUndeploy && targetBinding.Metadata.Annotations != nil {
+		delete(*targetBinding.Metadata.Annotations, "cloud.wso2.com/lifecycle-suspended-at")
+	}
 	// Update the state
 	targetBinding.Spec.State = &state
 

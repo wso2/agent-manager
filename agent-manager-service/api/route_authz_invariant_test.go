@@ -99,7 +99,7 @@ var unguardedRouteAllowlist = map[routeKey]string{
 	{"registerWellKnownRoutes", "HandleFunc", "GET /.well-known/oauth-protected-resource/mcp"}: "path-specific RFC 9728 metadata for the MCP resource must be unauthenticated " +
 		"so MCP clients can discover how to authenticate.",
 	{"registerConfigRoutes", "Handle", "/api/v1/config"}:       "public console/CLI discovery endpoint; exposes only the observer public URL.",
-	{"MakeHTTPHandler", "Handle", "/api/v1/"}:                  "mount point for the JWT-authenticated API sub-router, not a leaf endpoint.",
+	{"MakeHTTPHandlerWithPolicy", "Handle", "/api/v1/"}:        "mount point for the JWT-authenticated API sub-router, not a leaf endpoint.",
 	{"MakeInternalHTTPHandler", "HandleFunc", "/health"}:       "internal-listener liveness probe.",
 	{"MakeInternalHTTPHandler", "Handle", "/api/internal/v1/"}: "mount point for the separately exposed internal API sub-router.",
 	{"RegisterRoute", "Handle", "/mcp"}:                        "MCP endpoint wrapped by JWT authentication and MCP per-tool scope authorization.",
