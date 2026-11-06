@@ -69,11 +69,11 @@ func (t *Toolsets) registerAgentConfigTools(server *gomcp.Server, reg *toolRegis
 		Name: "attach_llm_provider_to_agent",
 		Description: "Give an agent access to an LLM provider through the AI gateway, optionally with guardrails that apply to this agent only. " +
 			"The platform creates a per-agent proxy and injects its URL and key into the agent as environment variables. " +
-			"Call list_llm_providers for `provider` and list_llm_guardrails for `guardrails`. The provider must already be deployed to a gateway.",
+			"Call list_llm_providers for `provider` and list_llm_guardrails for `guardrails`. The provider must be in the catalog (`in_catalog` true) and already deployed to a gateway.",
 		InputSchema: createSchema(map[string]any{
 			"project_name": stringProperty("Required. Project the agent belongs to."),
 			"agent_name":   stringProperty("Required. Name of the agent."),
-			"provider":     stringProperty("Required. LLM provider id from list_llm_providers."),
+			"provider":     stringProperty("Required. LLM provider `id` from list_llm_providers, not its name."),
 			"config_name":  stringProperty("Optional. Name of the agent's model configuration; also the prefix of the injected variables. Defaults to the provider id."),
 			"environments": arrayProperty("Optional. Environment names to configure. Defaults to every environment where the provider is deployed to a gateway this agent can use.", map[string]any{"type": "string"}),
 			"guardrails":   arrayProperty("Optional. Guardrails for this agent's LLM traffic, on top of any on the provider.", guardrailSchema()),

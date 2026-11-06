@@ -178,7 +178,7 @@ func (m *MockToolsetHandler) ListLLMProviders(
 ) ([]*models.LLMProvider, int, error) {
 	m.recordCall("ListLLMProviders", ouID, limit, offset)
 	p := &models.LLMProvider{
-		TemplateHandle: testTemplateID, Status: "deployed",
+		TemplateHandle: testTemplateID, Status: "deployed", InCatalog: true,
 		Artifact: &models.Artifact{Handle: testProviderID, Name: "Test Provider"},
 	}
 	return []*models.LLMProvider{p}, 1, nil
@@ -208,7 +208,7 @@ func (m *MockToolsetHandler) GetLLMProvider(
 func testLLMProvider(providerID string) *models.LLMProvider {
 	authType, header, value := "api-key", "Authorization", testSecret
 	return &models.LLMProvider{
-		TemplateHandle: testTemplateID, Status: "deployed",
+		TemplateHandle: testTemplateID, Status: "deployed", InCatalog: true,
 		Artifact: &models.Artifact{Handle: providerID, Name: "Test Provider"},
 		Configuration: models.LLMProviderConfig{
 			Version: "v1.0",
