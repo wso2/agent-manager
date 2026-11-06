@@ -38,6 +38,7 @@ type concurrencyLimiter struct {
 	perKey    map[string]int
 }
 
+// newConcurrencyLimiter returns a limiter allowing maxTotal slots overall and maxPerKey per key.
 func newConcurrencyLimiter(maxTotal, maxPerKey int) *concurrencyLimiter {
 	return &concurrencyLimiter{maxTotal: maxTotal, maxPerKey: maxPerKey, perKey: map[string]int{}}
 }

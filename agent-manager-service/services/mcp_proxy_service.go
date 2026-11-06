@@ -1083,11 +1083,6 @@ func (s *MCPProxyService) FetchServerInfo(ctx context.Context, orgUUID string, r
 		return nil, fmt.Errorf("proxyId refresh is not supported yet: %w", utils.ErrInvalidInput)
 	}
 
-	endpointURL := strings.TrimSpace(*req.URL)
-	if err := ssrf.ValidateURL(ctx, endpointURL); err != nil {
-		return nil, fmt.Errorf("%w: %w", utils.ErrInvalidURL, err)
-	}
-
 	release, ok := mcpServerInfoLimiter.tryAcquire(orgUUID)
 	if !ok {
 		return nil, utils.ErrTooManyRequests
@@ -1096,6 +1091,12 @@ func (s *MCPProxyService) FetchServerInfo(ctx context.Context, orgUUID string, r
 
 	ctx, cancel := context.WithTimeout(ctx, mcpServerInfoDeadline)
 	defer cancel()
+
+	// Validated inside the deadline: the check resolves DNS for the host.
+	endpointURL := strings.TrimSpace(*req.URL)
+	if err := ssrf.ValidateURL(ctx, endpointURL); err != nil {
+		return nil, fmt.Errorf("%w: %w", utils.ErrInvalidURL, err)
+	}
 
 	headerName, headerValue := authHeader(req.Auth)
 	return s.fetchMCPServerInfo(ctx, endpointURL, headerName, headerValue)
