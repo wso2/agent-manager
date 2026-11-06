@@ -329,13 +329,13 @@ func (s *agentThunderProvisioningService) storeCredential(ctx context.Context, o
 // cleanupLegacySecretRef deletes a legacy binding's SecretReference directly,
 // after the provider's delete, which cannot see it. Callers run it only for a
 // legacy SecretRefPath, so provider-owned bindings never call the
-// SecretReference API.
+// SecretReference API. Without a workload injector nothing is deleted, so it
+// returns an error: a revoke then keeps the legacy SecretRefPath and a later
+// revoke retries.
 func (s *agentThunderProvisioningService) cleanupLegacySecretRef(ctx context.Context, ouID, agentName, envName string) error {
 	injector := s.getWorkloadInjector()
 	if injector == nil {
-		s.logger.Warn("Skipping legacy agent identity SecretReference cleanup: no workload injector configured",
-			"ouID", ouID, "agentName", agentName, "env", envName)
-		return nil
+		return errors.New("no workload injector configured to delete the legacy SecretReference")
 	}
 	return injector.CleanupForEnvironment(ctx, ouID, agentName, envName)
 }

@@ -1373,7 +1373,7 @@ func TestRevokeSecret_RotatesAndClearsStoredCopy(t *testing.T) {
 	repo := &repomocks.AgentThunderClientRepositoryMock{
 		GetFunc: func(_ context.Context, _, _, _, _ string) (*models.AgentThunderClient, error) {
 			return &models.AgentThunderClient{
-				ID: uuid.New(), ThunderAgentID: "thunder-agent-1", ThunderClientID: "client-abc", SecretRefPath: "existing/path",
+				ID: uuid.New(), ThunderAgentID: "thunder-agent-1", ThunderClientID: "client-abc", SecretRefPath: "my-agent-agent-identity-staging-secrets",
 			}, nil
 		},
 		UpdateSecretRefFunc: func(_ context.Context, _ uuid.UUID, secretRefPath string) error {
@@ -2456,6 +2456,40 @@ func TestRevokeSecret_LegacyBinding_CleansUpDirectlyAndClearsPath(t *testing.T) 
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{"provider-delete", "direct-cleanup", "clear-path:"}, calls)
+}
+
+// TestRevokeSecret_LegacyBinding_NoInjector_LeavesSecretRefPathSetForRetry
+// guards that a revoke which cannot delete the legacy SecretReference (no
+// workload injector) keeps secret_ref_path, so a later revoke retries.
+func TestRevokeSecret_LegacyBinding_NoInjector_LeavesSecretRefPathSetForRetry(t *testing.T) {
+	tc := fakeThunderClientMock()
+	tc.RegenerateAgentSecretFunc = func(context.Context, string) (string, error) { return "unused-new-secret", nil }
+	resolver := &clientmocks.EnvThunderResolverMock{
+		ResolveFunc: func(_ context.Context, _, _, _ string) (thundersvc.ThunderClient, error) { return tc, nil },
+	}
+	store := &clientmocks.SecretManagementClientMock{
+		DeleteSecretFunc: func(context.Context, secretmanagersvc.SecretLocation, string) error { return nil },
+	}
+	pathCleared := false
+	repo := &repomocks.AgentThunderClientRepositoryMock{
+		GetFunc: func(context.Context, string, string, string, string) (*models.AgentThunderClient, error) {
+			return &models.AgentThunderClient{
+				ID: uuid.New(), ThunderAgentID: "thunder-agent-1", ThunderClientID: "client-abc",
+				SecretRefPath: "secret/acme/generic/my-agent-agent-identity-staging-secrets",
+			}, nil
+		},
+		UpdateSecretRefFunc: func(context.Context, uuid.UUID, string) error {
+			pathCleared = true
+			return nil
+		},
+	}
+
+	svc := newTestProvisioningService(repo, resolver, store)
+	clientID, err := svc.RevokeSecret(context.Background(), "acme", "proj1", "my-agent", "staging")
+
+	require.NoError(t, err, "the secret is rotated, so revoke still succeeds")
+	assert.Equal(t, "client-abc", clientID)
+	assert.False(t, pathCleared, "secret_ref_path must stay set so a later revoke retries the cleanup")
 }
 
 // TestRevokeSecret_ProviderOwnedBinding_NoDirectCleanup guards that revoking a
