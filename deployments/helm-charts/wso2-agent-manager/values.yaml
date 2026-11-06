@@ -603,8 +603,8 @@ console:
     # the path segment after /docs/. "latest" tracks the newest released docs.
     # The release pipeline (.github/scripts/update-helm-charts.sh) pins this to
     # the release's own versioned docs (v plus the release version). Release
-    # candidates and nightlies keep "latest", because no docs version is cut
-    # for them.
+    # candidates keep "latest", because no docs version is cut for them, and
+    # the nightly workflow sets "next", since nightlies ship unreleased features.
     docsVersion: "latest"
     # Trace-export URL shown to external agent developers. kgateway-routed
     # vhost — independent of the gateway runtime's namespace; no port-forward.

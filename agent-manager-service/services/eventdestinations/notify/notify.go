@@ -71,6 +71,8 @@ type service struct {
 // offered lists the services destinations can use. A service is offered only if
 // Shoutrrr sends to it through the HTTP client the driver supplies (or, for
 // SMTP, if its host can be checked before sending); adding one is one entry.
+// Give a new service a setup guide path in the console's
+// alertingDocLinks.notificationServices (config.template.js), or it shows no link.
 var offered = []service{
 	svc("slack", "Slack", "Chat", "slack://hook:<webhook-token>@webhook or slack://xoxb:<bot-token>@<channel>", "chat/slack", false, true),
 	svc("teams", "Microsoft Teams", "Chat", "teams://?host=<Power Automate workflow URL>", "chat/teams", false, true),

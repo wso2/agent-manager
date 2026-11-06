@@ -412,15 +412,18 @@ export function DestinationForm({
                   helperText={
                     <>
                       {urlError ??
-                        "It holds the service's token, so it is stored encrypted and never shown again."}{" "}
+                        "It holds the service's token, so it is stored encrypted and never shown again."}
                       {serviceGuideUrl && (
-                        <Link
-                          href={serviceGuideUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          Set up this destination
-                        </Link>
+                        <>
+                          {" "}
+                          <Link
+                            href={serviceGuideUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            Set up this destination
+                          </Link>
+                        </>
                       )}
                     </>
                   }
@@ -435,15 +438,18 @@ export function DestinationForm({
                   helperText={
                     <>
                       {urlError ??
-                        "Each event is POSTed here as signed CloudEvents JSON (Standard Webhooks). The signing secret is shown once, after you add it."}{" "}
+                        "Each event is POSTed here as signed CloudEvents JSON (Standard Webhooks). The signing secret is shown once, after you add it."}
                       {webhookGuideUrl && (
-                        <Link
-                          href={webhookGuideUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          Set up this destination
-                        </Link>
+                        <>
+                          {" "}
+                          <Link
+                            href={webhookGuideUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            Set up this destination
+                          </Link>
+                        </>
                       )}
                     </>
                   }
