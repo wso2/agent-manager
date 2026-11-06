@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	vault "github.com/hashicorp/vault/api"
+	"k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
@@ -107,6 +108,14 @@ func (s *gitCredentialsService) requireGitSecret(ctx context.Context, ouID, secr
 	return fmt.Errorf("git secret %q: %w", secretName, utils.ErrNotFound)
 }
 
+// isGitSecretName reports whether name can name a git secret: a name AMS
+// creates (isValidSecretName) or a Kubernetes object name OpenChoreo accepts
+// (DNS-1123 subdomain). Neither form contains "/" or a "." or ".." segment, so
+// the name cannot reach another OpenBao path.
+func isGitSecretName(name string) bool {
+	return isValidSecretName(name) || len(validation.IsDNS1123Subdomain(name)) == 0
+}
+
 // gitSecretKVPath returns the workflow-plane OpenBao path of a git secret,
 // "{mount}/{namespace}/git/{name}", the remote key OpenChoreo's git secret API
 // pushes the secret to.
@@ -121,11 +130,10 @@ func (s *gitCredentialsService) GetGitCredentials(ctx context.Context, ouID, sec
 	if secretRef == "" {
 		return nil, fmt.Errorf("secretRef is required")
 	}
-	// The name becomes a path segment, so only accept the characters a git
-	// secret name may contain. This keeps the read inside the namespace's git
-	// secrets.
-	if !isValidSecretName(secretRef) {
-		return nil, fmt.Errorf("invalid secretRef %q: must be 1-63 alphanumeric characters or hyphens", secretRef)
+	// The name becomes a path segment, so only accept names a git secret can
+	// have. This keeps the read inside the namespace's git secrets.
+	if !isGitSecretName(secretRef) {
+		return nil, fmt.Errorf("invalid secretRef %q: not a valid git secret name", secretRef)
 	}
 
 	// Deleting a git secret can leave its value in OpenBao (OpenChoreo's push

@@ -30,6 +30,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
+	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 func TestSetTraitAgentAPIKeySecretRef_SetsEmptyRef(t *testing.T) {
@@ -99,10 +100,11 @@ func TestStoreAgentAPIKey_ReturnsSecretReferenceName(t *testing.T) {
 }
 
 // promoteWithAgentAPIKey promotes a REST agent from dev to staging, reporting releaseTrait for
-// the dev release and targetRef as staging's current agentApiKeySecretRef. It returns the
-// env vars and env-injection trait config the target was written with (nil when PromoteComponent
-// was not reached), the secret client, and the promote error.
-func promoteWithAgentAPIKey(t *testing.T, releaseTrait client.ReleaseAgentAPIKeyTrait, targetRef string, mintErr error) (
+// the dev release and targetRef as staging's current agentApiKeySecretRef. With sourceOverrides,
+// the promote clones dev's env vars, which are sourceOverrides. It returns the env vars and
+// env-injection trait config the target was written with (nil when PromoteComponent was not
+// reached), the secret client, and the promote error.
+func promoteWithAgentAPIKey(t *testing.T, releaseTrait client.ReleaseAgentAPIKeyTrait, targetRef string, mintErr error, sourceOverrides ...client.EnvVar) (
 	[]client.EnvVar, map[string]interface{}, *clientmocks.SecretManagementClientMock, error,
 ) {
 	t.Helper()
@@ -140,9 +142,16 @@ func promoteWithAgentAPIKey(t *testing.T, releaseTrait client.ReleaseAgentAPIKey
 
 	// Minting the key needs the caller's organization, which promoteToStaging's context lacks.
 	ctx := tierCtx(t, rbac.AgentEnvNonProduction, rbac.AgentEnvProduction)
-	err := s.PromoteAgent(ctx, "acme", "proj1", "my-agent", &spec.PromoteAgentRequest{
-		SourceEnvironment: "dev", TargetEnvironment: "staging",
-	})
+	req := &spec.PromoteAgentRequest{SourceEnvironment: "dev", TargetEnvironment: "staging"}
+	if len(sourceOverrides) > 0 {
+		useSource := true
+		req.UseConfigFromSourceEnv = &useSource
+		oc.GetSourceEnvWorkloadOverridesFunc = func(_ context.Context, _, _, environment string) ([]client.EnvVar, []client.FileVar, error) {
+			assert.Equal(t, "dev", environment)
+			return sourceOverrides, nil, nil
+		}
+	}
+	err := s.PromoteAgent(ctx, "acme", "proj1", "my-agent", req)
 	assert.Empty(t, oc.GetSecretReferenceCalls(), "promote must not read the SecretReference back")
 	envInjection, _ := (*promotedTraits)["my-agent-"+string(client.TraitEnvInjection)].(map[string]interface{})
 	return promotedEnv, envInjection, secrets, err
@@ -245,4 +254,152 @@ func TestGetSystemManagedEnvVars_KeepsAgentAPIKeyEnvVar(t *testing.T) {
 // env-injection trait, so a promote issues no agent API key.
 func noAgentAPIKeyTrait(context.Context, string, string, string) (client.ReleaseAgentAPIKeyTrait, error) {
 	return client.ReleaseAgentAPIKeyTrait{}, nil
+}
+
+func TestPromoteAgent_ClonedAgentAPIKey_ReplacedByTargetsOwn(t *testing.T) {
+	devAPIKeyEnvVar := agentAPIKeyEnvVar(agentAPIKeySecretLocation("acme", "proj1", "my-agent", "dev").SecretRefName())
+
+	env, _, _, err := promoteWithAgentAPIKey(t, client.ReleaseAgentAPIKeyTrait{Attached: true, TakesEnvVarKey: true}, "", nil,
+		devAPIKeyEnvVar, client.EnvVar{Key: "USER_VAR", Value: "kept"})
+
+	require.NoError(t, err)
+	assert.Contains(t, env, stagingAPIKeyEnvVar)
+	assert.NotContains(t, env, devAPIKeyEnvVar, "the source environment's key must not reach the target")
+	assert.Contains(t, env, client.EnvVar{Key: "USER_VAR", Value: "kept"})
+}
+
+func TestPromoteAgent_NoEnvInjectionTrait_KeepsUsersAgentAPIKey(t *testing.T) {
+	// An agent that never receives a system key may set AMP_AGENT_API_KEY itself.
+	userKey := client.EnvVar{Key: client.EnvVarAgentAPIKey, Value: "user-key"}
+
+	env, _, _, err := promoteWithAgentAPIKey(t, client.ReleaseAgentAPIKeyTrait{TakesEnvVarKey: true}, "", nil, userKey)
+
+	require.NoError(t, err)
+	assert.Contains(t, env, userKey)
+}
+
+func TestGetSystemManagedEnvVars_IgnoresUsersAgentAPIKey(t *testing.T) {
+	// A user's own AMP_AGENT_API_KEY lives in the agent's secret under its own name, unlike the
+	// system key ("api-key"). Treating it as the system key would freeze it and drop its value.
+	ocClient := &clientmocks.OpenChoreoClientMock{
+		GetComponentConfigurationsFunc: func(context.Context, string, string, string, string) ([]models.EnvVars, error) {
+			return []models.EnvVars{
+				{Key: client.EnvVarAgentAPIKey, IsSensitive: true, SecretRef: "my-agent-dev-secrets", SecretKey: client.EnvVarAgentAPIKey},
+			}, nil
+		},
+	}
+	s := &agentManagerService{
+		ocClient:                  ocClient,
+		agentConfigurationService: &llmSecretRefsStub{llmSecretRefs: map[string]struct{}{}},
+		logger:                    discardLogger(),
+	}
+
+	envVars, keys, err := s.getSystemManagedEnvVars(context.Background(), "acme", "proj1", "dev", "my-agent")
+
+	require.NoError(t, err)
+	assert.Empty(t, envVars)
+	assert.Empty(t, keys)
+}
+
+// updateConfigurationsService returns a service for UpdateAgentConfigurations on agent "my-agent"
+// in "dev", whose configurations are configs (or configsErr). Saved secret values are recorded
+// in saved, and the env vars the binding is rewritten with in rewritten (nil env leaves it alone).
+func updateConfigurationsService(t *testing.T, configs []models.EnvVars, configsErr error, existingSecretKeys []string) (
+	svc AgentManagerService, saved *map[string]string, rewritten *[]client.EnvVar, rewriteCalled *bool,
+) {
+	t.Helper()
+	saved, rewritten, rewriteCalled = new(map[string]string), new([]client.EnvVar), new(bool)
+	secrets := &clientmocks.SecretManagementClientMock{
+		GetSecretFunc: func(context.Context, string) (*secretmanagersvc.SecretInfo, error) {
+			return &secretmanagersvc.SecretInfo{Keys: existingSecretKeys}, nil
+		},
+		PatchSecretFunc: func(_ context.Context, location secretmanagersvc.SecretLocation, values map[string]string, _ []string) (string, error) {
+			*saved = values
+			return location.SecretRefName(), nil
+		},
+		DeleteSecretFunc: func(context.Context, secretmanagersvc.SecretLocation, string) error {
+			return nil
+		},
+	}
+	oc := &clientmocks.OpenChoreoClientMock{
+		GetOrganizationFunc: func(_ context.Context, name string) (*models.OrganizationResponse, error) {
+			return &models.OrganizationResponse{Name: name}, nil
+		},
+		GetComponentFunc: func(context.Context, string, string, string) (*models.AgentResponse, error) {
+			return &models.AgentResponse{Provisioning: models.Provisioning{Type: string(utils.InternalAgent)}}, nil
+		},
+		GetEnvironmentFunc: nonProductionEnvStub(),
+		GetComponentConfigurationsFunc: func(context.Context, string, string, string, string) ([]models.EnvVars, error) {
+			return configs, configsErr
+		},
+		SyncEditedWorkloadSecretsFunc: func(context.Context, string, string, string, string, []string) error {
+			return nil
+		},
+		ReplaceReleaseBindingWorkloadOverridesFunc: func(_ context.Context, _, _, _ string, env []client.EnvVar, _ []client.FileVar) error {
+			*rewriteCalled = true
+			*rewritten = env
+			return nil
+		},
+	}
+	injector := &agentIdentityInjectorStub{
+		EnvVarsForEnvironmentFunc: func(context.Context, string, string, string, string) ([]client.EnvVar, error) {
+			return []client.EnvVar{}, nil
+		},
+	}
+	svc = NewAgentManagerService(nil, oc, secrets, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		injector, nil, nil, nil, nil, nil, nil, nil, nil, discardLogger())
+	svc.(*agentManagerService).agentConfigurationService = &llmSecretRefsStub{llmSecretRefs: map[string]struct{}{}}
+	return svc, saved, rewritten, rewriteCalled
+}
+
+func TestUpdateAgentConfigurations_NoSystemKey_UpdatesUsersAgentAPIKey(t *testing.T) {
+	// The agent has no system key (no env-injection trait); its AMP_AGENT_API_KEY is the user's.
+	svc, saved, rewritten, _ := updateConfigurationsService(t, []models.EnvVars{
+		{Key: client.EnvVarAgentAPIKey, IsSensitive: true, SecretRef: "my-agent-dev-secrets", SecretKey: client.EnvVarAgentAPIKey},
+	}, nil, []string{client.EnvVarAgentAPIKey})
+	env := spec.EnvironmentVariable{Key: client.EnvVarAgentAPIKey}
+	env.SetIsSensitive(true)
+	env.SetValue("new-user-key")
+
+	err := svc.UpdateAgentConfigurations(tierGrantedCtx(t), "acme", "proj1", "my-agent",
+		&spec.UpdateAgentConfigurationsRequest{EnvironmentName: "dev", Env: []spec.EnvironmentVariable{env}})
+
+	require.NoError(t, err)
+	assert.Equal(t, map[string]string{client.EnvVarAgentAPIKey: "new-user-key"}, *saved, "the user's new value must be saved")
+	require.Len(t, *rewritten, 1)
+	assert.Equal(t, client.EnvVarAgentAPIKey, (*rewritten)[0].Key)
+	require.NotNil(t, (*rewritten)[0].ValueFrom)
+	assert.Equal(t, client.EnvVarAgentAPIKey, (*rewritten)[0].ValueFrom.SecretKeyRef.Key)
+}
+
+func TestUpdateAgentConfigurations_SystemKey_DropsUserEchoedCopy(t *testing.T) {
+	systemKey := agentAPIKeyEnvVar("my-agent-agent-api-key-dev-secrets")
+	svc, saved, rewritten, _ := updateConfigurationsService(t, []models.EnvVars{
+		{Key: client.EnvVarAgentAPIKey, IsSensitive: true, SecretRef: systemKey.ValueFrom.SecretKeyRef.Name, SecretKey: secretmanagersvc.SecretKeyAPIKey},
+	}, nil, nil)
+	env := spec.EnvironmentVariable{Key: client.EnvVarAgentAPIKey}
+	env.SetIsSensitive(true)
+	env.SetValue("echoed")
+
+	err := svc.UpdateAgentConfigurations(tierGrantedCtx(t), "acme", "proj1", "my-agent",
+		&spec.UpdateAgentConfigurationsRequest{EnvironmentName: "dev", Env: []spec.EnvironmentVariable{env}})
+
+	require.NoError(t, err)
+	assert.NotContains(t, *saved, client.EnvVarAgentAPIKey, "an echoed copy must not be saved as a user secret")
+	assert.Equal(t, []client.EnvVar{systemKey}, *rewritten, "the system key is carried forward unchanged")
+}
+
+func TestUpdateAgentConfigurations_FilesOnly_SkipsSystemManagedLookup(t *testing.T) {
+	// A files-only update leaves the env vars alone, so a failing configurations lookup must not block it.
+	svc, _, rewritten, rewriteCalled := updateConfigurationsService(t, nil, errors.New("openchoreo unavailable"), []string{"credentials.json"})
+	file := spec.FileMount{Key: "credentials.json", MountPath: "/etc/credentials.json"}
+	file.SetIsSensitive(true)
+	file.SetValue("dummy")
+
+	err := svc.UpdateAgentConfigurations(tierGrantedCtx(t), "acme", "proj1", "my-agent",
+		&spec.UpdateAgentConfigurationsRequest{EnvironmentName: "dev", Files: []spec.FileMount{file}})
+
+	require.NoError(t, err)
+	assert.True(t, *rewriteCalled)
+	assert.Nil(t, *rewritten, "a files-only update leaves the env vars alone")
 }
