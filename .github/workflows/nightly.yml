@@ -178,12 +178,17 @@ jobs:
         env:
           DEV_VERSION: ${{ needs.compute-version.outputs.dev-version }}
         run: |
-          # Use the nightly version as the image tag.
+          # Use the nightly version as the image tag, and point the console's
+          # doc links at /docs/next: a nightly is built from main, so its
+          # features are documented in the unreleased docs, not in latest.
           find ./deployments/helm-charts -name "values.yaml" -type f | while read -r f; do
-            sed -i.bak "s|tag: \"0\.0\.0-dev\"|tag: \"${DEV_VERSION}\"|g" "$f"
+            sed -i.bak \
+              -e "s|tag: \"0\.0\.0-dev\"|tag: \"${DEV_VERSION}\"|g" \
+              -e "s|docsVersion: \"latest\"|docsVersion: \"next\"|g" \
+              "$f"
             rm -f "${f}.bak"
           done
-          echo "✅ Patched image tags to ${DEV_VERSION}"
+          echo "✅ Patched image tags to ${DEV_VERSION} and docs version to next"
 
       - name: Package and push ${{ matrix.chart.name }}
         if: hashFiles(matrix.chart.chart-file) != ''
