@@ -1706,11 +1706,17 @@ func (s *agentManagerService) checkAgentEntitlement(ctx context.Context, ouID st
 	if req.Provisioning.Type == string(utils.ExternalAgent) {
 		componentType = client.ComponentTypeExternalAgentAPI
 	}
-	if err := s.entitlementChecker.CheckCreate(ctx, ouID, string(componentType), 1); err != nil {
+	err := s.entitlementChecker.CheckCreate(ctx, ouID, string(componentType), 1)
+	switch {
+	case err == nil:
+		return nil
+	case errors.Is(err, utils.ErrEntitlementDenied):
 		s.logger.Info("Agent create refused by entitlement check", "agentName", req.Name, "ouID", ouID, "componentType", componentType, "error", err)
 		return err
+	default:
+		s.logger.Error("Entitlement check failed", "agentName", req.Name, "ouID", ouID, "componentType", componentType, "error", err)
+		return fmt.Errorf("entitlement check for %s: %w", componentType, err)
 	}
-	return nil
 }
 
 // createComponentAgent is the shared agent creation flow for all internal agents.

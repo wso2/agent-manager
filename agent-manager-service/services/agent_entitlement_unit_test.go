@@ -21,6 +21,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -76,6 +77,18 @@ func TestCreateRefusedWhenEntitlementDenied(t *testing.T) {
 
 	require.ErrorIs(t, err, utils.ErrEntitlementDenied)
 	assert.EqualError(t, err, "Quota limit reached for platform_agents.")
+	rec.assertNoWrites(t)
+}
+
+func TestCreateFailsWithContextWhenEntitlementCheckFails(t *testing.T) {
+	checker := &stubEntitlementChecker{err: fmt.Errorf("%w: billing is unreachable", utils.ErrServiceUnavailable)}
+	svc, rec := entitlementFixture(checker)
+
+	err := svc.createComponentAgent(tierGrantedCtx(t), "acme", "proj1", createAgentRequest(utils.InternalAgent), "")
+
+	require.ErrorIs(t, err, utils.ErrServiceUnavailable)
+	require.NotErrorIs(t, err, utils.ErrEntitlementDenied)
+	assert.Contains(t, err.Error(), "entitlement check for proxy/agent-api")
 	rec.assertNoWrites(t)
 }
 
