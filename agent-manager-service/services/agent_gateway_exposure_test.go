@@ -57,6 +57,7 @@ func (f *a2aFixture) agentService(key agentExposureKey, subType string) *agentMa
 		UpdateDeploymentStateFunc: func(context.Context, string, string, string, string, gen.ReleaseBindingSpecState) error {
 			return nil
 		},
+		GetReleaseAgentAPIKeyTraitFunc: noAgentAPIKeyTrait,
 		GetReleaseBindingTraitsFunc: func(context.Context, string, string, string) ([]client.TraitType, bool, error) {
 			return nil, true, nil
 		},
@@ -327,6 +328,7 @@ func (f *a2aFixture) promoteService(t *testing.T, key agentExposureKey) *agentMa
 	agentOC := svc.ocClient.(*clientmocks.OpenChoreoClientMock)
 	oc.GetComponentFunc = agentOC.GetComponentFunc
 	oc.GetEnvironmentFunc = agentOC.GetEnvironmentFunc
+	oc.GetReleaseAgentAPIKeyTraitFunc = noAgentAPIKeyTrait
 	oc.GetReleaseBindingTraitsFunc = agentOC.GetReleaseBindingTraitsFunc
 	s.db, s.artifactRepo, s.agentConfigRepo = svc.db, svc.artifactRepo, svc.agentConfigRepo
 	s.a2aPublisher, s.exposure, s.restAgentKind = svc.a2aPublisher, svc.exposure, svc.restAgentKind

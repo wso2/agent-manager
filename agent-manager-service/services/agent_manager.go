@@ -1198,19 +1198,71 @@ func mergeAgentAPIKeyEnvVarKey(dst map[string]bool) map[string]bool {
 	return dst
 }
 
-// useEnvVarAgentAPIKey stops the env-injection trait from delivering the agent API key in
-// the environment these trait configs are written to, preserving any config already set
-// for that trait instance. An agent created before the key moved to its env vars still has
-// a remote store path in the trait's parameters; an empty per-environment path makes the
-// trait leave the key to the env var instead of overriding it with that path's secret.
-func useEnvVarAgentAPIKey(traitEnvConfigs map[string]interface{}, agentName string) {
+// setTraitAgentAPIKeySecretRef sets the env-injection trait's agentApiKeySecretRef (and property)
+// for the environment these trait configs are written to, preserving any config already set for
+// that trait instance. An empty secretRef stops the trait from delivering the key there, leaving
+// it to the agent's AMP_AGENT_API_KEY env var. Without it, an agent created before the key moved
+// to the env var would still get the path from the trait's parameters, which overrides the env var.
+func setTraitAgentAPIKeySecretRef(traitEnvConfigs map[string]interface{}, agentName, secretRef, secretProperty string) {
 	envInjKey := agentName + "-" + string(client.TraitEnvInjection)
 	envInjCfg, _ := traitEnvConfigs[envInjKey].(map[string]interface{})
 	if envInjCfg == nil {
 		envInjCfg = map[string]interface{}{}
 	}
-	envInjCfg["agentApiKeySecretRef"] = ""
+	envInjCfg["agentApiKeySecretRef"] = secretRef
+	if secretProperty != "" {
+		envInjCfg["agentApiKeySecretProperty"] = secretProperty
+	}
 	traitEnvConfigs[envInjKey] = envInjCfg
+}
+
+// promoteAgentAPIKey issues the promotion target its own agent API key, appending its env var to
+// envOverrides and telling the env-injection trait how to deliver it. Agents whose source release
+// has no env-injection trait get no key, as at creation.
+//
+// A promotion binds the source environment's release, whose trait is frozen as it was when that
+// release was cut. One cut before the trait could leave the key to the env var fetches the key
+// from agentApiKeySecretRef whatever its value; an empty one would leave the pod referencing a
+// Secret that is never created. For such a release the target keeps its own path, which now
+// holds the key just issued, or, without one, takes the path in the release's parameters: the
+// agent's first environment's key, until the source is deployed again and promoted.
+func (s *agentManagerService) promoteAgentAPIKey(
+	ctx context.Context, ouID, projectName, agentName, sourceEnv, targetEnv string,
+	envOverrides *[]client.EnvVar, traitEnvConfigs map[string]interface{},
+) error {
+	releaseTrait, err := s.ocClient.GetReleaseAgentAPIKeyTrait(ctx, ouID, agentName, sourceEnv)
+	if err != nil {
+		return fmt.Errorf("failed to read the source environment's env-injection trait: %w", err)
+	}
+	if !releaseTrait.Attached {
+		return nil
+	}
+	apiKeyEnvVar, err := s.provisionAgentAPIKeyEnvVar(ctx, ouID, projectName, agentName, targetEnv)
+	if err != nil {
+		return fmt.Errorf("failed to issue agent API key for environment %q: %w", targetEnv, err)
+	}
+	*envOverrides = append(*envOverrides, apiKeyEnvVar)
+
+	if releaseTrait.TakesEnvVarKey {
+		setTraitAgentAPIKeySecretRef(traitEnvConfigs, agentName, "", "")
+		return nil
+	}
+	targetRef, err := s.ocClient.GetReleaseBindingAgentAPIKeySecretRef(ctx, ouID, agentName, targetEnv)
+	if err != nil {
+		return fmt.Errorf("failed to read the target environment's agent API key config: %w", err)
+	}
+	switch {
+	case targetRef != "":
+		// Left unset, the binding update carries the target's own path forward.
+	case releaseTrait.SecretRef != "":
+		setTraitAgentAPIKeySecretRef(traitEnvConfigs, agentName, releaseTrait.SecretRef, releaseTrait.SecretProperty)
+		s.logger.Warn("Source release predates delivering the agent API key by env var; the target uses the agent's first environment's key until the source is deployed again and promoted",
+			"agentName", agentName, "sourceEnvironment", sourceEnv, "targetEnvironment", targetEnv)
+	default:
+		s.logger.Warn("Source release's env-injection trait has no agent API key path; leaving the target's agent API key config unchanged",
+			"agentName", agentName, "sourceEnvironment", sourceEnv, "targetEnvironment", targetEnv)
+	}
+	return nil
 }
 
 // TracingTokenRotationResult is the outcome of a tracing-token regeneration. The raw JWT is never
@@ -4296,8 +4348,9 @@ func buildTraitEnvConfigs(agentName string, policies []map[string]interface{}, a
 			"instrumentationEnabled": autoInstrumentation,
 		}
 		// Gate env injection together with Ballerina instrumentation so the OTEL
-		// endpoint and API key env vars are only injected when instrumentation is
-		// enabled for this environment.
+		// endpoint and the Ballerina-named API key env vars are only injected when
+		// instrumentation is enabled for this environment. The agent's own
+		// AMP_AGENT_API_KEY env var, which the latter copies, is not gated.
 		traitEnvConfigs[instanceName(client.TraitEnvInjection)] = map[string]interface{}{
 			"envInjectionEnabled": autoInstrumentation,
 		}
@@ -5157,12 +5210,11 @@ func (s *agentManagerService) PromoteAgent(ctx context.Context, ouID string, pro
 		promoteCTConfigs = buildComponentTypeEnvConfigs(targetEnv)
 
 		// The target environment gets its own agent API key. Copies cloned from the source
-		// environment or sent in the request were dropped above as system-managed.
-		if apiKeyEnvVar, apiKeyErr := s.provisionAgentAPIKeyEnvVar(ctx, ouID, projectName, agentName, req.TargetEnvironment); apiKeyErr != nil {
-			s.logger.Warn("Failed to provision agent API key for promotion", "agentName", agentName, "environment", req.TargetEnvironment, "error", apiKeyErr)
-		} else {
-			envOverrides = append(envOverrides, apiKeyEnvVar)
-			useEnvVarAgentAPIKey(traitEnvConfigs, agentName)
+		// environment or sent in the request were dropped above as system-managed, and the
+		// promotion replaces the target's env vars, so a key that cannot be issued aborts it
+		// rather than leave the target without one.
+		if err := s.promoteAgentAPIKey(ctx, ouID, projectName, agentName, req.SourceEnvironment, req.TargetEnvironment, &envOverrides, traitEnvConfigs); err != nil {
+			return err
 		}
 
 		var promoteResilienceTimeoutSeconds *int32
@@ -5923,16 +5975,17 @@ func (s *agentManagerService) UpdateAgentConfigurations(ctx context.Context, ouI
 	// env list to drop these before processEnvVars (which would otherwise mangle their secret
 	// key refs), then re-append the canonical system values.
 	systemManagedEnvVars, systemManagedKeys, sysEnvErr := s.getSystemManagedEnvVars(ctx, ouID, projectName, req.EnvironmentName, agentName)
+	// Aborts like the deploy path: the override rewrite below replaces the environment's entire
+	// env var set, and the agent API key is carried only through these vars.
 	if sysEnvErr != nil {
-		s.logger.Warn("Failed to fetch system-managed env vars for configurations update", "agentName", agentName, "error", sysEnvErr)
-		systemManagedEnvVars = nil
-		systemManagedKeys = nil
+		s.logger.Error("Failed to fetch system-managed env vars, aborting configurations update to prevent data loss", "agentName", agentName, "error", sysEnvErr)
+		return fmt.Errorf("failed to fetch system-managed env vars for agent %s: %w", agentName, sysEnvErr)
 	}
 
 	// AgentID credentials must survive the override rewrite below, which replaces
-	// the environment's entire env var set. Unlike the lenient LLM-var fallback
-	// above, an error here aborts: rewriting overrides without re-appending the
-	// identity vars would silently strip the agent's credentials.
+	// the environment's entire env var set. An error here aborts too: rewriting
+	// overrides without re-appending the identity vars would silently strip the
+	// agent's credentials.
 	//
 	// An environment whose identity is not ready yet (CP_MANAGED) keeps its empty
 	// placeholders, or the replace would hand it the lowest environment's
