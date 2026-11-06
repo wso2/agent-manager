@@ -247,3 +247,39 @@ func TestGuardrailUpdateErrors(t *testing.T) {
 		t.Errorf("service error should carry wrapToolError's hint: %s", text)
 	}
 }
+
+// catalogMock lists one provider in the catalog and one taken out of it.
+type catalogMock struct{ *MockToolsetHandler }
+
+func (catalogMock) ListLLMProviders(context.Context, string, int, int) ([]*models.LLMProvider, int, error) {
+	return []*models.LLMProvider{
+		{InCatalog: true, Artifact: &models.Artifact{Handle: "in-catalog"}},
+		{InCatalog: false, Artifact: &models.Artifact{Handle: "out-of-catalog"}},
+	}, 2, nil
+}
+
+// Attach takes a provider's id (handle) only and refuses one out of the
+// catalog, so the provider list offers no UUID to copy there by mistake and
+// says which providers can be attached.
+func TestLLMProviderOutputOffersOnlyAttachableIdentifiers(t *testing.T) {
+	session := setupTestServerWithToolsets(t, &Toolsets{LLMProviderToolset: catalogMock{NewMockToolsetHandler()}})
+	for tool, args := range map[string]map[string]any{
+		"list_llm_providers": {},
+		"get_llm_provider":   {"provider_id": testProviderID},
+	} {
+		res, err := session.CallTool(context.Background(), &gomcp.CallToolParams{Name: tool, Arguments: args})
+		if err != nil || res.IsError {
+			t.Fatalf("%s: err=%v content=%+v", tool, err, res.Content)
+		}
+		text := res.Content[0].(*gomcp.TextContent).Text
+		if strings.Contains(text, `"uuid"`) {
+			t.Errorf("%s returns a uuid beside the id: %s", tool, text)
+		}
+		if !strings.Contains(text, `"in_catalog":true`) {
+			t.Errorf("%s does not say the provider is in the catalog: %s", tool, text)
+		}
+		if tool == "list_llm_providers" && !strings.Contains(text, `"id":"out-of-catalog","name":"","template":"","status":"","in_catalog":false`) {
+			t.Errorf("list does not flag the provider out of the catalog: %s", text)
+		}
+	}
+}

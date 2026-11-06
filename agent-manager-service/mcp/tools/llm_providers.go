@@ -64,12 +64,16 @@ type guardrailInput struct {
 	Params  map[string]any `json:"params,omitempty"`
 }
 
+// llmProviderItem carries the provider's id (its handle) and no UUID: attach
+// takes the handle only, so a UUID beside it would be copied there and fail.
 type llmProviderItem struct {
 	ID       string `json:"id"`
-	UUID     string `json:"uuid"`
 	Name     string `json:"name"`
 	Template string `json:"template"`
 	Status   string `json:"status"`
+	// InCatalog is false for a provider taken out of the catalog, which agents
+	// cannot be attached to.
+	InCatalog bool `json:"in_catalog"`
 }
 type listLLMProvidersOutput struct {
 	Total     int               `json:"total"`
@@ -142,7 +146,7 @@ func (t *Toolsets) registerLLMProviderTools(server *gomcp.Server, reg *toolRegis
 		Name: "list_llm_providers",
 		Description: "List the LLM providers configured in your organization. " +
 			"An LLM provider is an org-level connection to a model vendor (for example OpenAI) that agents reach through the AI gateway. " +
-			"Use a provider's `id` as the `provider` argument of attach_llm_provider_to_agent.",
+			"Use a provider's `id` as the `provider` argument of attach_llm_provider_to_agent; only providers with `in_catalog` true can be attached.",
 		InputSchema: createSchema(map[string]any{
 			"limit":  intProperty(fmt.Sprintf("Optional. Max providers to return (default %d, min %d, max %d).", utils.DefaultLimit, utils.MinLimit, utils.MaxLimit)),
 			"offset": intProperty(fmt.Sprintf("Optional. Pagination offset (default %d, min %d).", utils.DefaultOffset, utils.MinOffset)),
@@ -541,9 +545,9 @@ var nonGuardrailPolicies = map[string]bool{
 
 func toLLMProviderItem(p *models.LLMProvider) llmProviderItem {
 	item := llmProviderItem{
-		UUID:     p.UUID.String(),
-		Template: p.TemplateHandle,
-		Status:   p.Status,
+		Template:  p.TemplateHandle,
+		Status:    p.Status,
+		InCatalog: p.InCatalog,
 	}
 	if p.Artifact != nil {
 		item.ID, item.Name = p.Artifact.Handle, p.Artifact.Name
