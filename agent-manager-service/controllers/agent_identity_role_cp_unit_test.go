@@ -247,14 +247,15 @@ func TestRolesViaControlPlane_CreateRejections(t *testing.T) {
 		rs   stubRSIdentifierResolver
 		want int
 	}{
-		"no name":              {`{"scopes":[]}`, stubRSIdentifierResolver{}, http.StatusBadRequest},
-		"reserved name":        {`{"name":"` + thundersvc.NativeAdministratorRoleName + `"}`, stubRSIdentifierResolver{}, http.StatusBadRequest},
-		"malformed scope":      {`{"name":"r","scopes":["noaction"]}`, stubRSIdentifierResolver{}, http.StatusBadRequest},
-		"unknown proxy":        {`{"name":"r","scopes":["nope:read"]}`, stubRSIdentifierResolver{}, http.StatusBadRequest},
-		"proxy not deployed":   {`{"name":"r","scopes":["gh-proxy:read"]}`, stubRSIdentifierResolver{err: fmt.Errorf("%w: gh-proxy", services.ErrMCPProxyNotDeployedToEnvironment)}, http.StatusBadRequest},
-		"no MCP provider":      {`{"name":"r","scopes":["gh-proxy:read"]}`, stubRSIdentifierResolver{err: services.ErrMCPResourceServerUnavailable}, http.StatusServiceUnavailable},
-		"the ensure failing":   {`{"name":"r","scopes":["gh-proxy:read"]}`, stubRSIdentifierResolver{err: errors.New("down")}, http.StatusBadGateway},
-		"invalid request body": {`{`, stubRSIdentifierResolver{}, http.StatusBadRequest},
+		"no name":               {`{"scopes":[]}`, stubRSIdentifierResolver{}, http.StatusBadRequest},
+		"reserved name":         {`{"name":"` + thundersvc.NativeAdministratorRoleName + `"}`, stubRSIdentifierResolver{}, http.StatusBadRequest},
+		"malformed scope":       {`{"name":"r","scopes":["noaction"]}`, stubRSIdentifierResolver{}, http.StatusBadRequest},
+		"unknown proxy":         {`{"name":"r","scopes":["nope:read"]}`, stubRSIdentifierResolver{}, http.StatusBadRequest},
+		"proxy not deployed":    {`{"name":"r","scopes":["gh-proxy:read"]}`, stubRSIdentifierResolver{err: fmt.Errorf("%w: gh-proxy", services.ErrMCPProxyNotDeployedToEnvironment)}, http.StatusBadRequest},
+		"no MCP provider":       {`{"name":"r","scopes":["gh-proxy:read"]}`, stubRSIdentifierResolver{err: services.ErrMCPResourceServerUnavailable}, http.StatusServiceUnavailable},
+		"the ensure failing":    {`{"name":"r","scopes":["gh-proxy:read"]}`, stubRSIdentifierResolver{err: errors.New("down")}, http.StatusBadGateway},
+		"environment not ready": {`{"name":"r","scopes":["gh-proxy:read"]}`, stubRSIdentifierResolver{err: fmt.Errorf("%w: no version yet", services.ErrMCPResourceServerEnvironmentNotReady)}, http.StatusServiceUnavailable},
+		"invalid request body":  {`{`, stubRSIdentifierResolver{}, http.StatusBadRequest},
 	}
 	for name, test := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -350,7 +351,8 @@ func TestRolesViaControlPlane_WithoutAProviderFailsClosed(t *testing.T) {
 }
 
 func TestRolesLegacyModeIgnoresAProvider(t *testing.T) {
-	provider := &fakeRoleProvider{}
+	var providerCalls []string
+	provider := &fakeRoleProvider{calls: &providerCalls}
 	useRoleMode(t, thundersvc.IdentityManagementLegacyDirect, provider)
 	listed := false
 	envClient := &clientmocks.EnvIdentityClientMock{
@@ -373,5 +375,5 @@ func TestRolesLegacyModeIgnoresAProvider(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.True(t, listed, "the environment's own Thunder, as before")
-	assert.Empty(t, provider.calls, "the provider is not used outside CP_MANAGED mode")
+	assert.Empty(t, providerCalls, "the provider is not used outside CP_MANAGED mode")
 }

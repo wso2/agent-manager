@@ -150,6 +150,10 @@ func (c *agentIdentityController) writeEnsureError(w http.ResponseWriter, r *htt
 			fmt.Sprintf("MCP proxy %q is not deployed to environment %q; deploy it there before granting its scopes", g.handle, envName))
 	case errors.Is(err, services.ErrMCPResourceServerUnavailable):
 		utils.WriteErrorResponse(w, http.StatusServiceUnavailable, "MCP resource servers are not configured for this deployment")
+	case errors.Is(err, services.ErrMCPResourceServerEnvironmentNotReady):
+		// A condition that clears on its own: the environment has not caught up with the change yet.
+		utils.WriteErrorResponse(w, http.StatusServiceUnavailable,
+			fmt.Sprintf("Environment %q is not ready for the scopes of MCP proxy %q yet; try again shortly", envName, g.handle))
 	default:
 		logger.GetLogger(r.Context()).Error("agent-identity: ensure proxy resource server failed", "proxy", g.handle, "env", envName, "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadGateway, "Failed to register scopes with the environment identity provider")

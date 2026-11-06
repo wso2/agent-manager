@@ -54,6 +54,11 @@ type MCPResourceServerResult struct {
 	ResourceServerID string
 }
 
+// Project scoping: these requests, and the role provider's, are keyed by organization and environment,
+// as the routes they serve are, and carry no project. How roles, groups and MCP resource servers map
+// to identity platform projects is an open decision. Every provider method takes a request struct, so
+// a project can be added to it later without changing the interfaces.
+
 // MCPResourceServerProvider is implemented by deployments that register MCP resource servers
 // through an identity control plane instead of in each environment's own Thunder. It is used only
 // in CP_MANAGED identity mode. Every method is idempotent and acts on request.Environment only.
