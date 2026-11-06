@@ -28,11 +28,12 @@ import {
 export function useListCatalogLLMProviders(
   params: ListCatalogLLMProvidersParams,
   query?: ListCatalogLLMProvidersQuery,
+  options?: { enabled?: boolean },
 ) {
   const { getToken } = useAuthHooks();
   return useApiQuery<ListCatalogLLMProvidersResponse>({
     queryKey: ["catalog", "llm-providers", params, query],
     queryFn: () => listCatalogLLMProviders(params, query, getToken),
-    enabled: !!params.orgName,
+    enabled: !!params.orgName && (options?.enabled ?? true),
   });
 }

@@ -34,11 +34,13 @@ import {
   useAgentIdentityCredentials,
   usePipelineEnvironmentsState,
   useConfirmIfUnsaved,
+  useMCPProxyEndpoints,
   useThunderInstanceForEnv,
   useUnsavedChangesGuard,
 } from "@agent-management-platform/shared-component";
 import {
   Alert,
+  Box,
   Button,
   Card,
   CardContent,
@@ -67,7 +69,6 @@ import {
 import {
   useGetAgent,
   useGetAgentMCPConfig,
-  useGetMCPProxy,
   useListEnvironments,
   useListMCPProxies,
   useListMCPProxyScopes,
@@ -92,6 +93,7 @@ import {
 import { EnvironmentVariablesGuideDrawer } from "./Configure/subComponents/EnvironmentVariablesGuideDrawer";
 import { MCPServerDisplay } from "./Configure/subComponents/MCPServerDisplay";
 import { MCPProxyAPIKeysSection } from "./Configure/subComponents/MCPProxyAPIKeysSection";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 import { CONFIGURE_TAB_PARAM } from "./configureTabs";
 import {
   BUILD_IN_PROGRESS_REASON,
@@ -206,6 +208,8 @@ const ConnectIdentityCredentials: React.FC<{
   const {
     binding, provisioned, isLoading, isError, error, revealed, isRegenerating, regenerate,
   } = useAgentIdentityCredentials({ orgId, projectId, agentId, envId });
+  // The regenerate route is authorized by amp:agent:update, not an agent-identity scope.
+  const { canWrite } = useResourceAccess("agent");
 
   if (isLoading || isError) {
     return <ConnectQueryFallback isLoading={isLoading} error={error} />;
@@ -255,7 +259,7 @@ const ConnectIdentityCredentials: React.FC<{
             ? "This secret will not be shown again — copy it now."
             : "The client secret is only shown once, right after regenerating."}
         </Typography>
-        {provisioned && (
+        {canWrite && provisioned && (
           <Button
             variant="text"
             size="small"
@@ -339,6 +343,7 @@ export const ViewMCPServerComponent = () => {
   const environmentSelectId = useId();
   const environmentSelectLabelId = useId();
   const navigate = useNavigate();
+  const { canWrite } = useResourceAccess("agent");
   const location = useLocation();
 
   const authInfoByEnv = (
@@ -394,7 +399,7 @@ export const ViewMCPServerComponent = () => {
   );
   const { data: proxiesData } = useListMCPProxies(
     { orgName: orgId },
-    { limit: 50, offset: 0 },
+    { limit: 50, offset: 0, project: projectId },
   );
   const servers = useMemo(() => proxiesData?.list ?? [], [proxiesData]);
   const updateConfig = useUpdateAgentMCPConfig();
@@ -431,8 +436,10 @@ export const ViewMCPServerComponent = () => {
     () => servers.find((s) => s.id === configProxyName),
     [servers, configProxyName],
   );
+  // A project proxy is owned by its project and is not shown on the organization's MCP proxy
+  // page, so only an org proxy links there.
   const configProxyHref =
-    orgId && configProxyName
+    orgId && configProxyName && configProxy && !configProxy.projectName
       ? generatePath(
           absoluteRouteMap.children.org.children.mcpProxies.children.view.path,
           { orgId, proxyId: configProxyName },
@@ -450,11 +457,13 @@ export const ViewMCPServerComponent = () => {
 
   const providerConfig = config?.envMappings?.[selectedEnvName]?.configuration;
 
+  // An org proxy's endpoints, or a project proxy's environments (read from its
+  // project route) in the same shape.
   const {
-    data: sourceProxyDetails,
+    proxy: sourceProxyDetails,
     isLoading: isLoadingProxyDetails,
     isError: isProxyDetailsError,
-  } = useGetMCPProxy({
+  } = useMCPProxyEndpoints({
     orgName: orgId,
     proxyId: configProxyName ?? "",
   });
@@ -632,7 +641,7 @@ export const ViewMCPServerComponent = () => {
         title="Tool Configuration"
         backHref={backHref}
         disableIcon
-        backLabel="Back to Configure"
+        backLabel="Back to configure"
       >
         <Stack spacing={2}>
           <Skeleton variant="rounded" height={56} />
@@ -649,7 +658,7 @@ export const ViewMCPServerComponent = () => {
         title="Tool Configuration"
         backHref={backHref}
         disableIcon
-        backLabel="Back to Configure"
+        backLabel="Back to configure"
       >
         <Alert severity="error" icon={<AlertTriangle size={18} />}>
           {error instanceof Error
@@ -896,7 +905,7 @@ export const ViewMCPServerComponent = () => {
           resetEnvVarNames();
           setPanelOpen(false);
         }}
-        onSave={handleSave}
+        onSave={canWrite ? handleSave : undefined}
         isDirty={isDirty}
         isSaving={updateConfig.isPending}
         saveBlockedReason={
@@ -908,12 +917,11 @@ export const ViewMCPServerComponent = () => {
           "These variable names are injected into the agent at runtime with environment-specific values. Rename them here if your code already uses different names, then save."
         }
         rows={envVarReferenceRows}
-        onNameChange={(key, value) =>
+        onNameChange={canWrite ? (key, value) =>
           setEnvVarNames((prev) => ({
             ...prev,
             [key]: value,
-          }))
-        }
+          })) : undefined}
       >
         <Divider sx={{ my: 2 }} />
         {isMCPSecurityUnresolved ? (
@@ -983,7 +991,7 @@ export const ViewMCPServerComponent = () => {
       title={pageTitle}
       backHref={backHref}
       disableIcon
-      backLabel="Back to Configuration Listing"
+      backLabel="Back to configuration listing"
       actions={
         showPanel ? (
           <Button
@@ -1000,8 +1008,8 @@ export const ViewMCPServerComponent = () => {
       }
     >
       <Stack spacing={3}>
-        <Form.Section>
-          <Form.Subheader>MCP Server</Form.Subheader>
+        <Box>
+          <Typography variant="subtitle1" sx={{ mb: 1 }}>MCP Server</Typography>
           {configProxy ? (
             <Card variant="outlined">
               <CardContent sx={{ position: "relative" }}>
@@ -1030,7 +1038,7 @@ export const ViewMCPServerComponent = () => {
               {configProxyName ?? "No MCP server referenced."}
             </Typography>
           )}
-        </Form.Section>
+        </Box>
 
         {envNames.length > 1 && (
           <Stack direction="row" spacing={2} alignItems="center" justifyContent="flex-end">
@@ -1060,8 +1068,8 @@ export const ViewMCPServerComponent = () => {
           </Stack>
         )}
 
-        <Form.Section>
-          <Form.Subheader>Tools</Form.Subheader>
+        <Box>
+          <Typography variant="subtitle1" sx={{ mb: 1 }}>Tools</Typography>
           {isLoadingTools ? (
             <Skeleton variant="rounded" height={160} />
           ) : isToolsError ? (
@@ -1127,7 +1135,7 @@ export const ViewMCPServerComponent = () => {
               </ListingTable>
             </ListingTable.Container>
           )}
-        </Form.Section>
+        </Box>
 
         {isExternal && providerConfig && usesAPIKeySecurity && (
           <MCPProxyAPIKeysSection

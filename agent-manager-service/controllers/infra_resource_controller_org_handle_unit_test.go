@@ -58,7 +58,7 @@ func listOrgs(t *testing.T, orgs []*models.OrganizationResponse, claims *jwtasse
 		req = req.WithContext(jwtassertion.ContextWithTokenClaims(req.Context(), claims))
 	}
 	rec := httptest.NewRecorder()
-	NewInfraResourceController(&fakeOrgManager{orgs: orgs}).ListOrganizations(rec, req)
+	NewInfraResourceController(&fakeOrgManager{orgs: orgs}, nil).ListOrganizations(rec, req)
 	require.Equal(t, http.StatusOK, rec.Code)
 
 	var body struct {
@@ -111,7 +111,7 @@ func TestGetOrganization_CarriesResolvedOrgHandle(t *testing.T) {
 
 	NewInfraResourceController(&fakeOrgManager{
 		orgs: []*models.OrganizationResponse{namespaceOrg("wc-01a0c318-7a4ef447")},
-	}).GetOrganization(rec, req)
+	}, nil).GetOrganization(rec, req)
 
 	require.Equal(t, http.StatusOK, rec.Code)
 	var body map[string]any

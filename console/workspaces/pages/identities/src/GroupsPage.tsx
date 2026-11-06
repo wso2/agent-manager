@@ -31,12 +31,12 @@ import {
   useDeleteGroup,
   useListGroups,
 } from "@agent-management-platform/api-client";
-import { useConfirmationDialog } from "@agent-management-platform/shared-component";
+import { isListEmpty, useConfirmationDialog } from "@agent-management-platform/shared-component";
 import {
   absoluteRouteMap,
-  globalConfig,
   type ThunderGroup,
 } from "@agent-management-platform/types";
+import { useFeatureFlag, useResourceAccess } from "@agent-management-platform/feature-management";
 import { ListingSkeletonRows } from "./components/ListingSkeletonRows";
 
 const AVATAR_SX = { width: 28, height: 28, fontSize: 12 } as const;
@@ -44,7 +44,8 @@ const AVATAR_SX = { width: 28, height: 28, fontSize: 12 } as const;
 export const GroupsPage: React.FC = () => {
   const { orgId } = useParams<{ orgId: string }>();
   const navigate = useNavigate();
-  const isUserManagementEnabled = globalConfig.featureFlags?.enableUserManagement === true;
+  const isUserManagementEnabled = useFeatureFlag("enableUserManagement");
+  const { canWrite } = useResourceAccess("group");
 
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -59,6 +60,13 @@ export const GroupsPage: React.FC = () => {
 
   const groups = useMemo(() => data?.groups ?? [], [data]);
   const total = data?.total ?? 0;
+  const hasItems = !isLoading && total > 0;
+
+  const isEmpty = isListEmpty({
+    isLoading,
+    count: groups.length,
+    isFiltered: Boolean(search),
+  });
 
   useEffect(() => {
     if (groups.length === 0 && total > 0) {
@@ -106,6 +114,18 @@ export const GroupsPage: React.FC = () => {
     });
   };
 
+  // One definition, used by the toolbar and by the empty state's CTA.
+  const createButton = canWrite ? (
+    <Button
+      variant="contained"
+      startIcon={<Plus />}
+      onClick={() => navigate(createPath)}
+      disabled={!isUserManagementEnabled}
+    >
+      Create Group
+    </Button>
+  ) : undefined;
+
   return (
     <>
       {error != null && (
@@ -116,20 +136,13 @@ export const GroupsPage: React.FC = () => {
 
       <ListingTable.Provider searchValue={search} onSearchChange={setSearch}>
         <ListingTable.Container>
-          <ListingTable.Toolbar
-            showSearch
-            searchPlaceholder="Search groups..."
-            actions={
-              <Button
-                variant="contained"
-                startIcon={<Plus />}
-                onClick={() => navigate(createPath)}
-                disabled={!isUserManagementEnabled}
-              >
-                Create Group
-              </Button>
-            }
-          />
+          {!isEmpty && (
+            <ListingTable.Toolbar
+              showSearch
+              searchPlaceholder="Search groups..."
+              actions={hasItems ? createButton : undefined}
+            />
+          )}
           {!isLoading && filteredGroups.length === 0 ? (
             search ? (
               <ListingTable.EmptyState
@@ -141,7 +154,8 @@ export const GroupsPage: React.FC = () => {
               <ListingTable.EmptyState
                 illustration={<Folder size={64} />}
                 title="No groups yet"
-                description='Click "Create Group" to add one.'
+                description="Create a group to manage a set of users together."
+                action={createButton}
               />
             )
           ) : (
@@ -175,27 +189,29 @@ export const GroupsPage: React.FC = () => {
                         />
                       </ListingTable.Cell>
                       <ListingTable.Cell align="center">
-                        <ListingTable.RowActions visibility="hover">
-                          <Tooltip title="Delete group">
-                            <IconButton
-                              size="small"
-                              color="error"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDelete(group);
-                              }}
-                            >
-                              <Trash size={16} />
-                            </IconButton>
-                          </Tooltip>
-                        </ListingTable.RowActions>
+                        {canWrite && (
+                          <ListingTable.RowActions visibility="hover">
+                            <Tooltip title="Delete group">
+                              <IconButton
+                                size="small"
+                                color="error"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDelete(group);
+                                }}
+                              >
+                                <Trash size={16} />
+                              </IconButton>
+                            </Tooltip>
+                          </ListingTable.RowActions>
+                        )}
                       </ListingTable.Cell>
                     </ListingTable.Row>
                   ))}
               </ListingTable.Body>
             </ListingTable>
           )}
-          {!isLoading && total >= 5 && (
+          {!isLoading && total > 5 && (
             <TablePagination
               component="div"
               count={total}

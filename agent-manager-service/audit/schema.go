@@ -84,9 +84,16 @@ var detailSchema = map[Action]map[string]FieldKind{
 		// the whole point of that denial; without it the event cannot say what
 		// was attempted.
 		"imageId": KindIdentifier,
+		// A request whose body named an org other than the caller's token org.
+		"requestedOrgId": KindIdentifier,
 	},
 	ActionAuthzRootOUBypass: {
 		"rootOUBypass": KindFlag,
+	},
+	ActionAuthzOrgOverride: {
+		"clientId":   KindIdentifier,
+		"tokenOuID":  KindIdentifier,
+		"targetOuID": KindIdentifier,
 	},
 	ActionSystemStartup: {
 		"version":  KindName,

@@ -17,10 +17,15 @@
  */
 
 import React from "react";
+import { Button } from "@wso2/oxygen-ui";
+import { Plus } from "@wso2/oxygen-ui-icons-react";
 import { PageLayout } from "@agent-management-platform/views";
+import { useListLLMProviders } from "@agent-management-platform/api-client";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 import { LLMProviderTable } from "./subComponents/LLMProviderTable";
 import {
   generatePath,
+  Link,
   Navigate,
   Route,
   Routes,
@@ -28,20 +33,50 @@ import {
 } from "react-router-dom";
 import { absoluteRouteMap } from "@agent-management-platform/types";
 import { ViewLLMProvider } from "./subComponents/ViewLLMProvider";
+import { EditLLMProvider } from "./subComponents/EditLLMProvider";
 
 export const LLMProvidersOrganization: React.FC = () => {
   const { orgId } = useParams<{ orgId: string }>();
+  const { canWrite } = useResourceAccess("llm_provider");
+
+  // Same query as the table (deduped); the header CTA only shows once the list has items.
+  const { data: providersList } = useListLLMProviders({ orgName: orgId });
+  const hasItems = (providersList?.providers?.length ?? 0) > 0;
+
+  // One definition, used both as the page action and as the empty state's CTA.
+  const createButton = (
+    <Button
+      variant="contained"
+      color="primary"
+      component={Link}
+      to={generatePath(
+        absoluteRouteMap.children.org.children.llmProviders.children.add.path,
+        { orgId },
+      )}
+      startIcon={<Plus size={16} />}
+    >
+      Add Service Provider
+    </Button>
+  );
+
   return (
     <Routes>
       <Route
         index
         element={
-          <PageLayout title="LLM Service Providers" disableIcon>
-            <LLMProviderTable />
+          <PageLayout
+            title="LLM Service Providers"
+            disableIcon
+            actions={hasItems && canWrite ? createButton : undefined}
+          >
+            <LLMProviderTable createAction={canWrite ? createButton : undefined} />
           </PageLayout>
         }
       />
       <Route path="view/:providerId" element={<ViewLLMProvider />} />
+      {canWrite && (
+        <Route path="view/:providerId/edit" element={<EditLLMProvider />} />
+      )}
       <Route
         path="*"
         element={

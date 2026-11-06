@@ -32,7 +32,8 @@ import (
 // provisioned exactly once on parallel process 1 and its handle is broadcast to
 // every process (see WithSharedSetup below), so the observability, llm, and mcp
 // specs all share one built/deployed instance instead of each parallel process
-// racing to create it.
+// racing to create it. Specs that change the shared agent are Serial: a
+// redeploy resends the env it just read, so a concurrent config unset fails it.
 var (
 	cfg       *framework.Config
 	apiClient *framework.AMPClient

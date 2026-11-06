@@ -40,7 +40,7 @@ describe("RestrictedAction", () => {
       <RestrictedAction
         decision={{
           allowed: false,
-          missingScope: "amp:agent:env-production",
+          missingAccess: "agent_deploy_production",
           reason: "You do not have permission to act on production environments.",
         }}
       >
@@ -65,7 +65,7 @@ describe("RestrictedAction", () => {
       <RestrictedAction
         decision={{
           allowed: false,
-          missingScope: "amp:agent:env-production",
+          missingAccess: "agent_deploy_production",
           reason: "You do not have permission to act on production environments.",
         }}
       >
@@ -86,7 +86,7 @@ describe("RestrictedAction", () => {
       <RestrictedAction
         decision={{
           allowed: false,
-          missingScope: "amp:agent:env-production",
+          missingAccess: "agent_deploy_production",
           reason: "You do not have permission to act on production environments.",
         }}
       >

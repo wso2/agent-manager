@@ -314,7 +314,7 @@ export function CreateScopeDrawer({
             </Typography>
 
             <FormControl fullWidth error={Boolean(errors.name)}>
-              <FormLabel required>Name</FormLabel>
+              <FormLabel>Name</FormLabel>
               <TextField
                 slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.NAME } }}
                 fullWidth

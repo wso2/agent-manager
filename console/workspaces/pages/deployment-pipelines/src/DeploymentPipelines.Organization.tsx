@@ -25,7 +25,11 @@ import {
   useSearchParams,
 } from "react-router-dom";
 import { absoluteRouteMap } from "@agent-management-platform/types";
+import { Button } from "@wso2/oxygen-ui";
+import { Plus } from "@wso2/oxygen-ui-icons-react";
+import { useListDeploymentPipelines } from "@agent-management-platform/api-client";
 import { PageLayout } from "@agent-management-platform/views";
+import { usePipelineFeatures } from "@agent-management-platform/feature-management";
 import { DeploymentPipelineTable } from "./subComponents/DeploymentPipelineTable";
 import { CreateDeploymentPipelineDrawer } from "./subComponents/CreateDeploymentPipelineDrawer";
 import { DeploymentPipelineEditPage } from "./DeploymentPipelineEditPage";
@@ -55,6 +59,12 @@ function LegacyEditRedirect({ children }: { children: ReactNode }) {
 export function DeploymentPipelinesOrganization() {
   const { orgId } = useParams<{ orgId: string }>();
   const [createOpen, setCreateOpen] = useState(false);
+  const { canWrite } = usePipelineFeatures();
+
+  // Same query as the table, so React Query dedupes the request.
+  const { data, isLoading } = useListDeploymentPipelines({ orgName: orgId });
+  const hasItems =
+    !isLoading && (data?.deploymentPipelines?.length ?? 0) > 0;
 
   const listHref = orgId
     ? generatePath(
@@ -70,9 +80,24 @@ export function DeploymentPipelinesOrganization() {
           index
           element={
             <LegacyEditRedirect>
-              <PageLayout title="Deployment Pipelines" disableIcon>
+              <PageLayout
+                title="Deployment Pipelines"
+                disableIcon
+                actions={
+                  hasItems && canWrite ? (
+                  <Button
+                    variant="contained"
+                    color="primary"
+                    startIcon={<Plus size={16} />}
+                    onClick={() => setCreateOpen(true)}
+                  >
+                    Create Pipeline
+                  </Button>
+                  ) : undefined
+                }
+              >
                 <DeploymentPipelineTable
-                  onCreatePipeline={() => setCreateOpen(true)}
+                  onCreatePipeline={canWrite ? () => setCreateOpen(true) : undefined}
                 />
               </PageLayout>
             </LegacyEditRedirect>
@@ -82,7 +107,7 @@ export function DeploymentPipelinesOrganization() {
         <Route path="*" element={<Navigate to={listHref} replace />} />
       </Routes>
 
-      {orgId && (
+      {canWrite && orgId && (
         <CreateDeploymentPipelineDrawer
           open={createOpen}
           onClose={() => setCreateOpen(false)}

@@ -8,6 +8,16 @@ Because the request flows through two agents and the underlying model, a single 
 
 ## Prerequisites
 
+### Python runtime
+
+Python 3.11, 3.12, or 3.13 is required. The sample pins
+`crewai==1.15.34`, which requires Python below 3.14. Its `pdfplumber` dependency
+installs Pillow. The sample requires `pillow>=13.0.0,<14`, which needs Python
+3.11 or later.
+
+The compatibility checks and heavy instrumentation tests cover this sample on
+Python 3.11–3.13. Other samples retain their existing Python 3.10 coverage.
+
 ### Required API Keys
 
 - **OpenAI API Key**: for model inference (the agents use `gpt-4o-mini`)
@@ -79,9 +89,12 @@ What is the capital of France?
 
 ## Run Locally
 
+Use an installed supported interpreter: replace `python3.11` below with
+`python3.12` or `python3.13` as appropriate.
+
 ```bash
 cd samples/crewai-agent
-python -m venv .venv && source .venv/bin/activate
+python3.11 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 export OPENAI_API_KEY=<your-openai-api-key>
 python main.py    # serves on http://localhost:8000
@@ -95,6 +108,6 @@ curl -s localhost:8000/chat \
 
 ## Notes
 
-- Pinned to `crewai==1.1.0` for dependency compatibility.
+- Pinned to `crewai==1.15.34` for dependency compatibility.
 - Each request's `session_id` is attached to its trace as `traceloop.association.properties.session_id`, so the Traces page's Conversation column shows it and can filter on it. Local runs without the platform's instrumentation skip this.
 - The app disables CrewAI's hosted tracing and its interactive trace prompt so it runs non-interactively, and it uses the bundled model pricing data to avoid a network fetch on startup.

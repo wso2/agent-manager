@@ -17,3 +17,4 @@
  */
 
 export * from './mountPoints';
+export * from './featureAccess';

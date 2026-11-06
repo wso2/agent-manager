@@ -19,6 +19,7 @@
 import React from "react";
 import { Navigate, Route, Routes, generatePath, useParams } from "react-router-dom";
 import { absoluteRouteMap } from "@agent-management-platform/types";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 import { PublishedList } from "./Publish.List";
 import { PublishVersionDetails } from "./Publish.VersionDetails";
 
@@ -28,12 +29,13 @@ export const PublishComponent: React.FC = () => {
     projectId: string;
     agentId: string;
   }>();
+  const { canWrite } = useResourceAccess("agent_kind");
 
   return (
     <Routes>
       <Route index element={<PublishedList />} />
-      <Route path="create-new-version" element={<PublishedList />} />
-      <Route path="edit-kind" element={<PublishedList />} />
+      {canWrite && <Route path="create-new-version" element={<PublishedList />} />}
+      {canWrite && <Route path="edit-kind" element={<PublishedList />} />}
       <Route path="version-details/:versionId" element={<PublishVersionDetails />} />
       <Route
         path="*"

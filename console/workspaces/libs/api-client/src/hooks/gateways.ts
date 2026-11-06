@@ -38,9 +38,24 @@ import type {
   IdentityProvider,
   UpdateGatewayPathParams,
   UpdateGatewayRequest,
+  CreateSelfHostedGatewayPathParams,
+  DeleteSelfHostedGatewayPathParams,
+  GatewayTokenListResponse,
+  GatewayTokenResponse,
+  RevokeSelfHostedGatewayTokenPathParams,
+  SelfHostedGatewayRequest,
+  SelfHostedGatewayTokensPathParams,
+  SelfHostedGatewayUpdateRequest,
+  UpdateSelfHostedGatewayPathParams,
 } from "@agent-management-platform/types";
 import {
   assignGatewayToEnvironment,
+  createSelfHostedGateway,
+  createSelfHostedGatewayToken,
+  deleteSelfHostedGateway,
+  listSelfHostedGatewayTokens,
+  revokeSelfHostedGatewayToken,
+  updateSelfHostedGateway,
   deleteGateway,
   deleteIdentityProvider,
   discoverOidc,
@@ -252,3 +267,89 @@ export function useRemoveGatewayFromEnvironment() {
   });
 }
 
+
+function invalidateGatewayQueries(queryClient: ReturnType<typeof useQueryClient>) {
+  queryClient.invalidateQueries({ queryKey: ["gateways"] });
+  queryClient.invalidateQueries({ queryKey: ["gateway"] });
+}
+
+/** Tokens change nothing a gateway query returns, so they have a root key of their own. */
+const selfHostedGatewayTokensKey = ({ orgName, gatewayId }: SelfHostedGatewayTokensPathParams) => [
+  "self-hosted-gateway-tokens",
+  { orgName, gatewayId },
+];
+
+export function useCreateSelfHostedGateway() {
+  const { getToken } = useAuthHooks();
+  const queryClient = useQueryClient();
+  return useApiMutation<
+    GatewayResponse,
+    unknown,
+    { params: CreateSelfHostedGatewayPathParams; body: SelfHostedGatewayRequest }
+  >({
+    action: { verb: 'create', target: 'self-hosted gateway' },
+    mutationFn: ({ params, body }) => createSelfHostedGateway(params, body, getToken),
+    onSuccess: () => invalidateGatewayQueries(queryClient),
+  });
+}
+
+export function useUpdateSelfHostedGateway() {
+  const { getToken } = useAuthHooks();
+  const queryClient = useQueryClient();
+  return useApiMutation<
+    GatewayResponse,
+    unknown,
+    { params: UpdateSelfHostedGatewayPathParams; body: SelfHostedGatewayUpdateRequest }
+  >({
+    action: { verb: 'update', target: 'self-hosted gateway' },
+    mutationFn: ({ params, body }) => updateSelfHostedGateway(params, body, getToken),
+    onSuccess: () => invalidateGatewayQueries(queryClient),
+  });
+}
+
+export function useDeleteSelfHostedGateway() {
+  const { getToken } = useAuthHooks();
+  const queryClient = useQueryClient();
+  return useApiMutation<void, unknown, DeleteSelfHostedGatewayPathParams>({
+    action: { verb: 'delete', target: 'self-hosted gateway' },
+    mutationFn: (params) => deleteSelfHostedGateway(params, getToken),
+    onSuccess: () => invalidateGatewayQueries(queryClient),
+  });
+}
+
+/** With `enabled: false` nothing loads on mount; `refetch` still fetches on demand. */
+export function useSelfHostedGatewayTokens(
+  params: SelfHostedGatewayTokensPathParams,
+  { enabled = true }: { enabled?: boolean } = {},
+) {
+  const { getToken } = useAuthHooks();
+  return useApiQuery<GatewayTokenListResponse>({
+    queryKey: selfHostedGatewayTokensKey(params),
+    queryFn: () => listSelfHostedGatewayTokens(params, getToken),
+    enabled: enabled && !!params.orgName && !!params.gatewayId,
+  });
+}
+
+export function useCreateSelfHostedGatewayToken() {
+  const { getToken } = useAuthHooks();
+  const queryClient = useQueryClient();
+  return useApiMutation<GatewayTokenResponse, unknown, SelfHostedGatewayTokensPathParams>({
+    action: { verb: 'create', target: 'registration token' },
+    mutationFn: (params) => createSelfHostedGatewayToken(params, getToken),
+    onSuccess: (_data, params) => {
+      queryClient.invalidateQueries({ queryKey: selfHostedGatewayTokensKey(params) });
+    },
+  });
+}
+
+export function useRevokeSelfHostedGatewayToken() {
+  const { getToken } = useAuthHooks();
+  const queryClient = useQueryClient();
+  return useApiMutation<void, unknown, RevokeSelfHostedGatewayTokenPathParams>({
+    action: { verb: 'revoke', target: 'registration token' },
+    mutationFn: (params) => revokeSelfHostedGatewayToken(params, getToken),
+    onSuccess: (_data, params) => {
+      queryClient.invalidateQueries({ queryKey: selfHostedGatewayTokensKey(params) });
+    },
+  });
+}

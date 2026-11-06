@@ -19,8 +19,8 @@
 import { render, screen } from '@testing-library/react';
 import { 
   OverviewComponent,
-  OverviewProject,
-  OverviewOrganization,
+  ProjectOverview,
+  OrganizationOverview,
 } from './index';
 
 describe('OverviewComponent', () => {
@@ -47,50 +47,50 @@ describe('OverviewComponent', () => {
   });
 });
 
-describe('OverviewProject', () => {
+describe('ProjectOverview', () => {
   it('renders without crashing', () => {
-    render(<OverviewProject />);
+    render(<ProjectOverview />);
     expect(screen.getByText('Overview - Project Level')).toBeInTheDocument();
   });
 
   it('renders with custom title', () => {
     const customTitle = 'Custom Project Title';
-    render(<OverviewProject title={customTitle} />);
+    render(<ProjectOverview title={customTitle} />);
     expect(screen.getByText(customTitle)).toBeInTheDocument();
   });
 
   it('renders with custom description', () => {
     const customDescription = 'Custom Project Description';
-    render(<OverviewProject description={customDescription} />);
+    render(<ProjectOverview description={customDescription} />);
     expect(screen.getByText(customDescription)).toBeInTheDocument();
   });
 
   it('displays project level indicator', () => {
-    render(<OverviewProject />);
+    render(<ProjectOverview />);
     expect(screen.getByText('Project Level View')).toBeInTheDocument();
   });
 });
 
-describe('OverviewOrganization', () => {
+describe('OrganizationOverview', () => {
   it('renders without crashing', () => {
-    render(<OverviewOrganization />);
+    render(<OrganizationOverview />);
     expect(screen.getByText('Overview - Organization Level')).toBeInTheDocument();
   });
 
   it('renders with custom title', () => {
     const customTitle = 'Custom Organization Title';
-    render(<OverviewOrganization title={customTitle} />);
+    render(<OrganizationOverview title={customTitle} />);
     expect(screen.getByText(customTitle)).toBeInTheDocument();
   });
 
   it('renders with custom description', () => {
     const customDescription = 'Custom Organization Description';
-    render(<OverviewOrganization description={customDescription} />);
+    render(<OrganizationOverview description={customDescription} />);
     expect(screen.getByText(customDescription)).toBeInTheDocument();
   });
 
   it('displays organization level indicator', () => {
-    render(<OverviewOrganization />);
+    render(<OrganizationOverview />);
     expect(screen.getByText('Organization Level View')).toBeInTheDocument();
   });
 });

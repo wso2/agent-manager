@@ -1065,6 +1065,11 @@ func (c *llmController) UpdateLLMProxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := c.proxyDeploymentService.RequireUserManaged(ctx, proxyID, ouID); err != nil {
+		writeUserManagedProxyError(w, log, "UpdateLLMProxy", proxyID, err)
+		return
+	}
+
 	var req spec.UpdateLLMProxyRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		log.Error("UpdateLLMProxy: failed to decode request", "error", err)
@@ -1127,6 +1132,11 @@ func (c *llmController) DeleteLLMProxy(w http.ResponseWriter, r *http.Request) {
 		}
 		log.Error("DeleteLLMProxy: failed to resolve project", "ouID", ouID, "projectName", projectName, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Internal server error")
+		return
+	}
+
+	if err := c.proxyDeploymentService.RequireUserManaged(ctx, proxyID, ouID); err != nil {
+		writeUserManagedProxyError(w, log, "DeleteLLMProxy", proxyID, err)
 		return
 	}
 

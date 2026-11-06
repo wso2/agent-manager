@@ -35,6 +35,7 @@ import { useNavigationItems } from "./navigationItems";
 import { TopNavigation } from "./TopNavigation";
 import { orgRouteId, useGetUserProfile, useListOrganizations } from "@agent-management-platform/api-client";
 import { MountPoints } from "../../types";
+import { useFeatureFlag } from "@agent-management-platform/feature-management";
 
 // Oxygen UI's UserMenu treats a non-URL `avatar` string as literal initials
 // text (see getUserMenuAvatarProps), so this doubles as the no-picture
@@ -51,6 +52,7 @@ export function OxygenLayout() {
   const { userInfo, logout } = useAuthHooks();
   const navigate = useNavigate();
   const { orgId } = useParams();
+  const profileManagementEnabled = useFeatureFlag("enableProfileManagement");
   const { data: userProfile } = useGetUserProfile({
     orgName: orgId || "default",
     userId: userInfo?.sub || "",
@@ -59,6 +61,8 @@ export function OxygenLayout() {
   const externalTopRightComponentModules =
     useExternalComponentModules(MountPoints.TopRightPanel);
   const externalLogoComponentModules = useExternalComponentModules(MountPoints.TopLogo);
+  const externalTopStartComponentModules =
+    useExternalComponentModules(MountPoints.TopStartPanel);
   const externalTopLeftComponentModules =
     useExternalComponentModules(MountPoints.TopLeftPanel);
   const externalBottomLeftComponentModules =
@@ -82,7 +86,10 @@ export function OxygenLayout() {
     secondaryLine: userInfo?.orgName ?? userInfo?.email ?? userInfo?.username ?? userInfo?.givenName ?? "",
   };
 
-  const avatar = userProfile?.attributes?.picture || getUserAvatarInitials(user.primaryLine);
+  // UserMenu takes an image URL or initials as a string; profile attributes are untyped.
+  const picture = userProfile?.attributes?.picture;
+  const avatar =
+    (typeof picture === "string" && picture) || getUserAvatarInitials(user.primaryLine);
 
   const navigationItems = useNavigationItems();
   const mainItems = navigationItems.filter((item) => item.type === "item");
@@ -104,6 +111,11 @@ export function OxygenLayout() {
       <AppShell>
         <AppShell.Navbar>
           <Header>
+            {externalTopStartComponentModules?.map((module) => (
+              <div key={module.moduleName}>
+                <module.component />
+              </div>
+            ))}
             <Header.Toggle
               collapsed={collapsed}
               onToggle={() => setCollapsed(!collapsed)}
@@ -149,7 +161,7 @@ export function OxygenLayout() {
                   avatar={avatar}
                 />
                 <UserMenu.Divider />
-                {orgId && globalConfig.featureFlags?.enableProfileManagement === true && (
+                {orgId && profileManagementEnabled && (
                   <UserMenu.Item
                     icon={<Settings />}
                     label="Profile Settings"

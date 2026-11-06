@@ -30,6 +30,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
 	"github.com/wso2/agent-manager/agent-manager-service/eventhub"
+	"github.com/wso2/agent-manager/agent-manager-service/events"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
@@ -261,6 +262,18 @@ func TestAgentAPIKeyCreateOnRestApiArtifact(t *testing.T) {
 	assert.Len(t, *fx.upsertedKeys, 1)
 }
 
+func TestAgentAPIKeyCreateAnnotatesEvent(t *testing.T) {
+	fx := newAPIKeyServiceFixture(t, nil)
+	ctx, notes := events.WithAnnotations(auditableCtx(t))
+
+	_, err := fx.svc.CreateAPIKey(ctx, "default", "default", "customeragent",
+		"dada1090-0ddb-457a-a116-7f03d3cd0c4c", &models.CreateAPIKeyRequest{Name: "ci-key"})
+
+	require.NoError(t, err)
+	assert.Equal(t, "dev", notes.Environment(), "an environment given by UUID is reported by name")
+	assert.Equal(t, map[string]any{"name": "ci-key"}, notes.Data())
+}
+
 func TestAgentAPIKeyListOnRestApiArtifact(t *testing.T) {
 	fx := newAPIKeyServiceFixture(t, nil)
 	artifactUUID := uuid.New()
@@ -315,6 +328,26 @@ func TestResolveEnvGateways_IngressOnly(t *testing.T) {
 		_, err := svc.resolveEnvGateways(env)
 		require.ErrorIs(t, err, utils.ErrGatewayNotFound)
 	})
+}
+
+// Agent keys go only to the platform's ingress gateways, never to a customer's self-hosted one: self-hosted
+// gateways are egress-only (chk_gateways_self_hosted_egress), so the ingress role filter excludes them.
+func TestResolveEnvGateways_IngressRolesOnly(t *testing.T) {
+	env := uuid.New().String()
+	managed := newGateway(t, models.GatewayRoleIngress, true)
+	var got repositories.GatewayFilterOptions
+	svc := &AgentAPIKeyService{gatewayRepo: &repomocks.GatewayRepositoryMock{
+		ListWithFiltersFunc: func(f repositories.GatewayFilterOptions) ([]*models.Gateway, error) {
+			got = f
+			return []*models.Gateway{managed}, nil
+		},
+	}}
+
+	gateways, err := svc.resolveEnvGateways(env)
+
+	require.NoError(t, err)
+	assert.Equal(t, []*models.Gateway{managed}, gateways)
+	assert.Equal(t, models.IngressGatewayRoles, got.FunctionalityTypeIn)
 }
 
 func TestAgentAPIKeyService_CreateAPIKey_ReservedTestKeyPrefix(t *testing.T) {

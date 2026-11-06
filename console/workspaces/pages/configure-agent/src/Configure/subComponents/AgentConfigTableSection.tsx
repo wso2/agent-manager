@@ -25,7 +25,6 @@ import {
   Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
-import { formatDistanceToNow } from "date-fns";
 import {
   AlertTriangle,
   Plus,
@@ -33,7 +32,8 @@ import {
   Trash,
 } from "@wso2/oxygen-ui-icons-react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { useConfirmationDialog } from "@agent-management-platform/shared-component";
+import { formatRelativeTime, useConfirmationDialog } from "@agent-management-platform/shared-component";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 // This table is generic over an agent's configs (LLM, MCP, ...). The types lib
 // intentionally aliases the MCP list response to the model-config one, so the
 // item shape is genuinely shared; alias it to a neutral name for readability.
@@ -123,6 +123,7 @@ export function AgentConfigTableSection({
   }>();
   const navigate = useNavigate();
   const { addConfirmation } = useConfirmationDialog();
+  const { canWrite } = useResourceAccess("agent");
 
   const [searchValue, setSearchValue] = useState("");
   const [page, setPage] = useState(0);
@@ -175,6 +176,7 @@ export function AgentConfigTableSection({
   };
 
   const addButton = (variant: "contained" | "outlined") => {
+    if (!canWrite) return undefined;
     const button = onAdd ? (
       <Button
         variant={variant}
@@ -285,6 +287,7 @@ export function AgentConfigTableSection({
       emptyState={getEmptyState()}
       standaloneEmptyState={standaloneEmptyState}
       pagination={
+        totalCount > ROWS_PER_PAGE_OPTIONS[0] ? (
         <TablePagination
           rowsPerPageOptions={ROWS_PER_PAGE_OPTIONS}
           component="div"
@@ -297,6 +300,7 @@ export function AgentConfigTableSection({
             setPage(0);
           }}
         />
+        ) : undefined
       }
     >
       {paginatedConfigs.map((config) => (
@@ -311,26 +315,26 @@ export function AgentConfigTableSection({
           </ListingTable.Cell>
           <ListingTable.Cell>
             {config.createdAt
-              ? formatDistanceToNow(new Date(config.createdAt), {
-                  addSuffix: true,
-                })
+              ? formatRelativeTime(config.createdAt)
               : "-"}
           </ListingTable.Cell>
           <ListingTable.Cell align="right">
-            <Tooltip title={labels.removeTooltip}>
-              <IconButton
-                color="error"
-                size="small"
-                disabled={isRemoving}
-                onClick={(e: React.MouseEvent) => {
-                  e.stopPropagation();
-                  handleDelete(config);
-                }}
-                aria-label={labels.removeAriaLabel(config)}
-              >
-                <Trash size={16} />
-              </IconButton>
-            </Tooltip>
+            {canWrite && (
+              <Tooltip title={labels.removeTooltip}>
+                <IconButton
+                  color="error"
+                  size="small"
+                  disabled={isRemoving}
+                  onClick={(e: React.MouseEvent) => {
+                    e.stopPropagation();
+                    handleDelete(config);
+                  }}
+                  aria-label={labels.removeAriaLabel(config)}
+                >
+                  <Trash size={16} />
+                </IconButton>
+              </Tooltip>
+            )}
           </ListingTable.Cell>
         </ListingTable.Row>
       ))}

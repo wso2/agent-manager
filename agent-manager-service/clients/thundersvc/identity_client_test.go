@@ -1220,3 +1220,68 @@ func TestListGroups_Unfiltered_KeepsNativeAdministrators(t *testing.T) {
 	require.Len(t, scoped, 1)
 	assert.Equal(t, "readers", scoped[0].Name)
 }
+
+const testOUB = "01900000-0000-7000-8000-0000000000b2"
+
+func TestGetOUHandleByID_ReturnsHandle(t *testing.T) {
+	srv := newTestThunderServer(t, func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodGet, r.Method)
+		require.Equal(t, "/organization-units/"+testOUB, r.URL.Path)
+		assert.Equal(t, "Bearer test-system-token", r.Header.Get("Authorization"))
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{"id": testOUB, "handle": "org-b", "name": "Org B"})
+	})
+	defer srv.Close()
+
+	c := NewIdentityClient(srv.URL, "sys-client", "sys-secret")
+	handle, err := c.GetOUHandleByID(context.Background(), testOUB)
+
+	require.NoError(t, err)
+	assert.Equal(t, "org-b", handle)
+}
+
+func TestGetOUHandleByID_NotFound(t *testing.T) {
+	srv := newTestThunderServer(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	})
+	defer srv.Close()
+
+	c := NewIdentityClient(srv.URL, "sys-client", "sys-secret")
+	_, err := c.GetOUHandleByID(context.Background(), "01900000-0000-7000-8000-0000000000ff")
+
+	require.Error(t, err)
+	assert.True(t, IsNotFound(err), "a missing OU is reported as not found: %v", err)
+}
+
+func TestGetOUHandleByID_RejectsMismatchedOrEmptyBody(t *testing.T) {
+	for name, body := range map[string]map[string]any{
+		"no handle":  {"id": testOUB},
+		"another ou": {"id": "01900000-0000-7000-8000-0000000000c3", "handle": "org-c"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			srv := newTestThunderServer(t, func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				_ = json.NewEncoder(w).Encode(body)
+			})
+			defer srv.Close()
+
+			c := NewIdentityClient(srv.URL, "sys-client", "sys-secret")
+			_, err := c.GetOUHandleByID(context.Background(), testOUB)
+
+			require.Error(t, err)
+			assert.False(t, IsNotFound(err))
+		})
+	}
+}
+
+func TestGetOUHandleByID_RejectsNonUUID(t *testing.T) {
+	srv := newTestThunderServer(t, func(_ http.ResponseWriter, r *http.Request) {
+		t.Fatalf("no request expected, got %s", r.URL.Path)
+	})
+	defer srv.Close()
+
+	c := NewIdentityClient(srv.URL, "sys-client", "sys-secret")
+	_, err := c.GetOUHandleByID(context.Background(), "../users")
+
+	require.Error(t, err)
+}

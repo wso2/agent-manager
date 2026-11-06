@@ -120,3 +120,26 @@ func TestCatalogOmitsFailedAndUndeployed(t *testing.T) {
 	entries = listCatalogProviders(t, p.OUID, nil)
 	assert.Empty(t, entries[0].Deployments)
 }
+
+// A gateway hosting filter narrows the environment filter to live deployments on gateways with that hosting.
+func TestCatalogEnvironmentFilterByGatewayHosting(t *testing.T) {
+	p, env := seedCatalogProvider(t)
+	deployment := startDeploy(t, p)
+	applyAck(t, p, deployAck(deployment.DeploymentID, models.DeploymentAckStatusSuccess, ""), nil)
+	list := func(hosting string) []models.CatalogLLMProviderEntry {
+		entries, _, err := NewCatalogRepo(db.GetDB()).ListLLMProviders(&models.CatalogListFilters{
+			OrganizationName: p.OUID, EnvironmentUUID: env.String(), GatewayHosting: hosting, Limit: 10,
+		})
+		require.NoError(t, err)
+		return entries
+	}
+
+	assert.Len(t, list(models.GatewayHostingManaged), 1, "seeded gateways are managed by default")
+	assert.Empty(t, list(models.GatewayHostingSelfHosted))
+
+	require.NoError(t, db.GetDB().Exec(`UPDATE gateways SET hosting = ? WHERE uuid = ?`,
+		models.GatewayHostingSelfHosted, p.GatewayUUID).Error)
+	assert.Empty(t, list(models.GatewayHostingManaged))
+	assert.Len(t, list(models.GatewayHostingSelfHosted), 1)
+	assert.Len(t, list(""), 1, "no hosting filter keeps every gateway")
+}

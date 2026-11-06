@@ -24,7 +24,7 @@ import {
   useProvisionAgentIdentity,
   useRetryAgentIdentityProvisioning,
 } from "@agent-management-platform/api-client";
-import { isAgentIdentityEnabled } from "@agent-management-platform/types";
+import { useFeatureFlag, useResourceAccess } from "@agent-management-platform/feature-management";
 import {
   OverviewSectionCard,
   useAgentRolesAndGroups,
@@ -53,7 +53,8 @@ export const EnvAgentRolesGroupsSection: React.FC<EnvAgentRolesGroupsSectionProp
 }) => {
   // useAgentIdentityBinding has no `enabled` option, so the ids are withheld
   // when Agent ID is disabled to keep the identity request from firing.
-  const agentIdEnabled = isAgentIdentityEnabled();
+  const agentIdEnabled = useFeatureFlag("enableAgentIdentity");
+  const { canWrite } = useResourceAccess("agent_identity");
   const {
     binding, provisioned, isLoading: isLoadingIdentity, isError: isIdentityError,
   } = useAgentIdentityBinding(
@@ -233,6 +234,7 @@ export const EnvAgentRolesGroupsSection: React.FC<EnvAgentRolesGroupsSectionProp
           severity="error"
           icon={<AlertTriangle size={18} />}
           action={
+            canWrite && (
             <Button
               color="inherit"
               size="small"
@@ -243,6 +245,7 @@ export const EnvAgentRolesGroupsSection: React.FC<EnvAgentRolesGroupsSectionProp
             >
               {isRetrying ? "Retrying..." : "Retry"}
             </Button>
+            )
           }
           sx={{ mt: 1.5, flexWrap: "wrap", "& .MuiAlert-action": { flexShrink: 0 } }}
         >
@@ -254,6 +257,7 @@ export const EnvAgentRolesGroupsSection: React.FC<EnvAgentRolesGroupsSectionProp
           severity={isProvisionError ? "error" : "info"}
           icon={isProvisionError ? <AlertTriangle size={18} /> : <Info size={18} />}
           action={
+            canWrite && (
             <Button
               color="inherit"
               size="small"
@@ -264,6 +268,7 @@ export const EnvAgentRolesGroupsSection: React.FC<EnvAgentRolesGroupsSectionProp
             >
               {isProvisioning ? "Creating..." : "Create Agent ID"}
             </Button>
+            )
           }
           sx={{ mt: 1.5, flexWrap: "wrap", "& .MuiAlert-action": { flexShrink: 0 } }}
         >

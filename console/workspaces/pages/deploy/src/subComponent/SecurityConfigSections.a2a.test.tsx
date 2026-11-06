@@ -126,8 +126,14 @@ describe("SecurityConfigSections for A2A agents", () => {
         enableOAuthSecurity: true,
         oauthConfig: { issuers: ["idp"], forwardToken },
       });
-    const forwardTokenSwitch = () =>
-      screen.getByRole("switch", { name: /Forward token to upstream/ });
+    // Endpoint Authentication starts closed; open it as a user would to reach the switch.
+    const forwardTokenSwitch = () => {
+      const heading = screen.getByRole("button", { name: /Endpoint Authentication/ });
+      if (heading.getAttribute("aria-expanded") !== "true") {
+        fireEvent.click(heading);
+      }
+      return screen.getByRole("switch", { name: /Forward token to upstream/ });
+    };
 
     it("keeps the switch off and disabled for a proxied external agent", () => {
       mockAgentOfType("external-agent-api");

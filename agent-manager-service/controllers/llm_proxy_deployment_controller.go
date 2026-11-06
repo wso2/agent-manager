@@ -19,6 +19,7 @@ package controllers
 import (
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
@@ -83,12 +84,22 @@ func (c *llmProxyDeploymentController) DeployLLMProxy(w http.ResponseWriter, r *
 		return
 	}
 
+	if err := c.deploymentService.RequireUserManaged(ctx, proxyID, ouID); err != nil {
+		writeUserManagedProxyError(w, log, "DeployLLMProxy", proxyID, err)
+		return
+	}
+
 	log.Info("DeployLLMProxy: calling service layer", "ouID", ouID, "proxyID", proxyID,
 		"deploymentName", req.Name, "gatewayID", req.GatewayID)
 
 	deployment, err := c.deploymentService.DeployLLMProxy(proxyID, &req, ouID)
 	if err != nil {
 		switch {
+		case errors.Is(err, utils.ErrContextInUse):
+			log.Warn("DeployLLMProxy: context in use on the gateway", "ouID", ouID, "error", err)
+			utils.WriteErrorResponseWithReason(w, http.StatusConflict, utils.ErrContextInUse.Error(), err.Error(),
+				utils.ErrCodeContextInUse)
+			return
 		case errors.Is(err, utils.ErrLLMProxyNotFound):
 			log.Warn("DeployLLMProxy: proxy not found", "ouID", ouID, "proxyID", proxyID)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "LLM proxy not found")
@@ -154,6 +165,11 @@ func (c *llmProxyDeploymentController) UndeployLLMProxyDeployment(w http.Respons
 	if gatewayID == "" {
 		log.Error("UndeployLLMProxyDeployment: gateway ID is empty", "ouID", ouID, "proxyID", proxyID)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "gatewayId query parameter is required")
+		return
+	}
+
+	if err := c.deploymentService.RequireUserManaged(ctx, proxyID, ouID); err != nil {
+		writeUserManagedProxyError(w, log, "UndeployLLMProxyDeployment", proxyID, err)
 		return
 	}
 
@@ -227,12 +243,22 @@ func (c *llmProxyDeploymentController) RestoreLLMProxyDeployment(w http.Response
 		return
 	}
 
+	if err := c.deploymentService.RequireUserManaged(ctx, proxyID, ouID); err != nil {
+		writeUserManagedProxyError(w, log, "RestoreLLMProxyDeployment", proxyID, err)
+		return
+	}
+
 	log.Info("RestoreLLMProxyDeployment: calling service layer", "ouID", ouID, "proxyID", proxyID,
 		"deploymentID", deploymentID, "gatewayID", gatewayID)
 
 	deployment, err := c.deploymentService.RestoreLLMProxyDeployment(proxyID, deploymentID, gatewayID, ouID)
 	if err != nil {
 		switch {
+		case errors.Is(err, utils.ErrContextInUse):
+			log.Warn("RestoreLLMProxyDeployment: context in use on the gateway", "ouID", ouID, "error", err)
+			utils.WriteErrorResponseWithReason(w, http.StatusConflict, utils.ErrContextInUse.Error(), err.Error(),
+				utils.ErrCodeContextInUse)
+			return
 		case errors.Is(err, utils.ErrLLMProxyNotFound):
 			log.Warn("RestoreLLMProxyDeployment: proxy not found", "ouID", ouID, "proxyID", proxyID)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "LLM proxy not found")
@@ -287,6 +313,11 @@ func (c *llmProxyDeploymentController) DeleteLLMProxyDeployment(w http.ResponseW
 		return
 	}
 
+	if err := c.deploymentService.RequireUserManaged(ctx, proxyID, ouID); err != nil {
+		writeUserManagedProxyError(w, log, "DeleteLLMProxyDeployment", proxyID, err)
+		return
+	}
+
 	log.Info("DeleteLLMProxyDeployment: calling service layer", "ouID", ouID, "proxyID", proxyID, "deploymentID", deploymentID)
 
 	err := c.deploymentService.DeleteLLMProxyDeployment(proxyID, deploymentID, ouID)
@@ -314,6 +345,18 @@ func (c *llmProxyDeploymentController) DeleteLLMProxyDeployment(w http.ResponseW
 	log.Info("DeleteLLMProxyDeployment: deleted successfully", "ouID", ouID, "proxyID", proxyID, "deploymentID", deploymentID)
 
 	utils.WriteSuccessResponse(w, http.StatusNoContent, struct{}{})
+}
+
+// writeUserManagedProxyError answers a public change to a proxy AMS manages for an agent or monitor with 409, and a
+// failed ownership check with 500.
+func writeUserManagedProxyError(w http.ResponseWriter, log *slog.Logger, handler, proxyID string, err error) {
+	if errors.Is(err, utils.ErrLLMProxyManagedByAMS) {
+		log.Warn(handler+": proxy is managed by an agent or monitor", "proxyID", proxyID)
+		utils.WriteErrorResponse(w, http.StatusConflict, utils.ErrLLMProxyManagedByAMS.Error())
+		return
+	}
+	log.Error(handler+": failed to check proxy ownership", "proxyID", proxyID, "error", err)
+	utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to check LLM proxy ownership")
 }
 
 func (c *llmProxyDeploymentController) GetLLMProxyDeployment(w http.ResponseWriter, r *http.Request) {

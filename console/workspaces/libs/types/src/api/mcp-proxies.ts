@@ -15,8 +15,9 @@
  * under the License.
  */
 
-import type { ListQuery, OrgPathParams } from "./common";
+import type { ListQuery, OrgPathParams, OrgProjPathParams } from "./common";
 import type {
+  APIKeySecurity,
   Resilience,
   SecurityConfig,
   UpstreamAuth,
@@ -106,7 +107,54 @@ export interface MCPProxy {
   context?: string;
   vhost?: string;
   mcpSpecVersion?: string;
-  endpoints: MCPProxyEndpoint[];
+  /**
+   * Absent on a project-owned proxy (projectName set): its per-environment data is on the
+   * project route, see ProjectMCPProxy.
+   */
+  endpoints?: MCPProxyEndpoint[];
+  /** Set for a project-owned proxy (read only on the org routes). Absent for an org proxy. */
+  projectName?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+/** A project proxy binding's security. Phase 1 has an API key or none (enabled false). */
+export interface ProjectMCPProxyEnvironmentSecurity {
+  enabled?: boolean;
+  apiKey?: APIKeySecurity;
+}
+
+/** One environment binding of a project-owned MCP proxy, as the project route reports it. */
+export interface ProjectMCPProxyEnvironment {
+  environmentName: string;
+  environmentUuid: string;
+  context: string;
+  deploymentStatus?: "Deploying" | "Deployed" | "Failed";
+  deploymentStatusReason?: string;
+  gatewayId?: string;
+  publicUrl?: string;
+  security?: ProjectMCPProxyEnvironmentSecurity;
+  updatedAt?: string;
+}
+
+/** The OpenChoreo component endpoint a project MCP proxy fronts. */
+export interface MCPProxySource {
+  componentName: string;
+  endpointName: string;
+}
+
+/** A project-owned MCP proxy (GET /orgs/{org}/projects/{proj}/mcp-proxies/{proxyId}). */
+export interface ProjectMCPProxy {
+  id: string;
+  name: string;
+  description?: string;
+  version: string;
+  context: string;
+  mcpSpecVersion?: string;
+  projectName: string;
+  source: MCPProxySource;
+  environments: ProjectMCPProxyEnvironment[];
+  createdBy?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -120,6 +168,8 @@ export interface MCPProxyListItem {
   context?: string;
   status?: "pending" | "deployed" | "failed";
   mcpSpecVersion?: string;
+  /** Set for a project-scoped proxy: the project that owns it. Absent for an org proxy. */
+  projectName?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -152,8 +202,15 @@ export interface MCPServerInfoFetchResponse {
 export type CreateMCPProxyPathParams = OrgPathParams;
 export type DeleteMCPProxyPathParams = OrgPathParams & { proxyId: string };
 export type GetMCPProxyPathParams = OrgPathParams & { proxyId: string };
+export type GetProjectMCPProxyPathParams = OrgProjPathParams & { proxyId: string };
 export type UpdateMCPProxyPathParams = OrgPathParams & { proxyId: string };
 export type ListMCPProxiesPathParams = OrgPathParams;
 export type ListAvailableMCPPoliciesPathParams = OrgPathParams;
-export type ListMCPProxiesQuery = ListQuery;
+export type ListMCPProxiesQuery = ListQuery & {
+  /**
+   * OpenChoreo project name. When set, the list also includes that project's
+   * project-scoped MCP proxies alongside the org-level ones.
+   */
+  project?: string;
+};
 export type FetchMCPProxyServerInfoPathParams = OrgPathParams;

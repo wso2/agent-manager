@@ -21,18 +21,17 @@ import {
   Box,
   Button,
   Form,
-  FormControl,
-  FormLabel,
+  Grid,
   ListingTable,
   Skeleton,
   Stack,
-  TextField,
   Typography,
 } from "@wso2/oxygen-ui";
 import { AlertTriangle, GitBranch } from "@wso2/oxygen-ui-icons-react";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
 import {
   PageLayout,
+  TextInput,
   useFormValidation,
 } from "@agent-management-platform/views";
 import {
@@ -57,6 +56,7 @@ import {
 import { chainToPromotionPaths } from "./utils/chainUtils";
 import { validatePromotionChain } from "./utils/validatePromotionChain";
 import { PipelineChainEditor } from "./subComponents/PipelineChainEditor";
+import { usePipelineFeatures } from "@agent-management-platform/feature-management";
 
 function pipelineToChain(pipeline: DeploymentPipelineResponse): string[] {
   if (pipeline.promotionPaths.length === 0) return [""];
@@ -78,6 +78,8 @@ export function DeploymentPipelineEditPage() {
     pipelineName: string;
   }>();
   const navigate = useNavigate();
+  // Readers see the pipeline; only writers can change it.
+  const { canWrite } = usePipelineFeatures();
 
   const listHref = orgId
     ? generatePath(
@@ -159,7 +161,7 @@ export function DeploymentPipelineEditPage() {
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
-      if (!formData || !pipeline) return;
+      if (!canWrite || !formData || !pipeline) return;
 
       const result = editPipelineSchema.safeParse(formData);
       if (!result.success) {
@@ -254,17 +256,16 @@ export function DeploymentPipelineEditPage() {
             </Alert>
           )}
 
-          <Form.Section>
-            <Form.Header>Pipeline Details</Form.Header>
-            <Form.Stack spacing={2}>
-              <FormControl fullWidth error={Boolean(errors.displayName)}>
-                <FormLabel required>Display Name</FormLabel>
-                <TextField
-                  slotProps={{
-                    htmlInput: { maxLength: PIPELINE_DISPLAY_NAME_MAX_LENGTH },
-                  }}
-                  fullWidth
-                  size="small"
+          <Form.Stack spacing={3}>
+            <Typography variant="subtitle1">Pipeline Details</Typography>
+            <Grid container spacing={2}>
+              <Grid size={{ xs: 12, md: 12, xl: 8 }}>
+                <TextInput
+                  label="Display Name"
+                  maxLength={PIPELINE_DISPLAY_NAME_MAX_LENGTH}
+                  hideCharacterCount={
+                    formData.displayName.length < PIPELINE_DISPLAY_NAME_MAX_LENGTH
+                  }
                   value={formData.displayName}
                   onChange={(e) =>
                     handleFieldChange("displayName", e.target.value)
@@ -272,17 +273,16 @@ export function DeploymentPipelineEditPage() {
                   placeholder="e.g., Production Pipeline"
                   error={Boolean(errors.displayName)}
                   helperText={errors.displayName}
-                  disabled={isUpdating}
+                  disabled={isUpdating || !canWrite}
                 />
-              </FormControl>
-              <FormControl fullWidth>
-                <FormLabel>Description</FormLabel>
-                <TextField
-                  slotProps={{
-                    htmlInput: { maxLength: INPUT_LIMITS.DESCRIPTION },
-                  }}
-                  fullWidth
-                  size="small"
+              </Grid>
+              <Grid size={{ xs: 12, md: 12, xl: 8 }}>
+                <TextInput
+                  label="Description (optional)"
+                  maxLength={INPUT_LIMITS.DESCRIPTION}
+                  hideCharacterCount={
+                    (formData.description?.length ?? 0) < INPUT_LIMITS.DESCRIPTION
+                  }
                   multiline
                   rows={2}
                   value={formData.description ?? ""}
@@ -290,11 +290,11 @@ export function DeploymentPipelineEditPage() {
                     handleFieldChange("description", e.target.value)
                   }
                   placeholder="Optional description"
-                  disabled={isUpdating}
+                  disabled={isUpdating || !canWrite}
                 />
-              </FormControl>
-            </Form.Stack>
-          </Form.Section>
+              </Grid>
+            </Grid>
+          </Form.Stack>
 
           <PipelineChainEditor
             chain={formData.chain}
@@ -303,9 +303,11 @@ export function DeploymentPipelineEditPage() {
               setFormData((prev) => (prev ? { ...prev, chain } : prev))
             }
             disabled={isUpdating}
+            readOnly={!canWrite}
           />
 
-          <Box display="flex" justifyContent="flex-end" gap={1} mt={2}>
+          {canWrite && (
+          <Box display="flex" gap={1} mt={2}>
             <Button
               variant="outlined"
               color="inherit"
@@ -323,6 +325,7 @@ export function DeploymentPipelineEditPage() {
               {isUpdating ? "Saving..." : "Save"}
             </Button>
           </Box>
+          )}
         </Stack>
       </form>
     );
@@ -333,7 +336,7 @@ export function DeploymentPipelineEditPage() {
       title={pipeline?.displayName ?? pipelineName ?? "Deployment Pipeline"}
       description={pipeline?.description || undefined}
       backHref={listHref}
-      backLabel="Back to Deployment Pipelines"
+      backLabel="Back to deployment pipelines"
       isLoading={isLoading}
       disableIcon
     >

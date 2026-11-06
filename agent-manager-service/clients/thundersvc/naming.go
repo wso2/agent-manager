@@ -382,6 +382,27 @@ func AgentThunderAppName(org, env, project, agent string) string {
 	return fmt.Sprintf("%s-%s", prefix, hash)
 }
 
+// ProjectAgentThunderAppName returns the stable, environment independent name
+// of a project-scoped AgentID that is promoted across the project's
+// environments. A project AgentID provider should use it as the AgentID name in
+// every environment of a project, so the same agent resolves to the same name
+// everywhere. The Cloud provider outside this module uses it for that.
+func ProjectAgentThunderAppName(org, project, agent string) string {
+	org = slugify(org)
+	project = slugify(project)
+	agent = slugify(agent)
+	if org == "" || project == "" || agent == "" {
+		panic("org, project, and agent names must be valid alphanumeric slugs and not empty")
+	}
+	name := fmt.Sprintf("amp-agent-%s-%s-%s", org, project, agent)
+	if len(name) <= maxAgentAppNameLen {
+		return strings.TrimSuffix(name, "-")
+	}
+	hash := thunderSHA6(org + "/" + project + "/" + agent)
+	prefix := strings.TrimRight(name[:agentAppNameTruncatePrefixLen], "-")
+	return fmt.Sprintf("%s-%s", prefix, hash)
+}
+
 // thunderSHA6 returns the first 6 hex characters of the SHA-256 hash of s.
 // Produces the same output as _sha6() in deployments/scripts/thunder-naming.sh.
 func thunderSHA6(s string) string {

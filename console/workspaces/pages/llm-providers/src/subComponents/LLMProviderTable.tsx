@@ -16,20 +16,19 @@
  * under the License.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Avatar,
   Box,
+  Button,
   Chip,
-  IconButton,
   ListingTable,
   Stack,
   TablePagination,
-  Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
 import { ServerCog, Trash } from "@wso2/oxygen-ui-icons-react";
-import { generatePath, Link, useNavigate, useParams } from "react-router-dom";
+import { generatePath, useNavigate, useParams } from "react-router-dom";
 import {
   useDeleteLLMProvider,
   useListLLMProviders,
@@ -42,8 +41,14 @@ import {
 } from "@agent-management-platform/shared-component";
 import { absoluteRouteMap } from "@agent-management-platform/types";
 import { FadeIn } from "@agent-management-platform/views";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 
-export function LLMProviderTable() {
+interface LLMProviderTableProps {
+  /** CTA shown in the empty state; the page owns how a provider gets created. */
+  createAction?: ReactNode;
+}
+
+export function LLMProviderTable({ createAction }: LLMProviderTableProps) {
   const navigate = useNavigate();
   const { orgId } = useParams<{ orgId: string }>();
   const [searchValue, setSearchValue] = useState("");
@@ -51,6 +56,7 @@ export function LLMProviderTable() {
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const { addConfirmation } = useConfirmationDialog();
+  const { canWrite } = useResourceAccess("llm_provider");
 
   const {
     data: providersList,
@@ -126,14 +132,6 @@ export function LLMProviderTable() {
       searchValue={searchValue}
       onSearchChange={setSearchValue}
       searchPlaceholder="Search providers..."
-      addButton={{
-        label: "Add Service Provider",
-        component: Link,
-        to: generatePath(
-          absoluteRouteMap.children.org.children.llmProviders.children.add.path,
-          { orgId },
-        ),
-      }}
       error={error}
       isLoading={isLoading}
       isEmpty={!providers.length}
@@ -143,6 +141,7 @@ export function LLMProviderTable() {
         title: "No LLM service providers yet",
         description:
           "Add an LLM service provider to start routing AI traffic through the gateway.",
+        action: createAction,
       }}
       searchEmptyState={{
         illustration: <ServerCog size={64} />,
@@ -248,12 +247,13 @@ export function LLMProviderTable() {
                       spacing={1}
                       justifyContent="flex-end"
                     >
-                      {hoveredId === provider.uuid ? (
+                      {hoveredId === provider.uuid && canWrite ? (
                         <FadeIn>
-                          <Tooltip title="Delete provider">
-                            <IconButton
+                          <Button
+                              variant="outlined"
                               color="error"
                               size="small"
+                              startIcon={<Trash size={14} />}
                               onClick={() =>
                                 addConfirmation({
                                   analytics: { entity: "llm-provider", action: "delete" },
@@ -271,9 +271,8 @@ export function LLMProviderTable() {
                                 })
                               }
                             >
-                              <Trash size={16} />
-                            </IconButton>
-                          </Tooltip>
+                              Delete
+                            </Button>
                         </FadeIn>
                       ) : provider.createdAt ? (
                         <Typography variant="caption" color="text.secondary">

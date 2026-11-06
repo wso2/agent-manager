@@ -36,6 +36,28 @@ export const LazyOverviewComponent = lazy(() =>
     default: m.metaData.levels!.component as ComponentType,
   }))
 );
+export const LazyEditProject = lazy(() =>
+  import("@agent-management-platform/overview").then((m) => ({
+    default: m.EditProject,
+  }))
+);
+export const LazyEditAgent = lazy(() =>
+  import("@agent-management-platform/overview").then((m) => ({
+    default: m.EditAgent,
+  }))
+);
+
+// Resource listing
+export const LazyProjectListing = lazy(() =>
+  import("@agent-management-platform/level-resource-listing").then((m) => ({
+    default: m.metaData.levels!.organization as ComponentType,
+  }))
+);
+export const LazyAgentListing = lazy(() =>
+  import("@agent-management-platform/level-resource-listing").then((m) => ({
+    default: m.metaData.levels!.project as ComponentType,
+  }))
+);
 
 // Build
 export const LazyBuildComponent = lazy(() =>
@@ -193,6 +215,23 @@ export const LazyGatewaysOrg = lazy(() =>
 export const LazySettingsOrg = lazy(() =>
   import("@agent-management-platform/settings").then((m) => ({
     default: m.metaData.levels!.organization as ComponentType,
+  }))
+);
+
+// Events (destinations and subscriptions at org, project and agent levels)
+export const LazyOrgEvents = lazy(() =>
+  import("@agent-management-platform/settings").then((m) => ({
+    default: m.OrgEvents as ComponentType,
+  }))
+);
+export const LazyProjectEvents = lazy(() =>
+  import("@agent-management-platform/settings").then((m) => ({
+    default: m.ProjectEvents as ComponentType,
+  }))
+);
+export const LazyAgentEvents = lazy(() =>
+  import("@agent-management-platform/settings").then((m) => ({
+    default: m.AgentEvents as ComponentType,
   }))
 );
 

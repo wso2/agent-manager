@@ -104,6 +104,9 @@ export const useAuthHooks = (): AuthHooks => {
   const [accessTokenPayload, setAccessTokenPayload] = useState<
     Record<string, unknown> | null | undefined
   >(undefined);
+  // Whether the settled payload was read while signed in. Right after sign-in the payload
+  // still holds the signed-out null, which must count as loading, not as "no claims".
+  const [payloadIsSignedIn, setPayloadIsSignedIn] = useState(false);
 
   // Sign-in on the backend (BFF): the gateway's oauth2-session holds the tokens
   // and the browser only an HttpOnly session cookie, so there is no access token
@@ -134,7 +137,10 @@ export const useAuthHooks = (): AuthHooks => {
 
   useEffect(() => {
     if (!isSignedIn || !isInitialized) {
-      if (!isSignedIn) setAccessTokenPayload(null);
+      if (!isSignedIn) {
+        setAccessTokenPayload(null);
+        setPayloadIsSignedIn(false);
+      }
       return;
     }
     let cancelled = false;
@@ -156,14 +162,19 @@ export const useAuthHooks = (): AuthHooks => {
         );
     if (!payloadPromise) {
       setAccessTokenPayload(null);
+      setPayloadIsSignedIn(true);
       return;
     }
     payloadPromise
       .then((payload) => {
-        if (!cancelled) setAccessTokenPayload(payload);
+        if (cancelled) return;
+        setAccessTokenPayload(payload);
+        setPayloadIsSignedIn(true);
       })
       .catch(() => {
-        if (!cancelled) setAccessTokenPayload(null);
+        if (cancelled) return;
+        setAccessTokenPayload(null);
+        setPayloadIsSignedIn(true);
       });
     return () => {
       cancelled = true;
@@ -224,7 +235,9 @@ export const useAuthHooks = (): AuthHooks => {
     userInfo,
     isLoadingUserInfo: isLoading,
     isLoadingIsAuthenticated: !isInitialized || isLoading,
-    isLoadingAccessToken: !isSessionEnded && accessTokenPayload === undefined,
+    isLoadingAccessToken:
+      !isSessionEnded &&
+      (accessTokenPayload === undefined || (isSignedIn && !payloadIsSignedIn)),
     getToken: safeGetToken,
     login: customLogin,
     logout: handleLogout,

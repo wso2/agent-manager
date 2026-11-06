@@ -18,33 +18,42 @@
 
 import { AuthProvider } from "@agent-management-platform/auth";
 import { ClientProvider } from "@agent-management-platform/api-client";
-import { AcrylicOrangeTheme as AmTheme, OxygenUIThemeProvider } from "@wso2/oxygen-ui";
+import { OxygenUIThemeProvider, ChoreoLabsTheme } from "@wso2/oxygen-ui";
 import { ConfirmationDialogProvider } from "@agent-management-platform/shared-component";
 import {
   SnackBarProvider,
   ExternalModuleProvider,
   type ExternalModule,
 } from "@agent-management-platform/views";
+import type { FeatureFlags } from "@agent-management-platform/feature-management";
+import type { UseFeatureAccess } from "../../types/featureAccess";
 import { RuntimeConfigProvider } from "./RuntimeConfigProvider";
+import { FeatureAccessBridge } from "./FeatureAccessBridge";
 
 export const GlobalProviders = ({
   children,
   externalPageModules = [],
+  featureFlags,
+  useFeatureAccess,
 }: {
   children: React.ReactNode;
   externalPageModules?: ExternalModule[];
+  featureFlags?: Partial<FeatureFlags>;
+  useFeatureAccess?: UseFeatureAccess;
 }) => {
   return (
-    <OxygenUIThemeProvider theme={AmTheme}>
+    <OxygenUIThemeProvider theme={ChoreoLabsTheme}>
       <SnackBarProvider>
         <AuthProvider>
           <ClientProvider>
             <RuntimeConfigProvider>
-              <ConfirmationDialogProvider>
-                <ExternalModuleProvider externalPageModules={externalPageModules}>
-                  {children}
-                </ExternalModuleProvider>
-              </ConfirmationDialogProvider>
+              <FeatureAccessBridge featureFlags={featureFlags} useAccess={useFeatureAccess}>
+                <ConfirmationDialogProvider>
+                  <ExternalModuleProvider externalPageModules={externalPageModules}>
+                    {children}
+                  </ExternalModuleProvider>
+                </ConfirmationDialogProvider>
+              </FeatureAccessBridge>
             </RuntimeConfigProvider>
           </ClientProvider>
         </AuthProvider>

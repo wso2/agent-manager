@@ -26,10 +26,13 @@ import {
 import {
   useGetMCPProxy,
   useListEnvironments,
+  useListGateways,
   useUpdateMCPProxy,
 } from "@agent-management-platform/api-client";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 import {
   absoluteRouteMap,
+  isSelfHostedGateway,
   stripBasePath,
   type Environment,
   type MCPEndpointConfig,
@@ -77,7 +80,6 @@ import { MCPProxyOverviewTab } from "./MCPProxyOverviewTab";
 import { MCPProxyPoliciesTab } from "./MCPProxyPoliciesTab";
 import { MCPProxyRewriteTab } from "./MCPProxyRewriteTab";
 import { MCPProxySecurityTab } from "./MCPProxySecurityTab";
-import { EditMCPProxyDrawer } from "./EditMCPProxyDrawer";
 import { useCopyWithFeedback } from "./useCopyWithFeedback";
 
 // slug is a URL-safe stand-in for each tab, so the selected tab (and
@@ -238,7 +240,6 @@ export function ViewMCPProxy() {
     [guardUnsaved, setSearchParams],
   );
 
-  const [editDrawerOpen, setEditDrawerOpen] = useState(false);
   const handleCopy = useCopyWithFeedback();
 
   const {
@@ -253,6 +254,7 @@ export function ViewMCPProxy() {
     orgName: orgId ?? "",
   });
   const updateMCPProxy = useUpdateMCPProxy();
+  const { canWrite } = useResourceAccess("mcp_server");
 
   const endpoints = useMemo<MCPProxyEndpoint[]>(
     () => proxy?.endpoints ?? [],
@@ -322,6 +324,16 @@ export function ViewMCPProxy() {
     [selectedEnvironmentBindings],
   );
 
+  const { data: gatewaysData } = useListGateways({ orgName: orgId ?? "" });
+  const isOnSelfHostedGateway = useMemo(() => {
+    const selfHostedIds = new Set(
+      (gatewaysData?.gateways ?? []).filter(isSelfHostedGateway).map((gw) => gw.uuid),
+    );
+    return (selectedEndpoint?.environments ?? []).some(
+      (binding) => !!binding.gatewayId && selfHostedIds.has(binding.gatewayId),
+    );
+  }, [gatewaysData, selectedEndpoint]);
+
   // Merge-and-save callback used by every config tab. It merges a partial into the
   // selected endpoint's flat config and PUTs the whole proxy with that one endpoint
   // replaced.
@@ -363,10 +375,9 @@ export function ViewMCPProxy() {
   return (
     <>
       <PageLayout
-        variant="card"
         title={displayName}
         backHref={backHref}
-        backLabel="Back to MCP Servers"
+        backLabel="Back to MCP servers"
         isLoading={isLoading}
         titleTail={
           proxy?.version ? (
@@ -389,12 +400,20 @@ export function ViewMCPProxy() {
           <CreatedMetadata createdAt={proxy?.createdAt} />
         }
         actions={
-          proxy ? (
+          proxy && canWrite ? (
             <Button
               variant="outlined"
               size="small"
               startIcon={<Edit size={16} />}
-              onClick={() => setEditDrawerOpen(true)}
+              onClick={() =>
+                navigate(
+                  generatePath(
+                    absoluteRouteMap.children.org.children.mcpProxies.children.view
+                      .children.edit.path,
+                    { orgId: orgId ?? "", proxyId: routeProxyId },
+                  ),
+                )
+              }
             >
               Edit MCP Server
             </Button>
@@ -575,6 +594,7 @@ export function ViewMCPProxy() {
                       orgName={orgId}
                       proxyId={routeProxyId}
                       environments={selectedEnvironments}
+                      isOnSelfHostedGateway={isOnSelfHostedGateway}
                       isLoading={isTabContentLoading}
                       onUpdate={updateSelectedEndpointConfig}
                       isUpdating={updateMCPProxy.isPending}
@@ -613,16 +633,6 @@ export function ViewMCPProxy() {
           </Stack>
         )}
       </PageLayout>
-
-      {proxy && orgId && (
-        <EditMCPProxyDrawer
-          open={editDrawerOpen}
-          onClose={() => setEditDrawerOpen(false)}
-          proxy={proxy}
-          orgId={orgId}
-          environments={environments}
-        />
-      )}
 
       <Dialog open={pendingLeave !== null} onClose={handleStay}>
         <DialogTitle>You have unsaved changes</DialogTitle>

@@ -76,6 +76,20 @@ export function cardDraftToPayload(d: AgentCardCorsDraft): AgentCardCorsConfig {
   };
 }
 
+/** What the closed Agent Card CORS section shows on the right of its heading. */
+export function agentCardCorsSummary(d: AgentCardCorsDraft): string {
+  if (d.mode === "inherit") {
+    return "Inherited from agent CORS";
+  }
+  if (!d.enabled) {
+    return "Off";
+  }
+  // A "*" in the origins list allows all origins too (see cardDraftToPayload).
+  return hasWildcardOrigin(d)
+    ? "On · all origins"
+    : `On · ${d.origins.length} origin${d.origins.length === 1 ? "" : "s"}`;
+}
+
 export function isCardDraftInvalid(d: AgentCardCorsDraft): boolean {
   return d.mode === "custom" && d.enabled && !d.allowAll && d.origins.length === 0;
 }
@@ -120,9 +134,9 @@ export const AgentCardCorsSection = ({ draft, onChange, disabled }: AgentCardCor
   const update = (patch: Partial<AgentCardCorsDraft>) => onChange({ ...draft, ...patch });
   const originsMissing = isCardDraftInvalid(draft);
 
+  // The heading and the open/close are the parent's ConfigSection; this is its content.
   return (
-    <Form.Section>
-      <Form.Header>Agent Card CORS</Form.Header>
+    <>
       <Form.Subheader>
         Control which origins may fetch this agent&apos;s public Agent Card from a browser.
       </Form.Subheader>
@@ -204,6 +218,6 @@ export const AgentCardCorsSection = ({ draft, onChange, disabled }: AgentCardCor
           </Form.Stack>
         </Collapse>
       </Form.Stack>
-    </Form.Section>
+    </>
   );
 };

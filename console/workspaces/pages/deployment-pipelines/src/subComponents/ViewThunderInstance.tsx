@@ -29,7 +29,8 @@ import {
 import { AlertTriangle, CheckCircle, ExternalLink } from "@wso2/oxygen-ui-icons-react";
 import { generatePath, useParams } from "react-router-dom";
 import { useListThunderInstances } from "@agent-management-platform/api-client";
-import { absoluteRouteMap, globalConfig } from "@agent-management-platform/types";
+import { absoluteRouteMap } from "@agent-management-platform/types";
+import { useFeatureFlag } from "@agent-management-platform/feature-management";
 import { copyToClipboard } from "@agent-management-platform/shared-component";
 import { PageLayout, useSnackBar } from "@agent-management-platform/views";
 import { ThunderInstanceOverviewTab } from "./ThunderInstanceOverviewTab";
@@ -37,6 +38,7 @@ import { ThunderInstanceOverviewTab } from "./ThunderInstanceOverviewTab";
 export const ViewThunderInstance: React.FC = () => {
   const { orgId, envName } = useParams<{ orgId: string; envName: string }>();
   const { pushSnackBar } = useSnackBar();
+  const thunderConsoleDisabled = useFeatureFlag("disableThunderConsole");
 
   const { data, isLoading, error } = useListThunderInstances({ orgName: orgId });
   const instance = data?.thunderInstances.find((i) => i.envName === envName);
@@ -65,12 +67,12 @@ export const ViewThunderInstance: React.FC = () => {
       <PageLayout
         title="ThunderID"
         backHref={backHref}
-        backLabel="Back to Environment"
+        backLabel="Back to environment"
         description={`The agent identity used to manage agents, users, roles, and groups for the ${envName} environment.`}
         disableIcon
         isLoading={isLoading}
         actions={
-          consoleUrl && globalConfig.featureFlags?.disableThunderConsole !== true ? (
+          consoleUrl && !thunderConsoleDisabled ? (
             <Button
               variant="outlined"
               size="small"

@@ -36,10 +36,17 @@ import {
 import {
   Key,
   Plus,
+  ServerCrash,
   Trash2 as DeleteIcon,
 } from "@wso2/oxygen-ui-icons-react";
 import { endOfDay, format } from "date-fns";
-import { DrawerContent, DrawerHeader, DrawerWrapper, TextInput } from "@agent-management-platform/views";
+import {
+  DrawerContent,
+  DrawerHeader,
+  DrawerWrapper,
+  StateNotice,
+  TextInput,
+} from "@agent-management-platform/views";
 import { capitalize } from "../../utils/format";
 import { monospaceInputSx } from "../AgentIdentityCredentials/AgentIdentityCredentials";
 import { useConfirmationDialog } from "../ConfirmationDialog/ConfirmationDialogProvider";
@@ -94,6 +101,8 @@ export interface APIKeysManagerProps {
   onCreate: (input: CreateAPIKeyInput) => Promise<string | undefined>;
   /** Revokes the key with the given name. */
   onRevoke: (keyName: string) => void;
+  /** Hides create and revoke, for users who can't manage keys. */
+  readOnly?: boolean;
 }
 
 function CreateAPIKeyDrawer({
@@ -267,6 +276,7 @@ export function APIKeysManager({
   emptyDescription,
   onCreate,
   onRevoke,
+  readOnly = false,
 }: APIKeysManagerProps) {
   const [createOpen, setCreateOpen] = useState(false);
   const [newKeyValue, setNewKeyValue] = useState<string | null>(null);
@@ -290,7 +300,7 @@ export function APIKeysManager({
     });
   };
 
-  const createButton = (
+  const createButton = readOnly ? undefined : (
     <Button
       variant="contained"
       startIcon={<Plus size={16} />}
@@ -310,14 +320,24 @@ export function APIKeysManager({
       )}
 
       {isError ? (
-        <Alert severity="error">
-          Failed to load API keys. Please refresh the page.
-        </Alert>
+        <StateNotice
+          icon={ServerCrash}
+          tone="error"
+          title="Couldn't load API keys"
+          description="The key list failed to load. Reload the page to try again."
+          actions={
+            <Button variant="outlined" onClick={() => window.location.reload()}>
+              Reload page
+            </Button>
+          }
+        />
       ) : hasKeys ? (
         <ListingTable.Container>
-          <Box display="flex" justifyContent="flex-end" sx={{ p: 2 }}>
-            {createButton}
-          </Box>
+          {createButton && (
+            <Box display="flex" justifyContent="flex-end" sx={{ p: 2 }}>
+              {createButton}
+            </Box>
+          )}
           <ListingTable>
             <ListingTable.Head>
               <ListingTable.Row>
@@ -361,6 +381,7 @@ export function APIKeysManager({
                     </Typography>
                   </ListingTable.Cell>
                   <ListingTable.Cell align="right">
+                    {!readOnly && (
                     <Tooltip title="Revoke">
                       <span>
                         <IconButton
@@ -374,6 +395,7 @@ export function APIKeysManager({
                         </IconButton>
                       </span>
                     </Tooltip>
+                    )}
                   </ListingTable.Cell>
                 </ListingTable.Row>
               ))}
@@ -381,14 +403,12 @@ export function APIKeysManager({
           </ListingTable>
         </ListingTable.Container>
       ) : (
-        <ListingTable.Container>
-          <ListingTable.EmptyState
-            illustration={<Key size={48} />}
-            title="No API keys"
-            description={emptyDescription}
-            action={createButton}
-          />
-        </ListingTable.Container>
+        <StateNotice
+          icon={Key}
+          title={readOnly ? "No API keys" : "Create your first API key"}
+          description={readOnly ? "No API keys have been created." : emptyDescription}
+          actions={createButton}
+        />
       )}
 
       <CreateAPIKeyDrawer

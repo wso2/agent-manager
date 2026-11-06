@@ -48,7 +48,7 @@ func TestRegisterGateway_PersistsTrimmedRuntimeURL(t *testing.T) {
 	svc := NewPlatformGatewayService(repo, nil)
 
 	resp, err := svc.RegisterGateway("org", "gw1", "GW", "", "https://ext.example.com",
-		"  "+testRuntimeURL+"  ", false, "BOTH", nil, nil)
+		"  "+testRuntimeURL+"  ", false, "BOTH", nil, nil, models.GatewayHostingManaged)
 
 	require.NoError(t, err)
 	require.NotNil(t, created)
@@ -62,7 +62,7 @@ func TestRegisterGateway_InvalidRuntimeURLRejectedBeforeAnyWrite(t *testing.T) {
 	svc := NewPlatformGatewayService(repo, nil)
 
 	_, err := svc.RegisterGateway("org", "gw1", "GW", "", "https://ext.example.com",
-		"http://exfil.dev:53", false, "BOTH", nil, nil)
+		"http://exfil.dev:53", false, "BOTH", nil, nil, models.GatewayHostingManaged)
 
 	require.ErrorIs(t, err, utils.ErrBadRequest)
 	require.Empty(t, repo.GetByNameAndOrgIDCalls())

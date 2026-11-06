@@ -32,6 +32,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/eventhub"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
+	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // Config sets the worker's intervals, the render claim's lease and the render attempt budget.
@@ -70,6 +71,7 @@ type Core struct {
 
 	kinds      []Kind
 	byArtifact map[string]Kind
+	gateways   Gateways
 	now        func() time.Time
 	nudge      func()
 }
@@ -174,6 +176,9 @@ func (c *Core) target(ctx context.Context, tx *gorm.DB, kind EnvironmentKind, re
 		}
 		gateway = &targeted
 	}
+	if err := c.lockGateway(tx, *gateway); err != nil {
+		return uuid.Nil, false, err
+	}
 	mapped, err := c.repo.LockEnvironmentMapping(ctx, tx, *gateway, record.EnvironmentUUID)
 	if err != nil || !mapped {
 		return uuid.Nil, false, err
@@ -200,7 +205,12 @@ func (c *Core) ServesEnvironment(ctx context.Context, tx *gorm.DB, env, gateway 
 	return false, nil
 }
 
+// deployTo renders an inline kind in tx and sends it, or leaves the render to the worker. A render whose context
+// clashes with another artifact's on the gateway is refused (utils.ErrContextInUse) with nothing written.
 func (c *Core) deployTo(ctx context.Context, tx *gorm.DB, kind Kind, p models.Placement) (*Applied, error) {
+	if err := c.lockGateway(tx, p.GatewayUUID); err != nil {
+		return nil, err
+	}
 	if !kind.RendersInline() {
 		return c.owe(ctx, tx, p, "")
 	}
@@ -210,6 +220,9 @@ func (c *Core) deployTo(ctx context.Context, tx *gorm.DB, kind Kind, p models.Pl
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to render %s: %w", p.Kind, err)
+	}
+	if err := c.checkContext(ctx, tx, p, rendered.Content); err != nil {
+		return nil, err
 	}
 	deployment := &models.Deployment{Name: rendered.Name, Content: rendered.Content}
 	if err := c.repo.StartDeploy(ctx, tx, p, deployment); err != nil {
@@ -250,10 +263,14 @@ func (c *Core) Undeploy(ctx context.Context, tx *gorm.DB, p models.Placement) er
 }
 
 // Restore points the gateway back at an earlier deployment of the artifact. It clears the render queue, so a
-// waiting redeploy can't overwrite it.
+// waiting redeploy can't overwrite it. An earlier deployment whose context now clashes on the gateway is refused
+// (utils.ErrContextInUse).
 func (c *Core) Restore(ctx context.Context, tx *gorm.DB, p models.Placement, deploymentID uuid.UUID) error {
 	kind, err := c.kindOf(p.Kind)
 	if err != nil {
+		return err
+	}
+	if err := c.lockGateway(tx, p.GatewayUUID); err != nil {
 		return err
 	}
 	if err := c.repo.StartRestore(ctx, tx, p, deploymentID); err != nil {
@@ -263,6 +280,9 @@ func (c *Core) Restore(ctx context.Context, tx *gorm.DB, p models.Placement, dep
 	deployment, err := repo.GetWithStateCtx(ctx, deploymentID.String(), p.ArtifactUUID.String(), p.OUID)
 	if err != nil {
 		return fmt.Errorf("failed to read the restored deployment: %w", err)
+	}
+	if err := c.checkContext(ctx, tx, p, deployment.Content); err != nil {
+		return err
 	}
 	performedAt, err := c.performedAt(ctx, tx, p)
 	if err != nil {
@@ -419,9 +439,13 @@ func (c *Core) renderClaim(ctx context.Context, claim models.ClaimedRender) erro
 	renderCtx, cancel := context.WithTimeout(ctx, c.cfg.Lease/2)
 	rendered, err := kind.Render(renderCtx, claim.ArtifactRef)
 	cancel()
+	if err == nil {
+		err = c.writeBack(ctx, kind, claim, rendered)
+		if !errors.Is(err, utils.ErrContextInUse) {
+			return c.superseded(log, err)
+		}
+	}
 	switch {
-	case err == nil:
-		return c.superseded(log, c.writeBack(ctx, kind, claim, rendered))
 	case errors.Is(err, ErrRecordGone):
 		log.Info("The artifact's record is gone; undeploying the row instead of deploying it")
 		return c.superseded(log, c.abandon(ctx, kind, claim))
@@ -443,8 +467,16 @@ func (c *Core) superseded(log *slog.Logger, err error) error {
 	return err
 }
 
+// writeBack sends a claimed render, unless its context clashes on the gateway: that is returned, with nothing
+// written, for renderClaim to record as a given-up render.
 func (c *Core) writeBack(ctx context.Context, kind Kind, claim models.ClaimedRender, rendered Rendered) error {
 	return c.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := c.lockGateway(tx, claim.GatewayUUID); err != nil {
+			return err
+		}
+		if err := c.checkContext(ctx, tx, claim.Placement, rendered.Content); err != nil {
+			return err
+		}
 		deployment := &models.Deployment{Name: rendered.Name, Content: rendered.Content}
 		if err := c.repo.CompleteRender(ctx, tx, claim, deployment); err != nil {
 			return err

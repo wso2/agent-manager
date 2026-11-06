@@ -185,7 +185,7 @@ thunder:
     # a fixed value) only when a memorable password matters more than a
     # generated one — e.g. a machine only the operator can reach. Either way,
     # retrieve the real value in effect any time with:
-    #   kubectl get secret amp-admin-credentials -n <thunder-namespace> -o jsonpath='{.data.password}' | base64 -d
+    #   kubectl get secret amp-admin-credentials -n <thunder-namespace> -o jsonpath='{.data.password}' | base64 -d; echo
     admin:
       username: "admin"
       password: ""
@@ -300,6 +300,8 @@ thunder:
       - "amp:monitor:execute"
       - "amp:monitor:score-read"
       - "amp:monitor:score-publish"
+      - "amp:events:read"
+      - "amp:events:manage"
       - "amp:observability:trace-read"
       - "amp:observability:log-read"
       - "amp:observability:build-log-read"

@@ -22,6 +22,7 @@ import {
   useRotateMCPConfigAPIKey,
 } from "@agent-management-platform/api-client";
 import { SingleAPIKeyManager } from "@agent-management-platform/shared-component";
+import { useFeatureAccess } from "@agent-management-platform/feature-management";
 
 export type MCPProxyAPIKeysSectionProps = {
   orgName: string | undefined;
@@ -45,6 +46,7 @@ export function MCPProxyAPIKeysSection({
   configId,
   envName,
 }: MCPProxyAPIKeysSectionProps) {
+  const canManageKeys = useFeatureAccess("agent_api_key_manage");
   const { data, isLoading, isError } = useListMCPConfigAPIKeys({
     orgName,
     projName,
@@ -103,6 +105,7 @@ export function MCPProxyAPIKeysSection({
       onGenerate={handleGenerate}
       onRegenerate={handleRegenerate}
       onDelete={handleDelete}
+      readOnly={!canManageKeys}
     />
   );
 }

@@ -32,6 +32,7 @@ import {
 import { Plus as Add } from '@wso2/oxygen-ui-icons-react';
 import { useListGitSecrets } from '@agent-management-platform/api-client';
 import type { CreateAgentFormValues } from '../form/schema';
+import { useFeatureAccess } from '@agent-management-platform/feature-management';
 import { CreateGitSecretModal } from './CreateGitSecretModal';
 
 interface GitSecretSelectorProps {
@@ -47,6 +48,8 @@ export const GitSecretSelector = ({
 }: GitSecretSelectorProps) => {
   const { orgId } = useParams<{ orgId: string }>();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  // Picking an existing secret needs read access; creating one needs write.
+  const canCreateSecret = useFeatureAccess('git_secret_write');
 
   const {
     data: gitSecretsData,
@@ -101,18 +104,20 @@ export const GitSecretSelector = ({
                 <Typography>{secret.name}</Typography>
               </MenuItem>
             ))}
-            <MenuItem value="__create_new__">
-              <Stack direction="row" spacing={1} alignItems="center">
-                <Button
-                  variant="text"
-                  size="small"
-                  startIcon={<Add size={16} />}
-                  sx={{ textTransform: 'none', p: 0 }}
-                >
-                  Create new git secret
-                </Button>
-              </Stack>
-            </MenuItem>
+            {canCreateSecret && (
+              <MenuItem value="__create_new__">
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <Button
+                    variant="text"
+                    size="small"
+                    startIcon={<Add size={16} />}
+                    sx={{ textTransform: 'none', p: 0 }}
+                  >
+                    Create new git secret
+                  </Button>
+                </Stack>
+              </MenuItem>
+            )}
           </Select>
           {errors.gitSecretRef ? (
             <FormHelperText error>{errors.gitSecretRef}</FormHelperText>

@@ -36,12 +36,16 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/controllers"
 	"github.com/wso2/agent-manager/agent-manager-service/eventhub"
+	"github.com/wso2/agent-manager/agent-manager-service/events"
 	"github.com/wso2/agent-manager/agent-manager-service/instrumentation"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
+	"github.com/wso2/agent-manager/agent-manager-service/services/eventdestinations"
+	"github.com/wso2/agent-manager/agent-manager-service/services/eventdestinations/notify"
+	"github.com/wso2/agent-manager/agent-manager-service/services/eventdestinations/webhook"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 	"github.com/wso2/agent-manager/agent-manager-service/websocket"
 )
@@ -59,6 +63,7 @@ var clientProviderSet = wire.NewSet(
 	ProvidePublisherProvisioner,
 	ProvideIdentityClient,
 	ProvideOrgResolver,
+	ProvideOUHandleLookup,
 	thundersvc.NewProber,
 	// EnvThunderResolver is wired for AgentIdentityController's passthrough
 	// endpoints. AgentID provisioning itself is injected via
@@ -104,6 +109,7 @@ var serviceProviderSet = wire.NewSet(
 	services.NewAgentAPIKeyService,
 	services.NewLLMProxyDeploymentService,
 	services.NewMCPProxyService,
+	services.NewProjectMCPProxyService,
 	services.NewMCPProxyScopeService,
 	// MCPProxyScopeService only needs the narrow redeploy surface; bind it to
 	// the concrete service so scope mutations can re-emit gateway policies.
@@ -118,6 +124,16 @@ var serviceProviderSet = wire.NewSet(
 	services.NewLLMTemplateStore,
 	services.NewGitSecretService,
 	services.NewAIApplicationService,
+	ProvideEventBus,
+	ProvideEventPublisher,
+	repositories.NewEventOutboxRepository,
+	services.NewMonitorRunEvents,
+	ProvideDestinationDrivers,
+	services.NewEventDestinationService,
+	services.NewEventSubscriptionService,
+	wire.Bind(new(services.EventsCleaner), new(services.EventSubscriptionService)),
+	wire.Bind(new(services.DestinationResolver), new(services.EventDestinationService)),
+	services.NewEventDispatcherService,
 )
 
 var instrumentationProviderSet = wire.NewSet(
@@ -143,6 +159,7 @@ var controllerProviderSet = wire.NewSet(
 	controllers.NewA2AProxyController,
 	controllers.NewLLMProxyDeploymentController,
 	controllers.NewMCPProxyController,
+	controllers.NewProjectMCPProxyController,
 	ProvideWebSocketController,
 	controllers.NewGatewayInternalController,
 	controllers.NewMonitorController,
@@ -156,6 +173,7 @@ var controllerProviderSet = wire.NewSet(
 	controllers.NewIdentityController,
 	controllers.NewMCPProxyScopeController,
 	controllers.NewAgentIdentityController,
+	controllers.NewEventsController,
 )
 
 var testClientProviderSet = wire.NewSet(
@@ -165,6 +183,7 @@ var testClientProviderSet = wire.NewSet(
 	ProvidePublisherProvisioner,
 	ProvideIdentityClient,
 	ProvideOrgResolver,
+	ProvideTestOUHandleLookup,
 	thundersvc.NewProber,
 	ProvideEnvThunderSecretReader,
 	ProvideEnvThunderURLReader,
@@ -407,6 +426,7 @@ var repositoryProviderSet = wire.NewSet(
 	ProvideEnvThunderSystemClientRepository,
 	ProvideEnvThunderURLRepository,
 	repositories.NewMCPProxyScopeRepository,
+	repositories.NewEventRepository,
 )
 
 var reconcileProviderSet = wire.NewSet(
@@ -496,10 +516,11 @@ func ProvideReconcileKinds(
 	return reconcile.Kinds{llmProvider, llmProxy, mcp, agent, restAgent}
 }
 
-// ProvideReconcileCore builds the reconcile core with the worker's intervals, lease and attempt budget from cfg.
+// ProvideReconcileCore builds the reconcile core with the worker's intervals, lease and attempt budget from cfg, and
+// the gateways it locks and checks contexts on.
 func ProvideReconcileCore(
-	db *gorm.DB, deploymentRepo repositories.DeploymentRepository, hub eventhub.EventHub, kinds reconcile.Kinds,
-	cfg *config.Config, logger *slog.Logger,
+	db *gorm.DB, deploymentRepo repositories.DeploymentRepository, gatewayRepo repositories.GatewayRepository,
+	hub eventhub.EventHub, kinds reconcile.Kinds, cfg *config.Config, logger *slog.Logger,
 ) *reconcile.Core {
 	seconds := func(n int) time.Duration { return time.Duration(n) * time.Second }
 	return reconcile.NewCore(db, deploymentRepo, hub, kinds, reconcile.Config{
@@ -508,7 +529,7 @@ func ProvideReconcileCore(
 		DriftInterval:  seconds(cfg.Reconcile.DriftIntervalSeconds),
 		Lease:          seconds(cfg.Reconcile.RenderLeaseSeconds),
 		AttemptBudget:  cfg.Reconcile.RenderAttemptBudget,
-	}, logger)
+	}, logger).WithGateways(gatewayRepo)
 }
 
 // ProvidePlatformGatewayService makes each new gateway-environment mapping place the environment's artifacts, and
@@ -671,7 +692,7 @@ func ProvideAgentIdentityInjectionService(
 	cfg config.Config,
 	logger *slog.Logger,
 ) services.AgentIdentityInjectionService {
-	return services.NewAgentIdentityInjectionService(repo, agentConfigRepo, mcpProxyScopeRepo, ocClient, cfg.SecretManager.AgentIdentityRefreshInterval, logger)
+	return services.NewAgentIdentityInjectionService(repo, agentConfigRepo, mcpProxyScopeRepo, ocClient, cfg.SecretManager.AgentIdentityRefreshInterval, logger, services.WithAgentIdentityForceSyncWait(cfg.SecretManager.AgentIdentityForceSyncWait), services.WithAgentIdentityForceSyncApplyTimeout(cfg.SecretManager.AgentIdentityForceSyncApplyTimeout))
 }
 
 func ProvideAgentIdentityInjectionServiceWithEndpointResolver(
@@ -685,12 +706,53 @@ func ProvideAgentIdentityInjectionServiceWithEndpointResolver(
 	logger *slog.Logger,
 ) services.AgentIdentityInjectionService {
 	if endpointResolver == nil {
-		return services.NewAgentIdentityInjectionService(repo, agentConfigRepo, mcpProxyScopeRepo, ocClient, cfg.SecretManager.AgentIdentityRefreshInterval, logger)
+		return services.NewAgentIdentityInjectionService(repo, agentConfigRepo, mcpProxyScopeRepo, ocClient, cfg.SecretManager.AgentIdentityRefreshInterval, logger, services.WithAgentIdentityForceSyncWait(cfg.SecretManager.AgentIdentityForceSyncWait), services.WithAgentIdentityForceSyncApplyTimeout(cfg.SecretManager.AgentIdentityForceSyncApplyTimeout))
 	}
 	resolveTokenEndpoint := func(ctx context.Context, ouID, orgNamespace, envName string) (string, error) {
 		return thundersvc.ResolveEnvThunderTokenEndpoint(ctx, endpointResolver, readThunderURL, ouID, orgNamespace, envName)
 	}
-	return services.NewAgentIdentityInjectionServiceWithTokenEndpointResolver(repo, agentConfigRepo, mcpProxyScopeRepo, ocClient, cfg.SecretManager.AgentIdentityRefreshInterval, logger, resolveTokenEndpoint)
+	return services.NewAgentIdentityInjectionServiceWithTokenEndpointResolver(repo, agentConfigRepo, mcpProxyScopeRepo, ocClient, cfg.SecretManager.AgentIdentityRefreshInterval, logger, resolveTokenEndpoint, services.WithAgentIdentityForceSyncWait(cfg.SecretManager.AgentIdentityForceSyncWait), services.WithAgentIdentityForceSyncApplyTimeout(cfg.SecretManager.AgentIdentityForceSyncApplyTimeout))
+}
+
+// ProvideDestinationDrivers registers the driver of each supported event
+// destination kind. Add a kind here once its driver exists.
+func ProvideDestinationDrivers(cfg config.Config) *eventdestinations.Registry {
+	return eventdestinations.NewRegistry(
+		webhook.New(cfg.Events.AllowPrivateDestinations),
+		notify.New(cfg.Events.AllowPrivateDestinations),
+	)
+}
+
+// ProvideEventBus connects to NATS, or starts the embedded in-memory server,
+// as EVENTS_MODE says. With events off it returns nil: nothing is published.
+func ProvideEventBus(cfg config.Config, logger *slog.Logger) (events.Bus, error) {
+	switch cfg.Events.Mode {
+	case config.EventsModeEmbedded:
+		bus, err := events.StartEmbedded(logger)
+		if err != nil {
+			return nil, err
+		}
+		return bus, nil
+	case config.EventsModeNATS:
+		bus, err := events.Connect(cfg.Events.NATSURL, cfg.Events.NATSToken, "agent-manager-service", logger)
+		if err != nil {
+			return nil, err
+		}
+		return bus, nil
+	default:
+		// A nil interface, not a nil *NATSBus, so callers' nil checks work.
+		logger.Info("Events disabled: EVENTS_MODE is off")
+		return nil, nil
+	}
+}
+
+// ProvideEventPublisher returns the publisher routes and the monitor
+// scheduler use. Without a bus, events are discarded.
+func ProvideEventPublisher(bus events.Bus, outbox events.Outbox, logger *slog.Logger) events.Publisher {
+	if bus == nil {
+		return events.NoopPublisher{}
+	}
+	return events.NewAsyncPublisher(bus, outbox, logger)
 }
 
 func ProvideThunderConfig(cfg config.Config) config.ThunderConfig {
@@ -706,6 +768,29 @@ func ProvideIdentityClient(cfg config.ThunderConfig) thundersvc.IdentityClient {
 		cfg.ResolveToHost,
 		cfg.ResolvedSystemResourceIdentifier(),
 	)
+}
+
+// ProvideOUHandleLookup maps an OU ID to its handle through the platform
+// Thunder, for the org override on the project MCP routes. It is deliberately
+// uncached: a handle can be renamed, and the lookup runs only on impersonated
+// requests. A missing OU is reported as middleware.ErrOverrideOrgNotFound.
+func ProvideOUHandleLookup(client thundersvc.IdentityClient) middleware.OUHandleLookup {
+	return func(ctx context.Context, ouID string) (string, error) {
+		handle, err := client.GetOUHandleByID(ctx, ouID)
+		if thundersvc.IsNotFound(err) {
+			return "", fmt.Errorf("%w: %w", middleware.ErrOverrideOrgNotFound, err)
+		}
+		return handle, err
+	}
+}
+
+// ProvideTestOUHandleLookup uses the test's lookup when it supplies one, and
+// the Thunder-backed lookup otherwise.
+func ProvideTestOUHandleLookup(testClients TestClients, client thundersvc.IdentityClient) middleware.OUHandleLookup {
+	if testClients.OUHandleLookup != nil {
+		return testClients.OUHandleLookup
+	}
+	return ProvideOUHandleLookup(client)
 }
 
 // ProvideOrgResolver creates the org resolver backed by Thunder, with a per-org OU ID cache.

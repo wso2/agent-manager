@@ -56,3 +56,12 @@ type InputInterfaceType string
 const (
 	InputInterfaceTypeHTTP InputInterfaceType = "HTTP"
 )
+
+// HealthCheckType is how a health check reaches the agent: TCP opens a connection
+// to the port, HTTP sends a GET request to a path.
+type HealthCheckType string
+
+const (
+	HealthCheckTypeTCP  HealthCheckType = "TCP"
+	HealthCheckTypeHTTP HealthCheckType = "HTTP"
+)

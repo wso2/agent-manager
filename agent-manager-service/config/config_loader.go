@@ -205,12 +205,12 @@ func loadEnvs() {
 		Token: r.readOptionalString("GITHUB_TOKEN", ""),
 	}
 
-	// Gateway manifest cache backend. "memory" (default) is process-local and only
-	// safe for a single replica; HA deployments must set this to "redis" so every
-	// replica reads and writes the same cached manifest.
 	config.GatewayPublicVhostFallback = r.readOptionalBool("GATEWAY_PUBLIC_VHOST_FALLBACK", false)
 	config.EvalJobsUsePublicGatewayURL = r.readOptionalBool("EVAL_JOBS_USE_PUBLIC_GATEWAY_URL", false)
 
+	// Gateway manifest cache backend. "memory" (default) is process-local and only
+	// safe for a single replica; HA deployments must set this to "redis" so every
+	// replica reads and writes the same per-gateway cached manifests.
 	config.GatewayManifestCache = GatewayManifestCacheConfig{
 		Backend: r.readOptionalString("GATEWAY_MANIFEST_CACHE_BACKEND", "memory"),
 		Redis: GatewayManifestCacheRedisConfig{
@@ -251,11 +251,13 @@ func loadEnvs() {
 	}
 
 	config.SecretManager = SecretManagerConfig{
-		Provider:                     r.readOptionalString("SECRET_MANAGER_PROVIDER", "openchoreo"),
-		TargetPlaneKind:              r.readOptionalString("SECRET_MANAGER_TARGET_PLANE_KIND", "ClusterDataPlane"),
-		TargetPlaneName:              r.readOptionalString("SECRET_MANAGER_TARGET_PLANE_NAME", "default"),
-		RefreshInterval:              r.readOptionalString("SECRET_MANAGER_REFRESH_INTERVAL", "1h"),
-		AgentIdentityRefreshInterval: r.readOptionalString("AGENT_IDENTITY_REFRESH_INTERVAL", "15s"),
+		Provider:                           r.readOptionalString("SECRET_MANAGER_PROVIDER", "openchoreo"),
+		TargetPlaneKind:                    r.readOptionalString("SECRET_MANAGER_TARGET_PLANE_KIND", "ClusterDataPlane"),
+		TargetPlaneName:                    r.readOptionalString("SECRET_MANAGER_TARGET_PLANE_NAME", "default"),
+		RefreshInterval:                    r.readOptionalString("SECRET_MANAGER_REFRESH_INTERVAL", "1h"),
+		AgentIdentityRefreshInterval:       r.readOptionalString("AGENT_IDENTITY_REFRESH_INTERVAL", "15s"),
+		AgentIdentityForceSyncWait:         r.readOptionalString("AGENT_IDENTITY_FORCE_SYNC_WAIT", "20s"),
+		AgentIdentityForceSyncApplyTimeout: r.readOptionalString("AGENT_IDENTITY_FORCE_SYNC_APPLY_TIMEOUT", "2m"),
 	}
 
 	// OpenBao KV store configuration (data plane - for deployment secrets)
@@ -370,6 +372,23 @@ func loadEnvs() {
 	}
 	r.errors = append(r.errors, validateAuditConfig(config.Audit)...)
 
+	// Events default to off, so an install without a bus behaves as before.
+	config.Events = EventsConfig{
+		Mode:                     r.readOptionalString("EVENTS_MODE", ""),
+		NATSURL:                  r.readOptionalString("EVENTS_NATS_URL", ""),
+		NATSToken:                r.readOptionalString("EVENTS_NATS_TOKEN", ""),
+		AllowPrivateDestinations: r.readOptionalBool("EVENTS_ALLOW_PRIVATE_DESTINATIONS", false),
+		DeliveryMaxAttempts:      int(r.readOptionalInt64("EVENTS_DELIVERY_MAX_ATTEMPTS", 6)),
+		DeliveryRetentionDays:    int(r.readOptionalInt64("EVENTS_DELIVERY_RETENTION_DAYS", 14)),
+	}
+	if config.Events.Mode == "" {
+		config.Events.Mode = EventsModeOff
+		if config.Events.NATSURL != "" {
+			config.Events.Mode = EventsModeNATS
+		}
+	}
+	r.errors = append(r.errors, validateEventsConfig(config.Events)...)
+
 	// Resource limits for agent resource configurations (operator-controlled ceilings)
 	config.PerAgentResourceLimits = ResourceLimitsConfig{
 		MaxReplicas: int(r.readOptionalInt64("RESOURCE_MAX_REPLICAS", 10)),
@@ -439,16 +458,18 @@ var validPostgresSSLModes = map[string]struct{}{
 // agentIdentityInjectionService's own default at first use (see
 // secretSyncWaitDuration's doc comment).
 func validateSecretManagerConfig(cfg *Config, r *configReader) {
-	d, err := time.ParseDuration(cfg.SecretManager.AgentIdentityRefreshInterval)
+	validatePositiveDuration(r, "AGENT_IDENTITY_REFRESH_INTERVAL", cfg.SecretManager.AgentIdentityRefreshInterval)
+	validatePositiveDuration(r, "AGENT_IDENTITY_FORCE_SYNC_WAIT", cfg.SecretManager.AgentIdentityForceSyncWait)
+	validatePositiveDuration(r, "AGENT_IDENTITY_FORCE_SYNC_APPLY_TIMEOUT", cfg.SecretManager.AgentIdentityForceSyncApplyTimeout)
+}
+
+func validatePositiveDuration(r *configReader, name, value string) {
+	d, err := time.ParseDuration(value)
 	switch {
 	case err != nil:
-		r.errors = append(r.errors, fmt.Errorf(
-			"AGENT_IDENTITY_REFRESH_INTERVAL %q is not a valid duration: %w", cfg.SecretManager.AgentIdentityRefreshInterval, err,
-		))
+		r.errors = append(r.errors, fmt.Errorf("%s %q is not a valid duration: %w", name, value, err))
 	case d <= 0:
-		r.errors = append(r.errors, fmt.Errorf(
-			"AGENT_IDENTITY_REFRESH_INTERVAL must be a positive duration, got %q", cfg.SecretManager.AgentIdentityRefreshInterval,
-		))
+		r.errors = append(r.errors, fmt.Errorf("%s must be a positive duration, got %q", name, value))
 	}
 }
 
@@ -868,6 +889,29 @@ func validateAuditConfig(cfg AuditConfig) []error {
 			"AUDIT_BATCH_SIZE (%d) must not exceed AUDIT_BUFFER_SIZE (%d)",
 			cfg.BatchSize, cfg.BufferSize,
 		))
+	}
+	return errs
+}
+
+// validateEventsConfig checks the event bus settings.
+func validateEventsConfig(cfg EventsConfig) []error {
+	var errs []error
+	switch cfg.Mode {
+	case EventsModeOff:
+		return nil
+	case EventsModeEmbedded:
+	case EventsModeNATS:
+		if cfg.NATSURL == "" {
+			errs = append(errs, fmt.Errorf("EVENTS_NATS_URL is required when EVENTS_MODE is nats"))
+		}
+	default:
+		return []error{fmt.Errorf("EVENTS_MODE must be nats, embedded or off, got %q", cfg.Mode)}
+	}
+	if cfg.DeliveryMaxAttempts <= 0 {
+		errs = append(errs, fmt.Errorf("EVENTS_DELIVERY_MAX_ATTEMPTS must be positive, got %d", cfg.DeliveryMaxAttempts))
+	}
+	if cfg.DeliveryRetentionDays <= 0 {
+		errs = append(errs, fmt.Errorf("EVENTS_DELIVERY_RETENTION_DAYS must be positive, got %d", cfg.DeliveryRetentionDays))
 	}
 	return errs
 }

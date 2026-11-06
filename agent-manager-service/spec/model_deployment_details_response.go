@@ -36,7 +36,8 @@ type DeploymentDetailsResponse struct {
 	// The agent's deployment status on the environment's ingress gateway, the only place an API agent is served. DEPLOYING until the gateway acknowledges the deployment, including while it waits for an input (see gatewayStatusReason). An environment with no ingress gateway is UNDEPLOYED with gatewayStatusReason \"no gateway in this environment\". Absent for an agent the gateway does not serve, and when the gateway status could not be read.
 	GatewayStatus *string `json:"gatewayStatus,omitempty"`
 	// Why gatewayStatus is what it is: the gateway's error code, DEPLOYMENT_TIMEOUT, what a deploy is waiting for, or \"no gateway in this environment\". Empty when there is nothing to say.
-	GatewayStatusReason *string `json:"gatewayStatusReason,omitempty"`
+	GatewayStatusReason *string       `json:"gatewayStatusReason,omitempty"`
+	HealthChecks        *HealthChecks `json:"healthChecks,omitempty"`
 }
 
 // NewDeploymentDetailsResponse instantiates a new DeploymentDetailsResponse object
@@ -323,6 +324,38 @@ func (o *DeploymentDetailsResponse) SetGatewayStatusReason(v string) {
 	o.GatewayStatusReason = &v
 }
 
+// GetHealthChecks returns the HealthChecks field value if set, zero value otherwise.
+func (o *DeploymentDetailsResponse) GetHealthChecks() HealthChecks {
+	if o == nil || IsNil(o.HealthChecks) {
+		var ret HealthChecks
+		return ret
+	}
+	return *o.HealthChecks
+}
+
+// GetHealthChecksOk returns a tuple with the HealthChecks field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *DeploymentDetailsResponse) GetHealthChecksOk() (*HealthChecks, bool) {
+	if o == nil || IsNil(o.HealthChecks) {
+		return nil, false
+	}
+	return o.HealthChecks, true
+}
+
+// HasHealthChecks returns a boolean if a field has been set.
+func (o *DeploymentDetailsResponse) HasHealthChecks() bool {
+	if o != nil && !IsNil(o.HealthChecks) {
+		return true
+	}
+
+	return false
+}
+
+// SetHealthChecks gets a reference to the given HealthChecks and assigns it to the HealthChecks field.
+func (o *DeploymentDetailsResponse) SetHealthChecks(v HealthChecks) {
+	o.HealthChecks = &v
+}
+
 func (o DeploymentDetailsResponse) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -353,6 +386,9 @@ func (o DeploymentDetailsResponse) ToMap() (map[string]interface{}, error) {
 	}
 	if !IsNil(o.GatewayStatusReason) {
 		toSerialize["gatewayStatusReason"] = o.GatewayStatusReason
+	}
+	if !IsNil(o.HealthChecks) {
+		toSerialize["healthChecks"] = o.HealthChecks
 	}
 	return toSerialize, nil
 }

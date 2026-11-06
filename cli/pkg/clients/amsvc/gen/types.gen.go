@@ -12,6 +12,10 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
+const (
+	BearerAuthScopes = "bearerAuth.Scopes"
+)
+
 // Defines values for A2AProxyResponseStatus.
 const (
 	A2AProxyResponseStatusDEPLOYED    A2AProxyResponseStatus = "DEPLOYED"
@@ -651,6 +655,177 @@ func (e EvaluatorScoreSummaryLevel) Valid() bool {
 	}
 }
 
+// Defines values for EventDeliveryResponseStatus.
+const (
+	EventDeliveryResponseStatusDelivered EventDeliveryResponseStatus = "delivered"
+	EventDeliveryResponseStatusFailed    EventDeliveryResponseStatus = "failed"
+	EventDeliveryResponseStatusPending   EventDeliveryResponseStatus = "pending"
+	EventDeliveryResponseStatusSkipped   EventDeliveryResponseStatus = "skipped"
+)
+
+// Valid indicates whether the value is a known member of the EventDeliveryResponseStatus enum.
+func (e EventDeliveryResponseStatus) Valid() bool {
+	switch e {
+	case EventDeliveryResponseStatusDelivered:
+		return true
+	case EventDeliveryResponseStatusFailed:
+		return true
+	case EventDeliveryResponseStatusPending:
+		return true
+	case EventDeliveryResponseStatusSkipped:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EventDestinationRequestAvailability.
+const (
+	EventDestinationRequestAvailabilityAll      EventDestinationRequestAvailability = "all"
+	EventDestinationRequestAvailabilityOrg      EventDestinationRequestAvailability = "org"
+	EventDestinationRequestAvailabilityProjects EventDestinationRequestAvailability = "projects"
+)
+
+// Valid indicates whether the value is a known member of the EventDestinationRequestAvailability enum.
+func (e EventDestinationRequestAvailability) Valid() bool {
+	switch e {
+	case EventDestinationRequestAvailabilityAll:
+		return true
+	case EventDestinationRequestAvailabilityOrg:
+		return true
+	case EventDestinationRequestAvailabilityProjects:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EventDestinationResponseAvailability.
+const (
+	EventDestinationResponseAvailabilityAll      EventDestinationResponseAvailability = "all"
+	EventDestinationResponseAvailabilityOrg      EventDestinationResponseAvailability = "org"
+	EventDestinationResponseAvailabilityProjects EventDestinationResponseAvailability = "projects"
+)
+
+// Valid indicates whether the value is a known member of the EventDestinationResponseAvailability enum.
+func (e EventDestinationResponseAvailability) Valid() bool {
+	switch e {
+	case EventDestinationResponseAvailabilityAll:
+		return true
+	case EventDestinationResponseAvailabilityOrg:
+		return true
+	case EventDestinationResponseAvailabilityProjects:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EventDestinationResponseHealth.
+const (
+	EventDestinationResponseHealthFailing EventDestinationResponseHealth = "failing"
+	EventDestinationResponseHealthHealthy EventDestinationResponseHealth = "healthy"
+	EventDestinationResponseHealthIdle    EventDestinationResponseHealth = "idle"
+)
+
+// Valid indicates whether the value is a known member of the EventDestinationResponseHealth enum.
+func (e EventDestinationResponseHealth) Valid() bool {
+	switch e {
+	case EventDestinationResponseHealthFailing:
+		return true
+	case EventDestinationResponseHealthHealthy:
+		return true
+	case EventDestinationResponseHealthIdle:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EventDestinationSummaryHealth.
+const (
+	EventDestinationSummaryHealthFailing EventDestinationSummaryHealth = "failing"
+	EventDestinationSummaryHealthHealthy EventDestinationSummaryHealth = "healthy"
+	EventDestinationSummaryHealthIdle    EventDestinationSummaryHealth = "idle"
+)
+
+// Valid indicates whether the value is a known member of the EventDestinationSummaryHealth enum.
+func (e EventDestinationSummaryHealth) Valid() bool {
+	switch e {
+	case EventDestinationSummaryHealthFailing:
+		return true
+	case EventDestinationSummaryHealthHealthy:
+		return true
+	case EventDestinationSummaryHealthIdle:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EventSubscriptionRefScope.
+const (
+	EventSubscriptionRefScopeAgent   EventSubscriptionRefScope = "agent"
+	EventSubscriptionRefScopeOrg     EventSubscriptionRefScope = "org"
+	EventSubscriptionRefScopeProject EventSubscriptionRefScope = "project"
+)
+
+// Valid indicates whether the value is a known member of the EventSubscriptionRefScope enum.
+func (e EventSubscriptionRefScope) Valid() bool {
+	switch e {
+	case EventSubscriptionRefScopeAgent:
+		return true
+	case EventSubscriptionRefScopeOrg:
+		return true
+	case EventSubscriptionRefScopeProject:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EventSubscriptionResponseScope.
+const (
+	EventSubscriptionResponseScopeAgent   EventSubscriptionResponseScope = "agent"
+	EventSubscriptionResponseScopeOrg     EventSubscriptionResponseScope = "org"
+	EventSubscriptionResponseScopeProject EventSubscriptionResponseScope = "project"
+)
+
+// Valid indicates whether the value is a known member of the EventSubscriptionResponseScope enum.
+func (e EventSubscriptionResponseScope) Valid() bool {
+	switch e {
+	case EventSubscriptionResponseScopeAgent:
+		return true
+	case EventSubscriptionResponseScopeOrg:
+		return true
+	case EventSubscriptionResponseScopeProject:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EventTypeScope.
+const (
+	EventTypeScopeAgent   EventTypeScope = "agent"
+	EventTypeScopeOrg     EventTypeScope = "org"
+	EventTypeScopeProject EventTypeScope = "project"
+)
+
+// Valid indicates whether the value is a known member of the EventTypeScope enum.
+func (e EventTypeScope) Valid() bool {
+	switch e {
+	case EventTypeScopeAgent:
+		return true
+	case EventTypeScopeOrg:
+		return true
+	case EventTypeScopeProject:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ExtractionIdentifierLocation.
 const (
 	ExtractionIdentifierLocationHeader     ExtractionIdentifierLocation = "header"
@@ -687,6 +862,24 @@ func (e GatewayEnvironmentResponseIsolationTier) Valid() bool {
 	case GatewayEnvironmentResponseIsolationTierGvisor:
 		return true
 	case GatewayEnvironmentResponseIsolationTierKata:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GatewayHosting.
+const (
+	MANAGED    GatewayHosting = "MANAGED"
+	SELFHOSTED GatewayHosting = "SELF_HOSTED"
+)
+
+// Valid indicates whether the value is a known member of the GatewayHosting enum.
+func (e GatewayHosting) Valid() bool {
+	switch e {
+	case MANAGED:
+		return true
+	case SELFHOSTED:
 		return true
 	default:
 		return false
@@ -795,6 +988,24 @@ func (e GroupedScoresResponseLevel) Valid() bool {
 	case GroupedScoresResponseLevelAgent:
 		return true
 	case GroupedScoresResponseLevelLlm:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for HealthCheckType.
+const (
+	HTTP HealthCheckType = "HTTP"
+	TCP  HealthCheckType = "TCP"
+)
+
+// Valid indicates whether the value is a known member of the HealthCheckType enum.
+func (e HealthCheckType) Valid() bool {
+	switch e {
+	case HTTP:
+		return true
+	case TCP:
 		return true
 	default:
 		return false
@@ -1032,6 +1243,63 @@ func (e MCPEndpointEnvironmentDeploymentStatus) Valid() bool {
 	}
 }
 
+// Defines values for MCPProjectDeploymentStatus.
+const (
+	MCPProjectDeploymentStatusDeployed  MCPProjectDeploymentStatus = "Deployed"
+	MCPProjectDeploymentStatusDeploying MCPProjectDeploymentStatus = "Deploying"
+	MCPProjectDeploymentStatusFailed    MCPProjectDeploymentStatus = "Failed"
+)
+
+// Valid indicates whether the value is a known member of the MCPProjectDeploymentStatus enum.
+func (e MCPProjectDeploymentStatus) Valid() bool {
+	switch e {
+	case MCPProjectDeploymentStatusDeployed:
+		return true
+	case MCPProjectDeploymentStatusDeploying:
+		return true
+	case MCPProjectDeploymentStatusFailed:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for MCPProxyEnvironmentUpstreamAuthType.
+const (
+	MCPProxyEnvironmentUpstreamAuthTypeApiKey MCPProxyEnvironmentUpstreamAuthType = "api-key"
+	MCPProxyEnvironmentUpstreamAuthTypeNone   MCPProxyEnvironmentUpstreamAuthType = "none"
+)
+
+// Valid indicates whether the value is a known member of the MCPProxyEnvironmentUpstreamAuthType enum.
+func (e MCPProxyEnvironmentUpstreamAuthType) Valid() bool {
+	switch e {
+	case MCPProxyEnvironmentUpstreamAuthTypeApiKey:
+		return true
+	case MCPProxyEnvironmentUpstreamAuthTypeNone:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for MCPProxyEnvironmentUpstreamAuthRedactedType.
+const (
+	MCPProxyEnvironmentUpstreamAuthRedactedTypeApiKey MCPProxyEnvironmentUpstreamAuthRedactedType = "api-key"
+	MCPProxyEnvironmentUpstreamAuthRedactedTypeNone   MCPProxyEnvironmentUpstreamAuthRedactedType = "none"
+)
+
+// Valid indicates whether the value is a known member of the MCPProxyEnvironmentUpstreamAuthRedactedType enum.
+func (e MCPProxyEnvironmentUpstreamAuthRedactedType) Valid() bool {
+	switch e {
+	case MCPProxyEnvironmentUpstreamAuthRedactedTypeApiKey:
+		return true
+	case MCPProxyEnvironmentUpstreamAuthRedactedTypeNone:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for MonitorResponseStatus.
 const (
 	MonitorResponseStatusActive    MonitorResponseStatus = "Active"
@@ -1076,22 +1344,22 @@ func (e MonitorResponseType) Valid() bool {
 
 // Defines values for MonitorRunResponseStatus.
 const (
-	Failed  MonitorRunResponseStatus = "failed"
-	Pending MonitorRunResponseStatus = "pending"
-	Running MonitorRunResponseStatus = "running"
-	Success MonitorRunResponseStatus = "success"
+	MonitorRunResponseStatusFailed  MonitorRunResponseStatus = "failed"
+	MonitorRunResponseStatusPending MonitorRunResponseStatus = "pending"
+	MonitorRunResponseStatusRunning MonitorRunResponseStatus = "running"
+	MonitorRunResponseStatusSuccess MonitorRunResponseStatus = "success"
 )
 
 // Valid indicates whether the value is a known member of the MonitorRunResponseStatus enum.
 func (e MonitorRunResponseStatus) Valid() bool {
 	switch e {
-	case Failed:
+	case MonitorRunResponseStatusFailed:
 		return true
-	case Pending:
+	case MonitorRunResponseStatusPending:
 		return true
-	case Running:
+	case MonitorRunResponseStatusRunning:
 		return true
-	case Success:
+	case MonitorRunResponseStatusSuccess:
 		return true
 	default:
 		return false
@@ -1155,6 +1423,21 @@ func (e RateLimitResetWindowUnit) Valid() bool {
 	case RateLimitResetWindowUnitMinute:
 		return true
 	case RateLimitResetWindowUnitSecond:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SelfHostedGatewayRequestFunctionalityType.
+const (
+	Ai SelfHostedGatewayRequestFunctionalityType = "ai"
+)
+
+// Valid indicates whether the value is a known member of the SelfHostedGatewayRequestFunctionalityType enum.
+func (e SelfHostedGatewayRequestFunctionalityType) Valid() bool {
+	switch e {
+	case Ai:
 		return true
 	default:
 		return false
@@ -1239,6 +1522,51 @@ func (e ListCatalogResourcesParamsKind) Valid() bool {
 	}
 }
 
+// Defines values for ListOrgEventDeliveriesParamsStatus.
+const (
+	ListOrgEventDeliveriesParamsStatusDelivered ListOrgEventDeliveriesParamsStatus = "delivered"
+	ListOrgEventDeliveriesParamsStatusFailed    ListOrgEventDeliveriesParamsStatus = "failed"
+	ListOrgEventDeliveriesParamsStatusPending   ListOrgEventDeliveriesParamsStatus = "pending"
+	ListOrgEventDeliveriesParamsStatusSkipped   ListOrgEventDeliveriesParamsStatus = "skipped"
+)
+
+// Valid indicates whether the value is a known member of the ListOrgEventDeliveriesParamsStatus enum.
+func (e ListOrgEventDeliveriesParamsStatus) Valid() bool {
+	switch e {
+	case ListOrgEventDeliveriesParamsStatusDelivered:
+		return true
+	case ListOrgEventDeliveriesParamsStatusFailed:
+		return true
+	case ListOrgEventDeliveriesParamsStatusPending:
+		return true
+	case ListOrgEventDeliveriesParamsStatusSkipped:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListEventTypesParamsScope.
+const (
+	ListEventTypesParamsScopeAgent   ListEventTypesParamsScope = "agent"
+	ListEventTypesParamsScopeOrg     ListEventTypesParamsScope = "org"
+	ListEventTypesParamsScopeProject ListEventTypesParamsScope = "project"
+)
+
+// Valid indicates whether the value is a known member of the ListEventTypesParamsScope enum.
+func (e ListEventTypesParamsScope) Valid() bool {
+	switch e {
+	case ListEventTypesParamsScopeAgent:
+		return true
+	case ListEventTypesParamsScopeOrg:
+		return true
+	case ListEventTypesParamsScopeProject:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ListGatewaysParamsStatus.
 const (
 	ACTIVE       ListGatewaysParamsStatus = "ACTIVE"
@@ -1287,6 +1615,30 @@ func (e GetLLMProviderDeploymentsParamsStatus) Valid() bool {
 	case GetLLMProviderDeploymentsParamsStatusUNDEPLOYED:
 		return true
 	case GetLLMProviderDeploymentsParamsStatusUNDEPLOYING:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListAgentEventDeliveriesParamsStatus.
+const (
+	ListAgentEventDeliveriesParamsStatusDelivered ListAgentEventDeliveriesParamsStatus = "delivered"
+	ListAgentEventDeliveriesParamsStatusFailed    ListAgentEventDeliveriesParamsStatus = "failed"
+	ListAgentEventDeliveriesParamsStatusPending   ListAgentEventDeliveriesParamsStatus = "pending"
+	ListAgentEventDeliveriesParamsStatusSkipped   ListAgentEventDeliveriesParamsStatus = "skipped"
+)
+
+// Valid indicates whether the value is a known member of the ListAgentEventDeliveriesParamsStatus enum.
+func (e ListAgentEventDeliveriesParamsStatus) Valid() bool {
+	switch e {
+	case ListAgentEventDeliveriesParamsStatusDelivered:
+		return true
+	case ListAgentEventDeliveriesParamsStatusFailed:
+		return true
+	case ListAgentEventDeliveriesParamsStatusPending:
+		return true
+	case ListAgentEventDeliveriesParamsStatusSkipped:
 		return true
 	default:
 		return false
@@ -1344,6 +1696,30 @@ func (e GetAgentTraceScoresParamsSortOrder) Valid() bool {
 	case Asc:
 		return true
 	case Desc:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListProjectEventDeliveriesParamsStatus.
+const (
+	ListProjectEventDeliveriesParamsStatusDelivered ListProjectEventDeliveriesParamsStatus = "delivered"
+	ListProjectEventDeliveriesParamsStatusFailed    ListProjectEventDeliveriesParamsStatus = "failed"
+	ListProjectEventDeliveriesParamsStatusPending   ListProjectEventDeliveriesParamsStatus = "pending"
+	ListProjectEventDeliveriesParamsStatusSkipped   ListProjectEventDeliveriesParamsStatus = "skipped"
+)
+
+// Valid indicates whether the value is a known member of the ListProjectEventDeliveriesParamsStatus enum.
+func (e ListProjectEventDeliveriesParamsStatus) Valid() bool {
+	switch e {
+	case ListProjectEventDeliveriesParamsStatusDelivered:
+		return true
+	case ListProjectEventDeliveriesParamsStatusFailed:
+		return true
+	case ListProjectEventDeliveriesParamsStatusPending:
+		return true
+	case ListProjectEventDeliveriesParamsStatusSkipped:
 		return true
 	default:
 		return false
@@ -1882,6 +2258,9 @@ type AgentResponse struct {
 	Description string          `json:"description"`
 	DisplayName string          `json:"displayName"`
 
+	// HealthChecks Startup, readiness and liveness checks for the agent's container. A check that is not set uses the default: startup and readiness are TCP checks on the agent's port, and there is no liveness check.
+	HealthChecks *HealthChecks `json:"healthChecks,omitempty"`
+
 	// InputInterface Endpoint configurations
 	InputInterface *InputInterface `json:"inputInterface,omitempty"`
 
@@ -2027,7 +2406,10 @@ type BuildDetailsResponse struct {
 	// DurationSeconds Build duration in seconds
 	DurationSeconds *int       `json:"durationSeconds,omitempty"`
 	EndedAt         *time.Time `json:"endedAt,omitempty"`
-	ImageId         *string    `json:"imageId,omitempty"`
+
+	// HealthChecks Startup, readiness and liveness checks for the agent's container. A check that is not set uses the default: startup and readiness are TCP checks on the agent's port, and there is no liveness check.
+	HealthChecks *HealthChecks `json:"healthChecks,omitempty"`
+	ImageId      *string       `json:"imageId,omitempty"`
 
 	// InputInterface Endpoint configurations
 	InputInterface *InputInterface `json:"inputInterface,omitempty"`
@@ -2083,9 +2465,12 @@ type BuildResponse struct {
 	// BuildParameters Parameters used for the build
 	BuildParameters BuildParameters `json:"buildParameters"`
 	EndedAt         *time.Time      `json:"endedAt,omitempty"`
-	ImageId         *string         `json:"imageId,omitempty"`
-	ProjectName     string          `json:"projectName"`
-	StartedAt       time.Time       `json:"startedAt"`
+
+	// HealthChecks Startup, readiness and liveness checks for the agent's container. A check that is not set uses the default: startup and readiness are TCP checks on the agent's port, and there is no liveness check.
+	HealthChecks *HealthChecks `json:"healthChecks,omitempty"`
+	ImageId      *string       `json:"imageId,omitempty"`
+	ProjectName  string        `json:"projectName"`
+	StartedAt    time.Time     `json:"startedAt"`
 
 	// Status Overall build status, derived from the underlying workflow phase. Succeeded means the image was built and pushed; Completed additionally means the workload CR was updated. Per-step progress is in `steps`.
 	Status *BuildResponseStatus `json:"status,omitempty"`
@@ -2315,6 +2700,12 @@ type ConfigResponse struct {
 	// one half of it. Absent is treated as false.
 	ConsoleAnalyticsEnabled *bool `json:"consoleAnalyticsEnabled,omitempty"`
 
+	// EventsEnabled Whether this deployment delivers platform events to event
+	// destinations, that is, whether it runs an event bus (EVENTS_MODE is
+	// not off). The console hides Events when false. Absent is treated as
+	// false.
+	EventsEnabled *bool `json:"eventsEnabled,omitempty"`
+
 	// ObserverBaseUrl Base URL for the agent-manager-observer service
 	ObserverBaseUrl string `json:"observerBaseUrl"`
 }
@@ -2510,6 +2901,9 @@ type CreateAgentRequest struct {
 	// GithubApp Optional GitHub App source binding for cloud deployments. The control plane consumes this metadata, persists it through the deployment-provided repository source provider, and never forwards it to OpenChoreo. When omitted, public-repository and PAT-backed behavior is unchanged.
 	GithubApp *GitHubAppSource `json:"githubApp,omitempty"`
 
+	// HealthChecks Startup, readiness and liveness checks for the agent's container. A check that is not set uses the default: startup and readiness are TCP checks on the agent's port, and there is no liveness check.
+	HealthChecks *HealthChecks `json:"healthChecks,omitempty"`
+
 	// InputInterface Endpoint configurations
 	InputInterface *InputInterface `json:"inputInterface,omitempty"`
 
@@ -2622,7 +3016,7 @@ type CreateGatewayRequest struct {
 	// Name Unique gateway name (lowercase, alphanumeric with hyphens)
 	Name string `json:"name"`
 
-	// OrgId OU ID of the organization the gateway belongs to.
+	// OrgId Optional. OU ID of the caller's organization. The organization always comes from the token; a different value is refused with 403.
 	OrgId *string `json:"orgId,omitempty"`
 
 	// Region Deployment region (optional)
@@ -2901,6 +3295,9 @@ type DeploymentDetailsResponse struct {
 
 	// GatewayStatusReason Why gatewayStatus is what it is: the gateway's error code, DEPLOYMENT_TIMEOUT, what a deploy is waiting for, or "no gateway in this environment". Empty when there is nothing to say.
 	GatewayStatusReason *string `json:"gatewayStatusReason,omitempty"`
+
+	// HealthChecks Startup, readiness and liveness checks for the agent's container. A check that is not set uses the default: startup and readiness are TCP checks on the agent's port, and there is no liveness check.
+	HealthChecks *HealthChecks `json:"healthChecks,omitempty"`
 
 	// ImageId Container image ID
 	ImageId string `json:"imageId"`
@@ -3256,6 +3653,280 @@ type EvaluatorScoreSummary struct {
 // EvaluatorScoreSummaryLevel Evaluation level
 type EvaluatorScoreSummaryLevel string
 
+// EventDeliveryCounts defines model for EventDeliveryCounts.
+type EventDeliveryCounts struct {
+	Delivered int `json:"delivered"`
+	Failed    int `json:"failed"`
+	Pending   int `json:"pending"`
+	Skipped   int `json:"skipped"`
+}
+
+// EventDeliveryListResponse defines model for EventDeliveryListResponse.
+type EventDeliveryListResponse struct {
+	Deliveries []EventDeliveryResponse `json:"deliveries"`
+
+	// Total Deliveries matching the query, ignoring limit and offset.
+	Total int `json:"total"`
+}
+
+// EventDeliveryResponse defines model for EventDeliveryResponse.
+type EventDeliveryResponse struct {
+	AgentName   *string    `json:"agentName,omitempty"`
+	Attempts    int32      `json:"attempts"`
+	CreatedAt   time.Time  `json:"createdAt"`
+	DeliveredAt *time.Time `json:"deliveredAt,omitempty"`
+
+	// Destination A destination as subscriptions below the organization see it, without its settings.
+	Destination  *EventDestinationSummary    `json:"destination,omitempty"`
+	Environment  *string                     `json:"environment,omitempty"`
+	EventId      string                      `json:"eventId"`
+	EventScope   string                      `json:"eventScope"`
+	EventType    string                      `json:"eventType"`
+	Id           string                      `json:"id"`
+	LastError    *string                     `json:"lastError,omitempty"`
+	ProjectName  *string                     `json:"projectName,omitempty"`
+	ResponseCode *int32                      `json:"responseCode,omitempty"`
+	Status       EventDeliveryResponseStatus `json:"status"`
+
+	// Subscriptions The subscriptions that sent the event to the destination.
+	Subscriptions []EventSubscriptionRef `json:"subscriptions"`
+	UpdatedAt     time.Time              `json:"updatedAt"`
+}
+
+// EventDeliveryResponseStatus defines model for EventDeliveryResponse.Status.
+type EventDeliveryResponseStatus string
+
+// EventDestinationKind defines model for EventDestinationKind.
+type EventDestinationKind struct {
+	// GeneratedSecret Destinations of this kind get a generated secret that can be rotated.
+	GeneratedSecret bool `json:"generatedSecret"`
+
+	// Kind webhook or notify.
+	Kind string `json:"kind"`
+
+	// Services The services the kind delivers to, if it has several.
+	Services []EventDestinationKindService `json:"services"`
+
+	// SuppliedCredential The kind's settings include a credential that is never returned.
+	SuppliedCredential bool `json:"suppliedCredential"`
+}
+
+// EventDestinationKindListResponse defines model for EventDestinationKindListResponse.
+type EventDestinationKindListResponse struct {
+	Kinds []EventDestinationKind `json:"kinds"`
+}
+
+// EventDestinationKindService defines model for EventDestinationKindService.
+type EventDestinationKindService struct {
+	Category string `json:"category"`
+
+	// DocsUrl How to get the values the URL needs.
+	DocsUrl string `json:"docsUrl"`
+
+	// Id The service, and the scheme of its URL, e.g. slack.
+	Id    string `json:"id"`
+	Label string `json:"label"`
+
+	// UrlFormat The shape of the service URL.
+	UrlFormat string `json:"urlFormat"`
+}
+
+// EventDestinationListResponse defines model for EventDestinationListResponse.
+type EventDestinationListResponse struct {
+	Destinations []EventDestinationResponse `json:"destinations"`
+}
+
+// EventDestinationRequest defines model for EventDestinationRequest.
+type EventDestinationRequest struct {
+	// Availability Which subscriptions below the organization may use the destination:
+	// those of every project, none, or those of the listed projects.
+	// Organization subscriptions may use any destination.
+	Availability EventDestinationRequestAvailability `json:"availability"`
+
+	// Config The kind's settings. webhook: {"url"}. notify: {"service", "url"},
+	// where url is the Shoutrrr service URL; it is stored encrypted and
+	// never returned. Leave url out on update to keep it.
+	Config      map[string]interface{} `json:"config"`
+	Description *string                `json:"description,omitempty"`
+
+	// Kind webhook or notify. Cannot change on update.
+	Kind string `json:"kind"`
+
+	// Name Unique in the organization, ignoring case.
+	Name string `json:"name"`
+
+	// Projects The projects whose subscriptions may use it, for availability projects.
+	Projects *[]string `json:"projects,omitempty"`
+}
+
+// EventDestinationRequestAvailability Which subscriptions below the organization may use the destination:
+// those of every project, none, or those of the listed projects.
+// Organization subscriptions may use any destination.
+type EventDestinationRequestAvailability string
+
+// EventDestinationResponse defines model for EventDestinationResponse.
+type EventDestinationResponse struct {
+	Availability EventDestinationResponseAvailability `json:"availability"`
+
+	// Config The kind's settings, masked for callers who cannot manage destinations.
+	Config map[string]interface{} `json:"config"`
+
+	// ConsecutiveFailures Deliveries that failed or are being retried since the latest success.
+	ConsecutiveFailures int       `json:"consecutiveFailures"`
+	CreatedAt           time.Time `json:"createdAt"`
+	CreatedBy           string    `json:"createdBy"`
+	Description         string    `json:"description"`
+
+	// Health healthy: the latest delivery succeeded. failing: deliveries failed,
+	// or are being retried, since the latest success. idle: nothing was
+	// delivered yet.
+	Health         EventDestinationResponseHealth `json:"health"`
+	Id             string                         `json:"id"`
+	Kind           string                         `json:"kind"`
+	LastDeliveryAt *time.Time                     `json:"lastDeliveryAt,omitempty"`
+	Name           string                         `json:"name"`
+	Projects       []string                       `json:"projects"`
+
+	// Secret The generated secret. Only in the response that creates it.
+	Secret *string `json:"secret,omitempty"`
+
+	// Service The notification service, for notify destinations.
+	Service *string `json:"service,omitempty"`
+
+	// Subscriptions The subscriptions that send to it. Only when getting one destination.
+	Subscriptions *[]EventSubscriptionRef `json:"subscriptions,omitempty"`
+	UpdatedAt     time.Time               `json:"updatedAt"`
+
+	// UsedBy The number of subscriptions that send to it.
+	UsedBy int `json:"usedBy"`
+}
+
+// EventDestinationResponseAvailability defines model for EventDestinationResponse.Availability.
+type EventDestinationResponseAvailability string
+
+// EventDestinationResponseHealth healthy: the latest delivery succeeded. failing: deliveries failed,
+// or are being retried, since the latest success. idle: nothing was
+// delivered yet.
+type EventDestinationResponseHealth string
+
+// EventDestinationSecretResponse defines model for EventDestinationSecretResponse.
+type EventDestinationSecretResponse struct {
+	Secret string `json:"secret"`
+}
+
+// EventDestinationSummary A destination as subscriptions below the organization see it, without its settings.
+type EventDestinationSummary struct {
+	Health  EventDestinationSummaryHealth `json:"health"`
+	Id      string                        `json:"id"`
+	Kind    string                        `json:"kind"`
+	Name    string                        `json:"name"`
+	Service *string                       `json:"service,omitempty"`
+}
+
+// EventDestinationSummaryHealth defines model for EventDestinationSummary.Health.
+type EventDestinationSummaryHealth string
+
+// EventDestinationSummaryListResponse defines model for EventDestinationSummaryListResponse.
+type EventDestinationSummaryListResponse struct {
+	Destinations []EventDestinationSummary `json:"destinations"`
+}
+
+// EventDestinationTestResponse defines model for EventDestinationTestResponse.
+type EventDestinationTestResponse struct {
+	Delivered  bool    `json:"delivered"`
+	Error      *string `json:"error,omitempty"`
+	StatusCode *int32  `json:"statusCode,omitempty"`
+}
+
+// EventSubscriptionListResponse defines model for EventSubscriptionListResponse.
+type EventSubscriptionListResponse struct {
+	// Inherited Wider levels' subscriptions that also send this level's events,
+	// read-only here. Their event types are narrowed to those that can
+	// happen at this level, and their counts to this level's events.
+	Inherited []EventSubscriptionResponse `json:"inherited"`
+
+	// Subscriptions The subscriptions this level owns.
+	Subscriptions []EventSubscriptionResponse `json:"subscriptions"`
+}
+
+// EventSubscriptionRef defines model for EventSubscriptionRef.
+type EventSubscriptionRef struct {
+	AgentName   *string                   `json:"agentName,omitempty"`
+	Id          string                    `json:"id"`
+	Name        string                    `json:"name"`
+	ProjectName *string                   `json:"projectName,omitempty"`
+	Scope       EventSubscriptionRefScope `json:"scope"`
+}
+
+// EventSubscriptionRefScope defines model for EventSubscriptionRef.Scope.
+type EventSubscriptionRefScope string
+
+// EventSubscriptionRequest defines model for EventSubscriptionRequest.
+type EventSubscriptionRequest struct {
+	Description *string `json:"description,omitempty"`
+
+	// DestinationId A destination available to the subscription's project.
+	DestinationId string `json:"destinationId"`
+
+	// Enabled Defaults to true.
+	Enabled *bool `json:"enabled,omitempty"`
+
+	// Environments Only events in these environments; empty or absent for every
+	// environment. Events tied to no environment, such as a build, are
+	// sent whatever it holds.
+	Environments *[]string `json:"environments,omitempty"`
+
+	// EventTypes Event types the subscription's scope can receive, or just "*" for
+	// every one, including types added later.
+	EventTypes []string `json:"eventTypes"`
+	Name       string   `json:"name"`
+}
+
+// EventSubscriptionResponse defines model for EventSubscriptionResponse.
+type EventSubscriptionResponse struct {
+	AgentName string    `json:"agentName"`
+	CreatedAt time.Time `json:"createdAt"`
+
+	// CreatedBy The ID of the user who created it.
+	CreatedBy   string `json:"createdBy"`
+	Description string `json:"description"`
+
+	// Destination A destination as subscriptions below the organization see it, without its settings.
+	Destination  EventDestinationSummary        `json:"destination"`
+	Enabled      bool                           `json:"enabled"`
+	Environments []string                       `json:"environments"`
+	EventTypes   []string                       `json:"eventTypes"`
+	Id           string                         `json:"id"`
+	Last24h      EventDeliveryCounts            `json:"last24h"`
+	Name         string                         `json:"name"`
+	ProjectName  string                         `json:"projectName"`
+	Scope        EventSubscriptionResponseScope `json:"scope"`
+	UpdatedAt    time.Time                      `json:"updatedAt"`
+}
+
+// EventSubscriptionResponseScope defines model for EventSubscriptionResponse.Scope.
+type EventSubscriptionResponseScope string
+
+// EventType defines model for EventType.
+type EventType struct {
+	Category    string `json:"category"`
+	Description string `json:"description"`
+
+	// Scope The level the event happens at.
+	Scope EventTypeScope `json:"scope"`
+
+	// Type The catalog name, e.g. agent.deployed.
+	Type string `json:"type"`
+}
+
+// EventTypeScope The level the event happens at.
+type EventTypeScope string
+
+// EventTypeListResponse defines model for EventTypeListResponse.
+type EventTypeListResponse struct {
+	EventTypes []EventType `json:"eventTypes"`
+}
+
 // ExtractionIdentifier defines model for ExtractionIdentifier.
 type ExtractionIdentifier struct {
 	// Identifier JSONPath or other identifier to extract the value
@@ -3337,6 +4008,11 @@ type GatewayEnvironmentResponse struct {
 // GatewayEnvironmentResponseIsolationTier Pod runtime isolation tier for agents. Use "gvisor" for runsc kernel isolation or "kata" for Kata Containers VM isolation (rendered as the kata-qemu RuntimeClass); omit for the default runc runtime.
 type GatewayEnvironmentResponseIsolationTier string
 
+// GatewayHosting Who runs the gateway runtime.
+// - MANAGED: the platform provisions and runs it.
+// - SELF_HOSTED: the customer runs it and connects it to the platform.
+type GatewayHosting string
+
 // GatewayListResponse defines model for GatewayListResponse.
 type GatewayListResponse struct {
 	Gateways []GatewayResponse `json:"gateways"`
@@ -3390,6 +4066,11 @@ type GatewayResponse struct {
 	// deprecated aliases (REGULAR -> BOTH, AI -> EGRESS) so gateway charts pinned to
 	// an older version keep registering; responses always emit canonical values.
 	GatewayType GatewayType `json:"gatewayType"`
+
+	// Hosting Who runs the gateway runtime.
+	// - MANAGED: the platform provisions and runs it.
+	// - SELF_HOSTED: the customer runs it and connects it to the platform.
+	Hosting GatewayHosting `json:"hosting"`
 
 	// IsCritical Flag indicating if this is a critical production gateway
 	IsCritical bool `json:"isCritical"`
@@ -3588,6 +4269,48 @@ type GroupedScoresResponse struct {
 
 // GroupedScoresResponseLevel defines model for GroupedScoresResponse.Level.
 type GroupedScoresResponseLevel string
+
+// HealthCheck One health check. A field that is not set uses its default value.
+type HealthCheck struct {
+	// Enabled Whether the check runs. Defaults to true.
+	Enabled *bool `json:"enabled,omitempty"`
+
+	// FailureThreshold Failed checks in a row before the check is treated as failed.
+	FailureThreshold *int `json:"failureThreshold,omitempty"`
+
+	// InitialDelaySeconds Seconds to wait after the container starts before the first check.
+	InitialDelaySeconds *int `json:"initialDelaySeconds,omitempty"`
+
+	// Path Path for an HTTP check. Required when type is HTTP.
+	Path *string `json:"path,omitempty"`
+
+	// PeriodSeconds Seconds between checks.
+	PeriodSeconds *int `json:"periodSeconds,omitempty"`
+
+	// Port Port to check. Defaults to the agent's port.
+	Port *int `json:"port,omitempty"`
+
+	// TimeoutSeconds Seconds before a check times out.
+	TimeoutSeconds *int `json:"timeoutSeconds,omitempty"`
+
+	// Type TCP opens a connection to the port; HTTP sends a GET request to the path. Defaults to TCP.
+	Type *HealthCheckType `json:"type,omitempty"`
+}
+
+// HealthCheckType TCP opens a connection to the port; HTTP sends a GET request to the path. Defaults to TCP.
+type HealthCheckType string
+
+// HealthChecks Startup, readiness and liveness checks for the agent's container. A check that is not set uses the default: startup and readiness are TCP checks on the agent's port, and there is no liveness check.
+type HealthChecks struct {
+	// Liveness One health check. A field that is not set uses its default value.
+	Liveness *HealthCheck `json:"liveness,omitempty"`
+
+	// Readiness One health check. A field that is not set uses its default value.
+	Readiness *HealthCheck `json:"readiness,omitempty"`
+
+	// Startup One health check. A field that is not set uses its default value.
+	Startup *HealthCheck `json:"startup,omitempty"`
+}
 
 // HealthStatusResponse defines model for HealthStatusResponse.
 type HealthStatusResponse struct {
@@ -4299,6 +5022,9 @@ type MCPPolicyAvailableItem struct {
 	Version string `json:"version"`
 }
 
+// MCPProjectDeploymentStatus Deployment status of a project proxy binding. A pending deployment, or a redeploy still waiting, shows as Deploying. Absent when the environment has no gateway (see deploymentStatusReason). Undeploying and Undeployed do not occur: bindings are deleted, never undeployed.
+type MCPProjectDeploymentStatus string
+
 // MCPProxyCapabilities defines model for MCPProxyCapabilities.
 type MCPProxyCapabilities struct {
 	Prompts   *[]map[string]interface{} `json:"prompts,omitempty"`
@@ -4328,6 +5054,93 @@ type MCPProxyEndpoint struct {
 	Upstream UpstreamConfig  `json:"upstream"`
 }
 
+// MCPProxyEnvironmentRequest Replaces the binding's configuration. Every field is optional; an omitted field resets to its default.
+type MCPProxyEnvironmentRequest struct {
+	// GatewayId Required only when the environment has more than one egress-capable gateway. Cannot change once placed. Must name a managed gateway: a self-hosted gateway has no route to the in-cluster upstream, so naming one is rejected with 400 VALIDATION_ERROR.
+	GatewayId *openapi_types.UUID `json:"gatewayId,omitempty"`
+
+	// Policies Gateway policies, e.g. CORS and basic-ratelimit. Each needs a name and a version.
+	Policies *[]MCPPolicy `json:"policies,omitempty"`
+
+	// ReleaseBindingName The source component's release binding to front. Required only when the component has more than one release binding in the environment, one per deployment track for example; without it such a component is rejected with 400 VALIDATION_ERROR. It must be a binding of the source component in this project and environment, or it is rejected with 400 VALIDATION_ERROR.
+	ReleaseBindingName *string `json:"releaseBindingName,omitempty"`
+
+	// Security A binding's security. Phase 1 accepts apiKey, which is also the default when the field is omitted or names no variant (an api key in the X-API-Key header), and no security (enabled false only). An apiKey with enabled false while security is not disabled is rejected with 400 VALIDATION_ERROR. jwt is rejected with 400 "jwt security is not available yet", and identity with 400.
+	Security *MCPProxyEnvironmentSecurity `json:"security,omitempty"`
+
+	// UpstreamAuth Credentials the gateway adds when it calls the upstream.
+	UpstreamAuth *MCPProxyEnvironmentUpstreamAuth `json:"upstreamAuth,omitempty"`
+}
+
+// MCPProxyEnvironmentResponse defines model for MCPProxyEnvironmentResponse.
+type MCPProxyEnvironmentResponse struct {
+	// Context The proxy's context, as given, without the project prefix.
+	Context string `json:"context"`
+
+	// DeploymentStatus Deployment status of a project proxy binding. A pending deployment, or a redeploy still waiting, shows as Deploying. Absent when the environment has no gateway (see deploymentStatusReason). Undeploying and Undeployed do not occur: bindings are deleted, never undeployed.
+	DeploymentStatus *MCPProjectDeploymentStatus `json:"deploymentStatus,omitempty"`
+
+	// DeploymentStatusReason The ack's error code (or DEPLOYMENT_TIMEOUT) for Failed, the render reason for a waiting Deploying (CONTEXT_IN_USE when a clash was found at placement), and NO_GATEWAY when deploymentStatus is absent.
+	DeploymentStatusReason *string            `json:"deploymentStatusReason,omitempty"`
+	EnvironmentName        string             `json:"environmentName"`
+	EnvironmentUuid        openapi_types.UUID `json:"environmentUuid"`
+
+	// GatewayId Absent while the environment has no gateway.
+	GatewayId *openapi_types.UUID `json:"gatewayId,omitempty"`
+	Policies  *[]MCPPolicy        `json:"policies,omitempty"`
+
+	// PublicUrl Gateway URL of the MCP endpoint: the gateway vhost plus /<projName><context>/mcp. It already ends in the MCP path, so clients use it as is and do not append /mcp. Absent if the gateway has no vhost.
+	PublicUrl *string `json:"publicUrl,omitempty"`
+
+	// ReleaseBindingName The release binding the binding was given. Absent when none was given.
+	ReleaseBindingName *string `json:"releaseBindingName,omitempty"`
+
+	// Security A binding's security. Phase 1 accepts apiKey, which is also the default when the field is omitted or names no variant (an api key in the X-API-Key header), and no security (enabled false only). An apiKey with enabled false while security is not disabled is rejected with 400 VALIDATION_ERROR. jwt is rejected with 400 "jwt security is not available yet", and identity with 400.
+	Security     *MCPProxyEnvironmentSecurity             `json:"security,omitempty"`
+	UpdatedAt    *time.Time                               `json:"updatedAt,omitempty"`
+	UpstreamAuth *MCPProxyEnvironmentUpstreamAuthRedacted `json:"upstreamAuth,omitempty"`
+}
+
+// MCPProxyEnvironmentSecurity A binding's security. Phase 1 accepts apiKey, which is also the default when the field is omitted or names no variant (an api key in the X-API-Key header), and no security (enabled false only). An apiKey with enabled false while security is not disabled is rejected with 400 VALIDATION_ERROR. jwt is rejected with 400 "jwt security is not available yet", and identity with 400.
+type MCPProxyEnvironmentSecurity struct {
+	ApiKey  *APIKeySecurity `json:"apiKey,omitempty"`
+	Enabled *bool           `json:"enabled,omitempty"`
+
+	// Identity Agent Identity security — callers present a JWT issued by the environment's IdP. v1 pins the issuer to the ThunderKeyManager key manager.
+	Identity *IdentitySecurity `json:"identity,omitempty"`
+
+	// Jwt Reserved. Not available yet; a request that enables it is rejected with 400.
+	Jwt *MCPProxyJWTSecurity `json:"jwt,omitempty"`
+}
+
+// MCPProxyEnvironmentUpstreamAuth Credentials the gateway adds when it calls the upstream.
+type MCPProxyEnvironmentUpstreamAuth struct {
+	Header *string                             `json:"header,omitempty"`
+	Type   MCPProxyEnvironmentUpstreamAuthType `json:"type"`
+
+	// Value Required with api-key. Stored encrypted; never returned.
+	Value *string `json:"value,omitempty"`
+}
+
+// MCPProxyEnvironmentUpstreamAuthType defines model for MCPProxyEnvironmentUpstreamAuth.Type.
+type MCPProxyEnvironmentUpstreamAuthType string
+
+// MCPProxyEnvironmentUpstreamAuthRedacted defines model for MCPProxyEnvironmentUpstreamAuthRedacted.
+type MCPProxyEnvironmentUpstreamAuthRedacted struct {
+	Header *string                                     `json:"header,omitempty"`
+	Type   MCPProxyEnvironmentUpstreamAuthRedactedType `json:"type"`
+}
+
+// MCPProxyEnvironmentUpstreamAuthRedactedType defines model for MCPProxyEnvironmentUpstreamAuthRedacted.Type.
+type MCPProxyEnvironmentUpstreamAuthRedactedType string
+
+// MCPProxyJWTSecurity Reserved. Not available yet; a request that enables it is rejected with 400.
+type MCPProxyJWTSecurity struct {
+	Audiences *[]string `json:"audiences,omitempty"`
+	Enabled   *bool     `json:"enabled,omitempty"`
+	Issuers   *[]string `json:"issuers,omitempty"`
+}
+
 // MCPProxyListItem defines model for MCPProxyListItem.
 type MCPProxyListItem struct {
 	// Context MCP proxy context path
@@ -4350,6 +5163,9 @@ type MCPProxyListItem struct {
 
 	// Name Human-readable name of the MCP proxy
 	Name *string `json:"name,omitempty"`
+
+	// ProjectName Set for a project-owned proxy; absent for an org-level one
+	ProjectName *string `json:"projectName,omitempty"`
 
 	// Status MCP proxy status
 	Status *string `json:"status,omitempty"`
@@ -4418,7 +5234,7 @@ type MCPProxyResponse struct {
 	// Description Description of the MCP proxy
 	Description *string `json:"description,omitempty"`
 
-	// Endpoints Deployable endpoint definitions of the MCP proxy. Each endpoint reports its per-environment deployment status.
+	// Endpoints Deployable endpoint definitions of the MCP proxy. Each endpoint reports its per-environment deployment status. Absent for a project-owned proxy.
 	Endpoints *[]MCPProxyEndpoint `json:"endpoints,omitempty"`
 
 	// Gateways Gateway UUIDs associated with the MCP proxy
@@ -4435,6 +5251,9 @@ type MCPProxyResponse struct {
 
 	// Name Human-readable name of the MCP proxy
 	Name string `json:"name"`
+
+	// ProjectName Set for a project-owned proxy; absent for an org-level one
+	ProjectName *string `json:"projectName,omitempty"`
 
 	// UpdatedAt Timestamp when the resource was last updated
 	UpdatedAt *time.Time `json:"updatedAt,omitempty"`
@@ -4479,6 +5298,12 @@ type MCPProxyScopeUpdateRequest struct {
 
 	// Tools Replaces the scope's tool list. Omit to leave it unchanged; send an empty array to unbind the scope from every tool.
 	Tools *[]string `json:"tools,omitempty"`
+}
+
+// MCPProxySource The OpenChoreo component endpoint a project MCP proxy fronts. Fixed after create.
+type MCPProxySource struct {
+	ComponentName string `json:"componentName"`
+	EndpointName  string `json:"endpointName"`
 }
 
 // MCPServerInfoFetchRequest defines model for MCPServerInfoFetchRequest.
@@ -4789,6 +5614,81 @@ type ProjectListResponse struct {
 
 	// Total Total number of projects matching the query
 	Total int `json:"total"`
+}
+
+// ProjectMCPProxyEnvironmentSummary defines model for ProjectMCPProxyEnvironmentSummary.
+type ProjectMCPProxyEnvironmentSummary struct {
+	// DeploymentStatus Deployment status of a project proxy binding. A pending deployment, or a redeploy still waiting, shows as Deploying. Absent when the environment has no gateway (see deploymentStatusReason). Undeploying and Undeployed do not occur: bindings are deleted, never undeployed.
+	DeploymentStatus       *MCPProjectDeploymentStatus `json:"deploymentStatus,omitempty"`
+	DeploymentStatusReason *string                     `json:"deploymentStatusReason,omitempty"`
+	EnvironmentName        string                      `json:"environmentName"`
+
+	// PublicUrl The environment binding's publicUrl. It already ends in the MCP path, so clients use it as is and do not append /mcp.
+	PublicUrl *string `json:"publicUrl,omitempty"`
+}
+
+// ProjectMCPProxyListItem defines model for ProjectMCPProxyListItem.
+type ProjectMCPProxyListItem struct {
+	Context     string     `json:"context"`
+	CreatedAt   *time.Time `json:"createdAt,omitempty"`
+	Description *string    `json:"description,omitempty"`
+
+	// Environments A summary per binding. GET the binding for its security and policies.
+	Environments []ProjectMCPProxyEnvironmentSummary `json:"environments"`
+	Id           string                              `json:"id"`
+	Name         string                              `json:"name"`
+
+	// Source The OpenChoreo component endpoint a project MCP proxy fronts. Fixed after create.
+	Source    MCPProxySource `json:"source"`
+	UpdatedAt *time.Time     `json:"updatedAt,omitempty"`
+	Version   string         `json:"version"`
+}
+
+// ProjectMCPProxyListResponse defines model for ProjectMCPProxyListResponse.
+type ProjectMCPProxyListResponse struct {
+	// Count Items in this page
+	Count      int32                     `json:"count"`
+	List       []ProjectMCPProxyListItem `json:"list"`
+	Pagination PaginationInfo            `json:"pagination"`
+}
+
+// ProjectMCPProxyRequest defines model for ProjectMCPProxyRequest.
+type ProjectMCPProxyRequest struct {
+	// Context Context path relative to the project. Defaults to /<proxyId>. Must start with / and have no empty, "." or ".." segments (400 VALIDATION_ERROR otherwise). The gateway serves it at /<projName><context>; reads return it as sent.
+	Context     *string `json:"context,omitempty"`
+	Description *string `json:"description,omitempty"`
+
+	// McpSpecVersion MCP protocol version of the upstream server, if known
+	McpSpecVersion *string `json:"mcpSpecVersion,omitempty"`
+
+	// Name Display name
+	Name string `json:"name"`
+
+	// Source The OpenChoreo component endpoint a project MCP proxy fronts. Fixed after create.
+	Source MCPProxySource `json:"source"`
+
+	// Version Defaults to v1
+	Version *string `json:"version,omitempty"`
+}
+
+// ProjectMCPProxyResponse defines model for ProjectMCPProxyResponse.
+type ProjectMCPProxyResponse struct {
+	Context      string                        `json:"context"`
+	CreatedAt    *time.Time                    `json:"createdAt,omitempty"`
+	CreatedBy    *string                       `json:"createdBy,omitempty"`
+	Description  *string                       `json:"description,omitempty"`
+	Environments []MCPProxyEnvironmentResponse `json:"environments"`
+
+	// Id Handle
+	Id             string  `json:"id"`
+	McpSpecVersion *string `json:"mcpSpecVersion,omitempty"`
+	Name           string  `json:"name"`
+	ProjectName    string  `json:"projectName"`
+
+	// Source The OpenChoreo component endpoint a project MCP proxy fronts. Fixed after create.
+	Source    MCPProxySource `json:"source"`
+	UpdatedAt *time.Time     `json:"updatedAt,omitempty"`
+	Version   string         `json:"version"`
 }
 
 // ProjectResponse defines model for ProjectResponse.
@@ -5170,7 +6070,7 @@ type RoleResponse struct {
 
 // RotateGatewayTokenRequest defines model for RotateGatewayTokenRequest.
 type RotateGatewayTokenRequest struct {
-	// OrgId OU ID of the organization the gateway belongs to.
+	// OrgId Optional. OU ID of the caller's organization. The organization always comes from the token; a different value is refused with 403.
 	OrgId *string `json:"orgId,omitempty"`
 }
 
@@ -5242,6 +6142,40 @@ type SecuritySummary struct {
 
 	// Enabled Whether security is enabled
 	Enabled *bool `json:"enabled,omitempty"`
+}
+
+// SelfHostedGatewayRequest defines model for SelfHostedGatewayRequest.
+type SelfHostedGatewayRequest struct {
+	Description *string `json:"description,omitempty"`
+
+	// DisplayName Human-readable display name
+	DisplayName string `json:"displayName"`
+
+	// Endpoints At least one http(s) endpoint URL. The first is the gateway's address.
+	Endpoints []string `json:"endpoints"`
+
+	// Environment Name of the environment to bind the gateway to. Must exist.
+	Environment       string                                     `json:"environment"`
+	FunctionalityType *SelfHostedGatewayRequestFunctionalityType `json:"functionalityType,omitempty"`
+
+	// Handle The gateway's name, unique in the organization and fixed once created. Lowercase letters, numbers and hyphens, not starting or ending with a hyphen.
+	Handle     string                  `json:"handle"`
+	IsCritical *bool                   `json:"isCritical,omitempty"`
+	Properties *map[string]interface{} `json:"properties,omitempty"`
+
+	// Version Gateway version, `major.minor` or CalVer `YYYY.MM.DD`.
+	Version *string `json:"version,omitempty"`
+}
+
+// SelfHostedGatewayRequestFunctionalityType defines model for SelfHostedGatewayRequest.FunctionalityType.
+type SelfHostedGatewayRequestFunctionalityType string
+
+// SelfHostedGatewayUpdateRequest defines model for SelfHostedGatewayUpdateRequest.
+type SelfHostedGatewayUpdateRequest struct {
+	Description *string                 `json:"description,omitempty"`
+	DisplayName *string                 `json:"displayName,omitempty"`
+	IsCritical  *bool                   `json:"isCritical,omitempty"`
+	Properties  *map[string]interface{} `json:"properties,omitempty"`
 }
 
 // SetA2AProxyRequest defines model for SetA2AProxyRequest.
@@ -5503,6 +6437,9 @@ type UpdateAgentBuildParametersRequest struct {
 	AgentType      AgentType       `json:"agentType"`
 	Build          Build           `json:"build"`
 	Configurations *Configurations `json:"configurations,omitempty"`
+
+	// HealthChecks Startup, readiness and liveness checks for the agent's container. A check that is not set uses the default: startup and readiness are TCP checks on the agent's port, and there is no liveness check.
+	HealthChecks *HealthChecks `json:"healthChecks,omitempty"`
 
 	// InputInterface Endpoint configurations
 	InputInterface InputInterface `json:"inputInterface"`
@@ -5933,6 +6870,10 @@ type ListCatalogResourcesParams struct {
 	// EnvironmentId Filter by environment UUID (only applicable for LlmProvider kind)
 	EnvironmentId *openapi_types.UUID `form:"environmentId,omitempty" json:"environmentId,omitempty"`
 
+	// GatewayHosting With `environmentId`, count only deployments on gateways with this hosting. Monitors and
+	// platform-hosted agents can only use LLM providers deployed to `MANAGED` gateways.
+	GatewayHosting *GatewayHosting `form:"gatewayHosting,omitempty" json:"gatewayHosting,omitempty"`
+
 	// Limit Maximum number of results to return
 	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
 
@@ -5987,6 +6928,38 @@ type ListAgentIdentityRolesParams struct {
 	// Limit Maximum number of results to return
 	Limit *AgentIdentityLimit `form:"limit,omitempty" json:"limit,omitempty"`
 }
+
+// ListOrgEventDeliveriesParams defines parameters for ListOrgEventDeliveries.
+type ListOrgEventDeliveriesParams struct {
+	// DestinationId Only deliveries to this destination.
+	DestinationId *string `form:"destinationId,omitempty" json:"destinationId,omitempty"`
+
+	// SubscriptionId Only deliveries this subscription queued.
+	SubscriptionId *string `form:"subscriptionId,omitempty" json:"subscriptionId,omitempty"`
+
+	// Status Only deliveries with this status.
+	Status *ListOrgEventDeliveriesParamsStatus `form:"status,omitempty" json:"status,omitempty"`
+
+	// Limit Maximum number of deliveries (default 50, at most 100).
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Offset Number of deliveries to skip.
+	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
+// ListOrgEventDeliveriesParamsStatus defines parameters for ListOrgEventDeliveries.
+type ListOrgEventDeliveriesParamsStatus string
+
+// ListEventTypesParams defines parameters for ListEventTypes.
+type ListEventTypesParams struct {
+	// Scope The event types a subscription at this scope can name: an org
+	// subscription any type, a project subscription project and agent
+	// types, an agent subscription agent types. Every type when absent.
+	Scope *ListEventTypesParamsScope `form:"scope,omitempty" json:"scope,omitempty"`
+}
+
+// ListEventTypesParamsScope defines parameters for ListEventTypes.
+type ListEventTypesParamsScope string
 
 // ListGatewaysParams defines parameters for ListGateways.
 type ListGatewaysParams struct {
@@ -6117,6 +7090,9 @@ type ListLLMProxiesByProviderParams struct {
 
 // ListMCPProxiesParams defines parameters for ListMCPProxies.
 type ListMCPProxiesParams struct {
+	// Project Also include this project's proxies, read only. Without it only org-level proxies are returned. Unknown project returns 404 PROJECT_NOT_FOUND. The agent Tools picker passes the agent's project.
+	Project *string `form:"project,omitempty" json:"project,omitempty"`
+
 	// Limit Maximum number of results to return
 	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
 
@@ -6170,6 +7146,27 @@ type GetAgentEndpointsParams struct {
 	// Environment Environment name
 	Environment string `form:"environment" json:"environment"`
 }
+
+// ListAgentEventDeliveriesParams defines parameters for ListAgentEventDeliveries.
+type ListAgentEventDeliveriesParams struct {
+	// DestinationId Only deliveries to this destination.
+	DestinationId *string `form:"destinationId,omitempty" json:"destinationId,omitempty"`
+
+	// SubscriptionId Only deliveries this subscription queued.
+	SubscriptionId *string `form:"subscriptionId,omitempty" json:"subscriptionId,omitempty"`
+
+	// Status Only deliveries with this status.
+	Status *ListAgentEventDeliveriesParamsStatus `form:"status,omitempty" json:"status,omitempty"`
+
+	// Limit Maximum number of deliveries (default 50, at most 100).
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Offset Number of deliveries to skip.
+	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
+// ListAgentEventDeliveriesParamsStatus defines parameters for ListAgentEventDeliveries.
+type ListAgentEventDeliveriesParamsStatus string
 
 // GetAgentGroupsParams defines parameters for GetAgentGroups.
 type GetAgentGroupsParams struct {
@@ -6321,6 +7318,27 @@ type GenerateAgentTokenParams struct {
 	Environment *string `form:"environment,omitempty" json:"environment,omitempty"`
 }
 
+// ListProjectEventDeliveriesParams defines parameters for ListProjectEventDeliveries.
+type ListProjectEventDeliveriesParams struct {
+	// DestinationId Only deliveries to this destination.
+	DestinationId *string `form:"destinationId,omitempty" json:"destinationId,omitempty"`
+
+	// SubscriptionId Only deliveries this subscription queued.
+	SubscriptionId *string `form:"subscriptionId,omitempty" json:"subscriptionId,omitempty"`
+
+	// Status Only deliveries with this status.
+	Status *ListProjectEventDeliveriesParamsStatus `form:"status,omitempty" json:"status,omitempty"`
+
+	// Limit Maximum number of deliveries (default 50, at most 100).
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Offset Number of deliveries to skip.
+	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
+// ListProjectEventDeliveriesParamsStatus defines parameters for ListProjectEventDeliveries.
+type ListProjectEventDeliveriesParamsStatus string
+
 // ListLLMProxiesParams defines parameters for ListLLMProxies.
 type ListLLMProxiesParams struct {
 	// Limit Maximum number of results to return
@@ -6360,6 +7378,60 @@ type UndeployLLMProxyDeploymentParams struct {
 	GatewayId string `form:"gatewayId" json:"gatewayId"`
 }
 
+// ListProjectMCPProxiesParams defines parameters for ListProjectMCPProxies.
+type ListProjectMCPProxiesParams struct {
+	// Component Only proxies whose source.componentName matches
+	Component *string `form:"component,omitempty" json:"component,omitempty"`
+
+	// Endpoint Only proxies whose source.endpointName matches
+	Endpoint *string `form:"endpoint,omitempty" json:"endpoint,omitempty"`
+
+	// Limit Maximum number of results to return. Values outside 1..100 fall back to 50.
+	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Offset Number of results to skip. A negative value falls back to 0.
+	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
+
+	// XImpersonateOrg Tenant org UUID for trusted service callers. Honoured only for clients that the deployment's org override resolver allow-lists; otherwise the request is refused with 403. Replaces both the org UUID and the handle for the request. The orgName path segment must then be that org's handle, or the request is refused with 403. A 403 here is final, not a missing grant on the org: it means the caller may not impersonate, the org does not exist, or the path names another org; do not retry it. A 502 means the org's handle could not be looked up and is retryable.
+	XImpersonateOrg *openapi_types.UUID `json:"X-Impersonate-Org,omitempty"`
+}
+
+// DeleteProjectMCPProxyParams defines parameters for DeleteProjectMCPProxy.
+type DeleteProjectMCPProxyParams struct {
+	// XImpersonateOrg Tenant org UUID for trusted service callers. Honoured only for clients that the deployment's org override resolver allow-lists; otherwise the request is refused with 403. Replaces both the org UUID and the handle for the request. The orgName path segment must then be that org's handle, or the request is refused with 403. A 403 here is final, not a missing grant on the org: it means the caller may not impersonate, the org does not exist, or the path names another org; do not retry it. A 502 means the org's handle could not be looked up and is retryable.
+	XImpersonateOrg *openapi_types.UUID `json:"X-Impersonate-Org,omitempty"`
+}
+
+// GetProjectMCPProxyParams defines parameters for GetProjectMCPProxy.
+type GetProjectMCPProxyParams struct {
+	// XImpersonateOrg Tenant org UUID for trusted service callers. Honoured only for clients that the deployment's org override resolver allow-lists; otherwise the request is refused with 403. Replaces both the org UUID and the handle for the request. The orgName path segment must then be that org's handle, or the request is refused with 403. A 403 here is final, not a missing grant on the org: it means the caller may not impersonate, the org does not exist, or the path names another org; do not retry it. A 502 means the org's handle could not be looked up and is retryable.
+	XImpersonateOrg *openapi_types.UUID `json:"X-Impersonate-Org,omitempty"`
+}
+
+// UpsertProjectMCPProxyParams defines parameters for UpsertProjectMCPProxy.
+type UpsertProjectMCPProxyParams struct {
+	// XImpersonateOrg Tenant org UUID for trusted service callers. Honoured only for clients that the deployment's org override resolver allow-lists; otherwise the request is refused with 403. Replaces both the org UUID and the handle for the request. The orgName path segment must then be that org's handle, or the request is refused with 403. A 403 here is final, not a missing grant on the org: it means the caller may not impersonate, the org does not exist, or the path names another org; do not retry it. A 502 means the org's handle could not be looked up and is retryable.
+	XImpersonateOrg *openapi_types.UUID `json:"X-Impersonate-Org,omitempty"`
+}
+
+// DeleteProjectMCPProxyEnvironmentParams defines parameters for DeleteProjectMCPProxyEnvironment.
+type DeleteProjectMCPProxyEnvironmentParams struct {
+	// XImpersonateOrg Tenant org UUID for trusted service callers. Honoured only for clients that the deployment's org override resolver allow-lists; otherwise the request is refused with 403. Replaces both the org UUID and the handle for the request. The orgName path segment must then be that org's handle, or the request is refused with 403. A 403 here is final, not a missing grant on the org: it means the caller may not impersonate, the org does not exist, or the path names another org; do not retry it. A 502 means the org's handle could not be looked up and is retryable.
+	XImpersonateOrg *openapi_types.UUID `json:"X-Impersonate-Org,omitempty"`
+}
+
+// GetProjectMCPProxyEnvironmentParams defines parameters for GetProjectMCPProxyEnvironment.
+type GetProjectMCPProxyEnvironmentParams struct {
+	// XImpersonateOrg Tenant org UUID for trusted service callers. Honoured only for clients that the deployment's org override resolver allow-lists; otherwise the request is refused with 403. Replaces both the org UUID and the handle for the request. The orgName path segment must then be that org's handle, or the request is refused with 403. A 403 here is final, not a missing grant on the org: it means the caller may not impersonate, the org does not exist, or the path names another org; do not retry it. A 502 means the org's handle could not be looked up and is retryable.
+	XImpersonateOrg *openapi_types.UUID `json:"X-Impersonate-Org,omitempty"`
+}
+
+// PutProjectMCPProxyEnvironmentParams defines parameters for PutProjectMCPProxyEnvironment.
+type PutProjectMCPProxyEnvironmentParams struct {
+	// XImpersonateOrg Tenant org UUID for trusted service callers. Honoured only for clients that the deployment's org override resolver allow-lists; otherwise the request is refused with 403. Replaces both the org UUID and the handle for the request. The orgName path segment must then be that org's handle, or the request is refused with 403. A 403 here is final, not a missing grant on the org: it means the caller may not impersonate, the org does not exist, or the path names another org; do not retry it. A 502 means the org's handle could not be looked up and is retryable.
+	XImpersonateOrg *openapi_types.UUID `json:"X-Impersonate-Org,omitempty"`
+}
+
 // ListRepositoryBranchesParams defines parameters for ListRepositoryBranches.
 type ListRepositoryBranchesParams struct {
 	// Limit Maximum number of results to return (default 30, max 100)
@@ -6376,6 +7448,15 @@ type ListRepositoryCommitsParams struct {
 
 	// Offset Number of results to skip for pagination (default 0)
 	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
+// ListSelfHostedGatewaysParams defines parameters for ListSelfHostedGateways.
+type ListSelfHostedGatewaysParams struct {
+	// Limit Maximum number of results to return
+	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Offset Number of results to skip
+	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
 }
 
 // CheckThunderUrlAvailabilityParams defines parameters for CheckThunderUrlAvailability.
@@ -6440,6 +7521,18 @@ type CreateCustomEvaluatorJSONRequestBody = CreateCustomEvaluatorRequest
 
 // UpdateCustomEvaluatorJSONRequestBody defines body for UpdateCustomEvaluator for application/json ContentType.
 type UpdateCustomEvaluatorJSONRequestBody = UpdateCustomEvaluatorRequest
+
+// CreateEventDestinationJSONRequestBody defines body for CreateEventDestination for application/json ContentType.
+type CreateEventDestinationJSONRequestBody = EventDestinationRequest
+
+// UpdateEventDestinationJSONRequestBody defines body for UpdateEventDestination for application/json ContentType.
+type UpdateEventDestinationJSONRequestBody = EventDestinationRequest
+
+// CreateOrgEventSubscriptionJSONRequestBody defines body for CreateOrgEventSubscription for application/json ContentType.
+type CreateOrgEventSubscriptionJSONRequestBody = EventSubscriptionRequest
+
+// UpdateOrgEventSubscriptionJSONRequestBody defines body for UpdateOrgEventSubscription for application/json ContentType.
+type UpdateOrgEventSubscriptionJSONRequestBody = EventSubscriptionRequest
 
 // RegisterGatewayJSONRequestBody defines body for RegisterGateway for application/json ContentType.
 type RegisterGatewayJSONRequestBody = CreateGatewayRequest
@@ -6555,6 +7648,12 @@ type CreateAgentAPIKeyJSONRequestBody = CreateLLMAPIKeyRequest
 // RotateAgentAPIKeyJSONRequestBody defines body for RotateAgentAPIKey for application/json ContentType.
 type RotateAgentAPIKeyJSONRequestBody = RotateLLMAPIKeyRequest
 
+// CreateAgentEventSubscriptionJSONRequestBody defines body for CreateAgentEventSubscription for application/json ContentType.
+type CreateAgentEventSubscriptionJSONRequestBody = EventSubscriptionRequest
+
+// UpdateAgentEventSubscriptionJSONRequestBody defines body for UpdateAgentEventSubscription for application/json ContentType.
+type UpdateAgentEventSubscriptionJSONRequestBody = EventSubscriptionRequest
+
 // RegenerateAgentIdentitySecretJSONRequestBody defines body for RegenerateAgentIdentitySecret for application/json ContentType.
 type RegenerateAgentIdentitySecretJSONRequestBody = AgentIdentityActionRequest
 
@@ -6606,6 +7705,12 @@ type GenerateAgentTokenJSONRequestBody = TokenRequest
 // RegenerateAgentTracingTokenJSONRequestBody defines body for RegenerateAgentTracingToken for application/json ContentType.
 type RegenerateAgentTracingTokenJSONRequestBody = TracingTokenRegenerateRequest
 
+// CreateProjectEventSubscriptionJSONRequestBody defines body for CreateProjectEventSubscription for application/json ContentType.
+type CreateProjectEventSubscriptionJSONRequestBody = EventSubscriptionRequest
+
+// UpdateProjectEventSubscriptionJSONRequestBody defines body for UpdateProjectEventSubscription for application/json ContentType.
+type UpdateProjectEventSubscriptionJSONRequestBody = EventSubscriptionRequest
+
 // CreateLLMProxyJSONRequestBody defines body for CreateLLMProxy for application/json ContentType.
 type CreateLLMProxyJSONRequestBody = CreateLLMProxyRequest
 
@@ -6621,11 +7726,23 @@ type RotateLLMProxyAPIKeyJSONRequestBody = RotateLLMAPIKeyRequest
 // DeployLLMProxyJSONRequestBody defines body for DeployLLMProxy for application/json ContentType.
 type DeployLLMProxyJSONRequestBody = LLMDeployRequest
 
+// UpsertProjectMCPProxyJSONRequestBody defines body for UpsertProjectMCPProxy for application/json ContentType.
+type UpsertProjectMCPProxyJSONRequestBody = ProjectMCPProxyRequest
+
+// PutProjectMCPProxyEnvironmentJSONRequestBody defines body for PutProjectMCPProxyEnvironment for application/json ContentType.
+type PutProjectMCPProxyEnvironmentJSONRequestBody = MCPProxyEnvironmentRequest
+
 // ListRepositoryBranchesJSONRequestBody defines body for ListRepositoryBranches for application/json ContentType.
 type ListRepositoryBranchesJSONRequestBody = ListBranchesRequest
 
 // ListRepositoryCommitsJSONRequestBody defines body for ListRepositoryCommits for application/json ContentType.
 type ListRepositoryCommitsJSONRequestBody = ListCommitsRequest
+
+// RegisterSelfHostedGatewayJSONRequestBody defines body for RegisterSelfHostedGateway for application/json ContentType.
+type RegisterSelfHostedGatewayJSONRequestBody = SelfHostedGatewayRequest
+
+// UpdateSelfHostedGatewayJSONRequestBody defines body for UpdateSelfHostedGateway for application/json ContentType.
+type UpdateSelfHostedGatewayJSONRequestBody = SelfHostedGatewayUpdateRequest
 
 // GetNameByDisplayNameJSONRequestBody defines body for GetNameByDisplayName for application/json ContentType.
 type GetNameByDisplayNameJSONRequestBody = ResourceNameRequest

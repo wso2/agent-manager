@@ -15,12 +15,12 @@
  * under the License.
  */
 
+import { usePipelineFeatures } from "@agent-management-platform/feature-management";
 import { useEffect, useMemo, useState } from "react";
 import {
   Avatar,
   Button,
   Chip,
-  IconButton,
   ListingTable,
   Skeleton,
   Stack,
@@ -31,13 +31,11 @@ import {
 import {
   AlertTriangle,
   ArrowRight,
-  Edit,
   GitBranch,
   Plus,
   Search,
   Trash,
 } from "@wso2/oxygen-ui-icons-react";
-import { formatDistanceToNow } from "date-fns";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
 import {
   useDeleteDeploymentPipeline,
@@ -49,6 +47,7 @@ import {
   type DeploymentPipelineResponse,
 } from "@agent-management-platform/types";
 import {
+  formatRelativeTime,
   getIsolationTierMeta,
   ResourceListShell,
   useConfirmationDialog,
@@ -141,6 +140,8 @@ function PromotionChainCell({
 export function DeploymentPipelineTable({
   onCreatePipeline,
 }: DeploymentPipelineTableProps) {
+  // Read here so a caller can't forget it and show Delete to read-only users.
+  const { canWrite: canDelete } = usePipelineFeatures();
   const { orgId } = useParams<{ orgId: string }>();
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
@@ -261,11 +262,6 @@ export function DeploymentPipelineTable({
       }}
       searchPlaceholder="Search pipelines..."
       searchDisabled={isLoading}
-      addButton={
-        onCreatePipeline && pipelines.length > 0
-          ? { label: "Create Pipeline", onClick: onCreatePipeline }
-          : undefined
-      }
       error={
         error
           ? new Error(
@@ -347,23 +343,14 @@ export function DeploymentPipelineTable({
                   alignItems="center"
                   spacing={1}
                 >
-                  {hoveredId === pipeline.name ? (
+                  {canDelete && hoveredId === pipeline.name ? (
                     <FadeIn>
                       <Stack direction="row" spacing={0.5}>
-                        <Tooltip title="Edit pipeline">
-                          <IconButton
-                            size="small"
-                            onClick={() =>
-                              navigate(pipelineHref(pipeline.name))
-                            }
-                          >
-                            <Edit size={16} />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Delete pipeline">
-                          <IconButton
+                          <Button
+                            variant="outlined"
                             size="small"
                             color="error"
+                            startIcon={<Trash size={14} />}
                             onClick={() =>
                               addConfirmation({
                                 analytics: {
@@ -383,16 +370,13 @@ export function DeploymentPipelineTable({
                               })
                             }
                           >
-                            <Trash size={16} />
-                          </IconButton>
-                        </Tooltip>
+                            Delete
+                          </Button>
                       </Stack>
                     </FadeIn>
                   ) : (
                     <Typography variant="caption" color="text.secondary">
-                      {formatDistanceToNow(new Date(pipeline.createdAt), {
-                        addSuffix: true,
-                      })}
+                      {formatRelativeTime(pipeline.createdAt)}
                     </Typography>
                   )}
                 </Stack>

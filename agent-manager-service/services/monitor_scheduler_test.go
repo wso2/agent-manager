@@ -86,9 +86,34 @@ func newTestScheduler(executor MonitorExecutor) *monitorSchedulerService {
 		provisioner: NewStaticPublisherCredentialProvisioner(),
 		logger:      slog.Default(),
 		executor:    executor,
-		monitorRepo: repositories.NewMonitorRepo(db.GetDB()),
+		monitorRepo: schedulerFixtureRepo{MonitorRepository: repositories.NewMonitorRepo(db.GetDB())},
+		runObserver: NoopMonitorRunObserver{},
 		stopCh:      make(chan struct{}),
 	}
+}
+
+// Scheduler integration tests share the database with API tests. Restrict
+// scheduling to this suite's fixtures instead of deleting other suites' monitors.
+type schedulerFixtureRepo struct {
+	repositories.MonitorRepository
+}
+
+func (r schedulerFixtureRepo) ListDueMonitors(monitorType string, now time.Time) ([]models.Monitor, error) {
+	monitors, err := r.MonitorRepository.ListDueMonitors(monitorType, now)
+	if err != nil {
+		return nil, err
+	}
+	fixtures := make([]models.Monitor, 0, len(monitors))
+	for _, monitor := range monitors {
+		if monitor.OUID == "lock-test-org" {
+			fixtures = append(fixtures, monitor)
+		}
+	}
+	return fixtures, nil
+}
+
+func (schedulerFixtureRepo) ListPendingOrRunningRuns(int) ([]models.MonitorRun, error) {
+	return []models.MonitorRun{}, nil
 }
 
 // --- triggerMonitor tests ---
@@ -269,7 +294,7 @@ func TestTriggerMonitor_TimeWindowCalculation(t *testing.T) {
 
 func TestSchedulerStartStop(t *testing.T) {
 	executor := &mockExecutor{}
-	svc := NewMonitorSchedulerService(nil, NewStaticPublisherCredentialProvisioner(), slog.Default(), executor, repositories.NewMonitorRepo(db.GetDB()))
+	svc := NewMonitorSchedulerService(nil, NewStaticPublisherCredentialProvisioner(), slog.Default(), executor, repositories.NewMonitorRepo(db.GetDB()), NoopMonitorRunObserver{})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -283,7 +308,7 @@ func TestSchedulerStartStop(t *testing.T) {
 
 func TestSchedulerStopIdempotent(t *testing.T) {
 	executor := &mockExecutor{}
-	svc := NewMonitorSchedulerService(nil, NewStaticPublisherCredentialProvisioner(), slog.Default(), executor, repositories.NewMonitorRepo(db.GetDB()))
+	svc := NewMonitorSchedulerService(nil, NewStaticPublisherCredentialProvisioner(), slog.Default(), executor, repositories.NewMonitorRepo(db.GetDB()), NoopMonitorRunObserver{})
 
 	// Calling Stop multiple times should not panic
 	err := svc.Stop()
@@ -321,9 +346,6 @@ func TestSchedulerStopsOnContextCancel(t *testing.T) {
 
 func TestSchedulerStopsOnStopChannel(t *testing.T) {
 	ctx := context.Background()
-
-	// Clean stale monitors so the initial cycle doesn't do unnecessary DB work
-	db.DB(ctx).Where("type = ?", models.MonitorTypeFuture).Delete(&models.Monitor{})
 
 	executor := &mockExecutor{}
 	s := newTestScheduler(executor)
@@ -420,9 +442,6 @@ func TestSchedulerCycle_AdvisoryLockReleasedAfterCycle(t *testing.T) {
 // concurrently, exactly one proceeds and the other skips.
 func TestSchedulerCycle_TwoConcurrentCycles(t *testing.T) {
 	ctx := context.Background()
-
-	// Clean up stale monitors from other test runs so we only test our monitor
-	db.DB(ctx).Where("type = ?", models.MonitorTypeFuture).Delete(&models.Monitor{})
 
 	var executeCalled atomic.Int32
 	// Make execution take some time so both goroutines overlap

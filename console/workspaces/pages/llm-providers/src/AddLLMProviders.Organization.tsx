@@ -18,7 +18,8 @@
 
 import React, { useCallback, useMemo, useState } from "react";
 import { PageLayout } from "@agent-management-platform/views";
-import { generatePath, useNavigate, useParams } from "react-router-dom";
+import { generatePath, Navigate, useNavigate, useParams } from "react-router-dom";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 import {
   getErrorMessage,
   useUnsavedChangesGuard,
@@ -42,6 +43,7 @@ import {
 export const AddLLMProvidersOrganization: React.FC = () => {
   const { orgId } = useParams<{ orgId: string }>();
   const navigate = useNavigate();
+  const { canWrite } = useResourceAccess("llm_provider");
   const [isDirty, setIsDirty] = useState(false);
   const { allowNavigation } = useUnsavedChangesGuard(isDirty);
 
@@ -70,7 +72,6 @@ export const AddLLMProvidersOrganization: React.FC = () => {
   const {
     mutate: createLLMProvider,
     isPending: isCreating,
-    error: createError,
   } = useCreateLLMProvider();
 
   const templates = useMemo(
@@ -92,11 +93,8 @@ export const AddLLMProvidersOrganization: React.FC = () => {
     if (gatewaysError) {
       return getErrorMessage(gatewaysError);
     }
-    if (createError) {
-      return (createError as Error)?.message || "Failed to create LLM provider";
-    }
     return null;
-  }, [createError, gatewaysError, templatesError]);
+  }, [gatewaysError, templatesError]);
 
   const handleSubmit = useCallback(
     (values: AddLLMProviderFormValues, guardrails: GuardrailSelection[]) => {
@@ -126,12 +124,16 @@ export const AddLLMProvidersOrganization: React.FC = () => {
     [createLLMProvider, navigate, allowNavigation, orgId, templates],
   );
 
+  if (!canWrite) {
+    return <Navigate to={backHref} replace />;
+  }
+
   return (
     <PageLayout
       title="Add LLM Service Provider"
       backHref={backHref}
       disableIcon
-      backLabel="Back to Providers List"
+      backLabel="Back to providers list"
     >
       <AddLLMProviderForm
         orgId={orgId ?? ""}

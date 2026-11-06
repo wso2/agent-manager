@@ -17,9 +17,12 @@
  */
 
 import React from "react";
-import { Navigate, Route, Routes, generatePath, useParams, useSearchParams } from "react-router-dom";
+import { Link, Navigate, Route, Routes, generatePath, useParams, useSearchParams } from "react-router-dom";
+import { Button } from "@wso2/oxygen-ui";
+import { Plus } from "@wso2/oxygen-ui-icons-react";
 import { absoluteRouteMap } from "@agent-management-platform/types";
 import { PageLayout } from "@agent-management-platform/views";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 import { GroupsPage } from "./subComponents/agentIdentity/GroupsPage";
 import { GroupCreatePage } from "./subComponents/agentIdentity/GroupCreatePage";
 import { GroupEditPage } from "./subComponents/agentIdentity/GroupEditPage";
@@ -30,6 +33,26 @@ const groupsNode = absoluteRouteMap.children.org.children.thunderInstances.child
 const TITLE = "Groups";
 
 function GroupsListPage() {
+  const { orgId } = useParams<{ orgId: string }>();
+  const [searchParams] = useSearchParams();
+  const createPath = orgId
+    ? withSearchParams(generatePath(groupsNode.children.create.path, { orgId }), searchParams)
+    : "#";
+  const { canWrite } = useResourceAccess("agent_identity");
+
+  // One definition, used in the tab bar and as the empty state's CTA.
+  const createButton = canWrite ? (
+    <Button
+      variant="contained"
+      color="primary"
+      component={Link}
+      to={createPath}
+      startIcon={<Plus size={16} />}
+    >
+      Create Group
+    </Button>
+  ) : undefined;
+
   return (
     <AgentIdentityEnvironmentGate title={TITLE}>
       {() => (
@@ -38,7 +61,7 @@ function GroupsListPage() {
           description="Groups available in the selected environment's identity provider."
           disableIcon
         >
-          <GroupsPage />
+          <GroupsPage createAction={createButton} />
         </PageLayout>
       )}
     </AgentIdentityEnvironmentGate>
@@ -49,10 +72,14 @@ function GroupCreateWrapper() {
   const { orgId } = useParams<{ orgId: string }>();
   const [searchParams] = useSearchParams();
   const backHref = withSearchParams(generatePath(groupsNode.path, { orgId: orgId ?? "" }), searchParams);
+  const { canWrite } = useResourceAccess("agent_identity");
+  if (!canWrite) {
+    return <Navigate to={backHref} replace />;
+  }
   return (
     <AgentIdentityEnvironmentGate title="Create Group">
       {() => (
-        <PageLayout title="Create Group" backHref={backHref} backLabel="Back to Groups" disableIcon>
+        <PageLayout title="Create Group" backHref={backHref} backLabel="Back to groups" disableIcon>
           <GroupCreatePage />
         </PageLayout>
       )}

@@ -19,13 +19,14 @@
 import {
   useGetAgent,
   useGetAgentConfigurations,
+  useGetAllAgentBuilds,
   useGetAgentMetrics,
   useGetAgentResourceConfigs,
   useGetDeploymentPipeline,
   useListAgentDeployments,
   useUpdateDeploymentState,
 } from "@agent-management-platform/api-client";
-import { NoDataFound, TextInput } from "@agent-management-platform/views";
+import { NoDataFound, StateNotice, TextInput } from "@agent-management-platform/views";
 import {
   ArrowRightFromLine,
   Clock,
@@ -45,6 +46,7 @@ import {
   SquareStack,
   MemoryStick,
   SlidersVertical,
+  HeartPulse,
 } from "@wso2/oxygen-ui-icons-react";
 import { generatePath, Link, useParams, useSearchParams } from "react-router-dom";
 import {
@@ -67,15 +69,15 @@ import {
   useTheme,
 } from "@wso2/oxygen-ui";
 import {
-  AGENT_SUSPEND_SCOPE,
   ALLOWED,
   DeploymentStatus,
   EnvStatus,
+  formatRelativeTime,
+  formatUsagePercent,
+  getUsagePercentVariant,
   IsolationTierBadge,
   ResourceMetricChip,
   RestrictedAction,
-  formatUsagePercent,
-  getUsagePercentVariant,
   useAgentEnvironmentAccess,
 } from "@agent-management-platform/shared-component";
 import { EditDeployConfigDrawer } from "./EditDeployConfigDrawer";
@@ -85,6 +87,8 @@ import {
   MetricsResponse,
   Environment,
   TraceListTimeRange,
+  describeHealthChecksInEffect,
+  healthChecksInEffect,
 } from "@agent-management-platform/types";
 import { extractBuildIdFromImageId } from "../utils/extractBuildIdFromImageId";
 import {
@@ -92,7 +96,6 @@ import {
   isInstrumentableLanguage,
   normalizePythonMinor,
 } from "../utils/instrumentation";
-import { formatDistanceToNow } from "date-fns";
 import { useCallback, useMemo, useState } from "react";
 import { EditResourceConfigsDrawer } from "./EditResourceConfigsDrawer";
 import { PromoteAgentDrawer } from "./PromoteAgentDrawer";
@@ -326,6 +329,16 @@ export function DeployCard(props: DeployCardProps) {
   }, [searchParams, setSearchParams]);
 
 
+  // Same query as the build card, so no extra request.
+  const { data: allBuilds } = useGetAllAgentBuilds({
+    orgName: orgId,
+    projName: projectId,
+    agentName: agentId,
+  });
+  const noSuccessfulBuild = !!allBuilds && !allBuilds.builds.some(
+    (b) => b.status === "Completed" || b.status === "Succeeded",
+  );
+
   const { data: deployments, isLoading: isDeploymentsLoading } =
     useListAgentDeployments({
       orgName: orgId,
@@ -344,7 +357,7 @@ export function DeployCard(props: DeployCardProps) {
   // demands the capability AND the tier of the environment being changed.
   const deploymentStateAccess = environmentAccess(
     currentEnvironment,
-    AGENT_SUSPEND_SCOPE,
+    "agent_suspend",
   );
 
   const hasPromotionTarget = useMemo(() => {
@@ -451,6 +464,7 @@ export function DeployCard(props: DeployCardProps) {
         ? "API key"
         : "None";
 
+  const environmentHealthChecks = healthChecksInEffect(currentDeployment?.healthChecks);
   const corsEnabled = envConfig?.corsConfig?.enabled ?? false;
   const corsOrigins = envConfig?.corsConfig?.allowOrigin ?? [];
   const corsDetail = corsEnabled
@@ -467,9 +481,7 @@ export function DeployCard(props: DeployCardProps) {
 
   const selectedBuildId = extractBuildIdFromImageId(currentDeployment?.imageId);
   const lastDeployedText = currentDeployment?.lastDeployed
-    ? formatDistanceToNow(new Date(currentDeployment.lastDeployed), {
-      addSuffix: true,
-    })
+    ? formatRelativeTime(currentDeployment.lastDeployed)
     : "Unknown";
 
   const handleStop = () => {
@@ -527,19 +539,22 @@ export function DeployCard(props: DeployCardProps) {
         variant="outlined"
         sx={{
           height: "fit-content",
+          minHeight: noSuccessfulBuild ? 280 : undefined,
           width: 350,
           minWidth: 350,
         }}
       >
         <CardContent>
-          <Stack gap={2} alignItems="center">
-            <NoDataFound
-              message="No Deployment found"
-              subtitle={`Build your agent first to deploy it to ${currentEnvironment.displayName} environment.`}
-              icon={<Rocket size={32} />}
-              disableBackground
-            />
-          </Stack>
+          <StateNotice
+            compact
+            icon={Rocket}
+            title={noSuccessfulBuild ? "Nothing to deploy yet" : "Not deployed here yet"}
+            description={
+              noSuccessfulBuild
+                ? "Once the agent is built, you can deploy it to this environment."
+                : `Deploy a build to ${currentEnvironment.displayName} to see it running here.`
+            }
+          />
         </CardContent>
       </Card>
     );
@@ -700,6 +715,22 @@ export function DeployCard(props: DeployCardProps) {
                     </Box>
                   )}
 
+                  {/* Health checks overview: those of the build this environment runs */}
+                  {isApiAgent && (
+                    <Box display="flex" alignItems="center" gap={1}>
+                      <HeartPulse size={14} style={{ opacity: 0.6 }} />
+                      <Typography variant="body2">Health checks</Typography>
+                      <Tooltip title={describeHealthChecksInEffect(environmentHealthChecks)}>
+                        <Chip
+                          size="small"
+                          label={`${environmentHealthChecks.filter((check) => check.enabled).length} of 3 on`}
+                          variant="outlined"
+                          sx={{ height: 18, fontSize: "0.65rem", cursor: "default" }}
+                        />
+                      </Tooltip>
+                    </Box>
+                  )}
+
                   {/* Endpoint Authentication overview */}
                   {isApiAgent && (
                     <Box display="flex" alignItems="center" gap={1}>
@@ -770,6 +801,7 @@ export function DeployCard(props: DeployCardProps) {
               environment={currentEnvironment.name}
               title="Configurations and Secrets"
               isApiAgent={isApiAgent}
+              healthChecks={currentDeployment?.healthChecks}
               isPythonBuildpack={isPythonBuildpack}
               isBallerinaBuildpack={isBallerinaBuildpack}
               agentPythonVersion={agentPythonVersion}

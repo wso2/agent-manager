@@ -48,8 +48,8 @@ import {
   Search,
   ServerCog,
 } from "@wso2/oxygen-ui-icons-react";
-import { formatDistanceToNow } from "date-fns";
-import { generatePath, useNavigate, useParams } from "react-router-dom";
+import { generatePath, Navigate, useNavigate, useParams } from "react-router-dom";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 import {
   absoluteRouteMap,
   type CatalogSecuritySummary,
@@ -67,6 +67,7 @@ import {
   useUpdateAgentModelConfig,
 } from "@agent-management-platform/api-client";
 import {
+  formatRelativeTime,
   getErrorMessage,
   PolicyListSection,
   type PolicySelection as GuardrailSelection,
@@ -329,9 +330,7 @@ export const ProviderDisplay: React.FC<{
           {latest?.deployedAt && (
             <Typography variant="caption" color="text.secondary">
               Deployed{" "}
-              {formatDistanceToNow(new Date(latest.deployedAt), {
-                addSuffix: true,
-              })}
+              {formatRelativeTime(latest.deployedAt)}
             </Typography>
           )}
 
@@ -371,6 +370,7 @@ export const AddLLMProviderComponent: React.FC = () => {
     configId?: string;
   }>();
   const navigate = useNavigate();
+  const { canWrite } = useResourceAccess("agent");
   const isEditMode = !!configId;
 
   const [selectedEnvIndex, setSelectedEnvIndex] = useState(0);
@@ -793,6 +793,10 @@ export const AddLLMProviderComponent: React.FC = () => {
     updateConfig.reset();
   }, [createConfig, updateConfig]);
 
+  if (!canWrite) {
+    return <Navigate to={backHref} replace />;
+  }
+
   // Hold off rendering until the pipeline environments resolve (and, in edit
   // mode, the existing config). Otherwise the env tabs briefly show all org
   // environments before collapsing to the pipeline subset.
@@ -802,7 +806,7 @@ export const AddLLMProviderComponent: React.FC = () => {
         title={isEditMode ? "Edit LLM Configuration" : "Add LLM Configuration"}
         backHref={backHref}
         disableIcon
-        backLabel="Back to Configure"
+        backLabel="Back to configure"
       >
         <Stack spacing={2}>
           <Skeleton variant="rounded" height={56} />
@@ -819,7 +823,7 @@ export const AddLLMProviderComponent: React.FC = () => {
         title="Edit LLM Configuration"
         backHref={backHref}
         disableIcon
-        backLabel="Back to Configure"
+        backLabel="Back to configure"
       >
         <Alert severity="error" icon={<AlertTriangle size={18} />}>
           Config not found or failed to load.
@@ -833,7 +837,7 @@ export const AddLLMProviderComponent: React.FC = () => {
       title={isEditMode ? "Edit LLM Configuration" : "Add LLM Configuration"}
       backHref={backHref}
       disableIcon
-      backLabel="Back to Configure"
+      backLabel="Back to configure"
     >
       <Stack spacing={3}>
         {mutationError ? (
@@ -848,8 +852,8 @@ export const AddLLMProviderComponent: React.FC = () => {
                 : "Failed to create model config. Please try again.")}
           </Alert>
         ) : null}
-        <Form.Section>
-          <Form.Subheader>LLM Service Provider</Form.Subheader>
+        <Box>
+          <Typography variant="subtitle1" sx={{ mb: 1 }}>LLM Service Provider</Typography>
           {environments.length > 1 && (
             <>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
@@ -1047,7 +1051,7 @@ export const AddLLMProviderComponent: React.FC = () => {
               onRemove={handleRemoveGuardrail}
             />
           )}
-        </Form.Section>
+        </Box>
 
         {hasAnyProvider && (
           <ConfigNameSection
@@ -1062,8 +1066,8 @@ export const AddLLMProviderComponent: React.FC = () => {
         )}
 
         {hasAnyProvider && !isExternal && (
-          <Form.Section>
-            <Form.Subheader>Environment Variable Names</Form.Subheader>
+          <Box>
+            <Typography variant="subtitle1" sx={{ mb: 1 }}>Environment Variable Names</Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
               These names are shared across all environments. The platform
               injects the actual URL and API key values at runtime per
@@ -1115,7 +1119,7 @@ export const AddLLMProviderComponent: React.FC = () => {
                 </ListingTable.Body>
               </ListingTable>
             </ListingTable.Container>
-          </Form.Section>
+          </Box>
         )}
 
         {hasAnyProvider && !allEnvsHaveProvider && (

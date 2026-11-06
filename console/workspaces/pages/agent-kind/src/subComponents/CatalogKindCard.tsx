@@ -1,103 +1,57 @@
 import React from "react";
-import { Avatar, Box, Divider, Form, formatRelativeTime, Tooltip, Typography } from "@wso2/oxygen-ui";
+import { ListingCard, Stack, Tooltip, Typography } from "@wso2/oxygen-ui";
+import { formatRelativeTime } from "@agent-management-platform/shared-component";
 import { Link } from "react-router-dom";
-import { BookOpenText, Tag, Clock as TimerOutlined } from "@wso2/oxygen-ui-icons-react";
+import { BookOpenText } from "@wso2/oxygen-ui-icons-react";
 import type { AgentKindResponse } from "@agent-management-platform/types";
 
-export const CARD_HEIGHT = 116;
+/** Matches ListingCard's own minimum so the loading skeletons line up with it. */
+export const CARD_HEIGHT = 160;
 
 interface CatalogKindCardProps {
     item: AgentKindResponse;
     viewPath: string;
+    /** Router state for the card link. */
+    viewState?: unknown;
 }
 
-export const CatalogKindCard: React.FC<CatalogKindCardProps> = ({ item, viewPath }) => {
+export const CatalogKindCard: React.FC<CatalogKindCardProps> = ({ item, viewPath, viewState }) => {
 
-    const createdAtText = item.createdAt
-        ? formatRelativeTime(new Date(item.createdAt))
-        : "—";
-
-    return (
-        <Link to={viewPath} style={{ textDecoration: "none" }}>
-            <Form.CardButton
-                sx={{
-                    position: "relative",
-                    width: "100%",
-                    height: CARD_HEIGHT,
-                    textAlign: "left",
-                    display: "flex",
-                    flexDirection: "column",
-                    p: 2,
-                    pt: 3,
-                    boxSizing: "border-box",
-                    overflow: "hidden",
-                }}
-            >
-                {/* Top: avatar + name + latest version */}
-                <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1.5, width: "100%", minWidth: 0 }}>
-                    <Avatar
-                        sx={{
-                            bgcolor: "secondary.main",
-                            color: "primary.light",
-                            height: 44,
-                            width: 44,
-                            flexShrink: 0,
-                        }}
-                    >
-                        <BookOpenText size={26} />
-                    </Avatar>
-                    <Box sx={{ flex: 1, minWidth: 0 }}>
-                        <Tooltip title={item.displayName} placement="top-start">
-                            <Typography
-                                variant="h5"
-                                sx={{
-                                    lineHeight: 1.3,
-                                    mb: 0.4,
-                                    overflow: "hidden",
-                                    textOverflow: "ellipsis",
-                                    whiteSpace: "nowrap",
-                                    minWidth: 0,
-                                }}
-                            >
-                                {item.displayName}
-                            </Typography>
-                        </Tooltip>
-                        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, overflow: "hidden" }}>
-                            <Tag size={13} style={{ opacity: 0.5, flexShrink: 0 }} />
-                            {item.latestVersion ? (
-                                <Typography
-                                    variant="caption"
-                                    color="text.secondary"
-                                    noWrap
-                                    sx={{ minWidth: 0 }}
-                                >
-                                    Latest: {item.latestVersion}
-                                </Typography>
-                            ) : (
-                                <Typography variant="caption" color="text.disabled" sx={{ fontStyle: "italic" }}>
-                                    No versions published
-                                </Typography>
-                            )}
-                        </Box>
-                    </Box>
-                </Box>
-
-                <Box sx={{ flex: 1 }} />
-
-                <Divider sx={{ mb: 1 }} />
-
-                {/* Bottom: time */}
-                <Box sx={{ width: "100%", minWidth: 0 }}>
+    // The latest version's image, so people can tell which build the kind ships.
+    const latest =
+        item.versions?.find((v) => v.version === item.latestVersion) ?? item.versions?.[0];
+    const decorators = (
+        <Stack spacing={0.5}>
+            <Typography variant="body2" fontWeight={600}>
+                {item.latestVersion ? `Latest: ${item.latestVersion}` : "No versions"}
+            </Typography>
+            {latest?.imageId && (
+                <Tooltip title={latest.imageId}>
                     <Typography
                         variant="caption"
-                        color="text.disabled"
-                        sx={{ display: "flex", alignItems: "center", gap: 0.4 }}
+                        color="text.secondary"
+                        noWrap
+                        sx={{ fontFamily: "monospace" }}
                     >
-                        <TimerOutlined size={12} />
-                        {createdAtText}
+                        Image: {latest.imageId}
                     </Typography>
-                </Box>
-            </Form.CardButton>
+                </Tooltip>
+            )}
+        </Stack>
+    );
+
+    return (
+        // ListingCard's own `href` renders a plain anchor, which would reload the
+        // app; the router Link keeps navigation client-side.
+        <Link to={viewPath} state={viewState} style={{ textDecoration: "none" }}>
+            <ListingCard
+                title={item.displayName}
+                description={decorators}
+                icon={<BookOpenText size={20} />}
+                updatedLabel="Created"
+                updatedTime={formatRelativeTime(item.createdAt)}
+                updatedDateTime={item.createdAt}
+            />
         </Link>
     );
 };

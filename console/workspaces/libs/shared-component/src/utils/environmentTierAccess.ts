@@ -16,44 +16,20 @@
  * under the License.
  */
 
+import type {
+  FeatureAccessKey,
+  FeatureManagement,
+} from "@agent-management-platform/feature-management";
+
 /**
- * The environment tier is an authorization axis of its own: it is about where an
- * action lands rather than what the action is. The floor says "may act on
- * environments at all"; the production grant is held in addition to it to reach
- * the environments OpenChoreo flags isProduction, and is never sufficient alone.
- *
- * Deploy, promote and deployment-state changes are all decided on it by
- * agentManagerService.requireEnvTier, which resolves the target environment
- * server-side. What follows mirrors that rule so the console does not offer a
- * button that is certain to come back 403 — it is a UX hint, never the
- * enforcement point.
- *
- * The rule is kept free of React and of the app's runtime config so it can be
- * tested directly; useAgentEnvironmentAccess in the sibling file binds it to the
- * current token.
+ * The environment tier decides where an action may land. `agent_deploy` allows
+ * non-production environments; `agent_deploy_production` is needed in addition for
+ * environments flagged isProduction. This mirrors the server's rule so the console
+ * doesn't offer a button that will 403; the server is still the enforcement point.
  */
-export const AGENT_ENV_NON_PRODUCTION_SCOPE = "amp:agent:env-non-production";
-export const AGENT_ENV_PRODUCTION_SCOPE = "amp:agent:env-production";
 
-/** The capability scope the deployment-state route demands beside the tier. */
-export const AGENT_SUSPEND_SCOPE = "amp:agent:suspend";
-
-/** The scopes the current token carries, and whether they are enforced at all. */
-export interface ScopeState {
-  /**
-   * False when auth is disabled outright, so no token exists to carry scopes.
-   * Every check then passes, exactly as the service gates nothing.
-   */
-  enforced: boolean;
-  /**
-   * False while the access token is still being decoded, when `scopes` is empty
-   * only because nothing has been read yet. The rule needs it because an empty
-   * set is otherwise indistinguishable from a token that genuinely carries no
-   * scopes at all.
-   */
-  resolved: boolean;
-  scopes: ReadonlySet<string>;
-}
+/** The parts of feature management the rule reads. */
+export type AccessState = Pick<FeatureManagement, "hasAccess">;
 
 /** Only the part of an Environment that decides the tier. */
 export interface EnvironmentTier {
@@ -62,60 +38,43 @@ export interface EnvironmentTier {
 
 export interface AccessDecision {
   allowed: boolean;
-  /** The scope whose absence decided it. Undefined when allowed. */
-  missingScope?: string;
+  /** The access key whose absence decided it. Undefined when allowed. */
+  missingAccess?: FeatureAccessKey;
   /** A sentence for the disabled control's tooltip. Empty when allowed. */
   reason: string;
 }
 
 export const ALLOWED: AccessDecision = { allowed: true, reason: "" };
 
-function deny(missingScope: string, what: string): AccessDecision {
+function deny(missingAccess: FeatureAccessKey, what: string): AccessDecision {
   return {
     allowed: false,
-    missingScope,
-    reason: `You do not have permission to ${what}. This requires the ${missingScope} scope.`,
+    missingAccess,
+    reason: `You do not have permission to ${what}.`,
   };
 }
 
 /**
- * Decides whether the caller may act on `environment`, given the capability
- * scope the operation also needs — deploy and promote declare none beside the
- * tier, the deployment-state route declares agent:suspend.
+ * Whether the user may act on `environment`, given any extra capability the
+ * operation needs (e.g. `agent_suspend`). Checks run in the server's order:
+ * capability, then the non-production floor, then production.
  *
- * Order matches the server's: the route's static capability check runs first
- * (middleware.RequireAllPermissions), then the service resolves the environment
- * and checks the floor, then the production grant. Reporting the same scope the
- * server would name keeps the tooltip and the eventual 403 consistent.
- *
- * An unresolved token allows everything, for the same reason and with the same
- * caveat as the unknown tier below: this is a hint, and the server decides.
- *
- * `environment` is undefined while the environment list is still loading. The
- * tier is then unknown, and denying on a guess would flash a disabled control on
- * every page load, so only the floor is checked and the server settles the rest.
+ * Checks only the floor while the environment (and so its tier) is unknown, so
+ * controls don't flash disabled. Access itself is settled before pages render.
  */
 export function evaluateAgentEnvironmentAccess(
-  state: ScopeState,
+  state: AccessState,
   environment: EnvironmentTier | undefined,
-  capability?: string,
+  capability?: FeatureAccessKey,
 ): AccessDecision {
-  if (!state.enforced) return ALLOWED;
-  // An unread token carries an empty scope set, which the checks below would
-  // read as a token permitted nothing: every gated control disabled, each
-  // naming a scope the caller may well hold, until the decode lands a moment
-  // later. The server is the enforcement point, so the hint says nothing until
-  // it has something to say.
-  if (!state.resolved) return ALLOWED;
-
-  if (capability && !state.scopes.has(capability)) {
+  if (capability && !state.hasAccess(capability)) {
     return deny(capability, "perform this action");
   }
-  if (!state.scopes.has(AGENT_ENV_NON_PRODUCTION_SCOPE)) {
-    return deny(AGENT_ENV_NON_PRODUCTION_SCOPE, "act on deployment environments");
+  if (!state.hasAccess("agent_deploy")) {
+    return deny("agent_deploy", "act on deployment environments");
   }
-  if (environment?.isProduction && !state.scopes.has(AGENT_ENV_PRODUCTION_SCOPE)) {
-    return deny(AGENT_ENV_PRODUCTION_SCOPE, "act on production environments");
+  if (environment?.isProduction && !state.hasAccess("agent_deploy_production")) {
+    return deny("agent_deploy_production", "act on production environments");
   }
   return ALLOWED;
 }

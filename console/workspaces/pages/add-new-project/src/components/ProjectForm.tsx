@@ -19,65 +19,20 @@
 import {
   CircularProgress,
   Form,
-  Select,
-  MenuItem,
-  TextField,
+  Grid,
+  IconButton,
+  InputAdornment,
   Typography,
   Stack,
 } from "@wso2/oxygen-ui";
-import { useEffect, useMemo, useCallback } from "react";
+import { useEffect, useMemo, useCallback, useState } from "react";
 import { useParams } from "react-router-dom";
+import { Edit } from "@wso2/oxygen-ui-icons-react";
 import { debounce } from "lodash";
-import { useGenerateResourceName, useListDeploymentPipelines, useListEnvironments } from "@agent-management-platform/api-client";
-import { MarkdownEditor } from "@agent-management-platform/shared-component";
-import { AddProjectFormValues } from "../form/schema";
-import { type DeploymentPipelineResponse, INPUT_LIMITS } from "@agent-management-platform/types";
-
-function pipelineChainLabel(
-  pipeline: DeploymentPipelineResponse,
-  envDisplayNameMap: Map<string, string>,
-): string | null {
-  if (pipeline.promotionPaths.length === 0) return null;
-  const names = [
-    ...pipeline.promotionPaths.map((pp) => pp.sourceEnvironmentRef),
-    pipeline.promotionPaths[pipeline.promotionPaths.length - 1]?.targetEnvironmentRefs[0]?.name,
-  ].filter(Boolean) as string[];
-  return names.map((n) => envDisplayNameMap.get(n) ?? n).join(" → ");
-}
-
-function SelectedPipelineValue({
-  pipeline,
-  envDisplayNameMap,
-}: {
-  pipeline: DeploymentPipelineResponse;
-  envDisplayNameMap: Map<string, string>;
-}) {
-  const chain = pipelineChainLabel(pipeline, envDisplayNameMap);
-  return (
-    <Stack direction="row" alignItems="center" spacing={1}>
-      <Typography variant="body2">{pipeline.displayName}</Typography>
-      {chain && (
-        <Typography variant="caption" color="text.disabled">{chain}</Typography>
-      )}
-    </Stack>
-  );
-}
-
-function PipelineMenuItem({
-  pipeline,
-  envDisplayNameMap,
-}: {
-  pipeline: DeploymentPipelineResponse;
-  envDisplayNameMap: Map<string, string>;
-}) {
-  const chain = pipelineChainLabel(pipeline, envDisplayNameMap);
-  return (
-    <Stack>
-      <Typography variant="body2">{pipeline.displayName}</Typography>
-      {chain && <Typography variant="caption" color="text.disbaled">{chain}</Typography>}
-    </Stack>
-  );
-}
+import { useGenerateResourceName } from "@agent-management-platform/api-client";
+import { AddProjectFormValues, PROJECT_NAME_MAX_LENGTH } from "../form/schema";
+import { INPUT_LIMITS } from "@agent-management-platform/types";
+import { TextInput } from "@agent-management-platform/views";
 
 interface ProjectFormProps {
   formData: AddProjectFormValues;
@@ -103,6 +58,7 @@ export const ProjectForm = ({
   checkDirty,
 }: ProjectFormProps) => {
   const { orgId } = useParams<{ orgId: string }>();
+  const [isNameEditable, setIsNameEditable] = useState(false);
 
   const handleFieldChange = useCallback(
     (field: keyof AddProjectFormValues, value: string) => {
@@ -120,30 +76,6 @@ export const ProjectForm = ({
     useGenerateResourceName({
       orgName: orgId,
     });
-
-  const { data: pipelinesData, isLoading: isPipelinesLoading } =
-    useListDeploymentPipelines({ orgName: orgId });
-
-  const pipelines = pipelinesData?.deploymentPipelines ?? [];
-
-  const { data: environments } = useListEnvironments({ orgName: orgId });
-  const envDisplayNameMap = useMemo(() => {
-    const map = new Map<string, string>();
-    (environments ?? []).forEach((e) => map.set(e.name, e.displayName ?? e.name));
-    return map;
-  }, [environments]);
-
-  // Auto-select the first pipeline once data loads if nothing is selected yet.
-  useEffect(() => {
-    if (!formData.deploymentPipeline && pipelines.length > 0) {
-      const first = pipelines[0].name;
-      setFormData((prev) => {
-        const next = { ...prev, deploymentPipeline: first };
-        checkDirty(next);
-        return next;
-      });
-    }
-  }, [pipelines, formData.deploymentPipeline, setFormData, checkDirty]);
 
   // Create debounced function for name generation
   const debouncedGenerateName = useMemo(
@@ -185,6 +117,10 @@ export const ProjectForm = ({
 
   // Auto-generate name from display name using API with debounce
   useEffect(() => {
+    if (isNameEditable) {
+      debouncedGenerateName.cancel();
+      return;
+    }
     if (formData.displayName && formData.displayName.length >= 3) {
       debouncedGenerateName(formData.displayName);
     } else {
@@ -192,96 +128,83 @@ export const ProjectForm = ({
       debouncedGenerateName.cancel();
       setFormData((prev) => ({ ...prev, name: "" }));
     }
-  }, [formData.displayName, setFormData, debouncedGenerateName]);
+  }, [
+    formData.displayName,
+    isNameEditable,
+    setFormData,
+    debouncedGenerateName,
+  ]);
 
   return (
     <Form.Stack spacing={3}>
-      <Form.Section>
-        <Form.Subheader>Project Details</Form.Subheader>
-        <Form.Stack spacing={2}>
-          <Form.ElementWrapper label="Name" name="displayName">
-            <TextField
-              slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.NAME } }}
-              id="displayName"
-              value={formData.displayName}
-              onChange={(e) => handleFieldChange("displayName", e.target.value)}
-              placeholder="e.g., Customer Support Platform"
-              error={!!errors.displayName}
-              helperText={
-                isGeneratingName ? (
-                  <Stack direction="row" alignItems="center" gap={1}>
-                    <CircularProgress size={12} />
-                    <Typography variant="caption">Validating name...</Typography>
-                  </Stack>
-                ) : (
-                  errors.displayName
-                )
-              }
-              fullWidth
-            />
-          </Form.ElementWrapper>
 
-          <Form.ElementWrapper
+      <Grid container spacing={2}>
+        <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+          <TextInput
+            label="Name"
+            id="displayName"
+            maxLength={INPUT_LIMITS.NAME}
+            hideCharacterCount={formData.displayName.length < INPUT_LIMITS.NAME}
+            value={formData.displayName}
+            onChange={(e) => handleFieldChange("displayName", e.target.value)}
+            placeholder="e.g. Customer Support Platform"
+            error={!!errors.displayName}
+            helperText={
+              isGeneratingName ? (
+                <Stack component="span" direction="row" alignItems="center" gap={1}>
+                  <CircularProgress size={12} />
+                  <Typography variant="caption">Validating name...</Typography>
+                </Stack>
+              ) : (
+                errors.displayName
+              )
+            }
+          />
+        </Grid>
+        <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+          <TextInput
+            label="Project ID"
+            id="name"
+            maxLength={PROJECT_NAME_MAX_LENGTH}
+            hideCharacterCount={!isNameEditable || formData.name.length < PROJECT_NAME_MAX_LENGTH}
+            value={formData.name}
+            onChange={(e) => handleFieldChange("name", e.target.value)}
+            placeholder="e.g., customer-support-platform"
+            error={!!errors.name}
+            helperText={errors.name}
+            disabled={!isNameEditable && !formData.name}
+            slotProps={{
+              htmlInput: { readOnly: !isNameEditable },
+              input: {
+                endAdornment: !isNameEditable && (
+                  <InputAdornment position="end">
+                    <IconButton
+                      size="small"
+                      aria-label="Edit project ID"
+                      onClick={() => setIsNameEditable(true)}
+                    >
+                      <Edit size={16} />
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              },
+            }}
+          />
+        </Grid>
+        <Grid size={{ xs: 12, md: 12, xl: 8 }}>
+          <TextInput
             label="Description (optional)"
-            name="description"
-          >
-            <MarkdownEditor
-              id="description"
-              value={formData.description || ""}
-              onChange={(value) => handleFieldChange("description", value)}
-              placeholder="Short description of this project. Markdown is supported."
-              error={!!errors.description}
-              helperText={errors.description}
-            />
-          </Form.ElementWrapper>
-
-          <Form.ElementWrapper
-            label="Deployment Pipeline"
-            name="deploymentPipeline"
-          >
-            <Select
-              id="deploymentPipeline"
-              value={formData.deploymentPipeline}
-              onChange={(e) =>
-                handleFieldChange("deploymentPipeline", e.target.value)
-              }
-              error={!!errors.deploymentPipeline}
-              disabled={isPipelinesLoading}
-              displayEmpty
-              renderValue={(value) => {
-                const selected = pipelines.find((p) => p.name === value);
-                if (!selected) return value;
-                return (
-                  <SelectedPipelineValue
-                    pipeline={selected}
-                    envDisplayNameMap={envDisplayNameMap}
-                  />
-                );
-              }}
-              fullWidth
-            >
-              {isPipelinesLoading && (
-                <MenuItem value="" disabled>
-                  <Stack direction="row" alignItems="center" gap={1}>
-                    <CircularProgress size={12} />
-                    <Typography variant="caption">Loading pipelines...</Typography>
-                  </Stack>
-                </MenuItem>
-              )}
-              {!isPipelinesLoading && pipelines.length === 0 && (
-                <MenuItem value="" disabled>
-                  No deployment pipelines available
-                </MenuItem>
-              )}
-              {pipelines.map((p) => (
-                <MenuItem key={p.name} value={p.name}>
-                  <PipelineMenuItem pipeline={p} envDisplayNameMap={envDisplayNameMap} />
-                </MenuItem>
-              ))}
-            </Select>
-          </Form.ElementWrapper>
-        </Form.Stack>
-      </Form.Section>
+            maxLength={INPUT_LIMITS.DESCRIPTION}
+            hideCharacterCount={(formData.description?.length ?? 0) < INPUT_LIMITS.DESCRIPTION}
+            id="description"
+            value={formData.description || ""}
+            onChange={(e) => handleFieldChange("description", e.target.value)}
+            placeholder="What is this project for?"
+            error={!!errors.description}
+            helperText={errors.description}
+          />
+        </Grid>
+      </Grid>
     </Form.Stack>
   );
 };

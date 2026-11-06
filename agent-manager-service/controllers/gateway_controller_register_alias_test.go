@@ -33,6 +33,34 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
+// registerHarness is a gateway controller whose repository accepts one new
+// gateway and keeps it in created.
+type registerHarness struct {
+	ctrl    GatewayController
+	created *models.Gateway
+}
+
+func newRegisterHarness() *registerHarness {
+	h := &registerHarness{}
+	gatewayRepo := &repomocks.GatewayRepositoryMock{
+		GetByNameAndOrgIDFunc: func(_ string, _ string) (*models.Gateway, error) {
+			return nil, utils.ErrGatewayNotFound
+		},
+		TransactionFunc: func(fn func(tx *gorm.DB) error) error {
+			return fn(nil)
+		},
+		CreateTxFunc: func(_ *gorm.DB, gateway *models.Gateway) error {
+			h.created = gateway
+			return nil
+		},
+		GetEnvironmentMappingsByGatewayIDFunc: func(_ string) ([]models.GatewayEnvironmentMapping, error) {
+			return []models.GatewayEnvironmentMapping{}, nil
+		},
+	}
+	h.ctrl = NewGatewayController(services.NewPlatformGatewayService(gatewayRepo, nil), nil, nil)
+	return h
+}
+
 // TestRegisterGateway_DeprecatedAliasesDecodeAndNormalize proves the full path from
 // wire body to stored role for the REGULAR/AI deprecated aliases: a gateway chart
 // pinned to an older version sends "REGULAR" or "AI" as gatewayType, and the request
@@ -54,24 +82,7 @@ func TestRegisterGateway_DeprecatedAliasesDecodeAndNormalize(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var created *models.Gateway
-			gatewayRepo := &repomocks.GatewayRepositoryMock{
-				GetByNameAndOrgIDFunc: func(_ string, _ string) (*models.Gateway, error) {
-					return nil, utils.ErrGatewayNotFound
-				},
-				TransactionFunc: func(fn func(tx *gorm.DB) error) error {
-					return fn(nil)
-				},
-				CreateTxFunc: func(_ *gorm.DB, gateway *models.Gateway) error {
-					created = gateway
-					return nil
-				},
-				GetEnvironmentMappingsByGatewayIDFunc: func(_ string) ([]models.GatewayEnvironmentMapping, error) {
-					return []models.GatewayEnvironmentMapping{}, nil
-				},
-			}
-			svc := services.NewPlatformGatewayService(gatewayRepo, nil)
-			ctrl := NewGatewayController(svc, nil, nil)
+			h := newRegisterHarness()
 
 			body := `{"name":"gw-` + strings.ToLower(tt.gatewayType) + `","displayName":"Gateway",` +
 				`"gatewayType":"` + tt.gatewayType + `","vhost":"gw.example.com"}`
@@ -79,11 +90,11 @@ func TestRegisterGateway_DeprecatedAliasesDecodeAndNormalize(t *testing.T) {
 			req = req.WithContext(middleware.WithResolvedOrg(req.Context(), middleware.ResolvedOrg{OUID: "ou-1"}))
 			w := httptest.NewRecorder()
 
-			ctrl.RegisterGateway(w, req)
+			h.ctrl.RegisterGateway(w, req)
 
 			require.Equal(t, tt.wantHTTPCode, w.Code, "response body: %s", w.Body.String())
-			require.NotNil(t, created, "gateway must have been persisted")
-			assert.Equal(t, tt.wantRole, created.GatewayFunctionalityType)
+			require.NotNil(t, h.created, "gateway must have been persisted")
+			assert.Equal(t, tt.wantRole, h.created.GatewayFunctionalityType)
 		})
 	}
 }
@@ -106,4 +117,15 @@ func TestRegisterGateway_UnknownGatewayTypeRejected(t *testing.T) {
 	ctrl.RegisterGateway(w, req)
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestRegisterGatewayRejectsCrossOrganization(t *testing.T) {
+	ctrl := NewGatewayController(nil, nil, nil)
+	req := httptest.NewRequest(http.MethodPost, "/orgs/o1/gateways",
+		strings.NewReader(`{"name":"gateway","gatewayType":"EGRESS","orgId":"other-org"}`))
+	req = req.WithContext(middleware.WithResolvedOrg(req.Context(), middleware.ResolvedOrg{OUID: "ou-1"}))
+	w := httptest.NewRecorder()
+	ctrl.RegisterGateway(w, req)
+	assert.Equal(t, http.StatusForbidden, w.Code)
+	assert.Contains(t, w.Body.String(), "orgId does not match")
 }

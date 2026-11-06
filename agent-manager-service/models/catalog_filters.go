@@ -37,6 +37,9 @@ type CatalogListFilters struct {
 	// Only applies when Kind == "LlmProvider"
 	EnvironmentUUID string
 
+	// GatewayHosting narrows the environment filter to gateways with this hosting (optional)
+	GatewayHosting string
+
 	// Pagination
 	Limit  int
 	Offset int
@@ -73,6 +76,10 @@ func (f *CatalogListFilters) Validate() error {
 		if !validKinds[f.Kind] {
 			return fmt.Errorf("invalid kind: %s", f.Kind)
 		}
+	}
+
+	if f.GatewayHosting != "" && f.GatewayHosting != GatewayHostingManaged && f.GatewayHosting != GatewayHostingSelfHosted {
+		return fmt.Errorf("invalid gateway hosting: %s", f.GatewayHosting)
 	}
 
 	return nil

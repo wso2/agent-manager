@@ -17,7 +17,7 @@
  */
 
 import React, { useCallback } from "react";
-import { Route, Routes, generatePath, useNavigate, useParams } from "react-router-dom";
+import { Navigate, Route, Routes, generatePath, useNavigate, useParams } from "react-router-dom";
 import { absoluteRouteMap, relativeRouteMap } from "@agent-management-platform/types";
 import { NewAgentOptions } from "./components/NewAgentOptions";
 import { NewAgentSourceOptions } from "./components/NewAgentSourceOptions";
@@ -26,6 +26,8 @@ import { CatalogAgentFlow } from "./components/CatalogAgentFlow";
 import { CatalogKindSelect } from "./components/CatalogKindSelect";
 import { ExternalAgentFlow } from "./components/ExternalAgentFlow";
 import { ConsoleAction, useTrack } from "@agent-management-platform/api-client";
+import { useFeatureAccess } from "@agent-management-platform/feature-management";
+import { useAgentWizardReturn } from "./utils/useAgentWizardReturn";
 
 /**
  * Create-agent wizard.
@@ -44,6 +46,9 @@ import { ConsoleAction, useTrack } from "@agent-management-platform/api-client";
 export const AddNewAgent: React.FC = () => {
   const navigate = useNavigate();
   const { track } = useTrack();
+  const canCreate = useFeatureAccess("agent_create");
+  // Forwarded on each step so the final Cancel still knows where the wizard was opened from.
+  const { wizardState } = useAgentWizardReturn();
   const { orgId, projectId } = useParams<{
     orgId: string;
     projectId?: string;
@@ -63,8 +68,8 @@ export const AddNewAgent: React.FC = () => {
     navigate(generatePath(target, {
       orgId: orgId ?? '',
       projectId: projectId ?? 'default',
-    }));
-  }, [navigate, orgId, projectId, CREATE_PATTERN, CONNECT_PATTERN, track]);
+    }), { state: wizardState });
+  }, [navigate, orgId, projectId, CREATE_PATTERN, CONNECT_PATTERN, track, wizardState]);
 
   const handleSourceSelect = useCallback((option: 'source' | 'catalog') => {
     track(ConsoleAction.WizardStepViewed, {
@@ -75,8 +80,8 @@ export const AddNewAgent: React.FC = () => {
     navigate(generatePath(`${CREATE_PATTERN}/${option}`, {
       orgId: orgId ?? '',
       projectId: projectId ?? 'default',
-    }));
-  }, [navigate, orgId, projectId, CREATE_PATTERN, track]);
+    }), { state: wizardState });
+  }, [navigate, orgId, projectId, CREATE_PATTERN, track, wizardState]);
 
   // A sample seeds the Platform-Hosted Agent form directly (no separate
   // listing screen) — its repo/env fields arrive via the `sample` query param.
@@ -90,8 +95,20 @@ export const AddNewAgent: React.FC = () => {
       orgId: orgId ?? '',
       projectId: projectId ?? 'default',
     });
-    navigate(`${sourcePath}?sample=${encodeURIComponent(sampleId)}`);
-  }, [navigate, orgId, projectId, CREATE_PATTERN, track]);
+    navigate(`${sourcePath}?sample=${encodeURIComponent(sampleId)}`, { state: wizardState });
+  }, [navigate, orgId, projectId, CREATE_PATTERN, track, wizardState]);
+
+  if (!canCreate) {
+    return (
+      <Navigate
+        to={generatePath(absoluteRouteMap.children.org.children.projects.path, {
+          orgId: orgId ?? '',
+          projectId: projectId ?? 'default',
+        })}
+        replace
+      />
+    );
+  }
 
   return (
     <Routes>

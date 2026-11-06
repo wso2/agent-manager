@@ -15,34 +15,40 @@
  * under the License.
  */
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Alert,
   Avatar,
-  Button,
   IconButton,
   ListingTable,
   TablePagination,
   Tooltip,
 } from "@wso2/oxygen-ui";
-import { Folder, Plus, Trash } from "@wso2/oxygen-ui-icons-react";
+import { Folder, Trash } from "@wso2/oxygen-ui-icons-react";
 import { generatePath, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   useDeleteAgentIdentityGroup,
   useListAgentIdentityGroups,
 } from "@agent-management-platform/api-client";
-import { ListingSkeletonRows, useConfirmationDialog } from "@agent-management-platform/shared-component";
+import { isListEmpty, ListingSkeletonRows, useConfirmationDialog } from "@agent-management-platform/shared-component";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 import { absoluteRouteMap, type ThunderGroup } from "@agent-management-platform/types";
 import { withSearchParams } from "../../utils/withSearchParams";
 import { AgentIdentityEnvironmentTabs } from "./AgentIdentityEnvironmentTabs";
 
 const AVATAR_SX = { width: 28, height: 28, fontSize: 12 } as const;
 
-export const GroupsPage: React.FC = () => {
+interface GroupsPageProps {
+  /** CTA shown in the empty state; the page owns how a group gets created. */
+  createAction?: ReactNode;
+}
+
+export const GroupsPage: React.FC<GroupsPageProps> = ({ createAction }) => {
   const { orgId } = useParams<{ orgId: string }>();
   const [searchParams] = useSearchParams();
   const envName = searchParams.get("envName") ?? "";
   const navigate = useNavigate();
+  const { canWrite } = useResourceAccess("agent_identity");
 
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -58,6 +64,12 @@ export const GroupsPage: React.FC = () => {
   const groups = useMemo(() => data?.groups ?? [], [data]);
   const total = data?.total ?? 0;
 
+  const isEmpty = isListEmpty({
+    isLoading,
+    count: groups.length,
+    isFiltered: Boolean(search),
+  });
+
   useEffect(() => {
     if (groups.length === 0 && total > 0) {
       const lastPage = Math.max(0, Math.ceil(total / rowsPerPage) - 1);
@@ -69,10 +81,6 @@ export const GroupsPage: React.FC = () => {
 
   const groupsNode =
     absoluteRouteMap.children.org.children.thunderInstances.children.groups;
-
-  const createPath = orgId
-    ? withSearchParams(generatePath(groupsNode.children.create.path, { orgId }), searchParams)
-    : "#";
 
   const editGroupPath = (groupId: string) =>
     orgId
@@ -115,20 +123,10 @@ export const GroupsPage: React.FC = () => {
 
       <ListingTable.Provider searchValue={search} onSearchChange={setSearch}>
         <ListingTable.Container>
-          <AgentIdentityEnvironmentTabs />
-          <ListingTable.Toolbar
-            showSearch
-            searchPlaceholder="Search groups..."
-            actions={
-              <Button
-                variant="contained"
-                startIcon={<Plus />}
-                onClick={() => navigate(createPath)}
-              >
-                Create Group
-              </Button>
-            }
-          />
+          <AgentIdentityEnvironmentTabs action={isEmpty ? undefined : createAction} />
+          {!isEmpty && (
+            <ListingTable.Toolbar showSearch searchPlaceholder="Search groups..." />
+          )}
           {!isLoading && filteredGroups.length === 0 ? (
             search ? (
               <ListingTable.EmptyState
@@ -140,7 +138,8 @@ export const GroupsPage: React.FC = () => {
               <ListingTable.EmptyState
                 illustration={<Folder size={64} />}
                 title="No groups yet"
-                description='Click "Create Group" to add one.'
+                description="Create a group to organize agent identities in this environment."
+                action={createAction}
               />
             )
           ) : (
@@ -174,27 +173,29 @@ export const GroupsPage: React.FC = () => {
                         />
                       </ListingTable.Cell>
                       <ListingTable.Cell align="center">
-                        <ListingTable.RowActions visibility="hover">
-                          <Tooltip title="Delete group">
-                            <IconButton
-                              size="small"
-                              color="error"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDelete(group);
-                              }}
-                            >
-                              <Trash size={16} />
-                            </IconButton>
-                          </Tooltip>
-                        </ListingTable.RowActions>
+                        {canWrite && (
+                          <ListingTable.RowActions visibility="hover">
+                            <Tooltip title="Delete group">
+                              <IconButton
+                                size="small"
+                                color="error"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDelete(group);
+                                }}
+                              >
+                                <Trash size={16} />
+                              </IconButton>
+                            </Tooltip>
+                          </ListingTable.RowActions>
+                        )}
                       </ListingTable.Cell>
                     </ListingTable.Row>
                   ))}
               </ListingTable.Body>
             </ListingTable>
           )}
-          {!isLoading && total >= 5 && (
+          {!isLoading && total > 5 && (
             <TablePagination
               component="div"
               count={total}

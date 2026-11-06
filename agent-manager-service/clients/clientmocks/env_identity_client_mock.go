@@ -76,6 +76,9 @@ import (
 //			GetGroupRolesFunc: func(ctx context.Context, groupID string) ([]thundersvc.ThunderRole, error) {
 //				panic("mock out the GetGroupRoles method")
 //			},
+//			GetOUHandleByIDFunc: func(ctx context.Context, ouID string) (string, error) {
+//				panic("mock out the GetOUHandleByID method")
+//			},
 //			GetOUIDByHandleFunc: func(ctx context.Context, handle string) (string, error) {
 //				panic("mock out the GetOUIDByHandle method")
 //			},
@@ -211,6 +214,9 @@ type EnvIdentityClientMock struct {
 
 	// GetGroupRolesFunc mocks the GetGroupRoles method.
 	GetGroupRolesFunc func(ctx context.Context, groupID string) ([]thundersvc.ThunderRole, error)
+
+	// GetOUHandleByIDFunc mocks the GetOUHandleByID method.
+	GetOUHandleByIDFunc func(ctx context.Context, ouID string) (string, error)
 
 	// GetOUIDByHandleFunc mocks the GetOUIDByHandle method.
 	GetOUIDByHandleFunc func(ctx context.Context, handle string) (string, error)
@@ -443,6 +449,13 @@ type EnvIdentityClientMock struct {
 			// GroupID is the groupID argument value.
 			GroupID string
 		}
+		// GetOUHandleByID holds details about calls to the GetOUHandleByID method.
+		GetOUHandleByID []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// OuID is the ouID argument value.
+			OuID string
+		}
 		// GetOUIDByHandle holds details about calls to the GetOUIDByHandle method.
 		GetOUIDByHandle []struct {
 			// Ctx is the ctx argument value.
@@ -667,6 +680,7 @@ type EnvIdentityClientMock struct {
 	lockGetGroup                        sync.RWMutex
 	lockGetGroupMembers                 sync.RWMutex
 	lockGetGroupRoles                   sync.RWMutex
+	lockGetOUHandleByID                 sync.RWMutex
 	lockGetOUIDByHandle                 sync.RWMutex
 	lockGetRole                         sync.RWMutex
 	lockGetRoleAssignments              sync.RWMutex
@@ -1449,6 +1463,42 @@ func (mock *EnvIdentityClientMock) GetGroupRolesCalls() []struct {
 	mock.lockGetGroupRoles.RLock()
 	calls = mock.calls.GetGroupRoles
 	mock.lockGetGroupRoles.RUnlock()
+	return calls
+}
+
+// GetOUHandleByID calls GetOUHandleByIDFunc.
+func (mock *EnvIdentityClientMock) GetOUHandleByID(ctx context.Context, ouID string) (string, error) {
+	if mock.GetOUHandleByIDFunc == nil {
+		panic("EnvIdentityClientMock.GetOUHandleByIDFunc: method is nil but EnvIdentityClient.GetOUHandleByID was just called")
+	}
+	callInfo := struct {
+		Ctx  context.Context
+		OuID string
+	}{
+		Ctx:  ctx,
+		OuID: ouID,
+	}
+	mock.lockGetOUHandleByID.Lock()
+	mock.calls.GetOUHandleByID = append(mock.calls.GetOUHandleByID, callInfo)
+	mock.lockGetOUHandleByID.Unlock()
+	return mock.GetOUHandleByIDFunc(ctx, ouID)
+}
+
+// GetOUHandleByIDCalls gets all the calls that were made to GetOUHandleByID.
+// Check the length with:
+//
+//	len(mockedEnvIdentityClient.GetOUHandleByIDCalls())
+func (mock *EnvIdentityClientMock) GetOUHandleByIDCalls() []struct {
+	Ctx  context.Context
+	OuID string
+} {
+	var calls []struct {
+		Ctx  context.Context
+		OuID string
+	}
+	mock.lockGetOUHandleByID.RLock()
+	calls = mock.calls.GetOUHandleByID
+	mock.lockGetOUHandleByID.RUnlock()
 	return calls
 }
 

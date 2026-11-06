@@ -1,3 +1,9 @@
 # AES-GCM ciphertext of the dummy "origin-secret" under the fixed {7}x32 test key, not a credential.
 2bd5bf1d5b0ab233cc38f8d81c29bd803f3acad9:agent-manager-service/services/a2a_agent_kind_unit_test.go:generic-api-key:72
 2bd5bf1d5b0ab233cc38f8d81c29bd803f3acad9:agent-manager-service/services/testdata/golden/a2a_agent_external.yaml:generic-api-key:14
+# `kubectl create secret generic gateway-encryption-keys --from-file=...` in a test assertion of the self-hosted install commands, not a credential.
+b9f91c5b9244e112764fa649b42fa07c0d223e86:console/workspaces/pages/gateways/src/subComponents/selfHostedSetup.test.ts:generic-api-key:62
+797fe93253e482d646f448b47a9d6cf71d30c9ac:console/workspaces/pages/gateways/src/subComponents/selfHostedSetup.test.ts:generic-api-key:63
+# Standard Webhooks specification's published test vector (key and expected signature), not a credential.
+ac2019eb87004efd2034838b0c454a08dc12d232:agent-manager-service/services/eventdestinations/webhook/webhook_test.go:generic-api-key:41
+ac2019eb87004efd2034838b0c454a08dc12d232:agent-manager-service/services/eventdestinations/webhook/webhook_test.go:generic-api-key:44

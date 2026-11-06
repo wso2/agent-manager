@@ -19,10 +19,10 @@ import React, { useMemo, useState } from "react";
 import {
   Alert,
   Autocomplete,
-  Box,
   Button,
   CircularProgress,
   Form,
+  Grid,
   IconButton,
   ListingTable,
   Stack,
@@ -54,6 +54,7 @@ import {
 } from "@agent-management-platform/types";
 import { EditFormSkeleton, useUnsavedChangesGuard } from "@agent-management-platform/shared-component";
 import { PageLayout } from "@agent-management-platform/views";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 import { useAssignmentDelta } from "./useAssignmentDelta";
 import { withSearchParams } from "../../utils/withSearchParams";
 
@@ -117,24 +118,26 @@ function AssignmentTab<T extends AssignableItem>({
       )}
 
       {canEdit && (
-        <Box sx={{ mt: 1, mb: 2 }}>
-          {isLoadingCatalog ? (
-            <CircularProgress size={20} />
-          ) : (
-            <Form.ElementWrapper label={addLabel} name={addLabel}>
-              <Autocomplete
-                options={availableItems}
-                getOptionLabel={(option) => option.name}
-                onChange={onAdd}
-                value={null}
-                renderInput={(autocompleteParams) => (
-                  <TextField {...autocompleteParams} placeholder={addPlaceholder} />
-                )}
-                noOptionsText={noOptionsText}
-              />
-            </Form.ElementWrapper>
-          )}
-        </Box>
+        <Grid container spacing={2}>
+          <Grid size={{ xs: 12, md: 12, xl: 8 }}>
+            {isLoadingCatalog ? (
+              <CircularProgress size={20} />
+            ) : (
+              <Form.ElementWrapper label={addLabel} name={addLabel}>
+                <Autocomplete
+                  options={availableItems}
+                  getOptionLabel={(option) => option.name}
+                  onChange={onAdd}
+                  value={null}
+                  renderInput={(autocompleteParams) => (
+                    <TextField {...autocompleteParams} placeholder={addPlaceholder} />
+                  )}
+                  noOptionsText={noOptionsText}
+                />
+              </Form.ElementWrapper>
+            )}
+          </Grid>
+        </Grid>
       )}
 
       {displayedItems.length === 0 ? (
@@ -184,6 +187,7 @@ export const AgentDetailPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const envName = searchParams.get("envName") ?? "";
   const navigate = useNavigate();
+  const { canWrite } = useResourceAccess("agent_identity");
   const [activeTab, setActiveTab] = useState<TabId>("roles");
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | undefined>();
@@ -347,19 +351,20 @@ export const AgentDetailPage: React.FC = () => {
 
   if (isLoading) {
     return (
-      <PageLayout title={title} backHref={agentsPath} backLabel="Back to Agents" disableIcon>
+      <PageLayout title={title} backHref={agentsPath} backLabel="Back to agents" disableIcon>
         <EditFormSkeleton tabs={2} />
       </PageLayout>
     );
   }
 
-  const canEdit = !!thunderAgentId;
+  const hasBinding = !!thunderAgentId;
+  const canEdit = hasBinding && canWrite;
 
   return (
     <PageLayout
       title={title}
       backHref={agentsPath}
-      backLabel="Back to Agents"
+      backLabel="Back to agents"
       description={projectData?.displayName || projectName}
       disableIcon
     >
@@ -369,7 +374,7 @@ export const AgentDetailPage: React.FC = () => {
             Failed to load this agent&apos;s roles/groups. Please try again.
           </Alert>
         )}
-        {!canEdit && (
+        {!hasBinding && canWrite && (
           <Alert severity="info">
             This agent has no active identity binding in {envName}, so roles
             and groups can&apos;t be assigned yet.
@@ -433,7 +438,7 @@ export const AgentDetailPage: React.FC = () => {
           )}
         </Form.Section>
 
-        {isDirty && (
+        {canEdit && isDirty && (
           <Stack direction="row" spacing={1}>
             <Button
               variant="outlined"

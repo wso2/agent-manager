@@ -84,6 +84,27 @@ func IsValidationError(err error) *ValidationError {
 	return nil
 }
 
+// ErrEntitlementDenied is returned when the organization's subscription does
+// not allow a create. Maps to 402.
+var ErrEntitlementDenied = errors.New("not allowed by the organization's subscription")
+
+// EntitlementDeniedError carries the user-facing reason a subscription refused
+// a create, and matches ErrEntitlementDenied under errors.Is.
+type EntitlementDeniedError struct {
+	// Message is shown to the user, e.g. which limit was reached and how to raise it.
+	Message string
+}
+
+// Error implements the error interface, returning the user-facing message.
+func (e *EntitlementDeniedError) Error() string {
+	return e.Message
+}
+
+// Unwrap exposes ErrEntitlementDenied to errors.Is.
+func (e *EntitlementDeniedError) Unwrap() error {
+	return ErrEntitlementDenied
+}
+
 var (
 	// Resource not found errors
 	ErrProjectNotFound               = errors.New("project not found")
@@ -107,12 +128,13 @@ var (
 	ErrAgentIdentityNotProvisioned    = errors.New("agent identity not yet provisioned for this environment")
 	// ErrAgentIdentityRetryNotAllowed is returned when a retry is requested for
 	// a binding whose current status is not failed. Maps to 409.
-	ErrAgentIdentityRetryNotAllowed = errors.New("agent identity binding is not in a failed state and cannot be retried")
-	ErrOrganizationAlreadyExists    = errors.New("organization already exists")
-	ErrProjectAlreadyExists         = errors.New("project already exists")
-	ErrDeploymentPipelineNotFound   = errors.New("deployment pipeline not found")
-	ErrDeploymentPipelineInUse      = errors.New("deployment pipeline is referenced by one or more projects")
-	ErrDeploymentInProgress         = errors.New("a deployment is already in progress")
+	ErrAgentIdentityRetryNotAllowed    = errors.New("agent identity binding is not in a failed state and cannot be retried")
+	ErrOrganizationAlreadyExists       = errors.New("organization already exists")
+	ErrProjectAlreadyExists            = errors.New("project already exists")
+	ErrDeploymentPipelineAlreadyExists = errors.New("deployment pipeline already exists")
+	ErrDeploymentPipelineNotFound      = errors.New("deployment pipeline not found")
+	ErrDeploymentPipelineInUse         = errors.New("deployment pipeline is referenced by one or more projects")
+	ErrDeploymentInProgress            = errors.New("a deployment is already in progress")
 	// ErrBuildInProgress is returned when agent configuration is created/updated
 	// while a build is running. Argo Workflows resolves workflow.parameters once
 	// at WorkflowRun submission, so a config change written to the Component CR
@@ -131,6 +153,10 @@ var (
 	ErrMonitorRunNotFound             = errors.New("monitor run not found")
 	ErrMonitorAlreadyStopped          = errors.New("monitor already stopped")
 	ErrMonitorAlreadyActive           = errors.New("monitor already active")
+	ErrEventDestinationNotFound       = errors.New("event destination not found")
+	ErrEventDestinationInUse          = errors.New("event destination is used by one or more subscriptions")
+	ErrEventDestinationNameTaken      = errors.New("an event destination with this name already exists")
+	ErrEventSubscriptionNotFound      = errors.New("event subscription not found")
 	ErrEvaluatorNotFound              = errors.New("evaluator not found")
 	ErrCustomEvaluatorNotFound        = errors.New("custom evaluator not found")
 	ErrCustomEvaluatorAlreadyExists   = errors.New("custom evaluator already exists")
@@ -161,6 +187,8 @@ var (
 
 	// Gateway-related errors
 	ErrGatewayNotFound          = errors.New("gateway not found")
+	ErrGatewayTokenLimitReached = errors.New("maximum 2 active tokens allowed. Revoke old tokens before rotating") // 409: rotating would exceed two active tokens
+	ErrGatewayTokenNotFound     = errors.New("gateway token not found")                                            // 404: an unknown token, or a token of another gateway
 	ErrGatewayAlreadyExists     = errors.New("gateway already exists")
 	ErrInvalidAdapterType       = errors.New("invalid adapter type")
 	ErrGatewayUnreachable       = errors.New("gateway unreachable")
@@ -239,6 +267,7 @@ var (
 	ErrLLMProviderBeingDeleted     = errors.New("cannot create LLM proxy: the LLM provider is being deleted")
 	ErrLLMProxyNotFound            = errors.New("LLM proxy not found")
 	ErrLLMProxyExists              = errors.New("LLM proxy already exists")
+	ErrLLMProxyManagedByAMS        = errors.New("this LLM proxy is managed by an agent or monitor; change the agent's or monitor's LLM configuration instead")
 	ErrMCPProxyNotFound            = errors.New("MCP proxy not found")
 	// ErrAgentArtifactNotFound means no active Agent deployment exists for this
 	// artifact on this gateway.
@@ -299,4 +328,35 @@ var (
 	ErrMissingKindConfigValue    = errors.New("missing required configuration value for agent kind")
 	ErrKindImageAlreadyPublished = errors.New("this build image is already published as a kind version")
 	ErrSourceAgentNotFound       = errors.New("source agent not found; cannot publish a kind from a deleted agent")
+)
+
+// Project-scoped MCP proxy errors.
+var (
+	// ErrMCPProxyHandleInUse means the handle belongs to an org-level proxy, another
+	// project's proxy, or another artifact (409 HANDLE_IN_USE on the project routes).
+	ErrMCPProxyHandleInUse = errors.New("MCP proxy handle already in use")
+	// ErrMCPProxyCreateNotPermitted means the caller may update project proxies but not
+	// create one, and the upsert would have created it (403 on the project routes).
+	ErrMCPProxyCreateNotPermitted = errors.New("not permitted to create MCP proxies")
+	// ErrMCPProxyProjectOwned means an org-level mutation targeted a project-scoped proxy
+	// (409 PROJECT_OWNED on the org routes). Project proxies change only via the project routes.
+	ErrMCPProxyProjectOwned = errors.New("MCP proxy belongs to a project and can only be changed through the project routes")
+	// ErrMCPUpstreamNotReady means the proxy's source component has no reachable endpoint in the
+	// environment yet (409 UPSTREAM_NOT_READY); nothing was stored.
+	ErrMCPUpstreamNotReady = errors.New("the source component is not deployed in this environment yet")
+	// ErrMCPSourceComponentNotFound: a project MCP proxy's source component is not in the project, deleted
+	// after the proxy was created for example. It wraps ErrInvalidInput, so it is a 400.
+	ErrMCPSourceComponentNotFound = fmt.Errorf("%w: source component not found", ErrInvalidInput)
+	// ErrContextInUse means an artifact's gateway context, of any kind, equals, contains or sits under another
+	// artifact's context on the same vhost of the gateway (409 CONTEXT_IN_USE).
+	ErrContextInUse = errors.New("the context is already in use on the gateway")
+	// ErrMCPContextInUse is ErrContextInUse, under the name the MCP proxy routes have used for it.
+	ErrMCPContextInUse = ErrContextInUse
+	// ErrMCPProxyEnvironmentNotBound means the proxy has no binding in the environment (404).
+	ErrMCPProxyEnvironmentNotBound = errors.New("MCP proxy is not bound to this environment")
+	// ErrMCPJWTSecurityNotAvailable is the phase-1 refusal of jwt security (400).
+	ErrMCPJWTSecurityNotAvailable = errors.New("jwt security is not available yet")
+	// ErrMCPAmbiguousGateway means the binding's environment has more than one egress gateway and the
+	// request named none (400 AMBIGUOUS_GATEWAY on the project binding routes).
+	ErrMCPAmbiguousGateway = errors.New("the environment has more than one egress gateway; specify gatewayId")
 )

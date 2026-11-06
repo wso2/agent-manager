@@ -21,12 +21,16 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/controllers"
 	"github.com/wso2/agent-manager/agent-manager-service/eventhub"
+	"github.com/wso2/agent-manager/agent-manager-service/events"
 	"github.com/wso2/agent-manager/agent-manager-service/instrumentation"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
+	"github.com/wso2/agent-manager/agent-manager-service/services/eventdestinations"
+	"github.com/wso2/agent-manager/agent-manager-service/services/eventdestinations/notify"
+	"github.com/wso2/agent-manager/agent-manager-service/services/eventdestinations/webhook"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 	"github.com/wso2/agent-manager/agent-manager-service/websocket"
 	"gorm.io/gorm"
@@ -44,6 +48,7 @@ func InitializeAppParamsWithEnvThunderEndpoints(cfg *config.Config, db *gorm.DB,
 	identityClient := ProvideIdentityClient(thunderConfig)
 	orgResolver := ProvideOrgResolver(identityClient)
 	recorder := ProvideAuditRecorder(configConfig, logger)
+	ouHandleLookup := ProvideOUHandleLookup(identityClient)
 	openChoreoClient, err := ProvideOCClient(configConfig, authProvider)
 	if err != nil {
 		return nil, err
@@ -105,8 +110,8 @@ func InitializeAppParamsWithEnvThunderEndpoints(cfg *config.Config, db *gorm.DB,
 	a2AAgentKind := services.NewA2AAgentKind(txRunner, platformAgentExposures, a2AProxyRepository, a2AAgentCardRepository, deploymentRepository, agentConfigRepository, openChoreoClient, a2ACardFetcher, apiKeyRepository, gatewayEventsService, v, logger)
 	restAgentKind := services.NewRestAgentKind(platformAgentExposures, agentConfigRepository, deploymentRepository, apiKeyRepository, gatewayEventsService, logger)
 	kinds := ProvideReconcileKinds(llmProviderKind, llmProxyKind, mcpProxyKind, a2AAgentKind, restAgentKind)
-	core := ProvideReconcileCore(db, deploymentRepository, eventHub, kinds, cfg, logger)
-	mcpProxyService := services.NewMCPProxyService(db, mcpProxyRepository, mcpProxyEndpointRepository, deploymentRepository, gatewayRepository, envAgentMCPMappingRepository, agentConfigurationRepository, gatewayEventsService, apiKeyRepository, infraResourceManager, agentIdentityInjectionService, logger, v, mcpProxyScopeRepository, envThunderResolver, core, mcpProxyKind)
+	core := ProvideReconcileCore(db, deploymentRepository, gatewayRepository, eventHub, kinds, cfg, logger)
+	mcpProxyService := services.NewMCPProxyService(db, mcpProxyRepository, mcpProxyEndpointRepository, deploymentRepository, gatewayRepository, envAgentMCPMappingRepository, agentConfigurationRepository, gatewayEventsService, apiKeyRepository, infraResourceManager, agentIdentityInjectionService, logger, v, mcpProxyScopeRepository, envThunderResolver, core, mcpProxyKind, openChoreoClient)
 	llmProxyDeploymentService := services.NewLLMProxyDeploymentService(txRunner, deploymentRepository, llmProxyRepository, llmProviderRepository, gatewayRepository, gatewayEventsService, core, llmProxyKind)
 	llmProxyAPIKeyService := services.NewLLMProxyAPIKeyService(llmProxyRepository, gatewayRepository, gatewayEventsService, apiKeyRepository, openChoreoClient)
 	llmProviderAPIKeyService := services.NewLLMProviderAPIKeyService(llmProviderRepository, gatewayRepository, gatewayEventsService, apiKeyRepository)
@@ -137,9 +142,11 @@ func InitializeAppParamsWithEnvThunderEndpoints(cfg *config.Config, db *gorm.DB,
 	agentExposurePublisher := services.NewAgentExposurePublisher(txRunner, platformAgentExposureRepository, artifactRepository, deploymentRepository, gatewayRepository, core, logger)
 	a2APublisher := services.NewA2APublisher(txRunner, platformAgentExposureRepository, a2AProxyRepository, a2AAgentCardRepository, artifactRepository, deploymentRepository, logger, agentExposurePublisher, a2AAgentKind)
 	agentManagerService := services.NewAgentManagerService(db, openChoreoClient, secretManagementClient, repositoryService, agentTokenManagerService, agentConfigRepository, agentConfigurationService, agentKindService, artifactRepository, aiApplicationService, gatewayRepository, agentThunderProvisioning, monitorManagerService, agentIdentityInjectionService, identityClient, buildSecretProvisioner, a2APublisher, a2AAgentCardRepository, deploymentRepository, gatewayEventsService, agentExposurePublisher, restAgentKind, logger)
-	agentController := controllers.NewAgentController(agentManagerService, agentKindService)
+	eventRepository := repositories.NewEventRepository(db)
+	eventSubscriptionService := services.NewEventSubscriptionService(eventRepository, openChoreoClient, logger)
+	agentController := controllers.NewAgentController(agentManagerService, agentKindService, eventSubscriptionService)
 	agentKindController := controllers.NewAgentKindController(agentKindService)
-	infraResourceController := controllers.NewInfraResourceController(infraResourceManager)
+	infraResourceController := controllers.NewInfraResourceController(infraResourceManager, eventSubscriptionService)
 	agentTokenController := controllers.NewAgentTokenController(agentTokenManagerService)
 	repositoryController := controllers.NewRepositoryController(repositoryService)
 	prober := thundersvc.NewProber()
@@ -167,7 +174,9 @@ func InitializeAppParamsWithEnvThunderEndpoints(cfg *config.Config, db *gorm.DB,
 	a2AAgentCardController := controllers.NewA2AAgentCardController(a2AAgentCardService)
 	a2AProxyController := controllers.NewA2AProxyController(a2AProxyService)
 	llmProxyDeploymentController := controllers.NewLLMProxyDeploymentController(llmProxyDeploymentService)
-	mcpProxyController := controllers.NewMCPProxyController(mcpProxyService, agentConfigurationService)
+	mcpProxyController := controllers.NewMCPProxyController(mcpProxyService, agentConfigurationService, openChoreoClient)
+	projectMCPProxyService := services.NewProjectMCPProxyService(mcpProxyService, openChoreoClient)
+	projectMCPProxyController := controllers.NewProjectMCPProxyController(projectMCPProxyService, openChoreoClient)
 	deploymentAckHandler := ProvideDeploymentAckHandler(deploymentRepository, core)
 	webSocketController := ProvideWebSocketController(manager, eventHub, platformGatewayService, deploymentAckHandler, configConfig)
 	gatewayInternalAPIService := services.NewGatewayInternalAPIService(llmProviderRepository, llmProxyRepository, deploymentRepository, artifactRepository, gatewayRepository, infraResourceManager, v, core)
@@ -194,15 +203,27 @@ func InitializeAppParamsWithEnvThunderEndpoints(cfg *config.Config, db *gorm.DB,
 	mcpProxyScopeService := services.NewMCPProxyScopeService(mcpProxyScopeRepository, mcpProxyRepository, infraResourceManager, envThunderResolver, mcpProxyService, logger)
 	mcpProxyScopeController := controllers.NewMCPProxyScopeController(mcpProxyScopeService)
 	agentIdentityController := controllers.NewAgentIdentityController(envThunderResolver, agentThunderClientRepository, mcpProxyRepository, mcpProxyScopeRepository, mcpProxyService)
-	monitorSchedulerService := services.NewMonitorSchedulerService(openChoreoClient, publisherCredentialProvisioner, logger, monitorExecutor, monitorRepository)
+	registry := ProvideDestinationDrivers(configConfig)
+	eventDestinationService := services.NewEventDestinationService(eventRepository, registry, v, logger)
+	eventsController := controllers.NewEventsController(eventDestinationService, eventSubscriptionService)
+	bus, err := ProvideEventBus(configConfig, logger)
+	if err != nil {
+		return nil, err
+	}
+	outbox := repositories.NewEventOutboxRepository(db)
+	publisher := ProvideEventPublisher(bus, outbox, logger)
+	monitorRunObserver := services.NewMonitorRunEvents(publisher, scoreRepository, monitorRepository, logger)
+	monitorSchedulerService := services.NewMonitorSchedulerService(openChoreoClient, publisherCredentialProvisioner, logger, monitorExecutor, monitorRepository, monitorRunObserver)
 	agentThunderReconcilerService := services.NewAgentThunderReconcilerService(agentThunderProvisioning, agentIdentityInjectionService, agentThunderClientRepository, logger)
 	a2ACardReconcilerService := services.NewA2ACardReconcilerService(a2AAgentCardRepository, a2AProxyRepository, gatewayRepository, a2ACardFetcher, openChoreoClient, logger)
 	deploymentTimeoutSweeper := services.NewConfiguredDeploymentTimeoutSweeper(deploymentRepository, logger, cfg)
+	eventDispatcherService := services.NewEventDispatcherService(bus, eventRepository, eventDestinationService, configConfig, logger)
 	appParams := &AppParams{
 		AuthMiddleware:                   middleware,
 		Logger:                           logger,
 		OrgResolver:                      orgResolver,
 		AuditRecorder:                    recorder,
+		OUHandleLookup:                   ouHandleLookup,
 		AgentController:                  agentController,
 		AgentKindController:              agentKindController,
 		InfraResourceController:          infraResourceController,
@@ -219,6 +240,7 @@ func InitializeAppParamsWithEnvThunderEndpoints(cfg *config.Config, db *gorm.DB,
 		A2AProxyController:               a2AProxyController,
 		LLMProxyDeploymentController:     llmProxyDeploymentController,
 		MCPProxyController:               mcpProxyController,
+		ProjectMCPProxyController:        projectMCPProxyController,
 		WebSocketController:              webSocketController,
 		GatewayInternalController:        gatewayInternalController,
 		MonitorController:                monitorController,
@@ -232,6 +254,7 @@ func InitializeAppParamsWithEnvThunderEndpoints(cfg *config.Config, db *gorm.DB,
 		IdentityController:               identityController,
 		MCPProxyScopeController:          mcpProxyScopeController,
 		AgentIdentityController:          agentIdentityController,
+		EventsController:                 eventsController,
 		MonitorScheduler:                 monitorSchedulerService,
 		AgentThunderReconciler:           agentThunderReconcilerService,
 		A2ACardReconciler:                a2ACardReconcilerService,
@@ -244,6 +267,9 @@ func InitializeAppParamsWithEnvThunderEndpoints(cfg *config.Config, db *gorm.DB,
 		AgentTokenManagerService:         agentTokenManagerService,
 		AgentIdentityInjectionService:    agentIdentityInjectionService,
 		EnvironmentService:               environmentService,
+		EventDispatcher:                  eventDispatcherService,
+		EventBus:                         bus,
+		EventPublisher:                   publisher,
 		OpenChoreoClient:                 openChoreoClient,
 		ObserverSvcClient:                observerSvcClient,
 		WebSocketManager:                 manager,
@@ -261,6 +287,7 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	identityClient := ProvideIdentityClient(thunderConfig)
 	orgResolver := ProvideOrgResolver(identityClient)
 	recorder := ProvideAuditRecorder(configConfig, logger)
+	ouHandleLookup := ProvideTestOUHandleLookup(testClients, identityClient)
 	openChoreoClient := ProvideTestOpenChoreoClient(testClients)
 	secretManagementClient := ProvideTestSecretManagementClient(testClients)
 	gitCredentialsService, err := ProvideGitCredentialsService(openChoreoClient, configConfig)
@@ -317,8 +344,8 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	a2AAgentKind := services.NewA2AAgentKind(txRunner, platformAgentExposures, a2AProxyRepository, a2AAgentCardRepository, deploymentRepository, agentConfigRepository, openChoreoClient, a2ACardFetcher, apiKeyRepository, gatewayEventsService, v, logger)
 	restAgentKind := services.NewRestAgentKind(platformAgentExposures, agentConfigRepository, deploymentRepository, apiKeyRepository, gatewayEventsService, logger)
 	kinds := ProvideReconcileKinds(llmProviderKind, llmProxyKind, mcpProxyKind, a2AAgentKind, restAgentKind)
-	core := ProvideReconcileCore(db, deploymentRepository, eventHub, kinds, cfg, logger)
-	mcpProxyService := services.NewMCPProxyService(db, mcpProxyRepository, mcpProxyEndpointRepository, deploymentRepository, gatewayRepository, envAgentMCPMappingRepository, agentConfigurationRepository, gatewayEventsService, apiKeyRepository, infraResourceManager, agentIdentityInjectionService, logger, v, mcpProxyScopeRepository, envThunderResolver, core, mcpProxyKind)
+	core := ProvideReconcileCore(db, deploymentRepository, gatewayRepository, eventHub, kinds, cfg, logger)
+	mcpProxyService := services.NewMCPProxyService(db, mcpProxyRepository, mcpProxyEndpointRepository, deploymentRepository, gatewayRepository, envAgentMCPMappingRepository, agentConfigurationRepository, gatewayEventsService, apiKeyRepository, infraResourceManager, agentIdentityInjectionService, logger, v, mcpProxyScopeRepository, envThunderResolver, core, mcpProxyKind, openChoreoClient)
 	llmProxyDeploymentService := services.NewLLMProxyDeploymentService(txRunner, deploymentRepository, llmProxyRepository, llmProviderRepository, gatewayRepository, gatewayEventsService, core, llmProxyKind)
 	llmProxyAPIKeyService := services.NewLLMProxyAPIKeyService(llmProxyRepository, gatewayRepository, gatewayEventsService, apiKeyRepository, openChoreoClient)
 	llmProviderAPIKeyService := services.NewLLMProviderAPIKeyService(llmProviderRepository, gatewayRepository, gatewayEventsService, apiKeyRepository)
@@ -348,9 +375,11 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	agentExposurePublisher := services.NewAgentExposurePublisher(txRunner, platformAgentExposureRepository, artifactRepository, deploymentRepository, gatewayRepository, core, logger)
 	a2APublisher := services.NewA2APublisher(txRunner, platformAgentExposureRepository, a2AProxyRepository, a2AAgentCardRepository, artifactRepository, deploymentRepository, logger, agentExposurePublisher, a2AAgentKind)
 	agentManagerService := services.NewAgentManagerService(db, openChoreoClient, secretManagementClient, repositoryService, agentTokenManagerService, agentConfigRepository, agentConfigurationService, agentKindService, artifactRepository, aiApplicationService, gatewayRepository, agentThunderProvisioningService, monitorManagerService, agentIdentityInjectionService, identityClient, buildSecretProvisioner, a2APublisher, a2AAgentCardRepository, deploymentRepository, gatewayEventsService, agentExposurePublisher, restAgentKind, logger)
-	agentController := controllers.NewAgentController(agentManagerService, agentKindService)
+	eventRepository := repositories.NewEventRepository(db)
+	eventSubscriptionService := services.NewEventSubscriptionService(eventRepository, openChoreoClient, logger)
+	agentController := controllers.NewAgentController(agentManagerService, agentKindService, eventSubscriptionService)
 	agentKindController := controllers.NewAgentKindController(agentKindService)
-	infraResourceController := controllers.NewInfraResourceController(infraResourceManager)
+	infraResourceController := controllers.NewInfraResourceController(infraResourceManager, eventSubscriptionService)
 	agentTokenController := controllers.NewAgentTokenController(agentTokenManagerService)
 	repositoryController := controllers.NewRepositoryController(repositoryService)
 	prober := thundersvc.NewProber()
@@ -378,7 +407,9 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	a2AAgentCardController := controllers.NewA2AAgentCardController(a2AAgentCardService)
 	a2AProxyController := controllers.NewA2AProxyController(a2AProxyService)
 	llmProxyDeploymentController := controllers.NewLLMProxyDeploymentController(llmProxyDeploymentService)
-	mcpProxyController := controllers.NewMCPProxyController(mcpProxyService, agentConfigurationService)
+	mcpProxyController := controllers.NewMCPProxyController(mcpProxyService, agentConfigurationService, openChoreoClient)
+	projectMCPProxyService := services.NewProjectMCPProxyService(mcpProxyService, openChoreoClient)
+	projectMCPProxyController := controllers.NewProjectMCPProxyController(projectMCPProxyService, openChoreoClient)
 	deploymentAckHandler := ProvideDeploymentAckHandler(deploymentRepository, core)
 	webSocketController := ProvideWebSocketController(manager, eventHub, platformGatewayService, deploymentAckHandler, configConfig)
 	gatewayInternalAPIService := services.NewGatewayInternalAPIService(llmProviderRepository, llmProxyRepository, deploymentRepository, artifactRepository, gatewayRepository, infraResourceManager, v, core)
@@ -405,15 +436,27 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	mcpProxyScopeService := services.NewMCPProxyScopeService(mcpProxyScopeRepository, mcpProxyRepository, infraResourceManager, envThunderResolver, mcpProxyService, logger)
 	mcpProxyScopeController := controllers.NewMCPProxyScopeController(mcpProxyScopeService)
 	agentIdentityController := controllers.NewAgentIdentityController(envThunderResolver, agentThunderClientRepository, mcpProxyRepository, mcpProxyScopeRepository, mcpProxyService)
-	monitorSchedulerService := services.NewMonitorSchedulerService(openChoreoClient, publisherCredentialProvisioner, logger, monitorExecutor, monitorRepository)
+	registry := ProvideDestinationDrivers(configConfig)
+	eventDestinationService := services.NewEventDestinationService(eventRepository, registry, v, logger)
+	eventsController := controllers.NewEventsController(eventDestinationService, eventSubscriptionService)
+	bus, err := ProvideEventBus(configConfig, logger)
+	if err != nil {
+		return nil, err
+	}
+	outbox := repositories.NewEventOutboxRepository(db)
+	publisher := ProvideEventPublisher(bus, outbox, logger)
+	monitorRunObserver := services.NewMonitorRunEvents(publisher, scoreRepository, monitorRepository, logger)
+	monitorSchedulerService := services.NewMonitorSchedulerService(openChoreoClient, publisherCredentialProvisioner, logger, monitorExecutor, monitorRepository, monitorRunObserver)
 	agentThunderReconcilerService := services.NewAgentThunderReconcilerService(agentThunderProvisioningService, agentIdentityInjectionService, agentThunderClientRepository, logger)
 	a2ACardReconcilerService := services.NewA2ACardReconcilerService(a2AAgentCardRepository, a2AProxyRepository, gatewayRepository, a2ACardFetcher, openChoreoClient, logger)
 	deploymentTimeoutSweeper := services.NewConfiguredDeploymentTimeoutSweeper(deploymentRepository, logger, cfg)
+	eventDispatcherService := services.NewEventDispatcherService(bus, eventRepository, eventDestinationService, configConfig, logger)
 	appParams := &AppParams{
 		AuthMiddleware:                   authMiddleware,
 		Logger:                           logger,
 		OrgResolver:                      orgResolver,
 		AuditRecorder:                    recorder,
+		OUHandleLookup:                   ouHandleLookup,
 		AgentController:                  agentController,
 		AgentKindController:              agentKindController,
 		InfraResourceController:          infraResourceController,
@@ -430,6 +473,7 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 		A2AProxyController:               a2AProxyController,
 		LLMProxyDeploymentController:     llmProxyDeploymentController,
 		MCPProxyController:               mcpProxyController,
+		ProjectMCPProxyController:        projectMCPProxyController,
 		WebSocketController:              webSocketController,
 		GatewayInternalController:        gatewayInternalController,
 		MonitorController:                monitorController,
@@ -443,6 +487,7 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 		IdentityController:               identityController,
 		MCPProxyScopeController:          mcpProxyScopeController,
 		AgentIdentityController:          agentIdentityController,
+		EventsController:                 eventsController,
 		MonitorScheduler:                 monitorSchedulerService,
 		AgentThunderReconciler:           agentThunderReconcilerService,
 		A2ACardReconciler:                a2ACardReconcilerService,
@@ -455,6 +500,9 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 		AgentTokenManagerService:         agentTokenManagerService,
 		AgentIdentityInjectionService:    agentIdentityInjectionService,
 		EnvironmentService:               environmentService,
+		EventDispatcher:                  eventDispatcherService,
+		EventBus:                         bus,
+		EventPublisher:                   publisher,
 		OpenChoreoClient:                 openChoreoClient,
 		ObserverSvcClient:                observerSvcClient,
 		WebSocketManager:                 manager,
@@ -478,12 +526,15 @@ var clientProviderSet = wire.NewSet(
 	ProvideSecretManagementClient,
 	ProvidePublisherProvisioner,
 	ProvideIdentityClient,
-	ProvideOrgResolver, thundersvc.NewProber, ProvideEnvThunderSecretReader,
+	ProvideOrgResolver,
+	ProvideOUHandleLookup, thundersvc.NewProber, ProvideEnvThunderSecretReader,
 	ProvideEnvThunderURLReader,
 	ProvideEnvThunderResolverWithEndpoints,
 )
 
-var serviceProviderSet = wire.NewSet(services.NewAgentManagerService, services.NewAgentKindService, services.NewInfraResourceManager, services.NewAgentTokenManagerService, ProvideGitCredentialsService, services.NewRepositoryService, services.NewMonitorExecutor, services.NewMonitorManagerService, ProvideThunderConfig, services.NewMonitorSchedulerService, ProvideAgentIdentityInjectionServiceWithEndpointResolver, services.NewAgentThunderReconcilerService, services.NewA2ACardFetcher, services.NewA2ACardReconcilerService, services.NewConfiguredDeploymentTimeoutSweeper, services.NewA2AAgentCardService, ProvideTxRunner, services.NewAgentExposurePublisher, services.NewA2APublisher, services.NewA2AProxyService, ProvideA2AProxyHooks, services.NewEvaluatorManagerService, services.NewEnvironmentService, ProvidePlatformGatewayService, services.NewLLMProviderTemplateService, services.NewLLMProviderService, services.NewLLMProxyService, services.NewLLMProviderDeploymentService, services.NewLLMProviderAPIKeyService, services.NewLLMProxyAPIKeyService, services.NewAgentAPIKeyService, services.NewLLMProxyDeploymentService, services.NewMCPProxyService, services.NewMCPProxyScopeService, wire.Bind(new(services.MCPProxyRedeployer), new(*services.MCPProxyService)), wire.Bind(new(controllers.MCPResourceServerIdentifierResolver), new(*services.MCPProxyService)), services.NewGatewayInternalAPIService, services.NewMonitorScoresService, services.NewCatalogService, services.NewLLMProxyProvisioner, services.NewAgentConfigurationService, services.NewLLMTemplateStore, services.NewGitSecretService, services.NewAIApplicationService)
+var serviceProviderSet = wire.NewSet(services.NewAgentManagerService, services.NewAgentKindService, services.NewInfraResourceManager, services.NewAgentTokenManagerService, ProvideGitCredentialsService, services.NewRepositoryService, services.NewMonitorExecutor, services.NewMonitorManagerService, ProvideThunderConfig, services.NewMonitorSchedulerService, ProvideAgentIdentityInjectionServiceWithEndpointResolver, services.NewAgentThunderReconcilerService, services.NewA2ACardFetcher, services.NewA2ACardReconcilerService, services.NewConfiguredDeploymentTimeoutSweeper, services.NewA2AAgentCardService, ProvideTxRunner, services.NewAgentExposurePublisher, services.NewA2APublisher, services.NewA2AProxyService, ProvideA2AProxyHooks, services.NewEvaluatorManagerService, services.NewEnvironmentService, ProvidePlatformGatewayService, services.NewLLMProviderTemplateService, services.NewLLMProviderService, services.NewLLMProxyService, services.NewLLMProviderDeploymentService, services.NewLLMProviderAPIKeyService, services.NewLLMProxyAPIKeyService, services.NewAgentAPIKeyService, services.NewLLMProxyDeploymentService, services.NewMCPProxyService, services.NewProjectMCPProxyService, services.NewMCPProxyScopeService, wire.Bind(new(services.MCPProxyRedeployer), new(*services.MCPProxyService)), wire.Bind(new(controllers.MCPResourceServerIdentifierResolver), new(*services.MCPProxyService)), services.NewGatewayInternalAPIService, services.NewMonitorScoresService, services.NewCatalogService, services.NewLLMProxyProvisioner, services.NewAgentConfigurationService, services.NewLLMTemplateStore, services.NewGitSecretService, services.NewAIApplicationService, ProvideEventBus,
+	ProvideEventPublisher, repositories.NewEventOutboxRepository, services.NewMonitorRunEvents, ProvideDestinationDrivers, services.NewEventDestinationService, services.NewEventSubscriptionService, wire.Bind(new(services.EventsCleaner), new(services.EventSubscriptionService)), wire.Bind(new(services.DestinationResolver), new(services.EventDestinationService)), services.NewEventDispatcherService,
+)
 
 var instrumentationProviderSet = wire.NewSet(
 	ProvideInstrumentationCatalog,
@@ -491,7 +542,7 @@ var instrumentationProviderSet = wire.NewSet(
 	ProvideDefaultPythonVersion,
 )
 
-var controllerProviderSet = wire.NewSet(controllers.NewAgentController, controllers.NewAgentKindController, controllers.NewInfraResourceController, controllers.NewAgentTokenController, controllers.NewRepositoryController, controllers.NewEnvironmentController, controllers.NewGatewayController, controllers.NewLLMController, controllers.NewLLMDeploymentController, controllers.NewLLMProviderAPIKeyController, controllers.NewLLMProxyAPIKeyController, controllers.NewAgentAPIKeyController, controllers.NewA2AAgentCardController, controllers.NewA2AProxyController, controllers.NewLLMProxyDeploymentController, controllers.NewMCPProxyController, ProvideWebSocketController, controllers.NewGatewayInternalController, controllers.NewMonitorController, controllers.NewMonitorScoresController, controllers.NewMonitorScoresPublisherController, controllers.NewEvaluatorController, controllers.NewCatalogController, ProvideAgentBuildOptionsController, controllers.NewAgentConfigurationController, controllers.NewGitSecretController, controllers.NewIdentityController, controllers.NewMCPProxyScopeController, controllers.NewAgentIdentityController)
+var controllerProviderSet = wire.NewSet(controllers.NewAgentController, controllers.NewAgentKindController, controllers.NewInfraResourceController, controllers.NewAgentTokenController, controllers.NewRepositoryController, controllers.NewEnvironmentController, controllers.NewGatewayController, controllers.NewLLMController, controllers.NewLLMDeploymentController, controllers.NewLLMProviderAPIKeyController, controllers.NewLLMProxyAPIKeyController, controllers.NewAgentAPIKeyController, controllers.NewA2AAgentCardController, controllers.NewA2AProxyController, controllers.NewLLMProxyDeploymentController, controllers.NewMCPProxyController, controllers.NewProjectMCPProxyController, ProvideWebSocketController, controllers.NewGatewayInternalController, controllers.NewMonitorController, controllers.NewMonitorScoresController, controllers.NewMonitorScoresPublisherController, controllers.NewEvaluatorController, controllers.NewCatalogController, ProvideAgentBuildOptionsController, controllers.NewAgentConfigurationController, controllers.NewGitSecretController, controllers.NewIdentityController, controllers.NewMCPProxyScopeController, controllers.NewAgentIdentityController, controllers.NewEventsController)
 
 var testClientProviderSet = wire.NewSet(
 	ProvideTestOpenChoreoClient,
@@ -499,7 +550,8 @@ var testClientProviderSet = wire.NewSet(
 	ProvideTestSecretManagementClient,
 	ProvidePublisherProvisioner,
 	ProvideIdentityClient,
-	ProvideOrgResolver, thundersvc.NewProber, ProvideEnvThunderSecretReader,
+	ProvideOrgResolver,
+	ProvideTestOUHandleLookup, thundersvc.NewProber, ProvideEnvThunderSecretReader,
 	ProvideEnvThunderURLReader,
 	ProvideEnvThunderResolver,
 )
@@ -726,7 +778,7 @@ var repositoryProviderSet = wire.NewSet(
 	ProvideAIApplicationRepository,
 	ProvideAgentThunderClientRepository,
 	ProvideEnvThunderSystemClientRepository,
-	ProvideEnvThunderURLRepository, repositories.NewMCPProxyScopeRepository,
+	ProvideEnvThunderURLRepository, repositories.NewMCPProxyScopeRepository, repositories.NewEventRepository,
 )
 
 var reconcileProviderSet = wire.NewSet(services.NewLLMProviderKind, services.NewLLMProxyKind, services.NewMCPProxyKind, services.NewPlatformAgentExposures, services.NewA2AAgentKind, services.NewRestAgentKind, ProvideReconcileKinds,
@@ -805,10 +857,11 @@ func ProvideReconcileKinds(
 	return reconcile.Kinds{llmProvider, llmProxy, mcp, agent, restAgent}
 }
 
-// ProvideReconcileCore builds the reconcile core with the worker's intervals, lease and attempt budget from cfg.
+// ProvideReconcileCore builds the reconcile core with the worker's intervals, lease and attempt budget from cfg, and
+// the gateways it locks and checks contexts on.
 func ProvideReconcileCore(
-	db *gorm.DB, deploymentRepo repositories.DeploymentRepository, hub eventhub.EventHub, kinds reconcile.Kinds,
-	cfg *config.Config, logger *slog.Logger,
+	db *gorm.DB, deploymentRepo repositories.DeploymentRepository, gatewayRepo repositories.GatewayRepository,
+	hub eventhub.EventHub, kinds reconcile.Kinds, cfg *config.Config, logger *slog.Logger,
 ) *reconcile.Core {
 	seconds := func(n int) time.Duration { return time.Duration(n) * time.Second }
 	return reconcile.NewCore(db, deploymentRepo, hub, kinds, reconcile.Config{
@@ -817,7 +870,7 @@ func ProvideReconcileCore(
 		DriftInterval:  seconds(cfg.Reconcile.DriftIntervalSeconds),
 		Lease:          seconds(cfg.Reconcile.RenderLeaseSeconds),
 		AttemptBudget:  cfg.Reconcile.RenderAttemptBudget,
-	}, logger)
+	}, logger).WithGateways(gatewayRepo)
 }
 
 // ProvidePlatformGatewayService makes each new gateway-environment mapping place the environment's artifacts, and
@@ -980,7 +1033,7 @@ func ProvideAgentIdentityInjectionService(
 	cfg config.Config,
 	logger *slog.Logger,
 ) services.AgentIdentityInjectionService {
-	return services.NewAgentIdentityInjectionService(repo, agentConfigRepo, mcpProxyScopeRepo, ocClient, cfg.SecretManager.AgentIdentityRefreshInterval, logger)
+	return services.NewAgentIdentityInjectionService(repo, agentConfigRepo, mcpProxyScopeRepo, ocClient, cfg.SecretManager.AgentIdentityRefreshInterval, logger, services.WithAgentIdentityForceSyncWait(cfg.SecretManager.AgentIdentityForceSyncWait), services.WithAgentIdentityForceSyncApplyTimeout(cfg.SecretManager.AgentIdentityForceSyncApplyTimeout))
 }
 
 func ProvideAgentIdentityInjectionServiceWithEndpointResolver(
@@ -994,12 +1047,50 @@ func ProvideAgentIdentityInjectionServiceWithEndpointResolver(
 	logger *slog.Logger,
 ) services.AgentIdentityInjectionService {
 	if endpointResolver == nil {
-		return services.NewAgentIdentityInjectionService(repo, agentConfigRepo, mcpProxyScopeRepo, ocClient, cfg.SecretManager.AgentIdentityRefreshInterval, logger)
+		return services.NewAgentIdentityInjectionService(repo, agentConfigRepo, mcpProxyScopeRepo, ocClient, cfg.SecretManager.AgentIdentityRefreshInterval, logger, services.WithAgentIdentityForceSyncWait(cfg.SecretManager.AgentIdentityForceSyncWait), services.WithAgentIdentityForceSyncApplyTimeout(cfg.SecretManager.AgentIdentityForceSyncApplyTimeout))
 	}
 	resolveTokenEndpoint := func(ctx context.Context, ouID, orgNamespace, envName string) (string, error) {
 		return thundersvc.ResolveEnvThunderTokenEndpoint(ctx, endpointResolver, readThunderURL, ouID, orgNamespace, envName)
 	}
-	return services.NewAgentIdentityInjectionServiceWithTokenEndpointResolver(repo, agentConfigRepo, mcpProxyScopeRepo, ocClient, cfg.SecretManager.AgentIdentityRefreshInterval, logger, resolveTokenEndpoint)
+	return services.NewAgentIdentityInjectionServiceWithTokenEndpointResolver(repo, agentConfigRepo, mcpProxyScopeRepo, ocClient, cfg.SecretManager.AgentIdentityRefreshInterval, logger, resolveTokenEndpoint, services.WithAgentIdentityForceSyncWait(cfg.SecretManager.AgentIdentityForceSyncWait), services.WithAgentIdentityForceSyncApplyTimeout(cfg.SecretManager.AgentIdentityForceSyncApplyTimeout))
+}
+
+// ProvideDestinationDrivers registers the driver of each supported event
+// destination kind. Add a kind here once its driver exists.
+func ProvideDestinationDrivers(cfg config.Config) *eventdestinations.Registry {
+	return eventdestinations.NewRegistry(webhook.New(cfg.Events.AllowPrivateDestinations), notify.New(cfg.Events.AllowPrivateDestinations))
+}
+
+// ProvideEventBus connects to NATS, or starts the embedded in-memory server,
+// as EVENTS_MODE says. With events off it returns nil: nothing is published.
+func ProvideEventBus(cfg config.Config, logger *slog.Logger) (events.Bus, error) {
+	switch cfg.Events.Mode {
+	case config.EventsModeEmbedded:
+		bus, err := events.StartEmbedded(logger)
+		if err != nil {
+			return nil, err
+		}
+		return bus, nil
+	case config.EventsModeNATS:
+		bus, err := events.Connect(cfg.Events.NATSURL, cfg.Events.NATSToken, "agent-manager-service", logger)
+		if err != nil {
+			return nil, err
+		}
+		return bus, nil
+	default:
+
+		logger.Info("Events disabled: EVENTS_MODE is off")
+		return nil, nil
+	}
+}
+
+// ProvideEventPublisher returns the publisher routes and the monitor
+// scheduler use. Without a bus, events are discarded.
+func ProvideEventPublisher(bus events.Bus, outbox events.Outbox, logger *slog.Logger) events.Publisher {
+	if bus == nil {
+		return events.NoopPublisher{}
+	}
+	return events.NewAsyncPublisher(bus, outbox, logger)
 }
 
 func ProvideThunderConfig(cfg config.Config) config.ThunderConfig {
@@ -1015,6 +1106,29 @@ func ProvideIdentityClient(cfg config.ThunderConfig) thundersvc.IdentityClient {
 		cfg.ResolveToHost,
 		cfg.ResolvedSystemResourceIdentifier(),
 	)
+}
+
+// ProvideOUHandleLookup maps an OU ID to its handle through the platform
+// Thunder, for the org override on the project MCP routes. It is deliberately
+// uncached: a handle can be renamed, and the lookup runs only on impersonated
+// requests. A missing OU is reported as middleware.ErrOverrideOrgNotFound.
+func ProvideOUHandleLookup(client2 thundersvc.IdentityClient) middleware.OUHandleLookup {
+	return func(ctx context.Context, ouID string) (string, error) {
+		handle, err := client2.GetOUHandleByID(ctx, ouID)
+		if thundersvc.IsNotFound(err) {
+			return "", fmt.Errorf("%w: %w", middleware.ErrOverrideOrgNotFound, err)
+		}
+		return handle, err
+	}
+}
+
+// ProvideTestOUHandleLookup uses the test's lookup when it supplies one, and
+// the Thunder-backed lookup otherwise.
+func ProvideTestOUHandleLookup(testClients TestClients, client2 thundersvc.IdentityClient) middleware.OUHandleLookup {
+	if testClients.OUHandleLookup != nil {
+		return testClients.OUHandleLookup
+	}
+	return ProvideOUHandleLookup(client2)
 }
 
 // ProvideOrgResolver creates the org resolver backed by Thunder, with a per-org OU ID cache.

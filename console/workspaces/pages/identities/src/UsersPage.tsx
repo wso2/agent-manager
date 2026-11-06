@@ -33,12 +33,12 @@ import {
   useDeleteUser,
   useListUsers,
 } from "@agent-management-platform/api-client";
-import { useConfirmationDialog } from "@agent-management-platform/shared-component";
+import { isListEmpty, useConfirmationDialog } from "@agent-management-platform/shared-component";
 import {
   absoluteRouteMap,
-  globalConfig,
   type ThunderUser,
 } from "@agent-management-platform/types";
+import { useFeatureAccess, useFeatureFlag } from "@agent-management-platform/feature-management";
 import { ListingSkeletonRows } from "./components/ListingSkeletonRows";
 
 const AVATAR_SX = { width: 28, height: 28, fontSize: 12 } as const;
@@ -46,7 +46,9 @@ const AVATAR_SX = { width: 28, height: 28, fontSize: 12 } as const;
 export const UsersPage: React.FC = () => {
   const { orgId } = useParams<{ orgId: string }>();
   const navigate = useNavigate();
-  const isUserManagementEnabled = globalConfig.featureFlags?.enableUserManagement === true;
+  const isUserManagementEnabled = useFeatureFlag("enableUserManagement");
+  const canInvite = useFeatureAccess("member_invite");
+  const canRemove = useFeatureAccess("member_remove");
 
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -61,6 +63,13 @@ export const UsersPage: React.FC = () => {
 
   const users = useMemo(() => data?.users ?? [], [data]);
   const total = data?.total ?? 0;
+  const hasItems = !isLoading && total > 0;
+
+  const isEmpty = isListEmpty({
+    isLoading,
+    count: users.length,
+    isFiltered: Boolean(search),
+  });
 
   useEffect(() => {
     if (users.length === 0 && total > 0) {
@@ -113,6 +122,28 @@ export const UsersPage: React.FC = () => {
     });
   };
 
+  // One definition, used by the toolbar and by the empty state's CTA.
+  const createButtons = canInvite ? (
+    <Stack direction="row" spacing={1}>
+      <Button
+        variant="outlined"
+        startIcon={<Plus />}
+        onClick={() => navigate(addUserPath)}
+        disabled={!isUserManagementEnabled}
+      >
+        Add User
+      </Button>
+      <Button
+        variant="contained"
+        startIcon={<Plus />}
+        onClick={() => navigate(invitePath)}
+        disabled={!isUserManagementEnabled}
+      >
+        Invite User
+      </Button>
+    </Stack>
+  ) : undefined;
+
   return (
     <>
       {error != null && (
@@ -123,30 +154,13 @@ export const UsersPage: React.FC = () => {
 
       <ListingTable.Provider searchValue={search} onSearchChange={setSearch}>
         <ListingTable.Container>
-          <ListingTable.Toolbar
-            showSearch
-            searchPlaceholder="Search users..."
-            actions={
-              <Stack direction="row" spacing={1}>
-                <Button
-                  variant="outlined"
-                  startIcon={<Plus />}
-                  onClick={() => navigate(addUserPath)}
-                  disabled={!isUserManagementEnabled}
-                >
-                  Add User
-                </Button>
-                <Button
-                  variant="contained"
-                  startIcon={<Plus />}
-                  onClick={() => navigate(invitePath)}
-                  disabled={!isUserManagementEnabled}
-                >
-                  Invite User
-                </Button>
-              </Stack>
-            }
-          />
+          {!isEmpty && (
+            <ListingTable.Toolbar
+              showSearch
+              searchPlaceholder="Search users..."
+              actions={hasItems ? createButtons : undefined}
+            />
+          )}
           {!isLoading && filteredUsers.length === 0 ? (
             search ? (
               <ListingTable.EmptyState
@@ -158,7 +172,8 @@ export const UsersPage: React.FC = () => {
               <ListingTable.EmptyState
                 illustration={<Users size={64} />}
                 title="No users yet"
-                description='Click "Add User" to create one or "Invite User" to invite someone.'
+                description="Add a user directly, or invite someone to join this organization."
+                action={createButtons}
               />
             )
           ) : (
@@ -203,20 +218,22 @@ export const UsersPage: React.FC = () => {
                           </Typography>
                         </ListingTable.Cell>
                         <ListingTable.Cell align="center">
-                          <ListingTable.RowActions visibility="hover">
-                            <Tooltip title="Delete user">
-                              <IconButton
-                                size="small"
-                                color="error"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleDelete(user);
-                                }}
-                              >
-                                <Trash size={16} />
-                              </IconButton>
-                            </Tooltip>
-                          </ListingTable.RowActions>
+                          {canRemove && (
+                            <ListingTable.RowActions visibility="hover">
+                              <Tooltip title="Delete user">
+                                <IconButton
+                                  size="small"
+                                  color="error"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDelete(user);
+                                  }}
+                                >
+                                  <Trash size={16} />
+                                </IconButton>
+                              </Tooltip>
+                            </ListingTable.RowActions>
+                          )}
                         </ListingTable.Cell>
                       </ListingTable.Row>
                     );
@@ -224,7 +241,7 @@ export const UsersPage: React.FC = () => {
               </ListingTable.Body>
             </ListingTable>
           )}
-          {!isLoading && total >= 5 && (
+          {!isLoading && total > 5 && (
             <TablePagination
               component="div"
               count={total}

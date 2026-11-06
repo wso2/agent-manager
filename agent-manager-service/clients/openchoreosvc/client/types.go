@@ -72,6 +72,7 @@ type CreateComponentRequest struct {
 	Build            *BuildConfig          // nil for external or kind-sourced agents
 	Configurations   *Configurations       // nil for external agents or if no env vars
 	InputInterface   *InputInterfaceConfig // nil unless custom-api
+	HealthChecks     *HealthChecksConfig   // nil when none are sent; saved next to the endpoints
 	// Labels holds user-defined labels to attach to the component alongside
 	// the system-managed ones. User label keys can never collide with system
 	// keys (all system keys are namespaced "openchoreo.dev/...", which user
@@ -130,6 +131,26 @@ type InputInterfaceConfig struct {
 	BasePath      string
 }
 
+// HealthChecksConfig contains the startup, readiness and liveness checks saved in the
+// build parameters. A nil check uses the default.
+type HealthChecksConfig struct {
+	Startup   *HealthCheckConfig
+	Readiness *HealthCheckConfig
+	Liveness  *HealthCheckConfig
+}
+
+// HealthCheckConfig contains one health check. A nil field uses its default.
+type HealthCheckConfig struct {
+	Enabled             *bool
+	Type                *string // "TCP" or "HTTP"
+	Path                *string // HTTP checks only
+	Port                *int32
+	InitialDelaySeconds *int32
+	PeriodSeconds       *int32
+	TimeoutSeconds      *int32
+	FailureThreshold    *int32
+}
+
 // UpdateComponentRequest contains data for updating a component (patch operation)
 type UpdateComponentBasicInfoRequest struct {
 	DisplayName string
@@ -146,6 +167,7 @@ type UpdateComponentBuildParametersRequest struct {
 	Repository     *RepositoryConfig     // nil if no change
 	Build          *BuildConfig          // nil if no change
 	InputInterface *InputInterfaceConfig // nil if no change
+	HealthChecks   *HealthChecksConfig   // nil if no change; otherwise replaces the saved ones
 	AgentType      AgentTypeConfig       // Required for determining endpoint defaults
 }
 

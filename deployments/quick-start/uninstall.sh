@@ -9,7 +9,7 @@ set -euo pipefail
 #    Thunder and gateway
 # 2. All OpenChoreo and prerequisite helm releases (unless --amp-only is used)
 # 3. All custom resources, the namespaces install.sh created, and (unless
-#    --amp-only is used) the CRDs it installed
+#    --amp-only is used) the CRDs it installed and the CoreDNS rewrites it added
 # 4. Optionally deletes the k3d cluster
 # It exits non-zero and lists what is left if anything could not be removed.
 #
@@ -241,6 +241,116 @@ cert-manager cert-manager
 AMP_NAMESPACES="${AMP_NS} amp-thunder agent-sandbox-system"
 OPENCHOREO_NAMESPACES="openchoreo-control-plane openchoreo-data-plane openchoreo-workflow-plane ${OBSERVABILITY_NS} cert-manager external-secrets openbao"
 # API groups of the CRDs install.sh brings in (charts and the Gateway API bundle).
+KUBELET_SERVICE="openchoreo-observability-kubelet"
+
+# Entries install.sh adds to the coredns-custom ConfigMap, as "<key> <hostname
+# it rewrites>": deployments/k8s/coredns-amp-custom.yaml on k3d, and
+# render_coredns_vm_config in deployments/vm/lib-vm.sh on a VM.
+# The cluster owner can keep entries of their own in the same ConfigMap.
+COREDNS_ENTRIES="
+openchoreo.override openchoreo\\.localhost
+amp.override amp\\.localhost
+agentmanager.override agentmanager\\.localhost
+amgateway.override am-gateway\\.localhost
+gateway.override gateway\\.localhost
+hostdocker.override host\\.docker\\.internal
+hostalias.override host\\.k3d\\.internal|host\\.docker\\.internal
+"
+COREDNS_RESTART_FAILED=false
+
+# coredns_entries_ours: prints the installer's entries still in coredns-custom,
+# one key per line: those whose key and rewrite both match. Returns 2 when the
+# ConfigMap cannot be read, so a failed lookup is never taken for a clean one.
+coredns_entries_ours() {
+    local found key pattern value
+    found="$(kubectl get configmap coredns-custom -n kube-system --ignore-not-found -o name 2>/dev/null)" || return 2
+    [ -n "${found}" ] || return 0
+    while read -r key pattern; do
+        [ -n "${key}" ] || continue
+        value="$(kubectl get configmap coredns-custom -n kube-system -o jsonpath="{.data.${key//./\\.}}" 2>/dev/null)" || return 2
+        if printf '%s' "${value}" | grep -qF 'name regex' && printf '%s' "${value}" | grep -qF "${pattern}"; then
+            printf '%s\n' "${key}"
+        fi
+    done <<< "${COREDNS_ENTRIES}"
+}
+
+# remove_coredns_entries: removes the installer's entries from coredns-custom,
+# and the ConfigMap itself only when nothing else is left in it, then restarts
+# CoreDNS so the rewrites stop taking effect.
+remove_coredns_entries() {
+    local ours total binary ops key
+    ours="$(coredns_entries_ours)" || { log_warning "Could not read the coredns-custom ConfigMap"; return 0; }
+    [ -n "${ours}" ] || return 0
+    log_info "Removing the CoreDNS rewrites..."
+    # A failed read must not look like an empty ConfigMap, or the whole
+    # ConfigMap, the owner's entries included, would be deleted.
+    if ! total="$(kubectl get configmap coredns-custom -n kube-system -o go-template='{{len .data}}' 2>/dev/null)" \
+            || ! [[ "${total}" =~ ^[0-9]+$ ]]; then
+        log_warning "Could not read the coredns-custom ConfigMap"
+        return 0
+    fi
+    if ! binary="$(kubectl get configmap coredns-custom -n kube-system \
+            -o go-template='{{with .binaryData}}{{len .}}{{else}}0{{end}}' 2>/dev/null)" \
+            || ! [[ "${binary}" =~ ^[0-9]+$ ]]; then
+        log_warning "Could not read the coredns-custom ConfigMap"
+        return 0
+    fi
+    # Deleted whole only when everything in it is ours; binaryData never is.
+    if [ "${total}" -le "$(printf '%s\n' "${ours}" | wc -l)" ] && [ "${binary}" -eq 0 ]; then
+        kubectl delete configmap coredns-custom -n kube-system --ignore-not-found &>/dev/null || true
+    else
+        ops=""
+        for key in ${ours}; do
+            ops="${ops}${ops:+,}{\"op\":\"remove\",\"path\":\"/data/${key}\"}"
+        done
+        kubectl patch configmap coredns-custom -n kube-system --type=json -p "[${ops}]" &>/dev/null || true
+    fi
+    if ! { kubectl rollout restart deployment/coredns -n kube-system &>/dev/null \
+            && kubectl rollout status deployment/coredns -n kube-system --timeout=90s &>/dev/null; }; then
+        COREDNS_RESTART_FAILED=true
+        log_warning "CoreDNS did not restart; it keeps the old rewrites until it does"
+    fi
+}
+
+# clear_stuck_finalizers: a CRD stays in Terminating while an object of its
+# kind still carries a finalizer, and once Step 3 has removed the controllers
+# nothing will clear it. For the platform CRDs that are terminating, clears the
+# finalizers of their objects that are being deleted, says which, and waits for
+# the CRDs to go. Live CRDs and live objects are never touched.
+clear_stuck_finalizers() {
+    local stuck crd kind obj ns name finalizers
+    stuck="$(kubectl get crd \
+        -o jsonpath='{range .items[?(@.metadata.deletionTimestamp)]}{.metadata.name}{"\n"}{end}' 2>/dev/null \
+        | grep -E "\.(${CRD_GROUPS})\$" || true)"
+    [ -n "${stuck}" ] || return 0
+    for kind in ${stuck}; do
+        while IFS=' ' read -r obj finalizers; do
+            [ -n "${obj}" ] && [ -n "${finalizers}" ] || continue
+            ns="${obj%%/*}"
+            name="${obj#*/}"
+            log_warning "Clearing the finalizers of ${kind} ${obj#/}, whose controller is already uninstalled"
+            kubectl patch "${kind}" "${name}" ${ns:+-n "${ns}"} --type=merge \
+                -p '{"metadata":{"finalizers":null}}' &>/dev/null || true
+        done <<< "$(kubectl get "${kind}" -A \
+            -o jsonpath='{range .items[?(@.metadata.deletionTimestamp)]}{.metadata.namespace}/{.metadata.name} {.metadata.finalizers}{"\n"}{end}' 2>/dev/null)"
+    done
+    for crd in ${stuck}; do
+        kubectl wait --for=delete "crd/${crd}" --timeout=60s &>/dev/null || true
+    done
+}
+
+# object_left <description> <kubectl get args...>: adds the object to
+# LEFT_OBJECTS when it still exists, or when it cannot be checked.
+object_left() {
+    local what="$1" found
+    shift
+    if found="$(kubectl get "$@" --ignore-not-found -o name 2>/dev/null)"; then
+        [ -z "${found}" ] || LEFT_OBJECTS="${LEFT_OBJECTS} ${what}"
+    else
+        LEFT_OBJECTS="${LEFT_OBJECTS} ${what} (could not be checked)"
+    fi
+}
+
 CRD_GROUPS='openchoreo\.dev|external-secrets\.io|cert-manager\.io|argoproj\.io|monitoring\.coreos\.com|agents\.x-k8s\.io|gateway\.api-platform\.wso2\.com|gateway\.kgateway\.dev|gateway\.networking\.k8s\.io|gateway\.networking\.x-k8s\.io'
 
 # uninstall_release <release> <namespace>: quiet when the release is absent, so
@@ -331,6 +441,28 @@ if [ "${AMP_ONLY}" = false ]; then
             kubectl delete "${resource_type}" --all --timeout=30s &>/dev/null || true
         fi
     done
+    # Every other namespaced OpenChoreo kind, such as the WorkflowRuns of agent
+    # builds and evaluation monitors. They live in the organization's namespace,
+    # which is kept, and their cleanup finalizers need the controllers Step 3
+    # removes. A kind that cannot be listed stops the uninstall here, before
+    # those controllers go, so its cleanup can still run on a second attempt.
+    UNCHECKED=""
+    if ! OPENCHOREO_KINDS="$(kubectl api-resources --api-group=openchoreo.dev --namespaced=true -o name 2>/dev/null)"; then
+        UNCHECKED=" the OpenChoreo resource kinds (discovery failed)"
+    fi
+    for resource_type in ${OPENCHOREO_KINDS}; do
+        if ! found="$(kubectl get "${resource_type}" -A -o name 2>/dev/null)"; then
+            UNCHECKED="${UNCHECKED} ${resource_type}"
+        elif [ -n "${found}" ]; then
+            log_info "Deleting ${resource_type}..."
+            kubectl delete "${resource_type}" --all --all-namespaces --timeout=60s &>/dev/null || true
+        fi
+    done
+    if [ -n "${UNCHECKED}" ]; then
+        log_error "Could not check${UNCHECKED}"
+        log_info "Stopped before removing the controllers that clean these up. Fix the cluster access and run uninstall.sh again."
+        exit 1
+    fi
 fi
 
 # ============================================================================
@@ -346,6 +478,7 @@ kubectl delete clusterrolebinding,clusterrole \
     --ignore-not-found &>/dev/null || true
 kubectl delete clusterrolebinding label-default-namespace-rolebinding --ignore-not-found &>/dev/null || true
 kubectl delete clusterrole label-default-namespace-role --ignore-not-found &>/dev/null || true
+kubectl delete serviceaccount label-default-namespace-sa -n "${DEFAULT_NS}" --ignore-not-found &>/dev/null || true
 
 # ============================================================================
 # Step 3: Uninstall OpenChoreo and Prerequisites (Skip if --amp-only)
@@ -357,6 +490,11 @@ if [ "${AMP_ONLY}" = false ]; then
     # Applied with kubectl by install.sh, not owned by any release.
     kubectl delete clusterrolebinding,clusterrole wso2-api-platform-gateway-module \
         --ignore-not-found &>/dev/null || true
+    # Created by the Prometheus operator for kubelet scraping, so no release owns it.
+    kubectl delete service,endpoints "${KUBELET_SERVICE}" -n kube-system --ignore-not-found &>/dev/null || true
+    kubectl delete endpointslices -n kube-system -l "kubernetes.io/service-name=${KUBELET_SERVICE}" \
+        --ignore-not-found &>/dev/null || true
+    remove_coredns_entries
 else
     log_step "Step 3/4: Skipping OpenChoreo Uninstallation (--amp-only mode)"
     log_info "OpenChoreo resources are preserved"
@@ -384,6 +522,7 @@ if [ "${AMP_ONLY}" = false ]; then
         kubectl delete ${PLATFORM_CRDS} --ignore-not-found --timeout=120s &>/dev/null \
             || log_warning "Some CRDs did not finish deleting within 2 minutes"
     fi
+    clear_stuck_finalizers
 fi
 
 # ============================================================================
@@ -405,8 +544,26 @@ if [ "${AMP_ONLY}" = false ]; then
     LEFT_CRDS="$(kubectl get crd -o name 2>/dev/null | grep -cE "\.(${CRD_GROUPS})\$" || true)"
     [ "${LEFT_CRDS}" != "0" ] || LEFT_CRDS=""
 fi
+# Objects outside the platform namespaces that no release owns.
+LEFT_OBJECTS=""
+object_left "serviceaccount/${DEFAULT_NS}/label-default-namespace-sa" \
+    serviceaccount label-default-namespace-sa -n "${DEFAULT_NS}"
+if [ "${AMP_ONLY}" = false ]; then
+    object_left "service/kube-system/${KUBELET_SERVICE}" service "${KUBELET_SERVICE}" -n kube-system
+    object_left "endpoints/kube-system/${KUBELET_SERVICE}" endpoints "${KUBELET_SERVICE}" -n kube-system
+    object_left "endpointslices of ${KUBELET_SERVICE}" endpointslices -n kube-system \
+        -l "kubernetes.io/service-name=${KUBELET_SERVICE}"
+    if LEFT_COREDNS="$(coredns_entries_ours)"; then
+        [ -z "${LEFT_COREDNS}" ] \
+            || LEFT_OBJECTS="${LEFT_OBJECTS} coredns-custom entries ($(printf '%s' "${LEFT_COREDNS}" | tr '\n' ' ' | sed 's/ $//'))"
+    else
+        LEFT_OBJECTS="${LEFT_OBJECTS} configmap/kube-system/coredns-custom (could not be checked)"
+    fi
+    [ "${COREDNS_RESTART_FAILED}" = false ] \
+        || LEFT_OBJECTS="${LEFT_OBJECTS} CoreDNS restart (retry: kubectl rollout restart deployment/coredns -n kube-system)"
+fi
 
-if [ -z "${LEFT_RELEASES}" ] && [ -z "${LEFT_NAMESPACES// /}" ] && [ -z "${LEFT_CRDS}" ]; then
+if [ -z "${LEFT_RELEASES}" ] && [ -z "${LEFT_NAMESPACES// /}" ] && [ -z "${LEFT_CRDS}" ] && [ -z "${LEFT_OBJECTS}" ]; then
     log_step "Uninstallation Complete!"
     if [ "${AMP_ONLY}" = true ]; then
         log_success "AMP resources have been removed!"
@@ -429,6 +586,7 @@ log_step "Uninstallation Incomplete"
 [ -z "${LEFT_RELEASES}" ] || log_warning "Helm releases still installed:${LEFT_RELEASES}"
 [ -z "${LEFT_NAMESPACES// /}" ] || log_warning "Namespaces still present: ${LEFT_NAMESPACES}"
 [ -z "${LEFT_CRDS}" ] || log_warning "CRDs still present: ${LEFT_CRDS}"
+[ -z "${LEFT_OBJECTS}" ] || log_warning "Other objects still present:${LEFT_OBJECTS}"
 echo ""
 log_info "Installing again on top of these leftovers is not supported."
 log_info "For a clean slate, run: ./uninstall.sh --delete-cluster"

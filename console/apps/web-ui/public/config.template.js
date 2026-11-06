@@ -100,6 +100,11 @@ window.__RUNTIME_CONFIG__ = {
     enableProfileManagement: '$FEATURE_FLAG_ENABLE_PROFILE_MANAGEMENT' === 'true',
     enableUserManagement: '$FEATURE_FLAG_ENABLE_USER_MANAGEMENT' === 'true',
     enableAgentIdentity: true,
+    enableSelfHostedGateways: '$FEATURE_FLAG_ENABLE_SELF_HOSTED_GATEWAYS' === 'true',
+    // Resources managed outside the console; their pages are hidden.
+    externallyManagedEnv: '$FEATURE_FLAG_EXTERNALLY_MANAGED_ENV' === 'true',
+    externallyManagedGateway: '$FEATURE_FLAG_EXTERNALLY_MANAGED_GATEWAY' === 'true',
+    externallyManagedPipeline: '$FEATURE_FLAG_EXTERNALLY_MANAGED_PIPELINE' === 'true',
   },
   maxRequestBodyBytes: '$MAX_REQUEST_BODY_BYTES',
   fileMountMaxFileBytes: '$FILE_MOUNT_MAX_FILE_BYTES',

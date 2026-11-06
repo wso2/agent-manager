@@ -24,6 +24,7 @@ import {
   Chip,
   CircularProgress,
   Form,
+  Grid,
   IconButton,
   ListingTable,
   Stack,
@@ -58,6 +59,7 @@ import {
   useUnsavedChangesGuard,
 } from "@agent-management-platform/shared-component";
 import { PageLayout } from "@agent-management-platform/views";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 import { AgentNameWithProject } from "./AgentNameWithProject";
 import { useAgentLookup } from "./useAgentLookup";
 import { useAssignmentDelta } from "./useAssignmentDelta";
@@ -79,6 +81,7 @@ export const RoleEditPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const envName = searchParams.get("envName") ?? "";
   const navigate = useNavigate();
+  const { canWrite } = useResourceAccess("agent_identity");
 
   const [activeTab, setActiveTab] = useState<ActiveTab>("permissions");
   const [isSaving, setIsSaving] = useState(false);
@@ -295,7 +298,7 @@ export const RoleEditPage: React.FC = () => {
 
   if (isLoading) {
     return (
-      <PageLayout title="Role" backHref={rolesPath} backLabel="Back to Roles" disableIcon>
+      <PageLayout title="Role" backHref={rolesPath} backLabel="Back to roles" disableIcon>
         <EditFormSkeleton tabs={3} />
       </PageLayout>
     );
@@ -305,7 +308,7 @@ export const RoleEditPage: React.FC = () => {
     <PageLayout
       title={roleData?.name || "Role"}
       backHref={rolesPath}
-      backLabel="Back to Roles"
+      backLabel="Back to roles"
       description={roleData?.description}
       disableIcon
       titleTail={isPermissionsReadOnly ? <Chip label="Read-only" size="small" /> : undefined}
@@ -332,7 +335,9 @@ export const RoleEditPage: React.FC = () => {
               <Typography variant="body2" color="text.secondary">
                 {isPermissionsReadOnly
                   ? "Permissions for predefined roles cannot be modified."
-                  : "Check the scopes to assign to this role."}
+                  : canWrite
+                    ? "Check the scopes to assign to this role."
+                    : "Scopes assigned to this role."}
               </Typography>
 
               <Box sx={{ mt: 1 }}>
@@ -340,7 +345,7 @@ export const RoleEditPage: React.FC = () => {
                   items={scopeTreeItems}
                   selectedIds={selectedScopeIds}
                   onChange={handleScopeSelectionChange}
-                  readOnly={isPermissionsReadOnly}
+                  readOnly={isPermissionsReadOnly || !canWrite}
                   emptyMessage="No scopes in the catalog."
                 />
               </Box>
@@ -356,10 +361,14 @@ export const RoleEditPage: React.FC = () => {
               ) : (
                 <>
                   <Typography variant="body2" color="text.secondary">
-                    Search and add agents to this role.
+                    {canWrite
+                      ? "Search and add agents to this role."
+                      : "Agents assigned to this role."}
                   </Typography>
 
-                  <Box sx={{ mt: 1, mb: 2 }}>
+                  {canWrite && (
+                  <Grid container spacing={2}>
+                    <Grid size={{ xs: 12, md: 12, xl: 8 }}>
                     <Form.ElementWrapper label="Add Agent" name="addAgent">
                       <Autocomplete
                         id="addAgent"
@@ -389,14 +398,16 @@ export const RoleEditPage: React.FC = () => {
                         noOptionsText="No agents available"
                       />
                     </Form.ElementWrapper>
-                  </Box>
+                    </Grid>
+                  </Grid>
+                  )}
 
                   {displayedAgentIds.length === 0 ? (
                     <ListingTable.Container>
                       <ListingTable.EmptyState
                         illustration={<Users size={64} />}
                         title="No agents assigned yet"
-                        description="Search and add agents above."
+                        description={canWrite ? "Search and add agents above." : undefined}
                       />
                     </ListingTable.Container>
                   ) : (
@@ -406,7 +417,7 @@ export const RoleEditPage: React.FC = () => {
                           <ListingTable.Row>
                             <ListingTable.Cell>Agent</ListingTable.Cell>
                             <ListingTable.Cell>Agent ID</ListingTable.Cell>
-                            <ListingTable.Cell />
+                            {canWrite && <ListingTable.Cell />}
                           </ListingTable.Row>
                         </ListingTable.Head>
                         <ListingTable.Body>
@@ -419,6 +430,7 @@ export const RoleEditPage: React.FC = () => {
                                 />
                               </ListingTable.Cell>
                               <ListingTable.Cell>{id}</ListingTable.Cell>
+                              {canWrite && (
                               <ListingTable.Cell align="right">
                                 <Tooltip title="Remove from role">
                                   <IconButton
@@ -429,6 +441,7 @@ export const RoleEditPage: React.FC = () => {
                                   </IconButton>
                                 </Tooltip>
                               </ListingTable.Cell>
+                              )}
                             </ListingTable.Row>
                           ))}
                         </ListingTable.Body>
@@ -449,7 +462,9 @@ export const RoleEditPage: React.FC = () => {
               ) : (
                 <>
                   <Typography variant="body2" color="text.secondary">
-                    Search and add groups to this role.
+                    {canWrite
+                      ? "Search and add groups to this role."
+                      : "Groups assigned to this role."}
                   </Typography>
                   {(groupsData?.total ?? 0) > GROUPS_PAGE_SIZE && (
                     <Alert severity="warning" sx={{ mt: 1 }}>
@@ -458,7 +473,9 @@ export const RoleEditPage: React.FC = () => {
                     </Alert>
                   )}
 
-                  <Box sx={{ mt: 1, mb: 2 }}>
+                  {canWrite && (
+                  <Grid container spacing={2}>
+                    <Grid size={{ xs: 12, md: 12, xl: 8 }}>
                     <Form.ElementWrapper label="Add Group" name="addGroup">
                       <Autocomplete
                         id="addGroup"
@@ -472,14 +489,16 @@ export const RoleEditPage: React.FC = () => {
                         noOptionsText="No groups available"
                       />
                     </Form.ElementWrapper>
-                  </Box>
+                    </Grid>
+                  </Grid>
+                  )}
 
                   {displayedGroups.length === 0 ? (
                     <ListingTable.Container>
                       <ListingTable.EmptyState
                         illustration={<Folder size={64} />}
                         title="No groups assigned yet"
-                        description="Search and add groups above."
+                        description={canWrite ? "Search and add groups above." : undefined}
                       />
                     </ListingTable.Container>
                   ) : (
@@ -489,7 +508,7 @@ export const RoleEditPage: React.FC = () => {
                           <ListingTable.Row>
                             <ListingTable.Cell>Name</ListingTable.Cell>
                             <ListingTable.Cell>Description</ListingTable.Cell>
-                            <ListingTable.Cell />
+                            {canWrite && <ListingTable.Cell />}
                           </ListingTable.Row>
                         </ListingTable.Head>
                         <ListingTable.Body>
@@ -499,6 +518,7 @@ export const RoleEditPage: React.FC = () => {
                               <ListingTable.Cell>
                                 {group.description ?? "-"}
                               </ListingTable.Cell>
+                              {canWrite && (
                               <ListingTable.Cell align="right">
                                 <Tooltip title="Remove from role">
                                   <IconButton
@@ -509,6 +529,7 @@ export const RoleEditPage: React.FC = () => {
                                   </IconButton>
                                 </Tooltip>
                               </ListingTable.Cell>
+                              )}
                             </ListingTable.Row>
                           ))}
                         </ListingTable.Body>
@@ -521,7 +542,7 @@ export const RoleEditPage: React.FC = () => {
           )}
         </Form.Section>
 
-        {isDirty && (
+        {canWrite && isDirty && (
           <Stack direction="row" spacing={1}>
             <Button
               variant="outlined"

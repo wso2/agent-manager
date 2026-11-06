@@ -180,6 +180,7 @@ var sensitiveReadPaths = map[string]bool{
 	"/orgs/{orgName}/projects/{projName}/agents/{agentName}/mcp-configs/{configId}/environments/{envName}/api-keys":   true,
 	"/orgs/{orgName}/projects/{projName}/agents/{agentName}/model-configs/{configId}/environments/{envName}/api-keys": true,
 	"/orgs/{orgName}/gateways/{gatewayID}/tokens":                                                                     true,
+	"/orgs/{orgName}/self-hosted-gateways/{gatewayID}/tokens":                                                         true,
 	"/orgs/{orgName}/projects/{projName}/agents/{agentName}/identities":                                               true,
 
 	// Internal surface: the gateway bulk-sync endpoints hand real key material
@@ -228,6 +229,24 @@ var sensitiveReadPaths = map[string]bool{
 // Keys are matched against the path with the method prefix stripped, so the
 // same path under different methods maps through methodActionOverrides first.
 var actionOverrides = map[string]Action{
+	// Event destinations and subscriptions are gated by the permission of
+	// the scope they belong to (events, project or agent), which says nothing
+	// about the operation.
+	"POST /orgs/{orgName}/events/destinations":                                                            "event-destination:create",
+	"PUT /orgs/{orgName}/events/destinations/{destinationId}":                                             "event-destination:update",
+	"DELETE /orgs/{orgName}/events/destinations/{destinationId}":                                          "event-destination:delete",
+	"POST /orgs/{orgName}/events/destinations/{destinationId}/rotate-secret":                              "event-destination:rotate-secret",
+	"POST /orgs/{orgName}/events/destinations/{destinationId}/test":                                       "event-destination:test",
+	"POST /orgs/{orgName}/events/subscriptions":                                                           "event-subscription:create",
+	"PUT /orgs/{orgName}/events/subscriptions/{subscriptionId}":                                           "event-subscription:update",
+	"DELETE /orgs/{orgName}/events/subscriptions/{subscriptionId}":                                        "event-subscription:delete",
+	"POST /orgs/{orgName}/projects/{projName}/events/subscriptions":                                       "event-subscription:create",
+	"PUT /orgs/{orgName}/projects/{projName}/events/subscriptions/{subscriptionId}":                       "event-subscription:update",
+	"DELETE /orgs/{orgName}/projects/{projName}/events/subscriptions/{subscriptionId}":                    "event-subscription:delete",
+	"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/events/subscriptions":                    "event-subscription:create",
+	"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/events/subscriptions/{subscriptionId}":    "event-subscription:update",
+	"DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}/events/subscriptions/{subscriptionId}": "event-subscription:delete",
+
 	// Gating permission names a different resource than the effect.
 	"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/publish-kind": "agent-kind:publish",
 
@@ -280,12 +299,14 @@ var actionOverrides = map[string]Action{
 	"DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}/mcp-configs/{configId}/environments/{envName}/api-keys/{keyName}":   "api-key:revoke",
 
 	// One permission, several operations — gateway tokens and configuration.
-	"POST /orgs/{orgName}/gateways/{gatewayID}/tokens":                      "gateway-token:rotate",
-	"DELETE /orgs/{orgName}/gateways/{gatewayID}/tokens/{tokenID}":          "gateway-token:revoke",
-	"POST /orgs/{orgName}/gateways/{gatewayID}/environments/{envID}":        "gateway:assign-environment",
-	"DELETE /orgs/{orgName}/gateways/{gatewayID}/environments/{envID}":      "gateway:unassign-environment",
-	"PUT /orgs/{orgName}/gateways/{gatewayID}/identity-providers/{name}":    "gateway:set-identity-provider",
-	"DELETE /orgs/{orgName}/gateways/{gatewayID}/identity-providers/{name}": "gateway:remove-identity-provider",
+	"POST /orgs/{orgName}/gateways/{gatewayID}/tokens":                         "gateway-token:rotate",
+	"DELETE /orgs/{orgName}/gateways/{gatewayID}/tokens/{tokenID}":             "gateway-token:revoke",
+	"POST /orgs/{orgName}/self-hosted-gateways/{gatewayID}/tokens":             "gateway-token:rotate",
+	"DELETE /orgs/{orgName}/self-hosted-gateways/{gatewayID}/tokens/{tokenID}": "gateway-token:revoke",
+	"POST /orgs/{orgName}/gateways/{gatewayID}/environments/{envID}":           "gateway:assign-environment",
+	"DELETE /orgs/{orgName}/gateways/{gatewayID}/environments/{envID}":         "gateway:unassign-environment",
+	"PUT /orgs/{orgName}/gateways/{gatewayID}/identity-providers/{name}":       "gateway:set-identity-provider",
+	"DELETE /orgs/{orgName}/gateways/{gatewayID}/identity-providers/{name}":    "gateway:remove-identity-provider",
 
 	// The privilege-escalation path. All four are gated by role:update, and
 	// telling them apart is the whole point of an audit trail.
@@ -362,6 +383,7 @@ var actionOverrides = map[string]Action{
 	"GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/mcp-configs/{configId}/environments/{envName}/api-keys":   "api-key:list",
 	"GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/model-configs/{configId}/environments/{envName}/api-keys": "api-key:list",
 	"GET /orgs/{orgName}/gateways/{gatewayID}/tokens":                                                                     "gateway-token:list",
+	"GET /orgs/{orgName}/self-hosted-gateways/{gatewayID}/tokens":                                                         "gateway-token:list",
 	"GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/identities":                                               "agent-identity:read",
 	"GET /orgs/{orgName}/identities/permissions":                                                                          "permission:list",
 	"GET /orgs/{orgName}/identities/roles/{roleID}/assignments":                                                           "role:list-assignments",

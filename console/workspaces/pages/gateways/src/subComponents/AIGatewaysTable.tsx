@@ -18,16 +18,16 @@
 import { Fragment, useMemo, useState } from "react";
 import {
   Avatar,
+  Box,
+  Button,
   Chip,
-  IconButton,
   ListingTable,
   Skeleton,
   Stack,
-  Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
 import {
-  Edit,
+  Plus,
   Search,
   DoorClosedLocked,
   Trash,
@@ -35,10 +35,12 @@ import {
 import { generatePath, useNavigate, useParams } from "react-router-dom";
 import {
   useDeleteGateway,
+  useDeleteSelfHostedGateway,
   useListEnvironments,
   useListGateways,
 } from "@agent-management-platform/api-client";
 import {
+  GatewayHostingChip,
   GatewayTypeChip,
   ResourceListShell,
   formatRelativeTime,
@@ -47,12 +49,26 @@ import {
 } from "@agent-management-platform/shared-component";
 import {
   absoluteRouteMap,
+  isSelfHostedGateway,
+  showGatewayHosting,
   type GatewayResponse,
 } from "@agent-management-platform/types";
+import { useFeatureFlag, useGatewayFeatures } from "@agent-management-platform/feature-management";
 
 interface AIGatewaysTableProps {
-  onEditGateway?: (gateway: GatewayResponse) => void;
+  onAddGateway?: () => void;
 }
+
+/** The timestamp gives way to the row actions on hover/focus; touch shows both. */
+const ROW_HOVER_SX = {
+  "& .row-actions": { display: "none" },
+  "&:hover .row-updated, &:focus-within .row-updated": { display: "none" },
+  "&:hover .row-actions, &:focus-within .row-actions": { display: "block" },
+  "@media (hover: none)": {
+    "& .row-updated": { display: "block", mr: 1 },
+    "& .row-actions": { display: "block" },
+  },
+} as const;
 
 interface EnvironmentSection {
   key: string;
@@ -77,7 +93,10 @@ const matchesQuery = (gateway: GatewayResponse, query: string) => {
   return haystack.toLowerCase().includes(query);
 };
 
-export function AIGatewaysTable({ onEditGateway }: AIGatewaysTableProps) {
+export function AIGatewaysTable({ onAddGateway }: AIGatewaysTableProps) {
+  // Read here so a caller can't forget it and show Delete to read-only users.
+  const { canWrite: canDelete } = useGatewayFeatures();
+  const selfHostedEnabled = useFeatureFlag("enableSelfHostedGateways");
   const navigate = useNavigate();
   const { orgId } = useParams<{ orgId: string }>();
   const [searchQuery, setSearchQuery] = useState("");
@@ -99,9 +118,18 @@ export function AIGatewaysTable({ onEditGateway }: AIGatewaysTableProps) {
   const isLoading = gatewaysLoading || environmentsLoading;
   const error = gatewaysError || environmentsError;
 
-  const { mutateAsync: deleteGateway } = useDeleteGateway();
+  const { mutateAsync: deleteManagedGateway } = useDeleteGateway();
+  const { mutateAsync: deleteSelfHostedGateway } = useDeleteSelfHostedGateway();
+  const deleteGateway = (gateway: GatewayResponse) => {
+    const params = { orgName: orgId ?? "", gatewayId: gateway.uuid };
+    return isSelfHostedGateway(gateway)
+      ? deleteSelfHostedGateway(params)
+      : deleteManagedGateway(params);
+  };
 
   const gateways = useMemo(() => gatewaysData?.gateways ?? [], [gatewaysData]);
+  const showHosting = showGatewayHosting(selfHostedEnabled, gateways);
+  const columnCount = showHosting ? 6 : 5;
 
   const filteredGateways = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -189,6 +217,7 @@ export function AIGatewaysTable({ onEditGateway }: AIGatewaysTableProps) {
         variant="card"
         hover
         clickable
+        sx={ROW_HOVER_SX}
         onClick={() =>
           navigate(
             generatePath(
@@ -214,6 +243,12 @@ export function AIGatewaysTable({ onEditGateway }: AIGatewaysTableProps) {
           <GatewayTypeChip type={gateway.gatewayType} />
         </ListingTable.Cell>
 
+        {showHosting && (
+          <ListingTable.Cell align="left">
+            <GatewayHostingChip gateway={gateway} />
+          </ListingTable.Cell>
+        )}
+
         <ListingTable.Cell align="center">
           <Chip
             label={isActive ? "Active" : "Inactive"}
@@ -224,28 +259,21 @@ export function AIGatewaysTable({ onEditGateway }: AIGatewaysTableProps) {
         </ListingTable.Cell>
 
         <ListingTable.Cell align="right">
-          <Typography variant="caption" color="text.secondary">
-            {lastUpdated}
-          </Typography>
-        </ListingTable.Cell>
-
-        <ListingTable.Cell align="center">
-          <ListingTable.RowActions visibility="hover">
-            <Tooltip title="Edit">
-              <IconButton
-                size="small"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onEditGateway?.(gateway);
-                }}
-              >
-                <Edit size={16} />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title="Delete">
-              <IconButton
+          <Stack direction="row" justifyContent="flex-end" alignItems="center">
+            <Typography
+              className="row-updated"
+              variant="caption"
+              color="text.secondary"
+            >
+              {lastUpdated}
+            </Typography>
+            {canDelete && (
+            <Box className="row-actions">
+            <Button
+                variant="outlined"
                 color="error"
                 size="small"
+                startIcon={<Trash size={14} />}
                 onClick={(e) => {
                   e.stopPropagation();
                   addConfirmation({
@@ -256,19 +284,17 @@ export function AIGatewaysTable({ onEditGateway }: AIGatewaysTableProps) {
                     confirmButtonColor: "error",
                     confirmButtonIcon: <Trash size={16} />,
                     onConfirm: async () => {
-                      await deleteGateway({
-                        orgName: orgId ?? "",
-                        gatewayId: gateway.uuid,
-                      });
+                      await deleteGateway(gateway);
                       refetch();
                     },
                   });
                 }}
               >
-                <Trash size={16} />
-              </IconButton>
-            </Tooltip>
-          </ListingTable.RowActions>
+                Delete
+              </Button>
+            </Box>
+            )}
+          </Stack>
         </ListingTable.Cell>
       </ListingTable.Row>
     );
@@ -298,6 +324,13 @@ export function AIGatewaysTable({ onEditGateway }: AIGatewaysTableProps) {
         illustration: <DoorClosedLocked size={64} />,
         title: "No available gateway",
         description: "No gateways have been configured yet.",
+        // The page header shows Add Gateway once there are gateways.
+        action:
+          selfHostedEnabled && onAddGateway ? (
+            <Button variant="contained" startIcon={<Plus size={16} />} onClick={onAddGateway}>
+              Add Gateway
+            </Button>
+          ) : undefined,
       }}
       searchEmptyState={{
         illustration: <Search size={64} />,
@@ -312,13 +345,17 @@ export function AIGatewaysTable({ onEditGateway }: AIGatewaysTableProps) {
             <ListingTable.Cell align="left" width="120px">
               Type
             </ListingTable.Cell>
+            {showHosting && (
+              <ListingTable.Cell align="left" width="120px">
+                Hosting
+              </ListingTable.Cell>
+            )}
             <ListingTable.Cell align="center" width="120px">
               Status
             </ListingTable.Cell>
             <ListingTable.Cell align="right" width="140px">
               Last Updated
             </ListingTable.Cell>
-            <ListingTable.Cell align="center" width="96px" />
           </ListingTable.Row>
         </ListingTable.Head>
         <ListingTable.Body>
@@ -328,7 +365,7 @@ export function AIGatewaysTable({ onEditGateway }: AIGatewaysTableProps) {
                 {/* "&&" outranks the table's descendant padding rule on
                         .MuiTableCell-root, which beats a plain sx padding. */}
                 <ListingTable.Cell
-                  colSpan={5}
+                  colSpan={columnCount}
                   sx={{ "&&": { border: 0, p: 0 } }}
                 >
                   <Typography variant="overline" color="text.secondary">

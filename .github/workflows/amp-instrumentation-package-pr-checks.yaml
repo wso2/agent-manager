@@ -7,6 +7,11 @@ on:
       - "libs/amp-instrumentation/**"
       - ".github/workflows/amp-instrumentation-package-pr-checks.yaml"
 
+# Default token scope is read-only; jobs that publish, push or deploy
+# request the extra scopes they need at job level.
+permissions:
+  contents: read
+
 jobs:
   lint:
     name: Lint

@@ -17,7 +17,8 @@
  */
 
 import React, { useCallback } from "react";
-import { generatePath, useNavigate, useParams } from "react-router-dom";
+import { generatePath, Navigate, useNavigate, useParams } from "react-router-dom";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 import {
   absoluteRouteMap,
   type CreateCustomEvaluatorRequest,
@@ -35,6 +36,7 @@ export const CreateEvaluatorOrganization: React.FC = () => {
     orgId: string;
   }>();
   const navigate = useNavigate();
+  const { canWrite } = useResourceAccess("evaluator");
 
   const {
     mutate: createEvaluator,
@@ -71,10 +73,14 @@ export const CreateEvaluatorOrganization: React.FC = () => {
     [createEvaluator, navigate, backHref],
   );
 
+  if (!canWrite) {
+    return <Navigate to={backHref} replace />;
+  }
+
   return (
     <PageLayout
       title="Create Evaluator"
-      backLabel="Back to Evaluators"
+      backLabel="Back to evaluators"
       backHref={backHref}
       disableIcon
     >

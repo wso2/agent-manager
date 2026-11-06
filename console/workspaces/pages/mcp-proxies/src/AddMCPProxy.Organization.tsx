@@ -7,7 +7,8 @@
  */
 
 import { useMemo } from "react";
-import { generatePath, useNavigate, useParams } from "react-router-dom";
+import { generatePath, Navigate, useNavigate, useParams } from "react-router-dom";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 import { PageLayout } from "@agent-management-platform/views";
 import { absoluteRouteMap } from "@agent-management-platform/types";
 import { AddMCPProxyForm } from "./subComponents/AddMCPProxyForm";
@@ -15,6 +16,7 @@ import { AddMCPProxyForm } from "./subComponents/AddMCPProxyForm";
 export const AddMCPProxyOrganization = () => {
   const { orgId } = useParams<{ orgId: string }>();
   const navigate = useNavigate();
+  const { canWrite } = useResourceAccess("mcp_server");
   const backHref = useMemo(
     () =>
       generatePath(absoluteRouteMap.children.org.children.mcpProxies.path, {
@@ -23,11 +25,15 @@ export const AddMCPProxyOrganization = () => {
     [orgId],
   );
 
+  if (!canWrite) {
+    return <Navigate to={backHref} replace />;
+  }
+
   return (
     <PageLayout
       title="Register MCP Server"
       backHref={backHref}
-      backLabel="Back to MCP Server list"
+      backLabel="Back to MCP server list"
       disableIcon
     >
       <AddMCPProxyForm onCancel={() => navigate(backHref)} />

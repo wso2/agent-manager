@@ -15,7 +15,7 @@
  * under the License.
  */
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import {
   Avatar,
   IconButton,
@@ -25,7 +25,7 @@ import {
   Typography,
 } from "@wso2/oxygen-ui";
 import { Plus, Trash } from "@wso2/oxygen-ui-icons-react";
-import { generatePath, Link, useNavigate, useParams } from "react-router-dom";
+import { generatePath, useNavigate, useParams } from "react-router-dom";
 import { useDeleteMCPProxy, useListMCPProxies } from "@agent-management-platform/api-client";
 import {
   formatRelativeTime,
@@ -37,16 +37,22 @@ import {
   absoluteRouteMap,
   type MCPProxyListItem,
 } from "@agent-management-platform/types";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 import { MCPLogo } from "../components/MCPLogo";
 
-export function MCPProxyTable() {
+interface MCPProxyTableProps {
+  /** CTA shown in the empty state; the page owns how a server gets registered. */
+  createAction?: ReactNode;
+}
+
+export function MCPProxyTable({ createAction }: MCPProxyTableProps) {
   const { orgId } = useParams<{ orgId: string }>();
   const navigate = useNavigate();
   const [searchValue, setSearchValue] = useState("");
-  const routeParams = { orgId: orgId ?? "" };
   const { data, isLoading, error } = useListMCPProxies({ orgName: orgId });
   const { mutate: deleteMCPProxy } = useDeleteMCPProxy();
   const { addConfirmation } = useConfirmationDialog();
+  const { canWrite } = useResourceAccess("mcp_server");
 
   const proxies = useMemo(() => data?.list ?? [], [data]);
   const filteredProxies = useMemo(() => {
@@ -73,14 +79,6 @@ export function MCPProxyTable() {
       searchValue={searchValue}
       onSearchChange={setSearchValue}
       searchPlaceholder="Search MCP servers..."
-      addButton={{
-        label: "Register MCP Server",
-        component: Link,
-        to: generatePath(
-          absoluteRouteMap.children.org.children.mcpProxies.children.add.path,
-          routeParams,
-        ),
-      }}
       error={error}
       isLoading={isLoading}
       isEmpty={!proxies.length}
@@ -89,6 +87,7 @@ export function MCPProxyTable() {
         illustration: <MCPLogo size={64} />,
         title: "No MCP Servers Yet",
         description: "Add an MCP Server to provide tools for agents.",
+        action: createAction,
       }}
       searchEmptyState={{
         illustration: <Plus size={64} />,
@@ -163,7 +162,7 @@ export function MCPProxyTable() {
                   align="right"
                   onClick={(event) => event.stopPropagation()}
                 >
-                  {proxyId ? (
+                  {proxyId && canWrite ? (
                     <Tooltip title="Delete MCP Server">
                       <IconButton
                         color="error"

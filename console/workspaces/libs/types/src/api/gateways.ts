@@ -20,6 +20,40 @@ import type { ListQuery, OrgPathParams, PaginationMeta } from "./common";
 
 export type GatewayType = "INGRESS" | "EGRESS" | "BOTH";
 
+export type GatewayHosting = "MANAGED" | "SELF_HOSTED";
+
+/** A gateway without a hosting value predates self-hosted gateways: managed. */
+export const isSelfHostedGateway = (gateway: {
+  hosting?: GatewayHosting;
+}): boolean => gateway.hosting === "SELF_HOSTED";
+
+export const isManagedGateway = (gateway: { hosting?: GatewayHosting }): boolean =>
+  !isSelfHostedGateway(gateway);
+
+/**
+ * The egress gateway the server picks in an environment when the request names none:
+ * the only managed candidate. A self-hosted gateway is never picked, even a lone one.
+ */
+export const inferredEgressGateway = <G extends { hosting?: GatewayHosting }>(
+  candidates: G[],
+): G | undefined => {
+  const managed = candidates.filter(isManagedGateway);
+  return managed.length === 1 ? managed[0] : undefined;
+};
+
+export const gatewayHostingLabel = (gateway: { hosting?: GatewayHosting }): string =>
+  isSelfHostedGateway(gateway) ? "Self-hosted" : "Managed";
+
+/**
+ * Whether to show which gateways are managed and which self-hosted. The flag
+ * only gates adding self-hosted gateways: one that already exists is always
+ * shown for what it is.
+ */
+export const showGatewayHosting = (
+  flagEnabled: boolean,
+  gateways: ReadonlyArray<{ hosting?: GatewayHosting }>,
+): boolean => flagEnabled || gateways.some(isSelfHostedGateway);
+
 export type GatewayStatus =
   | "ACTIVE"
   | "INACTIVE"
@@ -75,6 +109,7 @@ export interface GatewayResponse {
   region?: string;
   isCritical: boolean;
   status: GatewayStatus;
+  hosting: GatewayHosting;
   createdAt: string;
   updatedAt: string;
   environments?: GatewayEnvironmentResponse[];
@@ -92,6 +127,45 @@ export interface CreateGatewayRequest {
   region?: string;
   isCritical?: boolean;
   environmentIds?: string[];
+}
+
+/**
+ * Request body for registering a gateway the customer runs.
+ * `environment` is an environment name.
+ */
+export interface SelfHostedGatewayRequest {
+  displayName: string;
+  /**
+   * The gateway's name: unique in the organization and fixed once created.
+   * 3-64 lowercase letters, numbers and hyphens, not starting or ending with a hyphen.
+   */
+  handle: string;
+  description?: string;
+  environment: string;
+  /** At least one http(s) endpoint URL; the first is the gateway's address. */
+  endpoints: string[];
+  functionalityType?: "ai";
+  /** Gateway version, `major.minor` or CalVer `YYYY.MM.DD`. */
+  version?: string;
+  isCritical?: boolean;
+  properties?: Record<string, unknown>;
+}
+
+/** Handle, environment and kind are fixed at registration. */
+export interface SelfHostedGatewayUpdateRequest {
+  displayName?: string;
+  description?: string;
+  isCritical?: boolean;
+  properties?: Record<string, unknown>;
+}
+
+export type CreateSelfHostedGatewayPathParams = OrgPathParams;
+export type UpdateSelfHostedGatewayPathParams = GatewayPathParams;
+export type DeleteSelfHostedGatewayPathParams = GatewayPathParams;
+export type SelfHostedGatewayTokensPathParams = GatewayPathParams;
+
+export interface RevokeSelfHostedGatewayTokenPathParams extends GatewayPathParams {
+  tokenId: string | undefined;
 }
 
 export interface UpdateGatewayRequest {

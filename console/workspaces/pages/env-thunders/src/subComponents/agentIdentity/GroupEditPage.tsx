@@ -23,6 +23,7 @@ import {
   Button,
   CircularProgress,
   Form,
+  Grid,
   IconButton,
   ListingTable,
   Stack,
@@ -53,6 +54,7 @@ import {
 } from "@agent-management-platform/types";
 import { EditFormSkeleton, useUnsavedChangesGuard } from "@agent-management-platform/shared-component";
 import { PageLayout } from "@agent-management-platform/views";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 import { AgentNameWithProject } from "./AgentNameWithProject";
 import { useAgentLookup } from "./useAgentLookup";
 import { useAssignmentDelta } from "./useAssignmentDelta";
@@ -78,6 +80,7 @@ export const GroupEditPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const envName = searchParams.get("envName") ?? "";
   const navigate = useNavigate();
+  const { canWrite } = useResourceAccess("agent_identity");
 
   const [activeTab, setActiveTab] = useState<ActiveTab>("agents");
 
@@ -270,7 +273,7 @@ export const GroupEditPage: React.FC = () => {
 
   if (isLoading) {
     return (
-      <PageLayout title="Group" backHref={groupsPath} backLabel="Back to Groups" disableIcon>
+      <PageLayout title="Group" backHref={groupsPath} backLabel="Back to groups" disableIcon>
         <EditFormSkeleton tabs={2} />
       </PageLayout>
     );
@@ -280,7 +283,7 @@ export const GroupEditPage: React.FC = () => {
     <PageLayout
       title={groupData?.name || "Group"}
       backHref={groupsPath}
-      backLabel="Back to Groups"
+      backLabel="Back to groups"
       description={groupData?.description}
       disableIcon
     >
@@ -305,7 +308,9 @@ export const GroupEditPage: React.FC = () => {
             <>
               <Form.Header>Agents</Form.Header>
               <Typography variant="body2" color="text.secondary">
-                Search and add agents to this group.
+                {canWrite
+                  ? "Search and add agents to this group."
+                  : "Agents assigned to this group."}
               </Typography>
               {(membersData?.total ?? 0) > MEMBERS_PAGE_SIZE && (
                 <Alert severity="warning" sx={{ mt: 1 }}>
@@ -314,7 +319,9 @@ export const GroupEditPage: React.FC = () => {
                 </Alert>
               )}
 
-              <Box sx={{ mt: 1 }}>
+              {canWrite && (
+              <Grid container spacing={2}>
+                <Grid size={{ xs: 12, md: 12, xl: 8 }}>
                 <Form.ElementWrapper label="Add Agent" name="addAgent">
                   <Autocomplete
                     id="addAgent"
@@ -344,14 +351,16 @@ export const GroupEditPage: React.FC = () => {
                     noOptionsText="No agents available"
                   />
                 </Form.ElementWrapper>
-              </Box>
+                </Grid>
+              </Grid>
+              )}
 
               {displayedMemberIds.length === 0 ? (
                 <ListingTable.Container>
                   <ListingTable.EmptyState
                     illustration={<Users size={64} />}
                     title="No members yet"
-                    description="Search and add agents above."
+                    description={canWrite ? "Search and add agents above." : undefined}
                   />
                 </ListingTable.Container>
               ) : (
@@ -361,7 +370,7 @@ export const GroupEditPage: React.FC = () => {
                       <ListingTable.Row>
                         <ListingTable.Cell>Agent</ListingTable.Cell>
                         <ListingTable.Cell>Agent ID</ListingTable.Cell>
-                        <ListingTable.Cell />
+                        {canWrite && <ListingTable.Cell />}
                       </ListingTable.Row>
                     </ListingTable.Head>
                     <ListingTable.Body>
@@ -374,6 +383,7 @@ export const GroupEditPage: React.FC = () => {
                             />
                           </ListingTable.Cell>
                           <ListingTable.Cell>{id}</ListingTable.Cell>
+                          {canWrite && (
                           <ListingTable.Cell align="right">
                             <Tooltip title="Remove from group">
                               <IconButton
@@ -384,6 +394,7 @@ export const GroupEditPage: React.FC = () => {
                               </IconButton>
                             </Tooltip>
                           </ListingTable.Cell>
+                          )}
                         </ListingTable.Row>
                       ))}
                     </ListingTable.Body>
@@ -406,7 +417,9 @@ export const GroupEditPage: React.FC = () => {
               ) : (
                 <>
                   <Typography variant="body2" color="text.secondary">
-                    Search and add roles to this group.
+                    {canWrite
+                      ? "Search and add roles to this group."
+                      : "Roles assigned to this group."}
                   </Typography>
                   {(allRolesData?.total ?? 0) > ROLES_PAGE_SIZE && (
                     <Alert severity="warning" sx={{ mt: 1 }}>
@@ -415,7 +428,9 @@ export const GroupEditPage: React.FC = () => {
                     </Alert>
                   )}
 
-                  <Box sx={{ mt: 1, mb: 2 }}>
+                  {canWrite && (
+                  <Grid container spacing={2}>
+                    <Grid size={{ xs: 12, md: 12, xl: 8 }}>
                     <Form.ElementWrapper label="Add Role" name="addRole">
                       <Autocomplete
                         id="addRole"
@@ -429,14 +444,16 @@ export const GroupEditPage: React.FC = () => {
                         noOptionsText="No roles available"
                       />
                     </Form.ElementWrapper>
-                  </Box>
+                    </Grid>
+                  </Grid>
+                  )}
 
                   {displayedRoles.length === 0 ? (
                     <ListingTable.Container>
                       <ListingTable.EmptyState
                         illustration={<Shield size={64} />}
                         title="No roles assigned yet"
-                        description="Search and add roles above."
+                        description={canWrite ? "Search and add roles above." : undefined}
                       />
                     </ListingTable.Container>
                   ) : (
@@ -446,7 +463,7 @@ export const GroupEditPage: React.FC = () => {
                           <ListingTable.Row>
                             <ListingTable.Cell>Name</ListingTable.Cell>
                             <ListingTable.Cell>Description</ListingTable.Cell>
-                            <ListingTable.Cell />
+                            {canWrite && <ListingTable.Cell />}
                           </ListingTable.Row>
                         </ListingTable.Head>
                         <ListingTable.Body>
@@ -456,6 +473,7 @@ export const GroupEditPage: React.FC = () => {
                               <ListingTable.Cell>
                                 {role.description ?? "-"}
                               </ListingTable.Cell>
+                              {canWrite && (
                               <ListingTable.Cell align="right">
                                 <Tooltip title="Remove from group">
                                   <IconButton
@@ -466,6 +484,7 @@ export const GroupEditPage: React.FC = () => {
                                   </IconButton>
                                 </Tooltip>
                               </ListingTable.Cell>
+                              )}
                             </ListingTable.Row>
                           ))}
                         </ListingTable.Body>
@@ -478,7 +497,7 @@ export const GroupEditPage: React.FC = () => {
           )}
         </Form.Section>
 
-        {isDirty && (
+        {canWrite && isDirty && (
           <Stack direction="row" spacing={1}>
             <Button
               variant="outlined"

@@ -72,6 +72,8 @@ type APIClient struct {
 
 	EvaluatorsAPI *EvaluatorsAPIService
 
+	EventsAPI *EventsAPIService
+
 	GatewayEnvironmentMappingsAPI *GatewayEnvironmentMappingsAPIService
 
 	GatewayIdentityProvidersAPI *GatewayIdentityProvidersAPIService
@@ -106,6 +108,12 @@ type APIClient struct {
 
 	MCPProxyScopesAPI *MCPProxyScopesAPIService
 
+	ProjectMCPProxiesAPI *ProjectMCPProxiesAPIService
+
+	ProjectMCPProxyEnvironmentsAPI *ProjectMCPProxyEnvironmentsAPIService
+
+	SelfHostedGatewaysAPI *SelfHostedGatewaysAPIService
+
 	TelemetryAPI *TelemetryAPIService
 }
 
@@ -137,6 +145,7 @@ func NewAPIClient(cfg *Configuration) *APIClient {
 	c.DefaultAPI = (*DefaultAPIService)(&c.common)
 	c.EnvironmentsAPI = (*EnvironmentsAPIService)(&c.common)
 	c.EvaluatorsAPI = (*EvaluatorsAPIService)(&c.common)
+	c.EventsAPI = (*EventsAPIService)(&c.common)
 	c.GatewayEnvironmentMappingsAPI = (*GatewayEnvironmentMappingsAPIService)(&c.common)
 	c.GatewayIdentityProvidersAPI = (*GatewayIdentityProvidersAPIService)(&c.common)
 	c.GatewayTokensAPI = (*GatewayTokensAPIService)(&c.common)
@@ -154,6 +163,9 @@ func NewAPIClient(cfg *Configuration) *APIClient {
 	c.MCPAPIKeysAPI = (*MCPAPIKeysAPIService)(&c.common)
 	c.MCPProxiesAPI = (*MCPProxiesAPIService)(&c.common)
 	c.MCPProxyScopesAPI = (*MCPProxyScopesAPIService)(&c.common)
+	c.ProjectMCPProxiesAPI = (*ProjectMCPProxiesAPIService)(&c.common)
+	c.ProjectMCPProxyEnvironmentsAPI = (*ProjectMCPProxyEnvironmentsAPIService)(&c.common)
+	c.SelfHostedGatewaysAPI = (*SelfHostedGatewaysAPIService)(&c.common)
 	c.TelemetryAPI = (*TelemetryAPIService)(&c.common)
 
 	return c
@@ -495,6 +507,11 @@ func (c *APIClient) prepareRequest(
 		localVarRequest = localVarRequest.WithContext(ctx)
 
 		// Walk through any authentication.
+
+		// AccessToken Authentication
+		if auth, ok := ctx.Value(ContextAccessToken).(string); ok {
+			localVarRequest.Header.Add("Authorization", "Bearer "+auth)
+		}
 
 	}
 
