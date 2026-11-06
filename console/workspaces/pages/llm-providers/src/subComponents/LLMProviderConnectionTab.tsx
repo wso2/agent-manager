@@ -202,7 +202,8 @@ export function LLMProviderConnectionTab({
     setStatus(null);
   }, [providerData]);
 
-  useUnsavedChangesGuard(isDirty);
+  // Read-only users have no Save/Discard, so their edits must never trap navigation.
+  useUnsavedChangesGuard(canWrite && isDirty);
 
   const handleSave = useCallback(async () => {
     if (!providerData) return;
@@ -339,6 +340,7 @@ export function LLMProviderConnectionTab({
           <Grid size={{ xs: 12, md: 12, xl: 8 }}>
             <TextInput
               label="Provider Endpoint"
+              disabled={!canWrite}
               maxLength={INPUT_LIMITS.URL}
               hideCharacterCount={providerEndpoint.length < INPUT_LIMITS.URL}
               size="small"
@@ -379,6 +381,7 @@ export function LLMProviderConnectionTab({
           <Grid size={{ xs: 12, md: 6, xl: 4 }}>
             <TextInput
               label="Authentication Header"
+              disabled={!canWrite}
               maxLength={INPUT_LIMITS.KEY}
               hideCharacterCount={authenticationHeader.length < INPUT_LIMITS.KEY}
               size="small"
@@ -416,6 +419,7 @@ export function LLMProviderConnectionTab({
           </Grid>
           <Grid size={{ xs: 12 }}>
             <ResilienceTimeoutFields
+              disabled={!canWrite}
               requestTimeout={resilienceTimeout}
               onRequestTimeoutChange={(value) => {
                 setResilienceTimeout(value);

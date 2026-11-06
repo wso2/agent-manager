@@ -61,7 +61,6 @@ export const GatewaysOrganization: React.FC = () => {
             <PageLayout title="Gateways" disableIcon actions={addGatewayButton}>
               <AIGatewaysTable
                 onAddGateway={canWrite ? () => setAddDrawerOpen(true) : undefined}
-                canDelete={canWrite}
               />
             </PageLayout>
           }

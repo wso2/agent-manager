@@ -98,7 +98,6 @@ export function DeploymentPipelinesOrganization() {
               >
                 <DeploymentPipelineTable
                   onCreatePipeline={canWrite ? () => setCreateOpen(true) : undefined}
-                  canDelete={canWrite}
                 />
               </PageLayout>
             </LegacyEditRedirect>

@@ -53,12 +53,10 @@ import {
   showGatewayHosting,
   type GatewayResponse,
 } from "@agent-management-platform/types";
-import { useFeatureFlag } from "@agent-management-platform/feature-management";
+import { useFeatureFlag, useGatewayFeatures } from "@agent-management-platform/feature-management";
 
 interface AIGatewaysTableProps {
   onAddGateway?: () => void;
-  /** Shows the row Delete action; defaults to true. */
-  canDelete?: boolean;
 }
 
 /** The timestamp gives way to the row actions on hover/focus; touch shows both. */
@@ -95,7 +93,9 @@ const matchesQuery = (gateway: GatewayResponse, query: string) => {
   return haystack.toLowerCase().includes(query);
 };
 
-export function AIGatewaysTable({ onAddGateway, canDelete = true }: AIGatewaysTableProps) {
+export function AIGatewaysTable({ onAddGateway }: AIGatewaysTableProps) {
+  // Read here so a caller can't forget it and show Delete to read-only users.
+  const { canWrite: canDelete } = useGatewayFeatures();
   const selfHostedEnabled = useFeatureFlag("enableSelfHostedGateways");
   const navigate = useNavigate();
   const { orgId } = useParams<{ orgId: string }>();

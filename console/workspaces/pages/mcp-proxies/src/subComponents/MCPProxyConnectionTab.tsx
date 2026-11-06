@@ -179,7 +179,8 @@ export function MCPProxyConnectionTab({
     credentialChanged,
   ]);
 
-  useUnsavedChangesGuard(isDirty);
+  // Read-only users have no Save/Discard, so their edits must never trap navigation.
+  useUnsavedChangesGuard(canWrite && isDirty);
   const handleDiscard = useCallback(() => {
     resetFromConfig();
     setStatus(null);
@@ -289,6 +290,7 @@ export function MCPProxyConnectionTab({
         <Grid size={{ xs: 12, md: 12, xl: 8 }}>
           <TextInput
             label="MCP Server Endpoint URL"
+            disabled={!canWrite}
             maxLength={INPUT_LIMITS.URL}
             hideCharacterCount={(endpoint?.length ?? 0) < INPUT_LIMITS.URL}
             size="small"
@@ -355,6 +357,7 @@ export function MCPProxyConnectionTab({
 
         <Grid size={{ xs: 12 }}>
           <ResilienceTimeoutFields
+            disabled={!canWrite}
             requestTimeout={resilienceTimeout}
             onRequestTimeoutChange={(value) => {
               setResilienceTimeout(value);

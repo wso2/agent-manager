@@ -42,11 +42,12 @@ function LegacyThunderInstanceViewRedirect() {
   }>();
   const [section, ...tail] = (rest ?? "").split("/").filter(Boolean);
   const { canView: canViewEnvironments } = useEnvironmentFeatures();
+  const envQuery = `?envName=${encodeURIComponent(envName ?? "")}`;
 
   if (section === "agents" || section === "roles" || section === "groups") {
     const base = generatePath(thunderInstancesNode.children[section].path, { orgId });
     const target = tail.length > 0 ? `${base}/${tail.join("/")}` : base;
-    return <Navigate to={`${target}?envName=${encodeURIComponent(envName ?? "")}`} replace />;
+    return <Navigate to={`${target}${envQuery}`} replace />;
   }
 
   // With the Environments pages hidden, fall back to the agent identity groups.
@@ -57,7 +58,7 @@ function LegacyThunderInstanceViewRedirect() {
           absoluteRouteMap.children.org.children.environments.children.view.path,
           { orgId, envName },
         )
-        : generatePath(thunderInstancesNode.children.groups.path, { orgId })}
+        : `${generatePath(thunderInstancesNode.children.groups.path, { orgId })}${envQuery}`}
       replace
     />
   );

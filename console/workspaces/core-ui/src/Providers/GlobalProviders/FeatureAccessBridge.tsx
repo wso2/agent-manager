@@ -47,13 +47,13 @@ export function FeatureAccessBridge({
     [featureFlags],
   );
   // Hold the app until access is known: hasAccess allows unset keys, so rendering
-  // now would flash (or auto-run) actions the user can't perform.
+  // now would flash (or auto-run) actions the user can't perform. Children therefore
+  // never see a loading state, so isAccessLoading is left at its default (false).
   if (isLoading) return <FullPageLoader />;
   return (
     <FeatureManagementProvider
       featureFlags={resolvedFeatureFlags}
       featureAccess={featureAccess}
-      isAccessLoading={isLoading}
     >
       {children}
     </FeatureManagementProvider>

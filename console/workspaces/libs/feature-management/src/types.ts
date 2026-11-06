@@ -72,6 +72,8 @@ export interface FeatureAccessConfig {
   git_secret_write: boolean;
   llm_provider_read: boolean;
   llm_provider_write: boolean;
+  /** Create, rotate and revoke an LLM provider's API keys. */
+  llm_provider_api_key_manage: boolean;
   llm_provider_template_read: boolean;
   llm_provider_template_write: boolean;
   llm_proxy_read: boolean;

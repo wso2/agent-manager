@@ -66,6 +66,7 @@ export const SCOPE_RULES: Record<keyof FeatureAccessConfig, ScopeRule> = {
   git_secret_write: { anyOf: ['amp:git-secret:create', 'amp:git-secret:delete'] },
   llm_provider_read: llmProvider.read,
   llm_provider_write: llmProvider.write,
+  llm_provider_api_key_manage: { anyOf: ['amp:llm-provider:api-key-manage'] },
   llm_provider_template_read: llmProviderTemplate.read,
   llm_provider_template_write: llmProviderTemplate.write,
   llm_proxy_read: llmProxy.read,

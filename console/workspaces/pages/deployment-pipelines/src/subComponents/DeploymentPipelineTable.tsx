@@ -15,6 +15,7 @@
  * under the License.
  */
 
+import { usePipelineFeatures } from "@agent-management-platform/feature-management";
 import { useEffect, useMemo, useState } from "react";
 import {
   Avatar,
@@ -56,8 +57,6 @@ import { validatePromotionChain } from "../utils/validatePromotionChain";
 
 interface DeploymentPipelineTableProps {
   onCreatePipeline?: () => void;
-  /** Hover shows Delete; defaults to true. */
-  canDelete?: boolean;
 }
 
 interface EnvInfo {
@@ -140,8 +139,9 @@ function PromotionChainCell({
 
 export function DeploymentPipelineTable({
   onCreatePipeline,
-  canDelete = true,
 }: DeploymentPipelineTableProps) {
+  // Read here so a caller can't forget it and show Delete to read-only users.
+  const { canWrite: canDelete } = usePipelineFeatures();
   const { orgId } = useParams<{ orgId: string }>();
   const navigate = useNavigate();
   const [search, setSearch] = useState("");

@@ -649,7 +649,8 @@ export function LLMProviderRateLimitingTab({
     [filteredResources, resourcePage],
   );
 
-  const { allowNavigation } = useUnsavedChangesGuard(isDirty);
+  // Read-only users have no Save/Discard, so their edits must never trap navigation.
+  const { allowNavigation } = useUnsavedChangesGuard(canWrite && isDirty);
 
   const handleSave = useCallback(async () => {
     if (!providerData || isLoading) return;
@@ -834,6 +835,7 @@ export function LLMProviderRateLimitingTab({
 
           {providerMode === "global" && (
             <CriteriaBlock
+              disabled={!canWrite}
               criteria={providerGlobalCriteria}
               onChange={setProviderGlobalCriteria}
               fieldErrors={criteriaFieldErrors["global"]}
@@ -854,6 +856,7 @@ export function LLMProviderRateLimitingTab({
                   </AccordionSummary>
                   <AccordionDetails sx={{ px: 2, pb: 2 }}>
                     <CriteriaBlock
+                      disabled={!canWrite}
                       criteria={providerResourceWiseDefault}
                       onChange={setProviderResourceWiseDefault}
                       fieldErrors={criteriaFieldErrors["resourceWise-default"]}
@@ -935,6 +938,7 @@ export function LLMProviderRateLimitingTab({
                           {isExpanded && (
                             <AccordionDetails sx={{ px: 2, pb: 2 }}>
                               <CriteriaBlock
+                                disabled={!canWrite}
                                 criteria={criteria}
                                 onChange={(c) =>
                                   setProviderResourceWiseMap((m) => ({ ...m, [key]: c }))
@@ -973,6 +977,7 @@ export function LLMProviderRateLimitingTab({
             shared provider limit.
           </Typography>
           <CriteriaBlock
+            disabled={!canWrite}
             criteria={consumerGlobalCriteria}
             onChange={setConsumerGlobalCriteria}
             fieldErrors={criteriaFieldErrors["consumer-global"]}

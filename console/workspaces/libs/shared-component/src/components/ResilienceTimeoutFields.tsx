@@ -41,6 +41,7 @@ export interface ResilienceTimeoutFieldsProps {
   onIdleTimeoutBlur?: () => void;
   idleTimeoutError?: string | null;
   defaultExpanded?: boolean;
+  disabled?: boolean;
 }
 
 /** Request/idle timeout fields shared by the LLM provider and MCP proxy connection forms. */
@@ -54,6 +55,7 @@ export function ResilienceTimeoutFields({
   onIdleTimeoutBlur,
   idleTimeoutError,
   defaultExpanded = false,
+  disabled = false,
 }: ResilienceTimeoutFieldsProps) {
   return (
     <Accordion defaultExpanded={defaultExpanded} disableGutters variant="outlined">
@@ -66,6 +68,7 @@ export function ResilienceTimeoutFields({
         <Grid container spacing={2}>
           <Grid size={{ xs: 12, md: 6 }}>
             <TextInput
+              disabled={disabled}
               label="Request Timeout"
               maxLength={INPUT_LIMITS.KEY}
               hideCharacterCount
@@ -79,6 +82,7 @@ export function ResilienceTimeoutFields({
           </Grid>
           <Grid size={{ xs: 12, md: 6 }}>
             <TextInput
+              disabled={disabled}
               label="Idle Timeout"
               maxLength={INPUT_LIMITS.KEY}
               hideCharacterCount
