@@ -4,7 +4,7 @@
 PYTHON_VERSION ?= 3.11
 # Default must be a version with a committed lock (see locks/); the image installs
 # locks/traceloop-$(TRACELOOP_VERSION)-python$(PYTHON_VERSION).txt.
-TRACELOOP_VERSION ?= 0.62.4
+TRACELOOP_VERSION ?= 0.63.0
 TAG ?= dev-python$(PYTHON_VERSION)
 REGISTRY_ENDPOINT ?= ghcr.io/wso2
 APP_NAME = $(REGISTRY_ENDPOINT)/amp-python-instrumentation-provider

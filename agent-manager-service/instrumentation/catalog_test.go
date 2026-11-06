@@ -28,14 +28,14 @@ func TestLoad_BaselineOnly(t *testing.T) {
 	if c.Default() != "0.3.0" {
 		t.Errorf("Default = %q, want 0.3.0", c.Default())
 	}
-	// The bundled baseline currently ships four versions. All() ordering is
+	// The bundled baseline currently ships five versions. All() ordering is
 	// unspecified (it comes from a map), so assert membership by version key
 	// rather than by slice position.
 	all := c.All()
-	if len(all) != 4 {
-		t.Fatalf("len(All) = %d, want 4", len(all))
+	if len(all) != 5 {
+		t.Fatalf("len(All) = %d, want 5", len(all))
 	}
-	for _, want := range []string{"0.3.0", "0.4.0", "0.4.1", "0.4.2"} {
+	for _, want := range []string{"0.3.0", "0.4.0", "0.4.1", "0.4.2", "0.5.0"} {
 		got, ok := c.Get(want)
 		if !ok {
 			t.Errorf("Get(%s) missing from bundled baseline", want)
@@ -65,15 +65,15 @@ func TestLoad_ExtensionAdds(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if !c.Has("0.5.0") {
-		t.Fatal("expected 0.5.0 in effective set")
+	if !c.Has("0.6.0") {
+		t.Fatal("expected 0.6.0 in effective set")
 	}
-	got, _ := c.Get("0.5.0")
+	got, _ := c.Get("0.6.0")
 	if got.Source != SourceExtension {
-		t.Errorf("Get(0.5.0).Source = %q, want extension", got.Source)
+		t.Errorf("Get(0.6.0).Source = %q, want extension", got.Source)
 	}
 	if got.TraceloopSDK != "0.65.0" {
-		t.Errorf("Get(0.5.0).TraceloopSDK = %q, want 0.65.0", got.TraceloopSDK)
+		t.Errorf("Get(0.6.0).TraceloopSDK = %q, want 0.65.0", got.TraceloopSDK)
 	}
 	bundled, _ := c.Get("0.3.0")
 	if bundled.Source != SourceBundled {
@@ -100,8 +100,8 @@ func TestLoad_ExtensionFileAbsent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if len(c.All()) != 4 {
-		t.Errorf("len(All) = %d, want 4 (baseline only)", len(c.All()))
+	if len(c.All()) != 5 {
+		t.Errorf("len(All) = %d, want 5 (baseline only)", len(c.All()))
 	}
 }
 

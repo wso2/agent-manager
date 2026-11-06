@@ -791,7 +791,7 @@
                   "type": "string"
                 },
                 "defaultInstrumentationVersion": {
-                  "default": "0.4.2",
+                  "default": "0.5.0",
                   "description": "Platform default AMP instrumentation version. Must exist in the effective catalog (embedded baseline \u222a additionalInstrumentationVersions); otherwise the server fails to start.",
                   "title": "defaultInstrumentationVersion",
                   "type": "string"

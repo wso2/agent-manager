@@ -54,7 +54,7 @@ Tests use **pytest** with `conftest.py` fixtures (`clean_environment`, `mock_tra
 
 ## Pinned-version gotchas
 
-- **`traceloop-sdk==0.62.4`** is pinned exactly — bumping it is a deliberate release, not a casual change.
+- **`traceloop-sdk==0.63.0`** is pinned exactly — bumping it is a deliberate release, not a casual change.
 - **`wrapt<2.0.0`** is required: wrapt 2.x dropped the `module=` kwarg still used by `opentelemetry-instrumentation-*` 0.61.0.
 - A `sitecustomize.py` in the app's own working dir will shadow the bootstrap one (a warning is printed) — don't ship one in instrumented apps.
 - `init_otel()` reads `AMP_OTEL_ENDPOINT` / `AMP_AGENT_API_KEY` at call time, not import time.
