@@ -2296,6 +2296,115 @@ func componentReleaseTraits(release *gen.ComponentRelease) []TraitType {
 	return traits
 }
 
+// ReleaseAgentAPIKeyTrait is how the env-injection trait frozen into a component release
+// delivers the agent API key.
+type ReleaseAgentAPIKeyTrait struct {
+	// Attached is true when the release carries the env-injection trait. Agents without it
+	// (buildpacks other than Python and Ballerina, kind-sourced agents) get no agent API key.
+	Attached bool
+	// TakesEnvVarKey is true when an empty agentApiKeySecretRef makes the trait leave the key to
+	// the agent's AMP_AGENT_API_KEY env var, or when the release has no env-injection trait.
+	// Releases cut before the trait learned that fetch the key from agentApiKeySecretRef whatever
+	// its value, so an empty one leaves their pods referencing a Secret that is never created.
+	TakesEnvVarKey bool
+	// SecretRef and SecretProperty are the remote store path the release's trait instance was
+	// given. Only agents created before the key moved to the env var have one.
+	SecretRef      string
+	SecretProperty string
+}
+
+// GetReleaseAgentAPIKeyTrait reads how the release bound in the environment delivers the agent
+// API key. An environment with no bound release reports TakesEnvVarKey, as there is no frozen
+// trait to contradict it.
+func (c *openChoreoClient) GetReleaseAgentAPIKeyTrait(ctx context.Context, ouID, componentName, environment string) (ReleaseAgentAPIKeyTrait, error) {
+	namespace := c.NamespaceFor(ouID)
+	binding, err := c.findReleaseBindingForEnv(ctx, namespace, componentName, environment)
+	if err != nil {
+		return ReleaseAgentAPIKeyTrait{}, fmt.Errorf("failed to find release binding for %s: %w", componentName, err)
+	}
+	if binding == nil || binding.Spec == nil || binding.Spec.ReleaseName == nil || *binding.Spec.ReleaseName == "" {
+		return ReleaseAgentAPIKeyTrait{TakesEnvVarKey: true}, nil
+	}
+	releaseName := *binding.Spec.ReleaseName
+	resp, err := c.ocClient.GetComponentReleaseWithResponse(ctx, namespace, releaseName)
+	if err != nil {
+		return ReleaseAgentAPIKeyTrait{}, fmt.Errorf("failed to get component release %s: %w", releaseName, err)
+	}
+	if resp.StatusCode() != http.StatusOK {
+		return ReleaseAgentAPIKeyTrait{}, handleErrorResponse(resp.StatusCode(), ErrorResponses{
+			JSON401: resp.JSON401,
+			JSON403: resp.JSON403,
+			JSON404: resp.JSON404,
+			JSON500: resp.JSON500,
+		})
+	}
+	if resp.JSON200 == nil {
+		return ReleaseAgentAPIKeyTrait{}, fmt.Errorf("invalid OpenChoreo response: missing component release %q payload", releaseName)
+	}
+	return releaseAgentAPIKeyTrait(resp.JSON200), nil
+}
+
+// GetReleaseBindingAgentAPIKeySecretRef returns the env-injection trait's per-environment
+// agentApiKeySecretRef on the component's release binding in the environment, or "" when the
+// binding or the setting does not exist.
+func (c *openChoreoClient) GetReleaseBindingAgentAPIKeySecretRef(ctx context.Context, ouID, componentName, environment string) (string, error) {
+	binding, err := c.findReleaseBindingForEnv(ctx, c.NamespaceFor(ouID), componentName, environment)
+	if err != nil {
+		return "", fmt.Errorf("failed to find release binding for %s: %w", componentName, err)
+	}
+	return bindingAgentAPIKeySecretRef(binding, componentName), nil
+}
+
+// bindingAgentAPIKeySecretRef reads the env-injection trait's agentApiKeySecretRef from a
+// release binding's per-environment trait configs.
+func bindingAgentAPIKeySecretRef(binding *gen.ReleaseBinding, componentName string) string {
+	if binding == nil || binding.Spec == nil || binding.Spec.TraitEnvironmentConfigs == nil {
+		return ""
+	}
+	cfg, _ := (*binding.Spec.TraitEnvironmentConfigs)[componentName+"-"+string(TraitEnvInjection)].(map[string]interface{})
+	ref, _ := cfg["agentApiKeySecretRef"].(string)
+	return ref
+}
+
+// releaseAgentAPIKeyTrait reads the env-injection trait frozen into release. The trait leaves
+// the key to the env var when its ExternalSecret is gated by includeWhen.
+func releaseAgentAPIKeyTrait(release *gen.ComponentRelease) ReleaseAgentAPIKeyTrait {
+	result := ReleaseAgentAPIKeyTrait{TakesEnvVarKey: true}
+	if release.Spec == nil {
+		return result
+	}
+	if release.Spec.Traits != nil {
+		for _, trait := range *release.Spec.Traits {
+			if name, _ := trait["name"].(string); name != string(TraitEnvInjection) {
+				continue
+			}
+			result.Attached = true
+			spec, _ := trait["spec"].(map[string]interface{})
+			creates, _ := spec["creates"].([]interface{})
+			for _, item := range creates {
+				create, _ := item.(map[string]interface{})
+				template, _ := create["template"].(map[string]interface{})
+				if kind, _ := template["kind"].(string); kind != "ExternalSecret" {
+					continue
+				}
+				if includeWhen, _ := create["includeWhen"].(string); includeWhen == "" {
+					result.TakesEnvVarKey = false
+				}
+			}
+		}
+	}
+	if profile := release.Spec.ComponentProfile; profile != nil && profile.Traits != nil {
+		for _, trait := range *profile.Traits {
+			if trait.Name != string(TraitEnvInjection) || trait.Parameters == nil {
+				continue
+			}
+			result.SecretRef, _ = (*trait.Parameters)["agentApiKeySecretRef"].(string)
+			result.SecretProperty, _ = (*trait.Parameters)["agentApiKeySecretProperty"].(string)
+		}
+	}
+	return result
+}
+
 // bindingExternalURL picks by endpoint name, matching GetComponentEndpoints' TLS rule.
 func bindingExternalURL(binding *gen.ReleaseBinding) string {
 	if binding.Status == nil || binding.Status.Endpoints == nil {

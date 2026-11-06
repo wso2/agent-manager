@@ -809,6 +809,7 @@ func promoteAgentTestFixture(t *testing.T, tgtIdentityEnvVars []client.EnvVar, t
 		GetEnvironmentFunc:              nonProductionEnvStub(),
 		IsDeploymentInProgressFunc:      func(_ context.Context, _, _, _ string) (bool, error) { return false, nil },
 		EnsureProjectReleaseBindingFunc: func(_ context.Context, _, _, _ string) error { return nil },
+		GetReleaseAgentAPIKeyTraitFunc:  noAgentAPIKeyTrait,
 		PromoteComponentFunc: func(_ context.Context, _, _, _, _, _ string, _ []client.EnvVar, _ []client.FileVar, _, _ map[string]interface{}) error {
 			promoteCalled = true
 			return nil
