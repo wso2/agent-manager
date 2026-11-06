@@ -38,10 +38,10 @@ import (
 
 // specVectorKey is the base64 key of the Standard Webhooks specification's
 // published test vector; it is not a credential.
-const specVectorKey = "MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw"
+const specVectorKey = "MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw" // gitleaks:allow
 
 func TestSign_StandardWebhooksVector(t *testing.T) {
-	sig, err := Sign(SecretPrefix+specVectorKey, "msg_p5jXN8AQM9LWM0D4loKWxJek",
+	sig, err := Sign(SecretPrefix+specVectorKey, "msg_p5jXN8AQM9LWM0D4loKWxJek", // gitleaks:allow
 		time.Unix(1614265330, 0), []byte(`{"test": 2432232314}`))
 	require.NoError(t, err)
 	assert.Equal(t, "v1,g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1OE=", sig)
