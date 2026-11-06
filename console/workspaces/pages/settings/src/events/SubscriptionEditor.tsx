@@ -241,7 +241,15 @@ export function SubscriptionEditor({
     const orgEvents = generatePath(absoluteRouteMap.children.org.children.events.path, {
       orgId: target.orgName,
     });
-    allowNavigation(() => navigate(`${orgEvents}/destinations/new`, { state }));
+    allowNavigation(() => {
+      // Kept in this page's history entry too, so browser Back restores it.
+      const here: SubscriptionEditorState = {
+        ...(location.state as SubscriptionEditorState | null),
+        subscriptionDraft: draft,
+      };
+      navigate(`${location.pathname}${location.search}`, { replace: true, state: here });
+      navigate(`${orgEvents}/destinations/new`, { state });
+    });
   };
 
   const options = useMemo(() => [ALL_EVENTS_OPTION, ...(catalog?.eventTypes ?? [])], [catalog]);

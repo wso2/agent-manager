@@ -60,17 +60,22 @@ export function DestinationEditor({ orgName, access, listPath }: DestinationEdit
   // A new webhook's signing secret, shown once before leaving the page.
   const [created, setCreated] = useState<EventDestinationResponse | null>(null);
 
-  const leave = useCallback(
-    (saved?: EventDestinationResponse) => {
-      const state: SubscriptionEditorState | undefined = draft
+  // The subscription editor's draft goes back with every way out of the
+  // page, with the new destination selected once it exists.
+  const editorState = useCallback(
+    (saved?: EventDestinationResponse): SubscriptionEditorState | undefined =>
+      draft
         ? {
             from: draft.from,
             subscriptionDraft: saved ? { ...draft, destinationId: saved.id } : draft,
           }
-        : undefined;
-      allowNavigation(() => navigate(returnTo, { state }));
-    },
-    [allowNavigation, draft, navigate, returnTo],
+        : undefined,
+    [draft],
+  );
+  const leave = useCallback(
+    (saved?: EventDestinationResponse) =>
+      allowNavigation(() => navigate(returnTo, { state: editorState(saved) })),
+    [allowNavigation, editorState, navigate, returnTo],
   );
 
   if (access.resolved && !access.canManageDestinations) {
@@ -91,6 +96,7 @@ export function DestinationEditor({ orgName, access, listPath }: DestinationEdit
       }
       disableIcon
       backHref={returnTo}
+      backState={editorState(created ?? undefined)}
       backLabel="Back"
     >
       {children}
