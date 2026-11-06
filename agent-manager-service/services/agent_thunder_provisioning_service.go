@@ -401,8 +401,23 @@ func reconcileWorkloadInjection(ctx context.Context, injector AgentIdentityInjec
 	}
 }
 
+// agentThunderBindingOrgContext names the binding's organization on ctx, from the trusted OU the
+// binding row carries.
 func agentThunderBindingOrgContext(ctx context.Context, binding models.AgentThunderClient) context.Context {
-	return orgctx.WithResolvedOrg(ctx, orgctx.ResolvedOrg{OUID: binding.OUID})
+	return withOrgContext(ctx, binding.OUID)
+}
+
+// withOrgContext names organization ouID on ctx so the OpenChoreo client sends it as
+// X-Impersonate-Org. A request carries its organization from the token, but work that runs outside a
+// request (the reconciler's retries, the promotion topology pass) has neither a token nor an
+// organization. Deployments that call OpenChoreo with a machine token that is not scoped to one
+// organization are refused (HTTP 400) without the header. A context that already names the same
+// organization is returned as it is, so a request keeps its organization handle.
+func withOrgContext(ctx context.Context, ouID string) context.Context {
+	if org, ok := orgctx.GetResolvedOrg(ctx); ok && org.OUID == ouID {
+		return ctx
+	}
+	return orgctx.WithResolvedOrg(ctx, orgctx.ResolvedOrg{OUID: ouID})
 }
 
 // DBBackedAgentThunderProvisioning returns a constructor to be called
@@ -760,6 +775,11 @@ func (s *agentThunderProvisioningService) RetryProvisioning(ctx context.Context,
 }
 
 func (s *agentThunderProvisioningService) AttemptProvision(ctx context.Context, binding models.AgentThunderClient) {
+	// An attempt reads the project's pipeline from OpenChoreo, and the first attempt runs with the
+	// creating request's context while every retry runs from the reconciler's, which has no
+	// organization. Name the binding's organization here, once, for every caller and every call below.
+	ctx = agentThunderBindingOrgContext(ctx, binding)
+
 	// Held for the entire attempt so this can't interleave its Thunder
 	// RegenerateAgentSecret/OpenBao Store calls with a concurrent
 	// RegenerateSecret/RevokeSecret on the same binding. ctx here is normally
