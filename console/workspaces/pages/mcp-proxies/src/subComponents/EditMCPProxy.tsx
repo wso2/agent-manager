@@ -145,11 +145,6 @@ function EditMCPProxyForm({
         ),
       );
 
-      // A first endpoint fetched on this page replaces the MCP versions; otherwise the
-      // proxy's saved versions are sent back unchanged. Saved endpoints carry no versions
-      // until they are fetched again.
-      const firstEndpointVersions = endpoints[0]?.fetchedInfo.supportedVersions;
-
       try {
         await updateMCPProxy({
           params: { orgName: orgId, proxyId: proxy.id },
@@ -159,9 +154,6 @@ function EditMCPProxyForm({
             version: formData.version.trim(),
             context: formData.context?.trim() || undefined,
             description: formData.description?.trim() || undefined,
-            mcpSpecVersions: firstEndpointVersions?.length
-              ? firstEndpointVersions
-              : proxy.mcpSpecVersions,
             endpoints: nextEndpoints,
           },
         });

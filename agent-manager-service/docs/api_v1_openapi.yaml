@@ -19765,6 +19765,7 @@ components:
             proxy's mcpSpecVersion is used.
           items:
             type: string
+            pattern: '^\d{4}-\d{2}-\d{2}$'
           example: ["2026-07-28", "2025-11-25"]
         security:
           $ref: "#/components/schemas/SecurityConfig"

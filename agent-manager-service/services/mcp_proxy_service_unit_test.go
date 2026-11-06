@@ -767,6 +767,31 @@ func TestBuildMCPEndpointDTOsForResponse_StripsUpstreamCredentials(t *testing.T)
 	assert.Nil(t, dtos[0].Upstream.Main.Auth.SecretRef)
 }
 
+// mcpTestRequest is the part of a JSON-RPC request the fake MCP servers look at.
+type mcpTestRequest struct {
+	ID     int    `json:"id"`
+	Method string `json:"method"`
+	Params struct {
+		Meta map[string]interface{} `json:"_meta"`
+	} `json:"params"`
+}
+
+func decodeMCPTestRequest(r *http.Request) mcpTestRequest {
+	var req mcpTestRequest
+	_ = json.NewDecoder(r.Body).Decode(&req)
+	return req
+}
+
+// fetchFromTestMCPServer runs fetch-server-info against a fake MCP server.
+func fetchFromTestMCPServer(t *testing.T, server http.Handler) (*models.MCPServerInfoFetchResponse, error) {
+	t.Helper()
+	srv := httptest.NewServer(server)
+	t.Cleanup(srv.Close)
+	// The real client refuses localhost (SSRF guard), so use the test server's own client.
+	svc := &MCPProxyService{client: srv.Client(), logger: discardLogger()}
+	return svc.fetchMCPServerInfo(context.Background(), srv.URL, "", "")
+}
+
 // oldMCPServerForTest is a fake old MCP server (2025-xx). It refuses server/discover the way the
 // Go SDK v1.5 does, and answers initialize and tools/list. It records what it received.
 type oldMCPServerForTest struct {
@@ -784,14 +809,7 @@ type oldMCPServerForTest struct {
 }
 
 func (f *oldMCPServerForTest) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		ID     int    `json:"id"`
-		Method string `json:"method"`
-		Params struct {
-			Meta map[string]interface{} `json:"_meta"`
-		} `json:"params"`
-	}
-	_ = json.NewDecoder(r.Body).Decode(&req)
+	req := decodeMCPTestRequest(r)
 	f.methods = append(f.methods, req.Method)
 
 	switch req.Method {
@@ -824,12 +842,7 @@ func (f *oldMCPServerForTest) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 // 2026-07-28 refuses it with an HTTP error, and the fetch carries on with initialize.
 func TestFetchMCPServerInfo_AsksServerDiscoverFirst(t *testing.T) {
 	fake := &oldMCPServerForTest{}
-	srv := httptest.NewServer(fake)
-	defer srv.Close()
-	// The real client refuses localhost (SSRF guard), so use the test server's own client.
-	svc := &MCPProxyService{client: srv.Client(), logger: discardLogger()}
-
-	resp, err := svc.fetchMCPServerInfo(context.Background(), srv.URL, "", "")
+	resp, err := fetchFromTestMCPServer(t, fake)
 
 	// The old server refused server/discover, but the fetch still works the old way.
 	assert.NoError(t, err)
@@ -857,11 +870,7 @@ func TestFetchMCPServerInfo_AsksServerDiscoverFirst(t *testing.T) {
 // error. That still counts as a refusal, so Agent Manager connects with initialize.
 func TestFetchMCPServerInfo_OldServerRefusesDiscoverInJSONRPC(t *testing.T) {
 	fake := &oldMCPServerForTest{refuseDiscoverInJSONRPC: true}
-	srv := httptest.NewServer(fake)
-	defer srv.Close()
-	svc := &MCPProxyService{client: srv.Client(), logger: discardLogger()}
-
-	resp, err := svc.fetchMCPServerInfo(context.Background(), srv.URL, "", "")
+	resp, err := fetchFromTestMCPServer(t, fake)
 
 	assert.NoError(t, err)
 	if assert.NotNil(t, resp.Tools) {
@@ -880,14 +889,7 @@ type newMCPServerForTest struct {
 }
 
 func (f *newMCPServerForTest) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		ID     int    `json:"id"`
-		Method string `json:"method"`
-		Params struct {
-			Meta map[string]interface{} `json:"_meta"`
-		} `json:"params"`
-	}
-	_ = json.NewDecoder(r.Body).Decode(&req)
+	req := decodeMCPTestRequest(r)
 	f.methods = append(f.methods, req.Method)
 	f.sessionIDs = append(f.sessionIDs, r.Header.Get("Mcp-Session-Id"))
 
@@ -917,11 +919,7 @@ func (f *newMCPServerForTest) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 // and the MCP-Protocol-Version and Mcp-Method headers on every request, and no session.
 func TestFetchMCPServerInfo_NewServerListsToolsTheNewWay(t *testing.T) {
 	fake := &newMCPServerForTest{}
-	srv := httptest.NewServer(fake)
-	defer srv.Close()
-	svc := &MCPProxyService{client: srv.Client(), logger: discardLogger()}
-
-	resp, err := svc.fetchMCPServerInfo(context.Background(), srv.URL, "", "")
+	resp, err := fetchFromTestMCPServer(t, fake)
 
 	assert.NoError(t, err)
 	if assert.NotNil(t, resp.Tools) {
@@ -976,11 +974,7 @@ func TestFetchMCPServerInfo_WhenToFallBackToInitialize(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			fake := &oldMCPServerForTest{discoverStatus: tt.discoverStatus, discoverBody: tt.discoverBody}
-			srv := httptest.NewServer(fake)
-			defer srv.Close()
-			svc := &MCPProxyService{client: srv.Client(), logger: discardLogger()}
-
-			resp, err := svc.fetchMCPServerInfo(context.Background(), srv.URL, "", "")
+			resp, err := fetchFromTestMCPServer(t, fake)
 
 			if tt.wantFallBack {
 				assert.NoError(t, err)
@@ -1053,11 +1047,7 @@ func TestFetchMCPServerInfo_DiscoverAnsweredButInitializeStillNeeded(t *testing.
 				discoverStatus: 200,
 				discoverBody:   `{"jsonrpc":"2.0","id":1,"result":{"supportedVersions":` + tt.supportedVersions + `}}`,
 			}
-			srv := httptest.NewServer(fake)
-			defer srv.Close()
-			svc := &MCPProxyService{client: srv.Client(), logger: discardLogger()}
-
-			resp, err := svc.fetchMCPServerInfo(context.Background(), srv.URL, "", "")
+			resp, err := fetchFromTestMCPServer(t, fake)
 
 			assert.NoError(t, err)
 			if assert.NotNil(t, resp.Tools) {
@@ -1094,14 +1084,18 @@ func TestFetchMCPServerInfo_ReportsSupportedVersions(t *testing.T) {
 			},
 			want: &[]string{"2025-11-25", "2025-06-18"},
 		},
+		{
+			name: "server/discover answered with an empty list: the version initialize agreed on",
+			server: &oldMCPServerForTest{
+				discoverStatus: 200,
+				discoverBody:   `{"jsonrpc":"2.0","id":1,"result":{"supportedVersions":[]}}`,
+			},
+			want: &[]string{"2025-06-18"},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			srv := httptest.NewServer(tt.server)
-			defer srv.Close()
-			svc := &MCPProxyService{client: srv.Client(), logger: discardLogger()}
-
-			resp, err := svc.fetchMCPServerInfo(context.Background(), srv.URL, "", "")
+			resp, err := fetchFromTestMCPServer(t, tt.server)
 
 			assert.NoError(t, err)
 			assert.Equal(t, tt.want, resp.SupportedVersions)

@@ -60,6 +60,8 @@ export interface MCPEndpointConfig {
   resilience?: Resilience;
   policies?: MCPProxyPolicy[];
   capabilities?: MCPProxyCapabilities;
+  /** MCP versions this endpoint's server supports, from its fetch-server-info answer. */
+  mcpSpecVersions?: string[];
   security?: SecurityConfig;
 }
 
@@ -93,7 +95,7 @@ export interface MCPProxyEndpoint extends MCPEndpointConfig {
 }
 
 /**
- * MCPProxy is an org-level grouping. Name/version/context/vhost/mcpSpecVersions are shared
+ * MCPProxy is an org-level grouping. Name/version/context/vhost/mcpSpecVersion are shared
  * metadata; the deployable config lives on each endpoint in endpoints. The proxy itself
  * deploys nothing to any gateway.
  */
@@ -106,9 +108,7 @@ export interface MCPProxy {
   createdBy?: string;
   context?: string;
   vhost?: string;
-  /** Deprecated: accepted on create/update only; responses return mcpSpecVersions. */
   mcpSpecVersion?: string;
-  mcpSpecVersions?: string[];
   /**
    * Absent on a project-owned proxy (projectName set): its per-environment data is on the
    * project route, see ProjectMCPProxy.
@@ -169,9 +169,7 @@ export interface MCPProxyListItem {
   createdBy?: string;
   context?: string;
   status?: "pending" | "deployed" | "failed";
-  /** Deprecated: not returned any more; read mcpSpecVersions. */
   mcpSpecVersion?: string;
-  mcpSpecVersions?: string[];
   /** Set for a project-scoped proxy: the project that owns it. Absent for an org proxy. */
   projectName?: string;
   createdAt?: string;

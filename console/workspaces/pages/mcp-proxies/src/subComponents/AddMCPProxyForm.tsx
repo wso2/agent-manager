@@ -160,9 +160,6 @@ export function AddMCPProxyForm({ onCancel }: AddMCPProxyFormProps) {
     if (!validateForm({ version: proxyVersion })) return;
 
     const name = proxyName.trim();
-    // The MCP versions come from the first endpoint's fetched server.
-    // Left out when the server reported none, so the backend's default applies.
-    const firstEndpointVersions = endpoints[0]?.fetchedInfo.supportedVersions;
 
     // Each endpoint carries its own upstream, fetched capabilities and default security,
     // and is bound to one or more environments. The org-level proxy is a grouping and
@@ -173,7 +170,6 @@ export function AddMCPProxyForm({ onCancel }: AddMCPProxyFormProps) {
       version: proxyVersion.trim(),
       description: proxyDescription.trim() || undefined,
       context: proxyContext.trim() || undefined,
-      mcpSpecVersions: firstEndpointVersions?.length ? firstEndpointVersions : undefined,
       endpoints: (() => {
         const usedHandles = new Set<string>();
         return endpoints.map((endpoint, index) =>

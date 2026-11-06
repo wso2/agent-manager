@@ -287,6 +287,13 @@ export function ViewMCPProxy() {
     [endpoints, selectedEndpointId],
   );
 
+  // The selected endpoint's own MCP versions; an endpoint saved without them uses the proxy's
+  // mcpSpecVersion, as the gateway does.
+  const selectedEndpointSpecVersions = useMemo<string[]>(() => {
+    if (selectedEndpoint?.mcpSpecVersions?.length) return selectedEndpoint.mcpSpecVersions;
+    return proxy?.mcpSpecVersion ? [proxy.mcpSpecVersion] : [];
+  }, [selectedEndpoint, proxy?.mcpSpecVersion]);
+
   // Tools of the proxy's other endpoints. A scope covers the tools of every endpoint, so the
   // security tab needs them to keep them when it saves the selected endpoint's assignments.
   const otherEndpointTools = useMemo(() => {
@@ -452,6 +459,39 @@ export function ViewMCPProxy() {
 
         {proxy && !error && (
           <Stack spacing={4}>
+            {endpoints.length > 1 && (
+              <Stack
+                direction="row"
+                spacing={1}
+                alignItems="center"
+                justifyContent="flex-end"
+                flexWrap="wrap"
+                useFlexGap
+              >
+                <FormControl size="small" sx={{ minWidth: 260 }}>
+                  <Select
+                    value={selectedEndpointId}
+                    onChange={(event) => {
+                      const endpointId = event.target.value as string;
+                      guardUnsaved(() => setSelectedEndpointId(endpointId));
+                    }}
+                    renderValue={(value) => {
+                      const option = endpointOptions.find(
+                        (o) => o.id === value,
+                      );
+                      return `${option?.label ?? value} Endpoint`;
+                    }}
+                  >
+                    {endpointOptions.map((option) => (
+                      <MenuItem key={option.id} value={option.id}>
+                        {option.label}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Stack>
+            )}
+
             <Grid container spacing={2}>
               <Grid size={{ xs: 12, sm: 6 }}>
                 <Card variant="outlined" sx={{ p: 2, height: "100%" }}>
@@ -505,45 +545,12 @@ export function ViewMCPProxy() {
                       variant="body2"
                       sx={{ fontFamily: "monospace" }}
                     >
-                      {proxy.mcpSpecVersions?.join(", ") || "—"}
+                      {selectedEndpointSpecVersions.join(", ") || "—"}
                     </Typography>
                   </Stack>
                 </Card>
               </Grid>
             </Grid>
-
-            {endpoints.length > 1 && (
-              <Stack
-                direction="row"
-                spacing={1}
-                alignItems="center"
-                justifyContent="flex-end"
-                flexWrap="wrap"
-                useFlexGap
-              >
-                <FormControl size="small" sx={{ minWidth: 260 }}>
-                  <Select
-                    value={selectedEndpointId}
-                    onChange={(event) => {
-                      const endpointId = event.target.value as string;
-                      guardUnsaved(() => setSelectedEndpointId(endpointId));
-                    }}
-                    renderValue={(value) => {
-                      const option = endpointOptions.find(
-                        (o) => o.id === value,
-                      );
-                      return `${option?.label ?? value} Endpoint`;
-                    }}
-                  >
-                    {endpointOptions.map((option) => (
-                      <MenuItem key={option.id} value={option.id}>
-                        {option.label}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Stack>
-            )}
 
             {hasEndpoints ? (
               <Card variant="outlined">

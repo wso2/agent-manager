@@ -2115,14 +2115,17 @@ func (s *MCPProxyService) fetchMCPServerInfo(ctx context.Context, endpointURL st
 	}
 
 	// The versions the server supports: the list from server/discover if the server answered it
-	// (wider than the one version initialize agrees on), otherwise the version initialize agreed on.
+	// with one (wider than the one version initialize agrees on), otherwise the version initialize
+	// agreed on.
 	serverVersions := []string{agreedVersion}
-	if serverAnsweredDiscover {
+	if serverAnsweredDiscover && len(discoverResult.Result.SupportedVersions) > 0 {
 		serverVersions = discoverResult.Result.SupportedVersions
 	}
 
 	// Server before MCP 2026-07-28: list at the version initialize asked for. Each request
-	// carries the session ID that initialize gave us.
+	// carries the session ID that initialize gave us. mcpSpecVersionJune2025 here only selects
+	// that session path; agreedVersion would be wrong, because a server agreeing on 2026-07-28 or
+	// later would switch the requests to the path without a session.
 	return s.fetchToolsPromptsAndResources(ctx, endpointURL, sessionID, headerName, headerValue, mcpSpecVersionJune2025,
 		serverInfo, serverVersions), nil
 }
@@ -2193,7 +2196,7 @@ func (s *MCPProxyService) postJSONRPCForVersion(ctx context.Context, endpointURL
 
 // mcpClientSupportedSpecVersions are the MCP spec versions Agent Manager's MCP client
 // supports when communicating with an MCP server.
-var mcpClientSupportedSpecVersions = []string{"2025-06-18", "2025-11-25", mcpSpecVersionJuly2026}
+var mcpClientSupportedSpecVersions = []string{mcpSpecVersionJune2025, "2025-11-25", mcpSpecVersionJuly2026}
 
 // chooseMCPVersion picks the MCP version to communicate with a server in the highest version
 // that both the server and Agent Manager support. It returns "" when there is none, e.g. the
@@ -2257,7 +2260,7 @@ func (s *MCPProxyService) discoverMCPServer(ctx context.Context, endpointURL str
 	}
 	// HTTP 200 with a 2026-07-28 error, e.g. -32022 "Unsupported protocol version", comes from a
 	// new server that refused this request: report it, as with a 4xx, instead of trying initialize.
-	if isMCPJuly2026Error(string(body)) {
+	if isMCPJuly2026Error(discoverResult.Error) {
 		return discoverResult, false, fmt.Errorf("server/discover failed: %s (code %d)",
 			discoverResult.Error.Message, discoverResult.Error.Code)
 	}
@@ -2281,18 +2284,16 @@ func isServerDiscoverRefusal(err error) bool {
 	if !errors.As(err, &statusErr) {
 		return false
 	}
+	rpcErr := parseJSONRPCError(statusErr.Body)
 	switch {
 	case statusErr.StatusCode == http.StatusForbidden, statusErr.StatusCode == http.StatusTooManyRequests:
 		return false
-	case isMCPJuly2026Error(statusErr.Body):
+	case isMCPJuly2026Error(rpcErr):
 		return false
 	case statusErr.StatusCode >= 400 && statusErr.StatusCode < 500:
 		return true
 	case statusErr.StatusCode >= 500:
-		var body struct {
-			Error *mcpJSONRPCError `json:"error"`
-		}
-		return json.Unmarshal([]byte(statusErr.Body), &body) == nil && body.Error != nil
+		return rpcErr != nil
 	default:
 		return false
 	}
@@ -2511,17 +2512,26 @@ type mcpJSONRPCRequest struct {
 	Params  interface{} `json:"params,omitempty"`
 }
 
-// isMCPJuly2026Error reports whether a response body is a JSON-RPC error with one of the codes
-// that only servers on MCP 2026-07-28 or later send (header mismatch, missing client capability,
-// unsupported protocol version).
-func isMCPJuly2026Error(body string) bool {
+// parseJSONRPCError returns the JSON-RPC error in a response body, or nil when the body isn't a
+// JSON-RPC error response.
+func parseJSONRPCError(body string) *mcpJSONRPCError {
 	var response struct {
 		Error *mcpJSONRPCError `json:"error"`
 	}
-	if json.Unmarshal([]byte(body), &response) != nil || response.Error == nil {
+	if json.Unmarshal([]byte(body), &response) != nil {
+		return nil
+	}
+	return response.Error
+}
+
+// isMCPJuly2026Error reports whether a JSON-RPC error has one of the codes that only servers on
+// MCP 2026-07-28 or later send (header mismatch, missing client capability, unsupported protocol
+// version).
+func isMCPJuly2026Error(rpcErr *mcpJSONRPCError) bool {
+	if rpcErr == nil {
 		return false
 	}
-	switch response.Error.Code {
+	switch rpcErr.Code {
 	case mcpErrorHeaderMismatch, mcpErrorMissingRequiredClientCapability, mcpErrorUnsupportedProtocolVersion:
 		return true
 	default:
