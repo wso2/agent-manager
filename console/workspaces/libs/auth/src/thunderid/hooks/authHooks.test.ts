@@ -23,11 +23,12 @@ import type { AuthHooks } from "./authHooks";
 
 const sdk = vi.hoisted(() => ({
   state: {} as Record<string, unknown>,
+  profile: null as Record<string, unknown> | null,
 }));
 
 vi.mock("@thunderid/react", () => ({
   useThunderID: () => sdk.state,
-  useUser: () => ({ flattenedProfile: null }),
+  useUser: () => ({ flattenedProfile: sdk.profile }),
 }));
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -91,6 +92,7 @@ const signedIn = (overrides: Record<string, unknown> = {}) => ({
 
 beforeEach(() => {
   latest = undefined;
+  sdk.profile = null;
 });
 
 afterEach(async () => {
@@ -107,6 +109,31 @@ describe("useAuthHooks on the backend", () => {
     expect(sdk.state.getAccessToken).not.toHaveBeenCalled();
     expect(latest!.userInfo.sub).toBe("u");
     expect(latest!.userInfo.scope).toBe("amp:agent:read");
+  });
+
+  it("takes the given and family names from the id_token claims without profile attributes", async () => {
+    sdk.state = signedIn({
+      getDecodedIdToken: vi.fn(() =>
+        Promise.resolve({ sub: "u", given_name: "Ada", family_name: "Lovelace" }),
+      ),
+    });
+    await mount(bffAuthConfig);
+
+    expect(latest!.userInfo.givenName).toBe("Ada");
+    expect(latest!.userInfo.familyName).toBe("Lovelace");
+  });
+
+  it("keeps the profile attributes' names when the profile has them", async () => {
+    sdk.profile = { attributes: { given_name: "Grace", family_name: "Hopper" } };
+    sdk.state = signedIn({
+      getDecodedIdToken: vi.fn(() =>
+        Promise.resolve({ sub: "u", given_name: "Ada", family_name: "Lovelace" }),
+      ),
+    });
+    await mount(bffAuthConfig);
+
+    expect(latest!.userInfo.givenName).toBe("Grace");
+    expect(latest!.userInfo.familyName).toBe("Hopper");
   });
 
   it("ends the session when the SDK turns signed out and keeps it ended", async () => {

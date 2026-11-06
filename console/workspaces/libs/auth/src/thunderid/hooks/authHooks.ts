@@ -182,12 +182,14 @@ export const useAuthHooks = (): AuthHooks => {
   }, [isSignedIn, isInitialized, isBackendAuth]);
 
   const userInfo = useMemo(() => {
+    const claims = isSessionEnded ? null : accessTokenPayload;
+    const nameSource = profileAttributes ?? claims;
     return {
       email: profileAttributes?.email,
-      familyName: profileAttributes?.family_name,
-      givenName: profileAttributes?.given_name,
+      familyName: nameSource?.family_name,
+      givenName: nameSource?.given_name,
       username: profileAttributes?.username,
-      ...((isSessionEnded ? null : accessTokenPayload) ?? {}),
+      ...(claims ?? {}),
     } as UserInfo;
   }, [profileAttributes, accessTokenPayload, isSessionEnded]);
 
