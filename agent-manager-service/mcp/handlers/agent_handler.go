@@ -40,6 +40,10 @@ func (h *AgentHandler) ListAgents(ctx context.Context, ouID string, projName str
 	return h.agentSvc.ListAgents(ctx, ouID, projName, nil, limit, offset)
 }
 
+func (h *AgentHandler) GetAgent(ctx context.Context, ouID string, projectName string, agentName string) (*models.AgentResponse, error) {
+	return h.agentSvc.GetAgent(ctx, ouID, projectName, agentName)
+}
+
 func (h *AgentHandler) CreateAgent(ctx context.Context, ouID string, projectName string, req *spec.CreateAgentRequest) error {
 	return h.agentSvc.CreateAgent(ctx, ouID, projectName, req)
 }

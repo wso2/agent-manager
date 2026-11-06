@@ -26,6 +26,7 @@ import (
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // pagedEnvMock serves `envs` a page at a time and reports `total`, which a
@@ -260,5 +261,94 @@ func TestEveryToolSchemaRefusesUndeclaredProperties(t *testing.T) {
 		if schema["additionalProperties"] != false {
 			t.Errorf("%s: input schema allows undeclared properties", tool.Name)
 		}
+	}
+}
+
+// agentKindMock serves the agent as the given provisioning type, or fails the lookup.
+type agentKindMock struct {
+	providerEnvsMock
+	provisioning string
+	err          error
+}
+
+func (m agentKindMock) GetAgent(_ context.Context, _, _, agentName string) (*models.AgentResponse, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	return &models.AgentResponse{Name: agentName, Provisioning: models.Provisioning{Type: m.provisioning}}, nil
+}
+
+func callAttachAs(t *testing.T, mock agentKindMock, tool string, args map[string]any) (bool, string) {
+	t.Helper()
+	session := setupTestServerWithToolsets(t, &Toolsets{AgentConfigToolset: mock, EnvironmentToolset: mock, AgentToolset: mock})
+	args["project_name"], args["agent_name"] = testProjectName, testAgentName
+	res, err := session.CallTool(context.Background(), &gomcp.CallToolParams{Name: tool, Arguments: args})
+	if err != nil {
+		t.Fatalf("CallTool: %v", err)
+	}
+	return res.IsError, res.Content[0].(*gomcp.TextContent).Text
+}
+
+// An external agent has nothing to build or deploy, and its URL and key are
+// withheld, so its note says where in the console to get them.
+func TestAttachNoteFollowsTheAgentKind(t *testing.T) {
+	newMock := func(provisioning string) agentKindMock {
+		return agentKindMock{providerEnvsMock: providerEnvsMock{MockToolsetHandler: NewMockToolsetHandler(), envs: []string{"dev"}}, provisioning: provisioning}
+	}
+	llm := map[string]any{"provider_id": testProviderID}
+	mcp := map[string]any{"proxy_id": testProxyID}
+	cases := []struct {
+		name, tool, provisioning string
+		args                     map[string]any
+		want, notWant            []string
+	}{
+		{
+			"platform agent", "attach_llm_provider_to_agent", string(utils.InternalAgent), llm,
+			[]string{"deploy_agent"},
+			[]string{"external agent"},
+		},
+		{
+			"external agent, LLM", "attach_llm_provider_to_agent", string(utils.ExternalAgent), llm,
+			[]string{"external agent", `Connect to LLM Provider`, "regenerate"},
+			[]string{"deploy_agent", "build_agent"},
+		},
+		{
+			"external agent, MCP", "attach_mcp_proxy_to_agent", string(utils.ExternalAgent), mcp,
+			[]string{"external agent", `Connect to MCP Server`, "API key security"},
+			[]string{"deploy_agent", "build_agent"},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			failed, text := callAttachAs(t, newMock(tc.provisioning), tc.tool, tc.args)
+			if failed {
+				t.Fatalf("tool failed: %s", text)
+			}
+			for _, w := range tc.want {
+				if !strings.Contains(text, w) {
+					t.Errorf("note missing %q: %s", w, text)
+				}
+			}
+			for _, nw := range tc.notWant {
+				if strings.Contains(text, nw) {
+					t.Errorf("note should not mention %q: %s", nw, text)
+				}
+			}
+		})
+	}
+}
+
+// The agent is read before the create, so a failed lookup leaves no config.
+func TestAttachFailsBeforeCreateWhenTheAgentLookupFails(t *testing.T) {
+	mock := agentKindMock{
+		providerEnvsMock: providerEnvsMock{MockToolsetHandler: NewMockToolsetHandler(), envs: []string{"dev"}},
+		err:              utils.ErrAgentNotFound,
+	}
+	failed, text := callAttachAs(t, mock, "attach_llm_provider_to_agent", map[string]any{"provider_id": testProviderID})
+	if !failed {
+		t.Fatalf("want an error for an agent that cannot be read, got: %s", text)
+	}
+	if _, created := mock.calls["CreateAgentConfig"]; created {
+		t.Error("created a config for an agent that could not be read")
 	}
 }

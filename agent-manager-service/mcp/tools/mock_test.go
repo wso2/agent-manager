@@ -82,6 +82,13 @@ func (m *MockToolsetHandler) GenerateToken(
 	}, nil
 }
 
+func (m *MockToolsetHandler) GetAgent(
+	ctx context.Context, ouID string, projectName string, agentName string,
+) (*models.AgentResponse, error) {
+	m.recordCall("GetAgent", ouID, projectName, agentName)
+	return &models.AgentResponse{Name: agentName, Provisioning: models.Provisioning{Type: string(utils.InternalAgent)}}, nil
+}
+
 func (m *MockToolsetHandler) CreateAgent(
 	ctx context.Context, ouID string, projectName string, req *spec.CreateAgentRequest,
 ) error {

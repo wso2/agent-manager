@@ -43,6 +43,7 @@ type ProjectToolsetHandler interface {
 
 type AgentToolsetHandler interface {
 	ListAgents(ctx context.Context, ouID string, projName string, limit int32, offset int32) ([]*models.AgentResponse, int32, error)
+	GetAgent(ctx context.Context, ouID string, projectName string, agentName string) (*models.AgentResponse, error)
 	GenerateToken(ctx context.Context, ouID string, projectName string, agentName string, environment string, expiresIn string) (*spec.TokenResponse, error)
 	CreateAgent(ctx context.Context, ouID string, projectName string, req *spec.CreateAgentRequest) error
 }
