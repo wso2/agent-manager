@@ -25,6 +25,7 @@ Verifies:
 """
 
 import json
+import logging
 import sys
 from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
@@ -1409,3 +1410,31 @@ class TestLoadCustomCodeEvaluator:
         """Empty source raises ValueError."""
         with pytest.raises(ValueError, match="empty source"):
             _load_custom_code_evaluator("test-eval", "", {})
+
+
+class TestEnsureMeanAggregation:
+    def test_adds_mean_and_keeps_configured_aggregations(self):
+        from amp_evaluation.aggregators import Aggregation
+
+        from main import _ensure_mean_aggregation
+
+        instance = MagicMock()
+        instance.aggregations = [Aggregation("max")]
+        _ensure_mean_aggregation(instance, "Latency")
+        assert [a.name for a in instance.aggregations] == ["max", "mean"]
+
+    def test_read_only_aggregations_do_not_stop_the_run(self, caplog):
+        from amp_evaluation.aggregators import Aggregation
+
+        from main import _ensure_mean_aggregation
+
+        class ReadOnly:
+            @property
+            def aggregations(self):
+                return [Aggregation("max")]
+
+        instance = ReadOnly()
+        with caplog.at_level(logging.WARNING, logger="main"):
+            _ensure_mean_aggregation(instance, "Custom")
+        assert [a.name for a in instance.aggregations] == ["max"]
+        assert "score alerts on it will not fire" in caplog.text

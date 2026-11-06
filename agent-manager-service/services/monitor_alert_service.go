@@ -116,12 +116,16 @@ func (s *monitorAlertService) SaveAlert(
 		return nil, fmt.Errorf("%w: choose between 1 and 20 destinations", utils.ErrInvalidInput)
 	}
 	seen := make(map[uuid.UUID]bool, len(settings.DestinationIDs))
+	// Stored in canonical form: delivery and in-use checks match them as
+	// exact JSON strings, while uuid.Parse also accepts other spellings.
+	destinationIDs := make([]string, 0, len(settings.DestinationIDs))
 	for _, raw := range settings.DestinationIDs {
 		id, err := uuid.Parse(raw)
 		if err != nil || id == uuid.Nil || seen[id] {
 			return nil, fmt.Errorf("%w: destination IDs must be valid and unique", utils.ErrInvalidInput)
 		}
 		seen[id] = true
+		destinationIDs = append(destinationIDs, id.String())
 		destination, err := s.eventRepo.GetDestination(ctx, ref.OUID, id)
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -142,7 +146,7 @@ func (s *monitorAlertService) SaveAlert(
 	w := &models.MonitorAlert{
 		OUID:            m.OUID,
 		MonitorID:       m.ID,
-		DestinationIDs:  append([]string(nil), settings.DestinationIDs...),
+		DestinationIDs:  destinationIDs,
 		NotifyOnFailure: settings.NotifyOnFailure,
 		NotifyOnSuccess: settings.NotifyOnSuccess,
 		Thresholds:      thresholds,

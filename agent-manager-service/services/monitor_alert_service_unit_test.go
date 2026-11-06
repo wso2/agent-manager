@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"math"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -131,6 +132,8 @@ func TestMonitorAlertService_SaveAlertDestinations(t *testing.T) {
 		destination *models.EventDestination
 		lookupErr   error
 		wantErr     error
+		// stored is what is saved, when it differs from ids.
+		stored []string
 	}{
 		{name: "no destinations", wantErr: utils.ErrInvalidInput},
 		{name: "invalid UUID", ids: []string{"bad"}, wantErr: utils.ErrInvalidInput},
@@ -144,6 +147,11 @@ func TestMonitorAlertService_SaveAlertDestinations(t *testing.T) {
 		{name: "other project", ids: []string{id.String()}, destination: &models.EventDestination{OUID: "ou-1", Availability: models.DestinationAvailableProjects, Projects: []string{"other"}}, wantErr: utils.ErrInvalidInput},
 		{name: "all projects", ids: []string{id.String()}, destination: &models.EventDestination{OUID: "ou-1", Availability: models.DestinationAvailableAll}},
 		{name: "selected project", ids: []string{id.String()}, destination: &models.EventDestination{OUID: "ou-1", Availability: models.DestinationAvailableProjects, Projects: []string{"proj"}}},
+		// Delivery matches stored IDs as exact strings, so other spellings
+		// uuid.Parse accepts are saved in canonical form.
+		{name: "uppercase", ids: []string{strings.ToUpper(id.String())}, destination: &models.EventDestination{OUID: "ou-1", Availability: models.DestinationAvailableAll}, stored: []string{id.String()}},
+		{name: "urn form", ids: []string{"urn:uuid:" + id.String()}, destination: &models.EventDestination{OUID: "ou-1", Availability: models.DestinationAvailableAll}, stored: []string{id.String()}},
+		{name: "uppercase duplicate", ids: []string{id.String(), strings.ToUpper(id.String())}, destination: &models.EventDestination{OUID: "ou-1", Availability: models.DestinationAvailableAll}, wantErr: utils.ErrInvalidInput},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -170,7 +178,11 @@ func TestMonitorAlertService_SaveAlertDestinations(t *testing.T) {
 			assert.Same(t, saved, result)
 			assert.Equal(t, m.ID, saved.MonitorID)
 			assert.Equal(t, m.OUID, saved.OUID)
-			assert.Equal(t, tt.ids, saved.DestinationIDs)
+			want := tt.ids
+			if tt.stored != nil {
+				want = tt.stored
+			}
+			assert.Equal(t, want, saved.DestinationIDs)
 		})
 	}
 }

@@ -35,6 +35,7 @@ import { MonitorAlertFormSection } from "./MonitorAlertFormSection";
 import {
   defaultAlertSettings,
   hasAlertSettingsErrors,
+  toAlertRequest,
   validateAlertSettings,
   type AlertSettingsValue,
 } from "./MonitorAlertSettings";
@@ -45,7 +46,7 @@ import {
  */
 export type MonitorAlertChoice = AlertSettingsValue | null | undefined;
 
-/** A new monitor starts alerted, for failures. */
+/** What switching alerting on offers first: alert on failures. */
 const NEW_MONITOR_ALERT = defaultAlertSettings();
 
 interface MonitorFormWizardProps {
@@ -67,8 +68,9 @@ interface MonitorFormWizardProps {
   environments?: EnvironmentOption[];
   /**
    * The caller's current alert on the monitor, or null when they do not
-   * alert it. A new monitor starts alerted with the default settings. Pass a
-   * stable (memoized) value: a new one resets what the user has entered.
+   * alert it. A new monitor starts with alerting off; switching it on offers
+   * the default settings. Pass a stable (memoized) value: a new one resets
+   * what the user has entered.
    */
   initialAlert?: AlertSettingsValue | null;
 }
@@ -115,7 +117,14 @@ export function MonitorFormWizard({
     () => JSON.stringify(formData) !== JSON.stringify(initialValues),
     [formData, initialValues],
   );
-  const { allowNavigation } = useUnsavedChangesGuard(isDirty);
+  // Alert edits count too. Compared as requests, so row keys don't.
+  const isAlertDirty = useMemo(() => {
+    if (!alertsEnabled) return false;
+    const current = enabled ? JSON.stringify(toAlertRequest(alertSettings)) : null;
+    const initial = initialAlert ? JSON.stringify(toAlertRequest(initialAlert)) : null;
+    return current !== initial;
+  }, [alertsEnabled, enabled, alertSettings, initialAlert]);
+  const { allowNavigation } = useUnsavedChangesGuard(isDirty || isAlertDirty);
 
   const {
     errors,

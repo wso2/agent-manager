@@ -176,9 +176,10 @@ export function MonitorAlertSettings({
   const errors = validateAlertSettings(value, evaluators);
   const destinations = useAvailableEventDestinations({ scope: "agent", orgName, projName, agentName });
   const available = destinations.data?.destinations ?? [];
-  const selectedUnavailable = value.destinationIds.some(
+  const unavailableIds = value.destinationIds.filter(
     (id) => !available.some((destination) => destination.id === id),
   );
+  const selectedUnavailable = unavailableIds.length > 0;
 
   const updateRow = (key: number, patch: Partial<ThresholdRow>) =>
     onChange({
@@ -231,6 +232,13 @@ export function MonitorAlertSettings({
               {destination.name}
             </MenuItem>
           ))}
+          {/* Listed so they can be unticked: otherwise nothing removes them. */}
+          {!destinations.isLoading && unavailableIds.map((id) => (
+            <MenuItem key={id} value={id}>
+              <Checkbox size="small" checked />
+              Unavailable destination
+            </MenuItem>
+          ))}
         </Select>
         <FormHelperText sx={{ mx: 0 }}>
           {showErrors && errors.destinationRequired
@@ -243,7 +251,7 @@ export function MonitorAlertSettings({
       ) : !destinations.isLoading && available.length === 0 ? (
         <Alert severity="info">An organization administrator must make a destination available to this project.</Alert>
       ) : !destinations.isLoading && selectedUnavailable ? (
-        <Alert severity="warning">A selected destination is no longer available. Choose an available destination before saving.</Alert>
+        <Alert severity="warning">A selected destination is no longer available. Remove it from Destinations before saving.</Alert>
       ) : null}
       <Stack spacing={1}>
         <Typography variant="subtitle2">Runs</Typography>
