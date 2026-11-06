@@ -48,6 +48,8 @@ type buildPublishStub struct {
 	binding        *gen.ReleaseBinding // nil: no binding yet
 	// bindingWriteFailures answers this many binding writes with 500 before succeeding.
 	bindingWriteFailures int
+	// recordedWorkload is the run's openchoreo.dev/workload annotation ("" for none).
+	recordedWorkload string
 
 	calls             []string
 	workloadBodies    []gen.Workload
@@ -84,10 +86,19 @@ func (s *buildPublishStub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write(body)
 	case r.Method == http.MethodGet && r.URL.Path == ns+"/workflowruns/my-agent-1700":
+		annotations := map[string]string{"keep": "me"}
+		if s.recordedWorkload != "" {
+			annotations[workflowRunWorkloadAnnotationKey] = s.recordedWorkload
+		}
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"metadata":{"name":"my-agent-1700","annotations":{"keep":"me"},
-			"labels":{"openchoreo.dev/project":"proj1","openchoreo.dev/component":"my-agent"}},
-			"spec":{"workflow":{"name":"amp-docker"}}}`))
+		require.NoError(s.t, json.NewEncoder(w).Encode(map[string]any{
+			"metadata": map[string]any{
+				"name":        "my-agent-1700",
+				"annotations": annotations,
+				"labels":      map[string]string{"openchoreo.dev/project": "proj1", "openchoreo.dev/component": "my-agent"},
+			},
+			"spec": map[string]any{"workflow": map[string]any{"name": "amp-docker"}},
+		}))
 	case r.Method == http.MethodPut && r.URL.Path == ns+"/workflowruns/my-agent-1700":
 		var run gen.WorkflowRun
 		require.NoError(s.t, json.Unmarshal(body, &run))
@@ -281,6 +292,94 @@ func TestPublishBuildWorkload_GivesUpAfterMaxBindingAttempts(t *testing.T) {
 	err := c.PublishBuildWorkload(context.Background(), "org-1", samplePublishRequest())
 	require.Error(t, err)
 	assert.Equal(t, buildBindingMaxAttempts, stub.bindingWriteCount)
+}
+
+// publishedOnce publishes samplePublishRequest to a fresh stub and returns what
+// that first publish recorded on the run and the binding it created.
+func publishedOnce(t *testing.T) (string, *gen.ReleaseBinding) {
+	t.Helper()
+	stub := &buildPublishStub{t: t}
+	require.NoError(t, newTestClient(t, stub).PublishBuildWorkload(context.Background(), "org-1", samplePublishRequest()))
+	require.NotNil(t, stub.runUpdate)
+	require.NotNil(t, stub.createdBinding)
+	return (*stub.runUpdate.Metadata.Annotations)[workflowRunWorkloadAnnotationKey], stub.createdBinding
+}
+
+func TestPublishBuildWorkload_RepeatOfTheSameWorkloadWritesNothingAgain(t *testing.T) {
+	withFastBindingRetry(t)
+	recorded, binding := publishedOnce(t)
+	stub := &buildPublishStub{t: t, workloadExists: true, releaseExists: true, recordedWorkload: recorded, binding: binding}
+	c := newTestClient(t, stub)
+
+	require.NoError(t, c.PublishBuildWorkload(context.Background(), "org-1", samplePublishRequest()))
+
+	assert.Empty(t, stub.workloadBodies, "the Workload the run already records is not written again")
+	assert.Nil(t, stub.runUpdate, "the run's record is not written again")
+	assert.Equal(t, "my-agent-1700", stub.generatedRelease, "the release is still made sure of")
+	assert.Zero(t, stub.bindingWriteCount, "a binding already on this release is not written again")
+}
+
+func TestPublishBuildWorkload_RepeatFinishesWhatAnEarlierAttemptLeftUndone(t *testing.T) {
+	withFastBindingRetry(t)
+	recorded, _ := publishedOnce(t)
+	// The earlier attempt recorded the Workload but stopped before binding it.
+	stub := &buildPublishStub{t: t, workloadExists: true, recordedWorkload: recorded}
+	c := newTestClient(t, stub)
+
+	require.NoError(t, c.PublishBuildWorkload(context.Background(), "org-1", samplePublishRequest()))
+
+	assert.Empty(t, stub.workloadBodies)
+	assert.Equal(t, "my-agent-1700", stub.generatedRelease)
+	require.NotNil(t, stub.createdBinding, "the binding the earlier attempt did not reach is created")
+	assert.Equal(t, "my-agent-1700", *stub.createdBinding.Spec.ReleaseName)
+}
+
+func TestPublishBuildWorkload_RefusesADifferentWorkloadForAnAlreadyPublishedRun(t *testing.T) {
+	recorded, _ := publishedOnce(t)
+	stub := &buildPublishStub{t: t, workloadExists: true, recordedWorkload: recorded}
+	c := newTestClient(t, stub)
+	req := samplePublishRequest()
+	req.Image = "registry.example.com/my-agent:other"
+
+	err := c.PublishBuildWorkload(context.Background(), "org-1", req)
+	require.ErrorIs(t, err, ErrBuildWorkloadAlreadyPublished)
+	assert.Equal(t, []string{"GET /api/v1/namespaces/default/workflowruns/my-agent-1700"}, stub.calls,
+		"nothing is written for a different workload")
+}
+
+func TestPublishBuildWorkload_UnreadableRecordedWorkloadWritesNothing(t *testing.T) {
+	stub := &buildPublishStub{t: t, recordedWorkload: "{not json"}
+	c := newTestClient(t, stub)
+
+	err := c.PublishBuildWorkload(context.Background(), "org-1", samplePublishRequest())
+	require.Error(t, err)
+	assert.NotErrorIs(t, err, ErrBuildWorkloadAlreadyPublished)
+	assert.Len(t, stub.calls, 1, "nothing is written when the run's record cannot be read")
+}
+
+func TestHasResourceLabels(t *testing.T) {
+	c := &openChoreoClient{resourceLabels: map[string]string{"cloud.wso2.com/managed-by": "amp"}}
+	labels := &map[string]string{"other": "x"}
+
+	assert.False(t, c.hasResourceLabels(nil))
+	assert.False(t, c.hasResourceLabels(labels))
+	assert.Equal(t, map[string]string{"other": "x"}, *labels, "checking the labels does not change them")
+	assert.True(t, c.hasResourceLabels(&map[string]string{"other": "x", "cloud.wso2.com/managed-by": "amp"}))
+	assert.True(t, (&openChoreoClient{}).hasResourceLabels(nil), "no resource labels to carry")
+}
+
+func TestBindingAlreadyCurrent(t *testing.T) {
+	release := "my-agent-1700"
+	binding := func(rel string, configs *map[string]any) gen.ReleaseBinding {
+		return gen.ReleaseBinding{Spec: &gen.ReleaseBindingSpec{ReleaseName: &rel, ComponentTypeEnvironmentConfigs: configs}}
+	}
+	hc := map[string]any{"readiness": map[string]any{"path": "/ready"}}
+
+	assert.True(t, bindingAlreadyCurrent(binding(release, nil), release, nil))
+	assert.True(t, bindingAlreadyCurrent(binding(release, &map[string]any{"healthChecks": hc, "runtimeClassName": "kata"}), release, hc))
+	assert.False(t, bindingAlreadyCurrent(binding("my-agent-1600", nil), release, nil), "another release")
+	assert.False(t, bindingAlreadyCurrent(binding(release, nil), release, hc), "health checks to add")
+	assert.False(t, bindingAlreadyCurrent(binding(release, &map[string]any{"healthChecks": hc}), release, nil), "health checks to remove")
 }
 
 func sampleHealthChecks() map[string]any {

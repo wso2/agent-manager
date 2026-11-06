@@ -86,6 +86,9 @@ func (c *buildPublisherController) PublishBuildWorkload(w http.ResponseWriter, r
 		case errors.Is(err, utils.ErrForbidden):
 			log.Warn("Refused build workload", "buildName", buildName, "error", err)
 			utils.WriteErrorResponse(w, http.StatusForbidden, "insufficient permissions")
+		case errors.Is(err, services.ErrBuildWorkloadAlreadyPublished):
+			log.Warn("Refused build workload: the build already published a different one", "buildName", buildName)
+			utils.WriteErrorResponse(w, http.StatusConflict, "Build already published a different workload")
 		case errors.Is(err, utils.ErrConflict):
 			utils.WriteErrorResponse(w, http.StatusConflict, "Build has already finished")
 		case errors.Is(err, audit.ErrRecorderUnavailable):

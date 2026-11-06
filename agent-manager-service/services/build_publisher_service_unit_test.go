@@ -329,6 +329,11 @@ func TestBuildPublisherService_PublishFailures(t *testing.T) {
 	}{
 		{name: "OpenChoreo rejects the workload", err: fmt.Errorf("%w: invalid endpoint", utils.ErrBadRequest), wantErr: utils.ErrBadRequest},
 		{
+			name:    "the build already published a different workload",
+			err:     fmt.Errorf("%w: workflow run", client.ErrBuildWorkloadAlreadyPublished),
+			wantErr: ErrBuildWorkloadAlreadyPublished, notErr: errBuildPublishUpstream,
+		},
+		{
 			name:    "missing project is not the caller's 404",
 			err:     fmt.Errorf("%w: project", utils.ErrNotFound),
 			wantErr: errBuildPublishUpstream, notErr: utils.ErrNotFound,

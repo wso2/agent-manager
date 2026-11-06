@@ -19,10 +19,12 @@ package client
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"maps"
 	"net/http"
+	"reflect"
 	"slices"
 	"time"
 
@@ -271,6 +273,17 @@ var buildBindingRetryDelay = 2 * time.Second
 // The build's health checks are checked before anything is written, so a
 // malformed value (utils.ErrBadRequest) changes nothing.
 //
+// A publish is safe to repeat with the same Workload, and only with it. The
+// run's openchoreo.dev/workload annotation (step 2) records what was
+// published, so before anything is written it is compared with this request:
+//   - none recorded: this is the run's first publish;
+//   - the same Workload: a retry of it (an earlier attempt may have stopped
+//     anywhere after step 2), so steps 1 and 2 are already done and are
+//     skipped, and steps 3 and 4 make sure the release and binding exist;
+//   - a different Workload: ErrBuildWorkloadAlreadyPublished, and nothing is
+//     written. Replacing it would leave the Workload and the run's record on
+//     the new image while the release and binding cut from the first one stay.
+//
 // The binding write is retried, re-reading each time, on 409 and 5xx up to
 // buildBindingMaxAttempts, because the backend writes the same binding
 // concurrently; see the step's comment for why 500 is retryable.
@@ -301,11 +314,17 @@ func (c *openChoreoClient) PublishBuildWorkload(ctx context.Context, ouID string
 		workload.Spec.Endpoints = &endpoints
 	}
 
-	if err := c.createOrReplaceWorkload(ctx, namespaceName, workload); err != nil {
+	alreadyRecorded, err := c.runRecordsWorkload(ctx, namespaceName, req.RunName, workload)
+	if err != nil {
 		return err
 	}
-	if err := c.annotateRunWithWorkload(ctx, namespaceName, req.RunName, workload); err != nil {
-		return err
+	if !alreadyRecorded {
+		if err := c.createOrReplaceWorkload(ctx, namespaceName, workload); err != nil {
+			return err
+		}
+		if err := c.annotateRunWithWorkload(ctx, namespaceName, req.RunName, workload); err != nil {
+			return err
+		}
 	}
 	if err := c.generateBuildRelease(ctx, namespaceName, req.ComponentName, req.RunName); err != nil {
 		return err
@@ -320,6 +339,55 @@ func (c *openChoreoClient) PublishBuildWorkload(ctx context.Context, ouID string
 		return fmt.Errorf("deployment pipeline of project %q has no root environment", req.ProjectName)
 	}
 	return c.bindBuildRelease(ctx, namespaceName, req, firstEnv, healthChecks)
+}
+
+// ErrBuildWorkloadAlreadyPublished is returned by PublishBuildWorkload when the
+// run already records a different Workload than the one being published.
+var ErrBuildWorkloadAlreadyPublished = errors.New("the build has already published a different workload")
+
+// runRecordsWorkload reports whether the run's openchoreo.dev/workload
+// annotation already records exactly this Workload: false when it records
+// none, and ErrBuildWorkloadAlreadyPublished when it records a different one.
+// The two are compared as JSON documents, so field order does not matter.
+func (c *openChoreoClient) runRecordsWorkload(ctx context.Context, namespaceName, runName string, workload gen.Workload) (bool, error) {
+	resp, err := c.ocClient.GetWorkflowRunWithResponse(ctx, namespaceName, runName)
+	if err != nil {
+		return false, fmt.Errorf("failed to get workflow run %q: %w", runName, err)
+	}
+	if resp.StatusCode() != http.StatusOK {
+		return false, handleErrorResponse(resp.StatusCode(), ErrorResponses{
+			JSON401: resp.JSON401,
+			JSON403: resp.JSON403,
+			JSON404: resp.JSON404,
+			JSON500: resp.JSON500,
+		})
+	}
+	if resp.JSON200 == nil {
+		return false, fmt.Errorf("empty response from get workflow run %q", runName)
+	}
+	if resp.JSON200.Metadata.Annotations == nil {
+		return false, nil
+	}
+	recordedJSON := (*resp.JSON200.Metadata.Annotations)[workflowRunWorkloadAnnotationKey]
+	if recordedJSON == "" {
+		return false, nil
+	}
+	var recorded any
+	if err := json.Unmarshal([]byte(recordedJSON), &recorded); err != nil {
+		return false, fmt.Errorf("workflow run %q records a workload that cannot be read: %w", runName, err)
+	}
+	encoded, err := json.Marshal(workload)
+	if err != nil {
+		return false, fmt.Errorf("failed to encode workload for workflow run %q: %w", runName, err)
+	}
+	var requested any
+	if err := json.Unmarshal(encoded, &requested); err != nil {
+		return false, fmt.Errorf("failed to encode workload for workflow run %q: %w", runName, err)
+	}
+	if !reflect.DeepEqual(recorded, requested) {
+		return false, fmt.Errorf("%w: workflow run %q", ErrBuildWorkloadAlreadyPublished, runName)
+	}
+	return true, nil
 }
 
 // setBindingHealthChecks puts the build's health checks on the binding's
@@ -497,6 +565,12 @@ func (c *openChoreoClient) bindBuildRelease(ctx context.Context, namespaceName s
 				return fmt.Errorf("empty response from get release binding %q", bindingName)
 			}
 			binding := *getResp.JSON200
+			if bindingAlreadyCurrent(binding, releaseName, healthChecks) && c.hasResourceLabels(binding.Metadata.Labels) {
+				// A retry whose earlier attempt already bound this release: there
+				// is nothing to write, and writing anyway would only race the
+				// backend's own edits to this binding.
+				return nil
+			}
 			binding.Spec.ReleaseName = &releaseName
 			setBindingHealthChecks(binding.Spec, healthChecks)
 			binding.Metadata.Labels = c.withResourceLabels(binding.Metadata.Labels)
@@ -540,6 +614,35 @@ func (c *openChoreoClient) bindBuildRelease(ctx context.Context, namespaceName s
 	}
 	return fmt.Errorf("%w: release binding %q was not written after %d attempts (last status %d)",
 		utils.ErrInternalServerError, bindingName, buildBindingMaxAttempts, lastStatus)
+}
+
+// bindingAlreadyCurrent reports whether the binding already pins releaseName and
+// carries exactly the build's health checks. Together with hasResourceLabels it
+// tells when the update would change nothing.
+func bindingAlreadyCurrent(binding gen.ReleaseBinding, releaseName string, healthChecks map[string]any) bool {
+	if binding.Spec.ReleaseName == nil || *binding.Spec.ReleaseName != releaseName {
+		return false
+	}
+	var current any
+	if binding.Spec.ComponentTypeEnvironmentConfigs != nil {
+		current = (*binding.Spec.ComponentTypeEnvironmentConfigs)[workflowParamHealthChecks]
+	}
+	var desired any
+	if healthChecks != nil {
+		desired = healthChecks
+	}
+	return reflect.DeepEqual(current, desired)
+}
+
+// hasResourceLabels reports whether labels already carry every resource label
+// withResourceLabels would add. Unlike withResourceLabels it changes nothing.
+func (c *openChoreoClient) hasResourceLabels(labels *map[string]string) bool {
+	for key, value := range c.resourceLabels {
+		if labels == nil || (*labels)[key] != value {
+			return false
+		}
+	}
+	return true
 }
 
 // pipelineRootEnvironment returns the project's first environment the way

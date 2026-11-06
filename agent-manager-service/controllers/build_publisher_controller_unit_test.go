@@ -31,6 +31,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/services"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -76,6 +77,7 @@ func TestBuildPublisherController_MapsServiceErrors(t *testing.T) {
 		{fmt.Errorf("%w: x", utils.ErrNotFound), http.StatusNotFound},
 		{fmt.Errorf("%w: x", utils.ErrForbidden), http.StatusForbidden},
 		{fmt.Errorf("%w: x", utils.ErrConflict), http.StatusConflict},
+		{fmt.Errorf("%w: x", services.ErrBuildWorkloadAlreadyPublished), http.StatusConflict},
 		{fmt.Errorf("refused: %w", audit.ErrRecorderUnavailable), http.StatusServiceUnavailable},
 		{errors.New("boom"), http.StatusInternalServerError},
 	}

@@ -207,6 +207,9 @@ func (s *buildPublisherService) PublishWorkload(ctx context.Context, ouID, build
 	})
 	attempt.Complete(ctx, publishErr)
 	if publishErr != nil {
+		if errors.Is(publishErr, client.ErrBuildWorkloadAlreadyPublished) {
+			return fmt.Errorf("%w: build %q", ErrBuildWorkloadAlreadyPublished, buildName)
+		}
 		if errors.Is(publishErr, utils.ErrBadRequest) {
 			// OpenChoreo refused the Workload or binding as invalid: the caller's
 			// document is at fault, so it is the caller's 400.
@@ -219,6 +222,11 @@ func (s *buildPublisherService) PublishWorkload(ctx context.Context, ouID, build
 		"ouID", ouID, "projectName", run.ProjectName, "agentName", run.ComponentName, "buildName", run.Name)
 	return nil
 }
+
+// ErrBuildWorkloadAlreadyPublished is returned when the build has already
+// published a different Workload: a publish is safe to repeat only with the
+// same one. The endpoint answers it with 409.
+var ErrBuildWorkloadAlreadyPublished = errors.New("build has already published a different workload")
 
 // errBuildPublishUpstream marks a failure of the calls made on the caller's behalf
 // (OpenChoreo or a platform API in front of it).
