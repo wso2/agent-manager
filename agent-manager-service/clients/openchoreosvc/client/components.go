@@ -1426,46 +1426,71 @@ func (c *openChoreoClient) DeleteComponent(ctx context.Context, ouID, projectNam
 
 func (c *openChoreoClient) ListComponents(ctx context.Context, ouID, projectName string) ([]*models.AgentResponse, error) {
 	namespaceName := c.NamespaceFor(ouID)
-	resp, err := c.ocClient.ListComponentsWithResponse(ctx, namespaceName, &gen.ListComponentsParams{
-		Project: &projectName,
-		Limit:   &defaultListLimit,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to list components: %w", err)
-	}
-	if resp.StatusCode() != http.StatusOK {
-		return nil, handleErrorResponse(resp.StatusCode(), ErrorResponses{
-			JSON401: resp.JSON401,
-			JSON403: resp.JSON403,
-			JSON404: resp.JSON404,
-			JSON500: resp.JSON500,
+	// OpenChoreo pages the list, so reading only the first page would drop every agent
+	// past it once a project outgrows one page, and callers would total and paginate a
+	// truncated set. Follow the cursor so they always see the complete set, and fail
+	// rather than return part of it.
+	components := []*models.AgentResponse{}
+	var cursor *gen.CursorParam
+	seen := map[string]bool{}
+	for page := 0; page < maxListPages; page++ {
+		resp, err := c.ocClient.ListComponentsWithResponse(ctx, namespaceName, &gen.ListComponentsParams{
+			Project: &projectName,
+			Limit:   &defaultListLimit,
+			Cursor:  cursor,
 		})
-	}
-	if resp.JSON200 == nil || len(resp.JSON200.Items) == 0 {
-		return []*models.AgentResponse{}, nil
-	}
-
-	components := make([]*models.AgentResponse, 0, len(resp.JSON200.Items))
-	for i := range resp.JSON200.Items {
-		item := &resp.JSON200.Items[i]
-		if isTerminating(item.Metadata) {
-			// Already deleted and waiting on its cleanup finalizer — see isTerminating.
-			continue
-		}
-		if item.Spec == nil || !isAgentComponentType(item.Spec.ComponentType.Name) {
-			// Projects are shared across WSO2 Cloud products, so a project can contain
-			// components other products created (e.g. a plain "deployment/service").
-			// Agent Manager should only ever list components it itself provisions.
-			continue
-		}
-		comp, err := convertComponentFromTyped(item)
 		if err != nil {
-			slog.Error("failed to convert component", "component", item.Metadata.Name, "error", err)
-			continue
+			return nil, fmt.Errorf("failed to list components: %w", err)
 		}
-		components = append(components, comp)
+		if resp.StatusCode() != http.StatusOK {
+			return nil, handleErrorResponse(resp.StatusCode(), ErrorResponses{
+				JSON401: resp.JSON401,
+				JSON403: resp.JSON403,
+				JSON404: resp.JSON404,
+				JSON500: resp.JSON500,
+			})
+		}
+		if resp.JSON200 == nil {
+			return components, nil
+		}
+
+		for i := range resp.JSON200.Items {
+			item := &resp.JSON200.Items[i]
+			if isTerminating(item.Metadata) {
+				// Already deleted and waiting on its cleanup finalizer — see isTerminating.
+				continue
+			}
+			if item.Spec == nil || !isAgentComponentType(item.Spec.ComponentType.Name) {
+				// Projects are shared across WSO2 Cloud products, so a project can contain
+				// components other products created (e.g. a plain "deployment/service").
+				// Agent Manager should only ever list components it itself provisions.
+				continue
+			}
+			comp, err := convertComponentFromTyped(item)
+			if err != nil {
+				slog.Error("failed to convert component", "component", item.Metadata.Name, "error", err)
+				continue
+			}
+			components = append(components, comp)
+		}
+
+		nextCursor := resp.JSON200.Pagination.NextCursor
+		if nextCursor == nil || *nextCursor == "" {
+			return components, nil
+		}
+		// A cursor already followed would list the same agents again, round and round;
+		// fail rather than return duplicates and a wrong total.
+		if seen[*nextCursor] {
+			return nil, fmt.Errorf("failed to list components: pagination cursor %q repeated", *nextCursor)
+		}
+		seen[*nextCursor] = true
+		next := gen.CursorParam(*nextCursor)
+		cursor = &next
 	}
-	return components, nil
+	// Still more pages after the cap: a project this large, or a server that never ends the
+	// list. Either way the set is incomplete, and callers total and paginate it.
+	return nil, fmt.Errorf("failed to list components: project %s has more than %d pages of components",
+		projectName, maxListPages)
 }
 
 // CountProjectComponents counts every component in the project, whichever product created it.

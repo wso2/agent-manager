@@ -301,6 +301,16 @@ func GetTokenClaims(ctx context.Context) *TokenClaims {
 	return claims
 }
 
+// CallerSubject is the token subject of the user acting in ctx, or "" when no
+// user is behind the call (a system client). Callers that record who made a
+// change pick their own fallback for "".
+func CallerSubject(ctx context.Context) string {
+	if claims := GetTokenClaims(ctx); claims != nil {
+		return claims.Sub
+	}
+	return ""
+}
+
 // ContextWithTokenClaims returns ctx carrying the given claims, as if the
 // assertion middleware had validated a token. Intended for tests and
 // non-HTTP entry points that establish identity out of band.
