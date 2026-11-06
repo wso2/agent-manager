@@ -310,10 +310,6 @@ export function EndpointFormFields({
     !resilienceTimeoutError &&
     !resilienceIdleTimeoutError;
 
-  const clearFetched = useCallback(() => {
-    setFetchedInfo(null);
-  }, []);
-
   // Identifies the latest performFetch call whose network request should be allowed
   // to update state. A slow request can still be in flight when the debounced URL/auth
   // change fires the next one; without this, whichever resolves last wins, which isn't
@@ -323,6 +319,16 @@ export function EndpointFormFields({
   // limited server-side probe slots for a result that would be dropped anyway.
   const fetchAbortRef = useRef<AbortController | null>(null);
   useEffect(() => () => fetchAbortRef.current?.abort(), []);
+
+  // A field edit makes any in-flight probe stale: abort it and retire its
+  // generation, so its result can't restore info for the old endpoint.
+  const clearFetched = useCallback(() => {
+    fetchGenerationRef.current++;
+    fetchAbortRef.current?.abort();
+    fetchAbortRef.current = null;
+    setFetchedInfo(null);
+  }, []);
+
 
   const performFetch = useCallback(async () => {
     const urlValidationError = validateEndpointUrl(trimmedUrl, {
@@ -443,7 +449,8 @@ export function EndpointFormFields({
     }
     if (!trimmedUrl) return;
     debouncedFetch();
-  }, [trimmedUrl, authHeader, authValue, authEnabled, debouncedFetch]);
+    // Keyed on the raw `url`: a whitespace-only edit also clears the fetched info.
+  }, [url, trimmedUrl, authHeader, authValue, authEnabled, debouncedFetch]);
 
   const handleAdd = useCallback(() => {
     if (!fetchedInfo || selectedEnvIds.length === 0) return;

@@ -108,8 +108,13 @@ async function throwIfHttpWriteNotOk(response: Response): Promise<void> {
     throw err;
 }
 
-async function finalizeHttpWriteResponse(response: Response): Promise<Response> {
+async function finalizeHttpWriteResponse(
+    response: Response,
+    signal?: AbortSignal,
+): Promise<Response> {
     await sleep(DEFAULT_TIMEOUT);
+    // An abort during the wait still reads as an abort, not as the response's error.
+    signal?.throwIfAborted();
     if (!response.ok) {
         await throwIfHttpWriteNotOk(response);
     }
@@ -259,7 +264,7 @@ export async function httpPOST(
         body: serializeRequestBody(body),
         signal
     });
-    return finalizeHttpWriteResponse(response);
+    return finalizeHttpWriteResponse(response, signal);
 }
 
 export async function httpPUT(
