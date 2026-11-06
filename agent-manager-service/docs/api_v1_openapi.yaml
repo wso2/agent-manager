@@ -1303,6 +1303,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Secret values were saved, but the rollout stopped because workload secret sync could not be confirmed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
     get:
       summary: List agent deployments with detailed information
@@ -1466,6 +1472,12 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "500":
           description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Secret values were saved, but the rollout stopped because workload secret sync could not be confirmed.
           content:
             application/json:
               schema:
@@ -1675,6 +1687,12 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "500":
           description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Secret values were saved, but the rollout stopped because workload secret sync could not be confirmed.
           content:
             application/json:
               schema:

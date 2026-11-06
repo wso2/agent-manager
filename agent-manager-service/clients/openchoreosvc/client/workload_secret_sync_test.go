@@ -16,8 +16,14 @@
 
 package client
 
-import "testing"
+import (
+	"context"
+	"testing"
 
+	"github.com/stretchr/testify/assert"
+)
+
+// TestExternalSecretSyncedRevision rejects acknowledgements for an earlier revision.
 func TestExternalSecretSyncedRevision(t *testing.T) {
 	obj := map[string]any{
 		"metadata": map[string]any{
@@ -40,4 +46,26 @@ func TestExternalSecretSyncedRevision(t *testing.T) {
 	if externalSecretSyncedRevision(obj, "next-revision") {
 		t.Fatal("an applied annotation and the previous Ready status must not acknowledge a new revision")
 	}
+}
+
+// TestWorkloadSecretSyncTimeoutError reports pending resources without exposing provider details.
+func TestWorkloadSecretSyncTimeoutError(t *testing.T) {
+	obj := map[string]any{
+		"metadata": map[string]any{
+			"annotations": map[string]any{"force-sync": "revision"},
+		},
+		"status": map[string]any{
+			"syncedResourceVersion": "old-ack",
+			"conditions": []any{map[string]any{
+				"type": "Ready", "status": "False", "reason": "SecretSyncedError",
+				"message": "private provider detail",
+			}},
+		},
+	}
+	err := workloadSecretSyncTimeoutError("revision", []string{workloadSecretSyncObservation("agent-env", obj)})
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.ErrorContains(t, err, "agent-env")
+	assert.ErrorContains(t, err, "SecretSyncedError")
+	assert.ErrorContains(t, err, "old-ack")
+	assert.NotContains(t, err.Error(), "private provider detail")
 }

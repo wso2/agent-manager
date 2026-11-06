@@ -19,6 +19,7 @@ package client
 import (
 	"context"
 	"crypto/sha3"
+	"errors"
 	"fmt"
 	"net/http"
 	"slices"
@@ -65,10 +66,11 @@ func (c *openChoreoClient) SyncEditedWorkloadSecrets(ctx context.Context, ouID, 
 	if ref == nil {
 		return fmt.Errorf("edited secret reference is missing")
 	}
-	targets := make(map[string]struct{})
+	targets := make(map[string]string)
 	for uid, obj := range objects {
 		if referencesEditedSecret(obj, ref, editedKeys) {
-			targets[uid] = struct{}{}
+			name, _, _ := unstructured.NestedString(obj, "metadata", "name")
+			targets[uid] = name
 		}
 	}
 	if len(targets) == 0 {
@@ -82,30 +84,56 @@ func (c *openChoreoClient) SyncEditedWorkloadSecrets(ctx context.Context, ouID, 
 
 	ticker := time.NewTicker(workloadSecretSyncPollInterval)
 	defer ticker.Stop()
+	var pending []string
 	for {
 		tree, err := c.workloadSecretTree(ctx, namespace, bindingName)
 		if err != nil {
+			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+				return workloadSecretSyncTimeoutError(revision, pending)
+			}
 			return err
 		}
 		objects := forceSyncExternalSecrets(tree)
-		allSynced := true
-		for uid := range targets {
-			if !externalSecretSyncedRevision(objects[uid], revision) {
-				allSynced = false
-				break
+		pending = pending[:0]
+		for uid, name := range targets {
+			obj := objects[uid]
+			if !externalSecretSyncedRevision(obj, revision) {
+				pending = append(pending, workloadSecretSyncObservation(name, obj))
 			}
 		}
-		if allSynced {
+		if len(pending) == 0 {
 			return nil
 		}
 		select {
 		case <-ctx.Done():
+			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+				return workloadSecretSyncTimeoutError(revision, pending)
+			}
 			return fmt.Errorf("wait for workload secret sync: %w", ctx.Err())
 		case <-ticker.C:
 		}
 	}
 }
 
+// workloadSecretSyncTimeoutError reports the last observations without provider messages.
+func workloadSecretSyncTimeoutError(revision string, pending []string) error {
+	slices.Sort(pending)
+	return fmt.Errorf("wait for workload secret sync revision %q, pending ExternalSecrets %v: %w", revision, pending, context.DeadlineExceeded)
+}
+
+// workloadSecretSyncObservation reports safe status metadata for a pending target.
+// ESO condition messages can include provider paths and are omitted.
+func workloadSecretSyncObservation(name string, obj map[string]any) string {
+	if obj == nil {
+		return fmt.Sprintf("%q missing from resource tree", name)
+	}
+	revision, _, _ := unstructured.NestedString(obj, "metadata", "annotations", forceSyncAnnotation)
+	ack, _, _ := unstructured.NestedString(obj, "status", "syncedResourceVersion")
+	ready, reason := externalSecretReadyStatus(obj)
+	return fmt.Sprintf("%q (force-sync=%q, ack=%q, Ready=%q, reason=%q)", name, revision, ack, ready, reason)
+}
+
+// workloadSecretTree reads the live resources applied by the binding.
 func (c *openChoreoClient) workloadSecretTree(ctx context.Context, namespace, bindingName string) (*gen.K8sResourceTreeResponse, error) {
 	resp, err := c.ocClient.GetReleaseBindingK8sResourceTreeWithResponse(ctx, namespace, bindingName)
 	if err != nil {
@@ -125,6 +153,7 @@ func (c *openChoreoClient) workloadSecretTree(ctx context.Context, namespace, bi
 	return resp.JSON200, nil
 }
 
+// forceSyncExternalSecrets indexes live ExternalSecrets that support the sync annotation.
 func forceSyncExternalSecrets(tree *gen.K8sResourceTreeResponse) map[string]map[string]any {
 	objects := make(map[string]map[string]any)
 	for _, rendered := range tree.RenderedReleases {
@@ -141,6 +170,7 @@ func forceSyncExternalSecrets(tree *gen.K8sResourceTreeResponse) map[string]map[
 	return objects
 }
 
+// referencesEditedSecret matches the rendered remote reference to an edited key.
 func referencesEditedSecret(obj map[string]any, ref *SecretReferenceInfo, editedKeys []string) bool {
 	data, _, _ := unstructured.NestedSlice(obj, "spec", "data")
 	for _, item := range data {
@@ -185,12 +215,20 @@ func externalSecretSyncedRevision(obj map[string]any, revision string) bool {
 	if synced != fmt.Sprintf("%v-%x", generation, hash) {
 		return false
 	}
+	ready, reason := externalSecretReadyStatus(obj)
+	return ready == "True" && reason == "SecretSynced"
+}
+
+// externalSecretReadyStatus extracts the Ready status and machine-readable reason.
+func externalSecretReadyStatus(obj map[string]any) (string, string) {
 	conditions, _, _ := unstructured.NestedSlice(obj, "status", "conditions")
 	for _, item := range conditions {
 		condition, ok := item.(map[string]any)
-		if ok && condition["type"] == "Ready" && condition["status"] == "True" && condition["reason"] == "SecretSynced" {
-			return true
+		if ok && condition["type"] == "Ready" {
+			status, _ := condition["status"].(string)
+			reason, _ := condition["reason"].(string)
+			return status, reason
 		}
 	}
-	return false
+	return "", ""
 }

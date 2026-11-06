@@ -6349,7 +6349,7 @@ func (s *agentManagerService) processEnvVars(
 		}
 		if len(editedKeys) > 0 {
 			if err := s.ocClient.SyncEditedWorkloadSecrets(ctx, ouID, componentName, environmentName, secretRefName, editedKeys); err != nil {
-				return nil, fmt.Errorf("secret values saved, but rollout blocked while waiting for secret sync: %w", err)
+				return nil, fmt.Errorf("%w: %w", utils.ErrWorkloadSecretSyncUnconfirmed, err)
 			}
 		}
 	}

@@ -310,7 +310,8 @@ var (
 	ErrAgentConfigNotExternal = errors.New("API key management is only available for external agents")
 
 	// Secret management errors
-	ErrSecretPathConflict = errors.New("secret path is owned by another system")
+	ErrWorkloadSecretSyncUnconfirmed = errors.New("workload secret sync could not be confirmed")
+	ErrSecretPathConflict            = errors.New("secret path is owned by another system")
 
 	// Git secret errors
 	ErrGitSecretNotFound      = errors.New("git secret not found")
