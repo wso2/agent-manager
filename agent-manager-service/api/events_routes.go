@@ -47,6 +47,7 @@ func registerEventsRoutes(rr *middleware.RouteRegistrar, controller controllers.
 	rr.HandleFuncWithValidationAndAuthz(route("GET", "/orgs/{orgName}/events/subscriptions/{subscriptionId}"), rbac.EventsRead, org.GetSubscription)
 	rr.HandleFuncWithValidationAndAuthz(route("PUT", "/orgs/{orgName}/events/subscriptions/{subscriptionId}"), rbac.EventsManage, org.UpdateSubscription)
 	rr.HandleFuncWithValidationAndAuthz(route("DELETE", "/orgs/{orgName}/events/subscriptions/{subscriptionId}"), rbac.EventsManage, org.DeleteSubscription)
+	rr.HandleFuncWithValidationAndAuthz(route("GET", "/orgs/{orgName}/events/deliveries"), rbac.EventsRead, org.ListDeliveries)
 
 	project := controller.ForScope(models.EventScopeProject)
 	rr.HandleFuncWithValidationAndAuthz(route("GET", "/orgs/{orgName}/projects/{projName}/events/destinations"), rbac.ProjectRead, project.AvailableDestinations)
@@ -55,6 +56,7 @@ func registerEventsRoutes(rr *middleware.RouteRegistrar, controller controllers.
 	rr.HandleFuncWithValidationAndAuthz(route("GET", "/orgs/{orgName}/projects/{projName}/events/subscriptions/{subscriptionId}"), rbac.ProjectRead, project.GetSubscription)
 	rr.HandleFuncWithValidationAndAuthz(route("PUT", "/orgs/{orgName}/projects/{projName}/events/subscriptions/{subscriptionId}"), rbac.ProjectUpdate, project.UpdateSubscription)
 	rr.HandleFuncWithValidationAndAuthz(route("DELETE", "/orgs/{orgName}/projects/{projName}/events/subscriptions/{subscriptionId}"), rbac.ProjectUpdate, project.DeleteSubscription)
+	rr.HandleFuncWithValidationAndAuthz(route("GET", "/orgs/{orgName}/projects/{projName}/events/deliveries"), rbac.ProjectRead, project.ListDeliveries)
 
 	agent := controller.ForScope(models.EventScopeAgent)
 	rr.HandleFuncWithValidationAndAuthz(route("GET", "/orgs/{orgName}/projects/{projName}/agents/{agentName}/events/destinations"), rbac.AgentRead, agent.AvailableDestinations)
@@ -63,4 +65,5 @@ func registerEventsRoutes(rr *middleware.RouteRegistrar, controller controllers.
 	rr.HandleFuncWithValidationAndAuthz(route("GET", "/orgs/{orgName}/projects/{projName}/agents/{agentName}/events/subscriptions/{subscriptionId}"), rbac.AgentRead, agent.GetSubscription)
 	rr.HandleFuncWithValidationAndAuthz(route("PUT", "/orgs/{orgName}/projects/{projName}/agents/{agentName}/events/subscriptions/{subscriptionId}"), rbac.AgentUpdate, agent.UpdateSubscription)
 	rr.HandleFuncWithValidationAndAuthz(route("DELETE", "/orgs/{orgName}/projects/{projName}/agents/{agentName}/events/subscriptions/{subscriptionId}"), rbac.AgentUpdate, agent.DeleteSubscription)
+	rr.HandleFuncWithValidationAndAuthz(route("GET", "/orgs/{orgName}/projects/{projName}/agents/{agentName}/events/deliveries"), rbac.AgentRead, agent.ListDeliveries)
 }

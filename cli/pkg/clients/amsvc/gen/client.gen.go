@@ -302,6 +302,9 @@ type ClientInterface interface {
 	// GetEvaluator request
 	GetEvaluator(ctx context.Context, orgName string, evaluatorId string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// ListOrgEventDeliveries request
+	ListOrgEventDeliveries(ctx context.Context, orgName string, params *ListOrgEventDeliveriesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListEventDestinationKinds request
 	ListEventDestinationKinds(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -746,6 +749,9 @@ type ClientInterface interface {
 
 	RotateAgentAPIKey(ctx context.Context, orgName string, projName string, agentName string, envID string, keyName string, body RotateAgentAPIKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// ListAgentEventDeliveries request
+	ListAgentEventDeliveries(ctx context.Context, orgName string, projName string, agentName string, params *ListAgentEventDeliveriesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListAgentEventDestinations request
 	ListAgentEventDestinations(ctx context.Context, orgName string, projName string, agentName string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -945,6 +951,9 @@ type ClientInterface interface {
 
 	// GetDeploymentPipeline request
 	GetDeploymentPipeline(ctx context.Context, orgName string, projName string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListProjectEventDeliveries request
+	ListProjectEventDeliveries(ctx context.Context, orgName string, projName string, params *ListProjectEventDeliveriesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListProjectEventDestinations request
 	ListProjectEventDestinations(ctx context.Context, orgName string, projName string, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -2014,6 +2023,18 @@ func (c *Client) UpdateCustomEvaluator(ctx context.Context, orgName string, iden
 
 func (c *Client) GetEvaluator(ctx context.Context, orgName string, evaluatorId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetEvaluatorRequest(c.Server, orgName, evaluatorId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListOrgEventDeliveries(ctx context.Context, orgName string, params *ListOrgEventDeliveriesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListOrgEventDeliveriesRequest(c.Server, orgName, params)
 	if err != nil {
 		return nil, err
 	}
@@ -3968,6 +3989,18 @@ func (c *Client) RotateAgentAPIKey(ctx context.Context, orgName string, projName
 	return c.Client.Do(req)
 }
 
+func (c *Client) ListAgentEventDeliveries(ctx context.Context, orgName string, projName string, agentName string, params *ListAgentEventDeliveriesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListAgentEventDeliveriesRequest(c.Server, orgName, projName, agentName, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) ListAgentEventDestinations(ctx context.Context, orgName string, projName string, agentName string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListAgentEventDestinationsRequest(c.Server, orgName, projName, agentName)
 	if err != nil {
@@ -4834,6 +4867,18 @@ func (c *Client) RegenerateAgentTracingToken(ctx context.Context, orgName string
 
 func (c *Client) GetDeploymentPipeline(ctx context.Context, orgName string, projName string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetDeploymentPipelineRequest(c.Server, orgName, projName)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListProjectEventDeliveries(ctx context.Context, orgName string, projName string, params *ListProjectEventDeliveriesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListProjectEventDeliveriesRequest(c.Server, orgName, projName, params)
 	if err != nil {
 		return nil, err
 	}
@@ -8464,6 +8509,126 @@ func NewGetEvaluatorRequest(server string, orgName string, evaluatorId string) (
 	queryURL, err := serverURL.Parse(operationPath)
 	if err != nil {
 		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewListOrgEventDeliveriesRequest generates requests for ListOrgEventDeliveries
+func NewListOrgEventDeliveriesRequest(server string, orgName string, params *ListOrgEventDeliveriesParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/events/deliveries", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.DestinationId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "destinationId", *params.DestinationId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.SubscriptionId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "subscriptionId", *params.SubscriptionId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Status != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "status", *params.Status, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Offset != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "offset", *params.Offset, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
 	}
 
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
@@ -14869,6 +15034,140 @@ func NewRotateAgentAPIKeyRequestWithBody(server string, orgName string, projName
 	return req, nil
 }
 
+// NewListAgentEventDeliveriesRequest generates requests for ListAgentEventDeliveries
+func NewListAgentEventDeliveriesRequest(server string, orgName string, projName string, agentName string, params *ListAgentEventDeliveriesParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "agentName", agentName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/agents/%s/events/deliveries", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.DestinationId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "destinationId", *params.DestinationId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.SubscriptionId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "subscriptionId", *params.SubscriptionId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Status != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "status", *params.Status, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Offset != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "offset", *params.Offset, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewListAgentEventDestinationsRequest generates requests for ListAgentEventDestinations
 func NewListAgentEventDestinationsRequest(server string, orgName string, projName string, agentName string) (*http.Request, error) {
 	var err error
@@ -18552,6 +18851,133 @@ func NewGetDeploymentPipelineRequest(server string, orgName string, projName str
 	return req, nil
 }
 
+// NewListProjectEventDeliveriesRequest generates requests for ListProjectEventDeliveries
+func NewListProjectEventDeliveriesRequest(server string, orgName string, projName string, params *ListProjectEventDeliveriesParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/events/deliveries", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.DestinationId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "destinationId", *params.DestinationId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.SubscriptionId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "subscriptionId", *params.SubscriptionId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Status != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "status", *params.Status, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Offset != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "offset", *params.Offset, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewListProjectEventDestinationsRequest generates requests for ListProjectEventDestinations
 func NewListProjectEventDestinationsRequest(server string, orgName string, projName string) (*http.Request, error) {
 	var err error
@@ -21280,6 +21706,9 @@ type ClientWithResponsesInterface interface {
 	// GetEvaluatorWithResponse request
 	GetEvaluatorWithResponse(ctx context.Context, orgName string, evaluatorId string, reqEditors ...RequestEditorFn) (*GetEvaluatorResp, error)
 
+	// ListOrgEventDeliveriesWithResponse request
+	ListOrgEventDeliveriesWithResponse(ctx context.Context, orgName string, params *ListOrgEventDeliveriesParams, reqEditors ...RequestEditorFn) (*ListOrgEventDeliveriesResp, error)
+
 	// ListEventDestinationKindsWithResponse request
 	ListEventDestinationKindsWithResponse(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*ListEventDestinationKindsResp, error)
 
@@ -21724,6 +22153,9 @@ type ClientWithResponsesInterface interface {
 
 	RotateAgentAPIKeyWithResponse(ctx context.Context, orgName string, projName string, agentName string, envID string, keyName string, body RotateAgentAPIKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*RotateAgentAPIKeyResp, error)
 
+	// ListAgentEventDeliveriesWithResponse request
+	ListAgentEventDeliveriesWithResponse(ctx context.Context, orgName string, projName string, agentName string, params *ListAgentEventDeliveriesParams, reqEditors ...RequestEditorFn) (*ListAgentEventDeliveriesResp, error)
+
 	// ListAgentEventDestinationsWithResponse request
 	ListAgentEventDestinationsWithResponse(ctx context.Context, orgName string, projName string, agentName string, reqEditors ...RequestEditorFn) (*ListAgentEventDestinationsResp, error)
 
@@ -21923,6 +22355,9 @@ type ClientWithResponsesInterface interface {
 
 	// GetDeploymentPipelineWithResponse request
 	GetDeploymentPipelineWithResponse(ctx context.Context, orgName string, projName string, reqEditors ...RequestEditorFn) (*GetDeploymentPipelineResp, error)
+
+	// ListProjectEventDeliveriesWithResponse request
+	ListProjectEventDeliveriesWithResponse(ctx context.Context, orgName string, projName string, params *ListProjectEventDeliveriesParams, reqEditors ...RequestEditorFn) (*ListProjectEventDeliveriesResp, error)
 
 	// ListProjectEventDestinationsWithResponse request
 	ListProjectEventDestinationsWithResponse(ctx context.Context, orgName string, projName string, reqEditors ...RequestEditorFn) (*ListProjectEventDestinationsResp, error)
@@ -23479,6 +23914,29 @@ func (r GetEvaluatorResp) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r GetEvaluatorResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListOrgEventDeliveriesResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *EventDeliveryListResponse
+	JSON400      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r ListOrgEventDeliveriesResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListOrgEventDeliveriesResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -26495,6 +26953,29 @@ func (r RotateAgentAPIKeyResp) StatusCode() int {
 	return 0
 }
 
+type ListAgentEventDeliveriesResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *EventDeliveryListResponse
+	JSON400      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r ListAgentEventDeliveriesResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListAgentEventDeliveriesResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type ListAgentEventDestinationsResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -27831,6 +28312,29 @@ func (r GetDeploymentPipelineResp) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r GetDeploymentPipelineResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListProjectEventDeliveriesResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *EventDeliveryListResponse
+	JSON400      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r ListProjectEventDeliveriesResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListProjectEventDeliveriesResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -29563,6 +30067,15 @@ func (c *ClientWithResponses) GetEvaluatorWithResponse(ctx context.Context, orgN
 	return ParseGetEvaluatorResp(rsp)
 }
 
+// ListOrgEventDeliveriesWithResponse request returning *ListOrgEventDeliveriesResp
+func (c *ClientWithResponses) ListOrgEventDeliveriesWithResponse(ctx context.Context, orgName string, params *ListOrgEventDeliveriesParams, reqEditors ...RequestEditorFn) (*ListOrgEventDeliveriesResp, error) {
+	rsp, err := c.ListOrgEventDeliveries(ctx, orgName, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListOrgEventDeliveriesResp(rsp)
+}
+
 // ListEventDestinationKindsWithResponse request returning *ListEventDestinationKindsResp
 func (c *ClientWithResponses) ListEventDestinationKindsWithResponse(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*ListEventDestinationKindsResp, error) {
 	rsp, err := c.ListEventDestinationKinds(ctx, orgName, reqEditors...)
@@ -30979,6 +31492,15 @@ func (c *ClientWithResponses) RotateAgentAPIKeyWithResponse(ctx context.Context,
 	return ParseRotateAgentAPIKeyResp(rsp)
 }
 
+// ListAgentEventDeliveriesWithResponse request returning *ListAgentEventDeliveriesResp
+func (c *ClientWithResponses) ListAgentEventDeliveriesWithResponse(ctx context.Context, orgName string, projName string, agentName string, params *ListAgentEventDeliveriesParams, reqEditors ...RequestEditorFn) (*ListAgentEventDeliveriesResp, error) {
+	rsp, err := c.ListAgentEventDeliveries(ctx, orgName, projName, agentName, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListAgentEventDeliveriesResp(rsp)
+}
+
 // ListAgentEventDestinationsWithResponse request returning *ListAgentEventDestinationsResp
 func (c *ClientWithResponses) ListAgentEventDestinationsWithResponse(ctx context.Context, orgName string, projName string, agentName string, reqEditors ...RequestEditorFn) (*ListAgentEventDestinationsResp, error) {
 	rsp, err := c.ListAgentEventDestinations(ctx, orgName, projName, agentName, reqEditors...)
@@ -31615,6 +32137,15 @@ func (c *ClientWithResponses) GetDeploymentPipelineWithResponse(ctx context.Cont
 		return nil, err
 	}
 	return ParseGetDeploymentPipelineResp(rsp)
+}
+
+// ListProjectEventDeliveriesWithResponse request returning *ListProjectEventDeliveriesResp
+func (c *ClientWithResponses) ListProjectEventDeliveriesWithResponse(ctx context.Context, orgName string, projName string, params *ListProjectEventDeliveriesParams, reqEditors ...RequestEditorFn) (*ListProjectEventDeliveriesResp, error) {
+	rsp, err := c.ListProjectEventDeliveries(ctx, orgName, projName, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListProjectEventDeliveriesResp(rsp)
 }
 
 // ListProjectEventDestinationsWithResponse request returning *ListProjectEventDestinationsResp
@@ -34513,6 +35044,39 @@ func ParseGetEvaluatorResp(rsp *http.Response) (*GetEvaluatorResp, error) {
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListOrgEventDeliveriesResp parses an HTTP response from a ListOrgEventDeliveriesWithResponse call
+func ParseListOrgEventDeliveriesResp(rsp *http.Response) (*ListOrgEventDeliveriesResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListOrgEventDeliveriesResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest EventDeliveryListResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
 
 	}
 
@@ -40202,6 +40766,39 @@ func ParseRotateAgentAPIKeyResp(rsp *http.Response) (*RotateAgentAPIKeyResp, err
 	return response, nil
 }
 
+// ParseListAgentEventDeliveriesResp parses an HTTP response from a ListAgentEventDeliveriesWithResponse call
+func ParseListAgentEventDeliveriesResp(rsp *http.Response) (*ListAgentEventDeliveriesResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListAgentEventDeliveriesResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest EventDeliveryListResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseListAgentEventDestinationsResp parses an HTTP response from a ListAgentEventDestinationsWithResponse call
 func ParseListAgentEventDestinationsResp(rsp *http.Response) (*ListAgentEventDestinationsResp, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -42678,6 +43275,39 @@ func ParseGetDeploymentPipelineResp(rsp *http.Response) (*GetDeploymentPipelineR
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListProjectEventDeliveriesResp parses an HTTP response from a ListProjectEventDeliveriesWithResponse call
+func ParseListProjectEventDeliveriesResp(rsp *http.Response) (*ListProjectEventDeliveriesResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListProjectEventDeliveriesResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest EventDeliveryListResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
 
 	}
 

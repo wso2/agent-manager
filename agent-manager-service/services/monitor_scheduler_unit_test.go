@@ -573,6 +573,7 @@ func TestMonitorScheduler_syncSingleRunStatus(t *testing.T) {
 		require.NotNil(t, got, "expected UpdateMonitorRun to be called")
 		assert.Equal(t, models.RunStatusSuccess, got["status"])
 		assert.Contains(t, got, "completed_at")
+		assert.Equal(t, got["completed_at"], got["event_queued_at"], "disabled events must not replay this run")
 	})
 
 	for _, ocStatus := range []string{"Failed", "Error"} {
@@ -594,6 +595,7 @@ func TestMonitorScheduler_syncSingleRunStatus(t *testing.T) {
 			require.NotNil(t, got)
 			assert.Equal(t, models.RunStatusFailed, got["status"])
 			assert.Contains(t, got, "completed_at")
+			assert.Equal(t, got["completed_at"], got["event_queued_at"], "disabled events must not replay this run")
 			assert.Contains(t, got, "error_message")
 		})
 	}

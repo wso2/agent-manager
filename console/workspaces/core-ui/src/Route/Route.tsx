@@ -49,6 +49,9 @@ import {
   LazyGatewaysOrg,
   LazyThunderInstancesOrg,
   LazySettingsOrg,
+  LazyOrgEvents,
+  LazyProjectEvents,
+  LazyAgentEvents,
   LazyDeploymentPipelinesOrg,
   LazyEnvironmentsOrg,
   LazyCatalogOrg,
@@ -313,6 +316,14 @@ export function RootRouter() {
               }
               element={<LazySettingsOrg />}
             />
+            <Route
+              path={relativeRouteMap.children.org.children.events.path + "/*"}
+              element={
+                <Suspense fallback={<LoadingFallback />}>
+                  <LazyOrgEvents />
+                </Suspense>
+              }
+            />
             {/* Back-compat: identities pages moved under Settings → IDP Settings */}
             <Route path="identities/*" element={<LegacyIdentitiesRedirect />} />
             <Route
@@ -434,6 +445,17 @@ export function RootRouter() {
                   }
                 />
               ))}
+              <Route
+                path={
+                  relativeRouteMap.children.org.children.projects.children
+                    .events.path + "/*"
+                }
+                element={
+                  <Suspense fallback={<LoadingFallback />}>
+                    <LazyProjectEvents />
+                  </Suspense>
+                }
+              />
               <Route
                 path={
                   relativeRouteMap.children.org.children.projects.children
@@ -611,6 +633,17 @@ export function RootRouter() {
                       .agents.children.publish.path + "/*"
                   }
                   element={<LazyPublishOrg />}
+                />
+                <Route
+                  path={
+                    relativeRouteMap.children.org.children.projects.children
+                      .agents.children.events.path + "/*"
+                  }
+                  element={
+                    <Suspense fallback={<LoadingFallback />}>
+                      <LazyAgentEvents />
+                    </Suspense>
+                  }
                 />
                 <Route
                   path={

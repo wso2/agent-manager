@@ -35,6 +35,9 @@ const (
 	EventsStream  = "AMP_EVENTS"
 	EventsSubject = "amp.events"
 
+	// EventFanoutConsumer is the durable consumer the event dispatcher reads.
+	EventFanoutConsumer = "event-fanout"
+
 	streamMaxAge = 72 * time.Hour
 	// natsAckWait is how long a handler has before an unanswered message is
 	// redelivered; it must outlast a delivery to a destination.
@@ -49,15 +52,19 @@ const (
 	// destination's backlog of retries stop every delivery for hours.
 	natsQueueMaxAckPending = 50_000
 	// Bound poison-event retries so one bad event cannot occupy the consumer forever.
-	natsEventMaxDeliver = 20
+	natsEventMaxDeliver = EventMaxDeliver
 )
+
+// EventMaxDeliver is how many times an event consumer is handed one event
+// before the bus gives up on it.
+const EventMaxDeliver = 20
 
 // provisionedConsumers are the durable event consumers Setup creates before
 // publishing starts, so their workers can attach without losing events. A
 // consumer is listed together with the worker that reads it: one created
 // with no reader would hold every event until that worker ships, then
 // deliver up to streamMaxAge of them at once.
-var provisionedConsumers = []string{}
+var provisionedConsumers = []string{EventFanoutConsumer}
 
 // natsQueues maps work queue names to their JetStream streams and subjects.
 // A queue's subjects must stay outside amp.events.>, which AMP_EVENTS
@@ -138,14 +145,22 @@ func (b *NATSBus) Setup(ctx context.Context) error {
 		}
 	}
 	for _, q := range natsQueues {
-		if _, err := b.js.CreateOrUpdateStream(ctx, jetstream.StreamConfig{
+		queueCfg := jetstream.StreamConfig{
 			Name:       q.stream,
 			Subjects:   []string{q.subject + ".>"},
 			Storage:    b.storage,
 			Retention:  jetstream.WorkQueuePolicy,
 			MaxAge:     streamMaxAge,
 			Duplicates: 10 * time.Minute,
-		}); err != nil {
+		}
+		if b.storage == jetstream.MemoryStorage {
+			// The queues share what the event stream leaves, with headroom.
+			// A full queue refuses new items rather than dropping queued
+			// ones: the fan-out then retries the event later.
+			queueCfg.MaxBytes = embeddedMaxMemory / 4 / int64(len(natsQueues))
+			queueCfg.Discard = jetstream.DiscardNew
+		}
+		if _, err := b.js.CreateOrUpdateStream(ctx, queueCfg); err != nil {
 			return fmt.Errorf("failed to set up stream %s: %w", q.stream, err)
 		}
 	}

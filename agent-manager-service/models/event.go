@@ -149,6 +149,8 @@ type EventDelivery struct {
 	ResponseCode *int       `gorm:"column:response_code" json:"responseCode,omitempty"`
 	LastError    string     `gorm:"column:last_error;not null" json:"lastError,omitempty"`
 	DeliveredAt  *time.Time `gorm:"column:delivered_at" json:"deliveredAt,omitempty"`
+	// ClaimedUntil is when the worker sending this delivery loses its claim.
+	ClaimedUntil *time.Time `gorm:"column:claimed_until" json:"-"`
 	CreatedAt    time.Time  `gorm:"column:created_at;not null;default:NOW()" json:"createdAt"`
 	UpdatedAt    time.Time  `gorm:"column:updated_at;not null;default:NOW()" json:"updatedAt"`
 }

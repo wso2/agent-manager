@@ -45,6 +45,42 @@ export function useListProjects(
   });
 }
 
+// The most projects one list request returns.
+const PROJECT_PAGE_SIZE = 100;
+
+/** Lists every project in an org, page by page. */
+export async function listAllProjects(
+  params: ListProjectsPathParams,
+  getToken?: () => Promise<string>,
+): Promise<ProjectListResponse> {
+  const first = await listProjects(params, { limit: PROJECT_PAGE_SIZE, offset: 0 }, getToken);
+  const projects = [...first.projects];
+  while (projects.length < first.total) {
+    const page = await listProjects(
+      params,
+      { limit: PROJECT_PAGE_SIZE, offset: projects.length },
+      getToken,
+    );
+    // Projects deleted meanwhile can leave total short of what is there.
+    if (page.projects.length === 0) break;
+    projects.push(...page.projects);
+  }
+  return { ...first, projects, limit: projects.length };
+}
+
+/**
+ * Hook to list every project in an org, for pickers that must offer all of
+ * them.
+ */
+export function useListAllProjects(params: ListProjectsPathParams) {
+  const { getToken } = useAuthHooks();
+  return useApiQuery<ProjectListResponse>({
+    queryKey: ['projects', params, 'all'],
+    queryFn: () => listAllProjects(params, getToken),
+    enabled: !!params.orgName,
+  });
+}
+
 export function useGetProject(params: GetProjectPathParams) {
   const { getToken } = useAuthHooks();
   return useApiQuery<ProjectResponse>({

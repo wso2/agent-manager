@@ -64,6 +64,17 @@ type DeliveryLocation struct {
 	EventScopes []string
 }
 
+// DeliveryFilter selects a page of a delivery log, newest first.
+type DeliveryFilter struct {
+	OUID           string
+	Location       DeliveryLocation
+	DestinationID  *uuid.UUID
+	SubscriptionID *uuid.UUID
+	Status         string
+	Limit          int
+	Offset         int
+}
+
 // SubscriptionCounts holds, per subscription, its deliveries by status.
 type SubscriptionCounts map[uuid.UUID]map[string]int
 
@@ -126,6 +137,30 @@ type EventRepository interface {
 	// SubscriptionCounts counts, by status, each subscription's deliveries
 	// queued since since, keeping only the deliveries in loc.
 	SubscriptionCounts(ctx context.Context, ouID string, ids []uuid.UUID, since time.Time, loc DeliveryLocation) (SubscriptionCounts, error)
+
+	// RecordQueuedDelivery creates the pending row of a newly queued
+	// delivery. It never overwrites an existing row, so a fan-out repeated
+	// after the delivery already ran cannot turn "delivered" back into
+	// "pending".
+	RecordQueuedDelivery(ctx context.Context, d *models.EventDelivery) error
+	// ClaimDelivery leases a pending delivery to one worker for lease, so a
+	// redelivered job cannot send it while another worker is. It reports
+	// false when the delivery is no longer pending or is claimed already.
+	ClaimDelivery(ctx context.Context, id uuid.UUID, lease time.Duration) (bool, error)
+	// RecordDelivery records the outcome of a delivery attempt and releases
+	// its claim. A delivery already delivered or skipped is left as it is.
+	RecordDelivery(ctx context.Context, d *models.EventDelivery) error
+	// GetDelivery returns the delivery of an event to a destination, or
+	// gorm.ErrRecordNotFound.
+	GetDelivery(ctx context.Context, destinationID uuid.UUID, eventID string) (*models.EventDelivery, error)
+	// ListDeliveries returns a page of deliveries and the number matching
+	// the filter.
+	ListDeliveries(ctx context.Context, f DeliveryFilter) ([]models.EventDelivery, int64, error)
+	// PruneDeliveries deletes deliveries queued before cutoff.
+	PruneDeliveries(ctx context.Context, cutoff time.Time) (int64, error)
+	// FailStaleDeliveries marks as failed, with reason, the deliveries still
+	// pending and unclaimed with no activity since cutoff: their job is gone.
+	FailStaleDeliveries(ctx context.Context, cutoff time.Time, reason string) (int64, error)
 }
 
 type eventRepository struct {
@@ -517,4 +552,103 @@ func (r *eventRepository) SubscriptionCounts(
 		out[id][row.Status] += row.Count
 	}
 	return out, nil
+}
+
+func (r *eventRepository) RecordQueuedDelivery(ctx context.Context, d *models.EventDelivery) error {
+	d.UpdatedAt = time.Now()
+	if d.CreatedAt.IsZero() {
+		d.CreatedAt = d.UpdatedAt
+	}
+	return r.db.WithContext(ctx).Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "destination_id"}, {Name: "event_id"}},
+		DoNothing: true,
+	}).Create(d).Error
+}
+
+func (r *eventRepository) ClaimDelivery(ctx context.Context, id uuid.UUID, lease time.Duration) (bool, error) {
+	res := r.db.WithContext(ctx).Exec(`
+  UPDATE event_deliveries SET claimed_until = NOW() + make_interval(secs => ?)
+  WHERE id = ? AND status = ? AND (claimed_until IS NULL OR claimed_until < NOW())`,
+		lease.Seconds(), id, models.EventDeliveryPending)
+	return res.RowsAffected == 1, res.Error
+}
+
+func (r *eventRepository) RecordDelivery(ctx context.Context, d *models.EventDelivery) error {
+	d.UpdatedAt = time.Now()
+	if d.CreatedAt.IsZero() {
+		d.CreatedAt = d.UpdatedAt
+	}
+	d.ClaimedUntil = nil
+	return r.db.WithContext(ctx).Clauses(clause.OnConflict{
+		Columns: []clause.Column{{Name: "destination_id"}, {Name: "event_id"}},
+		DoUpdates: clause.AssignmentColumns([]string{
+			"status", "attempts", "response_code", "last_error", "delivered_at", "claimed_until", "updated_at",
+		}),
+		// A late worker, one whose job was redelivered say, must not turn a
+		// finished delivery back into pending or failed.
+		Where: clause.Where{Exprs: []clause.Expression{clause.Expr{
+			SQL:  "event_deliveries.status NOT IN (?, ?)",
+			Vars: []any{models.EventDeliveryDelivered, models.EventDeliverySkipped},
+		}}},
+	}).Create(d).Error
+}
+
+func (r *eventRepository) GetDelivery(ctx context.Context, destinationID uuid.UUID, eventID string) (*models.EventDelivery, error) {
+	var d models.EventDelivery
+	err := r.db.WithContext(ctx).Where("destination_id = ? AND event_id = ?", destinationID, eventID).First(&d).Error
+	if err != nil {
+		return nil, err
+	}
+	return &d, nil
+}
+
+func (r *eventRepository) ListDeliveries(ctx context.Context, f DeliveryFilter) ([]models.EventDelivery, int64, error) {
+	var subscription string
+	if f.SubscriptionID != nil {
+		selected, err := json.Marshal([]string{f.SubscriptionID.String()})
+		if err != nil {
+			return nil, 0, err
+		}
+		subscription = string(selected)
+	}
+	// Built afresh for the count and the page: a gorm query reused after
+	// Count keeps the count's select.
+	filtered := func() *gorm.DB {
+		q := located(r.db.WithContext(ctx).Table("event_deliveries AS x").Where("x.ou_id = ?", f.OUID), f.Location)
+		if f.DestinationID != nil {
+			q = q.Where("x.destination_id = ?", *f.DestinationID)
+		}
+		if subscription != "" {
+			q = q.Where("x.subscription_ids @> ?::jsonb", subscription)
+		}
+		if f.Status != "" {
+			q = q.Where("x.status = ?", f.Status)
+		}
+		return q
+	}
+	var total int64
+	if err := filtered().Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var out []models.EventDelivery
+	err := filtered().Select("x.*").Order("x.created_at DESC, x.id DESC").Limit(f.Limit).Offset(f.Offset).Find(&out).Error
+	if err != nil {
+		return nil, 0, err
+	}
+	return out, total, nil
+}
+
+func (r *eventRepository) FailStaleDeliveries(ctx context.Context, cutoff time.Time, reason string) (int64, error) {
+	// created_at never follows updated_at, so it narrows the scan through
+	// its index.
+	res := r.db.WithContext(ctx).Exec(`
+  UPDATE event_deliveries SET status = ?, last_error = ?, claimed_until = NULL, updated_at = NOW()
+  WHERE status = ? AND created_at < ? AND updated_at < ? AND (claimed_until IS NULL OR claimed_until < NOW())`,
+		models.EventDeliveryFailed, reason, models.EventDeliveryPending, cutoff, cutoff)
+	return res.RowsAffected, res.Error
+}
+
+func (r *eventRepository) PruneDeliveries(ctx context.Context, cutoff time.Time) (int64, error) {
+	res := r.db.WithContext(ctx).Where("created_at < ?", cutoff).Delete(&models.EventDelivery{})
+	return res.RowsAffected, res.Error
 }
