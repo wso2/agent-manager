@@ -240,6 +240,9 @@ import (
 //			SetReleaseBindingSecretSyncRevisionFunc: func(ctx context.Context, ouID string, componentName string, envName string, revision string) error {
 //				panic("mock out the SetReleaseBindingSecretSyncRevision method")
 //			},
+//			SyncEditedWorkloadSecretsFunc: func(ctx context.Context, ouID string, componentName string, envName string, secretRefName string, editedKeys []string) error {
+//				panic("mock out the SyncEditedWorkloadSecrets method")
+//			},
 //			TriggerBuildFunc: func(ctx context.Context, ouID string, projectName string, componentName string, commitID string, workflowRunName string, runEnvVars []client.EnvVar) (*models.BuildResponse, error) {
 //				panic("mock out the TriggerBuild method")
 //			},
@@ -507,6 +510,9 @@ type OpenChoreoClientMock struct {
 
 	// SetReleaseBindingSecretSyncRevisionFunc mocks the SetReleaseBindingSecretSyncRevision method.
 	SetReleaseBindingSecretSyncRevisionFunc func(ctx context.Context, ouID string, componentName string, envName string, revision string) error
+
+	// SyncEditedWorkloadSecretsFunc mocks the SyncEditedWorkloadSecrets method.
+	SyncEditedWorkloadSecretsFunc func(ctx context.Context, ouID string, componentName string, envName string, secretRefName string, editedKeys []string) error
 
 	// TriggerBuildFunc mocks the TriggerBuild method.
 	TriggerBuildFunc func(ctx context.Context, ouID string, projectName string, componentName string, commitID string, workflowRunName string, runEnvVars []client.EnvVar) (*models.BuildResponse, error)
@@ -1353,6 +1359,21 @@ type OpenChoreoClientMock struct {
 			// Revision is the revision argument value.
 			Revision string
 		}
+		// SyncEditedWorkloadSecrets holds details about calls to the SyncEditedWorkloadSecrets method.
+		SyncEditedWorkloadSecrets []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// OuID is the ouID argument value.
+			OuID string
+			// ComponentName is the componentName argument value.
+			ComponentName string
+			// EnvName is the envName argument value.
+			EnvName string
+			// SecretRefName is the secretRefName argument value.
+			SecretRefName string
+			// EditedKeys is the editedKeys argument value.
+			EditedKeys []string
+		}
 		// TriggerBuild holds details about calls to the TriggerBuild method.
 		TriggerBuild []struct {
 			// Ctx is the ctx argument value.
@@ -1605,6 +1626,7 @@ type OpenChoreoClientMock struct {
 	lockReplaceReleaseBindingEnvVars           sync.RWMutex
 	lockReplaceReleaseBindingWorkloadOverrides sync.RWMutex
 	lockSetReleaseBindingSecretSyncRevision    sync.RWMutex
+	lockSyncEditedWorkloadSecrets              sync.RWMutex
 	lockTriggerBuild                           sync.RWMutex
 	lockUpdateComponentBasicInfo               sync.RWMutex
 	lockUpdateComponentBuildParameters         sync.RWMutex
@@ -4853,6 +4875,58 @@ func (mock *OpenChoreoClientMock) SetReleaseBindingSecretSyncRevisionCalls() []s
 	mock.lockSetReleaseBindingSecretSyncRevision.RLock()
 	calls = mock.calls.SetReleaseBindingSecretSyncRevision
 	mock.lockSetReleaseBindingSecretSyncRevision.RUnlock()
+	return calls
+}
+
+// SyncEditedWorkloadSecrets calls SyncEditedWorkloadSecretsFunc.
+func (mock *OpenChoreoClientMock) SyncEditedWorkloadSecrets(ctx context.Context, ouID string, componentName string, envName string, secretRefName string, editedKeys []string) error {
+	if mock.SyncEditedWorkloadSecretsFunc == nil {
+		panic("OpenChoreoClientMock.SyncEditedWorkloadSecretsFunc: method is nil but OpenChoreoClient.SyncEditedWorkloadSecrets was just called")
+	}
+	callInfo := struct {
+		Ctx           context.Context
+		OuID          string
+		ComponentName string
+		EnvName       string
+		SecretRefName string
+		EditedKeys    []string
+	}{
+		Ctx:           ctx,
+		OuID:          ouID,
+		ComponentName: componentName,
+		EnvName:       envName,
+		SecretRefName: secretRefName,
+		EditedKeys:    editedKeys,
+	}
+	mock.lockSyncEditedWorkloadSecrets.Lock()
+	mock.calls.SyncEditedWorkloadSecrets = append(mock.calls.SyncEditedWorkloadSecrets, callInfo)
+	mock.lockSyncEditedWorkloadSecrets.Unlock()
+	return mock.SyncEditedWorkloadSecretsFunc(ctx, ouID, componentName, envName, secretRefName, editedKeys)
+}
+
+// SyncEditedWorkloadSecretsCalls gets all the calls that were made to SyncEditedWorkloadSecrets.
+// Check the length with:
+//
+//	len(mockedOpenChoreoClient.SyncEditedWorkloadSecretsCalls())
+func (mock *OpenChoreoClientMock) SyncEditedWorkloadSecretsCalls() []struct {
+	Ctx           context.Context
+	OuID          string
+	ComponentName string
+	EnvName       string
+	SecretRefName string
+	EditedKeys    []string
+} {
+	var calls []struct {
+		Ctx           context.Context
+		OuID          string
+		ComponentName string
+		EnvName       string
+		SecretRefName string
+		EditedKeys    []string
+	}
+	mock.lockSyncEditedWorkloadSecrets.RLock()
+	calls = mock.calls.SyncEditedWorkloadSecrets
+	mock.lockSyncEditedWorkloadSecrets.RUnlock()
 	return calls
 }
 

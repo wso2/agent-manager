@@ -6338,6 +6338,22 @@ func (s *agentManagerService) processEnvVars(
 		return nil, err
 	}
 
+	// New keys are synced when OpenChoreo renders the new ExternalSecret spec.
+	// Existing keys can retain the same remote reference across the rollout.
+	if existingInfo != nil && len(secretData) > 0 {
+		var editedKeys []string
+		for _, key := range existingInfo.Keys {
+			if _, edited := secretData[key]; edited {
+				editedKeys = append(editedKeys, key)
+			}
+		}
+		if len(editedKeys) > 0 {
+			if err := s.ocClient.SyncEditedWorkloadSecrets(ctx, ouID, componentName, environmentName, secretRefName, editedKeys); err != nil {
+				return nil, fmt.Errorf("%w: %w", utils.ErrWorkloadSecretSyncUnconfirmed, err)
+			}
+		}
+	}
+
 	// Second pass: build result for env vars only (file mounts are handled by processFileVars)
 	var result []client.EnvVar
 	for _, env := range envVars {

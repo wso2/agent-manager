@@ -349,12 +349,9 @@ type SecretManagerConfig struct {
 	// RefreshInterval is how often SecretReference CRs should refresh from the
 	// secret store (default: "1h")
 	RefreshInterval string
-	// AgentIdentityRefreshInterval is how long to wait after rotating an
-	// AgentID credential before rolling the pod (default: "15s"). It must cover
-	// the refresh interval of the workload's secret-env ExternalSecret, which is
-	// what delivers the rotated value to the pod (15s in the agent component
-	// types). Kept separate from RefreshInterval above so AgentID's fast
-	// rotation-to-pod requirement never depends on it.
+	// AgentIdentityRefreshInterval is the fallback wait after rotating an
+	// Agent ID credential when force-sync could not be confirmed (default: "10m").
+	// It must cover the workload's secret-env ExternalSecret refresh interval.
 	AgentIdentityRefreshInterval string
 	// AgentIdentityForceSyncWait is how long to wait after forcing the workload's
 	// secret-env ExternalSecret to re-sync on rotation, before rolling the pod

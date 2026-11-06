@@ -501,11 +501,11 @@ spec:
         spec:
           # Rotation uses force-sync above and does not wait on this interval,
           # but only while this ComponentType is deployed. Agent Manager falls
-          # back to AGENT_IDENTITY_REFRESH_INTERVAL (default 15s) when the
+          # back to AGENT_IDENTITY_REFRESH_INTERVAL (default 10m) when the
           # force-sync cannot be used (missing binding, retries used up, field
           # not declared), so raise this interval and that setting together,
           # and only after this ComponentType is deployed.
-          refreshInterval: 15s
+          refreshInterval: 10m
           secretStoreRef:
             name: ${dataplane.secretStore}
             kind: ClusterSecretStore
@@ -529,8 +529,10 @@ spec:
         metadata:
           name: ${file.resourceName}
           namespace: ${metadata.namespace}
+          annotations:
+            force-sync: ${environmentConfigs.secretSyncRevision}
         spec:
-          refreshInterval: 15s
+          refreshInterval: 10m
           secretStoreRef:
             name: ${dataplane.secretStore}
             kind: ClusterSecretStore

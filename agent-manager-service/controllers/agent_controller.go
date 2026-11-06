@@ -104,6 +104,10 @@ func entitlementDeniedMessage(err error) string {
 
 func handleCommonErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 	switch {
+	case errors.Is(err, utils.ErrWorkloadSecretSyncUnconfirmed):
+		utils.WriteErrorResponseWithReason(w, http.StatusServiceUnavailable,
+			"Secret values were saved, but the rollout stopped because secret sync could not be confirmed.",
+			"", utils.ErrCodeServiceUnavailable)
 	case errors.Is(err, workloadpolicy.ErrSuspended):
 		utils.WriteErrorResponseWithReason(w, http.StatusForbidden, "The Agent Manager subscription is suspended", "Renew the subscription to resume", "SUBSCRIPTION_SUSPENDED")
 	// A ValidationError raised below the controller (e.g. a stored agent kind
