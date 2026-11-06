@@ -32,6 +32,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
+	"github.com/wso2/agent-manager/agent-manager-service/workloadpolicy"
 )
 
 // workflowParamAMPBuild is the build workflow parameter that carries the
@@ -287,6 +288,12 @@ var buildBindingRetryDelay = 2 * time.Second
 // buildBindingMaxAttempts, because the backend writes the same binding
 // concurrently; see the step's comment for why 500 is retryable.
 func (c *openChoreoClient) PublishBuildWorkload(ctx context.Context, ouID string, req PublishBuildWorkloadRequest) error {
+	// Publishing creates or repins the first environment's binding, so like any
+	// other new work it is refused for an organization the deployment's workload
+	// guard does not admit (a suspended subscription).
+	if err := workloadpolicy.Check(ctx, ouID); err != nil {
+		return err
+	}
 	healthChecks, err := buildHealthChecks(req.HealthChecks)
 	if err != nil {
 		return err

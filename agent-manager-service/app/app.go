@@ -292,6 +292,11 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 	if opts.BackgroundContextDecorator != nil {
 		backgroundCtx = opts.BackgroundContextDecorator(backgroundCtx)
 	}
+	// The workload guard goes on the background context before anything takes
+	// it: the build publisher's OpenChoreo calls are derived from this context,
+	// so a guard installed later would let a build of a suspended organization
+	// publish.
+	backgroundCtx = workloadpolicy.WithGuard(backgroundCtx, opts.WorkloadGuard)
 	// The build publisher acts for a build token's organization with this
 	// service's own credential, which only the background context may use; it
 	// derives each request's OpenChoreo calls from this context. The build token
@@ -304,7 +309,6 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 		setter.SetBackgroundContext(backgroundCtx)
 	}
 
-	backgroundCtx = workloadpolicy.WithGuard(backgroundCtx, opts.WorkloadGuard)
 	stopBackground := func() {}
 	if opts.StartBackground != nil {
 		var err error

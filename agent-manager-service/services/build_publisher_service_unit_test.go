@@ -34,6 +34,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/orgctx"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
+	"github.com/wso2/agent-manager/agent-manager-service/workloadpolicy"
 )
 
 const bpOrg = "6f1e2c3d-0000-4000-8000-000000000001"
@@ -134,6 +135,83 @@ func TestBuildPublisherService_PublishesForTheVerifiedBuild(t *testing.T) {
 	org, ok := orgctx.GetResolvedOrg(ocCtx)
 	require.True(t, ok)
 	assert.Equal(t, bpOrg, org.OUID)
+}
+
+// bpCountingRecorder counts the audit events written to it.
+type bpCountingRecorder struct{ events int }
+
+func (r *bpCountingRecorder) Record(context.Context, audit.Event) { r.events++ }
+func (r *bpCountingRecorder) RecordSync(context.Context, audit.Event) error {
+	r.events++
+	return nil
+}
+func (r *bpCountingRecorder) Close(context.Context) error { return nil }
+
+// bpUntouchableOC fails the test if any call reaches OpenChoreo.
+func bpUntouchableOC(t *testing.T) *clientmocks.OpenChoreoClientMock {
+	return &clientmocks.OpenChoreoClientMock{
+		GetBuildRunFunc: func(context.Context, string, string) (*client.BuildRunInfo, error) {
+			t.Error("a suspended organization's build must not be looked up")
+			return nil, fmt.Errorf("unexpected call")
+		},
+		GetComponentFunc: func(context.Context, string, string, string) (*models.AgentResponse, error) {
+			t.Error("a suspended organization's agent must not be looked up")
+			return nil, fmt.Errorf("unexpected call")
+		},
+		PublishBuildWorkloadFunc: func(context.Context, string, client.PublishBuildWorkloadRequest) error {
+			t.Error("a suspended organization must not publish")
+			return fmt.Errorf("unexpected call")
+		},
+	}
+}
+
+func TestBuildPublisherService_RefusesASuspendedOrganization(t *testing.T) {
+	svc := NewBuildPublisherService(bpUntouchableOC(t), bpEnabledConfig(), discardLogger())
+	var guarded []string
+	// The deployment's workload guard is installed on the background context
+	// (app.Run), which the publisher derives its OpenChoreo calls from.
+	bg := workloadpolicy.WithGuard(context.Background(), func(_ context.Context, org string) error {
+		guarded = append(guarded, org)
+		return workloadpolicy.ErrSuspended
+	})
+	svc.(BuildPublisherBackgroundContextSetter).SetBackgroundContext(bg)
+	recorder := &bpCountingRecorder{}
+
+	err := svc.PublishWorkload(audit.WithRecorder(context.Background(), recorder), bpOrg, "my-agent-1700",
+		bpRequest(t, bpWorkload, bpOverrides))
+	require.ErrorIs(t, err, workloadpolicy.ErrSuspended)
+	assert.NotErrorIs(t, err, errBuildPublishUpstream, "a suspension is final, not a retryable failure")
+	assert.Equal(t, []string{bpOrg}, guarded, "the guard is asked about the build token's organization")
+	assert.Zero(t, recorder.events, "nothing is recorded for a publish that never starts")
+}
+
+func TestBuildPublisherService_PassesOnASuspensionFoundWhilePublishing(t *testing.T) {
+	// The organization is suspended between the service's check and the client's:
+	// the client refuses, and the refusal is answered as a suspension.
+	oc := bpHappyOC(nil, nil)
+	oc.PublishBuildWorkloadFunc = func(context.Context, string, client.PublishBuildWorkloadRequest) error {
+		return workloadpolicy.ErrSuspended
+	}
+	svc := NewBuildPublisherService(oc, bpEnabledConfig(), discardLogger())
+
+	err := svc.PublishWorkload(auditableCtx(t), bpOrg, "my-agent-1700", bpRequest(t, bpWorkload, bpOverrides))
+	require.ErrorIs(t, err, workloadpolicy.ErrSuspended)
+	assert.NotErrorIs(t, err, errBuildPublishUpstream)
+}
+
+func TestBuildPublisherService_PublishesForAnAdmittedOrganization(t *testing.T) {
+	var published client.PublishBuildWorkloadRequest
+	svc := NewBuildPublisherService(bpHappyOC(&published, nil), bpEnabledConfig(), discardLogger())
+	var guarded []string
+	bg := workloadpolicy.WithGuard(context.Background(), func(_ context.Context, org string) error {
+		guarded = append(guarded, org)
+		return nil
+	})
+	svc.(BuildPublisherBackgroundContextSetter).SetBackgroundContext(bg)
+
+	require.NoError(t, svc.PublishWorkload(auditableCtx(t), bpOrg, "my-agent-1700", bpRequest(t, bpWorkload, bpOverrides)))
+	assert.Equal(t, "my-agent-1700", published.RunName)
+	assert.Equal(t, []string{bpOrg}, guarded)
 }
 
 func TestBuildPublisherService_RefusesToPublishWithoutAnAuditTrail(t *testing.T) {

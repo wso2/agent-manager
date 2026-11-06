@@ -27,6 +27,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
+	"github.com/wso2/agent-manager/agent-manager-service/workloadpolicy"
 )
 
 // maxBuildWorkloadBodyBytes bounds the build publisher request. Endpoint schemas
@@ -78,6 +79,11 @@ func (c *buildPublisherController) PublishBuildWorkload(w http.ResponseWriter, r
 	ouID := jwtassertion.BuildClientOrg(r.Context())
 	if err := c.service.PublishWorkload(r.Context(), ouID, buildName, &req); err != nil {
 		switch {
+		case errors.Is(err, workloadpolicy.ErrSuspended):
+			// Final for the build step: it retries only a missing response or a 5xx.
+			log.Warn("Refused build workload: the organization's subscription is suspended", "buildName", buildName)
+			utils.WriteErrorResponseWithReason(w, http.StatusForbidden,
+				"The Agent Manager subscription is suspended", "Renew the subscription to resume", "SUBSCRIPTION_SUSPENDED")
 		case errors.Is(err, utils.ErrBadRequest):
 			log.Warn("Rejected build workload", "buildName", buildName, "error", err)
 			utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid build workload")

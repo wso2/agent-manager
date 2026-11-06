@@ -34,6 +34,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
+	"github.com/wso2/agent-manager/agent-manager-service/workloadpolicy"
 )
 
 type fakeBuildPublisherService struct {
@@ -83,6 +84,7 @@ func TestBuildPublisherController_MapsServiceErrors(t *testing.T) {
 		{fmt.Errorf("%w: x", utils.ErrConflict), http.StatusConflict},
 		{fmt.Errorf("%w: x", services.ErrBuildWorkloadAlreadyPublished), http.StatusConflict},
 		{fmt.Errorf("refused: %w", audit.ErrRecorderUnavailable), http.StatusServiceUnavailable},
+		{workloadpolicy.ErrSuspended, http.StatusForbidden},
 		{errors.New("boom"), http.StatusInternalServerError},
 	}
 	for _, tc := range tests {
@@ -93,6 +95,15 @@ func TestBuildPublisherController_MapsServiceErrors(t *testing.T) {
 			assert.Equal(t, tc.want, rec.Code)
 		})
 	}
+}
+
+func TestBuildPublisherController_AnswersASuspensionAsFinal(t *testing.T) {
+	rec := httptest.NewRecorder()
+	NewBuildPublisherController(&fakeBuildPublisherService{err: workloadpolicy.ErrSuspended}).PublishBuildWorkload(rec,
+		buildPublishRequest(`{"workload":{}}`, "org-1"))
+	// 403, not a 5xx: the build step retries only a missing response or a 5xx.
+	assert.Equal(t, http.StatusForbidden, rec.Code)
+	assert.Contains(t, rec.Body.String(), "SUBSCRIPTION_SUSPENDED")
 }
 
 func TestBuildPublisherController_RejectsMalformedAndOversizedBodies(t *testing.T) {

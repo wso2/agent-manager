@@ -39,6 +39,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/orgctx"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
+	"github.com/wso2/agent-manager/agent-manager-service/workloadpolicy"
 )
 
 // BuildPublisherService performs the OpenChoreo writes a source build's workload
@@ -139,7 +140,9 @@ var terminalBuildStatuses = []string{
 // off or the build does not exist in the caller's organization, utils.ErrBadRequest
 // for a malformed request, utils.ErrForbidden when the build is not a source build
 // of one of the organization's agents on a build workflow that takes the build
-// token, and utils.ErrConflict when the build has already finished.
+// token, utils.ErrConflict when the build has already finished, and
+// workloadpolicy.ErrSuspended when the deployment's workload guard does not admit
+// the organization (a suspended subscription).
 func (s *buildPublisherService) PublishWorkload(ctx context.Context, ouID, buildName string, req *models.PublishBuildWorkloadRequest) error {
 	if !s.cfg.Enabled {
 		return fmt.Errorf("%w: build publisher is disabled", utils.ErrNotFound)
@@ -164,6 +167,14 @@ func (s *buildPublisherService) PublishWorkload(ctx context.Context, ouID, build
 
 	ocCtx, done := s.openChoreoContext(ctx, ouID)
 	defer done()
+
+	// A suspended organization may not publish: publishing would deploy or
+	// repin the agent's first environment. Refused before anything is looked up
+	// or recorded, and answered as the suspension it is (a final 403 for the
+	// build step, not a retryable failure).
+	if err := workloadpolicy.Check(ocCtx, ouID); err != nil {
+		return err
+	}
 
 	run, err := s.ocClient.GetBuildRun(ocCtx, ouID, buildName)
 	if err != nil {
@@ -224,6 +235,9 @@ func (s *buildPublisherService) PublishWorkload(ctx context.Context, ouID, build
 	})
 	attempt.Complete(ctx, publishErr)
 	if publishErr != nil {
+		if errors.Is(publishErr, workloadpolicy.ErrSuspended) {
+			return publishErr
+		}
 		if errors.Is(publishErr, client.ErrBuildWorkloadAlreadyPublished) {
 			return fmt.Errorf("%w: build %q", ErrBuildWorkloadAlreadyPublished, buildName)
 		}
