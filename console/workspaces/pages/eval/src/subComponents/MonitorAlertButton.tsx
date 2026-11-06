@@ -116,10 +116,10 @@ export function MonitorAlertButton({
       <Tooltip
         title={
           !canManage
-            ? "View this monitor's alert settings"
+            ? `Alerts are ${enabled ? "on" : "off"}. View this monitor's alert settings`
             : enabled
-              ? "Manage this monitor's alert settings"
-              : "Send monitor alerts to organization destinations"
+              ? "Alerts are on. Manage this monitor's alert settings"
+              : "Alerts are off. Send monitor alerts to organization destinations"
         }
       >
         <span>
@@ -129,6 +129,7 @@ export function MonitorAlertButton({
             startIcon={enabled ? <Bell size={16} /> : <BellOff size={16} />}
             onClick={() => setOpen(true)}
             disabled={isLoading || !canView}
+            aria-label={`Alerting, ${enabled ? "on" : "off"}`}
           >
             Alerting
           </Button>

@@ -144,19 +144,19 @@ function DeliveryDrawer({
               </DetailRow>
             )}
             <DetailRow label="Queued">
-              <Typography variant="body2" title={delivery.createdAt}>
-                {timeAgo(delivery.createdAt)}
+              <Typography variant="body2" title={timeAgo(delivery.createdAt)}>
+                {new Date(delivery.createdAt).toLocaleString()}
               </Typography>
             </DetailRow>
             <DetailRow label="Last update">
-              <Typography variant="body2" title={delivery.updatedAt}>
-                {timeAgo(delivery.updatedAt)}
+              <Typography variant="body2" title={timeAgo(delivery.updatedAt)}>
+                {new Date(delivery.updatedAt).toLocaleString()}
               </Typography>
             </DetailRow>
             {delivery.deliveredAt && (
               <DetailRow label="Delivered">
-                <Typography variant="body2" title={delivery.deliveredAt}>
-                  {timeAgo(delivery.deliveredAt)}
+                <Typography variant="body2" title={timeAgo(delivery.deliveredAt)}>
+                  {new Date(delivery.deliveredAt).toLocaleString()}
                 </Typography>
               </DetailRow>
             )}
@@ -306,6 +306,16 @@ export function DeliveryLogTab({
           illustration: <History size={64} />,
           title: "No deliveries yet",
           description: "Deliveries appear here as events are sent to destinations.",
+          action: (
+            <Button
+              variant="outlined"
+              startIcon={<RefreshCw size={16} />}
+              onClick={() => refetch()}
+              disabled={isFetching}
+            >
+              Refresh
+            </Button>
+          ),
         }}
         searchEmptyState={{
           illustration: <History size={64} />,

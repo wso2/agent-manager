@@ -53,6 +53,10 @@ export function DestinationEditor({ orgName, access, listPath }: DestinationEdit
   const returnTo = useReturnTo(`${listPath}?tab=destinations`);
 
   const existing = useEventDestination(orgName, destinationId);
+  // The form resets whenever its destination changes, so it gets a snapshot
+  // taken once per id; a background refetch must not wipe unsaved edits.
+  const [snapshot, setSnapshot] = useState<EventDestinationResponse>();
+  if (existing.data && existing.data.id !== snapshot?.id) setSnapshot(existing.data);
   const { mutate: create, isPending: creating } = useCreateEventDestination(orgName);
   const { mutate: update, isPending: updating } = useUpdateEventDestination(orgName);
   const [dirty, setDirty] = useState(false);
@@ -147,7 +151,7 @@ export function DestinationEditor({ orgName, access, listPath }: DestinationEdit
   return layout(
     <DestinationForm
       orgName={orgName}
-      destination={existing.data}
+      destination={snapshot}
       defaultAvailability={pageState?.defaultAvailability}
       saving={creating || updating}
       submitLabel={editing ? "Save" : draft ? "Add & use" : "Add destination"}
