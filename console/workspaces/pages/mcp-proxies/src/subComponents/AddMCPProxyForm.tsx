@@ -43,7 +43,6 @@ import { z } from "zod";
 import { type EndpointDraft } from "./EndpointFormFields";
 import { EndpointsEditorSection } from "./EndpointsEditorSection";
 import { draftToEndpoint } from "./mcpEndpoints";
-import { MCP_SPEC_VERSION } from "../constants";
 
 const DEFAULT_PROXY_VERSION = "1.0.0";
 // Matches the service's handle length limit (agent-manager-service/services/mcp_proxy_service.go).
@@ -171,7 +170,6 @@ export function AddMCPProxyForm({ onCancel }: AddMCPProxyFormProps) {
       version: proxyVersion.trim(),
       description: proxyDescription.trim() || undefined,
       context: proxyContext.trim() || undefined,
-      mcpSpecVersion: MCP_SPEC_VERSION,
       endpoints: (() => {
         const usedHandles = new Set<string>();
         return endpoints.map((endpoint, index) =>

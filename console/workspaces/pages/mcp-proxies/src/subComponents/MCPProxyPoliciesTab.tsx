@@ -170,7 +170,7 @@ export function MCPProxyPoliciesTab({
       drawerEditSubtitle="Update the policy configuration."
       policyNoun="policy"
       loadingLabel="Loading policies..."
-      searchPlaceholder="Search policies..."
+      searchPlaceholder="Search policies"
       catalogErrorLabel="Failed to load policies."
       emptySearchTitle="No policies match your search"
       emptyCatalogTitle="No policies available"

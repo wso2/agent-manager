@@ -536,10 +536,12 @@ export function LLMProviderGuardrailsTab({
               ) : (
                 <Box>
                   <SearchBar
-                    placeholder="Search resources…"
+                    placeholder="Search resources"
+                    size="small"
+                    width="standard"
                     value={resourceSearch}
                     onChange={(e) => setResourceSearch(e.target.value)}
-                    sx={{ mb: 1, width: "100%" }}
+                    sx={{ mb: 1 }}
                   />
                   {filteredResources.length === 0 ? (
                     <ListingTable.Container>
@@ -694,7 +696,7 @@ export function LLMProviderGuardrailsTab({
         providerId={providerData?.uuid}
         policyNoun="guardrail"
         loadingLabel="Loading guardrails..."
-        searchPlaceholder="Search guardrails..."
+        searchPlaceholder="Search guardrails"
         catalogErrorLabel="Failed to load guardrails."
         emptySearchTitle="No guardrails match your search"
         emptyCatalogTitle="No guardrails available"

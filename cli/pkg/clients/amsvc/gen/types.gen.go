@@ -1366,6 +1366,39 @@ func (e MonitorRunResponseStatus) Valid() bool {
 	}
 }
 
+// Defines values for MonitorScoreThresholdAggregation.
+const (
+	Mean MonitorScoreThresholdAggregation = "mean"
+)
+
+// Valid indicates whether the value is a known member of the MonitorScoreThresholdAggregation enum.
+func (e MonitorScoreThresholdAggregation) Valid() bool {
+	switch e {
+	case Mean:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for MonitorScoreThresholdOperator.
+const (
+	Above MonitorScoreThresholdOperator = "above"
+	Below MonitorScoreThresholdOperator = "below"
+)
+
+// Valid indicates whether the value is a known member of the MonitorScoreThresholdOperator enum.
+func (e MonitorScoreThresholdOperator) Valid() bool {
+	switch e {
+	case Above:
+		return true
+	case Below:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ProvisioningType.
 const (
 	ProvisioningTypeExternal ProvisioningType = "external"
@@ -5042,6 +5075,9 @@ type MCPProxyEndpoint struct {
 	// Id Endpoint handle, unique within the parent proxy
 	Id string `json:"id"`
 
+	// McpSpecVersions MCP specification versions this endpoint's upstream server supports, for example from the supportedVersions of /mcp-proxies/fetch-server-info. Each value is a date (YYYY-MM-DD). Deployed to this endpoint's gateway artifacts; when absent, the proxy's mcpSpecVersion is used.
+	McpSpecVersions *[]string `json:"mcpSpecVersions,omitempty"`
+
 	// Name Human-readable endpoint name
 	Name     *string      `json:"name,omitempty"`
 	Policies *[]MCPPolicy `json:"policies,omitempty"`
@@ -5323,8 +5359,11 @@ type MCPServerInfoFetchResponse struct {
 	Resources *[]map[string]interface{} `json:"resources,omitempty"`
 
 	// ServerInfo MCP server metadata returned by initialize
-	ServerInfo *map[string]interface{}   `json:"serverInfo,omitempty"`
-	Tools      *[]map[string]interface{} `json:"tools,omitempty"`
+	ServerInfo *map[string]interface{} `json:"serverInfo,omitempty"`
+
+	// SupportedVersions MCP specification versions the upstream server supports. For a server that answers server/discover (MCP 2026-07-28 and later), the versions it reported; for an earlier server, the version agreed in the initialize handshake.
+	SupportedVersions *[]string                 `json:"supportedVersions,omitempty"`
+	Tools             *[]map[string]interface{} `json:"tools,omitempty"`
 }
 
 // ModelConfigRequest defines model for ModelConfigRequest.
@@ -5336,6 +5375,35 @@ type ModelConfigRequest struct {
 
 	// ProviderName Handle of an already-configured LLM provider. Applied to the component's initial (lowest) environment.
 	ProviderName string `json:"providerName"`
+}
+
+// MonitorAlertRequest defines model for MonitorAlertRequest.
+type MonitorAlertRequest struct {
+	// DestinationIds Organization destinations available to this monitor's project.
+	DestinationIds []openapi_types.UUID `json:"destinationIds"`
+
+	// NotifyOnFailure Notify when a run fails or cannot start.
+	NotifyOnFailure bool `json:"notifyOnFailure"`
+
+	// NotifyOnSuccess Notify when a run completes.
+	NotifyOnSuccess bool                    `json:"notifyOnSuccess"`
+	Thresholds      []MonitorScoreThreshold `json:"thresholds"`
+}
+
+// MonitorAlertResponse defines model for MonitorAlertResponse.
+type MonitorAlertResponse struct {
+	// Breached The thresholds the latest evaluated run breached.
+	Breached *[]MonitorScoreThreshold `json:"breached,omitempty"`
+
+	// DestinationIds Organization destinations available to this monitor's project.
+	DestinationIds []openapi_types.UUID `json:"destinationIds"`
+
+	// Enabled Whether shared monitor alerting is enabled.
+	Enabled         bool                    `json:"enabled"`
+	NotifyOnFailure bool                    `json:"notifyOnFailure"`
+	NotifyOnSuccess bool                    `json:"notifyOnSuccess"`
+	Thresholds      []MonitorScoreThreshold `json:"thresholds"`
+	UpdatedAt       *time.Time              `json:"updatedAt,omitempty"`
 }
 
 // MonitorEvaluator defines model for MonitorEvaluator.
@@ -5491,6 +5559,26 @@ type MonitorRunScoresResponse struct {
 	// RunId Monitor run UUID
 	RunId openapi_types.UUID `json:"runId"`
 }
+
+// MonitorScoreThreshold Sends an alert when a score of the monitor's runs crosses a
+// value, and again when it crosses back.
+type MonitorScoreThreshold struct {
+	// Aggregation Which of the run's aggregated scores to compare.
+	Aggregation MonitorScoreThresholdAggregation `json:"aggregation"`
+
+	// Evaluator Display name of one of the monitor's evaluators.
+	Evaluator string `json:"evaluator"`
+
+	// Operator The score is breached when it is below (or above) value.
+	Operator MonitorScoreThresholdOperator `json:"operator"`
+	Value    float64                       `json:"value"`
+}
+
+// MonitorScoreThresholdAggregation Which of the run's aggregated scores to compare.
+type MonitorScoreThresholdAggregation string
+
+// MonitorScoreThresholdOperator The score is breached when it is below (or above) value.
+type MonitorScoreThresholdOperator string
 
 // MonitorScoresResponse defines model for MonitorScoresResponse.
 type MonitorScoresResponse struct {
@@ -7689,6 +7777,9 @@ type CreateMonitorJSONRequestBody = CreateMonitorRequest
 
 // UpdateMonitorJSONRequestBody defines body for UpdateMonitor for application/json ContentType.
 type UpdateMonitorJSONRequestBody = UpdateMonitorRequest
+
+// PutMonitorAlertJSONRequestBody defines body for PutMonitorAlert for application/json ContentType.
+type PutMonitorAlertJSONRequestBody = MonitorAlertRequest
 
 // PromoteAgentJSONRequestBody defines body for PromoteAgent for application/json ContentType.
 type PromoteAgentJSONRequestBody = PromoteAgentRequest

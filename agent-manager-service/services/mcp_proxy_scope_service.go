@@ -340,6 +340,7 @@ func (s *mcpProxyScopeService) cleanupDeletedScope(ctx context.Context, ouID str
 		envName[env.UUID] = env.Name
 	}
 
+	provider := mcpResourceServerProviderFor(s.resolver, s.logger)
 	for i := range proxy.Endpoints {
 		endpoint := &proxy.Endpoints[i]
 		for j := range endpoint.Environments {
@@ -347,20 +348,10 @@ func (s *mcpProxyScopeService) cleanupDeletedScope(ctx context.Context, ouID str
 			if !ok {
 				continue // environment no longer exists — nothing to clean
 			}
-			client, err := ResolveEnvThunderIdentity(ctx, s.resolver, ouID, name)
-			if err != nil {
-				s.logger.Warn("scope cleanup: env-Thunder unavailable", "env", name, "scope", scopeStr, "error", err)
-				continue
-			}
-			rsID, err := client.DeleteProxyResourceServerAction(ctx, handle, action)
-			if err != nil {
+			request := MCPResourceServerRequest{OrganizationID: ouID, ProxyHandle: handle, Environment: name}
+			if err := provider.RemoveMCPResourceServerAction(ctx, request, action); err != nil {
 				s.logger.Warn("scope cleanup: action delete failed", "env", name, "scope", scopeStr, "error", err)
-				continue
 			}
-			if rsID == "" {
-				continue // RS never projected into this env — nothing to sweep
-			}
-			sweepRolePermission(ctx, s.logger, client, name, scopeStr)
 		}
 	}
 }

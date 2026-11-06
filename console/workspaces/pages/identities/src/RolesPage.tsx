@@ -135,7 +135,7 @@ export const RolesPage: React.FC = () => {
           {!isEmpty && (
             <ListingTable.Toolbar
               showSearch
-              searchPlaceholder="Search roles..."
+              searchPlaceholder="Search roles"
               actions={hasItems ? createButton : undefined}
             />
           )}

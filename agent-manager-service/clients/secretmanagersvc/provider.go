@@ -66,6 +66,10 @@ type SecretsClient interface {
 	// Only deletes secrets where the managed-by metadata matches the provided metadata.
 	DeleteSecret(ctx context.Context, location SecretLocation, metadata *SecretMetadata) error
 
+	// DeleteSecretByName is DeleteSecret for a secret identified by the
+	// SecretReference name it was created with rather than by location.
+	DeleteSecretByName(ctx context.Context, orgName, secretRefName string, metadata *SecretMetadata) error
+
 	// GetSecret retrieves secret metadata without values.
 	// Returns SecretInfo containing ID, keys list, and labels.
 	// Returns ErrSecretNotFound if the secret doesn't exist.

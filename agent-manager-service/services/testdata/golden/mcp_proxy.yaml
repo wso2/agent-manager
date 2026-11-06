@@ -9,7 +9,8 @@ spec:
     vhost: mcp.example.com
     upstream:
         url: https://weather.example.com/mcp
-    specVersion: "2025-06-18"
+    specVersions:
+        - "2025-06-18"
     policies:
         - name: mcp-rate-limit
           version: v1

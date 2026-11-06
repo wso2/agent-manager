@@ -16,7 +16,8 @@
  * under the License.
  */
 
-import { Sidebar, Tooltip } from "@wso2/oxygen-ui";
+import { Box, Divider, Sidebar, Tooltip } from "@wso2/oxygen-ui";
+import { PanelLeftClose, PanelLeftOpen } from "@wso2/oxygen-ui-icons-react";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate, type LinkProps } from "react-router-dom";
 
@@ -44,36 +45,48 @@ export interface NavigationSection {
 
 interface LeftNavigationProps {
   collapsed: boolean;
+  /** Toggles the collapsed state from the control at the bottom of the sidebar. */
+  onToggleCollapse: () => void;
   activeItem: string;
   mainItems: NavigationItem[];
   groupedItems: NavigationSection[];
 }
+
+const COLLAPSE_TOGGLE_ID = "sidebar-collapse-toggle";
+
+// Shared by every sidebar tooltip so they all look alike.
+const NAV_TOOLTIP_SLOT_PROPS = {
+  tooltip: {
+    sx: {
+      typography: "body2",
+      px: 1.5,
+      py: 1,
+      bgcolor: "background.default",
+      color: "text.primary",
+      border: 1,
+      borderColor: "divider",
+      borderRadius: 1,
+      boxShadow: 1,
+    },
+  },
+} as const;
 
 /** Adds an accessible tooltip directly to a sidebar navigation link. */
 function NavigationLink({ tooltip, ...props }: LinkProps & { tooltip: string }) {
   // Oxygen wraps links in a Fragment, so its built-in tooltip cannot attach
   // hover/focus handlers. Attach the tooltip directly to the router link.
   return (
-    <Tooltip
-      title={tooltip}
-      placement="right"
-      slotProps={{
-        tooltip: {
-          sx: {
-            typography: "body2",
-            px: 1.5,
-            py: 1,
-            bgcolor: "background.default",
-            color: "text.primary",
-            border: 1,
-            borderColor: "divider",
-            borderRadius: 1,
-            boxShadow: 1,
-          },
-        },
-      }}
-    >
+    <Tooltip title={tooltip} placement="right" slotProps={NAV_TOOLTIP_SLOT_PROPS}>
       <Link {...props} />
+    </Tooltip>
+  );
+}
+
+/** Same tooltip as NavigationLink, for a sidebar item that isn't a link. */
+function NavigationTooltip({ tooltip, children }: { tooltip: string; children?: ReactNode }) {
+  return (
+    <Tooltip title={tooltip} placement="right" slotProps={NAV_TOOLTIP_SLOT_PROPS}>
+      <Box sx={{ display: "block" }}>{children}</Box>
     </Tooltip>
   );
 }
@@ -137,6 +150,7 @@ export const combineNavItems = (
 /** Renders sidebar groups and routes selections from collapsed submenus. */
 export function LeftNavigation({
   collapsed,
+  onToggleCollapse,
   activeItem,
   mainItems,
   groupedItems,
@@ -191,6 +205,10 @@ export function LeftNavigation({
   // the clicked item's id (its label) via onSelect rather than reusing its
   // `link` element — so route it to that item's href ourselves.
   const handleSelect = (id: string) => {
+    if (id === COLLAPSE_TOGGLE_ID) {
+      onToggleCollapse();
+      return;
+    }
     const item = flatItems.find((i) => i.label === id);
     if (item?.href) {
       navigate(item.href);
@@ -240,13 +258,28 @@ export function LeftNavigation({
           </Sidebar.Category>
         ))}
       </Sidebar.Nav>
-      {bottomItems.length > 0 && (
-        <Sidebar.Footer>
-          <Sidebar.Category>
-            {bottomItems.map((item) => renderItem(item, collapsed))}
-          </Sidebar.Category>
-        </Sidebar.Footer>
-      )}
+      <Sidebar.Footer>
+        {bottomItems.length > 0 && (
+          <>
+            <Sidebar.Category>
+              {bottomItems.map((item) => renderItem(item, collapsed))}
+            </Sidebar.Category>
+            <Divider sx={{ my: 1 }} />
+          </>
+        )}
+        {/* A plain item rather than Sidebar.CollapseToggle, whose tooltip can't be styled. */}
+        <Sidebar.Category>
+          <Sidebar.Item
+            id={COLLAPSE_TOGGLE_ID}
+            link={<NavigationTooltip tooltip={collapsed ? "Expand" : ""} />}
+          >
+            <Sidebar.ItemIcon>
+              {collapsed ? <PanelLeftOpen size={20} /> : <PanelLeftClose size={20} />}
+            </Sidebar.ItemIcon>
+            <Sidebar.ItemLabel>{collapsed ? "Expand" : "Collapse"}</Sidebar.ItemLabel>
+          </Sidebar.Item>
+        </Sidebar.Category>
+      </Sidebar.Footer>
     </Sidebar>
   );
 }

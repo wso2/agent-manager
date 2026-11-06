@@ -18,7 +18,6 @@
 
 import { useEffect, useState } from "react";
 import {
-  Alert,
   Box,
   Button,
   Chip,
@@ -26,14 +25,18 @@ import {
   IconButton,
   ListingTable,
   MenuItem,
-  Skeleton,
   Stack,
-  TextField,
   Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
-import { AlertTriangle, History, RefreshCw } from "@wso2/oxygen-ui-icons-react";
-import { DrawerContent, DrawerHeader, DrawerWrapper } from "@agent-management-platform/views";
+import { History, RefreshCw } from "@wso2/oxygen-ui-icons-react";
+import {
+  DrawerContent,
+  DrawerHeader,
+  DrawerWrapper,
+  TextInput,
+} from "@agent-management-platform/views";
+import { ResourceListShell } from "@agent-management-platform/shared-component";
 import { useListEventDeliveries } from "@agent-management-platform/api-client";
 import type {
   EventDeliveryResponse,
@@ -69,7 +72,12 @@ function DeliveryDrawer({
   onClose: () => void;
 }) {
   return (
-    <DrawerWrapper open={!!delivery} onClose={onClose} minWidth={560} maxWidth={620}>
+    <DrawerWrapper
+      open={!!delivery}
+      onClose={onClose}
+      minWidth="min(560px, 100vw)"
+      maxWidth="min(620px, 100vw)"
+    >
       <DrawerHeader icon={<History size={22} />} title="Delivery" onClose={onClose} />
       <DrawerContent>
         {delivery && (
@@ -136,18 +144,18 @@ function DeliveryDrawer({
               </DetailRow>
             )}
             <DetailRow label="Queued">
-              <Typography variant="body2">
+              <Typography variant="body2" title={timeAgo(delivery.createdAt)}>
                 {new Date(delivery.createdAt).toLocaleString()}
               </Typography>
             </DetailRow>
             <DetailRow label="Last update">
-              <Typography variant="body2">
+              <Typography variant="body2" title={timeAgo(delivery.updatedAt)}>
                 {new Date(delivery.updatedAt).toLocaleString()}
               </Typography>
             </DetailRow>
             {delivery.deliveredAt && (
               <DetailRow label="Delivered">
-                <Typography variant="body2">
+                <Typography variant="body2" title={timeAgo(delivery.deliveredAt)}>
                   {new Date(delivery.deliveredAt).toLocaleString()}
                 </Typography>
               </DetailRow>
@@ -200,29 +208,30 @@ export function DeliveryLogTab({
     }
   }, [offset, total]);
 
+  const isFiltered = !!(status || destinationId || subscriptionId);
   const toolbar = (
-    <ListingTable.Toolbar
-      actions={
-        <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap">
-          {subscriptionId && (
-            <Chip
-              label={`Subscription: ${subscriptionName ?? "selected"}`}
-              onDelete={() => {
-                setOffset(0);
-                onClearSubscription();
-              }}
-            />
-          )}
-          {destinationOptions && (
-            <TextField
+    <Stack direction="row" justifyContent="flex-end">
+      <Stack direction="row" alignItems="center" flexWrap="wrap" useFlexGap gap={1.5}>
+        {subscriptionId && (
+          <Chip
+            label={`Subscription: ${subscriptionName ?? "selected"}`}
+            onDelete={() => {
+              setOffset(0);
+              onClearSubscription();
+            }}
+          />
+        )}
+        {destinationOptions && (
+          <Box sx={{ minWidth: 220 }}>
+            <TextInput
               select
               size="small"
+              aria-label="Filter by destination"
               value={destinationId ?? ""}
               onChange={(e) => {
                 setOffset(0);
                 onDestinationChange(e.target.value || undefined);
               }}
-              sx={{ minWidth: 200 }}
               slotProps={{
                 select: {
                   displayEmpty: true,
@@ -237,17 +246,19 @@ export function DeliveryLogTab({
                   {d.name}
                 </MenuItem>
               ))}
-            </TextField>
-          )}
-          <TextField
+            </TextInput>
+          </Box>
+        )}
+        <Box sx={{ minWidth: 170 }}>
+          <TextInput
             select
             size="small"
+            aria-label="Filter by status"
             value={status}
             onChange={(e) => {
               setOffset(0);
               setStatus(e.target.value as EventDeliveryStatus | "");
             }}
-            sx={{ minWidth: 150 }}
             slotProps={{
               select: {
                 displayEmpty: true,
@@ -261,165 +272,160 @@ export function DeliveryLogTab({
             <MenuItem value="failed">Failed</MenuItem>
             <MenuItem value="pending">Pending or retrying</MenuItem>
             <MenuItem value="skipped">Skipped</MenuItem>
-          </TextField>
-          <Tooltip title="Refresh">
-            <span>
-              <IconButton
-                aria-label="Refresh delivery log"
-                onClick={() => refetch()}
-                disabled={isFetching}
-              >
-                <RefreshCw size={16} />
-              </IconButton>
-            </span>
-          </Tooltip>
-        </Stack>
-      }
-    />
-  );
-
-  let body;
-  if (error) {
-    body = (
-      <Alert severity="error" icon={<AlertTriangle size={18} />}>
-        Failed to load the delivery log. Please try again.
-      </Alert>
-    );
-  } else if (isLoading) {
-    body = (
-      <Stack spacing={1} m={2}>
-        <Skeleton variant="rounded" height={44} />
-        <Skeleton variant="rounded" height={44} />
-        <Skeleton variant="rounded" height={44} />
+          </TextInput>
+        </Box>
+        <Tooltip title="Refresh">
+          <span>
+            <IconButton
+              aria-label="Refresh delivery log"
+              onClick={() => refetch()}
+              disabled={isFetching}
+            >
+              <RefreshCw size={16} />
+            </IconButton>
+          </span>
+        </Tooltip>
       </Stack>
-    );
-  } else if (deliveries.length === 0) {
-    body = (
-      <ListingTable.EmptyState
-        illustration={<History size={64} />}
-        title="No deliveries"
-        description={
-          status || destinationId || subscriptionId
-            ? "Nothing matches these filters in the retention window."
-            : "Deliveries appear here as events are sent to destinations."
-        }
-      />
-    );
-  } else {
-    body = (
-      <>
-        <ListingTable>
-          <ListingTable.Head>
-            <ListingTable.Row>
-              <ListingTable.Cell>Time</ListingTable.Cell>
-              <ListingTable.Cell>Event</ListingTable.Cell>
-              <ListingTable.Cell>Where</ListingTable.Cell>
-              <ListingTable.Cell>Destination</ListingTable.Cell>
-              <ListingTable.Cell>Subscriptions</ListingTable.Cell>
-              <ListingTable.Cell>Status</ListingTable.Cell>
-              <ListingTable.Cell align="right">Response</ListingTable.Cell>
-            </ListingTable.Row>
-          </ListingTable.Head>
-          <ListingTable.Body>
-            {deliveries.map((d) => (
-              <ListingTable.Row
-                key={d.id}
-                hover
-                sx={{ cursor: "pointer" }}
-                onClick={() => setViewing(d)}
-              >
-                <ListingTable.Cell>
-                  <Tooltip title={new Date(d.createdAt).toLocaleString()}>
-                    <Typography variant="body2" color="text.secondary" noWrap>
-                      {timeAgo(d.createdAt)}
-                    </Typography>
-                  </Tooltip>
-                </ListingTable.Cell>
-                <ListingTable.Cell>
-                  <Chip
-                    size="small"
-                    label={d.eventType}
-                    sx={{ fontFamily: "monospace", fontSize: 12 }}
-                  />
-                </ListingTable.Cell>
-                <ListingTable.Cell>
-                  <Typography variant="body2" noWrap>
-                    {where(d)}
-                  </Typography>
-                </ListingTable.Cell>
-                <ListingTable.Cell>
-                  {d.destination ? (
-                    <DestinationName
-                      kind={d.destination.kind}
-                      service={d.destination.service}
-                      name={d.destination.name}
-                    />
-                  ) : (
-                    <Typography variant="body2" color="text.secondary">
-                      Deleted
-                    </Typography>
-                  )}
-                </ListingTable.Cell>
-                <ListingTable.Cell>
-                  <Typography
-                    variant="body2"
-                    noWrap
-                    title={d.subscriptions.map((s) => s.name).join(", ")}
-                  >
-                    {d.subscriptions.length === 0
-                      ? "—"
-                      : d.subscriptions.length === 1
-                        ? d.subscriptions[0].name
-                        : `${d.subscriptions[0].name} +${d.subscriptions.length - 1}`}
-                  </Typography>
-                </ListingTable.Cell>
-                <ListingTable.Cell>
-                  <DeliveryStatusChip status={d.status} attempts={d.attempts} />
-                </ListingTable.Cell>
-                <ListingTable.Cell align="right">
-                  <Typography variant="body2" color="text.secondary">
-                    {d.responseCode ?? "—"}
-                  </Typography>
-                </ListingTable.Cell>
-              </ListingTable.Row>
-            ))}
-          </ListingTable.Body>
-        </ListingTable>
-        <Stack
-          direction="row"
-          justifyContent="flex-end"
-          alignItems="center"
-          spacing={1.5}
-          sx={{ px: 2, py: 1 }}
-        >
-          <Typography variant="caption" color="text.secondary">
-            {`${offset + 1}–${Math.min(offset + PAGE_SIZE, total)} of ${total}`}
-          </Typography>
-          <Button
-            size="small"
-            disabled={offset === 0}
-            onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}
-          >
-            Newer
-          </Button>
-          <Button
-            size="small"
-            disabled={offset + PAGE_SIZE >= total}
-            onClick={() => setOffset(offset + PAGE_SIZE)}
-          >
-            Older
-          </Button>
-        </Stack>
-      </>
-    );
-  }
+    </Stack>
+  );
 
   return (
     <>
-      <ListingTable.Container>
-        {toolbar}
-        {body}
-      </ListingTable.Container>
+      <ResourceListShell
+        resourceName="event-deliveries"
+        disablePaper
+        searchValue=""
+        onSearchChange={() => undefined}
+        toolbar={toolbar}
+        error={error ? new Error("Couldn't load the delivery log. Reload the page to try again.") : undefined}
+        isLoading={isLoading}
+        // A filtered log keeps its filters on screen, so it is never the bare empty state.
+        isEmpty={!isLoading && total === 0 && !isFiltered}
+        isSearchEmpty={!isLoading && deliveries.length === 0 && isFiltered}
+        emptyState={{
+          illustration: <History size={64} />,
+          title: "No deliveries yet",
+          description: "Deliveries appear here as events are sent to destinations.",
+          action: (
+            <Button
+              variant="outlined"
+              startIcon={<RefreshCw size={16} />}
+              onClick={() => refetch()}
+              disabled={isFetching}
+            >
+              Refresh
+            </Button>
+          ),
+        }}
+        searchEmptyState={{
+          illustration: <History size={64} />,
+          title: "No deliveries match",
+          description: "Nothing matches these filters in the retention window.",
+        }}
+      >
+    <>
+      <ListingTable>
+        <ListingTable.Head>
+          <ListingTable.Row>
+            <ListingTable.Cell>Time</ListingTable.Cell>
+            <ListingTable.Cell>Event</ListingTable.Cell>
+            <ListingTable.Cell>Where</ListingTable.Cell>
+            <ListingTable.Cell>Destination</ListingTable.Cell>
+            <ListingTable.Cell>Subscriptions</ListingTable.Cell>
+            <ListingTable.Cell>Status</ListingTable.Cell>
+            <ListingTable.Cell align="right">Response</ListingTable.Cell>
+          </ListingTable.Row>
+        </ListingTable.Head>
+        <ListingTable.Body>
+          {deliveries.map((d) => (
+            <ListingTable.Row
+              key={d.id}
+              hover
+              sx={{ cursor: "pointer" }}
+              onClick={() => setViewing(d)}
+            >
+              <ListingTable.Cell>
+                <Typography variant="body2" color="text.secondary" noWrap title={d.createdAt}>
+                  {timeAgo(d.createdAt)}
+                </Typography>
+              </ListingTable.Cell>
+              <ListingTable.Cell>
+                <Chip
+                  size="small"
+                  label={d.eventType}
+                  sx={{ fontFamily: "monospace", fontSize: 12 }}
+                />
+              </ListingTable.Cell>
+              <ListingTable.Cell>
+                <Typography variant="body2" noWrap>
+                  {where(d)}
+                </Typography>
+              </ListingTable.Cell>
+              <ListingTable.Cell>
+                {d.destination ? (
+                  <DestinationName
+                    kind={d.destination.kind}
+                    service={d.destination.service}
+                    name={d.destination.name}
+                  />
+                ) : (
+                  <Typography variant="body2" color="text.secondary">
+                    Deleted
+                  </Typography>
+                )}
+              </ListingTable.Cell>
+              <ListingTable.Cell>
+                <Typography
+                  variant="body2"
+                  noWrap
+                  title={d.subscriptions.map((s) => s.name).join(", ")}
+                >
+                  {d.subscriptions.length === 0
+                    ? "—"
+                    : d.subscriptions.length === 1
+                      ? d.subscriptions[0].name
+                      : `${d.subscriptions[0].name} +${d.subscriptions.length - 1}`}
+                </Typography>
+              </ListingTable.Cell>
+              <ListingTable.Cell>
+                <DeliveryStatusChip status={d.status} attempts={d.attempts} />
+              </ListingTable.Cell>
+              <ListingTable.Cell align="right">
+                <Typography variant="body2" color="text.secondary">
+                  {d.responseCode ?? "—"}
+                </Typography>
+              </ListingTable.Cell>
+            </ListingTable.Row>
+          ))}
+        </ListingTable.Body>
+      </ListingTable>
+      <Stack
+        direction="row"
+        justifyContent="flex-end"
+        alignItems="center"
+        spacing={1.5}
+        sx={{ px: 2, py: 1 }}
+      >
+        <Typography variant="caption" color="text.secondary">
+          {`${offset + 1}–${Math.min(offset + PAGE_SIZE, total)} of ${total}`}
+        </Typography>
+        <Button
+          size="small"
+          disabled={offset === 0}
+          onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}
+        >
+          Newer
+        </Button>
+        <Button
+          size="small"
+          disabled={offset + PAGE_SIZE >= total}
+          onClick={() => setOffset(offset + PAGE_SIZE)}
+        >
+          Older
+        </Button>
+      </Stack>
+    </>
+      </ResourceListShell>
       <DeliveryDrawer delivery={viewing} onClose={() => setViewing(undefined)} />
     </>
   );

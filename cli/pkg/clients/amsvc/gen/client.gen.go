@@ -885,6 +885,17 @@ type ClientInterface interface {
 
 	UpdateMonitor(ctx context.Context, orgName string, projName string, agentName string, monitorName string, body UpdateMonitorJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// DeleteMonitorAlert request
+	DeleteMonitorAlert(ctx context.Context, orgName string, projName string, agentName string, monitorName string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetMonitorAlert request
+	GetMonitorAlert(ctx context.Context, orgName string, projName string, agentName string, monitorName string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PutMonitorAlertWithBody request with any body
+	PutMonitorAlertWithBody(ctx context.Context, orgName string, projName string, agentName string, monitorName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	PutMonitorAlert(ctx context.Context, orgName string, projName string, agentName string, monitorName string, body PutMonitorAlertJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListMonitorRuns request
 	ListMonitorRuns(ctx context.Context, orgName string, projName string, agentName string, monitorName string, params *ListMonitorRunsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -4579,6 +4590,54 @@ func (c *Client) UpdateMonitorWithBody(ctx context.Context, orgName string, proj
 
 func (c *Client) UpdateMonitor(ctx context.Context, orgName string, projName string, agentName string, monitorName string, body UpdateMonitorJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewUpdateMonitorRequest(c.Server, orgName, projName, agentName, monitorName, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteMonitorAlert(ctx context.Context, orgName string, projName string, agentName string, monitorName string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteMonitorAlertRequest(c.Server, orgName, projName, agentName, monitorName)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetMonitorAlert(ctx context.Context, orgName string, projName string, agentName string, monitorName string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetMonitorAlertRequest(c.Server, orgName, projName, agentName, monitorName)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PutMonitorAlertWithBody(ctx context.Context, orgName string, projName string, agentName string, monitorName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPutMonitorAlertRequestWithBody(c.Server, orgName, projName, agentName, monitorName, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PutMonitorAlert(ctx context.Context, orgName string, projName string, agentName string, monitorName string, body PutMonitorAlertJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPutMonitorAlertRequest(c.Server, orgName, projName, agentName, monitorName, body)
 	if err != nil {
 		return nil, err
 	}
@@ -17428,6 +17487,184 @@ func NewUpdateMonitorRequestWithBody(server string, orgName string, projName str
 	return req, nil
 }
 
+// NewDeleteMonitorAlertRequest generates requests for DeleteMonitorAlert
+func NewDeleteMonitorAlertRequest(server string, orgName string, projName string, agentName string, monitorName string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "agentName", agentName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam3 string
+
+	pathParam3, err = runtime.StyleParamWithOptions("simple", false, "monitorName", monitorName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/agents/%s/monitors/%s/alerting", pathParam0, pathParam1, pathParam2, pathParam3)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetMonitorAlertRequest generates requests for GetMonitorAlert
+func NewGetMonitorAlertRequest(server string, orgName string, projName string, agentName string, monitorName string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "agentName", agentName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam3 string
+
+	pathParam3, err = runtime.StyleParamWithOptions("simple", false, "monitorName", monitorName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/agents/%s/monitors/%s/alerting", pathParam0, pathParam1, pathParam2, pathParam3)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewPutMonitorAlertRequest calls the generic PutMonitorAlert builder with application/json body
+func NewPutMonitorAlertRequest(server string, orgName string, projName string, agentName string, monitorName string, body PutMonitorAlertJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPutMonitorAlertRequestWithBody(server, orgName, projName, agentName, monitorName, "application/json", bodyReader)
+}
+
+// NewPutMonitorAlertRequestWithBody generates requests for PutMonitorAlert with any type of body
+func NewPutMonitorAlertRequestWithBody(server string, orgName string, projName string, agentName string, monitorName string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "agentName", agentName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam3 string
+
+	pathParam3, err = runtime.StyleParamWithOptions("simple", false, "monitorName", monitorName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/agents/%s/monitors/%s/alerting", pathParam0, pathParam1, pathParam2, pathParam3)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewListMonitorRunsRequest generates requests for ListMonitorRuns
 func NewListMonitorRunsRequest(server string, orgName string, projName string, agentName string, monitorName string, params *ListMonitorRunsParams) (*http.Request, error) {
 	var err error
@@ -22288,6 +22525,17 @@ type ClientWithResponsesInterface interface {
 	UpdateMonitorWithBodyWithResponse(ctx context.Context, orgName string, projName string, agentName string, monitorName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateMonitorResp, error)
 
 	UpdateMonitorWithResponse(ctx context.Context, orgName string, projName string, agentName string, monitorName string, body UpdateMonitorJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateMonitorResp, error)
+
+	// DeleteMonitorAlertWithResponse request
+	DeleteMonitorAlertWithResponse(ctx context.Context, orgName string, projName string, agentName string, monitorName string, reqEditors ...RequestEditorFn) (*DeleteMonitorAlertResp, error)
+
+	// GetMonitorAlertWithResponse request
+	GetMonitorAlertWithResponse(ctx context.Context, orgName string, projName string, agentName string, monitorName string, reqEditors ...RequestEditorFn) (*GetMonitorAlertResp, error)
+
+	// PutMonitorAlertWithBodyWithResponse request with any body
+	PutMonitorAlertWithBodyWithResponse(ctx context.Context, orgName string, projName string, agentName string, monitorName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutMonitorAlertResp, error)
+
+	PutMonitorAlertWithResponse(ctx context.Context, orgName string, projName string, agentName string, monitorName string, body PutMonitorAlertJSONRequestBody, reqEditors ...RequestEditorFn) (*PutMonitorAlertResp, error)
 
 	// ListMonitorRunsWithResponse request
 	ListMonitorRunsWithResponse(ctx context.Context, orgName string, projName string, agentName string, monitorName string, params *ListMonitorRunsParams, reqEditors ...RequestEditorFn) (*ListMonitorRunsResp, error)
@@ -27843,6 +28091,75 @@ func (r UpdateMonitorResp) StatusCode() int {
 	return 0
 }
 
+type DeleteMonitorAlertResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON404      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteMonitorAlertResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteMonitorAlertResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetMonitorAlertResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *MonitorAlertResponse
+	JSON404      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r GetMonitorAlertResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetMonitorAlertResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type PutMonitorAlertResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *MonitorAlertResponse
+	JSON400      *ErrorResponse
+	JSON404      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r PutMonitorAlertResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PutMonitorAlertResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type ListMonitorRunsResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -31926,6 +32243,41 @@ func (c *ClientWithResponses) UpdateMonitorWithResponse(ctx context.Context, org
 		return nil, err
 	}
 	return ParseUpdateMonitorResp(rsp)
+}
+
+// DeleteMonitorAlertWithResponse request returning *DeleteMonitorAlertResp
+func (c *ClientWithResponses) DeleteMonitorAlertWithResponse(ctx context.Context, orgName string, projName string, agentName string, monitorName string, reqEditors ...RequestEditorFn) (*DeleteMonitorAlertResp, error) {
+	rsp, err := c.DeleteMonitorAlert(ctx, orgName, projName, agentName, monitorName, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteMonitorAlertResp(rsp)
+}
+
+// GetMonitorAlertWithResponse request returning *GetMonitorAlertResp
+func (c *ClientWithResponses) GetMonitorAlertWithResponse(ctx context.Context, orgName string, projName string, agentName string, monitorName string, reqEditors ...RequestEditorFn) (*GetMonitorAlertResp, error) {
+	rsp, err := c.GetMonitorAlert(ctx, orgName, projName, agentName, monitorName, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetMonitorAlertResp(rsp)
+}
+
+// PutMonitorAlertWithBodyWithResponse request with arbitrary body returning *PutMonitorAlertResp
+func (c *ClientWithResponses) PutMonitorAlertWithBodyWithResponse(ctx context.Context, orgName string, projName string, agentName string, monitorName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutMonitorAlertResp, error) {
+	rsp, err := c.PutMonitorAlertWithBody(ctx, orgName, projName, agentName, monitorName, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePutMonitorAlertResp(rsp)
+}
+
+func (c *ClientWithResponses) PutMonitorAlertWithResponse(ctx context.Context, orgName string, projName string, agentName string, monitorName string, body PutMonitorAlertJSONRequestBody, reqEditors ...RequestEditorFn) (*PutMonitorAlertResp, error) {
+	rsp, err := c.PutMonitorAlert(ctx, orgName, projName, agentName, monitorName, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePutMonitorAlertResp(rsp)
 }
 
 // ListMonitorRunsWithResponse request returning *ListMonitorRunsResp
@@ -42382,6 +42734,105 @@ func ParseUpdateMonitorResp(rsp *http.Response) (*UpdateMonitorResp, error) {
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteMonitorAlertResp parses an HTTP response from a DeleteMonitorAlertWithResponse call
+func ParseDeleteMonitorAlertResp(rsp *http.Response) (*DeleteMonitorAlertResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteMonitorAlertResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetMonitorAlertResp parses an HTTP response from a GetMonitorAlertWithResponse call
+func ParseGetMonitorAlertResp(rsp *http.Response) (*GetMonitorAlertResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetMonitorAlertResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest MonitorAlertResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePutMonitorAlertResp parses an HTTP response from a PutMonitorAlertWithResponse call
+func ParsePutMonitorAlertResp(rsp *http.Response) (*PutMonitorAlertResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PutMonitorAlertResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest MonitorAlertResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	}
 

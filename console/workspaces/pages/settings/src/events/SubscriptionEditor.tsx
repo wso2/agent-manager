@@ -27,18 +27,23 @@ import {
   Checkbox,
   Chip,
   FormControlLabel,
-  Form,
+  Grid,
   Radio,
   RadioGroup,
   Skeleton,
   Stack,
   Switch,
-  TextField,
   Typography,
 } from "@wso2/oxygen-ui";
-import { Pencil, Send } from "@wso2/oxygen-ui-icons-react";
-import { useNavigate, useParams } from "react-router-dom";
-import { PageLayout } from "@agent-management-platform/views";
+import { Pencil, SearchX, Send } from "@wso2/oxygen-ui-icons-react";
+import { generatePath, useLocation, useNavigate, useParams } from "react-router-dom";
+import {
+  PageLayout,
+  returnToState,
+  StateNotice,
+  TextInput,
+  useReturnTo,
+} from "@agent-management-platform/views";
 import {
   usePipelineEnvironments,
   useUnsavedChangesGuard,
@@ -54,24 +59,29 @@ import {
   useUpdateEventSubscription,
 } from "@agent-management-platform/api-client";
 import {
+  absoluteRouteMap,
   ALL_EVENTS,
   type DestinationAvailability,
   type EventTargetParams,
   type EventType,
 } from "@agent-management-platform/types";
-import { DestinationDrawer } from "./DestinationDrawer";
 import { DestinationPickerDrawer, type PickableDestination } from "./DestinationPickerDrawer";
 import {
   availabilityLabel,
   DestinationIcon,
+  EVENT_DESCRIPTION_MAX_LENGTH,
+  EVENT_NAME_MAX_LENGTH,
   HealthChip,
   lookOf,
   PAGING_SERVICES,
+  SectionTitle,
 } from "./eventsUi";
+import type {
+  DestinationPageState,
+  SubscriptionDraft,
+  SubscriptionEditorState,
+} from "./subscriptionDraft";
 import type { EventsAccess } from "./useEventsAccess";
-
-const NAME_MAX_LENGTH = 100;
-const DESCRIPTION_MAX_LENGTH = 500;
 
 /** The "All events" option of the events picker. */
 const ALL_EVENTS_OPTION: EventType = {
@@ -98,7 +108,11 @@ export function SubscriptionEditor({
   levelName,
 }: SubscriptionEditorProps) {
   const navigate = useNavigate();
+  const location = useLocation();
   const { subscriptionId } = useParams<{ subscriptionId: string }>();
+  // Set when returning from "Add & use" with what was being typed.
+  const returned = (location.state as SubscriptionEditorState | null)?.subscriptionDraft;
+  const returnTo = useReturnTo(`${listPath}?tab=subscriptions`);
   const { data: list, isLoading: loadingList } = useListEventSubscriptions(target);
   const editing = subscriptionId
     ? list?.subscriptions.find((s) => s.id === subscriptionId)
@@ -155,7 +169,6 @@ export function SubscriptionEditor({
   const [enabled, setEnabled] = useState(true);
   const [submitted, setSubmitted] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [adding, setAdding] = useState(false);
 
   // Filled once per subscription: the list refetches after any change (an
   // inline destination added, say), which must not wipe what is being typed.
@@ -164,15 +177,25 @@ export function SubscriptionEditor({
     const key = editing?.id ?? (subscriptionId ? undefined : "new");
     if (!key || filledFor.current === key) return;
     filledFor.current = key;
-    setName(editing?.name ?? "");
-    setDescription(editing?.description ?? "");
-    setEventTypes(editing?.eventTypes ?? []);
-    setDestinationId(editing?.destination.id);
-    setEnvMode(editing && editing.environments.length > 0 ? "selected" : "all");
-    setEnvs(editing?.environments ?? []);
-    setEnabled(editing?.enabled ?? true);
+    if (returned) {
+      setName(returned.name);
+      setDescription(returned.description);
+      setEventTypes(returned.eventTypes);
+      setDestinationId(returned.destinationId);
+      setEnvMode(returned.envMode);
+      setEnvs(returned.envs);
+      setEnabled(returned.enabled);
+    } else {
+      setName(editing?.name ?? "");
+      setDescription(editing?.description ?? "");
+      setEventTypes(editing?.eventTypes ?? []);
+      setDestinationId(editing?.destination.id);
+      setEnvMode(editing && editing.environments.length > 0 ? "selected" : "all");
+      setEnvs(editing?.environments ?? []);
+      setEnabled(editing?.enabled ?? true);
+    }
     setSubmitted(false);
-  }, [editing, subscriptionId]);
+  }, [editing, subscriptionId, returned]);
 
   const effectiveEnvs = envMode === "all" ? [] : envs;
   const isDirty =
@@ -183,7 +206,51 @@ export function SubscriptionEditor({
     effectiveEnvs.join("\n") !== (editing?.environments ?? []).join("\n") ||
     enabled !== (editing?.enabled ?? true);
   const { allowNavigation } = useUnsavedChangesGuard(isDirty);
-  const backToList = () => navigate(`${listPath}?tab=subscriptions`);
+  const goBack = () => allowNavigation(() => navigate(returnTo));
+
+  // A destination added for a project is offered to that project only.
+  const defaultAvailability = useMemo<{
+    availability: DestinationAvailability;
+    projects: string[];
+  }>(
+    () =>
+      isOrg || !target.projName
+        ? { availability: "all", projects: [] }
+        : { availability: "projects", projects: [target.projName] },
+    [isOrg, target.projName],
+  );
+
+  // Destinations are added on the organization's Events page. The draft goes
+  // with it, and comes back with the new destination selected.
+  const addDestination = () => {
+    const draft: SubscriptionDraft = {
+      name,
+      description,
+      eventTypes,
+      destinationId,
+      envMode,
+      envs,
+      enabled,
+      from: returnTo,
+    };
+    const state: DestinationPageState = {
+      ...returnToState(location),
+      subscriptionDraft: draft,
+      defaultAvailability,
+    };
+    const orgEvents = generatePath(absoluteRouteMap.children.org.children.events.path, {
+      orgId: target.orgName,
+    });
+    allowNavigation(() => {
+      // Kept in this page's history entry too, so browser Back restores it.
+      const here: SubscriptionEditorState = {
+        ...(location.state as SubscriptionEditorState | null),
+        subscriptionDraft: draft,
+      };
+      navigate(`${location.pathname}${location.search}`, { replace: true, state: here });
+      navigate(`${orgEvents}/destinations/new`, { state });
+    });
+  };
 
   const options = useMemo(() => [ALL_EVENTS_OPTION, ...(catalog?.eventTypes ?? [])], [catalog]);
   const selectedOptions = useMemo(
@@ -210,16 +277,6 @@ export function SubscriptionEditor({
     ? lookOf(destination.kind, destination.service, services)
     : undefined;
 
-  const defaultAvailability = useMemo<{
-    availability: DestinationAvailability;
-    projects: string[];
-  }>(
-    () =>
-      isOrg || !target.projName
-        ? { availability: "all", projects: [] }
-        : { availability: "projects", projects: [target.projName] },
-    [isOrg, target.projName],
-  );
 
   const nameError = submitted && !name.trim() ? "Enter a name" : undefined;
   const eventsError =
@@ -242,7 +299,7 @@ export function SubscriptionEditor({
       environments: effectiveEnvs,
       enabled,
     };
-    const done = { onSuccess: () => allowNavigation(backToList) };
+    const done = { onSuccess: goBack };
     if (editing) {
       update({ id: editing.id, body }, done);
     } else {
@@ -253,18 +310,21 @@ export function SubscriptionEditor({
   const title = subscriptionId ? "Edit subscription" : "New subscription";
   if (subscriptionId && !editing) {
     return (
-      <PageLayout
-        title={title}
-        disableIcon
-        backHref={`${listPath}?tab=subscriptions`}
-        backLabel="Back to Events"
-      >
+      <PageLayout title={title} disableIcon backHref={returnTo} backLabel="Back">
         {loadingList ? (
           <Skeleton variant="rounded" height={320} />
         ) : (
-          <Alert severity="error">
-            This subscription no longer exists, or belongs to another level.
-          </Alert>
+          <StateNotice
+            icon={SearchX}
+            tone="error"
+            title="Subscription not found"
+            description="It may have been deleted, or it belongs to another level."
+            actions={
+              <Button variant="outlined" onClick={() => navigate(returnTo)}>
+                Back to Events
+              </Button>
+            }
+          />
         )}
       </PageLayout>
     );
@@ -294,49 +354,55 @@ export function SubscriptionEditor({
           : `Choose which of ${levelName}'s events to send, and where.`
       }
       disableIcon
-      backHref={`${listPath}?tab=subscriptions`}
-      backLabel="Back to Events"
+      backHref={returnTo}
+      backLabel="Back"
     >
-      <Stack spacing={3} sx={{ maxWidth: 880 }}>
-        <Form.Stack>
-          <Form.Section>
-            <Form.Header>Details</Form.Header>
-            <Form.ElementWrapper name="name" label="Name">
-              <TextField
-                id="name"
-                required
-                fullWidth
-                placeholder="Deploys to team channel"
-                slotProps={{ htmlInput: { maxLength: NAME_MAX_LENGTH } }}
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                error={!!nameError}
-                helperText={nameError}
-              />
-            </Form.ElementWrapper>
-            <Form.ElementWrapper name="description" label="Description">
-              <TextField
-                id="description"
-                fullWidth
-                multiline
-                minRows={2}
-                placeholder="Optional"
-                slotProps={{ htmlInput: { maxLength: DESCRIPTION_MAX_LENGTH } }}
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-              />
-            </Form.ElementWrapper>
-          </Form.Section>
+      <Stack spacing={3}>
+        <Stack spacing={3}>
+          <Stack spacing={1.5}>
+            <SectionTitle>Details</SectionTitle>
+            <Grid container spacing={2}>
+              <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+                <TextInput
+                  id="name"
+                  label="Name"
+                  placeholder="e.g. Deploys to team channel"
+                  maxLength={EVENT_NAME_MAX_LENGTH}
+                  hideCharacterCount={name.length < EVENT_NAME_MAX_LENGTH - 10}
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  error={!!nameError}
+                  helperText={nameError}
+                />
+              </Grid>
+              <Grid size={{ xs: 12, xl: 8 }}>
+                <TextInput
+                  id="description"
+                  label="Description (optional)"
+                  multiline
+                  minRows={2}
+                  placeholder="e.g. Notifies #deploys on every production deploy"
+                  maxLength={EVENT_DESCRIPTION_MAX_LENGTH}
+                  hideCharacterCount={description.length < EVENT_DESCRIPTION_MAX_LENGTH - 50}
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                />
+              </Grid>
+            </Grid>
+          </Stack>
 
-          <Form.Section>
-            <Form.Header>Events</Form.Header>
-            <Typography variant="caption" color="text.secondary">
-              {target.scope === "agent"
-                ? "The agent's events: builds, deployments, configuration, API keys, monitors and monitor runs."
-                : target.scope === "project"
-                  ? "The project's events and those of every agent in it."
-                  : "Any event in the organization, from projects, agents and shared resources."}
-            </Typography>
+          <Stack spacing={1.5}>
+            <SectionTitle
+              hint={
+                target.scope === "agent"
+                  ? "The agent's events: builds, deployments, configuration, API keys, monitors and monitor runs."
+                  : target.scope === "project"
+                    ? "The project's events and those of every agent in it."
+                    : "Any event in the organization, from projects, agents and shared resources."
+              }
+            >
+              Events
+            </SectionTitle>
             {loadingTypes ? (
               <Skeleton variant="rounded" height={56} />
             ) : (
@@ -391,23 +457,23 @@ export function SubscriptionEditor({
                   })
                 }
                 renderInput={(params) => (
-                  <TextField
+                  <TextInput
                     {...params}
-                    placeholder={eventTypes.length ? "" : "Choose events"}
+                    placeholder={eventTypes.length ? "" : "e.g. agent.deployed"}
                     error={!!eventsError}
                     helperText={eventsError}
                   />
                 )}
               />
             )}
-          </Form.Section>
+          </Stack>
 
-          <Form.Section>
-            <Form.Header>Destination</Form.Header>
-            <Typography variant="caption" color="text.secondary">
-              Where the events go. Organization admins register destinations; you pick one available
-              to {isOrg ? "the organization" : "this project"}.
-            </Typography>
+          <Stack spacing={1.5}>
+            <SectionTitle
+              hint={`Where the events go. Organization admins register destinations; you pick one available to ${isOrg ? "the organization" : "this project"}.`}
+            >
+              Destination
+            </SectionTitle>
             {destination ? (
               <Card variant="outlined">
                 <CardContent
@@ -468,10 +534,10 @@ export function SubscriptionEditor({
                 for routine changes; consider choosing the failure events only.
               </Alert>
             )}
-          </Form.Section>
+          </Stack>
 
-          <Form.Section>
-            <Form.Header>Filter</Form.Header>
+          <Stack spacing={1.5}>
+            <SectionTitle>Filter</SectionTitle>
             <RadioGroup
               row
               value={envMode}
@@ -522,16 +588,16 @@ export function SubscriptionEditor({
               Events not tied to an environment, such as builds and project changes, are always
               sent.
             </Typography>
-          </Form.Section>
+          </Stack>
 
-          <Form.Section>
-            <Form.Header>Status</Form.Header>
+          <Stack spacing={1.5}>
+            <SectionTitle>Status</SectionTitle>
             <FormControlLabel
               control={<Switch checked={enabled} onChange={(_, v) => setEnabled(v)} />}
               label={enabled ? "Enabled: events are sent" : "Disabled: nothing is sent"}
             />
-          </Form.Section>
-        </Form.Stack>
+          </Stack>
+        </Stack>
 
         <Alert severity="info" icon={<Send size={18} />}>
           Send <strong>{summaryEvents}</strong> {summaryWhere}
@@ -539,8 +605,8 @@ export function SubscriptionEditor({
           {enabled ? "." : ", once enabled."}
         </Alert>
 
-        <Stack direction="row" gap={2}>
-          <Button variant="outlined" onClick={backToList} disabled={creating || updating}>
+        <Stack direction="row" gap={1} justifyContent="flex-start">
+          <Button variant="outlined" onClick={goBack} disabled={creating || updating}>
             Cancel
           </Button>
           <Button
@@ -565,18 +631,10 @@ export function SubscriptionEditor({
           access.canManageDestinations
             ? () => {
                 setPickerOpen(false);
-                setAdding(true);
+                addDestination();
               }
             : undefined
         }
-      />
-      <DestinationDrawer
-        open={adding}
-        orgName={target.orgName}
-        defaultAvailability={defaultAvailability}
-        createLabel="Add & use"
-        onClose={() => setAdding(false)}
-        onSaved={(saved) => setDestinationId(saved.id)}
       />
     </PageLayout>
   );

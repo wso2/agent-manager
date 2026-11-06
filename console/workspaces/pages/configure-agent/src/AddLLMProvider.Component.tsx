@@ -1040,7 +1040,7 @@ export const AddLLMProviderComponent: React.FC = () => {
               drawerEditSubtitle="Update the guardrail configuration."
               policyNoun="guardrail"
               loadingLabel="Loading guardrails..."
-              searchPlaceholder="Search guardrails..."
+              searchPlaceholder="Search guardrails"
               catalogErrorLabel="Failed to load guardrails."
               emptySearchTitle="No guardrails match your search"
               emptyCatalogTitle="No guardrails available"
