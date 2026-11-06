@@ -62,26 +62,47 @@ type IdentityRoleWrite struct {
 	Permissions *[]thundersvc.RolePermissionRequest
 }
 
+// IdentityRoleAssignmentWrite adds or removes the assignees of a role: agents, and groups of the
+// environment.
+type IdentityRoleAssignmentWrite struct {
+	OrganizationID string
+	Environment    string
+	RoleID         string
+	Assignments    []thundersvc.AssignmentEntry
+}
+
 // IdentityRoleProvider is implemented by deployments that keep roles on an identity control plane
 // instead of in each environment's own Thunder. It is used only in CP_MANAGED identity mode, and
-// covers listing and reading roles and writing a role with its MCP scope permissions: the part of
-// role management that assigns MCP scopes to roles. Deleting roles, assigning members and groups
-// are not part of it yet and stay unavailable in CP_MANAGED mode.
+// covers the whole of agent identity role management: listing, reading, creating, updating and
+// deleting roles, the MCP scope permissions on them, and the agents assigned to them.
 //
 // Roles are control plane objects. ListRoles and GetRole read them from the control plane, a write
 // goes to the control plane first and is then applied to request.Environment, so the environment's
 // gateway runs the role as the control plane holds it. Resource server IDs in a role's permissions
 // are the ones MCPResourceServerProvider returned for the same environment. A role the environment
-// does not hold is not listed there.
+// does not run is not listed there, and a write for it is refused as not found, so a role is only
+// ever changed through the environment it was made in.
 //
 // Roles a deployment hides from agent identity management, such as its native administrator roles,
 // are not returned by ListRoles. A role that does not exist, or is not in the environment, is
 // reported as ErrIdentityRoleNotFound. Every method is idempotent where repeating it can be.
+//
+// DeleteRole removes the role from the control plane and from the environment. GetRoleAssignments
+// returns the agents assigned to the role and the groups it can resolve to groups of the
+// environment; a deployment that cannot hold groups on the control plane returns the agents and no
+// groups, not an error. AddRoleAssignees and RemoveRoleAssignees change the assignees on the control
+// plane and apply the role. Only adding a group assignee needs the groups of the environment
+// (IdentityGroupProvider), and a deployment that cannot hold groups reports
+// ErrIdentityGroupUnsupported for it. Removing an assignee that is no longer there succeeds.
 type IdentityRoleProvider interface {
 	ListRoles(ctx context.Context, request IdentityRoleListRequest) (IdentityRoleList, error)
 	GetRole(ctx context.Context, ref IdentityRoleRef) (*thundersvc.ThunderRole, error)
 	CreateRole(ctx context.Context, write IdentityRoleWrite) (*thundersvc.ThunderRole, error)
 	UpdateRole(ctx context.Context, write IdentityRoleWrite) (*thundersvc.ThunderRole, error)
+	DeleteRole(ctx context.Context, ref IdentityRoleRef) error
+	GetRoleAssignments(ctx context.Context, ref IdentityRoleRef) (*thundersvc.AgentRoleAssignments, error)
+	AddRoleAssignees(ctx context.Context, write IdentityRoleAssignmentWrite) error
+	RemoveRoleAssignees(ctx context.Context, write IdentityRoleAssignmentWrite) error
 }
 
 var (

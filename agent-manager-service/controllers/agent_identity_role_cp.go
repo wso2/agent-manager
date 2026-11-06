@@ -25,6 +25,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
+	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -53,18 +54,6 @@ func identityRoleProvider(w http.ResponseWriter) (provider services.IdentityRole
 	return provider, true, true
 }
 
-// controlPlaneNotSupported fails closed in CP_MANAGED mode for a route no provider covers yet. It
-// answers 503 and returns true, so the handler stops before it would use the environment's own
-// Thunder, which CP_MANAGED mode never does. In LEGACY_DIRECT mode it does nothing.
-func controlPlaneNotSupported(w http.ResponseWriter) bool {
-	if cp, _ := services.IdentityRolesViaControlPlane(); !cp {
-		return false
-	}
-	utils.WriteErrorResponse(w, http.StatusServiceUnavailable,
-		"This operation is not available through the identity control plane yet")
-	return true
-}
-
 // writeIdentityRoleError maps a provider failure to the response.
 func writeIdentityRoleError(w http.ResponseWriter, r *http.Request, operation string, err error) {
 	switch {
@@ -72,6 +61,8 @@ func writeIdentityRoleError(w http.ResponseWriter, r *http.Request, operation st
 		utils.WriteErrorResponse(w, http.StatusNotFound, "Role not found")
 	case errors.Is(err, services.ErrIdentityRoleUnavailable):
 		utils.WriteErrorResponse(w, http.StatusServiceUnavailable, "Role management through the identity control plane is not configured")
+	case errors.Is(err, services.ErrIdentityGroupUnsupported):
+		utils.WriteErrorResponse(w, http.StatusNotImplemented, "Groups are not supported through the identity control plane yet")
 	default:
 		logger.GetLogger(r.Context()).Error("agent-identity: role provider failed", "operation", operation,
 			"env", r.PathValue("envName"), "error", err)
@@ -236,4 +227,145 @@ func (c *agentIdentityController) updateRoleViaProvider(w http.ResponseWriter, r
 		return
 	}
 	utils.WriteSuccessResponse(w, http.StatusOK, role)
+}
+
+// deleteRoleViaProvider removes the role from the control plane and the environment, after checking
+// it is not a hidden native role.
+func (c *agentIdentityController) deleteRoleViaProvider(w http.ResponseWriter, r *http.Request, provider services.IdentityRoleProvider) {
+	roleID := r.PathValue(utils.PathParamRoleID)
+	if _, ok := c.managedRoleViaProvider(w, r, provider, roleID); !ok {
+		return
+	}
+	if err := provider.DeleteRole(r.Context(), roleRef(r, roleID)); err != nil {
+		writeIdentityRoleError(w, r, "delete role", err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func roleRef(r *http.Request, roleID string) services.IdentityRoleRef {
+	return services.IdentityRoleRef{OrganizationID: middleware.OUIDFromRequest(r), Environment: r.PathValue("envName"), RoleID: roleID}
+}
+
+// getRoleAssignmentsViaProvider reads the role's agent and group assignees. Like the legacy handler
+// it does not hide the native roles, so an existing mis-assignment can be found.
+func (c *agentIdentityController) getRoleAssignmentsViaProvider(w http.ResponseWriter, r *http.Request, provider services.IdentityRoleProvider) {
+	assignments, err := provider.GetRoleAssignments(r.Context(), roleRef(r, r.PathValue(utils.PathParamRoleID)))
+	if err != nil {
+		writeIdentityRoleError(w, r, "get role assignments", err)
+		return
+	}
+	utils.WriteSuccessResponse(w, http.StatusOK, assignments)
+}
+
+// addRoleAssigneesViaProvider assigns agents and groups to the role. Agents must be provisioned in the
+// request's environment, and groups must be groups of it, so a role never names an assignee the
+// environment does not have.
+func (c *agentIdentityController) addRoleAssigneesViaProvider(w http.ResponseWriter, r *http.Request, provider services.IdentityRoleProvider) {
+	roleID := r.PathValue(utils.PathParamRoleID)
+	assignments, err := decodeAgentIdentityAssignments(r)
+	if err != nil {
+		utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if _, ok := c.managedRoleViaProvider(w, r, provider, roleID); !ok {
+		return
+	}
+	var agentIDs, groupIDs []string
+	for _, entry := range assignments.Assignments {
+		if entry.Type == "agent" {
+			agentIDs = append(agentIDs, entry.ID)
+		} else {
+			groupIDs = append(groupIDs, entry.ID)
+		}
+	}
+	if !c.agentsInEnvironment(w, r, agentIDs) || !c.groupsInEnvironment(w, r, groupIDs) {
+		return
+	}
+	if err := provider.AddRoleAssignees(r.Context(), services.IdentityRoleAssignmentWrite{
+		OrganizationID: middleware.OUIDFromRequest(r), Environment: r.PathValue("envName"), RoleID: roleID,
+		Assignments: assignments.Assignments,
+	}); err != nil {
+		writeIdentityRoleError(w, r, "add role assignees", err)
+		return
+	}
+	utils.WriteSuccessResponse(w, http.StatusOK, struct{}{})
+}
+
+// removeRoleAssigneesViaProvider removes assignees. It does not check the environment's agents, so an
+// assignee that is no longer there can still be cleaned up, and like the legacy handler it does not
+// hide the native roles.
+func (c *agentIdentityController) removeRoleAssigneesViaProvider(w http.ResponseWriter, r *http.Request, provider services.IdentityRoleProvider) {
+	assignments, err := decodeAgentIdentityAssignments(r)
+	if err != nil {
+		utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := provider.RemoveRoleAssignees(r.Context(), services.IdentityRoleAssignmentWrite{
+		OrganizationID: middleware.OUIDFromRequest(r), Environment: r.PathValue("envName"),
+		RoleID: r.PathValue(utils.PathParamRoleID), Assignments: assignments.Assignments,
+	}); err != nil {
+		writeIdentityRoleError(w, r, "remove role assignees", err)
+		return
+	}
+	utils.WriteSuccessResponse(w, http.StatusOK, struct{}{})
+}
+
+// agentsInEnvironment checks that every agent ID is an agent identity provisioned for the request's
+// environment, the same set the agent picker offers. It writes a 400 itself when one is not.
+func (c *agentIdentityController) agentsInEnvironment(w http.ResponseWriter, r *http.Request, agentIDs []string) bool {
+	if len(agentIDs) == 0 {
+		return true
+	}
+	envName := r.PathValue("envName")
+	rows, err := c.bindingRepo.FindByOuAndEnvironment(r.Context(), middleware.OUIDFromRequest(r), envName)
+	if err != nil {
+		logger.GetLogger(r.Context()).Error("agent-identity: list environment agents failed", "env", envName, "error", err)
+		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to check the agents of the environment")
+		return false
+	}
+	// Only a completed binding is in the environment. A failed promotion leaves the source
+	// environment's agent ID on the target binding, so the ID alone proves nothing.
+	known := make(map[string]struct{}, len(rows))
+	for _, row := range rows {
+		if row.ThunderAgentID != "" && row.Status == models.AgentThunderStatusCompleted {
+			known[row.ThunderAgentID] = struct{}{}
+		}
+	}
+	for _, id := range agentIDs {
+		if _, ok := known[id]; !ok {
+			utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("agent %q is not provisioned in environment %q", id, envName))
+			return false
+		}
+	}
+	return true
+}
+
+// groupsInEnvironment checks that every group ID is a group of the request's environment, through the
+// group provider. It writes the error response itself when one is not, or groups are unavailable.
+func (c *agentIdentityController) groupsInEnvironment(w http.ResponseWriter, r *http.Request, groupIDs []string) bool {
+	if len(groupIDs) == 0 {
+		return true
+	}
+	provider, _, ok := identityGroupProvider(w)
+	if !ok {
+		return false
+	}
+	for _, id := range groupIDs {
+		group, err := provider.GetGroup(r.Context(), services.IdentityGroupRef{
+			OrganizationID: middleware.OUIDFromRequest(r), Environment: r.PathValue("envName"), GroupID: id,
+		})
+		// A missing group, and the hidden native group, are not groups of the environment, as
+		// managedGroupViaProvider sees them.
+		if errors.Is(err, services.ErrIdentityGroupNotFound) ||
+			(err == nil && (group == nil || group.Name == thundersvc.NativeAdministratorsGroupName)) {
+			utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("group %q is not a group of environment %q", id, r.PathValue("envName")))
+			return false
+		}
+		if err != nil {
+			writeIdentityGroupError(w, r, "check the group", err)
+			return false
+		}
+	}
+	return true
 }

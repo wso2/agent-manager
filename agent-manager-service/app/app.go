@@ -104,6 +104,12 @@ type Options struct {
 	// ignored. CP_MANAGED without it reports role listing and scope assignment as unavailable and
 	// never uses the per-environment Thunder.
 	IdentityRoleProvider services.IdentityRoleProvider
+	// IdentityGroupProvider manages the groups of an environment, their members and the roles
+	// they hold through an identity control plane. It is used only when IDENTITY_MANAGEMENT_MODE
+	// is CP_MANAGED; in LEGACY_DIRECT mode (the default) groups are in each environment's own
+	// Thunder and this is ignored. CP_MANAGED without it reports group management as unavailable
+	// and never uses the per-environment Thunder.
+	IdentityGroupProvider services.IdentityGroupProvider
 	// BackgroundContextDecorator optionally marks contexts created for trusted
 	// background workers. Request contexts never pass through this hook.
 	BackgroundContextDecorator func(context.Context) context.Context
@@ -199,6 +205,7 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 
 	services.SetMCPResourceServerProvider(thundersvc.IdentityManagementMode(cfg.IdentityManagementMode), opts.MCPResourceServerProvider)
 	services.SetIdentityRoleProvider(thundersvc.IdentityManagementMode(cfg.IdentityManagementMode), opts.IdentityRoleProvider)
+	services.SetIdentityGroupProvider(thundersvc.IdentityManagementMode(cfg.IdentityManagementMode), opts.IdentityGroupProvider)
 
 	// Get the raw DB instance without context - repositories will add context per-operation
 	database := db.GetDB()

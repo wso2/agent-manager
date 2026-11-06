@@ -50,6 +50,11 @@ type fakeRoleProvider struct {
 	listReq services.IdentityRoleListRequest
 	getRef  services.IdentityRoleRef
 	written []services.IdentityRoleWrite
+
+	deleted        []services.IdentityRoleRef
+	assignments    *thundersvc.AgentRoleAssignments
+	assigneeWrites []string // "add" or "remove", then the write
+	assigned       []services.IdentityRoleAssignmentWrite
 }
 
 func (p *fakeRoleProvider) record(call string) {
@@ -88,6 +93,38 @@ func (p *fakeRoleProvider) UpdateRole(_ context.Context, write services.Identity
 	p.record("update")
 	p.written = append(p.written, write)
 	return &thundersvc.ThunderRole{ID: write.RoleID, Name: "updated"}, p.err
+}
+
+func (p *fakeRoleProvider) DeleteRole(_ context.Context, ref services.IdentityRoleRef) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.record("delete")
+	p.deleted = append(p.deleted, ref)
+	return p.err
+}
+
+func (p *fakeRoleProvider) GetRoleAssignments(_ context.Context, ref services.IdentityRoleRef) (*thundersvc.AgentRoleAssignments, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.record("assignments")
+	p.getRef = ref
+	return p.assignments, p.err
+}
+
+func (p *fakeRoleProvider) AddRoleAssignees(_ context.Context, write services.IdentityRoleAssignmentWrite) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.record("add-assignees")
+	p.assigned = append(p.assigned, write)
+	return p.err
+}
+
+func (p *fakeRoleProvider) RemoveRoleAssignees(_ context.Context, write services.IdentityRoleAssignmentWrite) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.record("remove-assignees")
+	p.assigned = append(p.assigned, write)
+	return p.err
 }
 
 func useRoleMode(t *testing.T, mode thundersvc.IdentityManagementMode, provider services.IdentityRoleProvider) {
@@ -339,58 +376,4 @@ func TestRolesLegacyModeIgnoresAProvider(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.True(t, listed, "the environment's own Thunder, as before")
 	assert.Empty(t, providerCalls, "the provider is not used outside CP_MANAGED mode")
-}
-
-// TestRoutesNoProviderCoversFailClosedInControlPlaneMode proves that in CP_MANAGED mode the routes
-// the providers do not cover yet answer 503 and never reach the environment's own Thunder, which
-// the controller's resolver would report by failing the test.
-func TestRoutesNoProviderCoversFailClosedInControlPlaneMode(t *testing.T) {
-	useRoleMode(t, thundersvc.IdentityManagementCPManaged, &fakeRoleProvider{})
-	ctrl := cpController(t, stubRSIdentifierResolver{})
-	groupPath := "/orgs/o1/environments/dev/agent-identities/groups/grp-1"
-	call := func(handler func(http.ResponseWriter, *http.Request), method, path, body string) *httptest.ResponseRecorder {
-		req := cpRoleRequest(method, path, body)
-		req.SetPathValue("groupID", "grp-1")
-		w := httptest.NewRecorder()
-		handler(w, req)
-		return w
-	}
-	routes := map[string]func() *httptest.ResponseRecorder{
-		"delete role": func() *httptest.ResponseRecorder {
-			return call(ctrl.DeleteRole, http.MethodDelete, rolesPath+"/role-1", "")
-		},
-		"get assignments": func() *httptest.ResponseRecorder {
-			return call(ctrl.GetRoleAssignments, http.MethodGet, rolesPath+"/role-1/assignments", "")
-		},
-		"add assignees": func() *httptest.ResponseRecorder {
-			return call(ctrl.AddRoleAssignees, http.MethodPost, rolesPath+"/role-1/assignments/add", `{"assignments":[{"id":"a","type":"agent"}]}`)
-		},
-		"remove assignees": func() *httptest.ResponseRecorder {
-			return call(ctrl.RemoveRoleAssignees, http.MethodPost, rolesPath+"/role-1/assignments/remove", `{"assignments":[{"id":"a","type":"agent"}]}`)
-		},
-		"list groups": func() *httptest.ResponseRecorder { return call(ctrl.ListGroups, http.MethodGet, groupPath, "") },
-		"create group": func() *httptest.ResponseRecorder {
-			return call(ctrl.CreateGroup, http.MethodPost, groupPath, `{"name":"g"}`)
-		},
-		"get group": func() *httptest.ResponseRecorder { return call(ctrl.GetGroup, http.MethodGet, groupPath, "") },
-		"update group": func() *httptest.ResponseRecorder {
-			return call(ctrl.UpdateGroup, http.MethodPut, groupPath, `{"name":"g"}`)
-		},
-		"delete group":      func() *httptest.ResponseRecorder { return call(ctrl.DeleteGroup, http.MethodDelete, groupPath, "") },
-		"get group members": func() *httptest.ResponseRecorder { return call(ctrl.GetGroupMembers, http.MethodGet, groupPath, "") },
-		"add group members": func() *httptest.ResponseRecorder {
-			return call(ctrl.AddGroupMembers, http.MethodPost, groupPath, `{"agentIds":["a"]}`)
-		},
-		"remove group members": func() *httptest.ResponseRecorder {
-			return call(ctrl.RemoveGroupMembers, http.MethodPost, groupPath, `{"agentIds":["a"]}`)
-		},
-		"get group roles": func() *httptest.ResponseRecorder { return call(ctrl.GetGroupRoles, http.MethodGet, groupPath, "") },
-	}
-	for name, route := range routes {
-		t.Run(name, func(t *testing.T) {
-			w := route()
-			assert.Equal(t, http.StatusServiceUnavailable, w.Code)
-			assert.Contains(t, w.Body.String(), "not available through the identity control plane yet")
-		})
-	}
 }
