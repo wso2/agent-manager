@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -356,6 +357,36 @@ func TestBuildPublisherService_PublishFailures(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestBuildPublisherService_OpenChoreoContextHasADeadlineBeforeTheGateways(t *testing.T) {
+	svc := NewBuildPublisherService(&clientmocks.OpenChoreoClientMock{}, bpEnabledConfig(), discardLogger()).(*buildPublisherService)
+	ocCtx, done := svc.openChoreoContext(context.Background(), bpOrg)
+	defer done()
+
+	deadline, ok := ocCtx.Deadline()
+	require.True(t, ok, "a publish must not run for as long as OpenChoreo takes")
+	assert.WithinDuration(t, time.Now().Add(buildPublishTimeout), deadline, time.Second)
+	assert.Less(t, buildPublishTimeout, 30*time.Second, "it must end before the gateway's 30s request cap")
+}
+
+func TestBuildPublisherService_StopsAPublishThatOutlivesItsDeadline(t *testing.T) {
+	orig := buildPublishTimeout
+	buildPublishTimeout = 20 * time.Millisecond
+	t.Cleanup(func() { buildPublishTimeout = orig })
+
+	oc := bpHappyOC(nil, nil)
+	var cause error
+	oc.PublishBuildWorkloadFunc = func(ctx context.Context, _ string, _ client.PublishBuildWorkloadRequest) error {
+		<-ctx.Done() // OpenChoreo never answers
+		cause = context.Cause(ctx)
+		return ctx.Err()
+	}
+	svc := NewBuildPublisherService(oc, bpEnabledConfig(), discardLogger())
+
+	err := svc.PublishWorkload(auditableCtx(t), bpOrg, "my-agent-1700", bpRequest(t, bpWorkload, ""))
+	require.ErrorIs(t, err, errBuildPublishUpstream, "a timed-out publish is a 5xx, which the build step retries")
+	assert.ErrorIs(t, cause, errBuildPublishTimedOut)
 }
 
 func TestBuildPublisherService_OpenChoreoContextEndsWithTheRequest(t *testing.T) {

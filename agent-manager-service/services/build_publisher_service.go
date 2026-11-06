@@ -26,6 +26,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	"k8s.io/apimachinery/pkg/util/validation"
 
@@ -92,21 +93,35 @@ func (s *buildPublisherService) SetBackgroundContext(ctx context.Context) {
 // context is derived from the background context, which carries no request token
 // and lets the OpenChoreo client fall back to this service's own credential, and
 // is given the caller's organization (sent as X-Impersonate-Org) so the calls are
-// made for that organization only. It is cancelled with the request.
+// made for that organization only. It is cancelled with the request, and in
+// any case after buildPublishTimeout.
 func (s *buildPublisherService) openChoreoContext(reqCtx context.Context, ouID string) (context.Context, context.CancelFunc) {
 	s.mu.RLock()
 	base := s.baseCtx
 	s.mu.RUnlock()
 
 	ctx, cancel := context.WithCancelCause(base)
+	ctx, cancelTimeout := context.WithTimeoutCause(ctx, buildPublishTimeout, errBuildPublishTimedOut)
 	stop := context.AfterFunc(reqCtx, func() { cancel(context.Cause(reqCtx)) })
 	ctx = orgctx.WithResolvedOrg(ctx, orgctx.ResolvedOrg{OUID: ouID, OuHandle: ""})
 	ctx = logger.WithLogger(ctx, logger.GetLogger(reqCtx))
 	return ctx, func() {
 		stop()
+		cancelTimeout()
 		cancel(nil)
 	}
 }
+
+// buildPublishTimeout bounds a publish's OpenChoreo calls. The gateway in front
+// of this endpoint ends a request after 30s (the agent-manager-api-timeout
+// trait in wso2cloud-deployment), and cutting the connection there would stop
+// the publish wherever it happened to be. Stopping first, with room to record
+// the outcome and answer, gives the build step a 5xx it retries; the retry
+// skips what was already written (see client.PublishBuildWorkload).
+var buildPublishTimeout = 25 * time.Second
+
+// errBuildPublishTimedOut is the cause of a publish stopped by buildPublishTimeout.
+var errBuildPublishTimedOut = errors.New("build publish did not finish in time")
 
 // terminalBuildStatuses are run states after which the workload step can no
 // longer be running, so nothing may publish for the run any more.
