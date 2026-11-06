@@ -50,6 +50,11 @@ type fakeRoleProvider struct {
 	listReq services.IdentityRoleListRequest
 	getRef  services.IdentityRoleRef
 	written []services.IdentityRoleWrite
+
+	deleted        []services.IdentityRoleRef
+	assignments    *thundersvc.AgentRoleAssignments
+	assigneeWrites []string // "add" or "remove", then the write
+	assigned       []services.IdentityRoleAssignmentWrite
 }
 
 func (p *fakeRoleProvider) record(call string) {
@@ -88,6 +93,38 @@ func (p *fakeRoleProvider) UpdateRole(_ context.Context, write services.Identity
 	p.record("update")
 	p.written = append(p.written, write)
 	return &thundersvc.ThunderRole{ID: write.RoleID, Name: "updated"}, p.err
+}
+
+func (p *fakeRoleProvider) DeleteRole(_ context.Context, ref services.IdentityRoleRef) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.record("delete")
+	p.deleted = append(p.deleted, ref)
+	return p.err
+}
+
+func (p *fakeRoleProvider) GetRoleAssignments(_ context.Context, ref services.IdentityRoleRef) (*thundersvc.AgentRoleAssignments, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.record("assignments")
+	p.getRef = ref
+	return p.assignments, p.err
+}
+
+func (p *fakeRoleProvider) AddRoleAssignees(_ context.Context, write services.IdentityRoleAssignmentWrite) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.record("add-assignees")
+	p.assigned = append(p.assigned, write)
+	return p.err
+}
+
+func (p *fakeRoleProvider) RemoveRoleAssignees(_ context.Context, write services.IdentityRoleAssignmentWrite) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.record("remove-assignees")
+	p.assigned = append(p.assigned, write)
+	return p.err
 }
 
 func useRoleMode(t *testing.T, mode thundersvc.IdentityManagementMode, provider services.IdentityRoleProvider) {
