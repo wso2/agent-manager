@@ -216,6 +216,22 @@ describe("backendFetch", () => {
     expect(listener).toHaveBeenCalledTimes(1);
   });
 
+  it("returns a same-origin 401 without resending a streamed body", async () => {
+    const { backendFetch, isBackendSessionEnded } = await load(bffAuthConfig());
+    fetchMock
+      .mockResolvedValueOnce(json({}, 401))
+      .mockResolvedValueOnce(json({ isSignedIn: true }));
+
+    const response = await backendFetch(`${API}/api/v1/orgs`, {
+      method: "POST",
+      body: new ReadableStream(),
+    });
+
+    expect(response.status).toBe(401);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(isBackendSessionEnded()).toBe(false);
+  });
+
   it.each([
     ["the check fails", () => Promise.reject(new TypeError("network"))],
     ["the check answers 500", () => Promise.resolve(json({}, 500))],
