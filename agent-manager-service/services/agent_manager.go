@@ -1187,9 +1187,16 @@ func agentAPIKeyEnvVar(secretRefName string) client.EnvVar {
 	}
 }
 
+// isSystemAgentAPIKeyEnvVar reports whether an env var is the agent API key the platform
+// issued (agentAPIKeyEnvVar), as opposed to a user's own variable of the same name, which
+// reads its value under the variable's name.
+func isSystemAgentAPIKeyEnvVar(key, secretKey string) bool {
+	return key == client.EnvVarAgentAPIKey && secretKey == secretmanagersvc.SecretKeyAPIKey
+}
+
 // mergeAgentAPIKeyEnvVarKey marks the agent API key env var as system-managed in dst,
 // allocating it first if nil, so callers that rewrite env vars from user input drop
-// user-echoed copies of it.
+// user-echoed copies of it. Only call it for agents that receive a system key.
 func mergeAgentAPIKeyEnvVarKey(dst map[string]bool) map[string]bool {
 	if dst == nil {
 		dst = make(map[string]bool, 1)
@@ -1217,8 +1224,9 @@ func setTraitAgentAPIKeySecretRef(traitEnvConfigs map[string]interface{}, agentN
 }
 
 // promoteAgentAPIKey issues the promotion target its own agent API key, appending its env var to
-// envOverrides and telling the env-injection trait how to deliver it. Agents whose source release
-// has no env-injection trait get no key, as at creation.
+// envOverrides and telling the env-injection trait how to deliver it. releaseTrait is the source
+// release's env-injection trait (GetReleaseAgentAPIKeyTrait); agents whose source release has none
+// get no key, as at creation.
 //
 // A promotion binds the source environment's release, whose trait is frozen as it was when that
 // release was cut. One cut before the trait could leave the key to the env var fetches the key
@@ -1228,12 +1236,8 @@ func setTraitAgentAPIKeySecretRef(traitEnvConfigs map[string]interface{}, agentN
 // agent's first environment's key, until the source is deployed again and promoted.
 func (s *agentManagerService) promoteAgentAPIKey(
 	ctx context.Context, ouID, projectName, agentName, sourceEnv, targetEnv string,
-	envOverrides *[]client.EnvVar, traitEnvConfigs map[string]interface{},
+	releaseTrait client.ReleaseAgentAPIKeyTrait, envOverrides *[]client.EnvVar, traitEnvConfigs map[string]interface{},
 ) error {
-	releaseTrait, err := s.ocClient.GetReleaseAgentAPIKeyTrait(ctx, ouID, agentName, sourceEnv)
-	if err != nil {
-		return fmt.Errorf("failed to read the source environment's env-injection trait: %w", err)
-	}
 	if !releaseTrait.Attached {
 		return nil
 	}
@@ -3703,7 +3707,9 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, ouID string, proj
 	// Always filter user-echoed copies of the identity keys (the console reads
 	// configurations back and may round-trip them), even when there is nothing
 	// to re-inject — these keys are system-owned, never user-writable.
-	systemManagedKeys = mergeAgentAPIKeyEnvVarKey(mergeAgentIdentityEnvVarKeys(systemManagedKeys))
+	// The agent API key is reserved only when getSystemManagedEnvVars found the system's own,
+	// so agents that never receive one keep AMP_AGENT_API_KEY as an ordinary variable.
+	systemManagedKeys = mergeAgentIdentityEnvVarKeys(systemManagedKeys)
 
 	// Filter out system-managed env vars from the deploy request before processEnvVars.
 	// The frontend may include these (e.g., LLM config API key) in req.Env because it reads
@@ -4931,8 +4937,24 @@ func (s *agentManagerService) PromoteAgent(ctx context.Context, ouID string, pro
 	// This runs AFTER the src-vs-tgt validation above, which must only compare
 	// DB-backed LLM/system configuration. The target environment's own identity
 	// vars are appended below.
-	srcSystemKeys = mergeAgentAPIKeyEnvVarKey(mergeAgentIdentityEnvVarKeys(srcSystemKeys))
-	tgtSystemKeys = mergeAgentAPIKeyEnvVarKey(mergeAgentIdentityEnvVarKeys(tgtSystemKeys))
+	srcSystemKeys = mergeAgentIdentityEnvVarKeys(srcSystemKeys)
+	tgtSystemKeys = mergeAgentIdentityEnvVarKeys(tgtSystemKeys)
+
+	// The agent API key is system-owned only for agents whose source release has the
+	// env-injection trait: promoteAgentAPIKey issues the target its own key below, so copies
+	// cloned from the source or sent in the request are dropped. Other agents never receive
+	// one, so AMP_AGENT_API_KEY stays an ordinary variable for them.
+	var agentAPIKeyTrait client.ReleaseAgentAPIKeyTrait
+	if isAPIAgent {
+		agentAPIKeyTrait, err = s.ocClient.GetReleaseAgentAPIKeyTrait(ctx, ouID, agentName, req.SourceEnvironment)
+		if err != nil {
+			return fmt.Errorf("failed to read the source environment's env-injection trait: %w", err)
+		}
+		if agentAPIKeyTrait.Attached {
+			srcSystemKeys = mergeAgentAPIKeyEnvVarKey(srcSystemKeys)
+			tgtSystemKeys = mergeAgentAPIKeyEnvVarKey(tgtSystemKeys)
+		}
+	}
 
 	// Best-effort kick-off: the target environment may have been added to the
 	// org AFTER this agent was created, so its AgentID binding could be
@@ -5213,7 +5235,7 @@ func (s *agentManagerService) PromoteAgent(ctx context.Context, ouID string, pro
 		// environment or sent in the request were dropped above as system-managed, and the
 		// promotion replaces the target's env vars, so a key that cannot be issued aborts it
 		// rather than leave the target without one.
-		if err := s.promoteAgentAPIKey(ctx, ouID, projectName, agentName, req.SourceEnvironment, req.TargetEnvironment, &envOverrides, traitEnvConfigs); err != nil {
+		if err := s.promoteAgentAPIKey(ctx, ouID, projectName, agentName, req.SourceEnvironment, req.TargetEnvironment, agentAPIKeyTrait, &envOverrides, traitEnvConfigs); err != nil {
 			return err
 		}
 
@@ -5971,32 +5993,34 @@ func (s *agentManagerService) UpdateAgentConfigurations(ctx context.Context, ouI
 		return err
 	}
 
-	// Fetch system-managed env vars + their keys for the target env. We must filter the user's
-	// env list to drop these before processEnvVars (which would otherwise mangle their secret
-	// key refs), then re-append the canonical system values.
-	systemManagedEnvVars, systemManagedKeys, sysEnvErr := s.getSystemManagedEnvVars(ctx, ouID, projectName, req.EnvironmentName, agentName)
-	// Aborts like the deploy path: the override rewrite below replaces the environment's entire
-	// env var set, and the agent API key is carried only through these vars.
-	if sysEnvErr != nil {
-		s.logger.Error("Failed to fetch system-managed env vars, aborting configurations update to prevent data loss", "agentName", agentName, "error", sysEnvErr)
-		return fmt.Errorf("failed to fetch system-managed env vars for agent %s: %w", agentName, sysEnvErr)
-	}
-
-	// AgentID credentials must survive the override rewrite below, which replaces
-	// the environment's entire env var set. An error here aborts too: rewriting
-	// overrides without re-appending the identity vars would silently strip the
-	// agent's credentials.
-	//
-	// An environment whose identity is not ready yet (CP_MANAGED) keeps its empty
-	// placeholders, or the replace would hand it the lowest environment's
-	// credential through the shared Workload.
-	//
 	// Only a request that carries env rewrites the overrides; a files-only request
 	// leaves them alone, has nothing to protect and must not depend on the
-	// identity or pipeline lookups.
+	// system-managed, identity or pipeline lookups.
+	var systemManagedEnvVars []client.EnvVar
+	var systemManagedKeys map[string]bool
 	var identityEnvVars []client.EnvVar
 	identityNeutralized := false
 	if req.Env != nil {
+		// Fetch system-managed env vars + their keys for the target env. We must filter the user's
+		// env list to drop these before processEnvVars (which would otherwise mangle their secret
+		// key refs), then re-append the canonical system values.
+		var sysEnvErr error
+		systemManagedEnvVars, systemManagedKeys, sysEnvErr = s.getSystemManagedEnvVars(ctx, ouID, projectName, req.EnvironmentName, agentName)
+		// Aborts like the deploy path: the override rewrite below replaces the environment's entire
+		// env var set, and the agent API key is carried only through these vars.
+		if sysEnvErr != nil {
+			s.logger.Error("Failed to fetch system-managed env vars, aborting configurations update to prevent data loss", "agentName", agentName, "error", sysEnvErr)
+			return fmt.Errorf("failed to fetch system-managed env vars for agent %s: %w", agentName, sysEnvErr)
+		}
+
+		// AgentID credentials must survive the override rewrite below, which replaces
+		// the environment's entire env var set. An error here aborts too: rewriting
+		// overrides without re-appending the identity vars would silently strip the
+		// agent's credentials.
+		//
+		// An environment whose identity is not ready yet (CP_MANAGED) keeps its empty
+		// placeholders, or the replace would hand it the lowest environment's
+		// credential through the shared Workload.
 		var idErr error
 		identityEnvVars, identityNeutralized, idErr = s.identityEnvVarsOrPlaceholders(ctx, ouID, projectName, agentName, req.EnvironmentName)
 		if idErr != nil {
@@ -6005,7 +6029,9 @@ func (s *agentManagerService) UpdateAgentConfigurations(ctx context.Context, ouI
 			return fmt.Errorf("failed to build agent identity env vars: %w", idErr)
 		}
 	}
-	systemManagedKeys = mergeAgentAPIKeyEnvVarKey(mergeAgentIdentityEnvVarKeys(systemManagedKeys))
+	// The agent API key is reserved only when getSystemManagedEnvVars found the system's own,
+	// so agents that never receive one keep AMP_AGENT_API_KEY as an ordinary variable.
+	systemManagedKeys = mergeAgentIdentityEnvVarKeys(systemManagedKeys)
 
 	// Build env overrides (nil-vs-empty has meaning at the client layer: nil = leave existing,
 	// empty slice = clear).
@@ -6130,9 +6156,10 @@ func (s *agentManagerService) getSystemManagedEnvVars(
 		if !existing.IsSensitive || existing.SecretRef == "" {
 			continue
 		}
-		// The agent API key is system-owned whatever its SecretReference is named.
+		// The agent API key is system-owned whatever its SecretReference is named, but only the
+		// system's own: a user's AMP_AGENT_API_KEY in the agent's secret has another secret key.
 		_, isLLMRef := llmSecretRefs[existing.SecretRef]
-		if !isLLMRef && existing.Key != client.EnvVarAgentAPIKey {
+		if !isLLMRef && !isSystemAgentAPIKeyEnvVar(existing.Key, existing.SecretKey) {
 			continue
 		}
 		secretKey := existing.SecretKey
