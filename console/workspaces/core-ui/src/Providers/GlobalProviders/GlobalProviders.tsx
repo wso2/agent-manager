@@ -18,7 +18,7 @@
 
 import { AuthProvider } from "@agent-management-platform/auth";
 import { ClientProvider } from "@agent-management-platform/api-client";
-import { WSO2Theme as AmTheme, OxygenUIThemeProvider } from "@wso2/oxygen-ui";
+import { OxygenUIThemeProvider, ChoreoLabsTheme } from "@wso2/oxygen-ui";
 import { ConfirmationDialogProvider } from "@agent-management-platform/shared-component";
 import {
   SnackBarProvider,
@@ -42,7 +42,7 @@ export const GlobalProviders = ({
   useFeatureAccess?: UseFeatureAccess;
 }) => {
   return (
-    <OxygenUIThemeProvider theme={AmTheme}>
+    <OxygenUIThemeProvider theme={ChoreoLabsTheme}>
       <SnackBarProvider>
         <AuthProvider>
           <ClientProvider>
