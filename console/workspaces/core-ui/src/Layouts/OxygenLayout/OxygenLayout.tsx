@@ -116,10 +116,6 @@ export function OxygenLayout() {
                 <module.component />
               </div>
             ))}
-            <Header.Toggle
-              collapsed={collapsed}
-              onToggle={() => setCollapsed(!collapsed)}
-            />
             <Header.Brand onClick={() => navigate(homePath)}>
               <Header.BrandLogo>
                 {externalLogoComponentModules && externalLogoComponentModules.length > 0 ? (
@@ -177,6 +173,7 @@ export function OxygenLayout() {
         <AppShell.Sidebar>
           <LeftNavigation
             collapsed={collapsed}
+            onToggleCollapse={() => setCollapsed(!collapsed)}
             activeItem={activeItem}
             mainItems={mainItems}
             groupedItems={groupedItems}
