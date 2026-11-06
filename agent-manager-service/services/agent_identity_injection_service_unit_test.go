@@ -816,7 +816,7 @@ func TestAgentIdentityInjection_RemoveForEnvironment_RemovesVars(t *testing.T) {
 			return nil
 		},
 		// RemoveWorkloadEnvVarsFunc nil — includeWorkloadLevel=false must not touch the workload.
-		// DeleteSecretReferenceFunc nil — the secret provider owns the SecretReference.
+		// DeleteSecretReferenceFunc nil — revoke deletes the SecretReference before this runs.
 	}
 	svc := newTestIdentityInjectionService(repo, oc)
 
@@ -845,6 +845,34 @@ func TestAgentIdentityInjection_RemoveForEnvironment_IncludeWorkloadLevel(t *tes
 
 	require.NoError(t, svc.RemoveForEnvironment(context.Background(), testIdentityOrg, testIdentityProject, testIdentityAgent, testIdentityEnv, true))
 	assert.True(t, workloadRemoved)
+}
+
+// TestAgentIdentityInjection_CleanupForEnvironment_DeletesLegacyReference
+// guards the direct delete used for legacy SecretReferences: it targets the
+// deterministic Agent ID name and treats not-found as success.
+func TestAgentIdentityInjection_CleanupForEnvironment_DeletesLegacyReference(t *testing.T) {
+	for _, tt := range []struct {
+		name      string
+		deleteErr error
+	}{
+		{name: "deleted", deleteErr: nil},
+		{name: "already gone", deleteErr: utils.ErrNotFound},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			var deletedName string
+			oc := &clientmocks.OpenChoreoClientMock{
+				DeleteSecretReferenceFunc: func(_ context.Context, namespaceName, name string) error {
+					assert.Equal(t, testIdentityOrg, namespaceName)
+					deletedName = name
+					return tt.deleteErr
+				},
+			}
+			svc := newTestIdentityInjectionService(identityRepoReturning(completedInternalBinding(), nil), oc)
+
+			require.NoError(t, svc.CleanupForEnvironment(context.Background(), testIdentityOrg, testIdentityAgent, testIdentityEnv))
+			assert.Equal(t, agentIdentitySecretLocation(testIdentityOrg, "", testIdentityAgent, testIdentityEnv).SecretRefName(), deletedName)
+		})
+	}
 }
 
 func TestAgentIdentityInjection_RemoveForEnvironment_ExternalAgent_NoOp(t *testing.T) {
