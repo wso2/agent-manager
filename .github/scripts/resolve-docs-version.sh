@@ -8,7 +8,7 @@
 # release version, so this is just "v" plus the release version.
 #
 # Prints nothing (exit 0) for releases that cut no docs version: release
-# candidates and nightlies follow /docs/latest.
+# candidates follow /docs/latest, and nightly.yml points nightlies at /docs/next.
 #
 # update-helm-charts.sh sources this to stamp the charts, and the promotion
 # workflow's validate job runs it to pre-flight the manifest before it cuts

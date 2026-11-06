@@ -1820,7 +1820,7 @@
             },
             "docsVersion": {
               "default": "latest",
-              "description": "Documentation version the console's in-product doc links point at, used as the path segment after /docs/. \"latest\" tracks the newest released docs. The release pipeline (.github/scripts/update-helm-charts.sh) pins this to the matching versioned docs (vX.Y.x, or the exact version for a pre-release) for final and pre-release builds. Release candidates and nightlies keep \"latest\", because no docs version is cut for them.",
+              "description": "Documentation version the console's in-product doc links point at, used as the path segment after /docs/. \"latest\" tracks the newest released docs. The release pipeline (.github/scripts/update-helm-charts.sh) pins this to the matching versioned docs (vX.Y.x, or the exact version for a pre-release) for final and pre-release builds. Release candidates keep \"latest\", because no docs version is cut for them, and the nightly workflow sets \"next\", since nightlies ship unreleased features.",
               "title": "docsVersion",
               "type": "string"
             },
