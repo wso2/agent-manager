@@ -35,7 +35,7 @@ vi.mock("@agent-management-platform/shared-component", () => ({
   useAgentIdentityCredentials: () => ({ binding: { status: state.status, provisioningType: "external" }, provisioned: false }),
   useThunderInstanceForEnv: () => ({}),
   useAgentRolesAndGroups: () => ({ roles: [], groups: [] }),
-  usePipelineEnvironmentsState: () => ({ environments: [{ name: "default" }] }),
+  usePipelineEnvironmentsState: () => ({ environments: [{ name: "development" }, { name: "production" }] }),
   useUnsavedChangesGuard: vi.fn(),
   getErrorMessage: () => "",
   monospaceInputSx: {},
@@ -46,9 +46,12 @@ vi.mock("@agent-management-platform/views", () => ({
 }));
 import { AgentIdComponent } from "./AgentId.Component";
 
-function Location() { return <div data-testid="location">{useLocation().pathname}</div>; }
+function Location() {
+  const { pathname, search } = useLocation();
+  return <div data-testid="location">{pathname + search}</div>;
+}
 function renderPage() {
-  return render(<MemoryRouter initialEntries={["/org/acme/project/support/agents/helper/agent-id"]}>
+  return render(<MemoryRouter initialEntries={["/org/acme/project/support/agents/helper/agent-id?identityEnv=development"]}>
     <Routes>
       <Route path="/org/:orgId/project/:projectId/agents/:agentId/agent-id" element={<AgentIdComponent />} />
       <Route path="/org/:orgId/project/:projectId/agents/:agentId" element={<Location />} />
@@ -57,13 +60,13 @@ function renderPage() {
 }
 
 describe("identity provisioning recovery", () => {
-  it("links a failed identity to the same agent Overview", () => {
+  it("links a failed identity to the same agent Overview, on the failed environment", () => {
     state.status = "failed";
     renderPage();
     const link = screen.getByRole("link", { name: "Go to Overview" });
-    expect(link).toHaveAttribute("href", "/org/acme/project/support/agents/helper");
+    expect(link).toHaveAttribute("href", "/org/acme/project/support/agents/helper?env=development");
     fireEvent.click(link);
-    expect(screen.getByTestId("location")).toHaveTextContent("/org/acme/project/support/agents/helper");
+    expect(screen.getByTestId("location")).toHaveTextContent("/org/acme/project/support/agents/helper?env=development");
   });
   it("does not offer recovery while provisioning is in progress", () => {
     state.status = "pending";
