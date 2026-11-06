@@ -49,10 +49,28 @@ var ErrPublisherCredentialNotFound = errors.New("publisher credentials not found
 var ErrSchedulerCredentialNotFound = errors.New("scheduler credentials not found")
 
 // PublisherCredentials holds the provisioned OAuth2 credentials for publishing scores.
+// Per-org (Thunder) credentials are referenced by SecretRefName, which the evaluation
+// workflow resolves through OpenChoreo. Static credentials have no SecretReference and
+// are referenced by SecretKVPath and SecretKey directly.
 type PublisherCredentials struct {
-	ClientID     string // OAuth2 client ID (becomes JWT subject)
-	SecretKVPath string // KV path in the secret store (remoteRef.key for ExternalSecret)
-	SecretKey    string // Key within the KV secret (remoteRef.property for ExternalSecret)
+	ClientID      string // OAuth2 client ID (becomes JWT subject)
+	SecretRefName string // SecretReference holding client-secret; empty for static credentials
+	SecretKVPath  string // KV path in the secret store (remoteRef.key for ExternalSecret); static credentials only
+	SecretKey     string // Key within the KV secret (remoteRef.property for ExternalSecret); static credentials only
+}
+
+// publisherCredentialsFromRow builds the credentials for a stored per-org row.
+// SecretKVPath holds the SecretReference name; rows written before the name was
+// persisted hold its remote store path instead, and map to the deterministic name.
+func publisherCredentialsFromRow(cred *models.OrgPublisherCredential) *PublisherCredentials {
+	secretRefName := cred.SecretKVPath
+	if isLegacySecretRefPath(secretRefName) {
+		secretRefName = publisherSecretLocation(cred.OUID).SecretRefName()
+	}
+	return &PublisherCredentials{
+		ClientID:      cred.ClientID,
+		SecretRefName: secretRefName,
+	}
 }
 
 // PublisherCredentialProvisioner provisions per-org publisher credentials.
@@ -205,30 +223,6 @@ func schedulerSecretLocation(ouID string) secretmanagersvc.SecretLocation {
 	}
 }
 
-// resolveSecretRef fetches the SecretReference via OpenChoreo and extracts
-// the remoteRef key and property for the "client-secret" data source.
-func (p *publisherCredentialProvisioner) resolveSecretRef(ctx context.Context, ouID, secretRefName string) (kvPath, secretKey string, err error) {
-	p.logger.Info("Resolving SecretReference from OpenChoreo",
-		"ouID", ouID, "secretRefName", secretRefName)
-
-	ref, err := p.ocClient.GetSecretReference(ctx, ouID, secretRefName)
-	if err != nil {
-		return "", "", fmt.Errorf("failed to get SecretReference %s: %w", secretRefName, err)
-	}
-
-	p.logger.Info("SecretReference fetched",
-		"ouID", ouID, "secretRefName", secretRefName, "dataSources", len(ref.Data))
-
-	for _, ds := range ref.Data {
-		if ds.SecretKey == "client-secret" {
-			return ds.RemoteRef.Key, ds.RemoteRef.Property, nil
-		}
-	}
-
-	return "", "", fmt.Errorf("SecretReference %s has no \"client-secret\" data source (found %d other sources)",
-		secretRefName, len(ref.Data))
-}
-
 // EnsureCredentials provisions per-org publisher and scheduler credentials.
 // Uses singleflight to deduplicate concurrent provisioning calls for the same org.
 func (p *publisherCredentialProvisioner) EnsureCredentials(ctx context.Context, ouID, orgUUID string) (*PublisherCredentials, error) {
@@ -263,11 +257,7 @@ func (p *publisherCredentialProvisioner) provisionPublisherCredentials(ctx conte
 		p.logger.Debug("Found existing publisher credentials in DB",
 			"ouID", ouID, "clientID", existing.ClientID)
 
-		return &PublisherCredentials{
-			ClientID:     existing.ClientID,
-			SecretKVPath: existing.SecretKVPath,
-			SecretKey:    existing.SecretKey,
-		}, nil
+		return publisherCredentialsFromRow(existing), nil
 	}
 
 	p.logger.Info("No existing credentials, provisioning via Thunder", "ouID", ouID)
@@ -312,25 +302,20 @@ func (p *publisherCredentialProvisioner) provisionPublisherCredentials(ctx conte
 	p.logger.Info("Secret stored successfully",
 		"ouID", ouID, "secretRefName", secretRefName)
 
-	// Resolve the SecretReference from OpenChoreo to get the actual remoteRef key/property
-	resolvedKVPath, resolvedKey, resolveErr := p.resolveSecretRef(ctx, ouID, secretRefName)
-	if resolveErr != nil {
-		return nil, fmt.Errorf("failed to resolve SecretReference for org %s: %w", ouID, resolveErr)
-	}
-
 	// Encrypt the client secret so the scheduler can decrypt and use it for token generation.
 	encryptedSecret, err := utils.EncryptBytes([]byte(clientSecret), p.encryptionKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to encrypt publisher secret for org %s: %w", ouID, err)
 	}
 
-	// Save to DB — treat as fatal since we just provisioned real credentials
+	// Save to DB — treat as fatal since we just provisioned real credentials.
+	// SecretKVPath stores the SecretReference name the workflow resolves.
 	dbCred := &models.OrgPublisherCredential{
 		OUID:                  ouID,
 		OrgUUID:               orgUUID,
 		ClientID:              clientID,
-		SecretKVPath:          resolvedKVPath,
-		SecretKey:             resolvedKey,
+		SecretKVPath:          secretRefName,
+		SecretKey:             "client-secret",
 		ClientSecretEncrypted: encryptedSecret,
 	}
 	if dbErr := p.credRepo.Upsert(dbCred); dbErr != nil {
@@ -338,12 +323,11 @@ func (p *publisherCredentialProvisioner) provisionPublisherCredentials(ctx conte
 	}
 
 	p.logger.Info("Provisioned new publisher credentials",
-		"ouID", ouID, "clientID", clientID, "kvPath", resolvedKVPath, "secretKey", resolvedKey)
+		"ouID", ouID, "clientID", clientID, "secretRefName", secretRefName)
 
 	return &PublisherCredentials{
-		ClientID:     clientID,
-		SecretKVPath: resolvedKVPath,
-		SecretKey:    resolvedKey,
+		ClientID:      clientID,
+		SecretRefName: secretRefName,
 	}, nil
 }
 
@@ -406,11 +390,6 @@ func (p *publisherCredentialProvisioner) provisionSchedulerCredentials(ctx conte
 	p.logger.Info("Scheduler secret stored successfully",
 		"ouID", ouID, "secretRefName", secretRefName)
 
-	resolvedKVPath, resolvedKey, resolveErr := p.resolveSecretRef(ctx, ouID, secretRefName)
-	if resolveErr != nil {
-		return fmt.Errorf("failed to resolve SecretReference for scheduler credentials of org %s: %w", ouID, resolveErr)
-	}
-
 	encryptedSecret, err := utils.EncryptBytes([]byte(clientSecret), p.encryptionKey)
 	if err != nil {
 		return fmt.Errorf("failed to encrypt scheduler secret for org %s: %w", ouID, err)
@@ -429,8 +408,8 @@ func (p *publisherCredentialProvisioner) provisionSchedulerCredentials(ctx conte
 		OUID:                  ouID,
 		OrgUUID:               orgUUID,
 		ClientID:              clientID,
-		SecretKVPath:          resolvedKVPath,
-		SecretKey:             resolvedKey,
+		SecretKVPath:          secretRefName,
+		SecretKey:             "client-secret",
 		ClientSecretEncrypted: encryptedSecret,
 	}
 	if dbErr := p.schedulerCredRepo.Upsert(dbCred); dbErr != nil {
@@ -445,7 +424,7 @@ func (p *publisherCredentialProvisioner) provisionSchedulerCredentials(ctx conte
 	p.evictOrgOCClient(ouID)
 
 	p.logger.Info("Provisioned new scheduler credentials",
-		"ouID", ouID, "clientID", clientID, "kvPath", resolvedKVPath, "secretKey", resolvedKey)
+		"ouID", ouID, "clientID", clientID, "secretRefName", secretRefName)
 
 	return nil
 }

@@ -2889,17 +2889,17 @@ func (c *openChoreoClient) buildEnvInjectionTraitParameters(opts ...TraitOption)
 	for _, opt := range opts {
 		opt(params)
 	}
-	agentApiKeySecretRef, _ := params["agentApiKeySecretRef"].(string)
-	if agentApiKeySecretRef == "" {
-		return nil, fmt.Errorf("agent API key secret reference is required for env injection trait")
-	}
 
 	// otelEndpoint is no longer set here — the env-injection trait derives it from the
 	// apiGatewayName convention ("api-platform-<org>-<env>") + the gateway runtime
 	// in-cluster Service. The trait still honours an explicit override via
 	// environmentConfigs.otelEndpoint / parameters.otelEndpoint when set.
-	result := map[string]interface{}{
-		"agentApiKeySecretRef": agentApiKeySecretRef,
+	//
+	// The agent API key's remote store path is set only for agents created before the key
+	// moved to the agent's env vars; the trait delivers the key itself only when it has one.
+	result := map[string]interface{}{}
+	if v, ok := params["agentApiKeySecretRef"].(string); ok && v != "" {
+		result["agentApiKeySecretRef"] = v
 	}
 	if v, ok := params["agentApiKeySecretProperty"].(string); ok && v != "" {
 		result["agentApiKeySecretProperty"] = v

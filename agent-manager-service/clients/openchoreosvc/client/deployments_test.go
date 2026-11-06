@@ -48,11 +48,26 @@ func TestMergeAgentAPIKeySecretRef(t *testing.T) {
 		assert.Empty(t, got)
 	})
 
-	t.Run("existing entry has empty ref returns incoming unchanged", func(t *testing.T) {
+	t.Run("existing empty ref is carried forward", func(t *testing.T) {
+		// An empty ref marks an environment whose key comes from the agent's env vars;
+		// dropping it would let the trait fall back to the path in its parameters.
 		existing := map[string]interface{}{envInjKey: map[string]interface{}{"agentApiKeySecretRef": ""}}
-		incoming := map[string]interface{}{}
+		incoming := map[string]interface{}{envInjKey: map[string]interface{}{"envInjectionEnabled": true}}
 		got := mergeAgentAPIKeySecretRef(&existing, incoming, "myagent")
-		_, present := got[envInjKey]
+		entry := got[envInjKey].(map[string]interface{})
+		ref, present := entry["agentApiKeySecretRef"]
+		assert.True(t, present)
+		assert.Equal(t, "", ref)
+		assert.Equal(t, true, entry["envInjectionEnabled"])
+	})
+
+	t.Run("incoming empty ref replaces an existing path", func(t *testing.T) {
+		existing := map[string]interface{}{envInjKey: map[string]interface{}{"agentApiKeySecretRef": "old/path", "agentApiKeySecretProperty": "api-key"}}
+		incoming := map[string]interface{}{envInjKey: map[string]interface{}{"agentApiKeySecretRef": ""}}
+		got := mergeAgentAPIKeySecretRef(&existing, incoming, "myagent")
+		entry := got[envInjKey].(map[string]interface{})
+		assert.Equal(t, "", entry["agentApiKeySecretRef"])
+		_, present := entry["agentApiKeySecretProperty"]
 		assert.False(t, present)
 	})
 
@@ -1006,4 +1021,62 @@ func TestEndpointServiceURL(t *testing.T) {
 		_, err := serve(t, main, beta).GetReleaseBindingEndpointServiceURL(context.Background(), "acme", "proj", "orders", "mcp", "dev", "orders-gone-dev")
 		require.ErrorIs(t, err, ErrReleaseBindingNotFound)
 	})
+}
+
+func TestReleaseAgentAPIKeyTrait(t *testing.T) {
+	envInjectionTrait := func(create map[string]interface{}) map[string]interface{} {
+		return map[string]interface{}{
+			"kind": "Trait", "name": string(TraitEnvInjection),
+			"spec": map[string]interface{}{"creates": []interface{}{create}},
+		}
+	}
+	externalSecret := map[string]interface{}{"kind": "ExternalSecret"}
+	profile := func(params map[string]interface{}) *struct {
+		Parameters *map[string]interface{} `json:"parameters,omitempty"`
+		Traits     *[]gen.ComponentTrait   `json:"traits,omitempty"`
+	} {
+		traits := []gen.ComponentTrait{{Name: string(TraitEnvInjection), InstanceName: "a-" + string(TraitEnvInjection), Parameters: &params}}
+		return &struct {
+			Parameters *map[string]interface{} `json:"parameters,omitempty"`
+			Traits     *[]gen.ComponentTrait   `json:"traits,omitempty"`
+		}{Traits: &traits}
+	}
+
+	t.Run("trait cut before the env var key always fetches its path", func(t *testing.T) {
+		traits := []map[string]interface{}{envInjectionTrait(map[string]interface{}{"template": externalSecret})}
+		got := releaseAgentAPIKeyTrait(&gen.ComponentRelease{Spec: &gen.ComponentReleaseSpec{
+			Traits:           &traits,
+			ComponentProfile: profile(map[string]interface{}{"agentApiKeySecretRef": "kv/dev", "agentApiKeySecretProperty": "api-key"}),
+		}})
+		assert.Equal(t, ReleaseAgentAPIKeyTrait{Attached: true, SecretRef: "kv/dev", SecretProperty: "api-key"}, got)
+	})
+
+	t.Run("trait whose ExternalSecret is gated takes the env var key", func(t *testing.T) {
+		traits := []map[string]interface{}{envInjectionTrait(map[string]interface{}{
+			"includeWhen": `${parameters.agentApiKeySecretRef != ""}`, "template": externalSecret,
+		})}
+		got := releaseAgentAPIKeyTrait(&gen.ComponentRelease{Spec: &gen.ComponentReleaseSpec{
+			Traits:           &traits,
+			ComponentProfile: profile(map[string]interface{}{}),
+		}})
+		assert.Equal(t, ReleaseAgentAPIKeyTrait{Attached: true, TakesEnvVarKey: true}, got)
+	})
+
+	t.Run("release without the trait takes the env var key", func(t *testing.T) {
+		got := releaseAgentAPIKeyTrait(&gen.ComponentRelease{Spec: &gen.ComponentReleaseSpec{}})
+		assert.Equal(t, ReleaseAgentAPIKeyTrait{TakesEnvVarKey: true}, got)
+	})
+}
+
+func TestBindingAgentAPIKeySecretRef(t *testing.T) {
+	envInjKey := "myagent-" + string(TraitEnvInjection)
+	withConfigs := func(cfgs map[string]interface{}) *gen.ReleaseBinding {
+		return &gen.ReleaseBinding{Spec: &gen.ReleaseBindingSpec{TraitEnvironmentConfigs: &cfgs}}
+	}
+
+	assert.Equal(t, "", bindingAgentAPIKeySecretRef(nil, "myagent"))
+	assert.Equal(t, "", bindingAgentAPIKeySecretRef(withConfigs(map[string]interface{}{}), "myagent"))
+	assert.Equal(t, "kv/staging", bindingAgentAPIKeySecretRef(withConfigs(map[string]interface{}{
+		envInjKey: map[string]interface{}{"agentApiKeySecretRef": "kv/staging"},
+	}), "myagent"))
 }

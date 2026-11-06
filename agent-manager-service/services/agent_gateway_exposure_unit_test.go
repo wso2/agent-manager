@@ -186,7 +186,7 @@ func TestCreateAttachesNoRouteTraits(t *testing.T) {
 				AgentType: &spec.AgentType{Type: string(utils.AgentTypeAPI), SubType: &subType},
 			}
 
-			traits, err := s.buildCreateTraitRequests(context.Background(), "acme", "proj1", "dev", req)
+			traits, _, err := s.buildCreateTraitRequests(context.Background(), "acme", "proj1", "dev", req)
 
 			require.NoError(t, err)
 			assert.Nil(t, findTraitRequest(traits, client.TraitAPIManagement))
@@ -218,6 +218,7 @@ func promoteRestAgentHarness(t *testing.T, kind string, sourceTraits ...client.T
 	oc.GetEnvironmentFunc = func(_ context.Context, _, envName string) (*models.EnvironmentResponse, error) {
 		return &models.EnvironmentResponse{Name: envName, UUID: stagingUUID.String()}, nil
 	}
+	oc.GetReleaseAgentAPIKeyTraitFunc = noAgentAPIKeyTrait
 	oc.GetReleaseBindingTraitsFunc = func(_ context.Context, _, _, environment string) ([]client.TraitType, bool, error) {
 		assert.Equal(t, "dev", environment, "a promote follows the source environment's release")
 		return sourceTraits, true, nil
@@ -313,6 +314,7 @@ func TestPromoteLegacyOverGatewayPushedTearsDown(t *testing.T) {
 func deploySettingsHarness(t *testing.T) (*agentManagerService, *gatewayExposureHarness, *models.Artifact) {
 	t.Helper()
 	oc := &clientmocks.OpenChoreoClientMock{
+		GetReleaseAgentAPIKeyTraitFunc: noAgentAPIKeyTrait,
 		GetReleaseBindingTraitsFunc: func(context.Context, string, string, string) ([]client.TraitType, bool, error) {
 			return []client.TraitType{client.TraitOTELInstrumentation}, true, nil
 		},
@@ -442,6 +444,7 @@ func TestDeploySettingsLegacyWritesTraitConfig(t *testing.T) {
 	s, h, _ := deploySettingsHarness(t)
 	artifact := h.existingArtifact(models.KindAgent)
 	oc := s.ocClient.(*clientmocks.OpenChoreoClientMock)
+	oc.GetReleaseAgentAPIKeyTraitFunc = noAgentAPIKeyTrait
 	oc.GetReleaseBindingTraitsFunc = func(_ context.Context, _, _, environment string) ([]client.TraitType, bool, error) {
 		assert.Equal(t, "dev", environment)
 		return []client.TraitType{client.TraitAPIManagement}, true, nil
