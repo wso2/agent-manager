@@ -47,6 +47,7 @@ export * from './agent-kinds';
 export * from './agent-build-options';
 export * from './thunder-instances';
 export * from './mcp-proxy-scopes';
+export * from './token-scopes';
 export * from './agent-identity';
 export { extractServerErrorMessage, MAX_SNACKBAR_REASON_LENGTH } from './react-query-notifications';
 export * from './telemetry';

@@ -165,7 +165,8 @@ export function useNavigationItems(): Array<
     identityGroups: hasAccess("group_read"),
     // Agent Identities lists the roles and groups an agent can hold, not the org's.
     agentIdentities: hasAccess("agent_identity_read"),
-    // The org Events page needs the events scopes; projects and agents show theirs to anyone who can see them.
+    // The org Events page needs the events scopes; projects and agents show
+    // theirs to anyone who can see them.
     events:
       !enforced || scopes.has("amp:events:read") || scopes.has("amp:events:manage"),
   };
