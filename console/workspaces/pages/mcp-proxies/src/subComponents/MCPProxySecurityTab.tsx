@@ -21,7 +21,11 @@ import {
   useListMCPProxyScopes,
   useUpdateMCPProxyScope,
 } from "@agent-management-platform/api-client";
-import { useConfirmationDialog } from "@agent-management-platform/shared-component";
+import {
+  computeScopeToolUpdates,
+  type ScopeToolUpdate,
+  useConfirmationDialog,
+} from "@agent-management-platform/shared-component";
 import { TextInput } from "@agent-management-platform/views";
 import {
   type APIKeyLocation,
@@ -79,9 +83,6 @@ type ToolScopeRow = {
   scopes: MCPProxyScopeResponse[];
 };
 
-// One scope's replacement tool list, as sent by Save.
-type ScopeToolUpdate = { action: string; tools: string[] };
-
 // Builds one row per discovered tool, seeded with whichever scopes reference it.
 // `appliedUpdates` overrides a scope's tool list, so a Save that committed only
 // some of its updates can derive the rows the server now holds rather than the
@@ -116,37 +117,8 @@ const serializeToolScopeRows = (rows: ToolScopeRow[]) =>
     })),
   );
 
-// Diffs the desired (action -> tools) mapping built from the current rows
-// against the last-fetched scope list, producing only the tool-list updates
-// needed to bring the server in sync. Scopes themselves are created via the
-// Create Scope panel and deleted explicitly from the scopes list below — a
-// scope ending up with zero tools here is still a valid, saved state, not a
-// signal to delete it, and the server accepts the empty list (see
-// validateScopeTools in mcp_proxy_scope_service.go).
-function computeScopeToolUpdates(
-  rows: ToolScopeRow[],
-  catalogScopes: MCPProxyScopeResponse[],
-): ScopeToolUpdate[] {
-  const desired = new Map<string, Set<string>>(
-    catalogScopes.map((s) => [s.action, new Set<string>()]),
-  );
-  for (const row of rows) {
-    for (const scope of row.scopes) {
-      desired.get(scope.action)?.add(row.tool);
-    }
-  }
-  const setsEqual = (a: Set<string>, b: Set<string>) =>
-    a.size === b.size && [...a].every((v) => b.has(v));
-
-  const updates: ScopeToolUpdate[] = [];
-  for (const scope of catalogScopes) {
-    const desiredTools = desired.get(scope.action) ?? new Set<string>();
-    if (!setsEqual(desiredTools, new Set(scope.tools))) {
-      updates.push({ action: scope.action, tools: [...desiredTools] });
-    }
-  }
-  return updates;
-}
+// Stable default so the Save callback is not rebuilt on every render.
+const NO_TOOLS: readonly string[] = [];
 
 export type MCPProxySecurityTabProps = {
   config: MCPEndpointConfig | undefined;
@@ -158,6 +130,11 @@ export type MCPProxySecurityTabProps = {
    * panel's role picker.
    */
   environments: Environment[];
+  /**
+   * Tool names of the proxy's other endpoints. A scope covers the tools of every endpoint but this
+   * table lists only the selected endpoint's, so Save keeps these tools on the scopes it updates.
+   */
+  otherEndpointTools?: readonly string[];
   /** OAuth (Agent Identity) is unavailable while the endpoint is on a self-hosted gateway. */
   isOnSelfHostedGateway?: boolean;
   isLoading?: boolean;
@@ -173,6 +150,7 @@ export function MCPProxySecurityTab({
   orgName,
   proxyId,
   environments,
+  otherEndpointTools = NO_TOOLS,
   isOnSelfHostedGateway = false,
   isLoading = false,
   onUpdate,
@@ -312,16 +290,17 @@ export function MCPProxySecurityTab({
   }, [selectedEndpointId]);
 
   // Reseed when the scope list refetches (e.g. right after Save invalidates
-  // the query), but only while there are no unsaved edits — otherwise this
-  // would clobber in-progress changes on a stray background refetch. Doesn't
-  // depend on selectedEndpointId — the effect above already handles tab
-  // switches, and scopes are proxy-level so switching tabs alone never
-  // changes catalogScopes.
+  // the query) or the endpoint's tool list changes (e.g. discovered after the
+  // endpoint was selected), but only while there are no unsaved edits —
+  // otherwise this would clobber in-progress changes on a stray background
+  // refetch. Doesn't depend on selectedEndpointId — the effect above already
+  // handles tab switches, and scopes are proxy-level so switching tabs alone
+  // never changes catalogScopes.
   useEffect(() => {
     if (!selectedEndpointId || toolScopesDirty) return;
     resetToolScopeRows(derivedToolScopeRows);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- guard, not a trigger dep
-  }, [catalogScopes]);
+  }, [catalogScopes, toolEntries]);
 
   const setRowScopes = useCallback((tool: string, scopes: MCPProxyScopeResponse[]) => {
     setToolScopeRows((prev) =>
@@ -439,7 +418,7 @@ export function MCPProxySecurityTab({
       // saved via their own REST calls rather than bundled into the security
       // payload above.
       if (authenticationType === "identity" && toolScopesDirty && orgName && proxyId) {
-        const updates = computeScopeToolUpdates(toolScopeRows, catalogScopes);
+        const updates = computeScopeToolUpdates(toolScopeRows, catalogScopes, otherEndpointTools);
 
         // Sequential rather than Promise.all: a rejection must not leave the
         // remaining updates in flight, and the committed prefix has to be
@@ -485,6 +464,7 @@ export function MCPProxySecurityTab({
     toolScopesDirty,
     catalogScopes,
     toolEntries,
+    otherEndpointTools,
     orgName,
     proxyId,
     onUpdate,
