@@ -113,8 +113,8 @@ func (s *buildPublisherService) openChoreoContext(reqCtx context.Context, ouID s
 }
 
 // buildPublishTimeout bounds a publish's OpenChoreo calls. The gateway in front
-// of this endpoint ends a request after 30s (the agent-manager-api-timeout
-// trait in wso2cloud-deployment), and cutting the connection there would stop
+// of this endpoint typically ends a request after 30s (a gateway request
+// timeout set by the deployment), and cutting the connection there would stop
 // the publish wherever it happened to be. Stopping first, with room to record
 // the outcome and answer, gives the build step a 5xx it retries; the retry
 // skips what was already written (see client.PublishBuildWorkload).
