@@ -54,9 +54,13 @@ export function DestinationEditor({ orgName, access, listPath }: DestinationEdit
 
   const existing = useEventDestination(orgName, destinationId);
   // The form resets whenever its destination changes, so it gets a snapshot
-  // taken once per id; a background refetch must not wipe unsaved edits.
+  // taken once per id; a background refetch must not wipe unsaved edits. The
+  // snapshot waits for a fetch made by this page, so cached data that may be
+  // stale never fills the form.
   const [snapshot, setSnapshot] = useState<EventDestinationResponse>();
-  if (existing.data && existing.data.id !== snapshot?.id) setSnapshot(existing.data);
+  if (existing.data && existing.isFetchedAfterMount && existing.data.id !== snapshot?.id) {
+    setSnapshot(existing.data);
+  }
   const { mutate: create, isPending: creating } = useCreateEventDestination(orgName);
   const { mutate: update, isPending: updating } = useUpdateEventDestination(orgName);
   const [dirty, setDirty] = useState(false);
@@ -107,7 +111,7 @@ export function DestinationEditor({ orgName, access, listPath }: DestinationEdit
     </PageLayout>
   );
 
-  if (editing && existing.isLoading) {
+  if (editing && (existing.isLoading || (existing.data && !snapshot))) {
     return layout(
       <Stack spacing={2}>
         <Skeleton variant="rounded" height={120} />
