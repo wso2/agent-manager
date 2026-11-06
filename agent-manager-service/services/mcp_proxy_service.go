@@ -2110,7 +2110,7 @@ func (s *MCPProxyService) fetchMCPServerInfo(ctx context.Context, endpointURL st
 		protocolVersion := chooseMCPVersion(discoverResult.Result.SupportedVersions)
 		if !mcpVersionNeedsInitialize(protocolVersion) {
 			return s.fetchToolsPromptsAndResources(ctx, endpointURL, "", headerName, headerValue, protocolVersion,
-				discoverResult.Result.Meta.ServerInfo, discoverResult.Result.SupportedVersions), nil
+				discoverResult.Result.Meta.ServerInfo, discoverResult.Result.SupportedVersions)
 		}
 		// if the shared version is before 2026-07-28, or there is none, still needs initialize.
 	}
@@ -2141,7 +2141,7 @@ func (s *MCPProxyService) fetchMCPServerInfo(ctx context.Context, endpointURL st
 	// that session path; agreedVersion would be wrong, because a server agreeing on 2026-07-28 or
 	// later would switch the requests to the path without a session.
 	return s.fetchToolsPromptsAndResources(ctx, endpointURL, sessionID, headerName, headerValue, mcpSpecVersionJune2025,
-		serverInfo, serverVersions), nil
+		serverInfo, serverVersions)
 }
 
 // isMCPVersionDate reports whether a version is a real date, YYYY-MM-DD, which is how MCP numbers
@@ -2172,8 +2172,10 @@ func obtainValidMCPVersionsFromServer(versions []string) *[]string {
 
 // fetchToolsPromptsAndResources asks the server for its tools, prompts and resources, and builds
 // the response with them, the server's info and the MCP versions it supports.
-// protocolVersion decides how to send each request (see postJSONRPCForVersion).
-func (s *MCPProxyService) fetchToolsPromptsAndResources(ctx context.Context, endpointURL string, sessionID string, headerName string, headerValue string, protocolVersion string, serverInfo map[string]interface{}, serverVersions []string) *models.MCPServerInfoFetchResponse {
+// protocolVersion decides how to send each request (see postJSONRPCForVersion). A failed list is
+// left out of the response, but running out of time fails the whole fetch, so a cut-off probe
+// is not reported as complete.
+func (s *MCPProxyService) fetchToolsPromptsAndResources(ctx context.Context, endpointURL string, sessionID string, headerName string, headerValue string, protocolVersion string, serverInfo map[string]interface{}, serverVersions []string) (*models.MCPServerInfoFetchResponse, error) {
 	resp := &models.MCPServerInfoFetchResponse{}
 	if serverInfo != nil {
 		resp.ServerInfo = &serverInfo
@@ -2190,7 +2192,11 @@ func (s *MCPProxyService) fetchToolsPromptsAndResources(ctx context.Context, end
 		resp.Resources = &resources
 	}
 
-	return resp
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("%w: MCP server did not answer in time: %w", utils.ErrURLUnreachable, err)
+	}
+
+	return resp, nil
 }
 
 // postJSONRPCForVersion sends requests based on the MCP server's expected protocol version.
