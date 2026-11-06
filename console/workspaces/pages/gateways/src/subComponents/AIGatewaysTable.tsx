@@ -305,7 +305,7 @@ export function AIGatewaysTable({ onAddGateway }: AIGatewaysTableProps) {
       resourceName="gateways"
       searchValue={searchQuery}
       onSearchChange={setSearchQuery}
-      searchPlaceholder="Search Gateways..."
+      searchPlaceholder="Search gateways"
       searchDisabled={isLoading}
       error={
         error

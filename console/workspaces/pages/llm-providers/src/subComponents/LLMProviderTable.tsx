@@ -131,7 +131,7 @@ export function LLMProviderTable({ createAction }: LLMProviderTableProps) {
       resourceName="llm-providers"
       searchValue={searchValue}
       onSearchChange={setSearchValue}
-      searchPlaceholder="Search providers..."
+      searchPlaceholder="Search providers"
       error={error}
       isLoading={isLoading}
       isEmpty={!providers.length}

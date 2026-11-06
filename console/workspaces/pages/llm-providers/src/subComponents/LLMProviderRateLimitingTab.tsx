@@ -868,7 +868,9 @@ export function LLMProviderRateLimitingTab({
               {/* No resources in the spec means nothing to search. */}
               {(specLoading || resources.length > 0) && (
                 <SearchBar
-                  placeholder="Search resources…"
+                  placeholder="Search resources"
+                  size="small"
+                  width="standard"
                   value={resourceSearch}
                   onChange={(e) => setResourceSearch(e.target.value)}
                 />

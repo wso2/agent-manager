@@ -56,7 +56,7 @@ const configureRoutes =
 
 const llmLabels: AgentConfigTableLabels = {
   title: "LLM Configurations",
-  searchPlaceholder: "Search LLM configurations...",
+  searchPlaceholder: "Search LLM configurations",
   addButtonLabel: "Add LLM Configuration",
   emptyTitle: "No LLM configurations added yet",
   emptyDescription:
@@ -75,7 +75,7 @@ const llmLabels: AgentConfigTableLabels = {
 
 const mcpLabels: AgentConfigTableLabels = {
   title: "Tool Configurations",
-  searchPlaceholder: "Search by name or description...",
+  searchPlaceholder: "Search by name or description",
   addButtonLabel: "Add Tool Configuration",
   emptyTitle: "No tool configurations added yet",
   emptyDescription: "Add tool configurations that this agent can use.",

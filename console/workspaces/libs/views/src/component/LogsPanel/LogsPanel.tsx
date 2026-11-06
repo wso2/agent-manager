@@ -308,19 +308,18 @@ export function LogsPanel({
                 }}
             >
                 {(showSearch || showPanel) && (
-                    <Stack direction="row" p={1} px={2} spacing={2} alignItems="center" justifyContent="flex-end">
+                    <Stack direction="row" p={1} px={2} spacing={2} alignItems="center">
                         {showSearch && (
-                            <Box display="flex" sx={{ flexGrow: 1, minWidth: 400 }}>
-                                <SearchBar
-                                    placeholder="Search logs..."
-                                    size="small"
-                                    fullWidth
-                                    onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
-                                        onSearch?.(event.target.value)}
-                                    value={search}
-                                />
-                            </Box>
+                            <SearchBar
+                                placeholder="Search logs"
+                                size="small"
+                                width="standard"
+                                onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
+                                    onSearch?.(event.target.value)}
+                                value={search}
+                            />
                         )}
+                        <Box sx={{ flexGrow: 1 }} />
                         {showPanel && (
                             <Tooltip title={wrap ? "Disable line wrap" : "Enable line wrap"}>
                                 <IconButton

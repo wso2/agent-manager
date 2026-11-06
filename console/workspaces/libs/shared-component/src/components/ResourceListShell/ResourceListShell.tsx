@@ -102,7 +102,7 @@ export const ResourceListShell: React.FC<ResourceListShellProps> = ({
   resourceName = "unspecified",
   searchValue,
   onSearchChange,
-  searchPlaceholder = "Search...",
+  searchPlaceholder = "Search",
   searchDisabled,
   toolbar,
   error,
@@ -150,7 +150,7 @@ export const ResourceListShell: React.FC<ResourceListShellProps> = ({
       key="search-bar"
       placeholder={searchPlaceholder}
       size="small"
-      fullWidth
+      width="standard"
       value={searchValue}
       onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
         onSearchChange(e.target.value)

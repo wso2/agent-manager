@@ -175,18 +175,17 @@ export const AgentList: React.FC<AgentListProps> = ({ showCreateAction = false }
         onSearchChange={setSearch}
         toolbar={
           <Stack direction="row" alignItems="center" spacing={1}>
-            <Box flexGrow={1}>
-              <SearchBar
-                placeholder="Search agents"
-                size="small"
-                fullWidth
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                  setSearch(e.target.value)
-                }
-                value={search}
-                disabled={!data?.agents?.length}
-              />
-            </Box>
+            <SearchBar
+              placeholder="Search agents"
+              size="small"
+              width="standard"
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                setSearch(e.target.value)
+              }
+              value={search}
+              disabled={!data?.agents?.length}
+            />
+            <Box flexGrow={1} />
             {showCreateAction && canCreate && (
               <Button
                 variant="contained"

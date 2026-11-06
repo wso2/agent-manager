@@ -139,7 +139,7 @@ export const GroupsPage: React.FC = () => {
           {!isEmpty && (
             <ListingTable.Toolbar
               showSearch
-              searchPlaceholder="Search groups..."
+              searchPlaceholder="Search groups"
               actions={hasItems ? createButton : undefined}
             />
           )}
