@@ -38,6 +38,9 @@ const (
 	ValidCandidateLength      = MaxResourceNameLength - RandomSuffixLength - 1 // 1 for hyphen
 	MaxNameGenerationAttempts = 10                                             // Prevent infinite loop
 	NameGenerationAlphabet    = "abcdefghijklmnopqrstuvwxyz"
+	// FallbackCandidateNameLength is the length of the random name used when a
+	// display name yields no valid characters
+	FallbackCandidateNameLength = 8
 )
 
 // File mount shape limits. The content size caps are operator-configurable;
