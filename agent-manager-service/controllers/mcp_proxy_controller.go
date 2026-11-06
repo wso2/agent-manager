@@ -337,7 +337,7 @@ func (c *mcpProxyController) FetchServerInfo(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	resp, err := c.mcpProxyService.FetchServerInfo(ctx, &req)
+	resp, err := c.mcpProxyService.FetchServerInfo(ctx, ouID, &req)
 	if err != nil {
 		switch {
 		case errors.Is(err, utils.ErrInvalidInput), errors.Is(err, utils.ErrInvalidURL):
@@ -346,6 +346,9 @@ func (c *mcpProxyController) FetchServerInfo(w http.ResponseWriter, r *http.Requ
 		case errors.Is(err, utils.ErrURLUnreachable):
 			log.Error("FetchMCPProxyServerInfo: MCP server URL is unreachable", "ouID", ouID, "error", err)
 			utils.WriteErrorResponseWithReason(w, http.StatusBadRequest, "MCP server URL is unreachable", err.Error(), utils.ErrCodeBadRequest)
+		case errors.Is(err, utils.ErrTooManyRequests):
+			log.Warn("FetchMCPProxyServerInfo: concurrency limit reached", "ouID", ouID)
+			utils.WriteErrorResponse(w, http.StatusTooManyRequests, "Too many MCP server probes in progress. Please try again shortly")
 		case errors.Is(err, utils.ErrMCPServerUnauthorized):
 			log.Error("FetchMCPProxyServerInfo: MCP server returned unauthorized", "ouID", ouID, "error", err)
 			utils.WriteErrorResponseWithReason(w, http.StatusUnauthorized, "MCP server returned 401 Unauthorized. Check the provided credentials.", err.Error(), utils.ErrCodeUnauthorized)

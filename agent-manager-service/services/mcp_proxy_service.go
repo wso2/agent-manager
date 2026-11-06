@@ -72,7 +72,10 @@ const (
 	mcpClientVersion        = "1.0.0"
 	mcpSessionHeader        = "Mcp-Session-Id"
 	mcpRequestTimeout       = 10 * time.Second
-	maxMCPResponseBody      = 10 << 20
+	// mcpServerInfoDeadline bounds a whole fetch-server-info probe, which makes
+	// several upstream calls of up to mcpRequestTimeout each.
+	mcpServerInfoDeadline = 20 * time.Second
+	maxMCPResponseBody    = 10 << 20
 	// JSON-RPC error codes that MCP 2026-07-28 defines. Only servers on 2026-07-28 or later send
 	// them; earlier servers use -32000 to -32019 for their own errors.
 	mcpErrorHeaderMismatch                  = -32020
@@ -1070,8 +1073,9 @@ func (s *MCPProxyService) prepareMCPUpstreamAuthForStorage(existing, updated *mo
 	return auth, nil
 }
 
-// FetchServerInfo fetches server information from an MCP backend.
-func (s *MCPProxyService) FetchServerInfo(ctx context.Context, req *models.MCPServerInfoFetchRequest) (*models.MCPServerInfoFetchResponse, error) {
+// FetchServerInfo fetches server information from an MCP backend. Probes are
+// capped per organization and per pod, and each one has an overall deadline.
+func (s *MCPProxyService) FetchServerInfo(ctx context.Context, orgUUID string, req *models.MCPServerInfoFetchRequest) (*models.MCPServerInfoFetchResponse, error) {
 	if req == nil || req.URL == nil || strings.TrimSpace(*req.URL) == "" {
 		return nil, utils.ErrInvalidInput
 	}
@@ -1083,6 +1087,15 @@ func (s *MCPProxyService) FetchServerInfo(ctx context.Context, req *models.MCPSe
 	if err := ssrf.ValidateURL(ctx, endpointURL); err != nil {
 		return nil, fmt.Errorf("%w: %w", utils.ErrInvalidURL, err)
 	}
+
+	release, ok := mcpServerInfoLimiter.tryAcquire(orgUUID)
+	if !ok {
+		return nil, utils.ErrTooManyRequests
+	}
+	defer release()
+
+	ctx, cancel := context.WithTimeout(ctx, mcpServerInfoDeadline)
+	defer cancel()
 
 	headerName, headerValue := authHeader(req.Auth)
 	return s.fetchMCPServerInfo(ctx, endpointURL, headerName, headerValue)
