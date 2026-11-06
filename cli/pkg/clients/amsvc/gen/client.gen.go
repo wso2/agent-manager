@@ -302,6 +302,59 @@ type ClientInterface interface {
 	// GetEvaluator request
 	GetEvaluator(ctx context.Context, orgName string, evaluatorId string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// ListOrgEventDeliveries request
+	ListOrgEventDeliveries(ctx context.Context, orgName string, params *ListOrgEventDeliveriesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListEventDestinationKinds request
+	ListEventDestinationKinds(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListEventDestinations request
+	ListEventDestinations(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateEventDestinationWithBody request with any body
+	CreateEventDestinationWithBody(ctx context.Context, orgName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateEventDestination(ctx context.Context, orgName string, body CreateEventDestinationJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteEventDestination request
+	DeleteEventDestination(ctx context.Context, orgName string, destinationId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetEventDestination request
+	GetEventDestination(ctx context.Context, orgName string, destinationId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateEventDestinationWithBody request with any body
+	UpdateEventDestinationWithBody(ctx context.Context, orgName string, destinationId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateEventDestination(ctx context.Context, orgName string, destinationId string, body UpdateEventDestinationJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// RotateEventDestinationSecret request
+	RotateEventDestinationSecret(ctx context.Context, orgName string, destinationId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// TestEventDestination request
+	TestEventDestination(ctx context.Context, orgName string, destinationId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListEventTypes request
+	ListEventTypes(ctx context.Context, orgName string, params *ListEventTypesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListOrgEventSubscriptions request
+	ListOrgEventSubscriptions(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateOrgEventSubscriptionWithBody request with any body
+	CreateOrgEventSubscriptionWithBody(ctx context.Context, orgName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateOrgEventSubscription(ctx context.Context, orgName string, body CreateOrgEventSubscriptionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteOrgEventSubscription request
+	DeleteOrgEventSubscription(ctx context.Context, orgName string, subscriptionId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetOrgEventSubscription request
+	GetOrgEventSubscription(ctx context.Context, orgName string, subscriptionId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateOrgEventSubscriptionWithBody request with any body
+	UpdateOrgEventSubscriptionWithBody(ctx context.Context, orgName string, subscriptionId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateOrgEventSubscription(ctx context.Context, orgName string, subscriptionId string, body UpdateOrgEventSubscriptionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListGateways request
 	ListGateways(ctx context.Context, orgName string, params *ListGatewaysParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -696,6 +749,31 @@ type ClientInterface interface {
 
 	RotateAgentAPIKey(ctx context.Context, orgName string, projName string, agentName string, envID string, keyName string, body RotateAgentAPIKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// ListAgentEventDeliveries request
+	ListAgentEventDeliveries(ctx context.Context, orgName string, projName string, agentName string, params *ListAgentEventDeliveriesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListAgentEventDestinations request
+	ListAgentEventDestinations(ctx context.Context, orgName string, projName string, agentName string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListAgentEventSubscriptions request
+	ListAgentEventSubscriptions(ctx context.Context, orgName string, projName string, agentName string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateAgentEventSubscriptionWithBody request with any body
+	CreateAgentEventSubscriptionWithBody(ctx context.Context, orgName string, projName string, agentName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateAgentEventSubscription(ctx context.Context, orgName string, projName string, agentName string, body CreateAgentEventSubscriptionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteAgentEventSubscription request
+	DeleteAgentEventSubscription(ctx context.Context, orgName string, projName string, agentName string, subscriptionId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetAgentEventSubscription request
+	GetAgentEventSubscription(ctx context.Context, orgName string, projName string, agentName string, subscriptionId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateAgentEventSubscriptionWithBody request with any body
+	UpdateAgentEventSubscriptionWithBody(ctx context.Context, orgName string, projName string, agentName string, subscriptionId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateAgentEventSubscription(ctx context.Context, orgName string, projName string, agentName string, subscriptionId string, body UpdateAgentEventSubscriptionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetAgentGroups request
 	GetAgentGroups(ctx context.Context, orgName string, projName string, agentName string, params *GetAgentGroupsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -807,6 +885,17 @@ type ClientInterface interface {
 
 	UpdateMonitor(ctx context.Context, orgName string, projName string, agentName string, monitorName string, body UpdateMonitorJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// DeleteMonitorAlert request
+	DeleteMonitorAlert(ctx context.Context, orgName string, projName string, agentName string, monitorName string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetMonitorAlert request
+	GetMonitorAlert(ctx context.Context, orgName string, projName string, agentName string, monitorName string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PutMonitorAlertWithBody request with any body
+	PutMonitorAlertWithBody(ctx context.Context, orgName string, projName string, agentName string, monitorName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	PutMonitorAlert(ctx context.Context, orgName string, projName string, agentName string, monitorName string, body PutMonitorAlertJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListMonitorRuns request
 	ListMonitorRuns(ctx context.Context, orgName string, projName string, agentName string, monitorName string, params *ListMonitorRunsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -874,6 +963,31 @@ type ClientInterface interface {
 	// GetDeploymentPipeline request
 	GetDeploymentPipeline(ctx context.Context, orgName string, projName string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// ListProjectEventDeliveries request
+	ListProjectEventDeliveries(ctx context.Context, orgName string, projName string, params *ListProjectEventDeliveriesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListProjectEventDestinations request
+	ListProjectEventDestinations(ctx context.Context, orgName string, projName string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListProjectEventSubscriptions request
+	ListProjectEventSubscriptions(ctx context.Context, orgName string, projName string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateProjectEventSubscriptionWithBody request with any body
+	CreateProjectEventSubscriptionWithBody(ctx context.Context, orgName string, projName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateProjectEventSubscription(ctx context.Context, orgName string, projName string, body CreateProjectEventSubscriptionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteProjectEventSubscription request
+	DeleteProjectEventSubscription(ctx context.Context, orgName string, projName string, subscriptionId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetProjectEventSubscription request
+	GetProjectEventSubscription(ctx context.Context, orgName string, projName string, subscriptionId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateProjectEventSubscriptionWithBody request with any body
+	UpdateProjectEventSubscriptionWithBody(ctx context.Context, orgName string, projName string, subscriptionId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateProjectEventSubscription(ctx context.Context, orgName string, projName string, subscriptionId string, body UpdateProjectEventSubscriptionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListLLMProxies request
 	ListLLMProxies(ctx context.Context, orgName string, projName string, params *ListLLMProxiesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -928,6 +1042,31 @@ type ClientInterface interface {
 
 	// GetLLMProxyDeployment request
 	GetLLMProxyDeployment(ctx context.Context, orgName string, projName string, id string, deploymentId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListProjectMCPProxies request
+	ListProjectMCPProxies(ctx context.Context, orgName string, projName string, params *ListProjectMCPProxiesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteProjectMCPProxy request
+	DeleteProjectMCPProxy(ctx context.Context, orgName string, projName string, proxyId string, params *DeleteProjectMCPProxyParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetProjectMCPProxy request
+	GetProjectMCPProxy(ctx context.Context, orgName string, projName string, proxyId string, params *GetProjectMCPProxyParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpsertProjectMCPProxyWithBody request with any body
+	UpsertProjectMCPProxyWithBody(ctx context.Context, orgName string, projName string, proxyId string, params *UpsertProjectMCPProxyParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpsertProjectMCPProxy(ctx context.Context, orgName string, projName string, proxyId string, params *UpsertProjectMCPProxyParams, body UpsertProjectMCPProxyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteProjectMCPProxyEnvironment request
+	DeleteProjectMCPProxyEnvironment(ctx context.Context, orgName string, projName string, proxyId string, envName string, params *DeleteProjectMCPProxyEnvironmentParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetProjectMCPProxyEnvironment request
+	GetProjectMCPProxyEnvironment(ctx context.Context, orgName string, projName string, proxyId string, envName string, params *GetProjectMCPProxyEnvironmentParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PutProjectMCPProxyEnvironmentWithBody request with any body
+	PutProjectMCPProxyEnvironmentWithBody(ctx context.Context, orgName string, projName string, proxyId string, envName string, params *PutProjectMCPProxyEnvironmentParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	PutProjectMCPProxyEnvironment(ctx context.Context, orgName string, projName string, proxyId string, envName string, params *PutProjectMCPProxyEnvironmentParams, body PutProjectMCPProxyEnvironmentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListRepositoryBranchesWithBody request with any body
 	ListRepositoryBranchesWithBody(ctx context.Context, orgName string, params *ListRepositoryBranchesParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -1895,6 +2034,234 @@ func (c *Client) UpdateCustomEvaluator(ctx context.Context, orgName string, iden
 
 func (c *Client) GetEvaluator(ctx context.Context, orgName string, evaluatorId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetEvaluatorRequest(c.Server, orgName, evaluatorId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListOrgEventDeliveries(ctx context.Context, orgName string, params *ListOrgEventDeliveriesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListOrgEventDeliveriesRequest(c.Server, orgName, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListEventDestinationKinds(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListEventDestinationKindsRequest(c.Server, orgName)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListEventDestinations(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListEventDestinationsRequest(c.Server, orgName)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateEventDestinationWithBody(ctx context.Context, orgName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateEventDestinationRequestWithBody(c.Server, orgName, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateEventDestination(ctx context.Context, orgName string, body CreateEventDestinationJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateEventDestinationRequest(c.Server, orgName, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteEventDestination(ctx context.Context, orgName string, destinationId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteEventDestinationRequest(c.Server, orgName, destinationId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetEventDestination(ctx context.Context, orgName string, destinationId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetEventDestinationRequest(c.Server, orgName, destinationId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateEventDestinationWithBody(ctx context.Context, orgName string, destinationId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateEventDestinationRequestWithBody(c.Server, orgName, destinationId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateEventDestination(ctx context.Context, orgName string, destinationId string, body UpdateEventDestinationJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateEventDestinationRequest(c.Server, orgName, destinationId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) RotateEventDestinationSecret(ctx context.Context, orgName string, destinationId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRotateEventDestinationSecretRequest(c.Server, orgName, destinationId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) TestEventDestination(ctx context.Context, orgName string, destinationId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewTestEventDestinationRequest(c.Server, orgName, destinationId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListEventTypes(ctx context.Context, orgName string, params *ListEventTypesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListEventTypesRequest(c.Server, orgName, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListOrgEventSubscriptions(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListOrgEventSubscriptionsRequest(c.Server, orgName)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateOrgEventSubscriptionWithBody(ctx context.Context, orgName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateOrgEventSubscriptionRequestWithBody(c.Server, orgName, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateOrgEventSubscription(ctx context.Context, orgName string, body CreateOrgEventSubscriptionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateOrgEventSubscriptionRequest(c.Server, orgName, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteOrgEventSubscription(ctx context.Context, orgName string, subscriptionId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteOrgEventSubscriptionRequest(c.Server, orgName, subscriptionId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetOrgEventSubscription(ctx context.Context, orgName string, subscriptionId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetOrgEventSubscriptionRequest(c.Server, orgName, subscriptionId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateOrgEventSubscriptionWithBody(ctx context.Context, orgName string, subscriptionId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateOrgEventSubscriptionRequestWithBody(c.Server, orgName, subscriptionId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateOrgEventSubscription(ctx context.Context, orgName string, subscriptionId string, body UpdateOrgEventSubscriptionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateOrgEventSubscriptionRequest(c.Server, orgName, subscriptionId, body)
 	if err != nil {
 		return nil, err
 	}
@@ -3633,6 +4000,114 @@ func (c *Client) RotateAgentAPIKey(ctx context.Context, orgName string, projName
 	return c.Client.Do(req)
 }
 
+func (c *Client) ListAgentEventDeliveries(ctx context.Context, orgName string, projName string, agentName string, params *ListAgentEventDeliveriesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListAgentEventDeliveriesRequest(c.Server, orgName, projName, agentName, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListAgentEventDestinations(ctx context.Context, orgName string, projName string, agentName string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListAgentEventDestinationsRequest(c.Server, orgName, projName, agentName)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListAgentEventSubscriptions(ctx context.Context, orgName string, projName string, agentName string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListAgentEventSubscriptionsRequest(c.Server, orgName, projName, agentName)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateAgentEventSubscriptionWithBody(ctx context.Context, orgName string, projName string, agentName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateAgentEventSubscriptionRequestWithBody(c.Server, orgName, projName, agentName, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateAgentEventSubscription(ctx context.Context, orgName string, projName string, agentName string, body CreateAgentEventSubscriptionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateAgentEventSubscriptionRequest(c.Server, orgName, projName, agentName, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteAgentEventSubscription(ctx context.Context, orgName string, projName string, agentName string, subscriptionId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteAgentEventSubscriptionRequest(c.Server, orgName, projName, agentName, subscriptionId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetAgentEventSubscription(ctx context.Context, orgName string, projName string, agentName string, subscriptionId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetAgentEventSubscriptionRequest(c.Server, orgName, projName, agentName, subscriptionId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateAgentEventSubscriptionWithBody(ctx context.Context, orgName string, projName string, agentName string, subscriptionId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateAgentEventSubscriptionRequestWithBody(c.Server, orgName, projName, agentName, subscriptionId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateAgentEventSubscription(ctx context.Context, orgName string, projName string, agentName string, subscriptionId string, body UpdateAgentEventSubscriptionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateAgentEventSubscriptionRequest(c.Server, orgName, projName, agentName, subscriptionId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) GetAgentGroups(ctx context.Context, orgName string, projName string, agentName string, params *GetAgentGroupsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetAgentGroupsRequest(c.Server, orgName, projName, agentName, params)
 	if err != nil {
@@ -4125,6 +4600,54 @@ func (c *Client) UpdateMonitor(ctx context.Context, orgName string, projName str
 	return c.Client.Do(req)
 }
 
+func (c *Client) DeleteMonitorAlert(ctx context.Context, orgName string, projName string, agentName string, monitorName string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteMonitorAlertRequest(c.Server, orgName, projName, agentName, monitorName)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetMonitorAlert(ctx context.Context, orgName string, projName string, agentName string, monitorName string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetMonitorAlertRequest(c.Server, orgName, projName, agentName, monitorName)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PutMonitorAlertWithBody(ctx context.Context, orgName string, projName string, agentName string, monitorName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPutMonitorAlertRequestWithBody(c.Server, orgName, projName, agentName, monitorName, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PutMonitorAlert(ctx context.Context, orgName string, projName string, agentName string, monitorName string, body PutMonitorAlertJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPutMonitorAlertRequest(c.Server, orgName, projName, agentName, monitorName, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) ListMonitorRuns(ctx context.Context, orgName string, projName string, agentName string, monitorName string, params *ListMonitorRunsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListMonitorRunsRequest(c.Server, orgName, projName, agentName, monitorName, params)
 	if err != nil {
@@ -4413,6 +4936,114 @@ func (c *Client) GetDeploymentPipeline(ctx context.Context, orgName string, proj
 	return c.Client.Do(req)
 }
 
+func (c *Client) ListProjectEventDeliveries(ctx context.Context, orgName string, projName string, params *ListProjectEventDeliveriesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListProjectEventDeliveriesRequest(c.Server, orgName, projName, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListProjectEventDestinations(ctx context.Context, orgName string, projName string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListProjectEventDestinationsRequest(c.Server, orgName, projName)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListProjectEventSubscriptions(ctx context.Context, orgName string, projName string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListProjectEventSubscriptionsRequest(c.Server, orgName, projName)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateProjectEventSubscriptionWithBody(ctx context.Context, orgName string, projName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateProjectEventSubscriptionRequestWithBody(c.Server, orgName, projName, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateProjectEventSubscription(ctx context.Context, orgName string, projName string, body CreateProjectEventSubscriptionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateProjectEventSubscriptionRequest(c.Server, orgName, projName, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteProjectEventSubscription(ctx context.Context, orgName string, projName string, subscriptionId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteProjectEventSubscriptionRequest(c.Server, orgName, projName, subscriptionId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetProjectEventSubscription(ctx context.Context, orgName string, projName string, subscriptionId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetProjectEventSubscriptionRequest(c.Server, orgName, projName, subscriptionId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateProjectEventSubscriptionWithBody(ctx context.Context, orgName string, projName string, subscriptionId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateProjectEventSubscriptionRequestWithBody(c.Server, orgName, projName, subscriptionId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateProjectEventSubscription(ctx context.Context, orgName string, projName string, subscriptionId string, body UpdateProjectEventSubscriptionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateProjectEventSubscriptionRequest(c.Server, orgName, projName, subscriptionId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) ListLLMProxies(ctx context.Context, orgName string, projName string, params *ListLLMProxiesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListLLMProxiesRequest(c.Server, orgName, projName, params)
 	if err != nil {
@@ -4643,6 +5274,114 @@ func (c *Client) DeleteLLMProxyDeployment(ctx context.Context, orgName string, p
 
 func (c *Client) GetLLMProxyDeployment(ctx context.Context, orgName string, projName string, id string, deploymentId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetLLMProxyDeploymentRequest(c.Server, orgName, projName, id, deploymentId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListProjectMCPProxies(ctx context.Context, orgName string, projName string, params *ListProjectMCPProxiesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListProjectMCPProxiesRequest(c.Server, orgName, projName, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteProjectMCPProxy(ctx context.Context, orgName string, projName string, proxyId string, params *DeleteProjectMCPProxyParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteProjectMCPProxyRequest(c.Server, orgName, projName, proxyId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetProjectMCPProxy(ctx context.Context, orgName string, projName string, proxyId string, params *GetProjectMCPProxyParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetProjectMCPProxyRequest(c.Server, orgName, projName, proxyId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpsertProjectMCPProxyWithBody(ctx context.Context, orgName string, projName string, proxyId string, params *UpsertProjectMCPProxyParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpsertProjectMCPProxyRequestWithBody(c.Server, orgName, projName, proxyId, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpsertProjectMCPProxy(ctx context.Context, orgName string, projName string, proxyId string, params *UpsertProjectMCPProxyParams, body UpsertProjectMCPProxyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpsertProjectMCPProxyRequest(c.Server, orgName, projName, proxyId, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteProjectMCPProxyEnvironment(ctx context.Context, orgName string, projName string, proxyId string, envName string, params *DeleteProjectMCPProxyEnvironmentParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteProjectMCPProxyEnvironmentRequest(c.Server, orgName, projName, proxyId, envName, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetProjectMCPProxyEnvironment(ctx context.Context, orgName string, projName string, proxyId string, envName string, params *GetProjectMCPProxyEnvironmentParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetProjectMCPProxyEnvironmentRequest(c.Server, orgName, projName, proxyId, envName, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PutProjectMCPProxyEnvironmentWithBody(ctx context.Context, orgName string, projName string, proxyId string, envName string, params *PutProjectMCPProxyEnvironmentParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPutProjectMCPProxyEnvironmentRequestWithBody(c.Server, orgName, projName, proxyId, envName, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PutProjectMCPProxyEnvironment(ctx context.Context, orgName string, projName string, proxyId string, envName string, params *PutProjectMCPProxyEnvironmentParams, body PutProjectMCPProxyEnvironmentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPutProjectMCPProxyEnvironmentRequest(c.Server, orgName, projName, proxyId, envName, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -5605,6 +6344,22 @@ func NewListCatalogResourcesRequest(server string, orgName string, params *ListC
 		if params.EnvironmentId != nil {
 
 			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "environmentId", *params.EnvironmentId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "uuid"}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.GatewayHosting != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "gatewayHosting", *params.GatewayHosting, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err
@@ -7819,6 +8574,732 @@ func NewGetEvaluatorRequest(server string, orgName string, evaluatorId string) (
 	if err != nil {
 		return nil, err
 	}
+
+	return req, nil
+}
+
+// NewListOrgEventDeliveriesRequest generates requests for ListOrgEventDeliveries
+func NewListOrgEventDeliveriesRequest(server string, orgName string, params *ListOrgEventDeliveriesParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/events/deliveries", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.DestinationId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "destinationId", *params.DestinationId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.SubscriptionId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "subscriptionId", *params.SubscriptionId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Status != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "status", *params.Status, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Offset != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "offset", *params.Offset, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewListEventDestinationKindsRequest generates requests for ListEventDestinationKinds
+func NewListEventDestinationKindsRequest(server string, orgName string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/events/destination-kinds", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewListEventDestinationsRequest generates requests for ListEventDestinations
+func NewListEventDestinationsRequest(server string, orgName string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/events/destinations", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCreateEventDestinationRequest calls the generic CreateEventDestination builder with application/json body
+func NewCreateEventDestinationRequest(server string, orgName string, body CreateEventDestinationJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateEventDestinationRequestWithBody(server, orgName, "application/json", bodyReader)
+}
+
+// NewCreateEventDestinationRequestWithBody generates requests for CreateEventDestination with any type of body
+func NewCreateEventDestinationRequestWithBody(server string, orgName string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/events/destinations", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeleteEventDestinationRequest generates requests for DeleteEventDestination
+func NewDeleteEventDestinationRequest(server string, orgName string, destinationId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "destinationId", destinationId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/events/destinations/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetEventDestinationRequest generates requests for GetEventDestination
+func NewGetEventDestinationRequest(server string, orgName string, destinationId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "destinationId", destinationId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/events/destinations/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateEventDestinationRequest calls the generic UpdateEventDestination builder with application/json body
+func NewUpdateEventDestinationRequest(server string, orgName string, destinationId string, body UpdateEventDestinationJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateEventDestinationRequestWithBody(server, orgName, destinationId, "application/json", bodyReader)
+}
+
+// NewUpdateEventDestinationRequestWithBody generates requests for UpdateEventDestination with any type of body
+func NewUpdateEventDestinationRequestWithBody(server string, orgName string, destinationId string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "destinationId", destinationId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/events/destinations/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewRotateEventDestinationSecretRequest generates requests for RotateEventDestinationSecret
+func NewRotateEventDestinationSecretRequest(server string, orgName string, destinationId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "destinationId", destinationId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/events/destinations/%s/rotate-secret", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewTestEventDestinationRequest generates requests for TestEventDestination
+func NewTestEventDestinationRequest(server string, orgName string, destinationId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "destinationId", destinationId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/events/destinations/%s/test", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewListEventTypesRequest generates requests for ListEventTypes
+func NewListEventTypesRequest(server string, orgName string, params *ListEventTypesParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/events/event-types", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Scope != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "scope", *params.Scope, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewListOrgEventSubscriptionsRequest generates requests for ListOrgEventSubscriptions
+func NewListOrgEventSubscriptionsRequest(server string, orgName string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/events/subscriptions", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCreateOrgEventSubscriptionRequest calls the generic CreateOrgEventSubscription builder with application/json body
+func NewCreateOrgEventSubscriptionRequest(server string, orgName string, body CreateOrgEventSubscriptionJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateOrgEventSubscriptionRequestWithBody(server, orgName, "application/json", bodyReader)
+}
+
+// NewCreateOrgEventSubscriptionRequestWithBody generates requests for CreateOrgEventSubscription with any type of body
+func NewCreateOrgEventSubscriptionRequestWithBody(server string, orgName string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/events/subscriptions", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeleteOrgEventSubscriptionRequest generates requests for DeleteOrgEventSubscription
+func NewDeleteOrgEventSubscriptionRequest(server string, orgName string, subscriptionId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "subscriptionId", subscriptionId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/events/subscriptions/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetOrgEventSubscriptionRequest generates requests for GetOrgEventSubscription
+func NewGetOrgEventSubscriptionRequest(server string, orgName string, subscriptionId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "subscriptionId", subscriptionId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/events/subscriptions/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateOrgEventSubscriptionRequest calls the generic UpdateOrgEventSubscription builder with application/json body
+func NewUpdateOrgEventSubscriptionRequest(server string, orgName string, subscriptionId string, body UpdateOrgEventSubscriptionJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateOrgEventSubscriptionRequestWithBody(server, orgName, subscriptionId, "application/json", bodyReader)
+}
+
+// NewUpdateOrgEventSubscriptionRequestWithBody generates requests for UpdateOrgEventSubscription with any type of body
+func NewUpdateOrgEventSubscriptionRequestWithBody(server string, orgName string, subscriptionId string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "subscriptionId", subscriptionId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/events/subscriptions/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -11047,6 +12528,22 @@ func NewListMCPProxiesRequest(server string, orgName string, params *ListMCPProx
 	if params != nil {
 		queryValues := queryURL.Query()
 
+		if params.Project != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "project", *params.Project, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
 		if params.Limit != nil {
 
 			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: "int32"}); err != nil {
@@ -13596,6 +15093,475 @@ func NewRotateAgentAPIKeyRequestWithBody(server string, orgName string, projName
 	return req, nil
 }
 
+// NewListAgentEventDeliveriesRequest generates requests for ListAgentEventDeliveries
+func NewListAgentEventDeliveriesRequest(server string, orgName string, projName string, agentName string, params *ListAgentEventDeliveriesParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "agentName", agentName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/agents/%s/events/deliveries", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.DestinationId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "destinationId", *params.DestinationId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.SubscriptionId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "subscriptionId", *params.SubscriptionId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Status != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "status", *params.Status, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Offset != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "offset", *params.Offset, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewListAgentEventDestinationsRequest generates requests for ListAgentEventDestinations
+func NewListAgentEventDestinationsRequest(server string, orgName string, projName string, agentName string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "agentName", agentName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/agents/%s/events/destinations", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewListAgentEventSubscriptionsRequest generates requests for ListAgentEventSubscriptions
+func NewListAgentEventSubscriptionsRequest(server string, orgName string, projName string, agentName string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "agentName", agentName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/agents/%s/events/subscriptions", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCreateAgentEventSubscriptionRequest calls the generic CreateAgentEventSubscription builder with application/json body
+func NewCreateAgentEventSubscriptionRequest(server string, orgName string, projName string, agentName string, body CreateAgentEventSubscriptionJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateAgentEventSubscriptionRequestWithBody(server, orgName, projName, agentName, "application/json", bodyReader)
+}
+
+// NewCreateAgentEventSubscriptionRequestWithBody generates requests for CreateAgentEventSubscription with any type of body
+func NewCreateAgentEventSubscriptionRequestWithBody(server string, orgName string, projName string, agentName string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "agentName", agentName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/agents/%s/events/subscriptions", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeleteAgentEventSubscriptionRequest generates requests for DeleteAgentEventSubscription
+func NewDeleteAgentEventSubscriptionRequest(server string, orgName string, projName string, agentName string, subscriptionId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "agentName", agentName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam3 string
+
+	pathParam3, err = runtime.StyleParamWithOptions("simple", false, "subscriptionId", subscriptionId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/agents/%s/events/subscriptions/%s", pathParam0, pathParam1, pathParam2, pathParam3)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetAgentEventSubscriptionRequest generates requests for GetAgentEventSubscription
+func NewGetAgentEventSubscriptionRequest(server string, orgName string, projName string, agentName string, subscriptionId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "agentName", agentName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam3 string
+
+	pathParam3, err = runtime.StyleParamWithOptions("simple", false, "subscriptionId", subscriptionId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/agents/%s/events/subscriptions/%s", pathParam0, pathParam1, pathParam2, pathParam3)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateAgentEventSubscriptionRequest calls the generic UpdateAgentEventSubscription builder with application/json body
+func NewUpdateAgentEventSubscriptionRequest(server string, orgName string, projName string, agentName string, subscriptionId string, body UpdateAgentEventSubscriptionJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateAgentEventSubscriptionRequestWithBody(server, orgName, projName, agentName, subscriptionId, "application/json", bodyReader)
+}
+
+// NewUpdateAgentEventSubscriptionRequestWithBody generates requests for UpdateAgentEventSubscription with any type of body
+func NewUpdateAgentEventSubscriptionRequestWithBody(server string, orgName string, projName string, agentName string, subscriptionId string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "agentName", agentName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam3 string
+
+	pathParam3, err = runtime.StyleParamWithOptions("simple", false, "subscriptionId", subscriptionId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/agents/%s/events/subscriptions/%s", pathParam0, pathParam1, pathParam2, pathParam3)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewGetAgentGroupsRequest generates requests for GetAgentGroups
 func NewGetAgentGroupsRequest(server string, orgName string, projName string, agentName string, params *GetAgentGroupsParams) (*http.Request, error) {
 	var err error
@@ -15521,6 +17487,184 @@ func NewUpdateMonitorRequestWithBody(server string, orgName string, projName str
 	return req, nil
 }
 
+// NewDeleteMonitorAlertRequest generates requests for DeleteMonitorAlert
+func NewDeleteMonitorAlertRequest(server string, orgName string, projName string, agentName string, monitorName string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "agentName", agentName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam3 string
+
+	pathParam3, err = runtime.StyleParamWithOptions("simple", false, "monitorName", monitorName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/agents/%s/monitors/%s/alerting", pathParam0, pathParam1, pathParam2, pathParam3)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetMonitorAlertRequest generates requests for GetMonitorAlert
+func NewGetMonitorAlertRequest(server string, orgName string, projName string, agentName string, monitorName string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "agentName", agentName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam3 string
+
+	pathParam3, err = runtime.StyleParamWithOptions("simple", false, "monitorName", monitorName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/agents/%s/monitors/%s/alerting", pathParam0, pathParam1, pathParam2, pathParam3)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewPutMonitorAlertRequest calls the generic PutMonitorAlert builder with application/json body
+func NewPutMonitorAlertRequest(server string, orgName string, projName string, agentName string, monitorName string, body PutMonitorAlertJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPutMonitorAlertRequestWithBody(server, orgName, projName, agentName, monitorName, "application/json", bodyReader)
+}
+
+// NewPutMonitorAlertRequestWithBody generates requests for PutMonitorAlert with any type of body
+func NewPutMonitorAlertRequestWithBody(server string, orgName string, projName string, agentName string, monitorName string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "agentName", agentName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam3 string
+
+	pathParam3, err = runtime.StyleParamWithOptions("simple", false, "monitorName", monitorName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/agents/%s/monitors/%s/alerting", pathParam0, pathParam1, pathParam2, pathParam3)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewListMonitorRunsRequest generates requests for ListMonitorRuns
 func NewListMonitorRunsRequest(server string, orgName string, projName string, agentName string, monitorName string, params *ListMonitorRunsParams) (*http.Request, error) {
 	var err error
@@ -16944,6 +19088,426 @@ func NewGetDeploymentPipelineRequest(server string, orgName string, projName str
 	return req, nil
 }
 
+// NewListProjectEventDeliveriesRequest generates requests for ListProjectEventDeliveries
+func NewListProjectEventDeliveriesRequest(server string, orgName string, projName string, params *ListProjectEventDeliveriesParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/events/deliveries", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.DestinationId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "destinationId", *params.DestinationId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.SubscriptionId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "subscriptionId", *params.SubscriptionId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Status != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "status", *params.Status, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Offset != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "offset", *params.Offset, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewListProjectEventDestinationsRequest generates requests for ListProjectEventDestinations
+func NewListProjectEventDestinationsRequest(server string, orgName string, projName string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/events/destinations", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewListProjectEventSubscriptionsRequest generates requests for ListProjectEventSubscriptions
+func NewListProjectEventSubscriptionsRequest(server string, orgName string, projName string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/events/subscriptions", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCreateProjectEventSubscriptionRequest calls the generic CreateProjectEventSubscription builder with application/json body
+func NewCreateProjectEventSubscriptionRequest(server string, orgName string, projName string, body CreateProjectEventSubscriptionJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateProjectEventSubscriptionRequestWithBody(server, orgName, projName, "application/json", bodyReader)
+}
+
+// NewCreateProjectEventSubscriptionRequestWithBody generates requests for CreateProjectEventSubscription with any type of body
+func NewCreateProjectEventSubscriptionRequestWithBody(server string, orgName string, projName string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/events/subscriptions", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeleteProjectEventSubscriptionRequest generates requests for DeleteProjectEventSubscription
+func NewDeleteProjectEventSubscriptionRequest(server string, orgName string, projName string, subscriptionId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "subscriptionId", subscriptionId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/events/subscriptions/%s", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetProjectEventSubscriptionRequest generates requests for GetProjectEventSubscription
+func NewGetProjectEventSubscriptionRequest(server string, orgName string, projName string, subscriptionId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "subscriptionId", subscriptionId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/events/subscriptions/%s", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateProjectEventSubscriptionRequest calls the generic UpdateProjectEventSubscription builder with application/json body
+func NewUpdateProjectEventSubscriptionRequest(server string, orgName string, projName string, subscriptionId string, body UpdateProjectEventSubscriptionJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateProjectEventSubscriptionRequestWithBody(server, orgName, projName, subscriptionId, "application/json", bodyReader)
+}
+
+// NewUpdateProjectEventSubscriptionRequestWithBody generates requests for UpdateProjectEventSubscription with any type of body
+func NewUpdateProjectEventSubscriptionRequestWithBody(server string, orgName string, projName string, subscriptionId string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "subscriptionId", subscriptionId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/events/subscriptions/%s", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewListLLMProxiesRequest generates requests for ListLLMProxies
 func NewListLLMProxiesRequest(server string, orgName string, projName string, params *ListLLMProxiesParams) (*http.Request, error) {
 	var err error
@@ -17874,6 +20438,557 @@ func NewGetLLMProxyDeploymentRequest(server string, orgName string, projName str
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
 	if err != nil {
 		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewListProjectMCPProxiesRequest generates requests for ListProjectMCPProxies
+func NewListProjectMCPProxiesRequest(server string, orgName string, projName string, params *ListProjectMCPProxiesParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/mcp-proxies", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Component != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "component", *params.Component, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Endpoint != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "endpoint", *params.Endpoint, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: "int32"}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Offset != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "offset", *params.Offset, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: "int32"}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+
+		if params.XImpersonateOrg != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-Impersonate-Org", *params.XImpersonateOrg, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-Impersonate-Org", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewDeleteProjectMCPProxyRequest generates requests for DeleteProjectMCPProxy
+func NewDeleteProjectMCPProxyRequest(server string, orgName string, projName string, proxyId string, params *DeleteProjectMCPProxyParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "proxyId", proxyId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/mcp-proxies/%s", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+
+		if params.XImpersonateOrg != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-Impersonate-Org", *params.XImpersonateOrg, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-Impersonate-Org", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewGetProjectMCPProxyRequest generates requests for GetProjectMCPProxy
+func NewGetProjectMCPProxyRequest(server string, orgName string, projName string, proxyId string, params *GetProjectMCPProxyParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "proxyId", proxyId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/mcp-proxies/%s", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+
+		if params.XImpersonateOrg != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-Impersonate-Org", *params.XImpersonateOrg, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-Impersonate-Org", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewUpsertProjectMCPProxyRequest calls the generic UpsertProjectMCPProxy builder with application/json body
+func NewUpsertProjectMCPProxyRequest(server string, orgName string, projName string, proxyId string, params *UpsertProjectMCPProxyParams, body UpsertProjectMCPProxyJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpsertProjectMCPProxyRequestWithBody(server, orgName, projName, proxyId, params, "application/json", bodyReader)
+}
+
+// NewUpsertProjectMCPProxyRequestWithBody generates requests for UpsertProjectMCPProxy with any type of body
+func NewUpsertProjectMCPProxyRequestWithBody(server string, orgName string, projName string, proxyId string, params *UpsertProjectMCPProxyParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "proxyId", proxyId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/mcp-proxies/%s", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.XImpersonateOrg != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-Impersonate-Org", *params.XImpersonateOrg, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-Impersonate-Org", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewDeleteProjectMCPProxyEnvironmentRequest generates requests for DeleteProjectMCPProxyEnvironment
+func NewDeleteProjectMCPProxyEnvironmentRequest(server string, orgName string, projName string, proxyId string, envName string, params *DeleteProjectMCPProxyEnvironmentParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "proxyId", proxyId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam3 string
+
+	pathParam3, err = runtime.StyleParamWithOptions("simple", false, "envName", envName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/mcp-proxies/%s/environments/%s", pathParam0, pathParam1, pathParam2, pathParam3)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+
+		if params.XImpersonateOrg != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-Impersonate-Org", *params.XImpersonateOrg, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-Impersonate-Org", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewGetProjectMCPProxyEnvironmentRequest generates requests for GetProjectMCPProxyEnvironment
+func NewGetProjectMCPProxyEnvironmentRequest(server string, orgName string, projName string, proxyId string, envName string, params *GetProjectMCPProxyEnvironmentParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "proxyId", proxyId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam3 string
+
+	pathParam3, err = runtime.StyleParamWithOptions("simple", false, "envName", envName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/mcp-proxies/%s/environments/%s", pathParam0, pathParam1, pathParam2, pathParam3)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+
+		if params.XImpersonateOrg != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-Impersonate-Org", *params.XImpersonateOrg, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-Impersonate-Org", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewPutProjectMCPProxyEnvironmentRequest calls the generic PutProjectMCPProxyEnvironment builder with application/json body
+func NewPutProjectMCPProxyEnvironmentRequest(server string, orgName string, projName string, proxyId string, envName string, params *PutProjectMCPProxyEnvironmentParams, body PutProjectMCPProxyEnvironmentJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPutProjectMCPProxyEnvironmentRequestWithBody(server, orgName, projName, proxyId, envName, params, "application/json", bodyReader)
+}
+
+// NewPutProjectMCPProxyEnvironmentRequestWithBody generates requests for PutProjectMCPProxyEnvironment with any type of body
+func NewPutProjectMCPProxyEnvironmentRequestWithBody(server string, orgName string, projName string, proxyId string, envName string, params *PutProjectMCPProxyEnvironmentParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "proxyId", proxyId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam3 string
+
+	pathParam3, err = runtime.StyleParamWithOptions("simple", false, "envName", envName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/mcp-proxies/%s/environments/%s", pathParam0, pathParam1, pathParam2, pathParam3)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.XImpersonateOrg != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-Impersonate-Org", *params.XImpersonateOrg, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-Impersonate-Org", headerParam0)
+		}
+
 	}
 
 	return req, nil
@@ -18828,6 +21943,59 @@ type ClientWithResponsesInterface interface {
 	// GetEvaluatorWithResponse request
 	GetEvaluatorWithResponse(ctx context.Context, orgName string, evaluatorId string, reqEditors ...RequestEditorFn) (*GetEvaluatorResp, error)
 
+	// ListOrgEventDeliveriesWithResponse request
+	ListOrgEventDeliveriesWithResponse(ctx context.Context, orgName string, params *ListOrgEventDeliveriesParams, reqEditors ...RequestEditorFn) (*ListOrgEventDeliveriesResp, error)
+
+	// ListEventDestinationKindsWithResponse request
+	ListEventDestinationKindsWithResponse(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*ListEventDestinationKindsResp, error)
+
+	// ListEventDestinationsWithResponse request
+	ListEventDestinationsWithResponse(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*ListEventDestinationsResp, error)
+
+	// CreateEventDestinationWithBodyWithResponse request with any body
+	CreateEventDestinationWithBodyWithResponse(ctx context.Context, orgName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateEventDestinationResp, error)
+
+	CreateEventDestinationWithResponse(ctx context.Context, orgName string, body CreateEventDestinationJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateEventDestinationResp, error)
+
+	// DeleteEventDestinationWithResponse request
+	DeleteEventDestinationWithResponse(ctx context.Context, orgName string, destinationId string, reqEditors ...RequestEditorFn) (*DeleteEventDestinationResp, error)
+
+	// GetEventDestinationWithResponse request
+	GetEventDestinationWithResponse(ctx context.Context, orgName string, destinationId string, reqEditors ...RequestEditorFn) (*GetEventDestinationResp, error)
+
+	// UpdateEventDestinationWithBodyWithResponse request with any body
+	UpdateEventDestinationWithBodyWithResponse(ctx context.Context, orgName string, destinationId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateEventDestinationResp, error)
+
+	UpdateEventDestinationWithResponse(ctx context.Context, orgName string, destinationId string, body UpdateEventDestinationJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateEventDestinationResp, error)
+
+	// RotateEventDestinationSecretWithResponse request
+	RotateEventDestinationSecretWithResponse(ctx context.Context, orgName string, destinationId string, reqEditors ...RequestEditorFn) (*RotateEventDestinationSecretResp, error)
+
+	// TestEventDestinationWithResponse request
+	TestEventDestinationWithResponse(ctx context.Context, orgName string, destinationId string, reqEditors ...RequestEditorFn) (*TestEventDestinationResp, error)
+
+	// ListEventTypesWithResponse request
+	ListEventTypesWithResponse(ctx context.Context, orgName string, params *ListEventTypesParams, reqEditors ...RequestEditorFn) (*ListEventTypesResp, error)
+
+	// ListOrgEventSubscriptionsWithResponse request
+	ListOrgEventSubscriptionsWithResponse(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*ListOrgEventSubscriptionsResp, error)
+
+	// CreateOrgEventSubscriptionWithBodyWithResponse request with any body
+	CreateOrgEventSubscriptionWithBodyWithResponse(ctx context.Context, orgName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateOrgEventSubscriptionResp, error)
+
+	CreateOrgEventSubscriptionWithResponse(ctx context.Context, orgName string, body CreateOrgEventSubscriptionJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateOrgEventSubscriptionResp, error)
+
+	// DeleteOrgEventSubscriptionWithResponse request
+	DeleteOrgEventSubscriptionWithResponse(ctx context.Context, orgName string, subscriptionId string, reqEditors ...RequestEditorFn) (*DeleteOrgEventSubscriptionResp, error)
+
+	// GetOrgEventSubscriptionWithResponse request
+	GetOrgEventSubscriptionWithResponse(ctx context.Context, orgName string, subscriptionId string, reqEditors ...RequestEditorFn) (*GetOrgEventSubscriptionResp, error)
+
+	// UpdateOrgEventSubscriptionWithBodyWithResponse request with any body
+	UpdateOrgEventSubscriptionWithBodyWithResponse(ctx context.Context, orgName string, subscriptionId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateOrgEventSubscriptionResp, error)
+
+	UpdateOrgEventSubscriptionWithResponse(ctx context.Context, orgName string, subscriptionId string, body UpdateOrgEventSubscriptionJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateOrgEventSubscriptionResp, error)
+
 	// ListGatewaysWithResponse request
 	ListGatewaysWithResponse(ctx context.Context, orgName string, params *ListGatewaysParams, reqEditors ...RequestEditorFn) (*ListGatewaysResp, error)
 
@@ -19222,6 +22390,31 @@ type ClientWithResponsesInterface interface {
 
 	RotateAgentAPIKeyWithResponse(ctx context.Context, orgName string, projName string, agentName string, envID string, keyName string, body RotateAgentAPIKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*RotateAgentAPIKeyResp, error)
 
+	// ListAgentEventDeliveriesWithResponse request
+	ListAgentEventDeliveriesWithResponse(ctx context.Context, orgName string, projName string, agentName string, params *ListAgentEventDeliveriesParams, reqEditors ...RequestEditorFn) (*ListAgentEventDeliveriesResp, error)
+
+	// ListAgentEventDestinationsWithResponse request
+	ListAgentEventDestinationsWithResponse(ctx context.Context, orgName string, projName string, agentName string, reqEditors ...RequestEditorFn) (*ListAgentEventDestinationsResp, error)
+
+	// ListAgentEventSubscriptionsWithResponse request
+	ListAgentEventSubscriptionsWithResponse(ctx context.Context, orgName string, projName string, agentName string, reqEditors ...RequestEditorFn) (*ListAgentEventSubscriptionsResp, error)
+
+	// CreateAgentEventSubscriptionWithBodyWithResponse request with any body
+	CreateAgentEventSubscriptionWithBodyWithResponse(ctx context.Context, orgName string, projName string, agentName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateAgentEventSubscriptionResp, error)
+
+	CreateAgentEventSubscriptionWithResponse(ctx context.Context, orgName string, projName string, agentName string, body CreateAgentEventSubscriptionJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateAgentEventSubscriptionResp, error)
+
+	// DeleteAgentEventSubscriptionWithResponse request
+	DeleteAgentEventSubscriptionWithResponse(ctx context.Context, orgName string, projName string, agentName string, subscriptionId string, reqEditors ...RequestEditorFn) (*DeleteAgentEventSubscriptionResp, error)
+
+	// GetAgentEventSubscriptionWithResponse request
+	GetAgentEventSubscriptionWithResponse(ctx context.Context, orgName string, projName string, agentName string, subscriptionId string, reqEditors ...RequestEditorFn) (*GetAgentEventSubscriptionResp, error)
+
+	// UpdateAgentEventSubscriptionWithBodyWithResponse request with any body
+	UpdateAgentEventSubscriptionWithBodyWithResponse(ctx context.Context, orgName string, projName string, agentName string, subscriptionId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateAgentEventSubscriptionResp, error)
+
+	UpdateAgentEventSubscriptionWithResponse(ctx context.Context, orgName string, projName string, agentName string, subscriptionId string, body UpdateAgentEventSubscriptionJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateAgentEventSubscriptionResp, error)
+
 	// GetAgentGroupsWithResponse request
 	GetAgentGroupsWithResponse(ctx context.Context, orgName string, projName string, agentName string, params *GetAgentGroupsParams, reqEditors ...RequestEditorFn) (*GetAgentGroupsResp, error)
 
@@ -19333,6 +22526,17 @@ type ClientWithResponsesInterface interface {
 
 	UpdateMonitorWithResponse(ctx context.Context, orgName string, projName string, agentName string, monitorName string, body UpdateMonitorJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateMonitorResp, error)
 
+	// DeleteMonitorAlertWithResponse request
+	DeleteMonitorAlertWithResponse(ctx context.Context, orgName string, projName string, agentName string, monitorName string, reqEditors ...RequestEditorFn) (*DeleteMonitorAlertResp, error)
+
+	// GetMonitorAlertWithResponse request
+	GetMonitorAlertWithResponse(ctx context.Context, orgName string, projName string, agentName string, monitorName string, reqEditors ...RequestEditorFn) (*GetMonitorAlertResp, error)
+
+	// PutMonitorAlertWithBodyWithResponse request with any body
+	PutMonitorAlertWithBodyWithResponse(ctx context.Context, orgName string, projName string, agentName string, monitorName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutMonitorAlertResp, error)
+
+	PutMonitorAlertWithResponse(ctx context.Context, orgName string, projName string, agentName string, monitorName string, body PutMonitorAlertJSONRequestBody, reqEditors ...RequestEditorFn) (*PutMonitorAlertResp, error)
+
 	// ListMonitorRunsWithResponse request
 	ListMonitorRunsWithResponse(ctx context.Context, orgName string, projName string, agentName string, monitorName string, params *ListMonitorRunsParams, reqEditors ...RequestEditorFn) (*ListMonitorRunsResp, error)
 
@@ -19400,6 +22604,31 @@ type ClientWithResponsesInterface interface {
 	// GetDeploymentPipelineWithResponse request
 	GetDeploymentPipelineWithResponse(ctx context.Context, orgName string, projName string, reqEditors ...RequestEditorFn) (*GetDeploymentPipelineResp, error)
 
+	// ListProjectEventDeliveriesWithResponse request
+	ListProjectEventDeliveriesWithResponse(ctx context.Context, orgName string, projName string, params *ListProjectEventDeliveriesParams, reqEditors ...RequestEditorFn) (*ListProjectEventDeliveriesResp, error)
+
+	// ListProjectEventDestinationsWithResponse request
+	ListProjectEventDestinationsWithResponse(ctx context.Context, orgName string, projName string, reqEditors ...RequestEditorFn) (*ListProjectEventDestinationsResp, error)
+
+	// ListProjectEventSubscriptionsWithResponse request
+	ListProjectEventSubscriptionsWithResponse(ctx context.Context, orgName string, projName string, reqEditors ...RequestEditorFn) (*ListProjectEventSubscriptionsResp, error)
+
+	// CreateProjectEventSubscriptionWithBodyWithResponse request with any body
+	CreateProjectEventSubscriptionWithBodyWithResponse(ctx context.Context, orgName string, projName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateProjectEventSubscriptionResp, error)
+
+	CreateProjectEventSubscriptionWithResponse(ctx context.Context, orgName string, projName string, body CreateProjectEventSubscriptionJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateProjectEventSubscriptionResp, error)
+
+	// DeleteProjectEventSubscriptionWithResponse request
+	DeleteProjectEventSubscriptionWithResponse(ctx context.Context, orgName string, projName string, subscriptionId string, reqEditors ...RequestEditorFn) (*DeleteProjectEventSubscriptionResp, error)
+
+	// GetProjectEventSubscriptionWithResponse request
+	GetProjectEventSubscriptionWithResponse(ctx context.Context, orgName string, projName string, subscriptionId string, reqEditors ...RequestEditorFn) (*GetProjectEventSubscriptionResp, error)
+
+	// UpdateProjectEventSubscriptionWithBodyWithResponse request with any body
+	UpdateProjectEventSubscriptionWithBodyWithResponse(ctx context.Context, orgName string, projName string, subscriptionId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateProjectEventSubscriptionResp, error)
+
+	UpdateProjectEventSubscriptionWithResponse(ctx context.Context, orgName string, projName string, subscriptionId string, body UpdateProjectEventSubscriptionJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateProjectEventSubscriptionResp, error)
+
 	// ListLLMProxiesWithResponse request
 	ListLLMProxiesWithResponse(ctx context.Context, orgName string, projName string, params *ListLLMProxiesParams, reqEditors ...RequestEditorFn) (*ListLLMProxiesResp, error)
 
@@ -19454,6 +22683,31 @@ type ClientWithResponsesInterface interface {
 
 	// GetLLMProxyDeploymentWithResponse request
 	GetLLMProxyDeploymentWithResponse(ctx context.Context, orgName string, projName string, id string, deploymentId string, reqEditors ...RequestEditorFn) (*GetLLMProxyDeploymentResp, error)
+
+	// ListProjectMCPProxiesWithResponse request
+	ListProjectMCPProxiesWithResponse(ctx context.Context, orgName string, projName string, params *ListProjectMCPProxiesParams, reqEditors ...RequestEditorFn) (*ListProjectMCPProxiesResp, error)
+
+	// DeleteProjectMCPProxyWithResponse request
+	DeleteProjectMCPProxyWithResponse(ctx context.Context, orgName string, projName string, proxyId string, params *DeleteProjectMCPProxyParams, reqEditors ...RequestEditorFn) (*DeleteProjectMCPProxyResp, error)
+
+	// GetProjectMCPProxyWithResponse request
+	GetProjectMCPProxyWithResponse(ctx context.Context, orgName string, projName string, proxyId string, params *GetProjectMCPProxyParams, reqEditors ...RequestEditorFn) (*GetProjectMCPProxyResp, error)
+
+	// UpsertProjectMCPProxyWithBodyWithResponse request with any body
+	UpsertProjectMCPProxyWithBodyWithResponse(ctx context.Context, orgName string, projName string, proxyId string, params *UpsertProjectMCPProxyParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpsertProjectMCPProxyResp, error)
+
+	UpsertProjectMCPProxyWithResponse(ctx context.Context, orgName string, projName string, proxyId string, params *UpsertProjectMCPProxyParams, body UpsertProjectMCPProxyJSONRequestBody, reqEditors ...RequestEditorFn) (*UpsertProjectMCPProxyResp, error)
+
+	// DeleteProjectMCPProxyEnvironmentWithResponse request
+	DeleteProjectMCPProxyEnvironmentWithResponse(ctx context.Context, orgName string, projName string, proxyId string, envName string, params *DeleteProjectMCPProxyEnvironmentParams, reqEditors ...RequestEditorFn) (*DeleteProjectMCPProxyEnvironmentResp, error)
+
+	// GetProjectMCPProxyEnvironmentWithResponse request
+	GetProjectMCPProxyEnvironmentWithResponse(ctx context.Context, orgName string, projName string, proxyId string, envName string, params *GetProjectMCPProxyEnvironmentParams, reqEditors ...RequestEditorFn) (*GetProjectMCPProxyEnvironmentResp, error)
+
+	// PutProjectMCPProxyEnvironmentWithBodyWithResponse request with any body
+	PutProjectMCPProxyEnvironmentWithBodyWithResponse(ctx context.Context, orgName string, projName string, proxyId string, envName string, params *PutProjectMCPProxyEnvironmentParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutProjectMCPProxyEnvironmentResp, error)
+
+	PutProjectMCPProxyEnvironmentWithResponse(ctx context.Context, orgName string, projName string, proxyId string, envName string, params *PutProjectMCPProxyEnvironmentParams, body PutProjectMCPProxyEnvironmentJSONRequestBody, reqEditors ...RequestEditorFn) (*PutProjectMCPProxyEnvironmentResp, error)
 
 	// ListRepositoryBranchesWithBodyWithResponse request with any body
 	ListRepositoryBranchesWithBodyWithResponse(ctx context.Context, orgName string, params *ListRepositoryBranchesParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ListRepositoryBranchesResp, error)
@@ -20914,6 +24168,357 @@ func (r GetEvaluatorResp) StatusCode() int {
 	return 0
 }
 
+type ListOrgEventDeliveriesResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *EventDeliveryListResponse
+	JSON400      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r ListOrgEventDeliveriesResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListOrgEventDeliveriesResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListEventDestinationKindsResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *EventDestinationKindListResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r ListEventDestinationKindsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListEventDestinationKindsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListEventDestinationsResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *EventDestinationListResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r ListEventDestinationsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListEventDestinationsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateEventDestinationResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *EventDestinationResponse
+	JSON400      *ErrorResponse
+	JSON409      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateEventDestinationResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateEventDestinationResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteEventDestinationResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON404      *ErrorResponse
+	JSON409      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteEventDestinationResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteEventDestinationResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetEventDestinationResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *EventDestinationResponse
+	JSON404      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r GetEventDestinationResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetEventDestinationResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateEventDestinationResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *EventDestinationResponse
+	JSON400      *ErrorResponse
+	JSON404      *ErrorResponse
+	JSON409      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateEventDestinationResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateEventDestinationResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type RotateEventDestinationSecretResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *EventDestinationSecretResponse
+	JSON400      *ErrorResponse
+	JSON404      *ErrorResponse
+	JSON409      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r RotateEventDestinationSecretResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r RotateEventDestinationSecretResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type TestEventDestinationResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *EventDestinationTestResponse
+	JSON404      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r TestEventDestinationResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r TestEventDestinationResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListEventTypesResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *EventTypeListResponse
+	JSON400      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r ListEventTypesResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListEventTypesResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListOrgEventSubscriptionsResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *EventSubscriptionListResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r ListOrgEventSubscriptionsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListOrgEventSubscriptionsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateOrgEventSubscriptionResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *EventSubscriptionResponse
+	JSON400      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateOrgEventSubscriptionResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateOrgEventSubscriptionResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteOrgEventSubscriptionResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON404      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteOrgEventSubscriptionResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteOrgEventSubscriptionResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetOrgEventSubscriptionResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *EventSubscriptionResponse
+	JSON404      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r GetOrgEventSubscriptionResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetOrgEventSubscriptionResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateOrgEventSubscriptionResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *EventSubscriptionResponse
+	JSON400      *ErrorResponse
+	JSON404      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateOrgEventSubscriptionResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateOrgEventSubscriptionResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type ListGatewaysResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -22323,6 +25928,7 @@ type DeployLLMProviderResp struct {
 	JSON400      *ErrorResponse
 	JSON401      *ErrorResponse
 	JSON404      *ErrorResponse
+	JSON409      *ErrorResponse
 	JSON500      *ErrorResponse
 }
 
@@ -22482,6 +26088,7 @@ type ListMCPProxiesResp struct {
 	JSON200      *MCPProxyListResponse
 	JSON400      *ErrorResponse
 	JSON401      *ErrorResponse
+	JSON404      *ErrorResponse
 	JSON500      *ErrorResponse
 }
 
@@ -22635,6 +26242,7 @@ type UpdateMCPProxyResp struct {
 	JSON400      *ErrorResponse
 	JSON401      *ErrorResponse
 	JSON404      *ErrorResponse
+	JSON409      *ErrorResponse
 	JSON500      *ErrorResponse
 }
 
@@ -22893,6 +26501,7 @@ type CreateAgentResp struct {
 	HTTPResponse *http.Response
 	JSON202      *AgentResponse
 	JSON400      *ErrorResponse
+	JSON402      *ErrorResponse
 	JSON404      *ErrorResponse
 	JSON409      *ErrorResponse
 	JSON500      *ErrorResponse
@@ -23586,6 +27195,168 @@ func (r RotateAgentAPIKeyResp) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r RotateAgentAPIKeyResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListAgentEventDeliveriesResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *EventDeliveryListResponse
+	JSON400      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r ListAgentEventDeliveriesResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListAgentEventDeliveriesResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListAgentEventDestinationsResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *EventDestinationSummaryListResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r ListAgentEventDestinationsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListAgentEventDestinationsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListAgentEventSubscriptionsResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *EventSubscriptionListResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r ListAgentEventSubscriptionsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListAgentEventSubscriptionsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateAgentEventSubscriptionResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *EventSubscriptionResponse
+	JSON400      *ErrorResponse
+	JSON404      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateAgentEventSubscriptionResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateAgentEventSubscriptionResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteAgentEventSubscriptionResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON404      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteAgentEventSubscriptionResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteAgentEventSubscriptionResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetAgentEventSubscriptionResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *EventSubscriptionResponse
+	JSON404      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r GetAgentEventSubscriptionResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetAgentEventSubscriptionResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateAgentEventSubscriptionResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *EventSubscriptionResponse
+	JSON400      *ErrorResponse
+	JSON404      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateAgentEventSubscriptionResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateAgentEventSubscriptionResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -24320,6 +28091,75 @@ func (r UpdateMonitorResp) StatusCode() int {
 	return 0
 }
 
+type DeleteMonitorAlertResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON404      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteMonitorAlertResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteMonitorAlertResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetMonitorAlertResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *MonitorAlertResponse
+	JSON404      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r GetMonitorAlertResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetMonitorAlertResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type PutMonitorAlertResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *MonitorAlertResponse
+	JSON400      *ErrorResponse
+	JSON404      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r PutMonitorAlertResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PutMonitorAlertResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type ListMonitorRunsResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -24795,6 +28635,168 @@ func (r GetDeploymentPipelineResp) StatusCode() int {
 	return 0
 }
 
+type ListProjectEventDeliveriesResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *EventDeliveryListResponse
+	JSON400      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r ListProjectEventDeliveriesResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListProjectEventDeliveriesResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListProjectEventDestinationsResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *EventDestinationSummaryListResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r ListProjectEventDestinationsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListProjectEventDestinationsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListProjectEventSubscriptionsResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *EventSubscriptionListResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r ListProjectEventSubscriptionsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListProjectEventSubscriptionsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateProjectEventSubscriptionResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *EventSubscriptionResponse
+	JSON400      *ErrorResponse
+	JSON404      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateProjectEventSubscriptionResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateProjectEventSubscriptionResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteProjectEventSubscriptionResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON404      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteProjectEventSubscriptionResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteProjectEventSubscriptionResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetProjectEventSubscriptionResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *EventSubscriptionResponse
+	JSON404      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r GetProjectEventSubscriptionResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetProjectEventSubscriptionResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateProjectEventSubscriptionResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *EventSubscriptionResponse
+	JSON400      *ErrorResponse
+	JSON404      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateProjectEventSubscriptionResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateProjectEventSubscriptionResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type ListLLMProxiesResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -25062,6 +29064,7 @@ type DeployLLMProxyResp struct {
 	JSON400      *ErrorResponse
 	JSON401      *ErrorResponse
 	JSON404      *ErrorResponse
+	JSON409      *ErrorResponse
 	JSON500      *ErrorResponse
 }
 
@@ -25183,6 +29186,194 @@ func (r GetLLMProxyDeploymentResp) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r GetLLMProxyDeploymentResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListProjectMCPProxiesResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ProjectMCPProxyListResponse
+	JSON401      *ErrorResponse
+	JSON403      *ErrorResponse
+	JSON404      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r ListProjectMCPProxiesResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListProjectMCPProxiesResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteProjectMCPProxyResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON401      *ErrorResponse
+	JSON403      *ErrorResponse
+	JSON404      *ErrorResponse
+	JSON409      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteProjectMCPProxyResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteProjectMCPProxyResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetProjectMCPProxyResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ProjectMCPProxyResponse
+	JSON401      *ErrorResponse
+	JSON403      *ErrorResponse
+	JSON404      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r GetProjectMCPProxyResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetProjectMCPProxyResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpsertProjectMCPProxyResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ProjectMCPProxyResponse
+	JSON201      *ProjectMCPProxyResponse
+	JSON400      *ErrorResponse
+	JSON401      *ErrorResponse
+	JSON403      *ErrorResponse
+	JSON404      *ErrorResponse
+	JSON409      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r UpsertProjectMCPProxyResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpsertProjectMCPProxyResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteProjectMCPProxyEnvironmentResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON401      *ErrorResponse
+	JSON403      *ErrorResponse
+	JSON404      *ErrorResponse
+	JSON409      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteProjectMCPProxyEnvironmentResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteProjectMCPProxyEnvironmentResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetProjectMCPProxyEnvironmentResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *MCPProxyEnvironmentResponse
+	JSON401      *ErrorResponse
+	JSON403      *ErrorResponse
+	JSON404      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r GetProjectMCPProxyEnvironmentResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetProjectMCPProxyEnvironmentResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type PutProjectMCPProxyEnvironmentResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *MCPProxyEnvironmentResponse
+	JSON201      *MCPProxyEnvironmentResponse
+	JSON400      *ErrorResponse
+	JSON401      *ErrorResponse
+	JSON403      *ErrorResponse
+	JSON404      *ErrorResponse
+	JSON409      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r PutProjectMCPProxyEnvironmentResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PutProjectMCPProxyEnvironmentResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -26191,6 +30382,173 @@ func (c *ClientWithResponses) GetEvaluatorWithResponse(ctx context.Context, orgN
 		return nil, err
 	}
 	return ParseGetEvaluatorResp(rsp)
+}
+
+// ListOrgEventDeliveriesWithResponse request returning *ListOrgEventDeliveriesResp
+func (c *ClientWithResponses) ListOrgEventDeliveriesWithResponse(ctx context.Context, orgName string, params *ListOrgEventDeliveriesParams, reqEditors ...RequestEditorFn) (*ListOrgEventDeliveriesResp, error) {
+	rsp, err := c.ListOrgEventDeliveries(ctx, orgName, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListOrgEventDeliveriesResp(rsp)
+}
+
+// ListEventDestinationKindsWithResponse request returning *ListEventDestinationKindsResp
+func (c *ClientWithResponses) ListEventDestinationKindsWithResponse(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*ListEventDestinationKindsResp, error) {
+	rsp, err := c.ListEventDestinationKinds(ctx, orgName, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListEventDestinationKindsResp(rsp)
+}
+
+// ListEventDestinationsWithResponse request returning *ListEventDestinationsResp
+func (c *ClientWithResponses) ListEventDestinationsWithResponse(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*ListEventDestinationsResp, error) {
+	rsp, err := c.ListEventDestinations(ctx, orgName, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListEventDestinationsResp(rsp)
+}
+
+// CreateEventDestinationWithBodyWithResponse request with arbitrary body returning *CreateEventDestinationResp
+func (c *ClientWithResponses) CreateEventDestinationWithBodyWithResponse(ctx context.Context, orgName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateEventDestinationResp, error) {
+	rsp, err := c.CreateEventDestinationWithBody(ctx, orgName, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateEventDestinationResp(rsp)
+}
+
+func (c *ClientWithResponses) CreateEventDestinationWithResponse(ctx context.Context, orgName string, body CreateEventDestinationJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateEventDestinationResp, error) {
+	rsp, err := c.CreateEventDestination(ctx, orgName, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateEventDestinationResp(rsp)
+}
+
+// DeleteEventDestinationWithResponse request returning *DeleteEventDestinationResp
+func (c *ClientWithResponses) DeleteEventDestinationWithResponse(ctx context.Context, orgName string, destinationId string, reqEditors ...RequestEditorFn) (*DeleteEventDestinationResp, error) {
+	rsp, err := c.DeleteEventDestination(ctx, orgName, destinationId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteEventDestinationResp(rsp)
+}
+
+// GetEventDestinationWithResponse request returning *GetEventDestinationResp
+func (c *ClientWithResponses) GetEventDestinationWithResponse(ctx context.Context, orgName string, destinationId string, reqEditors ...RequestEditorFn) (*GetEventDestinationResp, error) {
+	rsp, err := c.GetEventDestination(ctx, orgName, destinationId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetEventDestinationResp(rsp)
+}
+
+// UpdateEventDestinationWithBodyWithResponse request with arbitrary body returning *UpdateEventDestinationResp
+func (c *ClientWithResponses) UpdateEventDestinationWithBodyWithResponse(ctx context.Context, orgName string, destinationId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateEventDestinationResp, error) {
+	rsp, err := c.UpdateEventDestinationWithBody(ctx, orgName, destinationId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateEventDestinationResp(rsp)
+}
+
+func (c *ClientWithResponses) UpdateEventDestinationWithResponse(ctx context.Context, orgName string, destinationId string, body UpdateEventDestinationJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateEventDestinationResp, error) {
+	rsp, err := c.UpdateEventDestination(ctx, orgName, destinationId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateEventDestinationResp(rsp)
+}
+
+// RotateEventDestinationSecretWithResponse request returning *RotateEventDestinationSecretResp
+func (c *ClientWithResponses) RotateEventDestinationSecretWithResponse(ctx context.Context, orgName string, destinationId string, reqEditors ...RequestEditorFn) (*RotateEventDestinationSecretResp, error) {
+	rsp, err := c.RotateEventDestinationSecret(ctx, orgName, destinationId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRotateEventDestinationSecretResp(rsp)
+}
+
+// TestEventDestinationWithResponse request returning *TestEventDestinationResp
+func (c *ClientWithResponses) TestEventDestinationWithResponse(ctx context.Context, orgName string, destinationId string, reqEditors ...RequestEditorFn) (*TestEventDestinationResp, error) {
+	rsp, err := c.TestEventDestination(ctx, orgName, destinationId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseTestEventDestinationResp(rsp)
+}
+
+// ListEventTypesWithResponse request returning *ListEventTypesResp
+func (c *ClientWithResponses) ListEventTypesWithResponse(ctx context.Context, orgName string, params *ListEventTypesParams, reqEditors ...RequestEditorFn) (*ListEventTypesResp, error) {
+	rsp, err := c.ListEventTypes(ctx, orgName, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListEventTypesResp(rsp)
+}
+
+// ListOrgEventSubscriptionsWithResponse request returning *ListOrgEventSubscriptionsResp
+func (c *ClientWithResponses) ListOrgEventSubscriptionsWithResponse(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*ListOrgEventSubscriptionsResp, error) {
+	rsp, err := c.ListOrgEventSubscriptions(ctx, orgName, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListOrgEventSubscriptionsResp(rsp)
+}
+
+// CreateOrgEventSubscriptionWithBodyWithResponse request with arbitrary body returning *CreateOrgEventSubscriptionResp
+func (c *ClientWithResponses) CreateOrgEventSubscriptionWithBodyWithResponse(ctx context.Context, orgName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateOrgEventSubscriptionResp, error) {
+	rsp, err := c.CreateOrgEventSubscriptionWithBody(ctx, orgName, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateOrgEventSubscriptionResp(rsp)
+}
+
+func (c *ClientWithResponses) CreateOrgEventSubscriptionWithResponse(ctx context.Context, orgName string, body CreateOrgEventSubscriptionJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateOrgEventSubscriptionResp, error) {
+	rsp, err := c.CreateOrgEventSubscription(ctx, orgName, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateOrgEventSubscriptionResp(rsp)
+}
+
+// DeleteOrgEventSubscriptionWithResponse request returning *DeleteOrgEventSubscriptionResp
+func (c *ClientWithResponses) DeleteOrgEventSubscriptionWithResponse(ctx context.Context, orgName string, subscriptionId string, reqEditors ...RequestEditorFn) (*DeleteOrgEventSubscriptionResp, error) {
+	rsp, err := c.DeleteOrgEventSubscription(ctx, orgName, subscriptionId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteOrgEventSubscriptionResp(rsp)
+}
+
+// GetOrgEventSubscriptionWithResponse request returning *GetOrgEventSubscriptionResp
+func (c *ClientWithResponses) GetOrgEventSubscriptionWithResponse(ctx context.Context, orgName string, subscriptionId string, reqEditors ...RequestEditorFn) (*GetOrgEventSubscriptionResp, error) {
+	rsp, err := c.GetOrgEventSubscription(ctx, orgName, subscriptionId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetOrgEventSubscriptionResp(rsp)
+}
+
+// UpdateOrgEventSubscriptionWithBodyWithResponse request with arbitrary body returning *UpdateOrgEventSubscriptionResp
+func (c *ClientWithResponses) UpdateOrgEventSubscriptionWithBodyWithResponse(ctx context.Context, orgName string, subscriptionId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateOrgEventSubscriptionResp, error) {
+	rsp, err := c.UpdateOrgEventSubscriptionWithBody(ctx, orgName, subscriptionId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateOrgEventSubscriptionResp(rsp)
+}
+
+func (c *ClientWithResponses) UpdateOrgEventSubscriptionWithResponse(ctx context.Context, orgName string, subscriptionId string, body UpdateOrgEventSubscriptionJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateOrgEventSubscriptionResp, error) {
+	rsp, err := c.UpdateOrgEventSubscription(ctx, orgName, subscriptionId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateOrgEventSubscriptionResp(rsp)
 }
 
 // ListGatewaysWithResponse request returning *ListGatewaysResp
@@ -27451,6 +31809,85 @@ func (c *ClientWithResponses) RotateAgentAPIKeyWithResponse(ctx context.Context,
 	return ParseRotateAgentAPIKeyResp(rsp)
 }
 
+// ListAgentEventDeliveriesWithResponse request returning *ListAgentEventDeliveriesResp
+func (c *ClientWithResponses) ListAgentEventDeliveriesWithResponse(ctx context.Context, orgName string, projName string, agentName string, params *ListAgentEventDeliveriesParams, reqEditors ...RequestEditorFn) (*ListAgentEventDeliveriesResp, error) {
+	rsp, err := c.ListAgentEventDeliveries(ctx, orgName, projName, agentName, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListAgentEventDeliveriesResp(rsp)
+}
+
+// ListAgentEventDestinationsWithResponse request returning *ListAgentEventDestinationsResp
+func (c *ClientWithResponses) ListAgentEventDestinationsWithResponse(ctx context.Context, orgName string, projName string, agentName string, reqEditors ...RequestEditorFn) (*ListAgentEventDestinationsResp, error) {
+	rsp, err := c.ListAgentEventDestinations(ctx, orgName, projName, agentName, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListAgentEventDestinationsResp(rsp)
+}
+
+// ListAgentEventSubscriptionsWithResponse request returning *ListAgentEventSubscriptionsResp
+func (c *ClientWithResponses) ListAgentEventSubscriptionsWithResponse(ctx context.Context, orgName string, projName string, agentName string, reqEditors ...RequestEditorFn) (*ListAgentEventSubscriptionsResp, error) {
+	rsp, err := c.ListAgentEventSubscriptions(ctx, orgName, projName, agentName, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListAgentEventSubscriptionsResp(rsp)
+}
+
+// CreateAgentEventSubscriptionWithBodyWithResponse request with arbitrary body returning *CreateAgentEventSubscriptionResp
+func (c *ClientWithResponses) CreateAgentEventSubscriptionWithBodyWithResponse(ctx context.Context, orgName string, projName string, agentName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateAgentEventSubscriptionResp, error) {
+	rsp, err := c.CreateAgentEventSubscriptionWithBody(ctx, orgName, projName, agentName, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateAgentEventSubscriptionResp(rsp)
+}
+
+func (c *ClientWithResponses) CreateAgentEventSubscriptionWithResponse(ctx context.Context, orgName string, projName string, agentName string, body CreateAgentEventSubscriptionJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateAgentEventSubscriptionResp, error) {
+	rsp, err := c.CreateAgentEventSubscription(ctx, orgName, projName, agentName, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateAgentEventSubscriptionResp(rsp)
+}
+
+// DeleteAgentEventSubscriptionWithResponse request returning *DeleteAgentEventSubscriptionResp
+func (c *ClientWithResponses) DeleteAgentEventSubscriptionWithResponse(ctx context.Context, orgName string, projName string, agentName string, subscriptionId string, reqEditors ...RequestEditorFn) (*DeleteAgentEventSubscriptionResp, error) {
+	rsp, err := c.DeleteAgentEventSubscription(ctx, orgName, projName, agentName, subscriptionId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteAgentEventSubscriptionResp(rsp)
+}
+
+// GetAgentEventSubscriptionWithResponse request returning *GetAgentEventSubscriptionResp
+func (c *ClientWithResponses) GetAgentEventSubscriptionWithResponse(ctx context.Context, orgName string, projName string, agentName string, subscriptionId string, reqEditors ...RequestEditorFn) (*GetAgentEventSubscriptionResp, error) {
+	rsp, err := c.GetAgentEventSubscription(ctx, orgName, projName, agentName, subscriptionId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetAgentEventSubscriptionResp(rsp)
+}
+
+// UpdateAgentEventSubscriptionWithBodyWithResponse request with arbitrary body returning *UpdateAgentEventSubscriptionResp
+func (c *ClientWithResponses) UpdateAgentEventSubscriptionWithBodyWithResponse(ctx context.Context, orgName string, projName string, agentName string, subscriptionId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateAgentEventSubscriptionResp, error) {
+	rsp, err := c.UpdateAgentEventSubscriptionWithBody(ctx, orgName, projName, agentName, subscriptionId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateAgentEventSubscriptionResp(rsp)
+}
+
+func (c *ClientWithResponses) UpdateAgentEventSubscriptionWithResponse(ctx context.Context, orgName string, projName string, agentName string, subscriptionId string, body UpdateAgentEventSubscriptionJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateAgentEventSubscriptionResp, error) {
+	rsp, err := c.UpdateAgentEventSubscription(ctx, orgName, projName, agentName, subscriptionId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateAgentEventSubscriptionResp(rsp)
+}
+
 // GetAgentGroupsWithResponse request returning *GetAgentGroupsResp
 func (c *ClientWithResponses) GetAgentGroupsWithResponse(ctx context.Context, orgName string, projName string, agentName string, params *GetAgentGroupsParams, reqEditors ...RequestEditorFn) (*GetAgentGroupsResp, error) {
 	rsp, err := c.GetAgentGroups(ctx, orgName, projName, agentName, params, reqEditors...)
@@ -27808,6 +32245,41 @@ func (c *ClientWithResponses) UpdateMonitorWithResponse(ctx context.Context, org
 	return ParseUpdateMonitorResp(rsp)
 }
 
+// DeleteMonitorAlertWithResponse request returning *DeleteMonitorAlertResp
+func (c *ClientWithResponses) DeleteMonitorAlertWithResponse(ctx context.Context, orgName string, projName string, agentName string, monitorName string, reqEditors ...RequestEditorFn) (*DeleteMonitorAlertResp, error) {
+	rsp, err := c.DeleteMonitorAlert(ctx, orgName, projName, agentName, monitorName, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteMonitorAlertResp(rsp)
+}
+
+// GetMonitorAlertWithResponse request returning *GetMonitorAlertResp
+func (c *ClientWithResponses) GetMonitorAlertWithResponse(ctx context.Context, orgName string, projName string, agentName string, monitorName string, reqEditors ...RequestEditorFn) (*GetMonitorAlertResp, error) {
+	rsp, err := c.GetMonitorAlert(ctx, orgName, projName, agentName, monitorName, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetMonitorAlertResp(rsp)
+}
+
+// PutMonitorAlertWithBodyWithResponse request with arbitrary body returning *PutMonitorAlertResp
+func (c *ClientWithResponses) PutMonitorAlertWithBodyWithResponse(ctx context.Context, orgName string, projName string, agentName string, monitorName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutMonitorAlertResp, error) {
+	rsp, err := c.PutMonitorAlertWithBody(ctx, orgName, projName, agentName, monitorName, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePutMonitorAlertResp(rsp)
+}
+
+func (c *ClientWithResponses) PutMonitorAlertWithResponse(ctx context.Context, orgName string, projName string, agentName string, monitorName string, body PutMonitorAlertJSONRequestBody, reqEditors ...RequestEditorFn) (*PutMonitorAlertResp, error) {
+	rsp, err := c.PutMonitorAlert(ctx, orgName, projName, agentName, monitorName, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePutMonitorAlertResp(rsp)
+}
+
 // ListMonitorRunsWithResponse request returning *ListMonitorRunsResp
 func (c *ClientWithResponses) ListMonitorRunsWithResponse(ctx context.Context, orgName string, projName string, agentName string, monitorName string, params *ListMonitorRunsParams, reqEditors ...RequestEditorFn) (*ListMonitorRunsResp, error) {
 	rsp, err := c.ListMonitorRuns(ctx, orgName, projName, agentName, monitorName, params, reqEditors...)
@@ -28019,6 +32491,85 @@ func (c *ClientWithResponses) GetDeploymentPipelineWithResponse(ctx context.Cont
 	return ParseGetDeploymentPipelineResp(rsp)
 }
 
+// ListProjectEventDeliveriesWithResponse request returning *ListProjectEventDeliveriesResp
+func (c *ClientWithResponses) ListProjectEventDeliveriesWithResponse(ctx context.Context, orgName string, projName string, params *ListProjectEventDeliveriesParams, reqEditors ...RequestEditorFn) (*ListProjectEventDeliveriesResp, error) {
+	rsp, err := c.ListProjectEventDeliveries(ctx, orgName, projName, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListProjectEventDeliveriesResp(rsp)
+}
+
+// ListProjectEventDestinationsWithResponse request returning *ListProjectEventDestinationsResp
+func (c *ClientWithResponses) ListProjectEventDestinationsWithResponse(ctx context.Context, orgName string, projName string, reqEditors ...RequestEditorFn) (*ListProjectEventDestinationsResp, error) {
+	rsp, err := c.ListProjectEventDestinations(ctx, orgName, projName, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListProjectEventDestinationsResp(rsp)
+}
+
+// ListProjectEventSubscriptionsWithResponse request returning *ListProjectEventSubscriptionsResp
+func (c *ClientWithResponses) ListProjectEventSubscriptionsWithResponse(ctx context.Context, orgName string, projName string, reqEditors ...RequestEditorFn) (*ListProjectEventSubscriptionsResp, error) {
+	rsp, err := c.ListProjectEventSubscriptions(ctx, orgName, projName, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListProjectEventSubscriptionsResp(rsp)
+}
+
+// CreateProjectEventSubscriptionWithBodyWithResponse request with arbitrary body returning *CreateProjectEventSubscriptionResp
+func (c *ClientWithResponses) CreateProjectEventSubscriptionWithBodyWithResponse(ctx context.Context, orgName string, projName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateProjectEventSubscriptionResp, error) {
+	rsp, err := c.CreateProjectEventSubscriptionWithBody(ctx, orgName, projName, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateProjectEventSubscriptionResp(rsp)
+}
+
+func (c *ClientWithResponses) CreateProjectEventSubscriptionWithResponse(ctx context.Context, orgName string, projName string, body CreateProjectEventSubscriptionJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateProjectEventSubscriptionResp, error) {
+	rsp, err := c.CreateProjectEventSubscription(ctx, orgName, projName, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateProjectEventSubscriptionResp(rsp)
+}
+
+// DeleteProjectEventSubscriptionWithResponse request returning *DeleteProjectEventSubscriptionResp
+func (c *ClientWithResponses) DeleteProjectEventSubscriptionWithResponse(ctx context.Context, orgName string, projName string, subscriptionId string, reqEditors ...RequestEditorFn) (*DeleteProjectEventSubscriptionResp, error) {
+	rsp, err := c.DeleteProjectEventSubscription(ctx, orgName, projName, subscriptionId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteProjectEventSubscriptionResp(rsp)
+}
+
+// GetProjectEventSubscriptionWithResponse request returning *GetProjectEventSubscriptionResp
+func (c *ClientWithResponses) GetProjectEventSubscriptionWithResponse(ctx context.Context, orgName string, projName string, subscriptionId string, reqEditors ...RequestEditorFn) (*GetProjectEventSubscriptionResp, error) {
+	rsp, err := c.GetProjectEventSubscription(ctx, orgName, projName, subscriptionId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetProjectEventSubscriptionResp(rsp)
+}
+
+// UpdateProjectEventSubscriptionWithBodyWithResponse request with arbitrary body returning *UpdateProjectEventSubscriptionResp
+func (c *ClientWithResponses) UpdateProjectEventSubscriptionWithBodyWithResponse(ctx context.Context, orgName string, projName string, subscriptionId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateProjectEventSubscriptionResp, error) {
+	rsp, err := c.UpdateProjectEventSubscriptionWithBody(ctx, orgName, projName, subscriptionId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateProjectEventSubscriptionResp(rsp)
+}
+
+func (c *ClientWithResponses) UpdateProjectEventSubscriptionWithResponse(ctx context.Context, orgName string, projName string, subscriptionId string, body UpdateProjectEventSubscriptionJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateProjectEventSubscriptionResp, error) {
+	rsp, err := c.UpdateProjectEventSubscription(ctx, orgName, projName, subscriptionId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateProjectEventSubscriptionResp(rsp)
+}
+
 // ListLLMProxiesWithResponse request returning *ListLLMProxiesResp
 func (c *ClientWithResponses) ListLLMProxiesWithResponse(ctx context.Context, orgName string, projName string, params *ListLLMProxiesParams, reqEditors ...RequestEditorFn) (*ListLLMProxiesResp, error) {
 	rsp, err := c.ListLLMProxies(ctx, orgName, projName, params, reqEditors...)
@@ -28192,6 +32743,85 @@ func (c *ClientWithResponses) GetLLMProxyDeploymentWithResponse(ctx context.Cont
 		return nil, err
 	}
 	return ParseGetLLMProxyDeploymentResp(rsp)
+}
+
+// ListProjectMCPProxiesWithResponse request returning *ListProjectMCPProxiesResp
+func (c *ClientWithResponses) ListProjectMCPProxiesWithResponse(ctx context.Context, orgName string, projName string, params *ListProjectMCPProxiesParams, reqEditors ...RequestEditorFn) (*ListProjectMCPProxiesResp, error) {
+	rsp, err := c.ListProjectMCPProxies(ctx, orgName, projName, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListProjectMCPProxiesResp(rsp)
+}
+
+// DeleteProjectMCPProxyWithResponse request returning *DeleteProjectMCPProxyResp
+func (c *ClientWithResponses) DeleteProjectMCPProxyWithResponse(ctx context.Context, orgName string, projName string, proxyId string, params *DeleteProjectMCPProxyParams, reqEditors ...RequestEditorFn) (*DeleteProjectMCPProxyResp, error) {
+	rsp, err := c.DeleteProjectMCPProxy(ctx, orgName, projName, proxyId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteProjectMCPProxyResp(rsp)
+}
+
+// GetProjectMCPProxyWithResponse request returning *GetProjectMCPProxyResp
+func (c *ClientWithResponses) GetProjectMCPProxyWithResponse(ctx context.Context, orgName string, projName string, proxyId string, params *GetProjectMCPProxyParams, reqEditors ...RequestEditorFn) (*GetProjectMCPProxyResp, error) {
+	rsp, err := c.GetProjectMCPProxy(ctx, orgName, projName, proxyId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetProjectMCPProxyResp(rsp)
+}
+
+// UpsertProjectMCPProxyWithBodyWithResponse request with arbitrary body returning *UpsertProjectMCPProxyResp
+func (c *ClientWithResponses) UpsertProjectMCPProxyWithBodyWithResponse(ctx context.Context, orgName string, projName string, proxyId string, params *UpsertProjectMCPProxyParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpsertProjectMCPProxyResp, error) {
+	rsp, err := c.UpsertProjectMCPProxyWithBody(ctx, orgName, projName, proxyId, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpsertProjectMCPProxyResp(rsp)
+}
+
+func (c *ClientWithResponses) UpsertProjectMCPProxyWithResponse(ctx context.Context, orgName string, projName string, proxyId string, params *UpsertProjectMCPProxyParams, body UpsertProjectMCPProxyJSONRequestBody, reqEditors ...RequestEditorFn) (*UpsertProjectMCPProxyResp, error) {
+	rsp, err := c.UpsertProjectMCPProxy(ctx, orgName, projName, proxyId, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpsertProjectMCPProxyResp(rsp)
+}
+
+// DeleteProjectMCPProxyEnvironmentWithResponse request returning *DeleteProjectMCPProxyEnvironmentResp
+func (c *ClientWithResponses) DeleteProjectMCPProxyEnvironmentWithResponse(ctx context.Context, orgName string, projName string, proxyId string, envName string, params *DeleteProjectMCPProxyEnvironmentParams, reqEditors ...RequestEditorFn) (*DeleteProjectMCPProxyEnvironmentResp, error) {
+	rsp, err := c.DeleteProjectMCPProxyEnvironment(ctx, orgName, projName, proxyId, envName, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteProjectMCPProxyEnvironmentResp(rsp)
+}
+
+// GetProjectMCPProxyEnvironmentWithResponse request returning *GetProjectMCPProxyEnvironmentResp
+func (c *ClientWithResponses) GetProjectMCPProxyEnvironmentWithResponse(ctx context.Context, orgName string, projName string, proxyId string, envName string, params *GetProjectMCPProxyEnvironmentParams, reqEditors ...RequestEditorFn) (*GetProjectMCPProxyEnvironmentResp, error) {
+	rsp, err := c.GetProjectMCPProxyEnvironment(ctx, orgName, projName, proxyId, envName, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetProjectMCPProxyEnvironmentResp(rsp)
+}
+
+// PutProjectMCPProxyEnvironmentWithBodyWithResponse request with arbitrary body returning *PutProjectMCPProxyEnvironmentResp
+func (c *ClientWithResponses) PutProjectMCPProxyEnvironmentWithBodyWithResponse(ctx context.Context, orgName string, projName string, proxyId string, envName string, params *PutProjectMCPProxyEnvironmentParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutProjectMCPProxyEnvironmentResp, error) {
+	rsp, err := c.PutProjectMCPProxyEnvironmentWithBody(ctx, orgName, projName, proxyId, envName, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePutProjectMCPProxyEnvironmentResp(rsp)
+}
+
+func (c *ClientWithResponses) PutProjectMCPProxyEnvironmentWithResponse(ctx context.Context, orgName string, projName string, proxyId string, envName string, params *PutProjectMCPProxyEnvironmentParams, body PutProjectMCPProxyEnvironmentJSONRequestBody, reqEditors ...RequestEditorFn) (*PutProjectMCPProxyEnvironmentResp, error) {
+	rsp, err := c.PutProjectMCPProxyEnvironment(ctx, orgName, projName, proxyId, envName, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePutProjectMCPProxyEnvironmentResp(rsp)
 }
 
 // ListRepositoryBranchesWithBodyWithResponse request with arbitrary body returning *ListRepositoryBranchesResp
@@ -30766,6 +35396,543 @@ func ParseGetEvaluatorResp(rsp *http.Response) (*GetEvaluatorResp, error) {
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListOrgEventDeliveriesResp parses an HTTP response from a ListOrgEventDeliveriesWithResponse call
+func ParseListOrgEventDeliveriesResp(rsp *http.Response) (*ListOrgEventDeliveriesResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListOrgEventDeliveriesResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest EventDeliveryListResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListEventDestinationKindsResp parses an HTTP response from a ListEventDestinationKindsWithResponse call
+func ParseListEventDestinationKindsResp(rsp *http.Response) (*ListEventDestinationKindsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListEventDestinationKindsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest EventDestinationKindListResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListEventDestinationsResp parses an HTTP response from a ListEventDestinationsWithResponse call
+func ParseListEventDestinationsResp(rsp *http.Response) (*ListEventDestinationsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListEventDestinationsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest EventDestinationListResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateEventDestinationResp parses an HTTP response from a CreateEventDestinationWithResponse call
+func ParseCreateEventDestinationResp(rsp *http.Response) (*CreateEventDestinationResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateEventDestinationResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest EventDestinationResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteEventDestinationResp parses an HTTP response from a DeleteEventDestinationWithResponse call
+func ParseDeleteEventDestinationResp(rsp *http.Response) (*DeleteEventDestinationResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteEventDestinationResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetEventDestinationResp parses an HTTP response from a GetEventDestinationWithResponse call
+func ParseGetEventDestinationResp(rsp *http.Response) (*GetEventDestinationResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetEventDestinationResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest EventDestinationResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateEventDestinationResp parses an HTTP response from a UpdateEventDestinationWithResponse call
+func ParseUpdateEventDestinationResp(rsp *http.Response) (*UpdateEventDestinationResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateEventDestinationResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest EventDestinationResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseRotateEventDestinationSecretResp parses an HTTP response from a RotateEventDestinationSecretWithResponse call
+func ParseRotateEventDestinationSecretResp(rsp *http.Response) (*RotateEventDestinationSecretResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &RotateEventDestinationSecretResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest EventDestinationSecretResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseTestEventDestinationResp parses an HTTP response from a TestEventDestinationWithResponse call
+func ParseTestEventDestinationResp(rsp *http.Response) (*TestEventDestinationResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &TestEventDestinationResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest EventDestinationTestResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListEventTypesResp parses an HTTP response from a ListEventTypesWithResponse call
+func ParseListEventTypesResp(rsp *http.Response) (*ListEventTypesResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListEventTypesResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest EventTypeListResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListOrgEventSubscriptionsResp parses an HTTP response from a ListOrgEventSubscriptionsWithResponse call
+func ParseListOrgEventSubscriptionsResp(rsp *http.Response) (*ListOrgEventSubscriptionsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListOrgEventSubscriptionsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest EventSubscriptionListResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateOrgEventSubscriptionResp parses an HTTP response from a CreateOrgEventSubscriptionWithResponse call
+func ParseCreateOrgEventSubscriptionResp(rsp *http.Response) (*CreateOrgEventSubscriptionResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateOrgEventSubscriptionResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest EventSubscriptionResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteOrgEventSubscriptionResp parses an HTTP response from a DeleteOrgEventSubscriptionWithResponse call
+func ParseDeleteOrgEventSubscriptionResp(rsp *http.Response) (*DeleteOrgEventSubscriptionResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteOrgEventSubscriptionResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetOrgEventSubscriptionResp parses an HTTP response from a GetOrgEventSubscriptionWithResponse call
+func ParseGetOrgEventSubscriptionResp(rsp *http.Response) (*GetOrgEventSubscriptionResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetOrgEventSubscriptionResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest EventSubscriptionResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateOrgEventSubscriptionResp parses an HTTP response from a UpdateOrgEventSubscriptionWithResponse call
+func ParseUpdateOrgEventSubscriptionResp(rsp *http.Response) (*UpdateOrgEventSubscriptionResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateOrgEventSubscriptionResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest EventSubscriptionResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	}
 
@@ -33576,6 +38743,13 @@ func ParseDeployLLMProviderResp(rsp *http.Response) (*DeployLLMProviderResp, err
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest ErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -33909,6 +39083,13 @@ func ParseListMCPProxiesResp(rsp *http.Response) (*ListMCPProxiesResp, error) {
 		}
 		response.JSON401 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest ErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -34211,6 +39392,13 @@ func ParseUpdateMCPProxyResp(rsp *http.Response) (*UpdateMCPProxyResp, error) {
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest ErrorResponse
@@ -34606,6 +39794,13 @@ func ParseCreateAgentResp(rsp *http.Response) (*CreateAgentResp, error) {
 			return nil, err
 		}
 		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 402:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON402 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
 		var dest ErrorResponse
@@ -35917,6 +41112,244 @@ func ParseRotateAgentAPIKeyResp(rsp *http.Response) (*RotateAgentAPIKeyResp, err
 			return nil, err
 		}
 		response.JSON503 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListAgentEventDeliveriesResp parses an HTTP response from a ListAgentEventDeliveriesWithResponse call
+func ParseListAgentEventDeliveriesResp(rsp *http.Response) (*ListAgentEventDeliveriesResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListAgentEventDeliveriesResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest EventDeliveryListResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListAgentEventDestinationsResp parses an HTTP response from a ListAgentEventDestinationsWithResponse call
+func ParseListAgentEventDestinationsResp(rsp *http.Response) (*ListAgentEventDestinationsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListAgentEventDestinationsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest EventDestinationSummaryListResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListAgentEventSubscriptionsResp parses an HTTP response from a ListAgentEventSubscriptionsWithResponse call
+func ParseListAgentEventSubscriptionsResp(rsp *http.Response) (*ListAgentEventSubscriptionsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListAgentEventSubscriptionsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest EventSubscriptionListResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateAgentEventSubscriptionResp parses an HTTP response from a CreateAgentEventSubscriptionWithResponse call
+func ParseCreateAgentEventSubscriptionResp(rsp *http.Response) (*CreateAgentEventSubscriptionResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateAgentEventSubscriptionResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest EventSubscriptionResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteAgentEventSubscriptionResp parses an HTTP response from a DeleteAgentEventSubscriptionWithResponse call
+func ParseDeleteAgentEventSubscriptionResp(rsp *http.Response) (*DeleteAgentEventSubscriptionResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteAgentEventSubscriptionResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetAgentEventSubscriptionResp parses an HTTP response from a GetAgentEventSubscriptionWithResponse call
+func ParseGetAgentEventSubscriptionResp(rsp *http.Response) (*GetAgentEventSubscriptionResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetAgentEventSubscriptionResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest EventSubscriptionResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateAgentEventSubscriptionResp parses an HTTP response from a UpdateAgentEventSubscriptionWithResponse call
+func ParseUpdateAgentEventSubscriptionResp(rsp *http.Response) (*UpdateAgentEventSubscriptionResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateAgentEventSubscriptionResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest EventSubscriptionResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	}
 
@@ -37307,6 +42740,105 @@ func ParseUpdateMonitorResp(rsp *http.Response) (*UpdateMonitorResp, error) {
 	return response, nil
 }
 
+// ParseDeleteMonitorAlertResp parses an HTTP response from a DeleteMonitorAlertWithResponse call
+func ParseDeleteMonitorAlertResp(rsp *http.Response) (*DeleteMonitorAlertResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteMonitorAlertResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetMonitorAlertResp parses an HTTP response from a GetMonitorAlertWithResponse call
+func ParseGetMonitorAlertResp(rsp *http.Response) (*GetMonitorAlertResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetMonitorAlertResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest MonitorAlertResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePutMonitorAlertResp parses an HTTP response from a PutMonitorAlertWithResponse call
+func ParsePutMonitorAlertResp(rsp *http.Response) (*PutMonitorAlertResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PutMonitorAlertResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest MonitorAlertResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseListMonitorRunsResp parses an HTTP response from a ListMonitorRunsWithResponse call
 func ParseListMonitorRunsResp(rsp *http.Response) (*ListMonitorRunsResp, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -38200,6 +43732,244 @@ func ParseGetDeploymentPipelineResp(rsp *http.Response) (*GetDeploymentPipelineR
 	return response, nil
 }
 
+// ParseListProjectEventDeliveriesResp parses an HTTP response from a ListProjectEventDeliveriesWithResponse call
+func ParseListProjectEventDeliveriesResp(rsp *http.Response) (*ListProjectEventDeliveriesResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListProjectEventDeliveriesResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest EventDeliveryListResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListProjectEventDestinationsResp parses an HTTP response from a ListProjectEventDestinationsWithResponse call
+func ParseListProjectEventDestinationsResp(rsp *http.Response) (*ListProjectEventDestinationsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListProjectEventDestinationsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest EventDestinationSummaryListResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListProjectEventSubscriptionsResp parses an HTTP response from a ListProjectEventSubscriptionsWithResponse call
+func ParseListProjectEventSubscriptionsResp(rsp *http.Response) (*ListProjectEventSubscriptionsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListProjectEventSubscriptionsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest EventSubscriptionListResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateProjectEventSubscriptionResp parses an HTTP response from a CreateProjectEventSubscriptionWithResponse call
+func ParseCreateProjectEventSubscriptionResp(rsp *http.Response) (*CreateProjectEventSubscriptionResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateProjectEventSubscriptionResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest EventSubscriptionResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteProjectEventSubscriptionResp parses an HTTP response from a DeleteProjectEventSubscriptionWithResponse call
+func ParseDeleteProjectEventSubscriptionResp(rsp *http.Response) (*DeleteProjectEventSubscriptionResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteProjectEventSubscriptionResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetProjectEventSubscriptionResp parses an HTTP response from a GetProjectEventSubscriptionWithResponse call
+func ParseGetProjectEventSubscriptionResp(rsp *http.Response) (*GetProjectEventSubscriptionResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetProjectEventSubscriptionResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest EventSubscriptionResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateProjectEventSubscriptionResp parses an HTTP response from a UpdateProjectEventSubscriptionWithResponse call
+func ParseUpdateProjectEventSubscriptionResp(rsp *http.Response) (*UpdateProjectEventSubscriptionResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateProjectEventSubscriptionResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest EventSubscriptionResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseListLLMProxiesResp parses an HTTP response from a ListLLMProxiesWithResponse call
 func ParseListLLMProxiesResp(rsp *http.Response) (*ListLLMProxiesResp, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -38782,6 +44552,13 @@ func ParseDeployLLMProxyResp(rsp *http.Response) (*DeployLLMProxyResp, error) {
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest ErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -39013,6 +44790,426 @@ func ParseGetLLMProxyDeploymentResp(rsp *http.Response) (*GetLLMProxyDeploymentR
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListProjectMCPProxiesResp parses an HTTP response from a ListProjectMCPProxiesWithResponse call
+func ParseListProjectMCPProxiesResp(rsp *http.Response) (*ListProjectMCPProxiesResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListProjectMCPProxiesResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ProjectMCPProxyListResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteProjectMCPProxyResp parses an HTTP response from a DeleteProjectMCPProxyWithResponse call
+func ParseDeleteProjectMCPProxyResp(rsp *http.Response) (*DeleteProjectMCPProxyResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteProjectMCPProxyResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetProjectMCPProxyResp parses an HTTP response from a GetProjectMCPProxyWithResponse call
+func ParseGetProjectMCPProxyResp(rsp *http.Response) (*GetProjectMCPProxyResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetProjectMCPProxyResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ProjectMCPProxyResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpsertProjectMCPProxyResp parses an HTTP response from a UpsertProjectMCPProxyWithResponse call
+func ParseUpsertProjectMCPProxyResp(rsp *http.Response) (*UpsertProjectMCPProxyResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpsertProjectMCPProxyResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ProjectMCPProxyResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest ProjectMCPProxyResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteProjectMCPProxyEnvironmentResp parses an HTTP response from a DeleteProjectMCPProxyEnvironmentWithResponse call
+func ParseDeleteProjectMCPProxyEnvironmentResp(rsp *http.Response) (*DeleteProjectMCPProxyEnvironmentResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteProjectMCPProxyEnvironmentResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetProjectMCPProxyEnvironmentResp parses an HTTP response from a GetProjectMCPProxyEnvironmentWithResponse call
+func ParseGetProjectMCPProxyEnvironmentResp(rsp *http.Response) (*GetProjectMCPProxyEnvironmentResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetProjectMCPProxyEnvironmentResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest MCPProxyEnvironmentResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePutProjectMCPProxyEnvironmentResp parses an HTTP response from a PutProjectMCPProxyEnvironmentWithResponse call
+func ParsePutProjectMCPProxyEnvironmentResp(rsp *http.Response) (*PutProjectMCPProxyEnvironmentResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PutProjectMCPProxyEnvironmentResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest MCPProxyEnvironmentResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest MCPProxyEnvironmentResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest ErrorResponse

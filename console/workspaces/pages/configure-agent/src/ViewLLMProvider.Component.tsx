@@ -66,6 +66,7 @@ import { ProviderSelectDrawer } from "./ProviderSelectDrawer";
 import { EmptyConfigCard } from "./Configure/subComponents/EmptyConfigCard";
 import { EnvironmentVariablesGuideDrawer } from "./Configure/subComponents/EnvironmentVariablesGuideDrawer";
 import { LLMProxyAPIKeysSection } from "./Configure/subComponents/LLMProxyAPIKeysSection";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 import { CONFIGURE_TAB_PARAM } from "./configureTabs";
 import {
   BUILD_IN_PROGRESS_REASON,
@@ -264,6 +265,7 @@ export const ViewLLMProviderComponent: React.FC = () => {
   }>();
   const navigate = useNavigate();
   const location = useLocation();
+  const { canWrite } = useResourceAccess("agent");
 
   type AuthInfoEntry = {
     type: string;
@@ -1131,7 +1133,7 @@ export const ViewLLMProviderComponent: React.FC = () => {
           setPanelOpen(false);
           allowNavigation(() => navigate(backHref));
         }}
-        onSave={handleSave}
+        onSave={canWrite ? handleSave : undefined}
         isDirty={isDirty}
         isSaving={updateConfig.isPending}
         saveBlockedReason={
@@ -1143,12 +1145,11 @@ export const ViewLLMProviderComponent: React.FC = () => {
           "These variable names are injected into the agent at runtime with environment-specific values. Rename them here if your code already uses different names, then save."
         }
         rows={envVarReferenceRows}
-        onNameChange={(key, value) =>
+        onNameChange={canWrite ? (key, value) =>
           setEnvVarNames((prev) => ({
             ...prev,
             [key]: value,
-          }))
-        }
+          })) : undefined}
       >
         {integrationGuide}
       </EnvironmentVariablesGuideDrawer>
@@ -1213,6 +1214,7 @@ export const ViewLLMProviderComponent: React.FC = () => {
           )}
 
 
+          {canWrite && (
           <ProviderSelectDrawer
             open={providerDrawerOpen}
             onClose={() => setProviderDrawerOpen(false)}
@@ -1240,6 +1242,7 @@ export const ViewLLMProviderComponent: React.FC = () => {
               }));
             }}
           />
+          )}
 
           {(() => {
             const pendingUuid = pendingProviderByEnv[selectedEnvName];
@@ -1247,6 +1250,13 @@ export const ViewLLMProviderComponent: React.FC = () => {
             // No provider configured for this environment and none picked yet
             // — offer to add one instead of hiding the section entirely.
             if (!providerConfig && !pendingUuid) {
+              if (!canWrite) {
+                return (
+                  <Typography variant="body2" color="text.secondary">
+                    No provider is configured for this environment yet.
+                  </Typography>
+                );
+              }
               return (
                 <EmptyConfigCard
                   message="No provider is configured for this environment yet."
@@ -1275,17 +1285,19 @@ export const ViewLLMProviderComponent: React.FC = () => {
             return (
               <Card variant="outlined">
                 <CardContent sx={{ position: "relative" }}>
-                  <Tooltip title="Change provider" placement="top" arrow>
-                    <IconButton
-                      size="small"
-                      color="primary"
-                      sx={{ position: "absolute", top: 8, right: 8 }}
-                      onClick={() => setProviderDrawerOpen(true)}
-                      aria-label="Change provider"
-                    >
-                      <Edit size={16} />
-                    </IconButton>
-                  </Tooltip>
+                  {canWrite && (
+                    <Tooltip title="Change provider" placement="top" arrow>
+                      <IconButton
+                        size="small"
+                        color="primary"
+                        sx={{ position: "absolute", top: 8, right: 8 }}
+                        onClick={() => setProviderDrawerOpen(true)}
+                        aria-label="Change provider"
+                      >
+                        <Edit size={16} />
+                      </IconButton>
+                    </Tooltip>
+                  )}
                   <ProviderDisplay
                     provider={
                       displayCatalog
@@ -1322,7 +1334,7 @@ export const ViewLLMProviderComponent: React.FC = () => {
             drawerEditSubtitle="Update the guardrail configuration."
             policyNoun="guardrail"
             loadingLabel="Loading guardrails..."
-            searchPlaceholder="Search guardrails..."
+            searchPlaceholder="Search guardrails"
             catalogErrorLabel="Failed to load guardrails."
             emptySearchTitle="No guardrails match your search"
             emptyCatalogTitle="No guardrails available"
@@ -1331,6 +1343,7 @@ export const ViewLLMProviderComponent: React.FC = () => {
             onAdd={handleAddGuardrail}
             onEdit={handleEditGuardrail}
             onRemove={handleRemoveGuardrail}
+            readOnly={!canWrite}
           />
 
           <Box>
@@ -1353,6 +1366,7 @@ export const ViewLLMProviderComponent: React.FC = () => {
             )}
           </Box>
 
+          {canWrite && (
           <Stack spacing={1}>
             <ResilienceTimeoutFields
               requestTimeout={resilienceByEnv[selectedEnvName]?.timeout ?? ""}
@@ -1365,11 +1379,12 @@ export const ViewLLMProviderComponent: React.FC = () => {
               idleTimeoutError={resilienceErrorsByEnv[selectedEnvName]?.idleTimeout}
             />
           </Stack>
+          )}
 
-          {isDirty && hasBuildInProgress && (
+          {canWrite && isDirty && hasBuildInProgress && (
             <Alert severity="warning">{BUILD_IN_PROGRESS_REASON}</Alert>
           )}
-          {isDirty && (
+          {canWrite && isDirty && (
             <Stack direction="row" spacing={1}>
               <Button
                 variant="outlined"

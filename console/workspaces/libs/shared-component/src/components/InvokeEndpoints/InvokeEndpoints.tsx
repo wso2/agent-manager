@@ -71,6 +71,8 @@ export interface InvokeEndpointsProps {
   onClearApiKeyError: () => void;
   /** Message shown when there are no endpoints (resource not yet deployed). */
   emptyMessage?: string;
+  /** Hides API key generation, for users who can't write the resource. */
+  readOnly?: boolean;
 }
 
 interface EndpointGroup {
@@ -98,6 +100,7 @@ export function InvokeEndpoints({
   generatedApiKey,
   onClearApiKeyError,
   emptyMessage = "No invoke URLs available. Deploy to an AI gateway to see invoke URLs and generate API keys.",
+  readOnly = false,
 }: InvokeEndpointsProps) {
   const theme = useTheme();
   const [copiedUrlId, setCopiedUrlId] = useState<string | null>(null);
@@ -243,8 +246,9 @@ export function InvokeEndpoints({
                 </Card>
               );
             })}
-            <Divider />
+            {!readOnly && <Divider />}
 
+            {!readOnly && (
             <Card variant="outlined" sx={{ p: 2 }}>
               <Stack spacing={1.5}>
                 <Box>
@@ -319,6 +323,7 @@ export function InvokeEndpoints({
                 )}
               </Stack>
             </Card>
+            )}
           </Stack>
       )}
     </Stack>

@@ -100,6 +100,77 @@ func (s *agentThunderProvisioningService) projectPromotionSteps(
 	return promotionSteps(source, environments)
 }
 
+// effectivePromotionSource returns the environment a promotion target must be
+// promoted from at attempt time. The stored PromotionSource can be stale once
+// the pipeline is edited, so the project's current pipeline decides: the stored
+// source is kept while it is still a parent of the target, otherwise the first
+// parent (sorted by name) whose binding is not FAILED is used, preferring a
+// COMPLETED one. When every parent is failed or missing the first parent is
+// returned so the caller's source lookup reports it as unavailable. A target
+// that has no parent fails with ErrProjectAgentIdentityEnvironmentIsPipelineSource
+// when it is now the pipeline's first environment, and with
+// ErrProjectAgentIdentityEnvironmentNotInPipeline when it is not in the pipeline
+// at all. When the pipeline cannot be
+// read the stored source is kept. The stored column is never changed.
+func (s *agentThunderProvisioningService) effectivePromotionSource(
+	ctx context.Context, binding models.AgentThunderClient,
+) (string, error) {
+	if s.pipelineReader == nil {
+		s.logger.Warn("Project pipeline reader is not configured; using the stored AgentID promotion source",
+			"ouID", binding.OUID, "projectName", binding.ProjectName, "agentName", binding.AgentName,
+			"envName", binding.EnvironmentName, "promotionSource", binding.PromotionSource)
+		return binding.PromotionSource, nil
+	}
+	pipelineSource, environments, err := s.pipelineReader.ProjectPipeline(ctx, binding.OUID, binding.ProjectName)
+	if err != nil {
+		s.logger.Warn("Failed to read the project pipeline; using the stored AgentID promotion source",
+			"ouID", binding.OUID, "projectName", binding.ProjectName, "agentName", binding.AgentName,
+			"envName", binding.EnvironmentName, "promotionSource", binding.PromotionSource, "error", err)
+		return binding.PromotionSource, nil
+	}
+	var parents []string
+	for _, environment := range environments {
+		for _, target := range environment.PromotesTo {
+			if target == binding.EnvironmentName {
+				parents = append(parents, environment.Name)
+				break
+			}
+		}
+	}
+	if len(parents) == 0 {
+		if binding.EnvironmentName == pipelineSource {
+			return "", fmt.Errorf("%w: %s", ErrProjectAgentIdentityEnvironmentIsPipelineSource, binding.EnvironmentName)
+		}
+		return "", fmt.Errorf("%w: %s", ErrProjectAgentIdentityEnvironmentNotInPipeline, binding.EnvironmentName)
+	}
+	sort.Strings(parents)
+	for _, parent := range parents {
+		if parent == binding.PromotionSource {
+			return parent, nil
+		}
+	}
+	// The stored source is stale. A parent whose binding cannot be read counts as
+	// not failed: the caller's own read of it then defers the attempt.
+	firstUsable := ""
+	for _, parent := range parents {
+		parentBinding, getErr := s.repo.Get(ctx, binding.OUID, binding.ProjectName, binding.AgentName, parent)
+		if errors.Is(getErr, repositories.ErrAgentThunderClientNotFound) ||
+			(getErr == nil && parentBinding.Status == models.AgentThunderStatusFailed) {
+			continue
+		}
+		if getErr == nil && parentBinding.Status == models.AgentThunderStatusCompleted {
+			return parent, nil
+		}
+		if firstUsable == "" {
+			firstUsable = parent
+		}
+	}
+	if firstUsable == "" {
+		firstUsable = parents[0]
+	}
+	return firstUsable, nil
+}
+
 // ensureProjectPromotionBindings writes the binding rows of one agent for every
 // step of its project's topology. Safe to repeat: existing rows are never
 // touched, and a concurrent writer winning an insert is treated as success.
@@ -225,7 +296,10 @@ func (s *agentThunderProvisioningService) ReconcileProjectAgentIdentityPromotion
 			key := projectKey{ref.OUID, ref.ProjectName}
 			resolved, ok := cache[key]
 			if !ok {
-				resolved.steps, resolved.err = s.projectPromotionSteps(ctx, ref.OUID, ref.ProjectName)
+				// The pass runs outside any request, and the pipeline read goes to OpenChoreo, which
+				// needs the project's organization (see withOrgContext). Writing the bindings below
+				// only touches the database; each binding gets its organization when its attempt runs.
+				resolved.steps, resolved.err = s.projectPromotionSteps(withOrgContext(ctx, ref.OUID), ref.OUID, ref.ProjectName)
 				cache[key] = resolved
 				if resolved.err != nil {
 					s.logger.Warn("Failed to resolve project AgentID promotion topology",

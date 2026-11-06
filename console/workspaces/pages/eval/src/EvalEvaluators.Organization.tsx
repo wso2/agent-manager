@@ -70,6 +70,7 @@ import {
   useDeleteCustomEvaluator,
 } from "@agent-management-platform/api-client";
 import debounce from "lodash/debounce";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 import { SectionErrorBoundary } from "./subComponents/SectionErrorBoundary";
 
 type EvaluatorSource = "builtin" | "custom";
@@ -99,6 +100,7 @@ export const EvalEvaluatorsOrganization: React.FC = () => {
     orgId: string;
   }>();
   const navigate = useNavigate();
+  const { canWrite } = useResourceAccess("evaluator");
 
   const [selectedSources, setSelectedSources] = useState<EvaluatorSource[]>([]);
   const [search, setSearch] = useState("");
@@ -201,7 +203,7 @@ export const EvalEvaluatorsOrganization: React.FC = () => {
       <PageLayout
         title="Evaluators"
         disableIcon
-         actions={showHeaderCreate ? createButton : undefined}
+         actions={showHeaderCreate && canWrite ? createButton : undefined}
       >
         <Stack spacing={2}>
           {!isEmpty && (
@@ -212,18 +214,16 @@ export const EvalEvaluatorsOrganization: React.FC = () => {
               flexWrap="wrap"
               useFlexGap
             >
-              <Box flexGrow={1}>
-                <SearchBar
-                  placeholder="Search evaluators"
-                  size="small"
-                  fullWidth
-                  value={search}
-                  onChange={(event) => {
-                    setSearch(event.target.value);
-                    debouncedSetSearch(event.target.value);
-                  }}
-                />
-              </Box>
+              <SearchBar
+                placeholder="Search evaluators"
+                size="small"
+                width="standard"
+                value={search}
+                onChange={(event) => {
+                  setSearch(event.target.value);
+                  debouncedSetSearch(event.target.value);
+                }}
+              />
               <Select
                 size="small"
                 variant="outlined"
@@ -280,7 +280,7 @@ export const EvalEvaluatorsOrganization: React.FC = () => {
                 illustration={<CircleIcon size={64} />}
                 title="No evaluators yet"
                 description="Create a custom evaluator or browse built-in evaluators."
-                action={createButton}
+                action={canWrite ? createButton : undefined}
               />
             </ListingTable.Container>
           )}
@@ -504,7 +504,7 @@ export const EvalEvaluatorsOrganization: React.FC = () => {
                             ) : (
                               <span />
                             )}
-                            {!evaluator.isBuiltin && (
+                            {!evaluator.isBuiltin && canWrite && (
                               <Form.DisappearingCardButtonContent>
                                 <Tooltip title="Edit">
                                   <IconButton

@@ -50,6 +50,9 @@ export async function listCatalogLLMProviders(
   if (query?.environmentId !== undefined) {
     searchParams.environmentId = query.environmentId;
   }
+  if (query?.gatewayHosting !== undefined) {
+    searchParams.gatewayHosting = query.gatewayHosting;
+  }
 
   const res = await httpGET(`${SERVICE_BASE}/orgs/${org}/catalog`, {
     token,

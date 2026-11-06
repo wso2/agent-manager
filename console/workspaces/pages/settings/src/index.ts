@@ -36,4 +36,5 @@ export const settingsMetadata = {
 };
 
 export { SettingsOrganization };
+export { OrgEvents, ProjectEvents, AgentEvents } from "./events/EventsPage";
 export default SettingsOrganization;

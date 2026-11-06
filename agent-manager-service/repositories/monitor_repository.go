@@ -17,6 +17,7 @@
 package repositories
 
 import (
+	"context"
 	"time"
 
 	"github.com/google/uuid"
@@ -54,6 +55,8 @@ type MonitorRepository interface {
 	GetLatestMonitorRun(monitorID uuid.UUID) (*models.MonitorRun, error)
 	GetLatestMonitorRuns(monitorIDs []uuid.UUID) (map[uuid.UUID]models.MonitorRun, error)
 	UpdateMonitorRun(run *models.MonitorRun, updates map[string]interface{}) error
+	ListUnqueuedTerminalRuns(ctx context.Context, limit int) ([]models.MonitorRun, error)
+	MarkRunEventQueued(ctx context.Context, runID uuid.UUID) error
 	ListPendingOrRunningRuns(limit int) ([]models.MonitorRun, error)
 }
 
@@ -247,4 +250,17 @@ func (r *MonitorRepo) ListPendingOrRunningRuns(limit int) ([]models.MonitorRun, 
 	}
 	err := query.Find(&runs).Error
 	return runs, err
+}
+
+// ListUnqueuedTerminalRuns returns replayable monitor outcomes in completion order.
+func (r *MonitorRepo) ListUnqueuedTerminalRuns(ctx context.Context, limit int) ([]models.MonitorRun, error) {
+	var runs []models.MonitorRun
+	err := r.db.WithContext(ctx).Where("event_queued_at IS NULL AND status IN ?", []string{models.RunStatusSuccess, models.RunStatusFailed}).
+		Order("completed_at ASC, id ASC").Limit(limit).Find(&runs).Error
+	return runs, err
+}
+
+func (r *MonitorRepo) MarkRunEventQueued(ctx context.Context, runID uuid.UUID) error {
+	return r.db.WithContext(ctx).Model(&models.MonitorRun{}).Where("id = ? AND event_queued_at IS NULL", runID).
+		Update("event_queued_at", time.Now()).Error
 }

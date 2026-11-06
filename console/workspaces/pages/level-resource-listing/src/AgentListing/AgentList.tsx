@@ -41,6 +41,7 @@ import {
 } from "@agent-management-platform/views";
 import { generatePath, useLocation, useNavigate, useParams } from "react-router-dom";
 import { absoluteRouteMap } from "@agent-management-platform/types";
+import { useFeatureAccess } from "@agent-management-platform/feature-management";
 import {
   useDeleteAgent,
   useListAgentKinds,
@@ -101,6 +102,8 @@ export const AgentList: React.FC<AgentListProps> = ({ showCreateAction = false }
     projName: projectId,
   });
   const { mutate: deleteAgent } = useDeleteAgent();
+  const canCreate = useFeatureAccess("agent_create");
+  const canDelete = useFeatureAccess("agent_delete");
   const { data: kindsData } = useListAgentKinds({ orgName: orgId });
   const { addConfirmation } = useConfirmationDialog();
 
@@ -172,19 +175,18 @@ export const AgentList: React.FC<AgentListProps> = ({ showCreateAction = false }
         onSearchChange={setSearch}
         toolbar={
           <Stack direction="row" alignItems="center" spacing={1}>
-            <Box flexGrow={1}>
-              <SearchBar
-                placeholder="Search agents"
-                size="small"
-                fullWidth
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                  setSearch(e.target.value)
-                }
-                value={search}
-                disabled={!data?.agents?.length}
-              />
-            </Box>
-            {showCreateAction && (
+            <SearchBar
+              placeholder="Search agents"
+              size="small"
+              width="standard"
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                setSearch(e.target.value)
+              }
+              value={search}
+              disabled={!data?.agents?.length}
+            />
+            <Box flexGrow={1} />
+            {showCreateAction && canCreate && (
               <Button
                 variant="contained"
                 color="primary"
@@ -204,11 +206,11 @@ export const AgentList: React.FC<AgentListProps> = ({ showCreateAction = false }
           illustration: <User size={64} />,
           title: "No agents found",
           description: "Create a new agent to get started",
-          action: (
+          action: canCreate ? (
             <Button variant="contained" startIcon={<Add />} onClick={handleAddAgent}>
               New Agent
             </Button>
-          ),
+          ) : undefined,
         }}
         searchEmptyState={{
           illustration: <User size={64} />,
@@ -232,7 +234,7 @@ export const AgentList: React.FC<AgentListProps> = ({ showCreateAction = false }
                   variant="card"
                   hover
                   clickable
-                  sx={ROW_HOVER_SX}
+                  sx={canDelete ? ROW_HOVER_SX : undefined}
                   onClick={() =>
                     navigate(
                       generatePath(projectRoutes.children.agents.path, {
@@ -287,20 +289,22 @@ export const AgentList: React.FC<AgentListProps> = ({ showCreateAction = false }
                       >
                         {formatRelativeTime(agent.createdAt, { fallback: "—" })}
                       </Typography>
-                      <Box className="agent-actions">
-                        <Button
-                          variant="outlined"
-                          color="error"
-                          size="small"
-                          startIcon={<DeleteOutlineOutlined size={14} />}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            confirmDelete(agent.name, agent.displayName);
-                          }}
-                        >
-                          Delete
-                        </Button>
-                      </Box>
+                      {canDelete && (
+                        <Box className="agent-actions">
+                          <Button
+                            variant="outlined"
+                            color="error"
+                            size="small"
+                            startIcon={<DeleteOutlineOutlined size={14} />}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              confirmDelete(agent.name, agent.displayName);
+                            }}
+                          >
+                            Delete
+                          </Button>
+                        </Box>
+                      )}
                     </Stack>
                   </ListingTable.Cell>
                 </ListingTable.Row>

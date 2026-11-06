@@ -22,6 +22,7 @@ import { Button } from "@wso2/oxygen-ui";
 import { Plus } from "@wso2/oxygen-ui-icons-react";
 import { absoluteRouteMap } from "@agent-management-platform/types";
 import { PageLayout } from "@agent-management-platform/views";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 import { RolesPage } from "./subComponents/agentIdentity/RolesPage";
 import { RoleCreatePage } from "./subComponents/agentIdentity/RoleCreatePage";
 import { RoleEditPage } from "./subComponents/agentIdentity/RoleEditPage";
@@ -37,10 +38,10 @@ function RolesListPage() {
   const createPath = orgId
     ? withSearchParams(generatePath(rolesNode.children.create.path, { orgId }), searchParams)
     : "#";
-
+  const { canWrite } = useResourceAccess("agent_identity");
 
   // One definition, used in the tab bar and as the empty state's CTA.
-  const createButton = (
+  const createButton = canWrite ? (
     <Button
       variant="contained"
       color="primary"
@@ -50,7 +51,7 @@ function RolesListPage() {
     >
       Create Role
     </Button>
-  );
+  ) : undefined;
 
   return (
     <AgentIdentityEnvironmentGate title={TITLE}>
@@ -71,6 +72,10 @@ function RoleCreateWrapper() {
   const { orgId } = useParams<{ orgId: string }>();
   const [searchParams] = useSearchParams();
   const backHref = withSearchParams(generatePath(rolesNode.path, { orgId: orgId ?? "" }), searchParams);
+  const { canWrite } = useResourceAccess("agent_identity");
+  if (!canWrite) {
+    return <Navigate to={backHref} replace />;
+  }
   return (
     <AgentIdentityEnvironmentGate title="Create Role">
       {() => (

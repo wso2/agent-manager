@@ -54,6 +54,7 @@ import {
 } from "@agent-management-platform/types";
 import { EditFormSkeleton, useUnsavedChangesGuard } from "@agent-management-platform/shared-component";
 import { PageLayout } from "@agent-management-platform/views";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 import { useAssignmentDelta } from "./useAssignmentDelta";
 import { withSearchParams } from "../../utils/withSearchParams";
 
@@ -186,6 +187,7 @@ export const AgentDetailPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const envName = searchParams.get("envName") ?? "";
   const navigate = useNavigate();
+  const { canWrite } = useResourceAccess("agent_identity");
   const [activeTab, setActiveTab] = useState<TabId>("roles");
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | undefined>();
@@ -355,7 +357,8 @@ export const AgentDetailPage: React.FC = () => {
     );
   }
 
-  const canEdit = !!thunderAgentId;
+  const hasBinding = !!thunderAgentId;
+  const canEdit = hasBinding && canWrite;
 
   return (
     <PageLayout
@@ -371,7 +374,7 @@ export const AgentDetailPage: React.FC = () => {
             Failed to load this agent&apos;s roles/groups. Please try again.
           </Alert>
         )}
-        {!canEdit && (
+        {!hasBinding && canWrite && (
           <Alert severity="info">
             This agent has no active identity binding in {envName}, so roles
             and groups can&apos;t be assigned yet.
@@ -435,7 +438,7 @@ export const AgentDetailPage: React.FC = () => {
           )}
         </Form.Section>
 
-        {isDirty && (
+        {canEdit && isDirty && (
           <Stack direction="row" spacing={1}>
             <Button
               variant="outlined"

@@ -101,10 +101,11 @@ export const CatalogKindListing: React.FC<CatalogKindListingProps> = ({
     <Stack spacing={2}>
       {/* An empty catalog has nothing to search, so the field goes with the grid. */}
       {(isLoading || items.length > 0) && (
-        <Stack direction="row" justifyContent="flex-end">
+        <Stack direction="row">
           <SearchBar
             placeholder="Search agent kinds"
             size="small"
+            width="standard"
             value={search}
             onChange={handleSearchChange}
           />

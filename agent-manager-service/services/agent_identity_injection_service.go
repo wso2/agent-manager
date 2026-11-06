@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -113,6 +114,25 @@ func mergeAgentIdentityEnvVarKeys(dst map[string]bool) map[string]bool {
 	return dst
 }
 
+// neutralAgentIdentityEnvVars returns one empty placeholder (empty plain value,
+// no secret reference) for every AgentID-owned env var key, in a stable order.
+// Written as a ReleaseBinding override, it stops an environment that has no
+// AgentID credential of its own from inheriting another environment's real one
+// out of the shared Workload CR. identityEnvVarsInSync treats these
+// placeholders as missing, so the real values replace them once available.
+func neutralAgentIdentityEnvVars() []client.EnvVar {
+	keys := make([]string, 0, len(agentIdentityEnvVarKeySet))
+	for key := range agentIdentityEnvVarKeySet {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	placeholders := make([]client.EnvVar, 0, len(keys))
+	for _, key := range keys {
+		placeholders = append(placeholders, client.EnvVar{Key: key})
+	}
+	return placeholders
+}
+
 // AgentIdentityInjectionService delivers an internal agent's AgentID
 // credentials (Thunder OAuth2 client) into its running workload — the
 // "Gateway Binding" phase of the AgentID feature. It never handles the secret
@@ -167,11 +187,8 @@ type AgentIdentityInjectionService interface {
 
 	// RemoveForEnvironment removes the identity env vars from the agent's
 	// workload for one environment — used after a revoke, so the pod does not keep
-	// serving a credential that can no longer mint tokens. It also deletes the
-	// binding's SecretReference directly: the secret provider owns and deletes
-	// the ones it created, but a legacy SecretReference the identity injection
-	// service created itself is invisible to the provider, and this is the only
-	// path that removes it. Not-found is success.
+	// serving a credential that can no longer mint tokens. The SecretReference
+	// is not touched here: revoke deletes it before this runs.
 	// includeWorkloadLevel additionally removes the vars from the shared
 	// Workload CR; callers set it only when envName is the pipeline's lowest
 	// environment (the deploy flow writes that environment's vars at Workload
@@ -180,12 +197,13 @@ type AgentIdentityInjectionService interface {
 	// pod).
 	RemoveForEnvironment(ctx context.Context, ouID, projectName, agentName, envName string, includeWorkloadLevel bool) error
 
-	// CleanupForEnvironment deletes the binding's SecretReference directly —
-	// used on agent deletion, after the secret provider has deleted the
-	// credential it owns, and before re-storing a credential whose name is held
-	// by a legacy SecretReference. The provider cannot see a legacy
-	// SecretReference the identity injection service created itself, so this
-	// direct delete is what removes it. Best-effort: not-found is success.
+	// CleanupForEnvironment deletes the binding's SecretReference directly. It
+	// is only for a legacy SecretReference the identity injection service
+	// created itself, which the secret provider cannot see: callers use it on
+	// agent deletion and revoke of a binding with a legacy SecretRefPath, and
+	// before re-storing a credential whose name a legacy SecretReference holds.
+	// Provider-owned SecretReferences are deleted through the secret API
+	// instead. Best-effort: not-found is success.
 	CleanupForEnvironment(ctx context.Context, ouID, agentName, envName string) error
 }
 
@@ -208,7 +226,14 @@ type agentIdentityInjectionService struct {
 	mcpProxyScopeRepo repositories.MCPProxyScopeRepository
 	ocClient          client.OpenChoreoClient
 	refreshInterval   string
-	logger            *slog.Logger
+	// forceSyncWait is the bounded wait after a successful force-sync write,
+	// as a duration string. See RefreshAfterRotation's doc comment.
+	forceSyncWait string
+	// forceSyncApplyTimeout bounds how long RefreshAfterRotation waits for the
+	// force-sync revision to show up on the live ExternalSecret, as a duration
+	// string.
+	forceSyncApplyTimeout string
+	logger                *slog.Logger
 	// resolveTokenEndpoint optionally overrides the agent-facing env-Thunder
 	// token URL. nil keeps the standard in-cluster on-premises endpoint.
 	resolveTokenEndpoint func(context.Context, string, string, string) (string, error)
@@ -227,6 +252,23 @@ type agentIdentityInjectionService struct {
 	shutdownCtx   context.Context
 }
 
+// AgentIdentityInjectionOption tunes optional behavior of the service.
+type AgentIdentityInjectionOption func(*agentIdentityInjectionService)
+
+// WithAgentIdentityForceSyncWait sets how long RefreshAfterRotation waits
+// after forcing the workload's ExternalSecret to re-sync, before rolling the
+// pod. Unset or invalid falls back to defaultForceSyncWait.
+func WithAgentIdentityForceSyncWait(wait string) AgentIdentityInjectionOption {
+	return func(s *agentIdentityInjectionService) { s.forceSyncWait = wait }
+}
+
+// WithAgentIdentityForceSyncApplyTimeout sets the overall bound on waiting for
+// the force-sync revision to be applied to the live ExternalSecret. Unset or
+// invalid falls back to defaultForceSyncApplyTimeout.
+func WithAgentIdentityForceSyncApplyTimeout(timeout string) AgentIdentityInjectionOption {
+	return func(s *agentIdentityInjectionService) { s.forceSyncApplyTimeout = timeout }
+}
+
 // NewAgentIdentityInjectionService creates a new AgentIdentityInjectionService.
 // refreshInterval is the data-plane SecretReference's refresh cadence (same
 // value secretmanagersvc uses elsewhere, e.g. "1h").
@@ -237,8 +279,9 @@ func NewAgentIdentityInjectionService(
 	ocClient client.OpenChoreoClient,
 	refreshInterval string,
 	logger *slog.Logger,
+	opts ...AgentIdentityInjectionOption,
 ) AgentIdentityInjectionService {
-	return NewAgentIdentityInjectionServiceWithTokenEndpointResolver(repo, agentConfigRepo, mcpProxyScopeRepo, ocClient, refreshInterval, logger, nil)
+	return NewAgentIdentityInjectionServiceWithTokenEndpointResolver(repo, agentConfigRepo, mcpProxyScopeRepo, ocClient, refreshInterval, logger, nil, opts...)
 }
 
 // NewAgentIdentityInjectionServiceWithTokenEndpointResolver creates the service
@@ -252,8 +295,9 @@ func NewAgentIdentityInjectionServiceWithTokenEndpointResolver(
 	refreshInterval string,
 	logger *slog.Logger,
 	resolveTokenEndpoint func(context.Context, string, string, string) (string, error),
+	opts ...AgentIdentityInjectionOption,
 ) AgentIdentityInjectionService {
-	return &agentIdentityInjectionService{
+	svc := &agentIdentityInjectionService{
 		repo:                 repo,
 		agentConfigRepo:      agentConfigRepo,
 		mcpProxyScopeRepo:    mcpProxyScopeRepo,
@@ -265,6 +309,10 @@ func NewAgentIdentityInjectionServiceWithTokenEndpointResolver(
 		rolloutTokens:        make(map[string]uint64),
 		shutdownCtx:          context.Background(),
 	}
+	for _, opt := range opts {
+		opt(svc)
+	}
+	return svc
 }
 
 // SetShutdownContext implements AgentIdentityShutdownContextSetter.
@@ -283,6 +331,34 @@ func (s *agentIdentityInjectionService) currentShutdownContext() context.Context
 // defaultSecretSyncWait is the fallback wait when refreshInterval is unset or
 // invalid — defensive only, should not normally trigger.
 const defaultSecretSyncWait = 30 * time.Second
+
+// defaultForceSyncWait is the fallback wait after a successful force-sync
+// write when forceSyncWait is unset or invalid.
+const defaultForceSyncWait = 20 * time.Second
+
+func (s *agentIdentityInjectionService) forceSyncWaitDuration() time.Duration {
+	d, err := time.ParseDuration(s.forceSyncWait)
+	if err != nil || d <= 0 {
+		return defaultForceSyncWait
+	}
+	return d
+}
+
+// defaultForceSyncApplyTimeout is the fallback bound on waiting for the
+// force-sync revision to be applied when forceSyncApplyTimeout is unset or
+// invalid; forceSyncPollInterval is how often that is checked.
+const (
+	defaultForceSyncApplyTimeout = 2 * time.Minute
+	forceSyncPollInterval        = 5 * time.Second
+)
+
+func (s *agentIdentityInjectionService) forceSyncApplyTimeoutDuration() time.Duration {
+	d, err := time.ParseDuration(s.forceSyncApplyTimeout)
+	if err != nil || d <= 0 {
+		return defaultForceSyncApplyTimeout
+	}
+	return d
+}
 
 // secretSyncWaitDuration parses refreshInterval — how long the workload's
 // secret-env ExternalSecret takes to pick up a rotated value — into the wait
@@ -406,19 +482,6 @@ func (s *agentIdentityInjectionService) injectableBinding(ctx context.Context, o
 	return binding, nil
 }
 
-// deleteSecretReference deletes the data-plane SecretReference for one
-// binding directly. Still needed after the secret provider took ownership: it
-// is the only way to remove a legacy SecretReference this service created
-// itself, which the provider cannot see (see CleanupForEnvironment).
-// Best-effort by convention of every caller: not-found is success.
-func (s *agentIdentityInjectionService) deleteSecretReference(ctx context.Context, ouID, projectName, agentName, envName string) error {
-	refName := agentIdentitySecretLocation(ouID, projectName, agentName, envName).SecretRefName()
-	if err := s.ocClient.DeleteSecretReference(ctx, ouID, refName); err != nil && !errors.Is(err, utils.ErrNotFound) {
-		return fmt.Errorf("delete agent identity SecretReference %q: %w", refName, err)
-	}
-	return nil
-}
-
 // buildEnvVars assembles the four identity env vars for one binding. On-premises
 // deployments use the cluster-internal token endpoint: env-Thunder is not
 // published on the gateway vhost, so pods reach it by in-cluster address.
@@ -459,13 +522,21 @@ func (s *agentIdentityInjectionService) buildEnvVars(ctx context.Context, bindin
 	}, nil
 }
 
+// isLegacySecretRefPath reports whether a binding's stored SecretRefPath is a
+// KV path from before the secret provider owned the SecretReference. Those
+// bindings may still have a SecretReference the identity injection service
+// created directly, which the secret API cannot see or delete.
+func isLegacySecretRefPath(secretRefPath string) bool {
+	return strings.Contains(secretRefPath, "/")
+}
+
 func (s *agentIdentityInjectionService) envVarsForEnvironment(ctx context.Context, ouID, projectName, agentName, envName string) ([]client.EnvVar, error) {
 	binding, err := s.injectableBinding(ctx, ouID, projectName, agentName, envName)
 	if err != nil || binding == nil {
 		return nil, err
 	}
 	secretRefName := binding.SecretRefPath
-	if strings.Contains(secretRefName, "/") {
+	if isLegacySecretRefPath(secretRefName) {
 		// Rows created before SecretReference-name persistence stored the backing
 		// KV path here. The SecretReference itself used this deterministic name,
 		// so existing deployments can continue without a database migration.
@@ -534,9 +605,12 @@ func (s *agentIdentityInjectionService) ReconcileForEnvironment(ctx context.Cont
 // ref / token endpoint are stable for a given (agent, environment) once set
 // (rotation re-asserts them through RefreshAfterRotation, a separate path), so
 // their mere presence is enough; the scope list is the value that legitimately
-// changes over time, so it is compared exactly. Absent the workload entirely
-// (nothing read back), this returns false so the caller attempts an inject —
-// which itself no-ops when there is no ReleaseBinding to write to.
+// changes over time, so it is compared exactly. An empty placeholder (see
+// neutralAgentIdentityEnvVars) is not a credential, so it never counts as
+// present while the desired var carries a value or a secret reference. Absent
+// the workload entirely (nothing read back), this returns false so the caller
+// attempts an inject, which itself no-ops when there is no ReleaseBinding to
+// write to.
 func identityEnvVarsInSync(desired []client.EnvVar, current []models.EnvVars) bool {
 	currentByKey := make(map[string]models.EnvVars, len(current))
 	for _, ev := range current {
@@ -545,6 +619,10 @@ func identityEnvVarsInSync(desired []client.EnvVar, current []models.EnvVars) bo
 	for _, want := range desired {
 		got, ok := currentByKey[want.Key]
 		if !ok {
+			return false
+		}
+		wantsCredential := want.Value != "" || want.ValueFrom != nil
+		if wantsCredential && got.Value == "" && got.SecretRef == "" {
 			return false
 		}
 		// The scope list is the only identity var whose value changes in place;
@@ -569,6 +647,28 @@ func identityEnvVarsInSync(desired []client.EnvVar, current []models.EnvVars) bo
 // catches up and keeps the stale, already-invalidated secret for its whole
 // lifetime (secretKeyRef env vars resolve once at container start, never
 // hot-reload). So refreshInterval must cover that ExternalSecret's interval.
+//
+// Rotation does not depend on that interval when the installed agent-api
+// ComponentType declares secretSyncRevision (checked first: OpenChoreo keeps
+// unknown ReleaseBinding config keys without effect, so writing it blindly
+// would look like success). A best-effort write then sets secretSyncRevision on
+// the environment's ReleaseBinding, which the ComponentType renders into a
+// force-sync annotation on the ExternalSecret so ESO re-fetches at once. The
+// service then polls (bounded by forceSyncApplyTimeout) the binding's resource
+// tree until the live ExternalSecret carries the new revision, which shows
+// OpenChoreo re-rendered and applied it, and only then waits forceSyncWait.
+// Waiting for the Kubernetes Secret to actually hold the new value is not
+// possible from this service (no read access to data plane Secrets, and the
+// ESO sync itself is not observable), so that last wait is bounded and
+// configurable and the final log says the sync is not verified. If the check
+// or the write fails for any reason (installed ComponentType predates the
+// field, missing binding, retries used up), a log line says so and the
+// behavior above applies unchanged: wait refreshInterval, then roll. If the
+// apply poll times out, one warning is logged and the pod rolls after the
+// refreshInterval wait, because an unconfirmed apply is no sync guarantee. So
+// the ExternalSecret refreshInterval and refreshInterval here must be raised
+// together, and only after the new ComponentType is deployed. The force-sync
+// write and the roll are separate writes.
 // The roll itself runs detached so a manual regenerate call never blocks on
 // the wait; a roll failure is only logged, not returned. The wait, and the
 // roll itself once started, both stop early if the app starts shutting down
@@ -594,19 +694,31 @@ func (s *agentIdentityInjectionService) RefreshAfterRotation(ctx context.Context
 	myToken := s.rolloutTokens[key]
 	s.rolloutTokensMu.Unlock()
 
-	wait := secretSyncWaitDuration(s.refreshInterval)
 	shutdownCtx := s.currentShutdownContext()
 	go func() {
+		isLatest := func() bool {
+			s.rolloutTokensMu.Lock()
+			defer s.rolloutTokensMu.Unlock()
+			return s.rolloutTokens[key] == myToken
+		}
+		wait := secretSyncWaitDuration(s.refreshInterval)
+		result := s.forceSecretSync(ctx, shutdownCtx, isLatest, ouID, agentName, envName)
+		switch result {
+		case forceSyncAbandoned:
+			return // shutting down, or a later rotation superseded this one
+		case forceSyncApplied:
+			wait = s.forceSyncWaitDuration()
+		case forceSyncApplyUnconfirmed, forceSyncNotUsed:
+			// An unconfirmed apply means the force-sync did not demonstrably
+			// happen, so the refresh interval is the only sync guarantee.
+		}
 		select {
 		case <-s.after(wait):
 		case <-shutdownCtx.Done():
 			return // app is shutting down; abandon this deferred rollout
 		}
 
-		s.rolloutTokensMu.Lock()
-		isLatest := s.rolloutTokens[key] == myToken
-		s.rolloutTokensMu.Unlock()
-		if !isLatest {
+		if !isLatest() {
 			return // a later rotation for this binding superseded this roll
 		}
 
@@ -637,9 +749,103 @@ func (s *agentIdentityInjectionService) RefreshAfterRotation(ctx context.Context
 			s.logger.Warn("Failed to roll out pod after agent identity secret rotation", "agentName", agentName, "envName", envName, "error", err)
 			return
 		}
-		s.logger.Info("Refreshed agent identity credentials in workload after rotation", "agentName", agentName, "envName", envName)
+		// The ExternalSecret's own re-fetch cannot be observed from here, so
+		// the new secret reaching the pod is never verified.
+		s.logger.Info("Rolled pod after agent identity secret rotation; the ExternalSecret sync itself is not verified", "agentName", agentName, "envName", envName, "forceSync", result.String(), "secretSyncVerified", false)
 	}()
 	return nil
+}
+
+// forceSyncResult is what forceSecretSync achieved.
+type forceSyncResult int
+
+const (
+	// forceSyncNotUsed: the force-sync could not be used; wait refreshInterval.
+	forceSyncNotUsed forceSyncResult = iota
+	// forceSyncApplied: the live ExternalSecret carries the new revision.
+	forceSyncApplied
+	// forceSyncApplyUnconfirmed: the revision was written but never seen applied
+	// within the timeout; wait refreshInterval, like forceSyncNotUsed.
+	forceSyncApplyUnconfirmed
+	// forceSyncAbandoned: shutdown or a later rotation ended this rollout.
+	forceSyncAbandoned
+)
+
+func (r forceSyncResult) String() string {
+	switch r {
+	case forceSyncApplied:
+		return "applied"
+	case forceSyncApplyUnconfirmed:
+		return "apply-unconfirmed"
+	case forceSyncAbandoned:
+		return "abandoned"
+	default:
+		return "not-used"
+	}
+}
+
+// boundedContext derives from ctx's values but not its cancellation, bounded by
+// timeout and cancelled when shutdownCtx is done.
+func boundedContext(ctx, shutdownCtx context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
+	bounded, cancel := context.WithTimeout(context.WithoutCancel(ctx), timeout)
+	stop := context.AfterFunc(shutdownCtx, cancel)
+	return bounded, func() {
+		stop()
+		cancel()
+	}
+}
+
+// forceSecretSync forces the workload's ExternalSecret to re-sync: it checks the
+// ComponentType declares secretSyncRevision, writes a fresh revision to the
+// binding and polls until the live ExternalSecret carries it. It runs inside
+// the detached goroutine so a manual regenerate call never blocks on it, and
+// logs why whenever it returns anything but forceSyncApplied.
+func (s *agentIdentityInjectionService) forceSecretSync(ctx, shutdownCtx context.Context, isLatest func() bool, ouID, agentName, envName string) forceSyncResult {
+	const fallback = "falling back to waiting out the refresh interval"
+
+	writeCtx, cancel := boundedContext(ctx, shutdownCtx, releaseBindingUpdateRetries*releaseBindingUpdateRetryDelay+30*time.Second)
+	defer cancel()
+
+	declared, err := s.ocClient.ComponentTypeDeclaresEnvironmentConfig(writeCtx, ouID, agentName, client.SecretSyncRevisionField)
+	switch {
+	case err != nil:
+		s.logger.Warn("Could not tell whether the ComponentType supports force-syncing the agent identity ExternalSecret; "+fallback, "agentName", agentName, "envName", envName, "error", err)
+		return forceSyncNotUsed
+	case !declared:
+		s.logger.Info("The installed ComponentType does not declare "+client.SecretSyncRevisionField+"; "+fallback, "agentName", agentName, "envName", envName)
+		return forceSyncNotUsed
+	}
+
+	revision := strconv.FormatInt(time.Now().UnixNano(), 10)
+	if err := withReleaseBindingRetry(writeCtx, func() error {
+		return s.ocClient.SetReleaseBindingSecretSyncRevision(writeCtx, ouID, agentName, envName, revision)
+	}); err != nil {
+		s.logger.Warn("Could not force the agent identity ExternalSecret to re-sync; "+fallback, "agentName", agentName, "envName", envName, "error", err)
+		return forceSyncNotUsed
+	}
+
+	pollCtx, cancelPoll := boundedContext(ctx, shutdownCtx, s.forceSyncApplyTimeoutDuration())
+	defer cancelPoll()
+	var lastErr error
+	for {
+		applied, err := s.ocClient.IsSecretSyncRevisionApplied(pollCtx, ouID, agentName, envName, revision)
+		if err == nil && applied {
+			return forceSyncApplied
+		}
+		lastErr = err
+		if !isLatest() {
+			return forceSyncAbandoned
+		}
+		select {
+		case <-s.after(forceSyncPollInterval):
+		case <-pollCtx.Done():
+			if shutdownCtx.Err() != nil {
+				return forceSyncAbandoned
+			}
+			s.logger.Warn("The force-sync revision was not seen applied to the agent identity ExternalSecret in time; rolling the pod anyway", "agentName", agentName, "envName", envName, "timeout", s.forceSyncApplyTimeoutDuration().String(), "lastError", lastErr)
+			return forceSyncApplyUnconfirmed
+		}
+	}
 }
 
 func (s *agentIdentityInjectionService) RemoveForEnvironment(ctx context.Context, ouID, projectName, agentName, envName string, includeWorkloadLevel bool) error {
@@ -678,17 +884,16 @@ func (s *agentIdentityInjectionService) RemoveForEnvironment(ctx context.Context
 		}
 	}
 
-	if err := s.deleteSecretReference(ctx, ouID, projectName, agentName, envName); err != nil {
-		return fmt.Errorf("delete agent identity SecretReference during removal: %w", err)
-	}
-
 	s.logger.Info("Removed agent identity env vars from workload", "agentName", agentName, "envName", envName, "includeWorkloadLevel", includeWorkloadLevel)
 	return nil
 }
 
 func (s *agentIdentityInjectionService) CleanupForEnvironment(ctx context.Context, ouID, agentName, envName string) error {
 	// projectName is not part of SecretRefName's computation (see
-	// SecretLocation.SecretRefName) — this interface method doesn't carry
-	// one, matching agentThunderProvisioningService's call sites.
-	return s.deleteSecretReference(ctx, ouID, "", agentName, envName)
+	// SecretLocation.SecretRefName), so this method doesn't carry one.
+	refName := agentIdentitySecretLocation(ouID, "", agentName, envName).SecretRefName()
+	if err := s.ocClient.DeleteSecretReference(ctx, ouID, refName); err != nil && !errors.Is(err, utils.ErrNotFound) {
+		return fmt.Errorf("delete legacy agent identity SecretReference %q: %w", refName, err)
+	}
+	return nil
 }

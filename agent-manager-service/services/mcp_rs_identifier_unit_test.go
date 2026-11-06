@@ -232,9 +232,12 @@ func TestEnsureResourceServersForProxy_SkipsWhenNoIdentityEndpoint(t *testing.T)
 // logged and skipped, never panic or propagate.
 func TestEnsureResourceServersForProxy_SurvivesResolverError(t *testing.T) {
 	envA := uuid.New()
+	gwUUID := uuid.New()
+	ctxPath := "/deepwiki"
 	proxy := &models.MCPProxy{
-		UUID:     uuid.New(),
-		Artifact: &models.Artifact{Handle: "deepwiki"},
+		UUID:          uuid.New(),
+		Artifact:      &models.Artifact{Handle: "deepwiki"},
+		Configuration: models.MCPProxyConfig{Context: &ctxPath},
 		Endpoints: []models.MCPProxyEndpoint{{
 			Configuration: models.MCPEndpointConfig{Security: mcpIdentitySecurity()},
 			Environments: []models.MCPProxyEndpointEnvironment{
@@ -246,6 +249,17 @@ func TestEnsureResourceServersForProxy_SurvivesResolverError(t *testing.T) {
 		infraManager: stubInfraManager{listOrgEnvs: func(_ context.Context, _ string) ([]*models.EnvironmentResponse, error) {
 			return []*models.EnvironmentResponse{{Name: "env-a", UUID: envA.String()}}, nil
 		}},
+		deploymentRepo: &repomocks.DeploymentRepositoryMock{
+			PlacedGatewaysFunc: func(_ context.Context, _ string, _ uuid.UUID) ([]string, error) {
+				return []string{gwUUID.String()}, nil
+			},
+		},
+		gatewayRepo: &repomocks.GatewayRepositoryMock{
+			EnvironmentMappingExistsFunc: func(_, _ string) (bool, error) { return true, nil },
+			GetByUUIDFunc: func(_ string) (*models.Gateway, error) {
+				return &models.Gateway{UUID: gwUUID, Vhost: "https://gw.example.com"}, nil
+			},
+		},
 		resolver: &clientmocks.EnvThunderResolverMock{
 			ResolveIdentityFunc: func(_ context.Context, _, _, _ string) (thundersvc.EnvIdentityClient, error) {
 				return nil, errors.New("env-thunder unreachable")

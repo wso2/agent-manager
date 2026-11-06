@@ -266,6 +266,12 @@ type SecretManagementClient interface {
 	// the secret name from location and manage SecretReferences internally.
 	DeleteSecret(ctx context.Context, location SecretLocation, secretRefName string) error
 
+	// DeleteSecretByName deletes a secret and its SecretReference by the
+	// SecretReference name returned when it was created. Use it when that name
+	// was persisted: location derives the name from current values (such as a
+	// configuration name), so it misses a secret created before a rename.
+	DeleteSecretByName(ctx context.Context, orgName, secretRefName string) error
+
 	// GetSecret retrieves secret metadata without values.
 	// Returns SecretInfo containing ID, keys list, and labels.
 	GetSecret(ctx context.Context, kvPath string) (*SecretInfo, error)
@@ -354,6 +360,19 @@ func (c *secretManagementClient) DeleteSecret(ctx context.Context, location Secr
 	}
 	if err := c.lowLevelClient.DeleteSecret(ctx, location, metadata); err != nil {
 		return fmt.Errorf("failed to delete secret: %w", err)
+	}
+
+	return nil
+}
+
+// DeleteSecretByName deletes a secret and its provider-managed SecretReference
+// by the SecretReference name.
+func (c *secretManagementClient) DeleteSecretByName(ctx context.Context, orgName, secretRefName string) error {
+	metadata := &SecretMetadata{
+		ManagedBy: c.managedBy,
+	}
+	if err := c.lowLevelClient.DeleteSecretByName(ctx, orgName, secretRefName, metadata); err != nil {
+		return fmt.Errorf("failed to delete secret %q: %w", secretRefName, err)
 	}
 
 	return nil

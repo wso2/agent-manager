@@ -233,6 +233,19 @@ spec:
                   name: {{ include "agent-management-platform.agentManagerService.fullname" . }}
                   key: thunder-ask-secret
                   {{- end }}
+            {{- if include "agent-management-platform.bundledNats" . }}
+            - name: EVENTS_NATS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: amp-nats-auth
+                  key: token
+            {{- else if and (eq (include "agent-management-platform.eventsMode" .) "nats") .Values.agentManagerService.config.events.natsToken.existingSecret }}
+            - name: EVENTS_NATS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.agentManagerService.config.events.natsToken.existingSecret }}
+                  key: {{ .Values.agentManagerService.config.events.natsToken.existingSecretKey | default "token" }}
+            {{- end }}
             {{- if or .Values.agentManagerService.config.thunder.clientSecret .Values.agentManagerService.config.thunder.existingSecret }}
             - name: THUNDER_CLIENT_SECRET
               {{- if .Values.agentManagerService.config.thunder.existingSecret }}

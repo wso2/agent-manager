@@ -72,6 +72,8 @@ type APIClient struct {
 
 	EvaluatorsAPI *EvaluatorsAPIService
 
+	EventsAPI *EventsAPIService
+
 	GatewayEnvironmentMappingsAPI *GatewayEnvironmentMappingsAPIService
 
 	GatewayIdentityProvidersAPI *GatewayIdentityProvidersAPIService
@@ -106,6 +108,12 @@ type APIClient struct {
 
 	MCPProxyScopesAPI *MCPProxyScopesAPIService
 
+	MonitorAlertingAPI *MonitorAlertingAPIService
+
+	ProjectMCPProxiesAPI *ProjectMCPProxiesAPIService
+
+	ProjectMCPProxyEnvironmentsAPI *ProjectMCPProxyEnvironmentsAPIService
+
 	SelfHostedGatewaysAPI *SelfHostedGatewaysAPIService
 
 	TelemetryAPI *TelemetryAPIService
@@ -139,6 +147,7 @@ func NewAPIClient(cfg *Configuration) *APIClient {
 	c.DefaultAPI = (*DefaultAPIService)(&c.common)
 	c.EnvironmentsAPI = (*EnvironmentsAPIService)(&c.common)
 	c.EvaluatorsAPI = (*EvaluatorsAPIService)(&c.common)
+	c.EventsAPI = (*EventsAPIService)(&c.common)
 	c.GatewayEnvironmentMappingsAPI = (*GatewayEnvironmentMappingsAPIService)(&c.common)
 	c.GatewayIdentityProvidersAPI = (*GatewayIdentityProvidersAPIService)(&c.common)
 	c.GatewayTokensAPI = (*GatewayTokensAPIService)(&c.common)
@@ -156,6 +165,9 @@ func NewAPIClient(cfg *Configuration) *APIClient {
 	c.MCPAPIKeysAPI = (*MCPAPIKeysAPIService)(&c.common)
 	c.MCPProxiesAPI = (*MCPProxiesAPIService)(&c.common)
 	c.MCPProxyScopesAPI = (*MCPProxyScopesAPIService)(&c.common)
+	c.MonitorAlertingAPI = (*MonitorAlertingAPIService)(&c.common)
+	c.ProjectMCPProxiesAPI = (*ProjectMCPProxiesAPIService)(&c.common)
+	c.ProjectMCPProxyEnvironmentsAPI = (*ProjectMCPProxyEnvironmentsAPIService)(&c.common)
 	c.SelfHostedGatewaysAPI = (*SelfHostedGatewaysAPIService)(&c.common)
 	c.TelemetryAPI = (*TelemetryAPIService)(&c.common)
 

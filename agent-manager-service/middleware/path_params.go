@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
+	"github.com/wso2/agent-manager/agent-manager-service/events"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -49,6 +50,16 @@ type RouteRegistrar struct {
 	// walks it to assert that no mutating route shipped unaudited; it is never
 	// consulted at request time.
 	routes []audit.RouteMeta
+	// events publishes the catalog event of a route after it succeeds. Nil
+	// until SetEventPublisher is called, and then only for routes registered
+	// after it.
+	events events.Publisher
+}
+
+// SetEventPublisher makes routes registered from now on publish their
+// catalog events (see events.RouteEventType).
+func (rr *RouteRegistrar) SetEventPublisher(p events.Publisher) {
+	rr.events = p
 }
 
 // NewRouteRegistrar creates a RouteRegistrar backed by the given mux and resolver.
@@ -100,18 +111,37 @@ func (rr *RouteRegistrar) register(
 	authz func(http.HandlerFunc) http.HandlerFunc,
 	handler http.HandlerFunc,
 ) {
+	rr.registerWithOrgOverride(pattern, perms, authz, nil, handler)
+}
+
+// registerWithOrgOverride is register with an optional org-override middleware
+// composed between org resolution and authz (see
+// HandleFuncWithValidationAndAuthzAndOrgOverride). nil composes nothing, which
+// is what every other route gets.
+func (rr *RouteRegistrar) registerWithOrgOverride(
+	pattern string,
+	perms []rbac.Permission,
+	authz func(http.HandlerFunc) http.HandlerFunc,
+	orgOverride func(http.HandlerFunc) http.HandlerFunc,
+	handler http.HandlerFunc,
+) {
 	params := extractPathParams(pattern)
+	meta := audit.NewRouteMetaForSurface(pattern, params, perms, rr.surface)
+	// Innermost, so the resolved org and the caller are on its context.
+	handler = WithEvents(rr.events, meta)(handler)
 	if len(params) > 0 {
 		handler = WithPathParamValidation(handler, params...)
 	}
 	if authz != nil {
 		handler = authz(handler)
 	}
+	if orgOverride != nil {
+		handler = orgOverride(handler)
+	}
 	if strings.Contains(pattern, orgNamePlaceholder) {
 		handler = RequireOrgMatch(rr.orgResolver)(handler)
 	}
 
-	meta := audit.NewRouteMetaForSurface(pattern, params, perms, rr.surface)
 	rr.routes = append(rr.routes, meta)
 	handler = WithAudit(rr.auditor, meta)(handler)
 
@@ -124,6 +154,31 @@ func (rr *RouteRegistrar) HandleFuncWithValidation(pattern string, handler http.
 
 func (rr *RouteRegistrar) HandleFuncWithValidationAndAuthz(pattern string, perm rbac.Permission, handler http.HandlerFunc) {
 	rr.register(pattern, []rbac.Permission{perm}, RequirePermission(perm), handler)
+}
+
+// HandleFuncWithValidationAndAuthzAndOrgOverride is HandleFuncWithValidationAndAuthz
+// with orgOverride (ApplyOrgOverride) composed after RequireOrgMatch and before
+// the permission check: RequireOrgMatch → orgOverride → RequirePermission →
+// path validation → handler, all inside the audit wrapper.
+//
+// It exists for the routes a deployment's control plane drives on a tenant's
+// behalf — currently the project MCP proxy routes. Every other route keeps the
+// token as the sole source of org identity, so do not reach for this without
+// the same reason. The pattern must be org-scoped, since the override rewrites
+// the org RequireOrgMatch resolved.
+func (rr *RouteRegistrar) HandleFuncWithValidationAndAuthzAndOrgOverride(
+	pattern string,
+	perm rbac.Permission,
+	orgOverride func(http.HandlerFunc) http.HandlerFunc,
+	handler http.HandlerFunc,
+) {
+	if !strings.Contains(pattern, orgNamePlaceholder) {
+		panic("middleware: an org-override route must be org-scoped: " + pattern)
+	}
+	if orgOverride == nil {
+		panic("middleware: an org-override route needs an override middleware: " + pattern)
+	}
+	rr.registerWithOrgOverride(pattern, []rbac.Permission{perm}, RequirePermission(perm), orgOverride, handler)
 }
 
 // HandleFuncWithValidationAndAuthzAllowRootOU is identical to
@@ -185,6 +240,9 @@ func (rr *RouteRegistrar) registerRootOU(
 	handler http.HandlerFunc,
 ) {
 	params := extractPathParams(pattern)
+	meta := audit.NewRouteMetaForSurface(pattern, params, perms, rr.surface)
+	// Innermost, so the resolved org and the caller are on its context.
+	handler = WithEvents(rr.events, meta)(handler)
 	if len(params) > 0 {
 		handler = WithPathParamValidation(handler, params...)
 	}
@@ -193,7 +251,6 @@ func (rr *RouteRegistrar) registerRootOU(
 		handler = RequireOrgMatchAllowRootOU(rr.orgResolver)(handler)
 	}
 
-	meta := audit.NewRouteMetaForSurface(pattern, params, perms, rr.surface)
 	rr.routes = append(rr.routes, meta)
 	handler = WithAudit(rr.auditor, meta)(handler)
 

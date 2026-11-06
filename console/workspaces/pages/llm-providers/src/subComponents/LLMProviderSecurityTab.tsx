@@ -24,6 +24,7 @@ import {
 } from "@agent-management-platform/types";
 import { z } from "zod";
 import { TextInput } from "@agent-management-platform/views";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 import { useUnsavedChangesGuard } from "@agent-management-platform/shared-component";
 import {
   Alert,
@@ -86,6 +87,7 @@ export function LLMProviderSecurityTab({
   onUpdate,
   isUpdating,
 }: LLMProviderSecurityTabProps) {
+  const { canWrite } = useResourceAccess("llm_provider");
 
   const [authenticationType, setAuthenticationType] = useState<
     "apiKey" | "none"
@@ -180,7 +182,7 @@ export function LLMProviderSecurityTab({
     onUpdate,
   ]);
 
-  const isDisabled = isLoading || !providerData;
+  const isDisabled = isLoading || !providerData || !canWrite;
 
   if (isLoading) {
     return (
@@ -265,6 +267,7 @@ export function LLMProviderSecurityTab({
             </Alert>
           )}
         </Collapse>
+        {canWrite && (
         <Stack direction="row" spacing={1.5} justifyContent="flex-end">
           <Button
             variant="outlined"
@@ -281,6 +284,7 @@ export function LLMProviderSecurityTab({
             {isUpdating ? "Saving..." : "Save"}
           </Button>
         </Stack>
+        )}
       </Stack>
     </Stack>
   );

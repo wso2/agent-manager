@@ -18,7 +18,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { globalConfig } from "@agent-management-platform/types";
+import {
+  FeatureManagementProvider,
+  type FeatureFlags,
+} from "@agent-management-platform/feature-management";
 import { AIGatewaysTable } from "./AIGatewaysTable";
 
 const gateway = (uuid: string, hosting: "MANAGED" | "SELF_HOSTED") => ({
@@ -77,14 +80,18 @@ vi.mock("@agent-management-platform/shared-component", async () => {
   };
 });
 
+let featureFlags: Partial<FeatureFlags> = {};
+
 const renderTable = () =>
   render(
-    <MemoryRouter
-      initialEntries={["/org/acme"]}
-      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-    >
-      <AIGatewaysTable onAddGateway={vi.fn()} />
-    </MemoryRouter>,
+    <FeatureManagementProvider featureFlags={featureFlags}>
+      <MemoryRouter
+        initialEntries={["/org/acme"]}
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
+        <AIGatewaysTable onAddGateway={vi.fn()} />
+      </MemoryRouter>
+    </FeatureManagementProvider>,
   );
 
 beforeEach(() => {
@@ -93,12 +100,12 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  delete globalConfig.featureFlags?.enableSelfHostedGateways;
+  featureFlags = {};
 });
 
 describe("AIGatewaysTable self-hosted gating", () => {
   it("shows an existing self-hosted gateway's hosting but hides Add Gateway when disabled", () => {
-    globalConfig.featureFlags = { ...globalConfig.featureFlags, enableSelfHostedGateways: false };
+    featureFlags = { enableSelfHostedGateways: false };
     renderTable();
 
     expect(screen.queryByText("Add Gateway")).not.toBeInTheDocument();
@@ -108,7 +115,7 @@ describe("AIGatewaysTable self-hosted gating", () => {
   });
 
   it("shows no hosting with only managed gateways when disabled", () => {
-    globalConfig.featureFlags = { ...globalConfig.featureFlags, enableSelfHostedGateways: false };
+    featureFlags = { enableSelfHostedGateways: false };
     hoisted.gateways = [gateway("managed-1", "MANAGED"), gateway("managed-2", "MANAGED")];
     renderTable();
 
@@ -119,7 +126,7 @@ describe("AIGatewaysTable self-hosted gating", () => {
   });
 
   it("offers Add Gateway in the empty state when enabled", () => {
-    globalConfig.featureFlags = { ...globalConfig.featureFlags, enableSelfHostedGateways: true };
+    featureFlags = { enableSelfHostedGateways: true };
     hoisted.gateways = [];
     renderTable();
 
@@ -127,7 +134,7 @@ describe("AIGatewaysTable self-hosted gating", () => {
   });
 
   it("shows hosting chips when enabled", () => {
-    globalConfig.featureFlags = { ...globalConfig.featureFlags, enableSelfHostedGateways: true };
+    featureFlags = { enableSelfHostedGateways: true };
     renderTable();
 
     expect(screen.getByText("Self-hosted")).toBeInTheDocument();
@@ -136,10 +143,7 @@ describe("AIGatewaysTable self-hosted gating", () => {
 
   describe.each([true, false])("row actions with enableSelfHostedGateways=%s", (enabled) => {
     it("lets managed rows delete through the managed hooks", async () => {
-      globalConfig.featureFlags = {
-        ...globalConfig.featureFlags,
-        enableSelfHostedGateways: enabled,
-      };
+      featureFlags = { enableSelfHostedGateways: enabled };
       renderTable();
 
       fireEvent.click(screen.getAllByRole("button", { name: "Delete", hidden: true })[0]);
@@ -150,7 +154,7 @@ describe("AIGatewaysTable self-hosted gating", () => {
   });
 
   it("lets self-hosted rows delete through the self-hosted hooks", async () => {
-    globalConfig.featureFlags = { ...globalConfig.featureFlags, enableSelfHostedGateways: true };
+    featureFlags = { enableSelfHostedGateways: true };
     renderTable();
 
     fireEvent.click(screen.getAllByRole("button", { name: "Delete", hidden: true })[1]);
@@ -162,7 +166,7 @@ describe("AIGatewaysTable self-hosted gating", () => {
   });
 
   it("shows Delete on every row when disabled", () => {
-    globalConfig.featureFlags = { ...globalConfig.featureFlags, enableSelfHostedGateways: false };
+    featureFlags = { enableSelfHostedGateways: false };
     renderTable();
     expect(screen.getAllByRole("button", { name: "Delete", hidden: true })).toHaveLength(2);
   });

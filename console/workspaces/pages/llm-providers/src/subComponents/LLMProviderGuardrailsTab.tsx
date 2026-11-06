@@ -51,6 +51,7 @@ import {
   type ParameterValues,
   useUnsavedChangesGuard,
 } from "@agent-management-platform/shared-component";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 import { useOpenApiSpec } from "../hooks/useOpenApiSpec";
 import {
   extractResourcesFromSpec,
@@ -123,6 +124,7 @@ export function LLMProviderGuardrailsTab({
   onUpdate,
   isUpdating,
 }: LLMProviderGuardrailsTabProps) {
+  const { canWrite } = useResourceAccess("llm_provider");
   const { orgId } = useParams<{ orgId: string }>();
   const { data: catalogData } = useLLMPoliciesCatalog(
     orgId,
@@ -488,14 +490,17 @@ export function LLMProviderGuardrailsTab({
                     label={`${getDisplayName(entry.policy)} (${formatPolicyVersion(entry.policy.version)})`}
                     color="warning"
                     variant="outlined"
-                    onClick={() => handleOpenEditDrawer(entry)}
-                    onDelete={() =>
-                      handleRemoveGuardrail(entry.policyIndex, entry.pathIndex)
+                    onClick={canWrite ? () => handleOpenEditDrawer(entry) : undefined}
+                    onDelete={
+                      canWrite
+                        ? () => handleRemoveGuardrail(entry.policyIndex, entry.pathIndex)
+                        : undefined
                     }
                     disabled={isUpdating}
-                    sx={{ cursor: "pointer" }}
+                    sx={{ cursor: canWrite ? "pointer" : undefined }}
                   />
                 ))}
+                {canWrite && (
                 <Button
                   variant="contained"
                   size="small"
@@ -505,6 +510,7 @@ export function LLMProviderGuardrailsTab({
                 >
                   Add Guardrail
                 </Button>
+                )}
               </Stack>
             </Box>
 
@@ -530,10 +536,12 @@ export function LLMProviderGuardrailsTab({
               ) : (
                 <Box>
                   <SearchBar
-                    placeholder="Search resources…"
+                    placeholder="Search resources"
+                    size="small"
+                    width="standard"
                     value={resourceSearch}
                     onChange={(e) => setResourceSearch(e.target.value)}
-                    sx={{ mb: 1, width: "100%" }}
+                    sx={{ mb: 1 }}
                   />
                   {filteredResources.length === 0 ? (
                     <ListingTable.Container>
@@ -601,19 +609,25 @@ export function LLMProviderGuardrailsTab({
                                     label={`${getDisplayName(entry.policy)} (${formatPolicyVersion(entry.policy.version)})`}
                                     color="warning"
                                     variant="outlined"
-                                    onClick={() => handleOpenEditDrawer(entry)}
-                                    onDelete={() =>
-                                      handleRemoveGuardrail(
-                                        entry.policyIndex,
-                                        entry.pathIndex,
-                                      )
+                                    onClick={
+                                      canWrite ? () => handleOpenEditDrawer(entry) : undefined
+                                    }
+                                    onDelete={
+                                      canWrite
+                                        ? () =>
+                                            handleRemoveGuardrail(
+                                              entry.policyIndex,
+                                              entry.pathIndex,
+                                            )
+                                        : undefined
                                     }
                                     disabled={isUpdating}
-                                    sx={{ cursor: "pointer" }}
+                                    sx={{ cursor: canWrite ? "pointer" : undefined }}
                                   />
                                 ))
                               )}
                             </Stack>
+                            {canWrite && (
                             <Button
                               variant="outlined"
                               size="small"
@@ -629,6 +643,7 @@ export function LLMProviderGuardrailsTab({
                             >
                               Add Guardrail
                             </Button>
+                            )}
                           </AccordionDetails>
                         </Accordion>
                       );
@@ -652,6 +667,8 @@ export function LLMProviderGuardrailsTab({
         </Stack>
       </Box>
 
+      {canWrite && (
+      <>
       <Divider />
       <Stack direction="row" spacing={1.5} justifyContent="flex-end" sx={{ pt: 2 }}>
         <Button
@@ -669,15 +686,17 @@ export function LLMProviderGuardrailsTab({
           {isUpdating ? "Saving..." : "Save"}
         </Button>
       </Stack>
+      </>
+      )}
 
       <PolicySelectorDrawer
-        open={drawerOpen}
+        open={canWrite && drawerOpen}
         onClose={handleCloseDrawer}
         onSubmit={handleDrawerSubmit}
         providerId={providerData?.uuid}
         policyNoun="guardrail"
         loadingLabel="Loading guardrails..."
-        searchPlaceholder="Search guardrails..."
+        searchPlaceholder="Search guardrails"
         catalogErrorLabel="Failed to load guardrails."
         emptySearchTitle="No guardrails match your search"
         emptyCatalogTitle="No guardrails available"

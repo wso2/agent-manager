@@ -29,6 +29,7 @@ import {
   useListGateways,
   useUpdateMCPProxy,
 } from "@agent-management-platform/api-client";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 import {
   absoluteRouteMap,
   isSelfHostedGateway,
@@ -79,6 +80,7 @@ import { MCPProxyOverviewTab } from "./MCPProxyOverviewTab";
 import { MCPProxyPoliciesTab } from "./MCPProxyPoliciesTab";
 import { MCPProxyRewriteTab } from "./MCPProxyRewriteTab";
 import { MCPProxySecurityTab } from "./MCPProxySecurityTab";
+import { getCapabilityId } from "./mcpEndpoints";
 import { useCopyWithFeedback } from "./useCopyWithFeedback";
 
 // slug is a URL-safe stand-in for each tab, so the selected tab (and
@@ -253,6 +255,7 @@ export function ViewMCPProxy() {
     orgName: orgId ?? "",
   });
   const updateMCPProxy = useUpdateMCPProxy();
+  const { canWrite } = useResourceAccess("mcp_server");
 
   const endpoints = useMemo<MCPProxyEndpoint[]>(
     () => proxy?.endpoints ?? [],
@@ -283,6 +286,20 @@ export function ViewMCPProxy() {
     () => endpoints.find((endpoint) => endpoint.id === selectedEndpointId),
     [endpoints, selectedEndpointId],
   );
+
+  // Tools of the proxy's other endpoints. A scope covers the tools of every endpoint, so the
+  // security tab needs them to keep them when it saves the selected endpoint's assignments.
+  const otherEndpointTools = useMemo(() => {
+    const names = new Set<string>();
+    for (const endpoint of endpoints) {
+      if (endpoint.id === selectedEndpointId) continue;
+      for (const raw of endpoint.capabilities?.tools ?? []) {
+        const name = getCapabilityId("tool", raw);
+        if (name) names.add(name);
+      }
+    }
+    return [...names];
+  }, [endpoints, selectedEndpointId]);
 
   // The selected endpoint's flat config, consumed by every config tab. Environment
   // bindings and per-env deployment status are surfaced separately as chips.
@@ -398,7 +415,7 @@ export function ViewMCPProxy() {
           <CreatedMetadata createdAt={proxy?.createdAt} />
         }
         actions={
-          proxy ? (
+          proxy && canWrite ? (
             <Button
               variant="outlined"
               size="small"
@@ -592,6 +609,7 @@ export function ViewMCPProxy() {
                       orgName={orgId}
                       proxyId={routeProxyId}
                       environments={selectedEnvironments}
+                      otherEndpointTools={otherEndpointTools}
                       isOnSelfHostedGateway={isOnSelfHostedGateway}
                       isLoading={isTabContentLoading}
                       onUpdate={updateSelectedEndpointConfig}

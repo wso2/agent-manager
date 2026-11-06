@@ -17,12 +17,20 @@
  */
 
 import React, { useCallback, useMemo } from "react";
-import { generatePath, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import {
+  generatePath,
+  Navigate,
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from "react-router-dom";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 import {
   absoluteRouteMap,
   type CreateMonitorRequest,
 } from "@agent-management-platform/types";
 import {
+  useApplyMonitorAlert,
   useCreateMonitor,
   useGetMonitor,
 } from "@agent-management-platform/api-client";
@@ -33,7 +41,11 @@ import {
   usePipelineEnvironments,
 } from "@agent-management-platform/shared-component";
 import { type CreateMonitorFormValues } from "./form/schema";
-import { MonitorFormWizard } from "./subComponents/MonitorFormWizard";
+import {
+  MonitorFormWizard,
+  type MonitorAlertChoice,
+} from "./subComponents/MonitorFormWizard";
+import { toAlertRequest } from "./subComponents/MonitorAlertSettings";
 import { slugifyMonitorName } from "./utils/monitorFormUtils";
 
 export const CreateMonitorComponent: React.FC = () => {
@@ -44,6 +56,7 @@ export const CreateMonitorComponent: React.FC = () => {
     envId: string;
   }>();
   const navigate = useNavigate();
+  const { canWrite } = useResourceAccess("monitor");
   const [searchParams] = useSearchParams();
   const duplicateFrom = searchParams.get("duplicateFrom") ?? undefined;
 
@@ -69,6 +82,11 @@ export const CreateMonitorComponent: React.FC = () => {
   });
 
   const environments = usePipelineEnvironments(orgId, projectId);
+  const { mutate: applyAlert, isPending: isSavingAlert } = useApplyMonitorAlert({
+    orgName: orgId,
+    projName: projectId,
+    agentName: agentId,
+  });
 
   const defaultTimeRange = useMemo(() => {
     const end = new Date();
@@ -135,6 +153,7 @@ export const CreateMonitorComponent: React.FC = () => {
     (
       values: CreateMonitorFormValues,
       allowNavigation: (action: () => void) => void,
+      alert: MonitorAlertChoice,
     ) => {
       if (!orgId || !projectId || !agentId || !envId) {
         return;
@@ -156,27 +175,38 @@ export const CreateMonitorComponent: React.FC = () => {
         samplingRate: (values.samplingRate ?? 100) / 100,
       };
 
+      // Land on the monitor list for whichever environment it was actually
+      // created in, which may differ from the page's originating envId.
+      const goToMonitors = () => allowNavigation(() => navigate(
+        generatePath(
+          absoluteRouteMap.children.org.children.projects.children.agents
+            .children.environment.children.evaluation.children.monitor
+            .path,
+          {
+            orgId,
+            projectId,
+            agentId,
+            envId: values.environmentName,
+          },
+        ),
+      ));
+
       createMonitor(payload, {
         onSuccess: () => {
-          // Land on the monitor list for whichever environment it was actually
-          // created in, which may differ from the page's originating envId.
-          allowNavigation(() => navigate(
-            generatePath(
-              absoluteRouteMap.children.org.children.projects.children.agents
-                .children.environment.children.evaluation.children.monitor
-                .path,
-              {
-                orgId,
-                projectId,
-                agentId,
-                envId: values.environmentName,
-              },
-            ),
-          ));
+          // The alert can only be saved once the monitor exists. A failure is
+          // reported on its own and does not undo the monitor.
+          if (alert) {
+            applyAlert(
+              { monitorName: payload.name, alert: toAlertRequest(alert) },
+              { onSettled: goToMonitors },
+            );
+            return;
+          }
+          goToMonitors();
         },
       });
     },
-    [agentId, createMonitor, envId, navigate, orgId, projectId],
+    [agentId, applyAlert, createMonitor, envId, navigate, orgId, projectId],
   );
 
   const title = duplicateFrom && sourceMonitor
@@ -186,6 +216,10 @@ export const CreateMonitorComponent: React.FC = () => {
   const description = duplicateFrom && sourceMonitor
     ? `Pre-filled from "${sourceMonitor.displayName}". Make your changes and submit to create a new monitor.`
     : undefined;
+
+  if (!canWrite) {
+    return <Navigate to={backHref} replace />;
+  }
 
   if (duplicateFrom && isLoadingSource) {
     return (
@@ -224,7 +258,7 @@ export const CreateMonitorComponent: React.FC = () => {
       submitLabel="Create Monitor"
       initialValues={initialValues}
       onSubmit={handleCreateMonitor}
-      isSubmitting={isPending}
+      isSubmitting={isPending || isSavingAlert}
       serverError={error}
       missingParamsMessage={missingParamsMessage}
       environments={environments}

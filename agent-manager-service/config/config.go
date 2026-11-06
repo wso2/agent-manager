@@ -202,6 +202,10 @@ type Config struct {
 	// Audit configures the audit trail.
 	Audit AuditConfig
 
+	// Events configures the platform event bus and the delivery of events to
+	// event destinations.
+	Events EventsConfig
+
 	// GatewayManifestCache configures where the gateway-reported policy manifest
 	// cache lives. The default in-memory backend is process-local and therefore
 	// inconsistent across replicas — set Backend to "redis" in HA deployments.
@@ -266,6 +270,43 @@ type GatewayManifestCacheRedisConfig struct {
 	TLSEnabled bool
 }
 
+// Event bus modes.
+const (
+	// EventsModeNATS connects to a NATS server (EVENTS_NATS_URL), with
+	// JetStream streams on disk.
+	EventsModeNATS = "nats"
+	// EventsModeEmbedded runs NATS inside the process with JetStream in
+	// memory: no server to run, but queued events are lost on restart and it
+	// supports one replica only. For quick-start installs.
+	EventsModeEmbedded = "embedded"
+	// EventsModeOff runs no event bus and publishes no events.
+	EventsModeOff = "off"
+)
+
+// EventsConfig configures the platform event bus and the delivery of events
+// to event destinations.
+type EventsConfig struct {
+	// Mode is nats, embedded or off. When unset it is nats if NATSURL is set,
+	// off otherwise.
+	Mode string
+	// NATSURL is the NATS server for nats mode, e.g. nats://nats:4222.
+	NATSURL string
+	// NATSToken authenticates to the NATS server, when it requires a token.
+	// The bus carries every org's events, so a shared server must not be
+	// open to whoever can reach it.
+	NATSToken string `json:"-"`
+	// AllowPrivateDestinations lets destination URLs resolve to private,
+	// loopback or link-local addresses, and allows plain http. Off by default
+	// so an admin cannot point the service at internal infrastructure; enable
+	// only for local development.
+	AllowPrivateDestinations bool
+	// DeliveryMaxAttempts is how many times a delivery is tried before it is
+	// marked failed.
+	DeliveryMaxAttempts int
+	// DeliveryRetentionDays is how long the delivery log is kept.
+	DeliveryRetentionDays int
+}
+
 // AuditConfig controls the audit trail.
 //
 // Records are written to stdout as structured JSON and collected by the
@@ -315,6 +356,17 @@ type SecretManagerConfig struct {
 	// types). Kept separate from RefreshInterval above so AgentID's fast
 	// rotation-to-pod requirement never depends on it.
 	AgentIdentityRefreshInterval string
+	// AgentIdentityForceSyncWait is how long to wait after forcing the workload's
+	// secret-env ExternalSecret to re-sync on rotation, before rolling the pod
+	// (default: "20s"). Used instead of AgentIdentityRefreshInterval whenever
+	// the force-sync write succeeds.
+	AgentIdentityForceSyncWait string
+	// AgentIdentityForceSyncApplyTimeout bounds how long to wait, before the
+	// AgentIdentityForceSyncWait above, for the new force-sync revision to show
+	// up on the live ExternalSecret (default: "2m"). On timeout a warning is
+	// logged and the pod is rolled after AgentIdentityRefreshInterval, not the
+	// short force-sync wait, because the force-sync was not confirmed.
+	AgentIdentityForceSyncApplyTimeout string
 }
 
 // OpenBaoConfig holds OpenBao KV store configuration.

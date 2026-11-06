@@ -39,6 +39,7 @@ import {
   isSelfHostedGateway,
 } from "@agent-management-platform/types";
 import { PageLayout } from "@agent-management-platform/views";
+import { useGatewayFeatures } from "@agent-management-platform/feature-management";
 import { GatewayIdentityProvidersCard } from "./GatewayIdentityProvidersCard";
 import { SelfHostedGatewayTokensCard } from "./SelfHostedGatewayTokensCard";
 import { SelfHostedSetupSteps } from "./SelfHostedSetupSteps";
@@ -49,6 +50,7 @@ export const ViewGateway: React.FC = () => {
     orgId: string;
   }>();
   const navigate = useNavigate();
+  const { canWrite } = useGatewayFeatures();
   const {
     data: gateway,
     isLoading,
@@ -82,6 +84,7 @@ export const ViewGateway: React.FC = () => {
         isLoading={isLoading}
         disableIcon
         actions={
+          canWrite && (
           <Button
             variant="outlined"
             size="small"
@@ -98,6 +101,7 @@ export const ViewGateway: React.FC = () => {
           >
             Edit Gateway
           </Button>
+          )
         }
         titleTail={
           gateway ? (

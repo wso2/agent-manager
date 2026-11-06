@@ -36,6 +36,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
@@ -57,7 +58,7 @@ type AgentConfigurationService interface {
 	Create(ctx context.Context, ouID, projectName, agentID string,
 		req models.CreateAgentModelConfigRequest, createdBy string) (*models.AgentModelConfigResponse, error)
 	ValidateProvidersInCatalog(ctx context.Context, ouID string, providerHandles []string) error
-	ValidateMCPProxiesInCatalog(ctx context.Context, ouID string, proxyHandles []string) error
+	ValidateMCPProxiesInCatalog(ctx context.Context, ouID, projectName string, proxyHandles []string) error
 	Get(ctx context.Context, configUUID uuid.UUID, ouID, projectName, agentName string) (*models.AgentModelConfigResponse, error)
 	GetMCP(ctx context.Context, configUUID uuid.UUID, ouID, projectName, agentName string) (*models.AgentModelConfigResponse, error)
 	GetByAgent(ctx context.Context, agentID, ouID string) (*models.AgentModelConfigResponse, error)
@@ -1022,7 +1023,7 @@ func (s *agentConfigurationService) ValidateProvidersInCatalog(
 // that is published in the catalog. Mirrors ValidateProvidersInCatalog and is used by the
 // MCP auto-wiring preflight so a bad proxy fails fast before the component is created.
 func (s *agentConfigurationService) ValidateMCPProxiesInCatalog(
-	ctx context.Context, ouID string, proxyHandles []string,
+	ctx context.Context, ouID, projectName string, proxyHandles []string,
 ) error {
 	if s.mcpProxyRepo == nil {
 		return fmt.Errorf("MCP configuration service is not fully configured")
@@ -1045,8 +1046,8 @@ func (s *agentConfigurationService) ValidateMCPProxiesInCatalog(
 			}
 			return fmt.Errorf("failed to validate MCP proxy %s: %w", handle, err)
 		}
-		if proxy.Artifact == nil || !proxy.Artifact.InCatalog {
-			return fmt.Errorf("%w: MCP proxy %s must be in catalog", utils.ErrInvalidInput, handle)
+		if err := s.requireMCPProxyBindable(ctx, proxy, ouID, projectName); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -1461,6 +1462,9 @@ func (s *agentConfigurationService) createMCPConfig(ctx context.Context, ouID, p
 				return nil, fmt.Errorf("MCP proxy for environment %s not found: %w", envName, utils.ErrMCPProxyNotFound)
 			}
 			return nil, fmt.Errorf("failed to validate MCP proxy for environment %s: %w", envName, err)
+		}
+		if err := s.requireProjectProxyInProject(ctx, proxy, ouID, projectName); err != nil {
+			return nil, err
 		}
 		proxiesByEnv[envName] = proxy
 	}
@@ -2332,6 +2336,18 @@ func (s *agentConfigurationService) processNewEnv(
 	return rbRes, pendingBind, nil
 }
 
+// deleteProxyAPIKeySecret deletes a proxy API key secret and its SecretReference
+// through the Secret Manager API. It deletes by persistedSecretRefName, the name
+// returned when the secret was created, when there is one: loc derives the name
+// from the configuration's current name, which misses a secret created before
+// the configuration was renamed.
+func (s *agentConfigurationService) deleteProxyAPIKeySecret(ctx context.Context, loc secretmanagersvc.SecretLocation, persistedSecretRefName string) error {
+	if persistedSecretRefName != "" {
+		return s.secretClient.DeleteSecretByName(ctx, loc.OrgName, persistedSecretRefName)
+	}
+	return s.secretClient.DeleteSecret(ctx, loc, loc.SecretRefName())
+}
+
 // processEnvRemoval handles Scenario D: environment removed from the request.
 // Removes env vars from the ReleaseBinding and, only when this is the last
 // remaining environment (isLastEnv == true), also clears the Component CR.
@@ -2387,23 +2403,32 @@ func (s *agentConfigurationService) processEnvRemoval(
 			}
 		}
 
-		// Delete SecretReference CR after consumer refs have been cleaned up (best-effort).
-		// Use the persisted SecretReference from AgentEnvConfigVariable (set at creation time)
-		// rather than deriving it from mutable fields like configName which may have been renamed.
-		vars, varLoadErr := s.envVariableRepo.ListByConfigAndEnv(ctx, configUUID, envUUIDParsed)
-		if varLoadErr != nil {
-			s.logger.Warn("failed to load env config variables for SecretReference lookup in Scenario D", "err", varLoadErr)
-		} else {
-			for _, v := range vars {
-				if v.SecretReference != "" {
-					s.logger.Info("Scenario D: using persisted SecretReference for deletion",
-						"secretRef", v.SecretReference, "variableName", v.VariableName,
-						"configUUID", configUUID, "environment", envName)
-					if delErr := s.ocClient.DeleteSecretReference(ctx, ouID, v.SecretReference); delErr != nil {
-						s.logger.Warn("failed to delete SecretReference in Scenario D", "name", v.SecretReference, "err", delErr)
+		// Delete the proxy API key secret after consumer refs have been cleaned up (best-effort).
+		// The Secret Manager API also removes the SecretReference it manages.
+		if mapping.LLMProxy != nil {
+			var persistedSecretRefName string
+			vars, varLoadErr := s.envVariableRepo.ListByConfigAndEnv(ctx, configUUID, envUUIDParsed)
+			if varLoadErr != nil {
+				s.logger.Warn("failed to load env config variables for SecretReference lookup in Scenario D", "err", varLoadErr)
+			} else {
+				for _, v := range vars {
+					if v.SecretReference != "" {
+						persistedSecretRefName = v.SecretReference
+						break // Only one secret ref per config+env
 					}
-					break // Only one secret ref per config+env
 				}
+			}
+			proxySecretLoc := secretmanagersvc.SecretLocation{
+				OrgName:         ouID,
+				ProjectName:     projectName,
+				AgentName:       agentName,
+				EnvironmentName: envName,
+				ConfigName:      configName,
+				EntityName:      mapping.LLMProxy.Handle,
+				SecretKey:       secretmanagersvc.SecretKeyAPIKey,
+			}
+			if delErr := s.deleteProxyAPIKeySecret(ctx, proxySecretLoc, persistedSecretRefName); delErr != nil {
+				s.logger.Warn("failed to delete proxy API key secret in Scenario D", "secretRef", persistedSecretRefName, "err", delErr)
 			}
 		}
 	}
@@ -2494,6 +2519,9 @@ func (s *agentConfigurationService) updateMCPConfig(ctx context.Context, existin
 				return nil, fmt.Errorf("MCP proxy for environment %s not found: %w", envName, utils.ErrMCPProxyNotFound)
 			}
 			return nil, fmt.Errorf("failed to validate MCP proxy for environment %s: %w", envName, err)
+		}
+		if err := s.requireProjectProxyInProject(ctx, proxy, ouID, projectName); err != nil {
+			return nil, err
 		}
 		proxiesByEnv[envName] = proxy
 	}
@@ -4219,22 +4247,6 @@ func (s *agentConfigurationService) deleteLLMConfig(ctx context.Context, existin
 				}
 			}
 		}
-		if persistedSecretRefName == "" {
-			s.logger.Warn("no persisted SecretReference found for config, skipping SecretReference deletion",
-				"configUUID", configUUID, "environment", env)
-		}
-
-		// Step 1b: Delete SecretReference CR (internal agents only, best-effort).
-		if !policy.external() && persistedSecretRefName != "" {
-			s.logger.Info("Delete: using persisted SecretReference for deletion",
-				"secretRef", persistedSecretRefName,
-				"configUUID", configUUID, "environment", env)
-			if err := s.ocClient.DeleteSecretReference(ctx, ouID, persistedSecretRefName); err != nil {
-				s.logger.Warn("failed to delete SecretReference on config delete",
-					"name", persistedSecretRefName, "err", err)
-			}
-		}
-
 		// Step 2: Undeploy proxy deployments.
 		s.logger.Info(
 			"Cleaning up proxy deployments for deleted config",
@@ -4270,8 +4282,7 @@ func (s *agentConfigurationService) deleteLLMConfig(ctx context.Context, existin
 		// Delete proxy API key secret
 		// Step 4: Delete KV secrets for proxy API key (used by SecretReference CR).
 		// Note: provider upstream auth is encrypted in the DB and deleted with the proxy record.
-		// SecretReference CR is already deleted in Step 1b above, so we pass the persisted name
-		// to avoid a redundant (and potentially incorrect) deletion attempt.
+		// The Secret Manager API also removes the SecretReference it manages.
 		proxySecretLoc := secretmanagersvc.SecretLocation{
 			OrgName:         existingConfig.OUID,
 			ProjectName:     existingConfig.ProjectName,
@@ -4281,14 +4292,7 @@ func (s *agentConfigurationService) deleteLLMConfig(ctx context.Context, existin
 			EntityName:      proxyHandle,
 			SecretKey:       secretmanagersvc.SecretKeyAPIKey,
 		}
-		// Use persisted name when available; fall back to computed name so the
-		// KV secret deletion (location-based) still proceeds and DeleteSecret
-		// receives a valid SecretReference name for its internal cleanup.
-		secretRefForDelete := persistedSecretRefName
-		if secretRefForDelete == "" {
-			secretRefForDelete = proxySecretLoc.SecretRefName()
-		}
-		if err := s.secretClient.DeleteSecret(ctx, proxySecretLoc, secretRefForDelete); err != nil {
+		if err := s.deleteProxyAPIKeySecret(ctx, proxySecretLoc, persistedSecretRefName); err != nil {
 			return fmt.Errorf("failed to delete proxy API key from KV for proxy %q: %w",
 				proxyHandle, err)
 		}
@@ -4678,7 +4682,10 @@ func (s *agentConfigurationService) requireProviderPlacements(
 		}
 		if err := policy.requireProvider(ctx, s.llmProxyDeploymentService, s.gatewayRepo,
 			ouID, provider.UUID, envUUID); err != nil {
-			return fmt.Errorf("environment %s: %w", envName, err)
+			// The returned message names the provider and environment; the ids are for operators.
+			logger.GetLogger(ctx).Info("Refused LLM provider placement",
+				"ouID", ouID, "providerUUID", provider.UUID, "environmentUUID", envUUID, "error", err)
+			return fmt.Errorf("LLM provider %q in environment %s: %w", requested[envName].ProviderName, envName, err)
 		}
 	}
 	return nil
@@ -5119,10 +5126,9 @@ func buildAgentMCPConfigProxy(
 	// gateway artifact the proxy deployed for this environment. That artifact lives at the
 	// proxy's base context, so the injected proxy URL derived from this value is the shared
 	// per-environment URL (identical for every agent that references the proxy).
-	context := ""
-	if source.Configuration.Context != nil {
-		context = *source.Configuration.Context
-	}
+	// A project proxy is served at /<project><context>, so the URL injected into the agent must
+	// carry the project prefix; an org proxy's context is used as is.
+	context := mcpGatewayContext(source, "")
 	name := handle
 	version := source.Version
 	if source.Artifact != nil && source.Artifact.Version != "" {
@@ -5304,7 +5310,7 @@ func (s *agentConfigurationService) CleanupEnvironmentMCPArtifacts(ctx context.C
 	if s.mcpProxyRepo != nil && s.mcpProxyService != nil {
 		const pageSize = 100
 		for offset := 0; ; offset += pageSize {
-			proxies, listErr := s.mcpProxyRepo.List(ctx, ouID, pageSize, offset)
+			proxies, _, listErr := s.mcpProxyRepo.List(ctx, ouID, repositories.MCPProxyListFilter{AllProjects: true, Limit: pageSize, Offset: offset})
 			if listErr != nil {
 				errs = append(errs, fmt.Errorf("list MCP proxies (offset %d): %w", offset, listErr))
 				break
@@ -6356,4 +6362,49 @@ func (s *agentConfigurationService) systemManagedMCPURL(
 		return buildMCPProxyURL(gateway, deployedProxy.Configuration), nil
 	}
 	return "", nil
+}
+
+// mcpProxyBindableFromProject reports whether an agent in the project with agentProjectUUID may bind
+// the proxy as a tool. An org proxy must be published to the catalog; a project proxy must belong to
+// the agent's own project, and any other project's proxy is reported as not found so its existence
+// isn't leaked.
+func mcpProxyBindableFromProject(proxy *models.MCPProxy, agentProjectUUID string) error {
+	if proxy.ProjectUUID != nil {
+		if *proxy.ProjectUUID != agentProjectUUID {
+			return fmt.Errorf("MCP proxy %s not found: %w", proxyHandleOf(proxy), utils.ErrMCPProxyNotFound)
+		}
+		return nil
+	}
+	if proxy.Artifact == nil || !proxy.Artifact.InCatalog {
+		return fmt.Errorf("%w: MCP proxy %s must be in catalog", utils.ErrInvalidInput, proxyHandleOf(proxy))
+	}
+	return nil
+}
+
+// requireProjectProxyInProject enforces only the project-proxy rule for createMCPConfig/updateMCPConfig: a
+// project proxy must belong to the agent's project (else not found). An org proxy is not checked here, as
+// before; the catalog requirement for org proxies lives in ValidateMCPProxiesInCatalog.
+func (s *agentConfigurationService) requireProjectProxyInProject(
+	ctx context.Context, proxy *models.MCPProxy, ouID, projectName string,
+) error {
+	if proxy.ProjectUUID == nil {
+		return nil
+	}
+	return s.requireMCPProxyBindable(ctx, proxy, ouID, projectName)
+}
+
+// requireMCPProxyBindable applies mcpProxyBindableFromProject for an agent in projectName. The
+// project's UUID is only looked up for a project proxy; an org proxy doesn't need it.
+func (s *agentConfigurationService) requireMCPProxyBindable(
+	ctx context.Context, proxy *models.MCPProxy, ouID, projectName string,
+) error {
+	agentProjectUUID := ""
+	if proxy.ProjectUUID != nil {
+		project, err := s.ocClient.GetProject(ctx, ouID, projectName)
+		if err != nil {
+			return fmt.Errorf("failed to resolve project %s: %w", projectName, err)
+		}
+		agentProjectUUID = project.UUID
+	}
+	return mcpProxyBindableFromProject(proxy, agentProjectUUID)
 }

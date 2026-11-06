@@ -25,6 +25,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/wiring"
+	"github.com/wso2/agent-manager/agent-manager-service/workloadpolicy"
 
 	"github.com/wso2/agent-manager/agent-manager-service/mcp"
 )
@@ -46,6 +47,8 @@ func registerAPIRoutes(rr *middleware.RouteRegistrar, params *wiring.AppParams) 
 	RegisterPlatformGatewayHealthRoutes(rr, params.GatewayController)
 	registerMonitorRoutes(rr, params.MonitorController)
 	registerMonitorScoreRoutes(rr, params.MonitorScoresController)
+	registerEventsRoutes(rr, params.EventsController)
+	registerMonitorAlertRoutes(rr, params.MonitorAlertController)
 	registerEvaluatorRoutes(rr, params.EvaluatorController)
 	registerCatalogRoutes(rr, params.CatalogController)
 	registerAgentBuildOptionsRoutes(rr, params.AgentBuildOptionsController)
@@ -58,6 +61,7 @@ func registerAPIRoutes(rr *middleware.RouteRegistrar, params *wiring.AppParams) 
 	registerA2AProxyRoutes(rr, params.A2AProxyController)
 	RegisterLLMProxyDeploymentRoutes(rr, params.LLMProxyDeploymentController)
 	RegisterMCPProxyRoutes(rr, params.MCPProxyController)
+	RegisterProjectMCPProxyRoutes(rr, params.ProjectMCPProxyController, middleware.ApplyOrgOverride(params.OUHandleLookup))
 	RegisterAgentConfigRoutes(rr, params.AgentConfigurationController)
 	RegisterMonitorPublisherRoutes(rr, params.MonitorScoresPublisherController)
 	RegisterGitSecretRoutes(rr, params.GitSecretController)
@@ -71,6 +75,16 @@ func registerAPIRoutes(rr *middleware.RouteRegistrar, params *wiring.AppParams) 
 // extraAPIRoutes, if non-nil, is called to register additional routes onto the
 // authenticated /api/v1 sub-mux before middleware is applied.
 func MakeHTTPHandler(params *wiring.AppParams, extraAPIRoutes func(*http.ServeMux, *wiring.AppParams)) http.Handler {
+	return MakeHTTPHandlerWithPolicy(params, extraAPIRoutes, nil, nil)
+}
+
+// MakeHTTPHandlerWithPolicy adds deployment-specific admission after authentication.
+func MakeHTTPHandlerWithPolicy(params *wiring.AppParams, extraAPIRoutes func(*http.ServeMux, *wiring.AppParams), apiMiddleware func(*http.ServeMux) http.Handler, guard workloadpolicy.Guard) http.Handler {
+	withPolicy := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			next.ServeHTTP(w, r.WithContext(workloadpolicy.WithGuard(r.Context(), guard)))
+		})
+	}
 	mux := http.NewServeMux()
 
 	// Register health check
@@ -98,7 +112,7 @@ func MakeHTTPHandler(params *wiring.AppParams, extraAPIRoutes func(*http.ServeMu
 	// a handler emits.
 	mcpMiddleware := func(next http.Handler) http.Handler {
 		return params.AuthMiddleware(
-			middleware.WithAuditRecorder(params.AuditRecorder, audit.SurfaceMCP)(next),
+			withPolicy(middleware.WithAuditRecorder(params.AuditRecorder, audit.SurfaceMCP)(next)),
 		)
 	}
 	mcp.RegisterRoute(mux, mcp.Dependencies{
@@ -116,6 +130,7 @@ func MakeHTTPHandler(params *wiring.AppParams, extraAPIRoutes func(*http.ServeMu
 	// Create a sub-mux for API v1 routes (JWT-authenticated)
 	apiMux := http.NewServeMux()
 	rr := middleware.NewRouteRegistrar(apiMux, params.OrgResolver, params.AuditRecorder)
+	rr.SetEventPublisher(params.EventPublisher)
 	registerAPIRoutes(rr, params)
 	if extraAPIRoutes != nil {
 		extraAPIRoutes(apiMux, params)
@@ -123,7 +138,10 @@ func MakeHTTPHandler(params *wiring.AppParams, extraAPIRoutes func(*http.ServeMu
 
 	// Apply middleware in reverse order (last middleware is applied first)
 	apiHandler := http.Handler(apiMux)
-	apiHandler = params.AuthMiddleware(apiHandler)
+	if apiMiddleware != nil {
+		apiHandler = apiMiddleware(apiMux)
+	}
+	apiHandler = params.AuthMiddleware(withPolicy(apiHandler))
 	apiHandler = logger.RequestLogger()(apiHandler)
 	apiHandler = middleware.AddCorrelationID()(apiHandler)
 	apiHandler = middleware.CORS(config.GetConfig().CORSAllowedOrigin)(apiHandler)

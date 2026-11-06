@@ -1,0 +1,39 @@
+{
+  "name": "@agent-management-platform/feature-management",
+  "version": "1.0.0",
+  "description": "Feature enablement and access control for the agent management platform console",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.lib.json",
+    "clean": "rm -rf dist",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "test": "vitest run",
+    "test-watch": "vitest",
+    "dev": "tsc -p tsconfig.lib.json --watch"
+  },
+  "keywords": ["feature-flags", "access-control"],
+  "author": "",
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.1.9",
+    "eslint": "9.36.0",
+    "vitest": "3.1.3",
+    "jsdom": "26.1.0",
+    "@vitejs/plugin-react": "5.0.4",
+    "vite": "6.3.5",
+    "@testing-library/react": "16.3.0",
+    "react-dom": "19.2.3"
+  },
+  "peerDependencies": {
+    "react": ">=19.0.0"
+  },
+  "dependencies": {
+    "@agent-management-platform/eslint-config": "workspace:*",
+    "react": "19.2.3"
+  }
+}

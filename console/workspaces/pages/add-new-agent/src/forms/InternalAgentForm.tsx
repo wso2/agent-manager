@@ -52,6 +52,7 @@ import {
 // dependency from this page workspace; matches MountPoints.PrivateRepoSource.
 const PRIVATE_REPO_SOURCE_MOUNT_POINT = "private-repo-source";
 import { mcpEntryVarNames } from "../utils/mcpEnvVarNames";
+import { useFeatureAccess, useFeatureFlag } from "@agent-management-platform/feature-management";
 
 interface InternalAgentFormProps {
   formData: CreateAgentFormValues;
@@ -115,7 +116,9 @@ export const InternalAgentForm = ({
     }
   }, []);
 
-  const isPrivateRepoEnabled = globalConfig.featureFlags?.enablePrivateRepoSupport === true;
+  // The secret picker lists git secrets, so it also needs git secret read access.
+  const canReadGitSecrets = useFeatureAccess("git_secret_read");
+  const isPrivateRepoEnabled = useFeatureFlag("enablePrivateRepoSupport") && canReadGitSecrets;
 
   // A deployment can override the entire repository-source region (e.g. to connect
   // private repos through a GitHub App instead of a stored PAT). When nothing is

@@ -432,11 +432,11 @@ func TestListEnvironmentScopes_IncludesUndeployedIdentityProxies(t *testing.T) {
 	}
 
 	proxyRepo := &repomocks.MCPProxyRepositoryMock{
-		ListFunc: func(ctx context.Context, orgUUID string, limit, offset int) ([]*models.MCPProxy, error) {
-			if offset > 0 {
-				return nil, nil
+		ListFunc: func(_ context.Context, _ string, f repositories.MCPProxyListFilter) ([]*models.MCPProxy, int64, error) {
+			if f.Offset > 0 {
+				return nil, 0, nil
 			}
-			return []*models.MCPProxy{deployed, off, undeployed}, nil
+			return []*models.MCPProxy{deployed, off, undeployed}, 0, nil
 		},
 	}
 	scopeRepo := &repomocks.MCPProxyScopeRepositoryMock{

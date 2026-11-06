@@ -39,12 +39,14 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	dbmigrations "github.com/wso2/agent-manager/agent-manager-service/db_migrations"
+	"github.com/wso2/agent-manager/agent-manager-service/events"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/resources"
 	"github.com/wso2/agent-manager/agent-manager-service/server"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
 	"github.com/wso2/agent-manager/agent-manager-service/signals"
 	"github.com/wso2/agent-manager/agent-manager-service/wiring"
+	"github.com/wso2/agent-manager/agent-manager-service/workloadpolicy"
 
 	"go.uber.org/automaxprocs/maxprocs"
 	"gorm.io/gorm"
@@ -60,6 +62,14 @@ const (
 // Options holds the configuration options for running the application.
 // These are typically parsed from command-line flags in main.
 type Options struct {
+	// WorkloadGuard is inherited by authenticated requests and background workers.
+	WorkloadGuard workloadpolicy.Guard
+	// APIMiddleware wraps the authenticated API mux before dispatch.
+	APIMiddleware func(*http.ServeMux) http.Handler
+	// StartBackground starts deployment-specific workers before the scheduler.
+	// The returned cleanup runs during shutdown.
+	StartBackground func(context.Context, *wiring.AppParams) (func(), error)
+
 	// Server indicates whether to start the HTTP server
 	Server bool
 	// Migrate indicates whether to run database migrations before starting
@@ -82,6 +92,18 @@ type Options struct {
 	// ProjectAgentIdentityProvider enables project-scoped AgentID creation in
 	// CP_MANAGED mode. nil is the safe default for LEGACY_DIRECT deployments.
 	ProjectAgentIdentityProvider services.ProjectAgentIdentityProvider
+	// MCPResourceServerProvider registers MCP resource servers through an identity
+	// control plane. It is used only when IDENTITY_MANAGEMENT_MODE is CP_MANAGED; in
+	// LEGACY_DIRECT mode (the default) MCP resource servers are registered in each
+	// environment's own Thunder and this is ignored. CP_MANAGED without it reports
+	// MCP resource servers as unavailable and never uses the per-environment Thunder.
+	MCPResourceServerProvider services.MCPResourceServerProvider
+	// IdentityRoleProvider keeps agent identity roles, and the MCP scopes assigned to them, on an
+	// identity control plane. It is used only when IDENTITY_MANAGEMENT_MODE is CP_MANAGED; in
+	// LEGACY_DIRECT mode (the default) roles are in each environment's own Thunder and this is
+	// ignored. CP_MANAGED without it reports role listing and scope assignment as unavailable and
+	// never uses the per-environment Thunder.
+	IdentityRoleProvider services.IdentityRoleProvider
 	// BackgroundContextDecorator optionally marks contexts created for trusted
 	// background workers. Request contexts never pass through this hook.
 	BackgroundContextDecorator func(context.Context) context.Context
@@ -105,6 +127,11 @@ type Options struct {
 	// deployment-specific component source binding. nil preserves the standard
 	// anonymous/static-token and PAT-backed repository behavior.
 	RepositoryCommitProvider services.RepositoryCommitProvider
+	// EntitlementChecker asks whether the organization's subscription allows an
+	// agent create. nil (the open-source default) allows every create; cloud
+	// deployments inject a check against their billing system. See
+	// services.EntitlementChecker.
+	EntitlementChecker services.EntitlementChecker
 	// ResourceLabels are stamped on every Component and ReleaseBinding Agent
 	// Manager writes to OpenChoreo. nil (the open-source default) stamps none;
 	// cloud deployments inject their own, e.g. the product label WSO2 Cloud's
@@ -169,6 +196,9 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 		slog.Error("CP_MANAGED identity mode requires an AgentID provisioning implementation")
 		os.Exit(1)
 	}
+
+	services.SetMCPResourceServerProvider(thundersvc.IdentityManagementMode(cfg.IdentityManagementMode), opts.MCPResourceServerProvider)
+	services.SetIdentityRoleProvider(thundersvc.IdentityManagementMode(cfg.IdentityManagementMode), opts.IdentityRoleProvider)
 
 	// Get the raw DB instance without context - repositories will add context per-operation
 	database := db.GetDB()
@@ -244,6 +274,7 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 		setter.SetWorkloadInjector(dependencies.AgentIdentityInjectionService)
 	}
 	dependencies.RepositoryService.SetCommitProvider(opts.RepositoryCommitProvider)
+	dependencies.AgentManagerService.SetEntitlementChecker(opts.EntitlementChecker)
 
 	// Background workers have no request behind them, so nothing installs a
 	// recorder on their contexts the way the HTTP middleware does. Install one
@@ -253,6 +284,17 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 	backgroundCtx := audit.WithRecorder(context.Background(), dependencies.AuditRecorder)
 	if opts.BackgroundContextDecorator != nil {
 		backgroundCtx = opts.BackgroundContextDecorator(backgroundCtx)
+	}
+
+	backgroundCtx = workloadpolicy.WithGuard(backgroundCtx, opts.WorkloadGuard)
+	stopBackground := func() {}
+	if opts.StartBackground != nil {
+		var err error
+		stopBackground, err = opts.StartBackground(backgroundCtx, dependencies)
+		if err != nil {
+			slog.Error("failed to start deployment workers", "error", err)
+			os.Exit(1)
+		}
 	}
 
 	// So a rotated agent's deferred pod rollout (see RefreshAfterRotation)
@@ -298,6 +340,11 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 		slog.Error("failed to start reconcile worker", "error", err)
 		os.Exit(1)
 	}
+	// Start publishing events. The bus is set up in the background, so a NATS
+	// server that is still starting does not hold up the API; events raised
+	// meanwhile wait in the durable outbox.
+	eventsCtx, eventsCancel := context.WithCancel(backgroundCtx)
+	eventsStarted := startEvents(eventsCtx, dependencies)
 
 	// Load built-in LLM provider templates into memory
 	if err := loadBuiltInLLMTemplates(dependencies); err != nil {
@@ -308,7 +355,7 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 	recordStartupPosture(dependencies.AuditRecorder)
 
 	// Create main API server handler
-	handler := api.MakeHTTPHandler(dependencies, opts.ExtraAPIRoutes)
+	handler := api.MakeHTTPHandlerWithPolicy(dependencies, opts.ExtraAPIRoutes, opts.APIMiddleware, opts.WorkloadGuard)
 	mainServer := &http.Server{
 		Addr:           fmt.Sprintf("%s:%d", cfg.ServerHost, cfg.ServerPort),
 		Handler:        handler,
@@ -355,6 +402,7 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 			slog.Error("Internal server forced shutdown after timeout", "error", err)
 		}
 
+		stopBackground()
 		schedulerCancel()
 		if err := dependencies.MonitorScheduler.Stop(); err != nil {
 			slog.Error("error stopping monitor scheduler", "error", err)
@@ -411,6 +459,10 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 				slog.Error("error closing EventHub", "error", err)
 			}
 		}
+
+		eventsCancel()
+		<-eventsStarted
+		stopEvents(dependencies)
 
 		// Flush the audit buffer last. The servers have drained and the
 		// background workers have stopped, so no further events can be
@@ -513,4 +565,78 @@ func loadBuiltInLLMTemplates(dependencies *wiring.AppParams) error {
 
 	slog.Info("Loaded built-in LLM provider templates into memory", "count", len(templates))
 	return nil
+}
+
+// startEvents sets up the event bus, retrying until it answers, then starts
+// the publisher, the event dispatcher and the monitor alerting. A no-op
+// with events off.
+func startEvents(ctx context.Context, deps *wiring.AppParams) <-chan struct{} {
+	done := make(chan struct{})
+	if deps.EventBus == nil {
+		close(done)
+		return done
+	}
+	go func() {
+		defer close(done)
+		// Setup provisions durable consumers as well as streams. Each step retries
+		// independently, so a transient consumer-creation failure cannot disable
+		// alerting until the next process restart.
+		steps := []struct {
+			name  string
+			start func(context.Context) error
+		}{
+			{"event bus", deps.EventBus.Setup},
+			{"event dispatcher", deps.EventDispatcher.Start},
+			{"monitor alerting", deps.MonitorAlerts.Start},
+		}
+		for _, step := range steps {
+			for {
+				if ctx.Err() != nil {
+					return
+				}
+				// The setup timeout must not become a worker's lifetime context.
+				var err error
+				if step.name == "event bus" {
+					setupCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+					err = step.start(setupCtx)
+					cancel()
+				} else {
+					err = step.start(ctx)
+				}
+				if err == nil {
+					break
+				}
+				slog.Warn("Event component not ready; retrying", "component", step.name, "error", err)
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(5 * time.Second):
+				}
+			}
+		}
+		if ctx.Err() == nil {
+			if publisher, ok := deps.EventPublisher.(*events.AsyncPublisher); ok {
+				publisher.Start()
+			}
+		}
+	}()
+	return done
+}
+
+// stopEvents stops the event dispatcher and the monitor alerting, flushes
+// queued events and closes the bus.
+func stopEvents(deps *wiring.AppParams) {
+	if deps.EventBus == nil {
+		return
+	}
+	if err := deps.EventDispatcher.Stop(); err != nil {
+		slog.Error("Failed to stop the event dispatcher", "error", err)
+	}
+	if err := deps.MonitorAlerts.Stop(); err != nil {
+		slog.Error("Failed to stop the monitor alerting", "error", err)
+	}
+	if publisher, ok := deps.EventPublisher.(*events.AsyncPublisher); ok {
+		publisher.Stop()
+	}
+	deps.EventBus.Close()
 }

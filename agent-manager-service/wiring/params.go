@@ -33,6 +33,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/controllers"
 	"github.com/wso2/agent-manager/agent-manager-service/eventhub"
+	"github.com/wso2/agent-manager/agent-manager-service/events"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/reconcile"
@@ -47,6 +48,8 @@ type AppParams struct {
 	Logger         *slog.Logger
 	OrgResolver    middleware.OrgResolver
 	AuditRecorder  audit.Recorder
+	// OUHandleLookup maps an OU ID to its handle for middleware.ApplyOrgOverride.
+	OUHandleLookup middleware.OUHandleLookup
 
 	// Controllers
 	AgentController                  controllers.AgentController
@@ -65,6 +68,7 @@ type AppParams struct {
 	A2AProxyController               controllers.A2AProxyController
 	LLMProxyDeploymentController     controllers.LLMProxyDeploymentController
 	MCPProxyController               controllers.MCPProxyController
+	ProjectMCPProxyController        controllers.ProjectMCPProxyController
 	WebSocketController              controllers.WebSocketController
 	GatewayInternalController        controllers.GatewayInternalController
 	MonitorController                controllers.MonitorController
@@ -78,6 +82,8 @@ type AppParams struct {
 	IdentityController               controllers.IdentityController
 	MCPProxyScopeController          controllers.MCPProxyScopeController
 	AgentIdentityController          controllers.AgentIdentityController
+	EventsController                 controllers.EventsController
+	MonitorAlertController           controllers.MonitorAlertController
 	MonitorScheduler                 services.MonitorSchedulerService
 	AgentThunderReconciler           services.AgentThunderReconcilerService
 	A2ACardReconciler                services.A2ACardReconcilerService
@@ -92,6 +98,12 @@ type AppParams struct {
 	AgentTokenManagerService      services.AgentTokenManagerService
 	AgentIdentityInjectionService services.AgentIdentityInjectionService
 	EnvironmentService            services.EnvironmentService
+	EventDispatcher               services.EventDispatcherService
+	MonitorAlerts                 services.MonitorAlertProcessor
+
+	// Events
+	EventBus       events.Bus
+	EventPublisher events.Publisher
 
 	// Clients
 	OpenChoreoClient  occlient.OpenChoreoClient
@@ -112,6 +124,8 @@ type TestClients struct {
 	OpenChoreoClient  occlient.OpenChoreoClient
 	SecretMgmtClient  secretmanagersvc.SecretManagementClient
 	ObserverSvcClient observersvc.ObserverSvcClient
+	// OUHandleLookup replaces the Thunder-backed OU ID → handle lookup when set.
+	OUHandleLookup middleware.OUHandleLookup
 }
 
 func ProvideConfigFromPtr(config *config.Config) config.Config {

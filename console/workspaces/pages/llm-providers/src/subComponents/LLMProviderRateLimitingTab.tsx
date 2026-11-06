@@ -53,6 +53,7 @@ import {
 } from "@wso2/oxygen-ui";
 import { ChevronDown, FileCode, Search } from "@wso2/oxygen-ui-icons-react";
 import { useSearchParams } from "react-router-dom";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 import { useOpenApiSpec } from "../hooks/useOpenApiSpec";
 import {
   extractResourcesFromSpec,
@@ -477,6 +478,7 @@ export function LLMProviderRateLimitingTab({
   onUpdate,
   isUpdating,
 }: LLMProviderRateLimitingTabProps) {
+  const { canWrite } = useResourceAccess("llm_provider");
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Inner tab: 0 = Provider Level, 1 = Consumer Level
@@ -647,7 +649,8 @@ export function LLMProviderRateLimitingTab({
     [filteredResources, resourcePage],
   );
 
-  const { allowNavigation } = useUnsavedChangesGuard(isDirty);
+  // Read-only users have no Save/Discard, so their edits must never trap navigation.
+  const { allowNavigation } = useUnsavedChangesGuard(canWrite && isDirty);
 
   const handleSave = useCallback(async () => {
     if (!providerData || isLoading) return;
@@ -832,6 +835,7 @@ export function LLMProviderRateLimitingTab({
 
           {providerMode === "global" && (
             <CriteriaBlock
+              disabled={!canWrite}
               criteria={providerGlobalCriteria}
               onChange={setProviderGlobalCriteria}
               fieldErrors={criteriaFieldErrors["global"]}
@@ -852,6 +856,7 @@ export function LLMProviderRateLimitingTab({
                   </AccordionSummary>
                   <AccordionDetails sx={{ px: 2, pb: 2 }}>
                     <CriteriaBlock
+                      disabled={!canWrite}
                       criteria={providerResourceWiseDefault}
                       onChange={setProviderResourceWiseDefault}
                       fieldErrors={criteriaFieldErrors["resourceWise-default"]}
@@ -863,7 +868,9 @@ export function LLMProviderRateLimitingTab({
               {/* No resources in the spec means nothing to search. */}
               {(specLoading || resources.length > 0) && (
                 <SearchBar
-                  placeholder="Search resources…"
+                  placeholder="Search resources"
+                  size="small"
+                  width="standard"
                   value={resourceSearch}
                   onChange={(e) => setResourceSearch(e.target.value)}
                 />
@@ -933,6 +940,7 @@ export function LLMProviderRateLimitingTab({
                           {isExpanded && (
                             <AccordionDetails sx={{ px: 2, pb: 2 }}>
                               <CriteriaBlock
+                                disabled={!canWrite}
                                 criteria={criteria}
                                 onChange={(c) =>
                                   setProviderResourceWiseMap((m) => ({ ...m, [key]: c }))
@@ -971,6 +979,7 @@ export function LLMProviderRateLimitingTab({
             shared provider limit.
           </Typography>
           <CriteriaBlock
+            disabled={!canWrite}
             criteria={consumerGlobalCriteria}
             onChange={setConsumerGlobalCriteria}
             fieldErrors={criteriaFieldErrors["consumer-global"]}
@@ -987,6 +996,7 @@ export function LLMProviderRateLimitingTab({
             </Alert>
           )}
         </Collapse>
+        {canWrite && (
         <Stack direction="row" spacing={1.5} justifyContent="flex-end">
           <Button variant="outlined" onClick={handleDiscard} disabled={!isDirty || isUpdating}>
             Discard
@@ -995,6 +1005,7 @@ export function LLMProviderRateLimitingTab({
             {isUpdating ? "Saving..." : "Save"}
           </Button>
         </Stack>
+        )}
       </Stack>
     </Stack>
   );

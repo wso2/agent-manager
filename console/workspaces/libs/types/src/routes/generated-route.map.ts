@@ -196,6 +196,11 @@ export const generatedRouteMap =  {
             }
           }
         },
+        "events": {
+          "path": "/org/:orgId/events",
+          "wildPath": "/org/:orgId/events/*",
+          "children": {}
+        },
         "deploymentPipelines": {
           "path": "/org/:orgId/deployment-pipelines",
           "wildPath": "/org/:orgId/deployment-pipelines/*",
@@ -254,6 +259,11 @@ export const generatedRouteMap =  {
           "path": "/org/:orgId/project/:projectId",
           "wildPath": "/org/:orgId/project/:projectId/*",
           "children": {
+            "events": {
+              "path": "/org/:orgId/project/:projectId/events",
+              "wildPath": "/org/:orgId/project/:projectId/events/*",
+              "children": {}
+            },
             "agentListing": {
               "path": "/org/:orgId/project/:projectId/agents",
               "wildPath": "/org/:orgId/project/:projectId/agents/*",
@@ -357,6 +367,11 @@ export const generatedRouteMap =  {
                 "build": {
                   "path": "/org/:orgId/project/:projectId/agents/:agentId/build",
                   "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/build/*",
+                  "children": {}
+                },
+                "events": {
+                  "path": "/org/:orgId/project/:projectId/agents/:agentId/events",
+                  "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/events/*",
                   "children": {}
                 },
                 "deployment": {

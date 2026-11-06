@@ -64,6 +64,7 @@ import {
   type UpdateLLMProviderRequest,
   INPUT_LIMITS,
 } from "@agent-management-platform/types";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 import { parseOpenApiSpec } from "../utils/openapiResources";
 import {
   pendingStatusChip,
@@ -100,6 +101,7 @@ export function LLMProviderOverviewTab({
   onGoToDeploymentTab,
 }: LLMProviderOverviewTabProps) {
   const theme = useTheme();
+  const { canWrite } = useResourceAccess("llm_provider");
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
 
@@ -572,6 +574,7 @@ export function LLMProviderOverviewTab({
           generatedApiKey={generatedApiKey}
           onClearApiKeyError={() => setApiKeyError(null)}
           emptyMessage="No invoke URLs available. Deploy this provider to an AI gateway to see invoke URLs and generate API keys."
+          readOnly={!canWrite}
         />
       )}
       <Divider />
@@ -609,6 +612,7 @@ export function LLMProviderOverviewTab({
             }}
           />
           <Stack direction="row" spacing={1} flexShrink={0}>
+            {canWrite && (
             <Button
               variant="contained"
               size="medium"
@@ -623,6 +627,7 @@ export function LLMProviderOverviewTab({
             >
               {isUpdating ? "Saving..." : "Save"}
             </Button>
+            )}
             <Button
               variant="outlined"
               size="medium"

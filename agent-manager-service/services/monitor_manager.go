@@ -32,7 +32,9 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/clients/observersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
+	"github.com/wso2/agent-manager/agent-manager-service/events"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -78,6 +80,7 @@ type monitorManagerService struct {
 	llmProvisioner        *LLMProxyProvisioner
 	monitorLLMMappingRepo repositories.MonitorLLMMappingRepository
 	provisioner           PublisherCredentialProvisioner
+	monitorAlertRepo      repositories.MonitorAlertRepository
 }
 
 // NewMonitorManagerService creates a new monitor manager service instance
@@ -93,6 +96,7 @@ func NewMonitorManagerService(
 	llmProvisioner *LLMProxyProvisioner,
 	monitorLLMMappingRepo repositories.MonitorLLMMappingRepository,
 	provisioner PublisherCredentialProvisioner,
+	monitorAlertRepo repositories.MonitorAlertRepository,
 ) MonitorManagerService {
 	return &monitorManagerService{
 		logger:                logger,
@@ -106,6 +110,7 @@ func NewMonitorManagerService(
 		llmProvisioner:        llmProvisioner,
 		monitorLLMMappingRepo: monitorLLMMappingRepo,
 		provisioner:           provisioner,
+		monitorAlertRepo:      monitorAlertRepo,
 	}
 }
 
@@ -682,6 +687,15 @@ func (s *monitorManagerService) UpdateMonitor(ctx context.Context, ouID, project
 	if err := s.monitorRepo.UpdateMonitor(monitor); err != nil {
 		return nil, fmt.Errorf("failed to update monitor: %w", err)
 	}
+	if req.Evaluators != nil {
+		evaluators := make([]string, 0, len(monitor.Evaluators))
+		for _, e := range monitor.Evaluators {
+			evaluators = append(evaluators, e.DisplayName)
+		}
+		if err := s.monitorAlertRepo.KeepThresholdsFor(ctx, monitor.ID, evaluators); err != nil {
+			return nil, fmt.Errorf("monitor updated but failed to drop alert thresholds of removed evaluators: %w", err)
+		}
+	}
 
 	var latestRun *models.MonitorRunResponse
 
@@ -744,6 +758,7 @@ func (s *monitorManagerService) DeleteMonitor(ctx context.Context, ouID, project
 		}
 		return fmt.Errorf("failed to get monitor: %w", err)
 	}
+	events.SetEnvironment(ctx, monitor.EnvironmentName)
 
 	// Clean up LLM proxies before deleting the monitor
 	if err := s.cleanupLLMProxies(ctx, ouID, monitor.ID); err != nil {
@@ -1029,6 +1044,7 @@ func (s *monitorManagerService) RerunMonitor(ctx context.Context, ouID, projectN
 		}
 		return nil, fmt.Errorf("failed to get monitor: %w", err)
 	}
+	events.SetEnvironment(ctx, monitor.EnvironmentName)
 
 	// Get the original run to extract time parameters
 	originalRun, err := s.monitorRepo.GetMonitorRunByID(runUUID, monitor.ID)
@@ -1552,6 +1568,9 @@ func (s *monitorManagerService) requireManagedMonitorProvider(
 ) error {
 	if err := monitorPolicy.requireProvider(ctx, s.llmProvisioner.ProxyDeploymentService(), s.llmProvisioner.gatewayRepo,
 		ouID, provider.UUID, envUUID); err != nil {
+		// The returned message names the provider and environment; the ids are for operators.
+		logger.GetLogger(ctx).Info("Refused monitor LLM provider placement",
+			"ouID", ouID, "providerUUID", provider.UUID, "environmentUUID", envUUID, "error", err)
 		return fmt.Errorf("LLM provider %q in environment %s: %w", providerName, envName, err)
 	}
 	return nil

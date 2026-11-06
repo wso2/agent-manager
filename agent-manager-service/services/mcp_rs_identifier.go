@@ -89,7 +89,10 @@ func (s *MCPProxyService) MCPResourceServerIdentifier(ctx context.Context, ouID 
 		return "", err
 	}
 
-	return buildMCPProxyURL(gateway, proxy.Configuration), nil
+	cfg := proxy.Configuration
+	gatewayContext := mcpGatewayContext(proxy, "")
+	cfg.Context = &gatewayContext
+	return buildMCPProxyURL(gateway, cfg), nil
 }
 
 // EnsureResourceServer ensures proxy's resource server and given actions
@@ -103,12 +106,42 @@ func (s *MCPProxyService) EnsureResourceServer(
 	if err != nil {
 		return "", err
 	}
-	handle := proxyHandleOf(proxy)
-	name := handle
+	return client.EnsureProxyResourceServer(ctx, proxyHandleOf(proxy), mcpResourceServerDisplayName(proxy), identifier, actions)
+}
+
+// mcpResourceServerDisplayName is the proxy's display name, falling back to its handle.
+func mcpResourceServerDisplayName(proxy *models.MCPProxy) string {
 	if proxy.Artifact != nil && proxy.Artifact.Name != "" {
-		name = proxy.Artifact.Name
+		return proxy.Artifact.Name
 	}
-	return client.EnsureProxyResourceServer(ctx, handle, name, identifier, actions)
+	return proxyHandleOf(proxy)
+}
+
+// ensureProxyResourceServerInEnv registers the proxy's resource server and actions in one
+// environment through the configured MCPResourceServerProvider: each environment's own Thunder in
+// LEGACY_DIRECT mode, the identity control plane in CP_MANAGED mode. It returns the resource
+// server's ID.
+func (s *MCPProxyService) ensureProxyResourceServerInEnv(
+	ctx context.Context, ouID string, envID uuid.UUID, envName string, proxy *models.MCPProxy, actions []string,
+) (string, error) {
+	identifier, err := s.MCPResourceServerIdentifier(ctx, ouID, envID, proxy)
+	if err != nil {
+		return "", err
+	}
+	result, err := mcpResourceServerProviderFor(s.resolver, s.logger).EnsureMCPResourceServer(ctx, MCPResourceServerRequest{
+		OrganizationID: ouID, ProxyHandle: proxyHandleOf(proxy), DisplayName: mcpResourceServerDisplayName(proxy),
+		Environment: envName, Identifier: identifier, Actions: actions,
+	})
+	return result.ResourceServerID, err
+}
+
+// EnsureResourceServerInEnv ensures proxy's resource server and the given actions exist for one
+// environment, through the MCPResourceServerProvider, and returns the resource server's ID. Role
+// writes use it, so they reach the same server scope saves do, whichever identity mode is on.
+func (s *MCPProxyService) EnsureResourceServerInEnv(
+	ctx context.Context, ouID string, envID uuid.UUID, envName string, proxy *models.MCPProxy, actions []string,
+) (string, error) {
+	return s.ensureProxyResourceServerInEnv(ctx, ouID, envID, envName, proxy, actions)
 }
 
 // EnsureResourceServersForProxy best-effort registers proxy's resource server
@@ -152,13 +185,8 @@ func (s *MCPProxyService) EnsureResourceServersForProxy(ctx context.Context, ouI
 			if !ok {
 				continue // environment no longer exists
 			}
-			client, err := ResolveEnvThunderIdentity(ctx, s.resolver, ouID, name)
-			if err != nil {
-				s.logger.Warn("ensure resource server: env-thunder unavailable", "proxy", handle, "env", name, "error", err)
-				continue
-			}
 			envCtx, cancel := context.WithTimeout(ctx, ensureResourceServerPerEnvTimeout)
-			_, err = s.EnsureResourceServer(envCtx, ouID, ee.EnvironmentUUID, client, proxy, actions)
+			_, err := s.ensureProxyResourceServerInEnv(envCtx, ouID, ee.EnvironmentUUID, name, proxy, actions)
 			cancel()
 			if err != nil {
 				s.logger.Warn("ensure resource server: ensure failed", "proxy", handle, "env", name, "error", err)

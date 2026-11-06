@@ -1,0 +1,42 @@
+/**
+ * Copyright (c) 2025, WSO2 LLC. (https://www.wso2.com).
+ *
+ * WSO2 LLC. licenses this file to you under the Apache License,
+ * Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import { useMemo } from 'react';
+import {
+  globalConfig,
+  useAuthHooks,
+  type FeatureAccessResult,
+} from '@agent-management-platform/am-core-ui';
+import { accessFromScopes } from './scopeAccess';
+
+/** Reads the token's scopes and turns them into feature access for CoreUI. */
+export function useScopeAccess(): FeatureAccessResult {
+  const { userInfo, isLoadingAccessToken } = useAuthHooks();
+  const scopeString = userInfo?.scope;
+  const isLoading = !globalConfig.disableAuth && isLoadingAccessToken;
+  const featureAccess = useMemo(
+    () =>
+      // No auth: the server gates nothing. Loading: allow until the token is read, so
+      // guarded pages don't redirect away before the real access is known.
+      globalConfig.disableAuth || isLoading
+        ? undefined
+        : accessFromScopes(new Set((scopeString ?? '').split(' ').filter(Boolean))),
+    [scopeString, isLoading],
+  );
+  return { featureAccess, isLoading };
+}

@@ -627,7 +627,7 @@ func TestUpdateAgentConfigurations_IdentityInjectionError_AbortsUpdate(t *testin
 	s := &agentManagerService{ocClient: ocClient, agentIdentityInjection: injector, logger: discardLogger()}
 
 	err := s.UpdateAgentConfigurations(tierGrantedCtx(t), "acme", "proj1", "my-agent",
-		&spec.UpdateAgentConfigurationsRequest{EnvironmentName: "dev"})
+		&spec.UpdateAgentConfigurationsRequest{EnvironmentName: "dev", Env: []spec.EnvironmentVariable{}})
 
 	require.Error(t, err, "a failure building AgentID env vars must abort the update, not proceed without credentials")
 	assert.False(t, overridesReplaced, "the env var override rewrite must never happen once identity env vars failed to build")

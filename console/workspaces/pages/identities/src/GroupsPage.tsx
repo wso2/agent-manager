@@ -34,9 +34,9 @@ import {
 import { isListEmpty, useConfirmationDialog } from "@agent-management-platform/shared-component";
 import {
   absoluteRouteMap,
-  globalConfig,
   type ThunderGroup,
 } from "@agent-management-platform/types";
+import { useFeatureFlag, useResourceAccess } from "@agent-management-platform/feature-management";
 import { ListingSkeletonRows } from "./components/ListingSkeletonRows";
 
 const AVATAR_SX = { width: 28, height: 28, fontSize: 12 } as const;
@@ -44,7 +44,8 @@ const AVATAR_SX = { width: 28, height: 28, fontSize: 12 } as const;
 export const GroupsPage: React.FC = () => {
   const { orgId } = useParams<{ orgId: string }>();
   const navigate = useNavigate();
-  const isUserManagementEnabled = globalConfig.featureFlags?.enableUserManagement === true;
+  const isUserManagementEnabled = useFeatureFlag("enableUserManagement");
+  const { canWrite } = useResourceAccess("group");
 
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -114,7 +115,7 @@ export const GroupsPage: React.FC = () => {
   };
 
   // One definition, used by the toolbar and by the empty state's CTA.
-  const createButton = (
+  const createButton = canWrite ? (
     <Button
       variant="contained"
       startIcon={<Plus />}
@@ -123,7 +124,7 @@ export const GroupsPage: React.FC = () => {
     >
       Create Group
     </Button>
-  );
+  ) : undefined;
 
   return (
     <>
@@ -138,7 +139,7 @@ export const GroupsPage: React.FC = () => {
           {!isEmpty && (
             <ListingTable.Toolbar
               showSearch
-              searchPlaceholder="Search groups..."
+              searchPlaceholder="Search groups"
               actions={hasItems ? createButton : undefined}
             />
           )}
@@ -188,20 +189,22 @@ export const GroupsPage: React.FC = () => {
                         />
                       </ListingTable.Cell>
                       <ListingTable.Cell align="center">
-                        <ListingTable.RowActions visibility="hover">
-                          <Tooltip title="Delete group">
-                            <IconButton
-                              size="small"
-                              color="error"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDelete(group);
-                              }}
-                            >
-                              <Trash size={16} />
-                            </IconButton>
-                          </Tooltip>
-                        </ListingTable.RowActions>
+                        {canWrite && (
+                          <ListingTable.RowActions visibility="hover">
+                            <Tooltip title="Delete group">
+                              <IconButton
+                                size="small"
+                                color="error"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDelete(group);
+                                }}
+                              >
+                                <Trash size={16} />
+                              </IconButton>
+                            </Tooltip>
+                          </ListingTable.RowActions>
+                        )}
                       </ListingTable.Cell>
                     </ListingTable.Row>
                   ))}

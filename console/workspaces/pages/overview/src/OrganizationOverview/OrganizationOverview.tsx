@@ -46,11 +46,9 @@ import {
   useListMCPProxies,
   useListProjects,
 } from "@agent-management-platform/api-client";
-import {
-  absoluteRouteMap,
-  isAgentIdentityEnabled,
-} from "@agent-management-platform/types";
+import { absoluteRouteMap } from "@agent-management-platform/types";
 import { returnToState } from "@agent-management-platform/views";
+import { useFeatureFlag, useResourceAccess } from "@agent-management-platform/feature-management";
 import { useRotatingSlots, CARD_SLOTS } from "./hooks/useRotatingSlots";
 import { CARD_GRID_SX } from "./cardGrid";
 import { ResourceCard, ResourceCount, type ResourceCardData } from "./subComponents/ResourceCard";
@@ -64,6 +62,10 @@ export const OrganizationOverview: React.FC = () => {
   const { userInfo } = useAuthHooks();
   const location = useLocation();
   const params = { orgName: orgId };
+  const { canWrite: canWriteProject } = useResourceAccess("project");
+  const { canWrite: canWriteLLM } = useResourceAccess("llm_provider");
+  const { canWrite: canWriteMCP } = useResourceAccess("mcp_server");
+  const agentIdEnabled = useFeatureFlag("enableAgentIdentity");
 
   const { data: kinds, isLoading: isLoadingKinds } = useListAgentKinds(params);
   const { data: llmProviders, isLoading: isLoadingLLM } = useListLLMProviders(params);
@@ -89,8 +91,10 @@ export const OrganizationOverview: React.FC = () => {
       count: llmProviders?.total,
       alwaysShow: true,
       description: "Model providers your agents call, with guardrails and rate limits.",
-      actionLabel: "Add an LLM provider",
-      to: generatePath(orgRoutes.children.llmProviders.children.add.path, { orgId }),
+      actionLabel: canWriteLLM ? "Add an LLM provider" : "View LLM providers",
+      to: canWriteLLM
+        ? generatePath(orgRoutes.children.llmProviders.children.add.path, { orgId })
+        : generatePath(orgRoutes.children.llmProviders.path, { orgId }),
     },
     {
       icon: <Server size={26} />,
@@ -99,8 +103,10 @@ export const OrganizationOverview: React.FC = () => {
       count: mcpProxies?.pagination?.count ?? mcpProxies?.count,
       alwaysShow: true,
       description: "Tool servers your agents can use, registered once and shared.",
-      actionLabel: "Register an MCP server",
-      to: generatePath(orgRoutes.children.mcpProxies.children.add.path, { orgId }),
+      actionLabel: canWriteMCP ? "Register an MCP server" : "View MCP servers",
+      to: canWriteMCP
+        ? generatePath(orgRoutes.children.mcpProxies.children.add.path, { orgId })
+        : generatePath(orgRoutes.children.mcpProxies.path, { orgId }),
     },
     {
       icon: <Code size={26} />,
@@ -110,7 +116,7 @@ export const OrganizationOverview: React.FC = () => {
       actionLabel: "Browse evaluators",
       to: generatePath(orgRoutes.children.evaluators.path, { orgId }),
     },
-    ...(isAgentIdentityEnabled()
+    ...(agentIdEnabled
       ? [
           {
             icon: <Users size={26} />,
@@ -144,7 +150,7 @@ export const OrganizationOverview: React.FC = () => {
   const { order, leavingSlot, setPaused } = useRotatingSlots(shownCards.length);
 
   const createProjectPath = generatePath(orgRoutes.children.newProject.path, { orgId });
-  const createProjectButton = (
+  const createProjectButton = canWriteProject && (
     <Button
       variant="outlined"
       size="small"
@@ -226,7 +232,9 @@ export const OrganizationOverview: React.FC = () => {
           ) : projectList.length === 0 ? (
             <Stack alignItems="center" justifyContent="center" spacing={2} sx={{ py: 6, px: 2, flex: 1 }}>
               <Typography variant="body2" color="text.secondary">
-                Create a project to group your agents and their configuration.
+                {canWriteProject
+                  ? "Create a project to group your agents and their configuration."
+                  : "No projects yet."}
               </Typography>
               {createProjectButton}
             </Stack>

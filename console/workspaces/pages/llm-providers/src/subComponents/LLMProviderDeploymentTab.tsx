@@ -28,6 +28,7 @@ import {
   useUnsavedChangesGuard,
 } from "@agent-management-platform/shared-component";
 import { Alert, Button, Collapse, Skeleton, Stack } from "@wso2/oxygen-ui";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 import { requestedGatewayStatuses } from "./gatewayDeploymentStatus";
 
 export type LLMProviderDeploymentTabProps = {
@@ -53,6 +54,7 @@ export function LLMProviderDeploymentTab({
   onUpdate,
   isUpdating,
 }: LLMProviderDeploymentTabProps) {
+  const { canWrite } = useResourceAccess("llm_provider");
   const seededRef = useRef<{ uuid: string; gateways: string[] } | null>(null);
   const [selectedGatewayIds, setSelectedGatewayIds] = useState<string[]>([]);
   const [isSelectionValid, setIsSelectionValid] = useState(true);
@@ -193,7 +195,7 @@ export function LLMProviderDeploymentTab({
         lockedGatewayIds={lockedGatewayIds}
         gatewayStatuses={gatewayStatuses}
         onValidityChange={setIsSelectionValid}
-        disabled={isUpdating}
+        disabled={isUpdating || !canWrite}
       />
       <Stack spacing={1.5} width="100%">
         <Collapse in={!!status} timeout={300}>
@@ -207,6 +209,7 @@ export function LLMProviderDeploymentTab({
             </Alert>
           )}
         </Collapse>
+        {canWrite && (
         <Stack direction="row" spacing={1.5} justifyContent="flex-end">
           <Button
             variant="outlined"
@@ -223,6 +226,7 @@ export function LLMProviderDeploymentTab({
             {isUpdating ? "Saving..." : "Save"}
           </Button>
         </Stack>
+        )}
       </Stack>
     </Stack>
   );

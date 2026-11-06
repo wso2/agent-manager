@@ -17,6 +17,7 @@
 package api
 
 import (
+	"context"
 	"net/http"
 	"reflect"
 	"strings"
@@ -54,6 +55,7 @@ var controllerConstructors = []any{
 	controllers.NewA2AProxyController,
 	controllers.NewLLMProxyDeploymentController,
 	controllers.NewMCPProxyController,
+	controllers.NewProjectMCPProxyController,
 	controllers.NewMonitorController,
 	controllers.NewMonitorScoresController,
 	controllers.NewMonitorScoresPublisherController,
@@ -65,6 +67,8 @@ var controllerConstructors = []any{
 	controllers.NewIdentityController,
 	controllers.NewMCPProxyScopeController,
 	controllers.NewAgentIdentityController,
+	controllers.NewEventsController,
+	controllers.NewMonitorAlertController,
 	// Registered on the internal server rather than by registerAPIRoutes, but
 	// still needed here: its routes go through a registrar too.
 	controllers.NewGatewayInternalController,
@@ -74,7 +78,9 @@ var controllerConstructors = []any{
 func stubAppParams(t *testing.T) *wiring.AppParams {
 	t.Helper()
 
-	params := &wiring.AppParams{}
+	params := &wiring.AppParams{
+		OUHandleLookup: func(context.Context, string) (string, error) { return "", nil },
+	}
 	target := reflect.ValueOf(params).Elem()
 
 	for _, ctor := range controllerConstructors {

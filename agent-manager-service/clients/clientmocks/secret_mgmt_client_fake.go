@@ -26,6 +26,9 @@ var _ secretmanagersvc.SecretManagementClient = &SecretManagementClientMock{}
 //			DeleteSecretFunc: func(ctx context.Context, location secretmanagersvc.SecretLocation, secretRefName string) error {
 //				panic("mock out the DeleteSecret method")
 //			},
+//			DeleteSecretByNameFunc: func(ctx context.Context, orgName string, secretRefName string) error {
+//				panic("mock out the DeleteSecretByName method")
+//			},
 //			GetSecretFunc: func(ctx context.Context, kvPath string) (*secretmanagersvc.SecretInfo, error) {
 //				panic("mock out the GetSecret method")
 //			},
@@ -44,6 +47,9 @@ type SecretManagementClientMock struct {
 
 	// DeleteSecretFunc mocks the DeleteSecret method.
 	DeleteSecretFunc func(ctx context.Context, location secretmanagersvc.SecretLocation, secretRefName string) error
+
+	// DeleteSecretByNameFunc mocks the DeleteSecretByName method.
+	DeleteSecretByNameFunc func(ctx context.Context, orgName string, secretRefName string) error
 
 	// GetSecretFunc mocks the GetSecret method.
 	GetSecretFunc func(ctx context.Context, kvPath string) (*secretmanagersvc.SecretInfo, error)
@@ -71,6 +77,15 @@ type SecretManagementClientMock struct {
 			// SecretRefName is the secretRefName argument value.
 			SecretRefName string
 		}
+		// DeleteSecretByName holds details about calls to the DeleteSecretByName method.
+		DeleteSecretByName []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// OrgName is the orgName argument value.
+			OrgName string
+			// SecretRefName is the secretRefName argument value.
+			SecretRefName string
+		}
 		// GetSecret holds details about calls to the GetSecret method.
 		GetSecret []struct {
 			// Ctx is the ctx argument value.
@@ -90,10 +105,11 @@ type SecretManagementClientMock struct {
 			KeysToDelete []string
 		}
 	}
-	lockCreateSecret sync.RWMutex
-	lockDeleteSecret sync.RWMutex
-	lockGetSecret    sync.RWMutex
-	lockPatchSecret  sync.RWMutex
+	lockCreateSecret       sync.RWMutex
+	lockDeleteSecret       sync.RWMutex
+	lockDeleteSecretByName sync.RWMutex
+	lockGetSecret          sync.RWMutex
+	lockPatchSecret        sync.RWMutex
 }
 
 // CreateSecret calls CreateSecretFunc.
@@ -173,6 +189,46 @@ func (mock *SecretManagementClientMock) DeleteSecretCalls() []struct {
 	mock.lockDeleteSecret.RLock()
 	calls = mock.calls.DeleteSecret
 	mock.lockDeleteSecret.RUnlock()
+	return calls
+}
+
+// DeleteSecretByName calls DeleteSecretByNameFunc.
+func (mock *SecretManagementClientMock) DeleteSecretByName(ctx context.Context, orgName string, secretRefName string) error {
+	if mock.DeleteSecretByNameFunc == nil {
+		panic("SecretManagementClientMock.DeleteSecretByNameFunc: method is nil but SecretManagementClient.DeleteSecretByName was just called")
+	}
+	callInfo := struct {
+		Ctx           context.Context
+		OrgName       string
+		SecretRefName string
+	}{
+		Ctx:           ctx,
+		OrgName:       orgName,
+		SecretRefName: secretRefName,
+	}
+	mock.lockDeleteSecretByName.Lock()
+	mock.calls.DeleteSecretByName = append(mock.calls.DeleteSecretByName, callInfo)
+	mock.lockDeleteSecretByName.Unlock()
+	return mock.DeleteSecretByNameFunc(ctx, orgName, secretRefName)
+}
+
+// DeleteSecretByNameCalls gets all the calls that were made to DeleteSecretByName.
+// Check the length with:
+//
+//	len(mockedSecretManagementClient.DeleteSecretByNameCalls())
+func (mock *SecretManagementClientMock) DeleteSecretByNameCalls() []struct {
+	Ctx           context.Context
+	OrgName       string
+	SecretRefName string
+} {
+	var calls []struct {
+		Ctx           context.Context
+		OrgName       string
+		SecretRefName string
+	}
+	mock.lockDeleteSecretByName.RLock()
+	calls = mock.calls.DeleteSecretByName
+	mock.lockDeleteSecretByName.RUnlock()
 	return calls
 }
 

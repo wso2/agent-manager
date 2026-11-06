@@ -35,6 +35,7 @@ import { useNavigationItems } from "./navigationItems";
 import { TopNavigation } from "./TopNavigation";
 import { orgRouteId, useGetUserProfile, useListOrganizations } from "@agent-management-platform/api-client";
 import { MountPoints } from "../../types";
+import { useFeatureFlag } from "@agent-management-platform/feature-management";
 
 // Oxygen UI's UserMenu treats a non-URL `avatar` string as literal initials
 // text (see getUserMenuAvatarProps), so this doubles as the no-picture
@@ -51,6 +52,7 @@ export function OxygenLayout() {
   const { userInfo, logout } = useAuthHooks();
   const navigate = useNavigate();
   const { orgId } = useParams();
+  const profileManagementEnabled = useFeatureFlag("enableProfileManagement");
   const { data: userProfile } = useGetUserProfile({
     orgName: orgId || "default",
     userId: userInfo?.sub || "",
@@ -114,10 +116,6 @@ export function OxygenLayout() {
                 <module.component />
               </div>
             ))}
-            <Header.Toggle
-              collapsed={collapsed}
-              onToggle={() => setCollapsed(!collapsed)}
-            />
             <Header.Brand onClick={() => navigate(homePath)}>
               <Header.BrandLogo>
                 {externalLogoComponentModules && externalLogoComponentModules.length > 0 ? (
@@ -159,7 +157,7 @@ export function OxygenLayout() {
                   avatar={avatar}
                 />
                 <UserMenu.Divider />
-                {orgId && globalConfig.featureFlags?.enableProfileManagement === true && (
+                {orgId && profileManagementEnabled && (
                   <UserMenu.Item
                     icon={<Settings />}
                     label="Profile Settings"
@@ -175,6 +173,7 @@ export function OxygenLayout() {
         <AppShell.Sidebar>
           <LeftNavigation
             collapsed={collapsed}
+            onToggleCollapse={() => setCollapsed(!collapsed)}
             activeItem={activeItem}
             mainItems={mainItems}
             groupedItems={groupedItems}

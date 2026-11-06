@@ -85,6 +85,27 @@ func TestMonitorRefusesSelfHostedOnlyProvider(t *testing.T) {
 	})
 }
 
+func TestMonitorRefusesProviderDeployedToAnotherEnvironment(t *testing.T) {
+	f := newLLMPlacementFixture(t, "dev", "production")
+	elsewhere := f.provider("dev-only-p", models.GatewayHostingManaged)
+	devGateway := f.placedOn[elsewhere.UUID].UUID.String()
+	f.gatewayRepo.EnvironmentMappingExistsFunc = func(gatewayID, envID string) (bool, error) {
+		return gatewayID == devGateway && envID == f.envs["dev"].UUID, nil
+	}
+	svc := monitorPlacementService(f)
+
+	_, err := svc.CreateMonitor(context.Background(), llmPlacementOU, &models.CreateMonitorRequest{
+		Name: "m", ProjectName: "proj", AgentName: "agent", EnvironmentName: "production", Type: models.MonitorTypeFuture,
+		LLMProvider: &models.MonitorLLMProviderRef{ProviderName: "dev-only-p"},
+	})
+	require.ErrorIs(t, err, utils.ErrInvalidInput)
+	assert.ErrorContains(t, err, `LLM provider "dev-only-p" in environment production`)
+	assert.ErrorContains(t, err, "monitors can only use LLM providers deployed to managed gateways")
+	assert.ErrorContains(t, err, deployProviderHint)
+	assert.NotContains(t, err.Error(), f.envs["production"].UUID)
+	assert.NotContains(t, err.Error(), elsewhere.UUID.String())
+}
+
 func TestResolveMonitorGateway_PrefersManagedProviderAnchor(t *testing.T) {
 	f := newLLMPlacementFixture(t, "dev")
 	selfHosted := &models.Gateway{UUID: uuid.MustParse("00000000-0000-0000-0000-000000000001"), Hosting: models.GatewayHostingSelfHosted}

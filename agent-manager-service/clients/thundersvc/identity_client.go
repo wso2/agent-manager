@@ -28,6 +28,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/google/uuid"
+
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
@@ -127,6 +129,9 @@ type IdentityClient interface {
 
 	// Organization units
 	GetOUIDByHandle(ctx context.Context, handle string) (string, error)
+	// GetOUHandleByID returns the handle of the OU with the given ID. A missing
+	// OU is reported as a NotFoundError (IsNotFound).
+	GetOUHandleByID(ctx context.Context, ouID string) (string, error)
 	ListChildOUs(ctx context.Context, parentOUID string, limit, offset int) ([]ThunderOU, int, error)
 }
 
@@ -1924,4 +1929,34 @@ func (c *thunderClient) GetOUIDByHandle(ctx context.Context, handle string) (str
 		return "", fmt.Errorf("thunder ou with handle %q returned no id", handle)
 	}
 	return ou.ID, nil
+}
+
+// GetOUHandleByID returns the handle of the OU with the given ID by calling
+// GET /organization-units/{id}. It is the inverse of GetOUIDByHandle.
+func (c *thunderClient) GetOUHandleByID(ctx context.Context, ouID string) (string, error) {
+	if _, err := uuid.Parse(ouID); err != nil {
+		return "", fmt.Errorf("thunder get ou %q: id is not a UUID", ouID)
+	}
+	token, err := c.getSystemToken(ctx)
+	if err != nil {
+		return "", err
+	}
+	body, err := c.doRequest(ctx, http.MethodGet, c.baseURL+"/organization-units/"+ouID, token, nil)
+	if err != nil {
+		return "", fmt.Errorf("thunder get ou %q: %w", ouID, err)
+	}
+	var ou struct {
+		ID     string `json:"id"`
+		Handle string `json:"handle"`
+	}
+	if err := json.Unmarshal(body, &ou); err != nil {
+		return "", fmt.Errorf("thunder get ou %q decode: %w", ouID, err)
+	}
+	if ou.ID != ouID {
+		return "", fmt.Errorf("thunder get ou %q returned ou %q", ouID, ou.ID)
+	}
+	if ou.Handle == "" {
+		return "", fmt.Errorf("thunder ou %q returned no handle", ouID)
+	}
+	return ou.Handle, nil
 }

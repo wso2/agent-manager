@@ -118,3 +118,14 @@ func TestRegisterGateway_UnknownGatewayTypeRejected(t *testing.T) {
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
+
+func TestRegisterGatewayRejectsCrossOrganization(t *testing.T) {
+	ctrl := NewGatewayController(nil, nil, nil)
+	req := httptest.NewRequest(http.MethodPost, "/orgs/o1/gateways",
+		strings.NewReader(`{"name":"gateway","gatewayType":"EGRESS","orgId":"other-org"}`))
+	req = req.WithContext(middleware.WithResolvedOrg(req.Context(), middleware.ResolvedOrg{OUID: "ou-1"}))
+	w := httptest.NewRecorder()
+	ctrl.RegisterGateway(w, req)
+	assert.Equal(t, http.StatusForbidden, w.Code)
+	assert.Contains(t, w.Body.String(), "orgId does not match")
+}

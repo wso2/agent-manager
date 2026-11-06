@@ -25,6 +25,7 @@ Verifies:
 """
 
 import json
+import logging
 import sys
 from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
@@ -856,6 +857,70 @@ class TestMainIntegration:
     def _make_argv(self, evaluators):
         return self.BASE_ARGV + ["--evaluators", json.dumps(evaluators)]
 
+    @pytest.mark.parametrize("custom_aggregations", [False, True])
+    def test_monitor_mean_is_published_from_real_scores(self, custom_aggregations):
+        from amp_evaluation import Monitor, builtin
+        from amp_evaluation.models import EvaluatorScore
+
+        from main import main
+
+        instance = builtin("latency_performance")
+        if custom_aggregations:
+            from amp_evaluation.aggregators import Aggregation
+
+            instance.aggregations = [Aggregation("max")]
+        configured = {}
+
+        def make_monitor(**kwargs):
+            real_monitor = Monitor(evaluators=kwargs["evaluators"], trace_fetcher=MagicMock())
+            summary = real_monitor._get_aggregated_scores(
+                {
+                    instance.name: [
+                        EvaluatorScore(trace_id="one", score=0.4),
+                        EvaluatorScore(trace_id="two", score=0.7),
+                        EvaluatorScore(trace_id="three", score=1.0),
+                        EvaluatorScore(trace_id="skipped", skip_reason="no score"),
+                    ],
+                }
+            )
+            configured.update(summary[instance.name].aggregated_scores)
+            monitor = MagicMock()
+            monitor.run.return_value = MagicMock(success=True, errors=[], scores=summary)
+            return monitor
+
+        argv = self._make_argv(
+            [
+                {
+                    "identifier": "latency_performance",
+                    "displayName": "Latency",
+                    "config": {},
+                }
+            ]
+        )
+        with (
+            patch.object(sys, "argv", argv),
+            patch.dict(
+                "os.environ",
+                {
+                    "IDP_TOKEN_URL": "http://idp.test/token",
+                    "IDP_CLIENT_ID": "test",
+                    "IDP_CLIENT_SECRET": "test",
+                },
+            ),
+            patch("main.builtin", return_value=instance),
+            patch("main.TraceFetcher"),
+            patch("main.Monitor", side_effect=make_monitor),
+            patch("main.publish_scores", return_value=True) as publish,
+            pytest.raises(SystemExit) as exit_info,
+        ):
+            main()
+        assert exit_info.value.code == 0
+        assert configured["mean"] == pytest.approx(0.7)
+        assert "pass_rate" not in configured
+        if custom_aggregations:
+            assert configured["max"] == 1.0
+        assert publish.call_args.kwargs["scores"]["Latency"].aggregated_scores == configured
+
     @patch("main.publish_scores", return_value=True)
     @patch("main.builtin")
     def test_full_flow_with_realistic_evaluators(self, mock_builtin, mock_publish):
@@ -1345,3 +1410,31 @@ class TestLoadCustomCodeEvaluator:
         """Empty source raises ValueError."""
         with pytest.raises(ValueError, match="empty source"):
             _load_custom_code_evaluator("test-eval", "", {})
+
+
+class TestEnsureMeanAggregation:
+    def test_adds_mean_and_keeps_configured_aggregations(self):
+        from amp_evaluation.aggregators import Aggregation
+
+        from main import _ensure_mean_aggregation
+
+        instance = MagicMock()
+        instance.aggregations = [Aggregation("max")]
+        _ensure_mean_aggregation(instance, "Latency")
+        assert [a.name for a in instance.aggregations] == ["max", "mean"]
+
+    def test_read_only_aggregations_do_not_stop_the_run(self, caplog):
+        from amp_evaluation.aggregators import Aggregation
+
+        from main import _ensure_mean_aggregation
+
+        class ReadOnly:
+            @property
+            def aggregations(self):
+                return [Aggregation("max")]
+
+        instance = ReadOnly()
+        with caplog.at_level(logging.WARNING, logger="main"):
+            _ensure_mean_aggregation(instance, "Custom")
+        assert [a.name for a in instance.aggregations] == ["max"]
+        assert "score alerts on it will not fire" in caplog.text

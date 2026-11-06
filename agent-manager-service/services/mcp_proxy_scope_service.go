@@ -108,6 +108,19 @@ func (s *mcpProxyScopeService) resolveProxy(ctx context.Context, ouID, proxyHand
 	return proxy, nil
 }
 
+// resolveOrgOwnedProxy is resolveProxy for mutations: a project-scoped proxy is managed
+// only through the project routes, so it yields utils.ErrMCPProxyProjectOwned.
+func (s *mcpProxyScopeService) resolveOrgOwnedProxy(ctx context.Context, ouID, proxyHandle string) (*models.MCPProxy, error) {
+	proxy, err := s.resolveProxy(ctx, ouID, proxyHandle)
+	if err != nil {
+		return nil, err
+	}
+	if proxy.ProjectUUID != nil {
+		return nil, utils.ErrMCPProxyProjectOwned
+	}
+	return proxy, nil
+}
+
 // proxyToolUnion collects every discovered tool name across the proxy's
 // endpoints. An empty map means "no capabilities stored" — validation is then
 // permissive (strict-when-known policy).
@@ -164,7 +177,7 @@ func (s *mcpProxyScopeService) Create(ctx context.Context, ouID, orgName, proxyH
 		return nil, fmt.Errorf("%w: action must match ^[A-Za-z0-9._\\-]{1,100}$", utils.ErrInvalidInput)
 	}
 
-	proxy, err := s.resolveProxy(ctx, ouID, proxyHandle)
+	proxy, err := s.resolveOrgOwnedProxy(ctx, ouID, proxyHandle)
 	if err != nil {
 		return nil, err
 	}
@@ -213,7 +226,7 @@ func (s *mcpProxyScopeService) Create(ctx context.Context, ouID, orgName, proxyH
 func (s *mcpProxyScopeService) Update(ctx context.Context, ouID, orgName, proxyHandle, action string, in models.MCPProxyScopeUpdateInput) (*models.MCPProxyScopeResult, error) {
 	_ = orgName // unused: env-Thunder calls below are resolved by ouID, not orgName
 
-	proxy, err := s.resolveProxy(ctx, ouID, proxyHandle)
+	proxy, err := s.resolveOrgOwnedProxy(ctx, ouID, proxyHandle)
 	if err != nil {
 		return nil, err
 	}
@@ -260,7 +273,7 @@ func (s *mcpProxyScopeService) Update(ctx context.Context, ouID, orgName, proxyH
 func (s *mcpProxyScopeService) Delete(ctx context.Context, ouID, orgName, proxyHandle, action string) error {
 	_ = orgName // unused: cleanup now resolves env-Thunder by ouID, not orgName
 
-	proxy, err := s.resolveProxy(ctx, ouID, proxyHandle)
+	proxy, err := s.resolveOrgOwnedProxy(ctx, ouID, proxyHandle)
 	if err != nil {
 		return err
 	}
@@ -327,6 +340,7 @@ func (s *mcpProxyScopeService) cleanupDeletedScope(ctx context.Context, ouID str
 		envName[env.UUID] = env.Name
 	}
 
+	provider := mcpResourceServerProviderFor(s.resolver, s.logger)
 	for i := range proxy.Endpoints {
 		endpoint := &proxy.Endpoints[i]
 		for j := range endpoint.Environments {
@@ -334,20 +348,10 @@ func (s *mcpProxyScopeService) cleanupDeletedScope(ctx context.Context, ouID str
 			if !ok {
 				continue // environment no longer exists — nothing to clean
 			}
-			client, err := ResolveEnvThunderIdentity(ctx, s.resolver, ouID, name)
-			if err != nil {
-				s.logger.Warn("scope cleanup: env-Thunder unavailable", "env", name, "scope", scopeStr, "error", err)
-				continue
-			}
-			rsID, err := client.DeleteProxyResourceServerAction(ctx, handle, action)
-			if err != nil {
+			request := MCPResourceServerRequest{OrganizationID: ouID, ProxyHandle: handle, Environment: name}
+			if err := provider.RemoveMCPResourceServerAction(ctx, request, action); err != nil {
 				s.logger.Warn("scope cleanup: action delete failed", "env", name, "scope", scopeStr, "error", err)
-				continue
 			}
-			if rsID == "" {
-				continue // RS never projected into this env — nothing to sweep
-			}
-			sweepRolePermission(ctx, s.logger, client, name, scopeStr)
 		}
 	}
 }
@@ -414,7 +418,7 @@ func (s *mcpProxyScopeService) ListEnvironmentScopes(ctx context.Context, ouID, 
 	proxyByUUID := map[uuid.UUID]*models.MCPProxy{}
 	var ordered []uuid.UUID
 	for offset := 0; ; offset += pageSize {
-		proxies, err := s.proxyRepo.List(ctx, ouID, pageSize, offset)
+		proxies, _, err := s.proxyRepo.List(ctx, ouID, repositories.MCPProxyListFilter{Limit: pageSize, Offset: offset})
 		if err != nil {
 			return nil, fmt.Errorf("failed to list mcp proxies: %w", err)
 		}

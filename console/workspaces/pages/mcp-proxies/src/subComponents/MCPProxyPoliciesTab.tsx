@@ -29,6 +29,7 @@ import {
   PolicyListSection,
   type PolicySelection,
 } from "@agent-management-platform/shared-component";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 import { MANAGED_MCP_POLICY_NAMES } from "../constants";
 
 function isManagedMCPPolicy(name: string): boolean {
@@ -70,6 +71,7 @@ export function MCPProxyPoliciesTab({
   orgName,
   onUpdate,
 }: MCPProxyPoliciesTabProps) {
+  const { canWrite } = useResourceAccess("mcp_server");
   const {
     data: catalogData,
     isLoading: isLoadingCatalog,
@@ -149,6 +151,7 @@ export function MCPProxyPoliciesTab({
       onEdit={replacePolicy}
       onRemove={removePolicy}
       onReorder={reorderPolicies}
+      readOnly={!canWrite}
       catalogData={catalogData}
       isLoadingCatalog={isLoadingCatalog}
       catalogError={catalogError}
@@ -167,7 +170,7 @@ export function MCPProxyPoliciesTab({
       drawerEditSubtitle="Update the policy configuration."
       policyNoun="policy"
       loadingLabel="Loading policies..."
-      searchPlaceholder="Search policies..."
+      searchPlaceholder="Search policies"
       catalogErrorLabel="Failed to load policies."
       emptySearchTitle="No policies match your search"
       emptyCatalogTitle="No policies available"

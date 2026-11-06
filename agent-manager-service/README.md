@@ -173,6 +173,33 @@ make test
 - **Code Generation**: `make codegen` to generate wire dependencies and models
 - **Model generation from the API specification** - `make spec`
 
+### 10. Testing project MCP proxies locally
+
+A project MCP proxy's gateway calls the source component's in-cluster service URL directly. OpenChoreo's
+generated NetworkPolicy for the component admits traffic only from the component's own namespace, and the local
+gateway runs in `default-default`, so calls through the proxy return 503 until the gateway's namespace is admitted.
+Add a policy like this in the component's data-plane namespace (find it with
+`kubectl get pods -A -l openchoreo.dev/component=<component>`):
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-local-gateway
+  namespace: <component namespace>
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: default-default
+```
+
+This is needed only locally. In the cloud the gateway runtime carries `cloud.wso2.com/gateway-type: regular`,
+which the default ProjectType's policy already admits.
+
 ## Scripts
 Run make help to see all available commands.
 

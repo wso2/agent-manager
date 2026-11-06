@@ -20,39 +20,11 @@ import { useMemo } from "react";
 import { useAuthHooks } from "@agent-management-platform/auth";
 import { globalConfig } from "@agent-management-platform/types";
 
-/**
- * Reads the scope claim off the current access token.
- *
- * It lives beside the query hooks because this package is where the token is
- * already read for every request — the scope set is a property of that same
- * token, not a separate resource to fetch.
- *
- * Callers gating a control on the environment tier should use
- * useAgentEnvironmentAccess from @agent-management-platform/shared-component
- * rather than testing scope strings by hand; it encodes the floor/production
- * rule in one place.
- *
- * The return shape is ScopeState from that module, spelled out here rather than
- * imported because this package cannot depend on shared-component without a
- * cycle. The two have to be kept in step: the rule reads every field below.
- */
+/** The scope claim on the current access token. Used by Events, which is gated on scopes. */
 export function useTokenScopes(): {
-  /**
-   * False when auth is disabled outright and there is no token at all: the
-   * server gates nothing, so the console must not either.
-   */
+  /** False when auth is disabled: the server gates nothing, so the console must not either. */
   enforced: boolean;
-  /**
-   * False while the access token is still being decoded, when `scopes` is empty
-   * only because nothing has been read yet.
-   *
-   * A caller that hides what the scope set does not reach has to wait for this,
-   * or it renders the shape of a token with no permissions and then rearranges
-   * itself a moment later; evaluateAgentEnvironmentAccess does that waiting for
-   * every gated control. It says nothing about how many scopes were found: a
-   * resolved token carrying none is resolved, and every gated surface should
-   * deny.
-   */
+  /** False while the token is still being decoded (`scopes` is empty only because unread). */
   resolved: boolean;
   scopes: ReadonlySet<string>;
 } {
