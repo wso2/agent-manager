@@ -1428,9 +1428,11 @@ func (c *openChoreoClient) ListComponents(ctx context.Context, ouID, projectName
 	namespaceName := c.NamespaceFor(ouID)
 	// OpenChoreo pages the list, so reading only the first page would drop every agent
 	// past it once a project outgrows one page, and callers would total and paginate a
-	// truncated set. Follow the cursor so they always see the complete set.
+	// truncated set. Follow the cursor so they always see the complete set, and fail
+	// rather than return part of it.
 	components := []*models.AgentResponse{}
 	var cursor *gen.CursorParam
+	seen := map[string]bool{}
 	for page := 0; page < maxListPages; page++ {
 		resp, err := c.ocClient.ListComponentsWithResponse(ctx, namespaceName, &gen.ListComponentsParams{
 			Project: &projectName,
@@ -1476,17 +1478,19 @@ func (c *openChoreoClient) ListComponents(ctx context.Context, ouID, projectName
 		if nextCursor == nil || *nextCursor == "" {
 			return components, nil
 		}
-		// A cursor that points back at the page just fetched would list the same agents
-		// again until the page cap; fail rather than return duplicates and a wrong total.
-		if cursor != nil && *nextCursor == string(*cursor) {
-			return nil, fmt.Errorf("failed to list components: pagination cursor did not advance past %q", *cursor)
+		// A cursor already followed would list the same agents again, round and round;
+		// fail rather than return duplicates and a wrong total.
+		if seen[*nextCursor] {
+			return nil, fmt.Errorf("failed to list components: pagination cursor %q repeated", *nextCursor)
 		}
+		seen[*nextCursor] = true
 		next := gen.CursorParam(*nextCursor)
 		cursor = &next
 	}
-	slog.Warn("component list truncated after reaching the maximum number of pages",
-		"ouID", ouID, "projectName", projectName, "maxPages", maxListPages)
-	return components, nil
+	// Still more pages after the cap: a project this large, or a server that never ends the
+	// list. Either way the set is incomplete, and callers total and paginate it.
+	return nil, fmt.Errorf("failed to list components: project %s has more than %d pages of components",
+		projectName, maxListPages)
 }
 
 // CountProjectComponents counts every component in the project, whichever product created it.

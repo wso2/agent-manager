@@ -84,13 +84,15 @@ func (t *Toolsets) registerAgentConfigTools(server *gomcp.Server, reg *toolRegis
 		Name: "attach_mcp_proxy_to_agent",
 		Description: "Give an agent access to an MCP proxy's tools through the AI gateway. " +
 			"The platform injects the proxy URL and a key into the agent as environment variables. " +
-			"Call list_mcp_proxies for `proxy`. The proxy must be deployed to each environment you configure.",
+			"Call list_mcp_proxies for `proxy`. Every environment you configure is recorded, including ones the proxy is not deployed to yet: " +
+			"there the agent gets empty values until the proxy is deployed to that environment, and the platform then binds it. " +
+			"get_mcp_proxy shows where the proxy is deployed.",
 		InputSchema: createSchema(map[string]any{
 			"project_name": stringProperty("Required. Project the agent belongs to."),
 			"agent_name":   stringProperty("Required. Name of the agent."),
 			"proxy":        stringProperty("Required. MCP proxy id from list_mcp_proxies."),
 			"config_name":  stringProperty("Optional. Name of the agent's MCP configuration; also the prefix of the injected variables. Defaults to the proxy id."),
-			"environments": arrayProperty("Optional. Environment names to configure. Defaults to every environment.", map[string]any{"type": "string"}),
+			"environments": arrayProperty("Optional. Environment names to configure. Defaults to every environment, including ones the proxy is not deployed to yet.", map[string]any{"type": "string"}),
 		}, []string{"project_name", "agent_name", "proxy"}),
 	}, audit.ActionAgentUpdate, attachMCPProxy(t.AgentConfigToolset, t.EnvironmentToolset), rbac.AgentUpdate)
 }
