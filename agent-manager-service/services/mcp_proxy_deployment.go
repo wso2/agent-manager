@@ -168,7 +168,7 @@ func buildMCPProxyEnvArtifact(source *models.MCPProxy, endpoint *models.MCPProxy
 			Context:      contextPath,
 			Vhost:        source.Configuration.Vhost,
 			SpecVersion:  source.Configuration.SpecVersion,
-			SpecVersions: source.Configuration.SpecVersions,
+			SpecVersions: cfg.SpecVersions,
 			Upstream:     upstream,
 			Policies:     cfg.Policies,
 			Capabilities: cfg.Capabilities,

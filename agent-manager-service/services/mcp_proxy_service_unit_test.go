@@ -1118,23 +1118,27 @@ func TestObtainValidMCPVersionsFromServer(t *testing.T) {
 }
 
 func TestValidateMCPSpecVersionsInRequest(t *testing.T) {
+	endpointWith := func(versions *[]string) []models.MCPProxyEndpointDTO {
+		return []models.MCPProxyEndpointDTO{{ID: "dev", McpSpecVersions: versions}}
+	}
 	tests := []struct {
-		name    string
-		req     models.MCPProxyDTO
-		wantErr bool
+		name           string
+		mcpSpecVersion *string
+		endpoints      []models.MCPProxyEndpointDTO
+		wantErr        bool
 	}{
-		{name: "neither set", req: models.MCPProxyDTO{}},
-		{name: "only the deprecated single version", req: models.MCPProxyDTO{McpSpecVersion: strPtr("2025-06-18")}},
-		{name: "a list of versions", req: models.MCPProxyDTO{McpSpecVersions: &[]string{"2026-07-28", "2025-11-25"}}},
-		{name: "both set", req: models.MCPProxyDTO{McpSpecVersion: strPtr("2025-06-18"), McpSpecVersions: &[]string{"2026-07-28"}}, wantErr: true},
-		{name: "empty list", req: models.MCPProxyDTO{McpSpecVersions: &[]string{}}, wantErr: true},
-		{name: "a value that isn't a date", req: models.MCPProxyDTO{McpSpecVersions: &[]string{"2026-07-28", "latest"}}, wantErr: true},
-		{name: "a date-shaped value that isn't a real date", req: models.MCPProxyDTO{McpSpecVersions: &[]string{"2025-06-31"}}, wantErr: true},
-		{name: "a deprecated single version that isn't a real date", req: models.MCPProxyDTO{McpSpecVersion: strPtr("2025-13-45")}, wantErr: true},
+		{name: "nothing set"},
+		{name: "only the proxy's version", mcpSpecVersion: strPtr("2025-06-18")},
+		{name: "an endpoint's list", endpoints: endpointWith(&[]string{"2026-07-28", "2025-11-25"})},
+		{name: "the proxy's version and an endpoint's list", mcpSpecVersion: strPtr("2025-06-18"), endpoints: endpointWith(&[]string{"2026-07-28"})},
+		{name: "an endpoint's empty list", endpoints: endpointWith(&[]string{}), wantErr: true},
+		{name: "an endpoint value that isn't a date", endpoints: endpointWith(&[]string{"2026-07-28", "latest"}), wantErr: true},
+		{name: "an endpoint value that isn't a real date", endpoints: endpointWith(&[]string{"2025-06-31"}), wantErr: true},
+		{name: "a proxy version that isn't a real date", mcpSpecVersion: strPtr("2025-13-45"), wantErr: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateMCPSpecVersionsInRequest(tt.req.McpSpecVersion, tt.req.McpSpecVersions)
+			err := validateMCPSpecVersionsInRequest(tt.mcpSpecVersion, tt.endpoints)
 			if tt.wantErr {
 				assert.ErrorIs(t, err, utils.ErrInvalidInput)
 				return
@@ -1144,49 +1148,59 @@ func TestValidateMCPSpecVersionsInRequest(t *testing.T) {
 	}
 }
 
-// A proxy saved before mcpSpecVersions existed has only the single version; it reads back as a
-// one-item list.
+// A gateway artifact deploys its endpoint's own list; an endpoint without one (saved before
+// endpoints had lists, or a project proxy's) deploys the proxy's single version.
 func TestObtainStoredMCPSpecVersions(t *testing.T) {
 	assert.Equal(t, &[]string{"2026-07-28", "2025-11-25"},
-		obtainStoredMCPSpecVersions(models.MCPProxyConfig{SpecVersions: []string{"2026-07-28", "2025-11-25"}}))
+		obtainStoredMCPSpecVersions(models.MCPProxyConfig{SpecVersion: "2025-06-18", SpecVersions: []string{"2026-07-28", "2025-11-25"}}))
 	assert.Equal(t, &[]string{"2025-06-18"},
 		obtainStoredMCPSpecVersions(models.MCPProxyConfig{SpecVersion: "2025-06-18"}))
 	assert.Nil(t, obtainStoredMCPSpecVersions(models.MCPProxyConfig{}))
 }
 
-// The proxy and list-item responses both return the versions as mcpSpecVersions only; the
-// deprecated mcpSpecVersion is not returned, even for a proxy saved before the list existed.
+// The proxy returns its single mcpSpecVersion, as before; each endpoint returns its own list.
 func TestConvertModelMCPProxy_ReturnsMCPSpecVersions(t *testing.T) {
-	for name, config := range map[string]models.MCPProxyConfig{
-		"saved with a list":             {SpecVersions: []string{"2026-07-28"}},
-		"saved before the list existed": {SpecVersion: "2026-07-28"},
-	} {
-		t.Run(name, func(t *testing.T) {
-			proxy := &models.MCPProxy{Configuration: config}
-
-			assert.Equal(t, &[]string{"2026-07-28"}, convertModelMCPProxyToSpec(proxy).McpSpecVersions)
-			assert.Nil(t, convertModelMCPProxyToSpec(proxy).McpSpecVersion)
-			assert.Equal(t, &[]string{"2026-07-28"}, convertModelMCPProxyToListItem(proxy).McpSpecVersions)
-			assert.Nil(t, convertModelMCPProxyToListItem(proxy).McpSpecVersion)
-		})
+	proxy := &models.MCPProxy{
+		Configuration: models.MCPProxyConfig{SpecVersion: "2025-06-18"},
+		Endpoints: []models.MCPProxyEndpoint{
+			{Handle: "dev", Configuration: models.MCPEndpointConfig{SpecVersions: []string{"2026-07-28"}}},
+			{Handle: "prod"},
+		},
 	}
+
+	got := convertModelMCPProxyToSpec(proxy)
+
+	assert.Equal(t, strPtr("2025-06-18"), got.McpSpecVersion)
+	assert.Equal(t, strPtr("2025-06-18"), convertModelMCPProxyToListItem(proxy).McpSpecVersion)
+	assert.Equal(t, &[]string{"2026-07-28"}, got.Endpoints[0].McpSpecVersions)
+	assert.Nil(t, got.Endpoints[1].McpSpecVersions, "an endpoint without its own list returns none")
 }
 
 // The console edits a proxy by sending back what GET returned, with its changes. That must pass
-// the version check, including for a proxy saved before the list existed.
+// the version check.
 func TestConvertModelMCPProxy_ResponseSentBackPassesVersionCheck(t *testing.T) {
-	got := convertModelMCPProxyToSpec(&models.MCPProxy{Configuration: models.MCPProxyConfig{SpecVersion: "2025-06-18"}})
+	got := convertModelMCPProxyToSpec(&models.MCPProxy{
+		Configuration: models.MCPProxyConfig{SpecVersion: "2025-06-18"},
+		Endpoints: []models.MCPProxyEndpoint{
+			{Handle: "dev", Configuration: models.MCPEndpointConfig{SpecVersions: []string{"2026-07-28"}}},
+		},
+	})
 
-	assert.NoError(t, validateMCPSpecVersionsInRequest(got.McpSpecVersion, got.McpSpecVersions))
+	assert.NoError(t, validateMCPSpecVersionsInRequest(got.McpSpecVersion, got.Endpoints))
 }
 
-// Only the list is saved: a request using the deprecated single mcpSpecVersion is saved as a
-// one-item list.
-func TestObtainMCPSpecVersionsFromRequest(t *testing.T) {
-	assert.Equal(t, []string{"2026-07-28", "2025-11-25"},
-		obtainMCPSpecVersionsFromRequest(nil, &[]string{"2026-07-28", "2025-11-25"}))
-	assert.Equal(t, []string{"2025-06-18"}, obtainMCPSpecVersionsFromRequest(strPtr("2025-06-18"), nil))
-	assert.Nil(t, obtainMCPSpecVersionsFromRequest(nil, nil))
+// Each endpoint's list is saved with that endpoint; an endpoint sent without one saves none.
+func TestBuildMCPEndpointsForStorage_SavesEachEndpointsVersions(t *testing.T) {
+	svc := &MCPProxyService{logger: discardLogger()}
+
+	stored, err := svc.buildMCPEndpointsForStorage([]models.MCPProxyEndpointDTO{
+		{ID: "dev", McpSpecVersions: &[]string{"2026-07-28"}},
+		{ID: "prod"},
+	}, nil)
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"2026-07-28"}, stored[0].config.SpecVersions)
+	assert.Nil(t, stored[1].config.SpecVersions)
 }
 
 const privateMCPUpstream = "http://10.0.0.5/mcp"

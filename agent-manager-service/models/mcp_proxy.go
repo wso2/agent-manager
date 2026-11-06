@@ -156,6 +156,7 @@ type MCPEndpointConfig struct {
 	Resilience   *Resilience           `json:"resilience,omitempty"`
 	Policies     []MCPPolicy           `json:"policies,omitempty"`
 	Capabilities *MCPProxyCapabilities `json:"capabilities,omitempty"`
+	SpecVersions []string              `json:"specVersions,omitempty"`
 	Security     *SecurityConfig       `json:"security,omitempty"`
 	// ReleaseBindingName is the source component's release binding a project proxy binding was resolved from,
 	// when it was given one. Unset on org proxies.
@@ -205,35 +206,35 @@ type MCPProxyCapabilities struct {
 
 // MCPProxyDTO is the request/response body for an MCP proxy.
 type MCPProxyDTO struct {
-	Context         *string               `json:"context,omitempty"`
-	CreatedAt       *time.Time            `json:"createdAt,omitempty"`
-	CreatedBy       *string               `json:"createdBy,omitempty"`
-	Description     *string               `json:"description,omitempty"`
-	Gateways        []string              `json:"gateways,omitempty"`
-	ID              string                `json:"id"`
-	InCatalog       bool                  `json:"inCatalog"`
-	McpSpecVersion  *string               `json:"mcpSpecVersion,omitempty"`
-	McpSpecVersions *[]string             `json:"mcpSpecVersions,omitempty"`
-	Name            string                `json:"name"`
-	ProjectName     *string               `json:"projectName,omitempty"`
-	Endpoints       []MCPProxyEndpointDTO `json:"endpoints,omitempty"`
-	UpdatedAt       *time.Time            `json:"updatedAt,omitempty"`
-	Version         string                `json:"version"`
-	Vhost           *string               `json:"vhost,omitempty"`
+	Context        *string               `json:"context,omitempty"`
+	CreatedAt      *time.Time            `json:"createdAt,omitempty"`
+	CreatedBy      *string               `json:"createdBy,omitempty"`
+	Description    *string               `json:"description,omitempty"`
+	Gateways       []string              `json:"gateways,omitempty"`
+	ID             string                `json:"id"`
+	InCatalog      bool                  `json:"inCatalog"`
+	McpSpecVersion *string               `json:"mcpSpecVersion,omitempty"`
+	Name           string                `json:"name"`
+	ProjectName    *string               `json:"projectName,omitempty"`
+	Endpoints      []MCPProxyEndpointDTO `json:"endpoints,omitempty"`
+	UpdatedAt      *time.Time            `json:"updatedAt,omitempty"`
+	Version        string                `json:"version"`
+	Vhost          *string               `json:"vhost,omitempty"`
 }
 
 // MCPProxyEndpointDTO is one endpoint in an MCP proxy request/response body. On write,
 // Environments carries target environment UUIDs (DeploymentStatus ignored). On read,
 // each entry reports the (endpoint, environment) deployment status.
 type MCPProxyEndpointDTO struct {
-	ID           string                      `json:"id"`
-	Name         string                      `json:"name,omitempty"`
-	Upstream     UpstreamConfig              `json:"upstream"`
-	Resilience   *Resilience                 `json:"resilience,omitempty"`
-	Policies     *[]MCPPolicy                `json:"policies,omitempty"`
-	Capabilities *MCPProxyCapabilities       `json:"capabilities,omitempty"`
-	Security     *SecurityConfig             `json:"security,omitempty"`
-	Environments []MCPEndpointEnvironmentDTO `json:"environments,omitempty"`
+	ID              string                      `json:"id"`
+	Name            string                      `json:"name,omitempty"`
+	Upstream        UpstreamConfig              `json:"upstream"`
+	Resilience      *Resilience                 `json:"resilience,omitempty"`
+	Policies        *[]MCPPolicy                `json:"policies,omitempty"`
+	Capabilities    *MCPProxyCapabilities       `json:"capabilities,omitempty"`
+	McpSpecVersions *[]string                   `json:"mcpSpecVersions,omitempty"`
+	Security        *SecurityConfig             `json:"security,omitempty"`
+	Environments    []MCPEndpointEnvironmentDTO `json:"environments,omitempty"`
 }
 
 // MCPEndpointEnvironmentDTO is one endpoint→environment binding. EnvironmentUUID is
@@ -262,18 +263,17 @@ type MCPPolicyAvailableItem struct {
 
 // MCPProxyListItem is the list representation for an MCP proxy.
 type MCPProxyListItem struct {
-	Context         *string    `json:"context,omitempty"`
-	CreatedAt       *time.Time `json:"createdAt,omitempty"`
-	CreatedBy       *string    `json:"createdBy,omitempty"`
-	Description     *string    `json:"description,omitempty"`
-	ID              *string    `json:"id,omitempty"`
-	McpSpecVersion  *string    `json:"mcpSpecVersion,omitempty"`
-	McpSpecVersions *[]string  `json:"mcpSpecVersions,omitempty"`
-	Name            *string    `json:"name,omitempty"`
-	ProjectName     *string    `json:"projectName,omitempty"`
-	Status          *string    `json:"status,omitempty"`
-	UpdatedAt       *time.Time `json:"updatedAt,omitempty"`
-	Version         *string    `json:"version,omitempty"`
+	Context        *string    `json:"context,omitempty"`
+	CreatedAt      *time.Time `json:"createdAt,omitempty"`
+	CreatedBy      *string    `json:"createdBy,omitempty"`
+	Description    *string    `json:"description,omitempty"`
+	ID             *string    `json:"id,omitempty"`
+	McpSpecVersion *string    `json:"mcpSpecVersion,omitempty"`
+	Name           *string    `json:"name,omitempty"`
+	ProjectName    *string    `json:"projectName,omitempty"`
+	Status         *string    `json:"status,omitempty"`
+	UpdatedAt      *time.Time `json:"updatedAt,omitempty"`
+	Version        *string    `json:"version,omitempty"`
 }
 
 // MCPProxyListResponse is the response body for listing MCP proxies.

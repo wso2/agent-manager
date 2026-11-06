@@ -19259,21 +19259,8 @@ components:
           description: Virtual host assigned to the MCP proxy
         mcpSpecVersion:
           type: string
-          deprecated: true
-          description: >-
-            Deprecated: use mcpSpecVersions. MCP specification version implemented by the upstream
-            server. Still accepted when mcpSpecVersions is not set, and saved as a one-item
-            mcpSpecVersions.
+          description: MCP specification version implemented by the upstream server
           example: "2025-03-26"
-        mcpSpecVersions:
-          type: array
-          description: >-
-            MCP specification versions the upstream server supports, for example from the
-            supportedVersions of /mcp-proxies/fetch-server-info. Each value is a date
-            (YYYY-MM-DD). Cannot be set together with mcpSpecVersion.
-          items:
-            type: string
-          example: ["2026-07-28", "2025-11-25"]
         endpoints:
           type: array
           minItems: 1
@@ -19328,18 +19315,7 @@ components:
           description: Virtual host assigned to the MCP proxy
         mcpSpecVersion:
           type: string
-          deprecated: true
-          description: >-
-            Deprecated: no longer returned; read mcpSpecVersions instead.
-        mcpSpecVersions:
-          type: array
-          description: >-
-            MCP specification versions the upstream server supports, for example from the
-            supportedVersions of /mcp-proxies/fetch-server-info. Each value is a date
-            (YYYY-MM-DD). Cannot be set together with mcpSpecVersion.
-          items:
-            type: string
-          example: ["2026-07-28", "2025-11-25"]
+          description: MCP specification version implemented by the upstream server
         endpoints:
           type: array
           minItems: 1
@@ -19396,18 +19372,7 @@ components:
           description: MCP proxy context path
         mcpSpecVersion:
           type: string
-          deprecated: true
-          description: >-
-            Deprecated: no longer returned; read mcpSpecVersions instead.
-        mcpSpecVersions:
-          type: array
-          description: >-
-            MCP specification versions the upstream server supports, for example from the
-            supportedVersions of /mcp-proxies/fetch-server-info. Each value is a date
-            (YYYY-MM-DD). Cannot be set together with mcpSpecVersion.
-          items:
-            type: string
-          example: ["2026-07-28", "2025-11-25"]
+          description: MCP specification version implemented by the upstream server
         projectName:
           type: string
           description: Set for a project-owned proxy; absent for an org-level one
@@ -19790,6 +19755,17 @@ components:
             $ref: "#/components/schemas/MCPPolicy"
         capabilities:
           $ref: "#/components/schemas/MCPProxyCapabilities"
+        mcpSpecVersions:
+          type: array
+          minItems: 1
+          description: >-
+            MCP specification versions this endpoint's upstream server supports, for example
+            from the supportedVersions of /mcp-proxies/fetch-server-info. Each value is a date
+            (YYYY-MM-DD). Deployed to this endpoint's gateway artifacts; when absent, the
+            proxy's mcpSpecVersion is used.
+          items:
+            type: string
+          example: ["2026-07-28", "2025-11-25"]
         security:
           $ref: "#/components/schemas/SecurityConfig"
         environments:

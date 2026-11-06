@@ -27,7 +27,9 @@ type MCPProxyEndpoint struct {
 	Resilience   *Resilience           `json:"resilience,omitempty"`
 	Policies     []MCPPolicy           `json:"policies,omitempty"`
 	Capabilities *MCPProxyCapabilities `json:"capabilities,omitempty"`
-	Security     *SecurityConfig       `json:"security,omitempty"`
+	// MCP specification versions this endpoint's upstream server supports, for example from the supportedVersions of /mcp-proxies/fetch-server-info. Each value is a date (YYYY-MM-DD). Deployed to this endpoint's gateway artifacts; when absent, the proxy's mcpSpecVersion is used.
+	McpSpecVersions []string        `json:"mcpSpecVersions,omitempty"`
+	Security        *SecurityConfig `json:"security,omitempty"`
 	// Environments this endpoint is deployed to.
 	Environments []MCPEndpointEnvironment `json:"environments,omitempty"`
 }
@@ -227,6 +229,38 @@ func (o *MCPProxyEndpoint) SetCapabilities(v MCPProxyCapabilities) {
 	o.Capabilities = &v
 }
 
+// GetMcpSpecVersions returns the McpSpecVersions field value if set, zero value otherwise.
+func (o *MCPProxyEndpoint) GetMcpSpecVersions() []string {
+	if o == nil || IsNil(o.McpSpecVersions) {
+		var ret []string
+		return ret
+	}
+	return o.McpSpecVersions
+}
+
+// GetMcpSpecVersionsOk returns a tuple with the McpSpecVersions field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *MCPProxyEndpoint) GetMcpSpecVersionsOk() ([]string, bool) {
+	if o == nil || IsNil(o.McpSpecVersions) {
+		return nil, false
+	}
+	return o.McpSpecVersions, true
+}
+
+// HasMcpSpecVersions returns a boolean if a field has been set.
+func (o *MCPProxyEndpoint) HasMcpSpecVersions() bool {
+	if o != nil && !IsNil(o.McpSpecVersions) {
+		return true
+	}
+
+	return false
+}
+
+// SetMcpSpecVersions gets a reference to the given []string and assigns it to the McpSpecVersions field.
+func (o *MCPProxyEndpoint) SetMcpSpecVersions(v []string) {
+	o.McpSpecVersions = v
+}
+
 // GetSecurity returns the Security field value if set, zero value otherwise.
 func (o *MCPProxyEndpoint) GetSecurity() SecurityConfig {
 	if o == nil || IsNil(o.Security) {
@@ -314,6 +348,9 @@ func (o MCPProxyEndpoint) ToMap() (map[string]interface{}, error) {
 	}
 	if !IsNil(o.Capabilities) {
 		toSerialize["capabilities"] = o.Capabilities
+	}
+	if !IsNil(o.McpSpecVersions) {
+		toSerialize["mcpSpecVersions"] = o.McpSpecVersions
 	}
 	if !IsNil(o.Security) {
 		toSerialize["security"] = o.Security

@@ -894,3 +894,18 @@ func TestGenerateMCPProxyDeploymentYAML_SpecVersions(t *testing.T) {
 		})
 	}
 }
+
+// Each endpoint's gateway artifact carries that endpoint's own list, next to the proxy's single
+// version, so the deploy uses the endpoint's list and falls back to the proxy's version.
+func TestBuildMCPProxyEnvArtifact_CarriesTheEndpointsVersions(t *testing.T) {
+	source := &models.MCPProxy{Handle: "helpdesk", Configuration: models.MCPProxyConfig{SpecVersion: "2025-06-18"}}
+	dev := &models.MCPProxyEndpoint{Handle: "dev", Configuration: models.MCPEndpointConfig{SpecVersions: []string{"2026-07-28"}}}
+	prod := &models.MCPProxyEndpoint{Handle: "prod"}
+	env := &models.MCPProxyEndpointEnvironment{EnvironmentUUID: uuid.New(), ArtifactUUID: uuid.New()}
+
+	devArtifact := buildMCPProxyEnvArtifact(source, dev, env)
+	prodArtifact := buildMCPProxyEnvArtifact(source, prod, env)
+
+	assert.Equal(t, &[]string{"2026-07-28"}, obtainStoredMCPSpecVersions(devArtifact.Configuration))
+	assert.Equal(t, &[]string{"2025-06-18"}, obtainStoredMCPSpecVersions(prodArtifact.Configuration))
+}

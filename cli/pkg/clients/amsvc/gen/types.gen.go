@@ -5075,6 +5075,9 @@ type MCPProxyEndpoint struct {
 	// Id Endpoint handle, unique within the parent proxy
 	Id string `json:"id"`
 
+	// McpSpecVersions MCP specification versions this endpoint's upstream server supports, for example from the supportedVersions of /mcp-proxies/fetch-server-info. Each value is a date (YYYY-MM-DD). Deployed to this endpoint's gateway artifacts; when absent, the proxy's mcpSpecVersion is used.
+	McpSpecVersions *[]string `json:"mcpSpecVersions,omitempty"`
+
 	// Name Human-readable endpoint name
 	Name     *string      `json:"name,omitempty"`
 	Policies *[]MCPPolicy `json:"policies,omitempty"`
@@ -5191,12 +5194,8 @@ type MCPProxyListItem struct {
 	// Id Unique handle for the MCP proxy
 	Id *string `json:"id,omitempty"`
 
-	// McpSpecVersion Deprecated: no longer returned; read mcpSpecVersions instead.
-	// Deprecated: this property has been marked as deprecated upstream, but no `x-deprecated-reason` was set
+	// McpSpecVersion MCP specification version implemented by the upstream server
 	McpSpecVersion *string `json:"mcpSpecVersion,omitempty"`
-
-	// McpSpecVersions MCP specification versions the upstream server supports, for example from the supportedVersions of /mcp-proxies/fetch-server-info. Each value is a date (YYYY-MM-DD). Cannot be set together with mcpSpecVersion.
-	McpSpecVersions *[]string `json:"mcpSpecVersions,omitempty"`
 
 	// Name Human-readable name of the MCP proxy
 	Name *string `json:"name,omitempty"`
@@ -5244,12 +5243,8 @@ type MCPProxyRequest struct {
 	// InCatalog Whether the MCP proxy is available in the catalog
 	InCatalog *bool `json:"inCatalog,omitempty"`
 
-	// McpSpecVersion Deprecated: use mcpSpecVersions. MCP specification version implemented by the upstream server. Still accepted when mcpSpecVersions is not set, and saved as a one-item mcpSpecVersions.
-	// Deprecated: this property has been marked as deprecated upstream, but no `x-deprecated-reason` was set
+	// McpSpecVersion MCP specification version implemented by the upstream server
 	McpSpecVersion *string `json:"mcpSpecVersion,omitempty"`
-
-	// McpSpecVersions MCP specification versions the upstream server supports, for example from the supportedVersions of /mcp-proxies/fetch-server-info. Each value is a date (YYYY-MM-DD). Cannot be set together with mcpSpecVersion.
-	McpSpecVersions *[]string `json:"mcpSpecVersions,omitempty"`
 
 	// Name Human-readable name of the MCP proxy
 	Name string `json:"name"`
@@ -5287,12 +5282,8 @@ type MCPProxyResponse struct {
 	// InCatalog Whether the MCP proxy is available in the catalog
 	InCatalog *bool `json:"inCatalog,omitempty"`
 
-	// McpSpecVersion Deprecated: no longer returned; read mcpSpecVersions instead.
-	// Deprecated: this property has been marked as deprecated upstream, but no `x-deprecated-reason` was set
+	// McpSpecVersion MCP specification version implemented by the upstream server
 	McpSpecVersion *string `json:"mcpSpecVersion,omitempty"`
-
-	// McpSpecVersions MCP specification versions the upstream server supports, for example from the supportedVersions of /mcp-proxies/fetch-server-info. Each value is a date (YYYY-MM-DD). Cannot be set together with mcpSpecVersion.
-	McpSpecVersions *[]string `json:"mcpSpecVersions,omitempty"`
 
 	// Name Human-readable name of the MCP proxy
 	Name string `json:"name"`

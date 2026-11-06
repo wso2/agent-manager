@@ -30,11 +30,8 @@ type MCPProxyListItem struct {
 	Version *string `json:"version,omitempty"`
 	// MCP proxy context path
 	Context *string `json:"context,omitempty"`
-	// Deprecated: no longer returned; read mcpSpecVersions instead.
-	// Deprecated
+	// MCP specification version implemented by the upstream server
 	McpSpecVersion *string `json:"mcpSpecVersion,omitempty"`
-	// MCP specification versions the upstream server supports, for example from the supportedVersions of /mcp-proxies/fetch-server-info. Each value is a date (YYYY-MM-DD). Cannot be set together with mcpSpecVersion.
-	McpSpecVersions []string `json:"mcpSpecVersions,omitempty"`
 	// Set for a project-owned proxy; absent for an org-level one
 	ProjectName *string `json:"projectName,omitempty"`
 	// MCP proxy status
@@ -225,7 +222,6 @@ func (o *MCPProxyListItem) SetContext(v string) {
 }
 
 // GetMcpSpecVersion returns the McpSpecVersion field value if set, zero value otherwise.
-// Deprecated
 func (o *MCPProxyListItem) GetMcpSpecVersion() string {
 	if o == nil || IsNil(o.McpSpecVersion) {
 		var ret string
@@ -236,7 +232,6 @@ func (o *MCPProxyListItem) GetMcpSpecVersion() string {
 
 // GetMcpSpecVersionOk returns a tuple with the McpSpecVersion field value if set, nil otherwise
 // and a boolean to check if the value has been set.
-// Deprecated
 func (o *MCPProxyListItem) GetMcpSpecVersionOk() (*string, bool) {
 	if o == nil || IsNil(o.McpSpecVersion) {
 		return nil, false
@@ -254,41 +249,8 @@ func (o *MCPProxyListItem) HasMcpSpecVersion() bool {
 }
 
 // SetMcpSpecVersion gets a reference to the given string and assigns it to the McpSpecVersion field.
-// Deprecated
 func (o *MCPProxyListItem) SetMcpSpecVersion(v string) {
 	o.McpSpecVersion = &v
-}
-
-// GetMcpSpecVersions returns the McpSpecVersions field value if set, zero value otherwise.
-func (o *MCPProxyListItem) GetMcpSpecVersions() []string {
-	if o == nil || IsNil(o.McpSpecVersions) {
-		var ret []string
-		return ret
-	}
-	return o.McpSpecVersions
-}
-
-// GetMcpSpecVersionsOk returns a tuple with the McpSpecVersions field value if set, nil otherwise
-// and a boolean to check if the value has been set.
-func (o *MCPProxyListItem) GetMcpSpecVersionsOk() ([]string, bool) {
-	if o == nil || IsNil(o.McpSpecVersions) {
-		return nil, false
-	}
-	return o.McpSpecVersions, true
-}
-
-// HasMcpSpecVersions returns a boolean if a field has been set.
-func (o *MCPProxyListItem) HasMcpSpecVersions() bool {
-	if o != nil && !IsNil(o.McpSpecVersions) {
-		return true
-	}
-
-	return false
-}
-
-// SetMcpSpecVersions gets a reference to the given []string and assigns it to the McpSpecVersions field.
-func (o *MCPProxyListItem) SetMcpSpecVersions(v []string) {
-	o.McpSpecVersions = v
 }
 
 // GetProjectName returns the ProjectName field value if set, zero value otherwise.
@@ -478,9 +440,6 @@ func (o MCPProxyListItem) ToMap() (map[string]interface{}, error) {
 	}
 	if !IsNil(o.McpSpecVersion) {
 		toSerialize["mcpSpecVersion"] = o.McpSpecVersion
-	}
-	if !IsNil(o.McpSpecVersions) {
-		toSerialize["mcpSpecVersions"] = o.McpSpecVersions
 	}
 	if !IsNil(o.ProjectName) {
 		toSerialize["projectName"] = o.ProjectName
