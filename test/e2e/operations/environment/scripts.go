@@ -65,16 +65,39 @@ type ScriptParams struct {
 	client *framework.AMPClient
 }
 
-// repoScriptsDir resolves the absolute path of deployments/scripts relative to
-// this source file, so the scripts can be located regardless of the working
-// directory ginkgo runs from. This file lives at
-// <repo>/test/e2e/operations/environment/scripts.go, so the repo root is four
-// directories up.
-func repoScriptsDir() string {
+// repoRoot resolves the checkout root relative to this source file, so repo paths
+// can be located regardless of the working directory ginkgo runs from. This file
+// lives at <repo>/test/e2e/operations/environment/scripts.go, so the repo root is
+// four directories up.
+func repoRoot() string {
 	_, thisFile, _, ok := runtime.Caller(0)
 	Expect(ok).To(BeTrue(), "failed to resolve caller path for script location")
-	repoRoot := filepath.Join(filepath.Dir(thisFile), "..", "..", "..", "..")
-	return filepath.Join(repoRoot, "deployments", "scripts")
+	return filepath.Join(filepath.Dir(thisFile), "..", "..", "..", "..")
+}
+
+func repoScriptsDir() string {
+	return filepath.Join(repoRoot(), "deployments", "scripts")
+}
+
+// gatewayChart returns GATEWAY_CHART with a repo-relative chart path (a directory or
+// a .tgz) made absolute. The script runs from the test package's directory, where a
+// path like deployments/helm-charts/... resolves nowhere. Anything that doesn't exist
+// in the checkout (an oci:// ref, a helm repo alias) passes through unchanged, which
+// matches helm's own rule of preferring an existing local path.
+func gatewayChart() string {
+	chart := strings.TrimSpace(os.Getenv("GATEWAY_CHART"))
+	if chart == "" || filepath.IsAbs(chart) {
+		return chart
+	}
+	if local := filepath.Join(repoRoot(), chart); exists(local) {
+		return local
+	}
+	return chart
+}
+
+func exists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }
 
 // fileURL returns a percent-escaped file:// URL for an absolute path, so a
@@ -202,6 +225,9 @@ func AddEnvironmentWithContext(ctx context.Context, params *ScriptParams) {
 			"http://amp-api.wso2-amp.svc.cluster.local:9000"),
 		"AGENT_MANAGER_INTERNAL_CP=" + envOr("AGENT_MANAGER_INTERNAL_CP",
 			"amp-api-gateway-manager.wso2-amp.svc.cluster.local:9243"),
+	}
+	if chart := gatewayChart(); chart != "" {
+		extra = append(extra, "GATEWAY_CHART="+chart)
 	}
 	if params.ProvisionThunder {
 		extra = append(extra, "PROVISION_THUNDER=true")

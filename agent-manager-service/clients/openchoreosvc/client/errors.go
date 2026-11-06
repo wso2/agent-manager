@@ -66,6 +66,29 @@ func handleErrorResponse(statusCode int, errs ErrorResponses) error {
 	}
 }
 
+// handleProjectErrorResponse is handleErrorResponse for a call scoped to one project,
+// where OpenChoreo's own 404 can only mean that project is missing. The error carries
+// utils.ErrProjectNotFound for callers that map it to a 404, and keeps
+// utils.ErrNotFound for callers that translate the generic error themselves.
+// Any other 404 came from something in front of OpenChoreo, such as a proxy or
+// ingress, and stays an unexpected error: callers treat a missing project as success
+// on delete and as "no pipeline restriction" on MCP bindings, so a false not-found
+// would hide a failed delete or widen access.
+func handleProjectErrorResponse(statusCode int, projectName string, errs ErrorResponses) error {
+	if isOpenChoreoNotFound(errs.JSON404) {
+		return fmt.Errorf("%w %q: %w", utils.ErrProjectNotFound, projectName, handleErrorResponse(statusCode, errs))
+	}
+	errs.JSON404 = nil
+	return handleErrorResponse(statusCode, errs)
+}
+
+// isOpenChoreoNotFound reports whether a 404 body is OpenChoreo's own error response.
+// The generated client fills JSON404 for any JSON-typed 404, including a proxy's
+// (e.g. {"message":"no Route matched"}); only OpenChoreo sets code NOT_FOUND.
+func isOpenChoreoNotFound(body *gen.NotFound) bool {
+	return body != nil && body.Code == gen.NOTFOUND
+}
+
 // logErrorDetails logs error details if present.
 func logErrorDetails(errResp *gen.ErrorResponse) {
 	if errResp == nil || errResp.Details == nil {

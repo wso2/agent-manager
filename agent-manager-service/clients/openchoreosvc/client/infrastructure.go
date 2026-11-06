@@ -351,13 +351,13 @@ func (c *openChoreoClient) GetProjectDeploymentPipeline(ctx context.Context, ouI
 		return nil, fmt.Errorf("failed to get project: %w", err)
 	}
 	if projectResp.StatusCode() != http.StatusOK {
-		if projectResp.StatusCode() == http.StatusNotFound {
+		if isOpenChoreoNotFound(projectResp.JSON404) {
 			return nil, fmt.Errorf("%w: %s", utils.ErrProjectNotFound, projectName)
 		}
+		// JSON404 is left out: translatePipelineError reads ErrNotFound as a missing pipeline.
 		return nil, handleErrorResponse(projectResp.StatusCode(), ErrorResponses{
 			JSON401: projectResp.JSON401,
 			JSON403: projectResp.JSON403,
-			JSON404: projectResp.JSON404,
 			JSON500: projectResp.JSON500,
 		})
 	}

@@ -26477,6 +26477,7 @@ type ListAgentsResp struct {
 	HTTPResponse *http.Response
 	JSON200      *AgentListResponse
 	JSON400      *ErrorResponse
+	JSON404      *ErrorResponse
 	JSON500      *ErrorResponse
 }
 
@@ -39757,6 +39758,13 @@ func ParseListAgentsResp(rsp *http.Response) (*ListAgentsResp, error) {
 			return nil, err
 		}
 		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest ErrorResponse
