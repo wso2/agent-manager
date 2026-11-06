@@ -48,6 +48,9 @@ import (
 
 const (
 	sendTimeout = 10 * time.Second
+	// docsGuide is the docs page that explains each service's URL; the
+	// console prefixes it with the docs site for its version.
+	docsGuide = "/guides/notification-service-urls/"
 )
 
 // service is one Shoutrrr service the driver offers.
@@ -67,30 +70,29 @@ type service struct {
 // offered lists the services destinations can use. A service is offered only if
 // Shoutrrr sends to it through the HTTP client the driver supplies (or, for
 // SMTP, if its host can be checked before sending); adding one is one entry.
-// Give a new service a setup guide path in the console's
-// alertingDocLinks.notificationServices (config.template.js), or it shows no link.
+// docs is the service's anchor in the notification service URLs guide.
 var offered = []service{
-	svc("slack", "Slack", "Chat", "slack://hook:<webhook-token>@webhook or slack://xoxb:<bot-token>@<channel>", false, true),
-	svc("teams", "Microsoft Teams", "Chat", "teams://?host=<Power Automate workflow URL>", false, true),
-	svc("googlechat", "Google Chat", "Chat", "googlechat://chat.googleapis.com/v1/spaces/FOO/messages?key=bar&token=baz", false, true),
-	svc("discord", "Discord", "Chat", "discord://token@id", false, true),
-	svc("telegram", "Telegram", "Chat", "telegram://token@telegram?chats=@channel", false, true),
-	svc("mattermost", "Mattermost", "Chat", "mattermost://[username@]mattermost-host/token[/channel]", true, true),
-	svc("rocketchat", "Rocket.Chat", "Chat", "rocketchat://[username@]rocketchat-host/token[/channel]", true, true),
-	svc("zulip", "Zulip", "Chat", "zulip://bot-mail:bot-key@zulip-domain/?stream=name&topic=name", true, true),
-	svc("smtp", "Email (SMTP)", "Email", "smtp://username:password@host:port/?fromaddress=from@example.com&toaddresses=to@example.com", true, false),
-	svc("pagerduty", "PagerDuty", "Incident", "pagerduty://[host[:port]]/integration-key", false, true),
-	svc("opsgenie", "Opsgenie", "Incident", "opsgenie://api.opsgenie.com/token?responders=team:ops", false, true),
-	svc("ntfy", "ntfy", "Push", "ntfy://[username:password@]ntfy.sh/topic", true, true),
-	svc("gotify", "Gotify", "Push", "gotify://gotify-host/token", true, true),
-	svc("pushover", "Pushover", "Push", "pushover://shoutrrr:apiToken@userKey/?devices=device", false, true),
-	svc("twilio", "Twilio SMS", "SMS", "twilio://accountSID:authToken@fromNumber/toNumber", false, true),
+	svc("slack", "Slack", "Chat", "slack://hook:<webhook-token>@webhook or slack://xoxb:<bot-token>@<channel>", "slack", false, true),
+	svc("teams", "Microsoft Teams", "Chat", "teams://?host=<Power Automate workflow URL>", "microsoft-teams", false, true),
+	svc("googlechat", "Google Chat", "Chat", "googlechat://chat.googleapis.com/v1/spaces/FOO/messages?key=bar&token=baz", "google-chat", false, true),
+	svc("discord", "Discord", "Chat", "discord://token@id", "discord", false, true),
+	svc("telegram", "Telegram", "Chat", "telegram://token@telegram?chats=@channel", "telegram", false, true),
+	svc("mattermost", "Mattermost", "Chat", "mattermost://[username@]mattermost-host/token[/channel]", "mattermost", true, true),
+	svc("rocketchat", "Rocket.Chat", "Chat", "rocketchat://[username@]rocketchat-host/token[/channel]", "rocketchat", true, true),
+	svc("zulip", "Zulip", "Chat", "zulip://bot-mail:bot-key@zulip-domain/?stream=name&topic=name", "zulip", true, true),
+	svc("smtp", "Email (SMTP)", "Email", "smtp://username:password@host:port/?fromaddress=from@example.com&toaddresses=to@example.com", "smtp", true, false),
+	svc("pagerduty", "PagerDuty", "Incident", "pagerduty://[host[:port]]/integration-key", "pagerduty", false, true),
+	svc("opsgenie", "Opsgenie", "Incident", "opsgenie://api.opsgenie.com/token?responders=team:ops", "opsgenie", false, true),
+	svc("ntfy", "ntfy", "Push", "ntfy://[username:password@]ntfy.sh/topic", "ntfy", true, true),
+	svc("gotify", "Gotify", "Push", "gotify://gotify-host/token", "gotify", true, true),
+	svc("pushover", "Pushover", "Push", "pushover://shoutrrr:apiToken@userKey/?devices=device", "pushover", false, true),
+	svc("twilio", "Twilio SMS", "SMS", "twilio://accountSID:authToken@fromNumber/toNumber", "twilio-sms", false, true),
 }
 
-func svc(id, label, category, format string, networkHost, overHTTP bool) service {
+func svc(id, label, category, format, docs string, networkHost, overHTTP bool) service {
 	return service{
 		Service: eventdestinations.Service{
-			ID: id, Label: label, Category: category, URLFormat: format,
+			ID: id, Label: label, Category: category, URLFormat: format, DocsPath: docsGuide + "#" + docs,
 		},
 		networkHost: networkHost,
 		http:        overHTTP,

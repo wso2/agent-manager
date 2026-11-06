@@ -25,18 +25,21 @@ type EventDestinationKindService struct {
 	Category string `json:"category"`
 	// The shape of the service URL.
 	UrlFormat string `json:"urlFormat"`
+	// The docs site path that explains the values the URL needs, such as /guides/notification-service-urls/#slack. Append it to the docs site URL for the deployed version.
+	DocsPath string `json:"docsPath"`
 }
 
 // NewEventDestinationKindService instantiates a new EventDestinationKindService object
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewEventDestinationKindService(id string, label string, category string, urlFormat string) *EventDestinationKindService {
+func NewEventDestinationKindService(id string, label string, category string, urlFormat string, docsPath string) *EventDestinationKindService {
 	this := EventDestinationKindService{}
 	this.Id = id
 	this.Label = label
 	this.Category = category
 	this.UrlFormat = urlFormat
+	this.DocsPath = docsPath
 	return &this
 }
 
@@ -144,6 +147,30 @@ func (o *EventDestinationKindService) SetUrlFormat(v string) {
 	o.UrlFormat = v
 }
 
+// GetDocsPath returns the DocsPath field value
+func (o *EventDestinationKindService) GetDocsPath() string {
+	if o == nil {
+		var ret string
+		return ret
+	}
+
+	return o.DocsPath
+}
+
+// GetDocsPathOk returns a tuple with the DocsPath field value
+// and a boolean to check if the value has been set.
+func (o *EventDestinationKindService) GetDocsPathOk() (*string, bool) {
+	if o == nil {
+		return nil, false
+	}
+	return &o.DocsPath, true
+}
+
+// SetDocsPath sets field value
+func (o *EventDestinationKindService) SetDocsPath(v string) {
+	o.DocsPath = v
+}
+
 func (o EventDestinationKindService) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -158,6 +185,7 @@ func (o EventDestinationKindService) ToMap() (map[string]interface{}, error) {
 	toSerialize["label"] = o.Label
 	toSerialize["category"] = o.Category
 	toSerialize["urlFormat"] = o.UrlFormat
+	toSerialize["docsPath"] = o.DocsPath
 	return toSerialize, nil
 }
 

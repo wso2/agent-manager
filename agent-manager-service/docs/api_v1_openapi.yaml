@@ -22529,7 +22529,7 @@ components:
 
     EventDestinationKindService:
       type: object
-      required: [id, label, category, urlFormat]
+      required: [id, label, category, urlFormat, docsPath]
       properties:
         id:
           type: string
@@ -22541,6 +22541,9 @@ components:
         urlFormat:
           type: string
           description: The shape of the service URL.
+        docsPath:
+          type: string
+          description: The docs site path that explains the values the URL needs, such as /guides/notification-service-urls/#slack. Append it to the docs site URL for the deployed version.
 
     EventDestinationKind:
       type: object

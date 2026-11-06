@@ -3753,6 +3753,9 @@ type EventDestinationKindListResponse struct {
 type EventDestinationKindService struct {
 	Category string `json:"category"`
 
+	// DocsPath The docs site path that explains the values the URL needs, such as /guides/notification-service-urls/#slack. Append it to the docs site URL for the deployed version.
+	DocsPath string `json:"docsPath"`
+
 	// Id The service, and the scheme of its URL, e.g. slack.
 	Id    string `json:"id"`
 	Label string `json:"label"`

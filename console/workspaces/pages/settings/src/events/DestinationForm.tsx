@@ -51,12 +51,6 @@ import {
   SectionTitle,
 } from "./eventsUi";
 
-const alertingDocLinks = globalConfig.alertingDocLinks;
-const webhookGuideUrl =
-  globalConfig.docsUrl && alertingDocLinks?.webhookDestination
-    ? `${globalConfig.docsUrl}${alertingDocLinks.webhookDestination}`
-    : undefined;
-
 function isHttpUrl(value: string): boolean {
   try {
     const url = new URL(value);
@@ -205,10 +199,9 @@ export function DestinationForm({
   const editing = !!destination;
   const isNotify = type.kind === "notify";
   const selectedService = services.find((s) => s.id === type.service);
-  const serviceGuidePath = alertingDocLinks?.notificationServices?.[type.service];
   const serviceGuideUrl =
-    globalConfig.docsUrl && serviceGuidePath
-      ? `${globalConfig.docsUrl}${serviceGuidePath}`
+    globalConfig.docsUrl && selectedService?.docsPath
+      ? `${globalConfig.docsUrl}${selectedService.docsPath}`
       : undefined;
   // Editing a notification destination keeps its URL unless a new one is
   // entered; a new destination, or another service, needs one.
@@ -436,22 +429,8 @@ export function DestinationForm({
                   onChange={(e) => setUrl(e.target.value)}
                   error={!!urlError}
                   helperText={
-                    <>
-                      {urlError ??
-                        "Each event is POSTed here as signed CloudEvents JSON (Standard Webhooks). The signing secret is shown once, after you add it."}
-                      {webhookGuideUrl && (
-                        <>
-                          {" "}
-                          <Link
-                            href={webhookGuideUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            Set up this destination
-                          </Link>
-                        </>
-                      )}
-                    </>
+                    urlError ??
+                    "Each event is POSTed here as signed CloudEvents JSON (Standard Webhooks). The signing secret is shown once, after you add it."
                   }
                 />
               )}

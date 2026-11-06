@@ -68,6 +68,7 @@ func TestOfferedServices_UseTheDriversClient(t *testing.T) {
 		require.NoError(t, err, s.ID)
 		_, setter := svc.(types.HTTPClientSetter)
 		assert.Equal(t, s.http, setter, "%s: HTTP services take the driver's client", s.ID)
+		assert.True(t, strings.HasPrefix(s.DocsPath, docsGuide+"#"), s.ID)
 	}
 }
 

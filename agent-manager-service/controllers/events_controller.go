@@ -110,7 +110,7 @@ func (c *eventsController) ListDestinationKinds(w http.ResponseWriter, _ *http.R
 		}
 		for _, s := range k.Services {
 			kind.Services = append(kind.Services, spec.EventDestinationKindService{
-				Id: s.ID, Label: s.Label, Category: s.Category, UrlFormat: s.URLFormat,
+				Id: s.ID, Label: s.Label, Category: s.Category, UrlFormat: s.URLFormat, DocsPath: s.DocsPath,
 			})
 		}
 		resp.Kinds = append(resp.Kinds, kind)
