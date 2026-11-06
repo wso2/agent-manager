@@ -29,6 +29,11 @@ import {
   Typography,
 } from "@wso2/oxygen-ui";
 import { AlertTriangle, Copy, DoorClosedLocked, Edit, KeyRound } from "@wso2/oxygen-ui-icons-react";
+import {
+  useEnvironmentFeatures,
+  useFeatureFlag,
+  useGatewayFeatures,
+} from "@agent-management-platform/feature-management";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
 import {
   copyToClipboard,
@@ -45,7 +50,6 @@ import {
 } from "@agent-management-platform/api-client";
 import {
   absoluteRouteMap,
-  isAgentIdentityEnabled,
   type GatewayResponse,
   type GatewayStatus,
 } from "@agent-management-platform/types";
@@ -78,6 +82,9 @@ const GATEWAY_AVATAR_SX = {
 export function EnvironmentViewPage() {
   const { orgId, envName } = useParams<{ orgId: string; envName: string }>();
   const navigate = useNavigate();
+  const { canWrite } = useEnvironmentFeatures();
+  // The gateway view route only exists when gateways are viewable.
+  const { canView: canViewGateway } = useGatewayFeatures();
   const { pushSnackBar } = useSnackBar();
 
   const { data: env, isLoading: isLoadingEnv, error: envError } = useGetEnvironment({
@@ -98,7 +105,7 @@ export function EnvironmentViewPage() {
 
   // Thunder Id is part of the Agent ID feature set; skip the fetch entirely when
   // the flag is off so the hidden section costs nothing.
-  const agentIdEnabled = isAgentIdentityEnabled();
+  const agentIdEnabled = useFeatureFlag("enableAgentIdentity");
 
   const { data: thunderInstancesData, isLoading: isLoadingProviders } =
     useListThunderInstances({ orgName: agentIdEnabled ? orgId : undefined });
@@ -131,6 +138,7 @@ export function EnvironmentViewPage() {
       isLoading={isLoadingEnv}
       disableIcon
       actions={
+        canWrite && (
         <Button
           variant="outlined"
           size="small"
@@ -148,6 +156,7 @@ export function EnvironmentViewPage() {
         >
           Edit Environment
         </Button>
+        )
       }
       titleTail={
         env ? (
@@ -255,15 +264,19 @@ export function EnvironmentViewPage() {
                       <ListingTable.Row
                         key={gw.uuid}
                         variant="table"
-                        hover
-                        clickable
-                        onClick={() =>
-                          navigate(
-                            generatePath(
-                              absoluteRouteMap.children.org.children.gateways.children.view.path,
-                              { orgId: orgId ?? "", gatewayId: gw.uuid },
-                            ),
-                          )
+                        hover={canViewGateway}
+                        clickable={canViewGateway}
+                        onClick={
+                          canViewGateway
+                            ? () =>
+                                navigate(
+                                  generatePath(
+                                    absoluteRouteMap.children.org.children.gateways.children.view
+                                      .path,
+                                    { orgId: orgId ?? "", gatewayId: gw.uuid },
+                                  ),
+                                )
+                            : undefined
                         }
                       >
                         <ListingTable.Cell>

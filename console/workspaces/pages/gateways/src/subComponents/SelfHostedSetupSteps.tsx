@@ -25,6 +25,7 @@ import {
 } from "@agent-management-platform/api-client";
 import { copyToClipboard } from "@agent-management-platform/shared-component";
 import { globalConfig } from "@agent-management-platform/types";
+import { useGatewayFeatures } from "@agent-management-platform/feature-management";
 import {
   activeTokens,
   cpHostFromUrl,
@@ -138,6 +139,7 @@ export function SelfHostedSetupSteps({
   const [justReconfigured, setJustReconfigured] = useState(false);
   const [reconfiguring, setReconfiguring] = useState(false);
   const [reconfigureError, setReconfigureError] = useState<string | null>(null);
+  const { canManageTokens } = useGatewayFeatures();
 
   const params = { orgName, gatewayId };
   // Read only when reconfiguring, so nothing loads on mount.
@@ -170,7 +172,7 @@ export function SelfHostedSetupSteps({
     }
   };
 
-  const reconfigurePrompt = (
+  const reconfigurePrompt = canManageTokens ? (
     <Stack spacing={1} alignItems="flex-start">
       <StepText>
         A gateway you already set up keeps working with its previous token. To get a new token and
@@ -180,6 +182,8 @@ export function SelfHostedSetupSteps({
         Reconfigure
       </Button>
     </Stack>
+  ) : (
+    <StepText>The registration token is shown only once, when it is generated.</StepText>
   );
 
   const tokenNote = (

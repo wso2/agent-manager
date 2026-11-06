@@ -29,6 +29,7 @@ import {
   useListGateways,
   useUpdateMCPProxy,
 } from "@agent-management-platform/api-client";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 import {
   absoluteRouteMap,
   isSelfHostedGateway,
@@ -254,6 +255,7 @@ export function ViewMCPProxy() {
     orgName: orgId ?? "",
   });
   const updateMCPProxy = useUpdateMCPProxy();
+  const { canWrite } = useResourceAccess("mcp_server");
 
   const endpoints = useMemo<MCPProxyEndpoint[]>(
     () => proxy?.endpoints ?? [],
@@ -413,7 +415,7 @@ export function ViewMCPProxy() {
           <CreatedMetadata createdAt={proxy?.createdAt} />
         }
         actions={
-          proxy ? (
+          proxy && canWrite ? (
             <Button
               variant="outlined"
               size="small"

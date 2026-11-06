@@ -20,6 +20,9 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -30,9 +33,9 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 )
 
-type runEventPublisher func(context.Context, events.Event)
+type runEventPublisher func(context.Context, events.Event) error
 
-func (p runEventPublisher) Publish(ctx context.Context, e events.Event) { p(ctx, e) }
+func (p runEventPublisher) Publish(ctx context.Context, e events.Event) error { return p(ctx, e) }
 
 func TestMonitorRunEventScoreFailureDoesNotBlockTerminalPersistence(t *testing.T) {
 	scoreError := errors.New("scores temporarily unavailable")
@@ -49,9 +52,14 @@ func TestMonitorRunEventScoreFailureDoesNotBlockTerminalPersistence(t *testing.T
 		},
 	}
 	repo := &repomocks.MonitorRepositoryMock{
-		GetMonitorByIDFunc: func(uuid.UUID) (*models.Monitor, error) { return monitor, nil },
+		ListUnqueuedTerminalRunsFunc: func(context.Context, int) ([]models.MonitorRun, error) { return []models.MonitorRun{*run}, nil },
+		GetMonitorByIDFunc:           func(uuid.UUID) (*models.Monitor, error) { return monitor, nil },
+		MarkRunEventQueuedFunc:       func(context.Context, uuid.UUID) error { return nil },
 		UpdateMonitorRunFunc: func(_ *models.MonitorRun, updates map[string]interface{}) error {
 			persisted = true
+			run.Status = models.RunStatusSuccess
+			at := updates["completed_at"].(time.Time)
+			run.CompletedAt = &at
 			require.Equal(t, models.RunStatusSuccess, updates["status"])
 			return nil
 		},
@@ -62,18 +70,19 @@ func TestMonitorRunEventScoreFailureDoesNotBlockTerminalPersistence(t *testing.T
 		},
 	}
 	scheduler := newScheduler(oc, &fakeProvisioner{IsThunderModeFunc: func() bool { return false }}, &fakeMonitorExecutor{}, repo)
-	scheduler.runObserver = NewMonitorRunEvents(runEventPublisher(func(_ context.Context, e events.Event) {
+	scheduler.runObserver = NewMonitorRunEvents(runEventPublisher(func(_ context.Context, e events.Event) error {
 		require.True(t, persisted, "must publish only after status is persisted")
 		require.Contains(t, e.Data, "scores", "empty scores are valid for a no-trace run")
 		require.NotNil(t, e.Data.(map[string]any)["run"].(map[string]any)["completedAt"])
 		published = true
-	}), scoreRepo, discardLogger())
+		return nil
+	}), scoreRepo, repo, discardLogger())
 	require.NoError(t, scheduler.syncSingleRunStatus(context.Background(), run))
 	require.True(t, persisted)
 	require.False(t, published)
-	require.Equal(t, models.RunStatusRunning, run.Status)
+	require.Equal(t, models.RunStatusSuccess, run.Status)
 	scoreError = nil
-	require.NoError(t, scheduler.syncSingleRunStatus(context.Background(), run))
+	require.NoError(t, scheduler.runObserver.(*monitorRunEvents).Reconcile(context.Background()))
 	require.True(t, published)
 }
 
@@ -91,15 +100,96 @@ func TestMonitorRunEventDoesNotPublishOnStatusWriteFailure(t *testing.T) {
 		},
 	}
 	scheduler := newScheduler(oc, &fakeProvisioner{IsThunderModeFunc: func() bool { return false }}, &fakeMonitorExecutor{}, repo)
-	scheduler.runObserver = NewMonitorRunEvents(runEventPublisher(func(context.Context, events.Event) {
+	scheduler.runObserver = NewMonitorRunEvents(runEventPublisher(func(context.Context, events.Event) error {
 		t.Fatal("must not publish when terminal persistence fails")
-	}), &repomocks.ScoreRepositoryMock{}, discardLogger())
+		return nil
+	}), &repomocks.ScoreRepositoryMock{}, &repomocks.MonitorRepositoryMock{}, discardLogger())
 	require.ErrorIs(t, scheduler.syncSingleRunStatus(context.Background(), run), writeError)
 }
 
 func TestDisabledMonitorEventsDoNotQueryScores(t *testing.T) {
-	observer := NewMonitorRunEvents(events.NoopPublisher{}, &repomocks.ScoreRepositoryMock{}, discardLogger())
+	observer := NewMonitorRunEvents(events.NoopPublisher{}, &repomocks.ScoreRepositoryMock{}, &repomocks.MonitorRepositoryMock{}, discardLogger())
 	publish, err := observer.PrepareMonitorRunFinished(context.Background(), &models.Monitor{}, &models.MonitorRun{}, models.RunStatusSuccess, "")
+	require.NoError(t, err)
+	publish()
+}
+
+func TestMonitorRunEventsReplayAfterScoreReadFailure(t *testing.T) {
+	ctx := context.Background()
+	at := time.Now().Add(-time.Hour)
+	monitor := &models.Monitor{ID: uuid.New(), OUID: "ou-1", ProjectName: "p", AgentName: "a", Name: "quality"}
+	run := models.MonitorRun{ID: uuid.New(), MonitorID: monitor.ID, Status: models.RunStatusSuccess, CompletedAt: &at}
+	unavailable := true
+	marked := false
+	var published []events.Event
+	scores := &repomocks.ScoreRepositoryMock{
+		GetEvaluatorsByMonitorAndRunIDFunc: func(uuid.UUID, uuid.UUID) ([]models.MonitorRunEvaluator, error) {
+			if unavailable {
+				return nil, errors.New("temporary DB failure")
+			}
+			return []models.MonitorRunEvaluator{{EvaluatorName: "quality", Aggregations: map[string]interface{}{"mean": 0.2}}}, nil
+		},
+	}
+	repo := &repomocks.MonitorRepositoryMock{
+		ListUnqueuedTerminalRunsFunc: func(context.Context, int) ([]models.MonitorRun, error) { return []models.MonitorRun{run}, nil },
+		GetMonitorByIDFunc:           func(uuid.UUID) (*models.Monitor, error) { return monitor, nil },
+		MarkRunEventQueuedFunc:       func(context.Context, uuid.UUID) error { marked = true; return nil },
+	}
+	pub := runEventPublisher(func(_ context.Context, e events.Event) error { published = append(published, e); return nil })
+	observer := NewMonitorRunEvents(pub, scores, repo, discardLogger()).(*monitorRunEvents)
+	_, err := observer.PrepareMonitorRunFinished(ctx, monitor, &run, run.Status, "")
+	require.Error(t, err)
+	assert.Empty(t, published)
+	assert.False(t, marked)
+	// A later scheduler tick, including after a restart, reads the terminal source.
+	unavailable = false
+	require.NoError(t, observer.Reconcile(ctx))
+	require.Len(t, published, 1)
+	assert.Equal(t, "evt_monrun_"+run.ID.String(), published[0].ID)
+	assert.True(t, published[0].Time.Equal(at), "replay keeps completion time for threshold ordering")
+	assert.True(t, marked)
+	data := published[0].Data.(map[string]any)
+	assert.Len(t, data["scores"], 1)
+}
+
+func TestMonitorRunEventsReplayContinuesPastAStuckRun(t *testing.T) {
+	ctx := context.Background()
+	monitor := &models.Monitor{ID: uuid.New(), OUID: "ou-1", ProjectName: "p", AgentName: "a", Name: "quality"}
+	stuck := models.MonitorRun{ID: uuid.New(), MonitorID: monitor.ID, Status: models.RunStatusSuccess}
+	next := models.MonitorRun{ID: uuid.New(), MonitorID: monitor.ID, Status: models.RunStatusSuccess}
+	scores := &repomocks.ScoreRepositoryMock{
+		GetEvaluatorsByMonitorAndRunIDFunc: func(_ uuid.UUID, runID uuid.UUID) ([]models.MonitorRunEvaluator, error) {
+			if runID == stuck.ID {
+				return nil, errors.New("temporary DB failure")
+			}
+			return []models.MonitorRunEvaluator{}, nil
+		},
+	}
+	var marked []uuid.UUID
+	repo := &repomocks.MonitorRepositoryMock{
+		ListUnqueuedTerminalRunsFunc: func(context.Context, int) ([]models.MonitorRun, error) {
+			return []models.MonitorRun{stuck, next}, nil
+		},
+		GetMonitorByIDFunc:     func(uuid.UUID) (*models.Monitor, error) { return monitor, nil },
+		MarkRunEventQueuedFunc: func(_ context.Context, id uuid.UUID) error { marked = append(marked, id); return nil },
+	}
+	var published []events.Event
+	pub := runEventPublisher(func(_ context.Context, e events.Event) error { published = append(published, e); return nil })
+	observer := NewMonitorRunEvents(pub, scores, repo, discardLogger()).(*monitorRunEvents)
+
+	err := observer.Reconcile(ctx)
+	require.Error(t, err, "the stuck run is reported")
+	assert.Contains(t, err.Error(), stuck.ID.String())
+	require.Len(t, published, 1, "the run after it is still replayed")
+	assert.Equal(t, "evt_monrun_"+next.ID.String(), published[0].ID)
+	assert.Equal(t, []uuid.UUID{next.ID}, marked, "the stuck run stays unqueued for the next poll")
+}
+
+func TestMonitorRunEventsDoesNotMarkRejectedPublication(t *testing.T) {
+	repo := &repomocks.MonitorRepositoryMock{} // marking would panic
+	pub := runEventPublisher(func(context.Context, events.Event) error { return errors.New("outbox unavailable") })
+	observer := NewMonitorRunEvents(pub, &repomocks.ScoreRepositoryMock{}, repo, discardLogger())
+	publish, err := observer.PrepareMonitorRunFinished(context.Background(), &models.Monitor{}, &models.MonitorRun{ID: uuid.New()}, models.RunStatusFailed, "failed")
 	require.NoError(t, err)
 	publish()
 }

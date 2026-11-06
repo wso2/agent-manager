@@ -73,6 +73,7 @@ import {
   extractCodeBody,
   validateNumericParamConstraints,
 } from "./subComponents/EvaluatorForm";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 import { SectionErrorBoundary } from "./subComponents/SectionErrorBoundary";
 
 // ---------------------------------------------------------------------------
@@ -635,6 +636,7 @@ export const ViewEvaluatorOrganization: React.FC = () => {
 
   const location = useLocation();
   const { mode: colorSchemeMode } = useColorScheme();
+  const { canWrite } = useResourceAccess("evaluator");
 
   const {
     data: evaluator,
@@ -786,10 +788,10 @@ export const ViewEvaluatorOrganization: React.FC = () => {
   }, [evaluator]);
 
   useEffect(() => {
-    if (location.state?.edit && evaluator && !isEditing) {
+    if (canWrite && location.state?.edit && evaluator && !isEditing) {
       handleStartEdit();
     }
-  }, [location.state, evaluator, isEditing, handleStartEdit]);
+  }, [canWrite, location.state, evaluator, isEditing, handleStartEdit]);
 
   const handleCancelEdit = useCallback(() => {
     setIsEditing(false);
@@ -964,7 +966,7 @@ export const ViewEvaluatorOrganization: React.FC = () => {
       }
       actions={
         <Stack direction="row" spacing={1}>
-          {!evaluator.isBuiltin && !isEditing && (
+          {!evaluator.isBuiltin && !isEditing && canWrite && (
             <Button
               variant="contained"
               startIcon={<Edit size={16} />}

@@ -75,3 +75,30 @@ func TestEventConsumerBoundsRetries(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, natsEventMaxDeliver, info.Config.MaxDeliver)
 }
+
+func TestEmbeddedQueueStreamRefusesNewItemsWhenFull(t *testing.T) {
+	bus, err := StartEmbedded(slog.New(slog.NewTextHandler(io.Discard, nil)))
+	require.NoError(t, err)
+	defer bus.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	require.NoError(t, bus.Setup(ctx))
+	q := natsQueues[QueueEventDeliveries]
+	stream, err := bus.js.Stream(ctx, q.stream)
+	require.NoError(t, err)
+	info, err := stream.Info(ctx)
+	require.NoError(t, err)
+	require.EqualValues(t, embeddedMaxMemory/4, info.Config.MaxBytes)
+	require.Equal(t, jetstream.DiscardNew, info.Config.Discard)
+	// Exercise the limit with a tiny cap rather than allocating the full budget.
+	cfg := info.Config
+	cfg.MaxBytes = 1024
+	_, err = bus.js.UpdateStream(ctx, cfg)
+	require.NoError(t, err)
+	require.NoError(t, bus.Enqueue(ctx, QueueEventDeliveries, "first", make([]byte, 600)))
+	require.Error(t, bus.Enqueue(ctx, QueueEventDeliveries, "second", make([]byte, 600)),
+		"a full queue refuses the item, so the fan-out retries it later")
+	info, err = stream.Info(ctx)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, info.State.Msgs, "the queued item is kept")
+}

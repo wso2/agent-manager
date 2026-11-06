@@ -218,6 +218,23 @@ export const LazySettingsOrg = lazy(() =>
   }))
 );
 
+// Events (destinations and subscriptions at org, project and agent levels)
+export const LazyOrgEvents = lazy(() =>
+  import("@agent-management-platform/settings").then((m) => ({
+    default: m.OrgEvents as ComponentType,
+  }))
+);
+export const LazyProjectEvents = lazy(() =>
+  import("@agent-management-platform/settings").then((m) => ({
+    default: m.ProjectEvents as ComponentType,
+  }))
+);
+export const LazyAgentEvents = lazy(() =>
+  import("@agent-management-platform/settings").then((m) => ({
+    default: m.AgentEvents as ComponentType,
+  }))
+);
+
 // Deployment Pipelines
 export const LazyDeploymentPipelinesOrg = lazy(() =>
   import("@agent-management-platform/deployment-pipelines").then((m) => ({

@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/google/uuid"
 
@@ -67,6 +68,7 @@ type EventScopeHandlers struct {
 	GetSubscription       http.HandlerFunc
 	UpdateSubscription    http.HandlerFunc
 	DeleteSubscription    http.HandlerFunc
+	ListDeliveries        http.HandlerFunc
 }
 
 type eventsController struct {
@@ -371,6 +373,25 @@ func (c *eventsController) ForScope(scope string) EventScopeHandlers {
 			}
 			w.WriteHeader(http.StatusNoContent)
 		}),
+		ListDeliveries: func(w http.ResponseWriter, r *http.Request) {
+			q, ok := parseDeliveryQuery(w, r)
+			if !ok {
+				return
+			}
+			log, err := c.subscriptions.Deliveries(r.Context(), target(r), q)
+			if err != nil {
+				writeEventsError(w, r, err, "Failed to list event deliveries")
+				return
+			}
+			resp := spec.EventDeliveryListResponse{
+				Deliveries: make([]spec.EventDeliveryResponse, 0, len(log.Deliveries)),
+				Total:      int32(log.Total),
+			}
+			for i := range log.Deliveries {
+				resp.Deliveries = append(resp.Deliveries, c.toDeliveryResponse(&log.Deliveries[i], log))
+			}
+			utils.WriteSuccessResponse(w, http.StatusOK, resp)
+		},
 	}
 	if scope != models.EventScopeOrg {
 		h.AvailableDestinations = func(w http.ResponseWriter, r *http.Request) {
@@ -447,6 +468,37 @@ func decodeSubscriptionRequest(w http.ResponseWriter, r *http.Request) (services
 		in.Environments = []string{}
 	}
 	return in, true
+}
+
+// parseDeliveryQuery reads a delivery log's filters and paging.
+func parseDeliveryQuery(w http.ResponseWriter, r *http.Request) (services.DeliveryQuery, bool) {
+	query := r.URL.Query()
+	q := services.DeliveryQuery{Status: query.Get("status")}
+	for name, dst := range map[string]*int{"limit": &q.Limit, "offset": &q.Offset} {
+		raw := query.Get(name)
+		if raw == "" {
+			continue
+		}
+		n, err := strconv.Atoi(raw)
+		if err != nil || n < 0 || (name == "limit" && n < 1) {
+			utils.WriteErrorResponse(w, http.StatusBadRequest, name+" must be a non-negative integer, and limit at least 1")
+			return q, false
+		}
+		*dst = n
+	}
+	for name, dst := range map[string]**uuid.UUID{"destinationId": &q.DestinationID, "subscriptionId": &q.SubscriptionID} {
+		raw := query.Get(name)
+		if raw == "" {
+			continue
+		}
+		id, err := uuid.Parse(raw)
+		if err != nil {
+			utils.WriteErrorResponse(w, http.StatusBadRequest, name+" must be an ID")
+			return q, false
+		}
+		*dst = &id
+	}
+	return q, true
 }
 
 func writeEventsError(w http.ResponseWriter, r *http.Request, err error, fallback string) {
@@ -577,6 +629,44 @@ func (c *eventsController) toSubscriptionResponse(
 	}
 	if resp.Environments == nil {
 		resp.Environments = []string{}
+	}
+	return resp
+}
+
+func (c *eventsController) toDeliveryResponse(d *models.EventDelivery, log *services.DeliveryLog) spec.EventDeliveryResponse {
+	resp := spec.EventDeliveryResponse{
+		Id:            d.ID.String(),
+		EventId:       d.EventID,
+		EventType:     d.EventType,
+		EventScope:    d.EventScope,
+		ProjectName:   optionalString(d.ProjectName),
+		AgentName:     optionalString(d.AgentName),
+		Environment:   optionalString(d.Environment),
+		Subscriptions: make([]spec.EventSubscriptionRef, 0, len(d.SubscriptionIDs)),
+		Status:        d.Status,
+		Attempts:      int32(d.Attempts),
+		LastError:     optionalString(d.LastError),
+		DeliveredAt:   d.DeliveredAt,
+		CreatedAt:     d.CreatedAt,
+		UpdatedAt:     d.UpdatedAt,
+	}
+	if dest, ok := log.Destinations[d.DestinationID]; ok {
+		summary := c.toDestinationSummary(dest, log.DestinationStats[dest.ID])
+		resp.Destination = &summary
+	}
+	for _, raw := range d.SubscriptionIDs {
+		id, err := uuid.Parse(raw)
+		if err != nil {
+			continue
+		}
+		// A subscription deleted since is left out.
+		if s, ok := log.Subscriptions[id]; ok {
+			resp.Subscriptions = append(resp.Subscriptions, toSubscriptionRef(s))
+		}
+	}
+	if d.ResponseCode != nil {
+		code := int32(*d.ResponseCode)
+		resp.ResponseCode = &code
 	}
 	return resp
 }

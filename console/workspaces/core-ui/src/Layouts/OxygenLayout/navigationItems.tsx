@@ -16,7 +16,6 @@
  * under the License.
  */
 
-import { useMemo } from "react";
 import {
   ClipboardCheck as EvaluationOutline,
   Settings,
@@ -43,6 +42,7 @@ import {
   Gauge,
   Layers,
   MonitorCheck,
+  RadioTower,
 } from "@wso2/oxygen-ui-icons-react";
 import {
   generatePath,
@@ -52,14 +52,20 @@ import {
 } from "react-router-dom";
 import {
   absoluteRouteMap,
-  globalConfig,
-  isAgentIdentityEnabled,
 } from "@agent-management-platform/types";
 import {
   useGetAgent,
   useTokenScopes,
+  useEventsEnabled,
 } from "@agent-management-platform/api-client";
 import { usePipelineEnvironmentsState } from "@agent-management-platform/shared-component";
+import {
+  useEnvironmentFeatures,
+  useFeatureFlag,
+  useFeatureManagement,
+  useGatewayFeatures,
+  usePipelineFeatures,
+} from "@agent-management-platform/feature-management";
 import { thunderInstancesMetadata } from "@agent-management-platform/env-thunders/metadata";
 import { useExternalNavItems } from "@agent-management-platform/views";
 import type { NavigationItem, NavigationSection } from "./LeftNavigation";
@@ -133,57 +139,37 @@ export function useNavigationItems(): Array<
   });
   const { environments, isLoading: isLoadingEnvironments } =
     usePipelineEnvironmentsState(orgId, projectId);
-  const agentIdEnabled = isAgentIdentityEnabled();
+  const agentIdEnabled = useFeatureFlag("enableAgentIdentity");
+  const profileManagementEnabled = useFeatureFlag("enableProfileManagement");
+  const { canView: canViewEnvironments } = useEnvironmentFeatures();
+  const { canView: canViewGateways } = useGatewayFeatures();
+  const { canView: canViewPipelines } = usePipelineFeatures();
 
   const externalNavItems = useExternalNavItems();
-  const { enforced, resolved: scopesResolved, scopes } = useTokenScopes();
+  const { hasAccess } = useFeatureManagement();
+  // Events isn't a feature-management resource; it follows the token's scopes.
+  const { enforced, scopes } = useTokenScopes();
+  // Events needs the service's event bus; /api/v1/config says whether it runs.
+  const eventsEnabled = useEventsEnabled();
 
-  const navVisibility = useMemo(() => {
-    const showAll = {
-      resources: true,
-      evaluation: true,
-      infrastructure: true,
-      identityUsers: true,
-      identityRoles: true,
-      identityGroups: true,
-      agentIdentities: true,
-    };
-    if (!enforced) return showAll;
-    // An unresolved token is handled below by rendering no navigation at all,
-    // not here: this map only ever describes a scope set that has been read. A
-    // read that found nothing is one of those — every section then resolves to
-    // false on its own, which is the right answer and needs no special case.
-    const s = scopes;
-    return {
-      resources:
-        s.has("amp:llm-provider:read") ||
-        s.has("amp:llm-provider-template:read") ||
-        s.has("amp:mcp-server:read") ||
-        s.has("amp:llm-proxy:read"),
-      evaluation: s.has("amp:evaluator:read"),
-      infrastructure:
-        s.has("amp:gateway:read") ||
-        s.has("amp:deployment-pipeline:read") ||
-        s.has("amp:environment:read"),
-      identityUsers:
-        s.has("amp:org:invite-member") || s.has("amp:org:remove-member"),
-      identityRoles:
-        s.has("amp:role:read") ||
-        s.has("amp:role:create") ||
-        s.has("amp:role:update") ||
-        s.has("amp:role:delete"),
-      identityGroups:
-        s.has("amp:group:read") ||
-        s.has("amp:group:create") ||
-        s.has("amp:group:update") ||
-        s.has("amp:group:delete"),
-      // The Agent Identities section lists the roles and groups an AGENT can
-      // hold, not the organization's own. identityRoles/identityGroups above are
-      // the org scopes and gate the Settings tabs; these pages read the
-      // agent-identity API and belong to its scope.
-      agentIdentities: s.has("amp:agent-identity:read"),
-    };
-  }, [enforced, scopes]);
+  const navVisibility = {
+    resources:
+      hasAccess("llm_provider_read") ||
+      hasAccess("llm_provider_template_read") ||
+      hasAccess("mcp_server_read") ||
+      hasAccess("llm_proxy_read"),
+    evaluation: hasAccess("evaluator_read"),
+    infrastructure: canViewGateways || canViewEnvironments || canViewPipelines,
+    identityUsers: hasAccess("member_read"),
+    identityRoles: hasAccess("role_read"),
+    identityGroups: hasAccess("group_read"),
+    // Agent Identities lists the roles and groups an agent can hold, not the org's.
+    agentIdentities: hasAccess("agent_identity_read"),
+    // The org Events page needs the events scopes; projects and agents show
+    // theirs to anyone who can see them.
+    events:
+      !enforced || scopes.has("amp:events:read") || scopes.has("amp:events:manage"),
+  };
 
   const defaultEnv =
     envId ?? (environments.length > 0 ? environments[0]?.name : "");
@@ -231,6 +217,28 @@ export function useNavigationItems(): Array<
     >
   ).environments;
   const evaluatorsOrgRoute = absoluteRouteMap.children.org.children.evaluators;
+  const eventsOrgRoute = absoluteRouteMap.children.org.children.events;
+  const eventsProjectRoute = absoluteRouteMap.children.org.children.projects.children.events;
+  const eventsAgentRoute =
+    absoluteRouteMap.children.org.children.projects.children.agents.children.events;
+
+  // Events follows the regular navigation at every level, separated by a divider.
+  const eventsItem = (
+    route: { path: string; wildPath: string },
+    params: Record<string, string | undefined>,
+  ): NavigationItem[] =>
+    eventsEnabled
+      ? [
+          {
+            label: "Events",
+            type: "item",
+            icon: <RadioTower size={20} />,
+            href: generatePath(route.path, params),
+            isActive: !!matchPath(route.wildPath, pathname),
+            dividerBefore: true,
+          },
+        ]
+      : [];
 
   // Security section shared by the internal-agent menus below: Agent ID, plus
   // gateway credentials for agent-api agents. Spread as a section only when it
@@ -283,16 +291,8 @@ export function useNavigationItems(): Array<
       ]
     : [];
 
-  // An unread scope set is not an empty one. Rendering the navigation before the
-  // access token has been decoded would show the sections a caller with no
-  // permissions sees, then rearrange the sidebar under them once the scopes
-  // arrive — so it waits, the same way it waits for the agent and the
-  // environment list.
-  if (
-    isLoadingAgent ||
-    (isLoadingEnvironments && agentId) ||
-    (enforced && !scopesResolved)
-  ) {
+  // Access is settled here: FeatureAccessBridge shows a loader until it resolves.
+  if (isLoadingAgent || (isLoadingEnvironments && agentId)) {
     return [];
   }
 
@@ -316,6 +316,7 @@ export function useNavigationItems(): Array<
           { orgId, projectId, agentId },
         ),
       },
+      ...eventsItem(eventsAgentRoute, { orgId, projectId, agentId }),
       ...externalNavItems
         .filter((item) => item.level === "component")
         .map((item) => ({
@@ -585,6 +586,7 @@ export function useNavigationItems(): Array<
           },
         ],
       },
+      ...eventsItem(eventsAgentRoute, { orgId, projectId, agentId }),
       ...externalNavItems
         .filter((item) => item.level === "component")
         .map((item) => ({
@@ -776,6 +778,7 @@ export function useNavigationItems(): Array<
           },
         ],
       },
+      ...eventsItem(eventsAgentRoute, { orgId, projectId, agentId }),
       ...externalNavItems
         .filter((item) => item.level === "component")
         .map((item) => ({
@@ -828,6 +831,7 @@ export function useNavigationItems(): Array<
             pathname,
           ),
       },
+      ...eventsItem(eventsProjectRoute, { orgId, projectId }),
     ];
   }
   if (orgId) {
@@ -865,9 +869,10 @@ export function useNavigationItems(): Array<
           pathname,
         ),
       },
+      ...(navVisibility.events ? eventsItem(eventsOrgRoute, { orgId }) : []),
       // Settings is shown only when profile management is enabled, and then only if RBAC
       // grants access to at least one of its identity surfaces.
-      ...(globalConfig.featureFlags?.enableProfileManagement === true &&
+      ...(profileManagementEnabled &&
       (navVisibility.identityUsers ||
         navVisibility.identityRoles ||
         navVisibility.identityGroups)
@@ -938,35 +943,47 @@ export function useNavigationItems(): Array<
               icon: <Server />,
               collapsible: true,
               items: [
-                {
-                  label: "Gateways",
-                  type: "item" as const,
-                  icon: <Network size={20} />,
-                  href: generatePath(gatewaysOrgRoute.path, { orgId }),
-                  isActive: !!matchPath(gatewaysOrgRoute.wildPath, pathname),
-                },
-                {
-                  label: "Environments",
-                  type: "item" as const,
-                  icon: <Layers size={20} />,
-                  href: generatePath(environmentsOrgRoute.path, { orgId }),
-                  isActive: !!matchPath(
-                    environmentsOrgRoute.wildPath,
-                    pathname,
-                  ),
-                },
-                {
-                  label: "Deployment Pipelines",
-                  type: "item" as const,
-                  icon: <Workflow size={20} />,
-                  href: generatePath(deploymentPipelinesOrgRoute.path, {
-                    orgId,
-                  }),
-                  isActive: !!matchPath(
-                    deploymentPipelinesOrgRoute.wildPath,
-                    pathname,
-                  ),
-                },
+                ...(canViewGateways
+                  ? [
+                      {
+                        label: "Gateways",
+                        type: "item" as const,
+                        icon: <Network size={20} />,
+                        href: generatePath(gatewaysOrgRoute.path, { orgId }),
+                        isActive: !!matchPath(gatewaysOrgRoute.wildPath, pathname),
+                      },
+                    ]
+                  : []),
+                ...(canViewEnvironments
+                  ? [
+                      {
+                        label: "Environments",
+                        type: "item" as const,
+                        icon: <Layers size={20} />,
+                        href: generatePath(environmentsOrgRoute.path, { orgId }),
+                        isActive: !!matchPath(
+                          environmentsOrgRoute.wildPath,
+                          pathname,
+                        ),
+                      },
+                    ]
+                  : []),
+                ...(canViewPipelines
+                  ? [
+                      {
+                        label: "Deployment Pipelines",
+                        type: "item" as const,
+                        icon: <Workflow size={20} />,
+                        href: generatePath(deploymentPipelinesOrgRoute.path, {
+                          orgId,
+                        }),
+                        isActive: !!matchPath(
+                          deploymentPipelinesOrgRoute.wildPath,
+                          pathname,
+                        ),
+                      },
+                    ]
+                  : []),
               ],
             },
           ]

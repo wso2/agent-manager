@@ -144,6 +144,9 @@ importers:
       '@agent-management-platform/eval':
         specifier: workspace:*
         version: link:../pages/eval
+      '@agent-management-platform/feature-management':
+        specifier: workspace:*
+        version: link:../libs/feature-management
       '@agent-management-platform/gateways':
         specifier: workspace:*
         version: link:../pages/gateways
@@ -449,11 +452,54 @@ importers:
         specifier: 9.36.0
         version: 9.36.0
 
+  workspaces/libs/feature-management:
+    dependencies:
+      '@agent-management-platform/eslint-config':
+        specifier: workspace:*
+        version: link:../eslint-config
+      react:
+        specifier: 19.2.3
+        version: 19.2.3
+    devDependencies:
+      '@testing-library/react':
+        specifier: 16.3.0
+        version: 16.3.0(@testing-library/dom@10.4.0)(@types/react-dom@19.1.9(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@types/react':
+        specifier: 19.2.14
+        version: 19.2.14
+      '@types/react-dom':
+        specifier: 19.1.9
+        version: 19.1.9(@types/react@19.2.14)
+      '@vitejs/plugin-react':
+        specifier: 5.0.4
+        version: 5.0.4(vite@6.3.5(@types/node@24.13.3)(less@4.3.0)(lightningcss@1.33.0))
+      eslint:
+        specifier: 9.36.0
+        version: 9.36.0
+      jsdom:
+        specifier: 26.1.0
+        version: 26.1.0
+      react-dom:
+        specifier: 19.2.3
+        version: 19.2.3(react@19.2.3)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      vite:
+        specifier: 6.3.5
+        version: 6.3.5(@types/node@24.13.3)(less@4.3.0)(lightningcss@1.33.0)
+      vitest:
+        specifier: 3.1.3
+        version: 3.1.3(@types/debug@4.1.13)(@types/node@24.13.3)(jsdom@26.1.0)(less@4.3.0)(lightningcss@1.33.0)
+
   workspaces/libs/shared-component:
     dependencies:
       '@agent-management-platform/api-client':
         specifier: workspace:*
         version: link:../api-client
+      '@agent-management-platform/feature-management':
+        specifier: workspace:*
+        version: link:../feature-management
       '@agent-management-platform/types':
         specifier: workspace:*
         version: link:../types
@@ -647,6 +693,9 @@ importers:
       '@agent-management-platform/eslint-config':
         specifier: workspace:*
         version: link:../eslint-config
+      '@agent-management-platform/feature-management':
+        specifier: workspace:*
+        version: link:../feature-management
       '@thunderid/react':
         specifier: 1.0.6
         version: 1.0.6(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.3))(react@19.2.3)
@@ -913,6 +962,9 @@ importers:
       '@agent-management-platform/api-client':
         specifier: workspace:*
         version: link:../../libs/api-client
+      '@agent-management-platform/feature-management':
+        specifier: workspace:*
+        version: link:../../libs/feature-management
       '@agent-management-platform/llm-providers':
         specifier: workspace:*
         version: link:../llm-providers
@@ -1097,6 +1149,9 @@ importers:
       '@agent-management-platform/api-client':
         specifier: workspace:*
         version: link:../../libs/api-client
+      '@agent-management-platform/feature-management':
+        specifier: workspace:*
+        version: link:../../libs/feature-management
       '@agent-management-platform/shared-component':
         specifier: workspace:*
         version: link:../../libs/shared-component
@@ -1278,6 +1333,9 @@ importers:
       '@agent-management-platform/api-client':
         specifier: workspace:*
         version: link:../../libs/api-client
+      '@agent-management-platform/feature-management':
+        specifier: workspace:*
+        version: link:../../libs/feature-management
       '@agent-management-platform/shared-component':
         specifier: workspace:*
         version: link:../../libs/shared-component
@@ -1366,6 +1424,9 @@ importers:
       '@agent-management-platform/api-client':
         specifier: workspace:*
         version: link:../../libs/api-client
+      '@agent-management-platform/feature-management':
+        specifier: workspace:*
+        version: link:../../libs/feature-management
       '@agent-management-platform/shared-component':
         specifier: workspace:*
         version: link:../../libs/shared-component
@@ -1517,6 +1578,9 @@ importers:
       '@agent-management-platform/api-client':
         specifier: workspace:*
         version: link:../../libs/api-client
+      '@agent-management-platform/feature-management':
+        specifier: workspace:*
+        version: link:../../libs/feature-management
       '@agent-management-platform/shared-component':
         specifier: workspace:*
         version: link:../../libs/shared-component
@@ -1701,6 +1765,9 @@ importers:
       '@agent-management-platform/deploy':
         specifier: workspace:*
         version: link:../deploy
+      '@agent-management-platform/feature-management':
+        specifier: workspace:*
+        version: link:../../libs/feature-management
       '@agent-management-platform/llm-providers':
         specifier: workspace:*
         version: link:../llm-providers
@@ -2036,6 +2103,9 @@ importers:
       '@agent-management-platform/auth':
         specifier: workspace:*
         version: link:../../libs/auth
+      '@agent-management-platform/feature-management':
+        specifier: workspace:*
+        version: link:../../libs/feature-management
       '@agent-management-platform/shared-component':
         specifier: workspace:*
         version: link:../../libs/shared-component
@@ -2184,6 +2254,9 @@ importers:
       '@agent-management-platform/api-client':
         specifier: workspace:*
         version: link:../../libs/api-client
+      '@agent-management-platform/feature-management':
+        specifier: workspace:*
+        version: link:../../libs/feature-management
       '@agent-management-platform/shared-component':
         specifier: workspace:*
         version: link:../../libs/shared-component
@@ -2326,6 +2399,9 @@ importers:
       '@agent-management-platform/api-client':
         specifier: workspace:*
         version: link:../../libs/api-client
+      '@agent-management-platform/feature-management':
+        specifier: workspace:*
+        version: link:../../libs/feature-management
       '@agent-management-platform/llm-providers':
         specifier: workspace:*
         version: link:../llm-providers
@@ -2522,6 +2598,9 @@ importers:
       '@agent-management-platform/auth':
         specifier: workspace:*
         version: link:../../libs/auth
+      '@agent-management-platform/feature-management':
+        specifier: workspace:*
+        version: link:../../libs/feature-management
       '@agent-management-platform/shared-component':
         specifier: workspace:*
         version: link:../../libs/shared-component
@@ -2670,6 +2749,9 @@ importers:
       '@agent-management-platform/api-client':
         specifier: workspace:*
         version: link:../../libs/api-client
+      '@agent-management-platform/feature-management':
+        specifier: workspace:*
+        version: link:../../libs/feature-management
       '@agent-management-platform/shared-component':
         specifier: workspace:*
         version: link:../../libs/shared-component
@@ -2818,6 +2900,9 @@ importers:
       '@agent-management-platform/api-client':
         specifier: workspace:*
         version: link:../../libs/api-client
+      '@agent-management-platform/feature-management':
+        specifier: workspace:*
+        version: link:../../libs/feature-management
       '@agent-management-platform/shared-component':
         specifier: workspace:*
         version: link:../../libs/shared-component
@@ -2942,6 +3027,9 @@ importers:
       '@agent-management-platform/build':
         specifier: workspace:*
         version: link:../build
+      '@agent-management-platform/feature-management':
+        specifier: workspace:*
+        version: link:../../libs/feature-management
       '@agent-management-platform/shared-component':
         specifier: workspace:*
         version: link:../../libs/shared-component
@@ -3307,6 +3395,9 @@ importers:
       '@agent-management-platform/auth':
         specifier: workspace:*
         version: link:../../libs/auth
+      '@agent-management-platform/feature-management':
+        specifier: workspace:*
+        version: link:../../libs/feature-management
       '@agent-management-platform/shared-component':
         specifier: workspace:*
         version: link:../../libs/shared-component
@@ -3624,6 +3715,9 @@ importers:
       '@agent-management-platform/build':
         specifier: workspace:*
         version: link:../build
+      '@agent-management-platform/feature-management':
+        specifier: workspace:*
+        version: link:../../libs/feature-management
       '@agent-management-platform/level-resource-listing':
         specifier: workspace:*
         version: link:../level-resource-listing
@@ -3811,6 +3905,9 @@ importers:
       '@agent-management-platform/auth':
         specifier: workspace:*
         version: link:../../libs/auth
+      '@agent-management-platform/feature-management':
+        specifier: workspace:*
+        version: link:../../libs/feature-management
       '@agent-management-platform/identities':
         specifier: workspace:*
         version: link:../identities

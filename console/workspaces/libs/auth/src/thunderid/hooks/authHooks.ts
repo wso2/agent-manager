@@ -85,19 +85,26 @@ export const useAuthHooks = (): AuthHooks => {
   const [accessTokenPayload, setAccessTokenPayload] = useState<
     Record<string, unknown> | null | undefined
   >(undefined);
+  // Whether the settled payload was read while signed in. Right after sign-in the payload
+  // still holds the signed-out null, which must count as loading, not as "no claims".
+  const [payloadIsSignedIn, setPayloadIsSignedIn] = useState(false);
 
   const getAccessTokenRef = useRef(getAccessToken);
   getAccessTokenRef.current = getAccessToken;
 
   useEffect(() => {
     if (!isSignedIn || !isInitialized) {
-      if (!isSignedIn) setAccessTokenPayload(null);
+      if (!isSignedIn) {
+        setAccessTokenPayload(null);
+        setPayloadIsSignedIn(false);
+      }
       return;
     }
     let cancelled = false;
     const tokenPromise = getAccessTokenRef.current?.();
     if (!tokenPromise) {
       setAccessTokenPayload(null);
+      setPayloadIsSignedIn(true);
       return;
     }
     tokenPromise
@@ -105,13 +112,17 @@ export const useAuthHooks = (): AuthHooks => {
         if (cancelled) return;
         if (!token) {
           setAccessTokenPayload(null);
+          setPayloadIsSignedIn(true);
           return;
         }
         const decoded = decodeJWT(token);
-        if (!cancelled) setAccessTokenPayload(decoded?.payload ?? null);
+        setAccessTokenPayload(decoded?.payload ?? null);
+        setPayloadIsSignedIn(true);
       })
       .catch(() => {
-        if (!cancelled) setAccessTokenPayload(null);
+        if (cancelled) return;
+        setAccessTokenPayload(null);
+        setPayloadIsSignedIn(true);
       });
     return () => {
       cancelled = true;
@@ -168,7 +179,8 @@ export const useAuthHooks = (): AuthHooks => {
     userInfo,
     isLoadingUserInfo: isLoading,
     isLoadingIsAuthenticated: !isInitialized || isLoading,
-    isLoadingAccessToken: accessTokenPayload === undefined,
+    isLoadingAccessToken:
+      accessTokenPayload === undefined || (isSignedIn && !payloadIsSignedIn),
     getToken: safeGetToken,
     login: customLogin,
     logout: handleLogout,

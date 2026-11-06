@@ -33,7 +33,10 @@ import (
 
 type capturePublisher struct{ got []events.Event }
 
-func (c *capturePublisher) Publish(_ context.Context, e events.Event) { c.got = append(c.got, e) }
+func (c *capturePublisher) Publish(_ context.Context, e events.Event) error {
+	c.got = append(c.got, e)
+	return nil
+}
 
 func serveEvent(t *testing.T, pattern string, pathValues map[string]string, handler http.HandlerFunc) *capturePublisher {
 	t.Helper()
@@ -199,4 +202,34 @@ func TestWithEventsIgnoresUndeclaredEnvironmentQuery(t *testing.T) {
 			assert.Empty(t, pub.got[0].Environment)
 		})
 	}
+}
+
+// flushCheckPublisher records whether the response had been sent when the
+// event was persisted.
+type flushCheckPublisher struct {
+	w       *httptest.ResponseRecorder
+	flushed bool
+}
+
+func (p *flushCheckPublisher) Publish(context.Context, events.Event) error {
+	p.flushed = p.w.Flushed
+	return nil
+}
+
+func TestWithEvents_SendsResponseBeforePersistingEvent(t *testing.T) {
+	w := httptest.NewRecorder()
+	pub := &flushCheckPublisher{w: w}
+	meta := audit.RouteMeta{
+		Pattern: "POST /orgs/{orgName}/projects", Method: http.MethodPost,
+		Path: "/orgs/{orgName}/projects", Params: []string{"orgName"},
+	}
+	h := WithEvents(pub, meta)(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(`{"name":"p1"}`))
+	})
+	req := httptest.NewRequest(http.MethodPost, "/x", nil)
+	req.SetPathValue("orgName", "acme")
+	req = req.WithContext(orgctx.WithResolvedOrg(req.Context(), orgctx.ResolvedOrg{OUID: "ou-1", OuHandle: "acme"}))
+	h(w, req)
+	assert.True(t, pub.flushed, "the client must not wait on the outbox insert")
 }

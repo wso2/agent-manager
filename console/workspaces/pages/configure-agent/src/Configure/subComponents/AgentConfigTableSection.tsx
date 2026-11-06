@@ -33,6 +33,7 @@ import {
 } from "@wso2/oxygen-ui-icons-react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { formatRelativeTime, useConfirmationDialog } from "@agent-management-platform/shared-component";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 // This table is generic over an agent's configs (LLM, MCP, ...). The types lib
 // intentionally aliases the MCP list response to the model-config one, so the
 // item shape is genuinely shared; alias it to a neutral name for readability.
@@ -122,6 +123,7 @@ export function AgentConfigTableSection({
   }>();
   const navigate = useNavigate();
   const { addConfirmation } = useConfirmationDialog();
+  const { canWrite } = useResourceAccess("agent");
 
   const [searchValue, setSearchValue] = useState("");
   const [page, setPage] = useState(0);
@@ -174,6 +176,7 @@ export function AgentConfigTableSection({
   };
 
   const addButton = (variant: "contained" | "outlined") => {
+    if (!canWrite) return undefined;
     const button = onAdd ? (
       <Button
         variant={variant}
@@ -316,20 +319,22 @@ export function AgentConfigTableSection({
               : "-"}
           </ListingTable.Cell>
           <ListingTable.Cell align="right">
-            <Tooltip title={labels.removeTooltip}>
-              <IconButton
-                color="error"
-                size="small"
-                disabled={isRemoving}
-                onClick={(e: React.MouseEvent) => {
-                  e.stopPropagation();
-                  handleDelete(config);
-                }}
-                aria-label={labels.removeAriaLabel(config)}
-              >
-                <Trash size={16} />
-              </IconButton>
-            </Tooltip>
+            {canWrite && (
+              <Tooltip title={labels.removeTooltip}>
+                <IconButton
+                  color="error"
+                  size="small"
+                  disabled={isRemoving}
+                  onClick={(e: React.MouseEvent) => {
+                    e.stopPropagation();
+                    handleDelete(config);
+                  }}
+                  aria-label={labels.removeAriaLabel(config)}
+                >
+                  <Trash size={16} />
+                </IconButton>
+              </Tooltip>
+            )}
           </ListingTable.Cell>
         </ListingTable.Row>
       ))}

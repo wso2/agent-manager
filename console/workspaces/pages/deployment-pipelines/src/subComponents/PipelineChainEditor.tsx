@@ -37,10 +37,12 @@ interface PipelineChainEditorProps {
   envOptions: Environment[];
   onChange: (chain: string[]) => void;
   disabled?: boolean;
+  /** Shows the chain without add, change or remove controls. */
+  readOnly?: boolean;
 }
 
 export function PipelineChainEditor(
-  { chain, envOptions, onChange, disabled }: PipelineChainEditorProps,
+  { chain, envOptions, onChange, disabled, readOnly = false }: PipelineChainEditorProps,
 ) {
   const [menuAnchor, setMenuAnchor] = useState<{ el: HTMLElement; index: number | "add" } | null>(null);
 
@@ -101,8 +103,10 @@ export function PipelineChainEditor(
                       </Typography>
                     </Typography>}
                     variant="outlined"
-                    onClick={(e) => handleOpenMenu(e as React.MouseEvent<HTMLElement>, index)}
-                    onDelete={canRemove ? () => handleRemove(index) : undefined}
+                    onClick={readOnly
+                      ? undefined
+                      : (e) => handleOpenMenu(e as React.MouseEvent<HTMLElement>, index)}
+                    onDelete={canRemove && !readOnly ? () => handleRemove(index) : undefined}
                     disabled={disabled}
                     sx={{ "& .MuiChip-icon": { color: tierMeta.iconColor } }}
                   />
@@ -112,7 +116,7 @@ export function PipelineChainEditor(
             );
           })}
 
-          {canAddMore && (
+          {canAddMore && !readOnly && (
             <Tooltip title="Add environment">
               <IconButton
                 size="medium"

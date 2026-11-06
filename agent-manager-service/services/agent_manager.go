@@ -51,6 +51,9 @@ type AgentManagerService interface {
 	ListAgents(ctx context.Context, ouID string, projName string, labelFilter map[string]string, limit int32, offset int32) ([]*models.AgentResponse, int32, error)
 	ListOrgAgents(ctx context.Context, ouID string) ([]*models.AgentSummary, error)
 	CreateAgent(ctx context.Context, ouID string, projectName string, req *spec.CreateAgentRequest) error
+	// SetEntitlementChecker installs an optional subscription check for agent
+	// creates. It is called once during startup, before the HTTP server begins serving.
+	SetEntitlementChecker(checker EntitlementChecker)
 	UpdateAgentBasicInfo(ctx context.Context, ouID string, projectName string, agentName string, req *spec.UpdateAgentBasicInfoRequest) (*models.AgentResponse, error)
 	UpdateAgentBuildParameters(ctx context.Context, ouID string, projectName string, agentName string, req *spec.UpdateAgentBuildParametersRequest) (*models.AgentResponse, error)
 	BuildAgent(ctx context.Context, ouID string, projectName string, agentName string, commitId string) (*models.BuildResponse, error)
@@ -98,6 +101,7 @@ type agentManagerService struct {
 	agentIdentityInjection    AgentIdentityInjectionService
 	identityClient            thundersvc.IdentityClient
 	buildSecretProvisioner    BuildSecretProvisioner
+	entitlementChecker        EntitlementChecker
 	a2aPublisher              *A2APublisher
 	a2aCardRepo               repositories.A2AAgentCardRepository
 	deploymentRepo            repositories.DeploymentRepository
@@ -1687,6 +1691,34 @@ func (s *agentManagerService) CreateAgent(ctx context.Context, ouID string, proj
 	return s.createComponentAgent(ctx, ouID, projectName, req, imageID)
 }
 
+func (s *agentManagerService) SetEntitlementChecker(checker EntitlementChecker) {
+	s.entitlementChecker = checker
+}
+
+// checkAgentEntitlement asks the installed EntitlementChecker whether the
+// organization may create one more agent of the requested kind. Internal and
+// external agents are separate component types, so each is limited on its own.
+func (s *agentManagerService) checkAgentEntitlement(ctx context.Context, ouID string, req *spec.CreateAgentRequest) error {
+	if s.entitlementChecker == nil {
+		return nil
+	}
+	componentType := client.ComponentTypeInternalAgentAPI
+	if req.Provisioning.Type == string(utils.ExternalAgent) {
+		componentType = client.ComponentTypeExternalAgentAPI
+	}
+	err := s.entitlementChecker.CheckCreate(ctx, ouID, string(componentType), 1)
+	switch {
+	case err == nil:
+		return nil
+	case errors.Is(err, utils.ErrEntitlementDenied):
+		s.logger.Info("Agent create refused by entitlement check", "agentName", req.Name, "ouID", ouID, "componentType", componentType, "error", err)
+		return err
+	default:
+		s.logger.Error("Entitlement check failed", "agentName", req.Name, "ouID", ouID, "componentType", componentType, "error", err)
+		return fmt.Errorf("entitlement check for %s: %w", componentType, err)
+	}
+}
+
 // createComponentAgent is the shared agent creation flow for all internal agents.
 // For source-based (imageID == ""): CreateComponent (with Workflow) → AttachTraits → TriggerBuild
 // For kind-based (imageID != ""): CreateComponent (no Workflow) → AttachTraits → CreateInternalAgentFromKindWorkload
@@ -1764,6 +1796,12 @@ func (s *agentManagerService) createComponentAgent(ctx context.Context, ouID, pr
 		if err := s.agentConfigurationService.ValidateMCPProxiesInCatalog(ctx, ouID, projectName, handles); err != nil {
 			return err
 		}
+	}
+
+	// Preflight: ask whether the subscription allows another agent of this type
+	// before creating anything that would need rolling back.
+	if err := s.checkAgentEntitlement(ctx, ouID, req); err != nil {
+		return err
 	}
 
 	secretLocation := secretmanagersvc.SecretLocation{

@@ -26,7 +26,8 @@ import {
   LoadErrorNotice,
 } from "@agent-management-platform/views";
 import { z } from "zod";
-import { generatePath, useNavigate, useParams } from "react-router-dom";
+import { generatePath, Navigate, useNavigate, useParams } from "react-router-dom";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 import { useGetProject, useListDeploymentPipelines, useListEnvironments, useUpdateProject } from "@agent-management-platform/api-client";
 import { absoluteRouteMap, type DeploymentPipelineResponse, ProjectResponse, UpdateProjectRequest, INPUT_LIMITS } from "@agent-management-platform/types";
 import { useUnsavedChangesGuard } from "@agent-management-platform/shared-component";
@@ -310,6 +311,7 @@ function EditProjectForm({ project, orgId, projectHref }: EditProjectFormProps) 
 
 export function EditProject() {
   const { orgId = "", projectId = "" } = useParams<{ orgId: string; projectId: string }>();
+  const { canWrite } = useResourceAccess("project");
   const { data: project, isLoading, error, refetch } = useGetProject({
     orgName: orgId,
     projName: projectId,
@@ -318,6 +320,10 @@ export function EditProject() {
     orgId,
     projectId,
   });
+
+  if (!canWrite) {
+    return <Navigate to={projectHref} replace />;
+  }
 
   return (
     <PageLayout

@@ -48,7 +48,8 @@ import {
   Search,
   ServerCog,
 } from "@wso2/oxygen-ui-icons-react";
-import { generatePath, useNavigate, useParams } from "react-router-dom";
+import { generatePath, Navigate, useNavigate, useParams } from "react-router-dom";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 import {
   absoluteRouteMap,
   type CatalogSecuritySummary,
@@ -369,6 +370,7 @@ export const AddLLMProviderComponent: React.FC = () => {
     configId?: string;
   }>();
   const navigate = useNavigate();
+  const { canWrite } = useResourceAccess("agent");
   const isEditMode = !!configId;
 
   const [selectedEnvIndex, setSelectedEnvIndex] = useState(0);
@@ -790,6 +792,10 @@ export const AddLLMProviderComponent: React.FC = () => {
     createConfig.reset();
     updateConfig.reset();
   }, [createConfig, updateConfig]);
+
+  if (!canWrite) {
+    return <Navigate to={backHref} replace />;
+  }
 
   // Hold off rendering until the pipeline environments resolve (and, in edit
   // mode, the existing config). Otherwise the env tabs briefly show all org

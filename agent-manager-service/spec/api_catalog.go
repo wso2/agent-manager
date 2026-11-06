@@ -23,13 +23,14 @@ import (
 type CatalogAPIService service
 
 type ApiListCatalogResourcesRequest struct {
-	ctx           context.Context
-	ApiService    *CatalogAPIService
-	orgName       string
-	kind          *string
-	environmentId *string
-	limit         *int32
-	offset        *int32
+	ctx            context.Context
+	ApiService     *CatalogAPIService
+	orgName        string
+	kind           *string
+	environmentId  *string
+	gatewayHosting *GatewayHosting
+	limit          *int32
+	offset         *int32
 }
 
 // Filter by resource type
@@ -41,6 +42,12 @@ func (r ApiListCatalogResourcesRequest) Kind(kind string) ApiListCatalogResource
 // Filter by environment UUID (only applicable for LlmProvider kind)
 func (r ApiListCatalogResourcesRequest) EnvironmentId(environmentId string) ApiListCatalogResourcesRequest {
 	r.environmentId = &environmentId
+	return r
+}
+
+// With &#x60;environmentId&#x60;, count only deployments on gateways with this hosting. Monitors and platform-hosted agents can only use LLM providers deployed to &#x60;MANAGED&#x60; gateways.
+func (r ApiListCatalogResourcesRequest) GatewayHosting(gatewayHosting GatewayHosting) ApiListCatalogResourcesRequest {
+	r.gatewayHosting = &gatewayHosting
 	return r
 }
 
@@ -118,6 +125,9 @@ func (a *CatalogAPIService) ListCatalogResourcesExecute(r ApiListCatalogResource
 	}
 	if r.environmentId != nil {
 		parameterAddToHeaderOrQuery(localVarQueryParams, "environmentId", r.environmentId, "")
+	}
+	if r.gatewayHosting != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "gatewayHosting", r.gatewayHosting, "")
 	}
 	if r.limit != nil {
 		parameterAddToHeaderOrQuery(localVarQueryParams, "limit", r.limit, "")

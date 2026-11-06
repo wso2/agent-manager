@@ -24,6 +24,7 @@ import {
   generatePath,
 } from "react-router-dom";
 import { absoluteRouteMap } from "@agent-management-platform/types";
+import { useFeatureAccess, useResourceAccess } from "@agent-management-platform/feature-management";
 import { UsersPage } from "./UsersPage";
 import { UserInvitePage } from "./UserInvitePage";
 import { UserAddPage } from "./UserAddPage";
@@ -37,8 +38,15 @@ import { GroupEditPage } from "./GroupEditPage";
 
 export const IdentitiesOrganization: React.FC = () => {
   const { orgId } = useParams<{ orgId: string }>();
+  const canInviteMembers = useFeatureAccess("member_invite");
+  const { canWrite: canWriteRoles } = useResourceAccess("role");
+  const { canWrite: canWriteGroups } = useResourceAccess("group");
   const identitiesRoute =
     absoluteRouteMap.children.org.children.settings.children.identities;
+  // Gated create routes redirect; otherwise ":id" would match "create".
+  const toList = (list: "users" | "roles" | "groups") => (
+    <Navigate to={generatePath(identitiesRoute.children[list].path, { orgId })} replace />
+  );
 
   return (
     <Routes>
@@ -51,14 +59,26 @@ export const IdentitiesOrganization: React.FC = () => {
           />
         }
       />
-      <Route path="users/invite" element={<UserInvitePage />} />
-      <Route path="users/add" element={<UserAddPage />} />
+      <Route
+        path="users/invite"
+        element={canInviteMembers ? <UserInvitePage /> : toList("users")}
+      />
+      <Route
+        path="users/add"
+        element={canInviteMembers ? <UserAddPage /> : toList("users")}
+      />
       <Route path="users/:userId" element={<UserEditPage />} />
       <Route path="users/*" element={<UsersPage />} />
-      <Route path="roles/create" element={<RoleCreatePage />} />
+      <Route
+        path="roles/create"
+        element={canWriteRoles ? <RoleCreatePage /> : toList("roles")}
+      />
       <Route path="roles/:roleId" element={<RoleEditPage />} />
       <Route path="roles/*" element={<RolesPage />} />
-      <Route path="groups/create" element={<GroupCreatePage />} />
+      <Route
+        path="groups/create"
+        element={canWriteGroups ? <GroupCreatePage /> : toList("groups")}
+      />
       <Route path="groups/:groupId" element={<GroupEditPage />} />
       <Route path="groups/*" element={<GroupsPage />} />
       <Route

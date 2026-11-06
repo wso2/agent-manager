@@ -39,6 +39,7 @@ import {
   getErrorMessage,
   useConfirmationDialog,
 } from "@agent-management-platform/shared-component";
+import { useGatewayFeatures } from "@agent-management-platform/feature-management";
 import { activeTokens } from "./selfHostedSetup";
 
 const MAX_ACTIVE_TOKENS = 2;
@@ -53,6 +54,7 @@ export function SelfHostedGatewayTokensCard({
   gatewayId,
 }: SelfHostedGatewayTokensCardProps) {
   const params = { orgName, gatewayId };
+  const { canManageTokens } = useGatewayFeatures();
   const { data, isLoading, error } = useSelfHostedGatewayTokens(params);
   const { mutateAsync: createToken, isPending: creating } = useCreateSelfHostedGatewayToken();
   const { mutateAsync: revokeToken } = useRevokeSelfHostedGatewayToken();
@@ -92,6 +94,7 @@ export function SelfHostedGatewayTokensCard({
       <Stack spacing={2}>
         <Stack direction="row" justifyContent="space-between" alignItems="center">
           <Typography variant="h6">Registration tokens</Typography>
+          {canManageTokens && (
           <Tooltip
             title={
               activeCount >= MAX_ACTIVE_TOKENS
@@ -111,6 +114,7 @@ export function SelfHostedGatewayTokensCard({
               </Button>
             </span>
           </Tooltip>
+          )}
         </Stack>
 
         {actionError && <Alert severity="error">{actionError}</Alert>}
@@ -159,7 +163,7 @@ export function SelfHostedGatewayTokensCard({
               variant="outlined"
               color={token.status === "active" ? "success" : "default"}
             />
-            {token.status === "active" && (
+            {canManageTokens && token.status === "active" && (
               <Tooltip title="Revoke">
                 <IconButton
                   size="small"

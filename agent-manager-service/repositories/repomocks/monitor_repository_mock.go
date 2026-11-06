@@ -4,6 +4,7 @@
 package repomocks
 
 import (
+	"context"
 	"sync"
 	"time"
 
@@ -66,6 +67,12 @@ import (
 //			},
 //			ListPendingOrRunningRunsFunc: func(limit int) ([]models.MonitorRun, error) {
 //				panic("mock out the ListPendingOrRunningRuns method")
+//			},
+//			ListUnqueuedTerminalRunsFunc: func(ctx context.Context, limit int) ([]models.MonitorRun, error) {
+//				panic("mock out the ListUnqueuedTerminalRuns method")
+//			},
+//			MarkRunEventQueuedFunc: func(ctx context.Context, runID uuid.UUID) error {
+//				panic("mock out the MarkRunEventQueued method")
 //			},
 //			RunInTransactionFunc: func(fn func(txRepo repositories.MonitorRepository) error) error {
 //				panic("mock out the RunInTransaction method")
@@ -136,6 +143,12 @@ type MonitorRepositoryMock struct {
 
 	// ListPendingOrRunningRunsFunc mocks the ListPendingOrRunningRuns method.
 	ListPendingOrRunningRunsFunc func(limit int) ([]models.MonitorRun, error)
+
+	// ListUnqueuedTerminalRunsFunc mocks the ListUnqueuedTerminalRuns method.
+	ListUnqueuedTerminalRunsFunc func(ctx context.Context, limit int) ([]models.MonitorRun, error)
+
+	// MarkRunEventQueuedFunc mocks the MarkRunEventQueued method.
+	MarkRunEventQueuedFunc func(ctx context.Context, runID uuid.UUID) error
 
 	// RunInTransactionFunc mocks the RunInTransaction method.
 	RunInTransactionFunc func(fn func(txRepo repositories.MonitorRepository) error) error
@@ -260,6 +273,20 @@ type MonitorRepositoryMock struct {
 			// Limit is the limit argument value.
 			Limit int
 		}
+		// ListUnqueuedTerminalRuns holds details about calls to the ListUnqueuedTerminalRuns method.
+		ListUnqueuedTerminalRuns []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Limit is the limit argument value.
+			Limit int
+		}
+		// MarkRunEventQueued holds details about calls to the MarkRunEventQueued method.
+		MarkRunEventQueued []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// RunID is the runID argument value.
+			RunID uuid.UUID
+		}
 		// RunInTransaction holds details about calls to the RunInTransaction method.
 		RunInTransaction []struct {
 			// Fn is the fn argument value.
@@ -306,6 +333,8 @@ type MonitorRepositoryMock struct {
 	lockListMonitorsByAgent                     sync.RWMutex
 	lockListMonitorsByAgentEnvironment          sync.RWMutex
 	lockListPendingOrRunningRuns                sync.RWMutex
+	lockListUnqueuedTerminalRuns                sync.RWMutex
+	lockMarkRunEventQueued                      sync.RWMutex
 	lockRunInTransaction                        sync.RWMutex
 	lockUpdateMonitor                           sync.RWMutex
 	lockUpdateMonitorRun                        sync.RWMutex
@@ -874,6 +903,78 @@ func (mock *MonitorRepositoryMock) ListPendingOrRunningRunsCalls() []struct {
 	mock.lockListPendingOrRunningRuns.RLock()
 	calls = mock.calls.ListPendingOrRunningRuns
 	mock.lockListPendingOrRunningRuns.RUnlock()
+	return calls
+}
+
+// ListUnqueuedTerminalRuns calls ListUnqueuedTerminalRunsFunc.
+func (mock *MonitorRepositoryMock) ListUnqueuedTerminalRuns(ctx context.Context, limit int) ([]models.MonitorRun, error) {
+	if mock.ListUnqueuedTerminalRunsFunc == nil {
+		panic("MonitorRepositoryMock.ListUnqueuedTerminalRunsFunc: method is nil but MonitorRepository.ListUnqueuedTerminalRuns was just called")
+	}
+	callInfo := struct {
+		Ctx   context.Context
+		Limit int
+	}{
+		Ctx:   ctx,
+		Limit: limit,
+	}
+	mock.lockListUnqueuedTerminalRuns.Lock()
+	mock.calls.ListUnqueuedTerminalRuns = append(mock.calls.ListUnqueuedTerminalRuns, callInfo)
+	mock.lockListUnqueuedTerminalRuns.Unlock()
+	return mock.ListUnqueuedTerminalRunsFunc(ctx, limit)
+}
+
+// ListUnqueuedTerminalRunsCalls gets all the calls that were made to ListUnqueuedTerminalRuns.
+// Check the length with:
+//
+//	len(mockedMonitorRepository.ListUnqueuedTerminalRunsCalls())
+func (mock *MonitorRepositoryMock) ListUnqueuedTerminalRunsCalls() []struct {
+	Ctx   context.Context
+	Limit int
+} {
+	var calls []struct {
+		Ctx   context.Context
+		Limit int
+	}
+	mock.lockListUnqueuedTerminalRuns.RLock()
+	calls = mock.calls.ListUnqueuedTerminalRuns
+	mock.lockListUnqueuedTerminalRuns.RUnlock()
+	return calls
+}
+
+// MarkRunEventQueued calls MarkRunEventQueuedFunc.
+func (mock *MonitorRepositoryMock) MarkRunEventQueued(ctx context.Context, runID uuid.UUID) error {
+	if mock.MarkRunEventQueuedFunc == nil {
+		panic("MonitorRepositoryMock.MarkRunEventQueuedFunc: method is nil but MonitorRepository.MarkRunEventQueued was just called")
+	}
+	callInfo := struct {
+		Ctx   context.Context
+		RunID uuid.UUID
+	}{
+		Ctx:   ctx,
+		RunID: runID,
+	}
+	mock.lockMarkRunEventQueued.Lock()
+	mock.calls.MarkRunEventQueued = append(mock.calls.MarkRunEventQueued, callInfo)
+	mock.lockMarkRunEventQueued.Unlock()
+	return mock.MarkRunEventQueuedFunc(ctx, runID)
+}
+
+// MarkRunEventQueuedCalls gets all the calls that were made to MarkRunEventQueued.
+// Check the length with:
+//
+//	len(mockedMonitorRepository.MarkRunEventQueuedCalls())
+func (mock *MonitorRepositoryMock) MarkRunEventQueuedCalls() []struct {
+	Ctx   context.Context
+	RunID uuid.UUID
+} {
+	var calls []struct {
+		Ctx   context.Context
+		RunID uuid.UUID
+	}
+	mock.lockMarkRunEventQueued.RLock()
+	calls = mock.calls.MarkRunEventQueued
+	mock.lockMarkRunEventQueued.RUnlock()
 	return calls
 }
 

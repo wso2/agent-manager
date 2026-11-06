@@ -19,50 +19,43 @@ package events
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"sync"
 	"time"
 )
 
-const (
-	publishTimeout  = 5 * time.Second
-	publishBuffer   = 4096
-	publishRetries  = 3
-	shutdownTimeout = 10 * time.Second
-)
+const publishTimeout = 5 * time.Second
 
-// Publisher publishes events. Publish never blocks or fails the caller: an
-// event that cannot be published is logged and dropped.
+// Publisher durably accepts an event or returns an error. Callers with a
+// replayable source must not mark the source complete until this succeeds.
 type Publisher interface {
-	Publish(ctx context.Context, e Event)
+	Publish(ctx context.Context, e Event) error
 }
 
-// NoopPublisher discards events. Used when events are off.
 type NoopPublisher struct{}
 
-func (NoopPublisher) Publish(context.Context, Event) {}
+func (NoopPublisher) Publish(context.Context, Event) error { return nil }
 
-// AsyncPublisher queues events in memory and publishes them to a Bus from a
-// single goroutine, so a request never waits on the transport.
+// AsyncPublisher stores events synchronously and drains the durable outbox in
+// the background. Bus outages and restarts do not discard accepted events.
 type AsyncPublisher struct {
 	bus     Bus
+	outbox  Outbox
 	logger  *slog.Logger
-	queue   chan Event
 	wg      sync.WaitGroup
+	cancel  context.CancelFunc
+	ctx     context.Context
 	mu      sync.Mutex
 	started bool
 	stopped bool
-	ctx     context.Context
-	cancel  context.CancelFunc
 }
 
-// NewAsyncPublisher creates a publisher; call Start before use.
-func NewAsyncPublisher(bus Bus, logger *slog.Logger) *AsyncPublisher {
+func NewAsyncPublisher(bus Bus, outbox Outbox, logger *slog.Logger) *AsyncPublisher {
 	ctx, cancel := context.WithCancel(context.Background())
-	return &AsyncPublisher{bus: bus, logger: logger, queue: make(chan Event, publishBuffer), ctx: ctx, cancel: cancel}
+	return &AsyncPublisher{bus: bus, outbox: outbox, logger: logger, ctx: ctx, cancel: cancel}
 }
 
-// Start runs the publishing loop until Stop.
 func (p *AsyncPublisher) Start() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -70,77 +63,83 @@ func (p *AsyncPublisher) Start() {
 		return
 	}
 	p.started = true
+	ctx := p.ctx
 	p.wg.Add(1)
 	go func() {
 		defer p.wg.Done()
-		for e := range p.queue {
-			p.publish(e)
+		ticker := time.NewTicker(time.Second)
+		defer ticker.Stop()
+		for {
+			// A full batch published cleanly means more may be waiting: keep
+			// going rather than draining one batch per tick.
+			for more := true; more; {
+				more = p.drain(ctx)
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+			}
 		}
 	}()
 }
 
-// Stop drains queued events for up to shutdownTimeout, then cancels publishing.
 func (p *AsyncPublisher) Stop() {
 	p.mu.Lock()
-	if !p.stopped {
-		p.stopped = true
-		close(p.queue)
-	}
-	started := p.started
-	p.mu.Unlock()
-	if !started {
-		// The bus never became ready, so no worker reads the queue. Nothing
-		// can be added after close, so draining it here is safe.
-		for e := range p.queue {
-			p.logger.Warn("Event dropped: publisher stopped before the bus was ready", "type", e.Type, "id", e.ID)
-		}
-	}
-	timer := time.AfterFunc(shutdownTimeout, p.cancel)
-	p.wg.Wait()
-	timer.Stop()
+	p.stopped = true
 	p.cancel()
+	p.mu.Unlock()
+	p.wg.Wait()
 }
 
-// Publish queues an event. When the queue is full the event is dropped.
-func (p *AsyncPublisher) Publish(_ context.Context, e Event) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	if p.stopped {
-		p.logger.Warn("Event dropped: publisher stopped", "type", e.Type, "id", e.ID)
-		return
+func (p *AsyncPublisher) Publish(ctx context.Context, e Event) error {
+	// An HTTP client disconnect must not cancel persistence of its completed
+	// operation. Bound the detached write, rather than queueing in memory.
+	saveCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), publishTimeout)
+	defer cancel()
+	if err := p.outbox.Put(saveCtx, e); err != nil {
+		return fmt.Errorf("failed to persist event %s: %w", e.ID, err)
 	}
-	select {
-	case p.queue <- e:
-	default:
-		p.logger.Error("Event dropped: publish queue full", "type", e.Type, "id", e.ID)
-	}
+	return nil
 }
 
-func (p *AsyncPublisher) publish(e Event) {
-	if p.ctx.Err() != nil {
-		p.logger.Warn("Event dropped: publisher shutdown timed out", "type", e.Type, "id", e.ID)
-		return
-	}
-	body, err := json.Marshal(e)
+// drain publishes one claimed batch. It reports whether the batch was full
+// and published without failures, so another batch is worth claiming now.
+func (p *AsyncPublisher) drain(ctx context.Context) bool {
+	pending, err := p.outbox.Claim(ctx)
 	if err != nil {
-		p.logger.Error("Failed to encode event", "type", e.Type, "error", err)
-		return
+		if ctx.Err() == nil {
+			p.logger.Error("Failed to claim event outbox", "error", err)
+		}
+		return false
 	}
-	var lastErr error
-	for attempt := range publishRetries {
-		ctx, cancel := context.WithTimeout(p.ctx, publishTimeout)
-		lastErr = p.bus.PublishEvent(ctx, e, body)
+	more := len(pending) >= OutboxBatchSize
+	for _, item := range pending {
+		if ctx.Err() != nil {
+			return false
+		}
+		var e Event
+		if err := json.Unmarshal(item.Body, &e); err != nil {
+			p.logger.Error("Invalid event in outbox", "eventId", item.ID, "error", err)
+			_ = p.outbox.Retry(ctx, item)
+			more = false
+			continue
+		}
+		publishCtx, cancel := context.WithTimeout(ctx, publishTimeout)
+		err := p.bus.PublishEvent(publishCtx, e, item.Body)
 		cancel()
-		if lastErr == nil {
-			return
-		}
-		if attempt < publishRetries-1 {
-			select {
-			case <-p.ctx.Done():
-				return
-			case <-time.After(time.Duration(attempt+1) * time.Second):
+		if err != nil {
+			p.logger.Warn("Event publication failed; retained for retry", "eventId", item.ID, "error", err)
+			if err := p.outbox.Retry(ctx, item); err != nil {
+				p.logger.Error("Failed to release event claim", "eventId", item.ID, "error", err)
 			}
+			more = false
+			continue
+		}
+		if err := p.outbox.Complete(ctx, item); err != nil {
+			p.logger.Error("Failed to complete event publication; will retry", "eventId", item.ID, "error", err)
+			more = false
 		}
 	}
-	p.logger.Error("Failed to publish event", "type", e.Type, "id", e.ID, "error", lastErr)
+	return more
 }

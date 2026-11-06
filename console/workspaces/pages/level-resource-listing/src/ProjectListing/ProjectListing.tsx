@@ -17,6 +17,7 @@
  */
 
 import { PageLayout, returnToState } from "@agent-management-platform/views";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 import {
   useDeleteProject,
   useListProjects,
@@ -61,7 +62,7 @@ const projectGridTemplate = {
 
 function ProjectCard(props: {
   project: ProjectResponse;
-  handleDeleteProject: (project: ProjectResponse) => void;
+  handleDeleteProject?: (project: ProjectResponse) => void;
 }) {
   const { project, handleDeleteProject } = props;
   const { orgId } = useParams();
@@ -76,7 +77,7 @@ function ProjectCard(props: {
     (event: MouseEvent<HTMLButtonElement>) => {
       event.preventDefault();
       event.stopPropagation();
-      handleDeleteProject(project);
+      handleDeleteProject?.(project);
     },
     [handleDeleteProject, project]
   );
@@ -91,7 +92,7 @@ function ProjectCard(props: {
       updatedTime={formatRelativeTime(project.createdAt)}
       updatedDateTime={project.createdAt}
       onClick={() => navigate(projectPath)}
-      onDelete={handleDeleteClick}
+      onDelete={handleDeleteProject ? handleDeleteClick : undefined}
       deleteLabel="Delete project"
     />
   );
@@ -104,6 +105,7 @@ function SkeletonCard() {
 export function ProjectListing() {
   const { orgId } = useParams();
   const location = useLocation();
+  const { canWrite } = useResourceAccess("project");
 
   const {
     data: projects,
@@ -140,7 +142,7 @@ export function ProjectListing() {
     [projects, search]
   );
 
-  const createButton = (
+  const createButton = canWrite ? (
     <Button
       variant="contained"
       color="primary"
@@ -151,7 +153,7 @@ export function ProjectListing() {
     >
       Add Project
     </Button>
-  );
+  ) : undefined;
 
   const isEmpty = isListEmpty({
     isLoading: isLoadingProjects,
@@ -201,7 +203,7 @@ export function ProjectListing() {
                   <ProjectCard
                     key={project.name}
                     project={project}
-                    handleDeleteProject={handleDeleteProject}
+                    handleDeleteProject={canWrite ? handleDeleteProject : undefined}
                   />
                 ))}
             </Box>

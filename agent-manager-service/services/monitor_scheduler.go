@@ -24,6 +24,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/wso2/agent-manager/agent-manager-service/workloadpolicy"
+
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/db"
@@ -187,6 +189,13 @@ func (s *monitorSchedulerService) triggerPendingMonitors(ctx context.Context) er
 
 // triggerMonitor creates a WorkflowRun CR for a single monitor
 func (s *monitorSchedulerService) triggerMonitor(ctx context.Context, monitor *models.Monitor) error {
+	if err := workloadpolicy.Check(ctx, monitor.OUID); err != nil {
+		if errors.Is(err, workloadpolicy.ErrSuspended) {
+			s.logger.DebugContext(ctx, "Skipping monitor for suspended subscription", "orgID", monitor.OUID, "monitor", monitor.Name)
+			return nil
+		}
+		return fmt.Errorf("check monitor workload admission: %w", err)
+	}
 	if monitor.IntervalMinutes == nil {
 		return fmt.Errorf("interval_minutes is nil for monitor %s", monitor.Name)
 	}
@@ -278,6 +287,12 @@ func (s *monitorSchedulerService) backOff(ctx context.Context, monitor *models.M
 
 // syncRunStatus queries OpenChoreo API for pending/running workflows and updates DB
 func (s *monitorSchedulerService) syncRunStatus(ctx context.Context) error {
+	// Replay even when no workflows remain pending/running.
+	if reconciler, ok := s.runObserver.(interface{ Reconcile(context.Context) error }); ok {
+		if err := reconciler.Reconcile(ctx); err != nil {
+			s.logger.Error("Failed to replay monitor events", "error", err)
+		}
+	}
 	runs, err := s.monitorRepo.ListPendingOrRunningRuns(100)
 	if err != nil {
 		return fmt.Errorf("failed to query pending/running runs: %w", err)
@@ -387,6 +402,9 @@ func (s *monitorSchedulerService) syncSingleRunStatus(ctx context.Context, run *
 			snapshot := *run
 			completedAt := updates["completed_at"].(time.Time)
 			snapshot.CompletedAt = &completedAt
+			if _, disabled := s.runObserver.(NoopMonitorRunObserver); disabled {
+				updates["event_queued_at"] = completedAt
+			}
 			publish, err = s.runObserver.PrepareMonitorRunFinished(ctx, monitor, &snapshot, status, errMsg)
 			if err != nil {
 				s.logger.Error("Failed to prepare monitor run event", "runID", run.ID, "error", err)
@@ -421,6 +439,9 @@ func (s *monitorSchedulerService) failStaleRun(ctx context.Context, monitor *mod
 	snapshot := *run
 	completedAt := updates["completed_at"].(time.Time)
 	snapshot.CompletedAt = &completedAt
+	if _, disabled := s.runObserver.(NoopMonitorRunObserver); disabled {
+		updates["event_queued_at"] = completedAt
+	}
 	publish, err := s.runObserver.PrepareMonitorRunFinished(ctx, monitor, &snapshot, models.RunStatusFailed, reason)
 	if err != nil {
 		s.logger.Error("Failed to prepare stale monitor run event", "runID", run.ID, "error", err)

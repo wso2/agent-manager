@@ -54,6 +54,7 @@
     "@agent-management-platform/views": "workspace:*",
     "@agent-management-platform/api-client": "workspace:*",
     "@agent-management-platform/types": "workspace:*",
+    "@agent-management-platform/feature-management": "workspace:*",
     "@agent-management-platform/shared-component": "workspace:*",
     "zod": "4.6.7"
   },

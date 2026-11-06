@@ -25,7 +25,8 @@ import {
   useReturnTo,
 } from '@agent-management-platform/views';
 import { useUnsavedChangesGuard } from '@agent-management-platform/shared-component';
-import { generatePath, useNavigate, useParams } from 'react-router-dom';
+import { generatePath, Navigate, useNavigate, useParams } from 'react-router-dom';
+import { useResourceAccess } from '@agent-management-platform/feature-management';
 import { absoluteRouteMap } from '@agent-management-platform/types';
 import { addProjectSchema, type AddProjectFormValues } from './form/schema';
 import { useCreateProject, useListDeploymentPipelines } from '@agent-management-platform/api-client';
@@ -35,6 +36,7 @@ import { ProjectForm } from './components/ProjectForm';
 export const AddNewProject: React.FC = () => {
   const navigate = useNavigate();
   const { orgId } = useParams<{ orgId: string }>();
+  const { canWrite } = useResourceAccess('project');
 
   const [formData, setFormData] = useState<AddProjectFormValues>({
     name: '',
@@ -122,6 +124,17 @@ export const AddNewProject: React.FC = () => {
   }, [formData, validateForm, createProject,
     navigate, allowNavigation, params.orgName, defaultPipeline, pipelinesError,
     resetDirty, clearErrors, errors]);
+
+  if (!canWrite) {
+    return (
+      <Navigate
+        to={generatePath(absoluteRouteMap.children.org.children.projectListing.path, {
+          orgId: orgId ?? '',
+        })}
+        replace
+      />
+    );
+  }
 
   return (
     <PageLayout

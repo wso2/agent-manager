@@ -22,4 +22,5 @@ export * from "@agent-management-platform/auth";
 export * from "@agent-management-platform/api-client";
 export * from "@agent-management-platform/types";
 export { useConfirmationDialog } from "@agent-management-platform/shared-component";
+export * from "@agent-management-platform/feature-management";
 export * from "./types";

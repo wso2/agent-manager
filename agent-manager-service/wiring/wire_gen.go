@@ -29,6 +29,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
 	"github.com/wso2/agent-manager/agent-manager-service/services/eventdestinations"
+	"github.com/wso2/agent-manager/agent-manager-service/services/eventdestinations/notify"
 	"github.com/wso2/agent-manager/agent-manager-service/services/eventdestinations/webhook"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 	"github.com/wso2/agent-manager/agent-manager-service/websocket"
@@ -209,12 +210,14 @@ func InitializeAppParamsWithEnvThunderEndpoints(cfg *config.Config, db *gorm.DB,
 	if err != nil {
 		return nil, err
 	}
-	publisher := ProvideEventPublisher(bus, logger)
-	monitorRunObserver := services.NewMonitorRunEvents(publisher, scoreRepository, logger)
+	outbox := repositories.NewEventOutboxRepository(db)
+	publisher := ProvideEventPublisher(bus, outbox, logger)
+	monitorRunObserver := services.NewMonitorRunEvents(publisher, scoreRepository, monitorRepository, logger)
 	monitorSchedulerService := services.NewMonitorSchedulerService(openChoreoClient, publisherCredentialProvisioner, logger, monitorExecutor, monitorRepository, monitorRunObserver)
 	agentThunderReconcilerService := services.NewAgentThunderReconcilerService(agentThunderProvisioning, agentIdentityInjectionService, agentThunderClientRepository, logger)
 	a2ACardReconcilerService := services.NewA2ACardReconcilerService(a2AAgentCardRepository, a2AProxyRepository, gatewayRepository, a2ACardFetcher, openChoreoClient, logger)
 	deploymentTimeoutSweeper := services.NewConfiguredDeploymentTimeoutSweeper(deploymentRepository, logger, cfg)
+	eventDispatcherService := services.NewEventDispatcherService(bus, eventRepository, eventDestinationService, configConfig, logger)
 	appParams := &AppParams{
 		AuthMiddleware:                   middleware,
 		Logger:                           logger,
@@ -264,6 +267,7 @@ func InitializeAppParamsWithEnvThunderEndpoints(cfg *config.Config, db *gorm.DB,
 		AgentTokenManagerService:         agentTokenManagerService,
 		AgentIdentityInjectionService:    agentIdentityInjectionService,
 		EnvironmentService:               environmentService,
+		EventDispatcher:                  eventDispatcherService,
 		EventBus:                         bus,
 		EventPublisher:                   publisher,
 		OpenChoreoClient:                 openChoreoClient,
@@ -439,12 +443,14 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	if err != nil {
 		return nil, err
 	}
-	publisher := ProvideEventPublisher(bus, logger)
-	monitorRunObserver := services.NewMonitorRunEvents(publisher, scoreRepository, logger)
+	outbox := repositories.NewEventOutboxRepository(db)
+	publisher := ProvideEventPublisher(bus, outbox, logger)
+	monitorRunObserver := services.NewMonitorRunEvents(publisher, scoreRepository, monitorRepository, logger)
 	monitorSchedulerService := services.NewMonitorSchedulerService(openChoreoClient, publisherCredentialProvisioner, logger, monitorExecutor, monitorRepository, monitorRunObserver)
 	agentThunderReconcilerService := services.NewAgentThunderReconcilerService(agentThunderProvisioningService, agentIdentityInjectionService, agentThunderClientRepository, logger)
 	a2ACardReconcilerService := services.NewA2ACardReconcilerService(a2AAgentCardRepository, a2AProxyRepository, gatewayRepository, a2ACardFetcher, openChoreoClient, logger)
 	deploymentTimeoutSweeper := services.NewConfiguredDeploymentTimeoutSweeper(deploymentRepository, logger, cfg)
+	eventDispatcherService := services.NewEventDispatcherService(bus, eventRepository, eventDestinationService, configConfig, logger)
 	appParams := &AppParams{
 		AuthMiddleware:                   authMiddleware,
 		Logger:                           logger,
@@ -494,6 +500,7 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 		AgentTokenManagerService:         agentTokenManagerService,
 		AgentIdentityInjectionService:    agentIdentityInjectionService,
 		EnvironmentService:               environmentService,
+		EventDispatcher:                  eventDispatcherService,
 		EventBus:                         bus,
 		EventPublisher:                   publisher,
 		OpenChoreoClient:                 openChoreoClient,
@@ -526,7 +533,7 @@ var clientProviderSet = wire.NewSet(
 )
 
 var serviceProviderSet = wire.NewSet(services.NewAgentManagerService, services.NewAgentKindService, services.NewInfraResourceManager, services.NewAgentTokenManagerService, ProvideGitCredentialsService, services.NewRepositoryService, services.NewMonitorExecutor, services.NewMonitorManagerService, ProvideThunderConfig, services.NewMonitorSchedulerService, ProvideAgentIdentityInjectionServiceWithEndpointResolver, services.NewAgentThunderReconcilerService, services.NewA2ACardFetcher, services.NewA2ACardReconcilerService, services.NewConfiguredDeploymentTimeoutSweeper, services.NewA2AAgentCardService, ProvideTxRunner, services.NewAgentExposurePublisher, services.NewA2APublisher, services.NewA2AProxyService, ProvideA2AProxyHooks, services.NewEvaluatorManagerService, services.NewEnvironmentService, ProvidePlatformGatewayService, services.NewLLMProviderTemplateService, services.NewLLMProviderService, services.NewLLMProxyService, services.NewLLMProviderDeploymentService, services.NewLLMProviderAPIKeyService, services.NewLLMProxyAPIKeyService, services.NewAgentAPIKeyService, services.NewLLMProxyDeploymentService, services.NewMCPProxyService, services.NewProjectMCPProxyService, services.NewMCPProxyScopeService, wire.Bind(new(services.MCPProxyRedeployer), new(*services.MCPProxyService)), wire.Bind(new(controllers.MCPResourceServerIdentifierResolver), new(*services.MCPProxyService)), services.NewGatewayInternalAPIService, services.NewMonitorScoresService, services.NewCatalogService, services.NewLLMProxyProvisioner, services.NewAgentConfigurationService, services.NewLLMTemplateStore, services.NewGitSecretService, services.NewAIApplicationService, ProvideEventBus,
-	ProvideEventPublisher, services.NewMonitorRunEvents, ProvideDestinationDrivers, services.NewEventDestinationService, services.NewEventSubscriptionService, wire.Bind(new(services.EventsCleaner), new(services.EventSubscriptionService)), wire.Bind(new(services.DestinationResolver), new(services.EventDestinationService)),
+	ProvideEventPublisher, repositories.NewEventOutboxRepository, services.NewMonitorRunEvents, ProvideDestinationDrivers, services.NewEventDestinationService, services.NewEventSubscriptionService, wire.Bind(new(services.EventsCleaner), new(services.EventSubscriptionService)), wire.Bind(new(services.DestinationResolver), new(services.EventDestinationService)), services.NewEventDispatcherService,
 )
 
 var instrumentationProviderSet = wire.NewSet(
@@ -1051,7 +1058,7 @@ func ProvideAgentIdentityInjectionServiceWithEndpointResolver(
 // ProvideDestinationDrivers registers the driver of each supported event
 // destination kind. Add a kind here once its driver exists.
 func ProvideDestinationDrivers(cfg config.Config) *eventdestinations.Registry {
-	return eventdestinations.NewRegistry(webhook.New(cfg.Events.AllowPrivateDestinations))
+	return eventdestinations.NewRegistry(webhook.New(cfg.Events.AllowPrivateDestinations), notify.New(cfg.Events.AllowPrivateDestinations))
 }
 
 // ProvideEventBus connects to NATS, or starts the embedded in-memory server,
@@ -1079,11 +1086,11 @@ func ProvideEventBus(cfg config.Config, logger *slog.Logger) (events.Bus, error)
 
 // ProvideEventPublisher returns the publisher routes and the monitor
 // scheduler use. Without a bus, events are discarded.
-func ProvideEventPublisher(bus events.Bus, logger *slog.Logger) events.Publisher {
+func ProvideEventPublisher(bus events.Bus, outbox events.Outbox, logger *slog.Logger) events.Publisher {
 	if bus == nil {
 		return events.NoopPublisher{}
 	}
-	return events.NewAsyncPublisher(bus, logger)
+	return events.NewAsyncPublisher(bus, outbox, logger)
 }
 
 func ProvideThunderConfig(cfg config.Config) config.ThunderConfig {

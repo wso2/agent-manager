@@ -21,6 +21,7 @@ package client
 import (
 	"fmt"
 	"log/slog"
+	"net/http"
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/gen"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -54,6 +55,9 @@ func handleErrorResponse(statusCode int, errs ErrorResponses) error {
 	case errs.JSON409 != nil:
 		logErrorDetails(errs.JSON409)
 		return fmt.Errorf("%w: %s", utils.ErrConflict, errs.JSON409.Error)
+	case statusCode == http.StatusPaymentRequired:
+		// A control plane that checks subscriptions itself refuses a create with 402.
+		return fmt.Errorf("%w: refused by the control plane", utils.ErrEntitlementDenied)
 	case errs.JSON500 != nil:
 		logErrorDetails(errs.JSON500)
 		return fmt.Errorf("%w: %s", utils.ErrInternalServerError, errs.JSON500.Error)

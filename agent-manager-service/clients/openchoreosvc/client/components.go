@@ -29,6 +29,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/wso2/agent-manager/agent-manager-service/workloadpolicy"
+
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/gen"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/instrumentation"
@@ -37,6 +39,9 @@ import (
 )
 
 func (c *openChoreoClient) CreateComponent(ctx context.Context, ouID, projectName string, req CreateComponentRequest) error {
+	if err := workloadpolicy.Check(ctx, ouID); err != nil {
+		return err
+	}
 	namespaceName := c.NamespaceFor(ouID)
 	createComponentReqBody, err := buildCreateComponentRequestBody(namespaceName, projectName, req)
 	if err != nil {

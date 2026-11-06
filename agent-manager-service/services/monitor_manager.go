@@ -34,6 +34,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/events"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -1555,6 +1556,9 @@ func (s *monitorManagerService) requireManagedMonitorProvider(
 ) error {
 	if err := monitorPolicy.requireProvider(ctx, s.llmProvisioner.ProxyDeploymentService(), s.llmProvisioner.gatewayRepo,
 		ouID, provider.UUID, envUUID); err != nil {
+		// The returned message names the provider and environment; the ids are for operators.
+		logger.GetLogger(ctx).Info("Refused monitor LLM provider placement",
+			"ouID", ouID, "providerUUID", provider.UUID, "environmentUUID", envUUID, "error", err)
 		return fmt.Errorf("LLM provider %q in environment %s: %w", providerName, envName, err)
 	}
 	return nil

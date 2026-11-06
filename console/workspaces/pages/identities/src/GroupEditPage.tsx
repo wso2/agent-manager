@@ -51,6 +51,7 @@ import {
   type ThunderRole,
 } from "@agent-management-platform/types";
 import { useUnsavedChangesGuard } from "@agent-management-platform/shared-component";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 import { BackButton } from "./components/BackButton";
 import { EditFormSkeleton } from "./components/EditFormSkeleton";
 import { EntityHeader } from "./components/EntityHeader";
@@ -60,6 +61,7 @@ type ActiveTab = "users" | "roles";
 export const GroupEditPage: React.FC = () => {
   const { orgId, groupId } = useParams<{ orgId: string; groupId: string }>();
   const navigate = useNavigate();
+  const { canWrite } = useResourceAccess("group");
 
   const [activeTab, setActiveTab] = useState<ActiveTab>("users");
   const [membersPage, setMembersPage] = useState(0);
@@ -247,9 +249,12 @@ export const GroupEditPage: React.FC = () => {
             <>
               <Form.Header>Users</Form.Header>
               <Typography variant="body2" color="text.secondary">
-                Search and add users to this group.
+                {canWrite
+                  ? "Search and add users to this group."
+                  : "Users in this group."}
               </Typography>
 
+              {canWrite && (
               <Grid container spacing={2}>
                 <Grid size={{ xs: 12, md: 12, xl: 8 }}>
                 <Form.ElementWrapper label="Add User" name="addUser">
@@ -269,6 +274,7 @@ export const GroupEditPage: React.FC = () => {
                 </Form.ElementWrapper>
                 </Grid>
               </Grid>
+              )}
 
               {pendingAdds.length > 0 && (
                 <Box mb={2}>
@@ -281,7 +287,7 @@ export const GroupEditPage: React.FC = () => {
                         <ListingTable.Row>
                           <ListingTable.Cell>Username</ListingTable.Cell>
                           <ListingTable.Cell>User ID</ListingTable.Cell>
-                          <ListingTable.Cell />
+                          {canWrite && <ListingTable.Cell />}
                         </ListingTable.Row>
                       </ListingTable.Head>
                       <ListingTable.Body>
@@ -291,6 +297,7 @@ export const GroupEditPage: React.FC = () => {
                               {getUsername(user)}
                             </ListingTable.Cell>
                             <ListingTable.Cell>{user.id}</ListingTable.Cell>
+                            {canWrite && (
                             <ListingTable.Cell align="right">
                               <Tooltip title="Remove from group">
                                 <IconButton
@@ -301,6 +308,7 @@ export const GroupEditPage: React.FC = () => {
                                 </IconButton>
                               </Tooltip>
                             </ListingTable.Cell>
+                            )}
                           </ListingTable.Row>
                         ))}
                       </ListingTable.Body>
@@ -314,7 +322,7 @@ export const GroupEditPage: React.FC = () => {
                   <ListingTable.EmptyState
                     illustration={<Users size={64} />}
                     title="No members yet"
-                    description="Search and add users above."
+                    description={canWrite ? "Search and add users above." : undefined}
                   />
                 </ListingTable.Container>
               ) : membersTotal > 0 ? (
@@ -324,7 +332,7 @@ export const GroupEditPage: React.FC = () => {
                       <ListingTable.Row>
                         <ListingTable.Cell>Username</ListingTable.Cell>
                         <ListingTable.Cell>User ID</ListingTable.Cell>
-                        <ListingTable.Cell />
+                        {canWrite && <ListingTable.Cell />}
                       </ListingTable.Row>
                     </ListingTable.Head>
                     <ListingTable.Body>
@@ -334,6 +342,7 @@ export const GroupEditPage: React.FC = () => {
                             {getUsername(user)}
                           </ListingTable.Cell>
                           <ListingTable.Cell>{user.id}</ListingTable.Cell>
+                          {canWrite && (
                           <ListingTable.Cell align="right">
                             <Tooltip title="Remove from group">
                               <IconButton
@@ -344,6 +353,7 @@ export const GroupEditPage: React.FC = () => {
                               </IconButton>
                             </Tooltip>
                           </ListingTable.Cell>
+                          )}
                         </ListingTable.Row>
                       ))}
                     </ListingTable.Body>
@@ -418,7 +428,7 @@ export const GroupEditPage: React.FC = () => {
         </Form.Section>
 
         {/* Action row shows below the card only when there are unsaved changes. */}
-        {isDirty && (
+        {canWrite && isDirty && (
           <Stack direction="row" spacing={1}>
             <Button
               variant="outlined"

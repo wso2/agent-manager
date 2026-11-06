@@ -29,6 +29,7 @@ import {
 import { CodeBlock, OverviewSectionCard, useConfirmationDialog } from "@agent-management-platform/shared-component";
 import { TextInput } from "@agent-management-platform/views";
 import type { AgentCardStatus } from "@agent-management-platform/types";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 import { hasStoredSecret, KEEP_ORIGIN_HINT } from "./a2aProxyDraft";
 import { AgentCardSourceForm } from "./AgentCardSourceForm";
 import { A2AProxyUnknown, EnvA2AProxySection } from "./EnvA2AProxySection";
@@ -71,6 +72,7 @@ export function A2AAgentCardPanel({
   const { mutate: refresh, isPending: isRefreshing } = useRefreshAgentCard();
   const { mutate: removeSource, isPending: isRemoving } = useDeleteAgentCardSource();
   const { addConfirmation } = useConfirmationDialog();
+  const { canWrite } = useResourceAccess("agent");
   const [showJson, setShowJson] = useState(false);
   const [editingUrl, setEditingUrl] = useState(false);
 
@@ -84,7 +86,7 @@ export function A2AAgentCardPanel({
   const cardDescription = asString(cardJson.description);
   const version = asString(cardJson.version)?.replace(/^v/i, "");
   const sourceUrl = card?.sourceUrl;
-  const showUrlForm = external && noSource;
+  const showUrlForm = canWrite && external && noSource;
   const secretPinsOrigin = hasStoredSecret(proxy);
 
   const confirmRemove = () => addConfirmation({
@@ -101,7 +103,7 @@ export function A2AAgentCardPanel({
     <OverviewSectionCard
       title="Agent Card"
       titleAdornment={
-        sourceUrl && (editingUrl ? (
+        sourceUrl && (canWrite && editingUrl ? (
           <AgentCardSourceForm
             inline
             params={params}
@@ -114,7 +116,7 @@ export function A2AAgentCardPanel({
             <Typography variant="body2" color="text.secondary" noWrap sx={{ fontFamily: "monospace" }}>
               {sourceUrl}
             </Typography>
-            {external && (
+            {canWrite && external && (
               <Tooltip title="Edit URL">
                 <IconButton size="small" onClick={() => setEditingUrl(true)} sx={{ p: 0.25, flexShrink: 0 }}>
                   <Edit size={14} />
@@ -125,7 +127,7 @@ export function A2AAgentCardPanel({
         ))
       }
       headerAction={
-        !(noSource && external) && (
+        canWrite && !(noSource && external) && (
           <Button
             size="small"
             variant="text"
@@ -138,7 +140,7 @@ export function A2AAgentCardPanel({
         )
       }
     >
-      {editingUrl && secretPinsOrigin && (
+      {canWrite && editingUrl && secretPinsOrigin && (
         <Alert severity="info" sx={{ mb: 1 }}>{KEEP_ORIGIN_HINT}</Alert>
       )}
       {showUrlForm && (
@@ -268,7 +270,7 @@ export function A2AAgentCardPanel({
           )}
         </>
       )}
-      {external && sourceUrl && (
+      {canWrite && external && sourceUrl && (
         <Box display="flex" justifyContent="flex-end" sx={{ mt: 3 }}>
           <Button
             size="small"

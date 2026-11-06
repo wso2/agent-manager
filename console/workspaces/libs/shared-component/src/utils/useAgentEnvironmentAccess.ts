@@ -17,10 +17,11 @@
  */
 
 import { useCallback } from "react";
+import { useListEnvironments } from "@agent-management-platform/api-client";
 import {
-  useListEnvironments,
-  useTokenScopes,
-} from "@agent-management-platform/api-client";
+  useFeatureManagement,
+  type FeatureAccessKey,
+} from "@agent-management-platform/feature-management";
 
 import {
   evaluateAgentEnvironmentAccess,
@@ -30,7 +31,7 @@ import {
 
 /**
  * Hook form of {@link evaluateAgentEnvironmentAccess}, bound to the current
- * token and to `orgName`'s environments.
+ * feature access and to `orgName`'s environments.
  *
  * The target may be named instead of passed as an object. Turning a name into a
  * tier was the same useListEnvironments lookup at every call site, so it lives
@@ -46,12 +47,12 @@ export function useAgentEnvironmentAccess(
   orgName: string | undefined,
 ): (
   environment: EnvironmentTier | string | undefined,
-  capability?: string,
+  capability?: FeatureAccessKey,
 ) => AccessDecision {
-  const state = useTokenScopes();
+  const state = useFeatureManagement();
   const { data: environments } = useListEnvironments({ orgName });
   return useCallback(
-    (environment: EnvironmentTier | string | undefined, capability?: string) =>
+    (environment: EnvironmentTier | string | undefined, capability?: FeatureAccessKey) =>
       evaluateAgentEnvironmentAccess(
         state,
         typeof environment === "string"

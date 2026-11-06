@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/wso2/agent-manager/agent-manager-service/workloadpolicy"
+
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/gen"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -44,6 +46,9 @@ type WorkflowRunResponse struct {
 
 // CreateWorkflowRun creates a new workflow run via OpenChoreo
 func (c *openChoreoClient) CreateWorkflowRun(ctx context.Context, ouID string, req CreateWorkflowRunRequest) (*WorkflowRunResponse, error) {
+	if err := workloadpolicy.Check(ctx, ouID); err != nil {
+		return nil, err
+	}
 	namespaceName := c.NamespaceFor(ouID)
 	workflowKind := gen.WorkflowRunConfigKindWorkflow
 	// Workflow templates read the org UUID off the run's own labels, so it is

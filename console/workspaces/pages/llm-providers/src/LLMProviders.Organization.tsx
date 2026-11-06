@@ -21,6 +21,7 @@ import { Button } from "@wso2/oxygen-ui";
 import { Plus } from "@wso2/oxygen-ui-icons-react";
 import { PageLayout } from "@agent-management-platform/views";
 import { useListLLMProviders } from "@agent-management-platform/api-client";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 import { LLMProviderTable } from "./subComponents/LLMProviderTable";
 import {
   generatePath,
@@ -36,6 +37,7 @@ import { EditLLMProvider } from "./subComponents/EditLLMProvider";
 
 export const LLMProvidersOrganization: React.FC = () => {
   const { orgId } = useParams<{ orgId: string }>();
+  const { canWrite } = useResourceAccess("llm_provider");
 
   // Same query as the table (deduped); the header CTA only shows once the list has items.
   const { data: providersList } = useListLLMProviders({ orgName: orgId });
@@ -65,14 +67,16 @@ export const LLMProvidersOrganization: React.FC = () => {
           <PageLayout
             title="LLM Service Providers"
             disableIcon
-            actions={hasItems ? createButton : undefined}
+            actions={hasItems && canWrite ? createButton : undefined}
           >
-            <LLMProviderTable createAction={createButton} />
+            <LLMProviderTable createAction={canWrite ? createButton : undefined} />
           </PageLayout>
         }
       />
       <Route path="view/:providerId" element={<ViewLLMProvider />} />
-      <Route path="view/:providerId/edit" element={<EditLLMProvider />} />
+      {canWrite && (
+        <Route path="view/:providerId/edit" element={<EditLLMProvider />} />
+      )}
       <Route
         path="*"
         element={

@@ -20,6 +20,7 @@ import { type CatalogLLMProviderEntry } from "@agent-management-platform/types";
 import {
   useCreateLLMProvider,
   useListCatalogLLMProviders,
+  useGetEnvironment,
   useListLLMProviderTemplates,
 } from "@agent-management-platform/api-client";
 import {
@@ -40,6 +41,7 @@ import {
   useUnsavedChangesGuard,
 } from "@agent-management-platform/shared-component";
 import {
+  Alert,
   Avatar,
   Box,
   Button,
@@ -64,8 +66,9 @@ import {
   Plus,
   Zap,
 } from "@wso2/oxygen-ui-icons-react";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 import debounce from "lodash/debounce";
 
 interface MonitorLLMProviderDrawerProps {
@@ -73,6 +76,9 @@ interface MonitorLLMProviderDrawerProps {
   onClose: () => void;
   selectedProviderName?: string;
   onProviderChange: (name: string | undefined) => void;
+  // The monitor's environment. Only providers deployed to a managed gateway in it are
+  // listed, as a monitor can't use any other; without one nothing is listed.
+  environmentName?: string;
 }
 
 function getLatestDeployment(
@@ -274,8 +280,10 @@ export function MonitorLLMProviderDrawer({
   onClose,
   selectedProviderName,
   onProviderChange,
+  environmentName,
 }: MonitorLLMProviderDrawerProps) {
   const { orgId } = useParams<{ orgId: string }>();
+  const { canWrite: canCreateProvider } = useResourceAccess("llm_provider");
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
 
@@ -284,17 +292,44 @@ export function MonitorLLMProviderDrawer({
   // refreshKey increments each time the drawer opens so the accumulate effect
   // re-runs even when fetchOffset and catalogData haven't changed (cached data).
   const [refreshKey, setRefreshKey] = useState(0);
-  // processedOffsets prevents double-counting a page when the query key changes
-  // but catalogData briefly returns the previous page's cached value.
-  const processedOffsets = useRef(new Set<number>());
-  const [allProviders, setAllProviders] = useState<CatalogLLMProviderEntry[]>(
-    [],
+  // Each page by its response offset, so a page that comes back changed (a retry
+  // or a refetch) replaces the old one instead of being dropped or appended twice.
+  const [pages, setPages] = useState<Map<number, CatalogLLMProviderEntry[]>>(
+    () => new Map(),
+  );
+  const allProviders = useMemo(
+    () =>
+      [...pages.entries()]
+        .sort(([a], [b]) => a - b)
+        .flatMap(([, entries]) => entries),
+    [pages],
   );
 
-  const { data: catalogData, isFetching } = useListCatalogLLMProviders(
+  const {
+    data: environment,
+    isLoading: isLoadingEnvironment,
+    isError: isEnvironmentError,
+    refetch: refetchEnvironment,
+  } = useGetEnvironment({ orgName: orgId, envName: environmentName });
+  const environmentLabel = environment?.displayName || environmentName;
+  // Without the environment's id the list can't be filtered, so it isn't fetched at all.
+  const environmentUnresolved = !isLoadingEnvironment && !environment?.id;
+  const {
+    data: catalogData,
+    isFetching,
+    isError: isCatalogError,
+    refetch: refetchCatalog,
+  } = useListCatalogLLMProviders(
     { orgName: orgId },
-    { limit: PAGE_SIZE, offset: fetchOffset },
+    {
+      limit: PAGE_SIZE,
+      offset: fetchOffset,
+      environmentId: environment?.id,
+      gatewayHosting: "MANAGED",
+    },
+    { enabled: !!environment?.id },
   );
+  const isLoadingProviders = isFetching || isLoadingEnvironment;
   const { data: templatesData, isLoading: isLoadingTemplates } =
     useListLLMProviderTemplates(
       { orgName: orgId },
@@ -316,10 +351,6 @@ export function MonitorLLMProviderDrawer({
   );
 
   const [mode, setMode] = useState<"list" | "create">("list");
-  // Guards the "auto-open create view when the org has no providers" behavior
-  // so it fires at most once per drawer-open and never overrides a user who
-  // deliberately navigated back to the list.
-  const autoSwitchDone = useRef(false);
   const [isCreateFormDirty, setIsCreateFormDirty] = useState(false);
   const isCreateDraftDirty = open && mode === "create" && isCreateFormDirty;
   useUnsavedChangesGuard(isCreateDraftDirty);
@@ -361,39 +392,27 @@ export function MonitorLLMProviderDrawer({
   // catalogData is still the cached result from a previous open.
   useEffect(() => {
     if (open) {
-      processedOffsets.current = new Set();
-      setAllProviders([]);
+      setPages(new Map());
       setFetchOffset(0);
       setRefreshKey((k) => k + 1);
       setMode("list");
       setIsCreateFormDirty(false);
-      autoSwitchDone.current = false;
     }
   }, [open]);
-
-  // When the org has no LLM providers yet, open straight into the create view
-  // so the user isn't shown an empty list they have to click through. Fires
-  // once per open; if the user goes back to the (empty) list, we respect it.
-  useEffect(() => {
-    if (!open || autoSwitchDone.current || isFetching || !catalogData) return;
-    autoSwitchDone.current = true;
-    if ((catalogData.total ?? 0) === 0) {
-      setMode("create");
-    }
-  }, [open, isFetching, catalogData]);
 
   // Accumulate each page as it arrives and trigger the next fetch if needed.
   useEffect(() => {
     if (!catalogData?.entries) return;
-    // Key on the response offset, not the requested fetchOffset, to avoid
-    // counting a stale cache hit for the new offset as a valid new page.
+    // Key on the response offset, not the requested fetchOffset, so a stale
+    // cache hit for the new offset only rewrites the page it belongs to.
     const responseOffset = catalogData.offset ?? 0;
-    if (processedOffsets.current.has(responseOffset)) return;
-    processedOffsets.current.add(responseOffset);
     const entries = catalogData.entries;
-    setAllProviders((prev) =>
-      responseOffset === 0 ? entries : [...prev, ...entries],
-    );
+    setPages((prev) => {
+      if (prev.get(responseOffset) === entries) return prev;
+      const next = new Map(prev);
+      next.set(responseOffset, entries);
+      return next;
+    });
     if (responseOffset + entries.length < catalogData.total) {
       setFetchOffset(responseOffset + entries.length);
     }
@@ -459,11 +478,13 @@ export function MonitorLLMProviderDrawer({
         onClose={handleDrawerClose}
       />
       <DrawerContent>
-        {mode === "list" ? (
+        {mode === "list" || !canCreateProvider ? (
           <Stack spacing={2}>
             <Typography variant="body2" color="text.secondary">
               Select the LLM provider for all LLM-judge evaluators in this
               monitor.
+              {environmentLabel &&
+                ` Only providers deployed to a managed gateway in ${environmentLabel} are listed.`}
             </Typography>
             <SearchBar
               placeholder="Search providers"
@@ -472,22 +493,55 @@ export function MonitorLLMProviderDrawer({
               value={search}
               onChange={handleSearchChange}
             />
-            {isFetching && filteredProviders.length === 0 && (
+            {environmentUnresolved && (
+              <Alert
+                severity={environmentName ? "error" : "info"}
+                action={
+                  isEnvironmentError ? (
+                    <Button size="small" color="inherit" onClick={() => refetchEnvironment()}>
+                      Retry
+                    </Button>
+                  ) : undefined
+                }
+              >
+                {!environmentName
+                  ? "Choose the monitor's environment first; its LLM providers are listed here."
+                  : isEnvironmentError
+                    ? `Couldn't load environment ${environmentName}, so its LLM providers can't be listed.`
+                    : `Environment ${environmentName} wasn't found, so its LLM providers can't be listed.`}
+              </Alert>
+            )}
+            {isCatalogError && !isFetching && (
+              <Alert
+                severity="error"
+                action={
+                  <Button size="small" color="inherit" onClick={() => refetchCatalog()}>
+                    Retry
+                  </Button>
+                }
+              >
+                Couldn&apos;t load the LLM providers.
+              </Alert>
+            )}
+            {isLoadingProviders && filteredProviders.length === 0 && (
               <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
                 <CircularProgress size={32} />
               </Box>
             )}
-            {filteredProviders.length === 0 && !isFetching && (
+            {filteredProviders.length === 0 &&
+              !isLoadingProviders &&
+              !environmentUnresolved &&
+              !isCatalogError && (
               <ListingTable.EmptyState
                 title={
                   search.trim()
                     ? "No providers match your search"
-                    : "No LLM providers configured"
+                    : `No LLM providers deployed to ${environmentLabel}`
                 }
                 description={
                   search.trim()
                     ? "Try a different keyword."
-                    : "Add an LLM service provider to get started."
+                    : `A monitor can only use an LLM provider deployed to a managed gateway in ${environmentLabel}. Deploy one from its Deployment tab on the LLM Providers page.`
                 }
               />
             )}
@@ -514,16 +568,20 @@ export function MonitorLLMProviderDrawer({
                 })}
               </Stack>
             )}
-            <Divider />
-            <Button
-              variant="text"
-              size="small"
-              startIcon={<Plus size={16} />}
-              onClick={() => setMode("create")}
-              sx={{ alignSelf: "flex-start" }}
-            >
-              Add LLM Provider
-            </Button>
+            {canCreateProvider && (
+              <>
+                <Divider />
+                <Button
+                  variant="text"
+                  size="small"
+                  startIcon={<Plus size={16} />}
+                  onClick={() => setMode("create")}
+                  sx={{ alignSelf: "flex-start" }}
+                >
+                  Add LLM Provider
+                </Button>
+              </>
+            )}
           </Stack>
         ) : (
           <Stack spacing={2}>
@@ -540,6 +598,8 @@ export function MonitorLLMProviderDrawer({
               Create an LLM provider for this monitor&apos;s LLM-judge
               evaluators. It will be added to your organization&apos;s
               provider catalog.
+              {environmentLabel &&
+                ` This monitor can only use it if it's deployed to a managed gateway in ${environmentLabel}.`}
             </Typography>
             <AddLLMProviderForm
               orgId={orgId ?? ""}

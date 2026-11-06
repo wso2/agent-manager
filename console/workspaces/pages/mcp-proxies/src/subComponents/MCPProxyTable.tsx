@@ -37,6 +37,7 @@ import {
   absoluteRouteMap,
   type MCPProxyListItem,
 } from "@agent-management-platform/types";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 import { MCPLogo } from "../components/MCPLogo";
 
 interface MCPProxyTableProps {
@@ -51,6 +52,7 @@ export function MCPProxyTable({ createAction }: MCPProxyTableProps) {
   const { data, isLoading, error } = useListMCPProxies({ orgName: orgId });
   const { mutate: deleteMCPProxy } = useDeleteMCPProxy();
   const { addConfirmation } = useConfirmationDialog();
+  const { canWrite } = useResourceAccess("mcp_server");
 
   const proxies = useMemo(() => data?.list ?? [], [data]);
   const filteredProxies = useMemo(() => {
@@ -160,7 +162,7 @@ export function MCPProxyTable({ createAction }: MCPProxyTableProps) {
                   align="right"
                   onClick={(event) => event.stopPropagation()}
                 >
-                  {proxyId ? (
+                  {proxyId && canWrite ? (
                     <Tooltip title="Delete MCP Server">
                       <IconButton
                         color="error"

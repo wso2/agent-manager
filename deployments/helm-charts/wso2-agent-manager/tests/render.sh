@@ -548,6 +548,29 @@ CM_TEMPLATE=$CONSOLE_CM assert_cm "console.config.registry wins over global.ampI
 CM_TEMPLATE=$CONSOLE_CM assert_cm "the console gets the installed chart version" CHART_VERSION \
   "$(awk '/^version:/ {print $2; exit}' "$CHART_DIR/Chart.yaml")"
 
+# Events require explicit opt-in; quick start uses embedded mode with one replica.
+assert_cm "events are disabled by default" EVENTS_MODE "off"
+assert_cm "a NATS URL alone does not enable events" EVENTS_MODE "off" \
+  --set agentManagerService.config.events.natsUrl=nats://existing:4222
+assert_cm "NATS events can be enabled explicitly" EVENTS_MODE "nats" \
+  --set agentManagerService.config.events.mode=nats
+assert_cm "quick-start embedded events remain enabled" EVENTS_MODE "embedded" \
+  --set agentManagerService.config.events.mode=embedded \
+  --set agentManagerService.autoscaling.enabled=false
+
+# Default installs must not deploy the optional messaging infrastructure.
+if rendered="$(helm template test-release "$CHART_DIR" 2>&1)"; then
+  if grep -q 'name: amp-nats' <<<"$rendered"; then
+    printf 'FAIL - default install renders bundled NATS resources\n'
+    FAILURES=$((FAILURES + 1))
+  else
+    printf 'ok   - default install omits bundled NATS resources\n'
+  fi
+else
+  printf 'FAIL - default chart render: %s\n' "$rendered"
+  FAILURES=$((FAILURES + 1))
+fi
+
 if ((FAILURES > 0)); then
   printf '\n%d assertion(s) failed\n' "$FAILURES"
   exit 1

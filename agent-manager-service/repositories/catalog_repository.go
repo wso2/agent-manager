@@ -150,6 +150,9 @@ func (r *CatalogRepo) ListLLMProviders(filters *models.CatalogListFilters) ([]mo
 			Where("gem.environment_uuid = ? AND ds.status = ?",
 				filters.EnvironmentUUID, models.DeploymentStatusDeployed).
 			Distinct()
+		if filters.GatewayHosting != "" {
+			baseQuery = baseQuery.Where("g.hosting = ?", filters.GatewayHosting)
+		}
 	}
 
 	if filters.HasNameFilter() {
@@ -184,6 +187,9 @@ func (r *CatalogRepo) ListLLMProviders(filters *models.CatalogListFilters) ([]mo
 			Where("gem.environment_uuid = ? AND ds.status = ?",
 				filters.EnvironmentUUID, models.DeploymentStatusDeployed).
 			Distinct()
+		if filters.GatewayHosting != "" {
+			query = query.Where("g.hosting = ?", filters.GatewayHosting)
+		}
 	}
 
 	if filters.HasNameFilter() {
