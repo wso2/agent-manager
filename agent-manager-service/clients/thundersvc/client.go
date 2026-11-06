@@ -483,7 +483,6 @@ func (c *thunderClient) RegenerateAppClientSecret(ctx context.Context, appName s
 	return c.regenerateSecret(ctx, token, internalID)
 }
 
-// regenerateSecret regenerates the client secret for a Thunder application.
 // FindApp looks the app named appName up by name (findApp, which lists the
 // applications of every organization unit) and reads its organization unit.
 func (c *thunderClient) FindApp(ctx context.Context, appName string) (string, string, bool, error) {
@@ -544,6 +543,7 @@ func (c *thunderClient) appOU(ctx context.Context, token, appID string) (string,
 	return app.OUID, true, nil
 }
 
+// regenerateSecret regenerates the client secret for a Thunder application.
 func (c *thunderClient) regenerateSecret(ctx context.Context, token, appID string) (string, error) {
 	secret, err := c.regenerateResourceSecret(ctx, token, "applications", appID)
 	if err != nil {
