@@ -22,6 +22,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -67,9 +68,16 @@ type ThunderClient interface {
 	// RegenerateAppClientSecret regenerates the OAuth2 client secret for the app named appName.
 	RegenerateAppClientSecret(ctx context.Context, appName string) (clientSecret string, err error)
 
-	// GetAppOU returns the organization unit the app named appName belongs to.
-	// found is false (with a nil error) when no app of that name exists.
-	GetAppOU(ctx context.Context, appName string) (ouID string, found bool, err error)
+	// FindApp looks the app named appName up by name and returns its application
+	// ID and organization unit. found is false (with a nil error) when no app of
+	// that name exists. Thunder cannot filter by name, so this lists every
+	// application: use GetAppOUByID when the ID is known.
+	FindApp(ctx context.Context, appName string) (appID, ouID string, found bool, err error)
+
+	// GetAppOUByID returns the organization unit of the application with ID
+	// appID. found is false (with a nil error) when Thunder has no such
+	// application.
+	GetAppOUByID(ctx context.Context, appID string) (ouID string, found bool, err error)
 
 	// CreateAgentIdentity creates a client_credentials AgentID via Thunder's /agents
 	// endpoint (a distinct resource from /applications — see agent_client.go).
@@ -476,32 +484,62 @@ func (c *thunderClient) RegenerateAppClientSecret(ctx context.Context, appName s
 }
 
 // regenerateSecret regenerates the client secret for a Thunder application.
-// GetAppOU looks the app named appName up by name (findApp, which searches every
-// organization unit) and reads its ouId from the full application.
-func (c *thunderClient) GetAppOU(ctx context.Context, appName string) (string, bool, error) {
+// FindApp looks the app named appName up by name (findApp, which lists the
+// applications of every organization unit) and reads its organization unit.
+func (c *thunderClient) FindApp(ctx context.Context, appName string) (string, string, bool, error) {
+	token, err := c.getSystemToken(ctx)
+	if err != nil {
+		return "", "", false, fmt.Errorf("failed to get system token: %w", err)
+	}
+	appID, _, err := c.findApp(ctx, token, appName)
+	if err != nil {
+		return "", "", false, err
+	}
+	if appID == "" {
+		return "", "", false, nil
+	}
+	ouID, found, err := c.appOU(ctx, token, appID)
+	if err != nil || !found {
+		// An app listed a moment ago and gone now is reported as not found.
+		return "", "", false, err
+	}
+	return appID, ouID, true, nil
+}
+
+// GetAppOUByID reads the organization unit of the application with ID appID
+// with a single GET /applications/{id}.
+func (c *thunderClient) GetAppOUByID(ctx context.Context, appID string) (string, bool, error) {
+	if appID == "" {
+		return "", false, errors.New("thunder application ID is required")
+	}
 	token, err := c.getSystemToken(ctx)
 	if err != nil {
 		return "", false, fmt.Errorf("failed to get system token: %w", err)
 	}
-	internalID, _, err := c.findApp(ctx, token, appName)
+	return c.appOU(ctx, token, appID)
+}
+
+// appOU GETs the application and returns its ouId. Thunder answers 404 for an
+// application that does not exist, which is found == false. Thunder requires
+// every application to have an organization unit, so one without an ouId is an
+// error rather than an application in no unit.
+func (c *thunderClient) appOU(ctx context.Context, token, appID string) (string, bool, error) {
+	body, err := c.doRequest(ctx, http.MethodGet, c.baseURL+"/applications/"+url.PathEscape(appID), token, nil)
 	if err != nil {
-		return "", false, err
-	}
-	if internalID == "" {
-		return "", false, nil
-	}
-	body, err := c.doRequest(ctx, http.MethodGet, c.baseURL+"/applications/"+internalID, token, nil)
-	if err != nil {
-		return "", false, fmt.Errorf("thunder get application %s: %w", appName, err)
+		var notFound *NotFoundError
+		if errors.As(err, &notFound) {
+			return "", false, nil
+		}
+		return "", false, fmt.Errorf("thunder get application %s: %w", appID, err)
 	}
 	var app struct {
 		OUID string `json:"ouId"`
 	}
 	if err := json.Unmarshal(body, &app); err != nil {
-		return "", false, fmt.Errorf("thunder get application %s decode: %w", appName, err)
+		return "", false, fmt.Errorf("thunder get application %s decode: %w", appID, err)
 	}
 	if app.OUID == "" {
-		return "", false, fmt.Errorf("thunder application %s has no ouId", appName)
+		return "", false, fmt.Errorf("thunder application %s has no ouId", appID)
 	}
 	return app.OUID, true, nil
 }

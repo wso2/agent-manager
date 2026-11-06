@@ -49,20 +49,22 @@ func TestOrgBuildCredentialRepository_UpsertAndGet(t *testing.T) {
 	require.ErrorIs(t, err, gorm.ErrRecordNotFound)
 
 	require.NoError(t, repo.Upsert(&models.OrgBuildCredential{
-		OUID: ouID, OrgUUID: ouID, ClientID: "amp-build-" + ouID, SecretRefName: "ref-1",
+		OUID: ouID, OrgUUID: ouID, ClientID: "amp-build-" + ouID, AppID: "app-1", SecretRefName: "ref-1",
 	}))
 	got, err := repo.GetByOrgName(ouID)
 	require.NoError(t, err)
 	assert.Equal(t, "amp-build-"+ouID, got.ClientID)
+	assert.Equal(t, "app-1", got.AppID)
 	assert.Equal(t, "ref-1", got.SecretRefName)
 
 	// A second upsert for the same org replaces the row rather than adding one.
 	require.NoError(t, repo.Upsert(&models.OrgBuildCredential{
-		OUID: ouID, OrgUUID: ouID, ClientID: "amp-build-" + ouID, SecretRefName: "ref-2",
+		OUID: ouID, OrgUUID: ouID, ClientID: "amp-build-" + ouID, AppID: "app-2", SecretRefName: "ref-2",
 	}))
 	got, err = repo.GetByOrgName(ouID)
 	require.NoError(t, err)
 	assert.Equal(t, "ref-2", got.SecretRefName)
+	assert.Equal(t, "app-2", got.AppID, "a re-provisioned client replaces the stored application ID")
 	var count int64
 	require.NoError(t, db.GetDB().Model(&models.OrgBuildCredential{}).Where("ou_id = ?", ouID).Count(&count).Error)
 	assert.EqualValues(t, 1, count)

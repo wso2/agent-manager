@@ -210,7 +210,11 @@ func TestCreateApp_SendsRequiredApplicationConfiguration(t *testing.T) {
 		"clientConfig.attributes must include every OU claim required by Agent Manager and Cloud Obs Proxy")
 }
 
-func TestGetAppOU(t *testing.T) {
+// appLookupThunder serves a token, an application list and two applications:
+// app-1 (amp-build-ou-1, in ou-1) and app-2 (amp-build-no-ou, with no ouId).
+// Any other application ID is answered 404, as Thunder answers APP-1001.
+func appLookupThunder(t *testing.T) *httptest.Server {
+	t.Helper()
 	mux := http.NewServeMux()
 	mux.HandleFunc("/oauth2/token", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -224,28 +228,56 @@ func TestGetAppOU(t *testing.T) {
 			{"id": "app-2", "name": "amp-build-no-ou", "clientId": "amp-build-no-ou"},
 		})
 	})
-	mux.HandleFunc("/applications/app-1", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/applications/", func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, http.MethodGet, r.Method)
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{"id": "app-1", "name": "amp-build-ou-1", "ouId": "ou-1"})
-	})
-	mux.HandleFunc("/applications/app-2", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{"id": "app-2", "name": "amp-build-no-ou"})
+		switch strings.TrimPrefix(r.URL.Path, "/applications/") {
+		case "app-1":
+			_ = json.NewEncoder(w).Encode(map[string]any{"id": "app-1", "name": "amp-build-ou-1", "ouId": "ou-1"})
+		case "app-2":
+			_ = json.NewEncoder(w).Encode(map[string]any{"id": "app-2", "name": "amp-build-no-ou"})
+		default:
+			w.WriteHeader(http.StatusNotFound)
+			_ = json.NewEncoder(w).Encode(map[string]any{"code": "APP-1001", "message": "Application not found"})
+		}
 	})
 	server := httptest.NewServer(mux)
-	defer server.Close()
-	client := NewThunderClient(server.URL, "cid", "secret")
+	t.Cleanup(server.Close)
+	return server
+}
 
-	ouID, found, err := client.GetAppOU(context.Background(), "amp-build-ou-1")
+func TestFindApp(t *testing.T) {
+	client := NewThunderClient(appLookupThunder(t).URL, "cid", "secret")
+
+	appID, ouID, found, err := client.FindApp(context.Background(), "amp-build-ou-1")
+	require.NoError(t, err)
+	assert.True(t, found)
+	assert.Equal(t, "app-1", appID)
+	assert.Equal(t, "ou-1", ouID)
+
+	_, _, found, err = client.FindApp(context.Background(), "amp-build-missing")
+	require.NoError(t, err)
+	assert.False(t, found, "an app that does not exist is not an error")
+
+	_, _, _, err = client.FindApp(context.Background(), "amp-build-no-ou")
+	require.Error(t, err, "an app whose unit cannot be read is not reported as being in any unit")
+}
+
+func TestGetAppOUByID(t *testing.T) {
+	client := NewThunderClient(appLookupThunder(t).URL, "cid", "secret")
+
+	ouID, found, err := client.GetAppOUByID(context.Background(), "app-1")
 	require.NoError(t, err)
 	assert.True(t, found)
 	assert.Equal(t, "ou-1", ouID)
 
-	_, found, err = client.GetAppOU(context.Background(), "amp-build-missing")
-	require.NoError(t, err)
-	assert.False(t, found, "an app that does not exist is not an error")
+	_, found, err = client.GetAppOUByID(context.Background(), "deleted-app")
+	require.NoError(t, err, "Thunder's 404 for a deleted app is not an error")
+	assert.False(t, found)
 
-	_, _, err = client.GetAppOU(context.Background(), "amp-build-no-ou")
-	require.Error(t, err, "an app whose unit cannot be read is not reported as being in any unit")
+	_, _, err = client.GetAppOUByID(context.Background(), "app-2")
+	require.Error(t, err)
+
+	_, _, err = client.GetAppOUByID(context.Background(), "")
+	require.Error(t, err)
 }

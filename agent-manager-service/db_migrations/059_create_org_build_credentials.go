@@ -22,9 +22,11 @@ import (
 
 // org_build_credentials records each organization's build client: the OAuth2
 // client a source build's workload step uses to call the build publisher
-// endpoint. Only its ID and the name of the SecretReference holding it are
-// stored; the secret itself stays in the secret store, which the build reads it
-// from through that SecretReference.
+// endpoint. Only its client ID, its Thunder application ID and the name of the
+// SecretReference holding it are stored; the secret itself stays in the secret
+// store, which the build reads it from through that SecretReference. The
+// application ID lets each use check the app directly, without listing every
+// Thunder application to find it by name.
 var migration059 = migration{
 	ID: 59,
 	Migrate: func(db *gorm.DB) error {
@@ -35,6 +37,7 @@ var migration059 = migration{
 				ou_id           VARCHAR(255) NOT NULL,
 				org_uuid        VARCHAR(255) NOT NULL DEFAULT '',
 				client_id       VARCHAR(255) NOT NULL,
+				app_id          VARCHAR(255) NOT NULL DEFAULT '',
 				secret_ref_name VARCHAR(255) NOT NULL,
 				created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 				updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),

@@ -21,7 +21,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"sync"
 	"time"
 
 	"golang.org/x/sync/singleflight"
@@ -74,20 +73,7 @@ type buildCredentialProvisioner struct {
 	logger        *slog.Logger
 
 	sfg singleflight.Group // serializes provisioning per organization
-
-	// verifiedAt is when each organization's stored build client was last
-	// confirmed usable (see storedBuildClient), so a build within
-	// storedBuildClientRecheckInterval of that skips the check.
-	verifiedMu sync.Mutex
-	verifiedAt map[string]time.Time
-	now        func() time.Time
 }
-
-// storedBuildClientRecheckInterval is how long a stored build client confirmed
-// usable is trusted before it is checked again. Looking the Thunder app up scans
-// every application (Thunder cannot filter by name), so it is not repeated on
-// every build; a client that breaks is noticed within this interval.
-const storedBuildClientRecheckInterval = 5 * time.Minute
 
 // NewBuildCredentialProvisioner returns nil when the build client is disabled
 // (config.BuildClient.Enabled is false): builds then carry no build client and
@@ -128,32 +114,7 @@ func newBuildCredentialProvisioner(
 		ocClient:      ocClient,
 		credRepo:      credRepo,
 		logger:        logger,
-		verifiedAt:    map[string]time.Time{},
-		now:           time.Now,
 	}
-}
-
-// recentlyVerified reports whether the organization's stored build client was
-// confirmed usable within storedBuildClientRecheckInterval.
-func (p *buildCredentialProvisioner) recentlyVerified(ouID string) bool {
-	p.verifiedMu.Lock()
-	defer p.verifiedMu.Unlock()
-	at, ok := p.verifiedAt[ouID]
-	return ok && p.now().Sub(at) < storedBuildClientRecheckInterval
-}
-
-// markVerified records that the organization's build client was just confirmed
-// usable; forgetVerified drops that, so the next build checks it again.
-func (p *buildCredentialProvisioner) markVerified(ouID string) {
-	p.verifiedMu.Lock()
-	defer p.verifiedMu.Unlock()
-	p.verifiedAt[ouID] = p.now()
-}
-
-func (p *buildCredentialProvisioner) forgetVerified(ouID string) {
-	p.verifiedMu.Lock()
-	defer p.verifiedMu.Unlock()
-	delete(p.verifiedAt, ouID)
 }
 
 // buildClientProvisionTimeout bounds one provisioning run (identity provider,
@@ -201,17 +162,16 @@ func (p *buildCredentialProvisioner) EnsureBuildClient(ctx context.Context, ouID
 // false (with a nil error) when none is stored yet, or when the stored one is
 // stale and must be provisioned again.
 //
-// A stored row is only a record of what was provisioned, so before it is used
-// it is checked the way provisioning checks it: its SecretReference still
-// exists and carries both entries the workload step reads, and its Thunder app
-// still exists in the organization's own unit. A row that fails either would
-// fail every build in the organization at the workload step, and no one would
-// ever clean it up. Such a row counts as not stored, and provisioning replaces
-// it. A check that fails for any other reason (OpenChoreo or Thunder
-// unreachable, say) is not taken as proof that the row is stale: the stored
-// client is used, rather than regenerating a working secret because of a
-// transient error. A client confirmed usable is not checked again for
-// storedBuildClientRecheckInterval.
+// A stored row is only a record of what was provisioned, so it is checked on
+// every use: its SecretReference still exists and carries both entries the
+// workload step reads, and its Thunder application (looked up by the stored
+// application ID, one GET) still exists in the organization's own unit. A row
+// that fails either would fail every build in the organization at the workload
+// step, and no one would ever clean it up. Such a row counts as not stored, and
+// provisioning replaces it. A check that fails for any other reason (OpenChoreo
+// or Thunder unreachable, say) is not taken as proof that the row is stale: the
+// stored client is used, rather than regenerating a working secret because of a
+// transient error.
 func (p *buildCredentialProvisioner) storedBuildClient(ctx context.Context, ouID string) (*client.BuildClientParams, bool, error) {
 	existing, err := p.credRepo.GetByOrgName(ouID)
 	switch {
@@ -222,31 +182,31 @@ func (p *buildCredentialProvisioner) storedBuildClient(ctx context.Context, ouID
 		return nil, false, fmt.Errorf("failed to look up build client for org %s: %w", ouID, err)
 	}
 	params := &client.BuildClientParams{SecretRefName: existing.SecretRefName}
-	if p.recentlyVerified(ouID) {
-		return params, true, nil
-	}
-	if err := p.verifyStoredBuildClient(ctx, ouID, existing.SecretRefName); err != nil {
+	if err := p.verifyStoredBuildClient(ctx, ouID, existing); err != nil {
 		if isStaleBuildClient(err) {
-			p.forgetVerified(ouID)
 			p.logger.Warn("Stored build client is no longer usable; provisioning the build client again",
 				"ouID", ouID, "secretRefName", existing.SecretRefName, "error", err)
 			return nil, false, nil
 		}
 		p.logger.Warn("Could not verify the stored build client; using it",
 			"ouID", ouID, "secretRefName", existing.SecretRefName, "error", err)
-		return params, true, nil
 	}
-	p.markVerified(ouID)
 	return params, true, nil
 }
 
 // verifyStoredBuildClient checks a stored build client's SecretReference, then
-// its Thunder app.
-func (p *buildCredentialProvisioner) verifyStoredBuildClient(ctx context.Context, ouID, secretRefName string) error {
-	if err := p.verifyClientSecretRef(ctx, ouID, secretRefName); err != nil {
+// its Thunder application by the stored application ID. A row without an
+// application ID (every row this service writes has one) has only its
+// SecretReference checked.
+func (p *buildCredentialProvisioner) verifyStoredBuildClient(ctx context.Context, ouID string, stored *models.OrgBuildCredential) error {
+	if err := p.verifyClientSecretRef(ctx, ouID, stored.SecretRefName); err != nil {
 		return err
 	}
-	appOU, found, err := p.thunderClient.GetAppOU(ctx, buildClientAppName(ouID))
+	if stored.AppID == "" {
+		p.logger.Warn("Stored build client has no Thunder application ID; its application is not checked", "ouID", ouID)
+		return nil
+	}
+	appOU, found, err := p.thunderClient.GetAppOUByID(ctx, stored.AppID)
 	if err != nil {
 		return fmt.Errorf("failed to look up build client app %s: %w", buildClientAppName(ouID), err)
 	}
@@ -310,7 +270,7 @@ func (p *buildCredentialProvisioner) provision(ctx context.Context, ouID, appNam
 	// from another unit would regenerate a secret this organization does not
 	// own and give it tokens for that unit, so an existing app is adopted only
 	// when it is in the organization's own unit.
-	appOU, appExists, err := p.thunderClient.GetAppOU(ctx, appName)
+	appID, appOU, appExists, err := p.thunderClient.FindApp(ctx, appName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to look up build client app %s for org %s: %w", appName, ouID, err)
 	}
@@ -342,6 +302,22 @@ func (p *buildCredentialProvisioner) provision(ctx context.Context, ouID, appNam
 	if clientSecret == "" {
 		return nil, fmt.Errorf("failed to provision build client for org %s: no client secret available", ouID)
 	}
+	// EnsureApp does not return the application ID; an app it just created
+	// (or one created between the lookup above and EnsureApp) is looked up once
+	// more for it, so later checks can GET the app directly.
+	if !appExists {
+		appID, appOU, appExists, err = p.thunderClient.FindApp(ctx, appName)
+		if err != nil {
+			return nil, fmt.Errorf("failed to look up build client app %s for org %s: %w", appName, ouID, err)
+		}
+		if !appExists {
+			return nil, fmt.Errorf("build client app %s for org %s was not found after it was provisioned", appName, ouID)
+		}
+		if appOU != ouID {
+			return nil, fmt.Errorf("%w: %s belongs to organization unit %q, not %q",
+				errBuildClientAppInOtherOU, appName, appOU, ouID)
+		}
+	}
 
 	secretRefName, err := p.secretClient.CreateSecret(ctx, buildClientSecretLocation(ouID), map[string]string{
 		"client-id":     clientID,
@@ -358,13 +334,13 @@ func (p *buildCredentialProvisioner) provision(ctx context.Context, ouID, appNam
 		OUID:          ouID,
 		OrgUUID:       ouID,
 		ClientID:      clientID,
+		AppID:         appID,
 		SecretRefName: secretRefName,
 	}); err != nil {
 		return nil, fmt.Errorf("failed to persist build client for org %s: %w", ouID, err)
 	}
 
-	p.markVerified(ouID)
-	p.logger.Info("Provisioned build client", "ouID", ouID, "clientID", clientID, "secretRefName", secretRefName)
+	p.logger.Info("Provisioned build client", "ouID", ouID, "clientID", clientID, "appID", appID, "secretRefName", secretRefName)
 	return &client.BuildClientParams{SecretRefName: secretRefName}, nil
 }
 

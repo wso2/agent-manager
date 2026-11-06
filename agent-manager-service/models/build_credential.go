@@ -47,10 +47,12 @@ type PublishBuildWorkloadRequest struct {
 // the name resolves only inside the build's own organization namespace, so a run
 // cannot be pointed at another organization's secret.
 type OrgBuildCredential struct {
-	ID            uuid.UUID `gorm:"column:id;primaryKey;type:uuid;default:gen_random_uuid()"`
-	OUID          string    `gorm:"column:ou_id;not null;uniqueIndex:uq_org_build_creds_ou_id"`
-	OrgUUID       string    `gorm:"column:org_uuid;not null;default:''"`
-	ClientID      string    `gorm:"column:client_id;not null"`
+	ID       uuid.UUID `gorm:"column:id;primaryKey;type:uuid;default:gen_random_uuid()"`
+	OUID     string    `gorm:"column:ou_id;not null;uniqueIndex:uq_org_build_creds_ou_id"`
+	OrgUUID  string    `gorm:"column:org_uuid;not null;default:''"`
+	ClientID string    `gorm:"column:client_id;not null"`
+	// AppID is the build client's Thunder application ID.
+	AppID         string    `gorm:"column:app_id;not null;default:''"`
 	SecretRefName string    `gorm:"column:secret_ref_name;not null"`
 	CreatedAt     time.Time `gorm:"column:created_at;not null;default:NOW()"`
 	UpdatedAt     time.Time `gorm:"column:updated_at;not null;default:NOW()"`
