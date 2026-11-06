@@ -464,8 +464,14 @@ func resolveResilienceTimeoutSeconds(existingConfig *models.AgentConfig, request
 // buildCreateTraitRequests collects all traits needed during agent creation into a single
 // list so they can be attached in one GET-UPDATE cycle, avoiding resource version conflicts.
 // An API agent gets no route trait: it is served only through its environment's ingress gateway.
-func (s *agentManagerService) buildCreateTraitRequests(ctx context.Context, ouID, projectName, envName string, req *spec.CreateAgentRequest) ([]client.TraitRequest, error) {
+//
+// It also returns the agent API key env var for the first environment. The key is
+// delivered by SecretReference name through the agent's env vars, not by the
+// env-injection trait: a trait can only take a remote store path, which the
+// platform does not expose.
+func (s *agentManagerService) buildCreateTraitRequests(ctx context.Context, ouID, projectName, envName string, req *spec.CreateAgentRequest) ([]client.TraitRequest, []client.EnvVar, error) {
 	var traits []client.TraitRequest
+	var apiKeyEnvVars []client.EnvVar
 
 	// Determine instrumentation settings
 	autoInstrumentation := req.Configurations == nil || req.Configurations.EnableAutoInstrumentation == nil || *req.Configurations.EnableAutoInstrumentation
@@ -477,18 +483,16 @@ func (s *agentManagerService) buildCreateTraitRequests(ctx context.Context, ouID
 
 	// Attach instrumentation traits at creation.
 	// env-injection is always attached for all API agents — it is the sole injector of
-	// AMP_OTEL_ENDPOINT and AMP_AGENT_API_KEY (includeWhen on patches is not supported).
+	// AMP_OTEL_ENDPOINT, and of the agent API key under a language-specific name such as
+	// Ballerina's (includeWhen on patches is not supported).
 	// python-otel-instrumentation-trait is only attached for Python buildpack agents with
 	// auto-instrumentation enabled; it handles the init container, SDK volume, and PYTHONPATH.
 	if isAPIAgent && isPythonBuildpack {
-		apiKey, err := s.generateAgentAPIKey(ctx, ouID, projectName, req.Name, envName)
+		apiKeyEnvVar, err := s.provisionAgentAPIKeyEnvVar(ctx, ouID, projectName, req.Name, envName)
 		if err != nil {
-			return nil, fmt.Errorf("failed to generate agent API key: %w", err)
+			return nil, nil, err
 		}
-		apiKeySecretRef, apiKeySecretProperty, err := s.storeAgentAPIKey(ctx, ouID, projectName, req.Name, envName, apiKey)
-		if err != nil {
-			return nil, fmt.Errorf("failed to store agent API key: %w", err)
-		}
+		apiKeyEnvVars = append(apiKeyEnvVars, apiKeyEnvVar)
 
 		// Always attach OTEL trait; patches are gated by instrumentationEnabled via 'where' on target,
 		// enabling per-environment control through traitEnvironmentConfigs.
@@ -511,20 +515,14 @@ func (s *agentManagerService) buildCreateTraitRequests(ctx context.Context, ouID
 		traits = append(traits, client.TraitRequest{
 			TraitKind: client.TraitKindTrait,
 			TraitType: client.TraitEnvInjection,
-			Opts: []client.TraitOption{
-				client.WithAgentApiKeySecretRef(apiKeySecretRef),
-				client.WithAgentApiKeySecretProperty(apiKeySecretProperty),
-			},
+			Opts:      []client.TraitOption{},
 		})
 	} else if isAPIAgent && isBallerinaBuildpack {
-		apiKey, err := s.generateAgentAPIKey(ctx, ouID, projectName, req.Name, envName)
+		apiKeyEnvVar, err := s.provisionAgentAPIKeyEnvVar(ctx, ouID, projectName, req.Name, envName)
 		if err != nil {
-			return nil, fmt.Errorf("failed to generate agent API key: %w", err)
+			return nil, nil, err
 		}
-		apiKeySecretRef, apiKeySecretProperty, err := s.storeAgentAPIKey(ctx, ouID, projectName, req.Name, envName, apiKey)
-		if err != nil {
-			return nil, fmt.Errorf("failed to store agent API key: %w", err)
-		}
+		apiKeyEnvVars = append(apiKeyEnvVars, apiKeyEnvVar)
 		// Gate env injection on the same autoInstrumentation flag as the Ballerina
 		// OTEL trait, so when instrumentation is disabled the OTEL endpoint and API
 		// key env vars are not injected either. Patches are gated by the 'where'
@@ -533,8 +531,6 @@ func (s *agentManagerService) buildCreateTraitRequests(ctx context.Context, ouID
 			TraitKind: client.TraitKindTrait,
 			TraitType: client.TraitEnvInjection,
 			Opts: []client.TraitOption{
-				client.WithAgentApiKeySecretRef(apiKeySecretRef),
-				client.WithAgentApiKeySecretProperty(apiKeySecretProperty),
 				client.WithOtelEndpointEnvName(client.BalConfigVarOTELEndpoint),
 				client.WithApiKeyEnvName(client.BalConfigVarAgentAPIKey),
 				client.WithEnvInjectionEnabled(autoInstrumentation),
@@ -549,25 +545,19 @@ func (s *agentManagerService) buildCreateTraitRequests(ctx context.Context, ouID
 		})
 	} else if isAPIAgent && isDocker {
 		// Docker: attach only env-injection trait (no init container needed)
-		apiKey, err := s.generateAgentAPIKey(ctx, ouID, projectName, req.Name, envName)
+		apiKeyEnvVar, err := s.provisionAgentAPIKeyEnvVar(ctx, ouID, projectName, req.Name, envName)
 		if err != nil {
-			return nil, fmt.Errorf("failed to generate agent API key: %w", err)
+			return nil, nil, err
 		}
-		apiKeySecretRef, apiKeySecretProperty, err := s.storeAgentAPIKey(ctx, ouID, projectName, req.Name, envName, apiKey)
-		if err != nil {
-			return nil, fmt.Errorf("failed to store agent API key: %w", err)
-		}
+		apiKeyEnvVars = append(apiKeyEnvVars, apiKeyEnvVar)
 		traits = append(traits, client.TraitRequest{
 			TraitKind: client.TraitKindTrait,
 			TraitType: client.TraitEnvInjection,
-			Opts: []client.TraitOption{
-				client.WithAgentApiKeySecretRef(apiKeySecretRef),
-				client.WithAgentApiKeySecretProperty(apiKeySecretProperty),
-			},
+			Opts:      []client.TraitOption{},
 		})
 	}
 
-	return traits, nil
+	return traits, apiKeyEnvVars, nil
 }
 
 // requireImageOwnedByAgent rejects a deploy whose image this agent has no claim
@@ -1145,64 +1135,81 @@ func agentAPIKeySecretLocation(ouID, projectName, agentName, envName string) sec
 	}
 }
 
-// storeAgentAPIKey stores the agent API key (JWT) in the secret store and returns the
-// remote reference (key/path + optional property) that the env-injection trait uses to
-// build its ExternalSecret. This keeps the raw key out of the control plane — only the
-// reference is ever passed to the trait.
-//
-// The reference is resolved from the SecretReference CR rather than computed locally:
-// CreateSecret returns the SecretReference name, and only the SecretReference knows the
-// provider's real remote reference. (The provider manages the SecretReference and its
-// remoteRef internally — location.KVPath() is not the real reference, so we must read
-// it back from the SecretReference.)
-func (s *agentManagerService) storeAgentAPIKey(ctx context.Context, ouID, projectName, agentName, envName, apiKey string) (key string, property string, err error) {
+// storeAgentAPIKey stores the agent API key (JWT) in the secret store and returns the name
+// of the SecretReference that holds it. The raw key never reaches the control plane, and
+// neither does its remote store path: the agent receives the key through
+// agentAPIKeyEnvVar, which references the SecretReference by name and leaves resolving it
+// to OpenChoreo.
+func (s *agentManagerService) storeAgentAPIKey(ctx context.Context, ouID, projectName, agentName, envName, apiKey string) (string, error) {
 	if s.secretMgmtClient == nil {
-		return "", "", fmt.Errorf("secret management is not initialized; cannot store agent API key")
+		return "", fmt.Errorf("secret management is not initialized; cannot store agent API key")
 	}
 	location := agentAPIKeySecretLocation(ouID, projectName, agentName, envName)
 	secretRefName, err := s.secretMgmtClient.CreateSecret(ctx, location, map[string]string{
 		secretmanagersvc.SecretKeyAPIKey: apiKey,
 	})
 	if err != nil {
-		return "", "", fmt.Errorf("failed to store agent API key in secret store: %w", err)
-	}
-
-	secretRef, err := s.ocClient.GetSecretReference(ctx, ouID, secretRefName)
-	if err != nil {
-		return "", "", fmt.Errorf("failed to resolve agent API key secret reference %q: %w", secretRefName, err)
-	}
-	for _, ds := range secretRef.Data {
-		if ds.SecretKey == secretmanagersvc.SecretKeyAPIKey {
-			key, property = ds.RemoteRef.Key, ds.RemoteRef.Property
-			break
-		}
-	}
-	if key == "" {
-		return "", "", fmt.Errorf("agent API key secret reference %q has no %q data source", secretRefName, secretmanagersvc.SecretKeyAPIKey)
+		return "", fmt.Errorf("failed to store agent API key in secret store: %w", err)
 	}
 	s.logger.Debug("Stored agent API key in secret store", "agentName", agentName, "environment", envName,
-		"secretRefName", secretRefName, "remoteKey", key)
-	return key, property, nil
+		"secretRefName", secretRefName)
+	return secretRefName, nil
 }
 
-// injectAgentAPIKeySecretRef adds the env-injection trait's per-environment agentApiKeySecretRef
-// (and property) into a traitEnvConfigs map, preserving any config already set for that trait
-// instance. buildTraitEnvConfigs omits this field, and UpdateReleaseBindingTraitConfigs REPLACES
-// the binding's trait configs wholesale — so without re-injecting here, a promoted environment
-// loses its per-env key ref and the env-injection trait falls back to the base (lowest env's) ref.
-func injectAgentAPIKeySecretRef(traitEnvConfigs map[string]interface{}, agentName, secretRef, secretProperty string) {
-	if secretRef == "" {
-		return
+// provisionAgentAPIKeyEnvVar generates an agent API key for one environment, stores it, and
+// returns the env var that delivers it to the agent.
+func (s *agentManagerService) provisionAgentAPIKeyEnvVar(ctx context.Context, ouID, projectName, agentName, envName string) (client.EnvVar, error) {
+	apiKey, err := s.generateAgentAPIKey(ctx, ouID, projectName, agentName, envName)
+	if err != nil {
+		return client.EnvVar{}, fmt.Errorf("failed to generate agent API key: %w", err)
 	}
+	secretRefName, err := s.storeAgentAPIKey(ctx, ouID, projectName, agentName, envName, apiKey)
+	if err != nil {
+		return client.EnvVar{}, fmt.Errorf("failed to store agent API key: %w", err)
+	}
+	return agentAPIKeyEnvVar(secretRefName), nil
+}
+
+// agentAPIKeyEnvVar is the AMP_AGENT_API_KEY env var, read from the SecretReference that
+// storeAgentAPIKey returned. It is per environment and system-owned: deploys and
+// configuration updates carry it forward (getSystemManagedEnvVars) and drop user-echoed
+// copies (mergeAgentAPIKeyEnvVarKey). Agents that read the key under another name, such
+// as Ballerina, get it copied there by the env-injection trait.
+func agentAPIKeyEnvVar(secretRefName string) client.EnvVar {
+	return client.EnvVar{
+		Key: client.EnvVarAgentAPIKey,
+		ValueFrom: &client.EnvVarValueFrom{
+			SecretKeyRef: &client.SecretKeyRef{
+				Name: secretRefName,
+				Key:  secretmanagersvc.SecretKeyAPIKey,
+			},
+		},
+	}
+}
+
+// mergeAgentAPIKeyEnvVarKey marks the agent API key env var as system-managed in dst,
+// allocating it first if nil, so callers that rewrite env vars from user input drop
+// user-echoed copies of it.
+func mergeAgentAPIKeyEnvVarKey(dst map[string]bool) map[string]bool {
+	if dst == nil {
+		dst = make(map[string]bool, 1)
+	}
+	dst[client.EnvVarAgentAPIKey] = true
+	return dst
+}
+
+// useEnvVarAgentAPIKey stops the env-injection trait from delivering the agent API key in
+// the environment these trait configs are written to, preserving any config already set
+// for that trait instance. An agent created before the key moved to its env vars still has
+// a remote store path in the trait's parameters; an empty per-environment path makes the
+// trait leave the key to the env var instead of overriding it with that path's secret.
+func useEnvVarAgentAPIKey(traitEnvConfigs map[string]interface{}, agentName string) {
 	envInjKey := agentName + "-" + string(client.TraitEnvInjection)
 	envInjCfg, _ := traitEnvConfigs[envInjKey].(map[string]interface{})
 	if envInjCfg == nil {
 		envInjCfg = map[string]interface{}{}
 	}
-	envInjCfg["agentApiKeySecretRef"] = secretRef
-	if secretProperty != "" {
-		envInjCfg["agentApiKeySecretProperty"] = secretProperty
-	}
+	envInjCfg["agentApiKeySecretRef"] = ""
 	traitEnvConfigs[envInjKey] = envInjCfg
 }
 
@@ -1259,7 +1266,7 @@ func (s *agentManagerService) RegenerateAgentTracingToken(ctx context.Context, o
 		return nil, fmt.Errorf("failed to generate agent tracing token: %w", err)
 	}
 
-	if _, _, err := s.storeAgentAPIKey(ctx, ouID, projectName, agentName, environmentName, tokenResp.Token); err != nil {
+	if _, err := s.storeAgentAPIKey(ctx, ouID, projectName, agentName, environmentName, tokenResp.Token); err != nil {
 		s.logger.Error("Failed to store rotated agent tracing token", "agentName", agentName, "environment", environmentName, "error", err)
 		return nil, fmt.Errorf("failed to store agent tracing token: %w", err)
 	}
@@ -1950,7 +1957,7 @@ func (s *agentManagerService) createComponentAgent(ctx context.Context, ouID, pr
 		if pipeErr == nil {
 			lowestEnvName = findLowestEnvironment(createPipeline.PromotionPaths)
 		}
-		traitRequests, err := s.buildCreateTraitRequests(ctx, ouID, projectName, lowestEnvName, req)
+		traitRequests, apiKeyEnvVars, err := s.buildCreateTraitRequests(ctx, ouID, projectName, lowestEnvName, req)
 		if err != nil {
 			s.logger.Error("Failed to build trait requests", "agentName", req.Name, "error", err)
 			rollbackAgentCreate("trait build failure")
@@ -1992,6 +1999,7 @@ func (s *agentManagerService) createComponentAgent(ctx context.Context, ouID, pr
 				return envErr
 			}
 			kindEnvVars = append(kindEnvVars, identityEnvVars...)
+			kindEnvVars = append(kindEnvVars, apiKeyEnvVars...)
 			kindEndpoints := inputInterfaceToEndpoints(createAgentReq.InputInterface, req.Name)
 			// Env/Files are carried to the binding below, not the Workload: a value on the
 			// Workload is inherited by every environment and a binding can replace but never
@@ -2029,6 +2037,16 @@ func (s *agentManagerService) createComponentAgent(ctx context.Context, ouID, pr
 					s.logger.Error("Failed to persist GitHub App source binding", "agentName", req.Name, "error", err)
 					rollbackAgentCreate("GitHub App source binding failure")
 					return fmt.Errorf("failed to persist GitHub App source binding: %w", err)
+				}
+			}
+			// The agent API key env var is seeded on the Component rather than this run, so
+			// that a later build still carries it if this one fails before creating the first
+			// ReleaseBinding.
+			if len(apiKeyEnvVars) > 0 {
+				if err := s.ocClient.UpdateComponentEnvVars(ctx, ouID, projectName, req.Name, apiKeyEnvVars); err != nil {
+					s.logger.Error("Failed to seed agent API key env var", "agentName", req.Name, "error", err)
+					rollbackAgentCreate("agent API key env var failure")
+					return fmt.Errorf("failed to seed agent API key env var: %w", err)
 				}
 			}
 			if err := s.triggerInitialBuild(ctx, ouID, projectName, req, identityEnvVars); err != nil {
@@ -3633,7 +3651,7 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, ouID string, proj
 	// Always filter user-echoed copies of the identity keys (the console reads
 	// configurations back and may round-trip them), even when there is nothing
 	// to re-inject — these keys are system-owned, never user-writable.
-	systemManagedKeys = mergeAgentIdentityEnvVarKeys(systemManagedKeys)
+	systemManagedKeys = mergeAgentAPIKeyEnvVarKey(mergeAgentIdentityEnvVarKeys(systemManagedKeys))
 
 	// Filter out system-managed env vars from the deploy request before processEnvVars.
 	// The frontend may include these (e.g., LLM config API key) in req.Env because it reads
@@ -4860,8 +4878,8 @@ func (s *agentManagerService) PromoteAgent(ctx context.Context, ouID string, pro
 	// This runs AFTER the src-vs-tgt validation above, which must only compare
 	// DB-backed LLM/system configuration. The target environment's own identity
 	// vars are appended below.
-	srcSystemKeys = mergeAgentIdentityEnvVarKeys(srcSystemKeys)
-	tgtSystemKeys = mergeAgentIdentityEnvVarKeys(tgtSystemKeys)
+	srcSystemKeys = mergeAgentAPIKeyEnvVarKey(mergeAgentIdentityEnvVarKeys(srcSystemKeys))
+	tgtSystemKeys = mergeAgentAPIKeyEnvVarKey(mergeAgentIdentityEnvVarKeys(tgtSystemKeys))
 
 	// Best-effort kick-off: the target environment may have been added to the
 	// org AFTER this agent was created, so its AgentID binding could be
@@ -5138,13 +5156,13 @@ func (s *agentManagerService) PromoteAgent(ctx context.Context, ouID string, pro
 		traitEnvConfigs = buildTraitEnvConfigs(agentName, policies, legacyArtifactID, resilienceTimeoutSeconds, promotePythonBuildpack, promoteBallerinaBuildpack, tracingCfg.EnableAutoInstrumentation, promoteInstrumentationImage, legacyArtifact != nil)
 		promoteCTConfigs = buildComponentTypeEnvConfigs(targetEnv)
 
-		apiKey, apiKeyErr := s.generateAgentAPIKey(ctx, ouID, projectName, agentName, req.TargetEnvironment)
-		if apiKeyErr != nil {
-			s.logger.Warn("Failed to generate agent API key for promotion", "agentName", agentName, "environment", req.TargetEnvironment, "error", apiKeyErr)
-		} else if apiKeySecretRef, apiKeySecretProperty, storeErr := s.storeAgentAPIKey(ctx, ouID, projectName, agentName, req.TargetEnvironment, apiKey); storeErr != nil {
-			s.logger.Warn("Failed to store agent API key for promotion", "agentName", agentName, "environment", req.TargetEnvironment, "error", storeErr)
+		// The target environment gets its own agent API key. Copies cloned from the source
+		// environment or sent in the request were dropped above as system-managed.
+		if apiKeyEnvVar, apiKeyErr := s.provisionAgentAPIKeyEnvVar(ctx, ouID, projectName, agentName, req.TargetEnvironment); apiKeyErr != nil {
+			s.logger.Warn("Failed to provision agent API key for promotion", "agentName", agentName, "environment", req.TargetEnvironment, "error", apiKeyErr)
 		} else {
-			injectAgentAPIKeySecretRef(traitEnvConfigs, agentName, apiKeySecretRef, apiKeySecretProperty)
+			envOverrides = append(envOverrides, apiKeyEnvVar)
+			useEnvVarAgentAPIKey(traitEnvConfigs, agentName)
 		}
 
 		var promoteResilienceTimeoutSeconds *int32
@@ -5934,7 +5952,7 @@ func (s *agentManagerService) UpdateAgentConfigurations(ctx context.Context, ouI
 			return fmt.Errorf("failed to build agent identity env vars: %w", idErr)
 		}
 	}
-	systemManagedKeys = mergeAgentIdentityEnvVarKeys(systemManagedKeys)
+	systemManagedKeys = mergeAgentAPIKeyEnvVarKey(mergeAgentIdentityEnvVarKeys(systemManagedKeys))
 
 	// Build env overrides (nil-vs-empty has meaning at the client layer: nil = leave existing,
 	// empty slice = clear).
@@ -6018,7 +6036,8 @@ func isValidPromotionPath(promotionPaths []models.PromotionPath, source, target 
 // System-managed secret env vars are identified by looking up the secretRef in the DB: if it is
 // recorded in agent_env_config_variables_mapping for this agent's LLM configurations, it is
 // system-managed. This is provider-agnostic — it does not rely on secret reference name
-// patterns.
+// patterns. The agent API key env var (agentAPIKeyEnvVar) is recognized by its key instead,
+// since its SecretReference is not recorded there.
 //
 // These must be handled separately from processEnvVars because processEnvVars would use the
 // env var name (e.g., "CUSTOM_API_KEY") as the SecretKeyRef.Key, but the actual key in the
@@ -6058,7 +6077,9 @@ func (s *agentManagerService) getSystemManagedEnvVars(
 		if !existing.IsSensitive || existing.SecretRef == "" {
 			continue
 		}
-		if _, isLLMRef := llmSecretRefs[existing.SecretRef]; !isLLMRef {
+		// The agent API key is system-owned whatever its SecretReference is named.
+		_, isLLMRef := llmSecretRefs[existing.SecretRef]
+		if !isLLMRef && existing.Key != client.EnvVarAgentAPIKey {
 			continue
 		}
 		secretKey := existing.SecretKey

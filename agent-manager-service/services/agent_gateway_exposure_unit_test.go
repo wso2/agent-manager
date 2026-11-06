@@ -186,7 +186,7 @@ func TestCreateAttachesNoRouteTraits(t *testing.T) {
 				AgentType: &spec.AgentType{Type: string(utils.AgentTypeAPI), SubType: &subType},
 			}
 
-			traits, err := s.buildCreateTraitRequests(context.Background(), "acme", "proj1", "dev", req)
+			traits, _, err := s.buildCreateTraitRequests(context.Background(), "acme", "proj1", "dev", req)
 
 			require.NoError(t, err)
 			assert.Nil(t, findTraitRequest(traits, client.TraitAPIManagement))

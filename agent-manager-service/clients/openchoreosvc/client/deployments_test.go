@@ -48,11 +48,26 @@ func TestMergeAgentAPIKeySecretRef(t *testing.T) {
 		assert.Empty(t, got)
 	})
 
-	t.Run("existing entry has empty ref returns incoming unchanged", func(t *testing.T) {
+	t.Run("existing empty ref is carried forward", func(t *testing.T) {
+		// An empty ref marks an environment whose key comes from the agent's env vars;
+		// dropping it would let the trait fall back to the path in its parameters.
 		existing := map[string]interface{}{envInjKey: map[string]interface{}{"agentApiKeySecretRef": ""}}
-		incoming := map[string]interface{}{}
+		incoming := map[string]interface{}{envInjKey: map[string]interface{}{"envInjectionEnabled": true}}
 		got := mergeAgentAPIKeySecretRef(&existing, incoming, "myagent")
-		_, present := got[envInjKey]
+		entry := got[envInjKey].(map[string]interface{})
+		ref, present := entry["agentApiKeySecretRef"]
+		assert.True(t, present)
+		assert.Equal(t, "", ref)
+		assert.Equal(t, true, entry["envInjectionEnabled"])
+	})
+
+	t.Run("incoming empty ref replaces an existing path", func(t *testing.T) {
+		existing := map[string]interface{}{envInjKey: map[string]interface{}{"agentApiKeySecretRef": "old/path", "agentApiKeySecretProperty": "api-key"}}
+		incoming := map[string]interface{}{envInjKey: map[string]interface{}{"agentApiKeySecretRef": ""}}
+		got := mergeAgentAPIKeySecretRef(&existing, incoming, "myagent")
+		entry := got[envInjKey].(map[string]interface{})
+		assert.Equal(t, "", entry["agentApiKeySecretRef"])
+		_, present := entry["agentApiKeySecretProperty"]
 		assert.False(t, present)
 	})
 

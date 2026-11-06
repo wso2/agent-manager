@@ -371,7 +371,9 @@ func replaceHealthChecksInComponentTypeConfigs(componentTypeConfigs *map[string]
 
 // mergeAgentAPIKeySecretRef carries the env-injection trait's agentApiKeySecretRef/Property
 // forward from existing into incoming when incoming doesn't already set its own value, so a
-// wholesale trait-config replacement can't silently drop it. Never mutates existing or incoming
+// wholesale trait-config replacement can't silently drop it. An empty agentApiKeySecretRef is
+// a value too: it marks an environment whose agent API key comes from the agent's env vars,
+// and must survive so the trait does not fall back to the path in its parameters. Never mutates existing or incoming
 // (or their nested entries): retryReleaseBindingUpdate re-invokes its callback with a freshly
 // refetched existing on conflict, and a prior attempt's merge must not leak into that retry.
 func mergeAgentAPIKeySecretRef(existing *map[string]interface{}, incoming map[string]interface{}, componentName string) map[string]interface{} {
@@ -384,11 +386,11 @@ func mergeAgentAPIKeySecretRef(existing *map[string]interface{}, incoming map[st
 		return incoming
 	}
 	existingRef, ok := existingCfg["agentApiKeySecretRef"].(string)
-	if !ok || existingRef == "" {
+	if !ok {
 		return incoming
 	}
 	incomingCfg, _ := incoming[envInjKey].(map[string]interface{})
-	if ref, ok := incomingCfg["agentApiKeySecretRef"].(string); ok && ref != "" {
+	if _, ok := incomingCfg["agentApiKeySecretRef"].(string); ok {
 		return incoming
 	}
 	merged := make(map[string]interface{}, len(incoming)+1)

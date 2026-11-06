@@ -12,7 +12,7 @@ spec:
       properties:
         agentApiKeySecretRef:
           type: string
-          description: "Remote-store reference (ExternalSecret remoteRef key) of the agent API key. The raw key is never passed to the trait — only this reference."
+          description: "Remote-store reference (ExternalSecret remoteRef key) of the agent API key, set only for agents created before the key moved to the agent's AMP_AGENT_API_KEY env var. When empty, the trait does not deliver the key itself."
         agentApiKeySecretProperty:
           type: string
           description: "Optional property within the remote secret that holds the agent API key (ExternalSecret remoteRef property)."
@@ -28,8 +28,6 @@ spec:
           type: string
           default: "AMP_AGENT_API_KEY"
           description: "Name of the environment variable to inject the agent API key into. Override per language (e.g. Ballerina uses BAL_CONFIG_VAR_BALLERINAX_AMP_APIKEY)."
-      required:
-        - agentApiKeySecretRef
 
   environmentConfigs:
     openAPIV3Schema:
@@ -40,17 +38,19 @@ spec:
           description: "Enable or disable env injection instrumentation for this environment"
         agentApiKeySecretRef:
           type: string
-          description: "Environment-specific remote-store reference of the agent API key (ExternalSecret remoteRef key)."
+          description: "Environment-specific remote-store reference of the agent API key (ExternalSecret remoteRef key). An empty value means this environment's key comes from the agent's AMP_AGENT_API_KEY env var, even when parameters.agentApiKeySecretRef is set."
         agentApiKeySecretProperty:
           type: string
           description: "Environment-specific property within the remote secret that holds the agent API key (ExternalSecret remoteRef property)."
 
-  # Always create the ExternalSecret — patches always run regardless of includeWhen,
-  # so the materialized Secret must always exist to satisfy the AMP_AGENT_API_KEY secretKeyRef.
-  # The agent API key value lives in the KV store; here we only reference it by its KV path
-  # (agentApiKeySecretRef), so the raw key is never persisted in the control plane.
+  # The agent API key reaches the pod as the AMP_AGENT_API_KEY env var, which the agent
+  # manager sets on the workload as a reference to the key's SecretReference, by name.
+  # Agents created before that still carry the key's KV path (agentApiKeySecretRef); for
+  # them this ExternalSecret fetches it and the legacy patch below injects it. The raw key
+  # is never persisted in the control plane either way.
   creates:
-    - template:
+    - includeWhen: '${(has(environmentConfigs.agentApiKeySecretRef) ? environmentConfigs.agentApiKeySecretRef : (has(parameters.agentApiKeySecretRef) ? parameters.agentApiKeySecretRef : "")) != ""}'
+      template:
         apiVersion: external-secrets.io/v1
         kind: ExternalSecret
         metadata:
@@ -72,8 +72,8 @@ spec:
                 property: |-
                   ${has(environmentConfigs.agentApiKeySecretProperty) ? environmentConfigs.agentApiKeySecretProperty : (has(parameters.agentApiKeySecretProperty) ? parameters.agentApiKeySecretProperty : oc_omit())}
 
-  # Patches to inject AMP_OTEL_ENDPOINT and AMP_AGENT_API_KEY.
-  # This is the sole injector for these vars across all agent types.
+  # Patches to inject AMP_OTEL_ENDPOINT and, under apiKeyEnvName, the agent API key.
+  # This is the sole injector of AMP_OTEL_ENDPOINT across all agent types.
   # Gated by envInjectionEnabled (per-environment overridable) the same way the
   # OTEL instrumentation traits gate on instrumentationEnabled: when false the
   # 'where' clause filters out the target so no env vars are injected. The
@@ -106,6 +106,14 @@ spec:
             # per-env in-cluster Service does not apply). Leave empty for the
             # default in-cluster runtime endpoint.
             value: {{ if .Values.apiPlatformGatewayVhost.otelEndpointOverride }}{{ .Values.apiPlatformGatewayVhost.otelEndpointOverride | quote }}{{ else }}"http://{{ include "amp.gatewayRuntimeHost" . }}:22893/otel"{{ end }}
+    # Legacy agents: inject the key from the ExternalSecret above.
+    - target:
+        kind: SandboxTemplate
+        group: extensions.agents.x-k8s.io
+        version: v1alpha1
+        where: |
+          ${(has(environmentConfigs.envInjectionEnabled) ? environmentConfigs.envInjectionEnabled : parameters.envInjectionEnabled) && (has(environmentConfigs.agentApiKeySecretRef) ? environmentConfigs.agentApiKeySecretRef : (has(parameters.agentApiKeySecretRef) ? parameters.agentApiKeySecretRef : "")) != ""}
+      operations:
         - op: add
           path: /spec/podTemplate/spec/containers/0/env/-
           value:
@@ -114,3 +122,18 @@ spec:
               secretKeyRef:
                 name: ${metadata.name}-agent-api-key
                 key: api-key
+    # Agents whose key is the AMP_AGENT_API_KEY env var but that read it under another
+    # name (Ballerina): copy it there. Kubernetes expands $(AMP_AGENT_API_KEY) from the
+    # container's envFrom, where the workload's secret env vars land.
+    - target:
+        kind: SandboxTemplate
+        group: extensions.agents.x-k8s.io
+        version: v1alpha1
+        where: |
+          ${(has(environmentConfigs.envInjectionEnabled) ? environmentConfigs.envInjectionEnabled : parameters.envInjectionEnabled) && (has(environmentConfigs.agentApiKeySecretRef) ? environmentConfigs.agentApiKeySecretRef : (has(parameters.agentApiKeySecretRef) ? parameters.agentApiKeySecretRef : "")) == "" && parameters.apiKeyEnvName != "AMP_AGENT_API_KEY"}
+      operations:
+        - op: add
+          path: /spec/podTemplate/spec/containers/0/env/-
+          value:
+            name: ${parameters.apiKeyEnvName}
+            value: "$(AMP_AGENT_API_KEY)"
