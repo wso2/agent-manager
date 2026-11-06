@@ -522,10 +522,11 @@ func (s *agentIdentityInjectionService) buildEnvVars(ctx context.Context, bindin
 	}, nil
 }
 
-// isLegacySecretRefPath reports whether a binding's stored SecretRefPath is a
-// KV path from before the secret provider owned the SecretReference. Those
-// bindings may still have a SecretReference the identity injection service
-// created directly, which the secret API cannot see or delete.
+// isLegacySecretRefPath reports whether a stored secret reference is a remote
+// store path, written before the SecretReference name was persisted, rather
+// than a SecretReference name (which never contains "/"). For an Agent ID
+// binding, such a row may still have a SecretReference the identity injection
+// service created directly, which the secret API cannot see or delete.
 func isLegacySecretRefPath(secretRefPath string) bool {
 	return strings.Contains(secretRefPath, "/")
 }

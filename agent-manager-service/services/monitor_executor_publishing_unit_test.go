@@ -49,13 +49,14 @@ func TestMonitorExecutor_buildPublishingParams(t *testing.T) {
 		return &monitorExecutor{logger: discardLogger(), credRepo: credRepo, provisioner: prov}
 	}
 
-	t.Run("uses the stored credentials without calling the provisioner", func(t *testing.T) {
+	t.Run("passes the stored SecretReference name without calling the provisioner", func(t *testing.T) {
 		credRepo := &repomocks.OrgPublisherCredentialRepositoryMock{
 			GetByOrgNameFunc: func(ouID string) (*models.OrgPublisherCredential, error) {
 				assert.Equal(t, "acme", ouID)
 				return &models.OrgPublisherCredential{
+					OUID:         "acme",
 					ClientID:     "acme-publisher",
-					SecretKVPath: "orgs/acme/amp-publisher",
+					SecretKVPath: "amp-publisher-acme-secrets",
 					SecretKey:    "client-secret",
 				}, nil
 			},
@@ -67,8 +68,29 @@ func TestMonitorExecutor_buildPublishingParams(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.Equal(t, "acme-publisher", params["clientId"])
-		assert.Equal(t, "orgs/acme/amp-publisher", params["secretKVPath"])
-		assert.Equal(t, "client-secret", params["secretKey"])
+		assert.Equal(t, "amp-publisher-acme-secrets", params["secretRefName"])
+		assert.NotContains(t, params, "secretKVPath", "the workflow resolves the SecretReference itself")
+		assert.NotContains(t, params, "secretKey")
+	})
+
+	t.Run("maps a stored legacy KV path to the deterministic SecretReference name", func(t *testing.T) {
+		credRepo := &repomocks.OrgPublisherCredentialRepositoryMock{
+			GetByOrgNameFunc: func(string) (*models.OrgPublisherCredential, error) {
+				return &models.OrgPublisherCredential{
+					OUID:         "acme",
+					ClientID:     "acme-publisher",
+					SecretKVPath: "secret/acme/generic/amp-publisher-acme-secrets",
+					SecretKey:    "client-secret",
+				}, nil
+			},
+		}
+		e := newExecutor(credRepo, &fakeProvisioner{})
+
+		params, err := e.buildPublishingParams(context.Background(), monitor, runID)
+
+		require.NoError(t, err)
+		assert.Equal(t, publisherSecretLocation("acme").SecretRefName(), params["secretRefName"])
+		assert.NotContains(t, params, "secretKVPath")
 	})
 
 	t.Run("provisions on demand when no credentials are stored", func(t *testing.T) {
@@ -82,9 +104,8 @@ func TestMonitorExecutor_buildPublishingParams(t *testing.T) {
 			EnsureCredentialsFunc: func(_ context.Context, ouID, orgUUID string) (*PublisherCredentials, error) {
 				gotOUID, gotOrgUUID = ouID, orgUUID
 				return &PublisherCredentials{
-					ClientID:     "provisioned-client",
-					SecretKVPath: "orgs/acme/amp-publisher",
-					SecretKey:    "client-secret",
+					ClientID:      "provisioned-client",
+					SecretRefName: "amp-publisher-acme-secrets",
 				}, nil
 			},
 		}
@@ -94,6 +115,7 @@ func TestMonitorExecutor_buildPublishingParams(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.Equal(t, "provisioned-client", params["clientId"])
+		assert.Equal(t, "amp-publisher-acme-secrets", params["secretRefName"])
 		assert.Equal(t, "acme", gotOUID)
 		// ouID is the Thunder OU ID, so it is also the orgUUID.
 		assert.Equal(t, "acme", gotOrgUUID)
@@ -134,6 +156,7 @@ func TestMonitorExecutor_buildPublishingParams(t *testing.T) {
 		assert.Equal(t, "amp-publisher-client", params["clientId"])
 		assert.Equal(t, "amp-publisher-client-secret", params["secretKVPath"])
 		assert.Equal(t, "value", params["secretKey"])
+		assert.NotContains(t, params, "secretRefName", "static credentials have no SecretReference")
 	})
 
 	t.Run("propagates a real lookup error instead of provisioning", func(t *testing.T) {

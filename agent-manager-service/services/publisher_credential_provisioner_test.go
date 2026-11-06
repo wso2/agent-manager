@@ -35,15 +35,6 @@ import (
 
 var testEncryptionKey = []byte("01234567890123456789012345678901") // 32 bytes for AES-256
 
-func newTestSecretRef(kvPath, property string) *occlient.SecretReferenceInfo {
-	return &occlient.SecretReferenceInfo{
-		Name: "some-secret-ref",
-		Data: []occlient.SecretDataSourceInfo{
-			{SecretKey: "client-secret", RemoteRef: occlient.RemoteRefInfo{Key: kvPath, Property: property}},
-		},
-	}
-}
-
 // Regression guard: only the scheduler credential is bound to amp-monitor-scheduler, never the publisher one.
 func TestEnsureCredentials_NewOrg_BindsOnlySchedulerCredential(t *testing.T) {
 	var boundClientIDs []string
@@ -63,9 +54,6 @@ func TestEnsureCredentials_NewOrg_BindsOnlySchedulerCredential(t *testing.T) {
 			boundClientIDs = append(boundClientIDs, clientID)
 			boundRoles = append(boundRoles, roleName)
 			return nil
-		},
-		GetSecretReferenceFunc: func(_ context.Context, _ string, secretRefName string) (*occlient.SecretReferenceInfo, error) {
-			return newTestSecretRef("kv/"+secretRefName, "client-secret"), nil
 		},
 	}
 
@@ -108,15 +96,20 @@ func TestEnsureCredentials_NewOrg_BindsOnlySchedulerCredential(t *testing.T) {
 		orgOCClients:      make(map[string]occlient.OpenChoreoClient),
 	}
 
+	// GetSecretReferenceFunc is nil: the SecretReference names returned by
+	// CreateSecret are stored as-is, never read back through OpenChoreo.
 	creds, err := p.EnsureCredentials(context.Background(), "acme", "org-uuid-1")
 	require.NoError(t, err)
 	assert.Equal(t, "amp-publisher-acme", creds.ClientID)
+	assert.Equal(t, "ref-amp-publisher-acme", creds.SecretRefName)
 
 	require.Len(t, publisherUpserts, 1)
 	assert.Equal(t, "amp-publisher-acme", publisherUpserts[0].ClientID)
+	assert.Equal(t, "ref-amp-publisher-acme", publisherUpserts[0].SecretKVPath)
 
 	require.Len(t, schedulerUpserts, 1)
 	assert.Equal(t, "amp-scheduler-acme", schedulerUpserts[0].ClientID)
+	assert.Equal(t, "ref-amp-scheduler-acme", schedulerUpserts[0].SecretKVPath)
 
 	require.Len(t, boundClientIDs, 1, "EnsureClusterRoleBinding should be called exactly once")
 	assert.Equal(t, "amp-scheduler-acme", boundClientIDs[0])
@@ -230,9 +223,6 @@ func TestGetOCClientForOrg_ProvisionsOnDemand_WhenSchedulerCredMissing(t *testin
 			assert.Equal(t, schedulerRoleName, roleName)
 			return nil
 		},
-		GetSecretReferenceFunc: func(_ context.Context, _ string, secretRefName string) (*occlient.SecretReferenceInfo, error) {
-			return newTestSecretRef("kv/"+secretRefName, "client-secret"), nil
-		},
 	}
 	secretClient := &clientmocks.SecretManagementClientMock{
 		CreateSecretFunc: func(_ context.Context, location secretmanagersvc.SecretLocation, _ map[string]string) (string, error) {
@@ -281,9 +271,6 @@ func TestGetOCClientForOrg_RealDBErrorOnRecheck_NotMisreportedAsNotFound(t *test
 	}
 	ocMock := &clientmocks.OpenChoreoClientMock{
 		EnsureClusterRoleBindingFunc: func(_ context.Context, _ string, _ string) error { return nil },
-		GetSecretReferenceFunc: func(_ context.Context, _ string, secretRefName string) (*occlient.SecretReferenceInfo, error) {
-			return newTestSecretRef("kv/"+secretRefName, "client-secret"), nil
-		},
 	}
 	secretClient := &clientmocks.SecretManagementClientMock{
 		CreateSecretFunc: func(_ context.Context, location secretmanagersvc.SecretLocation, _ map[string]string) (string, error) {
@@ -327,9 +314,6 @@ func TestProvisionSchedulerCredentials_EvictsCachedOrgOCClient(t *testing.T) {
 
 	ocMock := &clientmocks.OpenChoreoClientMock{
 		EnsureClusterRoleBindingFunc: func(_ context.Context, _ string, _ string) error { return nil },
-		GetSecretReferenceFunc: func(_ context.Context, _ string, secretRefName string) (*occlient.SecretReferenceInfo, error) {
-			return newTestSecretRef("kv/"+secretRefName, "client-secret"), nil
-		},
 	}
 
 	credRepo := &repomocks.OrgPublisherCredentialRepositoryMock{
