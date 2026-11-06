@@ -5075,6 +5075,9 @@ type MCPProxyEndpoint struct {
 	// Id Endpoint handle, unique within the parent proxy
 	Id string `json:"id"`
 
+	// McpSpecVersions MCP specification versions this endpoint's upstream server supports, for example from the supportedVersions of /mcp-proxies/fetch-server-info. Each value is a date (YYYY-MM-DD). Deployed to this endpoint's gateway artifacts; when absent, the proxy's mcpSpecVersion is used.
+	McpSpecVersions *[]string `json:"mcpSpecVersions,omitempty"`
+
 	// Name Human-readable endpoint name
 	Name     *string      `json:"name,omitempty"`
 	Policies *[]MCPPolicy `json:"policies,omitempty"`
@@ -5356,8 +5359,11 @@ type MCPServerInfoFetchResponse struct {
 	Resources *[]map[string]interface{} `json:"resources,omitempty"`
 
 	// ServerInfo MCP server metadata returned by initialize
-	ServerInfo *map[string]interface{}   `json:"serverInfo,omitempty"`
-	Tools      *[]map[string]interface{} `json:"tools,omitempty"`
+	ServerInfo *map[string]interface{} `json:"serverInfo,omitempty"`
+
+	// SupportedVersions MCP specification versions the upstream server supports. For a server that answers server/discover (MCP 2026-07-28 and later), the versions it reported; for an earlier server, the version agreed in the initialize handshake.
+	SupportedVersions *[]string                 `json:"supportedVersions,omitempty"`
+	Tools             *[]map[string]interface{} `json:"tools,omitempty"`
 }
 
 // ModelConfigRequest defines model for ModelConfigRequest.

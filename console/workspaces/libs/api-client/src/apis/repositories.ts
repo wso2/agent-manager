@@ -16,6 +16,7 @@
  * under the License.
  */
 
+import { backendFetch } from "@agent-management-platform/auth";
 import { SERVICE_BASE, serializeRequestBody } from "../utils";
 import  {
   type ListBranchesRequest,
@@ -51,7 +52,7 @@ export async function listBranches(
     requestHeaders["Authorization"] = `Bearer ${token}`;
   }
 
-  const response = await fetch(
+  const response = await backendFetch(
     `${baseUrl}${SERVICE_BASE}/orgs/${orgName}/repositories/branches?${new URLSearchParams(search).toString()}`,
     {
       method: "POST",
@@ -96,7 +97,7 @@ export async function listCommits(
     requestHeaders["Authorization"] = `Bearer ${token}`;
   }
 
-  const response = await fetch(
+  const response = await backendFetch(
     `${baseUrl}${SERVICE_BASE}/orgs/${orgName}/repositories/commits?${new URLSearchParams(search).toString()}`,
     {
       method: "POST",

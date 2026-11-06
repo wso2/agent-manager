@@ -18,8 +18,21 @@
 
 import { useThunderID, useUser } from "@thunderid/react";
 import type { ThunderIDUserProfile, UserInfo } from "../../types";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { globalConfig, withBasePath } from "@agent-management-platform/types";
+import {
+  backendEndpoints,
+  endBackendSession,
+  isBackendSessionEnded,
+  subscribeBackendSessionEnded,
+} from "../backendSession";
 
 const decodeJWTPart = (part: string): Record<string, unknown> | null => {
   try {
@@ -40,6 +53,10 @@ const decodeJWT = (token: string) => {
     payload: decodeJWTPart(payload),
   };
 };
+
+// One function for every render: callers list getToken in effect dependencies, so a new
+// function per render re-runs those effects (and their fetches) on every render.
+const noBackendToken = (): Promise<string> => Promise.resolve("");
 
 export type AuthHooks = {
   isAuthenticated: boolean;
@@ -67,6 +84,8 @@ export const useAuthHooks = (): AuthHooks => {
     signIn,
     signInOptions,
     getAccessToken,
+    getDecodedIdToken,
+    getGrantedPermissions,
     signInSilently,
     signOut,
     isSignedIn = false,
@@ -89,8 +108,32 @@ export const useAuthHooks = (): AuthHooks => {
   // still holds the signed-out null, which must count as loading, not as "no claims".
   const [payloadIsSignedIn, setPayloadIsSignedIn] = useState(false);
 
+  // Sign-in on the backend (BFF): the gateway's oauth2-session holds the tokens
+  // and the browser only an HttpOnly session cookie, so there is no access token
+  // here to read claims from or to attach to API calls.
+  const isBackendAuth = Boolean(backendEndpoints());
+  const isSessionEnded = useSyncExternalStore(
+    subscribeBackendSessionEnded,
+    isBackendSessionEnded,
+  );
+
+  const wasSignedIn = useRef(false);
+  useEffect(() => {
+    if (!isBackendAuth || !isInitialized) return;
+    if (isSignedIn) {
+      wasSignedIn.current = true;
+    } else if (wasSignedIn.current) {
+      wasSignedIn.current = false;
+      endBackendSession();
+    }
+  }, [isBackendAuth, isInitialized, isSignedIn]);
+
   const getAccessTokenRef = useRef(getAccessToken);
   getAccessTokenRef.current = getAccessToken;
+  const getDecodedIdTokenRef = useRef(getDecodedIdToken);
+  getDecodedIdTokenRef.current = getDecodedIdToken;
+  const getGrantedPermissionsRef = useRef(getGrantedPermissions);
+  getGrantedPermissionsRef.current = getGrantedPermissions;
 
   useEffect(() => {
     if (!isSignedIn || !isInitialized) {
@@ -101,22 +144,31 @@ export const useAuthHooks = (): AuthHooks => {
       return;
     }
     let cancelled = false;
-    const tokenPromise = getAccessTokenRef.current?.();
-    if (!tokenPromise) {
+    // On the backend the same claims come from the session: the id_token's,
+    // with the granted permissions standing in for the access token's scope.
+    // No id_token claims means no payload, as with no token below.
+    const payloadPromise = isBackendAuth
+      ? Promise.all([
+          getDecodedIdTokenRef.current(),
+          getGrantedPermissionsRef.current(),
+        ]).then(([idToken, permissions]) => {
+          const claims = idToken as Record<string, unknown> | undefined;
+          return claims && Object.keys(claims).length > 0
+            ? { ...claims, scope: (permissions ?? []).join(" ") }
+            : null;
+        })
+      : getAccessTokenRef.current?.()?.then((token) =>
+          token ? (decodeJWT(token)?.payload ?? null) : null,
+        );
+    if (!payloadPromise) {
       setAccessTokenPayload(null);
       setPayloadIsSignedIn(true);
       return;
     }
-    tokenPromise
-      .then((token) => {
+    payloadPromise
+      .then((payload) => {
         if (cancelled) return;
-        if (!token) {
-          setAccessTokenPayload(null);
-          setPayloadIsSignedIn(true);
-          return;
-        }
-        const decoded = decodeJWT(token);
-        setAccessTokenPayload(decoded?.payload ?? null);
+        setAccessTokenPayload(payload);
         setPayloadIsSignedIn(true);
       })
       .catch(() => {
@@ -127,17 +179,19 @@ export const useAuthHooks = (): AuthHooks => {
     return () => {
       cancelled = true;
     };
-  }, [isSignedIn, isInitialized]);
+  }, [isSignedIn, isInitialized, isBackendAuth]);
 
   const userInfo = useMemo(() => {
+    const claims = isSessionEnded ? null : accessTokenPayload;
+    const nameSource = profileAttributes ?? claims;
     return {
       email: profileAttributes?.email,
-      familyName: profileAttributes?.family_name,
-      givenName: profileAttributes?.given_name,
+      familyName: nameSource?.family_name,
+      givenName: nameSource?.given_name,
       username: profileAttributes?.username,
-      ...(accessTokenPayload ?? {}),
+      ...(claims ?? {}),
     } as UserInfo;
-  }, [profileAttributes, accessTokenPayload]);
+  }, [profileAttributes, accessTokenPayload, isSessionEnded]);
 
   const customLogin = () => {
     // signInOptions has to be passed explicitly. The provider prop is only
@@ -166,21 +220,26 @@ export const useAuthHooks = (): AuthHooks => {
     }
   }, [signOut]);
 
-  const safeGetToken: () => Promise<string> =
-    getAccessToken ??
-    (() => Promise.reject(new Error("getAccessToken is not available")));
+  // On the backend an API call carries the session cookie and the gateway adds
+  // the token, so callers get an empty one and the HTTP helpers, which only set
+  // Authorization for a token, send none.
+  const safeGetToken: () => Promise<string> = isBackendAuth
+    ? noBackendToken
+    : (getAccessToken ??
+      (() => Promise.reject(new Error("getAccessToken is not available"))));
 
   const safeSignInSilently: () => Promise<unknown> =
     signInSilently ??
     (() => Promise.reject(new Error("signInSilently is not available")));
 
   return {
-    isAuthenticated: isSignedIn && isInitialized,
+    isAuthenticated: isSignedIn && isInitialized && !isSessionEnded,
     userInfo,
     isLoadingUserInfo: isLoading,
     isLoadingIsAuthenticated: !isInitialized || isLoading,
     isLoadingAccessToken:
-      accessTokenPayload === undefined || (isSignedIn && !payloadIsSignedIn),
+      !isSessionEnded &&
+      (accessTokenPayload === undefined || (isSignedIn && !payloadIsSignedIn)),
     getToken: safeGetToken,
     login: customLogin,
     logout: handleLogout,

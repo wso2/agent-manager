@@ -26725,6 +26725,7 @@ type UpdateAgentConfigurationsResp struct {
 	JSON400      *ErrorResponse
 	JSON404      *ErrorResponse
 	JSON500      *ErrorResponse
+	JSON503      *ErrorResponse
 }
 
 // Status returns HTTPResponse.Status
@@ -26799,6 +26800,7 @@ type DeployAgentResp struct {
 	JSON404      *ErrorResponse
 	JSON409      *ErrorResponse
 	JSON500      *ErrorResponse
+	JSON503      *ErrorResponse
 }
 
 // Status returns HTTPResponse.Status
@@ -28393,6 +28395,7 @@ type PromoteAgentResp struct {
 	JSON404      *ErrorResponse
 	JSON409      *ErrorResponse
 	JSON500      *ErrorResponse
+	JSON503      *ErrorResponse
 }
 
 // Status returns HTTPResponse.Status
@@ -40211,6 +40214,13 @@ func ParseUpdateAgentConfigurationsResp(rsp *http.Response) (*UpdateAgentConfigu
 		}
 		response.JSON500 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
 	}
 
 	return response, nil
@@ -40344,6 +40354,13 @@ func ParseDeployAgentResp(rsp *http.Response) (*DeployAgentResp, error) {
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -43310,6 +43327,13 @@ func ParsePromoteAgentResp(rsp *http.Response) (*PromoteAgentResp, error) {
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 

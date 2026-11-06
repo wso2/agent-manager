@@ -64,6 +64,11 @@ export interface ResourceListShellProps {
 
   /** The "happy path" content (typically a ListingTable). */
   children: React.ReactNode;
+  /**
+   * Set when the list already sits inside a box (a tabbed card, say), so its
+   * empty, search-empty and error states don't draw a second one.
+   */
+  disablePaper?: boolean;
 }
 
 const DEFAULT_LOADING_ROWS = 5;
@@ -113,6 +118,7 @@ export const ResourceListShell: React.FC<ResourceListShellProps> = ({
   emptyState,
   searchEmptyState,
   children,
+  disablePaper = false,
 }) => {
   const { track } = useTrack();
 
@@ -162,7 +168,7 @@ export const ResourceListShell: React.FC<ResourceListShellProps> = ({
   const renderBody = () => {
     if (error) {
       return (
-        <ListingTable.Container>
+        <ListingTable.Container disablePaper={disablePaper}>
           <Alert
             severity="error"
             icon={<AlertTriangle size={18} />}
@@ -186,7 +192,7 @@ export const ResourceListShell: React.FC<ResourceListShellProps> = ({
 
     if (isEmpty) {
       return (
-        <ListingTable.Container>
+        <ListingTable.Container disablePaper={disablePaper}>
           <ListingTable.EmptyState
             illustration={emptyState.illustration}
             title={emptyState.title}
@@ -204,7 +210,7 @@ export const ResourceListShell: React.FC<ResourceListShellProps> = ({
         description: "Try a different keyword or clear the search filter.",
       };
       return (
-        <ListingTable.Container>
+        <ListingTable.Container disablePaper={disablePaper}>
           <ListingTable.EmptyState
             illustration={empty.illustration}
             title={empty.title}

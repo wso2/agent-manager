@@ -18,16 +18,37 @@
 
 import {
   ThunderIDProvider,
+  useThunderID,
 } from "@thunderid/react";
+import { useEffect, useState } from "react";
 import { globalConfig } from "@agent-management-platform/types";
 import type { AuthProviderProps } from "../types";
+import {
+  clearBrowserSignInSession,
+  resolveAuthConfig,
+  setBackendAccessTokenProvider,
+} from "./backendSession";
+
+const BackendAccessToken = () => {
+  const { getAccessToken } = useThunderID();
+  useEffect(() => {
+    setBackendAccessTokenProvider(getAccessToken);
+    return () => setBackendAccessTokenProvider(undefined);
+  }, [getAccessToken]);
+  return null;
+};
 
 
 export const AuthProvider = ({ children }: AuthProviderProps) => {
-  const { authConfig } = globalConfig;
+  const [authConfig] = useState(() => {
+    const resolved = resolveAuthConfig(globalConfig.authConfig);
+    if (resolved.endpoints?.backend) clearBrowserSignInSession(resolved.clientId);
+    return resolved;
+  });
 
   return (
     <ThunderIDProvider {...authConfig}>
+      {authConfig.endpoints?.backend && <BackendAccessToken />}
       {children}
     </ThunderIDProvider>
   );

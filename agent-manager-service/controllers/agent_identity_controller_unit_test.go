@@ -40,7 +40,15 @@ import (
 
 // stubRSIdentifierResolver returns the absolute per-proxy invocation URI so tests
 // can assert the derived identifier reaches the RS ensure call.
-type stubRSIdentifierResolver struct{ err error }
+type stubRSIdentifierResolver struct {
+	err     error
+	ensured *[]ensureCall // records EnsureResourceServerInEnv calls when set
+}
+
+type ensureCall struct {
+	ouID, env, handle string
+	actions           []string
+}
 
 func (s stubRSIdentifierResolver) EnvironmentUUIDByName(_ context.Context, _, _ string) (uuid.UUID, error) {
 	return uuid.MustParse("11111111-1111-1111-1111-111111111111"), nil
@@ -69,6 +77,20 @@ func (s stubRSIdentifierResolver) EnsureResourceServer(
 		name = proxy.Artifact.Name
 	}
 	return client.EnsureProxyResourceServer(ctx, proxy.Handle, name, identifier, actions)
+}
+
+// EnsureResourceServerInEnv is the provider-based ensure CP_MANAGED role writes use. It records
+// the environment and actions, and returns a resource server ID derived from the proxy handle.
+func (s stubRSIdentifierResolver) EnsureResourceServerInEnv(
+	ctx context.Context, ouID string, envID uuid.UUID, envName string, proxy *models.MCPProxy, actions []string,
+) (string, error) {
+	if _, err := s.MCPResourceServerIdentifier(ctx, ouID, envID, proxy); err != nil {
+		return "", err
+	}
+	if s.ensured != nil {
+		*s.ensured = append(*s.ensured, ensureCall{ouID: ouID, env: envName, handle: proxy.Handle, actions: actions})
+	}
+	return "rs-" + proxy.Handle, nil
 }
 
 // TestAgentIdentityCreateRole_EnsuresPerProxyRSBeforePermissionWrite proves each

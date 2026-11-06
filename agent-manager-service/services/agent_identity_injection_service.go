@@ -187,11 +187,8 @@ type AgentIdentityInjectionService interface {
 
 	// RemoveForEnvironment removes the identity env vars from the agent's
 	// workload for one environment — used after a revoke, so the pod does not keep
-	// serving a credential that can no longer mint tokens. It also deletes the
-	// binding's SecretReference directly: the secret provider owns and deletes
-	// the ones it created, but a legacy SecretReference the identity injection
-	// service created itself is invisible to the provider, and this is the only
-	// path that removes it. Not-found is success.
+	// serving a credential that can no longer mint tokens. The SecretReference
+	// is not touched here: revoke deletes it before this runs.
 	// includeWorkloadLevel additionally removes the vars from the shared
 	// Workload CR; callers set it only when envName is the pipeline's lowest
 	// environment (the deploy flow writes that environment's vars at Workload
@@ -200,12 +197,13 @@ type AgentIdentityInjectionService interface {
 	// pod).
 	RemoveForEnvironment(ctx context.Context, ouID, projectName, agentName, envName string, includeWorkloadLevel bool) error
 
-	// CleanupForEnvironment deletes the binding's SecretReference directly —
-	// used on agent deletion, after the secret provider has deleted the
-	// credential it owns, and before re-storing a credential whose name is held
-	// by a legacy SecretReference. The provider cannot see a legacy
-	// SecretReference the identity injection service created itself, so this
-	// direct delete is what removes it. Best-effort: not-found is success.
+	// CleanupForEnvironment deletes the binding's SecretReference directly. It
+	// is only for a legacy SecretReference the identity injection service
+	// created itself, which the secret provider cannot see: callers use it on
+	// agent deletion and revoke of a binding with a legacy SecretRefPath, and
+	// before re-storing a credential whose name a legacy SecretReference holds.
+	// Provider-owned SecretReferences are deleted through the secret API
+	// instead. Best-effort: not-found is success.
 	CleanupForEnvironment(ctx context.Context, ouID, agentName, envName string) error
 }
 
@@ -332,7 +330,7 @@ func (s *agentIdentityInjectionService) currentShutdownContext() context.Context
 
 // defaultSecretSyncWait is the fallback wait when refreshInterval is unset or
 // invalid — defensive only, should not normally trigger.
-const defaultSecretSyncWait = 30 * time.Second
+const defaultSecretSyncWait = 10 * time.Minute
 
 // defaultForceSyncWait is the fallback wait after a successful force-sync
 // write when forceSyncWait is unset or invalid.
@@ -484,19 +482,6 @@ func (s *agentIdentityInjectionService) injectableBinding(ctx context.Context, o
 	return binding, nil
 }
 
-// deleteSecretReference deletes the data-plane SecretReference for one
-// binding directly. Still needed after the secret provider took ownership: it
-// is the only way to remove a legacy SecretReference this service created
-// itself, which the provider cannot see (see CleanupForEnvironment).
-// Best-effort by convention of every caller: not-found is success.
-func (s *agentIdentityInjectionService) deleteSecretReference(ctx context.Context, ouID, projectName, agentName, envName string) error {
-	refName := agentIdentitySecretLocation(ouID, projectName, agentName, envName).SecretRefName()
-	if err := s.ocClient.DeleteSecretReference(ctx, ouID, refName); err != nil && !errors.Is(err, utils.ErrNotFound) {
-		return fmt.Errorf("delete agent identity SecretReference %q: %w", refName, err)
-	}
-	return nil
-}
-
 // buildEnvVars assembles the four identity env vars for one binding. On-premises
 // deployments use the cluster-internal token endpoint: env-Thunder is not
 // published on the gateway vhost, so pods reach it by in-cluster address.
@@ -537,13 +522,21 @@ func (s *agentIdentityInjectionService) buildEnvVars(ctx context.Context, bindin
 	}, nil
 }
 
+// isLegacySecretRefPath reports whether a binding's stored SecretRefPath is a
+// KV path from before the secret provider owned the SecretReference. Those
+// bindings may still have a SecretReference the identity injection service
+// created directly, which the secret API cannot see or delete.
+func isLegacySecretRefPath(secretRefPath string) bool {
+	return strings.Contains(secretRefPath, "/")
+}
+
 func (s *agentIdentityInjectionService) envVarsForEnvironment(ctx context.Context, ouID, projectName, agentName, envName string) ([]client.EnvVar, error) {
 	binding, err := s.injectableBinding(ctx, ouID, projectName, agentName, envName)
 	if err != nil || binding == nil {
 		return nil, err
 	}
 	secretRefName := binding.SecretRefPath
-	if strings.Contains(secretRefName, "/") {
+	if isLegacySecretRefPath(secretRefName) {
 		// Rows created before SecretReference-name persistence stored the backing
 		// KV path here. The SecretReference itself used this deterministic name,
 		// so existing deployments can continue without a database migration.
@@ -648,8 +641,8 @@ func identityEnvVarsInSync(desired []client.EnvVar, current []models.EnvVars) bo
 // Building the env vars runs synchronously and its error is returned. The pod
 // roll is deferred: it waits out refreshInterval first, because the pod reads
 // the credential through the workload's own secret-env ExternalSecret, which
-// re-fetches from the secret store on its own cadence (15s in the agent
-// component types), independent of the SecretReference's refresh interval.
+// re-fetches from the secret store on its own cadence, independent of the
+// SecretReference's refresh interval.
 // Rolling immediately loses that race — the new pod starts before the sync
 // catches up and keeps the stale, already-invalidated secret for its whole
 // lifetime (secretKeyRef env vars resolve once at container start, never
@@ -891,17 +884,16 @@ func (s *agentIdentityInjectionService) RemoveForEnvironment(ctx context.Context
 		}
 	}
 
-	if err := s.deleteSecretReference(ctx, ouID, projectName, agentName, envName); err != nil {
-		return fmt.Errorf("delete agent identity SecretReference during removal: %w", err)
-	}
-
 	s.logger.Info("Removed agent identity env vars from workload", "agentName", agentName, "envName", envName, "includeWorkloadLevel", includeWorkloadLevel)
 	return nil
 }
 
 func (s *agentIdentityInjectionService) CleanupForEnvironment(ctx context.Context, ouID, agentName, envName string) error {
 	// projectName is not part of SecretRefName's computation (see
-	// SecretLocation.SecretRefName) — this interface method doesn't carry
-	// one, matching agentThunderProvisioningService's call sites.
-	return s.deleteSecretReference(ctx, ouID, "", agentName, envName)
+	// SecretLocation.SecretRefName), so this method doesn't carry one.
+	refName := agentIdentitySecretLocation(ouID, "", agentName, envName).SecretRefName()
+	if err := s.ocClient.DeleteSecretReference(ctx, ouID, refName); err != nil && !errors.Is(err, utils.ErrNotFound) {
+		return fmt.Errorf("delete legacy agent identity SecretReference %q: %w", refName, err)
+	}
+	return nil
 }

@@ -89,3 +89,14 @@ func TestHandleCommonErrors_DeploymentPipelineAlreadyExists_IsActionable(t *test
 	assert.Equal(t, utils.ErrCodeConflict, body.Code)
 	assert.Nil(t, body.Reason, "the actionable message needs no internal OpenChoreo details")
 }
+
+// TestHandleCommonErrors_WorkloadSecretSyncUnconfirmed checks the partial-success response.
+func TestHandleCommonErrors_WorkloadSecretSyncUnconfirmed(t *testing.T) {
+	rr := httptest.NewRecorder()
+	err := fmt.Errorf("%w: backend diagnostic", utils.ErrWorkloadSecretSyncUnconfirmed)
+	handleCommonErrors(rr, err, "Failed to update agent configurations")
+	require.Equal(t, http.StatusServiceUnavailable, rr.Code)
+	assert.Contains(t, rr.Body.String(), "Secret values were saved")
+	assert.Contains(t, rr.Body.String(), "rollout stopped")
+	assert.NotContains(t, rr.Body.String(), "backend diagnostic")
+}

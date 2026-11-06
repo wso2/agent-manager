@@ -16,10 +16,12 @@
  * under the License.
  */
 
-import { Box, Chip, Stack, Tooltip, Typography } from "@wso2/oxygen-ui";
-import { formatDistanceToNow } from "date-fns";
+import { Alert, Box, Chip, IconButton, Stack, Tooltip, Typography } from "@wso2/oxygen-ui";
+import { Copy } from "@wso2/oxygen-ui-icons-react";
+import { formatRelativeTime } from "@agent-management-platform/shared-component";
 import {
   ALL_EVENTS,
+  INPUT_LIMITS,
   type DestinationAvailability,
   type DestinationHealth,
   type DestinationKind,
@@ -28,6 +30,10 @@ import {
   type EventDeliveryStatus,
 } from "@agent-management-platform/types";
 
+/** Limits the service enforces on destination and subscription fields. */
+export const EVENT_NAME_MAX_LENGTH = INPUT_LIMITS.NAME;
+export const EVENT_DESCRIPTION_MAX_LENGTH = 500;
+
 /** How a destination looks in lists: a letter tile in its service's colour. */
 interface ServiceLook {
   label: string;
@@ -35,6 +41,7 @@ interface ServiceLook {
   color: string;
 }
 
+// Brand colours, so a service is recognisable at a glance.
 const WEBHOOK_LOOK: ServiceLook = { label: "Webhook", letter: "W", color: "#475569" };
 
 /**
@@ -97,7 +104,7 @@ export function DestinationIcon({
         height: size,
         borderRadius: 1,
         bgcolor: look.color,
-        color: "#fff",
+        color: "common.white",
         display: "inline-flex",
         alignItems: "center",
         justifyContent: "center",
@@ -108,6 +115,22 @@ export function DestinationIcon({
       }}
     >
       {look.letter}
+    </Box>
+  );
+}
+
+/** A form section's title, with an optional hint under it. */
+export function SectionTitle({ children, hint }: { children: string; hint?: string }) {
+  return (
+    <Box>
+      <Typography variant="subtitle2" fontWeight={600}>
+        {children}
+      </Typography>
+      {hint && (
+        <Typography variant="caption" color="text.secondary">
+          {hint}
+        </Typography>
+      )}
     </Box>
   );
 }
@@ -247,10 +270,47 @@ export function filterLabel(environments: string[]): string {
 }
 
 export function timeAgo(iso?: string): string {
-  if (!iso) return "never";
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return "never";
-  return formatDistanceToNow(date, { addSuffix: true });
+  return formatRelativeTime(iso, { fallback: "never" });
+}
+
+/** A signing secret to show once, with copy, after it is generated. */
+export function SecretReveal({
+  name,
+  secret,
+  onClose,
+}: {
+  name: string;
+  secret: string;
+  onClose?: () => void;
+}) {
+  return (
+    <Alert
+      severity="success"
+      onClose={onClose}
+      action={
+        <Tooltip title="Copy signing secret">
+          <IconButton
+            size="small"
+            aria-label="Copy signing secret"
+            onClick={() => navigator.clipboard.writeText(secret)}
+          >
+            <Copy size={16} />
+          </IconButton>
+        </Tooltip>
+      }
+    >
+      <Typography variant="body2" fontWeight={600}>
+        Signing secret for {name}. Copy it now; it is not shown again.
+      </Typography>
+      <Typography variant="body2" sx={{ fontFamily: "monospace", wordBreak: "break-all" }}>
+        {secret}
+      </Typography>
+      <Typography variant="caption" color="text.secondary">
+        Requests carry Standard Webhooks headers: verify webhook-signature (HMAC-SHA256 of
+        &quot;id.timestamp.body&quot;) with this secret.
+      </Typography>
+    </Alert>
+  );
 }
 
 /** The message of a failed request, from the service's error body when it sent one. */

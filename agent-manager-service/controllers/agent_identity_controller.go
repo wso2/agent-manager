@@ -38,11 +38,26 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
-// AgentIdentityController exposes env-Thunder group/role management for agent
-// identities, resolved per request via EnvThunderResolver — AMS stores no
-// group/role state of its own. Roles carry catalog scopes as their
+// AgentIdentityController exposes group/role management for agent identities.
+// AMS stores no group/role state of its own. Roles carry catalog scopes as their
 // permissions. ListAgents is the exception: it reads the assignment picker
-// straight from AMS's own state, not Thunder.
+// straight from AMS's own state, not from an identity provider.
+//
+// Two identity management modes (IDENTITY_MANAGEMENT_MODE) share these routes,
+// and every handler is tagged with both:
+//
+//   - LEGACY_DIRECT (the default): the environment's own Thunder, resolved per
+//     request via EnvThunderResolver. The code is in this file and is unchanged.
+//   - CP_MANAGED: the identity control plane. Roles and groups of the selected
+//     environment are managed by services.IdentityRoleProvider and
+//     services.IdentityGroupProvider (and services.MCPResourceServerProvider for
+//     the MCP resource servers their scopes refer to), which write on the control
+//     plane and apply to the environment. The environment's own Thunder is never
+//     used, and without a provider the routes answer 503. The code is in
+//     agent_identity_role_cp.go and agent_identity_group_cp.go.
+//
+// In both modes the listings are specific to the selected environment, and an
+// agent can only be assigned or added where it is provisioned.
 type AgentIdentityController interface {
 	// Groups
 	ListGroups(w http.ResponseWriter, r *http.Request)
@@ -78,6 +93,9 @@ type MCPResourceServerIdentifierResolver interface {
 	MCPResourceServerIdentifier(ctx context.Context, ouID string, envID uuid.UUID, proxy *models.MCPProxy) (string, error)
 	// EnsureResourceServer ensures proxy's resource server exists with exactly actions.
 	EnsureResourceServer(ctx context.Context, ouID string, envID uuid.UUID, client thundersvc.EnvIdentityClient, proxy *models.MCPProxy, actions []string) (string, error)
+	// EnsureResourceServerInEnv is EnsureResourceServer through the configured MCP resource server
+	// provider, so it needs no environment client. Role writes in CP_MANAGED mode use it.
+	EnsureResourceServerInEnv(ctx context.Context, ouID string, envID uuid.UUID, envName string, proxy *models.MCPProxy, actions []string) (string, error)
 }
 
 type agentIdentityController struct {
@@ -188,6 +206,14 @@ func (c *agentIdentityController) managedGroup(w http.ResponseWriter, r *http.Re
 }
 
 func (c *agentIdentityController) ListGroups(w http.ResponseWriter, r *http.Request) {
+	// CP_MANAGED: handled by the identity control plane (see listGroupsViaProvider in agent_identity_group_cp.go).
+	if provider, cp, ok := identityGroupProvider(w); cp {
+		if ok {
+			c.listGroupsViaProvider(w, r, provider)
+		}
+		return
+	}
+	// LEGACY_DIRECT: the environment's own Thunder, below.
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
@@ -215,6 +241,14 @@ func (c *agentIdentityController) ListGroups(w http.ResponseWriter, r *http.Requ
 }
 
 func (c *agentIdentityController) CreateGroup(w http.ResponseWriter, r *http.Request) {
+	// CP_MANAGED: handled by the identity control plane (see createGroupViaProvider in agent_identity_group_cp.go).
+	if provider, cp, ok := identityGroupProvider(w); cp {
+		if ok {
+			c.createGroupViaProvider(w, r, provider)
+		}
+		return
+	}
+	// LEGACY_DIRECT: the environment's own Thunder, below.
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
@@ -256,6 +290,14 @@ func (c *agentIdentityController) CreateGroup(w http.ResponseWriter, r *http.Req
 }
 
 func (c *agentIdentityController) GetGroup(w http.ResponseWriter, r *http.Request) {
+	// CP_MANAGED: handled by the identity control plane (see getGroupViaProvider in agent_identity_group_cp.go).
+	if provider, cp, ok := identityGroupProvider(w); cp {
+		if ok {
+			c.getGroupViaProvider(w, r, provider)
+		}
+		return
+	}
+	// LEGACY_DIRECT: the environment's own Thunder, below.
 	groupID := r.PathValue(utils.PathParamGroupID)
 
 	client, ok := c.envClient(w, r)
@@ -270,6 +312,14 @@ func (c *agentIdentityController) GetGroup(w http.ResponseWriter, r *http.Reques
 }
 
 func (c *agentIdentityController) UpdateGroup(w http.ResponseWriter, r *http.Request) {
+	// CP_MANAGED: handled by the identity control plane (see updateGroupViaProvider in agent_identity_group_cp.go).
+	if provider, cp, ok := identityGroupProvider(w); cp {
+		if ok {
+			c.updateGroupViaProvider(w, r, provider)
+		}
+		return
+	}
+	// LEGACY_DIRECT: the environment's own Thunder, below.
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	groupID := r.PathValue(utils.PathParamGroupID)
@@ -311,6 +361,14 @@ func (c *agentIdentityController) UpdateGroup(w http.ResponseWriter, r *http.Req
 }
 
 func (c *agentIdentityController) DeleteGroup(w http.ResponseWriter, r *http.Request) {
+	// CP_MANAGED: handled by the identity control plane (see deleteGroupViaProvider in agent_identity_group_cp.go).
+	if provider, cp, ok := identityGroupProvider(w); cp {
+		if ok {
+			c.deleteGroupViaProvider(w, r, provider)
+		}
+		return
+	}
+	// LEGACY_DIRECT: the environment's own Thunder, below.
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	groupID := r.PathValue(utils.PathParamGroupID)
@@ -335,6 +393,14 @@ func (c *agentIdentityController) DeleteGroup(w http.ResponseWriter, r *http.Req
 }
 
 func (c *agentIdentityController) GetGroupMembers(w http.ResponseWriter, r *http.Request) {
+	// CP_MANAGED: handled by the identity control plane (see getGroupMembersViaProvider in agent_identity_group_cp.go).
+	if provider, cp, ok := identityGroupProvider(w); cp {
+		if ok {
+			c.getGroupMembersViaProvider(w, r, provider)
+		}
+		return
+	}
+	// LEGACY_DIRECT: the environment's own Thunder, below.
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	groupID := r.PathValue(utils.PathParamGroupID)
@@ -359,6 +425,14 @@ func (c *agentIdentityController) GetGroupMembers(w http.ResponseWriter, r *http
 }
 
 func (c *agentIdentityController) AddGroupMembers(w http.ResponseWriter, r *http.Request) {
+	// CP_MANAGED: handled by the identity control plane (see changeGroupMembersViaProvider in agent_identity_group_cp.go).
+	if provider, cp, ok := identityGroupProvider(w); cp {
+		if ok {
+			c.changeGroupMembersViaProvider(w, r, provider, true)
+		}
+		return
+	}
+	// LEGACY_DIRECT: the environment's own Thunder, below.
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	groupID := r.PathValue(utils.PathParamGroupID)
@@ -389,6 +463,14 @@ func (c *agentIdentityController) AddGroupMembers(w http.ResponseWriter, r *http
 }
 
 func (c *agentIdentityController) RemoveGroupMembers(w http.ResponseWriter, r *http.Request) {
+	// CP_MANAGED: handled by the identity control plane (see changeGroupMembersViaProvider in agent_identity_group_cp.go).
+	if provider, cp, ok := identityGroupProvider(w); cp {
+		if ok {
+			c.changeGroupMembersViaProvider(w, r, provider, false)
+		}
+		return
+	}
+	// LEGACY_DIRECT: the environment's own Thunder, below.
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	groupID := r.PathValue(utils.PathParamGroupID)
@@ -419,6 +501,14 @@ func (c *agentIdentityController) RemoveGroupMembers(w http.ResponseWriter, r *h
 }
 
 func (c *agentIdentityController) GetGroupRoles(w http.ResponseWriter, r *http.Request) {
+	// CP_MANAGED: handled by the identity control plane (see getGroupRolesViaProvider in agent_identity_group_cp.go).
+	if provider, cp, ok := identityGroupProvider(w); cp {
+		if ok {
+			c.getGroupRolesViaProvider(w, r, provider)
+		}
+		return
+	}
+	// LEGACY_DIRECT: the environment's own Thunder, below.
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	groupID := r.PathValue(utils.PathParamGroupID)
@@ -446,6 +536,14 @@ func (c *agentIdentityController) GetGroupRoles(w http.ResponseWriter, r *http.R
 // --- Roles ---
 
 func (c *agentIdentityController) ListRoles(w http.ResponseWriter, r *http.Request) {
+	// CP_MANAGED: handled by the identity control plane (see listRolesViaProvider in agent_identity_role_cp.go).
+	if provider, cp, ok := identityRoleProvider(w); cp {
+		if ok {
+			c.listRolesViaProvider(w, r, provider)
+		}
+		return
+	}
+	// LEGACY_DIRECT: the environment's own Thunder, below.
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
@@ -477,6 +575,14 @@ func (c *agentIdentityController) ListRoles(w http.ResponseWriter, r *http.Reque
 // before any permission write means a role never references a permission the
 // environment does not yet know.
 func (c *agentIdentityController) CreateRole(w http.ResponseWriter, r *http.Request) {
+	// CP_MANAGED: handled by the identity control plane (see createRoleViaProvider in agent_identity_role_cp.go).
+	if provider, cp, ok := identityRoleProvider(w); cp {
+		if ok {
+			c.createRoleViaProvider(w, r, provider)
+		}
+		return
+	}
+	// LEGACY_DIRECT: the environment's own Thunder, below.
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
@@ -591,6 +697,14 @@ func (c *agentIdentityController) managedRole(w http.ResponseWriter, r *http.Req
 }
 
 func (c *agentIdentityController) GetRole(w http.ResponseWriter, r *http.Request) {
+	// CP_MANAGED: handled by the identity control plane (see getRoleViaProvider in agent_identity_role_cp.go).
+	if provider, cp, ok := identityRoleProvider(w); cp {
+		if ok {
+			c.getRoleViaProvider(w, r, provider)
+		}
+		return
+	}
+	// LEGACY_DIRECT: the environment's own Thunder, below.
 	roleID := r.PathValue(utils.PathParamRoleID)
 
 	client, ok := c.envClient(w, r)
@@ -610,6 +724,14 @@ func (c *agentIdentityController) GetRole(w http.ResponseWriter, r *http.Request
 // are removed; a proxy dropped from the role entirely has all its permissions
 // removed from its RS.
 func (c *agentIdentityController) UpdateRole(w http.ResponseWriter, r *http.Request) {
+	// CP_MANAGED: handled by the identity control plane (see updateRoleViaProvider in agent_identity_role_cp.go).
+	if provider, cp, ok := identityRoleProvider(w); cp {
+		if ok {
+			c.updateRoleViaProvider(w, r, provider)
+		}
+		return
+	}
+	// LEGACY_DIRECT: the environment's own Thunder, below.
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	roleID := r.PathValue(utils.PathParamRoleID)
@@ -732,6 +854,14 @@ func (c *agentIdentityController) UpdateRole(w http.ResponseWriter, r *http.Requ
 }
 
 func (c *agentIdentityController) DeleteRole(w http.ResponseWriter, r *http.Request) {
+	// CP_MANAGED: handled by the identity control plane (see deleteRoleViaProvider in agent_identity_role_cp.go).
+	if provider, cp, ok := identityRoleProvider(w); cp {
+		if ok {
+			c.deleteRoleViaProvider(w, r, provider)
+		}
+		return
+	}
+	// LEGACY_DIRECT: the environment's own Thunder, below.
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	roleID := r.PathValue(utils.PathParamRoleID)
@@ -756,6 +886,14 @@ func (c *agentIdentityController) DeleteRole(w http.ResponseWriter, r *http.Requ
 }
 
 func (c *agentIdentityController) GetRoleAssignments(w http.ResponseWriter, r *http.Request) {
+	// CP_MANAGED: handled by the identity control plane (see getRoleAssignmentsViaProvider in agent_identity_role_cp.go).
+	if provider, cp, ok := identityRoleProvider(w); cp {
+		if ok {
+			c.getRoleAssignmentsViaProvider(w, r, provider)
+		}
+		return
+	}
+	// LEGACY_DIRECT: the environment's own Thunder, below.
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	roleID := r.PathValue(utils.PathParamRoleID)
@@ -778,6 +916,14 @@ func (c *agentIdentityController) GetRoleAssignments(w http.ResponseWriter, r *h
 }
 
 func (c *agentIdentityController) AddRoleAssignees(w http.ResponseWriter, r *http.Request) {
+	// CP_MANAGED: handled by the identity control plane (see addRoleAssigneesViaProvider in agent_identity_role_cp.go).
+	if provider, cp, ok := identityRoleProvider(w); cp {
+		if ok {
+			c.addRoleAssigneesViaProvider(w, r, provider)
+		}
+		return
+	}
+	// LEGACY_DIRECT: the environment's own Thunder, below.
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	roleID := r.PathValue(utils.PathParamRoleID)
@@ -804,6 +950,14 @@ func (c *agentIdentityController) AddRoleAssignees(w http.ResponseWriter, r *htt
 }
 
 func (c *agentIdentityController) RemoveRoleAssignees(w http.ResponseWriter, r *http.Request) {
+	// CP_MANAGED: handled by the identity control plane (see removeRoleAssigneesViaProvider in agent_identity_role_cp.go).
+	if provider, cp, ok := identityRoleProvider(w); cp {
+		if ok {
+			c.removeRoleAssigneesViaProvider(w, r, provider)
+		}
+		return
+	}
+	// LEGACY_DIRECT: the environment's own Thunder, below.
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	roleID := r.PathValue(utils.PathParamRoleID)
@@ -833,6 +987,8 @@ func (c *agentIdentityController) RemoveRoleAssignees(w http.ResponseWriter, r *
 // source for the assignment picker: which agents can be added to a group or
 // assigned a role.
 func (c *agentIdentityController) ListAgents(w http.ResponseWriter, r *http.Request) {
+	// LEGACY_DIRECT and CP_MANAGED: the same. The agents come from Agent Manager's own bindings for the
+	// environment, never from an identity provider, so the picker is environment specific in both modes.
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	orgName := middleware.OrgHandleFromRequest(r)

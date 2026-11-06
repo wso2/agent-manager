@@ -16,6 +16,7 @@
  * under the License.
  */
 
+import { backendFetch, fetchWithBackendToken } from '@agent-management-platform/auth';
 import {
     formatBytes,
     getMaxRequestBodyBytes,
@@ -165,7 +166,7 @@ export async function httpGET(
     const controller = timeoutMs ? new AbortController() : undefined;
     const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : undefined;
     try {
-        const response = await fetch(`${baseUrl}${context}?${new URLSearchParams(searchParams).toString()}`, {
+        const response = await backendFetch(`${baseUrl}${context}?${new URLSearchParams(searchParams).toString()}`, {
             method: 'GET',
             headers:  token ? {
                   'Content-Type': 'application/json',
@@ -218,7 +219,7 @@ export async function httpGETObserver(
         );
     }
     const baseUrl = obsUrl;
-    const response = await fetch(`${baseUrl}${context}?${new URLSearchParams(searchParams).toString()}`, {
+    const response = await fetchWithBackendToken(`${baseUrl}${context}?${new URLSearchParams(searchParams).toString()}`, {
         method: 'GET',
         headers: token ? {
             'Content-Type': 'application/json',
@@ -242,7 +243,7 @@ export async function httpPOST(
     params: {searchParams?: Record<string, string>, token?: string, options?: HttpOptions}) {
     const {searchParams, token} = params;
     const baseUrl = globalConfig.apiBaseUrl;
-    const response = await fetch(`${baseUrl}${context}?${new URLSearchParams(searchParams).toString()}`, {
+    const response = await backendFetch(`${baseUrl}${context}?${new URLSearchParams(searchParams).toString()}`, {
         method: 'POST',
         headers: token ? {
             'Content-Type': 'application/json',
@@ -261,7 +262,7 @@ export async function httpPUT(
     params: {searchParams?: Record<string, string>, token?: string, options?: HttpOptions}) {
     const {searchParams, token} = params;
     const baseUrl = globalConfig.apiBaseUrl;
-    const response = await fetch(`${baseUrl}${context}?${new URLSearchParams(searchParams).toString()}`, {
+    const response = await backendFetch(`${baseUrl}${context}?${new URLSearchParams(searchParams).toString()}`, {
         method: 'PUT',
         headers: token ? {
             'Content-Type': 'application/json',
@@ -279,7 +280,7 @@ export async function httpDELETE(
     params: {searchParams?: Record<string, string>, token?: string, options?: HttpOptions}) {
     const {searchParams, token} = params;
     const baseUrl = globalConfig.apiBaseUrl;
-    const response = await fetch(`${baseUrl}${context}?${new URLSearchParams(searchParams).toString()}`, {
+    const response = await backendFetch(`${baseUrl}${context}?${new URLSearchParams(searchParams).toString()}`, {
         method: 'DELETE',
         headers: token ? {
             'Content-Type': 'application/json',
@@ -297,7 +298,7 @@ export async function httpPATCH(
     params: {searchParams?: Record<string, string>, token?: string, options?: HttpOptions}) {
     const {searchParams, token} = params;
     const baseUrl = globalConfig.apiBaseUrl;
-    const response = await fetch(`${baseUrl}${context}?${new URLSearchParams(searchParams).toString()}`, {
+    const response = await backendFetch(`${baseUrl}${context}?${new URLSearchParams(searchParams).toString()}`, {
         method: 'PATCH',
         headers: token ? {
             'Content-Type': 'application/json',

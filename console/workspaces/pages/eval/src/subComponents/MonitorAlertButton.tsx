@@ -27,7 +27,7 @@ import {
   Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
-import { Bell, BellRing } from "@wso2/oxygen-ui-icons-react";
+import { Bell, BellOff } from "@wso2/oxygen-ui-icons-react";
 import { DrawerContent, DrawerHeader, DrawerWrapper } from "@agent-management-platform/views";
 import {
   useDeleteMonitorAlert,
@@ -116,21 +116,22 @@ export function MonitorAlertButton({
       <Tooltip
         title={
           !canManage
-            ? "View this monitor's alert settings"
+            ? `Alerts are ${enabled ? "on" : "off"}. View this monitor's alert settings`
             : enabled
-              ? "Manage this monitor's alert settings"
-              : "Send monitor alerts to organization destinations"
+              ? "Alerts are on. Manage this monitor's alert settings"
+              : "Alerts are off. Send monitor alerts to organization destinations"
         }
       >
         <span>
           <Button
             size="small"
-            variant={enabled ? "contained" : "outlined"}
-            startIcon={enabled ? <BellRing size={16} /> : <Bell size={16} />}
+            variant="outlined"
+            startIcon={enabled ? <Bell size={16} /> : <BellOff size={16} />}
             onClick={() => setOpen(true)}
             disabled={isLoading || !canView}
+            aria-label={`Alerting, ${enabled ? "on" : "off"}`}
           >
-            {enabled ? "Alerting enabled" : "Alerting"}
+            Alerting
           </Button>
         </span>
       </Tooltip>
@@ -170,28 +171,34 @@ export function MonitorAlertButton({
             )}
             {!canManage ? (
               <Box>
-                <Button onClick={() => setOpen(false)}>Close</Button>
+                <Button variant="outlined" onClick={() => setOpen(false)}>
+                  Close
+                </Button>
               </Box>
             ) : (
-              <Stack direction="row" spacing={1} justifyContent="space-between">
-                <Box>
-                  {enabled && (
-                    <Button color="error" onClick={handleDisableAlerts} disabled={disableAlerts.isPending || save.isPending || !canManage || !!error}>
+              <Stack direction="row" spacing={1} justifyContent="flex-start" alignItems="center">
+                <Button variant="outlined" onClick={() => setOpen(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  variant="contained"
+                  onClick={handleSave}
+                  disabled={save.isPending || disableAlerts.isPending || !canManage || !!error}
+                  startIcon={save.isPending ? <CircularProgress size={14} /> : undefined}
+                >
+                  {enabled ? "Save" : "Enable alerting"}
+                </Button>
+                {enabled && (
+                  <Box sx={{ ml: "auto" }}>
+                    <Button
+                      color="error"
+                      onClick={handleDisableAlerts}
+                      disabled={disableAlerts.isPending || save.isPending || !canManage || !!error}
+                    >
                       Disable alerting
                     </Button>
-                  )}
-                </Box>
-                <Stack direction="row" spacing={1}>
-                  <Button onClick={() => setOpen(false)}>Cancel</Button>
-                  <Button
-                    variant="contained"
-                    onClick={handleSave}
-                    disabled={save.isPending || disableAlerts.isPending || !canManage || !!error}
-                    startIcon={save.isPending ? <CircularProgress size={14} /> : undefined}
-                  >
-                    {enabled ? "Save" : "Enable alerting"}
-                  </Button>
-                </Stack>
+                  </Box>
+                )}
               </Stack>
             )}
           </Stack>

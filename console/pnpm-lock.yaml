@@ -13,6 +13,9 @@ overrides:
   brace-expansion@1: ^1.1.21
   brace-expansion@2: ^2.1.7
   brace-expansion@5: ^5.0.12
+  follow-redirects: ^1.16.2
+  minimatch@9: ^9.0.9
+  minimatch@10: ^11.0.4
 
 importers:
 
@@ -42,8 +45,8 @@ importers:
         specifier: 5.90.5
         version: 5.90.5(react@19.2.3)
       '@thunderid/react':
-        specifier: 1.0.6
-        version: 1.0.6(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+        specifier: 1.12.0
+        version: 1.12.0(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       '@wso2/oxygen-ui':
         specifier: 0.20.0
         version: 0.20.0(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.20.0(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -230,8 +233,8 @@ importers:
         specifier: 5.90.5
         version: 5.90.5(react@19.2.3)
       '@thunderid/react':
-        specifier: 1.0.6
-        version: 1.0.6(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+        specifier: 1.12.0
+        version: 1.12.0(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       '@types/lodash':
         specifier: 4.17.17
         version: 4.17.17
@@ -317,8 +320,8 @@ importers:
         specifier: 5.90.5
         version: 5.90.5(react@19.2.3)
       '@thunderid/react':
-        specifier: 1.0.6
-        version: 1.0.6(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+        specifier: 1.12.0
+        version: 1.12.0(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       clsx:
         specifier: 2.1.1
         version: 2.1.1
@@ -384,8 +387,8 @@ importers:
         specifier: 5.90.5
         version: 5.90.5(react@19.2.3)
       '@thunderid/react':
-        specifier: 1.0.6
-        version: 1.0.6(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+        specifier: 1.12.0
+        version: 1.12.0(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       clsx:
         specifier: 2.1.1
         version: 2.1.1
@@ -420,9 +423,15 @@ importers:
       eslint:
         specifier: 9.36.0
         version: 9.36.0
+      jsdom:
+        specifier: 26.1.0
+        version: 26.1.0
       typescript:
         specifier: 5.9.3
         version: 5.9.3
+      vitest:
+        specifier: 3.1.3
+        version: 3.1.3(@types/debug@4.1.13)(@types/node@24.13.3)(jsdom@26.1.0)(less@4.3.0)(lightningcss@1.33.0)
 
   workspaces/libs/eslint-config:
     dependencies:
@@ -697,8 +706,8 @@ importers:
         specifier: workspace:*
         version: link:../feature-management
       '@thunderid/react':
-        specifier: 1.0.6
-        version: 1.0.6(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.3))(react@19.2.3)
+        specifier: 1.12.0
+        version: 1.12.0(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.3))(react@19.2.3)
       date-fns:
         specifier: 4.1.0
         version: 4.1.0
@@ -5131,6 +5140,9 @@ packages:
     resolution: {integrity: sha512-O8jcjabXaleOG9DQ0+ARXWZBTfnP4WNAqzuiJK7ll44AmxGKv/J2M4TPjxjY3znBCfvBXFzucm1twdyFybFqEA==}
     engines: {node: '>=12'}
 
+  '@isaacs/nonrecursive-glob-match@1.0.3':
+    resolution: {integrity: sha512-SI7kyKHq4XXDRozw+r9GlRZkia1ZkFrpLW98r2IC2Bpr8YkFGE3fvjzmxCG0x78A++69HmDNrDvSMYBZmHGpKA==}
+
   '@jest/expect-utils@29.7.0':
     resolution: {integrity: sha512-GlsNBWiFQFCVi9QVSx7f5AgMeLxe9YCCs5PuP2O2LdjDAA8Jh9eX7lA1Jq/xdXw3Wb3hyvlFNfZIfcRetSzYcA==}
     engines: {node: ^14.15.0 || ^16.10.0 || >=18.0.0}
@@ -6126,14 +6138,14 @@ packages:
     peerDependencies:
       '@testing-library/dom': '>=7.21.4'
 
-  '@thunderid/browser@1.0.7':
-    resolution: {integrity: sha512-7X4VUQSgUF+o4JDBQA/5zCfxeDs1VoHO+OhzvuQhNVhEnegeBY06BJSMb8Y2ddeF80Pui+CdPnnL7dBxZ91kaw==}
+  '@thunderid/browser@1.10.0':
+    resolution: {integrity: sha512-1TxnEnomRYnhNCxLSCyEAfLr/xqAzXOODkOu4F48vAFysMXc2K2AnW31agdqEwvJi79JOvJiO06L46ZMyre2Kg==}
 
-  '@thunderid/javascript@1.0.7':
-    resolution: {integrity: sha512-s944YweBpDIN32PylpBhJR5a9zKEfYLPUrZc8yFytTv4+MJJyS36a4irYa1SY4abGNpDkDtGa6VJ53lN0l8esw==}
+  '@thunderid/javascript@1.11.0':
+    resolution: {integrity: sha512-wuVuJu391ykuAEQMp1VEJ24H//Jdp5mwz8UNKrmoIRfan9iYdvdw/xa7uqGL+YtkRbtWUfBZWVk6nZEKvjc3qw==}
 
-  '@thunderid/react@1.0.6':
-    resolution: {integrity: sha512-AhOgOBNVLcJkD10HdhYeB1tOu+fKS0uJULPoCAKboOXlePkYpbs3JgRPLvMixdBFVFioijfwoDlocSWRGtWOzg==}
+  '@thunderid/react@1.12.0':
+    resolution: {integrity: sha512-zDrQixOe4KXXymA22k+oM6WS/uGMjNguJoZcVaYMUhgW0Zkb6qNv/rrVoqJ+3NRutdo1nkuMFG/K6Fs89DyI9g==}
     peerDependencies:
       '@types/react': '>=16.8.0'
       react: '>=16.8.0'
@@ -7685,8 +7697,8 @@ packages:
   flatted@3.4.4:
     resolution: {integrity: sha512-5+ybhBZANEJxaH3X5evAFatUxLfEHSr7n6kYJ+1Qd0mUqr4eu9gIf6GDbWHf8RJijHrjjO8G+la14SlL2SeS1Q==}
 
-  follow-redirects@1.16.0:
-    resolution: {integrity: sha512-y5rN/uOsadFT/JfYwhxRS5R7Qce+g3zG97+JrtFZlC9klX/W5hD7iiLzScI4nZqUS7DNUdhPgw4xI8W2LuXlUw==}
+  follow-redirects@1.16.2:
+    resolution: {integrity: sha512-/kVP2U8z596Ia0gwFrwyIeo74ta5aVmSeU1FfAUMAmcEP5EP7zydmag3SLiN64NaRKef3lxsq7i/g7ltJQDGow==}
     engines: {node: '>=4.0'}
     peerDependencies:
       debug: '*'
@@ -8569,13 +8581,9 @@ packages:
     resolution: {integrity: sha512-bjdr2xW1dBCMsMGGsUeqM4eFI60m94+szhxWys+B1ztIt6gWSfeGBdSVCIawezeHYLYn0j6zrsXdQS/JllBzww==}
     engines: {node: '>=6'}
 
-  minimatch@10.2.3:
-    resolution: {integrity: sha512-Rwi3pnapEqirPSbWbrZaa6N3nmqq4Xer/2XooiOKyV3q12ML06f7MOuc5DVH8ONZIFhwIYQ3yzPH4nt7iWHaTg==}
-    engines: {node: 18 || 20 || >=22}
-
-  minimatch@10.2.6:
-    resolution: {integrity: sha512-vpLQEs+VLCr1nU0BXS07maYoFwlDAH0gngQuuttxIwutDFEMHq2blX+8vpgxDdK3J1PwjCJiep77OitTZ4Ll1A==}
-    engines: {node: 18 || 20 || >=22}
+  minimatch@11.0.4:
+    resolution: {integrity: sha512-/UJ1dEoVQTjPNDh6SGlUo+ueLMmoHTas4q+8yaAR/5t6nLAIiBDJtoYUh20IYleix7ehiQkgczb84PE3uzHkxg==}
+    engines: {node: 20 || >=22}
 
   minimatch@3.1.5:
     resolution: {integrity: sha512-VgjWUsnnT6n+NUk6eZq77zeFdpW2LWDzP6zFGrCbHXiYNul5Dzqk2HHQ5uFH2DNW5Xbp8+jVzaeNt94ssEEl4w==}
@@ -10532,7 +10540,7 @@ snapshots:
     dependencies:
       '@eslint/object-schema': 3.0.5
       debug: 4.4.3
-      minimatch: 10.2.6
+      minimatch: 11.0.4
     transitivePeerDependencies:
       - supports-color
 
@@ -10694,6 +10702,8 @@ snapshots:
       wrap-ansi: 8.1.0
       wrap-ansi-cjs: wrap-ansi@7.0.0
 
+  '@isaacs/nonrecursive-glob-match@1.0.3': {}
+
   '@jest/expect-utils@29.7.0':
     dependencies:
       jest-get-type: 29.6.3
@@ -10768,7 +10778,7 @@ snapshots:
       '@rushstack/terminal': 0.24.2(@types/node@24.6.0)
       '@rushstack/ts-command-line': 5.3.12(@types/node@24.6.0)
       diff: 8.0.4
-      minimatch: 10.2.3
+      minimatch: 11.0.4
       resolve: 1.22.12
       semver: 7.7.4
       source-map: 0.6.1
@@ -12121,7 +12131,7 @@ snapshots:
       '@swagger-api/apidom-error': 1.12.1
       '@types/ramda': 0.30.2
       axios: 1.20.0
-      minimatch: 10.2.6
+      minimatch: 11.0.4
       ramda: 0.30.1
       ramda-adjunct: 5.1.0(ramda@0.30.1)
     optionalDependencies:
@@ -12235,9 +12245,9 @@ snapshots:
     dependencies:
       '@testing-library/dom': 10.4.0
 
-  '@thunderid/browser@1.0.7':
+  '@thunderid/browser@1.10.0':
     dependencies:
-      '@thunderid/javascript': 1.0.7
+      '@thunderid/javascript': 1.11.0
       base64url: 3.0.1
       buffer: 6.0.3
       core-js: 3.42.0
@@ -12248,16 +12258,16 @@ snapshots:
       stream-browserify: 3.0.0
       tslib: 2.8.1
 
-  '@thunderid/javascript@1.0.7':
+  '@thunderid/javascript@1.11.0':
     dependencies:
       jose: 6.2.3
       tslib: 2.8.1
 
-  '@thunderid/react@1.0.6(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)':
+  '@thunderid/react@1.12.0(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)':
     dependencies:
       '@emotion/css': 11.13.5
       '@floating-ui/react': 0.27.12(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      '@thunderid/browser': 1.0.7
+      '@thunderid/browser': 1.10.0
       '@types/react': 19.2.14
       dompurify: 3.4.17
       react: 19.2.3
@@ -12266,11 +12276,11 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@thunderid/react@1.0.6(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.3))(react@19.2.3)':
+  '@thunderid/react@1.12.0(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.3))(react@19.2.3)':
     dependencies:
       '@emotion/css': 11.13.5
       '@floating-ui/react': 0.27.12(react-dom@19.2.4(react@19.2.3))(react@19.2.3)
-      '@thunderid/browser': 1.0.7
+      '@thunderid/browser': 1.10.0
       '@types/react': 19.2.14
       dompurify: 3.4.17
       react: 19.2.3
@@ -12787,7 +12797,7 @@ snapshots:
       '@typescript-eslint/types': 8.66.0
       '@typescript-eslint/visitor-keys': 8.66.0
       debug: 4.4.3
-      minimatch: 10.2.6
+      minimatch: 11.0.4
       semver: 7.8.5
       tinyglobby: 0.2.17
       ts-api-utils: 2.5.0(typescript@5.9.3)
@@ -12802,7 +12812,7 @@ snapshots:
       '@typescript-eslint/types': 8.66.0
       '@typescript-eslint/visitor-keys': 8.66.0
       debug: 4.4.3
-      minimatch: 10.2.6
+      minimatch: 11.0.4
       semver: 7.8.5
       tinyglobby: 0.2.17
       ts-api-utils: 2.5.0(typescript@6.0.3)
@@ -13360,7 +13370,7 @@ snapshots:
 
   axios@1.20.0:
     dependencies:
-      follow-redirects: 1.16.0
+      follow-redirects: 1.16.2
       form-data: 4.0.6
       https-proxy-agent: 5.0.1
       proxy-from-env: 2.1.0
@@ -14140,7 +14150,7 @@ snapshots:
       imurmurhash: 0.1.4
       is-glob: 4.0.3
       json-stable-stringify-without-jsonify: 1.0.1
-      minimatch: 10.2.6
+      minimatch: 11.0.4
       natural-compare: 1.4.0
       optionator: 0.9.4
     transitivePeerDependencies:
@@ -14292,7 +14302,7 @@ snapshots:
 
   flatted@3.4.4: {}
 
-  follow-redirects@1.16.0: {}
+  follow-redirects@1.16.2: {}
 
   for-each@0.3.5:
     dependencies:
@@ -15432,12 +15442,9 @@ snapshots:
     dependencies:
       lodash: 4.18.1
 
-  minimatch@10.2.3:
+  minimatch@11.0.4:
     dependencies:
-      brace-expansion: 5.0.12
-
-  minimatch@10.2.6:
-    dependencies:
+      '@isaacs/nonrecursive-glob-match': 1.0.3
       brace-expansion: 5.0.12
 
   minimatch@3.1.5:

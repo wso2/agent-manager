@@ -18,7 +18,6 @@
 
 import { Fragment, useMemo, useState } from "react";
 import {
-  Alert,
   Box,
   Button,
   Chip,
@@ -27,21 +26,25 @@ import {
   ListingTable,
   Menu,
   MenuItem,
-  Skeleton,
+  SearchBar,
   Stack,
   Switch,
-  TextField,
   Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
-import { AlertTriangle, Bell, MoreHorizontal, Plus, Trash2 } from "@wso2/oxygen-ui-icons-react";
+import { Bell, MoreHorizontal, Plus, Trash2 } from "@wso2/oxygen-ui-icons-react";
+import { TextInput } from "@agent-management-platform/views";
 import { Link as RouterLink } from "react-router-dom";
 import {
   useDeleteEventSubscription,
   useUpdateEventSubscription,
   useUserDisplayName,
 } from "@agent-management-platform/api-client";
-import { useConfirmationDialog } from "@agent-management-platform/shared-component";
+import {
+  isListEmpty,
+  ResourceListShell,
+  useConfirmationDialog,
+} from "@agent-management-platform/shared-component";
 import type {
   EventSubscriptionListResponse,
   EventSubscriptionResponse,
@@ -226,13 +229,15 @@ export function SubscriptionsTab({
       </ListingTable.Cell>
       <ListingTable.Cell align="right" onClick={(e) => e.stopPropagation()}>
         {!locked && (
-          <IconButton
-            size="small"
-            aria-label={`Actions for ${s.name}`}
-            onClick={(e) => setMenu({ anchor: e.currentTarget, subscription: s })}
-          >
-            <MoreHorizontal size={18} />
-          </IconButton>
+          <Tooltip title="Actions">
+            <IconButton
+              size="small"
+              aria-label={`Actions for ${s.name}`}
+              onClick={(e) => setMenu({ anchor: e.currentTarget, subscription: s })}
+            >
+              <MoreHorizontal size={18} />
+            </IconButton>
+          </Tooltip>
         )}
       </ListingTable.Cell>
     </ListingTable.Row>
@@ -242,135 +247,125 @@ export function SubscriptionsTab({
   const showInherited = show !== "own";
   const visibleCount = (showOwn ? own.length : 0) + (showInherited ? inherited.length : 0);
 
-  const toolbar = (
-    <ListingTable.Toolbar
-      showSearch
-      searchValue={search}
-      onSearchChange={(v: string) => setSearch(v)}
-      searchPlaceholder="Search subscriptions"
-      actions={
-        <Stack direction="row" spacing={1.5} alignItems="center">
-          {hasInherited && (
-            <TextField
-              select
-              size="small"
-              value={show}
-              onChange={(e) => setShow(e.target.value as Show)}
-              sx={{ minWidth: 140 }}
-              slotProps={{
-                select: {
-                  renderValue: (v) =>
-                    `Show: ${v === "all" ? "All" : v === "own" ? `This ${levelNoun}` : "Inherited"}`,
-                },
-              }}
-            >
-              <MenuItem value="all">All</MenuItem>
-              <MenuItem value="own">{`This ${levelNoun}`}</MenuItem>
-              <MenuItem value="inherited">Inherited</MenuItem>
-            </TextField>
-          )}
-          {canManage && (
-            <Button
-              variant="contained"
-              startIcon={<Plus size={16} />}
-              onClick={onNew}
-              sx={{ whiteSpace: "nowrap" }}
-            >
-              New subscription
-            </Button>
-          )}
-        </Stack>
-      }
-    />
-  );
+  const total = (data?.subscriptions.length ?? 0) + (data?.inherited.length ?? 0);
+  const isFiltered = !!search.trim() || show !== "all";
+  const newButton = canManage ? (
+    <Button
+      variant="contained"
+      startIcon={<Plus size={16} />}
+      onClick={onNew}
+      sx={{ whiteSpace: "nowrap", flexShrink: 0 }}
+    >
+      New subscription
+    </Button>
+  ) : undefined;
 
-  let body;
-  if (error) {
-    body = (
-      <Alert severity="error" icon={<AlertTriangle size={18} />}>
-        Failed to load subscriptions. Please try again.
-      </Alert>
-    );
-  } else if (isLoading) {
-    body = (
-      <Stack spacing={1} m={2}>
-        <Skeleton variant="rounded" height={56} />
-        <Skeleton variant="rounded" height={56} />
-      </Stack>
-    );
-  } else if (visibleCount === 0) {
-    const nothing = (data?.subscriptions.length ?? 0) + (data?.inherited.length ?? 0) === 0;
-    body = (
-      <ListingTable.EmptyState
-        illustration={<Bell size={64} />}
-        title={nothing ? "No subscriptions yet" : "No subscriptions match"}
-        description={
-          nothing
-            ? `Pick events and a destination to send this ${levelNoun}'s events to Slack, PagerDuty or a webhook.`
-            : "Try other search keywords or show all subscriptions."
-        }
-        action={
-          nothing && canManage ? (
-            <Button variant="contained" startIcon={<Plus size={16} />} onClick={onNew}>
-              New subscription
-            </Button>
-          ) : undefined
-        }
+  // The list sits in a tab, so its create button is in the toolbar beside the filters.
+  const toolbar = (
+    <Stack
+      direction={{ xs: "column", md: "row" }}
+      spacing={1.5}
+      alignItems={{ xs: "stretch", md: "center" }}
+    >
+      <SearchBar
+        placeholder="Search subscriptions"
+        size="small"
+        fullWidth
+        value={search}
+        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)}
       />
-    );
-  } else {
-    body = (
-      <ListingTable>
-        <ListingTable.Head>
-          <ListingTable.Row>
-            <ListingTable.Cell>Subscription</ListingTable.Cell>
-            <ListingTable.Cell>Events</ListingTable.Cell>
-            <ListingTable.Cell>Destination</ListingTable.Cell>
-            <ListingTable.Cell>Filter</ListingTable.Cell>
-            <ListingTable.Cell>Last 24h</ListingTable.Cell>
-            <ListingTable.Cell>Enabled</ListingTable.Cell>
-            <ListingTable.Cell align="right" />
-          </ListingTable.Row>
-        </ListingTable.Head>
-        <ListingTable.Body>
-          {showOwn && own.length > 0 && (
-            <Fragment>
-              {hasInherited && groupHeader(`This ${levelNoun}`)}
-              {own.map((s) => row(s, false))}
-            </Fragment>
-          )}
-          {showInherited && fromProject.length > 0 && (
-            <Fragment>
-              {groupHeader(
-                `Inherited from project ${target.projName}`,
-                projectEventsHref
-                  ? { href: projectEventsHref, text: "Manage in project" }
-                  : undefined,
-              )}
-              {fromProject.map((s) => row(s, true))}
-            </Fragment>
-          )}
-          {showInherited && fromOrg.length > 0 && (
-            <Fragment>
-              {groupHeader(
-                `Inherited from organization ${target.orgName}`,
-                orgEventsHref ? { href: orgEventsHref, text: "View in org" } : undefined,
-              )}
-              {fromOrg.map((s) => row(s, true))}
-            </Fragment>
-          )}
-        </ListingTable.Body>
-      </ListingTable>
-    );
-  }
+      {hasInherited && (
+        <Box sx={{ minWidth: 170 }}>
+          <TextInput
+            select
+            size="small"
+            aria-label="Show subscriptions"
+            value={show}
+            onChange={(e) => setShow(e.target.value as Show)}
+            slotProps={{
+              select: {
+                renderValue: (v) =>
+                  `Show: ${v === "all" ? "All" : v === "own" ? `This ${levelNoun}` : "Inherited"}`,
+              },
+            }}
+          >
+            <MenuItem value="all">All</MenuItem>
+            <MenuItem value="own">{`This ${levelNoun}`}</MenuItem>
+            <MenuItem value="inherited">Inherited</MenuItem>
+          </TextInput>
+        </Box>
+      )}
+      {newButton}
+    </Stack>
+  );
 
   const current = menu?.subscription;
   return (
     <>
-      <ListingTable.Container>
-        {toolbar}
-        {body}
-      </ListingTable.Container>
+      <ResourceListShell
+        resourceName="event-subscriptions"
+        disablePaper
+        searchValue={search}
+        onSearchChange={setSearch}
+        toolbar={toolbar}
+        error={error ? new Error("Couldn't load subscriptions. Reload the page to try again.") : undefined}
+        isLoading={isLoading}
+        isEmpty={isListEmpty({ isLoading, count: total, isFiltered })}
+        isSearchEmpty={!isLoading && total > 0 && visibleCount === 0}
+        emptyState={{
+          illustration: <Bell size={64} />,
+          title: "No subscriptions yet",
+          description: `Pick events and a destination to send this ${levelNoun}'s events to Slack, PagerDuty or a webhook.`,
+          action: newButton,
+        }}
+        searchEmptyState={{
+          illustration: <Bell size={64} />,
+          title: "No subscriptions match",
+          description: "Try other search keywords or show all subscriptions.",
+        }}
+      >
+    <ListingTable>
+      <ListingTable.Head>
+        <ListingTable.Row>
+          <ListingTable.Cell>Subscription</ListingTable.Cell>
+          <ListingTable.Cell>Events</ListingTable.Cell>
+          <ListingTable.Cell>Destination</ListingTable.Cell>
+          <ListingTable.Cell>Filter</ListingTable.Cell>
+          <ListingTable.Cell>Last 24h</ListingTable.Cell>
+          <ListingTable.Cell>Enabled</ListingTable.Cell>
+          <ListingTable.Cell align="right" />
+        </ListingTable.Row>
+      </ListingTable.Head>
+      <ListingTable.Body>
+        {showOwn && own.length > 0 && (
+          <Fragment>
+            {hasInherited && groupHeader(`This ${levelNoun}`)}
+            {own.map((s) => row(s, false))}
+          </Fragment>
+        )}
+        {showInherited && fromProject.length > 0 && (
+          <Fragment>
+            {groupHeader(
+              `Inherited from project ${target.projName}`,
+              projectEventsHref
+                ? { href: projectEventsHref, text: "Manage in project" }
+                : undefined,
+            )}
+            {fromProject.map((s) => row(s, true))}
+          </Fragment>
+        )}
+        {showInherited && fromOrg.length > 0 && (
+          <Fragment>
+            {groupHeader(
+              `Inherited from organization ${target.orgName}`,
+              orgEventsHref ? { href: orgEventsHref, text: "View in org" } : undefined,
+            )}
+            {fromOrg.map((s) => row(s, true))}
+          </Fragment>
+        )}
+      </ListingTable.Body>
+    </ListingTable>
+      </ResourceListShell>
       <Menu anchorEl={menu?.anchor} open={!!menu} onClose={() => setMenu(null)}>
         {canManage && (
           <MenuItem
