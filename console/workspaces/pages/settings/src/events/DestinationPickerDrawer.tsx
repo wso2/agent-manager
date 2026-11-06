@@ -20,11 +20,11 @@ import { useState } from "react";
 import {
   Avatar,
   Box,
-  CircularProgress,
   Divider,
   Form,
   ListingTable,
   SearchBar,
+  Skeleton,
   Stack,
   Typography,
 } from "@wso2/oxygen-ui";
@@ -77,7 +77,12 @@ export function DestinationPickerDrawer({
   );
 
   return (
-    <DrawerWrapper open={open} onClose={onClose} minWidth={620} maxWidth={620}>
+    <DrawerWrapper
+      open={open}
+      onClose={onClose}
+      minWidth="min(620px, 100vw)"
+      maxWidth="min(620px, 100vw)"
+    >
       <DrawerHeader icon={<Send size={22} />} title="Select destination" onClose={onClose} />
       <DrawerContent>
         <Stack sx={{ height: "100%" }}>
@@ -94,9 +99,11 @@ export function DestinationPickerDrawer({
           />
           <Stack spacing={1} sx={{ flex: 1, overflowY: "auto" }}>
             {isLoading ? (
-              <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
-                <CircularProgress size={28} />
-              </Box>
+              <>
+                <Skeleton variant="rounded" height={64} />
+                <Skeleton variant="rounded" height={64} />
+                <Skeleton variant="rounded" height={64} />
+              </>
             ) : filtered.length === 0 ? (
               <ListingTable.Container>
                 <ListingTable.EmptyState

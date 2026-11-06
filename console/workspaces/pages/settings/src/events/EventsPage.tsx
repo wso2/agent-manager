@@ -18,28 +18,28 @@
 
 import { useMemo } from "react";
 import {
-  Alert,
   Box,
   Button,
   Chip,
   Divider,
+  ListingTable,
   Skeleton,
   Stack,
   Tab,
   Tabs,
-  Typography,
 } from "@wso2/oxygen-ui";
-import { Lock, RefreshCw, ServerCrash } from "@wso2/oxygen-ui-icons-react";
+import { BellOff, Lock, RefreshCw, ServerCrash } from "@wso2/oxygen-ui-icons-react";
 import {
   generatePath,
   Route,
   Routes,
+  useLocation,
   useNavigate,
   useParams,
   useResolvedPath,
   useSearchParams,
 } from "react-router-dom";
-import { PageLayout, StateNotice } from "@agent-management-platform/views";
+import { PageLayout, returnToState, StateNotice } from "@agent-management-platform/views";
 import {
   useListEventDestinations,
   useListEventSubscriptions,
@@ -51,6 +51,7 @@ import {
   type EventTargetParams,
 } from "@agent-management-platform/types";
 import { DeliveryLogTab } from "./DeliveryLogTab";
+import { DestinationEditor } from "./DestinationEditor";
 import { DestinationsTab } from "./DestinationsTab";
 import { SubscriptionEditor } from "./SubscriptionEditor";
 import { SubscriptionsTab } from "./SubscriptionsTab";
@@ -96,6 +97,9 @@ interface OverviewProps {
 
 function EventsOverview({ scope, target, access }: OverviewProps) {
   const navigate = useNavigate();
+  const location = useLocation();
+  // Create and edit pages return here, to the same tab and filters.
+  const openPage = (path: string) => navigate(path, { state: returnToState(location) });
   const [searchParams, setSearchParams] = useSearchParams();
   const isOrg = scope === "org";
   const tabs: TabKey[] = isOrg
@@ -147,73 +151,85 @@ function EventsOverview({ scope, target, access }: OverviewProps) {
 
   return (
     <PageLayout title="Events" description={descriptionOf(scope, target)} disableIcon>
-      <Stack spacing={2.5}>
-        <Box>
-          <Tabs value={tab} onChange={(_, v: TabKey) => setParams({ tab: v })}>
-            <Tab
-              value="subscriptions"
-              label={<TabLabel label="Subscriptions" count={subscriptionCount} />}
-            />
-            {isOrg && (
+      {/* One box around the tabs and their lists, as on the other listing pages. */}
+      <ListingTable.Container>
+        <Stack spacing={2.5}>
+          <Box>
+            <Tabs value={tab} onChange={(_, v: TabKey) => setParams({ tab: v })}>
               <Tab
-                value="destinations"
-                label={
-                  <TabLabel
-                    label="Destinations"
-                    count={
-                      destinations.data ? String(destinations.data.destinations.length) : undefined
-                    }
-                  />
+                value="subscriptions"
+                label={<TabLabel label="Subscriptions" count={subscriptionCount} />}
+              />
+              {isOrg && (
+                <Tab
+                  value="destinations"
+                  label={
+                    <TabLabel
+                      label="Destinations"
+                      count={
+                        destinations.data
+                          ? String(destinations.data.destinations.length)
+                          : undefined
+                      }
+                    />
+                  }
+                />
+              )}
+              <Tab value="deliveries" label={<TabLabel label="Delivery Log" />} />
+            </Tabs>
+            <Divider />
+          </Box>
+
+          <Box sx={{ px: 2, pb: 2 }}>
+            {tab === "subscriptions" && (
+              <SubscriptionsTab
+                target={target}
+                data={subscriptions.data}
+                isLoading={subscriptions.isLoading}
+                error={subscriptions.error}
+                canManage={access.canManageSubscriptions}
+                levelNoun={scope === "org" ? "organization" : scope}
+                projectEventsHref={projectEventsHref}
+                orgEventsHref={orgEventsHref}
+                onNew={() => openPage("subscriptions/new")}
+                onEdit={(s) => openPage(`subscriptions/${s.id}/edit`)}
+                onViewDeliveries={(id) =>
+                  setParams({ tab: "deliveries", subscriptionId: id, destinationId: undefined })
                 }
               />
             )}
-            <Tab value="deliveries" label={<TabLabel label="Delivery Log" />} />
-          </Tabs>
-          <Divider />
-        </Box>
-
-        {tab === "subscriptions" && (
-          <SubscriptionsTab
-            target={target}
-            data={subscriptions.data}
-            isLoading={subscriptions.isLoading}
-            error={subscriptions.error}
-            canManage={access.canManageSubscriptions}
-            levelNoun={scope === "org" ? "organization" : scope}
-            projectEventsHref={projectEventsHref}
-            orgEventsHref={orgEventsHref}
-            onNew={() => navigate("subscriptions/new")}
-            onEdit={(s) => navigate(`subscriptions/${s.id}/edit`)}
-            onViewDeliveries={(id) =>
-              setParams({ tab: "deliveries", subscriptionId: id, destinationId: undefined })
-            }
-          />
-        )}
-        {tab === "destinations" && isOrg && (
-          <DestinationsTab
-            orgName={target.orgName}
-            canManage={access.canManageDestinations}
-            onViewDeliveries={(id) =>
-              setParams({ tab: "deliveries", destinationId: id, subscriptionId: undefined })
-            }
-          />
-        )}
-        {tab === "deliveries" && (
-          <DeliveryLogTab
-            target={target}
-            destinationOptions={
-              isOrg
-                ? (destinations.data?.destinations ?? []).map((d) => ({ id: d.id, name: d.name }))
-                : undefined
-            }
-            destinationId={destinationId}
-            subscriptionId={subscriptionId}
-            subscriptionName={subscriptionName}
-            onDestinationChange={(id) => setParams({ destinationId: id })}
-            onClearSubscription={() => setParams({ subscriptionId: undefined })}
-          />
-        )}
-      </Stack>
+            {tab === "destinations" && isOrg && (
+              <DestinationsTab
+                orgName={target.orgName}
+                canManage={access.canManageDestinations}
+                onAdd={() => openPage("destinations/new")}
+                onEdit={(d) => openPage(`destinations/${d.id}/edit`)}
+                onViewDeliveries={(id) =>
+                  setParams({ tab: "deliveries", destinationId: id, subscriptionId: undefined })
+                }
+              />
+            )}
+            {tab === "deliveries" && (
+              <DeliveryLogTab
+                target={target}
+                destinationOptions={
+                  isOrg
+                    ? (destinations.data?.destinations ?? []).map((d) => ({
+                        id: d.id,
+                        name: d.name,
+                      }))
+                    : undefined
+                }
+                destinationId={destinationId}
+                subscriptionId={subscriptionId}
+                subscriptionName={subscriptionName}
+                onDestinationChange={(id) => setParams({ destinationId: id })}
+                onClearSubscription={() => setParams({ subscriptionId: undefined })}
+              />
+            )}
+          </Box>
+        </Stack>
+      </ListingTable.Container>
     </PageLayout>
   );
 }
@@ -222,7 +238,9 @@ function EventsOverview({ scope, target, access }: OverviewProps) {
  * A level's Events: its subscriptions (with the ones it inherits), the
  * organization's destinations at org level, and the delivery log. The
  * subscription editor lives at "subscriptions/new" and
- * "subscriptions/:subscriptionId/edit" below it; mount it on a "/*" route.
+ * "subscriptions/:subscriptionId/edit" below it, and at org level the
+ * destination editor at "destinations/new" and
+ * "destinations/:destinationId/edit"; mount it on a "/*" route.
  */
 export function EventsPage({ scope }: { scope: EventScope }) {
   const { orgId, projectId, agentId } = useParams<{
@@ -279,25 +297,23 @@ export function EventsPage({ scope }: { scope: EventScope }) {
   if (config.data?.eventsEnabled !== true) {
     return (
       <PageLayout title="Events" disableIcon>
-        <Alert severity="info">
-          Events are not enabled on this deployment. An administrator can turn them on by running
-          Agent Manager with an event bus.
-        </Alert>
+        <StateNotice
+          icon={BellOff}
+          title="Events are not enabled"
+          description="An administrator can turn them on by running Agent Manager with an event bus."
+        />
       </PageLayout>
     );
   }
   if (scope === "org" && access.resolved && !access.canReadOrg) {
     return (
-      <Stack alignItems="center" justifyContent="center" spacing={2} sx={{ py: 10, px: 4 }}>
-        <Box sx={{ color: "text.secondary", display: "flex" }}>
-          <Lock size={48} />
-        </Box>
-        <Typography variant="h6">You don&apos;t have access to organization events</Typography>
-        <Typography variant="body2" color="text.secondary" textAlign="center" maxWidth={440}>
-          Destinations and organization subscriptions are available to organization administrators.
-          Projects and agents have Events pages of their own.
-        </Typography>
-      </Stack>
+      <PageLayout title="Events" disableIcon>
+        <StateNotice
+          icon={Lock}
+          title="You don't have access to organization events"
+          description="Destinations and organization subscriptions are available to organization administrators. Projects and agents have Events pages of their own."
+        />
+      </PageLayout>
     );
   }
 
@@ -328,6 +344,18 @@ export function EventsPage({ scope }: { scope: EventScope }) {
           />
         }
       />
+      {scope === "org" && (
+        <>
+          <Route
+            path="destinations/new"
+            element={<DestinationEditor orgName={orgId} access={access} listPath={listPath} />}
+          />
+          <Route
+            path="destinations/:destinationId/edit"
+            element={<DestinationEditor orgName={orgId} access={access} listPath={listPath} />}
+          />
+        </>
+      )}
     </Routes>
   );
 }
