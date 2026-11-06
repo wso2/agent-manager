@@ -30,6 +30,7 @@ import type {
   MCPProxyPolicy,
 } from "@agent-management-platform/types";
 import { Alert, Stack, Typography } from "@wso2/oxygen-ui";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 import { ACL_POLICY_NAME } from "../constants";
 import {
   CAPABILITY_SECTION_KEY,
@@ -136,6 +137,7 @@ export function MCPProxyManageToolsTab({
   onUpdate,
   isUpdating,
 }: MCPProxyManageToolsTabProps) {
+  const { canWrite } = useResourceAccess("mcp_server");
   const lastSavedRef = useRef<{
     mode: AccessControlMode;
     exceptionKeys: string[];
@@ -323,6 +325,7 @@ export function MCPProxyManageToolsTab({
         onExceptionKeysChange={setExceptionKeys}
         isLoading={isLoading || isCatalogLoading}
         isSaving={isUpdating}
+        readOnly={!canWrite}
         isDirty={isDirty && Boolean(availableAclPolicy)}
         onSave={() => void handleSave()}
         onDiscard={handleDiscard}

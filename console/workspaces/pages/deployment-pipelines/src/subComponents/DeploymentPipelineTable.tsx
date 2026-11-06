@@ -15,6 +15,7 @@
  * under the License.
  */
 
+import { usePipelineFeatures } from "@agent-management-platform/feature-management";
 import { useEffect, useMemo, useState } from "react";
 import {
   Avatar,
@@ -139,6 +140,8 @@ function PromotionChainCell({
 export function DeploymentPipelineTable({
   onCreatePipeline,
 }: DeploymentPipelineTableProps) {
+  // Read here so a caller can't forget it and show Delete to read-only users.
+  const { canWrite: canDelete } = usePipelineFeatures();
   const { orgId } = useParams<{ orgId: string }>();
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
@@ -340,7 +343,7 @@ export function DeploymentPipelineTable({
                   alignItems="center"
                   spacing={1}
                 >
-                  {hoveredId === pipeline.name ? (
+                  {canDelete && hoveredId === pipeline.name ? (
                     <FadeIn>
                       <Stack direction="row" spacing={0.5}>
                           <Button

@@ -49,11 +49,11 @@ import {
 } from "@agent-management-platform/shared-component";
 import {
   absoluteRouteMap,
-  globalConfig,
   isSelfHostedGateway,
   showGatewayHosting,
   type GatewayResponse,
 } from "@agent-management-platform/types";
+import { useFeatureFlag, useGatewayFeatures } from "@agent-management-platform/feature-management";
 
 interface AIGatewaysTableProps {
   onAddGateway?: () => void;
@@ -94,7 +94,9 @@ const matchesQuery = (gateway: GatewayResponse, query: string) => {
 };
 
 export function AIGatewaysTable({ onAddGateway }: AIGatewaysTableProps) {
-  const selfHostedEnabled = globalConfig.featureFlags?.enableSelfHostedGateways === true;
+  // Read here so a caller can't forget it and show Delete to read-only users.
+  const { canWrite: canDelete } = useGatewayFeatures();
+  const selfHostedEnabled = useFeatureFlag("enableSelfHostedGateways");
   const navigate = useNavigate();
   const { orgId } = useParams<{ orgId: string }>();
   const [searchQuery, setSearchQuery] = useState("");
@@ -265,6 +267,7 @@ export function AIGatewaysTable({ onAddGateway }: AIGatewaysTableProps) {
             >
               {lastUpdated}
             </Typography>
+            {canDelete && (
             <Box className="row-actions">
             <Button
                 variant="outlined"
@@ -290,6 +293,7 @@ export function AIGatewaysTable({ onAddGateway }: AIGatewaysTableProps) {
                 Delete
               </Button>
             </Box>
+            )}
           </Stack>
         </ListingTable.Cell>
       </ListingTable.Row>

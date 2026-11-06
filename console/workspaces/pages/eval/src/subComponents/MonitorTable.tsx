@@ -46,6 +46,7 @@ import {
   useDeleteMonitor,
   useListMonitors,
 } from "@agent-management-platform/api-client";
+import { useFeatureAccess, useResourceAccess } from "@agent-management-platform/feature-management";
 import { MonitorStartStopButton } from "./MonitorStartStopButton";
 
 const getStatusColor = (status: MonitorStatus) => {
@@ -70,6 +71,9 @@ export function MonitorTable({ createAction }: MonitorTableProps) {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const { addConfirmation } = useConfirmationDialog();
+  const { canWrite } = useResourceAccess("monitor");
+  // Start/stop needs monitor:execute on the server, not an update scope.
+  const canExecute = useFeatureAccess("monitor_execute");
 
   const { agentId, orgId, projectId, envId } = useParams<{
     orgId: string;
@@ -213,7 +217,7 @@ export function MonitorTable({ createAction }: MonitorTableProps) {
             <ListingTable.Cell align="center">Status</ListingTable.Cell>
             <ListingTable.Cell>Data Source</ListingTable.Cell>
             <ListingTable.Cell>Evaluators</ListingTable.Cell>
-            <ListingTable.Cell>Actions</ListingTable.Cell>
+            {(canWrite || canExecute) && <ListingTable.Cell>Actions</ListingTable.Cell>}
           </ListingTable.Row>
         </ListingTable.Head>
         <ListingTable.Body>
@@ -268,86 +272,94 @@ export function MonitorTable({ createAction }: MonitorTableProps) {
                   )}
                 </Stack>
               </ListingTable.Cell>
+              {(canWrite || canExecute) && (
               <ListingTable.Cell onClick={(e) => e.stopPropagation()}>
                 <Stack direction="row" spacing={1} alignItems="center">
-                  <MonitorStartStopButton
-                    monitorName={monitor.name}
-                    monitorType={monitor.type}
-                    monitorStatus={monitor.status}
-                    orgId={orgId}
-                    projectId={projectId}
-                    agentId={agentId}
-                  />
-                  <IconButton
-                    aria-label={`Edit monitor ${monitor.displayName}`}
-                    onClick={() =>
-                      navigate(
-                        generatePath(
-                          absoluteRouteMap.children.org.children.projects
-                            .children.agents.children.environment.children
-                            .evaluation.children.monitor.children.edit.path,
-                          {
-                            agentId,
-                            orgId,
-                            projectId,
-                            envId,
-                            monitorId: monitor.name,
-                          },
-                        ),
-                      )
-                    }
-                  >
-                    <Edit size={16} />
-                  </IconButton>
-                  <Tooltip title="Duplicate">
-                    <IconButton
-                      aria-label={`Duplicate monitor ${monitor.displayName}`}
-                      onClick={() =>
-                        navigate({
-                          pathname: generatePath(
-                            absoluteRouteMap.children.org.children.projects
-                              .children.agents.children.environment.children
-                              .evaluation.children.monitor.children.create.path,
-                            { agentId, orgId, projectId, envId },
-                          ),
-                          search: `?duplicateFrom=${encodeURIComponent(monitor.name)}`,
-                        })
-                      }
-                    >
-                      <Copy size={16} />
-                    </IconButton>
-                  </Tooltip>
-                  <Tooltip title="Delete Monitor">
-                    <IconButton
-                      color="error"
-                      aria-label={`Delete monitor ${monitor.displayName}`}
-                      onClick={() =>
-                        addConfirmation({
-                          analytics: { entity: "monitor", action: "delete" },
-                          title: "Delete Monitor",
-                          description:
-                            "Are you sure you want to delete this monitor? This action cannot be undone.",
-                          confirmButtonText: "Delete",
-                          onConfirm: () => {
-                            //delete action
-                            deleteMonitor(
+                  {canExecute && (
+                    <MonitorStartStopButton
+                      monitorName={monitor.name}
+                      monitorType={monitor.type}
+                      monitorStatus={monitor.status}
+                      orgId={orgId}
+                      projectId={projectId}
+                      agentId={agentId}
+                    />
+                  )}
+                  {canWrite && (
+                    <>
+                      <IconButton
+                        aria-label={`Edit monitor ${monitor.displayName}`}
+                        onClick={() =>
+                          navigate(
+                            generatePath(
+                              absoluteRouteMap.children.org.children.projects
+                                .children.agents.children.environment.children
+                                .evaluation.children.monitor.children.edit.path,
                               {
-                                monitorName: monitor.name,
-                                orgName: orgId,
-                                projName: projectId,
-                                agentName: agentId,
+                                agentId,
+                                orgId,
+                                projectId,
+                                envId,
+                                monitorId: monitor.name,
                               },
-                              {},
-                            );
-                          },
-                        })
-                      }
-                    >
-                      <Trash size={16} />
-                    </IconButton>
-                  </Tooltip>
+                            ),
+                          )
+                        }
+                      >
+                        <Edit size={16} />
+                      </IconButton>
+                      <Tooltip title="Duplicate">
+                        <IconButton
+                          aria-label={`Duplicate monitor ${monitor.displayName}`}
+                          onClick={() =>
+                            navigate({
+                              pathname: generatePath(
+                                absoluteRouteMap.children.org.children.projects
+                                  .children.agents.children.environment.children
+                                  .evaluation.children.monitor.children.create.path,
+                                { agentId, orgId, projectId, envId },
+                              ),
+                              search: `?duplicateFrom=${encodeURIComponent(monitor.name)}`,
+                            })
+                          }
+                        >
+                          <Copy size={16} />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Delete Monitor">
+                        <IconButton
+                          color="error"
+                          aria-label={`Delete monitor ${monitor.displayName}`}
+                          onClick={() =>
+                            addConfirmation({
+                              analytics: { entity: "monitor", action: "delete" },
+                              title: "Delete Monitor",
+                              description:
+                                "Are you sure you want to delete this monitor? This action cannot be undone.",
+                              confirmButtonText: "Delete",
+                              onConfirm: () => {
+                                //delete action
+                                deleteMonitor(
+                                  {
+                                    monitorName: monitor.name,
+                                    orgName: orgId,
+                                    projName: projectId,
+                                    agentName: agentId,
+                                  },
+                                  {},
+                                );
+                              },
+                            })
+                          }
+                        >
+                          <Trash size={16} />
+                        </IconButton>
+                      </Tooltip>
+                    </>
+                  )}
                 </Stack>
               </ListingTable.Cell>
+              )}
             </ListingTable.Row>
           ))}
         </ListingTable.Body>

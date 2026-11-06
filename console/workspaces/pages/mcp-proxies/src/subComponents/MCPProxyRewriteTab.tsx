@@ -51,6 +51,7 @@ import {
 } from "@agent-management-platform/types";
 import { TextInput } from "@agent-management-platform/views";
 import { useUnsavedChangesGuard } from "@agent-management-platform/shared-component";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 import { REWRITE_POLICY_NAME } from "../constants";
 import type { CapabilityKind } from "./mcpEndpoints";
 
@@ -354,6 +355,7 @@ export function MCPProxyRewriteTab({
   onUpdate,
   isUpdating,
 }: MCPProxyRewriteTabProps) {
+  const { canWrite } = useResourceAccess("mcp_server");
   const lastSavedRef = useRef<{
     enabled: boolean;
     state: RewriteState;
@@ -435,7 +437,8 @@ export function MCPProxyRewriteTab({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- savedVersion marks a ref update
   }, [enabled, state, savedVersion]);
 
-  useUnsavedChangesGuard(isDirty);
+  // Read-only users have no Save/Discard, so their edits must never trap navigation.
+  useUnsavedChangesGuard(canWrite && isDirty);
   const updateTool = useCallback(
     (backendId: string, patch: Partial<ToolEntry>) => {
       setState((prev) => ({
@@ -596,7 +599,7 @@ export function MCPProxyRewriteTab({
           <Switch
             checked={enabled}
             onChange={(_, checked) => setEnabled(checked)}
-            disabled={isUpdating}
+            disabled={isUpdating || !canWrite}
           />
         </Stack>
       </Stack>
@@ -692,6 +695,7 @@ export function MCPProxyRewriteTab({
               onChangeTool={updateTool}
               onChangeResource={updateResource}
               onChangePrompt={updatePrompt}
+              disabled={!canWrite}
             />
           ) : (
             <Stack
@@ -725,6 +729,7 @@ export function MCPProxyRewriteTab({
             </Alert>
           )}
         </Collapse>
+        {canWrite && (
         <Stack direction="row" spacing={1.5} justifyContent="flex-end">
           <Button
             variant="outlined"
@@ -745,6 +750,7 @@ export function MCPProxyRewriteTab({
             {isUpdating ? "Saving..." : "Save"}
           </Button>
         </Stack>
+        )}
       </Stack>
     </Stack>
   );
@@ -755,6 +761,7 @@ function RewriteFieldsForm({
   onChangeTool,
   onChangeResource,
   onChangePrompt,
+  disabled = false,
 }: {
   meta: ItemMeta;
   state: RewriteState;
@@ -764,6 +771,7 @@ function RewriteFieldsForm({
     patch: Partial<ResourceEntry>,
   ) => void;
   onChangePrompt: (backendId: string, patch: Partial<PromptEntry>) => void;
+  disabled?: boolean;
 }) {
   const [advancedOpen, setAdvancedOpen] = useState(false);
 
@@ -792,6 +800,7 @@ function RewriteFieldsForm({
       {meta.kind === "tool" && (
         <>
           <TextInput
+            disabled={disabled}
             maxLength={INPUT_LIMITS.NAME}
             label="Name"
             size="small"
@@ -802,6 +811,7 @@ function RewriteFieldsForm({
             }
           />
           <TextInput
+            disabled={disabled}
             maxLength={INPUT_LIMITS.DESCRIPTION}
             label="Description"
             size="small"
@@ -814,6 +824,7 @@ function RewriteFieldsForm({
             }
           />
           <TextInput
+            disabled={disabled}
             maxLength={INPUT_LIMITS.SOURCE}
             label="Input Schema"
             size="small"
@@ -841,6 +852,7 @@ function RewriteFieldsForm({
             <AccordionDetails>
               <Stack spacing={2}>
                 <TextInput
+                  disabled={disabled}
                   maxLength={INPUT_LIMITS.SOURCE}
                   label="Output Schema"
                   size="small"
@@ -858,6 +870,7 @@ function RewriteFieldsForm({
                   }}
                 />
                 <TextInput
+                  disabled={disabled}
                   maxLength={INPUT_LIMITS.SHORT_TEXT}
                   label="Target"
                   size="small"
@@ -881,6 +894,7 @@ function RewriteFieldsForm({
       {meta.kind === "resource" && (
         <>
           <TextInput
+            disabled={disabled}
             maxLength={INPUT_LIMITS.URL}
             label="URI"
             size="small"
@@ -892,6 +906,7 @@ function RewriteFieldsForm({
             sx={{ "& .MuiInputBase-input": { fontFamily: "monospace" } }}
           />
           <TextInput
+            disabled={disabled}
             maxLength={INPUT_LIMITS.DESCRIPTION}
             label="Description"
             size="small"
@@ -917,6 +932,7 @@ function RewriteFieldsForm({
             <AccordionDetails>
               <Stack spacing={2}>
                 <TextInput
+                  disabled={disabled}
                   maxLength={INPUT_LIMITS.SHORT_TEXT}
                   label="Target"
                   size="small"
@@ -941,6 +957,7 @@ function RewriteFieldsForm({
       {meta.kind === "prompt" && (
         <>
           <TextInput
+            disabled={disabled}
             maxLength={INPUT_LIMITS.NAME}
             label="Name"
             size="small"
@@ -951,6 +968,7 @@ function RewriteFieldsForm({
             }
           />
           <TextInput
+            disabled={disabled}
             maxLength={INPUT_LIMITS.DESCRIPTION}
             label="Description"
             size="small"
@@ -976,6 +994,7 @@ function RewriteFieldsForm({
             <AccordionDetails>
               <Stack spacing={2}>
                 <TextInput
+                  disabled={disabled}
                   maxLength={INPUT_LIMITS.SHORT_TEXT}
                   label="Target"
                   size="small"

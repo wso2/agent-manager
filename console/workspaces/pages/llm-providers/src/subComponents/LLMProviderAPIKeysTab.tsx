@@ -26,6 +26,7 @@ import {
   isApiKeyAuthEnabled,
   type CreateAPIKeyInput,
 } from "@agent-management-platform/shared-component";
+import { useFeatureAccess } from "@agent-management-platform/feature-management";
 import type { LLMProviderResponse } from "@agent-management-platform/types";
 import { Alert, Button, ListingTable, Skeleton } from "@wso2/oxygen-ui";
 import { ShieldOff } from "@wso2/oxygen-ui-icons-react";
@@ -52,6 +53,8 @@ export function LLMProviderAPIKeysTab({
   error: providerError = null,
   onGoToSecurityTab,
 }: LLMProviderAPIKeysTabProps) {
+  // API keys have their own scope, separate from editing the provider.
+  const canManageKeys = useFeatureAccess("llm_provider_api_key_manage");
   const apiKeyEnabled = isApiKeyAuthEnabled(providerData?.security);
 
   const {
@@ -132,6 +135,7 @@ export function LLMProviderAPIKeysTab({
       emptyDescription="Create an API key to authenticate requests to this LLM provider."
       onCreate={handleCreate}
       onRevoke={handleRevoke}
+      readOnly={!canManageKeys}
     />
   );
 }

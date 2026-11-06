@@ -25,6 +25,7 @@
   "dependencies": {
     "@thunderid/react": "1.0.6",
     "@agent-management-platform/eslint-config": "workspace:*",
+    "@agent-management-platform/feature-management": "workspace:*",
     "date-fns": "4.1.0",
     "zod": "4.6.7"
   }

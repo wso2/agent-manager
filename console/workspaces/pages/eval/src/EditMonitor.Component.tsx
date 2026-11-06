@@ -20,7 +20,8 @@ import React, { useCallback, useMemo } from "react";
 import { getErrorMessage } from "@agent-management-platform/shared-component";
 import { Alert, Skeleton, Stack } from "@wso2/oxygen-ui";
 import { PageLayout } from "@agent-management-platform/views";
-import { generatePath, useNavigate, useParams } from "react-router-dom";
+import { generatePath, Navigate, useNavigate, useParams } from "react-router-dom";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 import {
   absoluteRouteMap,
   type UpdateMonitorRequest,
@@ -41,6 +42,7 @@ export const EditMonitorComponent: React.FC = () => {
     monitorId: string;
   }>();
   const navigate = useNavigate();
+  const { canWrite } = useResourceAccess("monitor");
 
   const {
     data: monitorData,
@@ -150,6 +152,10 @@ export const EditMonitorComponent: React.FC = () => {
     },
     [agentId, backHref, initialValues, monitorId, navigate, orgId, projectId, updateMonitor],
   );
+
+  if (!canWrite) {
+    return <Navigate to={backHref} replace />;
+  }
 
   if (missingParamsMessage) {
     return (

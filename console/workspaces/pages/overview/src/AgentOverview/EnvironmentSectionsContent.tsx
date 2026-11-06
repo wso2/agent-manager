@@ -16,9 +16,6 @@
  * under the License.
  */
 
-import {
-    isAgentIdentityEnabled,
-} from "@agent-management-platform/types";
 import type { DeploymentStatus } from "@agent-management-platform/shared-component";
 import { EnvAgentInterfaceCard } from "./EnvAgentInterfaceCard";
 import { EnvAgentRolesGroupsSection } from "./EnvAgentRolesGroupsSection";
@@ -28,6 +25,7 @@ import { EnvConfigsSection } from "./EnvConfigsSection";
 import { EnvMonitorsSection } from "./EnvMonitorsSection";
 import { EnvObservabilitySection } from "./EnvObservabilitySection";
 import { Divider, Grid } from "@wso2/oxygen-ui";
+import { useFeatureFlag } from "@agent-management-platform/feature-management";
 
 interface EnvironmentSectionsContentProps {
     orgId: string;
@@ -49,7 +47,7 @@ interface EnvironmentSectionsContentProps {
 export function EnvironmentSectionsContent({
     orgId, projectId, agentId, envId, external, deploymentStatus,
 }: EnvironmentSectionsContentProps) {
-    const agentIdEnabled = isAgentIdentityEnabled();
+    const agentIdEnabled = useFeatureFlag("enableAgentIdentity");
 
     return (
         <>

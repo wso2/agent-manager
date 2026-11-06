@@ -34,6 +34,7 @@
     "react-markdown": "10.1.0",
     "@agent-management-platform/auth": "workspace:*",
     "@agent-management-platform/types": "workspace:*",
+    "@agent-management-platform/feature-management": "workspace:*",
     "@agent-management-platform/eslint-config": "workspace:*",
     "@agent-management-platform/api-client": "workspace:*",
     "@agent-management-platform/views": "workspace:*",

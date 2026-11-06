@@ -24,6 +24,7 @@ import { Plus } from "@wso2/oxygen-ui-icons-react";
 import { generatePath, Link, useParams } from "react-router-dom";
 import { absoluteRouteMap } from "@agent-management-platform/types";
 import { useListMonitors } from "@agent-management-platform/api-client";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 import { MonitorTable } from "./subComponents/MonitorTable";
 
 export const EvalMonitorsComponent: React.FC = () => {
@@ -33,6 +34,7 @@ export const EvalMonitorsComponent: React.FC = () => {
     orgId: string;
     projectId: string;
   }>();
+  const { canWrite } = useResourceAccess("monitor");
 
   // Same query as the table (deduped); the header CTA only shows once the list has items.
   const { data: monitorsList } = useListMonitors(
@@ -70,11 +72,11 @@ export const EvalMonitorsComponent: React.FC = () => {
       actions={
         <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
           <EnvironmentSelector />
-          {hasItems && createButton}
+          {hasItems && canWrite && createButton}
         </Stack>
       }
     >
-      <MonitorTable createAction={createButton} />
+      <MonitorTable createAction={canWrite ? createButton : undefined} />
     </PageLayout>
   );
 };

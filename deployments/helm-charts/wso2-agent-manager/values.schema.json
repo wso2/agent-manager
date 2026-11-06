@@ -1857,6 +1857,24 @@
                   "description": "When true, the console offers self-hosted gateways: adding a gateway the customer runs and issuing its registration tokens.",
                   "title": "enableSelfHostedGateways",
                   "type": "boolean"
+                },
+                "externallyManagedEnv": {
+                  "default": false,
+                  "description": "When true, environments are managed outside the console and their pages are hidden.",
+                  "title": "externallyManagedEnv",
+                  "type": "boolean"
+                },
+                "externallyManagedGateway": {
+                  "default": false,
+                  "description": "When true, gateways are managed outside the console and their pages are hidden.",
+                  "title": "externallyManagedGateway",
+                  "type": "boolean"
+                },
+                "externallyManagedPipeline": {
+                  "default": false,
+                  "description": "When true, deployment pipelines are managed outside the console and their pages are hidden.",
+                  "title": "externallyManagedPipeline",
+                  "type": "boolean"
                 }
               },
               "required": [],

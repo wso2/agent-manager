@@ -58,6 +58,7 @@ import {
   type PermissionTreeItem,
   useUnsavedChangesGuard,
 } from "@agent-management-platform/shared-component";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 import { BackButton } from "./components/BackButton";
 import { EditFormSkeleton } from "./components/EditFormSkeleton";
 import { EntityHeader } from "./components/EntityHeader";
@@ -72,6 +73,7 @@ const permGroup = (p: ThunderPermission) =>
 export const RoleEditPage: React.FC = () => {
   const { orgId, roleId } = useParams<{ orgId: string; roleId: string }>();
   const navigate = useNavigate();
+  const { canWrite } = useResourceAccess("role");
 
   const [activeTab, setActiveTab] = useState<ActiveTab>("permissions");
   const [isSaving, setIsSaving] = useState(false);
@@ -405,7 +407,9 @@ export const RoleEditPage: React.FC = () => {
               <Typography variant="body2" color="text.secondary">
                 {isPermissionsReadOnly
                   ? "Permissions for predefined roles cannot be modified."
-                  : "Check the permissions to assign to this role."}
+                  : canWrite
+                    ? "Check the permissions to assign to this role."
+                    : "Permissions assigned to this role."}
               </Typography>
 
               <Box sx={{ mt: 1 }}>
@@ -413,7 +417,7 @@ export const RoleEditPage: React.FC = () => {
                   items={permissionTreeItems}
                   selectedIds={selectedPermissionIds}
                   onChange={handlePermissionSelectionChange}
-                  readOnly={isPermissionsReadOnly}
+                  readOnly={isPermissionsReadOnly || !canWrite}
                   emptyMessage="No permissions available."
                 />
               </Box>
@@ -425,9 +429,12 @@ export const RoleEditPage: React.FC = () => {
             <>
               <Form.Header>Assigned Users</Form.Header>
               <Typography variant="body2" color="text.secondary">
-                Search and add users to this role.
+                {canWrite
+                  ? "Search and add users to this role."
+                  : "Users assigned to this role."}
               </Typography>
 
+              {canWrite && (
               <Grid container spacing={2}>
                 <Grid size={{ xs: 12, md: 12, xl: 8 }}>
                 <Form.ElementWrapper label="Add User" name="addUser">
@@ -447,13 +454,14 @@ export const RoleEditPage: React.FC = () => {
                 </Form.ElementWrapper>
                 </Grid>
               </Grid>
+              )}
 
               {displayedUsers.length === 0 ? (
                 <ListingTable.Container>
                   <ListingTable.EmptyState
                     illustration={<Users size={64} />}
                     title="No users assigned yet"
-                    description="Search and add users above."
+                    description={canWrite ? "Search and add users above." : undefined}
                   />
                 </ListingTable.Container>
               ) : (
@@ -463,7 +471,7 @@ export const RoleEditPage: React.FC = () => {
                       <ListingTable.Row>
                         <ListingTable.Cell>Username</ListingTable.Cell>
                         <ListingTable.Cell>User ID</ListingTable.Cell>
-                        <ListingTable.Cell />
+                        {canWrite && <ListingTable.Cell />}
                       </ListingTable.Row>
                     </ListingTable.Head>
                     <ListingTable.Body>
@@ -473,6 +481,7 @@ export const RoleEditPage: React.FC = () => {
                             {getUsername(user)}
                           </ListingTable.Cell>
                           <ListingTable.Cell>{user.id}</ListingTable.Cell>
+                          {canWrite && (
                           <ListingTable.Cell align="right">
                             <Tooltip title="Remove from role">
                               <IconButton
@@ -483,6 +492,7 @@ export const RoleEditPage: React.FC = () => {
                               </IconButton>
                             </Tooltip>
                           </ListingTable.Cell>
+                          )}
                         </ListingTable.Row>
                       ))}
                     </ListingTable.Body>
@@ -497,9 +507,12 @@ export const RoleEditPage: React.FC = () => {
             <>
               <Form.Header>Assigned Groups</Form.Header>
               <Typography variant="body2" color="text.secondary">
-                Search and add groups to this role.
+                {canWrite
+                  ? "Search and add groups to this role."
+                  : "Groups assigned to this role."}
               </Typography>
 
+              {canWrite && (
               <Grid container spacing={2}>
                 <Grid size={{ xs: 12, md: 12, xl: 8 }}>
                 <Form.ElementWrapper label="Add Group" name="addGroup">
@@ -517,13 +530,14 @@ export const RoleEditPage: React.FC = () => {
                 </Form.ElementWrapper>
                 </Grid>
               </Grid>
+              )}
 
               {displayedGroups.length === 0 ? (
                 <ListingTable.Container>
                   <ListingTable.EmptyState
                     illustration={<Folder size={64} />}
                     title="No groups assigned yet"
-                    description="Search and add groups above."
+                    description={canWrite ? "Search and add groups above." : undefined}
                   />
                 </ListingTable.Container>
               ) : (
@@ -533,7 +547,7 @@ export const RoleEditPage: React.FC = () => {
                       <ListingTable.Row>
                         <ListingTable.Cell>Name</ListingTable.Cell>
                         <ListingTable.Cell>Description</ListingTable.Cell>
-                        <ListingTable.Cell />
+                        {canWrite && <ListingTable.Cell />}
                       </ListingTable.Row>
                     </ListingTable.Head>
                     <ListingTable.Body>
@@ -543,6 +557,7 @@ export const RoleEditPage: React.FC = () => {
                           <ListingTable.Cell>
                             {group.description ?? "-"}
                           </ListingTable.Cell>
+                          {canWrite && (
                           <ListingTable.Cell align="right">
                             <Tooltip title="Remove from role">
                               <IconButton
@@ -553,6 +568,7 @@ export const RoleEditPage: React.FC = () => {
                               </IconButton>
                             </Tooltip>
                           </ListingTable.Cell>
+                          )}
                         </ListingTable.Row>
                       ))}
                     </ListingTable.Body>
@@ -564,7 +580,7 @@ export const RoleEditPage: React.FC = () => {
         </Form.Section>
 
         {/* Action row shows below the card only when there are unsaved changes. */}
-        {isDirty && (
+        {canWrite && isDirty && (
           <Stack direction="row" spacing={1}>
             <Button
               variant="outlined"

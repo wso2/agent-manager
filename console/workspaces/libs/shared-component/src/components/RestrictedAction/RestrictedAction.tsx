@@ -25,7 +25,7 @@ export interface RestrictedActionProps {
   decision: AccessDecision;
   /**
    * Names the capability this control represents, e.g. "promote-deployment".
-   * Reported when a user reaches for a control their scopes do not allow.
+   * Reported when a user reaches for a control their access does not allow.
    */
   feature?: string;
   /**
@@ -36,7 +36,7 @@ export interface RestrictedActionProps {
 }
 
 /**
- * Disables a control the caller's scopes do not reach, and explains why.
+ * Disables a control the caller has no access to, and explains why.
  *
  * Owning the `disabled` prop rather than trusting the caller to repeat the
  * decision is what makes the denial unstateable in half: a wrapper without the
@@ -72,11 +72,10 @@ export function RestrictedAction({
     reported.current = true;
     track(ConsoleAction.PermissionDenied, {
       feature: feature ?? "unspecified",
-      // The scope, not decision.reason: the reason is prose written for a
-      // tooltip and may name the environment or resource involved.
-      required_permission: decision.missingScope ?? "unspecified",
+      // The access key, not decision.reason: the reason is tooltip prose.
+      required_permission: decision.missingAccess ?? "unspecified",
     });
-  }, [track, feature, decision.missingScope]);
+  }, [track, feature, decision.missingAccess]);
 
   if (decision.allowed) return children;
   return (

@@ -41,6 +41,7 @@ import {
 } from "@agent-management-platform/shared-component";
 import { absoluteRouteMap } from "@agent-management-platform/types";
 import { FadeIn } from "@agent-management-platform/views";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 
 interface LLMProviderTableProps {
   /** CTA shown in the empty state; the page owns how a provider gets created. */
@@ -55,6 +56,7 @@ export function LLMProviderTable({ createAction }: LLMProviderTableProps) {
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const { addConfirmation } = useConfirmationDialog();
+  const { canWrite } = useResourceAccess("llm_provider");
 
   const {
     data: providersList,
@@ -245,7 +247,7 @@ export function LLMProviderTable({ createAction }: LLMProviderTableProps) {
                       spacing={1}
                       justifyContent="flex-end"
                     >
-                      {hoveredId === provider.uuid ? (
+                      {hoveredId === provider.uuid && canWrite ? (
                         <FadeIn>
                           <Button
                               variant="outlined"

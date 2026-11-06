@@ -51,6 +51,7 @@ import { RuntimeConfigEditor, createRuntimeConfigRow, type RuntimeConfigRow } fr
 import { KindDescriptionField } from "./subComponents/KindDescriptionField";
 import { DangerZoneCard } from "./subComponents/DangerZoneCard";
 import { useDeleteVersionAction } from "./hooks/useDeleteVersionAction";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 import { useDeleteAgentKind, useGetAgent, useGetAllAgentBuilds, useGetAgentKind, useListAgentKindVersions, usePublishAgentKind, useUpdateAgentKind } from "@agent-management-platform/api-client";
 
 /** Order-independent equality for label maps — key insertion order shouldn't count as a change. */
@@ -63,6 +64,7 @@ const labelsEqual = (a: Record<string, string>, b: Record<string, string>): bool
 export const PublishedList: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { canWrite } = useResourceAccess("agent_kind");
 
   const { orgId, projectId, agentId } = useParams<{
     orgId: string;
@@ -102,8 +104,8 @@ export const PublishedList: React.FC = () => {
     { orgId: orgId ?? "", projectId: projectId ?? "", agentId: agentId ?? "" },
   );
 
-  const isCreateOpen = location.pathname.endsWith("/create-new-version");
-  const isEditKindOpen = location.pathname.endsWith("/edit-kind");
+  const isCreateOpen = canWrite && location.pathname.endsWith("/create-new-version");
+  const isEditKindOpen = canWrite && location.pathname.endsWith("/edit-kind");
 
   // Create drawer state
   const [versionName, setVersionName] = useState("");
@@ -298,7 +300,7 @@ export const PublishedList: React.FC = () => {
   );
 
   // One definition, used both as the page action and as the empty state's CTA.
-  const createVersionButton = (
+  const createVersionButton = canWrite ? (
     <Button
       key="create-version"
       variant="contained"
@@ -309,7 +311,7 @@ export const PublishedList: React.FC = () => {
     >
       Create Version
     </Button>
-  );
+  ) : undefined;
 
   return (
     <>
@@ -318,7 +320,7 @@ export const PublishedList: React.FC = () => {
         description="Manage and publish versions of this Agent Kind to the catalog."
         disableIcon
         actions={[
-          existingKind && (
+          canWrite && existingKind && (
             <Button
               key="edit-kind"
               variant="outlined"
@@ -416,6 +418,7 @@ export const PublishedList: React.FC = () => {
                       </Typography>
                     </ListingTable.Cell>
                     <ListingTable.Cell align="center">
+                      {canWrite && (
                       <ListingTable.RowActions visibility="hover">
                         <Tooltip title="Delete version">
                           <IconButton
@@ -430,6 +433,7 @@ export const PublishedList: React.FC = () => {
                           </IconButton>
                         </Tooltip>
                       </ListingTable.RowActions>
+                      )}
                     </ListingTable.Cell>
                   </ListingTable.Row>
                 ))}
@@ -438,7 +442,7 @@ export const PublishedList: React.FC = () => {
           )}
         </ListingTable.Container>
 
-        {existingKind && (
+        {canWrite && existingKind && (
           <Box sx={{ mt: 3 }}>
             <DangerZoneCard
               title="Unpublish this Agent Kind"

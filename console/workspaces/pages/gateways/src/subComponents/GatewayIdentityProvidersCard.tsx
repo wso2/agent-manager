@@ -40,6 +40,7 @@ import {
   ManageIdentityProviderDialog,
   type ManageIdentityProviderMode,
 } from "./ManageIdentityProviderDialog";
+import { useGatewayFeatures } from "@agent-management-platform/feature-management";
 
 interface GatewayIdentityProvidersCardProps {
   orgId: string;
@@ -55,6 +56,7 @@ export function GatewayIdentityProvidersCard({
   environments,
 }: GatewayIdentityProvidersCardProps) {
   const [hoveredKey, setHoveredKey] = useState<string | null>(null);
+  const { canWrite } = useGatewayFeatures();
   const [dialogMode, setDialogMode] =
     useState<ManageIdentityProviderMode>("upsert");
   const [dialogProvider, setDialogProvider] = useState<IdentityProvider | null>(
@@ -96,7 +98,7 @@ export function GatewayIdentityProvidersCard({
     [gatewayId, gatewayName, environments],
   );
 
-  const addButton = (
+  const addButton = canWrite ? (
     <Button
       variant="contained"
       color="primary"
@@ -106,9 +108,9 @@ export function GatewayIdentityProvidersCard({
     >
       Add Identity Provider
     </Button>
-  );
+  ) : undefined;
 
-  const dialog = (
+  const dialog = canWrite && (
     <ManageIdentityProviderDialog
       open={dialogOpen}
       onClose={() => setDialogOpen(false)}
@@ -245,7 +247,7 @@ export function GatewayIdentityProvidersCard({
                     justifyContent="flex-end"
                     sx={{ minHeight: 32 }}
                   >
-                    {hoveredKey === key && !isSystem ? (
+                    {canWrite && hoveredKey === key && !isSystem ? (
                       <Tooltip title="Remove identity provider">
                         <IconButton
                           color="error"
@@ -291,7 +293,7 @@ export function GatewayIdentityProvidersCard({
                 with OAuth.
               </Typography>
             </Stack>
-            {!isLoading && !error && providers.length > 0 ? addButton : null}
+            {!isLoading && !error && providers.length > 0 ? (addButton ?? null) : null}
           </Stack>
           {renderBody()}
         </Stack>

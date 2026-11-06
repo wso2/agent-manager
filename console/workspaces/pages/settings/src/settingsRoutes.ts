@@ -15,9 +15,8 @@
  * under the License.
  */
 
-import { useMemo } from "react";
-import { absoluteRouteMap, globalConfig } from "@agent-management-platform/types";
-import { useAuthHooks } from "@agent-management-platform/auth";
+import { absoluteRouteMap } from "@agent-management-platform/types";
+import { useFeatureManagement } from "@agent-management-platform/feature-management";
 
 /**
  * Accessor for the `settings` subtree of the generated absolute route map.
@@ -32,33 +31,12 @@ export interface IdentityVisibility {
   groups: boolean;
 }
 
-/**
- * Mirror of the identity-related scope checks used by the main left navigation
- * (`navigationItems.tsx`). Kept local to avoid a circular dependency on core-ui.
- */
+/** Which identity settings tabs the user can open, from the shared feature access. */
 export function useIdentityVisibility(): IdentityVisibility {
-  const { userInfo } = useAuthHooks();
-  return useMemo(() => {
-    if (globalConfig.disableAuth) {
-      return { users: true, roles: true, groups: true };
-    }
-    const scopeStr = userInfo?.scope;
-    if (!scopeStr) {
-      return { users: false, roles: false, groups: false };
-    }
-    const s = new Set(scopeStr.split(" ").filter(Boolean));
-    return {
-      users: s.has("amp:org:invite-member") || s.has("amp:org:remove-member"),
-      roles:
-        s.has("amp:role:read") ||
-        s.has("amp:role:create") ||
-        s.has("amp:role:update") ||
-        s.has("amp:role:delete"),
-      groups:
-        s.has("amp:group:read") ||
-        s.has("amp:group:create") ||
-        s.has("amp:group:update") ||
-        s.has("amp:group:delete"),
-    };
-  }, [userInfo?.scope]);
+  const { hasAccess } = useFeatureManagement();
+  return {
+    users: hasAccess("member_read"),
+    roles: hasAccess("role_read"),
+    groups: hasAccess("group_read"),
+  };
 }

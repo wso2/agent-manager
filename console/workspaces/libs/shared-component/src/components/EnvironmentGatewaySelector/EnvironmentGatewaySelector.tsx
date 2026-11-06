@@ -29,8 +29,8 @@ import {
   Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
+import { useFeatureFlag } from "@agent-management-platform/feature-management";
 import {
-  globalConfig,
   inferredEgressGateway,
   showGatewayHosting,
   type Environment,
@@ -147,10 +147,8 @@ export const EnvironmentGatewaySelectorView: React.FC<
   onSingleChoiceChange,
   disabled,
 }) => {
-  const showHosting = showGatewayHosting(
-    globalConfig.featureFlags?.enableSelfHostedGateways === true,
-    gateways,
-  );
+  const selfHostedEnabled = useFeatureFlag("enableSelfHostedGateways");
+  const showHosting = showGatewayHosting(selfHostedEnabled, gateways);
   const [pendingEnvIds, setPendingEnvIds] = useState<Set<string>>(new Set());
 
   const valueSet = useMemo(() => new Set(value), [value]);

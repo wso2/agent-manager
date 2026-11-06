@@ -97,6 +97,8 @@ export interface AccessControlPanelProps {
   onClearStatus?: () => void;
   /** Show the "Import from specification" button. */
   showImportButton?: boolean;
+  /** Shows the lists without move, mode, import or save controls. */
+  readOnly?: boolean;
   /** Called when the user picks a spec file. Parent handles parsing. */
   onImportSpec?: (file: File) => void | Promise<void>;
   /** Empty-state copy for the available column. */
@@ -125,6 +127,7 @@ export const AccessControlPanel: React.FC<AccessControlPanelProps> = ({
   status,
   onClearStatus,
   showImportButton = false,
+  readOnly = false,
   onImportSpec,
   availableEmptyTitle = "No available resources",
   availableEmptyDescription = "Resources will appear here once they are loaded.",
@@ -361,6 +364,7 @@ export const AccessControlPanel: React.FC<AccessControlPanelProps> = ({
               size="small"
               value={mode}
               exclusive
+              disabled={readOnly}
               onChange={handleModeChange}
             >
               <ToggleButton
@@ -390,7 +394,7 @@ export const AccessControlPanel: React.FC<AccessControlPanelProps> = ({
             </ToggleButtonGroup>
           </Box>
 
-          {showImportButton && (
+          {showImportButton && !readOnly && (
             <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
               <Button
                 variant="outlined"
@@ -415,7 +419,7 @@ export const AccessControlPanel: React.FC<AccessControlPanelProps> = ({
         <Box
           sx={{
             display: "grid",
-            gridTemplateColumns: { xs: "1fr", md: "1fr auto 1fr" },
+            gridTemplateColumns: { xs: "1fr", md: readOnly ? "1fr 1fr" : "1fr auto 1fr" },
             gap: 2,
           }}
         >
@@ -455,6 +459,7 @@ export const AccessControlPanel: React.FC<AccessControlPanelProps> = ({
             </Form.Section>
           </Box>
 
+          {!readOnly && (
           <Box
             sx={{
               display: "flex",
@@ -514,6 +519,7 @@ export const AccessControlPanel: React.FC<AccessControlPanelProps> = ({
               </Tooltip>
             </Stack>
           </Box>
+          )}
 
           <Form.Section>
             <Form.Header>
@@ -553,6 +559,7 @@ export const AccessControlPanel: React.FC<AccessControlPanelProps> = ({
               </Alert>
             )}
           </Collapse>
+          {!readOnly && (
           <Stack direction="row" spacing={1.5} justifyContent="flex-end">
             <Button
               variant="outlined"
@@ -569,6 +576,7 @@ export const AccessControlPanel: React.FC<AccessControlPanelProps> = ({
               {isSaving ? "Saving..." : "Save"}
             </Button>
           </Stack>
+          )}
         </Stack>
       </Stack>
 

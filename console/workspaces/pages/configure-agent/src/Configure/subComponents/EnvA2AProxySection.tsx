@@ -22,6 +22,7 @@ import { Copy, ShieldCheck, Trash } from "@wso2/oxygen-ui-icons-react";
 import { useDeleteA2AProxy, useRefreshA2AProxy, useSetA2AProxy } from "@agent-management-platform/api-client";
 import { copyToClipboard, useConfirmationDialog } from "@agent-management-platform/shared-component";
 import type { A2AProxyResponse, A2AProxyStatus, AgentCardPathParams } from "@agent-management-platform/types";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 import { A2AProxyFields } from "./A2AProxyFields";
 import {
   draftChanged,
@@ -133,6 +134,7 @@ export function EnvA2AProxySection({
   const { mutate: removeProxy, isPending: isRemoving } = useDeleteA2AProxy();
   const { mutate: republish, isPending: isRepublishing } = useRefreshA2AProxy();
   const { addConfirmation } = useConfirmationDialog();
+  const { canWrite } = useResourceAccess("agent");
   const proxied = !!proxy;
   const proxyProblem = proxyProblemOf(proxy);
   const savedHeader = proxy?.upstreamAuthHeader ?? "";
@@ -189,7 +191,7 @@ export function EnvA2AProxySection({
         {proxy && (
           <Chip size="small" variant="outlined" label={PROXY_CHIP[proxy.status].label} color={PROXY_CHIP[proxy.status].color} />
         )}
-        {proxy && (
+        {canWrite && proxy && (
           <Button size="small" variant="text" startIcon={<ShieldCheck size={14} />} onClick={() => setSecurityOpen(true)}>
             Security settings
           </Button>
@@ -201,23 +203,29 @@ export function EnvA2AProxySection({
           severity={proxyProblem.severity}
           sx={{ mb: 1 }}
           action={
-            <Button size="small" color="inherit" disabled={isRepublishing} onClick={() => republish(params)}>Retry</Button>
+            canWrite && (
+              <Button size="small" color="inherit" disabled={isRepublishing} onClick={() => republish(params)}>Retry</Button>
+            )
           }
         >
           {proxyProblem.message}
         </Alert>
       )}
-      <A2AProxyFields
-        draft={draft}
-        onChange={setDraft}
-        hasStoredSecret={hasStoredSecret(proxy)}
-        error={error}
-        disabled={busy}
-      />
-      <Box display="flex" justifyContent="flex-end" sx={{ mt: 1 }}>
-        <Button size="small" variant="contained" disabled={!canSave} onClick={save}>Save</Button>
-      </Box>
-      {proxy && securityOpen && (
+      {canWrite && (
+        <>
+          <A2AProxyFields
+            draft={draft}
+            onChange={setDraft}
+            hasStoredSecret={hasStoredSecret(proxy)}
+            error={error}
+            disabled={busy}
+          />
+          <Box display="flex" justifyContent="flex-end" sx={{ mt: 1 }}>
+            <Button size="small" variant="contained" disabled={!canSave} onClick={save}>Save</Button>
+          </Box>
+        </>
+      )}
+      {canWrite && proxy && securityOpen && (
         <Suspense fallback={null}>
           <ProxySecurityDrawer
             open

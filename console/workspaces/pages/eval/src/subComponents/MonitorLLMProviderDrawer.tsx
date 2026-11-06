@@ -68,6 +68,7 @@ import {
 } from "@wso2/oxygen-ui-icons-react";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 import debounce from "lodash/debounce";
 
 interface MonitorLLMProviderDrawerProps {
@@ -282,6 +283,7 @@ export function MonitorLLMProviderDrawer({
   environmentName,
 }: MonitorLLMProviderDrawerProps) {
   const { orgId } = useParams<{ orgId: string }>();
+  const { canWrite: canCreateProvider } = useResourceAccess("llm_provider");
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
 
@@ -476,7 +478,7 @@ export function MonitorLLMProviderDrawer({
         onClose={handleDrawerClose}
       />
       <DrawerContent>
-        {mode === "list" ? (
+        {mode === "list" || !canCreateProvider ? (
           <Stack spacing={2}>
             <Typography variant="body2" color="text.secondary">
               Select the LLM provider for all LLM-judge evaluators in this
@@ -566,16 +568,20 @@ export function MonitorLLMProviderDrawer({
                 })}
               </Stack>
             )}
-            <Divider />
-            <Button
-              variant="text"
-              size="small"
-              startIcon={<Plus size={16} />}
-              onClick={() => setMode("create")}
-              sx={{ alignSelf: "flex-start" }}
-            >
-              Add LLM Provider
-            </Button>
+            {canCreateProvider && (
+              <>
+                <Divider />
+                <Button
+                  variant="text"
+                  size="small"
+                  startIcon={<Plus size={16} />}
+                  onClick={() => setMode("create")}
+                  sx={{ alignSelf: "flex-start" }}
+                >
+                  Add LLM Provider
+                </Button>
+              </>
+            )}
           </Stack>
         ) : (
           <Stack spacing={2}>

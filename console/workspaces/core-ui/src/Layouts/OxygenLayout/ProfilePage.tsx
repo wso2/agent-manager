@@ -31,7 +31,8 @@ import {
 import { TextInput } from "@agent-management-platform/views";
 import { useAuthHooks } from "@agent-management-platform/auth";
 import { useUpdateUserProfile, useGetUserProfile } from "@agent-management-platform/api-client";
-import { globalConfig, INPUT_LIMITS } from "@agent-management-platform/types";
+import { INPUT_LIMITS } from "@agent-management-platform/types";
+import { useFeatureFlag } from "@agent-management-platform/feature-management";
 
 type ActiveTab = "profile" | "password";
 
@@ -40,7 +41,7 @@ export const ProfilePage: React.FC = () => {
   const { userInfo } = useAuthHooks();
   const { orgId } = useParams<{ orgId: string }>();
   const [activeTab, setActiveTab] = useState<ActiveTab>("profile");
-  const isProfileManagementEnabled = globalConfig.featureFlags?.enableProfileManagement === true;
+  const isProfileManagementEnabled = useFeatureFlag("enableProfileManagement");
 
   const [profileData, setProfileData] = useState({
     username: userInfo?.username || "",

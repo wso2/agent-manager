@@ -57,6 +57,7 @@ import {
   isToolBlockedByAcl,
   resolveAuthenticationType,
 } from "./mcpEndpoints";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 import { CreateScopeDrawer } from "./CreateScopeDrawer";
 
 const KEY_LOCATION_OPTIONS: { value: APIKeyLocation; label: string }[] = [
@@ -179,6 +180,7 @@ export function MCPProxySecurityTab({
   isUpdating,
   onDirtyChange,
 }: MCPProxySecurityTabProps) {
+  const { canWrite } = useResourceAccess("mcp_server");
   const [authenticationType, setAuthenticationType] =
     useState<AuthenticationType>("apiKey");
   const [keyValue, setKeyValue] = useState("");
@@ -524,7 +526,7 @@ export function MCPProxySecurityTab({
     [orgName, proxyId, addConfirmation, deleteMCPProxyScope, resetToolScopeRows],
   );
 
-  const isDisabled = isLoading || !config;
+  const isDisabled = isLoading || !config || !canWrite;
   const hasNoDiscoveredTools = !isLoading && !!config && toolEntries.length === 0;
 
   if (isLoading) {
@@ -592,6 +594,7 @@ export function MCPProxySecurityTab({
             </Typography>
           </Stack>
 
+          {canWrite && (
           <Stack direction="row" alignItems="center" justifyContent="flex-end">
             <Button
               variant="outlined"
@@ -602,6 +605,7 @@ export function MCPProxySecurityTab({
               Create Scope
             </Button>
           </Stack>
+          )}
 
           <Tabs
             value={authorizationTab}
@@ -695,7 +699,7 @@ export function MCPProxySecurityTab({
                 <ListingTable.EmptyState
                   illustration={<ShieldX size={64} />}
                   title="No scopes yet"
-                  description='Click "Create Scope" to add one.'
+                  description={canWrite ? 'Click "Create Scope" to add one.' : undefined}
                 />
               </ListingTable.Container>
             ) : (
@@ -718,6 +722,7 @@ export function MCPProxySecurityTab({
                         </ListingTable.Cell>
                         <ListingTable.Cell>{scope.description || "-"}</ListingTable.Cell>
                         <ListingTable.Cell align="center">
+                          {canWrite && (
                           <Tooltip title="Delete scope">
                             <IconButton
                               size="small"
@@ -727,6 +732,7 @@ export function MCPProxySecurityTab({
                               <Trash size={16} />
                             </IconButton>
                           </Tooltip>
+                          )}
                         </ListingTable.Cell>
                       </ListingTable.Row>
                     ))}
@@ -796,6 +802,7 @@ export function MCPProxySecurityTab({
       {/* Sticky so Save stays reachable — confirming an auth-method switch
           only updates the form, and a Save scrolled out of view left users
           navigating away thinking the change had applied. */}
+      {canWrite && (
       <Stack
         direction="row"
         spacing={1.5}
@@ -836,8 +843,9 @@ export function MCPProxySecurityTab({
           {saveInProgress ? "Saving..." : "Save"}
         </Button>
       </Stack>
+      )}
 
-      {orgName && proxyId && (
+      {canWrite && orgName && proxyId && (
         <CreateScopeDrawer
           open={createScopeDrawerOpen}
           onClose={() => setCreateScopeDrawerOpen(false)}
