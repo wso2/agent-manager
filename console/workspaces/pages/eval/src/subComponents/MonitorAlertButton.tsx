@@ -27,7 +27,7 @@ import {
   Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
-import { Bell, BellRing } from "@wso2/oxygen-ui-icons-react";
+import { Bell, BellOff } from "@wso2/oxygen-ui-icons-react";
 import { DrawerContent, DrawerHeader, DrawerWrapper } from "@agent-management-platform/views";
 import {
   useDeleteMonitorAlert,
@@ -125,12 +125,12 @@ export function MonitorAlertButton({
         <span>
           <Button
             size="small"
-            variant={enabled ? "contained" : "outlined"}
-            startIcon={enabled ? <BellRing size={16} /> : <Bell size={16} />}
+            variant="outlined"
+            startIcon={enabled ? <Bell size={16} /> : <BellOff size={16} />}
             onClick={() => setOpen(true)}
             disabled={isLoading || !canView}
           >
-            {enabled ? "Alerting enabled" : "Alerting"}
+            Alerting
           </Button>
         </span>
       </Tooltip>
