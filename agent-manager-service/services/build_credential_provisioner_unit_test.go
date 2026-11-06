@@ -185,24 +185,37 @@ func (s stubBuildCredentials) EnsureBuildClient(context.Context, string) (*clien
 	return s.params, s.err
 }
 
+// countingBuildCredentials counts EnsureBuildClient calls.
+type countingBuildCredentials struct {
+	calls *int
+}
+
+func (s countingBuildCredentials) EnsureBuildClient(context.Context, string) (*client.BuildClientParams, error) {
+	*s.calls++
+	return &client.BuildClientParams{SecretRefName: "amp-build-ref"}, nil
+}
+
 func TestAgentManagerService_BuildClientFor(t *testing.T) {
 	t.Run("disabled: no build client", func(t *testing.T) {
 		s := &agentManagerService{}
-		got, err := s.buildClientFor(context.Background(), bcOrg)
-		require.NoError(t, err)
-		assert.Nil(t, got)
+		assert.Nil(t, s.buildClientFor(bcOrg))
 	})
-	t.Run("enabled: the organization's build client", func(t *testing.T) {
-		want := &client.BuildClientParams{SecretRefName: "amp-build-ref"}
-		s := &agentManagerService{buildCredentials: stubBuildCredentials{params: want}}
-		got, err := s.buildClientFor(context.Background(), bcOrg)
+	t.Run("enabled: nothing is provisioned until the source is called", func(t *testing.T) {
+		calls := 0
+		s := &agentManagerService{buildCredentials: countingBuildCredentials{calls: &calls}}
+		source := s.buildClientFor(bcOrg)
+		require.NotNil(t, source)
+		assert.Zero(t, calls, "provisioning waits for TriggerBuild to decide the workflow takes the client")
+
+		got, err := source(context.Background())
 		require.NoError(t, err)
-		assert.Equal(t, want, got)
+		assert.Equal(t, &client.BuildClientParams{SecretRefName: "amp-build-ref"}, got)
+		assert.Equal(t, 1, calls)
 	})
-	t.Run("provisioning failure fails the build", func(t *testing.T) {
+	t.Run("a provisioning failure reaches TriggerBuild", func(t *testing.T) {
 		cause := errors.New("thunder down")
 		s := &agentManagerService{buildCredentials: stubBuildCredentials{err: cause}}
-		_, err := s.buildClientFor(context.Background(), bcOrg)
+		_, err := s.buildClientFor(bcOrg)(context.Background())
 		require.ErrorIs(t, err, cause)
 	})
 }

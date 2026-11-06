@@ -19,6 +19,8 @@ package client
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -471,20 +473,133 @@ func TestAttachBuildClient(t *testing.T) {
 			_, _ = w.Write([]byte(`{"error":"boom","code":"INTERNAL"}`))
 		}
 	}))
-	bc := &BuildClientParams{SecretRefName: "ref"}
 	ctx := context.Background()
 
-	assert.True(t, c.attachBuildClient(ctx, "default", gen.WorkflowRunConfigKindClusterWorkflow, "amp-docker", bc))
-	assert.True(t, c.attachBuildClient(ctx, "default", gen.WorkflowRunConfigKindWorkflow, "amp-docker", bc))
-	assert.False(t, c.attachBuildClient(ctx, "default", gen.WorkflowRunConfigKindClusterWorkflow, "amp-old", bc),
+	assert.True(t, c.attachBuildClient(ctx, "default", gen.WorkflowRunConfigKindClusterWorkflow, "amp-docker", true))
+	assert.True(t, c.attachBuildClient(ctx, "default", gen.WorkflowRunConfigKindWorkflow, "amp-docker", true))
+	assert.False(t, c.attachBuildClient(ctx, "default", gen.WorkflowRunConfigKindClusterWorkflow, "amp-old", true),
 		"a workflow that does not declare ampBuild keeps its previous path")
-	assert.False(t, c.attachBuildClient(ctx, "default", gen.WorkflowRunConfigKindClusterWorkflow, "dockerfile-builder", bc),
+	assert.False(t, c.attachBuildClient(ctx, "default", gen.WorkflowRunConfigKindClusterWorkflow, "dockerfile-builder", true),
 		"a workflow not listed in AMP_BUILD_CLIENT_WORKFLOWS never receives it")
-	assert.False(t, c.attachBuildClient(ctx, "default", gen.WorkflowRunConfigKindClusterWorkflow, "amp-docker", nil))
+	assert.False(t, c.attachBuildClient(ctx, "default", gen.WorkflowRunConfigKindClusterWorkflow, "amp-docker", false))
 
 	cfg.BuildClient.Workflows = []string{"amp-broken"}
-	assert.False(t, c.attachBuildClient(ctx, "default", gen.WorkflowRunConfigKindClusterWorkflow, "amp-broken", bc),
+	assert.False(t, c.attachBuildClient(ctx, "default", gen.WorkflowRunConfigKindClusterWorkflow, "amp-broken", true),
 		"a workflow that cannot be read keeps its previous path rather than failing the build")
+}
+
+// triggerBuildStub serves the calls TriggerBuild makes for a component whose
+// ClusterWorkflow is workflowName; amp-docker declares ampBuild, amp-old does not.
+type triggerBuildStub struct {
+	t            *testing.T
+	workflowName string
+	createdRun   *gen.WorkflowRun
+}
+
+func (s *triggerBuildStub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	const ns = "/api/v1/namespaces/default"
+	switch {
+	case r.Method == http.MethodGet && r.URL.Path == ns+"/components/my-agent":
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"metadata":{"name":"my-agent"},"spec":{"owner":{"projectName":"proj1"},
+			"componentType":{"name":"deployment/agent-api"},
+			"workflow":{"kind":"ClusterWorkflow","name":"` + s.workflowName + `","parameters":{"repository":{"url":"u"}}}}}`))
+	case r.Method == http.MethodGet && r.URL.Path == "/api/v1/clusterworkflows/amp-docker":
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"metadata":{"name":"amp-docker"},"spec":{"parameters":{"openAPIV3Schema":{
+			"type":"object","properties":{"ampBuild":{"type":"object"}}}}}}`))
+	case r.Method == http.MethodGet && r.URL.Path == "/api/v1/clusterworkflows/amp-old":
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"metadata":{"name":"amp-old"},"spec":{"parameters":{"openAPIV3Schema":{
+			"type":"object","properties":{"repository":{"type":"object"}}}}}}`))
+	case r.Method == http.MethodPost && r.URL.Path == ns+"/workflowruns":
+		body, _ := io.ReadAll(r.Body)
+		var run gen.WorkflowRun
+		require.NoError(s.t, json.Unmarshal(body, &run))
+		s.createdRun = &run
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write(body)
+	default:
+		s.t.Errorf("unexpected call %s %s", r.Method, r.URL.Path)
+		w.WriteHeader(http.StatusNotImplemented)
+	}
+}
+
+func TestTriggerBuild_ProvisionsTheBuildClientOnlyForAWorkflowThatTakesIt(t *testing.T) {
+	cfg := config.GetConfig()
+	orig := cfg.BuildClient.Workflows
+	t.Cleanup(func() { cfg.BuildClient.Workflows = orig })
+	cfg.BuildClient.Workflows = []string{"amp-docker", "amp-old"}
+
+	failing := func(context.Context) (*BuildClientParams, error) {
+		return nil, errors.New("thunder down")
+	}
+
+	t.Run("a workflow that takes the client gets it", func(t *testing.T) {
+		stub := &triggerBuildStub{t: t, workflowName: "amp-docker"}
+		c := newTestClient(t, stub)
+		calls := 0
+		source := func(context.Context) (*BuildClientParams, error) {
+			calls++
+			return &BuildClientParams{SecretRefName: "amp-build-org-1-secrets"}, nil
+		}
+
+		_, err := c.TriggerBuild(context.Background(), "org-1", "proj1", "my-agent", "", "my-agent-1700", nil, source)
+		require.NoError(t, err)
+		assert.Equal(t, 1, calls)
+		require.NotNil(t, stub.createdRun)
+		params := *stub.createdRun.Spec.Workflow.Parameters
+		assert.Equal(t, map[string]any{"secretRef": "amp-build-org-1-secrets"}, params[workflowParamAMPBuild])
+	})
+
+	t.Run("a workflow that does not take the client is not held up by provisioning", func(t *testing.T) {
+		stub := &triggerBuildStub{t: t, workflowName: "amp-old"}
+		c := newTestClient(t, stub)
+		calls := 0
+		source := func(ctx context.Context) (*BuildClientParams, error) {
+			calls++
+			return failing(ctx)
+		}
+
+		_, err := c.TriggerBuild(context.Background(), "org-1", "proj1", "my-agent", "", "my-agent-1700", nil, source)
+		require.NoError(t, err, "an identity provider outage must not fail a build that would never carry the client")
+		assert.Zero(t, calls, "the build client must not be provisioned for this workflow")
+		require.NotNil(t, stub.createdRun)
+		_, attached := (*stub.createdRun.Spec.Workflow.Parameters)[workflowParamAMPBuild]
+		assert.False(t, attached)
+	})
+
+	t.Run("a provisioning failure fails a build that takes the client", func(t *testing.T) {
+		stub := &triggerBuildStub{t: t, workflowName: "amp-docker"}
+		c := newTestClient(t, stub)
+
+		_, err := c.TriggerBuild(context.Background(), "org-1", "proj1", "my-agent", "", "my-agent-1700", nil, failing)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "thunder down")
+		assert.Nil(t, stub.createdRun, "no run is started that could not publish its Workload")
+	})
+
+	t.Run("an upstream not-found from provisioning is not the build's not-found", func(t *testing.T) {
+		stub := &triggerBuildStub{t: t, workflowName: "amp-docker"}
+		c := newTestClient(t, stub)
+		notFound := func(context.Context) (*BuildClientParams, error) {
+			return nil, fmt.Errorf("%w: secret reference", utils.ErrNotFound)
+		}
+
+		_, err := c.TriggerBuild(context.Background(), "org-1", "proj1", "my-agent", "", "my-agent-1700", nil, notFound)
+		require.Error(t, err)
+		assert.NotErrorIs(t, err, utils.ErrNotFound)
+	})
+
+	t.Run("disabled: no client and nothing provisioned", func(t *testing.T) {
+		stub := &triggerBuildStub{t: t, workflowName: "amp-docker"}
+		c := newTestClient(t, stub)
+
+		_, err := c.TriggerBuild(context.Background(), "org-1", "proj1", "my-agent", "", "my-agent-1700", nil, nil)
+		require.NoError(t, err)
+		_, attached := (*stub.createdRun.Spec.Workflow.Parameters)[workflowParamAMPBuild]
+		assert.False(t, attached)
+	})
 }
 
 type staticAuthProvider struct{ token string }

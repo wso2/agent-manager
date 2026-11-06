@@ -2145,19 +2145,18 @@ func (s *agentManagerService) prepareBuild(ctx context.Context, ouID, projectNam
 	return workflowRunName, nil
 }
 
-// buildClientFor returns the organization's build client for a build run, or nil
-// when the build client is disabled. A failure to provision it fails the build
-// rather than starting one that cannot publish its Workload: once enabled, the
-// build workflow's workload step uses only this client.
-func (s *agentManagerService) buildClientFor(ctx context.Context, ouID string) (*client.BuildClientParams, error) {
+// buildClientFor returns where a build run gets the organization's build client
+// from, or nil when the build client is disabled. Nothing is provisioned here:
+// TriggerBuild calls the source only when the run's workflow takes the client,
+// so a build whose workflow does not take it keeps its previous path even while
+// provisioning would fail.
+func (s *agentManagerService) buildClientFor(ouID string) client.BuildClientSource {
 	if s.buildCredentials == nil {
-		return nil, nil //nolint:nilnil // documented: no build client when the feature is disabled
+		return nil
 	}
-	buildClient, err := s.buildCredentials.EnsureBuildClient(ctx, ouID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to provision the organization's build client: %w", err)
+	return func(ctx context.Context) (*client.BuildClientParams, error) {
+		return s.buildCredentials.EnsureBuildClient(ctx, ouID)
 	}
-	return buildClient, nil
 }
 
 // identityEnvVars ride on this run only, so the first ReleaseBinding the build creates
@@ -2183,12 +2182,8 @@ func (s *agentManagerService) triggerInitialBuild(ctx context.Context, ouID, pro
 	if err != nil {
 		return fmt.Errorf("failed to prepare initial build: %w", err)
 	}
-	buildClient, err := s.buildClientFor(ctx, ouID)
-	if err != nil {
-		return fmt.Errorf("failed to prepare initial build: %w", err)
-	}
 	// Trigger build only after any deployment-specific per-run secret exists.
-	build, err := s.ocClient.TriggerBuild(ctx, ouID, projectName, req.Name, commitId, workflowRunName, identityEnvVars, buildClient)
+	build, err := s.ocClient.TriggerBuild(ctx, ouID, projectName, req.Name, commitId, workflowRunName, identityEnvVars, s.buildClientFor(ouID))
 	if err != nil {
 		return fmt.Errorf("failed to trigger initial build: agentName %s, error: %w", req.Name, err)
 	}
@@ -3468,11 +3463,6 @@ func (s *agentManagerService) BuildAgent(ctx context.Context, ouID string, proje
 	if err != nil {
 		return nil, translateBuildError(err)
 	}
-	buildClient, err := s.buildClientFor(ctx, ouID)
-	if err != nil {
-		s.logger.Error("Failed to provision the organization's build client", "ouID", ouID, "agentName", agentName, "error", err)
-		return nil, translateBuildError(err)
-	}
 	// Trigger build only after any deployment-specific per-run secret exists.
 	s.logger.Debug("Triggering build in OpenChoreo", "agentName", agentName, "ouID", ouID, "projectName", projectName, "commitId", commitId)
 	// Builds are frequent and produce no credential, so this is recorded after
@@ -3483,7 +3473,7 @@ func (s *agentManagerService) BuildAgent(ctx context.Context, ouID string, proje
 	if pipeline, pipeErr := s.ocClient.GetProjectDeploymentPipeline(ctx, ouID, projectName); pipeErr == nil {
 		identityEnvVars = s.firstBindingIdentityEnvVars(ctx, ouID, projectName, agentName, findLowestEnvironment(pipeline.PromotionPaths))
 	}
-	build, err := s.ocClient.TriggerBuild(ctx, ouID, projectName, agentName, commitId, workflowRunName, identityEnvVars, buildClient)
+	build, err := s.ocClient.TriggerBuild(ctx, ouID, projectName, agentName, commitId, workflowRunName, identityEnvVars, s.buildClientFor(ouID))
 	audit.Record(
 		ctx, audit.ActionAgentBuild,
 		audit.Org(ouID),

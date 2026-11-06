@@ -48,6 +48,13 @@ type BuildClientParams struct {
 	SecretRefName string
 }
 
+// BuildClientSource returns the organization's build client for a run,
+// provisioning it on first use. TriggerBuild calls it only once it has decided
+// the run's workflow takes the client (see attachBuildClient), so a build whose
+// workflow does not take it never waits on, or fails with, provisioning. Nil
+// means the build client is disabled.
+type BuildClientSource func(ctx context.Context) (*BuildClientParams, error)
+
 // withBuildClient returns params with the run's ampBuild parameter set. The
 // component's map is copied rather than modified, so the parameter reaches only
 // this WorkflowRun.
@@ -61,15 +68,16 @@ func withBuildClient(params map[string]interface{}, buildClient *BuildClientPara
 }
 
 // attachBuildClient reports whether a build client should ride on a run of the
-// given workflow: the workflow is listed in config.BuildClient.Workflows and its
-// parameter schema declares ampBuild. A workflow that does not declare it (an
-// organization whose namespaced Workflows predate it) would ignore or reject
-// the parameter, so the run keeps its previous path instead; so does a run whose
-// workflow cannot be looked up, rather than failing the build. Both are logged
-// at Error: with the build client enabled, a run that keeps the previous path is
-// a rollout gap that must not go unnoticed.
-func (c *openChoreoClient) attachBuildClient(ctx context.Context, namespaceName string, kind gen.WorkflowRunConfigKind, workflowName string, buildClient *BuildClientParams) bool {
-	if buildClient == nil {
+// given workflow: the build client is enabled, the workflow is listed in
+// config.BuildClient.Workflows and its parameter schema declares ampBuild. A
+// workflow that does not declare it (an organization whose namespaced Workflows
+// predate it) would ignore or reject the parameter, so the run keeps its
+// previous path instead; so does a run whose workflow cannot be looked up,
+// rather than failing the build. Both are logged at Error: with the build
+// client enabled, a run that keeps the previous path is a rollout gap that must
+// not go unnoticed.
+func (c *openChoreoClient) attachBuildClient(ctx context.Context, namespaceName string, kind gen.WorkflowRunConfigKind, workflowName string, enabled bool) bool {
+	if !enabled {
 		return false
 	}
 	if !slices.Contains(config.GetConfig().BuildClient.Workflows, workflowName) {

@@ -236,7 +236,7 @@ func TestBuildAgent(t *testing.T) {
 				mock.ComponentExistsFunc = func(ctx context.Context, orgName string, projName string, agentName string) (bool, error) {
 					return true, nil
 				}
-				mock.TriggerBuildFunc = func(ctx context.Context, orgName string, projName string, agentName string, commitId string, workflowRunName string, _ []client.EnvVar, _ *client.BuildClientParams) (*models.BuildResponse, error) {
+				mock.TriggerBuildFunc = func(ctx context.Context, orgName string, projName string, agentName string, commitId string, workflowRunName string, _ []client.EnvVar, _ client.BuildClientSource) (*models.BuildResponse, error) {
 					return nil, fmt.Errorf("internal service error")
 				}
 				return mock

@@ -118,7 +118,7 @@ func gatewayGateFixture(agentType models.AgentType, mapping gatewayMapping) (*ag
 			rec.record("CreateComponent")
 			return errStopAfterTier
 		},
-		TriggerBuildFunc: func(context.Context, string, string, string, string, string, []client.EnvVar, *client.BuildClientParams) (*models.BuildResponse, error) {
+		TriggerBuildFunc: func(context.Context, string, string, string, string, string, []client.EnvVar, client.BuildClientSource) (*models.BuildResponse, error) {
 			rec.record("TriggerBuild")
 			return &models.BuildResponse{}, nil
 		},
