@@ -119,19 +119,29 @@ func mcpResourceServerDisplayName(proxy *models.MCPProxy) string {
 
 // ensureProxyResourceServerInEnv registers the proxy's resource server and actions in one
 // environment through the configured MCPResourceServerProvider: each environment's own Thunder in
-// LEGACY_DIRECT mode, the identity control plane in CP_MANAGED mode.
+// LEGACY_DIRECT mode, the identity control plane in CP_MANAGED mode. It returns the resource
+// server's ID.
 func (s *MCPProxyService) ensureProxyResourceServerInEnv(
 	ctx context.Context, ouID string, envID uuid.UUID, envName string, proxy *models.MCPProxy, actions []string,
-) error {
+) (string, error) {
 	identifier, err := s.MCPResourceServerIdentifier(ctx, ouID, envID, proxy)
 	if err != nil {
-		return err
+		return "", err
 	}
-	_, err = mcpResourceServerProviderFor(s.resolver, s.logger).EnsureMCPResourceServer(ctx, MCPResourceServerRequest{
+	result, err := mcpResourceServerProviderFor(s.resolver, s.logger).EnsureMCPResourceServer(ctx, MCPResourceServerRequest{
 		OrganizationID: ouID, ProxyHandle: proxyHandleOf(proxy), DisplayName: mcpResourceServerDisplayName(proxy),
 		Environment: envName, Identifier: identifier, Actions: actions,
 	})
-	return err
+	return result.ResourceServerID, err
+}
+
+// EnsureResourceServerInEnv ensures proxy's resource server and the given actions exist for one
+// environment, through the MCPResourceServerProvider, and returns the resource server's ID. Role
+// writes use it, so they reach the same server scope saves do, whichever identity mode is on.
+func (s *MCPProxyService) EnsureResourceServerInEnv(
+	ctx context.Context, ouID string, envID uuid.UUID, envName string, proxy *models.MCPProxy, actions []string,
+) (string, error) {
+	return s.ensureProxyResourceServerInEnv(ctx, ouID, envID, envName, proxy, actions)
 }
 
 // EnsureResourceServersForProxy best-effort registers proxy's resource server
@@ -176,7 +186,7 @@ func (s *MCPProxyService) EnsureResourceServersForProxy(ctx context.Context, ouI
 				continue // environment no longer exists
 			}
 			envCtx, cancel := context.WithTimeout(ctx, ensureResourceServerPerEnvTimeout)
-			err := s.ensureProxyResourceServerInEnv(envCtx, ouID, ee.EnvironmentUUID, name, proxy, actions)
+			_, err := s.ensureProxyResourceServerInEnv(envCtx, ouID, ee.EnvironmentUUID, name, proxy, actions)
 			cancel()
 			if err != nil {
 				s.logger.Warn("ensure resource server: ensure failed", "proxy", handle, "env", name, "error", err)

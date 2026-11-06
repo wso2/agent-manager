@@ -61,7 +61,9 @@ type MCPResourceServerResult struct {
 // EnsureMCPResourceServer makes sure the resource server and the given actions exist for the proxy
 // in the environment; it never removes actions. RemoveMCPResourceServerAction removes one action;
 // a missing resource server or action is success. DeleteMCPResourceServer removes the resource
-// server from the environment; a missing one is success. A call that cannot finish yet because the
+// server from the environment; a missing one is success. Both also remove the scope, or every scope
+// of the proxy, from the roles that hold it, as the legacy implementation does in the environment's
+// own Thunder, so no role keeps a permission that no longer exists. A call that cannot finish yet because the
 // environment is not ready returns an error wrapping ErrMCPResourceServerEnvironmentNotReady.
 type MCPResourceServerProvider interface {
 	EnsureMCPResourceServer(ctx context.Context, request MCPResourceServerRequest) (MCPResourceServerResult, error)

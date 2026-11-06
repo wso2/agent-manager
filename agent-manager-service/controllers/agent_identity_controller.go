@@ -78,6 +78,9 @@ type MCPResourceServerIdentifierResolver interface {
 	MCPResourceServerIdentifier(ctx context.Context, ouID string, envID uuid.UUID, proxy *models.MCPProxy) (string, error)
 	// EnsureResourceServer ensures proxy's resource server exists with exactly actions.
 	EnsureResourceServer(ctx context.Context, ouID string, envID uuid.UUID, client thundersvc.EnvIdentityClient, proxy *models.MCPProxy, actions []string) (string, error)
+	// EnsureResourceServerInEnv is EnsureResourceServer through the configured MCP resource server
+	// provider, so it needs no environment client. Role writes in CP_MANAGED mode use it.
+	EnsureResourceServerInEnv(ctx context.Context, ouID string, envID uuid.UUID, envName string, proxy *models.MCPProxy, actions []string) (string, error)
 }
 
 type agentIdentityController struct {
@@ -446,6 +449,12 @@ func (c *agentIdentityController) GetGroupRoles(w http.ResponseWriter, r *http.R
 // --- Roles ---
 
 func (c *agentIdentityController) ListRoles(w http.ResponseWriter, r *http.Request) {
+	if provider, cp, ok := identityRoleProvider(w); cp {
+		if ok {
+			c.listRolesViaProvider(w, r, provider)
+		}
+		return
+	}
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
@@ -477,6 +486,12 @@ func (c *agentIdentityController) ListRoles(w http.ResponseWriter, r *http.Reque
 // before any permission write means a role never references a permission the
 // environment does not yet know.
 func (c *agentIdentityController) CreateRole(w http.ResponseWriter, r *http.Request) {
+	if provider, cp, ok := identityRoleProvider(w); cp {
+		if ok {
+			c.createRoleViaProvider(w, r, provider)
+		}
+		return
+	}
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
@@ -591,6 +606,12 @@ func (c *agentIdentityController) managedRole(w http.ResponseWriter, r *http.Req
 }
 
 func (c *agentIdentityController) GetRole(w http.ResponseWriter, r *http.Request) {
+	if provider, cp, ok := identityRoleProvider(w); cp {
+		if ok {
+			c.getRoleViaProvider(w, r, provider)
+		}
+		return
+	}
 	roleID := r.PathValue(utils.PathParamRoleID)
 
 	client, ok := c.envClient(w, r)
@@ -610,6 +631,12 @@ func (c *agentIdentityController) GetRole(w http.ResponseWriter, r *http.Request
 // are removed; a proxy dropped from the role entirely has all its permissions
 // removed from its RS.
 func (c *agentIdentityController) UpdateRole(w http.ResponseWriter, r *http.Request) {
+	if provider, cp, ok := identityRoleProvider(w); cp {
+		if ok {
+			c.updateRoleViaProvider(w, r, provider)
+		}
+		return
+	}
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	roleID := r.PathValue(utils.PathParamRoleID)
