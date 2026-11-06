@@ -27,8 +27,8 @@ import (
 // store, which the build reads it from through that SecretReference. The
 // application ID lets each use check the app directly, without listing every
 // Thunder application to find it by name.
-var migration059 = migration{
-	ID: 59,
+var migration060 = migration{
+	ID: 60,
 	Migrate: func(db *gorm.DB) error {
 		return db.Transaction(func(tx *gorm.DB) error {
 			createTable := `

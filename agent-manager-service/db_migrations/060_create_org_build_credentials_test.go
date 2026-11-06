@@ -25,27 +25,27 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestMigration059_CreatesOrgBuildCredentialsWithOneRowPerOrg(t *testing.T) {
+func TestMigration060_CreatesOrgBuildCredentialsWithOneRowPerOrg(t *testing.T) {
 	g := scratchDatabase(t)
-	require.NoError(t, migrateTo(g, 59))
+	require.NoError(t, migrateTo(g, 60))
 
 	exec(t, g, `INSERT INTO org_build_credentials (ou_id, org_uuid, client_id, secret_ref_name)
-		VALUES ('org-059', 'org-059', 'amp-build-org-059', 'amp-build-org-059-secrets')`)
+		VALUES ('org-060', 'org-060', 'amp-build-org-060', 'amp-build-org-060-secrets')`)
 
 	var row struct {
 		ClientID      string `gorm:"column:client_id"`
 		SecretRefName string `gorm:"column:secret_ref_name"`
 	}
-	require.NoError(t, g.Table("org_build_credentials").Where("ou_id = ?", "org-059").Take(&row).Error)
-	assert.Equal(t, "amp-build-org-059", row.ClientID)
-	assert.Equal(t, "amp-build-org-059-secrets", row.SecretRefName)
+	require.NoError(t, g.Table("org_build_credentials").Where("ou_id = ?", "org-060").Take(&row).Error)
+	assert.Equal(t, "amp-build-org-060", row.ClientID)
+	assert.Equal(t, "amp-build-org-060-secrets", row.SecretRefName)
 
 	err := g.Exec(`INSERT INTO org_build_credentials (ou_id, client_id, secret_ref_name)
-		VALUES ('org-059', 'other-client', 'other-ref')`).Error
+		VALUES ('org-060', 'other-client', 'other-ref')`).Error
 	require.Error(t, err, "a second build credential for the same org must violate uq_org_build_creds_ou_id")
 
-	require.NoError(t, migrateTo(g, 59), "re-running the migration must not alter existing rows")
+	require.NoError(t, migrateTo(g, 60), "re-running the migration must not alter existing rows")
 	var count int64
-	require.NoError(t, g.Table("org_build_credentials").Where("ou_id = ?", "org-059").Count(&count).Error)
+	require.NoError(t, g.Table("org_build_credentials").Where("ou_id = ?", "org-060").Count(&count).Error)
 	assert.EqualValues(t, 1, count)
 }
