@@ -293,6 +293,7 @@ export function DeliveryLogTab({
     <>
       <ResourceListShell
         resourceName="event-deliveries"
+        disablePaper
         searchValue=""
         onSearchChange={() => undefined}
         toolbar={toolbar}

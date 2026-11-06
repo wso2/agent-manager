@@ -304,6 +304,7 @@ export function SubscriptionsTab({
     <>
       <ResourceListShell
         resourceName="event-subscriptions"
+        disablePaper
         searchValue={search}
         onSearchChange={setSearch}
         toolbar={toolbar}

@@ -27,7 +27,6 @@ import {
   Checkbox,
   Chip,
   FormControlLabel,
-  Form,
   Grid,
   Radio,
   RadioGroup,
@@ -75,6 +74,7 @@ import {
   HealthChip,
   lookOf,
   PAGING_SERVICES,
+  SectionTitle,
 } from "./eventsUi";
 import type {
   DestinationPageState,
@@ -358,9 +358,9 @@ export function SubscriptionEditor({
       backLabel="Back"
     >
       <Stack spacing={3}>
-        <Form.Stack>
-          <Form.Section>
-            <Form.Header>Details</Form.Header>
+        <Stack spacing={3}>
+          <Stack spacing={1.5}>
+            <SectionTitle>Details</SectionTitle>
             <Grid container spacing={2}>
               <Grid size={{ xs: 12, md: 6, xl: 4 }}>
                 <TextInput
@@ -389,17 +389,20 @@ export function SubscriptionEditor({
                 />
               </Grid>
             </Grid>
-          </Form.Section>
+          </Stack>
 
-          <Form.Section>
-            <Form.Header>Events</Form.Header>
-            <Typography variant="caption" color="text.secondary">
-              {target.scope === "agent"
-                ? "The agent's events: builds, deployments, configuration, API keys, monitors and monitor runs."
-                : target.scope === "project"
-                  ? "The project's events and those of every agent in it."
-                  : "Any event in the organization, from projects, agents and shared resources."}
-            </Typography>
+          <Stack spacing={1.5}>
+            <SectionTitle
+              hint={
+                target.scope === "agent"
+                  ? "The agent's events: builds, deployments, configuration, API keys, monitors and monitor runs."
+                  : target.scope === "project"
+                    ? "The project's events and those of every agent in it."
+                    : "Any event in the organization, from projects, agents and shared resources."
+              }
+            >
+              Events
+            </SectionTitle>
             {loadingTypes ? (
               <Skeleton variant="rounded" height={56} />
             ) : (
@@ -463,14 +466,14 @@ export function SubscriptionEditor({
                 )}
               />
             )}
-          </Form.Section>
+          </Stack>
 
-          <Form.Section>
-            <Form.Header>Destination</Form.Header>
-            <Typography variant="caption" color="text.secondary">
-              Where the events go. Organization admins register destinations; you pick one available
-              to {isOrg ? "the organization" : "this project"}.
-            </Typography>
+          <Stack spacing={1.5}>
+            <SectionTitle
+              hint={`Where the events go. Organization admins register destinations; you pick one available to ${isOrg ? "the organization" : "this project"}.`}
+            >
+              Destination
+            </SectionTitle>
             {destination ? (
               <Card variant="outlined">
                 <CardContent
@@ -531,10 +534,10 @@ export function SubscriptionEditor({
                 for routine changes; consider choosing the failure events only.
               </Alert>
             )}
-          </Form.Section>
+          </Stack>
 
-          <Form.Section>
-            <Form.Header>Filter</Form.Header>
+          <Stack spacing={1.5}>
+            <SectionTitle>Filter</SectionTitle>
             <RadioGroup
               row
               value={envMode}
@@ -585,16 +588,16 @@ export function SubscriptionEditor({
               Events not tied to an environment, such as builds and project changes, are always
               sent.
             </Typography>
-          </Form.Section>
+          </Stack>
 
-          <Form.Section>
-            <Form.Header>Status</Form.Header>
+          <Stack spacing={1.5}>
+            <SectionTitle>Status</SectionTitle>
             <FormControlLabel
               control={<Switch checked={enabled} onChange={(_, v) => setEnabled(v)} />}
               label={enabled ? "Enabled: events are sent" : "Disabled: nothing is sent"}
             />
-          </Form.Section>
-        </Form.Stack>
+          </Stack>
+        </Stack>
 
         <Alert severity="info" icon={<Send size={18} />}>
           Send <strong>{summaryEvents}</strong> {summaryWhere}

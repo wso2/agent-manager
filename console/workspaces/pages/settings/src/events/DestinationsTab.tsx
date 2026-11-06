@@ -294,6 +294,7 @@ export function DestinationsTab({
       )}
       <ResourceListShell
         resourceName="event-destinations"
+        disablePaper
         searchValue={search}
         onSearchChange={setSearch}
         toolbar={toolbar}

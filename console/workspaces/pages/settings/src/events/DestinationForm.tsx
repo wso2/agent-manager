@@ -46,6 +46,7 @@ import {
   EVENT_NAME_MAX_LENGTH,
   FEATURED_SERVICES,
   lookOf,
+  SectionTitle,
 } from "./eventsUi";
 
 function isHttpUrl(value: string): boolean {
@@ -74,21 +75,6 @@ export interface DestinationFormProps {
   onCancel: () => void;
   onSubmit: (body: EventDestinationRequest) => void;
   onDirtyChange?: (dirty: boolean) => void;
-}
-
-function SectionTitle({ children, hint }: { children: string; hint?: string }) {
-  return (
-    <Box>
-      <Typography variant="subtitle2" fontWeight={600}>
-        {children}
-      </Typography>
-      {hint && (
-        <Typography variant="caption" color="text.secondary">
-          {hint}
-        </Typography>
-      )}
-    </Box>
-  );
 }
 
 /** One card of the type picker. */

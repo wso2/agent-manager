@@ -34,39 +34,36 @@ import {
 export const EVENT_NAME_MAX_LENGTH = INPUT_LIMITS.NAME;
 export const EVENT_DESCRIPTION_MAX_LENGTH = 500;
 
-/** A theme palette a tile is drawn in, one per kind of service. */
-type TileTone = "primary" | "secondary" | "info" | "success" | "warning" | "error" | "neutral";
-
-/** How a destination looks in lists: a letter tile in its service's tone. */
+/** How a destination looks in lists: a letter tile in its service's colour. */
 interface ServiceLook {
   label: string;
   letter: string;
-  tone: TileTone;
+  color: string;
 }
 
-const WEBHOOK_LOOK: ServiceLook = { label: "Webhook", letter: "W", tone: "neutral" };
+// Brand colours, so a service is recognisable at a glance.
+const WEBHOOK_LOOK: ServiceLook = { label: "Webhook", letter: "W", color: "#475569" };
 
 /**
- * Known services. Letter tiles in theme tones by kind (chat, incident,
- * email, push, SMS) rather than brand colours; a service added later falls
- * back to its own label and a neutral tile.
+ * Known services. Letter tiles rather than brand logos; a service the
+ * service adds later falls back to its own label and a neutral colour.
  */
 const SERVICE_LOOKS: Record<string, ServiceLook> = {
-  slack: { label: "Slack", letter: "S", tone: "primary" },
-  teams: { label: "Microsoft Teams", letter: "T", tone: "primary" },
-  googlechat: { label: "Google Chat", letter: "G", tone: "primary" },
-  discord: { label: "Discord", letter: "D", tone: "primary" },
-  telegram: { label: "Telegram", letter: "T", tone: "primary" },
-  mattermost: { label: "Mattermost", letter: "M", tone: "primary" },
-  rocketchat: { label: "Rocket.Chat", letter: "R", tone: "primary" },
-  zulip: { label: "Zulip", letter: "Z", tone: "primary" },
-  pagerduty: { label: "PagerDuty", letter: "P", tone: "error" },
-  opsgenie: { label: "Opsgenie", letter: "O", tone: "error" },
-  smtp: { label: "Email", letter: "E", tone: "warning" },
-  ntfy: { label: "ntfy", letter: "N", tone: "info" },
-  gotify: { label: "Gotify", letter: "G", tone: "info" },
-  pushover: { label: "Pushover", letter: "P", tone: "info" },
-  twilio: { label: "Twilio SMS", letter: "T", tone: "secondary" },
+  slack: { label: "Slack", letter: "S", color: "#4A154B" },
+  teams: { label: "Microsoft Teams", letter: "T", color: "#5059C9" },
+  pagerduty: { label: "PagerDuty", letter: "P", color: "#06AC38" },
+  googlechat: { label: "Google Chat", letter: "G", color: "#00832D" },
+  discord: { label: "Discord", letter: "D", color: "#5865F2" },
+  telegram: { label: "Telegram", letter: "T", color: "#229ED9" },
+  mattermost: { label: "Mattermost", letter: "M", color: "#1E325C" },
+  rocketchat: { label: "Rocket.Chat", letter: "R", color: "#F5455C" },
+  zulip: { label: "Zulip", letter: "Z", color: "#3C7AC2" },
+  smtp: { label: "Email", letter: "E", color: "#B45309" },
+  opsgenie: { label: "Opsgenie", letter: "O", color: "#172B4D" },
+  ntfy: { label: "ntfy", letter: "N", color: "#317F6F" },
+  gotify: { label: "Gotify", letter: "G", color: "#1D7DB8" },
+  pushover: { label: "Pushover", letter: "P", color: "#249DF1" },
+  twilio: { label: "Twilio SMS", letter: "T", color: "#F22F46" },
 };
 
 /** The services offered first when adding a destination, in this order. */
@@ -85,7 +82,7 @@ export function lookOf(
   const offered = services?.find((s) => s.id === service);
   if (known) return { ...known, label: offered?.label ?? known.label };
   const label = offered?.label ?? service ?? "Notification";
-  return { label, letter: label.charAt(0).toUpperCase(), tone: "neutral" };
+  return { label, letter: label.charAt(0).toUpperCase(), color: "#64748B" };
 }
 
 /** The letter tile of a destination's service. */
@@ -106,8 +103,8 @@ export function DestinationIcon({
         width: size,
         height: size,
         borderRadius: 1,
-        bgcolor: look.tone === "neutral" ? "action.selected" : `${look.tone}.main`,
-        color: look.tone === "neutral" ? "text.primary" : `${look.tone}.contrastText`,
+        bgcolor: look.color,
+        color: "common.white",
         display: "inline-flex",
         alignItems: "center",
         justifyContent: "center",
@@ -118,6 +115,22 @@ export function DestinationIcon({
       }}
     >
       {look.letter}
+    </Box>
+  );
+}
+
+/** A form section's title, with an optional hint under it. */
+export function SectionTitle({ children, hint }: { children: string; hint?: string }) {
+  return (
+    <Box>
+      <Typography variant="subtitle2" fontWeight={600}>
+        {children}
+      </Typography>
+      {hint && (
+        <Typography variant="caption" color="text.secondary">
+          {hint}
+        </Typography>
+      )}
     </Box>
   );
 }
