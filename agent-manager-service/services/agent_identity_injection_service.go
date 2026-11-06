@@ -330,7 +330,7 @@ func (s *agentIdentityInjectionService) currentShutdownContext() context.Context
 
 // defaultSecretSyncWait is the fallback wait when refreshInterval is unset or
 // invalid — defensive only, should not normally trigger.
-const defaultSecretSyncWait = 30 * time.Second
+const defaultSecretSyncWait = 10 * time.Minute
 
 // defaultForceSyncWait is the fallback wait after a successful force-sync
 // write when forceSyncWait is unset or invalid.
@@ -641,8 +641,8 @@ func identityEnvVarsInSync(desired []client.EnvVar, current []models.EnvVars) bo
 // Building the env vars runs synchronously and its error is returned. The pod
 // roll is deferred: it waits out refreshInterval first, because the pod reads
 // the credential through the workload's own secret-env ExternalSecret, which
-// re-fetches from the secret store on its own cadence (15s in the agent
-// component types), independent of the SecretReference's refresh interval.
+// re-fetches from the secret store on its own cadence, independent of the
+// SecretReference's refresh interval.
 // Rolling immediately loses that race — the new pod starts before the sync
 // catches up and keeps the stale, already-invalidated secret for its whole
 // lifetime (secretKeyRef env vars resolve once at container start, never

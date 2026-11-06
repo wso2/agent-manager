@@ -1221,6 +1221,14 @@ func TestLoadEnvs_AgentIdentityForceSyncWait(t *testing.T) {
 		t.Setenv(k, v)
 	}
 
+	t.Run("periodic fallback defaults to 10m", func(t *testing.T) {
+		t.Setenv("AGENT_IDENTITY_REFRESH_INTERVAL", "")
+		loadEnvs()
+		if got := config.SecretManager.AgentIdentityRefreshInterval; got != "10m" {
+			t.Errorf("AgentIdentityRefreshInterval = %q, want 10m", got)
+		}
+	})
+
 	t.Run("defaults to 20s", func(t *testing.T) {
 		t.Setenv("AGENT_IDENTITY_FORCE_SYNC_WAIT", "")
 		loadEnvs()
