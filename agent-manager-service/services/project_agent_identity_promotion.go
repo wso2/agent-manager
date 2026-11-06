@@ -293,13 +293,13 @@ func (s *agentThunderProvisioningService) ReconcileProjectAgentIdentityPromotion
 			if ctx.Err() != nil {
 				return
 			}
-			// The pass runs outside any request, so each project's pipeline is read, and its
-			// bindings are written, in the project's own organization (see withOrgContext).
-			refCtx := withOrgContext(ctx, ref.OUID)
 			key := projectKey{ref.OUID, ref.ProjectName}
 			resolved, ok := cache[key]
 			if !ok {
-				resolved.steps, resolved.err = s.projectPromotionSteps(refCtx, ref.OUID, ref.ProjectName)
+				// The pass runs outside any request, and the pipeline read goes to OpenChoreo, which
+				// needs the project's organization (see withOrgContext). Writing the bindings below
+				// only touches the database; each binding gets its organization when its attempt runs.
+				resolved.steps, resolved.err = s.projectPromotionSteps(withOrgContext(ctx, ref.OUID), ref.OUID, ref.ProjectName)
 				cache[key] = resolved
 				if resolved.err != nil {
 					s.logger.Warn("Failed to resolve project AgentID promotion topology",
@@ -320,7 +320,7 @@ func (s *agentThunderProvisioningService) ReconcileProjectAgentIdentityPromotion
 					"currentSource", ref.EnvironmentName, "pipelineSource", resolved.steps[0].Environment)
 				continue
 			}
-			if _, err := s.writePromotionBindings(refCtx, ref, resolved.steps, ref.RequestedBy); err != nil {
+			if _, err := s.writePromotionBindings(ctx, ref, resolved.steps, ref.RequestedBy); err != nil {
 				s.logger.Warn("Failed to reconcile project AgentID promotion bindings",
 					"ouID", ref.OUID, "projectName", ref.ProjectName, "agentName", ref.AgentName, "error", err)
 			}
