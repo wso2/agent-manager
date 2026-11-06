@@ -43,8 +43,14 @@ import (
 //			DestinationStatsFunc: func(ctx context.Context, ouID string) (map[uuid.UUID]repositories.DestinationStats, error) {
 //				panic("mock out the DestinationStats method")
 //			},
+//			DestinationStatsOfFunc: func(ctx context.Context, ouID string, id uuid.UUID) (repositories.DestinationStats, error) {
+//				panic("mock out the DestinationStatsOf method")
+//			},
 //			DestinationsByIDFunc: func(ctx context.Context, ouID string, ids []uuid.UUID) ([]models.EventDestination, error) {
 //				panic("mock out the DestinationsByID method")
+//			},
+//			FailStaleDeliveriesFunc: func(ctx context.Context, cutoff time.Time, reason string) (int64, error) {
+//				panic("mock out the FailStaleDeliveries method")
 //			},
 //			GetDeliveryFunc: func(ctx context.Context, destinationID uuid.UUID, eventID string) (*models.EventDelivery, error) {
 //				panic("mock out the GetDelivery method")
@@ -125,8 +131,14 @@ type EventRepositoryMock struct {
 	// DestinationStatsFunc mocks the DestinationStats method.
 	DestinationStatsFunc func(ctx context.Context, ouID string) (map[uuid.UUID]repositories.DestinationStats, error)
 
+	// DestinationStatsOfFunc mocks the DestinationStatsOf method.
+	DestinationStatsOfFunc func(ctx context.Context, ouID string, id uuid.UUID) (repositories.DestinationStats, error)
+
 	// DestinationsByIDFunc mocks the DestinationsByID method.
 	DestinationsByIDFunc func(ctx context.Context, ouID string, ids []uuid.UUID) ([]models.EventDestination, error)
+
+	// FailStaleDeliveriesFunc mocks the FailStaleDeliveries method.
+	FailStaleDeliveriesFunc func(ctx context.Context, cutoff time.Time, reason string) (int64, error)
 
 	// GetDeliveryFunc mocks the GetDelivery method.
 	GetDeliveryFunc func(ctx context.Context, destinationID uuid.UUID, eventID string) (*models.EventDelivery, error)
@@ -250,6 +262,15 @@ type EventRepositoryMock struct {
 			// OuID is the ouID argument value.
 			OuID string
 		}
+		// DestinationStatsOf holds details about calls to the DestinationStatsOf method.
+		DestinationStatsOf []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// OuID is the ouID argument value.
+			OuID string
+			// ID is the id argument value.
+			ID uuid.UUID
+		}
 		// DestinationsByID holds details about calls to the DestinationsByID method.
 		DestinationsByID []struct {
 			// Ctx is the ctx argument value.
@@ -258,6 +279,15 @@ type EventRepositoryMock struct {
 			OuID string
 			// Ids is the ids argument value.
 			Ids []uuid.UUID
+		}
+		// FailStaleDeliveries holds details about calls to the FailStaleDeliveries method.
+		FailStaleDeliveries []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Cutoff is the cutoff argument value.
+			Cutoff time.Time
+			// Reason is the reason argument value.
+			Reason string
 		}
 		// GetDelivery holds details about calls to the GetDelivery method.
 		GetDelivery []struct {
@@ -410,7 +440,9 @@ type EventRepositoryMock struct {
 	lockDeleteSubscription            sync.RWMutex
 	lockDeleteSubscriptionsUnder      sync.RWMutex
 	lockDestinationStats              sync.RWMutex
+	lockDestinationStatsOf            sync.RWMutex
 	lockDestinationsByID              sync.RWMutex
+	lockFailStaleDeliveries           sync.RWMutex
 	lockGetDelivery                   sync.RWMutex
 	lockGetDestination                sync.RWMutex
 	lockGetSubscription               sync.RWMutex
@@ -749,6 +781,46 @@ func (mock *EventRepositoryMock) DestinationStatsCalls() []struct {
 	return calls
 }
 
+// DestinationStatsOf calls DestinationStatsOfFunc.
+func (mock *EventRepositoryMock) DestinationStatsOf(ctx context.Context, ouID string, id uuid.UUID) (repositories.DestinationStats, error) {
+	if mock.DestinationStatsOfFunc == nil {
+		panic("EventRepositoryMock.DestinationStatsOfFunc: method is nil but EventRepository.DestinationStatsOf was just called")
+	}
+	callInfo := struct {
+		Ctx  context.Context
+		OuID string
+		ID   uuid.UUID
+	}{
+		Ctx:  ctx,
+		OuID: ouID,
+		ID:   id,
+	}
+	mock.lockDestinationStatsOf.Lock()
+	mock.calls.DestinationStatsOf = append(mock.calls.DestinationStatsOf, callInfo)
+	mock.lockDestinationStatsOf.Unlock()
+	return mock.DestinationStatsOfFunc(ctx, ouID, id)
+}
+
+// DestinationStatsOfCalls gets all the calls that were made to DestinationStatsOf.
+// Check the length with:
+//
+//	len(mockedEventRepository.DestinationStatsOfCalls())
+func (mock *EventRepositoryMock) DestinationStatsOfCalls() []struct {
+	Ctx  context.Context
+	OuID string
+	ID   uuid.UUID
+} {
+	var calls []struct {
+		Ctx  context.Context
+		OuID string
+		ID   uuid.UUID
+	}
+	mock.lockDestinationStatsOf.RLock()
+	calls = mock.calls.DestinationStatsOf
+	mock.lockDestinationStatsOf.RUnlock()
+	return calls
+}
+
 // DestinationsByID calls DestinationsByIDFunc.
 func (mock *EventRepositoryMock) DestinationsByID(ctx context.Context, ouID string, ids []uuid.UUID) ([]models.EventDestination, error) {
 	if mock.DestinationsByIDFunc == nil {
@@ -786,6 +858,46 @@ func (mock *EventRepositoryMock) DestinationsByIDCalls() []struct {
 	mock.lockDestinationsByID.RLock()
 	calls = mock.calls.DestinationsByID
 	mock.lockDestinationsByID.RUnlock()
+	return calls
+}
+
+// FailStaleDeliveries calls FailStaleDeliveriesFunc.
+func (mock *EventRepositoryMock) FailStaleDeliveries(ctx context.Context, cutoff time.Time, reason string) (int64, error) {
+	if mock.FailStaleDeliveriesFunc == nil {
+		panic("EventRepositoryMock.FailStaleDeliveriesFunc: method is nil but EventRepository.FailStaleDeliveries was just called")
+	}
+	callInfo := struct {
+		Ctx    context.Context
+		Cutoff time.Time
+		Reason string
+	}{
+		Ctx:    ctx,
+		Cutoff: cutoff,
+		Reason: reason,
+	}
+	mock.lockFailStaleDeliveries.Lock()
+	mock.calls.FailStaleDeliveries = append(mock.calls.FailStaleDeliveries, callInfo)
+	mock.lockFailStaleDeliveries.Unlock()
+	return mock.FailStaleDeliveriesFunc(ctx, cutoff, reason)
+}
+
+// FailStaleDeliveriesCalls gets all the calls that were made to FailStaleDeliveries.
+// Check the length with:
+//
+//	len(mockedEventRepository.FailStaleDeliveriesCalls())
+func (mock *EventRepositoryMock) FailStaleDeliveriesCalls() []struct {
+	Ctx    context.Context
+	Cutoff time.Time
+	Reason string
+} {
+	var calls []struct {
+		Ctx    context.Context
+		Cutoff time.Time
+		Reason string
+	}
+	mock.lockFailStaleDeliveries.RLock()
+	calls = mock.calls.FailStaleDeliveries
+	mock.lockFailStaleDeliveries.RUnlock()
 	return calls
 }
 

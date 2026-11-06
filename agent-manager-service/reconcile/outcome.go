@@ -48,12 +48,15 @@ func renderOutcome(err error, reason string, claim models.ClaimedRender, budget 
 	}
 }
 
-// renderReason is the render_reason a user is shown for err: what an input-not-ready render waits for, else the
-// kind's description of the error, else the error.
+// renderReason is the render_reason a user is shown for err: what an input-not-ready render waits for,
+// CONTEXT_IN_USE for a context clash on the gateway, else the kind's description of the error, else the error.
 func renderReason(kind Kind, err error) string {
 	var waiting *inputNotReady
 	if errors.As(err, &waiting) {
 		return waiting.reason
+	}
+	if errors.Is(err, utils.ErrContextInUse) {
+		return utils.ErrCodeContextInUse
 	}
 	if describer, ok := kind.(ErrorDescriber); ok {
 		return describer.DescribeRenderError(err)

@@ -194,7 +194,7 @@ func (r ApiDeleteMCPProxyRequest) Execute() (*http.Response, error) {
 /*
 DeleteMCPProxy Delete MCP proxy
 
-Deletes an MCP proxy if no agent mappings still reference it.
+Deletes an MCP proxy if no agent mappings still reference it. A project proxy is refused with 409 PROJECT_OWNED while its project exists in OpenChoreo; once the project is gone (looked up by the project name stored on the proxy), this route deletes it with the same teardown.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param orgName Organization name/handle
@@ -491,7 +491,7 @@ func (r ApiGetMCPProxyRequest) Execute() (*MCPProxyResponse, *http.Response, err
 /*
 GetMCPProxy Get MCP proxy details
 
-Retrieve detailed information about an MCP proxy.
+Retrieve detailed information about an MCP proxy. Also returns a project's proxy (read only), with projectName set and no endpoints; its per-environment data (security, deployment status) is on GET /orgs/{orgName}/projects/{projName}/mcp-proxies/{proxyId}.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param orgName Organization name/handle
@@ -757,8 +757,15 @@ type ApiListMCPProxiesRequest struct {
 	ctx        context.Context
 	ApiService *MCPProxiesAPIService
 	orgName    string
+	project    *string
 	limit      *int32
 	offset     *int32
+}
+
+// Also include this project&#39;s proxies, read only. Without it only org-level proxies are returned. Unknown project returns 404 PROJECT_NOT_FOUND. The agent Tools picker passes the agent&#39;s project.
+func (r ApiListMCPProxiesRequest) Project(project string) ApiListMCPProxiesRequest {
+	r.project = &project
+	return r
 }
 
 // Maximum number of results to return
@@ -817,6 +824,9 @@ func (a *MCPProxiesAPIService) ListMCPProxiesExecute(r ApiListMCPProxiesRequest)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
 
+	if r.project != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "project", r.project, "")
+	}
 	if r.limit != nil {
 		parameterAddToHeaderOrQuery(localVarQueryParams, "limit", r.limit, "")
 	}
@@ -874,6 +884,17 @@ func (a *MCPProxiesAPIService) ListMCPProxiesExecute(r ApiListMCPProxiesRequest)
 			return localVarReturnValue, localVarHTTPResponse, newErr
 		}
 		if localVarHTTPResponse.StatusCode == 401 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 404 {
 			var v ErrorResponse
 			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
 			if err != nil {
@@ -1036,6 +1057,17 @@ func (a *MCPProxiesAPIService) UpdateMCPProxyExecute(r ApiUpdateMCPProxyRequest)
 			return localVarReturnValue, localVarHTTPResponse, newErr
 		}
 		if localVarHTTPResponse.StatusCode == 404 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 409 {
 			var v ErrorResponse
 			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
 			if err != nil {

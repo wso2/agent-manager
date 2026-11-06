@@ -29,6 +29,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
+	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/events"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
@@ -42,6 +43,9 @@ const (
 	subscriptionCountsWindow  = 24 * time.Hour
 	defaultEventDeliveryLimit = 50
 	maxEventDeliveryLimit     = 100
+	// eventCleanupTimeout bounds each cleanup step after a project or agent
+	// delete, which no longer has the request's deadline.
+	eventCleanupTimeout = 30 * time.Second
 )
 
 // EventSubscriptionInput is the input for creating or updating a
@@ -95,6 +99,15 @@ type DeliveryLog struct {
 	Subscriptions    map[uuid.UUID]*models.EventSubscription
 }
 
+// SubscriptionDetail is what one of a level's own subscriptions shows: its
+// destination, if it still exists, the destination's stats, and its
+// deliveries of the last 24 hours by status.
+type SubscriptionDetail struct {
+	Destination      *models.EventDestination
+	DestinationStats repositories.DestinationStats
+	Counts           map[string]int
+}
+
 // EventsCleaner removes the subscriptions of a deleted project or agent, so
 // one created later under the same name does not inherit them.
 type EventsCleaner interface {
@@ -111,6 +124,9 @@ type EventSubscriptionService interface {
 	EventTypes(scope string) ([]events.Type, error)
 	List(ctx context.Context, target repositories.EventTarget) (*SubscriptionList, error)
 	Get(ctx context.Context, target repositories.EventTarget, id uuid.UUID) (*models.EventSubscription, error)
+	// Describe loads what one of target's own subscriptions shows, without
+	// the rest of the level.
+	Describe(ctx context.Context, target repositories.EventTarget, sub *models.EventSubscription) (*SubscriptionDetail, error)
 	Create(ctx context.Context, target repositories.EventTarget, in EventSubscriptionInput) (*models.EventSubscription, error)
 	Update(ctx context.Context, target repositories.EventTarget, id uuid.UUID, in EventSubscriptionInput) (*models.EventSubscription, error)
 	Delete(ctx context.Context, target repositories.EventTarget, id uuid.UUID) error
@@ -123,13 +139,16 @@ type EventSubscriptionService interface {
 
 type eventSubscriptionService struct {
 	repo   repositories.EventRepository
+	oc     client.OpenChoreoClient
 	logger *slog.Logger
 	now    func() time.Time
 }
 
 // NewEventSubscriptionService creates an EventSubscriptionService.
-func NewEventSubscriptionService(repo repositories.EventRepository, logger *slog.Logger) EventSubscriptionService {
-	return &eventSubscriptionService{repo: repo, logger: logger, now: time.Now}
+func NewEventSubscriptionService(
+	repo repositories.EventRepository, oc client.OpenChoreoClient, logger *slog.Logger,
+) EventSubscriptionService {
+	return &eventSubscriptionService{repo: repo, oc: oc, logger: logger, now: time.Now}
 }
 
 func (s *eventSubscriptionService) EventTypes(scope string) ([]events.Type, error) {
@@ -270,10 +289,36 @@ func (s *eventSubscriptionService) Get(
 	return sub, nil
 }
 
+func (s *eventSubscriptionService) Describe(
+	ctx context.Context, t repositories.EventTarget, sub *models.EventSubscription,
+) (*SubscriptionDetail, error) {
+	out := &SubscriptionDetail{}
+	d, err := s.repo.GetDestination(ctx, t.OUID, sub.DestinationID)
+	switch {
+	case err == nil:
+		out.Destination = d
+		if out.DestinationStats, err = s.repo.DestinationStatsOf(ctx, t.OUID, d.ID); err != nil {
+			return nil, fmt.Errorf("failed to read event destination stats: %w", err)
+		}
+	case !errors.Is(err, gorm.ErrRecordNotFound):
+		return nil, fmt.Errorf("failed to load event destination: %w", err)
+	}
+	counts, err := s.repo.SubscriptionCounts(ctx, t.OUID, []uuid.UUID{sub.ID},
+		s.now().Add(-subscriptionCountsWindow), repositories.DeliveryLocation{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to count event deliveries: %w", err)
+	}
+	out.Counts = counts[sub.ID]
+	return out, nil
+}
+
 func (s *eventSubscriptionService) Create(
 	ctx context.Context, t repositories.EventTarget, in EventSubscriptionInput,
 ) (*models.EventSubscription, error) {
 	if err := s.validate(t, &in); err != nil {
+		return nil, err
+	}
+	if err := s.checkTarget(ctx, t, in.Environments); err != nil {
 		return nil, err
 	}
 	existing, err := s.repo.ListSubscriptions(ctx, t)
@@ -320,6 +365,9 @@ func (s *eventSubscriptionService) Update(
 		return nil, err
 	}
 	if err := s.validate(t, &in); err != nil {
+		return nil, err
+	}
+	if err := s.checkTarget(ctx, t, in.Environments); err != nil {
 		return nil, err
 	}
 	sub.Name, sub.Description, sub.DestinationID = in.Name, in.Description, in.DestinationID
@@ -420,20 +468,39 @@ func (s *eventSubscriptionService) Deliveries(
 // agents') and takes the project out of the destinations made available to
 // it. Errors are logged: the project is already gone.
 func (s *eventSubscriptionService) RemoveForProject(ctx context.Context, ouID, projectName string) {
-	if err := s.repo.DeleteSubscriptionsUnder(ctx, ouID, projectName, ""); err != nil {
-		s.logger.Error("Failed to remove the event subscriptions of a deleted project", "project", projectName, "error", err)
+	if err := cleanupStep(ctx, func(ctx context.Context) error {
+		return s.repo.DeleteSubscriptionsUnder(ctx, ouID, projectName, "")
+	}); err != nil {
+		s.logger.Error("Failed to remove the event subscriptions of a deleted project",
+			"ouID", ouID, "project", projectName, "error", err)
 	}
-	if err := s.repo.RemoveProjectFromDestinations(ctx, ouID, projectName); err != nil {
-		s.logger.Error("Failed to remove a deleted project from event destinations", "project", projectName, "error", err)
+	if err := cleanupStep(ctx, func(ctx context.Context) error {
+		return s.repo.RemoveProjectFromDestinations(ctx, ouID, projectName)
+	}); err != nil {
+		s.logger.Error("Failed to remove a deleted project from event destinations",
+			"ouID", ouID, "project", projectName, "error", err)
 	}
 }
 
 // RemoveForAgent deletes an agent's subscriptions. Errors are logged: the
 // agent is already gone.
 func (s *eventSubscriptionService) RemoveForAgent(ctx context.Context, ouID, projectName, agentName string) {
-	if err := s.repo.DeleteSubscriptionsUnder(ctx, ouID, projectName, agentName); err != nil {
-		s.logger.Error("Failed to remove the event subscriptions of a deleted agent", "agent", agentName, "error", err)
+	if err := cleanupStep(ctx, func(ctx context.Context) error {
+		return s.repo.DeleteSubscriptionsUnder(ctx, ouID, projectName, agentName)
+	}); err != nil {
+		s.logger.Error("Failed to remove the event subscriptions of a deleted agent",
+			"ouID", ouID, "project", projectName, "agent", agentName, "error", err)
 	}
+}
+
+// cleanupStep runs one cleanup step after a delete. The owner is already
+// gone, so a client disconnecting now must not leave its subscriptions for a
+// later project or agent of the same name; each step gets its own deadline
+// instead, so one stalled step does not starve the next.
+func cleanupStep(ctx context.Context, step func(context.Context) error) error {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), eventCleanupTimeout)
+	defer cancel()
+	return step(ctx)
 }
 
 // validate checks and normalises an input for t's scope.
@@ -464,6 +531,40 @@ func (s *eventSubscriptionService) validate(t repositories.EventTarget, in *Even
 	}
 	in.EventTypes = types
 	in.Environments = uniqueTrimmed(in.Environments)
+	return nil
+}
+
+// checkTarget refuses a subscription for a project or agent that does not
+// exist, which would otherwise pass to whichever one later takes the name,
+// and one naming an environment the org does not have, which would never
+// match.
+func (s *eventSubscriptionService) checkTarget(ctx context.Context, t repositories.EventTarget, environments []string) error {
+	switch t.Scope {
+	case models.EventScopeProject:
+		if _, err := s.oc.GetProject(ctx, t.OUID, t.ProjectName); err != nil {
+			return translateProjectError(err)
+		}
+	case models.EventScopeAgent:
+		if _, err := getAgent(ctx, s.oc, t.OUID, t.ProjectName, t.AgentName); err != nil {
+			return err
+		}
+	}
+	if len(environments) == 0 {
+		return nil
+	}
+	envs, err := s.oc.ListEnvironments(ctx, t.OUID)
+	if err != nil {
+		return fmt.Errorf("failed to list environments: %w", err)
+	}
+	known := make(map[string]bool, len(envs))
+	for _, env := range envs {
+		known[env.Name] = true
+	}
+	for _, name := range environments {
+		if !known[name] {
+			return fmt.Errorf("%w: environment %q does not exist", utils.ErrInvalidInput, name)
+		}
+	}
 	return nil
 }
 

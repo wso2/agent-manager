@@ -17,6 +17,7 @@
 package api
 
 import (
+	"context"
 	"net/http"
 	"reflect"
 	"strings"
@@ -54,6 +55,7 @@ var controllerConstructors = []any{
 	controllers.NewA2AProxyController,
 	controllers.NewLLMProxyDeploymentController,
 	controllers.NewMCPProxyController,
+	controllers.NewProjectMCPProxyController,
 	controllers.NewMonitorController,
 	controllers.NewMonitorScoresController,
 	controllers.NewMonitorScoresPublisherController,
@@ -76,7 +78,9 @@ var controllerConstructors = []any{
 func stubAppParams(t *testing.T) *wiring.AppParams {
 	t.Helper()
 
-	params := &wiring.AppParams{}
+	params := &wiring.AppParams{
+		OUHandleLookup: func(context.Context, string) (string, error) { return "", nil },
+	}
 	target := reflect.ValueOf(params).Elem()
 
 	for _, ctor := range controllerConstructors {

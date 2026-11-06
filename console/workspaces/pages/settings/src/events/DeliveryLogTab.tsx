@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Alert,
   Box,
@@ -192,6 +192,13 @@ export function DeliveryLogTab({
   });
   const deliveries = data?.deliveries ?? [];
   const total = data?.total ?? 0;
+  // Rows can age out between refreshes; a page past the end would show
+  // "No deliveries" with no way back, so step back to the last page.
+  useEffect(() => {
+    if (total > 0 && offset >= total) {
+      setOffset(Math.floor((total - 1) / PAGE_SIZE) * PAGE_SIZE);
+    }
+  }, [offset, total]);
 
   const toolbar = (
     <ListingTable.Toolbar

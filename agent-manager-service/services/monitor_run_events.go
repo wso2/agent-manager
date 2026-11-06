@@ -18,6 +18,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -97,20 +98,19 @@ func (m *monitorRunEvents) PrepareMonitorRunFinished(
 		evaluators, err := m.scoreRepo.GetEvaluatorsByMonitorAndRunID(monitor.ID, run.ID)
 		if err != nil {
 			return nil, fmt.Errorf("load committed scores for monitor run event: %w", err)
-		} else {
-			scores := make([]map[string]any, 0, len(evaluators))
-			for _, e := range evaluators {
-				scores = append(scores, map[string]any{
-					"evaluator":    e.EvaluatorName,
-					"identifier":   e.Identifier,
-					"level":        e.Level,
-					"count":        e.Count,
-					"skippedCount": e.SkippedCount,
-					"aggregations": e.Aggregations,
-				})
-			}
-			data["scores"] = scores
 		}
+		scores := make([]map[string]any, 0, len(evaluators))
+		for _, e := range evaluators {
+			scores = append(scores, map[string]any{
+				"evaluator":    e.EvaluatorName,
+				"identifier":   e.Identifier,
+				"level":        e.Level,
+				"count":        e.Count,
+				"skippedCount": e.SkippedCount,
+				"aggregations": e.Aggregations,
+			})
+		}
+		data["scores"] = scores
 	}
 
 	// The ID is derived from the run, so a run synced twice publishes one
@@ -138,11 +138,15 @@ func (m *monitorRunEvents) Reconcile(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to list unpublished monitor runs: %w", err)
 	}
+	// A run that cannot be replayed yet stays unqueued for the next poll; it
+	// must not hold back the runs after it.
+	var failed []error
 	for i := range runs {
 		run := &runs[i]
 		monitor, err := m.monitorRepo.GetMonitorByID(run.MonitorID)
 		if err != nil {
-			return fmt.Errorf("failed to load monitor for replay: %w", err)
+			failed = append(failed, fmt.Errorf("failed to load monitor for replay of run %s: %w", run.ID, err))
+			continue
 		}
 		reason := ""
 		if run.ErrorMessage != nil {
@@ -150,11 +154,12 @@ func (m *monitorRunEvents) Reconcile(ctx context.Context) error {
 		}
 		publish, err := m.PrepareMonitorRunFinished(ctx, monitor, run, run.Status, reason)
 		if err != nil {
-			return err
+			failed = append(failed, fmt.Errorf("failed to replay monitor run %s: %w", run.ID, err))
+			continue
 		}
 		publish()
 	}
-	return nil
+	return errors.Join(failed...)
 }
 
 func (m *monitorRunEvents) OnMonitorTriggerFailed(ctx context.Context, monitor *models.Monitor, cause error) {

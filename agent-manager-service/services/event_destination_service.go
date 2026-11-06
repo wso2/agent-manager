@@ -121,6 +121,8 @@ type EventDestinationService interface {
 	// to, and their stats.
 	Available(ctx context.Context, ouID, project string) ([]models.EventDestination, map[uuid.UUID]repositories.DestinationStats, error)
 	Get(ctx context.Context, ouID string, id uuid.UUID) (*models.EventDestination, error)
+	// Stats returns one destination's stats.
+	Stats(ctx context.Context, ouID string, id uuid.UUID) (repositories.DestinationStats, error)
 	// Usage returns the subscriptions that send to a destination.
 	Usage(ctx context.Context, ouID string, id uuid.UUID) ([]models.EventSubscription, error)
 	// Create returns the new destination and its generated secret, if its
@@ -218,6 +220,16 @@ func (s *eventDestinationService) Get(ctx context.Context, ouID string, id uuid.
 	return d, nil
 }
 
+func (s *eventDestinationService) Stats(
+	ctx context.Context, ouID string, id uuid.UUID,
+) (repositories.DestinationStats, error) {
+	stats, err := s.repo.DestinationStatsOf(ctx, ouID, id)
+	if err != nil {
+		return repositories.DestinationStats{}, fmt.Errorf("failed to read event destination stats: %w", err)
+	}
+	return stats, nil
+}
+
 func (s *eventDestinationService) Usage(ctx context.Context, ouID string, id uuid.UUID) ([]models.EventSubscription, error) {
 	if _, err := s.Get(ctx, ouID, id); err != nil {
 		return nil, err
@@ -301,7 +313,7 @@ func (s *eventDestinationService) Update(
 		if d.SecretEncrypted, err = s.encrypt(credential); err != nil {
 			return nil, err
 		}
-	} else if _, ok := driver.(eventdestinations.CredentialDriver); ok && !sameJSON(in.Config, d.Config) {
+	} else if _, ok := driver.(eventdestinations.CredentialDriver); ok && !equalJSONValue(in.Config, d.Config) {
 		// The stored credential belongs to the old settings (another
 		// service's URL), so it cannot be kept.
 		return nil, fmt.Errorf("%w: enter the url again when changing the service", utils.ErrInvalidInput)
@@ -549,9 +561,9 @@ func (s *eventDestinationService) auditOpts(
 	return opts
 }
 
-// sameJSON reports whether a and b encode the same value; stored JSON comes
-// back from the database reformatted.
-func sameJSON(a, b json.RawMessage) bool {
+// equalJSONValue reports whether a and b encode the same value; stored JSON
+// comes back from the database reformatted.
+func equalJSONValue(a, b json.RawMessage) bool {
 	var va, vb any
 	if json.Unmarshal(a, &va) != nil || json.Unmarshal(b, &vb) != nil {
 		return false

@@ -40,8 +40,18 @@ const (
 	eventFanoutConsumer   = events.EventFanoutConsumer
 	eventDeliveryConsumer = "event-delivery"
 	eventFanoutRetryDelay = 5 * time.Second
-	eventDeliveryWorkers  = 8
-	eventPruneInterval    = time.Hour
+	// eventFanoutMaxRetryDelay caps the doubling fan-out delay. With the bus's
+	// delivery limit, an event survives about 75 minutes of failures.
+	eventFanoutMaxRetryDelay = 5 * time.Minute
+	eventDeliveryWorkers     = 8
+	eventPruneInterval       = time.Hour
+	// eventDeliveryLostAfter is how long a delivery may stay pending without
+	// activity before it is failed as lost. A delivery in progress is
+	// updated at least every couple of hours: the longest backoff plus the
+	// claim. Its job is gone after a restart in embedded mode, an outcome
+	// that could not be recorded, or a fan-out that gave up.
+	eventDeliveryLostAfter = 6 * time.Hour
+	eventDeliveryLostError = "delivery job was lost before it finished"
 	// eventDeliveryClaim is how long a worker holds a delivery while sending
 	// it. It outlasts a driver's send timeout, so a job the bus redelivers
 	// meanwhile waits instead of sending the event a second time.
@@ -198,7 +208,7 @@ func (d *eventDispatcher) handleEvent(ctx context.Context, msg events.Message) {
 	candidates, err := d.repo.CandidateSubscriptions(ctx, e.OrgID, e.Project, e.Agent)
 	if err != nil {
 		log.Error("Failed to find event subscriptions; will retry", "error", err)
-		_ = msg.Retry(eventFanoutRetryDelay)
+		d.retryFanout(msg, log)
 		return
 	}
 	wanted := map[uuid.UUID]bool{}
@@ -218,7 +228,7 @@ func (d *eventDispatcher) handleEvent(ctx context.Context, msg events.Message) {
 	found, err := d.repo.DestinationsByID(ctx, e.OrgID, ids)
 	if err != nil {
 		log.Error("Failed to load event destinations; will retry", "error", err)
-		_ = msg.Retry(eventFanoutRetryDelay)
+		d.retryFanout(msg, log)
 		return
 	}
 	destinations := make(map[uuid.UUID]*models.EventDestination, len(found))
@@ -242,7 +252,7 @@ func (d *eventDispatcher) handleEvent(ctx context.Context, msg events.Message) {
 			Status:          models.EventDeliveryPending,
 		}); err != nil {
 			log.Error("Failed to record event delivery; will retry", "destinationId", g.Destination.ID, "error", err)
-			_ = msg.Retry(eventFanoutRetryDelay)
+			d.retryFanout(msg, log)
 			return
 		}
 		body, err := json.Marshal(eventDeliveryJob{DestinationID: g.Destination.ID.String(), Event: msg.Data()})
@@ -254,7 +264,7 @@ func (d *eventDispatcher) handleEvent(ctx context.Context, msg events.Message) {
 		// before the ack) a no-op for destinations already queued.
 		if err := d.bus.Enqueue(ctx, events.QueueEventDeliveries, e.ID+":"+g.Destination.ID.String(), body); err != nil {
 			log.Error("Failed to queue event delivery; will retry", "destinationId", g.Destination.ID, "error", err)
-			_ = msg.Retry(eventFanoutRetryDelay)
+			d.retryFanout(msg, log)
 			return
 		}
 	}
@@ -382,6 +392,29 @@ func (d *eventDispatcher) handleDelivery(ctx context.Context, msg events.Message
 	_ = msg.Retry(eventBackoff(attempt))
 }
 
+// retryFanout hands msg back to the bus for another fan-out. The delay
+// doubles with each attempt, so the bus's delivery limit spans an outage of
+// over an hour rather than a minute and a half. On the last attempt the
+// event is dropped and the loss logged: deliveries already recorded for it
+// stay pending.
+func (d *eventDispatcher) retryFanout(msg events.Message, log *slog.Logger) {
+	attempt := msg.Attempt()
+	if attempt >= events.EventMaxDeliver {
+		log.Error("Giving up on event fan-out; the event will not reach its destinations", "attempts", attempt)
+		_ = msg.Drop()
+		return
+	}
+	_ = msg.Retry(eventFanoutDelay(attempt))
+}
+
+func eventFanoutDelay(attempt int) time.Duration {
+	delay := eventFanoutRetryDelay
+	for i := 1; i < attempt && delay < eventFanoutMaxRetryDelay; i++ {
+		delay *= 2
+	}
+	return min(delay, eventFanoutMaxRetryDelay)
+}
+
 // stillWanted checks that the subscription or monitor alert that queued a
 // delivery still exists, is enabled and may still use the destination.
 func (d *eventDispatcher) stillWanted(
@@ -455,13 +488,24 @@ func (d *eventDispatcher) pruneLoop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			days := max(d.cfg.DeliveryRetentionDays, 1)
-			cutoff := d.now().Add(-time.Duration(days) * 24 * time.Hour)
-			if n, err := d.repo.PruneDeliveries(ctx, cutoff); err != nil {
-				d.logger.Error("Failed to prune event deliveries", "error", err)
-			} else if n > 0 {
-				d.logger.Info("Pruned event deliveries", "count", n)
-			}
+			d.prune(ctx)
 		}
+	}
+}
+
+// prune fails deliveries whose jobs were lost, so the log does not show
+// them in progress until they age out, and deletes history past retention.
+func (d *eventDispatcher) prune(ctx context.Context) {
+	if n, err := d.repo.FailStaleDeliveries(ctx, d.now().Add(-eventDeliveryLostAfter), eventDeliveryLostError); err != nil {
+		d.logger.Error("Failed to fail lost event deliveries", "error", err)
+	} else if n > 0 {
+		d.logger.Warn("Failed event deliveries whose jobs were lost", "count", n)
+	}
+	days := max(d.cfg.DeliveryRetentionDays, 1)
+	cutoff := d.now().Add(-time.Duration(days) * 24 * time.Hour)
+	if n, err := d.repo.PruneDeliveries(ctx, cutoff); err != nil {
+		d.logger.Error("Failed to prune event deliveries", "error", err)
+	} else if n > 0 {
+		d.logger.Info("Pruned event deliveries", "count", n)
 	}
 }

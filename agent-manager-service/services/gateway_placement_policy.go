@@ -173,10 +173,25 @@ func (p placementPolicy) requireProvider(
 	if anchor != nil {
 		return nil
 	}
+	// Callers name the provider and environment; the message is returned to the user as is.
 	if p.allowsSelfHosted() {
-		return fmt.Errorf("%w: LLM provider %s has no deployment on a gateway in environment %s",
-			utils.ErrInvalidInput, providerUUID, envUUID)
+		return fmt.Errorf("%w: not deployed to a gateway in this environment; %s",
+			utils.ErrInvalidInput, deployProviderHint)
 	}
-	return fmt.Errorf("%w: LLM provider %s has no deployment on a managed gateway in environment %s; platform-hosted agents can only use LLM providers deployed to managed gateways",
-		utils.ErrInvalidInput, providerUUID, envUUID)
+	return fmt.Errorf("%w: not deployed to a managed gateway in this environment (%s can only use LLM providers deployed to managed gateways); %s",
+		utils.ErrInvalidInput, p.consumerNoun(), deployProviderHint)
+}
+
+const deployProviderHint = "deploy it from the LLM provider's Deployment tab"
+
+// consumerNoun names the consumers the policy covers, for messages.
+func (p placementPolicy) consumerNoun() string {
+	switch p.consumer {
+	case monitorConsumer:
+		return "monitors"
+	case externalAgentConsumer:
+		return "external agents"
+	default:
+		return "platform-hosted agents"
+	}
 }

@@ -46,6 +46,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/services"
 	"github.com/wso2/agent-manager/agent-manager-service/signals"
 	"github.com/wso2/agent-manager/agent-manager-service/wiring"
+	"github.com/wso2/agent-manager/agent-manager-service/workloadpolicy"
 
 	"go.uber.org/automaxprocs/maxprocs"
 	"gorm.io/gorm"
@@ -61,6 +62,14 @@ const (
 // Options holds the configuration options for running the application.
 // These are typically parsed from command-line flags in main.
 type Options struct {
+	// WorkloadGuard is inherited by authenticated requests and background workers.
+	WorkloadGuard workloadpolicy.Guard
+	// APIMiddleware wraps the authenticated API mux before dispatch.
+	APIMiddleware func(*http.ServeMux) http.Handler
+	// StartBackground starts deployment-specific workers before the scheduler.
+	// The returned cleanup runs during shutdown.
+	StartBackground func(context.Context, *wiring.AppParams) (func(), error)
+
 	// Server indicates whether to start the HTTP server
 	Server bool
 	// Migrate indicates whether to run database migrations before starting
@@ -106,6 +115,11 @@ type Options struct {
 	// deployment-specific component source binding. nil preserves the standard
 	// anonymous/static-token and PAT-backed repository behavior.
 	RepositoryCommitProvider services.RepositoryCommitProvider
+	// EntitlementChecker asks whether the organization's subscription allows an
+	// agent create. nil (the open-source default) allows every create; cloud
+	// deployments inject a check against their billing system. See
+	// services.EntitlementChecker.
+	EntitlementChecker services.EntitlementChecker
 	// ResourceLabels are stamped on every Component and ReleaseBinding Agent
 	// Manager writes to OpenChoreo. nil (the open-source default) stamps none;
 	// cloud deployments inject their own, e.g. the product label WSO2 Cloud's
@@ -245,6 +259,7 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 		setter.SetWorkloadInjector(dependencies.AgentIdentityInjectionService)
 	}
 	dependencies.RepositoryService.SetCommitProvider(opts.RepositoryCommitProvider)
+	dependencies.AgentManagerService.SetEntitlementChecker(opts.EntitlementChecker)
 
 	// Background workers have no request behind them, so nothing installs a
 	// recorder on their contexts the way the HTTP middleware does. Install one
@@ -254,6 +269,17 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 	backgroundCtx := audit.WithRecorder(context.Background(), dependencies.AuditRecorder)
 	if opts.BackgroundContextDecorator != nil {
 		backgroundCtx = opts.BackgroundContextDecorator(backgroundCtx)
+	}
+
+	backgroundCtx = workloadpolicy.WithGuard(backgroundCtx, opts.WorkloadGuard)
+	stopBackground := func() {}
+	if opts.StartBackground != nil {
+		var err error
+		stopBackground, err = opts.StartBackground(backgroundCtx, dependencies)
+		if err != nil {
+			slog.Error("failed to start deployment workers", "error", err)
+			os.Exit(1)
+		}
 	}
 
 	// So a rotated agent's deferred pod rollout (see RefreshAfterRotation)
@@ -314,7 +340,7 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 	recordStartupPosture(dependencies.AuditRecorder)
 
 	// Create main API server handler
-	handler := api.MakeHTTPHandler(dependencies, opts.ExtraAPIRoutes)
+	handler := api.MakeHTTPHandlerWithPolicy(dependencies, opts.ExtraAPIRoutes, opts.APIMiddleware, opts.WorkloadGuard)
 	mainServer := &http.Server{
 		Addr:           fmt.Sprintf("%s:%d", cfg.ServerHost, cfg.ServerPort),
 		Handler:        handler,
@@ -361,6 +387,7 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 			slog.Error("Internal server forced shutdown after timeout", "error", err)
 		}
 
+		stopBackground()
 		schedulerCancel()
 		if err := dependencies.MonitorScheduler.Stop(); err != nil {
 			slog.Error("error stopping monitor scheduler", "error", err)

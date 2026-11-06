@@ -21,8 +21,8 @@ import "gorm.io/gorm"
 // Additive migration: old binaries ignore the outbox and run marker. Leave
 // these columns/tables in place when rolling back; pending work can resume on
 // upgrade. Existing terminal runs are marked to avoid replaying history.
-var migration056 = migration{
-	ID: 56,
+var migration057 = migration{
+	ID: 57,
 	Migrate: func(db *gorm.DB) error {
 		return db.Exec(`
    CREATE TABLE event_outbox (

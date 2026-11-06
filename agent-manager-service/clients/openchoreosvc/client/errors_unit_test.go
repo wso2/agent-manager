@@ -14,16 +14,19 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package dbmigrations
+package client
 
-import "gorm.io/gorm"
+import (
+	"net/http"
+	"testing"
 
-// claimed_until is the lease a delivery worker takes before sending, so a
-// job the bus redelivers while the first worker is still sending is not
-// sent twice. Additive: rows start unclaimed.
-var migration057 = migration{
-	ID: 57,
-	Migrate: func(db *gorm.DB) error {
-		return db.Exec(`ALTER TABLE event_deliveries ADD COLUMN IF NOT EXISTS claimed_until TIMESTAMPTZ`).Error
-	},
+	"github.com/stretchr/testify/require"
+
+	"github.com/wso2/agent-manager/agent-manager-service/utils"
+)
+
+func TestHandleErrorResponsePaymentRequiredIsEntitlementDenied(t *testing.T) {
+	err := handleErrorResponse(http.StatusPaymentRequired, ErrorResponses{})
+
+	require.ErrorIs(t, err, utils.ErrEntitlementDenied)
 }

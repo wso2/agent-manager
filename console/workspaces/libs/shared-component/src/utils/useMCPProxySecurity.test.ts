@@ -17,11 +17,18 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderHook } from "@testing-library/react";
-import type { MCPProxy, SecurityConfig } from "@agent-management-platform/types";
+import type {
+  MCPProxy,
+  ProjectMCPProxy,
+  ProjectMCPProxyEnvironmentSecurity,
+  SecurityConfig,
+} from "@agent-management-platform/types";
 
 const useGetMCPProxy = vi.fn();
+const useGetProjectMCPProxy = vi.fn();
 vi.mock("@agent-management-platform/api-client", () => ({
   useGetMCPProxy: (...args: unknown[]) => useGetMCPProxy(...args),
+  useGetProjectMCPProxy: (...args: unknown[]) => useGetProjectMCPProxy(...args),
 }));
 
 const { useMCPProxySecurity } = await import("./useMCPProxySecurity");
@@ -72,8 +79,53 @@ function query({
   useGetMCPProxy.mockReturnValue({ data, isLoading, isError });
 }
 
+/** The org GET of a project proxy: projectName set, no endpoints. */
+function projectProxyStub(): MCPProxy {
+  return { id: "orders", name: "Orders", version: "v1", projectName: "p1" };
+}
+
+const envAPIKey: ProjectMCPProxyEnvironmentSecurity = {
+  enabled: true,
+  apiKey: { enabled: true, key: "X-API-Key", in: "header" },
+};
+const envOff: ProjectMCPProxyEnvironmentSecurity = { enabled: false };
+
+function projectProxy(
+  environments: { uuid: string; security?: ProjectMCPProxyEnvironmentSecurity }[],
+): ProjectMCPProxy {
+  return {
+    id: "orders",
+    name: "Orders",
+    version: "v1",
+    context: "/orders",
+    projectName: "p1",
+    source: { componentName: "orders", endpointName: "mcp" },
+    environments: environments.map(({ uuid, security }) => ({
+      environmentName: `env-${uuid}`,
+      environmentUuid: uuid,
+      context: "/orders",
+      security,
+    })),
+  };
+}
+
+function projectQuery({
+  data,
+  isLoading = false,
+  isError = false,
+}: {
+  data?: ProjectMCPProxy;
+  isLoading?: boolean;
+  isError?: boolean;
+}) {
+  useGetProjectMCPProxy.mockReturnValue({ data, isLoading, isError });
+}
+
 beforeEach(() => {
   useGetMCPProxy.mockReset();
+  useGetProjectMCPProxy.mockReset();
+  // Disabled, as it is for an org proxy.
+  useGetProjectMCPProxy.mockReturnValue({ data: undefined, isLoading: false, isError: false });
 });
 
 describe("useMCPProxySecurity", () => {
@@ -197,5 +249,134 @@ describe("useMCPProxySecurity", () => {
     expect(result.current.isError).toBe(false);
     expect(result.current.isResolved).toBe(false);
     expect(result.current.authenticationType).toBe("");
+  });
+
+  it("never asks the project route about an org proxy", () => {
+    query({ data: proxy([{ id: "a", security: apiKey, envs: ["dev-uuid"] }]) });
+
+    renderHook(() => useMCPProxySecurity({ orgName: "acme", proxyId: "proxy-1" }));
+
+    for (const [params] of useGetProjectMCPProxy.mock.calls) {
+      expect(params.projName || params.proxyId).toBeFalsy();
+    }
+  });
+
+  describe("a project proxy", () => {
+    it("reads its security from the project route's environments", () => {
+      query({ data: projectProxyStub() });
+      projectQuery({ data: projectProxy([{ uuid: "dev-uuid", security: envAPIKey }]) });
+
+      const { result } = renderHook(() =>
+        useMCPProxySecurity({
+          orgName: "acme",
+          proxyId: "orders",
+          environmentUuid: "dev-uuid",
+        }),
+      );
+
+      expect(useGetProjectMCPProxy).toHaveBeenLastCalledWith({
+        orgName: "acme",
+        projName: "p1",
+        proxyId: "orders",
+      });
+      expect(result.current.authenticationType).toBe("apiKey");
+      expect(result.current.usesIdentitySecurity).toBe(false);
+      expect(result.current.spec.editableKeys).toEqual(["url", "apikey"]);
+      expect(result.current.spec.referenceRows).toEqual([]);
+      expect(result.current.isResolved).toBe(true);
+    });
+
+    it("reports none for an environment with security disabled", () => {
+      query({ data: projectProxyStub() });
+      projectQuery({ data: projectProxy([{ uuid: "dev-uuid", security: envOff }]) });
+
+      const { result } = renderHook(() =>
+        useMCPProxySecurity({
+          orgName: "acme",
+          proxyId: "orders",
+          environmentUuid: "dev-uuid",
+        }),
+      );
+
+      expect(result.current.authenticationType).toBe("");
+      expect(result.current.spec.editableKeys).toEqual(["url"]);
+      expect(result.current.isResolved).toBe(true);
+    });
+
+    it("scopes the answer to the environment whose uuid matches", () => {
+      query({ data: projectProxyStub() });
+      projectQuery({
+        data: projectProxy([
+          { uuid: "dev-uuid", security: envAPIKey },
+          { uuid: "prod-uuid", security: envOff },
+        ]),
+      });
+
+      const { result } = renderHook(() =>
+        useMCPProxySecurity({
+          orgName: "acme",
+          proxyId: "orders",
+          environmentUuid: "prod-uuid",
+        }),
+      );
+
+      expect(result.current.authenticationType).toBe("");
+      expect(result.current.spec.editableKeys).toEqual(["url"]);
+    });
+
+    it("unions every environment when no environment is given", () => {
+      query({ data: projectProxyStub() });
+      projectQuery({
+        data: projectProxy([
+          { uuid: "dev-uuid", security: envOff },
+          { uuid: "prod-uuid", security: envAPIKey },
+        ]),
+      });
+
+      const { result } = renderHook(() =>
+        useMCPProxySecurity({ orgName: "acme", proxyId: "orders" }),
+      );
+
+      expect(result.current.authenticationType).toBe("apiKey");
+      expect(result.current.spec.editableKeys).toEqual(["url", "apikey"]);
+      expect(result.current.isResolved).toBe(true);
+    });
+
+    it("is not resolved while it has no environments to judge from", () => {
+      query({ data: projectProxyStub() });
+      projectQuery({ data: projectProxy([]) });
+
+      const { result } = renderHook(() =>
+        useMCPProxySecurity({ orgName: "acme", proxyId: "orders" }),
+      );
+
+      expect(result.current.isLoading).toBe(false);
+      expect(result.current.isError).toBe(false);
+      expect(result.current.isResolved).toBe(false);
+    });
+
+    it("is not resolved while the project route is loading", () => {
+      query({ data: projectProxyStub() });
+      projectQuery({ isLoading: true });
+
+      const { result } = renderHook(() =>
+        useMCPProxySecurity({ orgName: "acme", proxyId: "orders" }),
+      );
+
+      expect(result.current.isLoading).toBe(true);
+      expect(result.current.isResolved).toBe(false);
+    });
+
+    it("is not resolved when the project route failed", () => {
+      query({ data: projectProxyStub() });
+      projectQuery({ isError: true });
+
+      const { result } = renderHook(() =>
+        useMCPProxySecurity({ orgName: "acme", proxyId: "orders" }),
+      );
+
+      expect(result.current.isError).toBe(true);
+      expect(result.current.isResolved).toBe(false);
+    });
   });
 });

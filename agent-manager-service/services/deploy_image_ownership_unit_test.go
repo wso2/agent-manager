@@ -330,3 +330,201 @@ func TestDeployAgent_RejectionHintNamesTheKind(t *testing.T) {
 		assert.Contains(t, verr.Message, "one of the agent's builds")
 	})
 }
+
+// healthChecksOfImageBuild finds the build behind the image being deployed and returns the
+// health checks it recorded, so an environment runs each build with its own checks.
+func TestHealthChecksOfImageBuild(t *testing.T) {
+	httpCheck, tcpCheck := "HTTP", "TCP"
+	ownBuildChecks := &models.HealthChecks{Readiness: &models.HealthCheck{Type: &httpCheck}}
+	kindBuildChecks := &models.HealthChecks{Liveness: &models.HealthCheck{Type: &tcpCheck}}
+	const kindBuildName = "kind-src-build-7"
+	const goneKindBuildImage = "registry.example.com/acme/kind-src:v3"
+	// Published twice: first from a build whose record is gone, then from one that still exists.
+	const republishedImage = "registry.example.com/acme/kind-src:v4"
+
+	newService := func(listBuildsErr error) *agentManagerService {
+		oc := &clientmocks.OpenChoreoClientMock{
+			ListBuildsFunc: func(context.Context, string, string, string) ([]*models.BuildResponse, error) {
+				if listBuildsErr != nil {
+					return nil, listBuildsErr
+				}
+				return []*models.BuildResponse{{ImageId: ownBuildImage, HealthChecks: ownBuildChecks}}, nil
+			},
+			GetBuildByNameFunc: func(_ context.Context, _, buildName string) (*models.BuildDetailsResponse, error) {
+				if buildName != kindBuildName {
+					return nil, utils.ErrNotFound
+				}
+				return &models.BuildDetailsResponse{BuildResponse: models.BuildResponse{HealthChecks: kindBuildChecks}}, nil
+			},
+		}
+		kindRepo := &repomocks.AgentKindRepositoryMock{
+			GetKindFunc: func(_ context.Context, _, name string) (*models.AgentKind, error) {
+				k := &models.AgentKind{ID: uuid.New(), Name: name}
+				k.Versions = []models.AgentKindVersion{
+					{Version: "2.0.0", ImageId: kindVersionImage, BuildName: kindBuildName, Kind: k},
+					{Version: "3.0.0", ImageId: goneKindBuildImage, BuildName: "deleted-build", Kind: k},
+					{Version: "4.0.0", ImageId: republishedImage, BuildName: "deleted-build", Kind: k},
+					{Version: "4.0.1", ImageId: republishedImage, BuildName: kindBuildName, Kind: k},
+				}
+				return k, nil
+			},
+		}
+		return &agentManagerService{ocClient: oc, agentKindService: newKindService(kindRepo, oc), logger: discardLogger()}
+	}
+
+	tests := []struct {
+		name     string
+		kindName string
+		image    string
+		want     *models.HealthChecks
+	}{
+		{"the image of one of the agent's builds gets that build's checks", "", ownBuildImage, ownBuildChecks},
+		{"a catalog version's image gets the checks of the build it was published from", "my-kind", kindVersionImage, kindBuildChecks},
+		{"a catalog version whose build record is gone gets the defaults", "my-kind", goneKindBuildImage, nil},
+		{"a later version of the same image whose build still exists is used", "my-kind", republishedImage, kindBuildChecks},
+		{"an image with no build gets the defaults", "", deployedImage, nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := newService(nil).healthChecksOfImageBuild(context.Background(), "acme", "proj1", "my-agent", tt.kindName, tt.image)
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+
+	// A failed lookup is an error, not "no build": treating it as no build would quietly
+	// switch the environment to the default checks.
+	t.Run("a failed build list fails the lookup", func(t *testing.T) {
+		_, err := newService(errors.New("openchoreo unavailable")).healthChecksOfImageBuild(
+			context.Background(), "acme", "proj1", "my-agent", "", ownBuildImage)
+		require.Error(t, err)
+	})
+}
+
+// An agent created from a kind version starts with the health checks of the build the version
+// was published from; with none, or when that build can't be read, its first binding gets no
+// component-type configs, as before health checks existed, so it uses the defaults.
+func TestKindAgentFirstBindingComponentTypeConfigs(t *testing.T) {
+	tcpCheck := "TCP"
+	versionBuildChecks := &models.HealthChecks{Liveness: &models.HealthCheck{Type: &tcpCheck}}
+
+	newService := func(versionBuild func() (*models.BuildDetailsResponse, error)) *agentManagerService {
+		oc := &clientmocks.OpenChoreoClientMock{
+			// A new agent has no builds of its own yet.
+			ListBuildsFunc: func(context.Context, string, string, string) ([]*models.BuildResponse, error) {
+				return nil, nil
+			},
+			GetBuildByNameFunc: func(context.Context, string, string) (*models.BuildDetailsResponse, error) {
+				return versionBuild()
+			},
+		}
+		kindRepo := &repomocks.AgentKindRepositoryMock{
+			GetKindFunc: func(_ context.Context, _, name string) (*models.AgentKind, error) {
+				k := &models.AgentKind{ID: uuid.New(), Name: name}
+				k.Versions = []models.AgentKindVersion{{Version: "2.0.0", ImageId: kindVersionImage, BuildName: "kind-src-build-7", Kind: k}}
+				return k, nil
+			},
+		}
+		return &agentManagerService{ocClient: oc, agentKindService: newKindService(kindRepo, oc), logger: discardLogger()}
+	}
+	configsFor := func(svc *agentManagerService) map[string]interface{} {
+		devEnv := &models.EnvironmentResponse{Name: "dev"}
+		return svc.kindAgentFirstBindingComponentTypeConfigs(context.Background(), "acme", "proj1", "my-copy", "my-kind", kindVersionImage, devEnv)
+	}
+	// hasExplicitNilHealthChecks: the key is present with an untyped nil, which removes any
+	// health checks an existing binding of the same name holds.
+	hasExplicitNilHealthChecks := func(t *testing.T, configs map[string]interface{}) {
+		t.Helper()
+		value, ok := configs["healthChecks"]
+		require.True(t, ok, "healthChecks must be present to clear an existing binding's")
+		assert.True(t, value == nil, "must be an untyped nil, got %#v", value)
+	}
+
+	t.Run("the version's build has health checks: the first binding gets them", func(t *testing.T) {
+		svc := newService(func() (*models.BuildDetailsResponse, error) {
+			return &models.BuildDetailsResponse{BuildResponse: models.BuildResponse{HealthChecks: versionBuildChecks}}, nil
+		})
+		assert.Equal(t, map[string]interface{}{"healthChecks": versionBuildChecks}, configsFor(svc))
+	})
+
+	// The map replaces runtimeClassName on an existing binding, so it must carry the
+	// environment's, or a gVisor environment's binding would move to runc.
+	t.Run("the first environment's runtime class is kept alongside the checks", func(t *testing.T) {
+		svc := newService(func() (*models.BuildDetailsResponse, error) {
+			return &models.BuildDetailsResponse{BuildResponse: models.BuildResponse{HealthChecks: versionBuildChecks}}, nil
+		})
+		gvisorEnv := &models.EnvironmentResponse{Name: "dev", IsolationTier: utils.IsolationTierGvisor}
+		configs := svc.kindAgentFirstBindingComponentTypeConfigs(context.Background(), "acme", "proj1", "my-copy", "my-kind", kindVersionImage, gvisorEnv)
+		assert.Equal(t, versionBuildChecks, configs["healthChecks"])
+		assert.Equal(t, utils.RuntimeClassGvisor, configs["runtimeClassName"])
+	})
+
+	t.Run("the version's build has none: the defaults, clearing any earlier ones", func(t *testing.T) {
+		svc := newService(func() (*models.BuildDetailsResponse, error) {
+			return &models.BuildDetailsResponse{}, nil
+		})
+		hasExplicitNilHealthChecks(t, configsFor(svc))
+	})
+
+	t.Run("the version's build can't be read: created anyway, with the defaults", func(t *testing.T) {
+		svc := newService(func() (*models.BuildDetailsResponse, error) {
+			return nil, errors.New("openchoreo unavailable")
+		})
+		hasExplicitNilHealthChecks(t, configsFor(svc))
+	})
+
+	t.Run("an agent that is not an API agent gets no component-type configs, as before", func(t *testing.T) {
+		svc := newService(func() (*models.BuildDetailsResponse, error) {
+			return &models.BuildDetailsResponse{BuildResponse: models.BuildResponse{HealthChecks: versionBuildChecks}}, nil
+		})
+		assert.Nil(t, svc.kindAgentFirstBindingComponentTypeConfigs(context.Background(), "acme", "proj1", "my-copy", "my-kind", kindVersionImage, nil))
+	})
+}
+
+// When a deploy can't look up the image's build, the environment may keep its current health
+// checks only if it already runs that image (so they are that image's). Any other image would
+// run with another build's checks, so the deploy fails instead.
+func TestHealthChecksForDeploy_BuildLookupFails(t *testing.T) {
+	const stagingImage = "registry.example.com/acme/my-agent:build-staging"
+	boom := errors.New("openchoreo unavailable")
+	newService := func(deploymentsErr error) *agentManagerService {
+		oc := &clientmocks.OpenChoreoClientMock{
+			ListBuildsFunc: func(context.Context, string, string, string) ([]*models.BuildResponse, error) {
+				return nil, boom
+			},
+			GetDeploymentsFunc: func(context.Context, string, string, string, string) ([]*models.DeploymentResponse, error) {
+				if deploymentsErr != nil {
+					return nil, deploymentsErr
+				}
+				return []*models.DeploymentResponse{
+					{Environment: "dev", ImageId: deployedImage},
+					{Environment: "staging", ImageId: stagingImage},
+				}, nil
+			},
+		}
+		return &agentManagerService{ocClient: oc, logger: discardLogger()}
+	}
+	healthChecksForDeploy := func(svc *agentManagerService, imageID string) (*models.HealthChecks, bool, error) {
+		return svc.healthChecksForDeploy(context.Background(), "acme", "proj1", "default", "my-agent", "", "dev", imageID)
+	}
+
+	t.Run("redeploying the image the environment runs keeps its checks", func(t *testing.T) {
+		healthChecks, keepCurrent, err := healthChecksForDeploy(newService(nil), deployedImage)
+		require.NoError(t, err)
+		assert.True(t, keepCurrent)
+		assert.Nil(t, healthChecks)
+	})
+
+	t.Run("an image only another environment runs fails the deploy", func(t *testing.T) {
+		_, keepCurrent, err := healthChecksForDeploy(newService(nil), stagingImage)
+		require.ErrorIs(t, err, boom)
+		assert.Contains(t, err.Error(), "health checks of image "+stagingImage)
+		assert.False(t, keepCurrent)
+	})
+
+	t.Run("deployments that can't be read count as a different image", func(t *testing.T) {
+		_, keepCurrent, err := healthChecksForDeploy(newService(errors.New("deployments unavailable")), deployedImage)
+		require.ErrorIs(t, err, boom)
+		assert.False(t, keepCurrent)
+	})
+}

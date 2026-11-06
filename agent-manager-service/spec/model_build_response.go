@@ -30,6 +30,7 @@ type BuildResponse struct {
 	// Overall build status, derived from the underlying workflow phase. Succeeded means the image was built and pushed; Completed additionally means the workload CR was updated. Per-step progress is in `steps`.
 	Status          *string         `json:"status,omitempty"`
 	BuildParameters BuildParameters `json:"buildParameters"`
+	HealthChecks    *HealthChecks   `json:"healthChecks,omitempty"`
 }
 
 // NewBuildResponse instantiates a new BuildResponse object
@@ -302,6 +303,38 @@ func (o *BuildResponse) SetBuildParameters(v BuildParameters) {
 	o.BuildParameters = v
 }
 
+// GetHealthChecks returns the HealthChecks field value if set, zero value otherwise.
+func (o *BuildResponse) GetHealthChecks() HealthChecks {
+	if o == nil || IsNil(o.HealthChecks) {
+		var ret HealthChecks
+		return ret
+	}
+	return *o.HealthChecks
+}
+
+// GetHealthChecksOk returns a tuple with the HealthChecks field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *BuildResponse) GetHealthChecksOk() (*HealthChecks, bool) {
+	if o == nil || IsNil(o.HealthChecks) {
+		return nil, false
+	}
+	return o.HealthChecks, true
+}
+
+// HasHealthChecks returns a boolean if a field has been set.
+func (o *BuildResponse) HasHealthChecks() bool {
+	if o != nil && !IsNil(o.HealthChecks) {
+		return true
+	}
+
+	return false
+}
+
+// SetHealthChecks gets a reference to the given HealthChecks and assigns it to the HealthChecks field.
+func (o *BuildResponse) SetHealthChecks(v HealthChecks) {
+	o.HealthChecks = &v
+}
+
 func (o BuildResponse) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -329,6 +362,9 @@ func (o BuildResponse) ToMap() (map[string]interface{}, error) {
 		toSerialize["status"] = o.Status
 	}
 	toSerialize["buildParameters"] = o.BuildParameters
+	if !IsNil(o.HealthChecks) {
+		toSerialize["healthChecks"] = o.HealthChecks
+	}
 	return toSerialize, nil
 }
 

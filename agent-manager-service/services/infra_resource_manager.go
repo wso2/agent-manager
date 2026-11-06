@@ -100,6 +100,8 @@ func (s *infraResourceManager) GetOrganization(ctx context.Context, ouID string)
 	return org, nil
 }
 
+// CreateProject creates a project, classifies duplicate-name conflicts, and provisions
+// release bindings on a best-effort basis after successful creation.
 func (s *infraResourceManager) CreateProject(ctx context.Context, ouID string, payload spec.CreateProjectRequest) (*models.ProjectResponse, error) {
 	s.logger.Debug("CreateProject called", "ouID", ouID, "projectName", payload.Name, "deploymentPipeline", payload.DeploymentPipeline)
 
@@ -120,6 +122,9 @@ func (s *infraResourceManager) CreateProject(ctx context.Context, ouID string, p
 
 	if err := s.ocClient.CreateProject(ctx, ouID, req); err != nil {
 		s.logger.Error("Failed to create project in OpenChoreo", "ouID", ouID, "projectName", payload.Name, "error", err)
+		if errors.Is(err, utils.ErrConflict) {
+			return nil, fmt.Errorf("%w: %w", utils.ErrProjectAlreadyExists, err)
+		}
 		return nil, err
 	}
 	s.logger.Info("Project created successfully", "ouID", ouID, "projectName", payload.Name)
@@ -417,6 +422,9 @@ func (s *infraResourceManager) GetProjectDeploymentPipeline(ctx context.Context,
 	return deploymentPipeline, nil
 }
 
+// CreateOrgDeploymentPipeline creates a pipeline using a name derived from its display
+// name and optionally links it to a project. Duplicate create conflicts are classified
+// separately from terminating resources and subsequent project-linkage failures.
 func (s *infraResourceManager) CreateOrgDeploymentPipeline(ctx context.Context, ouID string, displayName string, description *string, projectName *string, promotionPaths []models.PromotionPath) (*models.DeploymentPipelineResponse, error) {
 	s.logger.Info("Creating deployment pipeline", "ouID", ouID, "displayName", displayName)
 
@@ -428,6 +436,9 @@ func (s *infraResourceManager) CreateOrgDeploymentPipeline(ctx context.Context, 
 	created, err := s.ocClient.CreateDeploymentPipeline(ctx, ouID, pipelineName, &displayName, description, promotionPaths)
 	if err != nil {
 		s.logger.Error("Failed to create deployment pipeline", "ouID", ouID, "error", err)
+		if errors.Is(err, utils.ErrConflict) {
+			return nil, fmt.Errorf("%w: %w", utils.ErrDeploymentPipelineAlreadyExists, err)
+		}
 		return nil, err
 	}
 

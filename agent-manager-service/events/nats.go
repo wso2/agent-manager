@@ -35,9 +35,10 @@ const (
 	EventsStream  = "AMP_EVENTS"
 	EventsSubject = "amp.events"
 
-	// EventFanoutConsumer and MonitorAlertFanoutConsumer are provisioned
-	// before publishing starts, so workers can attach without losing events.
-	EventFanoutConsumer        = "event-fanout"
+	// EventFanoutConsumer is the durable consumer the event dispatcher reads.
+	EventFanoutConsumer = "event-fanout"
+	// MonitorAlertFanoutConsumer is the durable consumer the monitor alert
+	// processor reads.
 	MonitorAlertFanoutConsumer = "notification-fanout"
 
 	streamMaxAge = 72 * time.Hour
@@ -54,8 +55,19 @@ const (
 	// destination's backlog of retries stop every delivery for hours.
 	natsQueueMaxAckPending = 50_000
 	// Bound poison-event retries so one bad event cannot occupy the consumer forever.
-	natsEventMaxDeliver = 20
+	natsEventMaxDeliver = EventMaxDeliver
 )
+
+// EventMaxDeliver is how many times an event consumer is handed one event
+// before the bus gives up on it.
+const EventMaxDeliver = 20
+
+// provisionedConsumers are the durable event consumers Setup creates before
+// publishing starts, so their workers can attach without losing events. A
+// consumer is listed together with the worker that reads it: one created
+// with no reader would hold every event until that worker ships, then
+// deliver up to streamMaxAge of them at once.
+var provisionedConsumers = []string{EventFanoutConsumer, MonitorAlertFanoutConsumer}
 
 // natsQueues maps work queue names to their JetStream streams and subjects.
 // A queue's subjects must stay outside amp.events.>, which AMP_EVENTS
@@ -130,20 +142,28 @@ func (b *NATSBus) Setup(ctx context.Context) error {
 	if _, err := b.js.CreateOrUpdateStream(ctx, eventsCfg); err != nil {
 		return fmt.Errorf("failed to set up stream %s: %w", EventsStream, err)
 	}
-	for _, name := range []string{EventFanoutConsumer, MonitorAlertFanoutConsumer} {
+	for _, name := range provisionedConsumers {
 		if _, err := b.js.CreateOrUpdateConsumer(ctx, EventsStream, eventConsumerConfig(name)); err != nil {
 			return fmt.Errorf("failed to set up consumer %s: %w", name, err)
 		}
 	}
 	for _, q := range natsQueues {
-		if _, err := b.js.CreateOrUpdateStream(ctx, jetstream.StreamConfig{
+		queueCfg := jetstream.StreamConfig{
 			Name:       q.stream,
 			Subjects:   []string{q.subject + ".>"},
 			Storage:    b.storage,
 			Retention:  jetstream.WorkQueuePolicy,
 			MaxAge:     streamMaxAge,
 			Duplicates: 10 * time.Minute,
-		}); err != nil {
+		}
+		if b.storage == jetstream.MemoryStorage {
+			// The queues share what the event stream leaves, with headroom.
+			// A full queue refuses new items rather than dropping queued
+			// ones: the fan-out then retries the event later.
+			queueCfg.MaxBytes = embeddedMaxMemory / 4 / int64(len(natsQueues))
+			queueCfg.Discard = jetstream.DiscardNew
+		}
+		if _, err := b.js.CreateOrUpdateStream(ctx, queueCfg); err != nil {
 			return fmt.Errorf("failed to set up stream %s: %w", q.stream, err)
 		}
 	}

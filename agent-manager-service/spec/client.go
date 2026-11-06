@@ -110,6 +110,10 @@ type APIClient struct {
 
 	MonitorAlertingAPI *MonitorAlertingAPIService
 
+	ProjectMCPProxiesAPI *ProjectMCPProxiesAPIService
+
+	ProjectMCPProxyEnvironmentsAPI *ProjectMCPProxyEnvironmentsAPIService
+
 	SelfHostedGatewaysAPI *SelfHostedGatewaysAPIService
 
 	TelemetryAPI *TelemetryAPIService
@@ -162,6 +166,8 @@ func NewAPIClient(cfg *Configuration) *APIClient {
 	c.MCPProxiesAPI = (*MCPProxiesAPIService)(&c.common)
 	c.MCPProxyScopesAPI = (*MCPProxyScopesAPIService)(&c.common)
 	c.MonitorAlertingAPI = (*MonitorAlertingAPIService)(&c.common)
+	c.ProjectMCPProxiesAPI = (*ProjectMCPProxiesAPIService)(&c.common)
+	c.ProjectMCPProxyEnvironmentsAPI = (*ProjectMCPProxyEnvironmentsAPIService)(&c.common)
 	c.SelfHostedGatewaysAPI = (*SelfHostedGatewaysAPIService)(&c.common)
 	c.TelemetryAPI = (*TelemetryAPIService)(&c.common)
 

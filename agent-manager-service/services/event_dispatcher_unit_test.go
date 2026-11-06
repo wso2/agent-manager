@@ -188,6 +188,9 @@ func newDispatcherFixture(t *testing.T) *dispatcherFixture {
 		},
 		ClaimDeliveryFunc:   func(context.Context, uuid.UUID, time.Duration) (bool, error) { return true, nil },
 		PruneDeliveriesFunc: func(context.Context, time.Time) (int64, error) { return 0, nil },
+		FailStaleDeliveriesFunc: func(context.Context, time.Time, string) (int64, error) {
+			return 0, nil
+		},
 	}
 	resolver := NewEventDestinationService(f.repo, eventdestinations.NewRegistry(f.driver), testEventKey, discardSlog())
 	f.dispatcher = NewEventDispatcherService(f.bus, f.repo, resolver,
@@ -281,6 +284,22 @@ func TestEventDispatcher_FanOutRetriesOnStoreErrors(t *testing.T) {
 	f.dispatcher.handleEvent(context.Background(), msg)
 	assert.Equal(t, "retry", msg.outcome)
 	assert.Equal(t, eventFanoutRetryDelay, msg.delay)
+
+	// Later attempts wait longer, so the bus's delivery limit outlasts an
+	// outage of more than a minute or two.
+	var waited time.Duration
+	for attempt := 1; attempt < events.EventMaxDeliver; attempt++ {
+		msg.attempt = attempt
+		f.dispatcher.handleEvent(context.Background(), msg)
+		require.Equal(t, "retry", msg.outcome)
+		waited += msg.delay
+	}
+	assert.Equal(t, eventFanoutMaxRetryDelay, msg.delay)
+	assert.Greater(t, waited, time.Hour)
+
+	msg.attempt = events.EventMaxDeliver
+	f.dispatcher.handleEvent(context.Background(), msg)
+	assert.Equal(t, "drop", msg.outcome, "the last attempt gives up rather than asking for a retry the bus will not make")
 }
 
 func TestEventDispatcher_DeliveryDecisions(t *testing.T) {
@@ -759,4 +778,37 @@ func TestEventDispatcher_MonitorAlertDeliveryEligibility(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Deliveries whose jobs were lost are failed before history is pruned, and
+// only once well past the longest gap between a live delivery's updates.
+func TestEventDispatcherPruneFailsLostDeliveries(t *testing.T) {
+	f := newDispatcherFixture(t)
+	now := time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC)
+	f.dispatcher.now = func() time.Time { return now }
+	var order []string
+	f.repo.FailStaleDeliveriesFunc = func(_ context.Context, cutoff time.Time, reason string) (int64, error) {
+		order = append(order, "fail")
+		assert.Equal(t, now.Add(-eventDeliveryLostAfter), cutoff)
+		assert.Greater(t, eventDeliveryLostAfter, eventRetryBackoff[len(eventRetryBackoff)-1]+eventDeliveryClaim)
+		assert.NotEmpty(t, reason)
+		return 2, nil
+	}
+	f.repo.PruneDeliveriesFunc = func(_ context.Context, cutoff time.Time) (int64, error) {
+		order = append(order, "prune")
+		assert.Equal(t, now.Add(-14*24*time.Hour), cutoff)
+		return 0, nil
+	}
+	f.dispatcher.cfg.DeliveryRetentionDays = 14
+	f.dispatcher.prune(context.Background())
+	assert.Equal(t, []string{"fail", "prune"}, order)
+
+	// A failure to fail lost deliveries does not stop pruning.
+	order = nil
+	f.repo.FailStaleDeliveriesFunc = func(context.Context, time.Time, string) (int64, error) {
+		order = append(order, "fail")
+		return 0, errors.New("db down")
+	}
+	f.dispatcher.prune(context.Background())
+	assert.Equal(t, []string{"fail", "prune"}, order)
 }

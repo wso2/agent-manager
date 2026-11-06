@@ -356,6 +356,17 @@ type SecretManagerConfig struct {
 	// types). Kept separate from RefreshInterval above so AgentID's fast
 	// rotation-to-pod requirement never depends on it.
 	AgentIdentityRefreshInterval string
+	// AgentIdentityForceSyncWait is how long to wait after forcing the workload's
+	// secret-env ExternalSecret to re-sync on rotation, before rolling the pod
+	// (default: "20s"). Used instead of AgentIdentityRefreshInterval whenever
+	// the force-sync write succeeds.
+	AgentIdentityForceSyncWait string
+	// AgentIdentityForceSyncApplyTimeout bounds how long to wait, before the
+	// AgentIdentityForceSyncWait above, for the new force-sync revision to show
+	// up on the live ExternalSecret (default: "2m"). On timeout a warning is
+	// logged and the pod is rolled after AgentIdentityRefreshInterval, not the
+	// short force-sync wait, because the force-sync was not confirmed.
+	AgentIdentityForceSyncApplyTimeout string
 }
 
 // OpenBaoConfig holds OpenBao KV store configuration.

@@ -236,7 +236,9 @@ func TestSMTPMessageHTMLAndHeaderInjection(t *testing.T) {
 }
 
 func TestSMTPDeliveryAcceptanceAndPermanentFailures(t *testing.T) {
-	for _, scenario := range []string{"recipient rejected", "authentication rejected", "QUIT rejected"} {
+	for _, scenario := range []string{
+		"recipient rejected", "authentication rejected", "QUIT rejected", "recipient deferred", "authentication deferred",
+	} {
 		t.Run(scenario, func(t *testing.T) {
 			listener, err := net.Listen("tcp", "127.0.0.1:0")
 			require.NoError(t, err)
@@ -263,14 +265,21 @@ func TestSMTPDeliveryAcceptanceAndPermanentFailures(t *testing.T) {
 					case strings.HasPrefix(line, "EHLO"), strings.HasPrefix(line, "HELO"):
 						_, _ = fmt.Fprint(conn, "250-mock\r\n250 AUTH PLAIN\r\n")
 					case strings.HasPrefix(line, "AUTH"):
-						_, _ = fmt.Fprint(conn, "535 bad credentials\r\n")
+						if scenario == "authentication deferred" {
+							_, _ = fmt.Fprint(conn, "454 try again later\r\n")
+						} else {
+							_, _ = fmt.Fprint(conn, "535 bad credentials\r\n")
+						}
 					case strings.HasPrefix(line, "MAIL FROM"):
 						_, _ = fmt.Fprint(conn, "250 OK\r\n")
 					case strings.HasPrefix(line, "RCPT TO"):
 						recipients++
-						if scenario == "recipient rejected" && recipients == 2 {
+						switch {
+						case scenario == "recipient rejected" && recipients == 2:
 							_, _ = fmt.Fprint(conn, "550 no such recipient\r\n")
-						} else {
+						case scenario == "recipient deferred" && recipients == 2:
+							_, _ = fmt.Fprint(conn, "451 greylisted, try again later\r\n")
+						default:
 							_, _ = fmt.Fprint(conn, "250 OK\r\n")
 						}
 					case strings.HasPrefix(line, "DATA"):
@@ -295,7 +304,7 @@ func TestSMTPDeliveryAcceptanceAndPermanentFailures(t *testing.T) {
 				}
 			}()
 			auth := "none"
-			if scenario == "authentication rejected" {
+			if strings.HasPrefix(scenario, "authentication") {
 				auth = "plain"
 			}
 			raw := "smtp://user:pass@" + listener.Addr().String() + "/?fromaddress=from@example.com&toaddresses=a@example.com,b@example.com&usestarttls=no&auth=" + auth
@@ -304,7 +313,8 @@ func TestSMTPDeliveryAcceptanceAndPermanentFailures(t *testing.T) {
 				require.NoError(t, result.Err)
 			} else {
 				require.Error(t, result.Err)
-				assert.False(t, result.Retryable)
+				// A 4xx reply is temporary; a 5xx reply is final.
+				assert.Equal(t, strings.HasSuffix(scenario, "deferred"), result.Retryable)
 			}
 			select {
 			case count := <-delivered:

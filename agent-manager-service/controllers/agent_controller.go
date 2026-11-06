@@ -24,6 +24,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/wso2/agent-manager/agent-manager-service/workloadpolicy"
+
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/events"
@@ -90,8 +92,20 @@ func NewAgentController(
 
 // handleCommonErrors checks for common resource errors and writes appropriate responses.
 // If no common error matches, writes an internal server error with the provided fallback message.
+// entitlementDeniedMessage returns the message the subscription check gave for
+// a refused create, or a generic one when it gave none.
+func entitlementDeniedMessage(err error) string {
+	var denied *utils.EntitlementDeniedError
+	if errors.As(err, &denied) && denied.Message != "" {
+		return denied.Message
+	}
+	return "Your subscription does not allow this. Upgrade your subscription to continue."
+}
+
 func handleCommonErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 	switch {
+	case errors.Is(err, workloadpolicy.ErrSuspended):
+		utils.WriteErrorResponseWithReason(w, http.StatusForbidden, "The Agent Manager subscription is suspended", "Renew the subscription to resume", "SUBSCRIPTION_SUSPENDED")
 	// A ValidationError raised below the controller (e.g. a stored agent kind
 	// version that can't be written as a label) is still a client-side problem —
 	// report it as a 400 naming the offending value instead of letting it reach
@@ -104,6 +118,10 @@ func handleCommonErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 	// user-facing Message with "Invalid input provided".
 	case utils.IsValidationError(err) != nil:
 		utils.WriteValidationErrorResponse(w, err)
+
+	case errors.Is(err, utils.ErrEntitlementDenied):
+		utils.WriteErrorResponseWithReason(w, http.StatusPaymentRequired,
+			entitlementDeniedMessage(err), "", utils.ErrCodeEntitlementDenied)
 
 	// Not found errors
 	case errors.Is(err, utils.ErrOrganizationNotFound):
@@ -153,6 +171,9 @@ func handleCommonErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 	case errors.Is(err, utils.ErrProjectHasAssociatedAgents):
 		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
 			"Project has associated agents", err.Error(), utils.ErrCodeConflict)
+	case errors.Is(err, utils.ErrDeploymentPipelineAlreadyExists):
+		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
+			"A deployment pipeline with this name already exists. Choose a different name.", "", utils.ErrCodeConflict)
 	case errors.Is(err, utils.ErrDeploymentPipelineInUse):
 		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
 			"Deployment pipeline is referenced by one or more projects", err.Error(), utils.ErrCodeConflict)

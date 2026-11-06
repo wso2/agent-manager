@@ -23,8 +23,8 @@ Monitor scheduler ───────────────────┘  
 - **Destinations** belong to the org. Only org admins register them. Each has a **kind** that decides how events are delivered, with a driver behind `eventdestinations.Driver`:
   - `webhook` POSTs the CloudEvent signed per [Standard Webhooks](https://www.standardwebhooks.com) (`webhook-id`, `webhook-timestamp`, `webhook-signature`), refusing private addresses.
   - `notify` sends a short text notification (title, description, where, when) to a chat, email, paging, push or SMS service, through [Shoutrrr](https://github.com/nicholas-fedor/shoutrrr) (MIT). Shoutrrr's maintainers keep each service's integration current; the driver (`services/eventdestinations/notify`) only picks which services are offered and keeps their traffic safe. A destination is a service plus a Shoutrrr service URL, such as `slack://hook:<token>@webhook`. The URL carries the service's token, so it is stored encrypted like a webhook secret and never returned; leave it out on update to keep it.
-  - **Availability** decides which subscriptions below the org may use a destination: those of every project (`all`), none (`org`), or those of listed projects (`projects`). Org subscriptions may use any destination. Narrowing availability while subscriptions would lose the destination, or deleting a destination subscriptions use, is refused (409) with the subscriptions named.
-- **Subscriptions** belong to the org, a project or an agent, and pick event types, a destination and an optional environment filter.
+  - **Availability** decides which subscriptions below the org may use a destination: those of every project (`all`), none (`org`), or those of listed projects (`projects`). Org subscriptions may use any destination. Narrowing availability while subscriptions would lose the destination, or deleting a destination subscriptions use, is refused (409) with the subscriptions named. When the last listed project is deleted, the destination becomes `org`.
+- **Subscriptions** belong to the org, a project or an agent, and pick event types, a destination and an optional environment filter. The project or agent must exist (404 otherwise), and filtered environments must be the org's (400 otherwise).
 - **The dispatcher** is a module of the service, not a separate deployment. Every replica runs it on shared durable consumers (`event-fanout`, `event-delivery`), so each message is handled by one replica.
 
 ## Which subscriptions an event reaches
@@ -43,20 +43,42 @@ Lower levels see the wider levels' subscriptions that reach them, read-only and 
 ## Delivery guarantees
 
 - **Durable acceptance.** Events accepted by the publisher are stored in PostgreSQL's `event_outbox` before returning. A background worker leases rows, publishes to NATS, and removes them only after confirmation. Bus failures retry without a fixed attempt limit; interrupted leases expire after two minutes.
-- **Monitor replay.** Terminal runs remain replayable until their complete event (including scores) is accepted by the outbox. A score-query or outbox-write failure retries on a later scheduler tick. Replay retains the run's completion time and event ID.
+- **Fan-out retries.** If matching an event to its subscriptions or queuing its deliveries fails, the dispatcher retries it after 5s, doubling up to 5 minutes, for 20 attempts (about 75 minutes). After that it logs an error and gives up on the event.
+- **Monitor replay.** Terminal runs remain replayable until their complete event (including scores) is accepted by the outbox. A score-query or outbox-write failure retries on a later scheduler tick, without holding back the other runs waiting for replay. Replay retains the run's completion time and event ID.
 - **Publication boundary.** Monitor outcomes have a durable source. Other route events are recorded after the operation completes; a crash or database failure between that operation and outbox insertion is still outside the delivery guarantee. The route logs an explicit persistence failure.
 - **At least once.** A receiver may see an event twice after a crash or a lost acknowledgement; it should drop duplicates by `webhook-id`, which is the same on every attempt.
-- **Retries** follow the driver: a webhook retries network errors, 408, 425, 429 and 5xx after 10s, 1m, 5m, 30m and 2h, up to `EVENTS_DELIVERY_MAX_ATTEMPTS`. Other responses fail at once. Shoutrrr reports no status codes, so a failed `notify` send is always retried; an invalid URL is refused when the destination is saved.
+- **Retries** follow the driver: a webhook retries network errors, 408, 425, 429 and 5xx after 10s, 1m, 5m, 30m and 2h, up to `EVENTS_DELIVERY_MAX_ATTEMPTS`. Other responses fail at once. Shoutrrr reports no status codes, so a failed `notify` send is retried, except an email whose recipient or login the mail server refuses with a 5xx reply to `RCPT` or `AUTH` (a 4xx reply, such as greylisting, is retried); an invalid URL is refused when the destination is saved.
 - **A delivery already recorded as delivered is not sent again** when its job comes back. A worker claims a delivery for two minutes before sending it, so a job the bus redelivers while another worker is still sending waits instead of sending twice; and a send that succeeded is not retried even when recording its outcome fails.
+- **A lost delivery is failed.** A delivery still pending with no activity for 6 hours has lost its job (an `embedded` restart, an outcome that could not be recorded, or a fan-out that gave up). The dispatcher marks it `failed`, so the log does not show it in progress until it ages out.
 - **A delivery nobody wants any more is skipped.** Before each attempt the dispatcher checks that a subscription that queued it still exists, is enabled and may use the destination; otherwise it records `skipped` and stops.
-- **With `embedded`**, the bus is in memory: events and pending retries waiting at a restart are lost. Use `nats` for anything but quick start.
+- **With `embedded`**, the bus is in memory: events and pending retries waiting at a restart are lost. `AMP_EVENTS` keeps at most half of the 256 MiB budget, dropping its oldest events; the delivery queue at most a quarter, refusing new jobs when full so the fan-out retries them later. Use `nats` for anything but quick start.
 - **History** is kept for `EVENTS_DELIVERY_RETENTION_DAYS` in `event_deliveries`. Event bodies are not stored there; the event lives on the bus (72 hours on `AMP_EVENTS`). Each level's delivery log shows its own events: the org every delivery, a project its project and agent events, an agent its agent events.
+
+## Verifying webhook deliveries
+
+Each webhook delivery is an HTTP `POST` whose body is the whole event as a structured-mode CloudEvent (`Content-Type: application/cloudevents+json`), signed per [Standard Webhooks](https://www.standardwebhooks.com):
+
+| Header | Value |
+|---|---|
+| `webhook-id` | The event ID. The same on every attempt, so use it to drop duplicates. |
+| `webhook-timestamp` | When this attempt was signed, in Unix seconds. |
+| `webhook-signature` | `v1,<signature>`. Receivers should accept any of several space-separated signatures. |
+| `X-AMP-Event-Type` | The CloudEvents `type`, for routing without parsing the body. |
+
+The signing secret is shown once, when the destination is created or its secret is rotated, as `whsec_<base64>`. To verify a delivery:
+
+1. Base64-decode the part after `whsec_`; that is the HMAC key.
+2. Compute HMAC-SHA256 over `<webhook-id>.<webhook-timestamp>.<raw body>`, using the body bytes exactly as received.
+3. Base64-encode the result and compare it, in constant time, with the part after `v1,`.
+4. Reject timestamps far from your clock (five minutes is usual), to stop replays.
+
+The Standard Webhooks libraries do all of this given the `whsec_` secret. Rotating the secret takes effect at once: deliveries signed with the old secret fail verification, so update the receiver straight after rotating.
 
 ## Configuration
 
 | Setting | Default | Purpose |
 |---|---|---|
-| `EVENTS_MODE` | `off` (the chart sets `nats`) | `nats`, `embedded` or `off`. `off` runs no bus and the console hides Events. |
+| `EVENTS_MODE` | `off` (the chart's default too) | `nats`, `embedded` or `off`. `off` runs no bus and the console hides Events. |
 | `EVENTS_NATS_URL` | – | NATS server for `nats` mode |
 | `EVENTS_NATS_TOKEN` | – | Token for a NATS server that requires one |
 | `EVENTS_DELIVERY_MAX_ATTEMPTS` | `6` | Attempts before a delivery is marked failed |
@@ -106,7 +128,7 @@ Matching, queuing, retries, the delivery log and the API stay as they are.
 
 ## Upgrading event durability
 
-Migration 055 adds the outbox and `monitor_runs.event_queued_at`. It preserves existing rows and marks pre-upgrade terminal runs as already handled; pending/running and newly created runs remain replayable. New workers coexist through expiring leases. Old application replicas still use their original publication behavior, so complete the rollout before relying on durable acceptance.
+Migration 057 adds the outbox and `monitor_runs.event_queued_at`. It preserves existing rows and marks pre-upgrade terminal runs as already handled; pending/running and newly created runs remain replayable. New workers coexist through expiring leases. Old application replicas still use their original publication behavior, so complete the rollout before relying on durable acceptance.
 
 Rollback leaves the additive table and column in place, preserving pending work for a subsequent upgrade. Start the older binary without running its migration command (its migration validator rejects newer schema versions). Do not drop pending outbox rows. Embedded mode still loses events already published into its in-memory bus on restart; use NATS mode for durable downstream delivery.
 
@@ -120,4 +142,4 @@ Monitor alert settings are shared by everyone managing a monitor. Configure them
 
 Each failure, completion, threshold breach, or recovery is sent to the selected destinations. Threshold state and delivery jobs commit together; bus retries reload those jobs after a crash. Before sending, the dispatcher rechecks that the alert still exists, still selects that destination, and the destination is still available to the agent. Delivery history remains under organization Events.
 
-Migration 057 adds shared monitor alerts and durable alert payloads. No personal watch or console inbox tables are created. Select organization destinations explicitly when enabling monitor alerting.
+Migration 059 adds shared monitor alerts and durable alert payloads. No personal watch or console inbox tables are created. Select organization destinations explicitly when enabling monitor alerting.

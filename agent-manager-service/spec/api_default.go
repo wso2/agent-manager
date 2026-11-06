@@ -299,6 +299,17 @@ func (a *DefaultAPIService) CreateAgentExecute(r ApiCreateAgentRequest) (*AgentR
 			newErr.model = v
 			return localVarReturnValue, localVarHTTPResponse, newErr
 		}
+		if localVarHTTPResponse.StatusCode == 402 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
 		if localVarHTTPResponse.StatusCode == 404 {
 			var v ErrorResponse
 			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
@@ -8632,6 +8643,8 @@ func (r ApiUpdateAgentBuildParametersRequest) Execute() (*AgentResponse, *http.R
 
 /*
 UpdateAgentBuildParameters Update agent build parameters
+
+Saves the agent's build parameters. They take effect with the next build. healthChecks replaces the saved health checks when sent (an empty object goes back to the defaults) and keeps them when omitted.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param agentName

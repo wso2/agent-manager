@@ -146,6 +146,7 @@ func TestAttemptProvision_CPManagedUsesProjectProvider(t *testing.T) {
 	var update repositories.AgentThunderAttemptUpdate
 	var events []string
 	repo := &repomocks.AgentThunderClientRepositoryMock{
+		FindByAgentFunc:     noExistingBindings,
 		ClaimForAttemptFunc: func(context.Context, uuid.UUID) (bool, error) { return true, nil },
 		UpdateAfterAttemptFunc: func(_ context.Context, _ uuid.UUID, value repositories.AgentThunderAttemptUpdate) error {
 			update = value
@@ -249,6 +250,7 @@ func TestAttemptProvision_CPManagedFailureState(t *testing.T) {
 			}
 			var update repositories.AgentThunderAttemptUpdate
 			repo := &repomocks.AgentThunderClientRepositoryMock{
+				FindByAgentFunc:     noExistingBindings,
 				ClaimForAttemptFunc: func(context.Context, uuid.UUID) (bool, error) { return true, nil },
 				UpdateAfterAttemptFunc: func(_ context.Context, _ uuid.UUID, value repositories.AgentThunderAttemptUpdate) error {
 					update = value

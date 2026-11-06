@@ -28,6 +28,22 @@ const (
 	ErrCodeForbidden      = "FORBIDDEN"
 	ErrCodeImmutableField = "IMMUTABLE_FIELD"
 	ErrCodeInvalidInput   = "INVALID_INPUT"
+	// ErrCodeHandleInUse: the MCP proxy handle belongs to an org-level or another project's proxy.
+	ErrCodeHandleInUse = "HANDLE_IN_USE"
+	// ErrCodeProjectOwned: an org route tried to mutate a project-scoped MCP proxy.
+	ErrCodeProjectOwned = "PROJECT_OWNED"
+	// ErrCodeMCPProxyInUse: AM agents still use the MCP proxy, so it cannot be deleted.
+	ErrCodeMCPProxyInUse = "MCP_PROXY_IN_USE"
+	// ErrCodeUpstreamNotReady: the project MCP proxy's source component isn't deployed in the environment yet.
+	ErrCodeUpstreamNotReady = "UPSTREAM_NOT_READY"
+	// ErrCodeSourceComponentNotFound: the project MCP proxy's source component is not in the project.
+	ErrCodeSourceComponentNotFound = "SOURCE_COMPONENT_NOT_FOUND"
+	// ErrCodeContextInUse: an artifact's gateway context overlaps another artifact's on that gateway.
+	ErrCodeContextInUse = "CONTEXT_IN_USE"
+	// ErrCodeAmbiguousGateway: the binding's environment has several egress gateways and no gatewayId was given.
+	ErrCodeAmbiguousGateway = "AMBIGUOUS_GATEWAY"
+	// ErrCodeEntitlementDenied: the organization's subscription does not allow the create (402).
+	ErrCodeEntitlementDenied = "ENTITLEMENT_DENIED"
 
 	// Server error codes (5xx)
 	ErrCodeInternalError      = "INTERNAL_ERROR"

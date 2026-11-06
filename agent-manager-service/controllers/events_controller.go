@@ -183,12 +183,12 @@ func (c *eventsController) GetDestination(w http.ResponseWriter, r *http.Request
 		writeEventsError(w, r, err, "Failed to get event destination")
 		return
 	}
-	_, stats, err := c.destinations.List(r.Context(), ouID)
+	stats, err := c.destinations.Stats(r.Context(), ouID, d.ID)
 	if err != nil {
 		writeEventsError(w, r, err, "Failed to get event destination")
 		return
 	}
-	resp := c.toDestinationResponse(d, stats[d.ID], canManageDestinations(r))
+	resp := c.toDestinationResponse(d, stats, canManageDestinations(r))
 	resp.Subscriptions = make([]spec.EventSubscriptionRef, 0, len(using))
 	for i := range using {
 		resp.Subscriptions = append(resp.Subscriptions, toSubscriptionRef(&using[i]))
@@ -211,12 +211,12 @@ func (c *eventsController) UpdateDestination(w http.ResponseWriter, r *http.Requ
 		writeEventsError(w, r, err, "Failed to update event destination")
 		return
 	}
-	_, stats, err := c.destinations.List(r.Context(), ouID)
+	stats, err := c.destinations.Stats(r.Context(), ouID, d.ID)
 	if err != nil {
 		writeEventsError(w, r, err, "Failed to update event destination")
 		return
 	}
-	utils.WriteSuccessResponse(w, http.StatusOK, c.toDestinationResponse(d, stats[d.ID], true))
+	utils.WriteSuccessResponse(w, http.StatusOK, c.toDestinationResponse(d, stats, true))
 }
 
 func (c *eventsController) DeleteDestination(w http.ResponseWriter, r *http.Request) {
@@ -286,15 +286,28 @@ func (c *eventsController) ForScope(scope string) EventScopeHandlers {
 			fn(w, r, target(r), id)
 		}
 	}
-	// respond writes one subscription with its destination and counts.
-	respond := func(w http.ResponseWriter, r *http.Request, t repositories.EventTarget, status int, sub *models.EventSubscription) {
-		list, err := c.subscriptions.List(r.Context(), t)
+	// respond writes one subscription with its destination and counts. After
+	// a create or update (saved) the change is already committed, so failing
+	// to load the rest only logs: a client retrying a 500 would create the
+	// subscription twice.
+	respond := func(
+		w http.ResponseWriter, r *http.Request, t repositories.EventTarget, status int, sub *models.EventSubscription, saved bool,
+	) {
+		detail, err := c.subscriptions.Describe(r.Context(), t, sub)
 		if err != nil {
-			writeEventsError(w, r, err, "Failed to load event subscription")
-			return
+			if !saved {
+				writeEventsError(w, r, err, "Failed to load event subscription")
+				return
+			}
+			logger.GetLogger(r.Context()).Error("Failed to load a saved event subscription's destination and counts",
+				"subscription", sub.ID, "error", err)
+			detail = &services.SubscriptionDetail{}
 		}
-		d := list.Destinations[sub.DestinationID]
-		utils.WriteSuccessResponse(w, status, c.toSubscriptionResponse(sub, d, list.DestinationStats, list.Counts[sub.ID]))
+		stats := map[uuid.UUID]repositories.DestinationStats{}
+		if detail.Destination != nil {
+			stats[detail.Destination.ID] = detail.DestinationStats
+		}
+		utils.WriteSuccessResponse(w, status, c.toSubscriptionResponse(sub, detail.Destination, stats, detail.Counts))
 	}
 
 	h := EventScopeHandlers{
@@ -331,7 +344,7 @@ func (c *eventsController) ForScope(scope string) EventScopeHandlers {
 				writeEventsError(w, r, err, "Failed to create event subscription")
 				return
 			}
-			respond(w, r, t, http.StatusCreated, sub)
+			respond(w, r, t, http.StatusCreated, sub, true)
 		},
 		GetSubscription: withID(func(w http.ResponseWriter, r *http.Request, t repositories.EventTarget, id uuid.UUID) {
 			sub, err := c.subscriptions.Get(r.Context(), t, id)
@@ -339,7 +352,7 @@ func (c *eventsController) ForScope(scope string) EventScopeHandlers {
 				writeEventsError(w, r, err, "Failed to get event subscription")
 				return
 			}
-			respond(w, r, t, http.StatusOK, sub)
+			respond(w, r, t, http.StatusOK, sub, false)
 		}),
 		UpdateSubscription: withID(func(w http.ResponseWriter, r *http.Request, t repositories.EventTarget, id uuid.UUID) {
 			in, ok := decodeSubscriptionRequest(w, r)
@@ -351,7 +364,7 @@ func (c *eventsController) ForScope(scope string) EventScopeHandlers {
 				writeEventsError(w, r, err, "Failed to update event subscription")
 				return
 			}
-			respond(w, r, t, http.StatusOK, sub)
+			respond(w, r, t, http.StatusOK, sub, true)
 		}),
 		DeleteSubscription: withID(func(w http.ResponseWriter, r *http.Request, t repositories.EventTarget, id uuid.UUID) {
 			if err := c.subscriptions.Delete(r.Context(), t, id); err != nil {
@@ -494,6 +507,10 @@ func writeEventsError(w http.ResponseWriter, r *http.Request, err error, fallbac
 		utils.WriteErrorResponse(w, http.StatusNotFound, "Event destination not found")
 	case errors.Is(err, utils.ErrEventSubscriptionNotFound):
 		utils.WriteErrorResponse(w, http.StatusNotFound, "Event subscription not found")
+	case errors.Is(err, utils.ErrProjectNotFound):
+		utils.WriteErrorResponse(w, http.StatusNotFound, "Project not found")
+	case errors.Is(err, utils.ErrAgentNotFound):
+		utils.WriteErrorResponse(w, http.StatusNotFound, "Agent not found")
 	case errors.Is(err, utils.ErrConflict):
 		utils.WriteErrorResponse(w, http.StatusConflict, "Destination changed concurrently; reload and retry")
 	case errors.Is(err, utils.ErrEventDestinationInUse):

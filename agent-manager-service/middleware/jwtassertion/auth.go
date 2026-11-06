@@ -74,6 +74,11 @@ type TokenClaims struct {
 	Scope    string `json:"scope"`
 	OuId     string `json:"ouId"`
 	OuHandle string `json:"ouHandle"`
+	// ClientID is the OAuth client the token was issued to (the `client_id`
+	// claim the platform IdP stamps on its tokens). For a client-credentials
+	// token it names the calling service; it is recorded when such a caller
+	// acts on another organization (see middleware.ApplyOrgOverride).
+	ClientID string `json:"client_id,omitempty"`
 	jwt.RegisteredClaims
 }
 

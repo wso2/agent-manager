@@ -19,8 +19,8 @@ package dbmigrations
 import "gorm.io/gorm"
 
 // Monitor alerts deliver shared rules to organization-managed destinations.
-var migration058 = migration{
-	ID: 58,
+var migration059 = migration{
+	ID: 59,
 	Migrate: func(db *gorm.DB) error {
 		return db.Exec(`CREATE TABLE IF NOT EXISTS monitor_alerts (
  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

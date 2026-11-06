@@ -152,6 +152,39 @@ func TestMonitorRunEventsReplayAfterScoreReadFailure(t *testing.T) {
 	assert.Len(t, data["scores"], 1)
 }
 
+func TestMonitorRunEventsReplayContinuesPastAStuckRun(t *testing.T) {
+	ctx := context.Background()
+	monitor := &models.Monitor{ID: uuid.New(), OUID: "ou-1", ProjectName: "p", AgentName: "a", Name: "quality"}
+	stuck := models.MonitorRun{ID: uuid.New(), MonitorID: monitor.ID, Status: models.RunStatusSuccess}
+	next := models.MonitorRun{ID: uuid.New(), MonitorID: monitor.ID, Status: models.RunStatusSuccess}
+	scores := &repomocks.ScoreRepositoryMock{
+		GetEvaluatorsByMonitorAndRunIDFunc: func(_ uuid.UUID, runID uuid.UUID) ([]models.MonitorRunEvaluator, error) {
+			if runID == stuck.ID {
+				return nil, errors.New("temporary DB failure")
+			}
+			return []models.MonitorRunEvaluator{}, nil
+		},
+	}
+	var marked []uuid.UUID
+	repo := &repomocks.MonitorRepositoryMock{
+		ListUnqueuedTerminalRunsFunc: func(context.Context, int) ([]models.MonitorRun, error) {
+			return []models.MonitorRun{stuck, next}, nil
+		},
+		GetMonitorByIDFunc:     func(uuid.UUID) (*models.Monitor, error) { return monitor, nil },
+		MarkRunEventQueuedFunc: func(_ context.Context, id uuid.UUID) error { marked = append(marked, id); return nil },
+	}
+	var published []events.Event
+	pub := runEventPublisher(func(_ context.Context, e events.Event) error { published = append(published, e); return nil })
+	observer := NewMonitorRunEvents(pub, scores, repo, discardLogger()).(*monitorRunEvents)
+
+	err := observer.Reconcile(ctx)
+	require.Error(t, err, "the stuck run is reported")
+	assert.Contains(t, err.Error(), stuck.ID.String())
+	require.Len(t, published, 1, "the run after it is still replayed")
+	assert.Equal(t, "evt_monrun_"+next.ID.String(), published[0].ID)
+	assert.Equal(t, []uuid.UUID{next.ID}, marked, "the stuck run stays unqueued for the next poll")
+}
+
 func TestMonitorRunEventsDoesNotMarkRejectedPublication(t *testing.T) {
 	repo := &repomocks.MonitorRepositoryMock{} // marking would panic
 	pub := runEventPublisher(func(context.Context, events.Event) error { return errors.New("outbox unavailable") })

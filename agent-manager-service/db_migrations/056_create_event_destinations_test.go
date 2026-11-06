@@ -25,9 +25,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestMigration055DestinationConstraints(t *testing.T) {
+func TestMigration056DestinationConstraints(t *testing.T) {
 	g := scratchDatabase(t)
-	require.NoError(t, migrateTo(g, 54))
+	require.NoError(t, migrateTo(g, 55))
 	require.NoError(t, migrateTo(g, latestVersion))
 	destination := uuid.New()
 	require.NoError(t, g.Exec("INSERT INTO event_destinations (id, ou_id, name, kind) VALUES (?, 'org-a', 'Webhook', 'webhook')", destination).Error)
@@ -38,7 +38,7 @@ func TestMigration055DestinationConstraints(t *testing.T) {
 	require.Error(t, g.Exec("DELETE FROM event_destinations WHERE id = ?", destination).Error)
 	require.NoError(t, g.Exec("DELETE FROM event_subscriptions WHERE id = ?", subscription).Error)
 	require.NoError(t, g.Exec("DELETE FROM event_destinations WHERE id = ?", destination).Error)
-	require.NoError(t, migrateTo(g, 55), "migration must run only once")
+	require.NoError(t, migrateTo(g, 56), "migration must run only once")
 	var legacyTables int64
 	require.NoError(t, g.Raw("SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('monitor_watches', 'notifications', 'alert_channels')").Scan(&legacyTables).Error)
 	require.Zero(t, legacyTables)
