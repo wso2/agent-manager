@@ -16,6 +16,7 @@
  * under the License.
  */
 
+import { backendEndpoints, backendFetch } from "@agent-management-platform/auth";
 import { globalConfig } from "@agent-management-platform/types";
 import { httpPOST, SERVICE_BASE } from "../utils";
 
@@ -87,17 +88,16 @@ export function reportConsoleActionsOnUnload(
   actions: ConsoleActionPayload[],
   token: string | undefined,
 ): boolean {
-  if (!token || actions.length === 0) {
+  if ((!token && !backendEndpoints()) || actions.length === 0) {
     return false;
   }
 
   try {
-    void window.fetch(`${globalConfig.apiBaseUrl}${CONSOLE_ACTIONS_PATH}`, {
+    void backendFetch(`${globalConfig.apiBaseUrl}${CONSOLE_ACTIONS_PATH}`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
+      headers: token
+        ? { "Content-Type": "application/json", Authorization: `Bearer ${token}` }
+        : { "Content-Type": "application/json" },
       body: JSON.stringify({ actions }),
       keepalive: true,
     });

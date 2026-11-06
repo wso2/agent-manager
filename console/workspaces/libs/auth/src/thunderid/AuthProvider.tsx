@@ -20,7 +20,7 @@ import {
   ThunderIDProvider,
   useThunderID,
 } from "@thunderid/react";
-import { useEffect, useMemo } from "react";
+import { useEffect, useState } from "react";
 import { globalConfig } from "@agent-management-platform/types";
 import type { AuthProviderProps } from "../types";
 import {
@@ -40,11 +40,11 @@ const BackendAccessToken = () => {
 
 
 export const AuthProvider = ({ children }: AuthProviderProps) => {
-  const authConfig = useMemo(() => {
+  const [authConfig] = useState(() => {
     const resolved = resolveAuthConfig(globalConfig.authConfig);
     if (resolved.endpoints?.backend) clearBrowserSignInSession(resolved.clientId);
     return resolved;
-  }, []);
+  });
 
   return (
     <ThunderIDProvider {...authConfig}>

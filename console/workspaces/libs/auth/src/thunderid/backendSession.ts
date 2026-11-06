@@ -114,7 +114,9 @@ export async function backendFetch(
   };
   const response = await send();
   if (response.status !== 401) return response;
-  if (await isBackendSignedIn()) return send();
+  if (await isBackendSignedIn()) {
+    return init.body instanceof ReadableStream ? response : send();
+  }
   endBackendSession();
   return response;
 }
