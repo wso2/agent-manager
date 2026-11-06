@@ -52,8 +52,12 @@ const (
 	// destination's backlog of retries stop every delivery for hours.
 	natsQueueMaxAckPending = 50_000
 	// Bound poison-event retries so one bad event cannot occupy the consumer forever.
-	natsEventMaxDeliver = 20
+	natsEventMaxDeliver = EventMaxDeliver
 )
+
+// EventMaxDeliver is how many times an event consumer is handed one event
+// before the bus gives up on it.
+const EventMaxDeliver = 20
 
 // provisionedConsumers are the durable event consumers Setup creates before
 // publishing starts, so their workers can attach without losing events. A

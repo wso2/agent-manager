@@ -40,8 +40,11 @@ const (
 	eventFanoutConsumer   = events.EventFanoutConsumer
 	eventDeliveryConsumer = "event-delivery"
 	eventFanoutRetryDelay = 5 * time.Second
-	eventDeliveryWorkers  = 8
-	eventPruneInterval    = time.Hour
+	// eventFanoutMaxRetryDelay caps the doubling fan-out delay. With the bus's
+	// delivery limit, an event survives about 75 minutes of failures.
+	eventFanoutMaxRetryDelay = 5 * time.Minute
+	eventDeliveryWorkers     = 8
+	eventPruneInterval       = time.Hour
 	// eventDeliveryClaim is how long a worker holds a delivery while sending
 	// it. It outlasts a driver's send timeout, so a job the bus redelivers
 	// meanwhile waits instead of sending the event a second time.
@@ -198,7 +201,7 @@ func (d *eventDispatcher) handleEvent(ctx context.Context, msg events.Message) {
 	candidates, err := d.repo.CandidateSubscriptions(ctx, e.OrgID, e.Project, e.Agent)
 	if err != nil {
 		log.Error("Failed to find event subscriptions; will retry", "error", err)
-		_ = msg.Retry(eventFanoutRetryDelay)
+		d.retryFanout(msg, log)
 		return
 	}
 	wanted := map[uuid.UUID]bool{}
@@ -218,7 +221,7 @@ func (d *eventDispatcher) handleEvent(ctx context.Context, msg events.Message) {
 	found, err := d.repo.DestinationsByID(ctx, e.OrgID, ids)
 	if err != nil {
 		log.Error("Failed to load event destinations; will retry", "error", err)
-		_ = msg.Retry(eventFanoutRetryDelay)
+		d.retryFanout(msg, log)
 		return
 	}
 	destinations := make(map[uuid.UUID]*models.EventDestination, len(found))
@@ -242,7 +245,7 @@ func (d *eventDispatcher) handleEvent(ctx context.Context, msg events.Message) {
 			Status:          models.EventDeliveryPending,
 		}); err != nil {
 			log.Error("Failed to record event delivery; will retry", "destinationId", g.Destination.ID, "error", err)
-			_ = msg.Retry(eventFanoutRetryDelay)
+			d.retryFanout(msg, log)
 			return
 		}
 		body, err := json.Marshal(eventDeliveryJob{DestinationID: g.Destination.ID.String(), Event: msg.Data()})
@@ -254,7 +257,7 @@ func (d *eventDispatcher) handleEvent(ctx context.Context, msg events.Message) {
 		// before the ack) a no-op for destinations already queued.
 		if err := d.bus.Enqueue(ctx, events.QueueEventDeliveries, e.ID+":"+g.Destination.ID.String(), body); err != nil {
 			log.Error("Failed to queue event delivery; will retry", "destinationId", g.Destination.ID, "error", err)
-			_ = msg.Retry(eventFanoutRetryDelay)
+			d.retryFanout(msg, log)
 			return
 		}
 	}
@@ -380,6 +383,29 @@ func (d *eventDispatcher) handleDelivery(ctx context.Context, msg events.Message
 		return
 	}
 	_ = msg.Retry(eventBackoff(attempt))
+}
+
+// retryFanout hands msg back to the bus for another fan-out. The delay
+// doubles with each attempt, so the bus's delivery limit spans an outage of
+// over an hour rather than a minute and a half. On the last attempt the
+// event is dropped and the loss logged: deliveries already recorded for it
+// stay pending.
+func (d *eventDispatcher) retryFanout(msg events.Message, log *slog.Logger) {
+	attempt := msg.Attempt()
+	if attempt >= events.EventMaxDeliver {
+		log.Error("Giving up on event fan-out; the event will not reach its destinations", "attempts", attempt)
+		_ = msg.Drop()
+		return
+	}
+	_ = msg.Retry(eventFanoutDelay(attempt))
+}
+
+func eventFanoutDelay(attempt int) time.Duration {
+	delay := eventFanoutRetryDelay
+	for i := 1; i < attempt && delay < eventFanoutMaxRetryDelay; i++ {
+		delay *= 2
+	}
+	return min(delay, eventFanoutMaxRetryDelay)
 }
 
 // stillWanted checks that the subscription or monitor alert that queued a

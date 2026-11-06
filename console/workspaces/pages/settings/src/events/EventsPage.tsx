@@ -17,8 +17,19 @@
  */
 
 import { useMemo } from "react";
-import { Alert, Box, Chip, Divider, Stack, Tab, Tabs, Typography } from "@wso2/oxygen-ui";
-import { Lock } from "@wso2/oxygen-ui-icons-react";
+import {
+  Alert,
+  Box,
+  Button,
+  Chip,
+  Divider,
+  Skeleton,
+  Stack,
+  Tab,
+  Tabs,
+  Typography,
+} from "@wso2/oxygen-ui";
+import { Lock, RefreshCw, ServerCrash } from "@wso2/oxygen-ui-icons-react";
 import {
   generatePath,
   Route,
@@ -28,11 +39,11 @@ import {
   useResolvedPath,
   useSearchParams,
 } from "react-router-dom";
-import { PageLayout } from "@agent-management-platform/views";
+import { PageLayout, StateNotice } from "@agent-management-platform/views";
 import {
-  useEventsEnabled,
   useListEventDestinations,
   useListEventSubscriptions,
+  useRuntimeConfig,
 } from "@agent-management-platform/api-client";
 import {
   absoluteRouteMap,
@@ -220,7 +231,7 @@ export function EventsPage({ scope }: { scope: EventScope }) {
     agentId: string;
   }>();
   const listPath = useResolvedPath(".").pathname;
-  const enabled = useEventsEnabled();
+  const config = useRuntimeConfig();
   const access = useEventsAccess(scope);
   const target = useMemo<EventTargetParams>(
     () => ({
@@ -232,7 +243,40 @@ export function EventsPage({ scope }: { scope: EventScope }) {
     [scope, orgId, projectId, agentId],
   );
 
-  if (!enabled) {
+  // "Not enabled" only once the service has said so: while the config
+  // loads, or when it fails to load, Events may well be on.
+  if (config.isLoading) {
+    return (
+      <PageLayout title="Events" disableIcon>
+        <Stack spacing={1}>
+          <Skeleton variant="rounded" height={48} />
+          <Skeleton variant="rounded" height={240} />
+        </Stack>
+      </PageLayout>
+    );
+  }
+  if (config.isError) {
+    return (
+      <PageLayout title="Events" disableIcon>
+        <StateNotice
+          icon={ServerCrash}
+          tone="error"
+          title="Couldn't load the deployment settings"
+          description="Events needs them to know whether this deployment delivers events. Retry in a moment or reload the page."
+          actions={
+            <Button
+              variant="outlined"
+              startIcon={<RefreshCw size={16} />}
+              onClick={() => window.location.reload()}
+            >
+              Reload page
+            </Button>
+          }
+        />
+      </PageLayout>
+    );
+  }
+  if (config.data?.eventsEnabled !== true) {
     return (
       <PageLayout title="Events" disableIcon>
         <Alert severity="info">

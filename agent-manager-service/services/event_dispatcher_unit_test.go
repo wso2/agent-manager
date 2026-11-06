@@ -281,6 +281,22 @@ func TestEventDispatcher_FanOutRetriesOnStoreErrors(t *testing.T) {
 	f.dispatcher.handleEvent(context.Background(), msg)
 	assert.Equal(t, "retry", msg.outcome)
 	assert.Equal(t, eventFanoutRetryDelay, msg.delay)
+
+	// Later attempts wait longer, so the bus's delivery limit outlasts an
+	// outage of more than a minute or two.
+	var waited time.Duration
+	for attempt := 1; attempt < events.EventMaxDeliver; attempt++ {
+		msg.attempt = attempt
+		f.dispatcher.handleEvent(context.Background(), msg)
+		require.Equal(t, "retry", msg.outcome)
+		waited += msg.delay
+	}
+	assert.Equal(t, eventFanoutMaxRetryDelay, msg.delay)
+	assert.Greater(t, waited, time.Hour)
+
+	msg.attempt = events.EventMaxDeliver
+	f.dispatcher.handleEvent(context.Background(), msg)
+	assert.Equal(t, "drop", msg.outcome, "the last attempt gives up rather than asking for a retry the bus will not make")
 }
 
 func TestEventDispatcher_DeliveryDecisions(t *testing.T) {

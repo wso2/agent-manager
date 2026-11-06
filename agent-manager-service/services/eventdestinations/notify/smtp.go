@@ -168,7 +168,7 @@ func deliverSMTP(ctx context.Context, config *shoutrrrsmtp.Config, body string, 
 	// must not leave earlier recipients with an already-delivered copy.
 	for _, recipient := range cfg.ToAddresses {
 		if err := client.Rcpt(recipient); err != nil {
-			return permanentSMTPError{"SMTP recipient rejected"}
+			return smtpRejection(err, "SMTP recipient rejected")
 		}
 	}
 	w, err := client.Data()
@@ -205,7 +205,7 @@ func smtpAuthenticate(client *smtp.Client, cfg *shoutrrrsmtp.Config) error {
 	}
 	// SMTP replies can echo credentials; never propagate server text.
 	if err := client.Auth(auth); err != nil {
-		return permanentSMTPError{"SMTP authentication failed"}
+		return smtpRejection(err, "SMTP authentication failed")
 	}
 	return nil
 }
@@ -254,6 +254,17 @@ func writeSMTPBody(w io.Writer, body string) error {
 		return errors.New("failed to encode SMTP body")
 	}
 	return nil
+}
+
+// smtpRejection reports a refused RCPT or AUTH under message, keeping the
+// server's reply text out of it. A 4xx reply is temporary (greylisting, a
+// full mailbox, a busy server) and is retried; anything else is final.
+func smtpRejection(err error, message string) error {
+	var reply *textproto.Error
+	if errors.As(err, &reply) && reply.Code >= 400 && reply.Code < 500 {
+		return errors.New(message)
+	}
+	return permanentSMTPError{message}
 }
 
 // permanentSMTPError reports a rejection without exposing server replies.

@@ -43,10 +43,11 @@ Lower levels see the wider levels' subscriptions that reach them, read-only and 
 ## Delivery guarantees
 
 - **Durable acceptance.** Events accepted by the publisher are stored in PostgreSQL's `event_outbox` before returning. A background worker leases rows, publishes to NATS, and removes them only after confirmation. Bus failures retry without a fixed attempt limit; interrupted leases expire after two minutes.
+- **Fan-out retries.** If matching an event to its subscriptions or queuing its deliveries fails, the dispatcher retries it after 5s, doubling up to 5 minutes, for 20 attempts (about 75 minutes). After that it logs an error and gives up on the event.
 - **Monitor replay.** Terminal runs remain replayable until their complete event (including scores) is accepted by the outbox. A score-query or outbox-write failure retries on a later scheduler tick, without holding back the other runs waiting for replay. Replay retains the run's completion time and event ID.
 - **Publication boundary.** Monitor outcomes have a durable source. Other route events are recorded after the operation completes; a crash or database failure between that operation and outbox insertion is still outside the delivery guarantee. The route logs an explicit persistence failure.
 - **At least once.** A receiver may see an event twice after a crash or a lost acknowledgement; it should drop duplicates by `webhook-id`, which is the same on every attempt.
-- **Retries** follow the driver: a webhook retries network errors, 408, 425, 429 and 5xx after 10s, 1m, 5m, 30m and 2h, up to `EVENTS_DELIVERY_MAX_ATTEMPTS`. Other responses fail at once. Shoutrrr reports no status codes, so a failed `notify` send is always retried; an invalid URL is refused when the destination is saved.
+- **Retries** follow the driver: a webhook retries network errors, 408, 425, 429 and 5xx after 10s, 1m, 5m, 30m and 2h, up to `EVENTS_DELIVERY_MAX_ATTEMPTS`. Other responses fail at once. Shoutrrr reports no status codes, so a failed `notify` send is retried, except an email the mail server refuses with a 5xx reply (a 4xx reply, such as greylisting, is retried); an invalid URL is refused when the destination is saved.
 - **A delivery already recorded as delivered is not sent again** when its job comes back. A worker claims a delivery for two minutes before sending it, so a job the bus redelivers while another worker is still sending waits instead of sending twice; and a send that succeeded is not retried even when recording its outcome fails.
 - **A delivery nobody wants any more is skipped.** Before each attempt the dispatcher checks that a subscription that queued it still exists, is enabled and may use the destination; otherwise it records `skipped` and stops.
 - **With `embedded`**, the bus is in memory: events and pending retries waiting at a restart are lost. `AMP_EVENTS` keeps at most half of the 256 MiB budget, dropping its oldest events; the delivery queue at most a quarter, refusing new jobs when full so the fan-out retries them later. Use `nats` for anything but quick start.
@@ -76,7 +77,7 @@ The Standard Webhooks libraries do all of this given the `whsec_` secret. Rotati
 
 | Setting | Default | Purpose |
 |---|---|---|
-| `EVENTS_MODE` | `off` (the chart sets `nats`) | `nats`, `embedded` or `off`. `off` runs no bus and the console hides Events. |
+| `EVENTS_MODE` | `off` (the chart's default too) | `nats`, `embedded` or `off`. `off` runs no bus and the console hides Events. |
 | `EVENTS_NATS_URL` | – | NATS server for `nats` mode |
 | `EVENTS_NATS_TOKEN` | – | Token for a NATS server that requires one |
 | `EVENTS_DELIVERY_MAX_ATTEMPTS` | `6` | Attempts before a delivery is marked failed |
