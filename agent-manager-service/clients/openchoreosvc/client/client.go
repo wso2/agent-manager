@@ -138,9 +138,10 @@ type OpenChoreoClient interface {
 	// lets the client generate the name. runEnvVars are added to this run's environment
 	// variables only, never to the component; the build applies them only if it creates the
 	// first environment's ReleaseBinding, so they don't change a binding that already exists.
-	// buildClient, when non-nil, names the organization's build client; it is attached to
-	// this run as the ampBuild parameter only when the component's build workflow is listed
-	// in config.BuildClient.Workflows (see withBuildClient).
+	// buildClient, when non-nil, issues the run's organization-scoped build token; it is
+	// called, and the token attached to this run as the ampBuild parameter, only when the
+	// component's build workflow is listed in config.BuildClient.Workflows and declares
+	// ampBuild (see attachBuildClient and withBuildClient).
 	TriggerBuild(ctx context.Context, ouID, projectName, componentName, commitID, workflowRunName string, runEnvVars []EnvVar, buildClient BuildClientSource) (*models.BuildResponse, error)
 	// GetBuildRun returns what the build publisher endpoint needs to know about a
 	// WorkflowRun: its owner labels, the workflow it runs and its status. A run that

@@ -35,26 +35,25 @@ import (
 )
 
 // workflowParamAMPBuild is the build workflow parameter that carries the
-// organization's build client. Declared by the AMP build workflows as
+// organization-scoped build token. Declared by the AMP build workflows as
 // parameters.ampBuild {secretRef}; the workflow resolves that SecretReference
-// (in the run's own namespace) into a per-run ExternalSecret and hands the
-// client ID and secret to its workload step.
+// (in the run's own namespace) into a per-run ExternalSecret and hands the token
+// (its access-token entry) to its workload step.
 const workflowParamAMPBuild = "ampBuild"
 
-// BuildClientParams names an organization's build client for one build run. It
-// is not a secret: SecretRefName names the SecretReference (client-id,
-// client-secret) in the organization's own namespace. A name, rather than a
-// secret store location, is what keeps a run that a tenant creates directly
-// from pointing the ExternalSecret at another organization's secret.
+// BuildClientParams names where a build run's build token is. It is not a
+// secret: SecretRefName names the SecretReference (access-token) in the
+// organization's own namespace. A name, rather than a secret store location, is
+// what keeps a run that a tenant creates directly from pointing the
+// ExternalSecret at another organization's secret.
 type BuildClientParams struct {
 	SecretRefName string
 }
 
-// BuildClientSource returns the organization's build client for a run,
-// provisioning it on first use. TriggerBuild calls it only once it has decided
-// the run's workflow takes the client (see attachBuildClient), so a build whose
-// workflow does not take it never waits on, or fails with, provisioning. Nil
-// means the build client is disabled.
+// BuildClientSource issues the build token for a run. TriggerBuild calls it only
+// once it has decided the run's workflow takes the token (see
+// attachBuildClient), so a build whose workflow does not take it never waits on,
+// or fails with, issuing. Nil means build tokens are disabled.
 type BuildClientSource func(ctx context.Context) (*BuildClientParams, error)
 
 // withBuildClient returns params with the run's ampBuild parameter set. The
@@ -69,32 +68,32 @@ func withBuildClient(params map[string]interface{}, buildClient *BuildClientPara
 	return out
 }
 
-// attachBuildClient reports whether a build client should ride on a run of the
-// given workflow: the build client is enabled, the workflow is listed in
+// attachBuildClient reports whether a build token should ride on a run of the
+// given workflow: build tokens are enabled, the workflow is listed in
 // config.BuildClient.Workflows and its parameter schema declares ampBuild. A
 // workflow that does not declare it (an organization whose namespaced Workflows
 // predate it) would ignore or reject the parameter, so the run keeps its
 // previous path instead; so does a run whose workflow cannot be looked up,
-// rather than failing the build. Both are logged at Error: with the build
-// client enabled, a run that keeps the previous path is a rollout gap that must
-// not go unnoticed.
+// rather than failing the build. Both are logged at Error: with build tokens
+// enabled, a run that keeps the previous path is a rollout gap that must not go
+// unnoticed.
 func (c *openChoreoClient) attachBuildClient(ctx context.Context, namespaceName string, kind gen.WorkflowRunConfigKind, workflowName string, enabled bool) bool {
 	if !enabled {
 		return false
 	}
 	if !slices.Contains(config.GetConfig().BuildClient.Workflows, workflowName) {
-		slog.DebugContext(ctx, "Build workflow does not take the build client; not attaching it",
+		slog.DebugContext(ctx, "Build workflow does not take the build token; not attaching it",
 			"workflow", workflowName)
 		return false
 	}
 	declared, err := c.workflowDeclaresParameter(ctx, namespaceName, kind, workflowName, workflowParamAMPBuild)
 	if err != nil {
-		slog.ErrorContext(ctx, "Could not read the build workflow's parameters; not attaching the build client",
+		slog.ErrorContext(ctx, "Could not read the build workflow's parameters; not attaching the build token",
 			"workflow", workflowName, "kind", string(kind), "error", err)
 		return false
 	}
 	if !declared {
-		slog.ErrorContext(ctx, "Build workflow does not declare ampBuild; not attaching the build client",
+		slog.ErrorContext(ctx, "Build workflow does not declare ampBuild; not attaching the build token",
 			"workflow", workflowName, "kind", string(kind))
 	}
 	return declared

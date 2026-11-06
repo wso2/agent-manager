@@ -34,6 +34,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/gen"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/orgctx"
@@ -44,9 +45,9 @@ import (
 // step used to make itself: it takes the Workload the step generated, verifies the
 // build belongs to the calling organization, and publishes the Workload for it.
 //
-// The caller is an organization's own build client (see
-// jwtassertion.BuildClientAuthMiddleware), so ouID is that organization and every
-// OpenChoreo call made here is scoped to it.
+// The caller is a build holding a build token for its organization (see
+// jwtassertion.BuildClientAuthMiddleware and BuildTokenIssuer), so ouID is that
+// organization and every OpenChoreo call made here is scoped to it.
 type BuildPublisherService interface {
 	PublishWorkload(ctx context.Context, ouID, buildName string, req *models.PublishBuildWorkloadRequest) error
 }
@@ -88,8 +89,9 @@ func (s *buildPublisherService) SetBackgroundContext(ctx context.Context) {
 
 // openChoreoContext returns the context for this request's OpenChoreo calls.
 //
-// The calls must not carry the request's token: it is the build client's, which
-// is accepted here but not by OpenChoreo or a platform API in front of it. So the
+// The calls must not carry the request's token: it is the build's, which is
+// meant for this endpoint only and must not be used to act on OpenChoreo or a
+// platform API in front of it. So the
 // context is derived from the background context, which carries no request token
 // and lets the OpenChoreo client fall back to this service's own credential, and
 // is given the caller's organization (sent as X-Impersonate-Org) so the calls are
@@ -137,13 +139,13 @@ var terminalBuildStatuses = []string{
 // off or the build does not exist in the caller's organization, utils.ErrBadRequest
 // for a malformed request, utils.ErrForbidden when the build is not a source build
 // of one of the organization's agents on a build workflow that takes the build
-// client, and utils.ErrConflict when the build has already finished.
+// token, and utils.ErrConflict when the build has already finished.
 func (s *buildPublisherService) PublishWorkload(ctx context.Context, ouID, buildName string, req *models.PublishBuildWorkloadRequest) error {
 	if !s.cfg.Enabled {
 		return fmt.Errorf("%w: build publisher is disabled", utils.ErrNotFound)
 	}
 	if ouID == "" {
-		return fmt.Errorf("%w: no organization on the build client token", utils.ErrForbidden)
+		return fmt.Errorf("%w: no organization on the build token", utils.ErrForbidden)
 	}
 	if errs := validation.IsDNS1123Subdomain(buildName); len(errs) > 0 {
 		return fmt.Errorf("%w: invalid build name: %s", utils.ErrBadRequest, strings.Join(errs, "; "))
@@ -174,7 +176,7 @@ func (s *buildPublisherService) PublishWorkload(ctx context.Context, ouID, build
 		return fmt.Errorf("%w: build %q does not belong to an agent", utils.ErrForbidden, buildName)
 	}
 	if !slices.Contains(s.cfg.Workflows, run.WorkflowName) {
-		return fmt.Errorf("%w: build %q runs workflow %q, which does not take the build client",
+		return fmt.Errorf("%w: build %q runs workflow %q, which does not take the build token",
 			utils.ErrForbidden, buildName, run.WorkflowName)
 	}
 	if slices.Contains(terminalBuildStatuses, run.Status) {
@@ -202,8 +204,8 @@ func (s *buildPublisherService) PublishWorkload(ctx context.Context, ouID, build
 		audit.ResourceNamed(audit.ResourceAgent, agent.UUID, run.ComponentName),
 		audit.Project(run.ProjectName),
 		audit.SurfaceOpt(audit.SurfacePublisher),
-		audit.Actor(audit.ActorService, buildClientAppName(ouID), ""),
-		audit.AuthMethod("build-client"),
+		audit.Actor(audit.ActorService, buildTokenClientID(ctx), ""),
+		audit.AuthMethod("build-token"),
 		audit.Detail("agentName", run.ComponentName),
 		audit.Detail("buildName", run.Name),
 		audit.Detail("imageId", image),
@@ -238,6 +240,15 @@ func (s *buildPublisherService) PublishWorkload(ctx context.Context, ouID, build
 	return nil
 }
 
+// buildTokenClientID names the client the request's build token was issued to,
+// the actor of a publish (see jwtassertion.BuildClientAuthMiddleware).
+func buildTokenClientID(ctx context.Context) string {
+	if claims := jwtassertion.GetTokenClaims(ctx); claims != nil {
+		return strings.TrimSpace(claims.ClientID)
+	}
+	return ""
+}
+
 // ErrBuildWorkloadAlreadyPublished is returned when the build has already
 // published a different Workload: a publish is safe to repeat only with the
 // same one. The endpoint answers it with 409.
@@ -250,7 +261,7 @@ var errBuildPublishUpstream = errors.New("build publisher upstream failure")
 // upstreamFailure reports a failed upstream call as this service's own failure.
 // The upstream error is kept as text, deliberately not wrapped: its sentinel
 // (utils.ErrNotFound for a missing project, utils.ErrForbidden for a refused
-// service credential, ...) describes this service's call, not the build client's
+// service credential, ...) describes this service's call, not the build's
 // request, and must not turn into a 404 or 403 for the build.
 func upstreamFailure(operation string, err error) error {
 	return fmt.Errorf("%w: failed to %s: %v", errBuildPublishUpstream, operation, err) //nolint:errorlint // deliberately not wrapped, see above

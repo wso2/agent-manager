@@ -106,7 +106,7 @@ func TestBuildPublisherService_PublishesForTheVerifiedBuild(t *testing.T) {
 	bg := context.WithValue(context.Background(), bpBackgroundKey{}, "background")
 	svc.(BuildPublisherBackgroundContextSetter).SetBackgroundContext(bg)
 
-	// The request context carries the build client's token, which must not reach OpenChoreo.
+	// The request context carries the build's token, which must not reach OpenChoreo.
 	reqCtx := jwtassertion.ContextWithJWT(auditableCtx(t), "build-client-token")
 	err := svc.PublishWorkload(reqCtx, bpOrg, "my-agent-1700", bpRequest(t, bpWorkload, bpOverrides))
 	require.NoError(t, err)
@@ -129,7 +129,7 @@ func TestBuildPublisherService_PublishesForTheVerifiedBuild(t *testing.T) {
 
 	// OpenChoreo calls run on the background context, for the caller's organization only.
 	require.NotNil(t, ocCtx)
-	assert.Empty(t, jwtassertion.GetJWTFromContext(ocCtx), "the build client's token must not be forwarded")
+	assert.Empty(t, jwtassertion.GetJWTFromContext(ocCtx), "the build's token must not be forwarded")
 	assert.Equal(t, "background", ocCtx.Value(bpBackgroundKey{}))
 	org, ok := orgctx.GetResolvedOrg(ocCtx)
 	require.True(t, ok)
@@ -250,7 +250,7 @@ func TestBuildPublisherService_VerifiesTheBuild(t *testing.T) {
 			wantErr: utils.ErrForbidden,
 		},
 		{
-			name: "workflow that does not take the build client",
+			name: "workflow that does not take the build token",
 			getRun: running(client.BuildRunInfo{
 				ProjectName: "p", ComponentName: "c",
 				WorkflowName: "dockerfile-builder", Status: client.WorkflowStatusRunning,

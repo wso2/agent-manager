@@ -127,7 +127,7 @@ type Config struct {
 
 	// Thunder admin API configuration for provisioning OAuth apps
 	Thunder ThunderConfig
-	// BuildClient configures the per-organization build client a source build's
+	// BuildClient configures the organization-scoped token a source build's
 	// workload step uses to call this service's build publisher endpoint instead
 	// of the OpenChoreo API. See BuildClientConfig.
 	BuildClient BuildClientConfig
@@ -621,25 +621,31 @@ type InternalServerConfig struct {
 	MaxHeaderBytes      int
 }
 
-// BuildClientConfig controls the per-organization build client.
+// BuildClientConfig controls the organization-scoped build token.
 //
 // When Enabled, every source build of an agent whose build workflow is listed in
-// Workflows carries the organization's own build client (an OAuth2 client
-// provisioned in Thunder, its secret held in the secret store) as the run's
-// ampBuild parameter. The build's workload step exchanges it for an org-scoped
-// token and hands the generated Workload to this service's build publisher
-// endpoint, which performs the OpenChoreo writes for that organization only.
-// The step then needs no OpenChoreo credential of its own.
+// Workflows carries an access token for its organization. This service obtains it
+// from the identity provider's organization token endpoint
+// (<IDP_TOKEN_URL without /oauth2/token>/ou/<ouId>/oauth2/token) with its own
+// client (IDP_CLIENT_ID / IDP_CLIENT_SECRET), stores it in the secret store and
+// passes the run only the name of the SecretReference holding it, as the run's
+// ampBuild parameter. The build's workload step hands the generated Workload,
+// with that token, to this service's build publisher endpoint, which performs the
+// OpenChoreo writes for that organization only. The build never holds a client
+// secret and needs no OpenChoreo credential of its own.
 //
 // Off by default: the build workflows and their workload step must declare the
-// ampBuild parameter before it is enabled, or the parameter is ignored and the
-// build keeps its previous path.
+// ampBuild parameter before it is enabled, or the parameter is not attached and
+// the build keeps its previous path. The identity provider must support the
+// organization token endpoint, and KEY_MANAGER_AUDIENCE must admit IDP_CLIENT_ID,
+// the audience of the tokens it issues.
 type BuildClientConfig struct {
-	// Enabled turns on build-client provisioning and the build publisher endpoint
-	// (AMP_BUILD_CLIENT_ENABLED). Requires THUNDER_BASE_URL.
+	// Enabled turns on build tokens and the build publisher endpoint
+	// (AMP_BUILD_CLIENT_ENABLED). Requires IDP_TOKEN_URL (ending in /oauth2/token),
+	// IDP_CLIENT_ID and IDP_CLIENT_SECRET.
 	Enabled bool
 	// Workflows names the build workflows (Workflow or ClusterWorkflow names)
-	// whose runs receive the build client (AMP_BUILD_CLIENT_WORKFLOWS). Only list
+	// whose runs receive a build token (AMP_BUILD_CLIENT_WORKFLOWS). Only list
 	// workflows that wire parameters.ampBuild through to their workload step.
 	Workflows []string
 }

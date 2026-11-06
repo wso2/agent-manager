@@ -102,7 +102,7 @@ type agentManagerService struct {
 	identityClient            thundersvc.IdentityClient
 	buildSecretProvisioner    BuildSecretProvisioner
 	entitlementChecker        EntitlementChecker
-	buildCredentials          BuildCredentialProvisioner
+	buildTokens               BuildTokenIssuer
 	a2aPublisher              *A2APublisher
 	a2aCardRepo               repositories.A2AAgentCardRepository
 	deploymentRepo            repositories.DeploymentRepository
@@ -129,7 +129,7 @@ func NewAgentManagerService(
 	agentIdentityInjection AgentIdentityInjectionService,
 	identityClient thundersvc.IdentityClient,
 	buildSecretProvisioner BuildSecretProvisioner,
-	buildCredentials BuildCredentialProvisioner,
+	buildTokens BuildTokenIssuer,
 	a2aPublisher *A2APublisher,
 	a2aCardRepo repositories.A2AAgentCardRepository,
 	deploymentRepo repositories.DeploymentRepository,
@@ -152,7 +152,7 @@ func NewAgentManagerService(
 		agentIdentityInjection:    agentIdentityInjection,
 		identityClient:            identityClient,
 		buildSecretProvisioner:    buildSecretProvisioner,
-		buildCredentials:          buildCredentials,
+		buildTokens:               buildTokens,
 		a2aPublisher:              a2aPublisher,
 		a2aCardRepo:               a2aCardRepo,
 		deploymentRepo:            deploymentRepo,
@@ -2145,17 +2145,17 @@ func (s *agentManagerService) prepareBuild(ctx context.Context, ouID, projectNam
 	return workflowRunName, nil
 }
 
-// buildClientFor returns where a build run gets the organization's build client
-// from, or nil when the build client is disabled. Nothing is provisioned here:
-// TriggerBuild calls the source only when the run's workflow takes the client,
+// buildClientFor returns where a build run gets its organization-scoped build
+// token from, or nil when build tokens are disabled. Nothing is issued here:
+// TriggerBuild calls the source only when the run's workflow takes the token,
 // so a build whose workflow does not take it keeps its previous path even while
-// provisioning would fail.
+// issuing would fail.
 func (s *agentManagerService) buildClientFor(ouID string) client.BuildClientSource {
-	if s.buildCredentials == nil {
+	if s.buildTokens == nil {
 		return nil
 	}
 	return func(ctx context.Context) (*client.BuildClientParams, error) {
-		return s.buildCredentials.EnsureBuildClient(ctx, ouID)
+		return s.buildTokens.IssueBuildToken(ctx, ouID)
 	}
 }
 

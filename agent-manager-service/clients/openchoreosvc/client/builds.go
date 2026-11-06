@@ -128,21 +128,21 @@ func (c *openChoreoClient) TriggerBuild(ctx context.Context, ouID, projectName, 
 		}
 	}
 	params = withRunEnvVars(params, runEnvVars)
-	// The build client is provisioned only for a workflow that takes it, so an
+	// The build token is issued only for a workflow that takes it, so an
 	// identity provider or secret store outage cannot fail a build that would
-	// never carry the client. Once the workflow does take it, a failure to
-	// provision fails the build rather than starting one that cannot publish
-	// its Workload. The cause is reported as text, not wrapped: its sentinel
-	// (a missing SecretReference, say) is not this build's 404.
+	// never carry the token. Once the workflow does take it, a failure to issue
+	// it fails the build rather than starting one that cannot publish its
+	// Workload. The cause is reported as text, not wrapped: its sentinel (a
+	// secret store's not-found, say) is not this build's 404.
 	if c.attachBuildClient(ctx, namespaceName, workflowKind, workflowName, buildClient != nil) {
-		orgBuildClient, err := buildClient(ctx)
+		buildToken, err := buildClient(ctx)
 		if err != nil {
-			return nil, fmt.Errorf("failed to provision the organization's build client: %v", err) //nolint:errorlint // deliberately not wrapped, see above
+			return nil, fmt.Errorf("failed to issue the build token: %v", err) //nolint:errorlint // deliberately not wrapped, see above
 		}
-		if orgBuildClient == nil {
-			return nil, fmt.Errorf("failed to provision the organization's build client: none was returned")
+		if buildToken == nil {
+			return nil, fmt.Errorf("failed to issue the build token: none was returned")
 		}
-		params = withBuildClient(params, orgBuildClient)
+		params = withBuildClient(params, buildToken)
 	}
 
 	// Preserve the open-source behavior when no deployment-specific name is supplied.

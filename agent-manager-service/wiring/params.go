@@ -102,6 +102,7 @@ type AppParams struct {
 	EventDispatcher               services.EventDispatcherService
 	MonitorAlerts                 services.MonitorAlertProcessor
 	BuildPublisherService         services.BuildPublisherService
+	BuildTokenIssuer              services.BuildTokenIssuer
 
 	// Events
 	EventBus       events.Bus

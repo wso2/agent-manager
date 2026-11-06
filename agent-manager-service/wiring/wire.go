@@ -61,7 +61,7 @@ var clientProviderSet = wire.NewSet(
 	ProvideOCClient,
 	ProvideSecretManagementClient,
 	ProvidePublisherProvisioner,
-	ProvideBuildCredentialProvisioner,
+	ProvideBuildTokenIssuer,
 	ProvideIdentityClient,
 	ProvideOrgResolver,
 	ProvideOUHandleLookup,
@@ -187,7 +187,7 @@ var testClientProviderSet = wire.NewSet(
 	ProvideTestObserverClient,
 	ProvideTestSecretManagementClient,
 	ProvidePublisherProvisioner,
-	ProvideBuildCredentialProvisioner,
+	ProvideBuildTokenIssuer,
 	ProvideIdentityClient,
 	ProvideOrgResolver,
 	ProvideTestOUHandleLookup,
@@ -397,11 +397,10 @@ func ProvidePublisherProvisioner(cfg config.Config, encryptionKey []byte, logger
 	return services.NewPublisherCredentialProvisioner(cfg, encryptionKey, logger, secretClient, ocClient, credRepo, schedulerCredRepo)
 }
 
-// ProvideBuildCredentialProvisioner creates the per-organization build client
-// provisioner, or nil when the build client is disabled (see
-// config.BuildClientConfig).
-func ProvideBuildCredentialProvisioner(cfg config.Config, logger *slog.Logger, secretClient secretmanagersvc.SecretManagementClient, ocClient occlient.OpenChoreoClient, credRepo repositories.OrgBuildCredentialRepository) services.BuildCredentialProvisioner {
-	return services.NewBuildCredentialProvisioner(cfg, logger, secretClient, ocClient, credRepo)
+// ProvideBuildTokenIssuer creates the organization-scoped build token issuer, or
+// nil when build tokens are disabled (see config.BuildClientConfig).
+func ProvideBuildTokenIssuer(cfg config.Config, logger *slog.Logger, secretClient secretmanagersvc.SecretManagementClient) services.BuildTokenIssuer {
+	return services.NewBuildTokenIssuer(cfg, logger, secretClient)
 }
 
 var loggerProviderSet = wire.NewSet(
@@ -435,7 +434,6 @@ var repositoryProviderSet = wire.NewSet(
 	repositories.NewMonitorLLMMappingRepository,
 	ProvideOrgPublisherCredentialRepository,
 	ProvideOrgSchedulerCredentialRepository,
-	ProvideOrgBuildCredentialRepository,
 	ProvideAIApplicationRepository,
 	ProvideAgentThunderClientRepository,
 	ProvideEnvThunderSystemClientRepository,
@@ -638,10 +636,6 @@ func ProvideOrgPublisherCredentialRepository(db *gorm.DB) repositories.OrgPublis
 
 func ProvideOrgSchedulerCredentialRepository(db *gorm.DB) repositories.OrgSchedulerCredentialRepository {
 	return repositories.NewOrgSchedulerCredentialRepo(db)
-}
-
-func ProvideOrgBuildCredentialRepository(db *gorm.DB) repositories.OrgBuildCredentialRepository {
-	return repositories.NewOrgBuildCredentialRepo(db)
 }
 
 func ProvideAgentKindRepository(db *gorm.DB) repositories.AgentKindRepository {

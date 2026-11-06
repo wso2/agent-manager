@@ -35,7 +35,7 @@ import (
 const maxBuildWorkloadBodyBytes = 4 << 20
 
 // BuildPublisherController handles the build publisher endpoint, called by a source
-// build's workload step with its organization's build client.
+// build's workload step with its organization-scoped build token.
 type BuildPublisherController interface {
 	PublishBuildWorkload(w http.ResponseWriter, r *http.Request)
 }
@@ -72,9 +72,9 @@ func (c *buildPublisherController) PublishBuildWorkload(w http.ResponseWriter, r
 		return
 	}
 
-	// The organization comes only from the build client's token, never from the
-	// request: jwtassertion.BuildClientAuthMiddleware admitted the caller because
-	// its client is that organization's own.
+	// The organization comes only from the build token, never from the request:
+	// jwtassertion.BuildClientAuthMiddleware admitted the caller because its token
+	// is a build token, issued for that organization.
 	ouID := jwtassertion.BuildClientOrg(r.Context())
 	if err := c.service.PublishWorkload(r.Context(), ouID, buildName, &req); err != nil {
 		switch {

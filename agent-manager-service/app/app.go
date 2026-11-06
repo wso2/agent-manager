@@ -270,11 +270,15 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 	if opts.BackgroundContextDecorator != nil {
 		backgroundCtx = opts.BackgroundContextDecorator(backgroundCtx)
 	}
-	// The build publisher acts for a build client's organization with this
+	// The build publisher acts for a build token's organization with this
 	// service's own credential, which only the background context may use; it
-	// derives each request's OpenChoreo calls from this context. Installed before
-	// the HTTP server starts below, so no request sees it change.
+	// derives each request's OpenChoreo calls from this context. The build token
+	// issuer stores each token with that credential too. Both are installed before
+	// the HTTP server starts below, so no request sees them change.
 	if setter, ok := dependencies.BuildPublisherService.(services.BuildPublisherBackgroundContextSetter); ok {
+		setter.SetBackgroundContext(backgroundCtx)
+	}
+	if setter, ok := dependencies.BuildTokenIssuer.(services.BuildTokenIssuerBackgroundContextSetter); ok {
 		setter.SetBackgroundContext(backgroundCtx)
 	}
 

@@ -29,6 +29,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
+	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
@@ -50,9 +51,12 @@ func (f *fakeBuildPublisherService) PublishWorkload(_ context.Context, ouID, bui
 func buildPublishRequest(body string, ouID string) *http.Request {
 	req := httptest.NewRequest(http.MethodPost, "/build-publisher/builds/my-agent-1700/workload", strings.NewReader(body))
 	req.SetPathValue(utils.PathParamBuildName, "my-agent-1700")
+	// A build token: issued to this service's own client, for the organization.
+	clientID := config.GetConfig().IDP.ClientID
 	return req.WithContext(jwtassertion.ContextWithTokenClaims(req.Context(), &jwtassertion.TokenClaims{
 		OuId:             ouID,
-		RegisteredClaims: jwt.RegisteredClaims{Audience: jwt.ClaimStrings{"amp-build-" + ouID}},
+		ClientID:         clientID,
+		RegisteredClaims: jwt.RegisteredClaims{Audience: jwt.ClaimStrings{clientID}},
 	}))
 }
 

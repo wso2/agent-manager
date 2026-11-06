@@ -25,7 +25,7 @@ import (
 )
 
 // RegisterBuildPublisherRoutes registers the route a source build's workload step
-// calls with its organization's build client, under the /build-publisher/ prefix.
+// calls with its organization-scoped build token, under the /build-publisher/ prefix.
 func RegisterBuildPublisherRoutes(rr *middleware.RouteRegistrar, ctrl controllers.BuildPublisherController) {
 	// POST /build-publisher/builds/{buildName}/workload - Publish a build's Workload
 	handler := jwtassertion.BuildClientAuthMiddleware()(http.HandlerFunc(ctrl.PublishBuildWorkload))

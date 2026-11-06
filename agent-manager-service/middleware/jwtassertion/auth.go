@@ -27,7 +27,6 @@ import (
 	"math/big"
 	"net/http"
 	"regexp"
-	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -145,16 +144,15 @@ func PublisherClientAuthMiddleware() func(http.Handler) http.Handler {
 	}
 }
 
-// BuildClientAudiencePrefix prefixes an organization's build client: the client
-// is named BuildClientAudiencePrefix + <organization OU ID>, and the identity
-// provider issues its tokens with that client ID as the audience.
-const BuildClientAudiencePrefix = "amp-build-"
-
-// BuildClientAuthMiddleware admits only an organization's own build client. The
-// token must carry an organization (ouId) and an audience equal to
-// BuildClientAudiencePrefix + that organization: the client is created inside
-// the organization's OU and named after it, so a token whose audience names a
-// different organization, or one issued to any other client, is refused.
+// BuildClientAuthMiddleware admits only a build token: a token this service
+// obtained for one organization from the identity provider's organization token
+// endpoint with its own client (IDP_CLIENT_ID) and handed to that organization's
+// build. The token must have been issued to that client (client_id) and carry the
+// organization it was issued for (ouId); the organization is taken from the
+// token alone, so a build can act only for the organization its token names. A
+// token issued to any other client, without an organization, or naming the
+// platform admin organization (PLATFORM_ADMIN_OU_ID, which this service's own
+// token minted on the plain token endpoint carries) is refused.
 // Must be applied after JWTAuthMiddleware so that claims are already in context.
 func BuildClientAuthMiddleware() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
@@ -168,22 +166,26 @@ func BuildClientAuthMiddleware() func(http.Handler) http.Handler {
 	}
 }
 
-// BuildClientOrg returns the organization an organization's own build client
-// acts for, or "" when the request's token is not such a client's (see
-// BuildClientAuthMiddleware).
+// BuildClientOrg returns the organization a build token acts for, or "" when
+// the request's token is not a build token (see BuildClientAuthMiddleware).
 func BuildClientOrg(ctx context.Context) string {
 	claims := GetTokenClaims(ctx)
 	if claims == nil {
 		return ""
 	}
-	ouID := strings.TrimSpace(claims.OuId)
-	if ouID == "" {
+	cfg := config.GetConfig()
+	if cfg == nil {
 		return ""
 	}
-	if slices.Contains(claims.Audience, BuildClientAudiencePrefix+ouID) {
-		return ouID
+	issuingClient := strings.TrimSpace(cfg.IDP.ClientID)
+	if issuingClient == "" || strings.TrimSpace(claims.ClientID) != issuingClient {
+		return ""
 	}
-	return ""
+	ouID := strings.TrimSpace(claims.OuId)
+	if adminOU := strings.TrimSpace(cfg.PlatformAdminOUID); adminOU != "" && strings.EqualFold(ouID, adminOU) {
+		return ""
+	}
+	return ouID
 }
 
 func hasValidPublisherAudience(audiences jwt.ClaimStrings) bool {

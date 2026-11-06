@@ -320,8 +320,8 @@ The operations below emit a record describing what actually changed, not just th
 | Users | `user:invite` / `:create` / `:delete` | Fail-closed |
 | Agent lifecycle | `agent:deploy`, `agent:promote`, `agent:change-deployment-state`, `agent:delete`, `project:delete` | Fail-closed |
 | Agent lifecycle | `agent:build` | Fail-open |
-| Builds | `build-workload:publish` (a build's workload step, through the build publisher endpoint; service actor `amp-build-<ouId>`) | Fail-closed |
-| Build client | `build-client:provision` (per-organization OAuth2 client a build uses to call the build publisher endpoint) | Fail-closed |
+| Builds | `build-workload:publish` (a build's workload step, through the build publisher endpoint; service actor: the client its build token was issued to, `IDP_CLIENT_ID`) | Fail-closed |
+| Build token | `build-token:issue` (organization-scoped access token a build uses to call the build publisher endpoint, obtained with `IDP_CLIENT_ID` and stored in the secret store) | Fail-closed |
 | Gateways | `gateway:delete`, `gateway:set-identity-provider`, `gateway:remove-identity-provider` | Fail-closed |
 | Gateways | `gateway:create` / `:update` / `:assign-environment` / `:unassign-environment` | Fail-open |
 | Internal | `gateway:push-manifest`, `api-key:sync` (bulk sync, coalesced per gateway) | Fail-open |
@@ -373,7 +373,7 @@ The registry is the source of truth (`audit/actions.go`, `audit/actions_domain.g
 | `authn:failure` | authn | 3 warning | `authHeader`, `reason` |
 | `authz:deny` | authz | 3 warning | `grantedScopes`, `imageId`, `missingScope`, `reason` |
 | `authz:root-ou-bypass` | authz | 4 critical | `rootOUBypass` |
-| `build-client:provision` | credential | 4 critical | `clientId` |
+| `build-token:issue` | credential | 4 critical | `clientId` |
 | `build-workload:publish` | deployment | 2 notice | `agentName`, `buildName`, `imageId` |
 | `environment:read` | read | 1 info | — |
 | `event-destination:create` | credential | 4 critical | `availability`, `destination`, `kind`, `projects` |

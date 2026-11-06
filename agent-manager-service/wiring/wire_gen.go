@@ -140,11 +140,10 @@ func InitializeAppParamsWithEnvThunderEndpoints(cfg *config.Config, db *gorm.DB,
 	llmProxyProvisioner := services.NewLLMProxyProvisioner(logger, llmProviderRepository, gatewayRepository, llmProxyService, llmProxyDeploymentService, llmProxyAPIKeyService, llmProviderAPIKeyService, secretManagementClient, v)
 	monitorAlertRepository := repositories.NewMonitorAlertRepository(db)
 	monitorManagerService := services.NewMonitorManagerService(logger, db, openChoreoClient, observerSvcClient, monitorExecutor, evaluatorManagerService, monitorRepository, scoreRepository, llmProxyProvisioner, monitorLLMMappingRepository, publisherCredentialProvisioner, monitorAlertRepository)
-	orgBuildCredentialRepository := ProvideOrgBuildCredentialRepository(db)
-	buildCredentialProvisioner := ProvideBuildCredentialProvisioner(configConfig, logger, secretManagementClient, openChoreoClient, orgBuildCredentialRepository)
+	buildTokenIssuer := ProvideBuildTokenIssuer(configConfig, logger, secretManagementClient)
 	agentExposurePublisher := services.NewAgentExposurePublisher(txRunner, platformAgentExposureRepository, artifactRepository, deploymentRepository, gatewayRepository, core, logger)
 	a2APublisher := services.NewA2APublisher(txRunner, platformAgentExposureRepository, a2AProxyRepository, a2AAgentCardRepository, artifactRepository, deploymentRepository, logger, agentExposurePublisher, a2AAgentKind)
-	agentManagerService := services.NewAgentManagerService(db, openChoreoClient, secretManagementClient, repositoryService, agentTokenManagerService, agentConfigRepository, agentConfigurationService, agentKindService, artifactRepository, aiApplicationService, gatewayRepository, agentThunderProvisioning, monitorManagerService, agentIdentityInjectionService, identityClient, buildSecretProvisioner, buildCredentialProvisioner, a2APublisher, a2AAgentCardRepository, deploymentRepository, gatewayEventsService, agentExposurePublisher, restAgentKind, logger)
+	agentManagerService := services.NewAgentManagerService(db, openChoreoClient, secretManagementClient, repositoryService, agentTokenManagerService, agentConfigRepository, agentConfigurationService, agentKindService, artifactRepository, aiApplicationService, gatewayRepository, agentThunderProvisioning, monitorManagerService, agentIdentityInjectionService, identityClient, buildSecretProvisioner, buildTokenIssuer, a2APublisher, a2AAgentCardRepository, deploymentRepository, gatewayEventsService, agentExposurePublisher, restAgentKind, logger)
 	eventRepository := repositories.NewEventRepository(db)
 	eventSubscriptionService := services.NewEventSubscriptionService(eventRepository, openChoreoClient, logger)
 	agentController := controllers.NewAgentController(agentManagerService, agentKindService, eventSubscriptionService)
@@ -280,6 +279,7 @@ func InitializeAppParamsWithEnvThunderEndpoints(cfg *config.Config, db *gorm.DB,
 		EventDispatcher:                  eventDispatcherService,
 		MonitorAlerts:                    monitorAlertProcessor,
 		BuildPublisherService:            buildPublisherService,
+		BuildTokenIssuer:                 buildTokenIssuer,
 		EventBus:                         bus,
 		EventPublisher:                   publisher,
 		OpenChoreoClient:                 openChoreoClient,
@@ -385,11 +385,10 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	monitorAlertRepository := repositories.NewMonitorAlertRepository(db)
 	monitorManagerService := services.NewMonitorManagerService(logger, db, openChoreoClient, observerSvcClient, monitorExecutor, evaluatorManagerService, monitorRepository, scoreRepository, llmProxyProvisioner, monitorLLMMappingRepository, publisherCredentialProvisioner, monitorAlertRepository)
 	buildSecretProvisioner := ProvideNilBuildSecretProvisioner()
-	orgBuildCredentialRepository := ProvideOrgBuildCredentialRepository(db)
-	buildCredentialProvisioner := ProvideBuildCredentialProvisioner(configConfig, logger, secretManagementClient, openChoreoClient, orgBuildCredentialRepository)
+	buildTokenIssuer := ProvideBuildTokenIssuer(configConfig, logger, secretManagementClient)
 	agentExposurePublisher := services.NewAgentExposurePublisher(txRunner, platformAgentExposureRepository, artifactRepository, deploymentRepository, gatewayRepository, core, logger)
 	a2APublisher := services.NewA2APublisher(txRunner, platformAgentExposureRepository, a2AProxyRepository, a2AAgentCardRepository, artifactRepository, deploymentRepository, logger, agentExposurePublisher, a2AAgentKind)
-	agentManagerService := services.NewAgentManagerService(db, openChoreoClient, secretManagementClient, repositoryService, agentTokenManagerService, agentConfigRepository, agentConfigurationService, agentKindService, artifactRepository, aiApplicationService, gatewayRepository, agentThunderProvisioningService, monitorManagerService, agentIdentityInjectionService, identityClient, buildSecretProvisioner, buildCredentialProvisioner, a2APublisher, a2AAgentCardRepository, deploymentRepository, gatewayEventsService, agentExposurePublisher, restAgentKind, logger)
+	agentManagerService := services.NewAgentManagerService(db, openChoreoClient, secretManagementClient, repositoryService, agentTokenManagerService, agentConfigRepository, agentConfigurationService, agentKindService, artifactRepository, aiApplicationService, gatewayRepository, agentThunderProvisioningService, monitorManagerService, agentIdentityInjectionService, identityClient, buildSecretProvisioner, buildTokenIssuer, a2APublisher, a2AAgentCardRepository, deploymentRepository, gatewayEventsService, agentExposurePublisher, restAgentKind, logger)
 	eventRepository := repositories.NewEventRepository(db)
 	eventSubscriptionService := services.NewEventSubscriptionService(eventRepository, openChoreoClient, logger)
 	agentController := controllers.NewAgentController(agentManagerService, agentKindService, eventSubscriptionService)
@@ -525,6 +524,7 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 		EventDispatcher:                  eventDispatcherService,
 		MonitorAlerts:                    monitorAlertProcessor,
 		BuildPublisherService:            buildPublisherService,
+		BuildTokenIssuer:                 buildTokenIssuer,
 		EventBus:                         bus,
 		EventPublisher:                   publisher,
 		OpenChoreoClient:                 openChoreoClient,
@@ -549,7 +549,7 @@ var clientProviderSet = wire.NewSet(
 	ProvideOCClient,
 	ProvideSecretManagementClient,
 	ProvidePublisherProvisioner,
-	ProvideBuildCredentialProvisioner,
+	ProvideBuildTokenIssuer,
 	ProvideIdentityClient,
 	ProvideOrgResolver,
 	ProvideOUHandleLookup, thundersvc.NewProber, ProvideEnvThunderSecretReader,
@@ -574,7 +574,7 @@ var testClientProviderSet = wire.NewSet(
 	ProvideTestObserverClient,
 	ProvideTestSecretManagementClient,
 	ProvidePublisherProvisioner,
-	ProvideBuildCredentialProvisioner,
+	ProvideBuildTokenIssuer,
 	ProvideIdentityClient,
 	ProvideOrgResolver,
 	ProvideTestOUHandleLookup, thundersvc.NewProber, ProvideEnvThunderSecretReader,
@@ -778,11 +778,10 @@ func ProvidePublisherProvisioner(cfg config.Config, encryptionKey []byte, logger
 	return services.NewPublisherCredentialProvisioner(cfg, encryptionKey, logger, secretClient, ocClient, credRepo, schedulerCredRepo)
 }
 
-// ProvideBuildCredentialProvisioner creates the per-organization build client
-// provisioner, or nil when the build client is disabled (see
-// config.BuildClientConfig).
-func ProvideBuildCredentialProvisioner(cfg config.Config, logger *slog.Logger, secretClient secretmanagersvc.SecretManagementClient, ocClient client.OpenChoreoClient, credRepo repositories.OrgBuildCredentialRepository) services.BuildCredentialProvisioner {
-	return services.NewBuildCredentialProvisioner(cfg, logger, secretClient, ocClient, credRepo)
+// ProvideBuildTokenIssuer creates the organization-scoped build token issuer, or
+// nil when build tokens are disabled (see config.BuildClientConfig).
+func ProvideBuildTokenIssuer(cfg config.Config, logger *slog.Logger, secretClient secretmanagersvc.SecretManagementClient) services.BuildTokenIssuer {
+	return services.NewBuildTokenIssuer(cfg, logger, secretClient)
 }
 
 var loggerProviderSet = wire.NewSet(
@@ -808,7 +807,6 @@ var repositoryProviderSet = wire.NewSet(
 	ProvideCustomEvaluatorRepository,
 	ProvideAPIKeyRepository, repositories.NewAgentConfigurationRepository, repositories.NewEnvAgentModelMappingRepository, repositories.NewEnvAgentMCPMappingRepository, repositories.NewAgentEnvConfigVariableRepository, repositories.NewMonitorLLMMappingRepository, ProvideOrgPublisherCredentialRepository,
 	ProvideOrgSchedulerCredentialRepository,
-	ProvideOrgBuildCredentialRepository,
 	ProvideAIApplicationRepository,
 	ProvideAgentThunderClientRepository,
 	ProvideEnvThunderSystemClientRepository,
@@ -997,10 +995,6 @@ func ProvideOrgPublisherCredentialRepository(db *gorm.DB) repositories.OrgPublis
 
 func ProvideOrgSchedulerCredentialRepository(db *gorm.DB) repositories.OrgSchedulerCredentialRepository {
 	return repositories.NewOrgSchedulerCredentialRepo(db)
-}
-
-func ProvideOrgBuildCredentialRepository(db *gorm.DB) repositories.OrgBuildCredentialRepository {
-	return repositories.NewOrgBuildCredentialRepo(db)
 }
 
 func ProvideAgentKindRepository(db *gorm.DB) repositories.AgentKindRepository {

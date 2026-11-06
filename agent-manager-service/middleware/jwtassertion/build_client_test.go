@@ -23,10 +23,27 @@ import (
 	"testing"
 
 	"github.com/golang-jwt/jwt/v5"
+
+	"github.com/wso2/agent-manager/agent-manager-service/config"
 )
 
+const (
+	buildTestOrg    = "6f1e2c3d-0000-4000-8000-000000000001"
+	buildTestClient = "AGENT_MANAGER_SYSTEM_APP"
+)
+
+// withIssuingClient sets the service's identity provider client (the client build
+// tokens are issued to) for one test.
+func withIssuingClient(t *testing.T, clientID string) {
+	t.Helper()
+	cfg := config.GetConfig()
+	orig := cfg.IDP.ClientID
+	t.Cleanup(func() { cfg.IDP.ClientID = orig })
+	cfg.IDP.ClientID = clientID
+}
+
 func TestBuildClientOrg(t *testing.T) {
-	const org = "6f1e2c3d-0000-4000-8000-000000000001"
+	withIssuingClient(t, buildTestClient)
 	tests := []struct {
 		name   string
 		claims *TokenClaims
@@ -34,37 +51,45 @@ func TestBuildClientOrg(t *testing.T) {
 	}{
 		{name: "no claims", claims: nil, want: ""},
 		{
-			name:   "own build client",
-			claims: &TokenClaims{OuId: org, RegisteredClaims: jwt.RegisteredClaims{Audience: jwt.ClaimStrings{"amp-build-" + org}}},
-			want:   org,
+			name:   "build token for an organization",
+			claims: &TokenClaims{OuId: buildTestOrg, ClientID: buildTestClient},
+			want:   buildTestOrg,
 		},
 		{
-			name: "own build client among other audiences",
-			claims: &TokenClaims{OuId: org, RegisteredClaims: jwt.RegisteredClaims{
-				Audience: jwt.ClaimStrings{"urn:wso2:cloud", "amp-build-" + org},
-			}},
-			want: org,
+			name:   "organization and client with surrounding whitespace",
+			claims: &TokenClaims{OuId: " " + buildTestOrg + " ", ClientID: " " + buildTestClient + " "},
+			want:   buildTestOrg,
 		},
 		{
-			name: "another organization's build client",
-			claims: &TokenClaims{OuId: org, RegisteredClaims: jwt.RegisteredClaims{
-				Audience: jwt.ClaimStrings{"amp-build-6f1e2c3d-0000-4000-8000-000000000002"},
+			name:   "issuing client without an organization",
+			claims: &TokenClaims{ClientID: buildTestClient},
+			want:   "",
+		},
+		{
+			name:   "another client of the same organization",
+			claims: &TokenClaims{OuId: buildTestOrg, ClientID: "amp-publisher-" + buildTestOrg},
+			want:   "",
+		},
+		{
+			name:   "user token of the same organization",
+			claims: &TokenClaims{OuId: buildTestOrg, ClientID: "AGENT_MANAGER_CONSOLE", Sub: "user-1"},
+			want:   "",
+		},
+		{
+			name: "audience naming the issuing client is not enough",
+			claims: &TokenClaims{OuId: buildTestOrg, ClientID: "OTHER_APP", RegisteredClaims: jwt.RegisteredClaims{
+				Audience: jwt.ClaimStrings{buildTestClient},
 			}},
 			want: "",
 		},
 		{
-			name:   "build client audience without an organization claim",
-			claims: &TokenClaims{RegisteredClaims: jwt.RegisteredClaims{Audience: jwt.ClaimStrings{"amp-build-"}}},
+			name:   "client ID prefix match is not enough",
+			claims: &TokenClaims{OuId: buildTestOrg, ClientID: buildTestClient + "_EXTRA"},
 			want:   "",
 		},
 		{
-			name:   "publisher client of the same organization",
-			claims: &TokenClaims{OuId: org, RegisteredClaims: jwt.RegisteredClaims{Audience: jwt.ClaimStrings{"amp-publisher-" + org}}},
-			want:   "",
-		},
-		{
-			name:   "prefix match is not enough",
-			claims: &TokenClaims{OuId: org, RegisteredClaims: jwt.RegisteredClaims{Audience: jwt.ClaimStrings{"amp-build-" + org + "-extra"}}},
+			name:   "no client ID",
+			claims: &TokenClaims{OuId: buildTestOrg},
 			want:   "",
 		},
 	}
@@ -81,37 +106,85 @@ func TestBuildClientOrg(t *testing.T) {
 	}
 }
 
+func TestBuildClientOrgRefusesThePlatformAdminOrganization(t *testing.T) {
+	const adminOU = "a5000000-0000-0000-0000-adminroot001"
+	withIssuingClient(t, buildTestClient)
+	cfg := config.GetConfig()
+	orig := cfg.PlatformAdminOUID
+	t.Cleanup(func() { cfg.PlatformAdminOUID = orig })
+
+	cfg.PlatformAdminOUID = adminOU
+	for _, ou := range []string{adminOU, "A5000000-0000-0000-0000-ADMINROOT001"} {
+		ctx := ContextWithTokenClaims(context.Background(), &TokenClaims{OuId: ou, ClientID: buildTestClient})
+		if got := BuildClientOrg(ctx); got != "" {
+			t.Errorf("BuildClientOrg(admin OU %q) = %q, want \"\"", ou, got)
+		}
+	}
+	ctx := ContextWithTokenClaims(context.Background(), &TokenClaims{OuId: buildTestOrg, ClientID: buildTestClient})
+	if got := BuildClientOrg(ctx); got != buildTestOrg {
+		t.Errorf("BuildClientOrg(customer org) = %q, want %q", got, buildTestOrg)
+	}
+
+	// Without a configured admin organization, nothing extra is refused.
+	cfg.PlatformAdminOUID = ""
+	ctx = ContextWithTokenClaims(context.Background(), &TokenClaims{OuId: adminOU, ClientID: buildTestClient})
+	if got := BuildClientOrg(ctx); got != adminOU {
+		t.Errorf("BuildClientOrg() without PLATFORM_ADMIN_OU_ID = %q, want %q", got, adminOU)
+	}
+}
+
+func TestBuildClientOrgWithoutIssuingClient(t *testing.T) {
+	// With no client configured, no token can be a build token, not even one
+	// that carries no client ID either.
+	withIssuingClient(t, "")
+	ctx := ContextWithTokenClaims(context.Background(), &TokenClaims{OuId: buildTestOrg})
+	if got := BuildClientOrg(ctx); got != "" {
+		t.Errorf("BuildClientOrg() = %q, want \"\"", got)
+	}
+}
+
 func TestBuildClientAuthMiddleware(t *testing.T) {
-	const org = "6f1e2c3d-0000-4000-8000-000000000001"
+	withIssuingClient(t, buildTestClient)
 	reached := false
 	handler := BuildClientAuthMiddleware()(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		reached = true
 		w.WriteHeader(http.StatusOK)
 	}))
 
-	t.Run("refuses a token that is not the organization's build client", func(t *testing.T) {
+	serve := func(claims *TokenClaims) *httptest.ResponseRecorder {
 		reached = false
 		req := httptest.NewRequest(http.MethodPost, "/build-publisher/builds/b/workload", nil)
-		req = req.WithContext(ContextWithTokenClaims(req.Context(), &TokenClaims{
-			OuId:             org,
-			RegisteredClaims: jwt.RegisteredClaims{Audience: jwt.ClaimStrings{"AGENT_MANAGER_CONSOLE"}},
-		}))
+		if claims != nil {
+			req = req.WithContext(ContextWithTokenClaims(req.Context(), claims))
+		}
 		rec := httptest.NewRecorder()
 		handler.ServeHTTP(rec, req)
+		return rec
+	}
+
+	t.Run("refuses a token issued to another client", func(t *testing.T) {
+		rec := serve(&TokenClaims{OuId: buildTestOrg, ClientID: "AGENT_MANAGER_CONSOLE"})
 		if rec.Code != http.StatusForbidden || reached {
 			t.Fatalf("status = %d, reached = %v; want 403 and not reached", rec.Code, reached)
 		}
 	})
 
-	t.Run("admits the organization's own build client", func(t *testing.T) {
-		reached = false
-		req := httptest.NewRequest(http.MethodPost, "/build-publisher/builds/b/workload", nil)
-		req = req.WithContext(ContextWithTokenClaims(req.Context(), &TokenClaims{
-			OuId:             org,
-			RegisteredClaims: jwt.RegisteredClaims{Audience: jwt.ClaimStrings{"amp-build-" + org}},
-		}))
-		rec := httptest.NewRecorder()
-		handler.ServeHTTP(rec, req)
+	t.Run("refuses a token of the issuing client that names no organization", func(t *testing.T) {
+		rec := serve(&TokenClaims{ClientID: buildTestClient})
+		if rec.Code != http.StatusForbidden || reached {
+			t.Fatalf("status = %d, reached = %v; want 403 and not reached", rec.Code, reached)
+		}
+	})
+
+	t.Run("refuses a request without claims", func(t *testing.T) {
+		rec := serve(nil)
+		if rec.Code != http.StatusForbidden || reached {
+			t.Fatalf("status = %d, reached = %v; want 403 and not reached", rec.Code, reached)
+		}
+	})
+
+	t.Run("admits a build token", func(t *testing.T) {
+		rec := serve(&TokenClaims{OuId: buildTestOrg, ClientID: buildTestClient})
 		if rec.Code != http.StatusOK || !reached {
 			t.Fatalf("status = %d, reached = %v; want 200 and reached", rec.Code, reached)
 		}

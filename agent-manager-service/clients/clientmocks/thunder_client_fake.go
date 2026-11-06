@@ -32,12 +32,6 @@ import (
 //			EnsurePublisherAppFunc: func(ctx context.Context, orgName string, orgUUID string) (string, string, bool, error) {
 //				panic("mock out the EnsurePublisherApp method")
 //			},
-//			FindAppFunc: func(ctx context.Context, appName string) (string, string, bool, error) {
-//				panic("mock out the FindApp method")
-//			},
-//			GetAppOUByIDFunc: func(ctx context.Context, appID string) (string, bool, error) {
-//				panic("mock out the GetAppOUByID method")
-//			},
 //			GetDefaultOUIDFunc: func(ctx context.Context) (string, error) {
 //				panic("mock out the GetDefaultOUID method")
 //			},
@@ -74,12 +68,6 @@ type ThunderClientMock struct {
 
 	// EnsurePublisherAppFunc mocks the EnsurePublisherApp method.
 	EnsurePublisherAppFunc func(ctx context.Context, orgName string, orgUUID string) (string, string, bool, error)
-
-	// FindAppFunc mocks the FindApp method.
-	FindAppFunc func(ctx context.Context, appName string) (string, string, bool, error)
-
-	// GetAppOUByIDFunc mocks the GetAppOUByID method.
-	GetAppOUByIDFunc func(ctx context.Context, appID string) (string, bool, error)
 
 	// GetDefaultOUIDFunc mocks the GetDefaultOUID method.
 	GetDefaultOUIDFunc func(ctx context.Context) (string, error)
@@ -145,20 +133,6 @@ type ThunderClientMock struct {
 			// OrgUUID is the orgUUID argument value.
 			OrgUUID string
 		}
-		// FindApp holds details about calls to the FindApp method.
-		FindApp []struct {
-			// Ctx is the ctx argument value.
-			Ctx context.Context
-			// AppName is the appName argument value.
-			AppName string
-		}
-		// GetAppOUByID holds details about calls to the GetAppOUByID method.
-		GetAppOUByID []struct {
-			// Ctx is the ctx argument value.
-			Ctx context.Context
-			// AppID is the appID argument value.
-			AppID string
-		}
 		// GetDefaultOUID holds details about calls to the GetDefaultOUID method.
 		GetDefaultOUID []struct {
 			// Ctx is the ctx argument value.
@@ -192,8 +166,6 @@ type ThunderClientMock struct {
 	lockDeletePublisherApp        sync.RWMutex
 	lockEnsureApp                 sync.RWMutex
 	lockEnsurePublisherApp        sync.RWMutex
-	lockFindApp                   sync.RWMutex
-	lockGetAppOUByID              sync.RWMutex
 	lockGetDefaultOUID            sync.RWMutex
 	lockRegenerateAgentSecret     sync.RWMutex
 	lockRegenerateAppClientSecret sync.RWMutex
@@ -429,78 +401,6 @@ func (mock *ThunderClientMock) EnsurePublisherAppCalls() []struct {
 	mock.lockEnsurePublisherApp.RLock()
 	calls = mock.calls.EnsurePublisherApp
 	mock.lockEnsurePublisherApp.RUnlock()
-	return calls
-}
-
-// FindApp calls FindAppFunc.
-func (mock *ThunderClientMock) FindApp(ctx context.Context, appName string) (string, string, bool, error) {
-	if mock.FindAppFunc == nil {
-		panic("ThunderClientMock.FindAppFunc: method is nil but ThunderClient.FindApp was just called")
-	}
-	callInfo := struct {
-		Ctx     context.Context
-		AppName string
-	}{
-		Ctx:     ctx,
-		AppName: appName,
-	}
-	mock.lockFindApp.Lock()
-	mock.calls.FindApp = append(mock.calls.FindApp, callInfo)
-	mock.lockFindApp.Unlock()
-	return mock.FindAppFunc(ctx, appName)
-}
-
-// FindAppCalls gets all the calls that were made to FindApp.
-// Check the length with:
-//
-//	len(mockedThunderClient.FindAppCalls())
-func (mock *ThunderClientMock) FindAppCalls() []struct {
-	Ctx     context.Context
-	AppName string
-} {
-	var calls []struct {
-		Ctx     context.Context
-		AppName string
-	}
-	mock.lockFindApp.RLock()
-	calls = mock.calls.FindApp
-	mock.lockFindApp.RUnlock()
-	return calls
-}
-
-// GetAppOUByID calls GetAppOUByIDFunc.
-func (mock *ThunderClientMock) GetAppOUByID(ctx context.Context, appID string) (string, bool, error) {
-	if mock.GetAppOUByIDFunc == nil {
-		panic("ThunderClientMock.GetAppOUByIDFunc: method is nil but ThunderClient.GetAppOUByID was just called")
-	}
-	callInfo := struct {
-		Ctx   context.Context
-		AppID string
-	}{
-		Ctx:   ctx,
-		AppID: appID,
-	}
-	mock.lockGetAppOUByID.Lock()
-	mock.calls.GetAppOUByID = append(mock.calls.GetAppOUByID, callInfo)
-	mock.lockGetAppOUByID.Unlock()
-	return mock.GetAppOUByIDFunc(ctx, appID)
-}
-
-// GetAppOUByIDCalls gets all the calls that were made to GetAppOUByID.
-// Check the length with:
-//
-//	len(mockedThunderClient.GetAppOUByIDCalls())
-func (mock *ThunderClientMock) GetAppOUByIDCalls() []struct {
-	Ctx   context.Context
-	AppID string
-} {
-	var calls []struct {
-		Ctx   context.Context
-		AppID string
-	}
-	mock.lockGetAppOUByID.RLock()
-	calls = mock.calls.GetAppOUByID
-	mock.lockGetAppOUByID.RUnlock()
 	return calls
 }
 

@@ -544,8 +544,8 @@ func TestPipelineRootEnvironment(t *testing.T) {
 
 func TestWithBuildClient(t *testing.T) {
 	params := map[string]interface{}{"repository": map[string]interface{}{"url": "u"}}
-	got := withBuildClient(params, &BuildClientParams{SecretRefName: "amp-build-org-1-secrets"})
-	assert.Equal(t, map[string]interface{}{"secretRef": "amp-build-org-1-secrets"}, got[workflowParamAMPBuild],
+	got := withBuildClient(params, &BuildClientParams{SecretRefName: "cred-amp-build-token-org-1"})
+	assert.Equal(t, map[string]interface{}{"secretRef": "cred-amp-build-token-org-1"}, got[workflowParamAMPBuild],
 		"only a SecretReference name is passed, never a secret store location")
 	_, leaked := params[workflowParamAMPBuild]
 	assert.False(t, leaked, "the component's parameter map must not be modified")
@@ -640,7 +640,7 @@ func TestTriggerBuild_ProvisionsTheBuildClientOnlyForAWorkflowThatTakesIt(t *tes
 		calls := 0
 		source := func(context.Context) (*BuildClientParams, error) {
 			calls++
-			return &BuildClientParams{SecretRefName: "amp-build-org-1-secrets"}, nil
+			return &BuildClientParams{SecretRefName: "cred-amp-build-token-org-1"}, nil
 		}
 
 		_, err := c.TriggerBuild(context.Background(), "org-1", "proj1", "my-agent", "", "my-agent-1700", nil, source)
@@ -648,10 +648,10 @@ func TestTriggerBuild_ProvisionsTheBuildClientOnlyForAWorkflowThatTakesIt(t *tes
 		assert.Equal(t, 1, calls)
 		require.NotNil(t, stub.createdRun)
 		params := *stub.createdRun.Spec.Workflow.Parameters
-		assert.Equal(t, map[string]any{"secretRef": "amp-build-org-1-secrets"}, params[workflowParamAMPBuild])
+		assert.Equal(t, map[string]any{"secretRef": "cred-amp-build-token-org-1"}, params[workflowParamAMPBuild])
 	})
 
-	t.Run("a workflow that does not take the client is not held up by provisioning", func(t *testing.T) {
+	t.Run("a workflow that does not take the token is not held up by issuing", func(t *testing.T) {
 		stub := &triggerBuildStub{t: t, workflowName: "amp-old"}
 		c := newTestClient(t, stub)
 		calls := 0
@@ -661,14 +661,14 @@ func TestTriggerBuild_ProvisionsTheBuildClientOnlyForAWorkflowThatTakesIt(t *tes
 		}
 
 		_, err := c.TriggerBuild(context.Background(), "org-1", "proj1", "my-agent", "", "my-agent-1700", nil, source)
-		require.NoError(t, err, "an identity provider outage must not fail a build that would never carry the client")
-		assert.Zero(t, calls, "the build client must not be provisioned for this workflow")
+		require.NoError(t, err, "an identity provider outage must not fail a build that would never carry the token")
+		assert.Zero(t, calls, "the build token must not be issued for this workflow")
 		require.NotNil(t, stub.createdRun)
 		_, attached := (*stub.createdRun.Spec.Workflow.Parameters)[workflowParamAMPBuild]
 		assert.False(t, attached)
 	})
 
-	t.Run("a provisioning failure fails a build that takes the client", func(t *testing.T) {
+	t.Run("an issuing failure fails a build that takes the token", func(t *testing.T) {
 		stub := &triggerBuildStub{t: t, workflowName: "amp-docker"}
 		c := newTestClient(t, stub)
 
@@ -678,7 +678,7 @@ func TestTriggerBuild_ProvisionsTheBuildClientOnlyForAWorkflowThatTakesIt(t *tes
 		assert.Nil(t, stub.createdRun, "no run is started that could not publish its Workload")
 	})
 
-	t.Run("an upstream not-found from provisioning is not the build's not-found", func(t *testing.T) {
+	t.Run("an upstream not-found from issuing is not the build's not-found", func(t *testing.T) {
 		stub := &triggerBuildStub{t: t, workflowName: "amp-docker"}
 		c := newTestClient(t, stub)
 		notFound := func(context.Context) (*BuildClientParams, error) {
@@ -690,7 +690,7 @@ func TestTriggerBuild_ProvisionsTheBuildClientOnlyForAWorkflowThatTakesIt(t *tes
 		assert.NotErrorIs(t, err, utils.ErrNotFound)
 	})
 
-	t.Run("disabled: no client and nothing provisioned", func(t *testing.T) {
+	t.Run("disabled: no token and nothing issued", func(t *testing.T) {
 		stub := &triggerBuildStub{t: t, workflowName: "amp-docker"}
 		c := newTestClient(t, stub)
 
