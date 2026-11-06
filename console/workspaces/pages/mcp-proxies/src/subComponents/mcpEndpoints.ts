@@ -176,7 +176,12 @@ export function endpointToDraft(endpoint: MCPProxyEndpoint): EndpointDraft {
       (env) => env.environmentUuid,
     ),
     gatewayByEnv,
-    fetchedInfo: capabilitiesToFetchedInfo(endpoint.capabilities),
+    // The saved versions ride along with the saved capabilities until the endpoint is
+    // fetched again, so saving it unchanged keeps them.
+    fetchedInfo: {
+      ...capabilitiesToFetchedInfo(endpoint.capabilities),
+      supportedVersions: endpoint.mcpSpecVersions,
+    },
   };
 }
 
@@ -394,6 +399,11 @@ export function draftToEndpoint(
           }
         : undefined,
     capabilities,
+    // The MCP versions this endpoint's server reported; left out when it reported none,
+    // so the proxy's mcpSpecVersion applies.
+    mcpSpecVersions: draft.fetchedInfo.supportedVersions?.length
+      ? draft.fetchedInfo.supportedVersions
+      : undefined,
     policies: prunePoliciesForCapabilities(existing?.policies, capabilities),
     security: existing?.security ?? DEFAULT_ENDPOINT_SECURITY,
     environments: draft.environments.map((environmentUuid) => ({

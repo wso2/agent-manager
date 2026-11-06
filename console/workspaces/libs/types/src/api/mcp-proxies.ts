@@ -60,6 +60,8 @@ export interface MCPEndpointConfig {
   resilience?: Resilience;
   policies?: MCPProxyPolicy[];
   capabilities?: MCPProxyCapabilities;
+  /** MCP versions this endpoint's server supports, from its fetch-server-info answer. */
+  mcpSpecVersions?: string[];
   security?: SecurityConfig;
 }
 
@@ -197,6 +199,7 @@ export interface MCPServerInfoFetchResponse {
   tools?: Record<string, unknown>[];
   resources?: Record<string, unknown>[];
   prompts?: Record<string, unknown>[];
+  supportedVersions?: string[];
 }
 
 export type CreateMCPProxyPathParams = OrgPathParams;

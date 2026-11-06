@@ -24,6 +24,8 @@ type MCPServerInfoFetchResponse struct {
 	Prompts    []map[string]interface{} `json:"prompts,omitempty"`
 	Resources  []map[string]interface{} `json:"resources,omitempty"`
 	Tools      []map[string]interface{} `json:"tools,omitempty"`
+	// MCP specification versions the upstream server supports. For a server that answers server/discover (MCP 2026-07-28 and later), the versions it reported; for an earlier server, the version agreed in the initialize handshake.
+	SupportedVersions []string `json:"supportedVersions,omitempty"`
 }
 
 // NewMCPServerInfoFetchResponse instantiates a new MCPServerInfoFetchResponse object
@@ -171,6 +173,38 @@ func (o *MCPServerInfoFetchResponse) SetTools(v []map[string]interface{}) {
 	o.Tools = v
 }
 
+// GetSupportedVersions returns the SupportedVersions field value if set, zero value otherwise.
+func (o *MCPServerInfoFetchResponse) GetSupportedVersions() []string {
+	if o == nil || IsNil(o.SupportedVersions) {
+		var ret []string
+		return ret
+	}
+	return o.SupportedVersions
+}
+
+// GetSupportedVersionsOk returns a tuple with the SupportedVersions field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *MCPServerInfoFetchResponse) GetSupportedVersionsOk() ([]string, bool) {
+	if o == nil || IsNil(o.SupportedVersions) {
+		return nil, false
+	}
+	return o.SupportedVersions, true
+}
+
+// HasSupportedVersions returns a boolean if a field has been set.
+func (o *MCPServerInfoFetchResponse) HasSupportedVersions() bool {
+	if o != nil && !IsNil(o.SupportedVersions) {
+		return true
+	}
+
+	return false
+}
+
+// SetSupportedVersions gets a reference to the given []string and assigns it to the SupportedVersions field.
+func (o *MCPServerInfoFetchResponse) SetSupportedVersions(v []string) {
+	o.SupportedVersions = v
+}
+
 func (o MCPServerInfoFetchResponse) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -192,6 +226,9 @@ func (o MCPServerInfoFetchResponse) ToMap() (map[string]interface{}, error) {
 	}
 	if !IsNil(o.Tools) {
 		toSerialize["tools"] = o.Tools
+	}
+	if !IsNil(o.SupportedVersions) {
+		toSerialize["supportedVersions"] = o.SupportedVersions
 	}
 	return toSerialize, nil
 }

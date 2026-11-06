@@ -83,6 +83,7 @@ type MCPProxyConfig struct {
 	Context      *string               `json:"context,omitempty"`
 	Vhost        *string               `json:"vhost,omitempty"`
 	SpecVersion  string                `json:"specVersion,omitempty"`
+	SpecVersions []string              `json:"specVersions,omitempty"`
 	Upstream     UpstreamConfig        `json:"upstream,omitempty"`
 	Resilience   *Resilience           `json:"resilience,omitempty"`
 	Policies     []MCPPolicy           `json:"policies,omitempty"`
@@ -155,6 +156,7 @@ type MCPEndpointConfig struct {
 	Resilience   *Resilience           `json:"resilience,omitempty"`
 	Policies     []MCPPolicy           `json:"policies,omitempty"`
 	Capabilities *MCPProxyCapabilities `json:"capabilities,omitempty"`
+	SpecVersions []string              `json:"specVersions,omitempty"`
 	Security     *SecurityConfig       `json:"security,omitempty"`
 	// ReleaseBindingName is the source component's release binding a project proxy binding was resolved from,
 	// when it was given one. Unset on org proxies.
@@ -224,14 +226,15 @@ type MCPProxyDTO struct {
 // Environments carries target environment UUIDs (DeploymentStatus ignored). On read,
 // each entry reports the (endpoint, environment) deployment status.
 type MCPProxyEndpointDTO struct {
-	ID           string                      `json:"id"`
-	Name         string                      `json:"name,omitempty"`
-	Upstream     UpstreamConfig              `json:"upstream"`
-	Resilience   *Resilience                 `json:"resilience,omitempty"`
-	Policies     *[]MCPPolicy                `json:"policies,omitempty"`
-	Capabilities *MCPProxyCapabilities       `json:"capabilities,omitempty"`
-	Security     *SecurityConfig             `json:"security,omitempty"`
-	Environments []MCPEndpointEnvironmentDTO `json:"environments,omitempty"`
+	ID              string                      `json:"id"`
+	Name            string                      `json:"name,omitempty"`
+	Upstream        UpstreamConfig              `json:"upstream"`
+	Resilience      *Resilience                 `json:"resilience,omitempty"`
+	Policies        *[]MCPPolicy                `json:"policies,omitempty"`
+	Capabilities    *MCPProxyCapabilities       `json:"capabilities,omitempty"`
+	McpSpecVersions *[]string                   `json:"mcpSpecVersions,omitempty"`
+	Security        *SecurityConfig             `json:"security,omitempty"`
+	Environments    []MCPEndpointEnvironmentDTO `json:"environments,omitempty"`
 }
 
 // MCPEndpointEnvironmentDTO is one endpoint→environment binding. EnvironmentUUID is
@@ -289,8 +292,9 @@ type MCPServerInfoFetchRequest struct {
 
 // MCPServerInfoFetchResponse contains the MCP server metadata and capabilities.
 type MCPServerInfoFetchResponse struct {
-	Prompts    *[]map[string]interface{} `json:"prompts,omitempty"`
-	Resources  *[]map[string]interface{} `json:"resources,omitempty"`
-	ServerInfo *map[string]interface{}   `json:"serverInfo,omitempty"`
-	Tools      *[]map[string]interface{} `json:"tools,omitempty"`
+	Prompts           *[]map[string]interface{} `json:"prompts,omitempty"`
+	Resources         *[]map[string]interface{} `json:"resources,omitempty"`
+	ServerInfo        *map[string]interface{}   `json:"serverInfo,omitempty"`
+	SupportedVersions *[]string                 `json:"supportedVersions,omitempty"`
+	Tools             *[]map[string]interface{} `json:"tools,omitempty"`
 }

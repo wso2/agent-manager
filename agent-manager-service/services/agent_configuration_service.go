@@ -5149,6 +5149,7 @@ func buildAgentMCPConfigProxy(
 	var policies []models.MCPPolicy
 	var capabilities *models.MCPProxyCapabilities
 	var security *models.SecurityConfig
+	var specVersions []string
 	if endpoint != nil {
 		cfg := endpoint.Configuration
 		if cfg.Upstream != nil {
@@ -5159,6 +5160,7 @@ func buildAgentMCPConfigProxy(
 		policies = cfg.Policies
 		capabilities = cfg.Capabilities
 		security = cfg.Security
+		specVersions = cfg.SpecVersions
 	}
 
 	return &models.MCPProxy{
@@ -5171,6 +5173,7 @@ func buildAgentMCPConfigProxy(
 			Context:      &context,
 			Vhost:        source.Configuration.Vhost,
 			SpecVersion:  source.Configuration.SpecVersion,
+			SpecVersions: specVersions,
 			Upstream:     upstream,
 			Resilience:   resilience,
 			Policies:     policies,
