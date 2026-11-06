@@ -29,6 +29,7 @@ export const useAuthHooks = globalConfig.disableAuth ? useNoAuthHooks : useThund
 export {
   backendEndpoints,
   backendFetch,
+  fetchWithBackendToken,
   isBackendAuthConfig,
   resolveAuthConfig,
 } from './thunderid/backendSession';

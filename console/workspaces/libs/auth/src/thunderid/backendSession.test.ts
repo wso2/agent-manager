@@ -284,6 +284,95 @@ describe("backendFetch", () => {
   });
 });
 
+describe("fetchWithBackendToken", () => {
+  const OBSERVER = "https://observer.example.com/api/v1/traces";
+  const authorization = (call: Parameters<typeof fetch>) =>
+    new Headers(call[1]?.headers).get("Authorization");
+
+  it("sends the backend's access token as a bearer token", async () => {
+    const { fetchWithBackendToken, setBackendAccessTokenProvider } = await load(bffAuthConfig());
+    const getToken = vi.fn().mockResolvedValue("obs-token");
+    setBackendAccessTokenProvider(getToken);
+    fetchMock.mockResolvedValueOnce(json({ traces: [] }));
+
+    const response = await fetchWithBackendToken(OBSERVER, {
+      headers: { "Content-Type": "application/json" },
+    });
+
+    expect(response.status).toBe(200);
+    expect(fetchMock.mock.calls[0][0]).toBe(OBSERVER);
+    expect(authorization(fetchMock.mock.calls[0])).toBe("Bearer obs-token");
+    expect(new Headers(fetchMock.mock.calls[0][1]?.headers).get("Content-Type")).toBe(
+      "application/json",
+    );
+  });
+
+  it("returns a 401 as it is, without sending again", async () => {
+    const { fetchWithBackendToken, setBackendAccessTokenProvider } = await load(bffAuthConfig());
+    setBackendAccessTokenProvider(() => Promise.resolve("obs-token"));
+    fetchMock.mockResolvedValueOnce(json({}, 401));
+
+    const response = await fetchWithBackendToken(OBSERVER);
+
+    expect(response.status).toBe(401);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("sends no Authorization when the token request fails", async () => {
+    const { fetchWithBackendToken, setBackendAccessTokenProvider } = await load(bffAuthConfig());
+    setBackendAccessTokenProvider(() => Promise.reject(new Error("404")));
+    fetchMock.mockResolvedValueOnce(json({}));
+
+    await fetchWithBackendToken(OBSERVER);
+
+    expect(authorization(fetchMock.mock.calls[0])).toBeNull();
+  });
+
+  it("keeps the caller's Authorization header", async () => {
+    const { fetchWithBackendToken, setBackendAccessTokenProvider } = await load(bffAuthConfig());
+    const getToken = vi.fn().mockResolvedValue("obs-token");
+    setBackendAccessTokenProvider(getToken);
+    const init = { headers: { Authorization: "Bearer caller" } };
+    fetchMock.mockResolvedValueOnce(json({}));
+
+    await fetchWithBackendToken(OBSERVER, init);
+
+    expect(fetchMock.mock.calls[0][1]).toBe(init);
+    expect(getToken).not.toHaveBeenCalled();
+  });
+
+  it("leaves requests alone without a token endpoint or a provider", async () => {
+    const { fetchWithBackendToken, setBackendAccessTokenProvider } = await load(
+      bffAuthConfig({ token: undefined }),
+    );
+    const getToken = vi.fn().mockResolvedValue("obs-token");
+    setBackendAccessTokenProvider(getToken);
+    fetchMock.mockResolvedValue(json({}));
+
+    await fetchWithBackendToken(OBSERVER);
+    setBackendAccessTokenProvider(undefined);
+    await fetchWithBackendToken(OBSERVER);
+
+    expect(getToken).not.toHaveBeenCalled();
+    fetchMock.mock.calls.forEach((call) => expect(authorization(call)).toBeNull());
+  });
+
+  it("leaves requests alone when the browser signs in itself", async () => {
+    const { fetchWithBackendToken, setBackendAccessTokenProvider } = await load(
+      browserAuthConfig(),
+    );
+    const getToken = vi.fn().mockResolvedValue("obs-token");
+    setBackendAccessTokenProvider(getToken);
+    const init = {};
+    fetchMock.mockResolvedValueOnce(json({}));
+
+    await fetchWithBackendToken(OBSERVER, init);
+
+    expect(fetchMock.mock.calls[0][1]).toBe(init);
+    expect(getToken).not.toHaveBeenCalled();
+  });
+});
+
 describe("clearBrowserSignInSession", () => {
   const own = [
     "session_data-instance_0-AGENT_MANAGER_CONSOLE",
