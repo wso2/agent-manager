@@ -25,21 +25,18 @@ type EventDestinationKindService struct {
 	Category string `json:"category"`
 	// The shape of the service URL.
 	UrlFormat string `json:"urlFormat"`
-	// How to get the values the URL needs.
-	DocsUrl string `json:"docsUrl"`
 }
 
 // NewEventDestinationKindService instantiates a new EventDestinationKindService object
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewEventDestinationKindService(id string, label string, category string, urlFormat string, docsUrl string) *EventDestinationKindService {
+func NewEventDestinationKindService(id string, label string, category string, urlFormat string) *EventDestinationKindService {
 	this := EventDestinationKindService{}
 	this.Id = id
 	this.Label = label
 	this.Category = category
 	this.UrlFormat = urlFormat
-	this.DocsUrl = docsUrl
 	return &this
 }
 
@@ -147,30 +144,6 @@ func (o *EventDestinationKindService) SetUrlFormat(v string) {
 	o.UrlFormat = v
 }
 
-// GetDocsUrl returns the DocsUrl field value
-func (o *EventDestinationKindService) GetDocsUrl() string {
-	if o == nil {
-		var ret string
-		return ret
-	}
-
-	return o.DocsUrl
-}
-
-// GetDocsUrlOk returns a tuple with the DocsUrl field value
-// and a boolean to check if the value has been set.
-func (o *EventDestinationKindService) GetDocsUrlOk() (*string, bool) {
-	if o == nil {
-		return nil, false
-	}
-	return &o.DocsUrl, true
-}
-
-// SetDocsUrl sets field value
-func (o *EventDestinationKindService) SetDocsUrl(v string) {
-	o.DocsUrl = v
-}
-
 func (o EventDestinationKindService) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -185,7 +158,6 @@ func (o EventDestinationKindService) ToMap() (map[string]interface{}, error) {
 	toSerialize["label"] = o.Label
 	toSerialize["category"] = o.Category
 	toSerialize["urlFormat"] = o.UrlFormat
-	toSerialize["docsUrl"] = o.DocsUrl
 	return toSerialize, nil
 }
 

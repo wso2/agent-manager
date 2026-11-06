@@ -48,10 +48,6 @@ import (
 
 const (
 	sendTimeout = 10 * time.Second
-	// libraryVersion is the Shoutrrr version in go.mod; the service docs
-	// links point at it.
-	libraryVersion = "v0.18.0"
-	docsBase       = "https://shoutrrr.nickfedor.com/" + libraryVersion + "/services/"
 )
 
 // service is one Shoutrrr service the driver offers.
@@ -74,27 +70,27 @@ type service struct {
 // Give a new service a setup guide path in the console's
 // alertingDocLinks.notificationServices (config.template.js), or it shows no link.
 var offered = []service{
-	svc("slack", "Slack", "Chat", "slack://hook:<webhook-token>@webhook or slack://xoxb:<bot-token>@<channel>", "chat/slack", false, true),
-	svc("teams", "Microsoft Teams", "Chat", "teams://?host=<Power Automate workflow URL>", "chat/teams", false, true),
-	svc("googlechat", "Google Chat", "Chat", "googlechat://chat.googleapis.com/v1/spaces/FOO/messages?key=bar&token=baz", "chat/googlechat", false, true),
-	svc("discord", "Discord", "Chat", "discord://token@id", "chat/discord", false, true),
-	svc("telegram", "Telegram", "Chat", "telegram://token@telegram?chats=@channel", "chat/telegram", false, true),
-	svc("mattermost", "Mattermost", "Chat", "mattermost://[username@]mattermost-host/token[/channel]", "chat/mattermost", true, true),
-	svc("rocketchat", "Rocket.Chat", "Chat", "rocketchat://[username@]rocketchat-host/token[/channel]", "chat/rocketchat", true, true),
-	svc("zulip", "Zulip", "Chat", "zulip://bot-mail:bot-key@zulip-domain/?stream=name&topic=name", "chat/zulip", true, true),
-	svc("smtp", "Email (SMTP)", "Email", "smtp://username:password@host:port/?fromaddress=from@example.com&toaddresses=to@example.com", "email/smtp", true, false),
-	svc("pagerduty", "PagerDuty", "Incident", "pagerduty://[host[:port]]/integration-key", "incident/pagerduty", false, true),
-	svc("opsgenie", "Opsgenie", "Incident", "opsgenie://api.opsgenie.com/token?responders=team:ops", "incident/opsgenie", false, true),
-	svc("ntfy", "ntfy", "Push", "ntfy://[username:password@]ntfy.sh/topic", "push/ntfy", true, true),
-	svc("gotify", "Gotify", "Push", "gotify://gotify-host/token", "push/gotify", true, true),
-	svc("pushover", "Pushover", "Push", "pushover://shoutrrr:apiToken@userKey/?devices=device", "push/pushover", false, true),
-	svc("twilio", "Twilio SMS", "SMS", "twilio://accountSID:authToken@fromNumber/toNumber", "sms/twilio", false, true),
+	svc("slack", "Slack", "Chat", "slack://hook:<webhook-token>@webhook or slack://xoxb:<bot-token>@<channel>", false, true),
+	svc("teams", "Microsoft Teams", "Chat", "teams://?host=<Power Automate workflow URL>", false, true),
+	svc("googlechat", "Google Chat", "Chat", "googlechat://chat.googleapis.com/v1/spaces/FOO/messages?key=bar&token=baz", false, true),
+	svc("discord", "Discord", "Chat", "discord://token@id", false, true),
+	svc("telegram", "Telegram", "Chat", "telegram://token@telegram?chats=@channel", false, true),
+	svc("mattermost", "Mattermost", "Chat", "mattermost://[username@]mattermost-host/token[/channel]", true, true),
+	svc("rocketchat", "Rocket.Chat", "Chat", "rocketchat://[username@]rocketchat-host/token[/channel]", true, true),
+	svc("zulip", "Zulip", "Chat", "zulip://bot-mail:bot-key@zulip-domain/?stream=name&topic=name", true, true),
+	svc("smtp", "Email (SMTP)", "Email", "smtp://username:password@host:port/?fromaddress=from@example.com&toaddresses=to@example.com", true, false),
+	svc("pagerduty", "PagerDuty", "Incident", "pagerduty://[host[:port]]/integration-key", false, true),
+	svc("opsgenie", "Opsgenie", "Incident", "opsgenie://api.opsgenie.com/token?responders=team:ops", false, true),
+	svc("ntfy", "ntfy", "Push", "ntfy://[username:password@]ntfy.sh/topic", true, true),
+	svc("gotify", "Gotify", "Push", "gotify://gotify-host/token", true, true),
+	svc("pushover", "Pushover", "Push", "pushover://shoutrrr:apiToken@userKey/?devices=device", false, true),
+	svc("twilio", "Twilio SMS", "SMS", "twilio://accountSID:authToken@fromNumber/toNumber", false, true),
 }
 
-func svc(id, label, category, format, docs string, networkHost, overHTTP bool) service {
+func svc(id, label, category, format string, networkHost, overHTTP bool) service {
 	return service{
 		Service: eventdestinations.Service{
-			ID: id, Label: label, Category: category, URLFormat: format, DocsURL: docsBase + docs + "/",
+			ID: id, Label: label, Category: category, URLFormat: format,
 		},
 		networkHost: networkHost,
 		http:        overHTTP,

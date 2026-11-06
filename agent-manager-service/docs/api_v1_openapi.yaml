@@ -22529,7 +22529,7 @@ components:
 
     EventDestinationKindService:
       type: object
-      required: [id, label, category, urlFormat, docsUrl]
+      required: [id, label, category, urlFormat]
       properties:
         id:
           type: string
@@ -22541,9 +22541,6 @@ components:
         urlFormat:
           type: string
           description: The shape of the service URL.
-        docsUrl:
-          type: string
-          description: How to get the values the URL needs.
 
     EventDestinationKind:
       type: object

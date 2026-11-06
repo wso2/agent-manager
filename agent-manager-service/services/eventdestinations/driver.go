@@ -97,8 +97,6 @@ type Service struct {
 	Category string `json:"category"`
 	// URLFormat shows the shape of the service URL the user enters.
 	URLFormat string `json:"urlFormat"`
-	// DocsURL explains how to get the values the URL needs.
-	DocsURL string `json:"docsUrl"`
 }
 
 // ServiceCatalog is implemented by drivers that deliver to several services,

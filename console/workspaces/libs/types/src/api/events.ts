@@ -55,8 +55,6 @@ export interface DestinationKindService {
   category: string;
   /** The shape of the service URL. */
   urlFormat: string;
-  /** How to get the values the URL needs. */
-  docsUrl: string;
 }
 
 export interface DestinationKindInfo {
