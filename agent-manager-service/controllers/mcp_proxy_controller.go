@@ -347,6 +347,12 @@ func (c *mcpProxyController) FetchServerInfo(w http.ResponseWriter, r *http.Requ
 
 	resp, err := c.mcpProxyService.FetchServerInfo(ctx, ouID, claims.Sub, &req)
 	if err != nil {
+		// The console aborts a superseded probe. Whatever error that surfaced as,
+		// nobody is waiting for the response, so it is not a failure to log.
+		if errors.Is(ctx.Err(), context.Canceled) {
+			log.Debug("FetchMCPProxyServerInfo: client cancelled the probe", "ouID", ouID)
+			return
+		}
 		switch {
 		case errors.Is(err, utils.ErrInvalidInput), errors.Is(err, utils.ErrInvalidURL):
 			log.Error("FetchMCPProxyServerInfo: invalid request", "ouID", ouID, "error", err)

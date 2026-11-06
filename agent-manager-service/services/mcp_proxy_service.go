@@ -2193,7 +2193,11 @@ func (s *MCPProxyService) fetchToolsPromptsAndResources(ctx context.Context, end
 	}
 
 	if err := ctx.Err(); err != nil {
-		return nil, fmt.Errorf("%w: MCP server did not answer in time: %w", utils.ErrURLUnreachable, err)
+		// Only the deadline says the server was too slow; a cancel means the caller left.
+		if errors.Is(err, context.DeadlineExceeded) {
+			return nil, fmt.Errorf("%w: MCP server did not answer in time: %w", utils.ErrURLUnreachable, err)
+		}
+		return nil, err
 	}
 
 	return resp, nil

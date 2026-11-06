@@ -150,6 +150,11 @@ export function extractServerErrorMessage(
   return undefined;
 }
 
+/** Reports whether a request was aborted by its caller. */
+function isAbortError(error: unknown): boolean {
+  return (error as { name?: string } | null)?.name === "AbortError";
+}
+
 /**
  * Handles auth/session-related failures (may call `logout`) and other cases
  * where a generic error snackbar should not appear. Returns true when the
@@ -164,10 +169,6 @@ export function extractServerErrorMessage(
  * parameter rather than a hook call because this is a plain function shared by
  * the query and mutation wrappers.
  */
-function isAbortError(error: unknown): boolean {
-  return (error as { name?: string } | null)?.name === "AbortError";
-}
-
 function handleAuthAndExpectedErrors(
   error: unknown,
   logout: () => void,

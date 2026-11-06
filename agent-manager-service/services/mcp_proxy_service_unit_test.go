@@ -1036,6 +1036,21 @@ func TestFetchMCPServerInfo_DeadlineDuringListsIsAnError(t *testing.T) {
 	assert.ErrorIs(t, err, context.DeadlineExceeded)
 }
 
+// A probe the caller cancels is not reported as an unreachable server.
+func TestFetchMCPServerInfo_CancelDuringListsIsNotUnreachable(t *testing.T) {
+	srv := httptest.NewServer(&slowListsMCPServerForTest{})
+	t.Cleanup(srv.Close)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	time.AfterFunc(200*time.Millisecond, cancel)
+	svc := &MCPProxyService{client: srv.Client(), logger: discardLogger()}
+	resp, err := svc.fetchMCPServerInfo(ctx, srv.URL, "", "")
+
+	assert.Nil(t, resp)
+	assert.ErrorIs(t, err, context.Canceled)
+	assert.NotErrorIs(t, err, utils.ErrURLUnreachable)
+}
+
 // The status error keeps the text it had before it became a type.
 func TestMCPHTTPStatusError_KeepsOldText(t *testing.T) {
 	err := &mcpHTTPStatusError{StatusCode: 403, Body: "forbidden"}
