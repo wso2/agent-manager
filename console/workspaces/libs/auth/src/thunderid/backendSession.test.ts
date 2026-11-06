@@ -90,7 +90,11 @@ describe("resolveAuthConfig", () => {
     "//evil.example.com/_auth/agent-management",
     "/\\evil.example.com/_auth/agent-management",
     "_auth/agent-management",
-  ])("turns backend sign-in off for the context %s", async (context) => {
+    "/\t/evil.example.com/_auth/agent-management",
+    "/\n/evil.example.com/_auth/agent-management",
+    "/_auth/agent-management\u0000",
+    "/_auth/agent-management\u007f",
+  ])("turns backend sign-in off for the context %j", async (context) => {
     const { resolveAuthConfig } = await load(bffAuthConfig());
     const config = bffAuthConfig({
       session: `${context}/userinfo`,
@@ -112,12 +116,30 @@ describe("resolveAuthConfig", () => {
     "https://evil.example.com/login",
     "//evil.example.com/login",
     "/\\evil.example.com/login",
+    "/\t/evil.example.com/login",
+    "/\r\n/evil.example.com/login",
     "",
-  ])("falls back to the context's signin for the sign-in URL %s", async (signIn) => {
+  ])("falls back to the context's signin for the sign-in URL %j", async (signIn) => {
     const { resolveAuthConfig } = await load(bffAuthConfig());
     const resolved = resolveAuthConfig(bffAuthConfig({ signIn }));
     expect(resolved.endpoints?.backend?.signIn).toBe(`${CONTEXT}/signin`);
     expect(resolved.endpoints?.backend?.session).toBe(`${CONTEXT}/userinfo`);
+  });
+});
+
+describe("isBackendAuthConfig", () => {
+  it("is true for a config with same-origin backend endpoints", async () => {
+    const { isBackendAuthConfig } = await load(bffAuthConfig());
+    expect(isBackendAuthConfig(bffAuthConfig())).toBe(true);
+  });
+
+  it.each([
+    ["browser sign-in", browserAuthConfig()],
+    ["a context on another host", bffAuthConfig({ session: "//evil.example.com/userinfo" })],
+    ["a context with a tab", bffAuthConfig({ checkSession: "/\t/evil.example.com/checksession" })],
+  ])("is false for %s", async (_, config) => {
+    const { isBackendAuthConfig } = await load(browserAuthConfig());
+    expect(isBackendAuthConfig(config)).toBe(false);
   });
 });
 
