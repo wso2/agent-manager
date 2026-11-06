@@ -103,6 +103,7 @@ type AppParams struct {
 	// Services the MCP connection tools call directly.
 	LLMProviderService           *services.LLMProviderService
 	LLMProviderDeploymentService *services.LLMProviderDeploymentService
+	PlatformGatewayService       *services.PlatformGatewayService
 	MCPProxyService              *services.MCPProxyService
 	AgentConfigurationService    services.AgentConfigurationService
 

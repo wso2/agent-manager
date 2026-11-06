@@ -32,7 +32,7 @@ import (
 type attachLLMProviderInput struct {
 	ProjectName  string           `json:"project_name"`
 	AgentName    string           `json:"agent_name"`
-	Provider     string           `json:"provider"`
+	ProviderID   string           `json:"provider_id"`
 	ConfigName   string           `json:"config_name,omitempty"`
 	Environments []string         `json:"environments,omitempty"`
 	Guardrails   []guardrailInput `json:"guardrails,omitempty"`
@@ -40,7 +40,7 @@ type attachLLMProviderInput struct {
 type attachMCPProxyInput struct {
 	ProjectName  string   `json:"project_name"`
 	AgentName    string   `json:"agent_name"`
-	Proxy        string   `json:"proxy"`
+	ProxyID      string   `json:"proxy_id"`
 	ConfigName   string   `json:"config_name,omitempty"`
 	Environments []string `json:"environments,omitempty"`
 }
@@ -69,31 +69,31 @@ func (t *Toolsets) registerAgentConfigTools(server *gomcp.Server, reg *toolRegis
 		Name: "attach_llm_provider_to_agent",
 		Description: "Give an agent access to an LLM provider through the AI gateway, optionally with guardrails that apply to this agent only. " +
 			"The platform creates a per-agent proxy and injects its URL and key into the agent as environment variables. " +
-			"Call list_llm_providers for `provider` and list_llm_guardrails for `guardrails`. The provider must be in the catalog (`in_catalog` true) and already deployed to a gateway.",
+			"Call list_llm_providers for `provider_id` and list_llm_guardrails for `guardrails`. The provider must be in the catalog (`in_catalog` true) and already deployed to a gateway.",
 		InputSchema: createSchema(map[string]any{
 			"project_name": stringProperty("Required. Project the agent belongs to."),
 			"agent_name":   stringProperty("Required. Name of the agent."),
-			"provider":     stringProperty("Required. LLM provider `id` from list_llm_providers, not its name."),
+			"provider_id":  stringProperty("Required. LLM provider `id` from list_llm_providers, not its name."),
 			"config_name":  stringProperty("Optional. Name of the agent's model configuration; also the prefix of the injected variables. Defaults to the provider id."),
 			"environments": arrayProperty("Optional. Environment names to configure. Defaults to every environment where the provider is deployed to a gateway this agent can use.", map[string]any{"type": "string"}),
 			"guardrails":   arrayProperty("Optional. Guardrails for this agent's LLM traffic, on top of any on the provider.", guardrailSchema()),
-		}, []string{"project_name", "agent_name", "provider"}),
+		}, []string{"project_name", "agent_name", "provider_id"}),
 	}, audit.ActionAgentUpdate, attachLLMProvider(t.AgentConfigToolset, t.EnvironmentToolset), rbac.AgentUpdate)
 
 	addTool(reg, server, &gomcp.Tool{
 		Name: "attach_mcp_proxy_to_agent",
 		Description: "Give an agent access to an MCP proxy's tools through the AI gateway. " +
 			"The platform injects the proxy URL and a key into the agent as environment variables. " +
-			"Call list_mcp_proxies for `proxy`. Every environment you configure is recorded, including ones the proxy is not deployed to yet: " +
+			"Call list_mcp_proxies for `proxy_id`. Every environment you configure is recorded, including ones the proxy is not deployed to yet: " +
 			"there the agent gets empty values until the proxy is deployed to that environment, and the platform then binds it. " +
 			"get_mcp_proxy shows where the proxy is deployed.",
 		InputSchema: createSchema(map[string]any{
 			"project_name": stringProperty("Required. Project the agent belongs to."),
 			"agent_name":   stringProperty("Required. Name of the agent."),
-			"proxy":        stringProperty("Required. MCP proxy id from list_mcp_proxies."),
+			"proxy_id":     stringProperty("Required. MCP proxy `id` from list_mcp_proxies."),
 			"config_name":  stringProperty("Optional. Name of the agent's MCP configuration; also the prefix of the injected variables. Defaults to the proxy id."),
 			"environments": arrayProperty("Optional. Environment names to configure. Defaults to every environment, including ones the proxy is not deployed to yet.", map[string]any{"type": "string"}),
-		}, []string{"project_name", "agent_name", "proxy"}),
+		}, []string{"project_name", "agent_name", "proxy_id"}),
 	}, audit.ActionAgentUpdate, attachMCPProxy(t.AgentConfigToolset, t.EnvironmentToolset), rbac.AgentUpdate)
 }
 
@@ -105,7 +105,7 @@ func attachLLMProvider(handler AgentConfigToolsetHandler, envHandler Environment
 			return nil, nil, err
 		}
 		out, err := attachConfig(ctx, toolName, handler, envHandler, models.AgentConfigTypeLLM,
-			input.ProjectName, input.AgentName, input.Provider, "provider", input.ConfigName, input.Environments, policies)
+			input.ProjectName, input.AgentName, input.ProviderID, "provider_id", input.ConfigName, input.Environments, policies)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -119,7 +119,7 @@ func attachLLMProvider(handler AgentConfigToolsetHandler, envHandler Environment
 func attachMCPProxy(handler AgentConfigToolsetHandler, envHandler EnvironmentToolsetHandler) func(context.Context, *gomcp.CallToolRequest, attachMCPProxyInput) (*gomcp.CallToolResult, any, error) {
 	return func(ctx context.Context, _ *gomcp.CallToolRequest, input attachMCPProxyInput) (*gomcp.CallToolResult, any, error) {
 		out, err := attachConfig(ctx, "attach_mcp_proxy_to_agent", handler, envHandler, models.AgentConfigTypeMCP,
-			input.ProjectName, input.AgentName, input.Proxy, "proxy", input.ConfigName, input.Environments, nil)
+			input.ProjectName, input.AgentName, input.ProxyID, "proxy_id", input.ConfigName, input.Environments, nil)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -225,6 +225,26 @@ func defaultProviderEnvironments(ctx context.Context, toolName string, handler A
 	return names, nil
 }
 
+// listAllEnvironments reads every page of the org's environments: stopping at
+// the first page would leave the rest unconfigured, or unnamed, without saying so.
+func listAllEnvironments(ctx context.Context, handler EnvironmentToolsetHandler, ouID string) ([]models.GatewayEnvironmentResponse, error) {
+	var envs []models.GatewayEnvironmentResponse
+	for offset := int32(utils.DefaultOffset); ; {
+		result, err := handler.ListEnvironments(ctx, ouID, int32(utils.MaxLimit), offset)
+		if err != nil {
+			return nil, err
+		}
+		if result == nil || len(result.Environments) == 0 {
+			return envs, nil
+		}
+		envs = append(envs, result.Environments...)
+		offset += int32(len(result.Environments))
+		if offset >= result.Total {
+			return envs, nil
+		}
+	}
+}
+
 // resolveEnvironmentNames returns the given environment names, trimmed, or
 // every environment in the org when none are given.
 func resolveEnvironmentNames(ctx context.Context, toolName string, handler EnvironmentToolsetHandler, ouID string, names []string) ([]string, error) {
@@ -241,23 +261,12 @@ func resolveEnvironmentNames(ctx context.Context, toolName string, handler Envir
 	if handler == nil {
 		return nil, fmt.Errorf("%s: environment lookup is not available", toolName)
 	}
-	// Read every page: attaching to only the first page would leave the
-	// remaining environments unconfigured without saying so.
-	for offset := int32(utils.DefaultOffset); ; {
-		result, err := handler.ListEnvironments(ctx, ouID, int32(utils.MaxLimit), offset)
-		if err != nil {
-			return nil, wrapToolError(toolName, err)
-		}
-		if result == nil || len(result.Environments) == 0 {
-			break
-		}
-		for _, env := range result.Environments {
-			out = append(out, env.Name)
-		}
-		offset += int32(len(result.Environments))
-		if offset >= result.Total {
-			break
-		}
+	envs, err := listAllEnvironments(ctx, handler, ouID)
+	if err != nil {
+		return nil, wrapToolError(toolName, err)
+	}
+	for _, env := range envs {
+		out = append(out, env.Name)
 	}
 	if len(out) == 0 {
 		return nil, fmt.Errorf("%s: no environments are configured for your organization", toolName)

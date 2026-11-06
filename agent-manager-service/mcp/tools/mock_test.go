@@ -184,6 +184,17 @@ func (m *MockToolsetHandler) ListLLMProviders(
 	return []*models.LLMProvider{p}, 1, nil
 }
 
+func (m *MockToolsetHandler) GatewayEnvironmentIDs(
+	ctx context.Context, gatewayIDs []string,
+) (map[string][]string, error) {
+	m.recordCall("GatewayEnvironmentIDs", gatewayIDs)
+	out := make(map[string][]string, len(gatewayIDs))
+	for _, id := range gatewayIDs {
+		out[id] = []string{testEnvUUID}
+	}
+	return out, nil
+}
+
 func (m *MockToolsetHandler) ListLLMGuardrails(
 	ctx context.Context, ouID string, providerID string,
 ) (*models.LLMPolicyAvailabilityResponse, error) {

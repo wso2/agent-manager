@@ -18,9 +18,11 @@ package tools
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
@@ -281,5 +283,53 @@ func TestLLMProviderOutputOffersOnlyAttachableIdentifiers(t *testing.T) {
 		if tool == "list_llm_providers" && !strings.Contains(text, `"id":"out-of-catalog","name":"","template":"","status":"","in_catalog":false`) {
 			t.Errorf("list does not flag the provider out of the catalog: %s", text)
 		}
+	}
+}
+
+// gatewayEnvsMock places the provider's gateway in envIDs, or fails the lookup.
+type gatewayEnvsMock struct {
+	*MockToolsetHandler
+	envIDs []string
+	err    error
+}
+
+func (m gatewayEnvsMock) GatewayEnvironmentIDs(_ context.Context, gatewayIDs []string) (map[string][]string, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	out := map[string][]string{}
+	for _, id := range gatewayIDs {
+		out[id] = m.envIDs
+	}
+	return out, nil
+}
+
+// attach_llm_provider_to_agent takes environment names, so get_llm_provider
+// names the environments each deployment's gateway serves.
+func TestGetLLMProviderNamesDeploymentEnvironments(t *testing.T) {
+	call := func(mock gatewayEnvsMock) (bool, string) {
+		t.Helper()
+		session := setupTestServerWithToolsets(t, &Toolsets{LLMProviderToolset: mock, EnvironmentToolset: mock})
+		res, err := session.CallTool(context.Background(), &gomcp.CallToolParams{
+			Name: "get_llm_provider", Arguments: map[string]any{"provider_id": testProviderID},
+		})
+		if err != nil {
+			t.Fatalf("CallTool: %v", err)
+		}
+		return res.IsError, res.Content[0].(*gomcp.TextContent).Text
+	}
+
+	failed, text := call(gatewayEnvsMock{MockToolsetHandler: NewMockToolsetHandler(), envIDs: []string{testEnvUUID, "unknown-env-uuid"}})
+	if failed {
+		t.Fatalf("tool failed: %s", text)
+	}
+	// The mock's one live deployment; an environment without a name keeps its UUID.
+	if want := `"deployments":[{"gateway_id":"` + uuid.Nil.String() + `","status":"DEPLOYED","environments":["` + testEnvName + `","unknown-env-uuid"]}]`; !strings.Contains(text, want) {
+		t.Errorf("deployments do not name their environments\n got: %s\nwant: %s", text, want)
+	}
+
+	failed, text = call(gatewayEnvsMock{MockToolsetHandler: NewMockToolsetHandler(), err: errors.New("db down")})
+	if !failed {
+		t.Errorf("a failed gateway lookup should fail the tool, got: %s", text)
 	}
 }

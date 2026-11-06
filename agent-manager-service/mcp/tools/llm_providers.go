@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"sort"
 	"strings"
 
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -112,6 +113,9 @@ type guardrailRouteItem struct {
 type providerGatewayDeploymentItem struct {
 	GatewayID string `json:"gateway_id"`
 	Status    string `json:"status,omitempty"`
+	// Environments are the names of the environments the gateway serves, the
+	// names attach_llm_provider_to_agent takes.
+	Environments []string `json:"environments"`
 }
 type getLLMProviderOutput struct {
 	llmProviderItem
@@ -146,7 +150,7 @@ func (t *Toolsets) registerLLMProviderTools(server *gomcp.Server, reg *toolRegis
 		Name: "list_llm_providers",
 		Description: "List the LLM providers configured in your organization. " +
 			"An LLM provider is an org-level connection to a model vendor (for example OpenAI) that agents reach through the AI gateway. " +
-			"Use a provider's `id` as the `provider` argument of attach_llm_provider_to_agent; only providers with `in_catalog` true can be attached.",
+			"Use a provider's `id` as the `provider_id` argument of attach_llm_provider_to_agent; only providers with `in_catalog` true can be attached.",
 		InputSchema: createSchema(map[string]any{
 			"limit":  intProperty(fmt.Sprintf("Optional. Max providers to return (default %d, min %d, max %d).", utils.DefaultLimit, utils.MinLimit, utils.MaxLimit)),
 			"offset": intProperty(fmt.Sprintf("Optional. Pagination offset (default %d, min %d).", utils.DefaultOffset, utils.MinOffset)),
@@ -156,12 +160,12 @@ func (t *Toolsets) registerLLMProviderTools(server *gomcp.Server, reg *toolRegis
 	addTool(reg, server, &gomcp.Tool{
 		Name: "get_llm_provider",
 		Description: "Get one LLM provider's details: its template, upstream URL, the guardrails enforced on it, " +
-			"and the gateways it is deployed to with each deployment's status. " +
+			"and the gateways it is deployed to with each deployment's status and the environments that gateway serves. " +
 			"Use it to check a provider is deployed before attach_llm_provider_to_agent. Credentials are never returned.",
 		InputSchema: createSchema(map[string]any{
 			"provider_id": stringProperty("Required. LLM provider id from list_llm_providers."),
 		}, []string{"provider_id"}),
-	}, audit.ActionLLMProviderRead, getLLMProvider(t.LLMProviderToolset), rbac.LLMProviderRead)
+	}, audit.ActionLLMProviderRead, getLLMProvider(t.LLMProviderToolset, t.EnvironmentToolset), rbac.LLMProviderRead)
 
 	addTool(reg, server, &gomcp.Tool{
 		Name: "add_llm_provider_guardrails",
@@ -222,13 +226,14 @@ func listLLMProviders(handler LLMProviderToolsetHandler) func(context.Context, *
 	}
 }
 
-func getLLMProvider(handler LLMProviderToolsetHandler) func(context.Context, *gomcp.CallToolRequest, getLLMProviderInput) (*gomcp.CallToolResult, any, error) {
+func getLLMProvider(handler LLMProviderToolsetHandler, envHandler EnvironmentToolsetHandler) func(context.Context, *gomcp.CallToolRequest, getLLMProviderInput) (*gomcp.CallToolResult, any, error) {
 	return func(ctx context.Context, _ *gomcp.CallToolRequest, input getLLMProviderInput) (*gomcp.CallToolResult, any, error) {
 		providerID := strings.TrimSpace(input.ProviderID)
 		if providerID == "" {
 			return nil, nil, fmt.Errorf("provider_id is required. Call list_llm_providers to see valid providers")
 		}
-		provider, deployments, err := handler.GetLLMProvider(ctx, resolveOUID(ctx), providerID)
+		ouID := resolveOUID(ctx)
+		provider, deployments, err := handler.GetLLMProvider(ctx, ouID, providerID)
 		if err != nil {
 			return nil, nil, wrapToolError("get_llm_provider", err)
 		}
@@ -256,11 +261,14 @@ func getLLMProvider(handler LLMProviderToolsetHandler) func(context.Context, *go
 			if d == nil || (d.Status != nil && *d.Status == models.DeploymentStatusArchived) {
 				continue
 			}
-			item := providerGatewayDeploymentItem{GatewayID: d.GatewayUUID.String()}
+			item := providerGatewayDeploymentItem{GatewayID: d.GatewayUUID.String(), Environments: []string{}}
 			if d.Status != nil {
 				item.Status = string(*d.Status)
 			}
 			out.Deployments = append(out.Deployments, item)
+		}
+		if err := nameDeploymentEnvironments(ctx, handler, envHandler, ouID, out.Deployments); err != nil {
+			return nil, nil, wrapToolError("get_llm_provider", err)
 		}
 		for _, mp := range provider.ModelProviders {
 			if mp.Name != "" {
@@ -269,6 +277,38 @@ func getLLMProvider(handler LLMProviderToolsetHandler) func(context.Context, *go
 		}
 		return handleToolResult(out, nil)
 	}
+}
+
+// nameDeploymentEnvironments fills in the environments each deployment's gateway
+// serves, by name, so a caller can pass them to attach_llm_provider_to_agent.
+// A name lookup that fails leaves the environment's UUID, as get_mcp_proxy does.
+func nameDeploymentEnvironments(
+	ctx context.Context, handler LLMProviderToolsetHandler, envHandler EnvironmentToolsetHandler,
+	ouID string, deployments []providerGatewayDeploymentItem,
+) error {
+	if len(deployments) == 0 {
+		return nil
+	}
+	gatewayIDs := make([]string, 0, len(deployments))
+	for _, d := range deployments {
+		gatewayIDs = append(gatewayIDs, d.GatewayID)
+	}
+	envIDs, err := handler.GatewayEnvironmentIDs(ctx, gatewayIDs)
+	if err != nil {
+		return err
+	}
+	names := environmentNamesByUUID(ctx, envHandler, ouID)
+	for i := range deployments {
+		for _, id := range envIDs[deployments[i].GatewayID] {
+			name := names[id]
+			if name == "" {
+				name = id
+			}
+			deployments[i].Environments = append(deployments[i].Environments, name)
+		}
+		sort.Strings(deployments[i].Environments)
+	}
+	return nil
 }
 
 func addLLMProviderGuardrails(handler LLMProviderToolsetHandler) func(context.Context, *gomcp.CallToolRequest, addLLMProviderGuardrailsInput) (*gomcp.CallToolResult, any, error) {

@@ -74,10 +74,16 @@ func resolveNamedPagination(prefix string, limitPtr *int, offsetPtr *int) (int, 
 
 // helper functions  that build JSON Schema snippets
 
+// createSchema builds an object schema that refuses properties it does not
+// declare. The input is unmarshalled into a struct, so an unknown property (a
+// misspelled `environment` for `environments`) would otherwise be dropped and
+// the default applied in its place; the SDK validates arguments against this
+// schema and returns the error to the model, which can correct the call.
 func createSchema(properties map[string]any, required []string) map[string]any {
 	schema := map[string]any{
-		"type":       "object",
-		"properties": properties,
+		"type":                 "object",
+		"properties":           properties,
+		"additionalProperties": false,
 	}
 	if len(required) > 0 {
 		schema["required"] = required

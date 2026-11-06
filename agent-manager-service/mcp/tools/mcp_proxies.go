@@ -70,7 +70,7 @@ func (t *Toolsets) registerMCPProxyTools(server *gomcp.Server, reg *toolRegistry
 	addTool(reg, server, &gomcp.Tool{
 		Name: "list_mcp_proxies",
 		Description: "List the MCP proxies in your organization. An MCP proxy publishes an external MCP server through the AI gateway " +
-			"so agents can call its tools with a gateway-issued key. Use a proxy's `id` as the `proxy` argument of attach_mcp_proxy_to_agent.",
+			"so agents can call its tools with a gateway-issued key. Use a proxy's `id` as the `proxy_id` argument of attach_mcp_proxy_to_agent.",
 		InputSchema: createSchema(map[string]any{
 			"limit":  intProperty(fmt.Sprintf("Optional. Max proxies to return (default %d, min %d, max %d).", utils.DefaultLimit, utils.MinLimit, utils.MaxLimit)),
 			"offset": intProperty(fmt.Sprintf("Optional. Pagination offset (default %d, min %d).", utils.DefaultOffset, utils.MinOffset)),
@@ -174,11 +174,11 @@ func environmentNamesByUUID(ctx context.Context, handler EnvironmentToolsetHandl
 	if handler == nil {
 		return names
 	}
-	result, err := handler.ListEnvironments(ctx, ouID, int32(utils.MaxLimit), int32(utils.DefaultOffset))
-	if err != nil || result == nil {
+	envs, err := listAllEnvironments(ctx, handler, ouID)
+	if err != nil {
 		return names
 	}
-	for _, env := range result.Environments {
+	for _, env := range envs {
 		names[env.UUID] = env.Name
 	}
 	return names

@@ -27,13 +27,31 @@ import (
 type LLMProviderHandler struct {
 	providerSvc   *services.LLMProviderService
 	deploymentSvc *services.LLMProviderDeploymentService
+	gatewaySvc    *services.PlatformGatewayService
 }
 
 func NewLLMProviderHandler(
 	providerSvc *services.LLMProviderService,
 	deploymentSvc *services.LLMProviderDeploymentService,
+	gatewaySvc *services.PlatformGatewayService,
 ) *LLMProviderHandler {
-	return &LLMProviderHandler{providerSvc: providerSvc, deploymentSvc: deploymentSvc}
+	return &LLMProviderHandler{providerSvc: providerSvc, deploymentSvc: deploymentSvc, gatewaySvc: gatewaySvc}
+}
+
+// GatewayEnvironmentIDs returns the UUIDs of the environments each gateway
+// serves, in one query for all of them.
+func (h *LLMProviderHandler) GatewayEnvironmentIDs(_ context.Context, gatewayIDs []string) (map[string][]string, error) {
+	mappings, err := h.gatewaySvc.GetGatewayEnvironmentMappingsBulk(gatewayIDs)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string][]string, len(mappings))
+	for gatewayID, gatewayMappings := range mappings {
+		for _, m := range gatewayMappings {
+			out[gatewayID] = append(out[gatewayID], m.EnvironmentUUID.String())
+		}
+	}
+	return out, nil
 }
 
 func (h *LLMProviderHandler) ListLLMProviders(_ context.Context, ouID string, limit int, offset int) ([]*models.LLMProvider, int, error) {
