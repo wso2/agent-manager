@@ -42,10 +42,12 @@ import signal
 import sys
 import time
 from datetime import datetime
-from typing import Dict, List, Any
+from typing import Any, Dict, List
 
 import requests
 from amp_evaluation import Monitor, builtin
+from amp_evaluation.aggregators import Aggregation, AggregationType
+from amp_evaluation.aggregators.base import normalize_aggregations
 from amp_evaluation.models import EvaluatorSummary
 from amp_evaluation.trace import TraceFetcher
 
@@ -520,6 +522,26 @@ def _apply_monitor_parameter_policy(instance, eval_type: str | None) -> None:
         )
 
 
+def _ensure_mean_aggregation(instance: Any, display_name: str) -> None:
+    """Add a mean to the evaluator's aggregations, keeping the others.
+
+    Monitor score alerts compare the mean. A custom evaluator whose
+    aggregations cannot be set keeps its own; its runs still complete, but
+    score alerts on it have no mean to compare.
+    """
+    aggregations = normalize_aggregations(instance.aggregations)
+    if any(aggregation.name == AggregationType.MEAN.value for aggregation in aggregations):
+        return
+    aggregations.append(Aggregation(AggregationType.MEAN))
+    try:
+        instance.aggregations = aggregations
+    except AttributeError:
+        logger.warning(
+            "Evaluator '%s' does not allow setting aggregations; score alerts on it will not fire",
+            display_name,
+        )
+
+
 def main() -> None:
     """Main entry point for monitor job."""
     configure_logging()
@@ -673,6 +695,7 @@ def main() -> None:
                 instance = builtin(identifier, **config)
             instance.name = display_name
             _apply_monitor_parameter_policy(instance, eval_type)
+            _ensure_mean_aggregation(instance, display_name)
             evaluator_instances.append(instance)
             display_name_to_identifier[display_name] = identifier
         except Exception as e:

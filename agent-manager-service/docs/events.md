@@ -25,7 +25,7 @@ Monitor scheduler ───────────────────┘  
   - `notify` sends a short text notification (title, description, where, when) to a chat, email, paging, push or SMS service, through [Shoutrrr](https://github.com/nicholas-fedor/shoutrrr) (MIT). Shoutrrr's maintainers keep each service's integration current; the driver (`services/eventdestinations/notify`) only picks which services are offered and keeps their traffic safe. A destination is a service plus a Shoutrrr service URL, such as `slack://hook:<token>@webhook`. The URL carries the service's token, so it is stored encrypted like a webhook secret and never returned; leave it out on update to keep it.
   - **Availability** decides which subscriptions below the org may use a destination: those of every project (`all`), none (`org`), or those of listed projects (`projects`). Org subscriptions may use any destination. Narrowing availability while subscriptions would lose the destination, or deleting a destination subscriptions use, is refused (409) with the subscriptions named. When the last listed project is deleted, the destination becomes `org`.
 - **Subscriptions** belong to the org, a project or an agent, and pick event types, a destination and an optional environment filter. The project or agent must exist (404 otherwise), and filtered environments must be the org's (400 otherwise).
-- **The dispatcher** is a module of the service, not a separate deployment. Every replica runs it on shared durable consumers (`event-fanout`, `event-delivery`), so each message is handled by one replica.
+- **The dispatcher** is a module of the service, not a separate deployment. Every replica runs it on shared durable consumers (`event-fanout`, `event-delivery`, and `monitor-alert-fanout` for monitor alerts), so each message is handled by one replica.
 
 ## Which subscriptions an event reaches
 
@@ -43,7 +43,7 @@ Lower levels see the wider levels' subscriptions that reach them, read-only and 
 ## Delivery guarantees
 
 - **Durable acceptance.** Events accepted by the publisher are stored in PostgreSQL's `event_outbox` before returning. A background worker leases rows, publishes to NATS, and removes them only after confirmation. Bus failures retry without a fixed attempt limit; interrupted leases expire after two minutes.
-- **Fan-out retries.** If matching an event to its subscriptions or queuing its deliveries fails, the dispatcher retries it after 5s, doubling up to 5 minutes, for 20 attempts (about 75 minutes). After that it logs an error and gives up on the event.
+- **Fan-out retries.** If matching an event to its subscriptions or monitor alerts, or queuing its deliveries, fails, the event is retried after 5s, doubling up to 5 minutes, for 20 attempts (about 75 minutes). After that it logs an error and gives up on the event.
 - **Monitor replay.** Terminal runs remain replayable until their complete event (including scores) is accepted by the outbox. A score-query or outbox-write failure retries on a later scheduler tick, without holding back the other runs waiting for replay. Replay retains the run's completion time and event ID.
 - **Publication boundary.** Monitor outcomes have a durable source. Other route events are recorded after the operation completes; a crash or database failure between that operation and outbox insertion is still outside the delivery guarantee. The route logs an explicit persistence failure.
 - **At least once.** A receiver may see an event twice after a crash or a lost acknowledgement; it should drop duplicates by `webhook-id`, which is the same on every attempt.
@@ -131,3 +131,15 @@ Matching, queuing, retries, the delivery log and the API stay as they are.
 Migration 057 adds the outbox and `monitor_runs.event_queued_at`. It preserves existing rows and marks pre-upgrade terminal runs as already handled; pending/running and newly created runs remain replayable. New workers coexist through expiring leases. Old application replicas still use their original publication behavior, so complete the rollout before relying on durable acceptance.
 
 Rollback leaves the additive table and column in place, preserving pending work for a subsequent upgrade. Start the older binary without running its migration command (its migration validator rejects newer schema versions). Do not drop pending outbox rows. Embedded mode still loses events already published into its in-memory bus on restart; use NATS mode for durable downstream delivery.
+
+## Monitor alerting
+
+Score threshold alerts compare an evaluator's mean score (0 to 1) with the configured threshold. Evaluation jobs ensure the mean aggregation is published alongside any evaluator-specific aggregations. Runs with no usable scores leave the monitor's previous breach state unchanged.
+
+Subscription event-type and environment edits are rechecked before every pending delivery attempt. Database failures before a send do not consume the destination's send-attempt budget or advance its backoff.
+
+Monitor alert settings are shared by everyone managing a monitor. Configure them in the monitor's Alerting panel, selecting one or more organization destinations available to that agent. Editing requires `amp:monitor:update`; reading requires `amp:monitor:read`. The API is `GET`, `PUT`, and `DELETE .../monitors/{monitorName}/alerting`. There is no personal watch or console inbox API.
+
+Each failure, completion, threshold breach, or recovery is sent to the selected destinations. Threshold state and delivery jobs commit together; bus retries reload those jobs after a crash. Before sending, the dispatcher rechecks that the alert still exists, still selects that destination, and the destination is still available to the agent. Delivery history remains under organization Events.
+
+Migration 059 adds shared monitor alerts and durable alert payloads. No personal watch or console inbox tables are created. Select organization destinations explicitly when enabling monitor alerting.

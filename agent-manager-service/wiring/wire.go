@@ -134,6 +134,8 @@ var serviceProviderSet = wire.NewSet(
 	wire.Bind(new(services.EventsCleaner), new(services.EventSubscriptionService)),
 	wire.Bind(new(services.DestinationResolver), new(services.EventDestinationService)),
 	services.NewEventDispatcherService,
+	services.NewMonitorAlertService,
+	services.NewMonitorAlertProcessor,
 )
 
 var instrumentationProviderSet = wire.NewSet(
@@ -174,6 +176,7 @@ var controllerProviderSet = wire.NewSet(
 	controllers.NewMCPProxyScopeController,
 	controllers.NewAgentIdentityController,
 	controllers.NewEventsController,
+	controllers.NewMonitorAlertController,
 )
 
 var testClientProviderSet = wire.NewSet(
@@ -427,6 +430,7 @@ var repositoryProviderSet = wire.NewSet(
 	ProvideEnvThunderURLRepository,
 	repositories.NewMCPProxyScopeRepository,
 	repositories.NewEventRepository,
+	repositories.NewMonitorAlertRepository,
 )
 
 var reconcileProviderSet = wire.NewSet(
