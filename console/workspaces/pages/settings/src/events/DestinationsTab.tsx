@@ -29,12 +29,14 @@ import {
   ListingTable,
   Menu,
   MenuItem,
+  SearchBar,
   Skeleton,
   Stack,
-  TextField,
+  Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
-import { AlertTriangle, MoreHorizontal, Plus, Send, Trash2 } from "@wso2/oxygen-ui-icons-react";
+import { MoreHorizontal, Plus, Send, Trash2 } from "@wso2/oxygen-ui-icons-react";
+import { TextInput } from "@agent-management-platform/views";
 import {
   useDeleteEventDestination,
   useDestinationKinds,
@@ -43,14 +45,24 @@ import {
   useRotateEventDestinationSecret,
   useTestEventDestination,
 } from "@agent-management-platform/api-client";
-import { useConfirmationDialog } from "@agent-management-platform/shared-component";
+import {
+  isListEmpty,
+  ResourceListShell,
+  useConfirmationDialog,
+} from "@agent-management-platform/shared-component";
 import type {
   EventDestinationResponse,
   EventDestinationTestResponse,
   EventScope,
 } from "@agent-management-platform/types";
-import { DestinationDrawer, SecretReveal } from "./DestinationDrawer";
-import { availabilityLabel, DestinationIcon, HealthChip, lookOf, timeAgo } from "./eventsUi";
+import {
+  availabilityLabel,
+  DestinationIcon,
+  HealthChip,
+  lookOf,
+  SecretReveal,
+  timeAgo,
+} from "./eventsUi";
 
 /** What a destination row says under its name. */
 function subtitleOf(d: EventDestinationResponse, serviceLabel: string): string {
@@ -114,12 +126,22 @@ function InUseDialog({
 export interface DestinationsTabProps {
   orgName?: string;
   canManage: boolean;
+  /** Opens the page that adds a destination. */
+  onAdd: () => void;
+  /** Opens the page that edits a destination. */
+  onEdit: (destination: EventDestinationResponse) => void;
   /** Opens the delivery log filtered to a destination. */
   onViewDeliveries: (destinationId: string) => void;
 }
 
 /** The organization's destinations: where events can be sent, and how that is going. */
-export function DestinationsTab({ orgName, canManage, onViewDeliveries }: DestinationsTabProps) {
+export function DestinationsTab({
+  orgName,
+  canManage,
+  onAdd,
+  onEdit,
+  onViewDeliveries,
+}: DestinationsTabProps) {
   const { data, isLoading, error } = useListEventDestinations(orgName);
   const { data: kindList } = useDestinationKinds(orgName);
   const services = useMemo(
@@ -133,9 +155,6 @@ export function DestinationsTab({ orgName, canManage, onViewDeliveries }: Destin
 
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
-  const [drawer, setDrawer] = useState<{ open: boolean; destination?: EventDestinationResponse }>({
-    open: false,
-  });
   const [menu, setMenu] = useState<{
     anchor: HTMLElement;
     destination: EventDestinationResponse;
@@ -204,161 +223,57 @@ export function DestinationsTab({ orgName, canManage, onViewDeliveries }: Destin
     sendTest(d.id, { onSuccess: (result) => setTestResult({ name: d.name, result }) });
   };
 
-  const toolbar = (
-    <ListingTable.Toolbar
-      showSearch
-      searchValue={search}
-      onSearchChange={(v: string) => setSearch(v)}
-      searchPlaceholder="Search destinations"
-      actions={
-        <Stack direction="row" spacing={1.5} alignItems="center">
-          <TextField
-            select
-            size="small"
-            value={typeFilter}
-            onChange={(e) => setTypeFilter(e.target.value)}
-            sx={{ minWidth: 150 }}
-            slotProps={{
-              select: {
-                renderValue: (v) =>
-                  `Type: ${v === "all" ? "All" : (typeOptions.find(([id]) => id === v)?.[1] ?? v)}`,
-              },
-            }}
-          >
-            <MenuItem value="all">All</MenuItem>
-            {typeOptions.map(([id, label]) => (
-              <MenuItem key={id} value={id}>
-                {label}
-              </MenuItem>
-            ))}
-          </TextField>
-          {canManage && (
-            <Button
-              variant="contained"
-              startIcon={<Plus size={16} />}
-              onClick={() => setDrawer({ open: true })}
-              sx={{ whiteSpace: "nowrap" }}
-            >
-              Add destination
-            </Button>
-          )}
-        </Stack>
-      }
-    />
-  );
+  const isFiltered = !!search.trim() || typeFilter !== "all";
+  const addButton = canManage ? (
+    <Button
+      variant="contained"
+      startIcon={<Plus size={16} />}
+      onClick={onAdd}
+      sx={{ whiteSpace: "nowrap", flexShrink: 0 }}
+    >
+      Add destination
+    </Button>
+  ) : undefined;
 
-  let body;
-  if (error) {
-    body = (
-      <Alert severity="error" icon={<AlertTriangle size={18} />}>
-        Failed to load destinations. Please try again.
-      </Alert>
-    );
-  } else if (isLoading) {
-    body = (
-      <Stack spacing={1} m={2}>
-        <Skeleton variant="rounded" height={56} />
-        <Skeleton variant="rounded" height={56} />
-        <Skeleton variant="rounded" height={56} />
-      </Stack>
-    );
-  } else if (!filtered.length) {
-    body = (
-      <ListingTable.EmptyState
-        illustration={<Send size={64} />}
-        title={destinations.length ? "No destinations match your filters" : "No destinations yet"}
-        description={
-          destinations.length
-            ? "Try other search keywords or another type."
-            : "Add a Slack channel, a PagerDuty service or a webhook, then point subscriptions at it."
-        }
+  // The list sits in a tab, so its add button is in the toolbar beside the filters.
+  const toolbar = (
+    <Stack
+      direction={{ xs: "column", md: "row" }}
+      spacing={1.5}
+      alignItems={{ xs: "stretch", md: "center" }}
+    >
+      <SearchBar
+        placeholder="Search destinations"
+        size="small"
+        fullWidth
+        value={search}
+        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)}
       />
-    );
-  } else {
-    body = (
-      <ListingTable>
-        <ListingTable.Head>
-          <ListingTable.Row>
-            <ListingTable.Cell>Destination</ListingTable.Cell>
-            <ListingTable.Cell>Type</ListingTable.Cell>
-            <ListingTable.Cell>Available to</ListingTable.Cell>
-            <ListingTable.Cell>Used by</ListingTable.Cell>
-            <ListingTable.Cell>Last delivery</ListingTable.Cell>
-            <ListingTable.Cell>Status</ListingTable.Cell>
-            <ListingTable.Cell align="right" />
-          </ListingTable.Row>
-        </ListingTable.Head>
-        <ListingTable.Body>
-          {filtered.map((d) => {
-            const look = lookOf(d.kind, d.service, services);
-            return (
-              <ListingTable.Row
-                key={d.id}
-                hover
-                sx={{ cursor: canManage ? "pointer" : "default" }}
-                onClick={() => canManage && setDrawer({ open: true, destination: d })}
-              >
-                <ListingTable.Cell>
-                  <Stack
-                    direction="row"
-                    spacing={1.5}
-                    alignItems="center"
-                    sx={{ minWidth: 0, maxWidth: 360 }}
-                  >
-                    <DestinationIcon kind={d.kind} service={d.service} size={28} />
-                    <Box sx={{ minWidth: 0 }}>
-                      <Typography variant="body2" fontWeight={600} noWrap title={d.name}>
-                        {d.name}
-                      </Typography>
-                      <Typography
-                        variant="caption"
-                        color="text.secondary"
-                        noWrap
-                        display="block"
-                        title={subtitleOf(d, look.label)}
-                      >
-                        {subtitleOf(d, look.label)}
-                      </Typography>
-                    </Box>
-                  </Stack>
-                </ListingTable.Cell>
-                <ListingTable.Cell>
-                  <Typography variant="body2">{look.label}</Typography>
-                </ListingTable.Cell>
-                <ListingTable.Cell>
-                  <Typography variant="body2" title={d.projects.join(", ")}>
-                    {availabilityLabel(d.availability, d.projects)}
-                  </Typography>
-                </ListingTable.Cell>
-                <ListingTable.Cell>
-                  <Typography variant="body2">
-                    {d.usedBy === 1 ? "1 subscription" : `${d.usedBy} subscriptions`}
-                  </Typography>
-                </ListingTable.Cell>
-                <ListingTable.Cell>
-                  <Typography variant="body2" color="text.secondary">
-                    {timeAgo(d.lastDeliveryAt)}
-                  </Typography>
-                </ListingTable.Cell>
-                <ListingTable.Cell>
-                  <HealthChip health={d.health} failures={d.consecutiveFailures} />
-                </ListingTable.Cell>
-                <ListingTable.Cell align="right" onClick={(e) => e.stopPropagation()}>
-                  <IconButton
-                    size="small"
-                    aria-label={`Actions for ${d.name}`}
-                    onClick={(e) => setMenu({ anchor: e.currentTarget, destination: d })}
-                  >
-                    <MoreHorizontal size={18} />
-                  </IconButton>
-                </ListingTable.Cell>
-              </ListingTable.Row>
-            );
-          })}
-        </ListingTable.Body>
-      </ListingTable>
-    );
-  }
+      <Box sx={{ minWidth: 170 }}>
+        <TextInput
+          select
+          size="small"
+          aria-label="Filter by type"
+          value={typeFilter}
+          onChange={(e) => setTypeFilter(e.target.value)}
+          slotProps={{
+            select: {
+              renderValue: (v) =>
+                `Type: ${v === "all" ? "All" : (typeOptions.find(([id]) => id === v)?.[1] ?? String(v))}`,
+            },
+          }}
+        >
+          <MenuItem value="all">All</MenuItem>
+          {typeOptions.map(([id, label]) => (
+            <MenuItem key={id} value={id}>
+              {label}
+            </MenuItem>
+          ))}
+        </TextInput>
+      </Box>
+      {addButton}
+    </Stack>
+  );
 
   const current = menu?.destination;
   return (
@@ -377,17 +292,119 @@ export function DestinationsTab({ orgName, canManage, onViewDeliveries }: Destin
             : `Test event to ${testResult.name} failed: ${testResult.result.error ?? "unknown error"}`}
         </Alert>
       )}
-      <ListingTable.Container>
-        {toolbar}
-        {body}
-      </ListingTable.Container>
+      <ResourceListShell
+        resourceName="event-destinations"
+        searchValue={search}
+        onSearchChange={setSearch}
+        toolbar={toolbar}
+        error={error ? new Error("Couldn't load destinations. Reload the page to try again.") : undefined}
+        isLoading={isLoading}
+        isEmpty={isListEmpty({ isLoading, count: destinations.length, isFiltered })}
+        isSearchEmpty={!isLoading && destinations.length > 0 && filtered.length === 0}
+        emptyState={{
+          illustration: <Send size={64} />,
+          title: "No destinations yet",
+          description:
+            "Add a Slack channel, a PagerDuty service or a webhook, then point subscriptions at it.",
+          action: addButton,
+        }}
+        searchEmptyState={{
+          illustration: <Send size={64} />,
+          title: "No destinations match your filters",
+          description: "Try other search keywords or another type.",
+        }}
+      >
+    <ListingTable>
+      <ListingTable.Head>
+        <ListingTable.Row>
+          <ListingTable.Cell>Destination</ListingTable.Cell>
+          <ListingTable.Cell>Type</ListingTable.Cell>
+          <ListingTable.Cell>Available to</ListingTable.Cell>
+          <ListingTable.Cell>Used by</ListingTable.Cell>
+          <ListingTable.Cell>Last delivery</ListingTable.Cell>
+          <ListingTable.Cell>Status</ListingTable.Cell>
+          <ListingTable.Cell align="right" />
+        </ListingTable.Row>
+      </ListingTable.Head>
+      <ListingTable.Body>
+        {filtered.map((d) => {
+          const look = lookOf(d.kind, d.service, services);
+          return (
+            <ListingTable.Row
+              key={d.id}
+              hover
+              sx={{ cursor: canManage ? "pointer" : "default" }}
+              onClick={() => canManage && onEdit(d)}
+            >
+              <ListingTable.Cell>
+                <Stack
+                  direction="row"
+                  spacing={1.5}
+                  alignItems="center"
+                  sx={{ minWidth: 0, maxWidth: 360 }}
+                >
+                  <DestinationIcon kind={d.kind} service={d.service} size={28} />
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography variant="body2" fontWeight={600} noWrap title={d.name}>
+                      {d.name}
+                    </Typography>
+                    <Typography
+                      variant="caption"
+                      color="text.secondary"
+                      noWrap
+                      display="block"
+                      title={subtitleOf(d, look.label)}
+                    >
+                      {subtitleOf(d, look.label)}
+                    </Typography>
+                  </Box>
+                </Stack>
+              </ListingTable.Cell>
+              <ListingTable.Cell>
+                <Typography variant="body2">{look.label}</Typography>
+              </ListingTable.Cell>
+              <ListingTable.Cell>
+                <Typography variant="body2" title={d.projects.join(", ")}>
+                  {availabilityLabel(d.availability, d.projects)}
+                </Typography>
+              </ListingTable.Cell>
+              <ListingTable.Cell>
+                <Typography variant="body2">
+                  {d.usedBy === 1 ? "1 subscription" : `${d.usedBy} subscriptions`}
+                </Typography>
+              </ListingTable.Cell>
+              <ListingTable.Cell>
+                <Typography variant="body2" color="text.secondary">
+                  {timeAgo(d.lastDeliveryAt)}
+                </Typography>
+              </ListingTable.Cell>
+              <ListingTable.Cell>
+                <HealthChip health={d.health} failures={d.consecutiveFailures} />
+              </ListingTable.Cell>
+              <ListingTable.Cell align="right" onClick={(e) => e.stopPropagation()}>
+                <Tooltip title="Actions">
+                  <IconButton
+                    size="small"
+                    aria-label={`Actions for ${d.name}`}
+                    onClick={(e) => setMenu({ anchor: e.currentTarget, destination: d })}
+                  >
+                    <MoreHorizontal size={18} />
+                  </IconButton>
+                </Tooltip>
+              </ListingTable.Cell>
+            </ListingTable.Row>
+          );
+        })}
+      </ListingTable.Body>
+    </ListingTable>
+      </ResourceListShell>
 
       <Menu anchorEl={menu?.anchor} open={!!menu} onClose={() => setMenu(null)}>
         {canManage && (
           <MenuItem
             onClick={() => {
               setMenu(null);
-              if (current) setDrawer({ open: true, destination: current });
+              if (current) onEdit(current);
             }}
           >
             Edit
@@ -435,12 +452,6 @@ export function DestinationsTab({ orgName, canManage, onViewDeliveries }: Destin
         )}
       </Menu>
 
-      <DestinationDrawer
-        open={drawer.open}
-        orgName={orgName}
-        destination={drawer.destination}
-        onClose={() => setDrawer({ open: false })}
-      />
       {inUse && (
         <InUseDialog orgName={orgName} destination={inUse} onClose={() => setInUse(null)} />
       )}

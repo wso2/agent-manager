@@ -170,28 +170,34 @@ export function MonitorAlertButton({
             )}
             {!canManage ? (
               <Box>
-                <Button onClick={() => setOpen(false)}>Close</Button>
+                <Button variant="outlined" onClick={() => setOpen(false)}>
+                  Close
+                </Button>
               </Box>
             ) : (
-              <Stack direction="row" spacing={1} justifyContent="space-between">
-                <Box>
-                  {enabled && (
-                    <Button color="error" onClick={handleDisableAlerts} disabled={disableAlerts.isPending || save.isPending || !canManage || !!error}>
+              <Stack direction="row" spacing={1} justifyContent="flex-start" alignItems="center">
+                <Button variant="outlined" onClick={() => setOpen(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  variant="contained"
+                  onClick={handleSave}
+                  disabled={save.isPending || disableAlerts.isPending || !canManage || !!error}
+                  startIcon={save.isPending ? <CircularProgress size={14} /> : undefined}
+                >
+                  {enabled ? "Save" : "Enable alerting"}
+                </Button>
+                {enabled && (
+                  <Box sx={{ ml: "auto" }}>
+                    <Button
+                      color="error"
+                      onClick={handleDisableAlerts}
+                      disabled={disableAlerts.isPending || save.isPending || !canManage || !!error}
+                    >
                       Disable alerting
                     </Button>
-                  )}
-                </Box>
-                <Stack direction="row" spacing={1}>
-                  <Button onClick={() => setOpen(false)}>Cancel</Button>
-                  <Button
-                    variant="contained"
-                    onClick={handleSave}
-                    disabled={save.isPending || disableAlerts.isPending || !canManage || !!error}
-                    startIcon={save.isPending ? <CircularProgress size={14} /> : undefined}
-                  >
-                    {enabled ? "Save" : "Enable alerting"}
-                  </Button>
-                </Stack>
+                  </Box>
+                )}
               </Stack>
             )}
           </Stack>

@@ -21,20 +21,17 @@ import {
   Autocomplete,
   Box,
   Button,
-  FormControl,
   FormControlLabel,
-  FormHelperText,
-  FormLabel,
+  Grid,
   ListSubheader,
   MenuItem,
   Radio,
   RadioGroup,
-  Select,
   Stack,
-  TextField,
   Typography,
 } from "@wso2/oxygen-ui";
 import { MoreHorizontal } from "@wso2/oxygen-ui-icons-react";
+import { TextInput } from "@agent-management-platform/views";
 import { useDestinationKinds, useListAllProjects } from "@agent-management-platform/api-client";
 import type {
   DestinationAvailability,
@@ -43,10 +40,13 @@ import type {
   EventDestinationRequest,
   EventDestinationResponse,
 } from "@agent-management-platform/types";
-import { DestinationIcon, FEATURED_SERVICES, lookOf } from "./eventsUi";
-
-const NAME_MAX_LENGTH = 100;
-const DESCRIPTION_MAX_LENGTH = 500;
+import {
+  DestinationIcon,
+  EVENT_DESCRIPTION_MAX_LENGTH,
+  EVENT_NAME_MAX_LENGTH,
+  FEATURED_SERVICES,
+  lookOf,
+} from "./eventsUi";
 
 function isHttpUrl(value: string): boolean {
   try {
@@ -342,131 +342,139 @@ export function DestinationForm({
           )}
         </Box>
         {showMore && (
-          <FormControl fullWidth size="small" error={!!serviceError} disabled={editing}>
-            <FormLabel id="destination-service-label" sx={{ mb: 1 }}>
-              Service
-            </FormLabel>
-            <Select
-              labelId="destination-service-label"
-              value={type.service}
-              displayEmpty
-              onChange={(e) => choose({ kind: "notify", service: e.target.value })}
-              renderValue={(value) =>
-                value ? (
-                  <Stack direction="row" spacing={1} alignItems="center">
-                    <DestinationIcon kind="notify" service={value} size={20} />
-                    <span>{services.find((s) => s.id === value)?.label ?? value}</span>
-                  </Stack>
-                ) : (
-                  <Typography color="text.secondary">Select a service</Typography>
-                )
-              }
-            >
-              {moreGroups.flatMap(([category, items]) => [
-                <ListSubheader key={`h-${category}`} sx={{ lineHeight: "32px" }}>
-                  {category}
-                </ListSubheader>,
-                ...items.map((s) => (
-                  <MenuItem key={s.id} value={s.id} sx={{ gap: 1, alignItems: "center" }}>
-                    <DestinationIcon kind="notify" service={s.id} size={20} />
-                    {s.label}
-                  </MenuItem>
-                )),
-              ])}
-            </Select>
-            <FormHelperText sx={{ mx: 0 }}>
-              {serviceError ?? "Choose a service to configure its connection."}
-            </FormHelperText>
-          </FormControl>
+          <Grid container spacing={2}>
+            <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+              <TextInput
+                select
+                label="Service"
+                value={type.service}
+                disabled={editing}
+                onChange={(e) => choose({ kind: "notify", service: e.target.value })}
+                error={!!serviceError}
+                helperText={serviceError ?? "Choose a service to configure its connection."}
+                slotProps={{
+                  select: {
+                    displayEmpty: true,
+                    renderValue: (value) =>
+                      value ? (
+                        <Stack direction="row" spacing={1} alignItems="center">
+                          <DestinationIcon kind="notify" service={String(value)} size={20} />
+                          <span>
+                            {services.find((s) => s.id === value)?.label ?? String(value)}
+                          </span>
+                        </Stack>
+                      ) : (
+                        <Typography color="text.secondary">Select a service</Typography>
+                      ),
+                  },
+                }}
+              >
+                {moreGroups.flatMap(([category, items]) => [
+                  <ListSubheader key={`h-${category}`} sx={{ lineHeight: "32px" }}>
+                    {category}
+                  </ListSubheader>,
+                  ...items.map((s) => (
+                    <MenuItem key={s.id} value={s.id} sx={{ gap: 1, alignItems: "center" }}>
+                      <DestinationIcon kind="notify" service={s.id} size={20} />
+                      {s.label}
+                    </MenuItem>
+                  )),
+                ])}
+              </TextInput>
+            </Grid>
+          </Grid>
         )}
       </Stack>
 
       <Stack spacing={1.5}>
         <SectionTitle>Connection</SectionTitle>
-        {isNotify ? (
-          selectedService ? (
-            <TextField
-              size="small"
-              fullWidth
-              autoComplete="off"
-              label={`${selectedService.label} URL`}
-              required={!keepsUrl}
-              placeholder={
-                keepsUrl ? "Leave blank to keep the current URL" : selectedService.urlFormat
-              }
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              error={!!urlError}
-              helperText={
-                urlError ?? (
-                  <>
-                    {`Format: ${selectedService.urlFormat}. It holds the service's token, so it is stored encrypted and never shown again. `}
-                    <Typography
-                      component="a"
-                      variant="caption"
-                      href={selectedService.docsUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      sx={{ color: "primary.main" }}
-                    >
-                      How to get these values
-                    </Typography>
-                  </>
-                )
-              }
-            />
-          ) : (
-            <Typography variant="body2" color="text.secondary">
-              Choose a service first.
-            </Typography>
-          )
+        {isNotify && !selectedService ? (
+          <Typography variant="body2" color="text.secondary">
+            Choose a service first.
+          </Typography>
         ) : (
-          <TextField
-            size="small"
-            fullWidth
-            required
-            label="Endpoint URL"
-            placeholder="https://ci.example.com/hooks/amp"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            error={!!urlError}
-            helperText={
-              urlError ??
-              "Each event is POSTed here as signed CloudEvents JSON (Standard Webhooks). The signing secret is shown once, after you add it."
-            }
-          />
+          <Grid container spacing={2}>
+            <Grid size={{ xs: 12, xl: 8 }}>
+              {isNotify && selectedService ? (
+                <TextInput
+                  label={`${selectedService.label} URL`}
+                  autoComplete="off"
+                  placeholder={
+                    keepsUrl
+                      ? "Leave blank to keep the current URL"
+                      : `e.g. ${selectedService.urlFormat}`
+                  }
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                  error={!!urlError}
+                  helperText={
+                    urlError ?? (
+                      <>
+                        {"It holds the service's token, so it is stored encrypted and never shown again. "}
+                        <Typography
+                          component="a"
+                          variant="caption"
+                          href={selectedService.docsUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          sx={{ color: "primary.main" }}
+                        >
+                          How to get these values
+                        </Typography>
+                      </>
+                    )
+                  }
+                />
+              ) : (
+                <TextInput
+                  label="Endpoint URL"
+                  placeholder="e.g. https://ci.example.com/hooks/amp"
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                  error={!!urlError}
+                  helperText={
+                    urlError ??
+                    "Each event is POSTed here as signed CloudEvents JSON (Standard Webhooks). The signing secret is shown once, after you add it."
+                  }
+                />
+              )}
+            </Grid>
+          </Grid>
         )}
       </Stack>
 
       <Stack spacing={1.5}>
         <SectionTitle>Details</SectionTitle>
-        <TextField
-          size="small"
-          fullWidth
-          required
-          label="Name"
-          placeholder={isNotify ? "#platform-alerts" : "Jenkins automation"}
-          slotProps={{ htmlInput: { maxLength: NAME_MAX_LENGTH } }}
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          error={!!nameError}
-          helperText={
-            nameError ??
-            "Shown when picking a destination for a subscription. Unique in the organization."
-          }
-        />
-        <TextField
-          size="small"
-          fullWidth
-          label="Description"
-          placeholder={
-            isNotify ? "acme.slack.com, #platform-alerts" : "Triggers the release pipeline"
-          }
-          slotProps={{ htmlInput: { maxLength: DESCRIPTION_MAX_LENGTH } }}
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          helperText="Optional. Shown under the name."
-        />
+        <Grid container spacing={2}>
+          <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+            <TextInput
+              label="Name"
+              placeholder={isNotify ? "e.g. #platform-alerts" : "e.g. Jenkins automation"}
+              maxLength={EVENT_NAME_MAX_LENGTH}
+              hideCharacterCount={name.length < EVENT_NAME_MAX_LENGTH - 10}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              error={!!nameError}
+              helperText={
+                nameError ??
+                "Shown when picking a destination for a subscription. Unique in the organization."
+              }
+            />
+          </Grid>
+          <Grid size={{ xs: 12, xl: 8 }}>
+            <TextInput
+              label="Description (optional)"
+              placeholder={
+                isNotify ? "e.g. acme.slack.com, #platform-alerts" : "e.g. Triggers the release pipeline"
+              }
+              maxLength={EVENT_DESCRIPTION_MAX_LENGTH}
+              hideCharacterCount={description.length < EVENT_DESCRIPTION_MAX_LENGTH - 50}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              helperText="Shown under the name."
+            />
+          </Grid>
+        </Grid>
       </Stack>
 
       <Stack spacing={1}>
@@ -490,26 +498,29 @@ export function DestinationForm({
           />
         </RadioGroup>
         {availability === "projects" && (
-          <Autocomplete
-            multiple
-            size="small"
-            options={projectOptions}
-            value={projects}
-            onChange={(_, value) => setProjects(value)}
-            renderInput={(params) => (
-              <TextField
-                {...params}
-                label="Projects"
-                placeholder={projects.length ? "" : "Choose projects"}
-                error={!!projectsError}
-                helperText={projectsError}
+          <Grid container spacing={2}>
+            <Grid size={{ xs: 12, xl: 8 }}>
+              <Autocomplete
+                multiple
+                options={projectOptions}
+                value={projects}
+                onChange={(_, value) => setProjects(value)}
+                renderInput={(params) => (
+                  <TextInput
+                    {...params}
+                    label="Projects"
+                    placeholder={projects.length ? "" : "e.g. payments"}
+                    error={!!projectsError}
+                    helperText={projectsError}
+                  />
+                )}
               />
-            )}
-          />
+            </Grid>
+          </Grid>
         )}
       </Stack>
 
-      <Stack direction="row" gap={1.5} justifyContent="flex-end">
+      <Stack direction="row" gap={1} justifyContent="flex-start">
         <Button variant="outlined" onClick={onCancel} disabled={saving}>
           Cancel
         </Button>

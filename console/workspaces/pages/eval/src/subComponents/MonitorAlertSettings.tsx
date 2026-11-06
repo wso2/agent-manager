@@ -22,18 +22,16 @@ import {
   Button,
   Chip,
   Checkbox,
-  FormControl,
   FormControlLabel,
-  FormHelperText,
-  FormLabel,
+  Grid,
   IconButton,
   MenuItem,
-  Select,
   Stack,
   Switch,
-  TextField,
+  Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
+import { TextInput } from "@agent-management-platform/views";
 import { useAvailableEventDestinations } from "@agent-management-platform/api-client";
 import { Plus, Trash2 } from "@wso2/oxygen-ui-icons-react";
 import type {
@@ -207,48 +205,73 @@ export function MonitorAlertSettings({
 
   return (
     <Stack spacing={3}>
-      <FormControl fullWidth error={showErrors && errors.destinationRequired}>
-        <FormLabel id="monitor-alert-destinations-label" sx={{ mb: 1 }}>Destinations</FormLabel>
-        <Select<string[]>
-          multiple
-          size="small"
-          labelId="monitor-alert-destinations-label"
-          value={value.destinationIds}
-          displayEmpty
-          disabled={readOnly || destinations.isLoading || !!destinations.error}
-          onChange={(event) => onChange({
-            ...value,
-            destinationIds: typeof event.target.value === "string"
-              ? event.target.value.split(",") : event.target.value,
-          })}
-          renderValue={(ids) => ids.length === 0 ? (destinations.isLoading ? "Loading destinations…" : "Select destinations") : (
-            <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
-              {ids.map((id) => (
-                <Chip key={id} size="small" label={available.find((d) => d.id === id)?.name ?? "Unavailable destination"} />
+      <Grid container spacing={2}>
+        <Grid size={{ xs: 12, xl: 8 }}>
+          <TextInput
+            select
+            label="Destinations"
+            value={value.destinationIds}
+            disabled={readOnly || destinations.isLoading || !!destinations.error}
+            onChange={(event) => {
+              const picked = event.target.value as unknown as string | string[];
+              onChange({
+                ...value,
+                destinationIds: typeof picked === "string" ? picked.split(",") : picked,
+              });
+            }}
+            error={showErrors && errors.destinationRequired}
+            helperText={
+              showErrors && errors.destinationRequired
+                ? "Select at least one destination."
+                : "Alerts are sent to organization destinations available to this project."
+            }
+            slotProps={{
+              select: {
+                multiple: true,
+                displayEmpty: true,
+                renderValue: (selected) => {
+                  const ids = selected as string[];
+                  if (ids.length === 0) {
+                    return (
+                      <Typography color="text.secondary">
+                        {destinations.isLoading ? "Loading destinations…" : "Select destinations"}
+                      </Typography>
+                    );
+                  }
+                  return (
+                    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
+                      {ids.map((id) => (
+                        <Chip
+                          key={id}
+                          size="small"
+                          label={
+                            available.find((d) => d.id === id)?.name ?? "Unavailable destination"
+                          }
+                        />
+                      ))}
+                    </Box>
+                  );
+                },
+              },
+            }}
+          >
+            {available.map((destination) => (
+              <MenuItem key={destination.id} value={destination.id}>
+                <Checkbox size="small" checked={value.destinationIds.includes(destination.id)} />
+                {destination.name}
+              </MenuItem>
+            ))}
+            {/* Listed so they can be unticked: otherwise nothing removes them. */}
+            {!destinations.isLoading &&
+              unavailableIds.map((id) => (
+                <MenuItem key={id} value={id}>
+                  <Checkbox size="small" checked />
+                  Unavailable destination
+                </MenuItem>
               ))}
-            </Box>
-          )}
-        >
-          {available.map((destination) => (
-            <MenuItem key={destination.id} value={destination.id}>
-              <Checkbox size="small" checked={value.destinationIds.includes(destination.id)} />
-              {destination.name}
-            </MenuItem>
-          ))}
-          {/* Listed so they can be unticked: otherwise nothing removes them. */}
-          {!destinations.isLoading && unavailableIds.map((id) => (
-            <MenuItem key={id} value={id}>
-              <Checkbox size="small" checked />
-              Unavailable destination
-            </MenuItem>
-          ))}
-        </Select>
-        <FormHelperText sx={{ mx: 0 }}>
-          {showErrors && errors.destinationRequired
-            ? "Select at least one destination."
-            : "Alerts are sent to organization destinations available to this project."}
-        </FormHelperText>
-      </FormControl>
+          </TextInput>
+        </Grid>
+      </Grid>
       {destinations.error ? (
         <Alert severity="error">Could not load destinations. Try again before saving alert settings.</Alert>
       ) : !destinations.isLoading && available.length === 0 ? (
@@ -303,61 +326,69 @@ export function MonitorAlertSettings({
           );
           return (
             <Stack key={row.key} spacing={0.5}>
-              <Stack direction="row" spacing={1} alignItems="flex-start">
-                <TextField
-                  select
-                  size="small"
-                  label="Evaluator"
-                  disabled={readOnly}
-                  value={row.evaluator}
-                  onChange={(e) => updateRow(row.key, { evaluator: e.target.value })}
-                  error={!!error && error.includes("evaluators")}
-                  sx={{ flex: 2, minWidth: 0 }}
-                >
-                  {evaluators.map((ev) => (
-                    <MenuItem key={ev.displayName} value={ev.displayName}>
-                      {ev.displayName}
-                    </MenuItem>
-                  ))}
-                </TextField>
-                <TextField
-                  select
-                  size="small"
-                  label="Alert when"
-                  disabled={readOnly}
-                  value={row.operator}
-                  onChange={(e) =>
-                    updateRow(row.key, { operator: e.target.value as ScoreThresholdOperator })
-                  }
-                  sx={{ flex: 1, minWidth: 0 }}
-                >
-                  <MenuItem value="below">Below</MenuItem>
-                  <MenuItem value="above">Above</MenuItem>
-                </TextField>
-                <TextField
-                  size="small"
-                  label="Value"
-                  disabled={readOnly}
-                  type="number"
-                  value={row.value}
-                  onChange={(e) => updateRow(row.key, { value: e.target.value })}
-                  error={!!error && error.includes("between")}
-                  slotProps={{ htmlInput: { min: 0, max: 1, step: 0.05 } }}
-                  sx={{ flex: 0.8, minWidth: 0 }}
-                />
-                <IconButton
-                  aria-label="Remove threshold"
-                  disabled={readOnly}
-                  onClick={() =>
-                    onChange({
-                      ...value,
-                      thresholds: value.thresholds.filter((r) => r.key !== row.key),
-                    })
-                  }
-                >
-                  <Trash2 size={16} />
-                </IconButton>
-              </Stack>
+              <Grid container spacing={1} sx={{ alignItems: "flex-start" }}>
+                <Grid size={{ xs: 12, md: 5 }}>
+                  <TextInput
+                    select
+                    label="Evaluator"
+                    disabled={readOnly}
+                    value={row.evaluator}
+                    onChange={(e) => updateRow(row.key, { evaluator: e.target.value })}
+                    error={!!error && error.includes("evaluators")}
+                  >
+                    {evaluators.map((ev) => (
+                      <MenuItem key={ev.displayName} value={ev.displayName}>
+                        {ev.displayName}
+                      </MenuItem>
+                    ))}
+                  </TextInput>
+                </Grid>
+                <Grid size={{ xs: 6, md: 3 }}>
+                  <TextInput
+                    select
+                    label="Alert when"
+                    disabled={readOnly}
+                    value={row.operator}
+                    onChange={(e) =>
+                      updateRow(row.key, { operator: e.target.value as ScoreThresholdOperator })
+                    }
+                  >
+                    <MenuItem value="below">Below</MenuItem>
+                    <MenuItem value="above">Above</MenuItem>
+                  </TextInput>
+                </Grid>
+                <Grid size={{ xs: 5, md: 3 }}>
+                  <TextInput
+                    label="Value"
+                    disabled={readOnly}
+                    type="number"
+                    placeholder="e.g. 0.7"
+                    value={row.value}
+                    onChange={(e) => updateRow(row.key, { value: e.target.value })}
+                    error={!!error && error.includes("between")}
+                    slotProps={{ htmlInput: { min: 0, max: 1, step: 0.05 } }}
+                  />
+                </Grid>
+                {/* Below the field labels, level with the inputs. */}
+                <Grid size={{ xs: 1 }} sx={{ pt: 3.5 }}>
+                  <Tooltip title="Remove threshold">
+                    <span>
+                      <IconButton
+                        aria-label="Remove threshold"
+                        disabled={readOnly}
+                        onClick={() =>
+                          onChange({
+                            ...value,
+                            thresholds: value.thresholds.filter((r) => r.key !== row.key),
+                          })
+                        }
+                      >
+                        <Trash2 size={16} />
+                      </IconButton>
+                    </span>
+                  </Tooltip>
+                </Grid>
+              </Grid>
               {(error || isBreached) && (
                 <Stack direction="row" spacing={1} alignItems="center">
                   {isBreached && (
