@@ -9,9 +9,6 @@ package wiring
 import (
 	"context"
 	"fmt"
-	"log/slog"
-	"time"
-
 	"github.com/google/wire"
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/observersvc"
@@ -34,6 +31,8 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 	"github.com/wso2/agent-manager/agent-manager-service/websocket"
 	"gorm.io/gorm"
+	"log/slog"
+	"time"
 )
 
 // Injectors from wire.go:
@@ -138,7 +137,8 @@ func InitializeAppParamsWithEnvThunderEndpoints(cfg *config.Config, db *gorm.DB,
 	evaluatorManagerService := services.NewEvaluatorManagerService(logger, customEvaluatorRepository, monitorRepository)
 	scoreRepository := ProvideScoreRepository(db)
 	llmProxyProvisioner := services.NewLLMProxyProvisioner(logger, llmProviderRepository, gatewayRepository, llmProxyService, llmProxyDeploymentService, llmProxyAPIKeyService, llmProviderAPIKeyService, secretManagementClient, v)
-	monitorManagerService := services.NewMonitorManagerService(logger, db, openChoreoClient, observerSvcClient, monitorExecutor, evaluatorManagerService, monitorRepository, scoreRepository, llmProxyProvisioner, monitorLLMMappingRepository, publisherCredentialProvisioner)
+	monitorAlertRepository := repositories.NewMonitorAlertRepository(db)
+	monitorManagerService := services.NewMonitorManagerService(logger, db, openChoreoClient, observerSvcClient, monitorExecutor, evaluatorManagerService, monitorRepository, scoreRepository, llmProxyProvisioner, monitorLLMMappingRepository, publisherCredentialProvisioner, monitorAlertRepository)
 	agentExposurePublisher := services.NewAgentExposurePublisher(txRunner, platformAgentExposureRepository, artifactRepository, deploymentRepository, gatewayRepository, core, logger)
 	a2APublisher := services.NewA2APublisher(txRunner, platformAgentExposureRepository, a2AProxyRepository, a2AAgentCardRepository, artifactRepository, deploymentRepository, logger, agentExposurePublisher, a2AAgentKind)
 	agentManagerService := services.NewAgentManagerService(db, openChoreoClient, secretManagementClient, repositoryService, agentTokenManagerService, agentConfigRepository, agentConfigurationService, agentKindService, artifactRepository, aiApplicationService, gatewayRepository, agentThunderProvisioning, monitorManagerService, agentIdentityInjectionService, identityClient, buildSecretProvisioner, a2APublisher, a2AAgentCardRepository, deploymentRepository, gatewayEventsService, agentExposurePublisher, restAgentKind, logger)
@@ -206,7 +206,6 @@ func InitializeAppParamsWithEnvThunderEndpoints(cfg *config.Config, db *gorm.DB,
 	registry := ProvideDestinationDrivers(configConfig)
 	eventDestinationService := services.NewEventDestinationService(eventRepository, registry, v, logger)
 	eventsController := controllers.NewEventsController(eventDestinationService, eventSubscriptionService)
-	monitorAlertRepository := repositories.NewMonitorAlertRepository(db)
 	monitorAlertService := services.NewMonitorAlertService(monitorAlertRepository, monitorRepository, eventRepository)
 	monitorAlertController := controllers.NewMonitorAlertController(monitorAlertService)
 	bus, err := ProvideEventBus(configConfig, logger)
@@ -376,7 +375,8 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	evaluatorManagerService := services.NewEvaluatorManagerService(logger, customEvaluatorRepository, monitorRepository)
 	scoreRepository := ProvideScoreRepository(db)
 	llmProxyProvisioner := services.NewLLMProxyProvisioner(logger, llmProviderRepository, gatewayRepository, llmProxyService, llmProxyDeploymentService, llmProxyAPIKeyService, llmProviderAPIKeyService, secretManagementClient, v)
-	monitorManagerService := services.NewMonitorManagerService(logger, db, openChoreoClient, observerSvcClient, monitorExecutor, evaluatorManagerService, monitorRepository, scoreRepository, llmProxyProvisioner, monitorLLMMappingRepository, publisherCredentialProvisioner)
+	monitorAlertRepository := repositories.NewMonitorAlertRepository(db)
+	monitorManagerService := services.NewMonitorManagerService(logger, db, openChoreoClient, observerSvcClient, monitorExecutor, evaluatorManagerService, monitorRepository, scoreRepository, llmProxyProvisioner, monitorLLMMappingRepository, publisherCredentialProvisioner, monitorAlertRepository)
 	buildSecretProvisioner := ProvideNilBuildSecretProvisioner()
 	agentExposurePublisher := services.NewAgentExposurePublisher(txRunner, platformAgentExposureRepository, artifactRepository, deploymentRepository, gatewayRepository, core, logger)
 	a2APublisher := services.NewA2APublisher(txRunner, platformAgentExposureRepository, a2AProxyRepository, a2AAgentCardRepository, artifactRepository, deploymentRepository, logger, agentExposurePublisher, a2AAgentKind)
@@ -445,7 +445,6 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	registry := ProvideDestinationDrivers(configConfig)
 	eventDestinationService := services.NewEventDestinationService(eventRepository, registry, v, logger)
 	eventsController := controllers.NewEventsController(eventDestinationService, eventSubscriptionService)
-	monitorAlertRepository := repositories.NewMonitorAlertRepository(db)
 	monitorAlertService := services.NewMonitorAlertService(monitorAlertRepository, monitorRepository, eventRepository)
 	monitorAlertController := controllers.NewMonitorAlertController(monitorAlertService)
 	bus, err := ProvideEventBus(configConfig, logger)

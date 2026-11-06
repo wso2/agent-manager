@@ -223,7 +223,7 @@ export const EditMonitorComponent: React.FC = () => {
     );
   }
 
-  if (fetchError || (alertsEnabled && alertError)) {
+  if (fetchError) {
     return (
       <PageLayout
         title="Edit Monitor"
@@ -232,11 +232,7 @@ export const EditMonitorComponent: React.FC = () => {
         backLabel="Back to monitors"
         backHref={backHref}
       >
-        <Alert severity="error">
-          {fetchError
-            ? getErrorMessage(fetchError)
-            : "Failed to load alert settings. Please try again."}
-        </Alert>
+        <Alert severity="error">{getErrorMessage(fetchError)}</Alert>
       </PageLayout>
     );
   }
@@ -265,6 +261,8 @@ export const EditMonitorComponent: React.FC = () => {
       serverError={updateError}
       isTypeEditable={false}
       initialAlert={initialAlert}
+      // A failed alert request disables only the Alerting section.
+      alertUnavailable={alertsEnabled && !!alertError}
     />
   );
 };

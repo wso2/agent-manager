@@ -41,8 +41,9 @@ import {
 } from "./MonitorAlertSettings";
 
 /**
- * The monitor's alert as the form saves it: the settings to alert with, or
- * null to not alert. Undefined when the deployment has no notifications.
+ * The monitor's shared alert settings as the form saves them: the settings,
+ * or null for none. Undefined leaves them as they are: Events is off, or
+ * they could not be loaded.
  */
 export type MonitorAlertChoice = AlertSettingsValue | null | undefined;
 
@@ -67,12 +68,17 @@ interface MonitorFormWizardProps {
   isTypeEditable?: boolean;
   environments?: EnvironmentOption[];
   /**
-   * The caller's current alert on the monitor, or null when they do not
-   * alert it. A new monitor starts with alerting off; switching it on offers
-   * the default settings. Pass a stable (memoized) value: a new one resets
-   * what the user has entered.
+   * The monitor's current shared alert settings, or null when it has none.
+   * A new monitor starts with alerting off; switching it on offers the
+   * default settings. Pass a stable (memoized) value: a new one resets what
+   * the user has entered.
    */
   initialAlert?: AlertSettingsValue | null;
+  /**
+   * The monitor's alert settings could not be loaded: the Alerting section
+   * says so, and saving leaves them as they are.
+   */
+  alertUnavailable?: boolean;
 }
 
 export function MonitorFormWizard({
@@ -89,6 +95,7 @@ export function MonitorFormWizard({
   isTypeEditable = true,
   environments = [],
   initialAlert = null,
+  alertUnavailable = false,
 }: MonitorFormWizardProps) {
   const [page, setPage] = useState<1 | 2>(1);
   const [formData, setFormData] =
@@ -119,11 +126,11 @@ export function MonitorFormWizard({
   );
   // Alert edits count too. Compared as requests, so row keys don't.
   const isAlertDirty = useMemo(() => {
-    if (!alertsEnabled) return false;
+    if (!alertsEnabled || alertUnavailable) return false;
     const current = enabled ? JSON.stringify(toAlertRequest(alertSettings)) : null;
     const initial = initialAlert ? JSON.stringify(toAlertRequest(initialAlert)) : null;
     return current !== initial;
-  }, [alertsEnabled, enabled, alertSettings, initialAlert]);
+  }, [alertsEnabled, alertUnavailable, enabled, alertSettings, initialAlert]);
   const { allowNavigation } = useUnsavedChangesGuard(isDirty || isAlertDirty);
 
   const {
@@ -272,7 +279,7 @@ export function MonitorFormWizard({
     }
 
     let alert: MonitorAlertChoice;
-    if (alertsEnabled) {
+    if (alertsEnabled && !alertUnavailable) {
       alert = enabled ? alertSettings : null;
       if (alert && hasAlertSettingsErrors(validateAlertSettings(alert, formData.evaluators))) {
         setAlertSubmitted(true);
@@ -290,6 +297,7 @@ export function MonitorFormWizard({
     guardSubmit,
     allowNavigation,
     alertsEnabled,
+    alertUnavailable,
     enabled,
     alertSettings,
   ]);
@@ -386,6 +394,7 @@ export function MonitorFormWizard({
             onSettingsChange={setAlertSettings}
             evaluators={formData.evaluators}
             showErrors={alertSubmitted}
+            unavailable={alertUnavailable}
           />
         )}
         <Stack direction="row" gap={2}>

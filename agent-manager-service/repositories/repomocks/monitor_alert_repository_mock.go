@@ -29,6 +29,9 @@ import (
 //			GetAlertFunc: func(ctx context.Context, monitorID uuid.UUID) (*models.MonitorAlert, error) {
 //				panic("mock out the GetAlert method")
 //			},
+//			KeepThresholdsForFunc: func(ctx context.Context, monitorID uuid.UUID, evaluators []string) error {
+//				panic("mock out the KeepThresholdsFor method")
+//			},
 //			ListAlertsFunc: func(ctx context.Context, monitorID uuid.UUID) ([]models.MonitorAlert, error) {
 //				panic("mock out the ListAlerts method")
 //			},
@@ -59,6 +62,9 @@ type MonitorAlertRepositoryMock struct {
 
 	// GetAlertFunc mocks the GetAlert method.
 	GetAlertFunc func(ctx context.Context, monitorID uuid.UUID) (*models.MonitorAlert, error)
+
+	// KeepThresholdsForFunc mocks the KeepThresholdsFor method.
+	KeepThresholdsForFunc func(ctx context.Context, monitorID uuid.UUID, evaluators []string) error
 
 	// ListAlertsFunc mocks the ListAlerts method.
 	ListAlertsFunc func(ctx context.Context, monitorID uuid.UUID) ([]models.MonitorAlert, error)
@@ -97,6 +103,15 @@ type MonitorAlertRepositoryMock struct {
 			Ctx context.Context
 			// MonitorID is the monitorID argument value.
 			MonitorID uuid.UUID
+		}
+		// KeepThresholdsFor holds details about calls to the KeepThresholdsFor method.
+		KeepThresholdsFor []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// MonitorID is the monitorID argument value.
+			MonitorID uuid.UUID
+			// Evaluators is the evaluators argument value.
+			Evaluators []string
 		}
 		// ListAlerts holds details about calls to the ListAlerts method.
 		ListAlerts []struct {
@@ -147,6 +162,7 @@ type MonitorAlertRepositoryMock struct {
 	lockAlertDeliveries     sync.RWMutex
 	lockDeleteAlert         sync.RWMutex
 	lockGetAlert            sync.RWMutex
+	lockKeepThresholdsFor   sync.RWMutex
 	lockListAlerts          sync.RWMutex
 	lockQueueAlerts         sync.RWMutex
 	lockSaveAlert           sync.RWMutex
@@ -259,6 +275,46 @@ func (mock *MonitorAlertRepositoryMock) GetAlertCalls() []struct {
 	mock.lockGetAlert.RLock()
 	calls = mock.calls.GetAlert
 	mock.lockGetAlert.RUnlock()
+	return calls
+}
+
+// KeepThresholdsFor calls KeepThresholdsForFunc.
+func (mock *MonitorAlertRepositoryMock) KeepThresholdsFor(ctx context.Context, monitorID uuid.UUID, evaluators []string) error {
+	if mock.KeepThresholdsForFunc == nil {
+		panic("MonitorAlertRepositoryMock.KeepThresholdsForFunc: method is nil but MonitorAlertRepository.KeepThresholdsFor was just called")
+	}
+	callInfo := struct {
+		Ctx        context.Context
+		MonitorID  uuid.UUID
+		Evaluators []string
+	}{
+		Ctx:        ctx,
+		MonitorID:  monitorID,
+		Evaluators: evaluators,
+	}
+	mock.lockKeepThresholdsFor.Lock()
+	mock.calls.KeepThresholdsFor = append(mock.calls.KeepThresholdsFor, callInfo)
+	mock.lockKeepThresholdsFor.Unlock()
+	return mock.KeepThresholdsForFunc(ctx, monitorID, evaluators)
+}
+
+// KeepThresholdsForCalls gets all the calls that were made to KeepThresholdsFor.
+// Check the length with:
+//
+//	len(mockedMonitorAlertRepository.KeepThresholdsForCalls())
+func (mock *MonitorAlertRepositoryMock) KeepThresholdsForCalls() []struct {
+	Ctx        context.Context
+	MonitorID  uuid.UUID
+	Evaluators []string
+} {
+	var calls []struct {
+		Ctx        context.Context
+		MonitorID  uuid.UUID
+		Evaluators []string
+	}
+	mock.lockKeepThresholdsFor.RLock()
+	calls = mock.calls.KeepThresholdsFor
+	mock.lockKeepThresholdsFor.RUnlock()
 	return calls
 }
 

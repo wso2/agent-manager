@@ -258,3 +258,29 @@ func TestMonitorAlertMissingDestinationDoesNotBlockOtherDeliveries(t *testing.T)
 	require.NoError(t, err)
 	require.NotNil(t, stored.LastEvaluatedAt, "missing destination must not roll back evaluation")
 }
+
+// An evaluator removed from the monitor is never scored again, so its
+// threshold and breach state go with it; the others are kept.
+func TestMonitorAlertKeepThresholdsForRemovedEvaluators(t *testing.T) {
+	repo, alert := monitorAlertFixture(t)
+	ctx := context.Background()
+	latency := models.ScoreThreshold{Evaluator: "latency", Aggregation: "mean", Operator: "above", Value: 0.9}
+	alert.Thresholds = append(alert.Thresholds, latency)
+	require.NoError(t, repo.SaveAlert(ctx, alert))
+	quality := alert.Thresholds[0]
+	require.NoError(t, repo.UpdateAlertBreached(ctx, alert.ID, []string{quality.Key(), latency.Key()}, time.Now()))
+
+	require.NoError(t, repo.KeepThresholdsFor(ctx, alert.MonitorID, []string{"latency"}))
+	current, err := repo.GetAlert(ctx, alert.MonitorID)
+	require.NoError(t, err)
+	assert.Equal(t, []models.ScoreThreshold{latency}, current.Thresholds)
+	assert.Equal(t, []string{latency.Key()}, current.Breached)
+
+	// Keeping every evaluator changes nothing, and a monitor without alert
+	// settings is left alone.
+	require.NoError(t, repo.KeepThresholdsFor(ctx, alert.MonitorID, []string{"latency"}))
+	unchanged, err := repo.GetAlert(ctx, alert.MonitorID)
+	require.NoError(t, err)
+	assert.True(t, unchanged.UpdatedAt.Equal(current.UpdatedAt))
+	require.NoError(t, repo.KeepThresholdsFor(ctx, uuid.New(), nil))
+}

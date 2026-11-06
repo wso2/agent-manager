@@ -158,6 +158,8 @@ interface MonitorAlertSettingsProps {
   breached?: Set<string>;
   /** Show validation errors, once the user has tried to save. */
   showErrors: boolean;
+  /** Show the settings without letting them be changed. */
+  readOnly?: boolean;
 }
 
 /**
@@ -172,6 +174,7 @@ export function MonitorAlertSettings({
   evaluators,
   breached,
   showErrors,
+  readOnly = false,
 }: MonitorAlertSettingsProps) {
   const errors = validateAlertSettings(value, evaluators);
   const destinations = useAvailableEventDestinations({ scope: "agent", orgName, projName, agentName });
@@ -212,7 +215,7 @@ export function MonitorAlertSettings({
           labelId="monitor-alert-destinations-label"
           value={value.destinationIds}
           displayEmpty
-          disabled={destinations.isLoading || !!destinations.error}
+          disabled={readOnly || destinations.isLoading || !!destinations.error}
           onChange={(event) => onChange({
             ...value,
             destinationIds: typeof event.target.value === "string"
@@ -258,6 +261,7 @@ export function MonitorAlertSettings({
         <FormControlLabel
           control={
             <Switch
+              disabled={readOnly}
               checked={value.notifyOnFailure}
               onChange={(e) => onChange({ ...value, notifyOnFailure: e.target.checked })}
             />
@@ -267,6 +271,7 @@ export function MonitorAlertSettings({
         <FormControlLabel
           control={
             <Switch
+              disabled={readOnly}
               checked={value.notifyOnSuccess}
               onChange={(e) => onChange({ ...value, notifyOnSuccess: e.target.checked })}
             />
@@ -303,6 +308,7 @@ export function MonitorAlertSettings({
                   select
                   size="small"
                   label="Evaluator"
+                  disabled={readOnly}
                   value={row.evaluator}
                   onChange={(e) => updateRow(row.key, { evaluator: e.target.value })}
                   error={!!error && error.includes("evaluators")}
@@ -318,6 +324,7 @@ export function MonitorAlertSettings({
                   select
                   size="small"
                   label="Alert when"
+                  disabled={readOnly}
                   value={row.operator}
                   onChange={(e) =>
                     updateRow(row.key, { operator: e.target.value as ScoreThresholdOperator })
@@ -330,6 +337,7 @@ export function MonitorAlertSettings({
                 <TextField
                   size="small"
                   label="Value"
+                  disabled={readOnly}
                   type="number"
                   value={row.value}
                   onChange={(e) => updateRow(row.key, { value: e.target.value })}
@@ -339,6 +347,7 @@ export function MonitorAlertSettings({
                 />
                 <IconButton
                   aria-label="Remove threshold"
+                  disabled={readOnly}
                   onClick={() =>
                     onChange({
                       ...value,
@@ -369,7 +378,9 @@ export function MonitorAlertSettings({
             size="small"
             startIcon={<Plus size={16} />}
             onClick={addRow}
-            disabled={evaluators.length === 0 || value.thresholds.length >= MAX_THRESHOLDS}
+            disabled={
+              readOnly || evaluators.length === 0 || value.thresholds.length >= MAX_THRESHOLDS
+            }
           >
             Add threshold
           </Button>

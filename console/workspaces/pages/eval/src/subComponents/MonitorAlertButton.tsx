@@ -71,6 +71,8 @@ export function MonitorAlertButton({
   const eventsEnabled = useEventsEnabled();
   const { enforced, resolved, scopes } = useTokenScopes();
   const canManage = !enforced || (resolved && scopes.has("amp:monitor:update"));
+  // Reading the settings needs only monitor read; changing them, update.
+  const canView = canManage || (resolved && scopes.has("amp:monitor:read"));
   const params = useMemo(
     () => ({ orgName, projName, agentName, monitorName }),
     [orgName, projName, agentName, monitorName],
@@ -113,9 +115,11 @@ export function MonitorAlertButton({
     <>
       <Tooltip
         title={
-          enabled
-            ? "Manage this monitor's alert settings"
-            : "Send monitor alerts to organization destinations"
+          !canManage
+            ? "View this monitor's alert settings"
+            : enabled
+              ? "Manage this monitor's alert settings"
+              : "Send monitor alerts to organization destinations"
         }
       >
         <span>
@@ -124,7 +128,7 @@ export function MonitorAlertButton({
             variant={enabled ? "contained" : "outlined"}
             startIcon={enabled ? <BellRing size={16} /> : <Bell size={16} />}
             onClick={() => setOpen(true)}
-            disabled={isLoading || !canManage}
+            disabled={isLoading || !canView}
           >
             {enabled ? "Alerting enabled" : "Alerting"}
           </Button>
@@ -143,37 +147,53 @@ export function MonitorAlertButton({
               These settings apply to the monitor and are shared with your team.
             </Typography>
             {!!error && <Alert severity="error">Could not load alert settings. Close this panel and try again.</Alert>}
+            {!canManage && (
+              <Alert severity="info">
+                {enabled
+                  ? "You can view these settings. Changing them requires permission to update the monitor."
+                  : "This monitor has no alert settings. Setting them up requires permission to update the monitor."}
+              </Alert>
+            )}
             <Divider />
-            <MonitorAlertSettings
-              orgName={orgName}
-              projName={projName}
-              agentName={agentName}
-              value={settings}
-              onChange={setSettings}
-              evaluators={evaluators}
-              breached={breached}
-              showErrors={submitted}
-            />
-            <Stack direction="row" spacing={1} justifyContent="space-between">
+            {(canManage || enabled) && (
+              <MonitorAlertSettings
+                orgName={orgName}
+                projName={projName}
+                agentName={agentName}
+                value={settings}
+                onChange={setSettings}
+                evaluators={evaluators}
+                breached={breached}
+                showErrors={submitted}
+                readOnly={!canManage}
+              />
+            )}
+            {!canManage ? (
               <Box>
-                {enabled && (
-                  <Button color="error" onClick={handleDisableAlerts} disabled={disableAlerts.isPending || save.isPending || !canManage || !!error}>
-                    Disable alerting
-                  </Button>
-                )}
+                <Button onClick={() => setOpen(false)}>Close</Button>
               </Box>
-              <Stack direction="row" spacing={1}>
-                <Button onClick={() => setOpen(false)}>Cancel</Button>
-                <Button
-                  variant="contained"
-                  onClick={handleSave}
-                  disabled={save.isPending || disableAlerts.isPending || !canManage || !!error}
-                  startIcon={save.isPending ? <CircularProgress size={14} /> : undefined}
-                >
-                  {enabled ? "Save" : "Enable alerting"}
-                </Button>
+            ) : (
+              <Stack direction="row" spacing={1} justifyContent="space-between">
+                <Box>
+                  {enabled && (
+                    <Button color="error" onClick={handleDisableAlerts} disabled={disableAlerts.isPending || save.isPending || !canManage || !!error}>
+                      Disable alerting
+                    </Button>
+                  )}
+                </Box>
+                <Stack direction="row" spacing={1}>
+                  <Button onClick={() => setOpen(false)}>Cancel</Button>
+                  <Button
+                    variant="contained"
+                    onClick={handleSave}
+                    disabled={save.isPending || disableAlerts.isPending || !canManage || !!error}
+                    startIcon={save.isPending ? <CircularProgress size={14} /> : undefined}
+                  >
+                    {enabled ? "Save" : "Enable alerting"}
+                  </Button>
+                </Stack>
               </Stack>
-            </Stack>
+            )}
           </Stack>
         </DrawerContent>
       </DrawerWrapper>

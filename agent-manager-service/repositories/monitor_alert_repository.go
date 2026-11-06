@@ -44,6 +44,10 @@ type MonitorAlertRepository interface {
 	// SaveAlert creates or replaces shared alert settings on a monitor.
 	SaveAlert(ctx context.Context, alert *models.MonitorAlert) error
 	DeleteAlert(ctx context.Context, monitorID uuid.UUID) error
+	// KeepThresholdsFor drops the thresholds, and their breach state, of
+	// evaluators not in evaluators: a removed evaluator is never scored
+	// again, so its threshold could neither fire nor recover.
+	KeepThresholdsFor(ctx context.Context, monitorID uuid.UUID, evaluators []string) error
 	// ListAlerts returns the shared alert configuration for a monitor.
 	ListAlerts(ctx context.Context, monitorID uuid.UUID) ([]models.MonitorAlert, error)
 	// UpdateAlertBreached records the thresholds a run breached, unless a
@@ -167,6 +171,44 @@ func (r *monitorAlertRepository) ListAlerts(ctx context.Context, monitorID uuid.
 		return nil, err
 	}
 	return out, nil
+}
+
+func (r *monitorAlertRepository) KeepThresholdsFor(ctx context.Context, monitorID uuid.UUID, evaluators []string) error {
+	keep := make(map[string]bool, len(evaluators))
+	for _, e := range evaluators {
+		keep[e] = true
+	}
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Locked like a save, so a concurrent save cannot restore a dropped threshold.
+		var alert models.MonitorAlert
+		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("monitor_id = ?", monitorID).First(&alert).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		thresholds := []models.ScoreThreshold{}
+		kept := map[string]bool{}
+		for _, t := range alert.Thresholds {
+			if keep[t.Evaluator] {
+				thresholds = append(thresholds, t)
+				kept[t.Key()] = true
+			}
+		}
+		if len(thresholds) == len(alert.Thresholds) {
+			return nil
+		}
+		breached := []string{}
+		for _, key := range alert.Breached {
+			if kept[key] {
+				breached = append(breached, key)
+			}
+		}
+		return tx.Model(&models.MonitorAlert{}).Where("id = ?", alert.ID).
+			Select("thresholds", "breached", "updated_at").
+			Updates(&models.MonitorAlert{Thresholds: thresholds, Breached: breached, UpdatedAt: time.Now().UTC().Truncate(time.Microsecond)}).Error
+	})
 }
 
 func (r *monitorAlertRepository) UpdateAlertBreached(

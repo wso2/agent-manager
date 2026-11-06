@@ -44,7 +44,7 @@ export interface MonitorAlertRequest {
 }
 
 export interface MonitorAlertResponse extends MonitorAlertRequest {
-  /** Whether the caller alertes the monitor. */
+  /** Whether the monitor has shared alert settings. */
   enabled: boolean;
   /** The thresholds the latest evaluated run breached. */
   breached?: MonitorScoreThreshold[];

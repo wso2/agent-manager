@@ -39,7 +39,7 @@ const (
 	EventFanoutConsumer = "event-fanout"
 	// MonitorAlertFanoutConsumer is the durable consumer the monitor alert
 	// processor reads.
-	MonitorAlertFanoutConsumer = "notification-fanout"
+	MonitorAlertFanoutConsumer = "monitor-alert-fanout"
 
 	streamMaxAge = 72 * time.Hour
 	// natsAckWait is how long a handler has before an unanswered message is

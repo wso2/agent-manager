@@ -17,7 +17,7 @@
  */
 
 import { useParams } from "react-router-dom";
-import { Collapse, Form, FormControlLabel, Stack, Switch, Typography } from "@wso2/oxygen-ui";
+import { Alert, Collapse, Form, FormControlLabel, Stack, Switch, Typography } from "@wso2/oxygen-ui";
 import type { MonitorEvaluator } from "@agent-management-platform/types";
 import { MonitorAlertSettings, type AlertSettingsValue } from "./MonitorAlertSettings";
 
@@ -29,6 +29,8 @@ interface MonitorAlertFormSectionProps {
   /** The evaluators selected for the monitor. */
   evaluators: MonitorEvaluator[];
   showErrors: boolean;
+  /** The saved settings could not be loaded, so they cannot be edited here. */
+  unavailable?: boolean;
 }
 
 /** Shared alert settings within the monitor form. */
@@ -39,10 +41,22 @@ export function MonitorAlertFormSection({
   onSettingsChange,
   evaluators,
   showErrors,
+  unavailable = false,
 }: MonitorAlertFormSectionProps) {
   const { orgId, projectId, agentId } = useParams<{
     orgId: string; projectId: string; agentId: string;
   }>();
+  if (unavailable) {
+    return (
+      <Form.Section>
+        <Form.Header>Alerting</Form.Header>
+        <Alert severity="error">
+          Could not load this monitor&apos;s alert settings. Saving keeps them as they are;
+          reload the page to change them.
+        </Alert>
+      </Form.Section>
+    );
+  }
   return (
     <Form.Section>
       <Form.Header>Alerting</Form.Header>
