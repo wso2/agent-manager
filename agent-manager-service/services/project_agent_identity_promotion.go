@@ -296,7 +296,10 @@ func (s *agentThunderProvisioningService) ReconcileProjectAgentIdentityPromotion
 			key := projectKey{ref.OUID, ref.ProjectName}
 			resolved, ok := cache[key]
 			if !ok {
-				resolved.steps, resolved.err = s.projectPromotionSteps(ctx, ref.OUID, ref.ProjectName)
+				// The pass runs outside any request, and the pipeline read goes to OpenChoreo, which
+				// needs the project's organization (see withOrgContext). Writing the bindings below
+				// only touches the database; each binding gets its organization when its attempt runs.
+				resolved.steps, resolved.err = s.projectPromotionSteps(withOrgContext(ctx, ref.OUID), ref.OUID, ref.ProjectName)
 				cache[key] = resolved
 				if resolved.err != nil {
 					s.logger.Warn("Failed to resolve project AgentID promotion topology",
