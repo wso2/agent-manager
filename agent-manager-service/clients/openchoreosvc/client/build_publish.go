@@ -136,6 +136,11 @@ type BuildRunInfo struct {
 	WorkflowName string
 	// Status is one of the WorkflowStatus* constants (see extractWorkflowRunStatus).
 	Status string
+	// HealthChecks is the run's spec.workflow.parameters.healthChecks exactly as
+	// the run carries it: the agent's health checks, copied into the run when the
+	// build started. Nil when the run has none. It is not validated here;
+	// PublishBuildWorkload checks it before it writes anything.
+	HealthChecks any
 }
 
 // GetBuildRun returns the owner labels, workflow and status of a WorkflowRun in
@@ -170,8 +175,40 @@ func (c *openChoreoClient) GetBuildRun(ctx context.Context, ouID, runName string
 	}
 	if run.Spec != nil {
 		info.WorkflowName = run.Spec.Workflow.Name
+		if run.Spec.Workflow.Parameters != nil {
+			info.HealthChecks = (*run.Spec.Workflow.Parameters)[workflowParamHealthChecks]
+		}
 	}
 	return info, nil
+}
+
+// buildHealthChecks returns the health checks a build run carries, the way
+// amp-generate-workload's Step 3b reads them: unset, null or an empty object
+// means the build has none (nil). Anything else must be an object whose
+// startup, readiness and liveness are each unset, null or an object; a value
+// of any other shape is utils.ErrBadRequest. The value is returned unchanged,
+// so the binding gets exactly what the run carries.
+func buildHealthChecks(value any) (map[string]any, error) {
+	if value == nil {
+		return nil, nil //nolint:nilnil // nil means the build has no health checks
+	}
+	healthChecks, ok := value.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("%w: the build's healthChecks is not an object", utils.ErrBadRequest)
+	}
+	if len(healthChecks) == 0 {
+		return nil, nil //nolint:nilnil // an empty object means the build has no health checks
+	}
+	for _, probe := range []string{"startup", "readiness", "liveness"} {
+		check, present := healthChecks[probe]
+		if !present || check == nil {
+			continue
+		}
+		if _, ok := check.(map[string]any); !ok {
+			return nil, fmt.Errorf("%w: the build's healthChecks.%s is not an object", utils.ErrBadRequest, probe)
+		}
+	}
+	return healthChecks, nil
 }
 
 // PublishBuildWorkloadRequest is a build's generated Workload, already verified
@@ -191,6 +228,11 @@ type PublishBuildWorkloadRequest struct {
 	// file mounts). It is written only when this build creates the first
 	// environment's ReleaseBinding; nil leaves spec.workloadOverrides unset.
 	WorkloadOverrides *gen.WorkloadOverrides
+	// HealthChecks is the run's healthChecks parameter (BuildRunInfo.HealthChecks).
+	// Unlike WorkloadOverrides it is written on every build: onto a new binding,
+	// and onto an existing one, where a build without health checks removes the
+	// previous build's so the environment goes back to the default probes.
+	HealthChecks any
 }
 
 // buildBindingMaxAttempts bounds the ReleaseBinding read-then-write loop, as the
@@ -214,12 +256,22 @@ var buildBindingRetryDelay = 2 * time.Second
 //     A binding that does not exist yet is created carrying the build's
 //     WorkloadOverrides. One that exists has only its release pin advanced:
 //     once it exists it owns the environment's configuration, which the backend
-//     edits directly, and a rebuild must not roll that back.
+//     edits directly, and a rebuild must not roll that back. Either way the
+//     binding gets this build's health checks (componentTypeEnvironmentConfigs.
+//     healthChecks), removed when the build has none.
+//
+// The build's health checks are checked before anything is written, so a
+// malformed value (utils.ErrBadRequest) changes nothing.
 //
 // The binding write is retried, re-reading each time, on 409 and 5xx up to
 // buildBindingMaxAttempts, because the backend writes the same binding
 // concurrently; see the step's comment for why 500 is retryable.
 func (c *openChoreoClient) PublishBuildWorkload(ctx context.Context, ouID string, req PublishBuildWorkloadRequest) error {
+	healthChecks, err := buildHealthChecks(req.HealthChecks)
+	if err != nil {
+		return err
+	}
+
 	namespaceName := c.NamespaceFor(ouID)
 	workloadName := req.ComponentName + "-workload"
 
@@ -259,7 +311,19 @@ func (c *openChoreoClient) PublishBuildWorkload(ctx context.Context, ouID string
 	if firstEnv == "" {
 		return fmt.Errorf("deployment pipeline of project %q has no root environment", req.ProjectName)
 	}
-	return c.bindBuildRelease(ctx, namespaceName, req, firstEnv)
+	return c.bindBuildRelease(ctx, namespaceName, req, firstEnv, healthChecks)
+}
+
+// setBindingHealthChecks puts the build's health checks on the binding's
+// componentTypeEnvironmentConfigs, or removes any it has when the build has
+// none, leaving the binding's other component-type configs as they are.
+func setBindingHealthChecks(spec *gen.ReleaseBindingSpec, healthChecks map[string]any) {
+	// A nil map must reach the helper as an untyped nil, which means "remove".
+	var value any
+	if healthChecks != nil {
+		value = healthChecks
+	}
+	spec.ComponentTypeEnvironmentConfigs = replaceHealthChecksInComponentTypeConfigs(spec.ComponentTypeEnvironmentConfigs, value)
 }
 
 // createOrReplaceWorkload is Step 4: POST the Workload, and PUT the same body when
@@ -370,7 +434,8 @@ func (c *openChoreoClient) generateBuildRelease(ctx context.Context, namespaceNa
 
 // bindBuildRelease is Step 7: create <component>-<env> pinned to the release, or
 // advance an existing binding's release pin, re-reading and retrying on 409/5xx.
-func (c *openChoreoClient) bindBuildRelease(ctx context.Context, namespaceName string, req PublishBuildWorkloadRequest, environment string) error {
+// Both writes carry the build's health checks (see setBindingHealthChecks).
+func (c *openChoreoClient) bindBuildRelease(ctx context.Context, namespaceName string, req PublishBuildWorkloadRequest, environment string, healthChecks map[string]any) error {
 	bindingName := req.ComponentName + "-" + environment
 	releaseName := req.RunName
 
@@ -391,21 +456,23 @@ func (c *openChoreoClient) bindBuildRelease(ctx context.Context, namespaceName s
 		var writeErrs ErrorResponses
 		switch {
 		case getResp.StatusCode() == http.StatusNotFound:
+			spec := &gen.ReleaseBindingSpec{
+				Environment:       environment,
+				ReleaseName:       &releaseName,
+				WorkloadOverrides: req.WorkloadOverrides,
+				Owner: struct {
+					ComponentName string `json:"componentName"`
+					ProjectName   string `json:"projectName"`
+				}{ComponentName: req.ComponentName, ProjectName: req.ProjectName},
+			}
+			setBindingHealthChecks(spec, healthChecks)
 			createResp, err := c.ocClient.CreateReleaseBindingWithResponse(ctx, namespaceName, gen.CreateReleaseBindingJSONRequestBody{
 				Metadata: gen.ObjectMeta{
 					Name:      bindingName,
 					Namespace: &namespaceName,
 					Labels:    c.withResourceLabels(nil),
 				},
-				Spec: &gen.ReleaseBindingSpec{
-					Environment:       environment,
-					ReleaseName:       &releaseName,
-					WorkloadOverrides: req.WorkloadOverrides,
-					Owner: struct {
-						ComponentName string `json:"componentName"`
-						ProjectName   string `json:"projectName"`
-					}{ComponentName: req.ComponentName, ProjectName: req.ProjectName},
-				},
+				Spec: spec,
 			})
 			if err != nil {
 				return fmt.Errorf("failed to create release binding %q: %w", bindingName, err)
@@ -423,6 +490,7 @@ func (c *openChoreoClient) bindBuildRelease(ctx context.Context, namespaceName s
 			}
 			binding := *getResp.JSON200
 			binding.Spec.ReleaseName = &releaseName
+			setBindingHealthChecks(binding.Spec, healthChecks)
 			binding.Metadata.Labels = c.withResourceLabels(binding.Metadata.Labels)
 			updateResp, err := c.ocClient.UpdateReleaseBindingWithResponse(ctx, namespaceName, bindingName, binding)
 			if err != nil {

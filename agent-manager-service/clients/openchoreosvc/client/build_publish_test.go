@@ -281,6 +281,125 @@ func TestPublishBuildWorkload_GivesUpAfterMaxBindingAttempts(t *testing.T) {
 	assert.Equal(t, buildBindingMaxAttempts, stub.bindingWriteCount)
 }
 
+func sampleHealthChecks() map[string]any {
+	return map[string]any{
+		"readiness": map[string]any{"type": "HTTP", "path": "/ready", "port": float64(8000)},
+		"liveness":  map[string]any{"enabled": false},
+	}
+}
+
+func TestPublishBuildWorkload_FirstBuildCreatesBindingWithHealthChecks(t *testing.T) {
+	withFastBindingRetry(t)
+	stub := &buildPublishStub{t: t}
+	c := newTestClient(t, stub)
+	req := samplePublishRequest()
+	req.HealthChecks = sampleHealthChecks()
+
+	require.NoError(t, c.PublishBuildWorkload(context.Background(), "org-1", req))
+
+	require.NotNil(t, stub.createdBinding)
+	require.NotNil(t, stub.createdBinding.Spec.ComponentTypeEnvironmentConfigs)
+	assert.Equal(t, sampleHealthChecks(), (*stub.createdBinding.Spec.ComponentTypeEnvironmentConfigs)["healthChecks"])
+}
+
+func TestPublishBuildWorkload_FirstBuildWithoutHealthChecksSetsNone(t *testing.T) {
+	withFastBindingRetry(t)
+	stub := &buildPublishStub{t: t}
+	c := newTestClient(t, stub)
+
+	require.NoError(t, c.PublishBuildWorkload(context.Background(), "org-1", samplePublishRequest()))
+
+	require.NotNil(t, stub.createdBinding)
+	assert.Nil(t, stub.createdBinding.Spec.ComponentTypeEnvironmentConfigs)
+}
+
+func TestPublishBuildWorkload_RebuildReplacesHealthChecksAndKeepsOtherConfigs(t *testing.T) {
+	withFastBindingRetry(t)
+	stub := &buildPublishStub{t: t, workloadExists: true, binding: &gen.ReleaseBinding{
+		Metadata: gen.ObjectMeta{Name: "my-agent-development"},
+		Spec: &gen.ReleaseBindingSpec{
+			Environment: "development",
+			ReleaseName: strPtrBP("my-agent-1600"),
+			ComponentTypeEnvironmentConfigs: &map[string]any{
+				"runtimeClassName": "kata",
+				"healthChecks":     map[string]any{"startup": map[string]any{"path": "/old"}},
+			},
+		},
+	}}
+	c := newTestClient(t, stub)
+	req := samplePublishRequest()
+	req.HealthChecks = sampleHealthChecks()
+
+	require.NoError(t, c.PublishBuildWorkload(context.Background(), "org-1", req))
+
+	require.NotNil(t, stub.updatedBinding)
+	configs := *stub.updatedBinding.Spec.ComponentTypeEnvironmentConfigs
+	assert.Equal(t, sampleHealthChecks(), configs["healthChecks"], "the rebuild's health checks replace the earlier build's")
+	assert.Equal(t, "kata", configs["runtimeClassName"], "other component-type configs are kept")
+}
+
+func TestPublishBuildWorkload_RebuildWithoutHealthChecksRemovesTheEarlierOnes(t *testing.T) {
+	withFastBindingRetry(t)
+	stub := &buildPublishStub{t: t, workloadExists: true, binding: &gen.ReleaseBinding{
+		Metadata: gen.ObjectMeta{Name: "my-agent-development"},
+		Spec: &gen.ReleaseBindingSpec{
+			Environment: "development",
+			ReleaseName: strPtrBP("my-agent-1600"),
+			ComponentTypeEnvironmentConfigs: &map[string]any{
+				"runtimeClassName": "kata",
+				"healthChecks":     map[string]any{"startup": map[string]any{"path": "/old"}},
+			},
+		},
+	}}
+	c := newTestClient(t, stub)
+
+	require.NoError(t, c.PublishBuildWorkload(context.Background(), "org-1", samplePublishRequest()))
+
+	require.NotNil(t, stub.updatedBinding)
+	configs := *stub.updatedBinding.Spec.ComponentTypeEnvironmentConfigs
+	_, kept := configs["healthChecks"]
+	assert.False(t, kept, "a build without health checks puts the environment back on the default probes")
+	assert.Equal(t, "kata", configs["runtimeClassName"])
+}
+
+func TestPublishBuildWorkload_MalformedHealthChecksWriteNothing(t *testing.T) {
+	stub := &buildPublishStub{t: t}
+	c := newTestClient(t, stub)
+	req := samplePublishRequest()
+	req.HealthChecks = map[string]any{"readiness": "yes"}
+
+	err := c.PublishBuildWorkload(context.Background(), "org-1", req)
+	require.ErrorIs(t, err, utils.ErrBadRequest)
+	assert.Empty(t, stub.calls, "nothing is written when the health checks are malformed")
+}
+
+func TestBuildHealthChecks(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		value   any
+		want    map[string]any
+		wantErr bool
+	}{
+		{name: "unset", value: nil},
+		{name: "empty object", value: map[string]any{}},
+		{name: "checks", value: sampleHealthChecks(), want: sampleHealthChecks()},
+		{name: "null probe", value: map[string]any{"startup": nil}, want: map[string]any{"startup": nil}},
+		{name: "not an object", value: "probes", wantErr: true},
+		{name: "list", value: []any{map[string]any{}}, wantErr: true},
+		{name: "probe not an object", value: map[string]any{"liveness": true}, wantErr: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := buildHealthChecks(tc.value)
+			if tc.wantErr {
+				require.ErrorIs(t, err, utils.ErrBadRequest)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
 func TestGetBuildRun(t *testing.T) {
 	c := newTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -288,7 +407,7 @@ func TestGetBuildRun(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte(`{"metadata":{"name":"my-agent-1700",
 				"labels":{"openchoreo.dev/project":"proj1","openchoreo.dev/component":"my-agent"}},
-				"spec":{"workflow":{"name":"amp-docker"}},
+				"spec":{"workflow":{"name":"amp-docker","parameters":{"healthChecks":{"readiness":{"path":"/ready"}}}}},
 				"status":{"conditions":[{"type":"WorkflowRunning","status":"True","reason":"Running","message":"","lastTransitionTime":"2026-11-04T00:00:00Z"}]}}`))
 		default:
 			// A bare 404 (e.g. from a gateway) with no JSON error body.
@@ -304,6 +423,8 @@ func TestGetBuildRun(t *testing.T) {
 	assert.Equal(t, "my-agent", info.ComponentName)
 	assert.Equal(t, "amp-docker", info.WorkflowName)
 	assert.Equal(t, WorkflowStatusRunning, info.Status)
+	assert.Equal(t, map[string]any{"readiness": map[string]any{"path": "/ready"}}, info.HealthChecks,
+		"the run's health checks are returned as the run carries them")
 
 	// A 404 without an error body is still utils.ErrNotFound.
 	_, err = c.GetBuildRun(context.Background(), "org-1", "missing")

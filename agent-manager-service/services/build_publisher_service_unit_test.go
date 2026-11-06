@@ -74,6 +74,7 @@ func bpHappyOC(published *client.PublishBuildWorkloadRequest, ocCtxSeen *context
 			return &client.BuildRunInfo{
 				Name: runName, ProjectName: "proj1", ComponentName: "my-agent",
 				WorkflowName: "amp-docker", Status: client.WorkflowStatusRunning,
+				HealthChecks: bpRunHealthChecks(),
 			}, nil
 		},
 		GetComponentFunc: func(_ context.Context, _, _, _ string) (*models.AgentResponse, error) {
@@ -89,6 +90,11 @@ func bpHappyOC(published *client.PublishBuildWorkloadRequest, ocCtxSeen *context
 			return nil
 		},
 	}
+}
+
+// bpRunHealthChecks is the healthChecks parameter bpHappyOC's run carries.
+func bpRunHealthChecks() map[string]any {
+	return map[string]any{"readiness": map[string]any{"path": "/ready"}}
 }
 
 func TestBuildPublisherService_PublishesForTheVerifiedBuild(t *testing.T) {
@@ -117,6 +123,8 @@ func TestBuildPublisherService_PublishesForTheVerifiedBuild(t *testing.T) {
 	require.NotNil(t, published.WorkloadOverrides)
 	require.NotNil(t, published.WorkloadOverrides.Container.Env)
 	assert.Equal(t, "MODE", (*published.WorkloadOverrides.Container.Env)[0].Key)
+	// The health checks come from the verified run, not from the document.
+	assert.Equal(t, bpRunHealthChecks(), published.HealthChecks)
 
 	// OpenChoreo calls run on the background context, for the caller's organization only.
 	require.NotNil(t, ocCtx)

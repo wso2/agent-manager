@@ -203,6 +203,7 @@ func (s *buildPublisherService) PublishWorkload(ctx context.Context, ouID, build
 		Image:             image,
 		Endpoints:         endpoints,
 		WorkloadOverrides: overrides,
+		HealthChecks:      run.HealthChecks,
 	})
 	attempt.Complete(ctx, publishErr)
 	if publishErr != nil {
