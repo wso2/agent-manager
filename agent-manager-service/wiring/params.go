@@ -103,6 +103,12 @@ type AppParams struct {
 	MonitorAlerts                 services.MonitorAlertProcessor
 	BuildPublisherService         services.BuildPublisherService
 	BuildTokenIssuer              services.BuildTokenIssuer
+	// Services the MCP connection tools call directly.
+	LLMProviderService           *services.LLMProviderService
+	LLMProviderDeploymentService *services.LLMProviderDeploymentService
+	PlatformGatewayService       *services.PlatformGatewayService
+	MCPProxyService              *services.MCPProxyService
+	AgentConfigurationService    services.AgentConfigurationService
 
 	// Events
 	EventBus       events.Bus

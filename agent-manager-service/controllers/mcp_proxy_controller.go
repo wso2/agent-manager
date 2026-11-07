@@ -27,6 +27,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/growthanalytics"
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
@@ -337,8 +338,21 @@ func (c *mcpProxyController) FetchServerInfo(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	resp, err := c.mcpProxyService.FetchServerInfo(ctx, &req)
+	claims := jwtassertion.GetTokenClaims(ctx)
+	if claims == nil || claims.Sub == "" {
+		log.Warn("FetchMCPProxyServerInfo: missing token claims")
+		utils.WriteErrorResponse(w, http.StatusUnauthorized, "Missing token claims")
+		return
+	}
+
+	resp, err := c.mcpProxyService.FetchServerInfo(ctx, ouID, claims.Sub, &req)
 	if err != nil {
+		// The console aborts a superseded probe. Whatever error that surfaced as,
+		// nobody is waiting for the response, so it is not a failure to log.
+		if errors.Is(ctx.Err(), context.Canceled) {
+			log.Debug("FetchMCPProxyServerInfo: client cancelled the probe", "ouID", ouID)
+			return
+		}
 		switch {
 		case errors.Is(err, utils.ErrInvalidInput), errors.Is(err, utils.ErrInvalidURL):
 			log.Error("FetchMCPProxyServerInfo: invalid request", "ouID", ouID, "error", err)
@@ -346,6 +360,9 @@ func (c *mcpProxyController) FetchServerInfo(w http.ResponseWriter, r *http.Requ
 		case errors.Is(err, utils.ErrURLUnreachable):
 			log.Error("FetchMCPProxyServerInfo: MCP server URL is unreachable", "ouID", ouID, "error", err)
 			utils.WriteErrorResponseWithReason(w, http.StatusBadRequest, "MCP server URL is unreachable", err.Error(), utils.ErrCodeBadRequest)
+		case errors.Is(err, utils.ErrTooManyRequests):
+			log.Warn("FetchMCPProxyServerInfo: concurrency limit reached", "ouID", ouID)
+			utils.WriteErrorResponse(w, http.StatusTooManyRequests, "Too many MCP server probes in progress. Please try again shortly")
 		case errors.Is(err, utils.ErrMCPServerUnauthorized):
 			log.Error("FetchMCPProxyServerInfo: MCP server returned unauthorized", "ouID", ouID, "error", err)
 			utils.WriteErrorResponseWithReason(w, http.StatusUnauthorized, "MCP server returned 401 Unauthorized. Check the provided credentials.", err.Error(), utils.ErrCodeUnauthorized)

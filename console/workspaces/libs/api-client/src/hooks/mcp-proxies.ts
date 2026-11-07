@@ -127,10 +127,12 @@ export function useFetchMCPProxyServerInfo() {
     {
       params: FetchMCPProxyServerInfoPathParams;
       body: MCPServerInfoFetchRequest;
+      // Aborts the probe, so a superseded one frees its server-side slot.
+      signal?: AbortSignal;
     }
   >({
-    mutationFn: ({ params, body }) =>
-      fetchMCPProxyServerInfo(params, body, getToken),
+    mutationFn: ({ params, body, signal }) =>
+      fetchMCPProxyServerInfo(params, body, getToken, signal),
     showSuccess: false,
   });
 }

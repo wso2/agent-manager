@@ -117,10 +117,15 @@ func MakeHTTPHandlerWithPolicy(params *wiring.AppParams, extraAPIRoutes func(*ht
 		)
 	}
 	mcp.RegisterRoute(mux, mcp.Dependencies{
-		InfraResourceManager:     params.InfraResourceManager,
-		AgentManagerService:      params.AgentManagerService,
-		AgentTokenManagerService: params.AgentTokenManagerService,
-		EnvironmentService:       params.EnvironmentService,
+		InfraResourceManager:         params.InfraResourceManager,
+		AgentManagerService:          params.AgentManagerService,
+		AgentTokenManagerService:     params.AgentTokenManagerService,
+		EnvironmentService:           params.EnvironmentService,
+		LLMProviderService:           params.LLMProviderService,
+		LLMProviderDeploymentService: params.LLMProviderDeploymentService,
+		PlatformGatewayService:       params.PlatformGatewayService,
+		MCPProxyService:              params.MCPProxyService,
+		AgentConfigurationService:    params.AgentConfigurationService,
 	}, mcpMiddleware)
 
 	// Authentication is rejected before route matching, so the audit middleware

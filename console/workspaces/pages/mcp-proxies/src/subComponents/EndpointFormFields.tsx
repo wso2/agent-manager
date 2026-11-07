@@ -310,15 +310,25 @@ export function EndpointFormFields({
     !resilienceTimeoutError &&
     !resilienceIdleTimeoutError;
 
-  const clearFetched = useCallback(() => {
-    setFetchedInfo(null);
-  }, []);
-
   // Identifies the latest performFetch call whose network request should be allowed
   // to update state. A slow request can still be in flight when the debounced URL/auth
   // change fires the next one; without this, whichever resolves last wins, which isn't
   // necessarily the latest input.
   const fetchGenerationRef = useRef(0);
+  // The in-flight probe. A newer probe aborts it, so it stops holding one of the
+  // limited server-side probe slots for a result that would be dropped anyway.
+  const fetchAbortRef = useRef<AbortController | null>(null);
+  useEffect(() => () => fetchAbortRef.current?.abort(), []);
+
+  // A field edit makes any in-flight probe stale: abort it and retire its
+  // generation, so its result can't restore info for the old endpoint.
+  const clearFetched = useCallback(() => {
+    fetchGenerationRef.current++;
+    fetchAbortRef.current?.abort();
+    fetchAbortRef.current = null;
+    setFetchedInfo(null);
+  }, []);
+
 
   const performFetch = useCallback(async () => {
     const urlValidationError = validateEndpointUrl(trimmedUrl, {
@@ -363,17 +373,23 @@ export function EndpointFormFields({
         : { url: trimmedUrl };
 
     const generation = ++fetchGenerationRef.current;
+    fetchAbortRef.current?.abort();
+    const controller = new AbortController();
+    fetchAbortRef.current = controller;
     try {
       const result = await fetchServerInfo.mutateAsync({
         params: { orgName: orgId },
         body,
+        signal: controller.signal,
       });
       // A newer fetch was started while this one was in flight — its result (or
       // the newer one still pending) takes precedence, so drop this stale one.
       if (generation !== fetchGenerationRef.current) return;
       setFetchedInfo(result);
     } catch (err: unknown) {
-      if (generation !== fetchGenerationRef.current) return;
+      if (generation !== fetchGenerationRef.current || controller.signal.aborted) {
+        return;
+      }
       setFetchedInfo(null);
       if (
         typeof err === "object" &&
@@ -433,7 +449,8 @@ export function EndpointFormFields({
     }
     if (!trimmedUrl) return;
     debouncedFetch();
-  }, [trimmedUrl, authHeader, authValue, authEnabled, debouncedFetch]);
+    // Keyed on the raw `url`: a whitespace-only edit also clears the fetched info.
+  }, [url, trimmedUrl, authHeader, authValue, authEnabled, debouncedFetch]);
 
   const handleAdd = useCallback(() => {
     if (!fetchedInfo || selectedEnvIds.length === 0) return;

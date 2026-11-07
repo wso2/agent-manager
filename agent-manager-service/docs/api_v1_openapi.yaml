@@ -6923,6 +6923,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Too many MCP server probes are in progress for this user or on the service. Retry shortly.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "500":
           description: Internal server error
           content:
@@ -22547,7 +22553,7 @@ components:
 
     EventDestinationKindService:
       type: object
-      required: [id, label, category, urlFormat, docsUrl]
+      required: [id, label, category, urlFormat, docsPath]
       properties:
         id:
           type: string
@@ -22559,9 +22565,9 @@ components:
         urlFormat:
           type: string
           description: The shape of the service URL.
-        docsUrl:
+        docsPath:
           type: string
-          description: How to get the values the URL needs.
+          description: The docs site path that explains the values the URL needs, such as /guides/notification-service-urls/#slack. Append it to the docs site URL for the deployed version.
 
     EventDestinationKind:
       type: object

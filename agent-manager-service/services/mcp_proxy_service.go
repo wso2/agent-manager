@@ -72,7 +72,10 @@ const (
 	mcpClientVersion        = "1.0.0"
 	mcpSessionHeader        = "Mcp-Session-Id"
 	mcpRequestTimeout       = 10 * time.Second
-	maxMCPResponseBody      = 10 << 20
+	// mcpServerInfoDeadline bounds a whole fetch-server-info probe, which makes
+	// several upstream calls of up to mcpRequestTimeout each.
+	mcpServerInfoDeadline = 20 * time.Second
+	maxMCPResponseBody    = 10 << 20
 	// JSON-RPC error codes that MCP 2026-07-28 defines. Only servers on 2026-07-28 or later send
 	// them; earlier servers use -32000 to -32019 for their own errors.
 	mcpErrorHeaderMismatch                  = -32020
@@ -1070,8 +1073,9 @@ func (s *MCPProxyService) prepareMCPUpstreamAuthForStorage(existing, updated *mo
 	return auth, nil
 }
 
-// FetchServerInfo fetches server information from an MCP backend.
-func (s *MCPProxyService) FetchServerInfo(ctx context.Context, req *models.MCPServerInfoFetchRequest) (*models.MCPServerInfoFetchResponse, error) {
+// FetchServerInfo fetches server information from an MCP backend. Probes are
+// capped per user and per pod, and each one has an overall deadline.
+func (s *MCPProxyService) FetchServerInfo(ctx context.Context, orgUUID, userID string, req *models.MCPServerInfoFetchRequest) (*models.MCPServerInfoFetchResponse, error) {
 	if req == nil || req.URL == nil || strings.TrimSpace(*req.URL) == "" {
 		return nil, utils.ErrInvalidInput
 	}
@@ -1079,6 +1083,16 @@ func (s *MCPProxyService) FetchServerInfo(ctx context.Context, req *models.MCPSe
 		return nil, fmt.Errorf("proxyId refresh is not supported yet: %w", utils.ErrInvalidInput)
 	}
 
+	release, ok := mcpServerInfoLimiter.tryAcquire(mcpServerInfoLimiterKey(orgUUID, userID))
+	if !ok {
+		return nil, utils.ErrTooManyRequests
+	}
+	defer release()
+
+	ctx, cancel := context.WithTimeout(ctx, mcpServerInfoDeadline)
+	defer cancel()
+
+	// Validated inside the deadline: the check resolves DNS for the host.
 	endpointURL := strings.TrimSpace(*req.URL)
 	if err := ssrf.ValidateURL(ctx, endpointURL); err != nil {
 		return nil, fmt.Errorf("%w: %w", utils.ErrInvalidURL, err)
@@ -2096,7 +2110,7 @@ func (s *MCPProxyService) fetchMCPServerInfo(ctx context.Context, endpointURL st
 		protocolVersion := chooseMCPVersion(discoverResult.Result.SupportedVersions)
 		if !mcpVersionNeedsInitialize(protocolVersion) {
 			return s.fetchToolsPromptsAndResources(ctx, endpointURL, "", headerName, headerValue, protocolVersion,
-				discoverResult.Result.Meta.ServerInfo, discoverResult.Result.SupportedVersions), nil
+				discoverResult.Result.Meta.ServerInfo, discoverResult.Result.SupportedVersions)
 		}
 		// if the shared version is before 2026-07-28, or there is none, still needs initialize.
 	}
@@ -2127,7 +2141,7 @@ func (s *MCPProxyService) fetchMCPServerInfo(ctx context.Context, endpointURL st
 	// that session path; agreedVersion would be wrong, because a server agreeing on 2026-07-28 or
 	// later would switch the requests to the path without a session.
 	return s.fetchToolsPromptsAndResources(ctx, endpointURL, sessionID, headerName, headerValue, mcpSpecVersionJune2025,
-		serverInfo, serverVersions), nil
+		serverInfo, serverVersions)
 }
 
 // isMCPVersionDate reports whether a version is a real date, YYYY-MM-DD, which is how MCP numbers
@@ -2158,8 +2172,10 @@ func obtainValidMCPVersionsFromServer(versions []string) *[]string {
 
 // fetchToolsPromptsAndResources asks the server for its tools, prompts and resources, and builds
 // the response with them, the server's info and the MCP versions it supports.
-// protocolVersion decides how to send each request (see postJSONRPCForVersion).
-func (s *MCPProxyService) fetchToolsPromptsAndResources(ctx context.Context, endpointURL string, sessionID string, headerName string, headerValue string, protocolVersion string, serverInfo map[string]interface{}, serverVersions []string) *models.MCPServerInfoFetchResponse {
+// protocolVersion decides how to send each request (see postJSONRPCForVersion). A failed list is
+// left out of the response, but running out of time fails the whole fetch, so a cut-off probe
+// is not reported as complete.
+func (s *MCPProxyService) fetchToolsPromptsAndResources(ctx context.Context, endpointURL string, sessionID string, headerName string, headerValue string, protocolVersion string, serverInfo map[string]interface{}, serverVersions []string) (*models.MCPServerInfoFetchResponse, error) {
 	resp := &models.MCPServerInfoFetchResponse{}
 	if serverInfo != nil {
 		resp.ServerInfo = &serverInfo
@@ -2176,7 +2192,15 @@ func (s *MCPProxyService) fetchToolsPromptsAndResources(ctx context.Context, end
 		resp.Resources = &resources
 	}
 
-	return resp
+	if err := ctx.Err(); err != nil {
+		// Only the deadline says the server was too slow; a cancel means the caller left.
+		if errors.Is(err, context.DeadlineExceeded) {
+			return nil, fmt.Errorf("%w: MCP server did not answer in time: %w", utils.ErrURLUnreachable, err)
+		}
+		return nil, err
+	}
+
+	return resp, nil
 }
 
 // postJSONRPCForVersion sends requests based on the MCP server's expected protocol version.

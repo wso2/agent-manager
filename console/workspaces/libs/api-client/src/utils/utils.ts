@@ -108,8 +108,13 @@ async function throwIfHttpWriteNotOk(response: Response): Promise<void> {
     throw err;
 }
 
-async function finalizeHttpWriteResponse(response: Response): Promise<Response> {
+async function finalizeHttpWriteResponse(
+    response: Response,
+    signal?: AbortSignal,
+): Promise<Response> {
     await sleep(DEFAULT_TIMEOUT);
+    // An abort during the wait still reads as an abort, not as the response's error.
+    signal?.throwIfAborted();
     if (!response.ok) {
         await throwIfHttpWriteNotOk(response);
     }
@@ -240,8 +245,13 @@ export async function httpGETObserver(
 export async function httpPOST(
     context: string, 
     body: object, 
-    params: {searchParams?: Record<string, string>, token?: string, options?: HttpOptions}) {
-    const {searchParams, token} = params;
+    params: {
+        searchParams?: Record<string, string>,
+        token?: string,
+        options?: HttpOptions,
+        signal?: AbortSignal,
+    }) {
+    const {searchParams, token, signal} = params;
     const baseUrl = globalConfig.apiBaseUrl;
     const response = await backendFetch(`${baseUrl}${context}?${new URLSearchParams(searchParams).toString()}`, {
         method: 'POST',
@@ -251,9 +261,10 @@ export async function httpPOST(
         } : {
             'Content-Type': 'application/json'
         },
-        body: serializeRequestBody(body)
+        body: serializeRequestBody(body),
+        signal
     });
-    return finalizeHttpWriteResponse(response);
+    return finalizeHttpWriteResponse(response, signal);
 }
 
 export async function httpPUT(

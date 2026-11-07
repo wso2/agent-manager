@@ -26140,6 +26140,7 @@ type FetchMCPProxyServerInfoResp struct {
 	JSON200      *MCPServerInfoFetchResponse
 	JSON400      *ErrorResponse
 	JSON401      *ErrorResponse
+	JSON429      *ErrorResponse
 	JSON500      *ErrorResponse
 }
 
@@ -39193,6 +39194,13 @@ func ParseFetchMCPProxyServerInfoResp(rsp *http.Response) (*FetchMCPProxyServerI
 			return nil, err
 		}
 		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest ErrorResponse
