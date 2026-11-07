@@ -24,6 +24,7 @@ import (
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -50,14 +51,17 @@ type envVarItem struct {
 	Key  string `json:"key"`
 }
 type attachConfigOutput struct {
-	ConfigID             string       `json:"config_id"`
-	ConfigName           string       `json:"config_name"`
-	ProjectName          string       `json:"project_name"`
-	AgentName            string       `json:"agent_name"`
-	Environments         []string     `json:"environments"`
-	Guardrails           []string     `json:"guardrails,omitempty"`
-	EnvironmentVariables []envVarItem `json:"environment_variables"`
-	Note                 string       `json:"note"`
+	ConfigID     string   `json:"config_id"`
+	ConfigName   string   `json:"config_name"`
+	ProjectName  string   `json:"project_name"`
+	AgentName    string   `json:"agent_name"`
+	Environments []string `json:"environments"`
+	// SkippedProductionEnvironments are production environments a default
+	// selection left out because the token cannot act on production.
+	SkippedProductionEnvironments []string     `json:"skipped_production_environments,omitempty"`
+	Guardrails                    []string     `json:"guardrails,omitempty"`
+	EnvironmentVariables          []envVarItem `json:"environment_variables"`
+	Note                          string       `json:"note"`
 }
 
 const attachNote = "The agent reads the connection from the environment variables listed here. " +
@@ -188,6 +192,10 @@ func attachConfig(
 	if err != nil {
 		return nil, err
 	}
+	envNames, skipped, err := requireProductionTier(ctx, toolName, envHandler, ouID, envNames, hasEnvironmentNames(environments))
+	if err != nil {
+		return nil, err
+	}
 
 	mappings := make(map[string]models.EnvModelConfigRequest, len(envNames))
 	for _, env := range envNames {
@@ -207,13 +215,18 @@ func attachConfig(
 	}
 
 	out := &attachConfigOutput{
-		ConfigID:             resp.UUID,
-		ConfigName:           resp.Name,
-		ProjectName:          projectName,
-		AgentName:            agentName,
-		Environments:         envNames,
-		EnvironmentVariables: []envVarItem{},
-		Note:                 note,
+		ConfigID:                      resp.UUID,
+		ConfigName:                    resp.Name,
+		ProjectName:                   projectName,
+		AgentName:                     agentName,
+		Environments:                  envNames,
+		SkippedProductionEnvironments: skipped,
+		EnvironmentVariables:          []envVarItem{},
+		Note:                          note,
+	}
+	if len(skipped) > 0 {
+		out.Note += fmt.Sprintf(" Production environments %s were left out: configuring them needs %s.",
+			strings.Join(skipped, ", "), rbac.AgentEnvProduction.Scope())
 	}
 	// Only the variable names go back to the model: the response can carry a
 	// freshly issued key for external agents, and that must not land in a chat.
@@ -221,6 +234,61 @@ func attachConfig(
 		out.EnvironmentVariables = append(out.EnvironmentVariables, envVarItem{Name: v.Name, Key: v.Key})
 	}
 	return out, nil
+}
+
+// requireProductionTier applies the deploy tools' environment tier to an attach:
+// configuring a production environment needs amp:agent:env-production on top of
+// amp:agent:update. Environments the caller named are refused when the token
+// lacks it. A default selection leaves the production ones out and returns them
+// as skipped, unless nothing would be left.
+func requireProductionTier(
+	ctx context.Context, toolName string, envHandler EnvironmentToolsetHandler, ouID string,
+	envNames []string, named bool,
+) ([]string, []string, error) {
+	if _, short := jwtassertion.FirstMissingScope(ctx, rbac.AgentEnvProduction); !short {
+		return envNames, nil, nil
+	}
+	if envHandler == nil {
+		return nil, nil, fmt.Errorf("%s: environment lookup is not available", toolName)
+	}
+	envs, err := listAllEnvironments(ctx, envHandler, ouID)
+	if err != nil {
+		return nil, nil, wrapToolError(toolName, err)
+	}
+	production := make(map[string]bool, len(envs))
+	for _, env := range envs {
+		if env.IsProduction {
+			production[env.Name] = true
+		}
+	}
+	var allowed, refused []string
+	for _, name := range envNames {
+		if production[name] {
+			refused = append(refused, name)
+		} else {
+			allowed = append(allowed, name)
+		}
+	}
+	if len(refused) == 0 {
+		return envNames, nil, nil
+	}
+	if !named && len(allowed) > 0 {
+		return allowed, refused, nil
+	}
+	// Recorded as the services record a tier refusal on deploy, so alerting on
+	// authz:deny sees attaches too.
+	audit.RecordAncillary(ctx, audit.ActionAuthzDeny,
+		audit.Org(ouID),
+		audit.Environment(refused[0]),
+		audit.OutcomeOpt(audit.OutcomeDeny),
+		audit.RequiredPermissions(rbac.AgentEnvNonProduction, rbac.AgentEnvProduction),
+		audit.Detail("reason", "missing-environment-tier-scope"),
+		audit.Detail("missingScope", rbac.AgentEnvProduction.Scope()),
+		audit.Detail("grantedScopes", jwtassertion.GrantedScopeCount(ctx)),
+	)
+	return nil, nil, fmt.Errorf("%s: %s is required to configure production environment %s. "+
+		"Pass only non-production environments, or use a token with that scope",
+		toolName, rbac.AgentEnvProduction.Scope(), strings.Join(refused, ", "))
 }
 
 // attachNoteFor is the note for the agent's kind: a platform-hosted agent gets

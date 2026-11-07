@@ -25,7 +25,9 @@ import (
 
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -141,11 +143,10 @@ func TestAttachLLMProviderDefaultsToProviderEnvironments(t *testing.T) {
 	if failed {
 		t.Fatalf("tool failed: %s", text)
 	}
+	// The org's environments may still be listed, for the production tier
+	// check; what matters is that only the provider's are mapped.
 	if got := mappedEnvs(t, mock.MockToolsetHandler); len(got) != 1 || got[0] != "dev" {
 		t.Errorf("mapped environments %v, want [dev]", got)
-	}
-	if _, listed := mock.calls["ListEnvironments"]; listed {
-		t.Error("listed every org environment instead of the provider's")
 	}
 }
 
@@ -351,4 +352,75 @@ func TestAttachFailsBeforeCreateWhenTheAgentLookupFails(t *testing.T) {
 	if _, created := mock.calls["CreateAgentConfig"]; created {
 		t.Error("created a config for an agent that could not be read")
 	}
+}
+
+// tierMock has a non-production dev and a production prod, with the provider
+// placed in both.
+type tierMock struct{ *MockToolsetHandler }
+
+func (tierMock) ListEnvironments(_ context.Context, _ string, _, _ int32) (*models.EnvironmentListResponse, error) {
+	return &models.EnvironmentListResponse{Environments: []models.GatewayEnvironmentResponse{
+		{Name: "dev"}, {Name: "prod", IsProduction: true},
+	}, Total: 2}, nil
+}
+
+func (m tierMock) ProviderEnvironments(context.Context, string, string, string, string) ([]string, error) {
+	return []string{"dev", "prod"}, nil
+}
+
+// callAttachWithScopes runs an attach with a token holding scopes beyond the
+// tools' own, as the console agent's token does.
+func callAttachWithScopes(t *testing.T, mock tierMock, extraScopes string, args map[string]any) (bool, string) {
+	t.Helper()
+	session := setupTestServerWithClaims(t, &Toolsets{AgentConfigToolset: mock, EnvironmentToolset: mock}, &jwtassertion.TokenClaims{
+		OuId: testOrgName, Scope: strings.TrimSpace(unionScopes() + " " + extraScopes),
+	})
+	args["project_name"], args["agent_name"] = testProjectName, testAgentName
+	res, err := session.CallTool(context.Background(), &gomcp.CallToolParams{Name: "attach_llm_provider_to_agent", Arguments: args})
+	if err != nil {
+		t.Fatalf("CallTool: %v", err)
+	}
+	return res.IsError, res.Content[0].(*gomcp.TextContent).Text
+}
+
+// An attach that reaches a production environment needs the same
+// amp:agent:env-production scope the deploy tools need there.
+func TestAttachProductionEnvironmentNeedsTheProductionScope(t *testing.T) {
+	prodScope := rbac.AgentEnvProduction.Scope()
+
+	t.Run("named production environment is refused without the scope", func(t *testing.T) {
+		mock := tierMock{NewMockToolsetHandler()}
+		failed, text := callAttachWithScopes(t, mock, "", map[string]any{"provider_id": testProviderID, "environments": []any{"dev", "prod"}})
+		if !failed || !strings.Contains(text, prodScope) || !strings.Contains(text, "prod") {
+			t.Fatalf("want a refusal naming %s and prod, got failed=%v: %s", prodScope, failed, text)
+		}
+		if _, created := mock.calls["CreateAgentConfig"]; created {
+			t.Error("created a config in production without the production scope")
+		}
+	})
+
+	t.Run("default selection leaves production out without the scope", func(t *testing.T) {
+		mock := tierMock{NewMockToolsetHandler()}
+		failed, text := callAttachWithScopes(t, mock, "", map[string]any{"provider_id": testProviderID})
+		if failed {
+			t.Fatalf("tool failed: %s", text)
+		}
+		if got := mappedEnvs(t, mock.MockToolsetHandler); len(got) != 1 || got[0] != "dev" {
+			t.Errorf("mapped %v, want [dev]", got)
+		}
+		if !strings.Contains(text, `"skipped_production_environments":["prod"]`) {
+			t.Errorf("output should say prod was left out: %s", text)
+		}
+	})
+
+	t.Run("production is allowed with the scope", func(t *testing.T) {
+		mock := tierMock{NewMockToolsetHandler()}
+		failed, text := callAttachWithScopes(t, mock, prodScope, map[string]any{"provider_id": testProviderID, "environments": []any{"dev", "prod"}})
+		if failed {
+			t.Fatalf("tool failed: %s", text)
+		}
+		if got := mappedEnvs(t, mock.MockToolsetHandler); len(got) != 2 {
+			t.Errorf("mapped %v, want [dev prod]", got)
+		}
+	})
 }
