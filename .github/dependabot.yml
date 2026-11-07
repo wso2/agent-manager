@@ -26,6 +26,10 @@ updates:
       - "/samples/manual-instrumentation-agent"
     patterns: ["*"]
     multi-ecosystem-group: "sample-dependencies"
+    # The OpenTelemetry SQLAlchemy instrumentor supports only < 2.1.0.
+    ignore:
+      - dependency-name: "sqlalchemy"
+        versions: [">=2.1"]
     groups:
       sample-pip-security:
         applies-to: "security-updates"
