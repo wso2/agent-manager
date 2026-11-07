@@ -18,6 +18,7 @@ package tools
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -310,7 +311,7 @@ func TestAttachNoteFollowsTheAgentKind(t *testing.T) {
 		},
 		{
 			"external agent, LLM", "attach_llm_provider_to_agent", string(utils.ExternalAgent), llm,
-			[]string{"external agent", `Connect to LLM Provider`, "regenerate"},
+			[]string{"external agent", `Connect to LLM Provider`, "revoked", "generates a key"},
 			[]string{"deploy_agent", "build_agent"},
 		},
 		{
@@ -486,4 +487,71 @@ func TestGuardrailCredentialParamsAreRefused(t *testing.T) {
 	if _, created := mock.calls["CreateAgentConfig"]; created {
 		t.Error("created a config with a credential guardrail parameter")
 	}
+}
+
+// failingRevokeMock fails to revoke the key in one environment.
+type failingRevokeMock struct {
+	agentKindMock
+	failEnv string
+}
+
+func (m failingRevokeMock) RevokeConfigAPIKeys(ctx context.Context, ouID, projectName, agentName, configType, configID, envName string) error {
+	m.recordCall("RevokeConfigAPIKeys", ouID, projectName, agentName, configType, configID, envName)
+	if envName == m.failEnv {
+		return errors.New("gateway unreachable")
+	}
+	return nil
+}
+
+// The key the create issues for an external agent is withheld from the chat,
+// so it is revoked instead of being left valid with nobody holding it.
+func TestAttachRevokesTheWithheldKeyOfAnExternalAgent(t *testing.T) {
+	newMock := func(provisioning string, envs ...string) agentKindMock {
+		return agentKindMock{providerEnvsMock: providerEnvsMock{MockToolsetHandler: NewMockToolsetHandler(), envs: envs}, provisioning: provisioning}
+	}
+
+	t.Run("external agent: every environment's key is revoked", func(t *testing.T) {
+		mock := newMock(string(utils.ExternalAgent), "dev", "staging")
+		if failed, text := callAttachAs(t, mock, "attach_llm_provider_to_agent", map[string]any{"provider_id": testProviderID}); failed {
+			t.Fatalf("tool failed: %s", text)
+		}
+		var revoked []string
+		for _, call := range mock.calls["RevokeConfigAPIKeys"] {
+			args := call.([]interface{})
+			// ouID, project, agent, config type, config id, environment
+			if args[3] != models.AgentConfigTypeLLM || args[4] != "config-uuid" {
+				t.Errorf("revoked the wrong config: %v", args)
+			}
+			revoked = append(revoked, args[5].(string))
+		}
+		sort.Strings(revoked)
+		if strings.Join(revoked, ",") != "dev,staging" {
+			t.Errorf("revoked keys in %v, want [dev staging]", revoked)
+		}
+	})
+
+	t.Run("platform agent: nothing is revoked", func(t *testing.T) {
+		mock := newMock(string(utils.InternalAgent), "dev")
+		if failed, text := callAttachAs(t, mock, "attach_llm_provider_to_agent", map[string]any{"provider_id": testProviderID}); failed {
+			t.Fatalf("tool failed: %s", text)
+		}
+		if _, revoked := mock.calls["RevokeConfigAPIKeys"]; revoked {
+			t.Error("revoked the injected key of a platform-hosted agent")
+		}
+	})
+
+	t.Run("a failed revoke is reported, not fatal", func(t *testing.T) {
+		mock := failingRevokeMock{agentKindMock: newMock(string(utils.ExternalAgent), "dev", "staging"), failEnv: "staging"}
+		session := setupTestServerWithToolsets(t, &Toolsets{AgentConfigToolset: mock, EnvironmentToolset: mock, AgentToolset: mock})
+		res, err := session.CallTool(context.Background(), &gomcp.CallToolParams{Name: "attach_llm_provider_to_agent", Arguments: map[string]any{
+			"project_name": testProjectName, "agent_name": testAgentName, "provider_id": testProviderID,
+		}})
+		if err != nil || res.IsError {
+			t.Fatalf("the config was created, so the attach should succeed: err=%v %+v", err, res.Content)
+		}
+		text := res.Content[0].(*gomcp.TextContent).Text
+		if !strings.Contains(text, `"unrevoked_key_environments":["staging"]`) || !strings.Contains(text, "regenerate it there") {
+			t.Errorf("output should name staging as unrevoked and say to regenerate: %s", text)
+		}
+	})
 }

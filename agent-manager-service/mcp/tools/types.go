@@ -85,4 +85,6 @@ type AgentConfigToolsetHandler interface {
 	CreateAgentConfig(ctx context.Context, ouID string, projectName string, agentName string, req models.CreateAgentModelConfigRequest) (*models.AgentModelConfigResponse, error)
 	// ProviderEnvironments lists the environments where the agent can use the LLM provider.
 	ProviderEnvironments(ctx context.Context, ouID string, projectName string, agentName string, providerHandle string) ([]string, error)
+	// RevokeConfigAPIKeys revokes the API keys of an external agent's configuration in one environment.
+	RevokeConfigAPIKeys(ctx context.Context, ouID, projectName, agentName, configType, configID, envName string) error
 }

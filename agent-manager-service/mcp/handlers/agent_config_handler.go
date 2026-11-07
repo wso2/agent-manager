@@ -17,6 +17,9 @@ package handlers
 
 import (
 	"context"
+	"fmt"
+
+	"github.com/google/uuid"
 
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
@@ -39,6 +42,33 @@ func (h *AgentConfigHandler) CreateAgentConfig(ctx context.Context, ouID string,
 		createdBy = "system"
 	}
 	return h.configSvc.Create(ctx, ouID, projectName, agentName, req, createdBy)
+}
+
+// RevokeConfigAPIKeys revokes every API key of an external agent's LLM or MCP
+// configuration in envName, as the console's delete does, so a key nobody holds
+// is not left valid. The console's Generate then issues one shown once.
+func (h *AgentConfigHandler) RevokeConfigAPIKeys(ctx context.Context, ouID, projectName, agentName, configType, configID, envName string) error {
+	id, err := uuid.Parse(configID)
+	if err != nil {
+		return fmt.Errorf("invalid configuration id %q: %w", configID, err)
+	}
+	list, revoke := h.configSvc.ListLLMConfigAPIKeys, h.configSvc.RevokeLLMConfigAPIKey
+	if configType == models.AgentConfigTypeMCP {
+		list, revoke = h.configSvc.ListMCPConfigAPIKeys, h.configSvc.RevokeMCPConfigAPIKey
+	}
+	keys, err := list(ctx, ouID, projectName, agentName, id, envName)
+	if err != nil {
+		return err
+	}
+	if keys == nil {
+		return nil
+	}
+	for _, key := range keys.Keys {
+		if err := revoke(ctx, ouID, projectName, agentName, id, envName, key.Name); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (h *AgentConfigHandler) ProviderEnvironments(ctx context.Context, ouID string, projectName string, agentName string, providerHandle string) ([]string, error) {

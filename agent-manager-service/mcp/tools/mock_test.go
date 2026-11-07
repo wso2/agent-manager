@@ -307,6 +307,13 @@ func (m *MockToolsetHandler) ProviderEnvironments(
 	return []string{testEnvName}, nil
 }
 
+func (m *MockToolsetHandler) RevokeConfigAPIKeys(
+	ctx context.Context, ouID, projectName, agentName, configType, configID, envName string,
+) error {
+	m.recordCall("RevokeConfigAPIKeys", ouID, projectName, agentName, configType, configID, envName)
+	return nil
+}
+
 func (m *MockToolsetHandler) CreateAgentConfig(
 	ctx context.Context, ouID string, projectName string, agentName string, req models.CreateAgentModelConfigRequest,
 ) (*models.AgentModelConfigResponse, error) {

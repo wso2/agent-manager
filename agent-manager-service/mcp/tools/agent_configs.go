@@ -19,12 +19,14 @@ package tools
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
+	reqlogger "github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -67,9 +69,12 @@ type attachConfigOutput struct {
 	// selection left out because the token cannot act on production.
 	SkippedProductionEnvironments []string          `json:"skipped_production_environments,omitempty"`
 	Proxies                       []attachProxyItem `json:"proxies,omitempty"`
-	Guardrails                    []string          `json:"guardrails,omitempty"`
-	EnvironmentVariables          []envVarItem      `json:"environment_variables"`
-	Note                          string            `json:"note"`
+	// UnrevokedKeyEnvironments are environments where an external agent's
+	// issued key could not be revoked and must be regenerated in the console.
+	UnrevokedKeyEnvironments []string     `json:"unrevoked_key_environments,omitempty"`
+	Guardrails               []string     `json:"guardrails,omitempty"`
+	EnvironmentVariables     []envVarItem `json:"environment_variables"`
+	Note                     string       `json:"note"`
 }
 
 const attachNote = "The agent reads the connection from the environment variables listed here. " +
@@ -77,19 +82,24 @@ const attachNote = "The agent reads the connection from the environment variable
 	"or update_deployment_state with redeploy."
 
 // externalAttachNote is the note for an agent that runs outside the platform:
-// nothing is injected or deployed, and the URL and key the create returned are
-// withheld from the chat, so it says where in the console the user gets them.
-// target is the console panel's subject ("LLM Provider" or "MCP Server").
-func externalAttachNote(target, keyHint string) string {
-	return "This is an external agent: nothing is injected into it and there is nothing to build or deploy, " +
-		"and the proxy URL and API key are not returned here. Open this configuration on the agent in the console: " +
-		"\"Connect to " + target + "\" shows each environment's proxy URL, and " + keyHint +
-		" (the key issued at creation is not shown again)."
+// nothing is injected or deployed, and the key the create issued was revoked
+// rather than returned, so it says where in the console the user gets the URL
+// and a key. target is the console panel's subject ("LLM Provider" or "MCP
+// Server"); unrevoked are environments whose issued key could not be revoked.
+func externalAttachNote(target, keyHint string, unrevoked []string) string {
+	note := "This is an external agent: nothing is injected into it and there is nothing to build or deploy. " +
+		"The API key the create issued was revoked rather than returned, so no key passes through this chat or is left unused. " +
+		"Open this configuration on the agent in the console: \"Connect to " + target + "\" shows each environment's proxy URL, and " +
+		keyHint + " generates a key, shown once there."
+	if len(unrevoked) > 0 {
+		note += " The issued key could not be revoked in " + strings.Join(unrevoked, ", ") + "; regenerate it there instead."
+	}
+	return note
 }
 
 const (
-	externalLLMKeyHint = "the API key section regenerates the key the agent sends"
-	externalMCPKeyHint = "when the proxy uses API key security, the API key section regenerates the key the agent sends"
+	externalLLMKeyHint = "its API key section"
+	externalMCPKeyHint = "when the proxy uses API key security, its API key section"
 )
 
 func (t *Toolsets) registerAgentConfigTools(server *gomcp.Server, reg *toolRegistry) {
@@ -185,7 +195,7 @@ func attachConfig(
 	ouID := resolveOUID(ctx)
 	// Read before the create, so a failed lookup never leaves a config behind
 	// with the wrong note.
-	note, err := attachNoteFor(ctx, agentHandler, ouID, projectName, agentName, configType)
+	external, err := isExternalAgent(ctx, agentHandler, ouID, projectName, agentName)
 	if err != nil {
 		return nil, wrapToolError(toolName, err)
 	}
@@ -230,7 +240,15 @@ func attachConfig(
 		Environments:                  envNames,
 		SkippedProductionEnvironments: skipped,
 		EnvironmentVariables:          []envVarItem{},
-		Note:                          note,
+		Note:                          attachNote,
+	}
+	if external {
+		out.UnrevokedKeyEnvironments = revokeIssuedKeys(ctx, handler, resp, ouID, projectName, agentName, configType)
+		if configType == models.AgentConfigTypeMCP {
+			out.Note = externalAttachNote("MCP Server", externalMCPKeyHint, out.UnrevokedKeyEnvironments)
+		} else {
+			out.Note = externalAttachNote("LLM Provider", externalLLMKeyHint, out.UnrevokedKeyEnvironments)
+		}
 	}
 	if len(skipped) > 0 {
 		out.Note += fmt.Sprintf(" Production environments %s were left out: configuring them needs %s.",
@@ -316,24 +334,42 @@ func attachedProxies(resp *models.AgentModelConfigResponse, envNames []string) [
 	return proxies
 }
 
-// attachNoteFor is the note for the agent's kind: a platform-hosted agent gets
-// the connection injected on its next deployment, an external agent gets it
-// from the console.
-func attachNoteFor(ctx context.Context, agentHandler AgentToolsetHandler, ouID, projectName, agentName, configType string) (string, error) {
+// isExternalAgent reports whether the agent runs outside the platform, read
+// before the create so a failed lookup never leaves a config behind.
+func isExternalAgent(ctx context.Context, agentHandler AgentToolsetHandler, ouID, projectName, agentName string) (bool, error) {
 	if agentHandler == nil {
-		return attachNote, nil
+		return false, nil
 	}
 	agent, err := agentHandler.GetAgent(ctx, ouID, projectName, agentName)
 	if err != nil {
-		return "", err
+		return false, err
 	}
-	if agent == nil || agent.Provisioning.Type != string(utils.ExternalAgent) {
-		return attachNote, nil
+	return agent != nil && agent.Provisioning.Type == string(utils.ExternalAgent), nil
+}
+
+// revokeIssuedKeys revokes the key the create issued in each of an external
+// agent's environments, since the tool withholds it and nobody else holds it.
+// It returns the environments where that failed, for the user to regenerate.
+func revokeIssuedKeys(
+	ctx context.Context, handler AgentConfigToolsetHandler, resp *models.AgentModelConfigResponse,
+	ouID, projectName, agentName, configType string,
+) []string {
+	envs := make([]string, 0, len(resp.EnvModelConfig))
+	for env, cfg := range resp.EnvModelConfig {
+		if cfg.LLMProxy != nil {
+			envs = append(envs, env)
+		}
 	}
-	if configType == models.AgentConfigTypeMCP {
-		return externalAttachNote("MCP Server", externalMCPKeyHint), nil
+	sort.Strings(envs)
+	var failed []string
+	for _, env := range envs {
+		if err := handler.RevokeConfigAPIKeys(ctx, ouID, projectName, agentName, configType, resp.UUID, env); err != nil {
+			reqlogger.GetLogger(ctx).Warn("could not revoke an external agent's withheld config API key",
+				"configID", resp.UUID, "environment", env, "error", err)
+			failed = append(failed, env)
+		}
 	}
-	return externalAttachNote("LLM Provider", externalLLMKeyHint), nil
+	return failed
 }
 
 func hasEnvironmentNames(names []string) bool {
