@@ -311,10 +311,17 @@ func (m *MockToolsetHandler) CreateAgentConfig(
 	ctx context.Context, ouID string, projectName string, agentName string, req models.CreateAgentModelConfigRequest,
 ) (*models.AgentModelConfigResponse, error) {
 	m.recordCall("CreateAgentConfig", ouID, projectName, agentName, req)
+	// One per-agent proxy per environment, named the way the service names it.
+	envConfig := make(map[string]models.EnvModelConfigResponse, len(req.EnvMappings))
+	for env := range req.EnvMappings {
+		proxyName := req.Name + "-" + env + "-proxy"
+		envConfig[env] = models.EnvModelConfigResponse{EnvironmentName: env, LLMProxy: &models.LLMProxyInfo{ProxyName: &proxyName}}
+	}
 	return &models.AgentModelConfigResponse{
-		UUID: "config-uuid",
-		Name: req.Name,
-		Type: req.Type,
+		UUID:           "config-uuid",
+		Name:           req.Name,
+		Type:           req.Type,
+		EnvModelConfig: envConfig,
 		EnvironmentVariables: []models.EnvironmentVariableConfig{
 			{Name: "OPENAI_URL", Key: "url"},
 			{Name: "OPENAI_API_KEY", Key: "apikey"},

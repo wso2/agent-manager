@@ -50,6 +50,13 @@ type envVarItem struct {
 	Name string `json:"name"`
 	Key  string `json:"key"`
 }
+
+// attachProxyItem names the per-agent proxy an LLM attach created in one
+// environment; its key is managed through the configuration in that environment.
+type attachProxyItem struct {
+	Environment string `json:"environment"`
+	ProxyID     string `json:"proxy_id"`
+}
 type attachConfigOutput struct {
 	ConfigID     string   `json:"config_id"`
 	ConfigName   string   `json:"config_name"`
@@ -58,10 +65,11 @@ type attachConfigOutput struct {
 	Environments []string `json:"environments"`
 	// SkippedProductionEnvironments are production environments a default
 	// selection left out because the token cannot act on production.
-	SkippedProductionEnvironments []string     `json:"skipped_production_environments,omitempty"`
-	Guardrails                    []string     `json:"guardrails,omitempty"`
-	EnvironmentVariables          []envVarItem `json:"environment_variables"`
-	Note                          string       `json:"note"`
+	SkippedProductionEnvironments []string          `json:"skipped_production_environments,omitempty"`
+	Proxies                       []attachProxyItem `json:"proxies,omitempty"`
+	Guardrails                    []string          `json:"guardrails,omitempty"`
+	EnvironmentVariables          []envVarItem      `json:"environment_variables"`
+	Note                          string            `json:"note"`
 }
 
 const attachNote = "The agent reads the connection from the environment variables listed here. " +
@@ -228,6 +236,9 @@ func attachConfig(
 		out.Note += fmt.Sprintf(" Production environments %s were left out: configuring them needs %s.",
 			strings.Join(skipped, ", "), rbac.AgentEnvProduction.Scope())
 	}
+	if configType == models.AgentConfigTypeLLM {
+		out.Proxies = attachedProxies(resp, envNames)
+	}
 	// Only the variable names go back to the model: the response can carry a
 	// freshly issued key for external agents, and that must not land in a chat.
 	for _, v := range resp.EnvironmentVariables {
@@ -289,6 +300,20 @@ func requireProductionTier(
 	return nil, nil, fmt.Errorf("%s: %s is required to configure production environment %s. "+
 		"Pass only non-production environments, or use a token with that scope",
 		toolName, rbac.AgentEnvProduction.Scope(), strings.Join(refused, ", "))
+}
+
+// attachedProxies lists the per-agent LLM proxy each environment got, so a
+// caller can name the proxy whose key the user manages, without the key.
+func attachedProxies(resp *models.AgentModelConfigResponse, envNames []string) []attachProxyItem {
+	proxies := []attachProxyItem{}
+	for _, env := range envNames {
+		cfg, ok := resp.EnvModelConfig[env]
+		if !ok || cfg.LLMProxy == nil || cfg.LLMProxy.ProxyName == nil {
+			continue
+		}
+		proxies = append(proxies, attachProxyItem{Environment: env, ProxyID: *cfg.LLMProxy.ProxyName})
+	}
+	return proxies
 }
 
 // attachNoteFor is the note for the agent's kind: a platform-hosted agent gets

@@ -424,3 +424,16 @@ func TestAttachProductionEnvironmentNeedsTheProductionScope(t *testing.T) {
 		}
 	})
 }
+
+// The output names each environment's per-agent proxy, never its key, so a
+// client can point the user at the proxy whose key to manage.
+func TestAttachLLMProviderListsItsProxies(t *testing.T) {
+	mock := providerEnvsMock{MockToolsetHandler: NewMockToolsetHandler(), envs: []string{"dev"}}
+	failed, text := callAttach(t, mock, "attach_llm_provider_to_agent", map[string]any{"provider_id": testProviderID})
+	if failed {
+		t.Fatalf("tool failed: %s", text)
+	}
+	if want := `"proxies":[{"environment":"dev","proxy_id":"` + testProviderID + `-dev-proxy"}]`; !strings.Contains(text, want) {
+		t.Errorf("output does not name the proxy\n got: %s\nwant: %s", text, want)
+	}
+}
