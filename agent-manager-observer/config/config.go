@@ -28,6 +28,7 @@ import (
 const (
 	TraceBackendOpenChoreo = "openchoreo"
 	TraceBackendClickHouse = "clickhouse"
+	TraceBackendOpenSearch = "opensearch"
 
 	TraceLayoutExporter = "exporter"
 	TraceLayoutTenant   = "tenant"
@@ -65,6 +66,12 @@ type TraceReaderConfig struct {
 	Table           string
 	Layout          string
 	ScopeUIDs       string
+
+	OSAddr        string
+	OSUser        string
+	OSPassword    string
+	OSIndex       string
+	OSInsecureTLS bool
 }
 
 // AuthConfig holds JWT authentication configuration
@@ -125,7 +132,13 @@ func Load() (*Config, error) {
 			Table:  getEnv("CLICKHOUSE_TRACES_TABLE", "otel_traces"),
 			Layout: getEnv("CLICKHOUSE_TRACES_LAYOUT", TraceLayoutExporter),
 
-			ScopeUIDs: getEnv("CLICKHOUSE_SCOPE_UIDS", ""),
+			OSAddr:        getEnv("OPENSEARCH_ADDR", ""),
+			OSUser:        getEnv("OPENSEARCH_USERNAME", ""),
+			OSPassword:    getEnv("OPENSEARCH_PASSWORD", ""),
+			OSInsecureTLS: getEnvAsBool("OPENSEARCH_INSECURE_TLS", false),
+			OSIndex:       getEnv("OPENSEARCH_TRACES_INDEX", "otel-traces-*"),
+
+			ScopeUIDs: getEnv("TRACE_SCOPE_UIDS", getEnv("CLICKHOUSE_SCOPE_UIDS", "")),
 		},
 		LogLevel: getEnv("LOG_LEVEL", "INFO"),
 		Auth: AuthConfig{
@@ -212,6 +225,26 @@ func (t TraceReaderConfig) validate(isLocalDev bool) error {
 		}
 		if !json.Valid([]byte(t.ScopeUIDs)) {
 			return fmt.Errorf("CLICKHOUSE_SCOPE_UIDS must be valid JSON")
+		}
+		return nil
+	case TraceBackendOpenSearch:
+		if strings.TrimSpace(t.OSAddr) == "" {
+			return fmt.Errorf("OPENSEARCH_ADDR is required when TRACE_BACKEND is %q", TraceBackendOpenSearch)
+		}
+		if strings.TrimSpace(t.OSUser) == "" {
+			return fmt.Errorf("OPENSEARCH_USERNAME is required when TRACE_BACKEND is %q", TraceBackendOpenSearch)
+		}
+		if t.OSPassword == "" && !isLocalDev {
+			return fmt.Errorf("OPENSEARCH_PASSWORD is required when TRACE_BACKEND is %q and IS_LOCAL_DEV_ENV is false", TraceBackendOpenSearch)
+		}
+		if strings.TrimSpace(t.OSIndex) == "" {
+			return fmt.Errorf("OPENSEARCH_TRACES_INDEX is required when TRACE_BACKEND is %q", TraceBackendOpenSearch)
+		}
+		if t.OSInsecureTLS && !isLocalDev {
+			return fmt.Errorf("OPENSEARCH_INSECURE_TLS is only allowed when IS_LOCAL_DEV_ENV is true")
+		}
+		if !json.Valid([]byte(t.ScopeUIDs)) {
+			return fmt.Errorf("TRACE_SCOPE_UIDS must be valid JSON")
 		}
 		return nil
 	default:

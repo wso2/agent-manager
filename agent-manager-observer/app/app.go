@@ -38,7 +38,9 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-observer/middleware"
 	"github.com/wso2/agent-manager/agent-manager-observer/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-observer/observer"
+	"github.com/wso2/agent-manager/agent-manager-observer/opensearchreader"
 	"github.com/wso2/agent-manager/agent-manager-observer/rbac"
+	"github.com/wso2/agent-manager/agent-manager-observer/scope"
 )
 
 // Options holds deployment-specific hooks for Run; the zero value is the OSS default.
@@ -127,6 +129,21 @@ func newTraceReader(cfg *config.Config, openChoreo observer.Client) (observer.Tr
 			return nil, fmt.Errorf("failed to create clickhouse trace reader: %w", err)
 		}
 		slog.Info("trace backend selected", "backend", config.TraceBackendClickHouse)
+		return reader, nil
+	case config.TraceBackendOpenSearch:
+		resolver, err := scope.NewStaticResolverFromJSON(cfg.Traces.ScopeUIDs)
+		if err != nil {
+			return nil, err
+		}
+		reader, err := opensearchreader.NewTraceReader(opensearchreader.Options{
+			Addr: cfg.Traces.OSAddr, Username: cfg.Traces.OSUser, Password: cfg.Traces.OSPassword,
+			IndexPattern: cfg.Traces.OSIndex, InsecureTLS: cfg.Traces.OSInsecureTLS,
+			DefaultNamespace: cfg.Observer.DefaultNamespace, Resolver: resolver,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("create opensearch trace reader: %w", err)
+		}
+		slog.Info("trace backend selected", "backend", config.TraceBackendOpenSearch)
 		return reader, nil
 	default:
 		return nil, fmt.Errorf("unknown TRACE_BACKEND %q", cfg.Traces.Backend)
