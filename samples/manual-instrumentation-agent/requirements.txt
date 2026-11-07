@@ -1,5 +1,5 @@
 amp-instrumentation==0.4.2
-openai==3.42.1
+openai==3.45.0
 fastapi==0.162.0
 uvicorn==0.54.0
 opentelemetry-api==1.45.2

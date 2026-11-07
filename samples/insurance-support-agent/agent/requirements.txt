@@ -6,7 +6,7 @@ pydantic==2.14.2
 python-dotenv==1.2.4
 
 # strands-agents resolves wrapt 2.x, which AMP's auto-instrumentation cannot use.
-wrapt==1.17.3
+wrapt==2.5.2
 
 # Pin the Streamable HTTP API used by the supplied MCP client/server.
 mcp==2.3.0
