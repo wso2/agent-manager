@@ -66,6 +66,20 @@ func TestHandleCommonErrors_AgentIdentityRequiresPromotion_Is409(t *testing.T) {
 	assert.Equal(t, utils.ErrCodeConflict, body.Code)
 }
 
+func TestHandleCommonErrors_PromotionNeedsRedeploy_Is409WithInstructions(t *testing.T) {
+	rr := httptest.NewRecorder()
+
+	handleCommonErrors(rr, fmt.Errorf("%w: deploy the agent again and promote it through to \"staging\"", utils.ErrPromotionNeedsRedeploy),
+		"Failed to promote agent")
+
+	require.Equal(t, http.StatusConflict, rr.Code)
+	var body spec.ErrorResponse
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
+	assert.Equal(t, utils.ErrCodeConflict, body.Code)
+	require.NotNil(t, body.Reason)
+	assert.Contains(t, *body.Reason, "deploy the agent again", "the reason tells the user how to proceed")
+}
+
 // A fail-closed service that refuses to act unrecorded answers 503 on every route, not only the proxy's.
 func TestHandleCommonErrors_AuditRecorderUnavailable_Is503(t *testing.T) {
 	rr := httptest.NewRecorder()

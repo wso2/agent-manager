@@ -99,23 +99,34 @@ func TestStoreAgentAPIKey_ReturnsSecretReferenceName(t *testing.T) {
 	assert.Empty(t, ocClient.GetSecretReferenceCalls())
 }
 
-// promoteWithAgentAPIKey promotes a REST agent from dev to staging, reporting releaseTrait for
-// the dev release and targetRef as staging's current agentApiKeySecretRef. With sourceOverrides,
-// the promote clones dev's env vars, which are sourceOverrides. It returns the env vars and
-// env-injection trait config the target was written with (nil when PromoteComponent was not
-// reached), the secret client, and the promote error.
-func promoteWithAgentAPIKey(t *testing.T, releaseTrait client.ReleaseAgentAPIKeyTrait, targetRef string, mintErr error, sourceOverrides ...client.EnvVar) (
-	[]client.EnvVar, map[string]interface{}, *clientmocks.SecretManagementClientMock, error,
-) {
+// agentAPIKeyPromotion is what promoteAgentWithAPIKey observed.
+type agentAPIKeyPromotion struct {
+	// env and envInjection are the env vars and env-injection trait config the target was
+	// written with, nil when PromoteComponent was not reached.
+	env          []client.EnvVar
+	envInjection map[string]interface{}
+	secrets      *clientmocks.SecretManagementClientMock
+	tokens       *stubTokenManager
+	oc           *clientmocks.OpenChoreoClientMock
+	err          error
+}
+
+// promoteAgentWithAPIKey promotes a REST agent from dev to staging, reporting releaseTrait for
+// the dev release and targetRef (or targetRefErr) as staging's current agentApiKeySecretRef.
+// With sourceOverrides, the promote clones dev's env vars, which are sourceOverrides.
+func promoteAgentWithAPIKey(t *testing.T, releaseTrait client.ReleaseAgentAPIKeyTrait, targetRef string, targetRefErr, mintErr error,
+	sourceOverrides ...client.EnvVar,
+) agentAPIKeyPromotion {
 	t.Helper()
 	s, _, _, promotedTraits := promoteRestAgentHarness(t, models.KindRestAPI, client.TraitOTELInstrumentation)
-	s.tokenManagerService = &stubTokenManager{generateFunc: func(_ context.Context, req GenerateTokenRequest) (*spec.TokenResponse, error) {
+	tokens := &stubTokenManager{generateFunc: func(_ context.Context, req GenerateTokenRequest) (*spec.TokenResponse, error) {
 		assert.Equal(t, "staging", req.Environment, "the key must be minted for the target environment")
 		if mintErr != nil {
 			return nil, mintErr
 		}
 		return &spec.TokenResponse{Token: "staging-jwt"}, nil
 	}}
+	s.tokenManagerService = tokens
 	secrets := &clientmocks.SecretManagementClientMock{
 		CreateSecretFunc: func(_ context.Context, location secretmanagersvc.SecretLocation, _ map[string]string) (string, error) {
 			return location.SecretRefName(), nil
@@ -129,7 +140,7 @@ func promoteWithAgentAPIKey(t *testing.T, releaseTrait client.ReleaseAgentAPIKey
 	}
 	oc.GetReleaseBindingAgentAPIKeySecretRefFunc = func(_ context.Context, _, _, environment string) (string, error) {
 		assert.Equal(t, "staging", environment)
-		return targetRef, nil
+		return targetRef, targetRefErr
 	}
 	var promotedEnv []client.EnvVar
 	promote := oc.PromoteComponentFunc
@@ -154,7 +165,17 @@ func promoteWithAgentAPIKey(t *testing.T, releaseTrait client.ReleaseAgentAPIKey
 	err := s.PromoteAgent(ctx, "acme", "proj1", "my-agent", req)
 	assert.Empty(t, oc.GetSecretReferenceCalls(), "promote must not read the SecretReference back")
 	envInjection, _ := (*promotedTraits)["my-agent-"+string(client.TraitEnvInjection)].(map[string]interface{})
-	return promotedEnv, envInjection, secrets, err
+	return agentAPIKeyPromotion{env: promotedEnv, envInjection: envInjection, secrets: secrets, tokens: tokens, oc: oc, err: err}
+}
+
+// promoteWithAgentAPIKey is promoteAgentWithAPIKey with a target lookup that succeeds, returning
+// the target's env vars and env-injection trait config, the secret client, and the promote error.
+func promoteWithAgentAPIKey(t *testing.T, releaseTrait client.ReleaseAgentAPIKeyTrait, targetRef string, mintErr error, sourceOverrides ...client.EnvVar) (
+	[]client.EnvVar, map[string]interface{}, *clientmocks.SecretManagementClientMock, error,
+) {
+	t.Helper()
+	p := promoteAgentWithAPIKey(t, releaseTrait, targetRef, nil, mintErr, sourceOverrides...)
+	return p.env, p.envInjection, p.secrets, p.err
 }
 
 var stagingAPIKeyEnvVar = agentAPIKeyEnvVar(agentAPIKeySecretLocation("acme", "proj1", "my-agent", "staging").SecretRefName())
@@ -182,17 +203,32 @@ func TestPromoteAgent_ReleaseBeforeEnvVarKey_KeepsTargetsOwnPath(t *testing.T) {
 	assert.False(t, present, "left unset, the binding update carries the target's own path forward")
 }
 
-func TestPromoteAgent_ReleaseBeforeEnvVarKey_FallsBackToReleasePath(t *testing.T) {
-	// A release cut before the trait could leave the key to the env var would fetch an empty
-	// path and the target pod would never start, so an empty or missing target path is replaced.
-	env, envInjection, _, err := promoteWithAgentAPIKey(t, client.ReleaseAgentAPIKeyTrait{
+func TestPromoteAgent_ReleaseBeforeEnvVarKey_NoTargetPath_RefusesPromotion(t *testing.T) {
+	// The release reads the key from the trait's path, and without a path of its own the target
+	// would fall back to the first environment's key and report its traces as that environment's.
+	p := promoteAgentWithAPIKey(t, client.ReleaseAgentAPIKeyTrait{
 		Attached: true, SecretRef: "kv/my-agent-agent-api-key-dev-secrets", SecretProperty: "api-key",
-	}, "", nil)
+	}, "", nil, nil)
 
-	require.NoError(t, err)
-	assert.Contains(t, env, stagingAPIKeyEnvVar)
-	assert.Equal(t, "kv/my-agent-agent-api-key-dev-secrets", envInjection["agentApiKeySecretRef"])
-	assert.Equal(t, "api-key", envInjection["agentApiKeySecretProperty"])
+	require.ErrorIs(t, p.err, utils.ErrPromotionNeedsRedeploy)
+	assert.Contains(t, p.err.Error(), "deploy the agent again")
+	assert.Empty(t, p.tokens.gotRequests, "no key may be minted for a promotion that is refused")
+	assert.Empty(t, p.secrets.CreateSecretCalls(), "nothing may be stored for a promotion that is refused")
+	assert.Empty(t, p.oc.PromoteComponentCalls(), "the target must not be written")
+}
+
+func TestPromoteAgent_ReleaseBeforeEnvVarKey_TargetPathLookupFails_AbortsPromotion(t *testing.T) {
+	lookupErr := errors.New("openchoreo unavailable")
+
+	p := promoteAgentWithAPIKey(t, client.ReleaseAgentAPIKeyTrait{
+		Attached: true, SecretRef: "kv/my-agent-agent-api-key-dev-secrets", SecretProperty: "api-key",
+	}, "", lookupErr, nil)
+
+	require.ErrorIs(t, p.err, lookupErr)
+	assert.NotErrorIs(t, p.err, utils.ErrPromotionNeedsRedeploy, "a failed lookup is not a missing path")
+	assert.Empty(t, p.tokens.gotRequests)
+	assert.Empty(t, p.secrets.CreateSecretCalls(), "nothing may be stored when the target's config cannot be read")
+	assert.Empty(t, p.oc.PromoteComponentCalls())
 }
 
 func TestPromoteAgent_NoEnvInjectionTrait_IssuesNoKey(t *testing.T) {
@@ -299,6 +335,63 @@ func TestGetSystemManagedEnvVars_IgnoresUsersAgentAPIKey(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, envVars)
 	assert.Empty(t, keys)
+}
+
+// deployWithBaseEnvVars deploys an API agent into dev, which has no release binding yet, with
+// baseEnvVars saved on the Component and reqEnv in the request. It returns the env vars written
+// to dev's release binding and the deploy error.
+func deployWithBaseEnvVars(t *testing.T, baseEnvVars []client.EnvVar, reqEnv []spec.EnvironmentVariable) ([]client.EnvVar, error) {
+	t.Helper()
+	s, _ := deployAPIAgentMocks(nil)
+	oc := s.ocClient.(*clientmocks.OpenChoreoClientMock)
+	oc.GetComponentBaseEnvVarsFunc = func(_ context.Context, _, componentName string) ([]client.EnvVar, error) {
+		assert.Equal(t, "my-agent", componentName)
+		return baseEnvVars, nil
+	}
+	var written []client.EnvVar
+	oc.EnsureReleaseAndBindingFunc = func(_ context.Context, _, _, _, environment string, envOverrides []client.EnvVar, _ []client.FileVar,
+		_, _ map[string]interface{},
+	) error {
+		assert.Equal(t, "dev", environment)
+		written = envOverrides
+		return nil
+	}
+
+	_, err := s.DeployAgent(tierGrantedCtx(t), "acme", "proj1", "my-agent",
+		&spec.DeployAgentRequest{ImageId: "registry.example.com/my-agent:v1", Env: reqEnv})
+	return written, err
+}
+
+func TestDeployAgent_NoBindingYet_CarriesSeededAgentAPIKey(t *testing.T) {
+	// The key seeded at creation is on the Component only. A deploy that creates the first binding
+	// must write it there, or the binding's env vars replace it and it is lost for good.
+	seeded := agentAPIKeyEnvVar(agentAPIKeySecretLocation("acme", "proj1", "my-agent", "dev").SecretRefName())
+	echoed := spec.EnvironmentVariable{Key: client.EnvVarAgentAPIKey}
+	echoed.SetValue("user-echoed")
+
+	written, err := deployWithBaseEnvVars(t, []client.EnvVar{seeded, {Key: "USER_VAR", Value: "base"}}, []spec.EnvironmentVariable{echoed})
+
+	require.NoError(t, err)
+	assert.Contains(t, written, seeded)
+	assert.NotContains(t, written, client.EnvVar{Key: client.EnvVarAgentAPIKey, Value: "user-echoed"},
+		"a user-echoed copy must not replace the system key")
+	assert.NotContains(t, written, client.EnvVar{Key: "USER_VAR", Value: "base"}, "only the agent API key is carried from the Component")
+}
+
+func TestDeployAgent_NoSeed_KeepsUsersAgentAPIKey(t *testing.T) {
+	// A user's own AMP_AGENT_API_KEY reads its value under the variable's name, not "api-key", so
+	// it is not the system key and stays an ordinary variable.
+	usersOwn := client.EnvVar{Key: client.EnvVarAgentAPIKey, ValueFrom: &client.EnvVarValueFrom{
+		SecretKeyRef: &client.SecretKeyRef{Name: "my-agent-dev-secrets", Key: client.EnvVarAgentAPIKey},
+	}}
+	userKey := spec.EnvironmentVariable{Key: client.EnvVarAgentAPIKey}
+	userKey.SetValue("user-key")
+
+	written, err := deployWithBaseEnvVars(t, []client.EnvVar{usersOwn}, []spec.EnvironmentVariable{userKey})
+
+	require.NoError(t, err)
+	assert.Contains(t, written, client.EnvVar{Key: client.EnvVarAgentAPIKey, Value: "user-key"})
+	assert.NotContains(t, written, usersOwn)
 }
 
 // updateConfigurationsService returns a service for UpdateAgentConfigurations on agent "my-agent"

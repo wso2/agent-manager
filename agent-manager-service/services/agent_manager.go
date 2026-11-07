@@ -23,6 +23,7 @@ import (
 	"log/slog"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -1230,12 +1231,11 @@ func setTraitAgentAPIKeySecretRef(traitEnvConfigs map[string]interface{}, agentN
 //
 // A promotion binds the source environment's release, whose trait is frozen as it was when that
 // release was cut. One cut before the trait could leave the key to the env var fetches the key
-// from agentApiKeySecretRef whatever its value; an empty one would leave the pod referencing a
-// Secret that is never created. For such a release the target keeps its own path, which now
-// holds the key just issued, or, without one, takes the path in the release's parameters: the
-// agent's first environment's key, until the source is deployed again and promoted.
+// from agentApiKeySecretRef whatever its value. PromoteAgent refuses to promote such a release
+// unless the target has a path of its own, so here the trait config is left unset and the binding
+// update carries that path forward. It now holds the key just issued.
 func (s *agentManagerService) promoteAgentAPIKey(
-	ctx context.Context, ouID, projectName, agentName, sourceEnv, targetEnv string,
+	ctx context.Context, ouID, projectName, agentName, targetEnv string,
 	releaseTrait client.ReleaseAgentAPIKeyTrait, envOverrides *[]client.EnvVar, traitEnvConfigs map[string]interface{},
 ) error {
 	if !releaseTrait.Attached {
@@ -1249,22 +1249,6 @@ func (s *agentManagerService) promoteAgentAPIKey(
 
 	if releaseTrait.TakesEnvVarKey {
 		setTraitAgentAPIKeySecretRef(traitEnvConfigs, agentName, "", "")
-		return nil
-	}
-	targetRef, err := s.ocClient.GetReleaseBindingAgentAPIKeySecretRef(ctx, ouID, agentName, targetEnv)
-	if err != nil {
-		return fmt.Errorf("failed to read the target environment's agent API key config: %w", err)
-	}
-	switch {
-	case targetRef != "":
-		// Left unset, the binding update carries the target's own path forward.
-	case releaseTrait.SecretRef != "":
-		setTraitAgentAPIKeySecretRef(traitEnvConfigs, agentName, releaseTrait.SecretRef, releaseTrait.SecretProperty)
-		s.logger.Warn("Source release predates delivering the agent API key by env var; the target uses the agent's first environment's key until the source is deployed again and promoted",
-			"agentName", agentName, "sourceEnvironment", sourceEnv, "targetEnvironment", targetEnv)
-	default:
-		s.logger.Warn("Source release's env-injection trait has no agent API key path; leaving the target's agent API key config unchanged",
-			"agentName", agentName, "sourceEnvironment", sourceEnv, "targetEnvironment", targetEnv)
 	}
 	return nil
 }
@@ -1281,7 +1265,9 @@ type TracingTokenRotationResult struct {
 // under the agent's stable secret reference. It does NOT restart the workload: the running pod
 // picks up the new key on the next rollout, which the caller triggers via the standard Apply
 // (UpdateAgentConfigurations) path — the same ExternalSecret + restartedAt mechanism used for every
-// other secret. Rotating the key never invalidates previously issued ones; they remain valid until
+// other secret. The new key is stored where the old one was, so it also forces the environment's
+// ExternalSecret to re-sync (forceAgentAPIKeySecretSync); otherwise that rollout could still read
+// the old key. Rotating the key never invalidates previously issued ones; they remain valid until
 // their own expiry.
 func (s *agentManagerService) RegenerateAgentTracingToken(ctx context.Context, ouID, projectName, agentName, environmentName, expiresIn string) (*TracingTokenRotationResult, error) {
 	s.logger.Info("Regenerating agent tracing token", "agentName", agentName, "ouID", ouID, "projectName", projectName, "environment", environmentName)
@@ -1326,12 +1312,97 @@ func (s *agentManagerService) RegenerateAgentTracingToken(ctx context.Context, o
 		s.logger.Error("Failed to store rotated agent tracing token", "agentName", agentName, "environment", environmentName, "error", err)
 		return nil, fmt.Errorf("failed to store agent tracing token: %w", err)
 	}
+	s.forceAgentAPIKeySecretSync(ctx, ouID, projectName, agentName, environmentName)
 
 	return &TracingTokenRotationResult{
 		EnvironmentName: environmentName,
 		ExpiresAt:       tokenResp.ExpiresAt,
 		RotatedAt:       time.Now().Unix(),
 	}, nil
+}
+
+// tracingTokenForceSyncTimeout bounds how long a tracing-token regeneration waits for the
+// environment's ExternalSecret to pick up the force-sync revision. The caller is waiting on the
+// request, so it is much shorter than the identity service's background wait.
+const tracingTokenForceSyncTimeout = 30 * time.Second
+
+// tracingTokenForceSyncPollInterval is how often the regeneration checks the force-sync revision.
+// It is shorter than the identity service's interval because the caller is waiting.
+const tracingTokenForceSyncPollInterval = 1 * time.Second
+
+// forceAgentAPIKeySecretSync makes the environment's secret-env ExternalSecret re-fetch the agent
+// API key just stored at its existing location. Without it the ExternalSecret keeps the old value
+// until its refresh interval passes, and a restart in the meantime starts the agent with the old
+// key. It writes a fresh secretSyncRevision to the release binding and waits, bounded, until the
+// live ExternalSecret carries it. The key is already stored, so this is best-effort: a failure or
+// timeout is logged and the key reaches the agent at the next refresh instead.
+//
+// Only an environment whose binding carries the AMP_AGENT_API_KEY env var reads the key through
+// that ExternalSecret. Agents created before the key moved to the env var get it from the
+// env-injection trait's own ExternalSecret, which has no force-sync annotation, so waiting for
+// one would only run out the timeout.
+func (s *agentManagerService) forceAgentAPIKeySecretSync(ctx context.Context, ouID, projectName, agentName, envName string) {
+	const fallback = "the agent picks up the new key after the ExternalSecret's refresh interval"
+
+	syncCtx, cancel := context.WithTimeout(ctx, tracingTokenForceSyncTimeout)
+	defer cancel()
+
+	configs, err := s.ocClient.GetComponentConfigurations(syncCtx, ouID, projectName, agentName, envName)
+	if err != nil {
+		s.logger.Warn("Could not tell how the agent receives its API key; "+fallback,
+			"agentName", agentName, "environment", envName, "error", err)
+		return
+	}
+	if !slices.ContainsFunc(configs, func(c models.EnvVars) bool { return isSystemAgentAPIKeyEnvVar(c.Key, c.SecretKey) }) {
+		s.logger.Debug("The environment does not receive the agent API key by env var; skipping the force-sync",
+			"agentName", agentName, "environment", envName)
+		return
+	}
+
+	declared, err := s.ocClient.ComponentTypeDeclaresEnvironmentConfig(syncCtx, ouID, agentName, client.SecretSyncRevisionField)
+	switch {
+	case err != nil:
+		s.logger.Warn("Could not tell whether the ComponentType supports force-syncing the agent API key ExternalSecret; "+fallback,
+			"agentName", agentName, "environment", envName, "error", err)
+		return
+	case !declared:
+		s.logger.Info("The installed ComponentType does not declare "+client.SecretSyncRevisionField+"; "+fallback,
+			"agentName", agentName, "environment", envName)
+		return
+	}
+
+	revision := strconv.FormatInt(time.Now().UnixNano(), 10)
+	if err := withReleaseBindingRetry(syncCtx, func() error {
+		return s.ocClient.SetReleaseBindingSecretSyncRevision(syncCtx, ouID, agentName, envName, revision)
+	}); err != nil {
+		if errors.Is(err, utils.ErrNotFound) {
+			// Not deployed in this environment yet: the first deploy renders the ExternalSecret
+			// with the new key, so there is nothing to re-sync.
+			s.logger.Debug("No release binding to force-sync the agent API key for", "agentName", agentName, "environment", envName)
+			return
+		}
+		s.logger.Warn("Could not force the agent API key ExternalSecret to re-sync; "+fallback,
+			"agentName", agentName, "environment", envName, "error", err)
+		return
+	}
+
+	ticker := time.NewTicker(tracingTokenForceSyncPollInterval)
+	defer ticker.Stop()
+	var lastErr error
+	for {
+		applied, err := s.ocClient.IsSecretSyncRevisionApplied(syncCtx, ouID, agentName, envName, revision)
+		if err == nil && applied {
+			return
+		}
+		lastErr = err
+		select {
+		case <-ticker.C:
+		case <-syncCtx.Done():
+			s.logger.Warn("The force-sync revision was not seen applied to the agent API key ExternalSecret in time; "+fallback,
+				"agentName", agentName, "environment", envName, "timeout", tracingTokenForceSyncTimeout.String(), "lastError", lastErr)
+			return
+		}
+	}
 }
 
 func (s *agentManagerService) GetAgent(ctx context.Context, ouID string, projectName string, agentName string) (*models.AgentResponse, error) {
@@ -3676,6 +3747,25 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, ouID string, proj
 			"agentName", agentName, "ouID", ouID, "projectName", projectName, "error", sysEnvErr)
 		return "", fmt.Errorf("failed to fetch system-managed env vars for agent %s: %w", agentName, sysEnvErr)
 	}
+	// The agent API key seeded at creation sits on the Component until the build writes it into
+	// the first release binding. When a deploy creates that binding instead, for example after a
+	// build pushed its image but failed before writing the binding, getSystemManagedEnvVars cannot
+	// see the key, and the override write below would drop it for good.
+	if agent.Type.Type == string(utils.AgentTypeAPI) && !systemManagedKeys[client.EnvVarAgentAPIKey] {
+		baseEnvVars, baseErr := s.ocClient.GetComponentBaseEnvVars(ctx, ouID, agentName)
+		if baseErr != nil {
+			s.logger.Error("Failed to read the agent's seeded env vars, aborting deploy to prevent data loss",
+				"agentName", agentName, "ouID", ouID, "projectName", projectName, "error", baseErr)
+			return "", fmt.Errorf("failed to read seeded env vars for agent %s: %w", agentName, baseErr)
+		}
+		for _, ev := range baseEnvVars {
+			if ev.ValueFrom != nil && ev.ValueFrom.SecretKeyRef != nil && isSystemAgentAPIKeyEnvVar(ev.Key, ev.ValueFrom.SecretKeyRef.Key) {
+				systemManagedEnvVars = append(systemManagedEnvVars, agentAPIKeyEnvVar(ev.ValueFrom.SecretKeyRef.Name))
+				systemManagedKeys = mergeAgentAPIKeyEnvVarKey(systemManagedKeys)
+				break
+			}
+		}
+	}
 	if len(systemManagedEnvVars) > 0 {
 		s.logger.Info("Preserving system-managed env vars during deploy", "agentName", agentName, "count", len(systemManagedEnvVars))
 		for _, sysEnv := range systemManagedEnvVars {
@@ -3707,8 +3797,9 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, ouID string, proj
 	// Always filter user-echoed copies of the identity keys (the console reads
 	// configurations back and may round-trip them), even when there is nothing
 	// to re-inject — these keys are system-owned, never user-writable.
-	// The agent API key is reserved only when getSystemManagedEnvVars found the system's own,
-	// so agents that never receive one keep AMP_AGENT_API_KEY as an ordinary variable.
+	// The agent API key is reserved only when the system's own was found, in the environment
+	// or seeded on the Component, so agents that never receive one keep AMP_AGENT_API_KEY as an
+	// ordinary variable.
 	systemManagedKeys = mergeAgentIdentityEnvVarKeys(systemManagedKeys)
 
 	// Filter out system-managed env vars from the deploy request before processEnvVars.
@@ -4950,6 +5041,27 @@ func (s *agentManagerService) PromoteAgent(ctx context.Context, ouID string, pro
 		if err != nil {
 			return fmt.Errorf("failed to read the source environment's env-injection trait: %w", err)
 		}
+		// A release built before the key moved to env vars fetches the key from the trait's
+		// path, and AMS can only give the target a path of its own by reading the
+		// SecretReference, which is not allowed everywhere. Without the target's own path the
+		// release would fall back to the first environment's key, and the target's traces
+		// would be attributed to that environment, so refuse before the key is issued or the
+		// target is promoted.
+		if agentAPIKeyTrait.Attached && !agentAPIKeyTrait.TakesEnvVarKey {
+			targetAPIKeySecretRef, err := s.ocClient.GetReleaseBindingAgentAPIKeySecretRef(ctx, ouID, agentName, req.TargetEnvironment)
+			if err != nil {
+				return fmt.Errorf("failed to read the target environment's agent API key config: %w", err)
+			}
+			if targetAPIKeySecretRef == "" {
+				s.logPromotionBlocked(ouID, projectName, agentName, req.TargetEnvironment,
+					"the source release predates delivering the agent API key by env var and the target has no key path of its own",
+					"sourceEnvironment", req.SourceEnvironment)
+				return fmt.Errorf("%w: the release in %q was built before the agent API key moved to environment variables; "+
+					"deploy the agent again, promote the new release up to %q if it is not the first environment, "+
+					"then promote it to %q",
+					utils.ErrPromotionNeedsRedeploy, req.SourceEnvironment, req.SourceEnvironment, req.TargetEnvironment)
+			}
+		}
 		if agentAPIKeyTrait.Attached {
 			srcSystemKeys = mergeAgentAPIKeyEnvVarKey(srcSystemKeys)
 			tgtSystemKeys = mergeAgentAPIKeyEnvVarKey(tgtSystemKeys)
@@ -5235,7 +5347,7 @@ func (s *agentManagerService) PromoteAgent(ctx context.Context, ouID string, pro
 		// environment or sent in the request were dropped above as system-managed, and the
 		// promotion replaces the target's env vars, so a key that cannot be issued aborts it
 		// rather than leave the target without one.
-		if err := s.promoteAgentAPIKey(ctx, ouID, projectName, agentName, req.SourceEnvironment, req.TargetEnvironment, agentAPIKeyTrait, &envOverrides, traitEnvConfigs); err != nil {
+		if err := s.promoteAgentAPIKey(ctx, ouID, projectName, agentName, req.TargetEnvironment, agentAPIKeyTrait, &envOverrides, traitEnvConfigs); err != nil {
 			return err
 		}
 

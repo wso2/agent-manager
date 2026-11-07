@@ -2093,6 +2093,10 @@ func deployAPIAgentMocks(existingConfig *models.AgentConfig) (*agentManagerServi
 		GetComponentConfigurationsFunc: func(context.Context, string, string, string, string) ([]models.EnvVars, error) {
 			return nil, nil
 		},
+		// No agent API key seeded on the Component.
+		GetComponentBaseEnvVarsFunc: func(context.Context, string, string) ([]client.EnvVar, error) {
+			return []client.EnvVar{}, nil
+		},
 		GetEnvironmentFunc: func(_ context.Context, _, name string) (*models.EnvironmentResponse, error) {
 			return &models.EnvironmentResponse{Name: name, UUID: uuid.NewString()}, nil
 		},

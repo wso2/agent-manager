@@ -240,6 +240,9 @@ func handleCommonErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 	case errors.Is(err, utils.ErrComponentNotReconcilable):
 		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
 			"Agent cannot be deployed in its current state", err.Error(), utils.ErrCodeConflict)
+	case errors.Is(err, utils.ErrPromotionNeedsRedeploy):
+		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
+			"Agent must be deployed again before this promotion", err.Error(), utils.ErrCodeConflict)
 	case errors.Is(err, utils.ErrEnvironmentHasNoGateway):
 		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
 			"Environment has no ingress gateway", err.Error(), utils.ErrCodeEnvironmentHasNoGateway)
