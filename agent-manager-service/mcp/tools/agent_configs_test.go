@@ -112,7 +112,7 @@ func (m providerEnvsMock) ProviderEnvironments(ctx context.Context, ouID, projec
 
 func callAttach(t *testing.T, mock providerEnvsMock, tool string, args map[string]any) (bool, string) {
 	t.Helper()
-	session := setupTestServerWithToolsets(t, &Toolsets{AgentConfigToolset: mock, EnvironmentToolset: mock})
+	session := setupTestServerWithToolsets(t, &Toolsets{AgentConfigToolset: mock, EnvironmentToolset: mock, LLMProviderToolset: mock})
 	args["project_name"], args["agent_name"] = testProjectName, testAgentName
 	res, err := session.CallTool(context.Background(), &gomcp.CallToolParams{Name: tool, Arguments: args})
 	if err != nil {
@@ -554,4 +554,20 @@ func TestAttachRevokesTheWithheldKeyOfAnExternalAgent(t *testing.T) {
 			t.Errorf("output should name staging as unrevoked and say to regenerate: %s", text)
 		}
 	})
+}
+
+// The attach's guardrails are checked against the provider's gateways too,
+// before the config is created.
+func TestAttachGuardrailsMustBeOnesTheGatewaysReport(t *testing.T) {
+	mock := providerEnvsMock{MockToolsetHandler: NewMockToolsetHandler(), envs: []string{"dev"}}
+	failed, text := callAttach(t, mock, "attach_llm_provider_to_agent", map[string]any{
+		"provider_id": testProviderID,
+		"guardrails":  []any{map[string]any{"name": "cors", "version": "v1"}},
+	})
+	if !failed || !strings.Contains(text, "not a guardrail") {
+		t.Fatalf("want cors refused as not a guardrail, got failed=%v: %s", failed, text)
+	}
+	if _, created := mock.calls["CreateAgentConfig"]; created {
+		t.Error("created a config with a policy that is not a guardrail")
+	}
 }

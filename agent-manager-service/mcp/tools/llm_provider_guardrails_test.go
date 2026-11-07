@@ -333,3 +333,59 @@ func TestGetLLMProviderNamesDeploymentEnvironments(t *testing.T) {
 		t.Errorf("a failed gateway lookup should fail the tool, got: %s", text)
 	}
 }
+
+// undeployedProviderMock serves a provider on no gateway yet: its own gateways
+// report no guardrails, the org's gateways do.
+type undeployedProviderMock struct{ policiesMock }
+
+func (m undeployedProviderMock) ListLLMGuardrails(ctx context.Context, ouID string, providerID string) (*models.LLMPolicyAvailabilityResponse, error) {
+	if providerID != "" {
+		m.recordCall("ListLLMGuardrails", ouID, providerID)
+		return &models.LLMPolicyAvailabilityResponse{}, nil
+	}
+	return m.MockToolsetHandler.ListLLMGuardrails(ctx, ouID, providerID) // records the org-wide call
+}
+
+// A guardrail the gateways do not report, or a gateway policy that is not a
+// guardrail, would be stored on the provider and pushed to its gateways, so it
+// is refused before anything is saved.
+func TestAddGuardrailMustBeOneTheGatewaysReport(t *testing.T) {
+	for name, tc := range map[string]struct {
+		guardrail map[string]any
+		want      string
+	}{
+		"misspelled name":         {map[string]any{"name": "pii-maskin", "version": "v1"}, `no guardrail named "pii-maskin"`},
+		"non-guardrail policy":    {map[string]any{"name": "jwt-auth", "version": "v1"}, "jwt-auth is a gateway policy, not a guardrail"},
+		"reported, not guardrail": {map[string]any{"name": "cors", "version": "v1"}, "cors is a gateway policy, not a guardrail"},
+		"unavailable version":     {map[string]any{"name": "word-count", "version": "v9"}, "word-count version v9 is not available"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			failed, text, saved := callGuardrailTool(t, nil, "add_llm_provider_guardrails", map[string]any{"guardrails": []any{tc.guardrail}})
+			if !failed || saved != nil {
+				t.Fatalf("want a refusal and no save, got failed=%v saved=%+v: %s", failed, saved, text)
+			}
+			if !strings.Contains(text, tc.want) {
+				t.Errorf("error should say %q: %s", tc.want, text)
+			}
+		})
+	}
+
+	t.Run("provider on no gateway is checked against the org's gateways", func(t *testing.T) {
+		mock := undeployedProviderMock{policiesMock{MockToolsetHandler: NewMockToolsetHandler()}}
+		session := setupTestServerWithToolsets(t, &Toolsets{LLMProviderToolset: mock})
+		res, err := session.CallTool(context.Background(), &gomcp.CallToolParams{Name: "add_llm_provider_guardrails", Arguments: map[string]any{
+			"provider_id": testProviderID,
+			"guardrails":  []any{map[string]any{"name": "word-count", "version": "v1"}},
+		}})
+		if err != nil || res.IsError {
+			t.Fatalf("an org-wide guardrail should be accepted for a provider on no gateway: err=%v %+v", err, res.Content)
+		}
+		var scopes []any
+		for _, call := range mock.calls["ListLLMGuardrails"] {
+			scopes = append(scopes, call.([]interface{})[1])
+		}
+		if len(scopes) != 2 || scopes[0] != testProviderID || scopes[1] != "" {
+			t.Errorf("looked up guardrails for %v, want the provider's then the org's", scopes)
+		}
+	})
+}

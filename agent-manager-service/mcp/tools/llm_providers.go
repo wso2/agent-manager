@@ -344,6 +344,9 @@ func addLLMProviderGuardrails(handler LLMProviderToolsetHandler) func(context.Co
 		if err != nil {
 			return nil, nil, err
 		}
+		if err := requireAvailableGuardrails(ctx, toolName, handler, resolveOUID(ctx), providerID, added); err != nil {
+			return nil, nil, err
+		}
 		return updateProviderGuardrails(ctx, toolName, handler, providerID, func(current []models.LLMPolicy) ([]models.LLMPolicy, error) {
 			next := append([]models.LLMPolicy(nil), current...)
 			for _, g := range added {
@@ -643,6 +646,55 @@ func validateGuardrails(guardrails []guardrailInput) error {
 		if path := credentialParam(g.Params, ""); path != "" {
 			return fmt.Errorf("guardrails[%d] (%s): parameter %q looks like a credential, and a credential must not pass through an MCP tool call. "+
 				"Set this guardrail in the console instead, where the value never reaches the model", i, strings.TrimSpace(g.Name), path)
+		}
+	}
+	return nil
+}
+
+// requireAvailableGuardrails refuses, before anything is saved, a guardrail the
+// gateways do not report, at the version given, and a gateway policy that is
+// not a guardrail (jwt-auth, cors): either would otherwise be stored on the
+// provider and pushed to its gateways. Guardrails are checked against what the
+// provider's gateways report; a provider on no gateway yet reports nothing, so
+// it is checked against the org's gateways, where it can be deployed.
+func requireAvailableGuardrails(
+	ctx context.Context, toolName string, handler LLMProviderToolsetHandler, ouID, providerID string, guardrails []models.LLMPolicy,
+) error {
+	if len(guardrails) == 0 {
+		return nil
+	}
+	if handler == nil {
+		return fmt.Errorf("%s: guardrail lookup is not available", toolName)
+	}
+	resp, err := handler.ListLLMGuardrails(ctx, ouID, providerID)
+	if err != nil {
+		return wrapToolError(toolName, err)
+	}
+	if resp == nil || len(resp.List) == 0 {
+		if resp, err = handler.ListLLMGuardrails(ctx, ouID, ""); err != nil {
+			return wrapToolError(toolName, err)
+		}
+	}
+	versions := map[string][]string{}
+	if resp != nil {
+		for _, p := range resp.List {
+			if !nonGuardrailPolicies[p.Name] {
+				versions[p.Name] = append(versions[p.Name], p.Version)
+			}
+		}
+	}
+	for _, g := range guardrails {
+		if nonGuardrailPolicies[g.Name] {
+			return fmt.Errorf("%s: %s is a gateway policy, not a guardrail. Call list_llm_guardrails to see valid guardrails", toolName, g.Name)
+		}
+		available := versions[g.Name]
+		if len(available) == 0 {
+			return fmt.Errorf("%s: no guardrail named %q is available on the provider's gateways. "+
+				"Call list_llm_guardrails with provider_id to see valid guardrails", toolName, g.Name)
+		}
+		if !slices.Contains(available, g.Version) {
+			return fmt.Errorf("%s: %s version %s is not available on the provider's gateways; available: %s version %s",
+				toolName, g.Name, g.Version, g.Name, strings.Join(available, ", "))
 		}
 	}
 	return nil

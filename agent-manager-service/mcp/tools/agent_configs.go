@@ -116,7 +116,7 @@ func (t *Toolsets) registerAgentConfigTools(server *gomcp.Server, reg *toolRegis
 			"environments": arrayProperty("Optional. Environment names to configure. Defaults to every environment where the provider is deployed to a gateway this agent can use.", map[string]any{"type": "string"}),
 			"guardrails":   arrayProperty("Optional. Guardrails for this agent's LLM traffic, on top of any on the provider.", guardrailSchema()),
 		}, []string{"project_name", "agent_name", "provider_id"}),
-	}, audit.ActionAgentUpdate, attachLLMProvider(t.AgentConfigToolset, t.EnvironmentToolset, t.AgentToolset), rbac.AgentUpdate)
+	}, audit.ActionAgentUpdate, attachLLMProvider(t.AgentConfigToolset, t.EnvironmentToolset, t.AgentToolset, t.LLMProviderToolset), rbac.AgentUpdate)
 
 	addTool(reg, server, &gomcp.Tool{
 		Name: "attach_mcp_proxy_to_agent",
@@ -135,12 +135,20 @@ func (t *Toolsets) registerAgentConfigTools(server *gomcp.Server, reg *toolRegis
 	}, audit.ActionAgentUpdate, attachMCPProxy(t.AgentConfigToolset, t.EnvironmentToolset, t.AgentToolset), rbac.AgentUpdate)
 }
 
-func attachLLMProvider(handler AgentConfigToolsetHandler, envHandler EnvironmentToolsetHandler, agentHandler AgentToolsetHandler) func(context.Context, *gomcp.CallToolRequest, attachLLMProviderInput) (*gomcp.CallToolResult, any, error) {
+func attachLLMProvider(
+	handler AgentConfigToolsetHandler, envHandler EnvironmentToolsetHandler, agentHandler AgentToolsetHandler, llmHandler LLMProviderToolsetHandler,
+) func(context.Context, *gomcp.CallToolRequest, attachLLMProviderInput) (*gomcp.CallToolResult, any, error) {
 	return func(ctx context.Context, _ *gomcp.CallToolRequest, input attachLLMProviderInput) (*gomcp.CallToolResult, any, error) {
 		const toolName = "attach_llm_provider_to_agent"
 		policies, err := toModelGuardrails(input.Guardrails)
 		if err != nil {
 			return nil, nil, err
+		}
+		// A blank provider_id is reported by attachConfig.
+		if providerID := strings.TrimSpace(input.ProviderID); providerID != "" {
+			if err := requireAvailableGuardrails(ctx, toolName, llmHandler, resolveOUID(ctx), providerID, policies); err != nil {
+				return nil, nil, err
+			}
 		}
 		out, err := attachConfig(ctx, toolName, handler, envHandler, agentHandler, models.AgentConfigTypeLLM,
 			input.ProjectName, input.AgentName, input.ProviderID, "provider_id", input.ConfigName, input.Environments, policies)
