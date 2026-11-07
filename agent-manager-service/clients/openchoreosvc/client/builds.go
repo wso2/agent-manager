@@ -75,7 +75,7 @@ func withRunEnvVars(params map[string]interface{}, envVars []EnvVar) map[string]
 // to the JSON workload object (including spec.container.image).
 const workflowRunWorkloadAnnotationKey = "openchoreo.dev/workload"
 
-func (c *openChoreoClient) TriggerBuild(ctx context.Context, ouID, projectName, componentName, commitID, workflowRunName string, runEnvVars []EnvVar) (*models.BuildResponse, error) {
+func (c *openChoreoClient) TriggerBuild(ctx context.Context, ouID, projectName, componentName, commitID, workflowRunName string, runEnvVars []EnvVar, buildClient BuildClientSource) (*models.BuildResponse, error) {
 	if err := workloadpolicy.Check(ctx, ouID); err != nil {
 		return nil, err
 	}
@@ -128,6 +128,22 @@ func (c *openChoreoClient) TriggerBuild(ctx context.Context, ouID, projectName, 
 		}
 	}
 	params = withRunEnvVars(params, runEnvVars)
+	// The build token is issued only for a workflow that takes it, so an
+	// identity provider or secret store outage cannot fail a build that would
+	// never carry the token. Once the workflow does take it, a failure to issue
+	// it fails the build rather than starting one that cannot publish its
+	// Workload. The cause is reported as text, not wrapped: its sentinel (a
+	// secret store's not-found, say) is not this build's 404.
+	if c.attachBuildClient(ctx, namespaceName, workflowKind, workflowName, buildClient != nil) {
+		buildToken, err := buildClient(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to issue the build token: %v", err) //nolint:errorlint // deliberately not wrapped, see above
+		}
+		if buildToken == nil {
+			return nil, fmt.Errorf("failed to issue the build token: none was returned")
+		}
+		params = withBuildClient(params, buildToken)
+	}
 
 	// Preserve the open-source behavior when no deployment-specific name is supplied.
 	if workflowRunName == "" {

@@ -37,7 +37,7 @@ func a2aPublishingAgentService(pubs *repomocks.PlatformAgentExposureRepositoryMo
 	publisher := withA2ACore(NewA2APublisher(sentinelTx, pubs, proxies, nil, nil, a2aRenderQueue(),
 		testLogger(), NewAgentExposurePublisher(sentinelTx, pubs, nil, a2aRenderQueue(), a2aIngressGateways(), nil, testLogger()), nil), nil)
 	return NewAgentManagerService(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		publisher, nil, nil, nil, publisher.exposure, nil, testLogger()).(*agentManagerService)
+		nil, publisher, nil, nil, nil, publisher.exposure, nil, testLogger()).(*agentManagerService)
 }
 
 // a2aRenderQueue accepts every PENDING row a deploy owes, on a gateway mapped to every environment.

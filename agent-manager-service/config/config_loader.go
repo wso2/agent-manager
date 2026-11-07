@@ -23,6 +23,7 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
@@ -298,6 +299,13 @@ func loadEnvs() {
 		}
 	}
 	validateThunderConfig(config, r)
+
+	config.BuildClient = BuildClientConfig{
+		Enabled: r.readOptionalBool("AMP_BUILD_CLIENT_ENABLED", false),
+		Workflows: r.readOptionalStringList("AMP_BUILD_CLIENT_WORKFLOWS",
+			"amp-docker,amp-ballerina-buildpack,amp-google-cloud-buildpacks"),
+	}
+	validateBuildClientConfig(config, r)
 
 	config.TLSConfig = TLSConfig{
 		EnableTLS: r.readOptionalBool("TLS_ENABLED", false),
@@ -617,6 +625,68 @@ func validateThunderConfig(cfg *Config, r *configReader) {
 			"AMP_THUNDER_SYSTEM_RESOURCE_IDENTIFIER %q must have a non-empty host", thunder.SystemResourceIdentifier,
 		))
 	}
+}
+
+// validateBuildClientConfig checks the build-token settings together. A build
+// token is minted with this service's own identity provider client on the
+// organization token endpoint derived from IDP_TOKEN_URL, so enabling it without
+// that client, or with a token URL the endpoint cannot be derived from, would make
+// every build that takes the token fail rather than the service fail at startup;
+// and an empty workflow list would leave the flag on with nothing it could ever
+// apply to.
+func validateBuildClientConfig(cfg *Config, r *configReader) {
+	if !cfg.BuildClient.Enabled {
+		return
+	}
+	if _, err := OrganizationTokenURL(cfg.IDP.TokenURL, "ou"); err != nil {
+		r.errors = append(r.errors, fmt.Errorf("AMP_BUILD_CLIENT_ENABLED requires a usable IDP_TOKEN_URL: %w", err))
+	}
+	if strings.TrimSpace(cfg.IDP.ClientID) == "" || cfg.IDP.ClientSecret == "" {
+		r.errors = append(r.errors, fmt.Errorf("AMP_BUILD_CLIENT_ENABLED requires IDP_CLIENT_ID and IDP_CLIENT_SECRET"))
+	}
+	if len(cfg.BuildClient.Workflows) == 0 {
+		r.errors = append(r.errors, fmt.Errorf("AMP_BUILD_CLIENT_ENABLED requires at least one AMP_BUILD_CLIENT_WORKFLOWS entry"))
+	}
+}
+
+// organizationTokenPathSuffix is the token endpoint path an organization token
+// endpoint is derived from.
+const organizationTokenPathSuffix = "/oauth2/token"
+
+// organizationIDPattern is what an organization (organization unit) ID may look
+// like in an organization token endpoint path: one path segment of letters,
+// digits, '.', '_' and '-' (identity provider OU IDs are UUIDs), so it never needs
+// escaping and can never add or climb a path segment.
+var organizationIDPattern = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
+
+// OrganizationTokenURL returns the identity provider's token endpoint for one
+// organization: tokenURL, an absolute http(s) URL whose path ends in
+// /oauth2/token, with /ou/<ouID> inserted before that suffix. A token issued there
+// is scoped to that organization (its ouId claim names it).
+func OrganizationTokenURL(tokenURL, ouID string) (string, error) {
+	if !organizationIDPattern.MatchString(ouID) || ouID == "." || ouID == ".." {
+		return "", fmt.Errorf("invalid organization ID %q", ouID)
+	}
+	parsed, err := url.Parse(strings.TrimSpace(tokenURL))
+	if err != nil {
+		return "", fmt.Errorf("invalid token URL: %w", err)
+	}
+	if (parsed.Scheme != "https" && parsed.Scheme != "http") || parsed.Host == "" {
+		return "", fmt.Errorf("token URL must be an absolute http(s) URL")
+	}
+	if parsed.RawQuery != "" || parsed.Fragment != "" {
+		return "", fmt.Errorf("token URL must not carry a query or fragment")
+	}
+	prefix, ok := strings.CutSuffix(parsed.Path, organizationTokenPathSuffix)
+	if !ok {
+		return "", fmt.Errorf("token URL path must end with %s", organizationTokenPathSuffix)
+	}
+	if strings.Contains(prefix+"/", "/ou/") {
+		return "", fmt.Errorf("token URL must be the identity provider's own token endpoint, not an organization's")
+	}
+	parsed.Path = prefix + "/ou/" + ouID + organizationTokenPathSuffix
+	parsed.RawPath = ""
+	return parsed.String(), nil
 }
 
 // validateOpenChoreoBuildWorkflowKind accepts only the kinds OpenChoreo knows, or

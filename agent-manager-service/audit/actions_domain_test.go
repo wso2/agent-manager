@@ -43,6 +43,7 @@ func TestDomainActionsMatchRouteDerivedActions(t *testing.T) {
 		action  Action
 	}{
 		{"POST /orgs/{orgName}/git-secrets", []rbac.Permission{rbac.GitSecretCreate}, ActionGitSecretCreate},
+		{"POST /build-publisher/builds/{buildName}/workload", nil, ActionBuildWorkloadPublish},
 		{"DELETE /orgs/{orgName}/git-secrets/{secretName}", []rbac.Permission{rbac.GitSecretDelete}, ActionGitSecretDelete},
 		{
 			"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/agent-card/source",
