@@ -437,3 +437,53 @@ func TestAttachLLMProviderListsItsProxies(t *testing.T) {
 		t.Errorf("output does not name the proxy\n got: %s\nwant: %s", text, want)
 	}
 }
+
+// A credential in guardrail params would pass through the model, so it is
+// refused before anything is saved; ordinary parameters pass.
+func TestGuardrailCredentialParamsAreRefused(t *testing.T) {
+	for name, params := range map[string]map[string]any{
+		"api key":           {"apiKey": "sk-123"},
+		"nested secret":     {"request": map[string]any{"clientSecret": "s"}},
+		"subscription key":  {"azure_subscription_key": "k"},
+		"bare token":        {"token": "t"},
+		"key in list items": {"rules": []any{map[string]any{"password": "p"}}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if credentialParam(params, "") == "" {
+				t.Errorf("%v was not recognised as a credential", params)
+			}
+		})
+	}
+	for name, params := range map[string]map[string]any{
+		"thresholds":      {"request": map[string]any{"jsonPath": "", "hateSeverityThreshold": 4}},
+		"keywords":        {"keywords": []any{"a"}, "maxTokens": 100, "tokenLimit": 5},
+		"non-secret keys": {"cacheKey": "x", "sortKey": "y"},
+		"masking":         {"mask": true},
+		"no params":       nil,
+	} {
+		t.Run("allowed "+name, func(t *testing.T) {
+			if p := credentialParam(params, ""); p != "" {
+				t.Errorf("%q was refused as a credential", p)
+			}
+		})
+	}
+
+	failed, text, saved := callGuardrailTool(t, nil, "add_llm_provider_guardrails", map[string]any{
+		"guardrails": []any{map[string]any{"name": "vendor-check", "version": "v1", "params": map[string]any{"apiKey": "sk-123"}}},
+	})
+	if !failed || saved != nil || !strings.Contains(text, `"apiKey"`) || strings.Contains(text, "sk-123") {
+		t.Fatalf("want a refusal naming the parameter but not its value, and no save; got failed=%v saved=%v: %s", failed, saved, text)
+	}
+
+	mock := providerEnvsMock{MockToolsetHandler: NewMockToolsetHandler(), envs: []string{"dev"}}
+	failed, text = callAttach(t, mock, "attach_llm_provider_to_agent", map[string]any{
+		"provider_id": testProviderID,
+		"guardrails":  []any{map[string]any{"name": "vendor-check", "version": "v1", "params": map[string]any{"password": "p"}}},
+	})
+	if !failed {
+		t.Fatalf("attach accepted a credential guardrail parameter: %s", text)
+	}
+	if _, created := mock.calls["CreateAgentConfig"]; created {
+		t.Error("created a config with a credential guardrail parameter")
+	}
+}

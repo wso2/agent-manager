@@ -22,6 +22,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"unicode"
 
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -139,8 +140,9 @@ func guardrailSchema() map[string]any {
 		"name":    stringProperty("Required. Guardrail policy name from list_llm_guardrails."),
 		"version": stringProperty("Required. Guardrail policy version from list_llm_guardrails."),
 		"params": map[string]any{
-			"type":        "object",
-			"description": "Optional. Policy parameters, shaped by the `parameters` schema list_llm_guardrails returns for this policy.",
+			"type": "object",
+			"description": "Optional. Policy parameters, shaped by the `parameters` schema list_llm_guardrails returns for this policy. " +
+				"Never put a credential here (an API key, token, secret or password): such a parameter is refused, and a guardrail that needs one is set in the console.",
 		},
 	}, []string{"name", "version"})
 }
@@ -600,8 +602,70 @@ func validateGuardrails(guardrails []guardrailInput) error {
 		if strings.TrimSpace(g.Name) == "" || strings.TrimSpace(g.Version) == "" {
 			return fmt.Errorf("guardrails[%d]: name and version are required. Call list_llm_guardrails to see valid guardrails", i)
 		}
+		if path := credentialParam(g.Params, ""); path != "" {
+			return fmt.Errorf("guardrails[%d] (%s): parameter %q looks like a credential, and a credential must not pass through an MCP tool call. "+
+				"Set this guardrail in the console instead, where the value never reaches the model", i, strings.TrimSpace(g.Name), path)
+		}
 	}
 	return nil
+}
+
+// credentialParamNames are parameter names, lowercased with separators
+// removed, that carry a credential. Policy schemas mark no parameter as
+// sensitive, so the name is the signal; vendor keys a gateway holds itself are
+// systemParameters and never reach params.
+var credentialParamNames = []string{
+	"apikey", "secret", "password", "passwd", "passphrase", "credential",
+	"accesskey", "privatekey", "subscriptionkey", "accountkey",
+	"accesstoken", "authtoken", "bearertoken",
+}
+
+// credentialParam returns the dotted path of the first parameter in params
+// whose name holds a credential, at any depth, or "". A name that is exactly
+// "key" or "token" counts too, but names such as keywords or maxTokens do not.
+func credentialParam(params map[string]any, prefix string) string {
+	for name, value := range params {
+		path := name
+		if prefix != "" {
+			path = prefix + "." + name
+		}
+		if isCredentialName(name) {
+			return path
+		}
+		switch v := value.(type) {
+		case map[string]any:
+			if p := credentialParam(v, path); p != "" {
+				return p
+			}
+		case []any:
+			for i, item := range v {
+				if m, ok := item.(map[string]any); ok {
+					if p := credentialParam(m, fmt.Sprintf("%s[%d]", path, i)); p != "" {
+						return p
+					}
+				}
+			}
+		}
+	}
+	return ""
+}
+
+func isCredentialName(name string) bool {
+	normalized := strings.Map(func(r rune) rune {
+		if r == '-' || r == '_' || r == '.' || r == ' ' {
+			return -1
+		}
+		return unicode.ToLower(r)
+	}, name)
+	if normalized == "key" || normalized == "token" {
+		return true
+	}
+	for _, c := range credentialParamNames {
+		if strings.Contains(normalized, c) {
+			return true
+		}
+	}
+	return false
 }
 
 func toModelGuardrails(guardrails []guardrailInput) ([]models.LLMPolicy, error) {
