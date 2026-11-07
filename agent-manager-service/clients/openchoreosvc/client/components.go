@@ -1451,7 +1451,13 @@ func (c *openChoreoClient) ListComponents(ctx context.Context, ouID, projectName
 			})
 		}
 		if resp.JSON200 == nil {
-			return components, nil
+			// A 200 with no list body (not JSON) is an empty project only on the first page;
+			// on a later one the list was cut short, and returning the earlier pages would
+			// be the partial result this loop exists to avoid.
+			if page == 0 {
+				return components, nil
+			}
+			return nil, fmt.Errorf("failed to list components: page %d returned no component list", page+1)
 		}
 
 		for i := range resp.JSON200.Items {

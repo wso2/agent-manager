@@ -373,11 +373,16 @@ func (m tierMock) ProviderEnvironments(context.Context, string, string, string, 
 // tools' own, as the console agent's token does.
 func callAttachWithScopes(t *testing.T, mock tierMock, extraScopes string, args map[string]any) (bool, string) {
 	t.Helper()
+	return callToolWithScopes(t, mock, "attach_llm_provider_to_agent", extraScopes, args)
+}
+
+func callToolWithScopes(t *testing.T, mock tierMock, tool, extraScopes string, args map[string]any) (bool, string) {
+	t.Helper()
 	session := setupTestServerWithClaims(t, &Toolsets{AgentConfigToolset: mock, EnvironmentToolset: mock}, &jwtassertion.TokenClaims{
 		OuId: testOrgName, Scope: strings.TrimSpace(unionScopes() + " " + extraScopes),
 	})
 	args["project_name"], args["agent_name"] = testProjectName, testAgentName
-	res, err := session.CallTool(context.Background(), &gomcp.CallToolParams{Name: "attach_llm_provider_to_agent", Arguments: args})
+	res, err := session.CallTool(context.Background(), &gomcp.CallToolParams{Name: tool, Arguments: args})
 	if err != nil {
 		t.Fatalf("CallTool: %v", err)
 	}
@@ -569,5 +574,30 @@ func TestAttachGuardrailsMustBeOnesTheGatewaysReport(t *testing.T) {
 	}
 	if _, created := mock.calls["CreateAgentConfig"]; created {
 		t.Error("created a config with a policy that is not a guardrail")
+	}
+}
+
+// attach_mcp_proxy_to_agent shares the tier: its default, every environment,
+// leaves production out, and a named production environment is refused.
+func TestAttachMCPProxyProductionEnvironmentNeedsTheProductionScope(t *testing.T) {
+	mock := tierMock{NewMockToolsetHandler()}
+	failed, text := callToolWithScopes(t, mock, "attach_mcp_proxy_to_agent", "", map[string]any{"proxy_id": testProxyID})
+	if failed {
+		t.Fatalf("tool failed: %s", text)
+	}
+	if got := mappedEnvs(t, mock.MockToolsetHandler); len(got) != 1 || got[0] != "dev" {
+		t.Errorf("mapped %v, want [dev]", got)
+	}
+	if !strings.Contains(text, `"skipped_production_environments":["prod"]`) {
+		t.Errorf("output should say prod was left out: %s", text)
+	}
+
+	mock = tierMock{NewMockToolsetHandler()}
+	failed, text = callToolWithScopes(t, mock, "attach_mcp_proxy_to_agent", "", map[string]any{"proxy_id": testProxyID, "environments": []any{"prod"}})
+	if !failed || !strings.Contains(text, rbac.AgentEnvProduction.Scope()) {
+		t.Fatalf("want a refusal naming %s, got failed=%v: %s", rbac.AgentEnvProduction.Scope(), failed, text)
+	}
+	if _, created := mock.calls["CreateAgentConfig"]; created {
+		t.Error("created an MCP config in production without the production scope")
 	}
 }

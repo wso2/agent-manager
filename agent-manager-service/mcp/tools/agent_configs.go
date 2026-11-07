@@ -97,6 +97,11 @@ func externalAttachNote(target, keyHint string, unrevoked []string) string {
 	return note
 }
 
+// productionEnvironmentsNote is the environments argument's rule for production,
+// the tier the deploy tools apply (requireProductionTier).
+const productionEnvironmentsNote = "Production environments need amp:agent:env-production as well: without it a default leaves them out " +
+	"(skipped_production_environments lists them), and naming one is refused."
+
 const (
 	externalLLMKeyHint = "its API key section"
 	externalMCPKeyHint = "when the proxy uses API key security, its API key section"
@@ -113,8 +118,9 @@ func (t *Toolsets) registerAgentConfigTools(server *gomcp.Server, reg *toolRegis
 			"agent_name":   stringProperty("Required. Name of the agent."),
 			"provider_id":  stringProperty("Required. LLM provider `id` from list_llm_providers, not its name."),
 			"config_name":  stringProperty("Optional. Name of the agent's model configuration; also the prefix of the injected variables. Defaults to the provider id."),
-			"environments": arrayProperty("Optional. Environment names to configure. Defaults to every environment where the provider is deployed to a gateway this agent can use.", map[string]any{"type": "string"}),
-			"guardrails":   arrayProperty("Optional. Guardrails for this agent's LLM traffic, on top of any on the provider.", guardrailSchema()),
+			"environments": arrayProperty("Optional. Environment names to configure. Defaults to every environment where the provider is deployed to a gateway this agent can use. "+
+				productionEnvironmentsNote, map[string]any{"type": "string"}),
+			"guardrails": arrayProperty("Optional. Guardrails for this agent's LLM traffic, on top of any on the provider.", guardrailSchema()),
 		}, []string{"project_name", "agent_name", "provider_id"}),
 	}, audit.ActionAgentUpdate, attachLLMProvider(t.AgentConfigToolset, t.EnvironmentToolset, t.AgentToolset, t.LLMProviderToolset), rbac.AgentUpdate)
 
@@ -130,7 +136,8 @@ func (t *Toolsets) registerAgentConfigTools(server *gomcp.Server, reg *toolRegis
 			"agent_name":   stringProperty("Required. Name of the agent."),
 			"proxy_id":     stringProperty("Required. MCP proxy `id` from list_mcp_proxies."),
 			"config_name":  stringProperty("Optional. Name of the agent's MCP configuration; also the prefix of the injected variables. Defaults to the proxy id."),
-			"environments": arrayProperty("Optional. Environment names to configure. Defaults to every environment, including ones the proxy is not deployed to yet.", map[string]any{"type": "string"}),
+			"environments": arrayProperty("Optional. Environment names to configure. Defaults to every environment, including ones the proxy is not deployed to yet. "+
+				productionEnvironmentsNote, map[string]any{"type": "string"}),
 		}, []string{"project_name", "agent_name", "proxy_id"}),
 	}, audit.ActionAgentUpdate, attachMCPProxy(t.AgentConfigToolset, t.EnvironmentToolset, t.AgentToolset), rbac.AgentUpdate)
 }

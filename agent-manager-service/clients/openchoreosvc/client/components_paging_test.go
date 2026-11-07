@@ -133,3 +133,31 @@ func TestListComponents_FailsWhenLaterPageFails(t *testing.T) {
 	require.Error(t, err)
 	assert.Nil(t, agents)
 }
+
+// A later page answering 200 without a list body (not JSON) means the list was cut short, so it
+// fails rather than returning the earlier pages as if they were all; only a first page may be empty.
+func TestListComponents_FailsWhenLaterPageHasNoList(t *testing.T) {
+	noList := func(w http.ResponseWriter) {
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(http.StatusOK)
+	}
+	c := newTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("cursor") == "" {
+			require.NoError(t, json.NewEncoder(w).Encode(gen.ComponentList{
+				Items: []gen.Component{agentComponent(t, liveMeta("agent-1"))}, Pagination: cursorTo("page-2"),
+			}))
+			return
+		}
+		noList(w)
+	}))
+
+	agents, err := c.ListComponents(context.Background(), "ou-acme", "proj")
+
+	require.Error(t, err)
+	assert.Nil(t, agents)
+
+	empty := newTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { noList(w) }))
+	agents, err = empty.ListComponents(context.Background(), "ou-acme", "proj")
+	require.NoError(t, err, "a first page with no list is an empty project")
+	assert.Empty(t, agents)
+}
