@@ -191,6 +191,13 @@ func (m *MockToolsetHandler) ListLLMProviders(
 	return []*models.LLMProvider{p}, 1, nil
 }
 
+func (m *MockToolsetHandler) AddLLMProviderToCatalog(
+	ctx context.Context, ouID string, providerID string,
+) (*models.LLMProvider, error) {
+	m.recordCall("AddLLMProviderToCatalog", ouID, providerID)
+	return testLLMProvider(providerID), nil
+}
+
 func (m *MockToolsetHandler) GatewayEnvironmentIDs(
 	ctx context.Context, gatewayIDs []string,
 ) (map[string][]string, error) {

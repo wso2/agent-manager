@@ -56,6 +56,13 @@ type removeLLMProviderGuardrailInput struct {
 	Name       string `json:"name"`
 	Version    string `json:"version,omitempty"`
 }
+type addLLMProviderToCatalogInput struct {
+	ProviderID string `json:"provider_id"`
+}
+type addLLMProviderToCatalogOutput struct {
+	llmProviderItem
+	Note string `json:"note"`
+}
 type listLLMGuardrailsInput struct {
 	ProviderID string `json:"provider_id,omitempty"`
 	Name       string `json:"name,omitempty"`
@@ -194,6 +201,16 @@ func (t *Toolsets) registerLLMProviderTools(server *gomcp.Server, reg *toolRegis
 			"version":     stringProperty("Optional. Version of the guardrail to remove; required when the provider has more than one version of it."),
 		}, []string{"provider_id", "name"}),
 	}, audit.ActionLLMProviderUpdate, removeLLMProviderGuardrail(t.LLMProviderToolset), rbac.LLMProviderUpdate)
+
+	addTool(reg, server, &gomcp.Tool{
+		Name: "add_llm_provider_to_catalog",
+		Description: "Put an LLM provider back in the catalog, so agents can be attached to it again with attach_llm_provider_to_agent. " +
+			"list_llm_providers shows `in_catalog`; a provider already in the catalog is left as it is. " +
+			"Taking a provider out of the catalog is done in the console.",
+		InputSchema: createSchema(map[string]any{
+			"provider_id": stringProperty("Required. LLM provider `id` from list_llm_providers."),
+		}, []string{"provider_id"}),
+	}, audit.ActionLLMProviderUpdate, addLLMProviderToCatalog(t.LLMProviderToolset), rbac.LLMProviderUpdate)
 
 	addTool(reg, server, &gomcp.Tool{
 		Name: "list_llm_guardrails",
@@ -391,6 +408,27 @@ func removeLLMProviderGuardrail(handler LLMProviderToolsetHandler) func(context.
 			}
 			return append(next, current[match+1:]...), nil
 		})
+	}
+}
+
+func addLLMProviderToCatalog(handler LLMProviderToolsetHandler) func(context.Context, *gomcp.CallToolRequest, addLLMProviderToCatalogInput) (*gomcp.CallToolResult, any, error) {
+	return func(ctx context.Context, _ *gomcp.CallToolRequest, input addLLMProviderToCatalogInput) (*gomcp.CallToolResult, any, error) {
+		const toolName = "add_llm_provider_to_catalog"
+		providerID := strings.TrimSpace(input.ProviderID)
+		if providerID == "" {
+			return nil, nil, fmt.Errorf("provider_id is required. Call list_llm_providers to see valid providers")
+		}
+		provider, err := handler.AddLLMProviderToCatalog(ctx, resolveOUID(ctx), providerID)
+		if err != nil {
+			return nil, nil, wrapToolError(toolName, err)
+		}
+		if provider == nil {
+			return nil, nil, fmt.Errorf("%s: provider service returned an empty response", toolName)
+		}
+		return handleToolResult(addLLMProviderToCatalogOutput{
+			llmProviderItem: toLLMProviderItem(provider),
+			Note:            "The provider is in the catalog; agents can be attached to it with attach_llm_provider_to_agent.",
+		}, nil)
 	}
 }
 

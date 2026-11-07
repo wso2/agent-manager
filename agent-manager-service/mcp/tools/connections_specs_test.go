@@ -105,6 +105,21 @@ func llmProviderToolSpecs() []toolTestSpec {
 			},
 		},
 		{
+			name:                "add_llm_provider_to_catalog",
+			toolset:             "llm-provider",
+			permissions:         []rbac.Permission{rbac.LLMProviderUpdate},
+			descriptionKeywords: []string{"catalog", "provider", "in_catalog"},
+			descriptionMinLen:   20,
+			requiredParams:      []string{"provider_id"},
+			testArgs:            map[string]any{"provider_id": testProviderID},
+			expectedMethod:      "AddLLMProviderToCatalog",
+			validateCall: func(t *testing.T, args []interface{}) {
+				if got := args[1]; got != testProviderID {
+					t.Errorf("providerID: got %v, want %q", got, testProviderID)
+				}
+			},
+		},
+		{
 			name:                "list_llm_guardrails",
 			toolset:             "llm-provider",
 			permissions:         []rbac.Permission{rbac.LLMProviderRead},

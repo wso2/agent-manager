@@ -68,6 +68,8 @@ type EnvironmentToolsetHandler interface {
 type LLMProviderToolsetHandler interface {
 	ListLLMProviders(ctx context.Context, ouID string, limit int, offset int) ([]*models.LLMProvider, int, error)
 	ListLLMGuardrails(ctx context.Context, ouID string, providerID string) (*models.LLMPolicyAvailabilityResponse, error)
+	// AddLLMProviderToCatalog puts a provider back in the catalog.
+	AddLLMProviderToCatalog(ctx context.Context, ouID string, providerID string) (*models.LLMProvider, error)
 	// GatewayEnvironmentIDs returns the UUIDs of the environments each gateway serves.
 	GatewayEnvironmentIDs(ctx context.Context, gatewayIDs []string) (map[string][]string, error)
 	GetLLMProvider(ctx context.Context, ouID string, providerID string) (*models.LLMProvider, []*models.Deployment, error)

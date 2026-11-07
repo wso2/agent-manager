@@ -38,6 +38,20 @@ func NewLLMProviderHandler(
 	return &LLMProviderHandler{providerSvc: providerSvc, deploymentSvc: deploymentSvc, gatewaySvc: gatewaySvc}
 }
 
+// AddLLMProviderToCatalog puts the provider back in the catalog, the console's
+// catalog toggle, resolving the handle or UUID to the UUID the toggle keys on.
+// A provider already in the catalog is returned as it is.
+func (h *LLMProviderHandler) AddLLMProviderToCatalog(_ context.Context, ouID string, providerID string) (*models.LLMProvider, error) {
+	provider, err := h.providerSvc.Get(providerID, ouID)
+	if err != nil {
+		return nil, err
+	}
+	if provider.InCatalog {
+		return provider, nil
+	}
+	return h.providerSvc.UpdateCatalogStatus(provider.UUID.String(), ouID, true)
+}
+
 // GatewayEnvironmentIDs returns the UUIDs of the environments each gateway
 // serves, in one query for all of them.
 func (h *LLMProviderHandler) GatewayEnvironmentIDs(_ context.Context, gatewayIDs []string) (map[string][]string, error) {
