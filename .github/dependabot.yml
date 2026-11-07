@@ -27,9 +27,10 @@ updates:
     patterns: ["*"]
     multi-ecosystem-group: "sample-dependencies"
     # The OpenTelemetry SQLAlchemy instrumentor supports only < 2.1.0.
+    # update-types, unlike versions, does not block security updates.
     ignore:
       - dependency-name: "sqlalchemy"
-        versions: [">=2.1"]
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
     groups:
       sample-pip-security:
         applies-to: "security-updates"
