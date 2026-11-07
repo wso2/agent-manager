@@ -33,6 +33,12 @@ type Dependencies struct {
 	AgentManagerService      services.AgentManagerService
 	AgentTokenManagerService services.AgentTokenManagerService
 	EnvironmentService       services.EnvironmentService
+
+	LLMProviderService           *services.LLMProviderService
+	LLMProviderDeploymentService *services.LLMProviderDeploymentService
+	PlatformGatewayService       *services.PlatformGatewayService
+	MCPProxyService              *services.MCPProxyService
+	AgentConfigurationService    services.AgentConfigurationService
 }
 
 // RegisterRoute builds the MCP HTTP handler, wraps it with the standard middleware chain,
@@ -45,6 +51,9 @@ func RegisterRoute(mux *http.ServeMux, deps Dependencies, authMiddleware func(ht
 		BuildToolset:       handlers.NewBuildHandler(deps.AgentManagerService),
 		DeploymentToolset:  handlers.NewDeploymentHandler(deps.AgentManagerService),
 		EnvironmentToolset: handlers.NewEnvironmentHandler(deps.EnvironmentService),
+		LLMProviderToolset: handlers.NewLLMProviderHandler(deps.LLMProviderService, deps.LLMProviderDeploymentService, deps.PlatformGatewayService),
+		MCPProxyToolset:    handlers.NewMCPProxyHandler(deps.MCPProxyService),
+		AgentConfigToolset: handlers.NewAgentConfigHandler(deps.AgentConfigurationService),
 	}
 
 	handler := NewHTTPServer(toolsets)

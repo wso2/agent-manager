@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -120,7 +121,12 @@ type projectAgentPair struct {
 type listProjectAgentPairsOutput struct {
 	Pairs []projectAgentPair `json:"pairs"`
 	Count int                `json:"count"`
-	Note  string             `json:"note,omitempty"`
+	// Complete is false when the page left projects or agents out, so a caller
+	// never mistakes one page for the whole organization.
+	Complete               bool     `json:"complete"`
+	MoreProjects           bool     `json:"more_projects,omitempty"`
+	ProjectsWithMoreAgents []string `json:"projects_with_more_agents,omitempty"`
+	Note                   string   `json:"note,omitempty"`
 }
 type tokenDetails struct {
 	Token     string `json:"token"`
@@ -151,14 +157,15 @@ func (t *Toolsets) registerAgentTools(server *gomcp.Server, reg *toolRegistry) {
 		addTool(reg, server, &gomcp.Tool{
 			Name: "list_project_agent_pairs",
 			Description: "List project-agent name pairs within your organization (resolved from the caller's token), with optional project and agent name filters. " +
-				"Each pair shows the project and the registered agent inside that project.",
+				"Each pair shows the project and the registered agent inside that project. " +
+				"Results are paged: when `complete` is false, page on with project_offset or agent_offset before treating the list as the whole organization.",
 			InputSchema: createSchema(map[string]any{
 				"project_search": stringProperty("Optional. Filter project names by substring (case-insensitive)."),
 				"agent_search":   stringProperty("Optional. Filter agent names by substring (case-insensitive)."),
-				"project_limit":  intProperty("Optional. Project pagination limit (1-50)."),
-				"project_offset": intProperty("Optional. Project pagination offset (>= 0)."),
-				"agent_limit":    intProperty("Optional. Agent pagination limit (1-50)."),
-				"agent_offset":   intProperty("Optional. Agent pagination offset (>= 0)."),
+				"project_limit":  intProperty(fmt.Sprintf("Optional. Max projects to return (default %d, min %d, max %d).", utils.DefaultLimit, utils.MinLimit, utils.MaxLimit)),
+				"project_offset": intProperty(fmt.Sprintf("Optional. Project pagination offset (default %d, min %d, max %d).", utils.DefaultOffset, utils.MinOffset, math.MaxInt32)),
+				"agent_limit":    intProperty(fmt.Sprintf("Optional. Max agents per project to return (default %d, min %d, max %d).", utils.DefaultLimit, utils.MinLimit, utils.MaxLimit)),
+				"agent_offset":   intProperty(fmt.Sprintf("Optional. Agent pagination offset within each project (default %d, min %d, max %d).", utils.DefaultOffset, utils.MinOffset, math.MaxInt32)),
 			}, nil),
 		}, audit.ActionAgentRead, listProjectAgentPairs(t.AgentToolset, t.ProjectToolset), rbac.AgentRead, rbac.ProjectRead)
 	}
@@ -257,41 +264,22 @@ func listAgents(handler AgentToolsetHandler) func(context.Context, *gomcp.CallTo
 
 func listProjectAgentPairs(agentHandler AgentToolsetHandler, projectHandler ProjectToolsetHandler) func(context.Context, *gomcp.CallToolRequest, listProjectAgentPairsInput) (*gomcp.CallToolResult, any, error) {
 	return func(ctx context.Context, _ *gomcp.CallToolRequest, input listProjectAgentPairsInput) (*gomcp.CallToolResult, any, error) {
-		if input.ProjectLimit != nil && (*input.ProjectLimit < utils.MinLimit || *input.ProjectLimit > utils.MaxLimit) {
-			return nil, nil, fmt.Errorf("project_limit must be between %d and %d", utils.MinLimit, utils.MaxLimit)
+		projectLimit, projectOffset, err := resolveNamedPagination("project_", input.ProjectLimit, input.ProjectOffset)
+		if err != nil {
+			return nil, nil, err
 		}
-		if input.ProjectOffset != nil && *input.ProjectOffset < utils.MinOffset {
-			return nil, nil, fmt.Errorf("project_offset must be >= %d", utils.MinOffset)
-		}
-		if input.AgentLimit != nil && (*input.AgentLimit < utils.MinLimit || *input.AgentLimit > utils.MaxLimit) {
-			return nil, nil, fmt.Errorf("agent_limit must be between %d and %d", utils.MinLimit, utils.MaxLimit)
-		}
-		if input.AgentOffset != nil && *input.AgentOffset < utils.MinOffset {
-			return nil, nil, fmt.Errorf("agent_offset must be >= %d", utils.MinOffset)
+		agentLimit, agentOffset, err := resolveNamedPagination("agent_", input.AgentLimit, input.AgentOffset)
+		if err != nil {
+			return nil, nil, err
 		}
 
 		ouID := resolveOUID(ctx)
-
-		projectLimit := utils.DefaultLimit
-		if input.ProjectLimit != nil {
-			projectLimit = *input.ProjectLimit
-		}
-		projectOffset := utils.DefaultOffset
-		if input.ProjectOffset != nil {
-			projectOffset = *input.ProjectOffset
-		}
-		agentLimit := utils.DefaultLimit
-		if input.AgentLimit != nil {
-			agentLimit = *input.AgentLimit
-		}
-		agentOffset := utils.DefaultOffset
-		if input.AgentOffset != nil {
-			agentOffset = *input.AgentOffset
-		}
-		projects, _, err := projectHandler.ListProjects(ctx, ouID, projectLimit, projectOffset)
+		projects, projectTotal, err := projectHandler.ListProjects(ctx, ouID, projectLimit, projectOffset)
 		if err != nil {
 			return nil, nil, wrapToolError("list_project_agent_pairs", err)
 		}
+		moreProjects := int(projectTotal) > projectOffset+len(projects)
+		var projectsWithMoreAgents []string
 		pairs := []projectAgentPair{}
 		for _, project := range projects {
 			if project == nil {
@@ -300,9 +288,12 @@ func listProjectAgentPairs(agentHandler AgentToolsetHandler, projectHandler Proj
 			if !matchesSearch(project.Name, input.ProjectSearch) {
 				continue
 			}
-			agents, _, err := agentHandler.ListAgents(ctx, ouID, project.Name, int32(agentLimit), int32(agentOffset))
+			agents, agentTotal, err := agentHandler.ListAgents(ctx, ouID, project.Name, int32(agentLimit), int32(agentOffset))
 			if err != nil {
 				return nil, nil, wrapToolError("list_project_agent_pairs", err)
+			}
+			if int(agentTotal) > agentOffset+len(agents) {
+				projectsWithMoreAgents = append(projectsWithMoreAgents, project.Name)
 			}
 			for _, agent := range agents {
 				if agent == nil {
@@ -317,14 +308,26 @@ func listProjectAgentPairs(agentHandler AgentToolsetHandler, projectHandler Proj
 				})
 			}
 		}
+		// A page that skipped earlier projects or agents is not the whole organization either, even when nothing follows.
+		skippedEarlier := projectOffset > 0 || agentOffset > 0
+		laterPages := moreProjects || len(projectsWithMoreAgents) > 0
+		complete := !skippedEarlier && !laterPages
 		note := ""
-		if len(pairs) == 0 && (input.ProjectSearch != "" || input.AgentSearch != "") {
+		switch {
+		case laterPages:
+			note = "This page is partial. Page on with project_offset (more_projects) or agent_offset (projects_with_more_agents) to see the rest"
+		case skippedEarlier:
+			note = "This is a later page: project_offset or agent_offset skipped earlier projects or agents. Start from offset 0 to see the whole organization"
+		case len(pairs) == 0 && (input.ProjectSearch != "" || input.AgentSearch != ""):
 			note = "No pairs matched the provided filters. Try a broader search"
 		}
 		return handleToolResult(listProjectAgentPairsOutput{
-			Pairs: pairs,
-			Count: len(pairs),
-			Note:  note,
+			Pairs:                  pairs,
+			Count:                  len(pairs),
+			Complete:               complete,
+			MoreProjects:           moreProjects,
+			ProjectsWithMoreAgents: projectsWithMoreAgents,
+			Note:                   note,
 		}, nil)
 	}
 }

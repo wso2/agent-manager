@@ -44,13 +44,20 @@ mounts = setup_job["spec"]["template"]["spec"]["containers"][0]["volumeMounts"]
 assert any(mount.get("subPath") == "60-mcp-resource-servers.yaml" for mount in mounts)
 
 main_permissions = {
-    action["handle"]
+    f"{resource['handle']}:{action['handle']}"
     for resource in main["resources"]
     for action in resource.get("actions", [])
 }
+# Must match rbac.MainMCPScopes(): Thunder only grants an MCP token the
+# permissions this resource server defines.
 assert main_permissions == {
-    "create", "read", "build", "env-non-production", "suspend", "token-manage"
-}
+    "project:create", "project:read",
+    "environment:read",
+    "agent:create", "agent:read", "agent:build", "agent:env-non-production",
+    "agent:suspend", "agent:token-manage", "agent:update",
+    "llm-provider:read", "llm-provider:update",
+    "mcp-server:read",
+}, sorted(main_permissions)
 observer_permissions = {
     action["handle"]
     for resource in observer["resources"]

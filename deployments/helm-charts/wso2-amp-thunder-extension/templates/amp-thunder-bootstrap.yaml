@@ -608,6 +608,20 @@ data:
           - { name: Act on Non-Production Environments, handle: env-non-production, description: "Deploy or suspend an agent in a non-production environment" }
           - { name: Suspend, handle: suspend, description: "Suspend an agent deployment" }
           - { name: Manage Token, handle: token-manage, description: "Generate agent tokens" }
+          - { name: Update, handle: update, description: "Attach LLM providers and MCP proxies to an agent" }
+      - name: LLM Provider
+        handle: llm-provider
+        parent: amp
+        description: LLM provider operations exposed by Agent Manager MCP
+        actions:
+          - { name: Read, handle: read, description: "View LLM providers and guardrails" }
+          - { name: Update, handle: update, description: "Change LLM provider guardrails" }
+      - name: MCP Server
+        handle: mcp-server
+        parent: amp
+        description: MCP proxy operations exposed by Agent Manager MCP
+        actions:
+          - { name: Read, handle: read, description: "View MCP proxies" }
     {{- end }}
   {{- $firstMCPResourceServer = false }}
   {{- end }}
@@ -746,6 +760,10 @@ data:
           - "amp:agent:env-non-production"
           - "amp:agent:suspend"
           - "amp:agent:token-manage"
+          - "amp:agent:update"
+          - "amp:llm-provider:read"
+          - "amp:mcp-server:read"
+          - "amp:llm-provider:update"
     {{- end }}
     {{- end }}
     {{- end }}
@@ -839,6 +857,9 @@ data:
           - "amp:agent:env-non-production"
           - "amp:agent:suspend"
           - "amp:agent:token-manage"
+          - "amp:agent:update"
+          - "amp:llm-provider:read"
+          - "amp:mcp-server:read"
     {{- end }}
     {{- end }}
     {{- end }}
@@ -917,6 +938,9 @@ data:
           - "amp:agent:build"
           - "amp:agent:env-non-production"
           - "amp:agent:suspend"
+          - "amp:llm-provider:read"
+          - "amp:mcp-server:read"
+          - "amp:llm-provider:update"
     {{- end }}
     {{- end }}
     {{- end }}
@@ -1016,6 +1040,9 @@ data:
           - "amp:agent:build"
           - "amp:agent:env-non-production"
           - "amp:agent:suspend"
+          - "amp:llm-provider:read"
+          - "amp:mcp-server:read"
+          - "amp:llm-provider:update"
     {{- end }}
     {{- end }}
     {{- end }}

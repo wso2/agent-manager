@@ -496,3 +496,54 @@ func TestExternalAgentLLMURL_AddsSchemeToBareVhost(t *testing.T) {
 	require.NotNil(t, resp.EnvModelConfig["dev"].LLMProxy.URL)
 	assert.Equal(t, "https://gw.example.com/llm/proxy", *resp.EnvModelConfig["dev"].LLMProxy.URL)
 }
+
+// agent sets the agent ProviderEnvironments reads its placement policy from.
+func (f *llmPlacementFixture) agent(provisioning string) {
+	f.svc.ocClient = &clientmocks.OpenChoreoClientMock{
+		GetComponentFunc: func(context.Context, string, string, string) (*models.AgentResponse, error) {
+			return &models.AgentResponse{Provisioning: models.Provisioning{Type: provisioning}}, nil
+		},
+	}
+}
+
+// ProviderEnvironments is the default the MCP attach tool maps a provider into, so it must be exactly the
+// environments Create's placement check accepts: a provider deployed only to dev is offered in dev alone.
+func TestProviderEnvironments_OnlyEnvironmentsTheProviderIsPlacedIn(t *testing.T) {
+	f := newLLMPlacementFixture(t, "dev", "prod")
+	f.agent(string(utils.InternalAgent))
+	f.provider("dev-only", models.GatewayHostingManaged)
+	devUUID := f.envs["dev"].UUID
+	f.gatewayRepo.EnvironmentMappingExistsFunc = func(_ string, envUUID string) (bool, error) { return envUUID == devUUID, nil }
+
+	got, err := f.svc.ProviderEnvironments(context.Background(), llmPlacementOU, "proj", "agent", "dev-only")
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"dev"}, got)
+	requested := map[string]models.EnvModelConfigRequest{"dev": {ProviderName: "dev-only"}}
+	require.NoError(t, f.svc.requireProviderPlacements(context.Background(), llmPlacementOU, requested, f.envs, nil, platformAgentPolicy))
+}
+
+// The agent's kind decides which placements count, as it does in Create.
+func TestProviderEnvironments_FollowsTheAgentsPlacementPolicy(t *testing.T) {
+	f := newLLMPlacementFixture(t, "dev", "prod")
+	f.provider("self-p", models.GatewayHostingSelfHosted)
+
+	f.agent(string(utils.InternalAgent))
+	got, err := f.svc.ProviderEnvironments(context.Background(), llmPlacementOU, "proj", "agent", "self-p")
+	require.NoError(t, err)
+	assert.Empty(t, got, "a platform-hosted agent cannot use a provider placed only on a self-hosted gateway")
+
+	f.agent(string(utils.ExternalAgent))
+	got, err = f.svc.ProviderEnvironments(context.Background(), llmPlacementOU, "proj", "agent", "self-p")
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []string{"dev", "prod"}, got)
+}
+
+func TestProviderEnvironments_UnknownProvider(t *testing.T) {
+	f := newLLMPlacementFixture(t, "dev")
+	f.agent(string(utils.InternalAgent))
+
+	_, err := f.svc.ProviderEnvironments(context.Background(), llmPlacementOU, "proj", "agent", "missing")
+
+	require.ErrorIs(t, err, utils.ErrLLMProviderNotFound)
+}

@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/services"
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -79,6 +80,13 @@ func (m *MockToolsetHandler) GenerateToken(
 		Token:     "test-token",
 		ExpiresAt: 0,
 	}, nil
+}
+
+func (m *MockToolsetHandler) GetAgent(
+	ctx context.Context, ouID string, projectName string, agentName string,
+) (*models.AgentResponse, error) {
+	m.recordCall("GetAgent", ouID, projectName, agentName)
+	return &models.AgentResponse{Name: agentName, Provisioning: models.Provisioning{Type: string(utils.InternalAgent)}}, nil
 }
 
 func (m *MockToolsetHandler) CreateAgent(
@@ -152,7 +160,7 @@ func (m *MockToolsetHandler) ListEnvironments(
 	m.recordCall("ListEnvironments", ouID, limit, offset)
 	return &models.EnvironmentListResponse{
 		Environments: []models.GatewayEnvironmentResponse{
-			{Name: testEnvName, DisplayName: "Default Env", IsProduction: false},
+			{UUID: testEnvUUID, Name: testEnvName, DisplayName: "Default Env", IsProduction: false},
 		},
 		Total:  1,
 		Limit:  limit,
@@ -167,5 +175,171 @@ func (m *MockToolsetHandler) GetEnvironment(
 	if envName != testEnvName {
 		return nil, utils.ErrEnvironmentNotFound
 	}
-	return &models.GatewayEnvironmentResponse{Name: testEnvName, DisplayName: "Default Env", IsProduction: false}, nil
+	return &models.GatewayEnvironmentResponse{UUID: testEnvUUID, Name: testEnvName, DisplayName: "Default Env", IsProduction: false}, nil
+}
+
+// LLM Provider Toolset Handler
+
+func (m *MockToolsetHandler) ListLLMProviders(
+	ctx context.Context, ouID string, limit int, offset int,
+) ([]*models.LLMProvider, int, error) {
+	m.recordCall("ListLLMProviders", ouID, limit, offset)
+	p := &models.LLMProvider{
+		TemplateHandle: testTemplateID, Status: "deployed", InCatalog: true,
+		Artifact: &models.Artifact{Handle: testProviderID, Name: "Test Provider"},
+	}
+	return []*models.LLMProvider{p}, 1, nil
+}
+
+func (m *MockToolsetHandler) AddLLMProviderToCatalog(
+	ctx context.Context, ouID string, providerID string,
+) (*models.LLMProvider, error) {
+	m.recordCall("AddLLMProviderToCatalog", ouID, providerID)
+	return testLLMProvider(providerID), nil
+}
+
+func (m *MockToolsetHandler) GatewayEnvironmentIDs(
+	ctx context.Context, gatewayIDs []string,
+) (map[string][]string, error) {
+	m.recordCall("GatewayEnvironmentIDs", gatewayIDs)
+	out := make(map[string][]string, len(gatewayIDs))
+	for _, id := range gatewayIDs {
+		out[id] = []string{testEnvUUID}
+	}
+	return out, nil
+}
+
+func (m *MockToolsetHandler) ListLLMGuardrails(
+	ctx context.Context, ouID string, providerID string,
+) (*models.LLMPolicyAvailabilityResponse, error) {
+	m.recordCall("ListLLMGuardrails", ouID, providerID)
+	schema := map[string]interface{}{"type": "object", "properties": map[string]interface{}{"mask": map[string]interface{}{"type": "boolean"}}}
+	return &models.LLMPolicyAvailabilityResponse{Count: 3, List: []models.LLMPolicyDefinition{
+		{Name: testGuardrailName, Version: "v1", Parameters: schema},
+		{Name: "word-count", Version: "v1", Parameters: schema},
+		{Name: "cors", Version: "v1", Parameters: schema},
+	}}, nil
+}
+
+func (m *MockToolsetHandler) GetLLMProvider(
+	ctx context.Context, ouID string, providerID string,
+) (*models.LLMProvider, []*models.Deployment, error) {
+	m.recordCall("GetLLMProvider", ouID, providerID)
+	status, archived := models.DeploymentStatusDeployed, models.DeploymentStatusArchived
+	return testLLMProvider(providerID), []*models.Deployment{{Status: &status}, {Status: &archived}}, nil
+}
+
+// testLLMProvider is the provider the mock serves: deployed, with an upstream
+// credential and one all-routes guardrail.
+func testLLMProvider(providerID string) *models.LLMProvider {
+	authType, header, value := "api-key", "Authorization", testSecret
+	return &models.LLMProvider{
+		TemplateHandle: testTemplateID, Status: "deployed", InCatalog: true,
+		Artifact: &models.Artifact{Handle: providerID, Name: "Test Provider"},
+		Configuration: models.LLMProviderConfig{
+			Version: "v1.0",
+			Upstream: &models.UpstreamConfig{Main: &models.UpstreamEndpoint{
+				URL:  "https://api.openai.com/v1",
+				Auth: &models.UpstreamAuth{Type: &authType, Header: &header, Value: &value},
+			}},
+			Policies: []models.LLMPolicy{{
+				Name: testGuardrailName, Version: "v1",
+				Paths: []models.LLMPolicyPath{{Path: "/*", Methods: []string{"*"}, Params: map[string]interface{}{"mask": true}}},
+			}},
+		},
+	}
+}
+
+// UpdateLLMProviderGuardrails applies change to the guardrails GetLLMProvider
+// serves. It records the call only when something is saved, with the saved
+// guardrails as args[2], so "not called" means nothing was saved.
+func (m *MockToolsetHandler) UpdateLLMProviderGuardrails(
+	ctx context.Context, ouID string, providerID string, change func([]models.LLMPolicy) ([]models.LLMPolicy, error),
+) (*models.LLMProvider, []services.DeploymentResult, error) {
+	return m.saveGuardrails(ouID, providerID, testLLMProvider(providerID).Configuration.Policies, change)
+}
+
+func (m *MockToolsetHandler) saveGuardrails(
+	ouID, providerID string, current []models.LLMPolicy, change func([]models.LLMPolicy) ([]models.LLMPolicy, error),
+) (*models.LLMProvider, []services.DeploymentResult, error) {
+	guardrails, err := change(current)
+	if err != nil {
+		return nil, nil, err
+	}
+	m.recordCall("UpdateLLMProviderGuardrails", ouID, providerID, guardrails)
+	p := &models.LLMProvider{Artifact: &models.Artifact{Handle: providerID}}
+	p.Configuration.Policies = guardrails
+	return p, []services.DeploymentResult{{GatewayID: testGatewayID, Success: true}}, nil
+}
+
+// MCP Proxy Toolset Handler
+
+func (m *MockToolsetHandler) ListMCPProxies(
+	ctx context.Context, ouID string, limit int, offset int,
+) (*models.MCPProxyListResponse, error) {
+	m.recordCall("ListMCPProxies", ouID, limit, offset)
+	id, name := testProxyID, "Test Proxy"
+	return &models.MCPProxyListResponse{
+		Count:      1,
+		List:       []models.MCPProxyListItem{{ID: &id, Name: &name}},
+		Pagination: models.PaginationInfo{Count: 1, Limit: limit, Offset: offset},
+	}, nil
+}
+
+func (m *MockToolsetHandler) GetMCPProxy(
+	ctx context.Context, ouID string, proxyID string,
+) (*models.MCPProxyDTO, error) {
+	m.recordCall("GetMCPProxy", ouID, proxyID)
+	authType, header, value := "api-key", "Authorization", testSecret
+	tools := []map[string]interface{}{{"name": "search"}}
+	return &models.MCPProxyDTO{
+		ID: proxyID, Name: "Test Proxy", Version: "1.0.0",
+		Endpoints: []models.MCPProxyEndpointDTO{{
+			ID: "default",
+			Upstream: models.UpstreamConfig{Main: &models.UpstreamEndpoint{
+				URL:  "https://mcp.example.com/mcp",
+				Auth: &models.UpstreamAuth{Type: &authType, Header: &header, Value: &value},
+			}},
+			Capabilities: &models.MCPProxyCapabilities{Tools: &tools},
+			Environments: []models.MCPEndpointEnvironmentDTO{{EnvironmentUUID: testEnvUUID, DeploymentStatus: "Deployed"}},
+		}},
+	}, nil
+}
+
+// Agent Config Toolset Handler
+
+func (m *MockToolsetHandler) ProviderEnvironments(
+	ctx context.Context, ouID string, projectName string, agentName string, providerHandle string,
+) ([]string, error) {
+	m.recordCall("ProviderEnvironments", ouID, projectName, agentName, providerHandle)
+	return []string{testEnvName}, nil
+}
+
+func (m *MockToolsetHandler) RevokeConfigAPIKeys(
+	ctx context.Context, ouID, projectName, agentName, configType, configID, envName string,
+) error {
+	m.recordCall("RevokeConfigAPIKeys", ouID, projectName, agentName, configType, configID, envName)
+	return nil
+}
+
+func (m *MockToolsetHandler) CreateAgentConfig(
+	ctx context.Context, ouID string, projectName string, agentName string, req models.CreateAgentModelConfigRequest,
+) (*models.AgentModelConfigResponse, error) {
+	m.recordCall("CreateAgentConfig", ouID, projectName, agentName, req)
+	// One per-agent proxy per environment, named the way the service names it.
+	envConfig := make(map[string]models.EnvModelConfigResponse, len(req.EnvMappings))
+	for env := range req.EnvMappings {
+		proxyName := req.Name + "-" + env + "-proxy"
+		envConfig[env] = models.EnvModelConfigResponse{EnvironmentName: env, LLMProxy: &models.LLMProxyInfo{ProxyName: &proxyName}}
+	}
+	return &models.AgentModelConfigResponse{
+		UUID:           "config-uuid",
+		Name:           req.Name,
+		Type:           req.Type,
+		EnvModelConfig: envConfig,
+		EnvironmentVariables: []models.EnvironmentVariableConfig{
+			{Name: "OPENAI_URL", Key: "url"},
+			{Name: "OPENAI_API_KEY", Key: "apikey"},
+		},
+	}, nil
 }

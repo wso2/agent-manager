@@ -21,6 +21,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
+	"net/url"
 	"strings"
 	"time"
 
@@ -45,29 +47,43 @@ func resolveOUID(ctx context.Context) string {
 // resolvePagination applies the standard limit/offset defaults and bounds
 // shared by every paginated list tool.
 func resolvePagination(limitPtr *int, offsetPtr *int) (int, int, error) {
+	return resolveNamedPagination("", limitPtr, offsetPtr)
+}
+
+// resolveNamedPagination is resolvePagination for a tool that pages more than
+// one list, whose arguments carry prefix (project_limit, agent_offset).
+func resolveNamedPagination(prefix string, limitPtr *int, offsetPtr *int) (int, int, error) {
 	limit := utils.DefaultLimit
 	if limitPtr != nil {
 		limit = *limitPtr
 	}
 	if limit < utils.MinLimit || limit > utils.MaxLimit {
-		return 0, 0, fmt.Errorf("limit must be between %d and %d", utils.MinLimit, utils.MaxLimit)
+		return 0, 0, fmt.Errorf("%slimit must be between %d and %d", prefix, utils.MinLimit, utils.MaxLimit)
 	}
 	offset := utils.DefaultOffset
 	if offsetPtr != nil {
 		offset = *offsetPtr
 	}
-	if offset < utils.MinOffset {
-		return 0, 0, fmt.Errorf("offset must be >= %d", utils.MinOffset)
+	// Callers convert the offset to int32 for the services, and services add the
+	// limit to it, so a larger one would wrap or overflow.
+	if offset < utils.MinOffset || offset > math.MaxInt32 {
+		return 0, 0, fmt.Errorf("%soffset must be between %d and %d", prefix, utils.MinOffset, math.MaxInt32)
 	}
 	return limit, offset, nil
 }
 
 // helper functions  that build JSON Schema snippets
 
+// createSchema builds an object schema that refuses properties it does not
+// declare. The input is unmarshalled into a struct, so an unknown property (a
+// misspelled `environment` for `environments`) would otherwise be dropped and
+// the default applied in its place; the SDK validates arguments against this
+// schema and returns the error to the model, which can correct the call.
 func createSchema(properties map[string]any, required []string) map[string]any {
 	schema := map[string]any{
-		"type":       "object",
-		"properties": properties,
+		"type":                 "object",
+		"properties":           properties,
+		"additionalProperties": false,
 	}
 	if len(required) > 0 {
 		schema["required"] = required
@@ -145,6 +161,12 @@ func wrapToolError(toolName string, err error) error {
 		return fmt.Errorf("%s: monitor is already stopped", toolName)
 	case errors.Is(err, utils.ErrMonitorAlreadyActive):
 		return fmt.Errorf("%s: monitor is already active", toolName)
+	case errors.Is(err, utils.ErrLLMProviderNotFound):
+		return fmt.Errorf("%s: LLM provider not found. Call list_llm_providers to see valid providers", toolName)
+	case errors.Is(err, utils.ErrMCPProxyNotFound):
+		return fmt.Errorf("%s: MCP proxy not found. Call list_mcp_proxies to see valid proxies", toolName)
+	case errors.Is(err, utils.ErrAgentConfigAlreadyExists):
+		return fmt.Errorf("%s: the agent already has a configuration with this name. Pass a different config_name", toolName)
 	case errors.Is(err, utils.ErrNotFound):
 		msg := strings.ToLower(err.Error())
 		switch {
@@ -227,4 +249,37 @@ func normalizeOptionalString(value *string) *string {
 		return nil
 	}
 	return &trimmed
+}
+
+// credentialQueryHints are substrings of query parameter names that carry
+// secrets, such as key, api-key, access_token, client_secret or sig.
+var credentialQueryHints = []string{"key", "token", "secret", "pass", "auth", "sig", "credential"}
+
+// redactURL drops what in a URL could be a credential before it reaches a
+// model: userinfo, credential-named query parameters and the fragment. A URL
+// that does not parse is dropped whole, since it cannot be redacted safely.
+func redactURL(raw string) string {
+	if raw == "" {
+		return ""
+	}
+	u, err := url.Parse(raw)
+	if err != nil {
+		return ""
+	}
+	u.User = nil
+	u.Fragment, u.RawFragment = "", ""
+	if u.RawQuery != "" {
+		q := u.Query()
+		for name := range q {
+			lower := strings.ToLower(name)
+			for _, hint := range credentialQueryHints {
+				if strings.Contains(lower, hint) {
+					q.Del(name)
+					break
+				}
+			}
+		}
+		u.RawQuery = q.Encode()
+	}
+	return u.String()
 }

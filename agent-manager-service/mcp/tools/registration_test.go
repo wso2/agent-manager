@@ -22,6 +22,8 @@ import (
 	"testing"
 
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
+
+	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
 
 // Verifies that every tool described by allToolSpecs is actually registered on a fully-wired MCP server.
@@ -57,6 +59,9 @@ func TestToolPermissionsMatchSpecs(t *testing.T) {
 		BuildToolset:       mock,
 		DeploymentToolset:  mock,
 		EnvironmentToolset: mock,
+		LLMProviderToolset: mock,
+		MCPProxyToolset:    mock,
+		AgentConfigToolset: mock,
 	}
 	server := gomcp.NewServer(&gomcp.Implementation{Name: "t", Version: "0"}, nil)
 	reg := toolsets.register(server)
@@ -73,6 +78,23 @@ func TestToolPermissionsMatchSpecs(t *testing.T) {
 	}
 	if len(reg.permissions) != len(allToolSpecs) {
 		t.Errorf("registry has %d tools, specs describe %d", len(reg.permissions), len(allToolSpecs))
+	}
+}
+
+// Verifies every permission a tool declares is advertised in the MCP
+// endpoint's scopes_supported. A missing scope is never requested at sign-in,
+// so the tool would be denied for every user even though it is registered.
+func TestToolPermissionsAreAdvertised(t *testing.T) {
+	advertised := make(map[string]bool)
+	for _, scope := range rbac.MainMCPScopes() {
+		advertised[scope] = true
+	}
+	for _, spec := range allToolSpecs {
+		for _, perm := range spec.permissions {
+			if !advertised[perm.Scope()] {
+				t.Errorf("tool %q requires %s, which rbac.MainMCPScopes does not advertise", spec.name, perm.Scope())
+			}
+		}
 	}
 }
 
