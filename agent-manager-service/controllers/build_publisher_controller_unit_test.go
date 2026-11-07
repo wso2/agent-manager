@@ -97,6 +97,54 @@ func TestBuildPublisherController_MapsServiceErrors(t *testing.T) {
 	}
 }
 
+func TestBuildPublisherController_SaysWhyABuildIsRefused(t *testing.T) {
+	tests := []struct {
+		err      error
+		want     int
+		wantCode string
+		wantText string
+	}{
+		{
+			services.ErrBuildPublisherDisabled, http.StatusNotFound, utils.ErrCodeBuildPublisherDisabled,
+			"Build publishing through Agent Manager is turned off for this environment",
+		},
+		{
+			fmt.Errorf("%w: build \"b\"", services.ErrBuildNotAgent), http.StatusForbidden, utils.ErrCodeBuildNotAgent,
+			"This build does not belong to an agent",
+		},
+		{
+			fmt.Errorf("%w: build \"b\" runs workflow \"w\"", services.ErrBuildWorkflowNotEnabled), http.StatusForbidden,
+			utils.ErrCodeWorkflowNotEnabled, "This build's workflow is not set up to publish through Agent Manager",
+		},
+		{
+			fmt.Errorf("%w: build \"b\"", services.ErrAgentNotSourceBuilt), http.StatusForbidden, utils.ErrCodeAgentNotSourceBuilt,
+			"This agent is not built from source",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.wantCode, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			NewBuildPublisherController(&fakeBuildPublisherService{err: tc.err}).PublishBuildWorkload(rec,
+				buildPublishRequest(`{"workload":{}}`, "org-1"))
+			// The status is unchanged (404 / 403, both final for the build step);
+			// only the message and code now name the reason.
+			assert.Equal(t, tc.want, rec.Code)
+			assert.Contains(t, rec.Body.String(), tc.wantCode)
+			assert.Contains(t, rec.Body.String(), tc.wantText)
+			assert.NotContains(t, rec.Body.String(), "\"w\"", "the workflow name stays in the logs")
+		})
+	}
+
+	t.Run("a plain not-found is still Build not found", func(t *testing.T) {
+		rec := httptest.NewRecorder()
+		NewBuildPublisherController(&fakeBuildPublisherService{err: fmt.Errorf("%w: build", utils.ErrNotFound)}).PublishBuildWorkload(rec,
+			buildPublishRequest(`{"workload":{}}`, "org-1"))
+		assert.Equal(t, http.StatusNotFound, rec.Code)
+		assert.Contains(t, rec.Body.String(), "Build not found")
+		assert.NotContains(t, rec.Body.String(), utils.ErrCodeBuildPublisherDisabled)
+	})
+}
+
 func TestBuildPublisherController_AnswersASuspensionAsFinal(t *testing.T) {
 	rec := httptest.NewRecorder()
 	NewBuildPublisherController(&fakeBuildPublisherService{err: workloadpolicy.ErrSuspended}).PublishBuildWorkload(rec,

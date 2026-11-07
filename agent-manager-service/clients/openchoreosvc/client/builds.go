@@ -19,6 +19,7 @@ package client
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -142,6 +143,13 @@ func (c *openChoreoClient) TriggerBuild(ctx context.Context, ouID, projectName, 
 	if attach {
 		buildToken, err := buildClient(ctx)
 		if err != nil {
+			// A temporary outage (identity provider or secret store) is answered
+			// as retryable, with a message that names no upstream detail; the
+			// cause is logged here instead.
+			if errors.Is(err, utils.ErrServiceUnavailable) {
+				slog.ErrorContext(ctx, "Could not issue the build token", "workflow", workflowName, "error", err)
+				return nil, fmt.Errorf("%w: could not prepare the build's credentials, try again in a moment", utils.ErrServiceUnavailable)
+			}
 			return nil, fmt.Errorf("failed to issue the build token: %v", err) //nolint:errorlint // deliberately not wrapped, see above
 		}
 		if buildToken == nil {

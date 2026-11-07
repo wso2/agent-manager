@@ -240,7 +240,7 @@ func TestBuildPublisherService_RefusesBeforeCallingOpenChoreo(t *testing.T) {
 	}{
 		{
 			name: "feature disabled", cfg: config.Config{}, ouID: bpOrg, build: "b-1",
-			req: bpRequest(t, bpWorkload, ""), wantErr: utils.ErrNotFound,
+			req: bpRequest(t, bpWorkload, ""), wantErr: ErrBuildPublisherDisabled,
 		},
 		{
 			name: "no organization", cfg: bpEnabledConfig(), ouID: "", build: "b-1",
@@ -325,7 +325,7 @@ func TestBuildPublisherService_VerifiesTheBuild(t *testing.T) {
 		{
 			name:    "run without agent labels",
 			getRun:  running(client.BuildRunInfo{WorkflowName: "amp-docker", Status: client.WorkflowStatusRunning}),
-			wantErr: utils.ErrForbidden,
+			wantErr: ErrBuildNotAgent,
 		},
 		{
 			name: "workflow that does not take the build token",
@@ -333,7 +333,7 @@ func TestBuildPublisherService_VerifiesTheBuild(t *testing.T) {
 				ProjectName: "p", ComponentName: "c",
 				WorkflowName: "dockerfile-builder", Status: client.WorkflowStatusRunning,
 			}),
-			wantErr: utils.ErrForbidden,
+			wantErr: ErrBuildWorkflowNotEnabled,
 		},
 		{
 			name: "finished build",
@@ -360,7 +360,7 @@ func TestBuildPublisherService_VerifiesTheBuild(t *testing.T) {
 			getComponent: func(context.Context, string, string, string) (*models.AgentResponse, error) {
 				return nil, fmt.Errorf("%w: component", utils.ErrNotFound)
 			},
-			wantErr: utils.ErrForbidden,
+			wantErr: ErrBuildNotAgent,
 		},
 		{
 			name: "kind-sourced agent",
@@ -371,7 +371,7 @@ func TestBuildPublisherService_VerifiesTheBuild(t *testing.T) {
 			getComponent: func(context.Context, string, string, string) (*models.AgentResponse, error) {
 				return &models.AgentResponse{KindName: "k", Provisioning: models.Provisioning{Type: string(utils.InternalAgent)}}, nil
 			},
-			wantErr: utils.ErrForbidden,
+			wantErr: ErrAgentNotSourceBuilt,
 		},
 		{
 			name: "external agent",
@@ -382,7 +382,7 @@ func TestBuildPublisherService_VerifiesTheBuild(t *testing.T) {
 			getComponent: func(context.Context, string, string, string) (*models.AgentResponse, error) {
 				return &models.AgentResponse{Provisioning: models.Provisioning{Type: string(utils.ExternalAgent)}}, nil
 			},
-			wantErr: utils.ErrForbidden,
+			wantErr: ErrAgentNotSourceBuilt,
 		},
 	}
 	for _, tc := range tests {
@@ -477,4 +477,14 @@ func TestBuildPublisherService_OpenChoreoContextEndsWithTheRequest(t *testing.T)
 	cancelReq()
 	<-ocCtx.Done()
 	assert.ErrorIs(t, context.Cause(ocCtx), context.Canceled)
+}
+
+// The specific refusals keep the status the build step relies on: each is still
+// the generic sentinel the endpoint answered before (404 or 403, both final).
+func TestBuildPublisherErrorsKeepTheirStatus(t *testing.T) {
+	require.ErrorIs(t, ErrBuildPublisherDisabled, utils.ErrNotFound)
+	for _, err := range []error{ErrBuildNotAgent, ErrBuildWorkflowNotEnabled, ErrAgentNotSourceBuilt} {
+		require.ErrorIs(t, err, utils.ErrForbidden, err.Error())
+		require.NotErrorIs(t, err, utils.ErrNotFound, err.Error())
+	}
 }

@@ -136,16 +136,18 @@ var terminalBuildStatuses = []string{
 
 // PublishWorkload verifies the build and publishes its Workload.
 //
-// Errors map to the endpoint's responses: utils.ErrNotFound when the feature is
-// off or the build does not exist in the caller's organization, utils.ErrBadRequest
-// for a malformed request, utils.ErrForbidden when the build is not a source build
-// of one of the organization's agents on a build workflow that takes the build
-// token, utils.ErrConflict when the build has already finished, and
+// Errors map to the endpoint's responses: ErrBuildPublisherDisabled (a
+// utils.ErrNotFound) when the feature is off, utils.ErrNotFound when the build does
+// not exist in the caller's organization, utils.ErrBadRequest for a malformed
+// request, ErrBuildNotAgent, ErrBuildWorkflowNotEnabled or ErrAgentNotSourceBuilt
+// (each a utils.ErrForbidden) when the build is not a source build of one of the
+// organization's agents on a build workflow that takes the build token,
+// utils.ErrConflict when the build has already finished, and
 // workloadpolicy.ErrSuspended when the deployment's workload guard does not admit
 // the organization (a suspended subscription).
 func (s *buildPublisherService) PublishWorkload(ctx context.Context, ouID, buildName string, req *models.PublishBuildWorkloadRequest) error {
 	if !s.cfg.Enabled {
-		return fmt.Errorf("%w: build publisher is disabled", utils.ErrNotFound)
+		return ErrBuildPublisherDisabled
 	}
 	if ouID == "" {
 		return fmt.Errorf("%w: no organization on the build token", utils.ErrForbidden)
@@ -184,11 +186,10 @@ func (s *buildPublisherService) PublishWorkload(ctx context.Context, ouID, build
 		return upstreamFailure("look up build "+buildName, err)
 	}
 	if run.ProjectName == "" || run.ComponentName == "" {
-		return fmt.Errorf("%w: build %q does not belong to an agent", utils.ErrForbidden, buildName)
+		return fmt.Errorf("%w: build %q", ErrBuildNotAgent, buildName)
 	}
 	if !slices.Contains(s.cfg.Workflows, run.WorkflowName) {
-		return fmt.Errorf("%w: build %q runs workflow %q, which does not take the build token",
-			utils.ErrForbidden, buildName, run.WorkflowName)
+		return fmt.Errorf("%w: build %q runs workflow %q", ErrBuildWorkflowNotEnabled, buildName, run.WorkflowName)
 	}
 	if slices.Contains(terminalBuildStatuses, run.Status) {
 		return fmt.Errorf("%w: build %q has already finished (%s)", utils.ErrConflict, buildName, run.Status)
@@ -197,12 +198,12 @@ func (s *buildPublisherService) PublishWorkload(ctx context.Context, ouID, build
 	agent, err := s.ocClient.GetComponent(ocCtx, ouID, run.ProjectName, run.ComponentName)
 	if err != nil {
 		if errors.Is(err, utils.ErrNotFound) {
-			return fmt.Errorf("%w: build %q does not belong to an agent", utils.ErrForbidden, buildName)
+			return fmt.Errorf("%w: build %q", ErrBuildNotAgent, buildName)
 		}
 		return upstreamFailure("look up the agent of build "+buildName, err)
 	}
 	if agent.KindName != "" || agent.Provisioning.Type != string(utils.InternalAgent) {
-		return fmt.Errorf("%w: build %q does not belong to a source-built agent", utils.ErrForbidden, buildName)
+		return fmt.Errorf("%w: build %q", ErrAgentNotSourceBuilt, buildName)
 	}
 
 	// This route carries no rbac.Permission and the actor is a machine client, so
@@ -267,6 +268,26 @@ func buildTokenClientID(ctx context.Context) string {
 // published a different Workload: a publish is safe to repeat only with the
 // same one. The endpoint answers it with 409.
 var ErrBuildWorkloadAlreadyPublished = errors.New("build has already published a different workload")
+
+// ErrBuildPublisherDisabled is returned when build publishing is turned off
+// (AMP_BUILD_CLIENT_ENABLED), for example after a rollback while a build that
+// was given a token is still running. It wraps utils.ErrNotFound, so the
+// endpoint still answers 404.
+var ErrBuildPublisherDisabled = fmt.Errorf("%w: build publishing through Agent Manager is turned off", utils.ErrNotFound)
+
+// The reasons a build may not publish. Each wraps utils.ErrForbidden, so the
+// endpoint still answers 403; they let it say which check refused the build.
+var (
+	// ErrBuildNotAgent: the run names no agent, or names one that does not exist
+	// in the caller's organization.
+	ErrBuildNotAgent = fmt.Errorf("%w: the build does not belong to an agent", utils.ErrForbidden)
+	// ErrBuildWorkflowNotEnabled: the run's workflow is not listed in
+	// AMP_BUILD_CLIENT_WORKFLOWS.
+	ErrBuildWorkflowNotEnabled = fmt.Errorf("%w: the build's workflow does not publish through Agent Manager", utils.ErrForbidden)
+	// ErrAgentNotSourceBuilt: the run's agent is not an internal agent built from
+	// source (an external agent, or one created from a kind).
+	ErrAgentNotSourceBuilt = fmt.Errorf("%w: the agent is not built from source", utils.ErrForbidden)
+)
 
 // errBuildPublishUpstream marks a failure of the calls made on the caller's behalf
 // (OpenChoreo or a platform API in front of it).

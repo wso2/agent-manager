@@ -36,6 +36,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/orgctx"
+	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // BuildTokenIssuer gives a source build the token its workload step calls the
@@ -221,6 +222,12 @@ func (i *buildTokenIssuer) issue(ctx context.Context, tokenURL, ouID string) (*c
 		EntityName: buildTokenSecretEntity,
 	}, map[string]string{buildTokenSecretKey: token})
 	if err != nil {
+		// A secret store failure is temporary, except an entry of that name this
+		// client does not manage, which no retry resolves.
+		if !errors.Is(err, secretmanagersvc.ErrNotManaged) {
+			return nil, fmt.Errorf("%w: %w: failed to store the token for organization %s: %w",
+				errBuildToken, utils.ErrServiceUnavailable, ouID, err)
+		}
 		return nil, fmt.Errorf("%w: failed to store the token for organization %s: %w", errBuildToken, ouID, err)
 	}
 	if secretRefName == "" {
@@ -250,6 +257,15 @@ func (i *buildTokenIssuer) requestToken(ctx context.Context, tokenURL string) (s
 
 	var resp buildTokenResponse
 	if err := requests.SendRequest(ctx, i.httpClient, req).ScanResponse(&resp, http.StatusOK); err != nil {
+		// An identity provider that cannot be reached, fails (5xx) or is rate
+		// limiting (429) is a temporary outage: utils.ErrServiceUnavailable lets
+		// the build be retried. Any other answer (a refused client, say) is a
+		// configuration problem and is not marked.
+		var httpErr *requests.HttpError
+		if !errors.As(err, &httpErr) || httpErr.StatusCode >= http.StatusInternalServerError ||
+			httpErr.StatusCode == http.StatusTooManyRequests {
+			return "", fmt.Errorf("%w: %w: token request failed: %w", errBuildToken, utils.ErrServiceUnavailable, err)
+		}
 		return "", fmt.Errorf("%w: token request failed: %w", errBuildToken, err)
 	}
 	if resp.AccessToken == "" {

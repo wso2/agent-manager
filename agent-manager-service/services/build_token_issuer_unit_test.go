@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -37,6 +38,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/orgctx"
+	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 const (
@@ -258,6 +260,32 @@ func TestBuildTokenIssuer_Failures(t *testing.T) {
 		require.ErrorIs(t, err, errBuildToken)
 		assert.Contains(t, err.Error(), "token request failed")
 		assert.NotContains(t, err.Error(), btClientSecret)
+		assert.NotErrorIs(t, err, utils.ErrServiceUnavailable, "a refused client is configuration, not an outage")
+		assert.Zero(t, store.calls)
+	})
+
+	for _, status := range []int{http.StatusServiceUnavailable, http.StatusBadGateway, http.StatusTooManyRequests} {
+		t.Run(fmt.Sprintf("identity provider answering %d is a temporary outage", status), func(t *testing.T) {
+			idp := &btIdP{status: status, body: `{"error":"temporarily_unavailable"}`}
+			store := &btStore{}
+			issuer := newTestBuildTokenIssuer(idp.server(t), store.mock(btSecretRef, nil))
+			_, err := issuer.IssueBuildToken(auditableCtx(t), btOrg)
+			require.ErrorIs(t, err, errBuildToken)
+			require.ErrorIs(t, err, utils.ErrServiceUnavailable)
+			assert.NotContains(t, err.Error(), btClientSecret)
+			assert.Zero(t, store.calls)
+		})
+	}
+
+	t.Run("unreachable identity provider is a temporary outage", func(t *testing.T) {
+		idp := &btIdP{status: http.StatusOK}
+		srv := idp.server(t)
+		srv.Close()
+		store := &btStore{}
+		issuer := newTestBuildTokenIssuer(srv, store.mock(btSecretRef, nil))
+		_, err := issuer.IssueBuildToken(auditableCtx(t), btOrg)
+		require.ErrorIs(t, err, errBuildToken)
+		require.ErrorIs(t, err, utils.ErrServiceUnavailable)
 		assert.Zero(t, store.calls)
 	})
 
@@ -280,6 +308,19 @@ func TestBuildTokenIssuer_Failures(t *testing.T) {
 		_, err := issuer.IssueBuildToken(auditableCtx(t), btOrg)
 		require.ErrorIs(t, err, errBuildToken)
 		require.ErrorIs(t, err, storeErr)
+		require.ErrorIs(t, err, utils.ErrServiceUnavailable, "a secret store failure is a temporary outage")
+		assert.NotContains(t, err.Error(), token)
+	})
+
+	t.Run("secret entry this client does not manage is not an outage", func(t *testing.T) {
+		token := validToken(t)
+		idp := &btIdP{status: http.StatusOK, body: `{"access_token":"` + token + `"}`}
+		store := &btStore{}
+		issuer := newTestBuildTokenIssuer(idp.server(t), store.mock("", fmt.Errorf("create: %w", secretmanagersvc.ErrNotManaged)))
+		_, err := issuer.IssueBuildToken(auditableCtx(t), btOrg)
+		require.ErrorIs(t, err, errBuildToken)
+		require.ErrorIs(t, err, secretmanagersvc.ErrNotManaged)
+		assert.NotErrorIs(t, err, utils.ErrServiceUnavailable, "no retry resolves an entry another client manages")
 		assert.NotContains(t, err.Error(), token)
 	})
 

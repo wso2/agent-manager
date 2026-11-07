@@ -754,6 +754,31 @@ func TestTriggerBuild_ProvisionsTheBuildClientOnlyForAWorkflowThatTakesIt(t *tes
 		assert.Nil(t, stub.createdRun, "no run is started on the previous path")
 	})
 
+	t.Run("a temporary issuing outage is retryable and names no upstream detail", func(t *testing.T) {
+		stub := &triggerBuildStub{t: t, workflowName: "amp-docker"}
+		c := newTestClient(t, stub)
+		outage := func(context.Context) (*BuildClientParams, error) {
+			return nil, fmt.Errorf("build token could not be issued: %w: token request failed: idp.internal:8443 refused",
+				utils.ErrServiceUnavailable)
+		}
+
+		_, err := c.TriggerBuild(context.Background(), "org-1", "proj1", "my-agent", "", "my-agent-1700", nil, outage)
+		require.ErrorIs(t, err, utils.ErrServiceUnavailable, "answered 503, so the caller knows a retry may work")
+		assert.Contains(t, err.Error(), "could not prepare the build's credentials")
+		assert.NotContains(t, err.Error(), "idp.internal", "the upstream detail goes to the log, not the response")
+		assert.Nil(t, stub.createdRun)
+	})
+
+	t.Run("a non-temporary issuing failure is not marked retryable", func(t *testing.T) {
+		stub := &triggerBuildStub{t: t, workflowName: "amp-docker"}
+		c := newTestClient(t, stub)
+
+		_, err := c.TriggerBuild(context.Background(), "org-1", "proj1", "my-agent", "", "my-agent-1700", nil, failing)
+		require.Error(t, err)
+		assert.NotErrorIs(t, err, utils.ErrServiceUnavailable)
+		assert.Nil(t, stub.createdRun)
+	})
+
 	t.Run("disabled: no token and nothing issued", func(t *testing.T) {
 		stub := &triggerBuildStub{t: t, workflowName: "amp-docker"}
 		c := newTestClient(t, stub)

@@ -87,8 +87,27 @@ func (c *buildPublisherController) PublishBuildWorkload(w http.ResponseWriter, r
 		case errors.Is(err, utils.ErrBadRequest):
 			log.Warn("Rejected build workload", "buildName", buildName, "error", err)
 			utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid build workload")
+		case errors.Is(err, services.ErrBuildPublisherDisabled):
+			// Final for the build step. A new build takes the previous publish path.
+			log.Warn("Refused build workload: build publishing is turned off", "buildName", buildName)
+			utils.WriteErrorResponseWithReason(w, http.StatusNotFound,
+				"Build publishing through Agent Manager is turned off for this environment",
+				"Run the build again", utils.ErrCodeBuildPublisherDisabled)
 		case errors.Is(err, utils.ErrNotFound):
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Build not found")
+		case errors.Is(err, services.ErrBuildNotAgent):
+			log.Warn("Refused build workload", "buildName", buildName, "error", err)
+			utils.WriteErrorResponseWithReason(w, http.StatusForbidden,
+				"This build does not belong to an agent", "Start the build from Agent Manager", utils.ErrCodeBuildNotAgent)
+		case errors.Is(err, services.ErrBuildWorkflowNotEnabled):
+			log.Warn("Refused build workload", "buildName", buildName, "error", err)
+			utils.WriteErrorResponseWithReason(w, http.StatusForbidden,
+				"This build's workflow is not set up to publish through Agent Manager",
+				"Contact support", utils.ErrCodeWorkflowNotEnabled)
+		case errors.Is(err, services.ErrAgentNotSourceBuilt):
+			log.Warn("Refused build workload", "buildName", buildName, "error", err)
+			utils.WriteErrorResponseWithReason(w, http.StatusForbidden,
+				"This agent is not built from source", "", utils.ErrCodeAgentNotSourceBuilt)
 		case errors.Is(err, utils.ErrForbidden):
 			log.Warn("Refused build workload", "buildName", buildName, "error", err)
 			utils.WriteErrorResponse(w, http.StatusForbidden, "insufficient permissions")
