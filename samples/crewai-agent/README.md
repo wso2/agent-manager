@@ -11,7 +11,7 @@ Because the request flows through two agents and the underlying model, a single 
 ### Python runtime
 
 Python 3.11, 3.12, or 3.13 is required. The sample pins
-`crewai==1.15.34`, which requires Python below 3.14. Its `pdfplumber` dependency
+`crewai==1.15.37`, which requires Python below 3.14. Its `pdfplumber` dependency
 installs Pillow. The sample requires `pillow>=13.0.0,<14`, which needs Python
 3.11 or later.
 
@@ -108,6 +108,6 @@ curl -s localhost:8000/chat \
 
 ## Notes
 
-- Pinned to `crewai==1.15.34` for dependency compatibility.
+- Pinned to `crewai==1.15.37` for dependency compatibility.
 - Each request's `session_id` is attached to its trace as `traceloop.association.properties.session_id`, so the Traces page's Conversation column shows it and can filter on it. Local runs without the platform's instrumentation skip this.
 - The app disables CrewAI's hosted tracing and its interactive trace prompt so it runs non-interactively, and it uses the bundled model pricing data to avoid a network fetch on startup.
