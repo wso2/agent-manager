@@ -80,19 +80,27 @@ func withBuildClient(params map[string]interface{}, buildClient *BuildClientPara
 const workflowParamAMPBuildSecretStore = "secretStore"
 
 // attachBuildClient reports whether a build token should ride on a run of the
-// given workflow: build tokens are enabled, the workflow is listed in
-// config.BuildClient.Workflows and its parameter schema declares ampBuild.
+// given workflow: build tokens are enabled and the workflow is listed in
+// config.BuildClient.Workflows. For a namespaced Workflow, its parameter schema
+// must also declare ampBuild.
 //
-// A workflow that is read and does not declare ampBuild (an organization whose
-// namespaced Workflows predate it) keeps its previous path: that is expected
-// during the rollout and is only logged at Warn. So does one that does not declare
-// ampBuild.secretStore while config.BuildClient.SecretStore is set: it would read
-// the token through its workflow plane's store, which that setting says cannot
-// read it. A workflow that cannot be read
-// is different: whether the run should carry the token is unknown, and starting
-// it on the previous path would let it build in full and fail only at publish
-// once that path is gone. So the lookup is retried once and, if it still fails,
-// the error is returned and the build is not started.
+// A ClusterWorkflow is not read. It is installed by the platform together with
+// this service's configuration, so listing it in config.BuildClient.Workflows is
+// what says it declares ampBuild (and ampBuild.secretStore, when
+// config.BuildClient.SecretStore is set). Reading it would also need a
+// cluster-scoped OpenChoreo call, which an organization-scoped API in front of
+// OpenChoreo may not route: every build of the workflow would then be refused.
+//
+// A namespaced Workflow is read, because each organization has its own copy and
+// an older one may predate ampBuild. One that is read and does not declare
+// ampBuild keeps its previous path: that is expected during the rollout and is
+// only logged at Warn. So does one that does not declare ampBuild.secretStore
+// while config.BuildClient.SecretStore is set: it would read the token through its
+// workflow plane's store, which that setting says cannot read it. A Workflow that
+// cannot be read is different: whether the run should carry the token is
+// unknown, and starting it on the previous path would let it build in full and
+// fail only at publish once that path is gone. So the lookup is retried once and,
+// if it still fails, the error is returned and the build is not started.
 func (c *openChoreoClient) attachBuildClient(ctx context.Context, namespaceName string, kind gen.WorkflowRunConfigKind, workflowName string, enabled bool) (bool, error) {
 	if !enabled {
 		return false, nil
@@ -102,14 +110,25 @@ func (c *openChoreoClient) attachBuildClient(ctx context.Context, namespaceName 
 			"workflow", workflowName)
 		return false, nil
 	}
-	properties, err := c.workflowParameterProperties(ctx, namespaceName, kind, workflowName)
+	switch kind {
+	case gen.WorkflowRunConfigKindClusterWorkflow, "":
+		// An unset kind is a ClusterWorkflow: TriggerBuild defaults it to one, and
+		// OpenChoreo reads it the same way.
+		return true, nil
+	case gen.WorkflowRunConfigKindWorkflow:
+	default:
+		slog.WarnContext(ctx, "Build workflow kind is not known; not attaching the build token",
+			"workflow", workflowName, "kind", string(kind))
+		return false, nil
+	}
+	properties, err := c.workflowParameterProperties(ctx, namespaceName, workflowName)
 	if err != nil {
 		select {
 		case <-ctx.Done():
 			return false, fmt.Errorf("%w: could not read build workflow %q: %v", utils.ErrServiceUnavailable, workflowName, err) //nolint:errorlint // the cause is reported as text, not as this build's error
 		case <-time.After(buildWorkflowLookupRetryDelay):
 		}
-		properties, err = c.workflowParameterProperties(ctx, namespaceName, kind, workflowName)
+		properties, err = c.workflowParameterProperties(ctx, namespaceName, workflowName)
 	}
 	if err != nil {
 		slog.ErrorContext(ctx, "Could not read the build workflow's parameters; not starting the build",
@@ -137,33 +156,19 @@ func (c *openChoreoClient) attachBuildClient(ctx context.Context, namespaceName 
 // one retry of a failed workflow lookup. A variable so tests need not wait.
 var buildWorkflowLookupRetryDelay = time.Second
 
-// workflowParameterProperties returns the top-level properties of the Workflow or
-// ClusterWorkflow's openAPIV3Schema, or none when it declares no schema.
-func (c *openChoreoClient) workflowParameterProperties(ctx context.Context, namespaceName string, kind gen.WorkflowRunConfigKind, name string) (map[string]interface{}, error) {
+// workflowParameterProperties returns the top-level properties of the namespaced
+// Workflow's openAPIV3Schema, or none when it declares no schema.
+func (c *openChoreoClient) workflowParameterProperties(ctx context.Context, namespaceName string, name string) (map[string]interface{}, error) {
 	var schema *map[string]interface{}
-	switch kind {
-	case gen.WorkflowRunConfigKindWorkflow:
-		resp, err := c.ocClient.GetWorkflowWithResponse(ctx, namespaceName, name)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get workflow %q: %w", name, err)
-		}
-		if resp.StatusCode() != http.StatusOK || resp.JSON200 == nil {
-			return nil, fmt.Errorf("failed to get workflow %q: status %d", name, resp.StatusCode())
-		}
-		if resp.JSON200.Spec != nil && resp.JSON200.Spec.Parameters != nil {
-			schema = resp.JSON200.Spec.Parameters.OpenAPIV3Schema
-		}
-	default:
-		resp, err := c.ocClient.GetClusterWorkflowWithResponse(ctx, name)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get cluster workflow %q: %w", name, err)
-		}
-		if resp.StatusCode() != http.StatusOK || resp.JSON200 == nil {
-			return nil, fmt.Errorf("failed to get cluster workflow %q: status %d", name, resp.StatusCode())
-		}
-		if resp.JSON200.Spec != nil && resp.JSON200.Spec.Parameters != nil {
-			schema = resp.JSON200.Spec.Parameters.OpenAPIV3Schema
-		}
+	resp, err := c.ocClient.GetWorkflowWithResponse(ctx, namespaceName, name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get workflow %q: %w", name, err)
+	}
+	if resp.StatusCode() != http.StatusOK || resp.JSON200 == nil {
+		return nil, fmt.Errorf("failed to get workflow %q: status %d", name, resp.StatusCode())
+	}
+	if resp.JSON200.Spec != nil && resp.JSON200.Spec.Parameters != nil {
+		schema = resp.JSON200.Spec.Parameters.OpenAPIV3Schema
 	}
 	if schema == nil {
 		// No schema: the workflow declares no parameters.
