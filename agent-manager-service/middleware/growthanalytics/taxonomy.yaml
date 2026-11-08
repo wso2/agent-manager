@@ -1,0 +1,1935 @@
+# =============================================================================
+# WSO2 Agent Manager — Feature Taxonomy
+# =============================================================================
+# Schema   : https://wso2.com/schemas/feature-taxonomy/v1
+# Product  : WSO2 Agent Manager (AMP)
+# Maintainer: Agent Manager Engineering Team
+#
+# This file describes what the product actually emits. Server-side events come
+# from growthanalytics.Track wrappers in agent-manager-service/api/*_routes.go;
+# console events are the closed allowlist in console.go. Event codes and
+# dimension values listed here are the exact strings the code sends, and they
+# are already in production data: change the file to match the code, never the
+# other way round.
+#
+# Features that exist in the product but have no Track call yet carry a
+# "Not emitted yet" comment in their tracking block.
+#
+# Every event also carries this metadata (track.go / console.go buildMetadata),
+# which is not repeated per feature:
+#   platform          string  always "Agent Manager"
+#   source            enum    "api" | "console"
+#   growth_action     string  the feature code
+#   product_version   string
+#   deployment_model  string
+#   environment       string  optional
+#
+# Changes: treat a removed or renamed code or enum value as breaking. Codes are
+# permanent; retire one with status: deprecated and availability.deprecated_in.
+# =============================================================================
+
+schema:
+  version: "1.0.0"
+  id: "https://wso2.com/schemas/feature-taxonomy/v1"
+
+# -----------------------------------------------------------------------------
+# PRODUCT
+# -----------------------------------------------------------------------------
+
+product:
+  id: "amp"
+  name: "WSO2 Agent Manager"
+  version: "1.0.0"
+  description: "Enterprise control plane to deploy, manage, govern, and observe AI agents at scale, built on OpenChoreo."
+  team_owner: "agent-manager-engineering"
+  category: "developer-platform"
+  is_active: true
+
+# -----------------------------------------------------------------------------
+# FEATURE CATEGORIES
+# Flat on purpose: the skeleton requires a feature's category to be its most
+# specific category id AND the second segment of its code. The emitted codes
+# are amp.connections.* and amp.console.*, so those categories cannot be split
+# into sub-categories without renaming live events.
+# -----------------------------------------------------------------------------
+
+categories:
+  - id: "agent-development"
+    name: "Agent Development"
+    description: "Creating, configuring, and building agents, including binding them to the LLM models and MCP tools they use."
+
+  - id: "deployment-ops"
+    name: "Deployment & Operations"
+    description: "Projects, environments, gateways, deployment pipelines, A2A exposure, and the agent deployment/promotion lifecycle."
+
+  - id: "connections"
+    name: "Connections"
+    description: "Managed connections to LLM providers, LLM proxies, and MCP servers that agents call through the gateway: registering, deploying, scoping, and issuing credentials for them."
+
+  - id: "security-access"
+    name: "Security & Access"
+    description: "Runtime identity, tokens, and API keys that let agents (and the configs bound to them) authenticate."
+
+  - id: "org-management"
+    name: "Organization Management"
+    description: "Human user, group, role, and permission management at the organization level."
+
+  - id: "source-control"
+    name: "Source Control Integration"
+    description: "Git credential management and repository browsing used to build agents from source."
+
+  - id: "discovery"
+    name: "Discovery & Templates"
+    description: "Discovery and reuse of agent kinds/templates, the org catalog, and available build options. Not a cross-org marketplace like Choreo's — this is in-org template/catalog reuse."
+
+  - id: "observability"
+    name: "Observability"
+    description: "Monitors, alerting, custom evaluators, and quality scores for deployed agents."
+
+  - id: "events"
+    name: "Events & Webhooks"
+    description: "Outbound event destinations and the org, project, and agent subscriptions that route platform events to them."
+
+  - id: "console"
+    name: "Console Experience"
+    description: "UI-only behaviour reported by the console, none of which reaches an API route. The third code segment groups it: navigation, intent, onboarding, playground, observability, utility, friction (errors, empty states, permission denials, expired sessions), and session."
+
+# -----------------------------------------------------------------------------
+# FEATURES
+# code convention: amp.<category-id>.<action>
+#   Console features use amp.console.<group>.<action>.
+# -----------------------------------------------------------------------------
+
+features:
+
+  # ============================================================
+  # AGENT DEVELOPMENT
+  # ============================================================
+
+  - code: "amp.agent-development.create-agent"
+    name: "Agent Creation"
+    description: "Register a new agent within a project, either from scratch or from an agent kind template."
+    category: "agent-development"
+    tier: "core"
+    status: "stable"
+    availability:
+      introduced_in: "1.0.0"
+    tracking:
+      event_name: "amp.agent-development.create-agent"
+      event_category: "adoption"
+      platforms: ["web", "api"]
+      dimensions:
+        - name: "action"
+          type: "enum"
+          values: ["created-agent"]
+          required: true
+        - name: "creation_method"
+          type: "enum"
+          values: ["external", "from-kind", "platform-hosted"]
+          required: false
+          description: "Provisioning method, set after the create request is validated."
+      aggregations:
+        - type: "count"
+          label: "Agents Created"
+
+  - code: "amp.agent-development.update-agent"
+    name: "Agent Configuration Update"
+    description: "Update an agent's basic info, build parameters, resource configs, deploy settings, or runtime configurations."
+    category: "agent-development"
+    tier: "core"
+    status: "stable"
+    availability:
+      introduced_in: "1.0.0"
+    tracking:
+      event_name: "amp.agent-development.update-agent"
+      event_category: "engagement"
+      platforms: ["web", "api"]
+      dimensions:
+        - name: "update_target"
+          type: "enum"
+          values: ["basic-info", "build-parameters", "resource-configs", "configurations", "deploy-settings"]
+          required: true
+      aggregations:
+        - type: "count"
+          label: "Agent Updates"
+        - type: "count_distinct"
+          dimension: "update_target"
+          label: "Update Targets Touched"
+
+  - code: "amp.agent-development.bind-model-config"
+    name: "Agent Model Binding"
+    description: "Bind a specific agent to an LLM model configuration it should use at runtime — the link between an agent and a Connections-managed LLM provider/proxy."
+    category: "agent-development"
+    tier: "core"
+    status: "stable"
+    availability:
+      introduced_in: "1.0.0"
+    tracking:
+      event_name: "amp.agent-development.bind-model-config"
+      event_category: "adoption"
+      platforms: ["web", "api"]
+      dimensions:
+        - name: "action"
+          type: "enum"
+          values: ["created-model-config-binding", "updated-model-config-binding", "deleted-model-config-binding"]
+          required: true
+      aggregations:
+        - type: "count"
+          label: "Model Config Bindings"
+
+  - code: "amp.agent-development.bind-mcp-config"
+    name: "Agent MCP Binding"
+    description: "Bind a specific agent to an MCP server configuration it should use at runtime — the link between an agent and a Connections-managed MCP proxy."
+    category: "agent-development"
+    tier: "core"
+    status: "stable"
+    availability:
+      introduced_in: "1.0.0"
+    tracking:
+      event_name: "amp.agent-development.bind-mcp-config"
+      event_category: "adoption"
+      platforms: ["web", "api"]
+      dimensions:
+        - name: "action"
+          type: "enum"
+          values: ["created-mcp-config-binding", "updated-mcp-config-binding", "deleted-mcp-config-binding"]
+          required: true
+      aggregations:
+        - type: "count"
+          label: "MCP Config Bindings"
+
+  - code: "amp.agent-development.build-agent"
+    name: "Agent Build"
+    description: "Trigger a build of an agent from its source repository into a deployable artifact."
+    category: "agent-development"
+    tier: "core"
+    status: "stable"
+    availability:
+      introduced_in: "1.0.0"
+    tracking:
+      event_name: "amp.agent-development.build-agent"
+      event_category: "engagement"
+      platforms: ["web", "api"]
+      dimensions:
+        - name: "action"
+          type: "enum"
+          values: ["built-agent"]
+          required: true
+        - name: "outcome"
+          type: "enum"
+          values: ["success", "failure"]
+          required: true
+          description: "Derived from the HTTP status of the build request, not the build result."
+      aggregations:
+        - type: "count"
+          label: "Agent Builds Triggered"
+
+  - code: "amp.agent-development.publish-kind"
+    name: "Publish Agent as Kind"
+    description: "Publish an existing agent as a reusable agent kind/template, making it discoverable in the org catalog."
+    category: "agent-development"
+    tier: "core"
+    status: "stable"
+    availability:
+      introduced_in: "1.0.0"
+    tracking:
+      event_name: "amp.agent-development.publish-kind"
+      event_category: "adoption"
+      platforms: ["web", "api"]
+      dimensions:
+        - name: "action"
+          type: "enum"
+          values: ["published-agent-as-kind"]
+          required: true
+      aggregations:
+        - type: "count"
+          label: "Agents Published as Kinds"
+
+  - code: "amp.agent-development.delete-agent"
+    name: "Agent Deletion"
+    description: "Permanently remove an agent and its associated deployments."
+    category: "agent-development"
+    tier: "core"
+    status: "stable"
+    availability:
+      introduced_in: "1.0.0"
+    tracking:
+      event_name: "amp.agent-development.delete-agent"
+      event_category: "abandonment"
+      platforms: ["web", "api"]
+      dimensions:
+        - name: "action"
+          type: "enum"
+          values: ["deleted-agent"]
+          required: true
+      aggregations:
+        - type: "count"
+          label: "Agents Deleted"
+
+  # ============================================================
+  # DEPLOYMENT & OPERATIONS
+  # ============================================================
+
+  - code: "amp.deployment-ops.deploy-agent"
+    name: "Agent Deployment"
+    description: "Deploy a built agent to an environment, making it live behind the gateway."
+    category: "deployment-ops"
+    tier: "core"
+    status: "stable"
+    availability:
+      introduced_in: "1.0.0"
+    tracking:
+      event_name: "amp.deployment-ops.deploy-agent"
+      event_category: "adoption"
+      platforms: ["web", "api"]
+      dimensions:
+        - name: "action"
+          type: "enum"
+          values: ["deployed-agent"]
+          required: true
+        - name: "environment_type"
+          type: "string"
+          required: false
+          description: "Target environment name returned by a successful deployment; values are deployment-specific."
+      aggregations:
+        - type: "count"
+          label: "Agent Deployments"
+    sub_features:
+      - code: "amp.deployment-ops.deploy-agent.promote"
+        name: "Agent Promotion"
+        description: "Promote an agent's deployment along the deployment pipeline (e.g. staging to production)."
+        category: "deployment-ops"
+        tier: "core"
+        status: "stable"
+        availability:
+          introduced_in: "1.0.0"
+        tracking:
+          event_name: "amp.deployment-ops.deploy-agent.promote"
+          event_category: "adoption"
+          platforms: ["web", "api"]
+          dimensions:
+            - name: "action"
+              type: "enum"
+              values: ["promoted-agent-deployment"]
+              required: true
+          aggregations:
+            - type: "count"
+              label: "Agent Promotions"
+      - code: "amp.deployment-ops.deploy-agent.suspend"
+        name: "Agent Deployment Suspend/Resume"
+        description: "Change a deployment's running state (suspend or resume) without redeploying."
+        category: "deployment-ops"
+        tier: "core"
+        status: "stable"
+        availability:
+          introduced_in: "1.0.0"
+        tracking:
+          # Not emitted yet (no Track call); the dimensions below are planned.
+          event_name: "amp.deployment-ops.deploy-agent.suspend"
+          event_category: "engagement"
+          platforms: ["web", "api"]
+          dimensions:
+            - name: "action"
+              type: "enum"
+              values: ["suspended-agent-deployment", "resumed-agent-deployment"]
+              required: true
+          aggregations:
+            - type: "count"
+              label: "Deployment State Changes"
+
+  - code: "amp.deployment-ops.create-project"
+    name: "Project Management"
+    description: "Create, update, or delete a project that groups related agents and LLM proxies."
+    category: "deployment-ops"
+    tier: "core"
+    status: "stable"
+    availability:
+      introduced_in: "1.0.0"
+    tracking:
+      event_name: "amp.deployment-ops.create-project"
+      event_category: "adoption"
+      platforms: ["web", "api"]
+      dimensions:
+        - name: "action"
+          type: "enum"
+          values: ["created-project", "updated-project", "deleted-project"]
+          required: true
+      aggregations:
+        - type: "count"
+          label: "Project Changes"
+
+  - code: "amp.deployment-ops.create-environment"
+    name: "Environment Management"
+    description: "Create, update, or delete a deployment environment (e.g. dev, staging, production) within an organization."
+    category: "deployment-ops"
+    tier: "core"
+    status: "stable"
+    availability:
+      introduced_in: "1.0.0"
+    tracking:
+      event_name: "amp.deployment-ops.create-environment"
+      event_category: "adoption"
+      platforms: ["web", "api"]
+      dimensions:
+        - name: "action"
+          type: "enum"
+          values: ["created-environment", "updated-environment", "deleted-environment"]
+          required: true
+      aggregations:
+        - type: "count"
+          label: "Environment Changes"
+    sub_features:
+      - code: "amp.deployment-ops.create-environment.thunder-system-client"
+        name: "Thunder Identity Configuration"
+        description: "Configure or remove the Thunder (identity provider) URL and system client bound to an environment."
+        category: "deployment-ops"
+        tier: "core"
+        status: "stable"
+        availability:
+          introduced_in: "1.0.0"
+        tracking:
+          # Not emitted yet (no Track call); the dimensions below are planned.
+          event_name: "amp.deployment-ops.create-environment.thunder-system-client"
+          event_category: "engagement"
+          platforms: ["web", "api"]
+          dimensions:
+            - name: "action"
+              type: "enum"
+              values: ["configured-thunder-system-client", "removed-thunder-system-client", "configured-thunder-url", "removed-thunder-url"]
+              required: true
+          aggregations:
+            - type: "count"
+              label: "Thunder Configuration Changes"
+
+  - code: "amp.deployment-ops.register-gateway"
+    name: "Gateway Registration"
+    description: "Register, update, or delete a data-plane gateway, including self-hosted gateways."
+    category: "deployment-ops"
+    tier: "core"
+    status: "stable"
+    availability:
+      introduced_in: "1.0.0"
+    tracking:
+      event_name: "amp.deployment-ops.register-gateway"
+      event_category: "adoption"
+      platforms: ["web", "api"]
+      dimensions:
+        - name: "action"
+          type: "enum"
+          values: ["registered-gateway", "updated-gateway", "deleted-gateway"]
+          required: true
+      aggregations:
+        - type: "count"
+          label: "Gateway Changes"
+    sub_features:
+      - code: "amp.deployment-ops.register-gateway.assign-environment"
+        name: "Gateway-to-Environment Assignment"
+        description: "Assign or remove a gateway from an environment."
+        category: "deployment-ops"
+        tier: "core"
+        status: "stable"
+        availability:
+          introduced_in: "1.0.0"
+        tracking:
+          event_name: "amp.deployment-ops.register-gateway.assign-environment"
+          event_category: "engagement"
+          platforms: ["web", "api"]
+          dimensions:
+            - name: "action"
+              type: "enum"
+              values: ["assigned-gateway-to-environment", "removed-gateway-from-environment"]
+              required: true
+          aggregations:
+            - type: "count"
+              label: "Gateway-Environment Assignment Changes"
+      - code: "amp.deployment-ops.register-gateway.identity-provider"
+        name: "Gateway Identity Provider Configuration"
+        description: "Configure or remove an OIDC identity provider on a gateway. OIDC discovery is a read and is not tracked."
+        category: "deployment-ops"
+        tier: "core"
+        status: "stable"
+        availability:
+          introduced_in: "1.0.0"
+        tracking:
+          event_name: "amp.deployment-ops.register-gateway.identity-provider"
+          event_category: "engagement"
+          platforms: ["web", "api"]
+          dimensions:
+            - name: "action"
+              type: "enum"
+              values: ["configured-gateway-identity-provider", "removed-gateway-identity-provider"]
+              required: true
+          aggregations:
+            - type: "count"
+              label: "Gateway Identity Provider Changes"
+      - code: "amp.deployment-ops.register-gateway.token"
+        name: "Gateway Token Management"
+        description: "Rotate or revoke a gateway's registration token (managed and self-hosted gateways)."
+        category: "deployment-ops"
+        tier: "core"
+        status: "stable"
+        availability:
+          introduced_in: "1.0.0"
+        tracking:
+          event_name: "amp.deployment-ops.register-gateway.token"
+          event_category: "engagement"
+          platforms: ["web", "api"]
+          dimensions:
+            - name: "action"
+              type: "enum"
+              values: ["rotated-gateway-token", "revoked-gateway-token"]
+              required: true
+          aggregations:
+            - type: "count"
+              label: "Gateway Token Operations"
+
+  - code: "amp.deployment-ops.deployment-pipeline"
+    name: "Deployment Pipeline Configuration"
+    description: "Create, update, or delete an organization or project deployment pipeline defining environment promotion order."
+    category: "deployment-ops"
+    tier: "core"
+    status: "stable"
+    availability:
+      introduced_in: "1.0.0"
+    tracking:
+      event_name: "amp.deployment-ops.deployment-pipeline"
+      event_category: "engagement"
+      platforms: ["web", "api"]
+      dimensions:
+        - name: "action"
+          type: "enum"
+          values: ["created-deployment-pipeline", "updated-deployment-pipeline", "deleted-deployment-pipeline"]
+          required: true
+      aggregations:
+        - type: "count"
+          label: "Deployment Pipeline Changes"
+
+  - code: "amp.deployment-ops.a2a-proxy"
+    name: "A2A Proxy"
+    description: "Expose, refresh, or remove an agent's per-environment A2A (agent-to-agent) proxy."
+    category: "deployment-ops"
+    tier: "core"
+    status: "beta"
+    availability:
+      introduced_in: "2026.12.0"
+    tracking:
+      # Not emitted yet (no Track call); the dimensions below are planned.
+      event_name: "amp.deployment-ops.a2a-proxy"
+      event_category: "adoption"
+      platforms: ["web", "api"]
+      dimensions:
+        - name: "action"
+          type: "enum"
+          values: ["configured-a2a-proxy", "refreshed-a2a-proxy", "removed-a2a-proxy"]
+          required: true
+      aggregations:
+        - type: "count"
+          label: "A2A Proxy Changes"
+
+  - code: "amp.deployment-ops.agent-card"
+    name: "A2A Agent Card"
+    description: "Set, refresh, or remove the source of an agent's per-environment A2A agent card."
+    category: "deployment-ops"
+    tier: "core"
+    status: "beta"
+    availability:
+      introduced_in: "2026.12.0"
+    tracking:
+      # Not emitted yet (no Track call); the dimensions below are planned.
+      event_name: "amp.deployment-ops.agent-card"
+      event_category: "engagement"
+      platforms: ["web", "api"]
+      dimensions:
+        - name: "action"
+          type: "enum"
+          values: ["set-agent-card-source", "refreshed-agent-card", "removed-agent-card-source"]
+          required: true
+      aggregations:
+        - type: "count"
+          label: "Agent Card Changes"
+
+  # ============================================================
+  # CONNECTIONS
+  # ============================================================
+
+  - code: "amp.connections.create-llm-provider"
+    name: "LLM Provider Management"
+    description: "Register, update, or delete an LLM provider configuration, or change whether it is listed in the org catalog."
+    category: "connections"
+    tier: "core"
+    status: "stable"
+    availability:
+      introduced_in: "1.0.0"
+    tracking:
+      event_name: "amp.connections.create-llm-provider"
+      event_category: "adoption"
+      platforms: ["web", "api"]
+      dimensions:
+        - name: "action"
+          type: "enum"
+          values: ["created-llm-provider", "updated-llm-provider", "deleted-llm-provider", "updated-llm-provider-catalog-status"]
+          required: true
+        - name: "from_template"
+          type: "boolean"
+          required: false
+          description: "True when creating from a provider template, false when configuring from scratch; absent on other actions."
+        - name: "provider_type"
+          type: "string"
+          required: false
+          description: "Provider template handle (for example openai, azure-openai, or awsbedrock); present only when creating from a template."
+      aggregations:
+        - type: "count"
+          label: "LLM Provider Changes"
+    sub_features:
+      - code: "amp.connections.create-llm-provider.template"
+        name: "LLM Provider Template Management"
+        description: "Create, update, or delete a reusable LLM provider template."
+        category: "connections"
+        tier: "core"
+        status: "stable"
+        availability:
+          introduced_in: "1.0.0"
+        tracking:
+          event_name: "amp.connections.create-llm-provider.template"
+          event_category: "engagement"
+          platforms: ["web", "api"]
+          dimensions:
+            - name: "action"
+              type: "enum"
+              values: ["created-provider-template", "updated-provider-template", "deleted-provider-template"]
+              required: true
+          aggregations:
+            - type: "count"
+              label: "LLM Provider Template Changes"
+
+  - code: "amp.connections.deploy-llm-provider"
+    name: "LLM Provider Deployment"
+    description: "Deploy, undeploy, restore, or delete an LLM provider's gateway-facing deployment. Deleting a deployment is reported as an undeploy."
+    category: "connections"
+    tier: "core"
+    status: "stable"
+    availability:
+      introduced_in: "1.0.0"
+    tracking:
+      event_name: "amp.connections.deploy-llm-provider"
+      event_category: "adoption"
+      platforms: ["web", "api"]
+      dimensions:
+        - name: "action"
+          type: "enum"
+          values: ["deployed-llm-provider", "undeployed-llm-provider", "restored-llm-provider-deployment"]
+          required: true
+      aggregations:
+        - type: "count"
+          label: "LLM Provider Deployment Actions"
+
+  - code: "amp.connections.llm-provider-api-key"
+    name: "LLM Provider Consumer API Key"
+    description: "Issue, rotate, or revoke an API key that lets consumers call a deployed LLM provider directly."
+    category: "connections"
+    tier: "core"
+    status: "stable"
+    availability:
+      introduced_in: "1.0.0"
+    tracking:
+      event_name: "amp.connections.llm-provider-api-key"
+      event_category: "adoption"
+      platforms: ["web", "api"]
+      dimensions:
+        - name: "action"
+          type: "enum"
+          values: ["issued-provider-api-key", "rotated-provider-api-key", "revoked-provider-api-key"]
+          required: true
+      aggregations:
+        - type: "count"
+          label: "LLM Provider API Key Operations"
+
+  - code: "amp.connections.create-llm-proxy"
+    name: "LLM Proxy Management"
+    description: "Create, update, or delete a project-scoped LLM proxy that fronts one or more LLM providers with policy enforcement."
+    category: "connections"
+    tier: "core"
+    status: "stable"
+    availability:
+      introduced_in: "1.0.0"
+    tracking:
+      # Not emitted yet (no Track call); the dimensions below are planned.
+      event_name: "amp.connections.create-llm-proxy"
+      event_category: "adoption"
+      platforms: ["web", "api"]
+      dimensions:
+        - name: "action"
+          type: "enum"
+          values: ["created-llm-proxy", "updated-llm-proxy", "deleted-llm-proxy"]
+          required: true
+      aggregations:
+        - type: "count"
+          label: "LLM Proxy Changes"
+
+  - code: "amp.connections.deploy-llm-proxy"
+    name: "LLM Proxy Deployment"
+    description: "Deploy, undeploy, restore, or delete an LLM proxy's gateway-facing deployment."
+    category: "connections"
+    tier: "core"
+    status: "stable"
+    availability:
+      introduced_in: "1.0.0"
+    tracking:
+      # Not emitted yet (no Track call); the dimensions below are planned.
+      event_name: "amp.connections.deploy-llm-proxy"
+      event_category: "adoption"
+      platforms: ["web", "api"]
+      dimensions:
+        - name: "action"
+          type: "enum"
+          values: ["deployed-llm-proxy", "undeployed-llm-proxy", "restored-llm-proxy-deployment"]
+          required: true
+      aggregations:
+        - type: "count"
+          label: "LLM Proxy Deployment Actions"
+
+  - code: "amp.connections.llm-proxy-api-key"
+    name: "LLM Proxy Consumer API Key"
+    description: "Issue, rotate, or revoke an API key that lets consumers call an LLM proxy."
+    category: "connections"
+    tier: "core"
+    status: "stable"
+    availability:
+      introduced_in: "1.0.0"
+    tracking:
+      # Not emitted yet (no Track call); the dimensions below are planned.
+      event_name: "amp.connections.llm-proxy-api-key"
+      event_category: "adoption"
+      platforms: ["web", "api"]
+      dimensions:
+        - name: "action"
+          type: "enum"
+          values: ["issued-proxy-api-key", "rotated-proxy-api-key", "revoked-proxy-api-key"]
+          required: true
+      aggregations:
+        - type: "count"
+          label: "LLM Proxy API Key Operations"
+
+  - code: "amp.connections.create-mcp-proxy"
+    name: "MCP Proxy Management"
+    description: "Register, update, or delete an MCP (Model Context Protocol) server as a governed proxy resource, or probe a server via fetch-server-info first."
+    category: "connections"
+    tier: "core"
+    status: "stable"
+    availability:
+      introduced_in: "1.0.0"
+    tracking:
+      event_name: "amp.connections.create-mcp-proxy"
+      event_category: "adoption"
+      platforms: ["web", "api"]
+      dimensions:
+        - name: "action"
+          type: "enum"
+          values: ["created-mcp-proxy", "updated-mcp-proxy", "deleted-mcp-proxy", "probed-mcp-server"]
+          required: true
+        - name: "probed_first"
+          type: "boolean"
+          required: false
+          description: "True when an endpoint includes capabilities from a prior probe, false otherwise; set only on creation."
+      aggregations:
+        - type: "count"
+          label: "MCP Proxy Changes"
+
+  - code: "amp.connections.manage-mcp-scope"
+    name: "MCP Proxy Scope Management"
+    description: "Define or update the scopes exposed by an MCP proxy, controlling which agent identities may call which MCP actions."
+    category: "connections"
+    tier: "core"
+    status: "stable"
+    availability:
+      introduced_in: "1.0.0"
+    tracking:
+      event_name: "amp.connections.manage-mcp-scope"
+      event_category: "engagement"
+      platforms: ["web", "api"]
+      dimensions:
+        - name: "action"
+          type: "enum"
+          values: ["created-mcp-scope", "updated-mcp-scope", "deleted-mcp-scope"]
+          required: true
+      aggregations:
+        - type: "count"
+          label: "MCP Proxy Scope Changes"
+
+  - code: "amp.connections.project-mcp-proxy"
+    name: "Project MCP Proxy"
+    description: "Create, update, or delete a project-scoped MCP proxy and its per-environment bindings."
+    category: "connections"
+    tier: "core"
+    status: "beta"
+    availability:
+      introduced_in: "2026.12.0"
+    tracking:
+      # Not emitted yet (no Track call); the dimensions below are planned.
+      event_name: "amp.connections.project-mcp-proxy"
+      event_category: "adoption"
+      platforms: ["web", "api"]
+      dimensions:
+        - name: "action"
+          type: "enum"
+          values: ["upserted-project-mcp-proxy", "deleted-project-mcp-proxy", "bound-project-mcp-proxy-environment", "unbound-project-mcp-proxy-environment"]
+          required: true
+      aggregations:
+        - type: "count"
+          label: "Project MCP Proxy Changes"
+
+  # ============================================================
+  # SECURITY & ACCESS
+  # ============================================================
+
+  - code: "amp.security-access.issue-api-key"
+    name: "Agent API Key Issuance"
+    description: "Issue a consumer-facing API key (production or test) for calling a deployed agent's endpoint."
+    category: "security-access"
+    tier: "core"
+    status: "stable"
+    availability:
+      introduced_in: "1.0.0"
+    tracking:
+      event_name: "amp.security-access.issue-api-key"
+      event_category: "adoption"
+      platforms: ["web", "api"]
+      dimensions:
+        - name: "action"
+          type: "enum"
+          values: ["issued-agent-api-key"]
+          required: true
+        - name: "key_purpose"
+          type: "enum"
+          values: ["production", "test"]
+          required: true
+      aggregations:
+        - type: "count"
+          label: "Agent API Keys Issued"
+        - type: "count_distinct"
+          dimension: "key_purpose"
+          label: "Key Purposes Used"
+    sub_features:
+      - code: "amp.security-access.issue-api-key.rotate"
+        name: "Agent API Key Rotation"
+        description: "Rotate or revoke an existing agent API key."
+        category: "security-access"
+        tier: "core"
+        status: "stable"
+        availability:
+          introduced_in: "1.0.0"
+        tracking:
+          event_name: "amp.security-access.issue-api-key.rotate"
+          event_category: "engagement"
+          platforms: ["web", "api"]
+          dimensions:
+            - name: "action"
+              type: "enum"
+              values: ["rotated-agent-api-key", "revoked-agent-api-key"]
+              required: true
+          aggregations:
+            - type: "count"
+              label: "Agent API Key Rotations/Revocations"
+
+  - code: "amp.security-access.config-scoped-api-key"
+    name: "Agent Config-Scoped API Key"
+    description: "Issue, rotate, or revoke a per-environment API key scoped to a specific model-config or MCP-config binding — the credential the agent itself uses to call its bound LLM/MCP resource through the gateway."
+    category: "security-access"
+    tier: "core"
+    status: "stable"
+    availability:
+      introduced_in: "1.0.0"
+    tracking:
+      event_name: "amp.security-access.config-scoped-api-key"
+      event_category: "adoption"
+      platforms: ["web", "api"]
+      dimensions:
+        - name: "config_type"
+          type: "enum"
+          values: ["model-config", "mcp-config"]
+          required: true
+        - name: "action"
+          type: "enum"
+          values: ["issued-config-scoped-api-key", "rotated-config-scoped-api-key", "revoked-config-scoped-api-key"]
+          required: true
+      aggregations:
+        - type: "count"
+          label: "Config-Scoped API Key Operations"
+        - type: "count_distinct"
+          dimension: "config_type"
+          label: "Config Types Used"
+
+  - code: "amp.security-access.agent-token"
+    name: "Agent Runtime Token Generation"
+    description: "Generate the runtime token, or regenerate the tracing token, an agent workload uses to authenticate to the control plane."
+    category: "security-access"
+    tier: "core"
+    status: "stable"
+    availability:
+      introduced_in: "1.0.0"
+    tracking:
+      event_name: "amp.security-access.agent-token"
+      event_category: "engagement"
+      platforms: ["web", "api"]
+      dimensions:
+        - name: "token_type"
+          type: "enum"
+          values: ["agent-token", "tracing-token"]
+          required: true
+        - name: "action"
+          type: "enum"
+          values: ["generated-agent-token", "regenerated-tracing-token"]
+          required: true
+      aggregations:
+        - type: "count"
+          label: "Agent Tokens Generated"
+
+  - code: "amp.security-access.agent-identity"
+    name: "Agent Workload Identity Provisioning"
+    description: "Provision a deployed agent's workload identity (agent-to-agent auth), or regenerate or revoke its secret. Retrying a failed provisioning is not tracked."
+    category: "security-access"
+    tier: "core"
+    status: "stable"
+    availability:
+      introduced_in: "1.0.0"
+    tracking:
+      event_name: "amp.security-access.agent-identity"
+      event_category: "adoption"
+      platforms: ["web", "api"]
+      dimensions:
+        - name: "action"
+          type: "enum"
+          values: ["provisioned-agent-identity", "regenerated-agent-identity-secret", "revoked-agent-identity-secret"]
+          required: true
+      aggregations:
+        - type: "count"
+          label: "Agent Identity Operations"
+
+  - code: "amp.security-access.identity-group-role"
+    name: "Agent Identity Groups & Roles"
+    description: "Manage groups and roles scoped to agent workload identities, and their memberships and role assignments."
+    category: "security-access"
+    tier: "core"
+    status: "stable"
+    availability:
+      introduced_in: "1.0.0"
+    tracking:
+      event_name: "amp.security-access.identity-group-role"
+      event_category: "engagement"
+      platforms: ["web", "api"]
+      dimensions:
+        - name: "resource_type"
+          type: "enum"
+          values: ["group", "role"]
+          required: true
+        - name: "action"
+          type: "enum"
+          values:
+            - "created-agent-identity-group"
+            - "updated-agent-identity-group"
+            - "deleted-agent-identity-group"
+            - "added-agent-identity-group-member"
+            - "removed-agent-identity-group-member"
+            - "created-agent-identity-role"
+            - "updated-agent-identity-role"
+            - "deleted-agent-identity-role"
+            - "added-agent-identity-role-assignee"
+            - "removed-agent-identity-role-assignee"
+          required: true
+      aggregations:
+        - type: "count"
+          label: "Agent Identity Group/Role Changes"
+
+  # ============================================================
+  # ORGANIZATION MANAGEMENT
+  # ============================================================
+
+  - code: "amp.org-management.invite-user"
+    name: "Organization User Management"
+    description: "Invite, directly create, update, or delete a user in an organization."
+    category: "org-management"
+    tier: "core"
+    status: "stable"
+    availability:
+      introduced_in: "1.0.0"
+    tracking:
+      event_name: "amp.org-management.invite-user"
+      event_category: "adoption"
+      platforms: ["web", "api"]
+      dimensions:
+        - name: "action"
+          type: "enum"
+          values: ["invited-user", "created-user-directly", "updated-user", "deleted-user"]
+          required: true
+        - name: "method"
+          type: "enum"
+          values: ["invited-user", "created-user-directly"]
+          required: false
+          description: "Set only on the two creation actions."
+      aggregations:
+        - type: "count"
+          label: "User Changes"
+
+  - code: "amp.org-management.manage-group"
+    name: "Organization Group Management"
+    description: "Create, update, or delete organization-level user groups and manage their membership."
+    category: "org-management"
+    tier: "core"
+    status: "stable"
+    availability:
+      introduced_in: "1.0.0"
+    tracking:
+      event_name: "amp.org-management.manage-group"
+      event_category: "engagement"
+      platforms: ["web", "api"]
+      dimensions:
+        - name: "action"
+          type: "enum"
+          values: ["created-org-group", "updated-org-group", "deleted-org-group", "added-org-group-members", "removed-org-group-members"]
+          required: true
+      aggregations:
+        - type: "count"
+          label: "Organization Group Changes"
+
+  - code: "amp.org-management.manage-role"
+    name: "Organization Role Management"
+    description: "Create, update, or delete organization-level roles and manage their permissions and assignees."
+    category: "org-management"
+    tier: "core"
+    status: "stable"
+    availability:
+      introduced_in: "1.0.0"
+    tracking:
+      event_name: "amp.org-management.manage-role"
+      event_category: "engagement"
+      platforms: ["web", "api"]
+      dimensions:
+        - name: "action"
+          type: "enum"
+          values:
+            - "created-org-role"
+            - "updated-org-role"
+            - "deleted-org-role"
+            - "added-org-role-permissions"
+            - "removed-org-role-permissions"
+            - "added-org-role-assignees"
+            - "removed-org-role-assignees"
+          required: true
+      aggregations:
+        - type: "count"
+          label: "Organization Role Changes"
+
+  - code: "amp.org-management.update-profile"
+    name: "User Profile Update"
+    description: "A user updates their own profile attributes."
+    category: "org-management"
+    tier: "core"
+    status: "stable"
+    availability:
+      introduced_in: "1.0.0"
+    tracking:
+      event_name: "amp.org-management.update-profile"
+      event_category: "engagement"
+      platforms: ["web", "api"]
+      dimensions:
+        - name: "action"
+          type: "enum"
+          values: ["updated-profile"]
+          required: true
+      aggregations:
+        - type: "count"
+          label: "Profile Updates"
+
+  # ============================================================
+  # SOURCE CONTROL INTEGRATION
+  # ============================================================
+
+  - code: "amp.source-control.manage-git-secret"
+    name: "Git Credential Management"
+    description: "Register or delete a Git credential used to build agents from private source repositories."
+    category: "source-control"
+    tier: "core"
+    status: "stable"
+    availability:
+      introduced_in: "1.0.0"
+    tracking:
+      event_name: "amp.source-control.manage-git-secret"
+      event_category: "adoption"
+      platforms: ["web", "api"]
+      dimensions:
+        - name: "action"
+          type: "enum"
+          values: ["created-git-secret", "deleted-git-secret"]
+          required: true
+      aggregations:
+        - type: "count"
+          label: "Git Credential Changes"
+
+  - code: "amp.source-control.browse-repository"
+    name: "Repository Browsing"
+    description: "List branches or commits of a connected Git repository while configuring an agent's build source."
+    category: "source-control"
+    tier: "core"
+    status: "stable"
+    availability:
+      introduced_in: "1.0.0"
+    tracking:
+      # Not emitted yet (no Track call); the dimensions below are planned.
+      event_name: "amp.source-control.browse-repository"
+      event_category: "engagement"
+      platforms: ["web", "api"]
+      dimensions:
+        - name: "browse_target"
+          type: "enum"
+          values: ["branches", "commits"]
+          required: true
+      aggregations:
+        - type: "count"
+          label: "Repository Browse Actions"
+
+  # ============================================================
+  # DISCOVERY & TEMPLATES
+  # ============================================================
+
+  - code: "amp.discovery.manage-kind"
+    name: "Agent Kind Management"
+    description: "Update or delete an agent kind (template). Kinds are created by publishing an agent (amp.agent-development.publish-kind)."
+    category: "discovery"
+    tier: "core"
+    status: "stable"
+    availability:
+      introduced_in: "1.0.0"
+    tracking:
+      event_name: "amp.discovery.manage-kind"
+      event_category: "engagement"
+      platforms: ["web", "api"]
+      dimensions:
+        - name: "action"
+          type: "enum"
+          values: ["updated-agent-kind", "deleted-agent-kind"]
+          required: true
+      aggregations:
+        - type: "count"
+          label: "Agent Kind Changes"
+    sub_features:
+      - code: "amp.discovery.manage-kind.add-version"
+        name: "Agent Kind Versioning"
+        description: "Publish or delete a version of an existing agent kind."
+        category: "discovery"
+        tier: "core"
+        status: "stable"
+        availability:
+          introduced_in: "1.0.0"
+        tracking:
+          event_name: "amp.discovery.manage-kind.add-version"
+          event_category: "engagement"
+          platforms: ["web", "api"]
+          dimensions:
+            - name: "action"
+              type: "enum"
+              values: ["added-agent-kind-version", "deleted-agent-kind-version"]
+              required: true
+          aggregations:
+            - type: "count"
+              label: "Agent Kind Version Changes"
+
+  - code: "amp.discovery.view-catalog"
+    name: "Catalog Browsing"
+    description: "Browse the org-wide catalog of discoverable resources (agent kinds, providers, proxies)."
+    category: "discovery"
+    tier: "core"
+    status: "stable"
+    availability:
+      introduced_in: "1.0.0"
+    tracking:
+      # Not emitted yet (no Track call); the dimensions below are planned.
+      event_name: "amp.discovery.view-catalog"
+      event_category: "discovery"
+      platforms: ["web"]
+      dimensions: []
+      aggregations:
+        - type: "count"
+          label: "Catalog Views"
+
+  - code: "amp.discovery.view-build-options"
+    name: "Agent Build Options Discovery"
+    description: "View the available base images/runtimes an agent can be built with."
+    category: "discovery"
+    tier: "core"
+    status: "stable"
+    availability:
+      introduced_in: "1.0.0"
+    tracking:
+      # Not emitted yet (no Track call); the dimensions below are planned.
+      event_name: "amp.discovery.view-build-options"
+      event_category: "discovery"
+      platforms: ["web"]
+      dimensions: []
+      aggregations:
+        - type: "count"
+          label: "Build Options Views"
+
+  # ============================================================
+  # OBSERVABILITY
+  # ============================================================
+
+  - code: "amp.observability.create-monitor"
+    name: "Monitor Management"
+    description: "Create, update, or delete a continuous quality monitor that periodically evaluates an agent's traces."
+    category: "observability"
+    tier: "core"
+    status: "stable"
+    availability:
+      introduced_in: "1.0.0"
+    tracking:
+      event_name: "amp.observability.create-monitor"
+      event_category: "adoption"
+      platforms: ["web", "api"]
+      dimensions:
+        - name: "action"
+          type: "enum"
+          values: ["created-monitor", "updated-monitor", "deleted-monitor"]
+          required: true
+      aggregations:
+        - type: "count"
+          label: "Monitor Changes"
+    sub_features:
+      - code: "amp.observability.create-monitor.start-stop"
+        name: "Monitor Start/Stop"
+        description: "Start or stop a monitor's scheduled execution."
+        category: "observability"
+        tier: "core"
+        status: "stable"
+        availability:
+          introduced_in: "1.0.0"
+        tracking:
+          event_name: "amp.observability.create-monitor.start-stop"
+          event_category: "engagement"
+          platforms: ["web", "api"]
+          dimensions:
+            - name: "action"
+              type: "enum"
+              values: ["started-monitor", "stopped-monitor"]
+              required: true
+          aggregations:
+            - type: "count"
+              label: "Monitor Start/Stop Actions"
+      - code: "amp.observability.create-monitor.rerun"
+        name: "Monitor Rerun"
+        description: "Manually re-trigger a specific monitor run on demand — the primary 'run an eval now' action."
+        category: "observability"
+        tier: "core"
+        status: "stable"
+        availability:
+          introduced_in: "1.0.0"
+        tracking:
+          event_name: "amp.observability.create-monitor.rerun"
+          event_category: "engagement"
+          platforms: ["web", "api"]
+          dimensions:
+            - name: "action"
+              type: "enum"
+              values: ["reran-monitor"]
+              required: true
+          aggregations:
+            - type: "count"
+              label: "Monitor Reruns"
+      - code: "amp.observability.create-monitor.alerting"
+        name: "Monitor Alerting"
+        description: "Configure or remove the alert attached to a monitor."
+        category: "observability"
+        tier: "core"
+        status: "beta"
+        availability:
+          introduced_in: "2026.12.0"
+        tracking:
+          # Not emitted yet (no Track call); the dimensions below are planned.
+          event_name: "amp.observability.create-monitor.alerting"
+          event_category: "adoption"
+          platforms: ["web", "api"]
+          dimensions:
+            - name: "action"
+              type: "enum"
+              values: ["configured-monitor-alert", "removed-monitor-alert"]
+              required: true
+          aggregations:
+            - type: "count"
+              label: "Monitor Alert Changes"
+
+  - code: "amp.observability.custom-evaluator"
+    name: "Custom Evaluator Authoring"
+    description: "Create, update, or delete a custom evaluator (LLM-as-judge or scoring check) beyond the built-in set."
+    category: "observability"
+    tier: "core"
+    status: "stable"
+    availability:
+      introduced_in: "1.0.0"
+    tracking:
+      event_name: "amp.observability.custom-evaluator"
+      event_category: "adoption"
+      platforms: ["web", "api"]
+      dimensions:
+        - name: "action"
+          type: "enum"
+          values: ["created-custom-evaluator", "updated-custom-evaluator", "deleted-custom-evaluator"]
+          required: true
+      aggregations:
+        - type: "count"
+          label: "Custom Evaluator Changes"
+
+  - code: "amp.observability.view-scores"
+    name: "Monitor & Trace Score Viewing"
+    description: "View aggregated monitor scores, score breakdowns/timeseries, or per-trace scores for an agent. Partly covered in the console by amp.console.observability.eval-result-viewed."
+    category: "observability"
+    tier: "core"
+    status: "stable"
+    availability:
+      introduced_in: "1.0.0"
+    tracking:
+      # Not emitted yet (no Track call); the dimensions below are planned.
+      event_name: "amp.observability.view-scores"
+      event_category: "engagement"
+      platforms: ["web"]
+      dimensions:
+        - name: "view_type"
+          type: "enum"
+          values: ["scores", "breakdown", "timeseries", "trace-scores", "run-scores"]
+          required: true
+      aggregations:
+        - type: "count"
+          label: "Score Views"
+        - type: "count_distinct"
+          dimension: "view_type"
+          label: "Distinct Score View Types Used"
+
+  # ============================================================
+  # EVENTS & WEBHOOKS
+  # ============================================================
+
+  - code: "amp.events.manage-destination"
+    name: "Event Destination Management"
+    description: "Create, update, or delete an outbound event destination, rotate its signing secret, or send it a test event."
+    category: "events"
+    tier: "core"
+    status: "beta"
+    availability:
+      introduced_in: "2026.12.0"
+    tracking:
+      # Not emitted yet (no Track call); the dimensions below are planned.
+      event_name: "amp.events.manage-destination"
+      event_category: "adoption"
+      platforms: ["web", "api"]
+      dimensions:
+        - name: "action"
+          type: "enum"
+          values: ["created-event-destination", "updated-event-destination", "deleted-event-destination", "rotated-event-destination-secret", "tested-event-destination"]
+          required: true
+      aggregations:
+        - type: "count"
+          label: "Event Destination Changes"
+
+  - code: "amp.events.manage-subscription"
+    name: "Event Subscription Management"
+    description: "Create, update, or delete a subscription that routes org, project, or agent events to a destination."
+    category: "events"
+    tier: "core"
+    status: "beta"
+    availability:
+      introduced_in: "2026.12.0"
+    tracking:
+      # Not emitted yet (no Track call); the dimensions below are planned.
+      event_name: "amp.events.manage-subscription"
+      event_category: "adoption"
+      platforms: ["web", "api"]
+      dimensions:
+        - name: "scope"
+          type: "enum"
+          values: ["org", "project", "agent"]
+          required: true
+        - name: "action"
+          type: "enum"
+          values: ["created-event-subscription", "updated-event-subscription", "deleted-event-subscription"]
+          required: true
+      aggregations:
+        - type: "count"
+          label: "Event Subscription Changes"
+        - type: "count_distinct"
+          dimension: "scope"
+          label: "Subscription Scopes Used"
+
+  # ============================================================
+  # CONSOLE EXPERIENCE
+  # Reported by the console through POST /telemetry/console-actions and
+  # forwarded only if registered in console.go. All dimensions are optional:
+  # the service drops any key the action does not declare.
+  # ============================================================
+
+  # --- Navigation ---
+
+  - code: "amp.console.navigation.page-view"
+    name: "Page View"
+    description: "A console page was viewed."
+    category: "console"
+    tier: "core"
+    status: "stable"
+    availability:
+      introduced_in: "2026.11.0"
+    tracking:
+      event_name: "amp.console.navigation.page-view"
+      event_category: "discovery"
+      platforms: ["web"]
+      dimensions:
+        - { name: "route", type: "string", required: false }
+        - { name: "entity_scope", type: "string", required: false }
+        - { name: "referrer_route", type: "string", required: false }
+      aggregations:
+        - type: "count"
+          label: "Page Views"
+        - type: "count_distinct"
+          dimension: "route"
+          label: "Distinct Pages Viewed"
+
+  - code: "amp.console.navigation.tab-switch"
+    name: "Tab Switch"
+    description: "The user switched tabs within a page."
+    category: "console"
+    tier: "core"
+    status: "stable"
+    availability:
+      introduced_in: "2026.11.0"
+    tracking:
+      event_name: "amp.console.navigation.tab-switch"
+      event_category: "discovery"
+      platforms: ["web"]
+      dimensions:
+        - { name: "page", type: "string", required: false }
+        - { name: "tab", type: "string", required: false }
+      aggregations:
+        - type: "count"
+          label: "Tab Switches"
+
+  - code: "amp.console.navigation.search"
+    name: "Search"
+    description: "The user ran a search. Only the query length is sent, never the query."
+    category: "console"
+    tier: "core"
+    status: "stable"
+    availability:
+      introduced_in: "2026.11.0"
+    tracking:
+      event_name: "amp.console.navigation.search"
+      event_category: "discovery"
+      platforms: ["web"]
+      dimensions:
+        - { name: "scope", type: "string", required: false }
+        - { name: "result_count", type: "integer", required: false }
+        - { name: "query_length", type: "integer", required: false }
+        - { name: "zero_results", type: "boolean", required: false }
+      aggregations:
+        - type: "count"
+          label: "Searches"
+
+  - code: "amp.console.navigation.filter-applied"
+    name: "Filter Applied"
+    description: "The user applied a filter on a listing."
+    category: "console"
+    tier: "core"
+    status: "stable"
+    availability:
+      introduced_in: "2026.11.0"
+    tracking:
+      event_name: "amp.console.navigation.filter-applied"
+      event_category: "discovery"
+      platforms: ["web"]
+      dimensions:
+        - { name: "page", type: "string", required: false }
+        - { name: "filter", type: "string", required: false }
+      aggregations:
+        - type: "count"
+          label: "Filters Applied"
+
+  - code: "amp.console.navigation.context-switch"
+    name: "Context Switch"
+    description: "The user switched organization, project, or environment context."
+    category: "console"
+    tier: "core"
+    status: "stable"
+    availability:
+      introduced_in: "2026.11.0"
+    tracking:
+      event_name: "amp.console.navigation.context-switch"
+      event_category: "discovery"
+      platforms: ["web"]
+      dimensions:
+        - { name: "switch_type", type: "string", required: false }
+      aggregations:
+        - type: "count"
+          label: "Context Switches"
+
+  - code: "amp.console.navigation.docs-link-click"
+    name: "Docs Link Click"
+    description: "The user opened a documentation link from the console."
+    category: "console"
+    tier: "core"
+    status: "stable"
+    availability:
+      introduced_in: "2026.11.0"
+    tracking:
+      event_name: "amp.console.navigation.docs-link-click"
+      event_category: "discovery"
+      platforms: ["web"]
+      dimensions:
+        - { name: "doc_target", type: "string", required: false }
+        - { name: "from_page", type: "string", required: false }
+      aggregations:
+        - type: "count"
+          label: "Docs Link Clicks"
+
+  # --- Intent ---
+
+  - code: "amp.console.intent.dialog-opened"
+    name: "Create/Edit Dialog Opened"
+    description: "The user opened a create or edit dialog. Pair with the matching API event for a conversion rate."
+    category: "console"
+    tier: "core"
+    status: "stable"
+    availability:
+      introduced_in: "2026.11.0"
+    tracking:
+      event_name: "amp.console.intent.dialog-opened"
+      event_category: "engagement"
+      platforms: ["web"]
+      dimensions:
+        - { name: "entity", type: "string", required: false }
+        - { name: "trigger", type: "string", required: false }
+      aggregations:
+        - type: "count"
+          label: "Dialogs Opened"
+
+  - code: "amp.console.intent.form-abandoned"
+    name: "Form Abandoned"
+    description: "The user left a create or edit form without submitting it."
+    category: "console"
+    tier: "core"
+    status: "stable"
+    availability:
+      introduced_in: "2026.11.0"
+    tracking:
+      event_name: "amp.console.intent.form-abandoned"
+      event_category: "abandonment"
+      platforms: ["web"]
+      dimensions:
+        - { name: "entity", type: "string", required: false }
+        - { name: "furthest_step", type: "string", required: false }
+        - { name: "seconds_on_form", type: "integer", required: false }
+      aggregations:
+        - type: "count"
+          label: "Forms Abandoned"
+
+  - code: "amp.console.intent.validation-error"
+    name: "Form Validation Error"
+    description: "A form field failed client-side validation."
+    category: "console"
+    tier: "core"
+    status: "stable"
+    availability:
+      introduced_in: "2026.11.0"
+    tracking:
+      event_name: "amp.console.intent.validation-error"
+      event_category: "engagement"
+      platforms: ["web"]
+      dimensions:
+        - { name: "entity", type: "string", required: false }
+        - { name: "field", type: "string", required: false }
+      aggregations:
+        - type: "count"
+          label: "Validation Errors"
+
+  - code: "amp.console.intent.confirmation-cancelled"
+    name: "Destructive Confirmation Cancelled"
+    description: "The user cancelled a destructive confirmation dialog."
+    category: "console"
+    tier: "core"
+    status: "stable"
+    availability:
+      introduced_in: "2026.11.0"
+    tracking:
+      event_name: "amp.console.intent.confirmation-cancelled"
+      event_category: "abandonment"
+      platforms: ["web"]
+      dimensions:
+        - { name: "entity", type: "string", required: false }
+        - { name: "destructive_action", type: "string", required: false }
+      aggregations:
+        - type: "count"
+          label: "Confirmations Cancelled"
+
+  # --- Onboarding ---
+
+  - code: "amp.console.onboarding.first-session"
+    name: "First Session"
+    description: "A user's first console session."
+    category: "console"
+    tier: "core"
+    status: "stable"
+    availability:
+      introduced_in: "2026.11.0"
+    tracking:
+      event_name: "amp.console.onboarding.first-session"
+      event_category: "adoption"
+      platforms: ["web"]
+      dimensions:
+        - { name: "referrer", type: "string", required: false }
+      aggregations:
+        - type: "count"
+          label: "First Sessions"
+
+  - code: "amp.console.onboarding.wizard-step-viewed"
+    name: "Wizard Step Viewed"
+    description: "The user reached a step in a multi-step wizard."
+    category: "console"
+    tier: "core"
+    status: "stable"
+    availability:
+      introduced_in: "2026.11.0"
+    tracking:
+      event_name: "amp.console.onboarding.wizard-step-viewed"
+      event_category: "adoption"
+      platforms: ["web"]
+      dimensions:
+        - { name: "wizard", type: "string", required: false }
+        - { name: "step", type: "string", required: false }
+        - { name: "step_index", type: "integer", required: false }
+      aggregations:
+        - type: "count"
+          label: "Wizard Steps Viewed"
+
+  - code: "amp.console.onboarding.wizard-abandoned"
+    name: "Wizard Abandoned"
+    description: "The user quit a wizard before finishing it."
+    category: "console"
+    tier: "core"
+    status: "stable"
+    availability:
+      introduced_in: "2026.11.0"
+    tracking:
+      event_name: "amp.console.onboarding.wizard-abandoned"
+      event_category: "abandonment"
+      platforms: ["web"]
+      dimensions:
+        - { name: "wizard", type: "string", required: false }
+        - { name: "last_step", type: "string", required: false }
+      aggregations:
+        - type: "count"
+          label: "Wizards Abandoned"
+
+  # --- Playground ---
+
+  - code: "amp.console.playground.test-invoke"
+    name: "Playground Test Invoke"
+    description: "The user invoked an agent from the console test playground."
+    category: "console"
+    tier: "core"
+    status: "stable"
+    availability:
+      introduced_in: "2026.11.0"
+    tracking:
+      event_name: "amp.console.playground.test-invoke"
+      event_category: "engagement"
+      platforms: ["web"]
+      dimensions:
+        - { name: "invoke_mode", type: "string", required: false }
+      aggregations:
+        - type: "count"
+          label: "Playground Invocations"
+
+  # --- Observability views ---
+
+  - code: "amp.console.observability.trace-opened"
+    name: "Trace Opened"
+    description: "The user opened a trace."
+    category: "console"
+    tier: "core"
+    status: "stable"
+    availability:
+      introduced_in: "2026.11.0"
+    tracking:
+      event_name: "amp.console.observability.trace-opened"
+      event_category: "engagement"
+      platforms: ["web"]
+      dimensions:
+        - { name: "source_page", type: "string", required: false }
+        - { name: "has_error", type: "boolean", required: false }
+      aggregations:
+        - type: "count"
+          label: "Traces Opened"
+
+  - code: "amp.console.observability.log-query"
+    name: "Log Query"
+    description: "The user queried agent logs."
+    category: "console"
+    tier: "core"
+    status: "stable"
+    availability:
+      introduced_in: "2026.11.0"
+    tracking:
+      event_name: "amp.console.observability.log-query"
+      event_category: "engagement"
+      platforms: ["web"]
+      dimensions:
+        - { name: "time_range", type: "string", required: false }
+        - { name: "filter_count", type: "integer", required: false }
+      aggregations:
+        - type: "count"
+          label: "Log Queries"
+
+  - code: "amp.console.observability.metrics-range-changed"
+    name: "Metrics Range Changed"
+    description: "The user changed the time range on a metrics view."
+    category: "console"
+    tier: "core"
+    status: "stable"
+    availability:
+      introduced_in: "2026.11.0"
+    tracking:
+      event_name: "amp.console.observability.metrics-range-changed"
+      event_category: "engagement"
+      platforms: ["web"]
+      dimensions:
+        - { name: "time_range", type: "string", required: false }
+      aggregations:
+        - type: "count"
+          label: "Metrics Range Changes"
+
+  - code: "amp.console.observability.eval-result-viewed"
+    name: "Evaluation Result Viewed"
+    description: "The user viewed an evaluation result."
+    category: "console"
+    tier: "core"
+    status: "stable"
+    availability:
+      introduced_in: "2026.11.0"
+    tracking:
+      event_name: "amp.console.observability.eval-result-viewed"
+      event_category: "engagement"
+      platforms: ["web"]
+      dimensions:
+        - { name: "evaluator_type", type: "string", required: false }
+      aggregations:
+        - type: "count"
+          label: "Evaluation Results Viewed"
+
+  # --- Utility ---
+
+  - code: "amp.console.utility.copy-snippet"
+    name: "Snippet Copied"
+    description: "The user copied a snippet. Only the snippet type is sent, never its value."
+    category: "console"
+    tier: "core"
+    status: "stable"
+    availability:
+      introduced_in: "2026.11.0"
+    tracking:
+      event_name: "amp.console.utility.copy-snippet"
+      event_category: "adoption"
+      platforms: ["web"]
+      dimensions:
+        - { name: "snippet_type", type: "string", required: false }
+        - { name: "language", type: "string", required: false }
+      aggregations:
+        - type: "count"
+          label: "Snippets Copied"
+
+  - code: "amp.console.utility.download-artifact"
+    name: "Artifact Downloaded"
+    description: "The user downloaded a file from the console."
+    category: "console"
+    tier: "core"
+    status: "stable"
+    availability:
+      introduced_in: "2026.11.0"
+    tracking:
+      event_name: "amp.console.utility.download-artifact"
+      event_category: "engagement"
+      platforms: ["web"]
+      dimensions:
+        - { name: "artifact_type", type: "string", required: false }
+      aggregations:
+        - type: "count"
+          label: "Artifacts Downloaded"
+
+  - code: "amp.console.utility.secret-revealed"
+    name: "Secret Revealed"
+    description: "The user revealed a secret in the UI. Only the secret type is sent."
+    category: "console"
+    tier: "core"
+    status: "stable"
+    availability:
+      introduced_in: "2026.11.0"
+    tracking:
+      event_name: "amp.console.utility.secret-revealed"
+      event_category: "engagement"
+      platforms: ["web"]
+      dimensions:
+        - { name: "secret_type", type: "string", required: false }
+        - { name: "surface", type: "string", required: false }
+      aggregations:
+        - type: "count"
+          label: "Secrets Revealed"
+
+  - code: "amp.console.utility.cli-connect-viewed"
+    name: "CLI Connect Viewed"
+    description: "The user viewed the CLI connect instructions."
+    category: "console"
+    tier: "core"
+    status: "stable"
+    availability:
+      introduced_in: "2026.11.0"
+    tracking:
+      event_name: "amp.console.utility.cli-connect-viewed"
+      event_category: "adoption"
+      platforms: ["web"]
+      dimensions:
+        - { name: "context", type: "string", required: false }
+      aggregations:
+        - type: "count"
+          label: "CLI Connect Views"
+
+  # --- Friction ---
+
+  - code: "amp.console.friction.error-shown"
+    name: "Error Shown"
+    description: "An API error was shown to the user."
+    category: "console"
+    tier: "core"
+    status: "stable"
+    availability:
+      introduced_in: "2026.11.0"
+    tracking:
+      event_name: "amp.console.friction.error-shown"
+      event_category: "engagement"
+      platforms: ["web"]
+      dimensions:
+        - { name: "operation", type: "string", required: false }
+        - { name: "status", type: "integer", required: false }
+        - { name: "error_code", type: "string", required: false }
+      aggregations:
+        - type: "count"
+          label: "Errors Shown"
+
+  - code: "amp.console.friction.empty-state"
+    name: "Empty State Shown"
+    description: "The user landed on an empty state."
+    category: "console"
+    tier: "core"
+    status: "stable"
+    availability:
+      introduced_in: "2026.11.0"
+    tracking:
+      event_name: "amp.console.friction.empty-state"
+      event_category: "engagement"
+      platforms: ["web"]
+      dimensions:
+        - { name: "resource", type: "string", required: false }
+        - { name: "state", type: "string", required: false }
+      aggregations:
+        - type: "count"
+          label: "Empty States Shown"
+
+  - code: "amp.console.friction.permission-denied"
+    name: "Permission Denied"
+    description: "A control was hidden or blocked by RBAC."
+    category: "console"
+    tier: "core"
+    status: "stable"
+    availability:
+      introduced_in: "2026.11.0"
+    tracking:
+      event_name: "amp.console.friction.permission-denied"
+      event_category: "engagement"
+      platforms: ["web"]
+      dimensions:
+        - { name: "feature", type: "string", required: false }
+        - { name: "required_permission", type: "string", required: false }
+      aggregations:
+        - type: "count"
+          label: "Permission Denials"
+
+  - code: "amp.console.friction.session-expired"
+    name: "Session Expired"
+    description: "The user's session expired while using the console."
+    category: "console"
+    tier: "core"
+    status: "stable"
+    availability:
+      introduced_in: "2026.11.0"
+    tracking:
+      event_name: "amp.console.friction.session-expired"
+      event_category: "engagement"
+      platforms: ["web"]
+      dimensions:
+        - { name: "page", type: "string", required: false }
+      aggregations:
+        - type: "count"
+          label: "Sessions Expired"
+
+  - code: "amp.console.friction.client-error"
+    name: "Client Error"
+    description: "An unhandled error occurred in a console component."
+    category: "console"
+    tier: "core"
+    status: "stable"
+    availability:
+      introduced_in: "2026.11.0"
+    tracking:
+      event_name: "amp.console.friction.client-error"
+      event_category: "engagement"
+      platforms: ["web"]
+      dimensions:
+        - { name: "component", type: "string", required: false }
+        - { name: "error_name", type: "string", required: false }
+      aggregations:
+        - type: "count"
+          label: "Client Errors"
+
+  # --- Session ---
+
+  - code: "amp.console.session.start"
+    name: "Session Start"
+    description: "A console session started."
+    category: "console"
+    tier: "core"
+    status: "stable"
+    availability:
+      introduced_in: "2026.11.0"
+    tracking:
+      event_name: "amp.console.session.start"
+      event_category: "engagement"
+      platforms: ["web"]
+      dimensions:
+        - { name: "referrer", type: "string", required: false }
+        - { name: "viewport", type: "string", required: false }
+        - { name: "browser", type: "string", required: false }
+      aggregations:
+        - type: "count"
+          label: "Sessions Started"
+
+  - code: "amp.console.session.end"
+    name: "Session End"
+    description: "A console session ended."
+    category: "console"
+    tier: "core"
+    status: "stable"
+    availability:
+      introduced_in: "2026.11.0"
+    tracking:
+      event_name: "amp.console.session.end"
+      event_category: "engagement"
+      platforms: ["web"]
+      dimensions:
+        - { name: "duration_seconds", type: "integer", required: false }
+        - { name: "page_count", type: "integer", required: false }
+        - { name: "action_count", type: "integer", required: false }
+      aggregations:
+        - type: "count"
+          label: "Sessions Ended"
