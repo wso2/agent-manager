@@ -59,6 +59,8 @@ func writeIdentityRoleError(w http.ResponseWriter, r *http.Request, operation st
 	switch {
 	case errors.Is(err, services.ErrIdentityRoleNotFound):
 		utils.WriteErrorResponse(w, http.StatusNotFound, "Role not found")
+	case errors.Is(err, thundersvc.ErrThunderNotProvisioned):
+		utils.WriteErrorResponse(w, http.StatusServiceUnavailable, "The identity provider is not set up for this environment yet")
 	case errors.Is(err, services.ErrIdentityRoleUnavailable):
 		utils.WriteErrorResponse(w, http.StatusServiceUnavailable, "Role management through the identity control plane is not configured")
 	case errors.Is(err, services.ErrIdentityGroupUnsupported):
@@ -151,6 +153,9 @@ func (c *agentIdentityController) writeEnsureError(w http.ResponseWriter, r *htt
 	case errors.Is(err, services.ErrMCPProxyNotDeployedToEnvironment):
 		utils.WriteErrorResponse(w, http.StatusBadRequest,
 			fmt.Sprintf("MCP proxy %q is not deployed to environment %q; deploy it there before granting its scopes", g.handle, envName))
+	case errors.Is(err, thundersvc.ErrThunderNotProvisioned):
+		utils.WriteErrorResponse(w, http.StatusServiceUnavailable,
+			fmt.Sprintf("The identity provider is not set up for environment %q yet", envName))
 	case errors.Is(err, services.ErrMCPResourceServerUnavailable):
 		utils.WriteErrorResponse(w, http.StatusServiceUnavailable, "MCP resource servers are not configured for this deployment")
 	case errors.Is(err, services.ErrMCPResourceServerEnvironmentNotReady):

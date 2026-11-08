@@ -58,6 +58,8 @@ func writeIdentityGroupError(w http.ResponseWriter, r *http.Request, operation s
 		utils.WriteErrorResponse(w, http.StatusNotFound, "Group not found")
 	case errors.Is(err, services.ErrIdentityGroupUnsupported):
 		utils.WriteErrorResponse(w, http.StatusNotImplemented, "Groups are not supported through the identity control plane yet")
+	case errors.Is(err, thundersvc.ErrThunderNotProvisioned):
+		utils.WriteErrorResponse(w, http.StatusServiceUnavailable, "The identity provider is not set up for this environment yet")
 	case errors.Is(err, services.ErrIdentityGroupUnavailable):
 		utils.WriteErrorResponse(w, http.StatusServiceUnavailable, "Group management through the identity control plane is not configured")
 	case errors.Is(err, services.ErrIdentityRoleNotFound):

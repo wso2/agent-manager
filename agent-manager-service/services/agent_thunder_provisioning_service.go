@@ -872,6 +872,12 @@ func (s *agentThunderProvisioningService) AttemptProvision(ctx context.Context, 
 	projectID := binding.ProjectName
 	if s.identityManagementMode == thundersvc.IdentityManagementCPManaged {
 		resolved, resolveErr := s.projectIdentityID(ctx, binding.OUID, binding.ProjectName)
+		if errors.Is(resolveErr, utils.ErrProjectNotFound) {
+			// The project is gone, not unreachable: waiting would never end. It fails like any other
+			// attempt, with the same bounded retries, and says so.
+			s.recordFailure(ctx, binding, binding.ThunderAgentID, binding.ThunderClientID, binding.SecretRefPath, resolveErr)
+			return
+		}
 		if resolveErr != nil {
 			s.logger.Warn("Cannot read the project's ID for the AgentID; deferring",
 				"ouID", binding.OUID, "projectName", binding.ProjectName, "agentName", binding.AgentName,
@@ -1327,6 +1333,8 @@ func (s *agentThunderProvisioningService) recordFailure(
 // different remediation; everything else collapses to one generic message.
 func userFacingProvisioningError(cause error) string {
 	switch {
+	case errors.Is(cause, utils.ErrProjectNotFound):
+		return "The project no longer exists."
 	case errors.Is(cause, thundersvc.ErrThunderNotProvisioned):
 		return "Identity provider is not set up for this environment yet."
 	case errors.Is(cause, thundersvc.ErrThunderUnreachable):
@@ -1451,6 +1459,10 @@ func (s *agentThunderProvisioningService) GetAgentRoles(ctx context.Context, ouI
 		return nil, fmt.Errorf("%w: %s in %s", utils.ErrAgentIdentityNotProvisioned, agentName, envName)
 	}
 
+	if cp, provider := IdentityRolesViaControlPlane(); cp {
+		return agentRolesViaProvider(ctx, provider, ouID, envName, binding.ThunderAgentID)
+	}
+
 	client, err := ResolveEnvThunderIdentity(ctx, s.envResolver, ouID, envName)
 	if err != nil {
 		return nil, err
@@ -1475,6 +1487,10 @@ func (s *agentThunderProvisioningService) GetAgentGroups(ctx context.Context, ou
 	}
 	if binding.ThunderAgentID == "" {
 		return nil, fmt.Errorf("%w: %s in %s", utils.ErrAgentIdentityNotProvisioned, agentName, envName)
+	}
+
+	if cp, provider := IdentityGroupsViaControlPlane(); cp {
+		return agentGroupsViaProvider(ctx, provider, ouID, envName, binding.ThunderAgentID)
 	}
 
 	client, err := ResolveEnvThunderIdentity(ctx, s.envResolver, ouID, envName)
