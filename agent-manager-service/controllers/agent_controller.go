@@ -102,6 +102,8 @@ func entitlementDeniedMessage(err error) string {
 	return "Your subscription does not allow this. Upgrade your subscription to continue."
 }
 
+// handleCommonErrors writes the HTTP error response for the sentinel errors the agent services
+// return, and a 500 with fallbackMsg for anything else.
 func handleCommonErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 	switch {
 	case errors.Is(err, utils.ErrWorkloadSecretSyncUnconfirmed):
@@ -241,8 +243,11 @@ func handleCommonErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
 			"Agent cannot be deployed in its current state", err.Error(), utils.ErrCodeConflict)
 	case errors.Is(err, utils.ErrPromotionNeedsRedeploy):
+		// The console's promote drawer shows only the message, so it carries the steps too.
 		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
-			"Agent must be deployed again before this promotion", err.Error(), utils.ErrCodeConflict)
+			"Agent must be deployed again before this promotion: deploy the agent again, promote it up to "+
+				"the source environment if that is not the first environment, then retry this promotion",
+			err.Error(), utils.ErrCodeConflict)
 	case errors.Is(err, utils.ErrEnvironmentHasNoGateway):
 		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
 			"Environment has no ingress gateway", err.Error(), utils.ErrCodeEnvironmentHasNoGateway)

@@ -76,6 +76,9 @@ func TestHandleCommonErrors_PromotionNeedsRedeploy_Is409WithInstructions(t *test
 	var body spec.ErrorResponse
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
 	assert.Equal(t, utils.ErrCodeConflict, body.Code)
+	assert.Contains(t, body.Message, "deploy the agent again",
+		"the message alone tells the user how to proceed, since the console shows only the message")
+	assert.Contains(t, body.Message, "promote it up to the source environment")
 	require.NotNil(t, body.Reason)
 	assert.Contains(t, *body.Reason, "deploy the agent again", "the reason tells the user how to proceed")
 }

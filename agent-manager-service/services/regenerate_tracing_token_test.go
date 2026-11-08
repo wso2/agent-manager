@@ -54,6 +54,8 @@ func ctxWithOrg(ouID string) context.Context {
 	return jwtassertion.ContextWithTokenClaims(context.Background(), &jwtassertion.TokenClaims{OuId: ouID})
 }
 
+// regenerateOCClient returns an OpenChoreo client mock that answers the lookups a regeneration
+// makes; tests override the force-sync calls they exercise.
 func regenerateOCClient() *clientmocks.OpenChoreoClientMock {
 	return &clientmocks.OpenChoreoClientMock{
 		GetOrganizationFunc: func(_ context.Context, name string) (*models.OrganizationResponse, error) {

@@ -255,10 +255,12 @@ type llmSecretRefsStub struct {
 	llmSecretRefs map[string]struct{}
 }
 
+// ListAgentLLMConfigSecretReferences returns the stub's LLM config secret references.
 func (s *llmSecretRefsStub) ListAgentLLMConfigSecretReferences(context.Context, string, string, string) (map[string]struct{}, error) {
 	return s.llmSecretRefs, nil
 }
 
+// ListSystemManagedEnvVarKeys reports no system-managed keys from the agent configuration.
 func (s *llmSecretRefsStub) ListSystemManagedEnvVarKeys(context.Context, string, string, string, string) (map[string]bool, error) {
 	return map[string]bool{}, nil
 }
