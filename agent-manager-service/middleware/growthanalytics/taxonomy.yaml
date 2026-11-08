@@ -39,7 +39,7 @@ schema:
 product:
   id: "amp"
   name: "WSO2 Agent Manager"
-  version: "2026.11.0"
+  version: "1.0.0"
   description: "Enterprise control plane to deploy, manage, govern, and observe AI agents at scale, built on OpenChoreo."
   team_owner: "agent-manager-engineering"
   category: "developer-platform"
@@ -123,6 +123,11 @@ features:
           type: "enum"
           values: ["created-agent"]
           required: true
+        - name: "creation_method"
+          type: "enum"
+          values: ["external", "from-kind", "platform-hosted"]
+          required: false
+          description: "Provisioning method, set after the create request is validated."
       aggregations:
         - type: "count"
           label: "Agents Created"
@@ -282,6 +287,10 @@ features:
           type: "enum"
           values: ["deployed-agent"]
           required: true
+        - name: "environment_type"
+          type: "string"
+          required: false
+          description: "Target environment name returned by a successful deployment; values are deployment-specific."
       aggregations:
         - type: "count"
           label: "Agent Deployments"
@@ -560,6 +569,14 @@ features:
           type: "enum"
           values: ["created-llm-provider", "updated-llm-provider", "deleted-llm-provider", "updated-llm-provider-catalog-status"]
           required: true
+        - name: "from_template"
+          type: "boolean"
+          required: false
+          description: "True when creating from a provider template, false when configuring from scratch; absent on other actions."
+        - name: "provider_type"
+          type: "string"
+          required: false
+          description: "Provider template handle (for example openai, azure-openai, or awsbedrock); present only when creating from a template."
       aggregations:
         - type: "count"
           label: "LLM Provider Changes"
@@ -710,6 +727,10 @@ features:
           type: "enum"
           values: ["created-mcp-proxy", "updated-mcp-proxy", "deleted-mcp-proxy", "probed-mcp-server"]
           required: true
+        - name: "probed_first"
+          type: "boolean"
+          required: false
+          description: "True when an endpoint includes capabilities from a prior probe, false otherwise; set only on creation."
       aggregations:
         - type: "count"
           label: "MCP Proxy Changes"

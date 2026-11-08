@@ -38,14 +38,17 @@ import (
 // the WSO2 cloud common feature-taxonomy skeleton
 // (https://wso2.com/schemas/feature-taxonomy/v1), and every event the code
 // emits — Track wrappers in api/ and the console allowlist in console.go —
-// must be declared in it with the exact dimension keys and values sent.
+// must be declared in it with the exact dimension keys and static values sent.
+// Controller SetDimension calls contribute keys and literal values too;
+// computed runtime values cannot be resolved by this source-level check.
 //
 // The emitted codes are already in production data, so when these disagree
 // the fix is to the YAML, not to the code.
 
 const (
-	taxonomyPath = "taxonomy.yaml"
-	apiRoutesDir = "../../api"
+	taxonomyPath   = "taxonomy.yaml"
+	apiRoutesDir   = "../../api"
+	controllersDir = "../../controllers"
 )
 
 // The structs mirror the skeleton field for field. Decoding with KnownFields
@@ -419,12 +422,57 @@ func TestTaxonomyDeclaresTrackedEvents(t *testing.T) {
 	}
 }
 
+// These features deliberately have no emitter yet. Keep this list explicit:
+// YAML comments are documentation, not an exemption from coverage checks.
+var notEmittedFeatures = map[string]bool{
+	"amp.deployment-ops.deploy-agent.suspend":                     true,
+	"amp.deployment-ops.create-environment.thunder-system-client": true,
+	"amp.deployment-ops.a2a-proxy":                                true,
+	"amp.deployment-ops.agent-card":                               true,
+	"amp.connections.create-llm-proxy":                            true,
+	"amp.connections.deploy-llm-proxy":                            true,
+	"amp.connections.llm-proxy-api-key":                           true,
+	"amp.connections.project-mcp-proxy":                           true,
+	"amp.source-control.browse-repository":                        true,
+	"amp.discovery.view-catalog":                                  true,
+	"amp.discovery.view-build-options":                            true,
+	"amp.observability.create-monitor.alerting":                   true,
+	"amp.observability.view-scores":                               true,
+	"amp.events.manage-destination":                               true,
+	"amp.events.manage-subscription":                              true,
+}
+
+func TestTaxonomyFeaturesHaveEmitters(t *testing.T) {
+	features := allFeatures(t, loadTaxonomy(t))
+	emitted := map[string]bool{}
+	for _, ev := range findTrackCalls(t) {
+		emitted[ev.code] = true
+	}
+	for code := range consoleActions {
+		emitted[code] = true
+	}
+	for code, f := range features {
+		if !emitted[code] && !notEmittedFeatures[code] && f.Status != "deprecated" {
+			t.Errorf("%s: declared feature has no emitter; add tracking or explicitly mark it not emitted", code)
+		}
+	}
+	for code := range notEmittedFeatures {
+		if _, declared := features[code]; !declared {
+			t.Errorf("%s: not-emitted exemption has no taxonomy declaration", code)
+		}
+		if emitted[code] {
+			t.Errorf("%s: now has an emitter; remove its not-emitted exemption and YAML comment", code)
+		}
+	}
+}
+
 // findTrackCalls returns every growthanalytics.Track(code, dims, handler)
 // call in the api package. dims is either a map literal or a call to a
 // package-level helper that builds one; helpers are resolved by substituting
 // their string-literal arguments for the parameters they use.
 func findTrackCalls(t *testing.T) []emittedEvent {
 	t.Helper()
+	handlerDims := findControllerDimensions(t)
 	paths, err := filepath.Glob(filepath.Join(apiRoutesDir, "*.go"))
 	if err != nil {
 		t.Fatalf("list %s: %v", apiRoutesDir, err)
@@ -455,7 +503,7 @@ func findTrackCalls(t *testing.T) []emittedEvent {
 	for _, file := range files {
 		ast.Inspect(file, func(n ast.Node) bool {
 			call, ok := n.(*ast.CallExpr)
-			if !ok || !isGrowthAnalyticsTrack(call) || len(call.Args) < 2 {
+			if !ok || !isGrowthAnalyticsTrack(call) || len(call.Args) != 3 {
 				return true
 			}
 			pos := fset.Position(call.Pos())
@@ -470,11 +518,85 @@ func findTrackCalls(t *testing.T) []emittedEvent {
 				t.Errorf("%s: cannot resolve the dimensions passed to Track(%q)", at, code)
 				return true
 			}
+			handler, ok := call.Args[2].(*ast.SelectorExpr)
+			if !ok {
+				t.Errorf("%s: cannot resolve the handler passed to Track(%q)", at, code)
+				return true
+			}
+			controllerDims, found := handlerDims[handler.Sel.Name]
+			if !found {
+				t.Errorf("%s: controller method %s was not found", at, handler.Sel.Name)
+				return true
+			}
+			for key, value := range controllerDims {
+				dims[key] = value
+			}
 			events = append(events, emittedEvent{code: code, pos: at, dims: dims})
 			return true
 		})
 	}
 	return events
+}
+
+// Route registrations reference controller methods directly. Resolve their
+// SetDimension keys too, including conditional calls. Runtime values remain
+// unknown, just like computed values in a route's static dimension map.
+func findControllerDimensions(t *testing.T) map[string]map[string]string {
+	t.Helper()
+	paths, err := filepath.Glob(filepath.Join(controllersDir, "*.go"))
+	if err != nil {
+		t.Fatalf("list %s: %v", controllersDir, err)
+	}
+	fset := token.NewFileSet()
+	out := map[string]map[string]string{}
+	for _, path := range paths {
+		if strings.HasSuffix(path, "_test.go") {
+			continue
+		}
+		file, err := parser.ParseFile(fset, path, nil, 0)
+		if err != nil {
+			t.Fatalf("parse %s: %v", path, err)
+		}
+		for _, decl := range file.Decls {
+			fn, ok := decl.(*ast.FuncDecl)
+			if !ok || fn.Recv == nil {
+				continue
+			}
+			dims := map[string]string{}
+			ast.Inspect(fn.Body, func(n ast.Node) bool {
+				call, ok := n.(*ast.CallExpr)
+				if !ok {
+					return true
+				}
+				sel, ok := call.Fun.(*ast.SelectorExpr)
+				if !ok || sel.Sel.Name != "SetDimension" {
+					return true
+				}
+				pkg, ok := sel.X.(*ast.Ident)
+				if !ok || pkg.Name != "growthanalytics" {
+					return true
+				}
+				if len(call.Args) != 3 {
+					t.Fatalf("%s: unexpected SetDimension arguments", fset.Position(call.Pos()))
+				}
+				key, ok := stringLiteral(call.Args[1])
+				if !ok {
+					t.Errorf("%s: SetDimension key must be a string literal", fset.Position(call.Pos()))
+					return true
+				}
+				value, _ := stringLiteral(call.Args[2])
+				dims[key] = value
+				return true
+			})
+			// Shared method names with no dimensions are equivalent for this
+			// check. Refuse to guess if either implementation sets dimensions.
+			if previous, exists := out[fn.Name.Name]; exists && (len(previous) > 0 || len(dims) > 0) {
+				t.Fatalf("controller method %s has ambiguous dimensions; resolve Track handlers by receiver type", fn.Name.Name)
+			}
+			out[fn.Name.Name] = dims
+		}
+	}
+	return out
 }
 
 func isGrowthAnalyticsTrack(call *ast.CallExpr) bool {
