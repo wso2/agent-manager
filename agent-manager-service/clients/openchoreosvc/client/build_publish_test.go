@@ -554,6 +554,61 @@ func TestWithBuildClient(t *testing.T) {
 		"only a SecretReference name is passed, never a secret store location")
 	_, leaked := params[workflowParamAMPBuild]
 	assert.False(t, leaked, "the component's parameter map must not be modified")
+
+	got = withBuildClient(params, &BuildClientParams{SecretRefName: "cred-amp-build-token-org-1", SecretStore: "secretstore-read"})
+	assert.Equal(t, map[string]interface{}{"secretRef": "cred-amp-build-token-org-1", "secretStore": "secretstore-read"},
+		got[workflowParamAMPBuild], "a configured store is passed by name alongside the SecretReference")
+}
+
+// withBuildSecretStore sets config.BuildClient.SecretStore for one test.
+func withBuildSecretStore(t *testing.T, store string) {
+	t.Helper()
+	cfg := config.GetConfig()
+	orig := cfg.BuildClient.SecretStore
+	t.Cleanup(func() { cfg.BuildClient.SecretStore = orig })
+	cfg.BuildClient.SecretStore = store
+}
+
+func TestAttachBuildClient_WithAConfiguredSecretStore(t *testing.T) {
+	cfg := config.GetConfig()
+	orig := cfg.BuildClient.Workflows
+	t.Cleanup(func() { cfg.BuildClient.Workflows = orig })
+	cfg.BuildClient.Workflows = []string{"amp-store", "amp-no-store"}
+
+	c := newTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/clusterworkflows/amp-store":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"metadata":{"name":"amp-store"},"spec":{"parameters":{"openAPIV3Schema":{"type":"object",
+				"properties":{"ampBuild":{"type":"object","properties":{"secretRef":{"type":"string"},"secretStore":{"type":"string"}}}}}}}}`))
+		case "/api/v1/clusterworkflows/amp-no-store":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"metadata":{"name":"amp-no-store"},"spec":{"parameters":{"openAPIV3Schema":{"type":"object",
+				"properties":{"ampBuild":{"type":"object","properties":{"secretRef":{"type":"string"}}}}}}}}`))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	ctx := context.Background()
+
+	t.Run("no store configured: ampBuild alone is enough", func(t *testing.T) {
+		withBuildSecretStore(t, "")
+		got, err := c.attachBuildClient(ctx, "default", gen.WorkflowRunConfigKindClusterWorkflow, "amp-no-store", true)
+		require.NoError(t, err)
+		assert.True(t, got)
+	})
+	t.Run("store configured: a workflow declaring ampBuild.secretStore takes the token", func(t *testing.T) {
+		withBuildSecretStore(t, "secretstore-read")
+		got, err := c.attachBuildClient(ctx, "default", gen.WorkflowRunConfigKindClusterWorkflow, "amp-store", true)
+		require.NoError(t, err)
+		assert.True(t, got)
+	})
+	t.Run("store configured: a workflow without ampBuild.secretStore keeps the previous path", func(t *testing.T) {
+		withBuildSecretStore(t, "secretstore-read")
+		got, err := c.attachBuildClient(ctx, "default", gen.WorkflowRunConfigKindClusterWorkflow, "amp-no-store", true)
+		require.NoError(t, err, "not an error: the build runs on its previous path")
+		assert.False(t, got, "it would read the token through a store that cannot read it")
+	})
 }
 
 func TestAttachBuildClient(t *testing.T) {
@@ -654,6 +709,10 @@ func (s *triggerBuildStub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"metadata":{"name":"amp-docker"},"spec":{"parameters":{"openAPIV3Schema":{
 			"type":"object","properties":{"ampBuild":{"type":"object"}}}}}}`))
+	case r.Method == http.MethodGet && r.URL.Path == "/api/v1/clusterworkflows/amp-store":
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"metadata":{"name":"amp-store"},"spec":{"parameters":{"openAPIV3Schema":{"type":"object",
+			"properties":{"ampBuild":{"type":"object","properties":{"secretRef":{"type":"string"},"secretStore":{"type":"string"}}}}}}}}`))
 	case r.Method == http.MethodGet && r.URL.Path == "/api/v1/clusterworkflows/amp-old":
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"metadata":{"name":"amp-old"},"spec":{"parameters":{"openAPIV3Schema":{
@@ -781,6 +840,40 @@ func TestTriggerBuild_ProvisionsTheBuildClientOnlyForAWorkflowThatTakesIt(t *tes
 		require.Error(t, err)
 		assert.NotErrorIs(t, err, utils.ErrServiceUnavailable)
 		assert.Nil(t, stub.createdRun)
+	})
+
+	t.Run("a configured store rides on the run with the token", func(t *testing.T) {
+		withBuildSecretStore(t, "secretstore-read")
+		cfg.BuildClient.Workflows = []string{"amp-docker", "amp-old", "amp-broken", "amp-store"}
+		stub := &triggerBuildStub{t: t, workflowName: "amp-store"}
+		c := newTestClient(t, stub)
+		source := func(context.Context) (*BuildClientParams, error) {
+			return &BuildClientParams{SecretRefName: "cred-amp-build-token-org-1"}, nil
+		}
+
+		_, err := c.TriggerBuild(context.Background(), "org-1", "proj1", "my-agent", "", "my-agent-1700", nil, source)
+		require.NoError(t, err)
+		require.NotNil(t, stub.createdRun)
+		assert.Equal(t, map[string]any{"secretRef": "cred-amp-build-token-org-1", "secretStore": "secretstore-read"},
+			(*stub.createdRun.Spec.Workflow.Parameters)[workflowParamAMPBuild])
+	})
+
+	t.Run("a configured store and a workflow without ampBuild.secretStore: no token, previous path", func(t *testing.T) {
+		withBuildSecretStore(t, "secretstore-read")
+		stub := &triggerBuildStub{t: t, workflowName: "amp-docker"}
+		c := newTestClient(t, stub)
+		calls := 0
+		source := func(context.Context) (*BuildClientParams, error) {
+			calls++
+			return &BuildClientParams{SecretRefName: "cred-amp-build-token-org-1"}, nil
+		}
+
+		_, err := c.TriggerBuild(context.Background(), "org-1", "proj1", "my-agent", "", "my-agent-1700", nil, source)
+		require.NoError(t, err)
+		assert.Zero(t, calls, "no token is issued for a run that could not read it")
+		require.NotNil(t, stub.createdRun)
+		_, attached := (*stub.createdRun.Spec.Workflow.Parameters)[workflowParamAMPBuild]
+		assert.False(t, attached)
 	})
 
 	t.Run("disabled: no token and nothing issued", func(t *testing.T) {

@@ -75,6 +75,22 @@ func TestValidateBuildClientConfig(t *testing.T) {
 			errContains: "IDP_CLIENT_ID and IDP_CLIENT_SECRET",
 		},
 		{
+			name:       "a valid secret store name is accepted",
+			cfg:        Config{IDP: validIDP, BuildClient: BuildClientConfig{Enabled: true, Workflows: []string{"amp-docker"}, SecretStore: "secretstore-read"}},
+			wantErrors: 0,
+		},
+		{
+			name:        "an invalid secret store name is refused",
+			cfg:         Config{IDP: validIDP, BuildClient: BuildClientConfig{Enabled: true, Workflows: []string{"amp-docker"}, SecretStore: "Secret Store"}},
+			wantErrors:  1,
+			errContains: "AMP_BUILD_CLIENT_SECRET_STORE",
+		},
+		{
+			name:       "disabled does not check the secret store name",
+			cfg:        Config{IDP: validIDP, BuildClient: BuildClientConfig{SecretStore: "Secret Store"}},
+			wantErrors: 0,
+		},
+		{
 			name:        "enabled requires a workflow",
 			cfg:         Config{IDP: validIDP, BuildClient: BuildClientConfig{Enabled: true}},
 			wantErrors:  1,
@@ -189,6 +205,7 @@ func TestLoadEnvs_BuildClientDefaults(t *testing.T) {
 	}
 	t.Setenv("AMP_BUILD_CLIENT_ENABLED", "")
 	t.Setenv("AMP_BUILD_CLIENT_WORKFLOWS", "")
+	t.Setenv("AMP_BUILD_CLIENT_SECRET_STORE", "")
 	loadEnvs()
 
 	if config.BuildClient.Enabled {
@@ -197,5 +214,14 @@ func TestLoadEnvs_BuildClientDefaults(t *testing.T) {
 	want := []string{"amp-docker", "amp-ballerina-buildpack", "amp-google-cloud-buildpacks"}
 	if !slices.Equal(config.BuildClient.Workflows, want) {
 		t.Errorf("BuildClient.Workflows = %v, want %v", config.BuildClient.Workflows, want)
+	}
+	if config.BuildClient.SecretStore != "" {
+		t.Errorf("BuildClient.SecretStore = %q, want empty by default", config.BuildClient.SecretStore)
+	}
+
+	t.Setenv("AMP_BUILD_CLIENT_SECRET_STORE", "  secretstore-read  ")
+	loadEnvs()
+	if config.BuildClient.SecretStore != "secretstore-read" {
+		t.Errorf("BuildClient.SecretStore = %q, want the trimmed AMP_BUILD_CLIENT_SECRET_STORE", config.BuildClient.SecretStore)
 	}
 }

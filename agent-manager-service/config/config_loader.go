@@ -304,6 +304,7 @@ func loadEnvs() {
 		Enabled: r.readOptionalBool("AMP_BUILD_CLIENT_ENABLED", false),
 		Workflows: r.readOptionalStringList("AMP_BUILD_CLIENT_WORKFLOWS",
 			"amp-docker,amp-ballerina-buildpack,amp-google-cloud-buildpacks"),
+		SecretStore: strings.TrimSpace(r.readOptionalString("AMP_BUILD_CLIENT_SECRET_STORE", "")),
 	}
 	validateBuildClientConfig(config, r)
 
@@ -647,7 +648,14 @@ func validateBuildClientConfig(cfg *Config, r *configReader) {
 	if len(cfg.BuildClient.Workflows) == 0 {
 		r.errors = append(r.errors, fmt.Errorf("AMP_BUILD_CLIENT_ENABLED requires at least one AMP_BUILD_CLIENT_WORKFLOWS entry"))
 	}
+	if store := cfg.BuildClient.SecretStore; store != "" && !secretStoreNamePattern.MatchString(store) {
+		r.errors = append(r.errors, fmt.Errorf("AMP_BUILD_CLIENT_SECRET_STORE %q is not a valid ClusterSecretStore name", store))
+	}
 }
+
+// secretStoreNamePattern is a Kubernetes object name (RFC 1123 subdomain): what a
+// ClusterSecretStore may be called.
+var secretStoreNamePattern = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$`)
 
 // organizationTokenPathSuffix is the token endpoint path an organization token
 // endpoint is derived from.

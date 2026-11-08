@@ -48,6 +48,9 @@ const workflowParamAMPBuild = "ampBuild"
 // keeps the run's ExternalSecret resolving within the run's own namespace.
 type BuildClientParams struct {
 	SecretRefName string
+	// SecretStore names the ClusterSecretStore the run reads the token through
+	// (config.BuildClient.SecretStore). Empty leaves it to the workflow.
+	SecretStore string
 }
 
 // BuildClientSource issues the build token for a run. TriggerBuild calls it only
@@ -62,11 +65,19 @@ type BuildClientSource func(ctx context.Context) (*BuildClientParams, error)
 func withBuildClient(params map[string]interface{}, buildClient *BuildClientParams) map[string]interface{} {
 	out := make(map[string]interface{}, len(params)+1)
 	maps.Copy(out, params)
-	out[workflowParamAMPBuild] = map[string]interface{}{
+	ampBuild := map[string]interface{}{
 		"secretRef": buildClient.SecretRefName,
 	}
+	if buildClient.SecretStore != "" {
+		ampBuild[workflowParamAMPBuildSecretStore] = buildClient.SecretStore
+	}
+	out[workflowParamAMPBuild] = ampBuild
 	return out
 }
+
+// workflowParamAMPBuildSecretStore is the ampBuild property naming the
+// ClusterSecretStore the run reads its token through.
+const workflowParamAMPBuildSecretStore = "secretStore"
 
 // attachBuildClient reports whether a build token should ride on a run of the
 // given workflow: build tokens are enabled, the workflow is listed in
@@ -74,7 +85,10 @@ func withBuildClient(params map[string]interface{}, buildClient *BuildClientPara
 //
 // A workflow that is read and does not declare ampBuild (an organization whose
 // namespaced Workflows predate it) keeps its previous path: that is expected
-// during the rollout and is only logged at Warn. A workflow that cannot be read
+// during the rollout and is only logged at Warn. So does one that does not declare
+// ampBuild.secretStore while config.BuildClient.SecretStore is set: it would read
+// the token through its workflow plane's store, which that setting says cannot
+// read it. A workflow that cannot be read
 // is different: whether the run should carry the token is unknown, and starting
 // it on the previous path would let it build in full and fail only at publish
 // once that path is gone. So the lookup is retried once and, if it still fails,
@@ -88,43 +102,53 @@ func (c *openChoreoClient) attachBuildClient(ctx context.Context, namespaceName 
 			"workflow", workflowName)
 		return false, nil
 	}
-	declared, err := c.workflowDeclaresParameter(ctx, namespaceName, kind, workflowName, workflowParamAMPBuild)
+	properties, err := c.workflowParameterProperties(ctx, namespaceName, kind, workflowName)
 	if err != nil {
 		select {
 		case <-ctx.Done():
 			return false, fmt.Errorf("%w: could not read build workflow %q: %v", utils.ErrServiceUnavailable, workflowName, err) //nolint:errorlint // the cause is reported as text, not as this build's error
 		case <-time.After(buildWorkflowLookupRetryDelay):
 		}
-		declared, err = c.workflowDeclaresParameter(ctx, namespaceName, kind, workflowName, workflowParamAMPBuild)
+		properties, err = c.workflowParameterProperties(ctx, namespaceName, kind, workflowName)
 	}
 	if err != nil {
 		slog.ErrorContext(ctx, "Could not read the build workflow's parameters; not starting the build",
 			"workflow", workflowName, "kind", string(kind), "error", err)
 		return false, fmt.Errorf("%w: could not read build workflow %q: %v", utils.ErrServiceUnavailable, workflowName, err) //nolint:errorlint // the cause is reported as text, not as this build's error
 	}
+	ampBuild, declared := properties[workflowParamAMPBuild].(map[string]interface{})
 	if !declared {
 		slog.WarnContext(ctx, "Build workflow does not declare ampBuild; using the previous publish path",
 			"workflow", workflowName, "kind", string(kind))
+		return false, nil
 	}
-	return declared, nil
+	if store := config.GetConfig().BuildClient.SecretStore; store != "" {
+		ampBuildProperties, _ := ampBuild["properties"].(map[string]interface{})
+		if _, ok := ampBuildProperties[workflowParamAMPBuildSecretStore]; !ok {
+			slog.WarnContext(ctx, "Build workflow does not declare ampBuild.secretStore, which the configured build token secret store needs; using the previous publish path",
+				"workflow", workflowName, "kind", string(kind), "secretStore", store)
+			return false, nil
+		}
+	}
+	return true, nil
 }
 
 // buildWorkflowLookupRetryDelay is how long attachBuildClient waits before its
 // one retry of a failed workflow lookup. A variable so tests need not wait.
 var buildWorkflowLookupRetryDelay = time.Second
 
-// workflowDeclaresParameter reports whether the Workflow or ClusterWorkflow's
-// openAPIV3Schema lists param among its top-level properties.
-func (c *openChoreoClient) workflowDeclaresParameter(ctx context.Context, namespaceName string, kind gen.WorkflowRunConfigKind, name, param string) (bool, error) {
+// workflowParameterProperties returns the top-level properties of the Workflow or
+// ClusterWorkflow's openAPIV3Schema, or none when it declares no schema.
+func (c *openChoreoClient) workflowParameterProperties(ctx context.Context, namespaceName string, kind gen.WorkflowRunConfigKind, name string) (map[string]interface{}, error) {
 	var schema *map[string]interface{}
 	switch kind {
 	case gen.WorkflowRunConfigKindWorkflow:
 		resp, err := c.ocClient.GetWorkflowWithResponse(ctx, namespaceName, name)
 		if err != nil {
-			return false, fmt.Errorf("failed to get workflow %q: %w", name, err)
+			return nil, fmt.Errorf("failed to get workflow %q: %w", name, err)
 		}
 		if resp.StatusCode() != http.StatusOK || resp.JSON200 == nil {
-			return false, fmt.Errorf("failed to get workflow %q: status %d", name, resp.StatusCode())
+			return nil, fmt.Errorf("failed to get workflow %q: status %d", name, resp.StatusCode())
 		}
 		if resp.JSON200.Spec != nil && resp.JSON200.Spec.Parameters != nil {
 			schema = resp.JSON200.Spec.Parameters.OpenAPIV3Schema
@@ -132,21 +156,20 @@ func (c *openChoreoClient) workflowDeclaresParameter(ctx context.Context, namesp
 	default:
 		resp, err := c.ocClient.GetClusterWorkflowWithResponse(ctx, name)
 		if err != nil {
-			return false, fmt.Errorf("failed to get cluster workflow %q: %w", name, err)
+			return nil, fmt.Errorf("failed to get cluster workflow %q: %w", name, err)
 		}
 		if resp.StatusCode() != http.StatusOK || resp.JSON200 == nil {
-			return false, fmt.Errorf("failed to get cluster workflow %q: status %d", name, resp.StatusCode())
+			return nil, fmt.Errorf("failed to get cluster workflow %q: status %d", name, resp.StatusCode())
 		}
 		if resp.JSON200.Spec != nil && resp.JSON200.Spec.Parameters != nil {
 			schema = resp.JSON200.Spec.Parameters.OpenAPIV3Schema
 		}
 	}
 	if schema == nil {
-		return false, nil
+		return nil, nil
 	}
 	properties, _ := (*schema)["properties"].(map[string]interface{})
-	_, ok := properties[param]
-	return ok, nil
+	return properties, nil
 }
 
 // BuildRunInfo is what the build publisher endpoint verifies about a WorkflowRun

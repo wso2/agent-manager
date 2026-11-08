@@ -155,6 +155,9 @@ func (c *openChoreoClient) TriggerBuild(ctx context.Context, ouID, projectName, 
 		if buildToken == nil {
 			return nil, fmt.Errorf("failed to issue the build token: none was returned")
 		}
+		if buildToken.SecretStore == "" {
+			buildToken.SecretStore = config.GetConfig().BuildClient.SecretStore
+		}
 		params = withBuildClient(params, buildToken)
 	}
 

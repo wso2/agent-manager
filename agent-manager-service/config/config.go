@@ -645,6 +645,13 @@ type BuildClientConfig struct {
 	// whose runs receive a build token (AMP_BUILD_CLIENT_WORKFLOWS). Only list
 	// workflows that wire parameters.ampBuild through to their workload step.
 	Workflows []string
+	// SecretStore names the ClusterSecretStore a build run reads its token through
+	// (AMP_BUILD_CLIENT_SECRET_STORE), passed as parameters.ampBuild.secretStore.
+	// Empty passes none, and the workflow reads the token through its workflow
+	// plane's store. Set it where the token is stored somewhere that store cannot
+	// read; a run then gets the token only if its workflow declares
+	// ampBuild.secretStore.
+	SecretStore string
 }
 
 // ThunderConfig holds Thunder admin API configuration for provisioning OAuth apps
