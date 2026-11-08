@@ -20,6 +20,7 @@ export * from './components';
 export * from './utils/errorHelpers';
 export * from './utils/usePipelineEnvironments';
 export * from './utils/environmentTierAccess';
+export * from './utils/environmentLabel';
 export * from './utils/useAgentEnvironmentAccess';
 export * from './utils/policyParameterEditor';
 export * from './utils/format';
