@@ -73,11 +73,17 @@ const (
 	// a deep cursor or a large tie group grows. The upstream Observer rejects
 	// a trace query limit above 1000.
 	maxCursorDepth = 1000
+
+	// batchChunk is how many traces one batch read covers; maxBatchSpans is the most rows one batch read returns.
+	batchChunk    = 50
+	maxBatchSpans = 10000
 )
 
 // TracingController provides tracing functionality via the observer service.
 type TracingController struct {
 	observerClient observer.TraceReader
+	batch          observer.BatchTraceReader // nil when the reader cannot batch
+	batchEnabled   bool
 	// budget bounds a look-back walk's context.
 	budget func(context.Context, time.Duration) (context.Context, context.CancelFunc)
 }
@@ -85,8 +91,17 @@ type TracingController struct {
 // NewTracingController creates a new tracing controller.
 func NewTracingController(observerClient observer.TraceReader) *TracingController {
 	c := &TracingController{observerClient: observerClient, budget: context.WithTimeout}
+	if b, ok := observerClient.(observer.BatchTraceReader); ok {
+		c.batch = b
+	}
 	return c
 }
+
+// SetBatching switches batched span reads on or off. It does nothing useful if the reader cannot batch.
+func (c *TracingController) SetBatching(on bool) { c.batchEnabled = on }
+
+// CanBatch reports whether the reader has the batch ability.
+func (c *TracingController) CanBatch() bool { return c.batch != nil }
 
 // TraceQueryParams holds parameters for trace queries.
 type TraceQueryParams struct {
@@ -550,6 +565,8 @@ func (c *TracingController) enrichTraces(
 	handshakes *atomic.Int32,
 ) (overviews []opensearch.TraceOverview, failed []string) {
 	log := logger.GetLogger(ctx)
+	
+	prefetched := c.prefetchSpans(ctx, params, traces)
 
 	// outerSem caps how many traces are being enriched at once; innerSem caps
 	// the total observer round-trips across all enrichments in flight (root
@@ -591,7 +608,12 @@ func (c *TracingController) enrichTraces(
 			mcp := mcpLookup{handshakes: handshakes}
 			toolsFirst := c.toolListFirst(params, t)
 			attrsFirst := c.listSpansFirst(params, t)
+			pre, havePre := prefetched[t.TraceID]
 			switch {
+			case havePre:
+				// The spans, with attributes, came from one batch read: no calls for this trace.
+				spans, root = pre, rootFromSpans(t, pre)
+				attrsFirst = true
 			case attrsFirst:
 				spans, root = c.rootFromSpanList(ctx, params, t, innerSem)
 			case toolsFirst:
@@ -637,7 +659,7 @@ func (c *TracingController) enrichTraces(
 				results[idx] = result{verdict: enrichRejected}
 				return
 			}
-			e, verdict := c.enrichTrace(ctx, params, t, root, spans, innerSem, &mcp)
+			e, verdict := c.enrichTrace(ctx, params, t, root, spans, attrsFirst, innerSem, &mcp)
 			if verdict != enrichKept {
 				results[idx] = result{verdict: verdict}
 				return
@@ -832,6 +854,7 @@ func (c *TracingController) enrichTrace(
 	traceInfo observer.TraceInfo,
 	rootSpan *opensearch.Span,
 	spans []observer.SpanInfo,
+	spansHaveAttrs bool,
 	fetchSem chan struct{},
 	mcp *mcpLookup,
 ) (traceEnrichment, enrichVerdict) {
@@ -860,6 +883,8 @@ func (c *TracingController) enrichTrace(
 	rootComplete := input != nil && output != nil && tokenUsage != nil
 	aggregateLeaves := traceInfo.SpanCount <= skipLeafAggregationSpanCountThreshold
 	modelsFromList := params.Include.Models && aggregateLeaves
+	// The attributes are already in hand if the caller prefetched the list, or fetched it with attributes.
+	inline := modelsFromList || (spans != nil && spansHaveAttrs)
 	toolsFromList := params.Include.Tools && traceInfo.SpanCount <= maxToolListSpans
 	mcpFromList := params.Include.MCPServers && traceInfo.SpanCount <= maxToolListSpans
 	rejectOnModel := params.Filters.Model != ""
@@ -923,7 +948,7 @@ func (c *TracingController) enrichTrace(
 
 	// Step 2: immediate child of the root (Traceloop chain span path).
 	if !rootComplete || conversationPending(conversationID, params.Filters) {
-		childInput, childOutput, childTokens, childEntityTokens, childConversationID, ok, childUnread := c.tryChildChainSpan(ctx, traceInfo.TraceID, rootSpan.SpanID, spans, modelsFromList, fetchSem)
+		childInput, childOutput, childTokens, childEntityTokens, childConversationID, ok, childUnread := c.tryChildChainSpan(ctx, traceInfo.TraceID, rootSpan.SpanID, spans, inline, fetchSem)
 		if ok {
 			if input == nil {
 				input = childInput
@@ -962,7 +987,7 @@ func (c *TracingController) enrichTrace(
 				return traceEnrichment{}, enrichFailed
 			}
 		} else {
-			leafInput, leafOutput, leafTokens, leafModels, leafConversationID, leavesUnread, leafIDUnread := c.aggregateFromLeafLLMSpans(ctx, traceInfo.TraceID, spans, modelsFromList, fetchSem)
+			leafInput, leafOutput, leafTokens, leafModels, leafConversationID, leavesUnread, leafIDUnread := c.aggregateFromLeafLLMSpans(ctx, traceInfo.TraceID, spans, inline, fetchSem)
 			if models == nil {
 				models = leafModels
 			}
@@ -1445,6 +1470,57 @@ func (c *TracingController) GetSpanDetail(ctx context.Context, traceID, spanID s
 	span := observer.ConvertSpanDetailsToSpan(traceID, details)
 	enriched := opensearch.ProcessSpan(span)
 	return &enriched, nil
+}
+
+// prefetchSpans reads the spans (with attributes) of the small traces on a page in a few round trips,
+// when the reader supports it and batching is on. A trace it does not cover is missing from the result,
+// and enrichTraces uses its per-trace calls for it.
+func (c *TracingController) prefetchSpans(ctx context.Context, params TraceQueryParams, traces []observer.TraceInfo) map[string][]observer.SpanInfo {
+	if c.batch == nil || !c.batchEnabled {
+		return nil
+	}
+	ids := make([]string, 0, len(traces))
+	for _, t := range traces {
+		// Big traces keep the per-trace path: it already caps and skips their work.
+		if t.RootSpanID != "" && t.SpanCount > 0 && t.SpanCount <= skipLeafAggregationSpanCountThreshold {
+			ids = append(ids, t.TraceID)
+		}
+	}
+	out := make(map[string][]observer.SpanInfo, len(ids))
+	for start := 0; start < len(ids); start += batchChunk {
+		end := min(start+batchChunk, len(ids))
+		limit := maxBatchSpans
+		res, err := c.batch.QueryTraceSpansBatch(ctx, ids[start:end], observer.TracesQueryRequest{
+			StartTime: params.StartTime, EndTime: params.EndTime, Limit: &limit, IncludeAttributes: true,
+			SearchScope: observer.ComponentSearchScope{
+				Namespace:   c.observerClient.NamespaceFor(params.Organization),
+				Project:     params.Project,
+				Component:   params.Agent,
+				Environment: params.Environment,
+			},
+		})
+		if err != nil {
+			if ctx.Err() == nil {
+				logger.GetLogger(ctx).Warn("batch span read failed, using per-trace calls", "err", err)
+			}
+			continue
+		}
+		for id, spans := range res {
+			out[id] = spans
+		}
+	}
+	return out
+}
+
+// rootFromSpans finds the root span in a span list that already carries attributes.
+func rootFromSpans(t observer.TraceInfo, spans []observer.SpanInfo) *opensearch.Span {
+	for _, s := range spans {
+		if s.SpanID == t.RootSpanID {
+			span := opensearch.ProcessSpan(observer.ConvertSpanInfoToSpan(t.TraceID, s))
+			return &span
+		}
+	}
+	return nil
 }
 
 // ExportTraces fetches complete traces with all spans fully enriched for export.

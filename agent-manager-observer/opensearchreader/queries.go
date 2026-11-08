@@ -107,3 +107,17 @@ func detailQuery(namespace, traceID, spanID string) map[string]any {
 		}}},
 	}
 }
+
+// batchQuery returns the spans of several traces in one search.
+func batchQuery(sc scope.UIDs, traceIDs []string, w window, size int) map[string]any {
+	filters := append(traceFilters(sc, w), map[string]any{"terms": map[string]any{"traceId": traceIDs}})
+	return map[string]any{
+		"size":  size,
+		"query": map[string]any{"bool": map[string]any{"filter": filters}},
+		"sort": []map[string]any{
+			{"traceId": map[string]any{"order": "asc"}},
+			{"startTime": map[string]any{"order": "asc"}},
+			{"spanId": map[string]any{"order": "asc"}},
+		},
+	}
+}

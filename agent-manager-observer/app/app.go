@@ -185,6 +185,12 @@ func newHandler(cfg *config.Config, tokenProvider observer.TokenProvider) (http.
 	}
 
 	controller := controllers.NewTracingController(traceReader)
+	controller.SetBatching(cfg.Traces.Batching)
+	
+	if cfg.Traces.Batching && !controller.CanBatch() {
+		slog.Warn("TRACE_BATCHING is on, but this trace backend cannot batch; using per-trace calls")
+	}
+	slog.Info("trace batching", "enabled", cfg.Traces.Batching && controller.CanBatch())
 
 	obsController := controllers.NewObservabilityController(observerClient)
 	handler := handlers.NewHandler(controller, obsController)

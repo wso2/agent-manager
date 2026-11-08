@@ -2,6 +2,8 @@ package clickhouse
 
 import (
 	"time"
+
+	"strings"
 )
 
 const traceIDTimeTable = "otel_traces_trace_id_ts"
@@ -95,5 +97,32 @@ func buildSpanDetailQuery(table string, cols tenantColumns, namespace, traceID, 
 	WHERE ` + where + `
 	LIMIT 1`
 
+	return query, args
+}
+
+// buildSpansBatchQuery returns the spans of several traces in one query.
+func buildSpansBatchQuery(table string, cols tenantColumns, traceIDs []string, scope ScopeUIDs,
+	w traceWindow, maxRows int) (string, []any) {
+
+	marks := strings.TrimSuffix(strings.Repeat("?,", len(traceIDs)), ",") // one ? per trace id, never the ids themselves
+	args := make([]any, 0, len(traceIDs)+8)
+	for _, id := range traceIDs {
+		args = append(args, id)
+	}
+	conds := []string{"TraceId IN (" + marks + ")"}
+	if scopeSQL, scopeArgs := scopeWhere(cols, scope); scopeSQL != "" {
+		conds = append(conds, scopeSQL)
+		args = append(args, scopeArgs...)
+	}
+	conds = append(conds,
+		"Timestamp >= fromUnixTimestamp64Nano(?, 'UTC')",
+		"Timestamp <= fromUnixTimestamp64Nano(?, 'UTC')",
+		"addNanoseconds(Timestamp, Duration) <= fromUnixTimestamp64Nano(?, 'UTC')")
+	args = append(args, w.Start.UnixNano(), w.End.UnixNano(), w.End.UnixNano())
+
+	query := "SELECT TraceId, SpanId, ParentSpanId, SpanName, SpanKind, Timestamp, Duration, StatusCode, StatusMessage, SpanAttributes, ResourceAttributes" +
+		" FROM " + table + " WHERE " + strings.Join(conds, " AND ") +
+		" ORDER BY TraceId, Timestamp, SpanId LIMIT 1 BY TraceId, SpanId LIMIT ?"
+	args = append(args, maxRows)
 	return query, args
 }

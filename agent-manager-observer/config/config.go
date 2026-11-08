@@ -72,6 +72,8 @@ type TraceReaderConfig struct {
 	OSPassword    string
 	OSIndex       string
 	OSInsecureTLS bool
+
+	Batching bool
 }
 
 // AuthConfig holds JWT authentication configuration
@@ -139,6 +141,8 @@ func Load() (*Config, error) {
 			OSIndex:       getEnv("OPENSEARCH_TRACES_INDEX", "otel-traces-*"),
 
 			ScopeUIDs: getEnv("TRACE_SCOPE_UIDS", getEnv("CLICKHOUSE_SCOPE_UIDS", "")),
+
+			Batching: getEnvAsBool("TRACE_BATCHING", false),
 		},
 		LogLevel: getEnv("LOG_LEVEL", "INFO"),
 		Auth: AuthConfig{

@@ -43,6 +43,8 @@ type TraceReaderImpl struct {
 
 var _ observer.TraceReader = (*TraceReaderImpl)(nil)
 
+var _ observer.BatchTraceReader = (*TraceReaderImpl)(nil)
+
 func NewTraceReader(db *sql.DB, opts Options) (*TraceReaderImpl, error) {
 	if !tableNamePattern.MatchString(opts.Table) {
 		return nil, fmt.Errorf("invalid trace table name %q", opts.Table)
@@ -278,4 +280,60 @@ func (t *TraceReaderImpl) GetSpanDetails(ctx context.Context, traceID, spanID st
 	out.Attributes = attributesToAny(attrs)
 	out.ResourceAttributes = attributesToAny(resAttrs)
 	return &out, nil
+}
+
+// QueryTraceSpansBatch returns the spans, with attributes, of several traces in one query.
+func (t *TraceReaderImpl) QueryTraceSpansBatch(ctx context.Context, traceIDs []string, req observer.TracesQueryRequest) (map[string][]observer.SpanInfo, error) {
+	out := make(map[string][]observer.SpanInfo, len(traceIDs))
+	if len(traceIDs) == 0 {
+		return out, nil
+	}
+	maxRows := maxSpanLimit
+	if req.Limit != nil && *req.Limit > 0 && *req.Limit < maxRows {
+		maxRows = *req.Limit
+	}
+	uids, err := t.resolver.Resolve(ctx, req.SearchScope)
+	if err != nil {
+		return nil, err
+	}
+	query, args := buildSpansBatchQuery(t.table, t.cols, traceIDs, uids,
+		traceWindow{Start: req.StartTime, End: req.EndTime}, maxRows)
+
+	rows, err := t.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("clickhouse.QueryTraceSpansBatch: %w", err)
+	}
+	defer rows.Close()
+
+	n := 0
+	for rows.Next() {
+		var (
+			traceID   string
+			sp        observer.SpanInfo
+			start     time.Time
+			duration  uint64
+			code, msg string
+			attrs     map[string]string
+			resAttrs  map[string]string
+		)
+		if err := rows.Scan(&traceID, &sp.SpanID, &sp.ParentSpanID, &sp.SpanName, &sp.Kind,
+			&start, &duration, &code, &msg, &attrs, &resAttrs); err != nil {
+			return nil, fmt.Errorf("clickhouse.QueryTraceSpansBatch: read row: %w", err)
+		}
+		sp.StartTime = start.UTC()
+		sp.EndTime = sp.StartTime.Add(time.Duration(duration))
+		sp.DurationNs = int64(duration)
+		sp.Status = &observer.SpanStatus{Code: strings.ToLower(code), Message: msg}
+		sp.Attributes = attributesToAny(attrs)
+		sp.ResourceAttributes = attributesToAny(resAttrs)
+		out[traceID] = append(out[traceID], sp)
+		n++
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("clickhouse.QueryTraceSpansBatch: %w", err)
+	}
+	if n >= maxRows {
+		return nil, fmt.Errorf("clickhouse.QueryTraceSpansBatch: row cap %d reached; the answer may be partial", maxRows)
+	}
+	return out, nil
 }

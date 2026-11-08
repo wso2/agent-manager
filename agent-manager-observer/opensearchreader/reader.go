@@ -30,6 +30,8 @@ type TraceReaderImpl struct {
 
 var _ observer.TraceReader = (*TraceReaderImpl)(nil)
 
+var _ observer.BatchTraceReader = (*TraceReaderImpl)(nil)
+
 func NewTraceReader(o Options) (*TraceReaderImpl, error) {
 	if strings.TrimSpace(o.DefaultNamespace) == "" {
 		return nil, errors.New("a default namespace is required")
@@ -173,4 +175,31 @@ func (t *TraceReaderImpl) GetSpanDetails(ctx context.Context, traceID, spanID st
 		Attributes:         d.Attributes,
 		ResourceAttributes: d.Resource,
 	}, nil
+}
+
+func (t *TraceReaderImpl) QueryTraceSpansBatch(ctx context.Context, traceIDs []string, req observer.TracesQueryRequest) (map[string][]observer.SpanInfo, error) {
+	out := make(map[string][]observer.SpanInfo, len(traceIDs))
+	if len(traceIDs) == 0 {
+		return out, nil
+	}
+	size := maxSpanLimit // 10,000 is also OpenSearch's default result window
+	if req.Limit != nil && *req.Limit > 0 && *req.Limit < size {
+		size = *req.Limit
+	}
+	uids, err := t.resolver.Resolve(ctx, req.SearchScope)
+	if err != nil {
+		return nil, err
+	}
+	var res spansResponse
+	if err := t.s.search(ctx, batchQuery(uids, traceIDs, window{req.StartTime, req.EndTime}, size), &res); err != nil {
+		return nil, fmt.Errorf("opensearch.QueryTraceSpansBatch: %w", err)
+	}
+	slog.Debug("opensearch batch span query", "took_ms", res.Took, "traces", len(traceIDs))
+	if len(res.Hits.Hits) >= size {
+		return nil, fmt.Errorf("opensearch.QueryTraceSpansBatch: row cap %d reached; the answer may be partial", size)
+	}
+	for _, h := range res.Hits.Hits {
+		out[h.Source.TraceID] = append(out[h.Source.TraceID], h.Source.toSpanInfo(true))
+	}
+	return out, nil
 }
