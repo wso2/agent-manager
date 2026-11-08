@@ -155,15 +155,35 @@ func TestGitCredentialsService_GetGitCredentials(t *testing.T) {
 		assert.Empty(t, kv.paths)
 	})
 
+	t.Run("accepts git secret names OpenChoreo allows", func(t *testing.T) {
+		// Kubernetes object names may contain dots and run to 253 characters.
+		for _, name := range []string{"team.git", "Private-Repo", strings.Repeat("a", 64)} {
+			t.Run(name, func(t *testing.T) {
+				kv := &fakeKVReader{secret: kvSecret(map[string]interface{}{"password": "ghp-token"})}
+				svc := newGitCredsServiceWithKV(t, kv, name)
+
+				creds, err := svc.GetGitCredentials(context.Background(), org, name)
+
+				require.NoError(t, err)
+				assert.Equal(t, "ghp-token", creds.Password)
+				assert.Equal(t, []string{"secret/data/acme-ns/git/" + name}, kv.paths)
+			})
+		}
+	})
+
 	t.Run("rejects names that could leave the namespace's git secrets", func(t *testing.T) {
 		for _, name := range []string{
 			"../other-ns/git/secret",
 			"other/secret",
-			"secret.name",
+			"..",
+			".",
+			"team..git",
+			".hidden",
+			"trailing.",
 			"-leading-hyphen",
 			"trailing-hyphen-",
 			"has space",
-			strings.Repeat("a", 64),
+			strings.Repeat("a", 254),
 		} {
 			t.Run(name, func(t *testing.T) {
 				kv := &fakeKVReader{}
