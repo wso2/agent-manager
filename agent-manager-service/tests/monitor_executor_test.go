@@ -357,11 +357,11 @@ func TestExecuteMonitorRun_LLMCredentials(t *testing.T) {
 
 	// Seed the MonitorLLMMapping as a row written before the SecretReference name was
 	// persisted: it holds the SecretReference's remoteRef key and property. The executor
-	// maps it to the deterministic SecretReference name the provider created.
+	// maps it to the SecretReference name, the last segment of that key.
 	mapping := &models.MonitorLLMMapping{
 		MonitorID:    monitor.ID,
 		LLMProxyUUID: proxyUUID,
-		SecretKVPath: "secret/data/" + monitor.OUID + "/monitor-" + monitor.ID.String(),
+		SecretKVPath: "secret/default/generic/monitor-" + monitor.ID.String() + "-secrets",
 		SecretKey:    "LLM_API_KEY",
 	}
 	require.NoError(t, gdb.Create(mapping).Error)
@@ -468,7 +468,7 @@ func TestExecuteMonitorRun_PerOrgPublisherCredentials(t *testing.T) {
 		OUID:         monitor.OUID,
 		OrgUUID:      "test-ou-uuid",
 		ClientID:     "amp-publisher-test-org",
-		SecretKVPath: "secret/data/test-org/amp-publisher-test-org",
+		SecretKVPath: "secret/default/generic/amp-publisher-test-org-secrets",
 		SecretKey:    "client-secret",
 	}
 	require.NoError(t, gdb.Create(cred).Error)
@@ -506,7 +506,7 @@ func TestExecuteMonitorRun_PerOrgPublisherCredentials(t *testing.T) {
 
 	pubParams := capturedReq.Parameters["publishing"].(map[string]interface{})
 	assert.Equal(t, "amp-publisher-test-org", pubParams["clientId"])
-	// The seeded row holds a legacy KV path, which maps to the deterministic SecretReference name.
+	// The seeded row holds a legacy store path, whose last segment is the SecretReference name.
 	assert.Equal(t, "amp-publisher-test-org-secrets", pubParams["secretRefName"])
 	assert.NotContains(t, pubParams, "secretKVPath", "the remote store path is never sent")
 }

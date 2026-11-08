@@ -73,25 +73,41 @@ func TestMonitorExecutor_buildPublishingParams(t *testing.T) {
 		assert.NotContains(t, params, "secretKey")
 	})
 
-	t.Run("maps a stored legacy KV path to the deterministic SecretReference name", func(t *testing.T) {
-		credRepo := &repomocks.OrgPublisherCredentialRepositoryMock{
-			GetByOrgNameFunc: func(string) (*models.OrgPublisherCredential, error) {
-				return &models.OrgPublisherCredential{
-					OUID:         "acme",
-					ClientID:     "acme-publisher",
-					SecretKVPath: "secret/acme/generic/amp-publisher-acme-secrets",
-					SecretKey:    "client-secret",
-				}, nil
-			},
-		}
-		e := newExecutor(credRepo, &fakeProvisioner{})
+	// Rows written before the name was persisted hold the remote store path, whose
+	// last segment is the SecretReference name. WSO2 Cloud names it after the secret
+	// ID, not the on-prem location, so the name must not be rebuilt from the location.
+	for _, tc := range []struct{ name, storedPath, wantRefName string }{
+		{
+			name:        "on-prem store path",
+			storedPath:  "secret/acme/generic/amp-publisher-acme-secrets",
+			wantRefName: "amp-publisher-acme-secrets",
+		},
+		{
+			name:        "WSO2 Cloud store path",
+			storedPath:  "wc-secrets/wc-acme-1a2b3c4d/generic/cred-acme-amp-0a1b2c3d4e5f",
+			wantRefName: "cred-acme-amp-0a1b2c3d4e5f",
+		},
+	} {
+		t.Run("maps a stored legacy "+tc.name+" to its SecretReference name", func(t *testing.T) {
+			credRepo := &repomocks.OrgPublisherCredentialRepositoryMock{
+				GetByOrgNameFunc: func(string) (*models.OrgPublisherCredential, error) {
+					return &models.OrgPublisherCredential{
+						OUID:         "acme",
+						ClientID:     "acme-publisher",
+						SecretKVPath: tc.storedPath,
+						SecretKey:    "client-secret",
+					}, nil
+				},
+			}
+			e := newExecutor(credRepo, &fakeProvisioner{})
 
-		params, err := e.buildPublishingParams(context.Background(), monitor, runID)
+			params, err := e.buildPublishingParams(context.Background(), monitor, runID)
 
-		require.NoError(t, err)
-		assert.Equal(t, publisherSecretLocation("acme").SecretRefName(), params["secretRefName"])
-		assert.NotContains(t, params, "secretKVPath")
-	})
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantRefName, params["secretRefName"])
+			assert.NotContains(t, params, "secretKVPath")
+		})
+	}
 
 	t.Run("provisions on demand when no credentials are stored", func(t *testing.T) {
 		credRepo := &repomocks.OrgPublisherCredentialRepositoryMock{
@@ -171,4 +187,13 @@ func TestMonitorExecutor_buildPublishingParams(t *testing.T) {
 
 		assert.ErrorIs(t, err, boom)
 	})
+}
+
+func TestSecretRefNameFromStorePath(t *testing.T) {
+	for storePath, want := range map[string]string{
+		"secret/default/generic/monitor-00000000-0000-4000-8000-000000000001-secrets": "monitor-00000000-0000-4000-8000-000000000001-secrets",
+		"wc-secrets/wc-acme-1a2b3c4d/generic/cred-acme-mon-0a1b2c3d4e5f":              "cred-acme-mon-0a1b2c3d4e5f",
+	} {
+		assert.Equal(t, want, secretRefNameFromStorePath(storePath), storePath)
+	}
 }

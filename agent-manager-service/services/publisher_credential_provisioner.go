@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"sync"
 
 	"golang.org/x/sync/singleflight"
@@ -61,16 +62,25 @@ type PublisherCredentials struct {
 
 // publisherCredentialsFromRow builds the credentials for a stored per-org row.
 // SecretKVPath holds the SecretReference name; rows written before the name was
-// persisted hold its remote store path instead, and map to the deterministic name.
+// persisted hold its remote store path instead.
 func publisherCredentialsFromRow(cred *models.OrgPublisherCredential) *PublisherCredentials {
 	secretRefName := cred.SecretKVPath
 	if isLegacySecretRefPath(secretRefName) {
-		secretRefName = publisherSecretLocation(cred.OUID).SecretRefName()
+		secretRefName = secretRefNameFromStorePath(secretRefName)
 	}
 	return &PublisherCredentials{
 		ClientID:      cred.ClientID,
 		SecretRefName: secretRefName,
 	}
+}
+
+// secretRefNameFromStorePath returns the name of the SecretReference behind a
+// stored remote store path. The secret provider names the store entry after the
+// SecretReference ("secret/<ns>/generic/<name>" on-prem, "<cred-id>" as the last
+// segment in WSO2 Cloud), so the last segment is the name. Rebuilding the name from
+// the secret's location instead would only match the on-prem provider's naming.
+func secretRefNameFromStorePath(storePath string) string {
+	return storePath[strings.LastIndex(storePath, "/")+1:]
 }
 
 // PublisherCredentialProvisioner provisions per-org publisher credentials.
