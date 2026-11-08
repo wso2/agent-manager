@@ -74,6 +74,7 @@ type AppParams struct {
 	MonitorController                controllers.MonitorController
 	MonitorScoresController          controllers.MonitorScoresController
 	MonitorScoresPublisherController controllers.MonitorScoresPublisherController
+	BuildPublisherController         controllers.BuildPublisherController
 	EvaluatorController              controllers.EvaluatorController
 	CatalogController                controllers.CatalogController
 	AgentBuildOptionsController      controllers.AgentBuildOptionsController
@@ -100,6 +101,8 @@ type AppParams struct {
 	EnvironmentService            services.EnvironmentService
 	EventDispatcher               services.EventDispatcherService
 	MonitorAlerts                 services.MonitorAlertProcessor
+	BuildPublisherService         services.BuildPublisherService
+	BuildTokenIssuer              services.BuildTokenIssuer
 	// Services the MCP connection tools call directly.
 	LLMProviderService           *services.LLMProviderService
 	LLMProviderDeploymentService *services.LLMProviderDeploymentService

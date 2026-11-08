@@ -59,6 +59,7 @@ var controllerConstructors = []any{
 	controllers.NewMonitorController,
 	controllers.NewMonitorScoresController,
 	controllers.NewMonitorScoresPublisherController,
+	controllers.NewBuildPublisherController,
 	controllers.NewEvaluatorController,
 	controllers.NewCatalogController,
 	controllers.NewAgentBuildOptionsController,

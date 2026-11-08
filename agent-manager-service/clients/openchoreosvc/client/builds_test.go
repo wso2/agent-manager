@@ -377,6 +377,35 @@ func TestGetBuildByName_ReportsOwnerFromLabels(t *testing.T) {
 	assert.Equal(t, "agent", build.AgentName)
 }
 
+// A missing build is utils.ErrNotFound whether or not OpenChoreo's 404 carries an
+// error body. Without a body it used to surface as "unexpected error: status 404",
+// which callers could not tell apart from a real failure.
+func TestGetBuild_MissingRunIsNotFound(t *testing.T) {
+	cases := map[string]string{
+		"404 without a body": "",
+		"404 with a body":    `{"error":"workflow run not found","code":"NOT_FOUND"}`,
+	}
+	for name, body := range cases {
+		t.Run(name, func(t *testing.T) {
+			// Raw headers: a bodyless 404 (from a proxy, say) is not labelled JSON.
+			client := newTestClientRawHeaders(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if body != "" {
+					w.Header().Set("Content-Type", "application/json")
+				}
+				w.WriteHeader(http.StatusNotFound)
+				_, _ = fmt.Fprint(w, body)
+			}))
+
+			_, err := client.GetBuild(context.Background(), "acme", "proj", "agent", "agent-1000")
+			require.ErrorIs(t, err, utils.ErrNotFound)
+			_, err = client.GetBuildByName(context.Background(), "acme", "agent-1000")
+			require.ErrorIs(t, err, utils.ErrNotFound)
+			_, err = client.GetBuildRun(context.Background(), "acme", "agent-1000")
+			require.ErrorIs(t, err, utils.ErrNotFound)
+		})
+	}
+}
+
 // An agent whose build settings already hold health checks: readiness HTTP /health.
 const componentWithHealthChecksJSON = `{
   "metadata": {"name": "support-bot"},
