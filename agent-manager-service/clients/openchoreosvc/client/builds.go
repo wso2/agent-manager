@@ -230,7 +230,12 @@ func (c *openChoreoClient) GetBuildByName(ctx context.Context, ouID, buildName s
 func (c *openChoreoClient) getWorkflowRun(ctx context.Context, ouID, buildName string) (*gen.WorkflowRun, error) {
 	resp, err := c.ocClient.GetWorkflowRunWithResponse(ctx, c.NamespaceFor(ouID), buildName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get build: %w", err)
+		return nil, fmt.Errorf("failed to get workflow run %q: %w", buildName, err)
+	}
+	// A 404 is a missing run whether or not OpenChoreo sent an error body;
+	// handleErrorResponse recognizes it only when it did.
+	if resp.StatusCode() == http.StatusNotFound {
+		return nil, fmt.Errorf("%w: workflow run %q", utils.ErrNotFound, buildName)
 	}
 
 	if resp.StatusCode() != http.StatusOK {
@@ -243,7 +248,7 @@ func (c *openChoreoClient) getWorkflowRun(ctx context.Context, ouID, buildName s
 	}
 
 	if resp.JSON200 == nil {
-		return nil, fmt.Errorf("empty response from get build")
+		return nil, fmt.Errorf("empty response from get workflow run %q", buildName)
 	}
 	return resp.JSON200, nil
 }

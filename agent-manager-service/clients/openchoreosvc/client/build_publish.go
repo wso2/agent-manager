@@ -170,25 +170,10 @@ type BuildRunInfo struct {
 // the organization's namespace. A run that does not exist there is
 // utils.ErrNotFound, including a 404 that carries no JSON error body.
 func (c *openChoreoClient) GetBuildRun(ctx context.Context, ouID, runName string) (*BuildRunInfo, error) {
-	resp, err := c.ocClient.GetWorkflowRunWithResponse(ctx, c.NamespaceFor(ouID), runName)
+	run, err := c.getWorkflowRun(ctx, ouID, runName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get workflow run %q: %w", runName, err)
+		return nil, err
 	}
-	if resp.StatusCode() == http.StatusNotFound {
-		return nil, fmt.Errorf("%w: workflow run %q", utils.ErrNotFound, runName)
-	}
-	if resp.StatusCode() != http.StatusOK {
-		return nil, handleErrorResponse(resp.StatusCode(), ErrorResponses{
-			JSON401: resp.JSON401,
-			JSON403: resp.JSON403,
-			JSON404: resp.JSON404,
-			JSON500: resp.JSON500,
-		})
-	}
-	if resp.JSON200 == nil {
-		return nil, fmt.Errorf("empty response from get workflow run %q", runName)
-	}
-	run := resp.JSON200
 	info := &BuildRunInfo{
 		Name:          run.Metadata.Name,
 		ProjectName:   getLabel(run.Metadata.Labels, string(LabelKeyProjectName)),
@@ -333,7 +318,7 @@ func (c *openChoreoClient) PublishBuildWorkload(ctx context.Context, ouID string
 		workload.Spec.Endpoints = &endpoints
 	}
 
-	alreadyRecorded, err := c.runRecordsWorkload(ctx, namespaceName, req.RunName, workload)
+	alreadyRecorded, err := c.runRecordsWorkload(ctx, ouID, req.RunName, workload)
 	if err != nil {
 		return err
 	}
@@ -341,7 +326,7 @@ func (c *openChoreoClient) PublishBuildWorkload(ctx context.Context, ouID string
 		if err := c.createOrReplaceWorkload(ctx, namespaceName, workload); err != nil {
 			return err
 		}
-		if err := c.annotateRunWithWorkload(ctx, namespaceName, req.RunName, workload); err != nil {
+		if err := c.annotateRunWithWorkload(ctx, ouID, req.RunName, workload); err != nil {
 			return err
 		}
 	}
@@ -368,26 +353,15 @@ var ErrBuildWorkloadAlreadyPublished = errors.New("the build has already publish
 // annotation already records exactly this Workload: false when it records
 // none, and ErrBuildWorkloadAlreadyPublished when it records a different one.
 // The two are compared as JSON documents, so field order does not matter.
-func (c *openChoreoClient) runRecordsWorkload(ctx context.Context, namespaceName, runName string, workload gen.Workload) (bool, error) {
-	resp, err := c.ocClient.GetWorkflowRunWithResponse(ctx, namespaceName, runName)
+func (c *openChoreoClient) runRecordsWorkload(ctx context.Context, ouID, runName string, workload gen.Workload) (bool, error) {
+	run, err := c.getWorkflowRun(ctx, ouID, runName)
 	if err != nil {
-		return false, fmt.Errorf("failed to get workflow run %q: %w", runName, err)
+		return false, err
 	}
-	if resp.StatusCode() != http.StatusOK {
-		return false, handleErrorResponse(resp.StatusCode(), ErrorResponses{
-			JSON401: resp.JSON401,
-			JSON403: resp.JSON403,
-			JSON404: resp.JSON404,
-			JSON500: resp.JSON500,
-		})
-	}
-	if resp.JSON200 == nil {
-		return false, fmt.Errorf("empty response from get workflow run %q", runName)
-	}
-	if resp.JSON200.Metadata.Annotations == nil {
+	if run.Metadata.Annotations == nil {
 		return false, nil
 	}
-	recordedJSON := (*resp.JSON200.Metadata.Annotations)[workflowRunWorkloadAnnotationKey]
+	recordedJSON := (*run.Metadata.Annotations)[workflowRunWorkloadAnnotationKey]
 	if recordedJSON == "" {
 		return false, nil
 	}
@@ -457,28 +431,18 @@ func (c *openChoreoClient) createOrReplaceWorkload(ctx context.Context, namespac
 
 // annotateRunWithWorkload is Step 5: set the openchoreo.dev/workload annotation on
 // the WorkflowRun to the compact JSON of the Workload that was written.
-func (c *openChoreoClient) annotateRunWithWorkload(ctx context.Context, namespaceName, runName string, workload gen.Workload) error {
+func (c *openChoreoClient) annotateRunWithWorkload(ctx context.Context, ouID, runName string, workload gen.Workload) error {
 	workloadJSON, err := json.Marshal(workload)
 	if err != nil {
 		return fmt.Errorf("failed to encode workload for workflow run %q: %w", runName, err)
 	}
 
-	getResp, err := c.ocClient.GetWorkflowRunWithResponse(ctx, namespaceName, runName)
+	current, err := c.getWorkflowRun(ctx, ouID, runName)
 	if err != nil {
-		return fmt.Errorf("failed to get workflow run %q: %w", runName, err)
+		return err
 	}
-	if getResp.StatusCode() != http.StatusOK {
-		return handleErrorResponse(getResp.StatusCode(), ErrorResponses{
-			JSON401: getResp.JSON401,
-			JSON403: getResp.JSON403,
-			JSON404: getResp.JSON404,
-			JSON500: getResp.JSON500,
-		})
-	}
-	if getResp.JSON200 == nil {
-		return fmt.Errorf("empty response from get workflow run %q", runName)
-	}
-	run := *getResp.JSON200
+	run := *current
+	namespaceName := c.NamespaceFor(ouID)
 	annotations := map[string]string{}
 	if run.Metadata.Annotations != nil {
 		maps.Copy(annotations, *run.Metadata.Annotations)
