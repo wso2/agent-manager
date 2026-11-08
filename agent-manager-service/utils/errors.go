@@ -135,6 +135,11 @@ var (
 	ErrDeploymentPipelineNotFound      = errors.New("deployment pipeline not found")
 	ErrDeploymentPipelineInUse         = errors.New("deployment pipeline is referenced by one or more projects")
 	ErrDeploymentInProgress            = errors.New("a deployment is already in progress")
+	// ErrPromotionNeedsRedeploy reports that the source environment's release was built before
+	// the agent API key moved to env vars and the target has no key path of its own. Promoting
+	// it would give the target the first environment's key, so the agent has to be deployed
+	// again and promoted through to the source first. Maps to 409.
+	ErrPromotionNeedsRedeploy = errors.New("the agent must be deployed again before this promotion")
 	// ErrBuildInProgress is returned when agent configuration is created/updated
 	// while a build is running. Argo Workflows resolves workflow.parameters once
 	// at WorkflowRun submission, so a config change written to the Component CR

@@ -247,6 +247,11 @@ func CreateMockOpenChoreoClient() *clientmocks.OpenChoreoClientMock {
 		GetComponentConfigurationsFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, environment string) ([]models.EnvVars, error) {
 			return nil, nil
 		},
+		// No agent API key seeded on the Component: an API agent's deploy looks for one when its
+		// environment has none yet.
+		GetComponentBaseEnvVarsFunc: func(ctx context.Context, ouID string, componentName string) ([]client.EnvVar, error) {
+			return []client.EnvVar{}, nil
+		},
 		GetComponentFileMountsFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, environment string) ([]models.FileMountEntry, error) {
 			return nil, nil
 		},

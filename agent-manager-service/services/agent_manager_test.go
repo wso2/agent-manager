@@ -809,6 +809,7 @@ func promoteAgentTestFixture(t *testing.T, tgtIdentityEnvVars []client.EnvVar, t
 		GetEnvironmentFunc:              nonProductionEnvStub(),
 		IsDeploymentInProgressFunc:      func(_ context.Context, _, _, _ string) (bool, error) { return false, nil },
 		EnsureProjectReleaseBindingFunc: func(_ context.Context, _, _, _ string) error { return nil },
+		GetReleaseAgentAPIKeyTraitFunc:  noAgentAPIKeyTrait,
 		PromoteComponentFunc: func(_ context.Context, _, _, _, _, _ string, _ []client.EnvVar, _ []client.FileVar, _, _ map[string]interface{}) error {
 			promoteCalled = true
 			return nil
@@ -2091,6 +2092,10 @@ func deployAPIAgentMocks(existingConfig *models.AgentConfig) (*agentManagerServi
 		},
 		GetComponentConfigurationsFunc: func(context.Context, string, string, string, string) ([]models.EnvVars, error) {
 			return nil, nil
+		},
+		// No agent API key seeded on the Component.
+		GetComponentBaseEnvVarsFunc: func(context.Context, string, string) ([]client.EnvVar, error) {
+			return []client.EnvVar{}, nil
 		},
 		GetEnvironmentFunc: func(_ context.Context, _, name string) (*models.EnvironmentResponse, error) {
 			return &models.EnvironmentResponse{Name: name, UUID: uuid.NewString()}, nil

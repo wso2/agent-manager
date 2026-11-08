@@ -130,6 +130,12 @@ type OpenChoreoClient interface {
 	// GetReleaseBindingTraits names the traits on the release bound in the environment; bound is false when the
 	// environment has no binding.
 	GetReleaseBindingTraits(ctx context.Context, ouID, componentName, environment string) (traits []TraitType, bound bool, err error)
+	// GetReleaseAgentAPIKeyTrait reads how the env-injection trait frozen into the release bound in the
+	// environment delivers the agent API key.
+	GetReleaseAgentAPIKeyTrait(ctx context.Context, ouID, componentName, environment string) (ReleaseAgentAPIKeyTrait, error)
+	// GetReleaseBindingAgentAPIKeySecretRef returns the env-injection trait's per-environment
+	// agentApiKeySecretRef on the release binding in the environment, or "" when there is none.
+	GetReleaseBindingAgentAPIKeySecretRef(ctx context.Context, ouID, componentName, environment string) (string, error)
 	GetComponentConfigurations(ctx context.Context, ouID, projectName, componentName, environment string) ([]models.EnvVars, error)
 	GetComponentFileMounts(ctx context.Context, ouID, projectName, componentName, environment string) ([]models.FileMountEntry, error)
 

@@ -144,6 +144,12 @@ import (
 //			GetProjectDeploymentPipelineFunc: func(ctx context.Context, ouID string, projectName string) (*models.DeploymentPipelineResponse, error) {
 //				panic("mock out the GetProjectDeploymentPipeline method")
 //			},
+//			GetReleaseAgentAPIKeyTraitFunc: func(ctx context.Context, ouID string, componentName string, environment string) (client.ReleaseAgentAPIKeyTrait, error) {
+//				panic("mock out the GetReleaseAgentAPIKeyTrait method")
+//			},
+//			GetReleaseBindingAgentAPIKeySecretRefFunc: func(ctx context.Context, ouID string, componentName string, environment string) (string, error) {
+//				panic("mock out the GetReleaseBindingAgentAPIKeySecretRef method")
+//			},
 //			GetReleaseBindingEndpointServiceURLFunc: func(ctx context.Context, ouID string, projectName string, componentName string, endpointName string, environment string, releaseBindingName string) (string, error) {
 //				panic("mock out the GetReleaseBindingEndpointServiceURL method")
 //			},
@@ -420,6 +426,12 @@ type OpenChoreoClientMock struct {
 
 	// GetProjectDeploymentPipelineFunc mocks the GetProjectDeploymentPipeline method.
 	GetProjectDeploymentPipelineFunc func(ctx context.Context, ouID string, projectName string) (*models.DeploymentPipelineResponse, error)
+
+	// GetReleaseAgentAPIKeyTraitFunc mocks the GetReleaseAgentAPIKeyTrait method.
+	GetReleaseAgentAPIKeyTraitFunc func(ctx context.Context, ouID string, componentName string, environment string) (client.ReleaseAgentAPIKeyTrait, error)
+
+	// GetReleaseBindingAgentAPIKeySecretRefFunc mocks the GetReleaseBindingAgentAPIKeySecretRef method.
+	GetReleaseBindingAgentAPIKeySecretRefFunc func(ctx context.Context, ouID string, componentName string, environment string) (string, error)
 
 	// GetReleaseBindingEndpointServiceURLFunc mocks the GetReleaseBindingEndpointServiceURL method.
 	GetReleaseBindingEndpointServiceURLFunc func(ctx context.Context, ouID string, projectName string, componentName string, endpointName string, environment string, releaseBindingName string) (string, error)
@@ -1016,6 +1028,28 @@ type OpenChoreoClientMock struct {
 			OuID string
 			// ProjectName is the projectName argument value.
 			ProjectName string
+		}
+		// GetReleaseAgentAPIKeyTrait holds details about calls to the GetReleaseAgentAPIKeyTrait method.
+		GetReleaseAgentAPIKeyTrait []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// OuID is the ouID argument value.
+			OuID string
+			// ComponentName is the componentName argument value.
+			ComponentName string
+			// Environment is the environment argument value.
+			Environment string
+		}
+		// GetReleaseBindingAgentAPIKeySecretRef holds details about calls to the GetReleaseBindingAgentAPIKeySecretRef method.
+		GetReleaseBindingAgentAPIKeySecretRef []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// OuID is the ouID argument value.
+			OuID string
+			// ComponentName is the componentName argument value.
+			ComponentName string
+			// Environment is the environment argument value.
+			Environment string
 		}
 		// GetReleaseBindingEndpointServiceURL holds details about calls to the GetReleaseBindingEndpointServiceURL method.
 		GetReleaseBindingEndpointServiceURL []struct {
@@ -1626,6 +1660,8 @@ type OpenChoreoClientMock struct {
 	lockGetOrganization                        sync.RWMutex
 	lockGetProject                             sync.RWMutex
 	lockGetProjectDeploymentPipeline           sync.RWMutex
+	lockGetReleaseAgentAPIKeyTrait             sync.RWMutex
+	lockGetReleaseBindingAgentAPIKeySecretRef  sync.RWMutex
 	lockGetReleaseBindingEndpointServiceURL    sync.RWMutex
 	lockGetReleaseBindingRollout               sync.RWMutex
 	lockGetReleaseBindingServiceURL            sync.RWMutex
@@ -3497,6 +3533,94 @@ func (mock *OpenChoreoClientMock) GetProjectDeploymentPipelineCalls() []struct {
 	mock.lockGetProjectDeploymentPipeline.RLock()
 	calls = mock.calls.GetProjectDeploymentPipeline
 	mock.lockGetProjectDeploymentPipeline.RUnlock()
+	return calls
+}
+
+// GetReleaseAgentAPIKeyTrait calls GetReleaseAgentAPIKeyTraitFunc.
+func (mock *OpenChoreoClientMock) GetReleaseAgentAPIKeyTrait(ctx context.Context, ouID string, componentName string, environment string) (client.ReleaseAgentAPIKeyTrait, error) {
+	if mock.GetReleaseAgentAPIKeyTraitFunc == nil {
+		panic("OpenChoreoClientMock.GetReleaseAgentAPIKeyTraitFunc: method is nil but OpenChoreoClient.GetReleaseAgentAPIKeyTrait was just called")
+	}
+	callInfo := struct {
+		Ctx           context.Context
+		OuID          string
+		ComponentName string
+		Environment   string
+	}{
+		Ctx:           ctx,
+		OuID:          ouID,
+		ComponentName: componentName,
+		Environment:   environment,
+	}
+	mock.lockGetReleaseAgentAPIKeyTrait.Lock()
+	mock.calls.GetReleaseAgentAPIKeyTrait = append(mock.calls.GetReleaseAgentAPIKeyTrait, callInfo)
+	mock.lockGetReleaseAgentAPIKeyTrait.Unlock()
+	return mock.GetReleaseAgentAPIKeyTraitFunc(ctx, ouID, componentName, environment)
+}
+
+// GetReleaseAgentAPIKeyTraitCalls gets all the calls that were made to GetReleaseAgentAPIKeyTrait.
+// Check the length with:
+//
+//	len(mockedOpenChoreoClient.GetReleaseAgentAPIKeyTraitCalls())
+func (mock *OpenChoreoClientMock) GetReleaseAgentAPIKeyTraitCalls() []struct {
+	Ctx           context.Context
+	OuID          string
+	ComponentName string
+	Environment   string
+} {
+	var calls []struct {
+		Ctx           context.Context
+		OuID          string
+		ComponentName string
+		Environment   string
+	}
+	mock.lockGetReleaseAgentAPIKeyTrait.RLock()
+	calls = mock.calls.GetReleaseAgentAPIKeyTrait
+	mock.lockGetReleaseAgentAPIKeyTrait.RUnlock()
+	return calls
+}
+
+// GetReleaseBindingAgentAPIKeySecretRef calls GetReleaseBindingAgentAPIKeySecretRefFunc.
+func (mock *OpenChoreoClientMock) GetReleaseBindingAgentAPIKeySecretRef(ctx context.Context, ouID string, componentName string, environment string) (string, error) {
+	if mock.GetReleaseBindingAgentAPIKeySecretRefFunc == nil {
+		panic("OpenChoreoClientMock.GetReleaseBindingAgentAPIKeySecretRefFunc: method is nil but OpenChoreoClient.GetReleaseBindingAgentAPIKeySecretRef was just called")
+	}
+	callInfo := struct {
+		Ctx           context.Context
+		OuID          string
+		ComponentName string
+		Environment   string
+	}{
+		Ctx:           ctx,
+		OuID:          ouID,
+		ComponentName: componentName,
+		Environment:   environment,
+	}
+	mock.lockGetReleaseBindingAgentAPIKeySecretRef.Lock()
+	mock.calls.GetReleaseBindingAgentAPIKeySecretRef = append(mock.calls.GetReleaseBindingAgentAPIKeySecretRef, callInfo)
+	mock.lockGetReleaseBindingAgentAPIKeySecretRef.Unlock()
+	return mock.GetReleaseBindingAgentAPIKeySecretRefFunc(ctx, ouID, componentName, environment)
+}
+
+// GetReleaseBindingAgentAPIKeySecretRefCalls gets all the calls that were made to GetReleaseBindingAgentAPIKeySecretRef.
+// Check the length with:
+//
+//	len(mockedOpenChoreoClient.GetReleaseBindingAgentAPIKeySecretRefCalls())
+func (mock *OpenChoreoClientMock) GetReleaseBindingAgentAPIKeySecretRefCalls() []struct {
+	Ctx           context.Context
+	OuID          string
+	ComponentName string
+	Environment   string
+} {
+	var calls []struct {
+		Ctx           context.Context
+		OuID          string
+		ComponentName string
+		Environment   string
+	}
+	mock.lockGetReleaseBindingAgentAPIKeySecretRef.RLock()
+	calls = mock.calls.GetReleaseBindingAgentAPIKeySecretRef
+	mock.lockGetReleaseBindingAgentAPIKeySecretRef.RUnlock()
 	return calls
 }
 

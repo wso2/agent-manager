@@ -18,6 +18,8 @@ package services
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -52,6 +54,8 @@ func ctxWithOrg(ouID string) context.Context {
 	return jwtassertion.ContextWithTokenClaims(context.Background(), &jwtassertion.TokenClaims{OuId: ouID})
 }
 
+// regenerateOCClient returns an OpenChoreo client mock that answers the lookups a regeneration
+// makes; tests override the force-sync calls they exercise.
 func regenerateOCClient() *clientmocks.OpenChoreoClientMock {
 	return &clientmocks.OpenChoreoClientMock{
 		GetOrganizationFunc: func(_ context.Context, name string) (*models.OrganizationResponse, error) {
@@ -63,13 +67,16 @@ func regenerateOCClient() *clientmocks.OpenChoreoClientMock {
 		GetEnvironmentFunc: func(_ context.Context, _, name string) (*models.EnvironmentResponse, error) {
 			return &models.EnvironmentResponse{Name: name}, nil
 		},
-		GetSecretReferenceFunc: func(_ context.Context, _, secretRefName string) (*client.SecretReferenceInfo, error) {
-			return &client.SecretReferenceInfo{
-				Name: secretRefName,
-				Data: []client.SecretDataSourceInfo{
-					{SecretKey: secretmanagersvc.SecretKeyAPIKey, RemoteRef: client.RemoteRefInfo{Key: "kv/path"}},
-				},
+		// The environment receives the agent API key by env var, so the regenerate tries to
+		// force-sync it.
+		GetComponentConfigurationsFunc: func(context.Context, string, string, string, string) ([]models.EnvVars, error) {
+			return []models.EnvVars{
+				{Key: client.EnvVarAgentAPIKey, IsSensitive: true, SecretRef: "secret-ref", SecretKey: secretmanagersvc.SecretKeyAPIKey},
 			}, nil
+		},
+		// Without the field the regenerate skips the force-sync; tests of it override this.
+		ComponentTypeDeclaresEnvironmentConfigFunc: func(context.Context, string, string, string) (bool, error) {
+			return false, nil
 		},
 	}
 }
@@ -129,4 +136,120 @@ func TestRegenerateAgentTracingToken_AgentNotFound(t *testing.T) {
 
 	require.ErrorIs(t, err, utils.ErrAgentNotFound)
 	assert.Empty(t, tokenMgr.gotRequests, "no token must be minted when the agent does not exist")
+}
+
+// regenerateService returns a service whose tracing-token regeneration mints and stores a key
+// for agent "agent" through ocClient.
+func regenerateService(ocClient *clientmocks.OpenChoreoClientMock) (*agentManagerService, *clientmocks.SecretManagementClientMock) {
+	secretMgmt := &clientmocks.SecretManagementClientMock{
+		CreateSecretFunc: func(context.Context, secretmanagersvc.SecretLocation, map[string]string) (string, error) {
+			return "secret-ref", nil
+		},
+	}
+	tokenMgr := &stubTokenManager{generateFunc: func(context.Context, GenerateTokenRequest) (*spec.TokenResponse, error) {
+		return &spec.TokenResponse{Token: "signed-jwt"}, nil
+	}}
+	return &agentManagerService{ocClient: ocClient, secretMgmtClient: secretMgmt, tokenManagerService: tokenMgr, logger: discardLogger()}, secretMgmt
+}
+
+func TestRegenerateAgentTracingToken_ForcesSecretSync(t *testing.T) {
+	// The key is stored where the old one was, so the ExternalSecret keeps the old value until it
+	// is made to re-sync, and a restart before then would start the agent with the old key.
+	ocClient := regenerateOCClient()
+	ocClient.ComponentTypeDeclaresEnvironmentConfigFunc = func(_ context.Context, _, agentName, field string) (bool, error) {
+		assert.Equal(t, "agent", agentName)
+		assert.Equal(t, client.SecretSyncRevisionField, field)
+		return true, nil
+	}
+	ocClient.SetReleaseBindingSecretSyncRevisionFunc = func(_ context.Context, _, agentName, envName, revision string) error {
+		assert.Equal(t, "agent", agentName)
+		assert.Equal(t, "dev", envName)
+		assert.NotEmpty(t, revision)
+		return nil
+	}
+	ocClient.IsSecretSyncRevisionAppliedFunc = func(context.Context, string, string, string, string) (bool, error) {
+		return true, nil
+	}
+	s, secretMgmt := regenerateService(ocClient)
+
+	_, err := s.RegenerateAgentTracingToken(ctxWithOrg("acme"), "acme", "proj", "agent", "dev", "")
+
+	require.NoError(t, err)
+	assert.Len(t, secretMgmt.CreateSecretCalls(), 1)
+	setCalls := ocClient.SetReleaseBindingSecretSyncRevisionCalls()
+	require.Len(t, setCalls, 1)
+	appliedCalls := ocClient.IsSecretSyncRevisionAppliedCalls()
+	require.Len(t, appliedCalls, 1)
+	assert.Equal(t, setCalls[0].Revision, appliedCalls[0].Revision, "the wait must be for the revision just written")
+}
+
+func TestRegenerateAgentTracingToken_FieldNotDeclared_SkipsForceSync(t *testing.T) {
+	// regenerateOCClient reports the field as not declared, and SetReleaseBindingSecretSyncRevision
+	// is left unset so writing the revision anyway would panic.
+	ocClient := regenerateOCClient()
+	s, secretMgmt := regenerateService(ocClient)
+
+	_, err := s.RegenerateAgentTracingToken(ctxWithOrg("acme"), "acme", "proj", "agent", "dev", "")
+
+	require.NoError(t, err)
+	assert.Len(t, secretMgmt.CreateSecretCalls(), 1)
+	assert.Len(t, ocClient.ComponentTypeDeclaresEnvironmentConfigCalls(), 1)
+}
+
+func TestRegenerateAgentTracingToken_KeyNotDeliveredByEnvVar_SkipsForceSync(t *testing.T) {
+	// An agent created before the key moved to the env var reads it through the env-injection
+	// trait's ExternalSecret, which never carries the force-sync revision.
+	ocClient := regenerateOCClient()
+	ocClient.GetComponentConfigurationsFunc = func(context.Context, string, string, string, string) ([]models.EnvVars, error) {
+		return []models.EnvVars{
+			{Key: client.EnvVarAgentAPIKey, IsSensitive: true, SecretRef: "my-agent-dev-secrets", SecretKey: client.EnvVarAgentAPIKey},
+		}, nil
+	}
+	s, secretMgmt := regenerateService(ocClient)
+
+	_, err := s.RegenerateAgentTracingToken(ctxWithOrg("acme"), "acme", "proj", "agent", "dev", "")
+
+	require.NoError(t, err)
+	assert.Len(t, secretMgmt.CreateSecretCalls(), 1)
+	assert.Empty(t, ocClient.ComponentTypeDeclaresEnvironmentConfigCalls())
+}
+
+func TestRegenerateAgentTracingToken_ForceSyncFails_StillSucceeds(t *testing.T) {
+	// The key is already stored; it reaches the agent at the ExternalSecret's next refresh.
+	tests := map[string]error{
+		"write fails":        errors.New("openchoreo unavailable"),
+		"no release binding": fmt.Errorf("no release binding found: %w", utils.ErrNotFound),
+	}
+	for name, setErr := range tests {
+		t.Run(name, func(t *testing.T) {
+			ocClient := regenerateOCClient()
+			ocClient.ComponentTypeDeclaresEnvironmentConfigFunc = func(context.Context, string, string, string) (bool, error) {
+				return true, nil
+			}
+			ocClient.SetReleaseBindingSecretSyncRevisionFunc = func(context.Context, string, string, string, string) error {
+				return setErr
+			}
+			s, secretMgmt := regenerateService(ocClient)
+
+			result, err := s.RegenerateAgentTracingToken(ctxWithOrg("acme"), "acme", "proj", "agent", "dev", "")
+
+			require.NoError(t, err)
+			assert.Equal(t, "dev", result.EnvironmentName)
+			assert.Len(t, secretMgmt.CreateSecretCalls(), 1)
+			assert.Len(t, ocClient.SetReleaseBindingSecretSyncRevisionCalls(), 1, "a permanent failure is not retried")
+		})
+	}
+}
+
+func TestRegenerateAgentTracingToken_ComponentTypeUnreadable_StillSucceeds(t *testing.T) {
+	ocClient := regenerateOCClient()
+	ocClient.ComponentTypeDeclaresEnvironmentConfigFunc = func(context.Context, string, string, string) (bool, error) {
+		return false, errors.New("component type not readable")
+	}
+	s, secretMgmt := regenerateService(ocClient)
+
+	_, err := s.RegenerateAgentTracingToken(ctxWithOrg("acme"), "acme", "proj", "agent", "dev", "")
+
+	require.NoError(t, err)
+	assert.Len(t, secretMgmt.CreateSecretCalls(), 1)
 }

@@ -110,6 +110,8 @@ func writeSubscriptionSuspended(w http.ResponseWriter) {
 		"The Agent Manager subscription is suspended", "Renew the subscription to resume", "SUBSCRIPTION_SUSPENDED")
 }
 
+// handleCommonErrors writes the HTTP error response for the sentinel errors the agent services
+// return, and a 500 with fallbackMsg for anything else.
 func handleCommonErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 	switch {
 	case errors.Is(err, utils.ErrWorkloadSecretSyncUnconfirmed):
@@ -248,6 +250,12 @@ func handleCommonErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 	case errors.Is(err, utils.ErrComponentNotReconcilable):
 		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
 			"Agent cannot be deployed in its current state", err.Error(), utils.ErrCodeConflict)
+	case errors.Is(err, utils.ErrPromotionNeedsRedeploy):
+		// The console's promote drawer shows only the message, so it carries the steps too.
+		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
+			"Agent must be deployed again before this promotion: deploy the agent again, promote it up to "+
+				"the source environment if that is not the first environment, then retry this promotion",
+			err.Error(), utils.ErrCodeConflict)
 	case errors.Is(err, utils.ErrEnvironmentHasNoGateway):
 		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
 			"Environment has no ingress gateway", err.Error(), utils.ErrCodeEnvironmentHasNoGateway)
