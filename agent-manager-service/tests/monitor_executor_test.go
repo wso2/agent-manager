@@ -316,7 +316,7 @@ func TestExecuteMonitorRun_DBRecordCreated(t *testing.T) {
 }
 
 // TestExecuteMonitorRun_LLMCredentials verifies that when a MonitorLLMMapping and a Gateway
-// are seeded for a monitor, the workflow request includes the correct llmProxySecretPath
+// are seeded for a monitor, the workflow request includes the correct llmProxySecretRefName
 // and llmApiBase derived from those records.
 func TestExecuteMonitorRun_LLMCredentials(t *testing.T) {
 	monitor := seedMonitor(t)
@@ -355,15 +355,14 @@ func TestExecuteMonitorRun_LLMCredentials(t *testing.T) {
 	}))
 	proxy := &models.LLMProxy{UUID: proxyUUID}
 
-	// Seed the MonitorLLMMapping with the resolved SecretReference remoteRef fields,
-	// as they would be written by monitor_manager after CreateSecret + GetSecretReference.
-	expectedSecretPath := "secret/data/" + monitor.OUID + "/monitor-" + monitor.ID.String()
-	expectedSecretKey := "LLM_API_KEY"
+	// Seed the MonitorLLMMapping as a row written before the SecretReference name was
+	// persisted: it holds the SecretReference's remoteRef key and property. The executor
+	// maps it to the SecretReference name, the last segment of that key.
 	mapping := &models.MonitorLLMMapping{
 		MonitorID:    monitor.ID,
 		LLMProxyUUID: proxyUUID,
-		SecretKVPath: expectedSecretPath,
-		SecretKey:    expectedSecretKey,
+		SecretKVPath: "secret/default/generic/monitor-" + monitor.ID.String() + "-secrets",
+		SecretKey:    "LLM_API_KEY",
 	}
 	require.NoError(t, gdb.Create(mapping).Error)
 
@@ -419,8 +418,10 @@ func TestExecuteMonitorRun_LLMCredentials(t *testing.T) {
 
 	evalParams := capturedReq.Parameters["evaluation"].(map[string]interface{})
 
-	// Secret path comes from the persisted SecretReference remoteRef (not a computed KV path).
-	assert.Equal(t, expectedSecretPath, evalParams["llmProxySecretPath"], "llmProxySecretPath should be the SecretReference remoteRef key")
+	// The workflow gets the SecretReference name and resolves it through OpenChoreo.
+	assert.Equal(t, "monitor-"+monitor.ID.String()+"-secrets", evalParams["llmProxySecretRefName"],
+		"llmProxySecretRefName should be the monitor's SecretReference name")
+	assert.NotContains(t, evalParams, "llmProxySecretPath", "the remote store path is never sent")
 
 	// The evaluation job runs in-cluster, so it gets the gateway's runtime address, not the
 	// public vhost — its NetworkPolicy only allows egress to the gateway namespace on 22893.
@@ -467,7 +468,7 @@ func TestExecuteMonitorRun_PerOrgPublisherCredentials(t *testing.T) {
 		OUID:         monitor.OUID,
 		OrgUUID:      "test-ou-uuid",
 		ClientID:     "amp-publisher-test-org",
-		SecretKVPath: "secret/data/test-org/amp-publisher-test-org",
+		SecretKVPath: "secret/default/generic/amp-publisher-test-org-secrets",
 		SecretKey:    "client-secret",
 	}
 	require.NoError(t, gdb.Create(cred).Error)
@@ -505,8 +506,9 @@ func TestExecuteMonitorRun_PerOrgPublisherCredentials(t *testing.T) {
 
 	pubParams := capturedReq.Parameters["publishing"].(map[string]interface{})
 	assert.Equal(t, "amp-publisher-test-org", pubParams["clientId"])
-	assert.Equal(t, "secret/data/test-org/amp-publisher-test-org", pubParams["secretKVPath"])
-	assert.Equal(t, "client-secret", pubParams["secretKey"])
+	// The seeded row holds a legacy store path, whose last segment is the SecretReference name.
+	assert.Equal(t, "amp-publisher-test-org-secrets", pubParams["secretRefName"])
+	assert.NotContains(t, pubParams, "secretKVPath", "the remote store path is never sent")
 }
 
 // TestExecuteMonitorRun_FallbackPublisherCredentials verifies that when no per-org
