@@ -68,6 +68,16 @@ from amp_evaluation.dataset.models import Task
 # ============================================================================
 
 
+def _format_success_criteria(task: Optional[Task], default: str = "") -> str:
+    """Format Task.success_criteria (str or List[str]) for LLM judge prompts."""
+    if not task or not task.success_criteria:
+        return default
+    criteria = task.success_criteria
+    if isinstance(criteria, list):
+        return "\n".join(f"- {c}" for c in criteria)
+    return criteria
+
+
 class HelpfulnessEvaluator(LLMAsJudgeEvaluator):
     """Scores whether the response actually helps the user with what they asked for."""
 
@@ -79,7 +89,8 @@ class HelpfulnessEvaluator(LLMAsJudgeEvaluator):
     tags = ["llm-judge", "quality"]
 
     def build_prompt(self, trace: Trace, task: Optional[Task] = None) -> str:
-        criteria = f"\n\nAdditional success criteria: {task.success_criteria}" if task and task.success_criteria else ""
+        formatted_criteria = _format_success_criteria(task)
+        criteria = f"\n\nAdditional success criteria: {formatted_criteria}" if formatted_criteria else ""
 
         return f"""You are an expert evaluator. Your sole criterion is HELPFULNESS: does the response actually help the user with what they asked for?
 
@@ -173,7 +184,8 @@ class CompletenessEvaluator(LLMAsJudgeEvaluator):
     tags = ["llm-judge", "quality"]
 
     def build_prompt(self, trace: Trace, task: Optional[Task] = None) -> str:
-        coverage = f"\n\nExpected coverage: {task.success_criteria}" if task and task.success_criteria else ""
+        formatted_coverage = _format_success_criteria(task)
+        coverage = f"\n\nExpected coverage: {formatted_coverage}" if formatted_coverage else ""
 
         return f"""You are an expert evaluator. Your sole criterion is COMPLETENESS: does the response address every part of the user's query without leaving gaps?
 
@@ -758,7 +770,7 @@ Agent Instructions:
 
 What is expected from the agent:
   Task description: {task.description if task and task.description else "(not available)"}
-  Success criteria: {(chr(10).join("- " + c for c in task.success_criteria) if isinstance(task.success_criteria, list) else str(task.success_criteria)) if task and task.success_criteria else "(not available)"}
+  Success criteria: {self._format_success_criteria(task)}
 
 Agent Response: {agent_trace.output}
 
@@ -781,9 +793,4 @@ Scoring Rubric:
   1.0  = Every instruction and constraint is fully respected"""
 
     def _format_success_criteria(self, task: Optional[Task]) -> str:
-        if not task or not task.success_criteria:
-            return "(not available)"
-        criteria = task.success_criteria
-        if isinstance(criteria, list):
-            return "\n".join(f"- {c}" for c in criteria)
-        return str(criteria)
+        return _format_success_criteria(task, default="(not available)")
