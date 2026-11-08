@@ -1505,3 +1505,65 @@ func TestProviderRequestCarriesTheAgentCreator(t *testing.T) {
 		require.NotContains(t, buf.String(), "repair-caller")
 	})
 }
+
+// In CP_MANAGED mode an AgentID attempt takes 10 to 18 seconds, even when it succeeds, so agent
+// creation must not hold the request for it: it only made the create request run past the route's
+// limit. The attempt still runs, and its outcome is recorded.
+func TestProvisionForAgentNeverHoldsTheCreateRequestInCPManagedMode(t *testing.T) {
+	release := make(chan struct{})
+	claimed := make(chan struct{}, 4)
+	var upserted []models.AgentThunderClient
+	repo := provisionRepo(&upserted)
+	repo.ClaimForAttemptFunc = func(context.Context, uuid.UUID) (bool, error) {
+		claimed <- struct{}{}
+		<-release // a slow attempt: it stays in flight until the test lets it go
+		return false, nil
+	}
+	svc := newPromotionService(t, repo, &clientmocks.SecretManagementClientMock{}, (&fakeTargetPlatform{}).provider(t),
+		projectPipelineReaderFunc(func(context.Context, string, string) (string, []ProjectIdentityEnvironment, error) {
+			return "development", linearTopology(), nil
+		}))
+	svc.(*agentThunderProvisioningService).awaitTimeout = 30 * time.Second // a wait would show
+
+	start := time.Now()
+	svc.ProvisionForAgent(context.Background(), "org-a", "project-a", "agent-a", models.AgentProvisioningTypeInternal,
+		[]string{"development"}, "user-1", "development")
+	assert.Less(t, time.Since(start), 2*time.Second, "the create request is not held for the AgentID")
+	require.Len(t, upserted, 3, "a binding for every environment of the pipeline is written first")
+
+	select {
+	case <-claimed:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the attempt must still start, in the background")
+	}
+	close(release)
+}
+
+// LEGACY_DIRECT keeps the wait: an attempt through an environment's own Thunder is fast, so the
+// credentials go into the agent's first ReleaseBinding write.
+func TestProvisionForAgentStillWaitsInLegacyDirectMode(t *testing.T) {
+	release := make(chan struct{})
+	started := make(chan struct{}, 4)
+	repo := &repomocks.AgentThunderClientRepositoryMock{
+		ClaimForAttemptFunc: func(context.Context, uuid.UUID) (bool, error) { return true, nil },
+		UpsertFunc:          func(context.Context, *models.AgentThunderClient) error { return nil },
+		UpdateAfterAttemptFunc: func(context.Context, uuid.UUID, repositories.AgentThunderAttemptUpdate) error {
+			return nil
+		},
+	}
+	resolver := &clientmocks.EnvThunderResolverMock{
+		ResolveFunc: func(context.Context, string, string, string) (thundersvc.ThunderClient, error) {
+			started <- struct{}{}
+			<-release
+			return nil, errors.New("unused in this test")
+		},
+	}
+	svc := newTestProvisioningService(repo, resolver, &clientmocks.SecretManagementClientMock{})
+	svc.(*agentThunderProvisioningService).awaitTimeout = 200 * time.Millisecond
+
+	start := time.Now()
+	svc.ProvisionForAgent(context.Background(), "acme", "proj1", "my-agent", models.AgentProvisioningTypeInternal, []string{"dev"}, "", "dev")
+	assert.GreaterOrEqual(t, time.Since(start), 150*time.Millisecond, "the awaited environment is still waited for")
+	<-started
+	close(release)
+}
