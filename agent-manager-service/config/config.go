@@ -632,10 +632,13 @@ type InternalServerConfig struct {
 // secret and needs no OpenChoreo credential of its own.
 //
 // Off by default: the build workflows and their workload step must declare the
-// ampBuild parameter before it is enabled, or the parameter is not attached and
-// the build keeps its previous path. The identity provider must support the
-// organization token endpoint, and KEY_MANAGER_AUDIENCE must admit IDP_CLIENT_ID,
-// the audience of the tokens it issues.
+// ampBuild parameter before it is enabled. A namespaced Workflow that does not
+// declare it is not given the parameter, and its build keeps its previous path. A
+// ClusterWorkflow is not read: listing it in Workflows is taken to mean it
+// declares ampBuild (and ampBuild.secretStore when SecretStore is set), so list
+// only ClusterWorkflows that are installed that way. The identity provider must
+// support the organization token endpoint, and KEY_MANAGER_AUDIENCE must admit
+// IDP_CLIENT_ID, the audience of the tokens it issues.
 type BuildClientConfig struct {
 	// Enabled turns on build tokens and the build publisher endpoint
 	// (AMP_BUILD_CLIENT_ENABLED). Requires IDP_TOKEN_URL (ending in /oauth2/token),
@@ -643,7 +646,8 @@ type BuildClientConfig struct {
 	Enabled bool
 	// Workflows names the build workflows (Workflow or ClusterWorkflow names)
 	// whose runs receive a build token (AMP_BUILD_CLIENT_WORKFLOWS). Only list
-	// workflows that wire parameters.ampBuild through to their workload step.
+	// workflows that wire parameters.ampBuild through to their workload step. A
+	// listed ClusterWorkflow is given the token without its schema being read.
 	Workflows []string
 	// SecretStore names the ClusterSecretStore a build run reads its token through
 	// (AMP_BUILD_CLIENT_SECRET_STORE), passed as parameters.ampBuild.secretStore.
