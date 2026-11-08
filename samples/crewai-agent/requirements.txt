@@ -1,4 +1,4 @@
-crewai==1.15.34
+crewai==1.15.37
 openai==2.54.0
 fastapi==0.162.0
 uvicorn==0.54.0
