@@ -105,7 +105,7 @@ func (s *gitCredentialsService) requireGitSecret(ctx context.Context, ouID, secr
 			return nil
 		}
 	}
-	return fmt.Errorf("git secret %q: %w", secretName, utils.ErrNotFound)
+	return fmt.Errorf("%w: %q is not in the namespace's git secrets", utils.ErrGitSecretNotFound, secretName)
 }
 
 // isGitSecretName reports whether name can name a git secret: a name AMS
@@ -133,7 +133,8 @@ func (s *gitCredentialsService) GetGitCredentials(ctx context.Context, ouID, sec
 	// The name becomes a path segment, so only accept names a git secret can
 	// have. This keeps the read inside the namespace's git secrets.
 	if !isGitSecretName(secretRef) {
-		return nil, fmt.Errorf("invalid secretRef %q: not a valid git secret name", secretRef)
+		return nil, utils.NewInvalidInputError("Invalid git secret name",
+			fmt.Sprintf("invalid secretRef %q: not a valid git secret name", secretRef))
 	}
 
 	// Deleting a git secret can leave its value in OpenBao (OpenChoreo's push

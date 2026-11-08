@@ -140,6 +140,17 @@ func (c *repositoryController) ListCommits(w http.ResponseWriter, r *http.Reques
 
 // handleGitProviderError converts git provider errors to HTTP responses
 func handleGitProviderError(w http.ResponseWriter, err error) {
+	// A git secret that was deleted or never existed, or a name no git secret
+	// can have: the user has to pick another secret.
+	if errors.Is(err, utils.ErrGitSecretNotFound) {
+		utils.WriteErrorResponseWithReason(w, http.StatusNotFound,
+			"Git secret not found", err.Error(), utils.ErrCodeGitSecretNotFound)
+		return
+	}
+	if utils.IsValidationError(err) != nil {
+		utils.WriteValidationErrorResponse(w, err)
+		return
+	}
 	if errors.Is(err, utils.ErrGitSecretInvalidType) {
 		utils.WriteErrorResponseWithReason(w, http.StatusBadRequest,
 			"Invalid git secret type", err.Error(), utils.ErrCodeGitSecretInvalidType)

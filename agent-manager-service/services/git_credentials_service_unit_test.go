@@ -194,6 +194,7 @@ func TestGitCredentialsService_GetGitCredentials(t *testing.T) {
 				require.Error(t, err)
 				assert.Nil(t, creds)
 				assert.Contains(t, err.Error(), "invalid secretRef")
+				assert.ErrorIs(t, err, utils.ErrInvalidInput, "the controller answers 400")
 				assert.Empty(t, kv.paths)
 			})
 		}
@@ -220,8 +221,8 @@ func TestGitCredentialsService_GetGitCredentials(t *testing.T) {
 
 		require.Error(t, err)
 		assert.Nil(t, creds)
-		assert.ErrorIs(t, err, utils.ErrNotFound)
-		assert.Contains(t, err.Error(), `git secret "deleted-secret"`)
+		assert.ErrorIs(t, err, utils.ErrGitSecretNotFound, "the controller answers 404")
+		assert.Contains(t, err.Error(), `"deleted-secret"`)
 		assert.Empty(t, kv.paths)
 	})
 
