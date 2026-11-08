@@ -69,7 +69,11 @@ import {
   useParams,
   useSearchParams,
 } from "react-router-dom";
-import { normalizeVersion } from "@agent-management-platform/shared-component";
+import {
+  environmentLabel,
+  normalizeVersion,
+  uniqueEnvironments,
+} from "@agent-management-platform/shared-component";
 import {
   CreatedMetadata,
   PageLayout,
@@ -328,7 +332,7 @@ export function ViewMCPProxy() {
     () =>
       selectedEnvironmentBindings.map(({ binding, env }) => ({
         id: binding.environmentUuid,
-        label: env?.displayName ?? env?.name ?? binding.environmentUuid,
+        label: environmentLabel(env) || binding.environmentUuid,
         status: binding.deploymentStatus,
       })),
     [selectedEnvironmentBindings],
@@ -339,10 +343,12 @@ export function ViewMCPProxy() {
   // from every environment this MCP Server is actually reachable from.
   const selectedEnvironments = useMemo(
     () =>
-      selectedEnvironmentBindings
-        .filter(({ binding }) => binding.deploymentStatus === "Deployed")
-        .map(({ env }) => env)
-        .filter((env): env is Environment => !!env),
+      uniqueEnvironments(
+        selectedEnvironmentBindings
+          .filter(({ binding }) => binding.deploymentStatus === "Deployed")
+          .map(({ env }) => env)
+          .filter((env): env is Environment => !!env),
+      ),
     [selectedEnvironmentBindings],
   );
 

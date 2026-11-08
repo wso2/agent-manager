@@ -38,6 +38,7 @@ import {
 } from "@agent-management-platform/views";
 import { useAuthHooks } from "@agent-management-platform/auth";
 import {
+  environmentLabel,
   useConfirmIfUnsaved,
   useUnsavedChangesGuard,
 } from "@agent-management-platform/shared-component";
@@ -415,7 +416,7 @@ export function CreateScopeDrawer({
                 environments.map((env, index) => (
                   <FormControl fullWidth key={env.id ?? env.name}>
                     <FormLabel sx={{ fontSize: "0.8125rem" }}>
-                      {env.displayName ?? env.name}
+                      {environmentLabel(env)}
                     </FormLabel>
                     <Autocomplete
                       multiple

@@ -51,9 +51,13 @@ const (
 )
 
 // awaitEnvProvisionTimeout caps how long ProvisionForAgent holds its caller
-// (agent creation) waiting for the awaitEnv attempt. A healthy attempt takes
-// well under a second, but each Thunder call may take up to 30s, so a slow
-// Thunder must not hold the create request near the server's write timeout.
+// (agent creation) waiting for the awaitEnv attempt. A healthy attempt through
+// an environment's own Thunder (LEGACY_DIRECT) takes well under a second, but
+// each Thunder call may take up to 30s, so a slow Thunder must not hold the
+// create request near the server's write timeout. In CP_MANAGED mode the
+// attempt creates the AgentID on the control plane, waits for a captured
+// version and applies it, which takes 10 to 18 seconds even when it succeeds,
+// so that mode never waits (see startProvisioningAttempts).
 const awaitEnvProvisionTimeout = 10 * time.Second
 
 // provisionRetryDelay is the flat delay before every retry (no escalation to
@@ -106,7 +110,11 @@ type AgentThunderProvisioningService interface {
 	// environment's attempt before returning (the rest stay in the
 	// background), so its credentials exist in time to go into the agent's
 	// first ReleaseBinding write instead of rolling the pod a second time
-	// later. The wait gives up after awaitEnvProvisionTimeout; the attempt
+	// later. In CP_MANAGED mode awaitEnv is ignored and nothing is awaited:
+	// an attempt goes through the identity control plane and takes longer
+	// than the wait (10 to 18 seconds), so waiting only held the create
+	// request until the route in front of the service cut it off. The
+	// wait gives up after awaitEnvProvisionTimeout; the attempt
 	// itself keeps running and is never cancelled part-way. A failed or late
 	// attempt is left to the reconciler, exactly like a background one.
 	ProvisionForAgent(ctx context.Context, ouID, projectName, agentName string, ownership models.AgentProvisioningType, envNames []string, requestedBy, awaitEnv string)
@@ -669,7 +677,15 @@ func (s *agentThunderProvisioningService) startProvisioningAttempts(
 	ctx context.Context, bindings []models.AgentThunderClient, awaitEnv string,
 ) {
 	detached := context.WithoutCancel(ctx)
-	if awaitEnv != "" {
+	// In CP_MANAGED mode every attempt runs in the background and the caller is never held for
+	// one. The attempt outlasts the wait whether it succeeds or not (it reaches the control plane,
+	// waits for a captured version and applies it), so the wait never delivered its benefit and
+	// cost the create request ten seconds, which on top of the other steps ran past the route's
+	// limit: the request was cancelled, the steps after the wait were skipped (the initial build,
+	// the identity variables, the gateway exposure) and the caller got a timeout. The attempt
+	// writes its outcome to its binding, and once it succeeds reconcileWorkloadInjection puts
+	// the credentials into the live workload at once.
+	if awaitEnv != "" && s.identityManagementMode != thundersvc.IdentityManagementCPManaged {
 		background := make([]models.AgentThunderClient, 0, len(bindings))
 		for _, b := range bindings {
 			if b.EnvironmentName == awaitEnv {
