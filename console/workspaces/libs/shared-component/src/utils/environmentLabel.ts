@@ -44,7 +44,10 @@ export function uniqueEnvironments<T extends LabelledEnvironment>(environments: 
   const seen = new Set<string>();
   const unique: T[] = [];
   for (const environment of environments) {
-    const key = environment.id?.trim() || environment.name?.trim() || '';
+    const id = environment.id?.trim();
+    const name = environment.name?.trim();
+    // Prefixed so an ID and a name that spell the same are not taken for one environment.
+    const key = id ? `id:${id}` : name ? `name:${name}` : '';
     if (key !== '' && seen.has(key)) {
       continue;
     }

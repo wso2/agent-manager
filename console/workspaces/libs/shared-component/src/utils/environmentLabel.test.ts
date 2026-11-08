@@ -49,6 +49,10 @@ describe("uniqueEnvironments", () => {
     expect(uniqueEnvironments([{ name: "a" }, { name: "b" }, { name: "a" }])).toHaveLength(2);
   });
 
+  it("does not mistake an ID for a name that spells the same", () => {
+    expect(uniqueEnvironments([{ id: "stage" }, { name: "stage" }])).toHaveLength(2);
+  });
+
   it("keeps the first of two with the same ID", () => {
     const list = [{ id: "e1", name: "first" }, { id: "e1", name: "second" }];
     expect(uniqueEnvironments(list)).toEqual([{ id: "e1", name: "first" }]);
