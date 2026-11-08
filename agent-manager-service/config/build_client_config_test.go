@@ -173,6 +173,11 @@ func TestOrganizationTokenURL(t *testing.T) {
 }
 
 func TestLoadEnvs_BuildClientDefaults(t *testing.T) {
+	// loadEnvs replaces the package-level config; put it back afterwards so later
+	// tests in this package do not see the minimal one built here.
+	prevConfig, prevWorkload := config, agentWorkloadConfig
+	t.Cleanup(func() { config, agentWorkloadConfig = prevConfig, prevWorkload })
+
 	for k, v := range map[string]string{
 		"OPEN_CHOREO_BASE_URL": "http://localhost/api/v1",
 		"DB_HOST":              "localhost",
