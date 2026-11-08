@@ -166,7 +166,8 @@ func (c *openChoreoClient) workflowParameterProperties(ctx context.Context, name
 		}
 	}
 	if schema == nil {
-		return nil, nil
+		// No schema: the workflow declares no parameters.
+		return map[string]interface{}{}, nil
 	}
 	properties, _ := (*schema)["properties"].(map[string]interface{})
 	return properties, nil
