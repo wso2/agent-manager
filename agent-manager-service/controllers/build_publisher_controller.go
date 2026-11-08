@@ -82,8 +82,7 @@ func (c *buildPublisherController) PublishBuildWorkload(w http.ResponseWriter, r
 		case errors.Is(err, workloadpolicy.ErrSuspended):
 			// Final for the build step: it retries only a missing response or a 5xx.
 			log.Warn("Refused build workload: the organization's subscription is suspended", "buildName", buildName)
-			utils.WriteErrorResponseWithReason(w, http.StatusForbidden,
-				"The Agent Manager subscription is suspended", "Renew the subscription to resume", "SUBSCRIPTION_SUSPENDED")
+			writeSubscriptionSuspended(w)
 		case errors.Is(err, utils.ErrBadRequest):
 			log.Warn("Rejected build workload", "buildName", buildName, "error", err)
 			utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid build workload")

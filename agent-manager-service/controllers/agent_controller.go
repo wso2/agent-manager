@@ -102,6 +102,14 @@ func entitlementDeniedMessage(err error) string {
 	return "Your subscription does not allow this. Upgrade your subscription to continue."
 }
 
+// writeSubscriptionSuspended answers a request refused because the
+// organization's subscription is suspended (workloadpolicy.ErrSuspended). Every
+// controller uses it, so the message and code stay the same everywhere.
+func writeSubscriptionSuspended(w http.ResponseWriter) {
+	utils.WriteErrorResponseWithReason(w, http.StatusForbidden,
+		"The Agent Manager subscription is suspended", "Renew the subscription to resume", "SUBSCRIPTION_SUSPENDED")
+}
+
 func handleCommonErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 	switch {
 	case errors.Is(err, utils.ErrWorkloadSecretSyncUnconfirmed):
@@ -109,7 +117,7 @@ func handleCommonErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 			"Secret values were saved, but the rollout stopped because secret sync could not be confirmed.",
 			"", utils.ErrCodeServiceUnavailable)
 	case errors.Is(err, workloadpolicy.ErrSuspended):
-		utils.WriteErrorResponseWithReason(w, http.StatusForbidden, "The Agent Manager subscription is suspended", "Renew the subscription to resume", "SUBSCRIPTION_SUSPENDED")
+		writeSubscriptionSuspended(w)
 	// A ValidationError raised below the controller (e.g. a stored agent kind
 	// version that can't be written as a label) is still a client-side problem —
 	// report it as a 400 naming the offending value instead of letting it reach

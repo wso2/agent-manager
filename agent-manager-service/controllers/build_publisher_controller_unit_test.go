@@ -145,6 +145,23 @@ func TestBuildPublisherController_SaysWhyABuildIsRefused(t *testing.T) {
 	})
 }
 
+// Both controllers answer a suspension through writeSubscriptionSuspended, so a
+// user sees the same status, message and code wherever the request was refused.
+func TestSubscriptionSuspendedIsAnsweredTheSameEverywhere(t *testing.T) {
+	agentRec := httptest.NewRecorder()
+	handleCommonErrors(agentRec, fmt.Errorf("deploy refused: %w", workloadpolicy.ErrSuspended), "Failed to deploy agent")
+
+	publishRec := httptest.NewRecorder()
+	NewBuildPublisherController(&fakeBuildPublisherService{err: workloadpolicy.ErrSuspended}).PublishBuildWorkload(publishRec,
+		buildPublishRequest(`{"workload":{}}`, "org-1"))
+
+	assert.Equal(t, http.StatusForbidden, agentRec.Code)
+	assert.Equal(t, agentRec.Code, publishRec.Code)
+	assert.JSONEq(t, agentRec.Body.String(), publishRec.Body.String())
+	assert.Contains(t, agentRec.Body.String(), "SUBSCRIPTION_SUSPENDED")
+	assert.Contains(t, agentRec.Body.String(), "The Agent Manager subscription is suspended")
+}
+
 func TestBuildPublisherController_AnswersASuspensionAsFinal(t *testing.T) {
 	rec := httptest.NewRecorder()
 	NewBuildPublisherController(&fakeBuildPublisherService{err: workloadpolicy.ErrSuspended}).PublishBuildWorkload(rec,
