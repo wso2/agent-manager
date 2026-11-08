@@ -45,12 +45,21 @@ type WaitForDeploymentParams struct {
 	DeployedAfter time.Time
 }
 
+// clockSkew covers the gap between the service's clock, which stamps
+// lastDeployed, and the cluster's, which stamps log lines.
+const clockSkew = time.Minute
+
 // WaitForReadiness verifies that the agent's runtime is up and serving in the
-// given environment.
+// given environment. The deployment must already be active (WaitForDeployed).
 //
 // Temporarily hack added to verify that agent is up and running, replace this
 // with readiness probe check once its available.
+//
+// The startup line is searched for from the current deployment on, not from a
+// fixed window: an agent reused from an earlier run started long ago and has
+// logged nothing since.
 func WaitForReadiness(client *framework.AMPClient, orgName, projName, agentName, envName string, timeout time.Duration) {
+	dep := GetDeployment(Default, client, orgName, projName, agentName, envName)
 	agentops.WaitForRuntimeLog(client, &agentops.WaitForRuntimeLogParams{
 		OrgName:     orgName,
 		ProjectName: projName,
@@ -58,7 +67,21 @@ func WaitForReadiness(client *framework.AMPClient, orgName, projName, agentName,
 		Environment: envName,
 		SearchText:  "Uvicorn running on",
 		Timeout:     timeout,
+		Since:       dep.LastDeployed.Add(-clockSkew),
 	})
+}
+
+// GetDeployment returns the agent's deployment in the given environment.
+func GetDeployment(g Gomega, client *framework.AMPClient, orgName, projName, agentName, envName string) framework.DeploymentDetailsResponse {
+	path := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/deployments", orgName, projName, agentName)
+	resp, err := client.Get(path)
+	g.Expect(err).NotTo(HaveOccurred(), "get deployments request failed")
+	defer resp.Body.Close()
+	deployments := framework.ExpectStatusAndDecode[map[string]framework.DeploymentDetailsResponse](g, resp, http.StatusOK)
+	dep, exists := deployments[envName]
+	g.Expect(exists).To(BeTrue(), "environment %q not found in deployments", envName)
+	g.Expect(dep.LastDeployed.IsZero()).To(BeFalse(), "deployment in %q has no lastDeployed time", envName)
+	return dep
 }
 
 // WaitForDeployed polls the deployments API until the agent is "active" in

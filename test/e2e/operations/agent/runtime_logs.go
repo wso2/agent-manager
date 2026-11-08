@@ -37,6 +37,12 @@ type WaitForRuntimeLogParams struct {
 	Environment string
 	SearchText  string        // text to search for in logs
 	Timeout     time.Duration // default: 3 minutes
+
+	// Since, when set, searches every log line from this time on, oldest first,
+	// so a line logged once at startup stays findable however long ago the
+	// agent started and however much it has logged since. When zero, only the
+	// newest lines from the last 10 minutes are searched.
+	Since time.Time
 }
 
 // WaitForRuntimeLog polls the runtime logs API until the specified text appears.
@@ -64,10 +70,14 @@ func WaitForRuntimeLog(client *framework.AMPClient, params *WaitForRuntimeLogPar
 		q.Set("project", params.ProjectName)
 		q.Set("agent", params.AgentName)
 		q.Set("environment", params.Environment)
-		q.Set("startTime", time.Now().Add(-10*time.Minute).UTC().Format(time.RFC3339))
+		startTime, sortOrder := time.Now().Add(-10*time.Minute), "desc"
+		if !params.Since.IsZero() {
+			startTime, sortOrder = params.Since, "asc"
+		}
+		q.Set("startTime", startTime.UTC().Format(time.RFC3339))
 		q.Set("endTime", time.Now().Add(1*time.Minute).UTC().Format(time.RFC3339))
 		q.Set("limit", "100")
-		q.Set("sortOrder", "desc")
+		q.Set("sortOrder", sortOrder)
 
 		logsURL := fmt.Sprintf("%s/api/v1/logs?%s", client.Cfg().ObserverBaseURL, q.Encode())
 
