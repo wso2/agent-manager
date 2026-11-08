@@ -260,6 +260,9 @@ type agentThunderProvisioningService struct {
 	// pipelineReader supplies the project's environment order in CP_MANAGED
 	// mode (see ProjectPipelineReader). Set once at startup.
 	pipelineReader ProjectPipelineReader
+	// projectIDResolver supplies the project's ID in the identity platform in CP_MANAGED mode (see
+	// ProjectIdentityIDResolver). Set once at startup; nil means the project name is the ID.
+	projectIDResolver ProjectIdentityIDResolver
 }
 
 func (s *agentThunderProvisioningService) SetEnvThunderEndpointResolver(resolver thundersvc.EnvThunderEndpointResolver) {
@@ -486,6 +489,7 @@ func DBBackedAgentThunderProvisioning() func(db *gorm.DB, secretMgmtClient secre
 		provisioning.endpointResolver = endpointResolver
 		if ocClient != nil {
 			provisioning.pipelineReader = NewOpenChoreoProjectPipelineReader(ocClient)
+			provisioning.projectIDResolver = NewOpenChoreoProjectIdentityIDResolver(ocClient)
 		}
 		return service
 	}
@@ -846,6 +850,23 @@ func (s *agentThunderProvisioningService) AttemptProvision(ctx context.Context, 
 	// credential. It is passed to Activate below and then discarded.
 	isExternal := binding.ProvisioningType == models.AgentProvisioningTypeExternal
 
+	// The project as the identity platform knows it, read once for every request below. An outage of
+	// OpenChoreo waits for the next tick without using an attempt: the name would put the AgentID in a
+	// project the provider invents.
+	projectID := binding.ProjectName
+	if s.identityManagementMode == thundersvc.IdentityManagementCPManaged {
+		resolved, resolveErr := s.projectIdentityID(ctx, binding.OUID, binding.ProjectName)
+		if resolveErr != nil {
+			s.logger.Warn("Cannot read the project's ID for the AgentID; deferring",
+				"ouID", binding.OUID, "projectName", binding.ProjectName, "agentName", binding.AgentName,
+				"envName", binding.EnvironmentName, "error", resolveErr)
+			s.deferPromotionUntil(ctx, binding, time.Now().Add(reconcilerTickInterval),
+				"Waiting to read the project's ID from OpenChoreo.")
+			return
+		}
+		projectID = resolved
+	}
+
 	thunderAgentID := binding.ThunderAgentID
 	clientID := binding.ThunderClientID
 	var clientSecret string
@@ -909,7 +930,7 @@ func (s *agentThunderProvisioningService) AttemptProvision(ctx context.Context, 
 				return
 			}
 			request := ProjectAgentIdentityPromotionRequest{
-				OrganizationID: binding.OUID, ProjectID: binding.ProjectName, ProjectName: binding.ProjectName,
+				OrganizationID: binding.OUID, ProjectID: projectID, ProjectName: binding.ProjectName,
 				AgentName: binding.AgentName, SourceEnvironment: promotionSource,
 				TargetEnvironment: binding.EnvironmentName, ProvisioningType: binding.ProvisioningType,
 				ExistingAgentID: source.ThunderAgentID, ExistingClientID: source.ThunderClientID,
@@ -1015,7 +1036,7 @@ func (s *agentThunderProvisioningService) AttemptProvision(ctx context.Context, 
 			}
 			requestedBy = creator
 			request := ProjectAgentIdentityRequest{
-				OrganizationID: binding.OUID, ProjectID: binding.ProjectName, ProjectName: binding.ProjectName,
+				OrganizationID: binding.OUID, ProjectID: projectID, ProjectName: binding.ProjectName,
 				Environment: binding.EnvironmentName, AgentName: binding.AgentName,
 				ProvisioningType: binding.ProvisioningType, ExistingAgentID: thunderAgentID,
 				ExistingClientID: clientID, RequestedBy: requestedBy,
@@ -1107,7 +1128,7 @@ func (s *agentThunderProvisioningService) AttemptProvision(ctx context.Context, 
 
 	if s.identityManagementMode == thundersvc.IdentityManagementCPManaged && !promoted {
 		request := ProjectAgentIdentityRequest{
-			OrganizationID: binding.OUID, ProjectID: binding.ProjectName, ProjectName: binding.ProjectName,
+			OrganizationID: binding.OUID, ProjectID: projectID, ProjectName: binding.ProjectName,
 			Environment: binding.EnvironmentName, AgentName: binding.AgentName,
 			ProvisioningType: binding.ProvisioningType, ExistingAgentID: thunderAgentID,
 			ExistingClientID: clientID, ClientSecret: clientSecret, RequestedBy: requestedBy,
@@ -1326,12 +1347,16 @@ func (s *agentThunderProvisioningService) setProjectAgentIdentitySecret(
 	if s.projectIdentitySecretProvider == nil {
 		return "", wrap(errProjectAgentIdentitySecretUnavailable)
 	}
+	projectID, err := s.projectIdentityID(ctx, ouID, projectName)
+	if err != nil {
+		return "", wrap(err)
+	}
 	newSecret, err := thundersvc.GenerateClientSecret()
 	if err != nil {
 		return "", wrap(fmt.Errorf("generate client secret: %w", err))
 	}
 	if err := s.projectIdentitySecretProvider.SetSecret(ctx, ProjectAgentIdentitySecretRequest{
-		OrganizationID: ouID, ProjectID: projectName, ProjectName: projectName,
+		OrganizationID: ouID, ProjectID: projectID, ProjectName: projectName,
 		Environment: envName, AgentName: agentName,
 		AgentID: binding.ThunderAgentID, ClientID: binding.ThunderClientID, ClientSecret: newSecret,
 	}); err != nil {
@@ -1709,8 +1734,14 @@ func (s *agentThunderProvisioningService) DeleteAllBindings(ctx context.Context,
 					}
 					return
 				}
+				// Best effort: deleting a project's agents often follows the project's own removal from
+				// OpenChoreo, and a deletion must not wait for an ID that can no longer be read.
+				deleteProjectID, idErr := s.projectIdentityID(ctx, ouID, projectName)
+				if idErr != nil {
+					deleteProjectID = projectName
+				}
 				if err := s.projectIdentityDeletionProvider.DeleteAgentIdentity(ctx, ProjectAgentIdentityDeleteRequest{
-					OrganizationID: ouID, ProjectID: projectName, ProjectName: projectName,
+					OrganizationID: ouID, ProjectID: deleteProjectID, ProjectName: projectName,
 					Environment: b.EnvironmentName, AgentName: agentName,
 					AgentID: b.ThunderAgentID, ClientID: b.ThunderClientID, Source: isSource,
 				}); err != nil {
