@@ -44,16 +44,21 @@ type DeleteResult struct {
 	Deleted bool   `json:"deleted"`
 }
 
-// CreateLLMProvider runs `amctl llm-provider create` for a config-only provider
-// (no gateway/upstream/api-key — the CLI defers entirely to the template).
-func CreateLLMProvider(g Gomega, h *amctl.Harness, org, id, displayName, template string) LLMProvider {
-	return amctl.DecodeData[LLMProvider](g, h.Run(
+// CreateLLMProvider runs `amctl llm-provider create` with no upstream or API key,
+// so the CLI defers to the template, and deploys the provider to the given
+// gateways (names or UUIDs). With no gateways the provider is config-only.
+func CreateLLMProvider(g Gomega, h *amctl.Harness, org, id, displayName, template string, gateways ...string) LLMProvider {
+	args := []string{
 		"llm-provider", "create", id,
 		"--display-name", displayName,
 		"--template", template,
 		"--org", org,
 		"--json",
-	))
+	}
+	for _, gw := range gateways {
+		args = append(args, "--gateways", gw)
+	}
+	return amctl.DecodeData[LLMProvider](g, h.Run(args...))
 }
 
 // ListLLMProviders runs `amctl llm-provider list` and returns the provider list.
