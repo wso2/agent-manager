@@ -221,6 +221,17 @@ func TestBuildTokenIssuer_RefusesTokensThatAreNotThisOrganizationsBuildToken(t *
 			wantErr: "no valid expiry",
 		},
 		{
+			// TokenClaims decodes exp as a NumericDate, so an expiry of the wrong
+			// type makes the token unreadable rather than silently unlimited.
+			name: "token whose expiry is not a number",
+			token: func(t *testing.T) string {
+				c := btClaims(btOrg, btClientID, time.Hour)
+				c["exp"] = "tomorrow"
+				return btToken(t, c)
+			},
+			wantErr: "not a readable JWT",
+		},
+		{
 			name:    "token that expires too soon for a build",
 			token:   func(t *testing.T) string { return btToken(t, btClaims(btOrg, btClientID, 5*time.Minute)) },
 			wantErr: "less than the 10m0s a build needs",

@@ -34,6 +34,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/clients/requests"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/orgctx"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -283,18 +284,21 @@ func (i *buildTokenIssuer) requestToken(ctx context.Context, tokenURL string) (s
 // naming no organization, which could act for any) is ever handed to a build.
 // The token itself never appears in an error.
 func (i *buildTokenIssuer) checkToken(token, ouID string) error {
-	claims := jwt.MapClaims{}
+	// The claims are read through jwtassertion.TokenClaims, the type
+	// BuildClientOrg reads the same token with, so both sides agree on the claim
+	// names.
+	claims := &jwtassertion.TokenClaims{}
 	if _, _, err := jwt.NewParser().ParseUnverified(token, claims); err != nil {
 		return fmt.Errorf("%w: the identity provider's access token is not a readable JWT", errBuildToken)
 	}
-	if got, _ := claims["ouId"].(string); strings.TrimSpace(got) != ouID {
+	if got := claims.OuId; strings.TrimSpace(got) != ouID {
 		return fmt.Errorf("%w: the token was issued for organization %q, not %q", errBuildToken, got, ouID)
 	}
-	if got, _ := claims["client_id"].(string); strings.TrimSpace(got) != i.clientID {
+	if got := claims.ClientID; strings.TrimSpace(got) != i.clientID {
 		return fmt.Errorf("%w: the token was issued to client %q, not %q", errBuildToken, got, i.clientID)
 	}
-	expiry, err := claims.GetExpirationTime()
-	if err != nil || expiry == nil {
+	expiry := claims.ExpiresAt
+	if expiry == nil {
 		return fmt.Errorf("%w: the token carries no valid expiry", errBuildToken)
 	}
 	if remaining := expiry.Sub(i.now()); remaining < buildTokenMinValidity {
