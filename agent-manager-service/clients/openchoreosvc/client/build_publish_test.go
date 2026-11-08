@@ -479,7 +479,7 @@ func TestBuildHealthChecks(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
 		value   any
-		want    map[string]any
+		want    any
 		wantErr bool
 	}{
 		{name: "unset", value: nil},
@@ -498,6 +498,10 @@ func TestBuildHealthChecks(t *testing.T) {
 			}
 			require.NoError(t, err)
 			assert.Equal(t, tc.want, got)
+			if tc.want == nil {
+				// An untyped nil, so a caller's "!= nil" means the build has checks.
+				assert.True(t, got == nil, "no health checks must be an untyped nil, got %#v", got)
+			}
 		})
 	}
 }

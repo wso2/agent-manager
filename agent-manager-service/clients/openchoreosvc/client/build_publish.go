@@ -195,8 +195,9 @@ func (c *openChoreoClient) GetBuildRun(ctx context.Context, ouID, runName string
 // means the build has none (nil). Anything else must be an object whose
 // startup, readiness and liveness are each unset, null or an object; a value
 // of any other shape is utils.ErrBadRequest. The value is returned unchanged,
-// so the binding gets exactly what the run carries.
-func buildHealthChecks(value any) (map[string]any, error) {
+// so the binding gets exactly what the run carries. It is returned as any, an
+// untyped nil when there are none, because its callers only pass it on.
+func buildHealthChecks(value any) (any, error) {
 	if value == nil {
 		return nil, nil //nolint:nilnil // nil means the build has no health checks
 	}
@@ -386,13 +387,8 @@ func (c *openChoreoClient) runRecordsWorkload(ctx context.Context, ouID, runName
 // setBindingHealthChecks puts the build's health checks on the binding's
 // componentTypeEnvironmentConfigs, or removes any it has when the build has
 // none, leaving the binding's other component-type configs as they are.
-func setBindingHealthChecks(spec *gen.ReleaseBindingSpec, healthChecks map[string]any) {
-	// A nil map must reach the helper as an untyped nil, which means "remove".
-	var value any
-	if healthChecks != nil {
-		value = healthChecks
-	}
-	spec.ComponentTypeEnvironmentConfigs = replaceHealthChecksInComponentTypeConfigs(spec.ComponentTypeEnvironmentConfigs, value)
+func setBindingHealthChecks(spec *gen.ReleaseBindingSpec, healthChecks any) {
+	spec.ComponentTypeEnvironmentConfigs = replaceHealthChecksInComponentTypeConfigs(spec.ComponentTypeEnvironmentConfigs, healthChecks)
 }
 
 // createOrReplaceWorkload is Step 4: POST the Workload, and PUT the same body when
@@ -494,7 +490,7 @@ func (c *openChoreoClient) generateBuildRelease(ctx context.Context, namespaceNa
 // bindBuildRelease is Step 7: create <component>-<env> pinned to the release, or
 // advance an existing binding's release pin, re-reading and retrying on 409/5xx.
 // Both writes carry the build's health checks (see setBindingHealthChecks).
-func (c *openChoreoClient) bindBuildRelease(ctx context.Context, namespaceName string, req PublishBuildWorkloadRequest, environment string, healthChecks map[string]any) error {
+func (c *openChoreoClient) bindBuildRelease(ctx context.Context, namespaceName string, req PublishBuildWorkloadRequest, environment string, healthChecks any) error {
 	bindingName := req.ComponentName + "-" + environment
 	releaseName := req.RunName
 
@@ -602,7 +598,7 @@ func (c *openChoreoClient) bindBuildRelease(ctx context.Context, namespaceName s
 // bindingAlreadyCurrent reports whether the binding already pins releaseName and
 // carries exactly the build's health checks. Together with hasResourceLabels it
 // tells when the update would change nothing.
-func bindingAlreadyCurrent(binding gen.ReleaseBinding, releaseName string, healthChecks map[string]any) bool {
+func bindingAlreadyCurrent(binding gen.ReleaseBinding, releaseName string, healthChecks any) bool {
 	if binding.Spec.ReleaseName == nil || *binding.Spec.ReleaseName != releaseName {
 		return false
 	}
@@ -610,11 +606,7 @@ func bindingAlreadyCurrent(binding gen.ReleaseBinding, releaseName string, healt
 	if binding.Spec.ComponentTypeEnvironmentConfigs != nil {
 		current = (*binding.Spec.ComponentTypeEnvironmentConfigs)[workflowParamHealthChecks]
 	}
-	var desired any
-	if healthChecks != nil {
-		desired = healthChecks
-	}
-	return reflect.DeepEqual(current, desired)
+	return reflect.DeepEqual(current, healthChecks)
 }
 
 // hasResourceLabels reports whether labels already carry every resource label
