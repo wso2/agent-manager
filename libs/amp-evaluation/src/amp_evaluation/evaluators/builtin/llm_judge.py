@@ -74,7 +74,7 @@ def _format_success_criteria(task: Optional[Task], default: str = "") -> str:
         return default
     criteria = task.success_criteria
     if isinstance(criteria, list):
-        return "\n".join(f"- {c}" for c in criteria)
+        return "\n" + "\n".join(f"- {c}" for c in criteria)
     return criteria
 
 
