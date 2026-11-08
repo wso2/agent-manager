@@ -142,6 +142,7 @@ var (
 	rolloutRegions    = []string{"all", "NA", "LATAM", "AFRICA", "ME", "EU", "APAC"}
 )
 
+// loadTaxonomy decodes the taxonomy and rejects unknown schema fields.
 func loadTaxonomy(t *testing.T) taxonomyFile {
 	t.Helper()
 	raw, err := os.ReadFile(taxonomyPath)
@@ -175,6 +176,7 @@ func allFeatures(t *testing.T, tx taxonomyFile) map[string]taxonomyFeature {
 	return out
 }
 
+// dimension finds a dimension declaration by name.
 func (f taxonomyFeature) dimension(name string) (taxonomyDimension, bool) {
 	for _, d := range f.Tracking.Dimensions {
 		if d.Name == name {
@@ -384,7 +386,7 @@ func TestTaxonomyDeclaresConsoleActions(t *testing.T) {
 type emittedEvent struct {
 	code string
 	pos  string
-	dims map[string]string
+	dims map[string][]string
 }
 
 // TestTaxonomyDeclaresTrackedEvents parses the route registrations in api/
@@ -404,14 +406,16 @@ func TestTaxonomyDeclaresTrackedEvents(t *testing.T) {
 			t.Errorf("%s: %q is emitted but not declared in %s", ev.pos, ev.code, taxonomyPath)
 			continue
 		}
-		for key, value := range ev.dims {
+		for key, values := range ev.dims {
 			d, ok := f.dimension(key)
 			if !ok {
 				t.Errorf("%s: %s sends dimension %q, which the taxonomy does not declare", ev.pos, ev.code, key)
 				continue
 			}
-			if value != "" && d.Type == "enum" && !slices.Contains(d.Values, value) {
-				t.Errorf("%s: %s sends %s=%q, which is not in %v", ev.pos, ev.code, key, value, d.Values)
+			for _, value := range values {
+				if value != "" && d.Type == "enum" && !slices.Contains(d.Values, value) {
+					t.Errorf("%s: %s sends %s=%q, which is not in %v", ev.pos, ev.code, key, value, d.Values)
+				}
 			}
 		}
 		for _, d := range f.Tracking.Dimensions {
@@ -442,6 +446,7 @@ var notEmittedFeatures = map[string]bool{
 	"amp.events.manage-subscription":                              true,
 }
 
+// TestTaxonomyFeaturesHaveEmitters rejects stale declarations and exemptions.
 func TestTaxonomyFeaturesHaveEmitters(t *testing.T) {
 	features := allFeatures(t, loadTaxonomy(t))
 	emitted := map[string]bool{}
@@ -472,10 +477,58 @@ func TestTaxonomyFeaturesHaveEmitters(t *testing.T) {
 // their string-literal arguments for the parameters they use.
 func findTrackCalls(t *testing.T) []emittedEvent {
 	t.Helper()
-	handlerDims := findControllerDimensions(t)
-	paths, err := filepath.Glob(filepath.Join(apiRoutesDir, "*.go"))
+	return findTrackCallsIn(t, apiRoutesDir, controllersDir)
+}
+
+// TestFindTrackCallsRetainsAllValues covers repeated assignments, conditional
+// controller calls, and computed overrides that must not erase route literals.
+func TestFindTrackCallsRetainsAllValues(t *testing.T) {
+	root := t.TempDir()
+	apiDir, controllerDir := filepath.Join(root, "api"), filepath.Join(root, "controllers")
+	for path, source := range map[string]string{
+		filepath.Join(apiDir, "routes.go"): `package api
+func dimensions() map[string]interface{} {
+	d := map[string]interface{}{"reason": "route-first"}
+	d["reason"] = "route-second"
+	return d
+}
+func register() {
+	growthanalytics.Track("amp.test.feature", dimensions(), ctrl.Handle)
+}`,
+		filepath.Join(controllerDir, "controller.go"): `package controllers
+func (c *controller) Handle() {
+	if condition {
+		growthanalytics.SetDimension(ctx, "reason", "branch-first")
+	} else {
+		growthanalytics.SetDimension(ctx, "reason", "branch-second")
+	}
+	growthanalytics.SetDimension(ctx, "reason", computedValue)
+}`,
+	} {
+		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(source), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	events := findTrackCallsIn(t, apiDir, controllerDir)
+	if len(events) != 1 {
+		t.Fatalf("got %d events, want 1", len(events))
+	}
+	want := []string{"route-first", "route-second", "branch-first", "branch-second", ""}
+	if got := events[0].dims["reason"]; !slices.Equal(got, want) {
+		t.Fatalf("collected values %v, want %v", got, want)
+	}
+}
+
+// findTrackCallsIn resolves route and controller dimensions in the given packages.
+func findTrackCallsIn(t *testing.T, apiDir, controllerDir string) []emittedEvent {
+	t.Helper()
+	handlerDims := findControllerDimensions(t, controllerDir)
+	paths, err := filepath.Glob(filepath.Join(apiDir, "*.go"))
 	if err != nil {
-		t.Fatalf("list %s: %v", apiRoutesDir, err)
+		t.Fatalf("list %s: %v", apiDir, err)
 	}
 	fset := token.NewFileSet()
 	var files []*ast.File
@@ -528,8 +581,8 @@ func findTrackCalls(t *testing.T) []emittedEvent {
 				t.Errorf("%s: controller method %s was not found", at, handler.Sel.Name)
 				return true
 			}
-			for key, value := range controllerDims {
-				dims[key] = value
+			for key, values := range controllerDims {
+				dims[key] = append(dims[key], values...)
 			}
 			events = append(events, emittedEvent{code: code, pos: at, dims: dims})
 			return true
@@ -538,17 +591,17 @@ func findTrackCalls(t *testing.T) []emittedEvent {
 	return events
 }
 
-// Route registrations reference controller methods directly. Resolve their
+// findControllerDimensions resolves the methods referenced by routes and their
 // SetDimension keys too, including conditional calls. Runtime values remain
 // unknown, just like computed values in a route's static dimension map.
-func findControllerDimensions(t *testing.T) map[string]map[string]string {
+func findControllerDimensions(t *testing.T, dir string) map[string]map[string][]string {
 	t.Helper()
-	paths, err := filepath.Glob(filepath.Join(controllersDir, "*.go"))
+	paths, err := filepath.Glob(filepath.Join(dir, "*.go"))
 	if err != nil {
-		t.Fatalf("list %s: %v", controllersDir, err)
+		t.Fatalf("list %s: %v", dir, err)
 	}
 	fset := token.NewFileSet()
-	out := map[string]map[string]string{}
+	out := map[string]map[string][]string{}
 	for _, path := range paths {
 		if strings.HasSuffix(path, "_test.go") {
 			continue
@@ -562,7 +615,7 @@ func findControllerDimensions(t *testing.T) map[string]map[string]string {
 			if !ok || fn.Recv == nil {
 				continue
 			}
-			dims := map[string]string{}
+			dims := map[string][]string{}
 			ast.Inspect(fn.Body, func(n ast.Node) bool {
 				call, ok := n.(*ast.CallExpr)
 				if !ok {
@@ -585,7 +638,7 @@ func findControllerDimensions(t *testing.T) map[string]map[string]string {
 					return true
 				}
 				value, _ := stringLiteral(call.Args[2])
-				dims[key] = value
+				dims[key] = append(dims[key], value)
 				return true
 			})
 			// Shared method names with no dimensions are equivalent for this
@@ -599,6 +652,7 @@ func findControllerDimensions(t *testing.T) map[string]map[string]string {
 	return out
 }
 
+// isGrowthAnalyticsTrack identifies calls to the tracking wrapper.
 func isGrowthAnalyticsTrack(call *ast.CallExpr) bool {
 	sel, ok := call.Fun.(*ast.SelectorExpr)
 	if !ok || sel.Sel.Name != "Track" {
@@ -608,6 +662,7 @@ func isGrowthAnalyticsTrack(call *ast.CallExpr) bool {
 	return ok && pkg.Name == "growthanalytics"
 }
 
+// stringLiteral decodes a Go string literal without evaluating expressions.
 func stringLiteral(expr ast.Expr) (string, bool) {
 	lit, ok := expr.(*ast.BasicLit)
 	if !ok || lit.Kind != token.STRING {
@@ -617,8 +672,8 @@ func stringLiteral(expr ast.Expr) (string, bool) {
 	return s, err == nil
 }
 
-// resolveDims turns Track's dimensions argument into key → literal value.
-func resolveDims(expr ast.Expr, helpers map[string]*ast.FuncDecl) (map[string]string, bool) {
+// resolveDims turns Track's dimensions argument into key → observed values.
+func resolveDims(expr ast.Expr, helpers map[string]*ast.FuncDecl) (map[string][]string, bool) {
 	switch e := expr.(type) {
 	case *ast.CompositeLit:
 		return collectDims(e, nil), true
@@ -649,29 +704,29 @@ func resolveDims(expr ast.Expr, helpers map[string]*ast.FuncDecl) (map[string]st
 	}
 }
 
-// collectDims gathers string keys from map literals (`"k": v`) and index
+// collectDims retains every value from map literals (`"k": v`) and index
 // assignments (`m["k"] = v`) under node. A parameter bound to "" means the
 // helper's caller opted out of that key, so it is left out.
-func collectDims(node ast.Node, params map[string]string) map[string]string {
-	dims := map[string]string{}
+func collectDims(node ast.Node, params map[string]string) map[string][]string {
+	dims := map[string][]string{}
 	add := func(keyExpr, valueExpr ast.Expr) {
 		key, ok := stringLiteral(keyExpr)
 		if !ok {
 			return
 		}
 		if v, ok := stringLiteral(valueExpr); ok {
-			dims[key] = v
+			dims[key] = append(dims[key], v)
 			return
 		}
 		if ident, ok := valueExpr.(*ast.Ident); ok {
 			if v, bound := params[ident.Name]; bound {
 				if v != "" {
-					dims[key] = v
+					dims[key] = append(dims[key], v)
 				}
 				return
 			}
 		}
-		dims[key] = ""
+		dims[key] = append(dims[key], "")
 	}
 	ast.Inspect(node, func(n ast.Node) bool {
 		switch x := n.(type) {
