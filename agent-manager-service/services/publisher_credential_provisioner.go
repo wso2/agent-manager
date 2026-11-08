@@ -66,7 +66,7 @@ type PublisherCredentials struct {
 func publisherCredentialsFromRow(cred *models.OrgPublisherCredential) *PublisherCredentials {
 	secretRefName := cred.SecretKVPath
 	if isLegacySecretRefPath(secretRefName) {
-		secretRefName = secretRefNameFromStorePath(secretRefName)
+		secretRefName = secretRefNameFromStorePath(secretRefName, publisherSecretLocation(cred.OUID))
 	}
 	return &PublisherCredentials{
 		ClientID:      cred.ClientID,
@@ -75,12 +75,23 @@ func publisherCredentialsFromRow(cred *models.OrgPublisherCredential) *Publisher
 }
 
 // secretRefNameFromStorePath returns the name of the SecretReference behind a
-// stored remote store path. The secret provider names the store entry after the
-// SecretReference ("secret/<ns>/generic/<name>" on-prem, "<cred-id>" as the last
-// segment in WSO2 Cloud), so the last segment is the name. Rebuilding the name from
-// the secret's location instead would only match the on-prem provider's naming.
-func secretRefNameFromStorePath(storePath string) string {
-	return storePath[strings.LastIndex(storePath, "/")+1:]
+// stored remote store path, given the location the secret was created for.
+//
+// A secret created through a Secret Manager API is stored at
+// "<mount>/<namespace>/generic/<name>", named after its SecretReference: on-prem
+// "secret/<ns>/generic/monitor-<id>-secrets", in WSO2 Cloud
+// "<mount>/<ns>/generic/cred-<id>". There the last segment is the name, which in
+// WSO2 Cloud cannot be rebuilt from the location.
+//
+// A secret written by the earlier OpenBao provider is stored at a path built from
+// its location ("<org>/monitor-<id>/llm-proxy-configs", "<org>/amp-publisher-<org>"),
+// and its SecretReference took the location's deterministic name.
+func secretRefNameFromStorePath(storePath string, location secretmanagersvc.SecretLocation) string {
+	segments := strings.Split(storePath, "/")
+	if len(segments) >= 2 && segments[len(segments)-2] == "generic" {
+		return segments[len(segments)-1]
+	}
+	return location.SecretRefName()
 }
 
 // PublisherCredentialProvisioner provisions per-org publisher credentials.

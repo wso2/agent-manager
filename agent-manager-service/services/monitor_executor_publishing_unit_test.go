@@ -73,9 +73,10 @@ func TestMonitorExecutor_buildPublishingParams(t *testing.T) {
 		assert.NotContains(t, params, "secretKey")
 	})
 
-	// Rows written before the name was persisted hold the remote store path, whose
-	// last segment is the SecretReference name. WSO2 Cloud names it after the secret
-	// ID, not the on-prem location, so the name must not be rebuilt from the location.
+	// Rows written before the name was persisted hold the remote store path. A Secret
+	// Manager API path ends in the SecretReference name (in WSO2 Cloud the secret ID,
+	// which the location cannot rebuild). A path from the earlier OpenBao provider
+	// does not, and its SecretReference has the location's deterministic name.
 	for _, tc := range []struct{ name, storedPath, wantRefName string }{
 		{
 			name:        "on-prem store path",
@@ -86,6 +87,11 @@ func TestMonitorExecutor_buildPublishingParams(t *testing.T) {
 			name:        "WSO2 Cloud store path",
 			storedPath:  "wc-secrets/wc-acme-1a2b3c4d/generic/cred-acme-amp-0a1b2c3d4e5f",
 			wantRefName: "cred-acme-amp-0a1b2c3d4e5f",
+		},
+		{
+			name:        "OpenBao provider store path",
+			storedPath:  "acme/amp-publisher-acme",
+			wantRefName: "amp-publisher-acme-secrets",
 		},
 	} {
 		t.Run("maps a stored legacy "+tc.name+" to its SecretReference name", func(t *testing.T) {
@@ -189,11 +195,17 @@ func TestMonitorExecutor_buildPublishingParams(t *testing.T) {
 	})
 }
 
-func TestSecretRefNameFromStorePath(t *testing.T) {
+func TestSecretRefNameFromStorePath_Monitor(t *testing.T) {
+	monitorID := uuid.MustParse("00000000-0000-4000-8000-000000000001")
+	location := monitorCompositeSecretLocation("acme", monitorID)
 	for storePath, want := range map[string]string{
-		"secret/default/generic/monitor-00000000-0000-4000-8000-000000000001-secrets": "monitor-00000000-0000-4000-8000-000000000001-secrets",
-		"wc-secrets/wc-acme-1a2b3c4d/generic/cred-acme-mon-0a1b2c3d4e5f":              "cred-acme-mon-0a1b2c3d4e5f",
+		// Secret Manager API, on-prem: the last segment is the name.
+		"secret/acme/generic/monitor-00000000-0000-4000-8000-000000000001-secrets": "monitor-00000000-0000-4000-8000-000000000001-secrets",
+		// Secret Manager API, WSO2 Cloud: the last segment is the secret ID, which is the name.
+		"wc-secrets/wc-acme-1a2b3c4d/generic/cred-acme-mon-0a1b2c3d4e5f": "cred-acme-mon-0a1b2c3d4e5f",
+		// Earlier OpenBao provider: the path ends in the secret key, so the name is the deterministic one.
+		"acme/monitor-00000000-0000-4000-8000-000000000001/llm-proxy-configs": "monitor-00000000-0000-4000-8000-000000000001-secrets",
 	} {
-		assert.Equal(t, want, secretRefNameFromStorePath(storePath), storePath)
+		assert.Equal(t, want, secretRefNameFromStorePath(storePath, location), storePath)
 	}
 }

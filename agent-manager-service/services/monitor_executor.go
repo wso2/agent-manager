@@ -238,9 +238,9 @@ func (e *monitorExecutor) resolveLLMProxyConfig(ctx context.Context, monitor *mo
 	secretRefName = mapping.SecretKVPath
 	if isLegacySecretRefPath(secretRefName) {
 		// Rows written before the SecretReference name was persisted hold its
-		// remote store path, whose last segment is the name, so existing
-		// monitors keep working without a migration.
-		secretRefName = secretRefNameFromStorePath(secretRefName)
+		// remote store path, which maps back to the name, so existing monitors
+		// keep working without a migration.
+		secretRefName = secretRefNameFromStorePath(secretRefName, monitorCompositeSecretLocation(monitor.OUID, monitor.ID))
 	}
 
 	resolvedURL, err := e.resolveProxyURL(ctx, monitor.OUID, monitor.EnvironmentID, mapping.LLMProxy)
