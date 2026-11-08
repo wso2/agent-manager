@@ -1220,8 +1220,8 @@ func (c *agentConfigurationController) RevokeLLMConfigAPIKey(w http.ResponseWrit
 // attribution, falling back to a marker when there is no user behind the call
 // (a system client) rather than to a literal that would misattribute the change.
 func callerSubject(ctx context.Context) string {
-	if claims := jwtassertion.GetTokenClaims(ctx); claims != nil && claims.Sub != "" {
-		return claims.Sub
+	if sub := jwtassertion.CallerSubject(ctx); sub != "" {
+		return sub
 	}
 	return "system"
 }

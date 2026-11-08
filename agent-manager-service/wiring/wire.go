@@ -61,6 +61,7 @@ var clientProviderSet = wire.NewSet(
 	ProvideOCClient,
 	ProvideSecretManagementClient,
 	ProvidePublisherProvisioner,
+	ProvideBuildTokenIssuer,
 	ProvideIdentityClient,
 	ProvideOrgResolver,
 	ProvideOUHandleLookup,
@@ -118,6 +119,7 @@ var serviceProviderSet = wire.NewSet(
 	wire.Bind(new(controllers.MCPResourceServerIdentifierResolver), new(*services.MCPProxyService)),
 	services.NewGatewayInternalAPIService,
 	services.NewMonitorScoresService,
+	services.NewBuildPublisherService,
 	services.NewCatalogService,
 	services.NewLLMProxyProvisioner,
 	services.NewAgentConfigurationService,
@@ -167,6 +169,7 @@ var controllerProviderSet = wire.NewSet(
 	controllers.NewMonitorController,
 	controllers.NewMonitorScoresController,
 	controllers.NewMonitorScoresPublisherController,
+	controllers.NewBuildPublisherController,
 	controllers.NewEvaluatorController,
 	controllers.NewCatalogController,
 	ProvideAgentBuildOptionsController,
@@ -184,6 +187,7 @@ var testClientProviderSet = wire.NewSet(
 	ProvideTestObserverClient,
 	ProvideTestSecretManagementClient,
 	ProvidePublisherProvisioner,
+	ProvideBuildTokenIssuer,
 	ProvideIdentityClient,
 	ProvideOrgResolver,
 	ProvideTestOUHandleLookup,
@@ -391,6 +395,12 @@ func ProvideNilBuildSecretProvisioner() services.BuildSecretProvisioner {
 // for per-org Thunder OAuth app creation and secret storage via SecretManagementClient
 func ProvidePublisherProvisioner(cfg config.Config, encryptionKey []byte, logger *slog.Logger, secretClient secretmanagersvc.SecretManagementClient, ocClient occlient.OpenChoreoClient, credRepo repositories.OrgPublisherCredentialRepository, schedulerCredRepo repositories.OrgSchedulerCredentialRepository) (services.PublisherCredentialProvisioner, error) {
 	return services.NewPublisherCredentialProvisioner(cfg, encryptionKey, logger, secretClient, ocClient, credRepo, schedulerCredRepo)
+}
+
+// ProvideBuildTokenIssuer creates the organization-scoped build token issuer, or
+// nil when build tokens are disabled (see config.BuildClientConfig).
+func ProvideBuildTokenIssuer(cfg config.Config, logger *slog.Logger, secretClient secretmanagersvc.SecretManagementClient) services.BuildTokenIssuer {
+	return services.NewBuildTokenIssuer(cfg, logger, secretClient)
 }
 
 var loggerProviderSet = wire.NewSet(

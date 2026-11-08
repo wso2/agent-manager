@@ -19,6 +19,7 @@ package client
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -75,7 +76,7 @@ func withRunEnvVars(params map[string]interface{}, envVars []EnvVar) map[string]
 // to the JSON workload object (including spec.container.image).
 const workflowRunWorkloadAnnotationKey = "openchoreo.dev/workload"
 
-func (c *openChoreoClient) TriggerBuild(ctx context.Context, ouID, projectName, componentName, commitID, workflowRunName string, runEnvVars []EnvVar) (*models.BuildResponse, error) {
+func (c *openChoreoClient) TriggerBuild(ctx context.Context, ouID, projectName, componentName, commitID, workflowRunName string, runEnvVars []EnvVar, buildClient BuildClientSource) (*models.BuildResponse, error) {
 	if err := workloadpolicy.Check(ctx, ouID); err != nil {
 		return nil, err
 	}
@@ -128,6 +129,37 @@ func (c *openChoreoClient) TriggerBuild(ctx context.Context, ouID, projectName, 
 		}
 	}
 	params = withRunEnvVars(params, runEnvVars)
+	// The build token is issued only for a workflow that takes it, so an
+	// identity provider or secret store outage cannot fail a build that would
+	// never carry the token. Once the workflow does take it, a failure to issue
+	// it fails the build rather than starting one that cannot publish its
+	// Workload. The cause is reported as text, not wrapped: its sentinel (a
+	// secret store's not-found, say) is not this build's 404. A workflow that
+	// cannot be read fails the build here too (see attachBuildClient).
+	attach, err := c.attachBuildClient(ctx, namespaceName, workflowKind, workflowName, buildClient != nil)
+	if err != nil {
+		return nil, err
+	}
+	if attach {
+		buildToken, err := buildClient(ctx)
+		if err != nil {
+			// A temporary outage (identity provider or secret store) is answered
+			// as retryable, with a message that names no upstream detail; the
+			// cause is logged here instead.
+			if errors.Is(err, utils.ErrServiceUnavailable) {
+				slog.ErrorContext(ctx, "Could not issue the build token", "workflow", workflowName, "error", err)
+				return nil, fmt.Errorf("%w: could not prepare the build's credentials, try again in a moment", utils.ErrServiceUnavailable)
+			}
+			return nil, fmt.Errorf("failed to issue the build token: %v", err) //nolint:errorlint // deliberately not wrapped, see above
+		}
+		if buildToken == nil {
+			return nil, fmt.Errorf("failed to issue the build token: none was returned")
+		}
+		if buildToken.SecretStore == "" {
+			buildToken.SecretStore = config.GetConfig().BuildClient.SecretStore
+		}
+		params = withBuildClient(params, buildToken)
+	}
 
 	// Preserve the open-source behavior when no deployment-specific name is supplied.
 	if workflowRunName == "" {
@@ -201,7 +233,12 @@ func (c *openChoreoClient) GetBuildByName(ctx context.Context, ouID, buildName s
 func (c *openChoreoClient) getWorkflowRun(ctx context.Context, ouID, buildName string) (*gen.WorkflowRun, error) {
 	resp, err := c.ocClient.GetWorkflowRunWithResponse(ctx, c.NamespaceFor(ouID), buildName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get build: %w", err)
+		return nil, fmt.Errorf("failed to get workflow run %q: %w", buildName, err)
+	}
+	// A 404 is a missing run whether or not OpenChoreo sent an error body;
+	// handleErrorResponse recognizes it only when it did.
+	if resp.StatusCode() == http.StatusNotFound {
+		return nil, fmt.Errorf("%w: workflow run %q", utils.ErrNotFound, buildName)
 	}
 
 	if resp.StatusCode() != http.StatusOK {
@@ -214,7 +251,7 @@ func (c *openChoreoClient) getWorkflowRun(ctx context.Context, ouID, buildName s
 	}
 
 	if resp.JSON200 == nil {
-		return nil, fmt.Errorf("empty response from get build")
+		return nil, fmt.Errorf("empty response from get workflow run %q", buildName)
 	}
 	return resp.JSON200, nil
 }

@@ -74,4 +74,10 @@ const (
 	ErrCodeGitSecretNotFound       = "GIT_SECRET_NOT_FOUND"
 	ErrCodeGitSecretAlreadyExists  = "GIT_SECRET_ALREADY_EXISTS"
 	ErrCodeGitSecretInvalidType    = "GIT_SECRET_INVALID_TYPE"
+
+	// Build publisher error codes, answered to a build's workload step
+	ErrCodeBuildPublisherDisabled = "BUILD_PUBLISHER_DISABLED"
+	ErrCodeBuildNotAgent          = "BUILD_NOT_AGENT"
+	ErrCodeWorkflowNotEnabled     = "WORKFLOW_NOT_ENABLED"
+	ErrCodeAgentNotSourceBuilt    = "AGENT_NOT_SOURCE_BUILT"
 )

@@ -855,6 +855,10 @@ func (s *LLMProviderService) Delete(ctx context.Context, providerID, ouID string
 	return nil
 }
 
+// ErrAllGatewayDeploymentsFailed is returned by UpdateAndSync when every gateway deployment it attempted failed. The
+// provider update is already saved by then: gateways it was deployed to keep serving the previous configuration.
+var ErrAllGatewayDeploymentsFailed = errors.New("all gateway deployments failed")
+
 // UpdateAndSync updates an LLM provider and syncs its gateway deployments
 func (s *LLMProviderService) UpdateAndSync(ctx context.Context, providerID, ouID string, updates *models.LLMProvider, gatewayIDs []string, deploymentService *LLMProviderDeploymentService) (*UpdateAndSyncResponse, error) {
 	slog.Info("LLMProviderService.UpdateAndSync: starting", "providerID", providerID, "ouID", ouID, "gatewayCount", len(gatewayIDs))
@@ -1010,7 +1014,7 @@ func (s *LLMProviderService) UpdateAndSync(ctx context.Context, providerID, ouID
 	// Fail if ALL new deployments failed
 	if attemptedDeployments > 0 && successfulDeployments == 0 {
 		slog.Error("LLMProviderService.UpdateAndSync: all new deployments failed", "providerID", providerID, "attempted", attemptedDeployments)
-		return nil, fmt.Errorf("all %d new gateway deployments failed", attemptedDeployments)
+		return nil, fmt.Errorf("%w: all %d new gateway deployments failed", ErrAllGatewayDeploymentsFailed, attemptedDeployments)
 	}
 
 	// Undeploy from removed gateways and track results

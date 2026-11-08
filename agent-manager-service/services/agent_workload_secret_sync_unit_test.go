@@ -91,7 +91,7 @@ func TestUpdateAgentConfigurations_WaitsForEditedWorkloadSecrets(t *testing.T) {
 				},
 			}
 			svc := NewAgentManagerService(nil, oc, secrets, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-				injector, nil, nil, nil, nil, nil, nil, nil, nil, discardLogger())
+				injector, nil, nil, nil, nil, nil, nil, nil, nil, nil, discardLogger())
 			req := &spec.UpdateAgentConfigurationsRequest{EnvironmentName: "dev", Env: []spec.EnvironmentVariable{}}
 			if tc.file {
 				file := spec.FileMount{Key: tc.key, MountPath: "/etc/credentials.json"}

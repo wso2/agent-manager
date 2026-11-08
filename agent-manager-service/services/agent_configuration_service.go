@@ -58,6 +58,10 @@ type AgentConfigurationService interface {
 	Create(ctx context.Context, ouID, projectName, agentID string,
 		req models.CreateAgentModelConfigRequest, createdBy string) (*models.AgentModelConfigResponse, error)
 	ValidateProvidersInCatalog(ctx context.Context, ouID string, providerHandles []string) error
+	// ProviderEnvironments returns, in org order, the environments where the agent can use the LLM
+	// provider: those where the provider is placed on a gateway this kind of agent may use. It is the
+	// check Create makes per environment, so a create mapped to these environments passes it.
+	ProviderEnvironments(ctx context.Context, ouID, projectName, agentID, providerHandle string) ([]string, error)
 	ValidateMCPProxiesInCatalog(ctx context.Context, ouID, projectName string, proxyHandles []string) error
 	Get(ctx context.Context, configUUID uuid.UUID, ouID, projectName, agentName string) (*models.AgentModelConfigResponse, error)
 	GetMCP(ctx context.Context, configUUID uuid.UUID, ouID, projectName, agentName string) (*models.AgentModelConfigResponse, error)
@@ -4648,6 +4652,53 @@ func (s *agentConfigurationService) resolveGatewayForProvider(
 	ctx context.Context, providerUUIDStr, ouID string, envUUID uuid.UUID, policy placementPolicy,
 ) (*models.Gateway, error) {
 	return policy.providerGateway(ctx, s.llmProxyDeploymentService, s.gatewayRepo, ouID, providerUUIDStr, envUUID)
+}
+
+func (s *agentConfigurationService) ProviderEnvironments(
+	ctx context.Context, ouID, projectName, agentID, providerHandle string,
+) ([]string, error) {
+	agent, err := s.ocClient.GetComponent(ctx, ouID, projectName, agentID)
+	if err != nil {
+		if errors.Is(err, utils.ErrAgentNotFound) {
+			return nil, utils.ErrAgentNotFound
+		}
+		return nil, fmt.Errorf("failed to validate agent: %w", err)
+	}
+	policy := placementPolicyFor(agent)
+
+	provider, err := s.llmProviderRepo.GetByHandle(providerHandle, ouID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("provider %s not found: %w", providerHandle, utils.ErrLLMProviderNotFound)
+		}
+		return nil, fmt.Errorf("failed to get provider: %w", err)
+	}
+	placed, err := s.llmProxyDeploymentService.PlacedGateways(ctx, ouID, provider.UUID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list deployed gateways for provider %s: %w", provider.UUID, err)
+	}
+	envs, err := s.infraResourceManager.ListOrgEnvironments(ctx, ouID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list environments: %w", err)
+	}
+
+	names := []string{}
+	for _, env := range envs {
+		envUUID, err := uuid.Parse(env.UUID)
+		if err != nil {
+			return nil, fmt.Errorf("invalid environment id %q: %w", env.Name, err)
+		}
+		// The anchor requireProvider accepts; reading the placed gateways once keeps this to one query per
+		// environment instead of two.
+		anchor, err := policy.providerAnchor(s.gatewayRepo, envUUID, placed)
+		if err != nil {
+			return nil, err
+		}
+		if anchor != nil {
+			names = append(names, env.Name)
+		}
+	}
+	return names, nil
 }
 
 // requireProviderPlacements checks, before anything is created or changed, every requested

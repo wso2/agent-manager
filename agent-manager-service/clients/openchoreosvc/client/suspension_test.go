@@ -37,11 +37,14 @@ func TestWorkloadAdmissionBeforeOpenChoreo(t *testing.T) {
 	require.ErrorIs(t, c.EnsureReleaseAndBinding(ctx, "org-a", "proj", "agent", "dev", nil, nil, nil, nil), workloadpolicy.ErrSuspended)
 	require.ErrorIs(t, c.PromoteComponent(ctx, "org-a", "proj", "agent", "dev", "prod", nil, nil, nil, nil), workloadpolicy.ErrSuspended)
 	require.ErrorIs(t, c.UpdateDeploymentState(ctx, "org-a", "proj", "agent", "dev", gen.ReleaseBindingSpecStateActive), workloadpolicy.ErrSuspended)
-	_, err := c.TriggerBuild(ctx, "org-a", "proj", "agent", "commit", "", nil)
+	_, err := c.TriggerBuild(ctx, "org-a", "proj", "agent", "commit", "", nil, nil)
 	require.ErrorIs(t, err, workloadpolicy.ErrSuspended)
 	_, err = c.CreateWorkflowRun(ctx, "org-a", CreateWorkflowRunRequest{})
 	require.ErrorIs(t, err, workloadpolicy.ErrSuspended)
 	require.ErrorIs(t, c.CreateComponent(ctx, "org-a", "proj", CreateComponentRequest{}), workloadpolicy.ErrSuspended)
+	require.ErrorIs(t, c.PublishBuildWorkload(ctx, "org-a", PublishBuildWorkloadRequest{
+		RunName: "agent-1700", ProjectName: "proj", ComponentName: "agent", Image: "registry.example.com/agent:abc",
+	}), workloadpolicy.ErrSuspended)
 }
 
 func TestDeploymentStateSuspensionMarker(t *testing.T) {

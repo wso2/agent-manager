@@ -103,6 +103,7 @@ type agentManagerService struct {
 	identityClient            thundersvc.IdentityClient
 	buildSecretProvisioner    BuildSecretProvisioner
 	entitlementChecker        EntitlementChecker
+	buildTokens               BuildTokenIssuer
 	a2aPublisher              *A2APublisher
 	a2aCardRepo               repositories.A2AAgentCardRepository
 	deploymentRepo            repositories.DeploymentRepository
@@ -129,6 +130,7 @@ func NewAgentManagerService(
 	agentIdentityInjection AgentIdentityInjectionService,
 	identityClient thundersvc.IdentityClient,
 	buildSecretProvisioner BuildSecretProvisioner,
+	buildTokens BuildTokenIssuer,
 	a2aPublisher *A2APublisher,
 	a2aCardRepo repositories.A2AAgentCardRepository,
 	deploymentRepo repositories.DeploymentRepository,
@@ -151,6 +153,7 @@ func NewAgentManagerService(
 		agentIdentityInjection:    agentIdentityInjection,
 		identityClient:            identityClient,
 		buildSecretProvisioner:    buildSecretProvisioner,
+		buildTokens:               buildTokens,
 		a2aPublisher:              a2aPublisher,
 		a2aCardRepo:               a2aCardRepo,
 		deploymentRepo:            deploymentRepo,
@@ -2287,6 +2290,20 @@ func (s *agentManagerService) prepareBuild(ctx context.Context, ouID, projectNam
 	return workflowRunName, nil
 }
 
+// buildClientFor returns where a build run gets its organization-scoped build
+// token from, or nil when build tokens are disabled. Nothing is issued here:
+// TriggerBuild calls the source only when the run's workflow takes the token,
+// so a build whose workflow does not take it keeps its previous path even while
+// issuing would fail.
+func (s *agentManagerService) buildClientFor(ouID string) client.BuildClientSource {
+	if s.buildTokens == nil {
+		return nil
+	}
+	return func(ctx context.Context) (*client.BuildClientParams, error) {
+		return s.buildTokens.IssueBuildToken(ctx, ouID)
+	}
+}
+
 // identityEnvVars ride on this run only, so the first ReleaseBinding the build creates
 // already carries them (see firstBindingIdentityEnvVars).
 func (s *agentManagerService) triggerInitialBuild(ctx context.Context, ouID, projectName string, req *spec.CreateAgentRequest, identityEnvVars []client.EnvVar) error {
@@ -2311,7 +2328,7 @@ func (s *agentManagerService) triggerInitialBuild(ctx context.Context, ouID, pro
 		return fmt.Errorf("failed to prepare initial build: %w", err)
 	}
 	// Trigger build only after any deployment-specific per-run secret exists.
-	build, err := s.ocClient.TriggerBuild(ctx, ouID, projectName, req.Name, commitId, workflowRunName, identityEnvVars)
+	build, err := s.ocClient.TriggerBuild(ctx, ouID, projectName, req.Name, commitId, workflowRunName, identityEnvVars, s.buildClientFor(ouID))
 	if err != nil {
 		return fmt.Errorf("failed to trigger initial build: agentName %s, error: %w", req.Name, err)
 	}
@@ -3601,7 +3618,7 @@ func (s *agentManagerService) BuildAgent(ctx context.Context, ouID string, proje
 	if pipeline, pipeErr := s.ocClient.GetProjectDeploymentPipeline(ctx, ouID, projectName); pipeErr == nil {
 		identityEnvVars = s.firstBindingIdentityEnvVars(ctx, ouID, projectName, agentName, findLowestEnvironment(pipeline.PromotionPaths))
 	}
-	build, err := s.ocClient.TriggerBuild(ctx, ouID, projectName, agentName, commitId, workflowRunName, identityEnvVars)
+	build, err := s.ocClient.TriggerBuild(ctx, ouID, projectName, agentName, commitId, workflowRunName, identityEnvVars, s.buildClientFor(ouID))
 	audit.Record(
 		ctx, audit.ActionAgentBuild,
 		audit.Org(ouID),

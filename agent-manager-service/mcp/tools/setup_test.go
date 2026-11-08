@@ -34,6 +34,15 @@ const (
 	testBuildName   = "default-build"
 	testEnvName     = "default-env"
 	testDisplayName = "Default Display Name"
+
+	testEnvUUID       = "00000000-0000-0000-0000-0000000000e1"
+	testTemplateID    = "openai"
+	testProviderID    = "test-provider"
+	testGatewayID     = "00000000-0000-0000-0000-0000000000a1"
+	testProxyID       = "test-proxy"
+	testGuardrailName = "pii-masking"
+	// testSecret stands in for an upstream credential; no tool output may contain it.
+	testSecret = "Bearer sk-must-never-be-returned"
 )
 
 // Creates an MCP server with all toolsets backed by the same mock handler,
@@ -49,6 +58,9 @@ func setupTestServer(t *testing.T) (*gomcp.ClientSession, *MockToolsetHandler) {
 		BuildToolset:       mock,
 		DeploymentToolset:  mock,
 		EnvironmentToolset: mock,
+		LLMProviderToolset: mock,
+		MCPProxyToolset:    mock,
+		AgentConfigToolset: mock,
 	}
 	return setupTestServerWithToolsets(t, toolsets), mock
 }
@@ -103,7 +115,7 @@ type toolTestSpec struct {
 	name string
 
 	// Toolset group names, used by partial-registration tests
-	toolset string // "project", "agent", "build", "deployment", "environment"
+	toolset string // "project", "agent", "build", "deployment", "environment", "llm-provider", "gateway", "mcp-proxy", "agent-config"
 
 	// Permissions the tool must declare via addTool. Required: the
 	// registration test fails any tool whose spec leaves this empty.
@@ -131,6 +143,9 @@ var allToolSpecs = func() []toolTestSpec {
 	specs = append(specs, buildToolSpecs()...)
 	specs = append(specs, deploymentToolSpecs()...)
 	specs = append(specs, environmentToolSpecs()...)
+	specs = append(specs, llmProviderToolSpecs()...)
+	specs = append(specs, mcpProxyToolSpecs()...)
+	specs = append(specs, agentConfigToolSpecs()...)
 	return specs
 }()
 

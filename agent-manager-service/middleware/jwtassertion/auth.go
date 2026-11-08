@@ -144,6 +144,50 @@ func PublisherClientAuthMiddleware() func(http.Handler) http.Handler {
 	}
 }
 
+// BuildClientAuthMiddleware admits only a build token: a token this service
+// obtained for one organization from the identity provider's organization token
+// endpoint with its own client (IDP_CLIENT_ID) and handed to that organization's
+// build. The token must have been issued to that client (client_id) and carry the
+// organization it was issued for (ouId); the organization is taken from the
+// token alone, so a build can act only for the organization its token names. A
+// token issued to any other client, without an organization, or naming the
+// platform admin organization (PLATFORM_ADMIN_OU_ID, which this service's own
+// token minted on the plain token endpoint carries) is refused.
+// Must be applied after JWTAuthMiddleware so that claims are already in context.
+func BuildClientAuthMiddleware() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if BuildClientOrg(r.Context()) == "" {
+				utils.WriteErrorResponse(w, http.StatusForbidden, "insufficient permissions")
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// BuildClientOrg returns the organization a build token acts for, or "" when
+// the request's token is not a build token (see BuildClientAuthMiddleware).
+func BuildClientOrg(ctx context.Context) string {
+	claims := GetTokenClaims(ctx)
+	if claims == nil {
+		return ""
+	}
+	cfg := config.GetConfig()
+	if cfg == nil {
+		return ""
+	}
+	issuingClient := strings.TrimSpace(cfg.IDP.ClientID)
+	if issuingClient == "" || strings.TrimSpace(claims.ClientID) != issuingClient {
+		return ""
+	}
+	ouID := strings.TrimSpace(claims.OuId)
+	if adminOU := strings.TrimSpace(cfg.PlatformAdminOUID); adminOU != "" && strings.EqualFold(ouID, adminOU) {
+		return ""
+	}
+	return ouID
+}
+
 func hasValidPublisherAudience(audiences jwt.ClaimStrings) bool {
 	for _, aud := range audiences {
 		if validPublisherAudPattern.MatchString(aud) {
@@ -299,6 +343,16 @@ func GetTokenClaims(ctx context.Context) *TokenClaims {
 		return nil
 	}
 	return claims
+}
+
+// CallerSubject is the token subject of the user acting in ctx, or "" when no
+// user is behind the call (a system client). Callers that record who made a
+// change pick their own fallback for "".
+func CallerSubject(ctx context.Context) string {
+	if claims := GetTokenClaims(ctx); claims != nil {
+		return claims.Sub
+	}
+	return ""
 }
 
 // ContextWithTokenClaims returns ctx carrying the given claims, as if the
