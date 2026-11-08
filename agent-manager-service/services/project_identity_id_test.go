@@ -19,6 +19,7 @@ package services
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -32,6 +33,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	repomocks "github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
+	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 type projectIdentityIDResolverFunc func(ctx context.Context, organizationID, projectName string) (string, error)
@@ -180,4 +182,19 @@ func TestAttemptProvision_PromotionCarriesTheProjectsIdentityID(t *testing.T) {
 	require.Len(t, platform.requests, 1)
 	assert.Equal(t, projectUID, platform.requests[0].ProjectID)
 	assert.Equal(t, binding.ProjectName, platform.requests[0].ProjectName)
+}
+
+// A project that no longer exists is not an outage: waiting for it would never end. The attempt
+// fails, counts against the retries, and tells the user why.
+func TestAttemptProvision_FailsWhenTheProjectNoLongerExists(t *testing.T) {
+	requests, deferred, update := provisionWithResolver(t, projectIdentityIDResolverFunc(
+		func(context.Context, string, string) (string, error) {
+			return "", fmt.Errorf("get project: project project-1: %w", utils.ErrProjectNotFound)
+		}))
+
+	assert.False(t, deferred, "not released to wait for the next tick")
+	assert.Empty(t, requests, "no AgentID is created for a project that is gone")
+	require.NotNil(t, update, "the attempt is recorded")
+	assert.Equal(t, "The project no longer exists.", update.LastError)
+	assert.Equal(t, models.AgentThunderStatusPending, update.Status, "retried like any other attempt until they run out")
 }

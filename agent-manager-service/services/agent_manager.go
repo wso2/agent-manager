@@ -2179,11 +2179,9 @@ func (s *agentManagerService) createComponentAgent(ctx context.Context, ouID, pr
 					return fmt.Errorf("failed to seed agent API key env var: %w", err)
 				}
 			}
-			if err := s.triggerInitialBuild(ctx, ouID, projectName, req, identityEnvVars); err != nil {
-				s.logger.Warn("Failed to trigger initial build for agent, build can be triggered manually", "agentName", req.Name, "error", err)
-			} else {
-				s.logger.Debug("Triggered initial build for agent", "agentName", req.Name)
-			}
+			s.startInitialBuild(ctx, req.Name, func(buildCtx context.Context) error {
+				return s.triggerInitialBuild(buildCtx, ouID, projectName, req, identityEnvVars)
+			})
 		}
 
 		enableAutoInstrumentation := true
@@ -2207,6 +2205,38 @@ func (s *agentManagerService) createComponentAgent(ctx context.Context, ouID, pr
 
 	s.logger.Info("Agent created successfully", "agentName", req.Name, "ouID", ouID, "projectName", projectName, "provisioningType", req.Provisioning.Type)
 	return nil
+}
+
+// initialBuildTimeout bounds an initial build trigger that runs in the background.
+const initialBuildTimeout = 2 * time.Minute
+
+// startInitialBuild triggers the agent's first build. The trigger is best-effort: a failure is logged
+// and the build can be started by hand. Under CP_MANAGED identity it runs in the background, because
+// it asks GitHub for the latest commit and then OpenChoreo for the build, which takes several seconds
+// and, after the component, secrets and traits, pushed the create request past the edge route's 15
+// seconds. The edge then cancelled the request: the build trigger and the steps after it were skipped
+// and the caller got a 504 for an agent that had been created. In the background the build runs to the
+// end and the request returns when the agent is created. It carries no AgentID env vars then, as none
+// is ready to carry (the reconciler injects them). Under LEGACY_DIRECT the first environment's AgentID
+// is provisioned inline before this call and its env vars ride on this run, so it stays inline.
+func (s *agentManagerService) startInitialBuild(ctx context.Context, agentName string, trigger func(context.Context) error) {
+	run := func(runCtx context.Context) {
+		if err := trigger(runCtx); err != nil {
+			s.logger.Warn("Failed to trigger initial build for agent, build can be triggered manually", "agentName", agentName, "error", err)
+			return
+		}
+		s.logger.Debug("Triggered initial build for agent", "agentName", agentName)
+	}
+	if !s.identityManagedByControlPlane() {
+		run(ctx)
+		return
+	}
+	go func() {
+		// The request's values (caller identity) stay, its cancellation does not.
+		backgroundCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), initialBuildTimeout)
+		defer cancel()
+		run(backgroundCtx)
+	}()
 }
 
 // provisionAgentIdentities starts AgentID provisioning for the agent: one Thunder

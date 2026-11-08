@@ -27,6 +27,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/workloadpolicy"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
+	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/events"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
@@ -1476,6 +1477,16 @@ func (c *agentController) GetAgentRoles(w http.ResponseWriter, r *http.Request) 
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Agent identity not yet provisioned for this environment")
 			return
 		}
+		if errors.Is(err, thundersvc.ErrThunderNotProvisioned) {
+			// The environment has no identity provider yet, so the agent holds no roles there.
+			log.Warn("GetAgentRoles: the environment has no identity provider", "orgName", orgName, "agentName", agentName, "envID", envID)
+			utils.WriteErrorResponse(w, http.StatusNotFound, "The identity provider is not set up for this environment yet")
+			return
+		}
+		if errors.Is(err, services.ErrIdentityRoleUnavailable) {
+			utils.WriteErrorResponse(w, http.StatusServiceUnavailable, "Identity management is not configured for this deployment")
+			return
+		}
 		log.Error("GetAgentRoles: failed to get agent roles", "orgName", orgName, "agentName", agentName, "envID", envID, "error", err)
 		handleCommonErrors(w, err, "Failed to get agent roles")
 		return
@@ -1513,6 +1524,16 @@ func (c *agentController) GetAgentGroups(w http.ResponseWriter, r *http.Request)
 		if errors.Is(err, utils.ErrAgentIdentityNotProvisioned) {
 			log.Warn("GetAgentGroups: identity not yet provisioned", "orgName", orgName, "agentName", agentName, "envID", envID)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Agent identity not yet provisioned for this environment")
+			return
+		}
+		if errors.Is(err, thundersvc.ErrThunderNotProvisioned) {
+			// The environment has no identity provider yet, so the agent holds no groups there.
+			log.Warn("GetAgentGroups: the environment has no identity provider", "orgName", orgName, "agentName", agentName, "envID", envID)
+			utils.WriteErrorResponse(w, http.StatusNotFound, "The identity provider is not set up for this environment yet")
+			return
+		}
+		if errors.Is(err, services.ErrIdentityGroupUnavailable) {
+			utils.WriteErrorResponse(w, http.StatusServiceUnavailable, "Identity management is not configured for this deployment")
 			return
 		}
 		log.Error("GetAgentGroups: failed to get agent groups", "orgName", orgName, "agentName", agentName, "envID", envID, "error", err)

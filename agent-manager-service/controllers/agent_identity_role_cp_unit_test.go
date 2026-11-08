@@ -195,11 +195,12 @@ func TestRolesViaControlPlane_GetErrors(t *testing.T) {
 		provider *fakeRoleProvider
 		want     int
 	}{
-		"not found":                 {&fakeRoleProvider{err: fmt.Errorf("get: %w", services.ErrIdentityRoleNotFound)}, http.StatusNotFound},
-		"native administrator":      {&fakeRoleProvider{role: &thundersvc.ThunderRole{ID: "role-1", Name: thundersvc.NativeAdministratorRoleName}}, http.StatusNotFound},
-		"AMP system client":         {&fakeRoleProvider{role: &thundersvc.ThunderRole{ID: "role-1", Name: thundersvc.AMPSystemClientRoleName}}, http.StatusNotFound},
-		"unavailable":               {&fakeRoleProvider{err: services.ErrIdentityRoleUnavailable}, http.StatusServiceUnavailable},
-		"the control plane failing": {&fakeRoleProvider{err: errors.New("boom")}, http.StatusBadGateway},
+		"not found":            {&fakeRoleProvider{err: fmt.Errorf("get: %w", services.ErrIdentityRoleNotFound)}, http.StatusNotFound},
+		"native administrator": {&fakeRoleProvider{role: &thundersvc.ThunderRole{ID: "role-1", Name: thundersvc.NativeAdministratorRoleName}}, http.StatusNotFound},
+		"AMP system client":    {&fakeRoleProvider{role: &thundersvc.ThunderRole{ID: "role-1", Name: thundersvc.AMPSystemClientRoleName}}, http.StatusNotFound},
+		"unavailable":          {&fakeRoleProvider{err: services.ErrIdentityRoleUnavailable}, http.StatusServiceUnavailable},
+		"environment without an identity provider": {&fakeRoleProvider{err: fmt.Errorf("read the version: %w", thundersvc.ErrThunderNotProvisioned)}, http.StatusServiceUnavailable},
+		"the control plane failing":                {&fakeRoleProvider{err: errors.New("boom")}, http.StatusBadGateway},
 	}
 	for name, test := range cases {
 		t.Run(name, func(t *testing.T) {

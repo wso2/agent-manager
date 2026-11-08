@@ -188,6 +188,10 @@ func (s *MCPProxyService) EnsureResourceServersForProxy(ctx context.Context, ouI
 			envCtx, cancel := context.WithTimeout(ctx, ensureResourceServerPerEnvTimeout)
 			_, err := s.ensureProxyResourceServerInEnv(envCtx, ouID, ee.EnvironmentUUID, name, proxy, actions)
 			cancel()
+			if errors.Is(err, thundersvc.ErrThunderNotProvisioned) {
+				s.logger.Info("ensure resource server: skipped, the environment has no identity provider yet", "proxy", handle, "env", name)
+				continue
+			}
 			if err != nil {
 				s.logger.Warn("ensure resource server: ensure failed", "proxy", handle, "env", name, "error", err)
 				continue
