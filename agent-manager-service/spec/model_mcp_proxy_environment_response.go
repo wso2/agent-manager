@@ -36,6 +36,7 @@ type MCPProxyEnvironmentResponse struct {
 	Security     *MCPProxyEnvironmentSecurity             `json:"security,omitempty"`
 	Policies     []MCPPolicy                              `json:"policies,omitempty"`
 	UpstreamAuth *MCPProxyEnvironmentUpstreamAuthRedacted `json:"upstreamAuth,omitempty"`
+	Capabilities *MCPProxyCapabilities                    `json:"capabilities,omitempty"`
 	UpdatedAt    *time.Time                               `json:"updatedAt,omitempty"`
 }
 
@@ -387,6 +388,38 @@ func (o *MCPProxyEnvironmentResponse) SetUpstreamAuth(v MCPProxyEnvironmentUpstr
 	o.UpstreamAuth = &v
 }
 
+// GetCapabilities returns the Capabilities field value if set, zero value otherwise.
+func (o *MCPProxyEnvironmentResponse) GetCapabilities() MCPProxyCapabilities {
+	if o == nil || IsNil(o.Capabilities) {
+		var ret MCPProxyCapabilities
+		return ret
+	}
+	return *o.Capabilities
+}
+
+// GetCapabilitiesOk returns a tuple with the Capabilities field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *MCPProxyEnvironmentResponse) GetCapabilitiesOk() (*MCPProxyCapabilities, bool) {
+	if o == nil || IsNil(o.Capabilities) {
+		return nil, false
+	}
+	return o.Capabilities, true
+}
+
+// HasCapabilities returns a boolean if a field has been set.
+func (o *MCPProxyEnvironmentResponse) HasCapabilities() bool {
+	if o != nil && !IsNil(o.Capabilities) {
+		return true
+	}
+
+	return false
+}
+
+// SetCapabilities gets a reference to the given MCPProxyCapabilities and assigns it to the Capabilities field.
+func (o *MCPProxyEnvironmentResponse) SetCapabilities(v MCPProxyCapabilities) {
+	o.Capabilities = &v
+}
+
 // GetUpdatedAt returns the UpdatedAt field value if set, zero value otherwise.
 func (o *MCPProxyEnvironmentResponse) GetUpdatedAt() time.Time {
 	if o == nil || IsNil(o.UpdatedAt) {
@@ -455,6 +488,9 @@ func (o MCPProxyEnvironmentResponse) ToMap() (map[string]interface{}, error) {
 	}
 	if !IsNil(o.UpstreamAuth) {
 		toSerialize["upstreamAuth"] = o.UpstreamAuth
+	}
+	if !IsNil(o.Capabilities) {
+		toSerialize["capabilities"] = o.Capabilities
 	}
 	if !IsNil(o.UpdatedAt) {
 		toSerialize["updatedAt"] = o.UpdatedAt

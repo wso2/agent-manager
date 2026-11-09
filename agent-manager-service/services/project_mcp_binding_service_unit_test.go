@@ -19,6 +19,8 @@ package services
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -945,4 +947,104 @@ func TestPutEnv_SelfHostedGateway(t *testing.T) {
 		assert.Equal(t, "NO_GATEWAY", resp.DeploymentStatusReason)
 		assert.Empty(t, f.deployed, "nothing is sent to the self-hosted gateway")
 	})
+}
+
+func bindingTools(names ...string) *models.MCPProxyCapabilities {
+	tools := make([]map[string]interface{}, 0, len(names))
+	for _, name := range names {
+		tools = append(tools, map[string]interface{}{"name": name, "description": name + " tool"})
+	}
+	return &models.MCPProxyCapabilities{Tools: &tools}
+}
+
+func toolNamesOf(capabilities *models.MCPProxyCapabilities) []string {
+	if capabilities == nil || capabilities.Tools == nil {
+		return nil
+	}
+	names := []string{}
+	for _, tool := range *capabilities.Tools {
+		names = append(names, tool["name"].(string))
+	}
+	return names
+}
+
+// The capabilities a binding is given are stored on its endpoint, where every reader of an org proxy's tools
+// already looks, and read back on the binding and on the proxy.
+func TestPutEnv_CapabilitiesStoredAndReadBack(t *testing.T) {
+	f := newBindingFixture(t)
+	resp, _, err := f.put(t, models.MCPProxyEnvironmentRequest{Capabilities: bindingTools("get_weather", "get_forecast")})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"get_weather", "get_forecast"}, toolNamesOf(resp.Capabilities))
+
+	endpoint, _ := f.binding()
+	assert.Equal(t, []string{"get_weather", "get_forecast"}, toolNamesOf(endpoint.Configuration.Capabilities))
+
+	got, err := f.svc.GetEnvironment(context.Background(), testOrg, bindingProject, bindingProjectUUID, bindingHandle, bindingEnv)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"get_weather", "get_forecast"}, toolNamesOf(got.Capabilities))
+}
+
+func TestPutEnv_Capabilities_ChangeRedeploysIdenticalDoesNot(t *testing.T) {
+	f := newBindingFixture(t)
+	_, _, err := f.put(t, models.MCPProxyEnvironmentRequest{Capabilities: bindingTools("get_weather")})
+	require.NoError(t, err)
+	_, ee := f.binding()
+	f.status[ee.ArtifactUUID].Status = models.DeploymentStatusDeployed
+	writes := f.endpointWrites
+
+	_, _, err = f.put(t, models.MCPProxyEnvironmentRequest{Capabilities: bindingTools("get_weather")})
+	require.NoError(t, err)
+	assert.Len(t, f.deployed, 1, "identical capabilities are a no-op")
+	assert.Equal(t, writes, f.endpointWrites)
+
+	_, _, err = f.put(t, models.MCPProxyEnvironmentRequest{Capabilities: bindingTools("get_weather", "get_forecast")})
+	require.NoError(t, err)
+	assert.Len(t, f.deployed, 2, "a changed tool list is stored and redeployed")
+	endpoint, _ := f.binding()
+	assert.Equal(t, []string{"get_weather", "get_forecast"}, toolNamesOf(endpoint.Configuration.Capabilities))
+}
+
+// The body replaces the binding: capabilities left out, or given as empty lists, clear the stored ones.
+func TestPutEnv_Capabilities_OmittedOrEmptyClears(t *testing.T) {
+	empty := []map[string]interface{}{}
+	for name, capabilities := range map[string]*models.MCPProxyCapabilities{
+		"omitted":     nil,
+		"empty lists": {Tools: &empty, Prompts: &empty},
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := newBindingFixture(t)
+			_, _, err := f.put(t, models.MCPProxyEnvironmentRequest{Capabilities: bindingTools("get_weather")})
+			require.NoError(t, err)
+
+			resp, _, err := f.put(t, models.MCPProxyEnvironmentRequest{Capabilities: capabilities})
+			require.NoError(t, err)
+			assert.Nil(t, resp.Capabilities)
+			endpoint, _ := f.binding()
+			assert.Nil(t, endpoint.Configuration.Capabilities)
+		})
+	}
+}
+
+func TestPutEnv_Capabilities_Invalid400NothingStored(t *testing.T) {
+	tooMany := make([]string, maxBindingCapabilityEntries+1)
+	for i := range tooMany {
+		tooMany[i] = fmt.Sprintf("tool_%d", i)
+	}
+	huge := []map[string]interface{}{{"name": "big", "description": strings.Repeat("x", maxBindingCapabilitiesBytes)}}
+	noURI := []map[string]interface{}{{"name": "readme"}}
+	for name, capabilities := range map[string]*models.MCPProxyCapabilities{
+		"tool without a name":  {Tools: &[]map[string]interface{}{{"description": "nameless"}}},
+		"tool with blank name": {Tools: &[]map[string]interface{}{{"name": "  "}}},
+		"resource without uri": {Resources: &noURI},
+		"too many tools":       bindingTools(tooMany...),
+		"over the size limit":  {Tools: &huge},
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := newBindingFixture(t)
+			_, _, err := f.put(t, models.MCPProxyEnvironmentRequest{Capabilities: capabilities})
+			require.ErrorIs(t, err, utils.ErrInvalidInput)
+			assert.Zero(t, f.endpointWrites, "nothing is stored")
+			assert.Empty(t, f.deployed)
+		})
+	}
 }

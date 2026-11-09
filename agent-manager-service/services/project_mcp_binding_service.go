@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -89,7 +90,8 @@ func (s *ProjectMCPProxyService) PutEnvironment(
 	// A component deployed on several tracks has a release binding per track in the environment; releaseBindingName
 	// picks one, and without it such a component is refused rather than one of its bindings picked at random.
 	serviceURL, err := s.ocClient.GetReleaseBindingEndpointServiceURL(
-		ctx, ouID, projectName, source.ComponentName, source.EndpointName, envName, releaseBindingName)
+		ctx, ouID, projectName, source.ComponentName, source.EndpointName, envName, releaseBindingName,
+	)
 	switch {
 	case errors.Is(err, occlient.ErrAmbiguousReleaseBinding):
 		return nil, false, fmt.Errorf("%w: set releaseBindingName to pick one: %w", utils.ErrInvalidInput, err)
@@ -132,12 +134,17 @@ func (s *ProjectMCPProxyService) PutEnvironment(
 	if err != nil {
 		return nil, false, err
 	}
+	capabilities, err := normalizeBindingCapabilities(req.Capabilities)
+	if err != nil {
+		return nil, false, err
+	}
 
 	desired := models.MCPEndpointConfig{
 		Upstream:           &models.UpstreamEndpoint{URL: upstreamURL, Auth: auth},
 		Policies:           policies,
 		Security:           security,
 		ReleaseBindingName: releaseBindingName,
+		Capabilities:       capabilities,
 	}
 	if exists && s.sameBindingConfig(endpoint.Configuration, desired) {
 		shown, err := s.shownStatus(ctx, ouID, ee.ArtifactUUID)
@@ -595,6 +602,59 @@ func normalizeBindingUpstreamAuth(in *models.MCPProxyEnvironmentUpstreamAuth) (*
 	}
 }
 
+// maxBindingCapabilityEntries bounds each of a binding's tools, prompts and resources lists, and
+// maxBindingCapabilitiesBytes their encoded size, so a caller cannot store an unbounded document in the endpoint row.
+const (
+	maxBindingCapabilityEntries = 1000
+	maxBindingCapabilitiesBytes = 1 << 20
+)
+
+// normalizeBindingCapabilities is the binding's capabilities as stored: nil when none are given (or all lists are
+// empty), otherwise the given lists with each tool, prompt and resource checked for its identifying field.
+func normalizeBindingCapabilities(in *models.MCPProxyCapabilities) (*models.MCPProxyCapabilities, error) {
+	if in == nil {
+		return nil, nil //nolint:nilnil // no capabilities given
+	}
+	out := &models.MCPProxyCapabilities{}
+	lists := []struct {
+		kind, key string
+		in        *[]map[string]interface{}
+		out       **[]map[string]interface{}
+	}{
+		{"tools", "name", in.Tools, &out.Tools},
+		{"prompts", "name", in.Prompts, &out.Prompts},
+		{"resources", "uri", in.Resources, &out.Resources},
+	}
+	for _, l := range lists {
+		if l.in == nil || len(*l.in) == 0 {
+			continue
+		}
+		if len(*l.in) > maxBindingCapabilityEntries {
+			return nil, fmt.Errorf("%w: capabilities.%s has %d entries, more than the limit of %d",
+				utils.ErrInvalidInput, l.kind, len(*l.in), maxBindingCapabilityEntries)
+		}
+		for i, entry := range *l.in {
+			if id, ok := entry[l.key].(string); !ok || strings.TrimSpace(id) == "" {
+				return nil, fmt.Errorf("%w: capabilities.%s[%d] needs a %s", utils.ErrInvalidInput, l.kind, i, l.key)
+			}
+		}
+		list := slices.Clone(*l.in)
+		*l.out = &list
+	}
+	if out.Tools == nil && out.Prompts == nil && out.Resources == nil {
+		return nil, nil //nolint:nilnil // only empty lists given
+	}
+	encoded, err := json.Marshal(out)
+	if err != nil {
+		return nil, fmt.Errorf("%w: capabilities: %w", utils.ErrInvalidInput, err)
+	}
+	if len(encoded) > maxBindingCapabilitiesBytes {
+		return nil, fmt.Errorf("%w: capabilities is %d bytes, more than the limit of %d",
+			utils.ErrInvalidInput, len(encoded), maxBindingCapabilitiesBytes)
+	}
+	return out, nil
+}
+
 // storeBindingConfig is desired as it is stored: the upstream credential encrypted.
 func (s *ProjectMCPProxyService) storeBindingConfig(desired models.MCPEndpointConfig) (models.MCPEndpointConfig, error) {
 	stored := desired
@@ -629,7 +689,8 @@ func (s *ProjectMCPProxyService) sameBindingConfig(stored, desired models.MCPEnd
 		s.sameUpstreamAuth(storedAuth, desiredAuth) &&
 		sameJSON(stored.Security, desired.Security) &&
 		sameJSON(nilIfEmptyPolicies(stored.Policies), nilIfEmptyPolicies(desired.Policies)) &&
-		stored.Resilience == nil && stored.Capabilities == nil
+		sameJSON(stored.Capabilities, desired.Capabilities) &&
+		stored.Resilience == nil
 }
 
 func (s *ProjectMCPProxyService) sameUpstreamAuth(stored, desired *models.UpstreamAuth) bool {
@@ -688,6 +749,7 @@ func (s *ProjectMCPProxyService) environmentResponse(
 		ReleaseBindingName: cfg.ReleaseBindingName,
 		Security:           bindingSecurityResponse(cfg.Security),
 		Policies:           copyMCPPolicies(cfg.Policies),
+		Capabilities:       copyMCPCapabilities(cfg.Capabilities),
 		UpdatedAt:          timePtrIfNotZero(endpoint.UpdatedAt),
 	}
 	if cfg.Upstream != nil && cfg.Upstream.Auth != nil {

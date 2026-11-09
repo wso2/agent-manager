@@ -59,6 +59,8 @@ type MCPProxyEnvironmentRequest struct {
 	Security           *MCPProxyEnvironmentSecurity     `json:"security,omitempty"`
 	Policies           []MCPPolicy                      `json:"policies,omitempty"`
 	UpstreamAuth       *MCPProxyEnvironmentUpstreamAuth `json:"upstreamAuth,omitempty"`
+	// Capabilities is the MCP server's tools, prompts and resources in this environment, stored as given.
+	Capabilities *MCPProxyCapabilities `json:"capabilities,omitempty"`
 }
 
 // MCPProxyEnvironmentSecurity is a binding's SecurityConfig: SecurityConfig with a jwt variant.
@@ -110,6 +112,7 @@ type MCPProxyEnvironmentResponse struct {
 	Security     *MCPProxyEnvironmentSecurity             `json:"security,omitempty"`
 	Policies     []MCPPolicy                              `json:"policies,omitempty"`
 	UpstreamAuth *MCPProxyEnvironmentUpstreamAuthRedacted `json:"upstreamAuth,omitempty"`
+	Capabilities *MCPProxyCapabilities                    `json:"capabilities,omitempty"`
 	UpdatedAt    *time.Time                               `json:"updatedAt,omitempty"`
 }
 

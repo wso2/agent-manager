@@ -19952,6 +19952,14 @@ components:
             $ref: "#/components/schemas/MCPPolicy"
         upstreamAuth:
           $ref: "#/components/schemas/MCPProxyEnvironmentUpstreamAuth"
+        capabilities:
+          allOf:
+            - $ref: "#/components/schemas/MCPProxyCapabilities"
+          description: >-
+            The tools, prompts and resources the MCP server exposes in this environment, as its tools/list,
+            prompts/list and resources/list return them. Stored as given and returned on GET; AMS does not
+            discover them. Each tool needs a name. Omitted, the stored capabilities are cleared. A change
+            redeploys the binding.
 
     MCPProxyEnvironmentSecurity:
       type: object
@@ -20063,6 +20071,10 @@ components:
             $ref: "#/components/schemas/MCPPolicy"
         upstreamAuth:
           $ref: "#/components/schemas/MCPProxyEnvironmentUpstreamAuthRedacted"
+        capabilities:
+          allOf:
+            - $ref: "#/components/schemas/MCPProxyCapabilities"
+          description: The capabilities given on the last PUT. Absent when none were given.
         updatedAt:
           type: string
           format: date-time

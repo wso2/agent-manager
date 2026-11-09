@@ -5101,6 +5101,9 @@ type MCPProxyEndpoint struct {
 
 // MCPProxyEnvironmentRequest Replaces the binding's configuration. Every field is optional; an omitted field resets to its default.
 type MCPProxyEnvironmentRequest struct {
+	// Capabilities The tools, prompts and resources the MCP server exposes in this environment, as its tools/list, prompts/list and resources/list return them. Stored as given and returned on GET; AMS does not discover them. Each tool needs a name. Omitted, the stored capabilities are cleared. A change redeploys the binding.
+	Capabilities *MCPProxyCapabilities `json:"capabilities,omitempty"`
+
 	// GatewayId Required only when the environment has more than one egress-capable gateway. Cannot change once placed. Must name a managed gateway: a self-hosted gateway has no route to the in-cluster upstream, so naming one is rejected with 400 VALIDATION_ERROR.
 	GatewayId *openapi_types.UUID `json:"gatewayId,omitempty"`
 
@@ -5119,6 +5122,9 @@ type MCPProxyEnvironmentRequest struct {
 
 // MCPProxyEnvironmentResponse defines model for MCPProxyEnvironmentResponse.
 type MCPProxyEnvironmentResponse struct {
+	// Capabilities The capabilities given on the last PUT. Absent when none were given.
+	Capabilities *MCPProxyCapabilities `json:"capabilities,omitempty"`
+
 	// Context The proxy's context, as given, without the project prefix.
 	Context string `json:"context"`
 
