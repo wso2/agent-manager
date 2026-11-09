@@ -12,6 +12,7 @@ responses = pytest.importorskip("responses")
 
 import re  # noqa: E402
 
+from harness.deployable_samples import DEPLOYABLE_SAMPLES, DeployableSample  # noqa: E402
 from heavy.amp_client import AmpClient, AmpError, IdpCredentials, _safe_name  # noqa: E402
 from heavy.observer import poll_traces  # noqa: E402
 
@@ -116,19 +117,28 @@ def test_deploy_agent_happy_path():
 
 
 @responses.activate
-def test_deploy_agent_uses_framework_specific_sample_path():
-    """The agent-create payload's appPath comes from DEPLOYABLE_SAMPLES, so a
-    crewai cell builds samples/crewai-agent, not the langchain default."""
+def test_deploy_agent_uses_framework_specific_sample_path(monkeypatch):
+    """The deploy payload uses the selected sample's path, command and env."""
     import json
 
+    monkeypatch.setitem(
+        DEPLOYABLE_SAMPLES,
+        "example",
+        DeployableSample(
+            app_path="/test/fixtures/example-agent",
+            run_command="python example.py",
+            expected_kinds=("llm",),
+            env=(("EXAMPLE_CACHE_DIR", "/tmp/example"),),
+        ),
+    )
     _mock_token()
-    cell_id = "traceloop-0.60.0-crewai-1.1.0-py3.11"
+    cell_id = "traceloop-0.60.0-example-1.1.0-py3.11"
     _mock_happy_deploy(name=_safe_name(cell_id))
     _client().deploy_agent(
         cell_id=cell_id,
         instrumentation_version="0.2.1",
-        framework_name="crewai",
-        framework_package="crewai",
+        framework_name="example",
+        framework_package="example",
         framework_version="1.1.0",
         python_version="3.11",
     )
@@ -138,16 +148,14 @@ def test_deploy_agent_uses_framework_specific_sample_path():
     )
     body = json.loads(agent_post.request.body)
     repo = body["provisioning"]["repository"]
-    assert repo["appPath"] == "/samples/crewai-agent"
-    assert body["build"]["buildpack"]["runCommand"] == "python main.py"
+    assert repo["appPath"] == "/test/fixtures/example-agent"
+    assert body["build"]["buildpack"]["runCommand"] == "python example.py"
     # Source ref defaults to wso2/agent-manager@main.
     assert repo["url"] == "https://github.com/wso2/agent-manager"
     assert repo["branch"] == "main"
-    # The crewai sample's writable-HOME/storage env is set on the workload
-    # (non-sensitive) so the instrumentor + app survive the read-only HOME.
     env = {e["key"]: e for e in body["configurations"]["env"]}
-    assert env["HOME"]["value"] == "/tmp" and env["HOME"]["isSensitive"] is False
-    assert env["CREWAI_STORAGE_DIR"]["value"] == "/tmp/crewai"
+    assert env["EXAMPLE_CACHE_DIR"]["value"] == "/tmp/example"
+    assert env["EXAMPLE_CACHE_DIR"]["isSensitive"] is False
 
 
 @responses.activate

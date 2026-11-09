@@ -12,11 +12,6 @@ TOOLS = {
         {"query": "refund policy"},
         "Smoke policy permits refunds",
     ),
-    "crewai-agent": (
-        "country_capital_lookup",
-        {"country": "France"},
-        "The capital of France is Paris",
-    ),
     "dotnet-agent": ("GetWeather", {"city": "Paris"}, "sunny with a high of 24"),
     "leave-assistant-agent": (
         "getLeaveBalance",
@@ -55,41 +50,25 @@ class ModelServer(ThreadingHTTPServer):
                 results
             )
             self.verified = True
-        elif self.sample == "crewai-agent" and self.calls > 1:
-            # CrewAI's text/ReAct transport places the observation in a user turn.
-            if TOOLS[self.sample][2] in json.dumps(messages):
-                self.verified = True
         if self.verified:
-            message = {
-                "role": "assistant",
-                "content": ("Final Answer: " if self.sample == "crewai-agent" else "")
-                + ANSWER,
-            }
+            message = {"role": "assistant", "content": ANSWER}
             reason = "stop"
         else:
             name, args, _ = TOOLS[self.sample]
             advertised = {t["function"]["name"] for t in body.get("tools", [])}
-            if self.sample == "crewai-agent" and not advertised:
-                assert name in json.dumps(messages)
-                message = {
-                    "role": "assistant",
-                    "content": 'Thought: Use the lookup.\nAction: country_capital_lookup\nAction Input: {"country":"France"}',
-                }
-                reason = "stop"
-            else:
-                assert name in advertised, advertised
-                message = {
-                    "role": "assistant",
-                    "content": None,
-                    "tool_calls": [
-                        {
-                            "id": "call_smoke",
-                            "type": "function",
-                            "function": {"name": name, "arguments": json.dumps(args)},
-                        }
-                    ],
-                }
-                reason = "tool_calls"
+            assert name in advertised, advertised
+            message = {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {
+                        "id": "call_smoke",
+                        "type": "function",
+                        "function": {"name": name, "arguments": json.dumps(args)},
+                    }
+                ],
+            }
+            reason = "tool_calls"
         return {
             "id": "chatcmpl-smoke",
             "object": "chat.completion",

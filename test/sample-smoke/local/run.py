@@ -19,7 +19,6 @@ from model_stub import ANSWER, ModelServer
 
 ROOT = Path(__file__).resolve().parents[3]
 SAMPLES = (
-    "crewai-agent",
     "customer-support-agent",
     "dotnet-agent",
     "leave-assistant-agent",
@@ -80,8 +79,6 @@ def run(sample, reports):
                     ".venv",
                 ),
             )
-            home = work / "home"
-            home.mkdir()
             env = {
                 k: v
                 for k, v in os.environ.items()
@@ -111,12 +108,6 @@ def run(sample, reports):
                 AMP_AGENT_API_KEY="smoke-fixture",
                 AMP_TRACE_CONTENT="true",
                 OTEL_BSP_SCHEDULE_DELAY="100",
-                CREWAI_TRACING_ENABLED="false",
-                CREWAI_DISABLE_TRACING_PROMPT="true",
-                CREWAI_TELEMETRY_OPT_OUT="true",
-                OTEL_SDK_DISABLED="true" if sample == "crewai-agent" else "false",
-                LITELLM_LOCAL_MODEL_COST_MAP="True",
-                CREWAI_STORAGE_DIR=str(home / "crewai"),
                 DATABASE_URL="postgresql://smoke:smoke@127.0.0.1:1/smoke",
                 PYTHONUNBUFFERED="1",
             )
@@ -219,7 +210,6 @@ def run(sample, reports):
                         time.sleep(0.5)
                 phase = "HTTP model/tool round trip"
                 prompt = {
-                    "crewai-agent": "What is the capital of France?",
                     "customer-support-agent": "Look up the refund policy.",
                     "dotnet-agent": "What is the weather in Paris?",
                     "leave-assistant-agent": "Check leave balance for E-3001.",

@@ -24,7 +24,7 @@ PATTERNS = [
     (re.compile(r"\bsk-ant-[A-Za-z0-9_-]{20,}\b"), "Anthropic API key"),
     (re.compile(r"\bxai-[A-Za-z0-9_-]{20,}\b"), "xAI API key"),
     (re.compile(r"\bgsk_[A-Za-z0-9_-]{20,}\b"), "Groq API key"),
-    # CrewAI's hosted-tracing one-shot access codes. The CrewAI sample sets
+    # CrewAI's hosted-tracing one-shot access codes. The CrewAI emission fixture sets
     # CREWAI_TRACING_ENABLED=false + CREWAI_DISABLE_TRACING_PROMPT=true to
     # avoid the upload entirely; this regex stays as a backstop in case those
     # env vars stop working or someone removes them.
