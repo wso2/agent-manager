@@ -310,6 +310,32 @@ func TestProjectMCPBindingAPIKeys(t *testing.T) {
 		assert.NotEqual(t, before, after[0].APIKeyHash)
 	})
 
+	t.Run("PUT with no expiresAt keeps the key's expiry", func(t *testing.T) {
+		expiry := time.Now().Add(48 * time.Hour).UTC().Truncate(time.Second)
+		rr := do(http.MethodPost, keysPath(devEnv), map[string]any{"name": "dated", "expiresAt": expiry.Format(time.RFC3339)})
+		require.Equal(t, http.StatusCreated, rr.Code, rr.Body.String())
+		dated := func() models.StoredAPIKey {
+			for _, k := range storedKeys(t, artifactOf(t, devEnv)) {
+				if k.Name == "dated" {
+					return k
+				}
+			}
+			t.Fatal("key dated not stored")
+			return models.StoredAPIKey{}
+		}
+		before := dated().APIKeyHash
+
+		rr = do(http.MethodPut, keysPath(devEnv)+"/dated", nil)
+		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+		after := dated()
+		assert.NotEqual(t, before, after.APIKeyHash)
+		require.NotNil(t, after.ExpiresAt, "a plain rotate keeps the expiry")
+		assert.True(t, expiry.Equal(*after.ExpiresAt), "a plain rotate keeps the expiry")
+
+		rr = do(http.MethodDelete, keysPath(devEnv)+"/dated", nil)
+		require.Equal(t, http.StatusNoContent, rr.Code, rr.Body.String())
+	})
+
 	t.Run("security off: issue and rotate are 409 API_KEY_SECURITY_DISABLED, revoke still works", func(t *testing.T) {
 		rr := do(http.MethodPut, "/"+handle+"/environments/"+devEnv, map[string]any{"security": map[string]any{"enabled": false}})
 		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())

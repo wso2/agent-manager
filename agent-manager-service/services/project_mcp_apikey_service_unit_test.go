@@ -256,6 +256,90 @@ func TestBindingAPIKey_RotateGivesANewValue(t *testing.T) {
 	assert.NotContains(t, f.keys, f.artifact()+"/unknown", "rotating an unknown key creates nothing")
 }
 
+// eventExpiries is the expiresAt of each key event the gateways were sent, in order; empty when an event has none.
+func (f *keyFixture) eventExpiries(t *testing.T) []string {
+	t.Helper()
+	var out []string
+	for _, e := range f.events.published {
+		var envelope struct {
+			Payload struct {
+				ExpiresAt *string `json:"expiresAt"`
+			} `json:"payload"`
+		}
+		require.NoError(t, json.Unmarshal([]byte(e.EventData), &envelope))
+		out = append(out, valueOrEmpty(envelope.Payload.ExpiresAt))
+	}
+	return out
+}
+
+// Rotating without an expiresAt changes only the value: the key keeps the expiry it had, in the store and at the
+// gateways. A given expiresAt replaces it.
+func TestBindingAPIKey_RotateKeepsTheExpiry(t *testing.T) {
+	f := newKeyFixture(t, models.MCPProxyEnvironmentRequest{})
+	expiry := time.Now().Add(48 * time.Hour).UTC().Truncate(time.Second)
+	at := expiry.Format(time.RFC3339)
+	_, err := f.svc.CreateEnvironmentAPIKey(keyCtx(), testOrg, bindingProject, bindingProjectUUID, bindingHandle, bindingEnv,
+		&models.CreateAPIKeyRequest{Name: "ip-users", ExpiresAt: &at})
+	require.NoError(t, err)
+
+	for name, req := range map[string]*models.RotateAPIKeyRequest{"no body": nil, "empty body": {}} {
+		sent := len(f.events.published)
+		_, err = f.svc.RotateEnvironmentAPIKey(keyCtx(), testOrg, bindingProject, bindingProjectUUID, bindingHandle,
+			bindingEnv, "ip-users", req)
+		require.NoError(t, err, name)
+		stored := f.keys[f.artifact()+"/ip-users"].ExpiresAt
+		require.NotNil(t, stored, "%s: the stored expiry is kept", name)
+		assert.True(t, expiry.Equal(*stored), "%s: the stored expiry is kept", name)
+		assert.Len(t, f.events.published, sent+len(f.gateways), name)
+		for _, got := range f.eventExpiries(t)[sent:] {
+			assert.Equal(t, at, got, "%s: the gateways keep the expiry", name)
+		}
+	}
+
+	later := time.Now().Add(72 * time.Hour).UTC().Truncate(time.Second)
+	laterAt := later.Format(time.RFC3339)
+	_, err = f.svc.RotateEnvironmentAPIKey(keyCtx(), testOrg, bindingProject, bindingProjectUUID, bindingHandle, bindingEnv,
+		"ip-users", &models.RotateAPIKeyRequest{ExpiresAt: &laterAt})
+	require.NoError(t, err)
+	assert.True(t, later.Equal(*f.keys[f.artifact()+"/ip-users"].ExpiresAt), "a given expiresAt replaces the expiry")
+}
+
+// A key with no expiry stays without one after a plain rotate.
+func TestBindingAPIKey_RotateOfAKeyWithNoExpiry(t *testing.T) {
+	f := newKeyFixture(t, models.MCPProxyEnvironmentRequest{})
+	_, err := f.create(t, "ip-users")
+	require.NoError(t, err)
+	_, err = f.svc.RotateEnvironmentAPIKey(keyCtx(), testOrg, bindingProject, bindingProjectUUID, bindingHandle, bindingEnv,
+		"ip-users", nil)
+	require.NoError(t, err)
+	assert.Nil(t, f.keys[f.artifact()+"/ip-users"].ExpiresAt)
+}
+
+// An expired key cannot be rotated into another expired value: it needs a new expiresAt.
+func TestBindingAPIKey_RotateOfAnExpiredKeyNeedsANewExpiry(t *testing.T) {
+	f := newKeyFixture(t, models.MCPProxyEnvironmentRequest{})
+	_, err := f.create(t, "ip-users")
+	require.NoError(t, err)
+	k := f.artifact() + "/ip-users"
+	key := f.keys[k]
+	past := time.Now().Add(-time.Hour).UTC()
+	key.ExpiresAt = &past
+	f.keys[k] = key
+	before := key.APIKeyHash
+	sent := len(f.events.published)
+
+	_, err = f.svc.RotateEnvironmentAPIKey(keyCtx(), testOrg, bindingProject, bindingProjectUUID, bindingHandle, bindingEnv,
+		"ip-users", nil)
+	require.ErrorIs(t, err, utils.ErrBadRequest)
+	assert.Equal(t, before, f.keys[k].APIKeyHash, "the key is left as it was")
+	assert.Len(t, f.events.published, sent, "nothing is sent")
+
+	next := time.Now().Add(time.Hour).UTC().Format(time.RFC3339)
+	_, err = f.svc.RotateEnvironmentAPIKey(keyCtx(), testOrg, bindingProject, bindingProjectUUID, bindingHandle, bindingEnv,
+		"ip-users", &models.RotateAPIKeyRequest{ExpiresAt: &next})
+	require.NoError(t, err, "a new expiresAt revives it")
+}
+
 // A key issued before security was turned off can still be revoked.
 func TestBindingAPIKey_RevokeWorksWhateverTheSecurity(t *testing.T) {
 	f := newKeyFixture(t, models.MCPProxyEnvironmentRequest{})

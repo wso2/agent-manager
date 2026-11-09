@@ -131,6 +131,23 @@ func validateKeyExpiry(expiresAt *string, now time.Time) error {
 	return nil
 }
 
+// keepKeyExpiry is req with the key's stored expiry filled in when req gives none. The broadcaster stores and sends
+// exactly the request's expiresAt, so without this a rotation with no expiresAt would drop the key's expiry and the
+// new value would never expire. An expired key is refused: its new value would be dead on arrival, so the caller
+// has to give a new expiresAt.
+func keepKeyExpiry(req *models.RotateAPIKeyRequest, existing *models.StoredAPIKey, now time.Time) (*models.RotateAPIKeyRequest, error) {
+	if req.ExpiresAt != nil || existing.ExpiresAt == nil {
+		return req, nil
+	}
+	if !existing.ExpiresAt.After(now) {
+		return nil, fmt.Errorf("%w: the API key has expired; give a new expiresAt to rotate it", utils.ErrBadRequest)
+	}
+	kept := *req
+	at := existing.ExpiresAt.UTC().Format(time.RFC3339)
+	kept.ExpiresAt = &at
+	return &kept, nil
+}
+
 // ListEnvironmentAPIKeys returns the binding's API keys, masked.
 func (s *ProjectMCPProxyService) ListEnvironmentAPIKeys(
 	ctx context.Context, ouID, projectUUID, handle, envName string,
@@ -223,6 +240,10 @@ func (s *ProjectMCPProxyService) RotateEnvironmentAPIKey(
 		return nil, err
 	}
 	existing, err := s.existingKey(t, keyName)
+	if err != nil {
+		return nil, err
+	}
+	req, err = keepKeyExpiry(req, existing, time.Now().UTC())
 	if err != nil {
 		return nil, err
 	}
