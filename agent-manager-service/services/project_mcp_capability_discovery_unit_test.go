@@ -18,6 +18,7 @@ package services
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -404,4 +405,41 @@ func TestCapabilityDiscovery_PutKeepsQueuedState(t *testing.T) {
 	after := f.row(t)
 	assert.Equal(t, before.Token, after.Token, "the queued discovery survives the PUT")
 	assert.Equal(t, models.MCPCapabilityDiscoveryPending, after.Status)
+}
+
+// A binding whose key is read from the query string fails discovery without issuing a key or probing: the key is
+// never put in a URL, where a transport error would carry it into lastError and the logs.
+func TestCapabilityDiscovery_QueryKeyBindingFailsWithoutAKeyInAURL(t *testing.T) {
+	on := true
+	f := newDiscoveryFixture(t, models.MCPProxyEnvironmentRequest{Security: &models.MCPProxyEnvironmentSecurity{
+		Enabled: &on, APIKey: &models.APIKeySecurity{Enabled: &on, Key: "api_key", In: "query"},
+	}})
+	f.enqueue(t)
+
+	f.recon.RunOnce(context.Background())
+
+	assert.Empty(t, f.calls, "not probed")
+	assert.Empty(t, f.keys, "no key issued")
+	row := f.row(t)
+	assert.Equal(t, models.MCPCapabilityDiscoveryFailed, row.Status)
+	assert.Contains(t, row.LastError, "query")
+}
+
+// An error that echoes the attempt key is stored, and so shown, with the key redacted.
+func TestCapabilityDiscovery_ErrorsAreStoredWithTheKeyRedacted(t *testing.T) {
+	f := newDiscoveryFixture(t, models.MCPProxyEnvironmentRequest{})
+	f.enqueue(t)
+	var leaked string
+	f.respond = func(call probeCall) (*models.MCPServerInfoFetchResponse, error) {
+		leaked = call.value
+		return nil, fmt.Errorf("%w: upstream said bad key %s", utils.ErrURLUnreachable, call.value)
+	}
+
+	f.recon.RunOnce(context.Background())
+
+	require.NotEmpty(t, leaked)
+	row := f.row(t)
+	assert.NotContains(t, row.LastError, leaked)
+	assert.Contains(t, row.LastError, "[REDACTED]")
+	assert.Contains(t, row.LastError, "upstream said bad key", "other detail is kept")
 }

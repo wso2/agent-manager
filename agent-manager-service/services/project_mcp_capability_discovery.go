@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -203,27 +203,28 @@ func (s *projectMCPCapabilityDiscoveryService) attempt(
 	if err != nil {
 		return nil, err
 	}
-	headerName, headerValue, probeURL, keyed := "", "", target.publicURL, false
+	headerName, headerValue := "", ""
 	if target.security.RequiresAPIKey() {
-		keyed = true
 		name, in := target.security.APIKeyNameAndLocation(mcpDiscoveryDefaultAPIKeyHeader)
+		// The key only ever goes in a header: the gateway's api-key policy checks no other location (see
+		// SecurityConfig.ValidateAPIKeyLocation), and a key in the URL would surface in transport errors, which are
+		// logged and shown as lastError.
+		if in != "header" {
+			return nil, &mcpDiscoveryPermanentError{reason: fmt.Sprintf(
+				"the binding's API key is read from the %s, which the gateway does not check; use a header", in,
+			)}
+		}
 		value, revoke, err := s.bindings.issueDiscoveryKey(ctx, row.OUID, target.artifact)
 		if err != nil {
 			return nil, fmt.Errorf("failed to issue the discovery key: %w", err)
 		}
 		defer revoke()
-		if in == "query" {
-			probeURL, err = withQueryParam(probeURL, name, value)
-			if err != nil {
-				return nil, &mcpDiscoveryPermanentError{reason: fmt.Sprintf("the binding's public URL is invalid: %v", err)}
-			}
-		} else {
-			headerName, headerValue = name, value
-		}
+		headerName, headerValue = name, value
 	}
-	info, err := s.probeUntilKeyArrives(ctx, probeURL, headerName, headerValue, keyed)
+	info, err := s.probeUntilKeyArrives(ctx, target.publicURL, headerName, headerValue)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list the MCP server's capabilities at %s: %w", target.publicURL, err)
+		return nil, fmt.Errorf("failed to list the MCP server's capabilities at %s: %w",
+			target.publicURL, redactSecret(err, headerValue))
 	}
 	capabilities, err := normalizeBindingCapabilities(&models.MCPProxyCapabilities{
 		Tools: info.Tools, Prompts: info.Prompts, Resources: info.Resources,
@@ -237,12 +238,12 @@ func (s *projectMCPCapabilityDiscoveryService) attempt(
 // probeUntilKeyArrives probes, retrying a 401 for keyWait: a key issued for the attempt reaches the gateway through
 // the event hub, a moment after it is stored.
 func (s *projectMCPCapabilityDiscoveryService) probeUntilKeyArrives(
-	ctx context.Context, probeURL, headerName, headerValue string, keyed bool,
+	ctx context.Context, probeURL, headerName, headerValue string,
 ) (*models.MCPServerInfoFetchResponse, error) {
 	deadline := time.Now().Add(s.keyWait)
 	for {
 		info, err := s.probe(ctx, probeURL, headerName, headerValue)
-		if err == nil || !keyed || !errors.Is(err, utils.ErrMCPServerUnauthorized) {
+		if err == nil || headerValue == "" || !errors.Is(err, utils.ErrMCPServerUnauthorized) {
 			return info, err
 		}
 		if time.Now().Add(s.keyPoll).After(deadline) {
@@ -286,15 +287,22 @@ func capabilityCount(c *models.MCPProxyCapabilities) int {
 	return len(*c.Tools)
 }
 
-func withQueryParam(raw, name, value string) (string, error) {
-	u, err := url.Parse(raw)
-	if err != nil {
-		return "", err
+// redactedError is an error whose text has a secret replaced; errors.Is and errors.As still see the original.
+type redactedError struct {
+	err  error
+	text string
+}
+
+func (e *redactedError) Error() string { return e.text }
+func (e *redactedError) Unwrap() error { return e.err }
+
+// redactSecret hides secret in err's text, so an error that echoes a credential (a server repeating a header back,
+// say) is never logged or stored as lastError with it.
+func redactSecret(err error, secret string) error {
+	if err == nil || secret == "" || !strings.Contains(err.Error(), secret) {
+		return err
 	}
-	q := u.Query()
-	q.Set(name, value)
-	u.RawQuery = q.Encode()
-	return u.String(), nil
+	return &redactedError{err: err, text: strings.ReplaceAll(err.Error(), secret, "[REDACTED]")}
 }
 
 // mcpDiscoveryTarget is what a discovery attempt needs of a binding.
