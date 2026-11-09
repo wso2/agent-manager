@@ -33,85 +33,85 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
-// memDiscoveries is an in-memory discovery queue with the repository's superseded check.
+// memDiscoveries is the discovery queue over the fixture's stored bindings, with the repository's token check.
 type memDiscoveries struct {
-	rows map[uuid.UUID]models.MCPCapabilityDiscovery
+	proxy func() *models.MCPProxy
+	ouID  string
 }
 
-func newMemDiscoveries() *memDiscoveries {
-	return &memDiscoveries{rows: map[uuid.UUID]models.MCPCapabilityDiscovery{}}
+// state is the discovery state of the binding with artifact, and where to write it.
+func (m *memDiscoveries) state(artifact uuid.UUID) (**models.MCPCapabilityDiscoveryState, bool) {
+	p := m.proxy()
+	for i := range p.Endpoints {
+		for _, ee := range p.Endpoints[i].Environments {
+			if ee.ArtifactUUID == artifact {
+				return &p.Endpoints[i].Configuration.CapabilityDiscovery, true
+			}
+		}
+	}
+	return nil, false
 }
 
 func (m *memDiscoveries) WithTx(*gorm.DB) repositories.MCPCapabilityDiscoveryRepository { return m }
 
-func (m *memDiscoveries) Enqueue(_ context.Context, ouID string, artifact uuid.UUID) error {
+func (m *memDiscoveries) Enqueue(_ context.Context, artifact uuid.UUID) error {
+	slot, ok := m.state(artifact)
+	if !ok {
+		return nil
+	}
 	now := time.Now()
-	row := m.rows[artifact]
-	row.ArtifactUUID, row.OUID, row.Status = artifact, ouID, models.MCPCapabilityDiscoveryPending
-	row.AttemptCount, row.LastError, row.NextAttemptAt, row.UpdatedAt = 0, "", &now, now
-	m.rows[artifact] = row
+	next := &models.MCPCapabilityDiscoveryState{
+		Status: models.MCPCapabilityDiscoveryPending, NextAttemptAt: &now, Token: uuid.NewString(),
+	}
+	if *slot != nil {
+		next.DiscoveredAt = (*slot).DiscoveredAt
+	}
+	*slot = next
 	return nil
 }
 
 func (m *memDiscoveries) ClaimDue(_ context.Context, now time.Time, _ int) ([]models.MCPCapabilityDiscovery, error) {
 	var due []models.MCPCapabilityDiscovery
-	for id, row := range m.rows {
-		if row.Status == models.MCPCapabilityDiscoveryPending && row.NextAttemptAt != nil && !row.NextAttemptAt.After(now) {
+	for _, e := range m.proxy().Endpoints {
+		for _, ee := range e.Environments {
+			slot, _ := m.state(ee.ArtifactUUID)
+			d := *slot
+			if d == nil || d.Status != models.MCPCapabilityDiscoveryPending || d.NextAttemptAt == nil || d.NextAttemptAt.After(now) {
+				continue
+			}
 			lease := now.Add(repositories.MCPCapabilityDiscoveryClaimLease)
-			row.NextAttemptAt = &lease
-			m.rows[id] = row
-			due = append(due, row)
+			d.NextAttemptAt = &lease
+			due = append(due, models.MCPCapabilityDiscovery{MCPCapabilityDiscoveryState: *d, ArtifactUUID: ee.ArtifactUUID, OUID: m.ouID})
 		}
 	}
 	return due, nil
 }
 
-func (m *memDiscoveries) update(read models.MCPCapabilityDiscovery, apply func(*models.MCPCapabilityDiscovery)) error {
-	row, ok := m.rows[read.ArtifactUUID]
-	if !ok || !row.UpdatedAt.Equal(read.UpdatedAt) {
+func (m *memDiscoveries) update(read models.MCPCapabilityDiscovery, next *models.MCPCapabilityDiscoveryState) error {
+	slot, ok := m.state(read.ArtifactUUID)
+	if !ok || *slot == nil || (*slot).Token != read.Token {
 		return repositories.ErrMCPCapabilityDiscoverySuperseded
 	}
-	apply(&row)
-	row.UpdatedAt = time.Now()
-	m.rows[read.ArtifactUUID] = row
+	*slot = next
 	return nil
-}
-
-func (m *memDiscoveries) MarkDiscovered(_ context.Context, read models.MCPCapabilityDiscovery, at time.Time) error {
-	return m.update(read, func(r *models.MCPCapabilityDiscovery) {
-		r.Status, r.NextAttemptAt, r.LastError, r.DiscoveredAt = models.MCPCapabilityDiscoveryDiscovered, nil, "", &at
-	})
 }
 
 func (m *memDiscoveries) MarkAttemptFailed(_ context.Context, read models.MCPCapabilityDiscovery, lastErr string, next time.Time) error {
-	return m.update(read, func(r *models.MCPCapabilityDiscovery) {
-		r.AttemptCount++
-		r.LastError, r.NextAttemptAt = lastErr, &next
-	})
+	state := read.MCPCapabilityDiscoveryState
+	state.AttemptCount++
+	state.LastError, state.NextAttemptAt = lastErr, &next
+	return m.update(read, &state)
 }
 
 func (m *memDiscoveries) MarkFailed(_ context.Context, read models.MCPCapabilityDiscovery, lastErr string) error {
-	return m.update(read, func(r *models.MCPCapabilityDiscovery) {
-		r.AttemptCount++
-		r.Status, r.LastError, r.NextAttemptAt = models.MCPCapabilityDiscoveryFailed, lastErr, nil
-	})
+	state := read.MCPCapabilityDiscoveryState
+	state.AttemptCount++
+	state.Status, state.LastError, state.NextAttemptAt = models.MCPCapabilityDiscoveryFailed, lastErr, nil
+	return m.update(read, &state)
 }
 
-func (m *memDiscoveries) DeleteIfUnchanged(_ context.Context, read models.MCPCapabilityDiscovery) error {
-	row, ok := m.rows[read.ArtifactUUID]
-	if !ok || !row.UpdatedAt.Equal(read.UpdatedAt) {
-		return repositories.ErrMCPCapabilityDiscoverySuperseded
-	}
-	delete(m.rows, read.ArtifactUUID)
-	return nil
-}
-
-func (m *memDiscoveries) Get(_ context.Context, _ string, artifact uuid.UUID) (*models.MCPCapabilityDiscovery, error) {
-	row, ok := m.rows[artifact]
-	if !ok {
-		return nil, repositories.ErrMCPCapabilityDiscoveryNotFound
-	}
-	return &row, nil
+func (m *memDiscoveries) Drop(_ context.Context, read models.MCPCapabilityDiscovery) error {
+	return m.update(read, nil)
 }
 
 // probeCall is one call the fake prober got.
@@ -134,7 +134,8 @@ var discoveredTools = []map[string]interface{}{
 
 func newDiscoveryFixture(t *testing.T, req models.MCPProxyEnvironmentRequest) *discoveryFixture {
 	t.Helper()
-	f := &discoveryFixture{keyFixture: newKeyFixture(t, req), queue: newMemDiscoveries()}
+	f := &discoveryFixture{keyFixture: newKeyFixture(t, req)}
+	f.queue = &memDiscoveries{proxy: func() *models.MCPProxy { return f.proxy }, ouID: testOrg}
 	f.respond = func(probeCall) (*models.MCPServerInfoFetchResponse, error) {
 		tools := discoveredTools
 		return &models.MCPServerInfoFetchResponse{Tools: &tools}, nil
@@ -181,14 +182,25 @@ func (f *discoveryFixture) setDeployed(t *testing.T) {
 
 func (f *discoveryFixture) enqueue(t *testing.T) {
 	t.Helper()
-	require.NoError(t, f.queue.Enqueue(context.Background(), testOrg, uuid.MustParse(f.artifact())))
+	require.NoError(t, f.queue.Enqueue(context.Background(), uuid.MustParse(f.artifact())))
 }
 
+// row is the binding's discovery state as stored, with its binding.
 func (f *discoveryFixture) row(t *testing.T) models.MCPCapabilityDiscovery {
 	t.Helper()
-	row, ok := f.queue.rows[uuid.MustParse(f.artifact())]
-	require.True(t, ok, "the binding has a discovery row")
-	return row
+	slot, ok := f.queue.state(uuid.MustParse(f.artifact()))
+	require.True(t, ok)
+	require.NotNil(t, *slot, "the binding has a discovery")
+	return models.MCPCapabilityDiscovery{MCPCapabilityDiscoveryState: **slot, ArtifactUUID: uuid.MustParse(f.artifact()), OUID: testOrg}
+}
+
+// setRow overwrites the binding's stored discovery state.
+func (f *discoveryFixture) setRow(t *testing.T, row models.MCPCapabilityDiscovery) {
+	t.Helper()
+	slot, ok := f.queue.state(row.ArtifactUUID)
+	require.True(t, ok)
+	state := row.MCPCapabilityDiscoveryState
+	*slot = &state
 }
 
 func (f *discoveryFixture) get(t *testing.T) *models.MCPProxyEnvironmentResponse {
@@ -286,7 +298,7 @@ func TestCapabilityDiscovery_RetriesThenFails(t *testing.T) {
 	row.AttemptCount = mcpDiscoveryAttemptBudget - 1
 	now := time.Now()
 	row.NextAttemptAt = &now
-	f.queue.rows[row.ArtifactUUID] = row
+	f.setRow(t, row)
 
 	f.recon.RunOnce(context.Background())
 	row = f.row(t)
@@ -305,7 +317,9 @@ func TestCapabilityDiscovery_CallerCapabilitiesWin(t *testing.T) {
 	f.recon.RunOnce(context.Background())
 
 	assert.Empty(t, f.calls)
-	assert.Empty(t, f.queue.rows, "the row is dropped")
+	_, ee := f.binding()
+	slot, _ := f.queue.state(ee.ArtifactUUID)
+	assert.Nil(t, *slot, "the discovery is dropped")
 	resp := f.get(t)
 	assert.Equal(t, models.MCPCapabilitiesSourceCaller, resp.CapabilitiesSource)
 	assert.Equal(t, "from_the_caller", (*resp.Capabilities.Tools)[0]["name"])
@@ -352,4 +366,19 @@ func TestCapabilityDiscovery_RequeueDuringAttemptWins(t *testing.T) {
 
 	assert.Equal(t, models.MCPCapabilityDiscoveryPending, f.row(t).Status, "the newer queueing stands")
 	assert.Nil(t, f.get(t).Capabilities, "the superseded attempt stored nothing")
+}
+
+// A binding PUT that changes the binding keeps a queued discovery's state: it is bookkeeping, not configuration.
+func TestCapabilityDiscovery_PutKeepsQueuedState(t *testing.T) {
+	f := newDiscoveryFixture(t, models.MCPProxyEnvironmentRequest{})
+	f.enqueue(t)
+	before := f.row(t)
+
+	off := false
+	_, _, err := f.put(t, models.MCPProxyEnvironmentRequest{Security: &models.MCPProxyEnvironmentSecurity{Enabled: &off}})
+	require.NoError(t, err)
+
+	after := f.row(t)
+	assert.Equal(t, before.Token, after.Token, "the queued discovery survives the PUT")
+	assert.Equal(t, models.MCPCapabilityDiscoveryPending, after.Status)
 }

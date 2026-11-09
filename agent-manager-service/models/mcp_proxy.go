@@ -164,6 +164,9 @@ type MCPEndpointConfig struct {
 	// CapabilitiesDiscovered marks a project proxy binding's Capabilities as discovered by AMS from the MCP server,
 	// rather than given by the caller. A binding PUT without capabilities keeps discovered ones.
 	CapabilitiesDiscovered bool `json:"capabilitiesDiscovered,omitempty"`
+	// CapabilityDiscovery is the binding's capability discovery, while one is queued or once one ran. Project
+	// proxy bindings only.
+	CapabilityDiscovery *MCPCapabilityDiscoveryState `json:"capabilityDiscovery,omitempty"`
 }
 
 // MCP proxy per-environment deployment status values reported on read.

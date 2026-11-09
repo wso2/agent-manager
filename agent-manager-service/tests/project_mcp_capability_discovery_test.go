@@ -175,23 +175,25 @@ func TestProjectMCPCapabilityDiscoveryQueue(t *testing.T) {
 		assert.Equal(t, 1, row.AttemptCount)
 		rr := h.do(http.MethodPost, project, envPath(open)+"/capabilities/refresh", nil)
 		require.Equal(t, http.StatusAccepted, rr.Code, rr.Body.String())
-		require.ErrorIs(t, queue.MarkDiscovered(context.Background(), row, time.Now()),
+		require.ErrorIs(t, queue.MarkAttemptFailed(context.Background(), row, "late", time.Now()),
 			repositories.ErrMCPCapabilityDiscoverySuperseded, "the refresh supersedes the attempt in flight")
 
 		row = claim(t, openArtifact)
 		assert.Zero(t, row.AttemptCount, "a refresh gives a fresh budget")
-		require.NoError(t, queue.MarkDiscovered(context.Background(), row, time.Now()))
+		require.NoError(t, queue.MarkFailed(context.Background(), row, "the MCP server refused"))
 		got = discovery(t, open)
-		assert.Equal(t, "Discovered", got.Status)
-		assert.NotNil(t, got.DiscoveredAt)
-		assert.Empty(t, got.LastError)
+		assert.Equal(t, "Failed", got.Status)
+		assert.Equal(t, "the MCP server refused", got.LastError)
 	})
 
 	t.Run("a binding whose caller gives capabilities is not queued, and refresh is 409", func(t *testing.T) {
 		given := "given-" + suffix
 		artifact := deploy(t, given, map[string]any{"capabilities": map[string]any{"tools": []map[string]any{{"name": "t1"}}}})
-		_, err := queue.Get(context.Background(), ouID, artifact)
-		require.ErrorIs(t, err, repositories.ErrMCPCapabilityDiscoveryNotFound)
+		rows, err := queue.ClaimDue(context.Background(), time.Now(), 100)
+		require.NoError(t, err)
+		for _, r := range rows {
+			assert.NotEqual(t, artifact, r.ArtifactUUID, "a caller-supplied binding is not queued")
+		}
 		rr := h.do(http.MethodGet, project, envPath(given), nil)
 		b := decodeBinding(t, rr)
 		assert.Equal(t, models.MCPCapabilitiesSourceCaller, b.CapabilitiesSource)
@@ -207,11 +209,23 @@ func TestProjectMCPCapabilityDiscoveryQueue(t *testing.T) {
 		require.Equal(t, http.StatusNotFound, rr.Code, rr.Body.String())
 	})
 
-	t.Run("the row goes with the binding", func(t *testing.T) {
+	t.Run("a PUT that changes the binding keeps its discovery state", func(t *testing.T) {
+		rr := h.do(http.MethodPost, project, envPath(open)+"/capabilities/refresh", nil)
+		require.Equal(t, http.StatusAccepted, rr.Code, rr.Body.String())
+		rr = h.do(http.MethodPut, project, envPath(open), map[string]any{"security": map[string]any{"enabled": false}})
+		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+		got := discovery(t, open)
+		require.NotNil(t, got)
+		assert.Equal(t, "Pending", got.Status)
+	})
+
+	t.Run("the discovery goes with the binding", func(t *testing.T) {
 		rr := h.do(http.MethodDelete, project, envPath(open), nil)
 		require.Equal(t, http.StatusNoContent, rr.Code, rr.Body.String())
-		var n int64
-		require.NoError(t, gdb.Raw(`SELECT count(*) FROM mcp_capability_discoveries WHERE artifact_uuid = ?`, openArtifact).Scan(&n).Error)
-		assert.Zero(t, n)
+		rows, err := queue.ClaimDue(context.Background(), time.Now(), 100)
+		require.NoError(t, err)
+		for _, r := range rows {
+			assert.NotEqual(t, openArtifact, r.ArtifactUUID, "an unbound binding is never claimed")
+		}
 	})
 }

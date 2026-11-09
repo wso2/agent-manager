@@ -103,7 +103,7 @@ func (k *MCPProxyKind) AfterLive(ctx context.Context, tx *gorm.DB, p models.Plac
 	}
 	for i := range proxy.Endpoints {
 		if proxy.Endpoints[i].UUID == binding.EndpointUUID && !callerGaveCapabilities(proxy.Endpoints[i].Configuration) {
-			return k.discoveries.WithTx(tx).Enqueue(ctx, p.OUID, p.ArtifactUUID)
+			return k.discoveries.WithTx(tx).Enqueue(ctx, p.ArtifactUUID)
 		}
 	}
 	return nil

@@ -23,20 +23,14 @@ import (
 //			ClaimDueFunc: func(ctx context.Context, now time.Time, limit int) ([]models.MCPCapabilityDiscovery, error) {
 //				panic("mock out the ClaimDue method")
 //			},
-//			DeleteIfUnchangedFunc: func(ctx context.Context, read models.MCPCapabilityDiscovery) error {
-//				panic("mock out the DeleteIfUnchanged method")
+//			DropFunc: func(ctx context.Context, read models.MCPCapabilityDiscovery) error {
+//				panic("mock out the Drop method")
 //			},
-//			EnqueueFunc: func(ctx context.Context, ouID string, artifactUUID uuid.UUID) error {
+//			EnqueueFunc: func(ctx context.Context, artifactUUID uuid.UUID) error {
 //				panic("mock out the Enqueue method")
-//			},
-//			GetFunc: func(ctx context.Context, ouID string, artifactUUID uuid.UUID) (*models.MCPCapabilityDiscovery, error) {
-//				panic("mock out the Get method")
 //			},
 //			MarkAttemptFailedFunc: func(ctx context.Context, read models.MCPCapabilityDiscovery, lastErr string, nextAttemptAt time.Time) error {
 //				panic("mock out the MarkAttemptFailed method")
-//			},
-//			MarkDiscoveredFunc: func(ctx context.Context, read models.MCPCapabilityDiscovery, at time.Time) error {
-//				panic("mock out the MarkDiscovered method")
 //			},
 //			MarkFailedFunc: func(ctx context.Context, read models.MCPCapabilityDiscovery, lastErr string) error {
 //				panic("mock out the MarkFailed method")
@@ -54,20 +48,14 @@ type MCPCapabilityDiscoveryRepositoryMock struct {
 	// ClaimDueFunc mocks the ClaimDue method.
 	ClaimDueFunc func(ctx context.Context, now time.Time, limit int) ([]models.MCPCapabilityDiscovery, error)
 
-	// DeleteIfUnchangedFunc mocks the DeleteIfUnchanged method.
-	DeleteIfUnchangedFunc func(ctx context.Context, read models.MCPCapabilityDiscovery) error
+	// DropFunc mocks the Drop method.
+	DropFunc func(ctx context.Context, read models.MCPCapabilityDiscovery) error
 
 	// EnqueueFunc mocks the Enqueue method.
-	EnqueueFunc func(ctx context.Context, ouID string, artifactUUID uuid.UUID) error
-
-	// GetFunc mocks the Get method.
-	GetFunc func(ctx context.Context, ouID string, artifactUUID uuid.UUID) (*models.MCPCapabilityDiscovery, error)
+	EnqueueFunc func(ctx context.Context, artifactUUID uuid.UUID) error
 
 	// MarkAttemptFailedFunc mocks the MarkAttemptFailed method.
 	MarkAttemptFailedFunc func(ctx context.Context, read models.MCPCapabilityDiscovery, lastErr string, nextAttemptAt time.Time) error
-
-	// MarkDiscoveredFunc mocks the MarkDiscovered method.
-	MarkDiscoveredFunc func(ctx context.Context, read models.MCPCapabilityDiscovery, at time.Time) error
 
 	// MarkFailedFunc mocks the MarkFailed method.
 	MarkFailedFunc func(ctx context.Context, read models.MCPCapabilityDiscovery, lastErr string) error
@@ -86,8 +74,8 @@ type MCPCapabilityDiscoveryRepositoryMock struct {
 			// Limit is the limit argument value.
 			Limit int
 		}
-		// DeleteIfUnchanged holds details about calls to the DeleteIfUnchanged method.
-		DeleteIfUnchanged []struct {
+		// Drop holds details about calls to the Drop method.
+		Drop []struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
 			// Read is the read argument value.
@@ -97,17 +85,6 @@ type MCPCapabilityDiscoveryRepositoryMock struct {
 		Enqueue []struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
-			// OuID is the ouID argument value.
-			OuID string
-			// ArtifactUUID is the artifactUUID argument value.
-			ArtifactUUID uuid.UUID
-		}
-		// Get holds details about calls to the Get method.
-		Get []struct {
-			// Ctx is the ctx argument value.
-			Ctx context.Context
-			// OuID is the ouID argument value.
-			OuID string
 			// ArtifactUUID is the artifactUUID argument value.
 			ArtifactUUID uuid.UUID
 		}
@@ -121,15 +98,6 @@ type MCPCapabilityDiscoveryRepositoryMock struct {
 			LastErr string
 			// NextAttemptAt is the nextAttemptAt argument value.
 			NextAttemptAt time.Time
-		}
-		// MarkDiscovered holds details about calls to the MarkDiscovered method.
-		MarkDiscovered []struct {
-			// Ctx is the ctx argument value.
-			Ctx context.Context
-			// Read is the read argument value.
-			Read models.MCPCapabilityDiscovery
-			// At is the at argument value.
-			At time.Time
 		}
 		// MarkFailed holds details about calls to the MarkFailed method.
 		MarkFailed []struct {
@@ -147,11 +115,9 @@ type MCPCapabilityDiscoveryRepositoryMock struct {
 		}
 	}
 	lockClaimDue          sync.RWMutex
-	lockDeleteIfUnchanged sync.RWMutex
+	lockDrop              sync.RWMutex
 	lockEnqueue           sync.RWMutex
-	lockGet               sync.RWMutex
 	lockMarkAttemptFailed sync.RWMutex
-	lockMarkDiscovered    sync.RWMutex
 	lockMarkFailed        sync.RWMutex
 	lockWithTx            sync.RWMutex
 }
@@ -196,10 +162,10 @@ func (mock *MCPCapabilityDiscoveryRepositoryMock) ClaimDueCalls() []struct {
 	return calls
 }
 
-// DeleteIfUnchanged calls DeleteIfUnchangedFunc.
-func (mock *MCPCapabilityDiscoveryRepositoryMock) DeleteIfUnchanged(ctx context.Context, read models.MCPCapabilityDiscovery) error {
-	if mock.DeleteIfUnchangedFunc == nil {
-		panic("MCPCapabilityDiscoveryRepositoryMock.DeleteIfUnchangedFunc: method is nil but MCPCapabilityDiscoveryRepository.DeleteIfUnchanged was just called")
+// Drop calls DropFunc.
+func (mock *MCPCapabilityDiscoveryRepositoryMock) Drop(ctx context.Context, read models.MCPCapabilityDiscovery) error {
+	if mock.DropFunc == nil {
+		panic("MCPCapabilityDiscoveryRepositoryMock.DropFunc: method is nil but MCPCapabilityDiscoveryRepository.Drop was just called")
 	}
 	callInfo := struct {
 		Ctx  context.Context
@@ -208,17 +174,17 @@ func (mock *MCPCapabilityDiscoveryRepositoryMock) DeleteIfUnchanged(ctx context.
 		Ctx:  ctx,
 		Read: read,
 	}
-	mock.lockDeleteIfUnchanged.Lock()
-	mock.calls.DeleteIfUnchanged = append(mock.calls.DeleteIfUnchanged, callInfo)
-	mock.lockDeleteIfUnchanged.Unlock()
-	return mock.DeleteIfUnchangedFunc(ctx, read)
+	mock.lockDrop.Lock()
+	mock.calls.Drop = append(mock.calls.Drop, callInfo)
+	mock.lockDrop.Unlock()
+	return mock.DropFunc(ctx, read)
 }
 
-// DeleteIfUnchangedCalls gets all the calls that were made to DeleteIfUnchanged.
+// DropCalls gets all the calls that were made to Drop.
 // Check the length with:
 //
-//	len(mockedMCPCapabilityDiscoveryRepository.DeleteIfUnchangedCalls())
-func (mock *MCPCapabilityDiscoveryRepositoryMock) DeleteIfUnchangedCalls() []struct {
+//	len(mockedMCPCapabilityDiscoveryRepository.DropCalls())
+func (mock *MCPCapabilityDiscoveryRepositoryMock) DropCalls() []struct {
 	Ctx  context.Context
 	Read models.MCPCapabilityDiscovery
 } {
@@ -226,30 +192,28 @@ func (mock *MCPCapabilityDiscoveryRepositoryMock) DeleteIfUnchangedCalls() []str
 		Ctx  context.Context
 		Read models.MCPCapabilityDiscovery
 	}
-	mock.lockDeleteIfUnchanged.RLock()
-	calls = mock.calls.DeleteIfUnchanged
-	mock.lockDeleteIfUnchanged.RUnlock()
+	mock.lockDrop.RLock()
+	calls = mock.calls.Drop
+	mock.lockDrop.RUnlock()
 	return calls
 }
 
 // Enqueue calls EnqueueFunc.
-func (mock *MCPCapabilityDiscoveryRepositoryMock) Enqueue(ctx context.Context, ouID string, artifactUUID uuid.UUID) error {
+func (mock *MCPCapabilityDiscoveryRepositoryMock) Enqueue(ctx context.Context, artifactUUID uuid.UUID) error {
 	if mock.EnqueueFunc == nil {
 		panic("MCPCapabilityDiscoveryRepositoryMock.EnqueueFunc: method is nil but MCPCapabilityDiscoveryRepository.Enqueue was just called")
 	}
 	callInfo := struct {
 		Ctx          context.Context
-		OuID         string
 		ArtifactUUID uuid.UUID
 	}{
 		Ctx:          ctx,
-		OuID:         ouID,
 		ArtifactUUID: artifactUUID,
 	}
 	mock.lockEnqueue.Lock()
 	mock.calls.Enqueue = append(mock.calls.Enqueue, callInfo)
 	mock.lockEnqueue.Unlock()
-	return mock.EnqueueFunc(ctx, ouID, artifactUUID)
+	return mock.EnqueueFunc(ctx, artifactUUID)
 }
 
 // EnqueueCalls gets all the calls that were made to Enqueue.
@@ -258,57 +222,15 @@ func (mock *MCPCapabilityDiscoveryRepositoryMock) Enqueue(ctx context.Context, o
 //	len(mockedMCPCapabilityDiscoveryRepository.EnqueueCalls())
 func (mock *MCPCapabilityDiscoveryRepositoryMock) EnqueueCalls() []struct {
 	Ctx          context.Context
-	OuID         string
 	ArtifactUUID uuid.UUID
 } {
 	var calls []struct {
 		Ctx          context.Context
-		OuID         string
 		ArtifactUUID uuid.UUID
 	}
 	mock.lockEnqueue.RLock()
 	calls = mock.calls.Enqueue
 	mock.lockEnqueue.RUnlock()
-	return calls
-}
-
-// Get calls GetFunc.
-func (mock *MCPCapabilityDiscoveryRepositoryMock) Get(ctx context.Context, ouID string, artifactUUID uuid.UUID) (*models.MCPCapabilityDiscovery, error) {
-	if mock.GetFunc == nil {
-		panic("MCPCapabilityDiscoveryRepositoryMock.GetFunc: method is nil but MCPCapabilityDiscoveryRepository.Get was just called")
-	}
-	callInfo := struct {
-		Ctx          context.Context
-		OuID         string
-		ArtifactUUID uuid.UUID
-	}{
-		Ctx:          ctx,
-		OuID:         ouID,
-		ArtifactUUID: artifactUUID,
-	}
-	mock.lockGet.Lock()
-	mock.calls.Get = append(mock.calls.Get, callInfo)
-	mock.lockGet.Unlock()
-	return mock.GetFunc(ctx, ouID, artifactUUID)
-}
-
-// GetCalls gets all the calls that were made to Get.
-// Check the length with:
-//
-//	len(mockedMCPCapabilityDiscoveryRepository.GetCalls())
-func (mock *MCPCapabilityDiscoveryRepositoryMock) GetCalls() []struct {
-	Ctx          context.Context
-	OuID         string
-	ArtifactUUID uuid.UUID
-} {
-	var calls []struct {
-		Ctx          context.Context
-		OuID         string
-		ArtifactUUID uuid.UUID
-	}
-	mock.lockGet.RLock()
-	calls = mock.calls.Get
-	mock.lockGet.RUnlock()
 	return calls
 }
 
@@ -353,46 +275,6 @@ func (mock *MCPCapabilityDiscoveryRepositoryMock) MarkAttemptFailedCalls() []str
 	mock.lockMarkAttemptFailed.RLock()
 	calls = mock.calls.MarkAttemptFailed
 	mock.lockMarkAttemptFailed.RUnlock()
-	return calls
-}
-
-// MarkDiscovered calls MarkDiscoveredFunc.
-func (mock *MCPCapabilityDiscoveryRepositoryMock) MarkDiscovered(ctx context.Context, read models.MCPCapabilityDiscovery, at time.Time) error {
-	if mock.MarkDiscoveredFunc == nil {
-		panic("MCPCapabilityDiscoveryRepositoryMock.MarkDiscoveredFunc: method is nil but MCPCapabilityDiscoveryRepository.MarkDiscovered was just called")
-	}
-	callInfo := struct {
-		Ctx  context.Context
-		Read models.MCPCapabilityDiscovery
-		At   time.Time
-	}{
-		Ctx:  ctx,
-		Read: read,
-		At:   at,
-	}
-	mock.lockMarkDiscovered.Lock()
-	mock.calls.MarkDiscovered = append(mock.calls.MarkDiscovered, callInfo)
-	mock.lockMarkDiscovered.Unlock()
-	return mock.MarkDiscoveredFunc(ctx, read, at)
-}
-
-// MarkDiscoveredCalls gets all the calls that were made to MarkDiscovered.
-// Check the length with:
-//
-//	len(mockedMCPCapabilityDiscoveryRepository.MarkDiscoveredCalls())
-func (mock *MCPCapabilityDiscoveryRepositoryMock) MarkDiscoveredCalls() []struct {
-	Ctx  context.Context
-	Read models.MCPCapabilityDiscovery
-	At   time.Time
-} {
-	var calls []struct {
-		Ctx  context.Context
-		Read models.MCPCapabilityDiscovery
-		At   time.Time
-	}
-	mock.lockMarkDiscovered.RLock()
-	calls = mock.calls.MarkDiscovered
-	mock.lockMarkDiscovered.RUnlock()
 	return calls
 }
 

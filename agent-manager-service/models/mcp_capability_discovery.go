@@ -31,23 +31,24 @@ const (
 	MCPCapabilityDiscoveryFailed = "FAILED"
 )
 
-// MCPCapabilityDiscovery is the capability discovery of one project MCP proxy binding, keyed by the binding's
-// gateway artifact.
-type MCPCapabilityDiscovery struct {
-	ArtifactUUID  uuid.UUID  `gorm:"column:artifact_uuid;primaryKey"`
-	OUID          string     `gorm:"column:ou_id"`
-	Status        string     `gorm:"column:status"`
-	AttemptCount  int        `gorm:"column:attempt_count"`
-	NextAttemptAt *time.Time `gorm:"column:next_attempt_at"`
-	LastError     string     `gorm:"column:last_error"`
-	DiscoveredAt  *time.Time `gorm:"column:discovered_at"`
-	CreatedAt     time.Time  `gorm:"column:created_at"`
-	UpdatedAt     time.Time  `gorm:"column:updated_at"`
+// MCPCapabilityDiscoveryState is a project MCP proxy binding's capability discovery, stored in its endpoint
+// configuration next to the capabilities it discovers, as an org proxy's capabilities are stored. It is bookkeeping,
+// not configuration: a binding PUT carries it over and never compares it.
+type MCPCapabilityDiscoveryState struct {
+	Status        string     `json:"status"`
+	AttemptCount  int        `json:"attemptCount,omitempty"`
+	NextAttemptAt *time.Time `json:"nextAttemptAt,omitempty"`
+	LastError     string     `json:"lastError,omitempty"`
+	DiscoveredAt  *time.Time `json:"discoveredAt,omitempty"`
+	// Token changes each time the binding is queued, so an attempt from before a later queueing records nothing.
+	Token string `json:"token"`
 }
 
-// TableName returns the table name for the MCPCapabilityDiscovery model.
-func (MCPCapabilityDiscovery) TableName() string {
-	return "mcp_capability_discoveries"
+// MCPCapabilityDiscovery is a binding's discovery as a claim returns it: the state plus the binding it belongs to.
+type MCPCapabilityDiscovery struct {
+	MCPCapabilityDiscoveryState
+	ArtifactUUID uuid.UUID
+	OUID         string
 }
 
 // MCPCapabilityDiscoveryStatus is a binding's capability discovery as the API shows it.
@@ -58,8 +59,8 @@ type MCPCapabilityDiscoveryStatus struct {
 	DiscoveredAt *time.Time `json:"discoveredAt,omitempty"`
 }
 
-// MCPCapabilityDiscoveryStatusOf is the API view of a discovery row.
-func MCPCapabilityDiscoveryStatusOf(d MCPCapabilityDiscovery) *MCPCapabilityDiscoveryStatus {
+// MCPCapabilityDiscoveryStatusOf is the API view of a binding's discovery state.
+func MCPCapabilityDiscoveryStatusOf(d MCPCapabilityDiscoveryState) *MCPCapabilityDiscoveryStatus {
 	status := map[string]string{
 		MCPCapabilityDiscoveryPending:    "Pending",
 		MCPCapabilityDiscoveryDiscovered: "Discovered",

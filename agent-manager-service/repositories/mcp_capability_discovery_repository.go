@@ -17,7 +17,9 @@ package repositories
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -26,36 +28,33 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 )
 
-// MCPCapabilityDiscoveryClaimLease is how long a claimed row stays out of other claims: one attempt has this long to
-// record its outcome before another replica may take the row.
+// MCPCapabilityDiscoveryClaimLease is how long a claimed binding stays out of other claims: one attempt has this
+// long to record its outcome before another replica may take it.
 const MCPCapabilityDiscoveryClaimLease = 5 * time.Minute
 
-// ErrMCPCapabilityDiscoverySuperseded means the row was queued again after the caller read it.
+// ErrMCPCapabilityDiscoverySuperseded means the binding was queued again, or its discovery dropped, after the caller
+// read it.
 var ErrMCPCapabilityDiscoverySuperseded = errors.New("mcp capability discovery was queued again since it was read")
 
-// ErrMCPCapabilityDiscoveryNotFound means the binding has no discovery row.
-var ErrMCPCapabilityDiscoveryNotFound = errors.New("mcp capability discovery not found")
-
-// MCPCapabilityDiscoveryRepository queues and records project MCP proxy bindings' capability discoveries.
+// MCPCapabilityDiscoveryRepository queues and records project MCP proxy bindings' capability discoveries. The state
+// lives in the binding endpoint's configuration (MCPEndpointConfig.CapabilityDiscovery); every write here changes
+// only that key, so it never overwrites the binding's configuration.
 //
 //go:generate moq -rm -fmt goimports -skip-ensure -pkg repomocks -out repomocks/mcp_capability_discovery_repository_mock.go . MCPCapabilityDiscoveryRepository:MCPCapabilityDiscoveryRepositoryMock
 type MCPCapabilityDiscoveryRepository interface {
 	// WithTx returns the repository bound to tx, so its writes commit or roll back with the caller's.
 	WithTx(tx *gorm.DB) MCPCapabilityDiscoveryRepository
-	// Enqueue makes the binding's row pending and due now, with a fresh attempt budget. It keeps discovered_at.
-	Enqueue(ctx context.Context, ouID string, artifactUUID uuid.UUID) error
-	// ClaimDue leases up to limit pending rows whose next_attempt_at has passed.
+	// Enqueue makes the binding's discovery pending and due now, with a fresh attempt budget and token. It keeps
+	// discoveredAt.
+	Enqueue(ctx context.Context, artifactUUID uuid.UUID) error
+	// ClaimDue leases up to limit pending discoveries whose nextAttemptAt has passed.
 	ClaimDue(ctx context.Context, now time.Time, limit int) ([]models.MCPCapabilityDiscovery, error)
 
-	// The Mark* methods and DeleteIfUnchanged act on the row as ClaimDue returned it, and return
+	// The Mark* methods and Drop act on the discovery as ClaimDue returned it, and return
 	// ErrMCPCapabilityDiscoverySuperseded when it was queued again since.
-	MarkDiscovered(ctx context.Context, read models.MCPCapabilityDiscovery, at time.Time) error
 	MarkAttemptFailed(ctx context.Context, read models.MCPCapabilityDiscovery, lastErr string, nextAttemptAt time.Time) error
 	MarkFailed(ctx context.Context, read models.MCPCapabilityDiscovery, lastErr string) error
-	DeleteIfUnchanged(ctx context.Context, read models.MCPCapabilityDiscovery) error
-
-	// Get returns ErrMCPCapabilityDiscoveryNotFound when the binding has no row.
-	Get(ctx context.Context, ouID string, artifactUUID uuid.UUID) (*models.MCPCapabilityDiscovery, error)
+	Drop(ctx context.Context, read models.MCPCapabilityDiscovery) error
 }
 
 type mcpCapabilityDiscoveryRepository struct {
@@ -71,106 +70,133 @@ func (r *mcpCapabilityDiscoveryRepository) WithTx(tx *gorm.DB) MCPCapabilityDisc
 	return &mcpCapabilityDiscoveryRepository{db: tx}
 }
 
-// discoveryNow is a timestamp as Postgres stores it, so a row read back compares equal on updated_at.
-func discoveryNow() time.Time {
-	return time.Now().Truncate(time.Microsecond)
+// bindingEndpoint selects the endpoint row of the binding whose gateway artifact is the first argument.
+const bindingEndpoint = `uuid = (SELECT endpoint_uuid FROM mcp_proxy_endpoint_environments WHERE artifact_uuid = ?)`
+
+// setDiscovery replaces the binding's discovery state with state, when where (on the endpoint row) holds.
+func (r *mcpCapabilityDiscoveryRepository) setDiscovery(
+	ctx context.Context, artifactUUID uuid.UUID, state *models.MCPCapabilityDiscoveryState, where string, args ...any,
+) (int64, error) {
+	set := "configuration - 'capabilityDiscovery'"
+	values := []any{}
+	if state != nil {
+		encoded, err := json.Marshal(state)
+		if err != nil {
+			return 0, fmt.Errorf("failed to encode the capability discovery: %w", err)
+		}
+		set = "jsonb_set(COALESCE(configuration, '{}'::jsonb), '{capabilityDiscovery}', ?::jsonb)"
+		values = append(values, string(encoded))
+	}
+	sql := "UPDATE mcp_proxy_endpoints SET configuration = " + set + " WHERE " + bindingEndpoint
+	values = append(values, artifactUUID)
+	if where != "" {
+		sql += " AND " + where
+		values = append(values, args...)
+	}
+	result := r.db.WithContext(ctx).Exec(sql, values...)
+	return result.RowsAffected, result.Error
 }
 
-func (r *mcpCapabilityDiscoveryRepository) Enqueue(ctx context.Context, ouID string, artifactUUID uuid.UUID) error {
-	now := discoveryNow()
-	return r.db.WithContext(ctx).Exec(`
-		INSERT INTO mcp_capability_discoveries (artifact_uuid, ou_id, status, attempt_count, next_attempt_at, last_error,
-			created_at, updated_at)
-		VALUES (?, ?, ?, 0, ?, '', ?, ?)
-		ON CONFLICT (artifact_uuid) DO UPDATE SET status = EXCLUDED.status, attempt_count = 0,
-			next_attempt_at = EXCLUDED.next_attempt_at, last_error = '', updated_at = EXCLUDED.updated_at`,
-		artifactUUID, ouID, models.MCPCapabilityDiscoveryPending, now, now, now).Error
+func (r *mcpCapabilityDiscoveryRepository) Enqueue(ctx context.Context, artifactUUID uuid.UUID) error {
+	var raw *string
+	err := r.db.WithContext(ctx).Raw(`SELECT configuration->'capabilityDiscovery' FROM mcp_proxy_endpoints WHERE `+bindingEndpoint,
+		artifactUUID).Row().Scan(&raw)
+	if err != nil {
+		return fmt.Errorf("failed to read the capability discovery: %w", err)
+	}
+	now := time.Now().UTC()
+	state := &models.MCPCapabilityDiscoveryState{
+		Status: models.MCPCapabilityDiscoveryPending, NextAttemptAt: &now, Token: uuid.NewString(),
+	}
+	if raw != nil {
+		var prev models.MCPCapabilityDiscoveryState
+		if json.Unmarshal([]byte(*raw), &prev) == nil {
+			state.DiscoveredAt = prev.DiscoveredAt
+		}
+	}
+	_, err = r.setDiscovery(ctx, artifactUUID, state, "")
+	return err
+}
+
+// claimedDiscovery is one row ClaimDue returns.
+type claimedDiscovery struct {
+	ArtifactUUID uuid.UUID `gorm:"column:artifact_uuid"`
+	OUID         string    `gorm:"column:ou_id"`
+	State        string    `gorm:"column:state"`
 }
 
 func (r *mcpCapabilityDiscoveryRepository) ClaimDue(ctx context.Context, now time.Time, limit int) ([]models.MCPCapabilityDiscovery, error) {
-	var claimed []models.MCPCapabilityDiscovery
-	err := r.db.WithContext(ctx).Raw(
+	lease, err := json.Marshal(now.Add(MCPCapabilityDiscoveryClaimLease).UTC())
+	if err != nil {
+		return nil, err
+	}
+	var rows []claimedDiscovery
+	err = r.db.WithContext(ctx).Raw(
 		`
-		UPDATE mcp_capability_discoveries SET next_attempt_at = ?
-		WHERE artifact_uuid IN (
-			SELECT artifact_uuid FROM mcp_capability_discoveries
-			WHERE status = ? AND next_attempt_at <= ?
-			ORDER BY next_attempt_at ASC, created_at ASC
+		UPDATE mcp_proxy_endpoints e
+		SET configuration = jsonb_set(e.configuration, '{capabilityDiscovery,nextAttemptAt}', ?::jsonb)
+		FROM mcp_proxy_endpoint_environments ee, artifacts a
+		WHERE ee.endpoint_uuid = e.uuid AND a.uuid = e.mcp_proxy_uuid
+		AND e.uuid IN (
+			SELECT d.uuid FROM mcp_proxy_endpoints d
+			WHERE d.configuration->'capabilityDiscovery'->>'status' = ?
+			AND (d.configuration->'capabilityDiscovery'->>'nextAttemptAt')::timestamptz <= ?
+			ORDER BY (d.configuration->'capabilityDiscovery'->>'nextAttemptAt')::timestamptz ASC
 			LIMIT ?
-			FOR UPDATE SKIP LOCKED
+			FOR UPDATE OF d SKIP LOCKED
 		)
-		RETURNING artifact_uuid, ou_id, status, attempt_count, next_attempt_at, last_error, discovered_at, created_at,
-			updated_at`,
-		now.Add(MCPCapabilityDiscoveryClaimLease), models.MCPCapabilityDiscoveryPending, now, limit,
-	).Scan(&claimed).Error
-	return claimed, err
+		RETURNING ee.artifact_uuid AS artifact_uuid, a.ou_id AS ou_id, e.configuration->'capabilityDiscovery' AS state`,
+		string(lease), models.MCPCapabilityDiscoveryPending, now, limit,
+	).Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	claimed := make([]models.MCPCapabilityDiscovery, 0, len(rows))
+	for _, row := range rows {
+		d := models.MCPCapabilityDiscovery{ArtifactUUID: row.ArtifactUUID, OUID: row.OUID}
+		if err := json.Unmarshal([]byte(row.State), &d.MCPCapabilityDiscoveryState); err != nil {
+			return nil, fmt.Errorf("failed to decode the capability discovery of %s: %w", row.ArtifactUUID, err)
+		}
+		claimed = append(claimed, d)
+	}
+	return claimed, nil
 }
 
-func (r *mcpCapabilityDiscoveryRepository) MarkDiscovered(ctx context.Context, read models.MCPCapabilityDiscovery, at time.Time) error {
-	return r.updateIfUnchanged(ctx, read, map[string]any{
-		"status":          models.MCPCapabilityDiscoveryDiscovered,
-		"next_attempt_at": nil,
-		"last_error":      "",
-		"discovered_at":   at,
-	})
+// update writes state while the binding still has read's token.
+func (r *mcpCapabilityDiscoveryRepository) update(
+	ctx context.Context, read models.MCPCapabilityDiscovery, state *models.MCPCapabilityDiscoveryState,
+) error {
+	affected, err := r.setDiscovery(ctx, read.ArtifactUUID, state,
+		"configuration->'capabilityDiscovery'->>'token' = ?", read.Token)
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return ErrMCPCapabilityDiscoverySuperseded
+	}
+	return nil
 }
 
 func (r *mcpCapabilityDiscoveryRepository) MarkAttemptFailed(
 	ctx context.Context, read models.MCPCapabilityDiscovery, lastErr string, nextAttemptAt time.Time,
 ) error {
-	return r.updateIfUnchanged(ctx, read, map[string]any{
-		"attempt_count":   gorm.Expr("attempt_count + 1"),
-		"last_error":      lastErr,
-		"next_attempt_at": nextAttemptAt,
-	})
+	state := read.MCPCapabilityDiscoveryState
+	state.AttemptCount++
+	state.LastError = lastErr
+	next := nextAttemptAt.UTC()
+	state.NextAttemptAt = &next
+	return r.update(ctx, read, &state)
 }
 
 func (r *mcpCapabilityDiscoveryRepository) MarkFailed(ctx context.Context, read models.MCPCapabilityDiscovery, lastErr string) error {
-	return r.updateIfUnchanged(ctx, read, map[string]any{
-		"status":          models.MCPCapabilityDiscoveryFailed,
-		"attempt_count":   gorm.Expr("attempt_count + 1"),
-		"last_error":      lastErr,
-		"next_attempt_at": nil,
-	})
+	state := read.MCPCapabilityDiscoveryState
+	state.AttemptCount++
+	state.Status = models.MCPCapabilityDiscoveryFailed
+	state.LastError = lastErr
+	state.NextAttemptAt = nil
+	return r.update(ctx, read, &state)
 }
 
-func (r *mcpCapabilityDiscoveryRepository) DeleteIfUnchanged(ctx context.Context, read models.MCPCapabilityDiscovery) error {
-	result := r.db.WithContext(ctx).
-		Where("artifact_uuid = ? AND updated_at = ?", read.ArtifactUUID, read.UpdatedAt).
-		Delete(&models.MCPCapabilityDiscovery{})
-	if result.Error != nil {
-		return result.Error
-	}
-	if result.RowsAffected == 0 {
-		return ErrMCPCapabilityDiscoverySuperseded
-	}
-	return nil
-}
-
-func (r *mcpCapabilityDiscoveryRepository) updateIfUnchanged(
-	ctx context.Context, read models.MCPCapabilityDiscovery, updates map[string]any,
-) error {
-	updates["updated_at"] = discoveryNow()
-	result := r.db.WithContext(ctx).Model(&models.MCPCapabilityDiscovery{}).
-		Where("artifact_uuid = ? AND updated_at = ?", read.ArtifactUUID, read.UpdatedAt).
-		Updates(updates)
-	if result.Error != nil {
-		return result.Error
-	}
-	if result.RowsAffected == 0 {
-		return ErrMCPCapabilityDiscoverySuperseded
-	}
-	return nil
-}
-
-func (r *mcpCapabilityDiscoveryRepository) Get(ctx context.Context, ouID string, artifactUUID uuid.UUID) (*models.MCPCapabilityDiscovery, error) {
-	var row models.MCPCapabilityDiscovery
-	err := r.db.WithContext(ctx).Where("artifact_uuid = ? AND ou_id = ?", artifactUUID, ouID).Take(&row).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, ErrMCPCapabilityDiscoveryNotFound
-	}
-	if err != nil {
-		return nil, err
-	}
-	return &row, nil
+func (r *mcpCapabilityDiscoveryRepository) Drop(ctx context.Context, read models.MCPCapabilityDiscovery) error {
+	return r.update(ctx, read, nil)
 }

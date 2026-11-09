@@ -165,7 +165,7 @@ func (s *projectMCPCapabilityDiscoveryService) discoverOne(ctx context.Context, 
 	var permanent *mcpDiscoveryPermanentError
 	switch {
 	case errors.Is(err, errMCPDiscoveryNotNeeded):
-		s.record(log, s.discoveries.DeleteIfUnchanged(recordCtx, row))
+		s.record(log, s.discoveries.Drop(recordCtx, row))
 		return
 	case errors.As(err, &permanent):
 		log.Info("MCP capability discovery cannot succeed for this binding", "reason", permanent.Error())
@@ -175,10 +175,10 @@ func (s *projectMCPCapabilityDiscoveryService) discoverOne(ctx context.Context, 
 		s.recordAttemptFailure(recordCtx, log, row, err)
 		return
 	}
-	err = s.bindings.storeDiscoveredCapabilities(recordCtx, row, capabilities, s.discoveries)
+	err = s.bindings.storeDiscoveredCapabilities(recordCtx, row, capabilities)
 	switch {
 	case errors.Is(err, errMCPDiscoveryNotNeeded):
-		s.record(log, s.discoveries.DeleteIfUnchanged(recordCtx, row))
+		s.record(log, s.discoveries.Drop(recordCtx, row))
 	case err != nil && !errors.Is(err, repositories.ErrMCPCapabilityDiscoverySuperseded):
 		s.recordAttemptFailure(recordCtx, log, row, fmt.Errorf("failed to store the discovered capabilities: %w", err))
 	default:
@@ -401,13 +401,13 @@ func (s *ProjectMCPProxyService) issueDiscoveryKey(ctx context.Context, ouID, ar
 	return resp.APIKey, revoke, nil
 }
 
-// storeDiscoveredCapabilities writes discovered capabilities onto the binding and marks the row discovered, in one
-// transaction with the proxy row locked, so a binding PUT cannot interleave. A binding whose caller has since given
-// capabilities, or that is gone, is left alone (errMCPDiscoveryNotNeeded). The binding is not redeployed: the gateway
-// does not carry capabilities.
+// storeDiscoveredCapabilities writes discovered capabilities onto the binding and marks its discovery discovered, in
+// one write with the proxy row locked, so a binding PUT cannot interleave. A discovery queued again since the claim
+// (another token) is superseded and writes nothing; a binding whose caller has since given capabilities, or that is
+// gone, is left alone (errMCPDiscoveryNotNeeded). The binding is not redeployed: the gateway does not carry
+// capabilities.
 func (s *ProjectMCPProxyService) storeDiscoveredCapabilities(
 	ctx context.Context, row models.MCPCapabilityDiscovery, capabilities *models.MCPProxyCapabilities,
-	discoveries repositories.MCPCapabilityDiscoveryRepository,
 ) error {
 	proxy, _, _, err := s.bindingByArtifact(ctx, row.OUID, row.ArtifactUUID)
 	if err != nil {
@@ -432,11 +432,15 @@ func (s *ProjectMCPProxyService) storeDiscoveredCapabilities(
 		if endpoint == nil || callerGaveCapabilities(endpoint.Configuration) {
 			return errMCPDiscoveryNotNeeded
 		}
-		// Marked first: a row queued again since the claim refuses, and the binding is left as it is.
-		if err := discoveries.WithTx(tx).MarkDiscovered(ctx, row, time.Now()); err != nil {
-			return err
-		}
 		cfg := endpoint.Configuration
+		if cfg.CapabilityDiscovery == nil || cfg.CapabilityDiscovery.Token != row.Token {
+			return repositories.ErrMCPCapabilityDiscoverySuperseded
+		}
+		now := time.Now().UTC()
+		discovered := *cfg.CapabilityDiscovery
+		discovered.Status, discovered.NextAttemptAt, discovered.LastError = models.MCPCapabilityDiscoveryDiscovered, nil, ""
+		discovered.DiscoveredAt = &now
+		cfg.CapabilityDiscovery = &discovered
 		cfg.Capabilities = capabilities
 		cfg.CapabilitiesDiscovered = capabilities != nil
 		if err := s.base.endpointRepo.UpdateEndpoint(ctx, tx, &models.MCPProxyEndpoint{
