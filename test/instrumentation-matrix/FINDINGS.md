@@ -34,7 +34,7 @@ reused, so removed numbers just leave a gap.)
 ## F-001 — Traceloop stringifies every `crewai.*` attribute
 
 - **Status**: mitigated
-- **Combo**: `traceloop-sdk 0.61.0` × `crewai 1.1.0`
+- **Combo**: `traceloop-sdk 0.61.0` × `crewai 1.1.0`; `traceloop-sdk 0.61.0`–`0.63.0` × `crewai 1.15.39`
 - **Discovered**: 2026-05-27 (CrewAI cell first record + replay)
 - **Symptom**: every attribute under the `crewai.*` namespace arrives on the
   captured span as a Python `str`, even values that are logically `int` /

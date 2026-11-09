@@ -36,6 +36,15 @@ All three are edits to [`matrix.yaml`](./matrix.yaml):
   version into `cassettes/<framework>/<version>/`, which the harness prefers
   over the framework-level cassette (CrewAI 1.15 needed its own: it calls
   tools natively where 1.1 used ReAct text).
+  The harness only uses that directory once it exists, so create it first,
+  then record through the cell itself so the right framework version is
+  installed:
+
+  ```bash
+  mkdir -p cassettes/crewai/1.15.39
+  OPENAI_API_KEY=sk-... VCR_RECORD_MODE=once \
+    nox -s emission -- --cell-id=traceloop-0.63.0-crewai-1.15.39-py3.12
+  ```
 - **New framework**: add a `frameworks:` block (`name`, `package`, `versions`,
   `samplePath`, `spanKinds`, optional `extras`), add a sample under
   `cells/<framework>_sample.py`, and record its cassette (§4 of the design,
