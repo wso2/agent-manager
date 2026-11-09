@@ -23,6 +23,8 @@ import type {
   FetchMCPProxyServerInfoPathParams,
   GetMCPProxyPathParams,
   GetProjectMCPProxyPathParams,
+  ProjectMCPProxyEnvironment,
+  RefreshProjectMCPProxyCapabilitiesPathParams,
   ListMCPProxiesPathParams,
   ListMCPProxiesQuery,
   MCPProxy,
@@ -38,6 +40,7 @@ import {
   fetchMCPProxyServerInfo,
   getMCPProxy,
   getProjectMCPProxy,
+  refreshProjectMCPProxyCapabilities,
   listMCPProxies,
   updateMCPProxy,
 } from "../apis";
@@ -87,6 +90,26 @@ export function useGetProjectMCPProxy(params: GetProjectMCPProxyPathParams) {
     queryKey: ["project-mcp-proxy", params],
     queryFn: () => getProjectMCPProxy(params, getToken),
     enabled: !!params.orgName && !!params.projName && !!params.proxyId,
+  });
+}
+
+/**
+ * Runs a project proxy binding's capability discovery again; its proxy reads refetch
+ * with it Pending.
+ */
+export function useRefreshProjectMCPProxyCapabilities() {
+  const { getToken } = useAuthHooks();
+  const queryClient = useQueryClient();
+  return useApiMutation<
+    ProjectMCPProxyEnvironment,
+    unknown,
+    RefreshProjectMCPProxyCapabilitiesPathParams
+  >({
+    action: { verb: "start", target: "tool discovery" },
+    mutationFn: (params) => refreshProjectMCPProxyCapabilities(params, getToken),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["project-mcp-proxy"] });
+    },
   });
 }
 

@@ -50,6 +50,7 @@ vi.mock("@agent-management-platform/api-client", () => ({
   useListEnvironments: vi.fn(() => envsResult),
   useListMCPProxies: vi.fn(() => proxiesResult),
   useListMCPProxyScopes: vi.fn(() => idle),
+  useRefreshProjectMCPProxyCapabilities: vi.fn(() => mutationResult),
   useUpdateAgentMCPConfig: vi.fn(() => mutationResult),
 }));
 vi.mock("@agent-management-platform/shared-component", async (orig) => ({

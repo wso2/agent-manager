@@ -131,11 +131,18 @@ export const MCPProxyConfigCard: React.FC<MCPProxyConfigCardProps> = ({
     // read as "no tools" before we've actually found the right one.
     const isLoading = isLoadingConfig || isLoadingProxy || isLoadingEnvironments;
     const hasLoadError = isConfigError || isProxyError || isEnvironmentsError;
+    // A project proxy's tools may still be on their way: while its discovery is
+    // pending, or after it failed, "No tools exposed" would read as a final answer.
+    const discovery = endpoint?.capabilityDiscovery?.status;
     const subtitle = hasLoadError
         ? "Unable to load tools"
         : toolNames.length > 0
             ? `Tools: ${toolNames.join(", ")}`
-            : "No tools exposed";
+            : discovery === "Pending"
+                ? "Discovering tools…"
+                : discovery === "Failed"
+                    ? "Tool discovery failed"
+                    : "No tools exposed";
 
     if (!visible) {
         return null;

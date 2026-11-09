@@ -94,6 +94,7 @@ export function projectMCPProxyEndpoints(
       ? { enabled: environment.security.enabled, apiKey: environment.security.apiKey }
       : undefined,
     capabilities: environment.capabilities,
+    capabilityDiscovery: environment.capabilityDiscovery,
     environments: [{ environmentUuid: environment.environmentUuid }],
   }));
 }

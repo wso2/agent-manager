@@ -279,6 +279,22 @@ describe("useMCPProxySecurity", () => {
       expect(endpoints[1].capabilities).toBeUndefined();
     });
 
+    it("carries each environment's capability discovery onto its endpoint, and names the owning project", () => {
+      query({ data: projectProxyStub() });
+      const discovering = projectProxy([{ uuid: "dev-uuid" }, { uuid: "prod-uuid" }]);
+      discovering.environments[0].capabilityDiscovery = { status: "Failed", lastError: "gateway said 503" };
+      projectQuery({ data: discovering });
+
+      const { result } = renderHook(() =>
+        useMCPProxyEndpoints({ orgName: "acme", proxyId: "orders" }),
+      );
+
+      const endpoints = result.current.proxy?.endpoints ?? [];
+      expect(endpoints[0].capabilityDiscovery).toEqual({ status: "Failed", lastError: "gateway said 503" });
+      expect(endpoints[1].capabilityDiscovery).toBeUndefined();
+      expect(result.current.ownerProject).toBe("p1");
+    });
+
     it("reads its security from the project route's environments", () => {
       query({ data: projectProxyStub() });
       projectQuery({ data: projectProxy([{ uuid: "dev-uuid", security: envAPIKey }]) });
