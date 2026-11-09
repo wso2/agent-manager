@@ -17,6 +17,7 @@
 package controllers
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -118,6 +119,7 @@ func (c *agentIdentityController) getRoleViaProvider(w http.ResponseWriter, r *h
 // references a permission the environment does not know.
 func (c *agentIdentityController) scopePermissionsViaProvider(
 	w http.ResponseWriter, r *http.Request, scopes []string,
+	readiness roleUpdateReadiness,
 ) ([]thundersvc.RolePermissionRequest, bool) {
 	ctx := r.Context()
 	ouID := middleware.OUIDFromRequest(r)
@@ -135,6 +137,33 @@ func (c *agentIdentityController) scopePermissionsViaProvider(
 		return nil, false
 	}
 	envName := r.PathValue("envName")
+	if readiness != nil {
+		urls := make(map[string]string, len(groups))
+		actions := make(map[string][]string, len(groups))
+		for _, handle := range sortedKeys(groups) {
+			g := groups[handle]
+			identifier, err := c.rsIdentifiers.MCPResourceServerIdentifier(ctx, ouID, envID, g.proxy)
+			if err != nil {
+				c.writeEnsureError(w, r, g, envName, err)
+				return nil, false
+			}
+			urls[handle], actions[handle] = identifier, g.actions
+		}
+		ids, err := readiness.ReadAppliedRoleScopes(ctx, ouID, envName, urls, actions)
+		if err != nil {
+			writeIdentityRoleError(w, r, "verify applied MCP scopes", err)
+			return nil, false
+		}
+		for _, handle := range sortedKeys(groups) {
+			if ids[handle] == "" {
+				utils.WriteErrorResponse(w, http.StatusConflict, fmt.Sprintf(
+					"MCP proxy %q scopes are not ready in %q. Check the MCP deployment and retry.", handle, envName))
+				return nil, false
+			}
+			permissions = append(permissions, thundersvc.RolePermissionRequest{ResourceServerID: ids[handle], Permissions: groups[handle].scopes})
+		}
+		return permissions, true
+	}
 	for _, handle := range sortedKeys(groups) {
 		g := groups[handle]
 		rsID, err := c.rsIdentifiers.EnsureResourceServerInEnv(ctx, ouID, envID, envName, g.proxy, g.actions)
@@ -181,7 +210,7 @@ func (c *agentIdentityController) createRoleViaProvider(w http.ResponseWriter, r
 	if !validateReservedRoleName(w, body.Name) {
 		return
 	}
-	permissions, ok := c.scopePermissionsViaProvider(w, r, body.Scopes)
+	permissions, ok := c.scopePermissionsViaProvider(w, r, body.Scopes, nil)
 	if !ok {
 		return
 	}
@@ -194,6 +223,11 @@ func (c *agentIdentityController) createRoleViaProvider(w http.ResponseWriter, r
 		return
 	}
 	utils.WriteSuccessResponse(w, http.StatusCreated, role)
+}
+
+// roleUpdateReadiness resolves already-applied MCP scopes without deploying them.
+type roleUpdateReadiness interface {
+	ReadAppliedRoleScopes(context.Context, string, string, map[string]string, map[string][]string) (map[string]string, error)
 }
 
 func (c *agentIdentityController) updateRoleViaProvider(w http.ResponseWriter, r *http.Request, provider services.IdentityRoleProvider) {
@@ -210,6 +244,7 @@ func (c *agentIdentityController) updateRoleViaProvider(w http.ResponseWriter, r
 	if _, ok := c.managedRoleViaProvider(w, r, provider, roleID); !ok {
 		return
 	}
+	readiness, _ := provider.(roleUpdateReadiness)
 	write := services.IdentityRoleWrite{
 		OrganizationID: middleware.OUIDFromRequest(r), Environment: r.PathValue("envName"),
 		RoleID: roleID, Description: body.Description,
@@ -220,7 +255,7 @@ func (c *agentIdentityController) updateRoleViaProvider(w http.ResponseWriter, r
 	// An omitted "scopes" (nil) is a metadata-only update that leaves the role's permissions alone;
 	// an explicit, possibly empty, list replaces them.
 	if body.Scopes != nil {
-		permissions, ok := c.scopePermissionsViaProvider(w, r, body.Scopes)
+		permissions, ok := c.scopePermissionsViaProvider(w, r, body.Scopes, readiness)
 		if !ok {
 			return
 		}

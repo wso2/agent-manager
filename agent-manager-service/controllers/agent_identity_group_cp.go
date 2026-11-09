@@ -139,6 +139,11 @@ func (c *agentIdentityController) createGroupViaProvider(w http.ResponseWriter, 
 	utils.WriteSuccessResponse(w, http.StatusCreated, group)
 }
 
+// Implementations that opt in check group ownership, visibility, and placement in UpdateGroup.
+type validatedGroupUpdate interface {
+	ValidatesGroupUpdateTarget() bool
+}
+
 func (c *agentIdentityController) updateGroupViaProvider(w http.ResponseWriter, r *http.Request, provider services.IdentityGroupProvider) {
 	groupID := r.PathValue(utils.PathParamGroupID)
 	var body spec.AgentIdentityGroupRequest
@@ -149,8 +154,11 @@ func (c *agentIdentityController) updateGroupViaProvider(w http.ResponseWriter, 
 	if !validateReservedGroupName(w, body.Name) {
 		return
 	}
-	if _, ok := c.managedGroupViaProvider(w, r, provider, groupID); !ok {
-		return
+	validator, validates := provider.(validatedGroupUpdate)
+	if !validates || !validator.ValidatesGroupUpdateTarget() {
+		if _, ok := c.managedGroupViaProvider(w, r, provider, groupID); !ok {
+			return
+		}
 	}
 	write := services.IdentityGroupWrite{
 		OrganizationID: middleware.OUIDFromRequest(r), Environment: r.PathValue("envName"),

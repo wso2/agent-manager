@@ -41,6 +41,15 @@ import (
 
 // fakeRoleProvider is a deployment's role provider. It records the order of its calls together with
 // the resource server ensures, so a test can prove the ensure comes first.
+type readOnlyScopeRoleProvider struct {
+	*fakeRoleProvider
+	ids map[string]string
+}
+
+func (p *readOnlyScopeRoleProvider) ReadAppliedRoleScopes(context.Context, string, string, map[string]string, map[string][]string) (map[string]string, error) {
+	return p.ids, nil
+}
+
 type fakeRoleProvider struct {
 	mu      sync.Mutex
 	calls   *[]string
@@ -310,6 +319,32 @@ func TestRolesViaControlPlane_UpdateScopesAreOptional(t *testing.T) {
 		assert.Equal(t, []thundersvc.RolePermissionRequest{{ResourceServerID: "rs-gh-proxy", Permissions: []string{"gh-proxy:read"}}}, *provider.written[0].Permissions)
 	})
 
+	t.Run("an unready scope leaves the role unchanged", func(t *testing.T) {
+		provider := &readOnlyScopeRoleProvider{fakeRoleProvider: &fakeRoleProvider{role: existing}}
+		useRoleMode(t, thundersvc.IdentityManagementCPManaged, provider)
+		var ensured []ensureCall
+		w := httptest.NewRecorder()
+		cpController(t, stubRSIdentifierResolver{ensured: &ensured}).UpdateRole(w, cpRoleRequest(http.MethodPut, rolesPath+"/role-1", `{"scopes":["gh-proxy:read"]}`))
+		require.Equal(t, http.StatusConflict, w.Code)
+		require.Empty(t, ensured)
+		require.Empty(t, provider.written)
+	})
+
+	t.Run("a ready scope uses the applied ID without ensuring it", func(t *testing.T) {
+		provider := &readOnlyScopeRoleProvider{
+			fakeRoleProvider: &fakeRoleProvider{role: existing},
+			ids:              map[string]string{"gh-proxy": "applied-rs"},
+		}
+		useRoleMode(t, thundersvc.IdentityManagementCPManaged, provider)
+		var ensured []ensureCall
+		w := httptest.NewRecorder()
+		cpController(t, stubRSIdentifierResolver{ensured: &ensured}).UpdateRole(w, cpRoleRequest(http.MethodPut, rolesPath+"/role-1", `{"scopes":["gh-proxy:read"]}`))
+		require.Equal(t, http.StatusOK, w.Code)
+		require.Empty(t, ensured)
+		require.Len(t, provider.written, 1)
+		require.Equal(t, "applied-rs", (*provider.written[0].Permissions)[0].ResourceServerID)
+	})
+
 	t.Run("a hidden native role cannot be edited", func(t *testing.T) {
 		provider := &fakeRoleProvider{role: &thundersvc.ThunderRole{ID: "role-1", Name: thundersvc.NativeAdministratorRoleName}}
 		useRoleMode(t, thundersvc.IdentityManagementCPManaged, provider)
@@ -317,6 +352,20 @@ func TestRolesViaControlPlane_UpdateScopesAreOptional(t *testing.T) {
 		cpController(t, stubRSIdentifierResolver{}).UpdateRole(w, cpRoleRequest(http.MethodPut, rolesPath+"/role-1", `{"description":"x"}`))
 		assert.Equal(t, http.StatusNotFound, w.Code)
 		assert.Empty(t, provider.written)
+	})
+
+	t.Run("scope readiness does not bypass protected role checks", func(t *testing.T) {
+		for _, name := range []string{thundersvc.NativeAdministratorRoleName, thundersvc.AMPSystemClientRoleName} {
+			provider := &readOnlyScopeRoleProvider{
+				fakeRoleProvider: &fakeRoleProvider{role: &thundersvc.ThunderRole{ID: "role-1", Name: name}},
+				ids:              map[string]string{"gh-proxy": "applied-rs"},
+			}
+			useRoleMode(t, thundersvc.IdentityManagementCPManaged, provider)
+			w := httptest.NewRecorder()
+			cpController(t, stubRSIdentifierResolver{}).UpdateRole(w, cpRoleRequest(http.MethodPut, rolesPath+"/role-1", `{"scopes":["gh-proxy:read"]}`))
+			require.Equal(t, http.StatusNotFound, w.Code)
+			require.Empty(t, provider.written)
+		}
 	})
 
 	t.Run("a missing role is a 404", func(t *testing.T) {
