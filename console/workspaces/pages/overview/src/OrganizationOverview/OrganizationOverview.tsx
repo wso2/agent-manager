@@ -49,7 +49,7 @@ import {
 import { absoluteRouteMap } from "@agent-management-platform/types";
 import { returnToState } from "@agent-management-platform/views";
 import { useFeatureFlag, useResourceAccess } from "@agent-management-platform/feature-management";
-import { useRotatingSlots, CARD_SLOTS } from "./hooks/useRotatingSlots";
+import { CARD_SLOTS, useRotatingSlots } from "./hooks/useRotatingSlots";
 import { CARD_GRID_SX } from "./cardGrid";
 import { ResourceCard, ResourceCount, type ResourceCardData } from "./subComponents/ResourceCard";
 import { ProjectRow } from "./subComponents/ProjectRow";
@@ -81,6 +81,7 @@ export const OrganizationOverview: React.FC = () => {
       icon: <BookOpenText size={26} />,
       title: "Agent Catalog",
       count: kinds?.total,
+      loading: isLoadingKinds,
       description: "Reusable, versioned agent templates your teams can create agents from.",
       actionLabel: "Browse the catalog",
       to: generatePath(orgRoutes.children.catalog.path, { orgId }),
@@ -89,6 +90,7 @@ export const OrganizationOverview: React.FC = () => {
       icon: <Brain size={26} />,
       title: "LLM Service Providers",
       count: llmProviders?.total,
+      loading: isLoadingLLM,
       alwaysShow: true,
       description: "Model providers your agents call, with guardrails and rate limits.",
       actionLabel: canWriteLLM ? "Add an LLM provider" : "View LLM providers",
@@ -101,6 +103,7 @@ export const OrganizationOverview: React.FC = () => {
       title: "MCP Servers",
       // Backend sets pagination.count to the org-wide total (the spec text says page size).
       count: mcpProxies?.pagination?.count ?? mcpProxies?.count,
+      loading: isLoadingMCP,
       alwaysShow: true,
       description: "Tool servers your agents can use, registered once and shared.",
       actionLabel: canWriteMCP ? "Register an MCP server" : "View MCP servers",
@@ -112,6 +115,7 @@ export const OrganizationOverview: React.FC = () => {
       icon: <Code size={26} />,
       title: "Evaluators",
       count: evaluators?.total,
+      loading: isLoadingEvaluators,
       description: "Checks that score your agents' traces, from built-in to your own.",
       actionLabel: "Browse evaluators",
       to: generatePath(orgRoutes.children.evaluators.path, { orgId }),
@@ -140,14 +144,17 @@ export const OrganizationOverview: React.FC = () => {
 
   // Resources with nothing in them are left out. The rest fill three cards, and a card that
   // has more than one swaps between them in place. An organization with none of them yet
-  // shows every resource, as the way to get started.
-  // A failed query counts as empty rather than leaving the skeletons up.
-  const isLoadingCounts = isLoadingKinds || isLoadingLLM || isLoadingMCP || isLoadingEvaluators;
+  // shows every resource, as the way to get started. Each card loads on its own and stays
+  // until its count is known; a failed query counts as empty.
   const nonEmpty = resourceCards.filter(
-    (card) => card.countless || card.alwaysShow || (card.count ?? 0) > 0,
+    (card) => card.countless || card.alwaysShow || card.loading || (card.count ?? 0) > 0,
   );
   const shownCards = resourceCards.some((card) => (card.count ?? 0) > 0) ? nonEmpty : resourceCards;
-  const { order, leavingSlot, setPaused } = useRotatingSlots(shownCards.length);
+  // Hold rotation until every count is in, so it starts once on the settled set.
+  const countsLoading = resourceCards.some((card) => card.loading);
+  const { order, leavingSlot, setPaused } = useRotatingSlots(
+    countsLoading ? Math.min(CARD_SLOTS, shownCards.length) : shownCards.length,
+  );
 
   const createProjectPath = generatePath(orgRoutes.children.newProject.path, { orgId });
   const createProjectButton = canWriteProject && (
@@ -189,19 +196,15 @@ export const OrganizationOverview: React.FC = () => {
         </Stack>
 
         <Box sx={CARD_GRID_SX}>
-          {isLoadingCounts
-            ? Array.from({ length: CARD_SLOTS }).map((_, index) => (
-                <Skeleton key={index} variant="rounded" height={120} />
-              ))
-            : order.map((cardIndex, index) => (
-                <ResourceCard
-                  key={index}
-                  card={shownCards[cardIndex]}
-                  index={index}
-                  leaving={leavingSlot === index}
-                  onPause={setPaused}
-                />
-              ))}
+          {order.map((cardIndex, index) => (
+            <ResourceCard
+              key={index}
+              card={shownCards[cardIndex]}
+              index={index}
+              leaving={leavingSlot === index}
+              onPause={setPaused}
+            />
+          ))}
         </Box>
 
         <Card variant="outlined" sx={{ display: "flex", flexDirection: "column", minHeight: { xs: 0, md: 360 } }}>
