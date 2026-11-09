@@ -78,7 +78,7 @@ export const ProjectOverview: React.FC = () => {
             }
             disabled={!project}
           >
-            Edit Project
+            Edit project
           </Button>
         )
       }

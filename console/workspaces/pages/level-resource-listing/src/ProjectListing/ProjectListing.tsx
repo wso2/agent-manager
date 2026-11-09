@@ -151,7 +151,7 @@ export function ProjectListing() {
       to={generatePath(absoluteRouteMap.children.org.children.newProject.path, { orgId })}
       state={returnToState(location)}
     >
-      Add Project
+      Add project
     </Button>
   ) : undefined;
 

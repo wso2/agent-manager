@@ -298,7 +298,7 @@ const SchemaTreeNodeComponent: React.FC<SchemaTreeNodeProps> = ({
                 }
                 disabled={disabled}
               >
-                Add Item
+                Add item
               </Button>
             </Box>
             <Stack>

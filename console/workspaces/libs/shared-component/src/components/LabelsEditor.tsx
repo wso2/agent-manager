@@ -179,7 +179,7 @@ export const LabelsEditor = ({
                 : undefined
             }
           >
-            Add Label
+            Add label
           </Button>
         </Box>
       )}

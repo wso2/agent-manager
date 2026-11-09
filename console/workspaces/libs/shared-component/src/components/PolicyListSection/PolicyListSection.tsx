@@ -93,7 +93,7 @@ export const PolicyListSection: React.FC<PolicyListSectionProps> = ({
   getPolicyDefinitionVersion,
   title = "Policies",
   description = "Add policies to enforce consistent protections.",
-  addButtonLabel = "Add Policy",
+  addButtonLabel = "Add policy",
   drawerAddTitle = "Add Policy",
   drawerEditTitle = "Edit Policy",
   drawerAddSubtitle = "Choose a policy to configure advanced options.",

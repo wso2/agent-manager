@@ -49,7 +49,7 @@ function GroupsListPage() {
       to={createPath}
       startIcon={<Plus size={16} />}
     >
-      Create Group
+      Create group
     </Button>
   ) : undefined;
 

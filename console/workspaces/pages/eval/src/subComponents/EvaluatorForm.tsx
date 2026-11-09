@@ -1558,7 +1558,7 @@ export function EvaluatorForm({
                           ])
                         }
                       >
-                        Add Param
+                        Add param
                       </Button>
                     </Stack>
 

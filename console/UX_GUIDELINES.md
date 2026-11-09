@@ -14,6 +14,7 @@ Use Oxygen UI (`@wso2/oxygen-ui`, `@wso2/oxygen-ui-icons-react`) components and 
 
 - The primary CTA always sits in the page action position. Don't place it inside a card header, toolbar or table when the page has a header.
 - One contained (primary) button per page or card. Other actions are `outlined` or `text`.
+- Buttons, menu items and navigation labels use sentence case: "Create project", "Save changes", "Runtime logs". Keep acronyms and product names as written ("Add LLM provider", "Register MCP server").
 - **Exception:** a list that sits inside a tabbed card or under an environment selector (for example, agent identity groups and roles per environment) puts its create button inside that card, next to the tabs, not in the page header. The header action must make sense for the whole page.
 
 ## 2. Create and edit happen on pages, not drawers
@@ -31,7 +32,7 @@ Create/edit pages must:
 Build lists with `ResourceListShell` (`@agent-management-platform/shared-component`).
 
 - **No items:** show the empty state with the create action inside it (`emptyState.action`). Hide the search bar and toolbar, and hide the header create button, so there is only one create button on screen. Use `isListEmpty({ isLoading, count, isFiltered })` to decide.
-- **Items exist:** show the search bar at the top of the list, full width, above the table or cards. The create button is in the page header.
+- **Items exist:** show the search bar at the left of a toolbar row above the table or cards, with `width="standard"` (400px), not full width. Sort and view toggles go on the right of the same row. The create button is in the page header.
 - **Search with no matches:** show `searchEmptyState`, not the "no items" empty state, and keep the search bar visible.
 - **Load error:** show the error only. Never show "No X found / Create one" when the request failed. A failed fetch is not an empty list.
 - Loading: skeleton rows/cards (`loadingPlaceholder`), not a spinner.
@@ -69,6 +70,7 @@ Forms use Oxygen `Grid` with `size={{ ... }}`:
 
 ### Labels and validation
 
+- **No floating labels.** Don't pass `label` to `TextField` (MUI's floating/shrinking label), including inside an `Autocomplete` `renderInput`. Put a static label above the field: `FormControl` + `FormLabel`, `Form.ElementWrapper label=...`, or the `TextInput` component (`libs/views/src/component/FormElements/TextInput.tsx`).
 - **Don't mark required fields with `*`.** Mark optional ones with an "(optional)" suffix in the label instead. Don't use `<FormLabel required>`.
 - Every text input has a placeholder showing an example value ("e.g. github-mcp-server", "1.0.0", "/github").
 - Show character counters only near the limit (`hideCharacterCount` until close), not on every field.
@@ -78,7 +80,7 @@ Forms use Oxygen `Grid` with `size={{ ... }}`:
 ### Action row
 
 - The Cancel / Save row is **left-aligned** (`justifyContent: "flex-start"`), including in drawers and wizards.
-- Cancel is `outlined`; the submit button is `contained` and says what it does ("Create Project", "Save"), not "Submit".
+- Cancel is `outlined`; the submit button is `contained` and says what it does ("Create project", "Save"), not "Submit".
 
 ## 6. Empty, error and "not ready" states
 

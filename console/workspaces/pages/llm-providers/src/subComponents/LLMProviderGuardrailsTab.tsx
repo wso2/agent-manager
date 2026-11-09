@@ -508,7 +508,7 @@ export function LLMProviderGuardrailsTab({
                   onClick={() => handleOpenDrawer({ type: "global" })}
                   disabled={isUpdating}
                 >
-                  Add Guardrail
+                  Add guardrail
                 </Button>
                 )}
               </Stack>
@@ -641,7 +641,7 @@ export function LLMProviderGuardrailsTab({
                               }
                               disabled={isUpdating}
                             >
-                              Add Guardrail
+                              Add guardrail
                             </Button>
                             )}
                           </AccordionDetails>

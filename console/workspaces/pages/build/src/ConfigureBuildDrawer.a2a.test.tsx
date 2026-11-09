@@ -84,7 +84,7 @@ describe("ConfigureBuildDrawer A2A interface", () => {
       }),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Update Build Configuration" }));
+    fireEvent.click(screen.getByRole("button", { name: "Update build configuration" }));
 
     await waitFor(() => expect(mutate).toHaveBeenCalled());
     expect(submittedBody().agentType.subType).toBe("a2a-agent");
@@ -138,7 +138,7 @@ describe("ConfigureBuildDrawer A2A interface", () => {
       }),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Update Build Configuration" }));
+    fireEvent.click(screen.getByRole("button", { name: "Update build configuration" }));
 
     await waitFor(() => expect(mutate).toHaveBeenCalled());
     expect(submittedBody().agentType.subType).toBe("custom-api");

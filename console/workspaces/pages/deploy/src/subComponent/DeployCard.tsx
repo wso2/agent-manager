@@ -899,7 +899,7 @@ export function DeployCard(props: DeployCardProps) {
                     onClick={() => setActionsMenuAnchor(null)}
                   >
                     <FlaskConical size={16} style={{ marginRight: 8 }} />
-                    Test Agent
+                    Test agent
                   </MenuItem>
                   <MenuItem
                     component={Link}
@@ -911,7 +911,7 @@ export function DeployCard(props: DeployCardProps) {
                     onClick={() => setActionsMenuAnchor(null)}
                   >
                     <Workflow size={16} style={{ marginRight: 8 }} />
-                    View Traces
+                    View traces
                   </MenuItem>
                   <MenuItem
                     component={Link}
@@ -923,7 +923,7 @@ export function DeployCard(props: DeployCardProps) {
                     onClick={() => setActionsMenuAnchor(null)}
                   >
                     <ScrollText size={16} style={{ marginRight: 8 }} />
-                    View Logs
+                    View logs
                   </MenuItem>
                   <MenuItem
                     component={Link}
@@ -935,7 +935,7 @@ export function DeployCard(props: DeployCardProps) {
                     onClick={() => setActionsMenuAnchor(null)}
                   >
                     <LineChart size={16} style={{ marginRight: 8 }} />
-                    View Metrics
+                    View metrics
                   </MenuItem>
                   <MenuItem
                     component={Link}
@@ -947,7 +947,7 @@ export function DeployCard(props: DeployCardProps) {
                     onClick={() => setActionsMenuAnchor(null)}
                   >
                     <Key size={16} style={{ marginRight: 8 }} />
-                    Manage Credentials
+                    Manage credentials
                   </MenuItem>
                 </Menu>
               </Stack>

@@ -267,7 +267,7 @@ export function InvokeEndpoints({
                     onClick={onGenerateApiKey}
                     disabled={isGeneratingApiKey}
                   >
-                    {isGeneratingApiKey ? "Generating..." : "Generate API Key"}
+                    {isGeneratingApiKey ? "Generating..." : "Generate API key"}
                   </Button>
                 </Box>
                 {apiKeyError && (

@@ -329,7 +329,7 @@ export function MCPProxySecurityTab({
           analytics: { entity: "mcp-proxy", action: "switch-auth-method" },
           title: "Switch authentication method?",
           description: `This proxy is currently secured with ${getAuthenticationTypeLabel(savedType)}. Switching to ${getAuthenticationTypeLabel(nextType)} will break any agent already configured to use it, until their tool configuration is updated to match.`,
-          confirmButtonText: "Switch Method",
+          confirmButtonText: "Switch method",
           confirmButtonColor: "error",
           onConfirm: () => setAuthenticationType(nextType),
         });
@@ -582,7 +582,7 @@ export function MCPProxySecurityTab({
               startIcon={<Plus size={16} />}
               onClick={() => setCreateScopeDrawerOpen(true)}
             >
-              Create Scope
+              Create scope
             </Button>
           </Stack>
           )}

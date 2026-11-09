@@ -68,7 +68,21 @@ export default tseslint.config(
       'no-duplicate-imports': 'error',
       'eol-last': 'error',
       'max-len': ['error', { code: 100, ignoreUrls: true, ignoreStrings: true, ignoreTemplateLiterals: true }],
-      
+      // Buttons and menu items use sentence case ("Create project"); acronyms stay upper case.
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            'JSXElement[openingElement.name.name=/^(Button|MenuItem|ToggleButton)$/] > JSXText[value=/^\\s*[A-Z][a-z]+ [A-Z][a-z]+/]',
+          message: 'Use sentence case for button and menu labels, e.g. "Create project".',
+        },
+        {
+          selector:
+            'JSXAttribute[name.name=/^(addButtonLabel|submitLabel|actionLabel|buttonLabel|addLabel)$/] > Literal[value=/^[A-Z][a-z]+ [A-Z][a-z]+/]',
+          message: 'Use sentence case for button labels, e.g. "Add guardrail".',
+        },
+      ],
+
       // React rules
       'react/react-in-jsx-scope': 'off',
       'react/display-name': 'off',

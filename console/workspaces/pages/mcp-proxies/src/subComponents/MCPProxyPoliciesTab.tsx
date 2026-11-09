@@ -163,7 +163,7 @@ export function MCPProxyPoliciesTab({
       }
       title="Policies"
       description="Add policies to this server and drag to change their execution order."
-      addButtonLabel="Add Policy"
+      addButtonLabel="Add policy"
       drawerAddTitle="Add Policy"
       drawerEditTitle="Edit Policy"
       drawerAddSubtitle="Choose a policy to configure advanced options."

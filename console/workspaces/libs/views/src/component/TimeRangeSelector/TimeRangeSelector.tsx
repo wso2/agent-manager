@@ -32,6 +32,26 @@ import {
 } from "@wso2/oxygen-ui";
 import { Clock } from "@wso2/oxygen-ui-icons-react";
 import { isValid } from "date-fns";
+import { TraceListTimeRange } from "@agent-management-platform/types";
+
+/** Relative ranges offered on the logs, metrics and traces pages. */
+export const TIME_RANGE_OPTIONS = [
+    { value: TraceListTimeRange.TEN_MINUTES, label: "10 minutes" },
+    { value: TraceListTimeRange.THIRTY_MINUTES, label: "30 minutes" },
+    { value: TraceListTimeRange.ONE_HOUR, label: "1 hour" },
+    { value: TraceListTimeRange.SIX_HOURS, label: "6 hours" },
+    { value: TraceListTimeRange.TWELVE_HOURS, label: "12 hours" },
+    { value: TraceListTimeRange.ONE_DAY, label: "1 day" },
+    { value: TraceListTimeRange.SEVEN_DAYS, label: "7 days" },
+];
+
+/** Relative ranges offered on the eval monitor pages. */
+export const MONITOR_TIME_RANGE_OPTIONS = [
+    { value: TraceListTimeRange.ONE_DAY, label: "Last 1 day" },
+    { value: TraceListTimeRange.THREE_DAYS, label: "Last 3 days" },
+    { value: TraceListTimeRange.SEVEN_DAYS, label: "Last 7 days" },
+    { value: TraceListTimeRange.THIRTY_DAYS, label: "Last 30 days" },
+];
 
 const CUSTOM_VALUE = "__custom__";
 const isValidDate = (d: Date | null): d is Date => isValid(d);
@@ -126,7 +146,7 @@ export const TimeRangeSelector: React.FC<TimeRangeSelectorProps> = ({
                     </MenuItem>
                 ))}
                 <Divider />
-                <MenuItem value={CUSTOM_VALUE} onClick={openPopover}>Custom Time Range</MenuItem>
+                <MenuItem value={CUSTOM_VALUE} onClick={openPopover}>Custom time range</MenuItem>
             </Select>
 
             <Popover

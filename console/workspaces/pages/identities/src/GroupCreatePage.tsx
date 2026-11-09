@@ -190,7 +190,7 @@ export const GroupCreatePage: React.FC = () => {
               onClick={handleSubmit}
               disabled={isCreating || !formData.name.trim()}
             >
-              Create Group
+              Create group
             </Button>
           </Box>
         </Box>

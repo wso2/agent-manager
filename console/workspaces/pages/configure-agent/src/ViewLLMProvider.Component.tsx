@@ -922,7 +922,7 @@ export const ViewLLMProviderComponent: React.FC = () => {
           onChange={(_, v: number | null) => { if (v !== null) setSnippetTab(v); }}
         >
           <ToggleButton value={0} sx={{ textTransform: "none" }}>Python</ToggleButton>
-          <ToggleButton value={1} sx={{ textTransform: "none" }}>Copilot Prompt</ToggleButton>
+          <ToggleButton value={1} sx={{ textTransform: "none" }}>Copilot prompt</ToggleButton>
         </ToggleButtonGroup>
 
         {snippetTab === 0 && (
@@ -1260,7 +1260,7 @@ export const ViewLLMProviderComponent: React.FC = () => {
               return (
                 <EmptyConfigCard
                   message="No provider is configured for this environment yet."
-                  actionLabel="Select Provider"
+                  actionLabel="Select provider"
                   actionIcon={<Plus size={16} />}
                   onAction={() => setProviderDrawerOpen(true)}
                 />
@@ -1327,7 +1327,7 @@ export const ViewLLMProviderComponent: React.FC = () => {
             providerId={selectedProviderUuid}
             title="Guardrails"
             description="Add safety policies to enforce consistent protections."
-            addButtonLabel="Add Guardrail"
+            addButtonLabel="Add guardrail"
             drawerAddTitle="Add Guardrail"
             drawerEditTitle="Edit Guardrail"
             drawerAddSubtitle="Choose a guardrail to configure advanced options."

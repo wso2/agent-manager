@@ -49,7 +49,7 @@ function RolesListPage() {
       to={createPath}
       startIcon={<Plus size={16} />}
     >
-      Create Role
+      Create role
     </Button>
   ) : undefined;
 

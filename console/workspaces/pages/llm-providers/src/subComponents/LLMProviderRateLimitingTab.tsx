@@ -826,7 +826,7 @@ export function LLMProviderRateLimitingTab({
                     sx={{ textTransform: "none" }}
                     disabled={isDirty || (providerMode === "global" && hasProviderGlobalConfig)}
                   >
-                    Per Resource
+                    Per resource
                   </ToggleButton>
                 </Box>
               </Tooltip>

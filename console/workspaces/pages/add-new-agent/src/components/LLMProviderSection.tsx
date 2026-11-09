@@ -434,7 +434,7 @@ const EntryCard: React.FC<EntryCardProps> = ({
                 startIcon={<Plus size={16} />}
                 onClick={handleOpenDrawer}
               >
-                Select Provider for {environments[selectedEnvIndex]?.displayName ?? selectedEnvName}
+                Select provider for {environments[selectedEnvIndex]?.displayName ?? selectedEnvName}
               </Button>
             )}
           </Box>
@@ -493,7 +493,7 @@ const EntryCard: React.FC<EntryCardProps> = ({
           <PolicyListSection
             title="Guardrails"
             description="Add safety policies to enforce consistent protections."
-            addButtonLabel="Add Guardrail"
+            addButtonLabel="Add guardrail"
             drawerAddTitle="Add Guardrail"
             drawerEditTitle="Edit Guardrail"
             drawerAddSubtitle="Choose a guardrail to configure advanced options."
@@ -571,7 +571,7 @@ export const LLMProviderSection: React.FC<LLMProviderSectionProps> = ({
     { limit: 50, environmentId: drawerEnvironmentId },
   );
 
-  // The "Add LLM Provider" action opens in a new tab (see below) so the
+  // The "Add LLM provider" action opens in a new tab (see below) so the
   // Create Agent form's state is never unmounted. Refetch the catalog when
   // the user tabs back so a freshly created provider shows up without them
   // having to manually refresh.
@@ -851,7 +851,7 @@ export const LLMProviderSection: React.FC<LLMProviderSectionProps> = ({
                             target="_blank"
                             rel="noopener noreferrer"
                           >
-                            Add LLM Service Provider
+                            Add LLM service provider
                           </Button>
                         ) : undefined
                       }
@@ -906,7 +906,7 @@ export const LLMProviderSection: React.FC<LLMProviderSectionProps> = ({
                 >
                   <Plus size={16} />
                   <Typography variant="body2" color="primary">
-                    Add LLM Provider
+                    Add LLM provider
                   </Typography>
                   <ExternalLink size={14} />
                 </Box>

@@ -652,7 +652,7 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
           <PolicyListSection
             title="Guardrails"
             description="Add safety policies to enforce consistent protections."
-            addButtonLabel="Add Guardrail"
+            addButtonLabel="Add guardrail"
             drawerAddTitle="Add Guardrail"
             drawerEditTitle="Edit Guardrail"
             drawerAddSubtitle="Choose a guardrail to configure advanced options."

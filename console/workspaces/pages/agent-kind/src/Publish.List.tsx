@@ -309,7 +309,7 @@ export const PublishedList: React.FC = () => {
       startIcon={<Plus />}
       color="primary"
     >
-      Create Version
+      Create version
     </Button>
   ) : undefined;
 
@@ -328,7 +328,7 @@ export const PublishedList: React.FC = () => {
               to={editKindPath}
               startIcon={<Edit />}
             >
-              Edit Kind
+              Edit kind
             </Button>
           ),
           // With no versions the empty state carries the call to action.
@@ -447,7 +447,7 @@ export const PublishedList: React.FC = () => {
             <DangerZoneCard
               title="Unpublish this Agent Kind"
               description="Removes it and all its versions from the catalog. This action cannot be undone."
-              buttonLabel="Unpublish Kind"
+              buttonLabel="Unpublish kind"
               pendingLabel="Unpublishing..."
               isPending={isUnpublishing}
               onClick={handleUnpublishKind}
@@ -566,7 +566,7 @@ export const PublishedList: React.FC = () => {
                 onClick={handleCreate}
                 disabled={isCreating || !versionName.trim() || !selectedBuildName}
               >
-                {isCreating ? "Creating..." : "Create Version"}
+                {isCreating ? "Creating..." : "Create version"}
               </Button>
             </Box>
           </Form.Stack>
@@ -623,7 +623,7 @@ export const PublishedList: React.FC = () => {
                 onClick={handleSaveEditKind}
                 disabled={isSavingKind || !editDisplayName.trim()}
               >
-                {isSavingKind ? "Saving..." : "Save Changes"}
+                {isSavingKind ? "Saving..." : "Save changes"}
               </Button>
             </Box>
           </Form.Stack>

@@ -136,7 +136,7 @@ export function DeploymentPipelineCard() {
                 <Typography variant="h6">Deployment Environments</Typography>
                 {canWriteProject && (
                   <Button size="small" startIcon={<ArrowLeftRight size={14} />} onClick={openSelectDrawer}>
-                    Select Pipeline
+                    Select pipeline
                   </Button>
                 )}
               </Box>

@@ -185,7 +185,7 @@ export const ViewLLMProvider: React.FC = () => {
               )
             }
           >
-            Edit LLM Provider
+            Edit LLM provider
           </Button>
         ) : undefined
       }

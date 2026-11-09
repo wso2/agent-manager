@@ -17,7 +17,7 @@
  */
 
 import React, { useMemo, useState } from "react";
-import { formatTraceWindow, PageLayout } from "@agent-management-platform/views";
+import { formatTraceWindow, MONITOR_TIME_RANGE_OPTIONS, PageLayout } from "@agent-management-platform/views";
 import {
   Alert,
   Card,
@@ -63,13 +63,6 @@ import {
   computeLevelSummaries,
   getMean,
 } from "./utils/monitorScoreUtils";
-
-const MONITOR_TIME_RANGE_OPTIONS = [
-  { value: TraceListTimeRange.ONE_DAY, label: "Last 1 Day" },
-  { value: TraceListTimeRange.THREE_DAYS, label: "Last 3 Days" },
-  { value: TraceListTimeRange.SEVEN_DAYS, label: "Last 7 Days" },
-  { value: TraceListTimeRange.THIRTY_DAYS, label: "Last 30 Days" },
-];
 
 /** Guard a raw query-param value before treating it as a TraceListTimeRange. */
 function isValidTimeRange(value: string | null): value is TraceListTimeRange {

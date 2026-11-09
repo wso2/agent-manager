@@ -146,7 +146,7 @@ export function FileMountSection({
           size="small"
           onClick={handleAdd}
         >
-          Add File
+          Add file
         </Button>
       </Box>
     </Box>

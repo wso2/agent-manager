@@ -707,7 +707,7 @@ export function EndpointFormFields({
           onClick={handleAdd}
           disabled={!canSave || isFetching}
         >
-          {isEditing ? "Update Endpoint" : "Add Endpoint"}
+          {isEditing ? "Update endpoint" : "Add endpoint"}
         </Button>
       </Box>
     </Form.Stack>

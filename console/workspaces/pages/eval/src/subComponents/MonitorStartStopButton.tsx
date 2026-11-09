@@ -56,10 +56,10 @@ export function MonitorStartStopButton({
     !agentId;
 
   const tooltipTitle = isActive
-    ? "Stop Monitor"
+    ? "Stop monitor"
     : isPastMonitor
       ? "Past monitors cannot be started"
-      : "Start Monitor";
+      : "Start monitor";
 
   const handleClick = useCallback(
     (event: MouseEvent<HTMLButtonElement>) => {

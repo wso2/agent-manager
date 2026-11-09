@@ -157,7 +157,7 @@ export const ExternalAgentOverview = () => {
                   startIcon={<Settings size={16} />}
                   onClick={() => handleSetupAgent(selectedEnvironment.name)}
                 >
-                  Setup Agent
+                  Set up agent
                 </Button>
               }
               bottomContent={
