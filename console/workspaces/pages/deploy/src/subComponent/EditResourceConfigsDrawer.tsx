@@ -17,6 +17,7 @@
  */
 
 import {
+  Alert,
   Box,
   Button,
   Collapse,
@@ -45,12 +46,44 @@ import {
   INPUT_LIMITS,
 } from "@agent-management-platform/types";
 import { useUnsavedChangesGuard } from "@agent-management-platform/shared-component";
-import { type ComponentType, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Component,
+  type ComponentType,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
 // Mount point where a deployment can inject a replica policy (for example a
 // subscription-based cap). Kept as a string literal to avoid a core-ui dependency
 // from this page workspace; matches MountPoints.ReplicaPolicy.
 const REPLICA_POLICY_MOUNT_POINT = "replica-policy";
+
+// How long to wait for an injected replica policy before falling back to the
+// built-in limits, so a policy that never reports cannot block saving.
+const REPLICA_POLICY_TIMEOUT_MS = 10_000;
+
+/** Isolates an injected replica policy so a render error falls back to built-in limits. */
+class ReplicaPolicyBoundary extends Component<
+  { onError: () => void; children: ReactNode },
+  { failed: boolean }
+> {
+  state = { failed: false };
+
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+
+  componentDidCatch() {
+    this.props.onError();
+  }
+
+  render() {
+    return this.state.failed ? null : this.props.children;
+  }
+}
 
 type ReplicaPolicyErrors = Partial<
   Record<"replicas" | "autoScalingEnabled" | "maxReplicas", string>
@@ -289,6 +322,28 @@ export function EditResourceConfigsDrawer({
     () => getReplicaPolicyErrors(formData, replicaPolicy ?? null),
     [formData, replicaPolicy],
   );
+  // Set when the injected policy failed or timed out and built-in limits apply.
+  const [policyUnavailable, setPolicyUnavailable] = useState(false);
+  const handlePolicyFailure = useCallback(() => {
+    setPolicyUnavailable(true);
+    setReplicaPolicy((current) => (current === undefined ? null : current));
+  }, []);
+
+  // Reset when the drawer closes, not when it opens: the injected component
+  // reports from its own mount effect, which runs before this drawer's effects.
+  useEffect(() => {
+    if (!open) {
+      setReplicaPolicy(ReplicaPolicyComponent ? undefined : null);
+      setPolicyUnavailable(false);
+    }
+  }, [open, ReplicaPolicyComponent]);
+
+  useEffect(() => {
+    if (!open || replicaPolicy !== undefined) return;
+    const timer = setTimeout(handlePolicyFailure, REPLICA_POLICY_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  }, [open, replicaPolicy, handlePolicyFailure]);
+
   const isPolicyBlocking =
     replicaPolicy === undefined || Object.keys(policyErrors).length > 0;
   const replicasMax = Math.min(10, replicaPolicy?.maxReplicas ?? 10);
@@ -384,11 +439,19 @@ export function EditResourceConfigsDrawer({
             <Form.Section>
               <Form.Header>Replicas</Form.Header>
               <Form.Stack spacing={2}>
-                {ReplicaPolicyComponent && (
-                  <ReplicaPolicyComponent
-                    orgId={orgName}
-                    onPolicyChange={setReplicaPolicy}
-                  />
+                {/* Mounted only while open so it reports again on every open. */}
+                {open && ReplicaPolicyComponent && (
+                  <ReplicaPolicyBoundary onError={handlePolicyFailure}>
+                    <ReplicaPolicyComponent
+                      orgId={orgName}
+                      onPolicyChange={setReplicaPolicy}
+                    />
+                  </ReplicaPolicyBoundary>
+                )}
+                {policyUnavailable && (
+                  <Alert severity="warning">
+                    Replica limits could not be loaded. Default limits apply.
+                  </Alert>
                 )}
                 <Form.ElementWrapper label="Replicas" name="replicas">
                   <TextField
