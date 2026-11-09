@@ -34,7 +34,7 @@ reused, so removed numbers just leave a gap.)
 ## F-001 — Traceloop stringifies every `crewai.*` attribute
 
 - **Status**: mitigated
-- **Combo**: `traceloop-sdk 0.61.0` × `crewai 1.1.0`
+- **Combo**: `traceloop-sdk 0.61.0` × `crewai 1.1.0`; `traceloop-sdk 0.61.0`–`0.63.0` × `crewai 1.15.39`
 - **Discovered**: 2026-05-27 (CrewAI cell first record + replay)
 - **Symptom**: every attribute under the `crewai.*` namespace arrives on the
   captured span as a Python `str`, even values that are logically `int` /
@@ -56,6 +56,9 @@ reused, so removed numbers just leave a gap.)
 - **2026-06-02 (traceloop 0.61.0)**: still stringified — `crewai.agent.max_iter
   = '25'`, `crewai.task.delegations = '0'`, `crewai.task.async_execution =
   'False'`, ids all `str`. Not fixed; concession stays.
+- **2026-11-09 (traceloop 0.61.0–0.63.0 × crewai 1.15.39)**: still
+  stringified on the newer CrewAI — `crewai.agent.max_iter`,
+  `crewai.task.async_execution` and the ids are all `str`.
 
 ## F-002 — Observer's `CrewAITaskData.Name` has no upstream source
 
@@ -81,7 +84,7 @@ reused, so removed numbers just leave a gap.)
 ## F-003 — Traceloop's CrewAI does not emit separate tool spans
 
 - **Status**: open / confirmed (see the 2026-06-02 note; F-009 resolved)
-- **Combo**: `traceloop-sdk 0.61.0` × `crewai 1.1.0`
+- **Combo**: `traceloop-sdk 0.61.0`–`0.63.0` × `crewai 1.1.0`, `1.15.39`
 - **Discovered**: 2026-05-27
 - **Symptom**: CrewAI cell with a tool-using agent never produces a span
   classified as `tool`. Tool execution appears at least as
@@ -105,26 +108,10 @@ reused, so removed numbers just leave a gap.)
   execution as separate spans (or as tool-call events the classifier counts),
   OR OpenInference is added as a second instrumentation provider and its CrewAI
   cell asserts the `tool` kind.
-
-## F-004 — `crewai 1.14.x` × `traceloop-sdk 0.61` is unresolvable
-
-- **Status**: mitigated
-- **Combo**: `traceloop-sdk 0.61.0` × `crewai 1.14.5`
-- **Discovered**: 2026-05-27
-- **Symptom**: `pip install` returns `ResolutionImpossible`. `traceloop-sdk 0.61.0`
-  requires `opentelemetry-api >=1.38, <2`; `crewai 1.14.5` requires
-  `opentelemetry-api ~=1.34`.
-- **Suspected cause**: crewai 1.x tightened its OTel pin between 1.1 and 1.14,
-  out of step with traceloop's release cadence.
-- **Mitigation**: matrix pins `crewai 1.1.0` — the most recent 1.x version
-  whose OTel deps are still compatible with traceloop 0.60.
-- **Re-tighten when**: Traceloop ships a 0.61+ release with looser
-  `opentelemetry-api` requirements; or CrewAI relaxes its `opentelemetry-api`
-  pin. At that point the matrix pin can be bumped and the cassette re-recorded.
-- **2026-06-02 (traceloop 0.61.0)**: still unresolvable — `traceloop-sdk
-  0.61.0` requires `opentelemetry-api>=1.38,<2`, `crewai 1.14.5` requires
-  `>=1.34,<1.35`. The 0.61 release did **not** loosen the pin; crewai stays at
-  1.1.0.
+- **2026-11-09 (traceloop 0.61.0–0.63.0 × crewai 1.15.39)**: still no tool
+  span. CrewAI 1.15 calls tools natively (the recorded cassette holds a real
+  `tool_calls` round trip, and `gen_ai.tool.definitions` appears on the LLM
+  span), yet the tool execution produces no span and no span events.
 
 ## F-006 — Traceloop's LlamaIndex `OpenAIEmbedding` instrumentation omits vendor
 

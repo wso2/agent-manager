@@ -28,9 +28,26 @@ console/UI test — it asserts the *shape* of emitted telemetry, nothing more.
 
 All three are edits to [`matrix.yaml`](./matrix.yaml):
 
-- **New framework version**: add it to that framework's `versions:` list. No
-  cassette re-record needed — different framework versions produce different
-  *spans* but identical *HTTP* (the cassette captures the latter).
+- **New framework version**: add it to that framework's `versions:` list.
+  Usually no cassette re-record is needed — versions share the framework's
+  cassette when their HTTP is the same. When the HTTP changes (a new prompt
+  format, or a switch to native tool calling), the shared cassette can still
+  replay but skips the code path the cell is meant to exercise. Record that
+  version into `cassettes/<framework>/<version>/`, which the harness prefers
+  over the framework-level cassette (CrewAI 1.15 needed its own: it calls
+  tools natively where 1.1 used ReAct text).
+  The harness only uses that directory once it exists, so create it first,
+  then record through the cell itself so the right framework version is
+  installed:
+
+  ```bash
+  mkdir -p cassettes/<framework>/<version>
+  OPENAI_API_KEY=sk-... VCR_RECORD_MODE=once \
+    nox -s emission -- --cell-id=traceloop-<ver>-<framework>-<version>-py3.12
+  ```
+
+  `once` only records when the cassette file is absent. To re-record a
+  version that already has one, delete its `test_emission_cell.yaml` first.
 - **New framework**: add a `frameworks:` block (`name`, `package`, `versions`,
   `samplePath`, `spanKinds`, optional `extras`), add a sample under
   `cells/<framework>_sample.py`, and record its cassette (§4 of the design,
