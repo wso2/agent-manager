@@ -2,13 +2,21 @@ name: Deployable Sample Python Compatibility
 on:
   pull_request:
     paths:
-      - 'samples/customer-support-agent/**'
-      - 'samples/crewai-agent/**'
       - 'test/instrumentation-matrix/harness/deployable_samples.py'
       - 'test/instrumentation-matrix/matrix.yaml'
       - 'test/instrumentation-matrix/scripts/check_sample_python_compat.py'
       - '.github/workflows/deployable-sample-python-compat.yaml'
+  # The samples live in wso2/agent-manager-samples, so path filters here cannot
+  # see their changes. A daily run catches drift on the samples main branch,
+  # and a dispatch can test a specific samples commit before it merges.
+  schedule:
+    - cron: '0 3 * * *'
   workflow_dispatch:
+    inputs:
+      samples_ref:
+        description: Branch, tag or commit of wso2/agent-manager-samples to test
+        required: false
+        default: main
 permissions:
   contents: read
 concurrency:
@@ -26,7 +34,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           repository: wso2/agent-manager-samples
-          ref: main
+          ref: ${{ inputs.samples_ref || 'main' }}
           path: .agent-manager-samples
           persist-credentials: false
       - uses: actions/setup-python@v6
