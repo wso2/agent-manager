@@ -19870,7 +19870,6 @@ components:
       type: object
       required:
         - name
-        - source
       properties:
         name:
           type: string
@@ -19894,7 +19893,29 @@ components:
           description: MCP protocol version of the upstream server, if known
           example: "2025-06-18"
         source:
-          $ref: "#/components/schemas/MCPProxySource"
+          allOf:
+            - $ref: "#/components/schemas/MCPProxySource"
+          description: >-
+            The project component endpoint the proxy fronts. Each environment binding calls the endpoint's
+            in-cluster address there, resolved from the component's release binding. Exclusive with upstream;
+            one of the two is required. Fixed after create.
+        upstream:
+          allOf:
+            - $ref: "#/components/schemas/ProjectMCPProxyUpstream"
+          description: >-
+            A public MCP server URL the proxy fronts, which every environment binding calls as it is. Exclusive
+            with source; one of the two is required. A private or loopback address is 400 VALIDATION_ERROR.
+            The URL may change; a proxy registered by URL cannot take a source later, nor the other way round.
+
+    ProjectMCPProxyUpstream:
+      type: object
+      required:
+        - url
+      properties:
+        url:
+          type: string
+          format: uri
+          example: https://mcp.example.com/mcp
 
     ProjectMCPProxyResponse:
       type: object
@@ -19904,7 +19925,6 @@ components:
         - version
         - context
         - projectName
-        - source
         - environments
       properties:
         id:
@@ -19923,7 +19943,13 @@ components:
         projectName:
           type: string
         source:
-          $ref: "#/components/schemas/MCPProxySource"
+          allOf:
+            - $ref: "#/components/schemas/MCPProxySource"
+          description: Set for a proxy that fronts a project component endpoint.
+        upstream:
+          allOf:
+            - $ref: "#/components/schemas/ProjectMCPProxyUpstream"
+          description: Set for a proxy registered by a public URL.
         environments:
           type: array
           items:
@@ -19965,7 +19991,6 @@ components:
         - name
         - version
         - context
-        - source
         - environments
       properties:
         id:
@@ -19979,7 +20004,13 @@ components:
         context:
           type: string
         source:
-          $ref: "#/components/schemas/MCPProxySource"
+          allOf:
+            - $ref: "#/components/schemas/MCPProxySource"
+          description: Set for a proxy that fronts a project component endpoint.
+        upstream:
+          allOf:
+            - $ref: "#/components/schemas/ProjectMCPProxyUpstream"
+          description: Set for a proxy registered by a public URL.
         environments:
           type: array
           description: A summary per binding. GET the binding for its security and policies.
@@ -20040,7 +20071,8 @@ components:
             The source component's release binding to front. Required only when the component has more
             than one release binding in the environment, one per deployment track for example; without it
             such a component is rejected with 400 VALIDATION_ERROR. It must be a binding of the source
-            component in this project and environment, or it is rejected with 400 VALIDATION_ERROR.
+            component in this project and environment, or it is rejected with 400 VALIDATION_ERROR. A proxy
+            registered by URL has no release binding: setting it there is 400 VALIDATION_ERROR.
           example: orders-main-development
         security:
           $ref: "#/components/schemas/MCPProxyEnvironmentSecurity"

@@ -39,7 +39,7 @@ func TestUpstreamIsPublic_ProjectBindingPassesOnManagedGateway(t *testing.T) {
 				deployable: &models.MCPProxy{Configuration: models.MCPProxyConfig{
 					Upstream: models.UpstreamConfig{Main: inCluster},
 				}},
-				projectScoped: projectScoped,
+				projectScoped: projectScoped, resolvedUpstream: projectScoped,
 			}, nil
 		}}
 	}
@@ -91,4 +91,22 @@ func TestTargets_ProjectBindingSkipsSelfHostedGateway(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, ok)
 	assert.Equal(t, selfHosted.UUID, gateway, "an org proxy keeps its self-hosted anchor")
+}
+
+// A project proxy registered by URL gets no pass: its URL is the caller's, checked as an org proxy's is.
+func TestUpstreamIsPublic_URLProjectBindingIsChecked(t *testing.T) {
+	kind := &MCPProxyKind{load: func(context.Context, models.ArtifactRef) (*mcpArtifact, error) {
+		return &mcpArtifact{
+			deployable: &models.MCPProxy{Configuration: models.MCPProxyConfig{
+				Upstream: models.UpstreamConfig{Main: &models.UpstreamEndpoint{URL: "http://10.1.2.3/mcp"}},
+			}},
+			projectScoped: true,
+		}, nil
+	}}
+	record := reconcile.Record{ArtifactRef: models.ArtifactRef{OUID: "org", ArtifactUUID: uuid.New()}}
+	managed := &models.Gateway{UUID: uuid.New(), Hosting: models.GatewayHostingManaged}
+
+	public, err := kind.upstreamIsPublic(context.Background(), record, managed)
+	require.NoError(t, err)
+	assert.False(t, public)
 }

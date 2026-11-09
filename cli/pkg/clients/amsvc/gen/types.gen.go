@@ -5164,7 +5164,7 @@ type MCPProxyEnvironmentRequest struct {
 	// Policies Gateway policies, e.g. CORS and basic-ratelimit. Each needs a name and a version.
 	Policies *[]MCPPolicy `json:"policies,omitempty"`
 
-	// ReleaseBindingName The source component's release binding to front. Required only when the component has more than one release binding in the environment, one per deployment track for example; without it such a component is rejected with 400 VALIDATION_ERROR. It must be a binding of the source component in this project and environment, or it is rejected with 400 VALIDATION_ERROR.
+	// ReleaseBindingName The source component's release binding to front. Required only when the component has more than one release binding in the environment, one per deployment track for example; without it such a component is rejected with 400 VALIDATION_ERROR. It must be a binding of the source component in this project and environment, or it is rejected with 400 VALIDATION_ERROR. A proxy registered by URL has no release binding: setting it there is 400 VALIDATION_ERROR.
 	ReleaseBindingName *string `json:"releaseBindingName,omitempty"`
 
 	// Security A binding's security. Phase 1 accepts apiKey, which is also the default when the field is omitted or names no variant (an api key in the X-API-Key header), and no security (enabled false only). An apiKey with enabled false while security is not disabled is rejected with 400 VALIDATION_ERROR. jwt is rejected with 400 "jwt security is not available yet", and identity with 400.
@@ -5817,10 +5817,13 @@ type ProjectMCPProxyListItem struct {
 	Id           string                              `json:"id"`
 	Name         string                              `json:"name"`
 
-	// Source The OpenChoreo component endpoint a project MCP proxy fronts. Fixed after create.
-	Source    MCPProxySource `json:"source"`
-	UpdatedAt *time.Time     `json:"updatedAt,omitempty"`
-	Version   string         `json:"version"`
+	// Source Set for a proxy that fronts a project component endpoint.
+	Source    *MCPProxySource `json:"source,omitempty"`
+	UpdatedAt *time.Time      `json:"updatedAt,omitempty"`
+
+	// Upstream Set for a proxy registered by a public URL.
+	Upstream *ProjectMCPProxyUpstream `json:"upstream,omitempty"`
+	Version  string                   `json:"version"`
 }
 
 // ProjectMCPProxyListResponse defines model for ProjectMCPProxyListResponse.
@@ -5843,8 +5846,11 @@ type ProjectMCPProxyRequest struct {
 	// Name Display name
 	Name string `json:"name"`
 
-	// Source The OpenChoreo component endpoint a project MCP proxy fronts. Fixed after create.
-	Source MCPProxySource `json:"source"`
+	// Source The project component endpoint the proxy fronts. Each environment binding calls the endpoint's in-cluster address there, resolved from the component's release binding. Exclusive with upstream; one of the two is required. Fixed after create.
+	Source *MCPProxySource `json:"source,omitempty"`
+
+	// Upstream A public MCP server URL the proxy fronts, which every environment binding calls as it is. Exclusive with source; one of the two is required. A private or loopback address is 400 VALIDATION_ERROR. The URL may change; a proxy registered by URL cannot take a source later, nor the other way round.
+	Upstream *ProjectMCPProxyUpstream `json:"upstream,omitempty"`
 
 	// Version Defaults to v1
 	Version *string `json:"version,omitempty"`
@@ -5864,10 +5870,18 @@ type ProjectMCPProxyResponse struct {
 	Name           string  `json:"name"`
 	ProjectName    string  `json:"projectName"`
 
-	// Source The OpenChoreo component endpoint a project MCP proxy fronts. Fixed after create.
-	Source    MCPProxySource `json:"source"`
-	UpdatedAt *time.Time     `json:"updatedAt,omitempty"`
-	Version   string         `json:"version"`
+	// Source Set for a proxy that fronts a project component endpoint.
+	Source    *MCPProxySource `json:"source,omitempty"`
+	UpdatedAt *time.Time      `json:"updatedAt,omitempty"`
+
+	// Upstream Set for a proxy registered by a public URL.
+	Upstream *ProjectMCPProxyUpstream `json:"upstream,omitempty"`
+	Version  string                   `json:"version"`
+}
+
+// ProjectMCPProxyUpstream defines model for ProjectMCPProxyUpstream.
+type ProjectMCPProxyUpstream struct {
+	Url string `json:"url"`
 }
 
 // ProjectResponse defines model for ProjectResponse.

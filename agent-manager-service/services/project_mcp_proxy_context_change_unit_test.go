@@ -45,7 +45,7 @@ func (f *bindingFixture) upsertProxy(t *testing.T, name, ctxPath string) error {
 	_, _, err := f.svc.Upsert(context.Background(), testOrg, bindingProject, bindingProjectUUID, bindingHandle,
 		models.ProjectMCPProxyRequest{
 			Name: name, Version: "v1", Context: ctxPath,
-			Source: models.MCPProxySource{ComponentName: "weather", EndpointName: "mcp"},
+			Source: &models.MCPProxySource{ComponentName: "weather", EndpointName: "mcp"},
 		})
 	return err
 }

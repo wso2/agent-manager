@@ -192,7 +192,7 @@ func orderReq() models.ProjectMCPProxyRequest {
 		Name:        "Orders MCP",
 		Description: "orders",
 		Context:     "/orders-mcp-3f2a9c1e",
-		Source:      models.MCPProxySource{ComponentName: "orders-mcp", EndpointName: "mcp"},
+		Source:      &models.MCPProxySource{ComponentName: "orders-mcp", EndpointName: "mcp"},
 	}
 }
 
@@ -490,4 +490,81 @@ func TestUpsert_ContextSegments(t *testing.T) {
 			assert.Equal(t, good, resp.Context, "reads back as sent")
 		})
 	}
+}
+
+// publicMCPURL is a public upstream that needs no DNS lookup.
+const publicMCPURL = "https://8.8.8.8/mcp"
+
+func urlReq() models.ProjectMCPProxyRequest {
+	return models.ProjectMCPProxyRequest{
+		Name:     "Docs MCP",
+		Upstream: &models.ProjectMCPProxyUpstream{URL: publicMCPURL},
+	}
+}
+
+// A project proxy can front a public URL instead of a component endpoint: no component is looked up, and the URL
+// reads back as the proxy's upstream.
+func TestUpsertByURL_StoredAndReadBack(t *testing.T) {
+	f := newProjectProxyFixture(t)
+	f.getComponentErr = errors.New("no component is looked up for a URL proxy")
+	ctx := context.Background()
+
+	resp, created, err := f.svc.Upsert(ctx, testOrg, testProjName, testProjA, "docs", urlReq())
+	require.NoError(t, err)
+	assert.True(t, created)
+	assert.Nil(t, resp.Source)
+	require.NotNil(t, resp.Upstream)
+	assert.Equal(t, publicMCPURL, resp.Upstream.URL)
+
+	stored := f.proxies["docs"]
+	assert.Nil(t, stored.Configuration.Source)
+	require.NotNil(t, stored.Configuration.Upstream.Main)
+	assert.Equal(t, publicMCPURL, stored.Configuration.Upstream.Main.URL)
+
+	_, created, err = f.svc.Upsert(ctx, testOrg, testProjName, testProjA, "docs", urlReq())
+	require.NoError(t, err)
+	assert.False(t, created)
+	assert.Zero(t, f.updateCalls, "identical body must not write")
+}
+
+func TestUpsertByURL_Validation(t *testing.T) {
+	ctx := context.Background()
+	for name, mutate := range map[string]func(*models.ProjectMCPProxyRequest){
+		"neither source nor upstream": func(r *models.ProjectMCPProxyRequest) { r.Upstream = nil },
+		"both source and upstream": func(r *models.ProjectMCPProxyRequest) {
+			r.Source = &models.MCPProxySource{ComponentName: "c", EndpointName: "e"}
+		},
+		"not a URL":     func(r *models.ProjectMCPProxyRequest) { r.Upstream.URL = "not a url" },
+		"a private URL": func(r *models.ProjectMCPProxyRequest) { r.Upstream.URL = "http://10.0.0.5:8080/mcp" },
+		"loopback":      func(r *models.ProjectMCPProxyRequest) { r.Upstream.URL = "http://127.0.0.1/mcp" },
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := newProjectProxyFixture(t)
+			req := urlReq()
+			mutate(&req)
+			_, _, err := f.svc.Upsert(ctx, testOrg, testProjName, testProjA, "docs", req)
+			assert.ErrorIs(t, err, utils.ErrInvalidInput)
+			assert.Zero(t, f.createCalls)
+		})
+	}
+}
+
+// A proxy keeps what it fronts: a sourced proxy cannot become a URL proxy, nor the other way round.
+func TestUpsertByURL_KindIsImmutable(t *testing.T) {
+	f := newProjectProxyFixture(t)
+	ctx := context.Background()
+	_, _, err := f.svc.Upsert(ctx, testOrg, testProjName, testProjA, "orders", orderReq())
+	require.NoError(t, err)
+	_, _, err = f.svc.Upsert(ctx, testOrg, testProjName, testProjA, "docs", urlReq())
+	require.NoError(t, err)
+
+	toURL := urlReq()
+	toURL.Name = "Orders MCP"
+	_, _, err = f.svc.Upsert(ctx, testOrg, testProjName, testProjA, "orders", toURL)
+	assert.ErrorIs(t, err, utils.ErrImmutableFieldChange)
+
+	toSource := orderReq()
+	_, _, err = f.svc.Upsert(ctx, testOrg, testProjName, testProjA, "docs", toSource)
+	assert.ErrorIs(t, err, utils.ErrImmutableFieldChange)
+	assert.Zero(t, f.updateCalls)
 }

@@ -41,12 +41,21 @@ func MCPProxyGatewayDisplayName(projectName *string, name string) string {
 
 // ProjectMCPProxyRequest is the body of PUT /orgs/{org}/projects/{project}/mcp-proxies/{proxyId}.
 type ProjectMCPProxyRequest struct {
-	Name           string         `json:"name"`
-	Description    string         `json:"description,omitempty"`
-	Version        string         `json:"version,omitempty"`
-	Context        string         `json:"context,omitempty"`
-	McpSpecVersion string         `json:"mcpSpecVersion,omitempty"`
-	Source         MCPProxySource `json:"source"`
+	Name           string `json:"name"`
+	Description    string `json:"description,omitempty"`
+	Version        string `json:"version,omitempty"`
+	Context        string `json:"context,omitempty"`
+	McpSpecVersion string `json:"mcpSpecVersion,omitempty"`
+	// Source and Upstream are exclusive: a proxy fronts either a component endpoint of the project, whose
+	// in-cluster address each binding resolves from the component's release binding, or a public URL that
+	// every binding uses as it is.
+	Source   *MCPProxySource          `json:"source,omitempty"`
+	Upstream *ProjectMCPProxyUpstream `json:"upstream,omitempty"`
+}
+
+// ProjectMCPProxyUpstream is the public upstream a project proxy registered by URL fronts.
+type ProjectMCPProxyUpstream struct {
+	URL string `json:"url"`
 }
 
 // MCPProxyEnvironmentRequest is the body of PUT .../mcp-proxies/{proxyId}/environments/{envName}.
@@ -139,7 +148,8 @@ type ProjectMCPProxyResponse struct {
 	Context        string                        `json:"context"`
 	McpSpecVersion string                        `json:"mcpSpecVersion,omitempty"`
 	ProjectName    string                        `json:"projectName"`
-	Source         MCPProxySource                `json:"source"`
+	Source         *MCPProxySource               `json:"source,omitempty"`
+	Upstream       *ProjectMCPProxyUpstream      `json:"upstream,omitempty"`
 	Environments   []MCPProxyEnvironmentResponse `json:"environments"`
 	CreatedBy      string                        `json:"createdBy,omitempty"`
 	CreatedAt      *time.Time                    `json:"createdAt,omitempty"`
@@ -161,7 +171,8 @@ type ProjectMCPProxyListItem struct {
 	Description  string                              `json:"description,omitempty"`
 	Version      string                              `json:"version"`
 	Context      string                              `json:"context"`
-	Source       MCPProxySource                      `json:"source"`
+	Source       *MCPProxySource                     `json:"source,omitempty"`
+	Upstream     *ProjectMCPProxyUpstream            `json:"upstream,omitempty"`
 	Environments []ProjectMCPProxyEnvironmentSummary `json:"environments"`
 	CreatedAt    *time.Time                          `json:"createdAt,omitempty"`
 	UpdatedAt    *time.Time                          `json:"updatedAt,omitempty"`

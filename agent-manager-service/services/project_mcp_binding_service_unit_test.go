@@ -1091,3 +1091,57 @@ func TestPutEnv_UpstreamAuthWithoutValueKeepsTheStoredOne(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "Bearer s3cret", value)
 }
+
+// asURLProxy makes the fixture's proxy one registered by URL.
+func (f *bindingFixture) asURLProxy(url string) {
+	f.proxy.Configuration.Source = nil
+	f.proxy.Configuration.Upstream = models.UpstreamConfig{Main: &models.UpstreamEndpoint{URL: url}}
+}
+
+// A binding of a proxy registered by URL calls that URL: no release binding is looked up.
+func TestPutEnv_URLProxy_UsesItsURLWithoutAReleaseBinding(t *testing.T) {
+	f := newBindingFixture(t)
+	f.asURLProxy("https://8.8.8.8/mcp")
+	f.serviceURLErr = errors.New("no release binding is looked up for a URL proxy")
+
+	resp, _, err := f.put(t, models.MCPProxyEnvironmentRequest{})
+	require.NoError(t, err)
+	assert.Empty(t, f.releaseBindingNames, "no upstream lookup")
+	endpoint, _ := f.binding()
+	require.NotNil(t, endpoint.Configuration.Upstream)
+	assert.Equal(t, "https://8.8.8.8/mcp", endpoint.Configuration.Upstream.URL)
+	assert.NotEmpty(t, resp.PublicURL)
+
+	name := "weather-dev"
+	_, _, err = f.put(t, models.MCPProxyEnvironmentRequest{ReleaseBindingName: &name})
+	require.ErrorIs(t, err, utils.ErrInvalidInput, "a release binding applies only to a sourced proxy")
+}
+
+// A URL proxy's upstream must be public: a managed gateway calls it as given.
+func TestPutEnv_URLProxy_PrivateURL400NothingStored(t *testing.T) {
+	f := newBindingFixture(t)
+	f.asURLProxy("http://10.1.2.3:8080/mcp")
+
+	_, _, err := f.put(t, models.MCPProxyEnvironmentRequest{})
+	require.ErrorIs(t, err, utils.ErrInvalidInput)
+	assert.Empty(t, f.proxy.Endpoints, "nothing stored")
+}
+
+// Changing a URL proxy's URL points its bindings at the new one and redeploys them.
+func TestUpsert_URLProxyURLChangeUpdatesItsBindings(t *testing.T) {
+	f := newBindingFixture(t)
+	f.asURLProxy("https://8.8.8.8/mcp")
+	_, _, err := f.put(t, models.MCPProxyEnvironmentRequest{})
+	require.NoError(t, err)
+
+	ctxPath := "/weather"
+	_, _, err = f.svc.Upsert(context.Background(), testOrg, bindingProject, bindingProjectUUID, bindingHandle,
+		models.ProjectMCPProxyRequest{
+			Name: "Weather", Version: "v1", Context: ctxPath,
+			Upstream: &models.ProjectMCPProxyUpstream{URL: "https://8.8.4.4/mcp"},
+		})
+	require.NoError(t, err)
+	endpoint, _ := f.binding()
+	assert.Equal(t, "https://8.8.4.4/mcp", endpoint.Configuration.Upstream.URL)
+	assert.Positive(t, f.rerenders, "the bindings are redeployed")
+}

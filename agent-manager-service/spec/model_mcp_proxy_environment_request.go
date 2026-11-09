@@ -21,7 +21,7 @@ var _ MappedNullable = &MCPProxyEnvironmentRequest{}
 type MCPProxyEnvironmentRequest struct {
 	// Required only when the environment has more than one egress-capable gateway. Cannot change once placed. Must name a managed gateway: a self-hosted gateway has no route to the in-cluster upstream, so naming one is rejected with 400 VALIDATION_ERROR.
 	GatewayId *string `json:"gatewayId,omitempty"`
-	// The source component's release binding to front. Required only when the component has more than one release binding in the environment, one per deployment track for example; without it such a component is rejected with 400 VALIDATION_ERROR. It must be a binding of the source component in this project and environment, or it is rejected with 400 VALIDATION_ERROR.
+	// The source component's release binding to front. Required only when the component has more than one release binding in the environment, one per deployment track for example; without it such a component is rejected with 400 VALIDATION_ERROR. It must be a binding of the source component in this project and environment, or it is rejected with 400 VALIDATION_ERROR. A proxy registered by URL has no release binding: setting it there is 400 VALIDATION_ERROR.
 	ReleaseBindingName *string                      `json:"releaseBindingName,omitempty"`
 	Security           *MCPProxyEnvironmentSecurity `json:"security,omitempty"`
 	// Gateway policies, e.g. CORS and basic-ratelimit. Each needs a name and a version.
