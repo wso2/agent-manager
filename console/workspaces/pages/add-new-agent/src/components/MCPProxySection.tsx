@@ -686,7 +686,7 @@ export const MCPProxySection: React.FC<MCPProxySectionProps> = ({
                                 )
                               }
                             >
-                              Register MCP Server
+                              Register MCP server
                             </Button>
                           ) : undefined
                         }
@@ -737,7 +737,7 @@ export const MCPProxySection: React.FC<MCPProxySectionProps> = ({
                 >
                   <Plus size={16} />
                   <Typography variant="body2" color="primary">
-                    Register MCP Server
+                    Register MCP server
                   </Typography>
                   <ExternalLink size={14} />
                 </Box>

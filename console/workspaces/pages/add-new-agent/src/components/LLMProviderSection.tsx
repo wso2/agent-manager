@@ -493,7 +493,7 @@ const EntryCard: React.FC<EntryCardProps> = ({
           <PolicyListSection
             title="Guardrails"
             description="Add safety policies to enforce consistent protections."
-            addButtonLabel="Add Guardrail"
+            addButtonLabel="Add guardrail"
             drawerAddTitle="Add Guardrail"
             drawerEditTitle="Edit Guardrail"
             drawerAddSubtitle="Choose a guardrail to configure advanced options."
@@ -851,7 +851,7 @@ export const LLMProviderSection: React.FC<LLMProviderSectionProps> = ({
                             target="_blank"
                             rel="noopener noreferrer"
                           >
-                            Add LLM Service Provider
+                            Add LLM service provider
                           </Button>
                         ) : undefined
                       }
@@ -906,7 +906,7 @@ export const LLMProviderSection: React.FC<LLMProviderSectionProps> = ({
                 >
                   <Plus size={16} />
                   <Typography variant="body2" color="primary">
-                    Add LLM Provider
+                    Add LLM provider
                   </Typography>
                   <ExternalLink size={14} />
                 </Box>

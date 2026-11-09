@@ -415,7 +415,7 @@ export function ViewMCPProxy() {
                 )
               }
             >
-              Edit MCP Server
+              Edit MCP server
             </Button>
           ) : undefined
         }

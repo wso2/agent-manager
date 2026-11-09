@@ -148,7 +148,7 @@ export function EnvironmentTable({
       startIcon={<Plus size={16} />}
       onClick={onCreateEnvironment}
     >
-      Create Environment
+      Create environment
     </Button>
   );
 

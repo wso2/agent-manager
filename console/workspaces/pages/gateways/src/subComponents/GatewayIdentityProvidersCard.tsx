@@ -106,7 +106,7 @@ export function GatewayIdentityProvidersCard({
       startIcon={<Plus size={16} />}
       onClick={openAdd}
     >
-      Add Identity Provider
+      Add identity provider
     </Button>
   ) : undefined;
 

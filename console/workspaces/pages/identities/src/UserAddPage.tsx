@@ -238,7 +238,7 @@ export const UserAddPage: React.FC = () => {
                 loading || !formData.username.trim() || !formData.password
               }
             >
-              Create User
+              Create user
             </Button>
           </Box>
         </Box>

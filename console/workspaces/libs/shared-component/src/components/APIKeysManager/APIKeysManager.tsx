@@ -306,7 +306,7 @@ export function APIKeysManager({
       startIcon={<Plus size={16} />}
       onClick={() => setCreateOpen(true)}
     >
-      Create API Key
+      Create API key
     </Button>
   );
 

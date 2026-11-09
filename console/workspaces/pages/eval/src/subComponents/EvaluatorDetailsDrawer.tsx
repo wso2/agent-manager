@@ -647,7 +647,7 @@ export function EvaluatorDetailsDrawer({
                   color="primary"
                   onClick={handleConfirmSelection}
                 >
-                  {isSelected ? "Save Changes" : "Add Evaluator"}
+                  {isSelected ? "Save changes" : "Add evaluator"}
                 </Button>
               </Stack>
             </Stack>

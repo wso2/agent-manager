@@ -166,7 +166,7 @@ export const OrganizationOverview: React.FC = () => {
       to={createProjectPath}
       state={returnToState(location)}
     >
-      Create Project
+      Create project
     </Button>
   );
 
@@ -259,7 +259,7 @@ export const OrganizationOverview: React.FC = () => {
                   sx={{ px: 2.5, py: 1.5, color: "primary.main", textDecoration: "none" }}
                 >
                   <Typography variant="subtitle2" color="inherit">
-                    More Projects
+                    More projects
                   </Typography>
                   <ArrowRight size={16} />
                 </Stack>

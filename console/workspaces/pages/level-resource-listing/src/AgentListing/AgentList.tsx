@@ -194,7 +194,7 @@ export const AgentList: React.FC<AgentListProps> = ({ showCreateAction = false }
                 startIcon={<Add size={16} />}
                 onClick={handleAddAgent}
               >
-                New Agent
+                New agent
               </Button>
             )}
           </Stack>
@@ -208,7 +208,7 @@ export const AgentList: React.FC<AgentListProps> = ({ showCreateAction = false }
           description: "Create a new agent to get started",
           action: canCreate ? (
             <Button variant="contained" startIcon={<Add />} onClick={handleAddAgent}>
-              New Agent
+              New agent
             </Button>
           ) : undefined,
         }}

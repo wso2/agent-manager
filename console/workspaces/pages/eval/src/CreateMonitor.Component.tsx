@@ -233,7 +233,7 @@ export const CreateMonitorComponent: React.FC = () => {
       title={title}
       description={description}
       backHref={backHref}
-      submitLabel="Create Monitor"
+      submitLabel="Create monitor"
       initialValues={initialValues}
       onSubmit={handleCreateMonitor}
       isSubmitting={isPending}

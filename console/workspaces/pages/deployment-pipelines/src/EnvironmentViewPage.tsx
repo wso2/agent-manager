@@ -154,7 +154,7 @@ export function EnvironmentViewPage() {
             )
           }
         >
-          Edit Environment
+          Edit environment
         </Button>
         )
       }

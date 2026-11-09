@@ -368,7 +368,7 @@ export function AddMCPToolConfigPanel({
                               )
                             }
                           >
-                            Register MCP Server
+                            Register MCP server
                           </Button>
                         ) : undefined
                       }

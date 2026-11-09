@@ -887,7 +887,7 @@ export function ConfigureBuildDrawer({
                 color="primary"
                 disabled={isPending}
               >
-                {isPending ? "Updating..." : "Update Build Configuration"}
+                {isPending ? "Updating..." : "Update build configuration"}
               </Button>
             </Box>
           </Box>

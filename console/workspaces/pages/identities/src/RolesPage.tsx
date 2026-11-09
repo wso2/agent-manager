@@ -118,7 +118,7 @@ export const RolesPage: React.FC = () => {
       onClick={() => navigate(createPath)}
       disabled={!isUserManagementEnabled}
     >
-      Create Role
+      Create role
     </Button>
   ) : undefined;
 

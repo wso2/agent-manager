@@ -126,7 +126,7 @@ export const TimeRangeSelector: React.FC<TimeRangeSelectorProps> = ({
                     </MenuItem>
                 ))}
                 <Divider />
-                <MenuItem value={CUSTOM_VALUE} onClick={openPopover}>Custom Time Range</MenuItem>
+                <MenuItem value={CUSTOM_VALUE} onClick={openPopover}>Custom time range</MenuItem>
             </Select>
 
             <Popover

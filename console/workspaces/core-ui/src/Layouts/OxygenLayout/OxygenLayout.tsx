@@ -160,7 +160,7 @@ export function OxygenLayout() {
                 {orgId && profileManagementEnabled && (
                   <UserMenu.Item
                     icon={<Settings />}
-                    label="Profile Settings"
+                    label="Profile settings"
                     onClick={() => setProfileOpen(true)}
                   />
                 )}

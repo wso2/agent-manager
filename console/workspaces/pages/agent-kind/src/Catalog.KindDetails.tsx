@@ -229,7 +229,7 @@ export const CatalogKindDetails: React.FC = () => {
             target="_blank"
             rel="noopener noreferrer"
           >
-            View Source Agent
+            View source agent
           </Button>
         ),
         canCreateAgent && (
@@ -243,7 +243,7 @@ export const CatalogKindDetails: React.FC = () => {
             aria-haspopup="true"
             aria-expanded={Boolean(addInstanceAnchorEl)}
           >
-            Add Instance
+            Add instance
           </Button>
           <Menu
             id="add-instance-menu"
@@ -381,7 +381,7 @@ export const CatalogKindDetails: React.FC = () => {
                             endIcon={<ExternalLink size={16} />}
                             onClick={(e) => { e.stopPropagation(); window.open(agentHref, "_blank", "noopener,noreferrer"); }}
                           >
-                            View Agent
+                            View agent
                           </Button>
                         </ListingTable.Cell>
                       </ListingTable.Row>

@@ -230,7 +230,7 @@ export function EndpointsEditorSection({
                 onClick={() => onAddOpenChange(true)}
                 disabled={noEnvironmentsLeft || environments.length === 0}
               >
-                Add Endpoint
+                Add endpoint
               </Button>
             </span>
           </Tooltip>

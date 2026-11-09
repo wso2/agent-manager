@@ -38,7 +38,7 @@ export const MCPProxiesOrganization = () => {
       )}
       startIcon={<Plus size={16} />}
     >
-      Register MCP Server
+      Register MCP server
     </Button>
   );
 

@@ -318,7 +318,7 @@ export const EnvironmentCard = (props: EnvironmentCardProps) => {
             color="inherit"
             size="small"
           >
-            View Deployment
+            View deployment
           </Button>
         }
       >

@@ -442,7 +442,7 @@ export const GroupEditPage: React.FC = () => {
               onClick={handleSave}
               disabled={isSaving}
             >
-              {isSaving ? "Saving..." : "Save Changes"}
+              {isSaving ? "Saving..." : "Save changes"}
             </Button>
           </Stack>
         )}

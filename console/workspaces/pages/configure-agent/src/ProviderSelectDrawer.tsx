@@ -171,7 +171,7 @@ export const ProviderSelectDrawer: React.FC<ProviderSelectDrawerProps> = ({
               >
                 <Plus size={16} />
                 <Typography variant="body2" color="primary">
-                  Add LLM Provider
+                  Add LLM provider
                 </Typography>
                 <ExternalLink size={14} />
               </Box>

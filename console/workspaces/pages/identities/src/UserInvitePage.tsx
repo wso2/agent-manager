@@ -178,7 +178,7 @@ export const UserInvitePage: React.FC = () => {
                   onClick={handleSubmit}
                   disabled={isInviting || !formData.email.trim()}
                 >
-                  Get Invitation Link
+                  Get invitation link
                 </Button>
               </Box>
             </Box>
@@ -218,7 +218,7 @@ export const UserInvitePage: React.FC = () => {
               alignItems="center"
             >
               <Button variant="outlined" color="primary" onClick={handleInviteAnother}>
-                Invite Another
+                Invite another
               </Button>
               <Button
                 variant="contained"

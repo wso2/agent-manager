@@ -270,7 +270,7 @@ const ConnectIdentityCredentials: React.FC<{
             }
             sx={{ flexShrink: 0 }}
           >
-            {isRegenerating ? "Regenerating..." : "Regenerate Secret"}
+            {isRegenerating ? "Regenerating..." : "Regenerate secret"}
           </Button>
         )}
       </Stack>

@@ -48,7 +48,7 @@ export const GatewaysOrganization: React.FC = () => {
       startIcon={<Plus size={16} />}
       onClick={() => setAddDrawerOpen(true)}
     >
-      Add Gateway
+      Add gateway
     </Button>
   ) : undefined;
 

@@ -190,7 +190,7 @@ export const UserCreatePage: React.FC = () => {
             onClick={handleSubmit}
             disabled={isCreating || !username.trim() || !password.trim()}
           >
-            {isCreating ? "Creating..." : "Create User"}
+            {isCreating ? "Creating..." : "Create user"}
           </Button>
         </Stack>
       </Stack>

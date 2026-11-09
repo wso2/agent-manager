@@ -57,7 +57,7 @@ export const AgentListing: React.FC = () => {
             )
           }
         >
-          New Agent
+          New agent
         </Button>
         )
       }

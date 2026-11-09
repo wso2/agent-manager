@@ -101,7 +101,7 @@ export function EnvironmentsOrganization() {
                   startIcon={<Plus size={16} />}
                   onClick={() => setCreateOpen(true)}
                 >
-                  Create Environment
+                  Create environment
                 </Button>
                 ) : undefined
               }

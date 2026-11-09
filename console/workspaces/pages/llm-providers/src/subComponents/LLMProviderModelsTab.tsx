@@ -420,7 +420,7 @@ export function LLMProviderModelsTab({
                     onClick={() => setDrawerOpen(true)}
                     disabled={isSaving}
                   >
-                    Add Model Provider
+                    Add model provider
                   </Button>
                 }
               />
@@ -482,7 +482,7 @@ export function LLMProviderModelsTab({
                     disabled={atMaxProviders || isSaving}
                     fullWidth
                   >
-                    Add Model Provider
+                    Add model provider
                   </Button>
                 </span>
               </Tooltip>

@@ -186,7 +186,7 @@ function EditAgentForm({ agent, orgId, projectId, agentHref }: EditAgentFormProp
             color="primary"
             disabled={!isValid || isPending}
           >
-            {isPending ? "Updating..." : "Update Agent"}
+            {isPending ? "Updating..." : "Update agent"}
           </Button>
         </Box>
       </Box>

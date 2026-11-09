@@ -91,7 +91,7 @@ export function DeploymentPipelinesOrganization() {
                     startIcon={<Plus size={16} />}
                     onClick={() => setCreateOpen(true)}
                   >
-                    Create Pipeline
+                    Create pipeline
                   </Button>
                   ) : undefined
                 }

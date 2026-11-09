@@ -131,7 +131,7 @@ export const UsersPage: React.FC = () => {
         onClick={() => navigate(addUserPath)}
         disabled={!isUserManagementEnabled}
       >
-        Add User
+        Add user
       </Button>
       <Button
         variant="contained"
@@ -139,7 +139,7 @@ export const UsersPage: React.FC = () => {
         onClick={() => navigate(invitePath)}
         disabled={!isUserManagementEnabled}
       >
-        Invite User
+        Invite user
       </Button>
     </Stack>
   ) : undefined;

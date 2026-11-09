@@ -85,7 +85,7 @@ export const BuildComponent: React.FC = () => {
                 color="primary"
                 startIcon={<Settings size={16} />}
               >
-                Configure Build
+                Configure build
               </Button>
             )}
             {canBuild && (

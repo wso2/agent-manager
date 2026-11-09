@@ -213,7 +213,7 @@ const statusButton = (name: string) =>
     name,
     hidden: true,
   });
-const filtersButton = () => screen.getByRole("button", { name: "Advanced Filters", hidden: true });
+const filtersButton = () => screen.getByRole("button", { name: "Advanced filters", hidden: true });
 const openFilters = () => fireEvent.click(filtersButton());
 const queryDrawer = () => screen.queryByRole("complementary", { name: "Advanced Filters" });
 const drawer = () => screen.getByRole("complementary", { name: "Advanced Filters" });
@@ -975,7 +975,7 @@ describe("TracesComponent columns and cap notice", () => {
         "The list stops here: the remaining traces are more than 1,000 traces into this time range. Narrow the time range to see more.",
       ),
     ).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Load More Traces" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Load more traces" })).not.toBeInTheDocument();
   });
 
   it("shows how far a filtered list searched in the row after the traces", () => {
@@ -1205,7 +1205,7 @@ describe("TracesComponent export warning", () => {
 });
 
 describe("TracesComponent infinite scroll", () => {
-  const loadMoreButton = () => screen.queryByRole("button", { name: "Load More Traces" });
+  const loadMoreButton = () => screen.queryByRole("button", { name: "Load more traces" });
   // Lets a resolved loadMore result reach the table.
   const settleLoad = () => act(async () => {});
 

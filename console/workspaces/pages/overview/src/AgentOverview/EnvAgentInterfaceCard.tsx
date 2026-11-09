@@ -82,7 +82,7 @@ export const EnvAgentInterfaceCard: React.FC<EnvAgentInterfaceCardProps> = ({
             <OverviewSectionCard
                 title="Agent Interface"
                 actionHref={tryItHref}
-                actionLabel="Try It"
+                actionLabel="Try it"
                 // `height: "100%"` alone doesn't equalize this against the
                 // "Agent ID" card next to it — both sit inside a
                 // CollapsibleSection/Collapse, which sizes itself to its own

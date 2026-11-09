@@ -399,7 +399,7 @@ export const AgentDetailPage: React.FC = () => {
               description={
                 <>Roles assigned to this agent&apos;s identity in {envName}.</>
               }
-              addLabel="Add Role"
+              addLabel="Add role"
               addPlaceholder="Search roles..."
               noOptionsText="No roles available"
               removeTooltip="Remove role"
@@ -421,7 +421,7 @@ export const AgentDetailPage: React.FC = () => {
               description={
                 <>Groups this agent&apos;s identity belongs to in {envName}.</>
               }
-              addLabel="Add Group"
+              addLabel="Add group"
               addPlaceholder="Search groups..."
               noOptionsText="No groups available"
               removeTooltip="Remove from group"
@@ -448,7 +448,7 @@ export const AgentDetailPage: React.FC = () => {
               Cancel
             </Button>
             <Button variant="contained" onClick={handleSave} disabled={isSaving}>
-              {isSaving ? "Saving..." : "Save Changes"}
+              {isSaving ? "Saving..." : "Save changes"}
             </Button>
           </Stack>
         )}

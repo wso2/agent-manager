@@ -301,7 +301,7 @@ function EditProjectForm({ project, orgId, projectHref }: EditProjectFormProps) 
             color="primary"
             disabled={!isValid || isPending}
           >
-            {isPending ? "Updating..." : "Update Project"}
+            {isPending ? "Updating..." : "Update project"}
           </Button>
         </Box>
       </Box>

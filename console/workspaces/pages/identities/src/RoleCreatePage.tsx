@@ -190,7 +190,7 @@ export const RoleCreatePage: React.FC = () => {
               onClick={handleSubmit}
               disabled={isCreating || !formData.name.trim()}
             >
-              Create Role
+              Create role
             </Button>
           </Box>
         </Box>

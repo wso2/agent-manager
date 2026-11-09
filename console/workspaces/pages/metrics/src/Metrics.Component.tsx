@@ -38,13 +38,13 @@ import {
 import { PauseCircle, RefreshCcw } from "@wso2/oxygen-ui-icons-react";
 
 const TIME_RANGE_OPTIONS = [
-  { value: TraceListTimeRange.TEN_MINUTES, label: "10 Minutes" },
-  { value: TraceListTimeRange.THIRTY_MINUTES, label: "30 Minutes" },
-  { value: TraceListTimeRange.ONE_HOUR, label: "1 Hour" },
-  { value: TraceListTimeRange.SIX_HOURS, label: "6 Hours" },
-  { value: TraceListTimeRange.TWELVE_HOURS, label: "12 Hours" },
-  { value: TraceListTimeRange.ONE_DAY, label: "1 Day" },
-  { value: TraceListTimeRange.SEVEN_DAYS, label: "7 Days" },
+  { value: TraceListTimeRange.TEN_MINUTES, label: "10 minutes" },
+  { value: TraceListTimeRange.THIRTY_MINUTES, label: "30 minutes" },
+  { value: TraceListTimeRange.ONE_HOUR, label: "1 hour" },
+  { value: TraceListTimeRange.SIX_HOURS, label: "6 hours" },
+  { value: TraceListTimeRange.TWELVE_HOURS, label: "12 hours" },
+  { value: TraceListTimeRange.ONE_DAY, label: "1 day" },
+  { value: TraceListTimeRange.SEVEN_DAYS, label: "7 days" },
 ];
 
 export const MetricsComponent: React.FC = () => {

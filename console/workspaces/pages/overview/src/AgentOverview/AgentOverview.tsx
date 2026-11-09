@@ -108,7 +108,7 @@ export function AgentOverview() {
                         }
                         disabled={!agent}
                     >
-                        Edit Agent
+                        Edit agent
                     </Button>
                 )
             }

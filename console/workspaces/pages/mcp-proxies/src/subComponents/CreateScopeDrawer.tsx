@@ -471,7 +471,7 @@ export function CreateScopeDrawer({
                 color="primary"
                 disabled={!isValid || isSubmitting}
               >
-                {isSubmitting ? "Creating..." : "Create Scope"}
+                {isSubmitting ? "Creating..." : "Create scope"}
               </Button>
             </Box>
           </Stack>

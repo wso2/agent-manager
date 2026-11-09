@@ -966,7 +966,7 @@ export const AddLLMProviderComponent: React.FC = () => {
                             )
                           }
                         >
-                          Add LLM Service Provider
+                          Add LLM service provider
                         </Button>
                       ) : undefined
                     }
@@ -1033,7 +1033,7 @@ export const AddLLMProviderComponent: React.FC = () => {
               providerId={providerByEnv[selectedEnvName]?.uuid}
               title="Guardrails"
               description="Add safety policies to enforce consistent protections."
-              addButtonLabel="Add Guardrail"
+              addButtonLabel="Add guardrail"
               drawerAddTitle="Add Guardrail"
               drawerEditTitle="Edit Guardrail"
               drawerAddSubtitle="Choose a guardrail to configure advanced options."
