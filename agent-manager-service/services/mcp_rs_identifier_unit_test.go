@@ -272,3 +272,69 @@ func TestEnsureResourceServersForProxy_SurvivesResolverError(t *testing.T) {
 		svc.EnsureResourceServersForProxy(context.Background(), "ou-1", proxy, []string{"read"})
 	})
 }
+
+type recordingMCPResourceServerProvider struct {
+	MCPResourceServerProvider
+	requests []MCPResourceServerRequest
+}
+
+func (p *recordingMCPResourceServerProvider) EnsureMCPResourceServer(_ context.Context, request MCPResourceServerRequest) (MCPResourceServerResult, error) {
+	p.requests = append(p.requests, request)
+	return MCPResourceServerResult{ResourceServerID: "resource-server"}, nil
+}
+
+func TestCPManagedMCPResourceServersUseEachSelectedEnvironmentPublicURL(t *testing.T) {
+	envA, envB := uuid.New(), uuid.New()
+	artifactA, artifactB := uuid.New(), uuid.New()
+	gatewayA, gatewayB := uuid.New(), uuid.New()
+	ctxPath := "/deepwiki"
+	proxy := &models.MCPProxy{
+		Artifact:      &models.Artifact{Handle: "deepwiki"},
+		Configuration: models.MCPProxyConfig{Context: &ctxPath},
+		Endpoints: []models.MCPProxyEndpoint{{
+			Configuration: models.MCPEndpointConfig{Security: mcpIdentitySecurity()},
+			Environments: []models.MCPProxyEndpointEnvironment{
+				{EnvironmentUUID: envA, ArtifactUUID: artifactA},
+				{EnvironmentUUID: envB, ArtifactUUID: artifactB},
+			},
+		}},
+	}
+	provider := &recordingMCPResourceServerProvider{}
+	SetMCPResourceServerProvider(thundersvc.IdentityManagementCPManaged, provider)
+	t.Cleanup(func() { SetMCPResourceServerProvider(thundersvc.IdentityManagementLegacyDirect, nil) })
+
+	svc := &MCPProxyService{
+		infraManager: stubInfraManager{listOrgEnvs: func(_ context.Context, _ string) ([]*models.EnvironmentResponse, error) {
+			return []*models.EnvironmentResponse{
+				{Name: "env-a", UUID: envA.String()},
+				{Name: "env-b", UUID: envB.String()},
+				{Name: "not-selected", UUID: uuid.NewString()},
+			}, nil
+		}},
+		deploymentRepo: &repomocks.DeploymentRepositoryMock{
+			PlacedGatewaysFunc: func(_ context.Context, _ string, artifactID uuid.UUID) ([]string, error) {
+				byArtifact := map[uuid.UUID]uuid.UUID{artifactA: gatewayA, artifactB: gatewayB}
+				return []string{byArtifact[artifactID].String()}, nil
+			},
+		},
+		gatewayRepo: &repomocks.GatewayRepositoryMock{
+			EnvironmentMappingExistsFunc: func(_, _ string) (bool, error) { return true, nil },
+			GetByUUIDFunc: func(id string) (*models.Gateway, error) {
+				byGateway := map[string]*models.Gateway{
+					gatewayA.String(): {UUID: gatewayA, Vhost: "https://a.example.com"},
+					gatewayB.String(): {UUID: gatewayB, Vhost: "https://b.example.com"},
+				}
+				return byGateway[id], nil
+			},
+		},
+		logger: discardLogger(),
+	}
+
+	svc.EnsureResourceServersForProxy(context.Background(), "ou-1", proxy, []string{"read"})
+
+	require.Len(t, provider.requests, 2)
+	require.Equal(t, "env-a", provider.requests[0].Environment)
+	require.Equal(t, "https://a.example.com/deepwiki/mcp", provider.requests[0].Identifier)
+	require.Equal(t, "env-b", provider.requests[1].Environment)
+	require.Equal(t, "https://b.example.com/deepwiki/mcp", provider.requests[1].Identifier)
+}

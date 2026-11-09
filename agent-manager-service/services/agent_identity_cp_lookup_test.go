@@ -151,3 +151,47 @@ func TestAgentLookupWithoutAProviderIsUnavailable(t *testing.T) {
 	_, err = agentGroupsViaProvider(context.Background(), nil, "org-1", "qa", "agent-1")
 	assert.ErrorIs(t, err, ErrIdentityGroupUnavailable)
 }
+
+type bulkAgentAccessProvider struct {
+	IdentityRoleProvider
+	IdentityGroupProvider
+	request [3]string
+}
+
+func (p *bulkAgentAccessProvider) ListAgentRoles(ctx context.Context, organizationID, environment, agentID string) ([]thundersvc.ThunderRole, error) {
+	p.request = [3]string{organizationID, environment, agentID}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return []thundersvc.ThunderRole{{ID: "reader"}}, nil
+}
+
+func (p *bulkAgentAccessProvider) ListAgentGroups(ctx context.Context, organizationID, environment, agentID string) ([]thundersvc.ThunderGroup, error) {
+	p.request = [3]string{organizationID, environment, agentID}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return []thundersvc.ThunderGroup{{ID: "operators"}}, nil
+}
+
+func TestAgentAccessUsesBulkReaders(t *testing.T) {
+	provider := &bulkAgentAccessProvider{}
+	want := [3]string{"org-1", "qa", "agent-1"}
+	roles, err := agentRolesViaProvider(context.Background(), provider, want[0], want[1], want[2])
+	require.NoError(t, err)
+	require.Equal(t, []thundersvc.ThunderRole{{ID: "reader"}}, roles)
+	require.Equal(t, want, provider.request)
+
+	provider.request = [3]string{}
+	groups, err := agentGroupsViaProvider(context.Background(), provider, want[0], want[1], want[2])
+	require.NoError(t, err)
+	require.Equal(t, []thundersvc.ThunderGroup{{ID: "operators"}}, groups)
+	require.Equal(t, want, provider.request)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err = agentRolesViaProvider(ctx, provider, want[0], want[1], want[2])
+	require.ErrorIs(t, err, context.Canceled)
+	_, err = agentGroupsViaProvider(ctx, provider, want[0], want[1], want[2])
+	require.ErrorIs(t, err, context.Canceled)
+}
