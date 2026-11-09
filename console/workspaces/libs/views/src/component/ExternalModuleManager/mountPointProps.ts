@@ -74,3 +74,24 @@ export interface PrivateRepoSourceProps {
   /** When true, inputs should be disabled (for example while a submit is in flight). */
   disabled?: boolean;
 }
+
+/** Replica restriction reported by a component injected at MountPoints.ReplicaPolicy. */
+export interface ReplicaPolicy {
+  /** Highest replica count allowed, for both fixed replicas and the autoscaling max. */
+  maxReplicas: number;
+  /** When false, autoscaling cannot be turned on. */
+  autoScalingAllowed: boolean;
+}
+
+/**
+ * Props passed to a component injected at MountPoints.ReplicaPolicy. The component
+ * renders inside the resource configurations drawer (for example a notice explaining
+ * the restriction) and reports the policy through onPolicyChange. Until it reports,
+ * the drawer does not allow saving.
+ */
+export interface ReplicaPolicyProps {
+  /** Organization id (handle) the agent belongs to. */
+  orgId: string;
+  /** Reports the restriction to apply, or null when replicas are unrestricted. */
+  onPolicyChange: (policy: ReplicaPolicy | null) => void;
+}

@@ -36,4 +36,9 @@ export enum MountPoints {
     // branch, app path and credential selection) at this mount point. When nothing is
     // injected, the built-in PAT git-secret UI is used (the self-hosted default).
     PrivateRepoSource = "private-repo-source",
+    // A deployment can inject a replica policy component into the resource
+    // configurations drawer to cap replicas or disallow autoscaling (for example
+    // based on the organization's subscription). When nothing is injected, the
+    // built-in limits apply (the self-hosted default).
+    ReplicaPolicy = "replica-policy",
 }

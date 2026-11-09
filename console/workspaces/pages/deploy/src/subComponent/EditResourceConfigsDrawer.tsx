@@ -22,6 +22,7 @@ import {
   Collapse,
   Form,
   FormControlLabel,
+  FormHelperText,
   Switch,
   TextField,
 } from "@wso2/oxygen-ui";
@@ -30,8 +31,11 @@ import {
   DrawerWrapper,
   DrawerHeader,
   DrawerContent,
+  useExternalComponentModulesByMountPoint,
   useFormValidation,
   useSnackBar,
+  type ReplicaPolicy,
+  type ReplicaPolicyProps,
 } from "@agent-management-platform/views";
 import { z } from "zod";
 import { useUpdateAgentResourceConfigs } from "@agent-management-platform/api-client";
@@ -41,7 +45,35 @@ import {
   INPUT_LIMITS,
 } from "@agent-management-platform/types";
 import { useUnsavedChangesGuard } from "@agent-management-platform/shared-component";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { type ComponentType, useCallback, useEffect, useMemo, useState } from "react";
+
+// Mount point where a deployment can inject a replica policy (for example a
+// subscription-based cap). Kept as a string literal to avoid a core-ui dependency
+// from this page workspace; matches MountPoints.ReplicaPolicy.
+const REPLICA_POLICY_MOUNT_POINT = "replica-policy";
+
+type ReplicaPolicyErrors = Partial<
+  Record<"replicas" | "autoScalingEnabled" | "maxReplicas", string>
+>;
+
+/** Checks the form against an injected replica policy; returns field errors. */
+function getReplicaPolicyErrors(
+  form: ResourceConfigsFormValues,
+  policy: ReplicaPolicy | null,
+): ReplicaPolicyErrors {
+  if (!policy) return {};
+  const errors: ReplicaPolicyErrors = {};
+  if (form.autoScalingEnabled) {
+    if (!policy.autoScalingAllowed) {
+      errors.autoScalingEnabled = "Autoscaling is not available for this organization";
+    } else if ((form.maxReplicas ?? 0) > policy.maxReplicas) {
+      errors.maxReplicas = `Max replicas must be at most ${policy.maxReplicas}`;
+    }
+  } else if (form.replicas > policy.maxReplicas) {
+    errors.replicas = `Replicas must be at most ${policy.maxReplicas}`;
+  }
+  return errors;
+}
 
 const cpuPattern = /^[0-9]+(\.[0-9]+)?m?$/i;
 const memoryPattern = /^[0-9]+(\.[0-9]+)?(Ki|Mi|Gi|Ti|Pi|Ei)$/i;
@@ -246,6 +278,21 @@ export function EditResourceConfigsDrawer({
   const { mutate: updateConfigs, isPending } = useUpdateAgentResourceConfigs();
   const { pushSnackBar } = useSnackBar();
 
+  const ReplicaPolicyComponent = useExternalComponentModulesByMountPoint(
+    REPLICA_POLICY_MOUNT_POINT,
+  )[0]?.component as unknown as ComponentType<ReplicaPolicyProps> | undefined;
+  // undefined = an injected policy has not reported yet; saving waits for it.
+  const [replicaPolicy, setReplicaPolicy] = useState<ReplicaPolicy | null | undefined>(
+    ReplicaPolicyComponent ? undefined : null,
+  );
+  const policyErrors = useMemo(
+    () => getReplicaPolicyErrors(formData, replicaPolicy ?? null),
+    [formData, replicaPolicy],
+  );
+  const isPolicyBlocking =
+    replicaPolicy === undefined || Object.keys(policyErrors).length > 0;
+  const replicasMax = Math.min(10, replicaPolicy?.maxReplicas ?? 10);
+
   useEffect(() => {
     if (open) {
       const seed = resourceConfigs ? toFormValues(resourceConfigs) : DEFAULT_FORM_VALUES;
@@ -279,6 +326,9 @@ export function EditResourceConfigsDrawer({
     (e: React.FormEvent) => {
       e.preventDefault();
       const parseResult = resourceConfigsSchema.safeParse(formData);
+      if (isPolicyBlocking) {
+        return;
+      }
       if (!parseResult.success) {
         validateForm(formData);
         return;
@@ -306,6 +356,7 @@ export function EditResourceConfigsDrawer({
     },
     [
       formData,
+      isPolicyBlocking,
       validateForm,
       updateConfigs,
       orgName,
@@ -333,6 +384,12 @@ export function EditResourceConfigsDrawer({
             <Form.Section>
               <Form.Header>Replicas</Form.Header>
               <Form.Stack spacing={2}>
+                {ReplicaPolicyComponent && (
+                  <ReplicaPolicyComponent
+                    orgId={orgName}
+                    onPolicyChange={setReplicaPolicy}
+                  />
+                )}
                 <Form.ElementWrapper label="Replicas" name="replicas">
                   <TextField
                     id="replicas"
@@ -344,9 +401,9 @@ export function EditResourceConfigsDrawer({
                     onChange={(e) =>
                       handleFieldChange("replicas", parseInt(e.target.value, 10) || 0)
                     }
-                    error={!!errors.replicas}
-                    helperText={errors.replicas}
-                    slotProps={{ input: { inputProps: { min: 0, max: 10 } } }}
+                    error={!!(errors.replicas || policyErrors.replicas)}
+                    helperText={errors.replicas || policyErrors.replicas}
+                    slotProps={{ input: { inputProps: { min: 0, max: replicasMax } } }}
                   />
                 </Form.ElementWrapper>
                 <FormControlLabel
@@ -356,11 +413,19 @@ export function EditResourceConfigsDrawer({
                       onChange={(_, checked) =>
                         handleFieldChange("autoScalingEnabled", checked)
                       }
-                      disabled={isPending}
+                      // Turning autoscaling off stays possible when the policy disallows it.
+                      disabled={
+                        isPending ||
+                        (replicaPolicy?.autoScalingAllowed === false &&
+                          !formData.autoScalingEnabled)
+                      }
                     />
                   }
                   label="Enable autoscaling"
                 />
+                {policyErrors.autoScalingEnabled && (
+                  <FormHelperText error>{policyErrors.autoScalingEnabled}</FormHelperText>
+                )}
                 <Collapse in={formData.autoScalingEnabled}>
                   <Form.Stack spacing={2} sx={{ mt: 1 }}>
                     <Form.ElementWrapper label="Min replicas" name="minReplicas">
@@ -396,9 +461,9 @@ export function EditResourceConfigsDrawer({
                             parseInt(e.target.value, 10) || 3
                           )
                         }
-                        error={!!errors.maxReplicas}
-                        helperText={errors.maxReplicas}
-                        slotProps={{ input: { inputProps: { min: 1 } } }}
+                        error={!!(errors.maxReplicas || policyErrors.maxReplicas)}
+                        helperText={errors.maxReplicas || policyErrors.maxReplicas}
+                        slotProps={{ input: { inputProps: { min: 1, max: replicasMax } } }}
                       />
                     </Form.ElementWrapper>
                   </Form.Stack>
@@ -486,7 +551,7 @@ export function EditResourceConfigsDrawer({
                 type="submit"
                 variant="contained"
                 color="primary"
-                disabled={!isValid || isPending}
+                disabled={!isValid || isPolicyBlocking || isPending}
               >
                 {isPending ? "Saving..." : "Save"}
               </Button>
