@@ -18,7 +18,13 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { EnvironmentSelector } from "@agent-management-platform/shared-component";
-import { LogsPanel, PageLayout, TimeRangeSelector, useTimeRangeParams } from "@agent-management-platform/views";
+import {
+  LogsPanel,
+  PageLayout,
+  TIME_RANGE_OPTIONS,
+  TimeRangeSelector,
+  useTimeRangeParams,
+} from "@agent-management-platform/views";
 import { useParams, useSearchParams } from "react-router-dom";
 import {
   TraceListTimeRange,
@@ -48,16 +54,6 @@ import {
 } from "@wso2/oxygen-ui-icons-react";
 
 const ALL_LOG_LEVELS: LogLevel[] = ["DEBUG", "INFO", "WARN", "ERROR"];
-
-const TIME_RANGE_OPTIONS = [
-  { value: TraceListTimeRange.TEN_MINUTES, label: "10 minutes" },
-  { value: TraceListTimeRange.THIRTY_MINUTES, label: "30 minutes" },
-  { value: TraceListTimeRange.ONE_HOUR, label: "1 hour" },
-  { value: TraceListTimeRange.SIX_HOURS, label: "6 hours" },
-  { value: TraceListTimeRange.TWELVE_HOURS, label: "12 hours" },
-  { value: TraceListTimeRange.ONE_DAY, label: "1 day" },
-  { value: TraceListTimeRange.SEVEN_DAYS, label: "7 days" },
-];
 
 const DEFAULT_PAGE_SIZE = 300;
 const DEBOUNCE_TIME = 2000;

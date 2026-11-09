@@ -18,7 +18,13 @@
 
 import React, { useCallback, useMemo } from "react";
 import { EnvironmentSelector } from "@agent-management-platform/shared-component";
-import { NoDataFound, PageLayout, TimeRangeSelector, useTimeRangeParams } from "@agent-management-platform/views";
+import {
+  NoDataFound,
+  PageLayout,
+  TIME_RANGE_OPTIONS,
+  TimeRangeSelector,
+  useTimeRangeParams,
+} from "@agent-management-platform/views";
 import { useParams, useSearchParams } from "react-router-dom";
 import { TraceListTimeRange } from "@agent-management-platform/types";
 import {
@@ -36,16 +42,6 @@ import {
   Stack,
 } from "@wso2/oxygen-ui";
 import { PauseCircle, RefreshCcw } from "@wso2/oxygen-ui-icons-react";
-
-const TIME_RANGE_OPTIONS = [
-  { value: TraceListTimeRange.TEN_MINUTES, label: "10 minutes" },
-  { value: TraceListTimeRange.THIRTY_MINUTES, label: "30 minutes" },
-  { value: TraceListTimeRange.ONE_HOUR, label: "1 hour" },
-  { value: TraceListTimeRange.SIX_HOURS, label: "6 hours" },
-  { value: TraceListTimeRange.TWELVE_HOURS, label: "12 hours" },
-  { value: TraceListTimeRange.ONE_DAY, label: "1 day" },
-  { value: TraceListTimeRange.SEVEN_DAYS, label: "7 days" },
-];
 
 export const MetricsComponent: React.FC = () => {
   const { agentId, orgId, projectId, envId } = useParams();

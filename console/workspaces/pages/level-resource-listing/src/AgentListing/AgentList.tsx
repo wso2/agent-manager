@@ -82,7 +82,7 @@ function AgentListSkeleton() {
 
 /** The project's agents: search, refresh, and a table with a delete action. */
 export interface AgentListProps {
-  /** Shows "New Agent" beside the search, for pages without a header action. */
+  /** Shows "New agent" beside the search, for pages without a header action. */
   showCreateAction?: boolean;
 }
 
