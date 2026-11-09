@@ -1,6 +1,7 @@
 import unittest
 
 from tools.demo import DEMO_PASSENGER, DEMO_TICKET
+from tools.excursions import search_trip_recommendations
 from tools.flights import cancel_ticket, fetch_user_flight_information, search_flights, update_ticket_to_new_flight
 from tools.hotels import book_hotel, cancel_hotel, search_hotels, update_hotel
 
@@ -35,3 +36,11 @@ class DemoBookingTests(unittest.TestCase):
             **args, "checkin_date": "2030-01-10", "checkout_date": "2030-01-11"
         }, first))
         self.assertIn("Simulated", cancel_hotel.invoke(args, first))
+
+    def test_excursion_search_matches_any_keyword(self):
+        for keywords in ("lake, sightseeing", "skiing LAKE", " , "):
+            with self.subTest(keywords=keywords):
+                results = search_trip_recommendations.invoke({"location": "Geneva", "keywords": keywords})
+                self.assertEqual([item["name"] for item in results], ["Demo Lake Walk"])
+        self.assertEqual(search_trip_recommendations.invoke({"keywords": "skiing, museum"}), [])
+        self.assertEqual(search_trip_recommendations.invoke({"location": "Zurich", "keywords": "lake"}), [])

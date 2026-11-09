@@ -33,11 +33,13 @@ def valid_dates(start, end):
     return start is None or end is None or day(start) <= day(end)
 
 
-def search(kind, **filters):
+def search(kind, *, keywords=None, **filters):
+    terms = (keywords or "").casefold().replace(",", " ").split()
     return [
         {**item, "simulated": True}
         for item in CATALOG[kind].values()
         if all(value is None or value.casefold() in item[key].casefold() for key, value in filters.items())
+        and (not terms or any(term in item["keywords"].casefold() for term in terms))
     ]
 
 
