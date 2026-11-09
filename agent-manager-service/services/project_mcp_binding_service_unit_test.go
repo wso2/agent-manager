@@ -329,7 +329,7 @@ func newBindingFixture(t *testing.T) *bindingFixture {
 			return f.serviceURL, f.serviceURLErr
 		},
 	}
-	f.svc = NewProjectMCPProxyService(base, oc)
+	f.svc = NewProjectMCPProxyService(base, oc, nil)
 	return f
 }
 

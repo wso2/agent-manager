@@ -370,6 +370,9 @@ var (
 	// ErrMCPAPIKeySecurityDisabled means a key was asked for on a project MCP proxy binding that is not secured with
 	// an API key, so the gateway would never check it (409 API_KEY_SECURITY_DISABLED).
 	ErrMCPAPIKeySecurityDisabled = errors.New("API key security is not enabled on this binding")
+	// ErrMCPCapabilitiesGivenByCaller means discovery was asked for on a project MCP proxy binding whose caller gave
+	// its capabilities, which AMS leaves alone (409 CAPABILITIES_GIVEN_BY_CALLER).
+	ErrMCPCapabilitiesGivenByCaller = errors.New("the binding's capabilities were given by its caller")
 	// ErrMCPAPIKeyNotFound means the binding has no API key of that name (404).
 	ErrMCPAPIKeyNotFound = errors.New("API key not found")
 	// ErrMCPAPIKeyExists means the binding already has an API key of that name (409 CONFLICT).

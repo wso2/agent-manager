@@ -103,7 +103,7 @@ func TestProjectMCPBindingLifecycle(t *testing.T) {
 
 	deploymentRepo := repositories.NewDeploymentRepo(gdb)
 	hub := &lifecycleEventHub{}
-	kind := services.NewMCPProxyKind(repositories.NewGatewayRepo(gdb), deploymentRepo)
+	kind := services.NewMCPProxyKind(repositories.NewGatewayRepo(gdb), deploymentRepo, nil)
 	core := reconcile.NewCore(gdb, deploymentRepo, hub, reconcile.Kinds{kind},
 		reconcile.Config{Lease: time.Minute, AttemptBudget: 3}, testLifecycleLogger()).WithGateways(repositories.NewGatewayRepo(gdb))
 	worker := reconcile.NewWorker(core, testLifecycleLogger())

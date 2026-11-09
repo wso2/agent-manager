@@ -50,6 +50,9 @@ func RegisterProjectMCPProxyRoutes(
 	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("PUT "+binding, rbac.MCPServerUpdate, orgOverride, ctrl.PutProjectMCPProxyEnvironment)
 	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("GET "+binding, rbac.MCPServerRead, orgOverride, ctrl.GetProjectMCPProxyEnvironment)
 	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("DELETE "+binding, rbac.MCPServerUpdate, orgOverride, ctrl.DeleteProjectMCPProxyEnvironment)
+	// Queues AMS's discovery of the binding's capabilities from the MCP server, through its gateway.
+	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("POST "+binding+"/capabilities/refresh", rbac.MCPServerUpdate, orgOverride,
+		ctrl.RefreshProjectMCPProxyEnvironmentCapabilities)
 
 	// A binding's API keys: the keys its callers present to the gateway in that environment. Reading the masked
 	// list needs read; issuing, rotating and revoking a key need the API key permission.

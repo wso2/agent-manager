@@ -161,6 +161,9 @@ type MCPEndpointConfig struct {
 	// ReleaseBindingName is the source component's release binding a project proxy binding was resolved from,
 	// when it was given one. Unset on org proxies.
 	ReleaseBindingName string `json:"releaseBindingName,omitempty"`
+	// CapabilitiesDiscovered marks a project proxy binding's Capabilities as discovered by AMS from the MCP server,
+	// rather than given by the caller. A binding PUT without capabilities keeps discovered ones.
+	CapabilitiesDiscovered bool `json:"capabilitiesDiscovered,omitempty"`
 }
 
 // MCP proxy per-environment deployment status values reported on read.

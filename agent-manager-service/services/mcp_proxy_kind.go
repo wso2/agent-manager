@@ -64,12 +64,49 @@ func newMCPArtifact(
 type MCPProxyKind struct {
 	gatewayRepo    repositories.GatewayRepository
 	deploymentRepo repositories.DeploymentRepository
-	load           func(ctx context.Context, artifact models.ArtifactRef) (*mcpArtifact, error)
+	// discoveries queues a project binding's capability discovery once it is live; nil queues none.
+	discoveries repositories.MCPCapabilityDiscoveryRepository
+	load        func(ctx context.Context, artifact models.ArtifactRef) (*mcpArtifact, error)
 }
 
 // NewMCPProxyKind reads MCP proxies through the request's transaction when there is one.
-func NewMCPProxyKind(gatewayRepo repositories.GatewayRepository, deploymentRepo repositories.DeploymentRepository) *MCPProxyKind {
-	return &MCPProxyKind{gatewayRepo: gatewayRepo, deploymentRepo: deploymentRepo, load: loadMCPArtifact}
+func NewMCPProxyKind(
+	gatewayRepo repositories.GatewayRepository, deploymentRepo repositories.DeploymentRepository,
+	discoveries repositories.MCPCapabilityDiscoveryRepository,
+) *MCPProxyKind {
+	return &MCPProxyKind{gatewayRepo: gatewayRepo, deploymentRepo: deploymentRepo, discoveries: discoveries, load: loadMCPArtifact}
+}
+
+// AfterLive queues the capability discovery of a project proxy binding that has just gone live, unless its caller
+// gave capabilities. Every deploy queues it again, so a new release's tools replace the old ones.
+func (k *MCPProxyKind) AfterLive(ctx context.Context, tx *gorm.DB, p models.Placement, _ uuid.UUID) error {
+	if k.discoveries == nil {
+		return nil
+	}
+	var binding models.MCPProxyEndpointEnvironment
+	err := tx.WithContext(ctx).Where("artifact_uuid = ?", p.ArtifactUUID).Take(&binding).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("failed to read the MCP proxy binding: %w", err)
+	}
+	proxy, err := repositories.NewMCPProxyRepo(tx).GetByUUID(ctx, binding.MCPProxyUUID.String(), p.OUID)
+	if errors.Is(err, gorm.ErrRecordNotFound) || errors.Is(err, utils.ErrMCPProxyNotFound) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("failed to read the MCP proxy: %w", err)
+	}
+	if proxy.ProjectUUID == nil {
+		return nil
+	}
+	for i := range proxy.Endpoints {
+		if proxy.Endpoints[i].UUID == binding.EndpointUUID && !callerGaveCapabilities(proxy.Endpoints[i].Configuration) {
+			return k.discoveries.WithTx(tx).Enqueue(ctx, p.OUID, p.ArtifactUUID)
+		}
+	}
+	return nil
 }
 
 // loadMCPArtifact finds the artifact's (endpoint, environment) binding; gorm.ErrRecordNotFound when it is gone.

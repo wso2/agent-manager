@@ -1216,6 +1216,27 @@ func (e LogEntryLogLevel) Valid() bool {
 	}
 }
 
+// Defines values for MCPCapabilityDiscoveryStatusStatus.
+const (
+	MCPCapabilityDiscoveryStatusStatusDiscovered MCPCapabilityDiscoveryStatusStatus = "Discovered"
+	MCPCapabilityDiscoveryStatusStatusFailed     MCPCapabilityDiscoveryStatusStatus = "Failed"
+	MCPCapabilityDiscoveryStatusStatusPending    MCPCapabilityDiscoveryStatusStatus = "Pending"
+)
+
+// Valid indicates whether the value is a known member of the MCPCapabilityDiscoveryStatusStatus enum.
+func (e MCPCapabilityDiscoveryStatusStatus) Valid() bool {
+	switch e {
+	case MCPCapabilityDiscoveryStatusStatusDiscovered:
+		return true
+	case MCPCapabilityDiscoveryStatusStatusFailed:
+		return true
+	case MCPCapabilityDiscoveryStatusStatusPending:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for MCPEndpointEnvironmentDeploymentStatus.
 const (
 	MCPEndpointEnvironmentDeploymentStatusDeployed    MCPEndpointEnvironmentDeploymentStatus = "Deployed"
@@ -1258,6 +1279,24 @@ func (e MCPProjectDeploymentStatus) Valid() bool {
 	case MCPProjectDeploymentStatusDeploying:
 		return true
 	case MCPProjectDeploymentStatusFailed:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for MCPProxyEnvironmentResponseCapabilitiesSource.
+const (
+	Caller     MCPProxyEnvironmentResponseCapabilitiesSource = "caller"
+	Discovered MCPProxyEnvironmentResponseCapabilitiesSource = "discovered"
+)
+
+// Valid indicates whether the value is a known member of the MCPProxyEnvironmentResponseCapabilitiesSource enum.
+func (e MCPProxyEnvironmentResponseCapabilitiesSource) Valid() bool {
+	switch e {
+	case Caller:
+		return true
+	case Discovered:
 		return true
 	default:
 		return false
@@ -1737,22 +1776,22 @@ func (e GetAgentTraceScoresParamsSortOrder) Valid() bool {
 
 // Defines values for ListProjectEventDeliveriesParamsStatus.
 const (
-	ListProjectEventDeliveriesParamsStatusDelivered ListProjectEventDeliveriesParamsStatus = "delivered"
-	ListProjectEventDeliveriesParamsStatusFailed    ListProjectEventDeliveriesParamsStatus = "failed"
-	ListProjectEventDeliveriesParamsStatusPending   ListProjectEventDeliveriesParamsStatus = "pending"
-	ListProjectEventDeliveriesParamsStatusSkipped   ListProjectEventDeliveriesParamsStatus = "skipped"
+	Delivered ListProjectEventDeliveriesParamsStatus = "delivered"
+	Failed    ListProjectEventDeliveriesParamsStatus = "failed"
+	Pending   ListProjectEventDeliveriesParamsStatus = "pending"
+	Skipped   ListProjectEventDeliveriesParamsStatus = "skipped"
 )
 
 // Valid indicates whether the value is a known member of the ListProjectEventDeliveriesParamsStatus enum.
 func (e ListProjectEventDeliveriesParamsStatus) Valid() bool {
 	switch e {
-	case ListProjectEventDeliveriesParamsStatusDelivered:
+	case Delivered:
 		return true
-	case ListProjectEventDeliveriesParamsStatusFailed:
+	case Failed:
 		return true
-	case ListProjectEventDeliveriesParamsStatusPending:
+	case Pending:
 		return true
-	case ListProjectEventDeliveriesParamsStatusSkipped:
+	case Skipped:
 		return true
 	default:
 		return false
@@ -5003,6 +5042,21 @@ type LogsResponse struct {
 	TotalCount int        `json:"totalCount"`
 }
 
+// MCPCapabilityDiscoveryStatus AMS's discovery of a binding's capabilities from the MCP server, through the binding's gateway. Queued each time the binding deploys when its caller gave no capabilities, and by the refresh route. Absent when none was queued.
+type MCPCapabilityDiscoveryStatus struct {
+	// DiscoveredAt When the capabilities were last discovered.
+	DiscoveredAt *time.Time `json:"discoveredAt,omitempty"`
+
+	// LastError Why the last attempt failed. Absent once discovered.
+	LastError *string `json:"lastError,omitempty"`
+
+	// Status Pending: queued or retrying (lastError says why the last attempt failed). Discovered: the capabilities are the ones last discovered. Failed: given up on until the next deploy or refresh.
+	Status MCPCapabilityDiscoveryStatusStatus `json:"status"`
+}
+
+// MCPCapabilityDiscoveryStatusStatus Pending: queued or retrying (lastError says why the last attempt failed). Discovered: the capabilities are the ones last discovered. Failed: given up on until the next deploy or refresh.
+type MCPCapabilityDiscoveryStatusStatus string
+
 // MCPConfigRequest defines model for MCPConfigRequest.
 type MCPConfigRequest struct {
 	// EnvironmentVariables Optional custom environment variable names exposed to the agent
@@ -5101,7 +5155,7 @@ type MCPProxyEndpoint struct {
 
 // MCPProxyEnvironmentRequest Replaces the binding's configuration. Every field is optional; an omitted field resets to its default.
 type MCPProxyEnvironmentRequest struct {
-	// Capabilities The tools, prompts and resources the MCP server exposes in this environment, as its tools/list, prompts/list and resources/list return them. Stored as given and returned on GET; AMS does not discover them. Each tool needs a name. Omitted, the stored capabilities are cleared. A change redeploys the binding.
+	// Capabilities The tools, prompts and resources the MCP server exposes in this environment, as its tools/list, prompts/list and resources/list return them. Optional. Given, they are stored as given and AMS does not discover them; each tool needs a name, and a change redeploys the binding. Omitted, AMS discovers them from the MCP server through the binding's gateway once the binding is deployed (see capabilityDiscovery on the response), and a later PUT without capabilities keeps what it discovered.
 	Capabilities *MCPProxyCapabilities `json:"capabilities,omitempty"`
 
 	// GatewayId Required only when the environment has more than one egress-capable gateway. Cannot change once placed. Must name a managed gateway: a self-hosted gateway has no route to the in-cluster upstream, so naming one is rejected with 400 VALIDATION_ERROR.
@@ -5122,8 +5176,14 @@ type MCPProxyEnvironmentRequest struct {
 
 // MCPProxyEnvironmentResponse defines model for MCPProxyEnvironmentResponse.
 type MCPProxyEnvironmentResponse struct {
-	// Capabilities The capabilities given on the last PUT. Absent when none were given.
+	// Capabilities The binding's capabilities: the ones given on the last PUT, or the ones AMS discovered (see capabilitiesSource). Absent when there are none yet.
 	Capabilities *MCPProxyCapabilities `json:"capabilities,omitempty"`
+
+	// CapabilitiesSource Where capabilities came from: caller (the binding PUT) or discovered (AMS listed them from the MCP server). Absent with no capabilities.
+	CapabilitiesSource *MCPProxyEnvironmentResponseCapabilitiesSource `json:"capabilitiesSource,omitempty"`
+
+	// CapabilityDiscovery AMS's discovery of a binding's capabilities from the MCP server, through the binding's gateway. Queued each time the binding deploys when its caller gave no capabilities, and by the refresh route. Absent when none was queued.
+	CapabilityDiscovery *MCPCapabilityDiscoveryStatus `json:"capabilityDiscovery,omitempty"`
 
 	// Context The proxy's context, as given, without the project prefix.
 	Context string `json:"context"`
@@ -5151,6 +5211,9 @@ type MCPProxyEnvironmentResponse struct {
 	UpdatedAt    *time.Time                               `json:"updatedAt,omitempty"`
 	UpstreamAuth *MCPProxyEnvironmentUpstreamAuthRedacted `json:"upstreamAuth,omitempty"`
 }
+
+// MCPProxyEnvironmentResponseCapabilitiesSource Where capabilities came from: caller (the binding PUT) or discovered (AMS listed them from the MCP server). Absent with no capabilities.
+type MCPProxyEnvironmentResponseCapabilitiesSource string
 
 // MCPProxyEnvironmentSecurity A binding's security. Phase 1 accepts apiKey, which is also the default when the field is omitted or names no variant (an api key in the X-API-Key header), and no security (enabled false only). An apiKey with enabled false while security is not disabled is rejected with 400 VALIDATION_ERROR. jwt is rejected with 400 "jwt security is not available yet", and identity with 400.
 type MCPProxyEnvironmentSecurity struct {

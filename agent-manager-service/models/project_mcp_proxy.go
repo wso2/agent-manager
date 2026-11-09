@@ -113,8 +113,19 @@ type MCPProxyEnvironmentResponse struct {
 	Policies     []MCPPolicy                              `json:"policies,omitempty"`
 	UpstreamAuth *MCPProxyEnvironmentUpstreamAuthRedacted `json:"upstreamAuth,omitempty"`
 	Capabilities *MCPProxyCapabilities                    `json:"capabilities,omitempty"`
-	UpdatedAt    *time.Time                               `json:"updatedAt,omitempty"`
+	// CapabilitiesSource says where Capabilities came from: "caller" (the binding PUT) or "discovered" (AMS listed
+	// them from the MCP server). Absent with no capabilities.
+	CapabilitiesSource string `json:"capabilitiesSource,omitempty"`
+	// CapabilityDiscovery is AMS's discovery of the binding's capabilities, when one was queued.
+	CapabilityDiscovery *MCPCapabilityDiscoveryStatus `json:"capabilityDiscovery,omitempty"`
+	UpdatedAt           *time.Time                    `json:"updatedAt,omitempty"`
 }
+
+// Where a binding's capabilities came from.
+const (
+	MCPCapabilitiesSourceCaller     = "caller"
+	MCPCapabilitiesSourceDiscovered = "discovered"
+)
 
 // MCPDeploymentStatusReasonNoGateway is the reason a binding shows while its environment has no gateway.
 const MCPDeploymentStatusReasonNoGateway = "NO_GATEWAY"

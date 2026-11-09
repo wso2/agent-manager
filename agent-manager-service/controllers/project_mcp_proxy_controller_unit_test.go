@@ -65,7 +65,7 @@ func storedProxyService(oc *clientmocks.OpenChoreoClientMock, lookups *[]string,
 	}
 	base := services.NewMCPProxyService(nil, repo, nil, nil, nil, nil, nil, nil, nil, nil, nil, slog.New(slog.DiscardHandler), nil,
 		nil, nil, nil, nil, oc)
-	return services.NewProjectMCPProxyService(base, oc)
+	return services.NewProjectMCPProxyService(base, oc, nil)
 }
 
 func projectRouteRequest(method, body string) *http.Request {

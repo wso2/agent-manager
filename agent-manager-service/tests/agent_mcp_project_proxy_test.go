@@ -96,7 +96,7 @@ func newAgentProjectProxyFixture(t *testing.T) *agentProjectProxyFixture {
 	gatewayID := uuid.New()
 	deploymentRepo := repositories.NewDeploymentRepo(gdb)
 	core := reconcile.NewCore(gdb, deploymentRepo, &lifecycleEventHub{},
-		reconcile.Kinds{services.NewMCPProxyKind(repositories.NewGatewayRepo(gdb), deploymentRepo)},
+		reconcile.Kinds{services.NewMCPProxyKind(repositories.NewGatewayRepo(gdb), deploymentRepo, nil)},
 		reconcile.Config{Lease: time.Minute, AttemptBudget: 3}, testLifecycleLogger())
 	worker := reconcile.NewWorker(core, testLifecycleLogger())
 

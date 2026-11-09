@@ -1089,6 +1089,9 @@ type ClientInterface interface {
 
 	RotateProjectMCPProxyEnvironmentAPIKey(ctx context.Context, orgName string, projName string, proxyId string, envName string, keyName string, body RotateProjectMCPProxyEnvironmentAPIKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// RefreshProjectMCPProxyEnvironmentCapabilities request
+	RefreshProjectMCPProxyEnvironmentCapabilities(ctx context.Context, orgName string, projName string, proxyId string, envName string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListRepositoryBranchesWithBody request with any body
 	ListRepositoryBranchesWithBody(ctx context.Context, orgName string, params *ListRepositoryBranchesParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -5499,6 +5502,18 @@ func (c *Client) RotateProjectMCPProxyEnvironmentAPIKeyWithBody(ctx context.Cont
 
 func (c *Client) RotateProjectMCPProxyEnvironmentAPIKey(ctx context.Context, orgName string, projName string, proxyId string, envName string, keyName string, body RotateProjectMCPProxyEnvironmentAPIKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewRotateProjectMCPProxyEnvironmentAPIKeyRequest(c.Server, orgName, projName, proxyId, envName, keyName, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) RefreshProjectMCPProxyEnvironmentCapabilities(ctx context.Context, orgName string, projName string, proxyId string, envName string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRefreshProjectMCPProxyEnvironmentCapabilitiesRequest(c.Server, orgName, projName, proxyId, envName)
 	if err != nil {
 		return nil, err
 	}
@@ -21439,6 +21454,61 @@ func NewRotateProjectMCPProxyEnvironmentAPIKeyRequestWithBody(server string, org
 	return req, nil
 }
 
+// NewRefreshProjectMCPProxyEnvironmentCapabilitiesRequest generates requests for RefreshProjectMCPProxyEnvironmentCapabilities
+func NewRefreshProjectMCPProxyEnvironmentCapabilitiesRequest(server string, orgName string, projName string, proxyId string, envName string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "proxyId", proxyId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam3 string
+
+	pathParam3, err = runtime.StyleParamWithOptions("simple", false, "envName", envName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/mcp-proxies/%s/environments/%s/capabilities/refresh", pathParam0, pathParam1, pathParam2, pathParam3)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewListRepositoryBranchesRequest calls the generic ListRepositoryBranches builder with application/json body
 func NewListRepositoryBranchesRequest(server string, orgName string, params *ListRepositoryBranchesParams, body ListRepositoryBranchesJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -23174,6 +23244,9 @@ type ClientWithResponsesInterface interface {
 	RotateProjectMCPProxyEnvironmentAPIKeyWithBodyWithResponse(ctx context.Context, orgName string, projName string, proxyId string, envName string, keyName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RotateProjectMCPProxyEnvironmentAPIKeyResp, error)
 
 	RotateProjectMCPProxyEnvironmentAPIKeyWithResponse(ctx context.Context, orgName string, projName string, proxyId string, envName string, keyName string, body RotateProjectMCPProxyEnvironmentAPIKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*RotateProjectMCPProxyEnvironmentAPIKeyResp, error)
+
+	// RefreshProjectMCPProxyEnvironmentCapabilitiesWithResponse request
+	RefreshProjectMCPProxyEnvironmentCapabilitiesWithResponse(ctx context.Context, orgName string, projName string, proxyId string, envName string, reqEditors ...RequestEditorFn) (*RefreshProjectMCPProxyEnvironmentCapabilitiesResp, error)
 
 	// ListRepositoryBranchesWithBodyWithResponse request with any body
 	ListRepositoryBranchesWithBodyWithResponse(ctx context.Context, orgName string, params *ListRepositoryBranchesParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ListRepositoryBranchesResp, error)
@@ -29975,6 +30048,31 @@ func (r RotateProjectMCPProxyEnvironmentAPIKeyResp) StatusCode() int {
 	return 0
 }
 
+type RefreshProjectMCPProxyEnvironmentCapabilitiesResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON202      *MCPProxyEnvironmentResponse
+	JSON404      *ErrorResponse
+	JSON409      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r RefreshProjectMCPProxyEnvironmentCapabilitiesResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r RefreshProjectMCPProxyEnvironmentCapabilitiesResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type ListRepositoryBranchesResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -33486,6 +33584,15 @@ func (c *ClientWithResponses) RotateProjectMCPProxyEnvironmentAPIKeyWithResponse
 		return nil, err
 	}
 	return ParseRotateProjectMCPProxyEnvironmentAPIKeyResp(rsp)
+}
+
+// RefreshProjectMCPProxyEnvironmentCapabilitiesWithResponse request returning *RefreshProjectMCPProxyEnvironmentCapabilitiesResp
+func (c *ClientWithResponses) RefreshProjectMCPProxyEnvironmentCapabilitiesWithResponse(ctx context.Context, orgName string, projName string, proxyId string, envName string, reqEditors ...RequestEditorFn) (*RefreshProjectMCPProxyEnvironmentCapabilitiesResp, error) {
+	rsp, err := c.RefreshProjectMCPProxyEnvironmentCapabilities(ctx, orgName, projName, proxyId, envName, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRefreshProjectMCPProxyEnvironmentCapabilitiesResp(rsp)
 }
 
 // ListRepositoryBranchesWithBodyWithResponse request with arbitrary body returning *ListRepositoryBranchesResp
@@ -46123,6 +46230,53 @@ func ParseRotateProjectMCPProxyEnvironmentAPIKeyResp(rsp *http.Response) (*Rotat
 			return nil, err
 		}
 		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseRefreshProjectMCPProxyEnvironmentCapabilitiesResp parses an HTTP response from a RefreshProjectMCPProxyEnvironmentCapabilitiesWithResponse call
+func ParseRefreshProjectMCPProxyEnvironmentCapabilitiesResp(rsp *http.Response) (*RefreshProjectMCPProxyEnvironmentCapabilitiesResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &RefreshProjectMCPProxyEnvironmentCapabilitiesResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 202:
+		var dest MCPProxyEnvironmentResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON202 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
 		var dest ErrorResponse

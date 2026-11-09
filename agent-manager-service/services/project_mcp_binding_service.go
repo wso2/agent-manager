@@ -32,6 +32,7 @@ import (
 	occlient "github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/reconcile"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -145,6 +146,11 @@ func (s *ProjectMCPProxyService) PutEnvironment(
 		Security:           security,
 		ReleaseBindingName: releaseBindingName,
 		Capabilities:       capabilities,
+	}
+	// Capabilities AMS discovered are kept by a PUT that gives none; a PUT that gives some replaces them.
+	if capabilities == nil && exists && endpoint.Configuration.CapabilitiesDiscovered {
+		desired.Capabilities = endpoint.Configuration.Capabilities
+		desired.CapabilitiesDiscovered = true
 	}
 	if exists && s.sameBindingConfig(endpoint.Configuration, desired) {
 		shown, err := s.shownStatus(ctx, ouID, ee.ArtifactUUID)
@@ -690,6 +696,7 @@ func (s *ProjectMCPProxyService) sameBindingConfig(stored, desired models.MCPEnd
 		sameJSON(stored.Security, desired.Security) &&
 		sameJSON(nilIfEmptyPolicies(stored.Policies), nilIfEmptyPolicies(desired.Policies)) &&
 		sameJSON(stored.Capabilities, desired.Capabilities) &&
+		stored.CapabilitiesDiscovered == desired.CapabilitiesDiscovered &&
 		stored.Resilience == nil
 }
 
@@ -755,6 +762,22 @@ func (s *ProjectMCPProxyService) environmentResponse(
 	if cfg.Upstream != nil && cfg.Upstream.Auth != nil {
 		resp.UpstreamAuth = &models.MCPProxyEnvironmentUpstreamAuthRedacted{
 			Type: valueOrEmpty(cfg.Upstream.Auth.Type), Header: valueOrEmpty(cfg.Upstream.Auth.Header),
+		}
+	}
+	if cfg.Capabilities != nil {
+		resp.CapabilitiesSource = models.MCPCapabilitiesSourceCaller
+		if cfg.CapabilitiesDiscovered {
+			resp.CapabilitiesSource = models.MCPCapabilitiesSourceDiscovered
+		}
+	}
+	// A caller's capabilities are not discovered: an earlier discovery's state no longer applies.
+	if s.discoveries != nil && !callerGaveCapabilities(cfg) {
+		discovery, err := s.discoveries.Get(ctx, ouID, ee.ArtifactUUID)
+		switch {
+		case err == nil:
+			resp.CapabilityDiscovery = models.MCPCapabilityDiscoveryStatusOf(*discovery)
+		case !errors.Is(err, repositories.ErrMCPCapabilityDiscoveryNotFound):
+			return nil, fmt.Errorf("failed to read the binding's capability discovery: %w", err)
 		}
 	}
 	shown, err := s.shownStatus(ctx, ouID, ee.ArtifactUUID)
@@ -826,4 +849,30 @@ func (s *ProjectMCPProxyService) rerenderBindings(ctx context.Context, ouID stri
 				"proxyUUID", proxy.UUID, "artifactUUID", artifact.ArtifactUUID, "ouID", ouID, "error", err)
 		}
 	}
+}
+
+// RefreshEnvironmentCapabilities queues the binding's capability discovery now, with a fresh attempt budget, and
+// returns the binding. A binding whose caller gave capabilities is refused (ErrMCPCapabilitiesGivenByCaller): a PUT
+// without capabilities hands them to discovery. A binding not deployed yet is queued and retried until it is.
+func (s *ProjectMCPProxyService) RefreshEnvironmentCapabilities(
+	ctx context.Context, ouID, projectUUID, handle, envName string,
+) (*models.MCPProxyEnvironmentResponse, error) {
+	if s.discoveries == nil {
+		return nil, fmt.Errorf("capability discovery is not configured")
+	}
+	proxy, err := s.getInProject(ctx, ouID, projectUUID, handle)
+	if err != nil {
+		return nil, err
+	}
+	endpoint, ee := bindingByEnvironmentName(proxy, strings.TrimSpace(envName))
+	if ee == nil {
+		return nil, utils.ErrMCPProxyEnvironmentNotBound
+	}
+	if callerGaveCapabilities(endpoint.Configuration) {
+		return nil, utils.ErrMCPCapabilitiesGivenByCaller
+	}
+	if err := s.discoveries.Enqueue(ctx, ouID, ee.ArtifactUUID); err != nil {
+		return nil, fmt.Errorf("failed to queue the capability discovery: %w", err)
+	}
+	return s.environmentResponse(ctx, ouID, proxy, endpoint, ee)
 }
