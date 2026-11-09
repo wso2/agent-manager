@@ -78,10 +78,15 @@ def _strip_response_headers(response):
 
 # pytest-recording derives the cassette filename from the test name
 # (test_emission_cell.yaml); the per-framework `vcr_cassette_dir` is what
-# disambiguates cells from each other.
+# disambiguates cells from each other. A framework version whose HTTP differs
+# (e.g. a new prompt or tool-calling style) gets its own
+# cassettes/<framework>/<version>/ directory; other versions share the
+# framework-level cassette.
 @pytest.fixture
 def vcr_cassette_dir():
-    return str(_HERE / "cassettes" / _FRAMEWORK)
+    framework_dir = _HERE / "cassettes" / _FRAMEWORK
+    version_dir = framework_dir / CELL_MANIFEST["framework_version"]
+    return str(version_dir if version_dir.is_dir() else framework_dir)
 
 
 @pytest.mark.vcr
