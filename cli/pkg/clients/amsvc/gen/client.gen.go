@@ -24351,6 +24351,7 @@ type UpdateAgentIdentityRoleResp struct {
 	JSON200      *map[string]interface{}
 	JSON400      *ErrorResponse
 	JSON404      *ErrorResponse
+	JSON409      *ErrorResponse
 	JSON502      *ErrorResponse
 	JSON503      *ErrorResponse
 }
@@ -35613,6 +35614,13 @@ func ParseUpdateAgentIdentityRoleResp(rsp *http.Response) (*UpdateAgentIdentityR
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
 		var dest ErrorResponse

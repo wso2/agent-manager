@@ -12996,6 +12996,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: A requested MCP scope is not ready in the selected environment. The role remains unchanged.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "502":
           description: The environment's identity provider rejected the request
           content:
