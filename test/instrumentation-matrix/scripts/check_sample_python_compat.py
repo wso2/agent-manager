@@ -18,7 +18,7 @@ from pathlib import Path
 import yaml
 
 HERE = Path(__file__).resolve().parent.parent
-ROOT = HERE.parent.parent
+SAMPLES_ROOT = HERE.parent.parent / ".agent-manager-samples"
 sys.path.insert(0, str(HERE))
 
 from harness.deployable_samples import DEPLOYABLE_SAMPLES  # noqa: E402
@@ -33,7 +33,7 @@ def main() -> int:
     with tempfile.TemporaryDirectory() as tmp:
         out = Path(tmp) / "requirements.lock"
         for sample, config in sorted(samples.items()):
-            reqs = ROOT / sample / "requirements.txt"
+            reqs = SAMPLES_ROOT / sample / "requirements.txt"
             for py in pythons:
                 if not config.supports_python(py):
                     print(f"Skipping {sample} on Python {py}: unsupported sample runtime")

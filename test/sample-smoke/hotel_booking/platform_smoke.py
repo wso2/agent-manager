@@ -19,6 +19,8 @@ import uuid
 from support import ROOT, check_evidence, invoke, request, stop_process, wait_ready
 
 # Reuse the existing platform authentication/request client, not a second OAuth implementation.
+SAMPLES_ROOT = ROOT / ".agent-manager-samples"
+
 sys.path.insert(0, str(ROOT / "test/instrumentation-matrix"))
 from heavy.amp_client import AmpClient, DeployedAgent, IdpCredentials
 from harness.classify import classify_span
@@ -33,7 +35,7 @@ def validate_source(build, workflow, sha, repo, branch):
     # The REST API deliberately abbreviates commitId; WorkflowRun retains all 40 digits.
     revision = workflow["spec"]["workflow"]["parameters"]["repository"]
     if (params.get("commitId") != sha[:8] or params.get("repoUrl") != repo
-            or params.get("branch") != branch or params.get("appPath") != "/samples/hotel-booking-agent/agent"
+            or params.get("branch") != branch or params.get("appPath") != "/hotel-booking-agent/agent"
             or revision.get("url") != repo or revision.get("revision", {}).get("commit") != sha):
         raise AssertionError("Build source does not match the requested repository and exact commit")
 
@@ -108,7 +110,7 @@ def start_forward(namespace, target, port, log_path):
 
 def install_stub(namespace, hotel_image):
     kubectl("create", "namespace", namespace)
-    script = (ROOT / "samples/hotel-booking-agent/scripts/model_smoke.py").read_text()
+    script = (SAMPLES_ROOT / "hotel-booking-agent/scripts/model_smoke.py").read_text()
     labels = {"app": "hotel-booking-model"}
     resources = [
         {"apiVersion": "v1", "kind": "ConfigMap", "metadata": {"name": "model-script", "namespace": namespace}, "data": {"model_stub.py": script}},
@@ -208,13 +210,13 @@ def diagnostics(namespace, reports):
 
 def run(args):
     if not re.fullmatch(r"[0-9a-f]{40}", args.sha):
-        raise ValueError("--sha must be the full 40-character PR head commit SHA")
+        raise ValueError("--sha must be the full 40-character sample commit SHA")
     if not re.fullmatch(r"https://github.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", args.repo):
-        raise ValueError("--repo must be the HTTPS GitHub repository containing the PR commit")
-    if subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip() != args.sha:
+        raise ValueError("--repo must be the HTTPS GitHub repository containing the sample commit")
+    if subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=SAMPLES_ROOT, text=True).strip() != args.sha:
         raise ValueError("Checkout HEAD must match --sha for the Hotel API image")
     dirty = subprocess.check_output(["git", "status", "--porcelain", "--",
-        "samples/hotel-booking-agent/agent", "samples/hotel-booking-agent/services/hotel_api"], cwd=ROOT, text=True)
+        "hotel-booking-agent/agent", "hotel-booking-agent/services/hotel_api"], cwd=SAMPLES_ROOT, text=True)
     if dirty:
         raise RuntimeError("Commit sample application changes before testing a remote PR SHA")
     reports = args.reports.resolve()
@@ -238,12 +240,12 @@ def run(args):
         # workstation artifacts must never enter the Docker build context.
         with tempfile.TemporaryDirectory(prefix="hotel-api-context-") as context, (reports / "hotel-image-build.log").open("w") as log:
             archive = subprocess.check_output(["git", "archive", "--format=tar", args.sha,
-                "samples/hotel-booking-agent/services/hotel_api"], cwd=ROOT)
+                "hotel-booking-agent/services/hotel_api"], cwd=SAMPLES_ROOT)
             with tarfile.open(fileobj=io.BytesIO(archive)) as source:
                 source.extractall(context, filter="data")
             subprocess.run(["docker", "build", "-t", hotel_image, "-f",
                 str(Path(__file__).with_name("hotel-api.Dockerfile")),
-                str(Path(context) / "samples/hotel-booking-agent/services/hotel_api")],
+                str(Path(context) / "hotel-booking-agent/services/hotel_api")],
                 stdout=log, stderr=subprocess.STDOUT, check=True, timeout=600)
             image_built = True
             subprocess.run(["k3d", "image", "import", hotel_image, "-c", args.cluster],
@@ -267,7 +269,7 @@ def run(args):
         }.items()]
         client._request("POST", base + "/agents", json={
             "name": name, "displayName": name,
-            "provisioning": {"type": "internal", "repository": {"url": args.repo, "branch": args.branch, "appPath": "/samples/hotel-booking-agent/agent"}},
+            "provisioning": {"type": "internal", "repository": {"url": args.repo, "branch": args.branch, "appPath": "/hotel-booking-agent/agent"}},
             "agentType": {"type": "agent-api", "subType": "chat-api"},
             "build": {"type": "buildpack", "buildpack": {"language": "python", "languageVersion": "3.11", "runCommand": "uvicorn app:app --host 0.0.0.0 --port 8000"}},
             "configurations": {"enableAutoInstrumentation": True, "env": env},

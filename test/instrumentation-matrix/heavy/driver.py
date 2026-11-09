@@ -65,10 +65,8 @@ _DEFAULTS = {
     "IDP_CLIENT_ID": "amp-api-client",
     "IDP_CLIENT_SECRET": "amp-api-client-secret",
     # GitHub source the in-cluster buildpack clones each deployed sample from.
-    # Defaults to wso2/agent-manager@main; the CI workflows set
-    # AMP_AGENT_REPO_BRANCH to the ref under test so a PR can validate a
-    # new/changed sample on its own branch before it merges to main.
-    "AMP_AGENT_REPO_URL": "https://github.com/wso2/agent-manager",
+    # Set both sample source fields when testing a samples fork.
+    "AMP_AGENT_REPO_URL": "https://github.com/wso2/agent-manager-samples",
     "AMP_AGENT_REPO_BRANCH": "main",
 }
 
@@ -330,7 +328,7 @@ def _invoke_agent(deployed: DeployedAgent) -> None:
     gateway route lags its deployment ack) — mirrors
     test/e2e/operations/agent/invoke_agent.go.
 
-    Body + path match the deployed sample (samples/customer-support-agent):
+    Body + path match the deployed sample (customer-support-agent):
     `POST <endpoint>/chat {"session_id", "message"}`. A single-turn prompt is
     enough — every cell sample bottoms out in one LLM call, which is the span
     we need.

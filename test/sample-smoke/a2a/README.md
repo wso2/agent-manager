@@ -9,7 +9,8 @@ The application is not mocked. Existing nightly and platform tests are preserved
 From the repository root, with Python 3.11 installed:
 
 ```bash
-bash samples/a2a-agent/scripts/smoke_test.sh --reports /tmp/a2a-smoke
+git clone https://github.com/wso2/agent-manager-samples .agent-manager-samples
+bash .agent-manager-samples/a2a-agent/scripts/smoke_test.sh --reports /tmp/a2a-smoke
 ```
 
 A temporary virtual environment installs the sample's current `requirements.txt`
@@ -32,15 +33,14 @@ python3.11 -m venv /tmp/a2a-platform-env
 /tmp/a2a-platform-env/bin/pip install requests
 export IDP_CLIENT_SECRET='<local dev-stack bootstrap credential>'
 /tmp/a2a-platform-env/bin/python test/sample-smoke/a2a/a2a_platform_smoke.py \
-  --repo https://github.com/wso2/agent-manager \
-  --branch '<published PR head branch>' --sha '<full published PR head SHA>' \
+  --repo https://github.com/wso2/agent-manager-samples \
+  --branch 'main' --sha '<samples checkout SHA>' \
   --reports /tmp/a2a-platform
 ```
 
-For fork PRs use the fork repository. Unpublished sample changes cannot be built
-remotely; local smoke tests the working tree. The shared platform harness creates
+The samples checkout must match the published SHA passed to the platform smoke test. The shared platform harness creates
 an isolated project, agent and model-stub namespace, waits for the initial branch
-build to finish, then explicitly builds `commitId=<PR SHA>`. It verifies the full
+build to finish, then explicitly builds `commitId=<sample SHA>`. It verifies the full
 WorkflowRun commit, repository, application path, and active image before testing.
 The agent uses A2A subtype, port 9099, and auto instrumentation. A scoped temporary
 NetworkPolicy permits only this agent to reach the stub. The test probes workload
@@ -49,10 +49,9 @@ Observer for an LLM span containing this request's marker. A stale trace cannot
 pass. It cleans up agent/project, policy, stub namespace and port forwards even
 on failure. Cleanup errors fail the job. No existing agents or traces are deleted.
 
-The A2A workflow checks out the exact PR head. Both jobs run for any change under
-`samples/a2a-agent/`, including dependency files, and for changes to this harness
-or its shared dependencies. The platform job builds Agent Manager from that
-checkout using `amp-dev-stack`; it verifies the PR-built Observer image and health
+The A2A workflow checks out the platform PR head and the pinned samples commit.
+The platform job builds Agent Manager using `amp-dev-stack` and verifies the
+PR-built Observer image and health
 before testing. Docker/k3s/Kubernetes diagnostics are uploaded on failure.
 The A2A harness is self-contained and reuses the existing platform API client.
 

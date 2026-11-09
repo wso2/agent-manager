@@ -24,13 +24,13 @@ class Guards(unittest.TestCase):
             with self.assertRaises(AssertionError): check_evidence({'calls': calls}, MARKER)
 
     def test_a2a_source_path_and_exact_commit_are_required(self):
-        sha = '1' * 40; repo = 'https://github.com/wso2/agent-manager'
+        sha = '1' * 40; repo = 'https://github.com/wso2/agent-manager-samples'
         build = {'buildParameters': {'repoUrl': repo, 'branch': 'feature', 'commitId': sha[:8], 'appPath': '/' + SAMPLE['path']}}
         workflow = {'spec': {'workflow': {'parameters': {'repository': {'url': repo, 'revision': {'commit': sha}}}}}}
-        validate_source(build, workflow, sha, repo, 'feature', '/samples/a2a-agent')
+        validate_source(build, workflow, sha, repo, 'feature', '/a2a-agent')
         for field, value in (('appPath', '/samples/other-agent'), ('commitId', '2' * 8)):
             wrong = copy.deepcopy(build); wrong['buildParameters'][field] = value
-            with self.assertRaises(AssertionError): validate_source(wrong, workflow, sha, repo, 'feature', '/samples/a2a-agent')
+            with self.assertRaises(AssertionError): validate_source(wrong, workflow, sha, repo, 'feature', '/a2a-agent')
 
     def test_project_cleanup_requires_actual_removal_and_propagates_errors(self):
         with patch('platform_smoke.kubectl') as kubectl:

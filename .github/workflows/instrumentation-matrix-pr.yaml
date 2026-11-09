@@ -60,6 +60,12 @@ jobs:
     needs: verify-contract-and-manifest
     steps:
       - uses: actions/checkout@v6
+      - uses: actions/checkout@v6
+        with:
+          repository: wso2/agent-manager-samples
+          ref: main
+          path: .agent-manager-samples
+          persist-credentials: false
       - uses: actions/setup-python@v6
         with:
           python-version: '3.11'
@@ -101,6 +107,12 @@ jobs:
         python: ['3.10', '3.11', '3.12', '3.13']
     steps:
       - uses: actions/checkout@v6
+      - uses: actions/checkout@v6
+        with:
+          repository: wso2/agent-manager-samples
+          ref: main
+          path: .agent-manager-samples
+          persist-credentials: false
       - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python }}

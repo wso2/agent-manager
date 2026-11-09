@@ -86,6 +86,12 @@ jobs:
         cell: ${{ fromJSON(needs.resolve-cells.outputs.cell_ids) }}
     steps:
       - uses: actions/checkout@v6
+      - uses: actions/checkout@v6
+        with:
+          repository: wso2/agent-manager-samples
+          ref: main
+          path: .agent-manager-samples
+          persist-credentials: false
       - uses: actions/setup-python@v6
         with:
           python-version: |
@@ -252,7 +258,6 @@ jobs:
           HEAVY_PROVIDER_VERSION: ${{ matrix.traceloop }}
           # Build each deployed sample from the ref under test, so a PR can
           # validate a new/changed sample before it merges to main.
-          AMP_AGENT_REPO_BRANCH: ${{ github.ref_name }}
         run: nox -s heavy
       - name: Heavy summary
         if: always()

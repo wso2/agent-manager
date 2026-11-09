@@ -147,7 +147,7 @@ heavy asks "do they survive the real pipeline and enrich correctly?"
 | `.github/release-config.json`                     | Drives image build matrix (which combos ship).       | Unchanged. A CI drift check asserts every baselined version appears in `matrix.yaml`.            |
 | `agent-manager-service/instrumentation/baseline.json` | Embedded server-side catalog of known versions.  | Unchanged. Generated from `release-config.json` as today.                                        |
 | `python-instrumentation-provider/sitecustomize.py`| Production auto-instrumentation entrypoint.          | Unchanged. The test harness uses a small forked variant; a contract test prevents config drift.  |
-| `samples/manual-instrumentation-agent/`           | Published reference for manual contract.             | Becomes the source for the manual cell sample. Drift surfaces as a matrix failure.               |
+| `manual-instrumentation-agent/`           | Published reference for manual contract.             | Becomes the source for the manual cell sample. Drift surfaces as a matrix failure.               |
 | `agent-manager-observer/opensearch/process.go`    | Parses raw OTel spans into `AmpAttributes`.          | Schema is *generated from this code* (see §6). The observer and the contract become one unit.    |
 | `.github/workflows/traceloop-release-watch.yaml`  | Opens an issue + Chat message on new Traceloop releases. | Unchanged. Becomes the natural trigger for the manual matrix workflow (§10).                 |
 
@@ -757,8 +757,8 @@ nox -s emission
 
 Heavy is a **pipeline test with a per-framework axis for frameworks that ship
 a deployable sample**. It deploys the sample matching each cell's framework —
-`samples/customer-support-agent` (a LangChain/LangGraph app) for the default
-framework, `samples/crewai-agent` for crewai — and verifies its spans survive
+`customer-support-agent` (a LangChain/LangGraph app) for the default
+framework, `crewai-agent` for crewai — and verifies its spans survive
 the full deployed path and validate against the contract. Three axes change
 what gets deployed, so the subset (`harness/heavy_subset.py`) crosses them:
 
@@ -781,7 +781,7 @@ span kinds (`harness/deployable_samples.py:DEPLOYABLE_SAMPLES[...].expected_kind
 Frameworks without a deployable sample (`langgraph`, `llama-index`,
 `openai-direct`, `anthropic-direct`) stay emission-only — their per-framework
 span *shape* is the emission tier's job (§5). Bringing one into the heavy axis
-means adding a deployable sample under `samples/` and an entry to
+means adding a deployable sample in `wso2/agent-manager-samples` and an entry to
 `DEPLOYABLE_SAMPLES`.
 
 ### 9.3 Infra
@@ -895,7 +895,7 @@ different *sample* and a different *provider*.
 ### 10.2 What the manual sample exercises
 
 `cells/manual_rag_sample.py` is a lightly-trimmed adaptation of
-`samples/manual-instrumentation-agent/` — the existing sample that covers every
+`manual-instrumentation-agent/` — the existing sample that covers every
 span kind AMP supports:
 
 ```
@@ -913,7 +913,7 @@ One sample, full kind coverage, deterministic via VCR for the OpenAI calls.
 
 ### 10.3 Regressions this catches that nothing else would
 
-1. **Sample drift.** If `samples/manual-instrumentation-agent` falls behind a
+1. **Sample drift.** If `manual-instrumentation-agent` falls behind a
    schema update (a new `required` field added to `agent` spans), the
    `manual-rag` cell goes red. Without this, the sample is documentation that
    nothing exercises.
@@ -964,7 +964,7 @@ on:
     paths:
       - 'python-instrumentation-provider/**'
       - 'libs/amp-instrumentation/**'
-      - 'samples/manual-instrumentation-agent/**'
+      - 'manual-instrumentation-agent/**'
       - '.github/release-config.json'
       - 'test/instrumentation-matrix/**'
       - 'agent-manager-observer/**'

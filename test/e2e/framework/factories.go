@@ -30,7 +30,7 @@ func NewCreateProjectRequest(name, displayName, description, deploymentPipeline 
 }
 
 // NewITHelpdeskAgentRequest returns a request for creating the IT helpdesk agent
-// from /samples/it-helpdesk-agent. The agent is expected to run with USE_LLM_PROVIDER=true,
+// from /it-helpdesk-agent. The agent is expected to run with USE_LLM_PROVIDER=true,
 // with LLM_PROVIDER_URL and LLM_PROVIDER_KEY injected via a model config rather than
 // passed directly as env vars.
 func NewITHelpdeskAgentRequest(name, description string, envVars map[string]string) CreateAgentRequest {
@@ -55,9 +55,9 @@ func NewITHelpdeskAgentRequest(name, description string, envVars map[string]stri
 		Provisioning: Provisioning{
 			Type: "internal",
 			Repository: &Repository{
-				URL:     "https://github.com/wso2/agent-manager",
+				URL:     "https://github.com/wso2/agent-manager-samples",
 				Branch:  "main",
-				AppPath: "/samples/it-helpdesk-agent",
+				AppPath: "/it-helpdesk-agent",
 			},
 		},
 		AgentType: AgentType{

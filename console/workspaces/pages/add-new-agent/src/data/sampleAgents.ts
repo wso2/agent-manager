@@ -23,7 +23,6 @@ import {
   ShieldCheck,
   type LucideIcon,
 } from "@wso2/oxygen-ui-icons-react";
-import { getScriptRef } from "@agent-management-platform/shared-component";
 
 export interface SampleAgentEnvVar {
   key: string;
@@ -38,7 +37,7 @@ export interface SampleAgentEnvVar {
 // repository/branch/app path/env fields so the user only has to fill in
 // secret values before deploying.
 //
-// Sourced from each sample's own README under samples/<id> in this repo
+// Sourced from each sample's own README under <id> in the samples repository
 // (the "Configure Agent Details" / "Environment Variables" sections) — keep
 // this list in sync with those READMEs when a sample's deployment steps change.
 export interface SampleAgentDefinition {
@@ -59,16 +58,15 @@ export interface SampleAgentDefinition {
   envVars: SampleAgentEnvVar[];
 }
 
-const AGENT_MANAGER_REPO = "https://github.com/wso2/agent-manager";
+const SAMPLES_REPO = "https://github.com/wso2/agent-manager-samples";
 
-// Pin samples to this console's release tag (amp/vX.Y.Z) so a released console
-// deploys the samples it shipped with; dev builds without ampVersion use main.
-const SAMPLES_REF = getScriptRef();
+// The samples repository has its own release lifecycle.
+const SAMPLES_REF = "main";
 
 // Shared by every sample below except where a sample's own README documents
 // a different Start Command.
 const PYTHON_SAMPLE_DEFAULTS = {
-  repositoryUrl: AGENT_MANAGER_REPO,
+  repositoryUrl: SAMPLES_REPO,
   branch: SAMPLES_REF,
   language: "python",
   languageVersion: "3.11",
@@ -83,7 +81,7 @@ export const sampleAgents: SampleAgentDefinition[] = [
     description: "AI-powered customer support agent for travel services",
     icon: Plane,
     thirdPartyServices: ["OpenAI", "Tavily", "PostgreSQL"],
-    appPath: "/samples/customer-support-agent",
+    appPath: "/customer-support-agent",
     envVars: [
       { key: "OPENAI_API_KEY", isSensitive: true },
       { key: "TAVILY_API_KEY", isSensitive: true },
@@ -97,7 +95,7 @@ export const sampleAgents: SampleAgentDefinition[] = [
     description: "AI-powered hotel booking assistant",
     icon: Hotel,
     thirdPartyServices: ["OpenAI", "Pinecone (Hotel API)"],
-    appPath: "/samples/hotel-booking-agent/agent",
+    appPath: "/hotel-booking-agent/agent",
     runCommand: "python -m uvicorn app:app --host 0.0.0.0 --port 8000",
     envVars: [
       { key: "OPENAI_API_KEY", isSensitive: true },
@@ -111,7 +109,7 @@ export const sampleAgents: SampleAgentDefinition[] = [
     description: "AI-powered IT helpdesk agent for employee technical support",
     icon: Headset,
     thirdPartyServices: ["OpenAI"],
-    appPath: "/samples/it-helpdesk-agent",
+    appPath: "/it-helpdesk-agent",
     envVars: [
       { key: "OPENAI_API_KEY", isSensitive: true },
     ],
@@ -123,7 +121,7 @@ export const sampleAgents: SampleAgentDefinition[] = [
     description: "Customer support agent for policies and claims",
     icon: ShieldCheck,
     thirdPartyServices: ["OpenAI"],
-    appPath: "/samples/insurance-support-agent/agent",
+    appPath: "/insurance-support-agent/agent",
     envVars: [
       { key: "OPENAI_API_KEY", isSensitive: true },
       { key: "PORT", value: "8000" },
@@ -135,7 +133,7 @@ export const getSampleAgentById = (id: string | null): SampleAgentDefinition | u
   sampleAgents.find((sample) => sample.id === id);
 
 // Every sample's README lives at this same path relative to the repo root
-// (samples/<id>/README.md), regardless of where its appPath points within
-// the sample's own folder — see samples/*/README.md in this repo.
+// (<id>/README.md), regardless of where its appPath points within
+// the sample's own folder — see <id>/README.md in the samples repository.
 export const getSampleReadmeUrl = (sample: SampleAgentDefinition): string =>
-  `${AGENT_MANAGER_REPO}/blob/${SAMPLES_REF}/samples/${sample.id}/README.md`;
+  `${SAMPLES_REPO}/blob/${SAMPLES_REF}/${sample.id}/README.md`;

@@ -118,7 +118,7 @@ def test_deploy_agent_happy_path():
 @responses.activate
 def test_deploy_agent_uses_framework_specific_sample_path():
     """The agent-create payload's appPath comes from DEPLOYABLE_SAMPLES, so a
-    crewai cell builds samples/crewai-agent, not the langchain default."""
+    crewai cell builds crewai-agent, not the langchain default."""
     import json
 
     _mock_token()
@@ -138,10 +138,10 @@ def test_deploy_agent_uses_framework_specific_sample_path():
     )
     body = json.loads(agent_post.request.body)
     repo = body["provisioning"]["repository"]
-    assert repo["appPath"] == "/samples/crewai-agent"
+    assert repo["appPath"] == "/crewai-agent"
     assert body["build"]["buildpack"]["runCommand"] == "python main.py"
     # Source ref defaults to wso2/agent-manager@main.
-    assert repo["url"] == "https://github.com/wso2/agent-manager"
+    assert repo["url"] == "https://github.com/wso2/agent-manager-samples"
     assert repo["branch"] == "main"
     # The crewai sample's writable-HOME/storage env is set on the workload
     # (non-sensitive) so the instrumentor + app survive the read-only HOME.

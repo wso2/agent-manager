@@ -75,7 +75,7 @@ _TOKEN_SCOPES = (
 # heavy/driver.py AMP_AGENT_REPO_*) so a PR can validate a new/changed sample
 # on its own branch before it merges to main — the build pulls the agent code
 # from GitHub, not from the working tree the platform is built from.
-_DEFAULT_AGENT_REPO_URL = "https://github.com/wso2/agent-manager"
+_DEFAULT_AGENT_REPO_URL = "https://github.com/wso2/agent-manager-samples"
 _DEFAULT_AGENT_REPO_BRANCH = "main"
 
 # AMP caps resource names at 25 chars (utils.MaxResourceNameLength); when a

@@ -11,14 +11,14 @@ def test_registry_covers_exactly_langchain_and_crewai():
 def test_langchain_maps_to_customer_support_asserting_llm_only():
     s = DEPLOYABLE_SAMPLES["langchain"]
     assert isinstance(s, DeployableSample)
-    assert s.app_path == "/samples/customer-support-agent"
+    assert s.app_path == "/customer-support-agent"
     assert s.run_command == "python main.py"
     assert s.expected_kinds == ("llm",)
 
 
 def test_crewai_maps_to_crewai_agent_asserting_framework_kinds():
     s = DEPLOYABLE_SAMPLES["crewai"]
-    assert s.app_path == "/samples/crewai-agent"
+    assert s.app_path == "/crewai-agent"
     assert s.run_command == "python main.py"
     assert s.expected_kinds == ("llm", "agent", "crewaitask")
 

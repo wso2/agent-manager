@@ -1,4 +1,4 @@
-"""Registry of frameworks that ship a *deployable* agent app under samples/.
+"""Registry of frameworks that ship a *deployable* agent app in wso2/agent-manager-samples.
 
 The heavy tier deploys a real agent per cell. Only frameworks with a buildpack-
 deployable HTTP `/chat` app (an `app.py` + `main.py`, not the emission tier's
@@ -47,12 +47,12 @@ class DeployableSample:
 
 DEPLOYABLE_SAMPLES: dict[str, DeployableSample] = {
     "langchain": DeployableSample(
-        app_path="/samples/customer-support-agent",
+        app_path="/customer-support-agent",
         run_command="python main.py",
         expected_kinds=("llm",),
     ),
     "crewai": DeployableSample(
-        app_path="/samples/crewai-agent",
+        app_path="/crewai-agent",
         run_command="python main.py",
         expected_kinds=("llm", "agent", "crewaitask"),
         min_python="3.11",
