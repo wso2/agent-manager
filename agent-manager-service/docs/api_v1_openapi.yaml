@@ -7763,6 +7763,321 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /orgs/{orgName}/projects/{projName}/mcp-proxies/{proxyId}/environments/{envName}/api-keys:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: >-
+          Organization handle. The org comes from the token, or from X-Impersonate-Org, in which
+          case this must be that org's handle.
+        schema:
+          type: string
+      - name: projName
+        in: path
+        required: true
+        description: OpenChoreo project name. Unknown project returns 404 PROJECT_NOT_FOUND.
+        schema:
+          type: string
+      - name: proxyId
+        in: path
+        required: true
+        description: Proxy handle, unique across the org.
+        schema:
+          type: string
+          pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+          maxLength: 100
+      - name: envName
+        in: path
+        required: true
+        description: >-
+          Environment name, e.g. development. An environment the proxy has no binding in returns
+          404 NOT_FOUND.
+        schema:
+          type: string
+    get:
+      tags:
+        - Project MCP Proxy API Keys
+      summary: List the API keys of a project MCP proxy binding
+      description: >-
+        The API keys issued for the binding in this environment, masked. Only keys issued through these
+        routes are listed; the keys AMS issues for AM agents that use the proxy are not.
+      operationId: listProjectMCPProxyEnvironmentAPIKeys
+      responses:
+        "200":
+          description: The binding's API keys
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListAPIKeysResponse"
+        "404":
+          description: Project, proxy or binding not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      tags:
+        - Project MCP Proxy API Keys
+      summary: Issue an API key for a project MCP proxy binding
+      description: |
+        Issues an API key that callers present to the gateway for this binding, in the header the binding's
+        security names (X-API-Key by default). The key value is returned once and cannot be read again;
+        rotate the key to get a new value.
+
+        The key is sent to every gateway of the organization, and a gateway that connects later receives it
+        when it syncs. It belongs to the binding: removing the binding or the proxy deletes its keys, and a
+        later binding in the same environment starts with none.
+
+        A binding not secured with an API key returns 409 API_KEY_SECURITY_DISABLED. A name the binding
+        already has a key for returns 409 CONFLICT.
+      operationId: createProjectMCPProxyEnvironmentAPIKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateLLMAPIKeyRequest"
+      responses:
+        "201":
+          description: API key issued. apiKey is the value, returned only now.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateLLMAPIKeyResponse"
+        "400":
+          description: >-
+            Neither name nor displayName given, an invalid name, or an expiresAt that is not an RFC 3339 time in
+            the future (VALIDATION_ERROR)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Project, proxy or binding not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: The binding is not secured with an API key (API_KEY_SECURITY_DISABLED), or already has a key of this name (CONFLICT)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/projects/{projName}/mcp-proxies/{proxyId}/environments/{envName}/api-keys/test:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: >-
+          Organization handle. The org comes from the token, or from X-Impersonate-Org, in which
+          case this must be that org's handle.
+        schema:
+          type: string
+      - name: projName
+        in: path
+        required: true
+        description: OpenChoreo project name. Unknown project returns 404 PROJECT_NOT_FOUND.
+        schema:
+          type: string
+      - name: proxyId
+        in: path
+        required: true
+        description: Proxy handle, unique across the org.
+        schema:
+          type: string
+          pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+          maxLength: 100
+      - name: envName
+        in: path
+        required: true
+        description: >-
+          Environment name, e.g. development. An environment the proxy has no binding in returns
+          404 NOT_FOUND.
+        schema:
+          type: string
+    post:
+      tags:
+        - Project MCP Proxy API Keys
+      summary: Issue a test API key for a project MCP proxy binding
+      description: |
+        Issues a short-lived API key for one of the caller's users, for trying the MCP server. The key value
+        is returned once and is sent to every gateway of the organization, as other binding keys are.
+
+        Each user has three test key slots per binding. A free slot takes the new key; when all three are
+        taken, the slot issued longest ago gets the new value and its old value stops working. keyId names
+        the slot.
+
+        Test keys are not returned by the list route, and the rotate and revoke routes do not reach them.
+        They are removed with the binding. A binding not secured with an API key returns
+        409 API_KEY_SECURITY_DISABLED.
+      operationId: issueProjectMCPProxyEnvironmentTestAPIKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IssueBindingTestAPIKeyRequest"
+      responses:
+        "200":
+          description: Test API key issued. apiKey is the value, returned only now.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IssueTestAPIKeyResponse"
+        "400":
+          description: forUser missing or too long, or an invalid expiresAt (VALIDATION_ERROR)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Project, proxy or binding not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: >-
+            The binding is not secured with an API key (API_KEY_SECURITY_DISABLED), or concurrent test key
+            requests for the same user kept taking the slots (CONFLICT); retry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/projects/{projName}/mcp-proxies/{proxyId}/environments/{envName}/api-keys/{keyName}:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: >-
+          Organization handle. The org comes from the token, or from X-Impersonate-Org, in which
+          case this must be that org's handle.
+        schema:
+          type: string
+      - name: projName
+        in: path
+        required: true
+        description: OpenChoreo project name. Unknown project returns 404 PROJECT_NOT_FOUND.
+        schema:
+          type: string
+      - name: proxyId
+        in: path
+        required: true
+        description: Proxy handle, unique across the org.
+        schema:
+          type: string
+          pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+          maxLength: 100
+      - name: envName
+        in: path
+        required: true
+        description: >-
+          Environment name, e.g. development. An environment the proxy has no binding in returns
+          404 NOT_FOUND.
+        schema:
+          type: string
+      - name: keyName
+        in: path
+        required: true
+        description: The API key's name.
+        schema:
+          type: string
+    put:
+      tags:
+        - Project MCP Proxy API Keys
+      summary: Rotate an API key of a project MCP proxy binding
+      description: >-
+        Gives the key a new value, returned once, and sends it to the organization's gateways. The old value
+        stops working. Without an expiresAt the key keeps the expiry it had; an expired key needs a new expiresAt.
+        A binding not secured with an API key returns 409 API_KEY_SECURITY_DISABLED, and a key another request
+        rotated or revoked meanwhile returns 409 CONFLICT.
+      operationId: rotateProjectMCPProxyEnvironmentAPIKey
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RotateLLMAPIKeyRequest"
+      responses:
+        "200":
+          description: API key rotated. apiKey is the new value, returned only now.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RotateLLMAPIKeyResponse"
+        "400":
+          description: >-
+            expiresAt is not an RFC 3339 time or is not in the future, or the key has expired and no new
+            expiresAt was given (VALIDATION_ERROR)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Project, proxy, binding or key not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: >-
+            The binding is not secured with an API key (API_KEY_SECURITY_DISABLED), or another request rotated or
+            revoked the key meanwhile (CONFLICT)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      tags:
+        - Project MCP Proxy API Keys
+      summary: Revoke an API key of a project MCP proxy binding
+      description: >-
+        Deletes the key and revokes it on the organization's gateways. Works whatever the binding's
+        security, so a key issued before security was turned off can still be removed.
+      operationId: revokeProjectMCPProxyEnvironmentAPIKey
+      responses:
+        "204":
+          description: API key revoked
+        "404":
+          description: Project, proxy, binding or key not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /orgs/{orgName}/mcp-proxies/{proxyId}/scopes:
     get:
@@ -14400,6 +14715,25 @@ components:
           nullable: true
           description: Expiration timestamp if set.
 
+    IssueBindingTestAPIKeyRequest:
+      type: object
+      required:
+        - forUser
+      properties:
+        forUser:
+          type: string
+          minLength: 1
+          maxLength: 256
+          description: >-
+            The caller's user the key is issued for, e.g. their user ID. It picks the user's key slots and is
+            not stored.
+        expiresAt:
+          type: string
+          format: date-time
+          description: >-
+            When the key expires (RFC 3339). Must be in the future and no more than 24 hours away.
+            Defaults to one hour from now.
+
     IssueTestAPIKeyResponse:
       type: object
       required:
@@ -14412,7 +14746,7 @@ components:
           type: string
         keyId:
           type: string
-          description: The fixed name "console-test".
+          description: The key's name.
         apiKey:
           type: string
           description: The test API key value to send as the X-API-Key header.

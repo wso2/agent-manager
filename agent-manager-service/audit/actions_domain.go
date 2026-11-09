@@ -170,6 +170,7 @@ const (
 	APIKeyOwnerLLMProxy    = "llm-proxy"
 	APIKeyOwnerModelConfig = "model-config"
 	APIKeyOwnerMCPConfig   = "mcp-config"
+	APIKeyOwnerMCPProxy    = "mcp-proxy"
 )
 
 // Resource type names used in records. Kept as constants so a query written

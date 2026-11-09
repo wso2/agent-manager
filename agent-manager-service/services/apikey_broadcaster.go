@@ -22,10 +22,12 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 	"unicode/utf8"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
@@ -56,6 +58,23 @@ func (b *apiKeyBroadcaster) broadcastCreate(ctx context.Context, orgID, apiID, a
 
 // broadcastCreateToGateways generates an API key, persists it, and broadcasts to the given gateways only.
 func (b *apiKeyBroadcaster) broadcastCreateToGateways(gateways []*models.Gateway, orgID, apiID, artifactUUID string, req *models.CreateAPIKeyRequest) (*models.CreateAPIKeyResponse, error) {
+	return b.createToGateways(gateways, orgID, apiID, artifactUUID, req,
+		func(repo repositories.APIKeyRepository, key *models.StoredAPIKey) error { return repo.Upsert(key) })
+}
+
+// broadcastCreateNewToGateways is broadcastCreateToGateways for a name the caller read as free: the key is stored
+// only as a new row, so if another request took the name first it returns utils.ErrAPIKeyNameTaken and sends
+// nothing, instead of replacing that request's key.
+func (b *apiKeyBroadcaster) broadcastCreateNewToGateways(gateways []*models.Gateway, orgID, apiID, artifactUUID string, req *models.CreateAPIKeyRequest) (*models.CreateAPIKeyResponse, error) {
+	return b.createToGateways(gateways, orgID, apiID, artifactUUID, req,
+		func(repo repositories.APIKeyRepository, key *models.StoredAPIKey) error { return repo.Insert(key) })
+}
+
+// createToGateways generates an API key, stores it with persist, and broadcasts it to the given gateways.
+func (b *apiKeyBroadcaster) createToGateways(
+	gateways []*models.Gateway, orgID, apiID, artifactUUID string, req *models.CreateAPIKeyRequest,
+	persist func(repositories.APIKeyRepository, *models.StoredAPIKey) error,
+) (*models.CreateAPIKeyResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("nil request")
 	}
@@ -108,25 +127,20 @@ func (b *apiKeyBroadcaster) broadcastCreateToGateways(gateways []*models.Gateway
 		expiresAt = &t
 	}
 
-	// Persist API key for bulk-sync
-	if b.apiKeyRepo != nil {
-		storedKey := &models.StoredAPIKey{
-			UUID:         keyUUID,
-			Name:         keyName,
-			DisplayName:  displayName,
-			ArtifactUUID: parsedArtifactUUID,
-			OUID:         orgID,
-			APIKeyHash:   apiKeyHash,
-			MaskedAPIKey: maskAPIKey(apiKey),
-			Status:       "active",
-			Purpose:      purpose,
-			CreatedAt:    nowTime,
-			UpdatedAt:    nowTime,
-			ExpiresAt:    expiresAt,
-		}
-		if err := b.apiKeyRepo.Upsert(storedKey); err != nil {
-			return nil, fmt.Errorf("failed to persist API key: %w", err)
-		}
+	// Persisted for bulk-sync.
+	storedKey := &models.StoredAPIKey{
+		UUID:         keyUUID,
+		Name:         keyName,
+		DisplayName:  displayName,
+		ArtifactUUID: parsedArtifactUUID,
+		OUID:         orgID,
+		APIKeyHash:   apiKeyHash,
+		MaskedAPIKey: maskAPIKey(apiKey),
+		Status:       "active",
+		Purpose:      purpose,
+		CreatedAt:    nowTime,
+		UpdatedAt:    nowTime,
+		ExpiresAt:    expiresAt,
 	}
 
 	event := &models.APIKeyCreatedEvent{
@@ -142,10 +156,27 @@ func (b *apiKeyBroadcaster) broadcastCreateToGateways(gateways []*models.Gateway
 		UpdatedAt:    now,
 	}
 
-	for _, gateway := range gateways {
-		if err := b.gatewayService.BroadcastAPIKeyCreatedEvent(gateway.UUID.String(), event); err != nil {
-			return nil, fmt.Errorf("failed to deliver API key to gateway %s: %w", gateway.UUID, err)
-		}
+	err = b.commitKeyChange(gateways,
+		func(repo repositories.APIKeyRepository) error {
+			if err := persist(repo, storedKey); err != nil {
+				return fmt.Errorf("failed to persist API key: %w", err)
+			}
+			return nil
+		},
+		func(tx *gorm.DB, gatewayID string) error {
+			var err error
+			if tx == nil {
+				err = b.gatewayService.BroadcastAPIKeyCreatedEvent(gatewayID, event)
+			} else {
+				err = b.gatewayService.PublishAPIKeyCreatedTx(context.Background(), tx, gatewayID, event)
+			}
+			if err != nil {
+				return fmt.Errorf("failed to deliver API key to gateway %s: %w", gatewayID, err)
+			}
+			return nil
+		})
+	if err != nil {
+		return nil, err
 	}
 
 	return &models.CreateAPIKeyResponse{
@@ -169,29 +200,30 @@ func (b *apiKeyBroadcaster) broadcastRevoke(ctx context.Context, orgID, apiID, a
 
 // broadcastRevokeToGateways removes a key from the store and broadcasts revocation to the given gateways only.
 func (b *apiKeyBroadcaster) broadcastRevokeToGateways(ctx context.Context, gateways []*models.Gateway, apiID, artifactUUID, keyName string) error {
-	// Remove from persistent store
-	if b.apiKeyRepo != nil {
-		if err := b.apiKeyRepo.Delete(artifactUUID, keyName); err != nil {
-			return fmt.Errorf("failed to delete API key from store: %w", err)
-		}
-	}
-
 	event := &models.APIKeyRevokedEvent{
 		APIID:   apiID,
 		KeyName: keyName,
 	}
 
-	var errs []error
-	for _, gateway := range gateways {
-		if err := b.gatewayService.BroadcastAPIKeyRevokedEvent(gateway.UUID.String(), event); err != nil {
-			errs = append(errs, fmt.Errorf("gateway %s: %w", gateway.UUID, err))
-		}
-	}
-
-	if len(errs) > 0 {
-		return errors.Join(errs...)
-	}
-	return nil
+	return b.commitKeyChange(gateways,
+		func(repo repositories.APIKeyRepository) error {
+			if err := repo.Delete(artifactUUID, keyName); err != nil {
+				return fmt.Errorf("failed to delete API key from store: %w", err)
+			}
+			return nil
+		},
+		func(tx *gorm.DB, gatewayID string) error {
+			var err error
+			if tx == nil {
+				err = b.gatewayService.BroadcastAPIKeyRevokedEvent(gatewayID, event)
+			} else {
+				err = b.gatewayService.PublishAPIKeyRevokedTx(ctx, tx, gatewayID, event)
+			}
+			if err != nil {
+				return fmt.Errorf("gateway %s: %w", gatewayID, err)
+			}
+			return nil
+		})
 }
 
 // broadcastRevokeUserManaged deletes and broadcasts revocation for every user-managed
@@ -251,6 +283,26 @@ func (b *apiKeyBroadcaster) broadcastRotate(ctx context.Context, orgID, apiID, a
 
 // broadcastRotateToGateways generates a new key value, updates the store, and broadcasts to the given gateways only.
 func (b *apiKeyBroadcaster) broadcastRotateToGateways(gateways []*models.Gateway, orgID, apiID, artifactUUID, keyName string, req *models.RotateAPIKeyRequest) (*models.CreateAPIKeyResponse, error) {
+	return b.rotateToGateways(gateways, orgID, apiID, artifactUUID, keyName, req,
+		func(repo repositories.APIKeyRepository, key *models.StoredAPIKey) error { return repo.Upsert(key) })
+}
+
+// broadcastRotateIfUnchangedToGateways is broadcastRotateToGateways for a key the caller read with hash prevHash:
+// the new value is stored only while the key still has that hash, so if another request rotated or removed it first
+// it returns utils.ErrAPIKeyChanged and sends nothing, instead of overwriting that request's value or bringing a
+// revoked key back.
+func (b *apiKeyBroadcaster) broadcastRotateIfUnchangedToGateways(gateways []*models.Gateway, orgID, apiID, artifactUUID, keyName, prevHash string, req *models.RotateAPIKeyRequest) (*models.CreateAPIKeyResponse, error) {
+	return b.rotateToGateways(gateways, orgID, apiID, artifactUUID, keyName, req,
+		func(repo repositories.APIKeyRepository, key *models.StoredAPIKey) error {
+			return repo.ReplaceIfUnchanged(key, prevHash)
+		})
+}
+
+// rotateToGateways generates a new value for the key, stores it with persist, and broadcasts it to the given gateways.
+func (b *apiKeyBroadcaster) rotateToGateways(
+	gateways []*models.Gateway, orgID, apiID, artifactUUID, keyName string, req *models.RotateAPIKeyRequest,
+	persist func(repositories.APIKeyRepository, *models.StoredAPIKey) error,
+) (*models.CreateAPIKeyResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("nil request")
 	}
@@ -277,23 +329,17 @@ func (b *apiKeyBroadcaster) broadcastRotateToGateways(gateways []*models.Gateway
 		expiresAt = &t
 	}
 
-	// Update key in persistent store
-	if b.apiKeyRepo != nil {
-		storedKey := &models.StoredAPIKey{
-			UUID:         uuid.Must(uuid.NewV7()),
-			Name:         keyName,
-			ArtifactUUID: parsedArtifactUUID,
-			OUID:         orgID,
-			APIKeyHash:   hashAPIKeySHA256(newAPIKey),
-			MaskedAPIKey: maskAPIKey(newAPIKey),
-			Status:       "active",
-			CreatedAt:    nowTime,
-			UpdatedAt:    nowTime,
-			ExpiresAt:    expiresAt,
-		}
-		if err := b.apiKeyRepo.Upsert(storedKey); err != nil {
-			return nil, fmt.Errorf("failed to persist rotated API key: %w", err)
-		}
+	storedKey := &models.StoredAPIKey{
+		UUID:         uuid.Must(uuid.NewV7()),
+		Name:         keyName,
+		ArtifactUUID: parsedArtifactUUID,
+		OUID:         orgID,
+		APIKeyHash:   hashAPIKeySHA256(newAPIKey),
+		MaskedAPIKey: maskAPIKey(newAPIKey),
+		Status:       "active",
+		CreatedAt:    nowTime,
+		UpdatedAt:    nowTime,
+		ExpiresAt:    expiresAt,
 	}
 
 	event := &models.APIKeyUpdatedEvent{
@@ -310,10 +356,27 @@ func (b *apiKeyBroadcaster) broadcastRotateToGateways(gateways []*models.Gateway
 		event.ExpiresAt = req.ExpiresAt
 	}
 
-	for _, gateway := range gateways {
-		if err := b.gatewayService.BroadcastAPIKeyUpdatedEvent(gateway.UUID.String(), event); err != nil {
-			return nil, fmt.Errorf("failed to deliver API key rotation to gateway %s: %w", gateway.UUID, err)
-		}
+	err = b.commitKeyChange(gateways,
+		func(repo repositories.APIKeyRepository) error {
+			if err := persist(repo, storedKey); err != nil {
+				return fmt.Errorf("failed to persist rotated API key: %w", err)
+			}
+			return nil
+		},
+		func(tx *gorm.DB, gatewayID string) error {
+			var err error
+			if tx == nil {
+				err = b.gatewayService.BroadcastAPIKeyUpdatedEvent(gatewayID, event)
+			} else {
+				err = b.gatewayService.PublishAPIKeyUpdatedTx(context.Background(), tx, gatewayID, event)
+			}
+			if err != nil {
+				return fmt.Errorf("failed to deliver API key rotation to gateway %s: %w", gatewayID, err)
+			}
+			return nil
+		})
+	if err != nil {
+		return nil, err
 	}
 
 	return &models.CreateAPIKeyResponse{
@@ -322,6 +385,44 @@ func (b *apiKeyBroadcaster) broadcastRotateToGateways(gateways []*models.Gateway
 		KeyID:   keyName,
 		APIKey:  newAPIKey,
 	}, nil
+}
+
+// commitKeyChange applies a key write and publishes its event to each gateway in one transaction, so the gateways get
+// key events in the order the writes were made. The write locks the key's row until commit, so a concurrent change to
+// the same key waits for this one's events to be written before it writes its own, and the event hub numbers each
+// gateway's events in commit order: an earlier rotation's event can no longer reach a gateway after a later one's.
+// Gateways are published to in gateway ID order, as the event hub requires of a transaction that publishes to several.
+// If the write or any publish fails, nothing is stored or sent.
+//
+// Without a key store (b.apiKeyRepo nil) there is nothing to write, and publish is called with a nil tx for each
+// gateway.
+func (b *apiKeyBroadcaster) commitKeyChange(
+	gateways []*models.Gateway,
+	write func(repositories.APIKeyRepository) error,
+	publish func(tx *gorm.DB, gatewayID string) error,
+) error {
+	ids := make([]string, 0, len(gateways))
+	for _, gateway := range gateways {
+		ids = append(ids, gateway.UUID.String())
+	}
+	slices.Sort(ids)
+	publishAll := func(tx *gorm.DB) error {
+		for _, id := range ids {
+			if err := publish(tx, id); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	if b.apiKeyRepo == nil {
+		return publishAll(nil)
+	}
+	return b.apiKeyRepo.Transaction(context.Background(), func(repo repositories.APIKeyRepository, tx *gorm.DB) error {
+		if err := write(repo); err != nil {
+			return err
+		}
+		return publishAll(tx)
+	})
 }
 
 // hashAPIKeySHA256 computes a SHA-256 hash of the plain API key and returns the hex-encoded hash.

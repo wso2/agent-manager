@@ -74,6 +74,20 @@ func (s *GatewayEventsService) PublishAPIKeyCreatedTx(ctx context.Context, tx *g
 	})
 }
 
+// PublishAPIKeyRevokedTx writes the event in the caller's transaction, so it is delivered only if that commits.
+func (s *GatewayEventsService) PublishAPIKeyRevokedTx(ctx context.Context, tx *gorm.DB, gatewayID string, e *models.APIKeyRevokedEvent) error {
+	return s.publish(gatewayID, "apikey.revoked", "REVOKE", uuid.New().String(), e, func(evt eventhub.Event) error {
+		return s.hub.PublishEventTx(ctx, tx, gatewayID, evt)
+	})
+}
+
+// PublishAPIKeyUpdatedTx writes the event in the caller's transaction, so it is delivered only if that commits.
+func (s *GatewayEventsService) PublishAPIKeyUpdatedTx(ctx context.Context, tx *gorm.DB, gatewayID string, e *models.APIKeyUpdatedEvent) error {
+	return s.publish(gatewayID, "apikey.updated", "UPDATE", uuid.New().String(), e, func(evt eventhub.Event) error {
+		return s.hub.PublishEventTx(ctx, tx, gatewayID, evt)
+	})
+}
+
 func (s *GatewayEventsService) BroadcastAPIKeyRevokedEvent(gatewayID string, event *models.APIKeyRevokedEvent) error {
 	return s.broadcastEvent(gatewayID, "apikey.revoked", "REVOKE", uuid.New().String(), event)
 }

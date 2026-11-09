@@ -42,6 +42,8 @@ const (
 	ErrCodeContextInUse = "CONTEXT_IN_USE"
 	// ErrCodeAmbiguousGateway: the binding's environment has several egress gateways and no gatewayId was given.
 	ErrCodeAmbiguousGateway = "AMBIGUOUS_GATEWAY"
+	// ErrCodeAPIKeySecurityDisabled: an API key was asked for on a binding not secured with an API key.
+	ErrCodeAPIKeySecurityDisabled = "API_KEY_SECURITY_DISABLED"
 	// ErrCodeEntitlementDenied: the organization's subscription does not allow the create (402).
 	ErrCodeEntitlementDenied = "ENTITLEMENT_DENIED"
 

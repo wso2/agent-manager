@@ -22,7 +22,7 @@ var _ MappedNullable = &IssueTestAPIKeyResponse{}
 type IssueTestAPIKeyResponse struct {
 	Status  string  `json:"status"`
 	Message *string `json:"message,omitempty"`
-	// The fixed name \"console-test\".
+	// The key's name.
 	KeyId *string `json:"keyId,omitempty"`
 	// The test API key value to send as the X-API-Key header.
 	ApiKey *string `json:"apiKey,omitempty"`
