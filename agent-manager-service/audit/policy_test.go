@@ -173,17 +173,23 @@ func TestNewRouteMetaSplitsPatternAndParams(t *testing.T) {
 }
 
 // TestProjectMCPBindingAPIKeyRoutesHaveTheirOwnActions keeps the binding key operations apart in the audit trail:
-// they share one permission, so without overrides they would all record mcp-server:api-key-manage.
+// the writes share one permission, so without overrides they would all record mcp-server:api-key-manage,
+// and the list is a sensitive read like the other API-key list routes.
 func TestProjectMCPBindingAPIKeyRoutesHaveTheirOwnActions(t *testing.T) {
 	const keys = "/orgs/{orgName}/projects/{projName}/mcp-proxies/{proxyId}/environments/{envName}/api-keys"
-	for pattern, want := range map[string]Action{
-		"POST " + keys:                  ActionAPIKeyCreate,
-		"POST " + keys + "/test":        ActionAPIKeyIssueTest,
-		"PUT " + keys + "/{keyName}":    ActionAPIKeyRotate,
-		"DELETE " + keys + "/{keyName}": ActionAPIKeyRevoke,
+	for pattern, tc := range map[string]struct {
+		perm rbac.Permission
+		want Action
+	}{
+		"GET " + keys:                   {rbac.MCPServerRead, "api-key:list"},
+		"POST " + keys:                  {rbac.MCPServerAPIKeyManage, ActionAPIKeyCreate},
+		"POST " + keys + "/test":        {rbac.MCPServerAPIKeyManage, ActionAPIKeyIssueTest},
+		"PUT " + keys + "/{keyName}":    {rbac.MCPServerAPIKeyManage, ActionAPIKeyRotate},
+		"DELETE " + keys + "/{keyName}": {rbac.MCPServerAPIKeyManage, ActionAPIKeyRevoke},
 	} {
 		t.Run(pattern, func(t *testing.T) {
-			meta := NewRouteMeta(pattern, ExtractPathParams(pattern), []rbac.Permission{rbac.MCPServerAPIKeyManage})
+			want := tc.want
+			meta := NewRouteMeta(pattern, ExtractPathParams(pattern), []rbac.Permission{tc.perm})
 			if !meta.Audited {
 				t.Fatal("route should be audited")
 			}
