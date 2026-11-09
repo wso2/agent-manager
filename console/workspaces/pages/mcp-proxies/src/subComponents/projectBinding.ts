@@ -16,6 +16,8 @@
  */
 
 import type {
+  MCPEndpointConfig,
+  MCPProxy,
   MCPProxyListItem,
   ProjectMCPProxy,
   ProjectMCPProxyEnvironment,
@@ -48,7 +50,9 @@ export function toProjectProxyId(name: string): string {
 }
 
 /** The upsert body that keeps a project proxy as it is; an edit changes only its own field. */
-export function proxyRequestFrom(proxy: ProjectMCPProxy): ProjectMCPProxyRequest {
+export function proxyRequestFrom(
+  proxy: ProjectMCPProxy,
+): ProjectMCPProxyRequest {
   const request: ProjectMCPProxyRequest = {
     name: proxy.name,
     version: proxy.version,
@@ -85,7 +89,8 @@ export function bindingRequestFrom(
     policies: env.policies ?? [],
   };
   if (env.gatewayId) request.gatewayId = env.gatewayId;
-  if (env.releaseBindingName) request.releaseBindingName = env.releaseBindingName;
+  if (env.releaseBindingName)
+    request.releaseBindingName = env.releaseBindingName;
   if (env.security) {
     request.security = bindingRequiresAPIKey(env.security)
       ? {
@@ -101,5 +106,101 @@ export function bindingRequestFrom(
   if (env.upstreamAuth?.type === "api-key" && env.upstreamAuth.header) {
     request.upstreamAuth = { type: "api-key", header: env.upstreamAuth.header };
   }
+  // Omitted capabilities clear the stored ones, so they go back as they are.
+  if (env.capabilities) request.capabilities = env.capabilities;
   return request;
+}
+
+/**
+ * A binding seen as an org endpoint config, so the org MCP server tabs (Overview, Connection,
+ * Manage Tools, Rewrite, Policies) can show and edit it. A project proxy registered by URL calls
+ * that URL in every environment; one with a source has no URL to show.
+ */
+export function bindingEndpointConfig(
+  proxy: ProjectMCPProxy,
+  env: ProjectMCPProxyEnvironment,
+): MCPEndpointConfig {
+  const auth =
+    env.upstreamAuth?.type === "api-key" && env.upstreamAuth.header
+      ? { type: "api-key" as const, header: env.upstreamAuth.header }
+      : undefined;
+  return {
+    upstream: { main: { url: proxy.upstream?.url ?? "", auth } },
+    policies: env.policies ?? [],
+    capabilities: env.capabilities,
+    mcpSpecVersions: proxy.mcpSpecVersion ? [proxy.mcpSpecVersion] : undefined,
+    security: bindingRequiresAPIKey(env.security)
+      ? {
+          enabled: true,
+          apiKey: {
+            enabled: true,
+            key: env.security?.apiKey?.key || DEFAULT_API_KEY_HEADER,
+            in: env.security?.apiKey?.in ?? "header",
+          },
+        }
+      : { enabled: false },
+  };
+}
+
+/** What an org tab's edit of a binding's endpoint config changes on the project proxy. */
+export interface BindingConfigChange {
+  /** The binding PUT body with the edit applied. */
+  binding: ProjectMCPProxyEnvironmentRequest;
+  /**
+   * The new URL of a proxy registered by URL, when the edit changed it. The URL is the
+   * proxy's, so every environment takes it.
+   */
+  proxyURL?: string;
+}
+
+/**
+ * Applies an org tab's edit of a binding's endpoint config. Policies, capabilities and the
+ * upstream credential belong to the binding; the URL belongs to a proxy registered by URL.
+ * Timeouts are not kept on bindings and are dropped.
+ */
+export function applyBindingConfigChange(
+  proxy: ProjectMCPProxy,
+  env: ProjectMCPProxyEnvironment,
+  fields: Partial<MCPEndpointConfig>,
+): BindingConfigChange {
+  const binding = bindingRequestFrom(env);
+  const change: BindingConfigChange = { binding };
+  if (fields.policies !== undefined) binding.policies = fields.policies;
+  if ("capabilities" in fields) {
+    if (fields.capabilities) binding.capabilities = fields.capabilities;
+    else delete binding.capabilities;
+  }
+  if ("upstream" in fields) {
+    const main = fields.upstream?.main;
+    const auth = main?.auth;
+    if (auth?.header) {
+      binding.upstreamAuth = {
+        type: "api-key",
+        header: auth.header,
+        ...(auth.value ? { value: auth.value } : {}),
+      };
+    } else {
+      delete binding.upstreamAuth;
+    }
+    const url = main?.url?.trim();
+    if (proxy.upstream && url && url !== proxy.upstream.url) {
+      change.proxyURL = url;
+    }
+  }
+  return change;
+}
+
+/** The project proxy as the org Overview tab reads it. */
+export function proxyAsOrgProxy(proxy: ProjectMCPProxy): MCPProxy {
+  return {
+    id: proxy.id,
+    name: proxy.name,
+    version: proxy.version,
+    description: proxy.description,
+    context: proxy.context,
+    mcpSpecVersion: proxy.mcpSpecVersion,
+    projectName: proxy.projectName,
+    createdAt: proxy.createdAt,
+    updatedAt: proxy.updatedAt,
+  };
 }

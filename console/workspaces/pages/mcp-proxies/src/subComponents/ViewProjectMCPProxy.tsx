@@ -15,7 +15,7 @@
  * under the License.
  */
 
-import { type ReactNode, useCallback, useMemo, useState } from "react";
+import { type SyntheticEvent, useCallback, useMemo, useState } from "react";
 import {
   Alert,
   Box,
@@ -29,6 +29,7 @@ import {
   Divider,
   FormControl,
   Grid,
+  IconButton,
   MenuItem,
   Select,
   Skeleton,
@@ -36,10 +37,17 @@ import {
   Tab,
   Tabs,
   TextField,
+  Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
-import { AlertTriangle, Edit, Plus, Trash } from "@wso2/oxygen-ui-icons-react";
-import { generatePath, useParams } from "react-router-dom";
+import {
+  AlertTriangle,
+  Copy,
+  Edit,
+  Plus,
+  Trash,
+} from "@wso2/oxygen-ui-icons-react";
+import { generatePath, useParams, useSearchParams } from "react-router-dom";
 import {
   useDeleteProjectMCPProxyEnvironment,
   useGetProjectMCPProxy,
@@ -59,65 +67,102 @@ import {
   type ProjectMCPProxyEnvironmentRequest,
 } from "@agent-management-platform/types";
 import { CreatedMetadata, PageLayout } from "@agent-management-platform/views";
+import { MCPProxyConnectionTab } from "./MCPProxyConnectionTab";
+import { MCPProxyManageToolsTab } from "./MCPProxyManageToolsTab";
+import { MCPProxyOverviewTab } from "./MCPProxyOverviewTab";
 import { MCPProxyPoliciesTab } from "./MCPProxyPoliciesTab";
+import { MCPProxyRewriteTab } from "./MCPProxyRewriteTab";
 import {
   BindingAPIKeysTab,
-  BindingOverviewTab,
   BindingSecurityTab,
   BindingStatusChip,
-  BindingUpstreamAuthTab,
 } from "./ProjectBindingTabs";
-import { bindingRequestFrom, proxyRequestFrom } from "./projectBinding";
+import {
+  applyBindingConfigChange,
+  bindingEndpointConfig,
+  proxyAsOrgProxy,
+  proxyRequestFrom,
+} from "./projectBinding";
+import { useCopyWithFeedback } from "./useCopyWithFeedback";
 
-const TABS = [
-  { slug: "overview", label: "Overview" },
-  { slug: "security", label: "Security" },
-  { slug: "api-keys", label: "API Keys" },
-  { slug: "upstream", label: "Upstream Auth" },
-  { slug: "policies", label: "Policies" },
+// The org MCP server tabs, with the API keys a project binding has of its own. As on the
+// org page, the tab and environment are in the URL so they survive a reload.
+const TAB_DEFS = [
+  { label: "Overview", slug: "overview" },
+  { label: "Connection", slug: "connection" },
+  { label: "Manage Tools", slug: "manage-tools" },
+  { label: "Security", slug: "security" },
+  { label: "API Keys", slug: "api-keys" },
+  { label: "Rewrite", slug: "rewrite" },
+  { label: "Policies", slug: "policies" },
 ] as const;
-type TabSlug = (typeof TABS)[number]["slug"];
 
 function InfoCard({
   label,
   value,
-  action,
+  onCopy,
 }: {
   label: string;
   value?: string;
-  action?: ReactNode;
+  onCopy?: () => void;
 }) {
   return (
     <Card variant="outlined" sx={{ p: 2, height: "100%" }}>
       <Stack spacing={0.5}>
-        <Stack direction="row" alignItems="center" justifyContent="space-between">
-          <Typography variant="caption" color="text.secondary" fontWeight={500}>
-            {label}
-          </Typography>
-          {action}
-        </Stack>
         <Typography
-          variant="body2"
-          sx={{ fontFamily: "monospace", wordBreak: "break-all" }}
+          variant="caption"
+          color="text.secondary"
+          sx={{ fontWeight: 500 }}
         >
-          {value || "—"}
+          {label}
         </Typography>
+        <Stack direction="row" alignItems="center" spacing={0.5}>
+          <Typography
+            variant="body2"
+            sx={{ fontFamily: "monospace", wordBreak: "break-all" }}
+          >
+            {value || "—"}
+          </Typography>
+          {value && onCopy && (
+            <Tooltip title={`Copy ${label}`}>
+              <IconButton
+                size="small"
+                aria-label={`Copy ${label}`}
+                onClick={onCopy}
+              >
+                <Copy size={14} />
+              </IconButton>
+            </Tooltip>
+          )}
+        </Stack>
       </Stack>
     </Card>
   );
 }
 
+interface EditDraft {
+  name: string;
+  version: string;
+  context: string;
+  description: string;
+}
+
 /**
- * A project MCP server: one binding per environment it is published to. Each
- * binding is configured on its own (security, API keys, upstream credential,
- * policies) and every save replaces that binding's configuration.
+ * A project MCP server, laid out as the org MCP server page. Where an org server has
+ * endpoints, a project server has one binding per environment it is deployed to, each
+ * configured on its own; the environment picker chooses the binding the tabs show.
  */
 export function ViewProjectMCPProxy() {
-  const { orgId, projectId, proxyId = "" } = useParams<{
+  const {
+    orgId,
+    projectId,
+    proxyId = "",
+  } = useParams<{
     orgId: string;
     projectId: string;
     proxyId: string;
   }>();
+  const [searchParams, setSearchParams] = useSearchParams();
   const {
     data: proxy,
     isLoading,
@@ -129,24 +174,48 @@ export function ViewProjectMCPProxy() {
   const updateProxy = useUpdateProjectMCPProxy();
   const { addConfirmation } = useConfirmationDialog();
   const { canWrite } = useResourceAccess("mcp_server");
-  const [urlDraft, setUrlDraft] = useState<string>();
+  const handleCopy = useCopyWithFeedback();
   const [addEnvOpen, setAddEnvOpen] = useState(false);
   const [envToAdd, setEnvToAdd] = useState("");
+  const [editDraft, setEditDraft] = useState<EditDraft>();
   // A server registered by URL is managed here; one from a component is managed by its publisher.
   const isURLProxy = !!proxy && !proxy.source;
 
+  const tabSlug = searchParams.get("tab");
+  const tabIndex = tabSlug
+    ? Math.max(
+        0,
+        TAB_DEFS.findIndex((tab) => tab.slug === tabSlug),
+      )
+    : 0;
+  const activeTabSlug = TAB_DEFS[tabIndex]?.slug;
+
   const bindings = useMemo(() => proxy?.environments ?? [], [proxy]);
-  const [selectedEnvName, setSelectedEnvName] = useState<string>();
-  const [tab, setTab] = useState<TabSlug>("overview");
   const selected =
-    bindings.find((env) => env.environmentName === selectedEnvName) ??
+    bindings.find((env) => env.environmentName === searchParams.get("env")) ??
     bindings[0];
+
+  const setParam = useCallback(
+    (key: string, value: string | undefined) =>
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          if (value) next.set(key, value);
+          else next.delete(key);
+          return next;
+        },
+        { replace: true },
+      ),
+    [setSearchParams],
+  );
 
   const envLabel = useCallback(
     (uuid: string, name: string) =>
       environmentLabel(environments.find((env) => env.id === uuid)) || name,
     [environments],
   );
+
+  const proxyParams = { orgName: orgId, projName: projectId, proxyId };
 
   const saveBinding = useCallback(
     (request: ProjectMCPProxyEnvironmentRequest) =>
@@ -162,40 +231,46 @@ export function ViewProjectMCPProxy() {
     [putBinding, orgId, projectId, proxyId, selected?.environmentName],
   );
 
-  // The policies tab edits an endpoint config; a binding's policies are saved through its PUT.
-  const policiesConfig: MCPEndpointConfig | undefined = selected
-    ? { policies: selected.policies ?? [] }
-    : undefined;
-  const savePolicies = useCallback(
-    (fields: Partial<MCPEndpointConfig>) =>
-      selected
-        ? saveBinding({
-            ...bindingRequestFrom(selected),
-            policies: fields.policies ?? [],
-          })
-        : Promise.resolve(undefined),
-    [saveBinding, selected],
+  // The selected binding as the org tabs read an endpoint, and their edits written back to it.
+  const selectedConfig: MCPEndpointConfig | undefined =
+    proxy && selected ? bindingEndpointConfig(proxy, selected) : undefined;
+  const updateSelectedConfig = useCallback(
+    async (fields: Partial<MCPEndpointConfig>) => {
+      if (!proxy || !selected) return undefined;
+      const change = applyBindingConfigChange(proxy, selected, fields);
+      if (change.proxyURL) {
+        // The URL is the proxy's: changing it redeploys every environment with it.
+        await updateProxy.mutateAsync({
+          params: proxyParams,
+          body: {
+            ...proxyRequestFrom(proxy),
+            upstream: { url: change.proxyURL },
+          },
+        });
+      }
+      return saveBinding(change.binding);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- proxyParams is from these params
+    [proxy, selected, saveBinding, updateProxy, orgId, projectId, proxyId],
   );
+  const isUpdating = putBinding.isPending || updateProxy.isPending;
 
-  const proxyParams = { orgName: orgId, projName: projectId, proxyId };
   const unboundEnvironments = environments.filter(
     (env) => !bindings.some((binding) => binding.environmentName === env.name),
   );
 
-  const saveURL = async () => {
-    if (!proxy || !urlDraft?.trim()) return;
-    await updateProxy.mutateAsync({
-      params: proxyParams,
-      body: { ...proxyRequestFrom(proxy), upstream: { url: urlDraft.trim() } },
-    });
-    setUrlDraft(undefined);
-  };
-
   const addEnvironment = async () => {
     if (!envToAdd) return;
-    // An empty body takes the defaults: the binding is secured with an API key.
-    await putBinding.mutateAsync({ params: { ...proxyParams, envName: envToAdd }, body: {} });
-    setSelectedEnvName(envToAdd);
+    // The new binding starts as the selected one is: same credential, tools and policies.
+    const body: ProjectMCPProxyEnvironmentRequest = selected
+      ? { ...applyBindingConfigChange(proxy!, selected, {}).binding }
+      : {};
+    delete body.gatewayId;
+    await putBinding.mutateAsync({
+      params: { ...proxyParams, envName: envToAdd },
+      body,
+    });
+    setParam("env", envToAdd);
     setAddEnvOpen(false);
     setEnvToAdd("");
   };
@@ -210,28 +285,47 @@ export function ViewProjectMCPProxy() {
       confirmButtonColor: "error",
       confirmButtonIcon: <Trash size={16} />,
       onConfirm: () => {
-        removeBinding.mutate({ ...proxyParams, envName: selected.environmentName });
-        setSelectedEnvName(undefined);
+        removeBinding.mutate({
+          ...proxyParams,
+          envName: selected.environmentName,
+        });
+        setParam("env", undefined);
       },
     });
   };
 
-  const addEnvironmentButton =
-    isURLProxy && canWrite && unboundEnvironments.length > 0 ? (
-      <Button
-        size="small"
-        variant="outlined"
-        startIcon={<Plus size={16} />}
-        onClick={() => setAddEnvOpen(true)}
-      >
-        Add environment
-      </Button>
-    ) : null;
+  const saveEdit = async () => {
+    if (!proxy || !editDraft) return;
+    await updateProxy.mutateAsync({
+      params: proxyParams,
+      body: {
+        ...proxyRequestFrom(proxy),
+        name: editDraft.name.trim(),
+        version: editDraft.version.trim(),
+        context: editDraft.context.trim(),
+        description: editDraft.description.trim() || undefined,
+      },
+    });
+    setEditDraft(undefined);
+  };
 
   const backHref = generatePath(
     absoluteRouteMap.children.org.children.projects.children.mcpProxies.path,
     { orgId: orgId ?? "", projectId: projectId ?? "" },
   );
+
+  const selectedEnvChips = selected
+    ? [
+        {
+          id: selected.environmentUuid,
+          label: envLabel(selected.environmentUuid, selected.environmentName),
+          status:
+            selected.deploymentStatus === "Deployed"
+              ? ("Deployed" as const)
+              : ("Undeployed" as const),
+        },
+      ]
+    : [];
 
   return (
     <PageLayout
@@ -257,6 +351,25 @@ export function ViewProjectMCPProxy() {
         ) : undefined
       }
       meta={<CreatedMetadata createdAt={proxy?.createdAt} />}
+      actions={
+        proxy && canWrite && isURLProxy ? (
+          <Button
+            variant="outlined"
+            size="small"
+            startIcon={<Edit size={16} />}
+            onClick={() =>
+              setEditDraft({
+                name: proxy.name,
+                version: proxy.version,
+                context: proxy.context,
+                description: proxy.description ?? "",
+              })
+            }
+          >
+            Edit MCP server
+          </Button>
+        ) : undefined
+      }
     >
       {isLoading && (
         <Stack spacing={3}>
@@ -269,175 +382,217 @@ export function ViewProjectMCPProxy() {
         <Alert severity="error" icon={<AlertTriangle size={18} />}>
           {error instanceof Error
             ? error.message
-            : "Failed to load the MCP server. Please try again."}
+            : "Failed to load MCP Server. Please try again."}
         </Alert>
       ) : null}
 
       {proxy && !error && (
         <Stack spacing={4}>
-          {proxy.source ? (
-            <Grid container spacing={2}>
-              <Grid size={{ xs: 12, sm: 4 }}>
-                <InfoCard label="Component" value={proxy.source.componentName} />
-              </Grid>
-              <Grid size={{ xs: 12, sm: 4 }}>
-                <InfoCard label="Endpoint" value={proxy.source.endpointName} />
-              </Grid>
-              <Grid size={{ xs: 12, sm: 4 }}>
-                <InfoCard label="Context" value={proxy.context} />
-              </Grid>
-            </Grid>
-          ) : (
-            <Grid container spacing={2}>
-              <Grid size={{ xs: 12, sm: 8 }}>
-                <InfoCard
-                  label="MCP server URL"
-                  value={proxy.upstream?.url}
-                  action={
-                    canWrite ? (
-                      <Button
-                        size="small"
-                        startIcon={<Edit size={14} />}
-                        onClick={() => setUrlDraft(proxy.upstream?.url ?? "")}
+          {(bindings.length > 0 || (isURLProxy && canWrite)) && (
+            <Stack
+              direction="row"
+              spacing={1}
+              alignItems="center"
+              justifyContent="flex-end"
+              flexWrap="wrap"
+              useFlexGap
+            >
+              {isURLProxy && canWrite && unboundEnvironments.length > 0 && (
+                <Button
+                  size="small"
+                  variant="outlined"
+                  startIcon={<Plus size={16} />}
+                  onClick={() => setAddEnvOpen(true)}
+                >
+                  Add environment
+                </Button>
+              )}
+              {isURLProxy && canWrite && selected && (
+                <Button
+                  size="small"
+                  color="error"
+                  startIcon={<Trash size={16} />}
+                  onClick={confirmRemoveEnvironment}
+                >
+                  Remove from environment
+                </Button>
+              )}
+              {selected && <BindingStatusChip env={selected} />}
+              {bindings.length > 0 && (
+                <FormControl size="small" sx={{ minWidth: 260 }}>
+                  <Select
+                    value={selected?.environmentName ?? ""}
+                    onChange={(event) =>
+                      setParam("env", event.target.value as string)
+                    }
+                    renderValue={(value) => {
+                      const env = bindings.find(
+                        (item) => item.environmentName === value,
+                      );
+                      return `${env ? envLabel(env.environmentUuid, env.environmentName) : value} Environment`;
+                    }}
+                  >
+                    {bindings.map((env) => (
+                      <MenuItem
+                        key={env.environmentName}
+                        value={env.environmentName}
                       >
-                        Edit
-                      </Button>
-                    ) : undefined
-                  }
-                />
-              </Grid>
-              <Grid size={{ xs: 12, sm: 4 }}>
-                <InfoCard label="Context" value={proxy.context} />
-              </Grid>
-            </Grid>
+                        {envLabel(env.environmentUuid, env.environmentName)}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              )}
+            </Stack>
           )}
 
-          {selected ? (
+          <Grid container spacing={2}>
+            <Grid size={{ xs: 12, sm: proxy.source ? 4 : 6 }}>
+              <InfoCard
+                label="Context"
+                value={proxy.context}
+                onCopy={() => handleCopy(proxy.context, "Context")}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: proxy.source ? 4 : 6 }}>
+              <InfoCard
+                label="MCP Spec Versions"
+                value={proxy.mcpSpecVersion}
+              />
+            </Grid>
+            {proxy.source && (
+              <Grid size={{ xs: 12, sm: 4 }}>
+                <InfoCard
+                  label="Source"
+                  value={`${proxy.source.componentName} / ${proxy.source.endpointName}`}
+                />
+              </Grid>
+            )}
+          </Grid>
+
+          {selected && selectedConfig ? (
             <Card variant="outlined">
               <Stack
                 direction="row"
                 alignItems="center"
                 justifyContent="space-between"
-                spacing={2}
                 sx={{ pr: 2 }}
               >
-                <Tabs value={tab} onChange={(_, value: TabSlug) => setTab(value)}>
-                  {TABS.map((item) => (
-                    <Tab key={item.slug} value={item.slug} label={item.label} />
+                <Tabs
+                  value={tabIndex}
+                  onChange={(_: SyntheticEvent, index: number) =>
+                    setParam("tab", TAB_DEFS[index]?.slug)
+                  }
+                >
+                  {TAB_DEFS.map((tab) => (
+                    <Tab key={tab.slug} label={tab.label} />
                   ))}
                 </Tabs>
-                <Stack direction="row" alignItems="center" spacing={1}>
-                  {addEnvironmentButton}
-                  {isURLProxy && canWrite && (
-                    <Button
-                      size="small"
-                      color="error"
-                      startIcon={<Trash size={16} />}
-                      onClick={confirmRemoveEnvironment}
-                    >
-                      Remove
-                    </Button>
-                  )}
-                  <BindingStatusChip env={selected} />
-                  <FormControl size="small" sx={{ minWidth: 180 }}>
-                    <Select
-                      value={selected.environmentName}
-                      onChange={(event) =>
-                        setSelectedEnvName(event.target.value as string)
-                      }
-                    >
-                      {bindings.map((env) => (
-                        <MenuItem key={env.environmentName} value={env.environmentName}>
-                          {envLabel(env.environmentUuid, env.environmentName)}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </Stack>
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  sx={{ whiteSpace: "nowrap" }}
+                >
+                  Showing{" "}
+                  <Typography
+                    component="span"
+                    variant="caption"
+                    sx={{ fontWeight: 600 }}
+                  >
+                    {envLabel(
+                      selected.environmentUuid,
+                      selected.environmentName,
+                    )}
+                  </Typography>
+                </Typography>
               </Stack>
               <Divider />
               {/* Keyed by environment, so unsaved edits never carry over to another one. */}
               <Box sx={{ p: 3 }} key={selected.environmentName}>
-                {tab === "overview" && <BindingOverviewTab env={selected} />}
-                {tab === "security" && (
+                {activeTabSlug === "overview" && (
+                  <MCPProxyOverviewTab
+                    proxy={proxyAsOrgProxy(proxy)}
+                    config={selectedConfig}
+                    envChips={selectedEnvChips}
+                  />
+                )}
+                {activeTabSlug === "connection" && (
+                  <MCPProxyConnectionTab
+                    config={selectedConfig}
+                    selectedEndpointId={selected.environmentName}
+                    onUpdate={updateSelectedConfig}
+                    isUpdating={isUpdating}
+                    hideResilience
+                    readOnlyURLText={
+                      proxy.source
+                        ? `Resolved from ${proxy.source.componentName} / ${proxy.source.endpointName} in this environment`
+                        : undefined
+                    }
+                  />
+                )}
+                {activeTabSlug === "manage-tools" && (
+                  <MCPProxyManageToolsTab
+                    config={selectedConfig}
+                    selectedEndpointId={selected.environmentName}
+                    orgName={orgId}
+                    onUpdate={updateSelectedConfig}
+                    isUpdating={isUpdating}
+                  />
+                )}
+                {activeTabSlug === "security" && (
                   <BindingSecurityTab
                     env={selected}
                     onSave={saveBinding}
-                    isSaving={putBinding.isPending}
+                    isSaving={isUpdating}
                   />
                 )}
-                {tab === "api-keys" && (
+                {activeTabSlug === "api-keys" && (
                   <BindingAPIKeysTab
                     env={selected}
                     orgName={orgId}
                     projName={projectId}
                     proxyId={proxyId}
-                    onGoToSecurity={() => setTab("security")}
+                    onGoToSecurity={() => setParam("tab", "security")}
                   />
                 )}
-                {tab === "upstream" && (
-                  <BindingUpstreamAuthTab
-                    env={selected}
-                    onSave={saveBinding}
-                    isSaving={putBinding.isPending}
-                  />
-                )}
-                {tab === "policies" && (
-                  <MCPProxyPoliciesTab
-                    config={policiesConfig}
+                {activeTabSlug === "rewrite" && (
+                  <MCPProxyRewriteTab
+                    config={selectedConfig}
                     selectedEndpointId={selected.environmentName}
                     orgName={orgId}
-                    onUpdate={savePolicies}
-                    isUpdating={putBinding.isPending}
+                    onUpdate={updateSelectedConfig}
+                    isUpdating={isUpdating}
+                  />
+                )}
+                {activeTabSlug === "policies" && (
+                  <MCPProxyPoliciesTab
+                    config={selectedConfig}
+                    selectedEndpointId={selected.environmentName}
+                    orgName={orgId}
+                    onUpdate={updateSelectedConfig}
+                    isUpdating={isUpdating}
                   />
                 )}
               </Box>
             </Card>
           ) : (
             <Card variant="outlined" sx={{ p: 3 }}>
-              <Stack spacing={2} alignItems="flex-start">
-                <Alert severity="info" sx={{ alignSelf: "stretch" }}>
-                  {isURLProxy
-                    ? "This MCP server is not deployed to any environment yet. Add one to let the project's agents call it there."
-                    : "This MCP server is not deployed to any environment yet. It appears here once its component is published to one."}
-                </Alert>
-                {addEnvironmentButton}
-              </Stack>
+              <Alert severity="info">
+                {isURLProxy
+                  ? 'This MCP Server is not deployed to any environment yet. Use "Add environment" above to deploy it.'
+                  : "This MCP Server is not deployed to any environment yet. It appears here once its component is published to one."}
+              </Alert>
             </Card>
           )}
         </Stack>
       )}
 
-      <Dialog open={urlDraft !== undefined} onClose={() => setUrlDraft(undefined)} fullWidth>
-        <DialogTitle>Edit MCP server URL</DialogTitle>
-        <DialogContent>
-          <TextField
-            sx={{ mt: 1 }}
-            fullWidth
-            size="small"
-            label="MCP server URL"
-            value={urlDraft ?? ""}
-            helperText="Every environment the server is deployed to is redeployed with the new URL."
-            onChange={(event) => setUrlDraft(event.target.value)}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setUrlDraft(undefined)}>Cancel</Button>
-          <Button
-            variant="contained"
-            disabled={
-              !urlDraft?.trim() ||
-              urlDraft.trim() === proxy?.upstream?.url ||
-              updateProxy.isPending
-            }
-            onClick={() => void saveURL()}
-          >
-            Save
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      <Dialog open={addEnvOpen} onClose={() => setAddEnvOpen(false)} fullWidth maxWidth="xs">
+      <Dialog
+        open={addEnvOpen}
+        onClose={() => setAddEnvOpen(false)}
+        fullWidth
+        maxWidth="xs"
+      >
         <DialogTitle>Add environment</DialogTitle>
         <DialogContent>
           <FormControl fullWidth size="small" sx={{ mt: 1 }}>
@@ -456,8 +611,14 @@ export function ViewProjectMCPProxy() {
               ))}
             </Select>
           </FormControl>
-          <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: "block" }}>
-            The server is deployed there secured with an API key.
+          <Typography
+            variant="caption"
+            color="text.secondary"
+            sx={{ mt: 1, display: "block" }}
+          >
+            {selected
+              ? "The server is deployed there with the selected environment's credential, tools and policies."
+              : "The server is deployed there secured with an API key."}
           </Typography>
         </DialogContent>
         <DialogActions>
@@ -468,6 +629,72 @@ export function ViewProjectMCPProxy() {
             onClick={() => void addEnvironment()}
           >
             Add
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={!!editDraft}
+        onClose={() => setEditDraft(undefined)}
+        fullWidth
+      >
+        <DialogTitle>Edit MCP Server</DialogTitle>
+        <DialogContent>
+          {editDraft && (
+            <Stack spacing={2} sx={{ mt: 1 }}>
+              <TextField
+                label="Name"
+                size="small"
+                value={editDraft.name}
+                onChange={(event) =>
+                  setEditDraft({ ...editDraft, name: event.target.value })
+                }
+              />
+              <TextField
+                label="Version"
+                size="small"
+                value={editDraft.version}
+                onChange={(event) =>
+                  setEditDraft({ ...editDraft, version: event.target.value })
+                }
+              />
+              <TextField
+                label="Context"
+                size="small"
+                value={editDraft.context}
+                helperText={`Served under the project, at /${projectId}${editDraft.context}.`}
+                onChange={(event) =>
+                  setEditDraft({ ...editDraft, context: event.target.value })
+                }
+              />
+              <TextField
+                label="Description (optional)"
+                size="small"
+                multiline
+                minRows={3}
+                value={editDraft.description}
+                onChange={(event) =>
+                  setEditDraft({
+                    ...editDraft,
+                    description: event.target.value,
+                  })
+                }
+              />
+            </Stack>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setEditDraft(undefined)}>Cancel</Button>
+          <Button
+            variant="contained"
+            disabled={
+              !editDraft?.name.trim() ||
+              !editDraft?.context.trim().startsWith("/") ||
+              updateProxy.isPending
+            }
+            onClick={() => void saveEdit()}
+          >
+            Save
           </Button>
         </DialogActions>
       </Dialog>

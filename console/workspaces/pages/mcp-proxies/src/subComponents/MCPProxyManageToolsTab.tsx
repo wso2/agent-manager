@@ -26,7 +26,6 @@ import {
 import { useMCPPoliciesCatalog } from "@agent-management-platform/api-client";
 import type {
   MCPEndpointConfig,
-  MCPProxy,
   MCPProxyPolicy,
 } from "@agent-management-platform/types";
 import { Alert, Stack, Typography } from "@wso2/oxygen-ui";
@@ -125,7 +124,7 @@ export type MCPProxyManageToolsTabProps = {
   selectedEndpointId: string;
   orgName: string | undefined;
   isLoading?: boolean;
-  onUpdate: (fields: Partial<MCPEndpointConfig>) => Promise<MCPProxy>;
+  onUpdate: (fields: Partial<MCPEndpointConfig>) => Promise<unknown>;
   isUpdating: boolean;
 };
 

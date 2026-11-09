@@ -22,7 +22,6 @@ import {
   Chip,
   FormControl,
   FormControlLabel,
-  IconButton,
   ListingTable,
   MenuItem,
   Select,
@@ -30,9 +29,8 @@ import {
   Switch,
   TextField,
   Tooltip,
-  Typography,
 } from "@wso2/oxygen-ui";
-import { Copy, ShieldOff } from "@wso2/oxygen-ui-icons-react";
+import { ShieldOff } from "@wso2/oxygen-ui-icons-react";
 import {
   useCreateProjectMCPProxyAPIKey,
   useListProjectMCPProxyAPIKeys,
@@ -53,8 +51,6 @@ import {
   bindingRequiresAPIKey,
   DEFAULT_API_KEY_HEADER,
 } from "./projectBinding";
-import { getCapabilityId } from "./mcpEndpoints";
-import { useCopyWithFeedback } from "./useCopyWithFeedback";
 
 /** Saves a whole binding request for the selected environment. */
 export type SaveBinding = (
@@ -91,81 +87,6 @@ export function BindingStatusChip({ env }: { env: ProjectMCPProxyEnvironment }) 
         color={STATUS_COLOR[env.deploymentStatus]}
       />
     </Tooltip>
-  );
-}
-
-function Field({ label, value }: { label: string; value?: string }) {
-  const handleCopy = useCopyWithFeedback();
-  return (
-    <Stack spacing={0.5}>
-      <Typography variant="caption" color="text.secondary" fontWeight={500}>
-        {label}
-      </Typography>
-      <Stack direction="row" alignItems="center" spacing={0.5}>
-        <Typography
-          variant="body2"
-          sx={{ fontFamily: "monospace", wordBreak: "break-all" }}
-        >
-          {value || "—"}
-        </Typography>
-        {value && (
-          <Tooltip title={`Copy ${label}`}>
-            <IconButton
-              size="small"
-              aria-label={`Copy ${label}`}
-              onClick={() => handleCopy(value, label)}
-            >
-              <Copy size={14} />
-            </IconButton>
-          </Tooltip>
-        )}
-      </Stack>
-    </Stack>
-  );
-}
-
-/** Where the binding is served and what it offers. */
-export function BindingOverviewTab({ env }: { env: ProjectMCPProxyEnvironment }) {
-  const tools = (env.capabilities?.tools ?? [])
-    .map((raw) => ({ raw, name: getCapabilityId("tool", raw) }))
-    .filter((tool): tool is { raw: Record<string, unknown>; name: string } => !!tool.name);
-  return (
-    <Stack spacing={3}>
-      <Stack direction="row" spacing={1} alignItems="center">
-        <Typography variant="body2" color="text.secondary">
-          Status
-        </Typography>
-        <BindingStatusChip env={env} />
-      </Stack>
-      <Field label="Public URL" value={env.publicUrl} />
-      <Field label="Context" value={env.context} />
-      {env.releaseBindingName && (
-        <Field label="Release binding" value={env.releaseBindingName} />
-      )}
-      <Stack spacing={1}>
-        <Typography variant="subtitle2">Tools</Typography>
-        {tools.length ? (
-          <Stack spacing={1}>
-            {tools.map(({ raw, name }) => (
-              <Stack key={name} spacing={0.25}>
-                <Typography variant="body2" sx={{ fontFamily: "monospace" }}>
-                  {name}
-                </Typography>
-                {typeof raw.description === "string" && (
-                  <Typography variant="caption" color="text.secondary">
-                    {raw.description}
-                  </Typography>
-                )}
-              </Stack>
-            ))}
-          </Stack>
-        ) : (
-          <Typography variant="body2" color="text.secondary">
-            No tools are known for this server yet.
-          </Typography>
-        )}
-      </Stack>
-    </Stack>
   );
 }
 
@@ -261,99 +182,6 @@ export function BindingSecurityTab({
             disabled={!isDirty || isSaving || (required && !header.trim())}
             onClick={() => void save()}
           >
-            Save
-          </Button>
-        </Stack>
-      )}
-    </Stack>
-  );
-}
-
-/** The credential the gateway adds when it calls the server's component. */
-export function BindingUpstreamAuthTab({
-  env,
-  onSave,
-  isSaving,
-}: {
-  env: ProjectMCPProxyEnvironment;
-  onSave: SaveBinding;
-  isSaving: boolean;
-}) {
-  const { canWrite } = useResourceAccess("mcp_server");
-  const stored = env.upstreamAuth?.type === "api-key" ? env.upstreamAuth : undefined;
-  const [enabled, setEnabled] = useState(!!stored);
-  const [header, setHeader] = useState(stored?.header ?? "");
-  const [value, setValue] = useState("");
-
-  useEffect(() => {
-    setEnabled(!!stored);
-    setHeader(stored?.header ?? "");
-    setValue("");
-  }, [stored]);
-
-  const isDirty =
-    enabled !== !!stored ||
-    (enabled && (header.trim() !== (stored?.header ?? "") || value !== ""));
-  // A new credential needs its value; a stored one is kept when the value is left empty.
-  const canSave =
-    isDirty && !isSaving && (!enabled || (!!header.trim() && (!!stored || !!value)));
-
-  const save = () =>
-    onSave({
-      ...bindingRequestFrom(env),
-      upstreamAuth: enabled
-        ? {
-            type: "api-key",
-            header: header.trim(),
-            ...(value ? { value } : {}),
-          }
-        : undefined,
-    });
-
-  return (
-    <Stack spacing={3} maxWidth={560}>
-      <Typography variant="body2" color="text.secondary">
-        Add a header the gateway sends with every request to this MCP
-        server&apos;s component.
-      </Typography>
-      <FormControlLabel
-        control={
-          <Switch
-            checked={enabled}
-            disabled={!canWrite}
-            onChange={(event) => setEnabled(event.target.checked)}
-          />
-        }
-        label="Send a credential to the upstream"
-      />
-      {enabled && (
-        <>
-          <TextField
-            label="Header"
-            size="small"
-            value={header}
-            disabled={!canWrite}
-            placeholder="Authorization"
-            onChange={(event) => setHeader(event.target.value)}
-          />
-          <TextField
-            label="Value"
-            size="small"
-            type="password"
-            value={value}
-            disabled={!canWrite}
-            onChange={(event) => setValue(event.target.value)}
-            helperText={
-              stored
-                ? "Stored encrypted and never shown. Leave empty to keep the current value."
-                : "Stored encrypted and never shown."
-            }
-          />
-        </>
-      )}
-      {canWrite && (
-        <Stack direction="row">
-          <Button variant="contained" disabled={!canSave} onClick={() => void save()}>
             Save
           </Button>
         </Stack>

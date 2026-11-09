@@ -45,7 +45,6 @@ import { ChevronDown } from "@wso2/oxygen-ui-icons-react";
 import { useMCPPoliciesCatalog } from "@agent-management-platform/api-client";
 import {
   type MCPEndpointConfig,
-  type MCPProxy,
   type MCPProxyPolicy,
   INPUT_LIMITS,
 } from "@agent-management-platform/types";
@@ -343,7 +342,7 @@ export type MCPProxyRewriteTabProps = {
   selectedEndpointId: string;
   orgName: string | undefined;
   isLoading?: boolean;
-  onUpdate: (fields: Partial<MCPEndpointConfig>) => Promise<MCPProxy>;
+  onUpdate: (fields: Partial<MCPEndpointConfig>) => Promise<unknown>;
   isUpdating: boolean;
 };
 

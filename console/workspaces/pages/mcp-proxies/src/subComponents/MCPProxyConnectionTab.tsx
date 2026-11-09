@@ -19,7 +19,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { TextInput } from "@agent-management-platform/views";
 import {
   type MCPEndpointConfig,
-  type MCPProxy,
   INPUT_LIMITS,
 } from "@agent-management-platform/types";
 import {
@@ -52,8 +51,15 @@ export type MCPProxyConnectionTabProps = {
   config: MCPEndpointConfig | undefined;
   selectedEndpointId: string;
   isLoading?: boolean;
-  onUpdate: (fields: Partial<MCPEndpointConfig>) => Promise<MCPProxy>;
+  onUpdate: (fields: Partial<MCPEndpointConfig>) => Promise<unknown>;
   isUpdating: boolean;
+  /** Hides the request and idle timeouts, for a server that does not take them. */
+  hideResilience?: boolean;
+  /**
+   * Shown in place of an editable URL, for a server whose upstream is resolved rather than
+   * entered (a project component's endpoint). Only the credential can be changed then.
+   */
+  readOnlyURLText?: string;
 };
 
 export function MCPProxyConnectionTab({
@@ -62,6 +68,8 @@ export function MCPProxyConnectionTab({
   isLoading = false,
   onUpdate,
   isUpdating,
+  hideResilience = false,
+  readOnlyURLText,
 }: MCPProxyConnectionTabProps) {
   const { canWrite } = useResourceAccess("mcp_server");
   const theme = useTheme();
@@ -189,7 +197,8 @@ export function MCPProxyConnectionTab({
   const handleSave = useCallback(async () => {
     if (!config) return;
 
-    const endpointValidationError = validateEndpoint(endpoint);
+    const endpointValidationError =
+      readOnlyURLText === undefined ? validateEndpoint(endpoint) : null;
     if (endpointValidationError) {
       setStatus({ message: endpointValidationError, severity: "error" });
       return;
@@ -262,6 +271,7 @@ export function MCPProxyConnectionTab({
     credentialChanged,
     typedCredential,
     onUpdate,
+    readOnlyURLText,
     validateEndpoint,
     validateResilienceTimeout,
     validateResilienceIdleTimeout,
@@ -290,11 +300,11 @@ export function MCPProxyConnectionTab({
         <Grid size={{ xs: 12, md: 12, xl: 8 }}>
           <TextInput
             label="MCP Server Endpoint URL"
-            disabled={!canWrite}
+            disabled={!canWrite || readOnlyURLText !== undefined}
             maxLength={INPUT_LIMITS.URL}
             hideCharacterCount={(endpoint?.length ?? 0) < INPUT_LIMITS.URL}
             size="small"
-            value={endpoint}
+            value={readOnlyURLText ?? endpoint}
             onChange={(e) => {
               setEndpoint(e.target.value);
               if (endpointError) validateEndpoint(e.target.value);
@@ -355,7 +365,7 @@ export function MCPProxyConnectionTab({
           </Accordion>
         </Grid>
 
-        <Grid size={{ xs: 12 }}>
+        <Grid size={{ xs: 12 }} sx={hideResilience ? { display: "none" } : undefined}>
           <ResilienceTimeoutFields
             disabled={!canWrite}
             requestTimeout={resilienceTimeout}

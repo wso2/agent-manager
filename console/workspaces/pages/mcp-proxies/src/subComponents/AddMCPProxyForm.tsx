@@ -19,7 +19,9 @@ import { useCallback, useState } from "react";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
 import {
   useCreateMCPProxy,
+  useCreateProjectMCPProxy,
   useListEnvironments,
+  usePutProjectMCPProxyEnvironment,
 } from "@agent-management-platform/api-client";
 import {
   absoluteRouteMap,
@@ -27,6 +29,7 @@ import {
   INPUT_LIMITS,
 } from "@agent-management-platform/types";
 import {
+  Alert,
   Button,
   CircularProgress,
   Form,
@@ -65,12 +68,26 @@ const addMCPProxySchema = z.object({
 
 interface AddMCPProxyFormProps {
   onCancel: () => void;
+  /**
+   * Registers the server for this project instead of the organization. A project server
+   * fronts one URL, deployed to each environment picked for it, and its context is
+   * relative to the project.
+   */
+  projectId?: string;
 }
 
-export function AddMCPProxyForm({ onCancel }: AddMCPProxyFormProps) {
+export function AddMCPProxyForm({ onCancel, projectId }: AddMCPProxyFormProps) {
   const navigate = useNavigate();
   const { orgId } = useParams<{ orgId: string }>();
   const createMCPProxy = useCreateMCPProxy();
+  const createProjectMCPProxy = useCreateProjectMCPProxy();
+  const putProjectBinding = usePutProjectMCPProxyEnvironment();
+  const [projectError, setProjectError] = useState<string>();
+  // An org server's context is under /default; a project server's is served under the project.
+  const contextFor = useCallback(
+    (name: string) => (projectId ? `/${toHandle(name)}` : `/default/${toHandle(name)}`),
+    [projectId],
+  );
   const { data: environments = [] } = useListEnvironments({
     orgName: orgId ?? "",
   });
@@ -97,7 +114,8 @@ export function AddMCPProxyForm({ onCancel }: AddMCPProxyFormProps) {
       ? `Handle must be at most ${MAX_HANDLE_LENGTH} characters (currently ${effectiveHandle.length}).`
       : undefined;
 
-  const isCreating = createMCPProxy.isPending;
+  const isCreating =
+    createMCPProxy.isPending || createProjectMCPProxy.isPending || putProjectBinding.isPending;
 
   const isDirty =
     Boolean(proxyName) ||
@@ -118,16 +136,16 @@ export function AddMCPProxyForm({ onCancel }: AddMCPProxyFormProps) {
 
   const handleNameChange = useCallback(
     (value: string) => {
-      const previousContext = proxyName ? `/default/${toHandle(proxyName)}` : "";
+      const previousContext = proxyName ? contextFor(proxyName) : "";
       setProxyName(value);
       if (!proxyContext || proxyContext === previousContext) {
-        setProxyContext(value ? `/default/${toHandle(value)}` : "");
+        setProxyContext(value ? contextFor(value) : "");
       }
       if (!handleEdited) {
         setHandle(toHandle(value));
       }
     },
-    [proxyContext, proxyName, handleEdited],
+    [proxyContext, proxyName, handleEdited, contextFor],
   );
 
   const handleHandleChange = useCallback((value: string) => {
@@ -142,7 +160,7 @@ export function AddMCPProxyForm({ onCancel }: AddMCPProxyFormProps) {
       if (!proxyName && draft.serverName) {
         setProxyName(draft.serverName);
         if (!proxyContext) {
-          setProxyContext(`/default/${toHandle(draft.serverName)}`);
+          setProxyContext(contextFor(draft.serverName));
         }
         if (!handleEdited) {
           setHandle(toHandle(draft.serverName));
@@ -152,10 +170,86 @@ export function AddMCPProxyForm({ onCancel }: AddMCPProxyFormProps) {
         handleVersionChange(draft.serverVersion);
       }
     },
-    [proxyContext, proxyName, proxyVersion, handleEdited, handleVersionChange],
+    [proxyContext, proxyName, proxyVersion, handleEdited, handleVersionChange, contextFor],
   );
 
+  // A project server: the proxy fronts the endpoint's URL, then each environment the
+  // endpoint is assigned gets its own binding with the endpoint's credential and tools.
+  const handleCreateForProject = useCallback(async () => {
+    if (!orgId || !projectId || endpoints.length === 0) return;
+    if (!validateForm({ version: proxyVersion })) return;
+    setProjectError(undefined);
+
+    const proxyId = toHandle(handle || proxyName.trim());
+    const endpoint = draftToEndpoint(endpoints[0], 0);
+    const params = { orgName: orgId, projName: projectId, proxyId };
+    try {
+      await createProjectMCPProxy.mutateAsync({
+        params,
+        body: {
+          name: proxyName.trim(),
+          version: proxyVersion.trim(),
+          description: proxyDescription.trim() || undefined,
+          context: proxyContext.trim() || undefined,
+          upstream: { url: endpoint.upstream?.main?.url ?? "" },
+        },
+      });
+    } catch (err) {
+      setProjectError(
+        (err as { message?: string })?.message ?? "Failed to register the MCP server.",
+      );
+      return;
+    }
+    const auth = endpoint.upstream?.main?.auth;
+    for (const binding of endpoint.environments) {
+      const envName = environments.find((env) => env.id === binding.environmentUuid)?.name;
+      if (!envName) continue;
+      try {
+        await putProjectBinding.mutateAsync({
+          params: { ...params, envName },
+          body: {
+            ...(binding.gatewayId ? { gatewayId: binding.gatewayId } : {}),
+            ...(auth?.header
+              ? { upstreamAuth: { type: "api-key", header: auth.header, value: auth.value } }
+              : {}),
+            ...(endpoint.capabilities ? { capabilities: endpoint.capabilities } : {}),
+          },
+        });
+      } catch {
+        // The server is registered; its page shows the environments it is deployed to.
+      }
+    }
+    allowNavigation(() =>
+      navigate(
+        generatePath(
+          absoluteRouteMap.children.org.children.projects.children.mcpProxies.children.view
+            .path,
+          { orgId, projectId, proxyId },
+        ),
+      ),
+    );
+  }, [
+    allowNavigation,
+    createProjectMCPProxy,
+    endpoints,
+    environments,
+    handle,
+    navigate,
+    orgId,
+    projectId,
+    proxyContext,
+    proxyDescription,
+    proxyName,
+    proxyVersion,
+    putProjectBinding,
+    validateForm,
+  ]);
+
   const handleCreate = useCallback(async () => {
+    if (projectId) {
+      await handleCreateForProject();
+      return;
+    }
     if (!orgId || endpoints.length === 0) return;
     if (!validateForm({ version: proxyVersion })) return;
 
@@ -189,6 +283,8 @@ export function AddMCPProxyForm({ onCancel }: AddMCPProxyFormProps) {
   }, [
     allowNavigation,
     createMCPProxy,
+    handleCreateForProject,
+    projectId,
     endpoints,
     navigate,
     orgId,
@@ -234,7 +330,9 @@ export function AddMCPProxyForm({ onCancel }: AddMCPProxyFormProps) {
               error={Boolean(handleLengthError)}
               helperText={
                 handleLengthError ??
-                "Generated from the name. Unique and immutable once registered."
+                (projectId
+                  ? "Generated from the name. Unique in the organization and immutable once registered."
+                  : "Generated from the name. Unique and immutable once registered.")
               }
               disabled={!isHandleEditable && !handle}
               slotProps={{
@@ -275,6 +373,11 @@ export function AddMCPProxyForm({ onCancel }: AddMCPProxyFormProps) {
             <TextInput
               label="Context (optional)"
               placeholder="/github"
+              helperText={
+                projectId
+                  ? `Served under the project, at /${projectId}${proxyContext || "/<handle>"}.`
+                  : undefined
+              }
               maxLength={INPUT_LIMITS.PATH}
               hideCharacterCount={proxyContext.length < INPUT_LIMITS.PATH}
               value={proxyContext}
@@ -302,12 +405,15 @@ export function AddMCPProxyForm({ onCancel }: AddMCPProxyFormProps) {
         </Grid>
 
         <Stack spacing={2}>
-          <Typography variant="subtitle1">Endpoints</Typography>
+          <Typography variant="subtitle1">{projectId ? "Endpoint" : "Endpoints"}</Typography>
           <Typography variant="body2" color="text.secondary">
-            {environments.length > 1
-              ? "Add a backend endpoint and assign it to one or more environments. Environments without an endpoint are simply left unconfigured."
-              : "Add a backend endpoint for this MCP Server."}
+            {projectId
+              ? "Add the MCP server's public URL and assign it to the environments to deploy it to. Each environment is secured with an API key."
+              : environments.length > 1
+                ? "Add a backend endpoint and assign it to one or more environments. Environments without an endpoint are simply left unconfigured."
+                : "Add a backend endpoint for this MCP Server."}
           </Typography>
+          {projectError && <Alert severity="error">{projectError}</Alert>}
 
           <EndpointsEditorSection
             orgId={orgId ?? ""}
@@ -318,8 +424,9 @@ export function AddMCPProxyForm({ onCancel }: AddMCPProxyFormProps) {
             onAddOpenChange={setAddOpen}
             editingId={editingId}
             onEditingIdChange={setEditingId}
-            emptyStateText="No endpoints added yet."
+            emptyStateText={projectId ? "No endpoint added yet." : "No endpoints added yet."}
             onEndpointAdded={handleEndpointAdded}
+            maxEndpoints={projectId ? 1 : undefined}
           />
         </Stack>
       </Form.Stack>
