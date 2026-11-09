@@ -368,9 +368,10 @@ agentManagerService:
     # reads them through the ClusterSecretStore below, which calls the agent
     # manager's internal API with a bearer token.
     secretStore:
-      # Name of the ClusterSecretStore created by this chart. The agent and
-      # workflow templates in the platform-resources and evaluation extensions
-      # reference it by this name.
+      # Name of the ClusterSecretStore created by this chart. Agent workloads
+      # read it through the data plane: set the ClusterDataPlane's
+      # spec.secretStoreRef.name to this name. Monitor workflows reference it
+      # through the evaluation extension's externalSecrets.clusterSecretStoreName.
       clusterSecretStoreName: amp-secret-store
       # Bearer token the ClusterSecretStore presents. Generated (and kept
       # across upgrades) when empty.

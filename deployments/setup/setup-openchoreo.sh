@@ -199,7 +199,9 @@ install_data_plane() {
     echo "🔗 Registering Data Plane..."
     local ca_cert
     ca_cert=$(kubectl get secret cluster-agent-tls -n openchoreo-data-plane -o jsonpath='{.data.ca\.crt}' | base64 -d)
-    register_data_plane "$ca_cert" "default" "default"
+    # The data plane reads agent manager secrets through the in-house store
+    # (amp-secret-store, created by setup-secret-store.sh once AMP is up).
+    register_data_plane "$ca_cert" "default" "amp-secret-store"
 
     # Verify DataPlane
     echo ""

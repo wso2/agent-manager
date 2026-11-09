@@ -433,8 +433,8 @@
       "description": "External Secrets configuration",
       "properties": {
         "clusterSecretStoreName": {
-          "default": "amp-secret-store",
-          "description": "Name of the ClusterSecretStore agent workloads read agent manager secrets through. The wso2-agent-manager chart creates it (in-house secret store).",
+          "default": "default",
+          "description": "Name of the ClusterSecretStore (uses the default OpenBao ClusterSecretStore)",
           "title": "clusterSecretStoreName",
           "type": "string"
         }

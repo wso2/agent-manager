@@ -3,6 +3,8 @@
 # stack, where agent-manager-service runs with docker compose outside the k3d
 # cluster. External Secrets Operator reads agent manager secrets through it by
 # calling the service's internal API on the host (host.k3d.internal:9243).
+# It also points the default ClusterDataPlane at the store, so agent workloads
+# (${dataplane.secretStore}) read their secrets through it.
 # Helm installs create the same store from the wso2-agent-manager chart.
 # The webhook provider only reads Secrets labelled external-secrets.io/type=webhook.
 set -euo pipefail
@@ -62,6 +64,10 @@ spec:
         key: ca.crt
         namespace: ${STORE_NAMESPACE}
 YAML
+
+# Workloads resolve ${dataplane.secretStore} to this store.
+kubectl patch clusterdataplane default --type merge \
+    -p "{\"spec\":{\"secretStoreRef\":{\"name\":\"${STORE_NAME}\"}}}"
 
 echo "⏳ Waiting for ClusterSecretStore ${STORE_NAME} to become ready..."
 if kubectl wait --for=condition=Ready "clustersecretstore/${STORE_NAME}" --timeout=60s >/dev/null 2>&1; then

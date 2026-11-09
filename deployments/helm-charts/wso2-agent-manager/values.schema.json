@@ -1021,7 +1021,7 @@
               "properties": {
                 "clusterSecretStoreName": {
                   "default": "amp-secret-store",
-                  "description": "Name of the ClusterSecretStore created by this chart.",
+                  "description": "Name of the ClusterSecretStore created by this chart. Point the ClusterDataPlane's spec.secretStoreRef.name at it so agent workloads read their secrets through it.",
                   "title": "clusterSecretStoreName",
                   "type": "string"
                 },

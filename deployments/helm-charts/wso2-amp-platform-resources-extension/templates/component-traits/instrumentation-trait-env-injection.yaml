@@ -59,7 +59,7 @@ spec:
         spec:
           refreshInterval: 15s
           secretStoreRef:
-            name: {{ .Values.externalSecrets.clusterSecretStoreName }}
+            name: ${dataplane.secretStore}
             kind: ClusterSecretStore
           target:
             name: ${metadata.name}-agent-api-key

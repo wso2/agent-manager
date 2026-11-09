@@ -507,7 +507,7 @@ spec:
           # and only after this ComponentType is deployed.
           refreshInterval: 10m
           secretStoreRef:
-            name: {{ .Values.externalSecrets.clusterSecretStoreName }}
+            name: ${dataplane.secretStore}
             kind: ClusterSecretStore
           target:
             name: ${secretEnv.resourceName}
@@ -534,7 +534,7 @@ spec:
         spec:
           refreshInterval: 10m
           secretStoreRef:
-            name: {{ .Values.externalSecrets.clusterSecretStoreName }}
+            name: ${dataplane.secretStore}
             kind: ClusterSecretStore
           target:
             name: ${file.resourceName}

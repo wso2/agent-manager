@@ -1052,8 +1052,10 @@ $(echo "$CA_CERT" | sed 's/^/        /')
         name: ${DP_EXTERNAL_GATEWAY_NAME:-gateway-default}
         namespace: ${DP_EXTERNAL_GATEWAY_NAMESPACE:-openchoreo-data-plane}
 ${DP_EXTERNAL_INGRESS}
+  # Agent manager secrets: the in-house ClusterSecretStore the
+  # wso2-agent-manager chart creates.
   secretStoreRef:
-    name: default
+    name: amp-secret-store
 EOF
     then
         log_success "Data Plane registered with Control Plane successfully"
