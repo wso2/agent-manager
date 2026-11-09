@@ -1430,6 +1430,40 @@ func GenerateUniqueNameWithSuffix(baseName string, checker NameChecker) (string,
 	return "", fmt.Errorf("failed to generate unique name after %d attempts", MaxNameGenerationAttempts)
 }
 
+// GenerateUniqueNameWithinLength creates a unique name of at most maxLen characters.
+// When maxLen leaves room for "<base>-<suffix>", the base is shortened and a random
+// suffix is appended; otherwise a random letter-only name of maxLen characters is used,
+// so the result never exceeds maxLen.
+func GenerateUniqueNameWithinLength(baseName string, maxLen int, checker NameChecker) (string, error) {
+	if maxLen < 1 {
+		return "", fmt.Errorf("invalid maximum name length %d", maxLen)
+	}
+
+	maxBaseLen := maxLen - RandomSuffixLength - 1 // 1 for hyphen
+	if len(baseName) > maxBaseLen && maxBaseLen > 0 {
+		baseName = baseName[:maxBaseLen]
+	}
+	baseName = strings.TrimRight(baseName, "-")
+
+	if maxBaseLen > 0 && baseName != "" {
+		return GenerateUniqueNameWithSuffix(baseName, checker)
+	}
+
+	// No room for "<base>-<suffix>": try random letter-only names of the full length.
+	for attempts := 0; attempts < MaxNameGenerationAttempts; attempts++ {
+		name := generateRandomSuffix(maxLen)
+		available, err := checker(name)
+		if err != nil {
+			return "", err
+		}
+		if available {
+			return name, nil
+		}
+	}
+
+	return "", fmt.Errorf("failed to generate unique name of at most %d characters after %d attempts", maxLen, MaxNameGenerationAttempts)
+}
+
 // isValidGitHubIdentifier validates that a string contains only characters allowed in GitHub usernames/repos
 // GitHub allows alphanumeric characters, hyphens, underscores, and periods
 // This prevents path traversal attacks and URL manipulation
