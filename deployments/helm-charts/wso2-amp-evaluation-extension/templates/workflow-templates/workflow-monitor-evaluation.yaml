@@ -242,7 +242,7 @@ spec:
         spec:
           refreshInterval: 15s
           secretStoreRef:
-            name: default
+            name: {{ .Values.externalSecrets.clusterSecretStoreName }}
             kind: ClusterSecretStore
           target:
             name: ${metadata.workflowRunName}-amp-publisher-credentials
@@ -266,7 +266,7 @@ spec:
         spec:
           refreshInterval: 15s
           secretStoreRef:
-            name: default
+            name: {{ .Values.externalSecrets.clusterSecretStoreName }}
             kind: ClusterSecretStore
           target:
             name: ${metadata.workflowRunName}-amp-publisher-credentials
@@ -287,7 +287,7 @@ spec:
         spec:
           refreshInterval: 15s
           secretStoreRef:
-            name: default
+            name: {{ .Values.externalSecrets.clusterSecretStoreName }}
             kind: ClusterSecretStore
           target:
             name: ${metadata.workflowRunName}-llm-proxy-credentials
@@ -311,7 +311,7 @@ spec:
         spec:
           refreshInterval: 15s
           secretStoreRef:
-            name: default
+            name: {{ .Values.externalSecrets.clusterSecretStoreName }}
             kind: ClusterSecretStore
           target:
             name: ${metadata.workflowRunName}-llm-proxy-credentials

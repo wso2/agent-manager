@@ -279,5 +279,11 @@ func CreateMockSecretManagementClient() *clientmocks.SecretManagementClientMock 
 		PatchSecretFunc: func(ctx context.Context, location secretmanagersvc.SecretLocation, data map[string]string, keysToDelete []string) (string, error) {
 			return "", nil
 		},
+		DeleteSecretByNameFunc: func(ctx context.Context, orgName, secretRefName string) error {
+			return nil
+		},
+		GetSecretDataFunc: func(ctx context.Context, orgName, secretRefName string) (map[string]string, error) {
+			return nil, secretmanagersvc.ErrSecretNotFound
+		},
 	}
 }

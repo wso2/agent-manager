@@ -387,3 +387,18 @@ bundled NATS. Empty in other modes.
 {{- .Values.agentManagerService.config.events.natsUrl | default (printf "nats://amp-nats.%s.svc.cluster.local:4222" .Release.Namespace) -}}
 {{- end -}}
 {{- end }}
+
+{{/*
+Secret holding the bearer token of the in-house ClusterSecretStore, and its key.
+*/}}
+{{- define "agent-management-platform.secretStoreTokenSecretName" -}}
+{{- .Values.agentManagerService.config.secretStore.existingSecret | default (include "agent-management-platform.agentManagerService.fullname" .) }}
+{{- end }}
+
+{{- define "agent-management-platform.secretStoreTokenSecretKey" -}}
+{{- if .Values.agentManagerService.config.secretStore.existingSecret }}
+{{- .Values.agentManagerService.config.secretStore.existingSecretKey | default "secret-store-token" }}
+{{- else }}
+{{- "secret-store-token" }}
+{{- end }}
+{{- end }}

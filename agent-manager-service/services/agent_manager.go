@@ -3574,31 +3574,17 @@ func (s *agentManagerService) deleteAgentLLMConfigurations(ctx context.Context, 
 	}
 }
 
-// cleanupSecretReference deletes an OpenChoreo-managed secret by name (the
-// secret name and its SecretReference name are the same); the API removes the
-// stored values and the SecretReference together. Only removes secrets owned
-// by this service (managed-by label).
+// cleanupSecretReference deletes a stored secret and its SecretReference by
+// name. Only removes secrets owned by this service.
 func (s *agentManagerService) cleanupSecretReference(ctx context.Context, ouID, secretRefName string) {
-	secret, err := s.ocClient.GetSecret(ctx, ouID, secretRefName)
-	if err != nil {
-		if errors.Is(err, utils.ErrNotFound) {
-			s.logger.Debug("Secret not found, skipping cleanup", "secretRefName", secretRefName)
-			return
-		}
-		s.logger.Warn("Failed to get secret, skipping cleanup", "secretRefName", secretRefName, "error", err)
+	if s.secretMgmtClient == nil {
 		return
 	}
-
-	if secret.Labels[secretmanagersvc.LabelKeyManagedBy] != secretmanagersvc.DefaultManagedBy {
-		s.logger.Warn("Secret not managed by this service, skipping cleanup", "secretRefName", secretRefName)
-		return
-	}
-
-	if err := s.ocClient.DeleteSecret(ctx, ouID, secretRefName); err != nil && !errors.Is(err, utils.ErrNotFound) {
+	if err := s.secretMgmtClient.DeleteSecretByName(ctx, ouID, secretRefName); err != nil {
 		s.logger.Warn("Failed to delete secret during cleanup", "secretRefName", secretRefName, "error", err)
-	} else {
-		s.logger.Debug("Deleted secret during cleanup", "secretRefName", secretRefName)
+		return
 	}
+	s.logger.Debug("Deleted secret during cleanup", "secretRefName", secretRefName)
 }
 
 // BuildAgent triggers a build for an agent.
@@ -6407,13 +6393,9 @@ func (s *agentManagerService) cloneEnvSecretForPromotion(
 		return nil, nil, fmt.Errorf("secret management is not initialized; cannot clone secret for promotion")
 	}
 
-	srcSecret, err := s.ocClient.GetSecret(ctx, ouID, srcSecretName)
+	data, err := s.secretMgmtClient.GetSecretData(ctx, ouID, srcSecretName)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to read source environment secret %q: %w", srcSecretName, err)
-	}
-	data := make(map[string]string, len(srcSecret.Data))
-	for k, v := range srcSecret.Data {
-		data[k] = string(v)
 	}
 
 	tgtLocation := srcLocation

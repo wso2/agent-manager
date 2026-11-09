@@ -177,6 +177,7 @@ func MakeInternalHTTPHandler(params *wiring.AppParams) http.Handler {
 	internalRR := middleware.NewInternalRouteRegistrar(internalMux, params.AuditRecorder)
 	RegisterGatewayInternalRoutes(internalRR, params.GatewayInternalController)
 	RegisterWebSocketRoutes(internalMux, params.WebSocketController)
+	registerSecretStoreRoute(internalMux, params.SecretResolver, config.GetConfig().SecretManager.StoreToken)
 
 	// Apply basic middleware (no JWT auth)
 	internalHandler := http.Handler(internalMux)

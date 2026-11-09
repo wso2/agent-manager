@@ -17,7 +17,10 @@
 package secretmanagersvc
 
 import (
+	"context"
 	"errors"
+
+	"gorm.io/gorm"
 
 	occlient "github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 )
@@ -70,23 +73,29 @@ type SecretInfo struct {
 
 // StoreConfig holds configuration for secret store backends.
 type StoreConfig struct {
-	// Provider is the name of the provider to use (e.g., "openchoreo").
+	// Provider is the secret store provider name.
 	Provider string `json:"provider"`
 
-	// OpenChoreo contains configuration for the OpenChoreo secret API provider.
-	OpenChoreo *OpenChoreoConfig `json:"openchoreo,omitempty"`
+	// InHouse configures the in-house secret store.
+	InHouse *InHouseConfig `json:"-"`
 }
 
-// OpenChoreoConfig contains configuration for the OpenChoreo secret API provider.
-type OpenChoreoConfig struct {
-	// Client is the OpenChoreo API client used for secret operations.
-	Client occlient.OpenChoreoClient `json:"-"`
+// InHouseConfig configures the in-house secret store: values are encrypted with
+// EncryptionKey and stored in DB, and each secret is published as a
+// SecretReference through Client.
+type InHouseConfig struct {
+	// DB is the agent manager database holding the secrets table.
+	DB *gorm.DB
+	// EncryptionKey is the 32-byte AES-256 key secrets are sealed with.
+	EncryptionKey []byte
+	// Client manages the SecretReference CRs that expose secrets to workloads.
+	Client occlient.OpenChoreoClient
+	// RefreshInterval is set on each SecretReference (e.g. "1h").
+	RefreshInterval string
+}
 
-	// TargetPlaneKind is the kind of the plane hosting the secret data
-	// (e.g. "ClusterDataPlane"). Defaults to the client's default when empty.
-	TargetPlaneKind string `json:"targetPlaneKind,omitempty"`
-
-	// TargetPlaneName is the name of the plane hosting the secret data.
-	// Defaults to the client's default when empty.
-	TargetPlaneName string `json:"targetPlaneName,omitempty"`
+// SecretResolver returns the plaintext value of one key of a stored secret.
+// Only the internal secret store endpoint uses it.
+type SecretResolver interface {
+	Resolve(ctx context.Context, ouID, name, key string) (string, error)
 }

@@ -189,18 +189,6 @@ spec:
                   {{- end }}
             {{- end }}
             {{- end }}
-            {{- if or .Values.agentManagerService.config.openbao.token .Values.agentManagerService.config.openbao.existingSecret }}
-            - name: OPENBAO_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  {{- if .Values.agentManagerService.config.openbao.existingSecret }}
-                  name: {{ .Values.agentManagerService.config.openbao.existingSecret }}
-                  key: {{ .Values.agentManagerService.config.openbao.existingSecretKey | default "openbao-token" }}
-                  {{- else }}
-                  name: {{ include "agent-management-platform.agentManagerService.fullname" . }}
-                  key: openbao-token
-                  {{- end }}
-            {{- end }}
             {{- if or .Values.agentManagerService.config.workflowPlaneOpenbao.token .Values.agentManagerService.config.workflowPlaneOpenbao.existingSecret }}
             - name: WORKFLOW_PLANE_OPENBAO_TOKEN
               valueFrom:
@@ -223,6 +211,11 @@ spec:
                   name: {{ include "agent-management-platform.agentManagerService.fullname" . }}
                   key: encryption-key
                   {{- end }}
+            - name: SECRET_STORE_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "agent-management-platform.secretStoreTokenSecretName" . }}
+                  key: {{ include "agent-management-platform.secretStoreTokenSecretKey" . }}
             - name: THUNDER_ASK_SECRET
               valueFrom:
                 secretKeyRef:

@@ -32,6 +32,7 @@ import (
 	observersvc "github.com/wso2/agent-manager/agent-manager-service/clients/observersvc"
 	occlient "github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
+	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc/providers/inhouse"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/controllers"
@@ -60,6 +61,7 @@ var clientProviderSet = wire.NewSet(
 	ProvideObserverClient,
 	ProvideOCClient,
 	ProvideSecretManagementClient,
+	ProvideSecretResolver,
 	ProvidePublisherProvisioner,
 	ProvideBuildTokenIssuer,
 	ProvideIdentityClient,
@@ -186,6 +188,7 @@ var testClientProviderSet = wire.NewSet(
 	ProvideTestOpenChoreoClient,
 	ProvideTestObserverClient,
 	ProvideTestSecretManagementClient,
+	ProvideTestSecretResolver,
 	ProvidePublisherProvisioner,
 	ProvideBuildTokenIssuer,
 	ProvideIdentityClient,
@@ -196,6 +199,18 @@ var testClientProviderSet = wire.NewSet(
 	ProvideEnvThunderURLReader,
 	ProvideEnvThunderResolver,
 )
+
+// ProvideTestSecretResolver provides a resolver that finds no secret, for the
+// test wiring, which has no in-house store behind it.
+func ProvideTestSecretResolver() secretmanagersvc.SecretResolver {
+	return noSecretResolver{}
+}
+
+type noSecretResolver struct{}
+
+func (noSecretResolver) Resolve(context.Context, string, string, string) (string, error) {
+	return "", secretmanagersvc.ErrSecretNotFound
+}
 
 // thunderProvisioningTestSet builds the OpenBao-backed provisioning service for
 // the test wiring only; production injects it via InitializeAppParams.
@@ -338,23 +353,43 @@ func ProvideObserverClient(cfg config.Config, authProvider occlient.AuthProvider
 	})
 }
 
-// ProvideSecretManagementClient creates the secret management service client.
-// If the provider implements secretmanagersvc.SecretReferenceManager and
-// reports that it manages SecretReferences itself, the OpenChoreo client is
-// not forwarded — preventing the high-level client from making redundant
-// SecretReference CRUD calls.
-func ProvideSecretManagementClient(cfg config.Config, secretProvider secretmanagersvc.Provider, ocClient occlient.OpenChoreoClient) (secretmanagersvc.SecretManagementClient, error) {
+// ProvideSecretManagementClient creates the secret management service client
+// backed by the in-house secret store.
+func ProvideSecretManagementClient(cfg config.Config, secretProvider secretmanagersvc.Provider, ocClient occlient.OpenChoreoClient, db *gorm.DB) (secretmanagersvc.SecretManagementClient, error) {
+	storeConfig, err := inHouseStoreConfig(cfg, ocClient, db)
+	if err != nil {
+		return nil, err
+	}
 	return secretmanagersvc.NewSecretManagementClientWithConfig(secretmanagersvc.SecretManagementClientConfig{
-		StoreConfig: &secretmanagersvc.StoreConfig{
-			Provider: cfg.SecretManager.Provider,
-			OpenChoreo: &secretmanagersvc.OpenChoreoConfig{
-				Client:          ocClient,
-				TargetPlaneKind: cfg.SecretManager.TargetPlaneKind,
-				TargetPlaneName: cfg.SecretManager.TargetPlaneName,
-			},
-		},
-		Provider: secretProvider,
+		StoreConfig: storeConfig,
+		Provider:    secretProvider,
 	})
+}
+
+// ProvideSecretResolver creates the resolver the internal secret store endpoint
+// reads plaintext values through.
+func ProvideSecretResolver(cfg config.Config, ocClient occlient.OpenChoreoClient, db *gorm.DB) (secretmanagersvc.SecretResolver, error) {
+	storeConfig, err := inHouseStoreConfig(cfg, ocClient, db)
+	if err != nil {
+		return nil, err
+	}
+	return inhouse.NewClient(storeConfig.InHouse)
+}
+
+func inHouseStoreConfig(cfg config.Config, ocClient occlient.OpenChoreoClient, db *gorm.DB) (*secretmanagersvc.StoreConfig, error) {
+	key, err := ProvideEncryptionKey(cfg)
+	if err != nil {
+		return nil, err
+	}
+	return &secretmanagersvc.StoreConfig{
+		Provider: inhouse.ProviderName,
+		InHouse: &secretmanagersvc.InHouseConfig{
+			DB:              db,
+			EncryptionKey:   key,
+			Client:          ocClient,
+			RefreshInterval: cfg.SecretManager.RefreshInterval,
+		},
+	}, nil
 }
 
 // ProvideGatewayManifestCacheBackend builds the gateway-manifest cache backend

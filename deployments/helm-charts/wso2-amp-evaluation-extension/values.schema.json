@@ -373,6 +373,21 @@
       "required": [],
       "title": "networkPolicy",
       "type": "object"
+    },
+    "externalSecrets": {
+      "additionalProperties": false,
+      "description": "External Secrets configuration",
+      "properties": {
+        "clusterSecretStoreName": {
+          "default": "amp-secret-store",
+          "description": "Name of the ClusterSecretStore monitor runs read agent manager secrets through. The wso2-agent-manager chart creates it (in-house secret store).",
+          "title": "clusterSecretStoreName",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "title": "externalSecrets",
+      "type": "object"
     }
   }
 }

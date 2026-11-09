@@ -134,3 +134,10 @@ networkPolicy:
       ports:
         - 443 # managed control planes (EKS/GKE/AKS)
         - 6443 # k3s, kubeadm
+
+# External Secrets configuration
+externalSecrets:
+  # Name of the ClusterSecretStore monitor runs read agent manager secrets
+  # (publisher and LLM proxy credentials) through. The wso2-agent-manager chart
+  # creates it (in-house secret store).
+  clusterSecretStoreName: amp-secret-store

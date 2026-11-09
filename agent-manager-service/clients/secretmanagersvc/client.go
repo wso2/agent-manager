@@ -275,6 +275,10 @@ type SecretManagementClient interface {
 	// GetSecret retrieves secret metadata without values.
 	// Returns SecretInfo containing ID, keys list, and labels.
 	GetSecret(ctx context.Context, kvPath string) (*SecretInfo, error)
+
+	// GetSecretData returns the values of the secret named secretRefName, for
+	// copying a secret (e.g. into another environment on promotion).
+	GetSecretData(ctx context.Context, orgName, secretRefName string) (map[string]string, error)
 }
 
 // secretManagementClient implements SecretManagementClient using the low-level SecretsClient.
@@ -390,4 +394,13 @@ func (c *secretManagementClient) GetSecret(ctx context.Context, kvPath string) (
 		return nil, fmt.Errorf("failed to get secret info at path %q: %w", kvPath, err)
 	}
 	return info, nil
+}
+
+// GetSecretData returns the values of the secret named secretRefName.
+func (c *secretManagementClient) GetSecretData(ctx context.Context, orgName, secretRefName string) (map[string]string, error) {
+	data, err := c.lowLevelClient.GetSecretData(ctx, orgName, secretRefName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read secret %q: %w", secretRefName, err)
+	}
+	return data, nil
 }

@@ -48,9 +48,6 @@ import (
 //			CreateProjectFunc: func(ctx context.Context, ouID string, req client.CreateProjectRequest) error {
 //				panic("mock out the CreateProject method")
 //			},
-//			CreateSecretFunc: func(ctx context.Context, ouID string, req client.CreateSecretRequest) (*client.SecretInfo, error) {
-//				panic("mock out the CreateSecret method")
-//			},
 //			CreateSecretReferenceFunc: func(ctx context.Context, ouID string, req client.CreateSecretReferenceRequest) (*client.SecretReferenceInfo, error) {
 //				panic("mock out the CreateSecretReference method")
 //			},
@@ -71,9 +68,6 @@ import (
 //			},
 //			DeleteProjectFunc: func(ctx context.Context, ouID string, projectName string) error {
 //				panic("mock out the DeleteProject method")
-//			},
-//			DeleteSecretFunc: func(ctx context.Context, ouID string, secretName string) error {
-//				panic("mock out the DeleteSecret method")
 //			},
 //			DeleteSecretReferenceFunc: func(ctx context.Context, ouID string, secretRefName string) error {
 //				panic("mock out the DeleteSecretReference method")
@@ -161,9 +155,6 @@ import (
 //			},
 //			GetReleaseBindingTraitsFunc: func(ctx context.Context, ouID string, componentName string, environment string) ([]client.TraitType, bool, error) {
 //				panic("mock out the GetReleaseBindingTraits method")
-//			},
-//			GetSecretFunc: func(ctx context.Context, ouID string, secretName string) (*client.SecretInfo, error) {
-//				panic("mock out the GetSecret method")
 //			},
 //			GetSecretReferenceFunc: func(ctx context.Context, ouID string, secretRefName string) (*client.SecretReferenceInfo, error) {
 //				panic("mock out the GetSecretReference method")
@@ -288,9 +279,6 @@ import (
 //			UpdateReleaseBindingTraitConfigsFunc: func(ctx context.Context, ouID string, componentName string, environment string, traitConfigs map[string]interface{}, componentTypeConfigs map[string]interface{}) error {
 //				panic("mock out the UpdateReleaseBindingTraitConfigs method")
 //			},
-//			UpdateSecretFunc: func(ctx context.Context, ouID string, secretName string, req client.UpdateSecretRequest) (*client.SecretInfo, error) {
-//				panic("mock out the UpdateSecret method")
-//			},
 //			UpdateSecretReferenceFunc: func(ctx context.Context, ouID string, secretRefName string, req client.CreateSecretReferenceRequest) (*client.SecretReferenceInfo, error) {
 //				panic("mock out the UpdateSecretReference method")
 //			},
@@ -331,9 +319,6 @@ type OpenChoreoClientMock struct {
 	// CreateProjectFunc mocks the CreateProject method.
 	CreateProjectFunc func(ctx context.Context, ouID string, req client.CreateProjectRequest) error
 
-	// CreateSecretFunc mocks the CreateSecret method.
-	CreateSecretFunc func(ctx context.Context, ouID string, req client.CreateSecretRequest) (*client.SecretInfo, error)
-
 	// CreateSecretReferenceFunc mocks the CreateSecretReference method.
 	CreateSecretReferenceFunc func(ctx context.Context, ouID string, req client.CreateSecretReferenceRequest) (*client.SecretReferenceInfo, error)
 
@@ -354,9 +339,6 @@ type OpenChoreoClientMock struct {
 
 	// DeleteProjectFunc mocks the DeleteProject method.
 	DeleteProjectFunc func(ctx context.Context, ouID string, projectName string) error
-
-	// DeleteSecretFunc mocks the DeleteSecret method.
-	DeleteSecretFunc func(ctx context.Context, ouID string, secretName string) error
 
 	// DeleteSecretReferenceFunc mocks the DeleteSecretReference method.
 	DeleteSecretReferenceFunc func(ctx context.Context, ouID string, secretRefName string) error
@@ -444,9 +426,6 @@ type OpenChoreoClientMock struct {
 
 	// GetReleaseBindingTraitsFunc mocks the GetReleaseBindingTraits method.
 	GetReleaseBindingTraitsFunc func(ctx context.Context, ouID string, componentName string, environment string) ([]client.TraitType, bool, error)
-
-	// GetSecretFunc mocks the GetSecret method.
-	GetSecretFunc func(ctx context.Context, ouID string, secretName string) (*client.SecretInfo, error)
 
 	// GetSecretReferenceFunc mocks the GetSecretReference method.
 	GetSecretReferenceFunc func(ctx context.Context, ouID string, secretRefName string) (*client.SecretReferenceInfo, error)
@@ -571,9 +550,6 @@ type OpenChoreoClientMock struct {
 	// UpdateReleaseBindingTraitConfigsFunc mocks the UpdateReleaseBindingTraitConfigs method.
 	UpdateReleaseBindingTraitConfigsFunc func(ctx context.Context, ouID string, componentName string, environment string, traitConfigs map[string]interface{}, componentTypeConfigs map[string]interface{}) error
 
-	// UpdateSecretFunc mocks the UpdateSecret method.
-	UpdateSecretFunc func(ctx context.Context, ouID string, secretName string, req client.UpdateSecretRequest) (*client.SecretInfo, error)
-
 	// UpdateSecretReferenceFunc mocks the UpdateSecretReference method.
 	UpdateSecretReferenceFunc func(ctx context.Context, ouID string, secretRefName string, req client.CreateSecretReferenceRequest) (*client.SecretReferenceInfo, error)
 
@@ -689,15 +665,6 @@ type OpenChoreoClientMock struct {
 			// Req is the req argument value.
 			Req client.CreateProjectRequest
 		}
-		// CreateSecret holds details about calls to the CreateSecret method.
-		CreateSecret []struct {
-			// Ctx is the ctx argument value.
-			Ctx context.Context
-			// OuID is the ouID argument value.
-			OuID string
-			// Req is the req argument value.
-			Req client.CreateSecretRequest
-		}
 		// CreateSecretReference holds details about calls to the CreateSecretReference method.
 		CreateSecretReference []struct {
 			// Ctx is the ctx argument value.
@@ -762,15 +729,6 @@ type OpenChoreoClientMock struct {
 			OuID string
 			// ProjectName is the projectName argument value.
 			ProjectName string
-		}
-		// DeleteSecret holds details about calls to the DeleteSecret method.
-		DeleteSecret []struct {
-			// Ctx is the ctx argument value.
-			Ctx context.Context
-			// OuID is the ouID argument value.
-			OuID string
-			// SecretName is the secretName argument value.
-			SecretName string
 		}
 		// DeleteSecretReference holds details about calls to the DeleteSecretReference method.
 		DeleteSecretReference []struct {
@@ -1100,15 +1058,6 @@ type OpenChoreoClientMock struct {
 			ComponentName string
 			// Environment is the environment argument value.
 			Environment string
-		}
-		// GetSecret holds details about calls to the GetSecret method.
-		GetSecret []struct {
-			// Ctx is the ctx argument value.
-			Ctx context.Context
-			// OuID is the ouID argument value.
-			OuID string
-			// SecretName is the secretName argument value.
-			SecretName string
 		}
 		// GetSecretReference holds details about calls to the GetSecretReference method.
 		GetSecretReference []struct {
@@ -1595,17 +1544,6 @@ type OpenChoreoClientMock struct {
 			// ComponentTypeConfigs is the componentTypeConfigs argument value.
 			ComponentTypeConfigs map[string]interface{}
 		}
-		// UpdateSecret holds details about calls to the UpdateSecret method.
-		UpdateSecret []struct {
-			// Ctx is the ctx argument value.
-			Ctx context.Context
-			// OuID is the ouID argument value.
-			OuID string
-			// SecretName is the secretName argument value.
-			SecretName string
-			// Req is the req argument value.
-			Req client.UpdateSecretRequest
-		}
 		// UpdateSecretReference holds details about calls to the UpdateSecretReference method.
 		UpdateSecretReference []struct {
 			// Ctx is the ctx argument value.
@@ -1628,7 +1566,6 @@ type OpenChoreoClientMock struct {
 	lockCreateGitSecret                        sync.RWMutex
 	lockCreateInternalAgentFromKindWorkload    sync.RWMutex
 	lockCreateProject                          sync.RWMutex
-	lockCreateSecret                           sync.RWMutex
 	lockCreateSecretReference                  sync.RWMutex
 	lockCreateWorkflowRun                      sync.RWMutex
 	lockDeleteComponent                        sync.RWMutex
@@ -1636,7 +1573,6 @@ type OpenChoreoClientMock struct {
 	lockDeleteGitSecret                        sync.RWMutex
 	lockDeleteOrgDeploymentPipeline            sync.RWMutex
 	lockDeleteProject                          sync.RWMutex
-	lockDeleteSecret                           sync.RWMutex
 	lockDeleteSecretReference                  sync.RWMutex
 	lockDeploy                                 sync.RWMutex
 	lockDetachTrait                            sync.RWMutex
@@ -1666,7 +1602,6 @@ type OpenChoreoClientMock struct {
 	lockGetReleaseBindingRollout               sync.RWMutex
 	lockGetReleaseBindingServiceURL            sync.RWMutex
 	lockGetReleaseBindingTraits                sync.RWMutex
-	lockGetSecret                              sync.RWMutex
 	lockGetSecretReference                     sync.RWMutex
 	lockGetSourceEnvWorkloadOverrides          sync.RWMutex
 	lockGetWorkflowRun                         sync.RWMutex
@@ -1708,7 +1643,6 @@ type OpenChoreoClientMock struct {
 	lockUpdateEnvironment                      sync.RWMutex
 	lockUpdateReleaseBindingEnvVars            sync.RWMutex
 	lockUpdateReleaseBindingTraitConfigs       sync.RWMutex
-	lockUpdateSecret                           sync.RWMutex
 	lockUpdateSecretReference                  sync.RWMutex
 }
 
@@ -2152,46 +2086,6 @@ func (mock *OpenChoreoClientMock) CreateProjectCalls() []struct {
 	return calls
 }
 
-// CreateSecret calls CreateSecretFunc.
-func (mock *OpenChoreoClientMock) CreateSecret(ctx context.Context, ouID string, req client.CreateSecretRequest) (*client.SecretInfo, error) {
-	if mock.CreateSecretFunc == nil {
-		panic("OpenChoreoClientMock.CreateSecretFunc: method is nil but OpenChoreoClient.CreateSecret was just called")
-	}
-	callInfo := struct {
-		Ctx  context.Context
-		OuID string
-		Req  client.CreateSecretRequest
-	}{
-		Ctx:  ctx,
-		OuID: ouID,
-		Req:  req,
-	}
-	mock.lockCreateSecret.Lock()
-	mock.calls.CreateSecret = append(mock.calls.CreateSecret, callInfo)
-	mock.lockCreateSecret.Unlock()
-	return mock.CreateSecretFunc(ctx, ouID, req)
-}
-
-// CreateSecretCalls gets all the calls that were made to CreateSecret.
-// Check the length with:
-//
-//	len(mockedOpenChoreoClient.CreateSecretCalls())
-func (mock *OpenChoreoClientMock) CreateSecretCalls() []struct {
-	Ctx  context.Context
-	OuID string
-	Req  client.CreateSecretRequest
-} {
-	var calls []struct {
-		Ctx  context.Context
-		OuID string
-		Req  client.CreateSecretRequest
-	}
-	mock.lockCreateSecret.RLock()
-	calls = mock.calls.CreateSecret
-	mock.lockCreateSecret.RUnlock()
-	return calls
-}
-
 // CreateSecretReference calls CreateSecretReferenceFunc.
 func (mock *OpenChoreoClientMock) CreateSecretReference(ctx context.Context, ouID string, req client.CreateSecretReferenceRequest) (*client.SecretReferenceInfo, error) {
 	if mock.CreateSecretReferenceFunc == nil {
@@ -2473,46 +2367,6 @@ func (mock *OpenChoreoClientMock) DeleteProjectCalls() []struct {
 	mock.lockDeleteProject.RLock()
 	calls = mock.calls.DeleteProject
 	mock.lockDeleteProject.RUnlock()
-	return calls
-}
-
-// DeleteSecret calls DeleteSecretFunc.
-func (mock *OpenChoreoClientMock) DeleteSecret(ctx context.Context, ouID string, secretName string) error {
-	if mock.DeleteSecretFunc == nil {
-		panic("OpenChoreoClientMock.DeleteSecretFunc: method is nil but OpenChoreoClient.DeleteSecret was just called")
-	}
-	callInfo := struct {
-		Ctx        context.Context
-		OuID       string
-		SecretName string
-	}{
-		Ctx:        ctx,
-		OuID:       ouID,
-		SecretName: secretName,
-	}
-	mock.lockDeleteSecret.Lock()
-	mock.calls.DeleteSecret = append(mock.calls.DeleteSecret, callInfo)
-	mock.lockDeleteSecret.Unlock()
-	return mock.DeleteSecretFunc(ctx, ouID, secretName)
-}
-
-// DeleteSecretCalls gets all the calls that were made to DeleteSecret.
-// Check the length with:
-//
-//	len(mockedOpenChoreoClient.DeleteSecretCalls())
-func (mock *OpenChoreoClientMock) DeleteSecretCalls() []struct {
-	Ctx        context.Context
-	OuID       string
-	SecretName string
-} {
-	var calls []struct {
-		Ctx        context.Context
-		OuID       string
-		SecretName string
-	}
-	mock.lockDeleteSecret.RLock()
-	calls = mock.calls.DeleteSecret
-	mock.lockDeleteSecret.RUnlock()
 	return calls
 }
 
@@ -3809,46 +3663,6 @@ func (mock *OpenChoreoClientMock) GetReleaseBindingTraitsCalls() []struct {
 	mock.lockGetReleaseBindingTraits.RLock()
 	calls = mock.calls.GetReleaseBindingTraits
 	mock.lockGetReleaseBindingTraits.RUnlock()
-	return calls
-}
-
-// GetSecret calls GetSecretFunc.
-func (mock *OpenChoreoClientMock) GetSecret(ctx context.Context, ouID string, secretName string) (*client.SecretInfo, error) {
-	if mock.GetSecretFunc == nil {
-		panic("OpenChoreoClientMock.GetSecretFunc: method is nil but OpenChoreoClient.GetSecret was just called")
-	}
-	callInfo := struct {
-		Ctx        context.Context
-		OuID       string
-		SecretName string
-	}{
-		Ctx:        ctx,
-		OuID:       ouID,
-		SecretName: secretName,
-	}
-	mock.lockGetSecret.Lock()
-	mock.calls.GetSecret = append(mock.calls.GetSecret, callInfo)
-	mock.lockGetSecret.Unlock()
-	return mock.GetSecretFunc(ctx, ouID, secretName)
-}
-
-// GetSecretCalls gets all the calls that were made to GetSecret.
-// Check the length with:
-//
-//	len(mockedOpenChoreoClient.GetSecretCalls())
-func (mock *OpenChoreoClientMock) GetSecretCalls() []struct {
-	Ctx        context.Context
-	OuID       string
-	SecretName string
-} {
-	var calls []struct {
-		Ctx        context.Context
-		OuID       string
-		SecretName string
-	}
-	mock.lockGetSecret.RLock()
-	calls = mock.calls.GetSecret
-	mock.lockGetSecret.RUnlock()
 	return calls
 }
 
@@ -5721,50 +5535,6 @@ func (mock *OpenChoreoClientMock) UpdateReleaseBindingTraitConfigsCalls() []stru
 	mock.lockUpdateReleaseBindingTraitConfigs.RLock()
 	calls = mock.calls.UpdateReleaseBindingTraitConfigs
 	mock.lockUpdateReleaseBindingTraitConfigs.RUnlock()
-	return calls
-}
-
-// UpdateSecret calls UpdateSecretFunc.
-func (mock *OpenChoreoClientMock) UpdateSecret(ctx context.Context, ouID string, secretName string, req client.UpdateSecretRequest) (*client.SecretInfo, error) {
-	if mock.UpdateSecretFunc == nil {
-		panic("OpenChoreoClientMock.UpdateSecretFunc: method is nil but OpenChoreoClient.UpdateSecret was just called")
-	}
-	callInfo := struct {
-		Ctx        context.Context
-		OuID       string
-		SecretName string
-		Req        client.UpdateSecretRequest
-	}{
-		Ctx:        ctx,
-		OuID:       ouID,
-		SecretName: secretName,
-		Req:        req,
-	}
-	mock.lockUpdateSecret.Lock()
-	mock.calls.UpdateSecret = append(mock.calls.UpdateSecret, callInfo)
-	mock.lockUpdateSecret.Unlock()
-	return mock.UpdateSecretFunc(ctx, ouID, secretName, req)
-}
-
-// UpdateSecretCalls gets all the calls that were made to UpdateSecret.
-// Check the length with:
-//
-//	len(mockedOpenChoreoClient.UpdateSecretCalls())
-func (mock *OpenChoreoClientMock) UpdateSecretCalls() []struct {
-	Ctx        context.Context
-	OuID       string
-	SecretName string
-	Req        client.UpdateSecretRequest
-} {
-	var calls []struct {
-		Ctx        context.Context
-		OuID       string
-		SecretName string
-		Req        client.UpdateSecretRequest
-	}
-	mock.lockUpdateSecret.RLock()
-	calls = mock.calls.UpdateSecret
-	mock.lockUpdateSecret.RUnlock()
 	return calls
 }
 

@@ -225,14 +225,6 @@ type OpenChoreoClient interface {
 	// Workload Operations
 	GetWorkloadSecretRefNames(ctx context.Context, ouID, projectName, componentName string) ([]string, error)
 
-	// Secret Operations (OpenChoreo-managed secret storage; the API stores
-	// values in the target plane's secret store and manages the underlying
-	// SecretReference internally)
-	CreateSecret(ctx context.Context, ouID string, req CreateSecretRequest) (*SecretInfo, error)
-	GetSecret(ctx context.Context, ouID, secretName string) (*SecretInfo, error)
-	UpdateSecret(ctx context.Context, ouID, secretName string, req UpdateSecretRequest) (*SecretInfo, error)
-	DeleteSecret(ctx context.Context, ouID, secretName string) error
-
 	// Git Secret Operations
 	CreateGitSecret(ctx context.Context, ouID string, req CreateGitSecretRequest) (*GitSecretInfo, error)
 	ListGitSecrets(ctx context.Context, ouID string) ([]*GitSecretInfo, error)

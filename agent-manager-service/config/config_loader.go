@@ -252,20 +252,11 @@ func loadEnvs() {
 	}
 
 	config.SecretManager = SecretManagerConfig{
-		Provider:                           r.readOptionalString("SECRET_MANAGER_PROVIDER", "openchoreo"),
-		TargetPlaneKind:                    r.readOptionalString("SECRET_MANAGER_TARGET_PLANE_KIND", "ClusterDataPlane"),
-		TargetPlaneName:                    r.readOptionalString("SECRET_MANAGER_TARGET_PLANE_NAME", "default"),
 		RefreshInterval:                    r.readOptionalString("SECRET_MANAGER_REFRESH_INTERVAL", "1h"),
 		AgentIdentityRefreshInterval:       r.readOptionalString("AGENT_IDENTITY_REFRESH_INTERVAL", "10m"),
 		AgentIdentityForceSyncWait:         r.readOptionalString("AGENT_IDENTITY_FORCE_SYNC_WAIT", "20s"),
 		AgentIdentityForceSyncApplyTimeout: r.readOptionalString("AGENT_IDENTITY_FORCE_SYNC_APPLY_TIMEOUT", "2m"),
-	}
-
-	// OpenBao KV store configuration (data plane - for deployment secrets)
-	config.OpenBao = OpenBaoConfig{
-		URL:   r.readOptionalString("OPENBAO_URL", "http://localhost:8200"),
-		Token: r.readOptionalString("OPENBAO_TOKEN", ""),
-		Path:  r.readOptionalString("OPENBAO_PATH", "secret"),
+		StoreToken:                         r.readOptionalString("SECRET_STORE_TOKEN", ""),
 	}
 
 	// Workflow plane OpenBao KV store configuration (for git secrets)

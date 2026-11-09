@@ -50,6 +50,8 @@ type AppParams struct {
 	AuditRecorder  audit.Recorder
 	// OUHandleLookup maps an OU ID to its handle for middleware.ApplyOrgOverride.
 	OUHandleLookup middleware.OUHandleLookup
+	// SecretResolver reads secret values for the in-house ClusterSecretStore.
+	SecretResolver secretmanagersvc.SecretResolver
 
 	// Controllers
 	AgentController                  controllers.AgentController

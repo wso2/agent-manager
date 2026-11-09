@@ -363,28 +363,22 @@ agentManagerService:
     openChoreo:
       baseURL: "http://openchoreo-api.openchoreo-control-plane:8080"
 
-    # Secret Manager configuration
-    secretManager:
-      provider: "openbao"
-      baseURL: ""
-
-    # OpenBao KV store configuration (for user deployment secrets)
-    openbao:
-      # OpenBao URL (uses the default OpenBao that comes with OpenChoreo)
-      url: "http://openbao.openbao.svc.cluster.local:8200"
-      # KV secrets engine path
-      path: "secret"
-      version: "v2"
-      # OpenBao token (for dev mode, use "root"). When set, it is stored in the
-      # chart-managed Secret and injected via secretKeyRef — never as a plaintext
-      # env var in the pod spec.
-      # For production, use existingSecret to reference an externally-managed
-      # Secret containing the token instead.
-      token: "root"
+    # In-house secret store. Agent manager encrypts secret values with
+    # encryptionKey and stores them in its database. External Secrets Operator
+    # reads them through the ClusterSecretStore below, which calls the agent
+    # manager's internal API with a bearer token.
+    secretStore:
+      # Name of the ClusterSecretStore created by this chart. The agent and
+      # workflow templates in the platform-resources and evaluation extensions
+      # reference it by this name.
+      clusterSecretStoreName: amp-secret-store
+      # Bearer token the ClusterSecretStore presents. Generated (and kept
+      # across upgrades) when empty.
+      token: ""
       existingSecret: ""
       # Key to read from existingSecret. Applies ONLY when existingSecret is set;
-      # the chart-managed Secret always uses the fixed key "openbao-token".
-      existingSecretKey: "openbao-token"
+      # the chart-managed Secret always uses the fixed key "secret-store-token".
+      existingSecretKey: "secret-store-token"
 
     # Workflow Plane OpenBao configuration (for Git Secrets)
     # Used to fetch git credentials for private repository access
