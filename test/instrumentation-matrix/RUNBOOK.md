@@ -41,10 +41,13 @@ All three are edits to [`matrix.yaml`](./matrix.yaml):
   installed:
 
   ```bash
-  mkdir -p cassettes/crewai/1.15.39
+  mkdir -p cassettes/<framework>/<version>
   OPENAI_API_KEY=sk-... VCR_RECORD_MODE=once \
-    nox -s emission -- --cell-id=traceloop-0.63.0-crewai-1.15.39-py3.12
+    nox -s emission -- --cell-id=traceloop-<ver>-<framework>-<version>-py3.12
   ```
+
+  `once` only records when the cassette file is absent. To re-record a
+  version that already has one, delete its `test_emission_cell.yaml` first.
 - **New framework**: add a `frameworks:` block (`name`, `package`, `versions`,
   `samplePath`, `spanKinds`, optional `extras`), add a sample under
   `cells/<framework>_sample.py`, and record its cassette (§4 of the design,
