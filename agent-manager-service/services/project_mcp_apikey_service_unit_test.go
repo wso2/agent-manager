@@ -206,6 +206,22 @@ func TestBindingAPIKey_CreateRefusals(t *testing.T) {
 		assert.Empty(t, f.keys)
 	})
 
+	t.Run("an expiresAt that is not in the future is 400", func(t *testing.T) {
+		for name, at := range map[string]string{
+			"past": time.Now().Add(-time.Minute).UTC().Format(time.RFC3339),
+			"now":  time.Now().UTC().Truncate(time.Second).Format(time.RFC3339),
+		} {
+			t.Run(name, func(t *testing.T) {
+				f := newKeyFixture(t, models.MCPProxyEnvironmentRequest{})
+				_, err := f.svc.CreateEnvironmentAPIKey(keyCtx(), testOrg, bindingProject, bindingProjectUUID, bindingHandle,
+					bindingEnv, &models.CreateAPIKeyRequest{Name: "ip-users", ExpiresAt: &at})
+				require.ErrorIs(t, err, utils.ErrBadRequest)
+				assert.Empty(t, f.keys)
+				assert.Empty(t, f.events.published, "nothing is sent to the gateways")
+			})
+		}
+	})
+
 	t.Run("a name shorter than three characters is 400", func(t *testing.T) {
 		f := newKeyFixture(t, models.MCPProxyEnvironmentRequest{})
 		_, err := f.create(t, "ab")
@@ -227,6 +243,12 @@ func TestBindingAPIKey_RotateGivesANewValue(t *testing.T) {
 	assert.NotEqual(t, before, f.keys[f.artifact()+"/ip-users"].APIKeyHash)
 	assert.Len(t, f.events.published, 4, "the new value goes to every gateway")
 	assert.Equal(t, f.artifact(), f.eventAPIIDs(t)[3])
+
+	past := time.Now().Add(-time.Hour).UTC().Format(time.RFC3339)
+	_, err = f.svc.RotateEnvironmentAPIKey(keyCtx(), testOrg, bindingProject, bindingProjectUUID, bindingHandle, bindingEnv,
+		"ip-users", &models.RotateAPIKeyRequest{ExpiresAt: &past})
+	require.ErrorIs(t, err, utils.ErrBadRequest, "a past expiresAt is refused on rotate too")
+	assert.Len(t, f.events.published, 4, "a refused rotation sends nothing")
 
 	_, err = f.svc.RotateEnvironmentAPIKey(keyCtx(), testOrg, bindingProject, bindingProjectUUID, bindingHandle, bindingEnv,
 		"unknown", nil)

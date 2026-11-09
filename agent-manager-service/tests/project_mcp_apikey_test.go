@@ -260,6 +260,12 @@ func TestProjectMCPBindingAPIKeys(t *testing.T) {
 		require.Equal(t, http.StatusBadRequest, rr.Code, rr.Body.String())
 		assert.Equal(t, utils.ErrCodeValidation, errorCode(t, rr))
 
+		rr = do(http.MethodPost, keysPath(devEnv), map[string]any{
+			"name": "expired", "expiresAt": time.Now().Add(-time.Hour).UTC().Format(time.RFC3339),
+		})
+		require.Equal(t, http.StatusBadRequest, rr.Code, rr.Body.String())
+		assert.Equal(t, utils.ErrCodeValidation, errorCode(t, rr))
+
 		rr = do(http.MethodPost, "/"+handle+"/environments/prod-"+suffix+"/api-keys", map[string]any{"name": "ip-users"})
 		require.Equal(t, http.StatusNotFound, rr.Code, rr.Body.String())
 

@@ -115,13 +115,18 @@ func (s *ProjectMCPProxyService) organizationGateways(ctx context.Context, ouID 
 	return gateways, nil
 }
 
-// validateKeyExpiry refuses an expiresAt the broadcaster could not parse, as a 400 rather than its plain error.
-func validateKeyExpiry(expiresAt *string) error {
+// validateKeyExpiry refuses, as a 400, an expiresAt the broadcaster could not parse, and one that is not in the
+// future: the gateway would drop such a key as soon as it arrived, so it could never be used.
+func validateKeyExpiry(expiresAt *string, now time.Time) error {
 	if expiresAt == nil {
 		return nil
 	}
-	if _, err := time.Parse(time.RFC3339, *expiresAt); err != nil {
+	t, err := time.Parse(time.RFC3339, *expiresAt)
+	if err != nil {
 		return fmt.Errorf("%w: expiresAt must be an RFC 3339 time, e.g. 2026-12-31T23:59:59Z", utils.ErrBadRequest)
+	}
+	if !t.After(now) {
+		return fmt.Errorf("%w: expiresAt must be in the future", utils.ErrBadRequest)
 	}
 	return nil
 }
@@ -150,7 +155,7 @@ func (s *ProjectMCPProxyService) CreateEnvironmentAPIKey(
 	if req == nil {
 		return nil, fmt.Errorf("%w: request body is required", utils.ErrBadRequest)
 	}
-	if err := validateKeyExpiry(req.ExpiresAt); err != nil {
+	if err := validateKeyExpiry(req.ExpiresAt, time.Now().UTC()); err != nil {
 		return nil, err
 	}
 	t, err := s.resolveBindingKeyTarget(ctx, ouID, projectUUID, handle, envName)
@@ -207,7 +212,7 @@ func (s *ProjectMCPProxyService) RotateEnvironmentAPIKey(
 	if req == nil {
 		req = &models.RotateAPIKeyRequest{}
 	}
-	if err := validateKeyExpiry(req.ExpiresAt); err != nil {
+	if err := validateKeyExpiry(req.ExpiresAt, time.Now().UTC()); err != nil {
 		return nil, err
 	}
 	t, err := s.resolveBindingKeyTarget(ctx, ouID, projectUUID, handle, envName)
