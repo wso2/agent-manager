@@ -5,7 +5,7 @@
 ARG PYTHON_VERSION=3.11
 # traceloop-sdk (OpenLLMetry) version pinned into this image. One pinned version
 # per AMP instrumentation image; bump it by building a new AMP instrumentation version.
-ARG TRACELOOP_VERSION=0.62.4
+ARG TRACELOOP_VERSION=0.63.0
 
 ############### STAGE 1 — BUILD INSTRUMENTATION PACKAGES ###############
 FROM public.ecr.aws/docker/library/python:${PYTHON_VERSION}-slim AS otel-tracing

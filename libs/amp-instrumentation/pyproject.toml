@@ -17,17 +17,14 @@ maintainers = [
 dependencies = [
     # Distrust the compromised emSign CA hierarchy in standalone installations.
     "certifi>=2026.10.19",
-    "traceloop-sdk==0.62.4",
+    "traceloop-sdk==0.63.0",
      # Pin wrapt below 2.0: wrapt 2.x removed the `module=` kwarg on
     # wrap_function_wrapper that the opentelemetry-instrumentation-* packages
-    # bundled with traceloop-sdk 0.62.4 still call.
+    # bundled with traceloop-sdk 0.63.0 still call.
     "wrapt<2.0.0",
     "httpx>=0.25.0",
-    # traceloop-sdk imports requests without declaring it; it used to arrive
-    # via opentelemetry-exporter-otlp-proto-http, which made it optional in 1.45.0.
-    "requests",
     # Imported directly by amp_instrumentation.otel.init_otel. Left unconstrained
-    # on purpose: their version is determined by traceloop-sdk==0.62.4, which
+    # on purpose: their version is determined by traceloop-sdk==0.63.0, which
     # already requires both (kept here only to declare the direct import).
     "opentelemetry-sdk",
     "opentelemetry-exporter-otlp-proto-http",

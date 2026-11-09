@@ -47,6 +47,11 @@
       "instrumentation_version": "0.4.2",
       "traceloop_version": "0.62.4",
       "python_versions": ["3.10", "3.11", "3.12", "3.13"]
+    },
+    {
+      "instrumentation_version": "0.5.0",
+      "traceloop_version": "0.63.0",
+      "python_versions": ["3.10", "3.11", "3.12", "3.13"]
     }
   ],
 
