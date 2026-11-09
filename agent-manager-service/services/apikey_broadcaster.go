@@ -226,6 +226,36 @@ func (b *apiKeyBroadcaster) broadcastRevokeToGateways(ctx context.Context, gatew
 		})
 }
 
+// publishArtifactKeysRevokedTx writes, in tx, a revocation of every API key stored for the artifact to each of the
+// organization's gateways: the gateways every key of it was sent to. It is for a caller that deletes the artifact in
+// tx, which takes the key rows with it (api_keys.artifact_uuid cascades), so no key outlives its artifact at a
+// gateway. apiID is the artifact UUID, which is the API id the keys were sent under.
+func (b *apiKeyBroadcaster) publishArtifactKeysRevokedTx(ctx context.Context, tx *gorm.DB, orgID string, artifactUUID uuid.UUID) error {
+	if b.apiKeyRepo == nil || b.gatewayService == nil || b.gatewayRepo == nil {
+		return nil
+	}
+	keys, err := b.apiKeyRepo.ListByArtifact(ctx, artifactUUID.String())
+	if err != nil {
+		return fmt.Errorf("failed to list the artifact's API keys: %w", err)
+	}
+	if len(keys) == 0 {
+		return nil
+	}
+	gateways, err := b.gatewayRepo.GetByOrganizationID(ctx, orgID)
+	if err != nil {
+		return fmt.Errorf("failed to get gateways: %w", err)
+	}
+	for _, key := range keys {
+		event := &models.APIKeyRevokedEvent{APIID: artifactUUID.String(), KeyName: key.Name}
+		for _, gateway := range gateways {
+			if err := b.gatewayService.PublishAPIKeyRevokedTx(ctx, tx, gateway.UUID.String(), event); err != nil {
+				return fmt.Errorf("failed to revoke API key %s on gateway %s: %w", key.Name, gateway.UUID, err)
+			}
+		}
+	}
+	return nil
+}
+
 // broadcastRevokeUserManaged deletes and broadcasts revocation for every user-managed
 // API key belonging to an artifact. Console-managed and test keys are left untouched —
 // they are owned by internal provisioning flows, not the user-facing security toggle.

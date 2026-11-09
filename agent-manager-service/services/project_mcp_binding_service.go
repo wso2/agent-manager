@@ -483,6 +483,10 @@ func (s *ProjectMCPProxyService) deleteEnvironmentOf(ctx context.Context, ouID s
 		if err != nil {
 			return err
 		}
+		// The binding's API keys go with its artifact; the gateways are told in the same transaction.
+		if err := s.base.apiKeyBroadcaster.publishArtifactKeysRevokedTx(ctx, tx, ouID, ee.ArtifactUUID); err != nil {
+			return err
+		}
 		// Deleting the artifact cascades the (endpoint, environment) row.
 		if err := deleteMCPArtifactRows(tx, ee.ArtifactUUID, ouID); err != nil {
 			return fmt.Errorf("failed to delete the MCP proxy binding artifact: %w", err)

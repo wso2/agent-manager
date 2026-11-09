@@ -380,6 +380,10 @@ func (s *MCPProxyService) deleteMCPProxyEnvironmentArtifacts(ctx context.Context
 			if err != nil {
 				return err
 			}
+			// The artifact's API keys go with its rows; the gateways are told in the same transaction.
+			if err := s.apiKeyBroadcaster.publishArtifactKeysRevokedTx(ctx, tx, ouID, artifactUUID); err != nil {
+				return err
+			}
 			if err := deleteMCPArtifactRows(tx, artifactUUID, ouID); err != nil {
 				return err
 			}
