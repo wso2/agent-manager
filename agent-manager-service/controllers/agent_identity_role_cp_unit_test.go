@@ -354,6 +354,20 @@ func TestRolesViaControlPlane_UpdateScopesAreOptional(t *testing.T) {
 		assert.Empty(t, provider.written)
 	})
 
+	t.Run("scope readiness does not bypass protected role checks", func(t *testing.T) {
+		for _, name := range []string{thundersvc.NativeAdministratorRoleName, thundersvc.AMPSystemClientRoleName} {
+			provider := &readOnlyScopeRoleProvider{
+				fakeRoleProvider: &fakeRoleProvider{role: &thundersvc.ThunderRole{ID: "role-1", Name: name}},
+				ids:              map[string]string{"gh-proxy": "applied-rs"},
+			}
+			useRoleMode(t, thundersvc.IdentityManagementCPManaged, provider)
+			w := httptest.NewRecorder()
+			cpController(t, stubRSIdentifierResolver{}).UpdateRole(w, cpRoleRequest(http.MethodPut, rolesPath+"/role-1", `{"scopes":["gh-proxy:read"]}`))
+			require.Equal(t, http.StatusNotFound, w.Code)
+			require.Empty(t, provider.written)
+		}
+	})
+
 	t.Run("a missing role is a 404", func(t *testing.T) {
 		provider := &fakeRoleProvider{err: services.ErrIdentityRoleNotFound}
 		useRoleMode(t, thundersvc.IdentityManagementCPManaged, provider)

@@ -225,8 +225,7 @@ func (c *agentIdentityController) createRoleViaProvider(w http.ResponseWriter, r
 	utils.WriteSuccessResponse(w, http.StatusCreated, role)
 }
 
-// Providers with read-only scope resolution also validate role ownership, visibility, and
-// environment placement inside UpdateRole before writing.
+// roleUpdateReadiness resolves already-applied MCP scopes without deploying them.
 type roleUpdateReadiness interface {
 	ReadAppliedRoleScopes(context.Context, string, string, map[string]string, map[string][]string) (map[string]string, error)
 }
@@ -242,12 +241,10 @@ func (c *agentIdentityController) updateRoleViaProvider(w http.ResponseWriter, r
 		return
 	}
 	// Reading the role first blocks editing the hidden native roles, as managedRole does.
-	readiness, _ := provider.(roleUpdateReadiness)
-	if readiness == nil {
-		if _, ok := c.managedRoleViaProvider(w, r, provider, roleID); !ok {
-			return
-		}
+	if _, ok := c.managedRoleViaProvider(w, r, provider, roleID); !ok {
+		return
 	}
+	readiness, _ := provider.(roleUpdateReadiness)
 	write := services.IdentityRoleWrite{
 		OrganizationID: middleware.OUIDFromRequest(r), Environment: r.PathValue("envName"),
 		RoleID: roleID, Description: body.Description,
