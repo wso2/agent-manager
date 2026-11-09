@@ -152,7 +152,9 @@ func generateSelfSignedCert(certPath, keyPath string) (tls.Certificate, error) {
 		KeyUsage:    x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
 		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 		IPAddresses: []net.IP{net.IPv4(127, 0, 0, 1), net.IPv6loopback},
-		DNSNames:    []string{"localhost"},
+		// host.docker.internal and host.k3d.internal let in-cluster clients (the
+		// local secret store) reach a service run with docker compose.
+		DNSNames: []string{"localhost", "host.docker.internal", "host.k3d.internal"},
 	}
 
 	// Create certificate

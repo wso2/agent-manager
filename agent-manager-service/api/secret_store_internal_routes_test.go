@@ -42,9 +42,14 @@ func (f *fakeResolver) Resolve(_ context.Context, ouID, name, key string) (strin
 
 func serveSecretStore(t *testing.T, resolver secretmanagersvc.SecretResolver, token, auth string) *httptest.ResponseRecorder {
 	t.Helper()
+	return serveSecretStorePath(t, resolver, token, auth, "/secrets/ou-1%2Fagent-secrets/API_KEY")
+}
+
+func serveSecretStorePath(t *testing.T, resolver secretmanagersvc.SecretResolver, token, auth, path string) *httptest.ResponseRecorder {
+	t.Helper()
 	mux := http.NewServeMux()
 	registerSecretStoreRoute(mux, resolver, token)
-	req := httptest.NewRequest(http.MethodGet, "/secrets/ou-1/agent-secrets/API_KEY", nil)
+	req := httptest.NewRequest(http.MethodGet, path, nil)
 	if auth != "" {
 		req.Header.Set("Authorization", auth)
 	}
@@ -96,5 +101,17 @@ func TestSecretStoreRouteErrors(t *testing.T) {
 	}
 	if rec := serveSecretStore(t, &fakeResolver{err: errors.New("boom")}, "tok", "Bearer tok"); rec.Code != http.StatusInternalServerError {
 		t.Fatalf("failure: status = %d", rec.Code)
+	}
+}
+
+func TestSecretStoreRouteRejectsMalformedRef(t *testing.T) {
+	for _, path := range []string{"/secrets/no-separator/API_KEY", "/secrets/%2Fname/API_KEY", "/secrets/ou-1%2F/API_KEY", "/secrets/ou-1/agent-secrets/API_KEY"} {
+		r := &fakeResolver{}
+		if rec := serveSecretStorePath(t, r, "tok", "Bearer tok", path); rec.Code != http.StatusNotFound {
+			t.Fatalf("%s: status = %d, want 404", path, rec.Code)
+		}
+		if r.got != nil {
+			t.Fatalf("%s: resolver was called", path)
+		}
 	}
 }

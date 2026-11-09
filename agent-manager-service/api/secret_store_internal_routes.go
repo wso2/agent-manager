@@ -31,20 +31,29 @@ import (
 // Secrets Operator webhook provider). It returns one key of one secret as
 // {"value": "..."} and accepts only the store's bearer token. An empty token
 // leaves the route closed.
+//
+// {ref} is the SecretReference entry's remoteRef.key, "<ouID>/<name>". ESO
+// escapes it into a single path segment (the slash arrives as %2F), and
+// PathValue returns it unescaped.
 func registerSecretStoreRoute(mux *http.ServeMux, resolver secretmanagersvc.SecretResolver, token string) {
-	mux.HandleFunc("GET /secrets/{ouID}/{name}/{key}", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /secrets/{ref}/{key}", func(w http.ResponseWriter, r *http.Request) {
 		if !secretStoreAuthorized(r, token) {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
-		value, err := resolver.Resolve(r.Context(), r.PathValue("ouID"), r.PathValue("name"), r.PathValue("key"))
+		ouID, name, ok := strings.Cut(r.PathValue("ref"), "/")
+		if !ok || ouID == "" || name == "" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		value, err := resolver.Resolve(r.Context(), ouID, name, r.PathValue("key"))
 		if err != nil {
 			if errors.Is(err, secretmanagersvc.ErrSecretNotFound) {
 				w.WriteHeader(http.StatusNotFound)
 				return
 			}
 			logger.GetLogger(r.Context()).Error("secret store: failed to resolve secret",
-				"ouID", r.PathValue("ouID"), "name", r.PathValue("name"), "error", err)
+				"ouID", ouID, "name", name, "error", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}

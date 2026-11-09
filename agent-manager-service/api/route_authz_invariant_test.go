@@ -102,7 +102,7 @@ var unguardedRouteAllowlist = map[routeKey]string{
 		"so MCP clients can discover how to authenticate.",
 	{"registerConfigRoutes", "Handle", "/api/v1/config"}: "public console/CLI discovery endpoint; exposes only the observer public URL.",
 	{"MakeHTTPHandlerWithPolicy", "Handle", "/api/v1/"}:  "mount point for the JWT-authenticated API sub-router, not a leaf endpoint.",
-	{"registerSecretStoreRoute", "HandleFunc", "GET /secrets/{ouID}/{name}/{key}"}: "in-house ClusterSecretStore endpoint on internalMux; External Secrets " +
+	{"registerSecretStoreRoute", "HandleFunc", "GET /secrets/{ref}/{key}"}: "in-house ClusterSecretStore endpoint on internalMux; External Secrets " +
 		"Operator authenticates with the secret store bearer token (constant-time compare), and an empty token keeps it closed.",
 	{"MakeInternalHTTPHandler", "HandleFunc", "/health"}:       "internal-listener liveness probe.",
 	{"MakeInternalHTTPHandler", "Handle", "/api/internal/v1/"}: "mount point for the separately exposed internal API sub-router.",

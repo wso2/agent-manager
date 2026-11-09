@@ -1,4 +1,4 @@
-.PHONY: help tools setup setup-colima setup-k3d setup-openchoreo setup-default-env-thunder setup-sandbox setup-gvisor setup-kata setup-platform setup-gateway setup-console-local setup-console-local-force setup-amp teardown-amp reset-amp dev-up dev-down dev-restart dev-rebuild dev-logs dev-migrate openchoreo-up openchoreo-down openchoreo-status thunder-up thunder-down thunder-restart thunder-reset teardown db-connect db-logs service-logs service-shell console-logs console stop-console port-forward stop-port-forward gen-eval-artifacts gen-instrumentation-contract check-contract-drift check-matrix-manifest e2e-test security-test security-test-static security-test-live
+.PHONY: help tools setup setup-colima setup-k3d setup-openchoreo setup-default-env-thunder setup-sandbox setup-gvisor setup-kata setup-platform setup-gateway setup-console-local setup-console-local-force setup-amp setup-secret-store teardown-amp reset-amp dev-up dev-down dev-restart dev-rebuild dev-logs dev-migrate openchoreo-up openchoreo-down openchoreo-status thunder-up thunder-down thunder-restart thunder-reset teardown db-connect db-logs service-logs service-shell console-logs console stop-console port-forward stop-port-forward gen-eval-artifacts gen-instrumentation-contract check-contract-drift check-matrix-manifest e2e-test security-test security-test-static security-test-live
 
 # Default target
 help:
@@ -82,6 +82,7 @@ setup: tools setup-colima setup-k3d setup-openchoreo setup-platform setup-sandbo
 	@$(MAKE) dev-migrate
 	@cd deployments/setup && ./port-forward.sh --platform --background
 	@$(MAKE) wait-ams-healthy
+	@$(MAKE) setup-secret-store
 	@$(MAKE) setup-default-env-thunder
 	@$(MAKE) setup-gateway
 	@cd deployments/setup && ./port-forward.sh --background
@@ -115,6 +116,7 @@ setup-amp:
 	@$(MAKE) dev-migrate
 	@cd deployments/setup && ./port-forward.sh --platform --background
 	@$(MAKE) wait-ams-healthy
+	@$(MAKE) setup-secret-store
 	@$(MAKE) setup-default-env-thunder
 	@$(MAKE) setup-gateway
 	@cd deployments/setup && ./port-forward.sh --background
@@ -137,6 +139,10 @@ wait-ams-healthy:
 	echo "❌ agent-manager-service not healthy on :9000 after 3 minutes"; exit 1
 
 # Setup individual components
+# In-house ClusterSecretStore for the docker compose service (see the script).
+setup-secret-store:
+	@cd deployments/setup && ./setup-secret-store.sh
+
 setup-colima:
 	@cd deployments/setup && ./setup-colima.sh
 
@@ -211,6 +217,7 @@ dev-up: gen-keys
 	@cd deployments/setup && ./ensure-k3d-running.sh
 	@echo "🚀 Starting Agent Manager platform..."
 	@cd deployments && docker compose up -d --build
+	@$(MAKE) setup-secret-store
 	@$(MAKE) console BACKGROUND=true
 	@echo "✅ Platform is running!"
 	@echo "   Console: http://localhost:3000"

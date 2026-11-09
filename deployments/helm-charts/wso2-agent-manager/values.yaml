@@ -375,6 +375,8 @@ agentManagerService:
       # Bearer token the ClusterSecretStore presents. Generated (and kept
       # across upgrades) when empty.
       token: ""
+      # An existingSecret must carry the label external-secrets.io/type=webhook,
+      # which the External Secrets webhook provider requires.
       existingSecret: ""
       # Key to read from existingSecret. Applies ONLY when existingSecret is set;
       # the chart-managed Secret always uses the fixed key "secret-store-token".
