@@ -853,19 +853,21 @@ func validateInputInterfacePort(port *int32) error {
 	return nil
 }
 
-// healthCheckDefaults are the values a check uses for a field that is not set. They must match
+// HealthCheckDefaults are the values a check uses for a field that is not set. They must match
 // the fallbacks in the agent-api ComponentType (agent-api.yaml).
-type healthCheckDefaults struct {
-	initialDelaySeconds int32
-	periodSeconds       int32
-	timeoutSeconds      int32
-	failureThreshold    int32
+type HealthCheckDefaults struct {
+	InitialDelaySeconds int32
+	PeriodSeconds       int32
+	TimeoutSeconds      int32
+	FailureThreshold    int32
 }
 
 var (
-	startupCheckDefaults   = healthCheckDefaults{initialDelaySeconds: 10, periodSeconds: 5, timeoutSeconds: 1, failureThreshold: 60}
-	readinessCheckDefaults = healthCheckDefaults{initialDelaySeconds: 0, periodSeconds: 5, timeoutSeconds: 1, failureThreshold: 6}
-	livenessCheckDefaults  = healthCheckDefaults{initialDelaySeconds: 0, periodSeconds: 10, timeoutSeconds: 1, failureThreshold: 3}
+	// StartupCheckDefaults is exported because the deploy status also uses it: it decides how
+	// long an agent may stay starting before its deployment is reported failed.
+	StartupCheckDefaults   = HealthCheckDefaults{InitialDelaySeconds: 10, PeriodSeconds: 5, TimeoutSeconds: 1, FailureThreshold: 60}
+	readinessCheckDefaults = HealthCheckDefaults{InitialDelaySeconds: 0, PeriodSeconds: 5, TimeoutSeconds: 1, FailureThreshold: 6}
+	livenessCheckDefaults  = HealthCheckDefaults{InitialDelaySeconds: 0, PeriodSeconds: 10, TimeoutSeconds: 1, FailureThreshold: 3}
 )
 
 // maxHealthCheckSeconds caps a health check's initial delay, interval and timeout, and the
@@ -882,7 +884,7 @@ func validateHealthChecks(healthChecks *spec.HealthChecks) error {
 	if healthChecks == nil {
 		return nil
 	}
-	if err := validateHealthCheck("startup", healthChecks.Startup, startupCheckDefaults); err != nil {
+	if err := validateHealthCheck("startup", healthChecks.Startup, StartupCheckDefaults); err != nil {
 		return err
 	}
 	if err := validateHealthCheck("readiness", healthChecks.Readiness, readinessCheckDefaults); err != nil {
@@ -891,7 +893,7 @@ func validateHealthChecks(healthChecks *spec.HealthChecks) error {
 	return validateHealthCheck("liveness", healthChecks.Liveness, livenessCheckDefaults)
 }
 
-func validateHealthCheck(checkName string, check *spec.HealthCheck, defaults healthCheckDefaults) error {
+func validateHealthCheck(checkName string, check *spec.HealthCheck, defaults HealthCheckDefaults) error {
 	// Not set: the default check is used.
 	if check == nil {
 		return nil
@@ -951,10 +953,10 @@ func validateHealthCheck(checkName string, check *spec.HealthCheck, defaults hea
 	}
 	// The rules below combine fields, so a field that is not set counts as its default.
 	// int64, so interval × failures allowed can't overflow and slip under the cap.
-	initialDelay := int64(IntPointerAsInt(check.InitialDelaySeconds, defaults.initialDelaySeconds))
-	period := int64(IntPointerAsInt(check.PeriodSeconds, defaults.periodSeconds))
-	timeout := int64(IntPointerAsInt(check.TimeoutSeconds, defaults.timeoutSeconds))
-	failures := int64(IntPointerAsInt(check.FailureThreshold, defaults.failureThreshold))
+	initialDelay := int64(IntPointerAsInt(check.InitialDelaySeconds, defaults.InitialDelaySeconds))
+	period := int64(IntPointerAsInt(check.PeriodSeconds, defaults.PeriodSeconds))
+	timeout := int64(IntPointerAsInt(check.TimeoutSeconds, defaults.TimeoutSeconds))
+	failures := int64(IntPointerAsInt(check.FailureThreshold, defaults.FailureThreshold))
 	// The initial delay, interval and timeout are each capped.
 	if initialDelay > maxHealthCheckSeconds || period > maxHealthCheckSeconds || timeout > maxHealthCheckSeconds {
 		return NewValidationErrorf(

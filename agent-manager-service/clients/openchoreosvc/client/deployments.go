@@ -1698,16 +1698,15 @@ func (c *openChoreoClient) fetchRuntimeReplicaState(ctx context.Context, namespa
 	return state
 }
 
-// agentStartupBudget bounds how long an agent may report "still starting" before the
-// deployment is called failed instead.
+// agentStartupBudget is the least time an agent may report "still starting" before the
+// deployment is called failed instead. bootBudget raises it for an agent whose startup
+// check allows longer.
 //
-// The number comes from the probes the agent-api component type renders (see
-// component-types/agent-api.yaml): a startup probe of initialDelaySeconds 10 +
-// periodSeconds 5 x failureThreshold 60 = 310s, after which kubelet kills the container
-// and the warm pool replaces the pod. The extra slack covers what happens before the
-// container starts at all — pulling the agent image and running the instrumentation init
-// container — which is charged to the same clock, because the only timestamp available
-// is the binding's (getLastDeployedTime), not the container's.
+// The number comes from the default startup probe the agent-api component type renders
+// (see component-types/agent-api.yaml): initialDelaySeconds 10 + periodSeconds 5 x
+// failureThreshold 60 = 310s, after which kubelet kills the container and the warm pool
+// replaces the pod, plus slack for what happens before the container starts (see
+// agentPreStartMargin). It is the floor for a short or switched-off startup check.
 //
 // Past this point the startup probe has already given up at least once, so nothing is
 // still starting. Observed case: an agent throttled at its 100m CPU limit never finished
@@ -1715,8 +1714,71 @@ func (c *openChoreoClient) fetchRuntimeReplicaState(ctx context.Context, namespa
 // showed "in progress" indefinitely.
 const agentStartupBudget = 10 * time.Minute
 
+// agentPreStartMargin covers what happens before the container starts at all — scheduling
+// the pod, pulling the agent image and running the instrumentation init container. It is
+// charged to the same clock as the startup probe, because the only timestamp available is
+// the binding's (deployAttemptTime), not the container's.
+const agentPreStartMargin = 5 * time.Minute
+
+// bootBudget returns how long this binding's agent may report "still starting" before the
+// deployment is called failed: its startup probe's window plus agentPreStartMargin, and
+// never less than agentStartupBudget.
+//
+// Example: a startup check of initial delay 10s + interval 10s x 120 failures allowed has a
+// window of 1210s, so the budget is 1210s + 5m = about 25 minutes. With the default check
+// (310s) the budget is 10m10s; a shorter or switched-off check gets the 10-minute floor.
+func bootBudget(binding *gen.ReleaseBinding) time.Duration {
+	budget := startupProbeWindow(binding) + agentPreStartMargin
+	if budget < agentStartupBudget {
+		return agentStartupBudget
+	}
+	return budget
+}
+
+// startupProbeWindow returns how long kubelet gives the agent's startup probe before it
+// restarts the container: initial delay + the longer of interval and timeout x failures
+// allowed. A probe still running when the next is due delays it, so the longer of the two
+// is the real gap between attempts.
+//
+// The probe is the one the binding's release renders: the health checks are written onto
+// the binding together with its release, and agent-api.yaml renders the startup probe from
+// them. Returns 0 when the startup check is switched off, as there is no probe to wait for.
+func startupProbeWindow(binding *gen.ReleaseBinding) time.Duration {
+	// Read the startup check written onto the binding. A value that can't be read counts
+	// as not set, which is what the default probe covers.
+	var startup *models.HealthCheck
+	if binding.Spec != nil && binding.Spec.ComponentTypeEnvironmentConfigs != nil {
+		healthChecks, err := healthChecksFromMap(*binding.Spec.ComponentTypeEnvironmentConfigs)
+		if err != nil {
+			slog.Debug("failed to read the startup check, using the default startup window",
+				"binding", binding.Metadata.Name, "error", err)
+		}
+		if healthChecks != nil {
+			startup = healthChecks.Startup
+		}
+	}
+
+	// Not set: the default probe. Set: each field that is not set falls back to its default.
+	if startup == nil {
+		startup = &models.HealthCheck{}
+	}
+
+	// Switched off: no startup probe renders.
+	if !utils.BoolPointerAsBool(startup.Enabled, true) {
+		return 0
+	}
+
+	defaults := utils.StartupCheckDefaults
+	initialDelay := int64(utils.IntPointerAsInt(startup.InitialDelaySeconds, defaults.InitialDelaySeconds))
+	period := int64(utils.IntPointerAsInt(startup.PeriodSeconds, defaults.PeriodSeconds))
+	timeout := int64(utils.IntPointerAsInt(startup.TimeoutSeconds, defaults.TimeoutSeconds))
+	failures := int64(utils.IntPointerAsInt(startup.FailureThreshold, defaults.FailureThreshold))
+	seconds := initialDelay + max(period, timeout)*failures
+	return time.Duration(seconds) * time.Second
+}
+
 // bootDeadlineExceeded reports whether a booting agent has been booting for longer than
-// any pod could plausibly take to start.
+// its pod could plausibly take to start (bootBudget).
 //
 // Measured from deployAttemptTime, never from getLastDeployedTime: the latter falls back
 // to the binding's creation timestamp, which would date a rollout that has just started
@@ -1730,7 +1792,7 @@ func bootDeadlineExceeded(binding *gen.ReleaseBinding) bool {
 	if started.IsZero() {
 		return false
 	}
-	return time.Since(started) > agentStartupBudget
+	return time.Since(started) > bootBudget(binding)
 }
 
 // probedPorts lists the ports the platform's TCP startup probe targets, taken from the
@@ -1807,7 +1869,7 @@ func determineDeploymentStatus(binding *gen.ReleaseBinding, runtime runtimeRepli
 							"binding", binding.Metadata.Name,
 							"environment", bindingEnvironment(binding),
 							"elapsed", time.Since(deployAttemptTime(binding)).Round(time.Second),
-							"budget", agentStartupBudget,
+							"budget", bootBudget(binding),
 							"probedPorts", probedPorts(binding),
 							"desiredReplicas", runtime.desired,
 							"readyReplicas", runtime.ready)

@@ -342,6 +342,80 @@ func TestBootingPastTheStartupBudgetIsReportedAsFailed(t *testing.T) {
 	})
 }
 
+// bindingWithStartupCheck is a binding booting since ago whose release runs the given
+// startup check, written onto the binding the way a deploy writes it.
+func bindingWithStartupCheck(ago time.Duration, startup map[string]interface{}) *gen.ReleaseBinding {
+	binding := bindingBootingSince(ago)
+	configs := map[string]interface{}{
+		"healthChecks": map[string]interface{}{"startup": startup},
+	}
+	binding.Spec.ComponentTypeEnvironmentConfigs = &configs
+	return binding
+}
+
+// An agent may set a startup check far longer than the default (up to an hour). The deploy
+// must wait that long before calling it failed, or the page shows Failed for an agent that
+// then becomes ready and serves traffic.
+func TestBootBudgetFollowsTheStartupCheck(t *testing.T) {
+	booting := runtimeReplicaState{found: true, desired: 1, ready: 0}
+
+	// 10s + 10s x 120 = 1210s; + 5m margin = 1510s.
+	slowStartup := map[string]interface{}{
+		"initialDelaySeconds": 10,
+		"periodSeconds":       10,
+		"failureThreshold":    120,
+	}
+
+	t.Run("no startup check uses the default probe's window", func(t *testing.T) {
+		// 10s + 5s x 60 = 310s; + 5m margin = 10m10s, just over the floor.
+		assert.Equal(t, 310*time.Second, startupProbeWindow(readyBinding()))
+		assert.Equal(t, 310*time.Second+agentPreStartMargin, bootBudget(readyBinding()))
+	})
+
+	t.Run("a long startup check raises the budget", func(t *testing.T) {
+		binding := bindingWithStartupCheck(0, slowStartup)
+		assert.Equal(t, 1210*time.Second, startupProbeWindow(binding))
+		assert.Equal(t, 1210*time.Second+agentPreStartMargin, bootBudget(binding))
+	})
+
+	t.Run("a long startup check is still in progress past 10 minutes", func(t *testing.T) {
+		binding := bindingWithStartupCheck(15*time.Minute, slowStartup)
+		assert.Equal(t, DeploymentStatusInProgress, determineDeploymentStatus(binding, booting))
+	})
+
+	t.Run("a long startup check is failed past its own budget", func(t *testing.T) {
+		binding := bindingWithStartupCheck(26*time.Minute, slowStartup)
+		assert.Equal(t, DeploymentStatusFailed, determineDeploymentStatus(binding, booting))
+	})
+
+	t.Run("a short startup check never goes below the floor", func(t *testing.T) {
+		binding := bindingWithStartupCheck(0, map[string]interface{}{"failureThreshold": 3})
+		assert.Equal(t, 25*time.Second, startupProbeWindow(binding), "10s + 5s x 3, the rest defaulted")
+		assert.Equal(t, agentStartupBudget, bootBudget(binding))
+	})
+
+	t.Run("a switched-off startup check uses the floor", func(t *testing.T) {
+		binding := bindingWithStartupCheck(0, map[string]interface{}{"enabled": false, "failureThreshold": 300})
+		assert.Equal(t, time.Duration(0), startupProbeWindow(binding))
+		assert.Equal(t, agentStartupBudget, bootBudget(binding))
+	})
+
+	t.Run("a timeout longer than the interval sets the gap between attempts", func(t *testing.T) {
+		// Validation rejects this today; a binding saved before that rule may still carry it.
+		binding := bindingWithStartupCheck(0, map[string]interface{}{
+			"initialDelaySeconds": 0, "periodSeconds": 5, "timeoutSeconds": 20, "failureThreshold": 60,
+		})
+		assert.Equal(t, 1200*time.Second, startupProbeWindow(binding))
+	})
+
+	t.Run("an unreadable startup check uses the default window", func(t *testing.T) {
+		binding := bindingBootingSince(0)
+		configs := map[string]interface{}{"healthChecks": "not an object"}
+		binding.Spec.ComponentTypeEnvironmentConfigs = &configs
+		assert.Equal(t, 310*time.Second, startupProbeWindow(binding))
+	})
+}
+
 // The probed port is the one fact in the failure log that distinguishes a misdeclared port
 // from an agent that is merely slow, so it must survive the shapes a binding can take.
 func TestProbedPorts(t *testing.T) {
