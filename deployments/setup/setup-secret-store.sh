@@ -73,7 +73,8 @@ echo "⏳ Waiting for ClusterSecretStore ${STORE_NAME} to become ready..."
 if kubectl wait --for=condition=Ready "clustersecretstore/${STORE_NAME}" --timeout=60s >/dev/null 2>&1; then
     echo "✅ ClusterSecretStore ${STORE_NAME} is ready"
 else
-    echo "⚠ ClusterSecretStore ${STORE_NAME} is not ready yet:" >&2
+    echo "✗ ClusterSecretStore ${STORE_NAME} did not become ready:" >&2
     kubectl get clustersecretstore "$STORE_NAME" -o jsonpath='{.status.conditions}' >&2 || true
     echo >&2
+    exit 1
 fi
