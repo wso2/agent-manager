@@ -377,6 +377,50 @@ func TestProjectMCPBindingLifecycle(t *testing.T) {
 		assert.Zero(t, endpointRows(t, open))
 	})
 
+	t.Run("an identity binding renders mcp-auth against ThunderKeyManager and no api-key policy", func(t *testing.T) {
+		oauth := "oauth-" + suffix
+		rr := h.do(http.MethodPut, project, "/"+oauth, map[string]any{
+			"name": "Proxy " + oauth, "context": "/oauth",
+			"source": map[string]string{"componentName": oauth, "endpointName": "mcp"},
+		})
+		require.Equal(t, http.StatusCreated, rr.Code, rr.Body.String())
+		rr = h.do(http.MethodPut, project, envPath(oauth, devEnv), map[string]any{
+			"security": map[string]any{"enabled": true, "identity": map[string]any{"enabled": true}},
+		})
+		require.Equal(t, http.StatusCreated, rr.Code, rr.Body.String())
+
+		b := decodeBinding(t, h.do(http.MethodGet, project, envPath(oauth, devEnv), nil))
+		require.NotNil(t, b.Security)
+		require.NotNil(t, b.Security.Identity)
+		require.NotNil(t, b.Security.Identity.Enabled)
+		assert.True(t, *b.Security.Identity.Enabled)
+		assert.Nil(t, b.Security.APIKey)
+
+		current, err := deploymentRepo.GetPullable(context.Background(), ouID, artifactOf(t, oauth, envs[devEnv]), gatewayID.String())
+		require.NoError(t, err)
+		require.NotNil(t, current)
+		var deployed services.MCPProxyDeploymentYAML
+		require.NoError(t, yaml.Unmarshal(current.Content, &deployed))
+		var names []string
+		for _, policy := range deployed.Spec.Policies {
+			names = append(names, policy.Name)
+			if policy.Name == "mcp-auth" {
+				assert.Equal(t, []any{"ThunderKeyManager"}, policy.Params["issuers"])
+			}
+		}
+		assert.Contains(t, names, "mcp-auth")
+		assert.NotContains(t, names, "api-key-auth")
+
+		// identity and apiKey together are refused.
+		rr = h.do(http.MethodPut, project, envPath(oauth, devEnv), map[string]any{
+			"security": map[string]any{"identity": map[string]any{"enabled": true}, "apiKey": map[string]any{"enabled": true}},
+		})
+		require.Equal(t, http.StatusBadRequest, rr.Code, rr.Body.String())
+
+		rr = h.do(http.MethodDelete, project, "/"+oauth, nil)
+		require.Equal(t, http.StatusNoContent, rr.Code, rr.Body.String())
+	})
+
 	t.Run("other projects can't reach the binding", func(t *testing.T) {
 		projectUUIDOther := uuid.NewString()
 		baseGet := oc.GetProjectFunc

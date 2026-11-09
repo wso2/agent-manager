@@ -155,6 +155,9 @@ func (s *ProjectMCPProxyService) PutEnvironment(
 		}
 		live := status == models.MCPDeploymentStatusDeployed || status == models.MCPDeploymentStatusDeploying
 		if live || (shown == nil && gateway == nil) {
+			// A repeated PUT also repairs the binding's resource server, which may have failed to register before
+			// or had no public URL to register while the binding waited for a gateway.
+			s.ensureBindingResourceServer(ctx, ouID, proxy, envUUID, envName)
 			resp, err := s.environmentResponse(ctx, ouID, proxy, endpoint, ee)
 			return resp, false, err
 		}
@@ -199,6 +202,7 @@ func (s *ProjectMCPProxyService) PutEnvironment(
 	if ee == nil {
 		return nil, false, fmt.Errorf("the saved binding of %q in %q is missing", handle, envName)
 	}
+	s.ensureBindingResourceServer(ctx, ouID, saved, envUUID, envName)
 	resp, err := s.environmentResponse(ctx, ouID, saved, endpoint, ee)
 	return resp, !exists, err
 }
@@ -454,14 +458,14 @@ func (s *ProjectMCPProxyService) DeleteEnvironmentInDeletedProject(ctx context.C
 
 func (s *ProjectMCPProxyService) deleteEnvironmentOf(ctx context.Context, ouID string, proxy *models.MCPProxy, envName string) error {
 	envName = strings.TrimSpace(envName)
-	_, ee := bindingByEnvironmentName(proxy, envName)
+	bound, ee := bindingByEnvironmentName(proxy, envName)
 	if ee == nil {
 		return utils.ErrMCPProxyEnvironmentNotBound
 	}
 	if err := s.ensureBindingNotInUse(ctx, proxy.UUID, ee.EnvironmentUUID); err != nil {
 		return err
 	}
-	return s.base.tx(ctx, func(tx *gorm.DB) error {
+	if err := s.base.tx(ctx, func(tx *gorm.DB) error {
 		locked, err := s.base.repo.GetByHandleForUpdate(ctx, tx, proxyHandleOf(proxy), ouID)
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -487,7 +491,11 @@ func (s *ProjectMCPProxyService) deleteEnvironmentOf(ctx context.Context, ouID s
 			return err
 		}
 		return events.Publish(ctx, tx)
-	})
+	}); err != nil {
+		return err
+	}
+	s.deleteBindingResourceServer(ctx, ouID, proxy, envName, bound.Configuration.Security)
+	return nil
 }
 
 // ensureBindingNotInUse refuses with ErrMCPProxyHasMappings when an agent is mapped to the proxy in envUUID: the
@@ -600,8 +608,9 @@ func (s *ProjectMCPProxyService) bindingGateway(
 }
 
 // normalizeBindingSecurity is the binding's security with its defaults applied. Omitted, it is apiKey in an
-// X-API-Key header. Present, it is apiKey when that variant is given and not disabled, and no security when
-// security.enabled is false or no variant is enabled (the contract's "none"). Phase 1 refuses jwt and identity.
+// X-API-Key header. Present, it is identity (OAuth tokens from the environment's Thunder) when that variant is
+// enabled, apiKey when that variant is given and not disabled, and no security when security.enabled is false or no
+// variant is enabled (the contract's "none"). identity and apiKey are mutually exclusive; jwt is refused.
 func normalizeBindingSecurity(in *models.MCPProxyEnvironmentSecurity) (*models.SecurityConfig, error) {
 	if in == nil {
 		return defaultMCPProxySecurity(nil), nil
@@ -609,8 +618,14 @@ func normalizeBindingSecurity(in *models.MCPProxyEnvironmentSecurity) (*models.S
 	if in.JWT != nil && !isExplicitlyFalse(in.JWT.Enabled) {
 		return nil, fmt.Errorf("%w: %w", utils.ErrInvalidInput, utils.ErrMCPJWTSecurityNotAvailable)
 	}
-	if in.Identity != nil && !isExplicitlyFalse(in.Identity.Enabled) {
-		return nil, fmt.Errorf("%w: identity security is not available on project MCP proxies", utils.ErrInvalidInput)
+	if in.Identity != nil && isBoolTrue(in.Identity.Enabled) && !isExplicitlyFalse(in.Enabled) {
+		if in.APIKey != nil && isBoolTrue(in.APIKey.Enabled) {
+			return nil, fmt.Errorf("%w: apiKey and identity security are mutually exclusive", utils.ErrInvalidInput)
+		}
+		enabled := true
+		return defaultMCPProxySecurity(&models.SecurityConfig{
+			Enabled: &enabled, Identity: &models.IdentitySecurity{Enabled: &enabled},
+		}), nil
 	}
 	// Only an explicit enabled false turns security off. Security left on with no variant defaults to the api
 	// key, as an omitted security does, so a caller asking for security never gets an open endpoint.
@@ -934,6 +949,10 @@ func bindingSecurityResponse(security *models.SecurityConfig) *models.MCPProxyEn
 	if security.APIKey != nil {
 		apiKey := *security.APIKey
 		out.APIKey = &apiKey
+	}
+	if security.Identity != nil {
+		identity := *security.Identity
+		out.Identity = &identity
 	}
 	return out
 }

@@ -32,6 +32,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
 	occlient "github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
+	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
@@ -620,12 +621,138 @@ func TestPutEnv_JWT_400(t *testing.T) {
 	require.ErrorIs(t, err, utils.ErrInvalidInput)
 	assert.Contains(t, err.Error(), "jwt security is not available yet")
 	assert.Zero(t, f.endpointWrites)
+}
 
-	_, _, err = f.put(t, models.MCPProxyEnvironmentRequest{Security: &models.MCPProxyEnvironmentSecurity{
-		Enabled: &enabled, Identity: &models.IdentitySecurity{Enabled: &enabled},
-	}})
+// thunderCalls records the identity service calls the binding made.
+type thunderCalls struct {
+	ensured []struct{ env, handle, identifier string }
+	deleted []struct{ env, handle string }
+}
+
+// withThunder gives the fixture an identity service that records resource server writes.
+func (f *bindingFixture) withThunder() *thunderCalls {
+	calls := &thunderCalls{}
+	f.svc.base.resolver = &clientmocks.EnvThunderResolverMock{
+		ResolveIdentityFunc: func(_ context.Context, _, _, envName string) (thundersvc.EnvIdentityClient, error) {
+			return &clientmocks.EnvIdentityClientMock{
+				EnsureProxyResourceServerFunc: func(_ context.Context, handle, _, identifier string, _ []string) (string, error) {
+					calls.ensured = append(calls.ensured, struct{ env, handle, identifier string }{envName, handle, identifier})
+					return "rs-1", nil
+				},
+				DeleteProxyResourceServerFunc: func(_ context.Context, handle string) error {
+					calls.deleted = append(calls.deleted, struct{ env, handle string }{envName, handle})
+					return nil
+				},
+			}, nil
+		},
+	}
+	return calls
+}
+
+func identityBinding() *models.MCPProxyEnvironmentSecurity {
+	enabled := true
+	return &models.MCPProxyEnvironmentSecurity{Enabled: &enabled, Identity: &models.IdentitySecurity{Enabled: &enabled}}
+}
+
+// An identity binding is stored without an api key, renders mcp-auth against ThunderKeyManager instead of the api-key
+// policy, and is registered as a resource server whose identifier is the binding's public URL, so a token requested
+// for that URL is accepted.
+func TestPutEnv_Identity_RendersMCPAuthAndRegistersTheResourceServer(t *testing.T) {
+	f := newBindingFixture(t)
+	calls := f.withThunder()
+
+	resp, created, err := f.put(t, models.MCPProxyEnvironmentRequest{Security: identityBinding()})
+	require.NoError(t, err)
+	assert.True(t, created)
+
+	require.NotNil(t, resp.Security)
+	require.NotNil(t, resp.Security.Identity)
+	assert.True(t, isBoolTrue(resp.Security.Identity.Enabled))
+	assert.Nil(t, resp.Security.APIKey)
+
+	endpoint, ee := f.binding()
+	assert.True(t, mcpIdentityEnabled(endpoint.Configuration.Security))
+	assert.Nil(t, endpoint.Configuration.Security.APIKey, "identity carries no api key")
+	assert.False(t, mcpProxyAPIKeySecurityEnabled(f.proxy, ee.EnvironmentUUID.String()), "agents get no api key")
+
+	require.Len(t, f.deployed, 1)
+	var auth *models.MCPPolicy
+	for _, policy := range deployedYAML(t, f.deployed[0]).Spec.Policies {
+		assert.NotEqual(t, apiKeyAuthPolicyName, policy.Name)
+		if policy.Name == mcpAuthPolicyName {
+			auth = &policy
+		}
+	}
+	require.NotNil(t, auth, "the binding validates OAuth tokens")
+	assert.Equal(t, []interface{}{mcpIdentityIssuerKeyManager}, auth.Params["issuers"])
+
+	require.Len(t, calls.ensured, 1)
+	assert.Equal(t, bindingEnv, calls.ensured[0].env)
+	assert.Equal(t, bindingHandle, calls.ensured[0].handle)
+	assert.Equal(t, resp.PublicURL, calls.ensured[0].identifier, "the resource identifier is the binding's public URL")
+	assert.Contains(t, calls.ensured[0].identifier, "/"+bindingProject+"/weather", "it carries the project path")
+
+	// An identical PUT repairs the registration again, without redeploying.
+	f.status[ee.ArtifactUUID].Status = models.DeploymentStatusDeployed
+	_, created, err = f.put(t, models.MCPProxyEnvironmentRequest{Security: identityBinding()})
+	require.NoError(t, err)
+	assert.False(t, created)
+	assert.Len(t, f.deployed, 1)
+	assert.Len(t, calls.ensured, 2)
+}
+
+func TestPutEnv_IdentityWithAPIKey_400(t *testing.T) {
+	enabled := true
+	f := newBindingFixture(t)
+	security := identityBinding()
+	security.APIKey = &models.APIKeySecurity{Enabled: &enabled}
+	_, _, err := f.put(t, models.MCPProxyEnvironmentRequest{Security: security})
 	require.ErrorIs(t, err, utils.ErrInvalidInput)
+	assert.Contains(t, err.Error(), "mutually exclusive")
 	assert.Zero(t, f.endpointWrites)
+}
+
+// A binding with no gateway has no public URL to register yet; the PUT after the gateway arrives registers it.
+func TestPutEnv_Identity_NoGatewayRegistersOnceAGatewayIsThere(t *testing.T) {
+	f := newBindingFixture(t)
+	calls := f.withThunder()
+	gateway := f.gateway
+	f.gateway = nil
+
+	_, _, err := f.put(t, models.MCPProxyEnvironmentRequest{Security: identityBinding()})
+	require.NoError(t, err)
+	assert.Empty(t, calls.ensured, "nothing to register without a public URL")
+
+	f.gateway = gateway
+	resp, _, err := f.put(t, models.MCPProxyEnvironmentRequest{Security: identityBinding()})
+	require.NoError(t, err)
+	require.Len(t, calls.ensured, 1)
+	assert.Equal(t, resp.PublicURL, calls.ensured[0].identifier)
+}
+
+// An api-key binding is no resource server.
+func TestPutEnv_APIKey_RegistersNoResourceServer(t *testing.T) {
+	f := newBindingFixture(t)
+	calls := f.withThunder()
+	_, _, err := f.put(t, models.MCPProxyEnvironmentRequest{})
+	require.NoError(t, err)
+	assert.Empty(t, calls.ensured)
+}
+
+// Removing an identity binding removes its resource server from that environment; any other binding has none.
+func TestDeleteBindingResourceServer_OnlyForIdentity(t *testing.T) {
+	f := newBindingFixture(t)
+	calls := f.withThunder()
+	enabled := true
+
+	f.svc.deleteBindingResourceServer(context.Background(), testOrg, f.proxy, bindingEnv,
+		&models.SecurityConfig{Enabled: &enabled, APIKey: &models.APIKeySecurity{Enabled: &enabled}})
+	assert.Empty(t, calls.deleted)
+
+	f.svc.deleteBindingResourceServer(context.Background(), testOrg, f.proxy, bindingEnv, mcpIdentitySecurity())
+	require.Len(t, calls.deleted, 1)
+	assert.Equal(t, bindingEnv, calls.deleted[0].env)
+	assert.Equal(t, bindingHandle, calls.deleted[0].handle)
 }
 
 // A body that leaves security enabled with no variant gets the default api key in X-API-Key, as an omitted security

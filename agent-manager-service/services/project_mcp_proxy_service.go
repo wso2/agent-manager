@@ -538,6 +538,7 @@ func (s *ProjectMCPProxyService) update(
 	updated.Configuration.Context = &ctxPath
 	updated.Configuration.SpecVersion = d.specVersion
 	d.applyUpstream(&updated.Configuration)
+	contextChanged := mcpGatewayContext(&updated, "") != mcpGatewayContext(existing, "")
 
 	// The bindings as of the URL change's lock: a binding created since existing was read is re-rendered too.
 	var lockedEndpoints []models.MCPProxyEndpoint
@@ -553,7 +554,7 @@ func (s *ProjectMCPProxyService) update(
 		}
 		// The context check locks the bindings' gateways; the proxy row is locked after it, in the
 		// order binding PUTs take the same locks.
-		if mcpGatewayContext(&updated, "") != mcpGatewayContext(existing, "") {
+		if contextChanged {
 			if err := s.checkContextChange(ctx, tx, ouID, existing, mcpGatewayContext(&updated, "")); err != nil {
 				return err
 			}
@@ -599,6 +600,10 @@ func (s *ProjectMCPProxyService) update(
 		rerendered.Endpoints = lockedEndpoints
 	}
 	s.rerenderBindings(ctx, ouID, &rerendered)
+	if contextChanged {
+		// Every binding's public URL carries the context, and an identity binding's resource identifier is that URL.
+		s.ensureBindingResourceServers(ctx, ouID, &rerendered)
+	}
 	// The artifact timestamp moved with the update.
 	if updated.Artifact != nil {
 		art := *updated.Artifact
