@@ -1,8 +1,8 @@
 # Versions locked from a clean install of the LangChain 1.x ecosystem.
-langchain>=1.4.7
-langchain-core>=1.7.3
-langchain-openai>=1.7.3
-langgraph>=1.2.19
+langchain>=1.4.9
+langchain-core>=1.7.6
+langchain-openai>=1.7.4
+langgraph>=1.2.20
 
 # Only needed when USE_MCP=true. Supplies MultiServerMCPClient, which turns the
 # tools an MCP server advertises into LangChain tools.
@@ -10,10 +10,10 @@ langchain-mcp-adapters>=0.3.2
 
 fastapi==0.162.0
 uvicorn[standard]==0.54.0
-pydantic==2.14.2
+pydantic==2.14.3
 
 # wrapt locked to 1.x — AM's auto-instrumentation injects
 # opentelemetry-instrumentation-langchain 0.62b0, which calls
 # wrap_function_wrapper(module=..., name=..., wrapper=...). wrapt 2.x
 # dropped that keyword argument — see traceloop/openllmetry#4009.
-wrapt==1.17.3
+wrapt==2.5.2
