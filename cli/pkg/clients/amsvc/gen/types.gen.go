@@ -7823,6 +7823,12 @@ type UpsertProjectMCPProxyJSONRequestBody = ProjectMCPProxyRequest
 // PutProjectMCPProxyEnvironmentJSONRequestBody defines body for PutProjectMCPProxyEnvironment for application/json ContentType.
 type PutProjectMCPProxyEnvironmentJSONRequestBody = MCPProxyEnvironmentRequest
 
+// CreateProjectMCPProxyEnvironmentAPIKeyJSONRequestBody defines body for CreateProjectMCPProxyEnvironmentAPIKey for application/json ContentType.
+type CreateProjectMCPProxyEnvironmentAPIKeyJSONRequestBody = CreateLLMAPIKeyRequest
+
+// RotateProjectMCPProxyEnvironmentAPIKeyJSONRequestBody defines body for RotateProjectMCPProxyEnvironmentAPIKey for application/json ContentType.
+type RotateProjectMCPProxyEnvironmentAPIKeyJSONRequestBody = RotateLLMAPIKeyRequest
+
 // ListRepositoryBranchesJSONRequestBody defines body for ListRepositoryBranches for application/json ContentType.
 type ListRepositoryBranchesJSONRequestBody = ListBranchesRequest
 

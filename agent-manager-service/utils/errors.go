@@ -172,7 +172,8 @@ var (
 	ErrScopeNotFound                  = errors.New("scope not found")
 	// ErrA2AProxyOriginChangeNeedsAuthReset keeps a stored upstream secret from following the card URL to another origin. Maps to 409.
 	ErrA2AProxyOriginChangeNeedsAuthReset = errors.New(
-		"the stored upstream credential would be sent to the new card URL's origin; clear the upstream auth before moving the card to another origin, then enter it again")
+		"the stored upstream credential would be sent to the new card URL's origin; clear the upstream auth before moving the card to another origin, then enter it again",
+	)
 
 	// HTTP errors
 	ErrBadRequest   = errors.New("bad request")
@@ -366,4 +367,11 @@ var (
 	// ErrMCPAmbiguousGateway means the binding's environment has more than one egress gateway and the
 	// request named none (400 AMBIGUOUS_GATEWAY on the project binding routes).
 	ErrMCPAmbiguousGateway = errors.New("the environment has more than one egress gateway; specify gatewayId")
+	// ErrMCPAPIKeySecurityDisabled means a key was asked for on a project MCP proxy binding that is not secured with
+	// an API key, so the gateway would never check it (409 API_KEY_SECURITY_DISABLED).
+	ErrMCPAPIKeySecurityDisabled = errors.New("API key security is not enabled on this binding")
+	// ErrMCPAPIKeyNotFound means the binding has no API key of that name (404).
+	ErrMCPAPIKeyNotFound = errors.New("API key not found")
+	// ErrMCPAPIKeyExists means the binding already has an API key of that name (409 CONFLICT).
+	ErrMCPAPIKeyExists = errors.New("an API key with this name already exists on the binding")
 )

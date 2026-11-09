@@ -41,6 +41,10 @@ type ProjectMCPProxyController interface {
 	PutProjectMCPProxyEnvironment(w http.ResponseWriter, r *http.Request)
 	GetProjectMCPProxyEnvironment(w http.ResponseWriter, r *http.Request)
 	DeleteProjectMCPProxyEnvironment(w http.ResponseWriter, r *http.Request)
+	ListProjectMCPProxyEnvironmentAPIKeys(w http.ResponseWriter, r *http.Request)
+	CreateProjectMCPProxyEnvironmentAPIKey(w http.ResponseWriter, r *http.Request)
+	RotateProjectMCPProxyEnvironmentAPIKey(w http.ResponseWriter, r *http.Request)
+	RevokeProjectMCPProxyEnvironmentAPIKey(w http.ResponseWriter, r *http.Request)
 }
 
 // pathParamEnvName is the environment segment of the project MCP proxy binding routes.

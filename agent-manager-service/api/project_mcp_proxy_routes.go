@@ -50,4 +50,12 @@ func RegisterProjectMCPProxyRoutes(
 	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("PUT "+binding, rbac.MCPServerUpdate, orgOverride, ctrl.PutProjectMCPProxyEnvironment)
 	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("GET "+binding, rbac.MCPServerRead, orgOverride, ctrl.GetProjectMCPProxyEnvironment)
 	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("DELETE "+binding, rbac.MCPServerUpdate, orgOverride, ctrl.DeleteProjectMCPProxyEnvironment)
+
+	// A binding's API keys: the keys its callers present to the gateway in that environment. Reading the masked
+	// list needs read; issuing, rotating and revoking a key need the API key permission.
+	const keys = binding + "/api-keys"
+	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("GET "+keys, rbac.MCPServerRead, orgOverride, ctrl.ListProjectMCPProxyEnvironmentAPIKeys)
+	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("POST "+keys, rbac.MCPServerAPIKeyManage, orgOverride, ctrl.CreateProjectMCPProxyEnvironmentAPIKey)
+	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("PUT "+keys+"/{keyName}", rbac.MCPServerAPIKeyManage, orgOverride, ctrl.RotateProjectMCPProxyEnvironmentAPIKey)
+	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("DELETE "+keys+"/{keyName}", rbac.MCPServerAPIKeyManage, orgOverride, ctrl.RevokeProjectMCPProxyEnvironmentAPIKey)
 }
