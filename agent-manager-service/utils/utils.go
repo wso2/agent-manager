@@ -1662,16 +1662,23 @@ func ParseGitHubURL(url string) (owner, repo string) {
 	}
 
 	// Handle HTTPS URLs: https://github.com/owner/repo or https://github.com/owner/repo.git
-	// Allow dots in repo name, strip optional .git suffix and trailing slash
-	httpsPattern := regexp.MustCompile(`^https?://github\.com/([^/]+)/([^/]+?)(?:\.git)?/?$`)
+	// Allow dots in repo name, strip optional .git suffix and trailing slash.
+	// Scheme and host are case-insensitive (RFC 3986); owner/repo keep their case.
+	httpsPattern := regexp.MustCompile(`^(?i:https?://github\.com)/([^/]+)/([^/]+?)(?:\.git)?/?$`)
 	if matches := httpsPattern.FindStringSubmatch(url); len(matches) == 3 {
 		return matches[1], matches[2]
 	}
 
 	// Handle SSH URLs: git@github.com:owner/repo.git
 	// Allow dots in repo name, strip optional .git suffix
-	sshPattern := regexp.MustCompile(`^git@github\.com:([^/]+)/([^/]+?)(?:\.git)?$`)
+	sshPattern := regexp.MustCompile(`^git@(?i:github\.com):([^/]+)/([^/]+?)(?:\.git)?$`)
 	if matches := sshPattern.FindStringSubmatch(url); len(matches) == 3 {
+		return matches[1], matches[2]
+	}
+
+	// Handle ssh:// URLs: ssh://git@github.com/owner/repo.git
+	sshURLPattern := regexp.MustCompile(`^(?i:ssh)://git@(?i:github\.com)/([^/]+)/([^/]+?)(?:\.git)?/?$`)
+	if matches := sshURLPattern.FindStringSubmatch(url); len(matches) == 3 {
 		return matches[1], matches[2]
 	}
 
