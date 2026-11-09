@@ -283,6 +283,17 @@ export const rootRouteMap: AppRoute = {
                             index: true,
                             children: {},
                         },
+                        mcpProxies: {
+                            path: 'mcp-proxies',
+                            index: true,
+                            children: {
+                                view: {
+                                    path: 'view/:proxyId',
+                                    index: true,
+                                    children: {},
+                                },
+                            },
+                        },
                         agentListing: {
                             path: 'agents',
                             index: true,

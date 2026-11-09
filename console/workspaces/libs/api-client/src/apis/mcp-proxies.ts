@@ -31,7 +31,17 @@ import type {
   MCPProxyListResponse,
   MCPServerInfoFetchRequest,
   MCPServerInfoFetchResponse,
+  CreateProjectMCPProxyAPIKeyRequest,
+  CreateProjectMCPProxyAPIKeyResponse,
+  DeleteProjectMCPProxyPathParams,
+  ListAPIKeysResponse,
   ProjectMCPProxy,
+  ProjectMCPProxyAPIKeyPathParams,
+  ProjectMCPProxyEnvironment,
+  ProjectMCPProxyEnvironmentPathParams,
+  ProjectMCPProxyEnvironmentRequest,
+  RotateProjectMCPProxyAPIKeyRequest,
+  RotateProjectMCPProxyAPIKeyResponse,
   UpdateMCPProxyPathParams,
 } from "@agent-management-platform/types";
 import {
@@ -203,4 +213,98 @@ export async function fetchMCPProxyServerInfo(
   );
   if (!res.ok) throw await res.json();
   return res.json();
+}
+
+function projectMCPProxyUrl(params: DeleteProjectMCPProxyPathParams): string {
+  const org = encodeRequired(params.orgName, "orgName");
+  const proj = encodeRequired(params.projName, "projName");
+  const proxyId = encodeRequired(params.proxyId, "proxyId");
+  return `${SERVICE_BASE}/orgs/${org}/projects/${proj}/mcp-proxies/${proxyId}`;
+}
+
+function projectMCPProxyEnvironmentUrl(
+  params: ProjectMCPProxyEnvironmentPathParams,
+): string {
+  const envName = encodeRequired(params.envName, "envName");
+  return `${projectMCPProxyUrl(params)}/environments/${envName}`;
+}
+
+/** Deletes a project-owned proxy and every environment binding it has. */
+export async function deleteProjectMCPProxy(
+  params: DeleteProjectMCPProxyPathParams,
+  getToken?: () => Promise<string>,
+): Promise<void> {
+  const token = getToken ? await getToken() : undefined;
+  const res = await httpDELETE(projectMCPProxyUrl(params), { token });
+  if (!res.ok) throw await res.json();
+}
+
+/** Replaces a project proxy's binding in one environment (security, policies, upstream auth). */
+export async function putProjectMCPProxyEnvironment(
+  params: ProjectMCPProxyEnvironmentPathParams,
+  body: ProjectMCPProxyEnvironmentRequest,
+  getToken?: () => Promise<string>,
+): Promise<ProjectMCPProxyEnvironment> {
+  const token = getToken ? await getToken() : undefined;
+  const res = await httpPUT(projectMCPProxyEnvironmentUrl(params), body, {
+    token,
+  });
+  if (!res.ok) throw await res.json();
+  return res.json();
+}
+
+export async function listProjectMCPProxyAPIKeys(
+  params: ProjectMCPProxyEnvironmentPathParams,
+  getToken?: () => Promise<string>,
+): Promise<ListAPIKeysResponse> {
+  const token = getToken ? await getToken() : undefined;
+  const res = await httpGET(`${projectMCPProxyEnvironmentUrl(params)}/api-keys`, {
+    token,
+  });
+  if (!res.ok) throw await res.json();
+  return res.json();
+}
+
+export async function createProjectMCPProxyAPIKey(
+  params: ProjectMCPProxyEnvironmentPathParams,
+  body: CreateProjectMCPProxyAPIKeyRequest,
+  getToken?: () => Promise<string>,
+): Promise<CreateProjectMCPProxyAPIKeyResponse> {
+  const token = getToken ? await getToken() : undefined;
+  const res = await httpPOST(
+    `${projectMCPProxyEnvironmentUrl(params)}/api-keys`,
+    body,
+    { token },
+  );
+  if (!res.ok) throw await res.json();
+  return res.json();
+}
+
+export async function rotateProjectMCPProxyAPIKey(
+  params: ProjectMCPProxyAPIKeyPathParams,
+  body: RotateProjectMCPProxyAPIKeyRequest,
+  getToken?: () => Promise<string>,
+): Promise<RotateProjectMCPProxyAPIKeyResponse> {
+  const keyName = encodeRequired(params.keyName, "keyName");
+  const token = getToken ? await getToken() : undefined;
+  const res = await httpPUT(
+    `${projectMCPProxyEnvironmentUrl(params)}/api-keys/${keyName}`,
+    body,
+    { token },
+  );
+  if (!res.ok) throw await res.json();
+  return res.json();
+}
+
+export async function revokeProjectMCPProxyAPIKey(
+  params: ProjectMCPProxyAPIKeyPathParams,
+  getToken?: () => Promise<string>,
+): Promise<void> {
+  const keyName = encodeRequired(params.keyName, "keyName");
+  const token = getToken ? await getToken() : undefined;
+  const res = await httpDELETE(
+    `${projectMCPProxyEnvironmentUrl(params)}/api-keys/${keyName}`,
+    { token },
+  );
+  if (!res.ok) throw await res.json();
 }

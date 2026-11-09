@@ -264,6 +264,17 @@ export const generatedRouteMap =  {
               "wildPath": "/org/:orgId/project/:projectId/events/*",
               "children": {}
             },
+            "mcpProxies": {
+              "path": "/org/:orgId/project/:projectId/mcp-proxies",
+              "wildPath": "/org/:orgId/project/:projectId/mcp-proxies/*",
+              "children": {
+                "view": {
+                  "path": "/org/:orgId/project/:projectId/mcp-proxies/view/:proxyId",
+                  "wildPath": "/org/:orgId/project/:projectId/mcp-proxies/view/:proxyId/*",
+                  "children": {}
+                }
+              }
+            },
             "agentListing": {
               "path": "/org/:orgId/project/:projectId/agents",
               "wildPath": "/org/:orgId/project/:projectId/agents/*",

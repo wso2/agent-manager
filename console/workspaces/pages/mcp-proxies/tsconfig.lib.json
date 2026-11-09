@@ -14,5 +14,11 @@
     "rootDir": "src"
   },
   "include": ["src/**/*"],
-  "exclude": ["src/**/__docs__", "node_modules", "dist"]
+  "exclude": [
+    "src/**/__docs__",
+    "src/**/*.test.ts",
+    "src/**/*.test.tsx",
+    "node_modules",
+    "dist"
+  ]
 }

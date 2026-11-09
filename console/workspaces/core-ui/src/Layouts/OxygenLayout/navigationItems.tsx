@@ -831,6 +831,25 @@ export function useNavigationItems(): Array<
             pathname,
           ),
       },
+      ...(hasAccess("mcp_server_read")
+        ? [
+            {
+              label: "MCP Servers",
+              type: "item" as const,
+              icon: <MCPLogo size={20} />,
+              href: generatePath(
+                absoluteRouteMap.children.org.children.projects.children
+                  .mcpProxies.path,
+                { orgId, projectId },
+              ),
+              isActive: !!matchPath(
+                absoluteRouteMap.children.org.children.projects.children
+                  .mcpProxies.wildPath,
+                pathname,
+              ),
+            },
+          ]
+        : []),
       ...eventsItem(eventsProjectRoute, { orgId, projectId }),
     ];
   }

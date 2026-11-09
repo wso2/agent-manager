@@ -18,7 +18,12 @@
 import type { ListQuery, OrgPathParams, OrgProjPathParams } from "./common";
 import type {
   APIKeySecurity,
+  CreateLLMAPIKeyRequest,
+  CreateLLMAPIKeyResponse,
+  IdentitySecurity,
   Resilience,
+  RotateLLMAPIKeyRequest,
+  RotateLLMAPIKeyResponse,
   SecurityConfig,
   UpstreamAuth,
   UpstreamConfig,
@@ -138,10 +143,33 @@ export interface MCPProxy {
   updatedAt?: string;
 }
 
-/** A project proxy binding's security. Phase 1 has an API key or none (enabled false). */
+/** A project proxy binding's security: an API key, identity, or none (enabled false). */
 export interface ProjectMCPProxyEnvironmentSecurity {
   enabled?: boolean;
   apiKey?: APIKeySecurity;
+  identity?: IdentitySecurity;
+}
+
+/**
+ * The credential the gateway adds when it calls a project proxy's upstream, as returned:
+ * never the value.
+ */
+export interface ProjectMCPProxyEnvironmentUpstreamAuth {
+  type: "api-key" | "none";
+  header?: string;
+}
+
+/**
+ * The body of PUT .../projects/{proj}/mcp-proxies/{proxyId}/environments/{envName}. It replaces the
+ * binding's configuration: an omitted field resets to its default. An api-key upstreamAuth sent
+ * without a value keeps the stored one.
+ */
+export interface ProjectMCPProxyEnvironmentRequest {
+  gatewayId?: string;
+  releaseBindingName?: string;
+  security?: ProjectMCPProxyEnvironmentSecurity;
+  policies?: MCPProxyPolicy[];
+  upstreamAuth?: ProjectMCPProxyEnvironmentUpstreamAuth & { value?: string };
 }
 
 /** One environment binding of a project-owned MCP proxy, as the project route reports it. */
@@ -152,8 +180,11 @@ export interface ProjectMCPProxyEnvironment {
   deploymentStatus?: "Deploying" | "Deployed" | "Failed";
   deploymentStatusReason?: string;
   gatewayId?: string;
+  releaseBindingName?: string;
   publicUrl?: string;
   security?: ProjectMCPProxyEnvironmentSecurity;
+  policies?: MCPProxyPolicy[];
+  upstreamAuth?: ProjectMCPProxyEnvironmentUpstreamAuth;
   /**
    * The binding's tools, prompts and resources: the ones given on the binding PUT, or the
    * ones Agent Manager discovered from the MCP server (see capabilitiesSource). Absent
@@ -200,8 +231,19 @@ export interface MCPProxyListItem {
   mcpSpecVersion?: string;
   /** Set for a project-scoped proxy: the project that owns it. Absent for an org proxy. */
   projectName?: string;
+  /** The component endpoint a project-scoped proxy fronts. Absent for an org proxy. */
+  source?: MCPProxySource;
+  /** The environments the proxy is bound to. */
+  environments?: MCPProxyListEnvironment[];
   createdAt?: string;
   updatedAt?: string;
+}
+
+/** One environment a listed MCP proxy is bound to. */
+export interface MCPProxyListEnvironment {
+  environmentUuid: string;
+  /** Set for a project-scoped proxy, whose binding is named after its environment. */
+  environmentName?: string;
 }
 
 export interface MCPProxyPagination {
@@ -248,3 +290,15 @@ export type ListMCPProxiesQuery = ListQuery & {
   project?: string;
 };
 export type FetchMCPProxyServerInfoPathParams = OrgPathParams;
+
+export type ProjectMCPProxyEnvironmentPathParams = GetProjectMCPProxyPathParams & {
+  envName: string | undefined;
+};
+export type ProjectMCPProxyAPIKeyPathParams = ProjectMCPProxyEnvironmentPathParams & {
+  keyName: string;
+};
+export type DeleteProjectMCPProxyPathParams = GetProjectMCPProxyPathParams;
+export type CreateProjectMCPProxyAPIKeyRequest = CreateLLMAPIKeyRequest;
+export type CreateProjectMCPProxyAPIKeyResponse = CreateLLMAPIKeyResponse;
+export type RotateProjectMCPProxyAPIKeyRequest = RotateLLMAPIKeyRequest;
+export type RotateProjectMCPProxyAPIKeyResponse = RotateLLMAPIKeyResponse;

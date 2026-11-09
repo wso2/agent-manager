@@ -1,0 +1,428 @@
+/**
+ * Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
+ *
+ * WSO2 LLC. licenses this file to you under the Apache License,
+ * Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied. See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import { useEffect, useState } from "react";
+import {
+  Alert,
+  Button,
+  Chip,
+  FormControl,
+  FormControlLabel,
+  IconButton,
+  ListingTable,
+  MenuItem,
+  Select,
+  Stack,
+  Switch,
+  TextField,
+  Tooltip,
+  Typography,
+} from "@wso2/oxygen-ui";
+import { Copy, ShieldOff } from "@wso2/oxygen-ui-icons-react";
+import {
+  useCreateProjectMCPProxyAPIKey,
+  useListProjectMCPProxyAPIKeys,
+  useRevokeProjectMCPProxyAPIKey,
+} from "@agent-management-platform/api-client";
+import {
+  APIKeysManager,
+  type CreateAPIKeyInput,
+} from "@agent-management-platform/shared-component";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
+import type {
+  APIKeyLocation,
+  ProjectMCPProxyEnvironment,
+  ProjectMCPProxyEnvironmentRequest,
+} from "@agent-management-platform/types";
+import {
+  bindingRequestFrom,
+  bindingRequiresAPIKey,
+  DEFAULT_API_KEY_HEADER,
+} from "./projectBinding";
+import { getCapabilityId } from "./mcpEndpoints";
+import { useCopyWithFeedback } from "./useCopyWithFeedback";
+
+/** Saves a whole binding request for the selected environment. */
+export type SaveBinding = (
+  request: ProjectMCPProxyEnvironmentRequest,
+) => Promise<unknown>;
+
+const STATUS_COLOR: Record<string, "success" | "warning" | "error"> = {
+  Deployed: "success",
+  Deploying: "warning",
+  Failed: "error",
+};
+
+/** A binding's deployment status, or why it has none. */
+export function BindingStatusChip({ env }: { env: ProjectMCPProxyEnvironment }) {
+  if (!env.deploymentStatus) {
+    return (
+      <Tooltip
+        title={
+          env.deploymentStatusReason === "NO_GATEWAY"
+            ? "The environment has no gateway yet. It deploys once one is added."
+            : (env.deploymentStatusReason ?? "")
+        }
+      >
+        <Chip label="Not deployed" size="small" variant="outlined" />
+      </Tooltip>
+    );
+  }
+  return (
+    <Tooltip title={env.deploymentStatusReason ?? ""}>
+      <Chip
+        label={env.deploymentStatus}
+        size="small"
+        variant="outlined"
+        color={STATUS_COLOR[env.deploymentStatus]}
+      />
+    </Tooltip>
+  );
+}
+
+function Field({ label, value }: { label: string; value?: string }) {
+  const handleCopy = useCopyWithFeedback();
+  return (
+    <Stack spacing={0.5}>
+      <Typography variant="caption" color="text.secondary" fontWeight={500}>
+        {label}
+      </Typography>
+      <Stack direction="row" alignItems="center" spacing={0.5}>
+        <Typography
+          variant="body2"
+          sx={{ fontFamily: "monospace", wordBreak: "break-all" }}
+        >
+          {value || "—"}
+        </Typography>
+        {value && (
+          <Tooltip title={`Copy ${label}`}>
+            <IconButton
+              size="small"
+              aria-label={`Copy ${label}`}
+              onClick={() => handleCopy(value, label)}
+            >
+              <Copy size={14} />
+            </IconButton>
+          </Tooltip>
+        )}
+      </Stack>
+    </Stack>
+  );
+}
+
+/** Where the binding is served and what it offers. */
+export function BindingOverviewTab({ env }: { env: ProjectMCPProxyEnvironment }) {
+  const tools = (env.capabilities?.tools ?? [])
+    .map((raw) => ({ raw, name: getCapabilityId("tool", raw) }))
+    .filter((tool): tool is { raw: Record<string, unknown>; name: string } => !!tool.name);
+  return (
+    <Stack spacing={3}>
+      <Stack direction="row" spacing={1} alignItems="center">
+        <Typography variant="body2" color="text.secondary">
+          Status
+        </Typography>
+        <BindingStatusChip env={env} />
+      </Stack>
+      <Field label="Public URL" value={env.publicUrl} />
+      <Field label="Context" value={env.context} />
+      {env.releaseBindingName && (
+        <Field label="Release binding" value={env.releaseBindingName} />
+      )}
+      <Stack spacing={1}>
+        <Typography variant="subtitle2">Tools</Typography>
+        {tools.length ? (
+          <Stack spacing={1}>
+            {tools.map(({ raw, name }) => (
+              <Stack key={name} spacing={0.25}>
+                <Typography variant="body2" sx={{ fontFamily: "monospace" }}>
+                  {name}
+                </Typography>
+                {typeof raw.description === "string" && (
+                  <Typography variant="caption" color="text.secondary">
+                    {raw.description}
+                  </Typography>
+                )}
+              </Stack>
+            ))}
+          </Stack>
+        ) : (
+          <Typography variant="body2" color="text.secondary">
+            No tools are known for this server yet.
+          </Typography>
+        )}
+      </Stack>
+    </Stack>
+  );
+}
+
+/** Whether callers present an API key to the gateway, and where. */
+export function BindingSecurityTab({
+  env,
+  onSave,
+  isSaving,
+}: {
+  env: ProjectMCPProxyEnvironment;
+  onSave: SaveBinding;
+  isSaving: boolean;
+}) {
+  const { canWrite } = useResourceAccess("mcp_server");
+  const [required, setRequired] = useState(bindingRequiresAPIKey(env.security));
+  const [header, setHeader] = useState(
+    env.security?.apiKey?.key || DEFAULT_API_KEY_HEADER,
+  );
+  const [location, setLocation] = useState<APIKeyLocation>(
+    env.security?.apiKey?.in ?? "header",
+  );
+
+  useEffect(() => {
+    setRequired(bindingRequiresAPIKey(env.security));
+    setHeader(env.security?.apiKey?.key || DEFAULT_API_KEY_HEADER);
+    setLocation(env.security?.apiKey?.in ?? "header");
+  }, [env]);
+
+  const isDirty =
+    required !== bindingRequiresAPIKey(env.security) ||
+    (required &&
+      (header.trim() !== (env.security?.apiKey?.key || DEFAULT_API_KEY_HEADER) ||
+        location !== (env.security?.apiKey?.in ?? "header")));
+
+  const save = () =>
+    onSave({
+      ...bindingRequestFrom(env),
+      security: required
+        ? {
+            enabled: true,
+            apiKey: { enabled: true, key: header.trim(), in: location },
+          }
+        : { enabled: false },
+    });
+
+  return (
+    <Stack spacing={3} maxWidth={560}>
+      <FormControlLabel
+        control={
+          <Switch
+            checked={required}
+            disabled={!canWrite}
+            onChange={(event) => setRequired(event.target.checked)}
+          />
+        }
+        label="Require an API key"
+      />
+      {!required && (
+        <Alert severity="warning">
+          Anyone who can reach the gateway can call this MCP server in this
+          environment.
+        </Alert>
+      )}
+      {required && (
+        <Stack direction="row" spacing={2}>
+          <TextField
+            label="Key name"
+            size="small"
+            value={header}
+            disabled={!canWrite}
+            onChange={(event) => setHeader(event.target.value)}
+            helperText="The header or query parameter callers send the key in."
+            fullWidth
+          />
+          <FormControl size="small" sx={{ minWidth: 140 }}>
+            <Select
+              value={location}
+              disabled={!canWrite}
+              onChange={(event) =>
+                setLocation(event.target.value as APIKeyLocation)
+              }
+            >
+              <MenuItem value="header">Header</MenuItem>
+              <MenuItem value="query">Query</MenuItem>
+            </Select>
+          </FormControl>
+        </Stack>
+      )}
+      {canWrite && (
+        <Stack direction="row">
+          <Button
+            variant="contained"
+            disabled={!isDirty || isSaving || (required && !header.trim())}
+            onClick={() => void save()}
+          >
+            Save
+          </Button>
+        </Stack>
+      )}
+    </Stack>
+  );
+}
+
+/** The credential the gateway adds when it calls the server's component. */
+export function BindingUpstreamAuthTab({
+  env,
+  onSave,
+  isSaving,
+}: {
+  env: ProjectMCPProxyEnvironment;
+  onSave: SaveBinding;
+  isSaving: boolean;
+}) {
+  const { canWrite } = useResourceAccess("mcp_server");
+  const stored = env.upstreamAuth?.type === "api-key" ? env.upstreamAuth : undefined;
+  const [enabled, setEnabled] = useState(!!stored);
+  const [header, setHeader] = useState(stored?.header ?? "");
+  const [value, setValue] = useState("");
+
+  useEffect(() => {
+    setEnabled(!!stored);
+    setHeader(stored?.header ?? "");
+    setValue("");
+  }, [stored]);
+
+  const isDirty =
+    enabled !== !!stored ||
+    (enabled && (header.trim() !== (stored?.header ?? "") || value !== ""));
+  // A new credential needs its value; a stored one is kept when the value is left empty.
+  const canSave =
+    isDirty && !isSaving && (!enabled || (!!header.trim() && (!!stored || !!value)));
+
+  const save = () =>
+    onSave({
+      ...bindingRequestFrom(env),
+      upstreamAuth: enabled
+        ? {
+            type: "api-key",
+            header: header.trim(),
+            ...(value ? { value } : {}),
+          }
+        : undefined,
+    });
+
+  return (
+    <Stack spacing={3} maxWidth={560}>
+      <Typography variant="body2" color="text.secondary">
+        Add a header the gateway sends with every request to this MCP
+        server&apos;s component.
+      </Typography>
+      <FormControlLabel
+        control={
+          <Switch
+            checked={enabled}
+            disabled={!canWrite}
+            onChange={(event) => setEnabled(event.target.checked)}
+          />
+        }
+        label="Send a credential to the upstream"
+      />
+      {enabled && (
+        <>
+          <TextField
+            label="Header"
+            size="small"
+            value={header}
+            disabled={!canWrite}
+            placeholder="Authorization"
+            onChange={(event) => setHeader(event.target.value)}
+          />
+          <TextField
+            label="Value"
+            size="small"
+            type="password"
+            value={value}
+            disabled={!canWrite}
+            onChange={(event) => setValue(event.target.value)}
+            helperText={
+              stored
+                ? "Stored encrypted and never shown. Leave empty to keep the current value."
+                : "Stored encrypted and never shown."
+            }
+          />
+        </>
+      )}
+      {canWrite && (
+        <Stack direction="row">
+          <Button variant="contained" disabled={!canSave} onClick={() => void save()}>
+            Save
+          </Button>
+        </Stack>
+      )}
+    </Stack>
+  );
+}
+
+/** The binding's API keys, when it asks callers for one. */
+export function BindingAPIKeysTab({
+  env,
+  orgName,
+  projName,
+  proxyId,
+  onGoToSecurity,
+}: {
+  env: ProjectMCPProxyEnvironment;
+  orgName: string | undefined;
+  projName: string | undefined;
+  proxyId: string;
+  onGoToSecurity: () => void;
+}) {
+  const { canWrite } = useResourceAccess("mcp_server");
+  const requiresKey = bindingRequiresAPIKey(env.security);
+  const params = { orgName, projName, proxyId, envName: env.environmentName };
+  const { data, isLoading, isError } = useListProjectMCPProxyAPIKeys(params, {
+    enabled: requiresKey,
+  });
+  const { mutateAsync: createKey, isPending: isCreating } =
+    useCreateProjectMCPProxyAPIKey();
+  const { mutate: revokeKey, isPending: isRevoking } =
+    useRevokeProjectMCPProxyAPIKey();
+
+  if (!requiresKey) {
+    return (
+      <ListingTable.Container>
+        <ListingTable.EmptyState
+          illustration={<ShieldOff size={48} />}
+          title="API key authentication is disabled"
+          description="Turn on API keys from the Security tab to manage keys for this environment."
+          action={
+            <Button variant="outlined" onClick={onGoToSecurity}>
+              Go to Security Tab
+            </Button>
+          }
+        />
+      </ListingTable.Container>
+    );
+  }
+
+  const handleCreate = async (input: CreateAPIKeyInput) => {
+    const res = await createKey({
+      params,
+      body: { displayName: input.displayName, expiresAt: input.expiresAt },
+    });
+    return res.apiKey;
+  };
+
+  return (
+    <APIKeysManager
+      keys={data?.keys}
+      isLoading={isLoading}
+      isError={isError}
+      isCreating={isCreating}
+      isRevoking={isRevoking}
+      emptyDescription="Create an API key to call this MCP server in this environment."
+      onCreate={handleCreate}
+      onRevoke={(keyName) => revokeKey({ ...params, keyName })}
+      readOnly={!canWrite}
+    />
+  );
+}
