@@ -56,6 +56,8 @@ func RegisterProjectMCPProxyRoutes(
 	const keys = binding + "/api-keys"
 	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("GET "+keys, rbac.MCPServerRead, orgOverride, ctrl.ListProjectMCPProxyEnvironmentAPIKeys)
 	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("POST "+keys, rbac.MCPServerAPIKeyManage, orgOverride, ctrl.CreateProjectMCPProxyEnvironmentAPIKey)
+	// A short-lived test key issued for one of the caller's users; see IssueEnvironmentTestAPIKey.
+	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("POST "+keys+"/test", rbac.MCPServerAPIKeyManage, orgOverride, ctrl.IssueProjectMCPProxyEnvironmentTestAPIKey)
 	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("PUT "+keys+"/{keyName}", rbac.MCPServerAPIKeyManage, orgOverride, ctrl.RotateProjectMCPProxyEnvironmentAPIKey)
 	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("DELETE "+keys+"/{keyName}", rbac.MCPServerAPIKeyManage, orgOverride, ctrl.RevokeProjectMCPProxyEnvironmentAPIKey)
 }

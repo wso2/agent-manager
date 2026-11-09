@@ -43,6 +43,7 @@ type ProjectMCPProxyController interface {
 	DeleteProjectMCPProxyEnvironment(w http.ResponseWriter, r *http.Request)
 	ListProjectMCPProxyEnvironmentAPIKeys(w http.ResponseWriter, r *http.Request)
 	CreateProjectMCPProxyEnvironmentAPIKey(w http.ResponseWriter, r *http.Request)
+	IssueProjectMCPProxyEnvironmentTestAPIKey(w http.ResponseWriter, r *http.Request)
 	RotateProjectMCPProxyEnvironmentAPIKey(w http.ResponseWriter, r *http.Request)
 	RevokeProjectMCPProxyEnvironmentAPIKey(w http.ResponseWriter, r *http.Request)
 }

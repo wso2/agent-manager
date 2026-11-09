@@ -1076,6 +1076,11 @@ type ClientInterface interface {
 
 	CreateProjectMCPProxyEnvironmentAPIKey(ctx context.Context, orgName string, projName string, proxyId string, envName string, body CreateProjectMCPProxyEnvironmentAPIKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// IssueProjectMCPProxyEnvironmentTestAPIKeyWithBody request with any body
+	IssueProjectMCPProxyEnvironmentTestAPIKeyWithBody(ctx context.Context, orgName string, projName string, proxyId string, envName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	IssueProjectMCPProxyEnvironmentTestAPIKey(ctx context.Context, orgName string, projName string, proxyId string, envName string, body IssueProjectMCPProxyEnvironmentTestAPIKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// RevokeProjectMCPProxyEnvironmentAPIKey request
 	RevokeProjectMCPProxyEnvironmentAPIKey(ctx context.Context, orgName string, projName string, proxyId string, envName string, keyName string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -5434,6 +5439,30 @@ func (c *Client) CreateProjectMCPProxyEnvironmentAPIKeyWithBody(ctx context.Cont
 
 func (c *Client) CreateProjectMCPProxyEnvironmentAPIKey(ctx context.Context, orgName string, projName string, proxyId string, envName string, body CreateProjectMCPProxyEnvironmentAPIKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewCreateProjectMCPProxyEnvironmentAPIKeyRequest(c.Server, orgName, projName, proxyId, envName, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) IssueProjectMCPProxyEnvironmentTestAPIKeyWithBody(ctx context.Context, orgName string, projName string, proxyId string, envName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewIssueProjectMCPProxyEnvironmentTestAPIKeyRequestWithBody(c.Server, orgName, projName, proxyId, envName, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) IssueProjectMCPProxyEnvironmentTestAPIKey(ctx context.Context, orgName string, projName string, proxyId string, envName string, body IssueProjectMCPProxyEnvironmentTestAPIKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewIssueProjectMCPProxyEnvironmentTestAPIKeyRequest(c.Server, orgName, projName, proxyId, envName, body)
 	if err != nil {
 		return nil, err
 	}
@@ -21205,6 +21234,74 @@ func NewCreateProjectMCPProxyEnvironmentAPIKeyRequestWithBody(server string, org
 	return req, nil
 }
 
+// NewIssueProjectMCPProxyEnvironmentTestAPIKeyRequest calls the generic IssueProjectMCPProxyEnvironmentTestAPIKey builder with application/json body
+func NewIssueProjectMCPProxyEnvironmentTestAPIKeyRequest(server string, orgName string, projName string, proxyId string, envName string, body IssueProjectMCPProxyEnvironmentTestAPIKeyJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewIssueProjectMCPProxyEnvironmentTestAPIKeyRequestWithBody(server, orgName, projName, proxyId, envName, "application/json", bodyReader)
+}
+
+// NewIssueProjectMCPProxyEnvironmentTestAPIKeyRequestWithBody generates requests for IssueProjectMCPProxyEnvironmentTestAPIKey with any type of body
+func NewIssueProjectMCPProxyEnvironmentTestAPIKeyRequestWithBody(server string, orgName string, projName string, proxyId string, envName string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "proxyId", proxyId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam3 string
+
+	pathParam3, err = runtime.StyleParamWithOptions("simple", false, "envName", envName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/mcp-proxies/%s/environments/%s/api-keys/test", pathParam0, pathParam1, pathParam2, pathParam3)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewRevokeProjectMCPProxyEnvironmentAPIKeyRequest generates requests for RevokeProjectMCPProxyEnvironmentAPIKey
 func NewRevokeProjectMCPProxyEnvironmentAPIKeyRequest(server string, orgName string, projName string, proxyId string, envName string, keyName string) (*http.Request, error) {
 	var err error
@@ -23064,6 +23161,11 @@ type ClientWithResponsesInterface interface {
 	CreateProjectMCPProxyEnvironmentAPIKeyWithBodyWithResponse(ctx context.Context, orgName string, projName string, proxyId string, envName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateProjectMCPProxyEnvironmentAPIKeyResp, error)
 
 	CreateProjectMCPProxyEnvironmentAPIKeyWithResponse(ctx context.Context, orgName string, projName string, proxyId string, envName string, body CreateProjectMCPProxyEnvironmentAPIKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateProjectMCPProxyEnvironmentAPIKeyResp, error)
+
+	// IssueProjectMCPProxyEnvironmentTestAPIKeyWithBodyWithResponse request with any body
+	IssueProjectMCPProxyEnvironmentTestAPIKeyWithBodyWithResponse(ctx context.Context, orgName string, projName string, proxyId string, envName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*IssueProjectMCPProxyEnvironmentTestAPIKeyResp, error)
+
+	IssueProjectMCPProxyEnvironmentTestAPIKeyWithResponse(ctx context.Context, orgName string, projName string, proxyId string, envName string, body IssueProjectMCPProxyEnvironmentTestAPIKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*IssueProjectMCPProxyEnvironmentTestAPIKeyResp, error)
 
 	// RevokeProjectMCPProxyEnvironmentAPIKeyWithResponse request
 	RevokeProjectMCPProxyEnvironmentAPIKeyWithResponse(ctx context.Context, orgName string, projName string, proxyId string, envName string, keyName string, reqEditors ...RequestEditorFn) (*RevokeProjectMCPProxyEnvironmentAPIKeyResp, error)
@@ -29798,6 +29900,32 @@ func (r CreateProjectMCPProxyEnvironmentAPIKeyResp) StatusCode() int {
 	return 0
 }
 
+type IssueProjectMCPProxyEnvironmentTestAPIKeyResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *IssueTestAPIKeyResponse
+	JSON400      *ErrorResponse
+	JSON404      *ErrorResponse
+	JSON409      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r IssueProjectMCPProxyEnvironmentTestAPIKeyResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r IssueProjectMCPProxyEnvironmentTestAPIKeyResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type RevokeProjectMCPProxyEnvironmentAPIKeyResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -33314,6 +33442,23 @@ func (c *ClientWithResponses) CreateProjectMCPProxyEnvironmentAPIKeyWithResponse
 		return nil, err
 	}
 	return ParseCreateProjectMCPProxyEnvironmentAPIKeyResp(rsp)
+}
+
+// IssueProjectMCPProxyEnvironmentTestAPIKeyWithBodyWithResponse request with arbitrary body returning *IssueProjectMCPProxyEnvironmentTestAPIKeyResp
+func (c *ClientWithResponses) IssueProjectMCPProxyEnvironmentTestAPIKeyWithBodyWithResponse(ctx context.Context, orgName string, projName string, proxyId string, envName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*IssueProjectMCPProxyEnvironmentTestAPIKeyResp, error) {
+	rsp, err := c.IssueProjectMCPProxyEnvironmentTestAPIKeyWithBody(ctx, orgName, projName, proxyId, envName, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseIssueProjectMCPProxyEnvironmentTestAPIKeyResp(rsp)
+}
+
+func (c *ClientWithResponses) IssueProjectMCPProxyEnvironmentTestAPIKeyWithResponse(ctx context.Context, orgName string, projName string, proxyId string, envName string, body IssueProjectMCPProxyEnvironmentTestAPIKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*IssueProjectMCPProxyEnvironmentTestAPIKeyResp, error) {
+	rsp, err := c.IssueProjectMCPProxyEnvironmentTestAPIKey(ctx, orgName, projName, proxyId, envName, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseIssueProjectMCPProxyEnvironmentTestAPIKeyResp(rsp)
 }
 
 // RevokeProjectMCPProxyEnvironmentAPIKeyWithResponse request returning *RevokeProjectMCPProxyEnvironmentAPIKeyResp
@@ -45829,6 +45974,60 @@ func ParseCreateProjectMCPProxyEnvironmentAPIKeyResp(rsp *http.Response) (*Creat
 			return nil, err
 		}
 		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseIssueProjectMCPProxyEnvironmentTestAPIKeyResp parses an HTTP response from a IssueProjectMCPProxyEnvironmentTestAPIKeyWithResponse call
+func ParseIssueProjectMCPProxyEnvironmentTestAPIKeyResp(rsp *http.Response) (*IssueProjectMCPProxyEnvironmentTestAPIKeyResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &IssueProjectMCPProxyEnvironmentTestAPIKeyResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest IssueTestAPIKeyResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
 		var dest ErrorResponse

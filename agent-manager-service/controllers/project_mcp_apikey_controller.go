@@ -160,3 +160,28 @@ func (c *projectMCPProxyController) RevokeProjectMCPProxyEnvironmentAPIKey(w htt
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
+
+// IssueProjectMCPProxyEnvironmentTestAPIKey handles POST .../environments/{envName}/api-keys/test.
+func (c *projectMCPProxyController) IssueProjectMCPProxyEnvironmentTestAPIKey(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<16)
+	var body models.IssueBindingTestAPIKeyRequest
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+	ouID, project, handle, envName, ok := c.bindingKeyParams(w, r)
+	if !ok {
+		return
+	}
+	resp, err := c.service.IssueEnvironmentTestAPIKey(ctx, ouID, project.Name, project.UUID, handle, envName, &body)
+	if err != nil {
+		if !writeProjectMCPAPIKeyError(w, err) {
+			logger.GetLogger(ctx).Error("IssueProjectMCPProxyEnvironmentTestAPIKey: failed",
+				"ouID", ouID, "handle", handle, "environment", envName, "error", err)
+			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to issue the test API key")
+		}
+		return
+	}
+	utils.WriteSuccessResponse(w, http.StatusOK, resp)
+}

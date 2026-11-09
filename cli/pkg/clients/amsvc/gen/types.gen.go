@@ -4442,6 +4442,15 @@ type InputInterfaceSchema struct {
 	Path *string `json:"path,omitempty"`
 }
 
+// IssueBindingTestAPIKeyRequest defines model for IssueBindingTestAPIKeyRequest.
+type IssueBindingTestAPIKeyRequest struct {
+	// ExpiresAt When the key expires (RFC 3339). Must be in the future and no more than 24 hours away. Defaults to one hour from now.
+	ExpiresAt *time.Time `json:"expiresAt,omitempty"`
+
+	// ForUser The caller's user the key is issued for, e.g. their user ID. It picks the user's key slots and is not stored.
+	ForUser string `json:"forUser"`
+}
+
 // IssueTestAPIKeyResponse defines model for IssueTestAPIKeyResponse.
 type IssueTestAPIKeyResponse struct {
 	// ApiKey The test API key value to send as the X-API-Key header.
@@ -4456,7 +4465,7 @@ type IssueTestAPIKeyResponse struct {
 	// once the gateway reconnects and syncs.
 	GatewayConnected *bool `json:"gatewayConnected,omitempty"`
 
-	// KeyId The fixed name "console-test".
+	// KeyId The key's name.
 	KeyId   *string `json:"keyId,omitempty"`
 	Message *string `json:"message,omitempty"`
 	Status  string  `json:"status"`
@@ -7825,6 +7834,9 @@ type PutProjectMCPProxyEnvironmentJSONRequestBody = MCPProxyEnvironmentRequest
 
 // CreateProjectMCPProxyEnvironmentAPIKeyJSONRequestBody defines body for CreateProjectMCPProxyEnvironmentAPIKey for application/json ContentType.
 type CreateProjectMCPProxyEnvironmentAPIKeyJSONRequestBody = CreateLLMAPIKeyRequest
+
+// IssueProjectMCPProxyEnvironmentTestAPIKeyJSONRequestBody defines body for IssueProjectMCPProxyEnvironmentTestAPIKey for application/json ContentType.
+type IssueProjectMCPProxyEnvironmentTestAPIKeyJSONRequestBody = IssueBindingTestAPIKeyRequest
 
 // RotateProjectMCPProxyEnvironmentAPIKeyJSONRequestBody defines body for RotateProjectMCPProxyEnvironmentAPIKey for application/json ContentType.
 type RotateProjectMCPProxyEnvironmentAPIKeyJSONRequestBody = RotateLLMAPIKeyRequest

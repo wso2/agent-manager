@@ -18,6 +18,8 @@ package services
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"strings"
@@ -87,8 +89,8 @@ func (t *bindingKeyTarget) requireAPIKeySecurity() error {
 	return nil
 }
 
-// existingKey returns the binding's stored key named keyName, or ErrMCPAPIKeyNotFound. Agent and console keys are
-// stored elsewhere, so only a user-managed key of this binding can match.
+// existingKey returns the binding's user-managed key named keyName, or ErrMCPAPIKeyNotFound. Agent and console keys
+// are stored elsewhere, and the binding's test keys do not match.
 func (s *ProjectMCPProxyService) existingKey(t *bindingKeyTarget, keyName string) (*models.StoredAPIKey, error) {
 	key, err := s.base.apiKeyBroadcaster.apiKeyRepo.GetByArtifactAndName(t.artifact, keyName)
 	switch {
@@ -96,6 +98,9 @@ func (s *ProjectMCPProxyService) existingKey(t *bindingKeyTarget, keyName string
 		return nil, utils.ErrMCPAPIKeyNotFound
 	case err != nil:
 		return nil, fmt.Errorf("failed to read API key: %w", err)
+	case key.Purpose != models.APIKeyPurposeUserManaged:
+		// A test key is not one of the binding's user keys: it is issued and replaced through the test key route.
+		return nil, utils.ErrMCPAPIKeyNotFound
 	}
 	return key, nil
 }
@@ -163,6 +168,10 @@ func (s *ProjectMCPProxyService) CreateEnvironmentAPIKey(
 		if err != nil {
 			return nil, fmt.Errorf("%w: failed to generate an API key name: %w", utils.ErrBadRequest, err)
 		}
+	}
+	if strings.HasPrefix(keyName, models.APIKeyTestKeyPrefix) {
+		return nil, fmt.Errorf("%w: names starting with %q are reserved for test keys",
+			utils.ErrBadRequest, models.APIKeyTestKeyPrefix)
 	}
 	if utf8.RuneCountInString(keyName) < models.MinAPIKeyNameLength {
 		return nil, fmt.Errorf("%w: API key name %q must be at least %d characters",
@@ -251,4 +260,134 @@ func (s *ProjectMCPProxyService) RevokeEnvironmentAPIKey(
 	err = s.base.apiKeyBroadcaster.broadcastRevokeToGateways(ctx, gateways, t.artifact, t.artifact, existing.Name)
 	attempt.Complete(ctx, err)
 	return err
+}
+
+const (
+	// bindingTestKeyTTL is how long a binding test key lives when the caller gives no expiresAt.
+	bindingTestKeyTTL = time.Hour
+	// bindingTestKeyMaxTTL is the latest a caller may ask a binding test key to expire.
+	bindingTestKeyMaxTTL = 24 * time.Hour
+	// bindingTestKeySlots is how many test keys one user holds per binding at a time.
+	bindingTestKeySlots = 3
+	// maxTestKeyUserLength bounds forUser, which only names the key.
+	maxTestKeyUserLength = 256
+)
+
+// bindingTestKeyNames are the names of forUser's test key slots: the console test key prefix, a hash of the user and
+// the slot number. The user is not stored, only the hash in the name.
+func bindingTestKeyNames(forUser string) []string {
+	sum := sha256.Sum256([]byte(forUser))
+	base := models.APIKeyTestKeyPrefix + hex.EncodeToString(sum[:])[:12]
+	names := make([]string, bindingTestKeySlots)
+	for i := range names {
+		names[i] = fmt.Sprintf("%s-%d", base, i+1)
+	}
+	return names
+}
+
+// testKeyExpiry is the expiry of a test key: expiresAt if given, which must be in the future and no later than
+// bindingTestKeyMaxTTL from now, else bindingTestKeyTTL from now.
+func testKeyExpiry(expiresAt *string, now time.Time) (string, error) {
+	if expiresAt == nil || strings.TrimSpace(*expiresAt) == "" {
+		return now.Add(bindingTestKeyTTL).Format(time.RFC3339), nil
+	}
+	t, err := time.Parse(time.RFC3339, strings.TrimSpace(*expiresAt))
+	if err != nil {
+		return "", fmt.Errorf("%w: expiresAt must be an RFC 3339 time, e.g. 2026-12-31T23:59:59Z", utils.ErrBadRequest)
+	}
+	if !t.After(now) {
+		return "", fmt.Errorf("%w: expiresAt must be in the future", utils.ErrBadRequest)
+	}
+	if t.After(now.Add(bindingTestKeyMaxTTL)) {
+		return "", fmt.Errorf("%w: expiresAt must be no more than %s from now", utils.ErrBadRequest, bindingTestKeyMaxTTL)
+	}
+	return t.UTC().Format(time.RFC3339), nil
+}
+
+// IssueEnvironmentTestAPIKey issues a short-lived test key for the binding on behalf of forUser, for a caller that
+// acts for its own users. Each user has bindingTestKeySlots slots: a free slot takes the new key, else the slot
+// issued longest ago is rotated, so its old value stops working. Test keys are not listed, and the user key routes
+// cannot rotate or revoke them; they go with the binding like its other keys.
+func (s *ProjectMCPProxyService) IssueEnvironmentTestAPIKey(
+	ctx context.Context, ouID, projectName, projectUUID, handle, envName string, req *models.IssueBindingTestAPIKeyRequest,
+) (*models.IssueTestAPIKeyResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("%w: request body is required", utils.ErrBadRequest)
+	}
+	forUser := strings.TrimSpace(req.ForUser)
+	if forUser == "" {
+		return nil, fmt.Errorf("%w: forUser is required", utils.ErrBadRequest)
+	}
+	if utf8.RuneCountInString(forUser) > maxTestKeyUserLength {
+		return nil, fmt.Errorf("%w: forUser must be at most %d characters", utils.ErrBadRequest, maxTestKeyUserLength)
+	}
+	expiresAt, err := testKeyExpiry(req.ExpiresAt, time.Now().UTC())
+	if err != nil {
+		return nil, err
+	}
+	t, err := s.resolveBindingKeyTarget(ctx, ouID, projectUUID, handle, envName)
+	if err != nil {
+		return nil, err
+	}
+	if err := t.requireAPIKeySecurity(); err != nil {
+		return nil, err
+	}
+
+	// Pick the slot: the first free one, else the one issued longest ago.
+	var slot string
+	var oldest *models.StoredAPIKey
+	for _, name := range bindingTestKeyNames(forUser) {
+		key, err := s.base.apiKeyBroadcaster.apiKeyRepo.GetByArtifactAndName(t.artifact, name)
+		switch {
+		case errors.Is(err, gorm.ErrRecordNotFound) || (err == nil && key == nil):
+			slot = name
+		case err != nil:
+			return nil, fmt.Errorf("failed to read API key: %w", err)
+		case key.Purpose != models.APIKeyPurposeTest:
+			return nil, fmt.Errorf("%w: %q is reserved for test keys", utils.ErrBadRequest, name)
+		case oldest == nil || key.UpdatedAt.Before(oldest.UpdatedAt):
+			oldest = key
+		}
+		if slot != "" {
+			break
+		}
+	}
+	rotated := slot == ""
+	if rotated {
+		slot = oldest.Name
+	}
+	gateways, err := s.organizationGateways(ctx, ouID)
+	if err != nil {
+		return nil, err
+	}
+
+	attempt, err := beginAPIKeyAudit(ctx, audit.ActionAPIKeyIssueTest, t.auditTarget(ouID, projectName, envName, slot),
+		audit.Detail("expiresAt", expiresAt), audit.Detail("rotated", rotated))
+	if err != nil {
+		return nil, err
+	}
+	var resp *models.CreateAPIKeyResponse
+	if rotated {
+		resp, err = s.base.apiKeyBroadcaster.broadcastRotateToGateways(gateways, ouID, t.artifact, t.artifact, slot,
+			&models.RotateAPIKeyRequest{ExpiresAt: &expiresAt})
+	} else {
+		resp, err = s.base.apiKeyBroadcaster.broadcastCreateToGateways(gateways, ouID, t.artifact, t.artifact,
+			&models.CreateAPIKeyRequest{
+				Name:        slot,
+				DisplayName: "Test key",
+				Purpose:     models.APIKeyPurposeTest,
+				ExpiresAt:   &expiresAt,
+			})
+	}
+	attempt.Complete(ctx, err)
+	if err != nil {
+		return nil, err
+	}
+	return &models.IssueTestAPIKeyResponse{
+		Status:    resp.Status,
+		Message:   resp.Message,
+		KeyID:     resp.KeyID,
+		APIKey:    resp.APIKey,
+		ExpiresAt: expiresAt,
+	}, nil
 }

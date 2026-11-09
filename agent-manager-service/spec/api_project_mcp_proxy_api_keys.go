@@ -204,6 +204,188 @@ func (a *ProjectMCPProxyAPIKeysAPIService) CreateProjectMCPProxyEnvironmentAPIKe
 	return localVarReturnValue, localVarHTTPResponse, nil
 }
 
+type ApiIssueProjectMCPProxyEnvironmentTestAPIKeyRequest struct {
+	ctx                           context.Context
+	ApiService                    *ProjectMCPProxyAPIKeysAPIService
+	orgName                       string
+	projName                      string
+	proxyId                       string
+	envName                       string
+	issueBindingTestAPIKeyRequest *IssueBindingTestAPIKeyRequest
+}
+
+func (r ApiIssueProjectMCPProxyEnvironmentTestAPIKeyRequest) IssueBindingTestAPIKeyRequest(issueBindingTestAPIKeyRequest IssueBindingTestAPIKeyRequest) ApiIssueProjectMCPProxyEnvironmentTestAPIKeyRequest {
+	r.issueBindingTestAPIKeyRequest = &issueBindingTestAPIKeyRequest
+	return r
+}
+
+func (r ApiIssueProjectMCPProxyEnvironmentTestAPIKeyRequest) Execute() (*IssueTestAPIKeyResponse, *http.Response, error) {
+	return r.ApiService.IssueProjectMCPProxyEnvironmentTestAPIKeyExecute(r)
+}
+
+/*
+IssueProjectMCPProxyEnvironmentTestAPIKey Issue a test API key for a project MCP proxy binding
+
+Issues a short-lived API key for one of the caller's users, for trying the MCP server. The key value
+is returned once and is sent to every gateway of the organization, as other binding keys are.
+
+Each user has three test key slots per binding. A free slot takes the new key; when all three are
+taken, the slot issued longest ago gets the new value and its old value stops working. keyId names
+the slot.
+
+Test keys are not returned by the list route, and the rotate and revoke routes do not reach them.
+They are removed with the binding. A binding not secured with an API key returns
+409 API_KEY_SECURITY_DISABLED.
+
+	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
+	@param orgName Organization handle. The org comes from the token, or from X-Impersonate-Org, in which case this must be that org's handle.
+	@param projName OpenChoreo project name. Unknown project returns 404 PROJECT_NOT_FOUND.
+	@param proxyId Proxy handle, unique across the org.
+	@param envName Environment name, e.g. development. An environment the proxy has no binding in returns 404 NOT_FOUND.
+	@return ApiIssueProjectMCPProxyEnvironmentTestAPIKeyRequest
+*/
+func (a *ProjectMCPProxyAPIKeysAPIService) IssueProjectMCPProxyEnvironmentTestAPIKey(ctx context.Context, orgName string, projName string, proxyId string, envName string) ApiIssueProjectMCPProxyEnvironmentTestAPIKeyRequest {
+	return ApiIssueProjectMCPProxyEnvironmentTestAPIKeyRequest{
+		ApiService: a,
+		ctx:        ctx,
+		orgName:    orgName,
+		projName:   projName,
+		proxyId:    proxyId,
+		envName:    envName,
+	}
+}
+
+// Execute executes the request
+//
+//	@return IssueTestAPIKeyResponse
+func (a *ProjectMCPProxyAPIKeysAPIService) IssueProjectMCPProxyEnvironmentTestAPIKeyExecute(r ApiIssueProjectMCPProxyEnvironmentTestAPIKeyRequest) (*IssueTestAPIKeyResponse, *http.Response, error) {
+	var (
+		localVarHTTPMethod  = http.MethodPost
+		localVarPostBody    interface{}
+		formFiles           []formFile
+		localVarReturnValue *IssueTestAPIKeyResponse
+	)
+
+	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "ProjectMCPProxyAPIKeysAPIService.IssueProjectMCPProxyEnvironmentTestAPIKey")
+	if err != nil {
+		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
+	}
+
+	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/mcp-proxies/{proxyId}/environments/{envName}/api-keys/test"
+	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"proxyId"+"}", url.PathEscape(parameterValueToString(r.proxyId, "proxyId")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"envName"+"}", url.PathEscape(parameterValueToString(r.envName, "envName")), -1)
+
+	localVarHeaderParams := make(map[string]string)
+	localVarQueryParams := url.Values{}
+	localVarFormParams := url.Values{}
+	if strlen(r.proxyId) > 100 {
+		return localVarReturnValue, nil, reportError("proxyId must have less than 100 elements")
+	}
+	if r.issueBindingTestAPIKeyRequest == nil {
+		return localVarReturnValue, nil, reportError("issueBindingTestAPIKeyRequest is required and must be specified")
+	}
+
+	// to determine the Content-Type header
+	localVarHTTPContentTypes := []string{"application/json"}
+
+	// set Content-Type header
+	localVarHTTPContentType := selectHeaderContentType(localVarHTTPContentTypes)
+	if localVarHTTPContentType != "" {
+		localVarHeaderParams["Content-Type"] = localVarHTTPContentType
+	}
+
+	// to determine the Accept header
+	localVarHTTPHeaderAccepts := []string{"application/json"}
+
+	// set Accept header
+	localVarHTTPHeaderAccept := selectHeaderAccept(localVarHTTPHeaderAccepts)
+	if localVarHTTPHeaderAccept != "" {
+		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
+	}
+	// body params
+	localVarPostBody = r.issueBindingTestAPIKeyRequest
+	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
+	if err != nil {
+		return localVarReturnValue, nil, err
+	}
+
+	localVarHTTPResponse, err := a.client.callAPI(req)
+	if err != nil || localVarHTTPResponse == nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	localVarBody, err := io.ReadAll(localVarHTTPResponse.Body)
+	localVarHTTPResponse.Body.Close()
+	localVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))
+	if err != nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	if localVarHTTPResponse.StatusCode >= 300 {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: localVarHTTPResponse.Status,
+		}
+		if localVarHTTPResponse.StatusCode == 400 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 404 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 409 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 500 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	err = a.client.decode(&localVarReturnValue, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+	if err != nil {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: err.Error(),
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	return localVarReturnValue, localVarHTTPResponse, nil
+}
+
 type ApiListProjectMCPProxyEnvironmentAPIKeysRequest struct {
 	ctx        context.Context
 	ApiService *ProjectMCPProxyAPIKeysAPIService

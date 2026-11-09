@@ -19,7 +19,9 @@ package services
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -63,8 +65,16 @@ func newKeyFixture(t *testing.T, req models.MCPProxyEnvironmentRequest) *keyFixt
 		},
 		gatewayService: NewGatewayEventsService(f.events),
 		apiKeyRepo: &repomocks.APIKeyRepositoryMock{
+			// As the repository does, a conflicting upsert updates the value, status and times only.
 			UpsertFunc: func(key *models.StoredAPIKey) error {
-				f.keys[keyOf(key.ArtifactUUID.String(), key.Name)] = *key
+				k := keyOf(key.ArtifactUUID.String(), key.Name)
+				if prev, ok := f.keys[k]; ok {
+					prev.APIKeyHash, prev.MaskedAPIKey, prev.Status = key.APIKeyHash, key.MaskedAPIKey, key.Status
+					prev.UpdatedAt, prev.ExpiresAt = key.UpdatedAt, key.ExpiresAt
+					f.keys[k] = prev
+					return nil
+				}
+				f.keys[k] = *key
 				return nil
 			},
 			DeleteFunc: func(artifact, name string) error {
@@ -240,4 +250,134 @@ func TestBindingAPIKey_RevokeWorksWhateverTheSecurity(t *testing.T) {
 
 	err = f.svc.RevokeEnvironmentAPIKey(keyCtx(), testOrg, bindingProject, bindingProjectUUID, bindingHandle, bindingEnv, "ip-users")
 	require.ErrorIs(t, err, utils.ErrMCPAPIKeyNotFound)
+}
+
+func (f *keyFixture) issueTest(t *testing.T, forUser string, expiresAt *string) (*models.IssueTestAPIKeyResponse, error) {
+	t.Helper()
+	return f.svc.IssueEnvironmentTestAPIKey(keyCtx(), testOrg, bindingProject, bindingProjectUUID, bindingHandle, bindingEnv,
+		&models.IssueBindingTestAPIKeyRequest{ForUser: forUser, ExpiresAt: expiresAt})
+}
+
+// age sets the stored key's issue time, so the slot order is not left to the clock.
+func (f *keyFixture) age(name string, at time.Time) {
+	k := f.artifact() + "/" + name
+	key := f.keys[k]
+	key.UpdatedAt = at
+	f.keys[k] = key
+}
+
+// A test key is stored under the binding as a test key, expires in an hour by default, is sent to every gateway and
+// is not listed.
+func TestBindingTestAPIKey_IssuedUnlistedWithAnHourDefault(t *testing.T) {
+	f := newKeyFixture(t, models.MCPProxyEnvironmentRequest{})
+
+	before := time.Now().UTC()
+	resp, err := f.issueTest(t, "user-1", nil)
+	require.NoError(t, err)
+	assert.NotEmpty(t, resp.APIKey)
+	assert.True(t, strings.HasPrefix(resp.KeyID, models.APIKeyTestKeyPrefix), resp.KeyID)
+	assert.True(t, strings.HasSuffix(resp.KeyID, "-1"), "first slot")
+	assert.NotContains(t, resp.KeyID, "user-1", "the user is only hashed into the name")
+
+	expires, err := time.Parse(time.RFC3339, resp.ExpiresAt)
+	require.NoError(t, err)
+	assert.WithinDuration(t, before.Add(time.Hour), expires, 5*time.Second)
+
+	stored := f.keys[f.artifact()+"/"+resp.KeyID]
+	assert.Equal(t, models.APIKeyPurposeTest, stored.Purpose)
+	require.NotNil(t, stored.ExpiresAt)
+	assert.Equal(t, []string{f.artifact(), f.artifact()}, f.eventAPIIDs(t), "sent to every gateway")
+
+	list, err := f.svc.ListEnvironmentAPIKeys(keyCtx(), testOrg, bindingProjectUUID, bindingHandle, bindingEnv)
+	require.NoError(t, err)
+	assert.Empty(t, list.Keys, "test keys are not listed")
+}
+
+// A user fills three slots; the fourth key replaces the slot issued longest ago. Another user has their own slots.
+func TestBindingTestAPIKey_ThreeSlotsPerUserOldestReplaced(t *testing.T) {
+	f := newKeyFixture(t, models.MCPProxyEnvironmentRequest{})
+
+	base := time.Now().UTC().Add(-time.Hour)
+	var names []string
+	values := map[string]string{}
+	for i := range 3 {
+		resp, err := f.issueTest(t, "user-1", nil)
+		require.NoError(t, err)
+		names = append(names, resp.KeyID)
+		values[resp.KeyID] = f.keys[f.artifact()+"/"+resp.KeyID].APIKeyHash
+		f.age(resp.KeyID, base.Add(time.Duration(i)*time.Minute))
+	}
+	assert.Len(t, f.keys, 3)
+	// Make the second slot the oldest.
+	f.age(names[1], base.Add(-time.Minute))
+
+	resp, err := f.issueTest(t, "user-1", nil)
+	require.NoError(t, err)
+	assert.Equal(t, names[1], resp.KeyID, "the slot issued longest ago is reused")
+	assert.Len(t, f.keys, 3, "no fourth key")
+	replaced := f.keys[f.artifact()+"/"+names[1]]
+	assert.NotEqual(t, values[names[1]], replaced.APIKeyHash, "its old value stops working")
+	assert.Equal(t, models.APIKeyPurposeTest, replaced.Purpose)
+
+	other, err := f.issueTest(t, "user-2", nil)
+	require.NoError(t, err)
+	assert.NotContains(t, names, other.KeyID, "another user has their own slots")
+	assert.Len(t, f.keys, 4)
+}
+
+// The user key routes neither reach a test key nor take a test key name.
+func TestBindingTestAPIKey_UserRoutesDoNotReachTestKeys(t *testing.T) {
+	f := newKeyFixture(t, models.MCPProxyEnvironmentRequest{})
+	resp, err := f.issueTest(t, "user-1", nil)
+	require.NoError(t, err)
+
+	_, err = f.svc.RotateEnvironmentAPIKey(keyCtx(), testOrg, bindingProject, bindingProjectUUID, bindingHandle, bindingEnv,
+		resp.KeyID, &models.RotateAPIKeyRequest{})
+	require.ErrorIs(t, err, utils.ErrMCPAPIKeyNotFound)
+	err = f.svc.RevokeEnvironmentAPIKey(keyCtx(), testOrg, bindingProject, bindingProjectUUID, bindingHandle, bindingEnv, resp.KeyID)
+	require.ErrorIs(t, err, utils.ErrMCPAPIKeyNotFound)
+	_, err = f.create(t, models.APIKeyTestKeyPrefix+"mine")
+	require.ErrorIs(t, err, utils.ErrBadRequest)
+
+	assert.Contains(t, f.keys, f.artifact()+"/"+resp.KeyID, "the test key is untouched")
+}
+
+func TestBindingTestAPIKey_Refusals(t *testing.T) {
+	ptr := func(s string) *string { return &s }
+	now := time.Now().UTC()
+
+	f := newKeyFixture(t, models.MCPProxyEnvironmentRequest{})
+	for name, tc := range map[string]struct {
+		forUser   string
+		expiresAt *string
+	}{
+		"no user":        {forUser: "  "},
+		"user too long":  {forUser: strings.Repeat("u", 257)},
+		"bad expiresAt":  {forUser: "u", expiresAt: ptr("tomorrow")},
+		"past expiresAt": {forUser: "u", expiresAt: ptr(now.Add(-time.Minute).Format(time.RFC3339))},
+		"over 24 hours":  {forUser: "u", expiresAt: ptr(now.Add(25 * time.Hour).Format(time.RFC3339))},
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := f.issueTest(t, tc.forUser, tc.expiresAt)
+			require.ErrorIs(t, err, utils.ErrBadRequest)
+		})
+	}
+	assert.Empty(t, f.keys, "nothing stored")
+
+	expiresAt := now.Add(2 * time.Hour).Truncate(time.Second)
+	resp, err := f.issueTest(t, "u", ptr(expiresAt.Format(time.RFC3339)))
+	require.NoError(t, err)
+	assert.Equal(t, expiresAt.Format(time.RFC3339), resp.ExpiresAt, "a given expiresAt is kept")
+}
+
+func TestBindingTestAPIKey_SecurityOffOrNoBinding(t *testing.T) {
+	off := false
+	f := newKeyFixture(t, models.MCPProxyEnvironmentRequest{Security: &models.MCPProxyEnvironmentSecurity{Enabled: &off}})
+	_, err := f.issueTest(t, "u", nil)
+	require.ErrorIs(t, err, utils.ErrMCPAPIKeySecurityDisabled)
+
+	_, err = f.svc.IssueEnvironmentTestAPIKey(keyCtx(), testOrg, bindingProject, bindingProjectUUID, bindingHandle, "production",
+		&models.IssueBindingTestAPIKeyRequest{ForUser: "u"})
+	require.ErrorIs(t, err, utils.ErrMCPProxyEnvironmentNotBound)
+	assert.Empty(t, f.keys)
 }
