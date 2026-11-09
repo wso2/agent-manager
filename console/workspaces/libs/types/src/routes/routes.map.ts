@@ -287,6 +287,11 @@ export const rootRouteMap: AppRoute = {
                             path: 'mcp-proxies',
                             index: true,
                             children: {
+                                add: {
+                                    path: 'add',
+                                    index: true,
+                                    children: {},
+                                },
                                 view: {
                                     path: 'view/:proxyId',
                                     index: true,

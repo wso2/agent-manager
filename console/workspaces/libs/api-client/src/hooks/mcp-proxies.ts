@@ -40,6 +40,7 @@ import type {
   ProjectMCPProxyEnvironment,
   ProjectMCPProxyEnvironmentPathParams,
   ProjectMCPProxyEnvironmentRequest,
+  ProjectMCPProxyRequest,
   RotateProjectMCPProxyAPIKeyRequest,
   RotateProjectMCPProxyAPIKeyResponse,
   UpdateMCPProxyPathParams,
@@ -49,6 +50,7 @@ import {
   createProjectMCPProxyAPIKey,
   deleteMCPProxy,
   deleteProjectMCPProxy,
+  deleteProjectMCPProxyEnvironment,
   fetchMCPProxyServerInfo,
   getMCPProxy,
   getProjectMCPProxy,
@@ -59,6 +61,7 @@ import {
   revokeProjectMCPProxyAPIKey,
   rotateProjectMCPProxyAPIKey,
   updateMCPProxy,
+  upsertProjectMCPProxy,
 } from "../apis";
 import { useApiMutation, useApiQuery } from "./react-query-notifications";
 
@@ -173,6 +176,47 @@ export function useFetchMCPProxyServerInfo() {
     mutationFn: ({ params, body, signal }) =>
       fetchMCPProxyServerInfo(params, body, getToken, signal),
     showSuccess: false,
+  });
+}
+
+function useUpsertProjectMCPProxy(verb: "create" | "update") {
+  const { getToken } = useAuthHooks();
+  const queryClient = useQueryClient();
+  return useApiMutation<
+    ProjectMCPProxy,
+    unknown,
+    { params: DeleteProjectMCPProxyPathParams; body: ProjectMCPProxyRequest }
+  >({
+    action: { verb, target: "mcp server" },
+    mutationFn: ({ params, body }) => upsertProjectMCPProxy(params, body, getToken),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["mcp-proxies"] });
+      queryClient.invalidateQueries({ queryKey: ["project-mcp-proxy"] });
+    },
+  });
+}
+
+/** Registers a project-owned proxy (PUT on a new id). */
+export function useCreateProjectMCPProxy() {
+  return useUpsertProjectMCPProxy("create");
+}
+
+/** Updates a project-owned proxy; the body replaces its name, description, context and upstream. */
+export function useUpdateProjectMCPProxy() {
+  return useUpsertProjectMCPProxy("update");
+}
+
+/** Removes a project proxy from one environment. */
+export function useDeleteProjectMCPProxyEnvironment() {
+  const { getToken } = useAuthHooks();
+  const queryClient = useQueryClient();
+  return useApiMutation<void, unknown, ProjectMCPProxyEnvironmentPathParams>({
+    action: { verb: "remove", target: "mcp server environment" },
+    mutationFn: (params) => deleteProjectMCPProxyEnvironment(params, getToken),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["project-mcp-proxy"] });
+      queryClient.invalidateQueries({ queryKey: ["mcp-proxies"] });
+    },
   });
 }
 

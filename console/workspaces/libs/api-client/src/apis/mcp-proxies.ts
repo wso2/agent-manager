@@ -40,6 +40,7 @@ import type {
   ProjectMCPProxyEnvironment,
   ProjectMCPProxyEnvironmentPathParams,
   ProjectMCPProxyEnvironmentRequest,
+  ProjectMCPProxyRequest,
   RotateProjectMCPProxyAPIKeyRequest,
   RotateProjectMCPProxyAPIKeyResponse,
   UpdateMCPProxyPathParams,
@@ -227,6 +228,28 @@ function projectMCPProxyEnvironmentUrl(
 ): string {
   const envName = encodeRequired(params.envName, "envName");
   return `${projectMCPProxyUrl(params)}/environments/${envName}`;
+}
+
+/** Creates a project-owned proxy, or updates the one with this id in the project. */
+export async function upsertProjectMCPProxy(
+  params: DeleteProjectMCPProxyPathParams,
+  body: ProjectMCPProxyRequest,
+  getToken?: () => Promise<string>,
+): Promise<ProjectMCPProxy> {
+  const token = getToken ? await getToken() : undefined;
+  const res = await httpPUT(projectMCPProxyUrl(params), body, { token });
+  if (!res.ok) throw await res.json();
+  return res.json();
+}
+
+/** Removes a project proxy's binding, and its API keys, from one environment. */
+export async function deleteProjectMCPProxyEnvironment(
+  params: ProjectMCPProxyEnvironmentPathParams,
+  getToken?: () => Promise<string>,
+): Promise<void> {
+  const token = getToken ? await getToken() : undefined;
+  const res = await httpDELETE(projectMCPProxyEnvironmentUrl(params), { token });
+  if (!res.ok) throw await res.json();
 }
 
 /** Deletes a project-owned proxy and every environment binding it has. */

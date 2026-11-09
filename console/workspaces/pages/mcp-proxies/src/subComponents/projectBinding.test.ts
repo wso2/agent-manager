@@ -21,7 +21,9 @@ import {
   bindingRequestFrom,
   bindingRequiresAPIKey,
   DEFAULT_API_KEY_HEADER,
+  proxyRequestFrom,
   proxySourceLabel,
+  toProjectProxyId,
 } from "./projectBinding";
 
 const base: ProjectMCPProxyEnvironment = {
@@ -98,6 +100,37 @@ describe("proxySourceLabel", () => {
         source: { componentName: "weather", endpointName: "mcp" },
       }),
     ).toBe("weather / mcp");
-    expect(proxySourceLabel({ id: "weather", projectName: "p1" })).toBe("Project");
+    expect(proxySourceLabel({ id: "docs", projectName: "p1" })).toBe("External");
+  });
+});
+
+describe("toProjectProxyId", () => {
+  it("makes a kebab-case id the service takes", () => {
+    expect(toProjectProxyId("  Docs MCP Server! ")).toBe("docs-mcp-server");
+    expect(toProjectProxyId("a".repeat(120))).toHaveLength(100);
+    expect(toProjectProxyId("***")).toBe("");
+  });
+});
+
+describe("proxyRequestFrom", () => {
+  it("keeps what a URL proxy has, with its upstream and no source", () => {
+    expect(
+      proxyRequestFrom({
+        id: "docs",
+        name: "Docs",
+        version: "v1",
+        context: "/docs",
+        description: "d",
+        projectName: "p1",
+        upstream: { url: "https://mcp.example.com/mcp" },
+        environments: [],
+      }),
+    ).toEqual({
+      name: "Docs",
+      version: "v1",
+      context: "/docs",
+      description: "d",
+      upstream: { url: "https://mcp.example.com/mcp" },
+    });
   });
 });

@@ -15,7 +15,7 @@
  * under the License.
  */
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import {
   Avatar,
   Chip,
@@ -55,7 +55,7 @@ const LIST_LIMIT = 100;
  * The MCP servers a project can use: the org's own and the project's. A project
  * server opens its project page; an org server opens the org page.
  */
-export function ProjectMCPProxyTable() {
+export function ProjectMCPProxyTable({ createAction }: { createAction?: ReactNode }) {
   const { orgId, projectId } = useParams<{ orgId: string; projectId: string }>();
   const navigate = useNavigate();
   const [searchValue, setSearchValue] = useState("");
@@ -147,7 +147,8 @@ export function ProjectMCPProxyTable() {
         illustration: <MCPLogo size={64} />,
         title: "No MCP Servers Yet",
         description:
-          "MCP servers registered for the organization and those published from this project's components show up here.",
+          "MCP servers registered for the organization or this project, and those published from its components, show up here.",
+        action: createAction,
       }}
       searchEmptyState={{
         illustration: <Plus size={64} />,

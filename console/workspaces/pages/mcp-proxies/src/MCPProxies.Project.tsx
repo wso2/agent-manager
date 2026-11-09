@@ -15,26 +15,56 @@
  * under the License.
  */
 
+import { Button } from "@wso2/oxygen-ui";
+import { Plus } from "@wso2/oxygen-ui-icons-react";
 import { PageLayout } from "@agent-management-platform/views";
 import { absoluteRouteMap } from "@agent-management-platform/types";
-import { generatePath, Navigate, Route, Routes, useParams } from "react-router-dom";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
+import {
+  generatePath,
+  Link,
+  Navigate,
+  Route,
+  Routes,
+  useParams,
+} from "react-router-dom";
+import { AddMCPProxyProject } from "./AddMCPProxy.Project";
 import { ProjectMCPProxyTable } from "./subComponents/ProjectMCPProxyTable";
 import { ViewProjectMCPProxy } from "./subComponents/ViewProjectMCPProxy";
 
 /** The MCP servers a project can use: the org's and the ones published from its components. */
 export const MCPProxiesProject = () => {
   const { orgId, projectId } = useParams<{ orgId: string; projectId: string }>();
+  const { canWrite } = useResourceAccess("mcp_server");
+
+  // Registers a project server by its public URL; component servers come from their publisher.
+  const registerButton = canWrite ? (
+    <Button
+      variant="contained"
+      color="primary"
+      component={Link}
+      to={generatePath(
+        absoluteRouteMap.children.org.children.projects.children.mcpProxies.children.add
+          .path,
+        { orgId: orgId ?? "", projectId: projectId ?? "" },
+      )}
+      startIcon={<Plus size={16} />}
+    >
+      Register MCP server
+    </Button>
+  ) : undefined;
 
   return (
     <Routes>
       <Route
         index
         element={
-          <PageLayout title="MCP Servers" disableIcon>
-            <ProjectMCPProxyTable />
+          <PageLayout title="MCP Servers" disableIcon actions={registerButton}>
+            <ProjectMCPProxyTable createAction={registerButton} />
           </PageLayout>
         }
       />
+      {canWrite && <Route path="add" element={<AddMCPProxyProject />} />}
       <Route path="view/:proxyId" element={<ViewProjectMCPProxy />} />
       <Route
         path="*"

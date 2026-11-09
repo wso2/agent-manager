@@ -204,6 +204,25 @@ export interface MCPProxySource {
   endpointName: string;
 }
 
+/** The public MCP server URL a project proxy registered by URL fronts. */
+export interface ProjectMCPProxyUpstream {
+  url: string;
+}
+
+/**
+ * The body of PUT /orgs/{org}/projects/{proj}/mcp-proxies/{proxyId}. Exactly one of source
+ * (a project component endpoint) and upstream (a public URL) is set, fixed after create.
+ */
+export interface ProjectMCPProxyRequest {
+  name: string;
+  description?: string;
+  version?: string;
+  context?: string;
+  mcpSpecVersion?: string;
+  source?: MCPProxySource;
+  upstream?: ProjectMCPProxyUpstream;
+}
+
 /** A project-owned MCP proxy (GET /orgs/{org}/projects/{proj}/mcp-proxies/{proxyId}). */
 export interface ProjectMCPProxy {
   id: string;
@@ -213,7 +232,10 @@ export interface ProjectMCPProxy {
   context: string;
   mcpSpecVersion?: string;
   projectName: string;
-  source: MCPProxySource;
+  /** Set for a proxy that fronts a project component endpoint. */
+  source?: MCPProxySource;
+  /** Set for a proxy registered by a public URL. */
+  upstream?: ProjectMCPProxyUpstream;
   environments: ProjectMCPProxyEnvironment[];
   createdBy?: string;
   createdAt?: string;

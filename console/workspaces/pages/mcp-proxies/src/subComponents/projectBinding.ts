@@ -17,16 +17,48 @@
 
 import type {
   MCPProxyListItem,
+  ProjectMCPProxy,
   ProjectMCPProxyEnvironment,
   ProjectMCPProxyEnvironmentRequest,
   ProjectMCPProxyEnvironmentSecurity,
+  ProjectMCPProxyRequest,
 } from "@agent-management-platform/types";
 
-/** Where a listed proxy comes from: the project's own component, or registered for the org. */
+/** The longest proxy id the service takes. */
+export const MAX_PROXY_ID_LENGTH = 100;
+
+/**
+ * Where a listed proxy's upstream is: a project component endpoint, or an external server
+ * (an org server, or a project server registered by URL).
+ */
 export function proxySourceLabel(proxy: MCPProxyListItem): string {
-  if (!proxy.projectName) return "External";
-  if (!proxy.source) return "Project";
+  if (!proxy.source) return "External";
   return `${proxy.source.componentName} / ${proxy.source.endpointName}`;
+}
+
+/** A kebab-case proxy id from a display name, as the service takes it. */
+export function toProjectProxyId(name: string): string {
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, MAX_PROXY_ID_LENGTH)
+    .replace(/-+$/g, "");
+}
+
+/** The upsert body that keeps a project proxy as it is; an edit changes only its own field. */
+export function proxyRequestFrom(proxy: ProjectMCPProxy): ProjectMCPProxyRequest {
+  const request: ProjectMCPProxyRequest = {
+    name: proxy.name,
+    version: proxy.version,
+    context: proxy.context,
+  };
+  if (proxy.description) request.description = proxy.description;
+  if (proxy.mcpSpecVersion) request.mcpSpecVersion = proxy.mcpSpecVersion;
+  if (proxy.source) request.source = proxy.source;
+  if (proxy.upstream) request.upstream = proxy.upstream;
+  return request;
 }
 
 /** The header a binding's API key is read from when none is set (the service's default). */

@@ -268,6 +268,11 @@ export const generatedRouteMap =  {
               "path": "/org/:orgId/project/:projectId/mcp-proxies",
               "wildPath": "/org/:orgId/project/:projectId/mcp-proxies/*",
               "children": {
+                "add": {
+                  "path": "/org/:orgId/project/:projectId/mcp-proxies/add",
+                  "wildPath": "/org/:orgId/project/:projectId/mcp-proxies/add/*",
+                  "children": {}
+                },
                 "view": {
                   "path": "/org/:orgId/project/:projectId/mcp-proxies/view/:proxyId",
                   "wildPath": "/org/:orgId/project/:projectId/mcp-proxies/view/:proxyId/*",
