@@ -172,6 +172,28 @@ func TestNewRouteMetaSplitsPatternAndParams(t *testing.T) {
 	}
 }
 
+// TestProjectMCPBindingAPIKeyRoutesHaveTheirOwnActions keeps the binding key operations apart in the audit trail:
+// they share one permission, so without overrides they would all record mcp-server:api-key-manage.
+func TestProjectMCPBindingAPIKeyRoutesHaveTheirOwnActions(t *testing.T) {
+	const keys = "/orgs/{orgName}/projects/{projName}/mcp-proxies/{proxyId}/environments/{envName}/api-keys"
+	for pattern, want := range map[string]Action{
+		"POST " + keys:                  ActionAPIKeyCreate,
+		"POST " + keys + "/test":        ActionAPIKeyIssueTest,
+		"PUT " + keys + "/{keyName}":    ActionAPIKeyRotate,
+		"DELETE " + keys + "/{keyName}": ActionAPIKeyRevoke,
+	} {
+		t.Run(pattern, func(t *testing.T) {
+			meta := NewRouteMeta(pattern, ExtractPathParams(pattern), []rbac.Permission{rbac.MCPServerAPIKeyManage})
+			if !meta.Audited {
+				t.Fatal("route should be audited")
+			}
+			if meta.Action != want {
+				t.Errorf("Action = %q, want %q", meta.Action, want)
+			}
+		})
+	}
+}
+
 // TestCredentialActionsAreCritical checks the classification that drives
 // alerting. Credential and privilege changes must not be filed as routine.
 func TestCredentialActionsAreCritical(t *testing.T) {

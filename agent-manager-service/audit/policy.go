@@ -301,6 +301,12 @@ var actionOverrides = map[string]Action{
 	"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/mcp-configs/{configId}/environments/{envName}/api-keys/{keyName}":      "api-key:rotate",
 	"DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}/mcp-configs/{configId}/environments/{envName}/api-keys/{keyName}":   "api-key:revoke",
 
+	// One permission, several operations — project MCP proxy binding API keys.
+	"POST /orgs/{orgName}/projects/{projName}/mcp-proxies/{proxyId}/environments/{envName}/api-keys":             "api-key:create",
+	"POST /orgs/{orgName}/projects/{projName}/mcp-proxies/{proxyId}/environments/{envName}/api-keys/test":        "api-key:issue-test",
+	"PUT /orgs/{orgName}/projects/{projName}/mcp-proxies/{proxyId}/environments/{envName}/api-keys/{keyName}":    "api-key:rotate",
+	"DELETE /orgs/{orgName}/projects/{projName}/mcp-proxies/{proxyId}/environments/{envName}/api-keys/{keyName}": "api-key:revoke",
+
 	// One permission, several operations — gateway tokens and configuration.
 	"POST /orgs/{orgName}/gateways/{gatewayID}/tokens":                         "gateway-token:rotate",
 	"DELETE /orgs/{orgName}/gateways/{gatewayID}/tokens/{tokenID}":             "gateway-token:revoke",
