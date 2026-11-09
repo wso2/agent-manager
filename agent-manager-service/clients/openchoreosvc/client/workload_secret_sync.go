@@ -38,7 +38,7 @@ const (
 // SyncEditedWorkloadSecrets refreshes live ExternalSecrets that already use an
 // edited key, without changing the pod template. Existing snapshots without
 // the force-sync annotation continue to use their periodic refresh.
-func (c *openChoreoClient) SyncEditedWorkloadSecrets(ctx context.Context, ouID, componentName, envName, secretRefName string, editedKeys []string) error {
+func (c *openChoreoClient) SyncEditedWorkloadSecrets(ctx context.Context, ouID, componentName, envName string, editedKeys []string) error {
 	ctx, cancel := context.WithTimeout(ctx, workloadSecretSyncTimeout)
 	defer cancel()
 
@@ -59,16 +59,9 @@ func (c *openChoreoClient) SyncEditedWorkloadSecrets(ctx context.Context, ouID, 
 	if len(objects) == 0 {
 		return nil
 	}
-	ref, err := c.GetSecretReference(ctx, ouID, secretRefName)
-	if err != nil {
-		return fmt.Errorf("get edited secret reference: %w", err)
-	}
-	if ref == nil {
-		return fmt.Errorf("edited secret reference is missing")
-	}
 	targets := make(map[string]string)
 	for uid, obj := range objects {
-		if referencesEditedSecret(obj, ref, editedKeys) {
+		if referencesEditedSecret(obj, editedKeys) {
 			name, _, _ := unstructured.NestedString(obj, "metadata", "name")
 			targets[uid] = name
 		}
@@ -170,20 +163,20 @@ func forceSyncExternalSecrets(tree *gen.K8sResourceTreeResponse) map[string]map[
 	return objects
 }
 
-// referencesEditedSecret matches the rendered remote reference to an edited key.
-func referencesEditedSecret(obj map[string]any, ref *SecretReferenceInfo, editedKeys []string) bool {
+// referencesEditedSecret reports whether the ExternalSecret writes an edited
+// key. Its secretKey is the workload env var or file name, which Agent Manager
+// also uses as the key in the agent's SecretReference, so no SecretReference
+// read is needed.
+func referencesEditedSecret(obj map[string]any, editedKeys []string) bool {
 	data, _, _ := unstructured.NestedSlice(obj, "spec", "data")
 	for _, item := range data {
 		entry, ok := item.(map[string]any)
 		if !ok {
 			continue
 		}
-		path, _, _ := unstructured.NestedString(entry, "remoteRef", "key")
-		property, _, _ := unstructured.NestedString(entry, "remoteRef", "property")
-		for _, source := range ref.Data {
-			if path == source.RemoteRef.Key && property == source.RemoteRef.Property && slices.Contains(editedKeys, source.SecretKey) {
-				return true
-			}
+		key, _, _ := unstructured.NestedString(entry, "secretKey")
+		if slices.Contains(editedKeys, key) {
+			return true
 		}
 	}
 	return false

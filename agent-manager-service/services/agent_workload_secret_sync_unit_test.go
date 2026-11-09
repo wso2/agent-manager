@@ -74,8 +74,8 @@ func TestUpdateAgentConfigurations_WaitsForEditedWorkloadSecrets(t *testing.T) {
 				GetComponentConfigurationsFunc: func(context.Context, string, string, string, string) ([]models.EnvVars, error) {
 					return []models.EnvVars{}, nil
 				},
-				SyncEditedWorkloadSecretsFunc: func(_ context.Context, org, agent, env, ref string, keys []string) error {
-					require.Equal(t, []string{"acme", "my-agent", "dev", refName}, []string{org, agent, env, ref})
+				SyncEditedWorkloadSecretsFunc: func(_ context.Context, org, agent, env string, keys []string) error {
+					require.Equal(t, []string{"acme", "my-agent", "dev"}, []string{org, agent, env})
 					require.Equal(t, []string{tc.key}, keys)
 					events = append(events, "sync")
 					return tc.syncErr

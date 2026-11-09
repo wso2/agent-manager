@@ -6608,7 +6608,7 @@ func (s *agentManagerService) processEnvVars(
 			}
 		}
 		if len(editedKeys) > 0 {
-			if err := s.ocClient.SyncEditedWorkloadSecrets(ctx, ouID, componentName, environmentName, secretRefName, editedKeys); err != nil {
+			if err := s.ocClient.SyncEditedWorkloadSecrets(ctx, ouID, componentName, environmentName, editedKeys); err != nil {
 				return nil, fmt.Errorf("%w: %w", utils.ErrWorkloadSecretSyncUnconfirmed, err)
 			}
 		}
