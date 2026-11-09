@@ -68,13 +68,13 @@ from amp_evaluation.dataset.models import Task
 # ============================================================================
 
 
-def _format_success_criteria(task: Optional[Task], default: str = "") -> str:
+def _format_success_criteria(task: Optional[Task], default: str = "", indent: str = "") -> str:
     """Format Task.success_criteria (str or List[str]) for LLM judge prompts."""
     if not task or not task.success_criteria:
         return default
     criteria = task.success_criteria
     if isinstance(criteria, list):
-        return "\n" + "\n".join(f"- {c}" for c in criteria)
+        return f"\n{indent}".join(f"- {c}" for c in criteria)
     return criteria
 
 
@@ -90,7 +90,7 @@ class HelpfulnessEvaluator(LLMAsJudgeEvaluator):
 
     def build_prompt(self, trace: Trace, task: Optional[Task] = None) -> str:
         formatted_criteria = _format_success_criteria(task)
-        criteria = f"\n\nAdditional success criteria: {formatted_criteria}" if formatted_criteria else ""
+        criteria = f"\n\nAdditional success criteria:\n{formatted_criteria}" if formatted_criteria else ""
 
         return f"""You are an expert evaluator. Your sole criterion is HELPFULNESS: does the response actually help the user with what they asked for?
 
@@ -185,7 +185,7 @@ class CompletenessEvaluator(LLMAsJudgeEvaluator):
 
     def build_prompt(self, trace: Trace, task: Optional[Task] = None) -> str:
         formatted_coverage = _format_success_criteria(task)
-        coverage = f"\n\nExpected coverage: {formatted_coverage}" if formatted_coverage else ""
+        coverage = f"\n\nExpected coverage:\n{formatted_coverage}" if formatted_coverage else ""
 
         return f"""You are an expert evaluator. Your sole criterion is COMPLETENESS: does the response address every part of the user's query without leaving gaps?
 
@@ -770,7 +770,8 @@ Agent Instructions:
 
 What is expected from the agent:
   Task description: {task.description if task and task.description else "(not available)"}
-  Success criteria: {self._format_success_criteria(task)}
+  Success criteria:
+  {_format_success_criteria(task, default="(not available)", indent="  ")}
 
 Agent Response: {agent_trace.output}
 
@@ -791,6 +792,3 @@ Scoring Rubric:
   0.5  = Most instructions are partially followed but key requirements are missed
   0.75 = Nearly all instructions are followed with only minor deviations
   1.0  = Every instruction and constraint is fully respected"""
-
-    def _format_success_criteria(self, task: Optional[Task]) -> str:
-        return _format_success_criteria(task, default="(not available)")

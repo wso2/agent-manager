@@ -379,7 +379,7 @@ class TestTraceLevel:
             success_criteria=["Must be actionable", "Must include examples"],
         )
         prompt = ev.build_prompt(trace, task)
-        assert "Additional success criteria: \n- Must be actionable\n- Must include examples" in prompt
+        assert "Additional success criteria:\n- Must be actionable\n- Must include examples" in prompt
         assert "['Must be actionable'" not in prompt
 
     def test_completeness_prompt_formats_list_success_criteria(self):
@@ -393,7 +393,7 @@ class TestTraceLevel:
             success_criteria=["Cover pros", "Cover cons"],
         )
         prompt = ev.build_prompt(trace, task)
-        assert "Expected coverage: \n- Cover pros\n- Cover cons" in prompt
+        assert "Expected coverage:\n- Cover pros\n- Cover cons" in prompt
         assert "['Cover pros'" not in prompt
 
     def test_builtin_factory_with_model_override(self):
@@ -634,7 +634,7 @@ class TestInstructionFollowing:
         assert "Must be under 100 words" in prompt
         assert "Must include examples" in prompt
         assert "Answer geography questions" in prompt
-        assert "Success criteria: \n- Must be under 100 words\n- Must include examples" in prompt
+        assert "  Success criteria:\n  - Must be under 100 words\n  - Must include examples" in prompt
 
     def test_no_on_missing_context_param(self):
         """No on_missing_context param — evaluator always runs."""
