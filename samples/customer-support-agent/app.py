@@ -3,6 +3,7 @@ from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
 from agent.agent import create_agent
+from tools.demo import DEMO_PASSENGER
 
 
 app = FastAPI()
@@ -11,7 +12,7 @@ dotenv.load_dotenv()
 agent_graph = create_agent()
 
 
-def run_agent(thread_id: int, question: str, passenger_id: str = "3442 587242"):
+def run_agent(thread_id: int, question: str, passenger_id: str = DEMO_PASSENGER):
     config = {
         "configurable": {
             # The passenger_id is used in our flight tools to

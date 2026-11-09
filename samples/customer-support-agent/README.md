@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Customer Support Agent is an AI-powered customer service assistant that helps users with travel-related inquiries including flights, bookings, hotels, and car rentals. Built with LangGraph and FastAPI, this agent can search for information, make bookings, and provide comprehensive travel assistance.
+The Customer Support Agent is an AI-powered customer service assistant that helps users with travel-related inquiries including flights, bookings, hotels, and car rentals. Built with LangGraph and FastAPI, this agent can search for information and simulate travel bookings.
 
 **Based on**: [LangGraph Customer Support Tutorial](https://langchain-ai.github.io/langgraph/tutorials/customer-support/customer-support/#example-conversation)
 
@@ -10,20 +10,12 @@ The Customer Support Agent is an AI-powered customer service assistant that help
 
 Before deploying this agent, ensure you have:
 
-### Required API Keys
+- **OpenAI API key** for the chat model.
+- **Optional Tavily API key** for public web searches, such as travel advisories and destination information.
 
-- **OpenAI API Key**: For GPT-powered conversations
-- **Tavily API Key**: For web search capabilities
-
-### Database
-
-- **PostgreSQL Database**
-- **Database Dump**: Apply the `db_backup.sql` dump to your PostgreSQL database before deployment
-
-#### Setting up Database with Sample Data
-
-1. Create your PostgreSQL database
-2. Apply the database dump:
+Flights, hotels, rentals, excursions, and ticket operations use fictional
+in-memory data. Booking changes belong to the current chat session and reset
+when the service restarts. The app needs no database.
 
 ## Deployment Instructions
 
@@ -59,8 +51,8 @@ Add the following environment variables in the create form:
 
 ```env
 OPENAI_API_KEY=<your-openai-api-key>
+# Optional
 TAVILY_API_KEY=<your-tavily-api-key>
-DATABASE_URL=<your-postgresql-connection-string>
 ```
 
 ### Step 5: Deploy the Agent
@@ -82,13 +74,22 @@ Try these sample questions in the chat interface:
 **Flight Inquiries:**
 
 ```text
-What flights do I have booked?
+What demo flights do I have booked?
+Find an alternate flight from Zurich (ZRH) to Geneva (GVA).
+Move my demo ticket to flight DEMO102.
+Cancel my demo ticket.
 ```
 
 **Hotel Search:**
 
 ```text
-Find me a hotel in Geneva for next week
+Find a demo hotel in Geneva for next week.
+```
+
+**Public web search (with Tavily configured):**
+
+```text
+Search the web for current public transport options from Geneva airport to the city center.
 ```
 
 ### Step 3: Observe Traces

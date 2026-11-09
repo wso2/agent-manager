@@ -1,141 +1,44 @@
 from datetime import date, datetime
-from typing import Optional, Union
 
+from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 
-from setup.db_config import get_db_connection
+from .demo import change_booking, search, valid_dates
 
 
 @tool
 def search_hotels(
-    location: Optional[str] = None,
-    name: Optional[str] = None,
-    price_tier: Optional[str] = None,
-    checkin_date: Optional[Union[datetime, date]] = None,
-    checkout_date: Optional[Union[datetime, date]] = None,
+    location: str | None = None,
+    name: str | None = None,
+    price_tier: str | None = None,
+    checkin_date: date | datetime | None = None,
+    checkout_date: date | datetime | None = None,
 ) -> list[dict]:
-    """
-    Search for hotels based on location, name, price tier, check-in date, and check-out date.
-
-    Args:
-        location (Optional[str]): The location of the hotel. Defaults to None.
-        name (Optional[str]): The name of the hotel. Defaults to None.
-        price_tier (Optional[str]): The price tier of the hotel. Defaults to None. Examples: Midscale, Upper Midscale, Upscale, Luxury
-        checkin_date (Optional[Union[datetime, date]]): The check-in date of the hotel. Defaults to None.
-        checkout_date (Optional[Union[datetime, date]]): The check-out date of the hotel. Defaults to None.
-
-    Returns:
-        list[dict]: A list of hotel dictionaries matching the search criteria.
-    """
-    conn = get_db_connection()
-    cursor = conn.cursor()
-
-    query = "SELECT * FROM hotels WHERE 1=1"
-    params = []
-
-    if location:
-        query += " AND location LIKE %s"
-        params.append(f"%{location}%")
-    if name:
-        query += " AND name LIKE %s"
-        params.append(f"%{name}%")
-    # For the sake of this tutorial, we will let you match on any dates and price tier.
-    cursor.execute(query, params)
-    results = cursor.fetchall()
-
-    conn.close()
-
-    return [
-        dict(zip([column[0] for column in cursor.description], row)) for row in results
-    ]
+    """Search fictional hotel inventory by location, name and price tier."""
+    if not valid_dates(checkin_date, checkout_date):
+        return []
+    return search("hotel", location=location, name=name, price_tier=price_tier)
 
 
 @tool
-def book_hotel(hotel_id: int) -> str:
-    """
-    Book a hotel by its ID.
-
-    Args:
-        hotel_id (int): The ID of the hotel to book.
-
-    Returns:
-        str: A message indicating whether the hotel was successfully booked or not.
-    """
-    conn = get_db_connection()
-    cursor = conn.cursor()
-
-    cursor.execute("UPDATE hotels SET booked = 1 WHERE id = %s", (hotel_id,))
-    conn.commit()
-
-    if cursor.rowcount > 0:
-        conn.close()
-        return f"Hotel {hotel_id} successfully booked."
-    else:
-        conn.close()
-        return f"No hotel found with ID {hotel_id}."
+def book_hotel(hotel_id: int, *, config: RunnableConfig) -> str:
+    """Make a simulated hotel booking in this session."""
+    return change_booking(config, "hotel", hotel_id, "book")
 
 
 @tool
 def update_hotel(
     hotel_id: int,
-    checkin_date: Optional[Union[datetime, date]] = None,
-    checkout_date: Optional[Union[datetime, date]] = None,
+    checkin_date: date | datetime | None = None,
+    checkout_date: date | datetime | None = None,
+    *,
+    config: RunnableConfig,
 ) -> str:
-    """
-    Update a hotel's check-in and check-out dates by its ID.
-
-    Args:
-        hotel_id (int): The ID of the hotel to update.
-        checkin_date (Optional[Union[datetime, date]]): The new check-in date of the hotel. Defaults to None.
-        checkout_date (Optional[Union[datetime, date]]): The new check-out date of the hotel. Defaults to None.
-
-    Returns:
-        str: A message indicating whether the hotel was successfully updated or not.
-    """
-    conn = get_db_connection()
-    cursor = conn.cursor()
-
-    if checkin_date:
-        cursor.execute(
-            "UPDATE hotels SET checkin_date = %s WHERE id = %s",
-            (checkin_date, hotel_id),
-        )
-    if checkout_date:
-        cursor.execute(
-            "UPDATE hotels SET checkout_date = %s WHERE id = %s",
-            (checkout_date, hotel_id),
-        )
-
-    conn.commit()
-
-    if cursor.rowcount > 0:
-        conn.close()
-        return f"Hotel {hotel_id} successfully updated."
-    else:
-        conn.close()
-        return f"No hotel found with ID {hotel_id}."
+    """Change the dates of this session's simulated hotel booking."""
+    return change_booking(config, "hotel", hotel_id, "update", start=checkin_date, end=checkout_date)
 
 
 @tool
-def cancel_hotel(hotel_id: int) -> str:
-    """
-    Cancel a hotel by its ID.
-
-    Args:
-        hotel_id (int): The ID of the hotel to cancel.
-
-    Returns:
-        str: A message indicating whether the hotel was successfully cancelled or not.
-    """
-    conn = get_db_connection()
-    cursor = conn.cursor()
-
-    cursor.execute("UPDATE hotels SET booked = 0 WHERE id = %s", (hotel_id,))
-    conn.commit()
-
-    if cursor.rowcount > 0:
-        conn.close()
-        return f"Hotel {hotel_id} successfully cancelled."
-    else:
-        conn.close()
-        return f"No hotel found with ID {hotel_id}."
+def cancel_hotel(hotel_id: int, *, config: RunnableConfig) -> str:
+    """Cancel this session's simulated hotel booking."""
+    return change_booking(config, "hotel", hotel_id, "cancel")

@@ -1,18 +1,17 @@
-# %%
-from langchain_community.tools.tavily_search import TavilySearchResults
+from datetime import datetime
+
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.runnables import Runnable
+from langchain_core.runnables import Runnable, RunnableConfig
 from langchain_openai import ChatOpenAI
 
-from .utils import create_tool_node_with_fallback
 from .state import State
-from tools.car_rentals import *
-from tools.excursions import *
-from tools.flights import *
-from tools.hotels import *
-from tools.policies import *
-
-load_dotenv(".env")
+from .utils import create_tool_node_with_fallback
+from tools.car_rentals import book_car_rental, cancel_car_rental, search_car_rentals, update_car_rental
+from tools.excursions import book_excursion, cancel_excursion, search_trip_recommendations, update_excursion
+from tools.flights import cancel_ticket, fetch_user_flight_information, search_flights, update_ticket_to_new_flight
+from tools.hotels import book_hotel, cancel_hotel, search_hotels, update_hotel
+from tools.policies import lookup_policy
+from tools.web_search import tavily_tool
 
 
 class Assistant:
@@ -46,8 +45,10 @@ def create_agent():
         [
             (
                 "system",
-                "You are a helpful customer support assistant for Swiss Airlines. "
+                "You are a fictional airline customer support assistant. "
                 " Use the provided tools to search for flights, company policies, and other information to assist the user's queries. "
+                " Use Tavily, when available, for public travel information. Keep passenger and booking details out of web searches."
+                " Use the demo tools for bookings, ticket changes, and cancellations. Clearly label those actions and results as simulated."
                 " When searching, be persistent. Expand your query bounds if the first search returns no results. "
                 " If a search comes up empty, expand your search before giving up."
                 "\n\nCurrent user:\n<User>\n{user_info}\n</User>"
@@ -58,7 +59,6 @@ def create_agent():
     ).partial(time=datetime.now)
 
     _tools = [
-        TavilySearchResults(max_results=1),
         fetch_user_flight_information,
         search_flights,
         lookup_policy,
@@ -77,6 +77,10 @@ def create_agent():
         update_excursion,
         cancel_excursion,
     ]
+
+    web_search = tavily_tool()
+    if web_search is not None:
+        _tools.append(web_search)
 
     _assistant_runnable = primary_assistant_prompt | llm.bind_tools(_tools)
 
