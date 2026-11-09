@@ -55,6 +55,7 @@ def command(args, cwd, env, log, timeout=600):
 
 
 def run(sample, reports):
+    """Build and start a sample in isolation, then verify its tool-backed reply."""
     reports.mkdir(parents=True, exist_ok=True)
     phase = "installation/build"
     process = None

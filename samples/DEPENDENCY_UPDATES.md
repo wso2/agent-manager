@@ -6,7 +6,7 @@ execution can be delayed.
 
 | Ecosystem | Coverage |
 | --- | --- |
-| pip | All nine sample `requirements.txt` directories |
+| pip | All eight sample `requirements.txt` directories |
 | npm | Insurance Support web manifest and lock file |
 | NuGet | .NET agent project package references |
 | Docker | .NET agent and Insurance Support agent/MCP server Dockerfiles, including `Dockerfile.ecs` |

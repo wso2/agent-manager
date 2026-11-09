@@ -74,6 +74,7 @@ def multi_manifest(monkeypatch) -> Manifest:
 
 
 def test_subset_covers_each_deployable_framework_per_provider_version(multi_manifest):
+    """Select a deployment for each provider and deployable framework pair."""
     m = multi_manifest
     cells = expand_matrix(m)
     sub = select_heavy_subset(cells, m)
@@ -89,6 +90,7 @@ def test_subset_covers_each_deployable_framework_per_provider_version(multi_mani
 
 
 def test_subset_deduplicates_cell_ids(multi_manifest):
+    """Schedule each heavy cell once."""
     m = multi_manifest
     cells = expand_matrix(m)
     sub = select_heavy_subset(cells, m)
@@ -97,6 +99,7 @@ def test_subset_deduplicates_cell_ids(multi_manifest):
 
 
 def test_subset_excludes_non_deployable_frameworks(multi_manifest):
+    """Exclude emission-only frameworks from the heavy subset."""
     m = multi_manifest
     # llama-index has no deployable sample, so it must never enter the subset.
     m.frameworks.append(
@@ -145,6 +148,7 @@ def test_per_provider_axis_pins_each_framework_to_its_representative_version(mul
 
 
 def test_heavy_shards_are_the_provider_versions_in_order(multi_manifest):
+    """Sort heavy shards by numeric provider version."""
     m = multi_manifest
     m.providers["traceloop"].versions = ["0.61.0", "0.60.0", "0.62.10", "0.62.4"]
     m.providers["traceloop"].instrumentation_versions.update({"0.62.10": "0.5.0", "0.62.4": "0.4.2"})
@@ -154,6 +158,7 @@ def test_heavy_shards_are_the_provider_versions_in_order(multi_manifest):
 
 
 def test_filter_shard_keeps_only_that_provider_version(multi_manifest):
+    """Partition heavy cells by their provider version."""
     m = multi_manifest
     sub = select_heavy_subset(expand_matrix(m), m)
     shard = filter_shard(sub, "0.61.0")
@@ -175,11 +180,13 @@ def test_select_heavy_run_applies_filters_to_the_subset(multi_manifest):
 
 
 def test_select_heavy_run_filter_to_non_deployable_framework_is_empty(multi_manifest):
+    """Return no deployments for an emission-only framework filter."""
     m = multi_manifest
     assert select_heavy_run(m, CellFilter(frameworks={"llama-index"})) == []
 
 
 def test_select_heavy_run_cell_id_ignores_filters(multi_manifest):
+    """Use the requested heavy cell even when filters would exclude it."""
     m = multi_manifest
     target = "traceloop-0.60.0-example-1.1.0-py3.11"
     run = select_heavy_run(m, CellFilter(traceloop_versions={"0.61.0"}), cell_id=target)

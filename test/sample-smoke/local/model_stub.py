@@ -35,6 +35,7 @@ class ModelServer(ThreadingHTTPServer):
         self.lock = threading.Lock()
 
     def completion(self, body):
+        """Request the sample tool and return the final answer after verification."""
         self.calls += 1
         if self.calls > 8:
             raise ValueError("Model loop exceeded eight calls")
