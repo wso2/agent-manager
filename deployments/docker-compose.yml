@@ -47,6 +47,13 @@ services:
     ports:
       - "9000:8080"
       - "9243:9243"
+    # SECRET_STORE_TOKEN: the bearer token External Secrets Operator presents to
+    # the in-house secret store endpoint. `make dev-up` generates it per checkout
+    # (deployments/setup/secret-store-token.sh); without the file the endpoint
+    # stays closed.
+    env_file:
+      - path: ./.secret-store.env
+        required: false
     environment:
       # Database Configuration
       - DB_HOST=postgres
@@ -107,9 +114,6 @@ services:
       - KEY_MANAGER_AUDIENCE=urn:wso2:amp,localhost,amp-publisher-*,amp-api-client,amp-console-client,amctl,am-mcp,http://localhost:9000/mcp
       - AMP_VERSION=v0.8.0
       - OPEN_CHOREO_BASE_URL=http://api.openchoreo.localhost:8195
-      # In-house secret store: bearer token External Secrets Operator presents
-      # to the internal secret store endpoint
-      - SECRET_STORE_TOKEN=local-secret-store-token
       # Platform A2A card fetches dial the host gateway; *.localhost resolves to the container itself.
       - A2A_CARD_FETCH_DIAL_ADDR=host.docker.internal:19080
       # Workflow Plane OpenBao (for git secrets and publisher credentials)

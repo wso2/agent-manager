@@ -115,6 +115,8 @@ echo "🚀 Starting Agent Manager platform services..."
 # pre-1.26 image against a go.mod requiring go >= 1.26.0 fails inside Air with
 # "GOTOOLCHAIN=local", and the only symptom is a health check timing out much
 # later. Layer caching makes the no-change case cost a couple of seconds.
+# Per-checkout token for the in-house secret store (see secret-store-token.sh).
+"$SCRIPT_DIR/secret-store-token.sh" >/dev/null
 docker compose -f "$COMPOSE_FILE" up -d --build
 
 echo ""

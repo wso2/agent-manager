@@ -11,8 +11,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CERT_FILE="${SCRIPT_DIR}/../../agent-manager-service/data/certs/cert.pem"
 STORE_NAME="${AMP_SECRET_STORE_NAME:-amp-secret-store}"
 STORE_NAMESPACE="${AMP_SECRET_STORE_NAMESPACE:-external-secrets}"
-# Must match SECRET_STORE_TOKEN in deployments/docker-compose.yml.
-STORE_TOKEN="${SECRET_STORE_TOKEN:-local-secret-store-token}"
+# The same per-checkout token docker compose gives agent-manager-service.
+STORE_TOKEN="${SECRET_STORE_TOKEN:-$("${SCRIPT_DIR}/secret-store-token.sh")}"
 INTERNAL_URL="${AMP_INTERNAL_URL:-https://host.k3d.internal:9243}"
 
 echo "⏳ Waiting for the agent-manager-service internal certificate..."

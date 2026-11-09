@@ -216,6 +216,7 @@ setup-console-local-force:
 dev-up: gen-keys
 	@cd deployments/setup && ./ensure-k3d-running.sh
 	@echo "🚀 Starting Agent Manager platform..."
+	@deployments/setup/secret-store-token.sh >/dev/null
 	@cd deployments && docker compose up -d --build
 	@$(MAKE) setup-secret-store
 	@$(MAKE) console BACKGROUND=true

@@ -141,3 +141,7 @@ externalSecrets:
   # (publisher and LLM proxy credentials) through. The wso2-agent-manager chart
   # creates it (in-house secret store).
   clusterSecretStoreName: amp-secret-store
+  # Name of the ClusterSecretStore for credentials a monitor run reads by a
+  # direct store path (the static publisher client secret when Thunder is not
+  # configured, and the legacy llmProxySecretPath). These stay in OpenBao.
+  platformSecretStoreName: default
