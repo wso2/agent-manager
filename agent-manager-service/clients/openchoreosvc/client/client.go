@@ -109,7 +109,7 @@ type OpenChoreoClient interface {
 	SetReleaseBindingSecretSyncRevision(ctx context.Context, ouID, componentName, envName, revision string) error
 	ComponentTypeDeclaresEnvironmentConfig(ctx context.Context, ouID, componentName, field string) (bool, error)
 	IsSecretSyncRevisionApplied(ctx context.Context, ouID, componentName, envName, revision string) (bool, error)
-	SyncEditedWorkloadSecrets(ctx context.Context, ouID, componentName, envName, secretRefName string, editedKeys []string) error
+	SyncEditedWorkloadSecrets(ctx context.Context, ouID, componentName, envName string, editedKeys []string) error
 	ReplaceReleaseBindingEnvVars(ctx context.Context, ouID, projectName, componentName, envName string, keysToRemove []string, envVarsToAdd []EnvVar) error
 	RemoveWorkloadEnvVars(ctx context.Context, ouID, componentName string, envVarKeys []string) error
 	GetComponentEndpoints(ctx context.Context, ouID, projectName, componentName, environment string) (map[string]models.EndpointsResponse, error)
