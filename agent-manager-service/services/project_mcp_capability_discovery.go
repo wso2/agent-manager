@@ -94,8 +94,17 @@ type projectMCPCapabilityDiscoveryService struct {
 func NewProjectMCPCapabilityDiscoveryService(
 	discoveries repositories.MCPCapabilityDiscoveryRepository, bindings *ProjectMCPProxyService, logger *slog.Logger,
 ) ProjectMCPCapabilityDiscoveryService {
-	prober := &MCPProxyService{client: &http.Client{Timeout: mcpRequestTimeout}, logger: logger}
-	return newProjectMCPCapabilityDiscoveryService(discoveries, bindings, prober.fetchMCPServerInfo, logger)
+	return newProjectMCPCapabilityDiscoveryService(discoveries, bindings,
+		newMCPDiscoveryProber(&http.Client{Timeout: mcpRequestTimeout}, logger), logger)
+}
+
+// newMCPDiscoveryProber probes with the MCP server-info client, each probe with a logger that redacts its key: the
+// client's helpers log what the server answered, and a server may echo the request's key back.
+func newMCPDiscoveryProber(client *http.Client, logger *slog.Logger) MCPCapabilityProber {
+	return func(ctx context.Context, url, headerName, headerValue string) (*models.MCPServerInfoFetchResponse, error) {
+		prober := &MCPProxyService{client: client, logger: redactingLogger(logger, headerValue)}
+		return prober.fetchMCPServerInfo(ctx, url, headerName, headerValue)
+	}
 }
 
 func newProjectMCPCapabilityDiscoveryService(
@@ -285,6 +294,71 @@ func capabilityCount(c *models.MCPProxyCapabilities) int {
 		return 0
 	}
 	return len(*c.Tools)
+}
+
+// redactingLogger is logger with secret replaced in every message and attribute it writes; logger itself when secret
+// is empty.
+func redactingLogger(logger *slog.Logger, secret string) *slog.Logger {
+	if logger == nil || secret == "" {
+		return logger
+	}
+	return slog.New(&redactingHandler{next: logger.Handler(), secret: secret})
+}
+
+// redactingHandler is a slog.Handler that hides a secret from what it passes on.
+type redactingHandler struct {
+	next   slog.Handler
+	secret string
+}
+
+func (h *redactingHandler) Enabled(ctx context.Context, level slog.Level) bool {
+	return h.next.Enabled(ctx, level)
+}
+
+func (h *redactingHandler) Handle(ctx context.Context, r slog.Record) error {
+	out := slog.NewRecord(r.Time, r.Level, h.redact(r.Message), r.PC)
+	r.Attrs(func(a slog.Attr) bool {
+		out.AddAttrs(h.redactAttr(a))
+		return true
+	})
+	return h.next.Handle(ctx, out)
+}
+
+func (h *redactingHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	redacted := make([]slog.Attr, len(attrs))
+	for i, a := range attrs {
+		redacted[i] = h.redactAttr(a)
+	}
+	return &redactingHandler{next: h.next.WithAttrs(redacted), secret: h.secret}
+}
+
+func (h *redactingHandler) WithGroup(name string) slog.Handler {
+	return &redactingHandler{next: h.next.WithGroup(name), secret: h.secret}
+}
+
+func (h *redactingHandler) redact(text string) string {
+	return strings.ReplaceAll(text, h.secret, "[REDACTED]")
+}
+
+// redactAttr redacts a string, an error's or a stringer's text, and a group's members; other values pass as they are.
+func (h *redactingHandler) redactAttr(a slog.Attr) slog.Attr {
+	v := a.Value.Resolve()
+	switch v.Kind() {
+	case slog.KindString:
+		return slog.String(a.Key, h.redact(v.String()))
+	case slog.KindGroup:
+		members := v.Group()
+		redacted := make([]any, len(members))
+		for i, m := range members {
+			redacted[i] = h.redactAttr(m)
+		}
+		return slog.Group(a.Key, redacted...)
+	case slog.KindAny:
+		if text := fmt.Sprint(v.Any()); strings.Contains(text, h.secret) {
+			return slog.String(a.Key, h.redact(text))
+		}
+	}
+	return slog.Attr{Key: a.Key, Value: v}
 }
 
 // redactedError is an error whose text has a secret replaced; errors.Is and errors.As still see the original.

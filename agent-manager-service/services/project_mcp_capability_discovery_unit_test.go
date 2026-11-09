@@ -16,9 +16,13 @@
 package services
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -442,4 +446,63 @@ func TestCapabilityDiscovery_ErrorsAreStoredWithTheKeyRedacted(t *testing.T) {
 	assert.NotContains(t, row.LastError, leaked)
 	assert.Contains(t, row.LastError, "[REDACTED]")
 	assert.Contains(t, row.LastError, "upstream said bad key", "other detail is kept")
+}
+
+// keyEchoMCPServer is an MCP server that repeats the request's API key in its errors: in a JSON-RPC error message for
+// tools/list and in an HTTP error body for prompts/list.
+type keyEchoMCPServer struct{}
+
+func (keyEchoMCPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	req := decodeMCPTestRequest(r)
+	key := r.Header.Get("X-API-Key")
+	switch req.Method {
+	case "server/discover":
+		http.Error(w, "Bad Request: Unsupported protocol version", http.StatusBadRequest)
+	case "initialize":
+		_, _ = fmt.Fprintf(w, `{"jsonrpc":"2.0","id":%d,"result":{"protocolVersion":"2025-06-18","serverInfo":{"name":"echo"}}}`, req.ID)
+	case "notifications/initialized":
+		w.WriteHeader(http.StatusAccepted)
+	case "tools/list":
+		_, _ = fmt.Fprintf(w, `{"jsonrpc":"2.0","id":%d,"error":{"code":-32000,"message":"key %s is not allowed"}}`, req.ID, key)
+	case "prompts/list":
+		http.Error(w, "rejected key "+key, http.StatusInternalServerError)
+	default:
+		_, _ = fmt.Fprintf(w, `{"jsonrpc":"2.0","id":%d,"result":{}}`, req.ID)
+	}
+}
+
+// The discovery probe's logs never carry its key, even when the MCP server echoes it back; the rest of what the
+// server said is kept.
+func TestCapabilityDiscovery_ProbeLogsRedactTheKey(t *testing.T) {
+	srv := httptest.NewServer(keyEchoMCPServer{})
+	defer srv.Close()
+	var logs bytes.Buffer
+	probe := newMCPDiscoveryProber(srv.Client(), slog.New(slog.NewTextHandler(&logs, nil)))
+
+	// Generated, so the test carries no credential-shaped literal.
+	key := "probe-" + uuid.NewString()
+	_, err := probe(context.Background(), srv.URL, "X-API-Key", key)
+	require.NoError(t, err, "failed lists are left out, not fatal")
+
+	out := logs.String()
+	require.Contains(t, out, "tools/list returned an error", "the helpers logged the server's answers")
+	assert.NotContains(t, out, key)
+	assert.Contains(t, out, "[REDACTED]")
+	assert.Contains(t, out, "is not allowed", "other detail is kept")
+}
+
+func TestRedactingLogger(t *testing.T) {
+	var logs bytes.Buffer
+	base := slog.New(slog.NewTextHandler(&logs, nil))
+	assert.Same(t, base, redactingLogger(base, ""), "nothing to hide")
+
+	log := redactingLogger(base, "s3cret").With("ctx", "with s3cret")
+	log.Warn("message s3cret", "str", "a s3cret b", "err", errors.New("err s3cret"),
+		slog.Group("g", slog.String("inner", "s3cret")), "n", 42)
+
+	out := logs.String()
+	assert.NotContains(t, out, "s3cret")
+	for _, want := range []string{"message [REDACTED]", "a [REDACTED] b", "err [REDACTED]", "g.inner=[REDACTED]", "with [REDACTED]", "n=42"} {
+		assert.Contains(t, out, want)
+	}
 }
