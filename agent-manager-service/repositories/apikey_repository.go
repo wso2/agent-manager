@@ -61,6 +61,9 @@ type APIKeyRepository interface {
 	ListByApplicationUUID(applicationUUID string) ([]models.StoredAPIKey, error)
 	// ListActiveByArtifactTx returns the artifact's keys a gateway would still accept at now.
 	ListActiveByArtifactTx(ctx context.Context, tx *gorm.DB, artifactUUID uuid.UUID, now time.Time) ([]models.StoredAPIKey, error)
+	// Transaction runs fn in a database transaction, with a repository bound to it and the transaction itself, so a
+	// key write and the gateway events it produces commit together.
+	Transaction(ctx context.Context, fn func(repo APIKeyRepository, tx *gorm.DB) error) error
 }
 
 // APIKeyRepo implements APIKeyRepository using GORM
@@ -71,6 +74,13 @@ type APIKeyRepo struct {
 // NewAPIKeyRepo creates a new API key repository
 func NewAPIKeyRepo(db *gorm.DB) *APIKeyRepo {
 	return &APIKeyRepo{db: db}
+}
+
+// Transaction runs fn in a database transaction; see APIKeyRepository.Transaction.
+func (r *APIKeyRepo) Transaction(ctx context.Context, fn func(repo APIKeyRepository, tx *gorm.DB) error) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		return fn(&APIKeyRepo{db: tx}, tx)
+	})
 }
 
 // Upsert creates or updates an API key record

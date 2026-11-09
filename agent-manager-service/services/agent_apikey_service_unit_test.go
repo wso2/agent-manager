@@ -40,6 +40,15 @@ import (
 
 // stubEventHub is a hand-written EventHub stub (no generated mock exists for
 // this in-package interface); it records published events and no-ops the rest.
+// inMockTx makes m run its Transaction callback against itself, with no database transaction: the broadcaster then
+// publishes each event outside one, as it does without a key store.
+func inMockTx(m *repomocks.APIKeyRepositoryMock) *repomocks.APIKeyRepositoryMock {
+	m.TransactionFunc = func(_ context.Context, fn func(repositories.APIKeyRepository, *gorm.DB) error) error {
+		return fn(m, nil)
+	}
+	return m
+}
+
 type stubEventHub struct {
 	published []eventhub.Event
 }
@@ -132,6 +141,7 @@ func newAPIKeyServiceFixture(t *testing.T, existing *models.StoredAPIKey) *apiKe
 	}
 
 	connChecker := &stubConnChecker{connected: true}
+	inMockTx(apiKeyRepo)
 	svc := NewAgentAPIKeyService(artifactRepo, oc, gatewayRepo, NewGatewayEventsService(&stubEventHub{}), apiKeyRepo, connChecker)
 	return &apiKeyServiceFixture{
 		svc:          svc,

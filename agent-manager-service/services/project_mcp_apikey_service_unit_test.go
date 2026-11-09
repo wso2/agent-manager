@@ -67,7 +67,7 @@ func newKeyFixture(t *testing.T, req models.MCPProxyEnvironmentRequest) *keyFixt
 			GetByOrganizationIDFunc: func(context.Context, string) ([]*models.Gateway, error) { return f.gateways, nil },
 		},
 		gatewayService: NewGatewayEventsService(f.events),
-		apiKeyRepo: &repomocks.APIKeyRepositoryMock{
+		apiKeyRepo: inMockTx(&repomocks.APIKeyRepositoryMock{
 			// As the repository does, a conflicting upsert updates the value, status and times only.
 			UpsertFunc: func(key *models.StoredAPIKey) error {
 				k := keyOf(key.ArtifactUUID.String(), key.Name)
@@ -126,7 +126,7 @@ func newKeyFixture(t *testing.T, req models.MCPProxyEnvironmentRequest) *keyFixt
 				}
 				return out, nil
 			},
-		},
+		}),
 	}
 	return f
 }

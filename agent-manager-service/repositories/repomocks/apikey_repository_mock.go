@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"gorm.io/gorm"
 )
 
@@ -48,6 +49,9 @@ import (
 //			},
 //			ReplaceIfUnchangedFunc: func(key *models.StoredAPIKey, prevHash string) error {
 //				panic("mock out the ReplaceIfUnchanged method")
+//			},
+//			TransactionFunc: func(ctx context.Context, fn func(repo repositories.APIKeyRepository, tx *gorm.DB) error) error {
+//				panic("mock out the Transaction method")
 //			},
 //			UpsertFunc: func(key *models.StoredAPIKey) error {
 //				panic("mock out the Upsert method")
@@ -88,6 +92,9 @@ type APIKeyRepositoryMock struct {
 
 	// ReplaceIfUnchangedFunc mocks the ReplaceIfUnchanged method.
 	ReplaceIfUnchangedFunc func(key *models.StoredAPIKey, prevHash string) error
+
+	// TransactionFunc mocks the Transaction method.
+	TransactionFunc func(ctx context.Context, fn func(repo repositories.APIKeyRepository, tx *gorm.DB) error) error
 
 	// UpsertFunc mocks the Upsert method.
 	UpsertFunc func(key *models.StoredAPIKey) error
@@ -166,6 +173,13 @@ type APIKeyRepositoryMock struct {
 			// PrevHash is the prevHash argument value.
 			PrevHash string
 		}
+		// Transaction holds details about calls to the Transaction method.
+		Transaction []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Fn is the fn argument value.
+			Fn func(repo repositories.APIKeyRepository, tx *gorm.DB) error
+		}
 		// Upsert holds details about calls to the Upsert method.
 		Upsert []struct {
 			// Key is the key argument value.
@@ -182,6 +196,7 @@ type APIKeyRepositoryMock struct {
 	lockListByArtifactKindAndEnvs    sync.RWMutex
 	lockListPermanentByArtifactKinds sync.RWMutex
 	lockReplaceIfUnchanged           sync.RWMutex
+	lockTransaction                  sync.RWMutex
 	lockUpsert                       sync.RWMutex
 }
 
@@ -546,6 +561,42 @@ func (mock *APIKeyRepositoryMock) ReplaceIfUnchangedCalls() []struct {
 	mock.lockReplaceIfUnchanged.RLock()
 	calls = mock.calls.ReplaceIfUnchanged
 	mock.lockReplaceIfUnchanged.RUnlock()
+	return calls
+}
+
+// Transaction calls TransactionFunc.
+func (mock *APIKeyRepositoryMock) Transaction(ctx context.Context, fn func(repo repositories.APIKeyRepository, tx *gorm.DB) error) error {
+	if mock.TransactionFunc == nil {
+		panic("APIKeyRepositoryMock.TransactionFunc: method is nil but APIKeyRepository.Transaction was just called")
+	}
+	callInfo := struct {
+		Ctx context.Context
+		Fn  func(repo repositories.APIKeyRepository, tx *gorm.DB) error
+	}{
+		Ctx: ctx,
+		Fn:  fn,
+	}
+	mock.lockTransaction.Lock()
+	mock.calls.Transaction = append(mock.calls.Transaction, callInfo)
+	mock.lockTransaction.Unlock()
+	return mock.TransactionFunc(ctx, fn)
+}
+
+// TransactionCalls gets all the calls that were made to Transaction.
+// Check the length with:
+//
+//	len(mockedAPIKeyRepository.TransactionCalls())
+func (mock *APIKeyRepositoryMock) TransactionCalls() []struct {
+	Ctx context.Context
+	Fn  func(repo repositories.APIKeyRepository, tx *gorm.DB) error
+} {
+	var calls []struct {
+		Ctx context.Context
+		Fn  func(repo repositories.APIKeyRepository, tx *gorm.DB) error
+	}
+	mock.lockTransaction.RLock()
+	calls = mock.calls.Transaction
+	mock.lockTransaction.RUnlock()
 	return calls
 }
 

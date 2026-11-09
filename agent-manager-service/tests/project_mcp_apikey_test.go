@@ -319,6 +319,55 @@ func TestProjectMCPBindingAPIKeys(t *testing.T) {
 		assert.NotEqual(t, before, after[0].APIKeyHash)
 	})
 
+	t.Run("concurrent rotations reach the gateway in the order they were stored", func(t *testing.T) {
+		const n = 8
+		var wg sync.WaitGroup
+		for range n {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				// A rotation that lost the race to another is refused; the winners' order is what is checked.
+				do(http.MethodPut, keysPath(devEnv)+"/ip-users", nil)
+			}()
+		}
+		wg.Wait()
+
+		stored := storedKeys(t, artifactOf(t, devEnv))
+		var want string
+		for _, k := range stored {
+			if k.Name == "ip-users" {
+				want = k.APIKeyHash
+			}
+		}
+		require.NotEmpty(t, want)
+
+		// The gateway applies its events in seq order, so the last event for the key must carry the stored value.
+		rows, err := gdb.Raw(`SELECT event_data FROM eventhub_events WHERE gateway_id = ? AND entity_type IN (?, ?)
+			ORDER BY seq`, gatewayID.String(), "apikey.created", "apikey.updated").Rows()
+		require.NoError(t, err)
+		defer rows.Close()
+		var last string
+		for rows.Next() {
+			var data string
+			require.NoError(t, rows.Scan(&data))
+			var envelope struct {
+				Payload struct {
+					APIID        string `json:"apiId"`
+					Name         string `json:"name"`
+					KeyName      string `json:"keyName"`
+					APIKeyHashes string `json:"apiKeyHashes"`
+				} `json:"payload"`
+			}
+			require.NoError(t, json.Unmarshal([]byte(data), &envelope), data)
+			event := envelope.Payload
+			if event.APIID == artifactOf(t, devEnv).String() && (event.KeyName == "ip-users" || event.Name == "ip-users") {
+				last = event.APIKeyHashes
+			}
+		}
+		require.NoError(t, rows.Err())
+		assert.Equal(t, fmt.Sprintf(`{"sha256":"%s"}`, want), last, "the gateway ends on the stored value")
+	})
+
 	t.Run("PUT with no expiresAt keeps the key's expiry", func(t *testing.T) {
 		expiry := time.Now().Add(48 * time.Hour).UTC().Truncate(time.Second)
 		rr := do(http.MethodPost, keysPath(devEnv), map[string]any{"name": "dated", "expiresAt": expiry.Format(time.RFC3339)})
@@ -436,6 +485,18 @@ func TestProjectMCPBindingAPIKeys(t *testing.T) {
 		require.Equal(t, http.StatusNoContent, rr.Code, rr.Body.String())
 		assert.Empty(t, storedKeys(t, artifactOf(t, devEnv)))
 		assert.Empty(t, listNames(t, devEnv))
+
+		// A gateway that missed the revoke event is reconciled by its key sync on reconnect, which no longer
+		// carries the key.
+		synced, err := keyRepo.ListByArtifactKind(ouID, models.KindMCPMapping)
+		require.NoError(t, err)
+		for _, k := range synced {
+			assert.False(t, k.ArtifactUUID == artifactOf(t, devEnv) && k.Name == "ip-users", "a revoked key is not synced")
+		}
+		var revokes int64
+		require.NoError(t, gdb.Raw(`SELECT count(*) FROM eventhub_events WHERE gateway_id = ? AND entity_type = ?
+			AND event_data LIKE ?`, gatewayID.String(), "apikey.revoked", `%"keyName":"ip-users"%`).Scan(&revokes).Error)
+		assert.Positive(t, revokes, "the revoke event is stored for the gateway")
 	})
 
 	t.Run("removing the binding deletes its keys", func(t *testing.T) {
