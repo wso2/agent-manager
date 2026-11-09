@@ -61,11 +61,11 @@ import {
 // from this page workspace; matches MountPoints.ReplicaPolicy.
 const REPLICA_POLICY_MOUNT_POINT = "replica-policy";
 
-// How long to wait for an injected replica policy before falling back to the
-// built-in limits, so a policy that never reports cannot block saving.
+// How long to wait for an injected replica policy before telling the user it
+// could not be loaded. Saving stays blocked until a policy reports.
 const REPLICA_POLICY_TIMEOUT_MS = 10_000;
 
-/** Isolates an injected replica policy so a render error falls back to built-in limits. */
+/** Isolates an injected replica policy so a render error does not break the drawer. */
 class ReplicaPolicyBoundary extends Component<
   { onError: () => void; children: ReactNode },
   { failed: boolean }
@@ -322,11 +322,15 @@ export function EditResourceConfigsDrawer({
     () => getReplicaPolicyErrors(formData, replicaPolicy ?? null),
     [formData, replicaPolicy],
   );
-  // Set when the injected policy failed or timed out and built-in limits apply.
+  // Set when the injected policy failed or timed out. Saving stays blocked
+  // (fail closed) until the policy reports.
   const [policyUnavailable, setPolicyUnavailable] = useState(false);
   const handlePolicyFailure = useCallback(() => {
     setPolicyUnavailable(true);
-    setReplicaPolicy((current) => (current === undefined ? null : current));
+  }, []);
+  const handlePolicyChange = useCallback((policy: ReplicaPolicy | null) => {
+    setPolicyUnavailable(false);
+    setReplicaPolicy(policy);
   }, []);
 
   // Reset when the drawer closes, not when it opens: the injected component
@@ -444,13 +448,13 @@ export function EditResourceConfigsDrawer({
                   <ReplicaPolicyBoundary onError={handlePolicyFailure}>
                     <ReplicaPolicyComponent
                       orgId={orgName}
-                      onPolicyChange={setReplicaPolicy}
+                      onPolicyChange={handlePolicyChange}
                     />
                   </ReplicaPolicyBoundary>
                 )}
                 {policyUnavailable && (
-                  <Alert severity="warning">
-                    Replica limits could not be loaded. Default limits apply.
+                  <Alert severity="error">
+                    Replica limits could not be loaded. Saving is unavailable.
                   </Alert>
                 )}
                 <Form.ElementWrapper label="Replicas" name="replicas">
