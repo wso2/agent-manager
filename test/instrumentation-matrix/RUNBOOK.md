@@ -74,7 +74,6 @@ OPENAI_API_KEY=sk-... python scripts/record_cassette.py haystack llm
 After any edit, sanity-check locally:
 
 ```bash
-git clone https://github.com/wso2/agent-manager-samples .agent-manager-samples
 cd test/instrumentation-matrix
 nox -s emission -- --cell-id=traceloop-0.62.0-langchain-0.3.27-py3.11   # one cell
 nox -s emission -k haystack                                             # by framework
@@ -232,8 +231,8 @@ It has a **per-framework axis for frameworks that ship a deployable sample**.
 `harness/deployable_samples.py` maps each such framework to its sample app
 path, run command, and the span kinds the driver asserts:
 
-- `langchain` → `customer-support-agent` (LangChain/LangGraph), asserts `llm`
-- `crewai` → `crewai-agent`, asserts `llm` + `agent` + `crewaitask`
+- `langchain` → `samples/customer-support-agent` (LangChain/LangGraph), asserts `llm`
+- `crewai` → `samples/crewai-agent`, asserts `llm` + `agent` + `crewaitask`
 
 The driver deploys the sample matching each cell's framework and asserts that
 framework's kinds (plus shape-validation of every captured span). The other two
@@ -255,7 +254,7 @@ parallel shard automatically; it does not lengthen the existing ones.
 Frameworks without a deployable sample (`langgraph`, `llama-index`,
 `openai-direct`, `anthropic-direct`) stay emission-only — per-framework span
 *shape* for them is the emission tier's job. Adding a deployable sample under
-A sample in `wso2/agent-manager-samples` plus a `DEPLOYABLE_SAMPLES` entry is what brings a framework into the
+`samples/` plus a `DEPLOYABLE_SAMPLES` entry is what brings a framework into the
 heavy axis.
 
 ### Bring-up: build-from-source

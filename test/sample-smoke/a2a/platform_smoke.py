@@ -14,8 +14,6 @@ from a2a_smoke import ROOT, check_evidence, invoke
 from smoke import request, stop_process, wait_ready
 
 # Reuse the existing platform authentication/request client, not a second OAuth implementation.
-SAMPLES_ROOT = ROOT / ".agent-manager-samples"
-
 sys.path.insert(0, str(ROOT / "test/instrumentation-matrix"))
 from heavy.amp_client import AmpClient, DeployedAgent, IdpCredentials
 from harness.classify import classify_span
@@ -25,7 +23,7 @@ def kubectl(*args, data=None):
     return subprocess.run(["kubectl", *args], input=data, text=True, capture_output=True, check=True, timeout=60).stdout
 
 
-def validate_source(build, workflow, sha, repo, branch, app_path="/a2a-agent"):
+def validate_source(build, workflow, sha, repo, branch, app_path="/samples/a2a-agent"):
     params = build["buildParameters"]
     # The REST API deliberately abbreviates commitId; WorkflowRun retains all 40 digits.
     revision = workflow["spec"]["workflow"]["parameters"]["repository"]
@@ -189,18 +187,16 @@ def diagnostics(namespace, reports):
 
 
 def run(args, sample):
-    sample_path = sample.get("path", "a2a-agent")
+    sample_path = sample.get("path", "samples/a2a-agent")
     port = sample.get("port", 9099)
     invoke_sample = sample.get("invoke", invoke)
     verify_evidence = sample.get("check_evidence", check_evidence)
     if not re.fullmatch(r"[0-9a-f]{40}", args.sha):
-        raise ValueError("--sha must be the full 40-character sample commit SHA")
+        raise ValueError("--sha must be the full 40-character PR head commit SHA")
     if not re.fullmatch(r"https://github.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", args.repo):
-        raise ValueError("--repo must be the HTTPS GitHub repository containing the sample commit")
-    if subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=SAMPLES_ROOT, text=True).strip() != args.sha:
-        raise RuntimeError("Samples checkout does not match --sha")
+        raise ValueError("--repo must be the HTTPS GitHub repository containing the PR commit")
     # Reject accidentally claiming that a remote build covers uncommitted sample edits.
-    dirty = subprocess.check_output(["git", "status", "--porcelain", "--untracked-files=all", "--", sample_path], cwd=SAMPLES_ROOT, text=True)
+    dirty = subprocess.check_output(["git", "status", "--porcelain", "--untracked-files=all", "--", sample_path], cwd=ROOT, text=True)
     # New test wrapper does not affect the deployed application; all other sample edits matter.
     dirty = [line for line in dirty.splitlines() if line[3:] not in {sample_path + "/README.md", sample_path + "/scripts/smoke_test.sh"}]
     if dirty:

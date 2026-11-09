@@ -4,6 +4,7 @@ on:
   pull_request:
     branches: ["main"]
     paths:
+      - "samples/hotel-booking-agent/**"
       - ".github/workflows/hotel-booking-sample-pr-checks.yaml"
       - "test/sample-smoke/hotel_booking/**"
       - "test/instrumentation-matrix/heavy/amp_client.py"
@@ -16,10 +17,9 @@ permissions:
   contents: read
 
 env:
-  SAMPLE_REPO: https://github.com/wso2/agent-manager-samples
-  SAMPLE_BRANCH: main
-  # Use the same samples commit in the local and platform jobs.
-  SAMPLE_SHA: f66165984f8aac37a3aa31b8321002266ae64533
+  SAMPLE_REPO: https://github.com/${{ github.event.pull_request.head.repo.full_name || github.repository }}
+  SAMPLE_BRANCH: ${{ github.head_ref || github.ref_name }}
+  SAMPLE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
 
 concurrency:
   group: hotel-booking-smoke-${{ github.ref }}
@@ -37,12 +37,6 @@ jobs:
           repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-      - uses: actions/checkout@v6
-        with:
-          repository: wso2/agent-manager-samples
-          ref: ${{ env.SAMPLE_SHA }}
-          path: .agent-manager-samples
-          persist-credentials: false
 
       - name: Setup Python
         uses: actions/setup-python@v6
@@ -57,7 +51,7 @@ jobs:
         env:
           PYTHON: python
           REPORTS: ${{ runner.temp }}/hotel-booking-smoke
-        run: bash .agent-manager-samples/hotel-booking-agent/scripts/smoke_test.sh
+        run: bash samples/hotel-booking-agent/scripts/smoke_test.sh
       - uses: actions/upload-artifact@v7
         if: always()
         with:
@@ -73,13 +67,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          persist-credentials: false
-      - uses: actions/checkout@v6
-        with:
-          repository: wso2/agent-manager-samples
           ref: ${{ env.SAMPLE_SHA }}
-          path: .agent-manager-samples
           persist-credentials: false
       - uses: ./.github/actions/amp-dev-stack
       - name: Load and wait for the PR Observer image
@@ -117,7 +105,7 @@ jobs:
         with:
           python-version: '3.11'
       - run: python -m pip install requests
-      - name: Build sample source, deploy, invoke, and find its trace
+      - name: Build PR source, deploy, invoke, and find its trace
         env:
           # Bootstrap fixture credential for this job's ephemeral dev stack, not a repository secret.
           IDP_CLIENT_SECRET: amp-api-client-secret

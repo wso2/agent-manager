@@ -9,7 +9,7 @@ from a2a_smoke import invoke, check_evidence
 from platform_smoke import run
 
 SAMPLE = {
-    'path': 'a2a-agent', 'prefix': 'a2a-smoke-', 'port': 9099,
+    'path': 'samples/a2a-agent', 'prefix': 'a2a-smoke-', 'port': 9099,
     'agent_type': {'type': 'agent-api', 'subType': 'a2a-agent'},
     'stub': Path(__file__).with_name('a2a_model_stub.py'),
     'invoke': invoke, 'check_evidence': check_evidence,

@@ -1,7 +1,7 @@
 """Manual-instrumentation cell sample.
 
 Thin shim around the published AMP manual-instrumentation sample at
-manual-instrumentation-agent/. The matrix exercises THAT sample so
+samples/manual-instrumentation-agent/. The matrix exercises THAT sample so
 any drift between it and the contract surfaces here.
 
 The published sample's `run_agent` emits one trace covering every span kind
@@ -17,7 +17,7 @@ from pathlib import Path
 # Add the published-sample directory to sys.path so we can import its modules
 # directly. The cell ends up testing exactly what customers see.
 _REPO_ROOT = Path(__file__).resolve().parents[3]
-_SAMPLE_DIR = _REPO_ROOT / ".agent-manager-samples" / "manual-instrumentation-agent"
+_SAMPLE_DIR = _REPO_ROOT / "samples" / "manual-instrumentation-agent"
 if str(_SAMPLE_DIR) not in sys.path:
     sys.path.insert(0, str(_SAMPLE_DIR))
 

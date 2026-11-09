@@ -18,7 +18,7 @@ from pathlib import Path
 import yaml
 
 HERE = Path(__file__).resolve().parent.parent
-SAMPLES_ROOT = HERE.parent.parent / ".agent-manager-samples"
+ROOT = HERE.parent.parent
 sys.path.insert(0, str(HERE))
 
 from harness.deployable_samples import DEPLOYABLE_SAMPLES  # noqa: E402
@@ -27,13 +27,13 @@ from harness.deployable_samples import DEPLOYABLE_SAMPLES  # noqa: E402
 def main() -> int:
     """Resolve each sample on its supported matrix runtimes, reporting failures."""
     pythons = yaml.safe_load((HERE / "matrix.yaml").read_text())["python"]["versions"]
-    samples = {s.app_path.lstrip("/"): s for s in DEPLOYABLE_SAMPLES.values()}
+    samples = {"samples" + s.app_path: s for s in DEPLOYABLE_SAMPLES.values()}
 
     failures: list[str] = []
     with tempfile.TemporaryDirectory() as tmp:
         out = Path(tmp) / "requirements.lock"
         for sample, config in sorted(samples.items()):
-            reqs = SAMPLES_ROOT / sample / "requirements.txt"
+            reqs = ROOT / sample / "requirements.txt"
             for py in pythons:
                 if not config.supports_python(py):
                     print(f"Skipping {sample} on Python {py}: unsupported sample runtime")

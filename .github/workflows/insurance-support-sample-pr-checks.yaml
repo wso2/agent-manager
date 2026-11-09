@@ -2,6 +2,7 @@ name: Insurance Support Sample PR Checks
 on:
   pull_request:
     paths:
+      - 'samples/insurance-support-agent/**'
       - '.github/workflows/insurance-support-sample-pr-checks.yaml'
       - 'test/sample-smoke/insurance_support/**'
       - 'test/instrumentation-matrix/heavy/amp_client.py'
@@ -14,10 +15,9 @@ concurrency:
   group: insurance-smoke-${{ github.ref }}
   cancel-in-progress: true
 env:
-  SAMPLE_REPO: https://github.com/wso2/agent-manager-samples
-  SAMPLE_BRANCH: main
-  # Use the same samples commit in the local and platform jobs.
-  SAMPLE_SHA: f66165984f8aac37a3aa31b8321002266ae64533
+  SAMPLE_REPO: https://github.com/${{ github.event.pull_request.head.repo.full_name || github.repository }}
+  SAMPLE_BRANCH: ${{ github.head_ref || github.ref_name }}
+  SAMPLE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
 jobs:
   smoke:
     name: Insurance Support local smoke and web build
@@ -28,12 +28,6 @@ jobs:
         with:
           repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          persist-credentials: false
-      - uses: actions/checkout@v6
-        with:
-          repository: wso2/agent-manager-samples
-          ref: ${{ env.SAMPLE_SHA }}
-          path: .agent-manager-samples
           persist-credentials: false
       - uses: actions/setup-python@v6
         with:
@@ -49,9 +43,9 @@ jobs:
         env:
           PYTHON: python
           SMOKE_REPORTS: ${{ runner.temp }}/insurance-smoke
-        run: bash .agent-manager-samples/insurance-support-agent/scripts/smoke_test.sh
+        run: bash samples/insurance-support-agent/scripts/smoke_test.sh
       - name: Install locked web dependencies and build
-        working-directory: .agent-manager-samples/insurance-support-agent/web
+        working-directory: samples/insurance-support-agent/web
         run: |
           npm ci
           npm run build
@@ -70,20 +64,14 @@ jobs:
       - uses: actions/checkout@v6
         with:
           repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          persist-credentials: false
-      - uses: actions/checkout@v6
-        with:
-          repository: wso2/agent-manager-samples
           ref: ${{ env.SAMPLE_SHA }}
-          path: .agent-manager-samples
           persist-credentials: false
       - uses: ./.github/actions/amp-dev-stack
       - uses: actions/setup-python@v6
         with:
           python-version: '3.11'
       - run: python -m pip install requests
-      - name: Build sample source, deploy, invoke, and find its trace
+      - name: Build PR source, deploy, invoke, and find its trace
         env:
           # Bootstrap fixture credential for this job's ephemeral dev stack, not a repository secret.
           IDP_CLIENT_SECRET: amp-api-client-secret

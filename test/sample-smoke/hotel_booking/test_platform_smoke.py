@@ -7,7 +7,7 @@ from urllib.error import HTTPError
 from platform_smoke import AmpClient, build_revision, trace_matches, validate_source
 
 SHA = "1" * 40
-REPO = "https://github.com/wso2/agent-manager-samples"
+REPO = "https://github.com/wso2/agent-manager"
 MARKER = "hotel-smoke-" + "a" * 32
 
 
@@ -19,7 +19,7 @@ class SmokeGuards(unittest.TestCase):
         self.assertTrue(trace_matches([{"attributes": {"gen_ai.operation.name": "chat", "content": MARKER}}], MARKER))
 
     def test_source_requires_full_workflow_commit_and_correct_repository(self):
-        build = {"buildParameters": {"repoUrl": REPO, "branch": "test-branch", "commitId": SHA[:8], "appPath": "/hotel-booking-agent/agent"}}
+        build = {"buildParameters": {"repoUrl": REPO, "branch": "test-branch", "commitId": SHA[:8], "appPath": "/samples/hotel-booking-agent/agent"}}
         workflow = {"spec": {"workflow": {"parameters": {"repository": {"url": REPO, "revision": {"commit": SHA}}}}}}
         validate_source(build, workflow, SHA, REPO, "test-branch")
         with self.assertRaises(AssertionError):

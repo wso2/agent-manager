@@ -328,7 +328,7 @@ def _invoke_agent(deployed: DeployedAgent) -> None:
     gateway route lags its deployment ack) — mirrors
     test/e2e/operations/agent/invoke_agent.go.
 
-    Body + path match the deployed sample (customer-support-agent):
+    Body + path match the deployed sample (customer-support-agent in wso2/agent-manager-samples):
     `POST <endpoint>/chat {"session_id", "message"}`. A single-turn prompt is
     enough — every cell sample bottoms out in one LLM call, which is the span
     we need.

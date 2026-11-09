@@ -11,10 +11,9 @@ compatibility, not the quality or tool-selection behavior of a real model.
 From the repository root, with Python 3.11 or newer:
 
 ```bash
-git clone https://github.com/wso2/agent-manager-samples .agent-manager-samples
-PYTHON=python3.11 bash .agent-manager-samples/it-helpdesk-agent/scripts/smoke_test.sh
+PYTHON=python3.11 bash samples/it-helpdesk-agent/scripts/smoke_test.sh
 # Optional persistent report location:
-PYTHON=python3.11 bash .agent-manager-samples/it-helpdesk-agent/scripts/smoke_test.sh --reports /tmp/helpdesk-local
+PYTHON=python3.11 bash samples/it-helpdesk-agent/scripts/smoke_test.sh --reports /tmp/helpdesk-local
 ```
 
 The runner creates a disposable venv, installs the checked-out requirements,
@@ -39,9 +38,9 @@ python3.11 -m venv /tmp/helpdesk-test-env
 # Use the bootstrap credential for your local dev stack. Never use production credentials.
 export IDP_CLIENT_SECRET='<local-dev-client-secret>'
 /tmp/helpdesk-test-env/bin/python test/sample-smoke/it_helpdesk/platform_smoke.py \
-  --repo https://github.com/wso2/agent-manager-samples \
-  --branch main \
-  --sha "$(git -C .agent-manager-samples rev-parse HEAD)" \
+  --repo https://github.com/wso2/agent-manager \
+  --branch <PR-head-branch> \
+  --sha <full-published-PR-head-SHA> \
   --reports /tmp/helpdesk-platform
 ```
 
@@ -57,8 +56,8 @@ agent pod, without a service-account token. A temporary NetworkPolicy permits
 only this test agent to reach this run's model pod on TCP 8099; sandbox defaults
 and other agents' policies remain intact. The policy is removed during cleanup.
 
-The agent is created with the samples branch. After its automatic branch build
-finishes, the test requests a build with `POST .../builds?commitId=<sample SHA>`
+The agent is created with the PR head branch. After its automatic branch build
+finishes, the test requests a build with `POST .../builds?commitId=<PR SHA>`
 and polls that returned build name. Only this explicit commit build is tested;
 the initial branch build cannot satisfy the smoke check. Before invocation the
 test verifies the repository and abbreviated SHA

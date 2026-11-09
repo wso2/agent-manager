@@ -16,8 +16,6 @@ import uuid
 from support import ROOT, check_evidence, invoke, request, stop_process, wait_ready
 
 # Reuse the existing platform authentication/request client, not a second OAuth implementation.
-SAMPLES_ROOT = ROOT / ".agent-manager-samples"
-
 sys.path.insert(0, str(ROOT / "test/instrumentation-matrix"))
 from heavy.amp_client import AmpClient, DeployedAgent, IdpCredentials
 from harness.classify import classify_span
@@ -32,7 +30,7 @@ def validate_source(build, workflow, sha, repo, branch):
     # The REST API deliberately abbreviates commitId; WorkflowRun retains all 40 digits.
     revision = workflow["spec"]["workflow"]["parameters"]["repository"]
     if (params.get("commitId") != sha[:8] or params.get("repoUrl") != repo
-            or params.get("branch") != branch or params.get("appPath") != "/insurance-support-agent/agent"
+            or params.get("branch") != branch or params.get("appPath") != "/samples/insurance-support-agent/agent"
             or revision.get("url") != repo or revision.get("revision", {}).get("commit") != sha):
         raise AssertionError("Build source does not match the requested repository and exact commit")
 
@@ -194,13 +192,11 @@ def diagnostics(namespace, reports):
 
 def run(args):
     if not re.fullmatch(r"[0-9a-f]{40}", args.sha):
-        raise ValueError("--sha must be the full 40-character sample commit SHA")
+        raise ValueError("--sha must be the full 40-character PR head commit SHA")
     if not re.fullmatch(r"https://github.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", args.repo):
-        raise ValueError("--repo must be the HTTPS GitHub repository containing the sample commit")
-    if subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=SAMPLES_ROOT, text=True).strip() != args.sha:
-        raise RuntimeError("Samples checkout does not match --sha")
+        raise ValueError("--repo must be the HTTPS GitHub repository containing the PR commit")
     # Reject accidentally claiming that a remote build covers uncommitted sample edits.
-    dirty = subprocess.check_output(["git", "status", "--porcelain", "--", "insurance-support-agent/agent"], cwd=SAMPLES_ROOT, text=True)
+    dirty = subprocess.check_output(["git", "status", "--porcelain", "--", "samples/insurance-support-agent/agent"], cwd=ROOT, text=True)
     if dirty:
         raise RuntimeError("Uncommitted Insurance Support source changes cannot be tested by a remote Git build; run local smoke first and use a published PR SHA for platform smoke")
     reports = args.reports.resolve()
@@ -237,7 +233,7 @@ def run(args):
         }.items()]
         client._request("POST", base + "/agents", json={
             "name": name, "displayName": name,
-            "provisioning": {"type": "internal", "repository": {"url": args.repo, "branch": args.branch, "appPath": "/insurance-support-agent/agent"}},
+            "provisioning": {"type": "internal", "repository": {"url": args.repo, "branch": args.branch, "appPath": "/samples/insurance-support-agent/agent"}},
             "agentType": {"type": "agent-api", "subType": "chat-api"},
             "build": {"type": "buildpack", "buildpack": {"language": "python", "languageVersion": "3.11", "runCommand": "python main.py"}},
             "configurations": {"enableAutoInstrumentation": True, "env": env},

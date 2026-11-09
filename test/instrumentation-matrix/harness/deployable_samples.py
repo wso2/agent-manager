@@ -14,7 +14,7 @@ customer-support-agent that the langchain cell deploys, that's just `llm`; the
 crewai agent additionally emits `agent` and `crewaitask`. Tool spans are not
 asserted (Traceloop 0.60 may fold them into span events; see FINDINGS F-003).
 
-To make another framework deployable: add a sample under `samples/<name>/`
+To make another framework deployable: add a sample to wso2/agent-manager-samples
 mirroring this contract, then add an entry here.
 """
 from __future__ import annotations

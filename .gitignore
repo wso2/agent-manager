@@ -99,5 +99,3 @@ samples/insurance-support-agent/web/dist/
 samples/insurance-support-agent/web/*.tsbuildinfo
 samples/insurance-support-agent/agent/.venv/
 samples/insurance-support-agent/**/__pycache__/
-
-/.agent-manager-samples/

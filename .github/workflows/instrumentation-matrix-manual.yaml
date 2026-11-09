@@ -86,12 +86,6 @@ jobs:
         cell: ${{ fromJSON(needs.resolve-cells.outputs.cell_ids) }}
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/checkout@v6
-        with:
-          repository: wso2/agent-manager-samples
-          ref: main
-          path: .agent-manager-samples
-          persist-credentials: false
       - uses: actions/setup-python@v6
         with:
           python-version: |
