@@ -1051,3 +1051,43 @@ func TestPutEnv_Capabilities_Invalid400NothingStored(t *testing.T) {
 		})
 	}
 }
+
+// An api-key upstream auth sent without its value keeps the stored one, so a binding read back (which never carries
+// the value) can be sent again unchanged. With nothing stored to keep, the value is required.
+func TestPutEnv_UpstreamAuthWithoutValueKeepsTheStoredOne(t *testing.T) {
+	f := newBindingFixture(t)
+
+	_, _, err := f.put(t, models.MCPProxyEnvironmentRequest{
+		UpstreamAuth: &models.MCPProxyEnvironmentUpstreamAuth{Type: "api-key", Header: "Authorization"},
+	})
+	require.ErrorIs(t, err, utils.ErrInvalidInput, "no stored value to keep")
+
+	_, _, err = f.put(t, models.MCPProxyEnvironmentRequest{
+		UpstreamAuth: &models.MCPProxyEnvironmentUpstreamAuth{Type: "api-key", Header: "Authorization", Value: "Bearer s3cret"},
+	})
+	require.NoError(t, err)
+	_, ee := f.binding()
+	f.status[ee.ArtifactUUID].Status = models.DeploymentStatusDeployed
+	deployed := len(f.deployed)
+
+	// The same auth without its value is identical: no redeploy.
+	_, _, err = f.put(t, models.MCPProxyEnvironmentRequest{
+		UpstreamAuth: &models.MCPProxyEnvironmentUpstreamAuth{Type: "api-key", Header: "Authorization"},
+	})
+	require.NoError(t, err)
+	assert.Len(t, f.deployed, deployed, "unchanged")
+
+	// A new header without a value keeps the value under the new header.
+	_, _, err = f.put(t, models.MCPProxyEnvironmentRequest{
+		UpstreamAuth: &models.MCPProxyEnvironmentUpstreamAuth{Type: "api-key", Header: "X-Upstream-Key"},
+	})
+	require.NoError(t, err)
+	endpoint, _ := f.binding()
+	auth := endpoint.Configuration.Upstream.Auth
+	require.NotNil(t, auth)
+	assert.Equal(t, "X-Upstream-Key", valueOrEmpty(auth.Header))
+	require.NotNil(t, auth.SecretRef)
+	value, err := utils.DecryptSecretRef(*auth.SecretRef, f.svc.base.encryptionKey)
+	require.NoError(t, err)
+	assert.Equal(t, "Bearer s3cret", value)
+}

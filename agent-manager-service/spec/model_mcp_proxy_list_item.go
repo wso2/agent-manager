@@ -33,7 +33,10 @@ type MCPProxyListItem struct {
 	// MCP specification version implemented by the upstream server
 	McpSpecVersion *string `json:"mcpSpecVersion,omitempty"`
 	// Set for a project-owned proxy; absent for an org-level one
-	ProjectName *string `json:"projectName,omitempty"`
+	ProjectName *string                 `json:"projectName,omitempty"`
+	Source      *MCPProxyListItemSource `json:"source,omitempty"`
+	// The environments the proxy is bound to.
+	Environments []MCPProxyListEnvironment `json:"environments,omitempty"`
 	// MCP proxy status
 	Status *string `json:"status,omitempty"`
 	// User who created the MCP proxy
@@ -285,6 +288,70 @@ func (o *MCPProxyListItem) SetProjectName(v string) {
 	o.ProjectName = &v
 }
 
+// GetSource returns the Source field value if set, zero value otherwise.
+func (o *MCPProxyListItem) GetSource() MCPProxyListItemSource {
+	if o == nil || IsNil(o.Source) {
+		var ret MCPProxyListItemSource
+		return ret
+	}
+	return *o.Source
+}
+
+// GetSourceOk returns a tuple with the Source field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *MCPProxyListItem) GetSourceOk() (*MCPProxyListItemSource, bool) {
+	if o == nil || IsNil(o.Source) {
+		return nil, false
+	}
+	return o.Source, true
+}
+
+// HasSource returns a boolean if a field has been set.
+func (o *MCPProxyListItem) HasSource() bool {
+	if o != nil && !IsNil(o.Source) {
+		return true
+	}
+
+	return false
+}
+
+// SetSource gets a reference to the given MCPProxyListItemSource and assigns it to the Source field.
+func (o *MCPProxyListItem) SetSource(v MCPProxyListItemSource) {
+	o.Source = &v
+}
+
+// GetEnvironments returns the Environments field value if set, zero value otherwise.
+func (o *MCPProxyListItem) GetEnvironments() []MCPProxyListEnvironment {
+	if o == nil || IsNil(o.Environments) {
+		var ret []MCPProxyListEnvironment
+		return ret
+	}
+	return o.Environments
+}
+
+// GetEnvironmentsOk returns a tuple with the Environments field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *MCPProxyListItem) GetEnvironmentsOk() ([]MCPProxyListEnvironment, bool) {
+	if o == nil || IsNil(o.Environments) {
+		return nil, false
+	}
+	return o.Environments, true
+}
+
+// HasEnvironments returns a boolean if a field has been set.
+func (o *MCPProxyListItem) HasEnvironments() bool {
+	if o != nil && !IsNil(o.Environments) {
+		return true
+	}
+
+	return false
+}
+
+// SetEnvironments gets a reference to the given []MCPProxyListEnvironment and assigns it to the Environments field.
+func (o *MCPProxyListItem) SetEnvironments(v []MCPProxyListEnvironment) {
+	o.Environments = v
+}
+
 // GetStatus returns the Status field value if set, zero value otherwise.
 func (o *MCPProxyListItem) GetStatus() string {
 	if o == nil || IsNil(o.Status) {
@@ -443,6 +510,12 @@ func (o MCPProxyListItem) ToMap() (map[string]interface{}, error) {
 	}
 	if !IsNil(o.ProjectName) {
 		toSerialize["projectName"] = o.ProjectName
+	}
+	if !IsNil(o.Source) {
+		toSerialize["source"] = o.Source
+	}
+	if !IsNil(o.Environments) {
+		toSerialize["environments"] = o.Environments
 	}
 	if !IsNil(o.Status) {
 		toSerialize["status"] = o.Status

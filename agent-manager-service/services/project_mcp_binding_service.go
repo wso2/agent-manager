@@ -134,6 +134,9 @@ func (s *ProjectMCPProxyService) PutEnvironment(
 	if err != nil {
 		return nil, false, err
 	}
+	if auth, err = s.keepStoredUpstreamValue(auth, endpoint); err != nil {
+		return nil, false, err
+	}
 	capabilities, err := normalizeBindingCapabilities(req.Capabilities)
 	if err != nil {
 		return nil, false, err
@@ -599,10 +602,16 @@ func normalizeBindingUpstreamAuth(in *models.MCPProxyEnvironmentUpstreamAuth) (*
 		return nil, nil //nolint:nilnil // no upstream auth
 	case "api-key":
 		header, value := strings.TrimSpace(in.Header), in.Value
-		if header == "" || value == "" {
-			return nil, fmt.Errorf("%w: upstreamAuth needs both header and value", utils.ErrInvalidInput)
+		if header == "" {
+			return nil, fmt.Errorf("%w: upstreamAuth needs a header", utils.ErrInvalidInput)
 		}
-		return &models.UpstreamAuth{Type: &typ, Header: &header, Value: &value}, nil
+		auth := &models.UpstreamAuth{Type: &typ, Header: &header}
+		// An empty value keeps the binding's stored one (keepStoredUpstreamValue), so a caller that reads the
+		// redacted binding back can send it unchanged.
+		if value != "" {
+			auth.Value = &value
+		}
+		return auth, nil
 	default:
 		return nil, fmt.Errorf("%w: upstreamAuth.type must be api-key or none", utils.ErrInvalidInput)
 	}
@@ -659,6 +668,38 @@ func normalizeBindingCapabilities(in *models.MCPProxyCapabilities) (*models.MCPP
 			utils.ErrInvalidInput, len(encoded), maxBindingCapabilitiesBytes)
 	}
 	return out, nil
+}
+
+// keepStoredUpstreamValue fills an api-key upstream auth given without a value from the binding's stored one, which
+// a binding read never returns. With no stored api-key auth to keep, the value is required.
+func (s *ProjectMCPProxyService) keepStoredUpstreamValue(
+	auth *models.UpstreamAuth, endpoint *models.MCPProxyEndpoint,
+) (*models.UpstreamAuth, error) {
+	if auth == nil || auth.Value != nil {
+		return auth, nil
+	}
+	missing := fmt.Errorf("%w: upstreamAuth needs a value", utils.ErrInvalidInput)
+	if endpoint == nil || endpoint.Configuration.Upstream == nil || endpoint.Configuration.Upstream.Auth == nil {
+		return nil, missing
+	}
+	stored := endpoint.Configuration.Upstream.Auth
+	if !strings.EqualFold(valueOrEmpty(stored.Type), "api-key") {
+		return nil, missing
+	}
+	value := valueOrEmpty(stored.Value)
+	if stored.SecretRef != nil {
+		decrypted, err := utils.DecryptSecretRef(*stored.SecretRef, s.base.encryptionKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read the stored upstream auth: %w", err)
+		}
+		value = decrypted
+	}
+	if value == "" {
+		return nil, missing
+	}
+	kept := *auth
+	kept.Value = &value
+	return &kept, nil
 }
 
 // storeBindingConfig is desired as it is stored: the upstream credential encrypted.

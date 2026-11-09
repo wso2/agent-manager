@@ -5232,7 +5232,7 @@ type MCPProxyEnvironmentUpstreamAuth struct {
 	Header *string                             `json:"header,omitempty"`
 	Type   MCPProxyEnvironmentUpstreamAuthType `json:"type"`
 
-	// Value Required with api-key. Stored encrypted; never returned.
+	// Value Required with api-key, unless the binding already has an api-key upstream auth: an omitted value then keeps the stored one. Stored encrypted; never returned.
 	Value *string `json:"value,omitempty"`
 }
 
@@ -5255,6 +5255,13 @@ type MCPProxyJWTSecurity struct {
 	Issuers   *[]string `json:"issuers,omitempty"`
 }
 
+// MCPProxyListEnvironment defines model for MCPProxyListEnvironment.
+type MCPProxyListEnvironment struct {
+	// EnvironmentName Set for a project-owned proxy, whose binding is named after its environment.
+	EnvironmentName *string `json:"environmentName,omitempty"`
+	EnvironmentUuid string  `json:"environmentUuid"`
+}
+
 // MCPProxyListItem defines model for MCPProxyListItem.
 type MCPProxyListItem struct {
 	// Context MCP proxy context path
@@ -5269,6 +5276,9 @@ type MCPProxyListItem struct {
 	// Description Description of the MCP proxy
 	Description *string `json:"description,omitempty"`
 
+	// Environments The environments the proxy is bound to.
+	Environments *[]MCPProxyListEnvironment `json:"environments,omitempty"`
+
 	// Id Unique handle for the MCP proxy
 	Id *string `json:"id,omitempty"`
 
@@ -5280,6 +5290,9 @@ type MCPProxyListItem struct {
 
 	// ProjectName Set for a project-owned proxy; absent for an org-level one
 	ProjectName *string `json:"projectName,omitempty"`
+
+	// Source The component endpoint a project-owned proxy fronts; absent for an org-level one.
+	Source *MCPProxySource `json:"source,omitempty"`
 
 	// Status MCP proxy status
 	Status *string `json:"status,omitempty"`

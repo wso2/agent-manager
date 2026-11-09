@@ -19812,6 +19812,17 @@ components:
           type: string
           description: Set for a project-owned proxy; absent for an org-level one
           readOnly: true
+        source:
+          allOf:
+            - $ref: "#/components/schemas/MCPProxySource"
+          description: The component endpoint a project-owned proxy fronts; absent for an org-level one.
+          readOnly: true
+        environments:
+          type: array
+          description: The environments the proxy is bound to.
+          readOnly: true
+          items:
+            $ref: "#/components/schemas/MCPProxyListEnvironment"
         status:
           type: string
           description: MCP proxy status
@@ -19829,6 +19840,17 @@ components:
           format: date-time
           description: Timestamp when the resource was last updated
           readOnly: true
+
+    MCPProxyListEnvironment:
+      type: object
+      required:
+        - environmentUuid
+      properties:
+        environmentUuid:
+          type: string
+        environmentName:
+          type: string
+          description: Set for a project-owned proxy, whose binding is named after its environment.
 
     MCPProxySource:
       type: object
@@ -20089,7 +20111,9 @@ components:
         value:
           type: string
           writeOnly: true
-          description: Required with api-key. Stored encrypted; never returned.
+          description: >-
+            Required with api-key, unless the binding already has an api-key upstream auth: an omitted
+            value then keeps the stored one. Stored encrypted; never returned.
 
     MCPProxyEnvironmentUpstreamAuthRedacted:
       type: object

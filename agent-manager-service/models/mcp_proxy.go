@@ -277,9 +277,20 @@ type MCPProxyListItem struct {
 	McpSpecVersion *string    `json:"mcpSpecVersion,omitempty"`
 	Name           *string    `json:"name,omitempty"`
 	ProjectName    *string    `json:"projectName,omitempty"`
-	Status         *string    `json:"status,omitempty"`
-	UpdatedAt      *time.Time `json:"updatedAt,omitempty"`
-	Version        *string    `json:"version,omitempty"`
+	// Source is the component endpoint a project proxy was published from; absent for an org proxy.
+	Source    *MCPProxySource `json:"source,omitempty"`
+	Status    *string         `json:"status,omitempty"`
+	UpdatedAt *time.Time      `json:"updatedAt,omitempty"`
+	Version   *string         `json:"version,omitempty"`
+	// Environments are the environments the proxy is bound to.
+	Environments []MCPProxyListEnvironment `json:"environments"`
+}
+
+// MCPProxyListEnvironment is one environment an MCP proxy in a list is bound to.
+type MCPProxyListEnvironment struct {
+	EnvironmentUUID string `json:"environmentUuid"`
+	// EnvironmentName is set for a project proxy, whose binding is named after its environment.
+	EnvironmentName string `json:"environmentName,omitempty"`
 }
 
 // MCPProxyListResponse is the response body for listing MCP proxies.
