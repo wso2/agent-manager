@@ -26,6 +26,16 @@ import (
 // lookupPageSize is the page size for reading an environment's roles, groups and members.
 const lookupPageSize = 100
 
+// AgentIdentityRoleReader optionally resolves an agent's roles in one environment read.
+type AgentIdentityRoleReader interface {
+	ListAgentRoles(ctx context.Context, organizationID, environment, agentID string) ([]thundersvc.ThunderRole, error)
+}
+
+// AgentIdentityGroupReader optionally resolves an agent's groups in one environment read.
+type AgentIdentityGroupReader interface {
+	ListAgentGroups(ctx context.Context, organizationID, environment, agentID string) ([]thundersvc.ThunderGroup, error)
+}
+
 // agentRolesViaProvider returns the roles an AgentID holds in one environment when roles are kept on
 // the identity control plane: the roles the environment runs that name the agent as an assignee. The
 // environment's own Thunder is never used, as it does not exist in that mode.
@@ -34,6 +44,13 @@ func agentRolesViaProvider(
 ) ([]thundersvc.ThunderRole, error) {
 	if provider == nil {
 		return nil, ErrIdentityRoleUnavailable
+	}
+	if reader, ok := provider.(AgentIdentityRoleReader); ok {
+		roles, err := reader.ListAgentRoles(ctx, organizationID, environment, agentID)
+		if err != nil {
+			return nil, fmt.Errorf("list the agent's roles: %w", err)
+		}
+		return roles, nil
 	}
 	held := []thundersvc.ThunderRole{}
 	for offset := 0; ; offset += lookupPageSize {
@@ -73,6 +90,13 @@ func agentGroupsViaProvider(
 ) ([]thundersvc.ThunderGroup, error) {
 	if provider == nil {
 		return nil, ErrIdentityGroupUnavailable
+	}
+	if reader, ok := provider.(AgentIdentityGroupReader); ok {
+		groups, err := reader.ListAgentGroups(ctx, organizationID, environment, agentID)
+		if err != nil {
+			return nil, fmt.Errorf("list the agent's groups: %w", err)
+		}
+		return groups, nil
 	}
 	held := []thundersvc.ThunderGroup{}
 	for offset := 0; ; offset += lookupPageSize {
