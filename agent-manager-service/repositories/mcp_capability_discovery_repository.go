@@ -55,6 +55,10 @@ type MCPCapabilityDiscoveryRepository interface {
 	MarkAttemptFailed(ctx context.Context, read models.MCPCapabilityDiscovery, lastErr string, nextAttemptAt time.Time) error
 	MarkFailed(ctx context.Context, read models.MCPCapabilityDiscovery, lastErr string) error
 	Drop(ctx context.Context, read models.MCPCapabilityDiscovery) error
+	// StoreDiscovered writes capabilities onto the binding, marked as discovered, and marks its discovery discovered
+	// at at, in one statement that applies only while the binding still has read's token and its caller has not
+	// given capabilities. capabilities nil removes them. ErrMCPCapabilityDiscoverySuperseded when it did not apply.
+	StoreDiscovered(ctx context.Context, read models.MCPCapabilityDiscovery, capabilities *models.MCPProxyCapabilities, at time.Time) error
 }
 
 type mcpCapabilityDiscoveryRepository struct {
@@ -199,4 +203,41 @@ func (r *mcpCapabilityDiscoveryRepository) MarkFailed(ctx context.Context, read 
 
 func (r *mcpCapabilityDiscoveryRepository) Drop(ctx context.Context, read models.MCPCapabilityDiscovery) error {
 	return r.update(ctx, read, nil)
+}
+
+func (r *mcpCapabilityDiscoveryRepository) StoreDiscovered(
+	ctx context.Context, read models.MCPCapabilityDiscovery, capabilities *models.MCPProxyCapabilities, at time.Time,
+) error {
+	state := read.MCPCapabilityDiscoveryState
+	discoveredAt := at.UTC()
+	state.Status, state.NextAttemptAt, state.LastError = models.MCPCapabilityDiscoveryDiscovered, nil, ""
+	state.DiscoveredAt = &discoveredAt
+	encodedState, err := json.Marshal(state)
+	if err != nil {
+		return fmt.Errorf("failed to encode the capability discovery: %w", err)
+	}
+	// Removing the keys first and setting them after leaves no stale capabilities when there are none now.
+	set := "jsonb_set(configuration - 'capabilities' - 'capabilitiesDiscovered', '{capabilityDiscovery}', ?::jsonb)"
+	values := []any{string(encodedState)}
+	if capabilities != nil {
+		encodedCapabilities, err := json.Marshal(capabilities)
+		if err != nil {
+			return fmt.Errorf("failed to encode the capabilities: %w", err)
+		}
+		set = "jsonb_set(jsonb_set(" + set + ", '{capabilities}', ?::jsonb), '{capabilitiesDiscovered}', 'true'::jsonb)"
+		values = append(values, string(encodedCapabilities))
+	}
+	// The token and the caller check are in the WHERE clause, so they are re-checked on the row as it is when the
+	// write takes its lock: a binding queued again meanwhile (a redeploy's AfterLive, a refresh) is not overwritten.
+	values = append(values, read.ArtifactUUID, read.Token)
+	result := r.db.WithContext(ctx).Exec("UPDATE mcp_proxy_endpoints SET configuration = "+set+" WHERE "+bindingEndpoint+`
+		AND configuration->'capabilityDiscovery'->>'token' = ?
+		AND (configuration->'capabilities' IS NULL OR configuration->>'capabilitiesDiscovered' = 'true')`, values...)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return ErrMCPCapabilityDiscoverySuperseded
+	}
+	return nil
 }

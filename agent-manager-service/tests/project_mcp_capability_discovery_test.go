@@ -186,6 +186,40 @@ func TestProjectMCPCapabilityDiscoveryQueue(t *testing.T) {
 		assert.Equal(t, "the MCP server refused", got.LastError)
 	})
 
+	t.Run("discovered capabilities are stored only while the claim's token stands", func(t *testing.T) {
+		tools := []map[string]interface{}{{"name": "get_weather"}}
+		discovered := &models.MCPProxyCapabilities{Tools: &tools}
+
+		// A redeploy's ack (or a refresh) queues the binding again after the attempt was claimed: the attempt's
+		// write must not put its old token back.
+		rr := h.do(http.MethodPost, project, envPath(open)+"/capabilities/refresh", nil)
+		require.Equal(t, http.StatusAccepted, rr.Code, rr.Body.String())
+		stale := claim(t, openArtifact)
+		require.NoError(t, queue.Enqueue(context.Background(), openArtifact))
+		require.ErrorIs(t, queue.StoreDiscovered(context.Background(), stale, discovered, time.Now()),
+			repositories.ErrMCPCapabilityDiscoverySuperseded)
+		b := decodeBinding(t, h.do(http.MethodGet, project, envPath(open), nil))
+		assert.Nil(t, b.Capabilities, "the superseded attempt stored nothing")
+		require.NotNil(t, b.CapabilityDiscovery)
+		assert.Equal(t, "Pending", b.CapabilityDiscovery.Status, "the newer queueing stands")
+
+		current := claim(t, openArtifact)
+		require.NoError(t, queue.StoreDiscovered(context.Background(), current, discovered, time.Now()))
+		b = decodeBinding(t, h.do(http.MethodGet, project, envPath(open), nil))
+		require.NotNil(t, b.Capabilities)
+		require.Len(t, *b.Capabilities.Tools, 1)
+		assert.Equal(t, models.MCPCapabilitiesSourceDiscovered, b.CapabilitiesSource)
+		assert.Equal(t, "Discovered", b.CapabilityDiscovery.Status)
+		assert.NotNil(t, b.CapabilityDiscovery.DiscoveredAt)
+
+		// A PUT without capabilities keeps the discovered ones.
+		rr = h.do(http.MethodPut, project, envPath(open), map[string]any{})
+		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+		b = decodeBinding(t, rr)
+		require.NotNil(t, b.Capabilities)
+		assert.Equal(t, models.MCPCapabilitiesSourceDiscovered, b.CapabilitiesSource)
+	})
+
 	t.Run("a binding whose caller gives capabilities is not queued, and refresh is 409", func(t *testing.T) {
 		given := "given-" + suffix
 		artifact := deploy(t, given, map[string]any{"capabilities": map[string]any{"tools": []map[string]any{{"name": "t1"}}}})

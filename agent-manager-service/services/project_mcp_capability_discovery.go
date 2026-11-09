@@ -401,11 +401,12 @@ func (s *ProjectMCPProxyService) issueDiscoveryKey(ctx context.Context, ouID, ar
 	return resp.APIKey, revoke, nil
 }
 
-// storeDiscoveredCapabilities writes discovered capabilities onto the binding and marks its discovery discovered, in
-// one write with the proxy row locked, so a binding PUT cannot interleave. A discovery queued again since the claim
-// (another token) is superseded and writes nothing; a binding whose caller has since given capabilities, or that is
-// gone, is left alone (errMCPDiscoveryNotNeeded). The binding is not redeployed: the gateway does not carry
-// capabilities.
+// storeDiscoveredCapabilities writes discovered capabilities onto the binding and marks its discovery discovered. The
+// proxy row is locked, so a binding PUT cannot interleave, and the write is one statement conditional on the claim's
+// token (StoreDiscovered), so a discovery queued again since the claim, which does not take the proxy lock, makes it
+// a no-op (ErrMCPCapabilityDiscoverySuperseded) instead of being overwritten. A binding whose caller has since given
+// capabilities, or that is gone, is left alone (errMCPDiscoveryNotNeeded). The binding is not redeployed: the
+// gateway does not carry capabilities.
 func (s *ProjectMCPProxyService) storeDiscoveredCapabilities(
 	ctx context.Context, row models.MCPCapabilityDiscovery, capabilities *models.MCPProxyCapabilities,
 ) error {
@@ -432,22 +433,6 @@ func (s *ProjectMCPProxyService) storeDiscoveredCapabilities(
 		if endpoint == nil || callerGaveCapabilities(endpoint.Configuration) {
 			return errMCPDiscoveryNotNeeded
 		}
-		cfg := endpoint.Configuration
-		if cfg.CapabilityDiscovery == nil || cfg.CapabilityDiscovery.Token != row.Token {
-			return repositories.ErrMCPCapabilityDiscoverySuperseded
-		}
-		now := time.Now().UTC()
-		discovered := *cfg.CapabilityDiscovery
-		discovered.Status, discovered.NextAttemptAt, discovered.LastError = models.MCPCapabilityDiscoveryDiscovered, nil, ""
-		discovered.DiscoveredAt = &now
-		cfg.CapabilityDiscovery = &discovered
-		cfg.Capabilities = capabilities
-		cfg.CapabilitiesDiscovered = capabilities != nil
-		if err := s.base.endpointRepo.UpdateEndpoint(ctx, tx, &models.MCPProxyEndpoint{
-			UUID: endpoint.UUID, Handle: endpoint.Handle, Name: endpoint.Name, Status: endpoint.Status, Configuration: cfg,
-		}); err != nil {
-			return fmt.Errorf("failed to update the MCP proxy binding: %w", err)
-		}
-		return nil
+		return s.discoveries.WithTx(tx).StoreDiscovered(ctx, row, capabilities, time.Now())
 	})
 }

@@ -35,6 +35,9 @@ import (
 //			MarkFailedFunc: func(ctx context.Context, read models.MCPCapabilityDiscovery, lastErr string) error {
 //				panic("mock out the MarkFailed method")
 //			},
+//			StoreDiscoveredFunc: func(ctx context.Context, read models.MCPCapabilityDiscovery, capabilities *models.MCPProxyCapabilities, at time.Time) error {
+//				panic("mock out the StoreDiscovered method")
+//			},
 //			WithTxFunc: func(tx *gorm.DB) repositories.MCPCapabilityDiscoveryRepository {
 //				panic("mock out the WithTx method")
 //			},
@@ -59,6 +62,9 @@ type MCPCapabilityDiscoveryRepositoryMock struct {
 
 	// MarkFailedFunc mocks the MarkFailed method.
 	MarkFailedFunc func(ctx context.Context, read models.MCPCapabilityDiscovery, lastErr string) error
+
+	// StoreDiscoveredFunc mocks the StoreDiscovered method.
+	StoreDiscoveredFunc func(ctx context.Context, read models.MCPCapabilityDiscovery, capabilities *models.MCPProxyCapabilities, at time.Time) error
 
 	// WithTxFunc mocks the WithTx method.
 	WithTxFunc func(tx *gorm.DB) repositories.MCPCapabilityDiscoveryRepository
@@ -108,6 +114,17 @@ type MCPCapabilityDiscoveryRepositoryMock struct {
 			// LastErr is the lastErr argument value.
 			LastErr string
 		}
+		// StoreDiscovered holds details about calls to the StoreDiscovered method.
+		StoreDiscovered []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Read is the read argument value.
+			Read models.MCPCapabilityDiscovery
+			// Capabilities is the capabilities argument value.
+			Capabilities *models.MCPProxyCapabilities
+			// At is the at argument value.
+			At time.Time
+		}
 		// WithTx holds details about calls to the WithTx method.
 		WithTx []struct {
 			// Tx is the tx argument value.
@@ -119,6 +136,7 @@ type MCPCapabilityDiscoveryRepositoryMock struct {
 	lockEnqueue           sync.RWMutex
 	lockMarkAttemptFailed sync.RWMutex
 	lockMarkFailed        sync.RWMutex
+	lockStoreDiscovered   sync.RWMutex
 	lockWithTx            sync.RWMutex
 }
 
@@ -315,6 +333,50 @@ func (mock *MCPCapabilityDiscoveryRepositoryMock) MarkFailedCalls() []struct {
 	mock.lockMarkFailed.RLock()
 	calls = mock.calls.MarkFailed
 	mock.lockMarkFailed.RUnlock()
+	return calls
+}
+
+// StoreDiscovered calls StoreDiscoveredFunc.
+func (mock *MCPCapabilityDiscoveryRepositoryMock) StoreDiscovered(ctx context.Context, read models.MCPCapabilityDiscovery, capabilities *models.MCPProxyCapabilities, at time.Time) error {
+	if mock.StoreDiscoveredFunc == nil {
+		panic("MCPCapabilityDiscoveryRepositoryMock.StoreDiscoveredFunc: method is nil but MCPCapabilityDiscoveryRepository.StoreDiscovered was just called")
+	}
+	callInfo := struct {
+		Ctx          context.Context
+		Read         models.MCPCapabilityDiscovery
+		Capabilities *models.MCPProxyCapabilities
+		At           time.Time
+	}{
+		Ctx:          ctx,
+		Read:         read,
+		Capabilities: capabilities,
+		At:           at,
+	}
+	mock.lockStoreDiscovered.Lock()
+	mock.calls.StoreDiscovered = append(mock.calls.StoreDiscovered, callInfo)
+	mock.lockStoreDiscovered.Unlock()
+	return mock.StoreDiscoveredFunc(ctx, read, capabilities, at)
+}
+
+// StoreDiscoveredCalls gets all the calls that were made to StoreDiscovered.
+// Check the length with:
+//
+//	len(mockedMCPCapabilityDiscoveryRepository.StoreDiscoveredCalls())
+func (mock *MCPCapabilityDiscoveryRepositoryMock) StoreDiscoveredCalls() []struct {
+	Ctx          context.Context
+	Read         models.MCPCapabilityDiscovery
+	Capabilities *models.MCPProxyCapabilities
+	At           time.Time
+} {
+	var calls []struct {
+		Ctx          context.Context
+		Read         models.MCPCapabilityDiscovery
+		Capabilities *models.MCPProxyCapabilities
+		At           time.Time
+	}
+	mock.lockStoreDiscovered.RLock()
+	calls = mock.calls.StoreDiscovered
+	mock.lockStoreDiscovered.RUnlock()
 	return calls
 }
 

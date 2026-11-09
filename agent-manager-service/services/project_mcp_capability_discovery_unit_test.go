@@ -114,6 +114,29 @@ func (m *memDiscoveries) Drop(_ context.Context, read models.MCPCapabilityDiscov
 	return m.update(read, nil)
 }
 
+func (m *memDiscoveries) StoreDiscovered(
+	_ context.Context, read models.MCPCapabilityDiscovery, capabilities *models.MCPProxyCapabilities, at time.Time,
+) error {
+	p := m.proxy()
+	for i := range p.Endpoints {
+		for _, ee := range p.Endpoints[i].Environments {
+			if ee.ArtifactUUID != read.ArtifactUUID {
+				continue
+			}
+			cfg := &p.Endpoints[i].Configuration
+			if cfg.CapabilityDiscovery == nil || cfg.CapabilityDiscovery.Token != read.Token || callerGaveCapabilities(*cfg) {
+				return repositories.ErrMCPCapabilityDiscoverySuperseded
+			}
+			state := read.MCPCapabilityDiscoveryState
+			state.Status, state.NextAttemptAt, state.LastError, state.DiscoveredAt = models.MCPCapabilityDiscoveryDiscovered, nil, "", &at
+			cfg.CapabilityDiscovery = &state
+			cfg.Capabilities, cfg.CapabilitiesDiscovered = capabilities, capabilities != nil
+			return nil
+		}
+	}
+	return repositories.ErrMCPCapabilityDiscoverySuperseded
+}
+
 // probeCall is one call the fake prober got.
 type probeCall struct{ url, header, value string }
 
