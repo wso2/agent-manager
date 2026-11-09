@@ -31,7 +31,7 @@ vi.mock("@agent-management-platform/api-client", () => ({
   useGetProjectMCPProxy: (...args: unknown[]) => useGetProjectMCPProxy(...args),
 }));
 
-const { useMCPProxySecurity } = await import("./useMCPProxySecurity");
+const { useMCPProxyEndpoints, useMCPProxySecurity } = await import("./useMCPProxySecurity");
 
 const apiKey: SecurityConfig = {
   enabled: true,
@@ -262,6 +262,23 @@ describe("useMCPProxySecurity", () => {
   });
 
   describe("a project proxy", () => {
+    it("carries each environment's tools onto its endpoint, as an org proxy's are", () => {
+      query({ data: projectProxyStub() });
+      const withTools = projectProxy([{ uuid: "dev-uuid", security: envAPIKey }, { uuid: "prod-uuid" }]);
+      withTools.environments[0].capabilities = { tools: [{ name: "get_order" }, { name: "list_orders" }] };
+      projectQuery({ data: withTools });
+
+      const { result } = renderHook(() =>
+        useMCPProxyEndpoints({ orgName: "acme", proxyId: "orders" }),
+      );
+
+      const endpoints = result.current.proxy?.endpoints ?? [];
+      expect(endpoints).toHaveLength(2);
+      expect(endpoints[0].capabilities?.tools).toEqual([{ name: "get_order" }, { name: "list_orders" }]);
+      expect(endpoints[0].environments).toEqual([{ environmentUuid: "dev-uuid" }]);
+      expect(endpoints[1].capabilities).toBeUndefined();
+    });
+
     it("reads its security from the project route's environments", () => {
       query({ data: projectProxyStub() });
       projectQuery({ data: projectProxy([{ uuid: "dev-uuid", security: envAPIKey }]) });

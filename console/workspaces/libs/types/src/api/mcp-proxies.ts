@@ -136,6 +136,8 @@ export interface ProjectMCPProxyEnvironment {
   gatewayId?: string;
   publicUrl?: string;
   security?: ProjectMCPProxyEnvironmentSecurity;
+  /** The tools, prompts and resources the binding was given; absent when none were. */
+  capabilities?: MCPProxyCapabilities;
   updatedAt?: string;
 }
 
