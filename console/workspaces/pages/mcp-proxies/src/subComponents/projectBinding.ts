@@ -18,7 +18,6 @@
 import type {
   MCPEndpointConfig,
   MCPProxy,
-  MCPProxyListItem,
   ProjectMCPProxy,
   ProjectMCPProxyEnvironment,
   ProjectMCPProxyEnvironmentRequest,
@@ -28,15 +27,6 @@ import type {
 
 /** The longest proxy id the service takes. */
 export const MAX_PROXY_ID_LENGTH = 100;
-
-/**
- * Where a listed proxy's upstream is: a project component endpoint, or an external server
- * (an org server, or a project server registered by URL).
- */
-export function proxySourceLabel(proxy: MCPProxyListItem): string {
-  if (!proxy.source) return "External";
-  return `${proxy.source.componentName} / ${proxy.source.endpointName}`;
-}
 
 /** A kebab-case proxy id from a display name, as the service takes it. */
 export function toProjectProxyId(name: string): string {

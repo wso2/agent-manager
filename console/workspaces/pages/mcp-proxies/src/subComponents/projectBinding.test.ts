@@ -24,7 +24,6 @@ import {
   bindingRequiresAPIKey,
   DEFAULT_API_KEY_HEADER,
   proxyRequestFrom,
-  proxySourceLabel,
   toProjectProxyId,
 } from "./projectBinding";
 
@@ -109,22 +108,6 @@ describe("bindingRequestFrom", () => {
       enabled: true,
       apiKey: { enabled: true, key: DEFAULT_API_KEY_HEADER, in: "header" },
     });
-  });
-});
-
-describe("proxySourceLabel", () => {
-  it("names an org server external and a project server by its component endpoint", () => {
-    expect(proxySourceLabel({ id: "github" })).toBe("External");
-    expect(
-      proxySourceLabel({
-        id: "weather",
-        projectName: "p1",
-        source: { componentName: "weather", endpointName: "mcp" },
-      }),
-    ).toBe("weather / mcp");
-    expect(proxySourceLabel({ id: "docs", projectName: "p1" })).toBe(
-      "External",
-    );
   });
 });
 

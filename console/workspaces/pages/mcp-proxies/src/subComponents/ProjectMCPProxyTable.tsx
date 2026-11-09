@@ -18,7 +18,6 @@
 import { useMemo, useState, type ReactNode } from "react";
 import {
   Avatar,
-  Chip,
   IconButton,
   ListingTable,
   Stack,
@@ -30,11 +29,9 @@ import { generatePath, useNavigate, useParams } from "react-router-dom";
 import {
   useDeleteMCPProxy,
   useDeleteProjectMCPProxy,
-  useListEnvironments,
   useListMCPProxies,
 } from "@agent-management-platform/api-client";
 import {
-  environmentLabel,
   formatRelativeTime,
   getAvatarInitials,
   ResourceListShell,
@@ -46,7 +43,6 @@ import {
 } from "@agent-management-platform/types";
 import { useResourceAccess } from "@agent-management-platform/feature-management";
 import { MCPLogo } from "../components/MCPLogo";
-import { proxySourceLabel } from "./projectBinding";
 
 /** The most proxies one list request returns (the service's MaxLimit). */
 const LIST_LIMIT = 100;
@@ -63,20 +59,12 @@ export function ProjectMCPProxyTable({ createAction }: { createAction?: ReactNod
     { orgName: orgId },
     { project: projectId, limit: LIST_LIMIT },
   );
-  const { data: environments = [] } = useListEnvironments({ orgName: orgId });
   const { mutate: deleteOrgProxy } = useDeleteMCPProxy();
   const { mutate: deleteProjectProxy } = useDeleteProjectMCPProxy();
   const { addConfirmation } = useConfirmationDialog();
   const { canWrite } = useResourceAccess("mcp_server");
 
   const proxies = useMemo(() => data?.list ?? [], [data]);
-
-  // An environment's display name by its UUID; a project binding also carries its name.
-  const envLabel = useMemo(() => {
-    const byId = new Map(environments.map((env) => [env.id, env]));
-    return (uuid: string, name?: string) =>
-      environmentLabel(byId.get(uuid)) || name || uuid;
-  }, [environments]);
 
   const filteredProxies = useMemo(() => {
     const term = searchValue.trim().toLowerCase();
@@ -85,9 +73,9 @@ export function ProjectMCPProxyTable({ createAction }: { createAction?: ReactNod
       [
         proxy.name,
         proxy.id,
-        proxy.description,
+        proxy.version,
         proxy.context,
-        proxySourceLabel(proxy),
+        proxy.description,
       ]
         .filter(Boolean)
         .join(" ")
@@ -160,10 +148,9 @@ export function ProjectMCPProxyTable({ createAction }: { createAction?: ReactNod
         <ListingTable.Head>
           <ListingTable.Row>
             <ListingTable.Cell>Name</ListingTable.Cell>
-            <ListingTable.Cell width="220px">Source</ListingTable.Cell>
-            <ListingTable.Cell width="240px">Environments</ListingTable.Cell>
+            <ListingTable.Cell width="160px">Version</ListingTable.Cell>
             <ListingTable.Cell width="140px" align="right">
-              Created
+              Last Updated
             </ListingTable.Cell>
             <ListingTable.Cell width="96px" align="right">
               Actions
@@ -173,7 +160,6 @@ export function ProjectMCPProxyTable({ createAction }: { createAction?: ReactNod
         <ListingTable.Body>
           {filteredProxies.map((proxy: MCPProxyListItem) => {
             const displayName = proxy.name ?? proxy.id ?? "MCP Server";
-            const boundEnvironments = proxy.environments ?? [];
             return (
               <ListingTable.Row
                 key={`${proxy.projectName ?? ""}:${proxy.id ?? displayName}`}
@@ -207,32 +193,11 @@ export function ProjectMCPProxyTable({ createAction }: { createAction?: ReactNod
                   </Stack>
                 </ListingTable.Cell>
                 <ListingTable.Cell>
-                  <Typography variant="body2" noWrap>
-                    {proxySourceLabel(proxy)}
-                  </Typography>
-                </ListingTable.Cell>
-                <ListingTable.Cell>
-                  {boundEnvironments.length ? (
-                    <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
-                      {boundEnvironments.map((env) => (
-                        <Chip
-                          key={env.environmentUuid}
-                          label={envLabel(env.environmentUuid, env.environmentName)}
-                          size="small"
-                          variant="outlined"
-                          color="success"
-                        />
-                      ))}
-                    </Stack>
-                  ) : (
-                    <Typography variant="body2" color="text.secondary">
-                      -
-                    </Typography>
-                  )}
+                  <Typography variant="body2">{proxy.version ?? "-"}</Typography>
                 </ListingTable.Cell>
                 <ListingTable.Cell align="right">
                   <Typography variant="caption" color="text.secondary">
-                    {formatRelativeTime(proxy.createdAt)}
+                    {formatRelativeTime(proxy.updatedAt)}
                   </Typography>
                 </ListingTable.Cell>
                 <ListingTable.Cell
