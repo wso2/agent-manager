@@ -79,6 +79,8 @@ def run(sample, reports):
                     ".venv",
                 ),
             )
+            home = work / "home"
+            home.mkdir()
             env = {
                 k: v
                 for k, v in os.environ.items()
