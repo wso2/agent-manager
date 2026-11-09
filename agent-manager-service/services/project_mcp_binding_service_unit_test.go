@@ -169,7 +169,10 @@ func newBindingFixture(t *testing.T) *bindingFixture {
 			f.endpointWrites++
 			for i := range f.proxy.Endpoints {
 				if f.proxy.Endpoints[i].UUID == e.UUID {
-					f.proxy.Endpoints[i].Configuration = e.Configuration
+					// As the repository does, the stored capability discovery state is kept.
+					cfg := e.Configuration
+					cfg.CapabilityDiscovery = f.proxy.Endpoints[i].Configuration.CapabilityDiscovery
+					f.proxy.Endpoints[i].Configuration = cfg
 					return nil
 				}
 			}

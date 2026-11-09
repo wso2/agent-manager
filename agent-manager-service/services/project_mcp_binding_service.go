@@ -146,11 +146,8 @@ func (s *ProjectMCPProxyService) PutEnvironment(
 		ReleaseBindingName: releaseBindingName,
 		Capabilities:       capabilities,
 	}
-	// The discovery state is bookkeeping, carried over (and re-read under the lock before the write). Capabilities AMS
-	// discovered are kept by a PUT that gives none; a PUT that gives some replaces them.
-	if exists {
-		desired.CapabilityDiscovery = endpoint.Configuration.CapabilityDiscovery
-	}
+	// Capabilities AMS discovered are kept by a PUT that gives none; a PUT that gives some replaces them. The
+	// discovery state itself is never written here: UpdateEndpoint keeps the stored one.
 	if capabilities == nil && exists && endpoint.Configuration.CapabilitiesDiscovered {
 		desired.Capabilities = endpoint.Configuration.Capabilities
 		desired.CapabilitiesDiscovered = true
@@ -261,8 +258,6 @@ func (s *ProjectMCPProxyService) saveAndDeployBinding(
 		artifactUUID = ee.ArtifactUUID
 		artifactHandle = mcpProxyEnvArtifactHandle(proxyHandle, endpoint.Handle, envUUID.String())
 		if !s.sameBindingConfig(endpoint.Configuration, desired) {
-			// The discovery state as it is now, under the lock: the reconciler writes it without the binding.
-			stored.CapabilityDiscovery = endpoint.Configuration.CapabilityDiscovery
 			if err := s.base.endpointRepo.UpdateEndpoint(ctx, tx, &models.MCPProxyEndpoint{
 				UUID: endpoint.UUID, Handle: endpoint.Handle, Name: endpoint.Name, Status: endpoint.Status,
 				Configuration: stored,

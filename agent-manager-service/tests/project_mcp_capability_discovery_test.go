@@ -253,6 +253,34 @@ func TestProjectMCPCapabilityDiscoveryQueue(t *testing.T) {
 		assert.Equal(t, "Pending", got.Status)
 	})
 
+	t.Run("a PUT never overwrites discovery state written after its read", func(t *testing.T) {
+		// The refresh the caller got a 202 for must still stand after a binding PUT, whatever the PUT read.
+		rr := h.do(http.MethodPost, project, envPath(open)+"/capabilities/refresh", nil)
+		require.Equal(t, http.StatusAccepted, rr.Code, rr.Body.String())
+		row := claim(t, openArtifact)
+		require.NoError(t, queue.MarkFailed(context.Background(), row, "gave up"))
+		require.Equal(t, "Failed", discovery(t, open).Status)
+
+		// The PUT's endpoint write keeps the stored key: simulate a refresh landing between a PUT's read and its
+		// write by writing a stale discovery in the endpoint configuration and checking the stored one survives.
+		ee := artifactOf(t, open)
+		require.NoError(t, queue.Enqueue(context.Background(), ee))
+		var endpointUUID uuid.UUID
+		require.NoError(t, gdb.Raw(`SELECT endpoint_uuid FROM mcp_proxy_endpoint_environments WHERE artifact_uuid = ?`, ee).
+			Row().Scan(&endpointUUID))
+		endpoints := repositories.NewMCPProxyEndpointRepository(gdb)
+		current, err := endpoints.GetEndpoint(context.Background(), endpointUUID)
+		require.NoError(t, err)
+		stale := current.Configuration
+		failed := *stale.CapabilityDiscovery
+		failed.Status, failed.Token = models.MCPCapabilityDiscoveryFailed, "stale"
+		stale.CapabilityDiscovery = &failed
+		require.NoError(t, endpoints.UpdateEndpoint(context.Background(), gdb, &models.MCPProxyEndpoint{
+			UUID: current.UUID, Handle: current.Handle, Name: current.Name, Status: current.Status, Configuration: stale,
+		}))
+		assert.Equal(t, "Pending", discovery(t, open).Status, "the refresh stands")
+	})
+
 	t.Run("the discovery goes with the binding", func(t *testing.T) {
 		rr := h.do(http.MethodDelete, project, envPath(open), nil)
 		require.Equal(t, http.StatusNoContent, rr.Code, rr.Body.String())
