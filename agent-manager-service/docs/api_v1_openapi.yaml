@@ -7852,7 +7852,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/CreateLLMAPIKeyResponse"
         "400":
-          description: Neither name nor displayName given, or an invalid name or expiresAt (VALIDATION_ERROR)
+          description: >-
+            Neither name nor displayName given, an invalid name, or an expiresAt that is not an RFC 3339 time in
+            the future (VALIDATION_ERROR)
           content:
             application/json:
               schema:
@@ -7950,7 +7952,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "409":
-          description: The binding is not secured with an API key (API_KEY_SECURITY_DISABLED)
+          description: >-
+            The binding is not secured with an API key (API_KEY_SECURITY_DISABLED), or concurrent test key
+            requests for the same user kept taking the slots (CONFLICT); retry
           content:
             application/json:
               schema:
@@ -8006,7 +8010,9 @@ paths:
       summary: Rotate an API key of a project MCP proxy binding
       description: >-
         Gives the key a new value, returned once, and sends it to the organization's gateways. The old value
-        stops working. A binding not secured with an API key returns 409 API_KEY_SECURITY_DISABLED.
+        stops working. Without an expiresAt the key keeps the expiry it had; an expired key needs a new expiresAt.
+        A binding not secured with an API key returns 409 API_KEY_SECURITY_DISABLED, and a key another request
+        rotated or revoked meanwhile returns 409 CONFLICT.
       operationId: rotateProjectMCPProxyEnvironmentAPIKey
       requestBody:
         required: false
@@ -8021,6 +8027,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/RotateLLMAPIKeyResponse"
+        "400":
+          description: >-
+            expiresAt is not an RFC 3339 time or is not in the future, or the key has expired and no new
+            expiresAt was given (VALIDATION_ERROR)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Project, proxy, binding or key not found
           content:
@@ -8028,7 +8042,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "409":
-          description: The binding is not secured with an API key (API_KEY_SECURITY_DISABLED)
+          description: >-
+            The binding is not secured with an API key (API_KEY_SECURITY_DISABLED), or another request rotated or
+            revoked the key meanwhile (CONFLICT)
           content:
             application/json:
               schema:

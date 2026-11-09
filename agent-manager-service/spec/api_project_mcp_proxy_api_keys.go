@@ -681,7 +681,7 @@ func (r ApiRotateProjectMCPProxyEnvironmentAPIKeyRequest) Execute() (*RotateLLMA
 /*
 RotateProjectMCPProxyEnvironmentAPIKey Rotate an API key of a project MCP proxy binding
 
-Gives the key a new value, returned once, and sends it to the organization's gateways. The old value stops working. A binding not secured with an API key returns 409 API_KEY_SECURITY_DISABLED.
+Gives the key a new value, returned once, and sends it to the organization's gateways. The old value stops working. Without an expiresAt the key keeps the expiry it had; an expired key needs a new expiresAt. A binding not secured with an API key returns 409 API_KEY_SECURITY_DISABLED, and a key another request rotated or revoked meanwhile returns 409 CONFLICT.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param orgName Organization handle. The org comes from the token, or from X-Impersonate-Org, in which case this must be that org's handle.
@@ -773,6 +773,17 @@ func (a *ProjectMCPProxyAPIKeysAPIService) RotateProjectMCPProxyEnvironmentAPIKe
 		newErr := &GenericOpenAPIError{
 			body:  localVarBody,
 			error: localVarHTTPResponse.Status,
+		}
+		if localVarHTTPResponse.StatusCode == 400 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
 		}
 		if localVarHTTPResponse.StatusCode == 404 {
 			var v ErrorResponse
