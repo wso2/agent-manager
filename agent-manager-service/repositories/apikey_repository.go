@@ -18,13 +18,18 @@ package repositories
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+
+	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // APIKeyRepository defines the interface for API key persistence
@@ -32,6 +37,13 @@ import (
 //go:generate moq -rm -fmt goimports -skip-ensure -pkg repomocks -out repomocks/apikey_repository_mock.go . APIKeyRepository:APIKeyRepositoryMock
 type APIKeyRepository interface {
 	Upsert(key *models.StoredAPIKey) error
+	// Insert stores key as a new row, and returns utils.ErrAPIKeyNameTaken when the artifact already has a key of
+	// that name, so a caller can claim a name it read as free without racing another request for it.
+	Insert(key *models.StoredAPIKey) error
+	// ReplaceIfUnchanged gives the stored key key.Name of key.ArtifactUUID the value, status, update time and expiry
+	// of key, only while its hash is still prevHash. It returns utils.ErrAPIKeyChanged when another request
+	// rotated or removed the key first.
+	ReplaceIfUnchanged(key *models.StoredAPIKey, prevHash string) error
 	Delete(artifactUUID, name string) error
 	ListByArtifact(ctx context.Context, artifactUUID string) ([]models.StoredAPIKey, error)
 	ListByArtifactKind(ouID, kind string) ([]models.StoredAPIKey, error)
@@ -67,6 +79,36 @@ func (r *APIKeyRepo) Upsert(key *models.StoredAPIKey) error {
 		Columns:   []clause.Column{{Name: "artifact_uuid"}, {Name: "name"}},
 		DoUpdates: clause.AssignmentColumns([]string{"api_key_hash", "masked_api_key", "status", "updated_at", "expires_at"}),
 	}).Create(key).Error
+}
+
+// Insert stores key as a new row; see APIKeyRepository.Insert.
+func (r *APIKeyRepo) Insert(key *models.StoredAPIKey) error {
+	err := r.db.Create(key).Error
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == pgUniqueViolation {
+		return fmt.Errorf("%w: %q", utils.ErrAPIKeyNameTaken, key.Name)
+	}
+	return err
+}
+
+// ReplaceIfUnchanged replaces the key's value only while its hash is prevHash; see APIKeyRepository.ReplaceIfUnchanged.
+func (r *APIKeyRepo) ReplaceIfUnchanged(key *models.StoredAPIKey, prevHash string) error {
+	res := r.db.Model(&models.StoredAPIKey{}).
+		Where("artifact_uuid = ? AND name = ? AND api_key_hash = ?", key.ArtifactUUID, key.Name, prevHash).
+		Updates(map[string]any{
+			"api_key_hash":   key.APIKeyHash,
+			"masked_api_key": key.MaskedAPIKey,
+			"status":         key.Status,
+			"updated_at":     key.UpdatedAt,
+			"expires_at":     key.ExpiresAt,
+		})
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return fmt.Errorf("%w: %q", utils.ErrAPIKeyChanged, key.Name)
+	}
+	return nil
 }
 
 // Delete removes an API key by artifact UUID and key name

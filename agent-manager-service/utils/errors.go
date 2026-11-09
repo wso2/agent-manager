@@ -374,4 +374,10 @@ var (
 	ErrMCPAPIKeyNotFound = errors.New("API key not found")
 	// ErrMCPAPIKeyExists means the binding already has an API key of that name (409 CONFLICT).
 	ErrMCPAPIKeyExists = errors.New("an API key with this name already exists on the binding")
+	// ErrAPIKeyNameTaken means an insert found the artifact already has an API key of that name: another request
+	// claimed it between the caller's read and its write.
+	ErrAPIKeyNameTaken = errors.New("API key name is already taken")
+	// ErrAPIKeyChanged means a conditional replace found the API key changed or removed by another request since it
+	// was read (409 CONFLICT).
+	ErrAPIKeyChanged = errors.New("the API key was changed by another request; retry")
 )

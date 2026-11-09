@@ -21,11 +21,14 @@ package tests
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -46,6 +49,12 @@ import (
 
 // keyTestScopesHeader names the scopes the request's token carries; absent, it carries every admin scope.
 const keyTestScopesHeader = "X-Test-Scopes"
+
+// apiKeyHash is the stored hash of a key value.
+func apiKeyHash(value string) string {
+	sum := sha256.Sum256([]byte(value))
+	return hex.EncodeToString(sum[:])
+}
 
 // scopedTokenMiddleware is the mock JWT middleware with the scopes a request names, so the route's permission gate
 // is exercised for real.
@@ -334,6 +343,82 @@ func TestProjectMCPBindingAPIKeys(t *testing.T) {
 
 		rr = do(http.MethodDelete, keysPath(devEnv)+"/dated", nil)
 		require.Equal(t, http.StatusNoContent, rr.Code, rr.Body.String())
+	})
+
+	// Concurrent requests: each name and test key slot is claimed by one request, so every key handed out is the one
+	// stored, never one a concurrent request overwrote.
+	t.Run("concurrent creates of one name: one 201, the rest 409, and the stored key is the 201's", func(t *testing.T) {
+		const n = 8
+		codes, values := make([]int, n), make([]string, n)
+		var wg sync.WaitGroup
+		for i := range n {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				rr := do(http.MethodPost, keysPath(devEnv), map[string]any{"name": "racy"})
+				codes[i] = rr.Code
+				if rr.Code == http.StatusCreated {
+					var out issued
+					if json.Unmarshal(rr.Body.Bytes(), &out) == nil {
+						values[i] = out.APIKey
+					}
+				}
+			}()
+		}
+		wg.Wait()
+		var winner string
+		for i, code := range codes {
+			switch code {
+			case http.StatusCreated:
+				require.Empty(t, winner, "only one create may win the name")
+				winner = values[i]
+			case http.StatusConflict:
+			default:
+				t.Fatalf("unexpected status %d", code)
+			}
+		}
+		require.NotEmpty(t, winner)
+		key, err := keyRepo.GetByArtifactAndName(artifactOf(t, devEnv).String(), "racy")
+		require.NoError(t, err)
+		assert.Equal(t, apiKeyHash(winner), key.APIKeyHash, "the stored key is the one handed out")
+
+		rr := do(http.MethodDelete, keysPath(devEnv)+"/racy", nil)
+		require.Equal(t, http.StatusNoContent, rr.Code, rr.Body.String())
+	})
+
+	t.Run("concurrent test keys for one user fill distinct slots, each stored as handed out", func(t *testing.T) {
+		const n = 3 // one per slot: none may overwrite another
+		values := make([]string, n)
+		ids := make([]string, n)
+		codes := make([]int, n)
+		var wg sync.WaitGroup
+		for i := range n {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				rr := do(http.MethodPost, keysPath(devEnv)+"/test", map[string]any{"forUser": "racer-" + suffix})
+				codes[i] = rr.Code
+				var out issued
+				if json.Unmarshal(rr.Body.Bytes(), &out) == nil {
+					values[i], ids[i] = out.APIKey, out.KeyID
+				}
+			}()
+		}
+		wg.Wait()
+		stored := map[string]string{}
+		for _, k := range storedKeys(t, artifactOf(t, devEnv)) {
+			stored[k.Name] = k.APIKeyHash
+		}
+		seen := map[string]bool{}
+		for i := range n {
+			require.Equal(t, http.StatusOK, codes[i])
+			assert.False(t, seen[ids[i]], "each request gets its own slot")
+			seen[ids[i]] = true
+			assert.Equal(t, apiKeyHash(values[i]), stored[ids[i]], "the key handed out is the one stored")
+		}
+
+		require.NoError(t, gdb.Exec(`DELETE FROM api_keys WHERE artifact_uuid = ? AND purpose = ?`,
+			artifactOf(t, devEnv), models.APIKeyPurposeTest).Error)
 	})
 
 	t.Run("security off: issue and rotate are 409 API_KEY_SECURITY_DISABLED, revoke still works", func(t *testing.T) {

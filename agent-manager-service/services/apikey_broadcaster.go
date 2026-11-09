@@ -56,6 +56,23 @@ func (b *apiKeyBroadcaster) broadcastCreate(ctx context.Context, orgID, apiID, a
 
 // broadcastCreateToGateways generates an API key, persists it, and broadcasts to the given gateways only.
 func (b *apiKeyBroadcaster) broadcastCreateToGateways(gateways []*models.Gateway, orgID, apiID, artifactUUID string, req *models.CreateAPIKeyRequest) (*models.CreateAPIKeyResponse, error) {
+	return b.createToGateways(gateways, orgID, apiID, artifactUUID, req,
+		func(key *models.StoredAPIKey) error { return b.apiKeyRepo.Upsert(key) })
+}
+
+// broadcastCreateNewToGateways is broadcastCreateToGateways for a name the caller read as free: the key is stored
+// only as a new row, so if another request took the name first it returns utils.ErrAPIKeyNameTaken and sends
+// nothing, instead of replacing that request's key.
+func (b *apiKeyBroadcaster) broadcastCreateNewToGateways(gateways []*models.Gateway, orgID, apiID, artifactUUID string, req *models.CreateAPIKeyRequest) (*models.CreateAPIKeyResponse, error) {
+	return b.createToGateways(gateways, orgID, apiID, artifactUUID, req,
+		func(key *models.StoredAPIKey) error { return b.apiKeyRepo.Insert(key) })
+}
+
+// createToGateways generates an API key, stores it with persist, and broadcasts it to the given gateways.
+func (b *apiKeyBroadcaster) createToGateways(
+	gateways []*models.Gateway, orgID, apiID, artifactUUID string, req *models.CreateAPIKeyRequest,
+	persist func(*models.StoredAPIKey) error,
+) (*models.CreateAPIKeyResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("nil request")
 	}
@@ -124,7 +141,7 @@ func (b *apiKeyBroadcaster) broadcastCreateToGateways(gateways []*models.Gateway
 			UpdatedAt:    nowTime,
 			ExpiresAt:    expiresAt,
 		}
-		if err := b.apiKeyRepo.Upsert(storedKey); err != nil {
+		if err := persist(storedKey); err != nil {
 			return nil, fmt.Errorf("failed to persist API key: %w", err)
 		}
 	}
@@ -251,6 +268,24 @@ func (b *apiKeyBroadcaster) broadcastRotate(ctx context.Context, orgID, apiID, a
 
 // broadcastRotateToGateways generates a new key value, updates the store, and broadcasts to the given gateways only.
 func (b *apiKeyBroadcaster) broadcastRotateToGateways(gateways []*models.Gateway, orgID, apiID, artifactUUID, keyName string, req *models.RotateAPIKeyRequest) (*models.CreateAPIKeyResponse, error) {
+	return b.rotateToGateways(gateways, orgID, apiID, artifactUUID, keyName, req,
+		func(key *models.StoredAPIKey) error { return b.apiKeyRepo.Upsert(key) })
+}
+
+// broadcastRotateIfUnchangedToGateways is broadcastRotateToGateways for a key the caller read with hash prevHash:
+// the new value is stored only while the key still has that hash, so if another request rotated or removed it first
+// it returns utils.ErrAPIKeyChanged and sends nothing, instead of overwriting that request's value or bringing a
+// revoked key back.
+func (b *apiKeyBroadcaster) broadcastRotateIfUnchangedToGateways(gateways []*models.Gateway, orgID, apiID, artifactUUID, keyName, prevHash string, req *models.RotateAPIKeyRequest) (*models.CreateAPIKeyResponse, error) {
+	return b.rotateToGateways(gateways, orgID, apiID, artifactUUID, keyName, req,
+		func(key *models.StoredAPIKey) error { return b.apiKeyRepo.ReplaceIfUnchanged(key, prevHash) })
+}
+
+// rotateToGateways generates a new value for the key, stores it with persist, and broadcasts it to the given gateways.
+func (b *apiKeyBroadcaster) rotateToGateways(
+	gateways []*models.Gateway, orgID, apiID, artifactUUID, keyName string, req *models.RotateAPIKeyRequest,
+	persist func(*models.StoredAPIKey) error,
+) (*models.CreateAPIKeyResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("nil request")
 	}
@@ -291,7 +326,7 @@ func (b *apiKeyBroadcaster) broadcastRotateToGateways(gateways []*models.Gateway
 			UpdatedAt:    nowTime,
 			ExpiresAt:    expiresAt,
 		}
-		if err := b.apiKeyRepo.Upsert(storedKey); err != nil {
+		if err := persist(storedKey); err != nil {
 			return nil, fmt.Errorf("failed to persist rotated API key: %w", err)
 		}
 	}

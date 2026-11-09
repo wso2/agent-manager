@@ -216,8 +216,13 @@ func (s *ProjectMCPProxyService) CreateEnvironmentAPIKey(
 	issue := *req
 	issue.Name = keyName
 	issue.Purpose = models.APIKeyPurposeUserManaged
-	resp, err := s.base.apiKeyBroadcaster.broadcastCreateToGateways(gateways, ouID, t.artifact, t.artifact, &issue)
+	// Stored only as a new row: a create for the same name that ran between the check above and here wins, and this
+	// one is refused rather than replacing the key that request handed out.
+	resp, err := s.base.apiKeyBroadcaster.broadcastCreateNewToGateways(gateways, ouID, t.artifact, t.artifact, &issue)
 	attempt.Complete(ctx, err)
+	if errors.Is(err, utils.ErrAPIKeyNameTaken) {
+		return nil, fmt.Errorf("%w: %q", utils.ErrMCPAPIKeyExists, keyName)
+	}
 	return resp, err
 }
 
@@ -256,7 +261,10 @@ func (s *ProjectMCPProxyService) RotateEnvironmentAPIKey(
 	if err != nil {
 		return nil, err
 	}
-	resp, err := s.base.apiKeyBroadcaster.broadcastRotateToGateways(gateways, ouID, t.artifact, t.artifact, existing.Name, req)
+	// Stored only while the key still has the value read above: a rotate or revoke that ran in between wins, and this
+	// one is refused (ErrAPIKeyChanged) rather than overwriting that value or bringing a revoked key back.
+	resp, err := s.base.apiKeyBroadcaster.broadcastRotateIfUnchangedToGateways(gateways, ouID, t.artifact, t.artifact,
+		existing.Name, existing.APIKeyHash, req)
 	attempt.Complete(ctx, err)
 	return resp, err
 }
@@ -295,6 +303,9 @@ const (
 	bindingTestKeyMaxTTL = 24 * time.Hour
 	// bindingTestKeySlots is how many test keys one user holds per binding at a time.
 	bindingTestKeySlots = 3
+	// bindingTestKeyAttempts is how many times a test key request picks a slot again after another request for the
+	// same user took the one it picked.
+	bindingTestKeyAttempts = 5
 	// maxTestKeyUserLength bounds forUser, which only names the key.
 	maxTestKeyUserLength = 256
 )
@@ -330,6 +341,59 @@ func testKeyExpiry(expiresAt *string, now time.Time) (string, error) {
 	return t.UTC().Format(time.RFC3339), nil
 }
 
+// claimTestKeySlot picks forUser's slot and issues the test key in it: an insert for a free slot, a rotate for the
+// oldest one only while it still holds the value read. It returns utils.ErrAPIKeyNameTaken or utils.ErrAPIKeyChanged
+// when a concurrent request took the slot first, and nothing was written or sent.
+func (s *ProjectMCPProxyService) claimTestKeySlot(
+	ctx context.Context, t *bindingKeyTarget, gateways []*models.Gateway, ouID, projectName, envName, forUser, expiresAt string,
+) (*models.CreateAPIKeyResponse, error) {
+	slot, oldest, err := s.pickTestKeySlot(t, forUser)
+	if err != nil {
+		return nil, err
+	}
+	rotated := oldest != nil
+	attempt, err := beginAPIKeyAudit(ctx, audit.ActionAPIKeyIssueTest, t.auditTarget(ouID, projectName, envName, slot),
+		audit.Detail("expiresAt", expiresAt), audit.Detail("rotated", rotated))
+	if err != nil {
+		return nil, err
+	}
+	var resp *models.CreateAPIKeyResponse
+	if rotated {
+		resp, err = s.base.apiKeyBroadcaster.broadcastRotateIfUnchangedToGateways(gateways, ouID, t.artifact,
+			t.artifact, slot, oldest.APIKeyHash, &models.RotateAPIKeyRequest{ExpiresAt: &expiresAt})
+	} else {
+		resp, err = s.base.apiKeyBroadcaster.broadcastCreateNewToGateways(gateways, ouID, t.artifact, t.artifact,
+			&models.CreateAPIKeyRequest{
+				Name:        slot,
+				DisplayName: "Test key",
+				Purpose:     models.APIKeyPurposeTest,
+				ExpiresAt:   &expiresAt,
+			})
+	}
+	attempt.Complete(ctx, err)
+	return resp, err
+}
+
+// pickTestKeySlot is the slot forUser's next test key goes in: the first free one, else the one issued longest ago,
+// returned as oldest.
+func (s *ProjectMCPProxyService) pickTestKeySlot(t *bindingKeyTarget, forUser string) (string, *models.StoredAPIKey, error) {
+	var oldest *models.StoredAPIKey
+	for _, name := range bindingTestKeyNames(forUser) {
+		key, err := s.base.apiKeyBroadcaster.apiKeyRepo.GetByArtifactAndName(t.artifact, name)
+		switch {
+		case errors.Is(err, gorm.ErrRecordNotFound) || (err == nil && key == nil):
+			return name, nil, nil
+		case err != nil:
+			return "", nil, fmt.Errorf("failed to read API key: %w", err)
+		case key.Purpose != models.APIKeyPurposeTest:
+			return "", nil, fmt.Errorf("%w: %q is reserved for test keys", utils.ErrBadRequest, name)
+		case oldest == nil || key.UpdatedAt.Before(oldest.UpdatedAt):
+			oldest = key
+		}
+	}
+	return oldest.Name, oldest, nil
+}
+
 // IssueEnvironmentTestAPIKey issues a short-lived test key for the binding on behalf of forUser, for a caller that
 // acts for its own users. Each user has bindingTestKeySlots slots: a free slot takes the new key, else the slot
 // issued longest ago is rotated, so its old value stops working. Test keys are not listed, and the user key routes
@@ -359,55 +423,27 @@ func (s *ProjectMCPProxyService) IssueEnvironmentTestAPIKey(
 		return nil, err
 	}
 
-	// Pick the slot: the first free one, else the one issued longest ago.
-	var slot string
-	var oldest *models.StoredAPIKey
-	for _, name := range bindingTestKeyNames(forUser) {
-		key, err := s.base.apiKeyBroadcaster.apiKeyRepo.GetByArtifactAndName(t.artifact, name)
-		switch {
-		case errors.Is(err, gorm.ErrRecordNotFound) || (err == nil && key == nil):
-			slot = name
-		case err != nil:
-			return nil, fmt.Errorf("failed to read API key: %w", err)
-		case key.Purpose != models.APIKeyPurposeTest:
-			return nil, fmt.Errorf("%w: %q is reserved for test keys", utils.ErrBadRequest, name)
-		case oldest == nil || key.UpdatedAt.Before(oldest.UpdatedAt):
-			oldest = key
-		}
-		if slot != "" {
-			break
-		}
-	}
-	rotated := slot == ""
-	if rotated {
-		slot = oldest.Name
-	}
 	gateways, err := s.organizationGateways(ctx, ouID)
 	if err != nil {
 		return nil, err
 	}
 
-	attempt, err := beginAPIKeyAudit(ctx, audit.ActionAPIKeyIssueTest, t.auditTarget(ouID, projectName, envName, slot),
-		audit.Detail("expiresAt", expiresAt), audit.Detail("rotated", rotated))
-	if err != nil {
-		return nil, err
-	}
+	// Concurrent requests for the same user can pick the same slot. Each claims it with a write that fails if
+	// another request got there first (an insert for a free slot, a rotate only while the slot holds the value read
+	// for an occupied one), and the loser picks again, so no request hands out a key another one overwrote.
 	var resp *models.CreateAPIKeyResponse
-	if rotated {
-		resp, err = s.base.apiKeyBroadcaster.broadcastRotateToGateways(gateways, ouID, t.artifact, t.artifact, slot,
-			&models.RotateAPIKeyRequest{ExpiresAt: &expiresAt})
-	} else {
-		resp, err = s.base.apiKeyBroadcaster.broadcastCreateToGateways(gateways, ouID, t.artifact, t.artifact,
-			&models.CreateAPIKeyRequest{
-				Name:        slot,
-				DisplayName: "Test key",
-				Purpose:     models.APIKeyPurposeTest,
-				ExpiresAt:   &expiresAt,
-			})
+	for range bindingTestKeyAttempts {
+		resp, err = s.claimTestKeySlot(ctx, t, gateways, ouID, projectName, envName, forUser, expiresAt)
+		if errors.Is(err, utils.ErrAPIKeyNameTaken) || errors.Is(err, utils.ErrAPIKeyChanged) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		break
 	}
-	attempt.Complete(ctx, err)
-	if err != nil {
-		return nil, err
+	if resp == nil {
+		return nil, fmt.Errorf("%w: other test key requests for this user kept taking the slots", utils.ErrAPIKeyChanged)
 	}
 	return &models.IssueTestAPIKeyResponse{
 		Status:    resp.Status,

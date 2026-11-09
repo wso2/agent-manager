@@ -46,6 +46,8 @@ func writeProjectMCPAPIKeyError(w http.ResponseWriter, err error) bool {
 		utils.WriteErrorResponseWithReason(w, http.StatusNotFound, utils.ErrMCPAPIKeyNotFound.Error(), "", utils.ErrCodeNotFound)
 	case errors.Is(err, utils.ErrMCPAPIKeyExists):
 		utils.WriteErrorResponseWithReason(w, http.StatusConflict, utils.ErrMCPAPIKeyExists.Error(), err.Error(), utils.ErrCodeConflict)
+	case errors.Is(err, utils.ErrAPIKeyChanged):
+		utils.WriteErrorResponseWithReason(w, http.StatusConflict, utils.ErrAPIKeyChanged.Error(), err.Error(), utils.ErrCodeConflict)
 	case errors.Is(err, utils.ErrMCPAPIKeySecurityDisabled):
 		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
 			utils.ErrMCPAPIKeySecurityDisabled.Error(), "", utils.ErrCodeAPIKeySecurityDisabled)

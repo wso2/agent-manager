@@ -45,6 +45,9 @@ type keyFixture struct {
 	keys     map[string]models.StoredAPIKey // artifact/name -> key
 	gateways []*models.Gateway
 	events   *stubEventHub
+	// beforeWrite, when set, runs before each Insert and ReplaceIfUnchanged, as another request that writes between
+	// this request's read and its write.
+	beforeWrite func(key *models.StoredAPIKey)
 }
 
 func newKeyFixture(t *testing.T, req models.MCPProxyEnvironmentRequest) *keyFixture {
@@ -75,6 +78,33 @@ func newKeyFixture(t *testing.T, req models.MCPProxyEnvironmentRequest) *keyFixt
 					return nil
 				}
 				f.keys[k] = *key
+				return nil
+			},
+			// As the repository does, an insert fails on a name the artifact already has.
+			InsertFunc: func(key *models.StoredAPIKey) error {
+				if f.beforeWrite != nil {
+					f.beforeWrite(key)
+				}
+				k := keyOf(key.ArtifactUUID.String(), key.Name)
+				if _, ok := f.keys[k]; ok {
+					return utils.ErrAPIKeyNameTaken
+				}
+				f.keys[k] = *key
+				return nil
+			},
+			// As the repository does, a conditional replace applies only while the stored hash is prevHash.
+			ReplaceIfUnchangedFunc: func(key *models.StoredAPIKey, prevHash string) error {
+				if f.beforeWrite != nil {
+					f.beforeWrite(key)
+				}
+				k := keyOf(key.ArtifactUUID.String(), key.Name)
+				prev, ok := f.keys[k]
+				if !ok || prev.APIKeyHash != prevHash {
+					return utils.ErrAPIKeyChanged
+				}
+				prev.APIKeyHash, prev.MaskedAPIKey, prev.Status = key.APIKeyHash, key.MaskedAPIKey, key.Status
+				prev.UpdatedAt, prev.ExpiresAt = key.UpdatedAt, key.ExpiresAt
+				f.keys[k] = prev
 				return nil
 			},
 			DeleteFunc: func(artifact, name string) error {
@@ -338,6 +368,119 @@ func TestBindingAPIKey_RotateOfAnExpiredKeyNeedsANewExpiry(t *testing.T) {
 	_, err = f.svc.RotateEnvironmentAPIKey(keyCtx(), testOrg, bindingProject, bindingProjectUUID, bindingHandle, bindingEnv,
 		"ip-users", &models.RotateAPIKeyRequest{ExpiresAt: &next})
 	require.NoError(t, err, "a new expiresAt revives it")
+}
+
+// once runs fn on the first write only: one competing request.
+func once(fn func(key *models.StoredAPIKey)) func(key *models.StoredAPIKey) {
+	done := false
+	return func(key *models.StoredAPIKey) {
+		if !done {
+			done = true
+			fn(key)
+		}
+	}
+}
+
+// hashOf is the stored hash of a key value, as the broadcaster computes it.
+func hashOf(value string) string { return hashAPIKeySHA256(value) }
+
+// A create that loses the name to a concurrent create is a 409, and the winner's key is untouched.
+func TestBindingAPIKey_CreateLosesARaceForTheName(t *testing.T) {
+	f := newKeyFixture(t, models.MCPProxyEnvironmentRequest{})
+	f.beforeWrite = once(func(key *models.StoredAPIKey) {
+		f.keys[f.artifact()+"/"+key.Name] = models.StoredAPIKey{Name: key.Name, ArtifactUUID: key.ArtifactUUID, APIKeyHash: "winner"}
+	})
+	_, err := f.create(t, "ip-users")
+	require.ErrorIs(t, err, utils.ErrMCPAPIKeyExists)
+	assert.Equal(t, "winner", f.keys[f.artifact()+"/ip-users"].APIKeyHash, "the winner's key is untouched")
+	assert.Empty(t, f.events.published, "the loser sends nothing")
+}
+
+// A rotate that loses to a concurrent rotate, or to a revoke, is a 409: it neither overwrites the other value nor
+// brings the revoked key back.
+func TestBindingAPIKey_RotateLosesARace(t *testing.T) {
+	for name, compete := range map[string]func(f *keyFixture, k string){
+		"rotated": func(f *keyFixture, k string) {
+			key := f.keys[k]
+			key.APIKeyHash = "winner"
+			f.keys[k] = key
+		},
+		"revoked": func(f *keyFixture, k string) { delete(f.keys, k) },
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := newKeyFixture(t, models.MCPProxyEnvironmentRequest{})
+			_, err := f.create(t, "ip-users")
+			require.NoError(t, err)
+			k := f.artifact() + "/ip-users"
+			sent := len(f.events.published)
+			f.beforeWrite = once(func(*models.StoredAPIKey) { compete(f, k) })
+
+			_, err = f.svc.RotateEnvironmentAPIKey(keyCtx(), testOrg, bindingProject, bindingProjectUUID, bindingHandle,
+				bindingEnv, "ip-users", nil)
+			require.ErrorIs(t, err, utils.ErrAPIKeyChanged)
+			assert.Len(t, f.events.published, sent, "the loser sends nothing")
+			if name == "rotated" {
+				assert.Equal(t, "winner", f.keys[k].APIKeyHash, "the other value is kept")
+			} else {
+				assert.NotContains(t, f.keys, k, "a revoked key stays revoked")
+			}
+		})
+	}
+}
+
+// Two test key requests for one user that pick the same free slot: the one that loses it takes the next slot, and
+// both keys stay valid.
+func TestBindingTestAPIKey_RaceForAFreeSlot(t *testing.T) {
+	f := newKeyFixture(t, models.MCPProxyEnvironmentRequest{})
+	slots := bindingTestKeyNames("u")
+	f.beforeWrite = once(func(key *models.StoredAPIKey) {
+		f.keys[f.artifact()+"/"+key.Name] = models.StoredAPIKey{
+			Name: key.Name, ArtifactUUID: key.ArtifactUUID, APIKeyHash: "winner", Purpose: models.APIKeyPurposeTest,
+			UpdatedAt: time.Now(),
+		}
+	})
+	resp, err := f.issueTest(t, "u", nil)
+	require.NoError(t, err)
+	assert.Equal(t, slots[1], resp.KeyID, "the loser moves to the next slot")
+	assert.Equal(t, "winner", f.keys[f.artifact()+"/"+slots[0]].APIKeyHash, "the winner's key is untouched")
+	assert.Equal(t, hashOf(resp.APIKey), f.keys[f.artifact()+"/"+slots[1]].APIKeyHash, "the returned key is the stored one")
+}
+
+// With every slot taken, two requests that pick the same oldest slot: the one that loses it rotates the next oldest,
+// and the winner's new key stays valid.
+func TestBindingTestAPIKey_RaceForTheOldestSlot(t *testing.T) {
+	f := newKeyFixture(t, models.MCPProxyEnvironmentRequest{})
+	slots := bindingTestKeyNames("u")
+	for i := range slots {
+		_, err := f.issueTest(t, "u", nil)
+		require.NoError(t, err)
+		f.age(slots[i], time.Now().Add(time.Duration(i-10)*time.Minute))
+	}
+	f.beforeWrite = once(func(key *models.StoredAPIKey) {
+		k := f.artifact() + "/" + key.Name
+		won := f.keys[k]
+		won.APIKeyHash, won.UpdatedAt = "winner", time.Now()
+		f.keys[k] = won
+	})
+	resp, err := f.issueTest(t, "u", nil)
+	require.NoError(t, err)
+	assert.Equal(t, slots[1], resp.KeyID, "the loser rotates the next oldest slot")
+	assert.Equal(t, "winner", f.keys[f.artifact()+"/"+slots[0]].APIKeyHash, "the winner's key is untouched")
+	assert.Equal(t, hashOf(resp.APIKey), f.keys[f.artifact()+"/"+slots[1]].APIKeyHash, "the returned key is the stored one")
+}
+
+// A request that keeps losing every slot gives up with a 409 instead of handing out an overwritten key.
+func TestBindingTestAPIKey_GivesUpAfterRepeatedRaces(t *testing.T) {
+	f := newKeyFixture(t, models.MCPProxyEnvironmentRequest{})
+	f.beforeWrite = func(key *models.StoredAPIKey) {
+		f.keys[f.artifact()+"/"+key.Name] = models.StoredAPIKey{
+			Name: key.Name, ArtifactUUID: key.ArtifactUUID, APIKeyHash: "winner-" + uuid.NewString(),
+			Purpose: models.APIKeyPurposeTest, UpdatedAt: time.Now(),
+		}
+	}
+	_, err := f.issueTest(t, "u", nil)
+	require.ErrorIs(t, err, utils.ErrAPIKeyChanged)
+	assert.Empty(t, f.events.published)
 }
 
 // A key issued before security was turned off can still be revoked.
