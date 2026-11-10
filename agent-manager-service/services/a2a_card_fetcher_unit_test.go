@@ -379,7 +379,7 @@ func TestA2ATestUpstreamHosts_Allows(t *testing.T) {
 	h := newA2ATestUpstreamHosts([]string{"default-default.gateway.localhost"})
 	allowed := []string{
 		"http://default-default.gateway.localhost:19080/x/.well-known/agent-card.json",
-		"https://DEFAULT-default.AgentManager.localhost./x",
+		"https://DEFAULT-default.Gateway.localhost./x",
 	}
 	refused := []string{
 		"http://other.gateway.localhost:19080/x",
