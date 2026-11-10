@@ -80,6 +80,8 @@ export interface EditMCPProxyFormProps {
   contextHelperText?: string;
   /** The most endpoints the server takes; see EndpointsEditorSection. */
   maxEndpoints?: number;
+  /** Hides the endpoint timeouts, for a server that does not keep them. */
+  hideResilience?: boolean;
   /** Shown in place of the endpoint editor, for a server whose endpoint is not edited here. */
   endpointsNotice?: ReactNode;
   /** Shown under the Endpoints heading in place of the org wording. */
@@ -99,6 +101,7 @@ export function EditMCPProxyForm({
   contextPlaceholder = "/default/my-mcp-proxy",
   contextHelperText,
   maxEndpoints,
+  hideResilience,
   endpointsNotice,
   endpointsDescription,
 }: EditMCPProxyFormProps) {
@@ -275,6 +278,7 @@ export function EditMCPProxyForm({
               emptyStateText="No endpoints configured yet."
               onEndpointFormDirtyChange={setIsEndpointFormDirty}
               maxEndpoints={maxEndpoints}
+              hideResilience={hideResilience}
             />
             )}
           </Stack>

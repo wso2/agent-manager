@@ -171,6 +171,8 @@ function ProjectEditForm({
       contextPlaceholder={`/${proxy.id}`}
       contextHelperText={`Served under the project, at /${projectId}<context>.`}
       maxEndpoints={1}
+      // A project server keeps no timeouts, so none is offered to be lost.
+      hideResilience
       endpointsDescription={
         isURLProxy
           ? "Editing the endpoint updates the upstream URL and authentication for every environment it is deployed to. Unassigning an environment removes the server from it."
