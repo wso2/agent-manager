@@ -1828,6 +1828,21 @@ func (e GetLLMProxyDeploymentsParamsStatus) Valid() bool {
 	}
 }
 
+// Defines values for UpsertProjectMCPProxyParamsIfNoneMatch.
+const (
+	Asterisk UpsertProjectMCPProxyParamsIfNoneMatch = "*"
+)
+
+// Valid indicates whether the value is a known member of the UpsertProjectMCPProxyParamsIfNoneMatch enum.
+func (e UpsertProjectMCPProxyParamsIfNoneMatch) Valid() bool {
+	switch e {
+	case Asterisk:
+		return true
+	default:
+		return false
+	}
+}
+
 // A2AProxyResponse How an external agent is published through the environment's ingress gateway.
 type A2AProxyResponse struct {
 	// GatewayUrl The agent's base URL on the environment's ingress gateway, where its card is served at /.well-known/agent-card.json once DEPLOYED. Empty while no ingress gateway is mapped to the environment.
@@ -7603,9 +7618,15 @@ type GetProjectMCPProxyParams struct {
 
 // UpsertProjectMCPProxyParams defines parameters for UpsertProjectMCPProxy.
 type UpsertProjectMCPProxyParams struct {
+	// IfNoneMatch `*` makes the request create-only. A proxy that exists under this handle in the project is left as it is and the request returns 412.
+	IfNoneMatch *UpsertProjectMCPProxyParamsIfNoneMatch `json:"If-None-Match,omitempty"`
+
 	// XImpersonateOrg Tenant org UUID for trusted service callers. Honoured only for clients that the deployment's org override resolver allow-lists; otherwise the request is refused with 403. Replaces both the org UUID and the handle for the request. The orgName path segment must then be that org's handle, or the request is refused with 403. A 403 here is final, not a missing grant on the org: it means the caller may not impersonate, the org does not exist, or the path names another org; do not retry it. A 502 means the org's handle could not be looked up and is retryable.
 	XImpersonateOrg *openapi_types.UUID `json:"X-Impersonate-Org,omitempty"`
 }
+
+// UpsertProjectMCPProxyParamsIfNoneMatch defines parameters for UpsertProjectMCPProxy.
+type UpsertProjectMCPProxyParamsIfNoneMatch string
 
 // DeleteProjectMCPProxyEnvironmentParams defines parameters for DeleteProjectMCPProxyEnvironment.
 type DeleteProjectMCPProxyEnvironmentParams struct {

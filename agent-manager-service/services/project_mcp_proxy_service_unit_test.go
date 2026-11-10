@@ -292,15 +292,33 @@ func TestUpsertHandleOwnedByOrgProxy_409HandleInUse(t *testing.T) {
 func TestUpsertCreateNotPermitted(t *testing.T) {
 	f := newProjectProxyFixture(t)
 	ctx := context.Background()
-	_, _, err := f.svc.UpsertWithCreateCheck(ctx, testOrg, testProjName, testProjA, "orders", orderReq(), false)
+	_, _, err := f.svc.UpsertWithCreateCheck(ctx, testOrg, testProjName, testProjA, "orders", orderReq(), false, false)
 	assert.ErrorIs(t, err, utils.ErrMCPProxyCreateNotPermitted)
 	assert.Zero(t, f.createCalls)
 
 	_, _, err = f.svc.Upsert(ctx, testOrg, testProjName, testProjA, "orders", orderReq())
 	require.NoError(t, err)
-	_, created, err := f.svc.UpsertWithCreateCheck(ctx, testOrg, testProjName, testProjA, "orders", orderReq(), false)
+	_, created, err := f.svc.UpsertWithCreateCheck(ctx, testOrg, testProjName, testProjA, "orders", orderReq(), false, false)
 	require.NoError(t, err, "an existing proxy needs no create permission")
 	assert.False(t, created)
+}
+
+// A create-only PUT registers a new proxy, and refuses a handle the project already has without changing it.
+func TestUpsertCreateOnly(t *testing.T) {
+	f := newProjectProxyFixture(t)
+	ctx := context.Background()
+	_, created, err := f.svc.UpsertWithCreateCheck(ctx, testOrg, testProjName, testProjA, "docs", urlReq(), true, true)
+	require.NoError(t, err)
+	assert.True(t, created)
+
+	again := urlReq()
+	again.Name = "Someone else's MCP"
+	again.Upstream.URL = "https://1.1.1.1/mcp"
+	_, _, err = f.svc.UpsertWithCreateCheck(ctx, testOrg, testProjName, testProjA, "docs", again, true, true)
+	assert.ErrorIs(t, err, utils.ErrMCPProxyExists)
+	assert.Zero(t, f.updateCalls)
+	assert.Equal(t, "Docs MCP", f.proxies["docs"].Configuration.Name)
+	assert.Equal(t, publicMCPURL, f.proxies["docs"].Configuration.Upstream.Main.URL)
 }
 
 func TestUpsertValidation(t *testing.T) {

@@ -206,9 +206,12 @@ export function AddMCPProxyForm({ onCancel, projectId }: AddMCPProxyFormProps) {
         },
       });
     } catch (err) {
+      // Registering only creates: an id the project already has is refused and left as it is.
       setProjectError(
-        (err as { message?: string })?.message ??
-          "Failed to register the MCP server.",
+        (err as { status?: number })?.status === 412
+          ? `An MCP server with the id "${proxyId}" already exists in this project.`
+          : ((err as { message?: string })?.message ??
+              "Failed to register the MCP server."),
       );
       return;
     }

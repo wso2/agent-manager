@@ -229,14 +229,21 @@ function projectMCPProxyEnvironmentUrl(
   return `${projectMCPProxyUrl(params)}/environments/${envName}`;
 }
 
-/** Creates a project-owned proxy, or updates the one with this id in the project. */
+/**
+ * Creates a project-owned proxy, or updates the one with this id in the project. With
+ * createOnly it only creates: an id the project already has is refused (412) and left as it is.
+ */
 export async function upsertProjectMCPProxy(
   params: DeleteProjectMCPProxyPathParams,
   body: ProjectMCPProxyRequest,
   getToken?: () => Promise<string>,
+  options?: { createOnly?: boolean },
 ): Promise<ProjectMCPProxy> {
   const token = getToken ? await getToken() : undefined;
-  const res = await httpPUT(projectMCPProxyUrl(params), body, { token });
+  const res = await httpPUT(projectMCPProxyUrl(params), body, {
+    token,
+    headers: options?.createOnly ? { "If-None-Match": "*" } : undefined,
+  });
   if (!res.ok) throw await res.json();
   return res.json();
 }

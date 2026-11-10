@@ -270,16 +270,20 @@ export async function httpPOST(
 export async function httpPUT(
     context: string, 
     body: object, 
-    params: {searchParams?: Record<string, string>, token?: string, options?: HttpOptions}) {
-    const {searchParams, token} = params;
+    params: {
+        searchParams?: Record<string, string>,
+        token?: string,
+        options?: HttpOptions,
+        headers?: Record<string, string>,
+    }) {
+    const {searchParams, token, headers} = params;
     const baseUrl = globalConfig.apiBaseUrl;
     const response = await backendFetch(`${baseUrl}${context}?${new URLSearchParams(searchParams).toString()}`, {
         method: 'PUT',
-        headers: token ? {
+        headers: {
+            ...headers,
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-        } : {
-            'Content-Type': 'application/json'
+            ...(token ? {'Authorization': `Bearer ${token}`} : {}),
         },
         body: serializeRequestBody(body)
     });

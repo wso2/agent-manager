@@ -99,14 +99,17 @@ func (s *ProjectMCPProxyService) ensureSourceSupported(
 func (s *ProjectMCPProxyService) Upsert(
 	ctx context.Context, ouID, projectName, projectUUID, handle string, req models.ProjectMCPProxyRequest,
 ) (*models.ProjectMCPProxyResponse, bool, error) {
-	return s.UpsertWithCreateCheck(ctx, ouID, projectName, projectUUID, handle, req, true)
+	return s.UpsertWithCreateCheck(ctx, ouID, projectName, projectUUID, handle, req, true, false)
 }
 
 // UpsertWithCreateCheck is Upsert for a caller that may be allowed to update but not to
 // create: when canCreate is false and the proxy does not exist it returns
-// utils.ErrMCPProxyCreateNotPermitted without writing anything.
+// utils.ErrMCPProxyCreateNotPermitted without writing anything. With createOnly it only
+// creates: a proxy this project has (or would adopt) under the handle returns
+// utils.ErrMCPProxyExists without writing anything, so a registration never replaces one.
 func (s *ProjectMCPProxyService) UpsertWithCreateCheck(
-	ctx context.Context, ouID, projectName, projectUUID, handle string, req models.ProjectMCPProxyRequest, canCreate bool,
+	ctx context.Context, ouID, projectName, projectUUID, handle string, req models.ProjectMCPProxyRequest,
+	canCreate, createOnly bool,
 ) (*models.ProjectMCPProxyResponse, bool, error) {
 	handle = strings.TrimSpace(handle)
 	desired, err := normalizeProjectMCPProxyRequest(handle, req)
@@ -125,6 +128,8 @@ func (s *ProjectMCPProxyService) UpsertWithCreateCheck(
 
 	existing, err := s.base.repo.GetInProject(ctx, handle, ouID, projectUUID)
 	switch {
+	case err == nil && createOnly:
+		return nil, false, fmt.Errorf("%w: %q", utils.ErrMCPProxyExists, handle)
 	case err == nil:
 		resp, err := s.update(ctx, ouID, existing, desired, "")
 		if err != nil {
@@ -140,6 +145,8 @@ func (s *ProjectMCPProxyService) UpsertWithCreateCheck(
 	// left by a deleted project of the same name: this re-created project adopts it.
 	orphan, err := s.base.repo.GetInProjectByName(ctx, handle, ouID, projectName)
 	switch {
+	case err == nil && orphan.ProjectUUID != nil && *orphan.ProjectUUID != projectUUID && createOnly:
+		return nil, false, fmt.Errorf("%w: %q", utils.ErrMCPProxyExists, handle)
 	case err == nil && orphan.ProjectUUID != nil && *orphan.ProjectUUID != projectUUID:
 		resp, err := s.update(ctx, ouID, orphan, desired, projectUUID)
 		if err != nil {
@@ -167,6 +174,10 @@ func (s *ProjectMCPProxyService) UpsertWithCreateCheck(
 	if err != nil {
 		if !errors.Is(err, utils.ErrMCPProxyHandleInUse) {
 			return nil, false, err
+		}
+		if createOnly {
+			// A concurrent create took the handle; the insert's unique constraint keeps this one from replacing it.
+			return nil, false, fmt.Errorf("%w: %q", utils.ErrMCPProxyExists, handle)
 		}
 		// A concurrent ensure of the same proxy won the insert: converge on it as an update.
 		existing, getErr := s.base.repo.GetInProject(ctx, handle, ouID, projectUUID)

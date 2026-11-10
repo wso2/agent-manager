@@ -20887,15 +20887,26 @@ func NewUpsertProjectMCPProxyRequestWithBody(server string, orgName string, proj
 
 	if params != nil {
 
-		if params.XImpersonateOrg != nil {
+		if params.IfNoneMatch != nil {
 			var headerParam0 string
 
-			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-Impersonate-Org", *params.XImpersonateOrg, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "If-None-Match", *params.IfNoneMatch, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
 			if err != nil {
 				return nil, err
 			}
 
-			req.Header.Set("X-Impersonate-Org", headerParam0)
+			req.Header.Set("If-None-Match", headerParam0)
+		}
+
+		if params.XImpersonateOrg != nil {
+			var headerParam1 string
+
+			headerParam1, err = runtime.StyleParamWithOptions("simple", false, "X-Impersonate-Org", *params.XImpersonateOrg, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-Impersonate-Org", headerParam1)
 		}
 
 	}
@@ -29824,6 +29835,7 @@ type UpsertProjectMCPProxyResp struct {
 	JSON403      *ErrorResponse
 	JSON404      *ErrorResponse
 	JSON409      *ErrorResponse
+	JSON412      *ErrorResponse
 	JSON500      *ErrorResponse
 }
 
@@ -45834,6 +45846,13 @@ func ParseUpsertProjectMCPProxyResp(rsp *http.Response) (*UpsertProjectMCPProxyR
 			return nil, err
 		}
 		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON412 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest ErrorResponse

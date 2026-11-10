@@ -7402,7 +7402,20 @@ paths:
         Only a project proxy stored under this project's name is adopted, never an org-level proxy or
         another project's. Its bindings stay; re-PUT each binding to refresh its upstream from the
         re-created project's component.
+
+        Send `If-None-Match: *` to only create: a handle this project already has, or would adopt,
+        returns 412 MCP_PROXY_ALREADY_EXISTS and nothing is changed.
       operationId: upsertProjectMCPProxy
+      parameters:
+        - name: If-None-Match
+          in: header
+          required: false
+          description: >-
+            `*` makes the request create-only. A proxy that exists under this handle in the project is
+            left as it is and the request returns 412.
+          schema:
+            type: string
+            enum: ["*"]
       requestBody:
         required: true
         content:
@@ -7451,6 +7464,12 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "409":
           description: HANDLE_IN_USE. The handle belongs to an org-level proxy or another project's proxy; or CONTEXT_IN_USE. The new context clashes on a bound gateway
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "412":
+          description: MCP_PROXY_ALREADY_EXISTS. If-None-Match is `*` and the project already has a proxy with this handle
           content:
             application/json:
               schema:

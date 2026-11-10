@@ -187,7 +187,9 @@ function useUpsertProjectMCPProxy(verb: "create" | "update") {
     { params: DeleteProjectMCPProxyPathParams; body: ProjectMCPProxyRequest }
   >({
     action: { verb, target: "mcp server" },
-    mutationFn: ({ params, body }) => upsertProjectMCPProxy(params, body, getToken),
+    // Registering only creates, so it cannot replace a server the project already has.
+    mutationFn: ({ params, body }) =>
+      upsertProjectMCPProxy(params, body, getToken, { createOnly: verb === "create" }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["mcp-proxies"] });
       queryClient.invalidateQueries({ queryKey: ["project-mcp-proxy"] });
@@ -195,7 +197,7 @@ function useUpsertProjectMCPProxy(verb: "create" | "update") {
   });
 }
 
-/** Registers a project-owned proxy (PUT on a new id). */
+/** Registers a project-owned proxy (a create-only PUT: an id already in the project is refused). */
 export function useCreateProjectMCPProxy() {
   return useUpsertProjectMCPProxy("create");
 }
