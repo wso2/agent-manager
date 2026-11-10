@@ -157,6 +157,7 @@ describe("binding as an org endpoint config", () => {
     upstreamAuth: { type: "api-key" as const, header: "Authorization" },
     policies: [{ name: "basic-ratelimit", version: "v1" }],
     capabilities: { tools: [{ name: "search" }] },
+    capabilitiesSource: "caller" as const,
   };
 
   it("shows the proxy's URL with the binding's credential, tools and policies", () => {
@@ -212,5 +213,16 @@ describe("binding as an org endpoint config", () => {
     });
     expect(binding.upstreamAuth).toBeUndefined();
     expect(proxyURL).toBeUndefined();
+  });
+});
+
+describe("discovered capabilities", () => {
+  it("are not sent back, so discovery keeps them", () => {
+    const request = bindingRequestFrom({
+      ...base,
+      capabilities: { tools: [{ name: "search" }] },
+      capabilitiesSource: "discovered",
+    });
+    expect(request.capabilities).toBeUndefined();
   });
 });

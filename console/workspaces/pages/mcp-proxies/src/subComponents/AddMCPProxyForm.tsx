@@ -85,7 +85,8 @@ export function AddMCPProxyForm({ onCancel, projectId }: AddMCPProxyFormProps) {
   const [projectError, setProjectError] = useState<string>();
   // An org server's context is under /default; a project server's is served under the project.
   const contextFor = useCallback(
-    (name: string) => (projectId ? `/${toHandle(name)}` : `/default/${toHandle(name)}`),
+    (name: string) =>
+      projectId ? `/${toHandle(name)}` : `/default/${toHandle(name)}`,
     [projectId],
   );
   const { data: environments = [] } = useListEnvironments({
@@ -115,7 +116,9 @@ export function AddMCPProxyForm({ onCancel, projectId }: AddMCPProxyFormProps) {
       : undefined;
 
   const isCreating =
-    createMCPProxy.isPending || createProjectMCPProxy.isPending || putProjectBinding.isPending;
+    createMCPProxy.isPending ||
+    createProjectMCPProxy.isPending ||
+    putProjectBinding.isPending;
 
   const isDirty =
     Boolean(proxyName) ||
@@ -170,11 +173,19 @@ export function AddMCPProxyForm({ onCancel, projectId }: AddMCPProxyFormProps) {
         handleVersionChange(draft.serverVersion);
       }
     },
-    [proxyContext, proxyName, proxyVersion, handleEdited, handleVersionChange, contextFor],
+    [
+      proxyContext,
+      proxyName,
+      proxyVersion,
+      handleEdited,
+      handleVersionChange,
+      contextFor,
+    ],
   );
 
   // A project server: the proxy fronts the endpoint's URL, then each environment the
-  // endpoint is assigned gets its own binding with the endpoint's credential and tools.
+  // endpoint is assigned gets its own binding with the endpoint's credential. Agent Manager
+  // discovers each binding's tools through its gateway once it is deployed.
   const handleCreateForProject = useCallback(async () => {
     if (!orgId || !projectId || endpoints.length === 0) return;
     if (!validateForm({ version: proxyVersion })) return;
@@ -196,13 +207,16 @@ export function AddMCPProxyForm({ onCancel, projectId }: AddMCPProxyFormProps) {
       });
     } catch (err) {
       setProjectError(
-        (err as { message?: string })?.message ?? "Failed to register the MCP server.",
+        (err as { message?: string })?.message ??
+          "Failed to register the MCP server.",
       );
       return;
     }
     const auth = endpoint.upstream?.main?.auth;
     for (const binding of endpoint.environments) {
-      const envName = environments.find((env) => env.id === binding.environmentUuid)?.name;
+      const envName = environments.find(
+        (env) => env.id === binding.environmentUuid,
+      )?.name;
       if (!envName) continue;
       try {
         await putProjectBinding.mutateAsync({
@@ -210,9 +224,14 @@ export function AddMCPProxyForm({ onCancel, projectId }: AddMCPProxyFormProps) {
           body: {
             ...(binding.gatewayId ? { gatewayId: binding.gatewayId } : {}),
             ...(auth?.header
-              ? { upstreamAuth: { type: "api-key", header: auth.header, value: auth.value } }
+              ? {
+                  upstreamAuth: {
+                    type: "api-key",
+                    header: auth.header,
+                    value: auth.value,
+                  },
+                }
               : {}),
-            ...(endpoint.capabilities ? { capabilities: endpoint.capabilities } : {}),
           },
         });
       } catch {
@@ -222,8 +241,8 @@ export function AddMCPProxyForm({ onCancel, projectId }: AddMCPProxyFormProps) {
     allowNavigation(() =>
       navigate(
         generatePath(
-          absoluteRouteMap.children.org.children.projects.children.mcpProxies.children.view
-            .path,
+          absoluteRouteMap.children.org.children.projects.children.mcpProxies
+            .children.view.path,
           { orgId, projectId, proxyId },
         ),
       ),
@@ -324,7 +343,9 @@ export function AddMCPProxyForm({ onCancel, projectId }: AddMCPProxyFormProps) {
               label="Handle"
               placeholder="e.g. github-mcp-server"
               maxLength={MAX_HANDLE_LENGTH}
-              hideCharacterCount={!isHandleEditable || handle.length < MAX_HANDLE_LENGTH}
+              hideCharacterCount={
+                !isHandleEditable || handle.length < MAX_HANDLE_LENGTH
+              }
               value={handle}
               onChange={(event) => handleHandleChange(event.target.value)}
               error={Boolean(handleLengthError)}
@@ -405,7 +426,9 @@ export function AddMCPProxyForm({ onCancel, projectId }: AddMCPProxyFormProps) {
         </Grid>
 
         <Stack spacing={2}>
-          <Typography variant="subtitle1">{projectId ? "Endpoint" : "Endpoints"}</Typography>
+          <Typography variant="subtitle1">
+            {projectId ? "Endpoint" : "Endpoints"}
+          </Typography>
           <Typography variant="body2" color="text.secondary">
             {projectId
               ? "Add the MCP server's public URL and assign it to the environments to deploy it to. Each environment is secured with an API key."
@@ -424,7 +447,9 @@ export function AddMCPProxyForm({ onCancel, projectId }: AddMCPProxyFormProps) {
             onAddOpenChange={setAddOpen}
             editingId={editingId}
             onEditingIdChange={setEditingId}
-            emptyStateText={projectId ? "No endpoint added yet." : "No endpoints added yet."}
+            emptyStateText={
+              projectId ? "No endpoint added yet." : "No endpoints added yet."
+            }
             onEndpointAdded={handleEndpointAdded}
             maxEndpoints={projectId ? 1 : undefined}
           />

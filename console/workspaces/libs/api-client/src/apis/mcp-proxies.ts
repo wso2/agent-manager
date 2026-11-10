@@ -37,7 +37,6 @@ import type {
   ListAPIKeysResponse,
   ProjectMCPProxy,
   ProjectMCPProxyAPIKeyPathParams,
-  ProjectMCPProxyEnvironment,
   ProjectMCPProxyEnvironmentPathParams,
   ProjectMCPProxyEnvironmentRequest,
   ProjectMCPProxyRequest,

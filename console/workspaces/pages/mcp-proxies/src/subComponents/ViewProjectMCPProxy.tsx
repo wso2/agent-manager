@@ -53,6 +53,7 @@ import {
   useGetProjectMCPProxy,
   useListEnvironments,
   usePutProjectMCPProxyEnvironment,
+  useRefreshProjectMCPProxyCapabilities,
   useUpdateProjectMCPProxy,
 } from "@agent-management-platform/api-client";
 import {
@@ -172,6 +173,7 @@ export function ViewProjectMCPProxy() {
   const putBinding = usePutProjectMCPProxyEnvironment();
   const removeBinding = useDeleteProjectMCPProxyEnvironment();
   const updateProxy = useUpdateProjectMCPProxy();
+  const refreshTools = useRefreshProjectMCPProxyCapabilities();
   const { addConfirmation } = useConfirmationDialog();
   const { canWrite } = useResourceAccess("mcp_server");
   const handleCopy = useCopyWithFeedback();
@@ -261,7 +263,8 @@ export function ViewProjectMCPProxy() {
 
   const addEnvironment = async () => {
     if (!envToAdd) return;
-    // The new binding starts as the selected one is: same credential, tools and policies.
+    // The new binding starts as the selected one is: same credential and policies. Its tools
+    // are discovered there, unless the selected binding's were given by its caller.
     const body: ProjectMCPProxyEnvironmentRequest = selected
       ? { ...applyBindingConfigChange(proxy!, selected, {}).binding }
       : {};
@@ -509,6 +512,47 @@ export function ViewProjectMCPProxy() {
               <Divider />
               {/* Keyed by environment, so unsaved edits never carry over to another one. */}
               <Box sx={{ p: 3 }} key={selected.environmentName}>
+                {/* Agent Manager lists the tools through the gateway after each deploy. Until it
+                    has, or once it gave up, an empty tool list is not the answer yet. */}
+                {(activeTabSlug === "overview" ||
+                  activeTabSlug === "manage-tools") &&
+                  selected.capabilityDiscovery?.status === "Pending" && (
+                    <Alert severity="info" sx={{ mb: 3 }}>
+                      Discovering this MCP server&apos;s tools through its
+                      gateway. They appear here once found.
+                    </Alert>
+                  )}
+                {(activeTabSlug === "overview" ||
+                  activeTabSlug === "manage-tools") &&
+                  selected.capabilityDiscovery?.status === "Failed" && (
+                    <Alert
+                      severity="warning"
+                      sx={{ mb: 3 }}
+                      action={
+                        canWrite ? (
+                          <Button
+                            color="inherit"
+                            size="small"
+                            disabled={refreshTools.isPending}
+                            onClick={() =>
+                              refreshTools.mutate({
+                                orgName: orgId,
+                                projName: projectId,
+                                proxyId,
+                                envName: selected.environmentName,
+                              })
+                            }
+                          >
+                            Retry
+                          </Button>
+                        ) : undefined
+                      }
+                    >
+                      {selected.capabilityDiscovery.lastError
+                        ? `Tool discovery failed: ${selected.capabilityDiscovery.lastError}`
+                        : "Tool discovery failed."}
+                    </Alert>
+                  )}
                 {activeTabSlug === "overview" && (
                   <MCPProxyOverviewTab
                     proxy={proxyAsOrgProxy(proxy)}
@@ -617,7 +661,7 @@ export function ViewProjectMCPProxy() {
             sx={{ mt: 1, display: "block" }}
           >
             {selected
-              ? "The server is deployed there with the selected environment's credential, tools and policies."
+              ? "The server is deployed there with the selected environment's credential and policies."
               : "The server is deployed there secured with an API key."}
           </Typography>
         </DialogContent>

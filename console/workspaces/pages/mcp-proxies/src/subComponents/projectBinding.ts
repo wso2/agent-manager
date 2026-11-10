@@ -96,8 +96,11 @@ export function bindingRequestFrom(
   if (env.upstreamAuth?.type === "api-key" && env.upstreamAuth.header) {
     request.upstreamAuth = { type: "api-key", header: env.upstreamAuth.header };
   }
-  // Omitted capabilities clear the stored ones, so they go back as they are.
-  if (env.capabilities) request.capabilities = env.capabilities;
+  // Capabilities a caller gave are sent back, as omitting them hands them to discovery.
+  // Discovered ones are left out, which keeps them and keeps discovery on.
+  if (env.capabilitiesSource === "caller" && env.capabilities) {
+    request.capabilities = env.capabilities;
+  }
   return request;
 }
 

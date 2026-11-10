@@ -170,6 +170,11 @@ export interface ProjectMCPProxyEnvironmentRequest {
   security?: ProjectMCPProxyEnvironmentSecurity;
   policies?: MCPProxyPolicy[];
   upstreamAuth?: ProjectMCPProxyEnvironmentUpstreamAuth & { value?: string };
+  /**
+   * The tools, prompts and resources the server offers, stored as given. Omitted, Agent
+   * Manager discovers them through the binding's gateway and keeps what it discovered.
+   */
+  capabilities?: MCPProxyCapabilities;
 }
 
 /** One environment binding of a project-owned MCP proxy, as the project route reports it. */
