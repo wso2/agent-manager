@@ -1284,6 +1284,6 @@ type AgentCardResponse struct {
 
 // A2AProxyResponse is the publish state of an agent's A2A gateway proxy.
 type A2AProxyResponse struct {
-	Status    string `json:"status"` // pending | published | failed
+	Status    string `json:"status"` // a deployment status: PENDING | DEPLOYING | DEPLOYED | FAILED
 	LastError string `json:"lastError"`
 }

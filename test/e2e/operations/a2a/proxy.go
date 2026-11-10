@@ -62,5 +62,5 @@ func WaitForProxyPublished(c *framework.AMPClient, org, proj, agent, env string,
 		}
 		proxy := framework.DecodeBody[framework.A2AProxyResponse](Default, resp)
 		return proxy.Status, proxy.LastError, true
-	}, "published", "a2a proxy", timeout)
+	}, "DEPLOYED", "a2a proxy", timeout)
 }

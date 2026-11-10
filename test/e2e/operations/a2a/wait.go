@@ -18,20 +18,20 @@ package a2a
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	. "github.com/onsi/gomega"
 )
 
-const statusFailed = "failed"
-
 // waitForStatus polls get every 2s until it reports the wanted status. A
-// not-found result counts as not yet. A failed status stops at once with the
+// not-found result counts as not yet. A failed status (the card reports
+// "failed", the proxy "FAILED") stops at once with the
 // last error; a timeout reports the last seen status and error.
 func waitForStatus(get func() (status, lastError string, found bool), want, label string, timeout time.Duration) {
 	Eventually(func(g Gomega) {
 		status, lastError, found := get()
-		if found && status == statusFailed {
+		if found && strings.EqualFold(status, "failed") {
 			StopTrying(fmt.Sprintf("%s failed: %s", label, lastError)).Now()
 		}
 		g.Expect(found).To(BeTrue(), "%s not found yet", label)
