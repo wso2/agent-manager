@@ -54,6 +54,7 @@ import {
   getMCPProxy,
   getProjectMCPProxy,
   refreshProjectMCPProxyCapabilities,
+  listAllMCPProxies,
   listMCPProxies,
   listProjectMCPProxyAPIKeys,
   putProjectMCPProxyEnvironment,
@@ -72,6 +73,19 @@ export function useListMCPProxies(
   return useApiQuery<MCPProxyListResponse>({
     queryKey: ["mcp-proxies", params, query],
     queryFn: () => listMCPProxies(params, query, getToken),
+    enabled: !!params.orgName,
+  });
+}
+
+/** Every proxy the list returns, across its pages; see listAllMCPProxies. */
+export function useListAllMCPProxies(
+  params: ListMCPProxiesPathParams,
+  query?: Omit<ListMCPProxiesQuery, "limit" | "offset">,
+) {
+  const { getToken } = useAuthHooks();
+  return useApiQuery<MCPProxyListResponse>({
+    queryKey: ["mcp-proxies", params, "all", query],
+    queryFn: () => listAllMCPProxies(params, query, getToken),
     enabled: !!params.orgName,
   });
 }

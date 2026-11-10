@@ -25,6 +25,8 @@ import {
   bindingRequiresAPIKey,
   DEFAULT_API_KEY_HEADER,
   keptBindingRequest,
+  planURLProxySave,
+  sameOrigin,
   proxyRequestFrom,
   toProjectProxyId,
 } from "./projectBinding";
@@ -320,7 +322,10 @@ describe("keptBindingRequest", () => {
 
   it("keeps an environment's own credential and timeouts when the form did not change them", () => {
     const request = keptBindingRequest(other, draft, draft, edited);
-    expect(request.upstreamAuth).toEqual({ type: "api-key", header: "X-Other" });
+    expect(request.upstreamAuth).toEqual({
+      type: "api-key",
+      header: "X-Other",
+    });
     expect(request.resilience).toEqual({ timeout: "60s" });
   });
 
@@ -349,5 +354,177 @@ describe("keptBindingRequest", () => {
     );
     expect(request.upstreamAuth).toBeUndefined();
     expect(request.resilience).toBeUndefined();
+  });
+});
+
+describe("planURLProxySave", () => {
+  const withAuth = (name: string, uuid: string, header?: string) => ({
+    ...base,
+    environmentName: name,
+    environmentUuid: uuid,
+    ...(header ? { upstreamAuth: { type: "api-key" as const, header } } : {}),
+  });
+  const proxy = {
+    id: "docs",
+    name: "Docs",
+    version: "v1",
+    context: "/docs",
+    projectName: "p1",
+    upstream: { url: "https://mcp.example.com/mcp" },
+    environments: [
+      withAuth("dev", "e1", "X-Key"),
+      withAuth("prod", "e2", "X-Key"),
+    ],
+  };
+  const initial = {
+    id: "primary",
+    name: "",
+    url: "https://mcp.example.com/mcp",
+    authHeader: "X-Key",
+    authValue: "",
+    resilienceTimeout: "",
+    resilienceIdleTimeout: "",
+    environments: ["e1", "e2"],
+    fetchedInfo: {},
+  };
+  const kinds = (steps: ReturnType<typeof planURLProxySave>) =>
+    steps.map((s) => (s.kind === "proxy" ? "proxy" : `${s.kind}:${s.envName}`));
+
+  it("saves the proxy, then each environment with its own credential, on the same host", () => {
+    const steps = planURLProxySave(
+      proxy,
+      initial,
+      initial,
+      {
+        url: "https://mcp.example.com/v2/mcp",
+        upstreamAuth: { type: "api-key", header: "X-Key" },
+      },
+      [],
+    );
+    expect(kinds(steps)).toEqual(["proxy", "binding:dev", "binding:prod"]);
+  });
+
+  it("removes unassigned environments first", () => {
+    const draft = { ...initial, environments: ["e1"] };
+    const steps = planURLProxySave(
+      proxy,
+      initial,
+      draft,
+      { url: initial.url },
+      [],
+    );
+    expect(kinds(steps)).toEqual(["remove:prod", "proxy", "binding:dev"]);
+  });
+
+  it("clears stored credentials before moving to another host, then sets the typed one", () => {
+    const draft = {
+      ...initial,
+      url: "https://other.example.com/mcp",
+      authValue: "new",
+    };
+    const auth = { type: "api-key" as const, header: "X-Key", value: "new" };
+    const steps = planURLProxySave(
+      proxy,
+      initial,
+      draft,
+      {
+        url: draft.url,
+        upstreamAuth: auth,
+      },
+      [],
+    );
+    expect(kinds(steps)).toEqual([
+      "binding:dev",
+      "binding:prod",
+      "proxy",
+      "binding:dev",
+      "binding:prod",
+    ]);
+    const [clearDev, , , setDev] = steps;
+    expect(
+      clearDev.kind === "binding" && clearDev.body.upstreamAuth,
+    ).toBeFalsy();
+    expect(setDev.kind === "binding" && setDev.body.upstreamAuth).toEqual(auth);
+  });
+
+  it("refuses a move to another host that would keep a stored credential, before any request", () => {
+    expect(() =>
+      planURLProxySave(
+        proxy,
+        initial,
+        { ...initial, url: "https://other.example.com/mcp" },
+        {
+          url: "https://other.example.com/mcp",
+          upstreamAuth: { type: "api-key", header: "X-Key" },
+        },
+        [],
+      ),
+    ).toThrow(/new host/);
+  });
+
+  it("moves to another host when the credential is removed", () => {
+    const draft = {
+      ...initial,
+      url: "https://other.example.com/mcp",
+      authHeader: "",
+    };
+    const steps = planURLProxySave(
+      proxy,
+      initial,
+      draft,
+      { url: draft.url },
+      [],
+    );
+    expect(kinds(steps)).toEqual([
+      "binding:dev",
+      "binding:prod",
+      "proxy",
+      "binding:dev",
+      "binding:prod",
+    ]);
+    expect(
+      steps.every((s) => s.kind !== "binding" || !s.body.upstreamAuth),
+    ).toBe(true);
+  });
+
+  it("still applies the edit on a retry after the first environment was saved", () => {
+    // The first save changed dev's header and failed on prod. The baseline is the page's first
+    // load, so the header is still an edit, and prod gets it too.
+    const retried = {
+      ...proxy,
+      environments: [
+        withAuth("dev", "e1", "X-New"),
+        withAuth("prod", "e2", "X-Key"),
+      ],
+    };
+    const draft = { ...initial, authHeader: "X-New" };
+    const steps = planURLProxySave(
+      retried,
+      initial,
+      draft,
+      {
+        url: initial.url,
+        upstreamAuth: { type: "api-key", header: "X-New" },
+      },
+      [],
+    );
+    const prod = steps.find(
+      (s) => s.kind === "binding" && s.envName === "prod",
+    );
+    expect(prod?.kind === "binding" && prod.body.upstreamAuth?.header).toBe(
+      "X-New",
+    );
+  });
+});
+
+describe("sameOrigin", () => {
+  it("compares scheme, host and port", () => {
+    expect(
+      sameOrigin("https://a.example/mcp", "https://a.example:443/v2"),
+    ).toBe(true);
+    expect(sameOrigin("https://a.example/mcp", "http://a.example/mcp")).toBe(
+      false,
+    );
+    expect(sameOrigin("https://a.example/mcp", "not a url")).toBe(false);
   });
 });

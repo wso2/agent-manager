@@ -162,7 +162,7 @@ export function BindingSecurityTab({
             value={header}
             disabled={!canWrite}
             onChange={(event) => setHeader(event.target.value)}
-            helperText="The header or query parameter callers send the key in."
+            helperText="The header callers send the key in."
             fullWidth
           />
           <TextInput
@@ -177,7 +177,10 @@ export function BindingSecurityTab({
             sx={{ minWidth: 140 }}
           >
             <MenuItem value="header">Header</MenuItem>
-            <MenuItem value="query">Query</MenuItem>
+            {/* The gateway reads the key from a header only; listed so a stored query shows. */}
+            <MenuItem value="query" disabled>
+              Query (not supported by the gateway)
+            </MenuItem>
           </TextInput>
         </Stack>
       )}

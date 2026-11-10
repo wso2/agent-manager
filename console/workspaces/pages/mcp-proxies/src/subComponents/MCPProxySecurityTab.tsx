@@ -64,9 +64,15 @@ import {
 import { useResourceAccess } from "@agent-management-platform/feature-management";
 import { CreateScopeDrawer } from "./CreateScopeDrawer";
 
-const KEY_LOCATION_OPTIONS: { value: APIKeyLocation; label: string }[] = [
+// The gateway's api-key-auth policy reads the key from a header only. Query stays listed, disabled,
+// so a proxy that has it stored still shows it and can be moved to a header.
+const KEY_LOCATION_OPTIONS: {
+  value: APIKeyLocation;
+  label: string;
+  disabled?: boolean;
+}[] = [
   { value: "header", label: "header" },
-  { value: "query", label: "query" },
+  { value: "query", label: "query (not supported by the gateway)", disabled: true },
 ];
 
 const AUTHENTICATION_TYPE_OPTIONS: AuthenticationType[] = [
@@ -735,7 +741,7 @@ export function MCPProxySecurityTab({
                 onChange={(e) => setKeyIn(e.target.value as APIKeyLocation)}
             >
                 {KEY_LOCATION_OPTIONS.map((opt) => (
-                  <MenuItem key={opt.value} value={opt.value}>
+                  <MenuItem key={opt.value} value={opt.value} disabled={opt.disabled}>
                     {opt.label}
                   </MenuItem>
                 ))}

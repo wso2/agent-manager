@@ -37,7 +37,7 @@ import {
 } from "react-router-dom";
 import {
   useDeleteProjectMCPProxy,
-  useListMCPProxies,
+  useListAllMCPProxies,
 } from "@agent-management-platform/api-client";
 import {
   formatRelativeTime,
@@ -51,9 +51,6 @@ import {
 } from "@agent-management-platform/types";
 import { useResourceAccess } from "@agent-management-platform/feature-management";
 import { MCPLogo } from "../components/MCPLogo";
-
-/** The most proxies one list request returns (the service's MaxLimit). */
-const LIST_LIMIT = 100;
 
 /** Which servers the list shows: all of them, the project's own, or the organization's. */
 type ScopeFilter = "all" | "project" | "organization";
@@ -103,9 +100,11 @@ export function ProjectMCPProxyTable({
       },
       { replace: true },
     );
-  const { data, isLoading, error } = useListMCPProxies(
+  // Every page: the org's servers and the project's share the list, and search, the scope
+  // tabs and their counts are worked out on what is loaded.
+  const { data, isLoading, error } = useListAllMCPProxies(
     { orgName: orgId },
-    { project: projectId, limit: LIST_LIMIT },
+    { project: projectId },
   );
   const { mutate: deleteProjectProxy } = useDeleteProjectMCPProxy();
   const { addConfirmation } = useConfirmationDialog();

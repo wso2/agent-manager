@@ -15,7 +15,7 @@
  * under the License.
  */
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useState } from "react";
 import { Alert, Skeleton } from "@wso2/oxygen-ui";
 import { generatePath, useParams } from "react-router-dom";
 import {
@@ -35,8 +35,7 @@ import { EditMCPProxyForm, type EditMCPProxyFormValues } from "./EditMCPProxy";
 import { type EndpointDraft } from "./EndpointFormFields";
 import { draftToEndpoint } from "./mcpEndpoints";
 import {
-  credentialEdited,
-  keptBindingRequest,
+  planURLProxySave,
   projectProxyEndpointDraft,
   proxyRequestFrom,
 } from "./projectBinding";
@@ -61,9 +60,10 @@ function ProjectEditForm({
   // A server registered by URL is one endpoint deployed to its environments; one published
   // from a component gets its endpoint from the component, so only its details are edited here.
   const isURLProxy = !proxy.source;
-  const initialEndpoints = useMemo(
-    () => (isURLProxy ? [projectProxyEndpointDraft(proxy)] : []),
-    [isURLProxy, proxy],
+  // Taken once, when the page opens: a save that fails part-way refetches the proxy, and a retry
+  // must still see the user's edits as edits, not compare them with what was just saved.
+  const [initialEndpoints] = useState(() =>
+    isURLProxy ? [projectProxyEndpointDraft(proxy)] : [],
   );
 
   const handleSave = useCallback(
@@ -88,87 +88,50 @@ function ProjectEditForm({
         }
         const endpoint = draftToEndpoint(draft, 0);
         const auth = endpoint.upstream?.main?.auth;
-        const kept = new Set(draft.environments);
-        const bound = new Map(
-          proxy.environments.map((env) => [env.environmentUuid, env]),
-        );
-        const added = draft.environments.filter((uuid) => !bound.has(uuid));
+        const bound = new Set(proxy.environments.map((env) => env.environmentUuid));
         // Resolved before anything is saved: an environment that is gone fails the save whole.
-        const addedNames = new Map<string, string>();
-        for (const uuid of added) {
-          const envName = environments.find((env) => env.id === uuid)?.name;
-          if (!envName) {
-            throw new Error(
-              "An environment selected for the server no longer exists. Reload the page and try again.",
-            );
-          }
-          addedNames.set(uuid, envName);
-        }
-        const initial = initialEndpoints[0] ?? draft;
-        // A credential is never read back, so a new environment can only take one typed now.
-        if (added.length > 0 && auth?.header && !auth.value) {
-          throw new Error(
-            "Enter the credential value again to deploy the server to a new environment.",
-          );
-        }
-        // A changed header with no value keeps each environment's stored value; one with
-        // none stored has nothing to keep. Checked before anything is saved.
-        if (
-          credentialEdited(initial, draft) &&
-          auth?.header &&
-          !auth.value &&
-          proxy.environments.some(
-            (env) => kept.has(env.environmentUuid) && !env.upstreamAuth,
-          )
-        ) {
-          throw new Error(
-            "Enter the credential value: an environment the server is deployed to has none stored.",
-          );
-        }
-        // Kept environments keep their own credential and timeouts unless the form changed them.
-        const resilience = endpoint.resilience;
-        const upstreamAuth = auth?.header
-          ? {
-              type: "api-key" as const,
-              header: auth.header,
-              ...(auth.value ? { value: auth.value } : {}),
+        const added = draft.environments
+          .filter((uuid) => !bound.has(uuid))
+          .map((uuid) => {
+            const envName = environments.find((env) => env.id === uuid)?.name;
+            if (!envName) {
+              throw new Error(
+                "An environment selected for the server no longer exists. Reload the page and try again.",
+              );
             }
-          : undefined;
-
-        await updateProxy.mutateAsync({
-          params,
-          body: {
-            ...details,
-            upstream: { url: endpoint.upstream?.main?.url ?? "" },
+            return { envName, gatewayId: draft.gatewayByEnv?.[uuid] };
+          });
+        const steps = planURLProxySave(
+          proxy,
+          initialEndpoints[0] ?? draft,
+          draft,
+          {
+            url: endpoint.upstream?.main?.url ?? "",
+            upstreamAuth: auth?.header
+              ? {
+                  type: "api-key",
+                  header: auth.header,
+                  ...(auth.value ? { value: auth.value } : {}),
+                }
+              : undefined,
+            resilience: endpoint.resilience,
           },
-        });
-        for (const env of proxy.environments) {
-          if (kept.has(env.environmentUuid)) {
-            await putBinding.mutateAsync({
-              params: { ...params, envName: env.environmentName },
-              body: keptBindingRequest(env, initial, draft, {
-                upstreamAuth,
-                resilience,
-              }),
+          added,
+        );
+        for (const step of steps) {
+          if (step.kind === "remove") {
+            await removeBinding.mutateAsync({ ...params, envName: step.envName });
+          } else if (step.kind === "proxy") {
+            await updateProxy.mutateAsync({
+              params,
+              body: { ...details, upstream: { url: step.url } },
             });
           } else {
-            await removeBinding.mutateAsync({
-              ...params,
-              envName: env.environmentName,
+            await putBinding.mutateAsync({
+              params: { ...params, envName: step.envName },
+              body: step.body,
             });
           }
-        }
-        for (const [uuid, envName] of addedNames) {
-          await putBinding.mutateAsync({
-            params: { ...params, envName },
-            body: {
-              ...(draft.gatewayByEnv?.[uuid]
-                ? { gatewayId: draft.gatewayByEnv[uuid] }
-                : {}),
-              ...(upstreamAuth ? { upstreamAuth } : {}),
-              ...(resilience ? { resilience } : {}),
-            },
-          });
         }
       } catch (err) {
         setError(err);

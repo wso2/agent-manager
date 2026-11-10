@@ -214,9 +214,10 @@ export function AddMCPProxyForm({ onCancel, projectId }: AddMCPProxyFormProps) {
       });
     } catch (err) {
       // Registering only creates: an id the project already has is refused and left as it is.
+      // That includes a server a deleted project of the same name left, which no list shows.
       setProjectError(
         (err as { status?: number })?.status === 412
-          ? `An MCP server with the id "${proxyId}" already exists in this project.`
+          ? `The id "${proxyId}" is already taken in this project, possibly by an MCP server a deleted project with the same name left. Choose another name.`
           : ((err as { message?: string })?.message ??
               "Failed to register the MCP server."),
       );
