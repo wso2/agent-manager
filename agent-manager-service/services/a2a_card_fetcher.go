@@ -80,17 +80,20 @@ func normalizeA2AHostname(host string) string {
 }
 
 type a2aCardFetcher struct {
-	plain   *http.Client
-	guarded *http.Client
+	plain     *http.Client
+	guarded   *http.Client
+	testHosts a2aTestUpstreamHosts
 }
 
 // NewA2ACardFetcher creates an A2ACardFetcher with the spec's 5s timeout.
 func NewA2ACardFetcher() A2ACardFetcher {
-	return newA2ACardFetcher(a2aCardFetchTimeout, config.GetConfig().A2ACardFetchDialAddr)
+	cfg := config.GetConfig()
+	return newA2ACardFetcher(a2aCardFetchTimeout, cfg.A2ACardFetchDialAddr, newA2ATestUpstreamHosts(cfg.A2ACardTestUpstreamHosts))
 }
 
-func newA2ACardFetcher(timeout time.Duration, dialAddr string) *a2aCardFetcher {
+func newA2ACardFetcher(timeout time.Duration, dialAddr string, testHosts a2aTestUpstreamHosts) *a2aCardFetcher {
 	return &a2aCardFetcher{
+		testHosts: testHosts,
 		// Platform URLs resolve to loopback in local setups, which the SSRF guard rejects.
 		plain:   &http.Client{Timeout: timeout, Transport: plainTransport(dialAddr), CheckRedirect: sameHostRedirectOnly},
 		guarded: ssrf.NewClient(timeout),
@@ -147,6 +150,9 @@ func (f *a2aCardFetcher) Fetch(ctx context.Context, url string) (json.RawMessage
 }
 
 func (f *a2aCardFetcher) FetchOrigin(ctx context.Context, url string, header *A2ACardFetchHeader) (json.RawMessage, error) {
+	if f.testHosts.allows(url) {
+		return f.fetch(ctx, f.plain, url, false, header)
+	}
 	client := f.guarded
 	if header != nil {
 		client = sameOriginClient(f.guarded)
