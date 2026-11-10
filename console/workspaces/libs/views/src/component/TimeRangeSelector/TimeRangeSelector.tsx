@@ -82,7 +82,7 @@ export const TimeRangeSelector: React.FC<TimeRangeSelectorProps> = ({
     onPresetChange,
     onCustomRangeApply,
 }) => {
-    const anchorRef = useRef<HTMLElement>(null);
+    const anchorRef = useRef<HTMLDivElement>(null);
     const [popoverOpen, setPopoverOpen] = useState(false);
     const [draftStart, setDraftStart] = useState<Date | null>(null);
     const [draftEnd, setDraftEnd] = useState<Date | null>(null);
