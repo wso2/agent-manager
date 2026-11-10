@@ -93,6 +93,17 @@ function ProjectEditForm({
           proxy.environments.map((env) => [env.environmentUuid, env]),
         );
         const added = draft.environments.filter((uuid) => !bound.has(uuid));
+        // Resolved before anything is saved: an environment that is gone fails the save whole.
+        const addedNames = new Map<string, string>();
+        for (const uuid of added) {
+          const envName = environments.find((env) => env.id === uuid)?.name;
+          if (!envName) {
+            throw new Error(
+              "An environment selected for the server no longer exists. Reload the page and try again.",
+            );
+          }
+          addedNames.set(uuid, envName);
+        }
         const initial = initialEndpoints[0] ?? draft;
         // A credential is never read back, so a new environment can only take one typed now.
         if (added.length > 0 && auth?.header && !auth.value) {
@@ -147,9 +158,7 @@ function ProjectEditForm({
             });
           }
         }
-        for (const uuid of added) {
-          const envName = environments.find((env) => env.id === uuid)?.name;
-          if (!envName) continue;
+        for (const [uuid, envName] of addedNames) {
           await putBinding.mutateAsync({
             params: { ...params, envName },
             body: {

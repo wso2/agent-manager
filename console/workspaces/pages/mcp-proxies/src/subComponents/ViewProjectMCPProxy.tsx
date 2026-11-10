@@ -223,8 +223,12 @@ export function ViewProjectMCPProxy() {
   );
 
   // The selected binding as the org tabs read an endpoint, and their edits written back to it.
-  const selectedConfig: MCPEndpointConfig | undefined =
-    proxy && selected ? bindingEndpointConfig(proxy, selected) : undefined;
+  // Memoized: the tabs reset their form when the config changes, so a rerender for save state
+  // alone must hand them the same one.
+  const selectedConfig: MCPEndpointConfig | undefined = useMemo(
+    () => (proxy && selected ? bindingEndpointConfig(proxy, selected) : undefined),
+    [proxy, selected],
+  );
   const updateSelectedConfig = useCallback(
     async (fields: Partial<MCPEndpointConfig>) => {
       if (!proxy || !selected) return undefined;
