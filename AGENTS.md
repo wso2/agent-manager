@@ -30,6 +30,8 @@ Repeatable, error-prone procedures are captured as Claude Code skills in `.claud
 | `add-api-resource` | Adding/changing a REST endpoint in `agent-manager-service` (spec-first → codegen → RBAC → layers) |
 | `add-service-unit-test` | Writing a Go service unit test (mocks, CI lint traps) |
 | `add-audit-event` | Recording a security-critical operation in the audit trail, or fixing a route the audit policy cannot label |
+| `add-feature-telemetry` | Tracking usage of a new feature: feature taxonomy, server `growthanalytics.Track`, and console actions the UI publishes |
+| `add-platform-event` | Making a new feature's operation a subscribable platform event (event catalog, route mapping, non-route publishing) |
 | `add-console-api-feature` | Wiring a new backend call into the console (two-file `apis/`+`hooks/` pattern) |
 | `add-evaluator` | Adding an evaluator to `amp-evaluation` (type-hint-driven level/mode) |
 
