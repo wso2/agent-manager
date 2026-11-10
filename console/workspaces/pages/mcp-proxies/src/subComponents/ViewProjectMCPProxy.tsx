@@ -355,7 +355,7 @@ export function ViewProjectMCPProxy() {
       }
       meta={<CreatedMetadata createdAt={proxy?.createdAt} />}
       actions={
-        proxy && canWrite && isURLProxy ? (
+        proxy && canWrite ? (
           <Button
             variant="outlined"
             size="small"
@@ -686,6 +686,13 @@ export function ViewProjectMCPProxy() {
         <DialogContent>
           {editDraft && (
             <Stack spacing={2} sx={{ mt: 1 }}>
+              {proxy?.source && (
+                <Alert severity="info">
+                  This MCP Server is published from the{" "}
+                  {proxy.source.componentName} component. Its publisher may set
+                  these fields again when it next publishes it.
+                </Alert>
+              )}
               <TextField
                 label="Name"
                 size="small"

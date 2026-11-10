@@ -18,14 +18,23 @@
 import { useMemo, useState, type ReactNode } from "react";
 import {
   Avatar,
+  Box,
+  Divider,
   IconButton,
   ListingTable,
   Stack,
+  Tab,
+  Tabs,
   Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
 import { Plus, Trash } from "@wso2/oxygen-ui-icons-react";
-import { generatePath, useNavigate, useParams } from "react-router-dom";
+import {
+  generatePath,
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from "react-router-dom";
 import {
   useDeleteMCPProxy,
   useDeleteProjectMCPProxy,
@@ -47,14 +56,54 @@ import { MCPLogo } from "../components/MCPLogo";
 /** The most proxies one list request returns (the service's MaxLimit). */
 const LIST_LIMIT = 100;
 
+/** Which servers the list shows: all of them, the project's own, or the organization's. */
+type ScopeFilter = "all" | "project" | "organization";
+
+const SCOPE_FILTERS: { value: ScopeFilter; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "project", label: "Project" },
+  { value: "organization", label: "From organization" },
+];
+
+function inScope(proxy: MCPProxyListItem, scope: ScopeFilter): boolean {
+  if (scope === "project") return !!proxy.projectName;
+  if (scope === "organization") return !proxy.projectName;
+  return true;
+}
+
 /**
  * The MCP servers a project can use: the org's own and the project's. A project
  * server opens its project page; an org server opens the org page.
  */
-export function ProjectMCPProxyTable({ createAction }: { createAction?: ReactNode }) {
-  const { orgId, projectId } = useParams<{ orgId: string; projectId: string }>();
+export function ProjectMCPProxyTable({
+  createAction,
+}: {
+  createAction?: ReactNode;
+}) {
+  const { orgId, projectId } = useParams<{
+    orgId: string;
+    projectId: string;
+  }>();
   const navigate = useNavigate();
   const [searchValue, setSearchValue] = useState("");
+  // Kept in the URL, as the other tabbed pages do, so it survives a reload.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const scopeParam = searchParams.get("scope");
+  const scope: ScopeFilter = SCOPE_FILTERS.some(
+    (item) => item.value === scopeParam,
+  )
+    ? (scopeParam as ScopeFilter)
+    : "all";
+  const setScope = (next: ScopeFilter) =>
+    setSearchParams(
+      (prev) => {
+        const params = new URLSearchParams(prev);
+        if (next === "all") params.delete("scope");
+        else params.set("scope", next);
+        return params;
+      },
+      { replace: true },
+    );
   const { data, isLoading, error } = useListMCPProxies(
     { orgName: orgId },
     { project: projectId, limit: LIST_LIMIT },
@@ -66,23 +115,36 @@ export function ProjectMCPProxyTable({ createAction }: { createAction?: ReactNod
 
   const proxies = useMemo(() => data?.list ?? [], [data]);
 
+  const scopeCounts = useMemo(
+    () =>
+      Object.fromEntries(
+        SCOPE_FILTERS.map((item) => [
+          item.value,
+          proxies.filter((proxy) => inScope(proxy, item.value)).length,
+        ]),
+      ) as Record<ScopeFilter, number>,
+    [proxies],
+  );
+
   const filteredProxies = useMemo(() => {
     const term = searchValue.trim().toLowerCase();
-    if (!term) return proxies;
-    return proxies.filter((proxy: MCPProxyListItem) =>
-      [
-        proxy.name,
-        proxy.id,
-        proxy.version,
-        proxy.context,
-        proxy.description,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase()
-        .includes(term),
+    return proxies.filter(
+      (proxy: MCPProxyListItem) =>
+        inScope(proxy, scope) &&
+        (!term ||
+          [
+            proxy.name,
+            proxy.id,
+            proxy.version,
+            proxy.context,
+            proxy.description,
+          ]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase()
+            .includes(term)),
     );
-  }, [proxies, searchValue]);
+  }, [proxies, scope, searchValue]);
 
   const openProxy = (proxy: MCPProxyListItem) => {
     if (!proxy.id) return;
@@ -122,106 +184,142 @@ export function ProjectMCPProxyTable({ createAction }: { createAction?: ReactNod
   };
 
   return (
-    <ResourceListShell
-      resourceName="mcp-proxies"
-      searchValue={searchValue}
-      onSearchChange={setSearchValue}
-      searchPlaceholder="Search MCP servers"
-      error={error}
-      isLoading={isLoading}
-      isEmpty={!proxies.length}
-      isSearchEmpty={!filteredProxies.length}
-      emptyState={{
-        illustration: <MCPLogo size={64} />,
-        title: "No MCP Servers Yet",
-        description:
-          "MCP servers registered for the organization or this project, and those published from its components, show up here.",
-        action: createAction,
-      }}
-      searchEmptyState={{
-        illustration: <Plus size={64} />,
-        title: "No MCP servers match your search",
-        description: "Try a different keyword or clear the search filter.",
-      }}
-    >
-      <ListingTable variant="card">
-        <ListingTable.Head>
-          <ListingTable.Row>
-            <ListingTable.Cell>Name</ListingTable.Cell>
-            <ListingTable.Cell width="160px">Version</ListingTable.Cell>
-            <ListingTable.Cell width="140px" align="right">
-              Last Updated
-            </ListingTable.Cell>
-            <ListingTable.Cell width="96px" align="right">
-              Actions
-            </ListingTable.Cell>
-          </ListingTable.Row>
-        </ListingTable.Head>
-        <ListingTable.Body>
-          {filteredProxies.map((proxy: MCPProxyListItem) => {
-            const displayName = proxy.name ?? proxy.id ?? "MCP Server";
-            return (
-              <ListingTable.Row
-                key={`${proxy.projectName ?? ""}:${proxy.id ?? displayName}`}
-                variant="card"
-                hover
-                clickable={!!proxy.id}
-                onClick={() => openProxy(proxy)}
-              >
-                <ListingTable.Cell>
-                  <Stack direction="row" alignItems="center" spacing={2}>
-                    <Avatar
-                      sx={{
-                        bgcolor: "primary.main",
-                        color: "primary.contrastText",
-                        fontSize: 16,
-                        height: 36,
-                        width: 36,
-                        flexShrink: 0,
-                      }}
-                    >
-                      {getAvatarInitials(displayName, { fallback: "MS" })}
-                    </Avatar>
-                    <Stack spacing={0.25} minWidth={0}>
-                      <Typography variant="body2" fontWeight={500} noWrap>
-                        {displayName}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {proxy.projectName ? "Project" : "Organization"}
-                      </Typography>
-                    </Stack>
-                  </Stack>
-                </ListingTable.Cell>
-                <ListingTable.Cell>
-                  <Typography variant="body2">{proxy.version ?? "-"}</Typography>
-                </ListingTable.Cell>
-                <ListingTable.Cell align="right">
-                  <Typography variant="caption" color="text.secondary">
-                    {formatRelativeTime(proxy.updatedAt)}
-                  </Typography>
-                </ListingTable.Cell>
-                <ListingTable.Cell
-                  align="right"
-                  onClick={(event) => event.stopPropagation()}
+    <Stack spacing={2}>
+      {proxies.length > 0 && (
+        <Box>
+          <Tabs
+            value={scope}
+            onChange={(_, value: ScopeFilter) => setScope(value)}
+          >
+            {SCOPE_FILTERS.map((item) => (
+              <Tab
+                key={item.value}
+                value={item.value}
+                label={`${item.label} (${scopeCounts[item.value]})`}
+              />
+            ))}
+          </Tabs>
+          <Divider />
+        </Box>
+      )}
+      <ResourceListShell
+        resourceName="mcp-proxies"
+        searchValue={searchValue}
+        onSearchChange={setSearchValue}
+        searchPlaceholder="Search MCP servers"
+        error={error}
+        isLoading={isLoading}
+        isEmpty={!proxies.length}
+        isSearchEmpty={!filteredProxies.length}
+        emptyState={{
+          illustration: <MCPLogo size={64} />,
+          title: "No MCP Servers Yet",
+          description:
+            "MCP servers registered for the organization or this project, and those published from its components, show up here.",
+          action: createAction,
+        }}
+        searchEmptyState={
+          searchValue.trim()
+            ? {
+                illustration: <Plus size={64} />,
+                title: "No MCP servers match your search",
+                description:
+                  "Try a different keyword or clear the search filter.",
+              }
+            : {
+                illustration: <MCPLogo size={64} />,
+                title:
+                  scope === "project"
+                    ? "No project MCP servers yet"
+                    : "No organization MCP servers",
+                description:
+                  scope === "project"
+                    ? "Register an MCP server for this project, or publish one from a component."
+                    : "MCP servers registered for the organization show up here.",
+              }
+        }
+      >
+        <ListingTable variant="card">
+          <ListingTable.Head>
+            <ListingTable.Row>
+              <ListingTable.Cell>Name</ListingTable.Cell>
+              <ListingTable.Cell width="160px">Version</ListingTable.Cell>
+              <ListingTable.Cell width="140px" align="right">
+                Last Updated
+              </ListingTable.Cell>
+              <ListingTable.Cell width="96px" align="right">
+                Actions
+              </ListingTable.Cell>
+            </ListingTable.Row>
+          </ListingTable.Head>
+          <ListingTable.Body>
+            {filteredProxies.map((proxy: MCPProxyListItem) => {
+              const displayName = proxy.name ?? proxy.id ?? "MCP Server";
+              return (
+                <ListingTable.Row
+                  key={`${proxy.projectName ?? ""}:${proxy.id ?? displayName}`}
+                  variant="card"
+                  hover
+                  clickable={!!proxy.id}
+                  onClick={() => openProxy(proxy)}
                 >
-                  {proxy.id && canWrite ? (
-                    <Tooltip title="Delete MCP Server">
-                      <IconButton
-                        color="error"
-                        size="small"
-                        onClick={() => confirmDelete(proxy, displayName)}
+                  <ListingTable.Cell>
+                    <Stack direction="row" alignItems="center" spacing={2}>
+                      <Avatar
+                        sx={{
+                          bgcolor: "primary.main",
+                          color: "primary.contrastText",
+                          fontSize: 16,
+                          height: 36,
+                          width: 36,
+                          flexShrink: 0,
+                        }}
                       >
-                        <Trash size={16} />
-                      </IconButton>
-                    </Tooltip>
-                  ) : null}
-                </ListingTable.Cell>
-              </ListingTable.Row>
-            );
-          })}
-        </ListingTable.Body>
-      </ListingTable>
-    </ResourceListShell>
+                        {getAvatarInitials(displayName, { fallback: "MS" })}
+                      </Avatar>
+                      <Stack spacing={0.25} minWidth={0}>
+                        <Typography variant="body2" fontWeight={500} noWrap>
+                          {displayName}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {proxy.projectName ? "Project" : "Organization"}
+                        </Typography>
+                      </Stack>
+                    </Stack>
+                  </ListingTable.Cell>
+                  <ListingTable.Cell>
+                    <Typography variant="body2">
+                      {proxy.version ?? "-"}
+                    </Typography>
+                  </ListingTable.Cell>
+                  <ListingTable.Cell align="right">
+                    <Typography variant="caption" color="text.secondary">
+                      {formatRelativeTime(proxy.updatedAt)}
+                    </Typography>
+                  </ListingTable.Cell>
+                  <ListingTable.Cell
+                    align="right"
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    {proxy.id && canWrite ? (
+                      <Tooltip title="Delete MCP Server">
+                        <IconButton
+                          color="error"
+                          size="small"
+                          onClick={() => confirmDelete(proxy, displayName)}
+                        >
+                          <Trash size={16} />
+                        </IconButton>
+                      </Tooltip>
+                    ) : null}
+                  </ListingTable.Cell>
+                </ListingTable.Row>
+              );
+            })}
+          </ListingTable.Body>
+        </ListingTable>
+      </ResourceListShell>
+    </Stack>
   );
 }
 
