@@ -145,9 +145,10 @@ func (s *ProjectMCPProxyService) UpsertWithCreateCheck(
 	// left by a deleted project of the same name: this re-created project adopts it.
 	orphan, err := s.base.repo.GetInProjectByName(ctx, handle, ouID, projectName)
 	switch {
-	case err == nil && orphan.ProjectUUID != nil && *orphan.ProjectUUID != projectUUID && createOnly:
-		return nil, false, fmt.Errorf("%w: %q", utils.ErrMCPProxyExists, handle)
 	case err == nil && orphan.ProjectUUID != nil && *orphan.ProjectUUID != projectUUID:
+		if createOnly {
+			return nil, false, fmt.Errorf("%w: %q", utils.ErrMCPProxyExists, handle)
+		}
 		resp, err := s.update(ctx, ouID, orphan, desired, projectUUID)
 		if err != nil {
 			return nil, false, err
@@ -175,15 +176,17 @@ func (s *ProjectMCPProxyService) UpsertWithCreateCheck(
 		if !errors.Is(err, utils.ErrMCPProxyHandleInUse) {
 			return nil, false, err
 		}
-		if createOnly {
-			// A concurrent create took the handle; the insert's unique constraint keeps this one from replacing it.
-			return nil, false, fmt.Errorf("%w: %q", utils.ErrMCPProxyExists, handle)
-		}
-		// A concurrent ensure of the same proxy won the insert: converge on it as an update.
+		// A concurrent create took the handle. Only a proxy this project now has under it is the same proxy;
+		// anything else holding it (another project's proxy, another kind of artifact) stays HANDLE_IN_USE.
 		existing, getErr := s.base.repo.GetInProject(ctx, handle, ouID, projectUUID)
 		if getErr != nil {
 			return nil, false, err
 		}
+		if createOnly {
+			// The insert's unique constraint kept this one from replacing it.
+			return nil, false, fmt.Errorf("%w: %q", utils.ErrMCPProxyExists, handle)
+		}
+		// A concurrent ensure of the same proxy won the insert: converge on it as an update.
 		resp, updErr := s.update(ctx, ouID, existing, desired, "")
 		if updErr != nil {
 			return nil, false, updErr
@@ -501,7 +504,7 @@ func (s *ProjectMCPProxyService) update(
 	switch {
 	case cfg.Source != nil && (d.source == nil || *cfg.Source != *d.source):
 		return nil, fmt.Errorf("%w: source", utils.ErrImmutableFieldChange)
-	case cfg.Source == nil && storedURL != "" && d.source != nil:
+	case storedURL != "" && d.source != nil:
 		// A proxy registered by URL stays one; its URL may change.
 		return nil, fmt.Errorf("%w: upstream (a proxy registered by URL cannot take a source)", utils.ErrImmutableFieldChange)
 	}
@@ -537,13 +540,23 @@ func (s *ProjectMCPProxyService) update(
 		if unchanged {
 			return nil
 		}
-		if storedURL != d.upstreamURL {
-			if err := s.updateBindingUpstreams(ctx, tx, existing, d.upstreamURL); err != nil {
+		// The context check locks the bindings' gateways; the proxy row is locked after it, in the
+		// order binding PUTs take the same locks.
+		if mcpGatewayContext(&updated, "") != mcpGatewayContext(existing, "") {
+			if err := s.checkContextChange(ctx, tx, ouID, existing, mcpGatewayContext(&updated, "")); err != nil {
 				return err
 			}
 		}
-		if mcpGatewayContext(&updated, "") != mcpGatewayContext(existing, "") {
-			if err := s.checkContextChange(ctx, tx, ouID, existing, mcpGatewayContext(&updated, "")); err != nil {
+		if storedURL != d.upstreamURL {
+			// Rewritten from the locked proxy, so a binding PUT committed since existing was read is kept.
+			locked, err := s.base.repo.GetByHandleForUpdate(ctx, tx, proxyHandleOf(existing), ouID)
+			if err != nil {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					return utils.ErrMCPProxyNotFound
+				}
+				return fmt.Errorf("failed to lock the MCP proxy: %w", err)
+			}
+			if err := s.updateBindingUpstreams(ctx, tx, locked, d.upstreamURL); err != nil {
 				return err
 			}
 		}

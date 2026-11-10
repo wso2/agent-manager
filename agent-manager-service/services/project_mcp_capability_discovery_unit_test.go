@@ -414,10 +414,12 @@ func TestCapabilityDiscovery_PutKeepsQueuedState(t *testing.T) {
 // A binding whose key is read from the query string fails discovery without issuing a key or probing: the key is
 // never put in a URL, where a transport error would carry it into lastError and the logs.
 func TestCapabilityDiscovery_QueryKeyBindingFailsWithoutAKeyInAURL(t *testing.T) {
+	f := newDiscoveryFixture(t, models.MCPProxyEnvironmentRequest{})
+	// A binding PUT refuses a query key now; one stored before that still has to be handled.
 	on := true
-	f := newDiscoveryFixture(t, models.MCPProxyEnvironmentRequest{Security: &models.MCPProxyEnvironmentSecurity{
+	f.proxy.Endpoints[0].Configuration.Security = &models.SecurityConfig{
 		Enabled: &on, APIKey: &models.APIKeySecurity{Enabled: &on, Key: "api_key", In: "query"},
-	}})
+	}
 	f.enqueue(t)
 
 	f.recon.RunOnce(context.Background())

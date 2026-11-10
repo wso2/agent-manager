@@ -17,7 +17,7 @@ import (
 // checks if the MCPProxyEnvironmentSecurity type satisfies the MappedNullable interface at compile time
 var _ MappedNullable = &MCPProxyEnvironmentSecurity{}
 
-// MCPProxyEnvironmentSecurity A binding's security. Phase 1 accepts apiKey, which is also the default when the field is omitted or names no variant (an api key in the X-API-Key header), and no security (enabled false only). An apiKey with enabled false while security is not disabled is rejected with 400 VALIDATION_ERROR. jwt is rejected with 400 \"jwt security is not available yet\", and identity with 400.
+// MCPProxyEnvironmentSecurity A binding's security. Phase 1 accepts apiKey, which is also the default when the field is omitted or names no variant (an api key in the X-API-Key header), and no security (enabled false only). An apiKey with enabled false while security is not disabled is rejected with 400 VALIDATION_ERROR. jwt is rejected with 400 \"jwt security is not available yet\", and identity with 400. The API key is read from a header only: apiKey.in \"query\" is rejected with 400 VALIDATION_ERROR, as the gateway checks no other location.
 type MCPProxyEnvironmentSecurity struct {
 	Enabled  *bool                `json:"enabled,omitempty"`
 	ApiKey   *APIKeySecurity      `json:"apiKey,omitempty"`

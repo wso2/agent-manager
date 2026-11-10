@@ -54,6 +54,10 @@ type projectProxyFixture struct {
 	endpointEnvs []models.MCPProxyEndpointEnvironment
 	deletedProxy []string
 	reassigned   []string // "handle:from->to" per ReassignProject
+	// beforeLock runs as the proxy row is locked: what another transaction committed before the lock.
+	beforeLock func()
+	// createErr fails the insert, as a handle another artifact took meanwhile does.
+	createErr error
 
 	componentTypes  map[string]string // component name -> OpenChoreo component type (default agent-api)
 	getComponentErr error
@@ -94,6 +98,17 @@ func newProjectProxyFixture(t *testing.T) *projectProxyFixture {
 			}
 			return utils.ErrMCPProxyNotFound
 		},
+		GetByHandleForUpdateFunc: func(_ context.Context, _ *gorm.DB, handle, _ string) (*models.MCPProxy, error) {
+			if f.beforeLock != nil {
+				f.beforeLock()
+			}
+			p, ok := f.proxies[handle]
+			if !ok {
+				return nil, gorm.ErrRecordNotFound
+			}
+			cp := *p
+			return &cp, nil
+		},
 		GetByHandleFunc: func(_ context.Context, handle, _ string) (*models.MCPProxy, error) {
 			p, ok := f.proxies[handle]
 			if !ok {
@@ -107,6 +122,9 @@ func newProjectProxyFixture(t *testing.T) *projectProxyFixture {
 			return ok, nil
 		},
 		CreateFunc: func(_ context.Context, _ *gorm.DB, p *models.MCPProxy, handle, name, version, _ string, projectUUID, projectName *string) error {
+			if f.createErr != nil {
+				return f.createErr
+			}
 			f.createCalls++
 			p.UUID = uuid.New()
 			p.ProjectUUID, p.ProjectName = projectUUID, projectName
@@ -641,4 +659,46 @@ func TestSameURLOrigin(t *testing.T) {
 	assert.False(t, sameURLOrigin("https://a.example/mcp", "https://b.example/mcp"))
 	assert.False(t, sameURLOrigin("https://a.example/mcp", "not a url"))
 	assert.False(t, sameURLOrigin("", ""))
+}
+
+// A binding PUT committed after the proxy was read and before its URL change locked it is kept: the bindings are
+// rewritten from the locked proxy, not the copy read first.
+func TestUpsertByURL_URLChangeKeepsABindingSavedMeanwhile(t *testing.T) {
+	f := newProjectProxyFixture(t)
+	ctx := context.Background()
+	_, _, err := f.svc.Upsert(ctx, testOrg, testProjName, testProjA, "docs", urlReq())
+	require.NoError(t, err)
+	endpointUUID := uuid.New()
+	f.proxies["docs"].Endpoints = []models.MCPProxyEndpoint{{
+		UUID: endpointUUID, Configuration: models.MCPEndpointConfig{Upstream: &models.UpstreamEndpoint{URL: publicMCPURL}},
+	}}
+	policies := []models.MCPPolicy{{Name: "basic-ratelimit", Version: "v1"}}
+	f.beforeLock = func() {
+		saved := *f.proxies["docs"]
+		saved.Endpoints = []models.MCPProxyEndpoint{{
+			UUID: endpointUUID,
+			Configuration: models.MCPEndpointConfig{
+				Upstream: &models.UpstreamEndpoint{URL: publicMCPURL}, Policies: policies,
+			},
+		}}
+		f.proxies["docs"] = &saved
+	}
+
+	req := urlReq()
+	req.Upstream.URL = "https://8.8.8.8/v2/mcp"
+	_, _, err = f.svc.Upsert(ctx, testOrg, testProjName, testProjA, "docs", req)
+	require.NoError(t, err)
+	require.Len(t, f.updatedEps, 1)
+	assert.Equal(t, "https://8.8.8.8/v2/mcp", f.updatedEps[0].Configuration.Upstream.URL)
+	assert.Equal(t, policies, f.updatedEps[0].Configuration.Policies, "the binding saved meanwhile keeps its policies")
+}
+
+// A create-only PUT whose insert loses the handle to something other than this project's proxy (another kind of
+// artifact, say) answers HANDLE_IN_USE, as a plain PUT does, not "already exists".
+func TestUpsertCreateOnly_HandleTakenMeanwhileByAnotherArtifact(t *testing.T) {
+	f := newProjectProxyFixture(t)
+	f.createErr = fmt.Errorf("%w: handle already in use by another artifact", utils.ErrMCPProxyHandleInUse)
+	_, _, err := f.svc.UpsertWithCreateCheck(context.Background(), testOrg, testProjName, testProjA, "docs", urlReq(), true, true)
+	assert.ErrorIs(t, err, utils.ErrMCPProxyHandleInUse)
+	assert.NotErrorIs(t, err, utils.ErrMCPProxyExists)
 }

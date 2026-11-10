@@ -562,9 +562,9 @@ func (s *ProjectMCPProxyService) bindingGateway(
 	case err != nil:
 		return nil, fmt.Errorf("failed to resolve the environment's gateway: %w", err)
 	}
-	// A self-hosted gateway is customer-run: it has no route to the in-cluster upstream, and must not be sent the
-	// internal hostname or the upstream auth. The environment never infers one, so only a named one, or a placement
-	// on one, gets here.
+	// A self-hosted gateway is customer-run: a sourced binding's in-cluster upstream has no route from it, and its
+	// internal hostname and upstream auth must not be sent there. A binding registered by URL is held to the same
+	// rule. The environment never infers one, so only a named one, or a placement on one, gets here.
 	if !gateway.IsManaged() {
 		return nil, fmt.Errorf("%w: gatewayId: project MCP proxies deploy only on managed gateways, and %s is self-hosted",
 			utils.ErrInvalidInput, gateway.UUID)
@@ -603,8 +603,10 @@ func normalizeBindingSecurity(in *models.MCPProxyEnvironmentSecurity) (*models.S
 		apiKey = &copied
 	}
 	security := defaultMCPProxySecurity(&models.SecurityConfig{Enabled: in.Enabled, APIKey: apiKey})
-	if security.APIKey.In != "header" && security.APIKey.In != "query" {
-		return nil, fmt.Errorf("%w: security.apiKey.in must be header or query", utils.ErrInvalidInput)
+	// The gateway's api-key-auth policy reads the key from a header only: a binding taking it from the query would
+	// deploy but accept no call, and its capability discovery would fail for good.
+	if err := security.ValidateAPIKeyLocation(); err != nil {
+		return nil, fmt.Errorf("%w: security.apiKey.in: %w", utils.ErrInvalidInput, err)
 	}
 	return security, nil
 }
@@ -719,13 +721,9 @@ func (s *ProjectMCPProxyService) keepStoredUpstreamValue(
 	if !strings.EqualFold(valueOrEmpty(stored.Type), "api-key") {
 		return nil, missing
 	}
-	value := valueOrEmpty(stored.Value)
-	if stored.SecretRef != nil {
-		decrypted, err := utils.DecryptSecretRef(*stored.SecretRef, s.base.encryptionKey)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read the stored upstream auth: %w", err)
-		}
-		value = decrypted
+	value, err := s.storedUpstreamValue(stored)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read the stored upstream auth: %w", err)
 	}
 	if value == "" {
 		return nil, missing
@@ -780,14 +778,10 @@ func normalizeBindingResilience(in *models.Resilience) (*models.Resilience, erro
 	if in == nil {
 		return nil, nil //nolint:nilnil // no timeouts: the gateway's defaults
 	}
-	trimmed := func(v *string) *string {
-		if v == nil || strings.TrimSpace(*v) == "" {
-			return nil
-		}
-		t := strings.TrimSpace(*v)
-		return &t
+	out := &models.Resilience{
+		Timeout:     stringPtrIfNotEmpty(strings.TrimSpace(valueOrEmpty(in.Timeout))),
+		IdleTimeout: stringPtrIfNotEmpty(strings.TrimSpace(valueOrEmpty(in.IdleTimeout))),
 	}
-	out := &models.Resilience{Timeout: trimmed(in.Timeout), IdleTimeout: trimmed(in.IdleTimeout)}
 	if out.Timeout == nil && out.IdleTimeout == nil {
 		return nil, nil //nolint:nilnil // no timeouts: the gateway's defaults
 	}
@@ -804,15 +798,19 @@ func (s *ProjectMCPProxyService) sameUpstreamAuth(stored, desired *models.Upstre
 	if valueOrEmpty(stored.Type) != valueOrEmpty(desired.Type) || valueOrEmpty(stored.Header) != valueOrEmpty(desired.Header) {
 		return false
 	}
-	storedValue := valueOrEmpty(stored.Value)
-	if stored.SecretRef != nil {
-		decrypted, err := utils.DecryptSecretRef(*stored.SecretRef, s.base.encryptionKey)
-		if err != nil {
-			return false
-		}
-		storedValue = decrypted
+	storedValue, err := s.storedUpstreamValue(stored)
+	if err != nil {
+		return false
 	}
 	return storedValue == valueOrEmpty(desired.Value)
+}
+
+// storedUpstreamValue is a stored upstream credential's value: its encrypted secret ref decrypted, or its plain value.
+func (s *ProjectMCPProxyService) storedUpstreamValue(stored *models.UpstreamAuth) (string, error) {
+	if stored.SecretRef != nil {
+		return utils.DecryptSecretRef(*stored.SecretRef, s.base.encryptionKey)
+	}
+	return valueOrEmpty(stored.Value), nil
 }
 
 func nilIfEmptyPolicies(policies []models.MCPPolicy) []models.MCPPolicy {

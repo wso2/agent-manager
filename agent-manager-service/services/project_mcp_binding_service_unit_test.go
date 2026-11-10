@@ -1189,17 +1189,42 @@ func TestPutEnv_Resilience_Invalid400NothingStored(t *testing.T) {
 
 // The gateway artifact of an environment carries its endpoint's timeouts.
 func TestBuildMCPProxyEnvArtifact_CarriesTheEndpointTimeouts(t *testing.T) {
-	proxy := &models.MCPProxy{UUID: uuid.New(), Handle: "docs"}
-	endpoint := &models.MCPProxyEndpoint{
-		Handle: "main",
-		Configuration: models.MCPEndpointConfig{
-			Upstream:   &models.UpstreamEndpoint{URL: "https://8.8.8.8/mcp"},
-			Resilience: bindingTimeouts("15s", "1m"),
+	ctxPath, projectUUID, projectName := "/docs", "p-uuid", "p1"
+	for name, proxy := range map[string]*models.MCPProxy{
+		// Before, an org endpoint's stored timeouts were dropped from its artifact; they now reach the gateway.
+		"org proxy": {UUID: uuid.New(), Handle: "docs", Configuration: models.MCPProxyConfig{Context: &ctxPath}},
+		"project proxy": {
+			UUID: uuid.New(), Handle: "docs", ProjectUUID: &projectUUID, ProjectName: &projectName,
+			Configuration: models.MCPProxyConfig{Context: &ctxPath},
 		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			endpoint := &models.MCPProxyEndpoint{
+				Handle: "main",
+				Configuration: models.MCPEndpointConfig{
+					Upstream:   &models.UpstreamEndpoint{URL: "https://8.8.8.8/mcp"},
+					Resilience: bindingTimeouts("15s", "1m"),
+				},
+			}
+			ee := &models.MCPProxyEndpointEnvironment{ArtifactUUID: uuid.New(), EnvironmentUUID: uuid.New()}
+			deployable := buildMCPProxyEnvArtifact(proxy, endpoint, ee)
+			rendered, err := buildMCPProxyDeploymentYAML(deployable, "docs", nil)
+			require.NoError(t, err)
+			require.NotNil(t, rendered.Spec.Resilience)
+			assert.Equal(t, "15s", *rendered.Spec.Resilience.Timeout)
+			assert.Equal(t, "1m", *rendered.Spec.Resilience.IdleTimeout)
+		})
 	}
-	ee := &models.MCPProxyEndpointEnvironment{ArtifactUUID: uuid.New(), EnvironmentUUID: uuid.New()}
-	deployable := buildMCPProxyEnvArtifact(proxy, endpoint, ee)
-	require.NotNil(t, deployable.Configuration.Resilience)
-	assert.Equal(t, "15s", *deployable.Configuration.Resilience.Timeout)
-	assert.Equal(t, "1m", *deployable.Configuration.Resilience.IdleTimeout)
+}
+
+// The gateway reads a binding's API key from a header only, so a query location is refused rather than deployed.
+func TestPutEnv_APIKeyInQuery_400NothingStored(t *testing.T) {
+	f := newBindingFixture(t)
+	enabled := true
+	_, _, err := f.put(t, models.MCPProxyEnvironmentRequest{Security: &models.MCPProxyEnvironmentSecurity{
+		Enabled: &enabled, APIKey: &models.APIKeySecurity{Enabled: &enabled, Key: "api_key", In: "query"},
+	}})
+	require.ErrorIs(t, err, utils.ErrInvalidInput)
+	assert.Zero(t, f.endpointWrites, "nothing is stored")
+	assert.Empty(t, f.deployed)
 }

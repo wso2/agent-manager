@@ -1334,9 +1334,8 @@ func convertModelMCPProxyToListItem(proxy *models.MCPProxy) models.MCPProxyListI
 		}
 	}
 	var source *models.MCPProxySource
-	if proxy.ProjectUUID != nil && proxy.Configuration.Source != nil {
-		s := *proxy.Configuration.Source
-		source = &s
+	if proxy.ProjectUUID != nil {
+		source = projectMCPProxySource(proxy)
 	}
 	return models.MCPProxyListItem{
 		Environments:   environments,
