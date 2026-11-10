@@ -178,6 +178,42 @@ spec:
         secretSyncRevision:
           type: string
           default: ""
+        # Secret env vars and file mounts, written by Agent Manager. Each entry
+        # names a key of a secret in the in-house store directly (remoteKey is
+        # "<ouID>/<secret>", property the key within it), so no SecretReference
+        # is involved. Values never appear here, only where to fetch them.
+        secretEnvs:
+          type: array
+          default: []
+          items:
+            type: object
+            required: [name, remoteKey, property]
+            properties:
+              name:
+                type: string
+              secret:
+                type: string
+              property:
+                type: string
+              remoteKey:
+                type: string
+        secretFiles:
+          type: array
+          default: []
+          items:
+            type: object
+            required: [key, mountPath, remoteKey, property]
+            properties:
+              key:
+                type: string
+              mountPath:
+                type: string
+              secret:
+                type: string
+              property:
+                type: string
+              remoteKey:
+                type: string
         runtimeClassName:
           type: string
           default: ""
@@ -331,10 +367,18 @@ spec:
                             "timeoutSeconds": environmentConfigs.healthChecks.liveness.?timeoutSeconds.orValue(1),
                             "failureThreshold": environmentConfigs.healthChecks.liveness.?failureThreshold.orValue(3)
                           })}
-                  env: ${dependencies.toContainerEnvs()}
+                  # Secret env vars are listed explicitly from the one secret-env
+                  # Secret, so an env var name maps to exactly one secret key.
+                  env: |
+                    ${dyn(dependencies.toContainerEnvs()) + environmentConfigs.secretEnvs.map(s, {
+                      "name": s.name,
+                      "valueFrom": {"secretKeyRef": {"name": metadata.name + "-secret-env", "key": s.name}}
+                    })}
                   envFrom: ${configurations.toContainerEnvFrom()}
                   volumeMounts: |
-                    ${configurations.toContainerVolumeMounts().map(m, {"name": m.name, "mountPath": m.mountPath, "subPath": m.subPath}) + [
+                    ${configurations.toContainerVolumeMounts().map(m, {"name": m.name, "mountPath": m.mountPath, "subPath": m.subPath}) + environmentConfigs.secretFiles.map(f, {
+                      "name": "amp-secret-files", "mountPath": f.mountPath, "subPath": f.key, "readOnly": true
+                    }) + [
                       {"name": "tmp", "mountPath": "/tmp"},
                       {"name": "workspace", "mountPath": "/data"},
                       {"name": "cache", "mountPath": "/home/nobody/.cache"}
@@ -343,7 +387,9 @@ spec:
                 ${configurations.toVolumes().map(v,
                   has(v.configMap) ? {"name": v.name, "configMap": {"name": v.configMap.name}} :
                   {"name": v.name, "secret": {"secretName": v.secret.secretName}}
-                ) + [
+                ) + (size(environmentConfigs.secretFiles) > 0
+                  ? [{"name": "amp-secret-files", "secret": {"secretName": metadata.name + "-secret-files"}}]
+                  : []) + [
                   {"name": "tmp", "emptyDir": {"sizeLimit": "200Mi"}},
                   {"name": "workspace", "emptyDir": {"sizeLimit": "500Mi"}},
                   {"name": "cache", "emptyDir": {"sizeLimit": "200Mi"}}
@@ -486,14 +532,15 @@ spec:
         data:
           ${config.name}: |
             ${config.value}
+    # One ExternalSecret per binding for all secret env vars, and one for all
+    # secret file mounts, read from the in-house store by direct key.
     - id: secret-env-external
-      forEach: ${configurations.toSecretEnvsByContainer()}
-      var: secretEnv
+      includeWhen: ${size(environmentConfigs.secretEnvs) > 0}
       template:
         apiVersion: external-secrets.io/v1
         kind: ExternalSecret
         metadata:
-          name: ${secretEnv.resourceName}
+          name: ${metadata.name}-secret-env
           namespace: ${metadata.namespace}
           annotations:
             # ESO syncs immediately whenever this annotation value changes.
@@ -510,24 +557,20 @@ spec:
             name: ${dataplane.secretStore}
             kind: ClusterSecretStore
           target:
-            name: ${secretEnv.resourceName}
+            name: ${metadata.name}-secret-env
             creationPolicy: Owner
           data: |
-            ${secretEnv.envs.map(secret, {
-              "secretKey": secret.name,
-              "remoteRef": {
-                "key": secret.remoteRef.key,
-                "property": has(secret.remoteRef.property) ? secret.remoteRef.property : oc_omit()
-              }
+            ${environmentConfigs.secretEnvs.map(s, {
+              "secretKey": s.name,
+              "remoteRef": {"key": s.remoteKey, "property": s.property}
             })}
     - id: secret-file-external
-      forEach: ${configurations.toSecretFileList()}
-      var: file
+      includeWhen: ${size(environmentConfigs.secretFiles) > 0}
       template:
         apiVersion: external-secrets.io/v1
         kind: ExternalSecret
         metadata:
-          name: ${file.resourceName}
+          name: ${metadata.name}-secret-files
           namespace: ${metadata.namespace}
           annotations:
             force-sync: ${environmentConfigs.secretSyncRevision}
@@ -537,11 +580,10 @@ spec:
             name: ${dataplane.secretStore}
             kind: ClusterSecretStore
           target:
-            name: ${file.resourceName}
+            name: ${metadata.name}-secret-files
             creationPolicy: Owner
-          data:
-            - secretKey: ${file.name}
-              remoteRef:
-                key: ${file.remoteRef.key}
-                property: |
-                  ${has(file.remoteRef.property) ? file.remoteRef.property : oc_omit()}
+          data: |
+            ${environmentConfigs.secretFiles.map(f, {
+              "secretKey": f.key,
+              "remoteRef": {"key": f.remoteKey, "property": f.property}
+            })}

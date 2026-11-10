@@ -44,7 +44,7 @@ spec:
           description: "Environment-specific property within the remote secret that holds the agent API key (ExternalSecret remoteRef property)."
 
   # The agent API key reaches the pod as the AMP_AGENT_API_KEY env var, which the agent
-  # manager sets on the workload as a reference to the key's SecretReference, by name.
+  # manager sets as a secret env var (environmentConfigs.secretEnvs) of the binding.
   # Agents created before that still carry the key's KV path (agentApiKeySecretRef); for
   # them this ExternalSecret fetches it and the legacy patch below injects it. The raw key
   # is never persisted in the control plane either way.

@@ -235,7 +235,7 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 			slog.Error("failed to create OpenChoreo client for AgentID provisioning", "error", err)
 			os.Exit(1)
 		}
-		secretMgmtClientForProvisioning, err := wiring.ProvideSecretManagementClient(*cfg, secretProvider, ocClientForProvisioning, database)
+		secretMgmtClientForProvisioning, err := wiring.ProvideSecretManagementClient(*cfg, secretProvider, database)
 		if err != nil {
 			slog.Error("failed to create secret management client for AgentID provisioning", "error", err)
 			os.Exit(1)

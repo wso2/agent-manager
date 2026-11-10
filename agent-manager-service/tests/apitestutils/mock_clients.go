@@ -196,22 +196,6 @@ func CreateMockOpenChoreoClient() *clientmocks.OpenChoreoClientMock {
 		IsDeploymentInProgressFunc: func(ctx context.Context, namespaceName string, componentName string, environment string) (bool, error) {
 			return false, nil
 		},
-		DeleteSecretReferenceFunc: func(ctx context.Context, namespace string, name string) error {
-			return nil
-		},
-		GetSecretReferenceFunc: func(ctx context.Context, namespace string, name string) (*client.SecretReferenceInfo, error) {
-			// Return a reference exposing an "api-key" data source so flows that resolve a
-			// secret reference (e.g. the env-injection trait's agent API key) can succeed.
-			return &client.SecretReferenceInfo{
-				Name: name,
-				Data: []client.SecretDataSourceInfo{
-					{
-						SecretKey: secretmanagersvc.SecretKeyAPIKey,
-						RemoteRef: client.RemoteRefInfo{Key: name, Property: secretmanagersvc.SecretKeyAPIKey},
-					},
-				},
-			}, nil
-		},
 		GetWorkloadSecretRefNamesFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string) ([]string, error) {
 			// Return empty list by default (no secret refs)
 			return nil, nil

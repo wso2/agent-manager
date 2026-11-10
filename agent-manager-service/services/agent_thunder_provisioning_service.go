@@ -301,7 +301,7 @@ func agentIdentitySecretLocation(ouID, projectName, agentName, envName string) s
 }
 
 // storeCredential writes the client ID/secret pair for one binding and returns
-// the provider-managed SecretReference name to persist in SecretRefPath.
+// the stored secret's name to persist in SecretRefPath.
 func (s *agentThunderProvisioningService) storeCredential(ctx context.Context, ouID, projectName, agentName, envName, clientID, clientSecret string) (string, error) {
 	location := agentIdentitySecretLocation(ouID, projectName, agentName, envName)
 	data := map[string]string{
@@ -310,28 +310,7 @@ func (s *agentThunderProvisioningService) storeCredential(ctx context.Context, o
 	}
 	refName, err := s.secretMgmtClient.CreateSecret(ctx, location, data)
 	if err != nil {
-		if !errors.Is(err, secretmanagersvc.ErrReferenceNameTaken) {
-			return "", err
-		}
-		// A binding provisioned before the provider owned this SecretReference
-		// still has one created directly by the identity injection service, not
-		// through the secret API. The API reports it missing, yet its name is
-		// taken, so the create conflicts and the fallback update fails. Delete
-		// that legacy SecretReference and create again: the retry is then a plain
-		// create, and from here on the provider owns it like any new binding's.
-		// Only a legacy SecretReference produces this error, so provider-owned
-		// bindings never reach the direct delete.
-		injector := s.getWorkloadInjector()
-		if injector == nil {
-			return "", err
-		}
-		if cleanupErr := injector.CleanupForEnvironment(ctx, ouID, agentName, envName); cleanupErr != nil {
-			return "", fmt.Errorf("clear legacy SecretReference before retry: %w: %w", cleanupErr, err)
-		}
-		refName, err = s.secretMgmtClient.CreateSecret(ctx, location, data)
-		if err != nil {
-			return "", err
-		}
+		return "", err
 	}
 
 	return refName, nil

@@ -252,7 +252,6 @@ func loadEnvs() {
 	}
 
 	config.SecretManager = SecretManagerConfig{
-		RefreshInterval:                    r.readOptionalString("SECRET_MANAGER_REFRESH_INTERVAL", "1h"),
 		AgentIdentityRefreshInterval:       r.readOptionalString("AGENT_IDENTITY_REFRESH_INTERVAL", "10m"),
 		AgentIdentityForceSyncWait:         r.readOptionalString("AGENT_IDENTITY_FORCE_SYNC_WAIT", "20s"),
 		AgentIdentityForceSyncApplyTimeout: r.readOptionalString("AGENT_IDENTITY_FORCE_SYNC_APPLY_TIMEOUT", "2m"),

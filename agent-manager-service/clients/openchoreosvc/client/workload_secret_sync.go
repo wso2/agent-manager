@@ -59,16 +59,10 @@ func (c *openChoreoClient) SyncEditedWorkloadSecrets(ctx context.Context, ouID, 
 	if len(objects) == 0 {
 		return nil
 	}
-	ref, err := c.GetSecretReference(ctx, ouID, secretRefName)
-	if err != nil {
-		return fmt.Errorf("get edited secret reference: %w", err)
-	}
-	if ref == nil {
-		return fmt.Errorf("edited secret reference is missing")
-	}
+	storeKey := secretStoreKey(ouID, secretRefName)
 	targets := make(map[string]string)
 	for uid, obj := range objects {
-		if referencesEditedSecret(obj, ref, editedKeys) {
+		if referencesEditedSecret(obj, storeKey, editedKeys) {
 			name, _, _ := unstructured.NestedString(obj, "metadata", "name")
 			targets[uid] = name
 		}
@@ -171,7 +165,7 @@ func forceSyncExternalSecrets(tree *gen.K8sResourceTreeResponse) map[string]map[
 }
 
 // referencesEditedSecret matches the rendered remote reference to an edited key.
-func referencesEditedSecret(obj map[string]any, ref *SecretReferenceInfo, editedKeys []string) bool {
+func referencesEditedSecret(obj map[string]any, storeKey string, editedKeys []string) bool {
 	data, _, _ := unstructured.NestedSlice(obj, "spec", "data")
 	for _, item := range data {
 		entry, ok := item.(map[string]any)
@@ -180,10 +174,8 @@ func referencesEditedSecret(obj map[string]any, ref *SecretReferenceInfo, edited
 		}
 		path, _, _ := unstructured.NestedString(entry, "remoteRef", "key")
 		property, _, _ := unstructured.NestedString(entry, "remoteRef", "property")
-		for _, source := range ref.Data {
-			if path == source.RemoteRef.Key && property == source.RemoteRef.Property && slices.Contains(editedKeys, source.SecretKey) {
-				return true
-			}
+		if path == storeKey && slices.Contains(editedKeys, property) {
+			return true
 		}
 	}
 	return false

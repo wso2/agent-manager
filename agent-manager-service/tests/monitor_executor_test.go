@@ -316,7 +316,7 @@ func TestExecuteMonitorRun_DBRecordCreated(t *testing.T) {
 }
 
 // TestExecuteMonitorRun_LLMCredentials verifies that when a MonitorLLMMapping and a Gateway
-// are seeded for a monitor, the workflow request includes the correct llmProxySecretRefName
+// are seeded for a monitor, the workflow request includes the correct llmProxySecretKVPath
 // and llmApiBase derived from those records.
 func TestExecuteMonitorRun_LLMCredentials(t *testing.T) {
 	monitor := seedMonitor(t)
@@ -419,8 +419,8 @@ func TestExecuteMonitorRun_LLMCredentials(t *testing.T) {
 	evalParams := capturedReq.Parameters["evaluation"].(map[string]interface{})
 
 	// The workflow gets the SecretReference name and resolves it through OpenChoreo.
-	assert.Equal(t, "monitor-"+monitor.ID.String()+"-secrets", evalParams["llmProxySecretRefName"],
-		"llmProxySecretRefName should be the monitor's SecretReference name")
+	assert.Equal(t, monitor.OUID+"/monitor-"+monitor.ID.String()+"-secrets", evalParams["llmProxySecretKVPath"],
+		"llmProxySecretKVPath should be the store key of the monitor's LLM proxy secret")
 	assert.NotContains(t, evalParams, "llmProxySecretPath", "the remote store path is never sent")
 
 	// The evaluation job runs in-cluster, so it gets the gateway's runtime address, not the
@@ -506,9 +506,11 @@ func TestExecuteMonitorRun_PerOrgPublisherCredentials(t *testing.T) {
 
 	pubParams := capturedReq.Parameters["publishing"].(map[string]interface{})
 	assert.Equal(t, "amp-publisher-test-org", pubParams["clientId"])
-	// The seeded row holds a legacy store path, whose last segment is the SecretReference name.
-	assert.Equal(t, "amp-publisher-test-org-secrets", pubParams["secretRefName"])
-	assert.NotContains(t, pubParams, "secretKVPath", "the remote store path is never sent")
+	// The seeded row holds a legacy store path, whose last segment is the secret's name.
+	// The workflow reads it by its store key.
+	assert.Equal(t, "test-org/amp-publisher-test-org-secrets", pubParams["secretKVPath"])
+	assert.Equal(t, "client-secret", pubParams["secretKey"])
+	assert.NotContains(t, pubParams, "secretRefName")
 }
 
 // TestExecuteMonitorRun_FallbackPublisherCredentials verifies that when no per-org

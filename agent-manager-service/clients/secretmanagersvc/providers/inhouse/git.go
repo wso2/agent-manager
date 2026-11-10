@@ -33,9 +33,8 @@ const (
 	gitSecretNameLabel = "git-secret-name"
 )
 
-// CreateGitSecret inserts the tenant-scoped credential and publishes its typed
-// reference for checkout workflows. Repeating a create repairs a missing
-// reference but never replaces the existing credential.
+// CreateGitSecret inserts the tenant-scoped credential. Checkout workflows read
+// it by its store key. Repeating a create never replaces the existing credential.
 func (c *Client) CreateGitSecret(ctx context.Context, ouID, name, username, password string) error {
 	if err := validateOuID(ouID); err != nil {
 		return err
@@ -62,28 +61,6 @@ func (c *Client) CreateGitSecret(ctx context.Context, ouID, name, username, pass
 	if result.RowsAffected == 0 {
 		if err := c.CheckGitSecret(ctx, ouID, name); err != nil {
 			return err
-		}
-	}
-	req := occlient.CreateSecretReferenceRequest{
-		Name: ref, KVPath: RemoteKey(ouID, ref), SecretKeys: keys,
-		SecretType: "kubernetes.io/basic-auth", RefreshInterval: c.refreshInterval,
-	}
-	if _, err := c.oc.CreateSecretReference(ctx, ouID, req); err != nil {
-		if !errors.Is(err, utils.ErrConflict) {
-			return fmt.Errorf("publish Git secret reference: %w", err)
-		}
-		existing, err := c.oc.GetSecretReference(ctx, ouID, ref)
-		if err != nil {
-			return fmt.Errorf("verify Git secret reference: %w", err)
-		}
-		if existing == nil || len(existing.Data) != len(keys) {
-			return secretmanagersvc.ErrReferenceNameTaken
-		}
-		for _, source := range existing.Data {
-			if source.RemoteRef.Key != req.KVPath || source.RemoteRef.Property != source.SecretKey ||
-				(source.SecretKey != "username" && source.SecretKey != "password") {
-				return secretmanagersvc.ErrReferenceNameTaken
-			}
 		}
 	}
 	if result.RowsAffected == 0 {

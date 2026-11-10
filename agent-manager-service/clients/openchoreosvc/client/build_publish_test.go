@@ -795,14 +795,15 @@ func (s *triggerBuildStub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func TestTriggerBuildUsesTenantScopedGitSecretReference(t *testing.T) {
+func TestTriggerBuildPassesTenantScopedGitSecretStoreKey(t *testing.T) {
 	stub := &triggerBuildStub{t: t, workflowName: "amp-docker", gitSecretRef: "private"}
 	c := newTestClient(t, stub)
 	_, err := c.TriggerBuild(context.Background(), "org-1", "proj1", "my-agent", "", "my-agent-1700", nil, nil)
 	require.NoError(t, err)
 	require.NotNil(t, stub.createdRun)
-	repo := (*stub.createdRun.Spec.Workflow.Parameters)["repository"]
-	assert.Equal(t, map[string]any{"url": "u", "secretRef": GitSecretReferenceName("org-1", "private")}, repo)
+	params := *stub.createdRun.Spec.Workflow.Parameters
+	assert.Equal(t, map[string]any{"url": "u"}, params["repository"], "the run carries no SecretReference name")
+	assert.Equal(t, "org-1/"+GitSecretReferenceName("org-1", "private"), params[workflowParamGitSecretKVPath])
 	assert.NotEqual(t, GitSecretReferenceName("org-1", "private"), GitSecretReferenceName("org-2", "private"))
 }
 

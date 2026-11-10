@@ -68,9 +68,9 @@ func TestMonitorExecutor_buildPublishingParams(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.Equal(t, "acme-publisher", params["clientId"])
-		assert.Equal(t, "amp-publisher-acme-secrets", params["secretRefName"])
-		assert.NotContains(t, params, "secretKVPath", "the workflow resolves the SecretReference itself")
-		assert.NotContains(t, params, "secretKey")
+		assert.Equal(t, "acme/amp-publisher-acme-secrets", params["secretKVPath"], "the workflow reads the secret by its store key")
+		assert.Equal(t, "client-secret", params["secretKey"])
+		assert.NotContains(t, params, "secretRefName")
 	})
 
 	// Rows written before the name was persisted hold the remote store path. A Secret
@@ -110,8 +110,8 @@ func TestMonitorExecutor_buildPublishingParams(t *testing.T) {
 			params, err := e.buildPublishingParams(context.Background(), monitor, runID)
 
 			require.NoError(t, err)
-			assert.Equal(t, tc.wantRefName, params["secretRefName"])
-			assert.NotContains(t, params, "secretKVPath")
+			assert.Equal(t, "acme/"+tc.wantRefName, params["secretKVPath"])
+			assert.NotContains(t, params, "secretRefName")
 		})
 	}
 
@@ -137,7 +137,7 @@ func TestMonitorExecutor_buildPublishingParams(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.Equal(t, "provisioned-client", params["clientId"])
-		assert.Equal(t, "amp-publisher-acme-secrets", params["secretRefName"])
+		assert.Equal(t, "acme/amp-publisher-acme-secrets", params["secretKVPath"])
 		assert.Equal(t, "acme", gotOUID)
 		// ouID is the Thunder OU ID, so it is also the orgUUID.
 		assert.Equal(t, "acme", gotOrgUUID)

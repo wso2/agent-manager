@@ -889,12 +889,8 @@ func (s *agentIdentityInjectionService) RemoveForEnvironment(ctx context.Context
 	return nil
 }
 
-func (s *agentIdentityInjectionService) CleanupForEnvironment(ctx context.Context, ouID, agentName, envName string) error {
-	// projectName is not part of SecretRefName's computation (see
-	// SecretLocation.SecretRefName), so this method doesn't carry one.
-	refName := agentIdentitySecretLocation(ouID, "", agentName, envName).SecretRefName()
-	if err := s.ocClient.DeleteSecretReference(ctx, ouID, refName); err != nil && !errors.Is(err, utils.ErrNotFound) {
-		return fmt.Errorf("delete legacy agent identity SecretReference %q: %w", refName, err)
-	}
+// CleanupForEnvironment has nothing to remove: agent identity secrets live only
+// in the secret store, and no OpenChoreo resource references them.
+func (s *agentIdentityInjectionService) CleanupForEnvironment(context.Context, string, string, string) error {
 	return nil
 }

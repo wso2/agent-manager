@@ -344,43 +344,6 @@ type workflowEndpoint struct {
 	SchemaContent  string   `json:"schemaContent,omitempty"`
 }
 
-// CreateSecretReferenceRequest contains data for creating a SecretReference CR
-type CreateSecretReferenceRequest struct {
-	Namespace       string   // Namespace where SecretReference will be created
-	Name            string   // Name of the SecretReference
-	ProjectName     string   // Project name for labels
-	ComponentName   string   // Component name for labels
-	KVPath          string   // Path in the backing KV store
-	SecretKeys      []string // Keys to extract from KV path
-	SecretType      string   // Optional type of the generated Kubernetes Secret
-	RefreshInterval string   // How often to refresh (e.g., "1h", "15s")
-	// TemplateAnnotations are set on the generated Secret's template metadata.
-	// Changing an annotation is a real spec change, so an update carrying a fresh
-	// value (e.g. a rotated-at timestamp) forces the OpenChoreo controller to
-	// re-sync the Secret from the KV store immediately instead of waiting for the
-	// next RefreshInterval tick — used after credential rotation.
-	TemplateAnnotations map[string]string
-}
-
-// SecretReferenceInfo contains info about a SecretReference CR
-type SecretReferenceInfo struct {
-	Name      string                 // Name of the SecretReference
-	Namespace string                 // Namespace of the SecretReference
-	Data      []SecretDataSourceInfo // Data sources in the SecretReference
-}
-
-// SecretDataSourceInfo contains info about a secret data source
-type SecretDataSourceInfo struct {
-	SecretKey string        // Key in the K8s secret
-	RemoteRef RemoteRefInfo // Reference to the remote secret store
-}
-
-// RemoteRefInfo contains info about the remote reference
-type RemoteRefInfo struct {
-	Key      string // Path/Key in the remote secret store
-	Property string // Property within the key (optional)
-}
-
 // -----------------------------------------------------------------------------
 // Git Secret Types
 // -----------------------------------------------------------------------------

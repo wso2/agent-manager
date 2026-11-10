@@ -316,6 +316,7 @@ var buildBindingRetryDelay = 2 * time.Second
 // buildBindingMaxAttempts, because the backend writes the same binding
 // concurrently; see the step's comment for why 500 is retryable.
 func (c *openChoreoClient) PublishBuildWorkload(ctx context.Context, ouID string, req PublishBuildWorkloadRequest) error {
+	ctx = withSecretOuID(ctx, ouID)
 	// Publishing creates or repins the first environment's binding, so like any
 	// other new work it is refused for an organization the deployment's workload
 	// guard does not admit (a suspended subscription).

@@ -27,3 +27,7 @@ func GitSecretReferenceName(ouID, name string) string {
 	sum := sha256.Sum256([]byte(ouID + "\x00" + name))
 	return "amp-git-" + hex.EncodeToString(sum[:24])
 }
+
+// workflowParamGitSecretKVPath is the build workflow parameter carrying the
+// secret store key of the run's Git credentials.
+const workflowParamGitSecretKVPath = "gitSecretKVPath"

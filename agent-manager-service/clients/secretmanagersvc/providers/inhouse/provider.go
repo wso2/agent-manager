@@ -73,12 +73,9 @@ func NewClient(cfg *secretmanagersvc.InHouseConfig) (*Client, error) {
 	if cfg.DB == nil {
 		return nil, errors.New("database is required")
 	}
-	if cfg.Client == nil {
-		return nil, errors.New("openchoreo client is required")
-	}
 	v, err := vault.NewInHouseVault(cfg.EncryptionKey)
 	if err != nil {
 		return nil, err
 	}
-	return &Client{db: cfg.DB, vault: v, oc: cfg.Client, refreshInterval: cfg.RefreshInterval}, nil
+	return &Client{db: cfg.DB, vault: v}, nil
 }

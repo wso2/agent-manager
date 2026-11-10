@@ -337,9 +337,6 @@ type TLSConfig struct {
 
 // SecretManagerConfig holds secret manager client configuration
 type SecretManagerConfig struct {
-	// RefreshInterval is how often SecretReference CRs should refresh from the
-	// secret store (default: "1h")
-	RefreshInterval string
 	// StoreToken is the bearer token the in-house ClusterSecretStore presents to
 	// the internal secret store endpoint (SECRET_STORE_TOKEN). Empty disables
 	// the endpoint.

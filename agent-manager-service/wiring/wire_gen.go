@@ -49,19 +49,19 @@ func InitializeAppParamsWithEnvThunderEndpoints(cfg *config.Config, db *gorm.DB,
 	orgResolver := ProvideOrgResolver(identityClient)
 	recorder := ProvideAuditRecorder(configConfig, logger)
 	ouHandleLookup := ProvideOUHandleLookup(identityClient)
+	secretResolver, err := ProvideSecretResolver(configConfig, db)
+	if err != nil {
+		return nil, err
+	}
 	openChoreoClient, err := ProvideOCClient(configConfig, authProvider)
 	if err != nil {
 		return nil, err
 	}
-	secretResolver, err := ProvideSecretResolver(configConfig, openChoreoClient, db)
+	secretManagementClient, err := ProvideSecretManagementClient(configConfig, secretProvider, db)
 	if err != nil {
 		return nil, err
 	}
-	secretManagementClient, err := ProvideSecretManagementClient(configConfig, secretProvider, openChoreoClient, db)
-	if err != nil {
-		return nil, err
-	}
-	gitSecretStore, err := ProvideGitSecretStore(configConfig, openChoreoClient, db)
+	gitSecretStore, err := ProvideGitSecretStore(configConfig, db)
 	if err != nil {
 		return nil, err
 	}
@@ -314,7 +314,7 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	secretResolver := ProvideTestSecretResolver()
 	openChoreoClient := ProvideTestOpenChoreoClient(testClients)
 	secretManagementClient := ProvideTestSecretManagementClient(testClients)
-	gitSecretStore, err := ProvideGitSecretStore(configConfig, openChoreoClient, db)
+	gitSecretStore, err := ProvideGitSecretStore(configConfig, db)
 	if err != nil {
 		return nil, err
 	}
@@ -756,8 +756,8 @@ func ProvideObserverClient(cfg config.Config, authProvider client.AuthProvider) 
 
 // ProvideSecretManagementClient creates the secret management service client
 // backed by the in-house secret store.
-func ProvideSecretManagementClient(cfg config.Config, secretProvider secretmanagersvc.Provider, ocClient client.OpenChoreoClient, db *gorm.DB) (secretmanagersvc.SecretManagementClient, error) {
-	storeConfig, err := inHouseStoreConfig(cfg, ocClient, db)
+func ProvideSecretManagementClient(cfg config.Config, secretProvider secretmanagersvc.Provider, db *gorm.DB) (secretmanagersvc.SecretManagementClient, error) {
+	storeConfig, err := inHouseStoreConfig(cfg, db)
 	if err != nil {
 		return nil, err
 	}
@@ -769,8 +769,8 @@ func ProvideSecretManagementClient(cfg config.Config, secretProvider secretmanag
 
 // ProvideSecretResolver creates the resolver the internal secret store endpoint
 // reads plaintext values through.
-func ProvideSecretResolver(cfg config.Config, ocClient client.OpenChoreoClient, db *gorm.DB) (secretmanagersvc.SecretResolver, error) {
-	storeConfig, err := inHouseStoreConfig(cfg, ocClient, db)
+func ProvideSecretResolver(cfg config.Config, db *gorm.DB) (secretmanagersvc.SecretResolver, error) {
+	storeConfig, err := inHouseStoreConfig(cfg, db)
 	if err != nil {
 		return nil, err
 	}
@@ -786,7 +786,7 @@ func ProvideSecretResolver(cfg config.Config, ocClient client.OpenChoreoClient, 
 	return resolver, nil
 }
 
-func inHouseStoreConfig(cfg config.Config, ocClient client.OpenChoreoClient, db *gorm.DB) (*secretmanagersvc.StoreConfig, error) {
+func inHouseStoreConfig(cfg config.Config, db *gorm.DB) (*secretmanagersvc.StoreConfig, error) {
 	key, err := ProvideEncryptionKey(cfg)
 	if err != nil {
 		return nil, err
@@ -794,10 +794,8 @@ func inHouseStoreConfig(cfg config.Config, ocClient client.OpenChoreoClient, db 
 	return &secretmanagersvc.StoreConfig{
 		Provider: inhouse.ProviderName,
 		InHouse: &secretmanagersvc.InHouseConfig{
-			DB:              db,
-			EncryptionKey:   key,
-			Client:          ocClient,
-			RefreshInterval: cfg.SecretManager.RefreshInterval,
+			DB:            db,
+			EncryptionKey: key,
 		},
 	}, nil
 }
@@ -822,8 +820,8 @@ func ProvideGatewayManifestCacheBackend(cfg config.Config) (services.GatewayMani
 }
 
 // ProvideGitSecretStore creates the tenant-scoped Git credential store.
-func ProvideGitSecretStore(cfg config.Config, ocClient client.OpenChoreoClient, db *gorm.DB) (services.GitSecretStore, error) {
-	storeConfig, err := inHouseStoreConfig(cfg, ocClient, db)
+func ProvideGitSecretStore(cfg config.Config, db *gorm.DB) (services.GitSecretStore, error) {
+	storeConfig, err := inHouseStoreConfig(cfg, db)
 	if err != nil {
 		return nil, err
 	}

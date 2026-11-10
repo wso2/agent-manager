@@ -154,21 +154,6 @@ func TestListDeploymentPipelines_SkipsTerminating(t *testing.T) {
 	assert.Equal(t, "default", pipelines[0].Name)
 }
 
-func TestListSecretReferences_SkipsTerminating(t *testing.T) {
-	c := newTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		require.NoError(t, json.NewEncoder(w).Encode(gen.SecretReferenceList{Items: []gen.SecretReference{
-			{Metadata: terminatingMeta("deleted-ref")},
-			{Metadata: liveMeta("keeper")},
-		}}))
-	}))
-
-	refs, err := c.ListSecretReferences(context.Background(), "ou-acme", "")
-
-	require.NoError(t, err)
-	require.Len(t, refs, 1)
-	assert.Equal(t, "keeper", refs[0].Name)
-}
-
 // A live resource must still be listed — the filter keys off the deletionTimestamp only.
 func TestIsTerminating(t *testing.T) {
 	assert.False(t, isTerminating(liveMeta("live")))
@@ -209,10 +194,6 @@ func TestCreate_ConflictWithTerminatingResource(t *testing.T) {
 		},
 		"deployment pipeline": func(c *openChoreoClient) error {
 			_, err := c.CreateDeploymentPipeline(ctx, "acme", "stage", nil, nil, nil)
-			return err
-		},
-		"secret reference": func(c *openChoreoClient) error {
-			_, err := c.CreateSecretReference(ctx, "acme", CreateSecretReferenceRequest{Name: "stage"})
 			return err
 		},
 	}

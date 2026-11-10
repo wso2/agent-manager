@@ -120,9 +120,12 @@ func (c *openChoreoClient) TriggerBuild(ctx context.Context, ouID, projectName, 
 	} else {
 		params = make(map[string]interface{})
 	}
+	// The component keeps the user's Git secret name. The run gets the secret's
+	// store key instead, which its checkout ExternalSecret reads directly.
 	if repo, ok := params["repository"].(map[string]interface{}); ok {
 		if name, ok := repo["secretRef"].(string); ok && name != "" {
-			repo["secretRef"] = GitSecretReferenceName(ouID, name)
+			params[workflowParamGitSecretKVPath] = secretStoreKey(ouID, GitSecretReferenceName(ouID, name))
+			delete(repo, "secretRef")
 		}
 	}
 	if commitID != "" {

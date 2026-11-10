@@ -183,7 +183,7 @@ func newTestClientRawHeaders(t *testing.T, handler http.Handler) *openChoreoClie
 
 	gc, err := gen.NewClientWithResponses(srv.URL)
 	require.NoError(t, err)
-	return &openChoreoClient{ocClient: gc, defaultNamespace: "default"}
+	return &openChoreoClient{ocClient: newOCAPI(gc), defaultNamespace: "default"}
 }
 
 // captureDefaultLogger redirects slog.Default() into a buffer for the duration
@@ -225,7 +225,7 @@ func TestListBuilds_ReturnsErrorOnTransportFailure(t *testing.T) {
 
 	gc, err := gen.NewClientWithResponses(srv.URL)
 	require.NoError(t, err)
-	client := &openChoreoClient{ocClient: gc, defaultNamespace: "default"}
+	client := &openChoreoClient{ocClient: newOCAPI(gc), defaultNamespace: "default"}
 
 	builds, err := client.ListBuilds(context.Background(), "acme", "proj", "agent")
 	require.Error(t, err)

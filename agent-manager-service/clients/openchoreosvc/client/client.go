@@ -215,13 +215,6 @@ type OpenChoreoClient interface {
 	GetWorkflowRun(ctx context.Context, ouID, runName string) (*WorkflowRunResponse, error)
 	ExpireWorkflowRun(ctx context.Context, ouID, runName string) error
 
-	// Secret Reference Operations
-	CreateSecretReference(ctx context.Context, ouID string, req CreateSecretReferenceRequest) (*SecretReferenceInfo, error)
-	GetSecretReference(ctx context.Context, ouID, secretRefName string) (*SecretReferenceInfo, error)
-	ListSecretReferences(ctx context.Context, ouID string, componentName string) ([]*SecretReferenceInfo, error)
-	UpdateSecretReference(ctx context.Context, ouID, secretRefName string, req CreateSecretReferenceRequest) (*SecretReferenceInfo, error)
-	DeleteSecretReference(ctx context.Context, ouID, secretRefName string) error
-
 	// Workload Operations
 	GetWorkloadSecretRefNames(ctx context.Context, ouID, projectName, componentName string) ([]string, error)
 
@@ -232,7 +225,7 @@ type OpenChoreoClient interface {
 }
 
 type openChoreoClient struct {
-	ocClient *gen.ClientWithResponses
+	ocClient *ocAPI
 	// defaultNamespace is the OpenChoreo namespace all API calls resolve to;
 	// see NamespaceFor.
 	defaultNamespace string
@@ -354,7 +347,7 @@ func NewOpenChoreoClient(cfg *Config) (OpenChoreoClient, error) {
 	}
 
 	return &openChoreoClient{
-		ocClient:         ocClient,
+		ocClient:         newOCAPI(ocClient),
 		defaultNamespace: cfg.DefaultNamespace,
 		resourceLabels:   maps.Clone(cfg.ResourceLabels),
 	}, nil

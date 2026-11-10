@@ -21,8 +21,6 @@ import (
 	"errors"
 
 	"gorm.io/gorm"
-
-	occlient "github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 )
 
 // ErrSecretNotFound is returned when a secret does not exist.
@@ -36,12 +34,6 @@ var ErrMetadataNotFound = errors.New("secret metadata not found")
 
 // ErrNotSupported is returned when an operation is not supported by the provider.
 var ErrNotSupported = errors.New("operation not supported by this provider")
-
-// ErrReferenceNameTaken is returned when a secret cannot be created because its
-// SecretReference name is already taken by a reference the secret API cannot see
-// or update — one created outside this client, directly as a SecretReference.
-// The caller can delete that reference and create the secret again.
-var ErrReferenceNameTaken = errors.New("secret reference name is taken by a reference this client cannot manage")
 
 // SecretMetadata contains metadata for a secret.
 type SecretMetadata struct {
@@ -81,17 +73,12 @@ type StoreConfig struct {
 }
 
 // InHouseConfig configures the in-house secret store: values are encrypted with
-// EncryptionKey and stored in DB, and each secret is published as a
-// SecretReference through Client.
+// EncryptionKey and stored in DB.
 type InHouseConfig struct {
 	// DB is the agent manager database holding the secrets table.
 	DB *gorm.DB
 	// EncryptionKey is the 32-byte AES-256 key secrets are sealed with.
 	EncryptionKey []byte
-	// Client manages the SecretReference CRs that expose secrets to workloads.
-	Client occlient.OpenChoreoClient
-	// RefreshInterval is set on each SecretReference (e.g. "1h").
-	RefreshInterval string
 }
 
 // SecretResolver returns the plaintext value of one key of a stored secret.

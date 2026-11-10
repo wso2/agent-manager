@@ -29,7 +29,6 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
-	occlient "github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	secretmanagersvc "github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc/vault"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -52,14 +51,13 @@ type secretRow struct {
 
 func (secretRow) TableName() string { return "secrets" }
 
-// Client stores secret values encrypted in the agent manager database and
-// publishes each secret as an OpenChoreo SecretReference whose remote keys the
-// in-house ClusterSecretStore resolves through Resolve.
+// Client stores secret values encrypted in the agent manager database. Workloads
+// receive them through ExternalSecrets that name a secret's store key
+// (RemoteKey) directly, which the in-house ClusterSecretStore resolves through
+// Resolve.
 type Client struct {
-	db              *gorm.DB
-	vault           vault.SecretVault
-	oc              occlient.OpenChoreoClient
-	refreshInterval string
+	db    *gorm.DB
+	vault vault.SecretVault
 }
 
 var _ secretmanagersvc.SecretsClient = (*Client)(nil)
@@ -87,13 +85,27 @@ func validateOuID(ouID string) error {
 	return nil
 }
 
+// MaxSecretKeys and MaxSecretBytes bound one secret. A secret becomes one
+// Kubernetes Secret, whose limit is 1 MiB, and a workload typically holds about
+// ten keys, so these leave ample room while rejecting accidental bulk writes.
+const (
+	MaxSecretKeys  = 100
+	MaxSecretBytes = 256 << 10
+)
+
 func (c *Client) seal(ctx context.Context, data map[string]string) ([]byte, string, []string, error) {
 	if len(data) == 0 {
 		return nil, "", nil, errors.New("secret data cannot be empty")
 	}
+	if len(data) > MaxSecretKeys {
+		return nil, "", nil, fmt.Errorf("%w: a secret holds at most %d keys, got %d", utils.ErrInvalidInput, MaxSecretKeys, len(data))
+	}
 	plaintext, err := json.Marshal(data)
 	if err != nil {
 		return nil, "", nil, fmt.Errorf("failed to encode secret data: %w", err)
+	}
+	if len(plaintext) > MaxSecretBytes {
+		return nil, "", nil, fmt.Errorf("%w: a secret holds at most %d KiB", utils.ErrInvalidInput, MaxSecretBytes>>10)
 	}
 	ciphertext, err := c.vault.Encrypt(ctx, plaintext)
 	if err != nil {
@@ -127,30 +139,6 @@ func (c *Client) find(ctx context.Context, tx *gorm.DB, ouID, name string, lock 
 		return nil, fmt.Errorf("failed to read secret %q: %w", name, err)
 	}
 	return &row, nil
-}
-
-// upsertReference creates or updates the SecretReference that exposes the
-// secret's keys to workloads and workflows.
-func (c *Client) upsertReference(ctx context.Context, location secretmanagersvc.SecretLocation, name string, keys []string) error {
-	req := occlient.CreateSecretReferenceRequest{
-		Name:            name,
-		ProjectName:     location.ProjectName,
-		ComponentName:   location.AgentName,
-		KVPath:          RemoteKey(location.OrgName, name),
-		SecretKeys:      keys,
-		RefreshInterval: c.refreshInterval,
-	}
-	_, err := c.oc.CreateSecretReference(ctx, location.OrgName, req)
-	if err == nil {
-		return nil
-	}
-	if !errors.Is(err, utils.ErrConflict) {
-		return fmt.Errorf("failed to create secret reference %q: %w", name, err)
-	}
-	if _, err := c.oc.UpdateSecretReference(ctx, location.OrgName, name, req); err != nil {
-		return fmt.Errorf("failed to update secret reference %q: %w", name, err)
-	}
-	return nil
 }
 
 // write stores data as the secret's full contents, creating the row when absent.
@@ -215,9 +203,6 @@ func (c *Client) write(ctx context.Context, location secretmanagersvc.SecretLoca
 	if err != nil {
 		return "", err
 	}
-	if err := c.upsertReference(ctx, location, name, keys); err != nil {
-		return "", err
-	}
 	return name, nil
 }
 
@@ -242,13 +227,12 @@ func (c *Client) PatchSecret(ctx context.Context, location secretmanagersvc.Secr
 	})
 }
 
-// DeleteSecret removes the secret and its SecretReference. Idempotent.
+// DeleteSecret removes the secret. Idempotent.
 func (c *Client) DeleteSecret(ctx context.Context, location secretmanagersvc.SecretLocation, metadata *secretmanagersvc.SecretMetadata) error {
 	return c.DeleteSecretByName(ctx, location.OrgName, location.SecretRefName(), metadata)
 }
 
-// DeleteSecretByName removes the secret named secretRefName and its
-// SecretReference. Idempotent, and a secret managed by another owner is left alone.
+// DeleteSecretByName removes the secret named secretRefName. Idempotent, and a secret managed by another owner is left alone.
 func (c *Client) DeleteSecretByName(ctx context.Context, orgName, secretRefName string, metadata *secretmanagersvc.SecretMetadata) error {
 	if err := validateMetadata(metadata); err != nil {
 		return err
@@ -262,11 +246,6 @@ func (c *Client) DeleteSecretByName(ctx context.Context, orgName, secretRefName 
 	}
 	if row.ManagedBy != metadata.ManagedBy {
 		return nil
-	}
-	// The reference goes first: a reference left behind would point workloads
-	// at a secret that no longer resolves, while a row left behind is retried.
-	if err := c.oc.DeleteSecretReference(ctx, orgName, secretRefName); err != nil && !errors.Is(err, utils.ErrNotFound) {
-		return fmt.Errorf("failed to delete secret reference %q: %w", secretRefName, err)
 	}
 	if err := c.db.WithContext(ctx).Where("id = ?", row.ID).Delete(&secretRow{}).Error; err != nil {
 		return fmt.Errorf("failed to delete secret %q: %w", secretRefName, err)

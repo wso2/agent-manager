@@ -96,7 +96,6 @@ func TestStoreAgentAPIKey_ReturnsSecretReferenceName(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, agentAPIKeySecretLocation("org", "proj", "agent", "production").SecretRefName(), name)
-	assert.Empty(t, ocClient.GetSecretReferenceCalls())
 }
 
 // agentAPIKeyPromotion is what promoteAgentWithAPIKey observed.
@@ -163,7 +162,6 @@ func promoteAgentWithAPIKey(t *testing.T, releaseTrait client.ReleaseAgentAPIKey
 		}
 	}
 	err := s.PromoteAgent(ctx, "acme", "proj1", "my-agent", req)
-	assert.Empty(t, oc.GetSecretReferenceCalls(), "promote must not read the SecretReference back")
 	envInjection, _ := (*promotedTraits)["my-agent-"+string(client.TraitEnvInjection)].(map[string]interface{})
 	return agentAPIKeyPromotion{env: promotedEnv, envInjection: envInjection, secrets: secrets, tokens: tokens, oc: oc, err: err}
 }

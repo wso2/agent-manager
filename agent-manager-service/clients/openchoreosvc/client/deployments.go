@@ -419,6 +419,7 @@ func mergeAgentAPIKeySecretRef(existing *map[string]interface{}, incoming map[st
 // Returns ErrNotFound when no binding exists yet for (component, environment).
 // When the merged configs equal the binding's current ones it writes nothing and rolls no pod.
 func (c *openChoreoClient) UpdateReleaseBindingTraitConfigs(ctx context.Context, ouID, componentName, environment string, traitConfigs map[string]interface{}, componentTypeConfigs map[string]interface{}) error {
+	ctx = withSecretOuID(ctx, ouID)
 	namespaceName := c.NamespaceFor(ouID)
 	binding, err := c.findReleaseBindingForEnv(ctx, namespaceName, componentName, environment)
 	if err != nil {
@@ -488,6 +489,7 @@ func sameConfigs(current *map[string]interface{}, next map[string]interface{}) b
 // correct, every subsequent call is a no-op — no write, no restart loop. Returns nil (no-op) when
 // desired is empty or the binding does not exist yet (build/auto-deploy not finished).
 func (c *openChoreoClient) EnsureReleaseBindingRuntimeClass(ctx context.Context, ouID, componentName, environment, desiredRuntimeClass string) error {
+	ctx = withSecretOuID(ctx, ouID)
 	namespaceName := c.NamespaceFor(ouID)
 	binding, err := c.findReleaseBindingForEnv(ctx, namespaceName, componentName, environment)
 	if err != nil {
@@ -626,6 +628,7 @@ func (c *openChoreoClient) ComponentTypeDeclaresEnvironmentConfig(ctx context.Co
 // ComponentType that lacks the field (callers check that with ComponentTypeDeclaresEnvironmentConfig
 // first), and IsSecretSyncRevisionApplied is the real confirmation.
 func (c *openChoreoClient) SetReleaseBindingSecretSyncRevision(ctx context.Context, ouID, componentName, environment, revision string) error {
+	ctx = withSecretOuID(ctx, ouID)
 	namespaceName := c.NamespaceFor(ouID)
 	binding, err := c.findReleaseBindingForEnv(ctx, namespaceName, componentName, environment)
 	if err != nil {
@@ -708,6 +711,7 @@ func forceSyncRevisionApplied(tree *gen.K8sResourceTreeResponse, revision string
 // Passing nil for envOverrides or fileOverrides leaves that aspect untouched; passing an empty
 // slice clears it. Returns ErrNotFound when no binding exists yet.
 func (c *openChoreoClient) ReplaceReleaseBindingWorkloadOverrides(ctx context.Context, ouID, componentName, environment string, envOverrides []EnvVar, fileOverrides []FileVar) error {
+	ctx = withSecretOuID(ctx, ouID)
 	namespaceName := c.NamespaceFor(ouID)
 	binding, err := c.findReleaseBindingForEnv(ctx, namespaceName, componentName, environment)
 	if err != nil {
@@ -772,6 +776,7 @@ func (c *openChoreoClient) EnsureReleaseAndBinding(
 	envOverrides []EnvVar, fileOverrides []FileVar,
 	traitEnvConfigs map[string]interface{}, componentTypeConfigs map[string]interface{},
 ) error {
+	ctx = withSecretOuID(ctx, ouID)
 	if err := workloadpolicy.Check(ctx, ouID); err != nil {
 		return err
 	}
@@ -979,6 +984,7 @@ func (c *openChoreoClient) EnsureReleaseAndBinding(
 // It finds the release name deployed in the source environment, then creates or updates
 // a release binding in the target environment using the naming convention {componentName}-{targetEnv}.
 func (c *openChoreoClient) PromoteComponent(ctx context.Context, ouID, projectName, componentName, sourceEnvironment, targetEnvironment string, envOverrides []EnvVar, fileOverrides []FileVar, traitEnvConfigs map[string]interface{}, componentTypeConfigs map[string]interface{}) error {
+	ctx = withSecretOuID(ctx, ouID)
 	if err := workloadpolicy.Check(ctx, ouID); err != nil {
 		return err
 	}
@@ -1995,6 +2001,7 @@ func extractEndpointsFromBinding(binding *gen.ReleaseBinding, workloadEndpoints 
 
 // UpdateDeploymentState updates the state of a deployment (Active or Undeploy)
 func (c *openChoreoClient) UpdateDeploymentState(ctx context.Context, ouID, projectName, componentName, environment string, state gen.ReleaseBindingSpecState) error {
+	ctx = withSecretOuID(ctx, ouID)
 	if state == gen.ReleaseBindingSpecStateActive {
 		if err := workloadpolicy.Check(ctx, ouID); err != nil {
 			return err
