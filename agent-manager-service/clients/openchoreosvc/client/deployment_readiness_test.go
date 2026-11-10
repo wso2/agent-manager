@@ -414,6 +414,61 @@ func TestBootBudgetWaitsForTheFirstReadinessCheck(t *testing.T) {
 	})
 }
 
+// With the startup check off, liveness runs from container start, and the console tells
+// users to give it an initial delay longer than the agent takes to start. The agent may keep
+// starting until liveness gives up, so the deploy must wait that long. With the startup check
+// on, liveness waits for it and cannot extend the start.
+func TestBootBudgetWaitsForLivenessWhenStartupIsOff(t *testing.T) {
+	booting := runtimeReplicaState{found: true, desired: 1, ready: 0}
+
+	// Liveness delay 1200s + 10s x 3 = 1230s; + 5m margin = 1530s.
+	longLiveness := map[string]interface{}{"initialDelaySeconds": 1200}
+
+	t.Run("no liveness check has no window", func(t *testing.T) {
+		assert.Equal(t, time.Duration(0), livenessProbeWindow(nil), "the chart renders no liveness probe")
+	})
+
+	t.Run("a switched-off liveness check has no window", func(t *testing.T) {
+		off := false
+		assert.Equal(t, time.Duration(0), livenessProbeWindow(&models.HealthCheck{Enabled: &off}))
+	})
+
+	t.Run("a liveness check that is set uses the Kubernetes defaults for unset fields", func(t *testing.T) {
+		assert.Equal(t, 30*time.Second, livenessProbeWindow(&models.HealthCheck{}), "0s + 10s x 3")
+	})
+
+	t.Run("startup off with a long liveness delay is still in progress past 10 minutes", func(t *testing.T) {
+		binding := bindingWithHealthChecks(15*time.Minute, map[string]interface{}{
+			"startup":  map[string]interface{}{"enabled": false},
+			"liveness": longLiveness,
+		})
+		assert.Equal(t, 1230*time.Second+agentPreStartMargin, bootBudget(binding))
+		assert.Equal(t, DeploymentStatusInProgress, determineDeploymentStatus(binding, booting))
+	})
+
+	t.Run("startup off with a long liveness delay is failed past its own budget", func(t *testing.T) {
+		binding := bindingWithHealthChecks(26*time.Minute, map[string]interface{}{
+			"startup":  map[string]interface{}{"enabled": false},
+			"liveness": longLiveness,
+		})
+		assert.Equal(t, DeploymentStatusFailed, determineDeploymentStatus(binding, booting))
+	})
+
+	t.Run("startup off with a short liveness check keeps the floor", func(t *testing.T) {
+		// Restarted every ~30s, it never becomes ready: reporting failed at 10 minutes is right.
+		binding := bindingWithHealthChecks(0, map[string]interface{}{
+			"startup":  map[string]interface{}{"enabled": false},
+			"liveness": map[string]interface{}{},
+		})
+		assert.Equal(t, agentStartupBudget, bootBudget(binding))
+	})
+
+	t.Run("startup on ignores liveness", func(t *testing.T) {
+		binding := bindingWithHealthChecks(0, map[string]interface{}{"liveness": longLiveness})
+		assert.Equal(t, 310*time.Second+agentPreStartMargin, bootBudget(binding), "the default startup window")
+	})
+}
+
 // An agent may set a startup check far longer than the default (up to an hour). The deploy
 // must wait that long before calling it failed, or the page shows Failed for an agent that
 // then becomes ready and serves traffic.

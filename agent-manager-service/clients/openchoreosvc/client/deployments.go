@@ -1722,15 +1722,28 @@ const agentStartupBudget = 10 * time.Minute
 const agentPreStartMargin = 5 * time.Minute
 
 // bootBudget returns how long this binding's agent may report "still starting" before the
-// deployment is called failed: the longer of its startup probe's window and its first
-// readiness check, plus agentPreStartMargin, and never less than agentStartupBudget.
+// deployment is called failed: the longest it may take to become ready, plus
+// agentPreStartMargin, and never less than agentStartupBudget. That longest is the longer of
+// its startup probe's window and its first readiness check; with the startup check off,
+// also its liveness probe's window.
 //
 // Example: a startup check of initial delay 10s + interval 10s x 120 failures allowed has a
 // window of 1210s, so the budget is 1210s + 5m = about 25 minutes. With the default checks
 // (startup 310s) the budget is 10m10s; shorter or switched-off checks get the 10-minute floor.
 func bootBudget(binding *gen.ReleaseBinding) time.Duration {
 	healthChecks := bindingHealthChecks(binding)
-	budget := max(startupProbeWindow(healthChecks.Startup), firstReadinessCheck(healthChecks.Readiness)) + agentPreStartMargin
+	longest := max(startupProbeWindow(healthChecks.Startup), firstReadinessCheck(healthChecks.Readiness))
+
+	// With the startup check on, liveness waits until it passes, so liveness cannot let the
+	// agent start for longer. With it off, liveness runs from container start, and the agent
+	// may keep starting until liveness gives up: the console tells users to give liveness an
+	// initial delay longer than the agent takes to start.
+	startupOff := healthChecks.Startup != nil && !utils.BoolPointerAsBool(healthChecks.Startup.Enabled, true)
+	if startupOff {
+		longest = max(longest, livenessProbeWindow(healthChecks.Liveness))
+	}
+
+	budget := longest + agentPreStartMargin
 	if budget < agentStartupBudget {
 		return agentStartupBudget
 	}
@@ -1757,10 +1770,8 @@ func bindingHealthChecks(binding *gen.ReleaseBinding) models.HealthChecks {
 }
 
 // startupProbeWindow returns how long kubelet gives the agent's startup probe before it
-// restarts the container: initial delay + the longer of interval and timeout x failures
-// allowed. A probe still running when the next is due delays it, so the longer of the two
-// is the real gap between attempts. Returns 0 when the startup check is switched off, as
-// there is no probe to wait for.
+// restarts the container (see restartWindow). Returns 0 when the startup check is switched
+// off, as there is no probe to wait for.
 func startupProbeWindow(startup *models.HealthCheck) time.Duration {
 	// Not set: the default probe. Set: each field that is not set falls back to its default.
 	if startup == nil {
@@ -1772,11 +1783,30 @@ func startupProbeWindow(startup *models.HealthCheck) time.Duration {
 		return 0
 	}
 
-	defaults := utils.StartupCheckDefaults
-	initialDelay := int64(utils.IntPointerAsInt(startup.InitialDelaySeconds, defaults.InitialDelaySeconds))
-	period := int64(utils.IntPointerAsInt(startup.PeriodSeconds, defaults.PeriodSeconds))
-	timeout := int64(utils.IntPointerAsInt(startup.TimeoutSeconds, defaults.TimeoutSeconds))
-	failures := int64(utils.IntPointerAsInt(startup.FailureThreshold, defaults.FailureThreshold))
+	return restartWindow(startup, utils.StartupCheckDefaults)
+}
+
+// livenessProbeWindow returns how long kubelet gives the agent's liveness probe, from
+// container start, before it restarts the container (see restartWindow). Returns 0 when
+// there is no liveness probe: none is rendered unless the check is set and not switched off.
+func livenessProbeWindow(liveness *models.HealthCheck) time.Duration {
+	// Not set, or switched off: no liveness probe renders.
+	if liveness == nil || !utils.BoolPointerAsBool(liveness.Enabled, true) {
+		return 0
+	}
+
+	return restartWindow(liveness, utils.LivenessCheckDefaults)
+}
+
+// restartWindow returns how long a probe that keeps failing takes before kubelet restarts the
+// container: initial delay + the longer of interval and timeout x failures allowed. A probe
+// still running when the next is due delays it, so the longer of the two is the real gap
+// between attempts. A field that is not set falls back to its default.
+func restartWindow(check *models.HealthCheck, defaults utils.HealthCheckDefaults) time.Duration {
+	initialDelay := int64(utils.IntPointerAsInt(check.InitialDelaySeconds, defaults.InitialDelaySeconds))
+	period := int64(utils.IntPointerAsInt(check.PeriodSeconds, defaults.PeriodSeconds))
+	timeout := int64(utils.IntPointerAsInt(check.TimeoutSeconds, defaults.TimeoutSeconds))
+	failures := int64(utils.IntPointerAsInt(check.FailureThreshold, defaults.FailureThreshold))
 	seconds := initialDelay + max(period, timeout)*failures
 
 	// Agent Manager validates health checks before saving them, but the binding can also be
