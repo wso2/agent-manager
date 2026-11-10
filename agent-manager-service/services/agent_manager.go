@@ -1941,12 +1941,7 @@ func (s *agentManagerService) createComponentAgent(ctx context.Context, ouID, pr
 		return err
 	}
 
-	secretLocation := secretmanagersvc.SecretLocation{
-		OrgName:         ouID,
-		ProjectName:     projectName,
-		EnvironmentName: firstEnv,
-		EntityName:      req.Name,
-	}
+	secretLocation := agentConfigSecretLocation(ouID, projectName, req.Name, firstEnv)
 
 	hasSecrets := false
 	if req.Configurations != nil {
@@ -1996,10 +1991,14 @@ func (s *agentManagerService) createComponentAgent(ctx context.Context, ouID, pr
 	}
 
 	createAgentReq := s.toCreateAgentRequestWithSecrets(req, secretReference)
+	createStartedAt := time.Now()
 	if err := s.ocClient.CreateComponent(ctx, ouID, projectName, createAgentReq); err != nil {
 		s.logger.Error("Failed to create agent component", "agentName", req.Name, "error", err)
 		if hasSecrets {
 			s.cleanupSecretsOnRollback(ctx, secretLocation)
+		}
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			s.deleteComponentCreatedSince(ctx, ouID, projectName, req.Name, createStartedAt)
 		}
 		return err
 	}
@@ -2009,9 +2008,7 @@ func (s *agentManagerService) createComponentAgent(ctx context.Context, ouID, pr
 		if hasSecrets {
 			s.cleanupSecretsOnRollback(ctx, secretLocation)
 		}
-		if errDeletion := s.ocClient.DeleteComponent(ctx, ouID, projectName, req.Name); errDeletion != nil {
-			s.logger.Error("Failed to rollback agent component after card cleanup failure", "agentName", req.Name, "error", errDeletion)
-		}
+		s.deleteComponentOnRollback(ctx, ouID, projectName, req.Name, "card cleanup failure")
 		return err
 	}
 
@@ -2023,14 +2020,15 @@ func (s *agentManagerService) createComponentAgent(ctx context.Context, ouID, pr
 			if hasSecrets {
 				s.cleanupSecretsOnRollback(ctx, secretLocation)
 			}
-			if errDeletion := s.ocClient.DeleteComponent(ctx, ouID, projectName, req.Name); errDeletion != nil {
-				s.logger.Error("Failed to rollback agent component after API artifact create failure", "agentName", req.Name, "error", errDeletion)
-			}
+			s.deleteComponentOnRollback(ctx, ouID, projectName, req.Name, "API artifact create failure")
 			return fmt.Errorf("failed to create agent API artifact record: %w", err)
 		}
 	}
 
 	identityProvisioned := false
+	// The environment an agent API key secret may have been stored in, once
+	// buildCreateTraitRequests has been called; empty before that.
+	apiKeyEnv := ""
 	rollbackAgentCreate := func(reason string) {
 		if identityProvisioned {
 			go s.agentThunderProvisioning.DeleteAllBindings(context.WithoutCancel(ctx), ouID, projectName, req.Name)
@@ -2038,17 +2036,21 @@ func (s *agentManagerService) createComponentAgent(ctx context.Context, ouID, pr
 		// Best-effort cleanup of any LLM/MCP configurations created before the failure.
 		// Each per-config create rolls back only its own in-flight resources, so configs
 		// completed earlier in the loop (and their proxies/mappings/keys/secrets) would
-		// otherwise be orphaned once the component is deleted below. Use a non-cancellable
-		// context so cleanup still runs if the request context was cancelled.
+		// otherwise be orphaned once the component is deleted below. Detached from the
+		// request so cleanup still runs if the caller has gone, and bounded so a wedged
+		// gateway cannot hold the request forever.
 		isExternalAgent := req.Provisioning.Type == string(utils.ExternalAgent)
-		s.deleteAgentLLMConfigurations(context.WithoutCancel(ctx), ouID, projectName, req.Name, isExternalAgent)
+		llmCleanupCtx, cancelLLMCleanup := detachedCleanupContext(ctx)
+		s.deleteAgentLLMConfigurations(llmCleanupCtx, ouID, projectName, req.Name, isExternalAgent)
+		cancelLLMCleanup()
 
 		if hasSecrets {
 			s.cleanupSecretsOnRollback(ctx, secretLocation)
 		}
-		if errDeletion := s.ocClient.DeleteComponent(ctx, ouID, projectName, req.Name); errDeletion != nil {
-			s.logger.Error("Failed to rollback agent component", "agentName", req.Name, "reason", reason, "error", errDeletion)
+		if apiKeyEnv != "" {
+			s.cleanupSecretsOnRollback(ctx, agentAPIKeySecretLocation(ouID, projectName, req.Name, apiKeyEnv))
 		}
+		s.deleteComponentOnRollback(ctx, ouID, projectName, req.Name, reason)
 		if agentAPIArtifact != nil {
 			if errDeletion := s.artifactRepo.Delete(s.db, agentAPIArtifact.UUID.String()); errDeletion != nil {
 				s.logger.Error("Failed to rollback agent API artifact record", "agentName", req.Name, "reason", reason, "error", errDeletion)
@@ -2087,6 +2089,8 @@ func (s *agentManagerService) createComponentAgent(ctx context.Context, ouID, pr
 		if pipeErr == nil {
 			lowestEnvName = findLowestEnvironment(createPipeline.PromotionPaths)
 		}
+		// Set before the call: it stores the key before it can fail on a later trait.
+		apiKeyEnv = lowestEnvName
 		traitRequests, apiKeyEnvVars, err := s.buildCreateTraitRequests(ctx, ouID, projectName, lowestEnvName, req)
 		if err != nil {
 			s.logger.Error("Failed to build trait requests", "agentName", req.Name, "error", err)
@@ -2584,13 +2588,68 @@ func (s *agentManagerService) saveSecretsAndCreateReference(
 	return secretRef, nil
 }
 
-// cleanupSecretsOnRollback removes secrets from KV and deletes SecretReference CR during rollback.
+// createRollbackTimeout bounds each step of a failed create's rollback.
+const createRollbackTimeout = 2 * time.Minute
+
+// createRollbackContext returns the context a failed create rolls back on. A create most
+// often fails because its request context ended (the cloud edge cuts a request at ~15s,
+// clients give up sooner or later), and a rollback on that context would be cancelled
+// with it, leaving a half-created component and its secrets behind. WithoutCancel keeps
+// the request's values (caller identity, trace IDs) and drops its cancellation; the
+// timeout puts a ceiling back on.
+func createRollbackContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(ctx), createRollbackTimeout)
+}
+
+// deleteComponentOnRollback deletes the component a failed create made, on a rollback context.
+func (s *agentManagerService) deleteComponentOnRollback(ctx context.Context, ouID, projectName, agentName, reason string) {
+	rollbackCtx, cancel := createRollbackContext(ctx)
+	defer cancel()
+	if err := s.ocClient.DeleteComponent(rollbackCtx, ouID, projectName, agentName); err != nil {
+		s.logger.Error("Failed to rollback agent component", "agentName", agentName, "reason", reason, "error", err)
+	}
+}
+
+// componentCreateClockSkew is how far the control plane's clock may run behind this
+// service's when deleteComponentCreatedSince compares a Component's creation time with the
+// time the create was sent.
+const componentCreateClockSkew = 30 * time.Second
+
+// deleteComponentCreatedSince deletes the component a create whose request context ended may
+// still have made. The context error hides the server's answer, so the create may have
+// succeeded or, if the name was already taken, been refused with a conflict. Only a Component
+// created at or after createStartedAt, give or take componentCreateClockSkew, is taken as this
+// create's; an older one belongs to an existing agent and is left alone.
+func (s *agentManagerService) deleteComponentCreatedSince(ctx context.Context, ouID, projectName, agentName string, createStartedAt time.Time) {
+	rollbackCtx, cancel := createRollbackContext(ctx)
+	defer cancel()
+	component, err := s.ocClient.GetComponent(rollbackCtx, ouID, projectName, agentName)
+	if err != nil {
+		if errors.Is(err, utils.ErrAgentNotFound) || errors.Is(err, utils.ErrNotFound) {
+			s.logger.Debug("Interrupted create left no component behind", "agentName", agentName)
+			return
+		}
+		s.logger.Warn("Failed to check for a component left by an interrupted create", "agentName", agentName, "error", err)
+		return
+	}
+	if component.CreatedAt.Before(createStartedAt.Add(-componentCreateClockSkew)) {
+		s.logger.Warn("Leaving a component that predates the interrupted create; it belongs to an existing agent",
+			"agentName", agentName, "componentCreatedAt", component.CreatedAt, "createStartedAt", createStartedAt)
+		return
+	}
+	if err := s.ocClient.DeleteComponent(rollbackCtx, ouID, projectName, agentName); err != nil {
+		s.logger.Error("Failed to delete the component left by an interrupted create", "agentName", agentName, "error", err)
+	}
+}
+
+// cleanupSecretsOnRollback deletes a secret a failed create stored, on a rollback context.
 // This is a best-effort cleanup - errors are logged but not returned since we're already handling a failure.
 func (s *agentManagerService) cleanupSecretsOnRollback(ctx context.Context, location secretmanagersvc.SecretLocation) {
-	// Delete secrets from KV and SecretReference
 	if s.secretMgmtClient != nil {
+		rollbackCtx, cancel := createRollbackContext(ctx)
+		defer cancel()
 		kvPath, _ := location.KVPath()
-		if err := s.secretMgmtClient.DeleteSecret(ctx, location, location.SecretRefName()); err != nil {
+		if err := s.secretMgmtClient.DeleteSecret(rollbackCtx, location, location.SecretRefName()); err != nil {
 			s.logger.Warn("Failed to cleanup secrets during rollback", "kvPath", kvPath, "error", err)
 		} else {
 			s.logger.Debug("Cleaned up secrets during rollback", "kvPath", kvPath)
@@ -3190,6 +3249,11 @@ func (s *agentManagerService) generateUniqueAgentName(ctx context.Context, ouID 
 	return uniqueName, nil
 }
 
+// DeleteAgent deletes an agent's component and everything Agent Manager created for it: its
+// secrets, LLM/MCP configurations, AgentID bindings, GitHub App source binding, configuration
+// rows, API artifacts and monitors. The component delete is the commit point: a failure before
+// it leaves the agent intact, and cleanup after it is best-effort, so deleting the agent again
+// retries what was left. An agent that is the source of an agent kind cannot be deleted.
 func (s *agentManagerService) DeleteAgent(ctx context.Context, ouID string, projectName string, agentName string) error {
 	s.logger.Info("Deleting agent", "agentName", agentName, "ouID", ouID, "projectName", projectName)
 	// Validate organization exists
@@ -3216,16 +3280,13 @@ func (s *agentManagerService) DeleteAgent(ctx context.Context, ouID string, proj
 		return utils.ErrAgentIsKindSource
 	}
 
-	// Step 1: Fetch workload and check for secret references in env vars
+	// Read the secret references the agent's Component, ReleaseBindings and Workload hold
+	// while they still exist; the secrets themselves are deleted only once the component
+	// delete below is confirmed, so a failed delete leaves a working agent behind.
 	secretRefNames, err := s.ocClient.GetWorkloadSecretRefNames(ctx, ouID, projectName, agentName)
 	if err != nil {
-		s.logger.Warn("Failed to get workload secret references", "agentName", agentName, "error", err)
-		// Continue with deletion even if we can't get secret refs
-	}
-
-	// Step 2-4: For each secret reference, get its details, delete from KV, then delete the CR
-	for _, secretRefName := range secretRefNames {
-		s.cleanupSecretReference(ctx, ouID, secretRefName)
+		// deleteAgentSecrets still removes the secrets at their known locations.
+		s.logger.Warn("Failed to get agent secret references", "agentName", agentName, "error", err)
 	}
 
 	// Resolve agent type before component deletion so LLM config cleanup does not need
@@ -3287,6 +3348,9 @@ func (s *agentManagerService) DeleteAgent(ctx context.Context, ouID string, proj
 		if errors.Is(translatedErr, utils.ErrAgentNotFound) {
 			s.logger.Warn("Agent not found during deletion, delete is idempotent", "agentName", agentName, "ouID", ouID, "projectName", projectName)
 			s.cleanupGitHubAppSource(ctx, ouID, projectName, agentName)
+			// A previous delete, or a create rollback, may have removed the component
+			// without its secrets.
+			s.deleteAgentSecretsDetached(ctx, ouID, projectName, agentName, secretRefNames)
 			// The component is already gone but a previous partially-completed delete may
 			// have left agent_configurations rows behind, each still holding a live LLM
 			// proxy credential, so run the same revocation cleanup here.
@@ -3321,6 +3385,7 @@ func (s *agentManagerService) DeleteAgent(ctx context.Context, ouID string, proj
 		go s.agentThunderProvisioning.DeleteAllBindings(context.WithoutCancel(ctx), ouID, projectName, agentName)
 	}
 	s.cleanupGitHubAppSource(ctx, ouID, projectName, agentName)
+	s.deleteAgentSecretsDetached(ctx, ouID, projectName, agentName, secretRefNames)
 
 	// Cleanup agent_configs (per-environment instrumentation, CORS and security settings).
 	// Unrelated to the LLM proxy records the goroutine above revokes, so it does not wait
@@ -3338,6 +3403,20 @@ func (s *agentManagerService) DeleteAgent(ctx context.Context, ouID string, proj
 
 	s.logger.Debug("Agent deleted from OpenChoreo successfully", "ouID", ouID, "agentName", agentName)
 	return artifactErr
+}
+
+// agentSecretCleanupTimeout bounds deleteAgentSecretsDetached.
+const agentSecretCleanupTimeout = 2 * time.Minute
+
+// deleteAgentSecretsDetached deletes a deleted agent's secrets before the delete returns, on
+// a context detached from the request and bounded by agentSecretCleanupTimeout. Inline, so a
+// client that waits for the delete to finish and then creates an agent of the same name cannot
+// have that agent's secrets, which reuse the same names, deleted from under it. Detached, so an
+// edge that cuts the request short does not cancel the deletes and leak the secrets.
+func (s *agentManagerService) deleteAgentSecretsDetached(ctx context.Context, ouID, projectName, agentName string, secretRefNames []string) {
+	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), agentSecretCleanupTimeout)
+	defer cancel()
+	s.deleteAgentSecrets(cleanupCtx, ouID, projectName, agentName, secretRefNames)
 }
 
 // cleanupGitHubAppSource removes the injected provider's source binding after the component is
@@ -3574,31 +3653,95 @@ func (s *agentManagerService) deleteAgentLLMConfigurations(ctx context.Context, 
 	}
 }
 
-// cleanupSecretReference deletes an OpenChoreo-managed secret by name (the
-// secret name and its SecretReference name are the same); the API removes the
-// stored values and the SecretReference together. Only removes secrets owned
-// by this service (managed-by label).
-func (s *agentManagerService) cleanupSecretReference(ctx context.Context, ouID, secretRefName string) {
-	secret, err := s.ocClient.GetSecret(ctx, ouID, secretRefName)
-	if err != nil {
-		if errors.Is(err, utils.ErrNotFound) {
-			s.logger.Debug("Secret not found, skipping cleanup", "secretRefName", secretRefName)
-			return
+// agentConfigSecretLocation is where an agent's own configuration secret (its sensitive env
+// vars and file mounts) lives in one environment. Creation writes the first environment's
+// (createComponentAgent) and each deploy writes the target environment's (processEnvVars).
+func agentConfigSecretLocation(ouID, projectName, agentName, envName string) secretmanagersvc.SecretLocation {
+	return secretmanagersvc.SecretLocation{
+		OrgName:         ouID,
+		ProjectName:     projectName,
+		EnvironmentName: envName,
+		EntityName:      agentName,
+	}
+}
+
+// deleteAgentSecrets deletes, through the secret management API, every secret this service
+// created for a deleted agent. Best-effort: a failure is logged and never fails the delete,
+// because the component is already gone by the time it runs.
+//
+// Two sources are combined, as neither covers every secret on its own:
+//   - the locations the service writes to deterministically, for each environment the agent
+//     can reach (agentSecretEnvironments): its configuration secret and its agent API key. The
+//     key never appears in a ReleaseBinding of an agent that never deployed, and a lookup
+//     that fails would otherwise lose both.
+//   - secretRefNames, the SecretReferences the agent's Component, ReleaseBindings and
+//     Workload point at (GetWorkloadSecretRefNames), read before the component was deleted.
+//     They cover system-managed secrets such as LLM/MCP proxy keys, and secrets written
+//     under an environment that has since left the pipeline.
+//
+// The secret API only deletes secrets marked as managed by this service, so a reference to
+// a secret owned by something else is left alone.
+func (s *agentManagerService) deleteAgentSecrets(ctx context.Context, ouID, projectName, agentName string, secretRefNames []string) {
+	if s.secretMgmtClient == nil {
+		s.logger.Warn("Secret management is not initialized; skipping agent secret cleanup", "agentName", agentName)
+		return
+	}
+	attempted := make(map[string]struct{})
+	for _, envName := range s.agentSecretEnvironments(ctx, ouID, projectName, agentName) {
+		for _, location := range []secretmanagersvc.SecretLocation{
+			agentConfigSecretLocation(ouID, projectName, agentName, envName),
+			agentAPIKeySecretLocation(ouID, projectName, agentName, envName),
+		} {
+			name := location.SecretRefName()
+			if _, done := attempted[name]; done {
+				continue
+			}
+			attempted[name] = struct{}{}
+			s.logAgentSecretDelete(agentName, name, s.secretMgmtClient.DeleteSecret(ctx, location, name))
 		}
-		s.logger.Warn("Failed to get secret, skipping cleanup", "secretRefName", secretRefName, "error", err)
+	}
+	for _, name := range secretRefNames {
+		if _, done := attempted[name]; done || name == "" {
+			continue
+		}
+		attempted[name] = struct{}{}
+		s.logAgentSecretDelete(agentName, name, s.secretMgmtClient.DeleteSecretByName(ctx, ouID, name))
+	}
+}
+
+// logAgentSecretDelete records the outcome of one deleteAgentSecrets delete. A secret that is
+// already gone counts as deleted.
+func (s *agentManagerService) logAgentSecretDelete(agentName, secretRefName string, err error) {
+	if err == nil || errors.Is(err, secretmanagersvc.ErrSecretNotFound) || errors.Is(err, utils.ErrNotFound) {
+		s.logger.Debug("Deleted agent secret", "agentName", agentName, "secretRefName", secretRefName)
 		return
 	}
+	s.logger.Warn("Failed to delete agent secret", "agentName", agentName, "secretRefName", secretRefName, "error", err)
+}
 
-	if secret.Labels[secretmanagersvc.LabelKeyManagedBy] != secretmanagersvc.DefaultManagedBy {
-		s.logger.Warn("Secret not managed by this service, skipping cleanup", "secretRefName", secretRefName)
-		return
+// agentSecretEnvironments lists the environments an agent can hold secrets in: its project's
+// deployment pipeline, or every environment of the organization when the pipeline cannot be
+// read. Deletes are idempotent, so the wider list only costs lookups.
+func (s *agentManagerService) agentSecretEnvironments(ctx context.Context, ouID, projectName, agentName string) []string {
+	pipeline, err := s.ocClient.GetProjectDeploymentPipeline(ctx, ouID, projectName)
+	if err == nil && pipeline != nil {
+		return client.PipelineEnvironments(pipeline.PromotionPaths)
 	}
-
-	if err := s.ocClient.DeleteSecret(ctx, ouID, secretRefName); err != nil && !errors.Is(err, utils.ErrNotFound) {
-		s.logger.Warn("Failed to delete secret during cleanup", "secretRefName", secretRefName, "error", err)
-	} else {
-		s.logger.Debug("Deleted secret during cleanup", "secretRefName", secretRefName)
+	s.logger.Warn("Failed to get deployment pipeline for agent secret cleanup; using the organization's environments",
+		"agentName", agentName, "projectName", projectName, "error", err)
+	envs, err := s.ocClient.ListEnvironments(ctx, ouID)
+	if err != nil {
+		s.logger.Warn("Failed to list environments for agent secret cleanup; only referenced secrets will be deleted",
+			"agentName", agentName, "error", err)
+		return nil
 	}
+	names := make([]string, 0, len(envs))
+	for _, env := range envs {
+		if env != nil && env.Name != "" {
+			names = append(names, env.Name)
+		}
+	}
+	return names
 }
 
 // BuildAgent triggers a build for an agent.
