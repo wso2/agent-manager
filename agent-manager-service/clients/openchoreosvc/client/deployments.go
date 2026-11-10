@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math"
 	"net/http"
 	"slices"
 	"strings"
@@ -1774,6 +1775,13 @@ func startupProbeWindow(binding *gen.ReleaseBinding) time.Duration {
 	timeout := int64(utils.IntPointerAsInt(startup.TimeoutSeconds, defaults.TimeoutSeconds))
 	failures := int64(utils.IntPointerAsInt(startup.FailureThreshold, defaults.FailureThreshold))
 	seconds := initialDelay + max(period, timeout)*failures
+
+	// Agent Manager validates health checks before saving them, but the binding can also be
+	// edited in OpenChoreo directly, whose schema sets only minimums. Keep the window between
+	// 0 and the most time.Duration can hold with agentPreStartMargin still added, so a huge
+	// window does not wrap around to a short or negative one.
+	maxSeconds := int64((math.MaxInt64 - agentPreStartMargin) / time.Second)
+	seconds = min(max(seconds, 0), maxSeconds)
 	return time.Duration(seconds) * time.Second
 }
 

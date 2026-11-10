@@ -408,6 +408,23 @@ func TestBootBudgetFollowsTheStartupCheck(t *testing.T) {
 		assert.Equal(t, 1200*time.Second, startupProbeWindow(binding))
 	})
 
+	t.Run("a window too long for time.Duration does not wrap around", func(t *testing.T) {
+		// Validation caps the window at an hour; a binding edited in OpenChoreo directly can carry more.
+		// 100000s x 100000 = 1e10s, past the ~9.2e9s a time.Duration holds.
+		binding := bindingWithStartupCheck(15*time.Minute, map[string]interface{}{
+			"periodSeconds": 100000, "timeoutSeconds": 1, "failureThreshold": 100000,
+		})
+		assert.Greater(t, startupProbeWindow(binding), 24*time.Hour)
+		assert.Greater(t, bootBudget(binding), startupProbeWindow(binding), "the margin still adds without overflowing")
+		assert.Equal(t, DeploymentStatusInProgress, determineDeploymentStatus(binding, booting))
+	})
+
+	t.Run("a negative window counts as zero", func(t *testing.T) {
+		binding := bindingWithStartupCheck(0, map[string]interface{}{"initialDelaySeconds": -100000})
+		assert.Equal(t, time.Duration(0), startupProbeWindow(binding))
+		assert.Equal(t, agentStartupBudget, bootBudget(binding))
+	})
+
 	t.Run("an unreadable startup check uses the default window", func(t *testing.T) {
 		binding := bindingBootingSince(0)
 		configs := map[string]interface{}{"healthChecks": "not an object"}
