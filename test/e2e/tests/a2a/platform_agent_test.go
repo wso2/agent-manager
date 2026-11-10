@@ -59,7 +59,7 @@ var _ = Describe("Platform A2A agent:", Label("a2a", "platform-agent"), Ordered,
 	})
 
 	It("serves the same card at its gateway URL", func() {
-		resp, err := http.Get(Agent.CardURL)
+		resp, err := (&http.Client{Timeout: 30 * time.Second}).Get(Agent.CardURL)
 		Expect(err).NotTo(HaveOccurred())
 		defer resp.Body.Close()
 		Expect(resp.StatusCode).To(Equal(http.StatusOK))

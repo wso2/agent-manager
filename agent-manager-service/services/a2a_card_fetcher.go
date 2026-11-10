@@ -60,12 +60,14 @@ type a2aTestUpstreamHosts map[string]struct{}
 func newA2ATestUpstreamHosts(hosts []string) a2aTestUpstreamHosts {
 	set := make(a2aTestUpstreamHosts, len(hosts))
 	for _, host := range hosts {
-		set[normalizeA2AHostname(host)] = struct{}{}
+		if name := normalizeA2AHostname(host); name != "" {
+			set[name] = struct{}{}
+		}
 	}
 	return set
 }
 
-// allows reports whether rawURL's host, on any port, is listed. An unparseable URL is not listed.
+// allows reports whether rawURL's host, on any port, is listed. An unparseable or hostless URL is not listed.
 func (h a2aTestUpstreamHosts) allows(rawURL string) bool {
 	u, err := neturl.Parse(rawURL)
 	if err != nil {

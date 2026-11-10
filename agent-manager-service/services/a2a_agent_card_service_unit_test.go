@@ -398,7 +398,7 @@ func TestSetA2ACardSourceRejectsAnAgentFromAnotherProject(t *testing.T) {
 	assert.Empty(t, hooks.stored)
 }
 
-const listedTestUpstreamHost = "default-default.agentmanager.localhost"
+const listedTestUpstreamHost = "default-default.gateway.localhost"
 
 func TestValidateCardSourceURL_ListedPrivateHostAccepted(t *testing.T) {
 	hosts := newA2ATestUpstreamHosts([]string{listedTestUpstreamHost})

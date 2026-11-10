@@ -272,7 +272,7 @@ func TestFetchOrigin_ListedHostRedirectToOtherHostRefused(t *testing.T) {
 	}))
 	t.Cleanup(other.Close)
 	listed := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, other.URL+a2aAgentCardPath, http.StatusFound)
+		http.Redirect(w, r, strings.Replace(other.URL, "127.0.0.1", "localhost", 1)+a2aAgentCardPath, http.StatusFound)
 	}))
 	t.Cleanup(listed.Close)
 	f := newA2ACardFetcher(time.Second, "", newA2ATestUpstreamHosts([]string{"127.0.0.1"}))
@@ -376,14 +376,14 @@ func TestA2ACardFetcherOriginWithoutAHeaderSendsNone(t *testing.T) {
 }
 
 func TestA2ATestUpstreamHosts_Allows(t *testing.T) {
-	h := newA2ATestUpstreamHosts([]string{"default-default.agentmanager.localhost"})
+	h := newA2ATestUpstreamHosts([]string{"default-default.gateway.localhost"})
 	allowed := []string{
-		"http://default-default.agentmanager.localhost:19080/x/.well-known/agent-card.json",
+		"http://default-default.gateway.localhost:19080/x/.well-known/agent-card.json",
 		"https://DEFAULT-default.AgentManager.localhost./x",
 	}
 	refused := []string{
-		"http://other.agentmanager.localhost:19080/x",
-		"http://evil.default-default.agentmanager.localhost/x",
+		"http://other.gateway.localhost:19080/x",
+		"http://evil.default-default.gateway.localhost/x",
 		"http://localhost/x",
 		"::not a url::",
 	}
@@ -396,4 +396,10 @@ func TestA2ATestUpstreamHosts_Allows(t *testing.T) {
 	for _, u := range append(allowed, refused...) {
 		assert.False(t, newA2ATestUpstreamHosts(nil).allows(u), u)
 	}
+}
+
+func TestA2ATestUpstreamHosts_EmptyEntryAllowsNothing(t *testing.T) {
+	h := newA2ATestUpstreamHosts([]string{".", ""})
+	assert.False(t, h.allows("/relative/.well-known/agent-card.json"))
+	assert.False(t, h.allows("http:///x"))
 }

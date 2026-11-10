@@ -71,6 +71,6 @@ var _ = Describe("Proxied external A2A agent:", Label("a2a", "external-agent"), 
 	})
 
 	It("is deployed to the gateway as a proxy", func() {
-		a2aops.WaitForProxyPublished(Client, Cfg.DefaultOrg, framework.E2ESharedProjectName, agentName, Cfg.DefaultEnv, 16*time.Minute)
+		a2aops.WaitForProxyPublished(Client, Cfg.DefaultOrg, framework.E2ESharedProjectName, agentName, Cfg.DefaultEnv, 5*time.Minute)
 	})
 })

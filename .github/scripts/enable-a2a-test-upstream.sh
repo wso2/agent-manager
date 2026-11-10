@@ -22,7 +22,7 @@ deployment="deployment/amp-api"
 kubectl set env "${deployment}" -n "${namespace}" "A2A_CARD_TEST_UPSTREAM_HOSTS=${hosts}"
 kubectl rollout status "${deployment}" -n "${namespace}" --timeout=300s
 
-actual="$(kubectl exec "${deployment}" -n "${namespace}" -- printenv A2A_CARD_TEST_UPSTREAM_HOSTS)"
+actual="$(kubectl exec "${deployment}" -n "${namespace}" -- printenv A2A_CARD_TEST_UPSTREAM_HOSTS || true)"
 if [ "${actual}" != "${hosts}" ]; then
   echo "amp-api reports A2A_CARD_TEST_UPSTREAM_HOSTS='${actual}', expected '${hosts}'" >&2
   exit 1
