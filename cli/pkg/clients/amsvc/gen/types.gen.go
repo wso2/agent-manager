@@ -5185,7 +5185,7 @@ type MCPProxyEnvironmentRequest struct {
 	// Resilience The binding's request and idle timeouts on the gateway. Optional; omitted, the gateway's defaults apply. A change redeploys the binding.
 	Resilience *Resilience `json:"resilience,omitempty"`
 
-	// Security A binding's security. Phase 1 accepts apiKey, which is also the default when the field is omitted or names no variant (an api key in the X-API-Key header), and no security (enabled false only). An apiKey with enabled false while security is not disabled is rejected with 400 VALIDATION_ERROR. jwt is rejected with 400 "jwt security is not available yet", and identity with 400. The API key is read from a header only: apiKey.in "query" is rejected with 400 VALIDATION_ERROR, as the gateway checks no other location.
+	// Security A binding's security: apiKey, which is also the default when the field is omitted or names no variant (an api key in the X-API-Key header); identity, OAuth access tokens from the environment's identity provider issued for the binding's publicUrl (mutually exclusive with apiKey); or no security (enabled false only). An apiKey with enabled false while security is not disabled is rejected with 400 VALIDATION_ERROR. jwt is rejected with 400 "jwt security is not available yet". The API key is read from a header only: apiKey.in "query" is rejected with 400 VALIDATION_ERROR, as the gateway checks no other location.
 	Security *MCPProxyEnvironmentSecurity `json:"security,omitempty"`
 
 	// UpstreamAuth Credentials the gateway adds when it calls the upstream.
@@ -5227,7 +5227,7 @@ type MCPProxyEnvironmentResponse struct {
 	// Resilience The binding's request and idle timeouts. Absent when the gateway's defaults apply.
 	Resilience *Resilience `json:"resilience,omitempty"`
 
-	// Security A binding's security. Phase 1 accepts apiKey, which is also the default when the field is omitted or names no variant (an api key in the X-API-Key header), and no security (enabled false only). An apiKey with enabled false while security is not disabled is rejected with 400 VALIDATION_ERROR. jwt is rejected with 400 "jwt security is not available yet", and identity with 400. The API key is read from a header only: apiKey.in "query" is rejected with 400 VALIDATION_ERROR, as the gateway checks no other location.
+	// Security A binding's security: apiKey, which is also the default when the field is omitted or names no variant (an api key in the X-API-Key header); identity, OAuth access tokens from the environment's identity provider issued for the binding's publicUrl (mutually exclusive with apiKey); or no security (enabled false only). An apiKey with enabled false while security is not disabled is rejected with 400 VALIDATION_ERROR. jwt is rejected with 400 "jwt security is not available yet". The API key is read from a header only: apiKey.in "query" is rejected with 400 VALIDATION_ERROR, as the gateway checks no other location.
 	Security     *MCPProxyEnvironmentSecurity             `json:"security,omitempty"`
 	UpdatedAt    *time.Time                               `json:"updatedAt,omitempty"`
 	UpstreamAuth *MCPProxyEnvironmentUpstreamAuthRedacted `json:"upstreamAuth,omitempty"`
@@ -5236,7 +5236,7 @@ type MCPProxyEnvironmentResponse struct {
 // MCPProxyEnvironmentResponseCapabilitiesSource Where capabilities came from: caller (the binding PUT) or discovered (AMS listed them from the MCP server). Absent with no capabilities.
 type MCPProxyEnvironmentResponseCapabilitiesSource string
 
-// MCPProxyEnvironmentSecurity A binding's security. Phase 1 accepts apiKey, which is also the default when the field is omitted or names no variant (an api key in the X-API-Key header), and no security (enabled false only). An apiKey with enabled false while security is not disabled is rejected with 400 VALIDATION_ERROR. jwt is rejected with 400 "jwt security is not available yet", and identity with 400. The API key is read from a header only: apiKey.in "query" is rejected with 400 VALIDATION_ERROR, as the gateway checks no other location.
+// MCPProxyEnvironmentSecurity A binding's security: apiKey, which is also the default when the field is omitted or names no variant (an api key in the X-API-Key header); identity, OAuth access tokens from the environment's identity provider issued for the binding's publicUrl (mutually exclusive with apiKey); or no security (enabled false only). An apiKey with enabled false while security is not disabled is rejected with 400 VALIDATION_ERROR. jwt is rejected with 400 "jwt security is not available yet". The API key is read from a header only: apiKey.in "query" is rejected with 400 VALIDATION_ERROR, as the gateway checks no other location.
 type MCPProxyEnvironmentSecurity struct {
 	ApiKey  *APIKeySecurity `json:"apiKey,omitempty"`
 	Enabled *bool           `json:"enabled,omitempty"`
@@ -7965,6 +7965,12 @@ type IssueProjectMCPProxyEnvironmentTestAPIKeyJSONRequestBody = IssueBindingTest
 
 // RotateProjectMCPProxyEnvironmentAPIKeyJSONRequestBody defines body for RotateProjectMCPProxyEnvironmentAPIKey for application/json ContentType.
 type RotateProjectMCPProxyEnvironmentAPIKeyJSONRequestBody = RotateLLMAPIKeyRequest
+
+// CreateProjectMCPProxyScopeJSONRequestBody defines body for CreateProjectMCPProxyScope for application/json ContentType.
+type CreateProjectMCPProxyScopeJSONRequestBody = MCPProxyScopeRequest
+
+// UpdateProjectMCPProxyScopeJSONRequestBody defines body for UpdateProjectMCPProxyScope for application/json ContentType.
+type UpdateProjectMCPProxyScopeJSONRequestBody = MCPProxyScopeUpdateRequest
 
 // ListRepositoryBranchesJSONRequestBody defines body for ListRepositoryBranches for application/json ContentType.
 type ListRepositoryBranchesJSONRequestBody = ListBranchesRequest

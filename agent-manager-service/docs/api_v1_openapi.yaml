@@ -8177,6 +8177,160 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /orgs/{orgName}/projects/{projName}/mcp-proxies/{proxyId}/scopes:
+    get:
+      summary: List a project MCP proxy's scopes
+      description: >-
+        Lists the project proxy's scopes. A scope is an action on the proxy's resource server (token scope
+        "<proxy-handle>:<action>"); roles grant it to agents, and every binding secured with identity enforces
+        it on the tools it covers.
+      operationId: listProjectMCPProxyScopes
+      tags: [MCPProxyScopes]
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: proxyId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Scope list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MCPProxyScopeListResponse"
+        "404":
+          description: Project or MCP proxy not found
+    post:
+      summary: Create a project MCP proxy scope
+      description: >-
+        Creates the scope, adds its action to the resource server of every binding secured with identity, and
+        deploys those bindings again so the gateway enforces it on its tools.
+      operationId: createProjectMCPProxyScope
+      tags: [MCPProxyScopes]
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: proxyId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MCPProxyScopeRequest"
+      responses:
+        "201":
+          description: Scope created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MCPProxyScopeResponse"
+        "400":
+          description: Invalid action, tools, or unknown tool name (VALIDATION_ERROR)
+        "404":
+          description: Project or MCP proxy not found
+        "409":
+          description: A scope with this action already exists on the proxy (CONFLICT)
+  /orgs/{orgName}/projects/{projName}/mcp-proxies/{proxyId}/scopes/{scopeAction}:
+    put:
+      summary: Update a project MCP proxy scope
+      description: Updates description and/or tools. The action itself is immutable (rename = delete + create).
+      operationId: updateProjectMCPProxyScope
+      tags: [MCPProxyScopes]
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: proxyId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: scopeAction
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MCPProxyScopeUpdateRequest"
+      responses:
+        "200":
+          description: Scope updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MCPProxyScopeResponse"
+        "400":
+          description: Invalid or unknown tool name (VALIDATION_ERROR)
+        "404":
+          description: Project, MCP proxy or scope not found
+    delete:
+      summary: Delete a project MCP proxy scope
+      description: >-
+        Deletes the scope. Best-effort removal of the corresponding identity provider action and role
+        permissions, then the bindings are deployed again; tools the scope covered become authenticated-only
+        unless another scope covers them.
+      operationId: deleteProjectMCPProxyScope
+      tags: [MCPProxyScopes]
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: proxyId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: scopeAction
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Scope deleted
+        "404":
+          description: Project, MCP proxy or scope not found
   /orgs/{orgName}/mcp-proxies/{proxyId}/scopes:
     get:
       summary: List MCP proxy scopes
