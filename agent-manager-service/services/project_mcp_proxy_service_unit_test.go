@@ -46,6 +46,7 @@ type projectProxyFixture struct {
 	svc          *ProjectMCPProxyService
 	proxies      map[string]*models.MCPProxy // handle -> proxy
 	endpoints    []*models.MCPProxyEndpoint
+	updatedEps   []models.MCPProxyEndpoint
 	updateCalls  int
 	createCalls  int
 	txCalls      int
@@ -140,6 +141,10 @@ func newProjectProxyFixture(t *testing.T) *projectProxyFixture {
 	endpointRepo := &repomocks.MCPProxyEndpointRepositoryMock{
 		CreateEndpointFunc: func(_ context.Context, _ *gorm.DB, e *models.MCPProxyEndpoint) error {
 			f.endpoints = append(f.endpoints, e)
+			return nil
+		},
+		UpdateEndpointFunc: func(_ context.Context, _ *gorm.DB, e *models.MCPProxyEndpoint) error {
+			f.updatedEps = append(f.updatedEps, *e)
 			return nil
 		},
 		ListEndpointEnvironmentsByProxyFunc: func(_ context.Context, _ uuid.UUID) ([]models.MCPProxyEndpointEnvironment, error) {
@@ -567,4 +572,55 @@ func TestUpsertByURL_KindIsImmutable(t *testing.T) {
 	_, _, err = f.svc.Upsert(ctx, testOrg, testProjName, testProjA, "docs", toSource)
 	assert.ErrorIs(t, err, utils.ErrImmutableFieldChange)
 	assert.Zero(t, f.updateCalls)
+}
+
+// A binding's stored upstream credential is sent to the proxy's URL, so the URL may not move to another origin while
+// a binding holds one; the same origin, or a binding without a credential, takes the new URL.
+func TestUpsertByURL_URLChangeKeepsCredentialOnOrigin(t *testing.T) {
+	apiKey, header, secret := "api-key", "X-Key", "s3cret"
+	for name, tc := range map[string]struct {
+		withAuth bool
+		newURL   string
+		wantErr  bool
+	}{
+		"another origin with auth":    {withAuth: true, newURL: "https://1.1.1.1/mcp", wantErr: true},
+		"another port with auth":      {withAuth: true, newURL: "https://8.8.8.8:8443/mcp", wantErr: true},
+		"another scheme with auth":    {withAuth: true, newURL: "http://8.8.8.8/mcp", wantErr: true},
+		"same origin with auth":       {withAuth: true, newURL: "https://8.8.8.8:443/v2/mcp"},
+		"another origin without auth": {newURL: "https://1.1.1.1/mcp"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := newProjectProxyFixture(t)
+			ctx := context.Background()
+			_, _, err := f.svc.Upsert(ctx, testOrg, testProjName, testProjA, "docs", urlReq())
+			require.NoError(t, err)
+			upstream := &models.UpstreamEndpoint{URL: publicMCPURL}
+			if tc.withAuth {
+				upstream.Auth = &models.UpstreamAuth{Type: &apiKey, Header: &header, Value: &secret}
+			}
+			f.proxies["docs"].Endpoints = []models.MCPProxyEndpoint{{
+				UUID: uuid.New(), Configuration: models.MCPEndpointConfig{Upstream: upstream},
+			}}
+
+			req := urlReq()
+			req.Upstream.URL = tc.newURL
+			_, _, err = f.svc.Upsert(ctx, testOrg, testProjName, testProjA, "docs", req)
+			if tc.wantErr {
+				assert.ErrorIs(t, err, utils.ErrInvalidInput)
+				assert.Empty(t, f.updatedEps)
+				assert.Zero(t, f.updateCalls)
+				return
+			}
+			require.NoError(t, err)
+			require.Len(t, f.updatedEps, 1)
+			assert.Equal(t, tc.newURL, f.updatedEps[0].Configuration.Upstream.URL)
+		})
+	}
+}
+
+func TestSameURLOrigin(t *testing.T) {
+	assert.True(t, sameURLOrigin("https://a.example/mcp", "https://A.example:443/other"))
+	assert.False(t, sameURLOrigin("https://a.example/mcp", "https://b.example/mcp"))
+	assert.False(t, sameURLOrigin("https://a.example/mcp", "not a url"))
+	assert.False(t, sameURLOrigin("", ""))
 }

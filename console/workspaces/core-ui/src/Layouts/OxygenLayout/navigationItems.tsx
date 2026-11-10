@@ -834,7 +834,7 @@ export function useNavigationItems(): Array<
       ...(hasAccess("mcp_server_read")
         ? [
             {
-              label: "MCP Servers",
+              label: "MCP servers",
               type: "item" as const,
               icon: <MCPLogo size={20} />,
               href: generatePath(

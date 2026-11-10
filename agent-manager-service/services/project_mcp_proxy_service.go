@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"net/url"
 	"slices"
 	"strings"
 	"time"
@@ -537,7 +538,8 @@ func (s *ProjectMCPProxyService) update(
 		}
 		return s.base.repo.Update(ctx, tx, &updated, ouID)
 	}); err != nil {
-		if errors.Is(err, utils.ErrMCPContextInUse) || errors.Is(err, utils.ErrMCPProxyNotFound) {
+		if errors.Is(err, utils.ErrMCPContextInUse) || errors.Is(err, utils.ErrMCPProxyNotFound) ||
+			errors.Is(err, utils.ErrInvalidInput) {
 			return nil, err
 		}
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -633,6 +635,11 @@ func (s *ProjectMCPProxyService) updateBindingUpstreams(
 			continue
 		}
 		upstream := *endpoint.Configuration.Upstream
+		// The stored credential is sent to the URL, so it may not follow the URL to another origin.
+		if upstream.Auth != nil && !sameURLOrigin(upstream.URL, upstreamURL) {
+			return fmt.Errorf("%w: upstream.url moves to another origin while a binding has upstream auth; "+
+				"clear its upstreamAuth first", utils.ErrInvalidInput)
+		}
 		upstream.URL = upstreamURL
 		endpoint.Configuration.Upstream = &upstream
 		if err := s.base.endpointRepo.UpdateEndpoint(ctx, tx, &endpoint); err != nil {
@@ -640,6 +647,16 @@ func (s *ProjectMCPProxyService) updateBindingUpstreams(
 		}
 	}
 	return nil
+}
+
+// sameURLOrigin reports whether two URLs share scheme, host and port; a URL that does not parse matches nothing.
+func sameURLOrigin(a, b string) bool {
+	ua, errA := url.Parse(strings.TrimSpace(a))
+	ub, errB := url.Parse(strings.TrimSpace(b))
+	if errA != nil || errB != nil || ua.Host == "" || ub.Host == "" {
+		return false
+	}
+	return isSameOrigin(ua, ub)
 }
 
 // projectMCPProxySource is the component endpoint the proxy fronts, or nil for a proxy registered by URL.
