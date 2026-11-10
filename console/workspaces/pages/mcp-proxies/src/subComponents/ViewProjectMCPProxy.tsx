@@ -15,17 +15,13 @@
  * under the License.
  */
 
-import { type SyntheticEvent, useCallback, useMemo, useState } from "react";
+import { type SyntheticEvent, useCallback, useMemo } from "react";
 import {
   Alert,
   Box,
   Button,
   Card,
   Chip,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
   Divider,
   FormControl,
   Grid,
@@ -43,8 +39,6 @@ import {
   AlertTriangle,
   Copy,
   Edit,
-  Plus,
-  Trash,
 } from "@wso2/oxygen-ui-icons-react";
 import {
   generatePath,
@@ -53,7 +47,6 @@ import {
   useSearchParams,
 } from "react-router-dom";
 import {
-  useDeleteProjectMCPProxyEnvironment,
   useGetProjectMCPProxy,
   useListEnvironments,
   usePutProjectMCPProxyEnvironment,
@@ -63,7 +56,6 @@ import {
 import {
   environmentLabel,
   normalizeVersion,
-  useConfirmationDialog,
 } from "@agent-management-platform/shared-component";
 import { useResourceAccess } from "@agent-management-platform/feature-management";
 import {
@@ -169,14 +161,10 @@ export function ViewProjectMCPProxy() {
   } = useGetProjectMCPProxy({ orgName: orgId, projName: projectId, proxyId });
   const { data: environments = [] } = useListEnvironments({ orgName: orgId });
   const putBinding = usePutProjectMCPProxyEnvironment();
-  const removeBinding = useDeleteProjectMCPProxyEnvironment();
   const updateProxy = useUpdateProjectMCPProxy();
   const refreshTools = useRefreshProjectMCPProxyCapabilities();
-  const { addConfirmation } = useConfirmationDialog();
   const { canWrite } = useResourceAccess("mcp_server");
   const handleCopy = useCopyWithFeedback();
-  const [addEnvOpen, setAddEnvOpen] = useState(false);
-  const [envToAdd, setEnvToAdd] = useState("");
   // A server registered by URL is managed here; one from a component is managed by its publisher.
   const isURLProxy = !!proxy && !proxy.source;
 
@@ -253,46 +241,6 @@ export function ViewProjectMCPProxy() {
     [proxy, selected, saveBinding, updateProxy, orgId, projectId, proxyId],
   );
   const isUpdating = putBinding.isPending || updateProxy.isPending;
-
-  const unboundEnvironments = environments.filter(
-    (env) => !bindings.some((binding) => binding.environmentName === env.name),
-  );
-
-  const addEnvironment = async () => {
-    if (!envToAdd) return;
-    // The new binding starts as the selected one is: same credential and policies. Its tools
-    // are discovered there, unless the selected binding's were given by its caller.
-    const body: ProjectMCPProxyEnvironmentRequest = selected
-      ? { ...applyBindingConfigChange(proxy!, selected, {}).binding }
-      : {};
-    delete body.gatewayId;
-    await putBinding.mutateAsync({
-      params: { ...proxyParams, envName: envToAdd },
-      body,
-    });
-    setParam("env", envToAdd);
-    setAddEnvOpen(false);
-    setEnvToAdd("");
-  };
-
-  const confirmRemoveEnvironment = () => {
-    if (!selected) return;
-    const label = envLabel(selected.environmentUuid, selected.environmentName);
-    addConfirmation({
-      title: "Remove from environment",
-      description: `Remove ${proxy?.name ?? proxyId} from ${label}? Its API keys there are revoked and agents in ${label} can no longer call it.`,
-      confirmButtonText: "Remove",
-      confirmButtonColor: "error",
-      confirmButtonIcon: <Trash size={16} />,
-      onConfirm: () => {
-        removeBinding.mutate({
-          ...proxyParams,
-          envName: selected.environmentName,
-        });
-        setParam("env", undefined);
-      },
-    });
-  };
 
   const backHref = generatePath(
     absoluteRouteMap.children.org.children.projects.children.mcpProxies.path,
@@ -374,7 +322,7 @@ export function ViewProjectMCPProxy() {
 
       {proxy && !error && (
         <Stack spacing={4}>
-          {(bindings.length > 0 || (isURLProxy && canWrite)) && (
+          {bindings.length > 0 && (
             <Stack
               direction="row"
               spacing={1}
@@ -383,26 +331,6 @@ export function ViewProjectMCPProxy() {
               flexWrap="wrap"
               useFlexGap
             >
-              {isURLProxy && canWrite && unboundEnvironments.length > 0 && (
-                <Button
-                  size="small"
-                  variant="outlined"
-                  startIcon={<Plus size={16} />}
-                  onClick={() => setAddEnvOpen(true)}
-                >
-                  Add environment
-                </Button>
-              )}
-              {isURLProxy && canWrite && selected && (
-                <Button
-                  size="small"
-                  color="error"
-                  startIcon={<Trash size={16} />}
-                  onClick={confirmRemoveEnvironment}
-                >
-                  Remove from environment
-                </Button>
-              )}
               {selected && <BindingStatusChip env={selected} />}
               {bindings.length > 0 && (
                 <FormControl size="small" sx={{ minWidth: 260 }}>
@@ -606,7 +534,7 @@ export function ViewProjectMCPProxy() {
             <Card variant="outlined" sx={{ p: 3 }}>
               <Alert severity="info">
                 {isURLProxy
-                  ? 'This MCP Server is not deployed to any environment yet. Use "Add environment" above to deploy it.'
+                  ? 'This MCP Server is not deployed to any environment yet. Use "Edit MCP server" to assign its endpoint to an environment.'
                   : "This MCP Server is not deployed to any environment yet. It appears here once its component is published to one."}
               </Alert>
             </Card>
@@ -614,51 +542,6 @@ export function ViewProjectMCPProxy() {
         </Stack>
       )}
 
-      <Dialog
-        open={addEnvOpen}
-        onClose={() => setAddEnvOpen(false)}
-        fullWidth
-        maxWidth="xs"
-      >
-        <DialogTitle>Add environment</DialogTitle>
-        <DialogContent>
-          <FormControl fullWidth size="small" sx={{ mt: 1 }}>
-            <Select
-              value={envToAdd}
-              displayEmpty
-              onChange={(event) => setEnvToAdd(event.target.value as string)}
-            >
-              <MenuItem value="" disabled>
-                Choose an environment
-              </MenuItem>
-              {unboundEnvironments.map((env) => (
-                <MenuItem key={env.name} value={env.name}>
-                  {environmentLabel(env) || env.name}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-          <Typography
-            variant="caption"
-            color="text.secondary"
-            sx={{ mt: 1, display: "block" }}
-          >
-            {selected
-              ? "The server is deployed there with the selected environment's credential and policies."
-              : "The server is deployed there secured with an API key."}
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setAddEnvOpen(false)}>Cancel</Button>
-          <Button
-            variant="contained"
-            disabled={!envToAdd || putBinding.isPending}
-            onClick={() => void addEnvironment()}
-          >
-            Add
-          </Button>
-        </DialogActions>
-      </Dialog>
     </PageLayout>
   );
 }
