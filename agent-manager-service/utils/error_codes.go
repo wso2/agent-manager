@@ -44,6 +44,8 @@ const (
 	ErrCodeAmbiguousGateway = "AMBIGUOUS_GATEWAY"
 	// ErrCodeAPIKeySecurityDisabled: an API key was asked for on a binding not secured with an API key.
 	ErrCodeAPIKeySecurityDisabled = "API_KEY_SECURITY_DISABLED"
+	// ErrCodeCapabilitiesGivenByCaller: discovery was asked for on a binding whose caller gave its capabilities.
+	ErrCodeCapabilitiesGivenByCaller = "CAPABILITIES_GIVEN_BY_CALLER"
 	// ErrCodeEntitlementDenied: the organization's subscription does not allow the create (402).
 	ErrCodeEntitlementDenied = "ENTITLEMENT_DENIED"
 

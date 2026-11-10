@@ -85,6 +85,9 @@ const (
 
 // MCPProxyService handles MCP proxy operations.
 type MCPProxyService struct {
+	// strictLists fails a fetch whose tools, prompts or resources list failed, instead of leaving that list out.
+	// Capability discovery sets it: it stores what it lists, so a failed list must be retried, not stored as empty.
+	strictLists            bool
 	db                     *gorm.DB
 	tx                     TxRunner
 	repo                   repositories.MCPProxyRepository
@@ -2172,9 +2175,10 @@ func obtainValidMCPVersionsFromServer(versions []string) *[]string {
 
 // fetchToolsPromptsAndResources asks the server for its tools, prompts and resources, and builds
 // the response with them, the server's info and the MCP versions it supports.
-// protocolVersion decides how to send each request (see postJSONRPCForVersion). A failed list is
-// left out of the response, but running out of time fails the whole fetch, so a cut-off probe
-// is not reported as complete.
+// protocolVersion decides how to send each request (see postJSONRPCForVersion). A list the server
+// does not implement (-32601) is none. Any other failed list is left out of the response, or fails
+// the fetch when strictLists is set. Running out of time always fails the whole fetch, so a
+// cut-off probe is not reported as complete.
 func (s *MCPProxyService) fetchToolsPromptsAndResources(ctx context.Context, endpointURL string, sessionID string, headerName string, headerValue string, protocolVersion string, serverInfo map[string]interface{}, serverVersions []string) (*models.MCPServerInfoFetchResponse, error) {
 	resp := &models.MCPServerInfoFetchResponse{}
 	if serverInfo != nil {
@@ -2182,13 +2186,25 @@ func (s *MCPProxyService) fetchToolsPromptsAndResources(ctx context.Context, end
 	}
 	resp.SupportedVersions = obtainValidMCPVersionsFromServer(serverVersions)
 
-	if tools := s.fetchTools(ctx, endpointURL, sessionID, headerName, headerValue, protocolVersion); len(tools) > 0 {
+	tools, err := s.fetchTools(ctx, endpointURL, sessionID, headerName, headerValue, protocolVersion)
+	if err := s.listFailed(err); err != nil {
+		return nil, err
+	}
+	if len(tools) > 0 {
 		resp.Tools = &tools
 	}
-	if prompts := s.fetchPrompts(ctx, endpointURL, sessionID, headerName, headerValue, protocolVersion); len(prompts) > 0 {
+	prompts, err := s.fetchPrompts(ctx, endpointURL, sessionID, headerName, headerValue, protocolVersion)
+	if err := s.listFailed(err); err != nil {
+		return nil, err
+	}
+	if len(prompts) > 0 {
 		resp.Prompts = &prompts
 	}
-	if resources := s.fetchResources(ctx, endpointURL, sessionID, headerName, headerValue, protocolVersion); len(resources) > 0 {
+	resources, err := s.fetchResources(ctx, endpointURL, sessionID, headerName, headerValue, protocolVersion)
+	if err := s.listFailed(err); err != nil {
+		return nil, err
+	}
+	if len(resources) > 0 {
 		resp.Resources = &resources
 	}
 
@@ -2353,61 +2369,73 @@ func (s *MCPProxyService) initializeMCPServer(ctx context.Context, endpointURL s
 	return headers.Get(mcpSessionHeader), initResult.Result.ProtocolVersion, initResult.Result.ServerInfo, nil
 }
 
-func (s *MCPProxyService) fetchTools(ctx context.Context, endpointURL string, sessionID string, headerName string, headerValue string, protocolVersion string) []map[string]interface{} {
+// listFailed is err when the fetch must fail on it (strictLists), or nil after logging it.
+func (s *MCPProxyService) listFailed(err error) error {
+	if err == nil {
+		return nil
+	}
+	if s.strictLists {
+		return err
+	}
+	s.logger.Warn("Failed to list MCP capabilities, continuing with available info", "error", err)
+	return nil
+}
+
+// mcpListError is a list's JSON-RPC error, or nil when there is none or the server does not implement the method,
+// which means it has none of that kind.
+func mcpListError(method string, e *mcpJSONRPCError) error {
+	if e == nil || e.Code == mcpJSONRPCMethodNotFound {
+		return nil
+	}
+	return fmt.Errorf("%s returned an error: %s", method, e.Message)
+}
+
+func (s *MCPProxyService) fetchTools(ctx context.Context, endpointURL string, sessionID string, headerName string, headerValue string, protocolVersion string) ([]map[string]interface{}, error) {
 	req := mcpJSONRPCRequest{JSONRPC: mcpJSONRPCVersion, ID: 2, Method: mcpMethodToolsList}
 	body, err := s.postJSONRPCForVersion(ctx, endpointURL, req, sessionID, headerName, headerValue, protocolVersion)
 	if err != nil {
-		s.logger.Warn("Failed to fetch MCP tools, continuing with available info", "error", err)
-		return nil
+		return nil, fmt.Errorf("failed to fetch MCP tools: %w", err)
 	}
 	var result mcpToolsResult
 	if err := json.Unmarshal(body, &result); err != nil {
-		s.logger.Warn("Failed to parse MCP tools response, continuing with available info", "error", err)
-		return nil
+		return nil, fmt.Errorf("failed to parse MCP tools response: %w", err)
 	}
-	if result.Error != nil {
-		s.logger.Warn("tools/list returned an error, continuing with available info", "error", result.Error.Message)
-		return nil
+	if err := mcpListError(mcpMethodToolsList, result.Error); err != nil {
+		return nil, err
 	}
-	return result.Result.Tools
+	return result.Result.Tools, nil
 }
 
-func (s *MCPProxyService) fetchPrompts(ctx context.Context, endpointURL string, sessionID string, headerName string, headerValue string, protocolVersion string) []map[string]interface{} {
+func (s *MCPProxyService) fetchPrompts(ctx context.Context, endpointURL string, sessionID string, headerName string, headerValue string, protocolVersion string) ([]map[string]interface{}, error) {
 	req := mcpJSONRPCRequest{JSONRPC: mcpJSONRPCVersion, ID: 3, Method: mcpMethodPromptsList}
 	body, err := s.postJSONRPCForVersion(ctx, endpointURL, req, sessionID, headerName, headerValue, protocolVersion)
 	if err != nil {
-		s.logger.Warn("Failed to fetch MCP prompts, continuing with available info", "error", err)
-		return nil
+		return nil, fmt.Errorf("failed to fetch MCP prompts: %w", err)
 	}
 	var result mcpPromptsResult
 	if err := json.Unmarshal(body, &result); err != nil {
-		s.logger.Warn("Failed to parse MCP prompts response, continuing with available info", "error", err)
-		return nil
+		return nil, fmt.Errorf("failed to parse MCP prompts response: %w", err)
 	}
-	if result.Error != nil {
-		s.logger.Warn("prompts/list returned an error, continuing with available info", "error", result.Error.Message)
-		return nil
+	if err := mcpListError(mcpMethodPromptsList, result.Error); err != nil {
+		return nil, err
 	}
-	return result.Result.Prompts
+	return result.Result.Prompts, nil
 }
 
-func (s *MCPProxyService) fetchResources(ctx context.Context, endpointURL string, sessionID string, headerName string, headerValue string, protocolVersion string) []map[string]interface{} {
+func (s *MCPProxyService) fetchResources(ctx context.Context, endpointURL string, sessionID string, headerName string, headerValue string, protocolVersion string) ([]map[string]interface{}, error) {
 	req := mcpJSONRPCRequest{JSONRPC: mcpJSONRPCVersion, ID: 4, Method: mcpMethodResourcesList}
 	body, err := s.postJSONRPCForVersion(ctx, endpointURL, req, sessionID, headerName, headerValue, protocolVersion)
 	if err != nil {
-		s.logger.Warn("Failed to fetch MCP resources, continuing with available info", "error", err)
-		return nil
+		return nil, fmt.Errorf("failed to fetch MCP resources: %w", err)
 	}
 	var result mcpResourcesResult
 	if err := json.Unmarshal(body, &result); err != nil {
-		s.logger.Warn("Failed to parse MCP resources response, continuing with available info", "error", err)
-		return nil
+		return nil, fmt.Errorf("failed to parse MCP resources response: %w", err)
 	}
-	if result.Error != nil {
-		s.logger.Warn("resources/list returned an error, continuing with available info", "error", result.Error.Message)
-		return nil
+	if err := mcpListError(mcpMethodResourcesList, result.Error); err != nil {
+		return nil, err
 	}
-	return result.Result.Resources
+	return result.Result.Resources, nil
 }
 
 func (s *MCPProxyService) postJSONRPCWithSession(ctx context.Context, endpointURL string, payload interface{}, sessionID string, headerName string, headerValue string) ([]byte, error) {
@@ -2573,6 +2601,9 @@ type mcpHTTPStatusError struct {
 func (e *mcpHTTPStatusError) Error() string {
 	return fmt.Sprintf("request failed with status %d: %s", e.StatusCode, e.Body)
 }
+
+// mcpJSONRPCMethodNotFound is JSON-RPC's "Method not found" error code.
+const mcpJSONRPCMethodNotFound = -32601
 
 type mcpJSONRPCError struct {
 	Code    int    `json:"code"`

@@ -30,6 +30,9 @@ import (
 //			GetEndpointFunc: func(ctx context.Context, endpointUUID uuid.UUID) (*models.MCPProxyEndpoint, error) {
 //				panic("mock out the GetEndpoint method")
 //			},
+//			GetEndpointEnvByArtifactFunc: func(ctx context.Context, artifactUUID uuid.UUID) (*models.MCPProxyEndpointEnvironment, error) {
+//				panic("mock out the GetEndpointEnvByArtifact method")
+//			},
 //			GetEndpointEnvByProxyAndEnvFunc: func(ctx context.Context, proxyUUID uuid.UUID, envUUID uuid.UUID) (*models.MCPProxyEndpointEnvironment, error) {
 //				panic("mock out the GetEndpointEnvByProxyAndEnv method")
 //			},
@@ -66,6 +69,9 @@ type MCPProxyEndpointRepositoryMock struct {
 
 	// GetEndpointFunc mocks the GetEndpoint method.
 	GetEndpointFunc func(ctx context.Context, endpointUUID uuid.UUID) (*models.MCPProxyEndpoint, error)
+
+	// GetEndpointEnvByArtifactFunc mocks the GetEndpointEnvByArtifact method.
+	GetEndpointEnvByArtifactFunc func(ctx context.Context, artifactUUID uuid.UUID) (*models.MCPProxyEndpointEnvironment, error)
 
 	// GetEndpointEnvByProxyAndEnvFunc mocks the GetEndpointEnvByProxyAndEnv method.
 	GetEndpointEnvByProxyAndEnvFunc func(ctx context.Context, proxyUUID uuid.UUID, envUUID uuid.UUID) (*models.MCPProxyEndpointEnvironment, error)
@@ -120,6 +126,13 @@ type MCPProxyEndpointRepositoryMock struct {
 			Ctx context.Context
 			// EndpointUUID is the endpointUUID argument value.
 			EndpointUUID uuid.UUID
+		}
+		// GetEndpointEnvByArtifact holds details about calls to the GetEndpointEnvByArtifact method.
+		GetEndpointEnvByArtifact []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// ArtifactUUID is the artifactUUID argument value.
+			ArtifactUUID uuid.UUID
 		}
 		// GetEndpointEnvByProxyAndEnv holds details about calls to the GetEndpointEnvByProxyAndEnv method.
 		GetEndpointEnvByProxyAndEnv []struct {
@@ -176,6 +189,7 @@ type MCPProxyEndpointRepositoryMock struct {
 	lockCreateEndpoint                  sync.RWMutex
 	lockDeleteEndpoint                  sync.RWMutex
 	lockGetEndpoint                     sync.RWMutex
+	lockGetEndpointEnvByArtifact        sync.RWMutex
 	lockGetEndpointEnvByProxyAndEnv     sync.RWMutex
 	lockListEndpointEnvironments        sync.RWMutex
 	lockListEndpointEnvironmentsByProxy sync.RWMutex
@@ -337,6 +351,42 @@ func (mock *MCPProxyEndpointRepositoryMock) GetEndpointCalls() []struct {
 	mock.lockGetEndpoint.RLock()
 	calls = mock.calls.GetEndpoint
 	mock.lockGetEndpoint.RUnlock()
+	return calls
+}
+
+// GetEndpointEnvByArtifact calls GetEndpointEnvByArtifactFunc.
+func (mock *MCPProxyEndpointRepositoryMock) GetEndpointEnvByArtifact(ctx context.Context, artifactUUID uuid.UUID) (*models.MCPProxyEndpointEnvironment, error) {
+	if mock.GetEndpointEnvByArtifactFunc == nil {
+		panic("MCPProxyEndpointRepositoryMock.GetEndpointEnvByArtifactFunc: method is nil but MCPProxyEndpointRepository.GetEndpointEnvByArtifact was just called")
+	}
+	callInfo := struct {
+		Ctx          context.Context
+		ArtifactUUID uuid.UUID
+	}{
+		Ctx:          ctx,
+		ArtifactUUID: artifactUUID,
+	}
+	mock.lockGetEndpointEnvByArtifact.Lock()
+	mock.calls.GetEndpointEnvByArtifact = append(mock.calls.GetEndpointEnvByArtifact, callInfo)
+	mock.lockGetEndpointEnvByArtifact.Unlock()
+	return mock.GetEndpointEnvByArtifactFunc(ctx, artifactUUID)
+}
+
+// GetEndpointEnvByArtifactCalls gets all the calls that were made to GetEndpointEnvByArtifact.
+// Check the length with:
+//
+//	len(mockedMCPProxyEndpointRepository.GetEndpointEnvByArtifactCalls())
+func (mock *MCPProxyEndpointRepositoryMock) GetEndpointEnvByArtifactCalls() []struct {
+	Ctx          context.Context
+	ArtifactUUID uuid.UUID
+} {
+	var calls []struct {
+		Ctx          context.Context
+		ArtifactUUID uuid.UUID
+	}
+	mock.lockGetEndpointEnvByArtifact.RLock()
+	calls = mock.calls.GetEndpointEnvByArtifact
+	mock.lockGetEndpointEnvByArtifact.RUnlock()
 	return calls
 }
 

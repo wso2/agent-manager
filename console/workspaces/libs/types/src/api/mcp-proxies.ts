@@ -63,6 +63,24 @@ export interface MCPEndpointConfig {
   /** MCP versions this endpoint's server supports, from its fetch-server-info answer. */
   mcpSpecVersions?: string[];
   security?: SecurityConfig;
+  /**
+   * Agent Manager's discovery of these capabilities from the MCP server. Only on a
+   * project proxy's binding (carried over by projectMCPProxyEndpoints), and only
+   * while its capabilities are not the caller's.
+   */
+  capabilityDiscovery?: MCPCapabilityDiscoveryStatus;
+}
+
+/**
+ * Agent Manager's discovery of a project MCP proxy binding's capabilities from the
+ * MCP server, through the binding's gateway. Pending while queued or retrying (lastError
+ * says why the last attempt failed); Failed once given up on until the next deploy or
+ * refresh.
+ */
+export interface MCPCapabilityDiscoveryStatus {
+  status: "Pending" | "Discovered" | "Failed";
+  lastError?: string;
+  discoveredAt?: string;
 }
 
 /**
@@ -136,6 +154,16 @@ export interface ProjectMCPProxyEnvironment {
   gatewayId?: string;
   publicUrl?: string;
   security?: ProjectMCPProxyEnvironmentSecurity;
+  /**
+   * The binding's tools, prompts and resources: the ones given on the binding PUT, or the
+   * ones Agent Manager discovered from the MCP server (see capabilitiesSource). Absent
+   * when there are none yet.
+   */
+  capabilities?: MCPProxyCapabilities;
+  /** Where capabilities came from; absent with no capabilities. */
+  capabilitiesSource?: "caller" | "discovered";
+  /** The capability discovery, when one was queued and the capabilities are not the caller's. */
+  capabilityDiscovery?: MCPCapabilityDiscoveryStatus;
   updatedAt?: string;
 }
 
@@ -206,6 +234,9 @@ export type CreateMCPProxyPathParams = OrgPathParams;
 export type DeleteMCPProxyPathParams = OrgPathParams & { proxyId: string };
 export type GetMCPProxyPathParams = OrgPathParams & { proxyId: string };
 export type GetProjectMCPProxyPathParams = OrgProjPathParams & { proxyId: string };
+export type RefreshProjectMCPProxyCapabilitiesPathParams = GetProjectMCPProxyPathParams & {
+  envName: string;
+};
 export type UpdateMCPProxyPathParams = OrgPathParams & { proxyId: string };
 export type ListMCPProxiesPathParams = OrgPathParams;
 export type ListAvailableMCPPoliciesPathParams = OrgPathParams;

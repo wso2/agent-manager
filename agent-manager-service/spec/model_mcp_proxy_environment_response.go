@@ -36,7 +36,11 @@ type MCPProxyEnvironmentResponse struct {
 	Security     *MCPProxyEnvironmentSecurity             `json:"security,omitempty"`
 	Policies     []MCPPolicy                              `json:"policies,omitempty"`
 	UpstreamAuth *MCPProxyEnvironmentUpstreamAuthRedacted `json:"upstreamAuth,omitempty"`
-	UpdatedAt    *time.Time                               `json:"updatedAt,omitempty"`
+	Capabilities *MCPProxyCapabilities                    `json:"capabilities,omitempty"`
+	// Where capabilities came from: caller (the binding PUT) or discovered (AMS listed them from the MCP server). Absent with no capabilities.
+	CapabilitiesSource  *string                       `json:"capabilitiesSource,omitempty"`
+	CapabilityDiscovery *MCPCapabilityDiscoveryStatus `json:"capabilityDiscovery,omitempty"`
+	UpdatedAt           *time.Time                    `json:"updatedAt,omitempty"`
 }
 
 // NewMCPProxyEnvironmentResponse instantiates a new MCPProxyEnvironmentResponse object
@@ -387,6 +391,102 @@ func (o *MCPProxyEnvironmentResponse) SetUpstreamAuth(v MCPProxyEnvironmentUpstr
 	o.UpstreamAuth = &v
 }
 
+// GetCapabilities returns the Capabilities field value if set, zero value otherwise.
+func (o *MCPProxyEnvironmentResponse) GetCapabilities() MCPProxyCapabilities {
+	if o == nil || IsNil(o.Capabilities) {
+		var ret MCPProxyCapabilities
+		return ret
+	}
+	return *o.Capabilities
+}
+
+// GetCapabilitiesOk returns a tuple with the Capabilities field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *MCPProxyEnvironmentResponse) GetCapabilitiesOk() (*MCPProxyCapabilities, bool) {
+	if o == nil || IsNil(o.Capabilities) {
+		return nil, false
+	}
+	return o.Capabilities, true
+}
+
+// HasCapabilities returns a boolean if a field has been set.
+func (o *MCPProxyEnvironmentResponse) HasCapabilities() bool {
+	if o != nil && !IsNil(o.Capabilities) {
+		return true
+	}
+
+	return false
+}
+
+// SetCapabilities gets a reference to the given MCPProxyCapabilities and assigns it to the Capabilities field.
+func (o *MCPProxyEnvironmentResponse) SetCapabilities(v MCPProxyCapabilities) {
+	o.Capabilities = &v
+}
+
+// GetCapabilitiesSource returns the CapabilitiesSource field value if set, zero value otherwise.
+func (o *MCPProxyEnvironmentResponse) GetCapabilitiesSource() string {
+	if o == nil || IsNil(o.CapabilitiesSource) {
+		var ret string
+		return ret
+	}
+	return *o.CapabilitiesSource
+}
+
+// GetCapabilitiesSourceOk returns a tuple with the CapabilitiesSource field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *MCPProxyEnvironmentResponse) GetCapabilitiesSourceOk() (*string, bool) {
+	if o == nil || IsNil(o.CapabilitiesSource) {
+		return nil, false
+	}
+	return o.CapabilitiesSource, true
+}
+
+// HasCapabilitiesSource returns a boolean if a field has been set.
+func (o *MCPProxyEnvironmentResponse) HasCapabilitiesSource() bool {
+	if o != nil && !IsNil(o.CapabilitiesSource) {
+		return true
+	}
+
+	return false
+}
+
+// SetCapabilitiesSource gets a reference to the given string and assigns it to the CapabilitiesSource field.
+func (o *MCPProxyEnvironmentResponse) SetCapabilitiesSource(v string) {
+	o.CapabilitiesSource = &v
+}
+
+// GetCapabilityDiscovery returns the CapabilityDiscovery field value if set, zero value otherwise.
+func (o *MCPProxyEnvironmentResponse) GetCapabilityDiscovery() MCPCapabilityDiscoveryStatus {
+	if o == nil || IsNil(o.CapabilityDiscovery) {
+		var ret MCPCapabilityDiscoveryStatus
+		return ret
+	}
+	return *o.CapabilityDiscovery
+}
+
+// GetCapabilityDiscoveryOk returns a tuple with the CapabilityDiscovery field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *MCPProxyEnvironmentResponse) GetCapabilityDiscoveryOk() (*MCPCapabilityDiscoveryStatus, bool) {
+	if o == nil || IsNil(o.CapabilityDiscovery) {
+		return nil, false
+	}
+	return o.CapabilityDiscovery, true
+}
+
+// HasCapabilityDiscovery returns a boolean if a field has been set.
+func (o *MCPProxyEnvironmentResponse) HasCapabilityDiscovery() bool {
+	if o != nil && !IsNil(o.CapabilityDiscovery) {
+		return true
+	}
+
+	return false
+}
+
+// SetCapabilityDiscovery gets a reference to the given MCPCapabilityDiscoveryStatus and assigns it to the CapabilityDiscovery field.
+func (o *MCPProxyEnvironmentResponse) SetCapabilityDiscovery(v MCPCapabilityDiscoveryStatus) {
+	o.CapabilityDiscovery = &v
+}
+
 // GetUpdatedAt returns the UpdatedAt field value if set, zero value otherwise.
 func (o *MCPProxyEnvironmentResponse) GetUpdatedAt() time.Time {
 	if o == nil || IsNil(o.UpdatedAt) {
@@ -455,6 +555,15 @@ func (o MCPProxyEnvironmentResponse) ToMap() (map[string]interface{}, error) {
 	}
 	if !IsNil(o.UpstreamAuth) {
 		toSerialize["upstreamAuth"] = o.UpstreamAuth
+	}
+	if !IsNil(o.Capabilities) {
+		toSerialize["capabilities"] = o.Capabilities
+	}
+	if !IsNil(o.CapabilitiesSource) {
+		toSerialize["capabilitiesSource"] = o.CapabilitiesSource
+	}
+	if !IsNil(o.CapabilityDiscovery) {
+		toSerialize["capabilityDiscovery"] = o.CapabilityDiscovery
 	}
 	if !IsNil(o.UpdatedAt) {
 		toSerialize["updatedAt"] = o.UpdatedAt

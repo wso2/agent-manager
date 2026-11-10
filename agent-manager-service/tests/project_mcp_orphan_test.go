@@ -108,7 +108,7 @@ func TestProjectMCPProxyOfDeletedProject(t *testing.T) {
 	gdb := db.DB(context.Background())
 
 	deploymentRepo := repositories.NewDeploymentRepo(gdb)
-	kind := services.NewMCPProxyKind(repositories.NewGatewayRepo(gdb), deploymentRepo)
+	kind := services.NewMCPProxyKind(repositories.NewGatewayRepo(gdb), deploymentRepo, nil)
 	core := reconcile.NewCore(gdb, deploymentRepo, &lifecycleEventHub{}, reconcile.Kinds{kind},
 		reconcile.Config{Lease: time.Minute, AttemptBudget: 3}, testLifecycleLogger()).WithGateways(repositories.NewGatewayRepo(gdb))
 	worker := reconcile.NewWorker(core, testLifecycleLogger())

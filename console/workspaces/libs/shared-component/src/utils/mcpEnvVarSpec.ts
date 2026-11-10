@@ -81,7 +81,9 @@ Object.freeze(AGENTID_ENV_VAR_ROWS);
  * one per environment. A project proxy's org GET carries no endpoints, so its
  * security comes from the project route; this lets the same rules judge both
  * kinds of proxy. Project bindings secure with an API key or nothing (identity is
- * not available to them), so only `enabled` and `apiKey` are carried over.
+ * not available to them), so only `enabled` and `apiKey` are carried over. A
+ * binding's capabilities are carried over as an endpoint's, so its tools list the
+ * same way an org proxy's do.
  */
 export function projectMCPProxyEndpoints(
   proxy: Pick<ProjectMCPProxy, "environments"> | null | undefined,
@@ -91,6 +93,8 @@ export function projectMCPProxyEndpoints(
     security: environment.security
       ? { enabled: environment.security.enabled, apiKey: environment.security.apiKey }
       : undefined,
+    capabilities: environment.capabilities,
+    capabilityDiscovery: environment.capabilityDiscovery,
     environments: [{ environmentUuid: environment.environmentUuid }],
   }));
 }

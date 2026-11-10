@@ -183,7 +183,7 @@ func newProjectProxyFixture(t *testing.T) *projectProxyFixture {
 			return &models.AgentResponse{Name: name, ProjectName: projectName, Type: models.AgentType{Type: typ}}, nil
 		},
 	}
-	f.svc = NewProjectMCPProxyService(base, oc)
+	f.svc = NewProjectMCPProxyService(base, oc, nil)
 	return f
 }
 

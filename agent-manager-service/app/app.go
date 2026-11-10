@@ -351,6 +351,13 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 		os.Exit(1)
 	}
 
+	// Started unconditionally: it is a no-op for an org with no project MCP proxies.
+	mcpCapabilityDiscoveryCtx, mcpCapabilityDiscoveryCancel := context.WithCancel(backgroundCtx)
+	if err := dependencies.MCPCapabilityDiscovery.Start(mcpCapabilityDiscoveryCtx); err != nil {
+		slog.Error("failed to start MCP capability discovery", "error", err)
+		os.Exit(1)
+	}
+
 	deploymentTimeoutSweeperCtx, deploymentTimeoutSweeperCancel := context.WithCancel(backgroundCtx)
 	if err := dependencies.DeploymentTimeoutSweeper.Start(deploymentTimeoutSweeperCtx); err != nil {
 		slog.Error("failed to start deployment timeout sweeper", "error", err)
@@ -440,6 +447,11 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 		a2aCardReconcilerCancel()
 		if err := dependencies.A2ACardReconciler.Stop(); err != nil {
 			slog.Error("error stopping A2A card reconciler", "error", err)
+		}
+
+		mcpCapabilityDiscoveryCancel()
+		if err := dependencies.MCPCapabilityDiscovery.Stop(); err != nil {
+			slog.Error("error stopping MCP capability discovery", "error", err)
 		}
 
 		deploymentTimeoutSweeperCancel()

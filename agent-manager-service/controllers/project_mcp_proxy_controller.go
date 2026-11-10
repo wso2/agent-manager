@@ -41,6 +41,7 @@ type ProjectMCPProxyController interface {
 	PutProjectMCPProxyEnvironment(w http.ResponseWriter, r *http.Request)
 	GetProjectMCPProxyEnvironment(w http.ResponseWriter, r *http.Request)
 	DeleteProjectMCPProxyEnvironment(w http.ResponseWriter, r *http.Request)
+	RefreshProjectMCPProxyEnvironmentCapabilities(w http.ResponseWriter, r *http.Request)
 	ListProjectMCPProxyEnvironmentAPIKeys(w http.ResponseWriter, r *http.Request)
 	CreateProjectMCPProxyEnvironmentAPIKey(w http.ResponseWriter, r *http.Request)
 	IssueProjectMCPProxyEnvironmentTestAPIKey(w http.ResponseWriter, r *http.Request)
@@ -381,6 +382,9 @@ func writeProjectMCPBindingError(w http.ResponseWriter, err error) bool {
 	case errors.Is(err, utils.ErrMCPContextInUse):
 		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
 			utils.ErrMCPContextInUse.Error(), err.Error(), utils.ErrCodeContextInUse)
+	case errors.Is(err, utils.ErrMCPCapabilitiesGivenByCaller):
+		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
+			utils.ErrMCPCapabilitiesGivenByCaller.Error(), "", utils.ErrCodeCapabilitiesGivenByCaller)
 	case errors.Is(err, utils.ErrMCPProxyHasMappings):
 		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
 			utils.ErrMCPProxyHasMappings.Error(), "", utils.ErrCodeMCPProxyInUse)
@@ -397,4 +401,26 @@ func writeProjectMCPBindingError(w http.ResponseWriter, err error) bool {
 		return false
 	}
 	return true
+}
+
+// RefreshProjectMCPProxyEnvironmentCapabilities handles POST .../mcp-proxies/{proxyId}/environments/{envName}/capabilities/refresh.
+func (c *projectMCPProxyController) RefreshProjectMCPProxyEnvironmentCapabilities(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	ouID := middleware.OUIDFromRequest(r)
+	handle := r.PathValue(utils.PathParamProxyId)
+	envName := r.PathValue(pathParamEnvName)
+	project, ok := c.resolveProject(w, r, ouID)
+	if !ok {
+		return
+	}
+	resp, err := c.service.RefreshEnvironmentCapabilities(ctx, ouID, project.UUID, handle, envName)
+	if err != nil {
+		if !writeProjectMCPBindingError(w, err) {
+			logger.GetLogger(ctx).Error("RefreshProjectMCPProxyEnvironmentCapabilities: failed",
+				"ouID", ouID, "handle", handle, "environment", envName, "error", err)
+			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to queue the capability discovery")
+		}
+		return
+	}
+	utils.WriteSuccessResponse(w, http.StatusAccepted, resp)
 }

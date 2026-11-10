@@ -21,6 +21,8 @@ import type {
   FetchMCPProxyServerInfoPathParams,
   GetMCPProxyPathParams,
   GetProjectMCPProxyPathParams,
+  ProjectMCPProxyEnvironment,
+  RefreshProjectMCPProxyCapabilitiesPathParams,
   ListAvailableMCPPoliciesPathParams,
   ListMCPProxiesPathParams,
   ListMCPProxiesQuery,
@@ -124,6 +126,29 @@ export async function getProjectMCPProxy(
 
   const res = await httpGET(
     `${SERVICE_BASE}/orgs/${org}/projects/${proj}/mcp-proxies/${proxyId}`,
+    { token },
+  );
+  if (!res.ok) throw await res.json();
+  return res.json();
+}
+
+/**
+ * Queues the discovery of a project proxy binding's capabilities again; the binding
+ * comes back with it Pending.
+ */
+export async function refreshProjectMCPProxyCapabilities(
+  params: RefreshProjectMCPProxyCapabilitiesPathParams,
+  getToken?: () => Promise<string>,
+): Promise<ProjectMCPProxyEnvironment> {
+  const org = encodeRequired(params.orgName, "orgName");
+  const proj = encodeRequired(params.projName, "projName");
+  const proxyId = encodeRequired(params.proxyId, "proxyId");
+  const envName = encodeRequired(params.envName, "envName");
+  const token = getToken ? await getToken() : undefined;
+
+  const res = await httpPOST(
+    `${SERVICE_BASE}/orgs/${org}/projects/${proj}/mcp-proxies/${proxyId}/environments/${envName}/capabilities/refresh`,
+    {},
     { token },
   );
   if (!res.ok) throw await res.json();

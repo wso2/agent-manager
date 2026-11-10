@@ -48,11 +48,15 @@ const (
 type ProjectMCPProxyService struct {
 	base     *MCPProxyService
 	ocClient occlient.OpenChoreoClient
+	// discoveries is the bindings' capability discovery queue; nil shows and queues none.
+	discoveries repositories.MCPCapabilityDiscoveryRepository
 }
 
 // NewProjectMCPProxyService creates the project MCP proxy service.
-func NewProjectMCPProxyService(base *MCPProxyService, ocClient occlient.OpenChoreoClient) *ProjectMCPProxyService {
-	return &ProjectMCPProxyService{base: base, ocClient: ocClient}
+func NewProjectMCPProxyService(
+	base *MCPProxyService, ocClient occlient.OpenChoreoClient, discoveries repositories.MCPCapabilityDiscoveryRepository,
+) *ProjectMCPProxyService {
+	return &ProjectMCPProxyService{base: base, ocClient: ocClient, discoveries: discoveries}
 }
 
 // legacySSEMCPServerType is the component type of MCP servers that speak legacy HTTP+SSE

@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -89,7 +90,8 @@ func (s *ProjectMCPProxyService) PutEnvironment(
 	// A component deployed on several tracks has a release binding per track in the environment; releaseBindingName
 	// picks one, and without it such a component is refused rather than one of its bindings picked at random.
 	serviceURL, err := s.ocClient.GetReleaseBindingEndpointServiceURL(
-		ctx, ouID, projectName, source.ComponentName, source.EndpointName, envName, releaseBindingName)
+		ctx, ouID, projectName, source.ComponentName, source.EndpointName, envName, releaseBindingName,
+	)
 	switch {
 	case errors.Is(err, occlient.ErrAmbiguousReleaseBinding):
 		return nil, false, fmt.Errorf("%w: set releaseBindingName to pick one: %w", utils.ErrInvalidInput, err)
@@ -132,12 +134,23 @@ func (s *ProjectMCPProxyService) PutEnvironment(
 	if err != nil {
 		return nil, false, err
 	}
+	capabilities, err := normalizeBindingCapabilities(req.Capabilities)
+	if err != nil {
+		return nil, false, err
+	}
 
 	desired := models.MCPEndpointConfig{
 		Upstream:           &models.UpstreamEndpoint{URL: upstreamURL, Auth: auth},
 		Policies:           policies,
 		Security:           security,
 		ReleaseBindingName: releaseBindingName,
+		Capabilities:       capabilities,
+	}
+	// Capabilities AMS discovered are kept by a PUT that gives none; a PUT that gives some replaces them. The
+	// discovery state itself is never written here: UpdateEndpoint keeps the stored one.
+	if capabilities == nil && exists && endpoint.Configuration.CapabilitiesDiscovered {
+		desired.Capabilities = endpoint.Configuration.Capabilities
+		desired.CapabilitiesDiscovered = true
 	}
 	if exists && s.sameBindingConfig(endpoint.Configuration, desired) {
 		shown, err := s.shownStatus(ctx, ouID, ee.ArtifactUUID)
@@ -595,6 +608,59 @@ func normalizeBindingUpstreamAuth(in *models.MCPProxyEnvironmentUpstreamAuth) (*
 	}
 }
 
+// maxBindingCapabilityEntries bounds each of a binding's tools, prompts and resources lists, and
+// maxBindingCapabilitiesBytes their encoded size, so a caller cannot store an unbounded document in the endpoint row.
+const (
+	maxBindingCapabilityEntries = 1000
+	maxBindingCapabilitiesBytes = 1 << 20
+)
+
+// normalizeBindingCapabilities is the binding's capabilities as stored: nil when none are given (or all lists are
+// empty), otherwise the given lists with each tool, prompt and resource checked for its identifying field.
+func normalizeBindingCapabilities(in *models.MCPProxyCapabilities) (*models.MCPProxyCapabilities, error) {
+	if in == nil {
+		return nil, nil //nolint:nilnil // no capabilities given
+	}
+	out := &models.MCPProxyCapabilities{}
+	lists := []struct {
+		kind, key string
+		in        *[]map[string]interface{}
+		out       **[]map[string]interface{}
+	}{
+		{"tools", "name", in.Tools, &out.Tools},
+		{"prompts", "name", in.Prompts, &out.Prompts},
+		{"resources", "uri", in.Resources, &out.Resources},
+	}
+	for _, l := range lists {
+		if l.in == nil || len(*l.in) == 0 {
+			continue
+		}
+		if len(*l.in) > maxBindingCapabilityEntries {
+			return nil, fmt.Errorf("%w: capabilities.%s has %d entries, more than the limit of %d",
+				utils.ErrInvalidInput, l.kind, len(*l.in), maxBindingCapabilityEntries)
+		}
+		for i, entry := range *l.in {
+			if id, ok := entry[l.key].(string); !ok || strings.TrimSpace(id) == "" {
+				return nil, fmt.Errorf("%w: capabilities.%s[%d] needs a %s", utils.ErrInvalidInput, l.kind, i, l.key)
+			}
+		}
+		list := slices.Clone(*l.in)
+		*l.out = &list
+	}
+	if out.Tools == nil && out.Prompts == nil && out.Resources == nil {
+		return nil, nil //nolint:nilnil // only empty lists given
+	}
+	encoded, err := json.Marshal(out)
+	if err != nil {
+		return nil, fmt.Errorf("%w: capabilities: %w", utils.ErrInvalidInput, err)
+	}
+	if len(encoded) > maxBindingCapabilitiesBytes {
+		return nil, fmt.Errorf("%w: capabilities is %d bytes, more than the limit of %d",
+			utils.ErrInvalidInput, len(encoded), maxBindingCapabilitiesBytes)
+	}
+	return out, nil
+}
+
 // storeBindingConfig is desired as it is stored: the upstream credential encrypted.
 func (s *ProjectMCPProxyService) storeBindingConfig(desired models.MCPEndpointConfig) (models.MCPEndpointConfig, error) {
 	stored := desired
@@ -629,7 +695,9 @@ func (s *ProjectMCPProxyService) sameBindingConfig(stored, desired models.MCPEnd
 		s.sameUpstreamAuth(storedAuth, desiredAuth) &&
 		sameJSON(stored.Security, desired.Security) &&
 		sameJSON(nilIfEmptyPolicies(stored.Policies), nilIfEmptyPolicies(desired.Policies)) &&
-		stored.Resilience == nil && stored.Capabilities == nil
+		sameJSON(stored.Capabilities, desired.Capabilities) &&
+		stored.CapabilitiesDiscovered == desired.CapabilitiesDiscovered &&
+		stored.Resilience == nil
 }
 
 func (s *ProjectMCPProxyService) sameUpstreamAuth(stored, desired *models.UpstreamAuth) bool {
@@ -688,12 +756,23 @@ func (s *ProjectMCPProxyService) environmentResponse(
 		ReleaseBindingName: cfg.ReleaseBindingName,
 		Security:           bindingSecurityResponse(cfg.Security),
 		Policies:           copyMCPPolicies(cfg.Policies),
+		Capabilities:       copyMCPCapabilities(cfg.Capabilities),
 		UpdatedAt:          timePtrIfNotZero(endpoint.UpdatedAt),
 	}
 	if cfg.Upstream != nil && cfg.Upstream.Auth != nil {
 		resp.UpstreamAuth = &models.MCPProxyEnvironmentUpstreamAuthRedacted{
 			Type: valueOrEmpty(cfg.Upstream.Auth.Type), Header: valueOrEmpty(cfg.Upstream.Auth.Header),
 		}
+	}
+	if cfg.Capabilities != nil {
+		resp.CapabilitiesSource = models.MCPCapabilitiesSourceCaller
+		if cfg.CapabilitiesDiscovered {
+			resp.CapabilitiesSource = models.MCPCapabilitiesSourceDiscovered
+		}
+	}
+	// A caller's capabilities are not discovered: an earlier discovery's state no longer applies.
+	if cfg.CapabilityDiscovery != nil && !callerGaveCapabilities(cfg) {
+		resp.CapabilityDiscovery = models.MCPCapabilityDiscoveryStatusOf(*cfg.CapabilityDiscovery)
 	}
 	shown, err := s.shownStatus(ctx, ouID, ee.ArtifactUUID)
 	if err != nil {
@@ -764,4 +843,30 @@ func (s *ProjectMCPProxyService) rerenderBindings(ctx context.Context, ouID stri
 				"proxyUUID", proxy.UUID, "artifactUUID", artifact.ArtifactUUID, "ouID", ouID, "error", err)
 		}
 	}
+}
+
+// RefreshEnvironmentCapabilities queues the binding's capability discovery now, with a fresh attempt budget, and
+// returns the binding. A binding whose caller gave capabilities is refused (ErrMCPCapabilitiesGivenByCaller): a PUT
+// without capabilities hands them to discovery. A binding not deployed yet is queued and retried until it is.
+func (s *ProjectMCPProxyService) RefreshEnvironmentCapabilities(
+	ctx context.Context, ouID, projectUUID, handle, envName string,
+) (*models.MCPProxyEnvironmentResponse, error) {
+	if s.discoveries == nil {
+		return nil, fmt.Errorf("capability discovery is not configured")
+	}
+	proxy, err := s.getInProject(ctx, ouID, projectUUID, handle)
+	if err != nil {
+		return nil, err
+	}
+	endpoint, ee := bindingByEnvironmentName(proxy, strings.TrimSpace(envName))
+	if ee == nil {
+		return nil, utils.ErrMCPProxyEnvironmentNotBound
+	}
+	if callerGaveCapabilities(endpoint.Configuration) {
+		return nil, utils.ErrMCPCapabilitiesGivenByCaller
+	}
+	if err := s.discoveries.Enqueue(ctx, ee.ArtifactUUID); err != nil {
+		return nil, fmt.Errorf("failed to queue the capability discovery: %w", err)
+	}
+	return s.GetEnvironment(ctx, ouID, "", projectUUID, handle, envName)
 }
