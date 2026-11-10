@@ -46,9 +46,19 @@ func (s *ProjectMCPProxyService) ensureBindingResourceServer(
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), ensureResourceServerPerEnvTimeout)
 	defer cancel()
 	handle := proxyHandleOf(proxy)
-	// A project proxy has no scopes of its own, so the resource server carries no actions: any token issued for it
-	// is enough, and the gateway renders no per-tool rules. Ensure never removes actions, so none are lost.
-	_, err := s.base.ensureProxyResourceServerInEnv(ctx, ouID, envUUID, envName, proxy, nil)
+	// The proxy's scopes are the resource server's actions, which roles grant and the gateway enforces per tool. With
+	// none, any token issued for the resource is enough. Ensure never removes actions, so a failed lookup loses none.
+	var actions []string
+	if s.base.mcpProxyScopeRepo != nil {
+		scopes, err := s.base.mcpProxyScopeRepo.ListByProxy(ctx, proxy.UUID)
+		if err != nil {
+			s.base.logger.Warn("project MCP binding resource server: listing scopes failed", "proxy", handle, "error", err)
+		}
+		for _, scope := range scopes {
+			actions = append(actions, scope.Action)
+		}
+	}
+	_, err := s.base.ensureProxyResourceServerInEnv(ctx, ouID, envUUID, envName, proxy, actions)
 	switch {
 	case err == nil:
 		s.base.logger.Info("project MCP binding resource server registered", "proxy", handle, "env", envName)

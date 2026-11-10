@@ -417,6 +417,41 @@ func TestProjectMCPBindingLifecycle(t *testing.T) {
 		})
 		require.Equal(t, http.StatusBadRequest, rr.Code, rr.Body.String())
 
+		// A scope on the project route is enforced per tool on the identity binding.
+		pulled := func(t *testing.T) map[string]models.MCPPolicy {
+			t.Helper()
+			current, err := deploymentRepo.GetPullable(context.Background(), ouID, artifactOf(t, oauth, envs[devEnv]), gatewayID.String())
+			require.NoError(t, err)
+			require.NotNil(t, current)
+			var deployed services.MCPProxyDeploymentYAML
+			require.NoError(t, yaml.Unmarshal(current.Content, &deployed))
+			out := map[string]models.MCPPolicy{}
+			for _, policy := range deployed.Spec.Policies {
+				out[policy.Name] = policy
+			}
+			return out
+		}
+		scopes := "/" + oauth + "/scopes"
+		rr = h.do(http.MethodPost, project, scopes, map[string]any{"action": "read", "tools": []string{"get_forecast"}})
+		require.Equal(t, http.StatusCreated, rr.Code, rr.Body.String())
+		rr = h.do(http.MethodPost, project, scopes, map[string]any{"action": "read"})
+		require.Equal(t, http.StatusConflict, rr.Code, rr.Body.String())
+		rr = h.do(http.MethodGet, project, scopes, nil)
+		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+		assert.Contains(t, rr.Body.String(), `"scope":"`+oauth+`:read"`)
+
+		policies := pulled(t)
+		require.Contains(t, policies, "mcp-authz", "the scope is enforced per tool")
+		assert.Equal(t, []any{map[string]any{"name": "get_forecast", "requiredScopes": []any{oauth + ":read"}}},
+			policies["mcp-authz"].Params["tools"])
+		assert.Equal(t, []any{oauth + ":read"}, policies["mcp-auth"].Params["requiredScopes"])
+
+		rr = h.do(http.MethodDelete, project, scopes+"/read", nil)
+		require.Equal(t, http.StatusNoContent, rr.Code, rr.Body.String())
+		assert.NotContains(t, pulled(t), "mcp-authz", "without scopes any token for the resource is enough")
+		rr = h.do(http.MethodDelete, project, scopes+"/read", nil)
+		require.Equal(t, http.StatusNotFound, rr.Code, rr.Body.String())
+
 		rr = h.do(http.MethodDelete, project, "/"+oauth, nil)
 		require.Equal(t, http.StatusNoContent, rr.Code, rr.Body.String())
 	})

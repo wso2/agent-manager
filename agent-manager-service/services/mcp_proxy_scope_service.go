@@ -44,6 +44,15 @@ type MCPProxyScopeService interface {
 	Update(ctx context.Context, ouID, orgName, proxyHandle, action string, in models.MCPProxyScopeUpdateInput) (*models.MCPProxyScopeResult, error)
 	Delete(ctx context.Context, ouID, orgName, proxyHandle, action string) error
 	ListEnvironmentScopes(ctx context.Context, ouID, envName string) ([]models.EnvironmentScopeEntry, error)
+
+	// The project variants manage the scopes of a project proxy, found in the project with projectUUID; a proxy of
+	// another project, or an org proxy, is utils.ErrMCPProxyNotFound. They are the same operations: the scope is an
+	// action on the proxy's resource server, granted to agents through roles, and enforced per tool on the gateway
+	// of every binding secured with identity.
+	ListInProject(ctx context.Context, ouID, projectUUID, proxyHandle string) (*models.MCPProxyScopesResult, error)
+	CreateInProject(ctx context.Context, ouID, projectUUID, proxyHandle string, in models.MCPProxyScopeInput) (*models.MCPProxyScopeResult, error)
+	UpdateInProject(ctx context.Context, ouID, projectUUID, proxyHandle, action string, in models.MCPProxyScopeUpdateInput) (*models.MCPProxyScopeResult, error)
+	DeleteInProject(ctx context.Context, ouID, projectUUID, proxyHandle, action string) error
 }
 
 // MCPProxyRedeployer is the narrow MCPProxyService surface scope mutations
@@ -121,6 +130,18 @@ func (s *mcpProxyScopeService) resolveOrgOwnedProxy(ctx context.Context, ouID, p
 	return proxy, nil
 }
 
+// resolveProjectProxy is resolveProxy for a project's proxy: one of another project, or an org proxy, is not found.
+func (s *mcpProxyScopeService) resolveProjectProxy(ctx context.Context, ouID, projectUUID, proxyHandle string) (*models.MCPProxy, error) {
+	proxy, err := s.proxyRepo.GetInProject(ctx, strings.TrimSpace(proxyHandle), ouID, projectUUID)
+	if err != nil {
+		if errors.Is(err, utils.ErrMCPProxyNotFound) || errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("%w: proxy handle %q", utils.ErrMCPProxyNotFound, proxyHandle)
+		}
+		return nil, fmt.Errorf("failed to resolve MCP proxy %q: %w", proxyHandle, err)
+	}
+	return proxy, nil
+}
+
 // proxyToolUnion collects every discovered tool name across the proxy's
 // endpoints. An empty map means "no capabilities stored" — validation is then
 // permissive (strict-when-known policy).
@@ -176,12 +197,29 @@ func (s *mcpProxyScopeService) Create(ctx context.Context, ouID, orgName, proxyH
 	if !mcpScopeActionRe.MatchString(in.Action) {
 		return nil, fmt.Errorf("%w: action must match ^[A-Za-z0-9._\\-]{1,100}$", utils.ErrInvalidInput)
 	}
-
 	proxy, err := s.resolveOrgOwnedProxy(ctx, ouID, proxyHandle)
 	if err != nil {
 		return nil, err
 	}
+	return s.create(ctx, ouID, proxy, in)
+}
 
+// CreateInProject is Create for a project proxy.
+func (s *mcpProxyScopeService) CreateInProject(
+	ctx context.Context, ouID, projectUUID, proxyHandle string, in models.MCPProxyScopeInput,
+) (*models.MCPProxyScopeResult, error) {
+	if !mcpScopeActionRe.MatchString(in.Action) {
+		return nil, fmt.Errorf("%w: action must match ^[A-Za-z0-9._\\-]{1,100}$", utils.ErrInvalidInput)
+	}
+	proxy, err := s.resolveProjectProxy(ctx, ouID, projectUUID, proxyHandle)
+	if err != nil {
+		return nil, err
+	}
+	return s.create(ctx, ouID, proxy, in)
+}
+
+func (s *mcpProxyScopeService) create(ctx context.Context, ouID string, proxy *models.MCPProxy, in models.MCPProxyScopeInput) (*models.MCPProxyScopeResult, error) {
+	proxyHandle := proxyHandleOf(proxy)
 	if _, err := s.scopeRepo.Get(ctx, proxy.UUID, in.Action); err == nil {
 		return nil, fmt.Errorf("%w: scope action %q already exists on proxy %q", utils.ErrConflict, in.Action, proxyHandle)
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
@@ -230,7 +268,23 @@ func (s *mcpProxyScopeService) Update(ctx context.Context, ouID, orgName, proxyH
 	if err != nil {
 		return nil, err
 	}
+	return s.update(ctx, ouID, proxy, action, in)
+}
 
+// UpdateInProject is Update for a project proxy.
+func (s *mcpProxyScopeService) UpdateInProject(
+	ctx context.Context, ouID, projectUUID, proxyHandle, action string, in models.MCPProxyScopeUpdateInput,
+) (*models.MCPProxyScopeResult, error) {
+	proxy, err := s.resolveProjectProxy(ctx, ouID, projectUUID, proxyHandle)
+	if err != nil {
+		return nil, err
+	}
+	return s.update(ctx, ouID, proxy, action, in)
+}
+
+func (s *mcpProxyScopeService) update(
+	ctx context.Context, ouID string, proxy *models.MCPProxy, action string, in models.MCPProxyScopeUpdateInput,
+) (*models.MCPProxyScopeResult, error) {
 	existing, err := s.scopeRepo.Get(ctx, proxy.UUID, action)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -277,7 +331,19 @@ func (s *mcpProxyScopeService) Delete(ctx context.Context, ouID, orgName, proxyH
 	if err != nil {
 		return err
 	}
+	return s.delete(ctx, ouID, proxy, action)
+}
 
+// DeleteInProject is Delete for a project proxy.
+func (s *mcpProxyScopeService) DeleteInProject(ctx context.Context, ouID, projectUUID, proxyHandle, action string) error {
+	proxy, err := s.resolveProjectProxy(ctx, ouID, projectUUID, proxyHandle)
+	if err != nil {
+		return err
+	}
+	return s.delete(ctx, ouID, proxy, action)
+}
+
+func (s *mcpProxyScopeService) delete(ctx context.Context, ouID string, proxy *models.MCPProxy, action string) error {
 	if err := s.scopeRepo.Delete(ctx, proxy.UUID, action); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return utils.ErrScopeNotFound
@@ -396,7 +462,19 @@ func (s *mcpProxyScopeService) List(ctx context.Context, ouID, proxyHandle strin
 	if err != nil {
 		return nil, err
 	}
+	return s.list(ctx, proxy)
+}
 
+// ListInProject is List for a project proxy.
+func (s *mcpProxyScopeService) ListInProject(ctx context.Context, ouID, projectUUID, proxyHandle string) (*models.MCPProxyScopesResult, error) {
+	proxy, err := s.resolveProjectProxy(ctx, ouID, projectUUID, proxyHandle)
+	if err != nil {
+		return nil, err
+	}
+	return s.list(ctx, proxy)
+}
+
+func (s *mcpProxyScopeService) list(ctx context.Context, proxy *models.MCPProxy) (*models.MCPProxyScopesResult, error) {
 	scopes, err := s.scopeRepo.ListByProxy(ctx, proxy.UUID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list mcp proxy scopes: %w", err)
@@ -418,7 +496,9 @@ func (s *mcpProxyScopeService) ListEnvironmentScopes(ctx context.Context, ouID, 
 	proxyByUUID := map[uuid.UUID]*models.MCPProxy{}
 	var ordered []uuid.UUID
 	for offset := 0; ; offset += pageSize {
-		proxies, _, err := s.proxyRepo.List(ctx, ouID, repositories.MCPProxyListFilter{Limit: pageSize, Offset: offset})
+		// Every proxy of the org, project proxies included: a role grants an agent the scopes of any proxy it may
+		// bind, and agents bind their own project's proxies.
+		proxies, _, err := s.proxyRepo.List(ctx, ouID, repositories.MCPProxyListFilter{AllProjects: true, Limit: pageSize, Offset: offset})
 		if err != nil {
 			return nil, fmt.Errorf("failed to list mcp proxies: %w", err)
 		}

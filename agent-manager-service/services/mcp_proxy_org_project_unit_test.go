@@ -181,23 +181,3 @@ func TestScopeMutationsOnProjectProxy_ProjectOwned(t *testing.T) {
 	err = svc.Delete(ctx, "org", "org-name", "p1-mcp", "read")
 	assert.ErrorIs(t, err, utils.ErrMCPProxyProjectOwned)
 }
-
-func TestListEnvironmentScopesExcludesProjectProxies(t *testing.T) {
-	var f repositories.MCPProxyListFilter
-	proxyRepo := &repomocks.MCPProxyRepositoryMock{
-		ListFunc: func(_ context.Context, _ string, got repositories.MCPProxyListFilter) ([]*models.MCPProxy, int64, error) {
-			f = got
-			return nil, 0, nil
-		},
-	}
-	envUUID := uuid.New()
-	infra := stubInfraManager{listOrgEnvs: func(context.Context, string) ([]*models.EnvironmentResponse, error) {
-		return []*models.EnvironmentResponse{{Name: "dev", UUID: envUUID.String()}}, nil
-	}}
-	svc := NewMCPProxyScopeService(&repomocks.MCPProxyScopeRepositoryMock{}, proxyRepo, infra, nil, nil, slog.Default())
-
-	_, err := svc.ListEnvironmentScopes(context.Background(), "org", "dev")
-	require.NoError(t, err)
-	assert.False(t, f.AllProjects, "the user-facing scope catalog must not sweep project proxies")
-	assert.Nil(t, f.ProjectUUID)
-}
