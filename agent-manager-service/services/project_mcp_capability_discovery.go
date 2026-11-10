@@ -28,6 +28,7 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
+	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -88,14 +89,27 @@ type projectMCPCapabilityDiscoveryService struct {
 	keyPoll        time.Duration
 }
 
-// NewProjectMCPCapabilityDiscoveryService creates the discovery reconciler. It probes the gateway with a plain HTTP
-// client, not the SSRF-guarded one: the URL is built by AMS from a managed gateway's vhost, never given by a user,
-// and resolves to loopback in local setups.
+// NewProjectMCPCapabilityDiscoveryService creates the discovery reconciler.
 func NewProjectMCPCapabilityDiscoveryService(
 	discoveries repositories.MCPCapabilityDiscoveryRepository, bindings *ProjectMCPProxyService, logger *slog.Logger,
 ) ProjectMCPCapabilityDiscoveryService {
-	return newProjectMCPCapabilityDiscoveryService(discoveries, bindings,
-		newMCPDiscoveryProber(&http.Client{Timeout: mcpRequestTimeout}, logger), logger)
+	client := newMCPDiscoveryClient(config.GetConfig().A2ACardFetchDialAddr)
+	return newProjectMCPCapabilityDiscoveryService(discoveries, bindings, newMCPDiscoveryProber(client, logger), logger)
+}
+
+// newMCPDiscoveryClient is the probe's HTTP client. It is not the SSRF-guarded one: the URL is built by AMS from a
+// managed gateway's vhost, never given by a user, and resolves to loopback in local setups. What answers is tenant
+// code behind the gateway, though, so it follows no redirect: one could point AMS at an internal address, carry the
+// key there (Go forwards custom headers across hosts), and bring the answer back through lastError. Like the A2A
+// platform fetch, it ignores proxy env and can pin its dial address.
+func newMCPDiscoveryClient(dialAddr string) *http.Client {
+	return &http.Client{
+		Timeout:   mcpRequestTimeout,
+		Transport: plainTransport(dialAddr),
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
 }
 
 // newMCPDiscoveryProber probes with the MCP server-info client, each probe with a logger that redacts its key: the

@@ -506,3 +506,31 @@ func TestRedactingLogger(t *testing.T) {
 		assert.Contains(t, out, want)
 	}
 }
+
+func TestCapabilityDiscovery_ProbeRefusesRedirects(t *testing.T) {
+	for _, status := range []int{http.StatusTemporaryRedirect, http.StatusSeeOther, http.StatusFound} {
+		t.Run(http.StatusText(status), func(t *testing.T) {
+			var internalHits int
+			var leakedKey string
+			internal := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				internalHits++
+				leakedKey = r.Header.Get("X-API-Key")
+				_, _ = w.Write([]byte(`{"secret":"metadata"}`))
+			}))
+			defer internal.Close()
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				http.Redirect(w, r, internal.URL+"/latest/meta-data", status)
+			}))
+			defer upstream.Close()
+
+			probe := newMCPDiscoveryProber(newMCPDiscoveryClient(""), slog.New(slog.DiscardHandler))
+			key := "probe-" + uuid.NewString()
+			_, err := probe(context.Background(), upstream.URL, "X-API-Key", key)
+
+			require.Error(t, err)
+			assert.Zero(t, internalHits, "the redirect target is never reached")
+			assert.Empty(t, leakedKey)
+			assert.NotContains(t, err.Error(), "metadata")
+		})
+	}
+}
