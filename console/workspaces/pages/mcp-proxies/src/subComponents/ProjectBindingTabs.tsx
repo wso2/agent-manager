@@ -20,14 +20,11 @@ import {
   Alert,
   Button,
   Chip,
-  FormControl,
   FormControlLabel,
   ListingTable,
   MenuItem,
-  Select,
   Stack,
   Switch,
-  TextField,
   Tooltip,
 } from "@wso2/oxygen-ui";
 import { ShieldOff } from "@wso2/oxygen-ui-icons-react";
@@ -41,6 +38,7 @@ import {
   type CreateAPIKeyInput,
 } from "@agent-management-platform/shared-component";
 import { useResourceAccess } from "@agent-management-platform/feature-management";
+import { TextInput } from "@agent-management-platform/views";
 import type {
   APIKeyLocation,
   ProjectMCPProxyEnvironment,
@@ -64,7 +62,11 @@ const STATUS_COLOR: Record<string, "success" | "warning" | "error"> = {
 };
 
 /** A binding's deployment status, or why it has none. */
-export function BindingStatusChip({ env }: { env: ProjectMCPProxyEnvironment }) {
+export function BindingStatusChip({
+  env,
+}: {
+  env: ProjectMCPProxyEnvironment;
+}) {
   if (!env.deploymentStatus) {
     return (
       <Tooltip
@@ -118,7 +120,8 @@ export function BindingSecurityTab({
   const isDirty =
     required !== bindingRequiresAPIKey(env.security) ||
     (required &&
-      (header.trim() !== (env.security?.apiKey?.key || DEFAULT_API_KEY_HEADER) ||
+      (header.trim() !==
+        (env.security?.apiKey?.key || DEFAULT_API_KEY_HEADER) ||
         location !== (env.security?.apiKey?.in ?? "header")));
 
   const save = () =>
@@ -151,9 +154,10 @@ export function BindingSecurityTab({
         </Alert>
       )}
       {required && (
-        <Stack direction="row" spacing={2}>
-          <TextField
+        <Stack direction="row" spacing={2} alignItems="flex-start">
+          <TextInput
             label="Key name"
+            placeholder={`e.g. ${DEFAULT_API_KEY_HEADER}`}
             size="small"
             value={header}
             disabled={!canWrite}
@@ -161,18 +165,20 @@ export function BindingSecurityTab({
             helperText="The header or query parameter callers send the key in."
             fullWidth
           />
-          <FormControl size="small" sx={{ minWidth: 140 }}>
-            <Select
-              value={location}
-              disabled={!canWrite}
-              onChange={(event) =>
-                setLocation(event.target.value as APIKeyLocation)
-              }
-            >
-              <MenuItem value="header">Header</MenuItem>
-              <MenuItem value="query">Query</MenuItem>
-            </Select>
-          </FormControl>
+          <TextInput
+            select
+            label="Location"
+            size="small"
+            value={location}
+            disabled={!canWrite}
+            onChange={(event) =>
+              setLocation(event.target.value as APIKeyLocation)
+            }
+            sx={{ minWidth: 140 }}
+          >
+            <MenuItem value="header">Header</MenuItem>
+            <MenuItem value="query">Query</MenuItem>
+          </TextInput>
         </Stack>
       )}
       {canWrite && (
