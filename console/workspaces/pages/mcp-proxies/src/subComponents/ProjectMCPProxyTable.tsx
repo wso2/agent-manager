@@ -36,7 +36,6 @@ import {
   useSearchParams,
 } from "react-router-dom";
 import {
-  useDeleteMCPProxy,
   useDeleteProjectMCPProxy,
   useListMCPProxies,
 } from "@agent-management-platform/api-client";
@@ -108,7 +107,6 @@ export function ProjectMCPProxyTable({
     { orgName: orgId },
     { project: projectId, limit: LIST_LIMIT },
   );
-  const { mutate: deleteOrgProxy } = useDeleteMCPProxy();
   const { mutate: deleteProjectProxy } = useDeleteProjectMCPProxy();
   const { addConfirmation } = useConfirmationDialog();
   const { canWrite } = useResourceAccess("mcp_server");
@@ -163,23 +161,20 @@ export function ProjectMCPProxyTable({
     );
   };
 
+  // Only the project's own servers are deleted here; an org server is every project's, so it
+  // is deleted from the org page.
   const confirmDelete = (proxy: MCPProxyListItem, displayName: string) => {
     const proxyId = proxy.id;
-    if (!proxyId) return;
-    const isProjectProxy = !!proxy.projectName;
+    if (!proxyId || !proxy.projectName) return;
     addConfirmation({
       analytics: { entity: "mcp-proxy", action: "delete" },
       title: "Delete MCP Server",
-      description: isProjectProxy
-        ? `Are you sure you want to delete ${displayName}? It is removed from every environment it is deployed to. This action cannot be undone.`
-        : `${displayName} is registered for the whole organization. Deleting it removes it from every project. This action cannot be undone.`,
+      description: `Are you sure you want to delete ${displayName}? It is removed from every environment it is deployed to. This action cannot be undone.`,
       confirmButtonText: "Delete",
       confirmButtonColor: "error",
       confirmButtonIcon: <Trash size={16} />,
       onConfirm: () =>
-        isProjectProxy
-          ? deleteProjectProxy({ orgName: orgId, projName: projectId, proxyId })
-          : deleteOrgProxy({ orgName: orgId, proxyId }),
+        deleteProjectProxy({ orgName: orgId, projName: projectId, proxyId }),
     });
   };
 
@@ -301,7 +296,7 @@ export function ProjectMCPProxyTable({
                     align="right"
                     onClick={(event) => event.stopPropagation()}
                   >
-                    {proxy.id && canWrite ? (
+                    {proxy.id && proxy.projectName && canWrite ? (
                       <Tooltip title="Delete MCP Server">
                         <IconButton
                           color="error"

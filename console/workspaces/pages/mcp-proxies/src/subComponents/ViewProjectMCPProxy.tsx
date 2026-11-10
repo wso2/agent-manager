@@ -48,7 +48,6 @@ import {
   useListEnvironments,
   usePutProjectMCPProxyEnvironment,
   useRefreshProjectMCPProxyCapabilities,
-  useUpdateProjectMCPProxy,
 } from "@agent-management-platform/api-client";
 import {
   environmentLabel,
@@ -75,7 +74,6 @@ import {
   applyBindingConfigChange,
   bindingEndpointConfig,
   proxyAsOrgProxy,
-  proxyRequestFrom,
   type ProjectProxyViewState,
 } from "./projectBinding";
 import { useCopyWithFeedback } from "./useCopyWithFeedback";
@@ -169,7 +167,6 @@ export function ViewProjectMCPProxy() {
   } = useGetProjectMCPProxy({ orgName: orgId, projName: projectId, proxyId });
   const { data: environments = [] } = useListEnvironments({ orgName: orgId });
   const putBinding = usePutProjectMCPProxyEnvironment();
-  const updateProxy = useUpdateProjectMCPProxy();
   const refreshTools = useRefreshProjectMCPProxyCapabilities();
   const { canWrite } = useResourceAccess("mcp_server");
   const handleCopy = useCopyWithFeedback();
@@ -210,7 +207,6 @@ export function ViewProjectMCPProxy() {
     [environments],
   );
 
-  const proxyParams = { orgName: orgId, projName: projectId, proxyId };
 
   const saveBinding = useCallback(
     (request: ProjectMCPProxyEnvironmentRequest) =>
@@ -232,23 +228,12 @@ export function ViewProjectMCPProxy() {
   const updateSelectedConfig = useCallback(
     async (fields: Partial<MCPEndpointConfig>) => {
       if (!proxy || !selected) return undefined;
-      const change = applyBindingConfigChange(proxy, selected, fields);
-      if (change.proxyURL) {
-        // The URL is the proxy's: changing it redeploys every environment with it.
-        await updateProxy.mutateAsync({
-          params: proxyParams,
-          body: {
-            ...proxyRequestFrom(proxy),
-            upstream: { url: change.proxyURL },
-          },
-        });
-      }
-      return saveBinding(change.binding);
+      // The URL is read-only here, so an edit changes only this environment's binding.
+      return saveBinding(applyBindingConfigChange(proxy, selected, fields).binding);
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- proxyParams is from these params
-    [proxy, selected, saveBinding, updateProxy, orgId, projectId, proxyId],
+    [proxy, selected, saveBinding],
   );
-  const isUpdating = putBinding.isPending || updateProxy.isPending;
+  const isUpdating = putBinding.isPending;
 
   const backHref = generatePath(
     absoluteRouteMap.children.org.children.projects.children.mcpProxies.path,
@@ -501,10 +486,17 @@ export function ViewProjectMCPProxy() {
                     selectedEndpointId={selected.environmentName}
                     onUpdate={updateSelectedConfig}
                     isUpdating={isUpdating}
+                    // The tab is one environment's, but the URL is every environment's: it is
+                    // shown here and changed from the edit page.
                     readOnlyURLText={
                       proxy.source
                         ? `Resolved from ${proxy.source.componentName} / ${proxy.source.endpointName} in this environment`
-                        : undefined
+                        : (proxy.upstream?.url ?? "")
+                    }
+                    readOnlyURLHelperText={
+                      proxy.source
+                        ? undefined
+                        : 'Shared by every environment. Change it with "Edit MCP server".'
                     }
                   />
                 )}

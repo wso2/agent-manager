@@ -58,6 +58,8 @@ export type MCPProxyConnectionTabProps = {
    * entered (a project component's endpoint). Only the credential can be changed then.
    */
   readOnlyURLText?: string;
+  /** Shown under the read-only URL, e.g. where it is changed instead. */
+  readOnlyURLHelperText?: string;
 };
 
 export function MCPProxyConnectionTab({
@@ -67,6 +69,7 @@ export function MCPProxyConnectionTab({
   onUpdate,
   isUpdating,
   readOnlyURLText,
+  readOnlyURLHelperText,
 }: MCPProxyConnectionTabProps) {
   const { canWrite } = useResourceAccess("mcp_server");
   const theme = useTheme();
@@ -308,7 +311,10 @@ export function MCPProxyConnectionTab({
             }}
             onBlur={() => validateEndpoint(endpoint)}
             error={!!endpointError}
-            helperText={endpointError}
+            helperText={
+              endpointError ??
+              (readOnlyURLText !== undefined ? readOnlyURLHelperText : undefined)
+            }
             placeholder="Enter URL of your MCP Server"
             sx={{
               "& .MuiInputBase-input": {

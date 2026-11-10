@@ -24,6 +24,7 @@ import {
   projectProxyEndpointDraft,
   bindingRequiresAPIKey,
   DEFAULT_API_KEY_HEADER,
+  keptBindingRequest,
   proxyRequestFrom,
   toProjectProxyId,
 } from "./projectBinding";
@@ -288,5 +289,65 @@ describe("projectProxyEndpointDraft", () => {
     expect(draft.environments).toEqual(["env-1", "env-2"]);
     expect(draft.gatewayByEnv).toEqual({ "env-1": "gw-1" });
     expect(draft.fetchedInfo.tools).toEqual([{ name: "search" }]);
+  });
+});
+
+describe("keptBindingRequest", () => {
+  const draft = {
+    id: "primary",
+    name: "",
+    url: "https://mcp.example.com/mcp",
+    authHeader: "Authorization",
+    authValue: "",
+    resilienceTimeout: "15s",
+    resilienceIdleTimeout: "",
+    environments: ["e1", "e2"],
+    fetchedInfo: {},
+  };
+  const other = {
+    ...base,
+    upstreamAuth: { type: "api-key" as const, header: "X-Other" },
+    resilience: { timeout: "60s" },
+  };
+  const edited = {
+    upstreamAuth: {
+      type: "api-key" as const,
+      header: "Authorization",
+      value: "new",
+    },
+    resilience: { timeout: "30s" },
+  };
+
+  it("keeps an environment's own credential and timeouts when the form did not change them", () => {
+    const request = keptBindingRequest(other, draft, draft, edited);
+    expect(request.upstreamAuth).toEqual({ type: "api-key", header: "X-Other" });
+    expect(request.resilience).toEqual({ timeout: "60s" });
+  });
+
+  it("keeps an environment with no credential without one", () => {
+    const request = keptBindingRequest(base, draft, draft, edited);
+    expect(request.upstreamAuth).toBeUndefined();
+  });
+
+  it("applies a credential or timeouts the form changed", () => {
+    const request = keptBindingRequest(
+      other,
+      draft,
+      { ...draft, authValue: "new", resilienceTimeout: "30s" },
+      edited,
+    );
+    expect(request.upstreamAuth).toEqual(edited.upstreamAuth);
+    expect(request.resilience).toEqual({ timeout: "30s" });
+  });
+
+  it("clears them when the form removed them", () => {
+    const request = keptBindingRequest(
+      other,
+      draft,
+      { ...draft, authHeader: "", resilienceTimeout: "" },
+      {},
+    );
+    expect(request.upstreamAuth).toBeUndefined();
+    expect(request.resilience).toBeUndefined();
   });
 });

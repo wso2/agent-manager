@@ -250,3 +250,45 @@ export function projectProxyEndpointDraft(
     },
   };
 }
+
+/**
+ * The PUT body of an environment the edit form keeps. It keeps the binding's own credential and
+ * timeouts, which may differ from the first environment's the form loaded, and replaces each only
+ * when the user changed it in the form.
+ */
+export function keptBindingRequest(
+  env: ProjectMCPProxyEnvironment,
+  initial: EndpointDraft,
+  draft: EndpointDraft,
+  edited: Pick<ProjectMCPProxyEnvironmentRequest, "upstreamAuth" | "resilience">,
+): ProjectMCPProxyEnvironmentRequest {
+  const request = bindingRequestFrom(env);
+  if (credentialEdited(initial, draft)) {
+    if (edited.upstreamAuth) request.upstreamAuth = edited.upstreamAuth;
+    else delete request.upstreamAuth;
+  }
+  if (timeoutsEdited(initial, draft)) {
+    if (edited.resilience) request.resilience = edited.resilience;
+    else delete request.resilience;
+  }
+  return request;
+}
+
+/** Whether the form's credential was changed: a new header, or a value typed. */
+export function credentialEdited(
+  initial: EndpointDraft,
+  draft: EndpointDraft,
+): boolean {
+  return draft.authHeader.trim() !== initial.authHeader.trim() || !!draft.authValue;
+}
+
+/** Whether the form's request or idle timeout was changed. */
+export function timeoutsEdited(
+  initial: EndpointDraft,
+  draft: EndpointDraft,
+): boolean {
+  return (
+    draft.resilienceTimeout.trim() !== initial.resilienceTimeout.trim() ||
+    draft.resilienceIdleTimeout.trim() !== initial.resilienceIdleTimeout.trim()
+  );
+}

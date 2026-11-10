@@ -35,7 +35,8 @@ import { EditMCPProxyForm, type EditMCPProxyFormValues } from "./EditMCPProxy";
 import { type EndpointDraft } from "./EndpointFormFields";
 import { draftToEndpoint } from "./mcpEndpoints";
 import {
-  bindingRequestFrom,
+  credentialEdited,
+  keptBindingRequest,
   projectProxyEndpointDraft,
   proxyRequestFrom,
 } from "./projectBinding";
@@ -92,13 +93,28 @@ function ProjectEditForm({
           proxy.environments.map((env) => [env.environmentUuid, env]),
         );
         const added = draft.environments.filter((uuid) => !bound.has(uuid));
+        const initial = initialEndpoints[0] ?? draft;
         // A credential is never read back, so a new environment can only take one typed now.
         if (added.length > 0 && auth?.header && !auth.value) {
           throw new Error(
             "Enter the credential value again to deploy the server to a new environment.",
           );
         }
-        // The form's timeouts are every environment's, as its URL and credential are.
+        // A changed header with no value keeps each environment's stored value; one with
+        // none stored has nothing to keep. Checked before anything is saved.
+        if (
+          credentialEdited(initial, draft) &&
+          auth?.header &&
+          !auth.value &&
+          proxy.environments.some(
+            (env) => kept.has(env.environmentUuid) && !env.upstreamAuth,
+          )
+        ) {
+          throw new Error(
+            "Enter the credential value: an environment the server is deployed to has none stored.",
+          );
+        }
+        // Kept environments keep their own credential and timeouts unless the form changed them.
         const resilience = endpoint.resilience;
         const upstreamAuth = auth?.header
           ? {
@@ -119,7 +135,10 @@ function ProjectEditForm({
           if (kept.has(env.environmentUuid)) {
             await putBinding.mutateAsync({
               params: { ...params, envName: env.environmentName },
-              body: { ...bindingRequestFrom(env), upstreamAuth, resilience },
+              body: keptBindingRequest(env, initial, draft, {
+                upstreamAuth,
+                resilience,
+              }),
             });
           } else {
             await removeBinding.mutateAsync({
@@ -149,6 +168,7 @@ function ProjectEditForm({
     },
     [
       environments,
+      initialEndpoints,
       isURLProxy,
       orgId,
       projectId,
