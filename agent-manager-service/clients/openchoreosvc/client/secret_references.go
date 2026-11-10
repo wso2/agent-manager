@@ -68,6 +68,10 @@ func (c *openChoreoClient) CreateSecretReference(ctx context.Context, ouID strin
 			},
 		},
 	}
+	if req.SecretType != "" {
+		secretType := gen.SecretTemplateType(req.SecretType)
+		body.Spec.Template.Type = &secretType
+	}
 	if len(req.TemplateAnnotations) > 0 {
 		annotations := req.TemplateAnnotations
 		body.Spec.Template.Metadata.Annotations = &annotations
@@ -208,6 +212,10 @@ func (c *openChoreoClient) UpdateSecretReference(ctx context.Context, ouID, secr
 				},
 			},
 		},
+	}
+	if req.SecretType != "" {
+		secretType := gen.SecretTemplateType(req.SecretType)
+		body.Spec.Template.Type = &secretType
 	}
 	if len(req.TemplateAnnotations) > 0 {
 		annotations := req.TemplateAnnotations

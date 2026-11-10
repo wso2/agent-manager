@@ -352,6 +352,7 @@ type CreateSecretReferenceRequest struct {
 	ComponentName   string   // Component name for labels
 	KVPath          string   // Path in the backing KV store
 	SecretKeys      []string // Keys to extract from KV path
+	SecretType      string   // Optional type of the generated Kubernetes Secret
 	RefreshInterval string   // How often to refresh (e.g., "1h", "15s")
 	// TemplateAnnotations are set on the generated Secret's template metadata.
 	// Changing an annotation is a real spec change, so an update carrying a fresh
@@ -383,26 +384,3 @@ type RemoteRefInfo struct {
 // -----------------------------------------------------------------------------
 // Git Secret Types
 // -----------------------------------------------------------------------------
-
-// GitSecretType defines the type of git secret
-type GitSecretType string
-
-const (
-	GitSecretTypeBasicAuth GitSecretType = "basic-auth"
-)
-
-// CreateGitSecretRequest contains data for creating a git secret via OpenChoreo
-type CreateGitSecretRequest struct {
-	Name       string        // Name of the git secret
-	SecretType GitSecretType // Type of secret: "basic-auth"
-	Username   string        // Username for basic auth (optional)
-	Token      string        // Token/password for basic auth
-}
-
-// GitSecretInfo contains info about a git secret
-type GitSecretInfo struct {
-	Name              string // Name of the git secret
-	Namespace         string // Namespace of the git secret
-	WorkflowPlaneKind string // Kind of workflow plane (ClusterWorkflowPlane or WorkflowPlane)
-	WorkflowPlaneName string // Name of the workflow plane
-}

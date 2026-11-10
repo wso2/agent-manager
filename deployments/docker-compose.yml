@@ -54,6 +54,9 @@ services:
     env_file:
       - path: ./.secret-store.env
         required: false
+      - path: ./.platform-vault/compose.env
+        required: false
+        format: raw
     environment:
       # Database Configuration
       - DB_HOST=postgres
@@ -116,9 +119,6 @@ services:
       - OPEN_CHOREO_BASE_URL=http://api.openchoreo.localhost:8195
       # Platform A2A card fetches dial the host gateway; *.localhost resolves to the container itself.
       - A2A_CARD_FETCH_DIAL_ADDR=host.docker.internal:19080
-      # Workflow Plane OpenBao (for git secrets and publisher credentials)
-      - WORKFLOW_PLANE_OPENBAO_URL=http://host.docker.internal:8200
-      - WORKFLOW_PLANE_OPENBAO_TOKEN=root
       # Thunder API (for per-org publisher credential provisioning)
       # Uses the system app's client_credentials with scope=system to get admin tokens.
       # Leave THUNDER_BASE_URL empty to fall back to static amp-publisher-client credentials.

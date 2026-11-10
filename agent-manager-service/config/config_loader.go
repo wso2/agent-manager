@@ -257,12 +257,7 @@ func loadEnvs() {
 		AgentIdentityForceSyncWait:         r.readOptionalString("AGENT_IDENTITY_FORCE_SYNC_WAIT", "20s"),
 		AgentIdentityForceSyncApplyTimeout: r.readOptionalString("AGENT_IDENTITY_FORCE_SYNC_APPLY_TIMEOUT", "2m"),
 		StoreToken:                         r.readOptionalString("SECRET_STORE_TOKEN", ""),
-	}
-
-	// Workflow plane OpenBao KV store configuration (for git secrets)
-	config.WorkflowPlaneOpenBao = OpenBaoConfig{
-		URL:   r.readOptionalString("WORKFLOW_PLANE_OPENBAO_URL", "http://localhost:8200"),
-		Token: r.readOptionalString("WORKFLOW_PLANE_OPENBAO_TOKEN", ""),
+		PlatformVaultSeed:                  r.readOptionalString("AMP_PLATFORM_VAULT_SEED", ""),
 	}
 
 	// Thunder admin API configuration for provisioning per-org OAuth apps

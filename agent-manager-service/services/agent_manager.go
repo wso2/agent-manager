@@ -90,6 +90,7 @@ type agentManagerService struct {
 	ocClient                  client.OpenChoreoClient
 	secretMgmtClient          secretmanagersvc.SecretManagementClient
 	gitRepositoryService      RepositoryService
+	gitSecretStore            GitSecretStore
 	tokenManagerService       AgentTokenManagerService
 	agentConfigRepo           repositories.AgentConfigRepository
 	agentConfigurationService AgentConfigurationService
@@ -118,6 +119,7 @@ func NewAgentManagerService(
 	OpenChoreoClient client.OpenChoreoClient,
 	secretMgmtClient secretmanagersvc.SecretManagementClient,
 	gitRepositoryService RepositoryService,
+	gitSecretStore GitSecretStore,
 	tokenManagerService AgentTokenManagerService,
 	agentConfigRepo repositories.AgentConfigRepository,
 	agentConfigurationService AgentConfigurationService,
@@ -144,6 +146,7 @@ func NewAgentManagerService(
 		ocClient:                  OpenChoreoClient,
 		secretMgmtClient:          secretMgmtClient,
 		gitRepositoryService:      gitRepositoryService,
+		gitSecretStore:            gitSecretStore,
 		tokenManagerService:       tokenManagerService,
 		agentConfigRepo:           agentConfigRepo,
 		agentConfigurationService: agentConfigurationService,
@@ -267,20 +270,7 @@ func (s *agentManagerService) validateGitSecretExists(ctx context.Context, ouID 
 		return fmt.Errorf("git secret reference is empty")
 	}
 
-	secrets, err := s.ocClient.ListGitSecrets(ctx, ouID)
-	if err != nil {
-		s.logger.Error("Failed to list git secrets for validation", "ouID", ouID, "error", err)
-		return fmt.Errorf("failed to validate git secret: %w", err)
-	}
-
-	for _, secret := range secrets {
-		if secret.Name == secretRef {
-			return nil
-		}
-	}
-
-	s.logger.Error("Git secret not found", "ouID", ouID, "secretRef", secretRef)
-	return utils.ErrGitSecretNotFound
+	return s.gitSecretStore.CheckGitSecret(ctx, ouID, secretRef)
 }
 
 // Build type constants

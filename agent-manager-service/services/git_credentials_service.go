@@ -19,161 +19,49 @@ package services
 import (
 	"context"
 	"fmt"
-	"strings"
 
-	vault "github.com/hashicorp/vault/api"
-	"k8s.io/apimachinery/pkg/util/validation"
-
-	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
-	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
-// GitCredentials holds the credentials for git authentication
+// GitSecretStore owns tenant-scoped Git credentials and their workflow references.
+type GitSecretStore interface {
+	CreateGitSecret(ctx context.Context, ouID, name, username, password string) error
+	ListGitSecretNames(ctx context.Context, ouID string, limit, offset int) ([]string, int, error)
+	CheckGitSecret(ctx context.Context, ouID, name string) error
+	ReadGitSecret(ctx context.Context, ouID, name string) (map[string]string, error)
+	DeleteGitSecret(ctx context.Context, ouID, name string) error
+}
+
 type GitCredentials struct {
-	// Type is the type of authentication: "basic-auth"
-	Type string
-	// Username for basic-auth (optional, defaults to "git" if not provided)
+	Type     string
 	Username string
-	// Password/Token for basic-auth
 	Password string
 }
 
-// GitCredentialsService provides methods to fetch git credentials from OpenBao
 type GitCredentialsService interface {
-	// GetGitCredentials fetches git credentials for a given secret reference
 	GetGitCredentials(ctx context.Context, ouID, secretRef string) (*GitCredentials, error)
 }
 
-// gitSecretKVMount is the workflow-plane OpenBao mount that holds git secrets.
-// OpenChoreo's git secret API pushes each secret to the remote key
-// "secret/{namespace}/git/{name}" (fixed in its gitsecret service), with the
-// token under "password" and the optional username under "username".
-const gitSecretKVMount = "secret"
-
-// kvReader reads a secret from the workflow-plane OpenBao. *vault.Logical
-// satisfies it; tests substitute a fake.
-type kvReader interface {
-	ReadWithContext(ctx context.Context, path string) (*vault.Secret, error)
-}
-
 type gitCredentialsService struct {
-	ocClient client.OpenChoreoClient
-	kv       kvReader
+	store GitSecretStore
 }
 
-// NewGitCredentialsService creates a new git credentials service
-func NewGitCredentialsService(ocClient client.OpenChoreoClient, cfg config.Config) (GitCredentialsService, error) {
-	// Create vault client for workflow plane OpenBao
-	vaultCfg := vault.DefaultConfig()
-	vaultCfg.Address = cfg.WorkflowPlaneOpenBao.URL
-
-	vaultClient, err := vault.NewClient(vaultCfg)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create vault client for workflow plane: %w", err)
-	}
-
-	vaultClient.SetToken(cfg.WorkflowPlaneOpenBao.Token)
-
-	return &gitCredentialsService{
-		ocClient: ocClient,
-		kv:       vaultClient.Logical(),
-	}, nil
+func NewGitCredentialsService(store GitSecretStore) GitCredentialsService {
+	return &gitCredentialsService{store: store}
 }
 
-// convertToKV2ReadPath converts a KV path to the KV v2 read path format.
-// Input: "{mount}/{path}" (e.g., "secret/default/git/private")
-// Output: "{mount}/data/{path}" (e.g., "secret/data/default/git/private")
-func convertToKV2ReadPath(kvPath string) string {
-	parts := strings.SplitN(kvPath, "/", 2)
-	if len(parts) < 2 {
-		// Invalid path format - return as-is and let Vault return an error
-		return kvPath
-	}
-	return parts[0] + "/data/" + parts[1]
-}
-
-// requireGitSecret returns an error unless OpenChoreo lists a git secret named
-// secretName in the namespace.
-func (s *gitCredentialsService) requireGitSecret(ctx context.Context, ouID, secretName string) error {
-	secrets, err := s.ocClient.ListGitSecrets(ctx, ouID)
-	if err != nil {
-		return fmt.Errorf("failed to list git secrets: %w", err)
-	}
-	for _, secret := range secrets {
-		if secret != nil && secret.Name == secretName {
-			return nil
-		}
-	}
-	return fmt.Errorf("%w: %q is not in the namespace's git secrets", utils.ErrGitSecretNotFound, secretName)
-}
-
-// isGitSecretName reports whether name can name a git secret: a name AMS
-// creates (isValidSecretName) or a Kubernetes object name OpenChoreo accepts
-// (DNS-1123 subdomain). Neither form contains "/" or a "." or ".." segment, so
-// the name cannot reach another OpenBao path.
-func isGitSecretName(name string) bool {
-	return isValidSecretName(name) || len(validation.IsDNS1123Subdomain(name)) == 0
-}
-
-// gitSecretKVPath returns the workflow-plane OpenBao path of a git secret,
-// "{mount}/{namespace}/git/{name}", the remote key OpenChoreo's git secret API
-// pushes the secret to.
-func gitSecretKVPath(namespace, secretName string) string {
-	return gitSecretKVMount + "/" + namespace + "/git/" + secretName
-}
-
-// GetGitCredentials fetches the credentials of the git secret named secretRef.
-// The secret's OpenBao path is derived from its name and the namespace, so its
-// SecretReference is never read.
 func (s *gitCredentialsService) GetGitCredentials(ctx context.Context, ouID, secretRef string) (*GitCredentials, error) {
-	if secretRef == "" {
-		return nil, fmt.Errorf("secretRef is required")
+	if !isValidSecretName(secretRef) {
+		return nil, fmt.Errorf("%w: invalid Git secret name", utils.ErrInvalidInput)
 	}
-	// The name becomes a path segment, so only accept names a git secret can
-	// have. This keeps the read inside the namespace's git secrets.
-	if !isGitSecretName(secretRef) {
-		return nil, utils.NewInvalidInputError("Invalid git secret name",
-			fmt.Sprintf("invalid secretRef %q: not a valid git secret name", secretRef))
-	}
-
-	// Deleting a git secret can leave its value in OpenBao (OpenChoreo's push
-	// does not remove it), so only read secrets that still exist.
-	if err := s.requireGitSecret(ctx, ouID, secretRef); err != nil {
-		return nil, err
-	}
-
-	// KV v2 reads go to "{mount}/data/{path}".
-	secretPath := convertToKV2ReadPath(gitSecretKVPath(s.ocClient.NamespaceFor(ouID), secretRef))
-	secret, err := s.kv.ReadWithContext(ctx, secretPath)
+	data, err := s.store.ReadGitSecret(ctx, ouID, secretRef)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read secret from OpenBao: %w", err)
+		return nil, fmt.Errorf("read Git credentials: %w", err)
 	}
-
-	if secret == nil || secret.Data == nil {
-		return nil, fmt.Errorf("secret not found in OpenBao at path: %s", secretPath)
+	if data["password"] == "" {
+		return nil, utils.ErrGitSecretInvalidType
 	}
-
-	// KV v2: data is nested under "data" key
-	dataMap, ok := secret.Data["data"].(map[string]interface{})
-	if !ok {
-		return nil, fmt.Errorf("invalid secret data format")
-	}
-
-	// Check for basic auth (password/token)
-	password, ok := dataMap["password"].(string)
-	if !ok || password == "" {
-		return nil, fmt.Errorf("no valid credentials found in secret")
-	}
-
-	creds := &GitCredentials{
-		Type:     "basic-auth",
-		Password: password,
-	}
-
-	if username, ok := dataMap["username"].(string); ok {
-		creds.Username = username
-	}
-
-	return creds, nil
+	return &GitCredentials{
+		Type: GitSecretTypeBasic, Username: data["username"], Password: data["password"],
+	}, nil
 }

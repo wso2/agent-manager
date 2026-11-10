@@ -477,15 +477,6 @@ install_platform_resources_extension() {
 # Verify prerequisites for AMP installation
 # Note: This function uses logging functions from the main script (log_error, log_warning)
 verify_amp_prerequisites() {
-    # Check if OpenChoreo Observability Plane is available
-    if ! kubectl get namespace "${OBSERVABILITY_NS}" &>/dev/null; then
-        log_error "OpenChoreo Observability Plane not found"
-        echo ""
-        echo "The Agent Management Platform requires OpenChoreo Observability Plane."
-        echo "Please install it first."
-        return 1
-    fi
-
     # Check if OpenChoreo Workflow Plane is available
     if ! kubectl get namespace "${BUILD_CI_NS}" &>/dev/null; then
         log_error "OpenChoreo Workflow Plane not found"
@@ -493,12 +484,6 @@ verify_amp_prerequisites() {
         echo "The Agent Management Platform requires OpenChoreo Workflow Plane."
         echo "Please install it first."
         return 1
-    fi
-
-    # Verify OpenSearch is accessible
-    if ! kubectl get pods -n "${OBSERVABILITY_NS}" -l app=opensearch &>/dev/null; then
-        log_warning "OpenSearch pods not found in observability plane"
-        log_warning "Installation may fail without OpenSearch"
     fi
 
     return 0

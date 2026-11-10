@@ -136,55 +136,10 @@ if $CLUSTER_UP; then
 fi
 
 # ============================================================================
-# Step 6: Purge AMS-written OpenBao secrets
-# ============================================================================
-# AMS writes dynamic secrets under org subtrees (secret/<org>/...). The flat
-# keys at the mount root (secret/amp-system-client-secret, ...) are baseline
-# bootstrap values seeded by the OpenBao pod's postStart hook — those stay,
-# since they only regenerate on pod restart and the base is not restarted here.
-echo ""
-echo "6️⃣  Purge AMS-written OpenBao secrets"
-if $CLUSTER_UP; then
-    BAO_POD="$(kubectl get pods -n openbao -l app.kubernetes.io/name=openbao \
-        -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)"
-    if [ -z "$BAO_POD" ]; then
-        echo "⏭️  OpenBao pod not found, skipping"
-    else
-        bao_exec() {
-            kubectl exec -n openbao "$BAO_POD" -- \
-                env BAO_ADDR=http://127.0.0.1:8200 BAO_TOKEN=root bao "$@"
-        }
-        purge_tree() { # recursively delete every leaf under secret/<subpath>
-            local subpath="$1" entry
-            for entry in $(bao_exec kv list -format=yaml "secret/${subpath}" 2>/dev/null \
-                    | sed -n 's/^- //p'); do
-                case "$entry" in
-                    */) purge_tree "${subpath}${entry}" ;;
-                    *)  bao_exec kv metadata delete "secret/${subpath}${entry}" >/dev/null 2>&1 \
-                            || warn "failed to delete OpenBao secret/${subpath}${entry}" ;;
-                esac
-            done
-        }
-        deleted_any=false
-        for entry in $(bao_exec kv list -format=yaml secret/ 2>/dev/null | sed -n 's/^- //p'); do
-            case "$entry" in
-                */)
-                    echo "🗑️  Purging OpenBao subtree secret/${entry}..."
-                    purge_tree "$entry"
-                    deleted_any=true
-                    ;;
-            esac
-        done
-        $deleted_any && echo "✅ Dynamic OpenBao secrets purged" \
-                     || echo "⏭️  No dynamic OpenBao subtrees found (baseline keys preserved)"
-    fi
-fi
-
-# ============================================================================
-# Step 7: Verification summary
+# Step 6: Verification summary
 # ============================================================================
 echo ""
-echo "7️⃣  Verification"
+echo "6️⃣  Verification"
 if $CLUSTER_UP; then
     leftovers="$(helm list -A --no-headers 2>/dev/null | awk '{print $1}' \
         | grep -E '^(amp-|api-platform-|wso2-amp-)' || true)"

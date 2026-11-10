@@ -36,7 +36,7 @@ func a2aPublishingAgentService(pubs *repomocks.PlatformAgentExposureRepositoryMo
 	pubs.WithTxFunc = func(*gorm.DB) repositories.PlatformAgentExposureRepository { return pubs }
 	publisher := withA2ACore(NewA2APublisher(sentinelTx, pubs, proxies, nil, nil, a2aRenderQueue(),
 		testLogger(), NewAgentExposurePublisher(sentinelTx, pubs, nil, a2aRenderQueue(), a2aIngressGateways(), nil, testLogger()), nil), nil)
-	return NewAgentManagerService(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+	return NewAgentManagerService(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
 		nil, publisher, nil, nil, nil, publisher.exposure, nil, testLogger()).(*agentManagerService)
 }
 

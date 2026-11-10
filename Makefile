@@ -83,6 +83,7 @@ setup: tools setup-colima setup-k3d setup-openchoreo setup-platform setup-sandbo
 	@cd deployments/setup && ./port-forward.sh --platform --background
 	@$(MAKE) wait-ams-healthy
 	@$(MAKE) setup-secret-store
+	@$(MAKE) setup-observability
 	@$(MAKE) setup-default-env-thunder
 	@$(MAKE) setup-gateway
 	@cd deployments/setup && ./port-forward.sh --background
@@ -151,6 +152,10 @@ setup-k3d:
 
 setup-openchoreo:
 	@cd deployments/setup && ./setup-openchoreo.sh $(CURDIR)
+
+.PHONY: setup-observability
+setup-observability:
+	@cd deployments/setup && ./setup-openchoreo.sh $(CURDIR) --observability-only
 
 # Provisions the default env-Thunder instance. Must run after AMS is up +
 # migrated (store_via_ams needs it) — hence after dev-migrate, not in setup-openchoreo.sh.

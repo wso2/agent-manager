@@ -119,9 +119,6 @@ type Config struct {
 	// Secret Manager configuration
 	SecretManager SecretManagerConfig
 
-	// WorkflowPlaneOpenBao KV store configuration (workflow plane - for git secrets)
-	WorkflowPlaneOpenBao OpenBaoConfig
-
 	// Thunder admin API configuration for provisioning OAuth apps
 	Thunder ThunderConfig
 	// BuildClient configures the organization-scoped token a source build's
@@ -347,6 +344,8 @@ type SecretManagerConfig struct {
 	// the internal secret store endpoint (SECRET_STORE_TOKEN). Empty disables
 	// the endpoint.
 	StoreToken string `json:"-"`
+	// PlatformVaultSeed is a deployment-provided JSON object for shared platform credentials.
+	PlatformVaultSeed string `json:"-"`
 	// AgentIdentityRefreshInterval is the fallback wait after rotating an
 	// Agent ID credential when force-sync could not be confirmed (default: "10m").
 	// It must cover the workload's secret-env ExternalSecret refresh interval.
@@ -362,17 +361,6 @@ type SecretManagerConfig struct {
 	// logged and the pod is rolled after AgentIdentityRefreshInterval, not the
 	// short force-sync wait, because the force-sync was not confirmed.
 	AgentIdentityForceSyncApplyTimeout string
-}
-
-// OpenBaoConfig holds OpenBao KV store configuration.
-// Only KV v2 secrets engine is supported.
-type OpenBaoConfig struct {
-	// URL is the OpenBao server URL (e.g., http://openbao.openbao.svc:8200)
-	URL string
-	// Token is the authentication token
-	Token string `json:"-"`
-	// Path is the KV secrets engine mount path (default: "secret")
-	Path string
 }
 
 // OpenChoreoConfig holds OpenChoreo API configuration

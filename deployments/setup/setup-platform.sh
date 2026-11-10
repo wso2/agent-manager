@@ -108,6 +108,9 @@ if ! (cd "$PROJECT_ROOT/agent-manager-service" && ENV_FILE_PATH=.env go run -mod
 fi
 echo "✅ Migrations completed"
 
+source "$SCRIPT_DIR/../scripts/platform-vault.sh"
+init_platform_vault "$SCRIPT_DIR/../.platform-vault"
+
 echo "🚀 Starting Agent Manager platform services..."
 # --build is required, not an optimisation: plain `up -d` builds an image only
 # when none exists, so an image left over from an earlier checkout is reused

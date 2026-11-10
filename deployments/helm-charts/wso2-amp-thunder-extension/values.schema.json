@@ -1340,9 +1340,6 @@
                     "51-amp-console-theme.yaml",
                     "52-amp-console-layout.yaml",
                     "53-amp-console-app.yaml",
-                    "54-workload-publisher-app.yaml",
-                    "55-observer-resource-reader-app.yaml",
-                    "56-amp-publisher-client.yaml",
                     "57-amp-system-client.yaml",
                     "58-amctl-client.yaml",
                     "59-am-mcp-client.yaml",
@@ -1659,7 +1656,7 @@
                 },
                 "clientSecret": {
                   "default": "amp-publisher-client-secret",
-                  "description": "OAuth 2.0 client secret Allowed values: Override in production; must match the value stored in OpenBao at secret/amp-publisher-client-secret (used by ExternalSecret at workflow runtime).",
+                  "description": "OAuth 2.0 client secret Allowed values: Must match the monitor publisher credential in the platform vault seed.",
                   "title": "clientSecret",
                   "type": "string"
                 },

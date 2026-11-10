@@ -383,22 +383,15 @@ agentManagerService:
       # the chart-managed Secret always uses the fixed key "secret-store-token".
       existingSecretKey: "secret-store-token"
 
-    # Workflow Plane OpenBao configuration (for Git Secrets)
-    # Used to fetch git credentials for private repository access
-    workflowPlaneOpenbao:
-      # Workflow plane OpenBao URL
-      url: "http://openbao.openbao.svc.cluster.local:8200"
-      # KV mount path git credentials are read from.
-      path: "secret"
-      # OpenBao token. When set, it is stored in the chart-managed Secret and
-      # injected via secretKeyRef — never as a plaintext env var in the pod spec.
-      # For production, use existingSecret instead.
-      token: "root"
-      existingSecret: ""
-      # Key to read from existingSecret. Applies ONLY when existingSecret is set.
-      # The chart-managed Secret packs both OpenBao tokens into one Secret, so this
-      # token is stored there under the distinct key "workflow-plane-openbao-token".
-      existingSecretKey: "openbao-token"
+    # Shared credentials for the bundled build and observability components.
+    # The referenced Kubernetes Secret must have an AMP_PLATFORM_VAULT_SEED
+    # key containing JSON. Supported keys are opensearch-username,
+    # opensearch-password, observer-oauth-client-secret,
+    # workflow-plane-oauth-client-secret, amp-publisher-client-secret, and
+    # registry-push-secret (a Docker config JSON string, for authenticated pushes).
+    # Match the OAuth values supplied to Thunder. The service encrypts the
+    # seed in Postgres before serving the webhook.
+    platformVaultSeedSecret: ""
 
     # Gateway-reported policy manifest cache. A gateway pushes its whole manifest each
     # time it (re)connects to the control plane; manifests are large, so they are cached

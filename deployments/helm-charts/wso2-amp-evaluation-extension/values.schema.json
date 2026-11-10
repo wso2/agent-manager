@@ -123,7 +123,7 @@
             },
             "idpTokenUrl": {
               "default": "http://amp-thunder-extension-service.amp-thunder.svc.cluster.local:8090/oauth2/token",
-              "description": "OAuth2 client credentials for publisher authentication The evaluation job uses these to obtain a Bearer token from Thunder Note: clientSecret is loaded dynamically from OpenBao via ExternalSecret at workflow runtime",
+              "description": "OAuth2 client credentials for publisher authentication The evaluation job uses these to obtain a Bearer token from Thunder Note: clientSecret is loaded from the platform vault via ExternalSecret at workflow runtime",
               "title": "idpTokenUrl",
               "type": "string"
             },
@@ -382,12 +382,6 @@
           "default": "amp-secret-store",
           "description": "Name of the ClusterSecretStore monitor runs read agent manager secrets through. The wso2-agent-manager chart creates it (in-house secret store).",
           "title": "clusterSecretStoreName",
-          "type": "string"
-        },
-        "platformSecretStoreName": {
-          "default": "default",
-          "description": "Name of the ClusterSecretStore for credentials a monitor run reads by a direct store path (the static publisher client secret when Thunder is not configured, and the legacy llmProxySecretPath). These stay in OpenBao.",
-          "title": "platformSecretStoreName",
           "type": "string"
         }
       },

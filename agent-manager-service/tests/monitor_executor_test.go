@@ -546,6 +546,6 @@ func TestExecuteMonitorRun_FallbackPublisherCredentials(t *testing.T) {
 
 	pubParams := capturedReq.Parameters["publishing"].(map[string]interface{})
 	assert.Equal(t, "amp-publisher-client", pubParams["clientId"])
-	assert.Equal(t, "amp-publisher-client-secret", pubParams["secretKVPath"])
-	assert.Equal(t, "value", pubParams["secretKey"])
+	assert.Equal(t, "platform/bootstrap", pubParams["secretKVPath"])
+	assert.Equal(t, "amp-publisher-client-secret", pubParams["secretKey"])
 }

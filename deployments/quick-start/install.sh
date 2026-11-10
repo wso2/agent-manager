@@ -540,6 +540,13 @@ if ! command_exists curl; then
     exit 1
 fi
 
+for command in jq openssl; do
+    if ! command_exists "$command"; then
+        log_error "$command is not installed"
+        exit 1
+    fi
+done
+
 if ! command_exists lsof; then
     log_error "lsof is not installed"
     exit 1
@@ -841,67 +848,31 @@ else
 fi
 
 # ============================================================================
-# Step 6: Setup Secrets (OpenBao for Workflow Plane)
+# Step 6: Prepare shared platform credentials
 # ============================================================================
+log_step "Step 6/13: Preparing platform vault credentials"
+source "${DEPLOYMENTS_DIR}/scripts/platform-vault.sh"
+PLATFORM_VAULT_DIR="${DEPLOYMENTS_DIR}/.platform-vault/quick-start"
+kubectl create namespace "${AMP_NS}" --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+# A rerun from a disposable installer container may have no local seed. Keep
+# the credential values already supplied to Thunder and the platform vault.
+(
+    umask 077
+    mkdir -p "${PLATFORM_VAULT_DIR}"
+    seed_b64=$(kubectl get secret amp-platform-vault-seed -n "${AMP_NS}" --ignore-not-found \
+        -o jsonpath='{.data.AMP_PLATFORM_VAULT_SEED}')
+    if [[ -n "$seed_b64" ]]; then
+        printf '%s' "$seed_b64" | base64 -d > "${PLATFORM_VAULT_DIR}/seed.json"
+    fi
+)
+init_platform_vault "${PLATFORM_VAULT_DIR}"
+THUNDER_HELM_ARGS+=(-f "${PLATFORM_VAULT_DIR}/thunder-values.json")
+PLATFORM_RESOURCES_HELM_ARGS+=(--set "global.registry.authEnabled=$(platform_vault_has_registry_credentials "${PLATFORM_VAULT_DIR}" && echo true || echo false)")
 
-log_step "Step 6/13: Setup Secrets (OpenBao for Workflow Plane)"
-
-# Install OpenBao for Workflow Plane secret management
-log_info "Installing OpenBao for Workflow Plane..."
-if helm upgrade --install openbao oci://ghcr.io/openbao/charts/openbao \
-    --kube-context ${CLUSTER_CONTEXT} \
-    --namespace openbao \
-    --create-namespace \
-    --version 0.25.6 \
-    --values "${DEPLOYMENTS_DIR}/single-cluster/values-openbao.yaml" \
-    --timeout 180s &>/dev/null; then
-    log_success "OpenBao installed successfully"
-else
-    log_error "Failed to install OpenBao"
-    exit 1
-fi
-
-log_info "Waiting for OpenBao to be ready..."
-if kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=openbao -n openbao --context ${CLUSTER_CONTEXT} --timeout=120s 2>/dev/null; then
-    log_success "OpenBao is ready"
-else
-    log_warning "OpenBao may still be starting (non-fatal)"
-fi
-
-# Configure External Secrets ClusterSecretStore for OpenBao
-log_info "Configuring External Secrets ClusterSecretStore for OpenBao..."
-if kubectl --context ${CLUSTER_CONTEXT} apply -f - <<EOF
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: external-secrets-openbao
-  namespace: openbao
----
-apiVersion: external-secrets.io/v1
-kind: ClusterSecretStore
-metadata:
-  name: default
-spec:
-  provider:
-    vault:
-      server: "http://openbao.openbao.svc:8200"
-      path: "secret"
-      version: "v2"
-      auth:
-        kubernetes:
-          mountPath: "kubernetes"
-          role: "openchoreo-secret-writer-role"
-          serviceAccountRef:
-            name: "external-secrets-openbao"
-            namespace: "openbao"
-EOF
-then
-    log_success "External Secrets ClusterSecretStore configured for OpenBao"
-else
-    log_error "Failed to configure ClusterSecretStore for OpenBao"
-    exit 1
-fi
-
+kubectl create secret generic amp-platform-vault-seed -n "${AMP_NS}" \
+    --from-file="AMP_PLATFORM_VAULT_SEED=${PLATFORM_VAULT_DIR}/seed.json" \
+    --dry-run=client -o yaml | kubectl apply --server-side -f - >/dev/null
+AMP_HELM_ARGS+=(--set agentManagerService.config.platformVaultSeedSecret=amp-platform-vault-seed)
 
 # ============================================================================
 # Step 7: Install OpenChoreo Control Plane
@@ -1145,7 +1116,7 @@ metadata:
 spec:
   planeID: "default"
   secretStoreRef:
-    name: default
+    name: amp-secret-store
   clusterAgent:
     clientCA:
       value: |
@@ -1170,54 +1141,141 @@ fi
 wait_for_deployments "openchoreo-workflow-plane" "${TIMEOUT_BUILD_PLANE}"
 
 # ============================================================================
-# Step 10: Install OpenChoreo Observability Plane
+# Step 10: Install Gateway Operator
 # ============================================================================
 
-log_step "Step 10/13: Installing OpenChoreo Observability Plane"
 
-create_plane_cert_resources "openchoreo-observability-plane"
+log_step "Step 10/13: Installing Gateway Operator"
+log_info "Installing Gateway Operator..."
+# Pinning gateway.helm.chartVersion alone is NOT enough: the chart's own
+# default values.yaml can still reference an older gateway-controller/
+# gateway-runtime image tag independent of the chart version, so the image
+# tag/repo must be set explicitly here too (confirmed by inspecting the
+# actual running pod images — chartVersion=1.2.0-alpha alone still ran an
+# older image until these were added).
+# Admin API on this image is served under /api/admin/v1 on the "admin" named
+# port — GET /health on the "rest" port goes through Gin + basic auth and
+# returns 401 for kube-probe (see gateway-controller admin OpenAPI spec).
+helm_install_idempotent \
+    "gateway-operator" \
+    "oci://ghcr.io/wso2/api-platform/helm-charts/gateway-operator" \
+    "openchoreo-data-plane" \
+    "600" \
+    --version "${GATEWAY_OPERATOR_VERSION}" \
+    --set "logging.level=debug" \
+    --set gatewayApi.installStandardCRDs=false \
+    --set "gateway.helm.chartVersion=${GATEWAY_CHART_VERSION}" \
+    --set "gateway.values.gateway.controller.image.tag=${GATEWAY_IMAGE_VERSION}" \
+    --set gateway.values.gateway.controller.image.repository=ghcr.io/wso2/api-platform/gateway-controller \
+    --set "gateway.values.gateway.gatewayRuntime.image.tag=${GATEWAY_IMAGE_VERSION}" \
+    --set gateway.values.gateway.gatewayRuntime.image.repository=ghcr.io/wso2/api-platform/gateway-runtime \
+    --set gateway.values.gateway.controller.encryptionKeys.enabled=true \
+    --set "gateway.values.gateway.controller.encryptionKeys.secretName=${GATEWAY_ENCRYPTION_SECRET_NAME}" \
+    --set gateway.values.gateway.controller.deployment.livenessProbe.httpGet.path=/api/admin/v1/health \
+    --set gateway.values.gateway.controller.deployment.livenessProbe.httpGet.port=admin \
+    --set gateway.values.gateway.controller.deployment.readinessProbe.httpGet.path=/api/admin/v1/health \
+    --set gateway.values.gateway.controller.deployment.readinessProbe.httpGet.port=admin
 
-# Create ExternalSecret for OpenSearch credentials
-log_info "Creating ExternalSecret for OpenSearch credentials..."
+log_success "Gateway Operator installed"
+
+# Grant RBAC for WSO2 API Platform CRDs
+log_info "Granting RBAC for WSO2 API Platform CRDs..."
 if kubectl apply -f - <<EOF
-apiVersion: external-secrets.io/v1
-kind: ExternalSecret
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
 metadata:
-  name: observer-opensearch-credentials
-  namespace: openchoreo-observability-plane
-spec:
-  refreshInterval: 1h
-  secretStoreRef:
-    kind: ClusterSecretStore
-    name: default
-  target:
-    name: observer-opensearch-credentials
-  data:
-  - secretKey: username
-    remoteRef:
-      key: opensearch-username
-  - secretKey: password
-    remoteRef:
-      key: opensearch-password
+  name: wso2-api-platform-gateway-module
+rules:
+  - apiGroups: ["gateway.api-platform.wso2.com"]
+    resources: ["restapis", "apigateways"]
+    verbs: ["*"]
+  - apiGroups: ["gateway.kgateway.dev"]
+    resources: ["backends"]
+    verbs: ["*"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: wso2-api-platform-gateway-module
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: wso2-api-platform-gateway-module
+subjects:
+  - kind: ServiceAccount
+    name: cluster-agent-dataplane
+    namespace: openchoreo-data-plane
 EOF
 then
-    log_success "ExternalSecret for OpenSearch credentials created successfully"
+    log_success "RBAC for WSO2 API Platform CRDs applied"
 else
-    log_warning "Failed to create ExternalSecret for OpenSearch credentials (non-fatal)"
+    log_warning "Failed to apply RBAC for WSO2 API Platform CRDs (non-fatal)"
 fi
 
-# Create namespace (idempotent)
-log_info "Ensuring OpenChoreo Observability Plane namespace exists..."
-if kubectl get namespace "${OBSERVABILITY_NS}" &>/dev/null; then
-    log_info "Namespace '${OBSERVABILITY_NS}' already exists, skipping creation"
-else
-    if kubectl create namespace "${OBSERVABILITY_NS}" &>/dev/null; then
-        log_success "Namespace '${OBSERVABILITY_NS}' created successfully"
-    else
-        log_error "Failed to create namespace '${OBSERVABILITY_NS}'"
-        exit 1
-    fi
+log_success "Gateway Operator setup complete"
+
+# ============================================================================
+# Step 11: Install AMP Thunder Extension
+# ============================================================================
+
+log_step "Step 11/13: Installing WSO2 AMP Thunder Extension"
+
+log_info "Installing WSO2 AMP Thunder Extension..."
+log_info "Gateway API CRDs and Gateway Operator are now available"
+if ! install_registry_credentials; then
+    exit 1
 fi
+
+if ! install_amp_thunder_extension; then
+    log_warning "AMP Thunder Extension installation failed (non-fatal)"
+    echo "The installation will continue but thunder extension features may not work."
+    echo ""
+    echo "Troubleshooting steps:"
+    echo "  1. Check Helm release: helm list -n amp-thunder"
+    echo "  2. Check pod status: kubectl get pods -n amp-thunder"
+else
+    log_success "AMP Thunder Extension installed successfully"
+fi
+echo ""
+
+# ============================================================================
+# Step 12: Install Agent Management Platform
+# ============================================================================
+
+log_step "Step 12/13: Installing Agent Management Platform"
+
+# Verify prerequisites
+if ! verify_amp_prerequisites; then
+    log_error "AMP prerequisites check failed"
+    exit 1
+fi
+
+log_info "Installing Agent Management Platform components..."
+log_info "This may take 5-8 minutes..."
+echo ""
+
+# Install main platform
+log_info "Installing Agent Management Platform (PostgreSQL, API, Console)..."
+if ! install_agent_management_platform; then
+    log_error "Failed to install Agent Management Platform"
+    echo ""
+    echo "Troubleshooting steps:"
+    echo "  1. Check pod status: kubectl get pods -n ${AMP_NS}"
+    echo "  2. View logs: kubectl logs -n ${AMP_NS} <pod-name>"
+    echo "  3. Check Helm release: helm list -n ${AMP_NS}"
+    exit 1
+fi
+log_success "Agent Management Platform installed successfully"
+echo ""
+
+# ============================================================================
+# Step 13: Install OpenChoreo Observability Plane
+# ============================================================================
+
+log_step "Step 13/13: Installing OpenChoreo Observability Plane"
+
+kubectl wait --for=condition=Ready clustersecretstore/amp-secret-store --timeout=120s
+create_plane_cert_resources "openchoreo-observability-plane"
 
 # Apply OpenTelemetry Collector ConfigMap (idempotent)
 log_info "Applying Custom OpenTelemetry Collector configuration..."
@@ -1269,18 +1327,18 @@ spec:
   refreshInterval: 1h
   secretStoreRef:
     kind: ClusterSecretStore
-    name: default
+    name: amp-secret-store
   target:
     name: opensearch-admin-credentials
   data:
   - secretKey: username
     remoteRef:
-      key: opensearch-username
-      property: value
+      key: platform/bootstrap
+      property: opensearch-username
   - secretKey: password
     remoteRef:
-      key: opensearch-password
-      property: value
+      key: platform/bootstrap
+      property: opensearch-password
 EOF
 then
     log_success "ExternalSecret for OpenSearch admin credentials created successfully"
@@ -1300,22 +1358,22 @@ spec:
   refreshInterval: 1h
   secretStoreRef:
     kind: ClusterSecretStore
-    name: default
+    name: amp-secret-store
   target:
     name: observer-secret
   data:
   - secretKey: OPENSEARCH_USERNAME
     remoteRef:
-      key: opensearch-username
-      property: value
+      key: platform/bootstrap
+      property: opensearch-username
   - secretKey: OPENSEARCH_PASSWORD
     remoteRef:
-      key: opensearch-password
-      property: value
+      key: platform/bootstrap
+      property: opensearch-password
   - secretKey: UID_RESOLVER_OAUTH_CLIENT_SECRET
     remoteRef:
-      key: observer-oauth-client-secret
-      property: value
+      key: platform/bootstrap
+      property: observer-oauth-client-secret
 EOF
 then
     log_success "ExternalSecret for observer service created successfully"
@@ -1498,134 +1556,6 @@ if kubectl get clusterworkflowplane default -n default &>/dev/null; then
 else
     log_warning "ClusterWorkflowPlane resource not found yet (will use default observer)"
 fi
-
-# ============================================================================
-# Step 11: Install Gateway Operator
-# ============================================================================
-
-
-log_step "Step 11/13: Installing Gateway Operator"
-log_info "Installing Gateway Operator..."
-# Pinning gateway.helm.chartVersion alone is NOT enough: the chart's own
-# default values.yaml can still reference an older gateway-controller/
-# gateway-runtime image tag independent of the chart version, so the image
-# tag/repo must be set explicitly here too (confirmed by inspecting the
-# actual running pod images — chartVersion=1.2.0-alpha alone still ran an
-# older image until these were added).
-# Admin API on this image is served under /api/admin/v1 on the "admin" named
-# port — GET /health on the "rest" port goes through Gin + basic auth and
-# returns 401 for kube-probe (see gateway-controller admin OpenAPI spec).
-helm_install_idempotent \
-    "gateway-operator" \
-    "oci://ghcr.io/wso2/api-platform/helm-charts/gateway-operator" \
-    "openchoreo-data-plane" \
-    "600" \
-    --version "${GATEWAY_OPERATOR_VERSION}" \
-    --set "logging.level=debug" \
-    --set gatewayApi.installStandardCRDs=false \
-    --set "gateway.helm.chartVersion=${GATEWAY_CHART_VERSION}" \
-    --set "gateway.values.gateway.controller.image.tag=${GATEWAY_IMAGE_VERSION}" \
-    --set gateway.values.gateway.controller.image.repository=ghcr.io/wso2/api-platform/gateway-controller \
-    --set "gateway.values.gateway.gatewayRuntime.image.tag=${GATEWAY_IMAGE_VERSION}" \
-    --set gateway.values.gateway.gatewayRuntime.image.repository=ghcr.io/wso2/api-platform/gateway-runtime \
-    --set gateway.values.gateway.controller.encryptionKeys.enabled=true \
-    --set "gateway.values.gateway.controller.encryptionKeys.secretName=${GATEWAY_ENCRYPTION_SECRET_NAME}" \
-    --set gateway.values.gateway.controller.deployment.livenessProbe.httpGet.path=/api/admin/v1/health \
-    --set gateway.values.gateway.controller.deployment.livenessProbe.httpGet.port=admin \
-    --set gateway.values.gateway.controller.deployment.readinessProbe.httpGet.path=/api/admin/v1/health \
-    --set gateway.values.gateway.controller.deployment.readinessProbe.httpGet.port=admin
-
-log_success "Gateway Operator installed"
-
-# Grant RBAC for WSO2 API Platform CRDs
-log_info "Granting RBAC for WSO2 API Platform CRDs..."
-if kubectl apply -f - <<EOF
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: wso2-api-platform-gateway-module
-rules:
-  - apiGroups: ["gateway.api-platform.wso2.com"]
-    resources: ["restapis", "apigateways"]
-    verbs: ["*"]
-  - apiGroups: ["gateway.kgateway.dev"]
-    resources: ["backends"]
-    verbs: ["*"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: wso2-api-platform-gateway-module
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: wso2-api-platform-gateway-module
-subjects:
-  - kind: ServiceAccount
-    name: cluster-agent-dataplane
-    namespace: openchoreo-data-plane
-EOF
-then
-    log_success "RBAC for WSO2 API Platform CRDs applied"
-else
-    log_warning "Failed to apply RBAC for WSO2 API Platform CRDs (non-fatal)"
-fi
-
-log_success "Gateway Operator setup complete"
-
-# ============================================================================
-# Step 12: Install AMP Thunder Extension
-# ============================================================================
-
-log_step "Step 12/13: Installing WSO2 AMP Thunder Extension"
-
-log_info "Installing WSO2 AMP Thunder Extension..."
-log_info "Gateway API CRDs and Gateway Operator are now available"
-if ! install_registry_credentials; then
-    exit 1
-fi
-
-if ! install_amp_thunder_extension; then
-    log_warning "AMP Thunder Extension installation failed (non-fatal)"
-    echo "The installation will continue but thunder extension features may not work."
-    echo ""
-    echo "Troubleshooting steps:"
-    echo "  1. Check Helm release: helm list -n amp-thunder"
-    echo "  2. Check pod status: kubectl get pods -n amp-thunder"
-else
-    log_success "AMP Thunder Extension installed successfully"
-fi
-echo ""
-
-# ============================================================================
-# Step 13: Install Agent Management Platform
-# ============================================================================
-
-log_step "Step 13/13: Installing Agent Management Platform"
-
-# Verify prerequisites
-if ! verify_amp_prerequisites; then
-    log_error "AMP prerequisites check failed"
-    exit 1
-fi
-
-log_info "Installing Agent Management Platform components..."
-log_info "This may take 5-8 minutes..."
-echo ""
-
-# Install main platform
-log_info "Installing Agent Management Platform (PostgreSQL, API, Console)..."
-if ! install_agent_management_platform; then
-    log_error "Failed to install Agent Management Platform"
-    echo ""
-    echo "Troubleshooting steps:"
-    echo "  1. Check pod status: kubectl get pods -n ${AMP_NS}"
-    echo "  2. View logs: kubectl logs -n ${AMP_NS} <pod-name>"
-    echo "  3. Check Helm release: helm list -n ${AMP_NS}"
-    exit 1
-fi
-log_success "Agent Management Platform installed successfully"
-echo ""
 
 # Install agent sandbox module (required: agents run as sandboxed pods)
 log_info "Installing Agent Sandbox Module (sandboxed agent runtime)..."

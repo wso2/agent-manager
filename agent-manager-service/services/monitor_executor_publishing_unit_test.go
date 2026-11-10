@@ -176,8 +176,8 @@ func TestMonitorExecutor_buildPublishingParams(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.Equal(t, "amp-publisher-client", params["clientId"])
-		assert.Equal(t, "amp-publisher-client-secret", params["secretKVPath"])
-		assert.Equal(t, "value", params["secretKey"])
+		assert.Equal(t, "platform/bootstrap", params["secretKVPath"])
+		assert.Equal(t, "amp-publisher-client-secret", params["secretKey"])
 		assert.NotContains(t, params, "secretRefName", "static credentials have no SecretReference")
 	})
 

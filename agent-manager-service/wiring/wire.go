@@ -81,7 +81,8 @@ var serviceProviderSet = wire.NewSet(
 	services.NewAgentKindService,
 	services.NewInfraResourceManager,
 	services.NewAgentTokenManagerService,
-	ProvideGitCredentialsService,
+	ProvideGitSecretStore,
+	services.NewGitCredentialsService,
 	services.NewRepositoryService,
 	services.NewMonitorExecutor,
 	services.NewMonitorManagerService,
@@ -373,7 +374,16 @@ func ProvideSecretResolver(cfg config.Config, ocClient occlient.OpenChoreoClient
 	if err != nil {
 		return nil, err
 	}
-	return inhouse.NewClient(storeConfig.InHouse)
+	resolver, err := inhouse.NewClient(storeConfig.InHouse)
+	if err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	if err := resolver.SeedPlatformSecrets(ctx, cfg.SecretManager.PlatformVaultSeed); err != nil {
+		return nil, err
+	}
+	return resolver, nil
 }
 
 func inHouseStoreConfig(cfg config.Config, ocClient occlient.OpenChoreoClient, db *gorm.DB) (*secretmanagersvc.StoreConfig, error) {
@@ -413,10 +423,13 @@ func ProvideGatewayManifestCacheBackend(cfg config.Config) (services.GatewayMani
 	}
 }
 
-// ProvideGitCredentialsService creates the git credentials service for fetching
-// git credentials from workflow plane OpenBao
-func ProvideGitCredentialsService(ocClient occlient.OpenChoreoClient, cfg config.Config) (services.GitCredentialsService, error) {
-	return services.NewGitCredentialsService(ocClient, cfg)
+// ProvideGitSecretStore creates the tenant-scoped Git credential store.
+func ProvideGitSecretStore(cfg config.Config, ocClient occlient.OpenChoreoClient, db *gorm.DB) (services.GitSecretStore, error) {
+	storeConfig, err := inHouseStoreConfig(cfg, ocClient, db)
+	if err != nil {
+		return nil, err
+	}
+	return inhouse.NewClient(storeConfig.InHouse)
 }
 
 // ProvideNilBuildSecretProvisioner supplies a nil BuildSecretProvisioner for wiring

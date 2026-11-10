@@ -441,7 +441,7 @@ func updateConfigurationsService(t *testing.T, configs []models.EnvVars, configs
 			return []client.EnvVar{}, nil
 		},
 	}
-	svc = NewAgentManagerService(nil, oc, secrets, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+	svc = NewAgentManagerService(nil, oc, secrets, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
 		injector, nil, nil, nil, nil, nil, nil, nil, nil, nil, discardLogger())
 	svc.(*agentManagerService).agentConfigurationService = &llmSecretRefsStub{llmSecretRefs: map[string]struct{}{}}
 	return svc, saved, rewritten, rewriteCalled

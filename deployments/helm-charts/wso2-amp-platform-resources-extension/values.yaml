@@ -27,6 +27,8 @@ global:
   baseDomain: ""
   # -- Container registry configuration
   registry:
+    # Enable when registry-push-secret is included in the vault seed.
+    authEnabled: false
     # -- Registry endpoint for pushing and pulling images
     # For local registry: "host.k3d.internal:10082"
     # For external registry with baseDomain: automatically uses "registry.<baseDomain>"
@@ -212,8 +214,8 @@ projectType:
 
 # External Secrets configuration
 externalSecrets:
-  # Name of the ClusterSecretStore (uses the default OpenBao ClusterSecretStore)
-  clusterSecretStoreName: default
+  # Name of the ClusterSecretStore used by build workflows.
+  clusterSecretStoreName: amp-secret-store
 
 # Authorization configuration for OpenChoreo
 authz:

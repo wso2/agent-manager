@@ -95,7 +95,7 @@ func (s *repositoryService) ListBranches(ctx context.Context, req spec.ListBranc
 	// Determine git provider configuration
 	providerConfig := getGitProviderConfig()
 
-	// If secretRef is provided, fetch git credentials from workflow plane OpenBao.
+	// If secretRef is provided, fetch the organization’s Git credentials from the vault.
 	// A secretRef without an org is a missing-tenant-identity condition, not a
 	// reason to fall back to the platform's default (public-repo) credentials.
 	if req.HasSecretRef() {
@@ -183,7 +183,7 @@ func (s *repositoryService) ListCommits(ctx context.Context, req spec.ListCommit
 	// Determine git provider configuration
 	providerConfig := getGitProviderConfig()
 
-	// If secretRef is provided, fetch git credentials from workflow plane OpenBao.
+	// If secretRef is provided, fetch the organization’s Git credentials from the vault.
 	// A secretRef without an org is a missing-tenant-identity condition, not a
 	// reason to fall back to the platform's default (public-repo) credentials.
 	if req.HasSecretRef() {

@@ -24,6 +24,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -747,6 +748,7 @@ type triggerBuildStub struct {
 	workflowKind         string
 	createdRun           *gen.WorkflowRun
 	clusterWorkflowReads int
+	gitSecretRef         string
 }
 
 func (s *triggerBuildStub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -760,7 +762,7 @@ func (s *triggerBuildStub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"metadata":{"name":"my-agent"},"spec":{"owner":{"projectName":"proj1"},
 			"componentType":{"name":"deployment/agent-api"},
-			"workflow":{"kind":"` + kind + `","name":"` + s.workflowName + `","parameters":{"repository":{"url":"u"}}}}}`))
+			"workflow":{"kind":"` + kind + `","name":"` + s.workflowName + `","parameters":{"repository":{"url":"u","secretRef":` + strconv.Quote(s.gitSecretRef) + `}}}}}`))
 	case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/api/v1/clusterworkflows/"):
 		s.clusterWorkflowReads++
 		w.WriteHeader(http.StatusNotFound)
@@ -791,6 +793,17 @@ func (s *triggerBuildStub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.t.Errorf("unexpected call %s %s", r.Method, r.URL.Path)
 		w.WriteHeader(http.StatusNotImplemented)
 	}
+}
+
+func TestTriggerBuildUsesTenantScopedGitSecretReference(t *testing.T) {
+	stub := &triggerBuildStub{t: t, workflowName: "amp-docker", gitSecretRef: "private"}
+	c := newTestClient(t, stub)
+	_, err := c.TriggerBuild(context.Background(), "org-1", "proj1", "my-agent", "", "my-agent-1700", nil, nil)
+	require.NoError(t, err)
+	require.NotNil(t, stub.createdRun)
+	repo := (*stub.createdRun.Spec.Workflow.Parameters)["repository"]
+	assert.Equal(t, map[string]any{"url": "u", "secretRef": GitSecretReferenceName("org-1", "private")}, repo)
+	assert.NotEqual(t, GitSecretReferenceName("org-1", "private"), GitSecretReferenceName("org-2", "private"))
 }
 
 func TestTriggerBuild_ProvisionsTheBuildClientOnlyForAWorkflowThatTakesIt(t *testing.T) {

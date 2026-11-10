@@ -323,7 +323,7 @@ spec:
           refreshInterval: 15s
           secretStoreRef:
             kind: ClusterSecretStore
-            name: default
+            name: {{ .Values.externalSecrets.clusterSecretStoreName }}
           target:
             name: ${metadata.workflowRunName}-git-secret
             creationPolicy: Owner
@@ -338,6 +338,7 @@ spec:
               }
             })}
 
+    {{- if .Values.global.registry.authEnabled }}
     - id: registry-push-secret
       template:
         apiVersion: external-secrets.io/v1
@@ -348,7 +349,7 @@ spec:
         spec:
           refreshInterval: 15s
           secretStoreRef:
-            name: default
+            name: {{ .Values.externalSecrets.clusterSecretStoreName }}
             kind: ClusterSecretStore
           target:
             name: ${metadata.workflowRunName}-registry-push-secret
@@ -360,7 +361,10 @@ spec:
           data:
             - secretKey: registrysecret
               remoteRef:
-                key: registry-push-secret
+                key: platform/bootstrap
+                property: registry-push-secret
+    {{- end }}
+
     - id: workload-publisher-oauth
       template:
         apiVersion: external-secrets.io/v1
@@ -371,7 +375,7 @@ spec:
         spec:
           refreshInterval: 15s
           secretStoreRef:
-            name: default
+            name: {{ .Values.externalSecrets.clusterSecretStoreName }}
             kind: ClusterSecretStore
           target:
             name: ${metadata.workflowRunName}-workload-publisher-oauth
@@ -379,5 +383,5 @@ spec:
           data:
             - secretKey: workload-publisher-oauth
               remoteRef:
-                key: workflow-plane-oauth-client-secret
-                property: value
+                key: platform/bootstrap
+                property: workflow-plane-oauth-client-secret

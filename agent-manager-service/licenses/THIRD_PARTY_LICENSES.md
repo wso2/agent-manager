@@ -9,7 +9,6 @@ Direct (non-indirect) dependencies from `go.mod`, cross-checked against vendored
 | github.com/google/uuid | BSD-3-Clause | https://github.com/google/uuid/blob/master/LICENSE |
 | github.com/google/wire | Apache-2.0 | https://github.com/google/wire/blob/main/LICENSE |
 | github.com/gorilla/websocket | BSD-2-Clause | https://github.com/gorilla/websocket/blob/main/LICENSE |
-| github.com/hashicorp/vault/api | MPL-2.0 | https://github.com/hashicorp/vault/blob/main/api/LICENSE |
 | github.com/jackc/pgx/v5 | MIT | https://github.com/jackc/pgx/blob/master/LICENSE |
 | github.com/joho/godotenv | MIT | https://github.com/joho/godotenv/blob/main/LICENCE |
 | github.com/modelcontextprotocol/go-sdk | Apache-2.0 | https://github.com/modelcontextprotocol/go-sdk/blob/main/LICENSE |

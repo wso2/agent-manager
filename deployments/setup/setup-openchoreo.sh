@@ -241,7 +241,7 @@ install_workflow_plane() {
     # Registering the Workflow Plane with the control plane
     echo "🔗 Registering Workflow Plane..."
     WP_CA_CERT=$(kubectl get secret cluster-agent-tls -n openchoreo-workflow-plane -o jsonpath='{.data.ca\.crt}' | base64 -d)
-    register_workflow_plane "$WP_CA_CERT" "default" "default"
+    register_workflow_plane "$WP_CA_CERT" "default" "amp-secret-store"
 
     # Verify WorkflowPlane
     echo ""
@@ -448,10 +448,49 @@ install_observability_plane() {
     # Verify ObservabilityPlane
     echo ""
     echo "🔍 Verifying ObservabilityPlane ..."
-    kubectl get observabilityplane -n default
+    kubectl get clusterobservabilityplane default
     verify_agent_logs openchoreo-observability-plane
     echo "✅ OpenChoreo Observability Plane ready"
 }
+
+finish_observability() {
+    echo "Installing the OpenChoreo observability plane"
+    install_observability_plane
+    build_observer_image
+    echo "✅ Observability Plane installed successfully"
+    echo ""
+
+    echo "Configuring observability integration..."
+    # Configure the data plane observer
+    if kubectl get clusterdataplane default -n default &>/dev/null; then
+        kubectl patch clusterdataplane default -n default --type merge -p '{"spec":{"observabilityPlaneRef":{"kind":"ClusterObservabilityPlane","name":"default"}}}' \
+            && echo "   ✅ DataPlane observer configured" \
+            || echo "   ⚠️  DataPlane observer configuration failed (non-fatal)"
+    else
+        echo "   ⚠️  DataPlane resource not found yet "
+    fi
+
+    # Configure the workflow plane observer
+    if kubectl get clusterworkflowplane default -n default &>/dev/null; then
+        kubectl patch clusterworkflowplane default -n default --type merge -p '{"spec":{"observabilityPlaneRef":{"kind":"ClusterObservabilityPlane","name":"default"}}}' \
+            && echo "   ✅ WorkflowPlane observer configured" \
+            || echo "   ⚠️  WorkflowPlane observer configuration failed (non-fatal)"
+    else
+        echo "   ⚠️  WorkflowPlane resource not found yet"
+    fi
+    echo ""
+
+    echo "All core OpenChoreo planes are installed and registered!"
+
+    echo "Installing the Agent Manager observability extension"
+    "${SCRIPT_DIR}/setup-amp-observability-extension.sh" "${PROJECT_ROOT}" || exit 1
+    echo ""
+}
+
+if [[ "${2:-}" == "--observability-only" ]]; then
+    finish_observability
+    exit 0
+fi
 
 # ============================================================================
 # Step 1: Install Control Plane (must complete before Data Plane)
@@ -469,19 +508,9 @@ echo ""
 
 
 # ============================================================================
-# Step 3: Workflow Plane, with the Observability Plane installing alongside
+# Step 3: Install and register the Workflow Plane
 # ============================================================================
-# The observability plane is the slowest plane (OpenSearch and Prometheus
-# startup) and only the observability integration and extension steps need it,
-# so it installs in the background while the workflow plane, the AMP
-# extensions and the gateway operator go in. The observer image needed by the
-# extension builds alongside for the same reason.
-echo ""
-echo "3️⃣  Workflow Plane (Observability Plane installing in the background)"
-echo ""
-
-start_task "Observability Plane" install_observability_plane
-start_task "Observer image" build_observer_image
+echo "3️⃣  Workflow Plane"
 install_workflow_plane
 echo "✅ Workflow Plane installed successfully"
 echo ""
@@ -538,46 +567,6 @@ echo "✅ RBAC for WSO2 API Platform CRDs applied"
 echo ""
 
 # ============================================================================
-# Step 7: Collect the Observability Plane install and observer image build
-# ============================================================================
-echo "7️⃣  Observability Plane"
-collect_tasks || exit 1
-echo "✅ Observability Plane installed successfully"
-echo ""
-
-# ============================================================================
-# Step 8: Configure observability integration (requires all planes to be registered)
-# ============================================================================
-echo "8️⃣  Configuring observability integration..."
-# Configure DataPlane observer
-if kubectl get clusterdataplane default -n default &>/dev/null; then
-    kubectl patch clusterdataplane default -n default --type merge -p '{"spec":{"observabilityPlaneRef":{"kind":"ClusterObservabilityPlane","name":"default"}}}' \
-        && echo "   ✅ DataPlane observer configured" \
-        || echo "   ⚠️  DataPlane observer configuration failed (non-fatal)"
-else
-    echo "   ⚠️  DataPlane resource not found yet "
-fi
-
-# Configure WorkflowPlane observer
-if kubectl get clusterworkflowplane default -n default &>/dev/null; then
-    kubectl patch clusterworkflowplane default -n default --type merge -p '{"spec":{"observabilityPlaneRef":{"kind":"ClusterObservabilityPlane","name":"default"}}}' \
-        && echo "   ✅ WorkflowPlane observer configured" \
-        || echo "   ⚠️  WorkflowPlane observer configuration failed (non-fatal)"
-else
-    echo "   ⚠️  WorkflowPlane resource not found yet"
-fi
-echo ""
-
-echo "All core OpenChoreo planes are installed and registered!"
-
-# ============================================================================
-# Step 9: Observability Extension (Agent Manager Observer), into the plane above
-# ============================================================================
-echo "9️⃣  Observability Extension"
-"${SCRIPT_DIR}/setup-amp-observability-extension.sh" "${PROJECT_ROOT}" || exit 1
-echo ""
-
-# ============================================================================
 # Step 10: API Resources (Gateway is installed later by setup-platform.sh
 # after Agent Manager is running on docker-compose)
 # ============================================================================
@@ -603,14 +592,11 @@ echo ""
 echo "--- Workflow Plane ---"
 kubectl get pods -n openchoreo-workflow-plane
 echo ""
-echo "--- Observability Plane ---"
-kubectl get pods -n openchoreo-observability-plane
-echo ""
 echo "--- Thunder Extension ---"
 kubectl get pods -n amp-thunder
 echo ""
 
-echo "✅ OpenChoreo installation complete!"
+echo "✅ OpenChoreo core installation complete!"
 echo ""
 
 # Print a credential summary — env-Thunder instances (generated passwords).

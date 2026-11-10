@@ -91,7 +91,6 @@ if $PLATFORM; then
     start_forward "OpenTelemetry Collector (21893)"  -n openchoreo-observability-plane svc/opentelemetry-collector 21893:4318
     start_forward "Agent Manager Observer (9098)"    -n openchoreo-observability-plane svc/amp-observer 9098:9098
     start_forward "Observer API (8085)"              -n openchoreo-observability-plane svc/observer 8085:8080
-    start_forward "OpenBao Workflow Plane (8200)"    -n openbao svc/openbao 8200:8200
     start_forward "OpenChoreo API (8195)"            -n openchoreo-control-plane svc/openchoreo-api 8195:8080
 fi
 
@@ -102,7 +101,6 @@ if $PLATFORM; then
     echo "   Observer API:             http://localhost:8085"
     echo "   OpenSearch:               http://localhost:9200"
     echo "   Agent Manager Observer:   http://localhost:9098"
-    echo "   OpenBao:     http://localhost:8200"
 fi
 
 echo ""

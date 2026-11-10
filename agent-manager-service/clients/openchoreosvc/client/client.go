@@ -225,11 +225,6 @@ type OpenChoreoClient interface {
 	// Workload Operations
 	GetWorkloadSecretRefNames(ctx context.Context, ouID, projectName, componentName string) ([]string, error)
 
-	// Git Secret Operations
-	CreateGitSecret(ctx context.Context, ouID string, req CreateGitSecretRequest) (*GitSecretInfo, error)
-	ListGitSecrets(ctx context.Context, ouID string) ([]*GitSecretInfo, error)
-	DeleteGitSecret(ctx context.Context, ouID, secretName string) error
-
 	// Authz Operations
 	// EnsureClusterRoleBinding creates a ClusterAuthzRoleBinding binding the given clientID (sub claim)
 	// to the named ClusterAuthzRole. Idempotent — succeeds silently if the binding already exists.

@@ -1048,44 +1048,8 @@
               "title": "secretStore",
               "type": "object"
             },
-            "workflowPlaneOpenbao": {
-              "additionalProperties": false,
-              "description": "Workflow Plane OpenBao configuration (for Git Secrets) Used to fetch git credentials for private repository access",
-              "properties": {
-                "url": {
-                  "default": "http://openbao.openbao.svc.cluster.local:8200",
-                  "description": "Workflow plane OpenBao URL",
-                  "title": "url",
-                  "type": "string"
-                },
-                "path": {
-                  "default": "secret",
-                  "description": "KV mount path git credentials are read from.",
-                  "title": "path",
-                  "type": "string"
-                },
-                "token": {
-                  "default": "root",
-                  "description": "OpenBao token. When set, it is stored in the chart-managed Secret and injected via secretKeyRef — never as a plaintext env var in the pod spec. For production, use existingSecret instead.",
-                  "title": "token",
-                  "type": "string"
-                },
-                "existingSecret": {
-                  "default": "",
-                  "description": "Secret holding that instance's access token.",
-                  "title": "existingSecret",
-                  "type": "string"
-                },
-                "existingSecretKey": {
-                  "default": "openbao-token",
-                  "description": "Key to read from existingSecret. Applies ONLY when existingSecret is set. The chart-managed Secret packs both OpenBao tokens into one Secret, so this token is stored there under the distinct key \"workflow-plane-openbao-token\".",
-                  "title": "existingSecretKey",
-                  "type": "string"
-                }
-              },
-              "required": [],
-              "title": "workflowPlaneOpenbao",
-              "type": "object"
+            "platformVaultSeedSecret": {
+              "type": "string"
             },
             "gatewayManifestCache": {
               "additionalProperties": false,

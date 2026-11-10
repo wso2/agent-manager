@@ -25,6 +25,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
 	occlient "github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
@@ -48,6 +49,19 @@ func newTestClient(t *testing.T) (*Client, *refStore) {
 			}
 			store.refs[req.Name] = req
 			return &occlient.SecretReferenceInfo{Name: req.Name}, nil
+		},
+		GetSecretReferenceFunc: func(_ context.Context, _ string, name string) (*occlient.SecretReferenceInfo, error) {
+			ref, ok := store.refs[name]
+			if !ok {
+				return nil, utils.ErrNotFound
+			}
+			data := make([]occlient.SecretDataSourceInfo, 0, len(ref.SecretKeys))
+			for _, key := range ref.SecretKeys {
+				data = append(data, occlient.SecretDataSourceInfo{
+					SecretKey: key, RemoteRef: occlient.RemoteRefInfo{Key: ref.KVPath, Property: key},
+				})
+			}
+			return &occlient.SecretReferenceInfo{Name: name, Data: data}, nil
 		},
 		UpdateSecretReferenceFunc: func(_ context.Context, _ string, name string, req occlient.CreateSecretReferenceRequest) (*occlient.SecretReferenceInfo, error) {
 			store.refs[name] = req
@@ -151,4 +165,63 @@ func TestInHousePatchMissingSecret(t *testing.T) {
 	if !errors.Is(err, secretmanagersvc.ErrSecretNotFound) {
 		t.Fatalf("PatchSecret on a missing secret: %v", err)
 	}
+}
+
+func TestGitSecretVaultLifecycle(t *testing.T) {
+	ctx := context.Background()
+	c, refs := newTestClient(t)
+	tenant, other := uuid.NewString(), uuid.NewString()
+	t.Cleanup(func() {
+		require.NoError(t, c.db.Where("ou_id IN ?", []string{tenant, other}).Delete(&secretRow{}).Error)
+	})
+	require.NoError(t, c.CreateGitSecret(ctx, tenant, "private", "", "first-token"))
+	ref := occlient.GitSecretReferenceName(tenant, "private")
+	require.Equal(t, "kubernetes.io/basic-auth", refs.refs[ref].SecretType)
+	require.Equal(t, RemoteKey(tenant, ref), refs.refs[ref].KVPath)
+	require.NotEqual(t, ref, occlient.GitSecretReferenceName(other, "private"))
+
+	names, count, err := c.ListGitSecretNames(ctx, tenant, 10, 0)
+	require.NoError(t, err)
+	require.Equal(t, []string{"private"}, names)
+	require.Equal(t, 1, count)
+	_, err = c.ReadGitSecret(ctx, other, "private")
+	require.ErrorIs(t, err, utils.ErrGitSecretNotFound)
+
+	delete(refs.refs, ref)
+	require.ErrorIs(t, c.CreateGitSecret(ctx, tenant, "private", "other", "second-token"), utils.ErrGitSecretAlreadyExists)
+	require.Contains(t, refs.refs, ref)
+	got, err := c.ReadGitSecret(ctx, tenant, "private")
+	require.NoError(t, err)
+	require.Equal(t, map[string]string{"username": "git", "password": "first-token"}, got)
+	value, err := c.Resolve(ctx, tenant, ref, "password")
+	require.NoError(t, err)
+	require.Equal(t, "first-token", value)
+
+	require.NoError(t, c.DeleteGitSecret(ctx, tenant, "private"))
+	require.NotContains(t, refs.refs, ref)
+	_, err = c.Resolve(ctx, tenant, ref, "password")
+	require.ErrorIs(t, err, secretmanagersvc.ErrSecretNotFound)
+}
+
+func TestPlatformVaultSeed(t *testing.T) {
+	ctx := context.Background()
+	c, refs := newTestClient(t)
+	t.Cleanup(func() {
+		require.NoError(t, c.db.Where("ou_id = ? AND name = ?", platformSecretScope, platformSecretName).Delete(&secretRow{}).Error)
+	})
+	require.Error(t, c.SeedPlatformSecrets(ctx, `{"other":"value"}`))
+	seed := `{"workflow-plane-oauth-client-secret":"fixture"}`
+	require.NoError(t, c.SeedPlatformSecrets(ctx, seed))
+	row, err := c.find(ctx, c.db, platformSecretScope, platformSecretName, false)
+	require.NoError(t, err)
+	require.False(t, bytes.Contains(row.Ciphertext, []byte("fixture")))
+	require.NoError(t, c.SeedPlatformSecrets(ctx, seed))
+	repeated, err := c.find(ctx, c.db, platformSecretScope, platformSecretName, false)
+	require.NoError(t, err)
+	require.Equal(t, row.Ciphertext, repeated.Ciphertext)
+	require.NoError(t, c.SeedPlatformSecrets(ctx, `{"workflow-plane-oauth-client-secret":"rotated"}`))
+	got, err := c.Resolve(ctx, platformSecretScope, platformSecretName, "workflow-plane-oauth-client-secret")
+	require.NoError(t, err)
+	require.Equal(t, "rotated", got)
+	require.Empty(t, refs.refs)
 }

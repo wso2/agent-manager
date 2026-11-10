@@ -22,6 +22,7 @@ import (
 	"testing"
 
 	"github.com/wso2/agent-manager/agent-manager-service/api"
+	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
@@ -30,6 +31,9 @@ import (
 
 // MakeAppClientWithDeps creates an HTTP handler with the provided dependencies for testing
 func MakeAppClientWithDeps(t *testing.T, testClients wiring.TestClients, authMiddleware jwtassertion.Middleware) http.Handler {
+	if testClients.OpenChoreoClient == nil {
+		testClients.OpenChoreoClient = &clientmocks.OpenChoreoClientMock{}
+	}
 	// Use wire to initialize the app parameters with test clients
 	db := db.DB(context.Background())
 	// nil gateway applier: tests exercise the open-source mirror-only behavior.

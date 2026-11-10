@@ -120,6 +120,11 @@ func (c *openChoreoClient) TriggerBuild(ctx context.Context, ouID, projectName, 
 	} else {
 		params = make(map[string]interface{})
 	}
+	if repo, ok := params["repository"].(map[string]interface{}); ok {
+		if name, ok := repo["secretRef"].(string); ok && name != "" {
+			repo["secretRef"] = GitSecretReferenceName(ouID, name)
+		}
+	}
 	if commitID != "" {
 		// Set commit in nested repository.revision.commit format expected by workflow
 		if repo, ok := params["repository"].(map[string]interface{}); ok {

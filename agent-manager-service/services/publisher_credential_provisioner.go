@@ -133,8 +133,8 @@ func NewStaticPublisherCredentialProvisioner() PublisherCredentialProvisioner {
 	return &staticPublisherCredentialProvisioner{
 		creds: &PublisherCredentials{
 			ClientID:     "amp-publisher-client",
-			SecretKVPath: "amp-publisher-client-secret",
-			SecretKey:    "value",
+			SecretKVPath: "platform/bootstrap",
+			SecretKey:    "amp-publisher-client-secret",
 		},
 	}
 }
@@ -185,8 +185,8 @@ func NewPublisherCredentialProvisioner(
 		return &staticPublisherCredentialProvisioner{
 			creds: &PublisherCredentials{
 				ClientID:     "amp-publisher-client",
-				SecretKVPath: "amp-publisher-client-secret",
-				SecretKey:    "value",
+				SecretKVPath: "platform/bootstrap",
+				SecretKey:    "amp-publisher-client-secret",
 			},
 		}, nil
 	}

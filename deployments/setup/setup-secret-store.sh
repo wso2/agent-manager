@@ -3,8 +3,7 @@
 # stack, where agent-manager-service runs with docker compose outside the k3d
 # cluster. External Secrets Operator reads agent manager secrets through it by
 # calling the service's internal API on the host (host.k3d.internal:9243).
-# It also points the default ClusterDataPlane at the store, so agent workloads
-# (${dataplane.secretStore}) read their secrets through it.
+# It also points the default ClusterDataPlane and ClusterWorkflowPlane at the store.
 # Helm installs create the same store from the wso2-agent-manager chart.
 # The webhook provider only reads Secrets labelled external-secrets.io/type=webhook.
 set -euo pipefail
@@ -26,7 +25,7 @@ if [ ! -s "$CERT_FILE" ]; then
     echo "✗ $CERT_FILE not found. Start the service first (make dev-up)." >&2
     exit 1
 fi
-if ! openssl x509 -in "$CERT_FILE" -noout -ext subjectAltName 2>/dev/null | grep -q 'host.k3d.internal'; then
+if ! openssl x509 -in "$CERT_FILE" -noout -text 2>/dev/null | grep -F 'DNS:host.k3d.internal' >/dev/null; then
     echo "✗ $CERT_FILE does not cover host.k3d.internal. Delete agent-manager-service/data/certs" >&2
     echo "  and restart the service (make dev-restart) so it generates a new one." >&2
     exit 1
@@ -65,9 +64,11 @@ spec:
         namespace: ${STORE_NAMESPACE}
 YAML
 
-# Workloads resolve ${dataplane.secretStore} to this store.
-kubectl patch clusterdataplane default --type merge \
-    -p "{\"spec\":{\"secretStoreRef\":{\"name\":\"${STORE_NAME}\"}}}"
+# Both planes resolve secrets through the same vault.
+for plane in clusterdataplane clusterworkflowplane; do
+    kubectl patch "$plane" default --type merge \
+        -p "{\"spec\":{\"secretStoreRef\":{\"name\":\"${STORE_NAME}\"}}}"
+done
 
 echo "⏳ Waiting for ClusterSecretStore ${STORE_NAME} to become ready..."
 if kubectl wait --for=condition=Ready "clustersecretstore/${STORE_NAME}" --timeout=60s >/dev/null 2>&1; then

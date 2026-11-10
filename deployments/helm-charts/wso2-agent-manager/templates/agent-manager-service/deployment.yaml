@@ -189,17 +189,12 @@ spec:
                   {{- end }}
             {{- end }}
             {{- end }}
-            {{- if or .Values.agentManagerService.config.workflowPlaneOpenbao.token .Values.agentManagerService.config.workflowPlaneOpenbao.existingSecret }}
-            - name: WORKFLOW_PLANE_OPENBAO_TOKEN
+            {{- with .Values.agentManagerService.config.platformVaultSeedSecret }}
+            - name: AMP_PLATFORM_VAULT_SEED
               valueFrom:
                 secretKeyRef:
-                  {{- if .Values.agentManagerService.config.workflowPlaneOpenbao.existingSecret }}
-                  name: {{ .Values.agentManagerService.config.workflowPlaneOpenbao.existingSecret }}
-                  key: {{ .Values.agentManagerService.config.workflowPlaneOpenbao.existingSecretKey | default "openbao-token" }}
-                  {{- else }}
-                  name: {{ include "agent-management-platform.agentManagerService.fullname" . }}
-                  key: workflow-plane-openbao-token
-                  {{- end }}
+                  name: {{ . | quote }}
+                  key: AMP_PLATFORM_VAULT_SEED
             {{- end }}
             - name: ENCRYPTION_KEY
               valueFrom:
