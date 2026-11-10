@@ -863,10 +863,11 @@ type HealthCheckDefaults struct {
 }
 
 var (
-	// StartupCheckDefaults is exported because the deploy status also uses it: it decides how
-	// long an agent may stay starting before its deployment is reported failed.
+	// StartupCheckDefaults and ReadinessCheckDefaults are exported because the deploy status
+	// also uses them: they decide how long an agent may stay starting before its deployment
+	// is reported failed.
 	StartupCheckDefaults   = HealthCheckDefaults{InitialDelaySeconds: 10, PeriodSeconds: 5, TimeoutSeconds: 1, FailureThreshold: 60}
-	readinessCheckDefaults = HealthCheckDefaults{InitialDelaySeconds: 0, PeriodSeconds: 5, TimeoutSeconds: 1, FailureThreshold: 6}
+	ReadinessCheckDefaults = HealthCheckDefaults{InitialDelaySeconds: 0, PeriodSeconds: 5, TimeoutSeconds: 1, FailureThreshold: 6}
 	livenessCheckDefaults  = HealthCheckDefaults{InitialDelaySeconds: 0, PeriodSeconds: 10, TimeoutSeconds: 1, FailureThreshold: 3}
 )
 
@@ -887,7 +888,7 @@ func validateHealthChecks(healthChecks *spec.HealthChecks) error {
 	if err := validateHealthCheck("startup", healthChecks.Startup, StartupCheckDefaults); err != nil {
 		return err
 	}
-	if err := validateHealthCheck("readiness", healthChecks.Readiness, readinessCheckDefaults); err != nil {
+	if err := validateHealthCheck("readiness", healthChecks.Readiness, ReadinessCheckDefaults); err != nil {
 		return err
 	}
 	return validateHealthCheck("liveness", healthChecks.Liveness, livenessCheckDefaults)

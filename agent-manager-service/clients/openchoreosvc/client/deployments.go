@@ -1722,43 +1722,46 @@ const agentStartupBudget = 10 * time.Minute
 const agentPreStartMargin = 5 * time.Minute
 
 // bootBudget returns how long this binding's agent may report "still starting" before the
-// deployment is called failed: its startup probe's window plus agentPreStartMargin, and
-// never less than agentStartupBudget.
+// deployment is called failed: the longer of its startup probe's window and its first
+// readiness check, plus agentPreStartMargin, and never less than agentStartupBudget.
 //
 // Example: a startup check of initial delay 10s + interval 10s x 120 failures allowed has a
-// window of 1210s, so the budget is 1210s + 5m = about 25 minutes. With the default check
-// (310s) the budget is 10m10s; a shorter or switched-off check gets the 10-minute floor.
+// window of 1210s, so the budget is 1210s + 5m = about 25 minutes. With the default checks
+// (startup 310s) the budget is 10m10s; shorter or switched-off checks get the 10-minute floor.
 func bootBudget(binding *gen.ReleaseBinding) time.Duration {
-	budget := startupProbeWindow(binding) + agentPreStartMargin
+	healthChecks := bindingHealthChecks(binding)
+	budget := max(startupProbeWindow(healthChecks.Startup), firstReadinessCheck(healthChecks.Readiness)) + agentPreStartMargin
 	if budget < agentStartupBudget {
 		return agentStartupBudget
 	}
 	return budget
 }
 
+// bindingHealthChecks returns the health checks written onto the binding together with its
+// release; agent-api.yaml renders the agent's probes from them. None written, or a value
+// that can't be read, gives empty checks, which stand for the default probes.
+func bindingHealthChecks(binding *gen.ReleaseBinding) models.HealthChecks {
+	if binding.Spec == nil || binding.Spec.ComponentTypeEnvironmentConfigs == nil {
+		return models.HealthChecks{}
+	}
+	healthChecks, err := healthChecksFromMap(*binding.Spec.ComponentTypeEnvironmentConfigs)
+	if err != nil {
+		slog.Debug("failed to read the health checks, using the default boot budget",
+			"binding", binding.Metadata.Name, "error", err)
+		return models.HealthChecks{}
+	}
+	if healthChecks == nil {
+		return models.HealthChecks{}
+	}
+	return *healthChecks
+}
+
 // startupProbeWindow returns how long kubelet gives the agent's startup probe before it
 // restarts the container: initial delay + the longer of interval and timeout x failures
 // allowed. A probe still running when the next is due delays it, so the longer of the two
-// is the real gap between attempts.
-//
-// The probe is the one the binding's release renders: the health checks are written onto
-// the binding together with its release, and agent-api.yaml renders the startup probe from
-// them. Returns 0 when the startup check is switched off, as there is no probe to wait for.
-func startupProbeWindow(binding *gen.ReleaseBinding) time.Duration {
-	// Read the startup check written onto the binding. A value that can't be read counts
-	// as not set, which is what the default probe covers.
-	var startup *models.HealthCheck
-	if binding.Spec != nil && binding.Spec.ComponentTypeEnvironmentConfigs != nil {
-		healthChecks, err := healthChecksFromMap(*binding.Spec.ComponentTypeEnvironmentConfigs)
-		if err != nil {
-			slog.Debug("failed to read the startup check, using the default startup window",
-				"binding", binding.Metadata.Name, "error", err)
-		}
-		if healthChecks != nil {
-			startup = healthChecks.Startup
-		}
-	}
-
+// is the real gap between attempts. Returns 0 when the startup check is switched off, as
+// there is no probe to wait for.
+func startupProbeWindow(startup *models.HealthCheck) time.Duration {
 	// Not set: the default probe. Set: each field that is not set falls back to its default.
 	if startup == nil {
 		startup = &models.HealthCheck{}
@@ -1782,6 +1785,32 @@ func startupProbeWindow(binding *gen.ReleaseBinding) time.Duration {
 	// window does not wrap around to a short or negative one.
 	maxSeconds := int64((math.MaxInt64 - agentPreStartMargin) / time.Second)
 	seconds = min(max(seconds, 0), maxSeconds)
+	return time.Duration(seconds) * time.Second
+}
+
+// firstReadinessCheck returns the latest the agent's first readiness check can run: its
+// initial delay + one interval. Kubelet runs no readiness check before the initial delay,
+// counted from container start whether or not a startup check is on, and the first one can
+// land up to an interval after it. An agent that loads a model behind a long readiness delay
+// cannot be ready sooner. Returns 0 when the readiness check is switched off: the agent is
+// ready as soon as it is running.
+func firstReadinessCheck(readiness *models.HealthCheck) time.Duration {
+	// Not set: the default probe. Set: each field that is not set falls back to its default.
+	if readiness == nil {
+		readiness = &models.HealthCheck{}
+	}
+
+	// Switched off: no readiness probe renders.
+	if !utils.BoolPointerAsBool(readiness.Enabled, true) {
+		return 0
+	}
+
+	// Each is an int32, so the sum fits in time.Duration; only a negative value from a direct
+	// edit in OpenChoreo needs guarding.
+	defaults := utils.ReadinessCheckDefaults
+	initialDelay := int64(utils.IntPointerAsInt(readiness.InitialDelaySeconds, defaults.InitialDelaySeconds))
+	period := int64(utils.IntPointerAsInt(readiness.PeriodSeconds, defaults.PeriodSeconds))
+	seconds := max(initialDelay+period, 0)
 	return time.Duration(seconds) * time.Second
 }
 
