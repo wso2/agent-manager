@@ -18,6 +18,7 @@ package client
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 
@@ -264,7 +265,8 @@ func (c *openChoreoClient) DeleteSecretReference(ctx context.Context, ouID, secr
 // GetWorkloadSecretRefNames retrieves the names of every SecretReference an agent's
 // configuration points at, so DeleteAgent can clean them up along with their KV entries.
 //
-// Two sources are unioned, because a secret-backed value can be in either:
+// Three sources are unioned, because a secret-backed value can be in any of them:
+//
 //   - each ReleaseBinding's spec.workloadOverrides, where per-environment configuration now
 //     lives. Every binding for the component is scanned, not just the first environment's: a
 //     value set by a deploy reaches only the environment deployed to, so a secret can exist in
@@ -272,13 +274,22 @@ func (c *openChoreoClient) DeleteSecretReference(ctx context.Context, ouID, secr
 //   - the Workload's container spec, where configuration used to be written before it moved to
 //     the bindings (see EnsureReleaseAndBinding for why). Agents created before that move still
 //     carry their refs there, and skipping them would orphan the secret and the CR permanently.
+//   - the Component's build workflow parameters, where creation seeds the agent's configuration
+//     and its agent API key. An agent that never built or deployed has no binding and no
+//     Workload, so this is the only place its secret refs are recorded. A Component that is
+//     already gone (a retried delete) contributes nothing rather than failing the lookup.
 //
 // Env vars and file mounts both carry valueFrom.secretKeyRef, so both are scanned in each source.
 func (c *openChoreoClient) GetWorkloadSecretRefNames(ctx context.Context, ouID, projectName, componentName string) ([]string, error) {
 	namespaceName := c.NamespaceFor(ouID)
 
-	// Collect unique secret reference names across both sources.
+	// Collect unique secret reference names across all sources.
 	secretRefNames := make(map[string]struct{})
+
+	// Source 3, read first: the Component's build workflow parameters.
+	if err := c.collectComponentWorkflowSecretRefNames(ctx, namespaceName, componentName, secretRefNames); err != nil {
+		return nil, err
+	}
 
 	// Source 1: per-environment configuration on the release bindings.
 	bindingsResp, err := c.ocClient.ListReleaseBindingsWithResponse(ctx, namespaceName, &gen.ListReleaseBindingsParams{
@@ -341,6 +352,51 @@ func (c *openChoreoClient) GetWorkloadSecretRefNames(ctx context.Context, ouID, 
 	}
 
 	return result, nil
+}
+
+// collectComponentWorkflowSecretRefNames adds the SecretReference names behind the
+// valueFrom.secretKeyRef entries in the Component's build workflow env vars and file mounts.
+func (c *openChoreoClient) collectComponentWorkflowSecretRefNames(ctx context.Context, namespaceName, componentName string, out map[string]struct{}) error {
+	resp, err := c.ocClient.GetComponentWithResponse(ctx, namespaceName, componentName)
+	if err != nil {
+		return fmt.Errorf("failed to get component: %w", err)
+	}
+	if resp.StatusCode() == http.StatusNotFound {
+		return nil
+	}
+	if resp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(resp.StatusCode(), ErrorResponses{
+			JSON401: resp.JSON401,
+			JSON403: resp.JSON403,
+			JSON404: resp.JSON404,
+			JSON500: resp.JSON500,
+		})
+	}
+	if resp.JSON200 == nil || resp.JSON200.Spec == nil || resp.JSON200.Spec.Workflow == nil ||
+		resp.JSON200.Spec.Workflow.Parameters == nil {
+		return nil
+	}
+	params := *resp.JSON200.Spec.Workflow.Parameters
+	for _, param := range []string{workflowParamEnvironmentVariables, workflowParamFileMounts} {
+		raw, ok := params[param]
+		if !ok || raw == nil {
+			continue
+		}
+		data, err := json.Marshal(raw)
+		if err != nil {
+			return fmt.Errorf("encode Component workflow parameter %q: %w", param, err)
+		}
+		var entries []struct {
+			ValueFrom *gen.EnvVarValueFrom `json:"valueFrom"`
+		}
+		if err := json.Unmarshal(data, &entries); err != nil {
+			return fmt.Errorf("decode Component workflow parameter %q: %w", param, err)
+		}
+		for _, entry := range entries {
+			addSecretRefName(entry.ValueFrom, out)
+		}
+	}
+	return nil
 }
 
 // collectSecretRefNames adds the SecretReference names behind any valueFrom.secretKeyRef in the

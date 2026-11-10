@@ -76,6 +76,18 @@ func TestDeleteAgent(t *testing.T) {
 		deleteCall := openChoreoClient.DeleteComponentCalls()[0]
 		require.Equal(t, testDeleteProjName, deleteCall.ProjectName)
 		require.Equal(t, testDeleteAgentName, deleteCall.ComponentName)
+
+		// The agent's API key secret is referenced by no ReleaseBinding, so it is deleted
+		// at its known location, in the background once the component is gone.
+		apiKeySecret := testDeleteAgentName + "-agent-api-key-development-secrets"
+		require.Eventually(t, func() bool {
+			for _, call := range secretMgmtClient.DeleteSecretCalls() {
+				if call.Location.SecretRefName() == apiKeySecret {
+					return true
+				}
+			}
+			return false
+		}, 5*time.Second, 10*time.Millisecond, "the agent API key secret %q is deleted", apiKeySecret)
 	})
 
 	t.Run("Deleting an external agent should return 204", func(t *testing.T) {

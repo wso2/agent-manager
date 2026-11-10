@@ -60,11 +60,27 @@ func secretFileVar(key, secretName string) gen.FileVar {
 	}
 }
 
-// serveLists answers the two list calls GetWorkloadSecretRefNames makes.
+// serveLists answers the two list calls GetWorkloadSecretRefNames makes, and reports the
+// Component as gone.
 func serveLists(t *testing.T, bindings gen.ReleaseBindingList, workloads gen.WorkloadList) http.Handler {
+	t.Helper()
+	return serveListsAndComponent(t, bindings, workloads, "")
+}
+
+// serveListsAndComponent answers every call GetWorkloadSecretRefNames makes, serving
+// componentJSON as the Component, or a 404 when it is empty.
+func serveListsAndComponent(t *testing.T, bindings gen.ReleaseBindingList, workloads gen.WorkloadList, componentJSON string) http.Handler {
 	t.Helper()
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
+		case strings.HasSuffix(r.URL.Path, "/components/my-agent"):
+			w.Header().Set("Content-Type", "application/json")
+			if componentJSON == "" {
+				w.WriteHeader(http.StatusNotFound)
+				_, _ = w.Write([]byte(`{"error":"component not found"}`))
+				return
+			}
+			_, _ = w.Write([]byte(componentJSON))
 		case strings.HasSuffix(r.URL.Path, "/releasebindings"):
 			require.NoError(t, json.NewEncoder(w).Encode(bindings))
 		case strings.HasSuffix(r.URL.Path, "/workloads"):
@@ -141,4 +157,49 @@ func TestGetWorkloadSecretRefNames_NoSecrets(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Empty(t, names)
+}
+
+// An agent that never built or deployed has no binding and no Workload: its secret refs, and
+// its agent API key ref, are recorded only on the Component's build workflow parameters.
+// Deleting it used to miss them, which is how such agents leaked their secrets.
+func TestGetWorkloadSecretRefNames_ReadsComponentWorkflowParameters(t *testing.T) {
+	component := `{
+		"metadata": {"name": "my-agent"},
+		"spec": {
+			"owner": {"projectName": "my-project"},
+			"workflow": {
+				"name": "amp-docker-build",
+				"parameters": {
+					"environmentVariables": [
+						{"name": "LOG_LEVEL", "value": "debug"},
+						{"name": "OPENAI_API_KEY", "valueFrom": {"secretKeyRef": {"name": "my-agent-dev-secrets", "key": "OPENAI_API_KEY"}}},
+						{"name": "AMP_AGENT_API_KEY", "valueFrom": {"secretKeyRef": {"name": "my-agent-agent-api-key-dev-secrets", "key": "api-key"}}}
+					],
+					"fileMounts": [
+						{"key": "creds.json", "mountPath": "/etc/creds.json", "valueFrom": {"secretKeyRef": {"name": "my-agent-dev-secrets", "key": "creds.json"}}}
+					]
+				}
+			}
+		}
+	}`
+	c := newTestClient(t, serveListsAndComponent(t, gen.ReleaseBindingList{}, gen.WorkloadList{}, component))
+
+	names, err := c.GetWorkloadSecretRefNames(context.Background(), "acme", "my-project", "my-agent")
+
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []string{"my-agent-dev-secrets", "my-agent-agent-api-key-dev-secrets"}, names)
+}
+
+// A Component that is already gone (a retried delete) contributes nothing; it does not fail
+// the lookup and lose the bindings' refs.
+func TestGetWorkloadSecretRefNames_MissingComponentIsSkipped(t *testing.T) {
+	bindings := gen.ReleaseBindingList{Items: []gen.ReleaseBinding{
+		bindingWithOverrides([]gen.EnvVar{secretEnvVar("API_KEY", "dev-api-key")}, nil),
+	}}
+	c := newTestClient(t, serveLists(t, bindings, gen.WorkloadList{}))
+
+	names, err := c.GetWorkloadSecretRefNames(context.Background(), "acme", "my-project", "my-agent")
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"dev-api-key"}, names)
 }
