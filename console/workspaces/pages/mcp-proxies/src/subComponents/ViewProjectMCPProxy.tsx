@@ -36,7 +36,6 @@ import {
   Stack,
   Tab,
   Tabs,
-  TextField,
   Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
@@ -47,7 +46,12 @@ import {
   Plus,
   Trash,
 } from "@wso2/oxygen-ui-icons-react";
-import { generatePath, useParams, useSearchParams } from "react-router-dom";
+import {
+  generatePath,
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from "react-router-dom";
 import {
   useDeleteProjectMCPProxyEnvironment,
   useGetProjectMCPProxy,
@@ -141,13 +145,6 @@ function InfoCard({
   );
 }
 
-interface EditDraft {
-  name: string;
-  version: string;
-  context: string;
-  description: string;
-}
-
 /**
  * A project MCP server, laid out as the org MCP server page. Where an org server has
  * endpoints, a project server has one binding per environment it is deployed to, each
@@ -164,6 +161,7 @@ export function ViewProjectMCPProxy() {
     proxyId: string;
   }>();
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const {
     data: proxy,
     isLoading,
@@ -179,7 +177,6 @@ export function ViewProjectMCPProxy() {
   const handleCopy = useCopyWithFeedback();
   const [addEnvOpen, setAddEnvOpen] = useState(false);
   const [envToAdd, setEnvToAdd] = useState("");
-  const [editDraft, setEditDraft] = useState<EditDraft>();
   // A server registered by URL is managed here; one from a component is managed by its publisher.
   const isURLProxy = !!proxy && !proxy.source;
 
@@ -297,21 +294,6 @@ export function ViewProjectMCPProxy() {
     });
   };
 
-  const saveEdit = async () => {
-    if (!proxy || !editDraft) return;
-    await updateProxy.mutateAsync({
-      params: proxyParams,
-      body: {
-        ...proxyRequestFrom(proxy),
-        name: editDraft.name.trim(),
-        version: editDraft.version.trim(),
-        context: editDraft.context.trim(),
-        description: editDraft.description.trim() || undefined,
-      },
-    });
-    setEditDraft(undefined);
-  };
-
   const backHref = generatePath(
     absoluteRouteMap.children.org.children.projects.children.mcpProxies.path,
     { orgId: orgId ?? "", projectId: projectId ?? "" },
@@ -361,12 +343,13 @@ export function ViewProjectMCPProxy() {
             size="small"
             startIcon={<Edit size={16} />}
             onClick={() =>
-              setEditDraft({
-                name: proxy.name,
-                version: proxy.version,
-                context: proxy.context,
-                description: proxy.description ?? "",
-              })
+              navigate(
+                generatePath(
+                  absoluteRouteMap.children.org.children.projects.children
+                    .mcpProxies.children.view.children.edit.path,
+                  { orgId: orgId ?? "", projectId: projectId ?? "", proxyId },
+                ),
+              )
             }
           >
             Edit MCP server
@@ -673,79 +656,6 @@ export function ViewProjectMCPProxy() {
             onClick={() => void addEnvironment()}
           >
             Add
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      <Dialog
-        open={!!editDraft}
-        onClose={() => setEditDraft(undefined)}
-        fullWidth
-      >
-        <DialogTitle>Edit MCP Server</DialogTitle>
-        <DialogContent>
-          {editDraft && (
-            <Stack spacing={2} sx={{ mt: 1 }}>
-              {proxy?.source && (
-                <Alert severity="info">
-                  This MCP Server is published from the{" "}
-                  {proxy.source.componentName} component. Its publisher may set
-                  these fields again when it next publishes it.
-                </Alert>
-              )}
-              <TextField
-                label="Name"
-                size="small"
-                value={editDraft.name}
-                onChange={(event) =>
-                  setEditDraft({ ...editDraft, name: event.target.value })
-                }
-              />
-              <TextField
-                label="Version"
-                size="small"
-                value={editDraft.version}
-                onChange={(event) =>
-                  setEditDraft({ ...editDraft, version: event.target.value })
-                }
-              />
-              <TextField
-                label="Context"
-                size="small"
-                value={editDraft.context}
-                helperText={`Served under the project, at /${projectId}${editDraft.context}.`}
-                onChange={(event) =>
-                  setEditDraft({ ...editDraft, context: event.target.value })
-                }
-              />
-              <TextField
-                label="Description (optional)"
-                size="small"
-                multiline
-                minRows={3}
-                value={editDraft.description}
-                onChange={(event) =>
-                  setEditDraft({
-                    ...editDraft,
-                    description: event.target.value,
-                  })
-                }
-              />
-            </Stack>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setEditDraft(undefined)}>Cancel</Button>
-          <Button
-            variant="contained"
-            disabled={
-              !editDraft?.name.trim() ||
-              !editDraft?.context.trim().startsWith("/") ||
-              updateProxy.isPending
-            }
-            onClick={() => void saveEdit()}
-          >
-            Save
           </Button>
         </DialogActions>
       </Dialog>

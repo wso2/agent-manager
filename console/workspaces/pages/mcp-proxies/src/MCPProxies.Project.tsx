@@ -29,6 +29,7 @@ import {
   useParams,
 } from "react-router-dom";
 import { AddMCPProxyProject } from "./AddMCPProxy.Project";
+import { EditProjectMCPProxy } from "./subComponents/EditProjectMCPProxy";
 import { ProjectMCPProxyTable } from "./subComponents/ProjectMCPProxyTable";
 import { ViewProjectMCPProxy } from "./subComponents/ViewProjectMCPProxy";
 
@@ -66,6 +67,7 @@ export const MCPProxiesProject = () => {
       />
       {canWrite && <Route path="add" element={<AddMCPProxyProject />} />}
       <Route path="view/:proxyId" element={<ViewProjectMCPProxy />} />
+      {canWrite && <Route path="view/:proxyId/edit" element={<EditProjectMCPProxy />} />}
       <Route
         path="*"
         element={

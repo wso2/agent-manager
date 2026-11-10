@@ -21,6 +21,7 @@ import {
   applyBindingConfigChange,
   bindingEndpointConfig,
   bindingRequestFrom,
+  projectProxyEndpointDraft,
   bindingRequiresAPIKey,
   DEFAULT_API_KEY_HEADER,
   proxyRequestFrom,
@@ -224,5 +225,33 @@ describe("discovered capabilities", () => {
       capabilitiesSource: "discovered",
     });
     expect(request.capabilities).toBeUndefined();
+  });
+});
+
+describe("projectProxyEndpointDraft", () => {
+  it("is the URL server's one endpoint, deployed to each of its environments", () => {
+    const draft = projectProxyEndpointDraft({
+      id: "docs",
+      name: "Docs",
+      version: "v1",
+      context: "/docs",
+      projectName: "p1",
+      upstream: { url: "https://mcp.example.com/mcp" },
+      environments: [
+        {
+          ...base,
+          gatewayId: "gw-1",
+          upstreamAuth: { type: "api-key", header: "Authorization" },
+          capabilities: { tools: [{ name: "search" }] },
+        },
+        { ...base, environmentName: "production", environmentUuid: "env-2" },
+      ],
+    });
+    expect(draft.url).toBe("https://mcp.example.com/mcp");
+    expect(draft.authHeader).toBe("Authorization");
+    expect(draft.authValue).toBe("");
+    expect(draft.environments).toEqual(["env-1", "env-2"]);
+    expect(draft.gatewayByEnv).toEqual({ "env-1": "gw-1" });
+    expect(draft.fetchedInfo.tools).toEqual([{ name: "search" }]);
   });
 });

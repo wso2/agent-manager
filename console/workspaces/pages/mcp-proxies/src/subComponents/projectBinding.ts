@@ -24,6 +24,7 @@ import type {
   ProjectMCPProxyEnvironmentSecurity,
   ProjectMCPProxyRequest,
 } from "@agent-management-platform/types";
+import type { EndpointDraft } from "./EndpointFormFields";
 
 /** The longest proxy id the service takes. */
 export const MAX_PROXY_ID_LENGTH = 100;
@@ -195,5 +196,41 @@ export function proxyAsOrgProxy(proxy: ProjectMCPProxy): MCPProxy {
     projectName: proxy.projectName,
     createdAt: proxy.createdAt,
     updatedAt: proxy.updatedAt,
+  };
+}
+
+/**
+ * A project proxy registered by URL as the org edit form's one endpoint: its URL, the
+ * credential and tools of its first environment, and every environment it is deployed to.
+ */
+export function projectProxyEndpointDraft(
+  proxy: ProjectMCPProxy,
+): EndpointDraft {
+  const first = proxy.environments[0];
+  const gatewayByEnv: Record<string, string> = {};
+  for (const env of proxy.environments) {
+    if (env.gatewayId) gatewayByEnv[env.environmentUuid] = env.gatewayId;
+  }
+  return {
+    id: "primary",
+    name: "",
+    url: proxy.upstream?.url ?? "",
+    authHeader:
+      first?.upstreamAuth?.type === "api-key"
+        ? (first.upstreamAuth.header ?? "")
+        : "",
+    authValue: "",
+    resilienceTimeout: "",
+    resilienceIdleTimeout: "",
+    environments: proxy.environments.map((env) => env.environmentUuid),
+    gatewayByEnv,
+    fetchedInfo: {
+      tools: first?.capabilities?.tools ?? [],
+      resources: first?.capabilities?.resources ?? [],
+      prompts: first?.capabilities?.prompts ?? [],
+      supportedVersions: proxy.mcpSpecVersion
+        ? [proxy.mcpSpecVersion]
+        : undefined,
+    },
   };
 }

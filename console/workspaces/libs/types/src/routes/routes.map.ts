@@ -295,7 +295,13 @@ export const rootRouteMap: AppRoute = {
                                 view: {
                                     path: 'view/:proxyId',
                                     index: true,
-                                    children: {},
+                                    children: {
+                                        edit: {
+                                            path: 'edit',
+                                            index: true,
+                                            children: {},
+                                        },
+                                    },
                                 },
                             },
                         },
