@@ -19,6 +19,7 @@ package services
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -212,10 +213,11 @@ func TestDeleteAgentSecrets(t *testing.T) {
 	})
 }
 
-// TestStartAgentSecretCleanup_OutlivesTheRequest: DeleteAgent hands the cleanup its request
-// context, which the edge may cancel the moment the response is written. The deletes must
-// still run, on a context that is live but bounded.
-func TestStartAgentSecretCleanup_OutlivesTheRequest(t *testing.T) {
+// TestDeleteAgentSecretsDetached_OutlivesTheRequest: DeleteAgent hands the cleanup its request
+// context, which the edge may cancel at any moment. The deletes must still run, on a context
+// that is live but bounded, and must be done when the call returns: a client that recreates
+// the agent after the delete returns would otherwise race them for the same secret names.
+func TestDeleteAgentSecretsDetached_OutlivesTheRequest(t *testing.T) {
 	rec := &recordingSecretClient{}
 	svc := &agentManagerService{
 		ocClient:         pipelineClient(nil, nil, nil),
@@ -225,11 +227,9 @@ func TestStartAgentSecretCleanup_OutlivesTheRequest(t *testing.T) {
 	requestCtx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	svc.startAgentSecretCleanup(requestCtx, cleanupOrg, cleanupProj, cleanupAgent, []string{"extra-secrets"})
+	svc.deleteAgentSecretsDetached(requestCtx, cleanupOrg, cleanupProj, cleanupAgent, []string{"extra-secrets"})
 
-	require.Eventually(t, func() bool { return rec.deleteCount() == 7 }, 5*time.Second, 5*time.Millisecond)
-	rec.mu.Lock()
-	defer rec.mu.Unlock()
+	require.Equal(t, 7, rec.deleteCount(), "every delete is done before the call returns")
 	for i, ctxErr := range rec.ctxErrs {
 		require.NoError(t, ctxErr, "delete %d ran on a cancelled context", i)
 		assert.True(t, rec.hadDeadline[i], "delete %d ran on an unbounded context", i)
@@ -334,4 +334,86 @@ func TestCreateAgentRollback_DeletesAgentAPIKeySecret(t *testing.T) {
 	assert.Equal(t, []secretmanagersvc.SecretLocation{expectedAgentSecretLocations("dev")[1]}, rec.byLocation)
 	assert.Equal(t, []error{nil}, rec.ctxErrs, "the API key secret is deleted on a live context")
 	assert.Equal(t, []error{nil}, *deleteCtxErrs)
+}
+
+// interruptedCreateFixture is a create whose CreateComponent call fails with createErr, with
+// existing (nil for none) as the component a later read finds under the agent's name.
+func interruptedCreateFixture(t *testing.T, createErr error, existing *models.AgentResponse) (*agentManagerService, *[]string) {
+	t.Helper()
+	svc, _ := entitlementFixture(nil)
+	oc, ok := svc.ocClient.(*clientmocks.OpenChoreoClientMock)
+	require.True(t, ok)
+	oc.CreateComponentFunc = func(context.Context, string, string, client.CreateComponentRequest) error {
+		return createErr
+	}
+	oc.GetComponentFunc = func(ctx context.Context, _, _, _ string) (*models.AgentResponse, error) {
+		require.NoError(t, ctx.Err(), "the component is looked up on a live context")
+		if existing == nil {
+			return nil, utils.ErrAgentNotFound
+		}
+		return existing, nil
+	}
+	var deleted []string
+	oc.DeleteComponentFunc = func(ctx context.Context, _, _, name string) error {
+		require.NoError(t, ctx.Err(), "the component is deleted on a live context")
+		deleted = append(deleted, name)
+		return nil
+	}
+	return svc, &deleted
+}
+
+// TestCreateAgent_InterruptedComponentCreate: when the request context ends during
+// CreateComponent, the server may have created the component anyway, and nothing else would
+// delete it. The context error also hides a conflict, so only a component created by this
+// create is deleted; an existing agent's is left alone.
+func TestCreateAgent_InterruptedComponentCreate(t *testing.T) {
+	interrupted := fmt.Errorf("failed to create component: %w", context.DeadlineExceeded)
+
+	t.Run("deletes the component the interrupted create made", func(t *testing.T) {
+		svc, deleted := interruptedCreateFixture(t, interrupted, &models.AgentResponse{Name: cleanupAgent, CreatedAt: time.Now()})
+
+		err := svc.createComponentAgent(tierGrantedCtx(t), cleanupOrg, cleanupProj, createAgentRequest(utils.InternalAgent), "")
+
+		require.ErrorIs(t, err, context.DeadlineExceeded)
+		assert.Equal(t, []string{"my-agent"}, *deleted)
+	})
+
+	t.Run("allows for a control plane clock running behind", func(t *testing.T) {
+		svc, deleted := interruptedCreateFixture(t, interrupted,
+			&models.AgentResponse{Name: cleanupAgent, CreatedAt: time.Now().Add(-componentCreateClockSkew / 2)})
+
+		err := svc.createComponentAgent(tierGrantedCtx(t), cleanupOrg, cleanupProj, createAgentRequest(utils.InternalAgent), "")
+
+		require.ErrorIs(t, err, context.DeadlineExceeded)
+		assert.Equal(t, []string{"my-agent"}, *deleted)
+	})
+
+	t.Run("leaves an existing agent's component alone", func(t *testing.T) {
+		svc, deleted := interruptedCreateFixture(t, fmt.Errorf("failed to create component: %w", context.Canceled),
+			&models.AgentResponse{Name: cleanupAgent, CreatedAt: time.Now().Add(-time.Hour)})
+
+		err := svc.createComponentAgent(tierGrantedCtx(t), cleanupOrg, cleanupProj, createAgentRequest(utils.InternalAgent), "")
+
+		require.ErrorIs(t, err, context.Canceled)
+		assert.Empty(t, *deleted)
+	})
+
+	t.Run("does nothing when no component was created", func(t *testing.T) {
+		svc, deleted := interruptedCreateFixture(t, interrupted, nil)
+
+		err := svc.createComponentAgent(tierGrantedCtx(t), cleanupOrg, cleanupProj, createAgentRequest(utils.InternalAgent), "")
+
+		require.ErrorIs(t, err, context.DeadlineExceeded)
+		assert.Empty(t, *deleted)
+	})
+
+	t.Run("never deletes on a conflict", func(t *testing.T) {
+		svc, deleted := interruptedCreateFixture(t, fmt.Errorf("%w: component exists", utils.ErrConflict),
+			&models.AgentResponse{Name: cleanupAgent, CreatedAt: time.Now()})
+
+		err := svc.createComponentAgent(tierGrantedCtx(t), cleanupOrg, cleanupProj, createAgentRequest(utils.InternalAgent), "")
+
+		require.ErrorIs(t, err, utils.ErrConflict)
+		assert.Empty(t, *deleted)
+	})
 }

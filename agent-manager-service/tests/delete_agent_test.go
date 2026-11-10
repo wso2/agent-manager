@@ -78,16 +78,13 @@ func TestDeleteAgent(t *testing.T) {
 		require.Equal(t, testDeleteAgentName, deleteCall.ComponentName)
 
 		// The agent's API key secret is referenced by no ReleaseBinding, so it is deleted
-		// at its known location, in the background once the component is gone.
+		// at its known location, before the delete returns.
 		apiKeySecret := testDeleteAgentName + "-agent-api-key-development-secrets"
-		require.Eventually(t, func() bool {
-			for _, call := range secretMgmtClient.DeleteSecretCalls() {
-				if call.Location.SecretRefName() == apiKeySecret {
-					return true
-				}
-			}
-			return false
-		}, 5*time.Second, 10*time.Millisecond, "the agent API key secret %q is deleted", apiKeySecret)
+		deletedSecrets := make([]string, 0, len(secretMgmtClient.DeleteSecretCalls()))
+		for _, call := range secretMgmtClient.DeleteSecretCalls() {
+			deletedSecrets = append(deletedSecrets, call.Location.SecretRefName())
+		}
+		require.Contains(t, deletedSecrets, apiKeySecret)
 	})
 
 	t.Run("Deleting an external agent should return 204", func(t *testing.T) {

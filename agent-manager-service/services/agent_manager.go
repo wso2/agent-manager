@@ -1991,10 +1991,14 @@ func (s *agentManagerService) createComponentAgent(ctx context.Context, ouID, pr
 	}
 
 	createAgentReq := s.toCreateAgentRequestWithSecrets(req, secretReference)
+	createStartedAt := time.Now()
 	if err := s.ocClient.CreateComponent(ctx, ouID, projectName, createAgentReq); err != nil {
 		s.logger.Error("Failed to create agent component", "agentName", req.Name, "error", err)
 		if hasSecrets {
 			s.cleanupSecretsOnRollback(ctx, secretLocation)
+		}
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			s.deleteComponentCreatedSince(ctx, ouID, projectName, req.Name, createStartedAt)
 		}
 		return err
 	}
@@ -2606,6 +2610,38 @@ func (s *agentManagerService) deleteComponentOnRollback(ctx context.Context, ouI
 	}
 }
 
+// componentCreateClockSkew is how far the control plane's clock may run behind this
+// service's when deleteComponentCreatedSince compares a Component's creation time with the
+// time the create was sent.
+const componentCreateClockSkew = 30 * time.Second
+
+// deleteComponentCreatedSince deletes the component a create whose request context ended may
+// still have made. The context error hides the server's answer, so the create may have
+// succeeded or, if the name was already taken, been refused with a conflict. Only a Component
+// created at or after createStartedAt, give or take componentCreateClockSkew, is taken as this
+// create's; an older one belongs to an existing agent and is left alone.
+func (s *agentManagerService) deleteComponentCreatedSince(ctx context.Context, ouID, projectName, agentName string, createStartedAt time.Time) {
+	rollbackCtx, cancel := createRollbackContext(ctx)
+	defer cancel()
+	component, err := s.ocClient.GetComponent(rollbackCtx, ouID, projectName, agentName)
+	if err != nil {
+		if errors.Is(err, utils.ErrAgentNotFound) || errors.Is(err, utils.ErrNotFound) {
+			s.logger.Debug("Interrupted create left no component behind", "agentName", agentName)
+			return
+		}
+		s.logger.Warn("Failed to check for a component left by an interrupted create", "agentName", agentName, "error", err)
+		return
+	}
+	if component.CreatedAt.Before(createStartedAt.Add(-componentCreateClockSkew)) {
+		s.logger.Warn("Leaving a component that predates the interrupted create; it belongs to an existing agent",
+			"agentName", agentName, "componentCreatedAt", component.CreatedAt, "createStartedAt", createStartedAt)
+		return
+	}
+	if err := s.ocClient.DeleteComponent(rollbackCtx, ouID, projectName, agentName); err != nil {
+		s.logger.Error("Failed to delete the component left by an interrupted create", "agentName", agentName, "error", err)
+	}
+}
+
 // cleanupSecretsOnRollback deletes a secret a failed create stored, on a rollback context.
 // This is a best-effort cleanup - errors are logged but not returned since we're already handling a failure.
 func (s *agentManagerService) cleanupSecretsOnRollback(ctx context.Context, location secretmanagersvc.SecretLocation) {
@@ -3213,6 +3249,11 @@ func (s *agentManagerService) generateUniqueAgentName(ctx context.Context, ouID 
 	return uniqueName, nil
 }
 
+// DeleteAgent deletes an agent's component and everything Agent Manager created for it: its
+// secrets, LLM/MCP configurations, AgentID bindings, GitHub App source binding, configuration
+// rows, API artifacts and monitors. The component delete is the commit point: a failure before
+// it leaves the agent intact, and cleanup after it is best-effort, so deleting the agent again
+// retries what was left. An agent that is the source of an agent kind cannot be deleted.
 func (s *agentManagerService) DeleteAgent(ctx context.Context, ouID string, projectName string, agentName string) error {
 	s.logger.Info("Deleting agent", "agentName", agentName, "ouID", ouID, "projectName", projectName)
 	// Validate organization exists
@@ -3309,7 +3350,7 @@ func (s *agentManagerService) DeleteAgent(ctx context.Context, ouID string, proj
 			s.cleanupGitHubAppSource(ctx, ouID, projectName, agentName)
 			// A previous delete, or a create rollback, may have removed the component
 			// without its secrets.
-			s.startAgentSecretCleanup(ctx, ouID, projectName, agentName, secretRefNames)
+			s.deleteAgentSecretsDetached(ctx, ouID, projectName, agentName, secretRefNames)
 			// The component is already gone but a previous partially-completed delete may
 			// have left agent_configurations rows behind, each still holding a live LLM
 			// proxy credential, so run the same revocation cleanup here.
@@ -3344,7 +3385,7 @@ func (s *agentManagerService) DeleteAgent(ctx context.Context, ouID string, proj
 		go s.agentThunderProvisioning.DeleteAllBindings(context.WithoutCancel(ctx), ouID, projectName, agentName)
 	}
 	s.cleanupGitHubAppSource(ctx, ouID, projectName, agentName)
-	s.startAgentSecretCleanup(ctx, ouID, projectName, agentName, secretRefNames)
+	s.deleteAgentSecretsDetached(ctx, ouID, projectName, agentName, secretRefNames)
 
 	// Cleanup agent_configs (per-environment instrumentation, CORS and security settings).
 	// Unrelated to the LLM proxy records the goroutine above revokes, so it does not wait
@@ -3364,16 +3405,18 @@ func (s *agentManagerService) DeleteAgent(ctx context.Context, ouID string, proj
 	return artifactErr
 }
 
-// startAgentSecretCleanup deletes a deleted agent's secrets in the background, on a context
-// that outlives the request but is still bounded (see detachedCleanupContext). It is one
-// secret API call or more per secret, which the request cannot afford: an edge that cuts it
-// short would cancel the deletes and leak the secrets.
-func (s *agentManagerService) startAgentSecretCleanup(ctx context.Context, ouID, projectName, agentName string, secretRefNames []string) {
-	go func() {
-		cleanupCtx, cancel := detachedCleanupContext(ctx)
-		defer cancel()
-		s.deleteAgentSecrets(cleanupCtx, ouID, projectName, agentName, secretRefNames)
-	}()
+// agentSecretCleanupTimeout bounds deleteAgentSecretsDetached.
+const agentSecretCleanupTimeout = 2 * time.Minute
+
+// deleteAgentSecretsDetached deletes a deleted agent's secrets before the delete returns, on
+// a context detached from the request and bounded by agentSecretCleanupTimeout. Inline, so a
+// client that waits for the delete to finish and then creates an agent of the same name cannot
+// have that agent's secrets, which reuse the same names, deleted from under it. Detached, so an
+// edge that cuts the request short does not cancel the deletes and leak the secrets.
+func (s *agentManagerService) deleteAgentSecretsDetached(ctx context.Context, ouID, projectName, agentName string, secretRefNames []string) {
+	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), agentSecretCleanupTimeout)
+	defer cancel()
+	s.deleteAgentSecrets(cleanupCtx, ouID, projectName, agentName, secretRefNames)
 }
 
 // cleanupGitHubAppSource removes the injected provider's source binding after the component is

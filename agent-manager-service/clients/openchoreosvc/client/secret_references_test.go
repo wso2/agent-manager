@@ -203,3 +203,27 @@ func TestGetWorkloadSecretRefNames_MissingComponentIsSkipped(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []string{"dev-api-key"}, names)
 }
+
+// A failed read of one source does not lose the refs the others hold: they come back with the
+// error, so DeleteAgent can still delete them.
+func TestGetWorkloadSecretRefNames_FailedSourceKeepsTheOthers(t *testing.T) {
+	bindings := gen.ReleaseBindingList{Items: []gen.ReleaseBinding{
+		bindingWithOverrides([]gen.EnvVar{secretEnvVar("API_KEY", "llm-dev-proxy-secrets")}, nil),
+	}}
+	lists := serveLists(t, bindings, gen.WorkloadList{})
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/components/my-agent") {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = w.Write([]byte(`{"error":"upstream unavailable"}`))
+			return
+		}
+		lists.ServeHTTP(w, r)
+	})
+	c := newTestClient(t, handler)
+
+	names, err := c.GetWorkloadSecretRefNames(context.Background(), "acme", "my-project", "my-agent")
+
+	require.Error(t, err)
+	assert.Equal(t, []string{"llm-dev-proxy-secrets"}, names)
+}
