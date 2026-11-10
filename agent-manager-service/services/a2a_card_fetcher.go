@@ -24,6 +24,8 @@ import (
 	"io"
 	"net"
 	"net/http"
+	neturl "net/url"
+	"strings"
 	"time"
 
 	"github.com/wso2/agent-manager/agent-manager-service/config"
@@ -50,6 +52,31 @@ type A2ACardFetcher interface {
 	Fetch(ctx context.Context, url string) (json.RawMessage, error)
 	// FetchOrigin fetches a user-supplied URL SSRF-guarded; with a header, redirects stay on the URL's origin.
 	FetchOrigin(ctx context.Context, url string, header *A2ACardFetchHeader) (json.RawMessage, error)
+}
+
+// a2aTestUpstreamHosts is the exact-hostname set from A2A_CARD_TEST_UPSTREAM_HOSTS; the zero value allows nothing.
+type a2aTestUpstreamHosts map[string]struct{}
+
+func newA2ATestUpstreamHosts(hosts []string) a2aTestUpstreamHosts {
+	set := make(a2aTestUpstreamHosts, len(hosts))
+	for _, host := range hosts {
+		set[normalizeA2AHostname(host)] = struct{}{}
+	}
+	return set
+}
+
+// allows reports whether rawURL's host, on any port, is listed. An unparseable URL is not listed.
+func (h a2aTestUpstreamHosts) allows(rawURL string) bool {
+	u, err := neturl.Parse(rawURL)
+	if err != nil {
+		return false
+	}
+	_, listed := h[normalizeA2AHostname(u.Hostname())]
+	return listed
+}
+
+func normalizeA2AHostname(host string) string {
+	return strings.TrimSuffix(strings.ToLower(host), ".")
 }
 
 type a2aCardFetcher struct {

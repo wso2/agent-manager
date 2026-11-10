@@ -397,3 +397,28 @@ func TestSetA2ACardSourceRejectsAnAgentFromAnotherProject(t *testing.T) {
 	assert.ErrorIs(t, err, utils.ErrAgentNotFound)
 	assert.Empty(t, hooks.stored)
 }
+
+const listedTestUpstreamHost = "default-default.agentmanager.localhost"
+
+func TestValidateCardSourceURL_ListedPrivateHostAccepted(t *testing.T) {
+	hosts := newA2ATestUpstreamHosts([]string{listedTestUpstreamHost})
+	url := "http://" + listedTestUpstreamHost + ":19080/x/.well-known/agent-card.json"
+	assert.NoError(t, validateCardSourceURL(context.Background(), url, hosts))
+}
+
+func TestValidateCardSourceURL_UnlistedLocalhostRejectedWithListSet(t *testing.T) {
+	hosts := newA2ATestUpstreamHosts([]string{listedTestUpstreamHost})
+	err := validateCardSourceURL(context.Background(), "http://other.localhost/x", hosts)
+	require.ErrorIs(t, err, utils.ErrInvalidURL)
+	assert.Contains(t, err.Error(), a2aCardHostNotPublicMsg)
+}
+
+func TestValidateCardSourceURL_ListedHostStillNeedsValidForm(t *testing.T) {
+	hosts := newA2ATestUpstreamHosts([]string{listedTestUpstreamHost})
+	for _, url := range []string{
+		"ftp://" + listedTestUpstreamHost + "/x",
+		"http://user:pw@" + listedTestUpstreamHost + "/x",
+	} {
+		assert.ErrorIs(t, validateCardSourceURL(context.Background(), url, hosts), utils.ErrInvalidURL, url)
+	}
+}

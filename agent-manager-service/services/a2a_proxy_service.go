@@ -32,6 +32,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
+	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -77,6 +78,7 @@ type a2aProxyService struct {
 	ocClient        client.OpenChoreoClient
 	encryptionKey   []byte
 	logger          *slog.Logger
+	testHosts       a2aTestUpstreamHosts
 }
 
 // NewA2AProxyService creates an A2AProxyService.
@@ -101,6 +103,7 @@ func NewA2AProxyService(
 		ocClient:        ocClient,
 		encryptionKey:   encryptionKey,
 		logger:          logger,
+		testHosts:       newA2ATestUpstreamHosts(config.GetConfig().A2ACardTestUpstreamHosts),
 	}
 }
 
@@ -185,7 +188,7 @@ func (s *a2aProxyService) SetA2AProxy(
 		if err != nil {
 			return err
 		}
-		if err := requireHTTPSForSecret(cardURL, proxy.UpstreamAuthSecret); err != nil {
+		if err := requireHTTPSForSecret(cardURL, proxy.UpstreamAuthSecret, s.testHosts); err != nil {
 			return err
 		}
 		// A PUT can set, replace or clear the credential the gateway sends upstream, so it is refused unrecorded.
@@ -343,8 +346,8 @@ func (s *a2aProxyService) requireCardSource(ctx context.Context, tx *gorm.DB, t 
 }
 
 // requireHTTPSForSecret refuses to store a credential the control plane and the gateway would send to cardURL in cleartext.
-func requireHTTPSForSecret(cardURL, secret string) error {
-	if secret == "" {
+func requireHTTPSForSecret(cardURL, secret string, testHosts a2aTestUpstreamHosts) error {
+	if secret == "" || testHosts.allows(cardURL) {
 		return nil
 	}
 	u, err := url.Parse(cardURL)

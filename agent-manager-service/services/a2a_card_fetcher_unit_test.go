@@ -326,3 +326,26 @@ func TestA2ACardFetcherOriginWithoutAHeaderSendsNone(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, got)
 }
+
+func TestA2ATestUpstreamHosts_Allows(t *testing.T) {
+	h := newA2ATestUpstreamHosts([]string{"default-default.agentmanager.localhost"})
+	allowed := []string{
+		"http://default-default.agentmanager.localhost:19080/x/.well-known/agent-card.json",
+		"https://DEFAULT-default.AgentManager.localhost./x",
+	}
+	refused := []string{
+		"http://other.agentmanager.localhost:19080/x",
+		"http://evil.default-default.agentmanager.localhost/x",
+		"http://localhost/x",
+		"::not a url::",
+	}
+	for _, u := range allowed {
+		assert.True(t, h.allows(u), u)
+	}
+	for _, u := range refused {
+		assert.False(t, h.allows(u), u)
+	}
+	for _, u := range append(allowed, refused...) {
+		assert.False(t, newA2ATestUpstreamHosts(nil).allows(u), u)
+	}
+}
