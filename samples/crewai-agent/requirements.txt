@@ -1,6 +1,0 @@
-crewai==1.15.37
-openai==2.54.0
-fastapi==0.162.0
-uvicorn==0.54.0
-python-dotenv==1.2.4
-pillow>=13.0.0,<14

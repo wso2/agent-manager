@@ -3,7 +3,6 @@ on:
   pull_request:
     paths:
       - 'samples/customer-support-agent/**'
-      - 'samples/crewai-agent/**'
       - 'test/instrumentation-matrix/harness/deployable_samples.py'
       - 'test/instrumentation-matrix/matrix.yaml'
       - 'test/instrumentation-matrix/scripts/check_sample_python_compat.py'

@@ -756,10 +756,9 @@ nox -s emission
 ### 9.2 Cell subset
 
 Heavy is a **pipeline test with a per-framework axis for frameworks that ship
-a deployable sample**. It deploys the sample matching each cell's framework —
-`samples/customer-support-agent` (a LangChain/LangGraph app) for the default
-framework, `samples/crewai-agent` for crewai — and verifies its spans survive
-the full deployed path and validate against the contract. Three axes change
+a deployable sample**. It currently deploys `samples/customer-support-agent`
+(a LangChain/LangGraph app) and verifies its spans survive the full deployed
+path and validate against the contract. Three axes change
 what gets deployed, so the subset (`harness/heavy_subset.py`) crosses them:
 
 1. **instrumentation/Traceloop version** — the init-container image.
@@ -770,17 +769,14 @@ what gets deployed, so the subset (`harness/heavy_subset.py`) crosses them:
 
 So the subset is one cell per (Traceloop version × python) for each deployable
 framework, pinned to that framework's representative version. With one
-Traceloop version, four pythons, and two deployable frameworks (langchain,
-crewai) that's eight cells; it grows as Traceloop versions, pythons, or
-deployable samples are added.
+Traceloop version and Python 3.10–3.13, the customer-support sample accounts
+for four cells. The subset grows as versions or deployable samples are added.
 
-The driver deploys the framework-matching sample and asserts that framework's
-span kinds (`harness/deployable_samples.py:DEPLOYABLE_SAMPLES[...].expected_kinds`
-— `llm` for the LangGraph sample the langchain cell deploys, `llm`+`agent`+
-`crewaitask` for crewai), plus shape-validation of every captured span.
-Frameworks without a deployable sample (`langgraph`, `llama-index`,
-`openai-direct`, `anthropic-direct`) stay emission-only — their per-framework
-span *shape* is the emission tier's job (§5). Bringing one into the heavy axis
+The driver asserts the sample's required span kinds from
+`harness/deployable_samples.py` (`llm` for customer support) and validates the
+shape of every captured span. Frameworks without a deployable sample,
+including CrewAI, receive span-shape coverage in the emission tier (§5).
+Bringing one into the heavy axis
 means adding a deployable sample under `samples/` and an entry to
 `DEPLOYABLE_SAMPLES`.
 
@@ -1138,7 +1134,7 @@ Issue: <link to auto-opened issue>
 Summary
   • 4 failed / 92 passed / 4 skipped
   • Likely cause: Traceloop 0.61.0 regression — all langchain cells red
-  • Heavy tier: 1 pipeline-error on traceloop-0.60.0-crewai
+  • Heavy tier: 1 pipeline-error on traceloop-0.60.0-langchain
 
 Top failing categories
   • schema-violation: 3

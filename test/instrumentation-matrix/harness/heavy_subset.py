@@ -5,12 +5,10 @@ stack, hits the API, polls the observer. So we run a sample, not the full
 matrix.
 
 **Heavy has a per-framework axis for frameworks that ship a deployable sample.**
-`harness/deployable_samples.py` lists them (langchain -> customer-support-agent,
-crewai -> crewai-agent today). For each, the driver deploys the matching sample
-and asserts that framework's span kinds. Frameworks without a deployable sample
-(`langgraph`, `llama-index`, `openai-direct`, `anthropic-direct`) stay
-emission-only — their per-framework span *shape* is the emission tier's job (it
-runs each `cells/<framework>_sample.py` in-process).
+`harness/deployable_samples.py` currently maps langchain to customer-support-agent.
+For each registered framework, the driver deploys its sample and asserts its span
+kinds. Other frameworks stay emission-only. The emission tier runs each
+`cells/<framework>_sample.py` in-process to verify span shape.
 
 Three axes change what gets deployed, so the subset crosses all three:
 
