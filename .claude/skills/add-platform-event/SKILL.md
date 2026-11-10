@@ -57,8 +57,11 @@ Map the route's **exact registrar pattern** to the type in `routeEvents`:
 Then:
 
 ```bash
-cd agent-manager-service && go test ./events/... ./api/ -run 'Event|Catalog'
+(cd agent-manager-service && make test-run RUN=. PKG=./events/...)
+(cd agent-manager-service && make test-run RUN=TestEventCatalog PKG=./api/)
 ```
+
+(`make test-run` sets the unit-tier config env vars; `./api/` loads config at import time and fails without them.)
 
 `TestEventCatalogRoutesAreRegistered` fails if a pattern isn't a registered route or emits a type missing from the catalog; `WithEvents` panics at startup for the latter.
 
@@ -74,7 +77,7 @@ e.Data = payload            // no secrets
 if err := s.publisher.Publish(ctx, e); err != nil { /* log; decide retry */ }
 ```
 
-Follow `services/monitor_run_events.go` for a worked example. If the outcome must not be lost, use a **deterministic event ID** and replay until `Publish` succeeds (receivers dedupe by `webhook-id` = event ID). Wire the publisher via `wiring/wire.go` providers; tests can use `events.NoopPublisher{}` or a recording fake.
+Follow `services/monitor_run_events.go` for a worked example. If the outcome must not be lost, use a **deterministic event ID** and replay until `Publish` succeeds (receivers dedupe by `webhook-id` = event ID). Wire the publisher via `wiring/wire.go` providers; if you change a constructor's signature, run `make wire` and commit the regenerated `wiring/wire_gen.go`, or the service won't compile; tests can use `events.NoopPublisher{}` or a recording fake.
 
 ## Step 4 — tests
 
@@ -93,5 +96,5 @@ Follow `services/monitor_run_events.go` for a worked example. If the outcome mus
 - [ ] `routeEvents` entry with exact pattern, or `Publisher.Publish` for non-route events
 - [ ] `OmitData` for any response carrying credentials
 - [ ] Environment carried for environment-bound agent events
-- [ ] `go test ./events/... ./api/...` passes
+- [ ] `make test-run RUN=. PKG=./events/...` and `make test-run RUN=TestEventCatalog PKG=./api/` pass
 - [ ] Also consider `/add-feature-telemetry` (usage analytics) and `/add-audit-event` (security-relevant operations) for the same feature
