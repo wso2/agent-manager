@@ -53,8 +53,6 @@ export type MCPProxyConnectionTabProps = {
   isLoading?: boolean;
   onUpdate: (fields: Partial<MCPEndpointConfig>) => Promise<unknown>;
   isUpdating: boolean;
-  /** Hides the request and idle timeouts, for a server that does not take them. */
-  hideResilience?: boolean;
   /**
    * Shown in place of an editable URL, for a server whose upstream is resolved rather than
    * entered (a project component's endpoint). Only the credential can be changed then.
@@ -68,7 +66,6 @@ export function MCPProxyConnectionTab({
   isLoading = false,
   onUpdate,
   isUpdating,
-  hideResilience = false,
   readOnlyURLText,
 }: MCPProxyConnectionTabProps) {
   const { canWrite } = useResourceAccess("mcp_server");
@@ -365,7 +362,7 @@ export function MCPProxyConnectionTab({
           </Accordion>
         </Grid>
 
-        <Grid size={{ xs: 12 }} sx={hideResilience ? { display: "none" } : undefined}>
+        <Grid size={{ xs: 12 }}>
           <ResilienceTimeoutFields
             disabled={!canWrite}
             requestTimeout={resilienceTimeout}

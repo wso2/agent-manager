@@ -5182,6 +5182,9 @@ type MCPProxyEnvironmentRequest struct {
 	// ReleaseBindingName The source component's release binding to front. Required only when the component has more than one release binding in the environment, one per deployment track for example; without it such a component is rejected with 400 VALIDATION_ERROR. It must be a binding of the source component in this project and environment, or it is rejected with 400 VALIDATION_ERROR. A proxy registered by URL has no release binding: setting it there is 400 VALIDATION_ERROR.
 	ReleaseBindingName *string `json:"releaseBindingName,omitempty"`
 
+	// Resilience The binding's request and idle timeouts on the gateway. Optional; omitted, the gateway's defaults apply. A change redeploys the binding.
+	Resilience *Resilience `json:"resilience,omitempty"`
+
 	// Security A binding's security. Phase 1 accepts apiKey, which is also the default when the field is omitted or names no variant (an api key in the X-API-Key header), and no security (enabled false only). An apiKey with enabled false while security is not disabled is rejected with 400 VALIDATION_ERROR. jwt is rejected with 400 "jwt security is not available yet", and identity with 400.
 	Security *MCPProxyEnvironmentSecurity `json:"security,omitempty"`
 
@@ -5220,6 +5223,9 @@ type MCPProxyEnvironmentResponse struct {
 
 	// ReleaseBindingName The release binding the binding was given. Absent when none was given.
 	ReleaseBindingName *string `json:"releaseBindingName,omitempty"`
+
+	// Resilience The binding's request and idle timeouts. Absent when the gateway's defaults apply.
+	Resilience *Resilience `json:"resilience,omitempty"`
 
 	// Security A binding's security. Phase 1 accepts apiKey, which is also the default when the field is omitted or names no variant (an api key in the X-API-Key header), and no security (enabled false only). An apiKey with enabled false while security is not disabled is rejected with 400 VALIDATION_ERROR. jwt is rejected with 400 "jwt security is not available yet", and identity with 400.
 	Security     *MCPProxyEnvironmentSecurity             `json:"security,omitempty"`

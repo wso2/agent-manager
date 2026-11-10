@@ -125,9 +125,14 @@ func (s *ProjectMCPProxyService) PutEnvironment(
 	if err != nil {
 		return nil, false, err
 	}
+	resilience, err := normalizeBindingResilience(req.Resilience)
+	if err != nil {
+		return nil, false, err
+	}
 
 	desired := models.MCPEndpointConfig{
 		Upstream:           &models.UpstreamEndpoint{URL: upstreamURL, Auth: auth},
+		Resilience:         resilience,
 		Policies:           policies,
 		Security:           security,
 		ReleaseBindingName: releaseBindingName,
@@ -237,7 +242,8 @@ func (s *ProjectMCPProxyService) bindingUpstreamURL(
 	// A component deployed on several tracks has a release binding per track in the environment; releaseBindingName
 	// picks one, and without it such a component is refused rather than one of its bindings picked at random.
 	serviceURL, err := s.ocClient.GetReleaseBindingEndpointServiceURL(
-		ctx, ouID, projectName, source.ComponentName, source.EndpointName, envName, releaseBindingName)
+		ctx, ouID, projectName, source.ComponentName, source.EndpointName, envName, releaseBindingName,
+	)
 	switch {
 	case errors.Is(err, occlient.ErrAmbiguousReleaseBinding):
 		return "", fmt.Errorf("%w: set releaseBindingName to pick one: %w", utils.ErrInvalidInput, err)
@@ -765,7 +771,30 @@ func (s *ProjectMCPProxyService) sameBindingConfig(stored, desired models.MCPEnd
 		sameJSON(nilIfEmptyPolicies(stored.Policies), nilIfEmptyPolicies(desired.Policies)) &&
 		sameJSON(stored.Capabilities, desired.Capabilities) &&
 		stored.CapabilitiesDiscovered == desired.CapabilitiesDiscovered &&
-		stored.Resilience == nil
+		sameJSON(stored.Resilience, desired.Resilience)
+}
+
+// normalizeBindingResilience is the binding's timeouts as stored: trimmed, an empty one dropped, and nil when
+// neither is set. Each is a duration the gateway takes, e.g. "15s", "500ms", or "0s" to turn it off.
+func normalizeBindingResilience(in *models.Resilience) (*models.Resilience, error) {
+	if in == nil {
+		return nil, nil //nolint:nilnil // no timeouts: the gateway's defaults
+	}
+	trimmed := func(v *string) *string {
+		if v == nil || strings.TrimSpace(*v) == "" {
+			return nil
+		}
+		t := strings.TrimSpace(*v)
+		return &t
+	}
+	out := &models.Resilience{Timeout: trimmed(in.Timeout), IdleTimeout: trimmed(in.IdleTimeout)}
+	if out.Timeout == nil && out.IdleTimeout == nil {
+		return nil, nil //nolint:nilnil // no timeouts: the gateway's defaults
+	}
+	if err := out.Validate(); err != nil {
+		return nil, fmt.Errorf("%w: %w", utils.ErrInvalidInput, err)
+	}
+	return out, nil
 }
 
 func (s *ProjectMCPProxyService) sameUpstreamAuth(stored, desired *models.UpstreamAuth) bool {
@@ -825,6 +854,7 @@ func (s *ProjectMCPProxyService) environmentResponse(
 		Security:           bindingSecurityResponse(cfg.Security),
 		Policies:           copyMCPPolicies(cfg.Policies),
 		Capabilities:       copyMCPCapabilities(cfg.Capabilities),
+		Resilience:         copyResilience(cfg.Resilience),
 		UpdatedAt:          timePtrIfNotZero(endpoint.UpdatedAt),
 	}
 	if cfg.Upstream != nil && cfg.Upstream.Auth != nil {
@@ -937,4 +967,21 @@ func (s *ProjectMCPProxyService) RefreshEnvironmentCapabilities(
 		return nil, fmt.Errorf("failed to queue the capability discovery: %w", err)
 	}
 	return s.GetEnvironment(ctx, ouID, "", projectUUID, handle, envName)
+}
+
+// copyResilience is r with its own timeout strings, so a response never shares the stored config's.
+func copyResilience(r *models.Resilience) *models.Resilience {
+	if r == nil {
+		return nil
+	}
+	out := &models.Resilience{}
+	if r.Timeout != nil {
+		t := *r.Timeout
+		out.Timeout = &t
+	}
+	if r.IdleTimeout != nil {
+		t := *r.IdleTimeout
+		out.IdleTimeout = &t
+	}
+	return out
 }

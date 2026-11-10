@@ -250,6 +250,7 @@ export function AddMCPProxyForm({ onCancel, projectId }: AddMCPProxyFormProps) {
                   },
                 }
               : {}),
+            ...(endpoint.resilience ? { resilience: endpoint.resilience } : {}),
           },
         });
       } catch (err) {
@@ -478,8 +479,6 @@ export function AddMCPProxyForm({ onCancel, projectId }: AddMCPProxyFormProps) {
             }
             onEndpointAdded={handleEndpointAdded}
             maxEndpoints={projectId ? 1 : undefined}
-            // A project server keeps no timeouts, so none is offered to be lost.
-            hideResilience={!!projectId}
           />
         </Stack>
       </Form.Stack>

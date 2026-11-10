@@ -51,8 +51,6 @@ export interface EndpointsEditorSectionProps {
   onEndpointFormDirtyChange?: (dirty: boolean) => void;
   // The most endpoints the server takes; the add button goes once it is reached.
   maxEndpoints?: number;
-  // Hides the endpoint form's request and idle timeouts, for a server that does not keep them.
-  hideResilience?: boolean;
 }
 
 // Shared by AddMCPProxyForm and EditMCPProxy: renders the endpoint list with
@@ -73,7 +71,6 @@ export function EndpointsEditorSection({
   onEndpointAdded,
   onEndpointFormDirtyChange,
   maxEndpoints,
-  hideResilience,
 }: EndpointsEditorSectionProps) {
   const environmentLabels = useMemo(() => {
     const labels = new Map<string, string>();
@@ -163,7 +160,6 @@ export function EndpointsEditorSection({
                   onAdd={handleSaveEditedEndpoint}
                   onCancel={closeEndpointForm}
                   onDirtyChange={onEndpointFormDirtyChange}
-                hideResilience={hideResilience}
                 />
               </Box>
             ) : (
@@ -199,7 +195,6 @@ export function EndpointsEditorSection({
                 onAdd={handleAddEndpoint}
                 onCancel={closeEndpointForm}
                 onDirtyChange={onEndpointFormDirtyChange}
-                hideResilience={hideResilience}
               />
             </Box>
           )}

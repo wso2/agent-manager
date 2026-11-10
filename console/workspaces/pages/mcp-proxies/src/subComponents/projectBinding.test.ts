@@ -217,6 +217,41 @@ describe("binding as an org endpoint config", () => {
   });
 });
 
+describe("binding timeouts", () => {
+  const urlProxy = {
+    id: "docs",
+    name: "Docs",
+    version: "v1",
+    context: "/docs",
+    projectName: "p1",
+    upstream: { url: "https://mcp.example.com/mcp" },
+    environments: [],
+  };
+  const env = { ...base, resilience: { timeout: "15s", idleTimeout: "1m" } };
+
+  it("are kept on a save that changes something else, and shown to the tabs", () => {
+    expect(bindingRequestFrom(env).resilience).toEqual({
+      timeout: "15s",
+      idleTimeout: "1m",
+    });
+    expect(bindingEndpointConfig(urlProxy, env).resilience).toEqual({
+      timeout: "15s",
+      idleTimeout: "1m",
+    });
+  });
+
+  it("are changed or cleared by the Connection tab", () => {
+    const changed = applyBindingConfigChange(urlProxy, env, {
+      resilience: { timeout: "30s" },
+    });
+    expect(changed.binding.resilience).toEqual({ timeout: "30s" });
+    const cleared = applyBindingConfigChange(urlProxy, env, {
+      resilience: undefined,
+    });
+    expect(cleared.binding.resilience).toBeUndefined();
+  });
+});
+
 describe("discovered capabilities", () => {
   it("are not sent back, so discovery keeps them", () => {
     const request = bindingRequestFrom({

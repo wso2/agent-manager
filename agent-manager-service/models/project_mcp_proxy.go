@@ -70,6 +70,8 @@ type MCPProxyEnvironmentRequest struct {
 	UpstreamAuth       *MCPProxyEnvironmentUpstreamAuth `json:"upstreamAuth,omitempty"`
 	// Capabilities is the MCP server's tools, prompts and resources in this environment, stored as given.
 	Capabilities *MCPProxyCapabilities `json:"capabilities,omitempty"`
+	// Resilience is the binding's request and idle timeouts on the gateway; omitted, the gateway's defaults.
+	Resilience *Resilience `json:"resilience,omitempty"`
 }
 
 // MCPProxyEnvironmentSecurity is a binding's SecurityConfig: SecurityConfig with a jwt variant.
@@ -122,6 +124,7 @@ type MCPProxyEnvironmentResponse struct {
 	Policies     []MCPPolicy                              `json:"policies,omitempty"`
 	UpstreamAuth *MCPProxyEnvironmentUpstreamAuthRedacted `json:"upstreamAuth,omitempty"`
 	Capabilities *MCPProxyCapabilities                    `json:"capabilities,omitempty"`
+	Resilience   *Resilience                              `json:"resilience,omitempty"`
 	// CapabilitiesSource says where Capabilities came from: "caller" (the binding PUT) or "discovered" (AMS listed
 	// them from the MCP server). Absent with no capabilities.
 	CapabilitiesSource string `json:"capabilitiesSource,omitempty"`

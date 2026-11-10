@@ -175,6 +175,8 @@ export interface ProjectMCPProxyEnvironmentRequest {
    * Manager discovers them through the binding's gateway and keeps what it discovered.
    */
   capabilities?: MCPProxyCapabilities;
+  /** The binding's request and idle timeouts; omitted, the gateway's defaults. */
+  resilience?: Resilience;
 }
 
 /** One environment binding of a project-owned MCP proxy, as the project route reports it. */
@@ -200,6 +202,8 @@ export interface ProjectMCPProxyEnvironment {
   capabilitiesSource?: "caller" | "discovered";
   /** The capability discovery, when one was queued and the capabilities are not the caller's. */
   capabilityDiscovery?: MCPCapabilityDiscoveryStatus;
+  /** The binding's request and idle timeouts; absent when the gateway's defaults apply. */
+  resilience?: Resilience;
   updatedAt?: string;
 }
 

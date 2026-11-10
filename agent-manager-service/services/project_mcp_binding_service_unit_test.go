@@ -1145,3 +1145,61 @@ func TestUpsert_URLProxyURLChangeUpdatesItsBindings(t *testing.T) {
 	assert.Equal(t, "https://8.8.4.4/mcp", endpoint.Configuration.Upstream.URL)
 	assert.Positive(t, f.rerenders, "the bindings are redeployed")
 }
+
+func bindingTimeouts(timeout, idle string) *models.Resilience {
+	return &models.Resilience{Timeout: &timeout, IdleTimeout: &idle}
+}
+
+// A binding's timeouts are stored on its endpoint, read back, and a change redeploys it while the same ones do not.
+func TestPutEnv_ResilienceStoredReadBackAndRedeploysOnChange(t *testing.T) {
+	f := newBindingFixture(t)
+	resp, _, err := f.put(t, models.MCPProxyEnvironmentRequest{Resilience: bindingTimeouts(" 15s ", "1m")})
+	require.NoError(t, err)
+	require.NotNil(t, resp.Resilience)
+	assert.Equal(t, "15s", *resp.Resilience.Timeout)
+	assert.Equal(t, "1m", *resp.Resilience.IdleTimeout)
+
+	endpoint, ee := f.binding()
+	require.NotNil(t, endpoint.Configuration.Resilience)
+	assert.Equal(t, "15s", *endpoint.Configuration.Resilience.Timeout)
+	f.status[ee.ArtifactUUID].Status = models.DeploymentStatusDeployed
+
+	_, _, err = f.put(t, models.MCPProxyEnvironmentRequest{Resilience: bindingTimeouts("15s", "1m")})
+	require.NoError(t, err)
+	assert.Len(t, f.deployed, 1, "the same timeouts are a no-op")
+
+	_, _, err = f.put(t, models.MCPProxyEnvironmentRequest{Resilience: bindingTimeouts("30s", "1m")})
+	require.NoError(t, err)
+	assert.Len(t, f.deployed, 2, "a changed timeout is stored and redeployed")
+
+	resp, _, err = f.put(t, models.MCPProxyEnvironmentRequest{Resilience: bindingTimeouts(" ", "")})
+	require.NoError(t, err)
+	assert.Nil(t, resp.Resilience, "blank timeouts clear them")
+	endpoint, _ = f.binding()
+	assert.Nil(t, endpoint.Configuration.Resilience)
+}
+
+func TestPutEnv_Resilience_Invalid400NothingStored(t *testing.T) {
+	f := newBindingFixture(t)
+	_, _, err := f.put(t, models.MCPProxyEnvironmentRequest{Resilience: bindingTimeouts("fifteen", "")})
+	require.ErrorIs(t, err, utils.ErrInvalidInput)
+	assert.Zero(t, f.endpointWrites, "nothing is stored")
+	assert.Empty(t, f.deployed)
+}
+
+// The gateway artifact of an environment carries its endpoint's timeouts.
+func TestBuildMCPProxyEnvArtifact_CarriesTheEndpointTimeouts(t *testing.T) {
+	proxy := &models.MCPProxy{UUID: uuid.New(), Handle: "docs"}
+	endpoint := &models.MCPProxyEndpoint{
+		Handle: "main",
+		Configuration: models.MCPEndpointConfig{
+			Upstream:   &models.UpstreamEndpoint{URL: "https://8.8.8.8/mcp"},
+			Resilience: bindingTimeouts("15s", "1m"),
+		},
+	}
+	ee := &models.MCPProxyEndpointEnvironment{ArtifactUUID: uuid.New(), EnvironmentUUID: uuid.New()}
+	deployable := buildMCPProxyEnvArtifact(proxy, endpoint, ee)
+	require.NotNil(t, deployable.Configuration.Resilience)
+	assert.Equal(t, "15s", *deployable.Configuration.Resilience.Timeout)
+	assert.Equal(t, "1m", *deployable.Configuration.Resilience.IdleTimeout)
+}

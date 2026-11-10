@@ -20112,6 +20112,12 @@ components:
             discovers them from the MCP server through the binding's gateway once the binding is deployed
             (see capabilityDiscovery on the response), and a later PUT without capabilities keeps what it
             discovered.
+        resilience:
+          allOf:
+            - $ref: "#/components/schemas/Resilience"
+          description: >-
+            The binding's request and idle timeouts on the gateway. Optional; omitted, the gateway's defaults
+            apply. A change redeploys the binding.
 
     MCPProxyEnvironmentSecurity:
       type: object
@@ -20254,6 +20260,10 @@ components:
           description: >-
             The binding's capabilities: the ones given on the last PUT, or the ones AMS discovered (see
             capabilitiesSource). Absent when there are none yet.
+        resilience:
+          allOf:
+            - $ref: "#/components/schemas/Resilience"
+          description: The binding's request and idle timeouts. Absent when the gateway's defaults apply.
         capabilitiesSource:
           type: string
           enum: [caller, discovered]

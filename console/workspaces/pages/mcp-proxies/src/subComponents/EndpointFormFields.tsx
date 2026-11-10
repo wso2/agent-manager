@@ -104,8 +104,6 @@ export interface EndpointFormFieldsProps {
   initialDraft?: EndpointDraft;
   // Reports whether the form holds edits not yet applied with Add/Update.
   onDirtyChange?: (dirty: boolean) => void;
-  // Hides the request and idle timeouts, for a server that does not keep them.
-  hideResilience?: boolean;
 }
 
 export function EndpointFormFields({
@@ -115,7 +113,6 @@ export function EndpointFormFields({
   onCancel,
   initialDraft,
   onDirtyChange,
-  hideResilience = false,
 }: EndpointFormFieldsProps) {
   const fetchServerInfo = useFetchMCPProxyServerInfo();
   const { pushSnackBar } = useSnackBar();
@@ -587,30 +584,28 @@ export function EndpointFormFields({
         </AccordionDetails>
       </Accordion>
 
-      {!hideResilience && (
-        <ResilienceTimeoutFields
-          requestTimeout={resilienceTimeout}
-          onRequestTimeoutChange={(value) => {
-            setResilienceTimeout(value);
-            setResilienceTimeoutError(
-              value.trim() && !DURATION_PATTERN.test(value.trim())
-                ? "Enter a duration like 5s, 500ms, or 1m"
-                : null,
-            );
-          }}
-          requestTimeoutError={resilienceTimeoutError}
-          idleTimeout={resilienceIdleTimeout}
-          onIdleTimeoutChange={(value) => {
-            setResilienceIdleTimeout(value);
-            setResilienceIdleTimeoutError(
-              value.trim() && !DURATION_PATTERN.test(value.trim())
-                ? "Enter a duration like 5s, 500ms, or 1m"
-                : null,
-            );
-          }}
-          idleTimeoutError={resilienceIdleTimeoutError}
-        />
-      )}
+      <ResilienceTimeoutFields
+        requestTimeout={resilienceTimeout}
+        onRequestTimeoutChange={(value) => {
+          setResilienceTimeout(value);
+          setResilienceTimeoutError(
+            value.trim() && !DURATION_PATTERN.test(value.trim())
+              ? "Enter a duration like 5s, 500ms, or 1m"
+              : null,
+          );
+        }}
+        requestTimeoutError={resilienceTimeoutError}
+        idleTimeout={resilienceIdleTimeout}
+        onIdleTimeoutChange={(value) => {
+          setResilienceIdleTimeout(value);
+          setResilienceIdleTimeoutError(
+            value.trim() && !DURATION_PATTERN.test(value.trim())
+              ? "Enter a duration like 5s, 500ms, or 1m"
+              : null,
+          );
+        }}
+        idleTimeoutError={resilienceIdleTimeoutError}
+      />
 
       {isSingleGatewayChoice ? (
         <EnvironmentGatewaySelectorView

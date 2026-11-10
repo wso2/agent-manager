@@ -501,7 +501,6 @@ export function ViewProjectMCPProxy() {
                     selectedEndpointId={selected.environmentName}
                     onUpdate={updateSelectedConfig}
                     isUpdating={isUpdating}
-                    hideResilience
                     readOnlyURLText={
                       proxy.source
                         ? `Resolved from ${proxy.source.componentName} / ${proxy.source.endpointName} in this environment`

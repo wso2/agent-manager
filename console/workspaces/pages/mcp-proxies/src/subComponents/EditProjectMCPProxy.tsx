@@ -98,6 +98,8 @@ function ProjectEditForm({
             "Enter the credential value again to deploy the server to a new environment.",
           );
         }
+        // The form's timeouts are every environment's, as its URL and credential are.
+        const resilience = endpoint.resilience;
         const upstreamAuth = auth?.header
           ? {
               type: "api-key" as const,
@@ -117,7 +119,7 @@ function ProjectEditForm({
           if (kept.has(env.environmentUuid)) {
             await putBinding.mutateAsync({
               params: { ...params, envName: env.environmentName },
-              body: { ...bindingRequestFrom(env), upstreamAuth },
+              body: { ...bindingRequestFrom(env), upstreamAuth, resilience },
             });
           } else {
             await removeBinding.mutateAsync({
@@ -136,6 +138,7 @@ function ProjectEditForm({
                 ? { gatewayId: draft.gatewayByEnv[uuid] }
                 : {}),
               ...(upstreamAuth ? { upstreamAuth } : {}),
+              ...(resilience ? { resilience } : {}),
             },
           });
         }
@@ -171,8 +174,6 @@ function ProjectEditForm({
       contextPlaceholder={`/${proxy.id}`}
       contextHelperText={`Served under the project, at /${projectId}<context>.`}
       maxEndpoints={1}
-      // A project server keeps no timeouts, so none is offered to be lost.
-      hideResilience
       endpointsDescription={
         isURLProxy
           ? "Editing the endpoint updates the upstream URL and authentication for every environment it is deployed to. Unassigning an environment removes the server from it."

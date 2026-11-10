@@ -170,6 +170,7 @@ func buildMCPProxyEnvArtifact(source *models.MCPProxy, endpoint *models.MCPProxy
 			SpecVersion:  source.Configuration.SpecVersion,
 			SpecVersions: cfg.SpecVersions,
 			Upstream:     upstream,
+			Resilience:   cfg.Resilience,
 			Policies:     cfg.Policies,
 			Capabilities: cfg.Capabilities,
 			Security:     cfg.Security,

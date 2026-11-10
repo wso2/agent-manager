@@ -113,6 +113,7 @@ export function bindingRequestFrom(
   if (env.capabilitiesSource === "caller" && env.capabilities) {
     request.capabilities = env.capabilities;
   }
+  if (env.resilience) request.resilience = env.resilience;
   return request;
 }
 
@@ -131,6 +132,7 @@ export function bindingEndpointConfig(
       : undefined;
   return {
     upstream: { main: { url: proxy.upstream?.url ?? "", auth } },
+    resilience: env.resilience,
     policies: env.policies ?? [],
     capabilities: env.capabilities,
     mcpSpecVersions: proxy.mcpSpecVersion ? [proxy.mcpSpecVersion] : undefined,
@@ -159,9 +161,8 @@ export interface BindingConfigChange {
 }
 
 /**
- * Applies an org tab's edit of a binding's endpoint config. Policies, capabilities and the
- * upstream credential belong to the binding; the URL belongs to a proxy registered by URL.
- * Timeouts are not kept on bindings and are dropped.
+ * Applies an org tab's edit of a binding's endpoint config. Policies, capabilities, timeouts and
+ * the upstream credential belong to the binding; the URL belongs to a proxy registered by URL.
  */
 export function applyBindingConfigChange(
   proxy: ProjectMCPProxy,
@@ -174,6 +175,10 @@ export function applyBindingConfigChange(
   if ("capabilities" in fields) {
     if (fields.capabilities) binding.capabilities = fields.capabilities;
     else delete binding.capabilities;
+  }
+  if ("resilience" in fields) {
+    if (fields.resilience) binding.resilience = fields.resilience;
+    else delete binding.resilience;
   }
   if ("upstream" in fields) {
     const main = fields.upstream?.main;
@@ -231,8 +236,8 @@ export function projectProxyEndpointDraft(
         ? (first.upstreamAuth.header ?? "")
         : "",
     authValue: "",
-    resilienceTimeout: "",
-    resilienceIdleTimeout: "",
+    resilienceTimeout: first?.resilience?.timeout ?? "",
+    resilienceIdleTimeout: first?.resilience?.idleTimeout ?? "",
     environments: proxy.environments.map((env) => env.environmentUuid),
     gatewayByEnv,
     fetchedInfo: {
