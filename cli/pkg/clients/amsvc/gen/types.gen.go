@@ -1828,6 +1828,21 @@ func (e GetLLMProxyDeploymentsParamsStatus) Valid() bool {
 	}
 }
 
+// Defines values for UpsertProjectMCPProxyParamsIfNoneMatch.
+const (
+	Asterisk UpsertProjectMCPProxyParamsIfNoneMatch = "*"
+)
+
+// Valid indicates whether the value is a known member of the UpsertProjectMCPProxyParamsIfNoneMatch enum.
+func (e UpsertProjectMCPProxyParamsIfNoneMatch) Valid() bool {
+	switch e {
+	case Asterisk:
+		return true
+	default:
+		return false
+	}
+}
+
 // A2AProxyResponse How an external agent is published through the environment's ingress gateway.
 type A2AProxyResponse struct {
 	// GatewayUrl The agent's base URL on the environment's ingress gateway, where its card is served at /.well-known/agent-card.json once DEPLOYED. Empty while no ingress gateway is mapped to the environment.
@@ -5164,8 +5179,11 @@ type MCPProxyEnvironmentRequest struct {
 	// Policies Gateway policies, e.g. CORS and basic-ratelimit. Each needs a name and a version.
 	Policies *[]MCPPolicy `json:"policies,omitempty"`
 
-	// ReleaseBindingName The source component's release binding to front. Required only when the component has more than one release binding in the environment, one per deployment track for example; without it such a component is rejected with 400 VALIDATION_ERROR. It must be a binding of the source component in this project and environment, or it is rejected with 400 VALIDATION_ERROR.
+	// ReleaseBindingName The source component's release binding to front. Required only when the component has more than one release binding in the environment, one per deployment track for example; without it such a component is rejected with 400 VALIDATION_ERROR. It must be a binding of the source component in this project and environment, or it is rejected with 400 VALIDATION_ERROR. A proxy registered by URL has no release binding: setting it there is 400 VALIDATION_ERROR.
 	ReleaseBindingName *string `json:"releaseBindingName,omitempty"`
+
+	// Resilience The binding's request and idle timeouts on the gateway. Optional; omitted, the gateway's defaults apply. A change redeploys the binding.
+	Resilience *Resilience `json:"resilience,omitempty"`
 
 	// Security A binding's security. Phase 1 accepts apiKey, which is also the default when the field is omitted or names no variant (an api key in the X-API-Key header), and no security (enabled false only). An apiKey with enabled false while security is not disabled is rejected with 400 VALIDATION_ERROR. jwt is rejected with 400 "jwt security is not available yet", and identity with 400.
 	Security *MCPProxyEnvironmentSecurity `json:"security,omitempty"`
@@ -5206,6 +5224,9 @@ type MCPProxyEnvironmentResponse struct {
 	// ReleaseBindingName The release binding the binding was given. Absent when none was given.
 	ReleaseBindingName *string `json:"releaseBindingName,omitempty"`
 
+	// Resilience The binding's request and idle timeouts. Absent when the gateway's defaults apply.
+	Resilience *Resilience `json:"resilience,omitempty"`
+
 	// Security A binding's security. Phase 1 accepts apiKey, which is also the default when the field is omitted or names no variant (an api key in the X-API-Key header), and no security (enabled false only). An apiKey with enabled false while security is not disabled is rejected with 400 VALIDATION_ERROR. jwt is rejected with 400 "jwt security is not available yet", and identity with 400.
 	Security     *MCPProxyEnvironmentSecurity             `json:"security,omitempty"`
 	UpdatedAt    *time.Time                               `json:"updatedAt,omitempty"`
@@ -5232,7 +5253,7 @@ type MCPProxyEnvironmentUpstreamAuth struct {
 	Header *string                             `json:"header,omitempty"`
 	Type   MCPProxyEnvironmentUpstreamAuthType `json:"type"`
 
-	// Value Required with api-key. Stored encrypted; never returned.
+	// Value Required with api-key, unless the binding already has an api-key upstream auth: an omitted value then keeps the stored one. Stored encrypted; never returned.
 	Value *string `json:"value,omitempty"`
 }
 
@@ -5255,6 +5276,13 @@ type MCPProxyJWTSecurity struct {
 	Issuers   *[]string `json:"issuers,omitempty"`
 }
 
+// MCPProxyListEnvironment defines model for MCPProxyListEnvironment.
+type MCPProxyListEnvironment struct {
+	// EnvironmentName Set for a project-owned proxy, whose binding is named after its environment.
+	EnvironmentName *string `json:"environmentName,omitempty"`
+	EnvironmentUuid string  `json:"environmentUuid"`
+}
+
 // MCPProxyListItem defines model for MCPProxyListItem.
 type MCPProxyListItem struct {
 	// Context MCP proxy context path
@@ -5269,6 +5297,9 @@ type MCPProxyListItem struct {
 	// Description Description of the MCP proxy
 	Description *string `json:"description,omitempty"`
 
+	// Environments The environments the proxy is bound to.
+	Environments *[]MCPProxyListEnvironment `json:"environments,omitempty"`
+
 	// Id Unique handle for the MCP proxy
 	Id *string `json:"id,omitempty"`
 
@@ -5280,6 +5311,9 @@ type MCPProxyListItem struct {
 
 	// ProjectName Set for a project-owned proxy; absent for an org-level one
 	ProjectName *string `json:"projectName,omitempty"`
+
+	// Source The component endpoint a project-owned proxy fronts; absent for an org-level one.
+	Source *MCPProxySource `json:"source,omitempty"`
 
 	// Status MCP proxy status
 	Status *string `json:"status,omitempty"`
@@ -5804,10 +5838,13 @@ type ProjectMCPProxyListItem struct {
 	Id           string                              `json:"id"`
 	Name         string                              `json:"name"`
 
-	// Source The OpenChoreo component endpoint a project MCP proxy fronts. Fixed after create.
-	Source    MCPProxySource `json:"source"`
-	UpdatedAt *time.Time     `json:"updatedAt,omitempty"`
-	Version   string         `json:"version"`
+	// Source Set for a proxy that fronts a project component endpoint.
+	Source    *MCPProxySource `json:"source,omitempty"`
+	UpdatedAt *time.Time      `json:"updatedAt,omitempty"`
+
+	// Upstream Set for a proxy registered by a public URL.
+	Upstream *ProjectMCPProxyUpstream `json:"upstream,omitempty"`
+	Version  string                   `json:"version"`
 }
 
 // ProjectMCPProxyListResponse defines model for ProjectMCPProxyListResponse.
@@ -5830,8 +5867,11 @@ type ProjectMCPProxyRequest struct {
 	// Name Display name
 	Name string `json:"name"`
 
-	// Source The OpenChoreo component endpoint a project MCP proxy fronts. Fixed after create.
-	Source MCPProxySource `json:"source"`
+	// Source The project component endpoint the proxy fronts. Each environment binding calls the endpoint's in-cluster address there, resolved from the component's release binding. Exclusive with upstream; one of the two is required. Fixed after create.
+	Source *MCPProxySource `json:"source,omitempty"`
+
+	// Upstream A public MCP server URL the proxy fronts, which every environment binding calls as it is. Exclusive with source; one of the two is required. A private or loopback address is 400 VALIDATION_ERROR. The URL may change; a proxy registered by URL cannot take a source later, nor the other way round.
+	Upstream *ProjectMCPProxyUpstream `json:"upstream,omitempty"`
 
 	// Version Defaults to v1
 	Version *string `json:"version,omitempty"`
@@ -5851,10 +5891,18 @@ type ProjectMCPProxyResponse struct {
 	Name           string  `json:"name"`
 	ProjectName    string  `json:"projectName"`
 
-	// Source The OpenChoreo component endpoint a project MCP proxy fronts. Fixed after create.
-	Source    MCPProxySource `json:"source"`
-	UpdatedAt *time.Time     `json:"updatedAt,omitempty"`
-	Version   string         `json:"version"`
+	// Source Set for a proxy that fronts a project component endpoint.
+	Source    *MCPProxySource `json:"source,omitempty"`
+	UpdatedAt *time.Time      `json:"updatedAt,omitempty"`
+
+	// Upstream Set for a proxy registered by a public URL.
+	Upstream *ProjectMCPProxyUpstream `json:"upstream,omitempty"`
+	Version  string                   `json:"version"`
+}
+
+// ProjectMCPProxyUpstream defines model for ProjectMCPProxyUpstream.
+type ProjectMCPProxyUpstream struct {
+	Url string `json:"url"`
 }
 
 // ProjectResponse defines model for ProjectResponse.
@@ -7576,9 +7624,15 @@ type GetProjectMCPProxyParams struct {
 
 // UpsertProjectMCPProxyParams defines parameters for UpsertProjectMCPProxy.
 type UpsertProjectMCPProxyParams struct {
+	// IfNoneMatch `*` makes the request create-only. A proxy that exists under this handle in the project is left as it is and the request returns 412.
+	IfNoneMatch *UpsertProjectMCPProxyParamsIfNoneMatch `json:"If-None-Match,omitempty"`
+
 	// XImpersonateOrg Tenant org UUID for trusted service callers. Honoured only for clients that the deployment's org override resolver allow-lists; otherwise the request is refused with 403. Replaces both the org UUID and the handle for the request. The orgName path segment must then be that org's handle, or the request is refused with 403. A 403 here is final, not a missing grant on the org: it means the caller may not impersonate, the org does not exist, or the path names another org; do not retry it. A 502 means the org's handle could not be looked up and is retryable.
 	XImpersonateOrg *openapi_types.UUID `json:"X-Impersonate-Org,omitempty"`
 }
+
+// UpsertProjectMCPProxyParamsIfNoneMatch defines parameters for UpsertProjectMCPProxy.
+type UpsertProjectMCPProxyParamsIfNoneMatch string
 
 // DeleteProjectMCPProxyEnvironmentParams defines parameters for DeleteProjectMCPProxyEnvironment.
 type DeleteProjectMCPProxyEnvironmentParams struct {

@@ -30,6 +30,8 @@ const (
 	ErrCodeInvalidInput   = "INVALID_INPUT"
 	// ErrCodeHandleInUse: the MCP proxy handle belongs to an org-level or another project's proxy.
 	ErrCodeHandleInUse = "HANDLE_IN_USE"
+	// ErrCodeMCPProxyAlreadyExists: a create-only PUT (If-None-Match: *) named a project MCP proxy that exists.
+	ErrCodeMCPProxyAlreadyExists = "MCP_PROXY_ALREADY_EXISTS"
 	// ErrCodeProjectOwned: an org route tried to mutate a project-scoped MCP proxy.
 	ErrCodeProjectOwned = "PROJECT_OWNED"
 	// ErrCodeMCPProxyInUse: AM agents still use the MCP proxy, so it cannot be deleted.

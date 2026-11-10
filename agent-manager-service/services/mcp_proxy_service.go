@@ -1323,7 +1323,24 @@ func convertModelMCPProxyToListItem(proxy *models.MCPProxy) models.MCPProxyListI
 	if version == "" {
 		version = proxy.Configuration.Version
 	}
+	environments := []models.MCPProxyListEnvironment{}
+	for _, endpoint := range proxy.Endpoints {
+		for _, ee := range endpoint.Environments {
+			env := models.MCPProxyListEnvironment{EnvironmentUUID: ee.EnvironmentUUID.String()}
+			if proxy.ProjectUUID != nil {
+				env.EnvironmentName = endpoint.Name
+			}
+			environments = append(environments, env)
+		}
+	}
+	var source *models.MCPProxySource
+	if proxy.ProjectUUID != nil && proxy.Configuration.Source != nil {
+		s := *proxy.Configuration.Source
+		source = &s
+	}
 	return models.MCPProxyListItem{
+		Environments:   environments,
+		Source:         source,
 		Context:        proxy.Configuration.Context,
 		CreatedAt:      timePtrIfNotZero(createdAt),
 		CreatedBy:      stringPtrIfNotEmpty(proxy.CreatedBy),

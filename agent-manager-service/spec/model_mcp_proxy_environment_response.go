@@ -37,6 +37,7 @@ type MCPProxyEnvironmentResponse struct {
 	Policies     []MCPPolicy                              `json:"policies,omitempty"`
 	UpstreamAuth *MCPProxyEnvironmentUpstreamAuthRedacted `json:"upstreamAuth,omitempty"`
 	Capabilities *MCPProxyCapabilities                    `json:"capabilities,omitempty"`
+	Resilience   *Resilience                              `json:"resilience,omitempty"`
 	// Where capabilities came from: caller (the binding PUT) or discovered (AMS listed them from the MCP server). Absent with no capabilities.
 	CapabilitiesSource  *string                       `json:"capabilitiesSource,omitempty"`
 	CapabilityDiscovery *MCPCapabilityDiscoveryStatus `json:"capabilityDiscovery,omitempty"`
@@ -423,6 +424,38 @@ func (o *MCPProxyEnvironmentResponse) SetCapabilities(v MCPProxyCapabilities) {
 	o.Capabilities = &v
 }
 
+// GetResilience returns the Resilience field value if set, zero value otherwise.
+func (o *MCPProxyEnvironmentResponse) GetResilience() Resilience {
+	if o == nil || IsNil(o.Resilience) {
+		var ret Resilience
+		return ret
+	}
+	return *o.Resilience
+}
+
+// GetResilienceOk returns a tuple with the Resilience field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *MCPProxyEnvironmentResponse) GetResilienceOk() (*Resilience, bool) {
+	if o == nil || IsNil(o.Resilience) {
+		return nil, false
+	}
+	return o.Resilience, true
+}
+
+// HasResilience returns a boolean if a field has been set.
+func (o *MCPProxyEnvironmentResponse) HasResilience() bool {
+	if o != nil && !IsNil(o.Resilience) {
+		return true
+	}
+
+	return false
+}
+
+// SetResilience gets a reference to the given Resilience and assigns it to the Resilience field.
+func (o *MCPProxyEnvironmentResponse) SetResilience(v Resilience) {
+	o.Resilience = &v
+}
+
 // GetCapabilitiesSource returns the CapabilitiesSource field value if set, zero value otherwise.
 func (o *MCPProxyEnvironmentResponse) GetCapabilitiesSource() string {
 	if o == nil || IsNil(o.CapabilitiesSource) {
@@ -558,6 +591,9 @@ func (o MCPProxyEnvironmentResponse) ToMap() (map[string]interface{}, error) {
 	}
 	if !IsNil(o.Capabilities) {
 		toSerialize["capabilities"] = o.Capabilities
+	}
+	if !IsNil(o.Resilience) {
+		toSerialize["resilience"] = o.Resilience
 	}
 	if !IsNil(o.CapabilitiesSource) {
 		toSerialize["capabilitiesSource"] = o.CapabilitiesSource

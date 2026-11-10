@@ -46,6 +46,7 @@ type projectProxyFixture struct {
 	svc          *ProjectMCPProxyService
 	proxies      map[string]*models.MCPProxy // handle -> proxy
 	endpoints    []*models.MCPProxyEndpoint
+	updatedEps   []models.MCPProxyEndpoint
 	updateCalls  int
 	createCalls  int
 	txCalls      int
@@ -142,6 +143,10 @@ func newProjectProxyFixture(t *testing.T) *projectProxyFixture {
 			f.endpoints = append(f.endpoints, e)
 			return nil
 		},
+		UpdateEndpointFunc: func(_ context.Context, _ *gorm.DB, e *models.MCPProxyEndpoint) error {
+			f.updatedEps = append(f.updatedEps, *e)
+			return nil
+		},
 		ListEndpointEnvironmentsByProxyFunc: func(_ context.Context, _ uuid.UUID) ([]models.MCPProxyEndpointEnvironment, error) {
 			return f.endpointEnvs, nil
 		},
@@ -192,7 +197,7 @@ func orderReq() models.ProjectMCPProxyRequest {
 		Name:        "Orders MCP",
 		Description: "orders",
 		Context:     "/orders-mcp-3f2a9c1e",
-		Source:      models.MCPProxySource{ComponentName: "orders-mcp", EndpointName: "mcp"},
+		Source:      &models.MCPProxySource{ComponentName: "orders-mcp", EndpointName: "mcp"},
 	}
 }
 
@@ -287,15 +292,33 @@ func TestUpsertHandleOwnedByOrgProxy_409HandleInUse(t *testing.T) {
 func TestUpsertCreateNotPermitted(t *testing.T) {
 	f := newProjectProxyFixture(t)
 	ctx := context.Background()
-	_, _, err := f.svc.UpsertWithCreateCheck(ctx, testOrg, testProjName, testProjA, "orders", orderReq(), false)
+	_, _, err := f.svc.UpsertWithCreateCheck(ctx, testOrg, testProjName, testProjA, "orders", orderReq(), false, false)
 	assert.ErrorIs(t, err, utils.ErrMCPProxyCreateNotPermitted)
 	assert.Zero(t, f.createCalls)
 
 	_, _, err = f.svc.Upsert(ctx, testOrg, testProjName, testProjA, "orders", orderReq())
 	require.NoError(t, err)
-	_, created, err := f.svc.UpsertWithCreateCheck(ctx, testOrg, testProjName, testProjA, "orders", orderReq(), false)
+	_, created, err := f.svc.UpsertWithCreateCheck(ctx, testOrg, testProjName, testProjA, "orders", orderReq(), false, false)
 	require.NoError(t, err, "an existing proxy needs no create permission")
 	assert.False(t, created)
+}
+
+// A create-only PUT registers a new proxy, and refuses a handle the project already has without changing it.
+func TestUpsertCreateOnly(t *testing.T) {
+	f := newProjectProxyFixture(t)
+	ctx := context.Background()
+	_, created, err := f.svc.UpsertWithCreateCheck(ctx, testOrg, testProjName, testProjA, "docs", urlReq(), true, true)
+	require.NoError(t, err)
+	assert.True(t, created)
+
+	again := urlReq()
+	again.Name = "Someone else's MCP"
+	again.Upstream.URL = "https://1.1.1.1/mcp"
+	_, _, err = f.svc.UpsertWithCreateCheck(ctx, testOrg, testProjName, testProjA, "docs", again, true, true)
+	assert.ErrorIs(t, err, utils.ErrMCPProxyExists)
+	assert.Zero(t, f.updateCalls)
+	assert.Equal(t, "Docs MCP", f.proxies["docs"].Configuration.Name)
+	assert.Equal(t, publicMCPURL, f.proxies["docs"].Configuration.Upstream.Main.URL)
 }
 
 func TestUpsertValidation(t *testing.T) {
@@ -490,4 +513,132 @@ func TestUpsert_ContextSegments(t *testing.T) {
 			assert.Equal(t, good, resp.Context, "reads back as sent")
 		})
 	}
+}
+
+// publicMCPURL is a public upstream that needs no DNS lookup.
+const publicMCPURL = "https://8.8.8.8/mcp"
+
+func urlReq() models.ProjectMCPProxyRequest {
+	return models.ProjectMCPProxyRequest{
+		Name:     "Docs MCP",
+		Upstream: &models.ProjectMCPProxyUpstream{URL: publicMCPURL},
+	}
+}
+
+// A project proxy can front a public URL instead of a component endpoint: no component is looked up, and the URL
+// reads back as the proxy's upstream.
+func TestUpsertByURL_StoredAndReadBack(t *testing.T) {
+	f := newProjectProxyFixture(t)
+	f.getComponentErr = errors.New("no component is looked up for a URL proxy")
+	ctx := context.Background()
+
+	resp, created, err := f.svc.Upsert(ctx, testOrg, testProjName, testProjA, "docs", urlReq())
+	require.NoError(t, err)
+	assert.True(t, created)
+	assert.Nil(t, resp.Source)
+	require.NotNil(t, resp.Upstream)
+	assert.Equal(t, publicMCPURL, resp.Upstream.URL)
+
+	stored := f.proxies["docs"]
+	assert.Nil(t, stored.Configuration.Source)
+	require.NotNil(t, stored.Configuration.Upstream.Main)
+	assert.Equal(t, publicMCPURL, stored.Configuration.Upstream.Main.URL)
+
+	_, created, err = f.svc.Upsert(ctx, testOrg, testProjName, testProjA, "docs", urlReq())
+	require.NoError(t, err)
+	assert.False(t, created)
+	assert.Zero(t, f.updateCalls, "identical body must not write")
+}
+
+func TestUpsertByURL_Validation(t *testing.T) {
+	ctx := context.Background()
+	for name, mutate := range map[string]func(*models.ProjectMCPProxyRequest){
+		"neither source nor upstream": func(r *models.ProjectMCPProxyRequest) { r.Upstream = nil },
+		"both source and upstream": func(r *models.ProjectMCPProxyRequest) {
+			r.Source = &models.MCPProxySource{ComponentName: "c", EndpointName: "e"}
+		},
+		"not a URL":     func(r *models.ProjectMCPProxyRequest) { r.Upstream.URL = "not a url" },
+		"a private URL": func(r *models.ProjectMCPProxyRequest) { r.Upstream.URL = "http://10.0.0.5:8080/mcp" },
+		"loopback":      func(r *models.ProjectMCPProxyRequest) { r.Upstream.URL = "http://127.0.0.1/mcp" },
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := newProjectProxyFixture(t)
+			req := urlReq()
+			mutate(&req)
+			_, _, err := f.svc.Upsert(ctx, testOrg, testProjName, testProjA, "docs", req)
+			assert.ErrorIs(t, err, utils.ErrInvalidInput)
+			assert.Zero(t, f.createCalls)
+		})
+	}
+}
+
+// A proxy keeps what it fronts: a sourced proxy cannot become a URL proxy, nor the other way round.
+func TestUpsertByURL_KindIsImmutable(t *testing.T) {
+	f := newProjectProxyFixture(t)
+	ctx := context.Background()
+	_, _, err := f.svc.Upsert(ctx, testOrg, testProjName, testProjA, "orders", orderReq())
+	require.NoError(t, err)
+	_, _, err = f.svc.Upsert(ctx, testOrg, testProjName, testProjA, "docs", urlReq())
+	require.NoError(t, err)
+
+	toURL := urlReq()
+	toURL.Name = "Orders MCP"
+	_, _, err = f.svc.Upsert(ctx, testOrg, testProjName, testProjA, "orders", toURL)
+	assert.ErrorIs(t, err, utils.ErrImmutableFieldChange)
+
+	toSource := orderReq()
+	_, _, err = f.svc.Upsert(ctx, testOrg, testProjName, testProjA, "docs", toSource)
+	assert.ErrorIs(t, err, utils.ErrImmutableFieldChange)
+	assert.Zero(t, f.updateCalls)
+}
+
+// A binding's stored upstream credential is sent to the proxy's URL, so the URL may not move to another origin while
+// a binding holds one; the same origin, or a binding without a credential, takes the new URL.
+func TestUpsertByURL_URLChangeKeepsCredentialOnOrigin(t *testing.T) {
+	apiKey, header, secret := "api-key", "X-Key", "s3cret"
+	for name, tc := range map[string]struct {
+		withAuth bool
+		newURL   string
+		wantErr  bool
+	}{
+		"another origin with auth":    {withAuth: true, newURL: "https://1.1.1.1/mcp", wantErr: true},
+		"another port with auth":      {withAuth: true, newURL: "https://8.8.8.8:8443/mcp", wantErr: true},
+		"another scheme with auth":    {withAuth: true, newURL: "http://8.8.8.8/mcp", wantErr: true},
+		"same origin with auth":       {withAuth: true, newURL: "https://8.8.8.8:443/v2/mcp"},
+		"another origin without auth": {newURL: "https://1.1.1.1/mcp"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := newProjectProxyFixture(t)
+			ctx := context.Background()
+			_, _, err := f.svc.Upsert(ctx, testOrg, testProjName, testProjA, "docs", urlReq())
+			require.NoError(t, err)
+			upstream := &models.UpstreamEndpoint{URL: publicMCPURL}
+			if tc.withAuth {
+				upstream.Auth = &models.UpstreamAuth{Type: &apiKey, Header: &header, Value: &secret}
+			}
+			f.proxies["docs"].Endpoints = []models.MCPProxyEndpoint{{
+				UUID: uuid.New(), Configuration: models.MCPEndpointConfig{Upstream: upstream},
+			}}
+
+			req := urlReq()
+			req.Upstream.URL = tc.newURL
+			_, _, err = f.svc.Upsert(ctx, testOrg, testProjName, testProjA, "docs", req)
+			if tc.wantErr {
+				assert.ErrorIs(t, err, utils.ErrInvalidInput)
+				assert.Empty(t, f.updatedEps)
+				assert.Zero(t, f.updateCalls)
+				return
+			}
+			require.NoError(t, err)
+			require.Len(t, f.updatedEps, 1)
+			assert.Equal(t, tc.newURL, f.updatedEps[0].Configuration.Upstream.URL)
+		})
+	}
+}
+
+func TestSameURLOrigin(t *testing.T) {
+	assert.True(t, sameURLOrigin("https://a.example/mcp", "https://A.example:443/other"))
+	assert.False(t, sameURLOrigin("https://a.example/mcp", "https://b.example/mcp"))
+	assert.False(t, sameURLOrigin("https://a.example/mcp", "not a url"))
+	assert.False(t, sameURLOrigin("", ""))
 }

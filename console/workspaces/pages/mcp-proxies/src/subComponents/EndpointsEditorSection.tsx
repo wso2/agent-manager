@@ -49,6 +49,8 @@ export interface EndpointsEditorSectionProps {
   onEndpointAdded?: (draft: Omit<EndpointDraft, "id">) => void;
   // Whether the open add/edit form holds edits not yet applied to `endpoints`.
   onEndpointFormDirtyChange?: (dirty: boolean) => void;
+  // The most endpoints the server takes; the add button goes once it is reached.
+  maxEndpoints?: number;
 }
 
 // Shared by AddMCPProxyForm and EditMCPProxy: renders the endpoint list with
@@ -68,6 +70,7 @@ export function EndpointsEditorSection({
   emptyStateText,
   onEndpointAdded,
   onEndpointFormDirtyChange,
+  maxEndpoints,
 }: EndpointsEditorSectionProps) {
   const environmentLabels = useMemo(() => {
     const labels = new Map<string, string>();
@@ -213,7 +216,9 @@ export function EndpointsEditorSection({
         </Box>
       )}
 
-      {!addOpen && editingId === null && (
+      {!addOpen &&
+        editingId === null &&
+        (maxEndpoints === undefined || endpoints.length < maxEndpoints) && (
         <Box>
           <Tooltip
             title={
@@ -237,7 +242,7 @@ export function EndpointsEditorSection({
         </Box>
       )}
 
-      {environments.length > 1 ? (
+      {environments.length > 1 && maxEndpoints !== 1 ? (
         <Typography variant="caption" color="text.secondary">
           {usedEnvIds.size} of {environments.length} environments have an
           endpoint.

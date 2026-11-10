@@ -203,6 +203,11 @@ export const LazyMCPProxiesOrg = lazy(() =>
     default: m.metaData.levels!.organization as ComponentType,
   }))
 );
+export const LazyMCPProxiesProject = lazy(() =>
+  import("@agent-management-platform/mcp-proxies").then((m) => ({
+    default: m.metaData.levels!.project as ComponentType,
+  }))
+);
 
 // Gateways
 export const LazyGatewaysOrg = lazy(() =>

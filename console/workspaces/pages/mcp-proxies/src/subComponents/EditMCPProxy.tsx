@@ -15,7 +15,7 @@
  * under the License.
  */
 
-import React, { useCallback, useMemo, useState } from "react";
+import React, { type ReactNode, useCallback, useMemo, useState } from "react";
 import {
   Alert,
   Box,
@@ -50,7 +50,7 @@ import { type EndpointDraft } from "./EndpointFormFields";
 import { EndpointsEditorSection } from "./EndpointsEditorSection";
 import { draftToEndpoint, endpointToDraft } from "./mcpEndpoints";
 
-interface EditMCPProxyFormValues {
+export interface EditMCPProxyFormValues {
   name: string;
   version: string;
   context?: string;
@@ -64,18 +64,43 @@ const editMCPProxySchema = z.object({
   description: z.string().trim().optional(),
 });
 
-interface EditMCPProxyFormProps {
-  proxy: MCPProxy;
+export interface EditMCPProxyFormProps {
+  /** The server's id (its handle) and the fields the form edits. */
+  proxy: { id: string; name: string; version: string; context?: string; description?: string };
+  /** The endpoints the editor starts with. */
+  initialEndpoints: EndpointDraft[];
   orgId: string;
   environments: Environment[];
   viewHref: string;
+  /** Saves the form; a rejection is shown as `error` and keeps the user on the page. */
+  onSave: (values: EditMCPProxyFormValues, endpoints: EndpointDraft[]) => Promise<void>;
+  isPending: boolean;
+  error: unknown;
+  contextPlaceholder?: string;
+  contextHelperText?: string;
+  /** The most endpoints the server takes; see EndpointsEditorSection. */
+  maxEndpoints?: number;
+  /** Shown in place of the endpoint editor, for a server whose endpoint is not edited here. */
+  endpointsNotice?: ReactNode;
+  /** Shown under the Endpoints heading in place of the org wording. */
+  endpointsDescription?: string;
 }
 
-function EditMCPProxyForm({
+/** The MCP server edit form: its details and its endpoints. Saving is the caller's. */
+export function EditMCPProxyForm({
   proxy,
+  initialEndpoints,
   orgId,
   environments,
   viewHref,
+  onSave,
+  isPending,
+  error: updateError,
+  contextPlaceholder = "/default/my-mcp-proxy",
+  contextHelperText,
+  maxEndpoints,
+  endpointsNotice,
+  endpointsDescription,
 }: EditMCPProxyFormProps) {
   const navigate = useNavigate();
   const [formData, setFormData] = useState<EditMCPProxyFormValues>({
@@ -88,18 +113,9 @@ function EditMCPProxyForm({
   const { errors, validateField, validateForm, setFieldError } =
     useFormValidation<EditMCPProxyFormValues>(editMCPProxySchema);
 
-  const {
-    mutateAsync: updateMCPProxy,
-    isPending,
-    error: updateError,
-  } = useUpdateMCPProxy();
-
   // --- Endpoints section state ---
-  // Seeded once from the proxy's native endpoints; a draft seeded from a backend
-  // endpoint keeps its handle as its id.
-  const [endpoints, setEndpoints] = useState<EndpointDraft[]>(() =>
-    (proxy.endpoints ?? []).map(endpointToDraft),
-  );
+  // Seeded once; a draft seeded from a backend endpoint keeps its handle as its id.
+  const [endpoints, setEndpoints] = useState<EndpointDraft[]>(initialEndpoints);
   const [addOpen, setAddOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
@@ -128,44 +144,14 @@ function EditMCPProxyForm({
     async (e: React.FormEvent) => {
       e.preventDefault();
       if (!validateForm(formData)) return;
-
-      // Match each draft back to its source endpoint by handle so an edited endpoint
-      // keeps its policies, security and tool-scope bindings; drafts added this session
-      // have no match and get freshly derived handles + default security.
-      const existingByHandle = new Map(
-        (proxy.endpoints ?? []).map((endpoint) => [endpoint.id, endpoint]),
-      );
-      const usedHandles = new Set<string>();
-      const nextEndpoints = endpoints.map((draft, index) =>
-        draftToEndpoint(
-          draft,
-          index,
-          existingByHandle.get(draft.id),
-          usedHandles,
-        ),
-      );
-
       try {
-        await updateMCPProxy({
-          params: { orgName: orgId, proxyId: proxy.id },
-          body: {
-            ...proxy,
-            name: formData.name.trim(),
-            version: formData.version.trim(),
-            context: formData.context?.trim() || undefined,
-            description: formData.description?.trim() || undefined,
-            endpoints: nextEndpoints,
-          },
-        });
+        await onSave(formData, endpoints);
         allowNavigation(() => navigate(viewHref));
       } catch {
         // Error is surfaced via updateError below.
       }
     },
-    [
-      formData, validateForm, endpoints, updateMCPProxy, orgId, proxy,
-      allowNavigation, navigate, viewHref,
-    ],
+    [formData, validateForm, endpoints, onSave, allowNavigation, navigate, viewHref],
   );
 
   const errorMessage = useMemo(() => {
@@ -235,11 +221,11 @@ function EditMCPProxyForm({
                 hideCharacterCount={
                   (formData.context?.length ?? 0) < INPUT_LIMITS.PATH
                 }
-                placeholder="/default/my-mcp-proxy"
+                placeholder={contextPlaceholder}
                 value={formData.context}
                 onChange={(e) => handleFieldChange("context", e.target.value)}
                 error={Boolean(errors.context)}
-                helperText={errors.context}
+                helperText={errors.context ?? contextHelperText}
                 disabled={isPending}
               />
             </Grid>
@@ -270,11 +256,13 @@ function EditMCPProxyForm({
           <Stack spacing={2}>
             <Typography variant="subtitle1">Endpoints</Typography>
             <Typography variant="body2" color="text.secondary">
-              {environments.length > 1
-                ? "Endpoints map backend MCP servers to environments. Editing an endpoint updates the upstream URL, authentication, and capabilities for the environments it serves. Environments left without an endpoint become unconfigured."
-                : "Editing an endpoint updates the upstream URL, authentication, and capabilities for this MCP Server."}
+              {endpointsDescription ??
+                (environments.length > 1
+                  ? "Endpoints map backend MCP servers to environments. Editing an endpoint updates the upstream URL, authentication, and capabilities for the environments it serves. Environments left without an endpoint become unconfigured."
+                  : "Editing an endpoint updates the upstream URL, authentication, and capabilities for this MCP Server.")}
             </Typography>
 
+            {endpointsNotice ?? (
             <EndpointsEditorSection
               orgId={orgId}
               environments={environments}
@@ -286,7 +274,9 @@ function EditMCPProxyForm({
               onEditingIdChange={setEditingId}
               emptyStateText="No endpoints configured yet."
               onEndpointFormDirtyChange={setIsEndpointFormDirty}
+              maxEndpoints={maxEndpoints}
             />
+            )}
           </Stack>
         </Form.Stack>
 
@@ -312,6 +302,70 @@ function EditMCPProxyForm({
         )}
       </Stack>
     </form>
+  );
+}
+
+/** The org MCP server's save: details and endpoints in one update. */
+function OrgEditMCPProxyForm({
+  proxy,
+  orgId,
+  environments,
+  viewHref,
+}: {
+  proxy: MCPProxy;
+  orgId: string;
+  environments: Environment[];
+  viewHref: string;
+}) {
+  const { mutateAsync: updateMCPProxy, isPending, error } = useUpdateMCPProxy();
+  const initialEndpoints = useMemo(
+    () => (proxy.endpoints ?? []).map(endpointToDraft),
+    [proxy.endpoints],
+  );
+
+  const handleSave = useCallback(
+    async (formData: EditMCPProxyFormValues, endpoints: EndpointDraft[]) => {
+      // Match each draft back to its source endpoint by handle so an edited endpoint
+      // keeps its policies, security and tool-scope bindings; drafts added this session
+      // have no match and get freshly derived handles + default security.
+      const existingByHandle = new Map(
+        (proxy.endpoints ?? []).map((endpoint) => [endpoint.id, endpoint]),
+      );
+      const usedHandles = new Set<string>();
+      const nextEndpoints = endpoints.map((draft, index) =>
+        draftToEndpoint(
+          draft,
+          index,
+          existingByHandle.get(draft.id),
+          usedHandles,
+        ),
+      );
+      await updateMCPProxy({
+        params: { orgName: orgId, proxyId: proxy.id },
+        body: {
+          ...proxy,
+          name: formData.name.trim(),
+          version: formData.version.trim(),
+          context: formData.context?.trim() || undefined,
+          description: formData.description?.trim() || undefined,
+          endpoints: nextEndpoints,
+        },
+      });
+    },
+    [orgId, proxy, updateMCPProxy],
+  );
+
+  return (
+    <EditMCPProxyForm
+      proxy={proxy}
+      initialEndpoints={initialEndpoints}
+      orgId={orgId}
+      environments={environments}
+      viewHref={viewHref}
+      onSave={handleSave}
+      isPending={isPending}
+      error={error}
+    />
   );
 }
 
@@ -343,7 +397,7 @@ export function EditMCPProxy() {
           backLabel="Back to MCP servers"
         />
       ) : (
-        <EditMCPProxyForm
+        <OrgEditMCPProxyForm
           proxy={proxy}
           orgId={orgId}
           environments={environments}

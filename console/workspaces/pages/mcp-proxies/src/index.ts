@@ -9,6 +9,7 @@
 import { AddMCPProxyOrganization } from "./AddMCPProxy.Organization";
 import { MCPLogo } from "./components/MCPLogo";
 import { MCPProxiesOrganization } from "./MCPProxies.Organization";
+import { MCPProxiesProject } from "./MCPProxies.Project";
 import { ViewMCPProxy } from "./subComponents/ViewMCPProxy";
 import {
   getCapabilityId,
@@ -25,6 +26,7 @@ export const metaData: PageMetadata = {
   component: MCPProxiesOrganization,
   levels: {
     organization: MCPProxiesOrganization,
+    project: MCPProxiesProject,
     addMCPProxyOrganization: AddMCPProxyOrganization,
     viewMCPProxyOrganization: ViewMCPProxy,
   },
@@ -34,6 +36,7 @@ export {
   AddMCPProxyOrganization,
   MCPLogo,
   MCPProxiesOrganization,
+  MCPProxiesProject,
   ViewMCPProxy,
   getCapabilityId,
   isToolBlockedByAcl,

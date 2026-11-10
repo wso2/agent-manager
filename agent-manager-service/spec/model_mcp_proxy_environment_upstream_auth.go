@@ -21,7 +21,7 @@ var _ MappedNullable = &MCPProxyEnvironmentUpstreamAuth{}
 type MCPProxyEnvironmentUpstreamAuth struct {
 	Type   string  `json:"type"`
 	Header *string `json:"header,omitempty"`
-	// Required with api-key. Stored encrypted; never returned.
+	// Required with api-key, unless the binding already has an api-key upstream auth: an omitted value then keeps the stored one. Stored encrypted; never returned.
 	Value *string `json:"value,omitempty"`
 }
 

@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"net/url"
 	"slices"
 	"strings"
 	"time"
@@ -33,6 +34,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
+	"github.com/wso2/agent-manager/agent-manager-service/utils/ssrf"
 )
 
 const (
@@ -97,14 +99,17 @@ func (s *ProjectMCPProxyService) ensureSourceSupported(
 func (s *ProjectMCPProxyService) Upsert(
 	ctx context.Context, ouID, projectName, projectUUID, handle string, req models.ProjectMCPProxyRequest,
 ) (*models.ProjectMCPProxyResponse, bool, error) {
-	return s.UpsertWithCreateCheck(ctx, ouID, projectName, projectUUID, handle, req, true)
+	return s.UpsertWithCreateCheck(ctx, ouID, projectName, projectUUID, handle, req, true, false)
 }
 
 // UpsertWithCreateCheck is Upsert for a caller that may be allowed to update but not to
 // create: when canCreate is false and the proxy does not exist it returns
-// utils.ErrMCPProxyCreateNotPermitted without writing anything.
+// utils.ErrMCPProxyCreateNotPermitted without writing anything. With createOnly it only
+// creates: a proxy this project has (or would adopt) under the handle returns
+// utils.ErrMCPProxyExists without writing anything, so a registration never replaces one.
 func (s *ProjectMCPProxyService) UpsertWithCreateCheck(
-	ctx context.Context, ouID, projectName, projectUUID, handle string, req models.ProjectMCPProxyRequest, canCreate bool,
+	ctx context.Context, ouID, projectName, projectUUID, handle string, req models.ProjectMCPProxyRequest,
+	canCreate, createOnly bool,
 ) (*models.ProjectMCPProxyResponse, bool, error) {
 	handle = strings.TrimSpace(handle)
 	desired, err := normalizeProjectMCPProxyRequest(handle, req)
@@ -112,12 +117,19 @@ func (s *ProjectMCPProxyService) UpsertWithCreateCheck(
 		return nil, false, err
 	}
 
-	if err := s.ensureSourceSupported(ctx, ouID, projectName, desired.source); err != nil {
-		return nil, false, err
+	if desired.source != nil {
+		if err := s.ensureSourceSupported(ctx, ouID, projectName, *desired.source); err != nil {
+			return nil, false, err
+		}
+	} else if err := ssrf.ValidateURL(ctx, desired.upstreamURL); err != nil {
+		// A URL proxy's upstream is called from a managed gateway as given, so it must be public.
+		return nil, false, fmt.Errorf("%w: upstream.url: %w", utils.ErrInvalidInput, err)
 	}
 
 	existing, err := s.base.repo.GetInProject(ctx, handle, ouID, projectUUID)
 	switch {
+	case err == nil && createOnly:
+		return nil, false, fmt.Errorf("%w: %q", utils.ErrMCPProxyExists, handle)
 	case err == nil:
 		resp, err := s.update(ctx, ouID, existing, desired, "")
 		if err != nil {
@@ -133,6 +145,8 @@ func (s *ProjectMCPProxyService) UpsertWithCreateCheck(
 	// left by a deleted project of the same name: this re-created project adopts it.
 	orphan, err := s.base.repo.GetInProjectByName(ctx, handle, ouID, projectName)
 	switch {
+	case err == nil && orphan.ProjectUUID != nil && *orphan.ProjectUUID != projectUUID && createOnly:
+		return nil, false, fmt.Errorf("%w: %q", utils.ErrMCPProxyExists, handle)
 	case err == nil && orphan.ProjectUUID != nil && *orphan.ProjectUUID != projectUUID:
 		resp, err := s.update(ctx, ouID, orphan, desired, projectUUID)
 		if err != nil {
@@ -160,6 +174,10 @@ func (s *ProjectMCPProxyService) UpsertWithCreateCheck(
 	if err != nil {
 		if !errors.Is(err, utils.ErrMCPProxyHandleInUse) {
 			return nil, false, err
+		}
+		if createOnly {
+			// A concurrent create took the handle; the insert's unique constraint keeps this one from replacing it.
+			return nil, false, fmt.Errorf("%w: %q", utils.ErrMCPProxyExists, handle)
 		}
 		// A concurrent ensure of the same proxy won the insert: converge on it as an update.
 		existing, getErr := s.base.repo.GetInProject(ctx, handle, ouID, projectUUID)
@@ -375,7 +393,9 @@ func (s *ProjectMCPProxyService) getInDeletedProject(
 // desiredProjectMCPProxy is a request with its defaults applied.
 type desiredProjectMCPProxy struct {
 	name, description, version, context, specVersion string
-	source                                           models.MCPProxySource
+	// Exactly one of source and upstreamURL is set.
+	source      *models.MCPProxySource
+	upstreamURL string
 }
 
 func normalizeProjectMCPProxyRequest(handle string, req models.ProjectMCPProxyRequest) (desiredProjectMCPProxy, error) {
@@ -385,10 +405,15 @@ func normalizeProjectMCPProxyRequest(handle string, req models.ProjectMCPProxyRe
 		version:     strings.TrimSpace(req.Version),
 		context:     strings.TrimSpace(req.Context),
 		specVersion: strings.TrimSpace(req.McpSpecVersion),
-		source: models.MCPProxySource{
+	}
+	if req.Source != nil {
+		d.source = &models.MCPProxySource{
 			ComponentName: strings.TrimSpace(req.Source.ComponentName),
 			EndpointName:  strings.TrimSpace(req.Source.EndpointName),
-		},
+		}
+	}
+	if req.Upstream != nil {
+		d.upstreamURL = strings.TrimSpace(req.Upstream.URL)
 	}
 	if handle == "" || len(handle) > 100 || !mcpProxyHandleRe.MatchString(handle) {
 		return d, fmt.Errorf("%w: proxy id must be kebab-case (lowercase letters, digits, single hyphens) and at most 100 characters", utils.ErrInvalidInput)
@@ -396,8 +421,19 @@ func normalizeProjectMCPProxyRequest(handle string, req models.ProjectMCPProxyRe
 	if d.name == "" {
 		return d, fmt.Errorf("%w: name is required", utils.ErrInvalidInput)
 	}
-	if d.source.ComponentName == "" || d.source.EndpointName == "" {
-		return d, fmt.Errorf("%w: source.componentName and source.endpointName are required", utils.ErrInvalidInput)
+	switch {
+	case d.source != nil && req.Upstream != nil:
+		return d, fmt.Errorf("%w: set either source or upstream, not both", utils.ErrInvalidInput)
+	case d.source != nil:
+		if d.source.ComponentName == "" || d.source.EndpointName == "" {
+			return d, fmt.Errorf("%w: source.componentName and source.endpointName are required", utils.ErrInvalidInput)
+		}
+	case req.Upstream != nil:
+		if _, err := ssrf.ValidateURLShape(d.upstreamURL); err != nil {
+			return d, fmt.Errorf("%w: upstream.url: %w", utils.ErrInvalidInput, err)
+		}
+	default:
+		return d, fmt.Errorf("%w: source or upstream is required", utils.ErrInvalidInput)
 	}
 	if d.version == "" {
 		d.version = defaultProjectMCPProxyVersion
@@ -421,7 +457,6 @@ func (s *ProjectMCPProxyService) create(
 	ctx context.Context, ouID, projectName, projectUUID, handle string, d desiredProjectMCPProxy,
 ) (*models.MCPProxy, error) {
 	ctxPath := d.context
-	source := d.source
 	proxy := &models.MCPProxy{
 		Description: d.description,
 		CreatedBy:   projectMCPProxyCreatedBy,
@@ -431,9 +466,9 @@ func (s *ProjectMCPProxyService) create(
 			Version:     d.version,
 			Context:     &ctxPath,
 			SpecVersion: d.specVersion,
-			Source:      &source,
 		},
 	}
+	d.applyUpstream(&proxy.Configuration)
 	// A project proxy has no endpoint until it is bound: each environment binding is its own endpoint row
 	// (PutEnvironment), since the upstream and security differ per environment.
 	artifactName := models.MCPProxyArtifactName(&projectName, handle, d.name)
@@ -462,8 +497,13 @@ func (s *ProjectMCPProxyService) update(
 	ctx context.Context, ouID string, existing *models.MCPProxy, d desiredProjectMCPProxy, adoptInto string,
 ) (*models.ProjectMCPProxyResponse, error) {
 	cfg := existing.Configuration
-	if cfg.Source != nil && *cfg.Source != d.source {
+	storedURL := projectMCPProxyUpstreamURL(existing)
+	switch {
+	case cfg.Source != nil && (d.source == nil || *cfg.Source != *d.source):
 		return nil, fmt.Errorf("%w: source", utils.ErrImmutableFieldChange)
+	case cfg.Source == nil && storedURL != "" && d.source != nil:
+		// A proxy registered by URL stays one; its URL may change.
+		return nil, fmt.Errorf("%w: upstream (a proxy registered by URL cannot take a source)", utils.ErrImmutableFieldChange)
 	}
 	adopting := adoptInto != "" && existing.ProjectUUID != nil && *existing.ProjectUUID != adoptInto
 
@@ -471,7 +511,7 @@ func (s *ProjectMCPProxyService) update(
 	if cfg.Context != nil {
 		storedContext = *cfg.Context
 	}
-	unchanged := cfg.Source != nil &&
+	unchanged := (cfg.Source != nil || storedURL != "") && storedURL == d.upstreamURL &&
 		cfg.Name == d.name && cfg.Version == d.version && storedContext == d.context &&
 		cfg.SpecVersion == d.specVersion && existing.Description == d.description
 	if unchanged && !adopting {
@@ -480,13 +520,12 @@ func (s *ProjectMCPProxyService) update(
 
 	updated := *existing
 	ctxPath := d.context
-	source := d.source
 	updated.Description = d.description
 	updated.Configuration.Name = d.name
 	updated.Configuration.Version = d.version
 	updated.Configuration.Context = &ctxPath
 	updated.Configuration.SpecVersion = d.specVersion
-	updated.Configuration.Source = &source
+	d.applyUpstream(&updated.Configuration)
 
 	if err := s.base.tx(ctx, func(tx *gorm.DB) error {
 		if adopting {
@@ -498,6 +537,11 @@ func (s *ProjectMCPProxyService) update(
 		if unchanged {
 			return nil
 		}
+		if storedURL != d.upstreamURL {
+			if err := s.updateBindingUpstreams(ctx, tx, existing, d.upstreamURL); err != nil {
+				return err
+			}
+		}
 		if mcpGatewayContext(&updated, "") != mcpGatewayContext(existing, "") {
 			if err := s.checkContextChange(ctx, tx, ouID, existing, mcpGatewayContext(&updated, "")); err != nil {
 				return err
@@ -505,7 +549,8 @@ func (s *ProjectMCPProxyService) update(
 		}
 		return s.base.repo.Update(ctx, tx, &updated, ouID)
 	}); err != nil {
-		if errors.Is(err, utils.ErrMCPContextInUse) || errors.Is(err, utils.ErrMCPProxyNotFound) {
+		if errors.Is(err, utils.ErrMCPContextInUse) || errors.Is(err, utils.ErrMCPProxyNotFound) ||
+			errors.Is(err, utils.ErrInvalidInput) {
 			return nil, err
 		}
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -578,11 +623,75 @@ func handleInUseError(handle string) error {
 	return fmt.Errorf("%w: proxy id %q", utils.ErrMCPProxyHandleInUse, handle)
 }
 
-func projectMCPProxySource(proxy *models.MCPProxy) models.MCPProxySource {
-	if proxy.Configuration.Source != nil {
-		return *proxy.Configuration.Source
+// applyUpstream sets what the proxy fronts on cfg: its source, or its public upstream URL.
+func (d desiredProjectMCPProxy) applyUpstream(cfg *models.MCPProxyConfig) {
+	if d.source != nil {
+		source := *d.source
+		cfg.Source = &source
+		cfg.Upstream = models.UpstreamConfig{}
+		return
 	}
-	return models.MCPProxySource{}
+	cfg.Source = nil
+	cfg.Upstream = models.UpstreamConfig{Main: &models.UpstreamEndpoint{URL: d.upstreamURL}}
+}
+
+// updateBindingUpstreams points every binding of a proxy registered by URL at its new URL, in tx. The bindings are
+// re-rendered once the proxy is stored (rerenderBindings).
+func (s *ProjectMCPProxyService) updateBindingUpstreams(
+	ctx context.Context, tx *gorm.DB, proxy *models.MCPProxy, upstreamURL string,
+) error {
+	for i := range proxy.Endpoints {
+		endpoint := proxy.Endpoints[i]
+		if endpoint.Configuration.Upstream == nil {
+			continue
+		}
+		upstream := *endpoint.Configuration.Upstream
+		// The stored credential is sent to the URL, so it may not follow the URL to another origin.
+		if upstream.Auth != nil && !sameURLOrigin(upstream.URL, upstreamURL) {
+			return fmt.Errorf("%w: upstream.url moves to another origin while a binding has upstream auth; "+
+				"clear its upstreamAuth first", utils.ErrInvalidInput)
+		}
+		upstream.URL = upstreamURL
+		endpoint.Configuration.Upstream = &upstream
+		if err := s.base.endpointRepo.UpdateEndpoint(ctx, tx, &endpoint); err != nil {
+			return fmt.Errorf("failed to update the MCP proxy binding's upstream: %w", err)
+		}
+	}
+	return nil
+}
+
+// sameURLOrigin reports whether two URLs share scheme, host and port; a URL that does not parse matches nothing.
+func sameURLOrigin(a, b string) bool {
+	ua, errA := url.Parse(strings.TrimSpace(a))
+	ub, errB := url.Parse(strings.TrimSpace(b))
+	if errA != nil || errB != nil || ua.Host == "" || ub.Host == "" {
+		return false
+	}
+	return isSameOrigin(ua, ub)
+}
+
+// projectMCPProxySource is the component endpoint the proxy fronts, or nil for a proxy registered by URL.
+func projectMCPProxySource(proxy *models.MCPProxy) *models.MCPProxySource {
+	if proxy.Configuration.Source == nil {
+		return nil
+	}
+	source := *proxy.Configuration.Source
+	return &source
+}
+
+// projectMCPProxyUpstreamURL is the public URL a proxy registered by URL fronts, or "" for a sourced proxy.
+func projectMCPProxyUpstreamURL(proxy *models.MCPProxy) string {
+	if proxy.Configuration.Source != nil || proxy.Configuration.Upstream.Main == nil {
+		return ""
+	}
+	return strings.TrimSpace(proxy.Configuration.Upstream.Main.URL)
+}
+
+func projectMCPProxyUpstream(proxy *models.MCPProxy) *models.ProjectMCPProxyUpstream {
+	if url := projectMCPProxyUpstreamURL(proxy); url != "" {
+		return &models.ProjectMCPProxyUpstream{URL: url}
+	}
+	return nil
 }
 
 func projectMCPProxyTimes(proxy *models.MCPProxy) (created, updated *time.Time) {
@@ -603,6 +712,7 @@ func projectMCPProxyResponse(proxy *models.MCPProxy) *models.ProjectMCPProxyResp
 		McpSpecVersion: proxy.Configuration.SpecVersion,
 		ProjectName:    valueOrEmpty(proxy.ProjectName),
 		Source:         projectMCPProxySource(proxy),
+		Upstream:       projectMCPProxyUpstream(proxy),
 		Environments:   []models.MCPProxyEnvironmentResponse{},
 		CreatedBy:      proxy.CreatedBy,
 		CreatedAt:      createdAt,
@@ -619,6 +729,7 @@ func projectMCPProxyListItem(proxy *models.MCPProxy) models.ProjectMCPProxyListI
 		Version:      proxy.Configuration.Version,
 		Context:      valueOrEmpty(proxy.Configuration.Context),
 		Source:       projectMCPProxySource(proxy),
+		Upstream:     projectMCPProxyUpstream(proxy),
 		Environments: []models.ProjectMCPProxyEnvironmentSummary{},
 		CreatedAt:    createdAt,
 		UpdatedAt:    updatedAt,

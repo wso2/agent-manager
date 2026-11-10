@@ -416,7 +416,7 @@ export const MCPProxySection: React.FC<MCPProxySectionProps> = ({
   hideHeading = false,
   actionSlot,
 }) => {
-  const { orgId } = useParams<{ orgId: string }>();
+  const { orgId, projectId } = useParams<{ orgId: string; projectId: string }>();
 
   // editingIndex: index of the entry whose proxy is being selected, or null when adding new
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
@@ -437,9 +437,10 @@ export const MCPProxySection: React.FC<MCPProxySectionProps> = ({
     [environments, initialEnvironmentName],
   );
 
+  // The project's own MCP servers are offered with the org's, as in the agent's Tools picker.
   const { data: proxyData, isLoading: proxiesLoading } = useListMCPProxies(
     { orgName: orgId },
-    { limit: 50 },
+    { limit: 50, project: projectId },
   );
 
   const proxies = useMemo<ProxyInfo[]>(

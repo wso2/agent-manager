@@ -566,6 +566,7 @@ type ApiUpsertProjectMCPProxyRequest struct {
 	proxyId                string
 	projectMCPProxyRequest *ProjectMCPProxyRequest
 	xImpersonateOrg        *string
+	ifNoneMatch            *string
 }
 
 func (r ApiUpsertProjectMCPProxyRequest) ProjectMCPProxyRequest(projectMCPProxyRequest ProjectMCPProxyRequest) ApiUpsertProjectMCPProxyRequest {
@@ -576,6 +577,12 @@ func (r ApiUpsertProjectMCPProxyRequest) ProjectMCPProxyRequest(projectMCPProxyR
 // Tenant org UUID for trusted service callers. Honoured only for clients that the deployment&#39;s org override resolver allow-lists; otherwise the request is refused with 403. Replaces both the org UUID and the handle for the request. The orgName path segment must then be that org&#39;s handle, or the request is refused with 403. A 403 here is final, not a missing grant on the org: it means the caller may not impersonate, the org does not exist, or the path names another org; do not retry it. A 502 means the org&#39;s handle could not be looked up and is retryable.
 func (r ApiUpsertProjectMCPProxyRequest) XImpersonateOrg(xImpersonateOrg string) ApiUpsertProjectMCPProxyRequest {
 	r.xImpersonateOrg = &xImpersonateOrg
+	return r
+}
+
+// &#x60;*&#x60; makes the request create-only. A proxy that exists under this handle in the project is left as it is and the request returns 412.
+func (r ApiUpsertProjectMCPProxyRequest) IfNoneMatch(ifNoneMatch string) ApiUpsertProjectMCPProxyRequest {
+	r.ifNoneMatch = &ifNoneMatch
 	return r
 }
 
@@ -603,6 +610,9 @@ the proxy to the re-created project and applies the body as an update (200), in 
 Only a project proxy stored under this project's name is adopted, never an org-level proxy or
 another project's. Its bindings stay; re-PUT each binding to refresh its upstream from the
 re-created project's component.
+
+Send `If-None-Match: *` to only create: a handle this project already has, or would adopt,
+returns 412 MCP_PROXY_ALREADY_EXISTS and nothing is changed.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param orgName Organization handle. The org comes from the token, or from X-Impersonate-Org, in which case this must be that org's handle.
@@ -670,6 +680,9 @@ func (a *ProjectMCPProxiesAPIService) UpsertProjectMCPProxyExecute(r ApiUpsertPr
 	}
 	if r.xImpersonateOrg != nil {
 		parameterAddToHeaderOrQuery(localVarHeaderParams, "X-Impersonate-Org", r.xImpersonateOrg, "")
+	}
+	if r.ifNoneMatch != nil {
+		parameterAddToHeaderOrQuery(localVarHeaderParams, "If-None-Match", r.ifNoneMatch, "")
 	}
 	// body params
 	localVarPostBody = r.projectMCPProxyRequest
@@ -740,6 +753,17 @@ func (a *ProjectMCPProxiesAPIService) UpsertProjectMCPProxyExecute(r ApiUpsertPr
 			return localVarReturnValue, localVarHTTPResponse, newErr
 		}
 		if localVarHTTPResponse.StatusCode == 409 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 412 {
 			var v ErrorResponse
 			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
 			if err != nil {

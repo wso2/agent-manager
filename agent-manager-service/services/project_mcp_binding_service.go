@@ -33,6 +33,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
+	"github.com/wso2/agent-manager/agent-manager-service/utils/ssrf"
 )
 
 // mcpUpstreamPath is the path an MCP server serves Streamable HTTP on when its endpoint declares none. The gateway
@@ -82,30 +83,13 @@ func (s *ProjectMCPProxyService) PutEnvironment(
 	if err != nil {
 		return nil, false, err
 	}
-	source := projectMCPProxySource(proxy)
 	releaseBindingName := strings.TrimSpace(valueOrEmpty(req.ReleaseBindingName))
 
-	// (1) Upstream. AMS resolved this URL itself from OpenChoreo, so unlike a user-supplied upstream
-	// (validateMCPEndpoints) it is not put through the SSRF check: it is an in-cluster service address by design.
-	// A component deployed on several tracks has a release binding per track in the environment; releaseBindingName
-	// picks one, and without it such a component is refused rather than one of its bindings picked at random.
-	serviceURL, err := s.ocClient.GetReleaseBindingEndpointServiceURL(
-		ctx, ouID, projectName, source.ComponentName, source.EndpointName, envName, releaseBindingName,
-	)
-	switch {
-	case errors.Is(err, occlient.ErrAmbiguousReleaseBinding):
-		return nil, false, fmt.Errorf("%w: set releaseBindingName to pick one: %w", utils.ErrInvalidInput, err)
-	case errors.Is(err, occlient.ErrReleaseBindingMismatch):
-		return nil, false, fmt.Errorf("%w: releaseBindingName: %w", utils.ErrInvalidInput, err)
-	case errors.Is(err, occlient.ErrReleaseBindingNotFound), errors.Is(err, occlient.ErrEndpointNotFound):
-		return nil, false, fmt.Errorf("%w: %w", utils.ErrMCPUpstreamNotReady, err)
-	case err != nil:
-		return nil, false, fmt.Errorf("failed to resolve the source component's endpoint: %w", err)
-	case strings.TrimSpace(serviceURL) == "":
-		return nil, false, fmt.Errorf("%w: component %q endpoint %q has no service URL in %q yet",
-			utils.ErrMCPUpstreamNotReady, source.ComponentName, source.EndpointName, envName)
+	// (1) Upstream.
+	upstreamURL, err := s.bindingUpstreamURL(ctx, ouID, projectName, envName, proxy, releaseBindingName)
+	if err != nil {
+		return nil, false, err
 	}
-	upstreamURL := mcpUpstreamURL(strings.TrimSpace(serviceURL))
 
 	endpoint, ee := resolveMCPEndpointForEnv(proxy, envUUID.String())
 	exists := ee != nil
@@ -134,13 +118,21 @@ func (s *ProjectMCPProxyService) PutEnvironment(
 	if err != nil {
 		return nil, false, err
 	}
+	if auth, err = s.keepStoredUpstreamValue(auth, endpoint); err != nil {
+		return nil, false, err
+	}
 	capabilities, err := normalizeBindingCapabilities(req.Capabilities)
+	if err != nil {
+		return nil, false, err
+	}
+	resilience, err := normalizeBindingResilience(req.Resilience)
 	if err != nil {
 		return nil, false, err
 	}
 
 	desired := models.MCPEndpointConfig{
 		Upstream:           &models.UpstreamEndpoint{URL: upstreamURL, Auth: auth},
+		Resilience:         resilience,
 		Policies:           policies,
 		Security:           security,
 		ReleaseBindingName: releaseBindingName,
@@ -222,6 +214,50 @@ func (s *ProjectMCPProxyService) checkBindingContext(
 	}
 	return reconcile.CheckContext(ctx, s.base.deploymentRepo, ouID, gw, self,
 		reconcile.NewRoute(gatewayContext, valueOrEmpty(vhost), gw.Vhost))
+}
+
+// bindingUpstreamURL is the upstream a binding of the proxy calls in envName. A proxy registered by URL calls that
+// URL, which must be public: a managed gateway calls it as given. A sourced proxy calls its component endpoint's
+// in-cluster address in the environment, which AMS resolves from OpenChoreo itself.
+func (s *ProjectMCPProxyService) bindingUpstreamURL(
+	ctx context.Context, ouID, projectName, envName string, proxy *models.MCPProxy, releaseBindingName string,
+) (string, error) {
+	source := projectMCPProxySource(proxy)
+	if source == nil {
+		if releaseBindingName != "" {
+			return "", fmt.Errorf("%w: releaseBindingName applies only to a proxy with a source", utils.ErrInvalidInput)
+		}
+		upstreamURL := projectMCPProxyUpstreamURL(proxy)
+		if upstreamURL == "" {
+			return "", fmt.Errorf("%w: the MCP proxy has neither a source nor an upstream", utils.ErrInvalidInput)
+		}
+		if err := ssrf.ValidateURL(ctx, upstreamURL); err != nil {
+			return "", fmt.Errorf("%w: upstream.url: %w", utils.ErrInvalidInput, err)
+		}
+		return upstreamURL, nil
+	}
+
+	// AMS resolves this URL itself from OpenChoreo, so unlike a user-supplied upstream (validateMCPEndpoints) it is
+	// not put through the SSRF check: it is an in-cluster service address by design.
+	// A component deployed on several tracks has a release binding per track in the environment; releaseBindingName
+	// picks one, and without it such a component is refused rather than one of its bindings picked at random.
+	serviceURL, err := s.ocClient.GetReleaseBindingEndpointServiceURL(
+		ctx, ouID, projectName, source.ComponentName, source.EndpointName, envName, releaseBindingName,
+	)
+	switch {
+	case errors.Is(err, occlient.ErrAmbiguousReleaseBinding):
+		return "", fmt.Errorf("%w: set releaseBindingName to pick one: %w", utils.ErrInvalidInput, err)
+	case errors.Is(err, occlient.ErrReleaseBindingMismatch):
+		return "", fmt.Errorf("%w: releaseBindingName: %w", utils.ErrInvalidInput, err)
+	case errors.Is(err, occlient.ErrReleaseBindingNotFound), errors.Is(err, occlient.ErrEndpointNotFound):
+		return "", fmt.Errorf("%w: %w", utils.ErrMCPUpstreamNotReady, err)
+	case err != nil:
+		return "", fmt.Errorf("failed to resolve the source component's endpoint: %w", err)
+	case strings.TrimSpace(serviceURL) == "":
+		return "", fmt.Errorf("%w: component %q endpoint %q has no service URL in %q yet",
+			utils.ErrMCPUpstreamNotReady, source.ComponentName, source.EndpointName, envName)
+	}
+	return mcpUpstreamURL(strings.TrimSpace(serviceURL)), nil
 }
 
 // saveAndDeployBinding writes the binding in tx, the proxy row locked, and deploys it on gateway, or with no gateway
@@ -599,10 +635,16 @@ func normalizeBindingUpstreamAuth(in *models.MCPProxyEnvironmentUpstreamAuth) (*
 		return nil, nil //nolint:nilnil // no upstream auth
 	case "api-key":
 		header, value := strings.TrimSpace(in.Header), in.Value
-		if header == "" || value == "" {
-			return nil, fmt.Errorf("%w: upstreamAuth needs both header and value", utils.ErrInvalidInput)
+		if header == "" {
+			return nil, fmt.Errorf("%w: upstreamAuth needs a header", utils.ErrInvalidInput)
 		}
-		return &models.UpstreamAuth{Type: &typ, Header: &header, Value: &value}, nil
+		auth := &models.UpstreamAuth{Type: &typ, Header: &header}
+		// An empty value keeps the binding's stored one (keepStoredUpstreamValue), so a caller that reads the
+		// redacted binding back can send it unchanged.
+		if value != "" {
+			auth.Value = &value
+		}
+		return auth, nil
 	default:
 		return nil, fmt.Errorf("%w: upstreamAuth.type must be api-key or none", utils.ErrInvalidInput)
 	}
@@ -661,6 +703,38 @@ func normalizeBindingCapabilities(in *models.MCPProxyCapabilities) (*models.MCPP
 	return out, nil
 }
 
+// keepStoredUpstreamValue fills an api-key upstream auth given without a value from the binding's stored one, which
+// a binding read never returns. With no stored api-key auth to keep, the value is required.
+func (s *ProjectMCPProxyService) keepStoredUpstreamValue(
+	auth *models.UpstreamAuth, endpoint *models.MCPProxyEndpoint,
+) (*models.UpstreamAuth, error) {
+	if auth == nil || auth.Value != nil {
+		return auth, nil
+	}
+	missing := fmt.Errorf("%w: upstreamAuth needs a value", utils.ErrInvalidInput)
+	if endpoint == nil || endpoint.Configuration.Upstream == nil || endpoint.Configuration.Upstream.Auth == nil {
+		return nil, missing
+	}
+	stored := endpoint.Configuration.Upstream.Auth
+	if !strings.EqualFold(valueOrEmpty(stored.Type), "api-key") {
+		return nil, missing
+	}
+	value := valueOrEmpty(stored.Value)
+	if stored.SecretRef != nil {
+		decrypted, err := utils.DecryptSecretRef(*stored.SecretRef, s.base.encryptionKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read the stored upstream auth: %w", err)
+		}
+		value = decrypted
+	}
+	if value == "" {
+		return nil, missing
+	}
+	kept := *auth
+	kept.Value = &value
+	return &kept, nil
+}
+
 // storeBindingConfig is desired as it is stored: the upstream credential encrypted.
 func (s *ProjectMCPProxyService) storeBindingConfig(desired models.MCPEndpointConfig) (models.MCPEndpointConfig, error) {
 	stored := desired
@@ -697,7 +771,30 @@ func (s *ProjectMCPProxyService) sameBindingConfig(stored, desired models.MCPEnd
 		sameJSON(nilIfEmptyPolicies(stored.Policies), nilIfEmptyPolicies(desired.Policies)) &&
 		sameJSON(stored.Capabilities, desired.Capabilities) &&
 		stored.CapabilitiesDiscovered == desired.CapabilitiesDiscovered &&
-		stored.Resilience == nil
+		sameJSON(stored.Resilience, desired.Resilience)
+}
+
+// normalizeBindingResilience is the binding's timeouts as stored: trimmed, an empty one dropped, and nil when
+// neither is set. Each is a duration the gateway takes, e.g. "15s", "500ms", or "0s" to turn it off.
+func normalizeBindingResilience(in *models.Resilience) (*models.Resilience, error) {
+	if in == nil {
+		return nil, nil //nolint:nilnil // no timeouts: the gateway's defaults
+	}
+	trimmed := func(v *string) *string {
+		if v == nil || strings.TrimSpace(*v) == "" {
+			return nil
+		}
+		t := strings.TrimSpace(*v)
+		return &t
+	}
+	out := &models.Resilience{Timeout: trimmed(in.Timeout), IdleTimeout: trimmed(in.IdleTimeout)}
+	if out.Timeout == nil && out.IdleTimeout == nil {
+		return nil, nil //nolint:nilnil // no timeouts: the gateway's defaults
+	}
+	if err := out.Validate(); err != nil {
+		return nil, fmt.Errorf("%w: %w", utils.ErrInvalidInput, err)
+	}
+	return out, nil
 }
 
 func (s *ProjectMCPProxyService) sameUpstreamAuth(stored, desired *models.UpstreamAuth) bool {
@@ -757,6 +854,7 @@ func (s *ProjectMCPProxyService) environmentResponse(
 		Security:           bindingSecurityResponse(cfg.Security),
 		Policies:           copyMCPPolicies(cfg.Policies),
 		Capabilities:       copyMCPCapabilities(cfg.Capabilities),
+		Resilience:         copyResilience(cfg.Resilience),
 		UpdatedAt:          timePtrIfNotZero(endpoint.UpdatedAt),
 	}
 	if cfg.Upstream != nil && cfg.Upstream.Auth != nil {
@@ -869,4 +967,21 @@ func (s *ProjectMCPProxyService) RefreshEnvironmentCapabilities(
 		return nil, fmt.Errorf("failed to queue the capability discovery: %w", err)
 	}
 	return s.GetEnvironment(ctx, ouID, "", projectUUID, handle, envName)
+}
+
+// copyResilience is r with its own timeout strings, so a response never shares the stored config's.
+func copyResilience(r *models.Resilience) *models.Resilience {
+	if r == nil {
+		return nil
+	}
+	out := &models.Resilience{}
+	if r.Timeout != nil {
+		t := *r.Timeout
+		out.Timeout = &t
+	}
+	if r.IdleTimeout != nil {
+		t := *r.IdleTimeout
+		out.IdleTimeout = &t
+	}
+	return out
 }

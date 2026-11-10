@@ -27,18 +27,18 @@ type ProjectMCPProxyRequest struct {
 	// Context path relative to the project. Defaults to /<proxyId>. Must start with / and have no empty, \".\" or \"..\" segments (400 VALIDATION_ERROR otherwise). The gateway serves it at /<projName><context>; reads return it as sent.
 	Context *string `json:"context,omitempty"`
 	// MCP protocol version of the upstream server, if known
-	McpSpecVersion *string        `json:"mcpSpecVersion,omitempty"`
-	Source         MCPProxySource `json:"source"`
+	McpSpecVersion *string                  `json:"mcpSpecVersion,omitempty"`
+	Source         *MCPProxySource          `json:"source,omitempty"`
+	Upstream       *ProjectMCPProxyUpstream `json:"upstream,omitempty"`
 }
 
 // NewProjectMCPProxyRequest instantiates a new ProjectMCPProxyRequest object
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewProjectMCPProxyRequest(name string, source MCPProxySource) *ProjectMCPProxyRequest {
+func NewProjectMCPProxyRequest(name string) *ProjectMCPProxyRequest {
 	this := ProjectMCPProxyRequest{}
 	this.Name = name
-	this.Source = source
 	return &this
 }
 
@@ -202,28 +202,68 @@ func (o *ProjectMCPProxyRequest) SetMcpSpecVersion(v string) {
 	o.McpSpecVersion = &v
 }
 
-// GetSource returns the Source field value
+// GetSource returns the Source field value if set, zero value otherwise.
 func (o *ProjectMCPProxyRequest) GetSource() MCPProxySource {
-	if o == nil {
+	if o == nil || IsNil(o.Source) {
 		var ret MCPProxySource
 		return ret
 	}
-
-	return o.Source
+	return *o.Source
 }
 
-// GetSourceOk returns a tuple with the Source field value
+// GetSourceOk returns a tuple with the Source field value if set, nil otherwise
 // and a boolean to check if the value has been set.
 func (o *ProjectMCPProxyRequest) GetSourceOk() (*MCPProxySource, bool) {
-	if o == nil {
+	if o == nil || IsNil(o.Source) {
 		return nil, false
 	}
-	return &o.Source, true
+	return o.Source, true
 }
 
-// SetSource sets field value
+// HasSource returns a boolean if a field has been set.
+func (o *ProjectMCPProxyRequest) HasSource() bool {
+	if o != nil && !IsNil(o.Source) {
+		return true
+	}
+
+	return false
+}
+
+// SetSource gets a reference to the given MCPProxySource and assigns it to the Source field.
 func (o *ProjectMCPProxyRequest) SetSource(v MCPProxySource) {
-	o.Source = v
+	o.Source = &v
+}
+
+// GetUpstream returns the Upstream field value if set, zero value otherwise.
+func (o *ProjectMCPProxyRequest) GetUpstream() ProjectMCPProxyUpstream {
+	if o == nil || IsNil(o.Upstream) {
+		var ret ProjectMCPProxyUpstream
+		return ret
+	}
+	return *o.Upstream
+}
+
+// GetUpstreamOk returns a tuple with the Upstream field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *ProjectMCPProxyRequest) GetUpstreamOk() (*ProjectMCPProxyUpstream, bool) {
+	if o == nil || IsNil(o.Upstream) {
+		return nil, false
+	}
+	return o.Upstream, true
+}
+
+// HasUpstream returns a boolean if a field has been set.
+func (o *ProjectMCPProxyRequest) HasUpstream() bool {
+	if o != nil && !IsNil(o.Upstream) {
+		return true
+	}
+
+	return false
+}
+
+// SetUpstream gets a reference to the given ProjectMCPProxyUpstream and assigns it to the Upstream field.
+func (o *ProjectMCPProxyRequest) SetUpstream(v ProjectMCPProxyUpstream) {
+	o.Upstream = &v
 }
 
 func (o ProjectMCPProxyRequest) MarshalJSON() ([]byte, error) {
@@ -249,7 +289,12 @@ func (o ProjectMCPProxyRequest) ToMap() (map[string]interface{}, error) {
 	if !IsNil(o.McpSpecVersion) {
 		toSerialize["mcpSpecVersion"] = o.McpSpecVersion
 	}
-	toSerialize["source"] = o.Source
+	if !IsNil(o.Source) {
+		toSerialize["source"] = o.Source
+	}
+	if !IsNil(o.Upstream) {
+		toSerialize["upstream"] = o.Upstream
+	}
 	return toSerialize, nil
 }
 

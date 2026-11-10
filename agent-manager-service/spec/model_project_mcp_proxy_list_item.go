@@ -20,12 +20,13 @@ var _ MappedNullable = &ProjectMCPProxyListItem{}
 
 // ProjectMCPProxyListItem struct for ProjectMCPProxyListItem
 type ProjectMCPProxyListItem struct {
-	Id          string         `json:"id"`
-	Name        string         `json:"name"`
-	Description *string        `json:"description,omitempty"`
-	Version     string         `json:"version"`
-	Context     string         `json:"context"`
-	Source      MCPProxySource `json:"source"`
+	Id          string                   `json:"id"`
+	Name        string                   `json:"name"`
+	Description *string                  `json:"description,omitempty"`
+	Version     string                   `json:"version"`
+	Context     string                   `json:"context"`
+	Source      *MCPProxySource          `json:"source,omitempty"`
+	Upstream    *ProjectMCPProxyUpstream `json:"upstream,omitempty"`
 	// A summary per binding. GET the binding for its security and policies.
 	Environments []ProjectMCPProxyEnvironmentSummary `json:"environments"`
 	CreatedAt    *time.Time                          `json:"createdAt,omitempty"`
@@ -36,13 +37,12 @@ type ProjectMCPProxyListItem struct {
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewProjectMCPProxyListItem(id string, name string, version string, context string, source MCPProxySource, environments []ProjectMCPProxyEnvironmentSummary) *ProjectMCPProxyListItem {
+func NewProjectMCPProxyListItem(id string, name string, version string, context string, environments []ProjectMCPProxyEnvironmentSummary) *ProjectMCPProxyListItem {
 	this := ProjectMCPProxyListItem{}
 	this.Id = id
 	this.Name = name
 	this.Version = version
 	this.Context = context
-	this.Source = source
 	this.Environments = environments
 	return &this
 }
@@ -183,28 +183,68 @@ func (o *ProjectMCPProxyListItem) SetContext(v string) {
 	o.Context = v
 }
 
-// GetSource returns the Source field value
+// GetSource returns the Source field value if set, zero value otherwise.
 func (o *ProjectMCPProxyListItem) GetSource() MCPProxySource {
-	if o == nil {
+	if o == nil || IsNil(o.Source) {
 		var ret MCPProxySource
 		return ret
 	}
-
-	return o.Source
+	return *o.Source
 }
 
-// GetSourceOk returns a tuple with the Source field value
+// GetSourceOk returns a tuple with the Source field value if set, nil otherwise
 // and a boolean to check if the value has been set.
 func (o *ProjectMCPProxyListItem) GetSourceOk() (*MCPProxySource, bool) {
-	if o == nil {
+	if o == nil || IsNil(o.Source) {
 		return nil, false
 	}
-	return &o.Source, true
+	return o.Source, true
 }
 
-// SetSource sets field value
+// HasSource returns a boolean if a field has been set.
+func (o *ProjectMCPProxyListItem) HasSource() bool {
+	if o != nil && !IsNil(o.Source) {
+		return true
+	}
+
+	return false
+}
+
+// SetSource gets a reference to the given MCPProxySource and assigns it to the Source field.
 func (o *ProjectMCPProxyListItem) SetSource(v MCPProxySource) {
-	o.Source = v
+	o.Source = &v
+}
+
+// GetUpstream returns the Upstream field value if set, zero value otherwise.
+func (o *ProjectMCPProxyListItem) GetUpstream() ProjectMCPProxyUpstream {
+	if o == nil || IsNil(o.Upstream) {
+		var ret ProjectMCPProxyUpstream
+		return ret
+	}
+	return *o.Upstream
+}
+
+// GetUpstreamOk returns a tuple with the Upstream field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *ProjectMCPProxyListItem) GetUpstreamOk() (*ProjectMCPProxyUpstream, bool) {
+	if o == nil || IsNil(o.Upstream) {
+		return nil, false
+	}
+	return o.Upstream, true
+}
+
+// HasUpstream returns a boolean if a field has been set.
+func (o *ProjectMCPProxyListItem) HasUpstream() bool {
+	if o != nil && !IsNil(o.Upstream) {
+		return true
+	}
+
+	return false
+}
+
+// SetUpstream gets a reference to the given ProjectMCPProxyUpstream and assigns it to the Upstream field.
+func (o *ProjectMCPProxyListItem) SetUpstream(v ProjectMCPProxyUpstream) {
+	o.Upstream = &v
 }
 
 // GetEnvironments returns the Environments field value
@@ -312,7 +352,12 @@ func (o ProjectMCPProxyListItem) ToMap() (map[string]interface{}, error) {
 	}
 	toSerialize["version"] = o.Version
 	toSerialize["context"] = o.Context
-	toSerialize["source"] = o.Source
+	if !IsNil(o.Source) {
+		toSerialize["source"] = o.Source
+	}
+	if !IsNil(o.Upstream) {
+		toSerialize["upstream"] = o.Upstream
+	}
 	toSerialize["environments"] = o.Environments
 	if !IsNil(o.CreatedAt) {
 		toSerialize["createdAt"] = o.CreatedAt

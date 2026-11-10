@@ -7402,7 +7402,20 @@ paths:
         Only a project proxy stored under this project's name is adopted, never an org-level proxy or
         another project's. Its bindings stay; re-PUT each binding to refresh its upstream from the
         re-created project's component.
+
+        Send `If-None-Match: *` to only create: a handle this project already has, or would adopt,
+        returns 412 MCP_PROXY_ALREADY_EXISTS and nothing is changed.
       operationId: upsertProjectMCPProxy
+      parameters:
+        - name: If-None-Match
+          in: header
+          required: false
+          description: >-
+            `*` makes the request create-only. A proxy that exists under this handle in the project is
+            left as it is and the request returns 412.
+          schema:
+            type: string
+            enum: ["*"]
       requestBody:
         required: true
         content:
@@ -7451,6 +7464,12 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "409":
           description: HANDLE_IN_USE. The handle belongs to an org-level proxy or another project's proxy; or CONTEXT_IN_USE. The new context clashes on a bound gateway
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "412":
+          description: MCP_PROXY_ALREADY_EXISTS. If-None-Match is `*` and the project already has a proxy with this handle
           content:
             application/json:
               schema:
@@ -19812,6 +19831,17 @@ components:
           type: string
           description: Set for a project-owned proxy; absent for an org-level one
           readOnly: true
+        source:
+          allOf:
+            - $ref: "#/components/schemas/MCPProxySource"
+          description: The component endpoint a project-owned proxy fronts; absent for an org-level one.
+          readOnly: true
+        environments:
+          type: array
+          description: The environments the proxy is bound to.
+          readOnly: true
+          items:
+            $ref: "#/components/schemas/MCPProxyListEnvironment"
         status:
           type: string
           description: MCP proxy status
@@ -19829,6 +19859,17 @@ components:
           format: date-time
           description: Timestamp when the resource was last updated
           readOnly: true
+
+    MCPProxyListEnvironment:
+      type: object
+      required:
+        - environmentUuid
+      properties:
+        environmentUuid:
+          type: string
+        environmentName:
+          type: string
+          description: Set for a project-owned proxy, whose binding is named after its environment.
 
     MCPProxySource:
       type: object
@@ -19848,7 +19889,6 @@ components:
       type: object
       required:
         - name
-        - source
       properties:
         name:
           type: string
@@ -19872,7 +19912,29 @@ components:
           description: MCP protocol version of the upstream server, if known
           example: "2025-06-18"
         source:
-          $ref: "#/components/schemas/MCPProxySource"
+          allOf:
+            - $ref: "#/components/schemas/MCPProxySource"
+          description: >-
+            The project component endpoint the proxy fronts. Each environment binding calls the endpoint's
+            in-cluster address there, resolved from the component's release binding. Exclusive with upstream;
+            one of the two is required. Fixed after create.
+        upstream:
+          allOf:
+            - $ref: "#/components/schemas/ProjectMCPProxyUpstream"
+          description: >-
+            A public MCP server URL the proxy fronts, which every environment binding calls as it is. Exclusive
+            with source; one of the two is required. A private or loopback address is 400 VALIDATION_ERROR.
+            The URL may change; a proxy registered by URL cannot take a source later, nor the other way round.
+
+    ProjectMCPProxyUpstream:
+      type: object
+      required:
+        - url
+      properties:
+        url:
+          type: string
+          format: uri
+          example: https://mcp.example.com/mcp
 
     ProjectMCPProxyResponse:
       type: object
@@ -19882,7 +19944,6 @@ components:
         - version
         - context
         - projectName
-        - source
         - environments
       properties:
         id:
@@ -19901,7 +19962,13 @@ components:
         projectName:
           type: string
         source:
-          $ref: "#/components/schemas/MCPProxySource"
+          allOf:
+            - $ref: "#/components/schemas/MCPProxySource"
+          description: Set for a proxy that fronts a project component endpoint.
+        upstream:
+          allOf:
+            - $ref: "#/components/schemas/ProjectMCPProxyUpstream"
+          description: Set for a proxy registered by a public URL.
         environments:
           type: array
           items:
@@ -19943,7 +20010,6 @@ components:
         - name
         - version
         - context
-        - source
         - environments
       properties:
         id:
@@ -19957,7 +20023,13 @@ components:
         context:
           type: string
         source:
-          $ref: "#/components/schemas/MCPProxySource"
+          allOf:
+            - $ref: "#/components/schemas/MCPProxySource"
+          description: Set for a proxy that fronts a project component endpoint.
+        upstream:
+          allOf:
+            - $ref: "#/components/schemas/ProjectMCPProxyUpstream"
+          description: Set for a proxy registered by a public URL.
         environments:
           type: array
           description: A summary per binding. GET the binding for its security and policies.
@@ -20018,7 +20090,8 @@ components:
             The source component's release binding to front. Required only when the component has more
             than one release binding in the environment, one per deployment track for example; without it
             such a component is rejected with 400 VALIDATION_ERROR. It must be a binding of the source
-            component in this project and environment, or it is rejected with 400 VALIDATION_ERROR.
+            component in this project and environment, or it is rejected with 400 VALIDATION_ERROR. A proxy
+            registered by URL has no release binding: setting it there is 400 VALIDATION_ERROR.
           example: orders-main-development
         security:
           $ref: "#/components/schemas/MCPProxyEnvironmentSecurity"
@@ -20039,6 +20112,12 @@ components:
             discovers them from the MCP server through the binding's gateway once the binding is deployed
             (see capabilityDiscovery on the response), and a later PUT without capabilities keeps what it
             discovered.
+        resilience:
+          allOf:
+            - $ref: "#/components/schemas/Resilience"
+          description: >-
+            The binding's request and idle timeouts on the gateway. Optional; omitted, the gateway's defaults
+            apply. A change redeploys the binding.
 
     MCPProxyEnvironmentSecurity:
       type: object
@@ -20089,7 +20168,9 @@ components:
         value:
           type: string
           writeOnly: true
-          description: Required with api-key. Stored encrypted; never returned.
+          description: >-
+            Required with api-key, unless the binding already has an api-key upstream auth: an omitted
+            value then keeps the stored one. Stored encrypted; never returned.
 
     MCPProxyEnvironmentUpstreamAuthRedacted:
       type: object
@@ -20179,6 +20260,10 @@ components:
           description: >-
             The binding's capabilities: the ones given on the last PUT, or the ones AMS discovered (see
             capabilitiesSource). Absent when there are none yet.
+        resilience:
+          allOf:
+            - $ref: "#/components/schemas/Resilience"
+          description: The binding's request and idle timeouts. Absent when the gateway's defaults apply.
         capabilitiesSource:
           type: string
           enum: [caller, discovered]

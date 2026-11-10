@@ -1559,3 +1559,38 @@ func TestValidateMCPEndpointPlacement_RefusesIdentityOnSelfHosted(t *testing.T) 
 		})
 	}
 }
+
+// A list item carries the environments the proxy is bound to and, for a project proxy, its source and environment
+// names.
+func TestConvertModelMCPProxyToListItem_EnvironmentsAndSource(t *testing.T) {
+	envA, envB := uuid.New(), uuid.New()
+	org := &models.MCPProxy{
+		Configuration: models.MCPProxyConfig{Name: "github"},
+		Endpoints: []models.MCPProxyEndpoint{{
+			Name:         "main",
+			Environments: []models.MCPProxyEndpointEnvironment{{EnvironmentUUID: envA}, {EnvironmentUUID: envB}},
+		}},
+	}
+	item := convertModelMCPProxyToListItem(org)
+	assert.Equal(t, []models.MCPProxyListEnvironment{{EnvironmentUUID: envA.String()}, {EnvironmentUUID: envB.String()}},
+		item.Environments)
+	assert.Nil(t, item.Source)
+
+	project, projectUUID := "p1", "p1-uuid"
+	proj := &models.MCPProxy{
+		ProjectUUID: &projectUUID, ProjectName: &project,
+		Configuration: models.MCPProxyConfig{
+			Name: "weather", Source: &models.MCPProxySource{ComponentName: "weather", EndpointName: "mcp"},
+		},
+		Endpoints: []models.MCPProxyEndpoint{{
+			Name: "development", Environments: []models.MCPProxyEndpointEnvironment{{EnvironmentUUID: envA}},
+		}},
+	}
+	item = convertModelMCPProxyToListItem(proj)
+	assert.Equal(t, []models.MCPProxyListEnvironment{{EnvironmentUUID: envA.String(), EnvironmentName: "development"}},
+		item.Environments)
+	require.NotNil(t, item.Source)
+	assert.Equal(t, "weather", item.Source.ComponentName)
+
+	assert.NotNil(t, convertModelMCPProxyToListItem(&models.MCPProxy{}).Environments, "never null")
+}

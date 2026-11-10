@@ -124,9 +124,15 @@ func (c *projectMCPProxyController) UpsertProjectMCPProxy(w http.ResponseWriter,
 
 	// The route gates on update; an insert additionally needs the create permission.
 	canCreate := jwtassertion.HoldsAnyScope(ctx, rbac.MCPServerCreate)
-	resp, created, err := c.service.UpsertWithCreateCheck(ctx, ouID, project.Name, project.UUID, handle, req, canCreate)
+	// If-None-Match: * makes the PUT create-only, so a registration cannot replace an existing proxy.
+	createOnly := strings.TrimSpace(r.Header.Get("If-None-Match")) == "*"
+	resp, created, err := c.service.UpsertWithCreateCheck(ctx, ouID, project.Name, project.UUID, handle, req,
+		canCreate, createOnly)
 	if err != nil {
 		switch {
+		case errors.Is(err, utils.ErrMCPProxyExists):
+			utils.WriteErrorResponseWithReason(w, http.StatusPreconditionFailed,
+				"MCP proxy already exists", err.Error(), utils.ErrCodeMCPProxyAlreadyExists)
 		case errors.Is(err, utils.ErrMCPProxyCreateNotPermitted):
 			utils.WriteErrorResponse(w, http.StatusForbidden, "Creating MCP proxies is not permitted")
 		case errors.Is(err, utils.ErrMCPProxyHandleInUse):
