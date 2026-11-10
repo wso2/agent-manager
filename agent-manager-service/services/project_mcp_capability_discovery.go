@@ -113,10 +113,11 @@ func newMCPDiscoveryClient(dialAddr string) *http.Client {
 }
 
 // newMCPDiscoveryProber probes with the MCP server-info client, each probe with a logger that redacts its key: the
-// client's helpers log what the server answered, and a server may echo the request's key back.
+// client's helpers log what the server answered, and a server may echo the request's key back. A failed list fails
+// the probe, so the attempt goes through backoff instead of storing that list as empty.
 func newMCPDiscoveryProber(client *http.Client, logger *slog.Logger) MCPCapabilityProber {
 	return func(ctx context.Context, url, headerName, headerValue string) (*models.MCPServerInfoFetchResponse, error) {
-		prober := &MCPProxyService{client: client, logger: redactingLogger(logger, headerValue)}
+		prober := &MCPProxyService{client: client, logger: redactingLogger(logger, headerValue), strictLists: true}
 		return prober.fetchMCPServerInfo(ctx, url, headerName, headerValue)
 	}
 }

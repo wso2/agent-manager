@@ -471,8 +471,9 @@ func (keyEchoMCPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// The discovery probe's logs never carry its key, even when the MCP server echoes it back; the rest of what the
-// server said is kept.
+// The discovery probe's logs never carry its key, even when the MCP server echoes it back. A failed list fails the
+// probe, so what the server said comes back in the error, which the attempt redacts before storing it (see
+// TestCapabilityDiscovery_ErrorsAreStoredWithTheKeyRedacted).
 func TestCapabilityDiscovery_ProbeLogsRedactTheKey(t *testing.T) {
 	srv := httptest.NewServer(keyEchoMCPServer{})
 	defer srv.Close()
@@ -482,13 +483,11 @@ func TestCapabilityDiscovery_ProbeLogsRedactTheKey(t *testing.T) {
 	// Generated, so the test carries no credential-shaped literal.
 	key := "probe-" + uuid.NewString()
 	_, err := probe(context.Background(), srv.URL, "X-API-Key", key)
-	require.NoError(t, err, "failed lists are left out, not fatal")
+	require.Error(t, err, "a failed list fails the probe")
+	assert.Contains(t, err.Error(), "tools/list returned an error")
+	assert.Contains(t, err.Error(), "is not allowed", "the server's detail is kept")
 
-	out := logs.String()
-	require.Contains(t, out, "tools/list returned an error", "the helpers logged the server's answers")
-	assert.NotContains(t, out, key)
-	assert.Contains(t, out, "[REDACTED]")
-	assert.Contains(t, out, "is not allowed", "other detail is kept")
+	assert.NotContains(t, logs.String(), key)
 }
 
 func TestRedactingLogger(t *testing.T) {
@@ -533,4 +532,81 @@ func TestCapabilityDiscovery_ProbeRefusesRedirects(t *testing.T) {
 			assert.NotContains(t, err.Error(), "metadata")
 		})
 	}
+}
+
+// listMCPServer answers initialize, then each list with what its fields say: a status and body for HTTP, or a
+// JSON-RPC error.
+type listMCPServer struct {
+	tools, prompts, resources string // a JSON-RPC result or error object, or "500" for an HTTP failure
+}
+
+func (s listMCPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	req := decodeMCPTestRequest(r)
+	answer := ""
+	switch req.Method {
+	case "server/discover":
+		http.Error(w, "Bad Request: Unsupported protocol version", http.StatusBadRequest)
+		return
+	case "initialize":
+		answer = `"result":{"protocolVersion":"2025-06-18","serverInfo":{"name":"lists"}}`
+	case "notifications/initialized":
+		w.WriteHeader(http.StatusAccepted)
+		return
+	case "tools/list":
+		answer = s.tools
+	case "prompts/list":
+		answer = s.prompts
+	case "resources/list":
+		answer = s.resources
+	}
+	if answer == "500" {
+		http.Error(w, "upstream down", http.StatusInternalServerError)
+		return
+	}
+	_, _ = fmt.Fprintf(w, `{"jsonrpc":"2.0","id":%d,%s}`, req.ID, answer)
+}
+
+const (
+	mcpTestOneTool        = `"result":{"tools":[{"name":"echo","inputSchema":{"type":"object"}}]}`
+	mcpTestMethodNotFound = `"error":{"code":-32601,"message":"Method not found"}`
+)
+
+// Discovery stores what it lists, so a list that failed is an error to retry, not an empty list.
+func TestCapabilityDiscovery_ProbeFailsWhenAListFails(t *testing.T) {
+	cases := map[string]listMCPServer{
+		"tools/list HTTP 500": {tools: "500", prompts: mcpTestMethodNotFound, resources: mcpTestMethodNotFound},
+		"tools/list JSON-RPC error": {
+			tools: `"error":{"code":-32603,"message":"Internal error"}`, prompts: mcpTestMethodNotFound,
+			resources: mcpTestMethodNotFound,
+		},
+		"tools/list unparsable":   {tools: `"result":"nope"`, prompts: mcpTestMethodNotFound, resources: mcpTestMethodNotFound},
+		"prompts/list HTTP 500":   {tools: mcpTestOneTool, prompts: "500", resources: mcpTestMethodNotFound},
+		"resources/list HTTP 500": {tools: mcpTestOneTool, prompts: mcpTestMethodNotFound, resources: "500"},
+	}
+	for name, server := range cases {
+		t.Run(name, func(t *testing.T) {
+			srv := httptest.NewServer(server)
+			defer srv.Close()
+			probe := newMCPDiscoveryProber(srv.Client(), slog.New(slog.DiscardHandler))
+
+			_, err := probe(context.Background(), srv.URL, "", "")
+			require.Error(t, err)
+		})
+	}
+}
+
+// A server that does not implement a list (-32601) has none of that kind; that is not a failure.
+func TestCapabilityDiscovery_ProbeTakesMethodNotFoundAsNone(t *testing.T) {
+	srv := httptest.NewServer(listMCPServer{
+		tools: mcpTestOneTool, prompts: mcpTestMethodNotFound, resources: mcpTestMethodNotFound,
+	})
+	defer srv.Close()
+	probe := newMCPDiscoveryProber(srv.Client(), slog.New(slog.DiscardHandler))
+
+	info, err := probe(context.Background(), srv.URL, "", "")
+	require.NoError(t, err)
+	require.NotNil(t, info.Tools)
+	assert.Len(t, *info.Tools, 1)
+	assert.Nil(t, info.Prompts)
+	assert.Nil(t, info.Resources)
 }
