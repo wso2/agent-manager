@@ -20,11 +20,9 @@ import {
   Alert,
   Button,
   Chip,
-  FormControlLabel,
   ListingTable,
   MenuItem,
   Stack,
-  Switch,
   Tooltip,
 } from "@wso2/oxygen-ui";
 import { ShieldOff } from "@wso2/oxygen-ui-icons-react";
@@ -51,6 +49,9 @@ import {
   apiKeySecurity,
   bindingRequestFrom,
   bindingRequiresAPIKey,
+  bindingSecurityMethod,
+  bindingUsesIdentity,
+  type BindingSecurityMethod,
   DEFAULT_API_KEY_HEADER,
 } from "./projectBinding";
 
@@ -96,7 +97,10 @@ export function BindingStatusChip({
   );
 }
 
-/** Whether callers present an API key to the gateway, and where. */
+/**
+ * How callers authenticate to the gateway in this environment: an API key (and where),
+ * OAuth (identity), or nothing.
+ */
 export function BindingSecurityTab({
   env,
   onSave,
@@ -107,20 +111,23 @@ export function BindingSecurityTab({
   isSaving: boolean;
 }) {
   const { canWrite } = useResourceAccess("mcp_server");
-  const [required, setRequired] = useState(bindingRequiresAPIKey(env.security));
+  const [method, setMethod] = useState<BindingSecurityMethod>(
+    bindingSecurityMethod(env.security),
+  );
+  const required = method === "apiKey";
   const [header, setHeader] = useState(apiKeyName(env.security));
   const [location, setLocation] = useState<APIKeyLocation>(
     apiKeyLocation(env.security),
   );
 
   useEffect(() => {
-    setRequired(bindingRequiresAPIKey(env.security));
+    setMethod(bindingSecurityMethod(env.security));
     setHeader(apiKeyName(env.security));
     setLocation(apiKeyLocation(env.security));
   }, [env]);
 
   const isDirty =
-    required !== bindingRequiresAPIKey(env.security) ||
+    method !== bindingSecurityMethod(env.security) ||
     (required &&
       (header.trim() !== apiKeyName(env.security) ||
         location !== apiKeyLocation(env.security)));
@@ -128,25 +135,40 @@ export function BindingSecurityTab({
   const save = () =>
     onSave({
       ...bindingRequestFrom(env),
-      security: apiKeySecurity(required, header.trim(), location),
+      security:
+        method === "identity"
+          ? { enabled: true, identity: { enabled: true } }
+          : apiKeySecurity(required, header.trim(), location),
     });
 
   return (
     <Stack spacing={3} maxWidth={560}>
-      <FormControlLabel
-        control={
-          <Switch
-            checked={required}
-            disabled={!canWrite}
-            onChange={(event) => setRequired(event.target.checked)}
-          />
+      <TextInput
+        select
+        label="Authentication"
+        size="small"
+        value={method}
+        disabled={!canWrite}
+        onChange={(event) =>
+          setMethod(event.target.value as BindingSecurityMethod)
         }
-        label="Require an API key"
-      />
-      {!required && (
+        sx={{ maxWidth: 280 }}
+      >
+        <MenuItem value="apiKey">API Key</MenuItem>
+        <MenuItem value="identity">OAuth</MenuItem>
+        <MenuItem value="none">None</MenuItem>
+      </TextInput>
+      {method === "none" && (
         <Alert severity="warning">
           Anyone who can reach the gateway can call this MCP server in this
           environment.
+        </Alert>
+      )}
+      {method === "identity" && (
+        <Alert severity="info">
+          Callers present an OAuth access token from this environment&apos;s
+          identity provider, requested for this MCP server&apos;s URL. Agents in
+          this project use their Agent ID; grant them access through roles.
         </Alert>
       )}
       {required && (
@@ -227,8 +249,16 @@ export function BindingAPIKeysTab({
       <ListingTable.Container>
         <ListingTable.EmptyState
           illustration={<ShieldOff size={48} />}
-          title="API key authentication is disabled"
-          description="Turn on API keys from the Security tab to manage keys for this environment."
+          title={
+            bindingUsesIdentity(env.security)
+              ? "This environment uses OAuth"
+              : "API key authentication is disabled"
+          }
+          description={
+            bindingUsesIdentity(env.security)
+              ? "Callers present OAuth access tokens instead of API keys. Switch to API keys from the Security tab to manage keys for this environment."
+              : "Turn on API keys from the Security tab to manage keys for this environment."
+          }
           action={
             <Button variant="outlined" onClick={onGoToSecurity}>
               Go to Security Tab

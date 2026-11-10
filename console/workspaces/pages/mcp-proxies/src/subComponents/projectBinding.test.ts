@@ -24,6 +24,7 @@ import {
   bindingRequestFrom,
   projectProxyEndpointDraft,
   bindingRequiresAPIKey,
+  bindingSecurityMethod,
   DEFAULT_API_KEY_HEADER,
   keptBindingRequest,
   planURLProxySave,
@@ -48,6 +49,34 @@ describe("bindingRequiresAPIKey", () => {
     expect(
       bindingRequiresAPIKey({ enabled: true, apiKey: { enabled: false } }),
     ).toBe(false);
+  });
+});
+
+describe("an OAuth (identity) binding", () => {
+  const identity = { enabled: true, identity: { enabled: true } };
+
+  it("asks for no API key and reads as OAuth", () => {
+    expect(bindingRequiresAPIKey(identity)).toBe(false);
+    expect(bindingSecurityMethod(identity)).toBe("identity");
+    expect(bindingSecurityMethod({ enabled: false, identity: { enabled: true } })).toBe("none");
+    expect(bindingSecurityMethod(undefined)).toBe("apiKey");
+  });
+
+  it("keeps OAuth when any tab saves the binding", () => {
+    expect(bindingRequestFrom({ ...base, security: identity }).security).toEqual(identity);
+  });
+
+  it("shows OAuth to the org tabs", () => {
+    const proxy = {
+      id: "weather",
+      name: "Weather",
+      version: "v1",
+      context: "/weather",
+      projectName: "p1",
+      environments: [],
+    };
+    const config = bindingEndpointConfig(proxy, { ...base, security: identity });
+    expect(config.security).toEqual(identity);
   });
 });
 
