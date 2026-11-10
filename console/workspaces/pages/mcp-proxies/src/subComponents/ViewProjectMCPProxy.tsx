@@ -35,13 +35,10 @@ import {
   Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
-import {
-  AlertTriangle,
-  Copy,
-  Edit,
-} from "@wso2/oxygen-ui-icons-react";
+import { AlertTriangle, Copy, Edit } from "@wso2/oxygen-ui-icons-react";
 import {
   generatePath,
+  useLocation,
   useNavigate,
   useParams,
   useSearchParams,
@@ -79,6 +76,7 @@ import {
   bindingEndpointConfig,
   proxyAsOrgProxy,
   proxyRequestFrom,
+  type ProjectProxyViewState,
 } from "./projectBinding";
 import { useCopyWithFeedback } from "./useCopyWithFeedback";
 
@@ -154,6 +152,16 @@ export function ViewProjectMCPProxy() {
   }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  // Environments the register form could not deploy the new server to.
+  const bindingFailures =
+    (location.state as ProjectProxyViewState | null)?.bindingFailures ?? [];
+  // Dismissing drops the state, so the notice does not come back on a reload.
+  const dismissBindingFailures = () =>
+    navigate(
+      { pathname: location.pathname, search: location.search },
+      { replace: true, state: null },
+    );
   const {
     data: proxy,
     isLoading,
@@ -322,6 +330,22 @@ export function ViewProjectMCPProxy() {
 
       {proxy && !error && (
         <Stack spacing={4}>
+          {bindingFailures.length > 0 && (
+            <Alert severity="warning" onClose={dismissBindingFailures}>
+              The MCP server was registered, but it could not be deployed to{" "}
+              {bindingFailures.length === 1
+                ? "this environment"
+                : "these environments"}
+              . Use &quot;Edit MCP server&quot; to deploy it to them again.
+              <Box component="ul" sx={{ m: 0, mt: 1, pl: 2.5 }}>
+                {bindingFailures.map((failure) => (
+                  <li key={failure.environment}>
+                    <strong>{failure.environment}</strong>: {failure.message}
+                  </li>
+                ))}
+              </Box>
+            </Alert>
+          )}
           {bindings.length > 0 && (
             <Stack
               direction="row"
@@ -541,7 +565,6 @@ export function ViewProjectMCPProxy() {
           )}
         </Stack>
       )}
-
     </PageLayout>
   );
 }

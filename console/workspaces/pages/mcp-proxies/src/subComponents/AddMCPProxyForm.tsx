@@ -41,11 +41,18 @@ import {
 } from "@wso2/oxygen-ui";
 import { Edit } from "@wso2/oxygen-ui-icons-react";
 import { TextInput, useFormValidation } from "@agent-management-platform/views";
-import { useUnsavedChangesGuard } from "@agent-management-platform/shared-component";
+import {
+  environmentLabel,
+  useUnsavedChangesGuard,
+} from "@agent-management-platform/shared-component";
 import { z } from "zod";
 import { type EndpointDraft } from "./EndpointFormFields";
 import { EndpointsEditorSection } from "./EndpointsEditorSection";
 import { draftToEndpoint } from "./mcpEndpoints";
+import {
+  type BindingFailure,
+  type ProjectProxyViewState,
+} from "./projectBinding";
 
 const DEFAULT_PROXY_VERSION = "1.0.0";
 // Matches the service's handle length limit (agent-manager-service/services/mcp_proxy_service.go).
@@ -216,11 +223,19 @@ export function AddMCPProxyForm({ onCancel, projectId }: AddMCPProxyFormProps) {
       return;
     }
     const auth = endpoint.upstream?.main?.auth;
+    // The server is registered either way: environments it could not be deployed to are
+    // named on its page, where Edit deploys it to them again.
+    const bindingFailures: BindingFailure[] = [];
     for (const binding of endpoint.environments) {
-      const envName = environments.find(
-        (env) => env.id === binding.environmentUuid,
-      )?.name;
-      if (!envName) continue;
+      const env = environments.find((e) => e.id === binding.environmentUuid);
+      const envName = env?.name;
+      if (!envName) {
+        bindingFailures.push({
+          environment: binding.environmentUuid,
+          message: "The environment was not found.",
+        });
+        continue;
+      }
       try {
         await putProjectBinding.mutateAsync({
           params: { ...params, envName },
@@ -237,10 +252,17 @@ export function AddMCPProxyForm({ onCancel, projectId }: AddMCPProxyFormProps) {
               : {}),
           },
         });
-      } catch {
-        // The server is registered; its page shows the environments it is deployed to.
+      } catch (err) {
+        bindingFailures.push({
+          environment: environmentLabel(env),
+          message:
+            (err as { message?: string })?.message ?? "Deployment failed.",
+        });
       }
     }
+    const state: ProjectProxyViewState | undefined = bindingFailures.length
+      ? { bindingFailures }
+      : undefined;
     allowNavigation(() =>
       navigate(
         generatePath(
@@ -248,6 +270,7 @@ export function AddMCPProxyForm({ onCancel, projectId }: AddMCPProxyFormProps) {
             .children.view.path,
           { orgId, projectId, proxyId },
         ),
+        { state },
       ),
     );
   }, [

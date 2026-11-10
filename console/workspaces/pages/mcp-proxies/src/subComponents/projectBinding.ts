@@ -26,6 +26,17 @@ import type {
 } from "@agent-management-platform/types";
 import type { EndpointDraft } from "./EndpointFormFields";
 
+/** An environment a new project server could not be deployed to, and why. */
+export interface BindingFailure {
+  environment: string;
+  message: string;
+}
+
+/** The navigation state the register form hands the server's page. */
+export interface ProjectProxyViewState {
+  bindingFailures?: BindingFailure[];
+}
+
 /** The longest proxy id the service takes. */
 export const MAX_PROXY_ID_LENGTH = 100;
 
