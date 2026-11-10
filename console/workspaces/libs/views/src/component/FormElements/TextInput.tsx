@@ -62,6 +62,7 @@ export const TextInput = ({
   helperText,
   error,
   id,
+  InputProps,
   ...props
 }: TextInputProps) => {
   const [copied, setCopied] = useState(false);
@@ -121,8 +122,12 @@ export const TextInput = ({
 
   const mergedSlotProps = {
     ...slotProps,
+    // Keep the legacy InputProps a caller passes (MUI Autocomplete hands its
+    // ref, chips and popup button through it): an explicit slotProps.input
+    // would otherwise replace them, leaving a bare text box with no list.
     input: {
-      ...slotProps?.input,
+      ...InputProps,
+      ...(slotProps?.input as object | undefined),
       ...(endAdornment && { endAdornment }),
     },
     ...(maxLength != null && {
