@@ -43,14 +43,15 @@ Map the route's **exact registrar pattern** to the type in `routeEvents`:
 "POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/widgets": {Type: "widget.created"},
 ```
 
-`middleware.WithEvents` then publishes it automatically after a 2xx response, with the actor, org, project, agent and the response body as `data`.
+`middleware.WithEvents` then publishes it automatically after a 2xx response, with the actor, org, project, agent and the response body as `data`. Only a JSON **object** body of at most 256 KiB is copied (after redaction); arrays and larger bodies are dropped. Use `events.AddData` for any field subscribers must receive regardless.
 
 - **`OmitData: true`** if the response contains any credential (API key, token, client secret, webhook secret, invite link). The body must never leave the platform in an event. When in doubt, omit.
-- **Environment:** agent events tied to an environment must carry it. It is read from the path (`{envID}`), the response fields `environment` / `environmentName` / `targetEnvironment`, or set explicitly in the controller/service:
+- **Environment:** agent events tied to an environment must carry it. It is read from the path (`{envID}`), the response fields `environment` / `environmentName` / `targetEnvironment`, or set explicitly in the controller/service. When the response is not captured (`OmitData` routes, bodies over 256 KiB, non-object bodies) and neither the path nor `?environment=` carries it, you **must** call:
   ```go
   events.SetEnvironment(ctx, env.Name)
   ```
   Set `EnvironmentQuery: true` if the route takes `?environment=`.
+  Add a test that the event reaches a subscription filtered to that environment.
 - Extra data when the body is omitted or lacks it: `events.AddData(ctx, "name", resp.KeyID)` (never secrets).
 - Several routes may share a type (`agent.configuration_updated`).
 

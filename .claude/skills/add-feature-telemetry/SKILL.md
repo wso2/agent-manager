@@ -56,7 +56,7 @@ Rules enforced by `taxonomy_test.go` (`TestTaxonomyConformsToSkeleton`):
 - `introduced_in` is a version like `2026.11.0` (match the newest neighbour);
 - per-request metadata (`platform`, `source`, `growth_action`, `product_version`, `deployment_model`, `environment`) is added automatically — do **not** declare it per feature.
 
-If the feature exists but you are not wiring an emitter yet, add its code to `notEmittedFeatures` in `taxonomy_test.go` and put a `# Not emitted yet` comment in its tracking block.
+If the feature exists but you are not wiring an emitter yet, add its code to `notEmittedFeatures` in `taxonomy_test.go` and put a `# Not emitted yet` comment in its tracking block. When you later add the emitter for an exempted feature, remove it from `notEmittedFeatures` and delete that comment (the test fails on stale exemptions).
 
 ## Step 2 — wrap the route with `Track`
 
@@ -91,7 +91,7 @@ In `middleware/growthanalytics/console.go`, add to `consoleActions` under the ri
 
 Anything not in this map is dropped server-side (202, counted as `dropped`, logged). This is intentional: **the service release with the allowlist entry must ship before (or with) the console release that emits it.**
 
-Then add a matching feature block in `taxonomy.yaml` (code `amp.console.<group>.<action>`, `category: "console"`, `platforms: ["web"]`). `TestTaxonomyDeclaresConsoleActions` requires the YAML dimension set to equal the `dims(...)` set exactly.
+Then add a matching feature block in `taxonomy.yaml` (code `amp.console.<group>.<action>`, `category: "console"`, `platforms: ["web"]`). `TestTaxonomyDeclaresConsoleActions` requires the YAML dimension set to equal the `dims(...)` set exactly — but it checks **keys only**. Unlike the API check (which validates literal enum values and required dimensions at `Track` call sites), nothing validates console dimension *values*: the server only drops unknown keys, non-scalar values and truncates long strings. So make sure yourself that every enum value the console sends is listed in the YAML and that every `required` dimension is always sent.
 
 ## Step 5 — publish it from the console
 
@@ -105,7 +105,10 @@ Then add a matching feature block in `taxonomy.yaml` (code `amp.console.<group>.
    };
    ```
    Call `track` from the event handler (or an effect), never directly in the component body — that would fire on every render.
-   Purpose-built helpers already exist: `usePageViewTracking(path, entityScope)`, `useDialogAnalytics(...)`, `useValidationErrorTracking(entity)`, `useSessionAnalytics(...)`. Prefer them.
+   Purpose-built helpers already exist — prefer them:
+   - `usePageViewTracking` and `useSessionAnalytics` are already mounted **once** (router and app shell respectively). Do not call them from a feature page; new pages get page views for free.
+   - `useDialogAnalytics(...)` for create/edit dialogs: call the returned `markCompleted()` after a successful submit and **before** closing, otherwise the close is recorded as `form-abandoned`.
+   - `useValidationErrorTracking(entity)` for form validation errors.
 3. Dimension values are scalar (`string | number | boolean`), ≤256 chars, and must not contain names, IDs, query strings, secrets or snippet contents (report *which* snippet, never its value).
 4. Telemetry is best-effort: never show an error, never retry, never block UI on it. Tracking is a no-op when `isConsoleAnalyticsEnabled()` is false.
 
