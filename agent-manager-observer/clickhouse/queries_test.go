@@ -20,8 +20,8 @@ func TestBuildTraceListQuery(t *testing.T) {
 	if !strings.Contains(q, "ORDER BY start_time DESC, TraceId ASC") {
 		t.Error("wrong sort order")
 	}
-	if len(args) != 6 { // namespace, component, three times, limit
-		t.Errorf("expected 6 values, got %d", len(args))
+	if len(args) != 16 { // namespace, component, three times, limit
+		t.Errorf("expected 16 values, got %d", len(args))
 	}
 }
 

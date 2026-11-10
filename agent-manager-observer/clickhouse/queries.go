@@ -11,7 +11,7 @@ const traceIDTimeTable = "otel_traces_trace_id_ts"
 type traceWindow struct{ Start, End time.Time }
 
 func buildTraceListQuery(table string, cols tenantColumns, scope ScopeUIDs, window traceWindow, isDesc bool, limit int) (string, []any) {
-	where, args := scopeWhere(cols, scope)
+	where, scopeArgs := scopeWhere(cols, scope)
 
 	if where != "" {
 		where += " AND "
@@ -21,14 +21,31 @@ func buildTraceListQuery(table string, cols tenantColumns, scope ScopeUIDs, wind
 		"AND Timestamp <= fromUnixTimestamp64Nano(?, 'UTC') " +
 		"AND addNanoseconds(Timestamp, Duration) <= fromUnixTimestamp64Nano(?, 'UTC')"
 
-	args = append(args, window.Start.UnixNano(), window.End.UnixNano(), window.End.UnixNano())
+	timeArgs := []any{window.Start.UnixNano(), window.End.UnixNano(), window.End.UnixNano()}
+
+	var baseArgs []any
+	baseArgs = append(baseArgs, scopeArgs...)
+	baseArgs = append(baseArgs, timeArgs...)
 
 	order := "ASC"
 	if isDesc {
 		order = "DESC"
 	}
 
-	query := `SELECT TraceId,
+	var args []any
+	// 1. Args for the exact total CTE
+	args = append(args, baseArgs...)
+	// 2. Args for the IN subquery (roots only)
+	args = append(args, baseArgs...)
+	args = append(args, limit)
+	// 3. Args for the outer aggregation
+	args = append(args, baseArgs...)
+
+	query := `WITH (
+		SELECT count() FROM ` + table + ` 
+		WHERE ` + where + ` AND ParentSpanId = ''
+	) AS exact_total
+	SELECT TraceId,
 	min(Timestamp) AS start_time,
 	max(addNanoseconds(Timestamp, Duration)) AS end_time,
 	uniqExact(SpanId) AS span_count,
@@ -36,13 +53,17 @@ func buildTraceListQuery(table string, cols tenantColumns, scope ScopeUIDs, wind
 	argMinIf(SpanName, Timestamp, ParentSpanId = '') AS root_span_name,
 	argMinIf(SpanKind, Timestamp, ParentSpanId = '') AS root_span_kind,
 	countIf(ParentSpanId = '') AS roots,
-	count() OVER () AS total
-	FROM ` + table + ` WHERE ` + where + `
+	exact_total AS total
+	FROM ` + table + ` 
+	WHERE TraceId IN (
+		SELECT TraceId FROM ` + table + ` 
+		WHERE ` + where + ` AND ParentSpanId = '' 
+		ORDER BY Timestamp ` + order + `, TraceId ASC 
+		LIMIT ?
+	)
+	AND ` + where + `
 	GROUP BY TraceId HAVING roots > 0
-	ORDER BY start_time ` + order + `, TraceId ASC
-	LIMIT ?`
-
-	args = append(args, limit)
+	ORDER BY start_time ` + order + `, TraceId ASC`
 
 	return query, args
 }
