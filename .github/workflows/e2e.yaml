@@ -50,6 +50,13 @@ jobs:
         run: |
           cd deployments/quick-start && VERSION=${{ env.HELM_CHART_VERSION }} bash install.sh
 
+      - name: Enable A2A test upstream
+        env:
+          # Must match the host of the platform agent's external URL
+          # (<env>-<org>.<data-plane ingress host> under quick-start).
+          A2A_PLATFORM_AGENT_HOST: default-default.agentmanager.localhost
+        run: bash .github/scripts/enable-a2a-test-upstream.sh "${A2A_PLATFORM_AGENT_HOST}"
+
       - name: Run e2e tests
         env:
           TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
