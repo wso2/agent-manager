@@ -162,15 +162,11 @@ export async function getProjectMCPProxy(
   params: GetProjectMCPProxyPathParams,
   getToken?: () => Promise<string>,
 ): Promise<ProjectMCPProxy> {
-  const org = encodeRequired(params.orgName, "orgName");
-  const proj = encodeRequired(params.projName, "projName");
-  const proxyId = encodeRequired(params.proxyId, "proxyId");
+  // Built before the token is read, so a missing path parameter fails first.
+  const url = projectMCPProxyUrl(params);
   const token = getToken ? await getToken() : undefined;
 
-  const res = await httpGET(
-    `${SERVICE_BASE}/orgs/${org}/projects/${proj}/mcp-proxies/${proxyId}`,
-    { token },
-  );
+  const res = await httpGET(url, { token });
   if (!res.ok) throw await res.json();
   return res.json();
 }
@@ -183,17 +179,10 @@ export async function refreshProjectMCPProxyCapabilities(
   params: RefreshProjectMCPProxyCapabilitiesPathParams,
   getToken?: () => Promise<string>,
 ): Promise<ProjectMCPProxyEnvironment> {
-  const org = encodeRequired(params.orgName, "orgName");
-  const proj = encodeRequired(params.projName, "projName");
-  const proxyId = encodeRequired(params.proxyId, "proxyId");
-  const envName = encodeRequired(params.envName, "envName");
+  const url = `${projectMCPProxyEnvironmentUrl(params)}/capabilities/refresh`;
   const token = getToken ? await getToken() : undefined;
 
-  const res = await httpPOST(
-    `${SERVICE_BASE}/orgs/${org}/projects/${proj}/mcp-proxies/${proxyId}/environments/${envName}/capabilities/refresh`,
-    {},
-    { token },
-  );
+  const res = await httpPOST(url, {}, { token });
   if (!res.ok) throw await res.json();
   return res.json();
 }

@@ -28,7 +28,6 @@ import {
   planURLProxySave,
   sameOrigin,
   proxyRequestFrom,
-  toProjectProxyId,
 } from "./projectBinding";
 
 const base: ProjectMCPProxyEnvironment = {
@@ -115,14 +114,6 @@ describe("bindingRequestFrom", () => {
   });
 });
 
-describe("toProjectProxyId", () => {
-  it("makes a kebab-case id the service takes", () => {
-    expect(toProjectProxyId("  Docs MCP Server! ")).toBe("docs-mcp-server");
-    expect(toProjectProxyId("a".repeat(120))).toHaveLength(100);
-    expect(toProjectProxyId("***")).toBe("");
-  });
-});
-
 describe("proxyRequestFrom", () => {
   it("keeps what a URL proxy has, with its upstream and no source", () => {
     expect(
@@ -177,7 +168,7 @@ describe("binding as an org endpoint config", () => {
   });
 
   it("keeps the tools when a tab changes only the policies", () => {
-    const { binding, proxyURL } = applyBindingConfigChange(urlProxy, env, {
+    const binding = applyBindingConfigChange(env, {
       policies: [],
     });
     expect(binding.policies).toEqual([]);
@@ -186,11 +177,10 @@ describe("binding as an org endpoint config", () => {
       type: "api-key",
       header: "Authorization",
     });
-    expect(proxyURL).toBeUndefined();
   });
 
-  it("sends a new credential value, and a changed URL to the proxy", () => {
-    const { binding, proxyURL } = applyBindingConfigChange(urlProxy, env, {
+  it("sends a new credential value, and never takes the URL from the tab", () => {
+    const binding = applyBindingConfigChange(env, {
       upstream: {
         main: {
           url: "https://mcp2.example.com/mcp",
@@ -203,20 +193,14 @@ describe("binding as an org endpoint config", () => {
       header: "X-Key",
       value: "s3cret",
     });
-    expect(proxyURL).toBe("https://mcp2.example.com/mcp");
+    expect(binding).not.toHaveProperty("upstream");
   });
 
-  it("clears the credential when the tab removes it, and never moves a sourced proxy's URL", () => {
-    const sourced = {
-      ...urlProxy,
-      upstream: undefined,
-      source: { componentName: "c", endpointName: "e" },
-    };
-    const { binding, proxyURL } = applyBindingConfigChange(sourced, env, {
+  it("clears the credential when the tab removes it", () => {
+    const binding = applyBindingConfigChange(env, {
       upstream: { main: { url: "https://elsewhere/mcp" } },
     });
     expect(binding.upstreamAuth).toBeUndefined();
-    expect(proxyURL).toBeUndefined();
   });
 });
 
@@ -244,14 +228,14 @@ describe("binding timeouts", () => {
   });
 
   it("are changed or cleared by the Connection tab", () => {
-    const changed = applyBindingConfigChange(urlProxy, env, {
+    const changed = applyBindingConfigChange(env, {
       resilience: { timeout: "30s" },
     });
-    expect(changed.binding.resilience).toEqual({ timeout: "30s" });
-    const cleared = applyBindingConfigChange(urlProxy, env, {
+    expect(changed.resilience).toEqual({ timeout: "30s" });
+    const cleared = applyBindingConfigChange(env, {
       resilience: undefined,
     });
-    expect(cleared.binding.resilience).toBeUndefined();
+    expect(cleared.resilience).toBeUndefined();
   });
 });
 

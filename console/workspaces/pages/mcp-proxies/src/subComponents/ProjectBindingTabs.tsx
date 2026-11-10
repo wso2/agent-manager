@@ -45,6 +45,9 @@ import type {
   ProjectMCPProxyEnvironmentRequest,
 } from "@agent-management-platform/types";
 import {
+  apiKeyLocation,
+  apiKeyName,
+  apiKeySecurity,
   bindingRequestFrom,
   bindingRequiresAPIKey,
   DEFAULT_API_KEY_HEADER,
@@ -104,35 +107,27 @@ export function BindingSecurityTab({
 }) {
   const { canWrite } = useResourceAccess("mcp_server");
   const [required, setRequired] = useState(bindingRequiresAPIKey(env.security));
-  const [header, setHeader] = useState(
-    env.security?.apiKey?.key || DEFAULT_API_KEY_HEADER,
-  );
+  const [header, setHeader] = useState(apiKeyName(env.security));
   const [location, setLocation] = useState<APIKeyLocation>(
-    env.security?.apiKey?.in ?? "header",
+    apiKeyLocation(env.security),
   );
 
   useEffect(() => {
     setRequired(bindingRequiresAPIKey(env.security));
-    setHeader(env.security?.apiKey?.key || DEFAULT_API_KEY_HEADER);
-    setLocation(env.security?.apiKey?.in ?? "header");
+    setHeader(apiKeyName(env.security));
+    setLocation(apiKeyLocation(env.security));
   }, [env]);
 
   const isDirty =
     required !== bindingRequiresAPIKey(env.security) ||
     (required &&
-      (header.trim() !==
-        (env.security?.apiKey?.key || DEFAULT_API_KEY_HEADER) ||
-        location !== (env.security?.apiKey?.in ?? "header")));
+      (header.trim() !== apiKeyName(env.security) ||
+        location !== apiKeyLocation(env.security)));
 
   const save = () =>
     onSave({
       ...bindingRequestFrom(env),
-      security: required
-        ? {
-            enabled: true,
-            apiKey: { enabled: true, key: header.trim(), in: location },
-          }
-        : { enabled: false },
+      security: apiKeySecurity(required, header.trim(), location),
     });
 
   return (

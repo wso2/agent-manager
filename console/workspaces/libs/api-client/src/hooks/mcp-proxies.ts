@@ -15,7 +15,7 @@
  * under the License.
  */
 
-import { useQueryClient } from "@tanstack/react-query";
+import { type QueryClient, useQueryClient } from "@tanstack/react-query";
 import { useAuthHooks } from "@agent-management-platform/auth";
 import type {
   CreateMCPProxyPathParams,
@@ -192,6 +192,12 @@ export function useFetchMCPProxyServerInfo() {
   });
 }
 
+/** Refreshes what a project proxy change shows in: the proxy's page and the MCP server lists. */
+function invalidateProjectMCPProxies(queryClient: QueryClient) {
+  queryClient.invalidateQueries({ queryKey: ["project-mcp-proxy"] });
+  queryClient.invalidateQueries({ queryKey: ["mcp-proxies"] });
+}
+
 function useUpsertProjectMCPProxy(verb: "create" | "update") {
   const { getToken } = useAuthHooks();
   const queryClient = useQueryClient();
@@ -205,8 +211,7 @@ function useUpsertProjectMCPProxy(verb: "create" | "update") {
     mutationFn: ({ params, body }) =>
       upsertProjectMCPProxy(params, body, getToken, { createOnly: verb === "create" }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["mcp-proxies"] });
-      queryClient.invalidateQueries({ queryKey: ["project-mcp-proxy"] });
+      invalidateProjectMCPProxies(queryClient);
     },
   });
 }
@@ -229,8 +234,7 @@ export function useDeleteProjectMCPProxyEnvironment() {
     action: { verb: "remove", target: "mcp server environment" },
     mutationFn: (params) => deleteProjectMCPProxyEnvironment(params, getToken),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["project-mcp-proxy"] });
-      queryClient.invalidateQueries({ queryKey: ["mcp-proxies"] });
+      invalidateProjectMCPProxies(queryClient);
     },
   });
 }
@@ -242,8 +246,7 @@ export function useDeleteProjectMCPProxy() {
     action: { verb: "delete", target: "mcp server" },
     mutationFn: (params) => deleteProjectMCPProxy(params, getToken),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["mcp-proxies"] });
-      queryClient.invalidateQueries({ queryKey: ["project-mcp-proxy"] });
+      invalidateProjectMCPProxies(queryClient);
     },
   });
 }
@@ -264,8 +267,7 @@ export function usePutProjectMCPProxyEnvironment() {
     mutationFn: ({ params, body }) =>
       putProjectMCPProxyEnvironment(params, body, getToken),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["project-mcp-proxy"] });
-      queryClient.invalidateQueries({ queryKey: ["mcp-proxies"] });
+      invalidateProjectMCPProxies(queryClient);
     },
   });
 }

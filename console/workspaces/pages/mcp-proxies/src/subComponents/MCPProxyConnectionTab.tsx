@@ -311,10 +311,7 @@ export function MCPProxyConnectionTab({
             }}
             onBlur={() => validateEndpoint(endpoint)}
             error={!!endpointError}
-            helperText={
-              endpointError ??
-              (readOnlyURLText !== undefined ? readOnlyURLHelperText : undefined)
-            }
+            helperText={endpointError ?? readOnlyURLHelperText}
             placeholder="Enter URL of your MCP Server"
             sx={{
               "& .MuiInputBase-input": {

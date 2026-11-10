@@ -38,6 +38,7 @@ import {
   planURLProxySave,
   projectProxyEndpointDraft,
   proxyRequestFrom,
+  upstreamAuthRequest,
 } from "./projectBinding";
 
 function ProjectEditForm({
@@ -107,13 +108,7 @@ function ProjectEditForm({
           draft,
           {
             url: endpoint.upstream?.main?.url ?? "",
-            upstreamAuth: auth?.header
-              ? {
-                  type: "api-key",
-                  header: auth.header,
-                  ...(auth.value ? { value: auth.value } : {}),
-                }
-              : undefined,
+            upstreamAuth: upstreamAuthRequest(auth),
             resilience: endpoint.resilience,
           },
           added,

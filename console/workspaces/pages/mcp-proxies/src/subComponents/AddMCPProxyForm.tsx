@@ -52,6 +52,7 @@ import { draftToEndpoint } from "./mcpEndpoints";
 import {
   type BindingFailure,
   type ProjectProxyViewState,
+  upstreamAuthRequest,
 } from "./projectBinding";
 
 const DEFAULT_PROXY_VERSION = "1.0.0";
@@ -242,15 +243,7 @@ export function AddMCPProxyForm({ onCancel, projectId }: AddMCPProxyFormProps) {
           params: { ...params, envName },
           body: {
             ...(binding.gatewayId ? { gatewayId: binding.gatewayId } : {}),
-            ...(auth?.header
-              ? {
-                  upstreamAuth: {
-                    type: "api-key",
-                    header: auth.header,
-                    value: auth.value,
-                  },
-                }
-              : {}),
+            ...(auth?.header ? { upstreamAuth: upstreamAuthRequest(auth) } : {}),
             ...(endpoint.resilience ? { resilience: endpoint.resilience } : {}),
           },
         });

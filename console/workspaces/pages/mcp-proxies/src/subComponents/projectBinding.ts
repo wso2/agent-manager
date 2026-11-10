@@ -16,6 +16,7 @@
  */
 
 import type {
+  APIKeyLocation,
   MCPEndpointConfig,
   MCPProxy,
   ProjectMCPProxy,
@@ -35,20 +36,6 @@ export interface BindingFailure {
 /** The navigation state the register form hands the server's page. */
 export interface ProjectProxyViewState {
   bindingFailures?: BindingFailure[];
-}
-
-/** The longest proxy id the service takes. */
-export const MAX_PROXY_ID_LENGTH = 100;
-
-/** A kebab-case proxy id from a display name, as the service takes it. */
-export function toProjectProxyId(name: string): string {
-  return name
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, MAX_PROXY_ID_LENGTH)
-    .replace(/-+$/g, "");
 }
 
 /** The upsert body that keeps a project proxy as it is; an edit changes only its own field. */
@@ -79,6 +66,52 @@ export function bindingRequiresAPIKey(
   return security.apiKey?.enabled !== false;
 }
 
+/** The header callers send the binding's API key in, defaulted as the service does. */
+export function apiKeyName(security: ProjectMCPProxyEnvironmentSecurity | undefined): string {
+  return security?.apiKey?.key || DEFAULT_API_KEY_HEADER;
+}
+
+/** Where callers send the binding's API key, defaulted as the service does. */
+export function apiKeyLocation(
+  security: ProjectMCPProxyEnvironmentSecurity | undefined,
+): APIKeyLocation {
+  return security?.apiKey?.in ?? "header";
+}
+
+/** Binding security that asks for an API key in `key`, or none. */
+export function apiKeySecurity(
+  required: boolean,
+  key: string,
+  location: APIKeyLocation,
+): ProjectMCPProxyEnvironmentSecurity {
+  return required
+    ? { enabled: true, apiKey: { enabled: true, key, in: location } }
+    : { enabled: false };
+}
+
+/** The binding's security as it reads back, with the service's defaults filled in. */
+function securityWithDefaults(
+  security: ProjectMCPProxyEnvironmentSecurity | undefined,
+): ProjectMCPProxyEnvironmentSecurity {
+  return apiKeySecurity(
+    bindingRequiresAPIKey(security),
+    apiKeyName(security),
+    apiKeyLocation(security),
+  );
+}
+
+/** The upstream credential a request sets: an api-key header, with its value when one is typed. */
+export function upstreamAuthRequest(
+  auth: { header?: string; value?: string } | undefined,
+): ProjectMCPProxyEnvironmentRequest["upstreamAuth"] {
+  if (!auth?.header) return undefined;
+  return {
+    type: "api-key",
+    header: auth.header,
+    ...(auth.value ? { value: auth.value } : {}),
+  };
+}
+
 /**
  * The PUT body that keeps a binding as it is. The binding PUT replaces the whole
  * configuration, so every save starts from this and changes only its own field.
@@ -93,18 +126,8 @@ export function bindingRequestFrom(
   if (env.gatewayId) request.gatewayId = env.gatewayId;
   if (env.releaseBindingName)
     request.releaseBindingName = env.releaseBindingName;
-  if (env.security) {
-    request.security = bindingRequiresAPIKey(env.security)
-      ? {
-          enabled: true,
-          apiKey: {
-            enabled: true,
-            key: env.security.apiKey?.key || DEFAULT_API_KEY_HEADER,
-            in: env.security.apiKey?.in ?? "header",
-          },
-        }
-      : { enabled: false };
-  }
+  // Left out when the binding reads back none, which the service also takes as its default.
+  if (env.security) request.security = securityWithDefaults(env.security);
   if (env.upstreamAuth?.type === "api-key" && env.upstreamAuth.header) {
     request.upstreamAuth = { type: "api-key", header: env.upstreamAuth.header };
   }
@@ -136,41 +159,20 @@ export function bindingEndpointConfig(
     policies: env.policies ?? [],
     capabilities: env.capabilities,
     mcpSpecVersions: proxy.mcpSpecVersion ? [proxy.mcpSpecVersion] : undefined,
-    security: bindingRequiresAPIKey(env.security)
-      ? {
-          enabled: true,
-          apiKey: {
-            enabled: true,
-            key: env.security?.apiKey?.key || DEFAULT_API_KEY_HEADER,
-            in: env.security?.apiKey?.in ?? "header",
-          },
-        }
-      : { enabled: false },
+    security: securityWithDefaults(env.security),
   };
 }
 
-/** What an org tab's edit of a binding's endpoint config changes on the project proxy. */
-export interface BindingConfigChange {
-  /** The binding PUT body with the edit applied. */
-  binding: ProjectMCPProxyEnvironmentRequest;
-  /**
-   * The new URL of a proxy registered by URL, when the edit changed it. The URL is the
-   * proxy's, so every environment takes it.
-   */
-  proxyURL?: string;
-}
-
 /**
- * Applies an org tab's edit of a binding's endpoint config. Policies, capabilities, timeouts and
- * the upstream credential belong to the binding; the URL belongs to a proxy registered by URL.
+ * The binding PUT body with an org tab's edit of its endpoint config applied. Policies,
+ * capabilities, timeouts and the upstream credential belong to the binding. The URL is the
+ * proxy's, and read-only on the tabs, so it is not taken from the edit.
  */
 export function applyBindingConfigChange(
-  proxy: ProjectMCPProxy,
   env: ProjectMCPProxyEnvironment,
   fields: Partial<MCPEndpointConfig>,
-): BindingConfigChange {
+): ProjectMCPProxyEnvironmentRequest {
   const binding = bindingRequestFrom(env);
-  const change: BindingConfigChange = { binding };
   if (fields.policies !== undefined) binding.policies = fields.policies;
   if ("capabilities" in fields) {
     if (fields.capabilities) binding.capabilities = fields.capabilities;
@@ -181,23 +183,11 @@ export function applyBindingConfigChange(
     else delete binding.resilience;
   }
   if ("upstream" in fields) {
-    const main = fields.upstream?.main;
-    const auth = main?.auth;
-    if (auth?.header) {
-      binding.upstreamAuth = {
-        type: "api-key",
-        header: auth.header,
-        ...(auth.value ? { value: auth.value } : {}),
-      };
-    } else {
-      delete binding.upstreamAuth;
-    }
-    const url = main?.url?.trim();
-    if (proxy.upstream && url && url !== proxy.upstream.url) {
-      change.proxyURL = url;
-    }
+    const upstreamAuth = upstreamAuthRequest(fields.upstream?.main?.auth);
+    if (upstreamAuth) binding.upstreamAuth = upstreamAuth;
+    else delete binding.upstreamAuth;
   }
-  return change;
+  return binding;
 }
 
 /** The project proxy as the org Overview tab reads it. */
