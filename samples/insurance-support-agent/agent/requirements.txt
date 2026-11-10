@@ -1,12 +1,12 @@
-strands-agents[openai]==1.63.0
+strands-agents[openai]==1.64.0
 
 fastapi==0.162.0
 uvicorn[standard]==0.54.0
-pydantic==2.14.2
+pydantic==2.14.3
 python-dotenv==1.2.4
 
 # strands-agents resolves wrapt 2.x, which AMP's auto-instrumentation cannot use.
-wrapt==1.17.3
+wrapt==2.5.2
 
 # Pin the Streamable HTTP API used by the supplied MCP client/server.
 mcp==2.3.0
