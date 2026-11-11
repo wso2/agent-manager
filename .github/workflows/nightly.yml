@@ -331,10 +331,9 @@ jobs:
           kubectl logs deployment/amp-observer -n openchoreo-observability-plane --tail=500 --all-containers=true > /tmp/pod-logs/amp-observer.txt 2>&1 || true
           kubectl logs deployment/observer -n openchoreo-observability-plane --tail=500 --all-containers=true > /tmp/pod-logs/observer.txt 2>&1 || true
           kubectl logs deployment/controller-manager -n openchoreo-control-plane --tail=500 --all-containers=true > /tmp/pod-logs/openchoreo-controller-manager.txt 2>&1 || true
-          kubectl logs -n openbao openbao-0 --tail=500 > /tmp/pod-logs/openbao.txt 2>&1 || true
           kubectl logs -n external-secrets -l app.kubernetes.io/name=external-secrets --tail=500 --all-containers=true > /tmp/pod-logs/external-secrets.txt 2>&1 || true
           kubectl get clustersecretstores,externalsecrets -A -o wide > /tmp/pod-logs/secret-stores.txt 2>&1 || true
-          kubectl describe clustersecretstore default > /tmp/pod-logs/clustersecretstore-default.txt 2>&1 || true
+          kubectl describe clustersecretstore amp-secret-store > /tmp/pod-logs/clustersecretstore-amp.txt 2>&1 || true
           kubectl get pods -A -o wide > /tmp/pod-logs/all-pods.txt 2>&1 || true
           kubectl get events -A --field-selector type=Warning --sort-by=.lastTimestamp > /tmp/pod-logs/warning-events.txt 2>&1 || true
           kubectl describe nodes > /tmp/pod-logs/nodes-describe.txt 2>&1 || true

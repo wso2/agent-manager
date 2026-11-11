@@ -192,6 +192,24 @@ thunder:
       passwordRef:
         name: "amp-admin-credentials"
         key: "password"
+    # These bootstrap documents contain the credentials also seeded into the vault.
+    extraVolumes:
+      - name: amp-vault-bootstrap
+        secret:
+          secretName: amp-thunder-vault-bootstrap
+    extraVolumeMounts:
+      - name: amp-vault-bootstrap
+        mountPath: /opt/thunderid/bootstrap/54-workload-publisher-app.yaml
+        subPath: 54-workload-publisher-app.yaml
+        readOnly: true
+      - name: amp-vault-bootstrap
+        mountPath: /opt/thunderid/bootstrap/55-observer-resource-reader-app.yaml
+        subPath: 55-observer-resource-reader-app.yaml
+        readOnly: true
+      - name: amp-vault-bootstrap
+        mountPath: /opt/thunderid/bootstrap/56-amp-publisher-client.yaml
+        subPath: 56-amp-publisher-client.yaml
+        readOnly: true
     resources:
       limits:
         cpu: 500m
@@ -333,9 +351,6 @@ thunder:
         - 51-amp-console-theme.yaml
         - 52-amp-console-layout.yaml
         - 53-amp-console-app.yaml
-        - 54-workload-publisher-app.yaml
-        - 55-observer-resource-reader-app.yaml
-        - 56-amp-publisher-client.yaml
         - 57-amp-system-client.yaml
         - 58-amctl-client.yaml
         - 59-am-mcp-client.yaml
@@ -409,7 +424,7 @@ thunder:
     # AMP Publisher Client configuration (for evaluation job to publish scores)
     ampPublisherClient:
       clientId: "amp-publisher-client"
-      clientSecret: "amp-publisher-client-secret"  # Override in production; must match the value stored in OpenBao at secret/amp-publisher-client-secret (used by ExternalSecret at workflow runtime)
+      clientSecret: "amp-publisher-client-secret"  # Must match the monitor publisher credential in the platform vault seed
       name: "AMP Publisher Client"
       description: "Client application for evaluation job to publish scores"
       grantTypes:

@@ -108,6 +108,9 @@ if ! (cd "$PROJECT_ROOT/agent-manager-service" && ENV_FILE_PATH=.env go run -mod
 fi
 echo "✅ Migrations completed"
 
+source "$SCRIPT_DIR/../scripts/platform-vault.sh"
+init_platform_vault "$SCRIPT_DIR/../.platform-vault"
+
 echo "🚀 Starting Agent Manager platform services..."
 # --build is required, not an optimisation: plain `up -d` builds an image only
 # when none exists, so an image left over from an earlier checkout is reused
@@ -115,6 +118,8 @@ echo "🚀 Starting Agent Manager platform services..."
 # pre-1.26 image against a go.mod requiring go >= 1.26.0 fails inside Air with
 # "GOTOOLCHAIN=local", and the only symptom is a health check timing out much
 # later. Layer caching makes the no-change case cost a couple of seconds.
+# Per-checkout token for the in-house secret store (see secret-store-token.sh).
+"$SCRIPT_DIR/secret-store-token.sh" >/dev/null
 docker compose -f "$COMPOSE_FILE" up -d --build
 
 echo ""

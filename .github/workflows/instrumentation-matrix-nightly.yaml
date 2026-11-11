@@ -111,7 +111,7 @@ jobs:
         run: |
           set +e
           echo "=== port-forward liveness (HTTP 000 = no connection / dropped forward) ==="
-          for p in 9000 8195 9243 22893 8090 9098 8200; do
+          for p in 9000 8195 9243 22893 8090 9098; do
             code=$(curl -s -m3 -o /dev/null -w "%{http_code}" "http://localhost:$p" 2>/dev/null)
             echo "  localhost:$p -> ${code:-000}"
           done

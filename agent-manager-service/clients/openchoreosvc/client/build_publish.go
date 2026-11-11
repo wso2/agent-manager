@@ -37,17 +37,16 @@ import (
 
 // workflowParamAMPBuild is the build workflow parameter that carries the
 // organization-scoped build token. Declared by the AMP build workflows as
-// parameters.ampBuild {secretRef}; the workflow resolves that SecretReference
-// (in the run's own namespace) into a per-run ExternalSecret and hands the token
-// (its access-token entry) to its workload step.
+// parameters.ampBuild {secretKVPath}; the workflow reads that secret store key
+// (its access-token property) through a per-run ExternalSecret and hands the
+// token to its workload step.
 const workflowParamAMPBuild = "ampBuild"
 
 // BuildClientParams names where a build run's build token is. It is not a
-// secret: SecretRefName names the SecretReference (access-token) in the
-// organization's own namespace. A name, rather than a secret store location,
-// keeps the run's ExternalSecret resolving within the run's own namespace.
+// secret: SecretKVPath is the token's secret store key ("<ouID>/<name>",
+// property access-token), which the run's ExternalSecret reads directly.
 type BuildClientParams struct {
-	SecretRefName string
+	SecretKVPath string
 	// SecretStore names the ClusterSecretStore the run reads the token through
 	// (config.BuildClient.SecretStore). Empty leaves it to the workflow.
 	SecretStore string
@@ -66,7 +65,7 @@ func withBuildClient(params map[string]interface{}, buildClient *BuildClientPara
 	out := make(map[string]interface{}, len(params)+1)
 	maps.Copy(out, params)
 	ampBuild := map[string]interface{}{
-		"secretRef": buildClient.SecretRefName,
+		workflowParamAMPBuildSecretKVPath: buildClient.SecretKVPath,
 	}
 	if buildClient.SecretStore != "" {
 		ampBuild[workflowParamAMPBuildSecretStore] = buildClient.SecretStore
@@ -74,6 +73,10 @@ func withBuildClient(params map[string]interface{}, buildClient *BuildClientPara
 	out[workflowParamAMPBuild] = ampBuild
 	return out
 }
+
+// workflowParamAMPBuildSecretKVPath is the ampBuild property carrying the
+// token's secret store key.
+const workflowParamAMPBuildSecretKVPath = "secretKVPath"
 
 // workflowParamAMPBuildSecretStore is the ampBuild property naming the
 // ClusterSecretStore the run reads its token through.
@@ -316,6 +319,7 @@ var buildBindingRetryDelay = 2 * time.Second
 // buildBindingMaxAttempts, because the backend writes the same binding
 // concurrently; see the step's comment for why 500 is retryable.
 func (c *openChoreoClient) PublishBuildWorkload(ctx context.Context, ouID string, req PublishBuildWorkloadRequest) error {
+	ctx = withSecretOuID(ctx, ouID)
 	// Publishing creates or repins the first environment's binding, so like any
 	// other new work it is refused for an organization the deployment's workload
 	// guard does not admit (a suspended subscription).

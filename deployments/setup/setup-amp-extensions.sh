@@ -25,6 +25,10 @@ helm dependency update "${SCRIPT_DIR}/../helm-charts/wso2-amp-thunder-extension"
 echo "✅ Helm dependencies updated"
 echo ""
 
+source "$SCRIPT_DIR/../scripts/platform-vault.sh"
+PLATFORM_VAULT_DIR="$SCRIPT_DIR/../.platform-vault"
+init_platform_vault "$PLATFORM_VAULT_DIR"
+
 install_thunder_extension() {
     echo "📦 Installing/Upgrading WSO2 AMP Thunder Extension..."
 
@@ -80,7 +84,8 @@ install_thunder_extension() {
     helm upgrade --install amp-thunder-extension "${SCRIPT_DIR}/../helm-charts/wso2-amp-thunder-extension" \
         --namespace amp-thunder --create-namespace \
         --set thunder.bootstrap.agentManagerMcpBaseUrl=http://localhost:9000 \
-        --set thunder.setup.admin.password=admin
+        --set thunder.setup.admin.password=admin \
+        -f "$PLATFORM_VAULT_DIR/thunder-values.json"
     echo "✅ AMP Thunder Extension installed/upgraded successfully"
 }
 
@@ -124,7 +129,8 @@ install_platform_resources() {
     echo "📦 Installing/Upgrading Default Platform Resources..."
     echo "   Creating default Organization, Project, Environment, and DeploymentPipeline..."
     helm upgrade --install amp-default-platform-resources "${SCRIPT_DIR}/../helm-charts/wso2-amp-platform-resources-extension" \
-        --namespace default
+        --namespace default \
+        --set "global.registry.authEnabled=$(platform_vault_has_registry_credentials "$PLATFORM_VAULT_DIR" && echo true || echo false)"
     echo "✅ Default Platform Resources installed/upgraded successfully"
 }
 

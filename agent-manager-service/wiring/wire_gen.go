@@ -9,14 +9,12 @@ package wiring
 import (
 	"context"
 	"fmt"
-	"log/slog"
-	"time"
-
 	"github.com/google/wire"
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/observersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
+	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc/providers/inhouse"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/controllers"
@@ -34,6 +32,8 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 	"github.com/wso2/agent-manager/agent-manager-service/websocket"
 	"gorm.io/gorm"
+	"log/slog"
+	"time"
 )
 
 // Injectors from wire.go:
@@ -49,18 +49,23 @@ func InitializeAppParamsWithEnvThunderEndpoints(cfg *config.Config, db *gorm.DB,
 	orgResolver := ProvideOrgResolver(identityClient)
 	recorder := ProvideAuditRecorder(configConfig, logger)
 	ouHandleLookup := ProvideOUHandleLookup(identityClient)
+	secretResolver, err := ProvideSecretResolver(configConfig, db)
+	if err != nil {
+		return nil, err
+	}
 	openChoreoClient, err := ProvideOCClient(configConfig, authProvider)
 	if err != nil {
 		return nil, err
 	}
-	secretManagementClient, err := ProvideSecretManagementClient(configConfig, secretProvider, openChoreoClient)
+	secretManagementClient, err := ProvideSecretManagementClient(configConfig, secretProvider, db)
 	if err != nil {
 		return nil, err
 	}
-	gitCredentialsService, err := ProvideGitCredentialsService(openChoreoClient, configConfig)
+	gitSecretStore, err := ProvideGitSecretStore(configConfig, db)
 	if err != nil {
 		return nil, err
 	}
+	gitCredentialsService := services.NewGitCredentialsService(gitSecretStore)
 	repositoryService := services.NewRepositoryService(gitCredentialsService, logger)
 	jwtSigningConfig := ProvideJWTSigningConfig(configConfig)
 	agentTokenManagerService, err := services.NewAgentTokenManagerService(openChoreoClient, jwtSigningConfig, logger)
@@ -143,7 +148,7 @@ func InitializeAppParamsWithEnvThunderEndpoints(cfg *config.Config, db *gorm.DB,
 	buildTokenIssuer := ProvideBuildTokenIssuer(configConfig, logger, secretManagementClient)
 	agentExposurePublisher := services.NewAgentExposurePublisher(txRunner, platformAgentExposureRepository, artifactRepository, deploymentRepository, gatewayRepository, core, logger)
 	a2APublisher := services.NewA2APublisher(txRunner, platformAgentExposureRepository, a2AProxyRepository, a2AAgentCardRepository, artifactRepository, deploymentRepository, logger, agentExposurePublisher, a2AAgentKind)
-	agentManagerService := services.NewAgentManagerService(db, openChoreoClient, secretManagementClient, repositoryService, agentTokenManagerService, agentConfigRepository, agentConfigurationService, agentKindService, artifactRepository, aiApplicationService, gatewayRepository, agentThunderProvisioning, monitorManagerService, agentIdentityInjectionService, identityClient, buildSecretProvisioner, buildTokenIssuer, a2APublisher, a2AAgentCardRepository, deploymentRepository, gatewayEventsService, agentExposurePublisher, restAgentKind, logger)
+	agentManagerService := services.NewAgentManagerService(db, openChoreoClient, secretManagementClient, repositoryService, gitSecretStore, agentTokenManagerService, agentConfigRepository, agentConfigurationService, agentKindService, artifactRepository, aiApplicationService, gatewayRepository, agentThunderProvisioning, monitorManagerService, agentIdentityInjectionService, identityClient, buildSecretProvisioner, buildTokenIssuer, a2APublisher, a2AAgentCardRepository, deploymentRepository, gatewayEventsService, agentExposurePublisher, restAgentKind, logger)
 	eventRepository := repositories.NewEventRepository(db)
 	eventSubscriptionService := services.NewEventSubscriptionService(eventRepository, openChoreoClient, logger)
 	agentController := controllers.NewAgentController(agentManagerService, agentKindService, eventSubscriptionService)
@@ -201,7 +206,7 @@ func InitializeAppParamsWithEnvThunderEndpoints(cfg *config.Config, db *gorm.DB,
 	wiringDefaultPythonVersion := ProvideDefaultPythonVersion()
 	agentBuildOptionsController := ProvideAgentBuildOptionsController(catalog, supportedPythonVersions, wiringDefaultPythonVersion)
 	agentConfigurationController := controllers.NewAgentConfigurationController(agentConfigurationService)
-	gitSecretService := services.NewGitSecretService(openChoreoClient)
+	gitSecretService := services.NewGitSecretService(gitSecretStore)
 	gitSecretController := controllers.NewGitSecretController(gitSecretService)
 	identityController := controllers.NewIdentityController(identityClient)
 	mcpProxyScopeService := services.NewMCPProxyScopeService(mcpProxyScopeRepository, mcpProxyRepository, infraResourceManager, envThunderResolver, mcpProxyService, logger)
@@ -231,6 +236,7 @@ func InitializeAppParamsWithEnvThunderEndpoints(cfg *config.Config, db *gorm.DB,
 		OrgResolver:                      orgResolver,
 		AuditRecorder:                    recorder,
 		OUHandleLookup:                   ouHandleLookup,
+		SecretResolver:                   secretResolver,
 		AgentController:                  agentController,
 		AgentKindController:              agentKindController,
 		InfraResourceController:          infraResourceController,
@@ -305,12 +311,14 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	orgResolver := ProvideOrgResolver(identityClient)
 	recorder := ProvideAuditRecorder(configConfig, logger)
 	ouHandleLookup := ProvideTestOUHandleLookup(testClients, identityClient)
+	secretResolver := ProvideTestSecretResolver()
 	openChoreoClient := ProvideTestOpenChoreoClient(testClients)
 	secretManagementClient := ProvideTestSecretManagementClient(testClients)
-	gitCredentialsService, err := ProvideGitCredentialsService(openChoreoClient, configConfig)
+	gitSecretStore, err := ProvideGitSecretStore(configConfig, db)
 	if err != nil {
 		return nil, err
 	}
+	gitCredentialsService := services.NewGitCredentialsService(gitSecretStore)
 	repositoryService := services.NewRepositoryService(gitCredentialsService, logger)
 	jwtSigningConfig := ProvideJWTSigningConfig(configConfig)
 	agentTokenManagerService, err := services.NewAgentTokenManagerService(openChoreoClient, jwtSigningConfig, logger)
@@ -393,7 +401,7 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	buildTokenIssuer := ProvideBuildTokenIssuer(configConfig, logger, secretManagementClient)
 	agentExposurePublisher := services.NewAgentExposurePublisher(txRunner, platformAgentExposureRepository, artifactRepository, deploymentRepository, gatewayRepository, core, logger)
 	a2APublisher := services.NewA2APublisher(txRunner, platformAgentExposureRepository, a2AProxyRepository, a2AAgentCardRepository, artifactRepository, deploymentRepository, logger, agentExposurePublisher, a2AAgentKind)
-	agentManagerService := services.NewAgentManagerService(db, openChoreoClient, secretManagementClient, repositoryService, agentTokenManagerService, agentConfigRepository, agentConfigurationService, agentKindService, artifactRepository, aiApplicationService, gatewayRepository, agentThunderProvisioningService, monitorManagerService, agentIdentityInjectionService, identityClient, buildSecretProvisioner, buildTokenIssuer, a2APublisher, a2AAgentCardRepository, deploymentRepository, gatewayEventsService, agentExposurePublisher, restAgentKind, logger)
+	agentManagerService := services.NewAgentManagerService(db, openChoreoClient, secretManagementClient, repositoryService, gitSecretStore, agentTokenManagerService, agentConfigRepository, agentConfigurationService, agentKindService, artifactRepository, aiApplicationService, gatewayRepository, agentThunderProvisioningService, monitorManagerService, agentIdentityInjectionService, identityClient, buildSecretProvisioner, buildTokenIssuer, a2APublisher, a2AAgentCardRepository, deploymentRepository, gatewayEventsService, agentExposurePublisher, restAgentKind, logger)
 	eventRepository := repositories.NewEventRepository(db)
 	eventSubscriptionService := services.NewEventSubscriptionService(eventRepository, openChoreoClient, logger)
 	agentController := controllers.NewAgentController(agentManagerService, agentKindService, eventSubscriptionService)
@@ -451,7 +459,7 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	wiringDefaultPythonVersion := ProvideDefaultPythonVersion()
 	agentBuildOptionsController := ProvideAgentBuildOptionsController(catalog, supportedPythonVersions, wiringDefaultPythonVersion)
 	agentConfigurationController := controllers.NewAgentConfigurationController(agentConfigurationService)
-	gitSecretService := services.NewGitSecretService(openChoreoClient)
+	gitSecretService := services.NewGitSecretService(gitSecretStore)
 	gitSecretController := controllers.NewGitSecretController(gitSecretService)
 	identityController := controllers.NewIdentityController(identityClient)
 	mcpProxyScopeService := services.NewMCPProxyScopeService(mcpProxyScopeRepository, mcpProxyRepository, infraResourceManager, envThunderResolver, mcpProxyService, logger)
@@ -481,6 +489,7 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 		OrgResolver:                      orgResolver,
 		AuditRecorder:                    recorder,
 		OUHandleLookup:                   ouHandleLookup,
+		SecretResolver:                   secretResolver,
 		AgentController:                  agentController,
 		AgentKindController:              agentKindController,
 		InfraResourceController:          infraResourceController,
@@ -558,6 +567,7 @@ var clientProviderSet = wire.NewSet(
 	ProvideObserverClient,
 	ProvideOCClient,
 	ProvideSecretManagementClient,
+	ProvideSecretResolver,
 	ProvidePublisherProvisioner,
 	ProvideBuildTokenIssuer,
 	ProvideIdentityClient,
@@ -567,7 +577,7 @@ var clientProviderSet = wire.NewSet(
 	ProvideEnvThunderResolverWithEndpoints,
 )
 
-var serviceProviderSet = wire.NewSet(services.NewAgentManagerService, services.NewAgentKindService, services.NewInfraResourceManager, services.NewAgentTokenManagerService, ProvideGitCredentialsService, services.NewRepositoryService, services.NewMonitorExecutor, services.NewMonitorManagerService, ProvideThunderConfig, services.NewMonitorSchedulerService, ProvideAgentIdentityInjectionServiceWithEndpointResolver, services.NewAgentThunderReconcilerService, services.NewA2ACardFetcher, services.NewA2ACardReconcilerService, services.NewConfiguredDeploymentTimeoutSweeper, services.NewA2AAgentCardService, ProvideTxRunner, services.NewAgentExposurePublisher, services.NewA2APublisher, services.NewA2AProxyService, ProvideA2AProxyHooks, services.NewEvaluatorManagerService, services.NewEnvironmentService, ProvidePlatformGatewayService, services.NewLLMProviderTemplateService, services.NewLLMProviderService, services.NewLLMProxyService, services.NewLLMProviderDeploymentService, services.NewLLMProviderAPIKeyService, services.NewLLMProxyAPIKeyService, services.NewAgentAPIKeyService, services.NewLLMProxyDeploymentService, services.NewMCPProxyService, services.NewProjectMCPProxyService, services.NewMCPProxyScopeService, wire.Bind(new(services.MCPProxyRedeployer), new(*services.MCPProxyService)), wire.Bind(new(controllers.MCPResourceServerIdentifierResolver), new(*services.MCPProxyService)), services.NewGatewayInternalAPIService, services.NewMonitorScoresService, services.NewBuildPublisherService, services.NewCatalogService, services.NewLLMProxyProvisioner, services.NewAgentConfigurationService, services.NewLLMTemplateStore, services.NewGitSecretService, services.NewAIApplicationService, ProvideEventBus,
+var serviceProviderSet = wire.NewSet(services.NewAgentManagerService, services.NewAgentKindService, services.NewInfraResourceManager, services.NewAgentTokenManagerService, ProvideGitSecretStore, services.NewGitCredentialsService, services.NewRepositoryService, services.NewMonitorExecutor, services.NewMonitorManagerService, ProvideThunderConfig, services.NewMonitorSchedulerService, ProvideAgentIdentityInjectionServiceWithEndpointResolver, services.NewAgentThunderReconcilerService, services.NewA2ACardFetcher, services.NewA2ACardReconcilerService, services.NewConfiguredDeploymentTimeoutSweeper, services.NewA2AAgentCardService, ProvideTxRunner, services.NewAgentExposurePublisher, services.NewA2APublisher, services.NewA2AProxyService, ProvideA2AProxyHooks, services.NewEvaluatorManagerService, services.NewEnvironmentService, ProvidePlatformGatewayService, services.NewLLMProviderTemplateService, services.NewLLMProviderService, services.NewLLMProxyService, services.NewLLMProviderDeploymentService, services.NewLLMProviderAPIKeyService, services.NewLLMProxyAPIKeyService, services.NewAgentAPIKeyService, services.NewLLMProxyDeploymentService, services.NewMCPProxyService, services.NewProjectMCPProxyService, services.NewMCPProxyScopeService, wire.Bind(new(services.MCPProxyRedeployer), new(*services.MCPProxyService)), wire.Bind(new(controllers.MCPResourceServerIdentifierResolver), new(*services.MCPProxyService)), services.NewGatewayInternalAPIService, services.NewMonitorScoresService, services.NewBuildPublisherService, services.NewCatalogService, services.NewLLMProxyProvisioner, services.NewAgentConfigurationService, services.NewLLMTemplateStore, services.NewGitSecretService, services.NewAIApplicationService, ProvideEventBus,
 	ProvideEventPublisher, repositories.NewEventOutboxRepository, services.NewMonitorRunEvents, ProvideDestinationDrivers, services.NewEventDestinationService, services.NewEventSubscriptionService, wire.Bind(new(services.EventsCleaner), new(services.EventSubscriptionService)), wire.Bind(new(services.DestinationResolver), new(services.EventDestinationService)), services.NewEventDispatcherService, services.NewMonitorAlertService, services.NewMonitorAlertProcessor,
 )
 
@@ -583,6 +593,7 @@ var testClientProviderSet = wire.NewSet(
 	ProvideTestOpenChoreoClient,
 	ProvideTestObserverClient,
 	ProvideTestSecretManagementClient,
+	ProvideTestSecretResolver,
 	ProvidePublisherProvisioner,
 	ProvideBuildTokenIssuer,
 	ProvideIdentityClient,
@@ -592,7 +603,19 @@ var testClientProviderSet = wire.NewSet(
 	ProvideEnvThunderResolver,
 )
 
-// thunderProvisioningTestSet builds the OpenBao-backed provisioning service for
+// ProvideTestSecretResolver provides a resolver that finds no secret, for the
+// test wiring, which has no in-house store behind it.
+func ProvideTestSecretResolver() secretmanagersvc.SecretResolver {
+	return noSecretResolver{}
+}
+
+type noSecretResolver struct{}
+
+func (noSecretResolver) Resolve(context.Context, string, string, string) (string, error) {
+	return "", secretmanagersvc.ErrSecretNotFound
+}
+
+// thunderProvisioningTestSet builds the secret-store-backed provisioning service for
 // the test wiring only; production injects it via InitializeAppParams.
 var thunderProvisioningTestSet = wire.NewSet(services.NewAgentThunderProvisioningService)
 
@@ -731,23 +754,59 @@ func ProvideObserverClient(cfg config.Config, authProvider client.AuthProvider) 
 	})
 }
 
-// ProvideSecretManagementClient creates the secret management service client.
-// If the provider implements secretmanagersvc.SecretReferenceManager and
-// reports that it manages SecretReferences itself, the OpenChoreo client is
-// not forwarded — preventing the high-level client from making redundant
-// SecretReference CRUD calls.
-func ProvideSecretManagementClient(cfg config.Config, secretProvider secretmanagersvc.Provider, ocClient client.OpenChoreoClient) (secretmanagersvc.SecretManagementClient, error) {
+// ProvideSecretManagementClient creates the secret management service client
+// backed by the in-house secret store.
+func ProvideSecretManagementClient(cfg config.Config, secretProvider secretmanagersvc.Provider, db *gorm.DB) (secretmanagersvc.SecretManagementClient, error) {
+	storeConfig, err := inHouseStoreConfig(cfg, db)
+	if err != nil {
+		return nil, err
+	}
 	return secretmanagersvc.NewSecretManagementClientWithConfig(secretmanagersvc.SecretManagementClientConfig{
-		StoreConfig: &secretmanagersvc.StoreConfig{
-			Provider: cfg.SecretManager.Provider,
-			OpenChoreo: &secretmanagersvc.OpenChoreoConfig{
-				Client:          ocClient,
-				TargetPlaneKind: cfg.SecretManager.TargetPlaneKind,
-				TargetPlaneName: cfg.SecretManager.TargetPlaneName,
-			},
-		},
-		Provider: secretProvider,
+		StoreConfig: storeConfig,
+		Provider:    secretProvider,
 	})
+}
+
+// ProvideSecretResolver creates the resolver the internal secret store endpoint
+// reads plaintext values through.
+func ProvideSecretResolver(cfg config.Config, db *gorm.DB) (secretmanagersvc.SecretResolver, error) {
+	storeConfig, err := inHouseStoreConfig(cfg, db)
+	if err != nil {
+		return nil, err
+	}
+	resolver, err := inhouse.NewClient(storeConfig.InHouse)
+	if err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	if err := resolver.SeedPlatformSecrets(ctx, cfg.SecretManager.PlatformVaultSeed); err != nil {
+		return nil, err
+	}
+	return resolver, nil
+}
+
+func inHouseStoreConfig(cfg config.Config, db *gorm.DB) (*secretmanagersvc.StoreConfig, error) {
+	key, err := ProvideEncryptionKey(cfg)
+	if err != nil {
+		return nil, err
+	}
+	return &secretmanagersvc.StoreConfig{
+		Provider: inhouse.ProviderName,
+		InHouse: &secretmanagersvc.InHouseConfig{
+			DB:             db,
+			EncryptionKey:  key,
+			MaxSecretBytes: inHouseMaxSecretBytes(cfg),
+		},
+	}, nil
+}
+
+// inHouseMaxSecretBytes sizes one stored secret. An agent's env secrets and
+// sensitive file mounts for one environment are stored together, so a secret
+// must hold the whole file mount budget the API accepts, plus room for the env
+// secrets beside it.
+func inHouseMaxSecretBytes(cfg config.Config) int {
+	return cfg.FileMountLimits.MaxTotalBytes + inhouse.DefaultMaxSecretBytes
 }
 
 // ProvideGatewayManifestCacheBackend builds the gateway-manifest cache backend
@@ -769,10 +828,13 @@ func ProvideGatewayManifestCacheBackend(cfg config.Config) (services.GatewayMani
 	}
 }
 
-// ProvideGitCredentialsService creates the git credentials service for fetching
-// git credentials from workflow plane OpenBao
-func ProvideGitCredentialsService(ocClient client.OpenChoreoClient, cfg config.Config) (services.GitCredentialsService, error) {
-	return services.NewGitCredentialsService(ocClient, cfg)
+// ProvideGitSecretStore creates the tenant-scoped Git credential store.
+func ProvideGitSecretStore(cfg config.Config, db *gorm.DB) (services.GitSecretStore, error) {
+	storeConfig, err := inHouseStoreConfig(cfg, db)
+	if err != nil {
+		return nil, err
+	}
+	return inhouse.NewClient(storeConfig.InHouse)
 }
 
 // ProvideNilBuildSecretProvisioner supplies a nil BuildSecretProvisioner for wiring

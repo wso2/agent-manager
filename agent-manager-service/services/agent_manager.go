@@ -90,6 +90,7 @@ type agentManagerService struct {
 	ocClient                  client.OpenChoreoClient
 	secretMgmtClient          secretmanagersvc.SecretManagementClient
 	gitRepositoryService      RepositoryService
+	gitSecretStore            GitSecretStore
 	tokenManagerService       AgentTokenManagerService
 	agentConfigRepo           repositories.AgentConfigRepository
 	agentConfigurationService AgentConfigurationService
@@ -118,6 +119,7 @@ func NewAgentManagerService(
 	OpenChoreoClient client.OpenChoreoClient,
 	secretMgmtClient secretmanagersvc.SecretManagementClient,
 	gitRepositoryService RepositoryService,
+	gitSecretStore GitSecretStore,
 	tokenManagerService AgentTokenManagerService,
 	agentConfigRepo repositories.AgentConfigRepository,
 	agentConfigurationService AgentConfigurationService,
@@ -144,6 +146,7 @@ func NewAgentManagerService(
 		ocClient:                  OpenChoreoClient,
 		secretMgmtClient:          secretMgmtClient,
 		gitRepositoryService:      gitRepositoryService,
+		gitSecretStore:            gitSecretStore,
 		tokenManagerService:       tokenManagerService,
 		agentConfigRepo:           agentConfigRepo,
 		agentConfigurationService: agentConfigurationService,
@@ -267,20 +270,7 @@ func (s *agentManagerService) validateGitSecretExists(ctx context.Context, ouID 
 		return fmt.Errorf("git secret reference is empty")
 	}
 
-	secrets, err := s.ocClient.ListGitSecrets(ctx, ouID)
-	if err != nil {
-		s.logger.Error("Failed to list git secrets for validation", "ouID", ouID, "error", err)
-		return fmt.Errorf("failed to validate git secret: %w", err)
-	}
-
-	for _, secret := range secrets {
-		if secret.Name == secretRef {
-			return nil
-		}
-	}
-
-	s.logger.Error("Git secret not found", "ouID", ouID, "secretRef", secretRef)
-	return utils.ErrGitSecretNotFound
+	return s.gitSecretStore.CheckGitSecret(ctx, ouID, secretRef)
 }
 
 // Build type constants
@@ -3223,9 +3213,9 @@ func (s *agentManagerService) DeleteAgent(ctx context.Context, ouID string, proj
 		// Continue with deletion even if we can't get secret refs
 	}
 
-	// Step 2-4: For each secret reference, get its details, delete from KV, then delete the CR
+	// Clean up stored secrets and legacy references found on the agent.
 	for _, secretRefName := range secretRefNames {
-		s.cleanupSecretReference(ctx, ouID, secretRefName)
+		s.cleanupSecretReference(ctx, ouID, projectName, agentName, secretRefName)
 	}
 
 	// Resolve agent type before component deletion so LLM config cleanup does not need
@@ -3574,30 +3564,16 @@ func (s *agentManagerService) deleteAgentLLMConfigurations(ctx context.Context, 
 	}
 }
 
-// cleanupSecretReference deletes an OpenChoreo-managed secret by name (the
-// secret name and its SecretReference name are the same); the API removes the
-// stored values and the SecretReference together. Only removes secrets owned
-// by this service (managed-by label).
-func (s *agentManagerService) cleanupSecretReference(ctx context.Context, ouID, secretRefName string) {
-	secret, err := s.ocClient.GetSecret(ctx, ouID, secretRefName)
-	if err != nil {
-		if errors.Is(err, utils.ErrNotFound) {
-			s.logger.Debug("Secret not found, skipping cleanup", "secretRefName", secretRefName)
-			return
+// cleanupSecretReference deletes a stored secret and its SecretReference by
+// name. Only removes secrets owned by this service.
+func (s *agentManagerService) cleanupSecretReference(ctx context.Context, ouID, projectName, agentName, secretRefName string) {
+	if s.secretMgmtClient != nil {
+		if err := s.secretMgmtClient.DeleteSecretByName(ctx, ouID, secretRefName); err != nil {
+			s.logger.Warn("Failed to delete secret during cleanup", "secretRefName", secretRefName, "error", err)
 		}
-		s.logger.Warn("Failed to get secret, skipping cleanup", "secretRefName", secretRefName, "error", err)
-		return
 	}
-
-	if secret.Labels[secretmanagersvc.LabelKeyManagedBy] != secretmanagersvc.DefaultManagedBy {
-		s.logger.Warn("Secret not managed by this service, skipping cleanup", "secretRefName", secretRefName)
-		return
-	}
-
-	if err := s.ocClient.DeleteSecret(ctx, ouID, secretRefName); err != nil && !errors.Is(err, utils.ErrNotFound) {
-		s.logger.Warn("Failed to delete secret during cleanup", "secretRefName", secretRefName, "error", err)
-	} else {
-		s.logger.Debug("Deleted secret during cleanup", "secretRefName", secretRefName)
+	if err := s.ocClient.DeleteAgentSecretReference(ctx, ouID, projectName, agentName, secretRefName); err != nil {
+		s.logger.Warn("Failed to delete legacy secret reference during cleanup", "secretRefName", secretRefName, "error", err)
 	}
 }
 
@@ -5160,7 +5136,7 @@ func (s *agentManagerService) PromoteAgent(ctx context.Context, ouID string, pro
 		// Thunder call on a detached goroutine — checking readiness this soon
 		// virtually always sees it still in flight, so promoting to a brand
 		// new environment would otherwise ALWAYS fail once before a manual
-		// retry succeeds. A Thunder+OpenBao round trip normally finishes in
+		// retry succeeds. A Thunder+secret store round trip normally finishes in
 		// well under a second, so give it a short, bounded chance to land
 		// before falling through to the hard block below. Only meaningful when
 		// a kick-off actually happened above — with provisioning disabled
@@ -5826,7 +5802,7 @@ func (s *agentManagerService) identityBindingStatusForLog(ctx context.Context, o
 // this, promoting to a target environment that didn't have a binding yet
 // would ALWAYS fail once (the goroutine can't possibly have completed a real
 // network round trip in the few microseconds since it was scheduled) before a
-// manual retry succeeds — even though a healthy Thunder+OpenBao round trip
+// manual retry succeeds — even though a healthy Thunder+secret store round trip
 // normally finishes in well under a second. A genuinely stuck/slow attempt
 // still falls through to the hard block after this budget, unchanged from
 // before. Returns nil (unwrapped, not an error) if the budget elapses or ctx
@@ -6407,13 +6383,9 @@ func (s *agentManagerService) cloneEnvSecretForPromotion(
 		return nil, nil, fmt.Errorf("secret management is not initialized; cannot clone secret for promotion")
 	}
 
-	srcSecret, err := s.ocClient.GetSecret(ctx, ouID, srcSecretName)
+	data, err := s.secretMgmtClient.GetSecretData(ctx, ouID, srcSecretName)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to read source environment secret %q: %w", srcSecretName, err)
-	}
-	data := make(map[string]string, len(srcSecret.Data))
-	for k, v := range srcSecret.Data {
-		data[k] = string(v)
 	}
 
 	tgtLocation := srcLocation

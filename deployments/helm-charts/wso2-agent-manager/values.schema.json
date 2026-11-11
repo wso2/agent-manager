@@ -223,7 +223,7 @@
     },
     "ocIngress": {
       "additionalProperties": false,
-      "description": "OpenChoreo ingress configuration \u2014 routes the Console and Agent Manager API through the OpenChoreo control-plane kgateway (gateway-default) so they do not need their own LoadBalancer services.",
+      "description": "OpenChoreo ingress configuration — routes the Console and Agent Manager API through the OpenChoreo control-plane kgateway (gateway-default) so they do not need their own LoadBalancer services.",
       "properties": {
         "enabled": {
           "default": true,
@@ -632,11 +632,11 @@
             },
             "audit": {
               "additionalProperties": false,
-              "description": "Audit trail. Every state-changing API call, every authorization denial and every rejected token is written to stdout as structured JSON tagged log_type=audit, for the cluster log pipeline to collect. Retention is NOT provided by this service. Route these records to an index or bucket with a retention period that matches your audit obligations \u2014 the observability plane's default log retention is far shorter than the evidence period most audits require.",
+              "description": "Audit trail. Every state-changing API call, every authorization denial and every rejected token is written to stdout as structured JSON tagged log_type=audit, for the cluster log pipeline to collect. Retention is NOT provided by this service. Route these records to an index or bucket with a retention period that matches your audit obligations — the observability plane's default log retention is far shorter than the evidence period most audits require.",
               "properties": {
                 "enabled": {
                   "default": true,
-                  "description": "Boolean, not a quoted string, so setting it to false actually disables recording \u2014 see the AUDIT_ENABLED note in the service ConfigMap.",
+                  "description": "Boolean, not a quoted string, so setting it to false actually disables recording — see the AUDIT_ENABLED note in the service ConfigMap.",
                   "title": "enabled",
                   "type": "boolean"
                 },
@@ -693,7 +693,7 @@
                 },
                 "value": {
                   "default": "",
-                  "description": "Empty by default so the chart's own randAlphaNum(32) fallback (see templates/agent-manager-service/secret.yaml) generates a real value \u2014 the same pattern encryptionKey below already uses correctly. Set this explicitly, or prefer existingSecret, for production.",
+                  "description": "Empty by default so the chart's own randAlphaNum(32) fallback (see templates/agent-manager-service/secret.yaml) generates a real value — the same pattern encryptionKey below already uses correctly. Set this explicitly, or prefer existingSecret, for production.",
                   "title": "value",
                   "type": "string"
                 },
@@ -786,13 +786,13 @@
                 },
                 "exporterEndpoint": {
                   "default": "http://default-default.gateway.localhost:19080/otel",
-                  "description": "kgateway-routed vhost (\"<env>-<org>.gateway.localhost\") \u2014 independent of the namespace the api-platform gateway runtime is deployed in.",
+                  "description": "kgateway-routed vhost (\"<env>-<org>.gateway.localhost\") — independent of the namespace the api-platform gateway runtime is deployed in.",
                   "title": "exporterEndpoint",
                   "type": "string"
                 },
                 "defaultInstrumentationVersion": {
                   "default": "0.5.0",
-                  "description": "Platform default AMP instrumentation version. Must exist in the effective catalog (embedded baseline \u222a additionalInstrumentationVersions); otherwise the server fails to start.",
+                  "description": "Platform default AMP instrumentation version. Must exist in the effective catalog (embedded baseline ∪ additionalInstrumentationVersions); otherwise the server fails to start.",
                   "title": "defaultInstrumentationVersion",
                   "type": "string"
                 },
@@ -810,7 +810,7 @@
             },
             "keyManager": {
               "additionalProperties": false,
-              "description": "Key Manager configuration Token audiences accepted by this service. Console/CLI logins arrive with aud=urn:wso2:amp (the amp resource server's identifier \u2014 keep in sync with 60-amp-resource-server.yaml in the Thunder extension chart); MCP logins arrive with serverPublicURL plus \"/mcp\" (no trailing slash, per the MCP spec's canonical-URI guidance), which the chart appends automatically \u2014 list only client IDs here.",
+              "description": "Key Manager configuration Token audiences accepted by this service. Console/CLI logins arrive with aud=urn:wso2:amp (the amp resource server's identifier — keep in sync with 60-amp-resource-server.yaml in the Thunder extension chart); MCP logins arrive with serverPublicURL plus \"/mcp\" (no trailing slash, per the MCP spec's canonical-URI guidance), which the chart appends automatically — list only client IDs here.",
               "properties": {
                 "issuer": {
                   "default": "http://thunder.amp.localhost:8080",
@@ -1015,110 +1015,41 @@
               "title": "openChoreo",
               "type": "object"
             },
-            "secretManager": {
+            "secretStore": {
               "additionalProperties": false,
-              "description": "Secret Manager configuration",
+              "description": "In-house secret store. Secret values are encrypted with encryptionKey and stored in the agent manager database; External Secrets Operator reads them through the chart's ClusterSecretStore, which calls the agent manager internal API with a bearer token.",
               "properties": {
-                "provider": {
-                  "default": "openbao",
-                  "description": "Secret manager implementation to use.",
-                  "title": "provider",
-                  "type": "string"
-                },
-                "baseURL": {
-                  "default": "",
-                  "description": "Base URL of the secret manager.",
-                  "title": "baseURL",
-                  "type": "string"
-                }
-              },
-              "required": [],
-              "title": "secretManager",
-              "type": "object"
-            },
-            "openbao": {
-              "additionalProperties": false,
-              "description": "OpenBao KV store configuration (for user deployment secrets)",
-              "properties": {
-                "url": {
-                  "default": "http://openbao.openbao.svc.cluster.local:8200",
-                  "description": "OpenBao URL (uses the default OpenBao that comes with OpenChoreo)",
-                  "title": "url",
-                  "type": "string"
-                },
-                "path": {
-                  "default": "secret",
-                  "description": "KV secrets engine path",
-                  "title": "path",
-                  "type": "string"
-                },
-                "version": {
-                  "default": "v2",
-                  "description": "OpenBao KV engine version.",
-                  "title": "version",
+                "clusterSecretStoreName": {
+                  "default": "amp-secret-store",
+                  "description": "Name of the ClusterSecretStore created by this chart. Point the ClusterDataPlane's spec.secretStoreRef.name at it so agent workloads read their secrets through it.",
+                  "title": "clusterSecretStoreName",
                   "type": "string"
                 },
                 "token": {
-                  "default": "root",
-                  "description": "OpenBao token (for dev mode, use \"root\"). When set, it is stored in the chart-managed Secret and injected via secretKeyRef \u2014 never as a plaintext env var in the pod spec. For production, use existingSecret to reference an externally-managed Secret containing the token instead.",
+                  "default": "",
+                  "description": "Bearer token the ClusterSecretStore presents. Generated and kept across upgrades when empty.",
                   "title": "token",
                   "type": "string"
                 },
                 "existingSecret": {
                   "default": "",
-                  "description": "Secret holding the OpenBao access token.",
+                  "description": "Secret holding the token.",
                   "title": "existingSecret",
                   "type": "string"
                 },
                 "existingSecretKey": {
-                  "default": "openbao-token",
-                  "description": "Key to read from existingSecret. Applies ONLY when existingSecret is set; the chart-managed Secret always uses the fixed key \"openbao-token\".",
+                  "default": "secret-store-token",
+                  "description": "Key within existingSecret.",
                   "title": "existingSecretKey",
                   "type": "string"
                 }
               },
               "required": [],
-              "title": "openbao",
+              "title": "secretStore",
               "type": "object"
             },
-            "workflowPlaneOpenbao": {
-              "additionalProperties": false,
-              "description": "Workflow Plane OpenBao configuration (for Git Secrets) Used to fetch git credentials for private repository access",
-              "properties": {
-                "url": {
-                  "default": "http://openbao.openbao.svc.cluster.local:8200",
-                  "description": "Workflow plane OpenBao URL",
-                  "title": "url",
-                  "type": "string"
-                },
-                "path": {
-                  "default": "secret",
-                  "description": "KV mount path git credentials are read from.",
-                  "title": "path",
-                  "type": "string"
-                },
-                "token": {
-                  "default": "root",
-                  "description": "OpenBao token. When set, it is stored in the chart-managed Secret and injected via secretKeyRef \u2014 never as a plaintext env var in the pod spec. For production, use existingSecret instead.",
-                  "title": "token",
-                  "type": "string"
-                },
-                "existingSecret": {
-                  "default": "",
-                  "description": "Secret holding that instance's access token.",
-                  "title": "existingSecret",
-                  "type": "string"
-                },
-                "existingSecretKey": {
-                  "default": "openbao-token",
-                  "description": "Key to read from existingSecret. Applies ONLY when existingSecret is set. The chart-managed Secret packs both OpenBao tokens into one Secret, so this token is stored there under the distinct key \"workflow-plane-openbao-token\".",
-                  "title": "existingSecretKey",
-                  "type": "string"
-                }
-              },
-              "required": [],
-              "title": "workflowPlaneOpenbao",
-              "type": "object"
+            "platformVaultSeedSecret": {
+              "type": "string"
             },
             "gatewayManifestCache": {
               "additionalProperties": false,
@@ -1126,7 +1057,7 @@
               "properties": {
                 "backend": {
                   "default": "memory",
-                  "description": "\"memory\" (default) is process-local \u2014 safe ONLY when replicaCount is 1. Set to \"redis\" whenever this chart is deployed with more than one replica: an in-memory cache would leave replicas disagreeing on which policies gateways report, since each replica only observes the manifest pushes routed to it.",
+                  "description": "\"memory\" (default) is process-local — safe ONLY when replicaCount is 1. Set to \"redis\" whenever this chart is deployed with more than one replica: an in-memory cache would leave replicas disagreeing on which policies gateways report, since each replica only observes the manifest pushes routed to it.",
                   "title": "backend",
                   "type": "string"
                 },
@@ -1160,7 +1091,7 @@
                     },
                     "password": {
                       "default": "",
-                      "description": "Redis password. When set, it is stored in the chart-managed Secret and injected via secretKeyRef \u2014 never as a plaintext env var in the pod spec. For production, use existingSecret to reference an externally-managed Secret containing the password instead. Leave both empty for a password-less Redis (e.g. local/dev).",
+                      "description": "Redis password. When set, it is stored in the chart-managed Secret and injected via secretKeyRef — never as a plaintext env var in the pod spec. For production, use existingSecret to reference an externally-managed Secret containing the password instead. Leave both empty for a password-less Redis (e.g. local/dev).",
                       "title": "password",
                       "type": "string"
                     },
@@ -1188,7 +1119,7 @@
             },
             "perAgentResourceLimits": {
               "additionalProperties": false,
-              "description": "Agent resource limits \u2014 operator-configured upper bounds enforced on PUT /resource-configs",
+              "description": "Agent resource limits — operator-configured upper bounds enforced on PUT /resource-configs",
               "properties": {
                 "maxReplicas": {
                   "default": 10,
@@ -1242,13 +1173,13 @@
               "properties": {
                 "baseURL": {
                   "default": "http://thunder.amp.localhost:8080",
-                  "description": "Must be the PUBLIC URL, same as keyManager.issuer above. Every admin API request asks for a token scoped to Thunder's System resource server via an RFC 8707 \"resource\" parameter derived from this value (client.go's SystemResourceIdentifier), and Thunder only recognizes the public URL as that resource server's registered identifier \u2014 any other value fails with invalid_target. This does NOT need to be directly dialable from the pod; see resolveToHost below for that.",
+                  "description": "Must be the PUBLIC URL, same as keyManager.issuer above. Every admin API request asks for a token scoped to Thunder's System resource server via an RFC 8707 \"resource\" parameter derived from this value (client.go's SystemResourceIdentifier), and Thunder only recognizes the public URL as that resource server's registered identifier — any other value fails with invalid_target. This does NOT need to be directly dialable from the pod; see resolveToHost below for that.",
                   "title": "baseURL",
                   "type": "string"
                 },
                 "resolveToHost": {
                   "default": "amp-thunder-extension-service.amp-thunder.svc.cluster.local:8090",
-                  "description": "The host:port this service actually connects to for every Thunder request (baseURL's host is still sent as the HTTP Host header, and still drives the resource-identifier above). Needed here because baseURL is a *.localhost hostname that only resolves via the host machine's own DNS/hosts setup \u2014 it doesn't resolve from inside this pod. Leave empty only if baseURL is itself directly dialable from the pod (e.g. a real in-cluster DNS name).",
+                  "description": "The host:port this service actually connects to for every Thunder request (baseURL's host is still sent as the HTTP Host header, and still drives the resource-identifier above). Needed here because baseURL is a *.localhost hostname that only resolves via the host machine's own DNS/hosts setup — it doesn't resolve from inside this pod. Leave empty only if baseURL is itself directly dialable from the pod (e.g. a real in-cluster DNS name).",
                   "title": "resolveToHost",
                   "type": "string"
                 },
@@ -1745,7 +1676,7 @@
             },
             "ampVersion": {
               "default": "0.0.0-dev",
-              "description": "Agent Manager release version \u2014 pins the deployment-script git tag (amp/vX.Y.Z). Placeholder is substituted with the real release version by the release pipeline (.github/scripts/update-helm-charts.sh); dev builds fall back to main.",
+              "description": "Agent Manager release version — pins the deployment-script git tag (amp/vX.Y.Z). Placeholder is substituted with the real release version by the release pipeline (.github/scripts/update-helm-charts.sh); dev builds fall back to main.",
               "title": "ampVersion",
               "type": "string"
             },
@@ -1895,7 +1826,7 @@
             },
             "guardrailCapabilities": {
               "additionalProperties": false,
-              "description": "Guardrail capability flags \u2014 enable policies that require external system configuration. OOTB policies are always shown regardless of these flags.",
+              "description": "Guardrail capability flags — enable policies that require external system configuration. OOTB policies are always shown regardless of these flags.",
               "properties": {
                 "awsBedrock": {
                   "default": false,
@@ -1946,13 +1877,13 @@
             },
             "idpHostBaseDomain": {
               "default": "amp.localhost",
-              "description": "Base domain env-Thunder instances are hosted under, and whether this deployment serves them over TLS. Mirrors agentManagerService.config's own idpHostBaseDomain/tlsEnabled \u2014 kept in sync so the Create Environment drawer's rendered command matches this deployment. VM/production installs override both (see deployments/vm/lib-vm.sh).",
+              "description": "Base domain env-Thunder instances are hosted under, and whether this deployment serves them over TLS. Mirrors agentManagerService.config's own idpHostBaseDomain/tlsEnabled — kept in sync so the Create Environment drawer's rendered command matches this deployment. VM/production installs override both (see deployments/vm/lib-vm.sh).",
               "title": "idpHostBaseDomain",
               "type": "string"
             },
             "instrumentationUrl": {
               "default": "http://default-default.gateway.localhost:19080/otel",
-              "description": "Trace-export URL shown to external agent developers. kgateway-routed vhost \u2014 independent of the gateway runtime's namespace; no port-forward.",
+              "description": "Trace-export URL shown to external agent developers. kgateway-routed vhost — independent of the gateway runtime's namespace; no port-forward.",
               "title": "instrumentationUrl",
               "type": "string"
             },

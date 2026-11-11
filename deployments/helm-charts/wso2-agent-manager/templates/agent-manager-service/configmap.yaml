@@ -73,16 +73,6 @@ data:
   INTERNAL_SERVER_TLS_ENABLED: {{ .Values.agentManagerService.internalServer.tlsEnabled | quote }}
   TLS_ENABLED: {{ .Values.agentManagerService.config.tlsEnabled | default false | quote }}
   OPEN_CHOREO_BASE_URL: {{ .Values.agentManagerService.config.openChoreo.baseURL | quote }}
-  # Secret Manager configuration
-  SECRET_MANAGER_PROVIDER: {{ .Values.agentManagerService.config.secretManager.provider | default "" | quote }}
-  SECRET_MANAGER_API_URL: {{ .Values.agentManagerService.config.secretManager.baseURL | default "" | quote }}
-  # OpenBao configuration (Data Plane)
-  OPENBAO_URL: {{ .Values.agentManagerService.config.openbao.url | default "" | quote }}
-  OPENBAO_PATH: {{ .Values.agentManagerService.config.openbao.path | default "secret" | quote }}
-  OPENBAO_VERSION: {{ .Values.agentManagerService.config.openbao.version | default "v2" | quote }}
-  # Workflow Plane OpenBao configuration (for Git Secrets)
-  WORKFLOW_PLANE_OPENBAO_URL: {{ .Values.agentManagerService.config.workflowPlaneOpenbao.url | default "" | quote }}
-  WORKFLOW_PLANE_OPENBAO_PATH: {{ .Values.agentManagerService.config.workflowPlaneOpenbao.path | default "secret" | quote }}
   # Thunder admin API configuration (for per-org publisher credentials and the
   # identity APIs). resolveToHost lets baseURL stay Thunder's public URL even when
   # that hostname isn't directly dialable from this pod. The AMP-prefixed settings

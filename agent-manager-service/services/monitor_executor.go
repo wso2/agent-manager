@@ -26,6 +26,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc/providers/inhouse"
+
 	"github.com/wso2/agent-manager/agent-manager-service/workloadpolicy"
 
 	"github.com/google/uuid"
@@ -345,12 +347,12 @@ func (e *monitorExecutor) buildWorkflowRunRequest(
 				"name": monitor.EnvironmentName,
 			},
 			"evaluation": map[string]interface{}{
-				"evaluators":            evaluatorsJSON,
-				"llmProxySecretRefName": llmProxySecretRefName,
-				"llmApiBase":            llmApiBase,
-				"samplingRate":          monitor.SamplingRate,
-				"traceStart":            startTime.Format(time.RFC3339),
-				"traceEnd":              endTime.Format(time.RFC3339),
+				"evaluators":           evaluatorsJSON,
+				"llmProxySecretKVPath": llmProxyStoreKey(monitor.OUID, llmProxySecretRefName),
+				"llmApiBase":           llmApiBase,
+				"samplingRate":         monitor.SamplingRate,
+				"traceStart":           startTime.Format(time.RFC3339),
+				"traceEnd":             endTime.Format(time.RFC3339),
 			},
 			"publishing": publishingParams,
 		},
@@ -373,7 +375,7 @@ func (e *monitorExecutor) buildPublishingParams(ctx context.Context, monitor *mo
 	cred, err := e.credRepo.GetByOrgName(monitor.OUID)
 	switch {
 	case err == nil && cred != nil:
-		setPublisherCredentialParams(params, publisherCredentialsFromRow(cred))
+		setPublisherCredentialParams(params, monitor.OUID, publisherCredentialsFromRow(cred))
 		return params, nil
 	case !errors.Is(err, gorm.ErrRecordNotFound):
 		return nil, fmt.Errorf("failed to look up publisher credentials for org %s: %w", monitor.OUID, err)
@@ -394,21 +396,37 @@ func (e *monitorExecutor) buildPublishingParams(ctx context.Context, monitor *mo
 		return nil, fmt.Errorf("failed to provision publisher credentials for org %s: %w", monitor.OUID, err)
 	}
 
-	setPublisherCredentialParams(params, provisioned)
+	setPublisherCredentialParams(params, monitor.OUID, provisioned)
 	return params, nil
 }
 
 // setPublisherCredentialParams adds the publisher credential to the workflow's
-// publishing parameters: the SecretReference name when there is one, or the
-// static credentials' KV path and key otherwise.
-func setPublisherCredentialParams(params map[string]interface{}, creds *PublisherCredentials) {
+// publishing parameters as a direct secret store key: the provisioned secret's
+// key when there is one, or the static credentials' KV path and key otherwise.
+func setPublisherCredentialParams(params map[string]interface{}, ouID string, creds *PublisherCredentials) {
 	params["clientId"] = creds.ClientID
 	if creds.SecretRefName != "" {
-		params["secretRefName"] = creds.SecretRefName
+		params["secretKVPath"] = inhouse.RemoteKey(ouID, creds.SecretRefName)
+		params["secretKey"] = publisherClientSecretKey
 		return
 	}
 	params["secretKVPath"] = creds.SecretKVPath
 	params["secretKey"] = creds.SecretKey
+}
+
+// publisherClientSecretKey is the key the monitor
+// workflow reads from the provisioned publisher secret.
+const (
+	publisherClientSecretKey = "client-secret"
+)
+
+// llmProxyStoreKey is the secret store key of the monitor's LLM proxy
+// credentials, or "" when the monitor has none.
+func llmProxyStoreKey(ouID, secretRefName string) string {
+	if secretRefName == "" {
+		return ""
+	}
+	return inhouse.RemoteKey(ouID, secretRefName)
 }
 
 // evalJobEvaluator is the JSON structure passed to the evaluation job for each evaluator.

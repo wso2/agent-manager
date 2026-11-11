@@ -1,0 +1,78 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: amp-thunder-vault-bootstrap
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    "helm.sh/hook": pre-install
+    "helm.sh/hook-weight": "-10"
+type: Opaque
+stringData:
+  54-workload-publisher-app.yaml: |
+    resource_type: application
+    id: workload-publisher-client
+    type: m2m # client_credentials only, no interactive login
+    name: {{ .Values.thunder.bootstrap.workloadPublisherClient.name | quote }}
+    description: {{ .Values.thunder.bootstrap.workloadPublisherClient.description | quote }}
+    ouId: "01900000-0000-7000-8000-000000000001"
+    inboundAuthConfig:
+      - type: oauth2
+        config:
+          clientId: {{ .Values.thunder.bootstrap.workloadPublisherClient.clientId | quote }}
+          clientSecret: {{ .Values.thunder.bootstrap.workloadPublisherClient.clientSecret | quote }}
+          grantTypes: {{ .Values.thunder.bootstrap.workloadPublisherClient.grantTypes | toJson }}
+          tokenEndpointAuthMethod: {{ .Values.thunder.bootstrap.workloadPublisherClient.tokenEndpointAuthMethod | quote }}
+          pkceRequired: {{ .Values.thunder.bootstrap.workloadPublisherClient.pkceRequired }}
+          publicClient: {{ .Values.thunder.bootstrap.workloadPublisherClient.publicClient }}
+          scopes: {{ .Values.thunder.bootstrap.ampScopes | toJson }}
+          token:
+            accessToken:
+              clientConfig:
+                validityPeriod: {{ .Values.thunder.bootstrap.workloadPublisherClient.accessTokenValidityPeriod }}
+                attributes: ["ouId", "ouHandle"]
+
+  55-observer-resource-reader-app.yaml: |
+    resource_type: application
+    id: observer-resource-reader-client
+    type: m2m # client_credentials only, no interactive login
+    name: {{ .Values.thunder.bootstrap.observerResourceReaderClient.name | quote }}
+    description: {{ .Values.thunder.bootstrap.observerResourceReaderClient.description | quote }}
+    ouId: "01900000-0000-7000-8000-000000000001"
+    inboundAuthConfig:
+      - type: oauth2
+        config:
+          clientId: {{ .Values.thunder.bootstrap.observerResourceReaderClient.clientId | quote }}
+          clientSecret: {{ .Values.thunder.bootstrap.observerResourceReaderClient.clientSecret | quote }}
+          grantTypes: {{ .Values.thunder.bootstrap.observerResourceReaderClient.grantTypes | toJson }}
+          tokenEndpointAuthMethod: {{ .Values.thunder.bootstrap.observerResourceReaderClient.tokenEndpointAuthMethod | quote }}
+          pkceRequired: {{ .Values.thunder.bootstrap.observerResourceReaderClient.pkceRequired }}
+          publicClient: {{ .Values.thunder.bootstrap.observerResourceReaderClient.publicClient }}
+          scopes: {{ .Values.thunder.bootstrap.ampScopes | toJson }}
+          token:
+            accessToken:
+              clientConfig:
+                validityPeriod: {{ .Values.thunder.bootstrap.observerResourceReaderClient.accessTokenValidityPeriod }}
+                attributes: ["ouId", "ouHandle"]
+
+  56-amp-publisher-client.yaml: |
+    resource_type: application
+    id: amp-publisher-client
+    type: m2m # client_credentials only, no interactive login
+    name: {{ .Values.thunder.bootstrap.ampPublisherClient.name | quote }}
+    description: {{ .Values.thunder.bootstrap.ampPublisherClient.description | quote }}
+    ouId: "01900000-0000-7000-8000-000000000001"
+    inboundAuthConfig:
+      - type: oauth2
+        config:
+          clientId: {{ .Values.thunder.bootstrap.ampPublisherClient.clientId | quote }}
+          clientSecret: {{ .Values.thunder.bootstrap.ampPublisherClient.clientSecret | quote }}
+          grantTypes: {{ .Values.thunder.bootstrap.ampPublisherClient.grantTypes | toJson }}
+          tokenEndpointAuthMethod: {{ .Values.thunder.bootstrap.ampPublisherClient.tokenEndpointAuthMethod | quote }}
+          pkceRequired: {{ .Values.thunder.bootstrap.ampPublisherClient.pkceRequired }}
+          publicClient: {{ .Values.thunder.bootstrap.ampPublisherClient.publicClient }}
+          scopes: {{ .Values.thunder.bootstrap.ampScopes | toJson }}
+          token:
+            accessToken:
+              clientConfig:
+                validityPeriod: {{ .Values.thunder.bootstrap.ampPublisherClient.accessTokenValidityPeriod }}
+                attributes: ["ouId", "ouHandle"]

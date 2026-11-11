@@ -17,9 +17,10 @@
 package secretmanagersvc
 
 import (
+	"context"
 	"errors"
 
-	occlient "github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
+	"gorm.io/gorm"
 )
 
 // ErrSecretNotFound is returned when a secret does not exist.
@@ -33,12 +34,6 @@ var ErrMetadataNotFound = errors.New("secret metadata not found")
 
 // ErrNotSupported is returned when an operation is not supported by the provider.
 var ErrNotSupported = errors.New("operation not supported by this provider")
-
-// ErrReferenceNameTaken is returned when a secret cannot be created because its
-// SecretReference name is already taken by a reference the secret API cannot see
-// or update — one created outside this client, directly as a SecretReference.
-// The caller can delete that reference and create the secret again.
-var ErrReferenceNameTaken = errors.New("secret reference name is taken by a reference this client cannot manage")
 
 // SecretMetadata contains metadata for a secret.
 type SecretMetadata struct {
@@ -70,23 +65,27 @@ type SecretInfo struct {
 
 // StoreConfig holds configuration for secret store backends.
 type StoreConfig struct {
-	// Provider is the name of the provider to use (e.g., "openchoreo").
+	// Provider is the secret store provider name.
 	Provider string `json:"provider"`
 
-	// OpenChoreo contains configuration for the OpenChoreo secret API provider.
-	OpenChoreo *OpenChoreoConfig `json:"openchoreo,omitempty"`
+	// InHouse configures the in-house secret store.
+	InHouse *InHouseConfig `json:"-"`
 }
 
-// OpenChoreoConfig contains configuration for the OpenChoreo secret API provider.
-type OpenChoreoConfig struct {
-	// Client is the OpenChoreo API client used for secret operations.
-	Client occlient.OpenChoreoClient `json:"-"`
+// InHouseConfig configures the in-house secret store: values are encrypted with
+// EncryptionKey and stored in DB.
+type InHouseConfig struct {
+	// DB is the agent manager database holding the secrets table.
+	DB *gorm.DB
+	// EncryptionKey is the 32-byte AES-256 key secrets are sealed with.
+	EncryptionKey []byte
+	// MaxSecretBytes bounds the combined size of one secret's keys and values.
+	// Zero uses the store's default.
+	MaxSecretBytes int
+}
 
-	// TargetPlaneKind is the kind of the plane hosting the secret data
-	// (e.g. "ClusterDataPlane"). Defaults to the client's default when empty.
-	TargetPlaneKind string `json:"targetPlaneKind,omitempty"`
-
-	// TargetPlaneName is the name of the plane hosting the secret data.
-	// Defaults to the client's default when empty.
-	TargetPlaneName string `json:"targetPlaneName,omitempty"`
+// SecretResolver returns the plaintext value of one key of a stored secret.
+// Only the internal secret store endpoint uses it.
+type SecretResolver interface {
+	Resolve(ctx context.Context, ouID, name, key string) (string, error)
 }

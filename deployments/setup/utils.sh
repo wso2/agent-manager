@@ -385,10 +385,9 @@ register_observability_plane() {
     echo "Registering ObservabilityPlane ..."
     cat <<EOF | kubectl apply -f -
 apiVersion: openchoreo.dev/v1alpha1
-kind: ObservabilityPlane
+kind: ClusterObservabilityPlane
 metadata:
   name: default
-  namespace: default
 spec:
   planeID: "$plane_id"
   clusterAgent:
@@ -413,18 +412,18 @@ spec:
   refreshInterval: 1h
   secretStoreRef:
     kind: ClusterSecretStore
-    name: default
+    name: amp-secret-store
   target:
     name: opensearch-admin-credentials
   data:
   - secretKey: username
     remoteRef:
-      key: opensearch-username
-      property: value
+      key: platform/bootstrap
+      property: opensearch-username
   - secretKey: password
     remoteRef:
-      key: opensearch-password
-      property: value
+      key: platform/bootstrap
+      property: opensearch-password
 EOF
     
     kubectl apply -f - <<EOF
@@ -437,22 +436,22 @@ spec:
   refreshInterval: 1h
   secretStoreRef:
     kind: ClusterSecretStore
-    name: default
+    name: amp-secret-store
   target:
     name: observer-secret
   data:
   - secretKey: OPENSEARCH_USERNAME
     remoteRef:
-      key: opensearch-username
-      property: value
+      key: platform/bootstrap
+      property: opensearch-username
   - secretKey: OPENSEARCH_PASSWORD
     remoteRef:
-      key: opensearch-password
-      property: value
+      key: platform/bootstrap
+      property: opensearch-password
   - secretKey: UID_RESOLVER_OAUTH_CLIENT_SECRET
     remoteRef:
-      key: observer-oauth-client-secret
-      property: value
+      key: platform/bootstrap
+      property: observer-oauth-client-secret
 EOF
     echo "✅ External secrets for OpenChoreo Observability Plane created"
 

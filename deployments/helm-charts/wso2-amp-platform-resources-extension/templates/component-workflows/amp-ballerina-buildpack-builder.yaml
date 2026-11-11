@@ -50,6 +50,14 @@ spec:
               default: "."
               description: "Path to the Ballerina application directory within the repository"
               x-openchoreo-component-parameter-repository-app-path: true
+        secretOuID:
+          type: string
+          default: ""
+          description: "Organization whose secret store keys the first-environment binding references. Set per run by Agent Manager."
+        gitSecretKVPath:
+          type: string
+          default: ""
+          description: "Secret store key of the private repository's Git credentials. Set per run by Agent Manager; empty for public repositories."
         buildEnv:
           type: array
           default: []
@@ -215,6 +223,8 @@ spec:
             value: ${parameters.environmentVariables}
           - name: file-mounts
             value: ${parameters.fileMounts}
+          - name: secret-ou-id
+            value: ${parameters.secretOuID}
           - name: build-env
             value: ${parameters.buildEnv}
       serviceAccountName: workflow-sa
@@ -269,15 +279,9 @@ spec:
             resources:
               requests:
                 storage: 2Gi
-  externalRefs:
-    - id: git-secret-reference
-      apiVersion: openchoreo.dev/v1alpha1
-      kind: SecretReference
-      name: ${parameters.repository.secretRef}
-
   resources:
     - id: git-secret
-      includeWhen: ${has(parameters.repository.secretRef) && parameters.repository.secretRef != ""}
+      includeWhen: ${parameters.gitSecretKVPath != ""}
       template:
         apiVersion: external-secrets.io/v1
         kind: ExternalSecret
@@ -288,21 +292,23 @@ spec:
           refreshInterval: 15s
           secretStoreRef:
             kind: ClusterSecretStore
-            name: default
+            name: {{ .Values.externalSecrets.clusterSecretStoreName }}
           target:
             name: ${metadata.workflowRunName}-git-secret
             creationPolicy: Owner
             template:
-              type: ${externalRefs['git-secret-reference'].spec.template.type}
-          data: |
-            ${externalRefs['git-secret-reference'].spec.data.map(secret, {
-              "secretKey": secret.secretKey,
-              "remoteRef": {
-                "key": secret.remoteRef.key,
-                "property": has(secret.remoteRef.property) && secret.remoteRef.property != "" ? secret.remoteRef.property : oc_omit()
-              }
-            })}
+              type: kubernetes.io/basic-auth
+          data:
+            - secretKey: username
+              remoteRef:
+                key: ${parameters.gitSecretKVPath}
+                property: username
+            - secretKey: password
+              remoteRef:
+                key: ${parameters.gitSecretKVPath}
+                property: password
 
+    {{- if .Values.global.registry.authEnabled }}
     - id: registry-push-secret
       template:
         apiVersion: external-secrets.io/v1
@@ -313,7 +319,7 @@ spec:
         spec:
           refreshInterval: 15s
           secretStoreRef:
-            name: default
+            name: {{ .Values.externalSecrets.clusterSecretStoreName }}
             kind: ClusterSecretStore
           target:
             name: ${metadata.workflowRunName}-registry-push-secret
@@ -325,7 +331,10 @@ spec:
           data:
             - secretKey: registrysecret
               remoteRef:
-                key: registry-push-secret
+                key: platform/bootstrap
+                property: registry-push-secret
+    {{- end }}
+
     - id: workload-publisher-oauth
       template:
         apiVersion: external-secrets.io/v1
@@ -336,7 +345,7 @@ spec:
         spec:
           refreshInterval: 15s
           secretStoreRef:
-            name: default
+            name: {{ .Values.externalSecrets.clusterSecretStoreName }}
             kind: ClusterSecretStore
           target:
             name: ${metadata.workflowRunName}-workload-publisher-oauth
@@ -344,5 +353,5 @@ spec:
           data:
             - secretKey: workload-publisher-oauth
               remoteRef:
-                key: workflow-plane-oauth-client-secret
-                property: value
+                key: platform/bootstrap
+                property: workflow-plane-oauth-client-secret

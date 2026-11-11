@@ -32,6 +32,27 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 )
 
+func TestCleanupSecretReference_AlsoDeletesLegacyReference(t *testing.T) {
+	store := &clientmocks.SecretManagementClientMock{
+		// The store returns success even when no row exists.
+		DeleteSecretByNameFunc: func(context.Context, string, string) error { return nil },
+	}
+	oc := &clientmocks.OpenChoreoClientMock{
+		DeleteAgentSecretReferenceFunc: func(context.Context, string, string, string, string) error { return nil },
+	}
+	svc := &agentManagerService{secretMgmtClient: store, ocClient: oc, logger: discardLogger()}
+
+	svc.cleanupSecretReference(context.Background(), "tenant", "project", "agent", "legacy-secret")
+
+	require.Len(t, store.DeleteSecretByNameCalls(), 1)
+	calls := oc.DeleteAgentSecretReferenceCalls()
+	require.Len(t, calls, 1)
+	assert.Equal(t, "tenant", calls[0].OuID)
+	assert.Equal(t, "project", calls[0].ProjectName)
+	assert.Equal(t, "agent", calls[0].ComponentName)
+	assert.Equal(t, "legacy-secret", calls[0].SecretRefName)
+}
+
 // TestProcessEnvRemoval_RenamedConfig_DeletesSecretByPersistedName guards the
 // rename case: a configuration renamed in the same update that removes an
 // environment reaches Scenario D with its new name, but the removed

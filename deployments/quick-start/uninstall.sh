@@ -234,12 +234,11 @@ openchoreo-data-plane openchoreo-data-plane
 openchoreo-control-plane openchoreo-control-plane
 kgateway openchoreo-control-plane
 kgateway-crds openchoreo-control-plane
-openbao openbao
 external-secrets external-secrets
 cert-manager cert-manager
 "
 AMP_NAMESPACES="${AMP_NS} amp-thunder agent-sandbox-system"
-OPENCHOREO_NAMESPACES="openchoreo-control-plane openchoreo-data-plane openchoreo-workflow-plane ${OBSERVABILITY_NS} cert-manager external-secrets openbao"
+OPENCHOREO_NAMESPACES="openchoreo-control-plane openchoreo-data-plane openchoreo-workflow-plane ${OBSERVABILITY_NS} cert-manager external-secrets"
 # API groups of the CRDs install.sh brings in (charts and the Gateway API bundle).
 KUBELET_SERVICE="openchoreo-observability-kubelet"
 

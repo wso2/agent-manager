@@ -387,3 +387,21 @@ bundled NATS. Empty in other modes.
 {{- .Values.agentManagerService.config.events.natsUrl | default (printf "nats://amp-nats.%s.svc.cluster.local:4222" .Release.Namespace) -}}
 {{- end -}}
 {{- end }}
+
+{{/*
+Secret holding the bearer token of the in-house ClusterSecretStore, and its key.
+The chart keeps the token in a Secret of its own: the External Secrets webhook
+provider may read every key of a Secret it is allowed to use, so the token does
+not share one with the encryption key.
+*/}}
+{{- define "agent-management-platform.secretStoreTokenSecretName" -}}
+{{- .Values.agentManagerService.config.secretStore.existingSecret | default (printf "%s-secret-store" (include "agent-management-platform.agentManagerService.fullname" .)) }}
+{{- end }}
+
+{{- define "agent-management-platform.secretStoreTokenSecretKey" -}}
+{{- if .Values.agentManagerService.config.secretStore.existingSecret }}
+{{- .Values.agentManagerService.config.secretStore.existingSecretKey | default "secret-store-token" }}
+{{- else }}
+{{- "secret-store-token" }}
+{{- end }}
+{{- end }}

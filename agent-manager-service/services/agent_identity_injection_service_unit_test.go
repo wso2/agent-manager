@@ -107,14 +107,10 @@ func newTestIdentityInjectionService(
 	return NewAgentIdentityInjectionService(repo, noMCPConfigRepo(), noMCPProxyScopeRepo(), oc, "1h", discardLogger())
 }
 
-// injectableOCClient returns a base OpenChoreo client mock. SecretReference
-// creation is deliberately not stubbed: injection must use the stored
-// provider-managed reference directly and must not create another one.
+// injectableOCClient returns a base OpenChoreo client mock. Injection uses the
+// stored secret directly and never creates anything else for it.
 func injectableOCClient() *clientmocks.OpenChoreoClientMock {
 	return &clientmocks.OpenChoreoClientMock{
-		CreateSecretReferenceFunc: func(context.Context, string, client.CreateSecretReferenceRequest) (*client.SecretReferenceInfo, error) {
-			panic("injection must not create a second SecretReference")
-		},
 		ComponentTypeDeclaresEnvironmentConfigFunc: func(context.Context, string, string, string) (bool, error) {
 			return true, nil
 		},
@@ -1144,32 +1140,12 @@ func TestAgentIdentityInjection_RemoveForEnvironment_IncludeWorkloadLevel(t *tes
 	assert.True(t, workloadRemoved)
 }
 
-// TestAgentIdentityInjection_CleanupForEnvironment_DeletesLegacyReference
-// guards the direct delete used for legacy SecretReferences: it targets the
-// deterministic Agent ID name and treats not-found as success.
-func TestAgentIdentityInjection_CleanupForEnvironment_DeletesLegacyReference(t *testing.T) {
-	for _, tt := range []struct {
-		name      string
-		deleteErr error
-	}{
-		{name: "deleted", deleteErr: nil},
-		{name: "already gone", deleteErr: utils.ErrNotFound},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			var deletedName string
-			oc := &clientmocks.OpenChoreoClientMock{
-				DeleteSecretReferenceFunc: func(_ context.Context, namespaceName, name string) error {
-					assert.Equal(t, testIdentityOrg, namespaceName)
-					deletedName = name
-					return tt.deleteErr
-				},
-			}
-			svc := newTestIdentityInjectionService(identityRepoReturning(completedInternalBinding(), nil), oc)
-
-			require.NoError(t, svc.CleanupForEnvironment(context.Background(), testIdentityOrg, testIdentityAgent, testIdentityEnv))
-			assert.Equal(t, agentIdentitySecretLocation(testIdentityOrg, "", testIdentityAgent, testIdentityEnv).SecretRefName(), deletedName)
-		})
-	}
+// TestAgentIdentityInjection_CleanupForEnvironment_CallsNothing guards that
+// cleanup has no OpenChoreo resource to remove: every mock func is nil, so any
+// call would panic.
+func TestAgentIdentityInjection_CleanupForEnvironment_CallsNothing(t *testing.T) {
+	svc := newTestIdentityInjectionService(identityRepoReturning(completedInternalBinding(), nil), &clientmocks.OpenChoreoClientMock{})
+	require.NoError(t, svc.CleanupForEnvironment(context.Background(), testIdentityOrg, testIdentityAgent, testIdentityEnv))
 }
 
 func TestAgentIdentityInjection_RemoveForEnvironment_ExternalAgent_NoOp(t *testing.T) {

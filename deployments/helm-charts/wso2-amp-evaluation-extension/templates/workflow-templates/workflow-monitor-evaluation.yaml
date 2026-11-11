@@ -79,14 +79,10 @@ spec:
             evaluators:
               type: string
               description: JSON array of evaluator configs
-            llmProxySecretRefName:
+            llmProxySecretKVPath:
               type: string
               default: ""
-              description: "Name of the SecretReference holding the composite LLM proxy credentials. When non-empty the workflow creates an ExternalSecret from it to fetch LLM_API_KEY."
-            llmProxySecretPath:
-              type: string
-              default: ""
-              description: "Deprecated: OpenBao KV path of the composite LLM proxy credentials secret, sent by older agent-manager versions. Used only when llmProxySecretRefName is empty."
+              description: "Secret store key of the composite LLM proxy credentials. When non-empty the workflow creates an ExternalSecret that fetches LLM_API_KEY from it."
             llmApiBase:
               type: string
               default: ""
@@ -117,18 +113,14 @@ spec:
               type: string
               default: {{ .Values.ampEvaluation.publisher.clientId | quote }}
               description: OAuth2 client ID for publisher authentication
-            secretRefName:
-              type: string
-              default: ""
-              description: "Name of the SecretReference holding the publisher client-secret. When empty, secretKVPath and secretKey are used directly (static on-prem credentials)."
             secretKVPath:
               type: string
-              default: "amp-publisher-client-secret"
-              description: KV path in the secret store (remoteRef.key for ExternalSecret). Used only when secretRefName is empty.
+              default: "platform/bootstrap"
+              description: Secret store key of the publisher credentials (remoteRef.key for ExternalSecret).
             secretKey:
               type: string
-              default: "value"
-              description: Key within the KV secret (remoteRef.property for ExternalSecret). Used only when secretRefName is empty.
+              default: "amp-publisher-client-secret"
+              description: Key within that secret (remoteRef.property for ExternalSecret).
 
   # WorkflowRuns are automatically deleted after completion so that the OpenChoreo
   # finalizer cleans up the ExternalSecrets created alongside each run.
@@ -207,18 +199,6 @@ spec:
       workflowTemplateRef:
         clusterScope: true
         name: amp-monitor-evaluation
-  # OpenChoreo resolves these SecretReferences by name, so agent-manager never
-  # reads their remote store paths. An empty name resolves to nothing; the
-  # resources below that use them are gated on the name being set.
-  externalRefs:
-    - id: llm-proxy-secret-reference
-      apiVersion: openchoreo.dev/v1alpha1
-      kind: SecretReference
-      name: ${parameters.evaluation.llmProxySecretRefName}
-    - id: publisher-secret-reference
-      apiVersion: openchoreo.dev/v1alpha1
-      kind: SecretReference
-      name: ${parameters.publishing.secretRefName}
   resources:
     - id: workflow-sa-bound-token
       # Name matches Argo's executor.serviceAccountName lookup convention: "<saName>.service-account-token".
@@ -231,32 +211,7 @@ spec:
           annotations:
             kubernetes.io/service-account.name: workflow-sa
         type: kubernetes.io/service-account-token
-    - id: amp-publisher-credentials-from-ref
-      includeWhen: '${parameters.publishing.secretRefName != ""}'
-      template:
-        apiVersion: external-secrets.io/v1
-        kind: ExternalSecret
-        metadata:
-          name: ${metadata.workflowRunName}-amp-publisher-credentials
-          namespace: ${metadata.namespace}
-        spec:
-          refreshInterval: 15s
-          secretStoreRef:
-            name: default
-            kind: ClusterSecretStore
-          target:
-            name: ${metadata.workflowRunName}-amp-publisher-credentials
-            creationPolicy: Owner
-          data: |
-            ${externalRefs['publisher-secret-reference'].spec.data.filter(secret, secret.secretKey == "client-secret").map(secret, {
-              "secretKey": secret.secretKey,
-              "remoteRef": {
-                "key": secret.remoteRef.key,
-                "property": has(secret.remoteRef.property) && secret.remoteRef.property != "" ? secret.remoteRef.property : oc_omit()
-              }
-            })}
     - id: amp-publisher-credentials
-      includeWhen: '${parameters.publishing.secretRefName == ""}'
       template:
         apiVersion: external-secrets.io/v1
         kind: ExternalSecret
@@ -266,7 +221,7 @@ spec:
         spec:
           refreshInterval: 15s
           secretStoreRef:
-            name: default
+            name: {{ .Values.externalSecrets.clusterSecretStoreName }}
             kind: ClusterSecretStore
           target:
             name: ${metadata.workflowRunName}-amp-publisher-credentials
@@ -276,32 +231,8 @@ spec:
               remoteRef:
                 key: ${parameters.publishing.secretKVPath}
                 property: ${parameters.publishing.secretKey}
-    - id: llm-proxy-credentials-from-ref
-      includeWhen: '${parameters.evaluation.llmProxySecretRefName != ""}'
-      template:
-        apiVersion: external-secrets.io/v1
-        kind: ExternalSecret
-        metadata:
-          name: ${metadata.workflowRunName}-llm-proxy-credentials
-          namespace: ${metadata.namespace}
-        spec:
-          refreshInterval: 15s
-          secretStoreRef:
-            name: default
-            kind: ClusterSecretStore
-          target:
-            name: ${metadata.workflowRunName}-llm-proxy-credentials
-            creationPolicy: Owner
-          data: |
-            ${externalRefs['llm-proxy-secret-reference'].spec.data.filter(secret, secret.secretKey == "LLM_API_KEY").map(secret, {
-              "secretKey": secret.secretKey,
-              "remoteRef": {
-                "key": secret.remoteRef.key,
-                "property": has(secret.remoteRef.property) && secret.remoteRef.property != "" ? secret.remoteRef.property : oc_omit()
-              }
-            })}
     - id: llm-proxy-credentials
-      includeWhen: '${parameters.evaluation.llmProxySecretRefName == "" && parameters.evaluation.llmProxySecretPath != ""}'
+      includeWhen: '${parameters.evaluation.llmProxySecretKVPath != ""}'
       template:
         apiVersion: external-secrets.io/v1
         kind: ExternalSecret
@@ -311,7 +242,7 @@ spec:
         spec:
           refreshInterval: 15s
           secretStoreRef:
-            name: default
+            name: {{ .Values.externalSecrets.clusterSecretStoreName }}
             kind: ClusterSecretStore
           target:
             name: ${metadata.workflowRunName}-llm-proxy-credentials
@@ -319,5 +250,5 @@ spec:
           data:
             - secretKey: LLM_API_KEY
               remoteRef:
-                key: ${parameters.evaluation.llmProxySecretPath}
+                key: ${parameters.evaluation.llmProxySecretKVPath}
                 property: LLM_API_KEY

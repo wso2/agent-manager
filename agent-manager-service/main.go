@@ -18,11 +18,13 @@ package main
 
 import (
 	"flag"
+	"log/slog"
+	"os"
 	"strings"
 
 	"github.com/wso2/agent-manager/agent-manager-service/app"
 	ocauth "github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/auth"
-	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc/providers/openchoreo"
+	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc/providers/inhouse"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
 )
@@ -32,6 +34,7 @@ func main() {
 	serverFlag := flag.Bool("server", true, "start the http Server")
 	migrateFlag := flag.Bool("migrate", false, "migrate the database")
 	waitForMigrationsFlag := flag.Bool("wait-for-migrations", false, "wait until the database migrations are applied")
+	importOpenBao := flag.Bool("import-openbao-secrets", false, "copy legacy secrets listed in a JSON manifest on stdin, then exit")
 	flag.Parse()
 
 	cfg := config.GetConfig()
@@ -44,8 +47,20 @@ func main() {
 		Scope:        strings.Join(cfg.OAuthScopesSupported, " "),
 	})
 
-	// Secret management via the OpenChoreo secret management API
-	secretProvider := openchoreo.NewProvider()
+	if *importOpenBao {
+		if *migrateFlag || *waitForMigrationsFlag {
+			slog.Error("Run the database migrations separately before importing OpenBao secrets")
+			os.Exit(1)
+		}
+		if err := runOpenBaoImport(os.Stdin, *cfg, authProvider); err != nil {
+			slog.Error("OpenBao secret import failed", "error", err)
+			os.Exit(1)
+		}
+		return
+	}
+
+	// Secrets are encrypted and stored in the agent manager database
+	secretProvider := inhouse.NewProvider()
 
 	// Open-source: DB-backed AgentID provisioning (env-Thunder credential read
 	// from Postgres, not a key vault — see DBBackedAgentThunderProvisioning)

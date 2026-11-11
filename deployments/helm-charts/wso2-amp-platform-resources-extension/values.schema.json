@@ -74,6 +74,7 @@
           "additionalProperties": false,
           "description": "Container registry configuration",
           "properties": {
+            "authEnabled": { "type": "boolean" },
             "endpoint": {
               "default": "host.k3d.internal:10082",
               "description": "Registry endpoint for pushing and pulling images For local registry: \"host.k3d.internal:10082\" For external registry with baseDomain: automatically uses \"registry.<baseDomain>\"",
@@ -433,9 +434,14 @@
       "description": "External Secrets configuration",
       "properties": {
         "clusterSecretStoreName": {
-          "default": "default",
-          "description": "Name of the ClusterSecretStore (uses the default OpenBao ClusterSecretStore)",
+          "default": "amp-secret-store",
+          "description": "Name of the ClusterSecretStore used by build workflows.",
           "title": "clusterSecretStoreName",
+          "type": "string"
+        },
+        "workloadClusterSecretStoreName": {
+          "default": "",
+          "description": "Store for workload environment variables and files. Empty uses the data plane's store.",
           "type": "string"
         }
       },

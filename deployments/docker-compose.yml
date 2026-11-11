@@ -47,6 +47,16 @@ services:
     ports:
       - "9000:8080"
       - "9243:9243"
+    # SECRET_STORE_TOKEN: the bearer token External Secrets Operator presents to
+    # the in-house secret store endpoint. `make dev-up` generates it per checkout
+    # (deployments/setup/secret-store-token.sh); without the file the endpoint
+    # stays closed.
+    env_file:
+      - path: ./.secret-store.env
+        required: false
+      - path: ./.platform-vault/compose.env
+        required: false
+        format: raw
     environment:
       # Database Configuration
       - DB_HOST=postgres
@@ -107,19 +117,8 @@ services:
       - KEY_MANAGER_AUDIENCE=urn:wso2:amp,localhost,amp-publisher-*,amp-api-client,amp-console-client,amctl,am-mcp,http://localhost:9000/mcp
       - AMP_VERSION=v0.8.0
       - OPEN_CHOREO_BASE_URL=http://api.openchoreo.localhost:8195
-      # OpenBao/Vault Secret Management Configuration
-      # NOTE: Run ./deployments/setup/port-forward.sh to forward OpenBao from k3d cluster
-      # Uses the default OpenBao that comes with OpenChoreo for both user and system secrets
-      - SECRET_MANAGER_PROVIDER=openbao
-      - OPENBAO_URL=http://host.docker.internal:8200
       # Platform A2A card fetches dial the host gateway; *.localhost resolves to the container itself.
       - A2A_CARD_FETCH_DIAL_ADDR=host.docker.internal:19080
-      - OPENBAO_TOKEN=root
-      - OPENBAO_PATH=secret
-      - OPENBAO_VERSION=v2
-      # Workflow Plane OpenBao (for git secrets and publisher credentials)
-      - WORKFLOW_PLANE_OPENBAO_URL=http://host.docker.internal:8200
-      - WORKFLOW_PLANE_OPENBAO_TOKEN=root
       # Thunder API (for per-org publisher credential provisioning)
       # Uses the system app's client_credentials with scope=system to get admin tokens.
       # Leave THUNDER_BASE_URL empty to fall back to static amp-publisher-client credentials.

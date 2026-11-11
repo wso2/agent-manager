@@ -55,10 +55,17 @@ runs:
         # example, runs DB migrations against the compose-exposed Postgres, and
         # only then starts the service — so it boots cleanly against a migrated
         # schema with no extra host-side migrate/restart needed here.
+        # Let the runner traverse the certificate directories on the bind mount.
+        # Otherwise the root-running service creates them with mode 0700.
+        (umask 077 && mkdir -p agent-manager-service/data/certs)
         make setup-platform
         # Expose AMP API (9000) + amp-observer (9098). Bind 0.0.0.0 so the
         # agent-manager container can reach the forwards via the bridge gateway
         # (a 127.0.0.1-only forward is unreachable from inside the container).
         (cd deployments/setup && PORT_FORWARD_ADDRESS=0.0.0.0 ./port-forward.sh --platform --background)
+        # Same order as `make setup`: the in-house secret store (ESO webhook
+        # ClusterSecretStore) and the observability plane, once the platform is up.
+        make setup-secret-store
+        make setup-observability
         make setup-gateway
         (cd deployments/setup && PORT_FORWARD_ADDRESS=0.0.0.0 ./port-forward.sh --background)

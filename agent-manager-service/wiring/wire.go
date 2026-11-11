@@ -32,6 +32,7 @@ import (
 	observersvc "github.com/wso2/agent-manager/agent-manager-service/clients/observersvc"
 	occlient "github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
+	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc/providers/inhouse"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/controllers"
@@ -60,6 +61,7 @@ var clientProviderSet = wire.NewSet(
 	ProvideObserverClient,
 	ProvideOCClient,
 	ProvideSecretManagementClient,
+	ProvideSecretResolver,
 	ProvidePublisherProvisioner,
 	ProvideBuildTokenIssuer,
 	ProvideIdentityClient,
@@ -79,7 +81,8 @@ var serviceProviderSet = wire.NewSet(
 	services.NewAgentKindService,
 	services.NewInfraResourceManager,
 	services.NewAgentTokenManagerService,
-	ProvideGitCredentialsService,
+	ProvideGitSecretStore,
+	services.NewGitCredentialsService,
 	services.NewRepositoryService,
 	services.NewMonitorExecutor,
 	services.NewMonitorManagerService,
@@ -186,6 +189,7 @@ var testClientProviderSet = wire.NewSet(
 	ProvideTestOpenChoreoClient,
 	ProvideTestObserverClient,
 	ProvideTestSecretManagementClient,
+	ProvideTestSecretResolver,
 	ProvidePublisherProvisioner,
 	ProvideBuildTokenIssuer,
 	ProvideIdentityClient,
@@ -197,7 +201,19 @@ var testClientProviderSet = wire.NewSet(
 	ProvideEnvThunderResolver,
 )
 
-// thunderProvisioningTestSet builds the OpenBao-backed provisioning service for
+// ProvideTestSecretResolver provides a resolver that finds no secret, for the
+// test wiring, which has no in-house store behind it.
+func ProvideTestSecretResolver() secretmanagersvc.SecretResolver {
+	return noSecretResolver{}
+}
+
+type noSecretResolver struct{}
+
+func (noSecretResolver) Resolve(context.Context, string, string, string) (string, error) {
+	return "", secretmanagersvc.ErrSecretNotFound
+}
+
+// thunderProvisioningTestSet builds the secret-store-backed provisioning service for
 // the test wiring only; production injects it via InitializeAppParams.
 var thunderProvisioningTestSet = wire.NewSet(
 	services.NewAgentThunderProvisioningService,
@@ -338,23 +354,59 @@ func ProvideObserverClient(cfg config.Config, authProvider occlient.AuthProvider
 	})
 }
 
-// ProvideSecretManagementClient creates the secret management service client.
-// If the provider implements secretmanagersvc.SecretReferenceManager and
-// reports that it manages SecretReferences itself, the OpenChoreo client is
-// not forwarded — preventing the high-level client from making redundant
-// SecretReference CRUD calls.
-func ProvideSecretManagementClient(cfg config.Config, secretProvider secretmanagersvc.Provider, ocClient occlient.OpenChoreoClient) (secretmanagersvc.SecretManagementClient, error) {
+// ProvideSecretManagementClient creates the secret management service client
+// backed by the in-house secret store.
+func ProvideSecretManagementClient(cfg config.Config, secretProvider secretmanagersvc.Provider, db *gorm.DB) (secretmanagersvc.SecretManagementClient, error) {
+	storeConfig, err := inHouseStoreConfig(cfg, db)
+	if err != nil {
+		return nil, err
+	}
 	return secretmanagersvc.NewSecretManagementClientWithConfig(secretmanagersvc.SecretManagementClientConfig{
-		StoreConfig: &secretmanagersvc.StoreConfig{
-			Provider: cfg.SecretManager.Provider,
-			OpenChoreo: &secretmanagersvc.OpenChoreoConfig{
-				Client:          ocClient,
-				TargetPlaneKind: cfg.SecretManager.TargetPlaneKind,
-				TargetPlaneName: cfg.SecretManager.TargetPlaneName,
-			},
-		},
-		Provider: secretProvider,
+		StoreConfig: storeConfig,
+		Provider:    secretProvider,
 	})
+}
+
+// ProvideSecretResolver creates the resolver the internal secret store endpoint
+// reads plaintext values through.
+func ProvideSecretResolver(cfg config.Config, db *gorm.DB) (secretmanagersvc.SecretResolver, error) {
+	storeConfig, err := inHouseStoreConfig(cfg, db)
+	if err != nil {
+		return nil, err
+	}
+	resolver, err := inhouse.NewClient(storeConfig.InHouse)
+	if err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	if err := resolver.SeedPlatformSecrets(ctx, cfg.SecretManager.PlatformVaultSeed); err != nil {
+		return nil, err
+	}
+	return resolver, nil
+}
+
+func inHouseStoreConfig(cfg config.Config, db *gorm.DB) (*secretmanagersvc.StoreConfig, error) {
+	key, err := ProvideEncryptionKey(cfg)
+	if err != nil {
+		return nil, err
+	}
+	return &secretmanagersvc.StoreConfig{
+		Provider: inhouse.ProviderName,
+		InHouse: &secretmanagersvc.InHouseConfig{
+			DB:             db,
+			EncryptionKey:  key,
+			MaxSecretBytes: inHouseMaxSecretBytes(cfg),
+		},
+	}, nil
+}
+
+// inHouseMaxSecretBytes sizes one stored secret. An agent's env secrets and
+// sensitive file mounts for one environment are stored together, so a secret
+// must hold the whole file mount budget the API accepts, plus room for the env
+// secrets beside it.
+func inHouseMaxSecretBytes(cfg config.Config) int {
+	return cfg.FileMountLimits.MaxTotalBytes + inhouse.DefaultMaxSecretBytes
 }
 
 // ProvideGatewayManifestCacheBackend builds the gateway-manifest cache backend
@@ -378,10 +430,13 @@ func ProvideGatewayManifestCacheBackend(cfg config.Config) (services.GatewayMani
 	}
 }
 
-// ProvideGitCredentialsService creates the git credentials service for fetching
-// git credentials from workflow plane OpenBao
-func ProvideGitCredentialsService(ocClient occlient.OpenChoreoClient, cfg config.Config) (services.GitCredentialsService, error) {
-	return services.NewGitCredentialsService(ocClient, cfg)
+// ProvideGitSecretStore creates the tenant-scoped Git credential store.
+func ProvideGitSecretStore(cfg config.Config, db *gorm.DB) (services.GitSecretStore, error) {
+	storeConfig, err := inHouseStoreConfig(cfg, db)
+	if err != nil {
+		return nil, err
+	}
+	return inhouse.NewClient(storeConfig.InHouse)
 }
 
 // ProvideNilBuildSecretProvisioner supplies a nil BuildSecretProvisioner for wiring

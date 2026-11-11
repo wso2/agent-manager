@@ -78,6 +78,8 @@ credentials/
 
 # Local development configurations
 deployments/values/api-platform-operator-local-config.yaml
+deployments/.secret-store.env
+deployments/.platform-vault/
 
 mocks/
 libs/amp-evaluation/samples-old/

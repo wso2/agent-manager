@@ -90,7 +90,7 @@ func TestUpdateAgentConfigurations_WaitsForEditedWorkloadSecrets(t *testing.T) {
 					return []client.EnvVar{}, nil
 				},
 			}
-			svc := NewAgentManagerService(nil, oc, secrets, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+			svc := NewAgentManagerService(nil, oc, secrets, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
 				injector, nil, nil, nil, nil, nil, nil, nil, nil, nil, discardLogger())
 			req := &spec.UpdateAgentConfigurationsRequest{EnvironmentName: "dev", Env: []spec.EnvironmentVariable{}}
 			if tc.file {

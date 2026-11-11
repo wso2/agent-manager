@@ -215,28 +215,10 @@ type OpenChoreoClient interface {
 	GetWorkflowRun(ctx context.Context, ouID, runName string) (*WorkflowRunResponse, error)
 	ExpireWorkflowRun(ctx context.Context, ouID, runName string) error
 
-	// Secret Reference Operations
-	CreateSecretReference(ctx context.Context, ouID string, req CreateSecretReferenceRequest) (*SecretReferenceInfo, error)
-	GetSecretReference(ctx context.Context, ouID, secretRefName string) (*SecretReferenceInfo, error)
-	ListSecretReferences(ctx context.Context, ouID string, componentName string) ([]*SecretReferenceInfo, error)
-	UpdateSecretReference(ctx context.Context, ouID, secretRefName string, req CreateSecretReferenceRequest) (*SecretReferenceInfo, error)
-	DeleteSecretReference(ctx context.Context, ouID, secretRefName string) error
-
 	// Workload Operations
 	GetWorkloadSecretRefNames(ctx context.Context, ouID, projectName, componentName string) ([]string, error)
-
-	// Secret Operations (OpenChoreo-managed secret storage; the API stores
-	// values in the target plane's secret store and manages the underlying
-	// SecretReference internally)
-	CreateSecret(ctx context.Context, ouID string, req CreateSecretRequest) (*SecretInfo, error)
-	GetSecret(ctx context.Context, ouID, secretName string) (*SecretInfo, error)
-	UpdateSecret(ctx context.Context, ouID, secretName string, req UpdateSecretRequest) (*SecretInfo, error)
-	DeleteSecret(ctx context.Context, ouID, secretName string) error
-
-	// Git Secret Operations
-	CreateGitSecret(ctx context.Context, ouID string, req CreateGitSecretRequest) (*GitSecretInfo, error)
-	ListGitSecrets(ctx context.Context, ouID string) ([]*GitSecretInfo, error)
-	DeleteGitSecret(ctx context.Context, ouID, secretName string) error
+	DeleteAgentSecretReference(ctx context.Context, ouID, projectName, componentName, secretRefName string) error
+	ReadLegacyManagedSecret(ctx context.Context, ouID, secretName string) (map[string]string, error)
 
 	// Authz Operations
 	// EnsureClusterRoleBinding creates a ClusterAuthzRoleBinding binding the given clientID (sub claim)
@@ -245,7 +227,7 @@ type OpenChoreoClient interface {
 }
 
 type openChoreoClient struct {
-	ocClient *gen.ClientWithResponses
+	ocClient *ocAPI
 	// defaultNamespace is the OpenChoreo namespace all API calls resolve to;
 	// see NamespaceFor.
 	defaultNamespace string
@@ -367,7 +349,7 @@ func NewOpenChoreoClient(cfg *Config) (OpenChoreoClient, error) {
 	}
 
 	return &openChoreoClient{
-		ocClient:         ocClient,
+		ocClient:         newOCAPI(ocClient),
 		defaultNamespace: cfg.DefaultNamespace,
 		resourceLabels:   maps.Clone(cfg.ResourceLabels),
 	}, nil

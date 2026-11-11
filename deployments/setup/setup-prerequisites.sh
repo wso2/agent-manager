@@ -15,7 +15,6 @@ GATEWAY_API_VERSION="v1.4.1"
 CERT_MANAGER_VERSION="v1.19.2"
 EXTERNAL_SECRETS_VERSION="1.3.2"
 KGATEWAY_VERSION="v2.3.11"
-OPENBAO_VERSION="0.25.6"
 
 echo "=== Installing Pre-requisites for OpenChoreo ==="
 
@@ -81,50 +80,6 @@ helm_install_if_not_exists "kgateway" "openchoreo-control-plane" \
     --version ${KGATEWAY_VERSION} \
     --set controller.extraEnv.KGW_ENABLE_GATEWAY_API_EXPERIMENTAL_FEATURES=true
 echo "✅ Kgateway installed successfully"
-
-# ============================================================================
-# Step 5: Install Openbao Secret Backend for Workflow plane
-# ============================================================================
-echo ""
-echo "5️⃣  Openbao SecretBackend for Workflow plane"
-helm_install_if_not_exists "openbao" "openbao" \
-    "oci://ghcr.io/openbao/charts/openbao" \
-    --version ${OPENBAO_VERSION} \
-    --values ../single-cluster/values-openbao.yaml
-echo " ✅ Openbao Secret Backend installed successfully"
-
-echo "⏳ Waiting for OpenBao to be ready..."
-kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=openbao -n openbao --context ${CLUSTER_CONTEXT} --timeout=120s
-echo "✅ OpenBao is ready!"
-
-# Configure External Secrets to work with OpenBao
-echo "⏳ Configuring External Secrets ClusterSecretStore for OpenBao..."
-kubectl --context ${CLUSTER_CONTEXT} apply -f - <<EOF
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: external-secrets-openbao
-  namespace: openbao
----
-apiVersion: external-secrets.io/v1
-kind: ClusterSecretStore
-metadata:
-  name: default
-spec:
-  provider:
-    vault:
-      server: "http://openbao.openbao.svc:8200"
-      path: "secret"
-      version: "v2"
-      auth:
-        kubernetes:
-          mountPath: "kubernetes"
-          role: "openchoreo-secret-writer-role"
-          serviceAccountRef:
-            name: "external-secrets-openbao"
-            namespace: "openbao"
-EOF
-echo "✅ External Secrets ClusterSecretStore configured for OpenBao"
 
 echo ""
 echo "✅ All prerequisites installed successfully!"

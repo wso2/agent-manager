@@ -75,6 +75,9 @@ type SecretsClient interface {
 	// Returns ErrSecretNotFound if the secret doesn't exist.
 	GetSecret(ctx context.Context, location SecretLocation) (*SecretInfo, error)
 
+	// GetSecretData returns the values of the secret named secretRefName.
+	GetSecretData(ctx context.Context, orgName, secretRefName string) (map[string]string, error)
+
 	// Close cleans up any resources held by the client.
 	Close(ctx context.Context) error
 }

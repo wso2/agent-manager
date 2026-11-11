@@ -848,6 +848,7 @@ func (c *openChoreoClient) UpdateComponentBasicInfo(ctx context.Context, ouID, p
 
 // UpdateEnvResourceConfigs updates environment-specific resource configurations via release binding
 func (c *openChoreoClient) UpdateEnvResourceConfigs(ctx context.Context, ouID, projectName, componentName, environment string, req UpdateComponentResourceConfigsRequest) error {
+	ctx = withSecretOuID(ctx, ouID)
 	namespaceName := c.NamespaceFor(ouID)
 	// List release bindings to find the correct binding name for the environment
 	componentFilter := componentName
@@ -2109,6 +2110,7 @@ func (c *openChoreoClient) ReplaceComponentFileMounts(ctx context.Context, ouID,
 // then sets restartedAt to trigger a pod rollout. If no binding exists for the component+environment yet
 // (agent not deployed), returns nil — the Component CR vars will be picked up on first deploy.
 func (c *openChoreoClient) UpdateReleaseBindingEnvVars(ctx context.Context, ouID, projectName, componentName, envName string, envVars []EnvVar) error {
+	ctx = withSecretOuID(ctx, ouID)
 	namespaceName := c.NamespaceFor(ouID)
 	binding, err := c.findReleaseBindingForEnv(ctx, namespaceName, componentName, envName)
 	if err != nil {
@@ -2312,6 +2314,7 @@ func (c *openChoreoClient) RemoveComponentEnvironmentVariables(ctx context.Conte
 // then sets restartedAt to trigger a pod rollout. If no binding exists for the component+environment yet,
 // returns nil (idempotent — nothing to remove).
 func (c *openChoreoClient) RemoveReleaseBindingEnvVars(ctx context.Context, ouID, projectName, componentName, envName string, envVarKeys []string) error {
+	ctx = withSecretOuID(ctx, ouID)
 	namespaceName := c.NamespaceFor(ouID)
 	if len(envVarKeys) == 0 {
 		return nil
@@ -2422,6 +2425,7 @@ func (c *openChoreoClient) RemoveReleaseBindingEnvVars(ctx context.Context, ouID
 // the ReleaseBinding in a single Get/Update cycle. This avoids resource version conflicts that
 // occur when RemoveReleaseBindingEnvVars and UpdateReleaseBindingEnvVars are called back-to-back.
 func (c *openChoreoClient) ReplaceReleaseBindingEnvVars(ctx context.Context, ouID, projectName, componentName, envName string, keysToRemove []string, envVarsToAdd []EnvVar) error {
+	ctx = withSecretOuID(ctx, ouID)
 	namespaceName := c.NamespaceFor(ouID)
 	componentFilter := componentName
 	listResp, err := c.ocClient.ListReleaseBindingsWithResponse(ctx, namespaceName, &gen.ListReleaseBindingsParams{

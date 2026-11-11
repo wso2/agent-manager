@@ -40,7 +40,7 @@ func newTestClient(t *testing.T, handler http.Handler) *openChoreoClient {
 
 	gc, err := gen.NewClientWithResponses(srv.URL)
 	require.NoError(t, err)
-	return &openChoreoClient{ocClient: gc, defaultNamespace: "default"}
+	return &openChoreoClient{ocClient: newOCAPI(gc), defaultNamespace: "default"}
 }
 
 // jsonContentType stamps the header the generated response parsers key on to

@@ -24,6 +24,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -550,15 +551,15 @@ func TestPipelineRootEnvironment(t *testing.T) {
 
 func TestWithBuildClient(t *testing.T) {
 	params := map[string]interface{}{"repository": map[string]interface{}{"url": "u"}}
-	got := withBuildClient(params, &BuildClientParams{SecretRefName: "cred-amp-build-token-org-1"})
-	assert.Equal(t, map[string]interface{}{"secretRef": "cred-amp-build-token-org-1"}, got[workflowParamAMPBuild],
-		"only a SecretReference name is passed, never a secret store location")
+	got := withBuildClient(params, &BuildClientParams{SecretKVPath: "org-1/cred-amp-build-token-org-1"})
+	assert.Equal(t, map[string]interface{}{"secretKVPath": "org-1/cred-amp-build-token-org-1"}, got[workflowParamAMPBuild],
+		"only the token's store key is passed, never the token")
 	_, leaked := params[workflowParamAMPBuild]
 	assert.False(t, leaked, "the component's parameter map must not be modified")
 
-	got = withBuildClient(params, &BuildClientParams{SecretRefName: "cred-amp-build-token-org-1", SecretStore: "secretstore-read"})
-	assert.Equal(t, map[string]interface{}{"secretRef": "cred-amp-build-token-org-1", "secretStore": "secretstore-read"},
-		got[workflowParamAMPBuild], "a configured store is passed by name alongside the SecretReference")
+	got = withBuildClient(params, &BuildClientParams{SecretKVPath: "org-1/cred-amp-build-token-org-1", SecretStore: "secretstore-read"})
+	assert.Equal(t, map[string]interface{}{"secretKVPath": "org-1/cred-amp-build-token-org-1", "secretStore": "secretstore-read"},
+		got[workflowParamAMPBuild], "a configured store is passed by name alongside the store key")
 }
 
 // withBuildSecretStore sets config.BuildClient.SecretStore for one test.
@@ -581,11 +582,11 @@ func TestAttachBuildClient_WithAConfiguredSecretStore(t *testing.T) {
 		case "/api/v1/namespaces/default/workflows/amp-store":
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte(`{"metadata":{"name":"amp-store"},"spec":{"parameters":{"openAPIV3Schema":{"type":"object",
-				"properties":{"ampBuild":{"type":"object","properties":{"secretRef":{"type":"string"},"secretStore":{"type":"string"}}}}}}}}`))
+				"properties":{"ampBuild":{"type":"object","properties":{"secretKVPath":{"type":"string"},"secretStore":{"type":"string"}}}}}}}}`))
 		case "/api/v1/namespaces/default/workflows/amp-no-store":
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte(`{"metadata":{"name":"amp-no-store"},"spec":{"parameters":{"openAPIV3Schema":{"type":"object",
-				"properties":{"ampBuild":{"type":"object","properties":{"secretRef":{"type":"string"}}}}}}}}`))
+				"properties":{"ampBuild":{"type":"object","properties":{"secretKVPath":{"type":"string"}}}}}}}}`))
 		default:
 			t.Errorf("unexpected call %s %s", r.Method, r.URL.Path)
 			w.WriteHeader(http.StatusNotFound)
@@ -747,6 +748,7 @@ type triggerBuildStub struct {
 	workflowKind         string
 	createdRun           *gen.WorkflowRun
 	clusterWorkflowReads int
+	gitSecretRef         string
 }
 
 func (s *triggerBuildStub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -760,7 +762,7 @@ func (s *triggerBuildStub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"metadata":{"name":"my-agent"},"spec":{"owner":{"projectName":"proj1"},
 			"componentType":{"name":"deployment/agent-api"},
-			"workflow":{"kind":"` + kind + `","name":"` + s.workflowName + `","parameters":{"repository":{"url":"u"}}}}}`))
+			"workflow":{"kind":"` + kind + `","name":"` + s.workflowName + `","parameters":{"repository":{"url":"u","secretRef":` + strconv.Quote(s.gitSecretRef) + `}}}}}`))
 	case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/api/v1/clusterworkflows/"):
 		s.clusterWorkflowReads++
 		w.WriteHeader(http.StatusNotFound)
@@ -772,7 +774,7 @@ func (s *triggerBuildStub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case r.Method == http.MethodGet && r.URL.Path == ns+"/workflows/amp-store":
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"metadata":{"name":"amp-store"},"spec":{"parameters":{"openAPIV3Schema":{"type":"object",
-			"properties":{"ampBuild":{"type":"object","properties":{"secretRef":{"type":"string"},"secretStore":{"type":"string"}}}}}}}}`))
+			"properties":{"ampBuild":{"type":"object","properties":{"secretKVPath":{"type":"string"},"secretStore":{"type":"string"}}}}}}}}`))
 	case r.Method == http.MethodGet && r.URL.Path == ns+"/workflows/amp-old":
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"metadata":{"name":"amp-old"},"spec":{"parameters":{"openAPIV3Schema":{
@@ -791,6 +793,49 @@ func (s *triggerBuildStub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.t.Errorf("unexpected call %s %s", r.Method, r.URL.Path)
 		w.WriteHeader(http.StatusNotImplemented)
 	}
+}
+
+func TestTriggerBuildPassesTenantScopedGitSecretStoreKey(t *testing.T) {
+	stub := &triggerBuildStub{t: t, workflowName: "amp-docker", gitSecretRef: "private"}
+	c := newTestClient(t, stub)
+	_, err := c.TriggerBuild(context.Background(), "org-1", "proj1", "my-agent", "", "my-agent-1700", nil, nil)
+	require.NoError(t, err)
+	require.NotNil(t, stub.createdRun)
+	params := *stub.createdRun.Spec.Workflow.Parameters
+	assert.Equal(t, map[string]any{"url": "u"}, params["repository"], "the run carries no SecretReference name")
+	assert.Equal(t, "org-1/"+GitSecretReferenceName("org-1", "private"), params[workflowParamGitSecretKVPath])
+	assert.NotEqual(t, GitSecretReferenceName("org-1", "private"), GitSecretReferenceName("org-2", "private"))
+}
+
+func TestWorkflowParamsReferenceSecrets(t *testing.T) {
+	secretEnv := map[string]interface{}{"name": "TOKEN", "valueFrom": map[string]interface{}{
+		"secretKeyRef": map[string]interface{}{"name": "agent-dev-secrets", "key": "TOKEN"},
+	}}
+	plainEnv := map[string]interface{}{"name": "PLAIN", "value": "v"}
+	secretFile := map[string]interface{}{"key": "c.pem", "mountPath": "/c.pem", "valueFrom": map[string]interface{}{
+		"secretKeyRef": map[string]interface{}{"name": "agent-dev-secrets", "key": "c.pem"},
+	}}
+
+	assert.True(t, workflowParamsReferenceSecrets(map[string]interface{}{
+		workflowParamEnvironmentVariables: []interface{}{plainEnv, secretEnv},
+	}))
+	assert.True(t, workflowParamsReferenceSecrets(map[string]interface{}{
+		workflowParamFileMounts: []interface{}{secretFile},
+	}))
+	assert.False(t, workflowParamsReferenceSecrets(map[string]interface{}{
+		workflowParamEnvironmentVariables: []interface{}{plainEnv},
+	}))
+	assert.False(t, workflowParamsReferenceSecrets(map[string]interface{}{}))
+}
+
+func TestTriggerBuildPassesSecretOrganizationOnlyWithSecretReferences(t *testing.T) {
+	stub := &triggerBuildStub{t: t, workflowName: "amp-docker"}
+	c := newTestClient(t, stub)
+	_, err := c.TriggerBuild(context.Background(), "org-1", "proj1", "my-agent", "", "my-agent-1700", nil, nil)
+	require.NoError(t, err)
+	require.NotNil(t, stub.createdRun)
+	assert.NotContains(t, *stub.createdRun.Spec.Workflow.Parameters, workflowParamSecretOuID,
+		"a build without secret references gets no organization parameter")
 }
 
 func TestTriggerBuild_ProvisionsTheBuildClientOnlyForAWorkflowThatTakesIt(t *testing.T) {
@@ -815,7 +860,7 @@ func TestTriggerBuild_ProvisionsTheBuildClientOnlyForAWorkflowThatTakesIt(t *tes
 		calls := 0
 		source := func(context.Context) (*BuildClientParams, error) {
 			calls++
-			return &BuildClientParams{SecretRefName: "cred-amp-build-token-org-1"}, nil
+			return &BuildClientParams{SecretKVPath: "org-1/cred-amp-build-token-org-1"}, nil
 		}
 
 		_, err := c.TriggerBuild(context.Background(), "org-1", "proj1", "my-agent", "", "my-agent-1700", nil, source)
@@ -824,20 +869,20 @@ func TestTriggerBuild_ProvisionsTheBuildClientOnlyForAWorkflowThatTakesIt(t *tes
 		assert.Equal(t, 1, calls)
 		require.NotNil(t, stub.createdRun)
 		params := *stub.createdRun.Spec.Workflow.Parameters
-		assert.Equal(t, map[string]any{"secretRef": "cred-amp-build-token-org-1"}, params[workflowParamAMPBuild])
+		assert.Equal(t, map[string]any{"secretKVPath": "org-1/cred-amp-build-token-org-1"}, params[workflowParamAMPBuild])
 	})
 
 	t.Run("a namespaced Workflow that takes the client gets it", func(t *testing.T) {
 		stub := &triggerBuildStub{t: t, workflowName: "amp-docker", workflowKind: string(gen.WorkflowRunConfigKindWorkflow)}
 		c := newTestClient(t, stub)
 		source := func(context.Context) (*BuildClientParams, error) {
-			return &BuildClientParams{SecretRefName: "cred-amp-build-token-org-1"}, nil
+			return &BuildClientParams{SecretKVPath: "org-1/cred-amp-build-token-org-1"}, nil
 		}
 
 		_, err := c.TriggerBuild(context.Background(), "org-1", "proj1", "my-agent", "", "my-agent-1700", nil, source)
 		require.NoError(t, err)
 		require.NotNil(t, stub.createdRun)
-		assert.Equal(t, map[string]any{"secretRef": "cred-amp-build-token-org-1"},
+		assert.Equal(t, map[string]any{"secretKVPath": "org-1/cred-amp-build-token-org-1"},
 			(*stub.createdRun.Spec.Workflow.Parameters)[workflowParamAMPBuild])
 	})
 
@@ -886,7 +931,7 @@ func TestTriggerBuild_ProvisionsTheBuildClientOnlyForAWorkflowThatTakesIt(t *tes
 		calls := 0
 		source := func(context.Context) (*BuildClientParams, error) {
 			calls++
-			return &BuildClientParams{SecretRefName: "cred-amp-build-token-org-1"}, nil
+			return &BuildClientParams{SecretKVPath: "org-1/cred-amp-build-token-org-1"}, nil
 		}
 
 		_, err := c.TriggerBuild(context.Background(), "org-1", "proj1", "my-agent", "", "my-agent-1700", nil, source)
@@ -924,7 +969,7 @@ func TestTriggerBuild_ProvisionsTheBuildClientOnlyForAWorkflowThatTakesIt(t *tes
 		withBuildSecretStore(t, "secretstore-read")
 		cfg.BuildClient.Workflows = []string{"amp-docker", "amp-old", "amp-broken", "amp-store"}
 		source := func(context.Context) (*BuildClientParams, error) {
-			return &BuildClientParams{SecretRefName: "cred-amp-build-token-org-1"}, nil
+			return &BuildClientParams{SecretKVPath: "org-1/cred-amp-build-token-org-1"}, nil
 		}
 
 		for _, kind := range []gen.WorkflowRunConfigKind{gen.WorkflowRunConfigKindClusterWorkflow, gen.WorkflowRunConfigKindWorkflow} {
@@ -934,7 +979,7 @@ func TestTriggerBuild_ProvisionsTheBuildClientOnlyForAWorkflowThatTakesIt(t *tes
 			_, err := c.TriggerBuild(context.Background(), "org-1", "proj1", "my-agent", "", "my-agent-1700", nil, source)
 			require.NoError(t, err)
 			require.NotNil(t, stub.createdRun)
-			assert.Equal(t, map[string]any{"secretRef": "cred-amp-build-token-org-1", "secretStore": "secretstore-read"},
+			assert.Equal(t, map[string]any{"secretKVPath": "org-1/cred-amp-build-token-org-1", "secretStore": "secretstore-read"},
 				(*stub.createdRun.Spec.Workflow.Parameters)[workflowParamAMPBuild], "kind %s", kind)
 			assert.Zero(t, stub.clusterWorkflowReads)
 		}
@@ -947,7 +992,7 @@ func TestTriggerBuild_ProvisionsTheBuildClientOnlyForAWorkflowThatTakesIt(t *tes
 		calls := 0
 		source := func(context.Context) (*BuildClientParams, error) {
 			calls++
-			return &BuildClientParams{SecretRefName: "cred-amp-build-token-org-1"}, nil
+			return &BuildClientParams{SecretKVPath: "org-1/cred-amp-build-token-org-1"}, nil
 		}
 
 		_, err := c.TriggerBuild(context.Background(), "org-1", "proj1", "my-agent", "", "my-agent-1700", nil, source)

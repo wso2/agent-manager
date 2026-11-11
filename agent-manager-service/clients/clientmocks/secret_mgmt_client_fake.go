@@ -5,9 +5,8 @@ package clientmocks
 
 import (
 	"context"
-	"sync"
-
 	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
+	"sync"
 )
 
 // Ensure, that SecretManagementClientMock does implement secretmanagersvc.SecretManagementClient.
@@ -32,6 +31,9 @@ var _ secretmanagersvc.SecretManagementClient = &SecretManagementClientMock{}
 //			GetSecretFunc: func(ctx context.Context, kvPath string) (*secretmanagersvc.SecretInfo, error) {
 //				panic("mock out the GetSecret method")
 //			},
+//			GetSecretDataFunc: func(ctx context.Context, orgName string, secretRefName string) (map[string]string, error) {
+//				panic("mock out the GetSecretData method")
+//			},
 //			PatchSecretFunc: func(ctx context.Context, location secretmanagersvc.SecretLocation, data map[string]string, keysToDelete []string) (string, error) {
 //				panic("mock out the PatchSecret method")
 //			},
@@ -53,6 +55,9 @@ type SecretManagementClientMock struct {
 
 	// GetSecretFunc mocks the GetSecret method.
 	GetSecretFunc func(ctx context.Context, kvPath string) (*secretmanagersvc.SecretInfo, error)
+
+	// GetSecretDataFunc mocks the GetSecretData method.
+	GetSecretDataFunc func(ctx context.Context, orgName string, secretRefName string) (map[string]string, error)
 
 	// PatchSecretFunc mocks the PatchSecret method.
 	PatchSecretFunc func(ctx context.Context, location secretmanagersvc.SecretLocation, data map[string]string, keysToDelete []string) (string, error)
@@ -93,6 +98,15 @@ type SecretManagementClientMock struct {
 			// KvPath is the kvPath argument value.
 			KvPath string
 		}
+		// GetSecretData holds details about calls to the GetSecretData method.
+		GetSecretData []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// OrgName is the orgName argument value.
+			OrgName string
+			// SecretRefName is the secretRefName argument value.
+			SecretRefName string
+		}
 		// PatchSecret holds details about calls to the PatchSecret method.
 		PatchSecret []struct {
 			// Ctx is the ctx argument value.
@@ -109,6 +123,7 @@ type SecretManagementClientMock struct {
 	lockDeleteSecret       sync.RWMutex
 	lockDeleteSecretByName sync.RWMutex
 	lockGetSecret          sync.RWMutex
+	lockGetSecretData      sync.RWMutex
 	lockPatchSecret        sync.RWMutex
 }
 
@@ -265,6 +280,46 @@ func (mock *SecretManagementClientMock) GetSecretCalls() []struct {
 	mock.lockGetSecret.RLock()
 	calls = mock.calls.GetSecret
 	mock.lockGetSecret.RUnlock()
+	return calls
+}
+
+// GetSecretData calls GetSecretDataFunc.
+func (mock *SecretManagementClientMock) GetSecretData(ctx context.Context, orgName string, secretRefName string) (map[string]string, error) {
+	if mock.GetSecretDataFunc == nil {
+		panic("SecretManagementClientMock.GetSecretDataFunc: method is nil but SecretManagementClient.GetSecretData was just called")
+	}
+	callInfo := struct {
+		Ctx           context.Context
+		OrgName       string
+		SecretRefName string
+	}{
+		Ctx:           ctx,
+		OrgName:       orgName,
+		SecretRefName: secretRefName,
+	}
+	mock.lockGetSecretData.Lock()
+	mock.calls.GetSecretData = append(mock.calls.GetSecretData, callInfo)
+	mock.lockGetSecretData.Unlock()
+	return mock.GetSecretDataFunc(ctx, orgName, secretRefName)
+}
+
+// GetSecretDataCalls gets all the calls that were made to GetSecretData.
+// Check the length with:
+//
+//	len(mockedSecretManagementClient.GetSecretDataCalls())
+func (mock *SecretManagementClientMock) GetSecretDataCalls() []struct {
+	Ctx           context.Context
+	OrgName       string
+	SecretRefName string
+} {
+	var calls []struct {
+		Ctx           context.Context
+		OrgName       string
+		SecretRefName string
+	}
+	mock.lockGetSecretData.RLock()
+	calls = mock.calls.GetSecretData
+	mock.lockGetSecretData.RUnlock()
 	return calls
 }
 
