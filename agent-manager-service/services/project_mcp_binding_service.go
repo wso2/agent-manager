@@ -478,6 +478,15 @@ func (s *ProjectMCPProxyService) deleteEnvironmentOf(ctx context.Context, ouID s
 	if err := s.ensureBindingNotInUse(ctx, proxy.UUID, ee.EnvironmentUUID); err != nil {
 		return err
 	}
+	// The proxy's scopes, read before anything is deleted: the resource server removal after the delete sweeps their
+	// grants from roles, and once the binding is gone nothing could retry a removal made without them.
+	var actions []string
+	if s.base.resolver != nil {
+		var err error
+		if actions, err = s.proxyScopeActions(ctx, proxy); err != nil {
+			return err
+		}
+	}
 	if err := s.base.tx(ctx, func(tx *gorm.DB) error {
 		locked, err := s.base.repo.GetByHandleForUpdate(ctx, tx, proxyHandleOf(proxy), ouID)
 		if err != nil {
@@ -515,7 +524,7 @@ func (s *ProjectMCPProxyService) deleteEnvironmentOf(ctx context.Context, ouID s
 	}); err != nil {
 		return err
 	}
-	s.purgeBindingResourceServer(ctx, ouID, proxy, envName)
+	s.purgeBindingResourceServer(ctx, ouID, proxy, envName, actions)
 	return nil
 }
 

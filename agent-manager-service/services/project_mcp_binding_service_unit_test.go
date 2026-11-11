@@ -833,10 +833,33 @@ func TestPurgeBindingResourceServer_RemovesItWhateverTheSecurity(t *testing.T) {
 	_, _, err := f.put(t, models.MCPProxyEnvironmentRequest{})
 	require.NoError(t, err)
 
-	f.svc.purgeBindingResourceServer(context.Background(), testOrg, f.proxy, bindingEnv)
+	f.svc.purgeBindingResourceServer(context.Background(), testOrg, f.proxy, bindingEnv, nil)
 	require.Len(t, calls.deleted, 1, "an api-key binding's leftover is removed too")
 	assert.Equal(t, bindingEnv, calls.deleted[0].env)
 	assert.Equal(t, bindingHandle, calls.deleted[0].handle)
+}
+
+// A failed scope lookup removes nothing, rather than deleting the resource server and leaving its grants in roles; a
+// binding delete stops with the error, keeping the binding for a retry.
+func TestBindingResourceServerCleanup_FailedScopeLookupRemovesNothing(t *testing.T) {
+	f := newBindingFixture(t)
+	calls := f.withThunder()
+	lookupErr := errors.New("db down")
+	f.svc.base.mcpProxyScopeRepo = &repomocks.MCPProxyScopeRepositoryMock{
+		ListByProxyFunc: func(context.Context, uuid.UUID) ([]models.MCPProxyScope, error) { return nil, lookupErr },
+	}
+
+	f.svc.deleteBindingResourceServer(context.Background(), testOrg, f.proxy, bindingEnv, mcpIdentitySecurity())
+	f.svc.retryBindingResourceServerCleanup(context.Background(), testOrg, f.proxy, bindingEnv)
+	assert.Empty(t, calls.deleted)
+
+	_, _, err := f.put(t, models.MCPProxyEnvironmentRequest{})
+	require.NoError(t, err)
+	err = f.svc.DeleteEnvironment(context.Background(), testOrg, bindingProject, bindingProjectUUID, bindingHandle, bindingEnv)
+	require.ErrorIs(t, err, lookupErr)
+	_, still := f.binding()
+	assert.NotNil(t, still, "the binding is kept for a retry")
+	assert.Empty(t, calls.deleted)
 }
 
 // The delete passes the proxy's scopes, as the proxy delete does, so the roles granting them are cleaned up.
