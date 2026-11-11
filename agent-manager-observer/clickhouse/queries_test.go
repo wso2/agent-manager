@@ -4,12 +4,14 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/wso2/agent-manager/agent-manager-observer/scope"
 )
 
 func TestBuildTraceListQuery(t *testing.T) {
 	w := traceWindow{Start: time.Unix(1000, 0), End: time.Unix(2000, 0)}
 	q, args := buildTraceListQuery("otel.otel_traces_tenant", tenantTable,
-		ScopeUIDs{Namespace: "default", Component: "abc"}, w, true, 10)
+		scope.UIDs{Namespace: "default", Component: "abc"}, w, true, 10)
 
 	if !strings.Contains(q, "ComponentUid = ?") {
 		t.Error("component filter missing")
@@ -29,7 +31,7 @@ func TestBuildTraceSpansQuery(t *testing.T) {
 	w := traceWindow{Start: time.Unix(1000, 0), End: time.Unix(2000, 0)}
 
 	q, args := buildTraceSpansQuery("otel_traces", exporterTable, "trace-1",
-		ScopeUIDs{Namespace: "default", Component: "abc"}, w, false, false, 50)
+		scope.UIDs{Namespace: "default", Component: "abc"}, w, false, false, 50)
 
 	if strings.Contains(q, "trace-1") || strings.Contains(q, "abc") {
 		t.Error("request values must never appear inside the SQL text")
@@ -41,7 +43,7 @@ func TestBuildTraceSpansQuery(t *testing.T) {
 		t.Errorf("expected 7 values, got %d", len(args))
 	}
 
-	q, _ = buildTraceSpansQuery("otel_traces", exporterTable, "trace-1", ScopeUIDs{}, w, true, true, 50)
+	q, _ = buildTraceSpansQuery("otel_traces", exporterTable, "trace-1", scope.UIDs{}, w, true, true, 50)
 	if !strings.Contains(q, "SpanAttributes, ResourceAttributes") || !strings.Contains(q, "Timestamp DESC") {
 		t.Error("attributes or sort order missing")
 	}
@@ -71,7 +73,7 @@ func TestBuildSpansBatchQuery(t *testing.T) {
 	traceIDs := []string{"trace-a", "trace-b"}
 
 	q, args := buildSpansBatchQuery("otel_traces", exporterTable, traceIDs,
-		ScopeUIDs{Namespace: "default", Component: "abc"}, w, 500)
+		scope.UIDs{Namespace: "default", Component: "abc"}, w, 500)
 
 	if strings.Contains(q, "trace-a") || strings.Contains(q, "trace-b") {
 		t.Error("request values must never appear inside the SQL text")

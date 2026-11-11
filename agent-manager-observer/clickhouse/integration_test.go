@@ -9,6 +9,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-observer/config"
 	"github.com/wso2/agent-manager/agent-manager-observer/observer"
+	"github.com/wso2/agent-manager/agent-manager-observer/scope"
 )
 
 // Talks to a real ClickHouse. Skipped unless CLICKHOUSE_TEST_ADDR is set.
@@ -28,7 +29,7 @@ func newIntegrationReader(t *testing.T, layout, table string) *TraceReaderImpl {
 	}
 	t.Cleanup(func() { _ = db.Close() })
 
-	resolver := StaticResolver{
+	resolver := scope.StaticResolver{
 		Projects:     map[string]string{"default/default": "55f125d0-35fc-4b66-af37-50b9fc97e0a0"},
 		Components:   map[string]string{"default/it-support": "f41255dd-7647-4401-895e-a55d629dbf5e"},
 		Environments: map[string]string{"default/default": "c7acefa5-b717-40f6-b056-2c05a739420c"},
@@ -89,7 +90,7 @@ func TestIntegration_QueryTraces(t *testing.T) {
 
 			// A name that does not exist must be refused, never treated as "no filter".
 			req.SearchScope.Component = str("no-such-agent")
-			if _, err := r.QueryTraces(context.Background(), req); !errors.Is(err, ErrUnknownScope) {
+			if _, err := r.QueryTraces(context.Background(), req); !errors.Is(err, scope.ErrUnknownScope) {
 				t.Errorf("unknown agent must fail with ErrUnknownScope, got %v", err)
 			}
 		})
@@ -160,7 +161,7 @@ func TestIntegration_Spans(t *testing.T) {
 			}
 
 			other, err := NewTraceReader(r.db, Options{Table: r.table, Layout: tc.layout,
-				DefaultNamespace: "other", Resolver: StaticResolver{}})
+				DefaultNamespace: "other", Resolver: scope.StaticResolver{}})
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"strings"
+	"github.com/wso2/agent-manager/agent-manager-observer/scope"
 )
 
 const traceIDTimeTable = "otel_traces_trace_id_ts"
@@ -11,7 +12,7 @@ const traceRootsTable = "otel.otel_trace_roots"
 
 type traceWindow struct{ Start, End time.Time }
 
-func buildTraceListQuery(table string, cols tenantColumns, scope ScopeUIDs, window traceWindow, isDesc bool, limit int) (string, []any) {
+func buildTraceListQuery(table string, cols tenantColumns, scope scope.UIDs, window traceWindow, isDesc bool, limit int) (string, []any) {
 	// 1. Where clause for raw spans table
 	where, scopeArgs := scopeWhere(cols, scope)
 	if where != "" {
@@ -78,7 +79,7 @@ func buildTraceListQuery(table string, cols tenantColumns, scope ScopeUIDs, wind
 	return query, args
 }
 
-func buildTraceSpansQuery(table string, cols tenantColumns, traceID string, scope ScopeUIDs, w traceWindow, includeAttrs, desc bool, limit int) (string, []any) {
+func buildTraceSpansQuery(table string, cols tenantColumns, traceID string, scope scope.UIDs, w traceWindow, includeAttrs, desc bool, limit int) (string, []any) {
 
 	conds := "TraceId = ?"
 	args := []any{traceID}
@@ -132,7 +133,7 @@ func buildSpanDetailQuery(table string, cols tenantColumns, namespace, traceID, 
 }
 
 // buildSpansBatchQuery returns the spans of several traces in one query.
-func buildSpansBatchQuery(table string, cols tenantColumns, traceIDs []string, scope ScopeUIDs,
+func buildSpansBatchQuery(table string, cols tenantColumns, traceIDs []string, scope scope.UIDs,
 	w traceWindow, maxRows int) (string, []any) {
 
 	marks := strings.TrimSuffix(strings.Repeat("?,", len(traceIDs)), ",") // one ? per trace id, never the ids themselves

@@ -11,6 +11,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-observer/config"
 	"github.com/wso2/agent-manager/agent-manager-observer/observer"
+	"github.com/wso2/agent-manager/agent-manager-observer/scope"
 )
 
 var ErrSpanNotFound = errors.New("span not found")
@@ -30,7 +31,7 @@ type Options struct {
 	Table            string
 	Layout           string
 	DefaultNamespace string
-	Resolver         ScopeResolver
+	Resolver         scope.Resolver
 }
 
 type TraceReaderImpl struct {
@@ -38,7 +39,7 @@ type TraceReaderImpl struct {
 	table     string
 	cols      tenantColumns
 	namespace string
-	resolver  ScopeResolver
+	resolver  scope.Resolver
 }
 
 var _ observer.TraceReader = (*TraceReaderImpl)(nil)

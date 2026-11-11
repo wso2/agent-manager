@@ -5,6 +5,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-observer/config"
 	"github.com/wso2/agent-manager/agent-manager-observer/observer"
+	"github.com/wso2/agent-manager/agent-manager-observer/scope"
 )
 
 func TestListOptions(t *testing.T) {
@@ -46,7 +47,7 @@ func TestSpanListOptions(t *testing.T) {
 }
 
 func TestNewTraceReader(t *testing.T) {
-	res := StaticResolver{}
+	res := scope.StaticResolver{}
 
 	r, err := NewTraceReader(nil, Options{Table: "otel_traces", Layout: config.TraceLayoutExporter, DefaultNamespace: "default", Resolver: res})
 	if err != nil || r.cols != exporterTable {
