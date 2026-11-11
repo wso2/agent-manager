@@ -1,3 +1,5 @@
+//go:build integration
+
 // Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
 //
 // WSO2 LLC. licenses this file to you under the Apache License,
@@ -19,15 +21,19 @@ package dbmigrations
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 )
 
-func TestRequireSchemaFor(t *testing.T) {
-	require.NoError(t, requireSchemaFor(config.DBDriverPostgres))
-	err := requireSchemaFor(config.DBDriverSQLite)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "DB_DRIVER=sqlite")
+func TestPostgresBaselineAppliesAndEnforcesKeys(t *testing.T) {
+	scratch := scratchDatabase(t)
+	require.NoError(t, migrateBaseline(scratch, config.DBDriverPostgres))
+	require.NoError(t, migrateBaseline(scratch, config.DBDriverPostgres), "a second run must be a no-op")
+
+	var locks []string
+	require.NoError(t, scratch.Raw("SELECT name FROM locks ORDER BY name").Scan(&locks).Error)
+	require.Equal(t, []string{"agent_identity.reconciler", "gateway.drift_scan"}, locks)
+
+	assertBaselineKeys(t, scratch)
 }

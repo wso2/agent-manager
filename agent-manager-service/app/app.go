@@ -178,6 +178,10 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 	if !opts.Server {
 		return
 	}
+	if err := dbmigrations.RequireRunnable(cfg.Database.Driver); err != nil {
+		slog.Error("cannot start the server", "error", err)
+		os.Exit(1)
+	}
 	if cfg.IdentityManagementMode == string(thundersvc.IdentityManagementCPManaged) && opts.AgentThunderProvisioning == nil {
 		slog.Error("CP_MANAGED identity mode requires an AgentID provisioning implementation")
 		os.Exit(1)

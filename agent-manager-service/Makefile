@@ -25,6 +25,10 @@ wire: ## Run wire code gen.
 	@(cd wiring && wire)
 	@echo "Wire code gen done"
 
+.PHONY: schema
+schema: ## Render db_migrations/schema/lite.yaml into the per-database baseline migrations.
+	@go run ./db_migrations/schema/cmd/schemagen
+
 .PHONY: codegen
 codegen: ## Run code gen.
 	@echo "Running go generate"

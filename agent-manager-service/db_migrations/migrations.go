@@ -43,18 +43,20 @@ type migration struct {
 }
 
 func Migrate() error {
-	if err := requireSchemaFor(config.GetConfig().Database.Driver); err != nil {
-		return err
+	driver := config.GetConfig().Database.Driver
+	if driver == config.DBDriverPostgres {
+		return migrateTo(db.DB(context.Background()), latestVersion)
 	}
-	return migrateTo(db.DB(context.Background()), latestVersion)
+	return migrateBaseline(db.DB(context.Background()), driver)
 }
 
-// requireSchemaFor fails fast for a driver that has no migrations yet, instead of running PostgreSQL DDL on it.
-func requireSchemaFor(driver string) error {
+// RequireRunnable refuses to start the server on a driver whose repositories are not ported yet. Such a database can
+// already be created with -migrate.
+func RequireRunnable(driver string) error {
 	if driver == config.DBDriverPostgres {
 		return nil
 	}
-	return fmt.Errorf("no database schema for DB_DRIVER=%s yet; use %s", driver, config.DBDriverPostgres)
+	return fmt.Errorf("the service cannot run on DB_DRIVER=%s yet; use %s", driver, config.DBDriverPostgres)
 }
 
 // migrateTo applies every migration up to and including version.
@@ -90,7 +92,7 @@ func migrateTo(dbConn *gorm.DB, version int32) error {
 // server never starts against an older schema while a separate migration job
 // is still running. It returns ctx's error if that does not happen first.
 func WaitForLatest(ctx context.Context, interval time.Duration) error {
-	if err := requireSchemaFor(config.GetConfig().Database.Driver); err != nil {
+	if err := RequireRunnable(config.GetConfig().Database.Driver); err != nil {
 		return err
 	}
 	return waitFor(ctx, db.DB(ctx), latestVersion, interval)
