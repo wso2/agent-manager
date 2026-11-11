@@ -7626,9 +7626,10 @@ paths:
            placed (400 IMMUTABLE_FIELD). No gateway in the environment is not an error: the binding is saved and
            validated by a render, deploymentStatus is absent and deploymentStatusReason is NO_GATEWAY.
            The binding is deployed once a gateway is mapped to the environment.
-        3. Validates security: apiKey (the default when security is omitted), identity (OAuth tokens from
-           the environment's identity provider; mutually exclusive with apiKey, 400), or no security
-           (security.enabled false, or no variant enabled). jwt returns 400 "jwt security is not available yet".
+        3. Validates security: apiKey (the default when security is omitted, or left on with no variant
+           enabled), identity (OAuth tokens from the environment's identity provider; mutually exclusive with
+           apiKey, 400), or no security (security.enabled false only). An apiKey with enabled false while
+           security stays on returns 400. jwt returns 400 "jwt security is not available yet".
         4. Checks the gateway context /<projName><context> against every other artifact on that gateway:
            equal, containing or nested is 409 CONTEXT_IN_USE and nothing is stored. With no gateway yet,
            the check runs at placement and a clash shows as Failed with reason CONTEXT_IN_USE.
@@ -7669,7 +7670,7 @@ paths:
         "400":
           description: >-
             AMBIGUOUS_GATEWAY, IMMUTABLE_FIELD (the gateway is fixed once placed), or VALIDATION_ERROR (an invalid
-            request, jwt/identity security, or an invalid policy or upstream auth). A malformed body gives
+            request, jwt security, identity together with apiKey, or an invalid policy or upstream auth). A malformed body gives
             `Invalid request body`.
           content:
             application/json:
@@ -8202,6 +8203,14 @@ paths:
           required: true
           schema:
             type: string
+        - name: X-Impersonate-Org
+          in: header
+          required: false
+          description: >-
+            Tenant org UUID for trusted service callers, as on the project MCP proxy routes. Honoured only for
+            allow-listed clients, otherwise 403; the orgName path segment must then be that org's handle.
+          schema:
+            type: string
       responses:
         "200":
           description: Scope list
@@ -8232,6 +8241,14 @@ paths:
         - name: proxyId
           in: path
           required: true
+          schema:
+            type: string
+        - name: X-Impersonate-Org
+          in: header
+          required: false
+          description: >-
+            Tenant org UUID for trusted service callers, as on the project MCP proxy routes. Honoured only for
+            allow-listed clients, otherwise 403; the orgName path segment must then be that org's handle.
           schema:
             type: string
       requestBody:
@@ -8280,6 +8297,14 @@ paths:
           required: true
           schema:
             type: string
+        - name: X-Impersonate-Org
+          in: header
+          required: false
+          description: >-
+            Tenant org UUID for trusted service callers, as on the project MCP proxy routes. Honoured only for
+            allow-listed clients, otherwise 403; the orgName path segment must then be that org's handle.
+          schema:
+            type: string
       requestBody:
         required: true
         content:
@@ -8324,6 +8349,14 @@ paths:
         - name: scopeAction
           in: path
           required: true
+          schema:
+            type: string
+        - name: X-Impersonate-Org
+          in: header
+          required: false
+          description: >-
+            Tenant org UUID for trusted service callers, as on the project MCP proxy routes. Honoured only for
+            allow-listed clients, otherwise 403; the orgName path segment must then be that org's handle.
           schema:
             type: string
       responses:

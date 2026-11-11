@@ -35,7 +35,7 @@ import (
 // ensureBindingResourceServer registers the resource server of the proxy's binding in envName when that binding uses
 // identity. It is best effort and returns nothing: a failure is logged, and the next PUT of the binding, which the
 // caller's ensure loop sends, registers it again. A binding with no gateway yet has no public URL to register, so it
-// is skipped until a PUT after placement.
+// is skipped until a PUT after placement or a role write that grants its scopes, which ensures it as for an org proxy.
 func (s *ProjectMCPProxyService) ensureBindingResourceServer(
 	ctx context.Context, ouID string, proxy *models.MCPProxy, envUUID uuid.UUID, envName string,
 ) {
@@ -98,8 +98,20 @@ func (s *ProjectMCPProxyService) deleteBindingResourceServer(
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), ensureResourceServerPerEnvTimeout)
 	defer cancel()
 	handle := proxyHandleOf(proxy)
+	// The proxy's scopes, as the proxy delete passes them, so a deployment can clean up what refers to them.
+	var actions []string
+	if s.base.mcpProxyScopeRepo != nil {
+		scopes, err := s.base.mcpProxyScopeRepo.ListByProxy(ctx, proxy.UUID)
+		if err != nil {
+			s.base.logger.Warn("project MCP binding resource server delete: listing scopes failed", "proxy", handle, "error", err)
+		}
+		for _, scope := range scopes {
+			actions = append(actions, scope.Action)
+		}
+	}
 	request := MCPResourceServerRequest{
 		OrganizationID: ouID, ProxyHandle: handle, DisplayName: mcpResourceServerDisplayName(proxy), Environment: envName,
+		Actions: actions,
 	}
 	if err := mcpResourceServerProviderFor(s.base.resolver, s.base.logger).DeleteMCPResourceServer(ctx, request); err != nil {
 		s.base.logger.Warn("project MCP binding resource server delete failed", "proxy", handle, "env", envName,

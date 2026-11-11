@@ -403,9 +403,10 @@ Synchronous. Each call:
     placed (400 IMMUTABLE_FIELD). No gateway in the environment is not an error: the binding is saved and
     validated by a render, deploymentStatus is absent and deploymentStatusReason is NO_GATEWAY.
     The binding is deployed once a gateway is mapped to the environment.
- 3. Validates security: apiKey (the default when security is omitted), identity (OAuth tokens from
-    the environment's identity provider; mutually exclusive with apiKey, 400), or no security
-    (security.enabled false, or no variant enabled). jwt returns 400 "jwt security is not available yet".
+ 3. Validates security: apiKey (the default when security is omitted, or left on with no variant
+    enabled), identity (OAuth tokens from the environment's identity provider; mutually exclusive with
+    apiKey, 400), or no security (security.enabled false only). An apiKey with enabled false while
+    security stays on returns 400. jwt returns 400 "jwt security is not available yet".
  4. Checks the gateway context /<projName><context> against every other artifact on that gateway:
     equal, containing or nested is 409 CONTEXT_IN_USE and nothing is stored. With no gateway yet,
     the check runs at placement and a clash shows as Failed with reason CONTEXT_IN_USE.

@@ -97,6 +97,10 @@ func (s *ProjectMCPProxyService) PutEnvironment(
 	if exists {
 		selfArtifact = ee.ArtifactUUID
 	}
+	var previousSecurity *models.SecurityConfig
+	if exists {
+		previousSecurity = endpoint.Configuration.Security
+	}
 
 	// (2) Gateway: the environment's egress gateway, anchored on where the binding is placed, as the MCP kind's
 	// Targets picks it. None is not an error: the binding is stored and the placement pass deploys it later.
@@ -203,6 +207,10 @@ func (s *ProjectMCPProxyService) PutEnvironment(
 		return nil, false, fmt.Errorf("the saved binding of %q in %q is missing", handle, envName)
 	}
 	s.ensureBindingResourceServer(ctx, ouID, saved, envUUID, envName)
+	// A binding moved off identity no longer accepts its tokens: its resource server, and the roles' grants of it, go.
+	if mcpIdentityEnabled(previousSecurity) && !mcpIdentityEnabled(endpoint.Configuration.Security) {
+		s.deleteBindingResourceServer(ctx, ouID, saved, envName, previousSecurity)
+	}
 	resp, err := s.environmentResponse(ctx, ouID, saved, endpoint, ee)
 	return resp, !exists, err
 }
@@ -458,13 +466,15 @@ func (s *ProjectMCPProxyService) DeleteEnvironmentInDeletedProject(ctx context.C
 
 func (s *ProjectMCPProxyService) deleteEnvironmentOf(ctx context.Context, ouID string, proxy *models.MCPProxy, envName string) error {
 	envName = strings.TrimSpace(envName)
-	bound, ee := bindingByEnvironmentName(proxy, envName)
+	_, ee := bindingByEnvironmentName(proxy, envName)
 	if ee == nil {
 		return utils.ErrMCPProxyEnvironmentNotBound
 	}
 	if err := s.ensureBindingNotInUse(ctx, proxy.UUID, ee.EnvironmentUUID); err != nil {
 		return err
 	}
+	// The security of the binding deleted, read under the lock: a PUT committed since proxy was read may have changed it.
+	var deletedSecurity *models.SecurityConfig
 	if err := s.base.tx(ctx, func(tx *gorm.DB) error {
 		locked, err := s.base.repo.GetByHandleForUpdate(ctx, tx, proxyHandleOf(proxy), ouID)
 		if err != nil {
@@ -478,13 +488,15 @@ func (s *ProjectMCPProxyService) deleteEnvironmentOf(ctx context.Context, ouID s
 		if ee == nil {
 			return utils.ErrMCPProxyEnvironmentNotBound
 		}
+		deletedSecurity = endpoint.Configuration.Security
 		ref := models.ArtifactRef{OUID: ouID, ArtifactUUID: ee.ArtifactUUID, Kind: models.KindMCPMapping}
 		events, err := s.base.core.PrepareDelete(ctx, tx, ref)
 		if err != nil {
 			return err
 		}
 		// The binding's API keys go with its artifact; the gateways are told in the same transaction.
-		if err := s.base.apiKeyBroadcaster.publishArtifactKeysRevokedTx(ctx, tx, ouID, ee.ArtifactUUID); err != nil {
+		publishRevoked, err := s.base.apiKeyBroadcaster.stageArtifactKeysRevokedTx(ctx, tx, ouID, ee.ArtifactUUID)
+		if err != nil {
 			return err
 		}
 		// Deleting the artifact cascades the (endpoint, environment) row.
@@ -494,11 +506,14 @@ func (s *ProjectMCPProxyService) deleteEnvironmentOf(ctx context.Context, ouID s
 		if err := s.base.endpointRepo.DeleteEndpoint(ctx, tx, endpoint.UUID); err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 			return err
 		}
+		if err := publishRevoked(); err != nil {
+			return err
+		}
 		return events.Publish(ctx, tx)
 	}); err != nil {
 		return err
 	}
-	s.deleteBindingResourceServer(ctx, ouID, proxy, envName, bound.Configuration.Security)
+	s.deleteBindingResourceServer(ctx, ouID, proxy, envName, deletedSecurity)
 	return nil
 }
 
@@ -623,7 +638,8 @@ func normalizeBindingSecurity(in *models.MCPProxyEnvironmentSecurity) (*models.S
 		return nil, fmt.Errorf("%w: %w", utils.ErrInvalidInput, utils.ErrMCPJWTSecurityNotAvailable)
 	}
 	if in.Identity != nil && isBoolTrue(in.Identity.Enabled) && !isExplicitlyFalse(in.Enabled) {
-		if in.APIKey != nil && isBoolTrue(in.APIKey.Enabled) {
+		// An apiKey given without enabled is on, as it is without identity, so it conflicts too.
+		if in.APIKey != nil && !isExplicitlyFalse(in.APIKey.Enabled) {
 			return nil, fmt.Errorf("%w: apiKey and identity security are mutually exclusive", utils.ErrInvalidInput)
 		}
 		enabled := true

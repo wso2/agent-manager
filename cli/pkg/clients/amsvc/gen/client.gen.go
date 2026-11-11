@@ -1093,20 +1093,20 @@ type ClientInterface interface {
 	RefreshProjectMCPProxyEnvironmentCapabilities(ctx context.Context, orgName string, projName string, proxyId string, envName string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListProjectMCPProxyScopes request
-	ListProjectMCPProxyScopes(ctx context.Context, orgName string, projName string, proxyId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+	ListProjectMCPProxyScopes(ctx context.Context, orgName string, projName string, proxyId string, params *ListProjectMCPProxyScopesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// CreateProjectMCPProxyScopeWithBody request with any body
-	CreateProjectMCPProxyScopeWithBody(ctx context.Context, orgName string, projName string, proxyId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	CreateProjectMCPProxyScopeWithBody(ctx context.Context, orgName string, projName string, proxyId string, params *CreateProjectMCPProxyScopeParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	CreateProjectMCPProxyScope(ctx context.Context, orgName string, projName string, proxyId string, body CreateProjectMCPProxyScopeJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	CreateProjectMCPProxyScope(ctx context.Context, orgName string, projName string, proxyId string, params *CreateProjectMCPProxyScopeParams, body CreateProjectMCPProxyScopeJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// DeleteProjectMCPProxyScope request
-	DeleteProjectMCPProxyScope(ctx context.Context, orgName string, projName string, proxyId string, scopeAction string, reqEditors ...RequestEditorFn) (*http.Response, error)
+	DeleteProjectMCPProxyScope(ctx context.Context, orgName string, projName string, proxyId string, scopeAction string, params *DeleteProjectMCPProxyScopeParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// UpdateProjectMCPProxyScopeWithBody request with any body
-	UpdateProjectMCPProxyScopeWithBody(ctx context.Context, orgName string, projName string, proxyId string, scopeAction string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	UpdateProjectMCPProxyScopeWithBody(ctx context.Context, orgName string, projName string, proxyId string, scopeAction string, params *UpdateProjectMCPProxyScopeParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	UpdateProjectMCPProxyScope(ctx context.Context, orgName string, projName string, proxyId string, scopeAction string, body UpdateProjectMCPProxyScopeJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	UpdateProjectMCPProxyScope(ctx context.Context, orgName string, projName string, proxyId string, scopeAction string, params *UpdateProjectMCPProxyScopeParams, body UpdateProjectMCPProxyScopeJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListRepositoryBranchesWithBody request with any body
 	ListRepositoryBranchesWithBody(ctx context.Context, orgName string, params *ListRepositoryBranchesParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -5540,8 +5540,8 @@ func (c *Client) RefreshProjectMCPProxyEnvironmentCapabilities(ctx context.Conte
 	return c.Client.Do(req)
 }
 
-func (c *Client) ListProjectMCPProxyScopes(ctx context.Context, orgName string, projName string, proxyId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListProjectMCPProxyScopesRequest(c.Server, orgName, projName, proxyId)
+func (c *Client) ListProjectMCPProxyScopes(ctx context.Context, orgName string, projName string, proxyId string, params *ListProjectMCPProxyScopesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListProjectMCPProxyScopesRequest(c.Server, orgName, projName, proxyId, params)
 	if err != nil {
 		return nil, err
 	}
@@ -5552,8 +5552,8 @@ func (c *Client) ListProjectMCPProxyScopes(ctx context.Context, orgName string, 
 	return c.Client.Do(req)
 }
 
-func (c *Client) CreateProjectMCPProxyScopeWithBody(ctx context.Context, orgName string, projName string, proxyId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateProjectMCPProxyScopeRequestWithBody(c.Server, orgName, projName, proxyId, contentType, body)
+func (c *Client) CreateProjectMCPProxyScopeWithBody(ctx context.Context, orgName string, projName string, proxyId string, params *CreateProjectMCPProxyScopeParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateProjectMCPProxyScopeRequestWithBody(c.Server, orgName, projName, proxyId, params, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -5564,8 +5564,8 @@ func (c *Client) CreateProjectMCPProxyScopeWithBody(ctx context.Context, orgName
 	return c.Client.Do(req)
 }
 
-func (c *Client) CreateProjectMCPProxyScope(ctx context.Context, orgName string, projName string, proxyId string, body CreateProjectMCPProxyScopeJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateProjectMCPProxyScopeRequest(c.Server, orgName, projName, proxyId, body)
+func (c *Client) CreateProjectMCPProxyScope(ctx context.Context, orgName string, projName string, proxyId string, params *CreateProjectMCPProxyScopeParams, body CreateProjectMCPProxyScopeJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateProjectMCPProxyScopeRequest(c.Server, orgName, projName, proxyId, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -5576,8 +5576,8 @@ func (c *Client) CreateProjectMCPProxyScope(ctx context.Context, orgName string,
 	return c.Client.Do(req)
 }
 
-func (c *Client) DeleteProjectMCPProxyScope(ctx context.Context, orgName string, projName string, proxyId string, scopeAction string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewDeleteProjectMCPProxyScopeRequest(c.Server, orgName, projName, proxyId, scopeAction)
+func (c *Client) DeleteProjectMCPProxyScope(ctx context.Context, orgName string, projName string, proxyId string, scopeAction string, params *DeleteProjectMCPProxyScopeParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteProjectMCPProxyScopeRequest(c.Server, orgName, projName, proxyId, scopeAction, params)
 	if err != nil {
 		return nil, err
 	}
@@ -5588,8 +5588,8 @@ func (c *Client) DeleteProjectMCPProxyScope(ctx context.Context, orgName string,
 	return c.Client.Do(req)
 }
 
-func (c *Client) UpdateProjectMCPProxyScopeWithBody(ctx context.Context, orgName string, projName string, proxyId string, scopeAction string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateProjectMCPProxyScopeRequestWithBody(c.Server, orgName, projName, proxyId, scopeAction, contentType, body)
+func (c *Client) UpdateProjectMCPProxyScopeWithBody(ctx context.Context, orgName string, projName string, proxyId string, scopeAction string, params *UpdateProjectMCPProxyScopeParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateProjectMCPProxyScopeRequestWithBody(c.Server, orgName, projName, proxyId, scopeAction, params, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -5600,8 +5600,8 @@ func (c *Client) UpdateProjectMCPProxyScopeWithBody(ctx context.Context, orgName
 	return c.Client.Do(req)
 }
 
-func (c *Client) UpdateProjectMCPProxyScope(ctx context.Context, orgName string, projName string, proxyId string, scopeAction string, body UpdateProjectMCPProxyScopeJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateProjectMCPProxyScopeRequest(c.Server, orgName, projName, proxyId, scopeAction, body)
+func (c *Client) UpdateProjectMCPProxyScope(ctx context.Context, orgName string, projName string, proxyId string, scopeAction string, params *UpdateProjectMCPProxyScopeParams, body UpdateProjectMCPProxyScopeJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateProjectMCPProxyScopeRequest(c.Server, orgName, projName, proxyId, scopeAction, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -21609,7 +21609,7 @@ func NewRefreshProjectMCPProxyEnvironmentCapabilitiesRequest(server string, orgN
 }
 
 // NewListProjectMCPProxyScopesRequest generates requests for ListProjectMCPProxyScopes
-func NewListProjectMCPProxyScopesRequest(server string, orgName string, projName string, proxyId string) (*http.Request, error) {
+func NewListProjectMCPProxyScopesRequest(server string, orgName string, projName string, proxyId string, params *ListProjectMCPProxyScopesParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -21653,22 +21653,37 @@ func NewListProjectMCPProxyScopesRequest(server string, orgName string, projName
 		return nil, err
 	}
 
+	if params != nil {
+
+		if params.XImpersonateOrg != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-Impersonate-Org", *params.XImpersonateOrg, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-Impersonate-Org", headerParam0)
+		}
+
+	}
+
 	return req, nil
 }
 
 // NewCreateProjectMCPProxyScopeRequest calls the generic CreateProjectMCPProxyScope builder with application/json body
-func NewCreateProjectMCPProxyScopeRequest(server string, orgName string, projName string, proxyId string, body CreateProjectMCPProxyScopeJSONRequestBody) (*http.Request, error) {
+func NewCreateProjectMCPProxyScopeRequest(server string, orgName string, projName string, proxyId string, params *CreateProjectMCPProxyScopeParams, body CreateProjectMCPProxyScopeJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewCreateProjectMCPProxyScopeRequestWithBody(server, orgName, projName, proxyId, "application/json", bodyReader)
+	return NewCreateProjectMCPProxyScopeRequestWithBody(server, orgName, projName, proxyId, params, "application/json", bodyReader)
 }
 
 // NewCreateProjectMCPProxyScopeRequestWithBody generates requests for CreateProjectMCPProxyScope with any type of body
-func NewCreateProjectMCPProxyScopeRequestWithBody(server string, orgName string, projName string, proxyId string, contentType string, body io.Reader) (*http.Request, error) {
+func NewCreateProjectMCPProxyScopeRequestWithBody(server string, orgName string, projName string, proxyId string, params *CreateProjectMCPProxyScopeParams, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -21714,11 +21729,26 @@ func NewCreateProjectMCPProxyScopeRequestWithBody(server string, orgName string,
 
 	req.Header.Add("Content-Type", contentType)
 
+	if params != nil {
+
+		if params.XImpersonateOrg != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-Impersonate-Org", *params.XImpersonateOrg, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-Impersonate-Org", headerParam0)
+		}
+
+	}
+
 	return req, nil
 }
 
 // NewDeleteProjectMCPProxyScopeRequest generates requests for DeleteProjectMCPProxyScope
-func NewDeleteProjectMCPProxyScopeRequest(server string, orgName string, projName string, proxyId string, scopeAction string) (*http.Request, error) {
+func NewDeleteProjectMCPProxyScopeRequest(server string, orgName string, projName string, proxyId string, scopeAction string, params *DeleteProjectMCPProxyScopeParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -21769,22 +21799,37 @@ func NewDeleteProjectMCPProxyScopeRequest(server string, orgName string, projNam
 		return nil, err
 	}
 
+	if params != nil {
+
+		if params.XImpersonateOrg != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-Impersonate-Org", *params.XImpersonateOrg, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-Impersonate-Org", headerParam0)
+		}
+
+	}
+
 	return req, nil
 }
 
 // NewUpdateProjectMCPProxyScopeRequest calls the generic UpdateProjectMCPProxyScope builder with application/json body
-func NewUpdateProjectMCPProxyScopeRequest(server string, orgName string, projName string, proxyId string, scopeAction string, body UpdateProjectMCPProxyScopeJSONRequestBody) (*http.Request, error) {
+func NewUpdateProjectMCPProxyScopeRequest(server string, orgName string, projName string, proxyId string, scopeAction string, params *UpdateProjectMCPProxyScopeParams, body UpdateProjectMCPProxyScopeJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewUpdateProjectMCPProxyScopeRequestWithBody(server, orgName, projName, proxyId, scopeAction, "application/json", bodyReader)
+	return NewUpdateProjectMCPProxyScopeRequestWithBody(server, orgName, projName, proxyId, scopeAction, params, "application/json", bodyReader)
 }
 
 // NewUpdateProjectMCPProxyScopeRequestWithBody generates requests for UpdateProjectMCPProxyScope with any type of body
-func NewUpdateProjectMCPProxyScopeRequestWithBody(server string, orgName string, projName string, proxyId string, scopeAction string, contentType string, body io.Reader) (*http.Request, error) {
+func NewUpdateProjectMCPProxyScopeRequestWithBody(server string, orgName string, projName string, proxyId string, scopeAction string, params *UpdateProjectMCPProxyScopeParams, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -21836,6 +21881,21 @@ func NewUpdateProjectMCPProxyScopeRequestWithBody(server string, orgName string,
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.XImpersonateOrg != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-Impersonate-Org", *params.XImpersonateOrg, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-Impersonate-Org", headerParam0)
+		}
+
+	}
 
 	return req, nil
 }
@@ -23580,20 +23640,20 @@ type ClientWithResponsesInterface interface {
 	RefreshProjectMCPProxyEnvironmentCapabilitiesWithResponse(ctx context.Context, orgName string, projName string, proxyId string, envName string, reqEditors ...RequestEditorFn) (*RefreshProjectMCPProxyEnvironmentCapabilitiesResp, error)
 
 	// ListProjectMCPProxyScopesWithResponse request
-	ListProjectMCPProxyScopesWithResponse(ctx context.Context, orgName string, projName string, proxyId string, reqEditors ...RequestEditorFn) (*ListProjectMCPProxyScopesResp, error)
+	ListProjectMCPProxyScopesWithResponse(ctx context.Context, orgName string, projName string, proxyId string, params *ListProjectMCPProxyScopesParams, reqEditors ...RequestEditorFn) (*ListProjectMCPProxyScopesResp, error)
 
 	// CreateProjectMCPProxyScopeWithBodyWithResponse request with any body
-	CreateProjectMCPProxyScopeWithBodyWithResponse(ctx context.Context, orgName string, projName string, proxyId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateProjectMCPProxyScopeResp, error)
+	CreateProjectMCPProxyScopeWithBodyWithResponse(ctx context.Context, orgName string, projName string, proxyId string, params *CreateProjectMCPProxyScopeParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateProjectMCPProxyScopeResp, error)
 
-	CreateProjectMCPProxyScopeWithResponse(ctx context.Context, orgName string, projName string, proxyId string, body CreateProjectMCPProxyScopeJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateProjectMCPProxyScopeResp, error)
+	CreateProjectMCPProxyScopeWithResponse(ctx context.Context, orgName string, projName string, proxyId string, params *CreateProjectMCPProxyScopeParams, body CreateProjectMCPProxyScopeJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateProjectMCPProxyScopeResp, error)
 
 	// DeleteProjectMCPProxyScopeWithResponse request
-	DeleteProjectMCPProxyScopeWithResponse(ctx context.Context, orgName string, projName string, proxyId string, scopeAction string, reqEditors ...RequestEditorFn) (*DeleteProjectMCPProxyScopeResp, error)
+	DeleteProjectMCPProxyScopeWithResponse(ctx context.Context, orgName string, projName string, proxyId string, scopeAction string, params *DeleteProjectMCPProxyScopeParams, reqEditors ...RequestEditorFn) (*DeleteProjectMCPProxyScopeResp, error)
 
 	// UpdateProjectMCPProxyScopeWithBodyWithResponse request with any body
-	UpdateProjectMCPProxyScopeWithBodyWithResponse(ctx context.Context, orgName string, projName string, proxyId string, scopeAction string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateProjectMCPProxyScopeResp, error)
+	UpdateProjectMCPProxyScopeWithBodyWithResponse(ctx context.Context, orgName string, projName string, proxyId string, scopeAction string, params *UpdateProjectMCPProxyScopeParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateProjectMCPProxyScopeResp, error)
 
-	UpdateProjectMCPProxyScopeWithResponse(ctx context.Context, orgName string, projName string, proxyId string, scopeAction string, body UpdateProjectMCPProxyScopeJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateProjectMCPProxyScopeResp, error)
+	UpdateProjectMCPProxyScopeWithResponse(ctx context.Context, orgName string, projName string, proxyId string, scopeAction string, params *UpdateProjectMCPProxyScopeParams, body UpdateProjectMCPProxyScopeJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateProjectMCPProxyScopeResp, error)
 
 	// ListRepositoryBranchesWithBodyWithResponse request with any body
 	ListRepositoryBranchesWithBodyWithResponse(ctx context.Context, orgName string, params *ListRepositoryBranchesParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ListRepositoryBranchesResp, error)
@@ -34032,8 +34092,8 @@ func (c *ClientWithResponses) RefreshProjectMCPProxyEnvironmentCapabilitiesWithR
 }
 
 // ListProjectMCPProxyScopesWithResponse request returning *ListProjectMCPProxyScopesResp
-func (c *ClientWithResponses) ListProjectMCPProxyScopesWithResponse(ctx context.Context, orgName string, projName string, proxyId string, reqEditors ...RequestEditorFn) (*ListProjectMCPProxyScopesResp, error) {
-	rsp, err := c.ListProjectMCPProxyScopes(ctx, orgName, projName, proxyId, reqEditors...)
+func (c *ClientWithResponses) ListProjectMCPProxyScopesWithResponse(ctx context.Context, orgName string, projName string, proxyId string, params *ListProjectMCPProxyScopesParams, reqEditors ...RequestEditorFn) (*ListProjectMCPProxyScopesResp, error) {
+	rsp, err := c.ListProjectMCPProxyScopes(ctx, orgName, projName, proxyId, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -34041,16 +34101,16 @@ func (c *ClientWithResponses) ListProjectMCPProxyScopesWithResponse(ctx context.
 }
 
 // CreateProjectMCPProxyScopeWithBodyWithResponse request with arbitrary body returning *CreateProjectMCPProxyScopeResp
-func (c *ClientWithResponses) CreateProjectMCPProxyScopeWithBodyWithResponse(ctx context.Context, orgName string, projName string, proxyId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateProjectMCPProxyScopeResp, error) {
-	rsp, err := c.CreateProjectMCPProxyScopeWithBody(ctx, orgName, projName, proxyId, contentType, body, reqEditors...)
+func (c *ClientWithResponses) CreateProjectMCPProxyScopeWithBodyWithResponse(ctx context.Context, orgName string, projName string, proxyId string, params *CreateProjectMCPProxyScopeParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateProjectMCPProxyScopeResp, error) {
+	rsp, err := c.CreateProjectMCPProxyScopeWithBody(ctx, orgName, projName, proxyId, params, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
 	return ParseCreateProjectMCPProxyScopeResp(rsp)
 }
 
-func (c *ClientWithResponses) CreateProjectMCPProxyScopeWithResponse(ctx context.Context, orgName string, projName string, proxyId string, body CreateProjectMCPProxyScopeJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateProjectMCPProxyScopeResp, error) {
-	rsp, err := c.CreateProjectMCPProxyScope(ctx, orgName, projName, proxyId, body, reqEditors...)
+func (c *ClientWithResponses) CreateProjectMCPProxyScopeWithResponse(ctx context.Context, orgName string, projName string, proxyId string, params *CreateProjectMCPProxyScopeParams, body CreateProjectMCPProxyScopeJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateProjectMCPProxyScopeResp, error) {
+	rsp, err := c.CreateProjectMCPProxyScope(ctx, orgName, projName, proxyId, params, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -34058,8 +34118,8 @@ func (c *ClientWithResponses) CreateProjectMCPProxyScopeWithResponse(ctx context
 }
 
 // DeleteProjectMCPProxyScopeWithResponse request returning *DeleteProjectMCPProxyScopeResp
-func (c *ClientWithResponses) DeleteProjectMCPProxyScopeWithResponse(ctx context.Context, orgName string, projName string, proxyId string, scopeAction string, reqEditors ...RequestEditorFn) (*DeleteProjectMCPProxyScopeResp, error) {
-	rsp, err := c.DeleteProjectMCPProxyScope(ctx, orgName, projName, proxyId, scopeAction, reqEditors...)
+func (c *ClientWithResponses) DeleteProjectMCPProxyScopeWithResponse(ctx context.Context, orgName string, projName string, proxyId string, scopeAction string, params *DeleteProjectMCPProxyScopeParams, reqEditors ...RequestEditorFn) (*DeleteProjectMCPProxyScopeResp, error) {
+	rsp, err := c.DeleteProjectMCPProxyScope(ctx, orgName, projName, proxyId, scopeAction, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -34067,16 +34127,16 @@ func (c *ClientWithResponses) DeleteProjectMCPProxyScopeWithResponse(ctx context
 }
 
 // UpdateProjectMCPProxyScopeWithBodyWithResponse request with arbitrary body returning *UpdateProjectMCPProxyScopeResp
-func (c *ClientWithResponses) UpdateProjectMCPProxyScopeWithBodyWithResponse(ctx context.Context, orgName string, projName string, proxyId string, scopeAction string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateProjectMCPProxyScopeResp, error) {
-	rsp, err := c.UpdateProjectMCPProxyScopeWithBody(ctx, orgName, projName, proxyId, scopeAction, contentType, body, reqEditors...)
+func (c *ClientWithResponses) UpdateProjectMCPProxyScopeWithBodyWithResponse(ctx context.Context, orgName string, projName string, proxyId string, scopeAction string, params *UpdateProjectMCPProxyScopeParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateProjectMCPProxyScopeResp, error) {
+	rsp, err := c.UpdateProjectMCPProxyScopeWithBody(ctx, orgName, projName, proxyId, scopeAction, params, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
 	return ParseUpdateProjectMCPProxyScopeResp(rsp)
 }
 
-func (c *ClientWithResponses) UpdateProjectMCPProxyScopeWithResponse(ctx context.Context, orgName string, projName string, proxyId string, scopeAction string, body UpdateProjectMCPProxyScopeJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateProjectMCPProxyScopeResp, error) {
-	rsp, err := c.UpdateProjectMCPProxyScope(ctx, orgName, projName, proxyId, scopeAction, body, reqEditors...)
+func (c *ClientWithResponses) UpdateProjectMCPProxyScopeWithResponse(ctx context.Context, orgName string, projName string, proxyId string, scopeAction string, params *UpdateProjectMCPProxyScopeParams, body UpdateProjectMCPProxyScopeJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateProjectMCPProxyScopeResp, error) {
+	rsp, err := c.UpdateProjectMCPProxyScope(ctx, orgName, projName, proxyId, scopeAction, params, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}

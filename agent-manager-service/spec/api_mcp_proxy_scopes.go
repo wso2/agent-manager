@@ -146,10 +146,17 @@ type ApiCreateProjectMCPProxyScopeRequest struct {
 	projName             string
 	proxyId              string
 	mCPProxyScopeRequest *MCPProxyScopeRequest
+	xImpersonateOrg      *string
 }
 
 func (r ApiCreateProjectMCPProxyScopeRequest) MCPProxyScopeRequest(mCPProxyScopeRequest MCPProxyScopeRequest) ApiCreateProjectMCPProxyScopeRequest {
 	r.mCPProxyScopeRequest = &mCPProxyScopeRequest
+	return r
+}
+
+// Tenant org UUID for trusted service callers, as on the project MCP proxy routes. Honoured only for allow-listed clients, otherwise 403; the orgName path segment must then be that org&#39;s handle.
+func (r ApiCreateProjectMCPProxyScopeRequest) XImpersonateOrg(xImpersonateOrg string) ApiCreateProjectMCPProxyScopeRequest {
+	r.xImpersonateOrg = &xImpersonateOrg
 	return r
 }
 
@@ -222,6 +229,9 @@ func (a *MCPProxyScopesAPIService) CreateProjectMCPProxyScopeExecute(r ApiCreate
 	localVarHTTPHeaderAccept := selectHeaderAccept(localVarHTTPHeaderAccepts)
 	if localVarHTTPHeaderAccept != "" {
 		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
+	}
+	if r.xImpersonateOrg != nil {
+		parameterAddToHeaderOrQuery(localVarHeaderParams, "X-Impersonate-Org", r.xImpersonateOrg, "")
 	}
 	// body params
 	localVarPostBody = r.mCPProxyScopeRequest
@@ -363,12 +373,19 @@ func (a *MCPProxyScopesAPIService) DeleteMCPProxyScopeExecute(r ApiDeleteMCPProx
 }
 
 type ApiDeleteProjectMCPProxyScopeRequest struct {
-	ctx         context.Context
-	ApiService  *MCPProxyScopesAPIService
-	orgName     string
-	projName    string
-	proxyId     string
-	scopeAction string
+	ctx             context.Context
+	ApiService      *MCPProxyScopesAPIService
+	orgName         string
+	projName        string
+	proxyId         string
+	scopeAction     string
+	xImpersonateOrg *string
+}
+
+// Tenant org UUID for trusted service callers, as on the project MCP proxy routes. Honoured only for allow-listed clients, otherwise 403; the orgName path segment must then be that org&#39;s handle.
+func (r ApiDeleteProjectMCPProxyScopeRequest) XImpersonateOrg(xImpersonateOrg string) ApiDeleteProjectMCPProxyScopeRequest {
+	r.xImpersonateOrg = &xImpersonateOrg
+	return r
 }
 
 func (r ApiDeleteProjectMCPProxyScopeRequest) Execute() (*http.Response, error) {
@@ -437,6 +454,9 @@ func (a *MCPProxyScopesAPIService) DeleteProjectMCPProxyScopeExecute(r ApiDelete
 	localVarHTTPHeaderAccept := selectHeaderAccept(localVarHTTPHeaderAccepts)
 	if localVarHTTPHeaderAccept != "" {
 		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
+	}
+	if r.xImpersonateOrg != nil {
+		parameterAddToHeaderOrQuery(localVarHeaderParams, "X-Impersonate-Org", r.xImpersonateOrg, "")
 	}
 	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
 	if err != nil {
@@ -575,11 +595,18 @@ func (a *MCPProxyScopesAPIService) ListMCPProxyScopesExecute(r ApiListMCPProxySc
 }
 
 type ApiListProjectMCPProxyScopesRequest struct {
-	ctx        context.Context
-	ApiService *MCPProxyScopesAPIService
-	orgName    string
-	projName   string
-	proxyId    string
+	ctx             context.Context
+	ApiService      *MCPProxyScopesAPIService
+	orgName         string
+	projName        string
+	proxyId         string
+	xImpersonateOrg *string
+}
+
+// Tenant org UUID for trusted service callers, as on the project MCP proxy routes. Honoured only for allow-listed clients, otherwise 403; the orgName path segment must then be that org&#39;s handle.
+func (r ApiListProjectMCPProxyScopesRequest) XImpersonateOrg(xImpersonateOrg string) ApiListProjectMCPProxyScopesRequest {
+	r.xImpersonateOrg = &xImpersonateOrg
+	return r
 }
 
 func (r ApiListProjectMCPProxyScopesRequest) Execute() (*MCPProxyScopeListResponse, *http.Response, error) {
@@ -648,6 +675,9 @@ func (a *MCPProxyScopesAPIService) ListProjectMCPProxyScopesExecute(r ApiListPro
 	localVarHTTPHeaderAccept := selectHeaderAccept(localVarHTTPHeaderAccepts)
 	if localVarHTTPHeaderAccept != "" {
 		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
+	}
+	if r.xImpersonateOrg != nil {
+		parameterAddToHeaderOrQuery(localVarHeaderParams, "X-Impersonate-Org", r.xImpersonateOrg, "")
 	}
 	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
 	if err != nil {
@@ -817,10 +847,17 @@ type ApiUpdateProjectMCPProxyScopeRequest struct {
 	proxyId                    string
 	scopeAction                string
 	mCPProxyScopeUpdateRequest *MCPProxyScopeUpdateRequest
+	xImpersonateOrg            *string
 }
 
 func (r ApiUpdateProjectMCPProxyScopeRequest) MCPProxyScopeUpdateRequest(mCPProxyScopeUpdateRequest MCPProxyScopeUpdateRequest) ApiUpdateProjectMCPProxyScopeRequest {
 	r.mCPProxyScopeUpdateRequest = &mCPProxyScopeUpdateRequest
+	return r
+}
+
+// Tenant org UUID for trusted service callers, as on the project MCP proxy routes. Honoured only for allow-listed clients, otherwise 403; the orgName path segment must then be that org&#39;s handle.
+func (r ApiUpdateProjectMCPProxyScopeRequest) XImpersonateOrg(xImpersonateOrg string) ApiUpdateProjectMCPProxyScopeRequest {
+	r.xImpersonateOrg = &xImpersonateOrg
 	return r
 }
 
@@ -896,6 +933,9 @@ func (a *MCPProxyScopesAPIService) UpdateProjectMCPProxyScopeExecute(r ApiUpdate
 	localVarHTTPHeaderAccept := selectHeaderAccept(localVarHTTPHeaderAccepts)
 	if localVarHTTPHeaderAccept != "" {
 		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
+	}
+	if r.xImpersonateOrg != nil {
+		parameterAddToHeaderOrQuery(localVarHeaderParams, "X-Impersonate-Org", r.xImpersonateOrg, "")
 	}
 	// body params
 	localVarPostBody = r.mCPProxyScopeUpdateRequest

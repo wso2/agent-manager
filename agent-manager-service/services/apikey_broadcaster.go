@@ -28,6 +28,7 @@ import (
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
@@ -226,34 +227,54 @@ func (b *apiKeyBroadcaster) broadcastRevokeToGateways(ctx context.Context, gatew
 		})
 }
 
-// publishArtifactKeysRevokedTx writes, in tx, a revocation of every API key stored for the artifact to each of the
-// organization's gateways: the gateways every key of it was sent to. It is for a caller that deletes the artifact in
-// tx, which takes the key rows with it (api_keys.artifact_uuid cascades), so no key outlives its artifact at a
-// gateway. apiID is the artifact UUID, which is the API id the keys were sent under.
-func (b *apiKeyBroadcaster) publishArtifactKeysRevokedTx(ctx context.Context, tx *gorm.DB, orgID string, artifactUUID uuid.UUID) error {
-	if b.apiKeyRepo == nil || b.gatewayService == nil || b.gatewayRepo == nil {
-		return nil
+// stageArtifactKeysRevokedTx prepares, in tx, a revocation of every API key stored for the artifact, for a caller about
+// to delete the artifact in tx (api_keys.artifact_uuid cascades, so its key rows go with it). It returns the publish to
+// call once the rows are deleted, last in tx, as the event hub requires of a publish.
+//
+// It locks the artifact row first: a key insert for the artifact checks the foreign key under a share lock on that row,
+// so one in flight finishes before this lock is granted and one after it waits, then fails on the deleted artifact.
+// It then locks the artifact's key rows, which a rotation holds until its own events are written, so the keys read
+// are every key the delete takes. Locks are taken in the order key changes take them (key row, then gateways), and
+// gateways are published to in gateway ID order, so this cannot deadlock with a key change. apiID in the events is
+// the artifact UUID, the API id the keys were sent under.
+func (b *apiKeyBroadcaster) stageArtifactKeysRevokedTx(
+	ctx context.Context, tx *gorm.DB, orgID string, artifactUUID uuid.UUID,
+) (func() error, error) {
+	noop := func() error { return nil }
+	if b.gatewayService == nil || b.gatewayRepo == nil {
+		return noop, nil
 	}
-	keys, err := b.apiKeyRepo.ListByArtifact(ctx, artifactUUID.String())
-	if err != nil {
-		return fmt.Errorf("failed to list the artifact's API keys: %w", err)
+	if err := tx.WithContext(ctx).Exec("SELECT 1 FROM artifacts WHERE uuid = ? FOR UPDATE", artifactUUID).Error; err != nil {
+		return nil, fmt.Errorf("failed to lock the artifact: %w", err)
+	}
+	var keys []models.StoredAPIKey
+	if err := tx.WithContext(ctx).Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("artifact_uuid = ?", artifactUUID).Order("name").Find(&keys).Error; err != nil {
+		return nil, fmt.Errorf("failed to list the artifact's API keys: %w", err)
 	}
 	if len(keys) == 0 {
-		return nil
+		return noop, nil
 	}
 	gateways, err := b.gatewayRepo.GetByOrganizationID(ctx, orgID)
 	if err != nil {
-		return fmt.Errorf("failed to get gateways: %w", err)
+		return nil, fmt.Errorf("failed to get gateways: %w", err)
 	}
-	for _, key := range keys {
-		event := &models.APIKeyRevokedEvent{APIID: artifactUUID.String(), KeyName: key.Name}
-		for _, gateway := range gateways {
-			if err := b.gatewayService.PublishAPIKeyRevokedTx(ctx, tx, gateway.UUID.String(), event); err != nil {
-				return fmt.Errorf("failed to revoke API key %s on gateway %s: %w", key.Name, gateway.UUID, err)
+	ids := make([]string, 0, len(gateways))
+	for _, gateway := range gateways {
+		ids = append(ids, gateway.UUID.String())
+	}
+	slices.Sort(ids)
+	return func() error {
+		for _, id := range ids {
+			for _, key := range keys {
+				event := &models.APIKeyRevokedEvent{APIID: artifactUUID.String(), KeyName: key.Name}
+				if err := b.gatewayService.PublishAPIKeyRevokedTx(ctx, tx, id, event); err != nil {
+					return fmt.Errorf("failed to revoke API key %s on gateway %s: %w", key.Name, id, err)
+				}
 			}
 		}
-	}
-	return nil
+		return nil
+	}, nil
 }
 
 // broadcastRevokeUserManaged deletes and broadcasts revocation for every user-managed

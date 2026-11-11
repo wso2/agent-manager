@@ -7654,6 +7654,30 @@ type PutProjectMCPProxyEnvironmentParams struct {
 	XImpersonateOrg *openapi_types.UUID `json:"X-Impersonate-Org,omitempty"`
 }
 
+// ListProjectMCPProxyScopesParams defines parameters for ListProjectMCPProxyScopes.
+type ListProjectMCPProxyScopesParams struct {
+	// XImpersonateOrg Tenant org UUID for trusted service callers, as on the project MCP proxy routes. Honoured only for allow-listed clients, otherwise 403; the orgName path segment must then be that org's handle.
+	XImpersonateOrg *string `json:"X-Impersonate-Org,omitempty"`
+}
+
+// CreateProjectMCPProxyScopeParams defines parameters for CreateProjectMCPProxyScope.
+type CreateProjectMCPProxyScopeParams struct {
+	// XImpersonateOrg Tenant org UUID for trusted service callers, as on the project MCP proxy routes. Honoured only for allow-listed clients, otherwise 403; the orgName path segment must then be that org's handle.
+	XImpersonateOrg *string `json:"X-Impersonate-Org,omitempty"`
+}
+
+// DeleteProjectMCPProxyScopeParams defines parameters for DeleteProjectMCPProxyScope.
+type DeleteProjectMCPProxyScopeParams struct {
+	// XImpersonateOrg Tenant org UUID for trusted service callers, as on the project MCP proxy routes. Honoured only for allow-listed clients, otherwise 403; the orgName path segment must then be that org's handle.
+	XImpersonateOrg *string `json:"X-Impersonate-Org,omitempty"`
+}
+
+// UpdateProjectMCPProxyScopeParams defines parameters for UpdateProjectMCPProxyScope.
+type UpdateProjectMCPProxyScopeParams struct {
+	// XImpersonateOrg Tenant org UUID for trusted service callers, as on the project MCP proxy routes. Honoured only for allow-listed clients, otherwise 403; the orgName path segment must then be that org's handle.
+	XImpersonateOrg *string `json:"X-Impersonate-Org,omitempty"`
+}
+
 // ListRepositoryBranchesParams defines parameters for ListRepositoryBranches.
 type ListRepositoryBranchesParams struct {
 	// Limit Maximum number of results to return (default 30, max 100)

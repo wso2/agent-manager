@@ -627,6 +627,8 @@ func TestPutEnv_JWT_400(t *testing.T) {
 type thunderCalls struct {
 	ensured []struct{ env, handle, identifier string }
 	deleted []struct{ env, handle string }
+	// swept counts the role listings a delete made to drop the proxy's scopes from roles.
+	swept int
 }
 
 // withThunder gives the fixture an identity service that records resource server writes.
@@ -642,6 +644,10 @@ func (f *bindingFixture) withThunder() *thunderCalls {
 				DeleteProxyResourceServerFunc: func(_ context.Context, handle string) error {
 					calls.deleted = append(calls.deleted, struct{ env, handle string }{envName, handle})
 					return nil
+				},
+				ListRolesFunc: func(context.Context, string, int, int) ([]thundersvc.ThunderRole, int, error) {
+					calls.swept++
+					return nil, 0, nil
 				},
 			}, nil
 		},
@@ -712,6 +718,34 @@ func TestPutEnv_IdentityWithAPIKey_400(t *testing.T) {
 	assert.Zero(t, f.endpointWrites)
 }
 
+// An apiKey given without enabled is on, as it is without identity, so with identity it is refused, not dropped.
+func TestPutEnv_IdentityWithAPIKeyEnabledOmitted_400(t *testing.T) {
+	f := newBindingFixture(t)
+	security := identityBinding()
+	security.APIKey = &models.APIKeySecurity{Key: "X-API-Key"}
+	_, _, err := f.put(t, models.MCPProxyEnvironmentRequest{Security: security})
+	require.ErrorIs(t, err, utils.ErrInvalidInput)
+	assert.Contains(t, err.Error(), "mutually exclusive")
+	assert.Zero(t, f.endpointWrites)
+}
+
+// A binding moved off identity no longer accepts its tokens, so its resource server is removed; one that stays on
+// identity keeps it.
+func TestPutEnv_LeavingIdentity_DeletesTheResourceServer(t *testing.T) {
+	f := newBindingFixture(t)
+	calls := f.withThunder()
+
+	_, _, err := f.put(t, models.MCPProxyEnvironmentRequest{Security: identityBinding()})
+	require.NoError(t, err)
+	assert.Empty(t, calls.deleted)
+
+	_, _, err = f.put(t, models.MCPProxyEnvironmentRequest{})
+	require.NoError(t, err)
+	require.Len(t, calls.deleted, 1)
+	assert.Equal(t, bindingEnv, calls.deleted[0].env)
+	assert.Equal(t, bindingHandle, calls.deleted[0].handle)
+}
+
 // A binding with no gateway has no public URL to register yet; the PUT after the gateway arrives registers it.
 func TestPutEnv_Identity_NoGatewayRegistersOnceAGatewayIsThere(t *testing.T) {
 	f := newBindingFixture(t)
@@ -753,6 +787,22 @@ func TestDeleteBindingResourceServer_OnlyForIdentity(t *testing.T) {
 	require.Len(t, calls.deleted, 1)
 	assert.Equal(t, bindingEnv, calls.deleted[0].env)
 	assert.Equal(t, bindingHandle, calls.deleted[0].handle)
+	assert.Zero(t, calls.swept, "a proxy with no scopes has none to drop from roles")
+}
+
+// The delete passes the proxy's scopes, as the proxy delete does, so the roles granting them are cleaned up.
+func TestDeleteBindingResourceServer_DropsTheProxyScopesFromRoles(t *testing.T) {
+	f := newBindingFixture(t)
+	calls := f.withThunder()
+	f.svc.base.mcpProxyScopeRepo = &repomocks.MCPProxyScopeRepositoryMock{
+		ListByProxyFunc: func(context.Context, uuid.UUID) ([]models.MCPProxyScope, error) {
+			return []models.MCPProxyScope{{Action: "read"}, {Action: "write"}}, nil
+		},
+	}
+
+	f.svc.deleteBindingResourceServer(context.Background(), testOrg, f.proxy, bindingEnv, mcpIdentitySecurity())
+	require.Len(t, calls.deleted, 1)
+	assert.Equal(t, 2, calls.swept, "one role sweep per scope")
 }
 
 // A body that leaves security enabled with no variant gets the default api key in X-API-Key, as an omitted security
