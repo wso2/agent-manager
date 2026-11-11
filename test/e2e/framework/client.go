@@ -60,8 +60,7 @@ func (c *AMPClient) Cfg() *Config {
 	return c.cfg
 }
 
-// Token returns the bearer token the client authenticates with. Used to pass
-// through to shell scripts (e.g. add-environment.sh) that call the API directly.
+// Token returns the bearer token the client authenticates with.
 func (c *AMPClient) Token() string {
 	return c.token
 }

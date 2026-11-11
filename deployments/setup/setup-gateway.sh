@@ -10,27 +10,14 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Gateway identity for the bootstrap default environment. Keep in sync with
-# add-environment.sh so every env's gateway record uses the same vhost convention
-# (otherwise the agent-manager `gateways.vhost` row is set from the chart's
-# misleading static default).
+# Gateway identity for the org's internal default environment (otherwise the
+# agent-manager `gateways.vhost` row is set from the chart's misleading static
+# default).
 ORG_NAME="${ORG_NAME:-default}"
 ENV_NAME="${ENV_NAME:-default}"
 GATEWAY_VHOST_PORT="${GATEWAY_VHOST_PORT:-19080}"
 GATEWAY_VHOST="${GATEWAY_VHOST:-http://${ENV_NAME}-${ORG_NAME}.gateway.localhost:${GATEWAY_VHOST_PORT}}"
-IDP_SKIP_TLS_VERIFY="${IDP_SKIP_TLS_VERIFY:-true}"
-case "$IDP_SKIP_TLS_VERIFY" in
-    true|false) ;;
-    *)
-        echo "❌ IDP_SKIP_TLS_VERIFY must be 'true' or 'false' (got '${IDP_SKIP_TLS_VERIFY}')"
-        exit 1
-        ;;
-esac
 
-# shellcheck source=../scripts/thunder-naming.sh
-source "${SCRIPT_DIR}/../scripts/thunder-naming.sh"
-# shellcheck source=../scripts/ams-auth.sh
-source "${SCRIPT_DIR}/../scripts/ams-auth.sh"
 
 echo "=== Installing API Platform Gateway ==="
 
@@ -51,14 +38,12 @@ done
 echo "✅ Agent Manager is healthy"
 
 # Per-org-env namespace isolation: the gateway stack lives in its own
-# "<org>-<env>" namespace (see add-environment.sh). apiGateway.namespace must
+# "<org>-<env>" namespace. apiGateway.namespace must
 # match --namespace — it drives where the chart renders the APIGateway CR,
 # config, RestApis, kgateway backendRef and token secret.
 GATEWAY_NAMESPACE="${GATEWAY_NAMESPACE:-${ORG_NAME}-${ENV_NAME}}"
 
-# Wire the gateway's ThunderKeyManager to this environment's own Thunder instance
-# when it exists, mirroring the THUNDER_PROVISIONED logic in add-environment.sh.
-THUNDER_RELEASE="$(thunder_release_name "${ORG_NAME}" "${ENV_NAME}")"
+# The gateway trusts the install's single Thunder (values-dev.yaml keymanagers).
 HELM_ARGS=(
     upgrade --install "api-platform-${ORG_NAME}-${ENV_NAME}"
     "${SCRIPT_DIR}/../helm-charts/wso2-amp-api-platform-gateway-extension"
@@ -72,44 +57,11 @@ HELM_ARGS=(
     --set apiGateway.controlPlane.host="host.docker.internal:9243"
     -f "${SCRIPT_DIR}/../helm-charts/wso2-amp-api-platform-gateway-extension/values-dev.yaml"
 )
-if helm status "${THUNDER_RELEASE}" --namespace "${THUNDER_RELEASE}" > /dev/null 2>&1; then
-    # Learn the registered handle via GET — there's no pattern to compute
-    # locally from org/env, so guessing one would wire the gateway to a
-    # hostname Thunder never actually issues tokens for. See
-    # deployments/scripts/ams-auth.sh's get_thunder_url_handle (the single
-    # implementation every provisioning/wiring script uses for this lookup).
-    THUNDER_URL_HANDLE="$(get_thunder_url_handle "${ORG_NAME}" "${ENV_NAME}")" || THUNDER_URL_HANDLE=""
-    if [ -z "${THUNDER_URL_HANDLE}" ]; then
-        echo "⚠️  Env-Thunder instance found (Helm release: ${THUNDER_RELEASE}), but its registered URL"
-        echo "   handle could not be learned — gateway will use values-dev.yaml's platform Thunder default"
-        echo "   instead of guessing an address. Re-run once agent-manager-service is reachable to fix wiring."
-    else
-        echo "✅ Env-Thunder instance found (Helm release: ${THUNDER_RELEASE}) — wiring gateway to it"
-        THUNDER_ISSUER="$(thunder_issuer "${THUNDER_URL_HANDLE}")"
-        THUNDER_INTERNAL_JWKS="http://${THUNDER_RELEASE}-service.${THUNDER_RELEASE}.svc.cluster.local:8090/oauth2/jwks"
-        HELM_ARGS+=(
-            --set "apiGateway.config.policyConfigurations.jwtauth_v1.keymanagers[1].name=ThunderKeyManager"
-            --set "apiGateway.config.policyConfigurations.jwtauth_v1.keymanagers[1].issuer=${THUNDER_ISSUER}"
-            --set "apiGateway.config.policyConfigurations.jwtauth_v1.keymanagers[1].jwks.remote.uri=${THUNDER_INTERNAL_JWKS}"
-            --set "apiGateway.config.policyConfigurations.jwtauth_v1.keymanagers[1].jwks.remote.skipTlsVerify=${IDP_SKIP_TLS_VERIFY}"
-            # Name must match keymanagers[].name, which is always "ThunderKeyManager" (set above).
-            --set "bootstrap.identityProviders[0].name=ThunderKeyManager"
-            --set "bootstrap.identityProviders[0].issuer=${THUNDER_ISSUER}"
-            --set "bootstrap.identityProviders[0].jwksUri=${THUNDER_INTERNAL_JWKS}"
-            --set "bootstrap.identityProviders[0].skipTlsVerify=${IDP_SKIP_TLS_VERIFY}"
-        )
-    fi
-else
-    echo "ℹ️  No env-Thunder instance found for '${ENV_NAME}' — gateway will use values-dev.yaml's platform Thunder default"
-fi
-
 echo ""
 echo "🌐 Installing gateway chart..."
 
-# Ensure the gateway namespace exists and carries the label the sandbox
-# NetworkPolicy (agent-api ComponentType) matches for agent telemetry egress.
-# Without it, agents in this (default) environment cannot reach the gateway's
-# OTEL or managed LLM/MCP endpoints when it runs outside openchoreo-data-plane.
+# Ensure the gateway namespace exists and carries the label NetworkPolicies
+# (e.g. teardown-amp.sh's namespace sweep) select AMP gateway namespaces by.
 kubectl create namespace "${GATEWAY_NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f - > /dev/null
 kubectl label namespace "${GATEWAY_NAMESPACE}" "amp.wso2.com/api-platform-gateway=true" --overwrite > /dev/null
 

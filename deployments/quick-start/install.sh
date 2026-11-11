@@ -2,13 +2,13 @@
 set -euo pipefail
 
 # ============================================================================
-# OpenChoreo Development Environment Setup
+# Agent Manager Local Installation (k3d)
 # ============================================================================
 # This script provides a comprehensive, idempotent installation that:
 # 1. Creates a k3d cluster
-# 2. Installs OpenChoreo (Control Plane, Data Plane, Workflow Plane, Observability Plane)
-# 3. Registers planes and configures observability
-# 4. Installs Agent Management Platform
+# 2. Installs cluster prerequisites (cert-manager, kgateway + the AMP Gateway,
+#    OpenBao) and AMP's trace storage (OpenSearch + OpenTelemetry Collector)
+# 3. Installs Agent Management Platform
 #
 # The script is idempotent - it can be run multiple times safely.
 # Only public helm charts are used - no local charts or custom images.
@@ -17,12 +17,11 @@ set -euo pipefail
 # Configuration
 CLUSTER_NAME="amp-local"
 CLUSTER_CONTEXT="k3d-${CLUSTER_NAME}"
-OPENCHOREO_VERSION="1.2.8"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 K3D_CONFIG="${K3D_CONFIG:-${SCRIPT_DIR}/k3d-config.yaml}"
 
 # Directory holding the deployment resources this installer applies
-# (single-cluster/, values/, k8s/, scripts/). These used to be fetched from
+# (values/, k8s/, scripts/). These used to be fetched from
 # raw.githubusercontent.com at install time, but GitHub rate-limits
 # unauthenticated requests per client IP and returns HTTP 429 once the
 # per-IP budget is spent (common behind shared/corporate NAT). helm --values
@@ -30,7 +29,7 @@ K3D_CONFIG="${K3D_CONFIG:-${SCRIPT_DIR}/k3d-config.yaml}"
 # response aborts the install. Resolve the bundled copies on disk instead:
 # in a repo checkout they live one level up from quick-start/; the dev-container
 # image bundles the same tree flat alongside the scripts.
-if [[ -d "${SCRIPT_DIR}/../single-cluster" ]]; then
+if [[ -d "${SCRIPT_DIR}/../values" ]]; then
     DEPLOYMENTS_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 else
     DEPLOYMENTS_DIR="${SCRIPT_DIR}"
@@ -52,20 +51,14 @@ GATEWAY_IMAGE_VERSION="2026.09.24"
 GATEWAY_ENCRYPTION_SECRET_NAME="gateway-encryption-keys"
 GATEWAY_ENCRYPTION_SECRET_KEY="default-aesgcm256-v1.bin"
 
-# OpenChoreo community module versions compatible with OpenChoreo ${OPENCHOREO_VERSION}
-OBSERVABILITY_LOGS_OPENSEARCH_VERSION="0.5.5"
-OBSERVABILITY_TRACING_OPENSEARCH_VERSION="0.8.1"
-OBSERVABILITY_METRICS_PROMETHEUS_VERSION="0.8.1"
+# Namespace the gateway operator runs in (it watches every namespace).
+GATEWAY_OPERATOR_NAMESPACE="amp-gateway-operator"
 
 # Source AMP installation helpers
 source "${SCRIPT_DIR}/install-helpers.sh"
 
 # Timeouts (in seconds)
 TIMEOUT_K3D_READY=60
-TIMEOUT_CONTROL_PLANE=600
-TIMEOUT_DATA_PLANE=600
-TIMEOUT_BUILD_PLANE=600
-TIMEOUT_OBSERVABILITY_PLANE=900
 
 # Colors for output (8-bit mode for maximum compatibility)
 RED='\033[1;31m'
@@ -129,20 +122,13 @@ check_port_available() {
 
 # Check all required ports are available
 check_required_ports() {
-    # Required ports for k3d cluster (host:container mapping).
-    # AMP Console/API ride the control-plane gateway (8080) and the Traces
-    # Observer rides the observability-plane gateway (11080); OTLP ingest
-    # rides the data-plane gateway (19080) — none need their own host port.
-    # 8080  - Control Plane Gateway HTTP (Console, API, Thunder auth, OpenChoreo API,
-    #         external AI gateway control plane)
-    # 8443  - Control Plane Gateway HTTPS
-    # 10082 - Container Registry (Workflow Plane)
-    # 11080 - Observability Plane Gateway HTTP (Agent Manager Observer, Observer API)
-    # 11082 - OpenSearch API
-    # 11085 - OpenSearch HTTPS
-    # 19080 - Data Plane Gateway HTTP (agent workloads, OTLP /otel)
-    # 19443 - Data Plane Gateway HTTPS
-    local required_ports=(8080 8443 10082 11080 11082 11085 19080 19443)
+    # Required ports for k3d cluster (host:container mapping), each a listener
+    # on the shared AMP Gateway (k8s/amp-gateway.yaml) except 8443.
+    # 8080  - Console, API, Thunder auth, external AI gateway control plane
+    # 8443  - Thunder HTTPS
+    # 11080 - Agent Manager Observer
+    # 19080 - API Platform Gateway vhosts (LLM proxy, OTLP /otel)
+    local required_ports=(8080 8443 11080 19080)
     local ports_in_use=()
 
     for port in "${required_ports[@]}"; do
@@ -438,50 +424,11 @@ wait_for_secret() {
     return 1
 }
 
-# Copy cluster-gateway-ca certificate resources from control plane to a target plane namespace
-create_plane_cert_resources() {
-    local target_namespace=$1
-
-    log_info "Creating certificate resources in ${target_namespace}..."
-
-    # Create namespace if it doesn't exist
-    kubectl create namespace "${target_namespace}" --dry-run=client -o yaml | kubectl apply -f - 2>/dev/null
-
-    # Wait for cert-manager to issue the cluster-gateway CA
-    log_info "Waiting for cluster-gateway-ca certificate to be ready..."
-    if ! kubectl wait -n openchoreo-control-plane \
-        --for=condition=Ready certificate/cluster-gateway-ca --timeout=120s 2>/dev/null; then
-        log_warning "Timeout waiting for cluster-gateway-ca certificate"
-        return 1
-    fi
-
-    # Get CA certificate from control plane secret
-    CA_CRT=$(kubectl get secret cluster-gateway-ca \
-        -n openchoreo-control-plane -o jsonpath='{.data.ca\.crt}' 2>/dev/null | base64 -d)
-
-    if [ -z "$CA_CRT" ]; then
-        log_warning "Could not retrieve CA certificate from control plane"
-        return 1
-    fi
-
-    # Create configmap in target namespace
-    if kubectl create configmap cluster-gateway-ca \
-        --from-literal=ca.crt="$CA_CRT" \
-        -n "${target_namespace}" --dry-run=client -o yaml | kubectl apply -f - 2>/dev/null; then
-        log_success "cluster-gateway-ca configmap created in ${target_namespace}"
-    else
-        log_error "Failed to create cluster-gateway-ca configmap in ${target_namespace}"
-        return 1
-    fi
-
-    return 0
-}
-
 # ============================================================================
 # MAIN INSTALLATION FLOW
 # ============================================================================
 
-log_step "OpenChoreo Development Environment Setup"
+log_step "Agent Manager Installation"
 
 # Check and fix Docker permissions
 check_docker_permissions() {
@@ -512,7 +459,7 @@ check_docker_permissions() {
 }
 
 # Check prerequisites
-log_step "Step 1/13: Verifying prerequisites"
+log_step "Step 1/9: Verifying prerequisites"
 
 # Check Docker access first
 if ! check_docker_permissions; then
@@ -569,7 +516,7 @@ log_success "All prerequisites verified"
 # Step 2: Setup k3d Cluster
 # ============================================================================
 
-log_step "Step 2/13: Setting up k3d cluster"
+log_step "Step 2/9: Setting up k3d cluster"
 
 # Check if cluster already exists
 if k3d cluster list 2>/dev/null | grep -q "${CLUSTER_NAME}"; then
@@ -629,7 +576,7 @@ if k3d cluster list 2>/dev/null | grep -q "${CLUSTER_NAME}"; then
     log_success "Using existing cluster"
     # k3d writes the node's registries.yaml at creation time only, so a re-run
     # against an existing cluster cannot add it. That file is the only mechanism
-    # covering images pulled into namespaces OpenChoreo creates later, so say so
+    # covering images pulled into namespaces created later, so say so
     # rather than letting agent deploys fail with no explanation. A cluster an
     # earlier private install created already has it, so check the node first.
     if declare -F amp_registry_is_private >/dev/null 2>&1 && amp_registry_is_private; then
@@ -646,12 +593,9 @@ if k3d cluster list 2>/dev/null | grep -q "${CLUSTER_NAME}"; then
 else
     log_info "Creating k3d cluster..."
 
-    # Create shared directory for OpenChoreo
-    mkdir -p /tmp/k3d-shared
-
     # A private registry needs credentials inside the node: its containerd sees
-    # neither the host's docker config nor a namespace's imagePullSecrets for the
-    # namespaces OpenChoreo creates later. k3d writes registries.config through to
+    # neither the host's docker config nor a namespace's imagePullSecrets for
+    # namespaces created later. k3d writes registries.config through to
     # the node's registries.yaml verbatim, so append the auth block there.
     # Written to a 0600 temp file because it contains the registry token; the
     # credential still ends up in the node's /etc/rancher/k3s/registries.yaml.
@@ -710,9 +654,9 @@ fi
 # Step 3: Apply CoreDNS Custom Configuration
 # ============================================================================
 
-log_step "Step 3/13: Applying CoreDNS Custom Configuration"
+log_step "Step 3/9: Applying CoreDNS Custom Configuration"
 
-log_info "Applying CoreDNS custom configuration for OpenChoreo and AMP..."
+log_info "Applying CoreDNS custom configuration for AMP..."
 # COREDNS_FILE is overridable (env) so the VM installer can substitute a config
 # that rewrites the in-cluster names to the k3d server node instead of
 # host.k3d.internal — required once host ports are loopback-bound. See
@@ -738,32 +682,10 @@ else
 fi
 
 # ============================================================================
-# Step 4: Generate Machine IDs for observability
+# Step 4: Install Cluster Prerequisites
 # ============================================================================
 
-log_step "Step 4/13: Generating Machine IDs for observability"
-
-log_info "Generating Machine IDs for Fluent Bit observability..."
-NODES=$(k3d node list -o json | grep -o '"name"[[:space:]]*:[[:space:]]*"[^"]*"' | sed 's/"name"[[:space:]]*:[[:space:]]*"//;s/"$//' | grep "^k3d-$CLUSTER_NAME-")
-if [[ -z "$NODES" ]]; then
-    log_error "Could not retrieve node list"
-else
-    for NODE in $NODES; do
-        log_info "Generating machine ID for ${NODE}..."
-        if docker exec ${NODE} sh -c "cat /proc/sys/kernel/random/uuid | tr -d '-' > /etc/machine-id" 2>/dev/null; then
-            log_success "Machine ID generated for ${NODE}"
-        else
-            log_error "Could not generate Machine ID for ${NODE}"
-        fi
-    done
-fi
-log_success "Machine ID generation complete"
-
-# ============================================================================
-# Step 5: Install Cluster Prerequisites
-# ============================================================================
-
-log_step "Step 5/13: Installing Cluster Prerequisites (Cert Manager, Gateway API CRDs, External Secrets, kgateway)"
+log_step "Step 4/9: Installing Cluster Prerequisites (Cert Manager, Gateway API CRDs, kgateway, AMP Gateway)"
 
 # Install Cert Manager
 log_info "Installing Cert Manager..."
@@ -787,35 +709,11 @@ else
     exit 1
 fi
 
-# Install External Secrets Operator
-log_info "Installing External Secret Operator..."
-if helm upgrade --install external-secrets oci://ghcr.io/external-secrets/charts/external-secrets \
-    --kube-context ${CLUSTER_CONTEXT} \
-    --namespace external-secrets \
-    --create-namespace \
-    --version 1.3.2 \
-    --set installCRDs=true \
-    --timeout 180s &>/dev/null; then
-    log_success "External Secret Operator installed successfully"
-else
-    log_error "Failed to install External Secret Operator"
-    exit 1
-fi
-
-log_info "Waiting for External Secret Operator to be ready..."
-if kubectl wait --for=condition=Available deployment/external-secrets -n external-secrets --context ${CLUSTER_CONTEXT} --timeout=180s 2>/dev/null; then
-    log_success "External Secret Operator is ready"
-else
-    log_warning "External Secret Operator may still be starting (non-fatal)"
-fi
-
-wait_for_pods "external-secrets" 180
-
 # Install kgateway CRDs
 log_info "Installing kgateway CRDs..."
 if helm upgrade --install kgateway-crds oci://cr.kgateway.dev/kgateway-dev/charts/kgateway-crds \
     --kube-context ${CLUSTER_CONTEXT} \
-    --namespace openchoreo-control-plane \
+    --namespace kgateway-system \
     --create-namespace \
     --version v2.3.11 \
     --timeout 180s &>/dev/null; then
@@ -829,7 +727,7 @@ fi
 log_info "Installing kgateway..."
 if helm upgrade --install kgateway oci://cr.kgateway.dev/kgateway-dev/charts/kgateway \
     --kube-context ${CLUSTER_CONTEXT} \
-    --namespace openchoreo-control-plane \
+    --namespace kgateway-system \
     --create-namespace \
     --version v2.3.11 \
     --set controller.extraEnv.KGW_ENABLE_GATEWAY_API_EXPERIMENTAL_FEATURES=true \
@@ -840,20 +738,29 @@ else
     exit 1
 fi
 
+# Shared ingress the AMP charts attach their HTTPRoutes to.
+log_info "Applying the AMP Gateway..."
+if kubectl apply -f "${DEPLOYMENTS_DIR}/k8s/amp-gateway.yaml" &>/dev/null; then
+    log_success "AMP Gateway applied"
+else
+    log_error "Failed to apply the AMP Gateway"
+    exit 1
+fi
+
 # ============================================================================
-# Step 6: Setup Secrets (OpenBao for Workflow Plane)
+# Step 5: Setup Secrets (OpenBao)
 # ============================================================================
 
-log_step "Step 6/13: Setup Secrets (OpenBao for Workflow Plane)"
+log_step "Step 5/9: Setup Secrets (OpenBao)"
 
-# Install OpenBao for Workflow Plane secret management
-log_info "Installing OpenBao for Workflow Plane..."
+# OpenBao is agent-manager-service's KV store for the secrets it manages.
+log_info "Installing OpenBao..."
 if helm upgrade --install openbao oci://ghcr.io/openbao/charts/openbao \
     --kube-context ${CLUSTER_CONTEXT} \
     --namespace openbao \
     --create-namespace \
     --version 0.25.6 \
-    --values "${DEPLOYMENTS_DIR}/single-cluster/values-openbao.yaml" \
+    --values "${DEPLOYMENTS_DIR}/values/openbao.yaml" \
     --timeout 180s &>/dev/null; then
     log_success "OpenBao installed successfully"
 else
@@ -868,641 +775,26 @@ else
     log_warning "OpenBao may still be starting (non-fatal)"
 fi
 
-# Configure External Secrets ClusterSecretStore for OpenBao
-log_info "Configuring External Secrets ClusterSecretStore for OpenBao..."
-if kubectl --context ${CLUSTER_CONTEXT} apply -f - <<EOF
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: external-secrets-openbao
-  namespace: openbao
----
-apiVersion: external-secrets.io/v1
-kind: ClusterSecretStore
-metadata:
-  name: default
-spec:
-  provider:
-    vault:
-      server: "http://openbao.openbao.svc:8200"
-      path: "secret"
-      version: "v2"
-      auth:
-        kubernetes:
-          mountPath: "kubernetes"
-          role: "openchoreo-secret-writer-role"
-          serviceAccountRef:
-            name: "external-secrets-openbao"
-            namespace: "openbao"
-EOF
-then
-    log_success "External Secrets ClusterSecretStore configured for OpenBao"
-else
-    log_error "Failed to configure ClusterSecretStore for OpenBao"
+# ============================================================================
+# Step 6: Install Trace Storage (OpenSearch + OpenTelemetry Collector)
+# ============================================================================
+
+log_step "Step 6/9: Installing Trace Storage (OpenSearch + OpenTelemetry Collector)"
+
+# shellcheck source=../scripts/lib-observability.sh
+source "${DEPLOYMENTS_DIR}/scripts/lib-observability.sh"
+if ! install_observability_stack "${DEPLOYMENTS_DIR}"; then
+    log_error "Failed to install trace storage"
     exit 1
 fi
-
-
-# ============================================================================
-# Step 7: Install OpenChoreo Control Plane
-# ============================================================================
-
-log_step "Step 7/13: Installing OpenChoreo Control Plane"
-
-if [[ "$(helm status "openchoreo-control-plane" -n "openchoreo-control-plane" -o json 2>/dev/null | grep -o '"status":"[^"]*"' | grep -o '[^"]*$')" == "deployed" ]]; then
-    log_info "openchoreo-control-plane already installed, skipping..."
-else
-    log_info "Installing openchoreo-control-plane..."
-    log_info "This may take several minutes..."
-    CP_INSTALL_OUTPUT=""
-    # instead of demanding clean state reconcile from a stale state or fresh install
-    if ! CP_INSTALL_OUTPUT=$(helm upgrade --install "openchoreo-control-plane" \
-        "oci://ghcr.io/openchoreo/helm-charts/openchoreo-control-plane" \
-        --namespace "openchoreo-control-plane" \
-        --create-namespace \
-        --timeout "${TIMEOUT_CONTROL_PLANE}s" \
-        --version "${OPENCHOREO_VERSION}" \
-        --values "${DEPLOYMENTS_DIR}/single-cluster/values-cp.yaml" \
-        "${CP_HELM_ARGS[@]}" 2>&1); then
-        echo "$CP_INSTALL_OUTPUT"
-        if echo "$CP_INSTALL_OUTPUT" | grep -q "no endpoints available for service \"controller-manager-webhook-service\""; then
-            log_warning "Control Plane webhook was not ready. Waiting for deployments and retrying once..."
-            kubectl wait -n openchoreo-control-plane --for=condition=available --timeout=300s deployment --all || true
-            helm upgrade --install "openchoreo-control-plane" \
-                "oci://ghcr.io/openchoreo/helm-charts/openchoreo-control-plane" \
-                --namespace "openchoreo-control-plane" \
-                --create-namespace \
-                --timeout "${TIMEOUT_CONTROL_PLANE}s" \
-                --version "${OPENCHOREO_VERSION}" \
-                --values "${DEPLOYMENTS_DIR}/single-cluster/values-cp.yaml" \
-                "${CP_HELM_ARGS[@]}" || { log_error "Failed to install openchoreo-control-plane after retry"; exit 1; }
-        else
-            log_error "Failed to install openchoreo-control-plane"
-            exit 1
-        fi
-    fi
-    log_success "openchoreo-control-plane installed successfully"
-fi
-
-wait_for_pods "openchoreo-control-plane" "${TIMEOUT_CONTROL_PLANE}"
-
-# ----------------------------------------------------------------------------
-# ThunderID v0.45 identity migration (sub -> client_id) for the control plane.
-# v0.45 client_credentials tokens carry the client identity in 'client_id'
-# (sub is now a random UUID). OpenChoreo still resolves service accounts by
-# 'claim: sub', so without these patches every service-account call returns 403
-# (project/agent create) and environment creation fails. The chart schema does
-# not expose the claim, so patch the configmap via server-side apply (Apply op,
-# helm field manager) and migrate OpenChoreo's built-in ClusterAuthzRoleBindings.
-# ----------------------------------------------------------------------------
-log_info "Patching openchoreo-api-config: service_account entitlement claim -> client_id..."
-if kubectl get configmap openchoreo-api-config -n openchoreo-control-plane &>/dev/null; then
-    patched_yaml=$(kubectl get configmap openchoreo-api-config -n openchoreo-control-plane -o yaml \
-        | sed -E "s/claim:[[:space:]]*['\"]?sub['\"]?/claim: client_id/g")
-    if echo "$patched_yaml" | grep -q "claim: client_id"; then
-        echo "$patched_yaml" | kubectl apply --server-side --field-manager=helm --force-conflicts -f -
-        kubectl rollout restart deployment/openchoreo-api -n openchoreo-control-plane
-        kubectl rollout status deployment/openchoreo-api -n openchoreo-control-plane --timeout=120s
-        log_success "openchoreo-api-config patched (client_id claim)"
-    else
-        log_error "Failed to patch openchoreo-api-config entitlement claim to client_id"
-        exit 1
-    fi
-else
-    log_warning "openchoreo-api-config not found - skipping claim patch"
-fi
-
-log_info "Migrating service-account ClusterAuthzRoleBindings: claim sub -> client_id..."
-for binding in $(kubectl get clusterauthzrolebindings.openchoreo.dev \
-    -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || true); do
-    claim=$(kubectl get clusterauthzrolebinding.openchoreo.dev "$binding" \
-        -o jsonpath='{.spec.entitlement.claim}' 2>/dev/null || true)
-    if [ "$claim" = "sub" ]; then
-        if kubectl patch clusterauthzrolebinding.openchoreo.dev "$binding" \
-            --type=merge -p '{"spec":{"entitlement":{"claim":"client_id"}}}' >/dev/null 2>&1; then
-            log_info "  migrated ${binding}"
-        else
-            log_warning "  failed to migrate ClusterAuthzRoleBinding '${binding}'"
-        fi
-    fi
-done
-log_success "Service-account bindings migrated to client_id"
+log_success "Trace storage installed"
 
 # ============================================================================
-# Step 8: Install OpenChoreo Data Plane
-# ============================================================================
-
-log_step "Step 8/13: Installing OpenChoreo Data Plane"
-
-create_plane_cert_resources "openchoreo-data-plane"
-
-helm_install_idempotent \
-    "openchoreo-data-plane" \
-    "oci://ghcr.io/openchoreo/helm-charts/openchoreo-data-plane" \
-    "${DATA_PLANE_NS}" \
-    "${TIMEOUT_DATA_PLANE}" \
-    --version "${OPENCHOREO_VERSION}" \
-    --values "${DEPLOYMENTS_DIR}/single-cluster/values-dp.yaml"
-
-# Register Data Plane with Control Plane
-log_info "Registering Data Plane with Control Plane..."
-# Wait for the cert-manager Certificate to be Ready (not just the Secret) to avoid a race
-# where cert-manager re-issues the cert after we read it but before the agent connects.
-log_info "Waiting for data plane agent certificate to be ready..."
-if ! kubectl wait -n openchoreo-data-plane \
-    --for=condition=Ready certificate/cluster-agent-dataplane-tls --timeout=180s; then
-    log_error "Data plane agent certificate not ready. Cannot register data plane."
-    exit 1
-fi
-CA_CERT=$(kubectl get secret cluster-agent-tls -n openchoreo-data-plane -o jsonpath='{.data.ca\.crt}' 2>/dev/null | base64 -d || echo "")
-
-# Data plane gateway external ingress (advertised host/port for deployed-agent
-# endpoints). Overridable so the VM installer can advertise a public sslip.io host
-# fronted by Caddy instead of the local amp.localhost:19080. The default
-# keeps the local-install behaviour. See deployments/quick-start/vm/lib-vm.sh:
-# render_dataplane_external_ingress.
-DP_EXTERNAL_INGRESS="${DP_EXTERNAL_INGRESS:-$(cat <<'EOB'
-        http:
-          host: "agentmanager.localhost"
-          listenerName: http
-          port: 19080
-        https:
-          host: "agentmanager.localhost"
-          listenerName: https
-          port: 19443
-EOB
-)}"
-
-if [ -n "$CA_CERT" ]; then
-    if kubectl apply -f - <<EOF
-apiVersion: openchoreo.dev/v1alpha1
-kind: ClusterDataPlane
-metadata:
-  name: default
-  namespace: default
-spec:
-  planeID: "default"
-  clusterAgent:
-    clientCA:
-      value: |
-$(echo "$CA_CERT" | sed 's/^/        /')
-  gateway:
-    ingress:
-      external:
-        name: ${DP_EXTERNAL_GATEWAY_NAME:-gateway-default}
-        namespace: ${DP_EXTERNAL_GATEWAY_NAMESPACE:-openchoreo-data-plane}
-${DP_EXTERNAL_INGRESS}
-  secretStoreRef:
-    name: default
-EOF
-    then
-        log_success "Data Plane registered with Control Plane successfully"
-    else
-        log_warning "Failed to register Data Plane (non-fatal)"
-    fi
-else
-    log_warning "CA certificate not found, skipping Data Plane registration"
-fi
-
-# Verify ClusterDataPlane resource
-if kubectl get clusterdataplane default -n default &>/dev/null; then
-    log_success "ClusterDataPlane resource 'default' exists"
-else
-    log_warning "ClusterDataPlane resource not found"
-fi
-wait_for_pods "openchoreo-data-plane" "${TIMEOUT_DATA_PLANE}"
-
-# ============================================================================
-# Step 9: Install OpenChoreo Workflow Plane
-# ============================================================================
-
-log_step "Step 9/13: Installing OpenChoreo Workflow Plane"
-
-create_plane_cert_resources "openchoreo-workflow-plane"
-
-# Install Docker Registry for Workflow Plane
-log_info "Installing Docker Registry for Workflow Plane..."
-if helm status registry -n openchoreo-workflow-plane &>/dev/null; then
-    log_info "Docker Registry already installed, skipping..."
-else
-    # The registry values live in the upstream OpenChoreo repo, not ours, so we
-    # can't bundle them alongside the installer. helm --values <url> does not
-    # retry on GitHub's per-IP 429, so pre-download the file with backoff and
-    # hand helm the local path instead of letting helm fetch it.
-    registry_values="$(mktemp)"
-    registry_values_url="https://raw.githubusercontent.com/openchoreo/openchoreo/v${OPENCHOREO_VERSION}/install/k3d/single-cluster/values-registry.yaml"
-    if ! curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 --connect-timeout 30 \
-        "${registry_values_url}" -o "${registry_values}"; then
-        rm -f "${registry_values}"
-        log_error "Failed to download registry values from ${registry_values_url}"
-        exit 1
-    fi
-    if helm upgrade --install registry docker-registry \
-        --repo https://twuni.github.io/docker-registry.helm \
-        --namespace openchoreo-workflow-plane \
-        --create-namespace \
-        --values "${registry_values}" \
-        --timeout 120s; then
-        rm -f "${registry_values}"
-        log_success "Docker Registry installed successfully"
-    else
-        rm -f "${registry_values}"
-        log_error "Failed to install Docker Registry"
-        exit 1
-    fi
-fi
-
-log_info "Waiting for Docker Registry to be ready..."
-if kubectl wait --for=condition=available deployment/registry -n openchoreo-workflow-plane --timeout=120s 2>/dev/null; then
-    log_success "Docker Registry is ready"
-else
-    log_warning "Docker Registry may still be starting (non-fatal)"
-fi
-
-helm_install_idempotent \
-    "openchoreo-workflow-plane" \
-    "oci://ghcr.io/openchoreo/helm-charts/openchoreo-workflow-plane" \
-    "${BUILD_CI_NS}" \
-    "${TIMEOUT_BUILD_PLANE}" \
-    --version "${OPENCHOREO_VERSION}" \
-    --values "${DEPLOYMENTS_DIR}/single-cluster/values-wp.yaml"
-
-
-# Register Workflow Plane with Control Plane
-log_info "Registering Workflow Plane with Control Plane..."
-wait_for_secret "openchoreo-workflow-plane" "cluster-agent-tls" 180
-BP_CA_CERT=$(kubectl get secret cluster-agent-tls -n openchoreo-workflow-plane -o jsonpath='{.data.ca\.crt}' 2>/dev/null | base64 -d || echo "")
-
-if [ -n "$BP_CA_CERT" ]; then
-    if kubectl apply -f - <<EOF
-apiVersion: openchoreo.dev/v1alpha1
-kind: ClusterWorkflowPlane
-metadata:
-  name: default
-  namespace: default
-spec:
-  planeID: "default"
-  secretStoreRef:
-    name: default
-  clusterAgent:
-    clientCA:
-      value: |
-$(echo "$BP_CA_CERT" | sed 's/^/        /')
-EOF
-    then
-        log_success "Workflow Plane registered with Control Plane successfully"
-    else
-        log_warning "Failed to register Workflow Plane (non-fatal)"
-    fi
-else
-    log_warning "Workflow Plane CA certificate not found, skipping Workflow Plane registration"
-fi
-
-# Verify ClusterWorkflowPlane resource
-if kubectl get clusterworkflowplane default -n default &>/dev/null; then
-    log_success "ClusterWorkflowPlane resource 'default' exists"
-else
-    log_warning "ClusterWorkflowPlane resource not found"
-fi
-
-wait_for_deployments "openchoreo-workflow-plane" "${TIMEOUT_BUILD_PLANE}"
-
-# ============================================================================
-# Step 10: Install OpenChoreo Observability Plane
-# ============================================================================
-
-log_step "Step 10/13: Installing OpenChoreo Observability Plane"
-
-create_plane_cert_resources "openchoreo-observability-plane"
-
-# Create ExternalSecret for OpenSearch credentials
-log_info "Creating ExternalSecret for OpenSearch credentials..."
-if kubectl apply -f - <<EOF
-apiVersion: external-secrets.io/v1
-kind: ExternalSecret
-metadata:
-  name: observer-opensearch-credentials
-  namespace: openchoreo-observability-plane
-spec:
-  refreshInterval: 1h
-  secretStoreRef:
-    kind: ClusterSecretStore
-    name: default
-  target:
-    name: observer-opensearch-credentials
-  data:
-  - secretKey: username
-    remoteRef:
-      key: opensearch-username
-  - secretKey: password
-    remoteRef:
-      key: opensearch-password
-EOF
-then
-    log_success "ExternalSecret for OpenSearch credentials created successfully"
-else
-    log_warning "Failed to create ExternalSecret for OpenSearch credentials (non-fatal)"
-fi
-
-# Create namespace (idempotent)
-log_info "Ensuring OpenChoreo Observability Plane namespace exists..."
-if kubectl get namespace "${OBSERVABILITY_NS}" &>/dev/null; then
-    log_info "Namespace '${OBSERVABILITY_NS}' already exists, skipping creation"
-else
-    if kubectl create namespace "${OBSERVABILITY_NS}" &>/dev/null; then
-        log_success "Namespace '${OBSERVABILITY_NS}' created successfully"
-    else
-        log_error "Failed to create namespace '${OBSERVABILITY_NS}'"
-        exit 1
-    fi
-fi
-
-# Apply OpenTelemetry Collector ConfigMap (idempotent)
-log_info "Applying Custom OpenTelemetry Collector configuration..."
-CONFIGMAP_FILE="${DEPLOYMENTS_DIR}/values/oc-collector-configmap.yaml"
-
-if kubectl apply -f "${CONFIGMAP_FILE}" -n "${OBSERVABILITY_NS}" &>/dev/null; then
-    log_success "OpenTelemetry Collector configuration applied successfully"
-else
-    log_error "Failed to apply OpenTelemetry Collector configuration"
-    log_info "Attempting to verify ConfigMap status..."
-    if kubectl get configmap amp-opentelemetry-collector-config -n "${OBSERVABILITY_NS}" &>/dev/null; then
-        log_warning "ConfigMap exists but apply failed (may already be up-to-date)"
-    else
-        log_error "ConfigMap does not exist and apply failed"
-        exit 1
-    fi
-fi
-
-log_info "Installing OpenChoreo Observability Plane..."
-# upgrade --install, not helm_install_idempotent: a re-run must apply the
-# current values-op.yaml (the TLS passthrough listener Fluent Bit ships through
-# and the NetworkPolicy exemptions), not skip an existing release.
-if helm upgrade --install openchoreo-observability-plane \
-    oci://ghcr.io/openchoreo/helm-charts/openchoreo-observability-plane \
-    --namespace "${OBSERVABILITY_NS}" \
-    --create-namespace \
-    --timeout "${TIMEOUT_OBSERVABILITY_PLANE}s" \
-    --version "${OPENCHOREO_VERSION}" \
-    --set observer.extraEnv.AUTH_SERVER_BASE_URL=http://thunder-service.openchoreo-control-plane.svc.cluster.local:8090 \
-    --values "${DEPLOYMENTS_DIR}/single-cluster/values-op.yaml"; then
-    log_success "openchoreo-observability-plane installed successfully"
-else
-    log_error "Failed to install openchoreo-observability-plane"
-    exit 1
-fi
-
-# Install Observability Modules
-log_info "Installing Observability Modules..."
-
-# Create ExternalSecret for OpenSearch admin credentials
-log_info "Creating ExternalSecret for OpenSearch admin credentials..."
-if kubectl apply -f - <<EOF
-apiVersion: external-secrets.io/v1
-kind: ExternalSecret
-metadata:
-  name: opensearch-admin-credentials
-  namespace: openchoreo-observability-plane
-spec:
-  refreshInterval: 1h
-  secretStoreRef:
-    kind: ClusterSecretStore
-    name: default
-  target:
-    name: opensearch-admin-credentials
-  data:
-  - secretKey: username
-    remoteRef:
-      key: opensearch-username
-      property: value
-  - secretKey: password
-    remoteRef:
-      key: opensearch-password
-      property: value
-EOF
-then
-    log_success "ExternalSecret for OpenSearch admin credentials created successfully"
-else
-    log_warning "Failed to create ExternalSecret for OpenSearch admin credentials (non-fatal)"
-fi
-
-# Create ExternalSecret for observer service
-log_info "Creating ExternalSecret for observer service..."
-if kubectl apply -f - <<EOF
-apiVersion: external-secrets.io/v1
-kind: ExternalSecret
-metadata:
-  name: observer-secret
-  namespace: openchoreo-observability-plane
-spec:
-  refreshInterval: 1h
-  secretStoreRef:
-    kind: ClusterSecretStore
-    name: default
-  target:
-    name: observer-secret
-  data:
-  - secretKey: OPENSEARCH_USERNAME
-    remoteRef:
-      key: opensearch-username
-      property: value
-  - secretKey: OPENSEARCH_PASSWORD
-    remoteRef:
-      key: opensearch-password
-      property: value
-  - secretKey: UID_RESOLVER_OAUTH_CLIENT_SECRET
-    remoteRef:
-      key: observer-oauth-client-secret
-      property: value
-EOF
-then
-    log_success "ExternalSecret for observer service created successfully"
-else
-    log_warning "Failed to create ExternalSecret for observer service (non-fatal)"
-fi
-
-wait_for_secret "openchoreo-observability-plane" "opensearch-admin-credentials" 180
-wait_for_secret "openchoreo-observability-plane" "observer-secret" 180
-# Install observability-logs-opensearch
-log_info "Installing observability-logs-opensearch..."
-if helm upgrade --install observability-logs-opensearch \
-    oci://ghcr.io/openchoreo/helm-charts/observability-logs-opensearch \
-    --create-namespace \
-    --namespace openchoreo-observability-plane \
-    --version "${OBSERVABILITY_LOGS_OPENSEARCH_VERSION}" \
-    --set openSearchSetup.openSearchSecretName="opensearch-admin-credentials" \
-    --set adapter.openSearchSecretName="opensearch-admin-credentials" \
-    --timeout 10m; then
-    log_success "observability-logs-opensearch installed successfully"
-    LOGS_MODULE_INSTALLED=true
-else
-    log_error "Failed to install observability-logs-opensearch (non-fatal)"
-    LOGS_MODULE_INSTALLED=false
-fi
-
-# Enable log collection with fluent-bit — only once the logs module is in.
-if [ "${LOGS_MODULE_INSTALLED}" != "true" ]; then
-    log_error "Skipping log collection: the logs module did not install (non-fatal)"
-elif log_info "Enabling log collection with fluent-bit..." \
-    && kubectl apply -f "${DEPLOYMENTS_DIR}/values/opensearch-tls-route.yaml" \
-    && helm upgrade observability-logs-opensearch \
-    oci://ghcr.io/openchoreo/helm-charts/observability-logs-opensearch \
-    --namespace openchoreo-observability-plane \
-    --version "${OBSERVABILITY_LOGS_OPENSEARCH_VERSION}" \
-    --reuse-values \
-    --values "${DEPLOYMENTS_DIR}/values/observability-logs-opensearch.yaml" \
-    --set fluent-bit.enabled=true \
-    --timeout 10m \
-    && kubectl rollout restart daemonset/fluent-bit -n openchoreo-observability-plane; then
-    # The restart: the chart's checksum/config annotation hashes an empty
-    # string, so a changed Fluent Bit config never rolls the pods on its own.
-    log_success "Log collection enabled with fluent-bit"
-else
-    log_error "Failed to enable log collection (non-fatal)"
-fi
-
-# Install observability-metrics-prometheus
-log_info "Installing observability-metrics-prometheus..."
-# Helm never upgrades CRDs, so on a re-run over an older release apply the
-# Prometheus Operator CRDs that the target chart bundles first.
-if helm status observability-metrics-prometheus -n openchoreo-observability-plane &>/dev/null; then
-    helm show crds oci://ghcr.io/openchoreo/helm-charts/observability-metrics-prometheus \
-        --version "${OBSERVABILITY_METRICS_PROMETHEUS_VERSION}" \
-        | kubectl apply --server-side --force-conflicts -f - >/dev/null \
-        || log_warning "Failed to sync Prometheus Operator CRDs (non-fatal)"
-fi
-if helm upgrade --install observability-metrics-prometheus \
-    oci://ghcr.io/openchoreo/helm-charts/observability-metrics-prometheus \
-    --create-namespace \
-    --namespace openchoreo-observability-plane \
-    --version "${OBSERVABILITY_METRICS_PROMETHEUS_VERSION}" \
-    --values "${DEPLOYMENTS_DIR}/values/observability-metrics-prometheus.yaml" \
-    --timeout 10m; then
-    log_success "observability-metrics-prometheus installed successfully"
-else
-    log_error "Failed to install observability-metrics-prometheus (non-fatal)"
-fi
-
-# Install observability-traces-opensearch
-log_info "Enabling opensearch based tracing module..."
-if helm upgrade --install observability-traces-opensearch \
-    oci://ghcr.io/openchoreo/helm-charts/observability-tracing-opensearch \
-    --create-namespace \
-    --namespace openchoreo-observability-plane \
-    --version "${OBSERVABILITY_TRACING_OPENSEARCH_VERSION}" \
-    --set openSearch.enabled=false \
-    --set openSearchSetup.openSearchSecretName="opensearch-admin-credentials" \
-    --set opentelemetry-collector.configMap.existingName="amp-opentelemetry-collector-config" \
-    --timeout 10m; then
-    log_success "OpenSearch based tracing module installed"
-else
-    log_error "Failed to install opensearch based tracing module (non-fatal)"
-fi
-
-# ThunderID v0.45: the observer resolves service accounts from its own config
-# (observer-auth-config), still keyed on 'claim: sub'. Patch to client_id, else
-# agent build-log / observability queries return 403.
-#
-# The observability plane populates observer-auth-config asynchronously: the
-# configmap can exist for a while before its service-account 'claim: sub' is
-# written. Patching too early sees no 'sub', silently skips, and leaves the
-# observer on 'sub' (403 on every log/trace query). Wait for the claim to
-# surface (either 'sub' to patch, or 'client_id' if a prior run already did).
-log_info "Patching observer-auth-config: service_account entitlement claim -> client_id..."
-obs_auth_claim=""
-for _ in $(seq 1 30); do
-    obs_auth_claim=$(kubectl get configmap observer-auth-config -n openchoreo-observability-plane -o yaml 2>/dev/null \
-        | grep -oE "claim:[[:space:]]*['\"]?(sub|client_id)['\"]?" | head -1)
-    [ -n "$obs_auth_claim" ] && break
-    sleep 4
-done
-if [ -z "$obs_auth_claim" ]; then
-    # Distinguish a genuinely-absent configmap from one that is present but whose
-    # service-account claim never surfaced (or kubectl kept failing) so the message
-    # is not misleading.
-    if kubectl get configmap observer-auth-config -n openchoreo-observability-plane &>/dev/null; then
-        log_warning "observer-auth-config present but its service-account claim never surfaced after waiting - skipping (observer log/trace queries will 403 until it is patched)"
-    else
-        log_warning "observer-auth-config not found - skipping observer claim patch"
-    fi
-else
-    patched_obs_yaml=$(kubectl get configmap observer-auth-config -n openchoreo-observability-plane -o yaml \
-        | sed -E "s/claim:[[:space:]]*['\"]?sub['\"]?/claim: client_id/g")
-    if echo "$patched_obs_yaml" | grep -qE "claim:[[:space:]]*['\"]?client_id['\"]?"; then
-        echo "$patched_obs_yaml" | kubectl apply --server-side --field-manager=helm --force-conflicts -f -
-        kubectl rollout restart deployment/observer -n openchoreo-observability-plane
-        kubectl rollout status deployment/observer -n openchoreo-observability-plane --timeout=120s
-        log_success "observer-auth-config patched (client_id claim)"
-    else
-        log_warning "observer-auth-config has no 'sub' claim to patch - skipping"
-    fi
-fi
-
-# Register Observability Plane with Control Plane
-log_info "Registering Observability Plane with Control Plane..."
-wait_for_secret "openchoreo-observability-plane" "cluster-agent-tls" 180
-OP_CA_CERT=$(kubectl get secret cluster-agent-tls -n openchoreo-observability-plane -o jsonpath='{.data.ca\.crt}' 2>/dev/null | base64 -d || echo "")
-
-if [ -n "$OP_CA_CERT" ]; then
-    if kubectl apply -f - <<EOF
-apiVersion: openchoreo.dev/v1alpha1
-kind: ClusterObservabilityPlane
-metadata:
-  name: default
-  namespace: default
-spec:
-  planeID: "default"
-  clusterAgent:
-    clientCA:
-      value: |
-$(echo "$OP_CA_CERT" | sed 's/^/        /')
-  observerURL: http://observer.openchoreo.localhost:11080
-EOF
-    then
-        log_success "Observability Plane registered with Control Plane successfully"
-    else
-        log_warning "Failed to register Observability Plane (non-fatal)"
-    fi
-else
-    log_warning "Observability Plane CA certificate not found, skipping Observability Plane registration"
-fi
-
-wait_for_deployments "openchoreo-observability-plane" "${TIMEOUT_OBSERVABILITY_PLANE}"
-wait_for_statefulsets "openchoreo-observability-plane" "${TIMEOUT_OBSERVABILITY_PLANE}"
-
-# Configure observability integration
-log_info "Configuring observability integration..."
-
-# Configure ClusterDataPlane observer
-if kubectl get clusterdataplane default -n default &>/dev/null; then
-    if kubectl patch clusterdataplane default -n default --type merge \
-        -p '{"spec":{"observabilityPlaneRef":{"kind":"ClusterObservabilityPlane","name":"default"}}}' &>/dev/null; then
-        log_success "ClusterDataPlane observability plane reference configured"
-    else
-        log_warning "ClusterDataPlane observability plane configuration failed (non-fatal)"
-    fi
-else
-    log_warning "ClusterDataPlane resource not found yet (will use default observer)"
-fi
-
-# Configure ClusterWorkflowPlane observer
-if kubectl get clusterworkflowplane default -n default &>/dev/null; then
-    if kubectl patch clusterworkflowplane default -n default --type merge \
-        -p '{"spec":{"observabilityPlaneRef":{"kind":"ClusterObservabilityPlane","name":"default"}}}' &>/dev/null; then
-        log_success "ClusterWorkflowPlane observability plane reference configured"
-    else
-        log_warning "ClusterWorkflowPlane observability plane configuration failed (non-fatal)"
-    fi
-else
-    log_warning "ClusterWorkflowPlane resource not found yet (will use default observer)"
-fi
-
-# ============================================================================
-# Step 11: Install Gateway Operator
+# Step 7: Install Gateway Operator
 # ============================================================================
 
 
-log_step "Step 11/13: Installing Gateway Operator"
+log_step "Step 7/9: Installing Gateway Operator"
 log_info "Installing Gateway Operator..."
 # Pinning gateway.helm.chartVersion alone is NOT enough: the chart's own
 # default values.yaml can still reference an older gateway-controller/
@@ -1516,7 +808,7 @@ log_info "Installing Gateway Operator..."
 helm_install_idempotent \
     "gateway-operator" \
     "oci://ghcr.io/wso2/api-platform/helm-charts/gateway-operator" \
-    "openchoreo-data-plane" \
+    "${GATEWAY_OPERATOR_NAMESPACE}" \
     "600" \
     --version "${GATEWAY_OPERATOR_VERSION}" \
     --set "logging.level=debug" \
@@ -1535,47 +827,13 @@ helm_install_idempotent \
 
 log_success "Gateway Operator installed"
 
-# Grant RBAC for WSO2 API Platform CRDs
-log_info "Granting RBAC for WSO2 API Platform CRDs..."
-if kubectl apply -f - <<EOF
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: wso2-api-platform-gateway-module
-rules:
-  - apiGroups: ["gateway.api-platform.wso2.com"]
-    resources: ["restapis", "apigateways"]
-    verbs: ["*"]
-  - apiGroups: ["gateway.kgateway.dev"]
-    resources: ["backends"]
-    verbs: ["*"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: wso2-api-platform-gateway-module
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: wso2-api-platform-gateway-module
-subjects:
-  - kind: ServiceAccount
-    name: cluster-agent-dataplane
-    namespace: openchoreo-data-plane
-EOF
-then
-    log_success "RBAC for WSO2 API Platform CRDs applied"
-else
-    log_warning "Failed to apply RBAC for WSO2 API Platform CRDs (non-fatal)"
-fi
-
 log_success "Gateway Operator setup complete"
 
 # ============================================================================
-# Step 12: Install AMP Thunder Extension
+# Step 8: Install AMP Thunder Extension
 # ============================================================================
 
-log_step "Step 12/13: Installing WSO2 AMP Thunder Extension"
+log_step "Step 8/9: Installing WSO2 AMP Thunder Extension"
 
 log_info "Installing WSO2 AMP Thunder Extension..."
 log_info "Gateway API CRDs and Gateway Operator are now available"
@@ -1596,10 +854,10 @@ fi
 echo ""
 
 # ============================================================================
-# Step 13: Install Agent Management Platform
+# Step 9: Install Agent Management Platform
 # ============================================================================
 
-log_step "Step 13/13: Installing Agent Management Platform"
+log_step "Step 9/9: Installing Agent Management Platform"
 
 # Verify prerequisites
 if ! verify_amp_prerequisites; then
@@ -1625,70 +883,6 @@ fi
 log_success "Agent Management Platform installed successfully"
 echo ""
 
-# Install agent sandbox module (required: agents run as sandboxed pods)
-log_info "Installing Agent Sandbox Module (sandboxed agent runtime)..."
-if ! install_agent_sandbox_module; then
-    log_error "Failed to install Agent Sandbox Module"
-    echo ""
-    echo "Agent deployments cannot work without the Agent Sandbox module."
-    echo ""
-    echo "Troubleshooting steps:"
-    echo "  1. Check Helm release: helm list -n ${DATA_PLANE_NS}"
-    echo "  2. Check controller: kubectl get pods -n agent-sandbox-system"
-    echo "  3. Check CRDs: kubectl get crd | grep agents.x-k8s.io"
-    exit 1
-fi
-log_success "Agent Sandbox Module installed successfully"
-echo ""
-
-# Install platform resources extension
-log_info "Installing Platform Resources Extension (Default Organization, Project, Environment, DeploymentPipeline)..."
-if ! install_platform_resources_extension; then
-    log_warning "Platform Resources Extension installation failed (non-fatal)"
-    echo "The platform is installed but platform resources features may not work."
-fi
-
-log_success "Platform Resources Extension installed successfully"
-echo ""
-
-# Provision per-environment Thunder instance for the default environment.
-# Mirrors setup-openchoreo.sh:install_default_env_thunder().
-# Must run after the default environment exists (created by platform-resources above).
-# The wait for the platform Thunder TLS cert is handled internally by add-environment-thunder.sh.
-
-log_info "Provisioning Thunder identity provider for the default environment..."
-ENV_THUNDER_PROVISIONED=false
-# Fatal: without env-Thunder the gateway extension silently skips its
-# ThunderKeyManager identity provider (install_gateway_extension only sets
-# bootstrap.identityProviders when this release exists), so the gateway keeps a
-# keymanager that Agent Manager has no mirror row for. That drift surfaces much
-# later as an empty Identity Providers page, long after the installer claimed
-# success — fail here instead, while the cause is still on screen.
-if ! install_default_env_thunder; then
-    log_error "Default environment Thunder provisioning failed"
-    echo "Re-run manually once the platform is ready:"
-    echo "  ENV_NAME=default DISPLAY_NAME=Default ORG_NAME=default THUNDER_HANDLE=default-idp \\"
-    echo "  AMP_API_URL=${AMP_API_URL:-http://api.amp.localhost:8080/api/v1} \\"
-    echo "  IDP_TOKEN_URL=${IDP_TOKEN_URL:-http://thunder.amp.localhost:8080/oauth2/token} \\"
-    # install_default_env_thunder() prefers the bundled script and falls back to
-    # downloading it; a standalone (curl-piped) install has no scripts/ directory,
-    # so pointing at the bundled path there would send the operator to a file that
-    # does not exist. Name the release copy instead, and pass SCRIPT_BASE_URL so
-    # the script fetches its own siblings from that same release rather than main.
-    env_thunder_script="${DEPLOYMENTS_DIR}/scripts/add-environment-thunder.sh"
-    if [[ -f "${env_thunder_script}" ]]; then
-        echo "  bash ${env_thunder_script}"
-    else
-        env_thunder_base="${AMP_SCRIPT_BASE_URL:-https://raw.githubusercontent.com/wso2/agent-manager/amp/v${VERSION}/deployments/scripts}"
-        echo "  SCRIPT_BASE_URL=${env_thunder_base} \\"
-        echo "  bash <(curl -fsSL ${env_thunder_base}/add-environment-thunder.sh)"
-    fi
-    exit 1
-fi
-log_success "Default environment Thunder identity provider provisioned"
-ENV_THUNDER_PROVISIONED=true
-echo ""
-
 # Install observability extension
 log_info "Installing Observability Extension (Agent Manager Observer)..."
 if ! install_observability_extension; then
@@ -1700,19 +894,6 @@ if ! install_observability_extension; then
     echo "  2. View logs: kubectl logs -n ${OBSERVABILITY_NS} <pod-name>"
 else
     log_success "Observability Extension installed successfully"
-fi
-echo ""
-
-# Install evaluation extension
-log_info "Installing Evaluation Extension (Monitor Evaluation Workflows)..."
-if ! install_evaluation_extension; then
-    log_warning "Evaluation Extension installation failed (non-fatal)"
-    echo "The platform is installed but evaluation features may not work."
-    echo ""
-    echo "Troubleshooting steps:"
-    echo "  1. Check Helm release: helm list -n ${EVALUATION_NS}"
-else
-    log_success "Evaluation Extension installed successfully"
 fi
 echo ""
 
@@ -1768,35 +949,6 @@ if [[ "${SHOW_LOCALHOST_URLS:-true}" == "true" ]]; then
   # this localhost URL would be wrong there.
   bash "${DEPLOYMENTS_DIR}/scripts/print-admin-credentials.sh" \
     "http://console.amp.localhost:8080" "${THUNDER_NS}" || true
-fi
-
-# Print the default environment's Thunder ID console + admin credentials — the
-# release/namespace follow the fixed ENV_NAME=default ORG_NAME=default naming
-# convention (see thunder_release_name/thunder_namespace in
-# deployments/scripts/thunder-naming.sh), but the external URL does NOT — it is
-# built ONLY from DEFAULT_ENV_THUNDER_HANDLE (populated by install_default_env_thunder,
-# see install-helpers.sh), the registered handle learned via GET, since there is
-# no pattern computable from org/env alone. The password lives only in a K8s
-# Secret (never written to disk by add-environment-thunder.sh), so it's fetched
-# fresh here rather than re-printed from that script's own (long since
-# scrolled-past) console output.
-if [[ "${ENV_THUNDER_PROVISIONED}" == "true" ]]; then
-  # Dynamically derive the coordinates using the shared naming helper.
-  # Avoids hardcoded literals which would break if custom org/env names are used
-  # or if the derived names are hash-truncated (natural names > 53 chars).
-  default_org="default"
-  default_env="default"
-  default_release="$(thunder_release_name "${default_org}" "${default_env}")"
-  default_ns="${default_release}"
-
-  ENV_THUNDER_ADMIN_PASSWORD="$(kubectl get secret "${default_release}-admin-credentials" \
-    -n "${default_ns}" -o jsonpath='{.data.password}' 2>/dev/null | base64 -d 2>/dev/null || true)"
-  if [[ -n "${ENV_THUNDER_ADMIN_PASSWORD}" && -n "${DEFAULT_ENV_THUNDER_HANDLE:-}" ]]; then
-    log_step "Default Environment Thunder ID Console"
-    log_info "URL:      $(thunder_issuer "${DEFAULT_ENV_THUNDER_HANDLE}")/console"
-    log_info "Username: admin"
-    log_info "Password: ${ENV_THUNDER_ADMIN_PASSWORD}"
-  fi
 fi
 
 echo ""

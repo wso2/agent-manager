@@ -17,7 +17,6 @@
 package testsetup
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -31,8 +30,6 @@ import (
 	agentops "github.com/wso2/agent-manager/test/e2e/operations/agent"
 	"github.com/wso2/agent-manager/test/e2e/operations/build"
 	"github.com/wso2/agent-manager/test/e2e/operations/deployment"
-	dpops "github.com/wso2/agent-manager/test/e2e/operations/deploymentpipeline"
-	envops "github.com/wso2/agent-manager/test/e2e/operations/environment"
 	"github.com/wso2/agent-manager/test/e2e/operations/project"
 )
 
@@ -240,34 +237,6 @@ func deleteProjectBestEffort(client *framework.AMPClient, orgName, projName stri
 	}
 }
 
-// SetupSharedPromotableITHelpdeskAgent provisions the shared promotable IT
-// helpdesk agent: it ensures a second environment and a deployment pipeline
-// exist, builds the agent, and deploys it to the default environment. It is
-// idempotent — the first caller builds/deploys; subsequent callers reuse the
-// active agent.
-//
-// Kind publishing and promotion to the second environment are performed by the
-// consuming tests (the agent domain's promotion suite), not here; this setup
-// only establishes the shared, default-environment baseline.
-func SetupSharedPromotableITHelpdeskAgent(ctx context.Context, client *framework.AMPClient, cfg *framework.Config) *framework.SharedPromotableITHelpdeskAgent {
-	Expect(cfg.OpenAIAPIKey).NotTo(BeEmpty(), "OPENAI_API_KEY must be set for the promotable IT helpdesk agent")
-
-	agent := &framework.SharedPromotableITHelpdeskAgent{
-		AgentName: framework.SharedPromotableITHelpdeskAgentName,
-	}
-	agent.ProjectName, agent.SecondEnv = EnsurePromotableInfra(ctx, client, cfg)
-	agent.BuildName = ensureSharedAgentReady(client, cfg, agent.ProjectName, agent.AgentName,
-		"Promotable IT helpdesk agent shared across agent/configuration/llmprovider domains")
-
-	resolveEndpointAndKey(client, cfg, agent.ProjectName, agent.AgentName, cfg.DefaultEnv,
-		&agent.EndpointURL, &agent.APIKey)
-	agent.InvokeReq = framework.DefaultInvokeRequest()
-
-	ginkgo.GinkgoWriter.Printf("Shared promotable IT helpdesk agent ready: project=%s agent=%s secondEnv=%s endpoint=%s\n",
-		agent.ProjectName, agent.AgentName, agent.SecondEnv, agent.EndpointURL)
-	return agent
-}
-
 // ensureSharedAgentReady makes the named IT helpdesk agent active in the default
 // environment, idempotently, and returns its build name. It distinguishes the
 // states a shared agent can be in:
@@ -349,21 +318,6 @@ func isTerminalDeploymentError(status string) bool {
 	return false
 }
 
-// EnsurePromotableInfra idempotently provisions the shared infrastructure for
-// the promotable IT helpdesk agent: the promotion-target environment and a
-// project with a default→secondEnv deployment pipeline. It returns the project
-// name and second environment name. It is safe to call from a test's BeforeAll
-// (when that test owns the promotable agent's lifecycle) or from
-// SetupSharedPromotableITHelpdeskAgent (when a reusing domain just needs the
-// agent to exist).
-func EnsurePromotableInfra(ctx context.Context, client *framework.AMPClient, cfg *framework.Config) (projName, secondEnv string) {
-	projName = framework.E2ESharedProjectWithMultiEnvDepPipeline
-	secondEnv = framework.E2ESharedSecondEnv
-	ensureSecondEnvironment(ctx, client, cfg, secondEnv)
-	ensurePromotableProject(client, cfg, projName, secondEnv)
-	return projName, secondEnv
-}
-
 // EnsureProject creates the named project if it does not already exist and waits
 // until it is visible. Project creation is asynchronous (the POST returns 202
 // before the project is queryable), so callers that go on to create resources in
@@ -383,54 +337,6 @@ func EnsureProject(client *framework.AMPClient, cfg *framework.Config, name, dis
 		return framework.ResourceExists(client, projPath)
 	}).WithTimeout(2*time.Minute).WithPolling(2*time.Second).Should(BeTrue(),
 		"project %q was not visible in time after creation", name)
-}
-
-// ensureSecondEnvironment provisions the shared promotion-target environment via
-// the add-environment script if it does not already exist.
-func ensureSecondEnvironment(ctx context.Context, client *framework.AMPClient, cfg *framework.Config, envName string) {
-	envPath := fmt.Sprintf("/api/v1/orgs/%s/environments/%s", cfg.DefaultOrg, envName)
-	if framework.ResourceExists(client, envPath) {
-		ginkgo.GinkgoWriter.Printf("Shared second environment already exists: %s\n", envName)
-		return
-	}
-	ginkgo.By(fmt.Sprintf("Creating shared second environment %q", envName))
-	scriptParams := envops.FromClient(client)
-	scriptParams.EnvName = envName
-	scriptParams.DisplayName = "E2E Shared Staging"
-	// Agents are promoted into this env, which needs its own Thunder to mint
-	// their identity — even when the run sets PROVISION_THUNDER=false globally.
-	scriptParams.ProvisionThunder = true
-	envops.AddEnvironmentWithContext(ctx, scriptParams)
-}
-
-// ensurePromotableProject creates the promotable project (with a
-// default→secondEnv promotion pipeline) if it does not already exist.
-func ensurePromotableProject(client *framework.AMPClient, cfg *framework.Config, projName, secondEnv string) {
-	projPath := fmt.Sprintf("/api/v1/orgs/%s/projects/%s", cfg.DefaultOrg, projName)
-	if framework.ResourceExists(client, projPath) {
-		return
-	}
-
-	ginkgo.By("Creating promotion deployment pipeline")
-	pipeline := dpops.CreateOrGet(Default, client, cfg.DefaultOrg,
-		framework.CreateDeploymentPipelineRequest{
-			DisplayName: "E2E Shared Promotion Pipeline",
-			PromotionPaths: []framework.PromotionPath{
-				{
-					SourceEnvironmentRef: cfg.DefaultEnv,
-					TargetEnvironmentRefs: []framework.TargetEnvironmentRef{
-						{Name: secondEnv},
-					},
-				},
-			},
-		})
-
-	ginkgo.By(fmt.Sprintf("Creating promotable project %q", projName))
-	projReq := framework.NewCreateProjectRequest(projName, "E2E Promotable Project", "Shared promotable project for e2e tests", pipeline.Name)
-	project.CreateProject(Default, client, &project.CreateProjectParams{
-		OrgName: cfg.DefaultOrg,
-		Request: projReq,
-	})
 }
 
 // resolveEndpointAndKey fetches the agent's endpoint URL in the given

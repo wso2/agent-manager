@@ -90,7 +90,7 @@ type SetAgentMCPParams struct {
 
 // SetAgentMCP runs `agent mcp set <agent>` (create or update) and returns the config.
 func SetAgentMCP(g Gomega, h *amctl.Harness, org, project, agent string, p SetAgentMCPParams) AgentMCPConfig {
-	args := []string{"agent", "mcp", "set", agent, "--name", p.Name, "--env", p.Env, "--proxy", p.Proxy}
+	args := []string{"agent", "mcp", "set", agent, "--name", p.Name, "--proxy", p.Proxy}
 	if p.URLEnv != "" {
 		args = append(args, "--url-env", p.URLEnv)
 	}

@@ -1,15 +1,14 @@
 #!/bin/bash
 set -euo pipefail
 
-# Installs the AMP extension charts (everything from deployments/helm-charts that
-# sits atop the OpenChoreo base). Called by setup-openchoreo.sh during full setup
-# and by `make setup-amp` after a partial teardown (teardown-amp.sh).
+# Installs the AMP extension charts that run in the k3d cluster (Thunder) and
+# reconciles the API Platform Gateway operator. Called by `make setup-amp`,
+# both during full setup and after a partial teardown (teardown-amp.sh).
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 source "$SCRIPT_DIR/env.sh"
 source "$SCRIPT_DIR/utils.sh"
-PROJECT_ROOT="$1"
 
 if ! kubectl cluster-info --context $CLUSTER_CONTEXT &> /dev/null; then
     echo "❌ K3d cluster '$CLUSTER_CONTEXT' is not running."
@@ -71,8 +70,7 @@ install_thunder_extension() {
 
     # The dev stack runs amp-api on a published host port rather than behind the
     # gateway, so override the MCP resource identifier to that origin — Thunder
-    # matches the authorize request's `resource` value exactly, and this dev
-    # stack never serves the chart's own k3d-gateway default at all.
+    # matches the authorize request's `resource` value exactly.
     # thunder.setup.admin.password fixes the console admin login at "admin" for
     # local dev convenience — the chart's own default (unset) would generate a
     # random one instead, which is what production wants but is annoying to
@@ -84,76 +82,13 @@ install_thunder_extension() {
     echo "✅ AMP Thunder Extension installed/upgraded successfully"
 }
 
-install_evaluation_workflows() {
-    echo "📦 Installing/Upgrading Evaluation Workflows Extension..."
-
-    # The chart's NetworkPolicy targets "workflows-<env>" (workflows-default here) — the
-    # namespace OpenChoreo's control plane runs that environment's Argo workflows in. On a
-    # fresh cluster nothing has triggered a workflow yet, so OpenChoreo hasn't created it and
-    # `helm install` fails with "namespaces \"workflows-default\" not found". Pre-create it
-    # (idempotent) so install order doesn't depend on a workflow having already run.
-    kubectl create namespace workflows-default --dry-run=client -o yaml | kubectl apply -f -
-
-    # The k3d node network carries both the API server and the host-published agent-manager-service,
-    # so it is the ipBlock for both NetworkPolicy exceptions; disable the policy if we can't compute it.
-    local node_cidr network_policy_enabled
-    node_cidr=$(docker network inspect "k3d-${CLUSTER_NAME}" \
-        --format '{{ (index .IPAM.Config 0).Subnet }}' 2>/dev/null || echo "")
-    if [[ -z "$node_cidr" ]]; then
-        echo "⚠️  Could not determine k3d docker network subnet for k3d-${CLUSTER_NAME} — disabling"
-        echo "   the evaluation-job egress NetworkPolicy for this install so local eval runs keep working."
-        network_policy_enabled="false"
-    else
-        network_policy_enabled="true"
-    fi
-
-    helm upgrade --install amp-evaluation-workflows-extension "${SCRIPT_DIR}/../helm-charts/wso2-amp-evaluation-extension" \
-        --namespace openchoreo-workflow-plane \
-        --set ampEvaluation.image.repository="amp-evaluation-monitor" \
-        --set ampEvaluation.publisher.endpoint="http://agent-manager-service:8080" \
-        --set ampEvaluation.publisher.idpTokenUrl="http://amp-thunder-extension-service.amp-thunder.svc.cluster.local:8090/oauth2/token" \
-        --set ampEvaluation.publisher.clientId="amp-publisher-client" \
-        --set networkPolicy.evaluationJob.enabled="${network_policy_enabled}" \
-        --set networkPolicy.evaluationJob.devEgress.cidr="${node_cidr}" \
-        --set "networkPolicy.evaluationJob.devEgress.ports={8080,19080}" \
-        --set "networkPolicy.evaluationJob.apiServer.cidrs[0]=${node_cidr}"
-    echo "✅ Evaluation Workflows Extension installed/upgraded successfully"
-}
-
-install_platform_resources() {
-    echo "📦 Installing/Upgrading Default Platform Resources..."
-    echo "   Creating default Organization, Project, Environment, and DeploymentPipeline..."
-    helm upgrade --install amp-default-platform-resources "${SCRIPT_DIR}/../helm-charts/wso2-amp-platform-resources-extension" \
-        --namespace default
-    echo "✅ Default Platform Resources installed/upgraded successfully"
-}
-
-echo "🚀 Starting PARALLEL installation of AMP extensions..."
-echo ""
-
-run_parallel_tasks \
-    "Thunder Extension:install_thunder_extension" \
-    "Evaluation Workflows:install_evaluation_workflows" \
-    "Platform Resources:install_platform_resources" \
-    || exit 1
-
-echo "✅ All AMP extensions installed successfully"
+install_thunder_extension || exit 1
 echo ""
 
 wait_for_namespace_ready amp-thunder 'Thunder Extension'
 
-# openchoreo-api caches Thunder's JWKS for an hour (openchoreo-api-config
-# jwks.refresh_interval). A Thunder reinstall (teardown-amp, version mismatch)
-# rotates the signing keys, so until that cache expires every AMS call to
-# OpenChoreo fails with 401 INVALID_TOKEN and the gateway bootstrap job dies.
-# Restarting forces a fresh JWKS fetch.
-echo "🔄 Restarting openchoreo-api to pick up Thunder's current signing keys..."
-kubectl rollout restart deployment/openchoreo-api -n openchoreo-control-plane
-kubectl rollout status deployment/openchoreo-api -n openchoreo-control-plane --timeout=120s
-
-# The gateway-operator is base-layer, but a stale install breaks the AMP
-# gateway charts when the env.sh pin moves (their CRs need the newer CRDs) —
-# reconcile it here so setup-amp works on long-lived clusters.
+# Reconcile the gateway-operator here so an env.sh pin bump lands on
+# long-lived clusters too (the AMP gateway charts need its newer CRDs).
 "${SCRIPT_DIR}/ensure-gateway-operator.sh"
 
 echo "✅ AMP extensions ready"

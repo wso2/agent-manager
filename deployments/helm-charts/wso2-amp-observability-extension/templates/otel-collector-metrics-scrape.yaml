@@ -1,8 +1,8 @@
 # Scrape target for the span counter.
 #
-# The collector's own Service belongs to the OpenChoreo traces chart and exposes
-# only the ingest ports, so this adds a second Service for the Prometheus
-# exporter rather than modifying a chart we do not own. The port is given
+# The collector's own Service belongs to the upstream collector chart and
+# exposes only the ingest ports, so this adds a second Service for the
+# Prometheus exporter rather than modifying a chart we do not own. The port is given
 # numerically because it is not declared as a containerPort — it does not need
 # to be for a Service to route to it.
 #
@@ -25,11 +25,8 @@ spec:
       port: {{ .Values.otelCollector.metricsPort }}
       targetPort: {{ .Values.otelCollector.metricsPort }}
       protocol: TCP
+{{- if .Values.otelCollector.serviceMonitor.enabled }}
 ---
-# The observability-plane Prometheus selects ServiceMonitors with an empty
-# selector across all namespaces, so no release label is required here. Its
-# PodMonitor and scrapeConfig selectors are NOT empty, which is why this is a
-# ServiceMonitor.
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
@@ -45,3 +42,4 @@ spec:
     # it does not scale the value, unlike the recording-rule meters.
     - port: metrics
       interval: 30s
+{{- end }}

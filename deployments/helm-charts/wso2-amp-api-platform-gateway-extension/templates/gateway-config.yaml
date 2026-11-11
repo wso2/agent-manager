@@ -157,7 +157,7 @@ data:
       gatewayRuntime:
         deployment:
           podLabels:
-            openchoreo.dev/system-component: gateway-runtime
+            amp.wso2.com/system-component: gateway-runtime
           {{- if .Values.apiGateway.config.systemExtraEnv }}
           extraEnv:
             {{- .Values.apiGateway.config.systemExtraEnv | toYaml | nindent 12 }}

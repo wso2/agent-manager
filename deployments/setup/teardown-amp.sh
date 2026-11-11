@@ -1,8 +1,8 @@
 #!/bin/bash
-# Tears down everything ABOVE the OpenChoreo base layer so `make setup-amp`
-# can rebuild it in minutes. The base (colima, k3d, prerequisites, OpenChoreo
-# planes + observability modules, gateway-operator, agent-sandbox) is never
-# touched — use `make teardown` for a full wipe.
+# Tears down the AMP layer so `make setup-amp` can rebuild it in minutes. The
+# base (colima, k3d, and the prerequisites: cert-manager, kgateway, the AMP
+# Gateway, OpenBao, the gateway-operator) is never touched — use
+# `make teardown` for a full wipe.
 #
 # Every step is presence-guarded and best-effort: this must work from broken
 # or partially-installed states. Failures are collected and reported at the end.
@@ -17,7 +17,7 @@ warn() {
     WARNINGS+=("$1")
 }
 
-echo "=== Tearing Down AMP Layer (OpenChoreo base preserved) ==="
+echo "=== Tearing Down AMP Layer (cluster base preserved) ==="
 
 CLUSTER_UP=true
 if ! kubectl cluster-info --context "$CLUSTER_CONTEXT" &>/dev/null; then
@@ -51,10 +51,11 @@ fi
 # ============================================================================
 # Step 3: Uninstall AMP helm releases
 # ============================================================================
-# Enumerated by name pattern, not a hardcoded list, so env-Thunder instances
-# (amp-thunder-<org>-<env>), per-env gateways (api-platform-<org>-<env> and the
-# operator-spawned *-gateway runtimes), and the optional AI gateway are all
-# covered. No base release matches these prefixes.
+# Enumerated by name pattern, not a hardcoded list, so per-org gateways
+# (api-platform-<org>-<env> and the operator-spawned *-gateway runtimes) and the
+# optional AI gateway are all covered. No base release matches these prefixes.
+# The trace store (opensearch, opentelemetry-collector) goes with its namespace
+# in the namespace sweep below.
 echo ""
 echo "3️⃣  Uninstall AMP helm releases"
 if $CLUSTER_UP; then
@@ -84,42 +85,13 @@ if $CLUSTER_UP; then
 fi
 
 # ============================================================================
-# Step 4: Delete AMS-created OpenChoreo CRs
-# ============================================================================
-# Dynamic state created through the API during testing (deployed agents, extra
-# environments, ...). Plane registrations (clusterdataplane, observabilityplane,
-# etc.), authz bindings, and chart-owned definition kinds (componenttypes,
-# traits, workflows, resourcetypes) are deliberately NOT touched — they belong
-# to the base. Child kinds first so finalizers unwind cleanly; the control
-# plane is alive and GCs the dp-* workload namespaces itself.
-echo ""
-echo "4️⃣  Delete AMS-created OpenChoreo resources"
-if $CLUSTER_UP; then
-    STATE_KINDS=(
-        workflowruns componentreleases releasebindings renderedreleases
-        resourcereleasebindings resourcereleases resources workloads
-        components projects secretreferences
-        observabilityalertrules observabilityalertsnotificationchannels
-        environments deploymentpipelines
-    )
-    for kind in "${STATE_KINDS[@]}"; do
-        found="$(kubectl get "${kind}.openchoreo.dev" -A --no-headers 2>/dev/null | wc -l | tr -d ' ')"
-        [ "$found" != "0" ] || continue
-        echo "🗑️  Deleting ${found} ${kind}..."
-        kubectl delete "${kind}.openchoreo.dev" --all -A --wait=true --timeout=120s \
-            || warn "deleting ${kind} timed out (stuck finalizers?)"
-    done
-    echo "✅ OpenChoreo state resources deleted"
-fi
-
-# ============================================================================
-# Step 5: Delete leftover AMP namespaces
+# Step 4: Delete leftover AMP namespaces
 # ============================================================================
 echo ""
-echo "5️⃣  Delete AMP namespaces"
+echo "4️⃣  Delete AMP namespaces"
 if $CLUSTER_UP; then
     amp_namespaces="$(kubectl get ns -o name 2>/dev/null | sed 's|^namespace/||' \
-        | grep -E '^(amp-thunder|dp-)' || true)"
+        | grep -E '^(amp-thunder|amp-observability)$' || true)"
     gateway_namespaces="$(kubectl get ns -l 'amp.wso2.com/api-platform-gateway=true' -o name 2>/dev/null \
         | sed 's|^namespace/||' || true)"
     all_ns="$(printf '%s\n%s\n' "$amp_namespaces" "$gateway_namespaces" | grep -v '^$' | sort -u)"
@@ -136,14 +108,14 @@ if $CLUSTER_UP; then
 fi
 
 # ============================================================================
-# Step 6: Purge AMS-written OpenBao secrets
+# Step 5: Purge AMS-written OpenBao secrets
 # ============================================================================
 # AMS writes dynamic secrets under org subtrees (secret/<org>/...). The flat
 # keys at the mount root (secret/amp-system-client-secret, ...) are baseline
 # bootstrap values seeded by the OpenBao pod's postStart hook — those stay,
 # since they only regenerate on pod restart and the base is not restarted here.
 echo ""
-echo "6️⃣  Purge AMS-written OpenBao secrets"
+echo "5️⃣  Purge AMS-written OpenBao secrets"
 if $CLUSTER_UP; then
     BAO_POD="$(kubectl get pods -n openbao -l app.kubernetes.io/name=openbao \
         -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)"
@@ -181,10 +153,10 @@ if $CLUSTER_UP; then
 fi
 
 # ============================================================================
-# Step 7: Verification summary
+# Step 6: Verification summary
 # ============================================================================
 echo ""
-echo "7️⃣  Verification"
+echo "6️⃣  Verification"
 if $CLUSTER_UP; then
     leftovers="$(helm list -A --no-headers 2>/dev/null | awk '{print $1}' \
         | grep -E '^(amp-|api-platform-|wso2-amp-)' || true)"

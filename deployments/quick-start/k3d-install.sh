@@ -27,7 +27,7 @@ usage() {
   cat <<'EOF'
 Usage: curl -fsSL <url>/k3d-install.sh | bash [-s -- --version X.Y.Z]
 
-Creates a k3d cluster named amp-local and installs OpenChoreo and Agent Manager
+Creates a k3d cluster named amp-local and installs Agent Manager
 on it. Needs Docker (running), k3d, kubectl, helm, curl and lsof on the host.
 
   --version   Release to install (default: the release this script shipped with)

@@ -109,7 +109,7 @@
         },
         "service": {
           "additionalProperties": false,
-          "description": "Reachable externally via the observability-plane gateway (see ocIngress); set type to LoadBalancer to restore a dedicated external endpoint.",
+          "description": "Reachable externally via the shared AMP Gateway (see ocIngress); set type to LoadBalancer to restore a dedicated external endpoint.",
           "properties": {
             "type": {
               "default": "ClusterIP",
@@ -124,7 +124,7 @@
         },
         "ocIngress": {
           "additionalProperties": false,
-          "description": "Exposes the Agent Manager Observer through the observability-plane kgateway (gateway-default) so it does not need its own LoadBalancer service.",
+          "description": "Exposes the Agent Manager Observer through the shared AMP Gateway so it does not need its own LoadBalancer service. The HTTPRoute lives in this release's namespace.",
           "properties": {
             "enabled": {
               "default": true,
@@ -133,9 +133,15 @@
               "type": "boolean"
             },
             "gatewayName": {
-              "default": "gateway-default",
+              "default": "amp-gateway",
               "description": "Gateway that serves this route",
               "title": "gatewayName",
+              "type": "string"
+            },
+            "gatewayNamespace": {
+              "default": "amp-gateway",
+              "description": "Namespace of the Gateway that serves this route",
+              "title": "gatewayNamespace",
               "type": "string"
             },
             "hostname": {
@@ -155,61 +161,49 @@
           "title": "ocIngress",
           "type": "object"
         },
-        "observer": {
+        "opensearch": {
           "additionalProperties": false,
-          "description": "Observer Service connection \u2014 the upstream service that provides trace data.",
+          "description": "Trace store the observer queries. The OpenTelemetry collector writes spans to it.",
           "properties": {
-            "baseUrl": {
-              "default": "http://observer.openchoreo-observability-plane.svc.cluster.local:8080",
-              "description": "In-cluster base URL of the upstream observer.",
-              "title": "baseUrl",
+            "address": {
+              "default": "https://opensearch.amp-observability.svc.cluster.local:9200",
+              "description": "OpenSearch base URL",
+              "title": "address",
               "type": "string"
             },
-            "idpTokenUrl": {
-              "default": "http://amp-thunder-extension-service.amp-thunder.svc.cluster.local:8090/oauth2/token",
-              "description": "Token endpoint used to authenticate to the upstream observer.",
-              "title": "idpTokenUrl",
+            "traceIndex": {
+              "default": "otel-traces-*",
+              "description": "Index pattern the collector writes spans to.",
+              "title": "traceIndex",
               "type": "string"
             },
-            "idpClientId": {
-              "default": "am-observer-client",
-              "description": "Dedicated outbound identity for calls to the OpenChoreo observer. Seeded by wso2-amp-thunder-extension (amObserverClient); authorized via the amp-observer-reader ClusterAuthzRoleBinding in wso2-amp-platform-resources-extension. No amp:* scopes. Generate this the same way as every other client secret in this product (e.g. AM_OBSERVER_CLIENT_SECRET=\"$(openssl rand -hex 32)\") and pass it here AND to thunder.bootstrap.amObserverClient.clientSecret \u2014 they must match, since Thunder is what actually issued this client. Prefer existingSecret below over the inline value for production. NOTE: the Thunder bootstrap job is a pre-install-only hook \u2014 on an existing install, helm upgrade does NOT create this client; re-run the bootstrap job (or reinstall the thunder extension) before rolling out this value.",
-              "title": "idpClientId",
-              "type": "string"
-            },
-            "idpClientSecret": {
-              "default": "am-observer-client-secret",
-              "description": "Unlike apiKey/encryptionKey elsewhere in this product, there is no safe empty-value fallback here: this must match whatever Thunder actually issued for amObserverClient, so it stays at the same default that chart ships (thunder.bootstrap.amObserverClient.clientSecret) rather than being emptied \u2014 override BOTH together via existingSecret in production.",
-              "title": "idpClientSecret",
-              "type": "string"
+            "tlsInsecureSkipVerify": {
+              "default": true,
+              "description": "Skip TLS verification (the local OpenSearch install serves self-signed demo certificates).",
+              "title": "tlsInsecureSkipVerify",
+              "type": "boolean"
             },
             "existingSecret": {
-              "default": "",
-              "description": "Reference an existing secret for IDP credentials (recommended for production). When set, idpClientId/idpClientSecret above are ignored.",
+              "default": "opensearch-admin-credentials",
+              "description": "Secret holding the OpenSearch credentials.",
               "title": "existingSecret",
               "type": "string"
             },
-            "existingSecretClientIdKey": {
-              "default": "idpClientId",
-              "description": "Key within the existing Secret holding the OAuth client ID.",
-              "title": "existingSecretClientIdKey",
+            "existingSecretUsernameKey": {
+              "default": "username",
+              "description": "Key of the username in existingSecret.",
+              "title": "existingSecretUsernameKey",
               "type": "string"
             },
-            "existingSecretClientSecretKey": {
-              "default": "idpClientSecret",
-              "description": "Key within the existing Secret holding the OAuth client secret.",
-              "title": "existingSecretClientSecretKey",
-              "type": "string"
-            },
-            "defaultNamespace": {
-              "default": "default",
-              "description": "Namespace assumed when a query does not name one.",
-              "title": "defaultNamespace",
+            "existingSecretPasswordKey": {
+              "default": "password",
+              "description": "Key of the password in existingSecret.",
+              "title": "existingSecretPasswordKey",
               "type": "string"
             }
           },
           "required": [],
-          "title": "observer",
+          "title": "opensearch",
           "type": "object"
         },
         "auth": {
@@ -247,7 +241,7 @@
         },
         "publicUrl": {
           "default": "http://traces.amp.localhost:11080",
-          "description": "Externally reachable base URL of this service. Used as the `resource` identifier in RFC 9728 protected resource metadata and in the WWW-Authenticate resource_metadata parameter on 401 responses. Routed through the observability-plane gateway (see ocIngress above), which k3d maps to host port 11080 \u2014 not the 8080 control-plane gateway.",
+          "description": "Externally reachable base URL of this service. Used as the `resource` identifier in RFC 9728 protected resource metadata and in the WWW-Authenticate resource_metadata parameter on 401 responses. Routed through the AMP Gateway's 11080 listener (see ocIngress above).",
           "title": "publicUrl",
           "type": "string"
         },
@@ -332,7 +326,7 @@
       "properties": {
         "otlpHttpPort": {
           "default": 4318,
-          "description": "Collector container ports. Must match the receiver/extension endpoints in deployments/values/oc-collector-configmap.yaml, which is applied separately (not templated by this chart) \u2014 update both if either changes.",
+          "description": "Collector container ports. Must match the receiver/extension endpoints in deployments/values/otel-collector.yaml, which configures the separately installed collector chart \u2014 update both if either changes.",
           "title": "otlpHttpPort",
           "type": "integer"
         },
@@ -348,7 +342,7 @@
         },
         "externalService": {
           "additionalProperties": false,
-          "description": "Optional dedicated external Service for direct OTLP/HTTP pushes to the collector. Disabled by default: shipped clients send traces through the data-plane gateway's /otel route.",
+          "description": "Optional dedicated external Service for direct OTLP/HTTP pushes to the collector. Disabled by default: shipped clients send traces through the API Platform Gateway's /otel route.",
           "properties": {
             "enabled": {
               "default": false,
@@ -371,6 +365,21 @@
           },
           "required": [],
           "title": "externalService",
+          "type": "object"
+        },
+        "serviceMonitor": {
+          "additionalProperties": false,
+          "description": "ServiceMonitor for the span counter. Needs the Prometheus Operator CRDs, which the AMP install does not ship.",
+          "properties": {
+            "enabled": {
+              "default": false,
+              "description": "Render the ServiceMonitor",
+              "title": "enabled",
+              "type": "boolean"
+            }
+          },
+          "required": [],
+          "title": "serviceMonitor",
           "type": "object"
         }
       },

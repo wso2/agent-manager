@@ -98,8 +98,6 @@ spec:
               value: {{ .Values.agentManagerService.config.tlsEnabled | default false | quote }}
             - name: LOG_LEVEL
               value: "INFO"
-            - name: OPEN_CHOREO_BASE_URL
-              value: "http://openchoreo-api.openchoreo-control-plane:8080/api/v1"
           {{- with .Values.dbMigration.resources }}
           resources:
             {{- toYaml . | nindent 12 }}

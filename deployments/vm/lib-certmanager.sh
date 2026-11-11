@@ -21,7 +21,7 @@ command -v die >/dev/null 2>&1 || die() { printf '\033[0;31m[certmgr] ERROR:\033
 # sit in the gateway's namespace so the consolidated :443 Gateway can reference it directly
 # (a Gateway listener's certificateRefs is same-namespace by default).
 CERT_MANAGER_NS="${CERT_MANAGER_NS:-cert-manager}"
-GATEWAY_NS="${GATEWAY_NS:-openchoreo-control-plane}"
+GATEWAY_NS="${GATEWAY_NS:-amp-gateway}"
 
 # The four DNS providers we support natively (cert-manager has a built-in dns01 solver for
 # each). Kept identical to what the old lego path covered.

@@ -19,7 +19,7 @@ data:
     # "default" OU, fixed on every install rather than generated per instance, mirroring
     # what the pre-declarative bootstrap scripts did: resolve "default" once and send
     # the real id. This on-prem deployment only ever runs a single org/OU ("default",
-    # mapped to OpenChoreo's own default namespace) — multi-org support is a future
+    # AMP's internal default org) — multi-org support is a future
     # concern, not something to solve here.
     #
     # ouId alone is NOT enough: Thunder only embeds ouId/ouHandle as token claims when
@@ -104,52 +104,6 @@ data:
               userAttributes: {{ .Values.thunder.bootstrap.ampConsoleClient.userAttributes | toJson }}
             refreshToken:
               validityPeriod: {{ .Values.thunder.bootstrap.ampConsoleClient.refreshTokenValidityPeriod | int }}
-
-  54-workload-publisher-app.yaml: |
-    resource_type: application
-    id: workload-publisher-client
-    type: m2m # client_credentials only, no interactive login
-    name: {{ .Values.thunder.bootstrap.workloadPublisherClient.name | quote }}
-    description: {{ .Values.thunder.bootstrap.workloadPublisherClient.description | quote }}
-    ouId: "01900000-0000-7000-8000-000000000001"
-    inboundAuthConfig:
-      - type: oauth2
-        config:
-          clientId: {{ .Values.thunder.bootstrap.workloadPublisherClient.clientId | quote }}
-          clientSecret: {{ .Values.thunder.bootstrap.workloadPublisherClient.clientSecret | quote }}
-          grantTypes: {{ .Values.thunder.bootstrap.workloadPublisherClient.grantTypes | toJson }}
-          tokenEndpointAuthMethod: {{ .Values.thunder.bootstrap.workloadPublisherClient.tokenEndpointAuthMethod | quote }}
-          pkceRequired: {{ .Values.thunder.bootstrap.workloadPublisherClient.pkceRequired }}
-          publicClient: {{ .Values.thunder.bootstrap.workloadPublisherClient.publicClient }}
-          scopes: {{ .Values.thunder.bootstrap.ampScopes | toJson }}
-          token:
-            accessToken:
-              clientConfig:
-                validityPeriod: {{ .Values.thunder.bootstrap.workloadPublisherClient.accessTokenValidityPeriod }}
-                attributes: ["ouId", "ouHandle"]
-
-  55-observer-resource-reader-app.yaml: |
-    resource_type: application
-    id: observer-resource-reader-client
-    type: m2m # client_credentials only, no interactive login
-    name: {{ .Values.thunder.bootstrap.observerResourceReaderClient.name | quote }}
-    description: {{ .Values.thunder.bootstrap.observerResourceReaderClient.description | quote }}
-    ouId: "01900000-0000-7000-8000-000000000001"
-    inboundAuthConfig:
-      - type: oauth2
-        config:
-          clientId: {{ .Values.thunder.bootstrap.observerResourceReaderClient.clientId | quote }}
-          clientSecret: {{ .Values.thunder.bootstrap.observerResourceReaderClient.clientSecret | quote }}
-          grantTypes: {{ .Values.thunder.bootstrap.observerResourceReaderClient.grantTypes | toJson }}
-          tokenEndpointAuthMethod: {{ .Values.thunder.bootstrap.observerResourceReaderClient.tokenEndpointAuthMethod | quote }}
-          pkceRequired: {{ .Values.thunder.bootstrap.observerResourceReaderClient.pkceRequired }}
-          publicClient: {{ .Values.thunder.bootstrap.observerResourceReaderClient.publicClient }}
-          scopes: {{ .Values.thunder.bootstrap.ampScopes | toJson }}
-          token:
-            accessToken:
-              clientConfig:
-                validityPeriod: {{ .Values.thunder.bootstrap.observerResourceReaderClient.accessTokenValidityPeriod }}
-                attributes: ["ouId", "ouHandle"]
 
   56-amp-publisher-client.yaml: |
     resource_type: application
@@ -1328,31 +1282,6 @@ data:
             worker-src:
               - "'self'"
               - "blob:"
-
-  72-am-observer-client.yaml: |
-    # No "scopes" key on purpose: this client's authority comes from its OpenChoreo
-    # ClusterAuthzRoleBinding (amp-observer-reader-binding), not from AMP scopes.
-    # Scope-less client_credentials tokens fall back to the client ID as audience.
-    resource_type: application
-    id: am-observer-client
-    type: m2m # client_credentials only, no interactive login
-    name: {{ .Values.thunder.bootstrap.amObserverClient.name | quote }}
-    description: {{ .Values.thunder.bootstrap.amObserverClient.description | quote }}
-    ouId: "01900000-0000-7000-8000-000000000001"
-    inboundAuthConfig:
-      - type: oauth2
-        config:
-          clientId: {{ .Values.thunder.bootstrap.amObserverClient.clientId | quote }}
-          clientSecret: {{ .Values.thunder.bootstrap.amObserverClient.clientSecret | quote }}
-          grantTypes: {{ .Values.thunder.bootstrap.amObserverClient.grantTypes | toJson }}
-          tokenEndpointAuthMethod: {{ .Values.thunder.bootstrap.amObserverClient.tokenEndpointAuthMethod | quote }}
-          pkceRequired: {{ .Values.thunder.bootstrap.amObserverClient.pkceRequired }}
-          publicClient: {{ .Values.thunder.bootstrap.amObserverClient.publicClient }}
-          token:
-            accessToken:
-              clientConfig:
-                validityPeriod: {{ .Values.thunder.bootstrap.amObserverClient.accessTokenValidityPeriod }}
-                attributes: ["ouId", "ouHandle"]
 
   {{- /* am-obs-mcp gets its OIDC scopes (amObsMcpClient.scopes) plus the four
        observability data-read scopes, single-sourced from

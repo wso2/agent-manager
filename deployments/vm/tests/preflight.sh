@@ -215,7 +215,7 @@ fi
 # --- render_byoc_tls_secret: kubernetes.io/tls in the gateway namespace ---
 byoc_secret="$(render_byoc_tls_secret amp-wildcard-tls "$tmp_cert" "$tmp_key")"
 assert_eq "byoc secret type"      "yes" "$(grep -q 'type: kubernetes.io/tls' <<<"$byoc_secret" && echo yes || echo no)"
-assert_eq "byoc secret namespace" "yes" "$(grep -q 'namespace: openchoreo-control-plane' <<<"$byoc_secret" && echo yes || echo no)"
+assert_eq "byoc secret namespace" "yes" "$(grep -q 'namespace: amp-gateway' <<<"$byoc_secret" && echo yes || echo no)"
 assert_eq "byoc secret has tls.crt" "yes" "$(grep -q 'tls.crt:' <<<"$byoc_secret" && echo yes || echo no)"
 assert_eq "byoc secret has tls.key" "yes" "$(grep -q 'tls.key:' <<<"$byoc_secret" && echo yes || echo no)"
 # The base64 must round-trip: a truncated or line-wrapped encoding yields a Secret that
@@ -231,7 +231,7 @@ assert_eq "byoc secret tls.crt round-trips" "yes" \
 ca_cm="$(render_platform_ca_configmap "$tmp_cert")"
 assert_eq "platform CA cm is a ConfigMap"  "yes" "$(grep -q '^kind: ConfigMap' <<<"$ca_cm" && echo yes || echo no)"
 assert_eq "platform CA cm name"            "yes" "$(grep -q 'name: amp-platform-ca' <<<"$ca_cm" && echo yes || echo no)"
-assert_eq "platform CA cm namespace"       "yes" "$(grep -q 'namespace: openchoreo-control-plane' <<<"$ca_cm" && echo yes || echo no)"
+assert_eq "platform CA cm namespace"       "yes" "$(grep -q 'namespace: amp-gateway' <<<"$ca_cm" && echo yes || echo no)"
 assert_eq "platform CA cm has ca.crt key"  "yes" "$(grep -q 'ca.crt: |' <<<"$ca_cm" && echo yes || echo no)"
 # The PEM must survive the block-scalar indent: a mis-indented body yields a ConfigMap
 # that applies cleanly but hands env-Thunder an unparseable trust bundle.

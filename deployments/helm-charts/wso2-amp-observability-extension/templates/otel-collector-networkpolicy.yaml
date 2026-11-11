@@ -17,7 +17,7 @@ spec:
         - namespaceSelector: {}
           podSelector:
             matchLabels:
-              openchoreo.dev/system-component: gateway-runtime
+              amp.wso2.com/system-component: gateway-runtime
       ports:
         - protocol: TCP
           port: {{ .Values.otelCollector.otlpHttpPort }}

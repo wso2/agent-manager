@@ -223,7 +223,7 @@
     },
     "ocIngress": {
       "additionalProperties": false,
-      "description": "OpenChoreo ingress configuration \u2014 routes the Console and Agent Manager API through the OpenChoreo control-plane kgateway (gateway-default) so they do not need their own LoadBalancer services.",
+      "description": "Ingress configuration \u2014 routes the Console and Agent Manager API through the shared AMP Gateway (deployments/k8s/amp-gateway.yaml, a kgateway Gateway) so they do not need their own LoadBalancer services. The HTTPRoutes are created in this release's namespace and attach to that Gateway.",
       "properties": {
         "enabled": {
           "default": true,
@@ -232,13 +232,13 @@
           "type": "boolean"
         },
         "gatewayName": {
-          "default": "gateway-default",
+          "default": "amp-gateway",
           "description": "Gateway that serves this route",
           "title": "gatewayName",
           "type": "string"
         },
         "gatewayNamespace": {
-          "default": "openchoreo-control-plane",
+          "default": "amp-gateway",
           "description": "Namespace containing the gateway that serves those routes.",
           "title": "gatewayNamespace",
           "type": "string"
@@ -293,7 +293,7 @@
         },
         "service": {
           "additionalProperties": false,
-          "description": "Reachable externally via the control-plane gateway (see ocIngress); set type to LoadBalancer to restore a dedicated external endpoint.",
+          "description": "Reachable externally via the AMP Gateway (see ocIngress); set type to LoadBalancer to restore a dedicated external endpoint.",
           "properties": {
             "type": {
               "default": "ClusterIP",
@@ -355,7 +355,7 @@
         },
         "ocIngress": {
           "additionalProperties": false,
-          "description": "Hostname the API is served on via the OpenChoreo control-plane gateway (see the top-level ocIngress block)",
+          "description": "Hostname the API is served on via the AMP Gateway (see the top-level ocIngress block)",
           "properties": {
             "hostname": {
               "default": "api.amp.localhost",
@@ -371,7 +371,7 @@
             },
             "gatewayMgmt": {
               "additionalProperties": false,
-              "description": "Exposes the gateway-management (xDS/WebSocket) endpoint through the control-plane gateway so external AI gateways connect without a dedicated LoadBalancer. The WebSocket stays healthy behind the gateway because the server pings every connection every 20s.",
+              "description": "Exposes the gateway-management (xDS/WebSocket) endpoint through the AMP Gateway so external AI gateways connect without a dedicated LoadBalancer. The WebSocket stays healthy behind the gateway because the server pings every connection every 20s.",
               "properties": {
                 "enabled": {
                   "default": true,
@@ -664,7 +664,7 @@
               "type": "object"
             },
             "amObserverURL": {
-              "default": "http://amp-observer.openchoreo-observability-plane.svc.cluster.local:9098",
+              "default": "http://amp-observer.amp-observability.svc.cluster.local:9098",
               "description": "In-cluster URL the agent-manager-service uses to query trace data server-side.",
               "title": "amObserverURL",
               "type": "string"
@@ -837,7 +837,7 @@
             },
             "serverPublicURL": {
               "default": "http://api.amp.localhost:8080",
-              "description": "Externally reachable base URL of this service. Used as the `resource` identifier in RFC 9728 protected resource metadata. Routed through the OpenChoreo control-plane gateway (see ocIngress). Must stay in sync with the thunder extension's thunder.bootstrap.agentManagerMcpBaseUrl; keyManager.audience above picks this up on its own.",
+              "description": "Externally reachable base URL of this service. Used as the `resource` identifier in RFC 9728 protected resource metadata. Routed through the AMP Gateway (see ocIngress). Must stay in sync with the thunder extension's thunder.bootstrap.agentManagerMcpBaseUrl; keyManager.audience above picks this up on its own.",
               "title": "serverPublicURL",
               "type": "string"
             },
@@ -1000,21 +1000,6 @@
               "title": "github",
               "type": "object"
             },
-            "openChoreo": {
-              "additionalProperties": false,
-              "description": "OpenChoreo API configuration",
-              "properties": {
-                "baseURL": {
-                  "default": "http://openchoreo-api.openchoreo-control-plane:8080",
-                  "description": "In-cluster base URL of the OpenChoreo API.",
-                  "title": "baseURL",
-                  "type": "string"
-                }
-              },
-              "required": [],
-              "title": "openChoreo",
-              "type": "object"
-            },
             "secretManager": {
               "additionalProperties": false,
               "description": "Secret Manager configuration",
@@ -1042,7 +1027,7 @@
               "properties": {
                 "url": {
                   "default": "http://openbao.openbao.svc.cluster.local:8200",
-                  "description": "OpenBao URL (uses the default OpenBao that comes with OpenChoreo)",
+                  "description": "OpenBao URL (the install scripts deploy OpenBao into the \"openbao\" namespace)",
                   "title": "url",
                   "type": "string"
                 },
@@ -1585,7 +1570,7 @@
         },
         "service": {
           "additionalProperties": false,
-          "description": "Reachable externally via the control-plane gateway (see ocIngress); set type to LoadBalancer to restore a dedicated external endpoint.",
+          "description": "Reachable externally via the AMP Gateway (see ocIngress); set type to LoadBalancer to restore a dedicated external endpoint.",
           "properties": {
             "type": {
               "default": "ClusterIP",
@@ -1612,7 +1597,7 @@
         },
         "ocIngress": {
           "additionalProperties": false,
-          "description": "Hostname the Console is served on via the OpenChoreo control-plane gateway (see the top-level ocIngress block)",
+          "description": "Hostname the Console is served on via the AMP Gateway (see the top-level ocIngress block)",
           "properties": {
             "hostname": {
               "default": "console.amp.localhost",
@@ -1751,7 +1736,7 @@
             },
             "apiBaseUrl": {
               "default": "http://api.amp.localhost:8080",
-              "description": "Backend API URLs (will be auto-configured if empty) Routed through the OpenChoreo control-plane gateway (see ocIngress).",
+              "description": "Backend API URLs (will be auto-configured if empty) Routed through the AMP Gateway (see ocIngress).",
               "title": "apiBaseUrl",
               "type": "string"
             },
@@ -1828,12 +1813,6 @@
               "additionalProperties": false,
               "description": "Feature flags.",
               "properties": {
-                "enablePrivateRepoSupport": {
-                  "default": true,
-                  "description": "Shows the private Git repository option when building agents from source.",
-                  "title": "enablePrivateRepoSupport",
-                  "type": "boolean"
-                },
                 "enableIdentityProviderManagedMode": {
                   "default": false,
                   "description": "When true, identity provider management calls the REST API directly instead of rendering the self-hosted manage-identity-provider.sh script snippet.",
@@ -1858,22 +1837,10 @@
                   "title": "enableSelfHostedGateways",
                   "type": "boolean"
                 },
-                "externallyManagedEnv": {
-                  "default": false,
-                  "description": "When true, environments are managed outside the console and their pages are hidden.",
-                  "title": "externallyManagedEnv",
-                  "type": "boolean"
-                },
                 "externallyManagedGateway": {
                   "default": false,
                   "description": "When true, gateways are managed outside the console and their pages are hidden.",
                   "title": "externallyManagedGateway",
-                  "type": "boolean"
-                },
-                "externallyManagedPipeline": {
-                  "default": false,
-                  "description": "When true, deployment pipelines are managed outside the console and their pages are hidden.",
-                  "title": "externallyManagedPipeline",
                   "type": "boolean"
                 }
               },
@@ -1883,7 +1850,7 @@
             },
             "gatewayControlPlaneUrl": {
               "default": "http://host.docker.internal:8080",
-              "description": "Gateway control plane URL rendered into external-gateway setup commands. Routed through the OpenChoreo control-plane gateway (see agentManagerService.ocIngress.gatewayMgmt); host.docker.internal lets a gateway container on the same machine reach it.",
+              "description": "Gateway control plane URL rendered into external-gateway setup commands. Routed through the AMP Gateway (see agentManagerService.ocIngress.gatewayMgmt); host.docker.internal lets a gateway container on the same machine reach it.",
               "title": "gatewayControlPlaneUrl",
               "type": "string"
             },

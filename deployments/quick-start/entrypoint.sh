@@ -19,10 +19,9 @@ if [ -S /var/run/docker.sock ]; then
 fi
 
 # Preserve environment variables by writing them to a file that .bashrc will source
-# This ensures DEV_MODE, OPENCHOREO_VERSION, and DEBUG are available after su -
+# This ensures DEV_MODE and DEBUG are available after su -
 cat > /home/wso2-amp/.env_from_docker <<EOF
 export DEV_MODE='${DEV_MODE}'
-export OPENCHOREO_VERSION='${OPENCHOREO_VERSION}'
 export DEBUG='${DEBUG}'
 EOF
 chown wso2-amp:wso2-amp /home/wso2-amp/.env_from_docker

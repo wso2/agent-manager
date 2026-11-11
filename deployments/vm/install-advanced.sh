@@ -53,7 +53,7 @@ DOMAIN_BASE=amp.mycompany.com      # service hosts derived as <svc>.<DOMAIN_BASE
 # Leave both unset to pull the AMP images from the public registry. When set, the
 # installer redirects every first-party image, gives the cluster node registry
 # credentials, and creates the image pull secret in each namespace that needs one.
-# Third-party images (OpenChoreo, cert-manager, kgateway, PostgreSQL) always come
+# Third-party images (cert-manager, kgateway, OpenSearch, PostgreSQL) always come
 # from their own public registries.
 #
 # AMP_REGISTRY_PASSWORD is a live credential: keep this file mode 600, as the
@@ -160,14 +160,15 @@ ACME_ISSUER="amp-acme-dns01"
 WILDCARD_CERT="amp-wildcard-tls"
 WILDCARD_SECRET="amp-wildcard-tls"
 CONSOLIDATED_GATEWAY="amp-consolidated-gateway"
-GATEWAY_NS="openchoreo-control-plane"
+GATEWAY_NS="amp-gateway"
 
-# Each plane's own kgateway Service, which the front-proxy routes forward to by host. The
-# consolidated :443 Gateway lives in the control plane, so the control-plane backend is
-# same-namespace (no ReferenceGrant); observability + data plane are cross-namespace.
-CP_GW_NS="openchoreo-control-plane";       CP_GW_SVC="gateway-default";  CP_GW_PORT=8080
-OBS_GW_NS="openchoreo-observability-plane"; OBS_GW_SVC="gateway-default"; OBS_GW_PORT=11080
-DP_GW_NS="openchoreo-data-plane";           DP_GW_SVC="gateway-default";  DP_GW_PORT=19080
+# The shared AMP Gateway's kgateway Service (deployments/k8s/amp-gateway.yaml), which
+# the front-proxy routes forward to by host — one listener port per service group. It
+# lives in the same namespace as the consolidated :443 Gateway, so no ReferenceGrant.
+AMP_GW_NS="amp-gateway"; AMP_GW_SVC="amp-gateway"
+CP_GW_PORT=8080      # console, API, Thunder, gateway management
+OBS_GW_PORT=11080    # Agent Manager Observer
+DP_GW_PORT=19080     # API Platform Gateway vhosts
 
 # preflight_dns — advisory only. DNS-01 needs NO inbound and does NOT require the service
 # hostnames to point at this VM (the ACME CA proves control by reading a TXT record the
@@ -188,7 +189,7 @@ preflight_dns() {
 
 # apply_advanced_tls — after the base install, create the TLS Secret, the single :443
 # HTTPS Gateway that terminates TLS with it, and the front-proxy routes that forward by
-# host to each plane's own gateway. This replaces the old lego + Caddy path entirely.
+# host to the AMP Gateway's listeners. This replaces the old lego + Caddy path entirely.
 #
 # The two modes differ only in how the Secret comes to exist: dns01 creates the
 # cert-manager objects (provider Secret + ACME ClusterIssuer + Certificate) and waits
@@ -199,10 +200,7 @@ apply_advanced_tls() {
     log "Applying supplied TLS certificate + consolidated :443 gateway + front-proxy routes"
     { render_byoc_tls_secret "$WILDCARD_SECRET" "$TLS_CERT_FILE" "$TLS_KEY_FILE"
       echo "---"
-      # Persist the operator CA so environments created after this install can trust the
-      # listener too. Phase 2's default env-Thunder gets it via PLATFORM_THUNDER_CA_PEM,
-      # but the cluster does not exist before Phase 2, so this is the earliest it can be
-      # written — and every LATER environment reads it from here.
+      # Persist the operator CA in-cluster so workloads can trust the listener too.
       if [[ -n "${TLS_CA_FILE:-}" ]]; then
         render_platform_ca_configmap "$TLS_CA_FILE"
         echo "---"
@@ -241,39 +239,25 @@ apply_advanced_tls() {
   fi
 }
 
-# render_frontproxy_resources — emit the host-based routes (and the cross-namespace
-# ReferenceGrants they need) that make the consolidated :443 Gateway forward to each
-# plane's own gateway. Each plane keeps its native routes; the wildcards *.agents and
-# *.<base-domain> (env-Thunder handles sit directly under the base domain, no fixed
-# "thunder." segment) cover the dynamic tiers (deployed agents, per-env Thunder)
-# permanently, so nothing has to be reparented after install. Gateway API always
-# matches an exact hostname before a wildcard, so this wildcard never shadows the
-# other exact hosts in cp_hosts below.
+# render_frontproxy_resources — emit the host-based routes that make the consolidated
+# :443 Gateway forward to the AMP Gateway's listeners. The *.agents and
+# *.<gateway host> wildcards cover hosts created after install. Gateway API always
+# matches an exact hostname before a wildcard.
 render_frontproxy_resources() {
-  # Control plane (console/api/thunder/cp) + env-Thunder wildcard -> CP gateway. Same
-  # namespace as the consolidated Gateway, so no ReferenceGrant is needed here.
-  # ${AMP_HOST_THUNDER#thunder.} recovers the bare base domain from
-  # AMP_HOST_THUNDER="thunder.<base-domain>" without needing that variable
-  # separately in scope here.
-  local -a cp_hosts=("$AMP_HOST_CONSOLE" "$AMP_HOST_API" "$AMP_HOST_THUNDER" "*.${AMP_HOST_THUNDER#thunder.}")
+  # Console/api/thunder/cp -> :8080 listener.
+  local -a cp_hosts=("$AMP_HOST_CONSOLE" "$AMP_HOST_API" "$AMP_HOST_THUNDER")
   [[ -n "${AMP_HOST_CP:-}" ]] && cp_hosts+=("$AMP_HOST_CP")
   render_frontproxy_route amp-frontproxy-controlplane "$CONSOLIDATED_GATEWAY" \
-    "$CP_GW_NS" "$CP_GW_SVC" "$CP_GW_PORT" "${cp_hosts[@]}"
+    "$AMP_GW_NS" "$AMP_GW_SVC" "$CP_GW_PORT" "${cp_hosts[@]}"
   echo "---"
-  # Observability (observer) -> OBS gateway (cross-namespace).
-  render_backend_referencegrant "$OBS_GW_NS"
-  echo "---"
+  # Observer -> :11080 listener.
   render_frontproxy_route amp-frontproxy-observability "$CONSOLIDATED_GATEWAY" \
-    "$OBS_GW_NS" "$OBS_GW_SVC" "$OBS_GW_PORT" "$AMP_HOST_OBSERVER"
+    "$AMP_GW_NS" "$AMP_GW_SVC" "$OBS_GW_PORT" "$AMP_HOST_OBSERVER"
   echo "---"
-  # Data plane: OTel/LLM-proxy gateway host + deployed-agent wildcard -> DP gateway
-  # (cross-namespace). The *.agents wildcard covers every agent deployed later, and
-  # *.<gateway host> every per-environment api-platform gateway add-environment.sh
-  # installs later — both land on the same DP gateway, which discriminates by Host.
-  render_backend_referencegrant "$DP_GW_NS"
-  echo "---"
+  # OTel/LLM-proxy gateway host + agent wildcard -> :19080 listener, which
+  # discriminates by Host.
   render_frontproxy_route amp-frontproxy-dataplane "$CONSOLIDATED_GATEWAY" \
-    "$DP_GW_NS" "$DP_GW_SVC" "$DP_GW_PORT" "$AMP_HOST_GATEWAY" "*.${AMP_AGENTS_BASE}" \
+    "$AMP_GW_NS" "$AMP_GW_SVC" "$DP_GW_PORT" "$AMP_HOST_GATEWAY" "*.${AMP_AGENTS_BASE}" \
     "*.${AMP_HOST_GATEWAY}"
 }
 
@@ -288,8 +272,8 @@ run_advanced_install() {
   preflight_dns
 
   log "Phase 2/3: install Agent Manager (TLS_MODE=${TLS_MODE_RESOLVED}, no Caddy) — 8-15 min"
-  # Hostname-driven helm overrides (identical cores to the simple path). Every plane keeps
-  # its own native gateway-default routes — the consolidated :443 gateway forwards to them
+  # Hostname-driven helm overrides (identical cores to the simple path). Every chart keeps
+  # its native routes on the AMP Gateway — the consolidated :443 gateway forwards to them
   # by host (see render_frontproxy_resources), so no ocIngress/external-gateway repointing
   # is needed here.
   # shellcheck disable=SC2034  # arrays are inherited by the subshell that sources install.sh
@@ -299,47 +283,10 @@ run_advanced_install() {
   # shellcheck disable=SC2034
   mapfile -t GATEWAY_HELM_ARGS < <(gateway_helm_args)
   # shellcheck disable=SC2034
-  mapfile -t CP_HELM_ARGS < <(cp_helm_args)
-  # shellcheck disable=SC2034
-  mapfile -t PLATFORM_RESOURCES_HELM_ARGS < <(build_platform_resources_helm_args)
-  # shellcheck disable=SC2034
   mapfile -t OBSERVABILITY_HELM_ARGS < <(observability_helm_args)
 
-  DP_EXTERNAL_INGRESS="$(dataplane_external_ingress)"; export DP_EXTERNAL_INGRESS
   export VERSION="$AMP_VERSION"
   export SHOW_LOCALHOST_URLS=false
-
-  # Env-Thunder deployment-wide config (inherited by install_default_env_thunder).
-  # AMP_HOST_THUNDER is "thunder.<DOMAIN_BASE>"; stripping "thunder." gives env-Thunder's
-  # base domain.
-  export THUNDER_HOST_BASE_DOMAIN="${AMP_HOST_THUNDER#thunder.}"
-  export TLS_ENABLED=true
-  # CA trust for env-Thunder. PLATFORM_THUNDER_JWKS_URL below is an HTTPS URL that
-  # egresses back through the consolidated :443 gateway, so env-Thunder's Go TLS stack
-  # has to trust whatever certificate that gateway serves. A dns01 cert is publicly
-  # trusted, so the container's default trust store suffices and the custom-CA-bundle
-  # machinery can be skipped. A byoc cert from a private CA is NOT trusted by default:
-  # without the bundle, JWKS fetches fail and agent-environment login breaks while every
-  # other host looks perfectly healthy. TLS_CA_FILE feeds add-environment-thunder.sh's
-  # PLATFORM_THUNDER_CA_PEM seam, which mounts the CA into the env-Thunder Deployment.
-  if [[ "$TLS_MODE_RESOLVED" == "byoc" && -n "${TLS_CA_FILE:-}" ]]; then
-    export SKIP_CA_BUNDLE_TRUST=false
-    PLATFORM_THUNDER_CA_PEM="$(cat "$TLS_CA_FILE")"; export PLATFORM_THUNDER_CA_PEM
-    log "TLS_CA_FILE set — env-Thunder will trust platform Thunder via the supplied CA"
-  else
-    export SKIP_CA_BUNDLE_TRUST=true
-  fi
-  export PLATFORM_THUNDER_ISSUER="https://${AMP_HOST_THUNDER}"
-  export PLATFORM_THUNDER_JWKS_URL="https://${AMP_HOST_THUNDER}/oauth2/jwks"
-  # install_default_env_thunder() runs off-cluster and calls both the AMP API and
-  # platform Thunder's token endpoint. Its *.amp.localhost defaults 404 here, since
-  # this install binds those routes to the custom-domain hosts. Address them by
-  # their real hostnames on the control-plane kgateway's loopback port: the
-  # consolidated :443 listener does not exist yet (apply_advanced_tls runs only
-  # after the base installer returns), so an HTTPS URL would refuse the connection.
-  ensure_loopback_alias "$AMP_HOST_API" "$AMP_HOST_THUNDER"
-  export AMP_API_URL="http://${AMP_HOST_API}:8080/api/v1"
-  export IDP_TOKEN_URL="http://${AMP_HOST_THUNDER}:8080/oauth2/token"
 
   # k3d: publish :443 (the consolidated gateway) to the host; keep the plane ports
   # loopback-bound (only :443 faces the network). Render to mktemp files, not fixed

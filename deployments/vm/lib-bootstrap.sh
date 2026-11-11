@@ -10,8 +10,7 @@ command -v die >/dev/null 2>&1 || die() { printf '\033[0;31m[bootstrap] ERROR:\0
 # (get.docker.com, k3d, dl.k8s.io, get-helm-3) added several unauthenticated
 # GitHub/network round-trips that get rate-limited (429) behind shared NAT and
 # silently mutated host state. Instead we verify the tools are already present and
-# fail with actionable hints — mirroring OpenChoreo's k3d installer, which also only
-# checks (command -v) for docker/k3d/kubectl/helm.
+# fail with actionable hints, checking (command -v) for docker/k3d/kubectl/helm.
 
 # _tool_hint <tool> — print a one-line "how to install" hint for a required tool.
 _tool_hint() {

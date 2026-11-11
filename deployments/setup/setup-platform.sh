@@ -74,7 +74,7 @@ fi
 echo ""
 echo "1️⃣  Build and load evaluation-job image"
 echo "📊 Building evaluation-job image and loading to k3d..."
-if make -C "$PROJECT_ROOT/evaluation-job" docker-load-k3d; then
+if make -C "$PROJECT_ROOT/evaluation-job" docker-load-k3d K3D_CLUSTER_NAME="$CLUSTER_NAME"; then
     echo "✅ evaluation-job image loaded to k3d"
 else
     echo "⚠️  Failed to build/load evaluation-job to k3d"

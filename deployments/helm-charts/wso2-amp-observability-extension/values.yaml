@@ -19,44 +19,32 @@ amObserver:
   resourceRequests:
     memory: 128Mi
     cpu: 250m
-  # Reachable externally via the observability-plane gateway (see ocIngress);
+  # Reachable externally via the shared AMP Gateway (see ocIngress);
   # set type to LoadBalancer to restore a dedicated external endpoint.
   service:
     type: ClusterIP
-  # Exposes the Agent Manager Observer through the observability-plane kgateway
-  # (gateway-default) so it does not need its own LoadBalancer service.
+  # Exposes the Agent Manager Observer through the shared AMP Gateway
+  # (deployments/k8s/amp-gateway.yaml) so it does not need its own
+  # LoadBalancer service. The HTTPRoute lives in this release's namespace.
   ocIngress:
     enabled: true
-    gatewayName: gateway-default
+    gatewayName: amp-gateway
+    gatewayNamespace: amp-gateway
     hostname: traces.amp.localhost
     requestTimeout: 60s
-  # Observer Service connection — the upstream service that provides trace data.
-  observer:
-    baseUrl: "http://observer.openchoreo-observability-plane.svc.cluster.local:8080"
-    idpTokenUrl: "http://amp-thunder-extension-service.amp-thunder.svc.cluster.local:8090/oauth2/token"
-    # Dedicated outbound identity for calls to the OpenChoreo observer.
-    # Seeded by wso2-amp-thunder-extension (amObserverClient); authorized via
-    # the amp-observer-reader ClusterAuthzRoleBinding in
-    # wso2-amp-platform-resources-extension. No amp:* scopes.
-    # Generate this the same way as every other client secret in this
-    # product (e.g. AM_OBSERVER_CLIENT_SECRET="$(openssl rand -hex 32)") and
-    # pass it here AND to thunder.bootstrap.amObserverClient.clientSecret —
-    # they must match, since Thunder is what actually issued this client.
-    # Prefer existingSecret below over the inline value for production.
-    # NOTE: the Thunder bootstrap job is a pre-install-only hook — on an existing install, helm upgrade does NOT create this client; re-run the bootstrap job (or reinstall the thunder extension) before rolling out this value.
-    idpClientId: "am-observer-client"
-    # Unlike apiKey/encryptionKey elsewhere in this product, there is no safe
-    # empty-value fallback here: this must match whatever Thunder actually
-    # issued for amObserverClient, so it stays at the same default that chart
-    # ships (thunder.bootstrap.amObserverClient.clientSecret) rather than
-    # being emptied — override BOTH together via existingSecret in production.
-    idpClientSecret: "am-observer-client-secret"
-    # Reference an existing secret for IDP credentials (recommended for production).
-    # When set, idpClientId/idpClientSecret above are ignored.
-    existingSecret: ""
-    existingSecretClientIdKey: "idpClientId"
-    existingSecretClientSecretKey: "idpClientSecret"
-    defaultNamespace: "default"
+  # Trace store the observer queries. The OpenTelemetry collector writes spans
+  # to it (deployments/values/otel-collector.yaml).
+  opensearch:
+    address: "https://opensearch.amp-observability.svc.cluster.local:9200"
+    # Index pattern the collector writes spans to.
+    traceIndex: "otel-traces-*"
+    # The local OpenSearch install serves self-signed demo certificates.
+    tlsInsecureSkipVerify: true
+    # Secret holding the OpenSearch credentials; created by the install
+    # scripts (deployments/scripts/lib-observability.sh).
+    existingSecret: "opensearch-admin-credentials"
+    existingSecretUsernameKey: "username"
+    existingSecretPasswordKey: "password"
   # JWT authentication — must match the agent-manager keyManager config so the
   # same user token issued by Thunder is accepted by both services. Thunder
   # stamps the resource-server identifier as the token audience, so query tokens
@@ -94,8 +82,7 @@ amObserver:
   # Externally reachable base URL of this service.
   # Used as the `resource` identifier in RFC 9728 protected resource metadata
   # and in the WWW-Authenticate resource_metadata parameter on 401 responses.
-  # Routed through the observability-plane gateway (see ocIngress above), which
-  # k3d maps to host port 11080 — not the 8080 control-plane gateway.
+  # Routed through the AMP Gateway's 11080 listener (see ocIngress above).
   publicUrl: "http://traces.amp.localhost:11080"
   # OAuth 2.0 discovery metadata for MCP clients (RFC 9728). Consumed by the
   # /mcp route's protected-resource well-known endpoint.
@@ -114,19 +101,24 @@ amObserver:
 # OpenTelemetry collector extras
 otelCollector:
   # Collector container ports. Must match the receiver/extension endpoints in
-  # deployments/values/oc-collector-configmap.yaml, which is applied separately
-  # (not templated by this chart) — update both if either changes.
+  # deployments/values/otel-collector.yaml, which configures the separately
+  # installed collector chart — update both if either changes.
   otlpHttpPort: 4318
   # Where the collector's Prometheus exporter serves the span counter.
   metricsPort: 8889
   healthCheckPort: 13133
   # Optional dedicated external Service for direct OTLP/HTTP pushes to the
   # collector. Disabled by default: shipped clients send traces through the
-  # data-plane gateway's /otel route.
+  # API Platform Gateway's /otel route.
   externalService:
     enabled: false
     type: LoadBalancer
     port: 21893
+  # ServiceMonitor for the span counter. Needs the Prometheus Operator CRDs,
+  # which the AMP install does not ship.
+  # TODO(amp-lite): no metrics store is installed; enable once one is.
+  serviceMonitor:
+    enabled: false
 
 networkPolicy:
   otelCollector:

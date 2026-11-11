@@ -1,44 +1,37 @@
 # CoreDNS custom config for k3d clusters
-# Rewrites *.openchoreo.localhost, *.amp.localhost, *.agentmanager.localhost,
+# Rewrites *.amp.localhost, *.agentmanager.localhost,
 # *.am-gateway.localhost and *.gateway.localhost hostnames to host.k3d.internal so
 # pods can reach services exposed via the k3d load balancer (including agent
-# endpoints and the AI gateway / LLM proxy vhost fronted by the data-plane gateway).
+# endpoints and the AI gateway / LLM proxy vhost fronted by the AMP Gateway).
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: coredns-custom
   namespace: kube-system
 data:
-  openchoreo.override: |
-    rewrite stop {
-      name regex (.+\.)?openchoreo\.localhost host.k3d.internal
-      answer auto
-    }
   amp.override: |
     rewrite stop {
       name regex (.+\.)?amp\.localhost host.k3d.internal
       answer auto
     }
-  # Data-plane default agent host (ClusterDataPlane gateway ingress host). The
-  # "default" environment and any env that doesn't override the gateway host use
-  # "<env>-<org>.agentmanager.localhost"; without this rewrite in-cluster lookups
-  # fall through to loopback (127.0.0.1) and agent-to-agent calls fail.
+  # Default agent host "<env>-<org>.agentmanager.localhost"; without this
+  # rewrite in-cluster lookups fall through to loopback (127.0.0.1) and
+  # agent-to-agent calls fail.
   agentmanager.override: |
     rewrite stop {
       name regex (.+\.)?agentmanager\.localhost host.k3d.internal
       answer auto
     }
-  # Agent gateway host advertised on Environment CRs (ENV_INGRESS_HOST in
-  # add-environment.sh). Without this, in-cluster lookups of
+  # Agent gateway host "<env>-<org>.am-gateway.localhost". Without this, in-cluster lookups of
   # "<env>-<org>.am-gateway.localhost" fall through to loopback (127.0.0.1),
   # breaking agent-to-agent calls through the gateway. Route them to the k3d
-  # host so they hairpin back into the data-plane gateway on its published port.
+  # host so they hairpin back into the AMP Gateway on its published port.
   amgateway.override: |
     rewrite stop {
       name regex (.+\.)?am-gateway\.localhost host.k3d.internal
       answer auto
     }
-  # AI gateway / LLM proxy vhost advertised on the data-plane gateway. The LLM
+  # AI gateway / LLM proxy vhost advertised on the AMP Gateway. The LLM
   # provider URL injected into agent pods uses "<env>-<org>.gateway.localhost"
   # (gateway.Vhost); without this rewrite in-cluster lookups fall through to
   # loopback (127.0.0.1) and the agent's calls to the LLM gateway are refused.

@@ -53,6 +53,8 @@ jobs:
 
   platform-smoke:
     name: IT Helpdesk deploy and trace smoke
+    # Disabled: builds and deploys a hosted agent, which AMP no longer runs (external agents only).
+    if: ${{ vars.AMP_HOSTED_AGENTS_ENABLED == 'true' }}
     needs: local-smoke
     runs-on: ubuntu-24.04
     timeout-minutes: 100
@@ -85,9 +87,9 @@ jobs:
               > "$reports/observer-image-$node.json"
           done
           # This dev image exists only locally; never try a registry fallback.
-          kubectl -n openchoreo-observability-plane patch deployment amp-observer --type=strategic \
+          kubectl -n amp-observability patch deployment amp-observer --type=strategic \
             -p '{"spec":{"template":{"spec":{"containers":[{"name":"observer","imagePullPolicy":"Never"}]}}}}'
-          kubectl -n openchoreo-observability-plane rollout status deployment/amp-observer --timeout=180s
+          kubectl -n amp-observability rollout status deployment/amp-observer --timeout=180s
           # The earlier forward may have exited while its pod was unavailable.
           (cd deployments/setup && PORT_FORWARD_ADDRESS=0.0.0.0 ./port-forward.sh --platform --background)
           curl --fail --silent --show-error --retry 30 --retry-connrefused \
@@ -123,7 +125,7 @@ jobs:
 
           # Inspect only state/network fields; full inspect output includes env
           # values. The server container's logs contain the k3s startup logs.
-          timeout 15s docker ps -a --filter name=k3d-openchoreo-local-setup \
+          timeout 15s docker ps -a --filter name=k3d-amp-dev \
             --format '{{.Names}}' > "$reports/k3d-containers.txt" \
             2> "$reports/k3d-discovery-errors.txt" || true
           while IFS= read -r container; do

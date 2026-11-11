@@ -33,10 +33,6 @@ const E2ELLMProviderPrefix = "e2e-test-llm-provider-"
 const E2EMCPProxyPrefix = "e2e-test-mcp-proxy-"
 const E2EMonitorPrefix = "e2e-test-mon-monitor-"
 
-// E2EEnvPrefix is the naming prefix for all e2e test environments. It is kept
-// short because environment names are length-constrained:
-const E2EEnvPrefix = "e2e-"
-
 // TestMCPServerURL is a public, always-on upstream MCP "everything" server used
 // as the proxy upstream by the MCP e2e tests (proxy lifecycle, invocation, and
 // the CLI agent-mcp suite). Proxy creation validates this URL via SSRF checks
@@ -47,16 +43,9 @@ const TestMCPServerURL = "https://db720294-98fd-40f4-85a1-cc6a3b65bc9a-prod.e1-u
 // Shared Projects and Agent
 const E2ESharedProjectName = "e2e-test-shared"
 const SharedITHelpdeskAgentName = "e2e-it-helpdesk"
-const E2ESharedProjectWithMultiEnvDepPipeline = "e2e-test-multienv"
-const SharedPromotableITHelpdeskAgentName = "e2e-it-helpdesk-multi"
 
-// E2ESharedSecondEnv is the fixed promotion-target environment for the shared promotable IT helpdesk agent. It
-// carries the E2EEnvPrefix so the stale-resource sweep tears it down between
-// runs, and is kept short to respect the gateway Service name length limit.
-const E2ESharedSecondEnv = E2EEnvPrefix + "shared-stg"
-
-// E2ESharedKindName is the fixed kind name published by the promotion tests and
-// consumed by the catalog tests. Using a stable name avoids needing cross-suite
+// E2ESharedKindName is the fixed kind name published and consumed by the
+// catalog tests. Using a stable name avoids needing cross-suite
 // coordination of a randomly-generated kind name.
 const E2ESharedKindName = "e2e-it-helpdesk-kind"
 
@@ -97,21 +86,6 @@ type SharedITHelpdeskAgent struct {
 	ProjectName string          `json:"projectName"`
 	AgentName   string          `json:"agentName"`
 	BuildName   string          `json:"buildName"`
-	EndpointURL string          `json:"endpointURL"`
-	APIKey      string          `json:"apiKey"`
-	InvokeReq   json.RawMessage `json:"invokeReq"`
-}
-
-// SharedPromotableITHelpdeskAgent holds details of the shared two-environment IT helpdesk agent
-// . It is provisioned once (built, deployed to the default
-// environment, and published as a kind) and reused by name across the agent,
-// configuration and llmprovider domains. EndpointURL/APIKey refer to the
-// default environment.
-type SharedPromotableITHelpdeskAgent struct {
-	ProjectName string          `json:"projectName"`
-	AgentName   string          `json:"agentName"`
-	BuildName   string          `json:"buildName"`
-	SecondEnv   string          `json:"secondEnv"`
 	EndpointURL string          `json:"endpointURL"`
 	APIKey      string          `json:"apiKey"`
 	InvokeReq   json.RawMessage `json:"invokeReq"`

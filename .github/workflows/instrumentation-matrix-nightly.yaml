@@ -68,6 +68,8 @@ jobs:
     # Docker host, where k3d's port publishing works.
     runs-on: ubuntu-latest
     needs: [full-emission-matrix, resolve-heavy-shards]
+    # Disabled: the heavy tier builds and deploys hosted agents, which AMP no longer runs (external agents only).
+    if: ${{ vars.AMP_HOSTED_AGENTS_ENABLED == 'true' }}
     # One shard per Traceloop version, each on its own stack: a new release
     # adds a parallel shard instead of lengthening one serial run, and a
     # wedged cluster only fails its own shard's cells. ~11 min stack bring-up

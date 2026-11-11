@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import subprocess
 
-_NS = "openchoreo-observability-plane"
+_NS = "amp-observability"
 _warned = False
 
 

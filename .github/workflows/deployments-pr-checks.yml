@@ -38,10 +38,6 @@ jobs:
         run: bash deployments/scripts/tests/lib-registry-auth.sh
         shell: bash
 
-      - name: Remove-environment gateway deregistration tests
-        run: bash deployments/scripts/tests/remove-environment.sh
-        shell: bash
-
       - name: VM helper preflight tests
         run: bash deployments/vm/tests/preflight.sh
         shell: bash

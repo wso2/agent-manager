@@ -197,7 +197,7 @@ amp_create_pull_secret() {
     fi
     for ns in "$@"; do
         # Create the namespace only when absent. Several of these namespaces are
-        # owned by a Helm release or by OpenChoreo, and applying a bare Namespace
+        # owned by a Helm release, and applying a bare Namespace
         # over one of those would fight its ownership metadata.
         # --ignore-not-found so an absent namespace exits zero with no output,
         # which separates it from a real failure. Without that, a permissions or

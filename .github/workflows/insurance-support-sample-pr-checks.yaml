@@ -57,6 +57,8 @@ jobs:
 
   platform-smoke:
     name: Insurance Support deploy and trace smoke
+    # Disabled: builds and deploys a hosted agent, which AMP no longer runs (external agents only).
+    if: ${{ vars.AMP_HOSTED_AGENTS_ENABLED == 'true' }}
     needs: smoke
     runs-on: ubuntu-24.04
     timeout-minutes: 100
@@ -98,7 +100,7 @@ jobs:
 
           # Inspect only state/network fields; full inspect output includes env
           # values. The server container's logs contain the k3s startup logs.
-          timeout 15s docker ps -a --filter name=k3d-openchoreo-local-setup \
+          timeout 15s docker ps -a --filter name=k3d-amp-dev \
             --format '{{.Names}}' > "$reports/k3d-containers.txt" \
             2> "$reports/k3d-discovery-errors.txt" || true
           while IFS= read -r container; do

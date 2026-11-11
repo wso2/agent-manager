@@ -209,8 +209,11 @@ jobs:
     needs: [run-cells, resolve-heavy-shards]
     # Normal run: gate behind a green emission matrix. heavy_only: run
     # regardless (run-cells is skipped), so always() is needed to evaluate at all.
+    # Disabled unless AMP_HOSTED_AGENTS_ENABLED: the heavy tier builds and
+    # deploys hosted agents, which AMP no longer runs (external agents only).
     if: >-
-      ${{ always() && needs.resolve-heavy-shards.result == 'success' &&
+      ${{ vars.AMP_HOSTED_AGENTS_ENABLED == 'true' &&
+      always() && needs.resolve-heavy-shards.result == 'success' &&
       needs.resolve-heavy-shards.outputs.count != '0' &&
       (inputs.heavy_only || (inputs.include_heavy_tier && needs.run-cells.result == 'success')) }}
     # One shard per Traceloop version, each on its own stack, as in the

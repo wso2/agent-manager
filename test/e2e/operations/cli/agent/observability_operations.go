@@ -57,15 +57,15 @@ type Traces struct {
 
 // AgentMetrics runs `amctl agent metrics <name> --env <env>`.
 func AgentMetrics(g Gomega, h *amctl.Harness, org, project, name, env string) Metrics {
-	return amctl.DecodeData[Metrics](g, h.Run("agent", "metrics", name, "--org", org, "--project", project, "--env", env, "--json"))
+	return amctl.DecodeData[Metrics](g, h.Run("agent", "metrics", name, "--org", org, "--project", project, "--json"))
 }
 
 // AgentLogs runs `amctl agent logs <name> --env <env>`.
 func AgentLogs(g Gomega, h *amctl.Harness, org, project, name, env string) Logs {
-	return amctl.DecodeData[Logs](g, h.Run("agent", "logs", name, "--org", org, "--project", project, "--env", env, "--json"))
+	return amctl.DecodeData[Logs](g, h.Run("agent", "logs", name, "--org", org, "--project", project, "--json"))
 }
 
 // AgentTraces runs `amctl agent traces <name> --env <env>`.
 func AgentTraces(g Gomega, h *amctl.Harness, org, project, name, env string) Traces {
-	return amctl.DecodeData[Traces](g, h.Run("agent", "traces", name, "--org", org, "--project", project, "--env", env, "--json"))
+	return amctl.DecodeData[Traces](g, h.Run("agent", "traces", name, "--org", org, "--project", project, "--json"))
 }

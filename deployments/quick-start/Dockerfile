@@ -53,11 +53,11 @@ COPY --chown=root:root deployments/quick-start/entrypoint.sh /entrypoint.sh
 # Bundle deployment resources next to the scripts (flat layout). install.sh
 # resolves these under ${SCRIPT_DIR} when the parent-relative repo layout is
 # absent (see DEPLOYMENTS_DIR in install.sh).
-COPY --chown=wso2-amp:wso2-amp deployments/single-cluster/ ${USER_HOME}/single-cluster/
 COPY --chown=wso2-amp:wso2-amp deployments/values/ ${USER_HOME}/values/
 COPY --chown=wso2-amp:wso2-amp deployments/k8s/coredns-amp-custom.yaml ${USER_HOME}/k8s/coredns-amp-custom.yaml
-# Whole scripts/ dir: add-environment-thunder.sh sources its sibling
-# thunder-naming.sh, so both (and the other env helpers) must ship together.
+COPY --chown=wso2-amp:wso2-amp deployments/k8s/amp-gateway.yaml ${USER_HOME}/k8s/amp-gateway.yaml
+# Whole scripts/ dir: install.sh sources lib-observability.sh and
+# lib-registry-auth.sh from it.
 COPY --chown=wso2-amp:wso2-amp deployments/scripts/ ${USER_HOME}/scripts/
 RUN chmod +x ${USER_HOME}/install.sh && \
     chmod +x /entrypoint.sh && \

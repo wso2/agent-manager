@@ -12,13 +12,13 @@
 # .github/release-config.json, never by matching the registry prefix. That
 # distinction is the whole safety property here: the public org also hosts a
 # sibling product (ghcr.io/wso2/api-platform/*), and the charts additionally
-# reference ghcr.io/thunder-id and ghcr.io/openchoreo. Those images are not ours
+# reference ghcr.io/thunder-id and other third-party images. Those are not ours
 # to move, they are not mirrored to the private registry, and a prefix-based
 # sed would silently retag all of them into a registry that has never held them.
 #
 # amp-python-instrumentation-provider is deliberately NOT in scope even though it
-# is first-party. It runs as an init container in namespaces OpenChoreo creates
-# at deploy time, where no pull secret can be placed ahead of the pod, so it
+# is first-party. It runs as an init container in agent namespaces created at
+# deploy time, where no pull secret can be placed ahead of the pod, so it
 # stays on the public registry. See the instrumentation catalog guide for the
 # supported way to mirror it.
 set -euo pipefail

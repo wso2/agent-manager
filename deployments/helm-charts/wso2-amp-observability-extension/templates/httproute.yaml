@@ -1,7 +1,7 @@
 {{- if and .Values.amObserver.enabled .Values.amObserver.ocIngress.enabled }}
-# HTTPRoute exposing the Agent Manager Observer through the observability-plane
-# kgateway (gateway-default). This chart installs into the same namespace as
-# that gateway, so no ReferenceGrant is needed.
+# HTTPRoute exposing the Agent Manager Observer through the shared AMP Gateway.
+# The route lives next to the Service, so no ReferenceGrant is needed; the
+# Gateway's listeners accept routes from all namespaces.
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
@@ -17,6 +17,7 @@ spec:
     - group: gateway.networking.k8s.io
       kind: Gateway
       name: {{ .Values.amObserver.ocIngress.gatewayName }}
+      namespace: {{ .Values.amObserver.ocIngress.gatewayNamespace }}
   rules:
     - matches:
         - path:

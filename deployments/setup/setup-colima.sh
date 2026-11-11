@@ -93,7 +93,7 @@ fi
 # ============================================================================
 echo ""
 echo "2️⃣  Start Colima"
-echo "🚀 Starting Colima with OpenChoreo-compatible settings..."
+echo "🚀 Starting Colima with Agent Manager-compatible settings..."
 echo "   Profile:  $PROFILE"
 echo "   VM Type:  $COLIMA_VM_TYPE (Virtualization.framework) - required for stability"
 echo "   Rosetta:  enabled (for x86_64 compatibility) - required"

@@ -121,7 +121,7 @@
         },
         "type": {
           "default": "BOTH",
-          "description": "Gateway placement role: INGRESS, EGRESS, or BOTH (must match GatewayType enum in Agent Manager API). BOTH is correct for single topology, where the chart is installed once per environment; split topology sets this explicitly on both releases from add-environment.sh. Immutable after first registration \u2014 changing it later only logs a drift warning.",
+          "description": "Gateway placement role: INGRESS, EGRESS, or BOTH (must match GatewayType enum in Agent Manager API). BOTH is correct for single topology, where the chart is installed once per environment; split topology sets this explicitly on both releases from setup-gateway.sh. Immutable after first registration \u2014 changing it later only logs a drift warning.",
           "title": "type",
           "type": "string"
         },
@@ -163,18 +163,33 @@
       "title": "developmentMode",
       "type": "boolean"
     },
+    "otelCollector": {
+      "additionalProperties": false,
+      "description": "OpenTelemetry collector the gateway's /otel route forwards agent traces to (installed by deployments/scripts/lib-observability.sh).",
+      "properties": {
+        "url": {
+          "default": "http://opentelemetry-collector.amp-observability.svc.cluster.local:4318",
+          "description": "OTLP/HTTP endpoint of the collector.",
+          "title": "url",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "title": "otelCollector",
+      "type": "object"
+    },
     "kgateway": {
       "additionalProperties": false,
-      "description": "kgateway ingress the gw-route HTTPRoute attaches to. This is the shared data-plane Gateway provisioned by the OpenChoreo data-plane chart \u2014 it does NOT move when the api-platform gateway gets its own per-org-env namespace. The HTTPRoute is created here (same namespace as the Gateway) and reaches the gateway runtime Service cross-namespace via a ReferenceGrant.",
+      "description": "kgateway ingress the gw-route HTTPRoute attaches to. This is the shared AMP Gateway (deployments/k8s/amp-gateway.yaml) \u2014 it does NOT move when the api-platform gateway gets its own per-org-env namespace. The HTTPRoute is created here (same namespace as the Gateway) and reaches the gateway runtime Service cross-namespace via a ReferenceGrant.",
       "properties": {
         "name": {
-          "default": "gateway-default",
+          "default": "amp-gateway",
           "description": "Name of the Gateway resource.",
           "title": "name",
           "type": "string"
         },
         "namespace": {
-          "default": "openchoreo-data-plane",
+          "default": "amp-gateway",
           "description": "Namespace containing the Gateway resource.",
           "title": "namespace",
           "type": "string"
@@ -189,8 +204,8 @@
       "description": "Runtime configuration for the API Platform Gateway.",
       "properties": {
         "namespace": {
-          "default": "openchoreo-data-plane",
-          "description": "Namespace where the APIGateway CR is created. Must be the same namespace where the gateway-operator is watching. For per-org-env namespace isolation set this to \"<org>-<env>\" (add-environment.sh passes it via --set apiGateway.namespace=...).",
+          "default": "amp-gateway",
+          "description": "Namespace where the APIGateway CR is created. Must be the same namespace where the gateway-operator is watching. For per-org-env namespace isolation set this to \"<org>-<env>\" (setup-gateway.sh passes it via --set apiGateway.namespace=...).",
           "title": "namespace",
           "type": "string"
         },

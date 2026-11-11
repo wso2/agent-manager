@@ -180,25 +180,6 @@ assert_eq "observability audience carries the public observer URL" \
   'amObserver.auth.audience=urn:wso2:amp\,amp-api-client\,am-obs-mcp\,https://observer.amp.203.0.113.10.sslip.io/mcp' \
   "$(grep -F 'amObserver.auth.audience' <<<"$obs")"
 
-# --- render_dataplane_external_ingress: public host on :443, both http+https entries
-#     bound to the internal http listener (amp-api advertises the https variant) ---
-dpe="$(render_dataplane_external_ingress 203.0.113.10)"
-assert_eq "dp external public host"    "yes" "$(has "$dpe" 'host: "agents.203.0.113.10.sslip.io"')"
-assert_eq "dp external port 443"       "yes" "$(has "$dpe" 'port: 443')"
-assert_eq "dp external listener http"  "yes" "$(has "$dpe" 'listenerName: http')"
-assert_eq "dp external has http entry"  "yes" "$(printf '%s\n' "$dpe" | grep -qE '^        http:' && echo yes || echo no)"
-assert_eq "dp external has https entry" "yes" "$(printf '%s\n' "$dpe" | grep -qE '^        https:' && echo yes || echo no)"
-assert_eq "dp external not local default (19080)" "no" "$(has "$dpe" 'port: 1908')"
-
-# --- build_cp_helm_args points OpenChoreo CP OIDC issuer at the public Thunder URL ---
-cp_args="$(build_cp_helm_args 203.0.113.10)"
-assert_eq "cp oidc issuer" \
-  "security.oidc.issuer=https://thunder.amp.203.0.113.10.sslip.io" \
-  "$(grep -F 'security.oidc.issuer' <<<"$cp_args")"
-assert_eq "cp oidc tokenUrl" \
-  "security.oidc.tokenUrl=https://thunder.amp.203.0.113.10.sslip.io/oauth2/token" \
-  "$(grep -F 'security.oidc.tokenUrl' <<<"$cp_args")"
-
 # --- build_thunder_helm_args ---
 th="$(build_thunder_helm_args 203.0.113.10)"
 assert_eq "thunder ocIngress.hostname" \
@@ -333,49 +314,9 @@ assert_eq "caddy cp upstream (via kgateway)" "	reverse_proxy 127.0.0.1:8080" \
   "$(grep -F -A8 'cp.amp.203.0.113.10.sslip.io {' <<<"$cf_cp" | grep -F 'reverse_proxy' | head -1)"
 assert_eq "caddy cp no direct 9243" "" "$(grep -F '127.0.0.1:9243' <<<"$cf_cp")"
 
-# --- build_platform_resources_helm_args: point the workload publisher at the
-#     Thunder service directly (the gateway path 404s once Thunder's vhost moves to
-#     the public sslip.io host), AND advertise the public agents host on the default
-#     Environment so deployed-agent routes resolve to <org>-<project>.<agents-base>
-#     (else OpenChoreo uses am-gateway.localhost and the console invoke URL is empty,
-#     with try-out 405ing against its own host). Reads AMP_AGENTS_BASE from scope. ---
-(
-  AMP_AGENTS_BASE=agents.amp.example.com
-  AMP_HOST_GATEWAY=gateway.amp.example.com
-  pr="$(build_platform_resources_helm_args)"
-  # Agents run in-cluster and must use the chart's default in-cluster runtime
-  # endpoint. Overriding it with the public gateway host breaks trace export on a
-  # private-network VM, where that hostname resolves into an RFC-1918 range the
-  # sandbox NetworkPolicy blocks on :443.
-  assert_eq "platform-resources leaves agent OTEL endpoint in-cluster" "no" \
-    "$(has "$pr" 'apiPlatformGatewayVhost.otelEndpointOverride')"
-  assert_eq "platform-resources oauth tokenUrl (direct svc)" \
-    "global.oauth.tokenUrl=http://amp-thunder-extension-service.amp-thunder.svc.cluster.local:8090/oauth2/token" \
-    "$(grep -F 'global.oauth.tokenUrl' <<<"$pr")"
-  assert_eq "platform-resources oauth not via host.k3d.internal" "no" "$(has "$pr" 'host.k3d.internal')"
-  assert_eq "platform-resources env gateway host (public agents base)" \
-    "environment.gateway.http.host=agents.amp.example.com" \
-    "$(grep -F 'environment.gateway.http.host' <<<"$pr")"
-  assert_eq "platform-resources env gateway port 443" \
-    "environment.gateway.http.port=443" \
-    "$(grep -F 'environment.gateway.http.port' <<<"$pr")"
-  # The console reads the https endpoint variant when tlsEnabled=true, so the
-  # Environment override MUST carry an https variant too. Without it the binding
-  # status has only an http externalURL, the console invoke URL is empty, and
-  # try-out falls back to a relative /chat (405). Mirror dataplane_external_ingress.
-  assert_eq "platform-resources env gateway https host (public agents base)" \
-    "environment.gateway.https.host=agents.amp.example.com" \
-    "$(grep -F 'environment.gateway.https.host' <<<"$pr")"
-  assert_eq "platform-resources env gateway https port 443" \
-    "environment.gateway.https.port=443" \
-    "$(grep -F 'environment.gateway.https.port' <<<"$pr")"
-)
-
 # --- render_coredns_vm_config rewrites the in-cluster names to the server node ---
 cd_cfg="$(render_coredns_vm_config k3d-amp-local-server-0)"
 assert_eq "coredns configmap name" "yes" "$(has "$cd_cfg" 'name: coredns-custom')"
-assert_eq "coredns openchoreo -> node" "yes" \
-  "$(has "$cd_cfg" 'name regex (.+\.)?openchoreo\.localhost k3d-amp-local-server-0')"
 assert_eq "coredns amp -> node" "yes" \
   "$(has "$cd_cfg" 'name regex (.+\.)?amp\.localhost k3d-amp-local-server-0')"
 assert_eq "coredns host aliases -> node" "yes" \
@@ -472,11 +413,6 @@ assert_eq "agent site on_demand + disable_http_challenge" "yes" \
     "gateway.hostname=gateway.amp.example.com" \
     "$(grep -F 'gateway.hostname' <<<"$core_gw")"
 
-  core_cp="$(cp_helm_args)"
-  assert_eq "core cp oidc issuer" \
-    "security.oidc.issuer=https://thunder.amp.example.com" \
-    "$(grep -F 'security.oidc.issuer' <<<"$core_cp")"
-
   # The advanced install has no Caddy: one DNS-01 wildcard cert covers the dynamic
   # tiers instead of on-demand issuance. Per-environment gateways are one of those
   # tiers, so *.<gateway host> must be a SAN — without it an added environment gets a
@@ -505,14 +441,6 @@ assert_eq "agent site on_demand + disable_http_challenge" "yes" \
   AMP_AGENTS_BASE=agents.amp.example.com
   assert_eq "core amp no cp when AMP_HOST_CP empty" "" \
     "$(grep -F 'gatewayControlPlaneUrl' <<<"$(amp_helm_args)")"
-)
-
-# --- dataplane_external_ingress core reads AMP_AGENTS_BASE ---
-(
-  AMP_AGENTS_BASE=agents.amp.example.com
-  dpe_core="$(dataplane_external_ingress)"
-  assert_eq "core dp external host" "yes" "$(has "$dpe_core" 'host: "agents.amp.example.com"')"
-  assert_eq "core dp external port 443" "yes" "$(has "$dpe_core" 'port: 443')"
 )
 
 # --- caddyfile core, letsencrypt mode ---
@@ -738,10 +666,10 @@ printf 'TLS_CA_FILE=%s/ca.pem\n' "$byoc_dir" >> "${byoc_dir}/config.env"
 ca_out="$(bash "$ADV" --config "${byoc_dir}/config.env" --dry-run 2>&1)"
 assert_eq "byoc with TLS_CA_FILE renders CA cm"    "yes" "$(has "$ca_out" 'name: amp-platform-ca')"
 # Scope the namespace check to the ConfigMap: the Gateway and the front-proxy routes in
-# the same dry-run output also sit in openchoreo-control-plane, so an unscoped grep would
+# the same dry-run output also sit in the amp-gateway namespace, so an unscoped grep would
 # pass even if the CA landed somewhere else entirely.
 assert_eq "CA cm lands in the gateway namespace"   "yes" \
-  "$(grep -A1 'name: amp-platform-ca' <<<"$ca_out" | grep -q 'namespace: openchoreo-control-plane' && echo yes || echo no)"
+  "$(grep -A1 'name: amp-platform-ca' <<<"$ca_out" | grep -q 'namespace: amp-gateway' && echo yes || echo no)"
 assert_eq "byoc with TLS_CA_FILE still hides key"  "no"  "$(has "$ca_out" 'PRIVATE KEY')"
 
 # A cert missing one dynamic-tier wildcard must be rejected before any cluster work,
@@ -808,11 +736,6 @@ if command -v helm >/dev/null 2>&1; then
     assert_schema_accepts "observability args pass the chart schema" wso2-amp-observability-extension "${args[@]}"
     args=(); while IFS= read -r l; do args+=("$l"); done < <(build_gateway_helm_args "$IP")
     assert_schema_accepts "gateway args pass the chart schema" wso2-amp-api-platform-gateway-extension "${args[@]}"
-    AMP_AGENTS_BASE="agents.${IP}.sslip.io"
-    AMP_HOST_GATEWAY="$(vm_host gateway "$IP")"
-    args=(); while IFS= read -r l; do args+=("$l"); done < <(build_platform_resources_helm_args)
-    assert_schema_accepts "platform-resources args pass the chart schema" \
-      wso2-amp-platform-resources-extension "${args[@]}"
   )
   # The advanced installer calls the bare cores with derive_hosts' custom-domain
   # hostnames instead of the sslip.io wrappers above, so cover that path too — a
@@ -833,9 +756,6 @@ if command -v helm >/dev/null 2>&1; then
     args=(); while IFS= read -r l; do args+=("$l"); done < <(gateway_helm_args)
     assert_schema_accepts "advanced gateway args pass the chart schema" \
       wso2-amp-api-platform-gateway-extension "${args[@]}"
-    args=(); while IFS= read -r l; do args+=("$l"); done < <(build_platform_resources_helm_args)
-    assert_schema_accepts "advanced platform-resources args pass the chart schema" \
-      wso2-amp-platform-resources-extension "${args[@]}"
   )
 else
   echo "skip - chart schema checks (helm not installed)"

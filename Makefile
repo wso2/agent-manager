@@ -1,4 +1,4 @@
-.PHONY: help tools setup setup-colima setup-k3d setup-openchoreo setup-default-env-thunder setup-sandbox setup-gvisor setup-kata setup-platform setup-gateway setup-console-local setup-console-local-force setup-amp teardown-amp reset-amp dev-up dev-down dev-restart dev-rebuild dev-logs dev-migrate openchoreo-up openchoreo-down openchoreo-status thunder-up thunder-down thunder-restart thunder-reset teardown db-connect db-logs service-logs service-shell console-logs console stop-console port-forward stop-port-forward gen-eval-artifacts gen-instrumentation-contract check-contract-drift check-matrix-manifest e2e-test security-test security-test-static security-test-live
+.PHONY: help tools setup setup-colima setup-k3d setup-platform setup-gateway setup-console-local setup-console-local-force setup-amp teardown-amp reset-amp dev-up dev-down dev-restart dev-rebuild dev-logs dev-migrate thunder-up thunder-down thunder-restart thunder-reset teardown db-connect db-logs service-logs service-shell console-logs console stop-console port-forward stop-port-forward gen-eval-artifacts gen-instrumentation-contract check-contract-drift check-matrix-manifest e2e-test security-test security-test-static security-test-live
 
 # Default target
 help:
@@ -6,13 +6,9 @@ help:
 	@echo ""
 	@echo "🚀 Setup (run once):"
 	@echo "  make tools                   - Install pinned Go dev tools into .tools/bin (see tools.mk)"
-	@echo "  make setup                   - Complete setup (tools + Colima + k3d + OpenChoreo + Platform)"
+	@echo "  make setup                   - Complete setup (tools + Colima + k3d + AMP layer)"
 	@echo "  make setup-colima            - Start Colima VM"
-	@echo "  make setup-k3d              - Create k3d cluster"
-	@echo "  make setup-openchoreo        - Install OpenChoreo on k3d"
-	@echo "  make setup-sandbox           - Install Agent Sandbox module (run after setup-openchoreo)"
-	@echo "  make setup-gvisor            - Add a gVisor (runsc) isolation node to the cluster (run after make setup)"
-	@echo "  make setup-kata              - Join a real (non-Docker) node to the cluster and install Kata there (needs nested virt; run after make setup)"
+	@echo "  make setup-k3d              - Create k3d cluster + prerequisites (cert-manager, kgateway, AMP Gateway, OpenBao)"
 	@echo "  make setup-platform          - Build images and start core platform services"
 	@echo "  make setup-gateway           - Install API Platform Gateway (run via make setup)"
 	@echo "  make setup-console-local     - Install console deps (only if changed)"
@@ -28,10 +24,7 @@ help:
 	@echo "  make stop-console            - Stop the console dev server"
 	@echo "  make dev-migrate             - Generate evaluators and run database migrations (run after dev-up/setup)"
 	@echo ""
-	@echo "☸️  OpenChoreo Runtime:"
-	@echo "  make openchoreo-up      - Start OpenChoreo cluster"
-	@echo "  make openchoreo-down    - Stop OpenChoreo cluster (saves resources)"
-	@echo "  make openchoreo-status  - Check OpenChoreo cluster status"
+	@echo "☸️  Cluster:"
 	@echo "  make port-forward       - Stop and restart all port-forwards (interactive)"
 	@echo "  make stop-port-forward  - Stop all active port-forwards"
 	@echo ""
@@ -67,39 +60,28 @@ help:
 	@echo "  make security-test-live    - Security suites against a running deployment"
 	@echo ""
 	@echo "🧹 Cleanup:"
-	@echo "  make reset-amp          - Fast reset: teardown-amp + setup-amp (OpenChoreo base preserved)"
-	@echo "  make teardown-amp       - Remove AMP layer only (extensions, platform, gateways, env-Thunders)"
-	@echo "  make setup-amp          - Reinstall AMP layer atop the existing OpenChoreo base"
-	@echo "  make teardown           - Remove everything (Kind cluster + platform)"
+	@echo "  make reset-amp          - Fast reset: teardown-amp + setup-amp (cluster base preserved)"
+	@echo "  make teardown-amp       - Remove AMP layer only (Thunder, observability, platform, gateways)"
+	@echo "  make setup-amp          - (Re)install the AMP layer atop the existing cluster base"
+	@echo "  make teardown           - Remove everything (k3d cluster + platform)"
 	@echo ""
 
 # Pinned Go-written dev tools (codegen, linters, test runners).
 # Included after help so help stays the default goal.
 include tools.mk
 
+# Cluster name/context shared with deployments/setup/env.sh.
+CLUSTER_NAME ?= amp-dev
+
 # Complete setup
-setup: tools setup-colima setup-k3d setup-openchoreo setup-platform setup-sandbox
-	@$(MAKE) dev-migrate
-	@cd deployments/setup && ./port-forward.sh --platform --background
-	@$(MAKE) wait-ams-healthy
-	@$(MAKE) setup-default-env-thunder
-	@$(MAKE) setup-gateway
-	@cd deployments/setup && ./port-forward.sh --background
-	@$(MAKE) console BACKGROUND=true
-	@echo ""
-	@echo "✅ Setup complete!"
-	@echo ""
-	@echo "   Console:                 http://localhost:3000"
-	@echo "   API:                     http://localhost:8080"
-	@bash deployments/scripts/print-admin-credentials.sh http://localhost:3000 amp-thunder || true
+setup: tools setup-colima setup-k3d
+	@$(MAKE) setup-amp
 	@echo ""
 	@echo "Run 'make stop-port-forward' to stop port-forwards"
 	@echo "Run 'make port-forward' to restart in a dedicated terminal"
 	@echo "Run 'make stop-console' to stop the console"
 
-# AMP-layer lifecycle: rebuild everything above the OpenChoreo base (colima,
-# k3d, prerequisites, planes, gateway-operator, agent-sandbox stay untouched).
-# Mirrors the tail of `make setup` exactly, minus the base steps.
+# AMP layer: everything above the cluster base (colima, k3d, prerequisites).
 reset-amp:
 	@$(MAKE) teardown-amp
 	@$(MAKE) setup-amp
@@ -109,13 +91,12 @@ teardown-amp:
 
 setup-amp:
 	@cd deployments/setup && ./setup-amp-extensions.sh $(CURDIR)
-	@$(MAKE) -C agent-manager-observer docker-load-k3d
+	@$(MAKE) -C agent-manager-observer docker-load-k3d K3D_CLUSTER_NAME=$(CLUSTER_NAME)
 	@cd deployments/setup && ./setup-amp-observability-extension.sh $(CURDIR)
 	@$(MAKE) setup-platform
 	@$(MAKE) dev-migrate
 	@cd deployments/setup && ./port-forward.sh --platform --background
 	@$(MAKE) wait-ams-healthy
-	@$(MAKE) setup-default-env-thunder
 	@$(MAKE) setup-gateway
 	@cd deployments/setup && ./port-forward.sh --background
 	@$(MAKE) console BACKGROUND=true
@@ -127,7 +108,7 @@ setup-amp:
 
 # Air recompiles the Go service on a fresh container start, so :9000 lags
 # `docker compose up` by up to a couple of minutes. Steps that call the AMS API
-# (setup-default-env-thunder) must gate on this or they fail with HTTP 000.
+# (setup-gateway) must gate on this or they fail with HTTP 000.
 wait-ams-healthy:
 	@echo "⏳ Waiting for agent-manager-service on :9000..."
 	@for i in $$(seq 1 60); do \
@@ -142,34 +123,6 @@ setup-colima:
 
 setup-k3d:
 	@cd deployments/setup && ./setup-k3d.sh && ./setup-prerequisites.sh
-
-setup-openchoreo:
-	@cd deployments/setup && ./setup-openchoreo.sh $(CURDIR)
-
-# Provisions the default env-Thunder instance. Must run after AMS is up +
-# migrated (store_via_ams needs it) — hence after dev-migrate, not in setup-openchoreo.sh.
-setup-default-env-thunder:
-	@ENV_NAME=default DISPLAY_NAME="Default" ORG_NAME=default \
-	  THUNDER_HANDLE=default-idp \
-	  WAIT_TIMEOUT=300s \
-	  AMP_API_URL="http://localhost:9000/api/v1" \
-	  bash deployments/scripts/add-environment-thunder.sh \
-	  && echo "✅ Default environment Thunder ID instance provisioned" \
-	  || { \
-	    echo "⚠️  Default-env Thunder provisioning failed — continuing with remaining setup steps."; \
-	    echo "    Re-run manually: ENV_NAME=default DISPLAY_NAME=Default ORG_NAME=default THUNDER_HANDLE=default-idp \\"; \
-	    echo "      AMP_API_URL=http://localhost:9000/api/v1 \\"; \
-	    echo "      bash deployments/scripts/add-environment-thunder.sh"; \
-	  }
-
-setup-sandbox:
-	@cd deployments/scripts && ./setup-sandbox.sh
-
-setup-gvisor:
-	@cd deployments/setup && ./setup-gvisor-node.sh
-
-setup-kata:
-	@cd deployments/setup && ./setup-kata-node.sh
 
 gen-keys:
 	@echo "🔑 Generating JWT signing keys..."
@@ -241,44 +194,6 @@ dev-logs:
 dev-migrate:
 	@cd agent-manager-service && make dev-migrate
 
-# OpenChoreo lifecycle management
-openchoreo-up:
-	@echo "🚀 Starting OpenChoreo cluster..."
-	@docker start openchoreo-local-control-plane openchoreo-local-worker 2>/dev/null || (echo "⚠️  Cluster not found. Run 'make setup-k3d setup-openchoreo' first." && exit 1)
-	@echo "⏳ Waiting for nodes to be ready..."
-	@for i in 1 2 3 4 5 6 7 8 9 10 11 12; do \
-		kubectl get nodes --context kind-openchoreo-local >/dev/null 2>&1 && \
-		kubectl wait --for=condition=Ready nodes --all --timeout=10s --context kind-openchoreo-local >/dev/null 2>&1 && break || sleep 10; \
-	done
-	@echo "⏳ Waiting for core system pods..."
-	@kubectl wait --for=condition=Ready pods --all -n kube-system --timeout=90s --context kind-openchoreo-local 2>/dev/null || true
-	@echo "⏳ Waiting for OpenChoreo control plane..."
-	@kubectl wait --for=condition=Ready pods --all -n openchoreo-control-plane --timeout=90s --context kind-openchoreo-local 2>/dev/null || true
-	@echo "⏳ Waiting for OpenChoreo data plane..."
-	@kubectl wait --for=condition=Ready pods --all -n openchoreo-data-plane --timeout=90s --context kind-openchoreo-local 2>/dev/null || true
-	@echo "⏳ Waiting for OpenChoreo observability plane..."
-	@kubectl wait --for=condition=Ready pods --all -n openchoreo-observability-plane --timeout=90s --context kind-openchoreo-local 2>/dev/null || true
-	@echo "✅ OpenChoreo cluster is running"
-	@echo ""
-	@echo "📊 Cluster status:"
-	@kubectl get pods --all-namespaces --context kind-openchoreo-local | grep -v "Running\|Completed" | head -1 || echo "   All pods are running!"
-
-openchoreo-down:
-	@echo "🛑 Stopping OpenChoreo cluster..."
-	@docker stop openchoreo-local-control-plane openchoreo-local-worker 2>/dev/null && echo "✅ OpenChoreo cluster stopped (containers preserved)" || echo "⚠️  Cluster not running"
-
-openchoreo-status:
-	@echo "📊 OpenChoreo Cluster Status:"
-	@echo ""
-	@echo "Docker Containers:"
-	@docker ps -a --filter name=openchoreo-local --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null || echo "No containers found"
-	@echo ""
-	@echo "Kubernetes Nodes:"
-	@kubectl get nodes --context kind-openchoreo-local 2>/dev/null || echo "Cluster not accessible (may be stopped)"
-	@echo ""
-	@echo "OpenChoreo Pods:"
-	@kubectl get pods -n openchoreo-system --context kind-openchoreo-local 2>/dev/null || echo "Cluster not accessible"
-
 # Platform Thunder management
 thunder-up:
 	@echo "📦 Installing/Upgrading Platform Thunder (amp-thunder-extension)..."
@@ -311,7 +226,7 @@ thunder-reset:
 	@$(MAKE) thunder-up
 	@echo "✅ Platform Thunder reset complete!"
 
-# Port forwarding for OpenChoreo
+# Port forwarding for in-cluster services
 PLATFORM   ?=
 BACKGROUND ?=
 
@@ -385,7 +300,8 @@ check-matrix-manifest:
 setup-ai-gateway: dev-migrate
 	@echo "🚀 Installing AI Gateway extension..."
 	@helm upgrade --install amp-ai-gateway deployments/helm-charts/wso2-amp-api-platform-gateway-extension \
-		--namespace openchoreo-data-plane \
+		--namespace amp-gateway \
+		--set apiGateway.namespace=amp-gateway \
 		--set agentManager.apiUrl="http://host.k3d.internal:9000/api/v1" \
 		--set agentManager.idp.tokenUrl="http://amp-thunder-extension-service.amp-thunder.svc.cluster.local:8090/oauth2/token" \
 		--set agentManager.idp.clientId="amp-api-client" \
@@ -398,7 +314,7 @@ setup-ai-gateway: dev-migrate
 		--set developmentMode=true
 	@echo "⏳ Waiting for gateway bootstrap job..."
 	@kubectl wait --for=condition=complete job/amp-ai-gateway-bootstrap \
-		-n openchoreo-data-plane --timeout=300s 2>/dev/null || true
+		-n amp-gateway --timeout=300s 2>/dev/null || true
 	@echo "✅ AI Gateway installed"
 
 # E2E tests
@@ -455,14 +371,13 @@ security-test: security-test-static security-test-live
 # in the file enforces both halves of the convention.
 #
 # Env vars mirror scripts/run_unit_tests.sh: the api package loads config at
-# init, so it needs them even though these tests touch neither DB nor OpenChoreo.
+# init, so it needs them even though these tests touch no DB.
 SECURITY_STATIC_TESTS := TestSecurityInvariant
 
 security-test-static:
 	@echo "Running static authorization invariants..."
 	@cd agent-manager-service && \
 		DB_HOST=localhost DB_PORT=5432 DB_USER=unit DB_PASSWORD=unit DB_NAME=unit \
-		OPEN_CHOREO_BASE_URL=http://localhost/api/v1 \
 		ENCRYPTION_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef \
 		SERVER_PORT=8080 \
 		go test -mod=readonly ./api/ -run '$(SECURITY_STATIC_TESTS)' -v

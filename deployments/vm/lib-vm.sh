@@ -186,80 +186,6 @@ build_observability_helm_args() {
   observability_helm_args
 }
 
-# build_cp_helm_args <ip>
-# Prints CP_HELM_ARGS tokens for the OpenChoreo control-plane install. Thunder's
-# issuer is moved to the public sslip.io URL, so the OpenChoreo CP OIDC config
-# (which validates the issuer string statically) must accept that same issuer —
-# otherwise amp-api -> OpenChoreo calls fail with "INVALID_CLAIMS". jwksUrl /
-# wellKnownEndpoint stay on the internal service (they still resolve in-cluster).
-# cp_helm_args — hostname-driven core. Reads AMP_HOST_THUNDER.
-# shellcheck disable=SC2154  # AMP_HOST_THUNDER comes from the caller's scope by design.
-cp_helm_args() {
-  printf '%s\n' \
-    "--set" "security.oidc.issuer=https://${AMP_HOST_THUNDER}" \
-    "--set" "security.oidc.authorizationUrl=https://${AMP_HOST_THUNDER}/oauth2/authorize" \
-    "--set" "security.oidc.tokenUrl=https://${AMP_HOST_THUNDER}/oauth2/token"
-}
-
-# build_cp_helm_args <ip> — sslip.io-from-IP wrapper.
-build_cp_helm_args() {
-  local ip="$1"
-  local AMP_HOST_THUNDER
-  AMP_HOST_THUNDER="$(vm_host thunder "$ip")"
-  cp_helm_args
-}
-
-# build_platform_resources_helm_args
-# Prints PLATFORM_RESOURCES_HELM_ARGS tokens. Two overrides:
-#
-# 1. OAuth token endpoint. The platform-resources chart's workload-publisher
-#    defaults its OAuth token endpoint to the kgateway path
-#    (`host.k3d.internal:8080/oauth2/token` + Host `thunder.amp.localhost`). On the
-#    VM that route no longer matches: build_cp_helm_args / build_thunder_helm_args
-#    move Thunder's vhost to the public sslip.io host, so the localhost Host header
-#    404s and `generate-workload-cr` fails with "Failed to get access token". Point
-#    it at the Thunder service directly (no gateway, no Host header, no issuer
-#    coupling) — the same in-cluster endpoint every other extension already uses.
-#
-# 2. Default-Environment agent-facing gateway host. The chart seeds the default
-#    Environment CR with environment.gateway.http (default am-gateway.localhost:19080).
-#    OpenChoreo builds deployed-agent route hostnames as "<env>-<org>.<that host>",
-#    and the Environment's external WHOLLY REPLACES the dataplane's, so without this
-#    override agent routes land on *.am-gateway.localhost: the console then shows an
-#    empty invoke URL and try-out 405s against its own host. Point it at the public
-#    agents base (AMP_AGENTS_BASE, e.g. agents.<domain> or agents.<ip>.sslip.io) on
-#    :443 so routes resolve to <org>-<project>.<AMP_AGENTS_BASE>, served by Caddy's
-#    wildcard *.agents site.
-#
-#    Set BOTH the http and https variants. Because the override wholly replaces the
-#    dataplane's external endpoint, an http-only override drops the https variant
-#    dataplane_external_ingress emits. The console reads the https variant when
-#    tlsEnabled=true, so an http-only override leaves the binding with only an http
-#    externalURL: the invoke URL is empty and try-out falls back to a relative /chat
-#    (405) — the very symptom this override exists to fix. Both bind listenerName
-#    http (TLS terminates at Caddy) and differ only in advertised scheme.
-#
-# 2. apiPlatformGatewayVhost.otelEndpointOverride is deliberately NOT set. Deployed
-#    agents run inside this cluster, so they reach the gateway runtime directly on
-#    the chart's default in-cluster endpoint
-#    ("api-platform-<org>-<env>-gateway-gateway-runtime.<org>-<env>:22893/otel").
-#    Overriding it with the public gateway host makes every agent egress to
-#    <AMP_HOST_GATEWAY>:443 instead, which the sandbox NetworkPolicy refuses on a
-#    private-network VM: it allows :443 to 0.0.0.0/0 EXCEPT RFC-1918, and there the
-#    public hostname resolves to the VM's own private address. Trace export then
-#    fails with "Connection refused". On a public VM the same override happens to
-#    work only because the hostname resolves outside those ranges. The in-cluster
-#    endpoint is what the sandbox policy explicitly permits and works on both.
-# shellcheck disable=SC2154  # AMP_AGENTS_BASE comes from the caller's scope by design.
-build_platform_resources_helm_args() {
-  printf '%s\n' \
-    "--set" "global.oauth.tokenUrl=http://amp-thunder-extension-service.amp-thunder.svc.cluster.local:8090/oauth2/token" \
-    "--set" "environment.gateway.http.host=${AMP_AGENTS_BASE}" \
-    "--set" "environment.gateway.http.port=443" \
-    "--set" "environment.gateway.https.host=${AMP_AGENTS_BASE}" \
-    "--set" "environment.gateway.https.port=443"
-}
-
 # build_thunder_helm_args <ip>
 # Prints helm args, one token per line.
 # thunder_helm_args — hostname-driven core. Reads AMP_HOST_THUNDER, AMP_HOST_CONSOLE,
@@ -382,44 +308,12 @@ data:
       name regex (.+\\.)?amp\\.localhost ${node_host}
       answer auto
     }
-  openchoreo.override: |
-    rewrite stop {
-      name regex (.+\\.)?openchoreo\\.localhost ${node_host}
-      answer auto
-    }
   hostalias.override: |
     rewrite stop {
       name regex (host\\.k3d\\.internal|host\\.docker\\.internal) ${node_host}
       answer auto
     }
 EOF
-}
-
-# render_dataplane_external_ingress <ip>
-# Prints the `external:` http/https entries for install.sh's ClusterDataPlane
-# (DP_EXTERNAL_INGRESS hook), advertising deployed-agent endpoints under the
-# public host <org>-<project>.agents.<ip>.sslip.io instead of the local default
-# openchoreoapis.localhost:19080.
-#
-# Emits BOTH entries on :443, bound to the internal http listener (TLS is
-# terminated at Caddy's wildcard *.agents site). Both variants resolve to the same
-# host:port/path and differ only in scheme; amp-api advertises the https one to the
-# console (build_amp_helm_args sets config.tlsEnabled=true), so the browser calls
-# https://...:443 directly and the wildcard site serves it. The http entry is kept
-# too: a release binding missing a variant makes the console fall back to a relative
-# /chat (405 from its own nginx), so emitting both keeps the binding complete.
-# dataplane_external_ingress — hostname-driven core; reads AMP_AGENTS_BASE.
-# shellcheck disable=SC2154  # AMP_AGENTS_BASE comes from the caller's scope by design.
-dataplane_external_ingress() {
-  local host="$AMP_AGENTS_BASE"
-  printf '        http:\n          host: "%s"\n          listenerName: http\n          port: 443\n' "$host"
-  printf '        https:\n          host: "%s"\n          listenerName: http\n          port: 443\n' "$host"
-}
-
-# render_dataplane_external_ingress <ip> — sslip.io-from-IP wrapper.
-render_dataplane_external_ingress() {
-  local AMP_AGENTS_BASE="agents.${1}.sslip.io"
-  dataplane_external_ingress
 }
 
 # caddyfile <tls_mode> <email> <cert_file> <key_file> <listen_port>

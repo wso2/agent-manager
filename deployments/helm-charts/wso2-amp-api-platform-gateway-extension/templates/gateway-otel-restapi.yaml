@@ -17,7 +17,7 @@ spec:
   context: /otel
   upstream:
     main:
-      url: http://opentelemetry-collector.openchoreo-observability-plane.svc.cluster.local:4318
+      url: {{ .Values.otelCollector.url }}
   policies:
     - name: jwt-auth
       version: v1
@@ -32,6 +32,9 @@ spec:
           environment_uid: x-user-environment
           project_uid: x-user-project
           namespace: x-user-namespace
+          organization: x-user-organization-name
+          project: x-user-project-name
+          agent: x-user-agent-name
   operations:
     - method: POST
       path: /v1/traces

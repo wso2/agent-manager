@@ -7,7 +7,7 @@ cd "$SCRIPT_DIR"
 source "$SCRIPT_DIR/env.sh"
 source "$SCRIPT_DIR/utils.sh"
 
-echo "=== Setting up k3d Cluster for OpenChoreo ==="
+echo "=== Setting up k3d Cluster for Agent Manager ==="
 
 # Check if cluster already exists
 if k3d cluster list 2>/dev/null | grep -q "${CLUSTER_NAME}"; then
@@ -26,12 +26,7 @@ else
         exit 1
     fi
 
-    # Create /tmp/k3d-shared directory for OpenChoreo
-    echo "📁 Creating shared directory for OpenChoreo..."
-    mkdir -p /tmp/k3d-shared
-
-    # Create k3d cluster with OpenChoreo configuration
-    echo "🚀 Creating k3d cluster with OpenChoreo configuration..."
+    echo "🚀 Creating k3d cluster..."
     k3d cluster create --config ../k3d-local-config.yaml
 
     echo ""
@@ -52,7 +47,7 @@ else
     pin_serverlb_ip || exit 1
 fi
 
-# Apply CoreDNS custom configuration for *.openchoreo.localhost and *.amp.localhost resolution
+# Apply CoreDNS custom configuration for *.amp.localhost and *.gateway.localhost resolution
 echo ""
 echo "🔧 Applying CoreDNS custom configuration..."
 if ! kubectl apply --context "${CLUSTER_CONTEXT}" -f "$SCRIPT_DIR/../k8s/coredns-amp-custom.yaml"; then
@@ -84,9 +79,4 @@ if ! kubectl rollout status deployment/coredns -n kube-system --context "${CLUST
     echo "❌ CoreDNS deployment failed to become ready"
     exit 1
 fi
-echo "✅ CoreDNS configured to resolve *.openchoreo.localhost and *.amp.localhost"
-
-# Generate Machine IDs for observability
-echo ""
-generate_machine_ids "$CLUSTER_NAME"
-echo ""
+echo "✅ CoreDNS configured to resolve *.amp.localhost and *.gateway.localhost"

@@ -44,13 +44,14 @@ postgresql:
         memory: 512Mi
         cpu: 500m
 
-# OpenChoreo ingress configuration — routes the Console and Agent Manager API
-# through the OpenChoreo control-plane kgateway (gateway-default) so they do
-# not need their own LoadBalancer services.
+# Ingress configuration — routes the Console and Agent Manager API through the
+# shared AMP Gateway (deployments/k8s/amp-gateway.yaml, a kgateway Gateway) so
+# they do not need their own LoadBalancer services. The HTTPRoutes are created
+# in this release's namespace and attach to that Gateway.
 ocIngress:
   enabled: true
-  gatewayName: gateway-default
-  gatewayNamespace: openchoreo-control-plane
+  gatewayName: amp-gateway
+  gatewayNamespace: amp-gateway
 
 # Agent Manager Service Configuration
 agentManagerService:
@@ -62,7 +63,7 @@ agentManagerService:
     tag: "0.0.0-dev"
     pullPolicy: IfNotPresent
 
-  # Reachable externally via the control-plane gateway (see ocIngress);
+  # Reachable externally via the AMP Gateway (see ocIngress);
   # set type to LoadBalancer to restore a dedicated external endpoint.
   service:
     type: ClusterIP
@@ -78,14 +79,14 @@ agentManagerService:
     port: 9243
     targetPort: 9243
 
-  # Hostname the API is served on via the OpenChoreo control-plane gateway
+  # Hostname the API is served on via the AMP Gateway
   # (see the top-level ocIngress block)
   ocIngress:
     hostname: api.amp.localhost
     # Gateway request timeout for API routes; /mcp streams are exempt (no timeout)
     requestTimeout: 60s
     # Exposes the gateway-management (xDS/WebSocket) endpoint through the
-    # control-plane gateway so external AI gateways connect without a
+    # AMP Gateway so external AI gateways connect without a
     # dedicated LoadBalancer. The WebSocket stays healthy behind the gateway
     # because the server pings every connection every 20s.
     gatewayMgmt:
@@ -191,7 +192,7 @@ agentManagerService:
       # http. Local development only.
       allowPrivateDestinations: false
     # In-cluster URL the agent-manager-service uses to query trace data server-side.
-    amObserverURL: "http://amp-observer.openchoreo-observability-plane.svc.cluster.local:9098"
+    amObserverURL: "http://amp-observer.amp-observability.svc.cluster.local:9098"
     # Externally reachable observer URL returned to out-of-cluster clients
     # (e.g. the CLI) via /api/v1/config. No internal fallback: unset means
     # clients surface "observer not configured".
@@ -270,7 +271,7 @@ agentManagerService:
 
     # Externally reachable base URL of this service.
     # Used as the `resource` identifier in RFC 9728 protected resource metadata.
-    # Routed through the OpenChoreo control-plane gateway (see ocIngress).
+    # Routed through the AMP Gateway (see ocIngress).
     # Must stay in sync with the thunder extension's
     # thunder.bootstrap.agentManagerMcpBaseUrl; keyManager.audience above picks
     # this up on its own.
@@ -359,10 +360,6 @@ agentManagerService:
       deploymentModel: "on-prem"
       environment: ""
     
-    # OpenChoreo API configuration
-    openChoreo:
-      baseURL: "http://openchoreo-api.openchoreo-control-plane:8080"
-
     # Secret Manager configuration
     secretManager:
       provider: "openbao"
@@ -370,7 +367,7 @@ agentManagerService:
 
     # OpenBao KV store configuration (for user deployment secrets)
     openbao:
-      # OpenBao URL (uses the default OpenBao that comes with OpenChoreo)
+      # OpenBao URL (the install scripts deploy OpenBao into the "openbao" namespace)
       url: "http://openbao.openbao.svc.cluster.local:8200"
       # KV secrets engine path
       path: "secret"
@@ -520,14 +517,14 @@ console:
     tag: "0.0.0-dev"
     pullPolicy: Always
 
-  # Reachable externally via the control-plane gateway (see ocIngress);
+  # Reachable externally via the AMP Gateway (see ocIngress);
   # set type to LoadBalancer to restore a dedicated external endpoint.
   service:
     type: ClusterIP
     port: 3000
     targetPort: 3000
 
-  # Hostname the Console is served on via the OpenChoreo control-plane gateway
+  # Hostname the Console is served on via the AMP Gateway
   # (see the top-level ocIngress block)
   ocIngress:
     hostname: console.amp.localhost
@@ -568,10 +565,10 @@ console:
     disableAuth: "false"
 
     # Backend API URLs (will be auto-configured if empty)
-    # Routed through the OpenChoreo control-plane gateway (see ocIngress).
+    # Routed through the AMP Gateway (see ocIngress).
     apiBaseUrl: "http://api.amp.localhost:8080"
     # Gateway control plane URL rendered into external-gateway setup commands.
-    # Routed through the OpenChoreo control-plane gateway (see
+    # Routed through the AMP Gateway (see
     # agentManagerService.ocIngress.gatewayMgmt); host.docker.internal lets a
     # gateway container on the same machine reach it.
     gatewayControlPlaneUrl: "http://host.docker.internal:8080"
@@ -646,8 +643,6 @@ console:
       semanticGuardrails: false  # Unlocks: semantic-prompt-guard, semantic-cache
     # Feature flags.
     featureFlags:
-      # Shows the private Git repository option when building agents from source.
-      enablePrivateRepoSupport: true
       # When true, identity provider management calls the REST API directly instead
       # of rendering the self-hosted manage-identity-provider.sh script snippet.
       enableIdentityProviderManagedMode: false
@@ -662,9 +657,7 @@ console:
       enableSelfHostedGateways: false
       # When true, the resource is managed outside the console and its pages
       # are hidden.
-      externallyManagedEnv: false
       externallyManagedGateway: false
-      externallyManagedPipeline: false
 
   # Pod-level configurations
   podAnnotations: {}
@@ -781,7 +774,7 @@ rbac:
       resources: ["secrets"]
       verbs: ["get", "create", "patch"]
     # The tls-certs hook also publishes the gateway-management CA as a ConfigMap
-    # (amp-api-gateway-mgmt-ca) for the control-plane gateway's BackendTLSPolicy;
+    # (amp-api-gateway-mgmt-ca) for the AMP Gateway's BackendTLSPolicy;
     # kubectl apply needs get + create/patch on configmaps.
     - apiGroups: [""]
       resources: ["configmaps"]

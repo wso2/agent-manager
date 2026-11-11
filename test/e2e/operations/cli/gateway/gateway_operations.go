@@ -42,7 +42,7 @@ type GatewayList struct {
 
 // ListGateways runs `amctl gateway list --env <env>`.
 func ListGateways(g Gomega, h *amctl.Harness, org, env string) GatewayList {
-	return amctl.DecodeData[GatewayList](g, h.Run("gateway", "list", "--env", env, "--org", org, "--json"))
+	return amctl.DecodeData[GatewayList](g, h.Run("gateway", "list", "--org", org, "--json"))
 }
 
 // WaitForActiveEgressGateway polls `amctl gateway list` until a gateway in env

@@ -10,11 +10,11 @@
     {{- fail "amObserver.auth.audience must be set when isLocalDevEnv is false. Provide a comma-separated list of allowed audiences, or set amObserver.auth.isLocalDevEnv=true for local development only." }}
   {{- end }}
 {{- end }}
-{{- if empty .Values.amObserver.observer.baseUrl }}
-  {{- fail "amObserver.observer.baseUrl must be set. Provide the base URL of the Observer Service." }}
+{{- if empty .Values.amObserver.opensearch.address }}
+  {{- fail "amObserver.opensearch.address must be set. Provide the base URL of the OpenSearch trace store." }}
 {{- end }}
-{{- if empty .Values.amObserver.observer.idpTokenUrl }}
-  {{- fail "amObserver.observer.idpTokenUrl must be set. Provide the IDP token endpoint for Observer Service authentication." }}
+{{- if empty .Values.amObserver.opensearch.existingSecret }}
+  {{- fail "amObserver.opensearch.existingSecret must be set. Provide the Secret holding the OpenSearch credentials." }}
 {{- end }}
 apiVersion: apps/v1
 kind: Deployment
@@ -51,22 +51,23 @@ spec:
           env:
             - name: AM_OBSERVER_PORT
               value: "{{ .Values.amObserver.port }}"
-            - name: OPENCHOREO_OBSERVER_URL
-              value: "{{ .Values.amObserver.observer.baseUrl }}"
-            - name: IDP_TOKEN_URL
-              value: "{{ .Values.amObserver.observer.idpTokenUrl }}"
-            - name: OBSERVER_DEFAULT_NAMESPACE
-              value: "{{ .Values.amObserver.observer.defaultNamespace }}"
-            - name: IDP_CLIENT_ID
+            # Trace store (OpenSearch), written by the OpenTelemetry collector
+            - name: OPENSEARCH_ADDRESS
+              value: {{ .Values.amObserver.opensearch.address | quote }}
+            - name: OPENSEARCH_TRACE_INDEX
+              value: {{ .Values.amObserver.opensearch.traceIndex | quote }}
+            - name: OPENSEARCH_TLS_INSECURE_SKIP_VERIFY
+              value: {{ .Values.amObserver.opensearch.tlsInsecureSkipVerify | quote }}
+            - name: OPENSEARCH_USERNAME
               valueFrom:
                 secretKeyRef:
-                  name: {{ ternary .Values.amObserver.observer.existingSecret "observer-idp-credentials" (not (empty .Values.amObserver.observer.existingSecret)) }}
-                  key: {{ ternary (.Values.amObserver.observer.existingSecretClientIdKey | default "idpClientId") "idpClientId" (not (empty .Values.amObserver.observer.existingSecret)) }}
-            - name: IDP_CLIENT_SECRET
+                  name: {{ .Values.amObserver.opensearch.existingSecret }}
+                  key: {{ .Values.amObserver.opensearch.existingSecretUsernameKey }}
+            - name: OPENSEARCH_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ ternary .Values.amObserver.observer.existingSecret "observer-idp-credentials" (not (empty .Values.amObserver.observer.existingSecret)) }}
-                  key: {{ ternary (.Values.amObserver.observer.existingSecretClientSecretKey | default "idpClientSecret") "idpClientSecret" (not (empty .Values.amObserver.observer.existingSecret)) }}
+                  name: {{ .Values.amObserver.opensearch.existingSecret }}
+                  key: {{ .Values.amObserver.opensearch.existingSecretPasswordKey }}
             # JWT auth — must match agent-manager keyManager config
             - name: IS_LOCAL_DEV_ENV
               value: "{{ .Values.amObserver.auth.isLocalDevEnv }}"

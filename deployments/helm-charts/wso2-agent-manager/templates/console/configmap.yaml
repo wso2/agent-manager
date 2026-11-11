@@ -75,12 +75,9 @@ data:
   GUARDRAIL_CAP_NEMO_GUARD: {{ dig "guardrailCapabilities" "nemoGuard" false .Values.console.config | quote }}
   GUARDRAIL_CAP_SEMANTIC_GUARDRAILS: {{ dig "guardrailCapabilities" "semanticGuardrails" false .Values.console.config | quote }}
   # Feature flags — all default to false (disabled) unless explicitly enabled.
-  FEATURE_FLAG_ENABLE_PRIVATE_REPO_SUPPORT: {{ dig "featureFlags" "enablePrivateRepoSupport" false .Values.console.config | quote }}
   FEATURE_FLAG_ENABLE_IDENTITY_PROVIDER_MANAGED_MODE: {{ dig "featureFlags" "enableIdentityProviderManagedMode" false .Values.console.config | quote }}
   FEATURE_FLAG_ENABLE_PROFILE_MANAGEMENT: {{ dig "featureFlags" "enableProfileManagement" false .Values.console.config | quote }}
   FEATURE_FLAG_ENABLE_USER_MANAGEMENT: {{ dig "featureFlags" "enableUserManagement" false .Values.console.config | quote }}
   FEATURE_FLAG_ENABLE_SELF_HOSTED_GATEWAYS: {{ dig "featureFlags" "enableSelfHostedGateways" false .Values.console.config | quote }}
-  FEATURE_FLAG_EXTERNALLY_MANAGED_ENV: {{ dig "featureFlags" "externallyManagedEnv" false .Values.console.config | quote }}
   FEATURE_FLAG_EXTERNALLY_MANAGED_GATEWAY: {{ dig "featureFlags" "externallyManagedGateway" false .Values.console.config | quote }}
-  FEATURE_FLAG_EXTERNALLY_MANAGED_PIPELINE: {{ dig "featureFlags" "externallyManagedPipeline" false .Values.console.config | quote }}
 {{- end }}

@@ -9,8 +9,8 @@ TAG ?= dev-python$(PYTHON_VERSION)
 REGISTRY_ENDPOINT ?= ghcr.io/wso2
 APP_NAME = $(REGISTRY_ENDPOINT)/amp-python-instrumentation-provider
 DOCKER_IMAGE = $(APP_NAME):$(TAG)
-K3D_CLUSTER_NAME = openchoreo-local-setup
-KIND_CLUSTER_NAME = openchoreo-local
+K3D_CLUSTER_NAME = amp-dev
+KIND_CLUSTER_NAME = amp-dev
 
 help: ## Show this help message
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  %-20s %s\n", $$1, $$2}' $(MAKEFILE_LIST)

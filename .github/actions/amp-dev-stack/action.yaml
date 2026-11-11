@@ -38,18 +38,15 @@ runs:
       shell: bash
       run: |
         set -euo pipefail
-        # k3d cluster + prerequisites (Gateway API, cert-manager, …)
+        # k3d cluster + prerequisites (Gateway API, cert-manager, kgateway,
+        # the AMP Gateway, OpenBao)
         make setup-k3d
-        # OpenChoreo + builds & loads amp-observer + instrumentation images
-        # from source into k3d.
-        make setup-openchoreo
-        # Agent Sandbox module: installs the SandboxTemplate CRDs and the
-        # openchoreo-agent-sandbox-access ClusterRole. Without it the
-        # cluster-agent-dataplane service account cannot patch the
-        # SandboxTemplate every agent deploy now renders, so every deploy
-        # 403s. Part of the local `make setup` chain; must run after
-        # setup-openchoreo (needs the openchoreo-data-plane namespace).
-        make setup-sandbox
+        # Thunder + the API Platform Gateway operator.
+        (cd deployments/setup && ./setup-amp-extensions.sh)
+        # Build and load amp-observer from source, then install trace storage
+        # (OpenSearch + OpenTelemetry Collector) and the observer.
+        make -C agent-manager-observer docker-load-k3d K3D_CLUSTER_NAME=amp-dev
+        (cd deployments/setup && ./setup-amp-observability-extension.sh "$PWD/../..")
         # Build + start the core platform (agent-manager-service via compose).
         # setup-platform seeds agent-manager-service/.env from the tracked
         # example, runs DB migrations against the compose-exposed Postgres, and

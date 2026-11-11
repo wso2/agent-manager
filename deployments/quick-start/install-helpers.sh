@@ -34,24 +34,13 @@ unset _amp_lib_dir _candidate
 # Chart names
 AMP_CHART_NAME="wso2-agent-manager"
 OBSERVABILITY_CHART_NAME="wso2-amp-observability-extension"
-PLATFORM_RESOURCES_CHART_NAME="wso2-amp-platform-resources-extension"
 THUNDER_EXTENSION_CHART_NAME="wso2-amp-thunder-extension"
-EVALUATION_CHART_NAME="wso2-amp-evaluation-extension"
 GATEWAY_EXTENSION_CHART_NAME="wso2-amp-api-platform-gateway-extension"
 
-# Agent Sandbox community module (openchoreo registry, versioned independently of AMP)
-AGENT_SANDBOX_CHART_REF="oci://ghcr.io/openchoreo/helm-charts/agent-sandbox"
-AGENT_SANDBOX_MODULE_VERSION="${AGENT_SANDBOX_MODULE_VERSION:-0.1.1}"
-AGENT_SANDBOX_UPSTREAM_VERSION="${AGENT_SANDBOX_UPSTREAM_VERSION:-v0.4.6}"
-
-# Namespace definitions
 AMP_NS="${AMP_NS:-wso2-amp}"
-OBSERVABILITY_NS="${OBSERVABILITY_NS:-openchoreo-observability-plane}"
+OBSERVABILITY_NS="${OBSERVABILITY_NS:-amp-observability}"
 DEFAULT_NS="${DEFAULT_NS:-default}"
-DATA_PLANE_NS="${DATA_PLANE_NS:-openchoreo-data-plane}"
 THUNDER_NS="${THUNDER_NS:-amp-thunder}"
-EVALUATION_NS="${EVALUATION_NS:-openchoreo-workflow-plane}"
-BUILD_CI_NS="${BUILD_CI_NS:-openchoreo-workflow-plane}"
 
 # Helm arguments arrays (initialize if not set)
 if [[ -z "${AMP_HELM_ARGS+x}" ]]; then
@@ -60,9 +49,6 @@ fi
 if [[ -z "${OBSERVABILITY_HELM_ARGS+x}" ]]; then
     OBSERVABILITY_HELM_ARGS=()
 fi
-if [[ -z "${PLATFORM_RESOURCES_HELM_ARGS+x}" ]]; then
-    PLATFORM_RESOURCES_HELM_ARGS=()
-fi
 if [[ -z "${THUNDER_HELM_ARGS+x}" ]]; then
     # thunder.setup.admin.password fixes the console admin login at "admin"
     # for local convenience — the chart's own default (unset) would generate
@@ -70,14 +56,8 @@ if [[ -z "${THUNDER_HELM_ARGS+x}" ]]; then
     # on a machine only the person running this installer can reach.
     THUNDER_HELM_ARGS=(--set thunder.setup.admin.password=admin)
 fi
-if [[ -z "${EVALUATION_HELM_ARGS+x}" ]]; then
-    EVALUATION_HELM_ARGS=()
-fi
 if [[ -z "${GATEWAY_HELM_ARGS+x}" ]]; then
     GATEWAY_HELM_ARGS=()
-fi
-if [[ -z "${CP_HELM_ARGS+x}" ]]; then
-    CP_HELM_ARGS=()
 fi
 
 # A private-registry install has to tell each chart that runs a first-party
@@ -89,7 +69,6 @@ if declare -F amp_pull_secret_helm_args >/dev/null 2>&1; then
         [[ -n "$_reg_arg" ]] || continue
         AMP_HELM_ARGS+=("$_reg_arg")
         OBSERVABILITY_HELM_ARGS+=("$_reg_arg")
-        EVALUATION_HELM_ARGS+=("$_reg_arg")
     done < <(amp_pull_secret_helm_args)
     unset _reg_arg
 fi
@@ -186,9 +165,7 @@ install_amp_helm_chart() {
 # Create the image pull secret in every namespace that runs a first-party image.
 # A no-op for a public install. Called before the first chart install, because a
 # secret that arrives after the pod does still leaves it in ImagePullBackOff.
-#
-# The evaluation job is the reason workflows-default is here: its pod runs in the
-# workflow namespace, not the chart's release namespace.
+
 install_registry_credentials() {
     if ! declare -F amp_registry_is_private >/dev/null 2>&1; then
         return 0
@@ -197,7 +174,7 @@ install_registry_credentials() {
         return 0
     fi
     log_info "Creating image pull secret for $(amp_registry_host)..."
-    if amp_create_pull_secret "${AMP_NS}" "${OBSERVABILITY_NS}" "workflows-default"; then
+    if amp_create_pull_secret "${AMP_NS}" "${OBSERVABILITY_NS}"; then
         log_success "Image pull secret created"
         return 0
     fi
@@ -310,76 +287,6 @@ install_observability_extension() {
     return 0
 }
 
-# Provision a per-environment Thunder instance for the default environment.
-# Downloads add-environment-thunder.sh from the published release and runs it using
-# ITS OWN default chart: the upstream ThunderID release chart
-# (oci://ghcr.io/thunder-id/helm-charts/thunderid), NOT the agent-manager
-# wso2-amp-thunder-extension chart. CHART_VERSION is intentionally left unset here
-# so the script pins its own validated ThunderID version — the agent-manager
-# release VERSION has no bearing on which ThunderID release env-Thunder runs.
-install_default_env_thunder() {
-    # Prefer the copy bundled next to the installer (DEPLOYMENTS_DIR is set by
-    # install.sh). Fetching it from raw.githubusercontent.com is a fallback for
-    # standalone use; GitHub rate-limits unauthenticated per-IP requests (429),
-    # so avoid the network whenever the bundled script is present.
-    local bundled_script="${DEPLOYMENTS_DIR:-}/scripts/add-environment-thunder.sh"
-    local script_path tmp_script="" script_base_url=""
-
-    if [[ -n "${DEPLOYMENTS_DIR:-}" && -f "${bundled_script}" ]]; then
-        script_path="${bundled_script}"
-    else
-        local script_url="${AMP_SCRIPT_BASE_URL:-https://raw.githubusercontent.com/wso2/agent-manager/amp/v${VERSION}/deployments/scripts}/add-environment-thunder.sh"
-        tmp_script="$(mktemp)"
-        if ! curl -fsSL --connect-timeout 30 "${script_url}" -o "${tmp_script}" 2>/dev/null; then
-            echo "Failed to download add-environment-thunder.sh from ${script_url}"
-            rm -f "${tmp_script}"
-            return 1
-        fi
-        script_path="${tmp_script}"
-        # Not bundled, so it runs from a temp file with no local siblings — pass
-        # SCRIPT_BASE_URL (derived from script_url) so its own thunder-naming.sh/
-        # ams-auth.sh fetches use this SAME release ref instead of defaulting to main.
-        script_base_url="$(dirname "$script_url")"
-    fi
-
-    # AMP_API_URL and IDP_TOKEN_URL address the host-facing ingress (this runs
-    # off-cluster, not on the gateway Job's in-cluster DNS); AMS is confirmed
-    # healthy before this runs. The localhost defaults hold only where the routes
-    # are still bound to *.amp.localhost — a deployment that rehosts them (the VM
-    # installers publish *.amp.<host> instead) must export both, or the route
-    # match fails with a 404 and no env-Thunder is ever created.
-    ENV_NAME=default \
-        DISPLAY_NAME="Default" \
-        ORG_NAME=default \
-        THUNDER_HANDLE=default-idp \
-        AMP_API_URL="${AMP_API_URL:-http://api.amp.localhost:8080/api/v1}" \
-        IDP_TOKEN_URL="${IDP_TOKEN_URL:-http://thunder.amp.localhost:8080/oauth2/token}" \
-        SCRIPT_BASE_URL="${script_base_url}" \
-        bash "${script_path}"
-    local status=$?
-    [[ -n "${tmp_script}" ]] && rm -f "${tmp_script}"
-    if [[ $status -ne 0 ]]; then
-        return $status
-    fi
-
-    # Learn the handle add-environment-thunder.sh's register_thunder_url actually
-    # stored via GET — this process has no other way to know it (a re-run
-    # reuses whatever was registered on the first run, not necessarily
-    # THUNDER_HANDLE above). Every later consumer of the default environment's
-    # Thunder address (the gateway wiring below, and install.sh's completion
-    # banner) reads this SAME global instead of re-deriving anything, so they
-    # can't drift out of sync with each other.
-    if ! DEFAULT_ENV_THUNDER_HANDLE="$(AMP_API_URL="${AMP_API_URL:-http://api.amp.localhost:8080/api/v1}" \
-        IDP_TOKEN_URL="${IDP_TOKEN_URL:-http://thunder.amp.localhost:8080/oauth2/token}" \
-        get_thunder_url_handle default default)"; then
-        echo "Provisioned the default environment's Thunder instance, but could not learn its"
-        echo "registered URL handle — cannot safely wire the gateway/print its console URL."
-        return 1
-    fi
-    return 0
-}
-
-# Install AMP Thunder Extension
 install_amp_thunder_extension() {
     local chart_ref="oci://${HELM_CHART_REGISTRY}/${THUNDER_EXTENSION_CHART_NAME}"
     local chart_version="${VERSION}"
@@ -397,108 +304,21 @@ install_amp_thunder_extension() {
     return 0
 }
 
-# Install Evaluation Extension
-install_evaluation_extension() {
-    local chart_ref="oci://${HELM_CHART_REGISTRY}/${EVALUATION_CHART_NAME}"
-    local chart_version="${VERSION}"
-    local release_name="amp-evaluation-extension"
-
-    # The chart's NetworkPolicy targets "workflows-<env>" (workflows-default unless
-    # ampEvaluation.workflowNamespace is overridden) — the namespace OpenChoreo's control
-    # plane runs that environment's Argo workflows in. On a fresh cluster nothing has
-    # triggered a workflow yet, so OpenChoreo hasn't created it and the install fails with
-    # "namespaces \"workflows-default\" not found". Pre-create it (idempotent) so install
-    # order doesn't depend on a workflow having already run.
-    kubectl create namespace workflows-default --dry-run=client -o yaml | kubectl apply -f - >/dev/null
-
-    # The eval pod runs untrusted evaluator code, so scope its API-server egress to the k3d node
-    # network rather than taking the chart's RFC1918 default, which also spans pod and service CIDRs.
-    local api_server_args=() node_cidr
-    node_cidr=$(docker network inspect "k3d-${CLUSTER_NAME}" \
-        --format '{{ (index .IPAM.Config 0).Subnet }}' 2>/dev/null || echo "")
-    if [[ -n "$node_cidr" ]]; then
-        api_server_args=(--set "networkPolicy.evaluationJob.apiServer.cidrs[0]=${node_cidr}")
-    fi
-
-    # Install Helm chart
-    if ! install_amp_helm_chart "${release_name}" "${chart_ref}" "${EVALUATION_NS}" "${TIMEOUT_AMP_INSTALL}" \
-        --version "${chart_version}" \
-        ${api_server_args[@]+"${api_server_args[@]}"} \
-        "${EVALUATION_HELM_ARGS[@]}"; then
-        return 1
-    fi
-
-    return 0
-}
-
-# Install Agent Sandbox module (required — agents run as sandboxed pods
-# rendered from SandboxTemplate/SandboxWarmPool CRDs this module provides)
-install_agent_sandbox_module() {
-    local release_name="agent-sandbox"
-
-    # Install Helm chart
-    if ! install_amp_helm_chart "${release_name}" "${AGENT_SANDBOX_CHART_REF}" "${DATA_PLANE_NS}" "${TIMEOUT_AMP_INSTALL}" \
-        --version "${AGENT_SANDBOX_MODULE_VERSION}" \
-        --wait \
-        --set namespace=openchoreo-control-plane \
-        --set dataPlaneNamespace="${DATA_PLANE_NS}" \
-        --set dataPlaneServiceAccount=cluster-agent-dataplane \
-        --set upstream.version="${AGENT_SANDBOX_UPSTREAM_VERSION}"; then
-        return 1
-    fi
-
-    # Wait for the sandbox controller to come up
-    if ! kubectl wait -n agent-sandbox-system \
-        --for=condition=available \
-        --timeout=180s \
-        deployment/agent-sandbox-controller &>/dev/null; then
-        return 1
-    fi
-
-    return 0
-}
-
-# Install Platform Resources Extension
-install_platform_resources_extension() {
-    local chart_ref="oci://${HELM_CHART_REGISTRY}/${PLATFORM_RESOURCES_CHART_NAME}"
-    local chart_version="${VERSION}"
-    local release_name="amp-platform-resources"
-
-    # Install Helm chart
-    if ! install_amp_helm_chart "${release_name}" "${chart_ref}" "${DEFAULT_NS}" "${TIMEOUT_AMP_INSTALL}" \
-        --version "${chart_version}" \
-        "${PLATFORM_RESOURCES_HELM_ARGS[@]}"; then
-        return 1
-    fi
-
-    return 0
-}
-
 # Verify prerequisites for AMP installation
 # Note: This function uses logging functions from the main script (log_error, log_warning)
 verify_amp_prerequisites() {
-    # Check if OpenChoreo Observability Plane is available
+    # Trace storage (OpenSearch) lives in the observability namespace; the
+    # observer and the gateway's /otel route depend on it.
     if ! kubectl get namespace "${OBSERVABILITY_NS}" &>/dev/null; then
-        log_error "OpenChoreo Observability Plane not found"
+        log_error "Observability namespace ${OBSERVABILITY_NS} not found"
         echo ""
-        echo "The Agent Management Platform requires OpenChoreo Observability Plane."
-        echo "Please install it first."
+        echo "Install the trace storage (deployments/scripts/lib-observability.sh) first."
         return 1
     fi
 
-    # Check if OpenChoreo Workflow Plane is available
-    if ! kubectl get namespace "${BUILD_CI_NS}" &>/dev/null; then
-        log_error "OpenChoreo Workflow Plane not found"
-        echo ""
-        echo "The Agent Management Platform requires OpenChoreo Workflow Plane."
-        echo "Please install it first."
-        return 1
-    fi
-
-    # Verify OpenSearch is accessible
-    if ! kubectl get pods -n "${OBSERVABILITY_NS}" -l app=opensearch &>/dev/null; then
-        log_warning "OpenSearch pods not found in observability plane"
-        log_warning "Installation may fail without OpenSearch"
+    if ! kubectl get statefulset opensearch-master -n "${OBSERVABILITY_NS}" &>/dev/null; then
+        log_warning "OpenSearch not found in ${OBSERVABILITY_NS}"
+        log_warning "Traces will not be stored without OpenSearch"
     fi
 
     return 0
@@ -513,18 +333,16 @@ install_gateway_extension() {
     local chart_version="${VERSION}"
     local release_name="api-platform-default-default"
     local gateway_vhost="http://default-default.gateway.localhost:19080"
-    local idp_skip_tls_verify="${IDP_SKIP_TLS_VERIFY:-true}"
     # Per-org-env namespace isolation: the default env's gateway stack lives in
-    # its own "<org>-<env>" namespace, mirroring add-environment.sh.
+    # its own "<org>-<env>" namespace.
     local gateway_namespace="default-default"
     local otel_restapi="${release_name}-otel-restapi"
     # gateway-operator's own child Helm release inserts a "-gw-" infix between
     # the APIGateway release name and each of its component names 
     local gateway_runtime_deployment="${release_name}-gw-gateway-gateway-runtime"
 
-    # Sandboxed agents can egress only to namespaces carrying this label. Create
-    # and label the namespace before Helm so the policy is effective as soon as
-    # the gateway runtime starts.
+    # Create and label the namespace before Helm; the label marks AMP gateway
+    # namespaces (NetworkPolicies and teardown select on it).
     if ! kubectl create namespace "${gateway_namespace}" --dry-run=client -o yaml | kubectl apply -f - >/dev/null; then
         log_error "Failed to create gateway namespace ${gateway_namespace}"
         return 1
@@ -565,38 +383,6 @@ install_gateway_extension() {
         return 1
     fi
 
-    # Wire the gateway's ThunderKeyManager to the default environment's own Thunder
-    # instance when it exists, mirroring the THUNDER_PROVISIONED logic in
-    # add-environment.sh. keymanagers[0] is re-asserted alongside keymanagers[1]
-    # because this install uses no -f values file, so --set on keymanagers[1]
-    # alone would otherwise drop keymanagers[0] (verified via `helm template`).
-    local thunder_args=()
-    local thunder_release
-    thunder_release="$(thunder_release_name default default)"
-    if helm status "${thunder_release}" --namespace "${thunder_release}" &>/dev/null && [[ -n "${DEFAULT_ENV_THUNDER_HANDLE:-}" ]]; then
-        local thunder_issuer_url thunder_jwks
-        thunder_issuer_url="$(thunder_issuer "${DEFAULT_ENV_THUNDER_HANDLE}")"
-        thunder_jwks="http://${thunder_release}-service.${thunder_release}.svc.cluster.local:8090/oauth2/jwks"
-        thunder_args=(
-            --set "apiGateway.config.policyConfigurations.jwtauth_v1.keymanagers[0].name=agent-manager-service"
-            --set "apiGateway.config.policyConfigurations.jwtauth_v1.keymanagers[0].issuer=agent-manager-service"
-            --set "apiGateway.config.policyConfigurations.jwtauth_v1.keymanagers[0].jwks.remote.uri=http://amp-api.wso2-amp.svc.cluster.local:9000/auth/external/jwks.json"
-            --set "apiGateway.config.policyConfigurations.jwtauth_v1.keymanagers[0].jwks.remote.skipTlsVerify=true"
-            --set "apiGateway.config.policyConfigurations.jwtauth_v1.keymanagers[1].name=ThunderKeyManager"
-            --set "apiGateway.config.policyConfigurations.jwtauth_v1.keymanagers[1].issuer=${thunder_issuer_url}"
-            --set "apiGateway.config.policyConfigurations.jwtauth_v1.keymanagers[1].jwks.remote.uri=${thunder_jwks}"
-            --set "apiGateway.config.policyConfigurations.jwtauth_v1.keymanagers[1].jwks.remote.skipTlsVerify=${idp_skip_tls_verify}"
-            # Name must match keymanagers[].name, which is always "ThunderKeyManager" (set above).
-            --set "bootstrap.identityProviders[0].name=ThunderKeyManager"
-            --set "bootstrap.identityProviders[0].issuer=${thunder_issuer_url}"
-            --set "bootstrap.identityProviders[0].jwksUri=${thunder_jwks}"
-            --set "bootstrap.identityProviders[0].skipTlsVerify=${idp_skip_tls_verify}"
-        )
-    elif helm status "${thunder_release}" --namespace "${thunder_release}" &>/dev/null; then
-        log_warning "Default environment Thunder release exists, but its registered URL handle is unknown"
-        log_warning "— leaving the gateway on its default ThunderKeyManager instead of guessing an address."
-    fi
-
     # Install Helm chart. apiGateway.namespace drives where the chart renders
     # the APIGateway CR, config, RestApis, kgateway backendRef and token secret
     # — it must match the release namespace.
@@ -606,7 +392,6 @@ install_gateway_extension() {
         --set agentManager.orgName=default \
         --set gateway.environment=default \
         --set gateway.vhost="${gateway_vhost}" \
-        "${thunder_args[@]}" \
         "${GATEWAY_HELM_ARGS[@]}"; then
         return 1
     fi
@@ -645,34 +430,6 @@ install_gateway_extension() {
 
     return 0
 }
-
-# ---------------------------------------------------------------------------
-# Load the shared Thunder naming helpers (thunder_release_name/etc.) — the
-# single source of truth for this derivation, see deployments/scripts/
-# thunder-naming.sh. install.sh sources this file locally (never via
-# curl | bash), so no network-fetch fallback is needed here — but the layout
-# on disk differs between a repo checkout (scripts/ one level up from
-# quick-start/) and the packaged quick-start image (scripts/ copied flat
-# alongside install.sh — see the Dockerfile). DEPLOYMENTS_DIR is computed by
-# install.sh to account for exactly this, and is already used the same way
-# elsewhere in this file (install_default_env_thunder's bundled_script) — reuse
-# it here too instead of hardcoding a checkout-only relative path.
-# ---------------------------------------------------------------------------
-source "${DEPLOYMENTS_DIR}/scripts/thunder-naming.sh"
-
-# Load the shared AMS auth helpers (get_ams_token/get_thunder_url_handle) — see
-# deployments/scripts/ams-auth.sh. Same local-only sourcing rationale as above:
-# install.sh always has this file on disk (repo checkout or packaged image), so
-# no network-fetch fallback is needed. get_thunder_url_handle is the single
-# implementation every script uses to learn an already-provisioned env-Thunder's
-# registered handle — see install_default_env_thunder above and DEFAULT_ENV_THUNDER_HANDLE.
-source "${DEPLOYMENTS_DIR}/scripts/ams-auth.sh"
-
-# Populated by install_default_env_thunder once it succeeds — the resolved handle
-# (caller-supplied or server-generated) that register_thunder_url actually stored
-# for the default environment. Every later consumer (the gateway wiring above, and
-# install.sh's completion banner) reads this SAME global so they can't drift.
-DEFAULT_ENV_THUNDER_HANDLE=""
 
 # Pin the serverlb's container IP so it cannot drift onto the server node's address. 
 pin_serverlb_ip() {

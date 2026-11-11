@@ -4,8 +4,8 @@
 # to the platform gateway runtime service. This enables LLM proxy, OTEL, and any other
 # platform gateway traffic to flow through kgateway without needing per-path routes.
 #
-# The route lives in the kgateway's namespace (where the shared gateway-default
-# Gateway is provisioned by the OpenChoreo data-plane chart), NOT in
+# The route lives in the kgateway's namespace (where the shared AMP Gateway
+# lives, see deployments/k8s/amp-gateway.yaml), NOT in
 # apiGateway.namespace: a same-namespace parentRef needs no allowedRoutes
 # changes on a Gateway this chart does not own. The backendRef crosses into
 # apiGateway.namespace, which the ReferenceGrant below permits.

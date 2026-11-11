@@ -9,52 +9,31 @@ agents: 0
 subnet: "172.28.0.0/16"
 kubeAPI:
   hostPort: "6550"
-# Single cluster mode exposes all plane port ranges for consistency with multi-cluster setup.
-# AMP services (Console, API, Agent Manager Observer) ride the plane gateways below —
-# they have no host ports of their own.
+# Host ports published from the k3d load balancer; each (except 8443) is a
+# listener on the shared AMP Gateway (k8s/amp-gateway.yaml). AMP services have
+# no host ports of their own.
 ports:
-  # Control Plane uses port range 8xxx
-  # HTTP traffic to OpenChoreo UI and API (Kgateway LoadBalancer)
+  # Console, API, Thunder, gateway management
   - port: 8080:8080
     nodeFilters:
       - loadbalancer
-  # HTTPS traffic to OpenChoreo UI and API (Kgateway LoadBalancer)
+  # Thunder HTTPS
   - port: 8443:8443
     nodeFilters:
       - loadbalancer
-  # Workflow Plane uses port range 10xxx
-  # Container Registry for storing built images
-  - port: 10082:10082
-    nodeFilters:
-      - loadbalancer
-  # Data Plane uses port range 19xxx (matches kind and other cluster setups)
-  # HTTP traffic to workloads via Gateway
-  - port: 19080:19080
-    nodeFilters:
-      - loadbalancer
-  # HTTPS traffic to workloads via Gateway
-  - port: 19443:19443
-    nodeFilters:
-      - loadbalancer
-  # Observability Plane uses port range 11xxx
-  # Observer API
+  # Agent Manager Observer (traces API / MCP)
   - port: 11080:11080
     nodeFilters:
       - loadbalancer
-  # HTTPS traffic for OpenSearch access (Kgateway LoadBalancer)
-  - port: 11085:11085
-    nodeFilters:
-      - loadbalancer
-  # OpenSearch API for Fluent Bit data pushing
-  - port: 11082:9200
+  # API Platform Gateway vhosts (LLM proxy, OTLP /otel)
+  - port: 19080:19080
     nodeFilters:
       - loadbalancer
 options:
   k3s:
     extraArgs:
-      # Add host.k3d.internal to API server TLS certificate SANs.
-      # This allows consistent DataPlane configuration across single and multi-cluster setups
-      # where Control Plane pods can access the API server via host.k3d.internal:6550
+      # Add host.k3d.internal to API server TLS certificate SANs so pods can
+      # reach the API server via host.k3d.internal:6550.
       - arg: "--tls-san=host.k3d.internal"
         nodeFilters:
           - server:*
@@ -74,11 +53,8 @@ options:
       - arg: "--flannel-iface=eth0"
         nodeFilters:
           - server:*
-# Configure insecure registries for HTTP access
-# Allows kubelet to pull images from Workflow Plane registry via HTTP
+# Node registries.yaml. Empty by default; a private-registry install appends
+# its credentials (amp_registries_yaml_fragment) to this block.
 registries:
   config: |
-    mirrors:
-      "host.k3d.internal:10082":
-        endpoint:
-          - http://host.k3d.internal:10082
+    mirrors: {}

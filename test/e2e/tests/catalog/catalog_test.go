@@ -35,16 +35,14 @@ import (
 	"github.com/wso2/agent-manager/test/e2e/operations/build"
 	catalogops "github.com/wso2/agent-manager/test/e2e/operations/catalog"
 	"github.com/wso2/agent-manager/test/e2e/operations/deployment"
-	gwops "github.com/wso2/agent-manager/test/e2e/operations/gateway"
 	traceops "github.com/wso2/agent-manager/test/e2e/operations/trace"
 	"github.com/wso2/agent-manager/test/e2e/testsetup"
 )
 
 var _ = Describe("Agent catalog:", Label("catalog"), Ordered, func() {
 	var (
-		promotableAgent    *framework.SharedPromotableITHelpdeskAgent
+		sharedAgent   *framework.SharedITHelpdeskAgent
 		fromKindAgent string
-		envName       string
 		projectName   string
 		endpointURL   string
 		apiKey        string
@@ -56,18 +54,17 @@ var _ = Describe("Agent catalog:", Label("catalog"), Ordered, func() {
 
 		fromKindAgent = "e2e-catalog-kind-" + uuid.New().String()[:6]
 
-		By("Ensuring the shared promotable IT helpdesk agent is built and deployed")
-		promotableAgent = testsetup.SetupSharedPromotableITHelpdeskAgent(ctx, Client, Cfg)
-		projectName = promotableAgent.ProjectName
-		envName = promotableAgent.SecondEnv
+		By("Ensuring the shared IT helpdesk agent is built and deployed")
+		sharedAgent = testsetup.SetupSharedITHelpdeskAgent(Client, Cfg)
+		projectName = sharedAgent.ProjectName
 
 		invokeReq = framework.DefaultInvokeRequest()
-		GinkgoWriter.Printf("Setup complete: agent=%s env=%s project=%s\n",
-			promotableAgent.AgentName, envName, projectName)
+		GinkgoWriter.Printf("Setup complete: agent=%s project=%s\n",
+			sharedAgent.AgentName, projectName)
 	})
 
-	// The from-kind agent is single-use; delete it so its workload pods (default +
-	// second environment) are freed. The shared promotable agent is left intact.
+	// The from-kind agent is single-use; delete it so its workload pods are
+	// freed. The shared agent is left intact.
 	AfterAll(func() {
 		agentops.DeleteAgentBestEffort(Client, Cfg.DefaultOrg, projectName, fromKindAgent)
 	})
@@ -79,12 +76,12 @@ var _ = Describe("Agent catalog:", Label("catalog"), Ordered, func() {
 		}
 		buildName := build.WaitForBuildSuccess(Client, &build.WaitForBuildParams{
 			OrgName:     Cfg.DefaultOrg,
-			ProjectName: promotableAgent.ProjectName,
-			AgentName:   promotableAgent.AgentName,
+			ProjectName: sharedAgent.ProjectName,
+			AgentName:   sharedAgent.AgentName,
 			Timeout:     20 * time.Minute,
 		})
 		kind := catalogops.PublishKind(Default, Client,
-			Cfg.DefaultOrg, promotableAgent.ProjectName, promotableAgent.AgentName,
+			Cfg.DefaultOrg, sharedAgent.ProjectName, sharedAgent.AgentName,
 			framework.PublishKindRequest{
 				KindName:        framework.E2ESharedKindName,
 				KindDisplayName: framework.E2ESharedKindName,
@@ -150,54 +147,6 @@ var _ = Describe("Agent catalog:", Label("catalog"), Ordered, func() {
 		agentops.InvokeAgentEndpoint(fmt.Sprintf("%s/chat", endpointURL), invokeReq, apiKey)
 	})
 
-	It("promotes the kind-based agent to the second environment", func() {
-		useSource := false
-		resp := agentops.PromoteAgent(Default, Client, Cfg.DefaultOrg, projectName, fromKindAgent,
-			framework.PromoteAgentRequest{
-				SourceEnvironment:      Cfg.DefaultEnv,
-				TargetEnvironment:      envName,
-				UseConfigFromSourceEnv: &useSource,
-				Env: []framework.EnvironmentVariable{
-					{Key: "OPENAI_API_KEY", Value: Cfg.OpenAIAPIKey, IsSensitive: true},
-				},
-			})
-		Expect(resp.TargetEnvironment).To(Equal(envName))
-		GinkgoWriter.Printf("Agent promoted: %s -> %s\n", Cfg.DefaultEnv, envName)
-	})
-
-	It("deploys the kind-based agent in the second environment", func() {
-		deployment.WaitForDeployed(Client, &deployment.WaitForDeploymentParams{
-			OrgName:     Cfg.DefaultOrg,
-			ProjectName: projectName,
-			AgentName:   fromKindAgent,
-			Environment: envName,
-			Timeout:     5 * time.Minute,
-		})
-		deployment.WaitForReadiness(Client, Cfg.DefaultOrg, projectName, fromKindAgent, envName, 10*time.Minute)
-		GinkgoWriter.Printf("Agent from kind deployed and ready in %s\n", envName)
-	})
-
-	It("returns a chat response from the kind-based agent in the second environment", func() {
-		gwops.WaitForActiveGatewayForEnv(Client, Cfg.DefaultOrg, envName, 3*time.Minute)
-
-		endpoints := deployment.GetEndpoints(Default, Client,
-			Cfg.DefaultOrg, projectName, fromKindAgent, envName)
-		endpointURL = deployment.FirstEndpointURL(endpoints)
-		Expect(endpointURL).NotTo(BeEmpty(), "agent endpoint URL in new env should not be empty")
-
-		apiKeyResp := agentops.CreateAgentAPIKey(Default, Client,
-			Cfg.DefaultOrg, projectName, fromKindAgent, envName,
-			framework.CreateAgentAPIKeyRequest{
-				DisplayName: "e2e-catalog-promo-key",
-				ExpiresAt:   time.Now().Add(24 * time.Hour).Format(time.RFC3339),
-			})
-		apiKey = apiKeyResp.ApiKey
-		Expect(apiKey).NotTo(BeEmpty(), "agent API key in new env should not be empty")
-
-		GinkgoWriter.Printf("Invoking promoted agent from kind at: %s\n", endpointURL)
-		agentops.InvokeAgentEndpoint(fmt.Sprintf("%s/chat", endpointURL), invokeReq, apiKey)
-	})
-
 	It("captures traces for the default-environment invocation", func() {
 		traces := traceops.WaitForTraces(Client, &traceops.WaitForTracesParams{
 			Organization: Cfg.DefaultOrg,
@@ -208,17 +157,5 @@ var _ = Describe("Agent catalog:", Label("catalog"), Ordered, func() {
 		})
 		Expect(traces.Traces).NotTo(BeEmpty(), "expected at least one trace after invocation in default env")
 		GinkgoWriter.Printf("Traces in %s: %d found\n", Cfg.DefaultEnv, len(traces.Traces))
-	})
-
-	It("captures traces for the second-environment invocation", func() {
-		traces := traceops.WaitForTraces(Client, &traceops.WaitForTracesParams{
-			Organization: Cfg.DefaultOrg,
-			Project:      projectName,
-			Agent:        fromKindAgent,
-			Environment:  envName,
-			Timeout:      2 * time.Minute,
-		})
-		Expect(traces.Traces).NotTo(BeEmpty(), "expected at least one trace after invocation in new env")
-		GinkgoWriter.Printf("Traces in %s: %d found\n", envName, len(traces.Traces))
 	})
 })

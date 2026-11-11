@@ -41,9 +41,6 @@ var Cfg *framework.Config
 // SharedITHelpdeskAgent is the shared single-environment IT helpdesk agent.
 var SharedITHelpdeskAgent *framework.SharedITHelpdeskAgent
 
-// SharedPromotableITHelpdeskAgent is the shared two-environment IT helpdesk agent.
-var SharedPromotableITHelpdeskAgent *framework.SharedPromotableITHelpdeskAgent
-
 // LLMProviderID is an OpenAI-backed LLM provider, provisioned once on the
 // default AI gateway and used by the post-deploy tests on the shared IT helpdesk agent and the shared promotable IT helpdesk agent.
 var LLMProviderID string

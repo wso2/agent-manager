@@ -87,19 +87,16 @@ start_forward() {
 if $PLATFORM; then
     echo "🔧 Platform services:"
     start_forward "Thunder IDP (8090)"               -n amp-thunder svc/amp-thunder-extension-service 8090:8090
-    start_forward "OpenSearch (9200)"                -n openchoreo-observability-plane svc/opensearch 9200:9200
-    start_forward "OpenTelemetry Collector (21893)"  -n openchoreo-observability-plane svc/opentelemetry-collector 21893:4318
-    start_forward "Agent Manager Observer (9098)"    -n openchoreo-observability-plane svc/amp-observer 9098:9098
-    start_forward "Observer API (8085)"              -n openchoreo-observability-plane svc/observer 8085:8080
-    start_forward "OpenBao Workflow Plane (8200)"    -n openbao svc/openbao 8200:8200
-    start_forward "OpenChoreo API (8195)"            -n openchoreo-control-plane svc/openchoreo-api 8195:8080
+    start_forward "OpenSearch (9200)"                -n "$OBSERVABILITY_NAMESPACE" svc/opensearch 9200:9200
+    start_forward "OpenTelemetry Collector (21893)"  -n "$OBSERVABILITY_NAMESPACE" svc/opentelemetry-collector 21893:4318
+    start_forward "Agent Manager Observer (9098)"    -n "$OBSERVABILITY_NAMESPACE" svc/amp-observer 9098:9098
+    start_forward "OpenBao (8200)"                   -n openbao svc/openbao 8200:8200
 fi
 
 echo ""
 echo "✅ Active endpoints:"
 if $PLATFORM; then
     echo "   Thunder IDP:              http://localhost:8090"
-    echo "   Observer API:             http://localhost:8085"
     echo "   OpenSearch:               http://localhost:9200"
     echo "   Agent Manager Observer:   http://localhost:9098"
     echo "   OpenBao:     http://localhost:8200"

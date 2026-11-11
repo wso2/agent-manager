@@ -5,7 +5,7 @@
 # start.sh read at runtime, so installers need ONE download instead of a git clone
 # plus many raw.githubusercontent fetches (which GitHub rate-limits per IP). It
 # reproduces the repo layout so install.sh resolves DEPLOYMENTS_DIR (=deployments/)
-# and its single-cluster/values/k8s/scripts siblings exactly as in a checkout.
+# and its values/k8s/scripts siblings exactly as in a checkout.
 #
 # Also copies bootstrap.sh, start.sh, k3d-install.sh and k3d-install-subscription.sh
 # out alongside the tarball so each can be attached as its own release asset (the
@@ -23,19 +23,14 @@ mkdir -p "$OUT_DIR"
 BUNDLE="${OUT_DIR}/wso2-agent-manager-${VERSION}.tar.gz"
 
 # Directories the installers read at runtime (see install.sh DEPLOYMENTS_DIR +
-# install-helpers.sh ../scripts). setup/ is here because install-kata.sh and
-# install-gvisor.sh resolve ../k8s/ relative to themselves, and fall back to
-# fetching those manifests over the network when they are not shipped alongside.
-# Charts are pulled from OCI registries at install time, so helm-charts/ is
-# intentionally excluded.
+# install-helpers.sh ../scripts). Charts are pulled from OCI registries at
+# install time, so helm-charts/ is intentionally excluded.
 tar -czf "$BUNDLE" \
   deployments/vm \
   deployments/quick-start \
-  deployments/single-cluster \
   deployments/values \
   deployments/k8s \
-  deployments/scripts \
-  deployments/setup
+  deployments/scripts
 
 cp deployments/vm/bootstrap.sh "${OUT_DIR}/bootstrap.sh"
 cp deployments/quick-start/start.sh "${OUT_DIR}/start.sh"

@@ -39,7 +39,7 @@ set -euo pipefail
 #   - IDP_SKIP_TLS_VERIFY (default: false)
 #   - ORG_NAME (default: default)
 #   - AGENT_MANAGER_URL (default: http://api.amp.localhost:8080)
-#   - GATEWAY_NAMESPACE (default: openchoreo-data-plane)
+#   - GATEWAY_NAMESPACE (default: <ORG_NAME>-<ENV_NAME>)
 
 # --- Required inputs ---
 : "${ENV_NAME:?ENV_NAME is required (e.g. ENV_NAME=staging)}"

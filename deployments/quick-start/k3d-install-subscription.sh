@@ -40,7 +40,7 @@ usage() {
 Usage: curl -fsSL <url>/k3d-install-subscription.sh | bash -s -- --project <project> [options]
 
 Creates a k3d cluster named amp-local and installs the WSO2-supported build of
-OpenChoreo and Agent Manager on it, from your WSO2 registry project. Needs Docker
+Agent Manager on it, from your WSO2 registry project. Needs Docker
 (running), k3d, kubectl, helm, curl and lsof on the host.
 
   --project        wso2-agent-manager (subscription) or

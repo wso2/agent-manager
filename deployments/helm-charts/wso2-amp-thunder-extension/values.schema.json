@@ -338,6 +338,18 @@
           "additionalProperties": true,
           "description": "Gateway route exposing Thunder outside the cluster.",
           "properties": {
+            "gatewayName": {
+              "default": "amp-gateway",
+              "description": "Gateway that serves the Thunder route",
+              "title": "gatewayName",
+              "type": "string"
+            },
+            "gatewayNamespace": {
+              "default": "amp-gateway",
+              "description": "Namespace of the Gateway that serves the Thunder route",
+              "title": "gatewayNamespace",
+              "type": "string"
+            },
             "hostname": {
               "default": "thunder.amp.localhost",
               "description": "Hostname routed to this component through the gateway",
@@ -1340,8 +1352,6 @@
                     "51-amp-console-theme.yaml",
                     "52-amp-console-layout.yaml",
                     "53-amp-console-app.yaml",
-                    "54-workload-publisher-app.yaml",
-                    "55-observer-resource-reader-app.yaml",
                     "56-amp-publisher-client.yaml",
                     "57-amp-system-client.yaml",
                     "58-amctl-client.yaml",
@@ -1359,7 +1369,6 @@
                     "69-amp-default-resource-server-config.yaml",
                     "70-fix-thunder-system-rs-identifier.yaml",
                     "71-amp-cors-config.yaml",
-                    "72-am-observer-client.yaml",
                     "73-am-obs-mcp-client.yaml",
                     "73-amp-csp-config.yaml"
                   ],
@@ -1373,142 +1382,6 @@
               },
               "required": [],
               "title": "configMap",
-              "type": "object"
-            },
-            "observerResourceReaderClient": {
-              "additionalProperties": true,
-              "description": "Observer Resource Reader Client configuration (for observability plane to read resources)",
-              "properties": {
-                "clientId": {
-                  "default": "openchoreo-observer-resource-reader-client",
-                  "description": "OAuth 2.0 client ID Allowed values: clusterauthzrolebinding is already created with this clientId by openchoreo, so it should not be changed unless the corresponding ClusterAuthzRoleBinding is also updated.",
-                  "title": "clientId",
-                  "type": "string"
-                },
-                "clientSecret": {
-                  "default": "openchoreo-observer-resource-reader-client-secret",
-                  "description": "OAuth 2.0 client secret",
-                  "title": "clientSecret",
-                  "type": "string"
-                },
-                "name": {
-                  "default": "OpenChoreo Observer Resource Reader",
-                  "description": "Internal name of the OAuth application",
-                  "title": "name",
-                  "type": "string"
-                },
-                "description": {
-                  "default": "OpenChoreo Observer Resource Reader Client for reading resources from control plane",
-                  "description": "Description of the OAuth application",
-                  "title": "description",
-                  "type": "string"
-                },
-                "grantTypes": {
-                  "default": [
-                    "client_credentials"
-                  ],
-                  "description": "OAuth 2.0 grant types the client may use",
-                  "items": {
-                    "type": "string"
-                  },
-                  "title": "grantTypes",
-                  "type": "array"
-                },
-                "tokenEndpointAuthMethod": {
-                  "default": "client_secret_post",
-                  "description": "Authentication method the client uses at the token endpoint",
-                  "title": "tokenEndpointAuthMethod",
-                  "type": "string"
-                },
-                "pkceRequired": {
-                  "default": false,
-                  "description": "Require PKCE on the authorization code flow",
-                  "title": "pkceRequired",
-                  "type": "boolean"
-                },
-                "publicClient": {
-                  "default": false,
-                  "description": "Treat as a public client, which authenticates without a secret",
-                  "title": "publicClient",
-                  "type": "boolean"
-                },
-                "accessTokenValidityPeriod": {
-                  "default": 3600,
-                  "description": "Access token lifetime in seconds",
-                  "title": "accessTokenValidityPeriod",
-                  "type": "integer"
-                }
-              },
-              "required": [],
-              "title": "observerResourceReaderClient",
-              "type": "object"
-            },
-            "workloadPublisherClient": {
-              "additionalProperties": true,
-              "description": "Workload Publisher Client configuration (for CI workflows to create workloads)",
-              "properties": {
-                "clientId": {
-                  "default": "openchoreo-workload-publisher-client",
-                  "description": "OAuth 2.0 client ID Allowed values: clusterauthzrolebinding is already created with this clientId by openchoreo, so it should not be changed unless the corresponding ClusterAuthzRoleBinding is also updated.",
-                  "title": "clientId",
-                  "type": "string"
-                },
-                "clientSecret": {
-                  "default": "openchoreo-workload-publisher-secret",
-                  "description": "OAuth 2.0 client secret",
-                  "title": "clientSecret",
-                  "type": "string"
-                },
-                "name": {
-                  "default": "Workload Publisher",
-                  "description": "Internal name of the OAuth application",
-                  "title": "name",
-                  "type": "string"
-                },
-                "description": {
-                  "default": "OpenChoreo Workload Publisher Client for creating workloads from CI workflows",
-                  "description": "Description of the OAuth application",
-                  "title": "description",
-                  "type": "string"
-                },
-                "grantTypes": {
-                  "default": [
-                    "client_credentials"
-                  ],
-                  "description": "OAuth 2.0 grant types the client may use",
-                  "items": {
-                    "type": "string"
-                  },
-                  "title": "grantTypes",
-                  "type": "array"
-                },
-                "tokenEndpointAuthMethod": {
-                  "default": "client_secret_post",
-                  "description": "Authentication method the client uses at the token endpoint",
-                  "title": "tokenEndpointAuthMethod",
-                  "type": "string"
-                },
-                "pkceRequired": {
-                  "default": false,
-                  "description": "Require PKCE on the authorization code flow",
-                  "title": "pkceRequired",
-                  "type": "boolean"
-                },
-                "publicClient": {
-                  "default": false,
-                  "description": "Treat as a public client, which authenticates without a secret",
-                  "title": "publicClient",
-                  "type": "boolean"
-                },
-                "accessTokenValidityPeriod": {
-                  "default": 3600,
-                  "description": "Access token lifetime in seconds",
-                  "title": "accessTokenValidityPeriod",
-                  "type": "integer"
-                }
-              },
-              "required": [],
-              "title": "workloadPublisherClient",
               "type": "object"
             },
             "ampApiClient": {
@@ -1713,74 +1586,6 @@
               },
               "required": [],
               "title": "ampPublisherClient",
-              "type": "object"
-            },
-            "amObserverClient": {
-              "additionalProperties": true,
-              "description": "AM Observer Client configuration (dedicated outbound identity for agent-manager-observer's calls to the OpenChoreo observer backend). Its authority comes from the OpenChoreo ClusterAuthzRoleBinding (amp-observer-reader-binding in wso2-amp-platform-resources-extension), NOT from AMP scopes \u2014 it has no scope allowance at all, so its tokens fail agent-manager-service's scope checks by construction. WARNING: clientSecret below is a LOCAL-DEVELOPMENT-ONLY placeholder. In production, override amObserverClient.clientSecret via a Kubernetes Secret or external secret manager. Deploying with this default value is insecure. NOTE: pre-install bootstrap job only \u2014 see the upgrade note on mcpResourceServers below / docs/reference/mcp-server.mdx.",
-              "properties": {
-                "clientId": {
-                  "default": "am-observer-client",
-                  "description": "OAuth 2.0 client ID",
-                  "title": "clientId",
-                  "type": "string"
-                },
-                "clientSecret": {
-                  "default": "am-observer-client-secret",
-                  "description": "OAuth 2.0 client secret",
-                  "title": "clientSecret",
-                  "type": "string"
-                },
-                "name": {
-                  "default": "AM Observer Client",
-                  "description": "Internal name of the OAuth application",
-                  "title": "name",
-                  "type": "string"
-                },
-                "description": {
-                  "default": "Dedicated client for agent-manager-observer to read observability data from the OpenChoreo observer",
-                  "description": "Description of the OAuth application",
-                  "title": "description",
-                  "type": "string"
-                },
-                "grantTypes": {
-                  "default": [
-                    "client_credentials"
-                  ],
-                  "description": "OAuth 2.0 grant types the client may use",
-                  "items": {
-                    "type": "string"
-                  },
-                  "title": "grantTypes",
-                  "type": "array"
-                },
-                "tokenEndpointAuthMethod": {
-                  "default": "client_secret_basic",
-                  "description": "Authentication method the client uses at the token endpoint",
-                  "title": "tokenEndpointAuthMethod",
-                  "type": "string"
-                },
-                "pkceRequired": {
-                  "default": false,
-                  "description": "Require PKCE on the authorization code flow",
-                  "title": "pkceRequired",
-                  "type": "boolean"
-                },
-                "publicClient": {
-                  "default": false,
-                  "description": "Treat as a public client, which authenticates without a secret",
-                  "title": "publicClient",
-                  "type": "boolean"
-                },
-                "accessTokenValidityPeriod": {
-                  "default": 3600,
-                  "description": "Access token lifetime in seconds",
-                  "title": "accessTokenValidityPeriod",
-                  "type": "integer"
-                }
-              },
-              "required": [],
-              "title": "amObserverClient",
               "type": "object"
             },
             "amCliClient": {

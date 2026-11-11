@@ -87,9 +87,6 @@ services:
       # in sync with the console's value in console/apps/web-ui/.env.development.
       - FILE_MOUNT_MAX_FILE_BYTES=1000000
       - FILE_MOUNT_MAX_TOTAL_BYTES=1000000
-      # Optional: External Service URLs (add when needed)
-      # - OPENCHOREO_API_URL=http://host.docker.internal:8000
-      # - OPENSEARCH_URL=http://host.docker.internal:9200
       - AM_OBSERVER_URL=http://host.docker.internal:9098
       # Externally reachable observer URL returned to the CLI via /api/v1/config.
       # No internal fallback: unset means clients surface "observer not configured".
@@ -106,10 +103,9 @@ services:
       # The Helm charts derive this; here it moves by hand.
       - KEY_MANAGER_AUDIENCE=urn:wso2:amp,localhost,amp-publisher-*,amp-api-client,amp-console-client,amctl,am-mcp,http://localhost:9000/mcp
       - AMP_VERSION=v0.8.0
-      - OPEN_CHOREO_BASE_URL=http://api.openchoreo.localhost:8195
       # OpenBao/Vault Secret Management Configuration
       # NOTE: Run ./deployments/setup/port-forward.sh to forward OpenBao from k3d cluster
-      # Uses the default OpenBao that comes with OpenChoreo for both user and system secrets
+      # OpenBao runs in the k3d cluster (deployments/values/openbao.yaml) and holds both user and system secrets
       - SECRET_MANAGER_PROVIDER=openbao
       - OPENBAO_URL=http://host.docker.internal:8200
       # Platform A2A card fetches dial the host gateway; *.localhost resolves to the container itself.
@@ -163,16 +159,11 @@ services:
       nats:
         condition: service_healthy
     networks:
-      agent-manager:
-      k3d-openchoreo-local-setup: # Connect to k3d cluster network for hostname resolution
-        ipv4_address: 172.29.0.10
+      - agent-manager
     extra_hosts:
       - "host.docker.internal:host-gateway"
-      # OpenChoreo API uses Host-based routing via Kgateway on port 8080.
-      # The gateway routes requests based on the Host header, so we need the
-      # hostname to resolve to the host machine for proper routing.
-      - "api.openchoreo.localhost:host-gateway"
-      # Thunder IDP for OAuth2 token exchange (must match OpenChoreo's security.oidc config)
+      # Thunder IDP for OAuth2 token exchange, served by the AMP Gateway on the
+      # host's port 8080.
       - "thunder.amp.localhost:host-gateway"
       # API Platform Gateway runtime for agent endpoint access
       - "api-platform-gateway.amp.localhost:host-gateway"
@@ -185,5 +176,3 @@ volumes:
 networks:
   agent-manager:
     driver: bridge
-  k3d-openchoreo-local-setup:
-    external: true

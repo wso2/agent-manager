@@ -110,24 +110,8 @@ run_install() {
   mapfile -t THUNDER_HELM_ARGS < <(build_thunder_helm_args "$VM_IP")
   # shellcheck disable=SC2034
   mapfile -t GATEWAY_HELM_ARGS < <(build_gateway_helm_args "$VM_IP")
-  # shellcheck disable=SC2034
-  mapfile -t CP_HELM_ARGS < <(build_cp_helm_args "$VM_IP")
-  # Public agents base + gateway host for the default Environment (read by
-  # build_platform_resources_helm_args via dynamic scope); mirrors
-  # render_dataplane_external_ingress. Deployed agents export traces over the
-  # chart's default in-cluster runtime endpoint, not this public host.
-  # shellcheck disable=SC2034
-  local AMP_AGENTS_BASE="agents.${VM_IP}.sslip.io"
-  # shellcheck disable=SC2034
-  local AMP_HOST_GATEWAY; AMP_HOST_GATEWAY="$(vm_host gateway "$VM_IP")"
-  # shellcheck disable=SC2034
-  mapfile -t PLATFORM_RESOURCES_HELM_ARGS < <(build_platform_resources_helm_args)
-  # shellcheck disable=SC2034
+    # shellcheck disable=SC2034
   mapfile -t OBSERVABILITY_HELM_ARGS < <(build_observability_helm_args "$VM_IP")
-  # Advertise deployed-agent endpoints under a public sslip.io host (Caddy fronts
-  # the wildcard *.agents.<ip>.sslip.io with on-demand TLS), not the local default.
-  DP_EXTERNAL_INGRESS="$(render_dataplane_external_ingress "$VM_IP")"
-  export DP_EXTERNAL_INGRESS
   # install.sh builds chart refs + raw manifest URLs from amp/v${VERSION}; export it
   # only now, after bootstrap, so the piped installers above never saw it.
   export VERSION="$AMP_VERSION"
@@ -145,38 +129,6 @@ run_install() {
   # Suppress install.sh's localhost completion URLs — they are unreachable on a VM
   # (k3d ports are loopback-bound). This script prints the public sslip.io URLs below.
   export SHOW_LOCALHOST_URLS=false
-
-  # Env-Thunder deployment-wide config, inherited by install_default_env_thunder()
-  # (called from install.sh, sourced below) as exported env vars — see
-  # add-environment-thunder.sh's THUNDER_HOST_BASE_DOMAIN/TLS_ENABLED/
-  # SKIP_CA_BUNDLE_TRUST/PLATFORM_THUNDER_ISSUER/PLATFORM_THUNDER_JWKS_URL, and
-  # agent-manager-service's identical THUNDER_HOST_BASE_DOMAIN/TLS_ENABLED config
-  # (must match on both sides or the reported and actually-deployed URLs diverge).
-  # vm_host("thunder", ip) is "thunder.amp.<ip>.sslip.io"; stripping the "thunder."
-  # prefix gives env-Thunder's base domain, so "<handle>.<base>" sits directly
-  # under it (no fixed "thunder." segment) — exactly what the Caddy wildcard
-  # site added for it matches.
-  local thunder_host_full; thunder_host_full="$(vm_host thunder "$VM_IP")"
-  export THUNDER_HOST_BASE_DOMAIN="${thunder_host_full#thunder.}"
-  export TLS_ENABLED=true
-  # Caddy terminates real Let's Encrypt TLS here (same as platform Thunder's own
-  # advertised issuer), so env-Thunder doesn't need a custom CA bundle mounted to
-  # trust it — the container's default trust store already covers it.
-  export SKIP_CA_BUNDLE_TRUST=true
-  export PLATFORM_THUNDER_ISSUER="https://${thunder_host_full}"
-  export PLATFORM_THUNDER_JWKS_URL="https://${thunder_host_full}/oauth2/jwks"
-  # install_default_env_thunder() runs off-cluster and calls both the AMP API and
-  # platform Thunder's token endpoint. Its *.amp.localhost defaults resolve here
-  # but 404, because this install binds those routes to the sslip.io hosts. Address
-  # them by their real hostnames on the control-plane kgateway's loopback port:
-  # Caddy is not up yet (start_caddy runs only after the base installer returns),
-  # so :443 would simply refuse the connection. ensure_loopback_alias makes the
-  # hostname resolve to 127.0.0.1 so the Host header still matches the route.
-  local api_host; api_host="$(vm_host api "$VM_IP")"
-  [[ -n "$api_host" ]] || die "could not derive the API host for ${VM_IP}"
-  ensure_loopback_alias "$api_host" "$thunder_host_full"
-  export AMP_API_URL="http://${api_host}:8080/api/v1"
-  export IDP_TOKEN_URL="http://${thunder_host_full}:8080/oauth2/token"
 
   # Loopback-bound k3d config.
   render_k3d_vm_config <"${QS_DIR}/k3d-config.yaml" >/tmp/k3d-config-vm.yaml

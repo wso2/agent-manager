@@ -1,39 +1,14 @@
 {{- if .Values.ocIngress.enabled }}
----
-# ReferenceGrant to allow HTTPRoutes in the OpenChoreo control-plane gateway
-# namespace to reference the amp-console / amp-api Services in this namespace
-apiVersion: gateway.networking.k8s.io/v1beta1
-kind: ReferenceGrant
-metadata:
-  name: {{ .Release.Name }}-oc-ingress-backend
-  namespace: {{ .Release.Namespace }}
-  labels:
-    {{- include "agent-management-platform.labels" . | nindent 4 }}
-spec:
-  from:
-    - group: gateway.networking.k8s.io
-      kind: HTTPRoute
-      namespace: {{ .Values.ocIngress.gatewayNamespace }}
-  to:
-    - group: ""
-      kind: Service
-      name: amp-console
-    - group: ""
-      kind: Service
-      name: amp-api
-    - group: ""
-      kind: Service
-      name: amp-api-gateway-manager
 {{- if .Values.console.enabled }}
 ---
-# HTTPRoute in the gateway namespace to route traffic to the Console.
-# This is required because the gateway-default Gateway only allows HTTPRoutes
-# from the same namespace (same pattern as the Thunder extension).
+# HTTPRoutes attach to the shared AMP Gateway (deployments/k8s/amp-gateway.yaml)
+# and live next to the Services they route to, so no ReferenceGrant is needed.
+# HTTPRoute for the Console.
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
   name: {{ .Release.Name }}-console
-  namespace: {{ .Values.ocIngress.gatewayNamespace }}
+  namespace: {{ .Release.Namespace }}
   labels:
     {{- include "agent-management-platform.console.labels" . | nindent 4 }}
 spec:
@@ -43,6 +18,7 @@ spec:
     - group: gateway.networking.k8s.io
       kind: Gateway
       name: {{ .Values.ocIngress.gatewayName }}
+      namespace: {{ .Values.ocIngress.gatewayNamespace }}
   rules:
     - matches:
         - path:
@@ -52,18 +28,17 @@ spec:
         - group: ""
           kind: Service
           name: amp-console
-          namespace: {{ .Release.Namespace }}
           port: {{ .Values.console.service.port }}
           weight: 1
 {{- end }}
 {{- if .Values.agentManagerService.enabled }}
 ---
-# HTTPRoute in the gateway namespace to route traffic to the Agent Manager API
+# HTTPRoute for the Agent Manager API
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
   name: {{ .Release.Name }}-api
-  namespace: {{ .Values.ocIngress.gatewayNamespace }}
+  namespace: {{ .Release.Namespace }}
   labels:
     {{- include "agent-management-platform.agentManagerService.labels" . | nindent 4 }}
 spec:
@@ -73,6 +48,7 @@ spec:
     - group: gateway.networking.k8s.io
       kind: Gateway
       name: {{ .Values.ocIngress.gatewayName }}
+      namespace: {{ .Values.ocIngress.gatewayNamespace }}
   rules:
     # /mcp carries long-lived MCP streamable-HTTP/SSE sessions; a zero request
     # timeout disables the gateway timeout for these streams
@@ -86,7 +62,6 @@ spec:
         - group: ""
           kind: Service
           name: amp-api
-          namespace: {{ .Release.Namespace }}
           port: {{ .Values.agentManagerService.service.port }}
           weight: 1
     - matches:
@@ -99,7 +74,6 @@ spec:
         - group: ""
           kind: Service
           name: amp-api
-          namespace: {{ .Release.Namespace }}
           port: {{ .Values.agentManagerService.service.port }}
           weight: 1
 {{- /* Nil-safe defaults so upgrades with --reuse-values (which do not merge
@@ -108,13 +82,13 @@ spec:
 {{- $gwMgmtEnabled := hasKey $gwMgmt "enabled" | ternary $gwMgmt.enabled true }}
 {{- if $gwMgmtEnabled }}
 ---
-# HTTPRoute in the gateway namespace to route external AI gateways to the
-# gateway-management (xDS/WebSocket) endpoint
+# HTTPRoute routing external AI gateways to the gateway-management
+# (xDS/WebSocket) endpoint
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
   name: {{ .Release.Name }}-gateway-mgmt
-  namespace: {{ .Values.ocIngress.gatewayNamespace }}
+  namespace: {{ .Release.Namespace }}
   labels:
     {{- include "agent-management-platform.agentManagerService.labels" . | nindent 4 }}
 spec:
@@ -126,6 +100,7 @@ spec:
     - group: gateway.networking.k8s.io
       kind: Gateway
       name: {{ .Values.ocIngress.gatewayName }}
+      namespace: {{ .Values.ocIngress.gatewayNamespace }}
   rules:
     # The config-push WebSocket is a long-lived connection; a zero duration
     # disables the gateway request timeout. Idle timeouts never fire on it
@@ -140,7 +115,6 @@ spec:
         - group: ""
           kind: Service
           name: amp-api-gateway-manager
-          namespace: {{ .Release.Namespace }}
           port: {{ .Values.agentManagerService.gatewayMgtService.port }}
           weight: 1
     - matches:
@@ -153,7 +127,6 @@ spec:
         - group: ""
           kind: Service
           name: amp-api-gateway-manager
-          namespace: {{ .Release.Namespace }}
           port: {{ .Values.agentManagerService.gatewayMgtService.port }}
           weight: 1
 {{- if .Values.agentManagerService.internalServer.tlsEnabled }}

@@ -5,7 +5,7 @@ TAG ?= 0.0.0-dev
 AMP_EVALUATION_VERSION ?= $(TAG)
 APP_NAME = amp-evaluation-monitor
 DOCKER_IMAGE = $(APP_NAME):$(TAG)
-K3D_CLUSTER_NAME ?= openchoreo-local-setup
+K3D_CLUSTER_NAME ?= amp-dev
 REGISTRY_ENDPOINT ?= ghcr.io/wso2
 
 # Project root for dev build context

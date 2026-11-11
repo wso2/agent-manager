@@ -384,7 +384,7 @@ def run(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo", required=True)
-    parser.add_argument("--cluster", default="openchoreo-local-setup")
+    parser.add_argument("--cluster", default="amp-dev")
     parser.add_argument("--sha", required=True)
     parser.add_argument("--branch", required=True, help="PR head branch in --repo")
     parser.add_argument("--reports", type=Path, default=Path("/tmp/hotel-booking-platform-reports"))

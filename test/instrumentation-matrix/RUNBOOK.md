@@ -276,10 +276,11 @@ heavy axis.
 
 ### Bring-up: build-from-source
 
-The CI heavy job stands up AMP from the **working tree** via the dev
+The CI heavy job (currently disabled: it deploys hosted agents, which AMP no
+longer runs) stands up AMP from the **working tree** via the dev
 `make setup` chain, wrapped in the `.github/actions/amp-dev-stack` composite:
-`setup-k3d` → `setup-openchoreo` (builds + `k3d image import`s the
-amp-observer + python-instrumentation-provider images from source) →
+`setup-k3d` → AMP extensions (Thunder, gateway operator) → trace storage +
+observer (builds + `k3d image import`s amp-observer from source) →
 `setup-platform` (agent-manager-service via docker-compose) → migrate →
 port-forward → gateway.
 

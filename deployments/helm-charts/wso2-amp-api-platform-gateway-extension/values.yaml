@@ -55,7 +55,7 @@ gateway:
   # Gateway placement role: INGRESS, EGRESS, or BOTH (must match GatewayType enum in
   # Agent Manager API). BOTH is correct for single topology, where the chart is installed
   # once per environment; split topology sets this explicitly on both releases from
-  # add-environment.sh. Immutable after first registration — changing it later only logs
+  # setup-gateway.sh. Immutable after first registration — changing it later only logs
   # a drift warning.
   type: "BOTH"
   # Environment name in Agent Manager to associate this gateway with.
@@ -73,21 +73,26 @@ gateway:
 # Development mode
 developmentMode: true
 
-# kgateway ingress the gw-route HTTPRoute attaches to. This is the shared
-# data-plane Gateway provisioned by the OpenChoreo data-plane chart — it does
-# NOT move when the api-platform gateway gets its own per-org-env namespace.
-# The HTTPRoute is created here (same namespace as the Gateway) and reaches the
-# gateway runtime Service cross-namespace via a ReferenceGrant.
+# kgateway ingress the gw-route HTTPRoute attaches to. This is the shared AMP
+# Gateway (deployments/k8s/amp-gateway.yaml) — it does NOT move when the
+# api-platform gateway gets its own per-org-env namespace. The HTTPRoute is
+# created here (same namespace as the Gateway) and reaches the gateway runtime
+# Service cross-namespace via a ReferenceGrant.
+# OpenTelemetry collector the gateway's /otel route forwards agent traces to
+# (installed by deployments/scripts/lib-observability.sh).
+otelCollector:
+  url: "http://opentelemetry-collector.amp-observability.svc.cluster.local:4318"
+
 kgateway:
-  name: "gateway-default"
-  namespace: "openchoreo-data-plane"
+  name: "amp-gateway"
+  namespace: "amp-gateway"
 
 apiGateway:
   # Namespace where the APIGateway CR is created.
   # Must be the same namespace where the gateway-operator is watching.
   # For per-org-env namespace isolation set this to "<org>-<env>"
-  # (add-environment.sh passes it via --set apiGateway.namespace=...).
-  namespace: "openchoreo-data-plane"
+  # (setup-gateway.sh passes it via --set apiGateway.namespace=...).
+  namespace: "amp-gateway"
 
 
   # Control plane connection: points to Agent Manager's gateway management port (9243)

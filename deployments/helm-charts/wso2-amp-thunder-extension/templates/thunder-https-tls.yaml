@@ -51,12 +51,12 @@ spec:
 ---
 {{- end }}
 # TLS leaf certificate for thunder.amp.localhost.
-# Created in openchoreo-control-plane so the Gateway there can reference it directly.
+# Created in this release's namespace, next to the HTTPS Gateway that uses it.
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
   name: {{ .Release.Name }}-local-tls
-  namespace: openchoreo-control-plane
+  namespace: {{ .Release.Namespace }}
   labels:
     app.kubernetes.io/instance: {{ .Release.Name }}
     app.kubernetes.io/managed-by: {{ .Release.Service }}
@@ -73,13 +73,13 @@ spec:
     group: cert-manager.io
 ---
 # Dedicated HTTPS Gateway for Thunder (port 8443, already mapped in k3d).
-# Kept separate from gateway-default (port 8080) so we don't patch a resource
-# managed by another chart.
+# Kept separate from the shared AMP Gateway (port 8080) so this chart does not
+# patch a resource it does not own.
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
   name: {{ .Release.Name }}-https-gateway
-  namespace: openchoreo-control-plane
+  namespace: {{ .Release.Namespace }}
   labels:
     app.kubernetes.io/instance: {{ .Release.Name }}
     app.kubernetes.io/managed-by: {{ .Release.Service }}
@@ -94,7 +94,7 @@ spec:
         mode: Terminate
         certificateRefs:
           - name: {{ .Release.Name }}-local-tls
-            namespace: openchoreo-control-plane
+            namespace: {{ .Release.Namespace }}
       allowedRoutes:
         namespaces:
           from: All

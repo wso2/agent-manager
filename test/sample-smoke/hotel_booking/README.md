@@ -31,7 +31,7 @@ export IDP_CLIENT_SECRET='<local-dev-bootstrap-credential>'
   --reports /tmp/hotel-platform-reports
 ```
 
-Defaults: k3d cluster `openchoreo-local-setup`, API `localhost:9000`, Observer
+Defaults: k3d cluster `amp-dev`, API `localhost:9000`, Observer
 `localhost:9098`, IDP token endpoint `localhost:8090/oauth2/token`. Override with
 `--cluster`, `--api`, `--observer`, or `--token-url` for another local dev stack.
 No paid service or repository secret is required. CI uses the dev stack's public

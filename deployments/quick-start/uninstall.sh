@@ -5,9 +5,9 @@ set -euo pipefail
 # Agent Management Platform - Complete Uninstallation
 # ============================================================================
 # This script completely removes:
-# 1. All Agent Management Platform helm releases, including each environment's
-#    Thunder and gateway
-# 2. All OpenChoreo and prerequisite helm releases (unless --amp-only is used)
+# 1. All Agent Management Platform helm releases, including each org's gateway
+# 2. All prerequisite helm releases: trace storage, OpenBao, kgateway,
+#    cert-manager (unless --amp-only is used)
 # 3. All custom resources, the namespaces install.sh created, and (unless
 #    --amp-only is used) the CRDs it installed and the CoreDNS rewrites it added
 # 4. Optionally deletes the k3d cluster
@@ -17,7 +17,7 @@ set -euo pipefail
 #   ./uninstall.sh                    # Uninstall platform but keep cluster
 #   ./uninstall.sh --delete-cluster   # Delete the k3d cluster
 #   ./uninstall.sh --delete-colima    # Delete the 'agent-manager' Colima profile
-#   ./uninstall.sh --amp-only         # Uninstall only AMP, keep OpenChoreo
+#   ./uninstall.sh --amp-only         # Uninstall only AMP, keep the prerequisites
 # ============================================================================
 
 # Configuration
@@ -28,10 +28,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Namespace definitions (match install-helpers.sh)
 AMP_NS="${AMP_NS:-wso2-amp}"
-BUILD_CI_NS="${BUILD_CI_NS:-openchoreo-workflow-plane}"
-OBSERVABILITY_NS="${OBSERVABILITY_NS:-openchoreo-observability-plane}"
-DEFAULT_NS="${DEFAULT_NS:-default}"
-EVALUATION_NS="${EVALUATION_NS:-openchoreo-workflow-plane}"
+OBSERVABILITY_NS="${OBSERVABILITY_NS:-amp-observability}"
 
 # Colors for output (8-bit mode for maximum compatibility)
 RED='\033[1;31m'
@@ -89,14 +86,14 @@ for arg in "$@"; do
             echo "Usage: $0 [OPTIONS]"
             echo ""
             echo "Options:"
-            echo "  --amp-only, --platform-only    Uninstall only AMP resources, keep OpenChoreo"
+            echo "  --amp-only, --platform-only    Uninstall only AMP resources, keep the prerequisites"
             echo "  --delete-cluster, -d           Delete the entire k3d cluster"
             echo "  --delete-colima                Delete the '${COLIMA_PROFILE}' Colima profile (requires --delete-cluster)"
             echo "  --help, -h                     Show this help message"
             echo ""
             echo "Examples:"
             echo "  $0                            # Uninstall everything but keep cluster"
-            echo "  $0 --amp-only                 # Uninstall only AMP, keep OpenChoreo"
+            echo "  $0 --amp-only                 # Uninstall only AMP, keep the prerequisites"
             echo "  $0 --delete-cluster           # Delete the entire k3d cluster"
             echo "  $0 --delete-cluster --delete-colima  # Delete cluster and Colima profile"
             exit 0
@@ -211,44 +208,30 @@ if ! kubectl get --raw /readyz --request-timeout=15s &>/dev/null; then
 fi
 
 # Releases install.sh creates, in reverse install order, as "<release> <namespace>".
-# Each environment also gets a Thunder release and a gateway; those are found
-# through their namespaces (environment_namespaces) rather than listed here.
+# Each org's gateway is found through its namespace (environment_namespaces)
+# rather than listed here.
 AMP_RELEASES="
-amp-evaluation-extension ${EVALUATION_NS}
 amp-observability-traces ${OBSERVABILITY_NS}
-amp-platform-resources ${DEFAULT_NS}
-build-workflow-extensions ${BUILD_CI_NS}
-agent-sandbox openchoreo-data-plane
 amp ${AMP_NS}
 amp-thunder-extension amp-thunder
 "
-OPENCHOREO_RELEASES="
-gateway-operator openchoreo-data-plane
-observability-traces-opensearch ${OBSERVABILITY_NS}
-observability-metrics-prometheus ${OBSERVABILITY_NS}
-observability-logs-opensearch ${OBSERVABILITY_NS}
-openchoreo-observability-plane ${OBSERVABILITY_NS}
-openchoreo-workflow-plane openchoreo-workflow-plane
-registry openchoreo-workflow-plane
-openchoreo-data-plane openchoreo-data-plane
-openchoreo-control-plane openchoreo-control-plane
-kgateway openchoreo-control-plane
-kgateway-crds openchoreo-control-plane
+BASE_RELEASES="
+gateway-operator amp-gateway-operator
+opentelemetry-collector ${OBSERVABILITY_NS}
+opensearch ${OBSERVABILITY_NS}
 openbao openbao
-external-secrets external-secrets
+kgateway kgateway-system
+kgateway-crds kgateway-system
 cert-manager cert-manager
 "
-AMP_NAMESPACES="${AMP_NS} amp-thunder agent-sandbox-system"
-OPENCHOREO_NAMESPACES="openchoreo-control-plane openchoreo-data-plane openchoreo-workflow-plane ${OBSERVABILITY_NS} cert-manager external-secrets openbao"
-# API groups of the CRDs install.sh brings in (charts and the Gateway API bundle).
-KUBELET_SERVICE="openchoreo-observability-kubelet"
+AMP_NAMESPACES="${AMP_NS} amp-thunder"
+BASE_NAMESPACES="amp-gateway-operator ${OBSERVABILITY_NS} amp-gateway openbao kgateway-system cert-manager"
 
 # Entries install.sh adds to the coredns-custom ConfigMap, as "<key> <hostname
 # it rewrites>": deployments/k8s/coredns-amp-custom.yaml on k3d, and
 # render_coredns_vm_config in deployments/vm/lib-vm.sh on a VM.
 # The cluster owner can keep entries of their own in the same ConfigMap.
 COREDNS_ENTRIES="
-openchoreo.override openchoreo\\.localhost
 amp.override amp\\.localhost
 agentmanager.override agentmanager\\.localhost
 amgateway.override am-gateway\\.localhost
@@ -339,19 +322,7 @@ clear_stuck_finalizers() {
     done
 }
 
-# object_left <description> <kubectl get args...>: adds the object to
-# LEFT_OBJECTS when it still exists, or when it cannot be checked.
-object_left() {
-    local what="$1" found
-    shift
-    if found="$(kubectl get "$@" --ignore-not-found -o name 2>/dev/null)"; then
-        [ -z "${found}" ] || LEFT_OBJECTS="${LEFT_OBJECTS} ${what}"
-    else
-        LEFT_OBJECTS="${LEFT_OBJECTS} ${what} (could not be checked)"
-    fi
-}
-
-CRD_GROUPS='openchoreo\.dev|external-secrets\.io|cert-manager\.io|argoproj\.io|monitoring\.coreos\.com|agents\.x-k8s\.io|gateway\.api-platform\.wso2\.com|gateway\.kgateway\.dev|gateway\.networking\.k8s\.io|gateway\.networking\.x-k8s\.io'
+CRD_GROUPS='cert-manager\.io|gateway\.api-platform\.wso2\.com|gateway\.kgateway\.dev|gateway\.networking\.k8s\.io|gateway\.networking\.x-k8s\.io'
 
 # uninstall_release <release> <namespace>: quiet when the release is absent, so
 # an install without an optional component does not print a line for it.
@@ -373,12 +344,9 @@ uninstall_releases() {
     done <<< "$1"
 }
 
-# environment_namespaces: what install.sh and add-environment create per
-# organization or environment, whose names carry the org and environment.
+# environment_namespaces: the per-org gateway namespaces install.sh creates.
 environment_namespaces() {
     {
-        kubectl get namespaces -o name 2>/dev/null | sed 's#^namespace/##' \
-            | grep -E '^(dp-|workflows-|openchoreo-kv-|amp-thunder-)' || true
         kubectl get namespaces -l amp.wso2.com/api-platform-gateway=true -o name 2>/dev/null \
             | sed 's#^namespace/##'
     } | sort -u
@@ -402,19 +370,12 @@ delete_namespaces() {
 }
 
 # ============================================================================
-# Step 1: Delete custom resources and per-environment namespaces
+# Step 1: Delete per-org gateway namespaces
 # ============================================================================
 # Done while the controllers are still running, so the finalizers on these
 # resources are processed instead of leaving them stuck in deletion.
 
-log_step "Step 1/4: Deleting Custom Resources and Environments"
-
-log_info "Cleaning up AMP custom resources..."
-for resource_type in organization project environment deploymentpipeline component workflowtemplate; do
-    if kubectl get "${resource_type}" -A &>/dev/null; then
-        kubectl delete "${resource_type}" --all --all-namespaces --timeout=30s &>/dev/null || true
-    fi
-done
+log_step "Step 1/4: Deleting Gateways"
 
 ENV_NAMESPACES="$(environment_namespaces)"
 for ns in ${ENV_NAMESPACES}; do
@@ -427,77 +388,25 @@ done
 # shellcheck disable=SC2086 # one namespace per word
 delete_namespaces ${ENV_NAMESPACES}
 
-if [ "${AMP_ONLY}" = false ]; then
-    # install.sh applies some of these with kubectl, so no release owns them,
-    # and their cleanup finalizer needs the operator that Step 3 removes.
-    if kubectl get externalsecrets.external-secrets.io -A &>/dev/null; then
-        log_info "Deleting ExternalSecrets..."
-        kubectl delete externalsecrets.external-secrets.io,pushsecrets.external-secrets.io \
-            --all --all-namespaces --timeout=60s &>/dev/null || true
-    fi
-    for resource_type in clusterdataplane clusterworkflowplane clusterobservabilityplane; do
-        if kubectl get "${resource_type}" &>/dev/null; then
-            log_info "Deleting ${resource_type} resources..."
-            kubectl delete "${resource_type}" --all --timeout=30s &>/dev/null || true
-        fi
-    done
-    # Every other namespaced OpenChoreo kind, such as the WorkflowRuns of agent
-    # builds and evaluation monitors. They live in the organization's namespace,
-    # which is kept, and their cleanup finalizers need the controllers Step 3
-    # removes. A kind that cannot be listed stops the uninstall here, before
-    # those controllers go, so its cleanup can still run on a second attempt.
-    UNCHECKED=""
-    if ! OPENCHOREO_KINDS="$(kubectl api-resources --api-group=openchoreo.dev --namespaced=true -o name 2>/dev/null)"; then
-        UNCHECKED=" the OpenChoreo resource kinds (discovery failed)"
-    fi
-    for resource_type in ${OPENCHOREO_KINDS}; do
-        if ! found="$(kubectl get "${resource_type}" -A -o name 2>/dev/null)"; then
-            UNCHECKED="${UNCHECKED} ${resource_type}"
-        elif [ -n "${found}" ]; then
-            log_info "Deleting ${resource_type}..."
-            kubectl delete "${resource_type}" --all --all-namespaces --timeout=60s &>/dev/null || true
-        fi
-    done
-    if [ -n "${UNCHECKED}" ]; then
-        log_error "Could not check${UNCHECKED}"
-        log_info "Stopped before removing the controllers that clean these up. Fix the cluster access and run uninstall.sh again."
-        exit 1
-    fi
-fi
-
 # ============================================================================
 # Step 2: Uninstall Agent Management Platform Helm Releases
 # ============================================================================
 
 log_step "Step 2/4: Uninstalling Agent Management Platform"
 uninstall_releases "${AMP_RELEASES}"
-# Created outside the releases' tracked resources (the sandbox controller's
-# kubectl-applied manifest and a Helm hook), so uninstalling leaves them behind.
-kubectl delete clusterrolebinding,clusterrole \
-    agent-sandbox-controller agent-sandbox-controller-extensions \
-    --ignore-not-found &>/dev/null || true
-kubectl delete clusterrolebinding label-default-namespace-rolebinding --ignore-not-found &>/dev/null || true
-kubectl delete clusterrole label-default-namespace-role --ignore-not-found &>/dev/null || true
-kubectl delete serviceaccount label-default-namespace-sa -n "${DEFAULT_NS}" --ignore-not-found &>/dev/null || true
-
 # ============================================================================
-# Step 3: Uninstall OpenChoreo and Prerequisites (Skip if --amp-only)
+# Step 3: Uninstall Prerequisites (Skip if --amp-only)
 # ============================================================================
 
 if [ "${AMP_ONLY}" = false ]; then
-    log_step "Step 3/4: Uninstalling OpenChoreo and Prerequisites"
-    uninstall_releases "${OPENCHOREO_RELEASES}"
+    log_step "Step 3/4: Uninstalling Prerequisites"
+    uninstall_releases "${BASE_RELEASES}"
     # Applied with kubectl by install.sh, not owned by any release.
-    kubectl delete clusterrolebinding,clusterrole wso2-api-platform-gateway-module \
-        --ignore-not-found &>/dev/null || true
-    # Created by the Prometheus operator for kubelet scraping, so no release owns it.
-    kubectl delete service,endpoints "${KUBELET_SERVICE}" -n kube-system --ignore-not-found &>/dev/null || true
-    kubectl delete endpointslices -n kube-system -l "kubernetes.io/service-name=${KUBELET_SERVICE}" \
-        --ignore-not-found &>/dev/null || true
+    kubectl delete gateway amp-gateway -n amp-gateway --ignore-not-found &>/dev/null || true
     remove_coredns_entries
 else
-    log_step "Step 3/4: Skipping OpenChoreo Uninstallation (--amp-only mode)"
-    log_info "OpenChoreo resources are preserved"
+    log_step "Step 3/4: Skipping Prerequisite Uninstallation (--amp-only mode)"
+    log_info "Prerequisites are preserved"
 fi
 
 # ============================================================================
@@ -509,7 +418,7 @@ log_step "Step 4/4: Cleaning Up Namespaces and CRDs"
 if [ "${AMP_ONLY}" = true ]; then
     PLATFORM_NAMESPACES="${AMP_NAMESPACES}"
 else
-    PLATFORM_NAMESPACES="${AMP_NAMESPACES} ${OPENCHOREO_NAMESPACES}"
+    PLATFORM_NAMESPACES="${AMP_NAMESPACES} ${BASE_NAMESPACES}"
 fi
 # shellcheck disable=SC2046,SC2086 # one namespace per word
 delete_namespaces $(existing_namespaces ${PLATFORM_NAMESPACES})
@@ -536,7 +445,7 @@ LEFT_RELEASES=""
 while read -r release ns; do
     [ -n "${release}" ] || continue
     helm status "${release}" -n "${ns}" &>/dev/null && LEFT_RELEASES="${LEFT_RELEASES} ${ns}/${release}"
-done <<< "${AMP_RELEASES}$([ "${AMP_ONLY}" = false ] && printf '%s' "${OPENCHOREO_RELEASES}")"
+done <<< "${AMP_RELEASES}$([ "${AMP_ONLY}" = false ] && printf '%s' "${BASE_RELEASES}")"
 # shellcheck disable=SC2086 # one namespace per word
 LEFT_NAMESPACES="$( { existing_namespaces ${PLATFORM_NAMESPACES}; environment_namespaces; } | sort -u | tr '\n' ' ')"
 LEFT_CRDS=""
@@ -546,13 +455,7 @@ if [ "${AMP_ONLY}" = false ]; then
 fi
 # Objects outside the platform namespaces that no release owns.
 LEFT_OBJECTS=""
-object_left "serviceaccount/${DEFAULT_NS}/label-default-namespace-sa" \
-    serviceaccount label-default-namespace-sa -n "${DEFAULT_NS}"
 if [ "${AMP_ONLY}" = false ]; then
-    object_left "service/kube-system/${KUBELET_SERVICE}" service "${KUBELET_SERVICE}" -n kube-system
-    object_left "endpoints/kube-system/${KUBELET_SERVICE}" endpoints "${KUBELET_SERVICE}" -n kube-system
-    object_left "endpointslices of ${KUBELET_SERVICE}" endpointslices -n kube-system \
-        -l "kubernetes.io/service-name=${KUBELET_SERVICE}"
     if LEFT_COREDNS="$(coredns_entries_ours)"; then
         [ -z "${LEFT_COREDNS}" ] \
             || LEFT_OBJECTS="${LEFT_OBJECTS} coredns-custom entries ($(printf '%s' "${LEFT_COREDNS}" | tr '\n' ' ' | sed 's/ $//'))"
@@ -567,7 +470,7 @@ if [ -z "${LEFT_RELEASES}" ] && [ -z "${LEFT_NAMESPACES// /}" ] && [ -z "${LEFT_
     log_step "Uninstallation Complete!"
     if [ "${AMP_ONLY}" = true ]; then
         log_success "AMP resources have been removed!"
-        log_info "OpenChoreo resources have been preserved."
+        log_info "Prerequisites have been preserved."
     else
         log_success "All platform resources have been removed!"
     fi
