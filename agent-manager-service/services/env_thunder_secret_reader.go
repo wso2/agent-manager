@@ -34,6 +34,9 @@ func NewEnvThunderSecretReader(repo repositories.EnvThunderSystemClientRepositor
 	return func(ctx context.Context, ouID, envName string) (string, string, error) {
 		row, err := repo.Get(ctx, ouID, envName)
 		if errors.Is(err, gorm.ErrRecordNotFound) {
+			if clientID, clientSecret, ok := platformThunderSystemClient(envName); ok {
+				return clientID, clientSecret, nil
+			}
 			return "", "", thundersvc.ErrThunderNotProvisioned
 		}
 		if err != nil {

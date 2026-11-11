@@ -387,7 +387,11 @@ func (s *environmentService) ListThunderInstances(ctx context.Context, ouID stri
 // ResolveThunderURL, which distinguishes "never provisioned" (zero-value
 // record, nil error) from a real read failure (wrapped error).
 func (s *environmentService) resolveThunderRecord(ctx context.Context, ouID, envName string) (models.ThunderURLRecord, error) {
-	return ResolveThunderURL(ctx, s.envThunderURLRepo, ouID, envName)
+	rec, err := ResolveThunderURL(ctx, s.envThunderURLRepo, ouID, envName)
+	if err != nil {
+		return rec, err
+	}
+	return withPlatformThunder(rec, envName), nil
 }
 
 // thunderHandlePattern matches a DNS-label-safe handle: lowercase alphanumeric,

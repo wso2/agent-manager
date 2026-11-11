@@ -58,6 +58,7 @@ func NewEnvThunderURLReader(urlRepo repositories.EnvThunderURLRepository) thunde
 		if err != nil {
 			return "", false, err
 		}
+		rec = withPlatformThunder(rec, envName)
 		return rec.URL, rec.Handle == "", nil
 	}
 }
