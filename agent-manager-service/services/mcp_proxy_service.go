@@ -1447,8 +1447,9 @@ func validateMCPEndpointKeyLocations(endpoints []models.MCPProxyEndpointDTO, sto
 		}
 	}
 	for _, endpoint := range endpoints {
-		sec := endpoint.Security
-		if sec == nil || !isBoolTrue(sec.Enabled) || sec.APIKey == nil || !isBoolTrue(sec.APIKey.Enabled) {
+		// Judged on the security as it is stored, where an omitted enabled flag is true.
+		sec := defaultMCPProxySecurity(endpoint.Security)
+		if !isBoolTrue(sec.Enabled) || sec.APIKey == nil || !isBoolTrue(sec.APIKey.Enabled) {
 			continue
 		}
 		handle := strings.TrimSpace(endpoint.ID)

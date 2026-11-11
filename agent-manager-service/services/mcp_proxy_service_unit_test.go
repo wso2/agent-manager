@@ -1617,6 +1617,18 @@ func TestValidateMCPEndpointKeyLocations(t *testing.T) {
 	err := validateMCPEndpointKeyLocations([]models.MCPProxyEndpointDTO{endpoint("main", "query", true)}, nil)
 	assert.ErrorIs(t, err, utils.ErrInvalidInput, "create")
 
+	// Omitted enabled flags default to true when the endpoint is stored, so they are judged that way.
+	omitted := models.MCPProxyEndpointDTO{ID: "main", Security: &models.SecurityConfig{
+		APIKey: &models.APIKeySecurity{Key: "k", In: "query"},
+	}}
+	err = validateMCPEndpointKeyLocations([]models.MCPProxyEndpointDTO{omitted}, nil)
+	assert.ErrorIs(t, err, utils.ErrInvalidInput, "a query location with the enabled flags omitted")
+	disabled := models.MCPProxyEndpointDTO{ID: "main", Security: &models.SecurityConfig{
+		Enabled: &off, APIKey: &models.APIKeySecurity{Key: "k", In: "query"},
+	}}
+	assert.NoError(t, validateMCPEndpointKeyLocations([]models.MCPProxyEndpointDTO{disabled}, nil),
+		"security turned off is not checked")
+
 	err = validateMCPEndpointKeyLocations([]models.MCPProxyEndpointDTO{endpoint("main", "query", true)},
 		[]models.MCPProxyEndpoint{stored("main", "header")})
 	assert.ErrorIs(t, err, utils.ErrInvalidInput, "an update moving to the query")
