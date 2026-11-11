@@ -846,7 +846,11 @@ func (s *MCPProxyService) deleteLoadedMCPProxy(ctx context.Context, orgUUID, han
 
 	// Tear down the per-(endpoint,env) gateway artifacts this proxy deployed before removing
 	// the proxy row. The endpoint and join rows cascade-delete with the parent proxy; here we
-	// only need to broadcast deletion and remove the backing artifacts rows. Best-effort.
+	// only need to broadcast deletion and remove the backing artifacts rows. A failure stops the
+	// delete: each artifact goes in its own transaction with its API key revocations, and one that
+	// rolled back still holds keys the gateways accept, which nothing would reach once the proxy
+	// row is gone. The artifacts already removed take their binding rows with them, so a retry
+	// lists only the ones left.
 	var artifactUUIDs []uuid.UUID
 	endpointEnvs, err := s.endpointRepo.ListEndpointEnvironmentsByProxy(ctx, proxy.UUID)
 	if err != nil {
@@ -858,7 +862,7 @@ func (s *MCPProxyService) deleteLoadedMCPProxy(ctx context.Context, orgUUID, han
 		}
 	}
 	if err := s.deleteMCPProxyEnvironmentArtifacts(ctx, artifactUUIDs, orgUUID); err != nil {
-		s.logger.Warn("Failed to delete MCP proxy endpoint artifacts during proxy delete", "proxyID", proxy.UUID, "error", err)
+		return fmt.Errorf("failed to delete the MCP proxy's gateway artifacts: %w", err)
 	}
 
 	if err := s.repo.Delete(ctx, handle, orgUUID); err != nil {
