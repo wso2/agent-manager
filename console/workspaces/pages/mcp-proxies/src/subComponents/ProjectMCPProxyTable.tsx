@@ -15,20 +15,8 @@
  * under the License.
  */
 
-import { useMemo, useState, type ReactNode } from "react";
-import {
-  Avatar,
-  Box,
-  Divider,
-  IconButton,
-  ListingTable,
-  Stack,
-  Tab,
-  Tabs,
-  Tooltip,
-  Typography,
-} from "@wso2/oxygen-ui";
-import { Plus, Trash } from "@wso2/oxygen-ui-icons-react";
+import { useMemo, type ReactNode } from "react";
+import { Box, Divider, Stack, Tab, Tabs } from "@wso2/oxygen-ui";
 import {
   generatePath,
   useNavigate,
@@ -37,23 +25,13 @@ import {
 } from "react-router-dom";
 import {
   useDeleteProjectMCPProxy,
-  useListMCPProxies,
+  useListAllMCPProxies,
 } from "@agent-management-platform/api-client";
-import {
-  formatRelativeTime,
-  getAvatarInitials,
-  ResourceListShell,
-  useConfirmationDialog,
-} from "@agent-management-platform/shared-component";
 import {
   absoluteRouteMap,
   type MCPProxyListItem,
 } from "@agent-management-platform/types";
-import { useResourceAccess } from "@agent-management-platform/feature-management";
-import { MCPLogo } from "../components/MCPLogo";
-
-/** The most proxies one list request returns (the service's MaxLimit). */
-const LIST_LIMIT = 100;
+import { MCPProxyListTable } from "./MCPProxyListTable";
 
 /** Which servers the list shows: all of them, the project's own, or the organization's. */
 type ScopeFilter = "all" | "project" | "organization";
@@ -84,7 +62,6 @@ export function ProjectMCPProxyTable({
     projectId: string;
   }>();
   const navigate = useNavigate();
-  const [searchValue, setSearchValue] = useState("");
   // Kept in the URL, as the other tabbed pages do, so it survives a reload.
   const [searchParams, setSearchParams] = useSearchParams();
   const scopeParam = searchParams.get("scope");
@@ -103,16 +80,15 @@ export function ProjectMCPProxyTable({
       },
       { replace: true },
     );
-  const { data, isLoading, error } = useListMCPProxies(
+  // Every page: the org's servers and the project's share the list, and search, the scope
+  // tabs and their counts are worked out on what is loaded.
+  const { data, isLoading, error } = useListAllMCPProxies(
     { orgName: orgId },
-    { project: projectId, limit: LIST_LIMIT },
+    { project: projectId },
   );
   const { mutate: deleteProjectProxy } = useDeleteProjectMCPProxy();
-  const { addConfirmation } = useConfirmationDialog();
-  const { canWrite } = useResourceAccess("mcp_server");
 
   const proxies = useMemo(() => data?.list ?? [], [data]);
-
   const scopeCounts = useMemo(
     () =>
       Object.fromEntries(
@@ -123,29 +99,12 @@ export function ProjectMCPProxyTable({
       ) as Record<ScopeFilter, number>,
     [proxies],
   );
+  const scoped = useMemo(
+    () => proxies.filter((proxy) => inScope(proxy, scope)),
+    [proxies, scope],
+  );
 
-  const filteredProxies = useMemo(() => {
-    const term = searchValue.trim().toLowerCase();
-    return proxies.filter(
-      (proxy: MCPProxyListItem) =>
-        inScope(proxy, scope) &&
-        (!term ||
-          [
-            proxy.name,
-            proxy.id,
-            proxy.version,
-            proxy.context,
-            proxy.description,
-          ]
-            .filter(Boolean)
-            .join(" ")
-            .toLowerCase()
-            .includes(term)),
-    );
-  }, [proxies, scope, searchValue]);
-
-  const openProxy = (proxy: MCPProxyListItem) => {
-    if (!proxy.id) return;
+  const openProxy = (proxy: MCPProxyListItem) =>
     navigate(
       proxy.projectName
         ? generatePath(
@@ -159,24 +118,6 @@ export function ProjectMCPProxyTable({
             { orgId, proxyId: proxy.id },
           ),
     );
-  };
-
-  // Only the project's own servers are deleted here; an org server is every project's, so it
-  // is deleted from the org page.
-  const confirmDelete = (proxy: MCPProxyListItem, displayName: string) => {
-    const proxyId = proxy.id;
-    if (!proxyId || !proxy.projectName) return;
-    addConfirmation({
-      analytics: { entity: "mcp-proxy", action: "delete" },
-      title: "Delete MCP Server",
-      description: `Are you sure you want to delete ${displayName}? It is removed from every environment it is deployed to. This action cannot be undone.`,
-      confirmButtonText: "Delete",
-      confirmButtonColor: "error",
-      confirmButtonIcon: <Trash size={16} />,
-      onConfirm: () =>
-        deleteProjectProxy({ orgName: orgId, projName: projectId, proxyId }),
-    });
-  };
 
   return (
     <Stack spacing={2}>
@@ -197,123 +138,47 @@ export function ProjectMCPProxyTable({
           <Divider />
         </Box>
       )}
-      <ResourceListShell
-        resourceName="mcp-proxies"
-        searchValue={searchValue}
-        onSearchChange={setSearchValue}
-        searchPlaceholder="Search MCP servers"
-        error={error}
-        isLoading={isLoading}
+      <MCPProxyListTable
+        proxies={scoped}
         isEmpty={!proxies.length}
-        isSearchEmpty={!filteredProxies.length}
+        isLoading={isLoading}
+        error={error}
         emptyState={{
-          illustration: <MCPLogo size={64} />,
           title: "No MCP Servers Yet",
           description:
             "MCP servers registered for the organization or this project, and those published from its components, show up here.",
           action: createAction,
         }}
-        searchEmptyState={
-          searchValue.trim()
+        filterEmptyState={
+          scope === "project"
             ? {
-                illustration: <Plus size={64} />,
-                title: "No MCP servers match your search",
+                title: "No project MCP servers yet",
                 description:
-                  "Try a different keyword or clear the search filter.",
+                  "Register an MCP server for this project, or publish one from a component.",
               }
             : {
-                illustration: <MCPLogo size={64} />,
-                title:
-                  scope === "project"
-                    ? "No project MCP servers yet"
-                    : "No organization MCP servers",
+                title: "No organization MCP servers",
                 description:
-                  scope === "project"
-                    ? "Register an MCP server for this project, or publish one from a component."
-                    : "MCP servers registered for the organization show up here.",
+                  "MCP servers registered for the organization show up here.",
               }
         }
-      >
-        <ListingTable variant="card">
-          <ListingTable.Head>
-            <ListingTable.Row>
-              <ListingTable.Cell>Name</ListingTable.Cell>
-              <ListingTable.Cell width="160px">Version</ListingTable.Cell>
-              <ListingTable.Cell width="140px" align="right">
-                Last Updated
-              </ListingTable.Cell>
-              <ListingTable.Cell width="96px" align="right">
-                Actions
-              </ListingTable.Cell>
-            </ListingTable.Row>
-          </ListingTable.Head>
-          <ListingTable.Body>
-            {filteredProxies.map((proxy: MCPProxyListItem) => {
-              const displayName = proxy.name ?? proxy.id ?? "MCP Server";
-              return (
-                <ListingTable.Row
-                  key={`${proxy.projectName ?? ""}:${proxy.id ?? displayName}`}
-                  variant="card"
-                  hover
-                  clickable={!!proxy.id}
-                  onClick={() => openProxy(proxy)}
-                >
-                  <ListingTable.Cell>
-                    <Stack direction="row" alignItems="center" spacing={2}>
-                      <Avatar
-                        sx={{
-                          bgcolor: "primary.main",
-                          color: "primary.contrastText",
-                          fontSize: 16,
-                          height: 36,
-                          width: 36,
-                          flexShrink: 0,
-                        }}
-                      >
-                        {getAvatarInitials(displayName, { fallback: "MS" })}
-                      </Avatar>
-                      <Stack spacing={0.25} minWidth={0}>
-                        <Typography variant="body2" fontWeight={500} noWrap>
-                          {displayName}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          {proxy.projectName ? "Project" : "Organization"}
-                        </Typography>
-                      </Stack>
-                    </Stack>
-                  </ListingTable.Cell>
-                  <ListingTable.Cell>
-                    <Typography variant="body2">
-                      {proxy.version ?? "-"}
-                    </Typography>
-                  </ListingTable.Cell>
-                  <ListingTable.Cell align="right">
-                    <Typography variant="caption" color="text.secondary">
-                      {formatRelativeTime(proxy.updatedAt)}
-                    </Typography>
-                  </ListingTable.Cell>
-                  <ListingTable.Cell
-                    align="right"
-                    onClick={(event) => event.stopPropagation()}
-                  >
-                    {proxy.id && proxy.projectName && canWrite ? (
-                      <Tooltip title="Delete MCP Server">
-                        <IconButton
-                          color="error"
-                          size="small"
-                          onClick={() => confirmDelete(proxy, displayName)}
-                        >
-                          <Trash size={16} />
-                        </IconButton>
-                      </Tooltip>
-                    ) : null}
-                  </ListingTable.Cell>
-                </ListingTable.Row>
-              );
-            })}
-          </ListingTable.Body>
-        </ListingTable>
-      </ResourceListShell>
+        onOpen={openProxy}
+        caption={(proxy) => (proxy.projectName ? "Project" : "Organization")}
+        // Only the project's own servers are deleted here; an org server is every project's,
+        // so it is deleted from the org page.
+        canDelete={(proxy) => !!proxy.projectName}
+        deleteDescription={(_, displayName) =>
+          `Are you sure you want to delete ${displayName}? It is removed from every environment it is deployed to. This action cannot be undone.`
+        }
+        onDelete={(proxy) =>
+          proxy.id &&
+          deleteProjectProxy({
+            orgName: orgId,
+            projName: projectId,
+            proxyId: proxy.id,
+          })
+        }
+      />
     </Stack>
   );
 }

@@ -273,9 +273,9 @@ func (k *MCPProxyKind) Targets(ctx context.Context, record reconcile.Record) (uu
 	return gateway.UUID, true, nil
 }
 
-// isProjectScoped reports whether the artifact is a project proxy's binding. A project binding's upstream is an
-// in-cluster address that a customer-run, self-hosted gateway has no route to, so it is never placed on one. An
-// artifact that is gone is not: Render reports it.
+// isProjectScoped reports whether the artifact is a project proxy's binding, which is never placed on a customer-run,
+// self-hosted gateway: a sourced binding's upstream is an in-cluster address such a gateway has no route to, and a
+// binding registered by URL is held to the same rule. An artifact that is gone is not: Render reports it.
 func (k *MCPProxyKind) isProjectScoped(ctx context.Context, record reconcile.Record) (bool, error) {
 	a, err := k.load(ctx, record.ArtifactRef)
 	if errors.Is(err, gorm.ErrRecordNotFound) {

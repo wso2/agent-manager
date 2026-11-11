@@ -18,7 +18,7 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { httpGET } from "../utils";
-import { getProjectMCPProxy, listMCPProxies } from "./mcp-proxies";
+import { getProjectMCPProxy, listAllMCPProxies, listMCPProxies } from "./mcp-proxies";
 
 vi.mock("../utils", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../utils")>()),
@@ -45,6 +45,42 @@ describe("listMCPProxies", () => {
   it("omits project when not provided (org-only list)", async () => {
     await listMCPProxies({ orgName: "org" }, { limit: 50, offset: 0 });
     expect(mockGET.mock.calls[0][1]?.searchParams).toEqual({ limit: "50", offset: "0" });
+  });
+});
+
+describe("listAllMCPProxies", () => {
+  it("reads page after page until it has the total", async () => {
+    const page = (n: number, from: number) =>
+      Array.from({ length: n }, (_, i) => ({ id: `p${from + i}` }));
+    mockGET
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ list: page(100, 0), pagination: { count: 150 } }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ list: page(50, 100), pagination: { count: 150 } }),
+      } as Response);
+
+    const all = await listAllMCPProxies({ orgName: "org" }, { project: "p1" });
+
+    expect(all.list).toHaveLength(150);
+    expect(mockGET).toHaveBeenCalledTimes(2);
+    expect(mockGET.mock.calls[1][1]?.searchParams).toEqual({
+      limit: "100",
+      offset: "100",
+      project: "p1",
+    });
+  });
+
+  it("stops on an empty page", async () => {
+    mockGET.mockResolvedValue({
+      ok: true,
+      json: async () => ({ list: [], pagination: { count: 10 } }),
+    } as Response);
+    const all = await listAllMCPProxies({ orgName: "org" });
+    expect(all.list).toEqual([]);
+    expect(mockGET).toHaveBeenCalledTimes(1);
   });
 });
 

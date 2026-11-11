@@ -216,6 +216,12 @@ export interface MCPProxySource {
 /** The public MCP server URL a project proxy registered by URL fronts. */
 export interface ProjectMCPProxyUpstream {
   url: string;
+  /**
+   * Request only. On a URL change to another origin, the environments whose stored upstream
+   * credential the update clears, rather than refuse the change. A binding with a stored
+   * credential that is not named refuses it with 409: the caller's view is out of date.
+   */
+  resetBindingAuthFor?: string[];
 }
 
 /**

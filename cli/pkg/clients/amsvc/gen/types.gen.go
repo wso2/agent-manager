@@ -1896,14 +1896,14 @@ type APIKeySecurity struct {
 	// Enabled Whether API key security is enabled
 	Enabled *bool `json:"enabled,omitempty"`
 
-	// In Where the API key is located
+	// In Where the API key is located. The gateway reads it from a header only: query is refused with 400 when an API key is enabled, except on an MCP proxy endpoint that already has it stored, which keeps it until it is moved to a header. It is still returned for such resources.
 	In *APIKeySecurityIn `json:"in,omitempty"`
 
 	// Key API key parameter name
 	Key *string `json:"key,omitempty"`
 }
 
-// APIKeySecurityIn Where the API key is located
+// APIKeySecurityIn Where the API key is located. The gateway reads it from a header only: query is refused with 400 when an API key is enabled, except on an MCP proxy endpoint that already has it stored, which keeps it until it is moved to a header. It is still returned for such resources.
 type APIKeySecurityIn string
 
 // AddAgentKindVersionRequest defines model for AddAgentKindVersionRequest.
@@ -5185,7 +5185,7 @@ type MCPProxyEnvironmentRequest struct {
 	// Resilience The binding's request and idle timeouts on the gateway. Optional; omitted, the gateway's defaults apply. A change redeploys the binding.
 	Resilience *Resilience `json:"resilience,omitempty"`
 
-	// Security A binding's security. Phase 1 accepts apiKey, which is also the default when the field is omitted or names no variant (an api key in the X-API-Key header), and no security (enabled false only). An apiKey with enabled false while security is not disabled is rejected with 400 VALIDATION_ERROR. jwt is rejected with 400 "jwt security is not available yet", and identity with 400.
+	// Security A binding's security. Phase 1 accepts apiKey, which is also the default when the field is omitted or names no variant (an api key in the X-API-Key header), and no security (enabled false only). An apiKey with enabled false while security is not disabled is rejected with 400 VALIDATION_ERROR. jwt is rejected with 400 "jwt security is not available yet", and identity with 400. The API key is read from a header only: apiKey.in "query" is rejected with 400 VALIDATION_ERROR, as the gateway checks no other location.
 	Security *MCPProxyEnvironmentSecurity `json:"security,omitempty"`
 
 	// UpstreamAuth Credentials the gateway adds when it calls the upstream.
@@ -5227,7 +5227,7 @@ type MCPProxyEnvironmentResponse struct {
 	// Resilience The binding's request and idle timeouts. Absent when the gateway's defaults apply.
 	Resilience *Resilience `json:"resilience,omitempty"`
 
-	// Security A binding's security. Phase 1 accepts apiKey, which is also the default when the field is omitted or names no variant (an api key in the X-API-Key header), and no security (enabled false only). An apiKey with enabled false while security is not disabled is rejected with 400 VALIDATION_ERROR. jwt is rejected with 400 "jwt security is not available yet", and identity with 400.
+	// Security A binding's security. Phase 1 accepts apiKey, which is also the default when the field is omitted or names no variant (an api key in the X-API-Key header), and no security (enabled false only). An apiKey with enabled false while security is not disabled is rejected with 400 VALIDATION_ERROR. jwt is rejected with 400 "jwt security is not available yet", and identity with 400. The API key is read from a header only: apiKey.in "query" is rejected with 400 VALIDATION_ERROR, as the gateway checks no other location.
 	Security     *MCPProxyEnvironmentSecurity             `json:"security,omitempty"`
 	UpdatedAt    *time.Time                               `json:"updatedAt,omitempty"`
 	UpstreamAuth *MCPProxyEnvironmentUpstreamAuthRedacted `json:"upstreamAuth,omitempty"`
@@ -5236,7 +5236,7 @@ type MCPProxyEnvironmentResponse struct {
 // MCPProxyEnvironmentResponseCapabilitiesSource Where capabilities came from: caller (the binding PUT) or discovered (AMS listed them from the MCP server). Absent with no capabilities.
 type MCPProxyEnvironmentResponseCapabilitiesSource string
 
-// MCPProxyEnvironmentSecurity A binding's security. Phase 1 accepts apiKey, which is also the default when the field is omitted or names no variant (an api key in the X-API-Key header), and no security (enabled false only). An apiKey with enabled false while security is not disabled is rejected with 400 VALIDATION_ERROR. jwt is rejected with 400 "jwt security is not available yet", and identity with 400.
+// MCPProxyEnvironmentSecurity A binding's security. Phase 1 accepts apiKey, which is also the default when the field is omitted or names no variant (an api key in the X-API-Key header), and no security (enabled false only). An apiKey with enabled false while security is not disabled is rejected with 400 VALIDATION_ERROR. jwt is rejected with 400 "jwt security is not available yet", and identity with 400. The API key is read from a header only: apiKey.in "query" is rejected with 400 VALIDATION_ERROR, as the gateway checks no other location.
 type MCPProxyEnvironmentSecurity struct {
 	ApiKey  *APIKeySecurity `json:"apiKey,omitempty"`
 	Enabled *bool           `json:"enabled,omitempty"`
@@ -5902,7 +5902,9 @@ type ProjectMCPProxyResponse struct {
 
 // ProjectMCPProxyUpstream defines model for ProjectMCPProxyUpstream.
 type ProjectMCPProxyUpstream struct {
-	Url string `json:"url"`
+	// ResetBindingAuthFor Request only. A URL change to another origin (scheme, host or port) is refused with 400 while any binding has a stored upstream credential, which is never sent to another origin. resetBindingAuthFor names the bindings, by environment name, whose stored credential the change clears in the same update instead; they are redeployed without one, and new credentials are set with each binding's PUT. A binding with a stored credential that is not named refuses the change with 409 CONFLICT and nothing is stored: read the proxy again and retry. Ignored when the origin does not change.
+	ResetBindingAuthFor *[]string `json:"resetBindingAuthFor,omitempty"`
+	Url                 string    `json:"url"`
 }
 
 // ProjectResponse defines model for ProjectResponse.

@@ -16,6 +16,7 @@
  */
 
 import type {
+  APIKeyLocation,
   MCPEndpointConfig,
   MCPProxy,
   ProjectMCPProxy,
@@ -35,20 +36,6 @@ export interface BindingFailure {
 /** The navigation state the register form hands the server's page. */
 export interface ProjectProxyViewState {
   bindingFailures?: BindingFailure[];
-}
-
-/** The longest proxy id the service takes. */
-export const MAX_PROXY_ID_LENGTH = 100;
-
-/** A kebab-case proxy id from a display name, as the service takes it. */
-export function toProjectProxyId(name: string): string {
-  return name
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, MAX_PROXY_ID_LENGTH)
-    .replace(/-+$/g, "");
 }
 
 /** The upsert body that keeps a project proxy as it is; an edit changes only its own field. */
@@ -79,6 +66,82 @@ export function bindingRequiresAPIKey(
   return security.apiKey?.enabled !== false;
 }
 
+/** The header callers send the binding's API key in, defaulted as the service does. */
+export function apiKeyName(
+  security: ProjectMCPProxyEnvironmentSecurity | undefined,
+): string {
+  return security?.apiKey?.key || DEFAULT_API_KEY_HEADER;
+}
+
+/** Where callers send the binding's API key, defaulted as the service does. */
+export function apiKeyLocation(
+  security: ProjectMCPProxyEnvironmentSecurity | undefined,
+): APIKeyLocation {
+  return security?.apiKey?.in ?? "header";
+}
+
+/** Binding security that asks for an API key in `key`, or none. */
+export function apiKeySecurity(
+  required: boolean,
+  key: string,
+  location: APIKeyLocation,
+): ProjectMCPProxyEnvironmentSecurity {
+  return required
+    ? { enabled: true, apiKey: { enabled: true, key, in: location } }
+    : { enabled: false };
+}
+
+/**
+ * Whether the binding asks for an API key in the query. The gateway reads the key from a header
+ * only, so the service refuses a binding saved that way; one stored before has to move to a
+ * header before anything else on it can be saved.
+ */
+export function readsAPIKeyFromQuery(
+  security: ProjectMCPProxyEnvironmentSecurity | undefined,
+): boolean {
+  return (
+    bindingRequiresAPIKey(security) && apiKeyLocation(security) === "query"
+  );
+}
+
+/**
+ * Refuses a binding request the service would refuse for its query API key, naming the
+ * environment, so a save stops before any request is sent.
+ */
+export function checkBindingRequest(
+  request: ProjectMCPProxyEnvironmentRequest,
+  envName: string,
+): void {
+  if (request.security && readsAPIKeyFromQuery(request.security)) {
+    throw new Error(
+      `The ${envName} environment reads its API key from the query, which the gateway does not support. Change it to a header on its Security tab, then save again.`,
+    );
+  }
+}
+
+/** The binding's security as it reads back, with the service's defaults filled in. */
+function securityWithDefaults(
+  security: ProjectMCPProxyEnvironmentSecurity | undefined,
+): ProjectMCPProxyEnvironmentSecurity {
+  return apiKeySecurity(
+    bindingRequiresAPIKey(security),
+    apiKeyName(security),
+    apiKeyLocation(security),
+  );
+}
+
+/** The upstream credential a request sets: an api-key header, with its value when one is typed. */
+export function upstreamAuthRequest(
+  auth: { header?: string; value?: string } | undefined,
+): ProjectMCPProxyEnvironmentRequest["upstreamAuth"] {
+  if (!auth?.header) return undefined;
+  return {
+    type: "api-key",
+    header: auth.header,
+    ...(auth.value ? { value: auth.value } : {}),
+  };
+}
+
 /**
  * The PUT body that keeps a binding as it is. The binding PUT replaces the whole
  * configuration, so every save starts from this and changes only its own field.
@@ -93,18 +156,8 @@ export function bindingRequestFrom(
   if (env.gatewayId) request.gatewayId = env.gatewayId;
   if (env.releaseBindingName)
     request.releaseBindingName = env.releaseBindingName;
-  if (env.security) {
-    request.security = bindingRequiresAPIKey(env.security)
-      ? {
-          enabled: true,
-          apiKey: {
-            enabled: true,
-            key: env.security.apiKey?.key || DEFAULT_API_KEY_HEADER,
-            in: env.security.apiKey?.in ?? "header",
-          },
-        }
-      : { enabled: false };
-  }
+  // Left out when the binding reads back none, which the service also takes as its default.
+  if (env.security) request.security = securityWithDefaults(env.security);
   if (env.upstreamAuth?.type === "api-key" && env.upstreamAuth.header) {
     request.upstreamAuth = { type: "api-key", header: env.upstreamAuth.header };
   }
@@ -136,41 +189,20 @@ export function bindingEndpointConfig(
     policies: env.policies ?? [],
     capabilities: env.capabilities,
     mcpSpecVersions: proxy.mcpSpecVersion ? [proxy.mcpSpecVersion] : undefined,
-    security: bindingRequiresAPIKey(env.security)
-      ? {
-          enabled: true,
-          apiKey: {
-            enabled: true,
-            key: env.security?.apiKey?.key || DEFAULT_API_KEY_HEADER,
-            in: env.security?.apiKey?.in ?? "header",
-          },
-        }
-      : { enabled: false },
+    security: securityWithDefaults(env.security),
   };
 }
 
-/** What an org tab's edit of a binding's endpoint config changes on the project proxy. */
-export interface BindingConfigChange {
-  /** The binding PUT body with the edit applied. */
-  binding: ProjectMCPProxyEnvironmentRequest;
-  /**
-   * The new URL of a proxy registered by URL, when the edit changed it. The URL is the
-   * proxy's, so every environment takes it.
-   */
-  proxyURL?: string;
-}
-
 /**
- * Applies an org tab's edit of a binding's endpoint config. Policies, capabilities, timeouts and
- * the upstream credential belong to the binding; the URL belongs to a proxy registered by URL.
+ * The binding PUT body with an org tab's edit of its endpoint config applied. Policies,
+ * capabilities, timeouts and the upstream credential belong to the binding. The URL is the
+ * proxy's, and read-only on the tabs, so it is not taken from the edit.
  */
 export function applyBindingConfigChange(
-  proxy: ProjectMCPProxy,
   env: ProjectMCPProxyEnvironment,
   fields: Partial<MCPEndpointConfig>,
-): BindingConfigChange {
+): ProjectMCPProxyEnvironmentRequest {
   const binding = bindingRequestFrom(env);
-  const change: BindingConfigChange = { binding };
   if (fields.policies !== undefined) binding.policies = fields.policies;
   if ("capabilities" in fields) {
     if (fields.capabilities) binding.capabilities = fields.capabilities;
@@ -181,23 +213,11 @@ export function applyBindingConfigChange(
     else delete binding.resilience;
   }
   if ("upstream" in fields) {
-    const main = fields.upstream?.main;
-    const auth = main?.auth;
-    if (auth?.header) {
-      binding.upstreamAuth = {
-        type: "api-key",
-        header: auth.header,
-        ...(auth.value ? { value: auth.value } : {}),
-      };
-    } else {
-      delete binding.upstreamAuth;
-    }
-    const url = main?.url?.trim();
-    if (proxy.upstream && url && url !== proxy.upstream.url) {
-      change.proxyURL = url;
-    }
+    const upstreamAuth = upstreamAuthRequest(fields.upstream?.main?.auth);
+    if (upstreamAuth) binding.upstreamAuth = upstreamAuth;
+    else delete binding.upstreamAuth;
   }
-  return change;
+  return binding;
 }
 
 /** The project proxy as the org Overview tab reads it. */
@@ -260,7 +280,10 @@ export function keptBindingRequest(
   env: ProjectMCPProxyEnvironment,
   initial: EndpointDraft,
   draft: EndpointDraft,
-  edited: Pick<ProjectMCPProxyEnvironmentRequest, "upstreamAuth" | "resilience">,
+  edited: Pick<
+    ProjectMCPProxyEnvironmentRequest,
+    "upstreamAuth" | "resilience"
+  >,
 ): ProjectMCPProxyEnvironmentRequest {
   const request = bindingRequestFrom(env);
   if (credentialEdited(initial, draft)) {
@@ -279,7 +302,9 @@ export function credentialEdited(
   initial: EndpointDraft,
   draft: EndpointDraft,
 ): boolean {
-  return draft.authHeader.trim() !== initial.authHeader.trim() || !!draft.authValue;
+  return (
+    draft.authHeader.trim() !== initial.authHeader.trim() || !!draft.authValue
+  );
 }
 
 /** Whether the form's request or idle timeout was changed. */
@@ -291,4 +316,124 @@ export function timeoutsEdited(
     draft.resilienceTimeout.trim() !== initial.resilienceTimeout.trim() ||
     draft.resilienceIdleTimeout.trim() !== initial.resilienceIdleTimeout.trim()
   );
+}
+
+/** Whether two URLs share scheme, host and port; a URL that does not parse matches nothing. */
+export function sameOrigin(
+  a: string | undefined,
+  b: string | undefined,
+): boolean {
+  try {
+    return !!a && !!b && new URL(a.trim()).origin === new URL(b.trim()).origin;
+  } catch {
+    return false;
+  }
+}
+
+/** One request of a URL server's edit save, in the order they are sent. */
+export type URLProxySaveStep =
+  | { kind: "remove"; envName: string }
+  | {
+      kind: "binding";
+      envName: string;
+      body: ProjectMCPProxyEnvironmentRequest;
+    }
+  | { kind: "proxy"; url: string; resetBindingAuthFor?: string[] };
+
+/** What the edit form sets on every environment, when the user changed it. */
+export interface URLProxyEdits {
+  url: string;
+  upstreamAuth?: ProjectMCPProxyEnvironmentRequest["upstreamAuth"];
+  resilience?: ProjectMCPProxyEnvironmentRequest["resilience"];
+}
+
+/**
+ * The requests that save an edit of a server registered by URL, checked before any is sent so a
+ * save that cannot succeed writes nothing. The proxy goes first, so a proxy the service refuses
+ * leaves every environment as it was. A stored credential must not reach a new host: when the
+ * URL moves to another host, the proxy update clears the stored credentials of the environments
+ * this page loaded in the same transaction (resetBindingAuthFor), and each kept environment then
+ * gets the value typed now. An environment added since the page loaded is not named, so the
+ * service refuses the move rather than clear or move a credential the user has not seen.
+ */
+export function planURLProxySave(
+  proxy: ProjectMCPProxy,
+  initial: EndpointDraft,
+  draft: EndpointDraft,
+  edits: URLProxyEdits,
+  added: { envName: string; gatewayId?: string }[],
+): URLProxySaveStep[] {
+  const kept = new Set(draft.environments);
+  const keptEnvs = proxy.environments.filter((env) =>
+    kept.has(env.environmentUuid),
+  );
+  const auth = edits.upstreamAuth;
+  // A credential is never read back, so a new environment can only take one typed now.
+  if (added.length > 0 && auth?.header && !auth.value) {
+    throw new Error(
+      "Enter the credential value again to deploy the server to a new environment.",
+    );
+  }
+  // A changed header with no value keeps each environment's stored value; one with none
+  // stored has nothing to keep.
+  if (
+    credentialEdited(initial, draft) &&
+    auth?.header &&
+    !auth.value &&
+    keptEnvs.some((env) => !env.upstreamAuth)
+  ) {
+    throw new Error(
+      "Enter the credential value: an environment the server is deployed to has none stored.",
+    );
+  }
+  const kepts = keptEnvs.map((env) => ({
+    env,
+    body: keptBindingRequest(env, initial, draft, edits),
+  }));
+  // Checked before the proxy changes: a binding refused later would leave the save half done.
+  for (const { env, body } of kepts)
+    checkBindingRequest(body, env.environmentName);
+  const movesHost = !sameOrigin(proxy.upstream?.url, edits.url);
+  if (
+    movesHost &&
+    kepts.some(({ body }) => body.upstreamAuth && !body.upstreamAuth.value)
+  ) {
+    throw new Error(
+      "Enter the credential value again: a stored credential is not sent to a new host.",
+    );
+  }
+
+  const steps: URLProxySaveStep[] = [
+    {
+      kind: "proxy",
+      url: edits.url,
+      ...(movesHost
+        ? {
+            resetBindingAuthFor: proxy.environments.map(
+              (env) => env.environmentName,
+            ),
+          }
+        : {}),
+    },
+  ];
+  for (const env of proxy.environments) {
+    if (!kept.has(env.environmentUuid)) {
+      steps.push({ kind: "remove", envName: env.environmentName });
+    }
+  }
+  for (const { env, body } of kepts) {
+    steps.push({ kind: "binding", envName: env.environmentName, body });
+  }
+  for (const { envName, gatewayId } of added) {
+    steps.push({
+      kind: "binding",
+      envName,
+      body: {
+        ...(gatewayId ? { gatewayId } : {}),
+        ...(auth ? { upstreamAuth: auth } : {}),
+        ...(edits.resilience ? { resilience: edits.resilience } : {}),
+      },
+    });
+  }
+  return steps;
 }

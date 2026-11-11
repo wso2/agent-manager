@@ -73,8 +73,10 @@ import {
 import {
   applyBindingConfigChange,
   bindingEndpointConfig,
+  checkBindingRequest,
   proxyAsOrgProxy,
   type ProjectProxyViewState,
+  readsAPIKeyFromQuery,
 } from "./projectBinding";
 import { useCopyWithFeedback } from "./useCopyWithFeedback";
 
@@ -94,10 +96,13 @@ function InfoCard({
   label,
   value,
   onCopy,
+  emptyText = "—",
 }: {
   label: string;
   value?: string;
   onCopy?: () => void;
+  /** Shown in place of a value that is not there yet. */
+  emptyText?: string;
 }) {
   return (
     <Card variant="outlined" sx={{ p: 2, height: "100%" }}>
@@ -114,7 +119,7 @@ function InfoCard({
             variant="body2"
             sx={{ fontFamily: "monospace", wordBreak: "break-all" }}
           >
-            {value || "—"}
+            {value || emptyText}
           </Typography>
           {value && onCopy && (
             <Tooltip title={`Copy ${label}`}>
@@ -174,13 +179,14 @@ export function ViewProjectMCPProxy() {
   const isURLProxy = !!proxy && !proxy.source;
 
   const tabSlug = searchParams.get("tab");
-  const tabIndex = tabSlug
-    ? Math.max(
-        0,
-        TAB_DEFS.findIndex((tab) => tab.slug === tabSlug),
-      )
-    : 0;
+  const tabIndex = Math.max(
+    0,
+    TAB_DEFS.findIndex((tab) => tab.slug === tabSlug),
+  );
   const activeTabSlug = TAB_DEFS[tabIndex]?.slug;
+  // The tabs that list the binding's tools, where an unfinished discovery is shown.
+  const showsTools =
+    activeTabSlug === "overview" || activeTabSlug === "manage-tools";
 
   const bindings = useMemo(() => proxy?.environments ?? [], [proxy]);
   const selected =
@@ -209,8 +215,11 @@ export function ViewProjectMCPProxy() {
 
 
   const saveBinding = useCallback(
-    (request: ProjectMCPProxyEnvironmentRequest) =>
-      putBinding.mutateAsync({
+    async (request: ProjectMCPProxyEnvironmentRequest) => {
+      // A binding still reading its API key from the query is refused by the service; say
+      // why, and where to fix it, rather than send it.
+      checkBindingRequest(request, selected?.environmentName ?? "");
+      return putBinding.mutateAsync({
         params: {
           orgName: orgId,
           projName: projectId,
@@ -218,7 +227,8 @@ export function ViewProjectMCPProxy() {
           envName: selected?.environmentName,
         },
         body: request,
-      }),
+      });
+    },
     [putBinding, orgId, projectId, proxyId, selected?.environmentName],
   );
 
@@ -231,11 +241,11 @@ export function ViewProjectMCPProxy() {
   );
   const updateSelectedConfig = useCallback(
     async (fields: Partial<MCPEndpointConfig>) => {
-      if (!proxy || !selected) return undefined;
+      if (!selected) return undefined;
       // The URL is read-only here, so an edit changes only this environment's binding.
-      return saveBinding(applyBindingConfigChange(proxy, selected, fields).binding);
+      return saveBinding(applyBindingConfigChange(selected, fields));
     },
-    [proxy, selected, saveBinding],
+    [selected, saveBinding],
   );
   const isUpdating = putBinding.isPending;
 
@@ -345,31 +355,29 @@ export function ViewProjectMCPProxy() {
               useFlexGap
             >
               {selected && <BindingStatusChip env={selected} />}
-              {bindings.length > 0 && (
-                <FormControl size="small" sx={{ minWidth: 260 }}>
-                  <Select
-                    value={selected?.environmentName ?? ""}
-                    onChange={(event) =>
-                      setParam("env", event.target.value as string)
-                    }
-                    renderValue={(value) => {
-                      const env = bindings.find(
-                        (item) => item.environmentName === value,
-                      );
-                      return `${env ? envLabel(env.environmentUuid, env.environmentName) : value} Environment`;
-                    }}
-                  >
-                    {bindings.map((env) => (
-                      <MenuItem
-                        key={env.environmentName}
-                        value={env.environmentName}
-                      >
-                        {envLabel(env.environmentUuid, env.environmentName)}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              )}
+              <FormControl size="small" sx={{ minWidth: 260 }}>
+                <Select
+                  value={selected?.environmentName ?? ""}
+                  onChange={(event) =>
+                    setParam("env", event.target.value as string)
+                  }
+                  renderValue={(value) => {
+                    const env = bindings.find(
+                      (item) => item.environmentName === value,
+                    );
+                    return `${env ? envLabel(env.environmentUuid, env.environmentName) : value} Environment`;
+                  }}
+                >
+                  {bindings.map((env) => (
+                    <MenuItem
+                      key={env.environmentName}
+                      value={env.environmentName}
+                    >
+                      {envLabel(env.environmentUuid, env.environmentName)}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
             </Stack>
           )}
 
@@ -392,6 +400,23 @@ export function ViewProjectMCPProxy() {
                 <InfoCard
                   label="Source"
                   value={`${proxy.source.componentName} / ${proxy.source.endpointName}`}
+                />
+              </Grid>
+            )}
+            {selected && (
+              // Each environment is served by its own gateway, at /<project><context>.
+              <Grid size={{ xs: 12 }}>
+                <InfoCard
+                  label={`Invoke URL (${envLabel(
+                    selected.environmentUuid,
+                    selected.environmentName,
+                  )})`}
+                  value={selected.publicUrl}
+                  onCopy={() =>
+                    selected.publicUrl &&
+                    handleCopy(selected.publicUrl, "Invoke URL")
+                  }
+                  emptyText="Available once the server is deployed to a gateway in this environment."
                 />
               </Grid>
             )}
@@ -436,18 +461,37 @@ export function ViewProjectMCPProxy() {
               <Divider />
               {/* Keyed by environment, so unsaved edits never carry over to another one. */}
               <Box sx={{ p: 3 }} key={selected.environmentName}>
+                {readsAPIKeyFromQuery(selected.security) && (
+                  <Alert
+                    severity="warning"
+                    sx={{ mb: 3 }}
+                    action={
+                      activeTabSlug !== "security" ? (
+                        <Button
+                          color="inherit"
+                          size="small"
+                          onClick={() => setParam("tab", "security")}
+                        >
+                          Go to Security
+                        </Button>
+                      ) : undefined
+                    }
+                  >
+                    This environment reads its API key from the query, which the gateway does
+                    not support. Change it to a header on the Security tab; until then, other
+                    changes to this environment cannot be saved.
+                  </Alert>
+                )}
                 {/* Agent Manager lists the tools through the gateway after each deploy. Until it
                     has, or once it gave up, an empty tool list is not the answer yet. */}
-                {(activeTabSlug === "overview" ||
-                  activeTabSlug === "manage-tools") &&
+                {showsTools &&
                   selected.capabilityDiscovery?.status === "Pending" && (
                     <Alert severity="info" sx={{ mb: 3 }}>
                       Discovering this MCP server&apos;s tools through its
                       gateway. They appear here once found.
                     </Alert>
                   )}
-                {(activeTabSlug === "overview" ||
-                  activeTabSlug === "manage-tools") &&
+                {showsTools &&
                   selected.capabilityDiscovery?.status === "Failed" && (
                     <Alert
                       severity="warning"

@@ -95,6 +95,8 @@ type bindingFixture struct {
 	// proxyUpdates counts proxy row writes; rerenders counts redeploys queued for the proxy's bindings.
 	proxyUpdates int
 	rerenders    int
+	// rerendered is the artifact of each redeploy queued, in order.
+	rerendered []uuid.UUID
 }
 
 func newBindingFixture(t *testing.T) *bindingFixture {
@@ -205,8 +207,9 @@ func newBindingFixture(t *testing.T) *bindingFixture {
 			return nil, nil
 		},
 		LockStatusRowsFunc: func(context.Context, *gorm.DB, string, []uuid.UUID) error { return nil },
-		QueueRenderFunc: func(context.Context, *gorm.DB, string, uuid.UUID, []uuid.UUID, string, repositories.QueueScope) (int64, error) {
+		QueueRenderFunc: func(_ context.Context, _ *gorm.DB, _ string, artifactUUID uuid.UUID, _ []uuid.UUID, _ string, _ repositories.QueueScope) (int64, error) {
 			f.rerenders++
+			f.rerendered = append(f.rerendered, artifactUUID)
 			return 0, nil
 		},
 		LockEnvironmentMappingFunc: mappedEverywhere,
@@ -1146,6 +1149,35 @@ func TestUpsert_URLProxyURLChangeUpdatesItsBindings(t *testing.T) {
 	assert.Positive(t, f.rerenders, "the bindings are redeployed")
 }
 
+// A binding created after the proxy was read, and before its URL change locked it, is redeployed with the new URL
+// too: the redeploys come from the locked proxy's bindings, not the copy read first.
+func TestUpsert_URLProxyURLChangeRedeploysABindingCreatedMeanwhile(t *testing.T) {
+	f := newBindingFixture(t)
+	f.asURLProxy("https://8.8.8.8/mcp")
+	_, _, err := f.put(t, models.MCPProxyEnvironmentRequest{})
+	require.NoError(t, err)
+	_, ee := f.binding()
+	// The read the update starts from predates the binding.
+	repo := f.svc.base.repo.(*repomocks.MCPProxyRepositoryMock)
+	readFirst := repo.GetInProjectFunc
+	repo.GetInProjectFunc = func(ctx context.Context, handle, org, project string) (*models.MCPProxy, error) {
+		p, err := readFirst(ctx, handle, org, project)
+		if p != nil {
+			p.Endpoints = nil
+		}
+		return p, err
+	}
+	f.rerendered = nil
+
+	_, _, err = f.svc.Upsert(context.Background(), testOrg, bindingProject, bindingProjectUUID, bindingHandle,
+		models.ProjectMCPProxyRequest{
+			Name: "Weather", Version: "v1", Context: "/weather",
+			Upstream: &models.ProjectMCPProxyUpstream{URL: "https://8.8.4.4/mcp"},
+		})
+	require.NoError(t, err)
+	assert.Contains(t, f.rerendered, ee.ArtifactUUID, "the binding created meanwhile is redeployed")
+}
+
 func bindingTimeouts(timeout, idle string) *models.Resilience {
 	return &models.Resilience{Timeout: &timeout, IdleTimeout: &idle}
 }
@@ -1189,17 +1221,84 @@ func TestPutEnv_Resilience_Invalid400NothingStored(t *testing.T) {
 
 // The gateway artifact of an environment carries its endpoint's timeouts.
 func TestBuildMCPProxyEnvArtifact_CarriesTheEndpointTimeouts(t *testing.T) {
-	proxy := &models.MCPProxy{UUID: uuid.New(), Handle: "docs"}
-	endpoint := &models.MCPProxyEndpoint{
-		Handle: "main",
-		Configuration: models.MCPEndpointConfig{
-			Upstream:   &models.UpstreamEndpoint{URL: "https://8.8.8.8/mcp"},
-			Resilience: bindingTimeouts("15s", "1m"),
+	ctxPath, projectUUID, projectName := "/docs", "p-uuid", "p1"
+	for name, proxy := range map[string]*models.MCPProxy{
+		// Before, an org endpoint's stored timeouts were dropped from its artifact; they now reach the gateway.
+		"org proxy": {UUID: uuid.New(), Handle: "docs", Configuration: models.MCPProxyConfig{Context: &ctxPath}},
+		"project proxy": {
+			UUID: uuid.New(), Handle: "docs", ProjectUUID: &projectUUID, ProjectName: &projectName,
+			Configuration: models.MCPProxyConfig{Context: &ctxPath},
 		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			endpoint := &models.MCPProxyEndpoint{
+				Handle: "main",
+				Configuration: models.MCPEndpointConfig{
+					Upstream:   &models.UpstreamEndpoint{URL: "https://8.8.8.8/mcp"},
+					Resilience: bindingTimeouts("15s", "1m"),
+				},
+			}
+			ee := &models.MCPProxyEndpointEnvironment{ArtifactUUID: uuid.New(), EnvironmentUUID: uuid.New()}
+			deployable := buildMCPProxyEnvArtifact(proxy, endpoint, ee)
+			rendered, err := buildMCPProxyDeploymentYAML(deployable, "docs", nil)
+			require.NoError(t, err)
+			require.NotNil(t, rendered.Spec.Resilience)
+			assert.Equal(t, "15s", *rendered.Spec.Resilience.Timeout)
+			assert.Equal(t, "1m", *rendered.Spec.Resilience.IdleTimeout)
+		})
 	}
-	ee := &models.MCPProxyEndpointEnvironment{ArtifactUUID: uuid.New(), EnvironmentUUID: uuid.New()}
-	deployable := buildMCPProxyEnvArtifact(proxy, endpoint, ee)
-	require.NotNil(t, deployable.Configuration.Resilience)
-	assert.Equal(t, "15s", *deployable.Configuration.Resilience.Timeout)
-	assert.Equal(t, "1m", *deployable.Configuration.Resilience.IdleTimeout)
+}
+
+// The gateway reads a binding's API key from a header only, so a query location is refused rather than deployed.
+func TestPutEnv_APIKeyInQuery_400NothingStored(t *testing.T) {
+	f := newBindingFixture(t)
+	enabled := true
+	_, _, err := f.put(t, models.MCPProxyEnvironmentRequest{Security: &models.MCPProxyEnvironmentSecurity{
+		Enabled: &enabled, APIKey: &models.APIKeySecurity{Enabled: &enabled, Key: "api_key", In: "query"},
+	}})
+	require.ErrorIs(t, err, utils.ErrInvalidInput)
+	assert.Zero(t, f.endpointWrites, "nothing is stored")
+	assert.Empty(t, f.deployed)
+}
+
+// A binding saved while its proxy's URL changed takes the locked proxy's URL rather than writing the old one back; a
+// move to another host is refused when the binding carries a credential given for the old host.
+func TestFollowLockedProxyURL(t *testing.T) {
+	apiKey, header, secret := "api-key", "X-Key", "s3cret"
+	auth := &models.UpstreamAuth{Type: &apiKey, Header: &header, Value: &secret}
+	config := func(withAuth bool) models.MCPEndpointConfig {
+		upstream := &models.UpstreamEndpoint{URL: "https://8.8.8.8/mcp"}
+		if withAuth {
+			upstream.Auth = auth
+		}
+		return models.MCPEndpointConfig{Upstream: upstream}
+	}
+	proxyAt := func(url string) *models.MCPProxy {
+		return &models.MCPProxy{Configuration: models.MCPProxyConfig{
+			Upstream: models.UpstreamConfig{Main: &models.UpstreamEndpoint{URL: url}},
+		}}
+	}
+
+	desired, _, err := followLockedProxyURL(proxyAt("https://8.8.8.8/mcp"), config(true), config(true))
+	require.NoError(t, err)
+	assert.Equal(t, "https://8.8.8.8/mcp", desired.Upstream.URL, "unchanged")
+
+	desired, stored, err := followLockedProxyURL(proxyAt("https://8.8.8.8/v2/mcp"), config(true), config(true))
+	require.NoError(t, err)
+	assert.Equal(t, "https://8.8.8.8/v2/mcp", desired.Upstream.URL, "same host: the new URL is kept")
+	assert.Equal(t, "https://8.8.8.8/v2/mcp", stored.Upstream.URL)
+	assert.NotNil(t, stored.Upstream.Auth)
+
+	_, _, err = followLockedProxyURL(proxyAt("https://1.1.1.1/mcp"), config(true), config(true))
+	assert.ErrorIs(t, err, utils.ErrMCPProxyURLChanged, "another host with a credential")
+
+	desired, _, err = followLockedProxyURL(proxyAt("https://1.1.1.1/mcp"), config(false), config(false))
+	require.NoError(t, err)
+	assert.Equal(t, "https://1.1.1.1/mcp", desired.Upstream.URL, "another host without a credential")
+
+	sourced := proxyAt("https://1.1.1.1/mcp")
+	sourced.Configuration.Source = &models.MCPProxySource{ComponentName: "c", EndpointName: "e"}
+	desired, _, err = followLockedProxyURL(sourced, config(true), config(true))
+	require.NoError(t, err)
+	assert.Equal(t, "https://8.8.8.8/mcp", desired.Upstream.URL, "a sourced binding resolves its own upstream")
 }

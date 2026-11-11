@@ -7463,7 +7463,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "409":
-          description: HANDLE_IN_USE. The handle belongs to an org-level proxy or another project's proxy; or CONTEXT_IN_USE. The new context clashes on a bound gateway
+          description: HANDLE_IN_USE. The handle belongs to an org-level proxy or another project's proxy; or CONTEXT_IN_USE. The new context clashes on a bound gateway; or CONFLICT. A move to another origin found a binding with a stored credential that upstream.resetBindingAuthFor does not name
           content:
             application/json:
               schema:
@@ -7686,7 +7686,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "409":
-          description: UPSTREAM_NOT_READY or CONTEXT_IN_USE. Nothing was stored
+          description: UPSTREAM_NOT_READY, CONTEXT_IN_USE, or CONFLICT when the proxy's URL moved to another host while a binding with an upstream credential was saved (read the proxy again and retry). Nothing was stored
           content:
             application/json:
               schema:
@@ -19935,6 +19935,19 @@ components:
           type: string
           format: uri
           example: https://mcp.example.com/mcp
+        resetBindingAuthFor:
+          type: array
+          writeOnly: true
+          items:
+            type: string
+          description: >-
+            Request only. A URL change to another origin (scheme, host or port) is refused with 400
+            while any binding has a stored upstream credential, which is never sent to another origin.
+            resetBindingAuthFor names the bindings, by environment name, whose stored credential the
+            change clears in the same update instead; they are redeployed without one, and new
+            credentials are set with each binding's PUT. A binding with a stored credential that is not
+            named refuses the change with 409 CONFLICT and nothing is stored: read the proxy again and
+            retry. Ignored when the origin does not change.
 
     ProjectMCPProxyResponse:
       type: object
@@ -20125,7 +20138,9 @@ components:
         A binding's security. Phase 1 accepts apiKey, which is also the default when the field is omitted
         or names no variant (an api key in the X-API-Key header), and no security (enabled false only). An
         apiKey with enabled false while security is not disabled is rejected with 400 VALIDATION_ERROR. jwt
-        is rejected with 400 "jwt security is not available yet", and identity with 400.
+        is rejected with 400 "jwt security is not available yet", and identity with 400. The API key is read
+        from a header only: apiKey.in "query" is rejected with 400 VALIDATION_ERROR, as the gateway checks
+        no other location.
       properties:
         enabled:
           type: boolean
@@ -20922,7 +20937,10 @@ components:
           example: api-key
         in:
           type: string
-          description: Where the API key is located
+          description: >-
+            Where the API key is located. The gateway reads it from a header only: query is refused with
+            400 when an API key is enabled, except on an MCP proxy endpoint that already has it stored,
+            which keeps it until it is moved to a header. It is still returned for such resources.
           enum:
             - header
             - query

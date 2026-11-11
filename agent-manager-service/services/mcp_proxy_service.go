@@ -256,6 +256,9 @@ func (s *MCPProxyService) Create(ctx context.Context, orgUUID, createdBy string,
 	if err := validateMCPProxyDeploymentHandleLengths(handle, req.Endpoints); err != nil {
 		return nil, err
 	}
+	if err := validateMCPEndpointKeyLocations(req.Endpoints, nil); err != nil {
+		return nil, err
+	}
 	if err := s.validateMCPEndpointSecurity(ctx, orgUUID, req.Endpoints, nil); err != nil {
 		return nil, err
 	}
@@ -542,9 +545,14 @@ func (s *MCPProxyService) Update(ctx context.Context, orgUUID, proxyID string, r
 	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, fmt.Errorf("failed to get MCP proxy before update: %w", err)
 	}
+	var existingEndpoints []models.MCPProxyEndpoint
 	if err == nil && existingProxy != nil {
 		existingArtifactByEnv = indexExistingMCPEndpoints(existingProxy.Endpoints).artifactByEnv
 		proxyUUID = existingProxy.UUID
+		existingEndpoints = existingProxy.Endpoints
+	}
+	if err := validateMCPEndpointKeyLocations(req.Endpoints, existingEndpoints); err != nil {
+		return nil, err
 	}
 	if err := s.validateMCPEndpointSecurity(ctx, orgUUID, req.Endpoints, existingArtifactByEnv); err != nil {
 		return nil, err
@@ -570,6 +578,11 @@ func (s *MCPProxyService) Update(ctx context.Context, orgUUID, proxyID string, r
 		}
 		if proxy.ProjectUUID != nil {
 			return utils.ErrMCPProxyProjectOwned
+		}
+		// Checked again against the locked endpoints: an update committed since the check above may have moved an
+		// endpoint off a stored query location, which then no longer excuses one in this request.
+		if err := validateMCPEndpointKeyLocations(req.Endpoints, proxy.Endpoints); err != nil {
+			return err
 		}
 
 		// Index the existing graph so buildMCPEndpointsForStorage can preserve per-env
@@ -622,7 +635,7 @@ func (s *MCPProxyService) Update(ctx context.Context, orgUUID, proxyID string, r
 		if rejected := mcpDeployRejection(err); rejected != nil {
 			return nil, rejected
 		}
-		if errors.Is(err, utils.ErrMCPProxyNotFound) {
+		if errors.Is(err, utils.ErrMCPProxyNotFound) || errors.Is(err, utils.ErrInvalidInput) {
 			return nil, err
 		}
 		if mapped := s.mapMCPProxyWriteError(err, handle, orgUUID); mapped != nil {
@@ -1334,9 +1347,8 @@ func convertModelMCPProxyToListItem(proxy *models.MCPProxy) models.MCPProxyListI
 		}
 	}
 	var source *models.MCPProxySource
-	if proxy.ProjectUUID != nil && proxy.Configuration.Source != nil {
-		s := *proxy.Configuration.Source
-		source = &s
+	if proxy.ProjectUUID != nil {
+		source = projectMCPProxySource(proxy)
 	}
 	return models.MCPProxyListItem{
 		Environments:   environments,
@@ -1418,6 +1430,31 @@ func validateMCPProxyDeploymentHandleLengths(proxyHandle string, endpoints []mod
 					utils.ErrInvalidInput, endpointHandle, len(artifactHandle), maxMCPProxyDeploymentHandleLength,
 				)
 			}
+		}
+	}
+	return nil
+}
+
+// validateMCPEndpointKeyLocations refuses an endpoint that asks callers for an API key anywhere but a header: the
+// gateway's api-key-auth policy reads the key from a header only, so such an endpoint deploys but accepts no call. An
+// endpoint that already has a query location stored keeps it on update, so a proxy saved before this check can still
+// be saved; it moves to a header from its Security tab. stored is the proxy's current endpoints, nil on create.
+func validateMCPEndpointKeyLocations(endpoints []models.MCPProxyEndpointDTO, stored []models.MCPProxyEndpoint) error {
+	storedElsewhere := map[string]bool{}
+	for _, endpoint := range stored {
+		if endpoint.Configuration.Security.ValidateAPIKeyLocation() != nil {
+			storedElsewhere[strings.TrimSpace(endpoint.Handle)] = true
+		}
+	}
+	for _, endpoint := range endpoints {
+		// Judged on the security as it is stored, where an omitted enabled flag is true.
+		sec := defaultMCPProxySecurity(endpoint.Security)
+		if !isBoolTrue(sec.Enabled) || sec.APIKey == nil || !isBoolTrue(sec.APIKey.Enabled) {
+			continue
+		}
+		handle := strings.TrimSpace(endpoint.ID)
+		if err := sec.ValidateAPIKeyLocation(); err != nil && !storedElsewhere[handle] {
+			return fmt.Errorf("%w: endpoint %q: security.apiKey.in: %w", utils.ErrInvalidInput, handle, err)
 		}
 	}
 	return nil

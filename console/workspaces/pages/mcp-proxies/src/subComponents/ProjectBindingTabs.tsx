@@ -32,6 +32,7 @@ import {
   useCreateProjectMCPProxyAPIKey,
   useListProjectMCPProxyAPIKeys,
   useRevokeProjectMCPProxyAPIKey,
+  useRotateProjectMCPProxyAPIKey,
 } from "@agent-management-platform/api-client";
 import {
   APIKeysManager,
@@ -45,6 +46,9 @@ import type {
   ProjectMCPProxyEnvironmentRequest,
 } from "@agent-management-platform/types";
 import {
+  apiKeyLocation,
+  apiKeyName,
+  apiKeySecurity,
   bindingRequestFrom,
   bindingRequiresAPIKey,
   DEFAULT_API_KEY_HEADER,
@@ -104,35 +108,27 @@ export function BindingSecurityTab({
 }) {
   const { canWrite } = useResourceAccess("mcp_server");
   const [required, setRequired] = useState(bindingRequiresAPIKey(env.security));
-  const [header, setHeader] = useState(
-    env.security?.apiKey?.key || DEFAULT_API_KEY_HEADER,
-  );
+  const [header, setHeader] = useState(apiKeyName(env.security));
   const [location, setLocation] = useState<APIKeyLocation>(
-    env.security?.apiKey?.in ?? "header",
+    apiKeyLocation(env.security),
   );
 
   useEffect(() => {
     setRequired(bindingRequiresAPIKey(env.security));
-    setHeader(env.security?.apiKey?.key || DEFAULT_API_KEY_HEADER);
-    setLocation(env.security?.apiKey?.in ?? "header");
+    setHeader(apiKeyName(env.security));
+    setLocation(apiKeyLocation(env.security));
   }, [env]);
 
   const isDirty =
     required !== bindingRequiresAPIKey(env.security) ||
     (required &&
-      (header.trim() !==
-        (env.security?.apiKey?.key || DEFAULT_API_KEY_HEADER) ||
-        location !== (env.security?.apiKey?.in ?? "header")));
+      (header.trim() !== apiKeyName(env.security) ||
+        location !== apiKeyLocation(env.security)));
 
   const save = () =>
     onSave({
       ...bindingRequestFrom(env),
-      security: required
-        ? {
-            enabled: true,
-            apiKey: { enabled: true, key: header.trim(), in: location },
-          }
-        : { enabled: false },
+      security: apiKeySecurity(required, header.trim(), location),
     });
 
   return (
@@ -162,7 +158,7 @@ export function BindingSecurityTab({
             value={header}
             disabled={!canWrite}
             onChange={(event) => setHeader(event.target.value)}
-            helperText="The header or query parameter callers send the key in."
+            helperText="The header callers send the key in."
             fullWidth
           />
           <TextInput
@@ -177,7 +173,10 @@ export function BindingSecurityTab({
             sx={{ minWidth: 140 }}
           >
             <MenuItem value="header">Header</MenuItem>
-            <MenuItem value="query">Query</MenuItem>
+            {/* The gateway reads the key from a header only; listed so a stored query shows. */}
+            <MenuItem value="query" disabled>
+              Query (not supported by the gateway)
+            </MenuItem>
           </TextInput>
         </Stack>
       )}
@@ -220,6 +219,8 @@ export function BindingAPIKeysTab({
     useCreateProjectMCPProxyAPIKey();
   const { mutate: revokeKey, isPending: isRevoking } =
     useRevokeProjectMCPProxyAPIKey();
+  const { mutateAsync: rotateKey, isPending: isRotating } =
+    useRotateProjectMCPProxyAPIKey();
 
   if (!requiresKey) {
     return (
@@ -256,6 +257,11 @@ export function BindingAPIKeysTab({
       emptyDescription="Create an API key to call this MCP server in this environment."
       onCreate={handleCreate}
       onRevoke={(keyName) => revokeKey({ ...params, keyName })}
+      // An empty body keeps the key's name and expiry; only its value changes.
+      onRotate={async (keyName) =>
+        (await rotateKey({ params: { ...params, keyName }, body: {} })).apiKey
+      }
+      isRotating={isRotating}
       readOnly={!canWrite}
     />
   );

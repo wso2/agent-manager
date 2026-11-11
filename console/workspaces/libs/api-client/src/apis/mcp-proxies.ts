@@ -53,6 +53,39 @@ import {
   SERVICE_BASE,
 } from "../utils";
 
+/** The most proxies one list request returns (the service's MaxLimit). */
+const MCP_PROXY_LIST_PAGE = 100;
+/** A bound on the pages listAllMCPProxies reads, in case the total keeps moving. */
+const MCP_PROXY_LIST_MAX_PAGES = 50;
+
+/**
+ * Every proxy the list returns, read a page at a time: a project's list holds the org's servers
+ * and the project's, and a single page would hide the oldest of them.
+ */
+export async function listAllMCPProxies(
+  params: ListMCPProxiesPathParams,
+  query?: Omit<ListMCPProxiesQuery, "limit" | "offset">,
+  getToken?: () => Promise<string>,
+): Promise<MCPProxyListResponse> {
+  const list: MCPProxyListResponse["list"] = [];
+  let total = 0;
+  for (let page = 0; page < MCP_PROXY_LIST_MAX_PAGES; page++) {
+    const res = await listMCPProxies(
+      params,
+      { ...query, limit: MCP_PROXY_LIST_PAGE, offset: list.length },
+      getToken,
+    );
+    list.push(...res.list);
+    total = res.pagination?.count ?? list.length;
+    if (res.list.length === 0 || list.length >= total) break;
+  }
+  return {
+    count: list.length,
+    list,
+    pagination: { count: total, limit: list.length, offset: 0 },
+  };
+}
+
 export async function listMCPProxies(
   params: ListMCPProxiesPathParams,
   query?: ListMCPProxiesQuery,
@@ -129,15 +162,11 @@ export async function getProjectMCPProxy(
   params: GetProjectMCPProxyPathParams,
   getToken?: () => Promise<string>,
 ): Promise<ProjectMCPProxy> {
-  const org = encodeRequired(params.orgName, "orgName");
-  const proj = encodeRequired(params.projName, "projName");
-  const proxyId = encodeRequired(params.proxyId, "proxyId");
+  // Built before the token is read, so a missing path parameter fails first.
+  const url = projectMCPProxyUrl(params);
   const token = getToken ? await getToken() : undefined;
 
-  const res = await httpGET(
-    `${SERVICE_BASE}/orgs/${org}/projects/${proj}/mcp-proxies/${proxyId}`,
-    { token },
-  );
+  const res = await httpGET(url, { token });
   if (!res.ok) throw await res.json();
   return res.json();
 }
@@ -150,17 +179,10 @@ export async function refreshProjectMCPProxyCapabilities(
   params: RefreshProjectMCPProxyCapabilitiesPathParams,
   getToken?: () => Promise<string>,
 ): Promise<ProjectMCPProxyEnvironment> {
-  const org = encodeRequired(params.orgName, "orgName");
-  const proj = encodeRequired(params.projName, "projName");
-  const proxyId = encodeRequired(params.proxyId, "proxyId");
-  const envName = encodeRequired(params.envName, "envName");
+  const url = `${projectMCPProxyEnvironmentUrl(params)}/capabilities/refresh`;
   const token = getToken ? await getToken() : undefined;
 
-  const res = await httpPOST(
-    `${SERVICE_BASE}/orgs/${org}/projects/${proj}/mcp-proxies/${proxyId}/environments/${envName}/capabilities/refresh`,
-    {},
-    { token },
-  );
+  const res = await httpPOST(url, {}, { token });
   if (!res.ok) throw await res.json();
   return res.json();
 }

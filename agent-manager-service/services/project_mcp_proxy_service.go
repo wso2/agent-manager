@@ -145,9 +145,10 @@ func (s *ProjectMCPProxyService) UpsertWithCreateCheck(
 	// left by a deleted project of the same name: this re-created project adopts it.
 	orphan, err := s.base.repo.GetInProjectByName(ctx, handle, ouID, projectName)
 	switch {
-	case err == nil && orphan.ProjectUUID != nil && *orphan.ProjectUUID != projectUUID && createOnly:
-		return nil, false, fmt.Errorf("%w: %q", utils.ErrMCPProxyExists, handle)
 	case err == nil && orphan.ProjectUUID != nil && *orphan.ProjectUUID != projectUUID:
+		if createOnly {
+			return nil, false, fmt.Errorf("%w: %q", utils.ErrMCPProxyExists, handle)
+		}
 		resp, err := s.update(ctx, ouID, orphan, desired, projectUUID)
 		if err != nil {
 			return nil, false, err
@@ -175,15 +176,17 @@ func (s *ProjectMCPProxyService) UpsertWithCreateCheck(
 		if !errors.Is(err, utils.ErrMCPProxyHandleInUse) {
 			return nil, false, err
 		}
-		if createOnly {
-			// A concurrent create took the handle; the insert's unique constraint keeps this one from replacing it.
-			return nil, false, fmt.Errorf("%w: %q", utils.ErrMCPProxyExists, handle)
-		}
-		// A concurrent ensure of the same proxy won the insert: converge on it as an update.
+		// A concurrent create took the handle. Only a proxy this project now has under it is the same proxy;
+		// anything else holding it (another project's proxy, another kind of artifact) stays HANDLE_IN_USE.
 		existing, getErr := s.base.repo.GetInProject(ctx, handle, ouID, projectUUID)
 		if getErr != nil {
 			return nil, false, err
 		}
+		if createOnly {
+			// The insert's unique constraint kept this one from replacing it.
+			return nil, false, fmt.Errorf("%w: %q", utils.ErrMCPProxyExists, handle)
+		}
+		// A concurrent ensure of the same proxy won the insert: converge on it as an update.
 		resp, updErr := s.update(ctx, ouID, existing, desired, "")
 		if updErr != nil {
 			return nil, false, updErr
@@ -396,6 +399,9 @@ type desiredProjectMCPProxy struct {
 	// Exactly one of source and upstreamURL is set.
 	source      *models.MCPProxySource
 	upstreamURL string
+	// resetBindingAuthFor names the bindings (by environment) whose stored credentials a move to another origin
+	// clears; nil when the request names none, and the move is refused while any binding has one.
+	resetBindingAuthFor map[string]bool
 }
 
 func normalizeProjectMCPProxyRequest(handle string, req models.ProjectMCPProxyRequest) (desiredProjectMCPProxy, error) {
@@ -414,6 +420,12 @@ func normalizeProjectMCPProxyRequest(handle string, req models.ProjectMCPProxyRe
 	}
 	if req.Upstream != nil {
 		d.upstreamURL = strings.TrimSpace(req.Upstream.URL)
+		if req.Upstream.ResetBindingAuthFor != nil {
+			d.resetBindingAuthFor = map[string]bool{}
+			for _, env := range req.Upstream.ResetBindingAuthFor {
+				d.resetBindingAuthFor[strings.TrimSpace(env)] = true
+			}
+		}
 	}
 	if handle == "" || len(handle) > 100 || !mcpProxyHandleRe.MatchString(handle) {
 		return d, fmt.Errorf("%w: proxy id must be kebab-case (lowercase letters, digits, single hyphens) and at most 100 characters", utils.ErrInvalidInput)
@@ -501,7 +513,7 @@ func (s *ProjectMCPProxyService) update(
 	switch {
 	case cfg.Source != nil && (d.source == nil || *cfg.Source != *d.source):
 		return nil, fmt.Errorf("%w: source", utils.ErrImmutableFieldChange)
-	case cfg.Source == nil && storedURL != "" && d.source != nil:
+	case storedURL != "" && d.source != nil:
 		// A proxy registered by URL stays one; its URL may change.
 		return nil, fmt.Errorf("%w: upstream (a proxy registered by URL cannot take a source)", utils.ErrImmutableFieldChange)
 	}
@@ -527,6 +539,8 @@ func (s *ProjectMCPProxyService) update(
 	updated.Configuration.SpecVersion = d.specVersion
 	d.applyUpstream(&updated.Configuration)
 
+	// The bindings as of the URL change's lock: a binding created since existing was read is re-rendered too.
+	var lockedEndpoints []models.MCPProxyEndpoint
 	if err := s.base.tx(ctx, func(tx *gorm.DB) error {
 		if adopting {
 			if err := s.base.repo.ReassignProject(ctx, tx, existing.UUID, ouID,
@@ -537,20 +551,31 @@ func (s *ProjectMCPProxyService) update(
 		if unchanged {
 			return nil
 		}
-		if storedURL != d.upstreamURL {
-			if err := s.updateBindingUpstreams(ctx, tx, existing, d.upstreamURL); err != nil {
-				return err
-			}
-		}
+		// The context check locks the bindings' gateways; the proxy row is locked after it, in the
+		// order binding PUTs take the same locks.
 		if mcpGatewayContext(&updated, "") != mcpGatewayContext(existing, "") {
 			if err := s.checkContextChange(ctx, tx, ouID, existing, mcpGatewayContext(&updated, "")); err != nil {
 				return err
 			}
 		}
+		if storedURL != d.upstreamURL {
+			// Rewritten from the locked proxy, so a binding PUT committed since existing was read is kept.
+			locked, err := s.base.repo.GetByHandleForUpdate(ctx, tx, proxyHandleOf(existing), ouID)
+			if err != nil {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					return utils.ErrMCPProxyNotFound
+				}
+				return fmt.Errorf("failed to lock the MCP proxy: %w", err)
+			}
+			if err := s.updateBindingUpstreams(ctx, tx, locked, d.upstreamURL, d.resetBindingAuthFor); err != nil {
+				return err
+			}
+			lockedEndpoints = locked.Endpoints
+		}
 		return s.base.repo.Update(ctx, tx, &updated, ouID)
 	}); err != nil {
 		if errors.Is(err, utils.ErrMCPContextInUse) || errors.Is(err, utils.ErrMCPProxyNotFound) ||
-			errors.Is(err, utils.ErrInvalidInput) {
+			errors.Is(err, utils.ErrInvalidInput) || errors.Is(err, utils.ErrMCPProxyBindingsChanged) {
 			return nil, err
 		}
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -569,7 +594,11 @@ func (s *ProjectMCPProxyService) update(
 		return projectMCPProxyResponse(&updated), nil
 	}
 	// The proxy's name, version and context are part of every bound environment's gateway artifact.
-	s.rerenderBindings(ctx, ouID, &updated)
+	rerendered := updated
+	if lockedEndpoints != nil {
+		rerendered.Endpoints = lockedEndpoints
+	}
+	s.rerenderBindings(ctx, ouID, &rerendered)
 	// The artifact timestamp moved with the update.
 	if updated.Artifact != nil {
 		art := *updated.Artifact
@@ -638,7 +667,7 @@ func (d desiredProjectMCPProxy) applyUpstream(cfg *models.MCPProxyConfig) {
 // updateBindingUpstreams points every binding of a proxy registered by URL at its new URL, in tx. The bindings are
 // re-rendered once the proxy is stored (rerenderBindings).
 func (s *ProjectMCPProxyService) updateBindingUpstreams(
-	ctx context.Context, tx *gorm.DB, proxy *models.MCPProxy, upstreamURL string,
+	ctx context.Context, tx *gorm.DB, proxy *models.MCPProxy, upstreamURL string, resetAuthFor map[string]bool,
 ) error {
 	for i := range proxy.Endpoints {
 		endpoint := proxy.Endpoints[i]
@@ -646,10 +675,18 @@ func (s *ProjectMCPProxyService) updateBindingUpstreams(
 			continue
 		}
 		upstream := *endpoint.Configuration.Upstream
-		// The stored credential is sent to the URL, so it may not follow the URL to another origin.
+		// The stored credential is sent to the URL, so it may not follow the URL to another origin: the move is
+		// refused, or, for a binding the caller names, the credential is cleared with it in this transaction. A
+		// binding the caller does not name is one it did not know of, and its credential is neither cleared nor sent.
 		if upstream.Auth != nil && !sameURLOrigin(upstream.URL, upstreamURL) {
-			return fmt.Errorf("%w: upstream.url moves to another origin while a binding has upstream auth; "+
-				"clear its upstreamAuth first", utils.ErrInvalidInput)
+			switch {
+			case resetAuthFor == nil:
+				return fmt.Errorf("%w: upstream.url moves to another origin while a binding has upstream auth; "+
+					"clear its upstreamAuth first, or name it in upstream.resetBindingAuthFor", utils.ErrInvalidInput)
+			case !resetAuthFor[strings.TrimSpace(endpoint.Name)]:
+				return fmt.Errorf("%w: environment %q", utils.ErrMCPProxyBindingsChanged, endpoint.Name)
+			}
+			upstream.Auth = nil
 		}
 		upstream.URL = upstreamURL
 		endpoint.Configuration.Upstream = &upstream
