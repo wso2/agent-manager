@@ -22,28 +22,23 @@ import (
 	"time"
 )
 
-// ComponentSearchScope identifies a component in the observer service.
-// Namespace is required; Project, Component, and Environment are optional filters.
-type ComponentSearchScope struct {
-	Namespace   string  `json:"namespace"`
-	Project     *string `json:"project,omitempty"`
-	Component   *string `json:"component,omitempty"`
-	Environment *string `json:"environment,omitempty"`
+// TraceScope scopes a trace query to an organization and, optionally, a
+// project and agent, matched by name against the span resource attributes.
+type TraceScope struct {
+	Organization string
+	Project      *string
+	Agent        *string
 }
 
-// TracesQueryRequest is the POST body for both
-// POST /api/v1alpha1/traces/query and
-// POST /api/v1alpha1/traces/{traceId}/spans/query.
+// TracesQueryRequest is a trace list or trace spans query.
 type TracesQueryRequest struct {
-	StartTime   time.Time            `json:"startTime"`
-	EndTime     time.Time            `json:"endTime"`
-	Limit       *int                 `json:"limit,omitempty"`
-	SortOrder   *string              `json:"sortOrder,omitempty"`
-	SearchScope ComponentSearchScope `json:"searchScope"`
-	// IncludeAttributes requests inline span attributes on the spans-query
-	// endpoint. A plain bool with omitempty: false is dropped from the wire,
-	// so trace-list queries that leave it unset send nothing.
-	IncludeAttributes bool `json:"includeAttributes,omitempty"`
+	StartTime   time.Time
+	EndTime     time.Time
+	Limit       *int
+	SortOrder   *string
+	SearchScope TraceScope
+	// IncludeAttributes returns span attributes with a trace spans query.
+	IncludeAttributes bool
 }
 
 // TraceInfo represents a single trace entry in TracesQueryResponse.
@@ -59,7 +54,7 @@ type TraceInfo struct {
 	DurationNs   int64     `json:"durationNs"`
 }
 
-// TracesQueryResponse is the response from POST /api/v1alpha1/traces/query.
+// TracesQueryResponse is a page of traces; Total counts every trace in the window.
 type TracesQueryResponse struct {
 	Traces []TraceInfo `json:"traces"`
 	Total  int         `json:"total"`
@@ -71,8 +66,8 @@ type SpanStatus struct {
 	Message string `json:"message,omitempty"`
 }
 
-// UnmarshalJSON accepts both shapes the tracing adapter can emit for a span
-// status, so the observer isn't coupled to a specific adapter version:
+// UnmarshalJSON accepts a span status as either a bare code string or an
+// object with code and message.
 func (s *SpanStatus) UnmarshalJSON(data []byte) error {
 	trimmed := bytes.TrimSpace(data)
 	if len(trimmed) == 0 || string(trimmed) == "null" {
@@ -99,10 +94,8 @@ func (s *SpanStatus) UnmarshalJSON(data []byte) error {
 }
 
 // SpanInfo represents a single span in TraceSpansQueryResponse.
-// Kind and Status are always returned by the observer; Attributes and
-// ResourceAttributes are populated only when the request set
-// IncludeAttributes=true. Note the observer uses the wire key "spanKind"
-// here, whereas SpanDetailsResponse uses "kind".
+// Attributes and ResourceAttributes are populated only when the request set
+// IncludeAttributes.
 type SpanInfo struct {
 	SpanID             string                 `json:"spanId"`
 	SpanName           string                 `json:"spanName"`
@@ -116,23 +109,14 @@ type SpanInfo struct {
 	ResourceAttributes map[string]interface{} `json:"resourceAttributes,omitempty"`
 }
 
-// TraceSpansQueryResponse is the response from
-// POST /api/v1alpha1/traces/{traceId}/spans/query.
+// TraceSpansQueryResponse is the spans of one trace.
 type TraceSpansQueryResponse struct {
 	Spans  []SpanInfo `json:"spans"`
 	Total  int        `json:"total"`
 	TookMs int        `json:"tookMs"`
 }
 
-// SpanDetailsResponse is the response from
-// GET /api/v1alpha1/traces/{traceId}/spans/{spanId}.
-//
-// Attributes is already a map[string]interface{} (JSON object), with values
-// that may be strings, float64, bool, or nested objects. This matches the
-// map[string]interface{} format expected by opensearch/process.go directly.
-//
-// ResourceAttributes is returned separately and contains OpenChoreo-specific
-// metadata such as openchoreo.dev/component-uid.
+// SpanDetailsResponse is a single span with its attributes.
 type SpanDetailsResponse struct {
 	SpanID             string                 `json:"spanId"`
 	SpanName           string                 `json:"spanName"`
@@ -144,63 +128,4 @@ type SpanDetailsResponse struct {
 	Status             *SpanStatus            `json:"status,omitempty"`
 	Attributes         map[string]interface{} `json:"attributes"`
 	ResourceAttributes map[string]interface{} `json:"resourceAttributes"`
-}
-
-// WorkflowSearchScope scopes a logs query to an Argo workflow run.
-type WorkflowSearchScope struct {
-	Namespace       string  `json:"namespace"`
-	WorkflowRunName *string `json:"workflowRunName,omitempty"`
-}
-
-// LogsQueryRequest is the upstream Observer logs query. SearchScope takes either
-// a ComponentSearchScope or a WorkflowSearchScope (upstream oneOf).
-type LogsQueryRequest struct {
-	StartTime    time.Time `json:"startTime"`
-	EndTime      time.Time `json:"endTime"`
-	Limit        *int      `json:"limit,omitempty"`
-	LogLevels    []string  `json:"logLevels,omitempty"`
-	SearchPhrase *string   `json:"searchPhrase,omitempty"`
-	SortOrder    *string   `json:"sortOrder,omitempty"`
-	SearchScope  any       `json:"searchScope"`
-}
-
-// LogEntry decodes both component log entries (level+log+timestamp) and
-// workflow log entries (log+timestamp) from the upstream Observer.
-type LogEntry struct {
-	Timestamp *time.Time `json:"timestamp,omitempty"`
-	Log       *string    `json:"log,omitempty"`
-	Level     *string    `json:"level,omitempty"`
-}
-
-// LogsQueryResponse is the response from POST /api/v1/logs/query.
-type LogsQueryResponse struct {
-	Logs   []LogEntry `json:"logs"`
-	Total  *int       `json:"total,omitempty"`
-	TookMs *int       `json:"tookMs,omitempty"`
-}
-
-// MetricsQueryRequest queries resource metrics for a component.
-type MetricsQueryRequest struct {
-	StartTime   time.Time            `json:"startTime"`
-	EndTime     time.Time            `json:"endTime"`
-	Metric      string               `json:"metric"` // always "resource"
-	Step        string               `json:"step,omitempty"`
-	SearchScope ComponentSearchScope `json:"searchScope"`
-}
-
-// MetricsTimeSeriesItem is a single timestamped point in a resource metrics
-// time series.
-type MetricsTimeSeriesItem struct {
-	Timestamp *time.Time `json:"timestamp,omitempty"`
-	Value     *float64   `json:"value,omitempty"`
-}
-
-// ResourceMetricsTimeSeries is the response from POST /api/v1/metrics/query.
-type ResourceMetricsTimeSeries struct {
-	CpuUsage       *[]MetricsTimeSeriesItem `json:"cpuUsage,omitempty"`
-	CpuRequests    *[]MetricsTimeSeriesItem `json:"cpuRequests,omitempty"`
-	CpuLimits      *[]MetricsTimeSeriesItem `json:"cpuLimits,omitempty"`
-	MemoryUsage    *[]MetricsTimeSeriesItem `json:"memoryUsage,omitempty"`
-	MemoryRequests *[]MetricsTimeSeriesItem `json:"memoryRequests,omitempty"`
-	MemoryLimits   *[]MetricsTimeSeriesItem `json:"memoryLimits,omitempty"`
 }

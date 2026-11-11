@@ -61,7 +61,7 @@ type tracesInput struct {
 	Organization   string   `json:"organization" jsonschema:"required"`
 	Project        string   `json:"project" jsonschema:"required"`
 	Agent          string   `json:"agent" jsonschema:"required"`
-	Environment    string   `json:"environment" jsonschema:"required"`
+	Environment    string   `json:"environment,omitempty" jsonschema:"Deprecated and ignored."`
 	StartTime      string   `json:"start_time,omitempty"`
 	EndTime        string   `json:"end_time,omitempty"`
 	Limit          *int     `json:"limit,omitempty"`
@@ -89,7 +89,7 @@ type listTracesInput struct {
 }
 
 // traceDetailsInput mirrors REST GetTraceSpans: only organization + trace_id
-// are required. project/agent/environment are optional scoping filters (the
+// are required. project/agent are optional scoping filters (the
 // REST route treats them as optionalStr), so a valid organization + trace_id
 // lookup succeeds without them.
 type traceDetailsInput struct {
@@ -97,7 +97,7 @@ type traceDetailsInput struct {
 	TraceID      string `json:"trace_id" jsonschema:"required"`
 	Project      string `json:"project,omitempty"`
 	Agent        string `json:"agent,omitempty"`
-	Environment  string `json:"environment,omitempty"`
+	Environment  string `json:"environment,omitempty" jsonschema:"Deprecated and ignored."`
 	StartTime    string `json:"start_time,omitempty"`
 	EndTime      string `json:"end_time,omitempty"`
 }
@@ -147,11 +147,10 @@ type scopedTraceInput struct {
 	Organization string
 	Project      string
 	Agent        string
-	Environment  string
 }
 
-// requireTraceScope checks the organization, project, agent and environment are set.
-func requireTraceScope(organization, project, agent, environment string) (scopedTraceInput, error) {
+// requireTraceScope checks the organization, project and agent are set.
+func requireTraceScope(organization, project, agent string) (scopedTraceInput, error) {
 	org, err := requireField(organization, "organization")
 	if err != nil {
 		return scopedTraceInput{}, err
@@ -164,16 +163,12 @@ func requireTraceScope(organization, project, agent, environment string) (scoped
 	if err != nil {
 		return scopedTraceInput{}, err
 	}
-	environment, err = requireField(environment, "environment")
-	if err != nil {
-		return scopedTraceInput{}, err
-	}
-	return scopedTraceInput{Organization: org, Project: project, Agent: agent, Environment: environment}, nil
+	return scopedTraceInput{Organization: org, Project: project, Agent: agent}, nil
 }
 
 // queryParams validates the inputs list_traces and get_traces share.
 func (in tracesInput) queryParams(defaultLimit, maxLimit int) (controllers.TraceQueryParams, error) {
-	scope, err := requireTraceScope(in.Organization, in.Project, in.Agent, in.Environment)
+	scope, err := requireTraceScope(in.Organization, in.Project, in.Agent)
 	if err != nil {
 		return controllers.TraceQueryParams{}, err
 	}
@@ -197,7 +192,6 @@ func (in tracesInput) queryParams(defaultLimit, maxLimit int) (controllers.Trace
 		Organization: scope.Organization,
 		Project:      &scope.Project,
 		Agent:        &scope.Agent,
-		Environment:  &scope.Environment,
 		StartTime:    startTime,
 		EndTime:      endTime,
 		Limit:        limit,
@@ -336,7 +330,6 @@ func getTraceDetails(tracing *controllers.TracingController, authorize func(*gom
 			Organization: organization,
 			Project:      optionalScope(input.Project),
 			Agent:        optionalScope(input.Agent),
-			Environment:  optionalScope(input.Environment),
 			StartTime:    startTime,
 			EndTime:      endTime,
 			Limit:        traceDetailsSpanLimit,

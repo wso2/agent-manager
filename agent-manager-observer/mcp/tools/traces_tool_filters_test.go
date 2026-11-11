@@ -86,9 +86,9 @@ func TestListTracesExistingInputsParamsUnchanged(t *testing.T) {
 	start, _ := time.Parse(time.RFC3339, testStart)
 	end, _ := time.Parse(time.RFC3339, testEnd)
 	minTokens := int64(100)
-	project, agent, env := testProjectName, testAgentName, testEnvName
+	project, agent := testProjectName, testAgentName
 	base := controllers.TraceQueryParams{
-		Organization: testOrgName, Project: &project, Agent: &agent, Environment: &env,
+		Organization: testOrgName, Project: &project, Agent: &agent,
 		StartTime: start, EndTime: end,
 		Limit: defaultTraceListLimit, SortOrder: "desc",
 	}

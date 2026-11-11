@@ -18,6 +18,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -96,12 +97,6 @@ func (h *Handler) GetTraceOverviews(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	environment := query.Get("environment")
-	if environment == "" {
-		writeError(w, http.StatusBadRequest, "environment is required")
-		return
-	}
-
 	startTime, err := parseRFC3339(query.Get("startTime"))
 	if err != nil {
 		writeError(w, http.StatusBadRequest, fmt.Sprintf("invalid startTime: %v", err))
@@ -152,7 +147,6 @@ func (h *Handler) GetTraceOverviews(w http.ResponseWriter, r *http.Request) {
 		Organization: organization,
 		Project:      &project,
 		Agent:        &agent,
-		Environment:  &environment,
 		StartTime:    startTime,
 		EndTime:      endTime,
 		Limit:        limit,
@@ -218,7 +212,6 @@ func (h *Handler) GetTraceSpans(w http.ResponseWriter, r *http.Request) {
 		Organization: organization,
 		Project:      optionalStr(query.Get("project")),
 		Agent:        optionalStr(query.Get("agent")),
-		Environment:  optionalStr(query.Get("environment")),
 		StartTime:    startTime,
 		EndTime:      endTime,
 		Limit:        limit,
@@ -235,9 +228,8 @@ func (h *Handler) GetTraceSpans(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, result)
 }
 
-// ExportTraces handles GET /api/v1/traces/export
-// namespace, project, component, and environment are all required to scope the
-// export to a specific component — mirroring v1's componentUid + environmentUid.
+// ExportTraces handles GET /api/v1/traces/export.
+// organization, project and agent are all required to scope the export to one agent.
 func (h *Handler) ExportTraces(w http.ResponseWriter, r *http.Request) {
 	log := logger.GetLogger(r.Context())
 	query := r.URL.Query()
@@ -257,12 +249,6 @@ func (h *Handler) ExportTraces(w http.ResponseWriter, r *http.Request) {
 	agent := query.Get("agent")
 	if agent == "" {
 		writeError(w, http.StatusBadRequest, "agent is required")
-		return
-	}
-
-	environment := query.Get("environment")
-	if environment == "" {
-		writeError(w, http.StatusBadRequest, "environment is required")
 		return
 	}
 
@@ -301,7 +287,6 @@ func (h *Handler) ExportTraces(w http.ResponseWriter, r *http.Request) {
 		Organization: organization,
 		Project:      &project,
 		Agent:        &agent,
-		Environment:  &environment,
 		StartTime:    startTime,
 		EndTime:      endTime,
 		Limit:        limit,
@@ -376,12 +361,6 @@ func (h *Handler) GetLogs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	environment := query.Get("environment")
-	if environment == "" {
-		writeError(w, http.StatusBadRequest, "environment is required")
-		return
-	}
-
 	startTime, err := parseRFC3339(query.Get("startTime"))
 	if err != nil {
 		writeError(w, http.StatusBadRequest, fmt.Sprintf("invalid startTime: %v", err))
@@ -417,7 +396,6 @@ func (h *Handler) GetLogs(w http.ResponseWriter, r *http.Request) {
 		Organization: organization,
 		Project:      project,
 		Agent:        agent,
-		Environment:  environment,
 		StartTime:    startTime,
 		EndTime:      endTime,
 		SearchPhrase: query.Get("searchPhrase"),
@@ -429,7 +407,7 @@ func (h *Handler) GetLogs(w http.ResponseWriter, r *http.Request) {
 	result, err := h.obs.GetLogs(r.Context(), params)
 	if err != nil {
 		log.Error("Failed to get logs", "error", err)
-		writeError(w, http.StatusBadGateway, "failed to query upstream observer")
+		writeObservabilityError(w, err)
 		return
 	}
 
@@ -461,7 +439,7 @@ func (h *Handler) GetBuildLogs(w http.ResponseWriter, r *http.Request) {
 	result, err := h.obs.GetBuildLogs(r.Context(), organization, buildName)
 	if err != nil {
 		log.Error("Failed to get build logs", "buildName", buildName, "error", err)
-		writeError(w, http.StatusBadGateway, "failed to query upstream observer")
+		writeObservabilityError(w, err)
 		return
 	}
 
@@ -496,12 +474,6 @@ func (h *Handler) GetMetrics(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	environment := query.Get("environment")
-	if environment == "" {
-		writeError(w, http.StatusBadRequest, "environment is required")
-		return
-	}
-
 	startTime, err := parseRFC3339(query.Get("startTime"))
 	if err != nil {
 		writeError(w, http.StatusBadRequest, fmt.Sprintf("invalid startTime: %v", err))
@@ -518,7 +490,6 @@ func (h *Handler) GetMetrics(w http.ResponseWriter, r *http.Request) {
 		Organization: organization,
 		Project:      project,
 		Agent:        agent,
-		Environment:  environment,
 		StartTime:    startTime,
 		EndTime:      endTime,
 	}
@@ -526,11 +497,20 @@ func (h *Handler) GetMetrics(w http.ResponseWriter, r *http.Request) {
 	result, err := h.obs.GetMetrics(r.Context(), params)
 	if err != nil {
 		log.Error("Failed to get metrics", "error", err)
-		writeError(w, http.StatusBadGateway, "failed to query upstream observer")
+		writeObservabilityError(w, err)
 		return
 	}
 
 	writeJSON(w, http.StatusOK, result)
+}
+
+// writeObservabilityError maps a log or metrics query error to a response.
+func writeObservabilityError(w http.ResponseWriter, err error) {
+	if errors.Is(err, controllers.ErrNotImplemented) {
+		writeError(w, http.StatusNotImplemented, err.Error())
+		return
+	}
+	writeError(w, http.StatusInternalServerError, "failed to query logs or metrics")
 }
 
 // parseTraceSpanIDs extracts traceId and spanId from

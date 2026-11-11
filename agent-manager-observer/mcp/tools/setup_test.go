@@ -35,7 +35,6 @@ const (
 	testOrgName     = "default-org"
 	testProjectName = "default-project"
 	testAgentName   = "default-agent"
-	testBuildName   = "default-build"
 	testEnvName     = "default-env"
 	testTraceID     = "test-trace-id"
 	testSpanID      = "test-span-id"
@@ -44,7 +43,7 @@ const (
 // fakeObserverClient is a minimal observer.Client stub: it records every
 // call it receives and returns canned, always-well-formed responses, so the
 // real controllers (and, through them, the tool handlers) can be exercised
-// end-to-end without a live upstream Observer.
+// end-to-end without a live OpenSearch.
 type fakeObserverClient struct {
 	mu    sync.Mutex
 	calls map[string][]any
@@ -62,11 +61,6 @@ func (f *fakeObserverClient) recordCall(method string, args ...any) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.calls[method] = append(f.calls[method], args)
-}
-
-func (f *fakeObserverClient) NamespaceFor(organization string) string {
-	f.recordCall("NamespaceFor", organization)
-	return "ns-" + organization
 }
 
 // QueryTraces returns the first limit traces in page order, ignoring the window.
@@ -117,16 +111,6 @@ func (f *fakeObserverClient) GetSpanDetails(_ context.Context, traceID, spanID s
 	return resp, nil
 }
 
-func (f *fakeObserverClient) QueryLogs(_ context.Context, req observer.LogsQueryRequest) (*observer.LogsQueryResponse, error) {
-	f.recordCall("QueryLogs", req)
-	return &observer.LogsQueryResponse{Logs: []observer.LogEntry{}}, nil
-}
-
-func (f *fakeObserverClient) QueryMetrics(_ context.Context, req observer.MetricsQueryRequest) (*observer.ResourceMetricsTimeSeries, error) {
-	f.recordCall("QueryMetrics", req)
-	return &observer.ResourceMetricsTimeSeries{}, nil
-}
-
 // Creates an MCP server with both toolsets backed by real controllers wired
 // to the same fakeObserverClient, connects an in-memory client, and returns
 // both for assertions.
@@ -135,8 +119,7 @@ func setupTestServer(t *testing.T) (*gomcp.ClientSession, *fakeObserverClient) {
 
 	fake := newFakeObserverClient()
 	toolsets := &Toolsets{
-		Tracing:       controllers.NewTracingController(fake),
-		Observability: controllers.NewObservabilityController(fake),
+		Tracing: controllers.NewTracingController(fake),
 		// The in-memory transport carries no Authorization header, so the real
 		// guard would refuse every call. Authorization has its own tests
 		// (authorization_test.go, observability_guard_test.go); these specs are
@@ -197,7 +180,6 @@ type toolTestSpec struct {
 // aggregates specs from every per-toolset spec file.
 var allToolSpecs = func() []toolTestSpec {
 	specs := make([]toolTestSpec, 0)
-	specs = append(specs, observabilityToolSpecs()...)
 	specs = append(specs, tracesToolSpecs()...)
 	return specs
 }()

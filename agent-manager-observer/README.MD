@@ -2,7 +2,7 @@
 
 ## Overview
 
-Agent Manager Observer is a lightweight backend that provides an HTTP API for querying traces collected in the observability plane. It communicates with OpenSearch to retrieve and aggregate tracing data produced by agents(components) across the platform, and exposes simple endpoints for the console. It is planned to migrate this service and functionality to the OpenChoreo Observability Plane Observer service later.
+Agent Manager Observer is a lightweight backend that provides an HTTP API for querying traces collected in the observability plane. It queries the OpenSearch span index the OTel collector writes to, enriches and aggregates the tracing data produced by agents, and exposes simple endpoints for the console. Traces are scoped by the `agent-manager/organization`, `agent-manager/project` and `agent-manager/agent` resource attributes (names) the collector stamps on every span. The `environment` query parameter is accepted for compatibility and ignored. Runtime logs, build logs and metrics (`/api/v1/logs`, `/api/v1/build-logs`, `/api/v1/metrics`) return `501 Not Implemented`.
 
 ## Features
 
@@ -31,10 +31,11 @@ This service is configured via environment variables. The following are supporte
 AM_OBSERVER_PORT=9098
 
 # OpenSearch Configuration
-OPENSEARCH_ADDRESS=http://localhost:9200
+OPENSEARCH_ADDRESS=http://localhost:9200   # required
 OPENSEARCH_USERNAME=admin
 OPENSEARCH_PASSWORD=admin
-OPENSEARCH_TRACE_INDEX=custom-otel-span-index
+OPENSEARCH_TRACE_INDEX=otel-traces-*        # default
+OPENSEARCH_TLS_INSECURE_SKIP_VERIFY=false   # true only for a self-signed OpenSearch
 ```
 
 # Set the environment Variables
@@ -187,7 +188,7 @@ curl --location 'http://localhost:9098/api/v1/trace?traceId=21a29d5d24837ca724b8
 
 ### 3. MCP server - `POST /mcp` (also `/mcp/`)
 
-`am-obs-mcp` is a streamable-HTTP MCP server mounted on the root mux (not under `/api/v1/`), behind the same `JWTAuth` middleware as the REST routes. It exposes seven observability tools that call the controllers directly (no HTTP hop): `get_runtime_logs`, `get_build_logs`, `get_metrics`, `list_traces`, `get_traces`, `get_trace_details`, `get_span_details`. Every tool takes an explicit, required `organization` parameter (no claims parsing), except `get_span_details`, which only needs a `trace_id`/`span_id`. See `mcp/setup.go` and `mcp/tools/` for the implementation.
+`am-obs-mcp` is a streamable-HTTP MCP server mounted on the root mux (not under `/api/v1/`), behind the same `JWTAuth` middleware as the REST routes. It exposes four trace tools that call the controllers directly (no HTTP hop): `list_traces`, `get_traces`, `get_trace_details`, `get_span_details`. Every tool takes an explicit, required `organization` parameter (no claims parsing), except `get_span_details`, which only needs a `trace_id`/`span_id`. See `mcp/setup.go` and `mcp/tools/` for the implementation.
 
 ### 4. Health check - `GET /health`
 
@@ -211,6 +212,7 @@ All endpoints return appropriate HTTP status codes:
 - `200 OK` - Success
 - `400 Bad Request` - Invalid parameters (missing required fields, invalid format)
 - `500 Internal Server Error` - Server/OpenSearch errors
+- `501 Not Implemented` - Runtime logs, build logs and metrics
 
 # Mock Trace Generation (OTLP HTTP)
 

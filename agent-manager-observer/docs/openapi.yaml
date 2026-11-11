@@ -2,10 +2,11 @@ openapi: 3.0.3
 info:
   title: Agent Manager Observer API
   description: |
-    Observer Service-backed API for listing, exporting, and fetching distributed traces,
-    component/build logs, and resource metrics.
+    API for listing, exporting, and fetching distributed traces from the OpenSearch span index.
+    Runtime logs, build logs, and resource metrics return 501 Not Implemented.
 
-    Endpoints use human-readable `organization`, `project`, `agent`, and `environment` identifiers.
+    Endpoints use human-readable `organization`, `project`, and `agent` identifiers. The
+    `environment` parameter is accepted for compatibility and ignored.
     Lazy loading is supported: the span list endpoint returns summaries only; individual span
     attributes are fetched on demand via the span detail endpoint.
 
@@ -29,11 +30,11 @@ tags:
   - name: health
     description: Liveness / readiness (unauthenticated)
   - name: traces
-    description: Observer Service-backed trace data with lazy loading (requires JWT)
+    description: Trace data with lazy loading (requires JWT)
   - name: logs
-    description: Observer Service-backed component and build logs (requires JWT)
+    description: Component and build logs; not implemented (requires JWT)
   - name: metrics
-    description: Observer Service-backed resource metrics (requires JWT)
+    description: Resource metrics; not implemented (requires JWT)
 
 paths:
   /health:
@@ -66,7 +67,7 @@ paths:
       description: |
         Returns paginated trace overviews for a component. Each trace includes input, output, token usage,
         and status extracted from the root span — the same richness as the v1 list endpoint.
-        Uses the Observer Service instead of OpenSearch. No offset; use `limit` for page size.
+        Lists traces whose root span starts in the window. No offset; use `limit` for page size.
 
         The filter parameters (`status`, `minDurationMs`, `minTokens`, `minSpanCount`, `model`,
         `conversationId`, `tool`, `toolError`, `mcpServer`, `missing`) are optional and combine with AND. With any filter set, the server walks
@@ -74,7 +75,7 @@ paths:
         500 traces, it has fetched 100 MCP handshakes (only with `mcpServer` or `include=mcpServers`),
         or it has searched for 20 seconds (`truncated` is then true, and `nextCursor` continues the
         search).
-        With no filter and no `cursor` set the request makes one upstream trace query, unless
+        With no filter and no `cursor` set the request makes one trace query, unless
         traces share a start time at the end of the page.
 
         To page, send the previous response's `nextCursor` as `cursor`, with the same `startTime`,
@@ -166,8 +167,6 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
-        "503":
-          $ref: "#/components/responses/ObserverUnavailable"
         "500":
           $ref: "#/components/responses/InternalError"
 
@@ -181,7 +180,7 @@ paths:
         AmpAttributes (LLM data, tool calls, token usage, etc.). Response includes Content-Disposition
         for download. Export limit is capped at 1000 traces.
 
-        `organization`, `project`, `agent`, and `environment` are all required to scope the export
+        `organization`, `project`, and `agent` are all required to scope the export
         to a specific agent.
 
         The filter parameters are the list endpoint's and select the same traces: they combine with
@@ -190,7 +189,7 @@ paths:
         (only with `mcpServer`), or it has searched for 10 seconds (`truncated` is then true, and
         `lookedBackTo` says how far it got). Spans are fetched only
         for the matches, so a filtered export returns at most 500 traces. There is no cursor: to
-        export further back, narrow the window. With no filter set the export makes one upstream
+        export further back, narrow the window. With no filter set the export makes one
         trace query, as before.
 
         A trace that can't be read, while selecting with a filter or while fetching its spans, is
@@ -243,8 +242,6 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
-        "503":
-          $ref: "#/components/responses/ObserverUnavailable"
         "500":
           $ref: "#/components/responses/InternalError"
 
@@ -270,7 +267,7 @@ paths:
         - $ref: "#/components/parameters/organization"
         - $ref: "#/components/parameters/projectOptional"
         - $ref: "#/components/parameters/agentOptional"
-        - $ref: "#/components/parameters/environmentOptional"
+        - $ref: "#/components/parameters/environment"
         - $ref: "#/components/parameters/startTimeRequired"
         - $ref: "#/components/parameters/endTimeRequired"
         - name: limit
@@ -294,8 +291,6 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
-        "503":
-          $ref: "#/components/responses/ObserverUnavailable"
         "500":
           $ref: "#/components/responses/InternalError"
 
@@ -336,8 +331,6 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
-        "503":
-          $ref: "#/components/responses/ObserverUnavailable"
         "500":
           $ref: "#/components/responses/InternalError"
 
@@ -348,8 +341,9 @@ paths:
       summary: Query component logs
       description: |
         Returns log entries for an agent's runtime component, scoped by organization,
-        project, agent, and environment. `startTime`/`endTime` are required and the
+        project, and agent. `startTime`/`endTime` are required and the
         range is capped at 14 days. Not available to `amp-publisher-*` tokens.
+        Not implemented: always returns 501 after validating the request.
       operationId: queryLogs
       security:
         - bearerAuth: []
@@ -370,7 +364,7 @@ paths:
         - name: limit
           in: query
           required: false
-          description: Max log lines to return (optional; upstream default applies when omitted, max 10000)
+          description: Max log lines to return (optional, max 10000)
           schema:
             type: integer
             minimum: 1
@@ -389,8 +383,8 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
-        "502":
-          $ref: "#/components/responses/UpstreamObserverError"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
   /api/v1/build-logs:
     get:
@@ -400,6 +394,7 @@ paths:
       description: |
         Returns log entries for an Argo build workflow run, over a fixed 30-day lookback
         window, oldest first, capped at 1000 lines. Not available to `amp-publisher-*` tokens.
+        Not implemented: always returns 501 after validating the request.
       operationId: queryBuildLogs
       security:
         - bearerAuth: []
@@ -419,8 +414,8 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
-        "502":
-          $ref: "#/components/responses/UpstreamObserverError"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
   /api/v1/metrics:
     get:
@@ -429,9 +424,10 @@ paths:
       summary: Query agent resource metrics
       description: |
         Returns CPU and memory usage/requests/limits time series for an agent's runtime
-        component, scoped by organization, project, agent, and environment.
+        component, scoped by organization, project, and agent.
         `startTime`/`endTime` are required (no range cap). Not available to
-        `amp-publisher-*` tokens.
+        `amp-publisher-*` tokens. Not implemented: always returns 501 after validating
+        the request.
       operationId: queryMetrics
       security:
         - bearerAuth: []
@@ -455,8 +451,8 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
-        "502":
-          $ref: "#/components/responses/UpstreamObserverError"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
 components:
   securitySchemes:
@@ -492,8 +488,8 @@ components:
     environment:
       name: environment
       in: query
-      required: true
-      description: Environment name
+      required: false
+      description: Deprecated and ignored.
       schema:
         type: string
     projectOptional:
@@ -508,13 +504,6 @@ components:
       in: query
       required: false
       description: Agent name filter
-      schema:
-        type: string
-    environmentOptional:
-      name: environment
-      in: query
-      required: false
-      description: Environment name filter
       schema:
         type: string
     buildName:
@@ -708,20 +697,14 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/ErrorResponse"
-    ObserverUnavailable:
-      description: Observer Service not configured (OPENCHOREO_OBSERVER_URL unset)
-      content:
-        application/json:
-          schema:
-            $ref: "#/components/schemas/ErrorResponse"
     Forbidden:
       description: Publisher-audience (`amp-publisher-*`) tokens are not permitted on this endpoint
       content:
         application/json:
           schema:
             $ref: "#/components/schemas/ErrorResponse"
-    UpstreamObserverError:
-      description: The Observer Service query failed
+    NotImplemented:
+      description: Not available for external agents
       content:
         application/json:
           schema:
@@ -802,8 +785,8 @@ components:
         statusMessage:
           type: string
           description: >
-            Developer-facing status message from the span's OTel status
-            (OpenChoreo 1.2.0+). Typically set only when the span errored.
+            Developer-facing status message from the span's OTel status.
+            Typically set only when the span errored.
           nullable: true
         attributes:
           type: object
@@ -885,7 +868,7 @@ components:
         totalCount:
           type: integer
           description: |
-            Upstream trace count for the window when no filter is set; the number of
+            Trace count for the window when no filter is set; the number of
             exported traces when any filter is set.
         lookedBackTo:
           type: string
@@ -1057,7 +1040,7 @@ components:
         totalCount:
           type: integer
           description: |
-            Upstream trace count for the window when no filter is set; the number of
+            Trace count for the window when no filter is set; the number of
             matching traces in `traces` when any filter is set.
         lookedBackTo:
           type: string
@@ -1150,8 +1133,8 @@ components:
         message:
           type: string
           description: >
-            Developer-facing status message from the span's OTel status
-            (OpenChoreo 1.2.0+). Typically set only when the span errored.
+            Developer-facing status message from the span's OTel status.
+            Typically set only when the span errored.
           nullable: true
 
     AmpAttributes:

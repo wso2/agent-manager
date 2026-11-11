@@ -15,8 +15,8 @@ DOCKER_IMAGE=$(IMAGE_NAME):$(TAG)
 CONTAINER_NAME=$(APP_NAME)
 
 PORT=9098
-KIND_CLUSTER_NAME=openchoreo-local
-K3D_CLUSTER_NAME=openchoreo-local-setup
+KIND_CLUSTER_NAME ?= amp-dev
+K3D_CLUSTER_NAME ?= amp-dev
 
 # Mock trace generation configuration.
 # Defaults are set here; override any value on the command line:
@@ -83,7 +83,8 @@ docker-run: ## Run Docker container
 		-e OPENSEARCH_ADDRESS="http://host.docker.internal:9200" \
 		-e OPENSEARCH_USERNAME="admin" \
 		-e OPENSEARCH_PASSWORD="admin" \
-		-e OPENSEARCH_TRACE_INDEX="custom-otel-span-index" \
+		-e OPENSEARCH_TRACE_INDEX="otel-traces-*" \
+		-e IS_LOCAL_DEV_ENV=true \
 		$(DOCKER_IMAGE)
 	@echo "Container started. Logs:"
 	@docker logs -f $(CONTAINER_NAME)

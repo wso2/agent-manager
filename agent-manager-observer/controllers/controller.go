@@ -33,11 +33,9 @@ import (
 )
 
 const (
-	// MaxSpansPerRequest is the hard cap on spans fetched per trace. It must
-	// not exceed the OpenChoreo observer's per-query limit (config.MaxLimit,
-	// 1000),
+	// MaxSpansPerRequest is the hard cap on spans fetched per trace.
 	MaxSpansPerRequest = 1000
-	// maxConcurrentFetches limits concurrent GetSpanDetails calls to the Observer.
+	// maxConcurrentFetches limits concurrent GetSpanDetails calls to the trace store.
 	maxConcurrentFetches = 50
 	// maxConcurrentTraces limits concurrent per-trace goroutines in ExportTraces.
 	maxConcurrentTraces = 10
@@ -69,13 +67,12 @@ const (
 	listLookBackBudget = 20 * time.Second
 	// exportLookBackBudget leaves part of requestTimeout for a filtered export's span fetches.
 	exportLookBackBudget = 10 * time.Second
-	// maxCursorDepth caps the upstream fetch limit of a list request, which
-	// a deep cursor or a large tie group grows. The upstream Observer rejects
-	// a trace query limit above 1000.
+	// maxCursorDepth caps the trace store fetch limit of a list request,
+	// which a deep cursor or a large tie group grows.
 	maxCursorDepth = 1000
 )
 
-// TracingController provides tracing functionality via the observer service.
+// TracingController provides tracing functionality over the trace store.
 type TracingController struct {
 	observerClient observer.Client
 	// budget bounds a look-back walk's context.
@@ -92,7 +89,6 @@ type TraceQueryParams struct {
 	Organization string
 	Project      *string
 	Agent        *string
-	Environment  *string
 	StartTime    time.Time
 	EndTime      time.Time
 	Limit        int
@@ -261,8 +257,8 @@ func (c *TracingController) traceOverviewPage(ctx context.Context, params TraceQ
 // read, whether budget stopped the walk, and the examined traces it couldn't read.
 //
 // Each fetch covers the whole window with a doubled limit and skips trace IDs
-// already seen. The window is never narrowed: the Observer bounds each span's
-// end time, so a narrowed end would drop traces that overlap it. A cursor
+// already seen. The window is never narrowed, so every fetch ranks traces
+// the same way the cursor does. A cursor
 // skips traces not past it; they are not enriched or examined. Each fetch
 // holds back its unsettled tail, so the next, bigger fetch returns those
 // traces whole and in order, and the walk stops only on a settled trace.
@@ -365,9 +361,8 @@ func (c *TracingController) lookBackForMatches(ctx context.Context, params Trace
 		}
 		rootless = rootlessSlots(fetchLimit, len(tracesResp.Traces), tracesResp.Total)
 
-		// Total counts every trace in the window. A short response does not
-		// mean the window ran out: the limit also counts traces whose root
-		// span lies outside the window, which the Observer then drops.
+		// Total counts every trace in the window, so a short response only
+		// ends the walk once it holds all of them.
 		traces := sortedTraces(tracesResp.Traces, asc)
 		complete := len(traces) >= tracesResp.Total
 		settled := settledLen(traces, complete)
@@ -472,17 +467,17 @@ func (c *TracingController) lookBackForMatches(ctx context.Context, params Trace
 func (c *TracingController) traceListRequest(params TraceQueryParams, limit int) observer.TracesQueryRequest {
 	sortOrder := params.SortOrder
 	return observer.TracesQueryRequest{
-		StartTime: params.StartTime,
-		EndTime:   params.EndTime,
-		Limit:     &limit,
-		SortOrder: &sortOrder,
-		SearchScope: observer.ComponentSearchScope{
-			Namespace:   c.observerClient.NamespaceFor(params.Organization),
-			Project:     params.Project,
-			Component:   params.Agent,
-			Environment: params.Environment,
-		},
+		StartTime:   params.StartTime,
+		EndTime:     params.EndTime,
+		Limit:       &limit,
+		SortOrder:   &sortOrder,
+		SearchScope: traceScope(params),
 	}
+}
+
+// traceScope scopes a trace query to params' organization, project and agent.
+func traceScope(params TraceQueryParams) observer.TraceScope {
+	return observer.TraceScope{Organization: params.Organization, Project: params.Project, Agent: params.Agent}
 }
 
 // walkStart is where a walk begins: the cursor time, or the window's near edge.
@@ -1016,12 +1011,7 @@ func (c *TracingController) fetchTraceSpanSummaries(
 		EndTime:           params.EndTime,
 		Limit:             &spanLimit,
 		IncludeAttributes: includeAttributes,
-		SearchScope: observer.ComponentSearchScope{
-			Namespace:   c.observerClient.NamespaceFor(params.Organization),
-			Project:     params.Project,
-			Component:   params.Agent,
-			Environment: params.Environment,
-		},
+		SearchScope:       traceScope(params),
 	})
 	<-fetchSem
 	if err != nil {
@@ -1269,7 +1259,7 @@ func (c *TracingController) tryChildChainSpan(
 // pure-OTel agents).
 //
 // Fetches share fetchSem with every other enrichment in flight, so leaf fan-
-// out across many concurrent traces doesn't flood the upstream observer. With
+// out across many concurrent traces doesn't flood OpenSearch. With
 // inline set, the leaves come from spans instead and nothing is fetched; the
 // cap still applies, so a row is the same with or without include=models.
 //
@@ -1388,16 +1378,11 @@ func (c *TracingController) GetTraceSpans(ctx context.Context, traceID string, p
 
 	sortOrder := params.SortOrder
 	req := observer.TracesQueryRequest{
-		StartTime: params.StartTime,
-		EndTime:   params.EndTime,
-		Limit:     &params.Limit,
-		SortOrder: &sortOrder,
-		SearchScope: observer.ComponentSearchScope{
-			Namespace:   c.observerClient.NamespaceFor(params.Organization),
-			Project:     params.Project,
-			Component:   params.Agent,
-			Environment: params.Environment,
-		},
+		StartTime:   params.StartTime,
+		EndTime:     params.EndTime,
+		Limit:       &params.Limit,
+		SortOrder:   &sortOrder,
+		SearchScope: traceScope(params),
 	}
 
 	spansResp, err := c.observerClient.QueryTraceSpans(ctx, traceID, req)
@@ -1502,12 +1487,7 @@ func (c *TracingController) ExportTraces(ctx context.Context, params TraceQueryP
 				EndTime:           params.EndTime,
 				Limit:             &spanLimit,
 				IncludeAttributes: true,
-				SearchScope: observer.ComponentSearchScope{
-					Namespace:   c.observerClient.NamespaceFor(params.Organization),
-					Project:     params.Project,
-					Component:   params.Agent,
-					Environment: params.Environment,
-				},
+				SearchScope:       traceScope(params),
 			}
 			spansResp, err := c.observerClient.QueryTraceSpans(ctx, traceInfo.TraceID, spansReq)
 			if err != nil && ctx.Err() == nil {
@@ -1530,7 +1510,7 @@ func (c *TracingController) ExportTraces(ctx context.Context, params TraceQueryP
 				return spans[i].StartTime.Before(spans[j].StartTime)
 			})
 
-			// Find root span by the RootSpanID the Observer already identified.
+			// Find root span by the RootSpanID the trace store already identified.
 			// Fallback: also accept a span with an empty or all-zero parentSpanId,
 			// since some OTEL exporters use "0000000000000000" instead of "".
 			var rootSpan *opensearch.Span
@@ -1541,7 +1521,7 @@ func (c *TracingController) ExportTraces(ctx context.Context, params TraceQueryP
 				}
 			}
 			if rootSpan == nil {
-				// Fallback for traces where the Observer RootSpanID is absent.
+				// Fallback for traces where the trace store RootSpanID is absent.
 				for k := range spans {
 					p := spans[k].ParentSpanID
 					if p == "" || p == "0000000000000000" {

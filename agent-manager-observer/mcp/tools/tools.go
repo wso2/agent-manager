@@ -14,8 +14,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-// Package tools implements the seven am-obs-mcp tools. Handlers call
-// controllers.TracingController / controllers.ObservabilityController
+// Package tools implements the am-obs-mcp trace tools. Handlers call
+// controllers.TracingController
 // directly — there is no HTTP hop and no claims parsing: every tool takes
 // an explicit, required "organization" input (except get_span_details,
 // whose underlying controller call is already scoped by trace/span ID and
@@ -32,14 +32,14 @@ import (
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/wso2/agent-manager/agent-manager-observer/controllers"
+	"github.com/wso2/agent-manager/agent-manager-observer/middleware"
 	"github.com/wso2/agent-manager/agent-manager-observer/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-observer/rbac"
 )
 
-// Toolsets holds the controllers backing the seven am-obs-mcp tools.
+// Toolsets holds the controllers backing the am-obs-mcp tools.
 type Toolsets struct {
-	Tracing       *controllers.TracingController
-	Observability *controllers.ObservabilityController
+	Tracing *controllers.TracingController
 	// authorize, when set, builds each tool's per-call guard in place of the
 	// enforcing one.
 	authorize func(rbac.Permission) func(*gomcp.CallToolRequest) error
@@ -60,29 +60,14 @@ func (t *Toolsets) Register(server *gomcp.Server) {
 	if t == nil {
 		return
 	}
-	if t.Observability != nil {
-		t.registerObservabilityTools(server)
-	}
 	if t.Tracing != nil {
 		t.registerTraceTools(server)
 	}
 }
 
-const (
-	// logsMetricsMaxWindow is the max start..end span accepted by
-	// get_runtime_logs and get_metrics, mirroring maxLogRangeDays in
-	// handlers/handlers.go (Task 4).
-	logsMetricsMaxWindow = 14 * 24 * time.Hour
-	// tracesMaxWindow is the max start..end span accepted by the trace
-	// tools, ported from am-mcp's resolveTraceTimeWindow.
-	tracesMaxWindow = 30 * 24 * time.Hour
-)
-
-// resolveTimeWindow resolves a start/end time window for logs and metrics
-// (max 14 days), defaulting to the last 24h when neither is provided.
-func resolveTimeWindow(start, end string) (time.Time, time.Time, error) {
-	return resolveWindowWithLimit(start, end, logsMetricsMaxWindow)
-}
+// tracesMaxWindow is the max start..end span accepted by the trace
+// tools, ported from am-mcp's resolveTraceTimeWindow.
+const tracesMaxWindow = 30 * 24 * time.Hour
 
 // resolveTraceTimeWindow resolves a start/end time window for the trace
 // tools (max 30 days), defaulting to the last 24h when neither is provided.
@@ -122,20 +107,6 @@ func resolveWindowWithLimit(start, end string, maxDuration time.Duration) (time.
 	return startTime.UTC(), endTime.UTC(), nil
 }
 
-// rejectFutureLogStartTime mirrors validateLogTimeRange in
-// handlers/handlers.go: REST's /api/v1/logs route (GetLogs) rejects a
-// startTime in the future. No other REST route applies this rule — GetMetrics
-// and the trace routes (GetTraceOverviews/ExportTraces/GetTraceSpans) never
-// call validateLogTimeRange — so this is invoked only from get_runtime_logs,
-// not from resolveTimeWindow/resolveTraceTimeWindow (which are also shared
-// with get_metrics/list_traces/get_traces/get_trace_details).
-func rejectFutureLogStartTime(start time.Time) error {
-	if start.After(time.Now()) {
-		return fmt.Errorf("start_time cannot be in the future")
-	}
-	return nil
-}
-
 // requireField trims value and rejects it (and whitespace-only input) as
 // missing. Most required fields are already enforced by the tool's JSON
 // schema (no "omitempty" tag), but the schema only rejects a fully absent
@@ -150,7 +121,7 @@ func requireField(value, name string) (string, error) {
 
 // optionalScope trims value and returns a pointer to it, or nil when it is
 // empty/whitespace — mirroring optionalStr in handlers/handlers.go for optional
-// scoping filters (project/agent/environment) that are omitted rather than
+// scoping filters (project/agent) that are omitted rather than
 // required.
 func optionalScope(value string) *string {
 	trimmed := strings.TrimSpace(value)
@@ -196,49 +167,28 @@ func validateLimit(limit *int, defaultVal, maxVal int) (int, error) {
 	return *limit, nil
 }
 
-// validateOptionalLimit resolves an optional limit input against [1, maxVal],
-// returning nil when the caller didn't supply one (letting the upstream
-// default apply), mirroring parseOptionalLimit in handlers/handlers.go.
-func validateOptionalLimit(limit *int, maxVal int) (*int, error) {
-	if limit == nil {
-		return nil, nil
-	}
-	if *limit < 1 {
-		return nil, fmt.Errorf("limit must be a positive integer")
-	}
-	if *limit > maxVal {
-		return nil, fmt.Errorf("limit must not exceed %d", maxVal)
-	}
-	return limit, nil
-}
-
-// validLogLevels are the log levels accepted (case-insensitively) by
-// log_levels, mirroring validLogLevels in handlers/handlers.go.
-var validLogLevels = map[string]bool{
-	"INFO":  true,
-	"DEBUG": true,
-	"WARN":  true,
-	"ERROR": true,
-}
-
-// normalizeLogLevels upper-cases and validates each entry in levels. An
-// empty/nil input returns a nil slice (no filtering).
-func normalizeLogLevels(levels []string) ([]string, error) {
-	if len(levels) == 0 {
-		return nil, nil
-	}
-	out := make([]string, 0, len(levels))
-	for _, lvl := range levels {
-		value := strings.ToUpper(strings.TrimSpace(lvl))
-		if value == "" {
-			continue
+// requireToolPermission builds the per-call authorization guard for a tool,
+// applying the same policy as the REST routes (middleware.AuthorizePermission):
+// ordinary tokens need the tool's amp scope, and publisher-audience
+// (amp-publisher-*) tokens are confined to their implicit trace-read
+// permission. The per-call bearer token is
+// read from req.Extra.Header (set by the streamable-HTTP transport for every
+// tool call); JWTAuth has already verified it. The handler ctx cannot be used
+// instead: the transport derives it from the session-initializing request, so
+// middleware.GetTokenClaims(ctx) would reflect the initialize token, not the
+// current call's.
+func requireToolPermission(perm rbac.Permission) func(*gomcp.CallToolRequest) error {
+	return func(req *gomcp.CallToolRequest) error {
+		var authHeader string
+		if req != nil && req.Extra != nil && req.Extra.Header != nil {
+			authHeader = req.Extra.Header.Get("Authorization")
 		}
-		if !validLogLevels[value] {
-			return nil, fmt.Errorf("invalid log level: %s", lvl)
+		claims := middleware.ParseUnverifiedClaims(authHeader)
+		if err := middleware.AuthorizePermission(claims, perm); err != nil {
+			return fmt.Errorf("%w: this tool requires the %s scope", err, perm.Scope())
 		}
-		out = append(out, value)
+		return nil
 	}
-	return out, nil
 }
 
 // wrapToolError adds the failing tool's name to err for easier debugging by

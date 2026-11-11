@@ -86,9 +86,6 @@ type fakeObserverClient struct {
 	queryTracesCalls     int32
 	// attrSpansCalls counts QueryTraceSpans calls with IncludeAttributes.
 	attrSpansCalls int32
-
-	// defaultNamespace is returned by NamespaceFor, mirroring the real client.
-	defaultNamespace string
 }
 
 // QueryTraces records the request and returns the configured traces, windowed like upstream when windowed is set.
@@ -199,18 +196,6 @@ func (f *fakeObserverClient) QueryTraceSpans(ctx context.Context, traceID string
 	return &observer.TraceSpansQueryResponse{Spans: spans, Total: len(spans)}, nil
 }
 
-func (f *fakeObserverClient) NamespaceFor(_ string) string {
-	return f.defaultNamespace
-}
-
-func (f *fakeObserverClient) QueryLogs(_ context.Context, _ observer.LogsQueryRequest) (*observer.LogsQueryResponse, error) {
-	return &observer.LogsQueryResponse{}, nil
-}
-
-func (f *fakeObserverClient) QueryMetrics(_ context.Context, _ observer.MetricsQueryRequest) (*observer.ResourceMetricsTimeSeries, error) {
-	return &observer.ResourceMetricsTimeSeries{}, nil
-}
-
 // GetSpanDetails returns the configured details for spanID and records the call.
 func (f *fakeObserverClient) GetSpanDetails(ctx context.Context, _, spanID string) (*observer.SpanDetailsResponse, error) {
 	if f.onCall != nil {
@@ -265,12 +250,10 @@ func baseTraceInfo(spanCount int) observer.TraceInfo {
 func baseParams() TraceQueryParams {
 	project := "proj"
 	component := "comp"
-	environment := "env"
 	return TraceQueryParams{
 		Organization: "ns",
 		Project:      &project,
 		Agent:        &component,
-		Environment:  &environment,
 		StartTime:    time.Now().Add(-1 * time.Hour),
 		EndTime:      time.Now(),
 		Limit:        50,
