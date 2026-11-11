@@ -14,7 +14,7 @@ Existing OpenChoreo `SecretReference` objects point to values in OpenBao. Changi
      workloadClusterSecretStoreName: amp-secret-store
    ```
 
-   The workload setting applies to releases generated with the upgraded `agent-api` component type. Previously generated releases and their OpenBao references continue using the data plane's existing store. Preserve that store for every environment that still has a legacy workload. Perform the configuration changes below as part of each workload's migration.
+   The workload setting applies to releases generated with the upgraded `agent-api` component type. Previously generated releases and their OpenBao references continue using the data plane's existing store. Preserve that store for every environment that still has a legacy workload. Agent Manager leaves the secret references of a binding pinned to such a release as they are when it updates the binding, for example on undeploy, redeploy, or a credential rotation. A secret added or changed on that binding is written to the in-house store only, so it reaches the workload after the release is migrated. Perform the configuration changes below as part of each workload's migration.
 
 ## Import Agent Manager-managed secrets
 

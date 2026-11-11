@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/gen"
 )
@@ -111,7 +112,7 @@ func (a *ocAPI) ListReleaseBindingsWithResponse(ctx context.Context, namespaceNa
 }
 
 func (a *ocAPI) CreateReleaseBindingWithResponse(ctx context.Context, namespaceName gen.NamespaceNameParam, body gen.CreateReleaseBindingJSONRequestBody, reqEditors ...gen.RequestEditorFn) (*gen.CreateReleaseBindingResp, error) {
-	spec, err := encodeBindingSecrets(body.Spec, secretOuIDFrom(ctx))
+	spec, err := a.bindingSpecForWrite(ctx, namespaceName, body.Spec)
 	if err != nil {
 		return nil, err
 	}
@@ -124,7 +125,7 @@ func (a *ocAPI) CreateReleaseBindingWithResponse(ctx context.Context, namespaceN
 }
 
 func (a *ocAPI) UpdateReleaseBindingWithResponse(ctx context.Context, namespaceName gen.NamespaceNameParam, releaseBindingName gen.ReleaseBindingNameParam, body gen.UpdateReleaseBindingJSONRequestBody, reqEditors ...gen.RequestEditorFn) (*gen.UpdateReleaseBindingResp, error) {
-	spec, err := encodeBindingSecrets(body.Spec, secretOuIDFrom(ctx))
+	spec, err := a.bindingSpecForWrite(ctx, namespaceName, body.Spec)
 	if err != nil {
 		return nil, err
 	}
@@ -134,6 +135,79 @@ func (a *ocAPI) UpdateReleaseBindingWithResponse(ctx context.Context, namespaceN
 		decodeBindingSecrets(resp.JSON200.Spec)
 	}
 	return resp, err
+}
+
+// bindingSpecForWrite returns the spec to send for a binding write. A binding
+// pinned to a release whose ComponentType predates secretEnvs / secretFiles is
+// sent as it is: that release reads its secrets from the valueFrom references
+// through SecretReferences, and moving them would take them away from the
+// workload. Every other binding has its secret entries encoded.
+func (a *ocAPI) bindingSpecForWrite(ctx context.Context, namespaceName string, spec *gen.ReleaseBindingSpec) (*gen.ReleaseBindingSpec, error) {
+	if spec != nil && spec.ReleaseName != nil && *spec.ReleaseName != "" && bindingHasSecretRefs(spec) {
+		reads, err := a.releaseReadsBindingSecrets(ctx, namespaceName, *spec.ReleaseName)
+		if err != nil {
+			return nil, err
+		}
+		if !reads {
+			return spec, nil
+		}
+	}
+	return encodeBindingSecrets(spec, secretOuIDFrom(ctx))
+}
+
+// bindingHasSecretRefs reports whether the spec's workloadOverrides carry a
+// secret env var or file mount.
+func bindingHasSecretRefs(spec *gen.ReleaseBindingSpec) bool {
+	if spec.WorkloadOverrides == nil || spec.WorkloadOverrides.Container == nil {
+		return false
+	}
+	container := spec.WorkloadOverrides.Container
+	if container.Env != nil {
+		for _, e := range *container.Env {
+			if _, _, ok := secretRef(e.ValueFrom); ok {
+				return true
+			}
+		}
+	}
+	if container.Files != nil {
+		for _, f := range *container.Files {
+			if _, _, ok := secretRef(f.ValueFrom); ok {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// releaseReadsBindingSecrets reports whether the release's frozen ComponentType
+// declares the secretEnvs environment config. It answers false only for a
+// ComponentType whose environment config schema is readable and lacks the
+// field. A release without a readable schema is treated as current, so a
+// binding's secrets are never left in a form the current ComponentType ignores.
+func (a *ocAPI) releaseReadsBindingSecrets(ctx context.Context, namespaceName, releaseName string) (bool, error) {
+	resp, err := a.GetComponentReleaseWithResponse(ctx, namespaceName, releaseName)
+	if err != nil {
+		return false, fmt.Errorf("get component release %q: %w", releaseName, err)
+	}
+	if resp.StatusCode() != http.StatusOK {
+		return false, fmt.Errorf("get component release %q: HTTP %d", releaseName, resp.StatusCode())
+	}
+	if resp.JSON200 == nil || resp.JSON200.Spec == nil {
+		return false, fmt.Errorf("get component release %q: empty response", releaseName)
+	}
+	componentType := resp.JSON200.Spec.ComponentType
+	// The frozen ComponentType is either its spec or the resource holding it.
+	if nested, ok := componentType["spec"].(map[string]interface{}); ok {
+		componentType = nested
+	}
+	configs, _ := componentType["environmentConfigs"].(map[string]interface{})
+	schema, _ := configs["openAPIV3Schema"].(map[string]interface{})
+	props, ok := schema["properties"].(map[string]interface{})
+	if !ok {
+		return true, nil
+	}
+	_, declared := props[bindingSecretEnvsField]
+	return declared, nil
 }
 
 func secretRef(from *gen.EnvVarValueFrom) (name, key string, ok bool) {

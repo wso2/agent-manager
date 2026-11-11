@@ -158,3 +158,83 @@ func TestOCAPI_TranslatesBindingsOnTheWire(t *testing.T) {
 	assert.Equal(t, "s1", name)
 	assert.Equal(t, "token", key)
 }
+
+// releaseServer serves one ComponentRelease whose frozen ComponentType is
+// componentType, and records the binding it is asked to store.
+func releaseServer(t *testing.T, componentType string, sent *gen.ReleaseBinding) *openChoreoClient {
+	t.Helper()
+	return newTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			_, _ = w.Write([]byte(`{"metadata":{"name":"agent-r1"},"spec":{"componentType":` + componentType +
+				`,"owner":{"componentName":"agent","projectName":"p"},"workload":{}}}`))
+			return
+		}
+		body, _ := io.ReadAll(r.Body)
+		require.NoError(t, json.Unmarshal(body, sent))
+		_, _ = w.Write(body)
+	}))
+}
+
+func pinnedSecretBinding() gen.ReleaseBinding {
+	spec := bindingSpecWith([]gen.EnvVar{{Key: "TOKEN", ValueFrom: secretValueFrom("s1", "token")}}, nil, nil)
+	spec.ReleaseName = strPtr("agent-r1")
+	return gen.ReleaseBinding{Spec: spec}
+}
+
+func TestOCAPI_LeavesSecretRefsOfLegacyReleaseUntouched(t *testing.T) {
+	for name, componentType := range map[string]string{
+		"spec":     `{"environmentConfigs":{"openAPIV3Schema":{"properties":{"secretSyncRevision":{"type":"string"}}}}}`,
+		"resource": `{"spec":{"environmentConfigs":{"openAPIV3Schema":{"properties":{"secretSyncRevision":{"type":"string"}}}}}}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			var sent gen.ReleaseBinding
+			c := releaseServer(t, componentType, &sent)
+
+			// No organization on the context: a legacy binding is not encoded, so none is needed.
+			_, err := c.ocClient.UpdateReleaseBindingWithResponse(context.Background(), "default", "agent-dev", pinnedSecretBinding())
+			require.NoError(t, err)
+
+			env := *sent.Spec.WorkloadOverrides.Container.Env
+			require.Len(t, env, 1)
+			secret, key, ok := secretRef(env[0].ValueFrom)
+			require.True(t, ok, "the legacy release still reads the valueFrom reference")
+			assert.Equal(t, "s1", secret)
+			assert.Equal(t, "token", key)
+			assert.Nil(t, sent.Spec.ComponentTypeEnvironmentConfigs)
+		})
+	}
+}
+
+func TestOCAPI_EncodesSecretRefsOfCurrentRelease(t *testing.T) {
+	for name, componentType := range map[string]string{
+		"declares secretEnvs": `{"environmentConfigs":{"openAPIV3Schema":{"properties":{"secretEnvs":{"type":"array"}}}}}`,
+		"no readable schema":  `{"name":"deployment/agent-api"}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			var sent gen.ReleaseBinding
+			c := releaseServer(t, componentType, &sent)
+
+			_, err := c.ocClient.CreateReleaseBindingWithResponse(withSecretOuID(context.Background(), "ou-1"), "default", pinnedSecretBinding())
+			require.NoError(t, err)
+
+			assert.Empty(t, *sent.Spec.WorkloadOverrides.Container.Env)
+			raw, _ := json.Marshal((*sent.Spec.ComponentTypeEnvironmentConfigs)[bindingSecretEnvsField])
+			assert.Contains(t, string(raw), `"remoteKey":"ou-1/s1"`)
+		})
+	}
+}
+
+func TestOCAPI_FailsBindingWriteWhenReleaseIsUnreadable(t *testing.T) {
+	writes := 0
+	c := newTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		writes++
+	}))
+
+	_, err := c.ocClient.UpdateReleaseBindingWithResponse(withSecretOuID(context.Background(), "ou-1"), "default", "agent-dev", pinnedSecretBinding())
+	require.Error(t, err)
+	assert.Zero(t, writes, "the binding is not written without knowing its release")
+}
