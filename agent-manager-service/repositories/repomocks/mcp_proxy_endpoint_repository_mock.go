@@ -21,6 +21,9 @@ import (
 //			AddEndpointEnvironmentFunc: func(ctx context.Context, tx *gorm.DB, ee *models.MCPProxyEndpointEnvironment) error {
 //				panic("mock out the AddEndpointEnvironment method")
 //			},
+//			ClearIdentityCleanupPendingFunc: func(ctx context.Context, endpointUUID uuid.UUID) error {
+//				panic("mock out the ClearIdentityCleanupPending method")
+//			},
 //			CreateEndpointFunc: func(ctx context.Context, tx *gorm.DB, endpoint *models.MCPProxyEndpoint) error {
 //				panic("mock out the CreateEndpoint method")
 //			},
@@ -60,6 +63,9 @@ import (
 type MCPProxyEndpointRepositoryMock struct {
 	// AddEndpointEnvironmentFunc mocks the AddEndpointEnvironment method.
 	AddEndpointEnvironmentFunc func(ctx context.Context, tx *gorm.DB, ee *models.MCPProxyEndpointEnvironment) error
+
+	// ClearIdentityCleanupPendingFunc mocks the ClearIdentityCleanupPending method.
+	ClearIdentityCleanupPendingFunc func(ctx context.Context, endpointUUID uuid.UUID) error
 
 	// CreateEndpointFunc mocks the CreateEndpoint method.
 	CreateEndpointFunc func(ctx context.Context, tx *gorm.DB, endpoint *models.MCPProxyEndpoint) error
@@ -101,6 +107,13 @@ type MCPProxyEndpointRepositoryMock struct {
 			Tx *gorm.DB
 			// Ee is the ee argument value.
 			Ee *models.MCPProxyEndpointEnvironment
+		}
+		// ClearIdentityCleanupPending holds details about calls to the ClearIdentityCleanupPending method.
+		ClearIdentityCleanupPending []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// EndpointUUID is the endpointUUID argument value.
+			EndpointUUID uuid.UUID
 		}
 		// CreateEndpoint holds details about calls to the CreateEndpoint method.
 		CreateEndpoint []struct {
@@ -186,6 +199,7 @@ type MCPProxyEndpointRepositoryMock struct {
 		}
 	}
 	lockAddEndpointEnvironment          sync.RWMutex
+	lockClearIdentityCleanupPending     sync.RWMutex
 	lockCreateEndpoint                  sync.RWMutex
 	lockDeleteEndpoint                  sync.RWMutex
 	lockGetEndpoint                     sync.RWMutex
@@ -235,6 +249,42 @@ func (mock *MCPProxyEndpointRepositoryMock) AddEndpointEnvironmentCalls() []stru
 	mock.lockAddEndpointEnvironment.RLock()
 	calls = mock.calls.AddEndpointEnvironment
 	mock.lockAddEndpointEnvironment.RUnlock()
+	return calls
+}
+
+// ClearIdentityCleanupPending calls ClearIdentityCleanupPendingFunc.
+func (mock *MCPProxyEndpointRepositoryMock) ClearIdentityCleanupPending(ctx context.Context, endpointUUID uuid.UUID) error {
+	if mock.ClearIdentityCleanupPendingFunc == nil {
+		panic("MCPProxyEndpointRepositoryMock.ClearIdentityCleanupPendingFunc: method is nil but MCPProxyEndpointRepository.ClearIdentityCleanupPending was just called")
+	}
+	callInfo := struct {
+		Ctx          context.Context
+		EndpointUUID uuid.UUID
+	}{
+		Ctx:          ctx,
+		EndpointUUID: endpointUUID,
+	}
+	mock.lockClearIdentityCleanupPending.Lock()
+	mock.calls.ClearIdentityCleanupPending = append(mock.calls.ClearIdentityCleanupPending, callInfo)
+	mock.lockClearIdentityCleanupPending.Unlock()
+	return mock.ClearIdentityCleanupPendingFunc(ctx, endpointUUID)
+}
+
+// ClearIdentityCleanupPendingCalls gets all the calls that were made to ClearIdentityCleanupPending.
+// Check the length with:
+//
+//	len(mockedMCPProxyEndpointRepository.ClearIdentityCleanupPendingCalls())
+func (mock *MCPProxyEndpointRepositoryMock) ClearIdentityCleanupPendingCalls() []struct {
+	Ctx          context.Context
+	EndpointUUID uuid.UUID
+} {
+	var calls []struct {
+		Ctx          context.Context
+		EndpointUUID uuid.UUID
+	}
+	mock.lockClearIdentityCleanupPending.RLock()
+	calls = mock.calls.ClearIdentityCleanupPending
+	mock.lockClearIdentityCleanupPending.RUnlock()
 	return calls
 }
 

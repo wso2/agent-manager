@@ -36,6 +36,8 @@ import (
 type MCPProxyEndpointRepository interface {
 	CreateEndpoint(ctx context.Context, tx *gorm.DB, endpoint *models.MCPProxyEndpoint) error
 	UpdateEndpoint(ctx context.Context, tx *gorm.DB, endpoint *models.MCPProxyEndpoint) error
+	// ClearIdentityCleanupPending drops the endpoint's identityCleanupPending mark once its removal succeeded.
+	ClearIdentityCleanupPending(ctx context.Context, endpointUUID uuid.UUID) error
 	DeleteEndpoint(ctx context.Context, tx *gorm.DB, endpointUUID uuid.UUID) error
 	GetEndpoint(ctx context.Context, endpointUUID uuid.UUID) (*models.MCPProxyEndpoint, error)
 	// ListEndpointsByProxy returns every endpoint of the proxy with its
@@ -102,6 +104,17 @@ func (r *mcpProxyEndpointRepository) UpdateEndpoint(ctx context.Context, tx *gor
 	}
 	if result.RowsAffected == 0 {
 		return gorm.ErrRecordNotFound
+	}
+	return nil
+}
+
+// ClearIdentityCleanupPending removes the identityCleanupPending key from the endpoint's configuration in place, so
+// nothing else a binding write stored since is touched. A missing endpoint is not an error: the binding is gone.
+func (r *mcpProxyEndpointRepository) ClearIdentityCleanupPending(ctx context.Context, endpointUUID uuid.UUID) error {
+	if err := r.db.WithContext(ctx).Exec(
+		`UPDATE mcp_proxy_endpoints SET configuration = configuration - 'identityCleanupPending' WHERE uuid = ?`,
+		endpointUUID).Error; err != nil {
+		return fmt.Errorf("failed to clear the MCP proxy endpoint's identity cleanup mark: %w", err)
 	}
 	return nil
 }

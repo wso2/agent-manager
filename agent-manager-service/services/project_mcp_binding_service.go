@@ -97,10 +97,6 @@ func (s *ProjectMCPProxyService) PutEnvironment(
 	if exists {
 		selfArtifact = ee.ArtifactUUID
 	}
-	var previousSecurity *models.SecurityConfig
-	if exists {
-		previousSecurity = endpoint.Configuration.Security
-	}
 
 	// (2) Gateway: the environment's egress gateway, anchored on where the binding is placed, as the MCP kind's
 	// Targets picks it. None is not an error: the binding is stored and the placement pass deploys it later.
@@ -164,8 +160,8 @@ func (s *ProjectMCPProxyService) PutEnvironment(
 			// identity, retries removing it if that failed.
 			if mcpIdentityEnabled(endpoint.Configuration.Security) {
 				s.ensureBindingResourceServer(ctx, ouID, proxy, envUUID, envName)
-			} else {
-				s.retryBindingResourceServerCleanup(ctx, ouID, proxy, envName)
+			} else if endpoint.Configuration.IdentityCleanupPending {
+				s.cleanUpBindingIdentity(ctx, ouID, proxy, envName, endpoint.UUID, true)
 			}
 			resp, err := s.environmentResponse(ctx, ouID, proxy, endpoint, ee)
 			return resp, false, err
@@ -185,8 +181,13 @@ func (s *ProjectMCPProxyService) PutEnvironment(
 	if err != nil {
 		return nil, false, err
 	}
+	// The binding's configuration before this write, read under the proxy lock: a PUT committed since proxy was read
+	// may have changed it.
+	var previous *models.MCPEndpointConfig
 	if err := s.base.tx(ctx, func(tx *gorm.DB) error {
-		return s.saveAndDeployBinding(ctx, tx, ouID, proxyHandleOf(proxy), envName, envUUID, gateway, desired, stored)
+		var err error
+		previous, err = s.saveAndDeployBinding(ctx, tx, ouID, proxyHandleOf(proxy), envName, envUUID, gateway, desired, stored)
+		return err
 	}); err != nil {
 		switch {
 		case errors.Is(err, utils.ErrMCPContextInUse), errors.Is(err, utils.ErrMCPProxyNotFound),
@@ -211,11 +212,19 @@ func (s *ProjectMCPProxyService) PutEnvironment(
 	if ee == nil {
 		return nil, false, fmt.Errorf("the saved binding of %q in %q is missing", handle, envName)
 	}
-	s.ensureBindingResourceServer(ctx, ouID, saved, envUUID, envName)
-	// A binding moved off identity no longer accepts its tokens: its resource server, and the roles' grants of it, go.
-	if mcpIdentityEnabled(previousSecurity) && !mcpIdentityEnabled(endpoint.Configuration.Security) {
-		s.deleteBindingResourceServer(ctx, ouID, saved, envName, previousSecurity)
+	// A binding off identity no longer accepts its tokens: its resource server, and the roles' grants of it, go. The
+	// write marked it pending, and the mark is cleared once the removal succeeds. One back on identity with a removal
+	// still pending has it done first, so grants made for its old registration do not apply again.
+	if previous != nil && (mcpIdentityEnabled(previous.Security) || previous.IdentityCleanupPending) {
+		if mcpIdentityEnabled(endpoint.Configuration.Security) {
+			if previous.IdentityCleanupPending {
+				s.cleanUpBindingIdentity(ctx, ouID, saved, envName, endpoint.UUID, false)
+			}
+		} else {
+			s.cleanUpBindingIdentity(ctx, ouID, saved, envName, endpoint.UUID, true)
+		}
 	}
+	s.ensureBindingResourceServer(ctx, ouID, saved, envUUID, envName)
 	resp, err := s.environmentResponse(ctx, ouID, saved, endpoint, ee)
 	return resp, !exists, err
 }
@@ -279,29 +288,39 @@ func (s *ProjectMCPProxyService) bindingUpstreamURL(
 }
 
 // saveAndDeployBinding writes the binding in tx, the proxy row locked, and deploys it on gateway, or with no gateway
-// only renders it (DeployRecord). A Failed binding with unchanged input is not rewritten, only re-deployed.
+// only renders it (DeployRecord). A Failed binding with unchanged input is not rewritten, only re-deployed. A binding
+// that leaves identity, or stays off it with a removal still pending, is written with IdentityCleanupPending. It
+// returns the binding's configuration as the lock found it, nil for a new binding.
 func (s *ProjectMCPProxyService) saveAndDeployBinding(
 	ctx context.Context, tx *gorm.DB, ouID, proxyHandle, envName string, envUUID uuid.UUID, gateway *uuid.UUID,
 	desired, stored models.MCPEndpointConfig,
-) error {
+) (*models.MCPEndpointConfig, error) {
 	// Serialize binding writes on one gateway, taken first as the gateway mapping path does, so two bindings
 	// with overlapping contexts can't both pass the context check before either deploys.
 	if gateway != nil && s.base.gatewayRepo != nil {
 		if err := s.base.gatewayRepo.AcquireGatewayLock(tx, gateway.String()); err != nil {
-			return fmt.Errorf("failed to lock the gateway: %w", err)
+			return nil, fmt.Errorf("failed to lock the gateway: %w", err)
 		}
 	}
 	locked, err := s.base.repo.GetByHandleForUpdate(ctx, tx, proxyHandle, ouID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return utils.ErrMCPProxyNotFound
+			return nil, utils.ErrMCPProxyNotFound
 		}
-		return fmt.Errorf("failed to lock the MCP proxy: %w", err)
+		return nil, fmt.Errorf("failed to lock the MCP proxy: %w", err)
 	}
 	if desired, stored, err = followLockedProxyURL(locked, desired, stored); err != nil {
-		return err
+		return nil, err
 	}
 	endpoint, ee := resolveMCPEndpointForEnv(locked, envUUID.String())
+	var previous *models.MCPEndpointConfig
+	if ee != nil {
+		lockedConfig := endpoint.Configuration
+		previous = &lockedConfig
+		pending := (mcpIdentityEnabled(lockedConfig.Security) || lockedConfig.IdentityCleanupPending) &&
+			!mcpIdentityEnabled(desired.Security)
+		desired.IdentityCleanupPending, stored.IdentityCleanupPending = pending, pending
+	}
 	var artifactUUID uuid.UUID
 	var artifactHandle string
 	if ee == nil {
@@ -309,7 +328,7 @@ func (s *ProjectMCPProxyService) saveAndDeployBinding(
 		artifactUUID = uuid.New()
 		artifactHandle = mcpProxyEnvArtifactHandle(proxyHandle, endpointHandle, envUUID.String())
 		if err := s.createBinding(ctx, tx, ouID, locked, endpointHandle, envName, envUUID, artifactUUID, artifactHandle, stored); err != nil {
-			return err
+			return nil, err
 		}
 	} else {
 		artifactUUID = ee.ArtifactUUID
@@ -319,7 +338,7 @@ func (s *ProjectMCPProxyService) saveAndDeployBinding(
 				UUID: endpoint.UUID, Handle: endpoint.Handle, Name: endpoint.Name, Status: endpoint.Status,
 				Configuration: stored,
 			}); err != nil {
-				return fmt.Errorf("failed to update the MCP proxy binding: %w", err)
+				return nil, fmt.Errorf("failed to update the MCP proxy binding: %w", err)
 			}
 		}
 	}
@@ -327,10 +346,10 @@ func (s *ProjectMCPProxyService) saveAndDeployBinding(
 		// The deploy re-checks the context under the gateway lock (reconcile.Core), so two bindings with
 		// overlapping contexts can't both pass the check made before the store.
 		if err := s.base.deploymentRepo.LockStatusRows(ctx, tx, ouID, []uuid.UUID{artifactUUID}); err != nil {
-			return err
+			return nil, err
 		}
 	}
-	return s.base.deployMCPArtifact(ctx, tx, &models.MCPProxy{UUID: artifactUUID, Handle: artifactHandle}, ouID, envUUID, gateway)
+	return previous, s.base.deployMCPArtifact(ctx, tx, &models.MCPProxy{UUID: artifactUUID, Handle: artifactHandle}, ouID, envUUID, gateway)
 }
 
 // followLockedProxyURL points a binding of a proxy registered by URL at the URL the locked proxy has. desired and

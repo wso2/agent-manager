@@ -181,6 +181,14 @@ func newBindingFixture(t *testing.T) *bindingFixture {
 			}
 			return gorm.ErrRecordNotFound
 		},
+		ClearIdentityCleanupPendingFunc: func(_ context.Context, endpointUUID uuid.UUID) error {
+			for i := range f.proxy.Endpoints {
+				if f.proxy.Endpoints[i].UUID == endpointUUID {
+					f.proxy.Endpoints[i].Configuration.IdentityCleanupPending = false
+				}
+			}
+			return nil
+		},
 		AddEndpointEnvironmentFunc: func(_ context.Context, _ *gorm.DB, ee *models.MCPProxyEndpointEnvironment) error {
 			for i := range f.proxy.Endpoints {
 				if f.proxy.Endpoints[i].UUID == ee.EndpointUUID {
@@ -746,16 +754,20 @@ func TestPutEnv_LeavingIdentity_DeletesTheResourceServer(t *testing.T) {
 	require.Len(t, calls.deleted, 1)
 	assert.Equal(t, bindingEnv, calls.deleted[0].env)
 	assert.Equal(t, bindingHandle, calls.deleted[0].handle)
+	endpoint, _ := f.binding()
+	assert.False(t, endpoint.Configuration.IdentityCleanupPending, "a removal that succeeded leaves nothing pending")
 }
 
-// Removing the resource server when a binding leaves identity is best effort; an identical PUT retries it while the
-// proxy has scopes whose grants a leftover would keep, and leaves it alone when there are none.
-func TestPutEnv_IdenticalPUTRetriesAFailedIdentityCleanup(t *testing.T) {
+// Removing the resource server when a binding leaves identity is best effort. The write marks the binding pending,
+// an identical PUT retries the removal only while it is, and a removal that succeeds clears the mark, so a grant
+// made afterwards is not swept by later identical PUTs.
+func TestPutEnv_IdenticalPUTRetriesOnlyAPendingIdentityCleanup(t *testing.T) {
 	f := newBindingFixture(t)
 	calls := f.withThunder()
-	var scopes []models.MCPProxyScope
 	f.svc.base.mcpProxyScopeRepo = &repomocks.MCPProxyScopeRepositoryMock{
-		ListByProxyFunc: func(context.Context, uuid.UUID) ([]models.MCPProxyScope, error) { return scopes, nil },
+		ListByProxyFunc: func(context.Context, uuid.UUID) ([]models.MCPProxyScope, error) {
+			return []models.MCPProxyScope{{Action: "read"}}, nil
+		},
 	}
 
 	_, _, err := f.put(t, models.MCPProxyEnvironmentRequest{Security: identityBinding()})
@@ -764,21 +776,44 @@ func TestPutEnv_IdenticalPUTRetriesAFailedIdentityCleanup(t *testing.T) {
 	_, _, err = f.put(t, models.MCPProxyEnvironmentRequest{})
 	require.NoError(t, err, "the cleanup is best effort")
 	require.Len(t, calls.deleted, 1)
+	endpoint, ee := f.binding()
+	assert.True(t, endpoint.Configuration.IdentityCleanupPending, "the failed removal stays pending")
 
-	_, ee := f.binding()
 	f.status[ee.ArtifactUUID].Status = models.DeploymentStatusDeployed
 	calls.deleteErr = nil
 	_, created, err := f.put(t, models.MCPProxyEnvironmentRequest{})
 	require.NoError(t, err)
 	assert.False(t, created)
-	assert.Len(t, calls.deleted, 1, "no scopes: nothing a leftover would grant, so no retry")
+	require.Len(t, calls.deleted, 2, "the identical PUT retries the pending removal")
+	assert.Equal(t, 1, calls.swept, "and drops the scope from roles, which the failed removal never reached")
+	endpoint, _ = f.binding()
+	assert.False(t, endpoint.Configuration.IdentityCleanupPending)
 
-	scopes = []models.MCPProxyScope{{Action: "read"}}
 	_, _, err = f.put(t, models.MCPProxyEnvironmentRequest{})
 	require.NoError(t, err)
-	require.Len(t, calls.deleted, 2, "the identical PUT retries the removal")
-	assert.Equal(t, 1, calls.swept, "and drops the scope from roles")
-	assert.Len(t, f.deployed, 2, "without redeploying")
+	assert.Len(t, calls.deleted, 2, "nothing pending: a grant made since is left alone")
+	assert.Len(t, f.deployed, 2, "identical PUTs never redeploy")
+}
+
+// A binding back on identity while a removal is still pending has the removal done first, so grants made for its old
+// registration do not apply again, then registers afresh.
+func TestPutEnv_BackToIdentityFinishesAPendingCleanupFirst(t *testing.T) {
+	f := newBindingFixture(t)
+	calls := f.withThunder()
+
+	_, _, err := f.put(t, models.MCPProxyEnvironmentRequest{Security: identityBinding()})
+	require.NoError(t, err)
+	calls.deleteErr = errors.New("identity service unavailable")
+	_, _, err = f.put(t, models.MCPProxyEnvironmentRequest{})
+	require.NoError(t, err)
+	calls.deleteErr = nil
+
+	_, _, err = f.put(t, models.MCPProxyEnvironmentRequest{Security: identityBinding()})
+	require.NoError(t, err)
+	assert.Len(t, calls.deleted, 2, "the pending removal ran")
+	assert.Len(t, calls.ensured, 2, "and the binding registered again")
+	endpoint, _ := f.binding()
+	assert.False(t, endpoint.Configuration.IdentityCleanupPending)
 }
 
 // A binding with no gateway has no public URL to register yet; the PUT after the gateway arrives registers it.
@@ -808,23 +843,6 @@ func TestPutEnv_APIKey_RegistersNoResourceServer(t *testing.T) {
 	assert.Empty(t, calls.ensured)
 }
 
-// Removing an identity binding removes its resource server from that environment; any other binding has none.
-func TestDeleteBindingResourceServer_OnlyForIdentity(t *testing.T) {
-	f := newBindingFixture(t)
-	calls := f.withThunder()
-	enabled := true
-
-	f.svc.deleteBindingResourceServer(context.Background(), testOrg, f.proxy, bindingEnv,
-		&models.SecurityConfig{Enabled: &enabled, APIKey: &models.APIKeySecurity{Enabled: &enabled}})
-	assert.Empty(t, calls.deleted)
-
-	f.svc.deleteBindingResourceServer(context.Background(), testOrg, f.proxy, bindingEnv, mcpIdentitySecurity())
-	require.Len(t, calls.deleted, 1)
-	assert.Equal(t, bindingEnv, calls.deleted[0].env)
-	assert.Equal(t, bindingHandle, calls.deleted[0].handle)
-	assert.Zero(t, calls.swept, "a proxy with no scopes has none to drop from roles")
-}
-
 // A deleted binding's resource server is removed whatever its security: one that left identity keeps its resource
 // server if that removal failed, and no PUT can retry it once the binding is gone.
 func TestPurgeBindingResourceServer_RemovesItWhateverTheSecurity(t *testing.T) {
@@ -849,12 +867,14 @@ func TestBindingResourceServerCleanup_FailedScopeLookupRemovesNothing(t *testing
 		ListByProxyFunc: func(context.Context, uuid.UUID) ([]models.MCPProxyScope, error) { return nil, lookupErr },
 	}
 
-	f.svc.deleteBindingResourceServer(context.Background(), testOrg, f.proxy, bindingEnv, mcpIdentitySecurity())
-	f.svc.retryBindingResourceServerCleanup(context.Background(), testOrg, f.proxy, bindingEnv)
-	assert.Empty(t, calls.deleted)
-
 	_, _, err := f.put(t, models.MCPProxyEnvironmentRequest{})
 	require.NoError(t, err)
+	endpoint, _ := f.binding()
+	endpointRepo := f.svc.base.endpointRepo.(*repomocks.MCPProxyEndpointRepositoryMock)
+	f.svc.cleanUpBindingIdentity(context.Background(), testOrg, f.proxy, bindingEnv, endpoint.UUID, true)
+	assert.Empty(t, calls.deleted)
+	assert.Empty(t, endpointRepo.ClearIdentityCleanupPendingCalls(), "the mark stays for a retry")
+
 	err = f.svc.DeleteEnvironment(context.Background(), testOrg, bindingProject, bindingProjectUUID, bindingHandle, bindingEnv)
 	require.ErrorIs(t, err, lookupErr)
 	_, still := f.binding()
@@ -862,8 +882,8 @@ func TestBindingResourceServerCleanup_FailedScopeLookupRemovesNothing(t *testing
 	assert.Empty(t, calls.deleted)
 }
 
-// The delete passes the proxy's scopes, as the proxy delete does, so the roles granting them are cleaned up.
-func TestDeleteBindingResourceServer_DropsTheProxyScopesFromRoles(t *testing.T) {
+// The cleanup passes the proxy's scopes, as the proxy delete does, so the roles granting them are cleaned up.
+func TestBindingIdentityCleanup_DropsTheProxyScopesFromRoles(t *testing.T) {
 	f := newBindingFixture(t)
 	calls := f.withThunder()
 	f.svc.base.mcpProxyScopeRepo = &repomocks.MCPProxyScopeRepositoryMock{
@@ -872,7 +892,7 @@ func TestDeleteBindingResourceServer_DropsTheProxyScopesFromRoles(t *testing.T) 
 		},
 	}
 
-	f.svc.deleteBindingResourceServer(context.Background(), testOrg, f.proxy, bindingEnv, mcpIdentitySecurity())
+	f.svc.cleanUpBindingIdentity(context.Background(), testOrg, f.proxy, bindingEnv, uuid.New(), false)
 	require.Len(t, calls.deleted, 1)
 	assert.Equal(t, 2, calls.swept, "one role sweep per scope")
 }
