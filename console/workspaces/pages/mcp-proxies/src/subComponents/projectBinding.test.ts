@@ -387,9 +387,10 @@ describe("planURLProxySave", () => {
       [],
     );
     expect(kinds(steps)).toEqual(["proxy", "binding:dev", "binding:prod"]);
+    expect(steps[0].kind === "proxy" && steps[0].resetBindingAuth).toBe(false);
   });
 
-  it("removes unassigned environments first", () => {
+  it("changes the proxy first, then removes unassigned environments", () => {
     const draft = { ...initial, environments: ["e1"] };
     const steps = planURLProxySave(
       proxy,
@@ -398,10 +399,10 @@ describe("planURLProxySave", () => {
       { url: initial.url },
       [],
     );
-    expect(kinds(steps)).toEqual(["remove:prod", "proxy", "binding:dev"]);
+    expect(kinds(steps)).toEqual(["proxy", "remove:prod", "binding:dev"]);
   });
 
-  it("clears stored credentials before moving to another host, then sets the typed one", () => {
+  it("has the proxy update clear stored credentials on a host move, then sets the typed one", () => {
     const draft = {
       ...initial,
       url: "https://other.example.com/mcp",
@@ -418,17 +419,10 @@ describe("planURLProxySave", () => {
       },
       [],
     );
-    expect(kinds(steps)).toEqual([
-      "binding:dev",
-      "binding:prod",
-      "proxy",
-      "binding:dev",
-      "binding:prod",
-    ]);
-    const [clearDev, , , setDev] = steps;
-    expect(
-      clearDev.kind === "binding" && clearDev.body.upstreamAuth,
-    ).toBeFalsy();
+    // No request clears a credential before the proxy update, which clears them itself.
+    expect(kinds(steps)).toEqual(["proxy", "binding:dev", "binding:prod"]);
+    const [update, setDev] = steps;
+    expect(update.kind === "proxy" && update.resetBindingAuth).toBe(true);
     expect(setDev.kind === "binding" && setDev.body.upstreamAuth).toEqual(auth);
   });
 
@@ -460,13 +454,8 @@ describe("planURLProxySave", () => {
       { url: draft.url },
       [],
     );
-    expect(kinds(steps)).toEqual([
-      "binding:dev",
-      "binding:prod",
-      "proxy",
-      "binding:dev",
-      "binding:prod",
-    ]);
+    expect(kinds(steps)).toEqual(["proxy", "binding:dev", "binding:prod"]);
+    expect(steps[0].kind === "proxy" && steps[0].resetBindingAuth).toBe(true);
     expect(
       steps.every((s) => s.kind !== "binding" || !s.body.upstreamAuth),
     ).toBe(true);

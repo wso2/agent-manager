@@ -212,6 +212,11 @@ export interface MCPProxySource {
 /** The public MCP server URL a project proxy registered by URL fronts. */
 export interface ProjectMCPProxyUpstream {
   url: string;
+  /**
+   * Request only. Lets a URL change to another origin clear every binding's stored upstream
+   * credential in the same update, rather than be refused while one is stored.
+   */
+  resetBindingAuth?: boolean;
 }
 
 /**

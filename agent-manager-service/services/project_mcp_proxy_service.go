@@ -399,6 +399,8 @@ type desiredProjectMCPProxy struct {
 	// Exactly one of source and upstreamURL is set.
 	source      *models.MCPProxySource
 	upstreamURL string
+	// resetBindingAuth lets a move to another origin clear the bindings' stored credentials.
+	resetBindingAuth bool
 }
 
 func normalizeProjectMCPProxyRequest(handle string, req models.ProjectMCPProxyRequest) (desiredProjectMCPProxy, error) {
@@ -417,6 +419,7 @@ func normalizeProjectMCPProxyRequest(handle string, req models.ProjectMCPProxyRe
 	}
 	if req.Upstream != nil {
 		d.upstreamURL = strings.TrimSpace(req.Upstream.URL)
+		d.resetBindingAuth = req.Upstream.ResetBindingAuth
 	}
 	if handle == "" || len(handle) > 100 || !mcpProxyHandleRe.MatchString(handle) {
 		return d, fmt.Errorf("%w: proxy id must be kebab-case (lowercase letters, digits, single hyphens) and at most 100 characters", utils.ErrInvalidInput)
@@ -556,7 +559,7 @@ func (s *ProjectMCPProxyService) update(
 				}
 				return fmt.Errorf("failed to lock the MCP proxy: %w", err)
 			}
-			if err := s.updateBindingUpstreams(ctx, tx, locked, d.upstreamURL); err != nil {
+			if err := s.updateBindingUpstreams(ctx, tx, locked, d.upstreamURL, d.resetBindingAuth); err != nil {
 				return err
 			}
 		}
@@ -651,7 +654,7 @@ func (d desiredProjectMCPProxy) applyUpstream(cfg *models.MCPProxyConfig) {
 // updateBindingUpstreams points every binding of a proxy registered by URL at its new URL, in tx. The bindings are
 // re-rendered once the proxy is stored (rerenderBindings).
 func (s *ProjectMCPProxyService) updateBindingUpstreams(
-	ctx context.Context, tx *gorm.DB, proxy *models.MCPProxy, upstreamURL string,
+	ctx context.Context, tx *gorm.DB, proxy *models.MCPProxy, upstreamURL string, resetAuth bool,
 ) error {
 	for i := range proxy.Endpoints {
 		endpoint := proxy.Endpoints[i]
@@ -659,10 +662,14 @@ func (s *ProjectMCPProxyService) updateBindingUpstreams(
 			continue
 		}
 		upstream := *endpoint.Configuration.Upstream
-		// The stored credential is sent to the URL, so it may not follow the URL to another origin.
+		// The stored credential is sent to the URL, so it may not follow the URL to another origin: the move is
+		// refused, or, when the caller asks for it, the credential is cleared with it in this transaction.
 		if upstream.Auth != nil && !sameURLOrigin(upstream.URL, upstreamURL) {
-			return fmt.Errorf("%w: upstream.url moves to another origin while a binding has upstream auth; "+
-				"clear its upstreamAuth first", utils.ErrInvalidInput)
+			if !resetAuth {
+				return fmt.Errorf("%w: upstream.url moves to another origin while a binding has upstream auth; "+
+					"clear its upstreamAuth first, or set upstream.resetBindingAuth", utils.ErrInvalidInput)
+			}
+			upstream.Auth = nil
 		}
 		upstream.URL = upstreamURL
 		endpoint.Configuration.Upstream = &upstream

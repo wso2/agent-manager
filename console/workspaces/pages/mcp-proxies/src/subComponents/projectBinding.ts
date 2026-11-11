@@ -67,7 +67,9 @@ export function bindingRequiresAPIKey(
 }
 
 /** The header callers send the binding's API key in, defaulted as the service does. */
-export function apiKeyName(security: ProjectMCPProxyEnvironmentSecurity | undefined): string {
+export function apiKeyName(
+  security: ProjectMCPProxyEnvironmentSecurity | undefined,
+): string {
   return security?.apiKey?.key || DEFAULT_API_KEY_HEADER;
 }
 
@@ -97,7 +99,9 @@ export function apiKeySecurity(
 export function readsAPIKeyFromQuery(
   security: ProjectMCPProxyEnvironmentSecurity | undefined,
 ): boolean {
-  return bindingRequiresAPIKey(security) && apiKeyLocation(security) === "query";
+  return (
+    bindingRequiresAPIKey(security) && apiKeyLocation(security) === "query"
+  );
 }
 
 /**
@@ -276,7 +280,10 @@ export function keptBindingRequest(
   env: ProjectMCPProxyEnvironment,
   initial: EndpointDraft,
   draft: EndpointDraft,
-  edited: Pick<ProjectMCPProxyEnvironmentRequest, "upstreamAuth" | "resilience">,
+  edited: Pick<
+    ProjectMCPProxyEnvironmentRequest,
+    "upstreamAuth" | "resilience"
+  >,
 ): ProjectMCPProxyEnvironmentRequest {
   const request = bindingRequestFrom(env);
   if (credentialEdited(initial, draft)) {
@@ -295,7 +302,9 @@ export function credentialEdited(
   initial: EndpointDraft,
   draft: EndpointDraft,
 ): boolean {
-  return draft.authHeader.trim() !== initial.authHeader.trim() || !!draft.authValue;
+  return (
+    draft.authHeader.trim() !== initial.authHeader.trim() || !!draft.authValue
+  );
 }
 
 /** Whether the form's request or idle timeout was changed. */
@@ -310,7 +319,10 @@ export function timeoutsEdited(
 }
 
 /** Whether two URLs share scheme, host and port; a URL that does not parse matches nothing. */
-export function sameOrigin(a: string | undefined, b: string | undefined): boolean {
+export function sameOrigin(
+  a: string | undefined,
+  b: string | undefined,
+): boolean {
   try {
     return !!a && !!b && new URL(a.trim()).origin === new URL(b.trim()).origin;
   } catch {
@@ -321,8 +333,12 @@ export function sameOrigin(a: string | undefined, b: string | undefined): boolea
 /** One request of a URL server's edit save, in the order they are sent. */
 export type URLProxySaveStep =
   | { kind: "remove"; envName: string }
-  | { kind: "binding"; envName: string; body: ProjectMCPProxyEnvironmentRequest }
-  | { kind: "proxy"; url: string };
+  | {
+      kind: "binding";
+      envName: string;
+      body: ProjectMCPProxyEnvironmentRequest;
+    }
+  | { kind: "proxy"; url: string; resetBindingAuth: boolean };
 
 /** What the edit form sets on every environment, when the user changed it. */
 export interface URLProxyEdits {
@@ -333,10 +349,10 @@ export interface URLProxyEdits {
 
 /**
  * The requests that save an edit of a server registered by URL, checked before any is sent so a
- * save that cannot succeed writes nothing. Unassigned environments go first. When the URL moves
- * to another host, the service refuses it while a credential is stored, and a stored credential
- * must not reach the new host: each kept one is cleared before the URL changes and set again,
- * with a value typed now, after it.
+ * save that cannot succeed writes nothing. The proxy goes first, so a proxy the service refuses
+ * leaves every environment as it was. A stored credential must not reach a new host: when the
+ * URL moves to another host, the proxy update clears the stored credentials in the same
+ * transaction (resetBindingAuth), and each kept environment then gets the value typed now.
  */
 export function planURLProxySave(
   proxy: ProjectMCPProxy,
@@ -346,7 +362,9 @@ export function planURLProxySave(
   added: { envName: string; gatewayId?: string }[],
 ): URLProxySaveStep[] {
   const kept = new Set(draft.environments);
-  const keptEnvs = proxy.environments.filter((env) => kept.has(env.environmentUuid));
+  const keptEnvs = proxy.environments.filter((env) =>
+    kept.has(env.environmentUuid),
+  );
   const auth = edits.upstreamAuth;
   // A credential is never read back, so a new environment can only take one typed now.
   if (added.length > 0 && auth?.header && !auth.value) {
@@ -371,26 +389,26 @@ export function planURLProxySave(
     body: keptBindingRequest(env, initial, draft, edits),
   }));
   // Checked before the proxy changes: a binding refused later would leave the save half done.
-  for (const { env, body } of kepts) checkBindingRequest(body, env.environmentName);
+  for (const { env, body } of kepts)
+    checkBindingRequest(body, env.environmentName);
   const movesHost = !sameOrigin(proxy.upstream?.url, edits.url);
-  if (movesHost && kepts.some(({ body }) => body.upstreamAuth && !body.upstreamAuth.value)) {
+  if (
+    movesHost &&
+    kepts.some(({ body }) => body.upstreamAuth && !body.upstreamAuth.value)
+  ) {
     throw new Error(
       "Enter the credential value again: a stored credential is not sent to a new host.",
     );
   }
 
-  const steps: URLProxySaveStep[] = proxy.environments
-    .filter((env) => !kept.has(env.environmentUuid))
-    .map((env) => ({ kind: "remove", envName: env.environmentName }));
-  if (movesHost) {
-    for (const env of keptEnvs) {
-      if (!env.upstreamAuth) continue;
-      const cleared = bindingRequestFrom(env);
-      delete cleared.upstreamAuth;
-      steps.push({ kind: "binding", envName: env.environmentName, body: cleared });
+  const steps: URLProxySaveStep[] = [
+    { kind: "proxy", url: edits.url, resetBindingAuth: movesHost },
+  ];
+  for (const env of proxy.environments) {
+    if (!kept.has(env.environmentUuid)) {
+      steps.push({ kind: "remove", envName: env.environmentName });
     }
   }
-  steps.push({ kind: "proxy", url: edits.url });
   for (const { env, body } of kepts) {
     steps.push({ kind: "binding", envName: env.environmentName, body });
   }

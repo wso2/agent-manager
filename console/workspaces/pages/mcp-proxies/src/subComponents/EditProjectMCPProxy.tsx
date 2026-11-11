@@ -119,7 +119,10 @@ function ProjectEditForm({
           } else if (step.kind === "proxy") {
             await updateProxy.mutateAsync({
               params,
-              body: { ...details, upstream: { url: step.url } },
+              body: {
+                ...details,
+                upstream: { url: step.url, resetBindingAuth: step.resetBindingAuth || undefined },
+              },
             });
           } else {
             await putBinding.mutateAsync({

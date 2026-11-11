@@ -20,6 +20,8 @@ var _ MappedNullable = &ProjectMCPProxyUpstream{}
 // ProjectMCPProxyUpstream struct for ProjectMCPProxyUpstream
 type ProjectMCPProxyUpstream struct {
 	Url string `json:"url"`
+	// Request only. A URL change to another origin (scheme, host or port) is refused with 400 while any binding has a stored upstream credential, which is never sent to another origin. With resetBindingAuth true, the change instead clears every binding's stored credential in the same update, and the bindings are redeployed without one; set new credentials with each binding's PUT. Ignored when the origin does not change.
+	ResetBindingAuth *bool `json:"resetBindingAuth,omitempty"`
 }
 
 // NewProjectMCPProxyUpstream instantiates a new ProjectMCPProxyUpstream object
@@ -64,6 +66,38 @@ func (o *ProjectMCPProxyUpstream) SetUrl(v string) {
 	o.Url = v
 }
 
+// GetResetBindingAuth returns the ResetBindingAuth field value if set, zero value otherwise.
+func (o *ProjectMCPProxyUpstream) GetResetBindingAuth() bool {
+	if o == nil || IsNil(o.ResetBindingAuth) {
+		var ret bool
+		return ret
+	}
+	return *o.ResetBindingAuth
+}
+
+// GetResetBindingAuthOk returns a tuple with the ResetBindingAuth field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *ProjectMCPProxyUpstream) GetResetBindingAuthOk() (*bool, bool) {
+	if o == nil || IsNil(o.ResetBindingAuth) {
+		return nil, false
+	}
+	return o.ResetBindingAuth, true
+}
+
+// HasResetBindingAuth returns a boolean if a field has been set.
+func (o *ProjectMCPProxyUpstream) HasResetBindingAuth() bool {
+	if o != nil && !IsNil(o.ResetBindingAuth) {
+		return true
+	}
+
+	return false
+}
+
+// SetResetBindingAuth gets a reference to the given bool and assigns it to the ResetBindingAuth field.
+func (o *ProjectMCPProxyUpstream) SetResetBindingAuth(v bool) {
+	o.ResetBindingAuth = &v
+}
+
 func (o ProjectMCPProxyUpstream) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -75,6 +109,9 @@ func (o ProjectMCPProxyUpstream) MarshalJSON() ([]byte, error) {
 func (o ProjectMCPProxyUpstream) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
 	toSerialize["url"] = o.Url
+	if !IsNil(o.ResetBindingAuth) {
+		toSerialize["resetBindingAuth"] = o.ResetBindingAuth
+	}
 	return toSerialize, nil
 }
 

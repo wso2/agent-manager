@@ -56,6 +56,9 @@ type ProjectMCPProxyRequest struct {
 // ProjectMCPProxyUpstream is the public upstream a project proxy registered by URL fronts.
 type ProjectMCPProxyUpstream struct {
 	URL string `json:"url"`
+	// ResetBindingAuth, on a request that moves the URL to another origin, clears every binding's stored upstream
+	// credential in the same update instead of refusing the move. Never returned.
+	ResetBindingAuth bool `json:"resetBindingAuth,omitempty"`
 }
 
 // MCPProxyEnvironmentRequest is the body of PUT .../mcp-proxies/{proxyId}/environments/{envName}.

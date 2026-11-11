@@ -5902,7 +5902,9 @@ type ProjectMCPProxyResponse struct {
 
 // ProjectMCPProxyUpstream defines model for ProjectMCPProxyUpstream.
 type ProjectMCPProxyUpstream struct {
-	Url string `json:"url"`
+	// ResetBindingAuth Request only. A URL change to another origin (scheme, host or port) is refused with 400 while any binding has a stored upstream credential, which is never sent to another origin. With resetBindingAuth true, the change instead clears every binding's stored credential in the same update, and the bindings are redeployed without one; set new credentials with each binding's PUT. Ignored when the origin does not change.
+	ResetBindingAuth *bool  `json:"resetBindingAuth,omitempty"`
+	Url              string `json:"url"`
 }
 
 // ProjectResponse defines model for ProjectResponse.
