@@ -65,3 +65,35 @@ func TestBuildSpanDetailQuery(t *testing.T) {
 		}
 	}
 }
+
+func TestBuildSpansBatchQuery(t *testing.T) {
+	w := traceWindow{Start: time.Unix(1000, 0), End: time.Unix(2000, 0)}
+	traceIDs := []string{"trace-a", "trace-b"}
+
+	q, args := buildSpansBatchQuery("otel_traces", exporterTable, traceIDs,
+		ScopeUIDs{Namespace: "default", Component: "abc"}, w, 500)
+
+	if strings.Contains(q, "trace-a") || strings.Contains(q, "trace-b") {
+		t.Error("request values must never appear inside the SQL text")
+	}
+	if !strings.Contains(q, "TraceId IN (?,?)") {
+		t.Errorf("expected TraceId IN (?,?), query was: %s", q)
+	}
+	if !strings.Contains(q, "ResourceAttributes['openchoreo.dev/component-uid'] = ?") {
+		t.Error("component scope condition missing")
+	}
+	if !strings.Contains(q, "LIMIT ?") {
+		t.Error("limit parameter missing")
+	}
+	// args: trace-a, trace-b, namespace, component, 3x timestamps, maxRows = 2 + 2 + 3 + 1 = 8
+	if len(args) != 8 {
+		t.Errorf("expected 8 args, got %d (%v)", len(args), args)
+	}
+	if args[0] != "trace-a" || args[1] != "trace-b" {
+		t.Errorf("expected trace IDs at the beginning of args, got %v", args[:2])
+	}
+	if args[len(args)-1] != 500 {
+		t.Errorf("expected maxRows at the end of args, got %v", args[len(args)-1])
+	}
+}
+

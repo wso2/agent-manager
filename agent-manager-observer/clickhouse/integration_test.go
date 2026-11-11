@@ -167,6 +167,16 @@ func TestIntegration_Spans(t *testing.T) {
 			if _, err := other.GetSpanDetails(ctx, trace.TraceID, trace.RootSpanID); !errors.Is(err, ErrSpanNotFound) {
 				t.Errorf("a span from another namespace must not be found, got %v", err)
 			}
+
+			// Batch span query test
+			batchRes, err := r.QueryTraceSpansBatch(ctx, []string{trace.TraceID}, req)
+			if err != nil {
+				t.Fatalf("QueryTraceSpansBatch: %v", err)
+			}
+			if len(batchRes[trace.TraceID]) != trace.SpanCount {
+				t.Errorf("expected %d spans in batch result, got %d", trace.SpanCount, len(batchRes[trace.TraceID]))
+			}
 		})
 	}
 }
+
