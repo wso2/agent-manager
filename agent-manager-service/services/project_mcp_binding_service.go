@@ -495,9 +495,23 @@ func (s *ProjectMCPProxyService) deleteEnvironmentOf(ctx context.Context, ouID s
 	var identifier string
 	actionsRead := false
 	if s.base.resolver != nil {
-		identifier, _ = s.base.MCPResourceServerIdentifier(ctx, ouID, ee.EnvironmentUUID, proxy)
-		if bindingHasIdentityToRemove(bound.Configuration) {
-			var err error
+		needsCleanup := bindingHasIdentityToRemove(bound.Configuration)
+		var err error
+		identifier, err = s.base.MCPResourceServerIdentifier(ctx, ouID, ee.EnvironmentUUID, proxy)
+		switch {
+		case err == nil:
+		case errors.Is(err, ErrMCPProxyNotDeployedToEnvironment):
+			// No public URL: nothing was ever registered for the binding.
+			identifier = ""
+		case needsCleanup:
+			// The binding has a resource server to remove and no way to find it once deleted: it stays for a retry.
+			return fmt.Errorf("failed to read the binding's resource identifier: %w", err)
+		default:
+			s.base.logger.Warn("project MCP binding delete: reading the resource identifier failed",
+				"proxy", proxyHandleOf(proxy), "env", envName, "error", err)
+			identifier = ""
+		}
+		if needsCleanup {
 			if actions, err = s.proxyScopeActions(ctx, proxy); err != nil {
 				return err
 			}

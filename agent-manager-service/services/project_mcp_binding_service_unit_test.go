@@ -943,6 +943,28 @@ func TestPutEnv_APIKey_RegistersNoResourceServer(t *testing.T) {
 	assert.Empty(t, calls.ensured)
 }
 
+// A binding with a resource server to remove that cannot read its public URL, the resource server's identifier, is not
+// deleted: once gone the URL could not be read again, so the delete returns the error and the binding stays for a retry.
+func TestDeleteEnv_IdentifierLookupFailure_KeepsTheBinding(t *testing.T) {
+	f := newBindingFixture(t)
+	calls := f.withThunder()
+	_, _, err := f.put(t, models.MCPProxyEnvironmentRequest{Security: identityBinding()})
+	require.NoError(t, err)
+	calls.forget()
+	lookupErr := errors.New("db down")
+	deployments := f.svc.base.deploymentRepo.(*repomocks.DeploymentRepositoryMock)
+	deployments.PlacedGatewaysFunc = func(context.Context, string, uuid.UUID) ([]string, error) { return nil, lookupErr }
+	repo := f.svc.base.repo.(*repomocks.MCPProxyRepositoryMock)
+	locks := len(repo.GetByHandleForUpdateCalls())
+
+	err = f.svc.DeleteEnvironment(context.Background(), testOrg, bindingProject, bindingProjectUUID, bindingHandle, bindingEnv)
+	require.ErrorIs(t, err, lookupErr)
+	assert.Len(t, repo.GetByHandleForUpdateCalls(), locks, "nothing was deleted")
+	_, still := f.binding()
+	assert.NotNil(t, still)
+	assert.Empty(t, calls.deleted)
+}
+
 // A binding never on identity has no resource server: deleting it makes no identity call and reads no scopes, so a
 // proxy with OAuth in another environment does not page through roles on every delete here.
 func TestDeleteEnv_NeverOnIdentity_TouchesNoIdentityService(t *testing.T) {
