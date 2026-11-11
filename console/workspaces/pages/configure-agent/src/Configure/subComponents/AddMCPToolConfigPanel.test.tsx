@@ -70,4 +70,28 @@ describe("AddMCPToolConfigPanel", () => {
     );
     expect(screen.getByText("Project Proxy")).toBeTruthy();
   });
+
+  it("shows a failed list as an error, not as no servers", () => {
+    const listed = vi.mocked(useListAllMCPProxies).getMockImplementation();
+    vi.mocked(useListAllMCPProxies).mockImplementation(
+      () =>
+        ({
+          data: undefined,
+          isLoading: false,
+          isError: true,
+          refetch: vi.fn(),
+        }) as unknown as ReturnType<typeof useListAllMCPProxies>,
+    );
+    try {
+      render(
+        <MemoryRouter>
+          <AddMCPToolConfigPanel open orgId="org" projectId="p1" agentId="a1" onClose={vi.fn()} />
+        </MemoryRouter>,
+      );
+      expect(screen.getByText("Couldn't load the MCP servers.")).toBeTruthy();
+      expect(screen.queryByText("No MCP servers available")).toBeNull();
+    } finally {
+      if (listed) vi.mocked(useListAllMCPProxies).mockImplementation(listed);
+    }
+  });
 });
