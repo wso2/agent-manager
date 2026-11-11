@@ -88,12 +88,12 @@ func (s *ProjectMCPProxyService) ensureBindingResourceServers(ctx context.Contex
 }
 
 // cleanUpBindingIdentity removes the resource server of a binding that left identity, and the roles' grants of the
-// proxy's scopes in envName, best effort. With clearMark, a successful removal clears the binding's
-// IdentityCleanupPending mark, so later identical PUTs leave grants made since alone. When the proxy's scopes cannot
-// be read it removes nothing, since deleting the resource server without them would leave their grants with nothing
-// to sweep them; the mark stays and an identical PUT retries.
+// proxy's scopes in envName, best effort. With a cleanupID, a successful removal clears the binding's IdentityCleanupID
+// if it is still that one, so later identical PUTs leave grants made since alone while a newer pending removal stays.
+// When the proxy's scopes cannot be read it removes nothing, since deleting the resource server without them would
+// leave their grants with nothing to sweep them; the ID stays and an identical PUT retries.
 func (s *ProjectMCPProxyService) cleanUpBindingIdentity(
-	ctx context.Context, ouID string, proxy *models.MCPProxy, envName string, endpointUUID uuid.UUID, clearMark bool,
+	ctx context.Context, ouID string, proxy *models.MCPProxy, envName string, endpointUUID uuid.UUID, cleanupID string,
 ) {
 	if s.base.resolver == nil {
 		return
@@ -106,11 +106,11 @@ func (s *ProjectMCPProxyService) cleanUpBindingIdentity(
 			"proxy", proxyHandleOf(proxy), "env", envName, "error", err)
 		return
 	}
-	if !s.removeBindingResourceServer(ctx, ouID, proxy, envName, actions) || !clearMark {
+	if !s.removeBindingResourceServer(ctx, ouID, proxy, envName, actions) || cleanupID == "" {
 		return
 	}
-	if err := s.base.endpointRepo.ClearIdentityCleanupPending(ctx, endpointUUID); err != nil {
-		s.base.logger.Warn("project MCP binding identity cleanup: clearing the pending mark failed",
+	if err := s.base.endpointRepo.ClearIdentityCleanupID(ctx, endpointUUID, cleanupID); err != nil {
+		s.base.logger.Warn("project MCP binding identity cleanup: clearing the cleanup ID failed",
 			"proxy", proxyHandleOf(proxy), "env", envName, "error", err)
 	}
 }

@@ -181,10 +181,11 @@ func newBindingFixture(t *testing.T) *bindingFixture {
 			}
 			return gorm.ErrRecordNotFound
 		},
-		ClearIdentityCleanupPendingFunc: func(_ context.Context, endpointUUID uuid.UUID) error {
+		ClearIdentityCleanupIDFunc: func(_ context.Context, endpointUUID uuid.UUID, cleanupID string) error {
+			// As the repository does, only while the stored ID is still cleanupID.
 			for i := range f.proxy.Endpoints {
-				if f.proxy.Endpoints[i].UUID == endpointUUID {
-					f.proxy.Endpoints[i].Configuration.IdentityCleanupPending = false
+				if f.proxy.Endpoints[i].UUID == endpointUUID && f.proxy.Endpoints[i].Configuration.IdentityCleanupID == cleanupID {
+					f.proxy.Endpoints[i].Configuration.IdentityCleanupID = ""
 				}
 			}
 			return nil
@@ -755,7 +756,7 @@ func TestPutEnv_LeavingIdentity_DeletesTheResourceServer(t *testing.T) {
 	assert.Equal(t, bindingEnv, calls.deleted[0].env)
 	assert.Equal(t, bindingHandle, calls.deleted[0].handle)
 	endpoint, _ := f.binding()
-	assert.False(t, endpoint.Configuration.IdentityCleanupPending, "a removal that succeeded leaves nothing pending")
+	assert.Empty(t, endpoint.Configuration.IdentityCleanupID, "a removal that succeeded leaves nothing pending")
 }
 
 // Removing the resource server when a binding leaves identity is best effort. The write marks the binding pending,
@@ -777,7 +778,7 @@ func TestPutEnv_IdenticalPUTRetriesOnlyAPendingIdentityCleanup(t *testing.T) {
 	require.NoError(t, err, "the cleanup is best effort")
 	require.Len(t, calls.deleted, 1)
 	endpoint, ee := f.binding()
-	assert.True(t, endpoint.Configuration.IdentityCleanupPending, "the failed removal stays pending")
+	assert.NotEmpty(t, endpoint.Configuration.IdentityCleanupID, "the failed removal stays pending")
 
 	f.status[ee.ArtifactUUID].Status = models.DeploymentStatusDeployed
 	calls.deleteErr = nil
@@ -787,12 +788,43 @@ func TestPutEnv_IdenticalPUTRetriesOnlyAPendingIdentityCleanup(t *testing.T) {
 	require.Len(t, calls.deleted, 2, "the identical PUT retries the pending removal")
 	assert.Equal(t, 1, calls.swept, "and drops the scope from roles, which the failed removal never reached")
 	endpoint, _ = f.binding()
-	assert.False(t, endpoint.Configuration.IdentityCleanupPending)
+	assert.Empty(t, endpoint.Configuration.IdentityCleanupID)
 
 	_, _, err = f.put(t, models.MCPProxyEnvironmentRequest{})
 	require.NoError(t, err)
 	assert.Len(t, calls.deleted, 2, "nothing pending: a grant made since is left alone")
 	assert.Len(t, f.deployed, 2, "identical PUTs never redeploy")
+}
+
+// A removal that finishes after the binding left identity again clears only its own ID: the newer write's ID, whose
+// removal is still to run, stays for a retry. Each write that leaves identity gets a new ID.
+func TestBindingIdentityCleanup_AStaleRemovalKeepsTheNewerID(t *testing.T) {
+	f := newBindingFixture(t)
+	calls := f.withThunder()
+
+	_, _, err := f.put(t, models.MCPProxyEnvironmentRequest{Security: identityBinding()})
+	require.NoError(t, err)
+	calls.deleteErr = errors.New("identity service unavailable")
+	_, _, err = f.put(t, models.MCPProxyEnvironmentRequest{})
+	require.NoError(t, err)
+	endpoint, _ := f.binding()
+	first := endpoint.Configuration.IdentityCleanupID
+	require.NotEmpty(t, first)
+
+	_, _, err = f.put(t, models.MCPProxyEnvironmentRequest{Security: identityBinding()})
+	require.NoError(t, err)
+	_, _, err = f.put(t, models.MCPProxyEnvironmentRequest{})
+	require.NoError(t, err)
+	endpoint, _ = f.binding()
+	second := endpoint.Configuration.IdentityCleanupID
+	require.NotEmpty(t, second)
+	assert.NotEqual(t, first, second, "leaving identity again starts a new cleanup")
+
+	// The first removal, finishing late, succeeds but must not clear the second's ID.
+	calls.deleteErr = nil
+	f.svc.cleanUpBindingIdentity(context.Background(), testOrg, f.proxy, bindingEnv, endpoint.UUID, first)
+	endpoint, _ = f.binding()
+	assert.Equal(t, second, endpoint.Configuration.IdentityCleanupID)
 }
 
 // A binding back on identity while a removal is still pending has the removal done first, so grants made for its old
@@ -813,7 +845,7 @@ func TestPutEnv_BackToIdentityFinishesAPendingCleanupFirst(t *testing.T) {
 	assert.Len(t, calls.deleted, 2, "the pending removal ran")
 	assert.Len(t, calls.ensured, 2, "and the binding registered again")
 	endpoint, _ := f.binding()
-	assert.False(t, endpoint.Configuration.IdentityCleanupPending)
+	assert.Empty(t, endpoint.Configuration.IdentityCleanupID)
 }
 
 // A binding with no gateway has no public URL to register yet; the PUT after the gateway arrives registers it.
@@ -885,9 +917,9 @@ func TestBindingResourceServerCleanup_FailedScopeLookupRemovesNothing(t *testing
 	require.NoError(t, err)
 	endpoint, _ := f.binding()
 	endpointRepo := f.svc.base.endpointRepo.(*repomocks.MCPProxyEndpointRepositoryMock)
-	f.svc.cleanUpBindingIdentity(context.Background(), testOrg, f.proxy, bindingEnv, endpoint.UUID, true)
+	f.svc.cleanUpBindingIdentity(context.Background(), testOrg, f.proxy, bindingEnv, endpoint.UUID, "cleanup-1")
 	assert.Empty(t, calls.deleted)
-	assert.Empty(t, endpointRepo.ClearIdentityCleanupPendingCalls(), "the mark stays for a retry")
+	assert.Empty(t, endpointRepo.ClearIdentityCleanupIDCalls(), "the ID stays for a retry")
 
 	err = f.svc.DeleteEnvironment(context.Background(), testOrg, bindingProject, bindingProjectUUID, bindingHandle, bindingEnv)
 	require.ErrorIs(t, err, lookupErr)
@@ -906,7 +938,7 @@ func TestBindingIdentityCleanup_DropsTheProxyScopesFromRoles(t *testing.T) {
 		},
 	}
 
-	f.svc.cleanUpBindingIdentity(context.Background(), testOrg, f.proxy, bindingEnv, uuid.New(), false)
+	f.svc.cleanUpBindingIdentity(context.Background(), testOrg, f.proxy, bindingEnv, uuid.New(), "")
 	require.Len(t, calls.deleted, 1)
 	assert.Equal(t, 2, calls.swept, "one role sweep per scope")
 }

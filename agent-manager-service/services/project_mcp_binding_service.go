@@ -160,8 +160,8 @@ func (s *ProjectMCPProxyService) PutEnvironment(
 			// identity, retries removing it if that failed.
 			if mcpIdentityEnabled(endpoint.Configuration.Security) {
 				s.ensureBindingResourceServer(ctx, ouID, proxy, envUUID, envName)
-			} else if endpoint.Configuration.IdentityCleanupPending {
-				s.cleanUpBindingIdentity(ctx, ouID, proxy, envName, endpoint.UUID, true)
+			} else if endpoint.Configuration.IdentityCleanupID != "" {
+				s.cleanUpBindingIdentity(ctx, ouID, proxy, envName, endpoint.UUID, endpoint.Configuration.IdentityCleanupID)
 			}
 			resp, err := s.environmentResponse(ctx, ouID, proxy, endpoint, ee)
 			return resp, false, err
@@ -213,15 +213,15 @@ func (s *ProjectMCPProxyService) PutEnvironment(
 		return nil, false, fmt.Errorf("the saved binding of %q in %q is missing", handle, envName)
 	}
 	// A binding off identity no longer accepts its tokens: its resource server, and the roles' grants of it, go. The
-	// write marked it pending, and the mark is cleared once the removal succeeds. One back on identity with a removal
-	// still pending has it done first, so grants made for its old registration do not apply again.
+	// write gave it a cleanup ID, cleared once the removal succeeds. One back on identity with a removal still pending
+	// has it done first, so grants made for its old registration do not apply again.
 	if previous != nil && bindingHasIdentityToRemove(*previous) {
 		if mcpIdentityEnabled(endpoint.Configuration.Security) {
-			if previous.IdentityCleanupPending {
-				s.cleanUpBindingIdentity(ctx, ouID, saved, envName, endpoint.UUID, false)
+			if previous.IdentityCleanupID != "" {
+				s.cleanUpBindingIdentity(ctx, ouID, saved, envName, endpoint.UUID, "")
 			}
 		} else {
-			s.cleanUpBindingIdentity(ctx, ouID, saved, envName, endpoint.UUID, true)
+			s.cleanUpBindingIdentity(ctx, ouID, saved, envName, endpoint.UUID, endpoint.Configuration.IdentityCleanupID)
 		}
 	}
 	s.ensureBindingResourceServer(ctx, ouID, saved, envUUID, envName)
@@ -289,7 +289,7 @@ func (s *ProjectMCPProxyService) bindingUpstreamURL(
 
 // saveAndDeployBinding writes the binding in tx, the proxy row locked, and deploys it on gateway, or with no gateway
 // only renders it (DeployRecord). A Failed binding with unchanged input is not rewritten, only re-deployed. A binding
-// that leaves identity, or stays off it with a removal still pending, is written with IdentityCleanupPending. It
+// that leaves identity is written with a new IdentityCleanupID, and one that stays off it keeps its pending one. It
 // returns the binding's configuration as the lock found it, nil for a new binding.
 func (s *ProjectMCPProxyService) saveAndDeployBinding(
 	ctx context.Context, tx *gorm.DB, ouID, proxyHandle, envName string, envUUID uuid.UUID, gateway *uuid.UUID,
@@ -317,8 +317,15 @@ func (s *ProjectMCPProxyService) saveAndDeployBinding(
 	if ee != nil {
 		lockedConfig := endpoint.Configuration
 		previous = &lockedConfig
-		pending := bindingHasIdentityToRemove(lockedConfig) && !mcpIdentityEnabled(desired.Security)
-		desired.IdentityCleanupPending, stored.IdentityCleanupPending = pending, pending
+		cleanupID := ""
+		switch {
+		case mcpIdentityEnabled(desired.Security):
+		case mcpIdentityEnabled(lockedConfig.Security):
+			cleanupID = uuid.NewString()
+		default:
+			cleanupID = lockedConfig.IdentityCleanupID
+		}
+		desired.IdentityCleanupID, stored.IdentityCleanupID = cleanupID, cleanupID
 	}
 	var artifactUUID uuid.UUID
 	var artifactHandle string
@@ -567,7 +574,7 @@ func (s *ProjectMCPProxyService) deleteEnvironmentOf(ctx context.Context, ouID s
 // bindingHasIdentityToRemove reports whether a binding has a resource server, and its scopes' grants, to remove: it
 // is on identity, or it left identity and that removal has not succeeded yet.
 func bindingHasIdentityToRemove(config models.MCPEndpointConfig) bool {
-	return mcpIdentityEnabled(config.Security) || config.IdentityCleanupPending
+	return mcpIdentityEnabled(config.Security) || config.IdentityCleanupID != ""
 }
 
 // ensureBindingNotInUse refuses with ErrMCPProxyHasMappings when an agent is mapped to the proxy in envUUID: the
