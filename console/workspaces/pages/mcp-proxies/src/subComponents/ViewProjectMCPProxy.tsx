@@ -66,6 +66,7 @@ import { MCPProxyOverviewTab } from "./MCPProxyOverviewTab";
 import { MCPProxyPoliciesTab } from "./MCPProxyPoliciesTab";
 import { MCPProxyRewriteTab } from "./MCPProxyRewriteTab";
 import {
+  BindingAPIKeysTab,
   BindingSecurityTab,
   BindingStatusChip,
 } from "./ProjectBindingTabs";
@@ -86,6 +87,7 @@ const TAB_DEFS = [
   { label: "Connection", slug: "connection" },
   { label: "Manage Tools", slug: "manage-tools" },
   { label: "Security", slug: "security" },
+  { label: "API Keys", slug: "api-keys" },
   { label: "Rewrite", slug: "rewrite" },
   { label: "Policies", slug: "policies" },
 ] as const;
@@ -540,6 +542,15 @@ export function ViewProjectMCPProxy() {
                     env={selected}
                     onSave={saveBinding}
                     isSaving={isUpdating}
+                  />
+                )}
+                {activeTabSlug === "api-keys" && (
+                  <BindingAPIKeysTab
+                    env={selected}
+                    orgName={orgId}
+                    projName={projectId}
+                    proxyId={proxyId}
+                    onGoToSecurity={() => setParam("tab", "security")}
                   />
                 )}
                 {activeTabSlug === "rewrite" && (

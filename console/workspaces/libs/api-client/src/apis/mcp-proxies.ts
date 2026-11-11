@@ -31,11 +31,17 @@ import type {
   MCPProxyListResponse,
   MCPServerInfoFetchRequest,
   MCPServerInfoFetchResponse,
+  CreateProjectMCPProxyAPIKeyRequest,
+  CreateProjectMCPProxyAPIKeyResponse,
   DeleteProjectMCPProxyPathParams,
+  ListAPIKeysResponse,
   ProjectMCPProxy,
+  ProjectMCPProxyAPIKeyPathParams,
   ProjectMCPProxyEnvironmentPathParams,
   ProjectMCPProxyEnvironmentRequest,
   ProjectMCPProxyRequest,
+  RotateProjectMCPProxyAPIKeyRequest,
+  RotateProjectMCPProxyAPIKeyResponse,
   UpdateMCPProxyPathParams,
 } from "@agent-management-platform/types";
 import {
@@ -296,4 +302,60 @@ export async function putProjectMCPProxyEnvironment(
   });
   if (!res.ok) throw await res.json();
   return res.json();
+}
+
+export async function listProjectMCPProxyAPIKeys(
+  params: ProjectMCPProxyEnvironmentPathParams,
+  getToken?: () => Promise<string>,
+): Promise<ListAPIKeysResponse> {
+  const token = getToken ? await getToken() : undefined;
+  const res = await httpGET(`${projectMCPProxyEnvironmentUrl(params)}/api-keys`, {
+    token,
+  });
+  if (!res.ok) throw await res.json();
+  return res.json();
+}
+
+export async function createProjectMCPProxyAPIKey(
+  params: ProjectMCPProxyEnvironmentPathParams,
+  body: CreateProjectMCPProxyAPIKeyRequest,
+  getToken?: () => Promise<string>,
+): Promise<CreateProjectMCPProxyAPIKeyResponse> {
+  const token = getToken ? await getToken() : undefined;
+  const res = await httpPOST(
+    `${projectMCPProxyEnvironmentUrl(params)}/api-keys`,
+    body,
+    { token },
+  );
+  if (!res.ok) throw await res.json();
+  return res.json();
+}
+
+export async function rotateProjectMCPProxyAPIKey(
+  params: ProjectMCPProxyAPIKeyPathParams,
+  body: RotateProjectMCPProxyAPIKeyRequest,
+  getToken?: () => Promise<string>,
+): Promise<RotateProjectMCPProxyAPIKeyResponse> {
+  const keyName = encodeRequired(params.keyName, "keyName");
+  const token = getToken ? await getToken() : undefined;
+  const res = await httpPUT(
+    `${projectMCPProxyEnvironmentUrl(params)}/api-keys/${keyName}`,
+    body,
+    { token },
+  );
+  if (!res.ok) throw await res.json();
+  return res.json();
+}
+
+export async function revokeProjectMCPProxyAPIKey(
+  params: ProjectMCPProxyAPIKeyPathParams,
+  getToken?: () => Promise<string>,
+): Promise<void> {
+  const keyName = encodeRequired(params.keyName, "keyName");
+  const token = getToken ? await getToken() : undefined;
+  const res = await httpDELETE(
+    `${projectMCPProxyEnvironmentUrl(params)}/api-keys/${keyName}`,
+    { token },
+  );
+  if (!res.ok) throw await res.json();
 }
