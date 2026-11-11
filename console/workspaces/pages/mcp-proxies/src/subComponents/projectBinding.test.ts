@@ -19,6 +19,7 @@ import { describe, expect, it } from "vitest";
 import type { ProjectMCPProxyEnvironment } from "@agent-management-platform/types";
 import {
   applyBindingConfigChange,
+  checkBindingRequest,
   bindingEndpointConfig,
   bindingRequestFrom,
   projectProxyEndpointDraft,
@@ -510,5 +511,78 @@ describe("sameOrigin", () => {
       false,
     );
     expect(sameOrigin("https://a.example/mcp", "not a url")).toBe(false);
+  });
+});
+
+describe("a binding still reading its API key from the query", () => {
+  const legacy = {
+    ...base,
+    security: {
+      enabled: true,
+      apiKey: { enabled: true, key: "api_key", in: "query" as const },
+    },
+  };
+
+  it("is refused on a save from another tab, before it is sent", () => {
+    const request = applyBindingConfigChange(legacy, { policies: [] });
+    expect(() => checkBindingRequest(request, "dev")).toThrow(
+      /dev environment.*query/,
+    );
+  });
+
+  it("saves once moved to a header, or with API keys off", () => {
+    expect(() =>
+      checkBindingRequest(
+        {
+          ...bindingRequestFrom(legacy),
+          security: {
+            enabled: true,
+            apiKey: { enabled: true, key: "X-Key", in: "header" },
+          },
+        },
+        "dev",
+      ),
+    ).not.toThrow();
+    expect(() =>
+      checkBindingRequest(
+        { ...bindingRequestFrom(legacy), security: { enabled: false } },
+        "dev",
+      ),
+    ).not.toThrow();
+  });
+
+  it("stops a URL server's edit before the proxy is changed", () => {
+    const proxy = {
+      id: "docs",
+      name: "Docs",
+      version: "v1",
+      context: "/docs",
+      projectName: "p1",
+      upstream: { url: "https://mcp.example.com/mcp" },
+      environments: [
+        { ...base, environmentName: "dev", environmentUuid: "e1" },
+        { ...legacy, environmentName: "prod", environmentUuid: "e2" },
+      ],
+    };
+    const draft = {
+      id: "primary",
+      name: "",
+      url: "https://mcp.example.com/v2/mcp",
+      authHeader: "",
+      authValue: "",
+      resilienceTimeout: "",
+      resilienceIdleTimeout: "",
+      environments: ["e1", "e2"],
+      fetchedInfo: {},
+    };
+    expect(() =>
+      planURLProxySave(
+        proxy,
+        { ...draft, url: proxy.upstream.url },
+        draft,
+        { url: draft.url },
+        [],
+      ),
+    ).toThrow(/prod environment/);
   });
 });

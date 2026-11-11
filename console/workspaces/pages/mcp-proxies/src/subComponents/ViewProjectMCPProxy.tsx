@@ -72,8 +72,10 @@ import {
 import {
   applyBindingConfigChange,
   bindingEndpointConfig,
+  checkBindingRequest,
   proxyAsOrgProxy,
   type ProjectProxyViewState,
+  readsAPIKeyFromQuery,
 } from "./projectBinding";
 import { useCopyWithFeedback } from "./useCopyWithFeedback";
 
@@ -208,8 +210,11 @@ export function ViewProjectMCPProxy() {
 
 
   const saveBinding = useCallback(
-    (request: ProjectMCPProxyEnvironmentRequest) =>
-      putBinding.mutateAsync({
+    async (request: ProjectMCPProxyEnvironmentRequest) => {
+      // A binding still reading its API key from the query is refused by the service; say
+      // why, and where to fix it, rather than send it.
+      checkBindingRequest(request, selected?.environmentName ?? "");
+      return putBinding.mutateAsync({
         params: {
           orgName: orgId,
           projName: projectId,
@@ -217,7 +222,8 @@ export function ViewProjectMCPProxy() {
           envName: selected?.environmentName,
         },
         body: request,
-      }),
+      });
+    },
     [putBinding, orgId, projectId, proxyId, selected?.environmentName],
   );
 
@@ -433,6 +439,27 @@ export function ViewProjectMCPProxy() {
               <Divider />
               {/* Keyed by environment, so unsaved edits never carry over to another one. */}
               <Box sx={{ p: 3 }} key={selected.environmentName}>
+                {readsAPIKeyFromQuery(selected.security) && (
+                  <Alert
+                    severity="warning"
+                    sx={{ mb: 3 }}
+                    action={
+                      activeTabSlug !== "security" ? (
+                        <Button
+                          color="inherit"
+                          size="small"
+                          onClick={() => setParam("tab", "security")}
+                        >
+                          Go to Security
+                        </Button>
+                      ) : undefined
+                    }
+                  >
+                    This environment reads its API key from the query, which the gateway does
+                    not support. Change it to a header on the Security tab; until then, other
+                    changes to this environment cannot be saved.
+                  </Alert>
+                )}
                 {/* Agent Manager lists the tools through the gateway after each deploy. Until it
                     has, or once it gave up, an empty tool list is not the answer yet. */}
                 {showsTools &&

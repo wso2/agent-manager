@@ -89,6 +89,32 @@ export function apiKeySecurity(
     : { enabled: false };
 }
 
+/**
+ * Whether the binding asks for an API key in the query. The gateway reads the key from a header
+ * only, so the service refuses a binding saved that way; one stored before has to move to a
+ * header before anything else on it can be saved.
+ */
+export function readsAPIKeyFromQuery(
+  security: ProjectMCPProxyEnvironmentSecurity | undefined,
+): boolean {
+  return bindingRequiresAPIKey(security) && apiKeyLocation(security) === "query";
+}
+
+/**
+ * Refuses a binding request the service would refuse for its query API key, naming the
+ * environment, so a save stops before any request is sent.
+ */
+export function checkBindingRequest(
+  request: ProjectMCPProxyEnvironmentRequest,
+  envName: string,
+): void {
+  if (request.security && readsAPIKeyFromQuery(request.security)) {
+    throw new Error(
+      `The ${envName} environment reads its API key from the query, which the gateway does not support. Change it to a header on its Security tab, then save again.`,
+    );
+  }
+}
+
 /** The binding's security as it reads back, with the service's defaults filled in. */
 function securityWithDefaults(
   security: ProjectMCPProxyEnvironmentSecurity | undefined,
@@ -344,6 +370,8 @@ export function planURLProxySave(
     env,
     body: keptBindingRequest(env, initial, draft, edits),
   }));
+  // Checked before the proxy changes: a binding refused later would leave the save half done.
+  for (const { env, body } of kepts) checkBindingRequest(body, env.environmentName);
   const movesHost = !sameOrigin(proxy.upstream?.url, edits.url);
   if (movesHost && kepts.some(({ body }) => body.upstreamAuth && !body.upstreamAuth.value)) {
     throw new Error(
