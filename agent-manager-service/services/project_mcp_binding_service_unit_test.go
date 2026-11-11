@@ -1260,3 +1260,45 @@ func TestPutEnv_APIKeyInQuery_400NothingStored(t *testing.T) {
 	assert.Zero(t, f.endpointWrites, "nothing is stored")
 	assert.Empty(t, f.deployed)
 }
+
+// A binding saved while its proxy's URL changed takes the locked proxy's URL rather than writing the old one back; a
+// move to another host is refused when the binding carries a credential given for the old host.
+func TestFollowLockedProxyURL(t *testing.T) {
+	apiKey, header, secret := "api-key", "X-Key", "s3cret"
+	auth := &models.UpstreamAuth{Type: &apiKey, Header: &header, Value: &secret}
+	config := func(withAuth bool) models.MCPEndpointConfig {
+		upstream := &models.UpstreamEndpoint{URL: "https://8.8.8.8/mcp"}
+		if withAuth {
+			upstream.Auth = auth
+		}
+		return models.MCPEndpointConfig{Upstream: upstream}
+	}
+	proxyAt := func(url string) *models.MCPProxy {
+		return &models.MCPProxy{Configuration: models.MCPProxyConfig{
+			Upstream: models.UpstreamConfig{Main: &models.UpstreamEndpoint{URL: url}},
+		}}
+	}
+
+	desired, _, err := followLockedProxyURL(proxyAt("https://8.8.8.8/mcp"), config(true), config(true))
+	require.NoError(t, err)
+	assert.Equal(t, "https://8.8.8.8/mcp", desired.Upstream.URL, "unchanged")
+
+	desired, stored, err := followLockedProxyURL(proxyAt("https://8.8.8.8/v2/mcp"), config(true), config(true))
+	require.NoError(t, err)
+	assert.Equal(t, "https://8.8.8.8/v2/mcp", desired.Upstream.URL, "same host: the new URL is kept")
+	assert.Equal(t, "https://8.8.8.8/v2/mcp", stored.Upstream.URL)
+	assert.NotNil(t, stored.Upstream.Auth)
+
+	_, _, err = followLockedProxyURL(proxyAt("https://1.1.1.1/mcp"), config(true), config(true))
+	assert.ErrorIs(t, err, utils.ErrMCPProxyURLChanged, "another host with a credential")
+
+	desired, _, err = followLockedProxyURL(proxyAt("https://1.1.1.1/mcp"), config(false), config(false))
+	require.NoError(t, err)
+	assert.Equal(t, "https://1.1.1.1/mcp", desired.Upstream.URL, "another host without a credential")
+
+	sourced := proxyAt("https://1.1.1.1/mcp")
+	sourced.Configuration.Source = &models.MCPProxySource{ComponentName: "c", EndpointName: "e"}
+	desired, _, err = followLockedProxyURL(sourced, config(true), config(true))
+	require.NoError(t, err)
+	assert.Equal(t, "https://8.8.8.8/mcp", desired.Upstream.URL, "a sourced binding resolves its own upstream")
+}

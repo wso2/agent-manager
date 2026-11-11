@@ -7686,7 +7686,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "409":
-          description: UPSTREAM_NOT_READY or CONTEXT_IN_USE. Nothing was stored
+          description: UPSTREAM_NOT_READY, CONTEXT_IN_USE, or CONFLICT when the proxy's URL moved to another host while a binding with an upstream credential was saved (read the proxy again and retry). Nothing was stored
           content:
             application/json:
               schema:

@@ -388,6 +388,9 @@ func writeProjectMCPBindingError(w http.ResponseWriter, err error) bool {
 	case errors.Is(err, utils.ErrMCPContextInUse):
 		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
 			utils.ErrMCPContextInUse.Error(), err.Error(), utils.ErrCodeContextInUse)
+	case errors.Is(err, utils.ErrMCPProxyURLChanged):
+		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
+			utils.ErrMCPProxyURLChanged.Error(), "", utils.ErrCodeConflict)
 	case errors.Is(err, utils.ErrMCPCapabilitiesGivenByCaller):
 		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
 			utils.ErrMCPCapabilitiesGivenByCaller.Error(), "", utils.ErrCodeCapabilitiesGivenByCaller)

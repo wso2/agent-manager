@@ -383,4 +383,7 @@ var (
 	// ErrAPIKeyChanged means a conditional replace found the API key changed or removed by another request since it
 	// was read (409 CONFLICT).
 	ErrAPIKeyChanged = errors.New("the API key was changed by another request; retry")
+	// ErrMCPProxyURLChanged means a project MCP proxy's URL moved to another origin while a binding carrying an
+	// upstream credential was being saved: the credential was given for the old origin (409 CONFLICT).
+	ErrMCPProxyURLChanged = errors.New("the MCP proxy's URL moved to another host while this binding was saved; read it again and retry")
 )

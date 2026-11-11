@@ -177,7 +177,8 @@ func (s *ProjectMCPProxyService) PutEnvironment(
 		return s.saveAndDeployBinding(ctx, tx, ouID, proxyHandleOf(proxy), envName, envUUID, gateway, desired, stored)
 	}); err != nil {
 		switch {
-		case errors.Is(err, utils.ErrMCPContextInUse), errors.Is(err, utils.ErrMCPProxyNotFound):
+		case errors.Is(err, utils.ErrMCPContextInUse), errors.Is(err, utils.ErrMCPProxyNotFound),
+			errors.Is(err, utils.ErrMCPProxyURLChanged):
 			return nil, false, err
 		case errors.Is(err, errPlacementFixed):
 			return nil, false, fmt.Errorf("%w: gatewayId: %w", utils.ErrImmutableFieldChange, err)
@@ -280,6 +281,9 @@ func (s *ProjectMCPProxyService) saveAndDeployBinding(
 		}
 		return fmt.Errorf("failed to lock the MCP proxy: %w", err)
 	}
+	if desired, stored, err = followLockedProxyURL(locked, desired, stored); err != nil {
+		return err
+	}
 	endpoint, ee := resolveMCPEndpointForEnv(locked, envUUID.String())
 	var artifactUUID uuid.UUID
 	var artifactHandle string
@@ -310,6 +314,29 @@ func (s *ProjectMCPProxyService) saveAndDeployBinding(
 		}
 	}
 	return s.base.deployMCPArtifact(ctx, tx, &models.MCPProxy{UUID: artifactUUID, Handle: artifactHandle}, ouID, envUUID, gateway)
+}
+
+// followLockedProxyURL points a binding of a proxy registered by URL at the URL the locked proxy has. desired and
+// stored were prepared from the proxy read before the lock; a URL change committed since is kept rather than undone. A
+// move to another origin is refused when the binding carries an upstream credential, which was given (or kept) for the
+// old origin and must not be sent to the new one; that change also cleared the stored credentials it covered.
+func followLockedProxyURL(
+	locked *models.MCPProxy, desired, stored models.MCPEndpointConfig,
+) (models.MCPEndpointConfig, models.MCPEndpointConfig, error) {
+	if locked.Configuration.Source != nil || desired.Upstream == nil {
+		return desired, stored, nil
+	}
+	lockedURL := projectMCPProxyUpstreamURL(locked)
+	if lockedURL == "" || lockedURL == desired.Upstream.URL {
+		return desired, stored, nil
+	}
+	if desired.Upstream.Auth != nil && !sameURLOrigin(desired.Upstream.URL, lockedURL) {
+		return desired, stored, utils.ErrMCPProxyURLChanged
+	}
+	desiredUpstream, storedUpstream := *desired.Upstream, *stored.Upstream
+	desiredUpstream.URL, storedUpstream.URL = lockedURL, lockedURL
+	desired.Upstream, stored.Upstream = &desiredUpstream, &storedUpstream
+	return desired, stored, nil
 }
 
 // createBinding inserts the binding's endpoint, its gateway artifact row and the (endpoint, environment) row.
