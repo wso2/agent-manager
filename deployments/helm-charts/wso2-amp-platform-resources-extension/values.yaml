@@ -216,6 +216,11 @@ projectType:
 externalSecrets:
   # Name of the ClusterSecretStore used by build workflows.
   clusterSecretStoreName: amp-secret-store
+  # Store for workload environment variables and files written by Agent Manager.
+  # Empty uses the data plane's store. Set to the in-house store during an
+  # OpenBao upgrade to leave the plane's existing store available to legacy
+  # SecretReferences. See UPGRADING.md before upgrading an existing install.
+  workloadClusterSecretStoreName: ""
 
 # Authorization configuration for OpenChoreo
 authz:

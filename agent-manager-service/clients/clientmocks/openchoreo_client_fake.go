@@ -201,6 +201,9 @@ import (
 //			PublishBuildWorkloadFunc: func(ctx context.Context, ouID string, req client.PublishBuildWorkloadRequest) error {
 //				panic("mock out the PublishBuildWorkload method")
 //			},
+//			ReadLegacyManagedSecretFunc: func(ctx context.Context, ouID string, secretName string) (map[string]string, error) {
+//				panic("mock out the ReadLegacyManagedSecret method")
+//			},
 //			RemoveComponentEnvironmentVariablesFunc: func(ctx context.Context, ouID string, projectName string, componentName string, envVarKeys []string) error {
 //				panic("mock out the RemoveComponentEnvironmentVariables method")
 //			},
@@ -450,6 +453,9 @@ type OpenChoreoClientMock struct {
 
 	// PublishBuildWorkloadFunc mocks the PublishBuildWorkload method.
 	PublishBuildWorkloadFunc func(ctx context.Context, ouID string, req client.PublishBuildWorkloadRequest) error
+
+	// ReadLegacyManagedSecretFunc mocks the ReadLegacyManagedSecret method.
+	ReadLegacyManagedSecretFunc func(ctx context.Context, ouID string, secretName string) (map[string]string, error)
 
 	// RemoveComponentEnvironmentVariablesFunc mocks the RemoveComponentEnvironmentVariables method.
 	RemoveComponentEnvironmentVariablesFunc func(ctx context.Context, ouID string, projectName string, componentName string, envVarKeys []string) error
@@ -1172,6 +1178,15 @@ type OpenChoreoClientMock struct {
 			// Req is the req argument value.
 			Req client.PublishBuildWorkloadRequest
 		}
+		// ReadLegacyManagedSecret holds details about calls to the ReadLegacyManagedSecret method.
+		ReadLegacyManagedSecret []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// OuID is the ouID argument value.
+			OuID string
+			// SecretName is the secretName argument value.
+			SecretName string
+		}
 		// RemoveComponentEnvironmentVariables holds details about calls to the RemoveComponentEnvironmentVariables method.
 		RemoveComponentEnvironmentVariables []struct {
 			// Ctx is the ctx argument value.
@@ -1516,6 +1531,7 @@ type OpenChoreoClientMock struct {
 	lockPatchProject                           sync.RWMutex
 	lockPromoteComponent                       sync.RWMutex
 	lockPublishBuildWorkload                   sync.RWMutex
+	lockReadLegacyManagedSecret                sync.RWMutex
 	lockRemoveComponentEnvironmentVariables    sync.RWMutex
 	lockRemoveReleaseBindingEnvVars            sync.RWMutex
 	lockRemoveWorkloadEnvVars                  sync.RWMutex
@@ -4195,6 +4211,46 @@ func (mock *OpenChoreoClientMock) PublishBuildWorkloadCalls() []struct {
 	mock.lockPublishBuildWorkload.RLock()
 	calls = mock.calls.PublishBuildWorkload
 	mock.lockPublishBuildWorkload.RUnlock()
+	return calls
+}
+
+// ReadLegacyManagedSecret calls ReadLegacyManagedSecretFunc.
+func (mock *OpenChoreoClientMock) ReadLegacyManagedSecret(ctx context.Context, ouID string, secretName string) (map[string]string, error) {
+	if mock.ReadLegacyManagedSecretFunc == nil {
+		panic("OpenChoreoClientMock.ReadLegacyManagedSecretFunc: method is nil but OpenChoreoClient.ReadLegacyManagedSecret was just called")
+	}
+	callInfo := struct {
+		Ctx        context.Context
+		OuID       string
+		SecretName string
+	}{
+		Ctx:        ctx,
+		OuID:       ouID,
+		SecretName: secretName,
+	}
+	mock.lockReadLegacyManagedSecret.Lock()
+	mock.calls.ReadLegacyManagedSecret = append(mock.calls.ReadLegacyManagedSecret, callInfo)
+	mock.lockReadLegacyManagedSecret.Unlock()
+	return mock.ReadLegacyManagedSecretFunc(ctx, ouID, secretName)
+}
+
+// ReadLegacyManagedSecretCalls gets all the calls that were made to ReadLegacyManagedSecret.
+// Check the length with:
+//
+//	len(mockedOpenChoreoClient.ReadLegacyManagedSecretCalls())
+func (mock *OpenChoreoClientMock) ReadLegacyManagedSecretCalls() []struct {
+	Ctx        context.Context
+	OuID       string
+	SecretName string
+} {
+	var calls []struct {
+		Ctx        context.Context
+		OuID       string
+		SecretName string
+	}
+	mock.lockReadLegacyManagedSecret.RLock()
+	calls = mock.calls.ReadLegacyManagedSecret
+	mock.lockReadLegacyManagedSecret.RUnlock()
 	return calls
 }
 

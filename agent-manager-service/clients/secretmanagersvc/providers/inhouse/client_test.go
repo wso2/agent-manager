@@ -116,6 +116,35 @@ func TestInHouseSecretLifecycle(t *testing.T) {
 	}
 }
 
+func TestImportLegacySecretPreservesExistingValues(t *testing.T) {
+	ctx := context.Background()
+	c := newTestClient(t)
+	ouID := uuid.NewString()
+	const name = "legacy-agent-default-secrets"
+	t.Cleanup(func() {
+		require.NoError(t, c.db.Where("ou_id = ?", ouID).Delete(&secretRow{}).Error)
+	})
+
+	data := map[string]string{"TOKEN": "test-value", "config": "line 1\nline 2\n"}
+	created, err := c.ImportLegacySecret(ctx, ouID, name, data)
+	require.NoError(t, err)
+	require.True(t, created)
+	value, err := c.Resolve(ctx, ouID, name, "config")
+	require.NoError(t, err)
+	require.Equal(t, data["config"], value)
+
+	created, err = c.ImportLegacySecret(ctx, ouID, name, data)
+	require.NoError(t, err)
+	require.False(t, created)
+
+	created, err = c.ImportLegacySecret(ctx, ouID, name, map[string]string{"TOKEN": "different-value"})
+	require.ErrorContains(t, err, "destination already contains a different secret")
+	require.False(t, created)
+	stored, err := c.GetSecretData(ctx, ouID, name)
+	require.NoError(t, err)
+	require.Equal(t, data, stored)
+}
+
 func TestInHousePatchMissingSecret(t *testing.T) {
 	c := newTestClient(t)
 	loc := secretmanagersvc.SecretLocation{OrgName: "ou-" + uuid.NewString(), EntityName: "missing"}

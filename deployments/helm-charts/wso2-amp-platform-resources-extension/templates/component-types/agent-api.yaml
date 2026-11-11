@@ -554,7 +554,7 @@ spec:
           # and only after this ComponentType is deployed.
           refreshInterval: 10m
           secretStoreRef:
-            name: ${dataplane.secretStore}
+            name: {{ .Values.externalSecrets.workloadClusterSecretStoreName | default "${dataplane.secretStore}" | quote }}
             kind: ClusterSecretStore
           target:
             name: ${metadata.name}-secret-env
@@ -577,7 +577,7 @@ spec:
         spec:
           refreshInterval: 10m
           secretStoreRef:
-            name: ${dataplane.secretStore}
+            name: {{ .Values.externalSecrets.workloadClusterSecretStoreName | default "${dataplane.secretStore}" | quote }}
             kind: ClusterSecretStore
           target:
             name: ${metadata.name}-secret-files

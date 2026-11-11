@@ -29,6 +29,7 @@ import (
 	observersvc "github.com/wso2/agent-manager/agent-manager-service/clients/observersvc"
 	occlient "github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
+	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc/providers/inhouse"
 
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/controllers"
@@ -172,4 +173,13 @@ func ProvideEncryptionKey(cfg config.Config) ([]byte, error) {
 		return nil, fmt.Errorf("ENCRYPTION_KEY must decode to exactly 32 bytes (got %d)", len(key))
 	}
 	return key, nil
+}
+
+// ProvideInHouseSecretImporter opens the same store used by the service.
+func ProvideInHouseSecretImporter(cfg config.Config, db *gorm.DB) (*inhouse.Client, error) {
+	storeConfig, err := inHouseStoreConfig(cfg, db)
+	if err != nil {
+		return nil, err
+	}
+	return inhouse.NewClient(storeConfig.InHouse)
 }

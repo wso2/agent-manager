@@ -434,9 +434,14 @@
       "description": "External Secrets configuration",
       "properties": {
         "clusterSecretStoreName": {
-          "default": "default",
+          "default": "amp-secret-store",
           "description": "Name of the ClusterSecretStore used by build workflows.",
           "title": "clusterSecretStoreName",
+          "type": "string"
+        },
+        "workloadClusterSecretStoreName": {
+          "default": "",
+          "description": "Store for workload environment variables and files. Empty uses the data plane's store.",
           "type": "string"
         }
       },

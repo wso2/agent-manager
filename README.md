@@ -41,6 +41,8 @@ Deploy WSO2 Agent Manager on Kubernetes using our Helm charts:
 | `wso2-amp-build-extension` | Build extension for OpenChoreo |
 | `wso2-amp-observability-extension` | Observability stack extension for OpenChoreo |
 
+If your installation uses OpenBao for workload secrets, follow the [secret store upgrade guide](deployments/helm-charts/wso2-amp-platform-resources-extension/UPGRADING.md).
+
 ## Getting Started
 
 For installation instructions and a step-by-step guide, see the [Quick Start Guide](https://wso2.com/agent-platform/docs/latest/get-started/quick-start/).
