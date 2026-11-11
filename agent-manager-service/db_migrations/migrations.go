@@ -25,6 +25,7 @@ import (
 	"github.com/go-gormigrate/gormigrate/v2"
 	"gorm.io/gorm"
 
+	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 )
 
@@ -42,7 +43,18 @@ type migration struct {
 }
 
 func Migrate() error {
+	if err := requireSchemaFor(config.GetConfig().Database.Driver); err != nil {
+		return err
+	}
 	return migrateTo(db.DB(context.Background()), latestVersion)
+}
+
+// requireSchemaFor fails fast for a driver that has no migrations yet, instead of running PostgreSQL DDL on it.
+func requireSchemaFor(driver string) error {
+	if driver == config.DBDriverPostgres {
+		return nil
+	}
+	return fmt.Errorf("no database schema for DB_DRIVER=%s yet; use %s", driver, config.DBDriverPostgres)
 }
 
 // migrateTo applies every migration up to and including version.
@@ -78,6 +90,9 @@ func migrateTo(dbConn *gorm.DB, version int32) error {
 // server never starts against an older schema while a separate migration job
 // is still running. It returns ctx's error if that does not happen first.
 func WaitForLatest(ctx context.Context, interval time.Duration) error {
+	if err := requireSchemaFor(config.GetConfig().Database.Driver); err != nil {
+		return err
+	}
 	return waitFor(ctx, db.DB(ctx), latestVersion, interval)
 }
 

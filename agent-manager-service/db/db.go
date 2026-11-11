@@ -22,9 +22,11 @@ import (
 	"log/slog"
 	"net/url"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
+	"github.com/glebarez/sqlite"
 	_ "github.com/jackc/pgx/v5/stdlib" // PostgreSQL driver
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -51,7 +53,8 @@ var (
 // callers that never touch the DB run without one.
 func instance() *gorm.DB {
 	dbOnce.Do(func() {
-		db = initDbConn(config.GetConfig().POSTGRESQL)
+		cfg := config.GetConfig()
+		db = initDbConn(cfg.Database, cfg.POSTGRESQL)
 	})
 	return db
 }
@@ -63,17 +66,45 @@ func (w slogWriter) Printf(format string, v ...interface{}) {
 	slog.Warn(fmt.Sprintf(format, v...), "log_type", "gorm")
 }
 
-func initDbConn(cfg config.POSTGRESQL) *gorm.DB {
-	dsn := makeConnString(cfg)
-	sqlConnPool, err := sql.Open("pgx", dsn)
+func initDbConn(dbCfg config.DatabaseConfig, cfg config.POSTGRESQL) *gorm.DB {
+	gormDB, err := open(dbCfg, cfg)
 	if err != nil {
-		slog.Error("initDbConn: sql.Open failed", "error", err)
+		slog.Error("initDbConn: failed to open the database", "driver", dbCfg.Driver, "error", err)
 		os.Exit(1)
+	}
+	slog.Info("database connected", "driver", dbCfg.Driver)
+	return gormDB
+}
+
+// open connects to the configured database. Pool, logger and GORM settings are the same for every driver.
+func open(dbCfg config.DatabaseConfig, cfg config.POSTGRESQL) (*gorm.DB, error) {
+	var (
+		driverName string
+		dsn        string
+		dialector  func(dsn string) gorm.Dialector
+	)
+	switch dbCfg.Driver {
+	case config.DBDriverPostgres:
+		driverName, dsn = "pgx", makeConnString(cfg)
+		dialector = postgres.Open
+	case config.DBDriverSQLite:
+		if err := os.MkdirAll(filepath.Dir(dbCfg.SQLitePath), 0o750); err != nil {
+			return nil, fmt.Errorf("creating the SQLite directory: %w", err)
+		}
+		driverName, dsn = sqlite.DriverName, makeSQLiteConnString(dbCfg.SQLitePath)
+		dialector = sqlite.Open
+	default:
+		return nil, fmt.Errorf("unsupported database driver %q", dbCfg.Driver)
+	}
+
+	sqlConnPool, err := sql.Open(driverName, dsn)
+	if err != nil {
+		return nil, fmt.Errorf("sql.Open: %w", err)
 	}
 	setConfigsOnDB(sqlConnPool, cfg.DbConfigs)
 	if err := sqlConnPool.Ping(); err != nil {
-		slog.Error("failed to ping database", "error", err)
-		os.Exit(1)
+		_ = sqlConnPool.Close()
+		return nil, fmt.Errorf("ping: %w", err)
 	}
 	connPool := connpool.New(sqlConnPool, connpool.RetryParams{
 		MaxRetries: 3,
@@ -91,21 +122,34 @@ func initDbConn(cfg config.POSTGRESQL) *gorm.DB {
 		},
 	)
 
-	// Open PostgreSQL connection
-	dialector := postgres.Open(dsn)
-	gormDB, err := gorm.Open(dialector, &gorm.Config{
+	gormDB, err := gorm.Open(dialector(dsn), &gorm.Config{
 		Logger:                 gormLogger,
 		SkipDefaultTransaction: cfg.SkipDefaultTransaction,
 		PrepareStmt:            false,
 		FullSaveAssociations:   false,
 		ConnPool:               connPool,
+		// SQLite stores times as text, which sorts correctly only when every value is in the same zone.
+		NowFunc: func() time.Time { return time.Now().UTC() },
 	})
 	if err != nil {
-		slog.Error("initDbConn: gorm.Open failed", "error", err)
-		os.Exit(1)
+		_ = sqlConnPool.Close()
+		return nil, fmt.Errorf("gorm.Open: %w", err)
 	}
-	slog.Info("database connected")
-	return gormDB
+	return gormDB, nil
+}
+
+// makeSQLiteConnString enables foreign keys and WAL on every connection, and starts every transaction with the write
+// lock (BEGIN IMMEDIATE) so a transaction that reads and then writes never fails to upgrade its lock. Times are written
+// as "2006-01-02 15:04:05.999999999-07:00": with UTC the suffix is "+00:00", and "+" sorts before ".", so text order
+// is time order even though trailing fractional zeros are dropped. A "Z" suffix would break that.
+func makeSQLiteConnString(path string) string {
+	params := url.Values{}
+	params.Add("_pragma", "foreign_keys(1)")
+	params.Add("_pragma", "journal_mode(WAL)")
+	params.Add("_pragma", "busy_timeout(5000)")
+	params.Set("_txlock", "immediate")
+	params.Set("_time_format", "sqlite")
+	return "file:" + path + "?" + params.Encode()
 }
 
 func setConfigsOnDB(db *sql.DB, cfg config.DbConfigs) {

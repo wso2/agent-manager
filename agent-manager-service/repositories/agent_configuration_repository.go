@@ -18,13 +18,12 @@ package repositories
 
 import (
 	"context"
-	"errors"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
+	"github.com/wso2/agent-manager/agent-manager-service/db/dberr"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -120,9 +119,7 @@ func NewAgentConfigurationRepository(db *gorm.DB) AgentConfigurationRepository {
 func (r *agentConfigurationRepository) Create(ctx context.Context, tx *gorm.DB, config *models.AgentConfiguration) error {
 	err := tx.WithContext(ctx).Create(config).Error
 	if err != nil {
-		// Use PostgreSQL error code 23505 (unique_violation) for reliable duplicate detection
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+		if dberr.IsDuplicateKey(err) {
 			return utils.ErrAgentConfigAlreadyExists
 		}
 		return err

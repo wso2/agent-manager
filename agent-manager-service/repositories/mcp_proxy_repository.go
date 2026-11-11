@@ -23,10 +23,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
+	"github.com/wso2/agent-manager/agent-manager-service/db/dberr"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -357,8 +357,7 @@ func (r *MCPProxyRepo) Delete(ctx context.Context, handle, orgUUID string) error
 			return err
 		}
 		if err := tx.Where("uuid = ?", proxy.UUID).Delete(&models.MCPProxy{}).Error; err != nil {
-			var pgErr *pgconn.PgError
-			if errors.As(err, &pgErr) && pgErr.Code == "23503" {
+			if dberr.IsForeignKeyViolation(err) {
 				return utils.ErrMCPProxyHasMappings
 			}
 			return err

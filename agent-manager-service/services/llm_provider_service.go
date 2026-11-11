@@ -31,6 +31,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/gorm"
 
+	"github.com/wso2/agent-manager/agent-manager-service/db/dberr"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
@@ -405,9 +406,7 @@ func (s *LLMProviderService) insertProvider(ouID string, provider *models.LLMPro
 		return then(tx)
 	})
 	if err != nil {
-		// Check for unique constraint violation
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == "23505" { // unique_violation
+		if dberr.IsDuplicateKey(err) {
 			slog.Warn("LLMProviderService.Create: provider already exists (unique constraint)", "ouID", ouID, "handle", handle)
 			return nil, utils.ErrLLMProviderExists
 		}

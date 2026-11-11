@@ -26,6 +26,7 @@ type Config struct {
 	AuthHeader          string
 	AutoMaxProcsEnabled bool
 	LogLevel            string
+	Database            DatabaseConfig
 	POSTGRESQL          POSTGRESQL
 	// HTTP Server timeout configurations
 	ReadTimeoutSeconds  int
@@ -479,6 +480,19 @@ type GrowthAnalyticsConfig struct {
 	// local-dev default — omits the field rather than reporting a blank
 	// environment, so local traffic does not create an empty bucket.
 	Environment string
+}
+
+// Database drivers selectable through DB_DRIVER.
+const (
+	DBDriverPostgres = "postgres"
+	DBDriverSQLite   = "sqlite"
+)
+
+// DatabaseConfig picks the database. POSTGRESQL holds the server settings, and its pool settings apply to every driver.
+type DatabaseConfig struct {
+	Driver string
+	// SQLitePath is the database file used when Driver is sqlite.
+	SQLitePath string
 }
 
 type POSTGRESQL struct {

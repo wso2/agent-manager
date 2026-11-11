@@ -77,12 +77,21 @@ func loadEnvs() {
 	config.LogLevel = r.readOptionalString("LOG_LEVEL", "INFO")
 
 	// read database configs
+	config.Database = DatabaseConfig{
+		Driver:     strings.ToLower(strings.TrimSpace(r.readOptionalString("DB_DRIVER", DBDriverPostgres))),
+		SQLitePath: strings.TrimSpace(r.readOptionalString("DB_PATH", "data/agent-manager.db")),
+	}
+	// The server settings are required only when the database is a server.
+	readServerString := r.readOptionalString
+	if config.Database.Driver == DBDriverPostgres {
+		readServerString = func(key, _ string) string { return r.readRequiredString(key) }
+	}
 	config.POSTGRESQL = POSTGRESQL{
-		Host:     r.readRequiredString("DB_HOST"),
+		Host:     readServerString("DB_HOST", ""),
 		Port:     int(r.readOptionalInt64("DB_PORT", 5432)),
-		User:     r.readRequiredString("DB_USER"),
-		Password: r.readRequiredString("DB_PASSWORD"),
-		DBName:   r.readRequiredString("DB_NAME"),
+		User:     readServerString("DB_USER", ""),
+		Password: readServerString("DB_PASSWORD", ""),
+		DBName:   readServerString("DB_NAME", ""),
 		// Left empty by default so the connection string stays byte-identical to
 		// pre-DB_SSL_MODE builds: pgx applies its libpq-compatible "prefer"
 		// default and still honours PGSSLMODE/PGSSLROOTCERT from the environment.
@@ -412,6 +421,7 @@ func loadEnvs() {
 	validateGrowthAnalyticsConfig(config)
 	validateResourceLimitsConfig(config, r)
 	validateFileMountLimitsConfig(config, r)
+	validateDatabaseConfig(config, r)
 	validatePostgresTLSConfig(config, r)
 	validateSecretManagerConfig(config, r)
 	validateAgentWorkloadCORSConfig(agentWorkloadConfig, r)
@@ -506,6 +516,20 @@ func validateGatewayManifestCacheConfig(cfg *Config, r *configReader) {
 	if strings.TrimSpace(cfg.GatewayManifestCache.Redis.Host) == "" {
 		r.errors = append(r.errors, fmt.Errorf(
 			"GATEWAY_MANIFEST_CACHE_REDIS_HOST is required when GATEWAY_MANIFEST_CACHE_BACKEND=redis",
+		))
+	}
+}
+
+func validateDatabaseConfig(cfg *Config, r *configReader) {
+	switch cfg.Database.Driver {
+	case DBDriverPostgres:
+	case DBDriverSQLite:
+		if cfg.Database.SQLitePath == "" {
+			r.errors = append(r.errors, fmt.Errorf("DB_PATH is required when DB_DRIVER=%s", DBDriverSQLite))
+		}
+	default:
+		r.errors = append(r.errors, fmt.Errorf(
+			"DB_DRIVER %q is not supported (%s, %s)", cfg.Database.Driver, DBDriverPostgres, DBDriverSQLite,
 		))
 	}
 }

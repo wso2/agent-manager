@@ -1095,3 +1095,63 @@ func TestRequirePositiveReportsEachNonPositiveField(t *testing.T) {
 		}
 	}
 }
+
+func TestValidateDatabaseConfig(t *testing.T) {
+	tests := []struct {
+		name       string
+		cfg        DatabaseConfig
+		wantErrors int
+	}{
+		{name: "postgres", cfg: DatabaseConfig{Driver: DBDriverPostgres}},
+		{name: "sqlite with a path", cfg: DatabaseConfig{Driver: DBDriverSQLite, SQLitePath: "data/amp.db"}},
+		{name: "sqlite without a path", cfg: DatabaseConfig{Driver: DBDriverSQLite}, wantErrors: 1},
+		{name: "unknown driver", cfg: DatabaseConfig{Driver: "mysql"}, wantErrors: 1},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			r := &configReader{}
+			validateDatabaseConfig(&Config{Database: tc.cfg}, r)
+			if len(r.errors) != tc.wantErrors {
+				t.Fatalf("got errors %v, want %d", r.errors, tc.wantErrors)
+			}
+		})
+	}
+}
+
+func TestLoadEnvs_DatabaseDriver(t *testing.T) {
+	setEnv := func(t *testing.T, vars map[string]string) {
+		t.Helper()
+		for k, v := range vars {
+			t.Setenv(k, v)
+		}
+	}
+	thunderEnv := map[string]string{
+		"THUNDER_BASE_URL":      "https://idp.example.com",
+		"THUNDER_CLIENT_ID":     "system-client",
+		"THUNDER_CLIENT_SECRET": "system-secret",
+	}
+
+	t.Run("defaults to postgres", func(t *testing.T) {
+		setEnv(t, thunderEnv)
+		setEnv(t, map[string]string{"DB_HOST": "localhost", "DB_USER": "unit", "DB_PASSWORD": "unit", "DB_NAME": "unit"})
+		t.Setenv("DB_DRIVER", "")
+		loadEnvs()
+		if config.Database.Driver != DBDriverPostgres {
+			t.Errorf("driver = %q, want %q", config.Database.Driver, DBDriverPostgres)
+		}
+	})
+
+	t.Run("sqlite needs no server settings", func(t *testing.T) {
+		setEnv(t, thunderEnv)
+		setEnv(t, map[string]string{"DB_HOST": "", "DB_USER": "", "DB_PASSWORD": "", "DB_NAME": ""})
+		t.Setenv("DB_DRIVER", " SQLite ")
+		t.Setenv("DB_PATH", "/var/lib/amp/amp.db")
+		loadEnvs()
+		if config.Database.Driver != DBDriverSQLite {
+			t.Errorf("driver = %q, want %q", config.Database.Driver, DBDriverSQLite)
+		}
+		if config.Database.SQLitePath != "/var/lib/amp/amp.db" {
+			t.Errorf("path = %q", config.Database.SQLitePath)
+		}
+	})
+}

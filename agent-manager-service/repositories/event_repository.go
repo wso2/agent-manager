@@ -24,10 +24,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
+	"github.com/wso2/agent-manager/agent-manager-service/db/dberr"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -173,20 +173,6 @@ func NewEventRepository(db *gorm.DB) EventRepository {
 	return &eventRepository{db: db}
 }
 
-// pgErrorCode returns the PostgreSQL error code of err, if it has one.
-func pgErrorCode(err error) string {
-	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) {
-		return pgErr.Code
-	}
-	return ""
-}
-
-const (
-	pgUniqueViolation     = "23505"
-	pgForeignKeyViolation = "23503"
-)
-
 func (r *eventRepository) ListDestinations(ctx context.Context, ouID string) ([]models.EventDestination, error) {
 	var out []models.EventDestination
 	err := r.db.WithContext(ctx).Where("ou_id = ?", ouID).Order("lower(name) ASC").Find(&out).Error
@@ -219,7 +205,7 @@ func (r *eventRepository) CreateDestination(ctx context.Context, d *models.Event
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	d.CreatedAt, d.UpdatedAt = now, now
 	err := r.db.WithContext(ctx).Create(d).Error
-	if pgErrorCode(err) == pgUniqueViolation {
+	if dberr.IsDuplicateKey(err) {
 		return utils.ErrEventDestinationNameTaken
 	}
 	return err
@@ -270,7 +256,7 @@ func (r *eventRepository) UpdateDestination(
 			Select("name", "description", "config", "secret_encrypted", "availability", "projects", "updated_at").
 			UpdateColumns(d).Error
 	})
-	if pgErrorCode(err) == pgUniqueViolation {
+	if dberr.IsDuplicateKey(err) {
 		return utils.ErrEventDestinationNameTaken
 	}
 	return err
@@ -298,7 +284,7 @@ func (r *eventRepository) DeleteDestination(ctx context.Context, ouID string, id
 		deleted = res.RowsAffected > 0
 		return res.Error
 	})
-	if pgErrorCode(err) == pgForeignKeyViolation {
+	if dberr.IsForeignKeyViolation(err) {
 		return false, utils.ErrEventDestinationInUse
 	}
 	return deleted, err
