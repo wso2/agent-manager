@@ -41,4 +41,10 @@ export enum MountPoints {
     // based on the organization's subscription). When nothing is injected, the
     // built-in limits apply (the self-hosted default).
     ReplicaPolicy = "replica-policy",
+    // A deployment whose sign-in is bound to one organization at a time can inject
+    // a component that reports the organizations the user can move to, and moves the
+    // console to the one picked (see OrganizationSwitcherProps). When nothing is
+    // injected, or it reports nothing, the header lists the organizations the API
+    // returns (the self-hosted default).
+    OrganizationSwitcher = "organization-switcher",
 }
