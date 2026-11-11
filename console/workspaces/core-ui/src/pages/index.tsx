@@ -190,12 +190,6 @@ export const LazyMCPProxiesOrg = lazy(() =>
   }))
 );
 
-// Gateways
-export const LazyGatewaysOrg = lazy(() =>
-  import("@agent-management-platform/gateways").then((m) => ({
-    default: m.metaData.levels!.organization as ComponentType,
-  }))
-);
 
 // Settings
 export const LazySettingsOrg = lazy(() =>
@@ -221,8 +215,29 @@ export const LazyAgentEvents = lazy(() =>
   }))
 );
 
-// Agent identity — code-split into its own chunk
-export const LazyAgentIdentityOrg = lazy(() =>
+
+// Gateways, Environments and Deployment pipelines are plugins now; see
+// ../plugins/builtinPlugins.ts.
+
+// Agent Kind
+export const LazyCatalogOrg = lazy(() =>
+  import("@agent-management-platform/agent-kind").then((m) => ({
+    default: m.metaData.levels!.organization as ComponentType,
+  }))
+);
+export const LazyPublishComponent = lazy(() =>
+  import("@agent-management-platform/agent-kind").then((m) => ({
+    default: m.metaData.levels!.component as ComponentType,
+  }))
+);
+export const LazyPublishOrg = lazy(() =>
+  import("@agent-management-platform/agent-kind").then((m) => ({
+    default: m.metaData.levels!.publishOrganization as ComponentType,
+  }))
+);
+
+// Identity (Environment Thunder Instances) — code-split into its own chunk
+export const LazyThunderInstancesOrg = lazy(() =>
   import("@agent-management-platform/env-thunders").then((m) => ({
     default: m.agentIdentityMetaData.levels!.organization as ComponentType,
   }))

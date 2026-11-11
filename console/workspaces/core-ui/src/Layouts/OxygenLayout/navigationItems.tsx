@@ -29,7 +29,6 @@ import {
   ShieldCheck,
   Boxes,
   Bot,
-  Network,
   GitBranch,
   Lock,
   LayoutDashboard,
@@ -56,11 +55,11 @@ import {
 import {
   useFeatureFlag,
   useFeatureManagement,
-  useGatewayFeatures,
 } from "@agent-management-platform/feature-management";
 import { agentIdentityMetadata } from "@agent-management-platform/env-thunders/metadata";
 import { useExternalNavItems } from "@agent-management-platform/views";
 import type { NavigationItem, NavigationSection } from "./LeftNavigation";
+import { usePluginNavItems, type ActivePluginNavItem } from "../../plugins";
 
 // MCP logo inlined here so mcp-proxies package stays in its own async chunk.
 const MCP_LOGO_MASK =
@@ -130,7 +129,11 @@ export function useNavigationItems(): Array<
   });
   const agentIdEnabled = useFeatureFlag("enableAgentIdentity");
   const profileManagementEnabled = useFeatureFlag("enableProfileManagement");
-  const { canView: canViewGateways } = useGatewayFeatures();
+  // Plugin nav items, already filtered by config and each plugin's activation.
+  const infrastructurePluginItems = usePluginNavItems("org", "infrastructure");
+  const orgPluginItems = usePluginNavItems("org");
+  const projectPluginItems = usePluginNavItems("project");
+  const agentPluginItems = usePluginNavItems("agent");
 
   const externalNavItems = useExternalNavItems();
   const { hasAccess } = useFeatureManagement();
@@ -146,7 +149,7 @@ export function useNavigationItems(): Array<
       hasAccess("mcp_server_read") ||
       hasAccess("llm_proxy_read"),
     evaluation: hasAccess("evaluator_read"),
-    infrastructure: canViewGateways,
+    infrastructure: infrastructurePluginItems.length > 0,
     identityUsers: hasAccess("member_read"),
     identityRoles: hasAccess("role_read"),
     identityGroups: hasAccess("group_read"),
@@ -159,6 +162,18 @@ export function useNavigationItems(): Array<
   };
 
   const { pathname } = useLocation();
+
+  const toPluginNavItems = (
+    items: ActivePluginNavItem[],
+    params: Record<string, string | undefined>,
+  ): NavigationItem[] =>
+    items.map((item) => ({
+      label: item.label,
+      type: "item",
+      icon: <item.icon size={20} />,
+      href: generatePath(item.route.path, params),
+      isActive: !!matchPath(item.route.wildPath, pathname),
+    }));
 
   const llmProvidersOrgRoute = (
     absoluteRouteMap.children.org.children as unknown as Record<
@@ -177,12 +192,6 @@ export function useNavigationItems(): Array<
     string,
     { path: string; wildPath: string }
   >;
-  const gatewaysOrgRoute = (
-    absoluteRouteMap.children.org.children as unknown as Record<
-      string,
-      { path: string; wildPath: string }
-    >
-  ).gateways;
   const settingsOrgRoute = (
     absoluteRouteMap.children.org.children as unknown as Record<
       string,
@@ -285,6 +294,12 @@ export function useNavigationItems(): Array<
         ),
       },
       ...eventsItem(eventsAgentRoute, { orgId, projectId, agentId }),
+      ...toPluginNavItems(agentPluginItems, {
+        orgId,
+        projectId,
+        agentId,
+        envId: defaultEnv,
+      }),
       ...externalNavItems
         .filter((item) => item.level === "component")
         .map((item) => ({
@@ -445,7 +460,205 @@ export function useNavigationItems(): Array<
             ),
             href: generatePath(
               absoluteRouteMap.children.org.children.projects.children.agents
-                .children.tryOut.path,
+                .children.environment.children.tryOut.path,
+              { orgId, projectId, agentId, envId: defaultEnv },
+            ),
+          },
+        ],
+      },
+      ...agentSecuritySections,
+      {
+        title: "Observability",
+        type: "section",
+        icon: <Activity />,
+        collapsible: true,
+        items: [
+          {
+            label: "Traces",
+            type: "item",
+            icon: <Workflow size={20} />,
+            isActive: !!matchPath(
+              absoluteRouteMap.children.org.children.projects.children.agents
+                .children.environment.children.observability.children.traces
+                .wildPath,
+              pathname,
+            ),
+            href: generatePath(
+              absoluteRouteMap.children.org.children.projects.children.agents
+                .children.environment.children.observability.children.traces
+                .path,
+              { orgId, projectId, agentId, envId: defaultEnv },
+            ),
+          },
+          {
+            label: "Runtime logs",
+            type: "item",
+            icon: <Logs size={20} />,
+            isActive: !!matchPath(
+              absoluteRouteMap.children.org.children.projects.children.agents
+                .children.environment.children.observability.children.logs
+                .wildPath,
+              pathname,
+            ),
+            href: generatePath(
+              absoluteRouteMap.children.org.children.projects.children.agents
+                .children.environment.children.observability.children.logs.path,
+              { orgId, projectId, agentId, envId: defaultEnv },
+            ),
+          },
+          {
+            label: "System metrics",
+            type: "item",
+            icon: <Gauge size={20} />,
+            isActive: !!matchPath(
+              absoluteRouteMap.children.org.children.projects.children.agents
+                .children.environment.children.observability.children.metrics
+                .wildPath,
+              pathname,
+            ),
+            href: generatePath(
+              absoluteRouteMap.children.org.children.projects.children.agents
+                .children.environment.children.observability.children.metrics
+                .path,
+              { orgId, projectId, agentId, envId: defaultEnv },
+            ),
+          },
+        ],
+      },
+      {
+        title: "Evaluation",
+        type: "section",
+        icon: <EvaluationOutline />,
+        collapsible: true,
+        items: [
+          {
+            label: "Monitors",
+            type: "item",
+            icon: <MonitorCheck size={20} />,
+            isActive: !!matchPath(
+              absoluteRouteMap.children.org.children.projects.children.agents
+                .children.environment.children.evaluation.children.monitor
+                .wildPath,
+              pathname,
+            ),
+            href: generatePath(
+              absoluteRouteMap.children.org.children.projects.children.agents
+                .children.environment.children.evaluation.children.monitor.path,
+              { orgId, projectId, agentId, envId: defaultEnv },
+            ),
+          },
+        ],
+      },
+      ...eventsItem(eventsAgentRoute, { orgId, projectId, agentId }),
+      ...toPluginNavItems(agentPluginItems, {
+        orgId,
+        projectId,
+        agentId,
+        envId: defaultEnv,
+      }),
+      ...externalNavItems
+        .filter((item) => item.level === "component")
+        .map((item) => ({
+          label: item.title,
+          type: "item" as const,
+          icon: item.icon,
+          isActive: !!matchPath(item.route, pathname),
+          href: generatePath(item.route, { orgId, projectId, agentId }),
+        })),
+    ];
+  }
+  if (orgId && projectId && agentId && defaultEnv && !agent?.kindName) {
+    return [
+      {
+        label: "Overview",
+        type: "item",
+        icon: <LayoutDashboard size={20} />,
+        isActive: !!matchPath(
+          absoluteRouteMap.children.org.children.projects.children.agents.path,
+          pathname,
+        ),
+        href: generatePath(
+          absoluteRouteMap.children.org.children.projects.children.agents.path,
+          { orgId, projectId, agentId },
+        ),
+      },
+      {
+        title: "Agent lifecycle",
+        type: "section",
+        icon: <GitBranch />,
+        collapsible: true,
+        items: [
+          {
+            label: "Configure",
+            type: "item",
+            icon: <Settings size={20} />,
+            isActive: !!matchPath(
+              agentsChildren.configure?.wildPath ?? "",
+              pathname,
+            ),
+            href: generatePath(agentsChildren.configure?.path ?? "", {
+              orgId,
+              projectId,
+              agentId,
+            }),
+          },
+          {
+            label: "Build",
+            type: "item",
+            icon: <Hammer size={20} />,
+            isActive: !!matchPath(
+              absoluteRouteMap.children.org.children.projects.children.agents
+                .children.build.wildPath,
+              pathname,
+            ),
+            href: generatePath(
+              absoluteRouteMap.children.org.children.projects.children.agents
+                .children.build.path,
+              { orgId, projectId, agentId },
+            ),
+          },
+          {
+            label: "Deploy",
+            type: "item",
+            icon: <Rocket size={20} />,
+            isActive: !!matchPath(
+              absoluteRouteMap.children.org.children.projects.children.agents
+                .children.deployment.wildPath,
+              pathname,
+            ),
+            href: generatePath(
+              absoluteRouteMap.children.org.children.projects.children.agents
+                .children.deployment.path,
+              { orgId, projectId, agentId },
+            ),
+          },
+          {
+            label: "Try it",
+            type: "item",
+            icon: <FlaskConical size={20} />,
+            isActive: !!matchPath(
+              absoluteRouteMap.children.org.children.projects.children.agents
+                .children.environment.children.tryOut.wildPath,
+              pathname,
+            ),
+            href: generatePath(
+              absoluteRouteMap.children.org.children.projects.children.agents
+                .children.environment.children.tryOut.path,
+              { orgId, projectId, agentId, envId: defaultEnv },
+            ),
+          },
+          {
+            label: "Publish",
+            type: "item",
+            icon: <Megaphone size={20} />,
+            isActive: !!matchPath(
+              absoluteRouteMap.children.org.children.projects.children.agents
+                .children.publish.wildPath,
+              pathname,
+            ),
+            href: generatePath(
+              absoluteRouteMap.children.org.children.projects.children.agents
+                .children.publish.path,
               { orgId, projectId, agentId },
             ),
           },
@@ -535,6 +748,12 @@ export function useNavigationItems(): Array<
         ],
       },
       ...eventsItem(eventsAgentRoute, { orgId, projectId, agentId }),
+      ...toPluginNavItems(agentPluginItems, {
+        orgId,
+        projectId,
+        agentId,
+        envId: defaultEnv,
+      }),
       ...externalNavItems
         .filter((item) => item.level === "component")
         .map((item) => ({
@@ -588,6 +807,7 @@ export function useNavigationItems(): Array<
           ),
       },
       ...eventsItem(eventsProjectRoute, { orgId, projectId }),
+      ...toPluginNavItems(projectPluginItems, { orgId, projectId }),
     ];
   }
   if (orgId) {
@@ -685,19 +905,7 @@ export function useNavigationItems(): Array<
               type: "section" as const,
               icon: <Server />,
               collapsible: true,
-              items: [
-                ...(canViewGateways
-                  ? [
-                      {
-                        label: "Gateways",
-                        type: "item" as const,
-                        icon: <Network size={20} />,
-                        href: generatePath(gatewaysOrgRoute.path, { orgId }),
-                        isActive: !!matchPath(gatewaysOrgRoute.wildPath, pathname),
-                      },
-                    ]
-                  : []),
-              ],
+              items: toPluginNavItems(infrastructurePluginItems, { orgId }),
             },
           ]
         : []),
@@ -731,6 +939,7 @@ export function useNavigationItems(): Array<
             },
           ]
         : []),
+      ...toPluginNavItems(orgPluginItems, { orgId }),
       ...externalNavItems
         .filter((item) => item.level === "org")
         .map((item) => ({

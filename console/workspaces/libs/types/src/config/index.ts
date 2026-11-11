@@ -99,6 +99,14 @@ export interface AppConfig {
   };
   /** Feature flags, read through @agent-management-platform/feature-management. */
   featureFlags?: Partial<FeatureFlags>;
+  /** Console plugins (feature modules); see PluginManifest. */
+  plugins?: {
+    /**
+     * Ids of plugins to turn off. A disabled plugin's routes, nav items and
+     * panels are not registered, and its page chunks are never loaded.
+     */
+    disabled?: string[];
+  };
 }
 
 export type GuardrailCapabilities = {

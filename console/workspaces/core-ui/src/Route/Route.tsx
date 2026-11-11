@@ -46,12 +46,12 @@ import {
   LazyViewLLMProviderComponent,
   LazyAddLLMProvidersOrg,
   LazyViewMCPServerComponent,
-  LazyGatewaysOrg,
-  LazyAgentIdentityOrg,
+  LazyThunderInstancesOrg,
   LazySettingsOrg,
   LazyOrgEvents,
   LazyProjectEvents,
   LazyAgentEvents,
+  LazyCatalogOrg,
   LazyAddNewAgent,
   LazyAddNewProject,
   LazyEditProject,
@@ -81,10 +81,7 @@ import {
   useExternalPageModules,
   type ExternalPageModule,
 } from "@agent-management-platform/views";
-import {
-  useFeatureFlag,
-  useGatewayFeatures,
-} from "@agent-management-platform/feature-management";
+import { useFeatureFlag } from "@agent-management-platform/feature-management";
 import {
   legacyOrgRedirectPath,
   orgRouteId,
@@ -94,6 +91,11 @@ import {
   usePageViewTracking,
 } from "@agent-management-platform/api-client";
 import { MountPoints } from "../types";
+import {
+  PluginActivators,
+  usePluginRoutes,
+  type ActivePluginRoute,
+} from "../plugins";
 
 // Back-compat redirect: the Identities pages (users/roles/groups) moved from
 // /org/:orgId/identities/* to /org/:orgId/settings/identities/*. Preserve any
@@ -124,6 +126,31 @@ function PageViewTracker() {
   const { pathname } = useLocation();
   usePageViewTracking(pathname);
   return null;
+}
+
+// Plugin pages are lazy: the chunk is requested only when the route matches
+// and the plugin's activation hooks have said yes. While they are still
+// deciding (state undefined) the page shows a loader instead of a 404, so deep
+// links survive a cold load. Inactive plugins have no route at all.
+//
+// Called as a function, not rendered as a component, because <Routes> only
+// accepts <Route> elements (or fragments of them) as children.
+function renderPluginRoutes(routes: ActivePluginRoute[]) {
+  return routes.map(({ key, path, state, Component }) => (
+    <Route
+      key={key}
+      path={path}
+      element={
+        state === undefined ? (
+          <LoadingFallback />
+        ) : (
+          <Suspense fallback={<LoadingFallback />}>
+            <Component />
+          </Suspense>
+        )
+      }
+    />
+  ));
 }
 
 function GuardedOutlet({
@@ -219,7 +246,10 @@ export function RootRouter() {
   const externalOrgPageModules = useExternalPageModules();
   // Keep the Agent ID pages unreachable by URL too, not just hidden in the nav.
   const agentIdEnabled = useFeatureFlag("enableAgentIdentity");
-  const { canView: canViewGateways } = useGatewayFeatures();
+  // Pages contributed by plugins, already filtered by config and activation.
+  const orgPluginRoutes = usePluginRoutes("org");
+  const projectPluginRoutes = usePluginRoutes("project");
+  const agentPluginRoutes = usePluginRoutes("agent");
 
   const { projectPageModules, orgPageModules, componentPageModules } =
     externalOrgPageModules.reduce(
@@ -259,6 +289,10 @@ export function RootRouter() {
           path={"/"}
           element={
             <Protected>
+              {/* Runs plugin activation hooks. It sits here, under the router
+                  and auth, so hooks can read org/project/agent params and call
+                  authenticated APIs. */}
+              <PluginActivators />
               <OxygenLayout />
             </Protected>
           }
@@ -300,12 +334,6 @@ export function RootRouter() {
                 }
               />
             )}
-            {canViewGateways && (
-              <Route
-                path={relativeRouteMap.children.org.children.gateways.path + "/*"}
-                element={<LazyGatewaysOrg />}
-              />
-            )}
             <Route
               path={
                 relativeRouteMap.children.org.children.settings.path + "/*"
@@ -322,6 +350,7 @@ export function RootRouter() {
             />
             {/* Back-compat: identities pages moved under Settings → IDP Settings */}
             <Route path="identities/*" element={<LegacyIdentitiesRedirect />} />
+            {renderPluginRoutes(orgPluginRoutes)}
             <Route
               path={
                 relativeRouteMap.children.org.children.llmProviders.path + "/*"
@@ -413,6 +442,7 @@ export function RootRouter() {
                   </Suspense>
                 }
               />
+              {renderPluginRoutes(projectPluginRoutes)}
               {projectPageModules.map((module) => (
                 <Route
                   key={module.path}
@@ -465,6 +495,7 @@ export function RootRouter() {
                     </Suspense>
                   }
                 />
+                {renderPluginRoutes(agentPluginRoutes)}
                 {componentPageModules.map((module) => (
                   <Route
                     key={module.path}

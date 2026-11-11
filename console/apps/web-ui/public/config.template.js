@@ -94,6 +94,10 @@ window.__RUNTIME_CONFIG__ = {
     // Resources managed outside the console; their pages are hidden.
     externallyManagedGateway: '$FEATURE_FLAG_EXTERNALLY_MANAGED_GATEWAY' === 'true',
   },
+  plugins: {
+    // Comma-separated plugin ids to turn off, e.g. "gateways,deployment-pipelines".
+    disabled: '$DISABLED_PLUGINS'.split(',').map((id) => id.trim()).filter(Boolean),
+  },
   maxRequestBodyBytes: '$MAX_REQUEST_BODY_BYTES',
   fileMountMaxFileBytes: '$FILE_MOUNT_MAX_FILE_BYTES',
   docsUrl: '$DOCS_URL',
