@@ -288,6 +288,7 @@ export interface EditResourceConfigsDrawerProps {
   environment?: string;
 }
 
+/** Edits resource settings and waits for an injected replica policy before allowing saves. */
 export function EditResourceConfigsDrawer({
   open,
   onClose,
@@ -454,7 +455,8 @@ export function EditResourceConfigsDrawer({
                 )}
                 {policyUnavailable && (
                   <Alert severity="error">
-                    Replica limits could not be loaded. Saving is unavailable.
+                    Replica limits could not be loaded, so saving is unavailable.
+                    Close and reopen this drawer to try again.
                   </Alert>
                 )}
                 <Form.ElementWrapper label="Replicas" name="replicas">
