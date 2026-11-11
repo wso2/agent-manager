@@ -215,7 +215,7 @@ func (s *ProjectMCPProxyService) PutEnvironment(
 	// A binding off identity no longer accepts its tokens: its resource server, and the roles' grants of it, go. The
 	// write marked it pending, and the mark is cleared once the removal succeeds. One back on identity with a removal
 	// still pending has it done first, so grants made for its old registration do not apply again.
-	if previous != nil && (mcpIdentityEnabled(previous.Security) || previous.IdentityCleanupPending) {
+	if previous != nil && bindingHasIdentityToRemove(*previous) {
 		if mcpIdentityEnabled(endpoint.Configuration.Security) {
 			if previous.IdentityCleanupPending {
 				s.cleanUpBindingIdentity(ctx, ouID, saved, envName, endpoint.UUID, false)
@@ -317,8 +317,7 @@ func (s *ProjectMCPProxyService) saveAndDeployBinding(
 	if ee != nil {
 		lockedConfig := endpoint.Configuration
 		previous = &lockedConfig
-		pending := (mcpIdentityEnabled(lockedConfig.Security) || lockedConfig.IdentityCleanupPending) &&
-			!mcpIdentityEnabled(desired.Security)
+		pending := bindingHasIdentityToRemove(lockedConfig) && !mcpIdentityEnabled(desired.Security)
 		desired.IdentityCleanupPending, stored.IdentityCleanupPending = pending, pending
 	}
 	var artifactUUID uuid.UUID
@@ -490,22 +489,26 @@ func (s *ProjectMCPProxyService) DeleteEnvironmentInDeletedProject(ctx context.C
 
 func (s *ProjectMCPProxyService) deleteEnvironmentOf(ctx context.Context, ouID string, proxy *models.MCPProxy, envName string) error {
 	envName = strings.TrimSpace(envName)
-	_, ee := bindingByEnvironmentName(proxy, envName)
+	bound, ee := bindingByEnvironmentName(proxy, envName)
 	if ee == nil {
 		return utils.ErrMCPProxyEnvironmentNotBound
 	}
 	if err := s.ensureBindingNotInUse(ctx, proxy.UUID, ee.EnvironmentUUID); err != nil {
 		return err
 	}
-	// The proxy's scopes, read before anything is deleted: the resource server removal after the delete sweeps their
-	// grants from roles, and once the binding is gone nothing could retry a removal made without them.
+	// The proxy's scopes, read before anything is deleted when the binding has a resource server to remove: the
+	// removal after the delete sweeps their grants from roles, and once the binding is gone nothing could retry a
+	// removal made without them. A binding never on identity has none, and costs the identity service nothing.
 	var actions []string
-	if s.base.resolver != nil {
+	actionsRead := false
+	if s.base.resolver != nil && bindingHasIdentityToRemove(bound.Configuration) {
 		var err error
 		if actions, err = s.proxyScopeActions(ctx, proxy); err != nil {
 			return err
 		}
+		actionsRead = true
 	}
+	removeIdentity := false
 	if err := s.base.tx(ctx, func(tx *gorm.DB) error {
 		locked, err := s.base.repo.GetByHandleForUpdate(ctx, tx, proxyHandleOf(proxy), ouID)
 		if err != nil {
@@ -519,6 +522,7 @@ func (s *ProjectMCPProxyService) deleteEnvironmentOf(ctx context.Context, ouID s
 		if ee == nil {
 			return utils.ErrMCPProxyEnvironmentNotBound
 		}
+		removeIdentity = bindingHasIdentityToRemove(endpoint.Configuration)
 		ref := models.ArtifactRef{OUID: ouID, ArtifactUUID: ee.ArtifactUUID, Kind: models.KindMCPMapping}
 		events, err := s.base.core.PrepareDelete(ctx, tx, ref)
 		if err != nil {
@@ -543,8 +547,27 @@ func (s *ProjectMCPProxyService) deleteEnvironmentOf(ctx context.Context, ouID s
 	}); err != nil {
 		return err
 	}
+	if !removeIdentity || s.base.resolver == nil {
+		return nil
+	}
+	if !actionsRead {
+		// A PUT moved the binding to identity after it was read: its scopes are read now, and a failure leaves the
+		// resource server, as the binding is already gone.
+		var err error
+		if actions, err = s.proxyScopeActions(ctx, proxy); err != nil {
+			s.base.logger.Warn("project MCP binding resource server delete skipped: listing scopes failed",
+				"proxy", proxyHandleOf(proxy), "env", envName, "error", err)
+			return nil
+		}
+	}
 	s.purgeBindingResourceServer(ctx, ouID, proxy, envName, actions)
 	return nil
+}
+
+// bindingHasIdentityToRemove reports whether a binding has a resource server, and its scopes' grants, to remove: it
+// is on identity, or it left identity and that removal has not succeeded yet.
+func bindingHasIdentityToRemove(config models.MCPEndpointConfig) bool {
+	return mcpIdentityEnabled(config.Security) || config.IdentityCleanupPending
 }
 
 // ensureBindingNotInUse refuses with ErrMCPProxyHasMappings when an agent is mapped to the proxy in envUUID: the

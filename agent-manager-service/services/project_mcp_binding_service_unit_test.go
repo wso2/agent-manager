@@ -843,18 +843,32 @@ func TestPutEnv_APIKey_RegistersNoResourceServer(t *testing.T) {
 	assert.Empty(t, calls.ensured)
 }
 
-// A deleted binding's resource server is removed whatever its security: one that left identity keeps its resource
-// server if that removal failed, and no PUT can retry it once the binding is gone.
-func TestPurgeBindingResourceServer_RemovesItWhateverTheSecurity(t *testing.T) {
+// A binding never on identity has no resource server: deleting it makes no identity call and reads no scopes, so a
+// proxy with OAuth in another environment does not page through roles on every delete here.
+func TestDeleteEnv_NeverOnIdentity_TouchesNoIdentityService(t *testing.T) {
 	f := newBindingFixture(t)
 	calls := f.withThunder()
+	lookups := 0
+	f.svc.base.mcpProxyScopeRepo = &repomocks.MCPProxyScopeRepositoryMock{
+		ListByProxyFunc: func(context.Context, uuid.UUID) ([]models.MCPProxyScope, error) {
+			lookups++
+			return []models.MCPProxyScope{{Action: "read"}}, nil
+		},
+	}
 	_, _, err := f.put(t, models.MCPProxyEnvironmentRequest{})
 	require.NoError(t, err)
+	// The fixture runs no delete transaction; the lock ends the delete there, past the point the scopes would be read.
+	repo := f.svc.base.repo.(*repomocks.MCPProxyRepositoryMock)
+	repo.GetByHandleForUpdateFunc = func(context.Context, *gorm.DB, string, string) (*models.MCPProxy, error) {
+		return nil, gorm.ErrRecordNotFound
+	}
 
-	f.svc.purgeBindingResourceServer(context.Background(), testOrg, f.proxy, bindingEnv, nil)
-	require.Len(t, calls.deleted, 1, "an api-key binding's leftover is removed too")
-	assert.Equal(t, bindingEnv, calls.deleted[0].env)
-	assert.Equal(t, bindingHandle, calls.deleted[0].handle)
+	err = f.svc.DeleteEnvironment(context.Background(), testOrg, bindingProject, bindingProjectUUID, bindingHandle, bindingEnv)
+	require.ErrorIs(t, err, utils.ErrMCPProxyNotFound)
+	assert.Len(t, repo.GetByHandleForUpdateCalls(), 2, "the delete reached its lock")
+	assert.Zero(t, lookups)
+	assert.Empty(t, calls.deleted)
+	assert.Zero(t, calls.swept)
 }
 
 // A failed scope lookup removes nothing, rather than deleting the resource server and leaving its grants in roles; a
@@ -867,7 +881,7 @@ func TestBindingResourceServerCleanup_FailedScopeLookupRemovesNothing(t *testing
 		ListByProxyFunc: func(context.Context, uuid.UUID) ([]models.MCPProxyScope, error) { return nil, lookupErr },
 	}
 
-	_, _, err := f.put(t, models.MCPProxyEnvironmentRequest{})
+	_, _, err := f.put(t, models.MCPProxyEnvironmentRequest{Security: identityBinding()})
 	require.NoError(t, err)
 	endpoint, _ := f.binding()
 	endpointRepo := f.svc.base.endpointRepo.(*repomocks.MCPProxyEndpointRepositoryMock)

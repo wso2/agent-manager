@@ -115,11 +115,10 @@ func (s *ProjectMCPProxyService) cleanUpBindingIdentity(
 	}
 }
 
-// purgeBindingResourceServer removes the resource server of a deleted binding, best effort, whatever its security was
-// when deleted: a binding that left identity may still have one if that removal failed, and with the binding gone no
-// identical PUT can retry it. actions are the proxy's scope actions, read before the binding was deleted so a failed
-// read stops the delete instead. A resource server already gone, or an environment without an identity service, is
-// not an error.
+// purgeBindingResourceServer removes the resource server of a deleted binding that was on identity or had a removal
+// pending, best effort: with the binding gone no identical PUT can retry it. actions are the proxy's scope actions,
+// read before the binding was deleted so a failed read stops the delete instead. A resource server already gone, or an
+// environment without an identity service, is not an error.
 func (s *ProjectMCPProxyService) purgeBindingResourceServer(
 	ctx context.Context, ouID string, proxy *models.MCPProxy, envName string, actions []string,
 ) {
