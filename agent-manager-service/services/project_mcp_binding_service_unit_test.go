@@ -796,6 +796,34 @@ func TestPutEnv_IdenticalPUTRetriesOnlyAPendingIdentityCleanup(t *testing.T) {
 	assert.Len(t, f.deployed, 2, "identical PUTs never redeploy")
 }
 
+// A binding back on identity keeps a pending removal's ID until that removal succeeds: while it fails the binding is
+// not registered again, so its old grants do not apply, and an identical PUT retries the removal, then registers.
+func TestPutEnv_BackToIdentityKeepsAFailingCleanupPending(t *testing.T) {
+	f := newBindingFixture(t)
+	calls := f.withThunder()
+
+	_, _, err := f.put(t, models.MCPProxyEnvironmentRequest{Security: identityBinding()})
+	require.NoError(t, err)
+	require.Len(t, calls.ensured, 1)
+	calls.deleteErr = errors.New("identity service unavailable")
+	_, _, err = f.put(t, models.MCPProxyEnvironmentRequest{})
+	require.NoError(t, err)
+
+	_, _, err = f.put(t, models.MCPProxyEnvironmentRequest{Security: identityBinding()})
+	require.NoError(t, err)
+	endpoint, ee := f.binding()
+	assert.NotEmpty(t, endpoint.Configuration.IdentityCleanupID, "the write back to identity keeps the pending removal")
+	assert.Len(t, calls.ensured, 1, "not registered again while the old resource server's removal fails")
+
+	f.status[ee.ArtifactUUID].Status = models.DeploymentStatusDeployed
+	calls.deleteErr = nil
+	_, _, err = f.put(t, models.MCPProxyEnvironmentRequest{Security: identityBinding()})
+	require.NoError(t, err)
+	endpoint, _ = f.binding()
+	assert.Empty(t, endpoint.Configuration.IdentityCleanupID)
+	assert.Len(t, calls.ensured, 2, "the identical PUT removed the old one, then registered")
+}
+
 // A removal that finishes after the binding left identity again clears only its own ID: the newer write's ID, whose
 // removal is still to run, stays for a retry. Each write that leaves identity gets a new ID.
 func TestBindingIdentityCleanup_AStaleRemovalKeepsTheNewerID(t *testing.T) {

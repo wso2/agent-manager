@@ -94,9 +94,9 @@ func (s *ProjectMCPProxyService) ensureBindingResourceServers(ctx context.Contex
 // leave their grants with nothing to sweep them; the ID stays and an identical PUT retries.
 func (s *ProjectMCPProxyService) cleanUpBindingIdentity(
 	ctx context.Context, ouID string, proxy *models.MCPProxy, envName string, endpointUUID uuid.UUID, cleanupID string,
-) {
+) bool {
 	if s.base.resolver == nil {
-		return
+		return false
 	}
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), ensureResourceServerPerEnvTimeout)
 	defer cancel()
@@ -104,15 +104,32 @@ func (s *ProjectMCPProxyService) cleanUpBindingIdentity(
 	if err != nil {
 		s.base.logger.Warn("project MCP binding identity cleanup deferred: listing scopes failed",
 			"proxy", proxyHandleOf(proxy), "env", envName, "error", err)
-		return
+		return false
 	}
-	if !s.removeBindingResourceServer(ctx, ouID, proxy, envName, actions) || cleanupID == "" {
-		return
+	if !s.removeBindingResourceServer(ctx, ouID, proxy, envName, actions) {
+		return false
 	}
-	if err := s.base.endpointRepo.ClearIdentityCleanupID(ctx, endpointUUID, cleanupID); err != nil {
-		s.base.logger.Warn("project MCP binding identity cleanup: clearing the cleanup ID failed",
-			"proxy", proxyHandleOf(proxy), "env", envName, "error", err)
+	if cleanupID != "" {
+		if err := s.base.endpointRepo.ClearIdentityCleanupID(ctx, endpointUUID, cleanupID); err != nil {
+			s.base.logger.Warn("project MCP binding identity cleanup: clearing the cleanup ID failed",
+				"proxy", proxyHandleOf(proxy), "env", envName, "error", err)
+		}
 	}
+	return true
+}
+
+// syncBindingIdentity brings a saved binding's identity service state in line with it, best effort: a pending removal
+// of its old resource server runs first, and a binding on identity is registered only once nothing is pending, so a
+// removal that fails is retried by the next PUT before the binding registers again.
+func (s *ProjectMCPProxyService) syncBindingIdentity(
+	ctx context.Context, ouID string, proxy *models.MCPProxy, envUUID uuid.UUID, envName string, endpoint *models.MCPProxyEndpoint,
+) {
+	if cleanupID := endpoint.Configuration.IdentityCleanupID; cleanupID != "" {
+		if !s.cleanUpBindingIdentity(ctx, ouID, proxy, envName, endpoint.UUID, cleanupID) {
+			return
+		}
+	}
+	s.ensureBindingResourceServer(ctx, ouID, proxy, envUUID, envName)
 }
 
 // purgeBindingResourceServer removes the resource server of a deleted binding that was on identity or had a removal
