@@ -42,11 +42,10 @@ import (
 
 // Scope is the context included on every JSON envelope.
 type Scope struct {
-	Instance    string `json:"instance"`
-	Org         string `json:"org,omitempty"`
-	Project     string `json:"project,omitempty"`
-	Environment string `json:"environment,omitempty"`
-	Agent       string `json:"agent,omitempty"`
+	Instance string `json:"instance"`
+	Org      string `json:"org,omitempty"`
+	Project  string `json:"project,omitempty"`
+	Agent    string `json:"agent,omitempty"`
 }
 
 type successEnvelope struct {

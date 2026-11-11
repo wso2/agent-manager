@@ -29,7 +29,7 @@ import (
 	"github.com/wso2/agent-manager/cli/pkg/cmdutil"
 )
 
-// Routing values describe how an environment's card is reached.
+// Routing values describe how an agent's card is reached.
 const (
 	RoutingDirect  = "direct"
 	RoutingProxied = "proxied"
@@ -37,14 +37,13 @@ const (
 
 const wellKnownCardPath = "/.well-known/agent-card.json"
 
-// Target identifies the agent environment whose card source is set.
-type Target struct{ Org, Proj, Agent, Env string }
+// Target identifies the agent whose card source is set.
+type Target struct{ Org, Proj, Agent string }
 
 // SourceResult reports the saved card URL and how it is routed.
 type SourceResult struct {
-	Environment string `json:"environment"`
-	URL         string `json:"url"`
-	Routing     string `json:"routing"` // RoutingDirect, RoutingProxied, or "" when unknown
+	URL     string `json:"url"`
+	Routing string `json:"routing"` // RoutingDirect, RoutingProxied, or "" when unknown
 }
 
 // CheckCardURL refuses, before anything is saved, a card URL the server would refuse:
@@ -72,9 +71,9 @@ func CheckCardURL(flag, raw string, proxied bool) error {
 
 // ApplySource saves the card URL and, when proxy is set, routes the card through the gateway.
 func ApplySource(ctx context.Context, client *amsvc.ClientWithResponses, t Target, cardURL string, proxy bool) (SourceResult, error) {
-	res := SourceResult{Environment: t.Env, URL: cardURL}
+	res := SourceResult{URL: cardURL}
 
-	src, err := client.SetAgentCardSourceWithResponse(ctx, t.Org, t.Proj, t.Agent, t.Env, amsvc.SetAgentCardSourceRequest{Url: cardURL})
+	src, err := client.SetAgentCardSourceWithResponse(ctx, t.Org, t.Proj, t.Agent, cmdutil.DefaultEnvironment, amsvc.SetAgentCardSourceRequest{Url: cardURL})
 	if err != nil {
 		return res, clierr.Newf(clierr.Transport, "%v", err)
 	}
@@ -82,7 +81,7 @@ func ApplySource(ctx context.Context, client *amsvc.ClientWithResponses, t Targe
 		return res, sourceError(src)
 	}
 
-	cur, err := client.GetA2AProxyWithResponse(ctx, t.Org, t.Proj, t.Agent, t.Env)
+	cur, err := client.GetA2AProxyWithResponse(ctx, t.Org, t.Proj, t.Agent, cmdutil.DefaultEnvironment)
 	if err != nil {
 		return res, partialFailure(res, clierr.Newf(clierr.Transport, "%v", err))
 	}
@@ -99,7 +98,7 @@ func ApplySource(ctx context.Context, client *amsvc.ClientWithResponses, t Targe
 		return res, nil
 	}
 
-	put, err := client.SetA2AProxyWithResponse(ctx, t.Org, t.Proj, t.Agent, t.Env, amsvc.SetA2AProxyRequest{})
+	put, err := client.SetA2AProxyWithResponse(ctx, t.Org, t.Proj, t.Agent, cmdutil.DefaultEnvironment, amsvc.SetA2AProxyRequest{})
 	if err != nil {
 		return res, partialFailure(res, clierr.Newf(clierr.Transport, "%v", err))
 	}
@@ -129,11 +128,10 @@ func partialFailure(res SourceResult, cause clierr.CLIError) clierr.CLIError {
 	for k, v := range cause.AdditionalData {
 		data[k] = v
 	}
-	data["environment"] = res.Environment
 	data["url"] = res.URL
 	data["routing"] = res.Routing
 	data["urlSaved"] = true
-	cause.Message = "card URL saved for " + res.Environment + ", but " + cause.Message
+	cause.Message = "card URL saved, but " + cause.Message
 	cause.AdditionalData = data
 	return cause
 }

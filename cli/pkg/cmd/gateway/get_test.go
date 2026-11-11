@@ -78,7 +78,7 @@ func TestGet_TextOutputShowsUUIDAndType(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	for _, want := range []string{"11111111-1111-1111-1111-111111111111", "EGRESS", "default", "edge.example.com"} {
+	for _, want := range []string{"11111111-1111-1111-1111-111111111111", "EGRESS", "edge.example.com"} {
 		if !strings.Contains(out.String(), want) {
 			t.Errorf("output missing %q; got:\n%s", want, out.String())
 		}

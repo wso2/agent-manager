@@ -21,7 +21,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
 	"github.com/wso2/agent-manager/cli/pkg/clients/observersvc"
 	"github.com/wso2/agent-manager/cli/pkg/cmdutil"
 	"github.com/wso2/agent-manager/cli/pkg/iostreams"
@@ -31,16 +30,13 @@ import (
 type ExportTracesOptions struct {
 	IO           *iostreams.IOStreams
 	TraceClient  func(context.Context) (*observersvc.Client, error)
-	AMClient     func(context.Context) (*amsvc.ClientWithResponses, error)
 	ResolveScope func(*cobra.Command, bool, bool) (string, string, error)
 	ResolveAgent func([]string) (string, []string, error)
-	ResolveEnv   func(*cobra.Command) (string, error)
-	MakeScope    func(string, string, string, string) render.Scope
+	MakeScope    func(string, string, string) render.Scope
 
 	Org       string
 	Proj      string
 	AgentName string
-	Env       string
 	Scope     render.Scope
 	StartTime string
 	EndTime   string
@@ -56,11 +52,9 @@ func NewExportCmd(f *cmdutil.Factory) *cobra.Command {
 	opts := &ExportTracesOptions{
 		IO:           f.IOStreams,
 		TraceClient:  f.Observer,
-		AMClient:     f.AgentManager,
 		ResolveScope: f.ResolveOrgProject,
 		ResolveAgent: f.ResolveAgent,
-		ResolveEnv:   f.ResolveEnvironment,
-		MakeScope:    f.EnvScope,
+		MakeScope:    f.AgentScope,
 	}
 	var (
 		window  windowFlags
@@ -84,13 +78,9 @@ func NewExportCmd(f *cmdutil.Factory) *cobra.Command {
 			if err != nil {
 				return render.Error(opts.IO, render.Scope{}, err)
 			}
-			env, err := opts.ResolveEnv(cmd)
-			if err != nil {
-				return render.Error(opts.IO, render.Scope{}, err)
-			}
 
-			scope := opts.MakeScope(org, proj, agentName, env)
-			opts.Org, opts.Proj, opts.AgentName, opts.Env, opts.Scope = org, proj, agentName, env, scope
+			scope := opts.MakeScope(org, proj, agentName)
+			opts.Org, opts.Proj, opts.AgentName, opts.Scope = org, proj, agentName, scope
 
 			opts.StartTime, opts.EndTime, err = resolveWindow(&window, cmd.Flags().Changed("since"))
 			if err != nil {
@@ -106,10 +96,6 @@ func NewExportCmd(f *cmdutil.Factory) *cobra.Command {
 				return render.Error(opts.IO, scope, err)
 			}
 
-			if err := preflightEnv(cmd.Context(), opts.AMClient, org, env); err != nil {
-				return render.Error(opts.IO, scope, err)
-			}
-
 			return runExportTraces(cmd.Context(), opts)
 		},
 	}
@@ -118,7 +104,6 @@ func NewExportCmd(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().IntVar(&opts.Limit, "limit", 100, "Max traces to export (1-100)")
 	cmd.Flags().StringVar(&opts.SortOrder, "sort", "desc", "Sort order: asc or desc")
 	addFilterFlags(cmd, &opts.Filters, &filters, false)
-	cmdutil.AddEnvFlag(cmd)
 	cmd.ValidArgsFunction = func(cmd *cobra.Command, args []string, _ string) ([]string, cobra.ShellCompDirective) {
 		if len(args) > 0 {
 			return nil, cobra.ShellCompDirectiveNoFileComp
@@ -144,7 +129,6 @@ func runExportTraces(ctx context.Context, o *ExportTracesOptions) error {
 		Organization: o.Org,
 		Project:      o.Proj,
 		Agent:        o.AgentName,
-		Environment:  o.Env,
 		StartTime:    parseTimeOrZero(o.StartTime),
 		EndTime:      parseTimeOrZero(o.EndTime),
 		Limit:        &limit,

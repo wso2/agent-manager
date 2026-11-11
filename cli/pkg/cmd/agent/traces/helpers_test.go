@@ -51,7 +51,7 @@ func newTraceTestClient(t *testing.T, status int, body any) (func(context.Contex
 }
 
 func traceBaseScope() render.Scope {
-	return render.Scope{Instance: "default", Org: "acme", Project: "triage", Agent: "my-agent", Environment: "dev"}
+	return render.Scope{Instance: "default", Org: "acme", Project: "triage", Agent: "my-agent"}
 }
 
 func newTraceTestIO(jsonMode bool) (*iostreams.IOStreams, *bytes.Buffer, *bytes.Buffer) {

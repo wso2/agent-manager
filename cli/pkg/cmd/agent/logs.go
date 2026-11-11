@@ -36,13 +36,11 @@ type LogsOptions struct {
 	Observer     func(context.Context) (*observersvc.Client, error)
 	ResolveScope func(*cobra.Command, bool, bool) (string, string, error)
 	ResolveAgent func([]string) (string, []string, error)
-	ResolveEnv   func(*cobra.Command) (string, error)
-	MakeScope    func(string, string, string, string) render.Scope
+	MakeScope    func(string, string, string) render.Scope
 
 	Org       string
 	Proj      string
 	AgentName string
-	Env       string
 	Scope     render.Scope
 	StartTime string
 	EndTime   string
@@ -59,8 +57,7 @@ func NewLogsCmd(f *cmdutil.Factory) *cobra.Command {
 		Observer:     f.Observer,
 		ResolveScope: f.ResolveOrgProject,
 		ResolveAgent: f.ResolveAgent,
-		ResolveEnv:   f.ResolveEnvironment,
-		MakeScope:    f.EnvScope,
+		MakeScope:    f.AgentScope,
 	}
 	var since string
 	var levels []string
@@ -81,13 +78,9 @@ func NewLogsCmd(f *cmdutil.Factory) *cobra.Command {
 			if err != nil {
 				return render.Error(opts.IO, render.Scope{}, err)
 			}
-			env, err := opts.ResolveEnv(cmd)
-			if err != nil {
-				return render.Error(opts.IO, render.Scope{}, err)
-			}
 
-			scope := opts.MakeScope(org, proj, agentName, env)
-			opts.Org, opts.Proj, opts.AgentName, opts.Env, opts.Scope = org, proj, agentName, env, scope
+			scope := opts.MakeScope(org, proj, agentName)
+			opts.Org, opts.Proj, opts.AgentName, opts.Scope = org, proj, agentName, scope
 
 			opts.StartTime, opts.EndTime, err = cmdutil.ResolveSinceWindow(since)
 			if err != nil {
@@ -112,7 +105,6 @@ func NewLogsCmd(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&grep, "grep", "", "Search phrase to filter logs")
 	cmd.Flags().IntVar(&limit, "limit", 0, "Maximum number of log entries")
 	cmd.Flags().StringVar(&sort, "sort", "desc", "Sort order: asc or desc")
-	cmdutil.AddEnvFlag(cmd)
 	cmd.ValidArgsFunction = func(cmd *cobra.Command, args []string, _ string) ([]string, cobra.ShellCompDirective) {
 		if len(args) > 0 {
 			return nil, cobra.ShellCompDirectiveNoFileComp
@@ -143,7 +135,6 @@ func runLogs(ctx context.Context, o *LogsOptions) error {
 		Organization: o.Org,
 		Project:      o.Proj,
 		Agent:        o.AgentName,
-		Environment:  o.Env,
 		StartTime:    o.StartTime,
 		EndTime:      o.EndTime,
 		SearchPhrase: o.Grep,

@@ -102,7 +102,6 @@ func runGet(ctx context.Context, o *GetOptions) error {
 	fmt.Fprintf(w, "uuid:          %s\n", g.Uuid)
 	fmt.Fprintf(w, "type:          %s\n", string(g.GatewayType))
 	fmt.Fprintf(w, "status:        %s\n", string(g.Status))
-	fmt.Fprintf(w, "environment:   %s\n", environmentNames(*g))
 	fmt.Fprintf(w, "vhost:         %s\n", g.Vhost)
 	if g.Region != nil && *g.Region != "" {
 		fmt.Fprintf(w, "region:        %s\n", *g.Region)

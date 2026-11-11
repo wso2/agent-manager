@@ -138,7 +138,6 @@ func nextPageCommand(o *ListTracesOptions, cursor string) string {
 	}
 	add("--org", o.Org)
 	add("--project", o.Proj)
-	add("--env", o.Env)
 	add("--start", o.StartTime)
 	add("--end", o.EndTime)
 	add("--sort", o.SortOrder)

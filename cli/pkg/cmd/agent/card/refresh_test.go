@@ -31,12 +31,12 @@ func refreshOpts(client func(context.Context) (*amsvc.ClientWithResponses, error
 	ios, out, errOut := newTestIO(jsonMode)
 	return &RefreshOptions{
 			IO: ios, Client: client, Scope: baseScope(),
-			Org: "acme", Proj: "triage", AgentName: "order-bot", Env: "dev",
+			Org: "acme", Proj: "triage", AgentName: "order-bot",
 		},
 		func() (string, string) { return out.String(), errOut.String() }
 }
 
-var refreshKey = "POST " + envPath("dev", "agent-card/refresh")
+var refreshKey = "POST " + envPath("default", "agent-card/refresh")
 
 func Test_runRefresh_queues(t *testing.T) {
 	o, got := refreshOpts(newClient(t, map[string]route{refreshKey: {status: http.StatusAccepted}}), false)
@@ -55,7 +55,7 @@ func Test_runRefresh_json(t *testing.T) {
 	}
 	out, _ := got()
 	data := decodeEnvelope(t, out)["data"].(map[string]any)
-	if data["environment"] != "dev" || data["queued"] != true {
+	if data["queued"] != true {
 		t.Errorf("data = %v", data)
 	}
 }

@@ -31,10 +31,10 @@ import (
 const cardURL = "https://a.example/.well-known/agent-card.json"
 
 var (
-	target    = Target{Org: "acme", Proj: "triage", Agent: "order-bot", Env: "dev"}
-	sourceKey = "PUT " + envPath("dev", "agent-card/source")
-	proxyGet  = "GET " + envPath("dev", "a2a-proxy")
-	proxyPut  = "PUT " + envPath("dev", "a2a-proxy")
+	target    = Target{Org: "acme", Proj: "triage", Agent: "order-bot"}
+	sourceKey = "PUT " + envPath("default", "agent-card/source")
+	proxyGet  = "GET " + envPath("default", "a2a-proxy")
+	proxyPut  = "PUT " + envPath("default", "a2a-proxy")
 )
 
 func TestCheckCardURLProxied(t *testing.T) {
@@ -85,7 +85,7 @@ func TestApplySource_direct(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if want := (SourceResult{Environment: "dev", URL: cardURL, Routing: RoutingDirect}); got != want {
+	if want := (SourceResult{URL: cardURL, Routing: RoutingDirect}); got != want {
 		t.Fatalf("got %+v, want %+v", got, want)
 	}
 }
@@ -139,14 +139,14 @@ func TestApplySource_proxyFailsAfterSource(t *testing.T) {
 	if !errors.As(err, &ce) {
 		t.Fatalf("want CLIError, got %T %v", err, err)
 	}
-	if !strings.HasPrefix(ce.Message, "card URL saved for dev, but ") {
+	if !strings.HasPrefix(ce.Message, "card URL saved, but ") {
 		t.Fatalf("message = %q", ce.Message)
 	}
 	if ce.Code != "BAD_REQUEST" || ce.Status != http.StatusBadRequest {
 		t.Fatalf("code/status = %q/%d", ce.Code, ce.Status)
 	}
 	if ce.AdditionalData["urlSaved"] != true || ce.AdditionalData["routing"] != RoutingDirect ||
-		ce.AdditionalData["url"] != cardURL || ce.AdditionalData["environment"] != "dev" {
+		ce.AdditionalData["url"] != cardURL {
 		t.Fatalf("additionalData = %v", ce.AdditionalData)
 	}
 	if got.Routing != RoutingDirect {

@@ -61,7 +61,7 @@ func runTracesCmdOutput(t *testing.T, body any, args ...string) (*capturedReques
 	cmdutil.EnableOrgOverride(root, f)
 	cmdutil.EnableProjectOverride(root, f)
 	root.AddCommand(NewTracesCmd(f))
-	root.SetArgs(append([]string{"traces", "my-agent", "--project", "triage", "--env", "dev"}, args...))
+	root.SetArgs(append([]string{"traces", "my-agent", "--project", "triage"}, args...))
 	err := root.Execute()
 	return captured, out, errOut, err
 }
@@ -314,7 +314,7 @@ func TestTracesCmd_DefaultRequestAndTableUnchanged(t *testing.T) {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
-	wantKeys := "agent,endTime,environment,limit,organization,project,sortOrder,startTime"
+	wantKeys := "agent,endTime,limit,organization,project,sortOrder,startTime"
 	if got := strings.Join(keys, ","); got != wantKeys {
 		t.Errorf("query keys = %s, want %s", got, wantKeys)
 	}

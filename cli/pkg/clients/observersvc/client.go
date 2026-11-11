@@ -124,9 +124,6 @@ func setCommonParams(q url.Values, p *ListTracesParams) {
 	if p.Agent != "" {
 		q.Set("agent", p.Agent)
 	}
-	if p.Environment != "" {
-		q.Set("environment", p.Environment)
-	}
 	setTimeRange(q, p.StartTime, p.EndTime)
 	if p.Limit != nil {
 		q.Set("limit", strconv.Itoa(*p.Limit))
@@ -228,7 +225,6 @@ func (c *Client) GetTraceSpans(ctx context.Context, traceID string, p *GetTraceS
 	}
 	setOptionalString(q, "project", p.Project)
 	setOptionalString(q, "agent", p.Agent)
-	setOptionalString(q, "environment", p.Environment)
 	setTimeRange(q, p.StartTime, p.EndTime)
 	if p.Limit != nil {
 		q.Set("limit", strconv.Itoa(*p.Limit))
@@ -264,7 +260,6 @@ func (c *Client) GetRuntimeLogs(ctx context.Context, p RuntimeLogsParams) (*Logs
 	q.Set("organization", p.Organization)
 	q.Set("project", p.Project)
 	q.Set("agent", p.Agent)
-	q.Set("environment", p.Environment)
 	if p.StartTime != "" {
 		q.Set("startTime", p.StartTime)
 	}
@@ -308,7 +303,6 @@ func (c *Client) GetMetrics(ctx context.Context, p MetricsParams) (*MetricsRespo
 	q.Set("organization", p.Organization)
 	q.Set("project", p.Project)
 	q.Set("agent", p.Agent)
-	q.Set("environment", p.Environment)
 	if p.StartTime != "" {
 		q.Set("startTime", p.StartTime)
 	}

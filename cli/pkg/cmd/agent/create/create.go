@@ -217,25 +217,15 @@ func runCreate(ctx context.Context, opts *CreateOptions, req amsvc.CreateAgentRe
 		return nil
 	}
 
-	env, err := cmdutil.ResolveEntryEnvironment(ctx, client, opts.Org, opts.Proj)
-	if err != nil {
-		fmt.Fprintf(opts.IO.ErrOut, "warning: agent created but could not resolve the entry environment (token and card setup skipped): %v\n", err)
-		var card *cardOutcome
-		if opts.CardURL != "" {
-			card = &cardOutcome{SourceResult: a2acard.SourceResult{URL: opts.CardURL}, Error: err.Error()}
-		}
-		return renderAgentWithCard(opts, resp.JSON202, card)
-	}
-
 	var card *cardOutcome
 	if opts.CardURL != "" {
-		card = applyCardURL(ctx, opts, client, resp.JSON202.Name, env)
+		card = applyCardURL(ctx, opts, client, resp.JSON202.Name)
 	}
 
 	// The agent is already created server-side, so a post-create failure (token
 	// mint, observer discovery) is a warning, not an error — otherwise the
 	// user retries and hits 409.
-	if err := runExternalPostCreate(ctx, opts, resp.JSON202, client, env, card); err != nil {
+	if err := runExternalPostCreate(ctx, opts, resp.JSON202, client, card); err != nil {
 		fmt.Fprintf(opts.IO.ErrOut, "warning: agent created but failed to generate token: %v\n", err)
 		return renderAgentWithCard(opts, resp.JSON202, card)
 	}
@@ -255,21 +245,21 @@ func renderAgentWithCard(opts *CreateOptions, agent *amsvc.AgentResponse, card *
 }
 
 // applyCardURL registers the card URL; failure is a warning because the agent already exists.
-func applyCardURL(ctx context.Context, opts *CreateOptions, client *amsvc.ClientWithResponses, name, env string) *cardOutcome {
-	target := a2acard.Target{Org: opts.Org, Proj: opts.Proj, Agent: name, Env: env}
+func applyCardURL(ctx context.Context, opts *CreateOptions, client *amsvc.ClientWithResponses, name string) *cardOutcome {
+	target := a2acard.Target{Org: opts.Org, Proj: opts.Proj, Agent: name}
 	res, err := a2acard.ApplySource(ctx, client, target, opts.CardURL, opts.CardProxy)
 	card := &cardOutcome{SourceResult: res}
-	card.Environment, card.URL = env, opts.CardURL
+	card.URL = opts.CardURL
 	if err == nil {
 		if !opts.IO.JSON {
 			cs := opts.IO.StderrColorScheme()
-			fmt.Fprintf(opts.IO.ErrOut, "%s Registered card URL for %s (%s)\n", cs.SuccessIcon(), env, res.Routing)
+			fmt.Fprintf(opts.IO.ErrOut, "%s Registered card URL (%s)\n", cs.SuccessIcon(), res.Routing)
 		}
 		return card
 	}
 	card.Error = err.Error()
 	fmt.Fprintf(opts.IO.ErrOut, "warning: agent created but card setup failed: %v\n", err)
-	retry := fmt.Sprintf("amctl agent card set %s --env %s --url %s", name, env, shellQuote(opts.CardURL))
+	retry := fmt.Sprintf("amctl agent card set %s --url %s", name, shellQuote(opts.CardURL))
 	if opts.CardProxy {
 		retry += " --proxy"
 	}

@@ -67,9 +67,9 @@ func Test_runGet_humanOutput(t *testing.T) {
 	got := out.String()
 	for _, want := range []string{
 		"primary", "llm", "primary openai binding",
-		"ENV", "PROVIDER", "URL", "STATUS",
-		"dev", "openai", "https://dev.llm", "active",
-		"prod", "anthropic",
+		"PROVIDER", "URL", "STATUS",
+		"openai", "https://dev.llm", "active",
+		"anthropic",
 		"OPENAI_URL", "OPENAI_KEY",
 	} {
 		if !strings.Contains(got, want) {

@@ -25,7 +25,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
 	"github.com/wso2/agent-manager/cli/pkg/clients/observersvc"
 	"github.com/wso2/agent-manager/cli/pkg/cmdutil"
 	"github.com/wso2/agent-manager/cli/pkg/iostreams"
@@ -36,16 +35,13 @@ import (
 type TraceOptions struct {
 	IO           *iostreams.IOStreams
 	TraceClient  func(context.Context) (*observersvc.Client, error)
-	AMClient     func(context.Context) (*amsvc.ClientWithResponses, error)
 	ResolveScope func(*cobra.Command, bool, bool) (string, string, error)
 	ResolveAgent func([]string) (string, []string, error)
-	ResolveEnv   func(*cobra.Command) (string, error)
-	MakeScope    func(string, string, string, string) render.Scope
+	MakeScope    func(string, string, string) render.Scope
 
 	Org       string
 	Proj      string
 	AgentName string
-	Env       string
 	Scope     render.Scope
 	TraceID   string
 	SpanID    string
@@ -63,11 +59,9 @@ func NewTraceCmd(f *cmdutil.Factory) *cobra.Command {
 	opts := &TraceOptions{
 		IO:           f.IOStreams,
 		TraceClient:  f.Observer,
-		AMClient:     f.AgentManager,
 		ResolveScope: f.ResolveOrgProject,
 		ResolveAgent: f.ResolveAgent,
-		ResolveEnv:   f.ResolveEnvironment,
-		MakeScope:    f.EnvScope,
+		MakeScope:    f.AgentScope,
 	}
 	var window windowFlags
 	var spanID string
@@ -81,12 +75,12 @@ func NewTraceCmd(f *cmdutil.Factory) *cobra.Command {
 			"--console-url prints the console path that opens this trace; paste it after your console's host. " +
 			"--from-url takes a console URL, path or \"?...\" query with a trace open and shows that trace " +
 			"(selectedTrace), searched over the URL's time range, or the console's 1h when it has none. Its path " +
-			"sets the org, project, agent and environment, so with a path one argument is the trace ID (unless it " +
+			"sets the org, project and agent, so with a path one argument is the trace ID (unless it " +
 			"names the URL's agent), and it overrides selectedTrace. --since, --start and --end override the URL's time range.\n\n" +
 			"Examples:\n" +
-			"  amctl agent trace my-agent 4bf92f3577b34da6a3ce929d0e0e4736 --env dev --console-url\n" +
+			"  amctl agent trace my-agent 4bf92f3577b34da6a3ce929d0e0e4736 --console-url\n" +
 			"  amctl agent trace --from-url 'https://console.example.com/org/acme/project/triage/agents/my-agent/" +
-			"environment/dev/observability/traces?timeRange=1d&selectedTrace=4bf92f3577b34da6a3ce929d0e0e4736'",
+			"environment/default/observability/traces?timeRange=1d&selectedTrace=4bf92f3577b34da6a3ce929d0e0e4736'",
 		Args: func(cmd *cobra.Command, args []string) error {
 			if fromURL != "" {
 				return cobra.MaximumNArgs(2)(cmd, args)
@@ -130,20 +124,12 @@ func NewTraceCmd(f *cmdutil.Factory) *cobra.Command {
 			if selected == "" {
 				return render.Error(opts.IO, render.Scope{}, cmdutil.FlagErrorf("trace ID is required"))
 			}
-			env, err := opts.ResolveEnv(cmd)
-			if err != nil {
-				return render.Error(opts.IO, render.Scope{}, err)
-			}
 
-			scope := opts.MakeScope(org, proj, agentName, env)
-			opts.Org, opts.Proj, opts.AgentName, opts.Env, opts.Scope = org, proj, agentName, env, scope
+			scope := opts.MakeScope(org, proj, agentName)
+			opts.Org, opts.Proj, opts.AgentName, opts.Scope = org, proj, agentName, scope
 			opts.TraceID = selected
 			opts.SpanID = spanID
 			opts.Limit = limit
-
-			if err := preflightEnv(cmd.Context(), opts.AMClient, org, env); err != nil {
-				return render.Error(opts.IO, scope, err)
-			}
 
 			opts.StartTime, opts.EndTime, err = resolveWindow(&window, cmd.Flags().Changed("since"))
 			if err != nil {
@@ -164,7 +150,6 @@ func NewTraceCmd(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&spanID, "span", "", "Show full detail for a specific span ID")
 	cmd.Flags().IntVar(&limit, "limit", 1000, "Max spans to return")
 	addConsoleFlags(cmd, &opts.ShowConsoleURL, &fromURL)
-	cmdutil.AddEnvFlag(cmd)
 	cmd.ValidArgsFunction = func(cmd *cobra.Command, args []string, _ string) ([]string, cobra.ShellCompDirective) {
 		if len(args) > 0 {
 			return nil, cobra.ShellCompDirectiveNoFileComp
@@ -195,7 +180,6 @@ func runTrace(ctx context.Context, o *TraceOptions) error {
 		EndTime:      parseTimeOrZero(o.EndTime),
 		Project:      &o.Proj,
 		Agent:        &o.AgentName,
-		Environment:  &o.Env,
 		Limit:        &limit,
 	})
 	if err != nil {
@@ -246,7 +230,7 @@ func traceConsoleLink(o *TraceOptions) string {
 		return ""
 	}
 	return consoleLink(&ListTracesOptions{
-		Org: o.Org, Proj: o.Proj, AgentName: o.AgentName, Env: o.Env,
+		Org: o.Org, Proj: o.Proj, AgentName: o.AgentName,
 		Since: o.Since, StartTime: o.StartTime, EndTime: o.EndTime,
 	}, windowParams(), o.TraceID)
 }

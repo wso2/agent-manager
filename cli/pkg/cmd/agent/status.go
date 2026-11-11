@@ -19,8 +19,6 @@ package agent
 import (
 	"context"
 	"fmt"
-	"sort"
-	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -44,17 +42,10 @@ type StatusOptions struct {
 	Proj      string
 	Scope     render.Scope
 	AgentName string
-	Env       string
 }
 
 type StatusResult struct {
-	Agent        string      `json:"agent"`
-	Environments []EnvStatus `json:"environments"`
-}
-
-type EnvStatus struct {
-	Name         string        `json:"name"`
-	DisplayName  string        `json:"displayName,omitempty"`
+	Agent        string        `json:"agent"`
 	Status       string        `json:"status"`
 	LastDeployed time.Time     `json:"lastDeployed"`
 	Endpoints    []EndpointRef `json:"endpoints"`
@@ -66,6 +57,9 @@ type EndpointRef struct {
 	Visibility string `json:"visibility"`
 }
 
+// notDeployed is the status reported when the agent has no deployment.
+const notDeployed = "not-deployed"
+
 func NewStatusCmd(f *cmdutil.Factory) *cobra.Command {
 	opts := &StatusOptions{
 		IO:           f.IOStreams,
@@ -76,7 +70,7 @@ func NewStatusCmd(f *cmdutil.Factory) *cobra.Command {
 	}
 	cmd := &cobra.Command{
 		Use:   "status [agent]",
-		Short: "Show deployment status by environment",
+		Short: "Show deployment status",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			org, proj, err := opts.ResolveScope(cmd, true, true)
@@ -94,7 +88,6 @@ func NewStatusCmd(f *cmdutil.Factory) *cobra.Command {
 			return runStatus(cmd.Context(), opts)
 		},
 	}
-	cmd.Flags().StringVar(&opts.Env, "env", "", "Filter by environment name")
 	cmd.ValidArgsFunction = func(cmd *cobra.Command, args []string, _ string) ([]string, cobra.ShellCompDirective) {
 		if len(args) > 0 {
 			return nil, cobra.ShellCompDirectiveNoFileComp
@@ -112,168 +105,61 @@ func runStatus(ctx context.Context, o *StatusOptions) error {
 	if err != nil {
 		return render.Error(o.IO, o.Scope, err)
 	}
-	deployments, paths, err := fetchStatusData(ctx, client, o.Org, o.Proj, o.AgentName)
+	resp, err := client.ListAgentDeploymentsWithResponse(ctx, o.Org, o.Proj, o.AgentName)
 	if err != nil {
-		return render.Error(o.IO, o.Scope, err)
+		return render.Error(o.IO, o.Scope, clierr.Newf(clierr.Transport, "%v", err))
+	}
+	if resp.JSON200 == nil {
+		return render.Error(o.IO, o.Scope, cmdutil.ErrorFromServer(resp.HTTPResponse, cmdutil.FirstNonNil(resp.JSON404, resp.JSON500)))
 	}
 
-	if len(deployments) == 0 {
-		fmt.Fprintln(o.IO.ErrOut, "No deployments found for this agent.")
-		result := StatusResult{Agent: o.AgentName, Environments: []EnvStatus{}}
+	d, ok := (*resp.JSON200)[cmdutil.DefaultEnvironment]
+	if !ok {
+		fmt.Fprintln(o.IO.ErrOut, "No deployment found for this agent.")
+		result := StatusResult{Agent: o.AgentName, Status: notDeployed, Endpoints: []EndpointRef{}}
 		if o.IO.JSON {
 			return render.JSONSuccess(o.IO, o.Scope, result)
 		}
 		return nil
 	}
-
-	ordered := orderEnvironments(paths, deployments)
-	ordered, err = filterEnvironments(ordered, deployments, o.Env)
-	if err != nil {
-		return render.Error(o.IO, o.Scope, err)
-	}
-	result := buildStatusResult(o.AgentName, ordered, deployments)
+	result := buildStatusResult(o.AgentName, d)
 	if o.IO.JSON {
 		return render.JSONSuccess(o.IO, o.Scope, result)
 	}
 	return renderStatusTable(o.IO, result)
 }
 
-func fetchStatusData(ctx context.Context, client *amsvc.ClientWithResponses, org, proj, agent string) (amsvc.DeploymentListResponse, []amsvc.PromotionPath, error) {
-	type depResult struct {
-		resp *amsvc.ListAgentDeploymentsResp
-		err  error
+func buildStatusResult(agent string, d amsvc.DeploymentDetailsResponse) StatusResult {
+	out := StatusResult{
+		Agent:     agent,
+		Status:    d.Status,
+		Endpoints: make([]EndpointRef, 0, len(d.Endpoints)),
 	}
-	type pipeResult struct {
-		resp *amsvc.GetDeploymentPipelineResp
-		err  error
+	// lastDeployed is omitted for an agent that has not deployed yet; zero time renders as "-".
+	if d.LastDeployed != nil {
+		out.LastDeployed = *d.LastDeployed
 	}
-
-	depCh := make(chan depResult, 1)
-	pipeCh := make(chan pipeResult, 1)
-
-	go func() {
-		resp, err := client.ListAgentDeploymentsWithResponse(ctx, org, proj, agent)
-		depCh <- depResult{resp: resp, err: err}
-	}()
-	go func() {
-		resp, err := client.GetDeploymentPipelineWithResponse(ctx, org, proj)
-		pipeCh <- pipeResult{resp: resp, err: err}
-	}()
-
-	dep := <-depCh
-	pipe := <-pipeCh
-
-	if dep.err != nil {
-		return nil, nil, clierr.Newf(clierr.Transport, "%v", dep.err)
-	}
-	if pipe.err != nil {
-		return nil, nil, clierr.Newf(clierr.Transport, "%v", pipe.err)
-	}
-	if dep.resp.JSON200 == nil {
-		return nil, nil, cmdutil.ErrorFromServer(dep.resp.HTTPResponse, cmdutil.FirstNonNil(dep.resp.JSON404, dep.resp.JSON500))
-	}
-	if pipe.resp.JSON200 == nil {
-		return nil, nil, cmdutil.ErrorFromServer(pipe.resp.HTTPResponse, cmdutil.FirstNonNil(pipe.resp.JSON404, pipe.resp.JSON500))
-	}
-	return *dep.resp.JSON200, pipe.resp.JSON200.PromotionPaths, nil
-}
-
-func buildStatusResult(agent string, order []string, deployments amsvc.DeploymentListResponse) StatusResult {
-	out := StatusResult{Agent: agent, Environments: make([]EnvStatus, 0, len(order))}
-	for _, envName := range order {
-		d := deployments[envName]
-		row := EnvStatus{
-			Name:      envName,
-			Status:    d.Status,
-			Endpoints: make([]EndpointRef, 0, len(d.Endpoints)),
-		}
-		// lastDeployed is omitted for bindings that have not deployed yet (e.g.
-		// created by the build workflow before the first backend deploy); zero time renders as "-".
-		if d.LastDeployed != nil {
-			row.LastDeployed = *d.LastDeployed
-		}
-		if d.EnvironmentDisplayName != nil {
-			row.DisplayName = *d.EnvironmentDisplayName
-		}
-		for _, ep := range d.Endpoints {
-			row.Endpoints = append(row.Endpoints, EndpointRef{
-				Name:       ep.Name,
-				URL:        ep.Url,
-				Visibility: string(ep.Visibility),
-			})
-		}
-		out.Environments = append(out.Environments, row)
+	for _, ep := range d.Endpoints {
+		out.Endpoints = append(out.Endpoints, EndpointRef{
+			Name:       ep.Name,
+			URL:        ep.Url,
+			Visibility: string(ep.Visibility),
+		})
 	}
 	return out
 }
 
-func orderEnvironments(paths []amsvc.PromotionPath, deployments amsvc.DeploymentListResponse) []string {
-	ordered := make([]string, 0, len(deployments))
-	visited := make(map[string]struct{}, len(deployments))
-	traversed := make(map[string]struct{}, len(paths))
-
-	bySource := make(map[string]amsvc.PromotionPath, len(paths))
-	for _, p := range paths {
-		bySource[p.SourceEnvironmentRef] = p
-	}
-
-	cur := cmdutil.LowestEnvironment(paths)
-	for cur != "" {
-		if _, seen := traversed[cur]; seen {
-			break
-		}
-		traversed[cur] = struct{}{}
-		if _, ok := deployments[cur]; ok {
-			ordered = append(ordered, cur)
-			visited[cur] = struct{}{}
-		}
-		path, ok := bySource[cur]
-		if !ok || len(path.TargetEnvironmentRefs) == 0 {
-			break
-		}
-		cur = path.TargetEnvironmentRefs[0].Name
-	}
-
-	leftovers := make([]string, 0)
-	for env := range deployments {
-		if _, seen := visited[env]; !seen {
-			leftovers = append(leftovers, env)
-		}
-	}
-	sort.Strings(leftovers)
-	ordered = append(ordered, leftovers...)
-	return ordered
-}
-
-func filterEnvironments(order []string, deployments amsvc.DeploymentListResponse, selected string) ([]string, error) {
-	if selected == "" {
-		return order, nil
-	}
-	if _, ok := deployments[selected]; !ok {
-		valid := make([]string, 0, len(deployments))
-		for name := range deployments {
-			valid = append(valid, name)
-		}
-		sort.Strings(valid)
-		return nil, clierr.Newf(clierr.NotFound, "environment %q is not in deployment results; valid: %s", selected, strings.Join(valid, ", "))
-	}
-	return []string{selected}, nil
-}
-
 func renderStatusTable(io *iostreams.IOStreams, result StatusResult) error {
-	tp := tableprinter.New(io, "env", "status", "last deployed", "endpoints")
+	tp := tableprinter.New(io, "status", "last deployed", "endpoints")
 	cs := io.ColorScheme()
-	for _, env := range result.Environments {
-		tp.AddField(env.Name, tableprinter.WithColor(cs.Bold))
-		if color := statusColorFunc(cs, env.Status); color != nil {
-			tp.AddField(env.Status, tableprinter.WithColor(color))
-		} else {
-			tp.AddField(env.Status)
-		}
-		tp.AddField(formatLastDeployed(env.LastDeployed), tableprinter.WithColor(cs.Gray))
-		tp.AddField(summarizeEndpoints(env.Endpoints))
-		tp.EndRow()
+	if color := statusColorFunc(cs, result.Status); color != nil {
+		tp.AddField(result.Status, tableprinter.WithColor(color))
+	} else {
+		tp.AddField(result.Status)
 	}
+	tp.AddField(formatLastDeployed(result.LastDeployed), tableprinter.WithColor(cs.Gray))
+	tp.AddField(summarizeEndpoints(result.Endpoints))
+	tp.EndRow()
 	return tp.Render()
 }
 

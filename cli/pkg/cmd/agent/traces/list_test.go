@@ -45,7 +45,7 @@ func TestListTraces_TextOutput(t *testing.T) {
 
 	err := runListTraces(context.Background(), &ListTracesOptions{
 		IO: ios, TraceClient: client, Scope: traceBaseScope(),
-		Org: "acme", Proj: "triage", AgentName: "my-agent", Env: "dev",
+		Org: "acme", Proj: "triage", AgentName: "my-agent",
 		StartTime: "2026-05-12T00:00:00Z", EndTime: "2026-05-13T00:00:00Z",
 		Limit: 10,
 	})
@@ -85,7 +85,7 @@ func TestRunToolCallFails_SameColumnsAsList(t *testing.T) {
 
 	err := runToolCallFails(context.Background(), &ListTracesOptions{
 		IO: ios, TraceClient: client, Scope: traceBaseScope(),
-		Org: "acme", Proj: "triage", AgentName: "my-agent", Env: "dev",
+		Org: "acme", Proj: "triage", AgentName: "my-agent",
 		StartTime: "2026-05-12T00:00:00Z", EndTime: "2026-05-13T00:00:00Z",
 		Limit:     10,
 		Condition: conditionToolCallFails,

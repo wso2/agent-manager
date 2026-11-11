@@ -42,7 +42,7 @@ func TestTrace_TextOutput(t *testing.T) {
 
 	err := runTrace(context.Background(), &TraceOptions{
 		IO: ios, TraceClient: client, Scope: traceBaseScope(),
-		Org: "acme", Proj: "triage", AgentName: "my-agent", Env: "dev",
+		Org: "acme", Proj: "triage", AgentName: "my-agent",
 		TraceID:   "abc123",
 		StartTime: "2026-05-12T00:00:00Z", EndTime: "2026-05-13T00:00:00Z",
 	})
@@ -70,7 +70,7 @@ func TestTrace_JSONOutput(t *testing.T) {
 
 	err := runTrace(context.Background(), &TraceOptions{
 		IO: ios, TraceClient: client, Scope: traceBaseScope(),
-		Org: "acme", Proj: "triage", AgentName: "my-agent", Env: "dev",
+		Org: "acme", Proj: "triage", AgentName: "my-agent",
 		TraceID:   "abc123",
 		StartTime: "2026-05-12T00:00:00Z", EndTime: "2026-05-13T00:00:00Z",
 	})
@@ -137,7 +137,6 @@ func TestRunTrace_LowercasesTraceID(t *testing.T) {
 		Org:       "acme",
 		Proj:      "triage",
 		AgentName: "my-agent",
-		Env:       "dev",
 		TraceID:   upperID,
 		StartTime: "2026-05-12T00:00:00Z",
 		EndTime:   "2026-05-13T00:00:00Z",
@@ -179,7 +178,6 @@ func TestRunSpanDetail_LowercasesTraceAndSpanID(t *testing.T) {
 		Org:       "acme",
 		Proj:      "triage",
 		AgentName: "my-agent",
-		Env:       "dev",
 		TraceID:   upperTrace,
 		SpanID:    upperSpan,
 	})

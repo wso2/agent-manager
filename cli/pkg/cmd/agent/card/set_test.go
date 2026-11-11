@@ -33,15 +33,15 @@ func setOpts(client func(context.Context) (*amsvc.ClientWithResponses, error), j
 	ios, out, errOut := newTestIO(jsonMode)
 	return &SetOptions{
 			IO: ios, Client: client, Scope: baseScope(),
-			Org: "acme", Proj: "triage", AgentName: "order-bot", Env: "dev", URL: cardURL,
+			Org: "acme", Proj: "triage", AgentName: "order-bot", URL: cardURL,
 		},
 		func() (string, string) { return out.String(), errOut.String() }
 }
 
 func Test_runSet_jsonEnvelope(t *testing.T) {
 	client := newClient(t, map[string]route{
-		"PUT " + envPath("dev", "agent-card/source"): {status: http.StatusAccepted},
-		"GET " + envPath("dev", "a2a-proxy"):         {status: http.StatusNotFound, body: map[string]any{"code": "NOT_FOUND", "message": "none"}},
+		"PUT " + envPath("default", "agent-card/source"): {status: http.StatusAccepted},
+		"GET " + envPath("default", "a2a-proxy"):         {status: http.StatusNotFound, body: map[string]any{"code": "NOT_FOUND", "message": "none"}},
 	})
 	o, got := setOpts(client, true)
 	if err := runSet(context.Background(), o); err != nil {
@@ -49,7 +49,7 @@ func Test_runSet_jsonEnvelope(t *testing.T) {
 	}
 	out, errOut := got()
 	data := decodeEnvelope(t, out)["data"].(map[string]any)
-	if data["environment"] != "dev" || data["url"] != cardURL || data["routing"] != "direct" {
+	if data["url"] != cardURL || data["routing"] != "direct" {
 		t.Errorf("data = %v", data)
 	}
 	if errOut != "" {
@@ -59,9 +59,9 @@ func Test_runSet_jsonEnvelope(t *testing.T) {
 
 func Test_runSet_text(t *testing.T) {
 	client := newClient(t, map[string]route{
-		"PUT " + envPath("dev", "agent-card/source"): {status: http.StatusAccepted},
-		"GET " + envPath("dev", "a2a-proxy"):         {status: http.StatusNotFound, body: map[string]any{"code": "NOT_FOUND", "message": "none"}},
-		"PUT " + envPath("dev", "a2a-proxy"):         {status: http.StatusAccepted},
+		"PUT " + envPath("default", "agent-card/source"): {status: http.StatusAccepted},
+		"GET " + envPath("default", "a2a-proxy"):         {status: http.StatusNotFound, body: map[string]any{"code": "NOT_FOUND", "message": "none"}},
+		"PUT " + envPath("default", "a2a-proxy"):         {status: http.StatusAccepted},
 	})
 	o, got := setOpts(client, false)
 	o.Proxy = true
@@ -69,7 +69,7 @@ func Test_runSet_text(t *testing.T) {
 		t.Fatalf("runSet: %v", err)
 	}
 	_, errOut := got()
-	for _, want := range []string{"dev", "proxied", "amctl agent card get"} {
+	for _, want := range []string{"proxied", "amctl agent card get"} {
 		if !strings.Contains(errOut, want) {
 			t.Errorf("errOut %q missing %q", errOut, want)
 		}
@@ -89,9 +89,9 @@ func Test_runSet_proxyRejectsNonWellKnownURL(t *testing.T) {
 
 func Test_runSet_partialFailureEnvelope(t *testing.T) {
 	client := newClient(t, map[string]route{
-		"PUT " + envPath("dev", "agent-card/source"): {status: http.StatusAccepted},
-		"GET " + envPath("dev", "a2a-proxy"):         {status: http.StatusNotFound, body: map[string]any{"code": "NOT_FOUND", "message": "none"}},
-		"PUT " + envPath("dev", "a2a-proxy"):         {status: http.StatusBadRequest, body: map[string]any{"code": "BAD", "message": "nope"}},
+		"PUT " + envPath("default", "agent-card/source"): {status: http.StatusAccepted},
+		"GET " + envPath("default", "a2a-proxy"):         {status: http.StatusNotFound, body: map[string]any{"code": "NOT_FOUND", "message": "none"}},
+		"PUT " + envPath("default", "a2a-proxy"):         {status: http.StatusBadRequest, body: map[string]any{"code": "BAD", "message": "nope"}},
 	})
 	o, got := setOpts(client, true)
 	o.Proxy = true

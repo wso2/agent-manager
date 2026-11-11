@@ -39,7 +39,7 @@ func TestListTraces_BuildsQueryAndDecodes(t *testing.T) {
 		}
 		q := r.URL.Query()
 		if q.Get("organization") != "acme" || q.Get("project") != "triage" ||
-			q.Get("agent") != "my-agent" || q.Get("environment") != "dev" {
+			q.Get("agent") != "my-agent" || q.Has("environment") {
 			t.Errorf("missing scope query params: %v", q)
 		}
 		if q.Get("startTime") != start.Format(time.RFC3339) {
@@ -68,7 +68,6 @@ func TestListTraces_BuildsQueryAndDecodes(t *testing.T) {
 		Organization: "acme",
 		Project:      "triage",
 		Agent:        "my-agent",
-		Environment:  "dev",
 		StartTime:    start,
 		EndTime:      end,
 		Limit:        intPtr(10),
@@ -102,7 +101,7 @@ func TestListTraces_SendsFiltersAndDecodesSearchFields(t *testing.T) {
 
 	c, _ := NewClient(srv.URL)
 	resp, err := c.ListTraces(context.Background(), &ListTracesParams{
-		Organization: "acme", Project: "p", Agent: "a", Environment: "e",
+		Organization: "acme", Project: "p", Agent: "a",
 		Status: "error", MinDurationMs: int64Ptr(1500), MinTokens: int64Ptr(0), MinSpanCount: int64Ptr(4),
 		Model: "gpt-4o", ConversationID: "c-1", IncludeModels: true,
 	})
@@ -244,7 +243,7 @@ func TestExportTraces_DecodesFullTrace(t *testing.T) {
 
 	c, _ := NewClient(srv.URL)
 	resp, err := c.ExportTraces(context.Background(), &ExportTracesParams{
-		Organization: "acme", Project: "p", Agent: "a", Environment: "e",
+		Organization: "acme", Project: "p", Agent: "a",
 		StartTime: time.Now().Add(-time.Hour), EndTime: time.Now(),
 	})
 	if err != nil {
@@ -331,7 +330,7 @@ func TestGetRuntimeLogs_BuildsQueryAndDecodes(t *testing.T) {
 		}
 		q := r.URL.Query()
 		if q.Get("organization") != "acme" || q.Get("project") != "triage" ||
-			q.Get("agent") != "my-agent" || q.Get("environment") != "dev" {
+			q.Get("agent") != "my-agent" || q.Has("environment") {
 			t.Errorf("missing scope query params: %v", q)
 		}
 		if q.Get("startTime") != "2026-05-12T00:00:00Z" || q.Get("endTime") != "2026-05-13T00:00:00Z" {
@@ -366,7 +365,6 @@ func TestGetRuntimeLogs_BuildsQueryAndDecodes(t *testing.T) {
 		Organization: "acme",
 		Project:      "triage",
 		Agent:        "my-agent",
-		Environment:  "dev",
 		StartTime:    "2026-05-12T00:00:00Z",
 		EndTime:      "2026-05-13T00:00:00Z",
 		SearchPhrase: "boom",
@@ -397,7 +395,7 @@ func TestGetRuntimeLogs_OmitsUnsetOptionalParams(t *testing.T) {
 
 	c, _ := NewClient(srv.URL)
 	_, err := c.GetRuntimeLogs(context.Background(), RuntimeLogsParams{
-		Organization: "acme", Project: "triage", Agent: "my-agent", Environment: "dev",
+		Organization: "acme", Project: "triage", Agent: "my-agent",
 	})
 	if err != nil {
 		t.Fatalf("GetRuntimeLogs: %v", err)
@@ -466,7 +464,7 @@ func TestGetMetrics_BuildsQueryAndDecodes(t *testing.T) {
 		}
 		q := r.URL.Query()
 		if q.Get("organization") != "acme" || q.Get("project") != "triage" ||
-			q.Get("agent") != "my-agent" || q.Get("environment") != "dev" {
+			q.Get("agent") != "my-agent" || q.Has("environment") {
 			t.Errorf("missing scope query params: %v", q)
 		}
 		if q.Get("startTime") != "2026-05-12T00:00:00Z" || q.Get("endTime") != "2026-05-13T00:00:00Z" {
@@ -485,7 +483,6 @@ func TestGetMetrics_BuildsQueryAndDecodes(t *testing.T) {
 		Organization: "acme",
 		Project:      "triage",
 		Agent:        "my-agent",
-		Environment:  "dev",
 		StartTime:    "2026-05-12T00:00:00Z",
 		EndTime:      "2026-05-13T00:00:00Z",
 	})

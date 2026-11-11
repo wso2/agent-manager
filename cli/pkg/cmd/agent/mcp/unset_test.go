@@ -25,7 +25,6 @@ import (
 
 	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
 	"github.com/wso2/agent-manager/cli/pkg/clierr"
-	"github.com/wso2/agent-manager/cli/pkg/cmd/agent/modelconfig"
 	"github.com/wso2/agent-manager/cli/pkg/iostreams"
 )
 
@@ -134,76 +133,6 @@ func Test_runUnset_deleteConfirmationMismatch(t *testing.T) {
 	errBody := decodeEnvelope(t, out.String())["error"].(map[string]any)
 	if errBody["code"] != clierr.ConfirmationRequired {
 		t.Fatalf("code = %v, want %s", errBody["code"], clierr.ConfirmationRequired)
-	}
-}
-
-func Test_runUnset_envRemovesOnePreservesOthers(t *testing.T) {
-	io, _, _ := newTestIO(false)
-	io.SetTerminal(true, true, true)
-	var put map[string]any
-	client, cleanup := newClient(t, map[string]route{
-		listPath:                   okJSON(listResponse(mcpItem("primary", getUUID))),
-		configPath("GET", getUUID): okJSON(getResponseFixture()), // dev + prod
-		configPath("PUT", getUUID): {status: http.StatusOK, body: getResponseFixture(), capture: &put},
-	})
-	defer cleanup()
-
-	opts := newUnsetOpts(io, client)
-	opts.Env = "prod"
-	if err := runUnset(context.Background(), opts); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	em := envMapKeys(put)
-	if _, ok := em["prod"]; ok {
-		t.Errorf("prod should have been removed from envMappings: %v", em)
-	}
-	if _, ok := em["dev"]; !ok {
-		t.Errorf("dev should be preserved in envMappings: %v", em)
-	}
-}
-
-func Test_runUnset_envNotBound(t *testing.T) {
-	io, out, _ := newTestIO(true)
-	client, cleanup := newClient(t, map[string]route{
-		listPath:                   okJSON(listResponse(mcpItem("primary", getUUID))),
-		configPath("GET", getUUID): okJSON(getResponseFixture()), // dev + prod only
-	})
-	defer cleanup()
-
-	opts := newUnsetOpts(io, client)
-	opts.Env = "staging"
-	if err := runUnset(context.Background(), opts); err == nil {
-		t.Fatal("expected error")
-	}
-	if code := decodeEnvelope(t, out.String())["error"].(map[string]any)["code"]; code != clierr.NotFound {
-		t.Fatalf("code = %v, want %s", code, clierr.NotFound)
-	}
-}
-
-func Test_runUnset_envLastRemainingRejected(t *testing.T) {
-	io, out, _ := newTestIO(true)
-	single := getResponseFixture()
-	single.EnvMappings = map[string]amsvc.EnvProviderConfigMappings{
-		"dev": {EnvironmentName: "dev", Configuration: &amsvc.ProviderConfig{ProviderName: "github", ProxyName: modelconfig.StringPtr("github")}},
-	}
-	client, cleanup := newClient(t, map[string]route{
-		listPath:                   okJSON(listResponse(mcpItem("primary", getUUID))),
-		configPath("GET", getUUID): okJSON(single),
-	})
-	defer cleanup()
-
-	opts := newUnsetOpts(io, client)
-	opts.Env = "dev"
-	if err := runUnset(context.Background(), opts); err == nil {
-		t.Fatal("expected error")
-	}
-	errBody := decodeEnvelope(t, out.String())["error"].(map[string]any)
-	if errBody["code"] != clierr.InvalidFlag {
-		t.Fatalf("code = %v, want %s", errBody["code"], clierr.InvalidFlag)
-	}
-	// Must guide the user to a full unset.
-	if msg := errBody["message"].(string); !strings.Contains(msg, "--env") {
-		t.Errorf("message should mention dropping --env for full delete, got %q", msg)
 	}
 }
 

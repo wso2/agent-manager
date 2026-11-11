@@ -102,22 +102,19 @@ func TestList_SendsNoFiltersByDefault(t *testing.T) {
 	}
 }
 
-func TestList_SendsTypeAndEnvironmentFilters(t *testing.T) {
+func TestList_SendsTypeFilter(t *testing.T) {
 	io, _, _ := newTestIO()
 	clientFn, captured, closeFn := newTestClient(t, http.StatusOK, sampleListResponse())
 	defer closeFn()
 
 	if err := runList(context.Background(), &ListOptions{
 		IO: io, Client: clientFn, Org: "acme", Scope: baseScope(),
-		Type: "egress", Environment: "staging",
+		Type: "egress",
 	}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if !strings.Contains(captured.rawQuery, "type=EGRESS") {
 		t.Errorf("rawQuery = %q, want type=EGRESS (upper-cased)", captured.rawQuery)
-	}
-	if !strings.Contains(captured.rawQuery, "environment=staging") {
-		t.Errorf("rawQuery = %q, want environment=staging", captured.rawQuery)
 	}
 }
 
@@ -181,12 +178,12 @@ func TestList_EmptyNoticeNamesActiveFilters(t *testing.T) {
 
 	if err := runList(context.Background(), &ListOptions{
 		IO: io, Client: clientFn, Org: "acme", Scope: baseScope(),
-		Type: "egress", Environment: "staging",
+		Type: "egress",
 	}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !strings.Contains(errOut.String(), "type EGRESS") || !strings.Contains(errOut.String(), `environment "staging"`) {
-		t.Errorf("errOut = %q, want both filters named", errOut.String())
+	if !strings.Contains(errOut.String(), "type EGRESS") {
+		t.Errorf("errOut = %q, want the filter named", errOut.String())
 	}
 }
 
@@ -205,7 +202,7 @@ func TestList_EmptyStaysSilentWhenPiped(t *testing.T) {
 	}
 }
 
-func TestList_TableShowsUUIDAndEnvironments(t *testing.T) {
+func TestList_TableShowsUUID(t *testing.T) {
 	io, out, _ := newTextTestIO(true)
 	clientFn, _, closeFn := newTestClient(t, http.StatusOK, sampleListResponse(
 		sampleGateway("edge", "11111111-1111-1111-1111-111111111111", amsvc.GatewayTypeBOTH, "prod", "default"),
@@ -219,7 +216,7 @@ func TestList_TableShowsUUIDAndEnvironments(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	rendered := out.String()
-	for _, want := range []string{"UUID", "11111111-1111-1111-1111-111111111111", "BOTH", "default,prod", "INGRESS"} {
+	for _, want := range []string{"UUID", "11111111-1111-1111-1111-111111111111", "BOTH", "INGRESS"} {
 		if !strings.Contains(rendered, want) {
 			t.Errorf("table missing %q; got:\n%s", want, rendered)
 		}
@@ -313,16 +310,5 @@ func TestNormalizeGatewayType(t *testing.T) {
 		if got != tc.want {
 			t.Errorf("normalizeGatewayType(%q) = %q, want %q", tc.in, got, tc.want)
 		}
-	}
-}
-
-func TestEnvironmentNames(t *testing.T) {
-	withNone := sampleGateway("a", "id", amsvc.GatewayTypeBOTH)
-	if got := environmentNames(withNone); got != "-" {
-		t.Errorf("environmentNames(no bindings) = %q, want -", got)
-	}
-	withTwo := sampleGateway("a", "id", amsvc.GatewayTypeBOTH, "prod", "default")
-	if got := environmentNames(withTwo); got != "default,prod" {
-		t.Errorf("environmentNames = %q, want default,prod (sorted)", got)
 	}
 }

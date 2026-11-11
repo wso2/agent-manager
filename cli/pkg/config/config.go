@@ -29,8 +29,9 @@ import (
 
 // LinkedProject is keyed in Config.LinkedProjects by absolute directory path.
 type LinkedProject struct {
-	Org         string `yaml:"org" json:"org"`
-	Project     string `yaml:"project,omitempty" json:"project,omitempty"`
+	Org     string `yaml:"org" json:"org"`
+	Project string `yaml:"project,omitempty" json:"project,omitempty"`
+	// Environment is ignored; it is kept so config files that set it still load.
 	Environment string `yaml:"environment,omitempty" json:"environment,omitempty"`
 	Agent       string `yaml:"agent,omitempty" json:"agent,omitempty"`
 }

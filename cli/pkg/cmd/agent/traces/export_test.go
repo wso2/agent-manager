@@ -43,7 +43,7 @@ func TestExportTraces_OutputsJSON(t *testing.T) {
 
 	err := runExportTraces(context.Background(), &ExportTracesOptions{
 		IO: ios, TraceClient: client, Scope: traceBaseScope(),
-		Org: "acme", Proj: "triage", AgentName: "my-agent", Env: "dev",
+		Org: "acme", Proj: "triage", AgentName: "my-agent",
 		StartTime: "2026-05-12T00:00:00Z", EndTime: "2026-05-13T00:00:00Z",
 		Limit: 100,
 	})

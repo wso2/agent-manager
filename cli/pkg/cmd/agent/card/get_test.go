@@ -48,17 +48,15 @@ func getOpts(client func(context.Context) (*amsvc.ClientWithResponses, error), j
 	ios, out, _ := newTestIO(jsonMode)
 	return &GetOptions{
 			IO: ios, Client: client, Scope: baseScope(),
-			Org: "acme", Proj: "triage", AgentName: "order-bot", Env: "dev",
+			Org: "acme", Proj: "triage", AgentName: "order-bot",
 		},
 		out.String
 }
 
 var (
 	agentKey = "GET " + agentPath
-	proxyKey = "GET " + envPath("dev", "a2a-proxy")
-	cardKey  = "GET " + envPath("dev", "agent-card")
-	envKey   = "GET /orgs/acme/environments/dev"
-	envOK    = okJSON(map[string]any{"name": "dev"})
+	proxyKey = "GET " + envPath("default", "a2a-proxy")
+	cardKey  = "GET " + envPath("default", "agent-card")
 
 	notFound = route{status: http.StatusNotFound, body: map[string]any{"code": "NOT_FOUND", "message": "nope"}}
 )
@@ -75,7 +73,7 @@ func Test_runGet_direct(t *testing.T) {
 	if err := runGet(context.Background(), o); err != nil {
 		t.Fatalf("runGet: %v", err)
 	}
-	for _, want := range []string{"Environment: dev", "direct", "Card source: https://agent.example/card", "Echo"} {
+	for _, want := range []string{"direct", "Card source: https://agent.example/card", "Echo"} {
 		if !strings.Contains(got(), want) {
 			t.Errorf("out missing %q:\n%s", want, got())
 		}
@@ -169,23 +167,9 @@ func Test_runGet_pendingShowsLastError(t *testing.T) {
 	}
 }
 
-func Test_runGet_unknownEnv(t *testing.T) {
-	o, got := getOpts(newClient(t, map[string]route{
-		agentKey: okJSON(a2aExternal()),
-		proxyKey: {status: http.StatusNotFound, body: map[string]any{"code": "ENVIRONMENT_NOT_FOUND", "message": "Environment not found"}},
-	}), true)
-	if err := runGet(context.Background(), o); err == nil {
-		t.Fatal("expected error")
-	}
-	if e := decodeEnvelope(t, got())["error"].(map[string]any); e["code"] != "ENVIRONMENT_NOT_FOUND" {
-		t.Errorf("error = %v", e)
-	}
-}
-
 func Test_runGet_internalSkipsProxy(t *testing.T) {
 	o, got := getOpts(newClient(t, map[string]route{
 		agentKey: okJSON(a2aInternal()),
-		envKey:   envOK,
 		cardKey:  okJSON(amsvc.AgentCardResponse{Status: "fetched", Card: &map[string]interface{}{"name": "Echo"}}),
 	}), false)
 	if err := runGet(context.Background(), o); err != nil {
@@ -213,7 +197,6 @@ func Test_runGet_noCardExternal(t *testing.T) {
 func Test_runGet_noCardInternal(t *testing.T) {
 	o, got := getOpts(newClient(t, map[string]route{
 		agentKey: okJSON(a2aInternal()),
-		envKey:   envOK,
 		cardKey:  notFound,
 	}), false)
 	if err := runGet(context.Background(), o); err != nil {
@@ -259,7 +242,6 @@ func Test_runGet_notA2A(t *testing.T) {
 func Test_runGet_untypedCardFields(t *testing.T) {
 	o, got := getOpts(newClient(t, map[string]route{
 		agentKey: okJSON(a2aInternal()),
-		envKey:   envOK,
 		cardKey: okJSON(amsvc.AgentCardResponse{
 			Status: "fetched",
 			Card:   &map[string]interface{}{"name": 42, "version": "v1.2"},
@@ -276,7 +258,6 @@ func Test_runGet_untypedCardFields(t *testing.T) {
 func Test_runGet_stripsControlCharsFromCardText(t *testing.T) {
 	o, got := getOpts(newClient(t, map[string]route{
 		agentKey: okJSON(a2aInternal()),
-		envKey:   envOK,
 		cardKey: okJSON(amsvc.AgentCardResponse{
 			Status: "fetched",
 			Card:   &map[string]interface{}{"name": "Echo", "description": "\x1b[31mred\u009b"},
@@ -287,14 +268,6 @@ func Test_runGet_stripsControlCharsFromCardText(t *testing.T) {
 	}
 	if strings.ContainsAny(got(), "\x1b\u009b") || !strings.Contains(got(), "[31mred") {
 		t.Errorf("out = %q", got())
-	}
-}
-
-func Test_runGet_rejectsBadEnv(t *testing.T) {
-	o, _ := getOpts(unreachableClient, true)
-	o.Env = "a/b"
-	if err := runGet(context.Background(), o); err == nil {
-		t.Fatal("expected error")
 	}
 }
 
@@ -326,45 +299,5 @@ func Test_runGet_proxyForbiddenJSON(t *testing.T) {
 	data := decodeEnvelope(t, got())["data"].(map[string]any)
 	if data["routingUnknown"] != true || data["proxy"] != nil {
 		t.Errorf("data = %v, want routingUnknown true and proxy null", data)
-	}
-}
-
-func Test_runGet_internalUnknownEnv(t *testing.T) {
-	o, got := getOpts(newClient(t, map[string]route{
-		agentKey: okJSON(a2aInternal()),
-		envKey:   {status: http.StatusNotFound, body: map[string]any{"code": "ENVIRONMENT_NOT_FOUND", "message": "Environment not found"}},
-	}), true)
-	if err := runGet(context.Background(), o); err == nil {
-		t.Fatal("expected error")
-	}
-	if e := decodeEnvelope(t, got())["error"].(map[string]any); e["code"] != "ENVIRONMENT_NOT_FOUND" {
-		t.Errorf("error = %v", e)
-	}
-}
-
-func Test_runGet_internalEnvForbiddenStillReadsCard(t *testing.T) {
-	o, got := getOpts(newClient(t, map[string]route{
-		agentKey: okJSON(a2aInternal()),
-		envKey:   {status: http.StatusForbidden, body: map[string]any{"code": "FORBIDDEN", "message": "missing scope"}},
-		cardKey:  okJSON(amsvc.AgentCardResponse{Status: "fetched", Card: &map[string]interface{}{"name": "Echo"}}),
-	}), false)
-	if err := runGet(context.Background(), o); err != nil {
-		t.Fatalf("runGet: %v", err)
-	}
-	if !strings.Contains(got(), "Echo") {
-		t.Errorf("out = %s", got())
-	}
-}
-
-func Test_runGet_internalEnvLookupFailure(t *testing.T) {
-	o, got := getOpts(newClient(t, map[string]route{
-		agentKey: okJSON(a2aInternal()),
-		envKey:   {status: http.StatusInternalServerError, body: map[string]any{"code": "INTERNAL", "message": "boom"}},
-	}), true)
-	if err := runGet(context.Background(), o); err == nil {
-		t.Fatal("expected error")
-	}
-	if e := decodeEnvelope(t, got())["error"].(map[string]any); e["code"] != "INTERNAL" {
-		t.Errorf("error = %v, want the environment lookup's INTERNAL", e)
 	}
 }
