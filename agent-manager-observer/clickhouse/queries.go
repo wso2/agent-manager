@@ -7,25 +7,30 @@ import (
 )
 
 const traceIDTimeTable = "otel_traces_trace_id_ts"
+const traceRootsTable = "otel.otel_trace_roots"
 
 type traceWindow struct{ Start, End time.Time }
 
 func buildTraceListQuery(table string, cols tenantColumns, scope ScopeUIDs, window traceWindow, isDesc bool, limit int) (string, []any) {
+	// 1. Where clause for raw spans table
 	where, scopeArgs := scopeWhere(cols, scope)
-
 	if where != "" {
 		where += " AND "
 	}
-
 	where += "Timestamp >= fromUnixTimestamp64Nano(?, 'UTC') " +
 		"AND Timestamp <= fromUnixTimestamp64Nano(?, 'UTC') " +
 		"AND addNanoseconds(Timestamp, Duration) <= fromUnixTimestamp64Nano(?, 'UTC')"
 
-	timeArgs := []any{window.Start.UnixNano(), window.End.UnixNano(), window.End.UnixNano()}
+	// 2. Where clause for the narrow roots table (direct tenant columns)
+	whereRoots, scopeArgsRoots := scopeWhere(cols, scope)
+	if whereRoots != "" {
+		whereRoots += " AND "
+	}
+	whereRoots += "Timestamp >= fromUnixTimestamp64Nano(?, 'UTC') " +
+		"AND Timestamp <= fromUnixTimestamp64Nano(?, 'UTC') " +
+		"AND addNanoseconds(Timestamp, Duration) <= fromUnixTimestamp64Nano(?, 'UTC')"
 
-	var baseArgs []any
-	baseArgs = append(baseArgs, scopeArgs...)
-	baseArgs = append(baseArgs, timeArgs...)
+	timeArgs := []any{window.Start.UnixNano(), window.End.UnixNano(), window.End.UnixNano()}
 
 	order := "ASC"
 	if isDesc {
@@ -33,17 +38,22 @@ func buildTraceListQuery(table string, cols tenantColumns, scope ScopeUIDs, wind
 	}
 
 	var args []any
-	// 1. Args for the exact total CTE
-	args = append(args, baseArgs...)
-	// 2. Args for the IN subquery (roots only)
-	args = append(args, baseArgs...)
+	// 1. Args for exact_total (reading otel_trace_roots)
+	args = append(args, scopeArgsRoots...)
+	args = append(args, timeArgs...)
+
+	// 2. Args for IN subquery (reading top TraceIds from otel_trace_roots)
+	args = append(args, scopeArgsRoots...)
+	args = append(args, timeArgs...)
 	args = append(args, limit)
-	// 3. Args for the outer aggregation
-	args = append(args, baseArgs...)
+
+	// 3. Args for outer aggregation (reading only matching spans from table)
+	args = append(args, scopeArgs...)
+	args = append(args, timeArgs...)
 
 	query := `WITH (
-		SELECT count() FROM ` + table + ` 
-		WHERE ` + where + ` AND ParentSpanId = ''
+		SELECT count() FROM ` + traceRootsTable + ` 
+		WHERE ` + whereRoots + ` AND ParentSpanId = ''
 	) AS exact_total
 	SELECT TraceId,
 	min(Timestamp) AS start_time,
@@ -56,8 +66,8 @@ func buildTraceListQuery(table string, cols tenantColumns, scope ScopeUIDs, wind
 	exact_total AS total
 	FROM ` + table + ` 
 	WHERE TraceId IN (
-		SELECT TraceId FROM ` + table + ` 
-		WHERE ` + where + ` AND ParentSpanId = '' 
+		SELECT TraceId FROM ` + traceRootsTable + ` 
+		WHERE ` + whereRoots + ` AND ParentSpanId = '' 
 		ORDER BY Timestamp ` + order + `, TraceId ASC 
 		LIMIT ?
 	)
