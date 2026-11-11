@@ -238,3 +238,30 @@ func TestInHouseSecretLimitFollowsConfig(t *testing.T) {
 		&secretmanagersvc.SecretMetadata{ManagedBy: "m"})
 	require.NoError(t, err)
 }
+
+func TestInHouseSecretDoesNotOpenInAnotherRow(t *testing.T) {
+	ctx := context.Background()
+	c := newTestClient(t)
+	source, target := "ou-"+uuid.NewString(), "ou-"+uuid.NewString()
+	meta := &secretmanagersvc.SecretMetadata{ManagedBy: secretmanagersvc.DefaultManagedBy}
+	loc := func(ou string) secretmanagersvc.SecretLocation {
+		return secretmanagersvc.SecretLocation{OrgName: ou, ProjectName: "p", AgentName: "a", EnvironmentName: "dev", EntityName: "agent"}
+	}
+	t.Cleanup(func() { db.GetDB().Exec("DELETE FROM secrets WHERE ou_id IN (?, ?)", source, target) })
+
+	name, err := c.PushSecret(ctx, loc(source), map[string]string{"TOKEN": "source-value"}, meta)
+	require.NoError(t, err)
+	_, err = c.PushSecret(ctx, loc(target), map[string]string{"TOKEN": "target-value"}, meta)
+	require.NoError(t, err)
+
+	// Someone with database access but no key copies one tenant's ciphertext into another's row.
+	require.NoError(t, db.GetDB().Exec(
+		"UPDATE secrets SET ciphertext = (SELECT ciphertext FROM secrets WHERE ou_id = ? AND name = ?) WHERE ou_id = ? AND name = ?",
+		source, name, target, name).Error)
+
+	_, err = c.Resolve(ctx, target, name, "TOKEN")
+	require.Error(t, err, "a ciphertext sealed for another organization must not open")
+	value, err := c.Resolve(ctx, source, name, "TOKEN")
+	require.NoError(t, err)
+	require.Equal(t, "source-value", value)
+}

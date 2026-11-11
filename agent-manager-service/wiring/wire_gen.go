@@ -615,7 +615,7 @@ func (noSecretResolver) Resolve(context.Context, string, string, string) (string
 	return "", secretmanagersvc.ErrSecretNotFound
 }
 
-// thunderProvisioningTestSet builds the OpenBao-backed provisioning service for
+// thunderProvisioningTestSet builds the secret-store-backed provisioning service for
 // the test wiring only; production injects it via InitializeAppParams.
 var thunderProvisioningTestSet = wire.NewSet(services.NewAgentThunderProvisioningService)
 

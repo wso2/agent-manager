@@ -106,7 +106,9 @@ func secretPayloadBytes(data map[string]string) int {
 	return n
 }
 
-func (c *Client) seal(ctx context.Context, data map[string]string) ([]byte, string, []string, error) {
+// seal encrypts data for the row (ouID, name). The ciphertext is bound to that
+// row: copied into another row, it does not decrypt.
+func (c *Client) seal(ctx context.Context, ouID, name string, data map[string]string) ([]byte, string, []string, error) {
 	if len(data) == 0 {
 		return nil, "", nil, errors.New("secret data cannot be empty")
 	}
@@ -120,7 +122,7 @@ func (c *Client) seal(ctx context.Context, data map[string]string) ([]byte, stri
 	if err != nil {
 		return nil, "", nil, fmt.Errorf("failed to encode secret data: %w", err)
 	}
-	ciphertext, err := c.vault.Encrypt(ctx, plaintext)
+	ciphertext, err := c.vault.Encrypt(ctx, plaintext, []byte(RemoteKey(ouID, name)))
 	if err != nil {
 		return nil, "", nil, fmt.Errorf("failed to encrypt secret: %w", err)
 	}
@@ -128,7 +130,7 @@ func (c *Client) seal(ctx context.Context, data map[string]string) ([]byte, stri
 }
 
 func (c *Client) open(ctx context.Context, row *secretRow) (map[string]string, error) {
-	plaintext, err := c.vault.Decrypt(ctx, row.Ciphertext)
+	plaintext, err := c.vault.Decrypt(ctx, row.Ciphertext, []byte(RemoteKey(row.OuID, row.Name)))
 	if err != nil {
 		return nil, fmt.Errorf("failed to decrypt secret %q: %w", row.Name, err)
 	}
@@ -183,7 +185,7 @@ func (c *Client) write(ctx context.Context, location secretmanagersvc.SecretLoca
 		if err != nil {
 			return err
 		}
-		ciphertext, hash, sortedKeys, err := c.seal(ctx, data)
+		ciphertext, hash, sortedKeys, err := c.seal(ctx, location.OrgName, name, data)
 		if err != nil {
 			return err
 		}

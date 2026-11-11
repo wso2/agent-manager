@@ -30,14 +30,14 @@ func TestInHouseVaultRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ct, err := v.Encrypt(context.Background(), []byte("s3cret"))
+	ct, err := v.Encrypt(context.Background(), []byte("s3cret"), []byte("ou-1/name"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if bytes.Contains(ct, []byte("s3cret")) {
 		t.Fatal("ciphertext contains the plaintext")
 	}
-	pt, err := v.Decrypt(context.Background(), ct)
+	pt, err := v.Decrypt(context.Background(), ct, []byte("ou-1/name"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,18 +51,18 @@ func TestInHouseVaultRoundTrip(t *testing.T) {
 
 func TestInHouseVaultRejectsTamperingAndOtherKeys(t *testing.T) {
 	v, _ := NewInHouseVault(testKey())
-	ct, _ := v.Encrypt(context.Background(), []byte("value"))
+	ct, _ := v.Encrypt(context.Background(), []byte("value"), []byte("ou-1/name"))
 
 	tampered := append([]byte(nil), ct...)
 	tampered[len(tampered)-1] ^= 1
-	if _, err := v.Decrypt(context.Background(), tampered); err == nil {
+	if _, err := v.Decrypt(context.Background(), tampered, []byte("ou-1/name")); err == nil {
 		t.Fatal("Decrypt accepted a tampered ciphertext")
 	}
 	other, _ := NewInHouseVault(bytes.Repeat([]byte{9}, KeySize))
-	if _, err := other.Decrypt(context.Background(), ct); err == nil {
+	if _, err := other.Decrypt(context.Background(), ct, []byte("ou-1/name")); err == nil {
 		t.Fatal("Decrypt accepted a ciphertext sealed under another key")
 	}
-	if _, err := v.Decrypt(context.Background(), []byte{1}); err == nil {
+	if _, err := v.Decrypt(context.Background(), []byte{1}, []byte("ou-1/name")); err == nil {
 		t.Fatal("Decrypt accepted a truncated ciphertext")
 	}
 }
@@ -72,7 +72,7 @@ func TestInHouseVaultValidation(t *testing.T) {
 		t.Fatal("NewInHouseVault accepted a short key")
 	}
 	v, _ := NewInHouseVault(testKey())
-	if _, err := v.Encrypt(context.Background(), nil); err == nil {
+	if _, err := v.Encrypt(context.Background(), nil, []byte("ou-1/name")); err == nil {
 		t.Fatal("Encrypt accepted empty plaintext")
 	}
 }
@@ -86,5 +86,18 @@ func TestInHouseVaultHash(t *testing.T) {
 	other, _ := NewInHouseVault(bytes.Repeat([]byte{9}, KeySize))
 	if other.Hash([]byte("a")) == h {
 		t.Fatal("hash does not depend on the key")
+	}
+}
+
+func TestInHouseVaultRejectsAnotherBinding(t *testing.T) {
+	v, _ := NewInHouseVault(testKey())
+	ct, err := v.Encrypt(context.Background(), []byte("value"), []byte("ou-1/name"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, binding := range [][]byte{[]byte("ou-2/name"), []byte("ou-1/other"), nil} {
+		if _, err := v.Decrypt(context.Background(), ct, binding); err == nil {
+			t.Fatalf("Decrypt accepted a ciphertext under binding %q", binding)
+		}
 	}
 }

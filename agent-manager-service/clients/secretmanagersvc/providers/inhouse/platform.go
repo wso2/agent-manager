@@ -53,7 +53,7 @@ func (c *Client) SeedPlatformSecrets(ctx context.Context, seed string) error {
 			return fmt.Errorf("AMP_PLATFORM_VAULT_SEED contains an unsupported key")
 		}
 	}
-	ciphertext, hash, keys, err := c.seal(ctx, data)
+	ciphertext, hash, keys, err := c.seal(ctx, platformSecretScope, platformSecretName, data)
 	if err != nil {
 		return err
 	}

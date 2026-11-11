@@ -40,7 +40,42 @@ kubectl exec -i -n AMP_NAMESPACE AMP_POD -- \
   /go/bin/agent-manager-service -import-openbao-secrets < openbao-import.json
 ```
 
-The command uses the pod's existing OpenChoreo credentials, database connection, and encryption key. It imports only Agent Manager-owned secrets available through the legacy API and leaves OpenBao and release bindings intact. A retry accepts identical rows and reports conflicting rows without overwriting them. The command exits unsuccessfully if any entries fail and preserves successful copies. Resolve failures before migrating the corresponding releases. Git credentials and externally managed secrets require their own credential update procedure.
+The command uses the pod's existing OpenChoreo credentials, database connection, and encryption key. It imports only Agent Manager-owned secrets available through the legacy API and leaves OpenBao and release bindings intact. A retry accepts identical rows and reports conflicting rows without overwriting them. The command exits unsuccessfully if any entries fail and preserves successful copies. Resolve failures before migrating the corresponding releases.
+
+### Find the secret names
+
+List the legacy references Agent Manager owns in an organization's namespace and put each name in the manifest:
+
+```bash
+kubectl get secretreferences -n ORG_NAMESPACE -l managed-by=amp-agent-manager
+```
+
+The names follow these patterns. `ENV` is the environment name, lower-cased.
+
+| Secret | Name |
+| --- | --- |
+| Agent environment variables and files | `AGENT-ENV-secrets` |
+| Agent API key | `AGENT-agent-api-key-ENV-secrets` |
+| Agent ID credentials | `AGENT-agent-identity-ENV-secrets` |
+| Monitor publisher credentials | `amp-publisher-OU_ID-secrets` |
+| Monitor LLM proxy credentials | `monitor-MONITOR_ID-secrets` |
+| LLM proxy credentials of an agent configuration | `CONFIG-ENV-PROXY-secrets` |
+
+Names longer than 63 characters are cut to 63. Use the name the listing shows.
+
+The build token (`amp-build-token-secrets`) needs no import. Agent Manager issues a new one for the next source build.
+
+Reissue a system credential that could not be imported through the feature that owns it.
+
+### Re-create Git credentials
+
+Git credentials are not imported. Their values were written to the workflow plane's store and are not available through the legacy secrets API. Until they are re-created, the Git secret list is empty and builds of private repositories fail.
+
+1. Before the upgrade, record each organization's Git secret names with `GET /api/v1/orgs/{orgName}/git-secrets`, and note which agents use each one.
+2. After the Agent Manager chart is upgraded, create each secret again with `POST /api/v1/orgs/{orgName}/git-secrets`, using the same name and a current token. Agents refer to a Git secret by name, so they need no change.
+3. Trigger a build of one agent per secret to confirm the checkout succeeds.
+
+Secrets managed outside Agent Manager stay where they are and need their own procedure.
 
 ## Move workloads
 

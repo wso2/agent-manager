@@ -196,7 +196,7 @@ func (s *agentThunderReconcilerService) runCycle(ctx context.Context) {
 
 	// Release the lock/connection now — ClaimForAttempt already guards each
 	// binding individually, so the lock only needs to cover the FindDue scan,
-	// not the slow Thunder/OpenBao calls below.
+	// not the slow Thunder/secret store calls below.
 	if err := tx.Commit().Error; err != nil {
 		s.logger.Error("Failed to commit agent thunder reconciler advisory lock transaction", "error", err)
 		return

@@ -33,7 +33,7 @@ func (c *Client) ImportLegacySecret(ctx context.Context, ouID, name string, data
 		len(validation.IsDNS1123Subdomain(name)) > 0 {
 		return false, fmt.Errorf("invalid destination organization or secret name")
 	}
-	ciphertext, hash, keys, err := c.seal(ctx, data)
+	ciphertext, hash, keys, err := c.seal(ctx, ouID, name, data)
 	if err != nil {
 		return false, err
 	}

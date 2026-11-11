@@ -557,7 +557,7 @@ def main() -> None:
     assert idp_token_url and idp_client_id and idp_client_secret
     token_manager = OAuth2TokenManager(idp_token_url, idp_client_id, idp_client_secret)
 
-    # LLM_API_KEY is injected from the K8s Secret (via ExternalSecret from OpenBao).
+    # LLM_API_KEY is injected from the K8s Secret (via ExternalSecret from the Agent Manager secret store).
     # LLM_API_BASE is injected as a plain workflow parameter (it is a URL, not a secret).
     llm_api_key = os.environ.get("LLM_API_KEY")
     llm_api_base = os.environ.get("LLM_API_BASE")

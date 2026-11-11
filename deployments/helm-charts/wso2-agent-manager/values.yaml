@@ -377,7 +377,8 @@ agentManagerService:
       # across upgrades) when empty.
       token: ""
       # An existingSecret must carry the label external-secrets.io/type=webhook,
-      # which the External Secrets webhook provider requires.
+      # which the External Secrets webhook provider requires. That provider may
+      # read every key of the Secret, so keep the token in a Secret of its own.
       existingSecret: ""
       # Key to read from existingSecret. Applies ONLY when existingSecret is set;
       # the chart-managed Secret always uses the fixed key "secret-store-token".

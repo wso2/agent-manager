@@ -39,8 +39,11 @@ const KeySize = 32
 
 // SecretVault is the pluggable encryption backend for secrets.
 type SecretVault interface {
-	Encrypt(ctx context.Context, plaintext []byte) ([]byte, error)
-	Decrypt(ctx context.Context, ciphertext []byte) ([]byte, error)
+	// Encrypt seals plaintext. binding names where the value is stored; Decrypt
+	// succeeds only when given the same binding, so a ciphertext moved to
+	// another place does not open there.
+	Encrypt(ctx context.Context, plaintext, binding []byte) ([]byte, error)
+	Decrypt(ctx context.Context, ciphertext, binding []byte) ([]byte, error)
 	ProviderName() string
 	// Hash returns a keyed digest of plaintext, used to tell whether a value
 	// changed without decrypting the stored one.
@@ -71,8 +74,9 @@ func NewInHouseVault(key []byte) (*InHouseVault, error) {
 	return &InHouseVault{aead: aead, key: append([]byte(nil), key...)}, nil
 }
 
-// Encrypt seals plaintext and returns nonce || ciphertext.
-func (v *InHouseVault) Encrypt(_ context.Context, plaintext []byte) ([]byte, error) {
+// Encrypt seals plaintext with binding as additional authenticated data and
+// returns nonce || ciphertext.
+func (v *InHouseVault) Encrypt(_ context.Context, plaintext, binding []byte) ([]byte, error) {
 	if len(plaintext) == 0 {
 		return nil, errors.New("plaintext cannot be empty")
 	}
@@ -80,16 +84,16 @@ func (v *InHouseVault) Encrypt(_ context.Context, plaintext []byte) ([]byte, err
 	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
 		return nil, err
 	}
-	return v.aead.Seal(nonce, nonce, plaintext, nil), nil
+	return v.aead.Seal(nonce, nonce, plaintext, binding), nil
 }
 
-// Decrypt opens a value produced by Encrypt.
-func (v *InHouseVault) Decrypt(_ context.Context, ciphertext []byte) ([]byte, error) {
+// Decrypt opens a value produced by Encrypt with the same binding.
+func (v *InHouseVault) Decrypt(_ context.Context, ciphertext, binding []byte) ([]byte, error) {
 	nonceSize := v.aead.NonceSize()
 	if len(ciphertext) < nonceSize {
 		return nil, errors.New("ciphertext too short")
 	}
-	return v.aead.Open(nil, ciphertext[:nonceSize], ciphertext[nonceSize:], nil)
+	return v.aead.Open(nil, ciphertext[:nonceSize], ciphertext[nonceSize:], binding)
 }
 
 // ProviderName returns the provider recorded with each stored secret.

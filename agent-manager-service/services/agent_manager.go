@@ -5136,7 +5136,7 @@ func (s *agentManagerService) PromoteAgent(ctx context.Context, ouID string, pro
 		// Thunder call on a detached goroutine — checking readiness this soon
 		// virtually always sees it still in flight, so promoting to a brand
 		// new environment would otherwise ALWAYS fail once before a manual
-		// retry succeeds. A Thunder+OpenBao round trip normally finishes in
+		// retry succeeds. A Thunder+secret store round trip normally finishes in
 		// well under a second, so give it a short, bounded chance to land
 		// before falling through to the hard block below. Only meaningful when
 		// a kick-off actually happened above — with provisioning disabled
@@ -5802,7 +5802,7 @@ func (s *agentManagerService) identityBindingStatusForLog(ctx context.Context, o
 // this, promoting to a target environment that didn't have a binding yet
 // would ALWAYS fail once (the goroutine can't possibly have completed a real
 // network round trip in the few microseconds since it was scheduled) before a
-// manual retry succeeds — even though a healthy Thunder+OpenBao round trip
+// manual retry succeeds — even though a healthy Thunder+secret store round trip
 // normally finishes in well under a second. A genuinely stuck/slow attempt
 // still falls through to the hard block after this budget, unchanged from
 // before. Returns nil (unwrapped, not an error) if the budget elapses or ctx

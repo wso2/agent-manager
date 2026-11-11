@@ -43,7 +43,7 @@ func (c *Client) CreateGitSecret(ctx context.Context, ouID, name, username, pass
 	if username == "" {
 		username = "git"
 	}
-	ciphertext, hash, keys, err := c.seal(ctx, map[string]string{"username": username, "password": password})
+	ciphertext, hash, keys, err := c.seal(ctx, ouID, ref, map[string]string{"username": username, "password": password})
 	if err != nil {
 		return err
 	}
@@ -62,8 +62,6 @@ func (c *Client) CreateGitSecret(ctx context.Context, ouID, name, username, pass
 		if err := c.CheckGitSecret(ctx, ouID, name); err != nil {
 			return err
 		}
-	}
-	if result.RowsAffected == 0 {
 		return utils.ErrGitSecretAlreadyExists
 	}
 	return nil

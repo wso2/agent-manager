@@ -89,7 +89,7 @@ const promotionPathWaitLimit = time.Hour
 // open-source build injects DBBackedAgentThunderProvisioning). Credential
 // storage goes through secretmanagersvc.SecretManagementClient — the same
 // deployment-pluggable seam LLM/MCP/publisher secrets already use (see
-// app.Options's secretProvider) — instead of talking to OpenBao directly, so
+// app.Options's secretProvider) — instead of talking to a secret backend directly, so
 // a deployment can swap secret backends without any AgentID-specific code
 // change. AgentThunderClient.SecretRefPath stores the SecretReference name
 // CreateSecret returns (empty means "no credential currently stored", e.g.
@@ -504,16 +504,16 @@ func NewAgentThunderProvisioningService(
 
 // keyedMutex serializes RegenerateSecret/RevokeSecret per binding within this
 // process, so two concurrent rotations for the same binding can't interleave
-// their Thunder call and OpenBao write and leave the stored secret mismatched
+// their Thunder call and secret store write and leave the stored secret mismatched
 // with what Thunder actually considers active. In-process only — it does not
 // protect across multiple replicas of this service. Entries are refcounted
 // and removed once the last waiter releases, so the map doesn't grow
 // unbounded with every binding ever rotated over a long-lived process.
 //
-// The critical section this guards spans real Thunder/OpenBao/DB I/O (see
+// The critical section this guards spans real Thunder/secret store/DB I/O (see
 // AttemptProvision/RegenerateSecret/RevokeSecret) — that I/O already has its
-// own hard timeouts (Thunder's HTTP client: 30s; OpenBao's Vault client:
-// 60s), so a holder cannot block a waiter forever. But a waiter should not
+// own hard timeouts (Thunder's HTTP client: 30s; the secret store's database
+// write is bounded by its context), so a holder cannot block a waiter forever. But a waiter should not
 // have to sit out another attempt's FULL timeout window just because ITS OWN
 // caller (e.g. an HTTP request) gave up sooner — Lock is context-aware so a
 // waiter returns as soon as its own ctx is done, instead of only after the
@@ -796,7 +796,7 @@ func (s *agentThunderProvisioningService) AttemptProvision(ctx context.Context, 
 	ctx = agentThunderBindingOrgContext(ctx, binding)
 
 	// Held for the entire attempt so this can't interleave its Thunder
-	// RegenerateAgentSecret/OpenBao Store calls with a concurrent
+	// RegenerateAgentSecret/secret store calls with a concurrent
 	// RegenerateSecret/RevokeSecret on the same binding. ctx here is normally
 	// either detached (ProvisionForAgent's background goroutine) or the
 	// reconciler's own long-lived context, so in practice this only returns
@@ -1610,7 +1610,7 @@ func (s *agentThunderProvisioningService) DeleteAllBindings(ctx context.Context,
 	// cleanup below: releasing it any earlier (e.g. right after DeleteByIDs)
 	// would let a concurrent re-provision for the same binding key store a
 	// fresh secret at the same deterministic path before this method's own
-	// delayed OpenBao delete call runs, deleting that fresh secret instead of
+	// delayed secret store delete call runs, deleting that fresh secret instead of
 	// the one this method actually snapshotted.
 	bindings := make([]models.AgentThunderClient, 0, len(snapshot))
 	releases := make([]func(), 0, len(snapshot))
@@ -1641,7 +1641,7 @@ func (s *agentThunderProvisioningService) DeleteAllBindings(ctx context.Context,
 	// FindRecentlyCompletedInternal's periodic reconcile sweep looks for; if
 	// DeleteByIDs below fails and such a row survives, the reconciler would
 	// treat it as a healthy binding and recreate a SecretReference CR pointing
-	// at the very OpenBao path this method deletes further down — a phantom
+	// at the very secret store entry this method deletes further down — a phantom
 	// resource pointing at nothing. Clearing this field makes injectableBinding
 	// treat the row as "nothing valid to inject" (same as a revoked credential)
 	// immediately, regardless of what fails afterward. Best-effort: a failure
@@ -1674,7 +1674,7 @@ func (s *agentThunderProvisioningService) DeleteAllBindings(ctx context.Context,
 		// stale local rows behind (now with secret_ref_path already cleared
 		// above, so they can't be mistaken for a healthy binding); bailing out
 		// here would ALSO skip deleting the live Thunder identities,
-		// SecretReference CRs, and OpenBao secrets below — external,
+		// SecretReference CRs, and stored secrets below — external,
 		// still-active resources whose leak is a materially worse outcome (an
 		// orphaned Thunder identity can still mint valid tokens indefinitely)
 		// than a few dangling database rows.
@@ -1684,7 +1684,7 @@ func (s *agentThunderProvisioningService) DeleteAllBindings(ctx context.Context,
 	// Each binding's lock releases as soon as ITS OWN external cleanup below
 	// finishes (via the inline defer), not after every other binding's —
 	// otherwise a binding with a fast cleanup would still sit blocked behind
-	// however long its siblings' Thunder/OpenBao calls take, even though
+	// however long its siblings' Thunder/secret store calls take, even though
 	// nothing about it depends on them.
 	// CP_MANAGED removes the source environment's AgentID first (it leaves the
 	// control plane configuration) and only then the promoted ones. A source
