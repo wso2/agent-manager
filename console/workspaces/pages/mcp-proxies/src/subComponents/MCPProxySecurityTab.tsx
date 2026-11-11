@@ -143,6 +143,12 @@ export type MCPProxySecurityTabProps = {
    * table lists only the selected endpoint's, so Save keeps these tools on the scopes it updates.
    */
   otherEndpointTools?: readonly string[];
+  /**
+   * Set while another endpoint's tools are not known yet (discovery has not finished). Save then
+   * keeps every tool a scope has that this endpoint does not list, rather than pruning tools it
+   * cannot see.
+   */
+  otherEndpointToolsIncomplete?: boolean;
   /** OAuth (Agent Identity) is unavailable while the endpoint is on a self-hosted gateway. */
   isOnSelfHostedGateway?: boolean;
   isLoading?: boolean;
@@ -160,6 +166,7 @@ export function MCPProxySecurityTab({
   projName,
   environments,
   otherEndpointTools = NO_TOOLS,
+  otherEndpointToolsIncomplete = false,
   isOnSelfHostedGateway = false,
   isLoading = false,
   onUpdate,
@@ -242,7 +249,12 @@ export function MCPProxySecurityTab({
     [toolEntries, config?.policies],
   );
 
-  const { data: scopesData, isPending: scopesPending } = useListMCPProxyScopes(
+  const {
+    data: scopesData,
+    isPending: scopesPending,
+    isError: scopesFailed,
+    refetch: refetchScopes,
+  } = useListMCPProxyScopes(
     { orgName: orgName ?? "", proxyId: proxyId ?? "", projName },
     { enabled: authenticationType === "identity" && !!proxyId },
   );
@@ -428,7 +440,17 @@ export function MCPProxySecurityTab({
       // saved via their own REST calls rather than bundled into the security
       // payload above.
       if (authenticationType === "identity" && toolScopesDirty && orgName && proxyId) {
-        const updates = computeScopeToolUpdates(toolScopeRows, catalogScopes, otherEndpointTools);
+        // With another endpoint's tools unknown, every tool a scope has outside this endpoint is
+        // kept: it may be one of those.
+        const keptTools = otherEndpointToolsIncomplete
+          ? [
+              ...otherEndpointTools,
+              ...catalogScopes
+                .flatMap((scope) => scope.tools)
+                .filter((tool) => !toolEntries.includes(tool)),
+            ]
+          : otherEndpointTools;
+        const updates = computeScopeToolUpdates(toolScopeRows, catalogScopes, keptTools);
 
         // Sequential rather than Promise.all: a rejection must not leave the
         // remaining updates in flight, and the committed prefix has to be
@@ -475,6 +497,7 @@ export function MCPProxySecurityTab({
     catalogScopes,
     toolEntries,
     otherEndpointTools,
+    otherEndpointToolsIncomplete,
     orgName,
     proxyId,
     projName,
@@ -683,7 +706,20 @@ export function MCPProxySecurityTab({
               </ListingTable.Container>
             ))}
 
-          {authorizationTab === "scopes" &&
+          {scopesFailed && (
+            <Alert
+              severity="error"
+              action={
+                <Button color="inherit" size="small" onClick={() => void refetchScopes()}>
+                  Retry
+                </Button>
+              }
+            >
+              Could not load this MCP server&apos;s scopes.
+            </Alert>
+          )}
+
+          {authorizationTab === "scopes" && !scopesFailed &&
             (!scopesPending && catalogScopes.length === 0 ? (
               <ListingTable.Container>
                 <ListingTable.EmptyState

@@ -15,7 +15,7 @@
  * under the License.
  */
 
-import { type SyntheticEvent, useCallback, useMemo } from "react";
+import { type SyntheticEvent, useCallback, useMemo, useState } from "react";
 import {
   Alert,
   Box,
@@ -53,6 +53,7 @@ import {
 import {
   environmentLabel,
   normalizeVersion,
+  useUnsavedChangesGuard,
 } from "@agent-management-platform/shared-component";
 import { useResourceAccess } from "@agent-management-platform/feature-management";
 import {
@@ -263,6 +264,15 @@ export function ViewProjectMCPProxy() {
     }
     return [...names];
   }, [bindings, selected?.environmentName]);
+  // A binding whose discovery has not finished has no tools yet; its scope assignments are kept.
+  const otherBindingToolsIncomplete = bindings.some(
+    (binding) =>
+      binding.environmentName !== selected?.environmentName && !binding.capabilities?.tools,
+  );
+
+  // Unsaved Security tab edits: switching tab or environment, or leaving the page, asks first.
+  const [securityDirty, setSecurityDirty] = useState(false);
+  useUnsavedChangesGuard(securityDirty);
 
   // The selected binding's environment, once deployed, for the Create Scope panel's role picker.
   const selectedScopeEnvironments = useMemo<Environment[]>(() => {
@@ -599,6 +609,8 @@ export function ViewProjectMCPProxy() {
                     proxyId={proxyId}
                     environments={selectedScopeEnvironments}
                     otherEndpointTools={otherBindingTools}
+                    otherEndpointToolsIncomplete={otherBindingToolsIncomplete}
+                    onDirtyChange={setSecurityDirty}
                     isOnSelfHostedGateway={isOnSelfHostedGateway}
                     onUpdate={updateSelectedConfig}
                     isUpdating={isUpdating}

@@ -244,14 +244,14 @@ export function applyBindingConfigChange(
 }
 
 /**
- * The org Security tab's endpoint security as a binding's. That tab sends both variants with
- * one of them enabled, and security left on with neither for "None"; the binding takes the one
- * enabled variant, and an explicit enabled false for none, which the service otherwise refuses.
+ * The org Security tab's endpoint security as a binding's. That tab sends both variants with the
+ * selected one enabled, and neither for "None", but carries security.enabled over from what was
+ * stored, so the method is read from the variants alone: the one enabled, or an explicit enabled
+ * false for none, which the service otherwise refuses.
  */
 export function bindingSecurityFrom(
   security: NonNullable<MCPEndpointConfig["security"]>,
 ): ProjectMCPProxyEnvironmentSecurity {
-  if (security.enabled === false) return { enabled: false };
   if (security.identity?.enabled) {
     return { enabled: true, identity: { enabled: true } };
   }

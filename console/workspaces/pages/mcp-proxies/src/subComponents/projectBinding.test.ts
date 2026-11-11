@@ -117,6 +117,23 @@ describe("bindingSecurityFrom", () => {
     expect(bindingSecurityFrom({ enabled: false })).toEqual({ enabled: false });
   });
 
+  it("follows the selected method when the stored binding had security off", () => {
+    expect(
+      bindingSecurityFrom({
+        enabled: false,
+        apiKey: { enabled: true, key: "X-API-Key", in: "header" },
+        identity: { enabled: false },
+      }),
+    ).toEqual({ enabled: true, apiKey: { enabled: true, key: "X-API-Key", in: "header" } });
+    expect(
+      bindingSecurityFrom({
+        enabled: false,
+        apiKey: { enabled: false },
+        identity: { enabled: true },
+      }),
+    ).toEqual({ enabled: true, identity: { enabled: true } });
+  });
+
   it("is applied when the Security tab saves, keeping the rest of the binding", () => {
     const request = applyBindingConfigChange(
       { ...base, gatewayId: "gw-1", policies: [{ name: "basic-ratelimit", version: "v1" }] },
