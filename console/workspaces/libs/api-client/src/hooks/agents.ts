@@ -18,6 +18,7 @@
 
 import { useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useParams } from "react-router-dom";
 import {
   createAgent, deleteAgent, getAgent, listAgents, listOrgAgents, generateAgentToken, updateAgent,
   getAgentRoles, getAgentGroups, getAgentIdentity,
@@ -133,6 +134,17 @@ export function useGetAgent(params: GetAgentPathParams) {
         queryFn: () => getAgent(params, getToken),
         enabled: !!params.orgName && !!params.projName && !!params.agentName,
     });
+}
+
+/**
+ * The agent named in the current URL (/org/:orgId/project/:projectId/agents/:agentId).
+ * Shares the query cache with every other useGetAgent call for that agent, so
+ * using it in many places (for example plugin activation hooks) costs one request.
+ * Disabled, with no data, on pages that have no agent in the URL.
+ */
+export function useRouteAgent() {
+  const { orgId, projectId, agentId } = useParams();
+  return useGetAgent({ orgName: orgId, projName: projectId, agentName: agentId });
 }
 
 export function useCreateAgent() {

@@ -62,7 +62,8 @@ import {
 export interface ActivePluginRoute {
   key: string;
   level: PluginLevel;
-  path: string;
+  path?: string;
+  index?: boolean;
   /** `undefined` while the plugin's activation hooks are still deciding. */
   state: PluginActivationState;
   Component: LazyExoticComponent<ComponentType>;
@@ -147,7 +148,7 @@ function usableManifests(plugins: PluginManifest[]): PluginManifest[] {
       return false;
     }
     seen.add(plugin.id);
-    return !disabled.has(plugin.id);
+    return !disabled.has(plugin.id) && !(plugin.module && disabled.has(plugin.module));
   });
 }
 
@@ -367,12 +368,30 @@ export function usePluginRoutes(level: PluginLevel): ActivePluginRoute[] {
           key,
           level,
           path: contribution.path,
+          index: contribution.index,
           state,
           Component: lazyFor(contribution.load),
         });
       }
     }
     return routes;
+  }, [contributions, level]);
+}
+
+/**
+ * Every active plugin nav item for one level, in any section, sorted by
+ * `order`. Pending items are hidden until their activation settles.
+ */
+export function usePluginNavItemsForLevel(level: PluginLevel): ActivePluginNavItem[] {
+  const contributions = useContributions();
+  return useMemo(() => {
+    const items: ActivePluginNavItem[] = [];
+    for (const { plugin, contribution, key, state } of contributions) {
+      if (contribution.type === "nav-item" && state === true && contribution.level === level) {
+        items.push({ ...contribution, key, pluginId: plugin.id });
+      }
+    }
+    return items.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   }, [contributions, level]);
 }
 

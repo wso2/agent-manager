@@ -102,8 +102,9 @@ export interface AppConfig {
   /** Console plugins (feature modules); see PluginManifest. */
   plugins?: {
     /**
-     * Ids of plugins to turn off. A disabled plugin's routes, nav items and
-     * panels are not registered, and its page chunks are never loaded.
+     * Plugin ids or module names (PluginManifest.module) to turn off. A
+     * disabled plugin's routes, nav items and panels are not registered, its
+     * activation hooks never run, and its page chunks are never loaded.
      */
     disabled?: string[];
   };

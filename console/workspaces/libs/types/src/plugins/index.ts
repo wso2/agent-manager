@@ -93,9 +93,12 @@ export interface PluginRouteContribution extends PluginContributionBase {
   level: PluginLevel;
   /**
    * Path relative to the level's route, as passed to <Route path>. Append "/*"
-   * when the page owns nested routes.
+   * when the page owns nested routes. Omit it together with `index: true` for
+   * the level's landing page (e.g. the org overview).
    */
-  path: string;
+  path?: string;
+  /** The level's index route, rendered at the level's own URL. */
+  index?: boolean;
   load: PluginComponentLoader;
 }
 
@@ -114,13 +117,22 @@ export interface PluginNavItemContribution extends PluginContributionBase {
   label: string;
   icon: IconType;
   route: PluginNavRoute;
+  /** Extra URL patterns that also highlight the item (e.g. an edit page). */
+  activePaths?: string[];
   /**
-   * Shell-defined section to place the item in (for example "infrastructure").
-   * Items without a section are appended after the built-in navigation.
+   * Shell-defined slot to place the item in. Each level has flat slots ("main"
+   * at the top, "footer" after the sections) and collapsible sections:
+   * - org: "resources", "evaluation", "infrastructure", "agent-identities"
+   * - agent: "lifecycle", "security", "observability", "evaluation"
+   * Items without a section are appended after everything else.
    */
   section?: string;
-  /** Sort key within the section; lower comes first. Defaults to 0. */
+  /** Sort key within the slot; lower comes first. Defaults to 0. */
   order?: number;
+  /** Draw a divider above the item. */
+  dividerBefore?: boolean;
+  /** Pin the item to the bottom of the navigation (e.g. Settings). */
+  pinBottom?: boolean;
 }
 
 /** A component rendered at one of the shell's mount points (see MountPoints). */
@@ -140,6 +152,12 @@ export interface PluginManifest {
   id: string;
   /** Human-readable name. */
   name: string;
+  /**
+   * Product module this plugin belongs to, e.g. "observability". Several
+   * plugins can share one; listing the module in the config's disabled list
+   * turns all of them off, while listing a plugin id turns off just that one.
+   */
+  module?: string;
   /** Must equal PLUGIN_API_VERSION. */
   apiVersion: number;
   /**

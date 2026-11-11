@@ -95,7 +95,8 @@ window.__RUNTIME_CONFIG__ = {
     externallyManagedGateway: '$FEATURE_FLAG_EXTERNALLY_MANAGED_GATEWAY' === 'true',
   },
   plugins: {
-    // Comma-separated plugin ids to turn off, e.g. "gateways,deployment-pipelines".
+    // Comma-separated plugin ids or module names to turn off,
+    // e.g. "gateways,observability".
     disabled: '$DISABLED_PLUGINS'.split(',').map((id) => id.trim()).filter(Boolean),
   },
   maxRequestBodyBytes: '$MAX_REQUEST_BODY_BYTES',
