@@ -20,9 +20,84 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"slices"
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/gen"
+	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
 )
+
+// DeleteAgentSecretReference removes a legacy reference owned by Agent Manager.
+func (c *openChoreoClient) DeleteAgentSecretReference(ctx context.Context, ouID, projectName, componentName, secretRefName string) error {
+	namespace := c.NamespaceFor(ouID)
+	ref, err := c.ocClient.GetSecretReferenceWithResponse(ctx, namespace, secretRefName)
+	if err != nil {
+		return fmt.Errorf("get secret reference %q: %w", secretRefName, err)
+	}
+	switch ref.StatusCode() {
+	case http.StatusNotFound:
+		return nil
+	case http.StatusOK:
+		if ref.JSON200 == nil {
+			return fmt.Errorf("empty response for secret reference %q", secretRefName)
+		}
+	default:
+		return handleErrorResponse(ref.StatusCode(), ErrorResponses{
+			JSON401: ref.JSON401, JSON403: ref.JSON403, JSON500: ref.JSON500,
+		})
+	}
+	if !ownsAgentSecretReference(ref.JSON200, ouID, projectName, componentName, secretRefName) {
+		return nil
+	}
+	// The legacy secrets API also cleans up the backing Secret and PushSecret.
+	if (*ref.JSON200.Metadata.Labels)["openchoreo.dev/managed-by"] == "openchoreo-api" {
+		deleted, err := c.ocClient.DeleteSecretWithResponse(ctx, namespace, secretRefName)
+		if err != nil {
+			return fmt.Errorf("delete legacy secret %q: %w", secretRefName, err)
+		}
+		switch deleted.StatusCode() {
+		case http.StatusOK, http.StatusNoContent, http.StatusNotFound:
+			return nil
+		default:
+			return handleErrorResponse(deleted.StatusCode(), ErrorResponses{
+				JSON401: deleted.JSON401, JSON403: deleted.JSON403, JSON500: deleted.JSON500,
+			})
+		}
+	}
+	deleted, err := c.ocClient.DeleteSecretReferenceWithResponse(ctx, namespace, secretRefName)
+	if err != nil {
+		return fmt.Errorf("delete secret reference %q: %w", secretRefName, err)
+	}
+	switch deleted.StatusCode() {
+	case http.StatusOK, http.StatusNoContent, http.StatusNotFound:
+		return nil
+	default:
+		return handleErrorResponse(deleted.StatusCode(), ErrorResponses{
+			JSON401: deleted.JSON401, JSON403: deleted.JSON403, JSON500: deleted.JSON500,
+		})
+	}
+}
+
+func ownsAgentSecretReference(ref *gen.SecretReference, ouID, projectName, componentName, secretRefName string) bool {
+	if ouID == "" || ref.Metadata.Labels == nil {
+		return false
+	}
+	labels := *ref.Metadata.Labels
+	if org := labels[string(LabelKeyOrgUUID)]; org != "" && org != ouID {
+		return false
+	}
+	project, component := labels[string(LabelKeyProjectName)], labels[string(LabelKeyComponentName)]
+	if (project != "" && project != projectName) || (component != "" && component != componentName) {
+		return false
+	}
+	if owner := labels[secretmanagersvc.LabelKeyManagedBy]; owner != "" {
+		return owner == secretmanagersvc.DefaultManagedBy
+	}
+	// Early in-house references used agent labels and the tenant-scoped store key.
+	return project != "" && component != "" &&
+		ref.Spec != nil && len(ref.Spec.Data) > 0 && !slices.ContainsFunc(ref.Spec.Data, func(data gen.SecretDataSource) bool {
+		return data.RemoteRef.Key != secretStoreKey(ouID, secretRefName)
+	})
+}
 
 // GetWorkloadSecretRefNames retrieves the names of every SecretReference an agent's
 // configuration points at, so DeleteAgent can clean them up along with their KV entries.

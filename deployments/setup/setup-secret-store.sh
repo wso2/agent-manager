@@ -64,12 +64,6 @@ spec:
         namespace: ${STORE_NAMESPACE}
 YAML
 
-# Both planes resolve secrets through the same vault.
-for plane in clusterdataplane clusterworkflowplane; do
-    kubectl patch "$plane" default --type merge \
-        -p "{\"spec\":{\"secretStoreRef\":{\"name\":\"${STORE_NAME}\"}}}"
-done
-
 echo "⏳ Waiting for ClusterSecretStore ${STORE_NAME} to become ready..."
 if kubectl wait --for=condition=Ready "clustersecretstore/${STORE_NAME}" --timeout=60s >/dev/null 2>&1; then
     echo "✅ ClusterSecretStore ${STORE_NAME} is ready"
@@ -79,3 +73,9 @@ else
     echo >&2
     exit 1
 fi
+
+# Keep existing plane references until the new store can serve requests.
+for plane in clusterdataplane clusterworkflowplane; do
+    kubectl patch "$plane" default --type merge \
+        -p "{\"spec\":{\"secretStoreRef\":{\"name\":\"${STORE_NAME}\"}}}"
+done

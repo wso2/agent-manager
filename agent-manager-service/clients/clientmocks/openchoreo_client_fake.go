@@ -48,6 +48,9 @@ import (
 //			CreateWorkflowRunFunc: func(ctx context.Context, ouID string, req client.CreateWorkflowRunRequest) (*client.WorkflowRunResponse, error) {
 //				panic("mock out the CreateWorkflowRun method")
 //			},
+//			DeleteAgentSecretReferenceFunc: func(ctx context.Context, ouID string, projectName string, componentName string, secretRefName string) error {
+//				panic("mock out the DeleteAgentSecretReference method")
+//			},
 //			DeleteComponentFunc: func(ctx context.Context, ouID string, projectName string, componentName string) error {
 //				panic("mock out the DeleteComponent method")
 //			},
@@ -294,6 +297,9 @@ type OpenChoreoClientMock struct {
 
 	// CreateWorkflowRunFunc mocks the CreateWorkflowRun method.
 	CreateWorkflowRunFunc func(ctx context.Context, ouID string, req client.CreateWorkflowRunRequest) (*client.WorkflowRunResponse, error)
+
+	// DeleteAgentSecretReferenceFunc mocks the DeleteAgentSecretReference method.
+	DeleteAgentSecretReferenceFunc func(ctx context.Context, ouID string, projectName string, componentName string, secretRefName string) error
 
 	// DeleteComponentFunc mocks the DeleteComponent method.
 	DeleteComponentFunc func(ctx context.Context, ouID string, projectName string, componentName string) error
@@ -616,6 +622,19 @@ type OpenChoreoClientMock struct {
 			OuID string
 			// Req is the req argument value.
 			Req client.CreateWorkflowRunRequest
+		}
+		// DeleteAgentSecretReference holds details about calls to the DeleteAgentSecretReference method.
+		DeleteAgentSecretReference []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// OuID is the ouID argument value.
+			OuID string
+			// ProjectName is the projectName argument value.
+			ProjectName string
+			// ComponentName is the componentName argument value.
+			ComponentName string
+			// SecretRefName is the secretRefName argument value.
+			SecretRefName string
 		}
 		// DeleteComponent holds details about calls to the DeleteComponent method.
 		DeleteComponent []struct {
@@ -1446,6 +1465,7 @@ type OpenChoreoClientMock struct {
 	lockCreateInternalAgentFromKindWorkload    sync.RWMutex
 	lockCreateProject                          sync.RWMutex
 	lockCreateWorkflowRun                      sync.RWMutex
+	lockDeleteAgentSecretReference             sync.RWMutex
 	lockDeleteComponent                        sync.RWMutex
 	lockDeleteEnvironment                      sync.RWMutex
 	lockDeleteOrgDeploymentPipeline            sync.RWMutex
@@ -1955,6 +1975,54 @@ func (mock *OpenChoreoClientMock) CreateWorkflowRunCalls() []struct {
 	mock.lockCreateWorkflowRun.RLock()
 	calls = mock.calls.CreateWorkflowRun
 	mock.lockCreateWorkflowRun.RUnlock()
+	return calls
+}
+
+// DeleteAgentSecretReference calls DeleteAgentSecretReferenceFunc.
+func (mock *OpenChoreoClientMock) DeleteAgentSecretReference(ctx context.Context, ouID string, projectName string, componentName string, secretRefName string) error {
+	if mock.DeleteAgentSecretReferenceFunc == nil {
+		panic("OpenChoreoClientMock.DeleteAgentSecretReferenceFunc: method is nil but OpenChoreoClient.DeleteAgentSecretReference was just called")
+	}
+	callInfo := struct {
+		Ctx           context.Context
+		OuID          string
+		ProjectName   string
+		ComponentName string
+		SecretRefName string
+	}{
+		Ctx:           ctx,
+		OuID:          ouID,
+		ProjectName:   projectName,
+		ComponentName: componentName,
+		SecretRefName: secretRefName,
+	}
+	mock.lockDeleteAgentSecretReference.Lock()
+	mock.calls.DeleteAgentSecretReference = append(mock.calls.DeleteAgentSecretReference, callInfo)
+	mock.lockDeleteAgentSecretReference.Unlock()
+	return mock.DeleteAgentSecretReferenceFunc(ctx, ouID, projectName, componentName, secretRefName)
+}
+
+// DeleteAgentSecretReferenceCalls gets all the calls that were made to DeleteAgentSecretReference.
+// Check the length with:
+//
+//	len(mockedOpenChoreoClient.DeleteAgentSecretReferenceCalls())
+func (mock *OpenChoreoClientMock) DeleteAgentSecretReferenceCalls() []struct {
+	Ctx           context.Context
+	OuID          string
+	ProjectName   string
+	ComponentName string
+	SecretRefName string
+} {
+	var calls []struct {
+		Ctx           context.Context
+		OuID          string
+		ProjectName   string
+		ComponentName string
+		SecretRefName string
+	}
+	mock.lockDeleteAgentSecretReference.RLock()
+	calls = mock.calls.DeleteAgentSecretReference
+	mock.lockDeleteAgentSecretReference.RUnlock()
 	return calls
 }
 

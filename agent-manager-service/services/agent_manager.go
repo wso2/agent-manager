@@ -3213,9 +3213,9 @@ func (s *agentManagerService) DeleteAgent(ctx context.Context, ouID string, proj
 		// Continue with deletion even if we can't get secret refs
 	}
 
-	// Step 2-4: For each secret reference, get its details, delete from KV, then delete the CR
+	// Clean up stored secrets and legacy references found on the agent.
 	for _, secretRefName := range secretRefNames {
-		s.cleanupSecretReference(ctx, ouID, secretRefName)
+		s.cleanupSecretReference(ctx, ouID, projectName, agentName, secretRefName)
 	}
 
 	// Resolve agent type before component deletion so LLM config cleanup does not need
@@ -3566,15 +3566,15 @@ func (s *agentManagerService) deleteAgentLLMConfigurations(ctx context.Context, 
 
 // cleanupSecretReference deletes a stored secret and its SecretReference by
 // name. Only removes secrets owned by this service.
-func (s *agentManagerService) cleanupSecretReference(ctx context.Context, ouID, secretRefName string) {
-	if s.secretMgmtClient == nil {
-		return
+func (s *agentManagerService) cleanupSecretReference(ctx context.Context, ouID, projectName, agentName, secretRefName string) {
+	if s.secretMgmtClient != nil {
+		if err := s.secretMgmtClient.DeleteSecretByName(ctx, ouID, secretRefName); err != nil {
+			s.logger.Warn("Failed to delete secret during cleanup", "secretRefName", secretRefName, "error", err)
+		}
 	}
-	if err := s.secretMgmtClient.DeleteSecretByName(ctx, ouID, secretRefName); err != nil {
-		s.logger.Warn("Failed to delete secret during cleanup", "secretRefName", secretRefName, "error", err)
-		return
+	if err := s.ocClient.DeleteAgentSecretReference(ctx, ouID, projectName, agentName, secretRefName); err != nil {
+		s.logger.Warn("Failed to delete legacy secret reference during cleanup", "secretRefName", secretRefName, "error", err)
 	}
-	s.logger.Debug("Deleted secret during cleanup", "secretRefName", secretRefName)
 }
 
 // BuildAgent triggers a build for an agent.

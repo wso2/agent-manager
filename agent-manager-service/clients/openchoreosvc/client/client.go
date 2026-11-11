@@ -217,6 +217,7 @@ type OpenChoreoClient interface {
 
 	// Workload Operations
 	GetWorkloadSecretRefNames(ctx context.Context, ouID, projectName, componentName string) ([]string, error)
+	DeleteAgentSecretReference(ctx context.Context, ouID, projectName, componentName, secretRefName string) error
 
 	// Authz Operations
 	// EnsureClusterRoleBinding creates a ClusterAuthzRoleBinding binding the given clientID (sub claim)

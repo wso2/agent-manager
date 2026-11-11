@@ -1004,7 +1004,18 @@ DP_EXTERNAL_INGRESS="${DP_EXTERNAL_INGRESS:-$(cat <<'EOB'
 EOB
 )}"
 
+# Keep an existing plane's reference during registration. The installer will
+# switch it to the installed AMP store after that store is ready.
+existing_plane_store_ref() {
+    local name
+    name=$(kubectl get "$1" default --ignore-not-found -o jsonpath='{.spec.secretStoreRef.name}') || return 1
+    if [ -n "$name" ]; then
+        printf '  secretStoreRef:\n    name: "%s"\n' "$name"
+    fi
+}
+
 if [ -n "$CA_CERT" ]; then
+    existing_store_ref=$(existing_plane_store_ref clusterdataplane)
     if kubectl apply -f - <<EOF
 apiVersion: openchoreo.dev/v1alpha1
 kind: ClusterDataPlane
@@ -1023,10 +1034,7 @@ $(echo "$CA_CERT" | sed 's/^/        /')
         name: ${DP_EXTERNAL_GATEWAY_NAME:-gateway-default}
         namespace: ${DP_EXTERNAL_GATEWAY_NAMESPACE:-openchoreo-data-plane}
 ${DP_EXTERNAL_INGRESS}
-  # Agent manager secrets: the in-house ClusterSecretStore the
-  # wso2-agent-manager chart creates.
-  secretStoreRef:
-    name: amp-secret-store
+${existing_store_ref}
 EOF
     then
         log_success "Data Plane registered with Control Plane successfully"
@@ -1107,6 +1115,7 @@ wait_for_secret "openchoreo-workflow-plane" "cluster-agent-tls" 180
 BP_CA_CERT=$(kubectl get secret cluster-agent-tls -n openchoreo-workflow-plane -o jsonpath='{.data.ca\.crt}' 2>/dev/null | base64 -d || echo "")
 
 if [ -n "$BP_CA_CERT" ]; then
+    existing_store_ref=$(existing_plane_store_ref clusterworkflowplane)
     if kubectl apply -f - <<EOF
 apiVersion: openchoreo.dev/v1alpha1
 kind: ClusterWorkflowPlane
@@ -1115,8 +1124,7 @@ metadata:
   namespace: default
 spec:
   planeID: "default"
-  secretStoreRef:
-    name: amp-secret-store
+${existing_store_ref}
   clusterAgent:
     clientCA:
       value: |
@@ -1274,7 +1282,16 @@ echo ""
 
 log_step "Step 13/13: Installing OpenChoreo Observability Plane"
 
-kubectl wait --for=condition=Ready clustersecretstore/amp-secret-store --timeout=120s
+# Use the installed release's effective value, including Helm overrides.
+AMP_SECRET_STORE_NAME=$(helm get values amp -n "${AMP_NS}" --all -o json |
+    jq -er '.agentManagerService.config.secretStore.clusterSecretStoreName | select(type == "string" and length > 0)')
+kubectl wait --for=condition=Ready "clustersecretstore/${AMP_SECRET_STORE_NAME}" --timeout=120s
+store_patch=$(jq -cn --arg name "${AMP_SECRET_STORE_NAME}" '{spec: {secretStoreRef: {name: $name}}}')
+for plane in clusterdataplane clusterworkflowplane; do
+    kubectl patch "$plane" default --type merge -p "$store_patch"
+done
+PLATFORM_RESOURCES_HELM_ARGS+=(--set-string "externalSecrets.clusterSecretStoreName=${AMP_SECRET_STORE_NAME}")
+EVALUATION_HELM_ARGS+=(--set-string "externalSecrets.clusterSecretStoreName=${AMP_SECRET_STORE_NAME}")
 create_plane_cert_resources "openchoreo-observability-plane"
 
 # Apply OpenTelemetry Collector ConfigMap (idempotent)
@@ -1327,7 +1344,7 @@ spec:
   refreshInterval: 1h
   secretStoreRef:
     kind: ClusterSecretStore
-    name: amp-secret-store
+    name: "${AMP_SECRET_STORE_NAME}"
   target:
     name: opensearch-admin-credentials
   data:
@@ -1358,7 +1375,7 @@ spec:
   refreshInterval: 1h
   secretStoreRef:
     kind: ClusterSecretStore
-    name: amp-secret-store
+    name: "${AMP_SECRET_STORE_NAME}"
   target:
     name: observer-secret
   data:
