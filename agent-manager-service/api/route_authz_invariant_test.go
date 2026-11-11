@@ -85,8 +85,6 @@ var unguardedRouteAllowlist = map[routeKey]string{
 		"(no org data). Still org-resolved via RequireOrgMatch.",
 	{"RegisterMonitorPublisherRoutes", "HandleFuncWithValidation", "POST /publisher/monitors/{monitorId}/runs/{runId}/scores"}: "POST /publisher/.../scores is guarded by jwtassertion.PublisherClientAuthMiddleware, " +
 		"which requires an amp-publisher-* audience instead of an amp: scope.",
-	{"RegisterBuildPublisherRoutes", "HandleFuncWithValidation", "POST /build-publisher/builds/{buildName}/workload"}: "POST /build-publisher/.../workload is guarded by jwtassertion.BuildClientAuthMiddleware, " +
-		"which requires a build token (issued to this service's IDP_CLIENT_ID for the token's own ouId) instead of an amp: scope.",
 	{"RegisterWebSocketRoutes", "HandleFunc", "GET /ws/gateways/connect"}: "GET /ws/gateways/connect is on internalMux and authenticates the gateway with an " +
 		"api-key header verified in the handler (gatewayService.VerifyToken), not a user JWT.",
 	{"registerJWKSRoute", "HandleFunc", "GET /auth/external/jwks.json"}: "publishes public signing keys and must be unauthenticated.",

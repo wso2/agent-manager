@@ -45,7 +45,8 @@ func seedPlacement(t *testing.T, kind string) models.Placement {
 	require.NoError(t, gdb.Exec(
 		`INSERT INTO gateways (uuid, name, display_name, vhost, gateway_functionality_type, ou_id, is_active)
 		 VALUES (?, ?, ?, ?, ?, ?, TRUE)`,
-		gatewayID, name, name, "gw.example", models.GatewayRoleEgress, ouID).Error)
+		gatewayID, name, name, "gw.example", models.GatewayRoleEgress, ouID,
+	).Error)
 	handle := "handle-" + artifactUUID.String()[:8]
 	require.NoError(t, NewArtifactRepo(gdb).Create(gdb, &models.Artifact{
 		UUID: artifactUUID, Handle: handle, Name: handle, Version: "v1.0", Kind: kind, OUID: ouID,
@@ -102,7 +103,8 @@ func insertPendingRow(t *testing.T, p models.Placement) {
 		`INSERT INTO deployment_status (artifact_uuid, ou_id, gateway_uuid, status, status_desired, performed_at,
 		 next_attempt_at, render_reason, updated_at)
 		 VALUES (?, ?, ?, 'PENDING', 'DEPLOYED', NOW(), NOW(), 'waiting', NOW())`,
-		p.ArtifactUUID, p.OUID, p.GatewayUUID).Error)
+		p.ArtifactUUID, p.OUID, p.GatewayUUID,
+	).Error)
 }
 
 // queueRender marks a deploy owed on the row, as the render queue would.
@@ -111,7 +113,8 @@ func queueRender(t *testing.T, p models.Placement) {
 	require.NoError(t, db.GetDB().Exec(
 		`UPDATE deployment_status SET next_attempt_at = NOW(), attempt_count = 3, render_reason = 'waiting'
 		 WHERE artifact_uuid = ? AND ou_id = ? AND gateway_uuid = ?`,
-		p.ArtifactUUID, p.OUID, p.GatewayUUID).Error)
+		p.ArtifactUUID, p.OUID, p.GatewayUUID,
+	).Error)
 }
 
 func backdate(t *testing.T, p models.Placement, by time.Duration) {
@@ -119,7 +122,8 @@ func backdate(t *testing.T, p models.Placement, by time.Duration) {
 	require.NoError(t, db.GetDB().Exec(
 		`UPDATE deployment_status SET performed_at = performed_at - make_interval(secs => ?)
 		 WHERE artifact_uuid = ? AND ou_id = ? AND gateway_uuid = ?`,
-		by.Seconds(), p.ArtifactUUID, p.OUID, p.GatewayUUID).Error)
+		by.Seconds(), p.ArtifactUUID, p.OUID, p.GatewayUUID,
+	).Error)
 }
 
 func deployAck(deploymentID uuid.UUID, status, errorCode string) models.DeploymentAck {

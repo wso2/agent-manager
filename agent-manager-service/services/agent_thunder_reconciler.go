@@ -51,29 +51,20 @@ type AgentThunderReconcilerService interface {
 
 type agentThunderReconcilerService struct {
 	provisioning AgentThunderProvisioningService
-	// injector pushes an internal agent's credential into its live workload —
-	// held directly (not reached via the provisioning service) since this
-	// reconciler's own periodic sweep is the only caller within this service;
-	// see reconcileWorkloadInjection's doc comment for why that helper is
-	// package-level rather than a method needing to live on
-	// AgentThunderProvisioningService's interface.
-	injector AgentIdentityInjectionService
-	repo     repositories.AgentThunderClientRepository
-	logger   *slog.Logger
-	stopCh   chan struct{}
-	stopOnce sync.Once
+	repo         repositories.AgentThunderClientRepository
+	logger       *slog.Logger
+	stopCh       chan struct{}
+	stopOnce     sync.Once
 }
 
 // NewAgentThunderReconcilerService creates a new AgentThunderReconcilerService.
 func NewAgentThunderReconcilerService(
 	provisioning AgentThunderProvisioningService,
-	injector AgentIdentityInjectionService,
 	repo repositories.AgentThunderClientRepository,
 	logger *slog.Logger,
 ) AgentThunderReconcilerService {
 	return &agentThunderReconcilerService{
 		provisioning: provisioning,
-		injector:     injector,
 		repo:         repo,
 		logger:       logger,
 		stopCh:       make(chan struct{}),
@@ -85,7 +76,6 @@ func (s *agentThunderReconcilerService) Start(ctx context.Context) error {
 	// Own goroutine, independent of runLoop's ticker: a large backfill (see its
 	// own doc comment) must never delay the time-sensitive PENDING-binding
 	// retry cycle below.
-	go s.runInitialIdentityInjectionBackfill(ctx)
 	go s.runLoop(ctx)
 	if _, ok := s.provisioning.(ProjectAgentIdentityPromotionReconciler); ok {
 		go s.runPromotionTopologyLoop(ctx)
@@ -223,80 +213,4 @@ func (s *agentThunderReconcilerService) runCycle(ctx context.Context) {
 		}(binding)
 	}
 	wg.Wait()
-
-	s.runIdentityInjectionReconcile(ctx)
-}
-
-// identityInjectionReconcileWindow bounds how far back the PERIODIC injection
-// sweep (runIdentityInjectionReconcile, every tick) looks. It only bridges the
-// gap between provisioning completing (seconds after create) and a brand-new
-// git agent's first build creating its ReleaseBinding (minutes later);
-// steady-state sync is owned by the deploy, promote, rotation, and
-// MCP-config-change paths, so the window is finite — every-tick-forever over
-// the whole table would be needless, permanent load. Bindings completed
-// before this window existed (e.g. an AMS upgrade) are still covered exactly
-// once by runInitialIdentityInjectionBackfill instead, without paying that
-// cost on every tick.
-const identityInjectionReconcileWindow = 2 * time.Hour
-
-// runIdentityInjectionReconcile reconciles recently-completed internal agents'
-// live workloads with their desired AgentID env vars, writing only when vars
-// are missing or scopes drifted (see ReconcileForEnvironment) so re-running
-// each tick never causes a needless pod rollout. Runs outside the advisory
-// lock; concurrent instances converge on the same desired state, so the worst
-// case is a duplicate content-identical write.
-func (s *agentThunderReconcilerService) runIdentityInjectionReconcile(ctx context.Context) {
-	s.pageIdentityInjectionReconcile(ctx, time.Now().Add(-identityInjectionReconcileWindow))
-}
-
-// runInitialIdentityInjectionBackfill runs once per process start (see Start)
-// and reconciles EVERY completed internal binding regardless of age — not
-// just ones within identityInjectionReconcileWindow. This covers a binding
-// whose ReleaseBinding predates this reconcile sweep and so has no AgentID
-// overrides at all: the next redeploy to the pipeline's LOWEST environment
-// writes that environment's client_id/secret into the shared Workload CR
-// (inherited by every environment lacking its own override), and an
-// untouched pre-existing staging/prod pod would otherwise silently inherit it
-// on its next restart — the same cross-environment credential leak
-// PromoteAgent's hard block prevents for new promotions, but that block only
-// covers promotions from here on, not bindings already sitting in that state.
-//
-// Not gated on a persisted "already ran" flag: an AMS process restart already
-// guarantees the full sweep runs at least once — rather than once ever, which
-// would need new schema state — and self-heals again on any later restart.
-// ReconcileForEnvironment is cheap and idempotent for anything already in
-// sync, so the real cost this design avoids is running the full-table sweep
-// on every one-minute tick forever, not just once (or a few times) per
-// restart.
-func (s *agentThunderReconcilerService) runInitialIdentityInjectionBackfill(ctx context.Context) {
-	s.pageIdentityInjectionReconcile(ctx, time.Time{})
-}
-
-// pageIdentityInjectionReconcile reconciles every COMPLETED internal binding
-// created at/after createdAfter, paging through ALL of them (not just the
-// oldest reconcilerBatchSize): FindRecentlyCompletedInternal orders by
-// (created_at, id), so re-querying with the previous page's last row as a
-// keyset cursor continues strictly past it. Without this, more than
-// reconcilerBatchSize eligible bindings existing at once would starve the
-// newest ones — the same oldest page would be reselected every call until
-// enough of them aged out of the (periodic caller's) window, and a newer
-// binding could miss its entire window without ever being reconciled.
-func (s *agentThunderReconcilerService) pageIdentityInjectionReconcile(ctx context.Context, createdAfter time.Time) {
-	var cursor *repositories.ReconcileCursor
-	for {
-		recent, err := s.repo.FindRecentlyCompletedInternal(ctx, createdAfter, cursor, reconcilerBatchSize)
-		if err != nil {
-			s.logger.Error("Failed to query recently completed internal agent thunder bindings", "error", err)
-			return
-		}
-		for _, binding := range recent {
-			bindingCtx := agentThunderBindingOrgContext(ctx, binding)
-			reconcileWorkloadInjection(bindingCtx, s.injector, binding, s.logger)
-		}
-		if len(recent) < reconcilerBatchSize {
-			return
-		}
-		last := recent[len(recent)-1]
-		cursor = &repositories.ReconcileCursor{CreatedAt: last.CreatedAt, ID: last.ID}
-	}
 }

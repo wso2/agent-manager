@@ -30,11 +30,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-
-	occlient "github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
-	"github.com/wso2/agent-manager/agent-manager-service/events"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -43,11 +40,8 @@ import (
 
 // EnvironmentService defines the interface for environment operations
 type EnvironmentService interface {
-	CreateEnvironment(ctx context.Context, ouID string, req *models.CreateEnvironmentRequest) (*models.GatewayEnvironmentResponse, error)
 	GetEnvironment(ctx context.Context, ouID string, envID string) (*models.GatewayEnvironmentResponse, error)
 	ListEnvironments(ctx context.Context, ouID string, limit, offset int32) (*models.EnvironmentListResponse, error)
-	UpdateEnvironment(ctx context.Context, ouID string, envID string, req *models.UpdateEnvironmentRequest) (*models.GatewayEnvironmentResponse, error)
-	DeleteEnvironment(ctx context.Context, ouID string, envID string) error
 	GetEnvironmentGateways(ctx context.Context, ouID string, envID string) ([]models.GatewayResponse, error)
 	ListThunderInstances(ctx context.Context, ouID string) (*models.ThunderInstanceListResponse, error)
 	// SetThunderSystemClientSecret stores (encrypted) the env-Thunder
@@ -99,7 +93,7 @@ const (
 
 type environmentService struct {
 	logger             *slog.Logger
-	ocClient           occlient.OpenChoreoClient
+	ocClient           repositories.PlatformRepository
 	gatewayRepo        repositories.GatewayRepository
 	thunderProber      thundersvc.Prober
 	agentConfigService AgentConfigurationService
@@ -114,7 +108,7 @@ type environmentService struct {
 }
 
 // NewEnvironmentService creates a new environment service
-func NewEnvironmentService(logger *slog.Logger, gatewayRepo repositories.GatewayRepository, ocClient occlient.OpenChoreoClient, thunderProber thundersvc.Prober, agentConfigService AgentConfigurationService, envThunderRepo repositories.EnvThunderSystemClientRepository, envThunderURLRepo repositories.EnvThunderURLRepository, encryptionKey []byte, a2aCardRepo repositories.A2AAgentCardRepository, a2aPublisher *A2APublisher, agentConfigRepo repositories.AgentConfigRepository) EnvironmentService {
+func NewEnvironmentService(logger *slog.Logger, gatewayRepo repositories.GatewayRepository, ocClient repositories.PlatformRepository, thunderProber thundersvc.Prober, agentConfigService AgentConfigurationService, envThunderRepo repositories.EnvThunderSystemClientRepository, envThunderURLRepo repositories.EnvThunderURLRepository, encryptionKey []byte, a2aCardRepo repositories.A2AAgentCardRepository, a2aPublisher *A2APublisher, agentConfigRepo repositories.AgentConfigRepository) EnvironmentService {
 	return &environmentService{
 		logger:             logger,
 		gatewayRepo:        gatewayRepo,
@@ -132,62 +126,13 @@ func NewEnvironmentService(logger *slog.Logger, gatewayRepo repositories.Gateway
 	}
 }
 
-func (s *environmentService) CreateEnvironment(ctx context.Context, ouID string, req *models.CreateEnvironmentRequest) (*models.GatewayEnvironmentResponse, error) {
-	s.logger.Info("Creating environment in OpenChoreo", "name", req.Name, "ouID", ouID)
-
-	if req.DataplaneRef == "" {
-		s.logger.Warn("No dataplaneRef provided", "name", req.Name, "ouID", ouID)
-	}
-
-	// Reject unsupported isolation tiers up front. An unknown value would otherwise be
-	// persisted verbatim on the Environment CR and silently fall back to runc at render
-	// time (runtimeClassForIsolationTier returns "" for anything unrecognised), hiding the
-	// typo from the user until they notice their agents are not actually isolated.
-	switch req.IsolationTier {
-	case "", utils.IsolationTierGvisor, utils.IsolationTierKata:
-	default:
-		return nil, fmt.Errorf("%w: unsupported isolation tier %q (allowed: gvisor, kata)", utils.ErrInvalidInput, req.IsolationTier)
-	}
-
-	ocReq := occlient.CreateEnvironmentRequest{
-		Name:          req.Name,
-		DisplayName:   req.DisplayName,
-		Description:   req.Description,
-		IsolationTier: req.IsolationTier,
-		DataplaneRef:  req.DataplaneRef,
-		IsProduction:  req.IsProduction,
-		Gateway:       toOCClientGatewaySpec(req.Gateway),
-	}
-
-	env, err := s.ocClient.CreateEnvironment(ctx, ouID, ocReq)
-	if err != nil {
-		s.logger.Error("Failed to create environment in OpenChoreo", "ouID", ouID, "name", req.Name, "error", err)
-		return nil, fmt.Errorf("failed to create environment: %w", err)
-	}
-
-	return &models.GatewayEnvironmentResponse{
-		UUID:             env.UUID,
-		OrganizationName: ouID,
-		Name:             env.Name,
-		DisplayName:      env.DisplayName,
-		Description:      req.Description,
-		IsolationTier:    env.IsolationTier,
-		DataplaneRef:     env.DataplaneRef,
-		IsProduction:     env.IsProduction,
-		Gateway:          env.Gateway,
-		CreatedAt:        env.CreatedAt,
-		UpdatedAt:        env.CreatedAt,
-	}, nil
-}
-
 func (s *environmentService) GetEnvironment(ctx context.Context, ouID string, envID string) (*models.GatewayEnvironmentResponse, error) {
-	s.logger.Info("Getting environment from OpenChoreo", "envID", envID, "ouID", ouID)
+	s.logger.Info("Getting environment", "envID", envID, "ouID", ouID)
 
-	// envID in this context is the environment name (not UUID)
-	// since OpenChoreo API uses environment name as identifier
+	// There is only the default environment; envID is accepted and ignored.
 	env, err := s.ocClient.GetEnvironment(ctx, ouID, envID)
 	if err != nil {
-		s.logger.Error("Failed to get environment from OpenChoreo", "ouID", ouID, "envID", envID, "error", err)
+		s.logger.Error("Failed to get environment", "ouID", ouID, "envID", envID, "error", err)
 		// Check if it's a not-found error
 		if errors.Is(err, utils.ErrEnvironmentNotFound) {
 			return nil, utils.ErrEnvironmentNotFound
@@ -195,7 +140,6 @@ func (s *environmentService) GetEnvironment(ctx context.Context, ouID string, en
 		return nil, fmt.Errorf("failed to get environment: %w", err)
 	}
 
-	// Convert OpenChoreo EnvironmentResponse to GatewayEnvironmentResponse
 	return &models.GatewayEnvironmentResponse{
 		UUID:             env.UUID,
 		OrganizationName: ouID,
@@ -213,12 +157,11 @@ func (s *environmentService) GetEnvironment(ctx context.Context, ouID string, en
 }
 
 func (s *environmentService) ListEnvironments(ctx context.Context, ouID string, limit, offset int32) (*models.EnvironmentListResponse, error) {
-	s.logger.Info("Listing environments from OpenChoreo", "ouID", ouID, "limit", limit, "offset", offset)
+	s.logger.Info("Listing environments", "ouID", ouID, "limit", limit, "offset", offset)
 
-	// Fetch environments directly from OpenChoreo
 	ocEnvironments, err := s.ocClient.ListEnvironments(ctx, ouID)
 	if err != nil {
-		s.logger.Error("Failed to list environments from OpenChoreo", "ouID", ouID, "error", err)
+		s.logger.Error("Failed to list environments", "ouID", ouID, "error", err)
 		return nil, fmt.Errorf("failed to list environments: %w", err)
 	}
 
@@ -244,7 +187,6 @@ func (s *environmentService) ListEnvironments(ctx context.Context, ouID string, 
 
 	paginatedEnvs := ocEnvironments[start:end]
 
-	// Convert OpenChoreo environment responses to gateway environment responses
 	responses := make([]models.GatewayEnvironmentResponse, len(paginatedEnvs))
 	for i, env := range paginatedEnvs {
 		responses[i] = models.GatewayEnvironmentResponse{
@@ -271,242 +213,13 @@ func (s *environmentService) ListEnvironments(ctx context.Context, ouID string, 
 	}, nil
 }
 
-func (s *environmentService) UpdateEnvironment(ctx context.Context, ouID string, envID string, req *models.UpdateEnvironmentRequest) (*models.GatewayEnvironmentResponse, error) {
-	s.logger.Info("Updating environment in OpenChoreo", "envID", envID, "ouID", ouID)
-
-	ocReq := occlient.UpdateEnvironmentRequest{
-		DisplayName:  req.DisplayName,
-		Description:  req.Description,
-		IsProduction: req.IsProduction,
-		Gateway:      toOCClientGatewaySpec(req.Gateway),
-	}
-
-	env, err := s.ocClient.UpdateEnvironment(ctx, ouID, envID, ocReq)
-	if err != nil {
-		s.logger.Error("Failed to update environment in OpenChoreo", "ouID", ouID, "envID", envID, "error", err)
-		if errors.Is(err, utils.ErrNotFound) || errors.Is(err, utils.ErrEnvironmentNotFound) {
-			return nil, utils.ErrEnvironmentNotFound
-		}
-		return nil, fmt.Errorf("failed to update environment: %w", err)
-	}
-	// The route may name the environment by UUID; event subscriptions filter
-	// by name.
-	events.SetEnvironment(ctx, env.Name)
-
-	description := ""
-	if req.Description != nil {
-		description = *req.Description
-	}
-
-	return &models.GatewayEnvironmentResponse{
-		UUID:             env.UUID,
-		OrganizationName: ouID,
-		Name:             env.Name,
-		DisplayName:      env.DisplayName,
-		Description:      description,
-		DataplaneRef:     env.DataplaneRef,
-		IsProduction:     env.IsProduction,
-		Gateway:          env.Gateway,
-		CreatedAt:        env.CreatedAt,
-		UpdatedAt:        env.CreatedAt,
-	}, nil
-}
-
-// DeleteEnvironment removes an environment from OpenChoreo and cleans up local DB state.
-//
-// OpenChoreo is the source of truth for "is anything actually deployed here": it refuses
-// Environment deletion while ReleaseBindings or workloads still reference it, so we let
-// the OC API server enforce that and surface whatever it returns.
-//
-// On success: delete the OpenChoreo Environment CR, then delete any gateway↔env mapping rows
-func (s *environmentService) DeleteEnvironment(ctx context.Context, ouID string, envID string) error {
-	s.logger.Info("Deleting environment", "envID", envID, "ouID", ouID)
-
-	// envID is the environment name (matching OpenChoreo's identifier); resolve the UUID via OC
-	// because the local DB doesn't have its own environments table.
-	env, err := s.ocClient.GetEnvironment(ctx, ouID, envID)
-	if err != nil {
-		s.logger.Error("Failed to look up environment", "ouID", ouID, "envID", envID, "error", err)
-		if errors.Is(err, utils.ErrNotFound) || errors.Is(err, utils.ErrEnvironmentNotFound) {
-			// A repeat DELETE is how a failed or skipped cleanup is retried.
-			s.cleanUpDeletedEnvironment(ctx, ouID, envID, uuid.Nil)
-			return utils.ErrEnvironmentNotFound
-		}
-		return fmt.Errorf("failed to look up environment: %w", err)
-	}
-
-	events.SetEnvironment(ctx, env.Name)
-
-	envUUID, parseErr := uuid.Parse(env.UUID)
-	if parseErr != nil {
-		s.logger.Error("Invalid env UUID from OpenChoreo", "uuid", env.UUID, "error", parseErr)
-		return fmt.Errorf("invalid environment UUID: %w", parseErr)
-	}
-
-	// Block deletion if any deployment pipeline still references this environment in its
-	// promotion paths (either as a source or a target environment).
-	pipelines, err := s.ocClient.ListDeploymentPipelines(ctx, ouID)
-	if err != nil {
-		s.logger.Error("Failed to list deployment pipelines while checking environment references", "ouID", ouID, "envID", envID, "error", err)
-		return fmt.Errorf("failed to verify environment references: %w", err)
-	}
-	var referencingPipelines []string
-	for _, pipeline := range pipelines {
-		if pipeline != nil && pipelineReferencesEnvironment(pipeline, env.Name) {
-			referencingPipelines = append(referencingPipelines, pipeline.Name)
-		}
-	}
-	if len(referencingPipelines) > 0 {
-		s.logger.Warn("Cannot delete environment referenced by deployment pipelines", "ouID", ouID, "envID", envID, "pipelines", referencingPipelines)
-		return fmt.Errorf("%w: %v", utils.ErrEnvironmentInUse, referencingPipelines)
-	}
-
-	// Delete in OpenChoreo first. If OC refuses (release bindings still exist, etc.) we surface
-	// that error without having touched local state. A not-found from OC after UUID resolution
-	// is treated as idempotent so we still clean up local gateway↔env mappings.
-	if err := s.ocClient.DeleteEnvironment(ctx, ouID, env.Name); err != nil {
-		s.logger.Error("Failed to delete environment in OpenChoreo", "ouID", ouID, "envID", envID, "error", err)
-		if errors.Is(err, utils.ErrNotFound) || errors.Is(err, utils.ErrEnvironmentNotFound) {
-			s.logger.Warn("Environment already absent in OpenChoreo; continuing local cleanup",
-				"ouID", ouID, "envID", envID, "envUUID", envUUID)
-		} else {
-			return fmt.Errorf("failed to delete environment in OpenChoreo: %w", err)
-		}
-	}
-
-	s.cleanUpDeletedEnvironment(ctx, ouID, env.Name, envUUID)
-
-	// Local cleanup: gateway↔env mapping rows. The gateway themselves are unaffected.
-	deleted, err := s.gatewayRepo.DeleteEnvironmentMappingsByEnvironmentID(envUUID.String())
-	if err != nil {
-		s.logger.Error("Environment deleted in OpenChoreo but local gateway-mapping cleanup failed",
-			"envUUID", envUUID, "error", err)
-		return fmt.Errorf("environment deleted but gateway mapping cleanup failed: %w", err)
-	}
-	s.logger.Info("Deleted environment", "envID", envID, "envUUID", envUUID, "gatewayMappingsDeleted", deleted)
-	return nil
-}
-
-// envCleanupStep is one idempotent removal of a deleted environment's local state; failed is logged once its retries are spent.
-type envCleanupStep struct {
-	name   string
-	failed string
-	attrs  []any
-	run    func(ctx context.Context) error
-}
-
-// cleanUpDeletedEnvironment runs every cleanup step with retries; envUUID is uuid.Nil once OpenChoreo no longer knows the environment.
-func (s *environmentService) cleanUpDeletedEnvironment(ctx context.Context, ouID, name string, envUUID uuid.UUID) {
-	// The DELETE has committed in OpenChoreo; a disconnecting client must not cut the cleanup short.
-	ctx, cancel := detachedCleanupContext(ctx)
-	defer cancel()
-	retry := fixedCleanupRetry(s.cleanupAttempts, s.cleanupBackoff)
-	for _, step := range s.envCleanupSteps(ctx, ouID, name, envUUID) {
-		attrs := append([]any{"ouID", ouID, "envName", name}, step.attrs...)
-		if err := retryCleanup(ctx, s.logger, retry, step.name, func() error { return step.run(ctx) }, attrs...); err != nil {
-			s.logger.Error(step.failed, append(attrs, "step", step.name, "error", err)...)
-		}
-	}
-}
-
-// envCleanupSteps orders MCP artifacts, then agent configs, then the A2A state of envUUID and every environment once recorded under name.
-func (s *environmentService) envCleanupSteps(ctx context.Context, ouID, name string, envUUID uuid.UUID) []envCleanupStep {
-	var steps []envCleanupStep
-	if s.agentConfigService != nil && envUUID != uuid.Nil {
-		steps = append(steps, envCleanupStep{
-			name:   "MCP artifact cleanup",
-			failed: "Environment deleted but its MCP artifacts were not fully removed; repeat the DELETE to retry",
-			attrs:  []any{"envUUID", envUUID},
-			run: func(ctx context.Context) error {
-				return s.agentConfigService.CleanupEnvironmentMCPArtifacts(ctx, ouID, envUUID, name)
-			},
-		})
-	}
-	if s.agentConfigRepo != nil {
-		steps = append(steps, envCleanupStep{
-			name:   "Agent config cleanup",
-			failed: "Environment deleted but its agent configs were not removed; repeat the DELETE before re-creating the environment to retry",
-			run:    func(ctx context.Context) error { return s.agentConfigRepo.DeleteForEnvironment(ctx, ouID, name) },
-		})
-	}
-	if s.a2aCardRepo == nil && s.a2aPublisher == nil {
-		return steps
-	}
-	ids, err := s.a2aEnvironmentUUIDs(ctx, ouID, name)
-	if err != nil {
-		s.logger.Error("Could not list all leftover A2A state for the environment name", "ouID", ouID, "envName", name, "error", err)
-	}
-	if envUUID != uuid.Nil {
-		ids = append(ids, envUUID)
-	}
-	for _, id := range uniqueUUIDs(ids) {
-		steps = append(steps, envCleanupStep{
-			name:   "A2A teardown",
-			failed: "Environment deleted but its A2A state was not fully removed; repeat the DELETE to retry, and any agent artifacts left behind are removed when their agent is deleted",
-			attrs:  []any{"envUUID", id},
-			run:    func(ctx context.Context) error { return s.tearDownA2AEnvironment(ctx, ouID, id) },
-		})
-	}
-	return steps
-}
-
-// a2aEnvironmentUUIDs returns what every listing found, even when another failed.
-func (s *environmentService) a2aEnvironmentUUIDs(ctx context.Context, ouID, name string) ([]uuid.UUID, error) {
-	var ids []uuid.UUID
-	var errs []error
-	if s.a2aCardRepo != nil {
-		cards, err := s.a2aCardRepo.ListEnvironmentUUIDs(ctx, ouID, name)
-		if err != nil {
-			errs = append(errs, fmt.Errorf("failed to list A2A card environments: %w", err))
-		}
-		ids = append(ids, cards...)
-	}
-	if s.a2aPublisher != nil {
-		published, err := s.a2aPublisher.EnvironmentUUIDs(ctx, ouID, name)
-		if err != nil {
-			errs = append(errs, err)
-		}
-		ids = append(ids, published...)
-	}
-	return ids, errors.Join(errs...)
-}
-
-// tearDownA2AEnvironment withdraws publications and proxies, then drops the cards that named their agents; both are idempotent.
-func (s *environmentService) tearDownA2AEnvironment(ctx context.Context, ouID string, envUUID uuid.UUID) error {
-	var errs []error
-	if s.a2aPublisher != nil {
-		if err := s.a2aPublisher.TeardownEnvironment(ctx, ouID, envUUID); err != nil {
-			errs = append(errs, err)
-		}
-	}
-	if s.a2aCardRepo != nil {
-		if err := s.a2aCardRepo.DeleteForEnvironment(ctx, ouID, envUUID); err != nil {
-			errs = append(errs, fmt.Errorf("failed to delete A2A agent cards: %w", err))
-		}
-	}
-	return errors.Join(errs...)
-}
-
-func uniqueUUIDs(ids []uuid.UUID) []uuid.UUID {
-	seen := make(map[uuid.UUID]struct{}, len(ids))
-	out := make([]uuid.UUID, 0, len(ids))
-	for _, id := range ids {
-		if _, ok := seen[id]; ok {
-			continue
-		}
-		seen[id] = struct{}{}
-		out = append(out, id)
-	}
-	return out
-}
-
 func (s *environmentService) GetEnvironmentGateways(ctx context.Context, ouID string, envID string) ([]models.GatewayResponse, error) {
 	s.logger.Info("Getting environment gateways", "envID", envID, "ouID", ouID)
 
-	// Verify environment exists in OpenChoreo (envID is environment name)
+	// Verify environment exists (envID is environment name)
 	env, err := s.ocClient.GetEnvironment(ctx, ouID, envID)
 	if err != nil {
-		s.logger.Error("Failed to get environment from OpenChoreo", "ouID", ouID, "envID", envID, "error", err)
+		s.logger.Error("Failed to get environment", "ouID", ouID, "envID", envID, "error", err)
 		if errors.Is(err, utils.ErrEnvironmentNotFound) {
 			return nil, utils.ErrEnvironmentNotFound
 		}
@@ -565,67 +278,6 @@ func (s *environmentService) GetEnvironmentGateways(ctx context.Context, ouID st
 	return responses, nil
 }
 
-// pipelineReferencesEnvironment reports whether any promotion path in the pipeline
-// references the given environment name, either as the source or as a target.
-func pipelineReferencesEnvironment(pipeline *models.DeploymentPipelineResponse, envName string) bool {
-	for _, path := range pipeline.PromotionPaths {
-		if path.SourceEnvironmentRef == envName {
-			return true
-		}
-		for _, target := range path.TargetEnvironmentRefs {
-			if target.Name == envName {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-// -----------------------------------------------------------------------------
-// Gateway spec translation: models.GatewaySpec (internal DTO) → occlient
-// GatewaySpec (OC-bound request type). Direct field-by-field copy; the OC
-// client layer constructs the runtime-only fields (gateway resource name/
-// namespace, listener name).
-// -----------------------------------------------------------------------------
-
-func toOCClientGatewaySpec(g *models.GatewaySpec) *occlient.GatewaySpec {
-	if g == nil {
-		return nil
-	}
-	return &occlient.GatewaySpec{
-		Ingress: toOCClientGatewayNetworkSpec(g.Ingress),
-		Egress:  toOCClientGatewayNetworkSpec(g.Egress),
-	}
-}
-
-func toOCClientGatewayNetworkSpec(n *models.GatewayNetworkSpec) *occlient.GatewayNetworkSpec {
-	if n == nil {
-		return nil
-	}
-	return &occlient.GatewayNetworkSpec{
-		External: toOCClientGatewayEndpointSpec(n.External),
-		Internal: toOCClientGatewayEndpointSpec(n.Internal),
-	}
-}
-
-func toOCClientGatewayEndpointSpec(e *models.GatewayEndpointSpec) *occlient.GatewayEndpointSpec {
-	if e == nil {
-		return nil
-	}
-	return &occlient.GatewayEndpointSpec{
-		HTTP:  toOCClientGatewayListenerSpec(e.HTTP),
-		HTTPS: toOCClientGatewayListenerSpec(e.HTTPS),
-		TLS:   toOCClientGatewayListenerSpec(e.TLS),
-	}
-}
-
-func toOCClientGatewayListenerSpec(l *models.GatewayListenerSpec) *occlient.GatewayListenerSpec {
-	if l == nil {
-		return nil
-	}
-	return &occlient.GatewayListenerSpec{Port: l.Port, Host: l.Host}
-}
-
 // ListThunderInstances returns the Thunder OAuth2 identity provider info for every
 // environment in the org whose env-Thunder instance is reachable.
 //
@@ -653,7 +305,7 @@ func (s *environmentService) ListThunderInstances(ctx context.Context, ouID stri
 	// which is the OpenChoreo namespace — not the OU id from the JWT. Probing or
 	// advertising URLs derived from the OU id would point at instances that don't
 	// exist.
-	orgNamespace, err := ResolveNamespace(ctx, s.ocClient)
+	orgNamespace, err := ResolveNamespace(ctx)
 	if err != nil {
 		return nil, err
 	}

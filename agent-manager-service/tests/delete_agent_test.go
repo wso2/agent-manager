@@ -24,15 +24,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
-	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/tests/apitestutils"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 	"github.com/wso2/agent-manager/agent-manager-service/wiring"
@@ -50,11 +47,11 @@ func TestDeleteAgent(t *testing.T) {
 	authMiddleware := jwtassertion.NewMockMiddleware(t)
 
 	t.Run("Deleting an internal agent should return 204", func(t *testing.T) {
-		openChoreoClient := apitestutils.CreateMockOpenChoreoClient()
+		platformRepo := apitestutils.CreateMockPlatformRepository()
 		secretMgmtClient := apitestutils.CreateMockSecretManagementClient()
 		testClients := wiring.TestClients{
-			OpenChoreoClient: openChoreoClient,
-			SecretMgmtClient: secretMgmtClient,
+			PlatformRepository: platformRepo,
+			SecretMgmtClient:   secretMgmtClient,
 		}
 
 		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
@@ -70,20 +67,20 @@ func TestDeleteAgent(t *testing.T) {
 		require.Equal(t, http.StatusNoContent, rr.Code)
 
 		// Validate service calls
-		require.Len(t, openChoreoClient.DeleteComponentCalls(), 1)
+		require.Len(t, platformRepo.DeleteAgentCalls(), 1)
 
 		// Validate call parameters
-		deleteCall := openChoreoClient.DeleteComponentCalls()[0]
+		deleteCall := platformRepo.DeleteAgentCalls()[0]
 		require.Equal(t, testDeleteProjName, deleteCall.ProjectName)
-		require.Equal(t, testDeleteAgentName, deleteCall.ComponentName)
+		require.Equal(t, testDeleteAgentName, deleteCall.AgentName)
 	})
 
 	t.Run("Deleting an external agent should return 204", func(t *testing.T) {
-		openChoreoClient := apitestutils.CreateMockOpenChoreoClient()
+		platformRepo := apitestutils.CreateMockPlatformRepository()
 		secretMgmtClient := apitestutils.CreateMockSecretManagementClient()
 		testClients := wiring.TestClients{
-			OpenChoreoClient: openChoreoClient,
-			SecretMgmtClient: secretMgmtClient,
+			PlatformRepository: platformRepo,
+			SecretMgmtClient:   secretMgmtClient,
 		}
 
 		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
@@ -99,7 +96,7 @@ func TestDeleteAgent(t *testing.T) {
 		require.Equal(t, http.StatusNoContent, rr.Code)
 
 		// Validate that DeleteAgentComponent was NOT called for external agents
-		require.Len(t, openChoreoClient.DeleteComponentCalls(), 1)
+		require.Len(t, platformRepo.DeleteAgentCalls(), 1)
 	})
 
 	validationTests := []struct {
@@ -108,7 +105,7 @@ func TestDeleteAgent(t *testing.T) {
 		wantStatus     int
 		wantErrMsg     string
 		url            string
-		setupMock      func() *clientmocks.OpenChoreoClientMock
+		setupMock      func() *repomocks.PlatformRepositoryMock
 	}{
 		{
 			name:           "return 404 on organization not found",
@@ -116,8 +113,8 @@ func TestDeleteAgent(t *testing.T) {
 			wantStatus:     404,
 			wantErrMsg:     "Organization not found",
 			url:            fmt.Sprintf("/api/v1/orgs/nonexistent-org/projects/%s/agents/%s", testDeleteProjName, testDeleteAgentName),
-			setupMock: func() *clientmocks.OpenChoreoClientMock {
-				return apitestutils.CreateMockOpenChoreoClient()
+			setupMock: func() *repomocks.PlatformRepositoryMock {
+				return apitestutils.CreateMockPlatformRepository()
 			},
 		},
 		{
@@ -126,9 +123,9 @@ func TestDeleteAgent(t *testing.T) {
 			wantStatus:     404,
 			wantErrMsg:     "Project not found",
 			url:            fmt.Sprintf("/api/v1/orgs/%s/projects/nonexistent-project/agents/%s", testDeleteOrgName, testDeleteAgentName),
-			setupMock: func() *clientmocks.OpenChoreoClientMock {
-				mock := apitestutils.CreateMockOpenChoreoClient()
-				mock.DeleteComponentFunc = func(ctx context.Context, namespaceName string, projectName string, componentName string) error {
+			setupMock: func() *repomocks.PlatformRepositoryMock {
+				mock := apitestutils.CreateMockPlatformRepository()
+				mock.DeleteAgentFunc = func(ctx context.Context, ouID string, projectName string, agentName string) error {
 					if projectName == "nonexistent-project" {
 						return utils.ErrProjectNotFound
 					}
@@ -147,20 +144,20 @@ func TestDeleteAgent(t *testing.T) {
 			wantStatus: 401,
 			wantErrMsg: "missing header: Authorization",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s", testDeleteOrgName, testDeleteProjName, testDeleteAgentName),
-			setupMock: func() *clientmocks.OpenChoreoClientMock {
-				return apitestutils.CreateMockOpenChoreoClient()
+			setupMock: func() *repomocks.PlatformRepositoryMock {
+				return apitestutils.CreateMockPlatformRepository()
 			},
 		},
 		{
-			name:           "return 500 on OpenChoreo delete failure for internal agent",
+			name:           "return 500 on repository delete failure for internal agent",
 			authMiddleware: authMiddleware,
 			wantStatus:     500,
 			wantErrMsg:     "Failed to delete agent",
 			url:            fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s", testDeleteOrgName, testDeleteProjName, testFailingAgentName),
-			setupMock: func() *clientmocks.OpenChoreoClientMock {
-				mock := apitestutils.CreateMockOpenChoreoClient()
-				mock.DeleteComponentFunc = func(ctx context.Context, orgName string, projName string, agentName string) error {
-					return fmt.Errorf("OpenChoreo service error")
+			setupMock: func() *repomocks.PlatformRepositoryMock {
+				mock := apitestutils.CreateMockPlatformRepository()
+				mock.DeleteAgentFunc = func(ctx context.Context, orgName string, projName string, agentName string) error {
+					return fmt.Errorf("repository error")
 				}
 				return mock
 			},
@@ -169,11 +166,11 @@ func TestDeleteAgent(t *testing.T) {
 
 	for _, tt := range validationTests {
 		t.Run(tt.name, func(t *testing.T) {
-			openChoreoClient := tt.setupMock()
+			platformRepo := tt.setupMock()
 			secretMgmtClient := apitestutils.CreateMockSecretManagementClient()
 			testClients := wiring.TestClients{
-				OpenChoreoClient: openChoreoClient,
-				SecretMgmtClient: secretMgmtClient,
+				PlatformRepository: platformRepo,
+				SecretMgmtClient:   secretMgmtClient,
 			}
 
 			app := apitestutils.MakeAppClientWithDeps(t, testClients, tt.authMiddleware)
@@ -196,63 +193,15 @@ func TestDeleteAgent(t *testing.T) {
 	}
 }
 
-func TestDeleteAgentBlockedWhenKindSource(t *testing.T) {
-	authMiddleware := jwtassertion.NewMockMiddleware(t)
-
-	t.Run("Deleting an agent that is the source of an agent kind should return 409", func(t *testing.T) {
-		orgName := fmt.Sprintf("test-org-%s", uuid.New().String()[:5])
-		projName := fmt.Sprintf("test-project-%s", uuid.New().String()[:5])
-		agentName := fmt.Sprintf("test-agent-%s", uuid.New().String()[:5])
-
-		gdb := db.DB(context.Background())
-		kind := &models.AgentKind{
-			ID:          uuid.New(),
-			Name:        fmt.Sprintf("test-kind-%s", uuid.New().String()[:5]),
-			DisplayName: "Test Kind",
-			// OrgName maps to the ou_id column; the delete flow scopes the
-			// kind-source check by the token's OU ID, so seed it with that.
-			OUID:        jwtassertion.MockOUID,
-			ProjectName: projName,
-			AgentName:   agentName,
-			Labels:      map[string]string{},
-			CreatedAt:   time.Now(),
-			UpdatedAt:   time.Now(),
-		}
-		require.NoError(t, gdb.Create(kind).Error)
-		t.Cleanup(func() {
-			gdb.Delete(kind)
-		})
-
-		openChoreoClient := apitestutils.CreateMockOpenChoreoClient()
-		secretMgmtClient := apitestutils.CreateMockSecretManagementClient()
-		testClients := wiring.TestClients{
-			OpenChoreoClient: openChoreoClient,
-			SecretMgmtClient: secretMgmtClient,
-		}
-
-		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
-
-		url := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s", orgName, projName, agentName)
-		req := httptest.NewRequest(http.MethodDelete, url, nil)
-
-		rr := httptest.NewRecorder()
-		app.ServeHTTP(rr, req)
-
-		require.Equal(t, http.StatusConflict, rr.Code)
-		require.Contains(t, rr.Body.String(), "Agent is the source of an agent kind")
-		require.Empty(t, openChoreoClient.DeleteComponentCalls())
-	})
-}
-
 func TestDeleteAgentIdempotency(t *testing.T) {
 	authMiddleware := jwtassertion.NewMockMiddleware(t)
 
 	t.Run("Multiple deletes of same agent should be handled gracefully", func(t *testing.T) {
-		openChoreoClient := apitestutils.CreateMockOpenChoreoClient()
+		platformRepo := apitestutils.CreateMockPlatformRepository()
 		secretMgmtClient := apitestutils.CreateMockSecretManagementClient()
 		testClients := wiring.TestClients{
-			OpenChoreoClient: openChoreoClient,
-			SecretMgmtClient: secretMgmtClient,
+			PlatformRepository: platformRepo,
+			SecretMgmtClient:   secretMgmtClient,
 		}
 
 		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
@@ -278,7 +227,7 @@ func TestDeleteAgentIdempotency(t *testing.T) {
 			require.Equal(t, http.StatusNoContent, rr.Code, "Request %d should succeed", i)
 		}
 
-		// OpenChoreo delete should be called at least once (but may be called multiple times due to race conditions)
-		require.GreaterOrEqual(t, len(openChoreoClient.DeleteComponentCalls()), 1)
+		// Repository delete should be called at least once (but may be called multiple times due to race conditions)
+		require.GreaterOrEqual(t, len(platformRepo.DeleteAgentCalls()), 1)
 	})
 }

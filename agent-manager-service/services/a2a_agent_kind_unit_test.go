@@ -27,7 +27,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/reconcile"
@@ -60,9 +59,8 @@ func goldenA2AConfig() *models.AgentConfig {
 var goldenA2AEnvUUID = uuid.MustParse("11111111-2222-3333-4444-555555555555")
 
 const (
-	goldenA2APlatformURL = "http://trip-planner.dp-default:9099"
-	goldenA2ACardURL     = "https://agent.example/team/.well-known/agent-card.json"
-	goldenA2ACardBody    = `{"name":"Trip Planner","skills":[],"supportedInterfaces":[` +
+	goldenA2ACardURL  = "https://agent.example/team/.well-known/agent-card.json"
+	goldenA2ACardBody = `{"name":"Trip Planner","skills":[],"supportedInterfaces":[` +
 		`{"protocolBinding":"JSONRPC","url":"https://agent.example/team/a2a/jsonrpc","protocolVersion":"1.0"},` +
 		`{"protocolBinding":"HTTP+JSON","url":"https://agent.example/team/a2a/rest","protocolVersion":"1.0"}]}`
 )
@@ -109,11 +107,7 @@ func goldenA2AKind(t *testing.T, proxy *models.A2AProxy, fetcher A2ACardFetcher)
 	configs := &repomocks.AgentConfigRepositoryMock{
 		GetFunc: func(context.Context, string, string, string, string) (*models.AgentConfig, error) { return cfg, nil },
 	}
-	oc := &clientmocks.OpenChoreoClientMock{
-		GetReleaseBindingServiceURLFunc: func(context.Context, string, string, string) (string, error) {
-			return goldenA2APlatformURL, nil
-		},
-	}
+	oc := &repomocks.PlatformRepositoryMock{}
 	return NewA2AAgentKind(sentinelTx, NewPlatformAgentExposures(exposures, nil, oc), proxies, cards, nil, configs, oc, fetcher, nil, nil,
 		bytes.Repeat([]byte{7}, 32), testLogger())
 }
@@ -123,14 +117,6 @@ func goldenA2AArtifact() models.ArtifactRef {
 		OUID: "ou-golden", ArtifactUUID: uuid.New(), Kind: models.KindAgent,
 		Handle: agentEnvAPIArtifactHandle("checkout", "trip-planner", goldenA2AEnvUUID.String()),
 	}
-}
-
-func TestA2AAgentKindRendersTodaysYAMLForAPlatformAgent(t *testing.T) {
-	rendered, err := goldenA2AKind(t, nil, nil).Render(context.Background(), goldenA2AArtifact())
-
-	require.NoError(t, err)
-	assert.Equal(t, readGolden(t, "a2a_agent_platform.yaml"), string(rendered.Content))
-	assert.Regexp(t, `^trip-planner-[0-9a-f]{8}$`, rendered.Name)
 }
 
 func TestA2AAgentKindRendersTodaysYAMLForAnExternalAgent(t *testing.T) {

@@ -165,7 +165,8 @@ func (f *a2aCardFetcher) fetch(
 
 	if target := refusedRedirectHost(resp); target != "" {
 		return nil, newA2APublicError(fmt.Sprintf(
-			"agent card request was redirected to %s; redirects to another host are not followed", target), nil)
+			"agent card request was redirected to %s; redirects to another host are not followed", target,
+		), nil)
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {

@@ -1170,7 +1170,8 @@ func (s *LLMProviderService) SyncDependentProxyAuthHeaders(
 
 		for _, proxy := range proxies {
 			changed, syncErr := s.syncProxyAuthHeader(
-				ctx, proxy, ouID, provider, upstreamHeader, proxyService, proxyDeploymentService)
+				ctx, proxy, ouID, provider, upstreamHeader, proxyService, proxyDeploymentService,
+			)
 			switch {
 			case syncErr != nil:
 				failed++
@@ -1282,7 +1283,8 @@ func (s *LLMProviderService) nextProxyUpstreamAuth(
 		if s.apiKeyService == nil {
 			return nil, fmt.Errorf(
 				"proxy %s needs an upstream credential for provider %s but no api key service is configured",
-				proxy.Handle, provider.Configuration.Handle)
+				proxy.Handle, provider.Configuration.Handle,
+			)
 		}
 		keyName := proxy.Configuration.Name
 		apiKey, err := s.apiKeyService.CreateAPIKey(ctx, ouID, provider.UUID.String(), &models.CreateAPIKeyRequest{
@@ -1308,7 +1310,8 @@ func (s *LLMProviderService) nextProxyUpstreamAuth(
 		}, nil
 	}
 	return nil, fmt.Errorf(
-		"proxy %s: upstream auth action %d does not build a credential", proxy.Handle, action)
+		"proxy %s: upstream auth action %d does not build a credential", proxy.Handle, action,
+	)
 }
 
 // syncProxyAuthHeader brings one proxy's ingress and upstream auth in line with its

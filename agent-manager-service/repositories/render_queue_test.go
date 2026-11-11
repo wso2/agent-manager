@@ -60,7 +60,8 @@ func dueAt(t *testing.T, p models.Placement, at time.Time) {
 	t.Helper()
 	require.NoError(t, db.GetDB().Exec(
 		`UPDATE deployment_status SET next_attempt_at = ? WHERE artifact_uuid = ? AND ou_id = ? AND gateway_uuid = ?`,
-		at, p.ArtifactUUID, p.OUID, p.GatewayUUID).Error)
+		at, p.ArtifactUUID, p.OUID, p.GatewayUUID,
+	).Error)
 }
 
 // claimOne claims at now and expects exactly p.

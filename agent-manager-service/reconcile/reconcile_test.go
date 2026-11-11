@@ -154,7 +154,8 @@ func newFakeEnvKind(inline bool) *fakeEnvKind {
 
 func (k *fakeEnvKind) UnplacedRecords(ctx context.Context, ouID string, env *uuid.UUID, afterKey string, limit int) ([]Record, error) {
 	condition, args := UnplacedCondition(
-		RecordColumns{OUID: "r.ou_id", ArtifactUUID: "r.artifact_uuid", EnvironmentUUID: "r.environment_uuid"}, k.roles, ouID, env)
+		RecordColumns{OUID: "r.ou_id", ArtifactUUID: "r.artifact_uuid", EnvironmentUUID: "r.environment_uuid"}, k.roles, ouID, env,
+	)
 	var rows []struct {
 		RecordKey        string     `gorm:"column:record_key"`
 		OUID             string     `gorm:"column:ou_id"`
@@ -180,7 +181,8 @@ func (k *fakeEnvKind) UnplacedRecords(ctx context.Context, ouID string, env *uui
 
 func (k *fakeEnvKind) PlacedOn(ctx context.Context, tx *gorm.DB, env, gateway uuid.UUID) (bool, error) {
 	condition, args := PlacedCondition(
-		RecordColumns{OUID: "r.ou_id", ArtifactUUID: "r.artifact_uuid", EnvironmentUUID: "r.environment_uuid"}, env, gateway)
+		RecordColumns{OUID: "r.ou_id", ArtifactUUID: "r.artifact_uuid", EnvironmentUUID: "r.environment_uuid"}, env, gateway,
+	)
 	var placed bool
 	err := tx.WithContext(ctx).Raw(`SELECT EXISTS (SELECT 1 FROM reconcile_fake_records r WHERE `+condition+`)`,
 		args...).Scan(&placed).Error
@@ -245,7 +247,8 @@ func seedGatewayWithRole(t *testing.T, ouID, role string, envs ...uuid.UUID) uui
 	require.NoError(t, gdb.Exec(
 		`INSERT INTO gateways (uuid, name, display_name, vhost, gateway_functionality_type, ou_id, is_active)
 		 VALUES (?, ?, ?, ?, ?, ?, TRUE)`,
-		gatewayID, name, name, "gw.example", role, ouID).Error)
+		gatewayID, name, name, "gw.example", role, ouID,
+	).Error)
 	for _, env := range envs {
 		require.NoError(t, gdb.Create(&models.GatewayEnvironmentMapping{GatewayUUID: gatewayID, EnvironmentUUID: env}).Error)
 	}
@@ -345,7 +348,8 @@ func dueAt(t *testing.T, p models.Placement, at time.Time) {
 	t.Helper()
 	require.NoError(t, db.GetDB().Exec(
 		`UPDATE deployment_status SET next_attempt_at = ? WHERE artifact_uuid = ? AND ou_id = ? AND gateway_uuid = ?`,
-		at, p.ArtifactUUID, p.OUID, p.GatewayUUID).Error)
+		at, p.ArtifactUUID, p.OUID, p.GatewayUUID,
+	).Error)
 }
 
 func statusRow(t *testing.T, p models.Placement) *models.DeploymentStatusRecord {

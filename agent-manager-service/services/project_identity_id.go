@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 )
 
 // ProjectIdentityIDResolver names a project the way the identity platform keeps it. A deployment
@@ -40,17 +40,17 @@ type ProjectIdentityIDResolverSetter interface {
 	SetProjectIdentityIDResolver(resolver ProjectIdentityIDResolver)
 }
 
-type openChoreoProjectIdentityIDResolver struct {
-	oc client.OpenChoreoClient
+type platformProjectIdentityIDResolver struct {
+	platform repositories.PlatformRepository
 }
 
-// NewOpenChoreoProjectIdentityIDResolver reads a project's ID (its OpenChoreo UID) from OpenChoreo.
-func NewOpenChoreoProjectIdentityIDResolver(oc client.OpenChoreoClient) ProjectIdentityIDResolver {
-	return &openChoreoProjectIdentityIDResolver{oc: oc}
+// NewPlatformProjectIdentityIDResolver reads a project's ID (its OpenChoreo UID).
+func NewPlatformProjectIdentityIDResolver(platform repositories.PlatformRepository) ProjectIdentityIDResolver {
+	return &platformProjectIdentityIDResolver{platform: platform}
 }
 
-func (r *openChoreoProjectIdentityIDResolver) ProjectIdentityID(ctx context.Context, organizationID, projectName string) (string, error) {
-	project, err := r.oc.GetProject(ctx, organizationID, projectName)
+func (r *platformProjectIdentityIDResolver) ProjectIdentityID(ctx context.Context, organizationID, projectName string) (string, error) {
+	project, err := r.platform.GetProject(ctx, organizationID, projectName)
 	if err != nil {
 		return "", fmt.Errorf("get project: %w", err)
 	}
@@ -70,7 +70,7 @@ func (s *agentThunderProvisioningService) projectIdentityID(ctx context.Context,
 	}
 	id, err := s.projectIDResolver.ProjectIdentityID(ctx, organizationID, projectName)
 	if err != nil {
-		return "", fmt.Errorf("read the project's ID from OpenChoreo: %w", err)
+		return "", fmt.Errorf("read the project's ID: %w", err)
 	}
 	if id == "" {
 		return projectName, nil

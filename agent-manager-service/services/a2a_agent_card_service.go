@@ -26,7 +26,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
-	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -47,7 +46,7 @@ type A2AAgentCardService interface {
 }
 
 type a2aAgentCardService struct {
-	ocClient   client.OpenChoreoClient
+	ocClient   repositories.PlatformRepository
 	cardRepo   repositories.A2AAgentCardRepository
 	proxyHooks A2AProxyHooks
 	logger     *slog.Logger
@@ -55,7 +54,7 @@ type a2aAgentCardService struct {
 
 // NewA2AAgentCardService creates an A2AAgentCardService.
 func NewA2AAgentCardService(
-	ocClient client.OpenChoreoClient,
+	ocClient repositories.PlatformRepository,
 	cardRepo repositories.A2AAgentCardRepository,
 	proxyHooks A2AProxyHooks,
 	logger *slog.Logger,
@@ -104,14 +103,8 @@ func (s *a2aAgentCardService) RefreshA2AAgentCard(
 
 // requireDeployed refuses a platform fetch the card worker could only wait out and fail.
 func (s *a2aAgentCardService) requireDeployed(ctx context.Context, ouID, agentName, envName string) error {
-	rollout, err := s.ocClient.GetReleaseBindingRollout(ctx, ouID, agentName, envName)
-	if err != nil {
-		return fmt.Errorf("failed to read agent deployment: %w", err)
-	}
-	if !rollout.Deployed {
-		return utils.ErrAgentNotDeployedInEnvironment
-	}
-	return nil
+	// Only platform-hosted agents have a deployment, and there is no agent runtime.
+	return utils.ErrAgentNotDeployedInEnvironment
 }
 
 func (s *a2aAgentCardService) SetA2ACardSource(
@@ -203,12 +196,12 @@ func (s *a2aAgentCardService) dropIfAgentGone(
 	return utils.ErrAgentNotFound
 }
 
-// getAgent reads the agent from OpenChoreo, reporting a miss as utils.ErrAgentNotFound.
+// getAgent reads the agent, reporting a miss as utils.ErrAgentNotFound.
 // The lookup is by name across the organization, so an agent in another project is a miss too.
-func getAgent(ctx context.Context, oc client.OpenChoreoClient, ouID, projectName, agentName string) (*models.AgentResponse, error) {
-	agent, err := oc.GetComponent(ctx, ouID, projectName, agentName)
+func getAgent(ctx context.Context, oc repositories.PlatformRepository, ouID, projectName, agentName string) (*models.AgentResponse, error) {
+	agent, err := oc.GetAgent(ctx, ouID, projectName, agentName)
 	if err != nil {
-		return nil, translateAgentError(err)
+		return nil, err
 	}
 	if agent.ProjectName != projectName {
 		return nil, utils.ErrAgentNotFound
@@ -217,7 +210,7 @@ func getAgent(ctx context.Context, oc client.OpenChoreoClient, ouID, projectName
 }
 
 // getA2AAgent is getAgent refusing an agent that cannot serve A2A with utils.ErrAgentNotA2A.
-func getA2AAgent(ctx context.Context, oc client.OpenChoreoClient, ouID, projectName, agentName string) (*models.AgentResponse, error) {
+func getA2AAgent(ctx context.Context, oc repositories.PlatformRepository, ouID, projectName, agentName string) (*models.AgentResponse, error) {
 	agent, err := getAgent(ctx, oc, ouID, projectName, agentName)
 	if err != nil {
 		return nil, err
@@ -230,7 +223,7 @@ func getA2AAgent(ctx context.Context, oc client.OpenChoreoClient, ouID, projectN
 
 // getExternalAgent fetches an agent, refusing a platform-provisioned one with notExternalErr.
 func getExternalAgent(
-	ctx context.Context, oc client.OpenChoreoClient, ouID, projectName, agentName string, notExternalErr error,
+	ctx context.Context, oc repositories.PlatformRepository, ouID, projectName, agentName string, notExternalErr error,
 ) (*models.AgentResponse, error) {
 	agent, err := getAgent(ctx, oc, ouID, projectName, agentName)
 	if err != nil {
@@ -243,7 +236,7 @@ func getExternalAgent(
 }
 
 // agentGoneOrReplaced is true when the agent read as agentUUID was since deleted or its name reused.
-func agentGoneOrReplaced(ctx context.Context, oc client.OpenChoreoClient, ouID, projectName, agentName, agentUUID string) (bool, error) {
+func agentGoneOrReplaced(ctx context.Context, oc repositories.PlatformRepository, ouID, projectName, agentName, agentUUID string) (bool, error) {
 	current, err := getAgent(ctx, oc, ouID, projectName, agentName)
 	switch {
 	case errors.Is(err, utils.ErrAgentNotFound):

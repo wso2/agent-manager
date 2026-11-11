@@ -342,7 +342,8 @@ func (r *eventRepository) destinationStats(
 		args = append(args, *id)
 	}
 	var rows []destinationStatsRow
-	err := r.db.WithContext(ctx).Raw(`
+	err := r.db.WithContext(ctx).Raw(
+		`
 		SELECT d.id AS destination_id,
 			COALESCE(u.used_by, 0) AS used_by,
 			l.created_at AS last_delivery_at,
@@ -405,7 +406,8 @@ func (r *eventRepository) RemoveProjectFromDestinations(ctx context.Context, ouI
 	// placeholder. A destination left with no project becomes org-only:
 	// available to none, rather than silently to all, and still valid to save
 	// unchanged.
-	return r.db.WithContext(ctx).Exec(`
+	return r.db.WithContext(ctx).Exec(
+		`
 		UPDATE event_destinations
 		SET projects = projects - ?::text,
 			availability = CASE WHEN jsonb_array_length(projects - ?::text) = 0 THEN ? ELSE availability END,

@@ -22,26 +22,86 @@ import (
 	"github.com/google/uuid"
 )
 
-// Organization is the database model for storing organization UUID mappings
-// Organizations are managed by OpenChoreo, but we need to maintain UUIDs locally
-// since OpenChoreo doesn't provide organization UUIDs
+// Organization is the root of every tenant-owned row. ThunderOUID links it to
+// the Thunder organization unit carried in callers' tokens.
 type Organization struct {
-	UUID      uuid.UUID `gorm:"column:uuid;primaryKey"`
-	Name      string    `gorm:"column:name;uniqueIndex;not null"`
-	CreatedAt time.Time `gorm:"column:created_at;not null;default:CURRENT_TIMESTAMP"`
+	ID          uuid.UUID `gorm:"column:id;primaryKey"`
+	Handle      string    `gorm:"column:handle"`
+	DisplayName string    `gorm:"column:display_name"`
+	Description *string   `gorm:"column:description"`
+	ThunderOUID *string   `gorm:"column:thunder_ou_id"`
+	CreatedBy   *string   `gorm:"column:created_by"`
+	CreatedAt   time.Time `gorm:"column:created_at"`
+	UpdatedAt   time.Time `gorm:"column:updated_at"`
 }
 
-// TableName returns the table name for GORM
-func (Organization) TableName() string {
-	return "organizations"
+func (Organization) TableName() string { return "organizations" }
+
+// Project groups agents within an organization.
+type Project struct {
+	ID          uuid.UUID `gorm:"column:id;primaryKey"`
+	OrgID       uuid.UUID `gorm:"column:org_id"`
+	Name        string    `gorm:"column:name"`
+	DisplayName string    `gorm:"column:display_name"`
+	Description *string   `gorm:"column:description"`
+	CreatedBy   *string   `gorm:"column:created_by"`
+	CreatedAt   time.Time `gorm:"column:created_at"`
+	UpdatedAt   time.Time `gorm:"column:updated_at"`
 }
 
-// API Response DTO (from OpenChoreo)
+func (Project) TableName() string { return "projects" }
+
+// Environment is internal: every organization has exactly one, named
+// DefaultEnvironmentName, and the API never exposes or accepts another.
+type Environment struct {
+	ID           uuid.UUID `gorm:"column:id;primaryKey"`
+	OrgID        uuid.UUID `gorm:"column:org_id"`
+	Name         string    `gorm:"column:name"`
+	DisplayName  string    `gorm:"column:display_name"`
+	IsProduction bool      `gorm:"column:is_production"`
+	CreatedAt    time.Time `gorm:"column:created_at"`
+	UpdatedAt    time.Time `gorm:"column:updated_at"`
+}
+
+func (Environment) TableName() string { return "environments" }
+
+// DefaultEnvironmentName is the name of every organization's only environment.
+const DefaultEnvironmentName = "default"
+
+// Agent is an agent registered in a project. Only external agents exist
+// without a hosted runtime.
+type Agent struct {
+	ID               uuid.UUID    `gorm:"column:id;primaryKey"`
+	OrgID            uuid.UUID    `gorm:"column:org_id"`
+	ProjectID        uuid.UUID    `gorm:"column:project_id"`
+	Name             string       `gorm:"column:name"`
+	DisplayName      string       `gorm:"column:display_name"`
+	Description      *string      `gorm:"column:description"`
+	ProvisioningType string       `gorm:"column:provisioning_type"`
+	AgentType        string       `gorm:"column:agent_type"`
+	SubType          *string      `gorm:"column:sub_type"`
+	CreatedBy        *string      `gorm:"column:created_by"`
+	CreatedAt        time.Time    `gorm:"column:created_at"`
+	UpdatedAt        time.Time    `gorm:"column:updated_at"`
+	Labels           []AgentLabel `gorm:"foreignKey:AgentID"`
+}
+
+func (Agent) TableName() string { return "agents" }
+
+type AgentLabel struct {
+	AgentID    uuid.UUID `gorm:"column:agent_id;primaryKey"`
+	OrgID      uuid.UUID `gorm:"column:org_id"`
+	LabelKey   string    `gorm:"column:label_key;primaryKey"`
+	LabelValue *string   `gorm:"column:label_value"`
+}
+
+func (AgentLabel) TableName() string { return "agent_labels" }
+
+// OrganizationResponse is the API shape of an organization.
 type OrganizationResponse struct {
 	Name        string    `json:"name"`
 	DisplayName string    `json:"displayName,omitempty"`
 	Description string    `json:"description,omitempty"`
-	Namespace   string    `json:"namespace,omitempty"`
 	CreatedAt   time.Time `json:"createdAt"`
 	Status      string    `json:"status,omitempty"`
 	Handle      string    `json:"handle,omitempty"` // caller's OU handle, for console URLs; set from the token

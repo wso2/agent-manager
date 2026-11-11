@@ -190,7 +190,7 @@ const (
 	// The environment tier is an authorization axis of its own, about where an
 	// action lands rather than what it is. AgentEnvNonProduction is the floor —
 	// "may act on environments at all" — and AgentEnvProduction is held in
-	// addition to it to reach the environments OpenChoreo flags isProduction.
+	// addition to it to reach environments flagged isProduction.
 	// The production grant is never sufficient on its own: every surface
 	// declares the floor statically and denies before the tier is evaluated.
 	AgentEnvNonProduction Permission = "agent:env-non-production"

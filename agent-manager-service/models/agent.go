@@ -19,9 +19,6 @@ package models
 import (
 	"strings"
 	"time"
-
-	"github.com/google/uuid"
-	"gorm.io/gorm"
 )
 
 type AgentResponse struct {
@@ -168,24 +165,4 @@ type BuildpackConfig struct {
 
 type DockerConfig struct {
 	DockerfilePath string `json:"dockerfilePath"`
-}
-
-// DB Model
-type Agent struct {
-	ID               uuid.UUID      `gorm:"column:id;primaryKey"`
-	ProvisioningType string         `gorm:"column:provisioning_type"`
-	Name             string         `gorm:"column:name"`
-	DisplayName      string         `gorm:"column:display_name"`
-	Description      string         `gorm:"column:description"`
-	ProjectName      string         `gorm:"column:project_name"`
-	OrgName          string         `gorm:"column:org_name"`
-	CreatedAt        time.Time      `gorm:"column:created_at"`
-	UpdatedAt        time.Time      `gorm:"column:updated_at"`
-	DeletedAt        gorm.DeletedAt `gorm:"column:deleted_at"`
-	AgentDetails     *InternalAgent `gorm:"foreignKey:ID;references:ID"`
-}
-
-type InternalAgent struct {
-	ID           uuid.UUID              `gorm:"column:id;primaryKey"`
-	WorkloadSpec map[string]interface{} `gorm:"column:workload_spec;type:jsonb;serializer:json"`
 }

@@ -22,12 +22,11 @@ import (
 
 // API Response DTO
 type ProjectResponse struct {
-	UUID               string    `json:"uuid"`
-	Name               string    `json:"name"`
-	OrgName            string    `json:"orgName"`
-	DisplayName        string    `json:"displayName,omitempty"`
-	Description        string    `json:"description,omitempty"`
-	DeploymentPipeline string    `json:"deploymentPipeline,omitempty"`
-	CreatedAt          time.Time `json:"createdAt"`
-	Status             string    `json:"status,omitempty"`
+	UUID        string    `json:"uuid"`
+	Name        string    `json:"name"`
+	OrgName     string    `json:"orgName"`
+	DisplayName string    `json:"displayName,omitempty"`
+	Description string    `json:"description,omitempty"`
+	CreatedAt   time.Time `json:"createdAt"`
+	Status      string    `json:"status,omitempty"`
 }

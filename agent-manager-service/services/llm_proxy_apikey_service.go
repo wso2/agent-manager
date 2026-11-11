@@ -22,7 +22,6 @@ import (
 	"fmt"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
-	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -33,7 +32,7 @@ import (
 type LLMProxyAPIKeyService struct {
 	proxyRepo   repositories.LLMProxyRepository
 	apiKeyRepo  repositories.APIKeyRepository
-	ocClient    client.OpenChoreoClient
+	ocClient    repositories.PlatformRepository
 	broadcaster apiKeyBroadcaster
 }
 
@@ -43,7 +42,7 @@ func NewLLMProxyAPIKeyService(
 	gatewayRepo repositories.GatewayRepository,
 	gatewayService *GatewayEventsService,
 	apiKeyRepo repositories.APIKeyRepository,
-	ocClient client.OpenChoreoClient,
+	ocClient repositories.PlatformRepository,
 ) *LLMProxyAPIKeyService {
 	return &LLMProxyAPIKeyService{
 		proxyRepo:  proxyRepo,

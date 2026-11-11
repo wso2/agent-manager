@@ -26,7 +26,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
-	occlient "github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
@@ -64,7 +63,7 @@ func newOverrideRegistrar(t *testing.T) (*http.ServeMux, *registrarCall) {
 func serveRegistrar(t *testing.T, mux *http.ServeMux, call *registrarCall, path string, scopes string) {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodPut, path, nil)
-	req.Header.Set(occlient.HeaderImpersonateOrg, overrideTargetOUID)
+	req.Header.Set(HeaderImpersonateOrg, overrideTargetOUID)
 	claims := &jwtassertion.TokenClaims{
 		ClientID: overrideClientID, OuId: overrideTokenOUID, OuHandle: overrideTokenHandle, Scope: scopes,
 	}

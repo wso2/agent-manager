@@ -569,7 +569,6 @@ func ConvertToOrganizationResponse(org *models.OrganizationResponse) spec.Organi
 		CreatedAt:   org.CreatedAt,
 		DisplayName: org.DisplayName,
 		Description: org.Description,
-		Namespace:   org.Namespace,
 		Handle:      stringToPtr(org.Handle),
 	}
 }
@@ -610,7 +609,7 @@ func ConvertToProjectResponse(project *models.ProjectResponse) spec.ProjectRespo
 		DisplayName:        project.DisplayName,
 		Description:        project.Description,
 		CreatedAt:          project.CreatedAt,
-		DeploymentPipeline: project.DeploymentPipeline,
+		DeploymentPipeline: "",
 	}
 }
 
@@ -620,12 +619,11 @@ func ConvertToProjectListItem(project *models.ProjectResponse) spec.ProjectListI
 	}
 
 	return spec.ProjectListItem{
-		Uuid:               project.UUID,
-		Name:               project.Name,
-		DisplayName:        project.DisplayName,
-		Description:        &project.Description,
-		CreatedAt:          project.CreatedAt,
-		DeploymentPipeline: &project.DeploymentPipeline,
+		Uuid:        project.UUID,
+		Name:        project.Name,
+		DisplayName: project.DisplayName,
+		Description: &project.Description,
+		CreatedAt:   project.CreatedAt,
 	}
 }
 

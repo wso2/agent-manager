@@ -19,7 +19,7 @@
 // fast unit tier with the dependencies mocked:
 //
 //   - repositories.GatewayRepository -> repomocks.GatewayRepositoryMock
-//   - occlient.OpenChoreoClient      -> clientmocks.OpenChoreoClientMock
+//   - repositories.PlatformRepository      -> repomocks.PlatformRepositoryMock
 //   - thundersvc.Prober              -> clientmocks.ThunderProberMock
 //
 // The goal is to exercise the service's OWN logic (error mapping to sentinels,
@@ -35,7 +35,6 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -43,7 +42,6 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
-	occlient "github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
@@ -63,7 +61,7 @@ var envTestKey = []byte("0123456789abcdef0123456789abcdef")
 // The env-Thunder-system-client repo and encryption key are nil/empty here;
 // SetThunderSystemClient/SetThunderURL tests use
 // newEnvServiceWithThunderRepo/newEnvServiceWithThunderURLRepo instead.
-func newEnvService(repo *repomocks.GatewayRepositoryMock, oc *clientmocks.OpenChoreoClientMock) EnvironmentService {
+func newEnvService(repo *repomocks.GatewayRepositoryMock, oc *repomocks.PlatformRepositoryMock) EnvironmentService {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	return NewEnvironmentService(logger, repo, oc, &clientmocks.ThunderProberMock{}, nil, nil, nil, nil, nil, nil, nil)
 }
@@ -90,7 +88,7 @@ func newEnvServiceWithThunderRepo(repo *repomocks.EnvThunderSystemClientReposito
 		},
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	return NewEnvironmentService(logger, &repomocks.GatewayRepositoryMock{}, &clientmocks.OpenChoreoClientMock{}, &clientmocks.ThunderProberMock{}, nil, repo, urlRepo, envTestKey, nil, nil, nil)
+	return NewEnvironmentService(logger, &repomocks.GatewayRepositoryMock{}, &repomocks.PlatformRepositoryMock{}, &clientmocks.ThunderProberMock{}, nil, repo, urlRepo, envTestKey, nil, nil, nil)
 }
 
 // newEnvServiceWithThunderURLRepo wires the service with a configured env-Thunder
@@ -104,65 +102,12 @@ func newEnvServiceWithThunderURLRepo(repo *repomocks.EnvThunderURLRepositoryMock
 		}
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	return NewEnvironmentService(logger, &repomocks.GatewayRepositoryMock{}, &clientmocks.OpenChoreoClientMock{}, &clientmocks.ThunderProberMock{}, nil, &repomocks.EnvThunderSystemClientRepositoryMock{}, repo, nil, nil, nil, nil)
+	return NewEnvironmentService(logger, &repomocks.GatewayRepositoryMock{}, &repomocks.PlatformRepositoryMock{}, &clientmocks.ThunderProberMock{}, nil, &repomocks.EnvThunderSystemClientRepositoryMock{}, repo, nil, nil, nil, nil)
 }
 
 // -----------------------------------------------------------------------------
 // CreateEnvironment — wraps client errors; maps client response on success.
 // -----------------------------------------------------------------------------
-
-func TestEnvironmentService_CreateEnvironment(t *testing.T) {
-	const org = "acme"
-
-	t.Run("wraps a client error", func(t *testing.T) {
-		boom := errors.New("oc unreachable")
-		oc := &clientmocks.OpenChoreoClientMock{
-			CreateEnvironmentFunc: func(_ context.Context, _ string, _ occlient.CreateEnvironmentRequest) (*models.EnvironmentResponse, error) {
-				return nil, boom
-			},
-		}
-		svc := newEnvService(&repomocks.GatewayRepositoryMock{}, oc)
-
-		_, err := svc.CreateEnvironment(context.Background(), org, &models.CreateEnvironmentRequest{Name: "dev"})
-
-		require.Error(t, err)
-		assert.ErrorIs(t, err, boom)
-	})
-
-	t.Run("maps the client response on success", func(t *testing.T) {
-		oc := &clientmocks.OpenChoreoClientMock{
-			CreateEnvironmentFunc: func(_ context.Context, ns string, req occlient.CreateEnvironmentRequest) (*models.EnvironmentResponse, error) {
-				// The request must be translated from the public model.
-				assert.Equal(t, org, ns)
-				assert.Equal(t, "dev", req.Name)
-				return &models.EnvironmentResponse{
-					UUID:         "11111111-1111-1111-1111-111111111111",
-					Name:         "dev",
-					DisplayName:  "Development",
-					DataplaneRef: "dp-1",
-					IsProduction: true,
-				}, nil
-			},
-		}
-		svc := newEnvService(&repomocks.GatewayRepositoryMock{}, oc)
-
-		resp, err := svc.CreateEnvironment(context.Background(), org, &models.CreateEnvironmentRequest{
-			Name:         "dev",
-			DisplayName:  "Development",
-			Description:  "desc from request",
-			DataplaneRef: "dp-1",
-			IsProduction: true,
-		})
-
-		require.NoError(t, err)
-		assert.Equal(t, "dev", resp.Name)
-		assert.Equal(t, org, resp.OrganizationName)
-		assert.Equal(t, "Development", resp.DisplayName)
-		// Description on the response comes from the REQUEST, not the OC response.
-		assert.Equal(t, "desc from request", resp.Description)
-		assert.True(t, resp.IsProduction)
-	})
-}
 
 // -----------------------------------------------------------------------------
 // GetEnvironment — maps not-found to the sentinel; wraps everything else.
@@ -172,7 +117,7 @@ func TestEnvironmentService_GetEnvironment(t *testing.T) {
 	const org, envID = "acme", "dev"
 
 	t.Run("maps not-found to ErrEnvironmentNotFound", func(t *testing.T) {
-		oc := &clientmocks.OpenChoreoClientMock{
+		oc := &repomocks.PlatformRepositoryMock{
 			GetEnvironmentFunc: func(_ context.Context, _, _ string) (*models.EnvironmentResponse, error) {
 				return nil, utils.ErrEnvironmentNotFound
 			},
@@ -186,7 +131,7 @@ func TestEnvironmentService_GetEnvironment(t *testing.T) {
 
 	t.Run("wraps an unexpected client error", func(t *testing.T) {
 		boom := errors.New("connection reset")
-		oc := &clientmocks.OpenChoreoClientMock{
+		oc := &repomocks.PlatformRepositoryMock{
 			GetEnvironmentFunc: func(_ context.Context, _, _ string) (*models.EnvironmentResponse, error) {
 				return nil, boom
 			},
@@ -201,7 +146,7 @@ func TestEnvironmentService_GetEnvironment(t *testing.T) {
 	})
 
 	t.Run("returns mapped response on success", func(t *testing.T) {
-		oc := &clientmocks.OpenChoreoClientMock{
+		oc := &repomocks.PlatformRepositoryMock{
 			GetEnvironmentFunc: func(_ context.Context, _, _ string) (*models.EnvironmentResponse, error) {
 				return &models.EnvironmentResponse{
 					UUID:        "uuid-1",
@@ -242,7 +187,7 @@ func TestEnvironmentService_ListEnvironments(t *testing.T) {
 
 	t.Run("wraps a client error", func(t *testing.T) {
 		boom := errors.New("oc down")
-		oc := &clientmocks.OpenChoreoClientMock{
+		oc := &repomocks.PlatformRepositoryMock{
 			ListEnvironmentsFunc: func(_ context.Context, _ string) ([]*models.EnvironmentResponse, error) {
 				return nil, boom
 			},
@@ -256,7 +201,7 @@ func TestEnvironmentService_ListEnvironments(t *testing.T) {
 	})
 
 	t.Run("applies limit within the available range", func(t *testing.T) {
-		oc := &clientmocks.OpenChoreoClientMock{
+		oc := &repomocks.PlatformRepositoryMock{
 			ListEnvironmentsFunc: func(_ context.Context, _ string) ([]*models.EnvironmentResponse, error) {
 				return threeEnvs(), nil
 			},
@@ -274,7 +219,7 @@ func TestEnvironmentService_ListEnvironments(t *testing.T) {
 	})
 
 	t.Run("clamps the page end when limit overruns the slice", func(t *testing.T) {
-		oc := &clientmocks.OpenChoreoClientMock{
+		oc := &repomocks.PlatformRepositoryMock{
 			ListEnvironmentsFunc: func(_ context.Context, _ string) ([]*models.EnvironmentResponse, error) {
 				return threeEnvs(), nil
 			},
@@ -290,7 +235,7 @@ func TestEnvironmentService_ListEnvironments(t *testing.T) {
 	})
 
 	t.Run("returns an empty page when offset is past the end", func(t *testing.T) {
-		oc := &clientmocks.OpenChoreoClientMock{
+		oc := &repomocks.PlatformRepositoryMock{
 			ListEnvironmentsFunc: func(_ context.Context, _ string) ([]*models.EnvironmentResponse, error) {
 				return threeEnvs(), nil
 			},
@@ -311,422 +256,15 @@ func TestEnvironmentService_ListEnvironments(t *testing.T) {
 // the env sentinel; other errors are wrapped. Description comes from the request.
 // -----------------------------------------------------------------------------
 
-func TestEnvironmentService_UpdateEnvironment(t *testing.T) {
-	const org, envID = "acme", "dev"
-
-	t.Run("maps generic not-found to ErrEnvironmentNotFound", func(t *testing.T) {
-		oc := &clientmocks.OpenChoreoClientMock{
-			UpdateEnvironmentFunc: func(_ context.Context, _, _ string, _ occlient.UpdateEnvironmentRequest) (*models.EnvironmentResponse, error) {
-				return nil, utils.ErrNotFound
-			},
-		}
-		svc := newEnvService(&repomocks.GatewayRepositoryMock{}, oc)
-
-		_, err := svc.UpdateEnvironment(context.Background(), org, envID, &models.UpdateEnvironmentRequest{})
-
-		assert.ErrorIs(t, err, utils.ErrEnvironmentNotFound)
-	})
-
-	t.Run("wraps an unexpected client error", func(t *testing.T) {
-		boom := errors.New("boom")
-		oc := &clientmocks.OpenChoreoClientMock{
-			UpdateEnvironmentFunc: func(_ context.Context, _, _ string, _ occlient.UpdateEnvironmentRequest) (*models.EnvironmentResponse, error) {
-				return nil, boom
-			},
-		}
-		svc := newEnvService(&repomocks.GatewayRepositoryMock{}, oc)
-
-		_, err := svc.UpdateEnvironment(context.Background(), org, envID, &models.UpdateEnvironmentRequest{})
-
-		require.Error(t, err)
-		assert.ErrorIs(t, err, boom)
-		assert.NotErrorIs(t, err, utils.ErrEnvironmentNotFound)
-	})
-
-	t.Run("uses the request description on success", func(t *testing.T) {
-		oc := &clientmocks.OpenChoreoClientMock{
-			UpdateEnvironmentFunc: func(_ context.Context, _, _ string, _ occlient.UpdateEnvironmentRequest) (*models.EnvironmentResponse, error) {
-				return &models.EnvironmentResponse{
-					UUID:        "u1",
-					Name:        "dev",
-					Description: "ignored-oc-desc",
-				}, nil
-			},
-		}
-		svc := newEnvService(&repomocks.GatewayRepositoryMock{}, oc)
-
-		resp, err := svc.UpdateEnvironment(context.Background(), org, envID, &models.UpdateEnvironmentRequest{
-			Description: strPtr("new description"),
-		})
-
-		require.NoError(t, err)
-		assert.Equal(t, "new description", resp.Description)
-		assert.Equal(t, org, resp.OrganizationName)
-	})
-
-	t.Run("defaults description to empty when request omits it", func(t *testing.T) {
-		oc := &clientmocks.OpenChoreoClientMock{
-			UpdateEnvironmentFunc: func(_ context.Context, _, _ string, _ occlient.UpdateEnvironmentRequest) (*models.EnvironmentResponse, error) {
-				return &models.EnvironmentResponse{UUID: "u1", Name: "dev", Description: "oc-desc"}, nil
-			},
-		}
-		svc := newEnvService(&repomocks.GatewayRepositoryMock{}, oc)
-
-		resp, err := svc.UpdateEnvironment(context.Background(), org, envID, &models.UpdateEnvironmentRequest{})
-
-		require.NoError(t, err)
-		assert.Equal(t, "", resp.Description)
-	})
-}
-
 // -----------------------------------------------------------------------------
 // pipelineReferencesEnvironment — the pure predicate DeleteEnvironment uses to
 // decide whether a pipeline blocks deletion (as source or as a promotion target).
 // -----------------------------------------------------------------------------
 
-func TestPipelineReferencesEnvironment(t *testing.T) {
-	tests := []struct {
-		name     string
-		pipeline *models.DeploymentPipelineResponse
-		envName  string
-		want     bool
-	}{
-		{
-			name:     "no promotion paths",
-			pipeline: &models.DeploymentPipelineResponse{Name: "p"},
-			envName:  "development",
-			want:     false,
-		},
-		{
-			name: "matches source environment",
-			pipeline: &models.DeploymentPipelineResponse{
-				PromotionPaths: []models.PromotionPath{{SourceEnvironmentRef: "development"}},
-			},
-			envName: "development",
-			want:    true,
-		},
-		{
-			name: "matches target environment",
-			pipeline: &models.DeploymentPipelineResponse{
-				PromotionPaths: []models.PromotionPath{{
-					SourceEnvironmentRef:  "development",
-					TargetEnvironmentRefs: []models.TargetEnvironmentRef{{Name: "production"}},
-				}},
-			},
-			envName: "production",
-			want:    true,
-		},
-		{
-			name: "no match",
-			pipeline: &models.DeploymentPipelineResponse{
-				PromotionPaths: []models.PromotionPath{{
-					SourceEnvironmentRef:  "development",
-					TargetEnvironmentRefs: []models.TargetEnvironmentRef{{Name: "production"}},
-				}},
-			},
-			envName: "staging",
-			want:    false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, pipelineReferencesEnvironment(tt.pipeline, tt.envName))
-		})
-	}
-}
-
 // -----------------------------------------------------------------------------
 // DeleteEnvironment — the richest method: lookup, UUID parse, pipeline-reference
 // guard, OC delete (idempotent on not-found), then local mapping cleanup.
 // -----------------------------------------------------------------------------
-
-func TestEnvironmentService_DeleteEnvironment(t *testing.T) {
-	const org, envID = "acme", "dev"
-	const envUUID = "22222222-2222-2222-2222-222222222222"
-
-	t.Run("maps lookup not-found to ErrEnvironmentNotFound", func(t *testing.T) {
-		oc := &clientmocks.OpenChoreoClientMock{
-			GetEnvironmentFunc: func(_ context.Context, _, _ string) (*models.EnvironmentResponse, error) {
-				return nil, utils.ErrNotFound
-			},
-		}
-		svc := newEnvService(&repomocks.GatewayRepositoryMock{}, oc)
-
-		err := svc.DeleteEnvironment(context.Background(), org, envID)
-
-		assert.ErrorIs(t, err, utils.ErrEnvironmentNotFound)
-	})
-
-	t.Run("fails on an invalid UUID from OpenChoreo", func(t *testing.T) {
-		oc := &clientmocks.OpenChoreoClientMock{
-			GetEnvironmentFunc: func(_ context.Context, _, _ string) (*models.EnvironmentResponse, error) {
-				return &models.EnvironmentResponse{UUID: "not-a-uuid", Name: "dev"}, nil
-			},
-		}
-		svc := newEnvService(&repomocks.GatewayRepositoryMock{}, oc)
-
-		err := svc.DeleteEnvironment(context.Background(), org, envID)
-
-		require.Error(t, err)
-		assert.NotErrorIs(t, err, utils.ErrEnvironmentNotFound)
-	})
-
-	t.Run("blocks deletion when a pipeline references the environment", func(t *testing.T) {
-		oc := &clientmocks.OpenChoreoClientMock{
-			GetEnvironmentFunc: func(_ context.Context, _, _ string) (*models.EnvironmentResponse, error) {
-				return &models.EnvironmentResponse{UUID: envUUID, Name: "dev"}, nil
-			},
-			ListDeploymentPipelinesFunc: func(_ context.Context, _ string) ([]*models.DeploymentPipelineResponse, error) {
-				return []*models.DeploymentPipelineResponse{
-					{
-						Name: "pipeline-a",
-						PromotionPaths: []models.PromotionPath{
-							{SourceEnvironmentRef: "dev"}, // references our env as source
-						},
-					},
-				}, nil
-			},
-			// DeleteEnvironment must NOT be reached — leaving it nil asserts that.
-		}
-		svc := newEnvService(&repomocks.GatewayRepositoryMock{}, oc)
-
-		err := svc.DeleteEnvironment(context.Background(), org, envID)
-
-		assert.ErrorIs(t, err, utils.ErrEnvironmentInUse)
-		assert.Contains(t, err.Error(), "pipeline-a")
-		assert.Empty(t, oc.DeleteEnvironmentCalls())
-	})
-
-	t.Run("blocks deletion when referenced as a pipeline target", func(t *testing.T) {
-		oc := &clientmocks.OpenChoreoClientMock{
-			GetEnvironmentFunc: func(_ context.Context, _, _ string) (*models.EnvironmentResponse, error) {
-				return &models.EnvironmentResponse{UUID: envUUID, Name: "dev"}, nil
-			},
-			ListDeploymentPipelinesFunc: func(_ context.Context, _ string) ([]*models.DeploymentPipelineResponse, error) {
-				return []*models.DeploymentPipelineResponse{
-					{
-						Name: "pipeline-b",
-						PromotionPaths: []models.PromotionPath{
-							{
-								SourceEnvironmentRef:  "staging",
-								TargetEnvironmentRefs: []models.TargetEnvironmentRef{{Name: "dev"}},
-							},
-						},
-					},
-				}, nil
-			},
-		}
-		svc := newEnvService(&repomocks.GatewayRepositoryMock{}, oc)
-
-		err := svc.DeleteEnvironment(context.Background(), org, envID)
-
-		assert.ErrorIs(t, err, utils.ErrEnvironmentInUse)
-	})
-
-	t.Run("wraps a pipeline-listing error", func(t *testing.T) {
-		boom := errors.New("pipelines unreachable")
-		oc := &clientmocks.OpenChoreoClientMock{
-			GetEnvironmentFunc: func(_ context.Context, _, _ string) (*models.EnvironmentResponse, error) {
-				return &models.EnvironmentResponse{UUID: envUUID, Name: "dev"}, nil
-			},
-			ListDeploymentPipelinesFunc: func(_ context.Context, _ string) ([]*models.DeploymentPipelineResponse, error) {
-				return nil, boom
-			},
-			// DeleteEnvironment must NOT be reached — leaving it nil asserts that.
-		}
-		svc := newEnvService(&repomocks.GatewayRepositoryMock{}, oc)
-
-		err := svc.DeleteEnvironment(context.Background(), org, envID)
-
-		require.Error(t, err)
-		assert.ErrorIs(t, err, boom)
-		assert.Empty(t, oc.DeleteEnvironmentCalls())
-	})
-
-	t.Run("surfaces a non-not-found OC delete error without local cleanup", func(t *testing.T) {
-		boom := errors.New("release bindings still exist")
-		oc := &clientmocks.OpenChoreoClientMock{
-			GetEnvironmentFunc: func(_ context.Context, _, _ string) (*models.EnvironmentResponse, error) {
-				return &models.EnvironmentResponse{UUID: envUUID, Name: "dev"}, nil
-			},
-			ListDeploymentPipelinesFunc: func(_ context.Context, _ string) ([]*models.DeploymentPipelineResponse, error) {
-				return []*models.DeploymentPipelineResponse{}, nil
-			},
-			DeleteEnvironmentFunc: func(_ context.Context, _, _ string) error {
-				return boom
-			},
-		}
-		// DeleteEnvironmentMappingsByEnvironmentID must NOT be reached (nil asserts that).
-		svc := newEnvService(&repomocks.GatewayRepositoryMock{}, oc)
-
-		err := svc.DeleteEnvironment(context.Background(), org, envID)
-
-		require.Error(t, err)
-		assert.ErrorIs(t, err, boom)
-	})
-
-	t.Run("treats an OC not-found delete as idempotent and still cleans up locally", func(t *testing.T) {
-		cleaned := false
-		oc := &clientmocks.OpenChoreoClientMock{
-			GetEnvironmentFunc: func(_ context.Context, _, _ string) (*models.EnvironmentResponse, error) {
-				return &models.EnvironmentResponse{UUID: envUUID, Name: "dev"}, nil
-			},
-			ListDeploymentPipelinesFunc: func(_ context.Context, _ string) ([]*models.DeploymentPipelineResponse, error) {
-				return []*models.DeploymentPipelineResponse{}, nil
-			},
-			DeleteEnvironmentFunc: func(_ context.Context, _, _ string) error {
-				return utils.ErrEnvironmentNotFound
-			},
-		}
-		repo := &repomocks.GatewayRepositoryMock{
-			DeleteEnvironmentMappingsByEnvironmentIDFunc: func(_ string) (int64, error) {
-				cleaned = true
-				return 0, nil
-			},
-		}
-		svc := newEnvService(repo, oc)
-
-		err := svc.DeleteEnvironment(context.Background(), org, envID)
-
-		require.NoError(t, err)
-		assert.True(t, cleaned, "expected local mapping cleanup to run")
-	})
-
-	t.Run("returns an error when local mapping cleanup fails", func(t *testing.T) {
-		boom := errors.New("db down")
-		oc := &clientmocks.OpenChoreoClientMock{
-			GetEnvironmentFunc: func(_ context.Context, _, _ string) (*models.EnvironmentResponse, error) {
-				return &models.EnvironmentResponse{UUID: envUUID, Name: "dev"}, nil
-			},
-			ListDeploymentPipelinesFunc: func(_ context.Context, _ string) ([]*models.DeploymentPipelineResponse, error) {
-				return []*models.DeploymentPipelineResponse{}, nil
-			},
-			DeleteEnvironmentFunc: func(_ context.Context, _, _ string) error {
-				return nil
-			},
-		}
-		repo := &repomocks.GatewayRepositoryMock{
-			DeleteEnvironmentMappingsByEnvironmentIDFunc: func(_ string) (int64, error) {
-				return 0, boom
-			},
-		}
-		svc := newEnvService(repo, oc)
-
-		err := svc.DeleteEnvironment(context.Background(), org, envID)
-
-		require.Error(t, err)
-		assert.ErrorIs(t, err, boom)
-	})
-
-	t.Run("happy path: OC delete then local cleanup", func(t *testing.T) {
-		var cleanedID string
-		oc := &clientmocks.OpenChoreoClientMock{
-			GetEnvironmentFunc: func(_ context.Context, _, _ string) (*models.EnvironmentResponse, error) {
-				return &models.EnvironmentResponse{UUID: envUUID, Name: "dev"}, nil
-			},
-			ListDeploymentPipelinesFunc: func(_ context.Context, _ string) ([]*models.DeploymentPipelineResponse, error) {
-				return []*models.DeploymentPipelineResponse{
-					{Name: "unrelated", PromotionPaths: []models.PromotionPath{{SourceEnvironmentRef: "prod"}}},
-				}, nil
-			},
-			DeleteEnvironmentFunc: func(_ context.Context, _, name string) error {
-				assert.Equal(t, "dev", name)
-				return nil
-			},
-		}
-		repo := &repomocks.GatewayRepositoryMock{
-			DeleteEnvironmentMappingsByEnvironmentIDFunc: func(id string) (int64, error) {
-				cleanedID = id
-				return 2, nil
-			},
-		}
-		svc := newEnvService(repo, oc)
-
-		err := svc.DeleteEnvironment(context.Background(), org, envID)
-
-		require.NoError(t, err)
-		assert.Equal(t, envUUID, cleanedID)
-	})
-}
-
-// deletingEnvOC resolves "dev" and answers the OC delete with deleteErr.
-func deletingEnvOC(envUUID string, deleteErr error) *clientmocks.OpenChoreoClientMock {
-	return &clientmocks.OpenChoreoClientMock{
-		GetEnvironmentFunc: func(_ context.Context, _, _ string) (*models.EnvironmentResponse, error) {
-			return &models.EnvironmentResponse{UUID: envUUID, Name: "dev"}, nil
-		},
-		ListDeploymentPipelinesFunc: func(_ context.Context, _ string) ([]*models.DeploymentPipelineResponse, error) {
-			return []*models.DeploymentPipelineResponse{}, nil
-		},
-		DeleteEnvironmentFunc: func(_ context.Context, _, _ string) error {
-			return deleteErr
-		},
-	}
-}
-
-func cleanedGatewayRepo() *repomocks.GatewayRepositoryMock {
-	return &repomocks.GatewayRepositoryMock{
-		DeleteEnvironmentMappingsByEnvironmentIDFunc: func(_ string) (int64, error) {
-			return 0, nil
-		},
-	}
-}
-
-// A re-created environment of the same name must not inherit the deleted one's A2A cards.
-func TestEnvironmentService_DeleteEnvironmentDropsA2ACards(t *testing.T) {
-	const org, envID = "acme", "dev"
-	const envUUID = "44444444-4444-4444-4444-444444444444"
-
-	recordingCardRepo := func() *repomocks.A2AAgentCardRepositoryMock {
-		return &repomocks.A2AAgentCardRepositoryMock{
-			DeleteForEnvironmentFunc: func(context.Context, string, uuid.UUID) error { return nil },
-			ListEnvironmentUUIDsFunc: func(context.Context, string, string) ([]uuid.UUID, error) { return []uuid.UUID{}, nil },
-		}
-	}
-
-	for name, deleteErr := range map[string]error{
-		"after OC deletes the environment": nil,
-		"when OC reports it already gone":  utils.ErrEnvironmentNotFound,
-	} {
-		t.Run(name, func(t *testing.T) {
-			cards := recordingCardRepo()
-			svc := NewEnvironmentService(discardLogger(), cleanedGatewayRepo(), deletingEnvOC(envUUID, deleteErr),
-				&clientmocks.ThunderProberMock{}, nil, nil, nil, nil, cards, nil, nil)
-
-			require.NoError(t, svc.DeleteEnvironment(context.Background(), org, envID))
-
-			require.Len(t, cards.DeleteForEnvironmentCalls(), 1)
-			call := cards.DeleteForEnvironmentCalls()[0]
-			assert.Equal(t, org, call.OuID)
-			assert.Equal(t, uuid.MustParse(envUUID), call.EnvironmentUUID)
-		})
-	}
-
-	t.Run("keeps the cards when OC refuses the delete", func(t *testing.T) {
-		// DeleteForEnvironmentFunc is nil: reaching it panics.
-		cards := &repomocks.A2AAgentCardRepositoryMock{}
-		svc := NewEnvironmentService(discardLogger(), cleanedGatewayRepo(),
-			deletingEnvOC(envUUID, errors.New("release bindings still exist")),
-			&clientmocks.ThunderProberMock{}, nil, nil, nil, nil, cards, nil, nil)
-
-		require.Error(t, svc.DeleteEnvironment(context.Background(), org, envID))
-	})
-
-	t.Run("a card cleanup failure does not fail the delete", func(t *testing.T) {
-		gateways := cleanedGatewayRepo()
-		cards := &repomocks.A2AAgentCardRepositoryMock{
-			DeleteForEnvironmentFunc: func(context.Context, string, uuid.UUID) error { return errors.New("db down") },
-			ListEnvironmentUUIDsFunc: func(context.Context, string, string) ([]uuid.UUID, error) { return []uuid.UUID{}, nil },
-		}
-		svc := NewEnvironmentService(discardLogger(), gateways, deletingEnvOC(envUUID, nil),
-			&clientmocks.ThunderProberMock{}, nil, nil, nil, nil, cards, nil, nil)
-		svc.(*environmentService).cleanupBackoff = 0
-
-		require.NoError(t, svc.DeleteEnvironment(context.Background(), org, envID))
-		assert.Len(t, gateways.DeleteEnvironmentMappingsByEnvironmentIDCalls(), 1, "mapping cleanup still runs")
-	})
-}
 
 // -----------------------------------------------------------------------------
 // GetEnvironmentGateways — verify env, resolve mappings, fan-out per gateway,
@@ -738,7 +276,7 @@ func TestEnvironmentService_GetEnvironmentGateways(t *testing.T) {
 	const envUUID = "33333333-3333-3333-3333-333333333333"
 
 	t.Run("maps env not-found to ErrEnvironmentNotFound", func(t *testing.T) {
-		oc := &clientmocks.OpenChoreoClientMock{
+		oc := &repomocks.PlatformRepositoryMock{
 			GetEnvironmentFunc: func(_ context.Context, _, _ string) (*models.EnvironmentResponse, error) {
 				return nil, utils.ErrEnvironmentNotFound
 			},
@@ -752,7 +290,7 @@ func TestEnvironmentService_GetEnvironmentGateways(t *testing.T) {
 
 	t.Run("wraps a mapping-lookup error", func(t *testing.T) {
 		boom := errors.New("mapping query failed")
-		oc := &clientmocks.OpenChoreoClientMock{
+		oc := &repomocks.PlatformRepositoryMock{
 			GetEnvironmentFunc: func(_ context.Context, _, _ string) (*models.EnvironmentResponse, error) {
 				return &models.EnvironmentResponse{UUID: envUUID, Name: "dev"}, nil
 			},
@@ -775,7 +313,7 @@ func TestEnvironmentService_GetEnvironmentGateways(t *testing.T) {
 		errorGW := uuid.New()
 		missingGW := uuid.New()
 
-		oc := &clientmocks.OpenChoreoClientMock{
+		oc := &repomocks.PlatformRepositoryMock{
 			GetEnvironmentFunc: func(_ context.Context, _, _ string) (*models.EnvironmentResponse, error) {
 				return &models.EnvironmentResponse{UUID: envUUID, Name: "dev"}, nil
 			},
@@ -825,7 +363,7 @@ func TestEnvironmentService_GetEnvironmentGateways(t *testing.T) {
 
 	t.Run("maps an inactive gateway to inactive status", func(t *testing.T) {
 		gw := uuid.New()
-		oc := &clientmocks.OpenChoreoClientMock{
+		oc := &repomocks.PlatformRepositoryMock{
 			GetEnvironmentFunc: func(_ context.Context, _, _ string) (*models.EnvironmentResponse, error) {
 				return &models.EnvironmentResponse{UUID: envUUID, Name: "dev"}, nil
 			},
@@ -858,7 +396,7 @@ func TestEnvironmentService_ListThunderInstances(t *testing.T) {
 
 	t.Run("wraps list environments error", func(t *testing.T) {
 		boom := errors.New("oc down")
-		oc := &clientmocks.OpenChoreoClientMock{
+		oc := &repomocks.PlatformRepositoryMock{
 			ListEnvironmentsFunc: func(_ context.Context, _ string) ([]*models.EnvironmentResponse, error) {
 				return nil, boom
 			},
@@ -876,15 +414,12 @@ func TestEnvironmentService_ListThunderInstances(t *testing.T) {
 		// them unreachable (e.g. Thunder is down) — the result list must be empty.
 		// Proving that gateway mappings alone are NOT sufficient to advertise
 		// Thunder endpoints, distinct from the "no handle at all" case below.
-		oc := &clientmocks.OpenChoreoClientMock{
+		oc := &repomocks.PlatformRepositoryMock{
 			ListEnvironmentsFunc: func(_ context.Context, _ string) ([]*models.EnvironmentResponse, error) {
 				return []*models.EnvironmentResponse{
 					{UUID: "u1", Name: "dev", DisplayName: "Dev", IsProduction: false},
 					{UUID: "u2", Name: "staging", DisplayName: "Staging", IsProduction: false},
 				}, nil
-			},
-			ListOrganizationsFunc: func(_ context.Context) ([]*models.OrganizationResponse, error) {
-				return []*models.OrganizationResponse{{Namespace: org}}, nil
 			},
 		}
 		prober := &clientmocks.ThunderProberMock{
@@ -909,14 +444,11 @@ func TestEnvironmentService_ListThunderInstances(t *testing.T) {
 		// there's no address to probe, so the prober must never even be called.
 		// The unconfigured ThunderProberMock panics if it is, which is how this
 		// test fails loudly if that guarantee ever regresses.
-		oc := &clientmocks.OpenChoreoClientMock{
+		oc := &repomocks.PlatformRepositoryMock{
 			ListEnvironmentsFunc: func(_ context.Context, _ string) ([]*models.EnvironmentResponse, error) {
 				return []*models.EnvironmentResponse{
 					{UUID: "u1", Name: "dev", DisplayName: "Dev", IsProduction: false},
 				}, nil
-			},
-			ListOrganizationsFunc: func(_ context.Context) ([]*models.OrganizationResponse, error) {
-				return []*models.OrganizationResponse{{Namespace: org}}, nil
 			},
 		}
 		urlRepo := &repomocks.EnvThunderURLRepositoryMock{
@@ -939,14 +471,11 @@ func TestEnvironmentService_ListThunderInstances(t *testing.T) {
 		// provisioned" to the caller — the console must see a failure, not a
 		// silently truncated list.
 		boom := errors.New("db down")
-		oc := &clientmocks.OpenChoreoClientMock{
+		oc := &repomocks.PlatformRepositoryMock{
 			ListEnvironmentsFunc: func(_ context.Context, _ string) ([]*models.EnvironmentResponse, error) {
 				return []*models.EnvironmentResponse{
 					{UUID: "u1", Name: "dev", DisplayName: "Dev", IsProduction: false},
 				}, nil
-			},
-			ListOrganizationsFunc: func(_ context.Context) ([]*models.OrganizationResponse, error) {
-				return []*models.OrganizationResponse{{Namespace: org}}, nil
 			},
 		}
 		urlRepo := &repomocks.EnvThunderURLRepositoryMock{
@@ -966,15 +495,12 @@ func TestEnvironmentService_ListThunderInstances(t *testing.T) {
 	t.Run("skips nil and empty-name environments", func(t *testing.T) {
 		// newEnvService's prober is unconfigured (panics if called) — proving the
 		// nil/empty-name guard skips these entries before ever probing them.
-		oc := &clientmocks.OpenChoreoClientMock{
+		oc := &repomocks.PlatformRepositoryMock{
 			ListEnvironmentsFunc: func(_ context.Context, _ string) ([]*models.EnvironmentResponse, error) {
 				return []*models.EnvironmentResponse{
 					nil,
 					{UUID: "u1", Name: ""},
 				}, nil
-			},
-			ListOrganizationsFunc: func(_ context.Context) ([]*models.OrganizationResponse, error) {
-				return []*models.OrganizationResponse{{Namespace: org}}, nil
 			},
 		}
 		svc := newEnvService(&repomocks.GatewayRepositoryMock{}, oc)
@@ -987,15 +513,12 @@ func TestEnvironmentService_ListThunderInstances(t *testing.T) {
 	})
 
 	t.Run("includes reachable Thunder instances, addressed by their registered handle", func(t *testing.T) {
-		oc := &clientmocks.OpenChoreoClientMock{
+		oc := &repomocks.PlatformRepositoryMock{
 			ListEnvironmentsFunc: func(_ context.Context, _ string) ([]*models.EnvironmentResponse, error) {
 				return []*models.EnvironmentResponse{
 					{UUID: "u1", Name: "dev", DisplayName: "Dev", IsProduction: false},
 					{UUID: "u2", Name: "staging", DisplayName: "Staging", IsProduction: true},
 				}, nil
-			},
-			ListOrganizationsFunc: func(_ context.Context) ([]*models.OrganizationResponse, error) {
-				return []*models.OrganizationResponse{{Namespace: org}}, nil
 			},
 		}
 		// Each env has its OWN distinct registered origin — nothing derived
@@ -1044,7 +567,7 @@ func TestEnvironmentService_ListThunderInstances(t *testing.T) {
 		assert.Equal(t, urls["dev"], dev.IssuerURL)
 		assert.Equal(t, urls["dev"]+"/oauth2/token", dev.TokenURL)
 		assert.Equal(t, urls["dev"]+"/oauth2/jwks", dev.JWKSURL)
-		assert.Equal(t, thundersvc.ThunderNamespace(org, "dev"), dev.Namespace)
+		assert.Equal(t, thundersvc.ThunderNamespace(config.GetConfig().OrgNamespace, "dev"), dev.Namespace, "namespaced by the configured org namespace, not the OU id")
 		assert.NotContains(t, dev.IssuerURL, org+"-dev", "must never leak an org-env-derived pattern")
 
 		staging := resp.ThunderInstances[1]
@@ -1059,14 +582,11 @@ func TestEnvironmentService_ListThunderInstances(t *testing.T) {
 		// The unconfigured ThunderProberMock panics if the prober is ever called,
 		// which is how this test fails loudly if a computed fallback ever creeps
 		// back in.
-		oc := &clientmocks.OpenChoreoClientMock{
+		oc := &repomocks.PlatformRepositoryMock{
 			ListEnvironmentsFunc: func(_ context.Context, _ string) ([]*models.EnvironmentResponse, error) {
 				return []*models.EnvironmentResponse{
 					{UUID: "u1", Name: "orphaned", DisplayName: "Orphaned", IsProduction: false},
 				}, nil
-			},
-			ListOrganizationsFunc: func(_ context.Context) ([]*models.OrganizationResponse, error) {
-				return []*models.OrganizationResponse{{Namespace: org}}, nil
 			},
 		}
 		urlRepo := &repomocks.EnvThunderURLRepositoryMock{
@@ -1174,7 +694,7 @@ func TestEnvironmentService_SetThunderSystemClientSecret(t *testing.T) {
 			UpsertFunc: func(context.Context, *models.EnvThunderSystemClient) error { return nil },
 		}
 		logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-		svc := NewEnvironmentService(logger, &repomocks.GatewayRepositoryMock{}, &clientmocks.OpenChoreoClientMock{}, &clientmocks.ThunderProberMock{}, nil, systemClientRepo, urlRepo, envTestKey, nil, nil, nil)
+		svc := NewEnvironmentService(logger, &repomocks.GatewayRepositoryMock{}, &repomocks.PlatformRepositoryMock{}, &clientmocks.ThunderProberMock{}, nil, systemClientRepo, urlRepo, envTestKey, nil, nil, nil)
 
 		err := svc.SetThunderSystemClientSecret(context.Background(), "ou-123", "staging", "amp-system-client", "s3cr3t")
 
@@ -1406,7 +926,7 @@ func TestEnvironmentService_SetThunderURL(t *testing.T) {
 			},
 		}
 		logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-		svc := NewEnvironmentService(logger, &repomocks.GatewayRepositoryMock{}, &clientmocks.OpenChoreoClientMock{}, &clientmocks.ThunderProberMock{}, nil, nil, urlRepo, nil, nil, nil, nil)
+		svc := NewEnvironmentService(logger, &repomocks.GatewayRepositoryMock{}, &repomocks.PlatformRepositoryMock{}, &clientmocks.ThunderProberMock{}, nil, nil, urlRepo, nil, nil, nil, nil)
 
 		resolved, err := svc.SetThunderURL(context.Background(), "ou-123", "prod", "", "")
 		require.NoError(t, err)
@@ -1930,7 +1450,7 @@ func TestEnvironmentService_GetThunderURL(t *testing.T) {
 			},
 		}
 		logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-		svc := NewEnvironmentService(logger, &repomocks.GatewayRepositoryMock{}, &clientmocks.OpenChoreoClientMock{}, &clientmocks.ThunderProberMock{}, nil, nil, urlRepo, nil, nil, nil, nil)
+		svc := NewEnvironmentService(logger, &repomocks.GatewayRepositoryMock{}, &repomocks.PlatformRepositoryMock{}, &clientmocks.ThunderProberMock{}, nil, nil, urlRepo, nil, nil, nil, nil)
 
 		_, err := svc.GetThunderURL(context.Background(), "ou-123", "prod")
 		require.Error(t, err)
@@ -2080,265 +1600,4 @@ func TestEnvironmentService_IsThunderHandleAvailable(t *testing.T) {
 		require.Error(t, err)
 		assert.ErrorIs(t, err, boom)
 	})
-}
-
-// An external agent has no release binding to stop the delete, so its gateway Agent must be withdrawn here.
-func TestEnvironmentService_DeleteEnvironmentTearsDownA2APublications(t *testing.T) {
-	const org, envID = "acme", "dev"
-	const envUUID = "44444444-4444-4444-4444-444444444444"
-	m := newPublisherMocks(t)
-	m.exposures.ListEnvironmentUUIDsFunc = func(context.Context, string, string) ([]uuid.UUID, error) { return []uuid.UUID{}, nil }
-	m.proxies.ListEnvironmentUUIDsFunc = m.exposures.ListEnvironmentUUIDsFunc
-	var torndown []uuid.UUID
-	m.exposures.ListForEnvironmentFunc = func(_ context.Context, _ string, env uuid.UUID) ([]models.PlatformAgentExposure, error) {
-		torndown = append(torndown, env)
-		return []models.PlatformAgentExposure{}, nil
-	}
-	m.exposures.DeleteForEnvironmentFunc = func(context.Context, string, uuid.UUID) error { return nil }
-	m.proxies.DeleteForEnvironmentFunc = func(context.Context, string, uuid.UUID) error { return nil }
-	svc := NewEnvironmentService(discardLogger(), cleanedGatewayRepo(), deletingEnvOC(envUUID, nil),
-		&clientmocks.ThunderProberMock{}, nil, nil, nil, nil, nil, m.publisher(), nil)
-
-	require.NoError(t, svc.DeleteEnvironment(context.Background(), org, envID))
-
-	assert.Equal(t, []uuid.UUID{uuid.MustParse(envUUID)}, torndown)
-	assert.Len(t, m.proxies.DeleteForEnvironmentCalls(), 1)
-}
-
-func TestEnvironmentService_DeleteEnvironmentKeepsA2APublicationsWhenOCRefuses(t *testing.T) {
-	m := newPublisherMocks(t) // ListForEnvironmentFunc is nil: tearing down would panic
-	svc := NewEnvironmentService(discardLogger(), cleanedGatewayRepo(),
-		deletingEnvOC("44444444-4444-4444-4444-444444444444", errors.New("release bindings still exist")),
-		&clientmocks.ThunderProberMock{}, nil, nil, nil, nil, nil, m.publisher(), nil)
-
-	require.Error(t, svc.DeleteEnvironment(context.Background(), "acme", "dev"))
-
-	assert.Empty(t, m.exposures.ListForEnvironmentCalls())
-	assert.Empty(t, m.exposures.DeleteForEnvironmentCalls())
-	assert.Empty(t, m.proxies.DeleteForEnvironmentCalls())
-}
-
-// A repeat DELETE after OpenChoreo already removed the environment is the recovery path for a failed cleanup.
-func TestEnvironmentService_DeleteEnvironmentCleansUpAfterOpenChoreoAlreadyDeletedIt(t *testing.T) {
-	stale := uuid.MustParse("55555555-5555-5555-5555-555555555555")
-	m := newPublisherMocks(t)
-	m.exposures.ListEnvironmentUUIDsFunc = func(context.Context, string, string) ([]uuid.UUID, error) {
-		return []uuid.UUID{stale}, nil
-	}
-	m.proxies.ListEnvironmentUUIDsFunc = func(context.Context, string, string) ([]uuid.UUID, error) {
-		return []uuid.UUID{}, nil
-	}
-	var torndown []uuid.UUID
-	m.exposures.ListForEnvironmentFunc = func(_ context.Context, _ string, env uuid.UUID) ([]models.PlatformAgentExposure, error) {
-		torndown = append(torndown, env)
-		return []models.PlatformAgentExposure{}, nil
-	}
-	m.exposures.DeleteForEnvironmentFunc = func(context.Context, string, uuid.UUID) error { return nil }
-	m.proxies.DeleteForEnvironmentFunc = func(context.Context, string, uuid.UUID) error { return nil }
-	oc := &clientmocks.OpenChoreoClientMock{
-		GetEnvironmentFunc: func(context.Context, string, string) (*models.EnvironmentResponse, error) {
-			return nil, utils.ErrEnvironmentNotFound
-		},
-	}
-	svc := NewEnvironmentService(discardLogger(), cleanedGatewayRepo(), oc,
-		&clientmocks.ThunderProberMock{}, nil, nil, nil, nil, nil, m.publisher(), nil)
-
-	err := svc.DeleteEnvironment(context.Background(), "acme", "dev")
-
-	require.ErrorIs(t, err, utils.ErrEnvironmentNotFound, "the environment is still reported gone")
-	assert.Equal(t, []uuid.UUID{stale}, torndown)
-}
-
-// A same-named environment deleted earlier left rows behind; deleting the live one sweeps them too.
-func TestEnvironmentService_DeleteEnvironmentAlsoTearsDownASameNamedLeftover(t *testing.T) {
-	const live = "44444444-4444-4444-4444-444444444444"
-	stale := uuid.MustParse("55555555-5555-5555-5555-555555555555")
-	m := newPublisherMocks(t)
-	m.exposures.ListEnvironmentUUIDsFunc = func(context.Context, string, string) ([]uuid.UUID, error) {
-		return []uuid.UUID{stale, uuid.MustParse(live)}, nil
-	}
-	m.proxies.ListEnvironmentUUIDsFunc = func(context.Context, string, string) ([]uuid.UUID, error) {
-		return []uuid.UUID{stale}, nil
-	}
-	var torndown []uuid.UUID
-	m.exposures.ListForEnvironmentFunc = func(_ context.Context, _ string, env uuid.UUID) ([]models.PlatformAgentExposure, error) {
-		torndown = append(torndown, env)
-		return []models.PlatformAgentExposure{}, nil
-	}
-	m.exposures.DeleteForEnvironmentFunc = func(context.Context, string, uuid.UUID) error { return nil }
-	m.proxies.DeleteForEnvironmentFunc = func(context.Context, string, uuid.UUID) error { return nil }
-	svc := NewEnvironmentService(discardLogger(), cleanedGatewayRepo(), deletingEnvOC(live, nil),
-		&clientmocks.ThunderProberMock{}, nil, nil, nil, nil, nil, m.publisher(), nil)
-
-	require.NoError(t, svc.DeleteEnvironment(context.Background(), "acme", "dev"))
-
-	assert.ElementsMatch(t, []uuid.UUID{uuid.MustParse(live), stale}, torndown, "each UUID is torn down once")
-}
-
-func TestEnvironmentService_DeleteEnvironmentRetriesAFailedA2ATeardown(t *testing.T) {
-	const live = "44444444-4444-4444-4444-444444444444"
-	m := newPublisherMocks(t)
-	m.exposures.ListEnvironmentUUIDsFunc = func(context.Context, string, string) ([]uuid.UUID, error) {
-		return []uuid.UUID{}, nil
-	}
-	m.proxies.ListEnvironmentUUIDsFunc = m.exposures.ListEnvironmentUUIDsFunc
-	calls := 0
-	m.exposures.ListForEnvironmentFunc = func(context.Context, string, uuid.UUID) ([]models.PlatformAgentExposure, error) {
-		calls++
-		if calls == 1 {
-			return nil, errors.New("db blip")
-		}
-		return []models.PlatformAgentExposure{}, nil
-	}
-	m.exposures.DeleteForEnvironmentFunc = func(context.Context, string, uuid.UUID) error { return nil }
-	m.proxies.DeleteForEnvironmentFunc = func(context.Context, string, uuid.UUID) error { return nil }
-	svc := NewEnvironmentService(discardLogger(), cleanedGatewayRepo(), deletingEnvOC(live, nil),
-		&clientmocks.ThunderProberMock{}, nil, nil, nil, nil, nil, m.publisher(), nil).(*environmentService)
-	svc.cleanupBackoff = 0
-
-	require.NoError(t, svc.DeleteEnvironment(context.Background(), "acme", "dev"))
-
-	assert.Equal(t, 2, calls, "the teardown is retried after a transient failure")
-}
-
-func agentConfigRepoRecording(failFirst int) *repomocks.AgentConfigRepositoryMock {
-	calls := 0
-	return &repomocks.AgentConfigRepositoryMock{
-		DeleteForEnvironmentFunc: func(context.Context, string, string) error {
-			calls++
-			if calls <= failFirst {
-				return errors.New("db blip")
-			}
-			return nil
-		},
-	}
-}
-
-// A re-created environment of the same name must not inherit the deleted one's agent configs.
-func TestEnvironmentService_DeleteEnvironmentDropsAgentConfigs(t *testing.T) {
-	configs := agentConfigRepoRecording(0)
-	svc := NewEnvironmentService(discardLogger(), cleanedGatewayRepo(), deletingEnvOC("44444444-4444-4444-4444-444444444444", nil),
-		&clientmocks.ThunderProberMock{}, nil, nil, nil, nil, nil, nil, configs)
-
-	require.NoError(t, svc.DeleteEnvironment(context.Background(), "acme", "dev"))
-
-	require.Len(t, configs.DeleteForEnvironmentCalls(), 1)
-	call := configs.DeleteForEnvironmentCalls()[0]
-	assert.Equal(t, "acme", call.OuID)
-	assert.Equal(t, "dev", call.EnvironmentName)
-}
-
-func TestEnvironmentService_DeleteEnvironmentRepeatDeleteDropsAgentConfigs(t *testing.T) {
-	configs := agentConfigRepoRecording(0)
-	oc := &clientmocks.OpenChoreoClientMock{
-		GetEnvironmentFunc: func(context.Context, string, string) (*models.EnvironmentResponse, error) {
-			return nil, utils.ErrNotFound
-		},
-	}
-	svc := NewEnvironmentService(discardLogger(), cleanedGatewayRepo(), oc,
-		&clientmocks.ThunderProberMock{}, nil, nil, nil, nil, nil, nil, configs)
-
-	err := svc.DeleteEnvironment(context.Background(), "acme", "dev")
-
-	require.ErrorIs(t, err, utils.ErrEnvironmentNotFound)
-	require.Len(t, configs.DeleteForEnvironmentCalls(), 1)
-	call := configs.DeleteForEnvironmentCalls()[0]
-	assert.Equal(t, "acme", call.OuID)
-	assert.Equal(t, "dev", call.EnvironmentName)
-}
-
-func TestEnvironmentService_DeleteEnvironmentRetriesAgentConfigDeletion(t *testing.T) {
-	configs := agentConfigRepoRecording(1)
-	svc := NewEnvironmentService(discardLogger(), cleanedGatewayRepo(), deletingEnvOC("44444444-4444-4444-4444-444444444444", nil),
-		&clientmocks.ThunderProberMock{}, nil, nil, nil, nil, nil, nil, configs).(*environmentService)
-	svc.cleanupBackoff = 0
-
-	require.NoError(t, svc.DeleteEnvironment(context.Background(), "acme", "dev"))
-
-	assert.Len(t, configs.DeleteForEnvironmentCalls(), 2, "a transient failure is retried")
-}
-
-// mcpCleanupStub fails the first MCP cleanup; every other config service method panics.
-type mcpCleanupStub struct {
-	AgentConfigurationService
-	calls int
-}
-
-func (s *mcpCleanupStub) CleanupEnvironmentMCPArtifacts(context.Context, string, uuid.UUID, string) error {
-	s.calls++
-	if s.calls == 1 {
-		return errors.New("gateway blip")
-	}
-	return nil
-}
-
-func TestEnvironmentService_DeleteEnvironmentRetriesMCPCleanup(t *testing.T) {
-	mcp := &mcpCleanupStub{}
-	svc := NewEnvironmentService(discardLogger(), cleanedGatewayRepo(), deletingEnvOC("44444444-4444-4444-4444-444444444444", nil),
-		&clientmocks.ThunderProberMock{}, mcp, nil, nil, nil, nil, nil, nil).(*environmentService)
-	svc.cleanupBackoff = 0
-
-	require.NoError(t, svc.DeleteEnvironment(context.Background(), "acme", "dev"))
-
-	assert.Equal(t, 2, mcp.calls, "a transient failure is retried")
-}
-
-// One failed listing must not hide the publications another listing still finds.
-func TestEnvironmentService_DeleteEnvironmentSweepsPublicationsWhenCardListingFails(t *testing.T) {
-	leftover := uuid.MustParse("55555555-5555-5555-5555-555555555555")
-	cards := &repomocks.A2AAgentCardRepositoryMock{
-		ListEnvironmentUUIDsFunc: func(context.Context, string, string) ([]uuid.UUID, error) {
-			return nil, errors.New("card listing down")
-		},
-		DeleteForEnvironmentFunc: func(context.Context, string, uuid.UUID) error { return nil },
-	}
-	m := newPublisherMocks(t)
-	m.exposures.ListEnvironmentUUIDsFunc = func(context.Context, string, string) ([]uuid.UUID, error) {
-		return []uuid.UUID{leftover}, nil
-	}
-	m.proxies.ListEnvironmentUUIDsFunc = func(context.Context, string, string) ([]uuid.UUID, error) {
-		return []uuid.UUID{}, nil
-	}
-	m.exposures.ListForEnvironmentFunc = func(context.Context, string, uuid.UUID) ([]models.PlatformAgentExposure, error) {
-		return []models.PlatformAgentExposure{}, nil
-	}
-	m.exposures.DeleteForEnvironmentFunc = func(context.Context, string, uuid.UUID) error { return nil }
-	m.proxies.DeleteForEnvironmentFunc = func(context.Context, string, uuid.UUID) error { return nil }
-	oc := &clientmocks.OpenChoreoClientMock{
-		GetEnvironmentFunc: func(context.Context, string, string) (*models.EnvironmentResponse, error) {
-			return nil, utils.ErrEnvironmentNotFound
-		},
-	}
-	svc := NewEnvironmentService(discardLogger(), cleanedGatewayRepo(), oc,
-		&clientmocks.ThunderProberMock{}, nil, nil, nil, nil, cards, m.publisher(), nil)
-
-	err := svc.DeleteEnvironment(context.Background(), "acme", "dev")
-
-	require.ErrorIs(t, err, utils.ErrEnvironmentNotFound)
-	require.Len(t, m.exposures.ListForEnvironmentCalls(), 1)
-	assert.Equal(t, leftover, m.exposures.ListForEnvironmentCalls()[0].EnvironmentUUID)
-}
-
-// The DELETE has committed in OpenChoreo, so a disconnected client must not stop the cleanup.
-func TestEnvironmentService_DeleteEnvironmentCleanupSurvivesCanceledRequest(t *testing.T) {
-	failed := false
-	cards := &repomocks.A2AAgentCardRepositoryMock{
-		ListEnvironmentUUIDsFunc: func(context.Context, string, string) ([]uuid.UUID, error) { return []uuid.UUID{}, nil },
-		DeleteForEnvironmentFunc: func(context.Context, string, uuid.UUID) error {
-			if !failed {
-				failed = true
-				return errors.New("db blip")
-			}
-			return nil
-		},
-	}
-	svc := NewEnvironmentService(discardLogger(), cleanedGatewayRepo(), deletingEnvOC("44444444-4444-4444-4444-444444444444", nil),
-		&clientmocks.ThunderProberMock{}, nil, nil, nil, nil, cards, nil, nil).(*environmentService)
-	svc.cleanupBackoff = time.Millisecond // nonzero, so a canceled ctx deterministically wins the retry select
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-
-	require.NoError(t, svc.DeleteEnvironment(ctx, "acme", "dev"))
-
-	assert.GreaterOrEqual(t, len(cards.DeleteForEnvironmentCalls()), 2, "the teardown is retried, not abandoned at the first ctx.Done()")
 }

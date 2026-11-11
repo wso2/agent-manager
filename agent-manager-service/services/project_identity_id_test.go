@@ -93,7 +93,8 @@ func TestAttemptProvision_UsesTheProjectsIdentityID(t *testing.T) {
 			assert.Equal(t, "org-1", organizationID)
 			assert.Equal(t, "project-1", projectName)
 			return projectUID, nil
-		}))
+		},
+	))
 
 	require.False(t, deferred)
 	require.Len(t, requests, 2, "provision and activate")
@@ -107,7 +108,8 @@ func TestAttemptProvision_UsesTheProjectsIdentityID(t *testing.T) {
 
 func TestAttemptProvision_KeepsTheNameWhenNoIDIsKnown(t *testing.T) {
 	requests, deferred, _ := provisionWithResolver(t, projectIdentityIDResolverFunc(
-		func(context.Context, string, string) (string, error) { return "", nil }))
+		func(context.Context, string, string) (string, error) { return "", nil },
+	))
 	require.False(t, deferred)
 	require.Len(t, requests, 2)
 	for _, request := range requests {
@@ -117,14 +119,15 @@ func TestAttemptProvision_KeepsTheNameWhenNoIDIsKnown(t *testing.T) {
 
 func TestAttemptProvision_WaitsWhenTheProjectIDCannotBeRead(t *testing.T) {
 	requests, deferred, update := provisionWithResolver(t, projectIdentityIDResolverFunc(
-		func(context.Context, string, string) (string, error) { return "", errors.New("openchoreo unavailable") }))
+		func(context.Context, string, string) (string, error) { return "", errors.New("openchoreo unavailable") },
+	))
 
 	assert.True(t, deferred, "released for the next tick")
 	assert.Empty(t, requests, "no AgentID is created in a project the provider would invent")
 	assert.Nil(t, update, "no attempt is used up")
 }
 
-func TestOpenChoreoProjectIdentityIDResolver(t *testing.T) {
+func TestPlatformProjectIdentityIDResolver(t *testing.T) {
 	tests := []struct {
 		name    string
 		project *models.ProjectResponse
@@ -139,14 +142,14 @@ func TestOpenChoreoProjectIdentityIDResolver(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			oc := &clientmocks.OpenChoreoClientMock{
+			oc := &repomocks.PlatformRepositoryMock{
 				GetProjectFunc: func(_ context.Context, ouID, projectName string) (*models.ProjectResponse, error) {
 					assert.Equal(t, "org-1", ouID)
 					assert.Equal(t, "project-1", projectName)
 					return tt.project, tt.err
 				},
 			}
-			got, err := NewOpenChoreoProjectIdentityIDResolver(oc).ProjectIdentityID(context.Background(), "org-1", "project-1")
+			got, err := NewPlatformProjectIdentityIDResolver(oc).ProjectIdentityID(context.Background(), "org-1", "project-1")
 			if tt.wantErr {
 				require.Error(t, err)
 				return
@@ -175,7 +178,8 @@ func TestAttemptProvision_PromotionCarriesTheProjectsIdentityID(t *testing.T) {
 	platform := &fakeTargetPlatform{}
 	svc := newPromotionService(t, repo, store, platform.provider(t), nil)
 	svc.(ProjectIdentityIDResolverSetter).SetProjectIdentityIDResolver(projectIdentityIDResolverFunc(
-		func(context.Context, string, string) (string, error) { return projectUID, nil }))
+		func(context.Context, string, string) (string, error) { return projectUID, nil },
+	))
 
 	svc.AttemptProvision(context.Background(), binding)
 
@@ -190,7 +194,8 @@ func TestAttemptProvision_FailsWhenTheProjectNoLongerExists(t *testing.T) {
 	requests, deferred, update := provisionWithResolver(t, projectIdentityIDResolverFunc(
 		func(context.Context, string, string) (string, error) {
 			return "", fmt.Errorf("get project: project project-1: %w", utils.ErrProjectNotFound)
-		}))
+		},
+	))
 
 	assert.False(t, deferred, "not released to wait for the next tick")
 	assert.Empty(t, requests, "no AgentID is created for a project that is gone")

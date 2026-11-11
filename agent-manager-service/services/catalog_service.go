@@ -23,7 +23,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 )
@@ -107,14 +106,14 @@ type CatalogService interface {
 type catalogService struct {
 	logger           *slog.Logger
 	catalogRepo      repositories.CatalogRepository
-	openChoreoClient client.OpenChoreoClient
+	openChoreoClient repositories.PlatformRepository
 }
 
 // NewCatalogService creates a new catalog service
 func NewCatalogService(
 	logger *slog.Logger,
 	catalogRepo repositories.CatalogRepository,
-	openChoreoClient client.OpenChoreoClient,
+	openChoreoClient repositories.PlatformRepository,
 ) CatalogService {
 	return &catalogService{
 		logger:           logger,
@@ -212,8 +211,8 @@ func (s *catalogService) ListLLMProviders(ctx context.Context, filters *models.C
 			s.logger.Debug("Using cached environment mapping", "ouID", ouID)
 			envMap = cached
 		} else {
-			// Cache miss - fetch from OpenChoreo and cache the result
-			s.logger.Debug("Cache miss - fetching environment mapping from OpenChoreo", "ouID", ouID)
+			// Cache miss - fetch and cache the result
+			s.logger.Debug("Cache miss - fetching environment mapping", "ouID", ouID)
 			envMap, err = s.buildEnvironmentMapping(ctx, ouID)
 			if err != nil {
 				s.logger.Warn("Failed to build environment mapping, continuing without environment names", "error", err)
@@ -254,7 +253,7 @@ func (s *catalogService) ListLLMProviders(ctx context.Context, filters *models.C
 
 // buildEnvironmentMapping fetches all environments and builds UUID to name mapping
 func (s *catalogService) buildEnvironmentMapping(ctx context.Context, ouID string) (map[string]string, error) {
-	// Fetch all environments from OpenChoreo
+	// Fetch all environments
 	environments, err := s.openChoreoClient.ListEnvironments(ctx, ouID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list environments: %w", err)

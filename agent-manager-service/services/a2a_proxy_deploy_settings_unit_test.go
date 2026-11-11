@@ -26,7 +26,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
@@ -36,11 +35,11 @@ import (
 
 // deploySettingsService wires UpdateAgentDeploySettings for the external agent in externalAgent.
 func deploySettingsService(configs *repomocks.AgentConfigRepositoryMock, publisher *A2APublisher) *agentManagerService {
-	oc := &clientmocks.OpenChoreoClientMock{
+	oc := &repomocks.PlatformRepositoryMock{
 		GetOrganizationFunc: func(_ context.Context, name string) (*models.OrganizationResponse, error) {
 			return &models.OrganizationResponse{Name: name}, nil
 		},
-		GetComponentFunc: func(context.Context, string, string, string) (*models.AgentResponse, error) {
+		GetAgentFunc: func(context.Context, string, string, string) (*models.AgentResponse, error) {
 			return externalAgent(), nil
 		},
 		GetEnvironmentFunc: func(_ context.Context, _, name string) (*models.EnvironmentResponse, error) {
@@ -54,8 +53,7 @@ func deploySettingsService(configs *repomocks.AgentConfigRepositoryMock, publish
 		},
 	}
 	artifacts.WithTxFunc = func(*gorm.DB) repositories.ArtifactRepository { return artifacts }
-	return NewAgentManagerService(nil, oc, nil, nil, nil, configs, nil, nil, artifacts, nil, nil, nil, nil, nil, nil, nil,
-		nil, publisher, nil, nil, nil, publisher.exposure, nil, testLogger()).(*agentManagerService)
+	return NewAgentManagerService(nil, oc, nil, configs, nil, artifacts, nil, nil, nil, nil, nil, publisher, nil, nil, nil, publisher.exposure, nil, testLogger()).(*agentManagerService)
 }
 
 // savedConfigs accepts the upsert inside the save transaction only; a plain Upsert reaches a nil func and panics.

@@ -24,12 +24,12 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/growthanalytics"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -48,7 +48,7 @@ type MCPProxyController interface {
 type mcpProxyController struct {
 	mcpProxyService    *services.MCPProxyService
 	agentConfigService services.AgentConfigurationService
-	ocClient           client.OpenChoreoClient
+	ocClient           repositories.PlatformRepository
 }
 
 // NewMCPProxyController creates a new MCP proxy controller.
@@ -59,7 +59,7 @@ type mcpProxyController struct {
 func NewMCPProxyController(
 	mcpProxyService *services.MCPProxyService,
 	agentConfigService services.AgentConfigurationService,
-	ocClient client.OpenChoreoClient,
+	ocClient repositories.PlatformRepository,
 ) MCPProxyController {
 	return &mcpProxyController{
 		mcpProxyService:    mcpProxyService,

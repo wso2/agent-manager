@@ -44,11 +44,11 @@ func (r ApiDeleteProjectMCPProxyRequest) Execute() (*http.Response, error) {
 /*
 DeleteProjectMCPProxy Delete a project MCP proxy
 
-Undeploys every environment and deletes the proxy. Refuses while AM agents use the proxy as a tool: 409 MCP_PROXY_IN_USE, and nothing is deleted. For a project OpenChoreo no longer has, deletes the proxy it left under this project name in the caller's org.
+Undeploys every environment and deletes the proxy. Refuses while AM agents use the proxy as a tool: 409 MCP_PROXY_IN_USE, and nothing is deleted. For a project that no longer exists, deletes the proxy it left under this project name in the caller's org.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param orgName Organization handle. The org comes from the token, or from X-Impersonate-Org, in which case this must be that org's handle.
-	@param projName OpenChoreo project name. Unknown project returns 404 PROJECT_NOT_FOUND, except that the GET and DELETE routes of a project OpenChoreo no longer has reach the proxies it left, stored under this name in the caller's org; with none stored they return 404 PROJECT_NOT_FOUND.
+	@param projName Project name. Unknown project returns 404 PROJECT_NOT_FOUND, except that the GET and DELETE routes of a project that no longer exists reach the proxies it left, stored under this name in the caller's org; with none stored they return 404 PROJECT_NOT_FOUND.
 	@param proxyId Proxy handle, unique across the org.
 	@return ApiDeleteProjectMCPProxyRequest
 */
@@ -211,11 +211,11 @@ func (r ApiGetProjectMCPProxyRequest) Execute() (*ProjectMCPProxyResponse, *http
 /*
 GetProjectMCPProxy Get a project MCP proxy with its environment bindings
 
-For a project OpenChoreo no longer has, returns the proxy it left under this project name in the caller's org.
+For a project that no longer exists, returns the proxy it left under this project name in the caller's org.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param orgName Organization handle. The org comes from the token, or from X-Impersonate-Org, in which case this must be that org's handle.
-	@param projName OpenChoreo project name. Unknown project returns 404 PROJECT_NOT_FOUND, except that the GET and DELETE routes of a project OpenChoreo no longer has reach the proxies it left, stored under this name in the caller's org; with none stored they return 404 PROJECT_NOT_FOUND.
+	@param projName Project name. Unknown project returns 404 PROJECT_NOT_FOUND, except that the GET and DELETE routes of a project that no longer exists reach the proxies it left, stored under this name in the caller's org; with none stored they return 404 PROJECT_NOT_FOUND.
 	@param proxyId Proxy handle, unique across the org.
 	@return ApiGetProjectMCPProxyRequest
 */
@@ -406,11 +406,11 @@ func (r ApiListProjectMCPProxiesRequest) Execute() (*ProjectMCPProxyListResponse
 /*
 ListProjectMCPProxies List the project's MCP proxies
 
-Lists proxies owned by this project. Org-level proxies and other projects' proxies are never listed. Each item carries a summary per environment binding. For a project OpenChoreo no longer has, lists the proxies it left (stored under this project name in the caller's org), or returns 404 PROJECT_NOT_FOUND when there are none.
+Lists proxies owned by this project. Org-level proxies and other projects' proxies are never listed. Each item carries a summary per environment binding. For a project that no longer has, lists the proxies it left (stored under this project name in the caller's org), or returns 404 PROJECT_NOT_FOUND when there are none.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param orgName Organization handle. The org comes from the token, or from X-Impersonate-Org, in which case this must be that org's handle.
-	@param projName OpenChoreo project name. Unknown project returns 404 PROJECT_NOT_FOUND, except that the GET and DELETE routes of a project OpenChoreo no longer has reach the proxies it left, stored under this name in the caller's org; with none stored they return 404 PROJECT_NOT_FOUND.
+	@param projName Project name. Unknown project returns 404 PROJECT_NOT_FOUND, except that the GET and DELETE routes of a project that no longer exists reach the proxies it left, stored under this name in the caller's org; with none stored they return 404 PROJECT_NOT_FOUND.
 	@return ApiListProjectMCPProxiesRequest
 */
 func (a *ProjectMCPProxiesAPIService) ListProjectMCPProxies(ctx context.Context, orgName string, projName string) ApiListProjectMCPProxiesRequest {
@@ -597,7 +597,7 @@ not exist returns 400. Updating name, description, version or context re-renders
 environment. A new context that equals, contains or sits under another artifact's context on a
 gateway a binding is placed on returns 409 CONTEXT_IN_USE and nothing is stored.
 
-A project that does not exist in OpenChoreo returns 404 PROJECT_NOT_FOUND. A project deleted and
+A project that does not exist returns 404 PROJECT_NOT_FOUND. A project deleted and
 re-created with the same name adopts the proxies its predecessor left: a PUT of such a handle moves
 the proxy to the re-created project and applies the body as an update (200), in one transaction.
 Only a project proxy stored under this project's name is adopted, never an org-level proxy or
@@ -606,7 +606,7 @@ re-created project's component.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param orgName Organization handle. The org comes from the token, or from X-Impersonate-Org, in which case this must be that org's handle.
-	@param projName OpenChoreo project name. Unknown project returns 404 PROJECT_NOT_FOUND, except that the GET and DELETE routes of a project OpenChoreo no longer has reach the proxies it left, stored under this name in the caller's org; with none stored they return 404 PROJECT_NOT_FOUND.
+	@param projName Project name. Unknown project returns 404 PROJECT_NOT_FOUND, except that the GET and DELETE routes of a project that no longer exists reach the proxies it left, stored under this name in the caller's org; with none stored they return 404 PROJECT_NOT_FOUND.
 	@param proxyId Proxy handle, unique across the org.
 	@return ApiUpsertProjectMCPProxyRequest
 */

@@ -28,7 +28,6 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
-	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
@@ -240,19 +239,9 @@ type agentThunderProvisioningService struct {
 	repo             repositories.AgentThunderClientRepository
 	envResolver      thundersvc.EnvThunderResolver
 	secretMgmtClient secretmanagersvc.SecretManagementClient
-	// workloadInjector pushes an internal agent's credential into its live
-	// workload (Gateway Binding). Optional (nil skips injection). Used by the
-	// post-provisioning reconcile hook to cover agents whose workload comes up
-	// independently of DeployAgent. Guarded by workloadInjectorMu: it starts
-	// nil and is backfilled once via SetWorkloadInjector (see that method's
-	// doc comment for why), from a different goroutine than the ones calling
-	// AttemptProvision — an RWMutex makes that safe without depending on
-	// app.Run's call ordering to establish a happens-before relationship.
-	workloadInjectorMu sync.RWMutex
-	workloadInjector   AgentIdentityInjectionService
-	logger             *slog.Logger
-	endpointResolver   *agentThunderEndpointResolver
-	bindingLocks       keyedMutex
+	logger           *slog.Logger
+	endpointResolver *agentThunderEndpointResolver
+	bindingLocks     keyedMutex
 	// awaitTimeout is awaitEnvProvisionTimeout; a field so tests can shorten it.
 	awaitTimeout            time.Duration
 	identityManagementMode  thundersvc.IdentityManagementMode
@@ -321,17 +310,7 @@ func (s *agentThunderProvisioningService) storeCredential(ctx context.Context, o
 		// create, and from here on the provider owns it like any new binding's.
 		// Only a legacy SecretReference produces this error, so provider-owned
 		// bindings never reach the direct delete.
-		injector := s.getWorkloadInjector()
-		if injector == nil {
-			return "", err
-		}
-		if cleanupErr := injector.CleanupForEnvironment(ctx, ouID, agentName, envName); cleanupErr != nil {
-			return "", fmt.Errorf("clear legacy SecretReference before retry: %w: %w", cleanupErr, err)
-		}
-		refName, err = s.secretMgmtClient.CreateSecret(ctx, location, data)
-		if err != nil {
-			return "", err
-		}
+		return "", err
 	}
 
 	return refName, nil
@@ -344,11 +323,7 @@ func (s *agentThunderProvisioningService) storeCredential(ctx context.Context, o
 // returns an error: a revoke then keeps the legacy SecretRefPath and a later
 // revoke retries.
 func (s *agentThunderProvisioningService) cleanupLegacySecretRef(ctx context.Context, ouID, agentName, envName string) error {
-	injector := s.getWorkloadInjector()
-	if injector == nil {
-		return errors.New("no workload injector configured to delete the legacy SecretReference")
-	}
-	return injector.CleanupForEnvironment(ctx, ouID, agentName, envName)
+	return errors.New("legacy SecretReferences can no longer be deleted directly")
 }
 
 // deleteCredential permanently removes the stored credential (and its
@@ -366,67 +341,7 @@ func (s *agentThunderProvisioningService) deleteCredential(ctx context.Context, 
 // of the AgentThunderProvisioningService interface itself, so an alternative
 // implementation that does no workload injection isn't forced to carry a
 // meaningless setter. app.Run type-asserts for it instead (see app.Run).
-type WorkloadInjectorSetter interface {
-	// SetWorkloadInjector backfills the workload injector once the real
-	// AgentIdentityInjectionService exists (this service is constructed before
-	// the OpenChoreo client — see DBBackedAgentThunderProvisioning). app.Run
-	// calls it exactly once, before the reconciler or HTTP server start. No-op
-	// when injector is nil. If this backfill is ever skipped (a startup-order
-	// regression), the post-provisioning reconcile hook logs a warning rather
-	// than silently no-op-ing, so the gap is visible.
-	SetWorkloadInjector(injector AgentIdentityInjectionService)
-}
-
-func (s *agentThunderProvisioningService) SetWorkloadInjector(injector AgentIdentityInjectionService) {
-	if injector == nil {
-		return
-	}
-	s.workloadInjectorMu.Lock()
-	s.workloadInjector = injector
-	s.workloadInjectorMu.Unlock()
-}
-
-func (s *agentThunderProvisioningService) getWorkloadInjector() AgentIdentityInjectionService {
-	s.workloadInjectorMu.RLock()
-	defer s.workloadInjectorMu.RUnlock()
-	return s.workloadInjector
-}
-
-// reconcileWorkloadInjection idempotently reconciles binding's live workload
-// with its desired AgentID env vars (writing only when missing or stale — see
-// AgentIdentityInjectionService.ReconcileForEnvironment). Package-level (not a
-// method) since it is shared by two independent callers that each hold their
-// own reference to the injector: agentThunderProvisioningService's
-// post-AttemptProvision hook, and agentThunderReconcilerService's periodic
-// sweep — neither needs this on its exported interface. Together they mean a
-// brand-new git agent — whose ReleaseBinding does not exist until its first
-// build finishes minutes later — still gets its credentials the moment the
-// workload appears. Best-effort: internal agents only, errors logged and
-// never returned.
-func reconcileWorkloadInjection(ctx context.Context, injector AgentIdentityInjectionService, binding models.AgentThunderClient, logger *slog.Logger) {
-	if binding.ProvisioningType != models.AgentProvisioningTypeInternal {
-		return
-	}
-	if injector == nil {
-		// Should not happen in production once app.Run's SetWorkloadInjector
-		// backfill has run (see that method's doc comment) — logged, not
-		// silently skipped, so a future startup-order regression that leaves
-		// this nil shows up immediately instead of as a mysteriously
-		// uninjected credential days later.
-		logger.Warn("Skipping agent identity workload reconcile: no workload injector configured",
-			"ouID", binding.OUID, "bindingID", binding.ID, "agentName", binding.AgentName, "envName", binding.EnvironmentName)
-		return
-	}
-	// Provisioning can finish after the originating HTTP request has returned, or
-	// during the periodic reconciler where there is no user token at all. Preserve
-	// the binding's trusted OU identity in the context so deployments that use an
-	// M2M service token can send the target organization to OpenChoreo.
-	ctx = agentThunderBindingOrgContext(ctx, binding)
-	if err := injector.ReconcileForEnvironment(ctx, binding.OUID, binding.ProjectName, binding.AgentName, binding.EnvironmentName); err != nil {
-		logger.Warn("Failed to reconcile agent identity credentials into workload",
-			"ouID", binding.OUID, "bindingID", binding.ID, "agentName", binding.AgentName, "envName", binding.EnvironmentName, "error", err)
-	}
-}
+type WorkloadInjectorSetter interface{}
 
 // agentThunderBindingOrgContext names the binding's organization on ctx, from the trusted OU the
 // binding row carries.
@@ -459,26 +374,13 @@ func withOrgContext(ctx context.Context, ouID string) context.Context {
 // whose vault may be reveal-once, needs this same DB-backed approach rather
 // than an alternative provisioning implementation.
 //
-// secretMgmtClient is supplied by app.Run, built the same way as the shared
-// one wiring.InitializeAppParams builds for every other secret-backed service
-// (LLM/MCP/publisher) — this factory can't build it itself: it runs BEFORE
-// InitializeAppParams (which constructs the OpenChoreo client the shared
-// instance depends on), the same ordering constraint SetWorkloadInjector's
-// doc comment describes for workloadInjector below. secretMgmtClient here is
-// used only for per-agent credentials; env-Thunder's own system-client secret
-// comes from encryptionKey + NewEnvThunderSecretReader (Postgres, not a vault).
-//
-// workloadInjector starts nil: this factory runs before the OpenChoreo client
-// exists (built inside wiring.InitializeAppParams, which this feeds into), so
-// there is nothing to build the injector from yet. app.Run backfills it via
-// SetWorkloadInjector right after InitializeAppParams returns. Without that, an
-// agent whose workload comes up outside AgentManagerService.DeployAgent (a
-// git/build-pipeline agent, or a kind-sourced one) would never get its AgentID
-// env vars — neither path calls InjectForEnvironment itself.
-func DBBackedAgentThunderProvisioning() func(db *gorm.DB, secretMgmtClient secretmanagersvc.SecretManagementClient, ocClient client.OpenChoreoClient, encryptionKey []byte) AgentThunderProvisioningService {
-	// The OpenChoreo client is used only to read a project's deployment pipeline
-	// (its environment order) in CP_MANAGED mode; LEGACY_DIRECT never touches it.
-	return func(db *gorm.DB, secretMgmtClient secretmanagersvc.SecretManagementClient, ocClient client.OpenChoreoClient, encryptionKey []byte) AgentThunderProvisioningService {
+// secretMgmtClient is supplied by app.Run and used only for per-agent
+// credentials; env-Thunder's own system-client secret comes from encryptionKey
+// + NewEnvThunderSecretReader (Postgres, not a vault).
+func DBBackedAgentThunderProvisioning() func(db *gorm.DB, secretMgmtClient secretmanagersvc.SecretManagementClient, platform repositories.PlatformRepository, encryptionKey []byte) AgentThunderProvisioningService {
+	// The platform repository is used only to resolve a project's ID in
+	// CP_MANAGED mode; LEGACY_DIRECT never touches it.
+	return func(db *gorm.DB, secretMgmtClient secretmanagersvc.SecretManagementClient, platform repositories.PlatformRepository, encryptionKey []byte) AgentThunderProvisioningService {
 		envThunderRepo := repositories.NewEnvThunderSystemClientRepo(db)
 		envThunderURLRepo := repositories.NewEnvThunderURLRepo(db)
 		endpointResolver := &agentThunderEndpointResolver{}
@@ -490,33 +392,29 @@ func DBBackedAgentThunderProvisioning() func(db *gorm.DB, secretMgmtClient secre
 				endpointResolver,
 			),
 			secretMgmtClient,
-			nil, // workload injector — see doc comment above
 			slog.Default(),
 		)
 		provisioning := service.(*agentThunderProvisioningService)
 		provisioning.endpointResolver = endpointResolver
-		if ocClient != nil {
-			provisioning.pipelineReader = NewOpenChoreoProjectPipelineReader(ocClient)
-			provisioning.projectIDResolver = NewOpenChoreoProjectIdentityIDResolver(ocClient)
+		provisioning.pipelineReader = NewDefaultEnvironmentPipelineReader()
+		if platform != nil {
+			provisioning.projectIDResolver = NewPlatformProjectIdentityIDResolver(platform)
 		}
 		return service
 	}
 }
 
 // NewAgentThunderProvisioningService creates a new AgentThunderProvisioningService.
-// workloadInjector may be nil (no workload injection on provisioning completion).
 func NewAgentThunderProvisioningService(
 	repo repositories.AgentThunderClientRepository,
 	envResolver thundersvc.EnvThunderResolver,
 	secretMgmtClient secretmanagersvc.SecretManagementClient,
-	workloadInjector AgentIdentityInjectionService,
 	logger *slog.Logger,
 ) AgentThunderProvisioningService {
 	return &agentThunderProvisioningService{
 		repo:                   repo,
 		envResolver:            envResolver,
 		secretMgmtClient:       secretMgmtClient,
-		workloadInjector:       workloadInjector,
 		logger:                 logger,
 		awaitTimeout:           awaitEnvProvisionTimeout,
 		identityManagementMode: thundersvc.IdentityManagementLegacyDirect,
@@ -811,7 +709,7 @@ func (s *agentThunderProvisioningService) RetryProvisioning(ctx context.Context,
 }
 
 func (s *agentThunderProvisioningService) AttemptProvision(ctx context.Context, binding models.AgentThunderClient) {
-	// An attempt reads the project's pipeline from OpenChoreo, and the first attempt runs with the
+	// An attempt reads the project's pipeline, and the first attempt runs with the
 	// creating request's context while every retry runs from the reconciler's, which has no
 	// organization. Name the binding's organization here, once, for every caller and every call below.
 	ctx = agentThunderBindingOrgContext(ctx, binding)
@@ -883,7 +781,7 @@ func (s *agentThunderProvisioningService) AttemptProvision(ctx context.Context, 
 				"ouID", binding.OUID, "projectName", binding.ProjectName, "agentName", binding.AgentName,
 				"envName", binding.EnvironmentName, "error", resolveErr)
 			s.deferPromotionUntil(ctx, binding, time.Now().Add(reconcilerTickInterval),
-				"Waiting to read the project's ID from OpenChoreo.")
+				"Waiting to read the project's ID.")
 			return
 		}
 		projectID = resolved
@@ -1203,16 +1101,6 @@ func (s *agentThunderProvisioningService) AttemptProvision(ctx context.Context, 
 		audit.Detail("environment", binding.EnvironmentName),
 		audit.Detail("clientId", clientID),
 	)
-
-	// Gateway Binding: push the credential into the live workload for internal
-	// agents that were already deployed before this attempt completed. Purely
-	// best-effort — the binding is COMPLETED either way, and the deploy flow
-	// re-derives these env vars on every (re)deploy regardless. For a
-	// brand-new git agent whose first build has not yet created a
-	// ReleaseBinding (minutes away), this reconcile no-ops now and the
-	// reconciler's periodic sweep lands the credentials once the workload
-	// appears — see reconcileWorkloadInjection.
-	reconcileWorkloadInjection(ctx, s.getWorkloadInjector(), binding, s.logger)
 }
 
 // agentCreator returns the subject recorded as the agent's creator in a provider

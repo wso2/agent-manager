@@ -148,7 +148,7 @@ func (f *cpDeleteFixture) service(
 	resolver *clientmocks.EnvThunderResolverMock, mode thundersvc.IdentityManagementMode, provider ProjectAgentIdentityProvider,
 ) AgentThunderProvisioningService {
 	f.t.Helper()
-	svc := NewAgentThunderProvisioningService(f.repo(), resolver, f.store(), nil, slog.New(slog.NewTextHandler(&f.logs, nil)))
+	svc := NewAgentThunderProvisioningService(f.repo(), resolver, f.store(), slog.New(slog.NewTextHandler(&f.logs, nil)))
 	require.NoError(f.t, svc.(ProjectAgentIdentityProviderSetter).SetProjectAgentIdentityProvider(mode, provider))
 	return svc
 }

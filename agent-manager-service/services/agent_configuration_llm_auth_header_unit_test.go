@@ -629,7 +629,8 @@ func TestSyncDependentProxyAuthHeaders_RefetchesCurrentProvider(t *testing.T) {
 	svc := &LLMProviderService{providerRepo: providerRepo, proxyRepo: proxyRepo}
 
 	err := svc.SyncDependentProxyAuthHeaders(
-		context.Background(), staleSnapshot, "ou-acme", &LLMProxyService{}, &LLMProxyDeploymentService{})
+		context.Background(), staleSnapshot, "ou-acme", &LLMProxyService{}, &LLMProxyDeploymentService{},
+	)
 
 	require.NoError(t, err)
 	require.Equal(t, providerUUID.String(), gotProviderID, "must refetch the provider named in the (possibly stale) snapshot it was handed")

@@ -324,12 +324,14 @@ func (c *eventsController) ForScope(scope string) EventScopeHandlers {
 			for i := range list.Own {
 				s := &list.Own[i]
 				resp.Subscriptions = append(resp.Subscriptions, c.toSubscriptionResponse(
-					s, list.Destinations[s.DestinationID], list.DestinationStats, list.Counts[s.ID]))
+					s, list.Destinations[s.DestinationID], list.DestinationStats, list.Counts[s.ID],
+				))
 			}
 			for i := range list.Inherited {
 				s := &list.Inherited[i]
 				resp.Inherited = append(resp.Inherited, c.toSubscriptionResponse(
-					s, list.Destinations[s.DestinationID], list.DestinationStats, list.Counts[s.ID]))
+					s, list.Destinations[s.DestinationID], list.DestinationStats, list.Counts[s.ID],
+				))
 			}
 			utils.WriteSuccessResponse(w, http.StatusOK, resp)
 		},

@@ -101,7 +101,8 @@ func requireSelfHostedFunctionalityType(functionalityType string) error {
 func selfHostedVhost(endpoints []string) (string, error) {
 	invalid := utils.NewInvalidInputError(
 		"The gateway needs a base http or https URL, such as https://gateway.example.com, with no path, query or fragment",
-		"invalid self-hosted gateway endpoint")
+		"invalid self-hosted gateway endpoint",
+	)
 	if len(endpoints) == 0 {
 		return "", invalid
 	}

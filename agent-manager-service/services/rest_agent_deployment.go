@@ -20,11 +20,9 @@ import (
 	"fmt"
 	"strings"
 
-	"gopkg.in/yaml.v3"
-
-	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
+	"gopkg.in/yaml.v3"
 )
 
 // restAgentVersion is the version the api-configuration trait gives a REST agent.
@@ -110,7 +108,7 @@ func buildRestAPIDeploymentYAML(in RestAPIDeploymentInput) (*RestAPIDeploymentYA
 			Policies:    policies,
 			Operations:  restAgentOperations,
 			Resilience: &models.Resilience{
-				Timeout:     utils.StrAsStrPointer(client.FormatResilienceTimeout(in.ResilienceTimeoutSeconds)),
+				Timeout:     utils.StrAsStrPointer(formatResilienceTimeout(in.ResilienceTimeoutSeconds)),
 				IdleTimeout: utils.StrAsStrPointer("0s"),
 			},
 		},

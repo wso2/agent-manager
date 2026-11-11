@@ -162,101 +162,13 @@ func TestPromotionStepsRejectsUnreachableEnvironment(t *testing.T) {
 	require.ErrorContains(t, err, "unreachable")
 }
 
-func openChoreoPipelineClient(paths []models.PromotionPath, err error, calls *int) *clientmocks.OpenChoreoClientMock {
-	return &clientmocks.OpenChoreoClientMock{
-		GetProjectDeploymentPipelineFunc: func(_ context.Context, ouID, projectName string) (*models.DeploymentPipelineResponse, error) {
-			if calls != nil {
-				*calls++
-			}
-			if err != nil {
-				return nil, err
-			}
-			return &models.DeploymentPipelineResponse{PromotionPaths: paths}, nil
-		},
-	}
-}
-
-func targets(names ...string) []models.TargetEnvironmentRef {
-	refs := make([]models.TargetEnvironmentRef, 0, len(names))
-	for _, name := range names {
-		refs = append(refs, models.TargetEnvironmentRef{Name: name})
-	}
-	return refs
-}
-
-func TestOpenChoreoPipelineReaderOrdersALinearPipeline(t *testing.T) {
-	reader := NewOpenChoreoProjectPipelineReader(openChoreoPipelineClient([]models.PromotionPath{
-		{SourceEnvironmentRef: "stage", TargetEnvironmentRefs: targets("production")},
-		{SourceEnvironmentRef: "development", TargetEnvironmentRefs: targets("stage")},
-	}, nil, nil))
-
-	source, environments, err := reader.ProjectPipeline(context.Background(), "org-a", "project-a")
+func TestDefaultEnvironmentPipelineReaderReportsTheSingleDefaultEnvironment(t *testing.T) {
+	source, environments, err := NewDefaultEnvironmentPipelineReader().ProjectPipeline(context.Background(), "org-a", "project-a")
 	require.NoError(t, err)
-	require.Equal(t, "development", source)
+	require.Equal(t, models.DefaultEnvironmentName, source)
 	steps, err := promotionSteps(source, environments)
 	require.NoError(t, err)
-	require.Equal(t, []promotionStep{
-		{Environment: "development"},
-		{Environment: "stage", Source: "development"},
-		{Environment: "production", Source: "stage"},
-	}, steps)
-}
-
-func TestOpenChoreoPipelineReaderOrdersABranchingPipeline(t *testing.T) {
-	reader := NewOpenChoreoProjectPipelineReader(openChoreoPipelineClient([]models.PromotionPath{
-		{SourceEnvironmentRef: "development", TargetEnvironmentRefs: targets("qa", "stage")},
-		{SourceEnvironmentRef: "stage", TargetEnvironmentRefs: targets("production")},
-		{SourceEnvironmentRef: "qa", TargetEnvironmentRefs: targets("production")},
-	}, nil, nil))
-
-	source, environments, err := reader.ProjectPipeline(context.Background(), "org-a", "project-a")
-	require.NoError(t, err)
-	require.Equal(t, "development", source)
-	steps, err := promotionSteps(source, environments)
-	require.NoError(t, err)
-	require.Equal(t, []promotionStep{
-		{Environment: "development"},
-		{Environment: "qa", Source: "development"},
-		{Environment: "stage", Source: "development"},
-		{Environment: "production", Source: "qa"},
-	}, steps)
-}
-
-func TestOpenChoreoPipelineReaderSingleEnvironment(t *testing.T) {
-	reader := NewOpenChoreoProjectPipelineReader(openChoreoPipelineClient([]models.PromotionPath{
-		{SourceEnvironmentRef: "development"},
-	}, nil, nil))
-
-	source, environments, err := reader.ProjectPipeline(context.Background(), "org-a", "project-a")
-	require.NoError(t, err)
-	steps, err := promotionSteps(source, environments)
-	require.NoError(t, err)
-	require.Equal(t, []promotionStep{{Environment: "development"}}, steps)
-}
-
-func TestOpenChoreoPipelineReaderDisconnectedEnvironmentIsUnreachable(t *testing.T) {
-	// A second root: both are sources that are not targets, so one of them is
-	// not reachable from the first.
-	reader := NewOpenChoreoProjectPipelineReader(openChoreoPipelineClient([]models.PromotionPath{
-		{SourceEnvironmentRef: "development", TargetEnvironmentRefs: targets("stage")},
-		{SourceEnvironmentRef: "sandbox", TargetEnvironmentRefs: targets("stage")},
-	}, nil, nil))
-
-	source, environments, err := reader.ProjectPipeline(context.Background(), "org-a", "project-a")
-	require.NoError(t, err)
-	_, err = promotionSteps(source, environments)
-	require.ErrorContains(t, err, "unreachable")
-}
-
-func TestOpenChoreoPipelineReaderErrors(t *testing.T) {
-	boom := errors.New("openchoreo unavailable")
-	_, _, err := NewOpenChoreoProjectPipelineReader(openChoreoPipelineClient(nil, boom, nil)).
-		ProjectPipeline(context.Background(), "org-a", "project-a")
-	require.ErrorIs(t, err, boom)
-
-	_, _, err = NewOpenChoreoProjectPipelineReader(openChoreoPipelineClient(nil, nil, nil)).
-		ProjectPipeline(context.Background(), "org-a", "project-a")
-	require.ErrorContains(t, err, "no source environment")
+	require.Equal(t, []promotionStep{{Environment: models.DefaultEnvironmentName}}, steps)
 }
 
 func TestEnsureProjectPromotionBindingsWritesSourceFirstAndIsIdempotent(t *testing.T) {
@@ -312,7 +224,8 @@ func TestEnsureProjectPromotionBindingsTreatsInsertConflictAsSuccess(t *testing.
 	svc := newPromotionService(t, repo, &clientmocks.SecretManagementClientMock{}, (&fakeTargetPlatform{}).provider(t),
 		sourceOnlyReader("development", nil))
 	created, err := svc.(*agentThunderProvisioningService).ensureProjectPromotionBindings(
-		context.Background(), repositories.AgentRef{OUID: "org-a", ProjectName: "project-a", AgentName: "agent-a"}, "")
+		context.Background(), repositories.AgentRef{OUID: "org-a", ProjectName: "project-a", AgentName: "agent-a"}, "",
+	)
 	require.NoError(t, err)
 	require.Empty(t, created)
 }
@@ -457,7 +370,8 @@ func TestProvisionForAgentFallsBackToCandidatesWhenThePipelineFails(t *testing.T
 		"unreachable environment": projectPipelineReaderFunc(
 			func(context.Context, string, string) (string, []ProjectIdentityEnvironment, error) {
 				return "development", []ProjectIdentityEnvironment{{Name: "development"}, {Name: "orphan"}}, nil
-			}),
+			},
+		),
 	} {
 		t.Run(name, func(t *testing.T) {
 			var upserted []models.AgentThunderClient
@@ -544,7 +458,8 @@ func TestLegacyDirectIgnoresThePipelineReader(t *testing.T) {
 		func(context.Context, string, string) (string, []ProjectIdentityEnvironment, error) {
 			t.Fatal("LEGACY_DIRECT must never read the project pipeline")
 			return "", nil, nil
-		}))
+		},
+	))
 
 	svc.ProvisionForAgent(context.Background(), "org-a", "project-a", "agent-a", models.AgentProvisioningTypeInternal,
 		[]string{"development", "stage", "production"}, "user-1", "")
@@ -939,9 +854,10 @@ func TestPromotionTargetFailsWhenItsSourceIsMissingOrFailed(t *testing.T) {
 				},
 			}
 			svc := NewAgentThunderProvisioningService(repo, &clientmocks.EnvThunderResolverMock{},
-				&clientmocks.SecretManagementClientMock{}, nil, slog.New(slog.NewTextHandler(&logs, nil)))
+				&clientmocks.SecretManagementClientMock{}, slog.New(slog.NewTextHandler(&logs, nil)))
 			require.NoError(t, svc.(ProjectAgentIdentityProviderSetter).SetProjectAgentIdentityProvider(
-				thundersvc.IdentityManagementCPManaged, provider))
+				thundersvc.IdentityManagementCPManaged, provider,
+			))
 
 			svc.AttemptProvision(context.Background(), promotedBinding(models.AgentProvisioningTypeInternal))
 
@@ -1001,9 +917,10 @@ func TestPromotionSourceReadErrorIsLoggedAndDefersWithoutConsumingAnAttempt(t *t
 		},
 	}
 	svc := NewAgentThunderProvisioningService(repo, &clientmocks.EnvThunderResolverMock{},
-		&clientmocks.SecretManagementClientMock{}, nil, slog.New(slog.NewTextHandler(&logs, nil)))
+		&clientmocks.SecretManagementClientMock{}, slog.New(slog.NewTextHandler(&logs, nil)))
 	require.NoError(t, svc.(ProjectAgentIdentityProviderSetter).SetProjectAgentIdentityProvider(
-		thundersvc.IdentityManagementCPManaged, provider))
+		thundersvc.IdentityManagementCPManaged, provider,
+	))
 
 	svc.AttemptProvision(context.Background(), promotedBinding(models.AgentProvisioningTypeInternal))
 
@@ -1221,7 +1138,7 @@ func TestWritePromotionBindingsNeverCreatesASecondSource(t *testing.T) {
 				},
 			}
 			svc := NewAgentThunderProvisioningService(repo, &clientmocks.EnvThunderResolverMock{},
-				&clientmocks.SecretManagementClientMock{}, nil, slog.New(slog.NewTextHandler(&logs, nil)))
+				&clientmocks.SecretManagementClientMock{}, slog.New(slog.NewTextHandler(&logs, nil)))
 			impl := svc.(*agentThunderProvisioningService)
 
 			created, err := impl.writePromotionBindings(context.Background(), ref, steps, "user-1")

@@ -18,12 +18,9 @@ package main
 
 import (
 	"flag"
-	"strings"
 
 	"github.com/wso2/agent-manager/agent-manager-service/app"
-	ocauth "github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/auth"
-	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc/providers/openchoreo"
-	"github.com/wso2/agent-manager/agent-manager-service/config"
+	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc/providers/unsupported"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
 )
 
@@ -34,24 +31,14 @@ func main() {
 	waitForMigrationsFlag := flag.Bool("wait-for-migrations", false, "wait until the database migrations are applied")
 	flag.Parse()
 
-	cfg := config.GetConfig()
-
-	// Open-source: OAuth2 client credentials auth
-	authProvider := ocauth.NewAuthProvider(ocauth.Config{
-		TokenURL:     cfg.IDP.TokenURL,
-		ClientID:     cfg.IDP.ClientID,
-		ClientSecret: cfg.IDP.ClientSecret,
-		Scope:        strings.Join(cfg.OAuthScopesSupported, " "),
-	})
-
-	// Secret management via the OpenChoreo secret management API
-	secretProvider := openchoreo.NewProvider()
+	// No secret store is bundled yet; secret writes report ErrNotSupported.
+	secretProvider := unsupported.NewProvider()
 
 	// Open-source: DB-backed AgentID provisioning (env-Thunder credential read
 	// from Postgres, not a key vault — see DBBackedAgentThunderProvisioning)
 	agentThunderProvisioning := services.DBBackedAgentThunderProvisioning()
 
-	app.Run(authProvider, secretProvider, app.Options{
+	app.Run(secretProvider, app.Options{
 		Server:                   *serverFlag,
 		Migrate:                  *migrateFlag,
 		WaitForMigrations:        *waitForMigrationsFlag,

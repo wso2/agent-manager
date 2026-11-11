@@ -40,7 +40,8 @@ func seedAgentDeployment(t *testing.T) (artifactUUID uuid.UUID, ouID string) {
 	require.NoError(t, gdb.Exec(
 		`INSERT INTO gateways (uuid, name, display_name, vhost, gateway_functionality_type, ou_id, is_active)
 		 VALUES (?, ?, ?, ?, ?, ?, TRUE)`,
-		gatewayID, name, name, "gw.example", models.GatewayRoleIngress, ouID).Error)
+		gatewayID, name, name, "gw.example", models.GatewayRoleIngress, ouID,
+	).Error)
 	require.NoError(t, NewArtifactRepo(gdb).Create(gdb, &models.Artifact{
 		UUID: artifactUUID, Handle: "proj/agent/" + artifactUUID.String(), Name: "agent-" + artifactUUID.String()[:8],
 		Version: "v1.0", Kind: models.KindAgent, OUID: ouID,

@@ -31,7 +31,6 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
-	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -74,7 +73,7 @@ type a2aProxyService struct {
 	agentConfigRepo repositories.AgentConfigRepository
 	artifactRepo    repositories.ArtifactRepository
 	publisher       *A2APublisher
-	ocClient        client.OpenChoreoClient
+	ocClient        repositories.PlatformRepository
 	encryptionKey   []byte
 	logger          *slog.Logger
 }
@@ -87,7 +86,7 @@ func NewA2AProxyService(
 	agentConfigRepo repositories.AgentConfigRepository,
 	artifactRepo repositories.ArtifactRepository,
 	publisher *A2APublisher,
-	ocClient client.OpenChoreoClient,
+	ocClient repositories.PlatformRepository,
 	encryptionKey []byte,
 	logger *slog.Logger,
 ) A2AProxyService {
@@ -602,7 +601,8 @@ func (s *a2aProxyService) forget(ctx context.Context, t a2aProxyTarget) error {
 func (s *a2aProxyService) beginAudit(
 	ctx context.Context, action audit.Action, t a2aProxyTarget, upstreamAuthHeader string, authChanged bool,
 ) (*audit.Attempt, error) {
-	attempt, err := audit.Begin(ctx, action,
+	attempt, err := audit.Begin(
+		ctx, action,
 		audit.Org(t.key.OUID),
 		audit.ResourceNamed(audit.ResourceAgent, t.agent.UUID, t.agent.Name),
 		audit.Project(t.key.ProjectName),

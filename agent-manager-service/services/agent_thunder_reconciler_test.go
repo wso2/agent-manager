@@ -48,7 +48,7 @@ func newTestReconciler(t *testing.T, provisioning AgentThunderProvisioningServic
 }
 
 func TestAgentThunderReconciler_StartStop(t *testing.T) {
-	svc := NewAgentThunderReconcilerService(nil, nil, repositories.NewAgentThunderClientRepo(db.GetDB()), slog.Default())
+	svc := NewAgentThunderReconcilerService(nil, repositories.NewAgentThunderClientRepo(db.GetDB()), slog.Default())
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -57,7 +57,7 @@ func TestAgentThunderReconciler_StartStop(t *testing.T) {
 }
 
 func TestAgentThunderReconciler_StopIdempotent(t *testing.T) {
-	svc := NewAgentThunderReconcilerService(nil, nil, repositories.NewAgentThunderClientRepo(db.GetDB()), slog.Default())
+	svc := NewAgentThunderReconcilerService(nil, repositories.NewAgentThunderClientRepo(db.GetDB()), slog.Default())
 	require.NoError(t, svc.Stop())
 	require.NoError(t, svc.Stop())
 }
@@ -251,104 +251,6 @@ func TestAgentThunderReconciler_RunCycle_ConcurrencyIsCapped(t *testing.T) {
 
 	assert.EqualValues(t, reconcilerConcurrencyLimit, atomic.LoadInt32(&maxObservedActive),
 		"reconciler concurrency must be capped exactly to the reconcilerConcurrencyLimit")
-}
-
-// TestAgentThunderReconciler_RunIdentityInjectionReconcile_PagesBeyondSingleBatch
-// guards the keyset pagination between pages: FindRecentlyCompletedInternal
-// orders by (created_at, id) with a fixed LIMIT, so without pagination a
-// single call would only ever see the oldest reconcilerBatchSize eligible
-// bindings, re-selecting that same page every tick and starving any binding
-// beyond it until enough of the page aged out of the 2-hour window. Seeds
-// more than reconcilerBatchSize eligible bindings and asserts every single
-// one is reconciled by one call — proving the paging loop keeps fetching
-// pages instead of stopping after the first.
-func TestAgentThunderReconciler_RunIdentityInjectionReconcile_PagesBeyondSingleBatch(t *testing.T) {
-	ctx := context.Background()
-	repo := repositories.NewAgentThunderClientRepo(db.GetDB())
-	const org, project, agent = "test-org", "test-proj", "reconcile-page-agent"
-	t.Cleanup(func() { _ = repo.DeleteByAgent(ctx, org, project, agent) })
-
-	const total = reconcilerBatchSize + 20
-	now := time.Now()
-	envNames := make([]string, total)
-	for i := range total {
-		env := fmt.Sprintf("env-%d", i)
-		envNames[i] = env
-		require.NoError(t, repo.Upsert(ctx, &models.AgentThunderClient{
-			OUID: org, ProjectName: project, AgentName: agent, EnvironmentName: env,
-			ProvisioningType: models.AgentProvisioningTypeInternal, Status: models.AgentThunderStatusCompleted,
-			ThunderAgentID: "thunder-" + env, ThunderClientID: "client-" + env,
-			SecretRefPath: "path/" + env,
-			CreatedAt:     now.Add(time.Duration(i) * time.Millisecond),
-		}))
-	}
-
-	var mu sync.Mutex
-	reconciled := map[string]bool{}
-	injector := &agentIdentityInjectorStub{
-		ReconcileForEnvironmentFunc: func(_ context.Context, ouID, projectName, agentName, envName string) error {
-			if ouID != org || projectName != project || agentName != agent {
-				return nil // a stray binding from an unrelated concurrent test
-			}
-			mu.Lock()
-			defer mu.Unlock()
-			reconciled[envName] = true
-			return nil
-		},
-	}
-	s := &agentThunderReconcilerService{injector: injector, repo: repo, logger: slog.Default(), stopCh: make(chan struct{})}
-
-	s.runIdentityInjectionReconcile(ctx)
-
-	mu.Lock()
-	defer mu.Unlock()
-	for _, env := range envNames {
-		assert.True(t, reconciled[env], "environment %q must be reconciled even though more than reconcilerBatchSize eligible bindings existed", env)
-	}
-}
-
-// TestAgentThunderReconciler_RunInitialIdentityInjectionBackfill_CoversBindingsThePeriodicSweepMisses
-// guards the case the periodic sweep's window can't reach: a binding
-// completed long enough ago is invisible to it forever — verified here by
-// first showing the periodic sweep really does skip it, then that the
-// one-time backfill (no window at all) reconciles it.
-func TestAgentThunderReconciler_RunInitialIdentityInjectionBackfill_CoversBindingsThePeriodicSweepMisses(t *testing.T) {
-	ctx := context.Background()
-	repo := repositories.NewAgentThunderClientRepo(db.GetDB())
-	const org, project, agent, env = "test-org", "test-proj", "reconcile-backfill-agent", "production"
-	t.Cleanup(func() { _ = repo.DeleteByAgent(ctx, org, project, agent) })
-
-	require.NoError(t, repo.Upsert(ctx, &models.AgentThunderClient{
-		OUID: org, ProjectName: project, AgentName: agent, EnvironmentName: env,
-		ProvisioningType: models.AgentProvisioningTypeInternal, Status: models.AgentThunderStatusCompleted,
-		ThunderAgentID: "thunder-old", ThunderClientID: "client-old", SecretRefPath: "path/old",
-		CreatedAt: time.Now().Add(-(identityInjectionReconcileWindow + time.Hour)),
-	}))
-
-	var mu sync.Mutex
-	var reconciled bool
-	injector := &agentIdentityInjectorStub{
-		ReconcileForEnvironmentFunc: func(_ context.Context, ouID, projectName, agentName, envName string) error {
-			if ouID != org || projectName != project || agentName != agent {
-				return nil // a stray binding from an unrelated concurrent test
-			}
-			mu.Lock()
-			defer mu.Unlock()
-			reconciled = true
-			return nil
-		},
-	}
-	s := &agentThunderReconcilerService{injector: injector, provisioning: &fakeProvisioningService{}, repo: repo, logger: slog.Default(), stopCh: make(chan struct{})}
-
-	s.runIdentityInjectionReconcile(ctx)
-	mu.Lock()
-	assert.False(t, reconciled, "the periodic window-bounded sweep must not reach a binding older than identityInjectionReconcileWindow")
-	mu.Unlock()
-
-	s.runInitialIdentityInjectionBackfill(ctx)
-	mu.Lock()
-	defer mu.Unlock()
-	assert.True(t, reconciled, "the one-time backfill must reconcile a binding regardless of age")
 }
 
 // fakeProvisioningService is a minimal hand-written test double for

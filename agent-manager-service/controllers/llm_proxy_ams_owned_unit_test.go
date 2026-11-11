@@ -26,7 +26,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
@@ -96,7 +95,7 @@ func TestLLMProxyMutatingRoutes_RefuseAgentOrMonitorProxy(t *testing.T) {
 					return true, nil
 				},
 			}
-			ocClient := &clientmocks.OpenChoreoClientMock{
+			ocClient := &repomocks.PlatformRepositoryMock{
 				GetProjectFunc: func(_ context.Context, _, projectName string) (*models.ProjectResponse, error) {
 					return &models.ProjectResponse{UUID: "00000000-0000-0000-0000-000000000003", Name: projectName}, nil
 				},

@@ -127,6 +127,7 @@ func (rr *RouteRegistrar) registerWithOrgOverride(
 ) {
 	params := extractPathParams(pattern)
 	meta := audit.NewRouteMetaForSurface(pattern, params, perms, rr.surface)
+	handler = WithDefaultEnvironment(handler)
 	// Innermost, so the resolved org and the caller are on its context.
 	handler = WithEvents(rr.events, meta)(handler)
 	if len(params) > 0 {

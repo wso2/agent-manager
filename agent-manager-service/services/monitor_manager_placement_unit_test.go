@@ -24,7 +24,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -40,8 +39,8 @@ func monitorPlacementService(f *llmPlacementFixture) *monitorManagerService {
 			gatewayRepo:               f.gatewayRepo,
 			llmProxyDeploymentService: f.svc.llmProxyDeploymentService,
 		},
-		ocClient: &clientmocks.OpenChoreoClientMock{
-			GetComponentFunc: func(context.Context, string, string, string) (*models.AgentResponse, error) {
+		ocClient: &repomocks.PlatformRepositoryMock{
+			GetAgentFunc: func(context.Context, string, string, string) (*models.AgentResponse, error) {
 				return &models.AgentResponse{}, nil
 			},
 			GetEnvironmentFunc: func(_ context.Context, _, name string) (*models.EnvironmentResponse, error) {

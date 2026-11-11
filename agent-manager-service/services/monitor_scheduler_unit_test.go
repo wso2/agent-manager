@@ -25,7 +25,7 @@
 // DB status mapping — with every collaborator mocked:
 //
 //   - repositories.MonitorRepository      -> repomocks.MonitorRepositoryMock (moq-generated)
-//   - client.OpenChoreoClient             -> clientmocks.OpenChoreoClientMock (moq-generated)
+//   - repositories.PlatformRepository             -> repomocks.PlatformRepositoryMock (moq-generated)
 //   - services.MonitorExecutor            -> fakeMonitorExecutor (hand-written func-field stub)
 //   - services.PublisherCredentialProvisioner -> fakeProvisioner (hand-written func-field stub)
 //
@@ -39,7 +39,6 @@ package services
 import (
 	"context"
 	"errors"
-	"fmt"
 	"testing"
 	"time"
 
@@ -47,12 +46,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
-	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/orgctx"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // -----------------------------------------------------------------------------
@@ -83,7 +79,6 @@ func (f *fakeMonitorExecutor) UpdateNextRunTime(ctx context.Context, monitorID u
 type fakeProvisioner struct {
 	EnsureCredentialsFunc func(ctx context.Context, ouID, orgUUID string) (*PublisherCredentials, error)
 	IsThunderModeFunc     func() bool
-	GetOCClientForOrgFunc func(ctx context.Context, ouID string) (client.OpenChoreoClient, error)
 }
 
 func (f *fakeProvisioner) EnsureCredentials(ctx context.Context, ouID, orgUUID string) (*PublisherCredentials, error) {
@@ -100,22 +95,14 @@ func (f *fakeProvisioner) IsThunderMode() bool {
 	return f.IsThunderModeFunc()
 }
 
-func (f *fakeProvisioner) GetOCClientForOrg(ctx context.Context, ouID string) (client.OpenChoreoClient, error) {
-	if f.GetOCClientForOrgFunc == nil {
-		panic("fakeProvisioner.GetOCClientForOrgFunc: method is nil but GetOCClientForOrg was just called")
-	}
-	return f.GetOCClientForOrgFunc(ctx, ouID)
-}
-
 // newScheduler builds the concrete scheduler so the test can exercise the
 // unexported methods that hold the real logic.
 func newScheduler(
-	oc *clientmocks.OpenChoreoClientMock,
 	prov PublisherCredentialProvisioner,
 	exec MonitorExecutor,
 	repo *repomocks.MonitorRepositoryMock,
 ) *monitorSchedulerService {
-	return NewMonitorSchedulerService(oc, prov, discardLogger(), exec, repo, NoopMonitorRunObserver{}).(*monitorSchedulerService)
+	return NewMonitorSchedulerService(prov, discardLogger(), exec, repo, NoopMonitorRunObserver{}).(*monitorSchedulerService)
 }
 
 func intPtrU(i int) *int { return &i }
@@ -137,7 +124,7 @@ func futureMonitor(ouID string, interval int, nextRun time.Time) models.Monitor 
 // -----------------------------------------------------------------------------
 
 func TestMonitorScheduler_Stop(t *testing.T) {
-	s := newScheduler(&clientmocks.OpenChoreoClientMock{}, &fakeProvisioner{}, &fakeMonitorExecutor{}, &repomocks.MonitorRepositoryMock{})
+	s := newScheduler(&fakeProvisioner{}, &fakeMonitorExecutor{}, &repomocks.MonitorRepositoryMock{})
 
 	require.NoError(t, s.Stop())
 	// Second call must not panic on a double close — sync.Once guards it.
@@ -152,57 +139,6 @@ func TestMonitorScheduler_Stop(t *testing.T) {
 }
 
 // -----------------------------------------------------------------------------
-// orgOCClient — Thunder vs non-Thunder branch selection.
-// -----------------------------------------------------------------------------
-
-func TestMonitorScheduler_orgOCClient(t *testing.T) {
-	t.Run("non-Thunder mode returns the system client without calling the provisioner", func(t *testing.T) {
-		systemOC := &clientmocks.OpenChoreoClientMock{}
-		prov := &fakeProvisioner{
-			IsThunderModeFunc: func() bool { return false },
-			// GetOCClientForOrgFunc left nil — must NOT be reached.
-		}
-		s := newScheduler(systemOC, prov, &fakeMonitorExecutor{}, &repomocks.MonitorRepositoryMock{})
-
-		got, err := s.orgOCClient(context.Background(), "acme")
-
-		require.NoError(t, err)
-		assert.Same(t, systemOC, got, "non-Thunder mode must return the injected system client")
-	})
-
-	t.Run("Thunder mode delegates to the provisioner", func(t *testing.T) {
-		orgOC := &clientmocks.OpenChoreoClientMock{}
-		prov := &fakeProvisioner{
-			IsThunderModeFunc: func() bool { return true },
-			GetOCClientForOrgFunc: func(_ context.Context, ouID string) (client.OpenChoreoClient, error) {
-				assert.Equal(t, "acme", ouID)
-				return orgOC, nil
-			},
-		}
-		s := newScheduler(&clientmocks.OpenChoreoClientMock{}, prov, &fakeMonitorExecutor{}, &repomocks.MonitorRepositoryMock{})
-
-		got, err := s.orgOCClient(context.Background(), "acme")
-
-		require.NoError(t, err)
-		assert.Same(t, orgOC, got)
-	})
-
-	t.Run("Thunder mode propagates the provisioner error", func(t *testing.T) {
-		prov := &fakeProvisioner{
-			IsThunderModeFunc: func() bool { return true },
-			GetOCClientForOrgFunc: func(_ context.Context, _ string) (client.OpenChoreoClient, error) {
-				return nil, ErrPublisherCredentialNotFound
-			},
-		}
-		s := newScheduler(&clientmocks.OpenChoreoClientMock{}, prov, &fakeMonitorExecutor{}, &repomocks.MonitorRepositoryMock{})
-
-		_, err := s.orgOCClient(context.Background(), "acme")
-
-		assert.ErrorIs(t, err, ErrPublisherCredentialNotFound)
-	})
-}
-
-// -----------------------------------------------------------------------------
 // triggerMonitor — validation gates, time-window computation, fan-out into the
 // executor, and error propagation.
 // -----------------------------------------------------------------------------
@@ -214,7 +150,7 @@ func TestMonitorScheduler_triggerMonitor(t *testing.T) {
 		m := futureMonitor(org, 10, time.Now())
 		m.IntervalMinutes = nil
 		// Provisioner / executor left unconfigured: must not be reached.
-		s := newScheduler(&clientmocks.OpenChoreoClientMock{}, &fakeProvisioner{}, &fakeMonitorExecutor{}, &repomocks.MonitorRepositoryMock{})
+		s := newScheduler(&fakeProvisioner{}, &fakeMonitorExecutor{}, &repomocks.MonitorRepositoryMock{})
 
 		err := s.triggerMonitor(context.Background(), &m)
 
@@ -225,39 +161,12 @@ func TestMonitorScheduler_triggerMonitor(t *testing.T) {
 	t.Run("rejects when next_run_time is nil", func(t *testing.T) {
 		m := futureMonitor(org, 10, time.Now())
 		m.NextRunTime = nil
-		s := newScheduler(&clientmocks.OpenChoreoClientMock{}, &fakeProvisioner{}, &fakeMonitorExecutor{}, &repomocks.MonitorRepositoryMock{})
+		s := newScheduler(&fakeProvisioner{}, &fakeMonitorExecutor{}, &repomocks.MonitorRepositoryMock{})
 
 		err := s.triggerMonitor(context.Background(), &m)
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "next_run_time is nil")
-	})
-
-	t.Run("propagates the client-resolution error and backs the monitor off", func(t *testing.T) {
-		const interval = 10
-		m := futureMonitor(org, interval, time.Now())
-		prov := &fakeProvisioner{
-			IsThunderModeFunc: func() bool { return true },
-			GetOCClientForOrgFunc: func(_ context.Context, _ string) (client.OpenChoreoClient, error) {
-				return nil, ErrPublisherCredentialNotFound
-			},
-		}
-		var retryAt time.Time
-		exec := &fakeMonitorExecutor{
-			UpdateNextRunTimeFunc: func(_ context.Context, _ uuid.UUID, t time.Time) error {
-				retryAt = t
-				return nil
-			},
-		}
-		s := newScheduler(&clientmocks.OpenChoreoClientMock{}, prov, exec, &repomocks.MonitorRepositoryMock{})
-
-		before := time.Now()
-		err := s.triggerMonitor(context.Background(), &m)
-
-		assert.ErrorIs(t, err, ErrPublisherCredentialNotFound)
-		// Left in the past, the monitor would be retried on every tick.
-		assert.False(t, retryAt.Before(before.Add(interval*time.Minute)),
-			"expected the retry to be deferred by the monitor's interval, got %s", retryAt)
 	})
 
 	t.Run("propagates the executor error and backs the monitor off", func(t *testing.T) {
@@ -275,7 +184,7 @@ func TestMonitorScheduler_triggerMonitor(t *testing.T) {
 				return nil
 			},
 		}
-		s := newScheduler(&clientmocks.OpenChoreoClientMock{}, prov, exec, &repomocks.MonitorRepositoryMock{})
+		s := newScheduler(prov, exec, &repomocks.MonitorRepositoryMock{})
 
 		before := time.Now()
 		err := s.triggerMonitor(context.Background(), &m)
@@ -298,12 +207,10 @@ func TestMonitorScheduler_triggerMonitor(t *testing.T) {
 			},
 			UpdateNextRunTimeFunc: func(context.Context, uuid.UUID, time.Time) error { return nil },
 		}
-		s := newScheduler(&clientmocks.OpenChoreoClientMock{}, prov, exec, &repomocks.MonitorRepositoryMock{})
+		s := newScheduler(prov, exec, &repomocks.MonitorRepositoryMock{})
 
 		require.NoError(t, s.triggerMonitor(context.Background(), &m))
 
-		// Without this the OpenChoreo client sends no impersonation header and
-		// endpoints that resolve the org from the caller reject the request.
 		require.True(t, hadOrg, "scheduler must stamp the org onto the context it passes down")
 		assert.Equal(t, org, gotOrg.OUID)
 	})
@@ -322,7 +229,7 @@ func TestMonitorScheduler_triggerMonitor(t *testing.T) {
 				return nil
 			},
 		}
-		s := newScheduler(&clientmocks.OpenChoreoClientMock{}, prov, exec, &repomocks.MonitorRepositoryMock{})
+		s := newScheduler(prov, exec, &repomocks.MonitorRepositoryMock{})
 
 		before := time.Now()
 		_ = s.triggerMonitor(context.Background(), &m)
@@ -331,23 +238,17 @@ func TestMonitorScheduler_triggerMonitor(t *testing.T) {
 			"expected the backoff to be capped at %s, got a retry at %s", triggerFailureBackoffCap, retryAt)
 	})
 
-	t.Run("computes the trace window and the system client is injected in non-Thunder mode", func(t *testing.T) {
+	t.Run("computes the trace window", func(t *testing.T) {
 		const interval = 60
 		nextRun := time.Date(2026, 6, 24, 12, 0, 0, 0, time.UTC)
 		m := futureMonitor(org, interval, nextRun)
 
-		systemOC := &clientmocks.OpenChoreoClientMock{}
 		prov := &fakeProvisioner{IsThunderModeFunc: func() bool { return false }}
 
 		var captured ExecuteMonitorRunParams
-		var injectedOC client.OpenChoreoClient
-		var sawInjected bool
 		exec := &fakeMonitorExecutor{
-			ExecuteMonitorRunFunc: func(ctx context.Context, params ExecuteMonitorRunParams) (*ExecuteMonitorRunResult, error) {
+			ExecuteMonitorRunFunc: func(_ context.Context, params ExecuteMonitorRunParams) (*ExecuteMonitorRunResult, error) {
 				captured = params
-				// The scheduler injects the resolved OC client into ctx for the executor.
-				injectedOC = ocClientFromContext(ctx, nil)
-				sawInjected = injectedOC != nil
 				return &ExecuteMonitorRunResult{Name: "my-monitor-abcd1234"}, nil
 			},
 		}
@@ -359,7 +260,7 @@ func TestMonitorScheduler_triggerMonitor(t *testing.T) {
 			return nil
 		}
 
-		s := newScheduler(systemOC, prov, exec, &repomocks.MonitorRepositoryMock{})
+		s := newScheduler(prov, exec, &repomocks.MonitorRepositoryMock{})
 
 		before := time.Now()
 		err := s.triggerMonitor(context.Background(), &m)
@@ -380,10 +281,6 @@ func TestMonitorScheduler_triggerMonitor(t *testing.T) {
 		// nextRunTime passed to UpdateNextRunTime = EndTime + interval.
 		assert.Equal(t, captured.EndTime.Add(time.Duration(interval)*time.Minute), nextUpdated)
 		assert.Equal(t, m.ID, updatedID)
-
-		// Non-Thunder mode injects the system OC client into the executor's context.
-		assert.True(t, sawInjected, "expected an OC client to be injected into ctx")
-		assert.Same(t, systemOC, injectedOC)
 	})
 
 	t.Run("propagates the UpdateNextRunTime error after a successful execute", func(t *testing.T) {
@@ -398,7 +295,7 @@ func TestMonitorScheduler_triggerMonitor(t *testing.T) {
 				return boom
 			},
 		}
-		s := newScheduler(&clientmocks.OpenChoreoClientMock{}, prov, exec, &repomocks.MonitorRepositoryMock{})
+		s := newScheduler(prov, exec, &repomocks.MonitorRepositoryMock{})
 
 		err := s.triggerMonitor(context.Background(), &m)
 
@@ -421,7 +318,7 @@ func TestMonitorScheduler_triggerPendingMonitors(t *testing.T) {
 			},
 		}
 		// Executor left unconfigured — must NOT be reached.
-		s := newScheduler(&clientmocks.OpenChoreoClientMock{}, &fakeProvisioner{}, &fakeMonitorExecutor{}, repo)
+		s := newScheduler(&fakeProvisioner{}, &fakeMonitorExecutor{}, repo)
 
 		require.NoError(t, s.triggerPendingMonitors(context.Background()))
 	})
@@ -433,7 +330,7 @@ func TestMonitorScheduler_triggerPendingMonitors(t *testing.T) {
 				return nil, boom
 			},
 		}
-		s := newScheduler(&clientmocks.OpenChoreoClientMock{}, &fakeProvisioner{}, &fakeMonitorExecutor{}, repo)
+		s := newScheduler(&fakeProvisioner{}, &fakeMonitorExecutor{}, repo)
 
 		err := s.triggerPendingMonitors(context.Background())
 
@@ -461,7 +358,7 @@ func TestMonitorScheduler_triggerPendingMonitors(t *testing.T) {
 			},
 			UpdateNextRunTimeFunc: func(_ context.Context, _ uuid.UUID, _ time.Time) error { return nil },
 		}
-		s := newScheduler(&clientmocks.OpenChoreoClientMock{}, prov, exec, repo)
+		s := newScheduler(prov, exec, repo)
 
 		// The batch-level call swallows per-monitor errors (logged), so it returns nil.
 		require.NoError(t, s.triggerPendingMonitors(context.Background()))
@@ -471,7 +368,7 @@ func TestMonitorScheduler_triggerPendingMonitors(t *testing.T) {
 }
 
 // -----------------------------------------------------------------------------
-// syncRunStatus / syncSingleRunStatus — OpenChoreo status -> DB status mapping.
+// syncRunStatus / syncSingleRunStatus — stale pending runs are failed.
 // -----------------------------------------------------------------------------
 
 func TestMonitorScheduler_syncRunStatus(t *testing.T) {
@@ -479,7 +376,7 @@ func TestMonitorScheduler_syncRunStatus(t *testing.T) {
 		repo := &repomocks.MonitorRepositoryMock{
 			ListPendingOrRunningRunsFunc: func(_ int) ([]models.MonitorRun, error) { return []models.MonitorRun{}, nil },
 		}
-		s := newScheduler(&clientmocks.OpenChoreoClientMock{}, &fakeProvisioner{}, &fakeMonitorExecutor{}, repo)
+		s := newScheduler(&fakeProvisioner{}, &fakeMonitorExecutor{}, repo)
 
 		require.NoError(t, s.syncRunStatus(context.Background()))
 	})
@@ -489,7 +386,7 @@ func TestMonitorScheduler_syncRunStatus(t *testing.T) {
 		repo := &repomocks.MonitorRepositoryMock{
 			ListPendingOrRunningRunsFunc: func(_ int) ([]models.MonitorRun, error) { return nil, boom },
 		}
-		s := newScheduler(&clientmocks.OpenChoreoClientMock{}, &fakeProvisioner{}, &fakeMonitorExecutor{}, repo)
+		s := newScheduler(&fakeProvisioner{}, &fakeMonitorExecutor{}, repo)
 
 		err := s.syncRunStatus(context.Background())
 
@@ -522,7 +419,7 @@ func TestMonitorScheduler_syncSingleRunStatus(t *testing.T) {
 		repo := &repomocks.MonitorRepositoryMock{
 			GetMonitorByIDFunc: func(_ uuid.UUID) (*models.Monitor, error) { return nil, boom },
 		}
-		s := newScheduler(&clientmocks.OpenChoreoClientMock{}, nonThunder(), &fakeMonitorExecutor{}, repo)
+		s := newScheduler(nonThunder(), &fakeMonitorExecutor{}, repo)
 
 		err := s.syncSingleRunStatus(context.Background(), baseRun())
 
@@ -534,136 +431,20 @@ func TestMonitorScheduler_syncSingleRunStatus(t *testing.T) {
 			//nolint:nilnil // intentionally exercising the (nil, nil) "not found" input the service must handle
 			GetMonitorByIDFunc: func(_ uuid.UUID) (*models.Monitor, error) { return nil, nil },
 		}
-		// OC client / provisioner left unconfigured — must NOT be reached.
-		s := newScheduler(&clientmocks.OpenChoreoClientMock{}, &fakeProvisioner{}, &fakeMonitorExecutor{}, repo)
+		// Provisioner left unconfigured — must NOT be reached.
+		s := newScheduler(&fakeProvisioner{}, &fakeMonitorExecutor{}, repo)
 
 		require.NoError(t, s.syncSingleRunStatus(context.Background(), baseRun()))
 	})
 
-	t.Run("wraps the GetWorkflowRun error", func(t *testing.T) {
-		boom := errors.New("workflow not found")
-		oc := &clientmocks.OpenChoreoClientMock{
-			GetWorkflowRunFunc: func(_ context.Context, _, _ string) (*client.WorkflowRunResponse, error) {
-				return nil, boom
-			},
-		}
-		s := newScheduler(oc, nonThunder(), &fakeMonitorExecutor{}, repoWithMonitor())
-
-		err := s.syncSingleRunStatus(context.Background(), baseRun())
-
-		assert.ErrorIs(t, err, boom)
-		assert.Contains(t, err.Error(), "failed to get workflow run")
-	})
-
-	t.Run("maps Succeeded to success and sets completed_at", func(t *testing.T) {
-		oc := &clientmocks.OpenChoreoClientMock{
-			GetWorkflowRunFunc: func(_ context.Context, _, _ string) (*client.WorkflowRunResponse, error) {
-				return &client.WorkflowRunResponse{Status: "Succeeded"}, nil
-			},
-		}
-		var got map[string]interface{}
-		repo := repoWithMonitor()
-		repo.UpdateMonitorRunFunc = func(_ *models.MonitorRun, updates map[string]interface{}) error {
-			got = updates
-			return nil
-		}
-		s := newScheduler(oc, nonThunder(), &fakeMonitorExecutor{}, repo)
-
-		require.NoError(t, s.syncSingleRunStatus(context.Background(), baseRun()))
-		require.NotNil(t, got, "expected UpdateMonitorRun to be called")
-		assert.Equal(t, models.RunStatusSuccess, got["status"])
-		assert.Contains(t, got, "completed_at")
-		assert.Equal(t, got["completed_at"], got["event_queued_at"], "disabled events must not replay this run")
-	})
-
-	for _, ocStatus := range []string{"Failed", "Error"} {
-		t.Run("maps "+ocStatus+" to failed with an error message", func(t *testing.T) {
-			oc := &clientmocks.OpenChoreoClientMock{
-				GetWorkflowRunFunc: func(_ context.Context, _, _ string) (*client.WorkflowRunResponse, error) {
-					return &client.WorkflowRunResponse{Status: ocStatus}, nil
-				},
-			}
-			var got map[string]interface{}
-			repo := repoWithMonitor()
-			repo.UpdateMonitorRunFunc = func(_ *models.MonitorRun, updates map[string]interface{}) error {
-				got = updates
-				return nil
-			}
-			s := newScheduler(oc, nonThunder(), &fakeMonitorExecutor{}, repo)
-
-			require.NoError(t, s.syncSingleRunStatus(context.Background(), baseRun()))
-			require.NotNil(t, got)
-			assert.Equal(t, models.RunStatusFailed, got["status"])
-			assert.Contains(t, got, "completed_at")
-			assert.Equal(t, got["completed_at"], got["event_queued_at"], "disabled events must not replay this run")
-			assert.Contains(t, got, "error_message")
-		})
-	}
-
-	t.Run("transitions a pending run to running", func(t *testing.T) {
-		oc := &clientmocks.OpenChoreoClientMock{
-			GetWorkflowRunFunc: func(_ context.Context, _, _ string) (*client.WorkflowRunResponse, error) {
-				return &client.WorkflowRunResponse{Status: "Running"}, nil
-			},
-		}
-		var got map[string]interface{}
-		repo := repoWithMonitor()
-		repo.UpdateMonitorRunFunc = func(_ *models.MonitorRun, updates map[string]interface{}) error {
-			got = updates
-			return nil
-		}
-		s := newScheduler(oc, nonThunder(), &fakeMonitorExecutor{}, repo)
-
-		require.NoError(t, s.syncSingleRunStatus(context.Background(), baseRun()))
-		require.NotNil(t, got)
-		assert.Equal(t, models.RunStatusRunning, got["status"])
-	})
-
-	t.Run("does not update when an already-running run stays Running (no-op update)", func(t *testing.T) {
-		oc := &clientmocks.OpenChoreoClientMock{
-			GetWorkflowRunFunc: func(_ context.Context, _, _ string) (*client.WorkflowRunResponse, error) {
-				return &client.WorkflowRunResponse{Status: "Running"}, nil
-			},
-		}
-		repo := repoWithMonitor()
-		// UpdateMonitorRunFunc left nil: must NOT be called when there is nothing to change.
-		s := newScheduler(oc, nonThunder(), &fakeMonitorExecutor{}, repo)
-
-		run := baseRun()
-		run.Status = models.RunStatusRunning
-		require.NoError(t, s.syncSingleRunStatus(context.Background(), run))
-	})
-
-	t.Run("Pending status is a no-op (no update)", func(t *testing.T) {
-		oc := &clientmocks.OpenChoreoClientMock{
-			GetWorkflowRunFunc: func(_ context.Context, _, _ string) (*client.WorkflowRunResponse, error) {
-				return &client.WorkflowRunResponse{Status: "Pending"}, nil
-			},
-		}
+	t.Run("leaves a run without a start time alone", func(t *testing.T) {
 		repo := repoWithMonitor() // UpdateMonitorRunFunc nil => must not be called
-		s := newScheduler(oc, nonThunder(), &fakeMonitorExecutor{}, repo)
+		s := newScheduler(nonThunder(), &fakeMonitorExecutor{}, repo)
 
 		require.NoError(t, s.syncSingleRunStatus(context.Background(), baseRun()))
 	})
 
-	t.Run("unknown status is a no-op (no update)", func(t *testing.T) {
-		oc := &clientmocks.OpenChoreoClientMock{
-			GetWorkflowRunFunc: func(_ context.Context, _, _ string) (*client.WorkflowRunResponse, error) {
-				return &client.WorkflowRunResponse{Status: "Suspended"}, nil
-			},
-		}
-		repo := repoWithMonitor() // UpdateMonitorRunFunc nil => must not be called
-		s := newScheduler(oc, nonThunder(), &fakeMonitorExecutor{}, repo)
-
-		require.NoError(t, s.syncSingleRunStatus(context.Background(), baseRun()))
-	})
-
-	t.Run("fails a run that has been Pending past the stuck timeout", func(t *testing.T) {
-		oc := &clientmocks.OpenChoreoClientMock{
-			GetWorkflowRunFunc: func(_ context.Context, _, _ string) (*client.WorkflowRunResponse, error) {
-				return &client.WorkflowRunResponse{Status: "Pending"}, nil
-			},
-		}
+	t.Run("fails a run that has been pending past the stuck timeout", func(t *testing.T) {
 		var updates map[string]interface{}
 		repo := repoWithMonitor()
 		repo.UpdateMonitorRunFunc = func(_ *models.MonitorRun, u map[string]interface{}) error {
@@ -673,138 +454,35 @@ func TestMonitorScheduler_syncSingleRunStatus(t *testing.T) {
 		run := baseRun()
 		startedAt := time.Now().Add(-runStuckTimeout - time.Minute)
 		run.StartedAt = &startedAt
-		s := newScheduler(oc, nonThunder(), &fakeMonitorExecutor{}, repo)
+		s := newScheduler(nonThunder(), &fakeMonitorExecutor{}, repo)
 
 		require.NoError(t, s.syncSingleRunStatus(context.Background(), run))
 
-		// Left Pending, it would occupy a slot in the capped pending query forever.
+		// Left pending, it would occupy a slot in the capped pending query forever.
 		assert.Equal(t, models.RunStatusFailed, updates["status"])
 		assert.NotEmpty(t, updates["error_message"])
+		assert.Equal(t, updates["completed_at"], updates["event_queued_at"], "disabled events must not replay this run")
 	})
 
-	t.Run("leaves a Pending run alone while it is still within the stuck timeout", func(t *testing.T) {
-		oc := &clientmocks.OpenChoreoClientMock{
-			GetWorkflowRunFunc: func(_ context.Context, _, _ string) (*client.WorkflowRunResponse, error) {
-				return &client.WorkflowRunResponse{Status: "Pending"}, nil
-			},
-		}
+	t.Run("leaves a pending run alone while it is still within the stuck timeout", func(t *testing.T) {
 		repo := repoWithMonitor() // UpdateMonitorRunFunc nil => must not be called
 		run := baseRun()
 		startedAt := time.Now().Add(-time.Minute)
 		run.StartedAt = &startedAt
-		s := newScheduler(oc, nonThunder(), &fakeMonitorExecutor{}, repo)
+		s := newScheduler(nonThunder(), &fakeMonitorExecutor{}, repo)
 
 		require.NoError(t, s.syncSingleRunStatus(context.Background(), run))
-	})
-
-	t.Run("stamps the run's org onto the context used for the OpenChoreo lookup", func(t *testing.T) {
-		var gotOrg orgctx.ResolvedOrg
-		var hadOrg bool
-		oc := &clientmocks.OpenChoreoClientMock{
-			GetWorkflowRunFunc: func(ctx context.Context, _, _ string) (*client.WorkflowRunResponse, error) {
-				gotOrg, hadOrg = orgctx.GetResolvedOrg(ctx)
-				return &client.WorkflowRunResponse{Status: "Pending"}, nil
-			},
-		}
-		s := newScheduler(oc, nonThunder(), &fakeMonitorExecutor{}, repoWithMonitor())
-
-		require.NoError(t, s.syncSingleRunStatus(context.Background(), baseRun()))
-
-		require.True(t, hadOrg, "status sync must stamp the org onto the context it passes down")
-		assert.Equal(t, org, gotOrg.OUID)
-	})
-
-	t.Run("fails a stale run whose WorkflowRun is confirmed gone", func(t *testing.T) {
-		oc := &clientmocks.OpenChoreoClientMock{
-			GetWorkflowRunFunc: func(_ context.Context, _, _ string) (*client.WorkflowRunResponse, error) {
-				return nil, fmt.Errorf("get workflow run: %w", utils.ErrNotFound)
-			},
-		}
-		var updates map[string]interface{}
-		repo := repoWithMonitor()
-		repo.UpdateMonitorRunFunc = func(_ *models.MonitorRun, u map[string]interface{}) error {
-			updates = u
-			return nil
-		}
-		run := baseRun()
-		startedAt := time.Now().Add(-runStuckTimeout - time.Minute)
-		run.StartedAt = &startedAt
-		s := newScheduler(oc, nonThunder(), &fakeMonitorExecutor{}, repo)
-
-		require.NoError(t, s.syncSingleRunStatus(context.Background(), run))
-
-		assert.Equal(t, models.RunStatusFailed, updates["status"])
-	})
-
-	t.Run("leaves a stale run alone when the lookup failed for any other reason", func(t *testing.T) {
-		boom := errors.New("connection refused")
-		oc := &clientmocks.OpenChoreoClientMock{
-			GetWorkflowRunFunc: func(_ context.Context, _, _ string) (*client.WorkflowRunResponse, error) {
-				return nil, boom
-			},
-		}
-		repo := repoWithMonitor() // UpdateMonitorRunFunc nil => must not be called
-		run := baseRun()
-		startedAt := time.Now().Add(-runStuckTimeout - time.Minute)
-		run.StartedAt = &startedAt
-		s := newScheduler(oc, nonThunder(), &fakeMonitorExecutor{}, repo)
-
-		// An OpenChoreo outage says nothing about the workflow; marking every
-		// long-pending run failed would discard runs that later succeed.
-		assert.ErrorIs(t, s.syncSingleRunStatus(context.Background(), run), boom)
 	})
 
 	t.Run("propagates a failure to persist the stale-run update", func(t *testing.T) {
 		boom := errors.New("update boom")
-		oc := &clientmocks.OpenChoreoClientMock{
-			GetWorkflowRunFunc: func(_ context.Context, _, _ string) (*client.WorkflowRunResponse, error) {
-				return &client.WorkflowRunResponse{Status: "Pending"}, nil
-			},
-		}
 		repo := repoWithMonitor()
 		repo.UpdateMonitorRunFunc = func(_ *models.MonitorRun, _ map[string]interface{}) error { return boom }
 		run := baseRun()
 		startedAt := time.Now().Add(-runStuckTimeout - time.Minute)
 		run.StartedAt = &startedAt
-		s := newScheduler(oc, nonThunder(), &fakeMonitorExecutor{}, repo)
+		s := newScheduler(nonThunder(), &fakeMonitorExecutor{}, repo)
 
 		assert.ErrorIs(t, s.syncSingleRunStatus(context.Background(), run), boom)
-	})
-
-	t.Run("wraps the UpdateMonitorRun persistence error", func(t *testing.T) {
-		boom := errors.New("update boom")
-		oc := &clientmocks.OpenChoreoClientMock{
-			GetWorkflowRunFunc: func(_ context.Context, _, _ string) (*client.WorkflowRunResponse, error) {
-				return &client.WorkflowRunResponse{Status: "Succeeded"}, nil
-			},
-		}
-		repo := repoWithMonitor()
-		repo.UpdateMonitorRunFunc = func(_ *models.MonitorRun, _ map[string]interface{}) error { return boom }
-		s := newScheduler(oc, nonThunder(), &fakeMonitorExecutor{}, repo)
-
-		err := s.syncSingleRunStatus(context.Background(), baseRun())
-
-		assert.ErrorIs(t, err, boom)
-		assert.Contains(t, err.Error(), "failed to update run status")
-	})
-
-	t.Run("resolves a per-org OC client in Thunder mode", func(t *testing.T) {
-		orgOC := &clientmocks.OpenChoreoClientMock{
-			GetWorkflowRunFunc: func(_ context.Context, namespace, _ string) (*client.WorkflowRunResponse, error) {
-				assert.Equal(t, org, namespace)
-				return &client.WorkflowRunResponse{Status: "Pending"}, nil
-			},
-		}
-		prov := &fakeProvisioner{
-			IsThunderModeFunc: func() bool { return true },
-			GetOCClientForOrgFunc: func(_ context.Context, ouID string) (client.OpenChoreoClient, error) {
-				assert.Equal(t, org, ouID)
-				return orgOC, nil
-			},
-		}
-		// The system client must NOT be used in Thunder mode (its GetWorkflowRunFunc is nil).
-		s := newScheduler(&clientmocks.OpenChoreoClientMock{}, prov, &fakeMonitorExecutor{}, repoWithMonitor())
-
-		require.NoError(t, s.syncSingleRunStatus(context.Background(), baseRun()))
 	})
 }

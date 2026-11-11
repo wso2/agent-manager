@@ -17,7 +17,7 @@ import (
 // checks if the MCPProxySource type satisfies the MappedNullable interface at compile time
 var _ MappedNullable = &MCPProxySource{}
 
-// MCPProxySource The OpenChoreo component endpoint a project MCP proxy fronts. Fixed after create.
+// MCPProxySource The hosted agent endpoint a project MCP proxy fronts. Fixed after create.
 type MCPProxySource struct {
 	ComponentName string `json:"componentName"`
 	EndpointName  string `json:"endpointName"`

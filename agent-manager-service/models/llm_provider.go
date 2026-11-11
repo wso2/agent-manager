@@ -241,5 +241,6 @@ func (s *SecurityConfig) ValidateAPIKeyLocation() error {
 	}
 	return fmt.Errorf(
 		"api key location %q is not supported — the gateway's api-key-auth policy reads the credential from a header only",
-		s.APIKey.In)
+		s.APIKey.In,
+	)
 }

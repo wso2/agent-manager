@@ -25,33 +25,28 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v3"
 
-	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
-	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/eventhub"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
+	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 var restTestEnvUUID = uuid.MustParse("11111111-2222-3333-4444-555555555555")
 
-const restTestServiceURL = "http://c.ns.svc.cluster.local:8000/api"
-
 type restKindFixture struct {
 	kind     *RestAgentKind
 	exposure *models.PlatformAgentExposure
-	url      string
 	cfg      *models.AgentConfig
 	deployed []byte
 }
 
-// newRestKindFixture is an agent "a" in project "p" whose exposure exists and whose release binding serves
-// restTestServiceURL, with an empty environment config and nothing deployed.
+// newRestKindFixture is an agent "a" in project "p" whose exposure exists, with an empty environment config and
+// nothing deployed.
 func newRestKindFixture() *restKindFixture {
-	f := &restKindFixture{url: restTestServiceURL, cfg: &models.AgentConfig{}}
+	f := &restKindFixture{cfg: &models.AgentConfig{}}
 	f.exposure = &models.PlatformAgentExposure{
 		OUID: "ou-1", ProjectName: "p", AgentName: "a", EnvironmentName: "dev",
 		EnvironmentUUID: restTestEnvUUID, Protocol: models.AgentExposureProtocolREST,
@@ -64,9 +59,7 @@ func newRestKindFixture() *restKindFixture {
 			return f.exposure, nil
 		},
 	}
-	oc := &clientmocks.OpenChoreoClientMock{
-		GetReleaseBindingServiceURLFunc: func(context.Context, string, string, string) (string, error) { return f.url, nil },
-	}
+	oc := &repomocks.PlatformRepositoryMock{}
 	configs := &repomocks.AgentConfigRepositoryMock{
 		GetFunc: func(context.Context, string, string, string, string) (*models.AgentConfig, error) { return f.cfg, nil },
 	}
@@ -86,23 +79,13 @@ func restTestArtifact() models.ArtifactRef {
 	return models.ArtifactRef{OUID: "ou-1", ArtifactUUID: uuid.New(), Kind: models.KindRestAPI}
 }
 
-func (f *restKindFixture) render(t *testing.T) RestAPIDeploymentYAML {
-	t.Helper()
-	rendered, err := f.kind.Render(context.Background(), restTestArtifact())
-	require.NoError(t, err)
-	var content RestAPIDeploymentYAML
-	require.NoError(t, yaml.Unmarshal(rendered.Content, &content))
-	return content
-}
-
-func TestRestAgentRenderWaitsForEndpoint(t *testing.T) {
+// A platform-hosted agent needs an agent runtime to serve its endpoint, which is not available.
+func TestRestAgentRenderHasNoHostedEndpoint(t *testing.T) {
 	f := newRestKindFixture()
-	f.url = ""
 
 	_, err := f.kind.Render(context.Background(), restTestArtifact())
 
-	require.ErrorIs(t, err, reconcile.ErrInputNotReady)
-	assert.Equal(t, "waiting for the agent's endpoint", err.Error())
+	require.ErrorIs(t, err, utils.ErrNotImplemented)
 }
 
 func TestRestAgentRenderRecordGone(t *testing.T) {
@@ -112,58 +95,6 @@ func TestRestAgentRenderRecordGone(t *testing.T) {
 	_, err := f.kind.Render(context.Background(), restTestArtifact())
 
 	require.ErrorIs(t, err, reconcile.ErrRecordGone)
-}
-
-func TestRestAgentRenderUpstreamFromServiceURL(t *testing.T) {
-	timeout := int32(45)
-	f := newRestKindFixture()
-	f.cfg = &models.AgentConfig{ResilienceTimeoutSeconds: &timeout}
-
-	content := f.render(t)
-
-	assert.Equal(t, "gateway.api-platform.wso2.com/v1", content.ApiVersion)
-	assert.Equal(t, "RestApi", content.Kind)
-	assert.Equal(t, agentGatewayName("p", "a", restTestEnvUUID.String()), content.Metadata.Name)
-	assert.Equal(t, "a", content.Spec.DisplayName)
-	assert.Equal(t, "v1.0", content.Spec.Version)
-	assert.Equal(t, "/a", content.Spec.Context)
-	assert.Equal(t, restTestServiceURL, content.Spec.Upstream.Main.URL)
-	assert.Equal(t, []Operation{
-		{Method: "GET", Path: "/*"},
-		{Method: "POST", Path: "/*"},
-		{Method: "PUT", Path: "/*"},
-		{Method: "DELETE", Path: "/*"},
-		{Method: "PATCH", Path: "/*"},
-		{Method: "OPTIONS", Path: "/*"},
-	}, content.Spec.Operations)
-	require.NotNil(t, content.Spec.Resilience)
-	assert.Equal(t, "45s", *content.Spec.Resilience.Timeout)
-	assert.Equal(t, "0s", *content.Spec.Resilience.IdleTimeout)
-}
-
-func TestRestAgentRenderDefaultResilienceTimeout(t *testing.T) {
-	content := newRestKindFixture().render(t)
-
-	assert.Equal(t, client.FormatResilienceTimeout(client.DefaultResilienceTimeoutSeconds), *content.Spec.Resilience.Timeout)
-}
-
-func TestRestAgentRenderPolicies(t *testing.T) {
-	f := newRestKindFixture()
-	f.cfg = &models.AgentConfig{
-		EnableApiKeySecurity: true, CORSEnabled: true,
-		CORSAllowOrigins: []string{"https://client.example"}, CORSAllowMethods: []string{"GET"}, CORSAllowHeaders: []string{"X-API-Key"},
-	}
-
-	configured := f.render(t)
-	plain := newRestKindFixture().render(t)
-
-	want := buildPolicies(resolveAPIConfig(f.cfg, nil, nil, nil, nil, false))
-	require.Len(t, want, 2)
-	assert.Equal(t, "cors", want[0]["name"], "CORS runs before the key check")
-	wantJSON, _ := json.Marshal(want)
-	gotJSON, _ := json.Marshal(configured.Spec.Policies)
-	assert.JSONEq(t, string(wantJSON), string(gotJSON))
-	assert.Equal(t, []map[string]interface{}{}, plain.Spec.Policies)
 }
 
 func TestRestAgentEvents(t *testing.T) {
@@ -204,52 +135,14 @@ func TestRestAgentEvents(t *testing.T) {
 	assert.Equal(t, map[string]any{"apiId": artifactUUID.String()}, payload)
 }
 
-func TestRestAgentDrifted(t *testing.T) {
+// An artifact with no exposure has nothing to drift from.
+func TestRestAgentDriftedWithoutExposure(t *testing.T) {
 	placement := models.Placement{ArtifactRef: restTestArtifact(), GatewayUUID: uuid.New()}
-	deployedAt := func(url string) []byte {
-		content, err := yaml.Marshal(RestAPIDeploymentYAML{Spec: RestAPIDeploymentSpec{
-			Upstream: RestAPIUpstream{Main: RestAPIUpstreamTarget{URL: url}},
-		}})
-		require.NoError(t, err)
-		return content
-	}
+	f := newRestKindFixture()
+	f.exposure = nil
 
-	t.Run("another endpoint is drift", func(t *testing.T) {
-		f := newRestKindFixture()
-		f.deployed = deployedAt("http://old.ns.svc.cluster.local:8000")
+	_, drifted, err := f.kind.Drifted(context.Background(), placement)
 
-		reason, drifted, err := f.kind.Drifted(context.Background(), placement)
-
-		require.NoError(t, err)
-		assert.True(t, drifted)
-		assert.Equal(t, "the agent's endpoint changed", reason)
-	})
-	t.Run("the same endpoint is not", func(t *testing.T) {
-		f := newRestKindFixture()
-		f.deployed = deployedAt(restTestServiceURL)
-
-		_, drifted, err := f.kind.Drifted(context.Background(), placement)
-
-		require.NoError(t, err)
-		assert.False(t, drifted)
-	})
-	t.Run("no exposure is not", func(t *testing.T) {
-		f := newRestKindFixture()
-		f.exposure = nil
-
-		_, drifted, err := f.kind.Drifted(context.Background(), placement)
-
-		require.NoError(t, err)
-		assert.False(t, drifted)
-	})
-	t.Run("an endpoint not ready is not", func(t *testing.T) {
-		f := newRestKindFixture()
-		f.url = ""
-		f.deployed = deployedAt(restTestServiceURL)
-
-		_, drifted, err := f.kind.Drifted(context.Background(), placement)
-
-		require.NoError(t, err)
-		assert.False(t, drifted)
-	})
+	require.NoError(t, err)
+	assert.False(t, drifted)
 }

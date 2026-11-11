@@ -74,8 +74,8 @@ Retrieve a paginated list of resources available in the organization's catalog.
 
 **Resource Types:**
 - LlmProvider: LLM providers marked as available in catalog (in_catalog = TRUE)
-- agent: Agents from OpenChoreo (all agents are in catalog)
-- mcp: MCP resources from OpenChoreo (all MCPs are in catalog)
+- agent: Registered agents (all agents are in catalog)
+- mcp: Registered MCP resources (all MCPs are in catalog)
 
 If kind is not specified, returns all resources in catalog.
 

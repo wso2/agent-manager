@@ -80,7 +80,8 @@ func TestSyncDependentProxyAuthHeaders_SerialisesPerProvider(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			_ = svc.SyncDependentProxyAuthHeaders(
-				context.Background(), stored, "ou-acme", &LLMProxyService{}, &LLMProxyDeploymentService{})
+				context.Background(), stored, "ou-acme", &LLMProxyService{}, &LLMProxyDeploymentService{},
+			)
 		}()
 	}
 	wg.Wait()

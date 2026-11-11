@@ -69,7 +69,8 @@ func (f *proxyFixture) mapGateway(t *testing.T, env uuid.UUID) uuid.UUID {
 	t.Helper()
 	gateway := f.sync.seedGateway(t, f.sync.ouID)
 	require.NoError(t, db.GetDB().Exec(
-		`INSERT INTO gateway_environment_mappings (gateway_uuid, environment_uuid) VALUES (?, ?)`, gateway, env).Error)
+		`INSERT INTO gateway_environment_mappings (gateway_uuid, environment_uuid) VALUES (?, ?)`, gateway, env,
+	).Error)
 	return gateway
 }
 
@@ -93,10 +94,12 @@ func (f *proxyFixture) mapToAgent(t *testing.T, proxy *models.LLMProxy, env uuid
 	configUUID := uuid.New()
 	require.NoError(t, db.GetDB().Exec(
 		`INSERT INTO agent_configurations (uuid, name, agent_id, project_name, ou_id) VALUES (?, ?, ?, 'p', ?)`,
-		configUUID, "c-"+configUUID.String()[:8], "a-"+configUUID.String()[:8], f.sync.ouID).Error)
+		configUUID, "c-"+configUUID.String()[:8], "a-"+configUUID.String()[:8], f.sync.ouID,
+	).Error)
 	require.NoError(t, db.GetDB().Exec(
 		`INSERT INTO env_agent_model_mapping (config_uuid, environment_uuid, llm_proxy_uuid) VALUES (?, ?, ?)`,
-		configUUID, env, proxy.UUID).Error)
+		configUUID, env, proxy.UUID,
+	).Error)
 	t.Cleanup(func() { db.GetDB().Exec(`DELETE FROM agent_configurations WHERE uuid = ?`, configUUID) })
 }
 
@@ -558,11 +561,13 @@ func refusePolicyWrites(t *testing.T, mappingID uint) {
 	gormDB := db.GetDB()
 	require.NoError(t, gormDB.Exec(fmt.Sprintf(
 		`CREATE FUNCTION %s() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'policy write refused'; END $$`,
-		name)).Error)
+		name,
+	)).Error)
 	t.Cleanup(func() { assert.NoError(t, gormDB.Exec("DROP FUNCTION IF EXISTS "+name+"()").Error) })
 	require.NoError(t, gormDB.Exec(fmt.Sprintf(
 		`CREATE TRIGGER %s BEFORE UPDATE ON env_agent_model_mapping FOR EACH ROW WHEN (OLD.id = %d) EXECUTE FUNCTION %s()`,
-		name, mappingID, name)).Error)
+		name, mappingID, name,
+	)).Error)
 	t.Cleanup(func() {
 		assert.NoError(t, gormDB.Exec("DROP TRIGGER IF EXISTS "+name+" ON env_agent_model_mapping").Error)
 	})

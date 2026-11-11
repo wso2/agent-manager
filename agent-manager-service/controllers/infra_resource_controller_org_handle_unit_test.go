@@ -47,8 +47,8 @@ func (f *fakeOrgManager) GetOrganization(context.Context, string) (*models.Organ
 	return f.orgs[0], nil
 }
 
-func namespaceOrg(name string) *models.OrganizationResponse {
-	return &models.OrganizationResponse{Name: name, DisplayName: name, Namespace: name}
+func namedOrg(name string) *models.OrganizationResponse {
+	return &models.OrganizationResponse{Name: name, DisplayName: name}
 }
 
 func listOrgs(t *testing.T, orgs []*models.OrganizationResponse, claims *jwtassertion.TokenClaims) []map[string]any {
@@ -70,18 +70,18 @@ func listOrgs(t *testing.T, orgs []*models.OrganizationResponse, claims *jwtasse
 
 func TestListOrganizations_SingleOrgCarriesTokenHandle(t *testing.T) {
 	got := listOrgs(t,
-		[]*models.OrganizationResponse{namespaceOrg("wc-01a0c318-7a4ef447")},
+		[]*models.OrganizationResponse{namedOrg("wc-01a0c318-7a4ef447")},
 		&jwtassertion.TokenClaims{OuId: "ou-1", OuHandle: "agent-manager-team"})
 
 	require.Len(t, got, 1)
 	assert.Equal(t, "agent-manager-team", got[0]["handle"])
-	// The namespace-backed name is unchanged: the CLI and old links rely on it.
+	// The name is unchanged: the CLI and old links rely on it.
 	assert.Equal(t, "wc-01a0c318-7a4ef447", got[0]["name"])
 }
 
 func TestListOrganizations_MultipleOrgsOmitHandle(t *testing.T) {
 	got := listOrgs(t,
-		[]*models.OrganizationResponse{namespaceOrg("default"), namespaceOrg("other")},
+		[]*models.OrganizationResponse{namedOrg("default"), namedOrg("other")},
 		&jwtassertion.TokenClaims{OuId: "ou-1", OuHandle: "acme"})
 
 	require.Len(t, got, 2)
@@ -96,7 +96,7 @@ func TestListOrganizations_NoHandleInTokenOmitsField(t *testing.T) {
 		"empty handle": {OuId: "ou-1"},
 	} {
 		t.Run(name, func(t *testing.T) {
-			got := listOrgs(t, []*models.OrganizationResponse{namespaceOrg("wc-01a0c318-7a4ef447")}, claims)
+			got := listOrgs(t, []*models.OrganizationResponse{namedOrg("wc-01a0c318-7a4ef447")}, claims)
 			require.Len(t, got, 1)
 			assert.NotContains(t, got[0], "handle")
 		})
@@ -110,13 +110,11 @@ func TestGetOrganization_CarriesResolvedOrgHandle(t *testing.T) {
 	rec := httptest.NewRecorder()
 
 	NewInfraResourceController(&fakeOrgManager{
-		orgs: []*models.OrganizationResponse{namespaceOrg("wc-01a0c318-7a4ef447")},
+		orgs: []*models.OrganizationResponse{namedOrg("wc-01a0c318-7a4ef447")},
 	}, nil).GetOrganization(rec, req)
 
 	require.Equal(t, http.StatusOK, rec.Code)
 	var body map[string]any
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
 	assert.Equal(t, "agent-manager-team", body["handle"])
-	// The traces page reads the namespace from this response; it must not change.
-	assert.Equal(t, "wc-01a0c318-7a4ef447", body["namespace"])
 }

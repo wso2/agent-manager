@@ -45,7 +45,7 @@ func TestRedeployMCPProxyQueuesNothingWhenAnArtifactFailsToRender(t *testing.T) 
 	// QueueRenderFunc is nil: queueing a redeploy panics.
 	core := reconcile.NewCore(nil, &repomocks.DeploymentRepositoryMock{}, nil, reconcile.Kinds{kind}, reconcile.Config{},
 		slog.New(slog.DiscardHandler))
-	svc := NewMCPProxyService(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, slog.New(slog.DiscardHandler), nil,
+	svc := NewMCPProxyService(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, slog.New(slog.DiscardHandler), nil,
 		nil, nil, core, kind, nil)
 	proxy := &models.MCPProxy{Endpoints: []models.MCPProxyEndpoint{{
 		Environments: []models.MCPProxyEndpointEnvironment{{ArtifactUUID: healthy}, {ArtifactUUID: broken}},

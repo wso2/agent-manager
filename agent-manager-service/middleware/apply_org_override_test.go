@@ -30,7 +30,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
-	occlient "github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
@@ -86,7 +85,7 @@ func serveOverrideAt(t *testing.T, pathOrg, header string, lookup OUHandleLookup
 	mux.HandleFunc(pattern, handler)
 	req := httptest.NewRequest(http.MethodPut, "/orgs/"+pathOrg+"/projects/p1/mcp-proxies/h1", nil)
 	if header != "" {
-		req.Header.Set(occlient.HeaderImpersonateOrg, header)
+		req.Header.Set(HeaderImpersonateOrg, header)
 	}
 	claims := &jwtassertion.TokenClaims{
 		Sub: overrideClientID, ClientID: overrideClientID,

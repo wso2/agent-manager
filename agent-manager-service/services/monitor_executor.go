@@ -18,42 +18,19 @@ package services
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"log/slog"
 	"regexp"
-	"strings"
 	"time"
 
+	"github.com/wso2/agent-manager/agent-manager-service/utils"
 	"github.com/wso2/agent-manager/agent-manager-service/workloadpolicy"
 
 	"github.com/google/uuid"
-	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/catalog"
-	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
-	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 )
-
-// ocClientCtxKey is the context key used by the scheduler to inject an org-scoped OC client
-// so that executor calls use the right credentials without needing provisioner awareness.
-type ocClientCtxKey struct{}
-
-// withOCClient stores an OC client in ctx for downstream calls (scheduler use only).
-func withOCClient(ctx context.Context, c client.OpenChoreoClient) context.Context {
-	return context.WithValue(ctx, ocClientCtxKey{}, c)
-}
-
-// ocClientFromContext returns the OC client stored in ctx, or fallback if none was injected.
-func ocClientFromContext(ctx context.Context, fallback client.OpenChoreoClient) client.OpenChoreoClient {
-	if c, ok := ctx.Value(ocClientCtxKey{}).(client.OpenChoreoClient); ok && c != nil {
-		return c
-	}
-	return fallback
-}
 
 // MonitorExecutor handles workflow execution for monitors
 // This is the shared component used by both MonitorManagerService and MonitorSchedulerService
@@ -81,7 +58,6 @@ type ExecuteMonitorRunResult struct {
 }
 
 type monitorExecutor struct {
-	ocClient              client.OpenChoreoClient
 	logger                *slog.Logger
 	monitorRepo           repositories.MonitorRepository
 	custEvalRepo          repositories.CustomEvaluatorRepository
@@ -95,7 +71,6 @@ type monitorExecutor struct {
 
 // NewMonitorExecutor creates a new monitor executor instance
 func NewMonitorExecutor(
-	ocClient client.OpenChoreoClient,
 	logger *slog.Logger,
 	monitorRepo repositories.MonitorRepository,
 	custEvalRepo repositories.CustomEvaluatorRepository,
@@ -107,7 +82,6 @@ func NewMonitorExecutor(
 	deploymentRepo repositories.DeploymentRepository,
 ) MonitorExecutor {
 	return &monitorExecutor{
-		ocClient:              ocClient,
 		logger:                logger,
 		monitorRepo:           monitorRepo,
 		custEvalRepo:          custEvalRepo,
@@ -125,85 +99,11 @@ func (e *monitorExecutor) ExecuteMonitorRun(ctx context.Context, params ExecuteM
 	if err := workloadpolicy.Check(ctx, params.OUID); err != nil {
 		return nil, err
 	}
-	// Pre-generate run ID so it can be included in the WorkflowRun for score publishing
-	runID := uuid.New()
-
-	evaluators := params.Evaluators
-	if len(evaluators) == 0 {
+	if len(params.Evaluators) == 0 {
 		return nil, fmt.Errorf("evaluators must not be empty for monitor %s", params.Monitor.Name)
 	}
-
-	e.logger.Debug("Executing monitor run",
-		"monitor", params.Monitor.Name,
-		"startTime", params.StartTime,
-		"endTime", params.EndTime,
-		"evaluators", evaluators)
-
-	// Resolve LLM proxy config: SecretReference name, proxy URL, and provider template handle.
-	llmProxySecretRefName, llmApiBase, templateHandle, err := e.resolveLLMProxyConfig(ctx, params.Monitor)
-	if err != nil {
-		return nil, fmt.Errorf("failed to resolve LLM proxy config: %w", err)
-	}
-	ocClient := ocClientFromContext(ctx, e.ocClient)
-	// Resolve the OpenChoreo namespace name for this org.
-	namespace, err := ResolveNamespace(ctx, ocClient)
-	if err != nil {
-		return nil, err
-	}
-
-	// Build WorkflowRun request (this also resolves custom evaluator types from DB).
-	workflowRunReq, err := e.buildWorkflowRunRequest(
-		ctx,
-		params.Monitor,
-		runID,
-		params.StartTime,
-		params.EndTime,
-		evaluators,
-		llmProxySecretRefName,
-		llmApiBase,
-		templateHandle,
-		namespace,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to build WorkflowRun request: %w", err)
-	}
-
-	// Create WorkflowRun via OpenChoreo API.
-	workflowRunResp, err := ocClient.CreateWorkflowRun(ctx, params.OUID, *workflowRunReq)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create WorkflowRun: %w", err)
-	}
-
-	workflowRunName := workflowRunResp.Name
-
-	// Create monitor_runs entry
-	now := time.Now()
-	run := &models.MonitorRun{
-		ID:         runID,
-		MonitorID:  params.Monitor.ID,
-		Name:       workflowRunName,
-		Evaluators: evaluators,
-		TraceStart: params.StartTime,
-		TraceEnd:   params.EndTime,
-		StartedAt:  &now,
-		Status:     models.RunStatusPending,
-	}
-
-	if err := e.monitorRepo.CreateMonitorRun(run); err != nil {
-		e.logger.Error("Failed to create monitor_runs entry", "error", err, "workflowRunName", workflowRunName)
-		// Note: No delete API available for workflow runs
-		return nil, fmt.Errorf("failed to create monitor run entry: %w", err)
-	}
-
-	e.logger.Info("Monitor run executed successfully",
-		"monitor", params.Monitor.Name,
-		"runID", run.ID,
-		"workflowRunName", workflowRunName)
-
-	return &ExecuteMonitorRunResult{
-		Run:  run,
-		Name: workflowRunName,
-	}, nil
+	// Monitor runs are evaluation workflows, and no workflow runtime is available.
+	return nil, fmt.Errorf("%w: monitor runs need an evaluation workflow runtime", utils.ErrNotImplemented)
 }
 
 // UpdateNextRunTime updates the next_run_time for a future monitor
@@ -214,201 +114,6 @@ func (e *monitorExecutor) UpdateNextRunTime(ctx context.Context, monitorID uuid.
 
 	e.logger.Debug("Updated next_run_time", "monitorID", monitorID, "nextRunTime", nextRunTime)
 	return nil
-}
-
-// resolveLLMProxyConfig returns the SecretReference name, gateway proxy URL, and
-// provider template handle for the monitor's LLM proxy mapping.
-// Returns empty strings if no proxy mapping exists.
-// The workflow resolves the SecretReference by name through OpenChoreo, so the
-// remote store path is never read here.
-func (e *monitorExecutor) resolveLLMProxyConfig(ctx context.Context, monitor *models.Monitor) (secretRefName, proxyURL, templateHandle string, err error) {
-	mappings, err := e.monitorLLMMappingRepo.ListByMonitorID(ctx, monitor.ID)
-	if err != nil {
-		return "", "", "", fmt.Errorf("failed to list monitor LLM mappings: %w", err)
-	}
-
-	if len(mappings) == 0 {
-		return "", "", "", nil
-	}
-
-	mapping := mappings[0]
-	if mapping.SecretKVPath == "" {
-		return "", "", "", fmt.Errorf("monitor LLM mapping for monitor %s has no secret reference — was it provisioned correctly?", monitor.ID)
-	}
-	secretRefName = mapping.SecretKVPath
-	if isLegacySecretRefPath(secretRefName) {
-		// Rows written before the SecretReference name was persisted hold its
-		// remote store path, which maps back to the name, so existing monitors
-		// keep working without a migration.
-		secretRefName = secretRefNameFromStorePath(secretRefName, monitorCompositeSecretLocation(monitor.OUID, monitor.ID))
-	}
-
-	resolvedURL, err := e.resolveProxyURL(ctx, monitor.OUID, monitor.EnvironmentID, mapping.LLMProxy)
-	if err != nil {
-		return "", "", "", fmt.Errorf("failed to resolve proxy URL: %w", err)
-	}
-
-	if mapping.LLMProxy != nil {
-		provider, provErr := e.llmProviderRepo.GetByUUID(mapping.LLMProxy.ProviderUUID.String(), monitor.OUID)
-		if provErr != nil {
-			return "", "", "", fmt.Errorf("failed to resolve monitor LLM provider: %w", provErr)
-		}
-		templateHandle = provider.TemplateHandle
-	}
-
-	return secretRefName, resolvedURL, templateHandle, nil
-}
-
-// resolveProxyURL derives the proxy base URL from the preloaded LLMProxy and the gateway
-// the proxy is actually deployed to in this environment. Anchoring matters here more than
-// anywhere else: this runs on every scheduled monitor execution, on resources nobody
-// touched, so re-selecting from the environment would break every pre-existing monitor
-// the moment a second egress gateway appears. The consumer is the evaluation job: on-premises it
-// runs in the gateway's cluster, so the address is the gateway's internal one. Deployments whose
-// evaluation jobs run in a separate workflow-plane cluster (WSO2 Cloud) set
-// config.EvalJobsUsePublicGatewayURL to hand them the public vhost instead.
-func (e *monitorExecutor) resolveProxyURL(ctx context.Context, ouID, environmentID string, proxy *models.LLMProxy) (string, error) {
-	if proxy == nil {
-		return "", fmt.Errorf("LLM proxy not preloaded for mapping")
-	}
-	envUUID, err := uuid.Parse(environmentID)
-	if err != nil {
-		return "", fmt.Errorf("invalid environment UUID %q: %w", environmentID, err)
-	}
-
-	var deployed []string
-	if e.deploymentRepo != nil {
-		ids, depErr := e.deploymentRepo.PlacedGateways(ctx, ouID, proxy.UUID)
-		if depErr != nil {
-			return "", fmt.Errorf("failed to list deployed gateways for proxy %s: %w", proxy.UUID, depErr)
-		}
-		deployed = ids
-	}
-	gateway, err := monitorPolicy.ownGateway(e.gatewayRepo, ouID, envUUID, deployed)
-	if err != nil {
-		return "", fmt.Errorf("failed to resolve gateway for environment %s: %w", environmentID, err)
-	}
-	if config.GetConfig().EvalJobsUsePublicGatewayURL {
-		return buildPublicProxyURL(gateway, proxy.Configuration.Context), nil
-	}
-	return buildInternalProxyURL(gateway, proxy.Configuration.Context)
-}
-
-// buildWorkflowRunRequest constructs the workflow run request for a monitor.
-func (e *monitorExecutor) buildWorkflowRunRequest(
-	ctx context.Context,
-	monitor *models.Monitor,
-	runID uuid.UUID,
-	startTime, endTime time.Time,
-	evaluators []models.MonitorEvaluator,
-	llmProxySecretRefName string,
-	llmApiBase string,
-	templateHandle string,
-	namespace string,
-) (*client.CreateWorkflowRunRequest, error) {
-	evaluatorsJSON, hasLLMJudge, err := e.serializeEvaluators(monitor.OUID, evaluators, templateHandle)
-	if err != nil {
-		return nil, err
-	}
-
-	// Guard: block if any evaluator (builtin or custom) requires an LLM proxy and
-	// none is configured. Checking after serialize ensures custom evaluator types
-	// resolved from the DB are also considered.
-	if hasLLMJudge && llmProxySecretRefName == "" {
-		return nil, fmt.Errorf("monitor %s has llm_judge evaluators but no LLM proxy is configured", monitor.Name)
-	}
-
-	// Generate DNS-1123 compliant WorkflowRun name: <sanitized-monitor-name>-<short-run-id>
-	workflowRunName := buildWorkflowRunName(monitor.Name, runID)
-
-	publishingParams, err := e.buildPublishingParams(ctx, monitor, runID)
-	if err != nil {
-		return nil, err
-	}
-
-	return &client.CreateWorkflowRunRequest{
-		Name:         workflowRunName,
-		WorkflowName: models.MonitorWorkflowName,
-		Parameters: map[string]interface{}{
-			"monitor": map[string]interface{}{
-				"name":        monitor.Name,
-				"displayName": monitor.DisplayName,
-			},
-			"organization": namespace,
-			"project":      monitor.ProjectName,
-			"agent": map[string]interface{}{
-				"id":   monitor.AgentID,
-				"name": monitor.AgentName,
-			},
-			"environment": map[string]interface{}{
-				"id":   monitor.EnvironmentID,
-				"name": monitor.EnvironmentName,
-			},
-			"evaluation": map[string]interface{}{
-				"evaluators":            evaluatorsJSON,
-				"llmProxySecretRefName": llmProxySecretRefName,
-				"llmApiBase":            llmApiBase,
-				"samplingRate":          monitor.SamplingRate,
-				"traceStart":            startTime.Format(time.RFC3339),
-				"traceEnd":              endTime.Format(time.RFC3339),
-			},
-			"publishing": publishingParams,
-		},
-	}, nil
-}
-
-// buildPublishingParams constructs the publishing parameters for a workflow run.
-//
-// The credentials these name are consumed as a non-optional secretKeyRef by the eval
-// job pod, so naming a credential that does not exist does not fail the run — it
-// produces an ExternalSecret that can never sync and a pod that waits on it forever,
-// neither of which any later scheduler cycle cleans up. Guessing is therefore worse
-// than failing, and this provisions on demand rather than substituting a default.
-func (e *monitorExecutor) buildPublishingParams(ctx context.Context, monitor *models.Monitor, runID uuid.UUID) (map[string]interface{}, error) {
-	params := map[string]interface{}{
-		"monitorId": monitor.ID.String(),
-		"runId":     runID.String(),
-	}
-
-	cred, err := e.credRepo.GetByOrgName(monitor.OUID)
-	switch {
-	case err == nil && cred != nil:
-		setPublisherCredentialParams(params, publisherCredentialsFromRow(cred))
-		return params, nil
-	case !errors.Is(err, gorm.ErrRecordNotFound):
-		return nil, fmt.Errorf("failed to look up publisher credentials for org %s: %w", monitor.OUID, err)
-	}
-
-	// No stored credentials. Reachable for a scheduled, rerun or updated monitor whose
-	// org was provisioned before this row existed, or whose row was removed out of band
-	// by a migration — CreateMonitor is the only path that provisions up front.
-	// EnsureCredentials is the single source of the right answer for either mode: the
-	// static provisioner returns the fixed on-prem app without any remote calls, and the
-	// Thunder provisioner creates the per-org app. ouID is the Thunder OU ID, so it is
-	// also the orgUUID (see GetOCClientForOrg, which resolves it the same way).
-	e.logger.Info("No publisher credentials stored for org, provisioning on demand",
-		"ouID", monitor.OUID, "monitor", monitor.Name)
-
-	provisioned, err := e.provisioner.EnsureCredentials(ctx, monitor.OUID, monitor.OUID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to provision publisher credentials for org %s: %w", monitor.OUID, err)
-	}
-
-	setPublisherCredentialParams(params, provisioned)
-	return params, nil
-}
-
-// setPublisherCredentialParams adds the publisher credential to the workflow's
-// publishing parameters: the SecretReference name when there is one, or the
-// static credentials' KV path and key otherwise.
-func setPublisherCredentialParams(params map[string]interface{}, creds *PublisherCredentials) {
-	params["clientId"] = creds.ClientID
-	if creds.SecretRefName != "" {
-		params["secretRefName"] = creds.SecretRefName
-		return
-	}
-	params["secretKVPath"] = creds.SecretKVPath
-	params["secretKey"] = creds.SecretKey
 }
 
 // evalJobEvaluator is the JSON structure passed to the evaluation job for each evaluator.
@@ -422,112 +127,4 @@ type evalJobEvaluator struct {
 	ConfigSchema []models.EvaluatorConfigParam `json:"configSchema,omitempty"` // parameter schema for custom evaluators
 }
 
-// serializeEvaluators converts evaluators to a JSON string for the evaluation job workflow parameter.
-// For custom evaluators, it resolves their full definitions from the DB.
-// templateHandle is used to prepend the provider prefix to the "model" config field
-// just before serialization — the stored evaluator config is not modified.
-// Returns the JSON string, whether any evaluator is type "llm_judge", and any error.
-func (e *monitorExecutor) serializeEvaluators(ouID string, evaluators []models.MonitorEvaluator, templateHandle string) (string, bool, error) {
-	// Identify which evaluators are custom (not in the built-in catalog)
-	var customIdentifiers []string
-	for _, eval := range evaluators {
-		if catalog.Get(eval.Identifier) == nil {
-			customIdentifiers = append(customIdentifiers, eval.Identifier)
-		}
-	}
-
-	// Batch-fetch custom evaluator definitions
-	customMap := make(map[string]*models.CustomEvaluator)
-	if len(customIdentifiers) > 0 {
-		customs, err := e.custEvalRepo.GetByIdentifiers(ouID, customIdentifiers)
-		if err != nil {
-			return "", false, fmt.Errorf("failed to resolve custom evaluators: %w", err)
-		}
-		for i := range customs {
-			customMap[customs[i].Identifier] = &customs[i]
-		}
-	}
-
-	providerPrefix, hasPrefix := catalog.GetProviderPrefix(templateHandle)
-
-	var hasLLMJudge bool
-	jobEvaluators := make([]evalJobEvaluator, len(evaluators))
-	for i, eval := range evaluators {
-		// Shallow-copy the config so we don't mutate the stored evaluator.
-		jobConfig := make(map[string]interface{}, len(eval.Config))
-		for k, v := range eval.Config {
-			jobConfig[k] = v
-		}
-		// When a proxy is in use, qualify the user-supplied model with the
-		// gateway provider prefix the eval job expects. The model name is
-		// trusted as-is — any vendor namespace such as "meta/" is preserved —
-		// see ApplyProviderPrefix.
-		if model, ok := jobConfig["model"].(string); ok && model != "" && templateHandle != "" {
-			jobConfig["model"] = catalog.ApplyProviderPrefix(model, providerPrefix, hasPrefix)
-		}
-		je := evalJobEvaluator{
-			Identifier:  eval.Identifier,
-			DisplayName: eval.DisplayName,
-			Config:      jobConfig,
-		}
-
-		// Enrich custom evaluators with source code / prompt template.
-		// For built-in evaluators, emit Type so the eval job can detect llm_judge evaluators.
-		if ce, ok := customMap[eval.Identifier]; ok {
-			je.Type = ce.Type
-			je.Level = ce.Level
-			je.Source = ce.Source
-			je.ConfigSchema = ce.ConfigSchema
-			if ce.Type == "llm_judge" {
-				hasLLMJudge = true
-			}
-		} else if entry := catalog.Get(eval.Identifier); entry != nil {
-			je.ConfigSchema = entry.ConfigSchema
-			// llm_judge builtins: send type+level+source so the eval job routes them
-			// through the template path (model prefix transform + _create_custom_llm_judge).
-			// code builtins: type intentionally omitted — eval job uses builtin() factory.
-			if entry.Type == "llm_judge" {
-				if entry.Source == "" {
-					return "", false, fmt.Errorf("builtin LLM-judge evaluator %q has no prompt template in catalog — re-run make gen-evaluators-dev", eval.Identifier)
-				}
-				je.Type = entry.Type
-				je.Level = entry.Level
-				je.Source = entry.Source
-				hasLLMJudge = true
-			}
-		} else {
-			// Identifier was not in the built-in catalog and was not resolved from the DB.
-			// This means the custom evaluator was deleted after the monitor was created.
-			return "", false, fmt.Errorf("custom evaluator %q not found — it may have been deleted", eval.Identifier)
-		}
-
-		jobEvaluators[i] = je
-	}
-
-	evaluatorsJSON, err := json.Marshal(jobEvaluators)
-	if err != nil {
-		return "", false, fmt.Errorf("failed to serialize evaluators: %w", err)
-	}
-	return string(evaluatorsJSON), hasLLMJudge, nil
-}
-
 var nonDNS1123 = regexp.MustCompile(`[^a-z0-9-]+`)
-
-func buildWorkflowRunName(monitorName string, runID uuid.UUID) string {
-	const suffixLen = 8
-	const maxNameLen = 63
-
-	base := strings.ToLower(monitorName)
-	base = nonDNS1123.ReplaceAllString(base, "-")
-	base = strings.Trim(base, "-")
-
-	maxBaseLen := maxNameLen - 1 - suffixLen // "-" + suffix
-	if len(base) > maxBaseLen {
-		base = strings.Trim(base[:maxBaseLen], "-")
-	}
-	if base == "" {
-		base = "monitor"
-	}
-
-	return fmt.Sprintf("%s-%s", base, runID.String()[:suffixLen])
-}

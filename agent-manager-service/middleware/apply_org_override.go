@@ -24,7 +24,6 @@ import (
 	"strings"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
-	occlient "github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -71,7 +70,7 @@ func ApplyOrgOverride(lookup OUHandleLookup) func(http.HandlerFunc) http.Handler
 	}
 	return func(next http.HandlerFunc) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
-			if strings.TrimSpace(r.Header.Get(occlient.HeaderImpersonateOrg)) == "" {
+			if strings.TrimSpace(r.Header.Get(HeaderImpersonateOrg)) == "" {
 				next(w, r)
 				return
 			}
@@ -127,7 +126,8 @@ func ApplyOrgOverride(lookup OUHandleLookup) func(http.HandlerFunc) http.Handler
 			ctx = WithResolvedOrg(ctx, ResolvedOrg{OUID: targetOUID, OuHandle: handle})
 			slog.Info("org override applied",
 				"clientId", clientID, "tokenOuID", tokenOrg.OUID, "targetOuID", targetOUID)
-			audit.RecordAncillary(ctx, audit.ActionAuthzOrgOverride,
+			audit.RecordAncillary(
+				ctx, audit.ActionAuthzOrgOverride,
 				audit.Detail("clientId", clientID),
 				audit.Detail("tokenOuID", tokenOrg.OUID),
 				audit.Detail("targetOuID", targetOUID),

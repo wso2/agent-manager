@@ -34,11 +34,8 @@ import (
 
 // EnvironmentController defines the interface for environment HTTP handlers
 type EnvironmentController interface {
-	CreateEnvironment(w http.ResponseWriter, r *http.Request)
 	GetEnvironment(w http.ResponseWriter, r *http.Request)
 	ListEnvironments(w http.ResponseWriter, r *http.Request)
-	UpdateEnvironment(w http.ResponseWriter, r *http.Request)
-	DeleteEnvironment(w http.ResponseWriter, r *http.Request)
 	GetEnvironmentGateways(w http.ResponseWriter, r *http.Request)
 	ListThunderInstances(w http.ResponseWriter, r *http.Request)
 	SetThunderSystemClient(w http.ResponseWriter, r *http.Request)
@@ -77,49 +74,6 @@ func handleEnvironmentErrors(w http.ResponseWriter, err error, fallbackMsg strin
 	default:
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, fallbackMsg)
 	}
-}
-
-func (c *environmentController) CreateEnvironment(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	log := logger.GetLogger(ctx)
-
-	ouID := middleware.OUIDFromRequest(r)
-
-	var req spec.CreateEnvironmentRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		log.Error("CreateEnvironment: failed to decode request", "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
-		return
-	}
-
-	// Convert spec request to internal model
-	internalReq := &models.CreateEnvironmentRequest{
-		Name:          req.Name,
-		DisplayName:   req.DisplayName,
-		DataplaneRef:  utils.GetOrDefault(req.DataplaneRef, ""),
-		DNSPrefix:     req.DnsPrefix,
-		IsProduction:  false,
-		Gateway:       fromSpecGatewaySpec(req.Gateway),
-		IsolationTier: utils.GetOrDefault(req.IsolationTier, ""),
-	}
-
-	if req.Description != nil {
-		internalReq.Description = *req.Description
-	}
-	if req.IsProduction != nil {
-		internalReq.IsProduction = *req.IsProduction
-	}
-
-	env, err := c.environmentService.CreateEnvironment(ctx, ouID, internalReq)
-	if err != nil {
-		log.Error("CreateEnvironment: failed to create environment", "error", err)
-		handleEnvironmentErrors(w, err, "Failed to create environment")
-		return
-	}
-
-	// Convert internal response to spec response
-	response := convertToSpecEnvironmentResponse(env)
-	utils.WriteSuccessResponse(w, http.StatusCreated, response)
 }
 
 func (c *environmentController) GetEnvironment(w http.ResponseWriter, r *http.Request) {
@@ -174,60 +128,6 @@ func (c *environmentController) ListEnvironments(w http.ResponseWriter, r *http.
 	}
 
 	utils.WriteSuccessResponse(w, http.StatusOK, specEnvs)
-}
-
-func (c *environmentController) UpdateEnvironment(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	log := logger.GetLogger(ctx)
-
-	ouID := middleware.OUIDFromRequest(r)
-	envID := r.PathValue("envID")
-
-	var req spec.UpdateEnvironmentRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		log.Error("UpdateEnvironment: failed to decode request", "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
-		return
-	}
-
-	// Convert spec request to internal model
-	var description *string
-	if req.Description.IsSet() {
-		description = req.Description.Get()
-	}
-
-	internalReq := &models.UpdateEnvironmentRequest{
-		DisplayName:  req.DisplayName,
-		Description:  description,
-		IsProduction: req.IsProduction,
-		Gateway:      fromSpecGatewaySpec(req.Gateway),
-	}
-
-	env, err := c.environmentService.UpdateEnvironment(ctx, ouID, envID, internalReq)
-	if err != nil {
-		log.Error("UpdateEnvironment: failed to update environment", "error", err)
-		handleEnvironmentErrors(w, err, "Failed to update environment")
-		return
-	}
-
-	response := convertToSpecEnvironmentResponse(env)
-	utils.WriteSuccessResponse(w, http.StatusOK, response)
-}
-
-func (c *environmentController) DeleteEnvironment(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	log := logger.GetLogger(ctx)
-
-	ouID := middleware.OUIDFromRequest(r)
-	envID := r.PathValue("envID")
-
-	if err := c.environmentService.DeleteEnvironment(ctx, ouID, envID); err != nil {
-		log.Error("DeleteEnvironment: failed to delete environment", "error", err)
-		handleEnvironmentErrors(w, err, "Failed to delete environment")
-		return
-	}
-
-	utils.WriteSuccessResponse(w, http.StatusNoContent, "")
 }
 
 func (c *environmentController) GetEnvironmentGateways(w http.ResponseWriter, r *http.Request) {

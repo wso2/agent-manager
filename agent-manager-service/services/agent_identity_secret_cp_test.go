@@ -133,7 +133,7 @@ func (f *cpSecretFixture) provider() ProjectAgentIdentityProvider {
 // build creates the service. A nil provider leaves it without a secret provider.
 func (f *cpSecretFixture) build(provider ProjectAgentIdentityProvider) *cpSecretFixture {
 	f.t.Helper()
-	svc := NewAgentThunderProvisioningService(f.repo(), f.directClientMustNotBeUsed(), f.store(), nil, discardLogger())
+	svc := NewAgentThunderProvisioningService(f.repo(), f.directClientMustNotBeUsed(), f.store(), discardLogger())
 	require.NoError(f.t, svc.(ProjectAgentIdentityProviderSetter).SetProjectAgentIdentityProvider(
 		thundersvc.IdentityManagementCPManaged, provider,
 	))
@@ -310,7 +310,7 @@ func TestSecretRotationLegacyDirectKeepsUsingTheDirectClient(t *testing.T) {
 		},
 	}
 	f := newCPSecretFixture(t, models.AgentProvisioningTypeInternal)
-	svc := NewAgentThunderProvisioningService(f.repo(), resolver, f.store(), nil, discardLogger())
+	svc := NewAgentThunderProvisioningService(f.repo(), resolver, f.store(), discardLogger())
 	// LEGACY_DIRECT drops any provider, even one that can set secrets.
 	require.NoError(t, svc.(ProjectAgentIdentityProviderSetter).SetProjectAgentIdentityProvider(
 		thundersvc.IdentityManagementLegacyDirect, f.provider(),

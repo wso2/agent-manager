@@ -140,14 +140,16 @@ func runPromotedAttempt(
 			}, nil
 		},
 	}
-	svc := NewAgentThunderProvisioningService(repo, &clientmocks.EnvThunderResolverMock{}, store, nil,
+	svc := NewAgentThunderProvisioningService(repo, &clientmocks.EnvThunderResolverMock{}, store,
 		slog.New(slog.NewTextHandler(&logs, nil)))
 	require.NoError(t, svc.(ProjectAgentIdentityProviderSetter).SetProjectAgentIdentityProvider(
-		thundersvc.IdentityManagementCPManaged, provider))
+		thundersvc.IdentityManagementCPManaged, provider,
+	))
 	svc.(ProjectPipelineReaderSetter).SetProjectPipelineReader(projectPipelineReaderFunc(
 		func(context.Context, string, string) (string, []ProjectIdentityEnvironment, error) {
 			return pipelineSourceOf(environments), environments, pipelineErr
-		}))
+		},
+	))
 
 	svc.AttemptProvision(context.Background(), binding)
 
@@ -486,7 +488,8 @@ func TestPromotionCompletesOnceThePathOpens(t *testing.T) {
 	svc := newPromotionService(t, repo, store, provider, projectPipelineReaderFunc(
 		func(context.Context, string, string) (string, []ProjectIdentityEnvironment, error) {
 			return "x", topologyXA(), nil
-		}))
+		},
+	))
 	binding := pendingA(models.AgentProvisioningTypeInternal)
 
 	svc.AttemptProvision(context.Background(), binding)

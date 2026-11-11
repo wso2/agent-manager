@@ -52,11 +52,10 @@ func TestValidateEventsConfig(t *testing.T) {
 
 func TestLoadEnvs_EventsConfig(t *testing.T) {
 	required := map[string]string{
-		"OPEN_CHOREO_BASE_URL": "http://localhost/api/v1",
-		"DB_HOST":              "localhost",
-		"DB_USER":              "unit",
-		"DB_PASSWORD":          "unit",
-		"DB_NAME":              "unit",
+		"DB_HOST":     "localhost",
+		"DB_USER":     "unit",
+		"DB_PASSWORD": "unit",
+		"DB_NAME":     "unit",
 	}
 	for k, v := range required {
 		t.Setenv(k, v)

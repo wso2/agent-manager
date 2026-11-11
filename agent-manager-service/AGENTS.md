@@ -109,7 +109,7 @@ Generated files are checked in and **never hand-edited**. Regenerate and commit 
 - **Errors** — map the specific sentinel (`gorm.ErrRecordNotFound` → `utils.ErrXxxNotFound`); wrap everything else `fmt.Errorf("...: %w", err)`. Never flatten an unexpected error into not-found; never silently fall back to a default on a non-not-found error. Compare sentinels with `errors.Is`, never `==` or string match.
 - **Context** — every I/O method takes `context.Context` first and propagates it. HTTP clients use `NewRequestWithContext`.
 - **Org scoping** — always set `org_id` from the caller's token (Thunder OU ID / `ouID`), never from the request path or body. Missing tenant identity is an error, not a wildcard. Every org-scoped table maps the tenant column as `ou_id`.
-- **Tenant isolation is DB-only** — org isolation happens at the DB (`ou_id`) layer alone. All OpenChoreo API calls resolve to a single default namespace from config (`OPEN_CHOREO_DEFAULT_NAMESPACE`, default `"default"`, `config.OpenChoreo.DefaultNamespace`), so there is no namespace-level tenant separation yet.
+- **Tenant isolation is DB-only** — org isolation happens at the DB (`ou_id`) layer alone. Organizations, projects, the per-org `default` environment and agents live in `repositories.PlatformRepository`; trace namespacing uses one configured namespace (`AMP_ORG_NAMESPACE`, default `"default"`, `config.OrgNamespace`).
 - **Concurrency** — never hold a lock across I/O. Atomic upserts (`ON CONFLICT`), not read-then-write. Serialize expensive side effects per-key, not globally.
 - **Config** — validate at startup, not first use; check co-dependent values together.
 - **Observability** — log with correlation context (org, resource ID, request ID). Debug = hot paths, Info = rare events, Error = destructive ops.
@@ -142,15 +142,15 @@ Reference: **`services/agent_kind_service_unit_test.go`** — copy its shape.
 ```go
 package services
 
-func TestAgentKindService_GetKind(t *testing.T) {
-    repo := &repomocks.AgentKindRepositoryMock{
-        GetKindFunc: func(_ context.Context, _, _ string) (*models.AgentKind, error) {
-            return nil, gorm.ErrRecordNotFound
+func TestInfraResourceManager_GetProject(t *testing.T) {
+    platform := &repomocks.PlatformRepositoryMock{
+        GetProjectFunc: func(_ context.Context, _, _ string) (*models.ProjectResponse, error) {
+            return nil, utils.ErrProjectNotFound
         },
     }
-    svc := NewAgentKindService(repo, &clientmocks.OpenChoreoClientMock{})
-    _, err := svc.GetKind(context.Background(), "acme", "chatbot")
-    assert.ErrorIs(t, err, utils.ErrAgentKindNotFound)
+    svc := NewInfraResourceManager(platform, slog.Default())
+    _, err := svc.GetProject(context.Background(), "acme", "missing")
+    assert.ErrorIs(t, err, utils.ErrProjectNotFound)
 }
 ```
 
@@ -172,7 +172,7 @@ To assert the refusal itself, pass a bare context and expect `audit.ErrRecorderU
 - Fields follow `<Method>Func`. **An unconfigured method panics** — leave a func `nil` to assert that path must not be reached:
 
 ```go
-oc := &clientmocks.OpenChoreoClientMock{
+platform := &repomocks.PlatformRepositoryMock{
     ListProjectsFunc: func(_ context.Context, _ string) ([]*models.ProjectResponse, error) {
         return []*models.ProjectResponse{{Name: "proj-a"}}, nil
     },
@@ -180,7 +180,7 @@ oc := &clientmocks.OpenChoreoClientMock{
 }
 ```
 
-- In-package interfaces (`MonitorExecutor`, `PublisherCredentialProvisioner`, `GitCredentialsService`) have **no** generated mock — hand-write a func-field stub in the test file, same `<Method>Func` shape.
+- In-package interfaces (`MonitorExecutor`, `PublisherCredentialProvisioner`) have **no** generated mock — hand-write a func-field stub in the test file, same `<Method>Func` shape.
 
 ## Shared test helpers — reuse, don't redeclare (duplicate = compile error)
 

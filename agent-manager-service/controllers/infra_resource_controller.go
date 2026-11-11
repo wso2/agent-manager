@@ -34,7 +34,6 @@ import (
 
 type InfraResourceController interface {
 	ListOrgEnvironments(w http.ResponseWriter, r *http.Request)
-	GetProjectDeploymentPipeline(w http.ResponseWriter, r *http.Request)
 	ListOrganizations(w http.ResponseWriter, r *http.Request)
 	GetOrganization(w http.ResponseWriter, r *http.Request)
 	ListProjects(w http.ResponseWriter, r *http.Request)
@@ -42,11 +41,6 @@ type InfraResourceController interface {
 	CreateProject(w http.ResponseWriter, r *http.Request)
 	UpdateProject(w http.ResponseWriter, r *http.Request)
 	DeleteProject(w http.ResponseWriter, r *http.Request)
-	ListOrgDeploymentPipelines(w http.ResponseWriter, r *http.Request)
-	CreateOrgDeploymentPipeline(w http.ResponseWriter, r *http.Request)
-	UpdateOrgDeploymentPipeline(w http.ResponseWriter, r *http.Request)
-	DeleteOrgDeploymentPipeline(w http.ResponseWriter, r *http.Request)
-	GetDataplanes(w http.ResponseWriter, r *http.Request)
 }
 
 type infraResourceController struct {
@@ -231,7 +225,7 @@ func (c *infraResourceController) CreateProject(w http.ResponseWriter, r *http.R
 		Name:               project.Name,
 		DisplayName:        project.DisplayName,
 		Description:        project.Description,
-		DeploymentPipeline: project.DeploymentPipeline,
+		DeploymentPipeline: "",
 		CreatedAt:          project.CreatedAt,
 	}
 
@@ -271,7 +265,7 @@ func (c *infraResourceController) UpdateProject(w http.ResponseWriter, r *http.R
 		Name:               project.Name,
 		DisplayName:        project.DisplayName,
 		Description:        project.Description,
-		DeploymentPipeline: project.DeploymentPipeline,
+		DeploymentPipeline: "",
 		CreatedAt:          project.CreatedAt,
 	}
 
@@ -297,49 +291,6 @@ func (c *infraResourceController) DeleteProject(w http.ResponseWriter, r *http.R
 	}
 
 	utils.WriteSuccessResponse(w, http.StatusNoContent, "")
-}
-
-func (c *infraResourceController) ListOrgDeploymentPipelines(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	log := logger.GetLogger(ctx)
-
-	// Extract path parameters
-	ouID := middleware.OUIDFromRequest(r)
-
-	// Parse query parameters
-	limitStr := r.URL.Query().Get("limit")
-	if limitStr == "" {
-		limitStr = strconv.Itoa(utils.DefaultLimit)
-	}
-	offsetStr := r.URL.Query().Get("offset")
-	if offsetStr == "" {
-		offsetStr = strconv.Itoa(utils.DefaultOffset)
-	}
-
-	// Parse and validate pagination parameters
-	limit, err := strconv.Atoi(limitStr)
-	if err != nil || limit < utils.MinLimit || limit > utils.MaxLimit {
-		log.Error("ListOrgDeploymentPipelines: invalid limit parameter", "limit", limitStr)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("Invalid limit parameter: must be between %d and %d", utils.MinLimit, utils.MaxLimit))
-		return
-	}
-
-	offset, err := strconv.Atoi(offsetStr)
-	if err != nil || offset < utils.MinOffset {
-		log.Error("ListOrgDeploymentPipelines: invalid offset parameter", "offset", offsetStr)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("Invalid offset parameter: must be %d or greater", utils.MinOffset))
-		return
-	}
-
-	deploymentPipelines, total, err := c.infraResourceManager.ListOrgDeploymentPipelines(ctx, ouID, limit, offset)
-	if err != nil {
-		log.Error("ListOrgDeploymentPipelines: failed to get deployment pipelines", "error", err)
-		handleCommonErrors(w, err, "Failed to get deployment pipelines")
-		return
-	}
-
-	deploymentPipelinesResponse := utils.ConvertToDeploymentPipelinesListResponse(deploymentPipelines, int32(total), int32(limit), int32(offset))
-	utils.WriteSuccessResponse(w, http.StatusOK, deploymentPipelinesResponse)
 }
 
 func (c *infraResourceController) GetProject(w http.ResponseWriter, r *http.Request) {
@@ -408,117 +359,4 @@ func convertSpecPromotionPaths(specPaths []spec.PromotionPath) []models.Promotio
 		}
 	}
 	return modelPaths
-}
-
-func (c *infraResourceController) CreateOrgDeploymentPipeline(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	log := logger.GetLogger(ctx)
-
-	ouID := middleware.OUIDFromRequest(r)
-
-	var payload spec.CreateDeploymentPipelineRequest
-	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-		log.Error("CreateOrgDeploymentPipeline: failed to decode request body", "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
-		return
-	}
-
-	if payload.DisplayName == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "displayName is required")
-		return
-	}
-
-	if !requirePromotionPaths(w, payload.PromotionPaths) {
-		return
-	}
-
-	created, err := c.infraResourceManager.CreateOrgDeploymentPipeline(ctx, ouID, payload.DisplayName, payload.Description, payload.ProjectName, convertSpecPromotionPaths(payload.PromotionPaths))
-	if err != nil {
-		log.Error("CreateOrgDeploymentPipeline: failed to create deployment pipeline", "error", err)
-		handleCommonErrors(w, err, "Failed to create deployment pipeline")
-		return
-	}
-
-	response := utils.ConvertToDeploymentPipelineResponse(created)
-	utils.WriteSuccessResponse(w, http.StatusCreated, response)
-}
-
-func (c *infraResourceController) UpdateOrgDeploymentPipeline(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	log := logger.GetLogger(ctx)
-
-	ouID := middleware.OUIDFromRequest(r)
-	pipelineName := r.PathValue(utils.PathParamPipelineName)
-
-	var payload spec.UpdateDeploymentPipelineRequest
-	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-		log.Error("UpdateOrgDeploymentPipeline: failed to decode request body", "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
-		return
-	}
-
-	if !requirePromotionPaths(w, payload.PromotionPaths) {
-		return
-	}
-
-	updated, err := c.infraResourceManager.UpdateOrgDeploymentPipeline(ctx, ouID, pipelineName, payload.DisplayName, payload.Description, convertSpecPromotionPaths(payload.PromotionPaths))
-	if err != nil {
-		log.Error("UpdateOrgDeploymentPipeline: failed to update deployment pipeline", "error", err)
-		handleCommonErrors(w, err, "Failed to update deployment pipeline")
-		return
-	}
-
-	utils.WriteSuccessResponse(w, http.StatusOK, utils.ConvertToDeploymentPipelineResponse(updated))
-}
-
-func (c *infraResourceController) GetProjectDeploymentPipeline(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	log := logger.GetLogger(ctx)
-
-	// Extract path parameters
-	ouID := middleware.OUIDFromRequest(r)
-	projectName := r.PathValue(utils.PathParamProjName)
-
-	deploymentPipeline, err := c.infraResourceManager.GetProjectDeploymentPipeline(ctx, ouID, projectName)
-	if err != nil {
-		log.Error("GetProjectDeploymentPipeline: failed to get deployment pipeline", "error", err)
-		handleCommonErrors(w, err, "Failed to get deployment pipeline")
-		return
-	}
-
-	deploymentPipelineResponse := utils.ConvertToDeploymentPipelineResponse(deploymentPipeline)
-	utils.WriteSuccessResponse(w, http.StatusOK, deploymentPipelineResponse)
-}
-
-func (c *infraResourceController) DeleteOrgDeploymentPipeline(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	log := logger.GetLogger(ctx)
-
-	ouID := middleware.OUIDFromRequest(r)
-	deploymentPipelineName := r.PathValue(utils.PathParamPipelineName)
-
-	if err := c.infraResourceManager.DeleteOrgDeploymentPipeline(ctx, ouID, deploymentPipelineName); err != nil {
-		log.Error("DeleteOrgDeploymentPipeline: failed to delete deployment pipeline", "error", err)
-		handleCommonErrors(w, err, "Failed to delete deployment pipeline")
-		return
-	}
-
-	w.WriteHeader(http.StatusNoContent)
-}
-
-func (c *infraResourceController) GetDataplanes(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	log := logger.GetLogger(ctx)
-
-	// Extract path parameters
-	ouID := middleware.OUIDFromRequest(r)
-
-	dataplanes, err := c.infraResourceManager.GetDataplanes(ctx, ouID)
-	if err != nil {
-		log.Error("GetDataplanes: failed to get dataplanes", "error", err)
-		handleCommonErrors(w, err, "Failed to list dataplanes")
-		return
-	}
-	dataplaneListResponse := utils.ConvertToDataPlaneListResponse(dataplanes)
-	utils.WriteSuccessResponse(w, http.StatusOK, dataplaneListResponse)
 }

@@ -30,10 +30,10 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
-	occlient "github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -123,14 +123,14 @@ type GatewayController interface {
 
 type gatewayController struct {
 	gatewayService     *services.PlatformGatewayService
-	ocClient           occlient.OpenChoreoClient
+	ocClient           repositories.PlatformRepository
 	agentConfigService services.AgentConfigurationService
 }
 
 // NewGatewayController creates a new gateway controller
 func NewGatewayController(
 	gatewayService *services.PlatformGatewayService,
-	ocClient occlient.OpenChoreoClient,
+	ocClient repositories.PlatformRepository,
 	agentConfigService services.AgentConfigurationService,
 ) GatewayController {
 	return &gatewayController{
@@ -209,7 +209,8 @@ func refusedForeignBodyOrg(w http.ResponseWriter, r *http.Request, bodyOrg *stri
 	if bodyOrg == nil || *bodyOrg == "" || strings.EqualFold(*bodyOrg, callerOUID) {
 		return false
 	}
-	middleware.RecordAuthzDeny(r, "body-org-mismatch",
+	middleware.RecordAuthzDeny(
+		r, "body-org-mismatch",
 		audit.Org(callerOUID),
 		audit.Detail("requestedOrgId", *bodyOrg),
 	)
@@ -428,7 +429,7 @@ func (c *gatewayController) toSpecGatewayList(ctx context.Context, ouID string, 
 	// Fetch OpenChoreo environments ONCE for the entire organization (not per-gateway)
 	ocEnvironments, err := c.ocClient.ListEnvironments(ctx, ouID)
 	if err != nil {
-		log.Warn("failed to list environments from OpenChoreo", "error", err)
+		log.Warn("failed to list environments", "error", err)
 		ocEnvironments = nil // Continue with empty environments
 	}
 
@@ -838,7 +839,7 @@ func (c *gatewayController) GetGatewayStatus(w http.ResponseWriter, r *http.Requ
 }
 
 // getGatewayEnvironmentsFromDB retrieves environments associated with a gateway
-// Fetches environment UUIDs from service layer, then gets environment details from OpenChoreo
+// Fetches environment UUIDs from service layer, then gets environment details
 func (c *gatewayController) getGatewayEnvironmentsFromDB(ctx context.Context, ouID, gatewayID string) []models.GatewayEnvironmentResponse {
 	log := logger.GetLogger(ctx)
 
@@ -853,10 +854,10 @@ func (c *gatewayController) getGatewayEnvironmentsFromDB(ctx context.Context, ou
 		return []models.GatewayEnvironmentResponse{}
 	}
 
-	// Fetch all environments from OpenChoreo for this organization
+	// Fetch all environments for this organization
 	ocEnvironments, err := c.ocClient.ListEnvironments(ctx, ouID)
 	if err != nil {
-		log.Warn("getGatewayEnvironmentsFromDB: failed to list environments from OpenChoreo", "error", err)
+		log.Warn("getGatewayEnvironmentsFromDB: failed to list environments", "error", err)
 		return []models.GatewayEnvironmentResponse{}
 	}
 

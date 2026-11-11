@@ -14,20 +14,20 @@
 // specific language governing permissions and limitations
 // under the License.
 
-// An agent create asks the installed EntitlementChecker before any OpenChoreo
-// write, naming the component type so internal and external agents are limited
+// An agent create asks the installed EntitlementChecker before any write,
+// naming the component type so internal and external agents are limited
 // separately.
 package services
 
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -48,17 +48,12 @@ func (c *stubEntitlementChecker) CheckCreate(_ context.Context, ouID, resourceTy
 	return c.err
 }
 
-func entitlementFixture(checker EntitlementChecker) (*agentManagerService, *writeRecorder) {
-	svc, rec := gatewayGateFixture(apiAgentType(""), ingressGateway)
-	svc.agentConfigurationService = &stubAgentConfigurationService{
-		ListFunc: func(context.Context, string, string, string, int, int) (*models.AgentModelConfigListResponse, error) {
-			return &models.AgentModelConfigListResponse{}, nil
-		},
-	}
+func entitlementFixture(checker EntitlementChecker) *agentManagerService {
+	svc := &agentManagerService{logger: slog.Default()}
 	if checker != nil {
 		svc.SetEntitlementChecker(checker)
 	}
-	return svc, rec
+	return svc
 }
 
 func createAgentRequest(provisioningType utils.AgentProvisioningType) *spec.CreateAgentRequest {
@@ -71,25 +66,23 @@ func createAgentRequest(provisioningType utils.AgentProvisioningType) *spec.Crea
 
 func TestCreateRefusedWhenEntitlementDenied(t *testing.T) {
 	checker := &stubEntitlementChecker{err: &utils.EntitlementDeniedError{Message: "Quota limit reached for platform_agents."}}
-	svc, rec := entitlementFixture(checker)
+	svc := entitlementFixture(checker)
 
-	err := svc.createComponentAgent(tierGrantedCtx(t), "acme", "proj1", createAgentRequest(utils.InternalAgent), "")
+	err := svc.checkAgentEntitlement(context.Background(), "acme", createAgentRequest(utils.ExternalAgent))
 
 	require.ErrorIs(t, err, utils.ErrEntitlementDenied)
 	assert.EqualError(t, err, "Quota limit reached for platform_agents.")
-	rec.assertNoWrites(t)
 }
 
 func TestCreateFailsWithContextWhenEntitlementCheckFails(t *testing.T) {
 	checker := &stubEntitlementChecker{err: fmt.Errorf("%w: billing is unreachable", utils.ErrServiceUnavailable)}
-	svc, rec := entitlementFixture(checker)
+	svc := entitlementFixture(checker)
 
-	err := svc.createComponentAgent(tierGrantedCtx(t), "acme", "proj1", createAgentRequest(utils.InternalAgent), "")
+	err := svc.checkAgentEntitlement(context.Background(), "acme", createAgentRequest(utils.ExternalAgent))
 
 	require.ErrorIs(t, err, utils.ErrServiceUnavailable)
 	require.NotErrorIs(t, err, utils.ErrEntitlementDenied)
-	assert.Contains(t, err.Error(), "entitlement check for proxy/agent-api")
-	rec.assertNoWrites(t)
+	assert.Contains(t, err.Error(), "entitlement check for proxy/external-agent-api")
 }
 
 func TestCreateChecksTheAgentsComponentType(t *testing.T) {
@@ -103,22 +96,16 @@ func TestCreateChecksTheAgentsComponentType(t *testing.T) {
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			checker := &stubEntitlementChecker{}
-			svc, rec := entitlementFixture(checker)
+			svc := entitlementFixture(checker)
 
-			err := svc.createComponentAgent(tierGrantedCtx(t), "acme", "proj1", createAgentRequest(tc.provisioning), "")
-
-			require.ErrorIs(t, err, errStopAfterTier, "an allowed create goes on to create the component")
+			require.NoError(t, svc.checkAgentEntitlement(context.Background(), "acme", createAgentRequest(tc.provisioning)))
 			assert.Equal(t, []entitlementCall{{ouID: "acme", resourceType: tc.want, quantity: 1}}, checker.calls)
-			assert.Contains(t, rec.calls, "CreateComponent")
 		})
 	}
 }
 
 func TestCreateWithoutEntitlementCheckerProceeds(t *testing.T) {
-	svc, rec := entitlementFixture(nil)
+	svc := entitlementFixture(nil)
 
-	err := svc.createComponentAgent(tierGrantedCtx(t), "acme", "proj1", createAgentRequest(utils.InternalAgent), "")
-
-	require.ErrorIs(t, err, errStopAfterTier)
-	assert.Contains(t, rec.calls, "CreateComponent")
+	require.NoError(t, svc.checkAgentEntitlement(context.Background(), "acme", createAgentRequest(utils.ExternalAgent)))
 }

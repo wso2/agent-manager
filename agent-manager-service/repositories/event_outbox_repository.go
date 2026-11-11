@@ -52,7 +52,8 @@ func (r *eventOutboxRepository) Put(ctx context.Context, e events.Event) error {
 	// an application clock ahead of it would hide new rows.
 	return r.db.WithContext(ctx).Exec(
 		`INSERT INTO event_outbox (id, body, available_at) VALUES (?, ?, NOW()) ON CONFLICT DO NOTHING`,
-		e.ID, body).Error
+		e.ID, body,
+	).Error
 }
 
 func (r *eventOutboxRepository) Claim(ctx context.Context) ([]events.PendingEvent, error) {

@@ -147,6 +147,9 @@ func (c *agentConfigurationController) CreateAgentModelConfig(w http.ResponseWri
 			return
 		default:
 			log.Error("CreateAgentModelConfig: failed to create configuration", "error", err)
+			if writeIfNotImplemented(w, err) {
+				return
+			}
 			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to create agent model configuration")
 			return
 		}
@@ -181,6 +184,9 @@ func (c *agentConfigurationController) GetAgentModelConfig(w http.ResponseWriter
 			return
 		}
 		log.Error("GetAgentModelConfig: failed to get configuration", "error", err)
+		if writeIfNotImplemented(w, err) {
+			return
+		}
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get configuration")
 		return
 	}
@@ -220,6 +226,9 @@ func (c *agentConfigurationController) ListAgentModelConfigs(w http.ResponseWrit
 	response, err := c.agentConfigService.ListByType(ctx, ouID, projectName, agentName, models.AgentConfigTypeIDLLM, limit, offset)
 	if err != nil {
 		log.Error("ListAgentModelConfigs: failed to list configurations", "error", err)
+		if writeIfNotImplemented(w, err) {
+			return
+		}
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list configurations")
 		return
 	}
@@ -277,6 +286,9 @@ func (c *agentConfigurationController) UpdateAgentModelConfig(w http.ResponseWri
 			return
 		}
 		log.Error("UpdateAgentModelConfig: failed to get configuration", "error", err)
+		if writeIfNotImplemented(w, err) {
+			return
+		}
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update configuration")
 		return
 	}
@@ -317,6 +329,9 @@ func (c *agentConfigurationController) UpdateAgentModelConfig(w http.ResponseWri
 			return
 		default:
 			log.Error("UpdateAgentModelConfig: failed to update configuration", "error", err)
+			if writeIfNotImplemented(w, err) {
+				return
+			}
 			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update configuration")
 			return
 		}
@@ -351,6 +366,9 @@ func (c *agentConfigurationController) DeleteAgentModelConfig(w http.ResponseWri
 			return
 		}
 		log.Error("DeleteAgentModelConfig: failed to get configuration", "error", err)
+		if writeIfNotImplemented(w, err) {
+			return
+		}
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to delete configuration")
 		return
 	}
@@ -365,6 +383,9 @@ func (c *agentConfigurationController) DeleteAgentModelConfig(w http.ResponseWri
 			return
 		}
 		log.Error("DeleteAgentModelConfig: failed to delete configuration", "error", err)
+		if writeIfNotImplemented(w, err) {
+			return
+		}
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to delete configuration")
 		return
 	}
@@ -430,6 +451,9 @@ func (c *agentConfigurationController) CreateAgentMCPConfig(w http.ResponseWrite
 			return
 		default:
 			log.Error("CreateAgentMCPConfig: failed to create configuration", "error", err)
+			if writeIfNotImplemented(w, err) {
+				return
+			}
 			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to create agent MCP configuration")
 			return
 		}
@@ -463,6 +487,9 @@ func (c *agentConfigurationController) GetAgentMCPConfig(w http.ResponseWriter, 
 			return
 		}
 		log.Error("GetAgentMCPConfig: failed to get configuration", "error", err)
+		if writeIfNotImplemented(w, err) {
+			return
+		}
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get configuration")
 		return
 	}
@@ -494,6 +521,9 @@ func (c *agentConfigurationController) ListAgentMCPConfigs(w http.ResponseWriter
 	response, err := c.agentConfigService.ListMCP(ctx, ouID, projectName, agentName, limit, offset)
 	if err != nil {
 		log.Error("ListAgentMCPConfigs: failed to list configurations", "error", err)
+		if writeIfNotImplemented(w, err) {
+			return
+		}
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list configurations")
 		return
 	}
@@ -526,6 +556,9 @@ func (c *agentConfigurationController) UpdateAgentMCPConfig(w http.ResponseWrite
 			return
 		}
 		log.Error("UpdateAgentMCPConfig: failed to get configuration", "error", err)
+		if writeIfNotImplemented(w, err) {
+			return
+		}
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update configuration")
 		return
 	}
@@ -578,6 +611,9 @@ func (c *agentConfigurationController) UpdateAgentMCPConfig(w http.ResponseWrite
 			return
 		default:
 			log.Error("UpdateAgentMCPConfig: failed to update configuration", "error", err)
+			if writeIfNotImplemented(w, err) {
+				return
+			}
 			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update configuration")
 			return
 		}
@@ -611,6 +647,9 @@ func (c *agentConfigurationController) DeleteAgentMCPConfig(w http.ResponseWrite
 			return
 		}
 		log.Error("DeleteAgentMCPConfig: failed to get configuration", "error", err)
+		if writeIfNotImplemented(w, err) {
+			return
+		}
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to delete configuration")
 		return
 	}
@@ -620,6 +659,9 @@ func (c *agentConfigurationController) DeleteAgentMCPConfig(w http.ResponseWrite
 			return
 		}
 		log.Error("DeleteAgentMCPConfig: failed to delete configuration", "error", err)
+		if writeIfNotImplemented(w, err) {
+			return
+		}
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to delete configuration")
 		return
 	}
@@ -939,6 +981,9 @@ func (c *agentConfigurationController) writeConfigAPIKeyError(w http.ResponseWri
 		utils.WriteErrorResponse(w, http.StatusServiceUnavailable, "No gateway connections available")
 	default:
 		log.Error(operation+": failed", "error", err)
+		if writeIfNotImplemented(w, err) {
+			return
+		}
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to manage API key")
 	}
 }
@@ -979,6 +1024,9 @@ func (c *agentConfigurationController) ListMCPConfigAPIKeys(w http.ResponseWrite
 			return
 		}
 		log.Error("ListMCPConfigAPIKeys: failed to list API keys", "error", err)
+		if writeIfNotImplemented(w, err) {
+			return
+		}
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list API keys")
 		return
 	}
@@ -1106,6 +1154,9 @@ func (c *agentConfigurationController) ListLLMConfigAPIKeys(w http.ResponseWrite
 			return
 		}
 		log.Error("ListLLMConfigAPIKeys: failed to list API keys", "error", err)
+		if writeIfNotImplemented(w, err) {
+			return
+		}
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list API keys")
 		return
 	}

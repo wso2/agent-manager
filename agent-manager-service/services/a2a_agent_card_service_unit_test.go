@@ -22,12 +22,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
-	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
@@ -61,15 +58,15 @@ func (s *proxyHooksStub) RefreshCardSource(context.Context, *models.AgentRespons
 // cardServiceFor builds the service over an agent of the given provisioning and subtype.
 const cardTestEnvUUID = "55555555-5555-5555-5555-555555555555"
 
-func cardServiceFor(provisioning, subType string) (*a2aAgentCardService, *repomocks.A2AAgentCardRepositoryMock, *clientmocks.OpenChoreoClientMock) {
+func cardServiceFor(provisioning, subType string) (*a2aAgentCardService, *repomocks.A2AAgentCardRepositoryMock, *repomocks.PlatformRepositoryMock) {
 	return cardServiceWithHooks(provisioning, subType, &proxyHooksStub{})
 }
 
 func cardServiceWithHooks(
 	provisioning, subType string, hooks A2AProxyHooks,
-) (*a2aAgentCardService, *repomocks.A2AAgentCardRepositoryMock, *clientmocks.OpenChoreoClientMock) {
-	oc := &clientmocks.OpenChoreoClientMock{
-		GetComponentFunc: func(_ context.Context, _, project, name string) (*models.AgentResponse, error) {
+) (*a2aAgentCardService, *repomocks.A2AAgentCardRepositoryMock, *repomocks.PlatformRepositoryMock) {
+	oc := &repomocks.PlatformRepositoryMock{
+		GetAgentFunc: func(_ context.Context, _, project, name string) (*models.AgentResponse, error) {
 			return &models.AgentResponse{
 				UUID: "agent-uuid", Name: name, ProjectName: project,
 				Provisioning: models.Provisioning{Type: provisioning},
@@ -78,9 +75,6 @@ func cardServiceWithHooks(
 		},
 		GetEnvironmentFunc: func(_ context.Context, _, name string) (*models.EnvironmentResponse, error) {
 			return &models.EnvironmentResponse{UUID: cardTestEnvUUID, Name: name}, nil
-		},
-		GetReleaseBindingRolloutFunc: func(context.Context, string, string, string) (client.ReleaseBindingRollout, error) {
-			return client.ReleaseBindingRollout{ReleaseName: "agent-r1", Deployed: true}, nil
 		},
 	}
 	repo := &repomocks.A2AAgentCardRepositoryMock{
@@ -98,7 +92,7 @@ func TestGetA2AAgentCardReturnsTheStoredRow(t *testing.T) {
 		return stored, nil
 	}
 	oc.GetEnvironmentFunc = nil // a stored row proves the environment
-	oc.GetComponentFunc = nil   // and the agent, so a 5s poll costs no OpenChoreo call
+	oc.GetAgentFunc = nil       // and the agent, so a 5s poll costs no OpenChoreo call
 
 	got, err := svc.GetA2AAgentCard(context.Background(), "org", "proj", "agent", "dev")
 	require.NoError(t, err)
@@ -150,60 +144,28 @@ func TestGetA2AAgentCardMapsAMissingAgent(t *testing.T) {
 	repo.GetFunc = func(context.Context, string, string, string, string) (*models.A2AAgentCard, error) {
 		return nil, repositories.ErrA2AAgentCardNotFound
 	}
-	oc.GetComponentFunc = func(context.Context, string, string, string) (*models.AgentResponse, error) {
-		return nil, utils.ErrNotFound
+	oc.GetAgentFunc = func(context.Context, string, string, string) (*models.AgentResponse, error) {
+		return nil, utils.ErrAgentNotFound
 	}
 	_, err := svc.GetA2AAgentCard(context.Background(), "org", "proj", "agent", "dev")
 	assert.ErrorIs(t, err, utils.ErrAgentNotFound)
 }
 
-func TestRefreshA2AAgentCardQueuesAPlatformFetch(t *testing.T) {
+// A platform-hosted agent has no deployment without an agent runtime, so the card worker could only
+// wait it out and then fail as "rolling out".
+func TestRefreshA2AAgentCardRefusesAPlatformAgent(t *testing.T) {
 	svc, repo, _ := cardServiceFor("internal", "a2a-agent")
-	require.NoError(t, svc.RefreshA2AAgentCard(tierGrantedCtx(t), "org", "proj", "agent", "dev"))
-	queued := repo.EnqueueCalls()
-	require.Len(t, queued, 1)
-	assert.Equal(t, models.A2AAgentCardSourcePlatform, queued[0].Card.Source)
-	assert.Empty(t, queued[0].Card.SourceURL)
-	assert.Equal(t, uuid.MustParse(cardTestEnvUUID), queued[0].Card.EnvironmentUUID)
-}
-
-// The card worker could only wait out a missing deployment and then fail as "rolling out".
-func TestRefreshA2AAgentCardRefusesAnAgentNotDeployedThere(t *testing.T) {
-	for name, rollout := range map[string]client.ReleaseBindingRollout{
-		"never deployed": {},
-		"undeployed":     {ReleaseName: "agent-r1"},
-	} {
-		t.Run(name, func(t *testing.T) {
-			svc, repo, oc := cardServiceFor("internal", "a2a-agent")
-			oc.GetReleaseBindingRolloutFunc = func(context.Context, string, string, string) (client.ReleaseBindingRollout, error) {
-				return rollout, nil
-			}
-			repo.EnqueueFunc = nil
-
-			err := svc.RefreshA2AAgentCard(tierGrantedCtx(t), "org", "proj", "agent", "dev")
-			assert.ErrorIs(t, err, utils.ErrAgentNotDeployedInEnvironment)
-		})
-	}
-}
-
-func TestRefreshA2AAgentCardDoesNotMaskARolloutReadFailure(t *testing.T) {
-	svc, repo, oc := cardServiceFor("internal", "a2a-agent")
-	oc.GetReleaseBindingRolloutFunc = func(context.Context, string, string, string) (client.ReleaseBindingRollout, error) {
-		return client.ReleaseBindingRollout{}, assert.AnError
-	}
 	repo.EnqueueFunc = nil
 
 	err := svc.RefreshA2AAgentCard(tierGrantedCtx(t), "org", "proj", "agent", "dev")
-	assert.ErrorIs(t, err, assert.AnError)
-	assert.NotErrorIs(t, err, utils.ErrAgentNotDeployedInEnvironment)
+	assert.ErrorIs(t, err, utils.ErrAgentNotDeployedInEnvironment)
 }
 
 // The proxy service requeues or republishes under its lock; a plain requeue here could un-park a proxied card.
 func TestRefreshA2AAgentCardHandsAnExternalAgentToTheProxyService(t *testing.T) {
 	hooks := &proxyHooksStub{}
-	svc, repo, oc := cardServiceWithHooks("external", "a2a-agent", hooks)
+	svc, repo, _ := cardServiceWithHooks("external", "a2a-agent", hooks)
 	repo.RequeueFunc = nil
-	oc.GetReleaseBindingRolloutFunc = nil // external cards never ask for the rollout
 
 	require.NoError(t, svc.RefreshA2AAgentCard(tierGrantedCtx(t), "org", "proj", "agent", "dev"))
 	assert.Equal(t, 1, hooks.refreshed)
@@ -282,7 +244,7 @@ func TestSetA2ACardSourceRejects(t *testing.T) {
 func TestSetA2ACardSourceRejectsAnUnknownEnvironment(t *testing.T) {
 	svc, repo, oc := cardServiceFor("external", "a2a-agent")
 	oc.GetEnvironmentFunc = func(context.Context, string, string) (*models.EnvironmentResponse, error) {
-		return nil, utils.ErrNotFound
+		return nil, utils.ErrEnvironmentNotFound
 	}
 	err := svc.SetA2ACardSource(tierGrantedCtx(t), "org", "proj", "agent", "nope", "https://93.184.215.14/c")
 	assert.ErrorIs(t, err, utils.ErrEnvironmentNotFound)
@@ -307,23 +269,11 @@ func TestDeleteA2ACardSourceRejectsAPlatformAgent(t *testing.T) {
 }
 
 // agentGoneDuringEnqueue swaps the agent lookup the moment the row is written, as a racing delete would.
-func agentGoneDuringEnqueue(repo *repomocks.A2AAgentCardRepositoryMock, oc *clientmocks.OpenChoreoClientMock, after func(context.Context, string, string, string) (*models.AgentResponse, error)) {
+func agentGoneDuringEnqueue(repo *repomocks.A2AAgentCardRepositoryMock, oc *repomocks.PlatformRepositoryMock, after func(context.Context, string, string, string) (*models.AgentResponse, error)) {
 	repo.EnqueueFunc = func(context.Context, *models.A2AAgentCard) error {
-		oc.GetComponentFunc = after
+		oc.GetAgentFunc = after
 		return nil
 	}
-}
-
-func TestRefreshA2AAgentCardDropsTheRowWhenTheAgentIsReplacedMeanwhile(t *testing.T) {
-	svc, repo, oc := cardServiceFor("internal", "a2a-agent")
-	agentGoneDuringEnqueue(repo, oc, func(_ context.Context, _, _, name string) (*models.AgentResponse, error) {
-		return &models.AgentResponse{UUID: "new-agent-uuid", Name: name, Type: models.AgentType{SubType: "a2a-agent"}}, nil
-	})
-
-	err := svc.RefreshA2AAgentCard(tierGrantedCtx(t), "org", "proj", "agent", "dev")
-
-	assert.ErrorIs(t, err, utils.ErrAgentNotFound)
-	assert.Len(t, repo.DeleteForAgentEnvCalls(), 1)
 }
 
 // Unresolvable and internal hosts must look alike, or the reply is an internal-DNS oracle.
@@ -390,7 +340,7 @@ func TestA2ACapable(t *testing.T) {
 func TestSetA2ACardSourceRejectsAnAgentFromAnotherProject(t *testing.T) {
 	hooks := &proxyHooksStub{}
 	svc, _, oc := cardServiceWithHooks("external", "", hooks)
-	oc.GetComponentFunc = func(_ context.Context, _, _, name string) (*models.AgentResponse, error) {
+	oc.GetAgentFunc = func(_ context.Context, _, _, name string) (*models.AgentResponse, error) {
 		return &models.AgentResponse{Name: name, ProjectName: "other", Provisioning: models.Provisioning{Type: "external"}}, nil
 	}
 	err := svc.SetA2ACardSource(tierGrantedCtx(t), "org", "proj", "agent", "dev", "https://93.184.215.14/.well-known/agent-card.json")

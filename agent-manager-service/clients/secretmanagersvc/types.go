@@ -16,11 +16,7 @@
 
 package secretmanagersvc
 
-import (
-	"errors"
-
-	occlient "github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
-)
+import "errors"
 
 // ErrSecretNotFound is returned when a secret does not exist.
 var ErrSecretNotFound = errors.New("secret not found")
@@ -70,23 +66,6 @@ type SecretInfo struct {
 
 // StoreConfig holds configuration for secret store backends.
 type StoreConfig struct {
-	// Provider is the name of the provider to use (e.g., "openchoreo").
+	// Provider is the name of the provider to use (e.g., "unsupported").
 	Provider string `json:"provider"`
-
-	// OpenChoreo contains configuration for the OpenChoreo secret API provider.
-	OpenChoreo *OpenChoreoConfig `json:"openchoreo,omitempty"`
-}
-
-// OpenChoreoConfig contains configuration for the OpenChoreo secret API provider.
-type OpenChoreoConfig struct {
-	// Client is the OpenChoreo API client used for secret operations.
-	Client occlient.OpenChoreoClient `json:"-"`
-
-	// TargetPlaneKind is the kind of the plane hosting the secret data
-	// (e.g. "ClusterDataPlane"). Defaults to the client's default when empty.
-	TargetPlaneKind string `json:"targetPlaneKind,omitempty"`
-
-	// TargetPlaneName is the name of the plane hosting the secret data.
-	// Defaults to the client's default when empty.
-	TargetPlaneName string `json:"targetPlaneName,omitempty"`
 }

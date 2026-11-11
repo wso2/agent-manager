@@ -17,7 +17,7 @@ import (
 // checks if the GitHubAppSource type satisfies the MappedNullable interface at compile time
 var _ MappedNullable = &GitHubAppSource{}
 
-// GitHubAppSource Optional GitHub App source binding for cloud deployments. The control plane consumes this metadata, persists it through the deployment-provided repository source provider, and never forwards it to OpenChoreo. When omitted, public-repository and PAT-backed behavior is unchanged.
+// GitHubAppSource Optional GitHub App source binding for cloud deployments. The control plane consumes this metadata, persists it through the deployment-provided repository source provider, and never forwards it. When omitted, public-repository and PAT-backed behavior is unchanged.
 type GitHubAppSource struct {
 	// GitHub App installation that grants access to the repository
 	InstallationId int64 `json:"installationId"`

@@ -31,7 +31,7 @@ import (
 type gatewayConsumer uint8
 
 const (
-	platformAgentConsumer gatewayConsumer = iota // runs in OpenChoreo
+	platformAgentConsumer gatewayConsumer = iota // runs
 	externalAgentConsumer
 	monitorConsumer
 )

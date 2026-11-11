@@ -22,12 +22,11 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"gorm.io/gorm"
-
-	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
+	"github.com/wso2/agent-manager/agent-manager-service/utils"
+	"gorm.io/gorm"
 )
 
 // waitingForEndpoint is what a platform agent's row waits on until its release binding publishes a service URL.
@@ -38,14 +37,14 @@ const waitingForEndpoint = "waiting for the agent's endpoint"
 type PlatformAgentExposures struct {
 	exposureRepo repositories.PlatformAgentExposureRepository
 	gatewayRepo  repositories.GatewayRepository
-	ocClient     client.OpenChoreoClient
+	ocClient     repositories.PlatformRepository
 }
 
 // NewPlatformAgentExposures creates PlatformAgentExposures.
 func NewPlatformAgentExposures(
 	exposureRepo repositories.PlatformAgentExposureRepository,
 	gatewayRepo repositories.GatewayRepository,
-	ocClient client.OpenChoreoClient,
+	ocClient repositories.PlatformRepository,
 ) *PlatformAgentExposures {
 	return &PlatformAgentExposures{exposureRepo: exposureRepo, gatewayRepo: gatewayRepo, ocClient: ocClient}
 }
@@ -71,14 +70,8 @@ func (e *PlatformAgentExposures) exposure(
 
 // serviceURL is the endpoint the agent's release binding serves; the render waits while there is none.
 func (e *PlatformAgentExposures) serviceURL(ctx context.Context, exposure *models.PlatformAgentExposure) (string, error) {
-	url, err := e.ocClient.GetReleaseBindingServiceURL(ctx, exposure.OUID, exposure.AgentName, exposure.EnvironmentName)
-	if err != nil {
-		return "", fmt.Errorf("failed to read release binding service URL: %w", err)
-	}
-	if url == "" {
-		return "", reconcile.InputNotReady(waitingForEndpoint)
-	}
-	return url, nil
+	// Platform-hosted agents need an agent runtime, which is not available.
+	return "", fmt.Errorf("%w: agent %s has no hosted endpoint", utils.ErrNotImplemented, exposure.AgentName)
 }
 
 // target is the record's environment's ingress gateway, read in the transaction ctx carries, if any.

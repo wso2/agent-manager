@@ -26,7 +26,6 @@ import (
 	"time"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
-	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/events"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
@@ -70,7 +69,7 @@ type AgentAPIKeyServiceInterface interface {
 // AgentAPIKeyService handles API key management for agents
 type AgentAPIKeyService struct {
 	artifactRepo repositories.ArtifactRepository
-	ocClient     client.OpenChoreoClient
+	ocClient     repositories.PlatformRepository
 	apiKeyRepo   repositories.APIKeyRepository
 	gatewayRepo  repositories.GatewayRepository
 	broadcaster  apiKeyBroadcaster
@@ -80,7 +79,7 @@ type AgentAPIKeyService struct {
 // NewAgentAPIKeyService creates a new agent API key service instance
 func NewAgentAPIKeyService(
 	artifactRepo repositories.ArtifactRepository,
-	ocClient client.OpenChoreoClient,
+	ocClient repositories.PlatformRepository,
 	gatewayRepo repositories.GatewayRepository,
 	gatewayService *GatewayEventsService,
 	apiKeyRepo repositories.APIKeyRepository,
@@ -131,7 +130,7 @@ func (s *AgentAPIKeyService) gatewaysConnected(gateways []*models.Gateway) *bool
 func (s *AgentAPIKeyService) resolveAgentAPIArtifact(ctx context.Context, ouID, projectName, agentName, envID string) (*models.Artifact, string, error) {
 	environment, err := s.ocClient.GetEnvironment(ctx, ouID, envID)
 	if err != nil {
-		return nil, "", fmt.Errorf("failed to get environment: %w", translateEnvironmentError(err))
+		return nil, "", fmt.Errorf("failed to get environment: %w", err)
 	}
 	// envID may be a name or a UUID; events always carry the name.
 	events.SetEnvironment(ctx, environment.Name)

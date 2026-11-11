@@ -21,7 +21,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -91,6 +90,6 @@ func buildCardPolicies(card models.CardCORS) []map[string]interface{} {
 		return nil
 	}
 	return []map[string]interface{}{
-		client.CORSPolicy(card.AllowOrigins, models.CardCORSMethods, card.AllowHeaders, card.AllowCredentials),
+		corsPolicy(card.AllowOrigins, models.CardCORSMethods, card.AllowHeaders, card.AllowCredentials),
 	}
 }

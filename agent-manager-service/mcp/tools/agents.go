@@ -18,7 +18,6 @@ package tools
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"math"
 	"strings"
@@ -29,7 +28,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
-	"github.com/wso2/agent-manager/agent-manager-service/services"
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -483,9 +481,6 @@ func createInternalAgentPython(handler AgentToolsetHandler) func(context.Context
 		}
 
 		if err := handler.CreateAgent(ctx, ouID, input.ProjectName, req); err != nil {
-			if errors.Is(err, services.ErrGitHubAuthRequired) {
-				return nil, nil, gitHubReconnectError{cause: err}
-			}
 			return nil, nil, wrapToolError("create_internal_agent_python", err)
 		}
 

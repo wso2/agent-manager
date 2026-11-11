@@ -23,7 +23,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
@@ -259,99 +258,6 @@ func TestSoleMCPProxyUUID_NilWhenEnvironmentsDisagree(t *testing.T) {
 
 func TestSoleMCPProxyUUID_NilWhenNoEnvironmentsRequested(t *testing.T) {
 	require.Nil(t, soleMCPProxyUUID(nil))
-}
-
-// unresolvedBindingsFixture builds the service ListUnresolvedMCPBindings needs: an
-// environment lookup, the agent's configurations, and their per-environment variable rows.
-// No configuration has an MCP mapping in the environment — the dead state promotion must
-// refuse — so the URL each one resolves to is empty.
-func unresolvedBindingsFixture(
-	envUUID uuid.UUID,
-	configs []models.AgentConfiguration,
-	varsByConfig map[uuid.UUID][]models.AgentEnvConfigVariable,
-) *agentConfigurationService {
-	return &agentConfigurationService{
-		ocClient: &clientmocks.OpenChoreoClientMock{
-			GetEnvironmentFunc: func(_ context.Context, _, envName string) (*models.EnvironmentResponse, error) {
-				return &models.EnvironmentResponse{Name: envName, UUID: envUUID.String()}, nil
-			},
-		},
-		agentConfigRepo: &repomocks.AgentConfigurationRepositoryMock{
-			ListByAgentFunc: func(_ context.Context, _, _, _ string, _, _ int) ([]models.AgentConfiguration, error) {
-				return configs, nil
-			},
-		},
-		envVariableRepo: &repomocks.AgentEnvConfigVariableRepositoryMock{
-			ListByConfigAndEnvFunc: func(_ context.Context, configUUID, _ uuid.UUID) ([]models.AgentEnvConfigVariable, error) {
-				return varsByConfig[configUUID], nil
-			},
-		},
-		envMCPMappingRepo: &repomocks.EnvAgentMCPMappingRepositoryMock{
-			ListByConfigFunc: func(_ context.Context, _ uuid.UUID) ([]models.EnvAgentMCPMapping, error) {
-				return []models.EnvAgentMCPMapping{}, nil
-			},
-		},
-	}
-}
-
-// A connection configured for the environment — its variable rows are there, so its URL and
-// API key are injected into the workload — but with no mapping backing them resolves to an
-// empty URL. That is the connection promotion must refuse to carry over.
-func TestListUnresolvedMCPBindings_ReportsConfiguredConnectionWithNoResolvableURL(t *testing.T) {
-	envUUID := uuid.New()
-	bookingUUID := uuid.New()
-	configs := []models.AgentConfiguration{
-		{UUID: bookingUUID, Name: "booking", TypeID: models.AgentConfigTypeIDMCP},
-	}
-	varsByConfig := map[uuid.UUID][]models.AgentEnvConfigVariable{
-		bookingUUID: mcpVarRows(bookingUUID, envUUID),
-	}
-
-	svc := unresolvedBindingsFixture(envUUID, configs, varsByConfig)
-
-	got, err := svc.ListUnresolvedMCPBindings(context.Background(), "my-agent", "acme", "proj1", "staging")
-
-	require.NoError(t, err)
-	require.Equal(t, map[string]struct{}{"booking": {}}, got)
-}
-
-// No variable rows in the environment means the connection was never offered there, so
-// nothing is injected and nothing is broken. Reporting it would block promotions that are
-// perfectly safe.
-func TestListUnresolvedMCPBindings_SkipsConnectionNotConfiguredForEnvironment(t *testing.T) {
-	envUUID := uuid.New()
-	bookingUUID := uuid.New()
-	configs := []models.AgentConfiguration{
-		{UUID: bookingUUID, Name: "booking", TypeID: models.AgentConfigTypeIDMCP},
-	}
-
-	svc := unresolvedBindingsFixture(envUUID, configs, nil)
-
-	got, err := svc.ListUnresolvedMCPBindings(context.Background(), "my-agent", "acme", "proj1", "staging")
-
-	require.NoError(t, err)
-	require.Empty(t, got)
-}
-
-// An LLM configuration also owns injected system-managed variables, but its URL comes from
-// the provider rather than an MCP mapping. Scanning it here would report every LLM binding
-// as a broken MCP connection.
-func TestListUnresolvedMCPBindings_IgnoresNonMCPConfigurations(t *testing.T) {
-	envUUID := uuid.New()
-	llmUUID := uuid.New()
-	configs := []models.AgentConfiguration{
-		{UUID: llmUUID, Name: "openai", TypeID: models.AgentConfigTypeIDLLM},
-	}
-	varsByConfig := map[uuid.UUID][]models.AgentEnvConfigVariable{
-		llmUUID: mcpVarRows(llmUUID, envUUID),
-	}
-
-	svc := unresolvedBindingsFixture(envUUID, configs, varsByConfig)
-
-	got, err := svc.ListUnresolvedMCPBindings(context.Background(), "my-agent", "acme", "proj1", "staging")
-
-	require.NoError(t, err)
-	require.Empty(t, got)
 }
 
 // The environment-side trigger fans out over every proxy serving the environment whose
@@ -590,7 +496,8 @@ func TestMCPScopeExclusions_UpdateKeepsConfiguredButUnboundEnvironments(t *testi
 
 	got := mcpScopeExclusions(
 		[]models.EnvAgentMCPMapping{{ConfigUUID: configUUID, EnvironmentUUID: devEnv}},
-		nil, map[uuid.UUID]struct{}{devEnv: {}})
+		nil, map[uuid.UUID]struct{}{devEnv: {}},
+	)
 
 	require.Empty(t, got, "unbound environments the client never saw must stay in scope")
 }

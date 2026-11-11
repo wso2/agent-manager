@@ -34,15 +34,13 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
-	"gorm.io/gorm"
-
-	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 	"github.com/wso2/agent-manager/agent-manager-service/utils/ssrf"
+	"gorm.io/gorm"
 )
 
 // mcpProxyHandleRe constrains proxy handles to kebab-case. The handle becomes the
@@ -85,28 +83,27 @@ const (
 
 // MCPProxyService handles MCP proxy operations.
 type MCPProxyService struct {
-	db                     *gorm.DB
-	tx                     TxRunner
-	repo                   repositories.MCPProxyRepository
-	endpointRepo           repositories.MCPProxyEndpointRepository
-	deploymentRepo         repositories.DeploymentRepository
-	gatewayRepo            repositories.GatewayRepository
-	envMCPMappingRepo      repositories.EnvAgentMCPMappingRepository
-	artifactRepo           repositories.ArtifactRepository
-	agentConfigRepo        repositories.AgentConfigurationRepository
-	mcpProxyScopeRepo      repositories.MCPProxyScopeRepository
-	gatewayEventsService   *GatewayEventsService
-	apiKeyBroadcaster      apiKeyBroadcaster
-	infraManager           InfraResourceManager
-	agentIdentityInjection AgentIdentityInjectionService
-	client                 *http.Client
-	logger                 *slog.Logger
-	encryptionKey          []byte
-	resolver               thundersvc.EnvThunderResolver
-	core                   *reconcile.Core
-	kind                   *MCPProxyKind
-	isExternalAgent        externalAgentLookup
-	// getProject resolves a project by name in OpenChoreo; nil treats every project as existing.
+	db                   *gorm.DB
+	tx                   TxRunner
+	repo                 repositories.MCPProxyRepository
+	endpointRepo         repositories.MCPProxyEndpointRepository
+	deploymentRepo       repositories.DeploymentRepository
+	gatewayRepo          repositories.GatewayRepository
+	envMCPMappingRepo    repositories.EnvAgentMCPMappingRepository
+	artifactRepo         repositories.ArtifactRepository
+	agentConfigRepo      repositories.AgentConfigurationRepository
+	mcpProxyScopeRepo    repositories.MCPProxyScopeRepository
+	gatewayEventsService *GatewayEventsService
+	apiKeyBroadcaster    apiKeyBroadcaster
+	infraManager         InfraResourceManager
+	client               *http.Client
+	logger               *slog.Logger
+	encryptionKey        []byte
+	resolver             thundersvc.EnvThunderResolver
+	core                 *reconcile.Core
+	kind                 *MCPProxyKind
+	isExternalAgent      externalAgentLookup
+	// getProject resolves a project by name; nil treats every project as existing.
 	getProject func(ctx context.Context, ouID, projectName string) (*models.ProjectResponse, error)
 }
 
@@ -126,14 +123,13 @@ func NewMCPProxyService(
 	gatewayEventsService *GatewayEventsService,
 	apiKeyRepo repositories.APIKeyRepository,
 	infraManager InfraResourceManager,
-	agentIdentityInjection AgentIdentityInjectionService,
 	logger *slog.Logger,
 	encryptionKey []byte,
 	mcpProxyScopeRepo repositories.MCPProxyScopeRepository,
 	resolver thundersvc.EnvThunderResolver,
 	core *reconcile.Core,
 	kind *MCPProxyKind,
-	ocClient client.OpenChoreoClient,
+	ocClient repositories.PlatformRepository,
 ) *MCPProxyService {
 	var getProject func(ctx context.Context, ouID, projectName string) (*models.ProjectResponse, error)
 	if ocClient != nil {
@@ -160,23 +156,22 @@ func NewMCPProxyService(
 			gatewayService: gatewayEventsService,
 			apiKeyRepo:     apiKeyRepo,
 		},
-		infraManager:           infraManager,
-		agentIdentityInjection: agentIdentityInjection,
-		client:                 ssrf.NewClient(mcpRequestTimeout),
-		logger:                 logger,
-		encryptionKey:          encryptionKey,
-		resolver:               resolver,
+		infraManager:  infraManager,
+		client:        ssrf.NewClient(mcpRequestTimeout),
+		logger:        logger,
+		encryptionKey: encryptionKey,
+		resolver:      resolver,
 	}
 }
 
 // externalAgentLookupFrom reads an agent's provisioning type from its OpenChoreo component. The
 // component is looked up by organization and name only, so no project is passed.
-func externalAgentLookupFrom(ocClient client.OpenChoreoClient) externalAgentLookup {
+func externalAgentLookupFrom(ocClient repositories.PlatformRepository) externalAgentLookup {
 	if ocClient == nil {
 		return nil
 	}
 	return func(ctx context.Context, ouID, agentName string) (bool, error) {
-		component, err := ocClient.GetComponent(ctx, ouID, "", agentName)
+		component, err := ocClient.GetAgent(ctx, ouID, "", agentName)
 		if err != nil {
 			return false, err
 		}
@@ -655,71 +650,10 @@ func (s *MCPProxyService) Update(ctx context.Context, orgUUID, proxyID string, r
 		}
 	}
 
-	// The org-level proxy owns and (re)deploys the per-environment gateway artifacts above;
-	// agents that reference this proxy read its endpoint at their own deploy time via the
-	// stored DB mapping. A proxy update can still change what scopes an already-running
-	// agent's AgentID token should carry, so best-effort refresh every agent bound to this
-	// proxy so their next-minted token reflects the change immediately instead of waiting
-	// for their next deploy/promote.
-	//
-	// Detached onto its own goroutine, off the request path: cost scales with
-	// (agents bound to this proxy) x (environments each is deployed to), which
-	// can be large enough to risk a gateway timeout on what is already a
-	// best-effort step. Uses context.WithoutCancel (not context.Background())
-	// so it still carries request-scoped values like a correlation ID,
-	// without being cancelled the moment this handler returns.
-	go s.refreshAgentsBoundToProxy(context.WithoutCancel(ctx), updated, orgUUID)
-
 	// Re-ensure resource servers now that bindings are live.
 	go s.ensureResourceServersForCurrentScopes(context.WithoutCancel(ctx), orgUUID, updated)
 
 	return convertModelMCPProxyToSpec(updated), nil
-}
-
-// refreshAgentsBoundToProxy brings every agent bound to proxyUUID's live AgentID scope
-// list in line with what it should now be (recomputing the scope list), across every
-// environment they're deployed to. Uses ReconcileForEnvironment (not InjectForEnvironment)
-// so an agent whose scopes didn't actually change from this proxy update never gets its
-// pod needlessly rolled. Purely best-effort: the caller runs this on a detached goroutine
-// after the proxy update already succeeded, so a failure here must never surface as an
-// error from Update — it's logged and the corresponding agent simply picks up the change
-// on its next deploy/promote/rotation instead.
-func (s *MCPProxyService) refreshAgentsBoundToProxy(ctx context.Context, proxy *models.MCPProxy, orgUUID string) {
-	mappings, err := s.envMCPMappingRepo.ListByMCPProxy(ctx, proxy.UUID)
-	if err != nil {
-		s.logger.Warn("Failed to list agent bindings for scope refresh", "proxyUUID", proxy.UUID, "error", err)
-		return
-	}
-	if len(mappings) == 0 {
-		return
-	}
-
-	envs, err := s.infraManager.ListOrgEnvironments(ctx, orgUUID)
-	if err != nil {
-		s.logger.Warn("Failed to list environments for scope refresh", "proxyUUID", proxy.UUID, "error", err)
-		return
-	}
-	uuidToEnvName := make(map[string]string, len(envs))
-	for _, e := range envs {
-		uuidToEnvName[e.UUID] = e.Name
-	}
-
-	for _, mapping := range mappings {
-		envName := uuidToEnvName[mapping.EnvironmentUUID.String()]
-		if envName == "" {
-			continue // environment since deleted — nothing to refresh
-		}
-		config, err := s.agentConfigRepo.GetByUUID(ctx, mapping.ConfigUUID, orgUUID)
-		if err != nil {
-			s.logger.Warn("Failed to resolve agent configuration for scope refresh",
-				"proxyUUID", proxy.UUID, "configUUID", mapping.ConfigUUID, "error", err)
-			continue
-		}
-		if err := s.agentIdentityInjection.ReconcileForEnvironment(ctx, orgUUID, config.ProjectName, config.AgentID, envName); err != nil {
-			s.logger.Warn("Failed to refresh agent identity credentials after MCP proxy change",
-				"agentName", config.AgentID, "envName", envName, "error", err)
-		}
-	}
 }
 
 // Delete removes an MCP proxy by handle. MCP proxy mappings are deployable artifacts
@@ -1735,7 +1669,7 @@ func (s *MCPProxyService) anyInternalAgent(ctx context.Context, configs []models
 			return true, nil
 		}
 		external, err := s.isExternalAgent(ctx, config.OUID, config.AgentID)
-		if errors.Is(err, utils.ErrNotFound) {
+		if errors.Is(err, utils.ErrAgentNotFound) || errors.Is(err, utils.ErrNotFound) {
 			continue
 		}
 		if err != nil {

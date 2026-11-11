@@ -29,7 +29,6 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
-	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
@@ -50,7 +49,7 @@ type proxyHarness struct {
 	txProxies          *repomocks.A2AProxyRepositoryMock
 	cards, txCards     *repomocks.A2AAgentCardRepositoryMock
 	configs, txConfigs *repomocks.AgentConfigRepositoryMock
-	oc                 *clientmocks.OpenChoreoClientMock
+	oc                 *repomocks.PlatformRepositoryMock
 	artifactUUID       uuid.UUID
 	// steps records the order of the transition lock and the proxy reads.
 	steps []string
@@ -103,8 +102,8 @@ func newProxyHarness(t *testing.T) *proxyHarness {
 			return h.txConfigs
 		},
 	}
-	h.oc = &clientmocks.OpenChoreoClientMock{
-		GetComponentFunc: func(context.Context, string, string, string) (*models.AgentResponse, error) {
+	h.oc = &repomocks.PlatformRepositoryMock{
+		GetAgentFunc: func(context.Context, string, string, string) (*models.AgentResponse, error) {
 			return externalAgent(), nil
 		},
 		GetEnvironmentFunc: func(_ context.Context, _, name string) (*models.EnvironmentResponse, error) {
@@ -636,7 +635,7 @@ func TestSetA2AProxyRejectsAnInternalAgent(t *testing.T) {
 	for name, agent := range cases {
 		t.Run(name, func(t *testing.T) {
 			h := newProxyHarness(t)
-			h.oc.GetComponentFunc = func(context.Context, string, string, string) (*models.AgentResponse, error) { return agent, nil }
+			h.oc.GetAgentFunc = func(context.Context, string, string, string) (*models.AgentResponse, error) { return agent, nil }
 			assert.ErrorIs(t, h.svc.SetA2AProxy(tierGrantedCtx(t), "org-1", "checkout", "weather", "dev", nil), utils.ErrA2AProxyAgentNotExternal)
 		})
 	}
@@ -658,12 +657,12 @@ func TestSetA2AProxyDropsItsWritesWhenTheAgentIsDeletedMeanwhile(t *testing.T) {
 	h.acceptsWrites()
 	h.artifacts.DeleteFunc = func(*gorm.DB, string) error { return nil }
 	lookups := 0
-	h.oc.GetComponentFunc = func(context.Context, string, string, string) (*models.AgentResponse, error) {
+	h.oc.GetAgentFunc = func(context.Context, string, string, string) (*models.AgentResponse, error) {
 		lookups++
 		if lookups == 1 {
 			return externalAgent(), nil
 		}
-		return nil, utils.ErrNotFound
+		return nil, utils.ErrAgentNotFound
 	}
 
 	err := h.svc.SetA2AProxy(tierGrantedCtx(t), "org-1", "checkout", "weather", "dev", nil)
@@ -700,12 +699,12 @@ func TestSetA2AProxyAuditsTheRollbackWhenTheAgentIsDeletedMeanwhile(t *testing.T
 	h.acceptsWrites()
 	h.artifacts.DeleteFunc = func(*gorm.DB, string) error { return nil }
 	lookups := 0
-	h.oc.GetComponentFunc = func(context.Context, string, string, string) (*models.AgentResponse, error) {
+	h.oc.GetAgentFunc = func(context.Context, string, string, string) (*models.AgentResponse, error) {
 		lookups++
 		if lookups == 1 {
 			return externalAgent(), nil
 		}
-		return nil, utils.ErrNotFound
+		return nil, utils.ErrAgentNotFound
 	}
 	recorder := newCaptureRecorder()
 
@@ -722,7 +721,7 @@ func TestSetA2AProxyKeepsACommittedWriteWhenTheAgentCheckFails(t *testing.T) {
 	h := newProxyHarness(t)
 	h.acceptsWrites()
 	lookups := 0
-	h.oc.GetComponentFunc = func(context.Context, string, string, string) (*models.AgentResponse, error) {
+	h.oc.GetAgentFunc = func(context.Context, string, string, string) (*models.AgentResponse, error) {
 		lookups++
 		if lookups == 1 {
 			return externalAgent(), nil
@@ -931,7 +930,7 @@ func TestA2AProxyWritesRefuseWhenTheAuditSinkFails(t *testing.T) {
 
 func TestSetA2AProxyRejectsAnAgentFromAnotherProject(t *testing.T) {
 	h := newProxyHarness(t)
-	h.oc.GetComponentFunc = func(context.Context, string, string, string) (*models.AgentResponse, error) {
+	h.oc.GetAgentFunc = func(context.Context, string, string, string) (*models.AgentResponse, error) {
 		agent := externalAgent()
 		agent.ProjectName = "other"
 		return agent, nil

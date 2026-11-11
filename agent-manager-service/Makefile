@@ -96,16 +96,6 @@ spec: ## Code gen type/client for openapi spec.
 # subtle param-handling changes, etc.). Bump both together.
 OAPI_CODEGEN := go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.4.1
 
-.PHONY: gen-oc-client
-gen-oc-client: ## Generate OpenChoreo API client from upstream OpenAPI spec.
-	@echo "Generating OpenChoreo client from upstream spec"
-	@curl -sL "https://raw.githubusercontent.com/openchoreo/openchoreo/v1.2.8/openapi/openchoreo-api.yaml" -o /tmp/openchoreo-api.yaml
-	@$(OAPI_CODEGEN) -config clients/openchoreosvc/gen/oapi-codegen.yaml /tmp/openchoreo-api.yaml
-	@$(OAPI_CODEGEN) -config clients/openchoreosvc/gen/oapi-codegen-client.yaml /tmp/openchoreo-api.yaml
-	@rm /tmp/openchoreo-api.yaml
-	@$(MAKE) fmt
-	@echo "OpenChoreo client generated successfully"
-
 .PHONY: gen-api-platform-client
 gen-api-platform-client: ## Generate API Platform API client from upstream OpenAPI spec.
 	@echo "Generating Gateway client"

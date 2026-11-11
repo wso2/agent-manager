@@ -444,6 +444,16 @@ var notEmittedFeatures = map[string]bool{
 	"amp.observability.view-scores":                               true,
 	"amp.events.manage-destination":                               true,
 	"amp.events.manage-subscription":                              true,
+	// Hosted-agent runtime features: their routes answer 501.
+	"amp.agent-development.build-agent":       true,
+	"amp.agent-development.publish-kind":      true,
+	"amp.deployment-ops.deploy-agent":         true,
+	"amp.deployment-ops.deploy-agent.promote": true,
+	"amp.deployment-ops.create-environment":   true,
+	"amp.deployment-ops.deployment-pipeline":  true,
+	"amp.discovery.manage-kind":               true,
+	"amp.discovery.manage-kind.add-version":   true,
+	"amp.source-control.manage-git-secret":    true,
 }
 
 // TestTaxonomyFeaturesHaveEmitters rejects stale declarations and exemptions.

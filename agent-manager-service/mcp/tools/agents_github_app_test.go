@@ -18,13 +18,11 @@ package tools
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"testing"
 
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/wso2/agent-manager/agent-manager-service/services"
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
 )
 
@@ -136,17 +134,5 @@ func TestCreateInternalAgentPythonRejectsInvalidInstallationBeforeCreation(t *te
 				t.Fatalf("CreateAgent was invoked %d times despite invalid input", len(calls))
 			}
 		})
-	}
-}
-
-func TestCreateInternalAgentPythonAsksToReconnectGitHub(t *testing.T) {
-	session, mock := setupTestServer(t)
-	mock.createAgentErr = fmt.Errorf("failed to persist GitHub App source binding: %w", services.ErrGitHubAuthRequired)
-	result := callCreateInternalAgentPython(t, session, map[string]any{"github_installation_id": 4242})
-	if !result.IsError {
-		t.Fatal("expected error result")
-	}
-	if got, want := resultText(t, result), "GitHub authorization expired; reconnect GitHub and retry."; got != want {
-		t.Errorf("error text: got %q, want %q", got, want)
 	}
 }

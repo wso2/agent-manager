@@ -57,7 +57,8 @@ func (f *syncFixture) seedGateway(t *testing.T, ouID string) uuid.UUID {
 	require.NoError(t, db.GetDB().Exec(
 		`INSERT INTO gateways (uuid, name, display_name, vhost, gateway_functionality_type, ou_id, is_active)
 		 VALUES (?, ?, ?, ?, ?, ?, TRUE)`,
-		gatewayID, name, name, "gw.example", models.GatewayRoleEgress, ouID).Error)
+		gatewayID, name, name, "gw.example", models.GatewayRoleEgress, ouID,
+	).Error)
 	t.Cleanup(func() { db.GetDB().Exec(`DELETE FROM gateways WHERE uuid = ?`, gatewayID) })
 	return gatewayID
 }
@@ -94,13 +95,16 @@ func (f *syncFixture) snapshot(t *testing.T) statusSnapshot {
 	t.Helper()
 	var s statusSnapshot
 	require.NoError(t, db.GetDB().Raw(
-		`SELECT * FROM deployment_status WHERE gateway_uuid = ? ORDER BY artifact_uuid`, f.gateway).
+		`SELECT * FROM deployment_status WHERE gateway_uuid = ? ORDER BY artifact_uuid`, f.gateway,
+	).
 		Scan(&s.Rows).Error)
 	require.NoError(t, db.GetDB().Raw(
-		`SELECT COALESCE(MAX(seq), 0) FROM eventhub_gateway_states WHERE gateway_id = ?`, f.gateway.String()).
+		`SELECT COALESCE(MAX(seq), 0) FROM eventhub_gateway_states WHERE gateway_id = ?`, f.gateway.String(),
+	).
 		Scan(&s.Seq).Error)
 	require.NoError(t, db.GetDB().Raw(
-		`SELECT COUNT(*) FROM eventhub_events WHERE gateway_id = ?`, f.gateway.String()).Scan(&s.Events).Error)
+		`SELECT COUNT(*) FROM eventhub_events WHERE gateway_id = ?`, f.gateway.String(),
+	).Scan(&s.Events).Error)
 	return s
 }
 
@@ -125,7 +129,8 @@ func TestListGatewayDeploymentsOverTheDatabase(t *testing.T) {
 	// Old enough for the sweeper, which this read must not stand in for.
 	require.NoError(t, db.GetDB().Exec(
 		`UPDATE deployment_status SET performed_at = performed_at - INTERVAL '1 hour' WHERE gateway_uuid = ?`,
-		f.gateway).Error)
+		f.gateway,
+	).Error)
 
 	before := f.snapshot(t)
 	time.Sleep(10 * time.Millisecond) // so a write's NOW() would differ

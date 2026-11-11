@@ -25,7 +25,6 @@ import (
 	"os"
 	"regexp"
 	"strings"
-	"time"
 
 	"github.com/joho/godotenv"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -222,15 +221,7 @@ func loadEnvs() {
 			TLSEnabled: r.readOptionalBool("GATEWAY_MANIFEST_CACHE_REDIS_TLS_ENABLED", false),
 		},
 	}
-	config.OpenChoreo = OpenChoreoConfig{
-		BaseURL:          r.readRequiredString("OPEN_CHOREO_BASE_URL"),
-		DefaultNamespace: r.readOptionalString("OPEN_CHOREO_DEFAULT_NAMESPACE", "default"),
-		SystemLabelKeyPrefixes: r.readOptionalStringList(
-			"OPEN_CHOREO_SYSTEM_LABEL_KEY_PREFIXES", "openchoreo.dev/",
-		),
-		BuildWorkflowKind: strings.TrimSpace(r.readOptionalString("OPEN_CHOREO_BUILD_WORKFLOW_KIND", "")),
-	}
-	validateOpenChoreoBuildWorkflowKind(config, r)
+	config.OrgNamespace = r.readOptionalString("AMP_ORG_NAMESPACE", "default")
 
 	// Internal Server configuration (for WebSocket and gateway internal APIs)
 	config.InternalServer = InternalServerConfig{
@@ -252,13 +243,7 @@ func loadEnvs() {
 	}
 
 	config.SecretManager = SecretManagerConfig{
-		Provider:                           r.readOptionalString("SECRET_MANAGER_PROVIDER", "openchoreo"),
-		TargetPlaneKind:                    r.readOptionalString("SECRET_MANAGER_TARGET_PLANE_KIND", "ClusterDataPlane"),
-		TargetPlaneName:                    r.readOptionalString("SECRET_MANAGER_TARGET_PLANE_NAME", "default"),
-		RefreshInterval:                    r.readOptionalString("SECRET_MANAGER_REFRESH_INTERVAL", "1h"),
-		AgentIdentityRefreshInterval:       r.readOptionalString("AGENT_IDENTITY_REFRESH_INTERVAL", "10m"),
-		AgentIdentityForceSyncWait:         r.readOptionalString("AGENT_IDENTITY_FORCE_SYNC_WAIT", "20s"),
-		AgentIdentityForceSyncApplyTimeout: r.readOptionalString("AGENT_IDENTITY_FORCE_SYNC_APPLY_TIMEOUT", "2m"),
+		Provider: r.readOptionalString("SECRET_MANAGER_PROVIDER", "unsupported"),
 	}
 
 	// OpenBao KV store configuration (data plane - for deployment secrets)
@@ -300,14 +285,6 @@ func loadEnvs() {
 	}
 	validateThunderConfig(config, r)
 
-	config.BuildClient = BuildClientConfig{
-		Enabled: r.readOptionalBool("AMP_BUILD_CLIENT_ENABLED", false),
-		Workflows: r.readOptionalStringList("AMP_BUILD_CLIENT_WORKFLOWS",
-			"amp-docker,amp-ballerina-buildpack,amp-google-cloud-buildpacks"),
-		SecretStore: strings.TrimSpace(r.readOptionalString("AMP_BUILD_CLIENT_SECRET_STORE", "")),
-	}
-	validateBuildClientConfig(config, r)
-
 	config.TLSConfig = TLSConfig{
 		EnableTLS: r.readOptionalBool("TLS_ENABLED", false),
 	}
@@ -339,7 +316,8 @@ func loadEnvs() {
 	config.GatewayFailureThresholdSeconds = int(r.readOptionalInt64("GATEWAY_FAILURE_THRESHOLD_SECONDS", 300))
 	if config.GatewayFailureThresholdSeconds <= 0 {
 		r.errors = append(r.errors, fmt.Errorf(
-			"GATEWAY_FAILURE_THRESHOLD_SECONDS must be greater than 0, got %d", config.GatewayFailureThresholdSeconds))
+			"GATEWAY_FAILURE_THRESHOLD_SECONDS must be greater than 0, got %d", config.GatewayFailureThresholdSeconds,
+		))
 	}
 	// 604800 = 7 days. Checked against the staleness threshold rather than only
 	// on its own: co-dependent values are validated together, and an upper bound
@@ -350,7 +328,8 @@ func loadEnvs() {
 		r.errors = append(r.errors, fmt.Errorf(
 			"GATEWAY_FAILURE_MAX_AGE_SECONDS (%d) must be greater than GATEWAY_FAILURE_THRESHOLD_SECONDS (%d), "+
 				"or no gateway can ever be reported as failed",
-			config.GatewayFailureMaxAgeSeconds, config.GatewayFailureThresholdSeconds))
+			config.GatewayFailureMaxAgeSeconds, config.GatewayFailureThresholdSeconds,
+		))
 	}
 	// Both ends are rejected rather than clamped, because either would make the
 	// health verdict a constant: at 0 an empty fleet already reports unhealthy,
@@ -368,7 +347,8 @@ func loadEnvs() {
 		config.GatewayFailurePercentageThreshold > 100 {
 		r.errors = append(r.errors, fmt.Errorf(
 			"GATEWAY_FAILURE_PERCENTAGE_THRESHOLD must be greater than 0 and at most 100, got %v",
-			config.GatewayFailurePercentageThreshold))
+			config.GatewayFailurePercentageThreshold,
+		))
 	}
 
 	// Audit defaults to on. A deployment that wants no audit trail has to say
@@ -467,19 +447,6 @@ var validPostgresSSLModes = map[string]struct{}{
 // agentIdentityInjectionService's own default at first use (see
 // secretSyncWaitDuration's doc comment).
 func validateSecretManagerConfig(cfg *Config, r *configReader) {
-	validatePositiveDuration(r, "AGENT_IDENTITY_REFRESH_INTERVAL", cfg.SecretManager.AgentIdentityRefreshInterval)
-	validatePositiveDuration(r, "AGENT_IDENTITY_FORCE_SYNC_WAIT", cfg.SecretManager.AgentIdentityForceSyncWait)
-	validatePositiveDuration(r, "AGENT_IDENTITY_FORCE_SYNC_APPLY_TIMEOUT", cfg.SecretManager.AgentIdentityForceSyncApplyTimeout)
-}
-
-func validatePositiveDuration(r *configReader, name, value string) {
-	d, err := time.ParseDuration(value)
-	switch {
-	case err != nil:
-		r.errors = append(r.errors, fmt.Errorf("%s %q is not a valid duration: %w", name, value, err))
-	case d <= 0:
-		r.errors = append(r.errors, fmt.Errorf("%s must be a positive duration, got %q", name, value))
-	}
 }
 
 type positiveField struct {
@@ -496,14 +463,16 @@ func requirePositive(r *configReader, fields ...positiveField) {
 }
 
 func validateDeploymentTimeoutConfig(cfg *Config, r *configReader) {
-	requirePositive(r,
+	requirePositive(
+		r,
 		positiveField{"DEPLOYMENT_TIMEOUT_SWEEP_INTERVAL_SECONDS", cfg.DeploymentTimeout.SweepIntervalSeconds},
 		positiveField{"DEPLOYMENT_TIMEOUT_SECONDS", cfg.DeploymentTimeout.TimeoutSeconds},
 	)
 }
 
 func validateReconcileConfig(cfg *Config, r *configReader) {
-	requirePositive(r,
+	requirePositive(
+		r,
 		positiveField{"RECONCILE_RENDER_INTERVAL_SECONDS", cfg.Reconcile.RenderIntervalSeconds},
 		positiveField{"RECONCILE_PLACE_INTERVAL_SECONDS", cfg.Reconcile.PlaceIntervalSeconds},
 		positiveField{"RECONCILE_DRIFT_INTERVAL_SECONDS", cfg.Reconcile.DriftIntervalSeconds},
@@ -628,35 +597,6 @@ func validateThunderConfig(cfg *Config, r *configReader) {
 	}
 }
 
-// validateBuildClientConfig checks the build-token settings together. A build
-// token is minted with this service's own identity provider client on the
-// organization token endpoint derived from IDP_TOKEN_URL, so enabling it without
-// that client, or with a token URL the endpoint cannot be derived from, would make
-// every build that takes the token fail rather than the service fail at startup;
-// and an empty workflow list would leave the flag on with nothing it could ever
-// apply to.
-func validateBuildClientConfig(cfg *Config, r *configReader) {
-	if !cfg.BuildClient.Enabled {
-		return
-	}
-	if _, err := OrganizationTokenURL(cfg.IDP.TokenURL, "ou"); err != nil {
-		r.errors = append(r.errors, fmt.Errorf("AMP_BUILD_CLIENT_ENABLED requires a usable IDP_TOKEN_URL: %w", err))
-	}
-	if strings.TrimSpace(cfg.IDP.ClientID) == "" || cfg.IDP.ClientSecret == "" {
-		r.errors = append(r.errors, fmt.Errorf("AMP_BUILD_CLIENT_ENABLED requires IDP_CLIENT_ID and IDP_CLIENT_SECRET"))
-	}
-	if len(cfg.BuildClient.Workflows) == 0 {
-		r.errors = append(r.errors, fmt.Errorf("AMP_BUILD_CLIENT_ENABLED requires at least one AMP_BUILD_CLIENT_WORKFLOWS entry"))
-	}
-	if store := cfg.BuildClient.SecretStore; store != "" && !secretStoreNamePattern.MatchString(store) {
-		r.errors = append(r.errors, fmt.Errorf("AMP_BUILD_CLIENT_SECRET_STORE %q is not a valid ClusterSecretStore name", store))
-	}
-}
-
-// secretStoreNamePattern is a Kubernetes object name (RFC 1123 subdomain): what a
-// ClusterSecretStore may be called.
-var secretStoreNamePattern = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$`)
-
 // organizationTokenPathSuffix is the token endpoint path an organization token
 // endpoint is derived from.
 const organizationTokenPathSuffix = "/oauth2/token"
@@ -695,20 +635,6 @@ func OrganizationTokenURL(tokenURL, ouID string) (string, error) {
 	parsed.Path = prefix + "/ou/" + ouID + organizationTokenPathSuffix
 	parsed.RawPath = ""
 	return parsed.String(), nil
-}
-
-// validateOpenChoreoBuildWorkflowKind accepts only the kinds OpenChoreo knows, or
-// empty for "record none". A typo would otherwise reach every new Component's
-// workflow reference and fail its builds rather than the service's startup.
-func validateOpenChoreoBuildWorkflowKind(cfg *Config, r *configReader) {
-	switch cfg.OpenChoreo.BuildWorkflowKind {
-	case "", "Workflow", "ClusterWorkflow":
-	default:
-		r.errors = append(r.errors, fmt.Errorf(
-			"OPEN_CHOREO_BUILD_WORKFLOW_KIND must be empty, \"Workflow\" or \"ClusterWorkflow\", got %q",
-			cfg.OpenChoreo.BuildWorkflowKind,
-		))
-	}
 }
 
 func validateServerPublicURL(cfg *Config, r *configReader) {

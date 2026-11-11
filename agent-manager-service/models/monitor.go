@@ -121,7 +121,7 @@ type MonitorRun struct {
 	EventQueuedAt *time.Time         `gorm:"column:event_queued_at"`
 	ID            uuid.UUID          `gorm:"column:id;primaryKey;type:uuid;default:gen_random_uuid()"`
 	MonitorID     uuid.UUID          `gorm:"column:monitor_id;not null"`
-	Name          string             `gorm:"column:name;not null"` // WorkflowRun name for querying OpenChoreo API
+	Name          string             `gorm:"column:name;not null"` // Run name
 	Evaluators    []MonitorEvaluator `gorm:"column:evaluators;type:jsonb;serializer:json;not null;default:'[]'"`
 	TraceStart    time.Time          `gorm:"column:trace_start;not null"`
 	TraceEnd      time.Time          `gorm:"column:trace_end;not null"`

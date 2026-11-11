@@ -125,6 +125,9 @@ func (c *monitorController) CreateMonitor(w http.ResponseWriter, r *http.Request
 			return
 		}
 		log.Error("Failed to create monitor", "error", err)
+		if writeIfNotImplemented(w, err) {
+			return
+		}
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to create monitor")
 		return
 	}
@@ -156,6 +159,9 @@ func (c *monitorController) GetMonitor(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		log.Error("Failed to get monitor", "error", err)
+		if writeIfNotImplemented(w, err) {
+			return
+		}
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get monitor")
 		return
 	}
@@ -182,6 +188,9 @@ func (c *monitorController) ListMonitors(w http.ResponseWriter, r *http.Request)
 	result, err := c.monitorService.ListMonitors(ctx, ouID, projName, agentName, environmentName)
 	if err != nil {
 		log.Error("Failed to list monitors", "error", err)
+		if writeIfNotImplemented(w, err) {
+			return
+		}
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list monitors")
 		return
 	}
@@ -212,6 +221,9 @@ func (c *monitorController) DeleteMonitor(w http.ResponseWriter, r *http.Request
 			return
 		}
 		log.Error("Failed to delete monitor", "error", err)
+		if writeIfNotImplemented(w, err) {
+			return
+		}
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to delete monitor")
 		return
 	}
@@ -260,6 +272,9 @@ func (c *monitorController) UpdateMonitor(w http.ResponseWriter, r *http.Request
 			return
 		}
 		log.Error("Failed to update monitor", "error", err)
+		if writeIfNotImplemented(w, err) {
+			return
+		}
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update monitor")
 		return
 	}
@@ -309,6 +324,9 @@ func (c *monitorController) ListMonitorRuns(w http.ResponseWriter, r *http.Reque
 			return
 		}
 		log.Error("Failed to list monitor runs", "error", err)
+		if writeIfNotImplemented(w, err) {
+			return
+		}
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list monitor runs")
 		return
 	}
@@ -348,6 +366,9 @@ func (c *monitorController) RerunMonitor(w http.ResponseWriter, r *http.Request)
 			return
 		}
 		log.Error("Failed to rerun monitor", "error", err)
+		if writeIfNotImplemented(w, err) {
+			return
+		}
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to rerun monitor")
 		return
 	}
@@ -385,6 +406,9 @@ func (c *monitorController) GetMonitorRunLogs(w http.ResponseWriter, r *http.Req
 			return
 		}
 		log.Error("Failed to get monitor run logs", "error", err)
+		if writeIfNotImplemented(w, err) {
+			return
+		}
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get monitor run logs")
 		return
 	}
@@ -418,6 +442,9 @@ func (c *monitorController) StopMonitor(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 		log.Error("Failed to stop monitor", "error", err)
+		if writeIfNotImplemented(w, err) {
+			return
+		}
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to stop monitor")
 		return
 	}
@@ -456,6 +483,9 @@ func (c *monitorController) StartMonitor(w http.ResponseWriter, r *http.Request)
 			return
 		}
 		log.Error("Failed to start monitor", "error", err)
+		if writeIfNotImplemented(w, err) {
+			return
+		}
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to start monitor")
 		return
 	}

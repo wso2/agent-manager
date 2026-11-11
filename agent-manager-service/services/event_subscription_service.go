@@ -29,7 +29,6 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
-	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/events"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
@@ -139,14 +138,14 @@ type EventSubscriptionService interface {
 
 type eventSubscriptionService struct {
 	repo   repositories.EventRepository
-	oc     client.OpenChoreoClient
+	oc     repositories.PlatformRepository
 	logger *slog.Logger
 	now    func() time.Time
 }
 
 // NewEventSubscriptionService creates an EventSubscriptionService.
 func NewEventSubscriptionService(
-	repo repositories.EventRepository, oc client.OpenChoreoClient, logger *slog.Logger,
+	repo repositories.EventRepository, oc repositories.PlatformRepository, logger *slog.Logger,
 ) EventSubscriptionService {
 	return &eventSubscriptionService{repo: repo, oc: oc, logger: logger, now: time.Now}
 }
@@ -542,7 +541,7 @@ func (s *eventSubscriptionService) checkTarget(ctx context.Context, t repositori
 	switch t.Scope {
 	case models.EventScopeProject:
 		if _, err := s.oc.GetProject(ctx, t.OUID, t.ProjectName); err != nil {
-			return translateProjectError(err)
+			return err
 		}
 	case models.EventScopeAgent:
 		if _, err := getAgent(ctx, s.oc, t.OUID, t.ProjectName, t.AgentName); err != nil {

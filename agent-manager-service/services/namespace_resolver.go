@@ -18,40 +18,28 @@ package services
 
 import (
 	"context"
-	"fmt"
 
-	occlient "github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 )
 
-// ResolveNamespace resolves the OpenChoreo namespace (organization) name.
-// Trace ingestion, the observer's search-scope resolution, and env-Thunder
-// naming are all keyed by this name (e.g. "default"), NOT by the OU id from
-// the JWT — passing the raw OU id where a namespace is expected targets
-// resources that don't exist. Single-namespace deployment: the first (only)
-// organization is the one every OU maps to.
-func ResolveNamespace(ctx context.Context, ocClient occlient.OpenChoreoClient) (string, error) {
-	orgs, err := ocClient.ListOrganizations(ctx)
-	if err != nil {
-		return "", fmt.Errorf("failed to list organizations for namespace resolution: %w", err)
-	}
-	if len(orgs) == 0 {
-		return "", fmt.Errorf("no organization found for namespace resolution")
-	}
-	return orgs[0].Namespace, nil
+// ResolveNamespace returns the namespace traces are stamped with at ingest and
+// the observer scopes reads by. The deployment runs a single namespace, so
+// every OU maps to it.
+func ResolveNamespace(context.Context) (string, error) {
+	return config.GetConfig().OrgNamespace, nil
 }
 
 // ThunderOrgNamespace returns the org namespace/handle used to address an
 // env-Thunder instance (see thundersvc.ThunderReleaseName) for AgentID
 // provisioning and injection. Deliberately config-pinned
-// (OPEN_CHOREO_DEFAULT_NAMESPACE, default "default"), NOT resolved dynamically:
+// (AMP_ORG_NAMESPACE, default "default"), NOT resolved dynamically:
 // an env-Thunder's Helm release/namespace is fixed when the platform admin
 // deploys it, so a dynamic lookup that followed an org rename would start
 // addressing a Thunder that doesn't exist and break every provisioned agent.
 // Both the provisioning and injection services call this so they can't disagree.
 func ThunderOrgNamespace() string {
-	return config.GetConfig().OpenChoreo.DefaultNamespace
+	return config.GetConfig().OrgNamespace
 }
 
 // ResolveEnvThunderClient is the single place every caller resolves a

@@ -31,8 +31,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
-	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
@@ -78,11 +76,6 @@ func (m *mockExecutor) UpdateNextRunTime(ctx context.Context, monitorID uuid.UUI
 
 func newTestScheduler(executor MonitorExecutor) *monitorSchedulerService {
 	return &monitorSchedulerService{
-		ocClient: &clientmocks.OpenChoreoClientMock{
-			GetWorkflowRunFunc: func(ctx context.Context, namespaceName string, runName string) (*client.WorkflowRunResponse, error) {
-				return nil, fmt.Errorf("mock: workflow run not found")
-			},
-		},
 		provisioner: NewStaticPublisherCredentialProvisioner(),
 		logger:      slog.Default(),
 		executor:    executor,
@@ -294,7 +287,7 @@ func TestTriggerMonitor_TimeWindowCalculation(t *testing.T) {
 
 func TestSchedulerStartStop(t *testing.T) {
 	executor := &mockExecutor{}
-	svc := NewMonitorSchedulerService(nil, NewStaticPublisherCredentialProvisioner(), slog.Default(), executor, repositories.NewMonitorRepo(db.GetDB()), NoopMonitorRunObserver{})
+	svc := NewMonitorSchedulerService(NewStaticPublisherCredentialProvisioner(), slog.Default(), executor, repositories.NewMonitorRepo(db.GetDB()), NoopMonitorRunObserver{})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -308,7 +301,7 @@ func TestSchedulerStartStop(t *testing.T) {
 
 func TestSchedulerStopIdempotent(t *testing.T) {
 	executor := &mockExecutor{}
-	svc := NewMonitorSchedulerService(nil, NewStaticPublisherCredentialProvisioner(), slog.Default(), executor, repositories.NewMonitorRepo(db.GetDB()), NoopMonitorRunObserver{})
+	svc := NewMonitorSchedulerService(NewStaticPublisherCredentialProvisioner(), slog.Default(), executor, repositories.NewMonitorRepo(db.GetDB()), NoopMonitorRunObserver{})
 
 	// Calling Stop multiple times should not panic
 	err := svc.Stop()
