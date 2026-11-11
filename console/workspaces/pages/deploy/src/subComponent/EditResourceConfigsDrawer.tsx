@@ -327,39 +327,78 @@ export function EditResourceConfigsDrawer({
   const ReplicaPolicyComponent = useExternalComponentModulesByMountPoint(
     REPLICA_POLICY_MOUNT_POINT,
   )[0]?.component as unknown as ComponentType<ReplicaPolicyProps> | undefined;
-  // undefined = an injected policy has not reported yet; saving waits for it.
-  const [replicaPolicy, setReplicaPolicy] = useState<ReplicaPolicy | null | undefined>(
-    ReplicaPolicyComponent ? undefined : null,
-  );
+  const [policyState, setPolicyState] = useState<{
+    component: typeof ReplicaPolicyComponent;
+    orgName: string;
+    open: boolean;
+    generation: number;
+    policy: ReplicaPolicy | null | undefined;
+    unavailable: boolean;
+  }>({
+    component: ReplicaPolicyComponent,
+    orgName,
+    open,
+    generation: 0,
+    policy: undefined,
+    unavailable: false,
+  });
+
+  // Invalidate the old report before committing a render with a different provider.
+  if (
+    policyState.component !== ReplicaPolicyComponent ||
+    policyState.orgName !== orgName ||
+    policyState.open !== open
+  ) {
+    setPolicyState({
+      component: ReplicaPolicyComponent,
+      orgName,
+      open,
+      generation: policyState.generation + 1,
+      policy: undefined,
+      unavailable: false,
+    });
+  }
+
+  const { generation, unavailable: policyUnavailable } = policyState;
+  // An injected provider starts pending. Without a provider, use built-in limits.
+  const replicaPolicy = ReplicaPolicyComponent ? policyState.policy : null;
   const policyErrors = useMemo(
     () => getReplicaPolicyErrors(formData, replicaPolicy ?? null),
     [formData, replicaPolicy],
   );
-  // Set when the injected policy failed or timed out. Saving stays blocked
-  // (fail closed) until the policy reports.
-  const [policyUnavailable, setPolicyUnavailable] = useState(false);
   const handlePolicyFailure = useCallback(() => {
-    setPolicyUnavailable(true);
-  }, []);
+    setPolicyState((current) =>
+      current.generation === generation
+        ? { ...current, policy: undefined, unavailable: true }
+        : current
+    );
+  }, [generation]);
+
   const handlePolicyChange = useCallback((policy: ReplicaPolicy | null) => {
-    setPolicyUnavailable(false);
-    setReplicaPolicy(policy);
-  }, []);
-
-  // Reset when the drawer closes, not when it opens: the injected component
-  // reports from its own mount effect, which runs before this drawer's effects.
-  useEffect(() => {
-    if (!open) {
-      setReplicaPolicy(ReplicaPolicyComponent ? undefined : null);
-      setPolicyUnavailable(false);
+    if (
+      policy !== null &&
+      (!policy ||
+        !Number.isSafeInteger(policy.maxReplicas) ||
+        policy.maxReplicas < 0 ||
+        typeof policy.autoScalingAllowed !== "boolean" ||
+        (policy.autoScalingAllowed && policy.maxReplicas < 1))
+    ) {
+      handlePolicyFailure();
+      return;
     }
-  }, [open, ReplicaPolicyComponent]);
+
+    setPolicyState((current) =>
+      current.generation === generation
+        ? { ...current, policy, unavailable: false }
+        : current
+    );
+  }, [generation, handlePolicyFailure]);
 
   useEffect(() => {
-    if (!open || replicaPolicy !== undefined) return;
+    if (!open || policyUnavailable || replicaPolicy !== undefined) return;
     const timer = setTimeout(handlePolicyFailure, REPLICA_POLICY_TIMEOUT_MS);
     return () => clearTimeout(timer);
-  }, [open, replicaPolicy, handlePolicyFailure]);
+  }, [open, policyUnavailable, replicaPolicy, handlePolicyFailure]);
 
   const isPolicyBlocking =
     policyUnavailable || replicaPolicy === undefined || Object.keys(policyErrors).length > 0;
@@ -458,7 +497,7 @@ export function EditResourceConfigsDrawer({
               <Form.Stack spacing={2}>
                 {/* Mounted only while open so it reports again on every open. */}
                 {open && ReplicaPolicyComponent && (
-                  <ReplicaPolicyBoundary onError={handlePolicyFailure}>
+                  <ReplicaPolicyBoundary key={generation} onError={handlePolicyFailure}>
                     <ReplicaPolicyComponent
                       orgId={orgName}
                       onPolicyChange={handlePolicyChange}

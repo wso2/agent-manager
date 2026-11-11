@@ -38,19 +38,23 @@ vi.mock("@agent-management-platform/shared-component", () => ({
 }));
 
 function renderDrawer(
-  Policy: ComponentType<ReplicaPolicyProps>,
+  Policy: ComponentType<ReplicaPolicyProps> | undefined,
   resourceConfigs?: AgentResourceConfigsResponse,
 ) {
-  return render(
+  const drawer = (component: ComponentType<ReplicaPolicyProps> | undefined) => (
     <ExternalModuleProvider
-      externalPageModules={[
-        {
-          kind: "component",
-          mountPoint: "replica-policy",
-          moduleName: "Test replica policy",
-          component: Policy as unknown as ComponentType<Record<string, unknown>>,
-        },
-      ]}
+      externalPageModules={
+        component
+          ? [
+              {
+                kind: "component",
+                mountPoint: "replica-policy",
+                moduleName: "Test replica policy",
+                component: component as unknown as ComponentType<Record<string, unknown>>,
+              },
+            ]
+          : []
+      }
     >
       <EditResourceConfigsDrawer
         open
@@ -60,9 +64,11 @@ function renderDrawer(
         agentName="agent"
         resourceConfigs={resourceConfigs}
       />
-    </ExternalModuleProvider>,
-    { wrapper: SnackBarProvider },
+    </ExternalModuleProvider>
   );
+  const { rerender } = render(drawer(Policy), { wrapper: SnackBarProvider });
+  return (nextPolicy: ComponentType<ReplicaPolicyProps> | undefined) =>
+    rerender(drawer(nextPolicy));
 }
 
 function reportingPolicy(policy: ReplicaPolicy | null) {
@@ -80,6 +86,65 @@ beforeEach(() => updateConfigs.mockClear());
 afterEach(() => vi.useRealTimers());
 
 describe("EditResourceConfigsDrawer replica policy", () => {
+  it("blocks invalid reports and accepts a corrected report", () => {
+    let report: ReplicaPolicyProps["onPolicyChange"] = () => {};
+    function Policy({ onPolicyChange }: ReplicaPolicyProps) {
+      useEffect(() => {
+        report = onPolicyChange;
+      }, [onPolicyChange]);
+      return null;
+    }
+    renderDrawer(Policy);
+    act(() => report(null));
+    expect(saveButton()).toBeEnabled();
+
+    act(() => report({ maxReplicas: NaN, autoScalingAllowed: true }));
+    expect(screen.getByText(/replica limits could not be loaded/i)).toBeInTheDocument();
+    expect(saveButton()).toBeDisabled();
+
+    act(() => report({ maxReplicas: 1, autoScalingAllowed: false }));
+    expect(saveButton()).toBeEnabled();
+  });
+
+  it("waits for added and replaced providers and ignores a superseded report", () => {
+    let firstReport: ReplicaPolicyProps["onPolicyChange"] = () => {};
+    let secondReport: ReplicaPolicyProps["onPolicyChange"] = () => {};
+    function FirstPolicy({ onPolicyChange }: ReplicaPolicyProps) {
+      useEffect(() => {
+        firstReport = onPolicyChange;
+      }, [onPolicyChange]);
+      return null;
+    }
+    function SecondPolicy({ onPolicyChange }: ReplicaPolicyProps) {
+      useEffect(() => {
+        secondReport = onPolicyChange;
+      }, [onPolicyChange]);
+      return null;
+    }
+    const changePolicy = renderDrawer(undefined);
+    expect(saveButton()).toBeEnabled();
+
+    changePolicy(FirstPolicy);
+    expect(saveButton()).toBeDisabled();
+    act(() => firstReport(null));
+    expect(saveButton()).toBeEnabled();
+
+    changePolicy(SecondPolicy);
+    expect(saveButton()).toBeDisabled();
+    act(() => firstReport(null));
+    expect(saveButton()).toBeDisabled();
+
+    act(() => secondReport({ maxReplicas: 1, autoScalingAllowed: false }));
+    expect(saveButton()).toBeEnabled();
+    expect(screen.getByLabelText("Enable autoscaling")).toBeDisabled();
+    act(() => firstReport(null));
+    expect(screen.getByLabelText("Enable autoscaling")).toBeDisabled();
+
+    changePolicy(undefined);
+    expect(saveButton()).toBeEnabled();
+    expect(screen.getByLabelText("Enable autoscaling")).toBeEnabled();
+  });
+
   it("blocks saving while the policy is pending and shows a timeout", () => {
     vi.useFakeTimers();
     renderDrawer(() => null);
