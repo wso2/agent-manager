@@ -125,6 +125,14 @@ describe("A2AAgentCardPanel", () => {
     expect(screen.getByText(/HTTP 404/)).toBeInTheDocument();
   });
 
+  it("says why a pending card is still being retried", () => {
+    mockCard({ data: { source: "external", status: "pending", sourceUrl: "https://a.example/c", lastError: 'agent card has no "supportedInterfaces"' } });
+    renderPanel();
+    expect(screen.getByText("Pending")).toBeInTheDocument();
+    expect(screen.getByText(/Last fetch failed, retrying: agent card has no "supportedInterfaces"/))
+      .toBeInTheDocument();
+  });
+
   it("refetches on demand", () => {
     mockCard({ data: { source: "platform", status: "fetched", sourceUrl: "", lastError: "" } });
     renderPanel();

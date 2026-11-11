@@ -197,6 +197,9 @@ export function A2AAgentCardPanel({
           {card.status === "failed" && card.lastError && (
             <Alert severity="error" sx={{ mb: 1 }}>Fetch failed: {card.lastError}</Alert>
           )}
+          {card.status === "pending" && card.lastError && !parkedBehindFailedPublish && (
+            <Alert severity="warning" sx={{ mb: 1 }}>Last fetch failed, retrying: {card.lastError}</Alert>
+          )}
           {card.card && (
             <Stack spacing={3} sx={{ mt: 2 }}>
               <Box>
