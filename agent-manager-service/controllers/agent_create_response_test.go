@@ -48,12 +48,10 @@ func (createOnlyAgentService) CreateAgent(
 // plaintext.
 func TestCreateAgent_DoesNotEchoSecretValues(t *testing.T) {
 	body, err := json.Marshal(spec.CreateAgentRequest{
-		Name:        "yolo",
-		DisplayName: "Yolo",
-		Provisioning: spec.Provisioning{
-			Type:      "internal",
-			AgentKind: &spec.ProvisioningAgentKind{Name: "chatbot", Version: "v1"},
-		},
+		Name:         "yolo",
+		DisplayName:  "Yolo",
+		Provisioning: spec.Provisioning{Type: "external"},
+		AgentType:    &spec.AgentType{Type: "agent-api"},
 		Configurations: &spec.Configurations{
 			Env: []spec.EnvironmentVariable{
 				{Key: "OPENAI_API_KEY", Value: spec.PtrString("sk-super-secret"), IsSensitive: spec.PtrBool(true)},

@@ -121,10 +121,9 @@ func createProject(handler ProjectToolsetHandler) func(context.Context, *gomcp.C
 			return nil, nil, fmt.Errorf("display_name is required")
 		}
 		req := spec.CreateProjectRequest{
-			Name:               projectName,
-			DisplayName:        displayName,
-			DeploymentPipeline: "default",
-			Description:        normalizeOptionalString(input.Description),
+			Name:        projectName,
+			DisplayName: displayName,
+			Description: normalizeOptionalString(input.Description),
 		}
 		project, err := handler.CreateProject(ctx, ouID, req)
 		if err != nil {

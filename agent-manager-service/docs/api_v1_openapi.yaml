@@ -14477,7 +14477,6 @@ components:
       type: object
       required:
         - name
-        - deploymentPipeline
         - displayName
       properties:
         name:
@@ -15060,7 +15059,6 @@ components:
       required:
         - displayName
         - description
-        - deploymentPipeline
     AgentResponse:
       type: object
       properties:

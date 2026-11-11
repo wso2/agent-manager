@@ -48,6 +48,7 @@ const (
 	// Server error codes (5xx)
 	ErrCodeInternalError      = "INTERNAL_ERROR"
 	ErrCodeServiceUnavailable = "SERVICE_UNAVAILABLE"
+	ErrCodeNotImplemented     = "NOT_IMPLEMENTED"
 
 	// Resource-specific error codes
 	ErrCodeAgentNotFound           = "AGENT_NOT_FOUND"

@@ -335,14 +335,7 @@ func ValidateRequestWithinLimit(request, limit, fieldName string) error {
 }
 
 func ValidateProjectUpdatePayload(payload spec.UpdateProjectRequest) error {
-	if err := ValidateResourceDisplayName(payload.DisplayName, "project"); err != nil {
-		return err
-	}
-
-	if payload.DeploymentPipeline == "" {
-		return fmt.Errorf("deployment pipeline cannot be empty")
-	}
-	return nil
+	return ValidateResourceDisplayName(payload.DisplayName, "project")
 }
 
 func ValidateAgentCreatePayload(payload spec.CreateAgentRequest) error {
@@ -1334,6 +1327,8 @@ func statusCodeToErrorCode(statusCode int) string {
 		return ErrCodeInternalError
 	case http.StatusServiceUnavailable:
 		return ErrCodeServiceUnavailable
+	case http.StatusNotImplemented:
+		return ErrCodeNotImplemented
 	default:
 		// Classify unmapped status codes by range
 		if statusCode >= 400 && statusCode < 500 {

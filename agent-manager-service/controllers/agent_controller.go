@@ -379,6 +379,12 @@ func (c *agentController) CreateAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Hosted agents need an agent runtime; refuse them before validating the
+	// fields only they carry.
+	if payload.Provisioning.Type == string(utils.InternalAgent) {
+		utils.WriteErrorResponse(w, http.StatusNotImplemented, "Only external agents can be created in this deployment")
+		return
+	}
 	if err := utils.ValidateAgentCreatePayload(payload); err != nil {
 		log.Error("CreateAgent: invalid agent payload", "error", err)
 		utils.WriteValidationErrorResponse(w, err)

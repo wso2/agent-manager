@@ -209,12 +209,6 @@ func (c *infraResourceController) CreateProject(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	if payload.DeploymentPipeline == "" {
-		log.Error("CreateProject: missing deployment pipeline in request body")
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Missing deployment pipeline in request body")
-		return
-	}
-
 	project, err := c.infraResourceManager.CreateProject(ctx, ouID, payload)
 	if err != nil {
 		log.Error("CreateProject: failed to create project", "error", err)
@@ -222,6 +216,7 @@ func (c *infraResourceController) CreateProject(w http.ResponseWriter, r *http.R
 		return
 	}
 	projectResponse := spec.ProjectResponse{
+		Uuid:               project.UUID,
 		Name:               project.Name,
 		DisplayName:        project.DisplayName,
 		Description:        project.Description,
@@ -262,6 +257,7 @@ func (c *infraResourceController) UpdateProject(w http.ResponseWriter, r *http.R
 	}
 
 	projectResponse := spec.ProjectResponse{
+		Uuid:               project.UUID,
 		Name:               project.Name,
 		DisplayName:        project.DisplayName,
 		Description:        project.Description,
