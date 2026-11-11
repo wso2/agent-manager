@@ -579,6 +579,11 @@ func (s *MCPProxyService) Update(ctx context.Context, orgUUID, proxyID string, r
 		if proxy.ProjectUUID != nil {
 			return utils.ErrMCPProxyProjectOwned
 		}
+		// Checked again against the locked endpoints: an update committed since the check above may have moved an
+		// endpoint off a stored query location, which then no longer excuses one in this request.
+		if err := validateMCPEndpointKeyLocations(req.Endpoints, proxy.Endpoints); err != nil {
+			return err
+		}
 
 		// Index the existing graph so buildMCPEndpointsForStorage can preserve per-env
 		// artifact UUIDs (agent bindings resolve (proxy, env) -> artifact_uuid) and per-
@@ -630,7 +635,7 @@ func (s *MCPProxyService) Update(ctx context.Context, orgUUID, proxyID string, r
 		if rejected := mcpDeployRejection(err); rejected != nil {
 			return nil, rejected
 		}
-		if errors.Is(err, utils.ErrMCPProxyNotFound) {
+		if errors.Is(err, utils.ErrMCPProxyNotFound) || errors.Is(err, utils.ErrInvalidInput) {
 			return nil, err
 		}
 		if mapped := s.mapMCPProxyWriteError(err, handle, orgUUID); mapped != nil {
