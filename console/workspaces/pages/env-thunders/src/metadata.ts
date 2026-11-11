@@ -16,13 +16,13 @@
  */
 
 // Nav-only metadata (title + icon). Deliberately has no import of
-// ThunderInstancesOrganization or its subcomponents, so consumers that only
+// AgentIdentityOrganization or its subcomponents, so consumers that only
 // need the sidebar icon/label (e.g. navigationItems.tsx) don't pull the page's
 // component tree into their bundle. Route.tsx gets the component separately
 // via a dynamic import() of the package root, which keeps it in its own chunk.
 import { Folder, IdCard, Shield, Bot } from "@wso2/oxygen-ui-icons-react";
 
-export const thunderInstancesMetadata = {
+export const agentIdentityMetadata = {
   title: "Agent ID",
   icon: IdCard,
   children: {

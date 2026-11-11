@@ -32,10 +32,7 @@ import {
 } from "@wso2/oxygen-ui";
 import { AlertTriangle, KeyRound, Plus, Trash } from "@wso2/oxygen-ui-icons-react";
 import { useListIdentityProviders } from "@agent-management-platform/api-client";
-import type {
-  GatewayEnvironmentResponse,
-  IdentityProvider,
-} from "@agent-management-platform/types";
+import type { IdentityProvider } from "@agent-management-platform/types";
 import {
   ManageIdentityProviderDialog,
   type ManageIdentityProviderMode,
@@ -46,14 +43,12 @@ interface GatewayIdentityProvidersCardProps {
   orgId: string;
   gatewayId: string;
   gatewayName: string;
-  environments: GatewayEnvironmentResponse[];
 }
 
 export function GatewayIdentityProvidersCard({
   orgId,
   gatewayId,
   gatewayName,
-  environments,
 }: GatewayIdentityProvidersCardProps) {
   const [hoveredKey, setHoveredKey] = useState<string | null>(null);
   const { canWrite } = useGatewayFeatures();
@@ -71,8 +66,7 @@ export function GatewayIdentityProvidersCard({
   } = useListIdentityProviders({ orgName: orgId });
 
   // The org-wide list returns every provider with its gateway attached; scope to
-  // the gateway being viewed. A provider may appear once per environment its
-  // gateway maps to, so the environment column disambiguates rows.
+  // the gateway being viewed.
   const providers = useMemo(
     () => (providersResp?.list ?? []).filter((p) => p.gatewayId === gatewayId),
     [providersResp, gatewayId],
@@ -90,12 +84,11 @@ export function GatewayIdentityProvidersCard({
     setDialogOpen(true);
   };
 
-  const rowKey = (p: IdentityProvider) =>
-    `${p.environmentName ?? ""}:${p.name}`;
+  const rowKey = (p: IdentityProvider) => p.name;
 
   const lockedGateway = useMemo(
-    () => ({ uuid: gatewayId, name: gatewayName, environments }),
-    [gatewayId, gatewayName, environments],
+    () => ({ uuid: gatewayId, name: gatewayName }),
+    [gatewayId, gatewayName],
   );
 
   const addButton = canWrite ? (
@@ -184,9 +177,7 @@ export function GatewayIdentityProvidersCard({
             <ListingTable.Cell width="220px">Name</ListingTable.Cell>
             <ListingTable.Cell width="110px">Type</ListingTable.Cell>
             <ListingTable.Cell>Issuer</ListingTable.Cell>
-            <ListingTable.Cell width="160px" align="right">
-              Environment
-            </ListingTable.Cell>
+            <ListingTable.Cell width="80px" align="right" />
           </ListingTable.Row>
         </ListingTable.Head>
         <ListingTable.Body>
@@ -238,8 +229,8 @@ export function GatewayIdentityProvidersCard({
                   </Typography>
                 </ListingTable.Cell>
                 <ListingTable.Cell align="right">
-                  {/* Fixed-height container so swapping the environment label for
-                      the delete icon on hover never changes the row height. */}
+                  {/* Fixed-height container so the delete icon appearing on hover
+                      never changes the row height. */}
                   <Stack
                     direction="row"
                     alignItems="center"
@@ -247,7 +238,7 @@ export function GatewayIdentityProvidersCard({
                     justifyContent="flex-end"
                     sx={{ minHeight: 32 }}
                   >
-                    {canWrite && hoveredKey === key && !isSystem ? (
+                    {canWrite && hoveredKey === key && !isSystem && (
                       <Tooltip title="Remove identity provider">
                         <IconButton
                           color="error"
@@ -257,15 +248,6 @@ export function GatewayIdentityProvidersCard({
                           <Trash size={16} />
                         </IconButton>
                       </Tooltip>
-                    ) : (
-                      <Typography
-                        variant="caption"
-                        color="text.secondary"
-                        noWrap
-                        title={provider.environmentName || undefined}
-                      >
-                        {provider.environmentName || "—"}
-                      </Typography>
                     )}
                   </Stack>
                 </ListingTable.Cell>

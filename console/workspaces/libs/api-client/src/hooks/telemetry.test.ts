@@ -83,11 +83,11 @@ describe("normalizeRoute", () => {
   // length put `:roleId` (7 chars) ahead of `create` (6), so the create page
   // was reported as the role-detail page and the two merged into one metric.
   it("prefers a static segment over a parameter at the same depth", () => {
-    expect(normalizeRoute("/org/acme-corp/thunder-instances/roles/create")).toBe(
-      "/org/:orgId/thunder-instances/roles/create",
+    expect(normalizeRoute("/org/acme-corp/agent-identity/roles/create")).toBe(
+      "/org/:orgId/agent-identity/roles/create",
     );
-    expect(normalizeRoute("/org/acme-corp/thunder-instances/roles/billing-admins")).toBe(
-      "/org/:orgId/thunder-instances/roles/:roleId",
+    expect(normalizeRoute("/org/acme-corp/agent-identity/roles/billing-admins")).toBe(
+      "/org/:orgId/agent-identity/roles/:roleId",
     );
   });
 
@@ -99,7 +99,7 @@ describe("normalizeRoute", () => {
 
   it("masks every customer-chosen segment across a deep route", () => {
     const route = normalizeRoute(
-      "/org/acme-corp/project/checkout-service/agents/router-agent/environment/prod-eu-west",
+      "/org/acme-corp/project/checkout-service/agents/router-agent/observability/traces",
     );
     expect(leaksAnyName(route)).toBe(false);
   });

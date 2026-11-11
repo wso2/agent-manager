@@ -21,13 +21,11 @@ import {
   DatePickers,
   Form,
   Grid,
-  MenuItem,
-  Select,
   Slider,
   Stack,
   Typography,
 } from "@wso2/oxygen-ui";
-import { TextInput, FormGridSpacer } from "@agent-management-platform/views";
+import { TextInput } from "@agent-management-platform/views";
 import { History, Timer } from "@wso2/oxygen-ui-icons-react";
 import { type MonitorType } from "@agent-management-platform/types";
 import {
@@ -39,17 +37,11 @@ import { getMonitorTypeFieldPatch } from "../utils/monitorFormUtils";
 
 const SAMPLING_RATE_MARKS = [{ value: 100, label: "100%" }];
 
-export interface EnvironmentOption {
-  name: string;
-  displayName?: string;
-}
-
 interface CreateMonitorFormProps {
   formData: CreateMonitorFormValues;
   errors: Partial<Record<keyof CreateMonitorFormValues, string | undefined>>;
   onFieldChange: (field: keyof CreateMonitorFormValues, value: unknown) => void;
   isTypeEditable?: boolean;
-  environments?: EnvironmentOption[];
 }
 
 export function CreateMonitorForm({
@@ -57,7 +49,6 @@ export function CreateMonitorForm({
   errors,
   onFieldChange,
   isTypeEditable = true,
-  environments = [],
 }: CreateMonitorFormProps) {
   const handleTypeChange = (nextType: MonitorType) => {
     if (!isTypeEditable || formData.type === nextType) {
@@ -70,21 +61,13 @@ export function CreateMonitorForm({
     });
   };
 
-  const hasEnvironmentChoice = environments.length > 1;
-
   return (
     <Form.Stack spacing={3}>
       <Stack spacing={2}>
         <Typography variant="subtitle1">Basic Details</Typography>
         <Grid container spacing={2}>
           {/* Alone on its row it matches the Description width instead of sitting at half. */}
-          <Grid
-            size={
-              hasEnvironmentChoice
-                ? { xs: 12, md: 6, xl: 4 }
-                : { xs: 12, md: 12, xl: 8 }
-            }
-          >
+          <Grid size={{ xs: 12, md: 12, xl: 8 }}>
             <TextInput
               label="Monitor Title"
               id="displayName"
@@ -103,35 +86,6 @@ export function CreateMonitorForm({
               }
             />
           </Grid>
-          {environments.length > 1 && (
-            <Grid size={{ xs: 12, md: 6, xl: 4 }}>
-              <Form.ElementWrapper name="environmentName" label="Environment">
-                <Select
-                  id="environmentName"
-                  fullWidth
-                  value={formData.environmentName ?? ""}
-                  onChange={(event) =>
-                    onFieldChange("environmentName", event.target.value)
-                  }
-                  error={!!errors.environmentName}
-                >
-                  {environments.map((env) => (
-                    <MenuItem key={env.name} value={env.name}>
-                      {env.displayName ?? env.name}
-                    </MenuItem>
-                  ))}
-                </Select>
-                {errors.environmentName && (
-                  <Typography variant="caption" color="error">
-                    {errors.environmentName}
-                  </Typography>
-                )}
-              </Form.ElementWrapper>
-            </Grid>
-          )}
-          {hasEnvironmentChoice && (
-            <FormGridSpacer />
-          )}
           <Grid size={{ xs: 12, md: 12, xl: 8 }}>
             <TextInput
               label="Description (optional)"

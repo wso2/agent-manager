@@ -35,7 +35,7 @@ import {
   Typography,
 } from "@wso2/oxygen-ui";
 import { Folder, Trash, Users } from "@wso2/oxygen-ui-icons-react";
-import { generatePath, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { generatePath, useNavigate, useParams } from "react-router-dom";
 import {
   useListAgentIdentityAgents,
   useListAgentIdentityGroups,
@@ -51,6 +51,7 @@ import {
   absoluteRouteMap,
   type AgentIdentityAgentResponse,
   type ThunderGroup,
+  DEFAULT_ENVIRONMENT
 } from "@agent-management-platform/types";
 import {
   EditFormSkeleton,
@@ -64,7 +65,6 @@ import { AgentNameWithProject } from "./AgentNameWithProject";
 import { useAgentLookup } from "./useAgentLookup";
 import { useAssignmentDelta } from "./useAssignmentDelta";
 import type { ScopeChoice } from "./scopeChoice";
-import { withSearchParams } from "../../utils/withSearchParams";
 
 type ActiveTab = "permissions" | "agents" | "groups";
 
@@ -78,8 +78,6 @@ export const RoleEditPage: React.FC = () => {
     orgId: string;
     roleId: string;
   }>();
-  const [searchParams] = useSearchParams();
-  const envName = searchParams.get("envName") ?? "";
   const navigate = useNavigate();
   const { canWrite } = useResourceAccess("agent_identity");
 
@@ -88,7 +86,7 @@ export const RoleEditPage: React.FC = () => {
   const [saveError, setSaveError] = useState<string | undefined>();
   const [saveSuccess, setSaveSuccess] = useState(false);
 
-  const params = { orgName: orgId, envName, roleId: roleId ?? "" };
+  const params = { orgName: orgId, envName: DEFAULT_ENVIRONMENT, roleId: roleId ?? "" };
 
   const { data: roleData, isLoading: isLoadingRole } = useGetAgentIdentityRole(params);
   const isPermissionsReadOnly = roleData?.isReadOnly ?? false;
@@ -96,15 +94,15 @@ export const RoleEditPage: React.FC = () => {
     useGetAgentIdentityRoleAssignments(params);
   const { data: agentsData, isLoading: isLoadingAgents } = useListAgentIdentityAgents({
     orgName: orgId,
-    envName,
+    envName: DEFAULT_ENVIRONMENT,
   });
   const { data: groupsData, isLoading: isLoadingGroups } = useListAgentIdentityGroups(
-    { orgName: orgId, envName },
+    { orgName: orgId, envName: DEFAULT_ENVIRONMENT },
     { offset: 0, limit: GROUPS_PAGE_SIZE },
   );
   const { data: scopesData, isLoading: isLoadingScopes } = useListAgentIdentityScopes({
     orgName: orgId,
-    envName,
+    envName: DEFAULT_ENVIRONMENT,
   });
 
   const { mutateAsync: addAssignees } = useAddAgentIdentityRoleAssignees();
@@ -150,7 +148,7 @@ export const RoleEditPage: React.FC = () => {
   // Held as bare scope names (not ScopeChoice objects) since every consumer
   // below — the tree, the dirty check, and the save payload — only ever
   // needs the name. A scope assigned to this role may no longer be in the
-  // environment's catalog (its owning proxy may no longer be deployed here);
+  // scope catalog (its owning proxy may no longer be deployed here);
   // keeping just the name means it isn't silently dropped on load and still
   // round-trips correctly if the role is saved.
   const [selectedScopeIds, setSelectedScopeIds] = useState<string[]>([]);
@@ -173,9 +171,9 @@ export const RoleEditPage: React.FC = () => {
   }, [initialScopeNames, isLoadingScopes]);
 
   const rolesNode =
-    absoluteRouteMap.children.org.children.thunderInstances.children.roles;
+    absoluteRouteMap.children.org.children.agentIdentity.children.roles;
   const rolesPath = orgId
-    ? withSearchParams(generatePath(rolesNode.path, { orgId }), searchParams)
+    ? generatePath(rolesNode.path, { orgId })
     : "#";
 
   // --- Derived displayed lists ---
@@ -214,7 +212,7 @@ export const RoleEditPage: React.FC = () => {
 
   // --- Save ---
   const handleSave = async () => {
-    if (!orgId || !envName || !roleId) return;
+    if (!orgId || !roleId) return;
     setSaveError(undefined);
     setSaveSuccess(false);
     setIsSaving(true);
@@ -468,8 +466,8 @@ export const RoleEditPage: React.FC = () => {
                   </Typography>
                   {(groupsData?.total ?? 0) > GROUPS_PAGE_SIZE && (
                     <Alert severity="warning" sx={{ mt: 1 }}>
-                      Showing the first {GROUPS_PAGE_SIZE} of {groupsData?.total} groups in this
-                      environment. The add-group picker below only excludes groups from this page.
+                      Showing the first {GROUPS_PAGE_SIZE} of {groupsData?.total} groups.
+                      The add-group picker below only excludes groups from this page.
                     </Alert>
                   )}
 

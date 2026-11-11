@@ -28,8 +28,6 @@ export interface SubscriptionDraft {
   description: string;
   eventTypes: string[];
   destinationId?: string;
-  envMode: "all" | "selected";
-  envs: string[];
   enabled: boolean;
   /** Where the subscription editor itself returns to. */
   from?: string;

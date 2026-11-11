@@ -16,10 +16,7 @@
  * under the License.
  */
 
-import { useSearchParams } from "react-router-dom";
-import { Alert, CircularProgress, Tab, Tabs, Typography } from "@wso2/oxygen-ui";
-import { usePipelineEnvironmentsState } from "@agent-management-platform/shared-component";
-import { CONFIGURE_ENV_PARAM } from "../../configureTabs";
+import { Typography } from "@wso2/oxygen-ui";
 import { A2AAgentCardPanel } from "./A2AAgentCardPanel";
 
 interface A2AConfigureTabProps {
@@ -29,53 +26,19 @@ interface A2AConfigureTabProps {
   external: boolean;
 }
 
-/** Per-environment A2A agent card settings. */
+/** A2A agent card settings. */
 export function A2AConfigureTab({ orgId, projectId, agentId, external }: A2AConfigureTabProps) {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const { environments, isLoading, isError } = usePipelineEnvironmentsState(orgId, projectId);
-
-  if (isLoading) {
-    return <CircularProgress size={20} />;
-  }
-  if (isError) {
-    return <Alert severity="error">Failed to load environments. Please try again.</Alert>;
-  }
-  if (environments.length === 0) {
-    return <Typography variant="body2" color="text.secondary">No environments are set up for this project.</Typography>;
-  }
-
-  const requestedEnv = searchParams.get(CONFIGURE_ENV_PARAM);
-  const envIndex = Math.max(0, environments.findIndex((env) => env.name === requestedEnv));
-  const envName = environments[envIndex].name;
-  const selectEnv = (index: number) =>
-    setSearchParams((prev) => {
-      const next = new URLSearchParams(prev);
-      next.set(CONFIGURE_ENV_PARAM, environments[index].name);
-      return next;
-    }, { replace: true });
-
   return (
     <>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
         {external
-          ? "If this agent speaks A2A, register its agent card URL in each environment it serves A2A from."
-          : "The platform fetches this agent's card from its gateway in each environment."}
+          ? "If this agent speaks A2A, register its agent card URL."
+          : "The platform fetches this agent's card from its gateway."}
       </Typography>
-      <Tabs
-        value={envIndex}
-        onChange={(_, index: number) => selectEnv(index)}
-        sx={{ borderBottom: 1, borderColor: "divider", mb: 2 }}
-      >
-        {environments.map((env) => (
-          <Tab key={env.name} label={env.displayName ?? env.name} />
-        ))}
-      </Tabs>
       <A2AAgentCardPanel
-        key={envName}
         orgId={orgId}
         projectId={projectId}
         agentId={agentId}
-        envId={envName}
         external={external}
       />
     </>

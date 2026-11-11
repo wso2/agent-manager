@@ -15,7 +15,7 @@
  * under the License.
  */
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   Alert,
   Autocomplete,
@@ -26,12 +26,9 @@ import {
   CircularProgress,
   Divider,
   Form,
-  FormControl,
   Grid,
   IconButton,
   ListingTable,
-  MenuItem,
-  Select,
   Skeleton,
   Stack,
   Tab,
@@ -50,8 +47,8 @@ import {
   ShieldOff,
   Trash,
 } from "@wso2/oxygen-ui-icons-react";
-import { useParams, useSearchParams } from "react-router-dom";
-import { IDENTITY_ENV_PARAM, type ThunderGroup, type ThunderRole } from "@agent-management-platform/types";
+import { useParams } from "react-router-dom";
+import { DEFAULT_ENVIRONMENT, type ThunderGroup, type ThunderRole } from "@agent-management-platform/types";
 import { PageLayout, TextInput } from "@agent-management-platform/views";
 import {
   useAddAgentIdentityGroupMembers,
@@ -59,7 +56,6 @@ import {
   useListAgentIdentityAgents,
   useListAgentIdentityGroups,
   useListAgentIdentityRoles,
-  useListEnvironments,
   useRemoveAgentIdentityGroupMembers,
   useRemoveAgentIdentityRoleAssignees,
 } from "@agent-management-platform/api-client";
@@ -68,7 +64,6 @@ import {
   monospaceInputSx,
   useAgentIdentityCredentials,
   useAgentRolesAndGroups,
-  usePipelineEnvironmentsState,
   useThunderInstanceForEnv,
   useUnsavedChangesGuard,
 } from "@agent-management-platform/shared-component";
@@ -181,7 +176,7 @@ function TabPanel({
 
 /**
  * Shared loading/error/empty fallback for this page's several independent
- * queries (identity binding, Thunder instance, environment list) — each
+ * queries (identity binding, Thunder instance) — each
  * needs the same three-way triage, just with different icons/copy.
  */
 const QueryStateFallback: React.FC<{
@@ -231,18 +226,17 @@ interface AgentIdentitySectionProps {
   orgId: string;
   projectId: string;
   agentId: string;
-  envId: string;
 }
 
 /**
- * Client ID/secret regenerate UI for one environment. The client secret is
+ * Client ID/secret regenerate UI. The client secret is
  * never stored server-side, so the only way to see one is right after a
  * regenerate call — internal agents get it injected straight into the
  * workload instead, but the same regenerate action and client ID display
  * apply to both.
  */
 const AgentIdentitySection: React.FC<AgentIdentitySectionProps> = ({
-  orgId, projectId, agentId, envId,
+  orgId, projectId, agentId,
 }) => {
   const [activeTab, setActiveTab] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
@@ -251,23 +245,23 @@ const AgentIdentitySection: React.FC<AgentIdentitySectionProps> = ({
   const {
     binding, provisioned, isLoading, isError, error,
     revealed, isRegenerating, regenerate: handleRegenerate,
-  } = useAgentIdentityCredentials({ orgId, projectId, agentId, envId });
+  } = useAgentIdentityCredentials({ orgId, projectId, agentId, envId: DEFAULT_ENVIRONMENT });
 
   const {
     thunderInstance,
     isLoading: isLoadingThunderInstance,
     isError: isThunderInstanceError,
     error: thunderInstanceError,
-  } = useThunderInstanceForEnv({ orgId, envId });
+  } = useThunderInstanceForEnv({ orgId, envId: DEFAULT_ENVIRONMENT });
 
   const { data: identityAgentsData, isLoading: isLoadingIdentityAgents } =
-    useListAgentIdentityAgents({ orgName: orgId, envName: envId });
+    useListAgentIdentityAgents({ orgName: orgId, envName: DEFAULT_ENVIRONMENT });
   const { data: allRolesData, isLoading: isLoadingAllRoles } = useListAgentIdentityRoles(
-    { orgName: orgId, envName: envId },
+    { orgName: orgId, envName: DEFAULT_ENVIRONMENT },
     { offset: 0, limit: CATALOG_PAGE_SIZE },
   );
   const { data: allGroupsData, isLoading: isLoadingAllGroups } = useListAgentIdentityGroups(
-    { orgName: orgId, envName: envId },
+    { orgName: orgId, envName: DEFAULT_ENVIRONMENT },
     { offset: 0, limit: CATALOG_PAGE_SIZE },
   );
 
@@ -277,7 +271,7 @@ const AgentIdentitySection: React.FC<AgentIdentitySectionProps> = ({
   const { mutateAsync: removeGroupMembers } = useRemoveAgentIdentityGroupMembers();
 
   const { roles, groups, isLoading: isLoadingRolesAndGroups } = useAgentRolesAndGroups({
-    orgId, projectId, agentId, envId, enabled: provisioned,
+    orgId, projectId, agentId, envId: DEFAULT_ENVIRONMENT, enabled: provisioned,
   });
 
   const thunderAgentId = useMemo(
@@ -335,10 +329,10 @@ const AgentIdentitySection: React.FC<AgentIdentitySectionProps> = ({
   };
 
   const handleSaveChanges = async () => {
-    if (!orgId || !envId || !thunderAgentId) return;
+    if (!orgId || !thunderAgentId) return;
     setSaveError(undefined);
     setIsSaving(true);
-    const envParams = { orgName: orgId, envName: envId };
+    const envParams = { orgName: orgId, envName: DEFAULT_ENVIRONMENT };
 
     // Each pending mutation is tracked with its own id/name/kind so a
     // partial failure (Promise.allSettled, not Promise.all) only clears the
@@ -429,7 +423,7 @@ const AgentIdentitySection: React.FC<AgentIdentitySectionProps> = ({
         isEmptyValue={!binding}
         emptyIcon={<ShieldOff size={56} />}
         emptyTitle="No agent identity"
-        emptyDescription="This environment doesn't have an agent identity yet."
+        emptyDescription="This agent doesn't have an agent identity yet."
       />
     );
   }
@@ -513,7 +507,7 @@ const AgentIdentitySection: React.FC<AgentIdentitySectionProps> = ({
       )}
       {!canEditAssignments && !isLoadingIdentityAgents && (
         <Alert severity="info" sx={{ mx: 2, mt: 2 }}>
-          This agent has no active identity binding in this environment, so roles and groups
+          This agent has no active identity binding, so roles and groups
           cannot be changed yet.
         </Alert>
       )}
@@ -567,7 +561,7 @@ const AgentIdentitySection: React.FC<AgentIdentitySectionProps> = ({
                 isEmptyValue={!thunderInstance}
                 emptyIcon={<ShieldAlert size={56} />}
                 emptyTitle="No identity provider"
-                emptyDescription="No identity provider found for this environment."
+                emptyDescription="No identity provider found."
               />
             ) : (
               <Grid container spacing={2}>
@@ -654,7 +648,7 @@ const AgentIdentitySection: React.FC<AgentIdentitySectionProps> = ({
             onRemove={groupDelta.handleRemove}
             emptyIcon={<Folder size={56} />}
             emptyTitle="No groups assigned"
-            emptyDescription="This agent is not a member of any groups in this environment."
+            emptyDescription="This agent is not a member of any groups."
           />
         </Stack>
       </TabPanel>
@@ -693,7 +687,7 @@ const AgentIdentitySection: React.FC<AgentIdentitySectionProps> = ({
             onRemove={roleDelta.handleRemove}
             emptyIcon={<Shield size={56} />}
             emptyTitle="No roles assigned"
-            emptyDescription="This agent has no role assignments in this environment."
+            emptyDescription="This agent has no role assignments."
           />
         </Stack>
       </TabPanel>
@@ -716,10 +710,8 @@ const AgentIdentitySection: React.FC<AgentIdentitySectionProps> = ({
 
 /**
  * Agent-level "Agent ID" page — client ID/secret/regenerate, roles/groups,
- * and OAuth2 endpoint details for this agent's identity, one environment at
- * a time via the selector below. Linked to from the Overview page's
- * per-environment "Agent ID" section (EnvAgentRolesGroupsSection) as well as
- * the agent's own left-nav.
+ * and OAuth2 endpoint details for this agent's identity. Linked to from the
+ * Overview page's "Agent ID" section as well as the agent's own left-nav.
  */
 export const AgentIdComponent: React.FC = () => {
   const { orgId, projectId, agentId } = useParams<{
@@ -727,99 +719,16 @@ export const AgentIdComponent: React.FC = () => {
     projectId: string;
     agentId: string;
   }>();
-  const [searchParams, setSearchParams] = useSearchParams();
-
-  const {
-    environments: pipelineEnvs,
-    isLoading: isEnvironmentsLoading,
-    isError: isEnvironmentsError,
-  } = usePipelineEnvironmentsState(orgId, projectId);
-  const envNames = useMemo(() => pipelineEnvs.map((env) => env.name), [pipelineEnvs]);
-  const { data: environmentsList = [] } = useListEnvironments({ orgName: orgId });
-  const getEnvDisplayName = (name: string) =>
-    environmentsList.find((env) => env.name === name)?.displayName ?? name;
-
-  const requestedEnvName = searchParams.get(IDENTITY_ENV_PARAM) ?? "";
-  const envName = envNames.includes(requestedEnvName) ? requestedEnvName : (envNames[0] ?? "");
-
-  const setSelectedEnvName = (name: string) => {
-    setSearchParams(
-      (prev) => {
-        const next = new URLSearchParams(prev);
-        next.set(IDENTITY_ENV_PARAM, name);
-        return next;
-      },
-      { replace: true },
-    );
-  };
-
-  // Once environments have loaded, a requested env that doesn't exist (e.g. a
-  // stale/invalid deep link) falls back to envNames[0] above — normalize the
-  // query param to match so the URL and the rendered environment agree,
-  // rather than leaving the query param pointing at an environment that
-  // isn't actually being shown.
-  useEffect(() => {
-    if (envNames.length > 0 && requestedEnvName && !envNames.includes(requestedEnvName)) {
-      setSelectedEnvName(envName);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [envNames, requestedEnvName, envName]);
-
-  const showEnvSelector = envNames.length > 1;
-
-  let content: React.ReactNode;
-  if (isEnvironmentsLoading || isEnvironmentsError || !envName) {
-    content = (
-      <QueryStateFallback
-        isLoading={isEnvironmentsLoading}
-        isError={isEnvironmentsError}
-        errorTitle="Failed to load environments"
-        errorDescription="Something went wrong while loading this agent's environments. Please try again."
-        isEmptyValue={!envName}
-        emptyIcon={<ShieldOff size={56} />}
-        emptyTitle="No environments"
-        emptyDescription="This agent isn't deployed to any environment yet."
-      />
-    );
-  } else {
-    content = (
-      <AgentIdentitySection
-        key={envName}
-        orgId={orgId ?? ""}
-        projectId={projectId ?? ""}
-        agentId={agentId ?? ""}
-        envId={envName}
-      />
-    );
-  }
 
   return (
-    <PageLayout
-      title="Agent ID"
-      disableIcon
-      actions={
-        showEnvSelector ? (
-          <FormControl size="small" sx={{ minWidth: 160 }}>
-            <Select
-              value={envName}
-              onChange={(event) => setSelectedEnvName(event.target.value as string)}
-              renderValue={(value) => (
-                <Typography>
-                  {getEnvDisplayName(value as string)} Environment
-                </Typography>
-              )}
-            >
-              {envNames.map((name) => (
-                <MenuItem key={name} value={name}>
-                  {getEnvDisplayName(name)}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-        ) : undefined
-      }
-    >
-      <Stack spacing={2}>{content}</Stack>
+    <PageLayout title="Agent ID" disableIcon>
+      <Stack spacing={2}>
+        <AgentIdentitySection
+          orgId={orgId ?? ""}
+          projectId={projectId ?? ""}
+          agentId={agentId ?? ""}
+        />
+      </Stack>
     </PageLayout>
   );
 };

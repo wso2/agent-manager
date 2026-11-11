@@ -29,7 +29,10 @@ import { AgentChat } from "./AgentChat";
 vi.mock("@agent-management-platform/api-client", () => ({
   useGetAgent: vi.fn(),
   useGetAgentEndpoints: vi.fn(),
+  useGetAgentConfigurations: vi.fn(() => ({ data: undefined })),
   useTestAgentAPIKey: vi.fn(),
+  useTrack: () => ({ track: vi.fn() }),
+  ConsoleAction: {},
 }));
 
 const pushSnackBar = vi.fn();
@@ -48,7 +51,6 @@ vi.mock("react-router-dom", async (importOriginal) => {
       agentId: "agent-1",
       orgId: "org-1",
       projectId: "proj-1",
-      envId: "env-1",
     }),
   };
 });

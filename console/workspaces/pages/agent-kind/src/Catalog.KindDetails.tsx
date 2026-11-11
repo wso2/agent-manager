@@ -17,12 +17,10 @@
  */
 
 
-import React, { useMemo, useState } from "react";
+import React, { useMemo } from "react";
 import {
   Link,
   generatePath,
-  useLocation,
-  useNavigate,
   useParams,
   useSearchParams,
 } from "react-router-dom";
@@ -31,7 +29,6 @@ import {
   Box,
   Button,
   ListingTable,
-  Menu,
   MenuItem,
   Select,
   SelectChangeEvent,
@@ -43,22 +40,16 @@ import {
   PageLayout,
   DescriptionCard,
   PageMetaItem,
-  returnToState,
 } from "@agent-management-platform/views";
 import { absoluteRouteMap, withBasePath } from "@agent-management-platform/types";
 import { formatRelativeTime, LabelChips, parseOpenApiSpecContent, SwaggerSpecViewer } from "@agent-management-platform/shared-component";
-import { useGetAgentKind, useGetBuild, useListKindAgents, useListProjects, useGetAgentKindVersion } from "@agent-management-platform/api-client";
-import { useFeatureAccess } from "@agent-management-platform/feature-management";
+import { useGetAgentKind, useGetBuild, useListKindAgents, useGetAgentKindVersion } from "@agent-management-platform/api-client";
 import { SectionCard } from "./subComponents/SectionCard";
-import { Clock, ExternalLink, BookOpenText, Plus, Tag } from "@wso2/oxygen-ui-icons-react";
+import { Clock, ExternalLink, BookOpenText, Tag } from "@wso2/oxygen-ui-icons-react";
 
 const KIND_AVATAR = { children: <BookOpenText size={32} />, color: "primary.main" };
 
 export const CatalogKindDetails: React.FC = () => {
-  const navigate = useNavigate();
-  // Add Instance creates an agent, so it follows agent write access.
-  const canCreateAgent = useFeatureAccess("agent_create");
-  const location = useLocation();
   const { kindId, orgId } = useParams<{ kindId: string; orgId: string }>();
 
   const { data: kind, isLoading } = useGetAgentKind({ orgName: orgId, kindName: kindId ?? "" });
@@ -95,12 +86,6 @@ export const CatalogKindDetails: React.FC = () => {
     kindName: kindId ?? "",
   });
 
-  const { data: projectsData, isLoading: isProjectsLoading } = useListProjects({
-    orgName: orgId,
-  });
-
-  const [addInstanceAnchorEl, setAddInstanceAnchorEl] = useState<null | HTMLElement>(null);
-
   const apiSpec = useMemo(
     () => parseOpenApiSpecContent(build?.inputInterface?.schema?.content),
     [build],
@@ -109,38 +94,6 @@ export const CatalogKindDetails: React.FC = () => {
   const backHref = generatePath(absoluteRouteMap.children.org.children.catalog.path, {
     orgId: orgId ?? "",
   });
-
-  const sortedProjects = useMemo(
-    () =>
-      [...(projectsData?.projects ?? [])].sort((a, b) =>
-        (a.displayName || a.name).localeCompare(b.displayName || b.name),
-      ),
-    [projectsData],
-  );
-
-  const handleOpenAddInstanceMenu = (event: React.MouseEvent<HTMLElement>) => {
-    setAddInstanceAnchorEl(event.currentTarget);
-  };
-
-  const handleCloseAddInstanceMenu = () => {
-    setAddInstanceAnchorEl(null);
-  };
-
-  const handleSelectProjectForInstance = (projectName: string) => {
-    const targetPath = generatePath(
-      absoluteRouteMap.children.org.children.projects.children.newAgent
-        .children.create.children.catalog.children.withKind.path,
-      {
-        orgId: orgId ?? "",
-        projectId: projectName,
-        kindId: kindId ?? "",
-      },
-    );
-    const target = selectedVersionTag ?
-      `${targetPath}?version=${encodeURIComponent(selectedVersionTag)}` : targetPath;
-    handleCloseAddInstanceMenu();
-    navigate(target, { state: returnToState(location) });
-  };
 
   const versionSelector = sortedVersions.length > 1 && (
     <Select
@@ -231,42 +184,6 @@ export const CatalogKindDetails: React.FC = () => {
           >
             View source agent
           </Button>
-        ),
-        canCreateAgent && (
-        <React.Fragment key="add-instance-action">
-          <Button
-            startIcon={<Plus />}
-            variant="contained"
-            color="primary"
-            onClick={handleOpenAddInstanceMenu}
-            aria-controls={addInstanceAnchorEl ? "add-instance-menu" : undefined}
-            aria-haspopup="true"
-            aria-expanded={Boolean(addInstanceAnchorEl)}
-          >
-            Add instance
-          </Button>
-          <Menu
-            id="add-instance-menu"
-            anchorEl={addInstanceAnchorEl}
-            open={Boolean(addInstanceAnchorEl)}
-            onClose={handleCloseAddInstanceMenu}
-            anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
-            transformOrigin={{ vertical: "top", horizontal: "right" }}
-          >
-            {isProjectsLoading ? (
-              <MenuItem disabled>Loading projects...</MenuItem>
-            ) : sortedProjects.length > 0 ? (
-              sortedProjects.map((project) => (
-                <MenuItem key={project.name} onClick={() =>
-                  handleSelectProjectForInstance(project.name)}>
-                  {project.displayName || project.name}
-                </MenuItem>
-              ))
-            ) : (
-              <MenuItem disabled>No projects found</MenuItem>
-            )}
-          </Menu>
-        </React.Fragment>
         ),
       ]}
     >

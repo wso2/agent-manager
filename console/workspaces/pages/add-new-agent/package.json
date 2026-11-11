@@ -54,9 +54,7 @@
     "@agent-management-platform/api-client": "workspace:*",
     "@agent-management-platform/types": "workspace:*",
     "@agent-management-platform/feature-management": "workspace:*",
-    "@agent-management-platform/llm-providers": "workspace:*",
     "@agent-management-platform/shared-component": "workspace:*",
-    "@agent-management-platform/agent-kind": "workspace:*",
     "date-fns": "4.1.0",
     "zod": "4.6.7",
     "lodash": "4.18.1"

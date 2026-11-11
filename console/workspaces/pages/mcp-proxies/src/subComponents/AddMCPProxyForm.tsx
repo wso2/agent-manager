@@ -19,7 +19,6 @@ import { useCallback, useState } from "react";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
 import {
   useCreateMCPProxy,
-  useListEnvironments,
 } from "@agent-management-platform/api-client";
 import {
   absoluteRouteMap,
@@ -71,9 +70,6 @@ export function AddMCPProxyForm({ onCancel }: AddMCPProxyFormProps) {
   const navigate = useNavigate();
   const { orgId } = useParams<{ orgId: string }>();
   const createMCPProxy = useCreateMCPProxy();
-  const { data: environments = [] } = useListEnvironments({
-    orgName: orgId ?? "",
-  });
 
   const [proxyName, setProxyName] = useState("");
   const [proxyVersion, setProxyVersion] = useState(DEFAULT_PROXY_VERSION);
@@ -161,9 +157,8 @@ export function AddMCPProxyForm({ onCancel }: AddMCPProxyFormProps) {
 
     const name = proxyName.trim();
 
-    // Each endpoint carries its own upstream, fetched capabilities and default security,
-    // and is bound to one or more environments. The org-level proxy is a grouping and
-    // deploys nothing itself.
+    // Each endpoint carries its own upstream, fetched capabilities and default security.
+    // The org-level proxy is a grouping and deploys nothing itself.
     const body: MCPProxy = {
       id: toHandle(handle || name),
       name,
@@ -304,14 +299,11 @@ export function AddMCPProxyForm({ onCancel }: AddMCPProxyFormProps) {
         <Stack spacing={2}>
           <Typography variant="subtitle1">Endpoints</Typography>
           <Typography variant="body2" color="text.secondary">
-            {environments.length > 1
-              ? "Add a backend endpoint and assign it to one or more environments. Environments without an endpoint are simply left unconfigured."
-              : "Add a backend endpoint for this MCP Server."}
+            Add a backend endpoint for this MCP Server.
           </Typography>
 
           <EndpointsEditorSection
             orgId={orgId ?? ""}
-            environments={environments}
             endpoints={endpoints}
             onEndpointsChange={setEndpoints}
             addOpen={addOpen}

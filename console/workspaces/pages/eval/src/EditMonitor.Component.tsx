@@ -45,11 +45,10 @@ import {
 import type { CreateMonitorFormValues } from "./form/schema";
 
 export const EditMonitorComponent: React.FC = () => {
-  const { orgId, projectId, agentId, envId, monitorId } = useParams<{
+  const { orgId, projectId, agentId, monitorId } = useParams<{
     agentId: string;
     orgId: string;
     projectId: string;
-    envId: string;
     monitorId: string;
   }>();
   const navigate = useNavigate();
@@ -101,15 +100,15 @@ export const EditMonitorComponent: React.FC = () => {
   }, [agentId, monitorId, orgId, projectId]);
 
   const backHref = useMemo(() => {
-    if (!orgId || !projectId || !agentId || !envId) {
+    if (!orgId || !projectId || !agentId) {
       return "#";
     }
     return generatePath(
       absoluteRouteMap.children.org.children.projects.children.agents.children
-        .environment.children.evaluation.children.monitor.path,
-      { orgId, projectId, agentId, envId },
+        .evaluation.children.monitor.path,
+      { orgId, projectId, agentId },
     );
-  }, [agentId, orgId, projectId, envId]);
+  }, [agentId, orgId, projectId]);
 
   const initialValues = useMemo<CreateMonitorFormValues | null>(() => {
     if (!monitorData) {

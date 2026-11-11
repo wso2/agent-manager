@@ -294,10 +294,6 @@ export const PublishedList: React.FC = () => {
   };
 
   const noSucceededBuild = !isBuildsLoading && succeededBuilds.length === 0;
-  const buildPath = generatePath(
-    absoluteRouteMap.children.org.children.projects.children.agents.children.build.path,
-    { orgId: orgId ?? "", projectId: projectId ?? "", agentId: agentId ?? "" },
-  );
 
   // One definition, used both as the page action and as the empty state's CTA.
   const createVersionButton = canWrite ? (
@@ -354,7 +350,7 @@ export const PublishedList: React.FC = () => {
               title={noSucceededBuild ? "Build your agent first" : "Publish your first version"}
               description={
                 noSucceededBuild
-                  ? "A version is published from a successful build, and this agent doesn't have one yet. Build it, then come back to publish."
+                  ? "A version is published from a successful build, and this agent doesn't have one yet."
                   : "Publish a successful build as a version to make this Agent Kind available in the catalog."
               }
               steps={[
@@ -362,15 +358,7 @@ export const PublishedList: React.FC = () => {
                 { label: "Publish", state: noSucceededBuild ? "todo" : "current" },
                 { label: "Catalog", state: "todo" },
               ]}
-              actions={
-                noSucceededBuild ? (
-                  <Button variant="contained" component={Link} to={buildPath}>
-                    Go to Build
-                  </Button>
-                ) : (
-                  createVersionButton
-                )
-              }
+              actions={noSucceededBuild ? undefined : createVersionButton}
             />
           ) : (
             <ListingTable>

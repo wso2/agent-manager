@@ -25,12 +25,11 @@ const configResult = {
   data: {
     name: "",
     type: "mcp",
-    envMappings: { dev: { configuration: { proxyName: "proj-proxy" } } },
+    envMappings: { default: { configuration: { proxyName: "proj-proxy" } } },
   },
   isLoading: false,
   isError: false,
 };
-const envsResult = { data: [], isError: false };
 const proxiesResult = {
   data: { list: [{ id: "proj-proxy", name: "Project Proxy Display", projectName: "p1" }] },
   isLoading: false,
@@ -39,7 +38,6 @@ const orgProxiesResult = {
   data: { list: [{ id: "proj-proxy", name: "Org Proxy Display" }] },
   isLoading: false,
 };
-const pipelineResult = { environments: [], isLoading: false };
 const mutationResult = { mutate: vi.fn(), isPending: false };
 
 vi.mock("@agent-management-platform/api-client", () => ({
@@ -47,14 +45,12 @@ vi.mock("@agent-management-platform/api-client", () => ({
   useGetAgentMCPConfig: vi.fn(() => configResult),
   useGetMCPProxy: vi.fn(() => idle),
   useGetProjectMCPProxy: vi.fn(() => idle),
-  useListEnvironments: vi.fn(() => envsResult),
   useListMCPProxies: vi.fn(() => proxiesResult),
   useListMCPProxyScopes: vi.fn(() => idle),
   useUpdateAgentMCPConfig: vi.fn(() => mutationResult),
 }));
 vi.mock("@agent-management-platform/shared-component", async (orig) => ({
   ...(await orig<Record<string, unknown>>()),
-  usePipelineEnvironmentsState: () => pipelineResult,
   useAgentIdentityCredentials: () => idle,
   useConfirmIfUnsaved: () => (fn: () => void) => fn(),
   useThunderInstanceForEnv: () => idle,
@@ -64,10 +60,6 @@ vi.mock("@agent-management-platform/mcp-proxies", () => ({
   getCapabilityId: () => undefined,
   isToolBlockedByAcl: () => false,
   MCPLogo: () => null,
-}));
-vi.mock("./utils/buildInProgress", () => ({
-  BUILD_IN_PROGRESS_REASON: "",
-  useHasBuildInProgress: () => false,
 }));
 
 import {

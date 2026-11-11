@@ -35,8 +35,8 @@ export const rootRouteMap: AppRoute = {
                     index: true,
                     children: {},
                 },
-                thunderInstances: {
-                    path: 'thunder-instances',
+                agentIdentity: {
+                    path: 'agent-identity',
                     index: true,
                     children: {
                         agents: {
@@ -220,39 +220,6 @@ export const rootRouteMap: AppRoute = {
                     index: true,
                     children: {},
                 },
-                deploymentPipelines: {
-                    path: 'deployment-pipelines',
-                    index: true,
-                    children: {
-                        view: {
-                            path: ':pipelineName',
-                            index: true,
-                            children: {},
-                        },
-                    },
-                },
-                environments: {
-                    path: 'environments',
-                    index: true,
-                    children: {
-                        view: {
-                            path: ':envName',
-                            index: true,
-                            children: {
-                                edit: {
-                                    path: 'edit',
-                                    index: true,
-                                    children: {},
-                                },
-                                identityProvider: {
-                                    path: 'identity-provider',
-                                    index: true,
-                                    children: {},
-                                },
-                            },
-                        },
-                    },
-                },
                 catalog: {
                     path: 'catalog',
                     index: true,
@@ -297,28 +264,6 @@ export const rootRouteMap: AppRoute = {
                             path: 'newAgent',
                             index: true,
                             children: {
-                                create: {
-                                    path: 'create',
-                                    index: true,
-                                    children: {
-                                        catalog: {
-                                            path: 'catalog',
-                                            index: true,
-                                            children: {
-                                                withKind: {
-                                                    path: ':kindId',
-                                                    index: true,
-                                                    children: {},
-                                                },
-                                            },
-                                        },
-                                        source: {
-                                            path: 'source',
-                                            index: true,
-                                            children: {},
-                                        },
-                                    },
-                                },
                                 connect: {
                                     path: 'connect',
                                     index: true,
@@ -383,18 +328,8 @@ export const rootRouteMap: AppRoute = {
                                         },
                                     },
                                 },
-                                build: {
-                                    path: 'build',
-                                    index: true,
-                                    children: {},
-                                },
                                 events: {
                                     path: 'events',
-                                    index: true,
-                                    children: {},
-                                },
-                                deployment: {
-                                    path: "deployment",
                                     index: true,
                                     children: {},
                                 },
@@ -419,96 +354,85 @@ export const rootRouteMap: AppRoute = {
                                         },
                                     },
                                 },
-                                environment: {
-                                    path: "environment/:envId",
-                                    index: false,
+                                evaluation: {
+                                    path: 'evaluation',
+                                    index: true,
                                     children: {
-                                        evaluation: {
-                                            path: 'evaluation',
+                                        monitor: {
+                                            path: 'monitor',
                                             index: true,
                                             children: {
-                                                monitor: {
-                                                    path: 'monitor',
+                                                create: {
+                                                    path: 'create',
+                                                    index: true,
+                                                    children: {},
+                                                },
+                                                view: {
+                                                    path: 'view/:monitorId',
                                                     index: true,
                                                     children: {
-                                                        create: {
-                                                            path: 'create',
+                                                        runs: {
+                                                            path: 'runs',
                                                             index: true,
                                                             children: {},
                                                         },
-                                                        view: {
-                                                            path: 'view/:monitorId',
-                                                            index: true,
-                                                            children: {
-                                                                runs: {
-                                                                    path: 'runs',
-                                                                    index: true,
-                                                                    children: {},
-                                                                },
-                                                            },
-                                                        },
-                                                        edit: {
-                                                            path: 'edit/:monitorId',
-                                                            index: true,
-                                                            children: {},
-                                                        },
-                                                        compare: {
-                                                            path: 'compare/:monitorId',
-                                                            index: true,
-                                                            children: {},
-                                                        }
                                                     },
+                                                },
+                                                edit: {
+                                                    path: 'edit/:monitorId',
+                                                    index: true,
+                                                    children: {},
+                                                },
+                                                compare: {
+                                                    path: 'compare/:monitorId',
+                                                    index: true,
+                                                    children: {},
                                                 }
                                             },
-                                        },
-                                        deploy: {
-                                            path: 'deploy',
+                                        }
+                                    },
+                                },
+                                security: {
+                                    path: "security",
+                                    index: true,
+                                    children: {},
+                                },
+                                tryOut: {
+                                    path: 'tryOut',
+                                    index: true,
+                                    children: {
+                                        api: {
+                                            path: 'api',
                                             index: true,
                                             children: {},
                                         },
-                                        security: {
-                                            path: "security",
+                                        chat: {
+                                            path: 'chat',
                                             index: true,
                                             children: {},
                                         },
-                                        tryOut: {
-                                            path: 'tryOut',
+                                    },
+                                },
+                                observability: {
+                                    path: 'observability',
+                                    index: true,
+                                    children: {
+                                        traces: {
+                                            path: 'traces',
                                             index: true,
-                                            children: {
-                                                api: {
-                                                    path: 'api',
-                                                    index: true,
-                                                    children: {},
-                                                },
-                                                chat: {
-                                                    path: 'chat',
-                                                    index: true,
-                                                    children: {},
-                                                },
-                                            },
+                                            children: {},
                                         },
-                                        observability: {
-                                            path: 'observability',
+                                        logs: {
+                                            path: 'logs',
                                             index: true,
-                                            children: {
-                                                traces: {
-                                                    path: 'traces',
-                                                    index: true,
-                                                    children: {},
-                                                },
-                                                logs: {
-                                                    path: 'logs',
-                                                    index: true,
-                                                    children: {},
-                                                },
-                                                metrics: {
-                                                    path: 'metrics',
-                                                    index: true,
-                                                    children: {},
-                                                },
-                                            },
+                                            children: {},
                                         },
-                                    }
+                                        metrics: {
+                                            path: 'metrics',
+                                            index: true,
+                                            children: {},
+                                        },
+                                    },
                                 },
                             },
                         },

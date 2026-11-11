@@ -141,22 +141,11 @@ export const ViewGateway: React.FC = () => {
             </Card>
 
             <Grid container spacing={2}>
-              <Grid size={{ xs: 12, sm: 6 }}>
+              <Grid size={{ xs: 12 }}>
                 <Card variant="outlined" sx={{ p: 2, height: "100%" }}>
                   <Stack spacing={0.5}>
                     <Skeleton variant="text" width="30%" height={14} />
                     <Skeleton variant="text" width="80%" height={20} />
-                  </Stack>
-                </Card>
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <Card variant="outlined" sx={{ p: 2, height: "100%" }}>
-                  <Stack spacing={0.5}>
-                    <Skeleton variant="text" width="35%" height={14} />
-                    <Stack direction="row" spacing={0.5}>
-                      <Skeleton variant="rounded" width={80} height={24} />
-                      <Skeleton variant="rounded" width={80} height={24} />
-                    </Stack>
                   </Stack>
                 </Card>
               </Grid>
@@ -187,7 +176,7 @@ export const ViewGateway: React.FC = () => {
         {gateway && !error && (
           <Stack spacing={3}>
             <Grid container spacing={2}>
-              <Grid size={{ xs: 12, sm: 6 }}>
+              <Grid size={{ xs: 12 }}>
                 <Card variant="outlined" sx={{ p: 2, height: "100%" }}>
                   <Stack spacing={0.5}>
                     <Typography
@@ -203,40 +192,6 @@ export const ViewGateway: React.FC = () => {
                     >
                       {gateway.vhost}
                     </Typography>
-                  </Stack>
-                </Card>
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <Card variant="outlined" sx={{ p: 2, height: "100%" }}>
-                  <Stack spacing={0.5}>
-                    <Typography
-                      variant="caption"
-                      color="text.secondary"
-                      sx={{ fontWeight: 500 }}
-                    >
-                      Environments
-                    </Typography>
-                    {gateway.environments && gateway.environments.length > 0 ? (
-                      <Stack
-                        direction="row"
-                        spacing={0.5}
-                        flexWrap="wrap"
-                        useFlexGap
-                      >
-                        {gateway.environments.map((env) => (
-                          <Chip
-                            key={env.id}
-                            label={env.displayName || env.name}
-                            size="small"
-                            variant="outlined"
-                          />
-                        ))}
-                      </Stack>
-                    ) : (
-                      <Typography variant="body2" color="text.secondary">
-                        —
-                      </Typography>
-                    )}
                   </Stack>
                 </Card>
               </Grid>
@@ -263,7 +218,6 @@ export const ViewGateway: React.FC = () => {
                 orgId={orgId ?? ""}
                 gatewayId={gateway.uuid}
                 gatewayName={gateway.displayName || gateway.name}
-                environments={gateway.environments ?? []}
               />
             )}
           </Stack>

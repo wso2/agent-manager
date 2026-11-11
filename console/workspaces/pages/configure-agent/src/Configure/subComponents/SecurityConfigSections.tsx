@@ -1,0 +1,731 @@
+/**
+ * Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
+ *
+ * WSO2 LLC. licenses this file to you under the Apache License,
+ * Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import {
+  useGetAgent,
+  useListEnvironmentIdentityProviders,
+} from "@agent-management-platform/api-client";
+import {
+  DEFAULT_ENVIRONMENT,
+  type ConfigurationResponse,
+  type UpdateAgentDeploySettingsRequest,
+  INPUT_LIMITS,
+} from "@agent-management-platform/types";
+import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
+  Alert,
+  Autocomplete,
+  Box,
+  Checkbox,
+  Chip,
+  Collapse,
+  Form,
+  FormControl,
+  FormControlLabel,
+  FormHelperText,
+  FormLabel,
+  Grid,
+  MenuItem,
+  Radio,
+  RadioGroup,
+  Select,
+  Switch,
+  TextField,
+  Tooltip,
+  Typography,
+} from "@wso2/oxygen-ui";
+import { ChevronDown, Info } from "@wso2/oxygen-ui-icons-react";
+import { isExternalAgent, servesA2A } from "@agent-management-platform/views";
+import { ConfigSection } from "@agent-management-platform/shared-component";
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useState,
+} from "react";
+import {
+  AgentCardCorsSection,
+  agentCardCorsSummary,
+  cardDraftFromConfig,
+  cardDraftToPayload,
+  isCardDraftInvalid,
+  type AgentCardCorsDraft,
+} from "./AgentCardCorsSection";
+
+const DEFAULT_RESILIENCE_TIMEOUT_SECONDS = 30;
+const MIN_RESILIENCE_TIMEOUT_SECONDS = 1;
+const MAX_RESILIENCE_TIMEOUT_SECONDS = 3600;
+const DEFAULT_CORS_METHODS = ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"];
+const DEFAULT_CORS_HEADERS = ["authorization", "Content-Type", "Origin", "X-API-Key"];
+// The gateway rejects A2A operations without this header, so AMS always allows it for A2A
+// agents; it is shown but never edited or sent.
+const A2A_VERSION_HEADER = "A2A-Version";
+const isA2AVersionHeader = (header: string) =>
+  header.toLowerCase() === A2A_VERSION_HEADER.toLowerCase();
+const FORWARDED_TOKEN_HEADER = "x-forwarded-authorization";
+
+type TimeoutUnit = "seconds" | "minutes";
+
+// Displays a persisted seconds value in the larger unit when it divides evenly, purely so the
+// input doesn't show "600" when "10 minutes" reads more naturally — the persisted value is
+// always seconds regardless of which unit the user views/edits it in.
+function toDurationAndUnit(seconds: number): { duration: string; unit: TimeoutUnit } {
+  if (seconds >= 60 && seconds % 60 === 0) {
+    return { duration: String(seconds / 60), unit: "minutes" };
+  }
+  return { duration: String(seconds), unit: "seconds" };
+}
+
+export interface SecurityConfigHandle {
+  // Returns true when the current selection is valid (e.g. OAuth has an issuer).
+  validate: () => boolean;
+  // Builds the security portion of the deploy-settings body to merge into the drawer's Apply.
+  buildBody: () => Partial<UpdateAgentDeploySettingsRequest>;
+}
+
+interface SecurityConfigSectionsProps {
+  orgName: string;
+  projName: string;
+  agentName: string;
+  open: boolean;
+  disabled?: boolean;
+  // Configuration used to seed CORS + Endpoint Authentication: the GET /configurations
+  // response, not GetAgent.
+  configurations?: ConfigurationResponse;
+  // Fires whenever validity changes so the parent can enable/disable its Apply button reactively
+  // (the imperative validate() alone can't drive re-renders).
+  onValidityChange?: (valid: boolean) => void;
+}
+
+// CORS + Endpoint Authentication form sections, extracted so they can be composed into the unified
+// "Configurations and Secrets" drawer. Owns its own draft state; the parent collects the payload
+// via the imperative handle on Apply.
+export const SecurityConfigSections = forwardRef<SecurityConfigHandle, SecurityConfigSectionsProps>(
+  (
+    { orgName, projName, agentName, open, disabled, configurations, onValidityChange },
+    ref,
+  ) => {
+    // GetAgent is used only for the agent type; CORS + Auth are seeded from the
+    // `configurations` prop below.
+    const { data: agent } = useGetAgent({ orgName, projName, agentName });
+    // A proxied external agent takes inbound auth and CORS at the gateway, like an API agent.
+    const hasGatewayPolicies = agent?.agentType?.type === "agent-api" || isExternalAgent(agent);
+    const isA2AAgent = servesA2A(agent);
+    // A proxied external agent is a third-party origin, so it never receives our IdP's tokens.
+    const canForwardToken = !isExternalAgent(agent);
+
+    const { data: idpResp } = useListEnvironmentIdentityProviders({
+      orgName,
+      environmentId: open && hasGatewayPolicies ? DEFAULT_ENVIRONMENT : undefined,
+    });
+    const identityProviderOptions = useMemo(
+      () => (idpResp?.list ?? []).map((p) => p.name),
+      [idpResp],
+    );
+    const hasIdentityProviders = identityProviderOptions.length > 0;
+
+    const [authMode, setAuthMode] = useState<"none" | "apikey" | "oauth">("apikey");
+    const [oauthIssuers, setOauthIssuers] = useState<string[]>([]);
+    const [oauthAudiences, setOauthAudiences] = useState<string[]>([]);
+    const [oauthHeaderName, setOauthHeaderName] = useState<string>("Authorization");
+    const [oauthHeaderPrefix, setOauthHeaderPrefix] = useState<string>("Bearer");
+    const [oauthForwardToken, setOauthForwardToken] = useState<boolean>(true);
+
+    const [corsEnabled, setCorsEnabled] = useState(false);
+    const [corsAllowAll, setCorsAllowAll] = useState(true);
+    const [corsOrigins, setCorsOrigins] = useState<string[]>(["*"]);
+    const [corsMethods, setCorsMethods] = useState<string[]>(DEFAULT_CORS_METHODS);
+    const [corsHeaders, setCorsHeaders] = useState<string[]>(DEFAULT_CORS_HEADERS);
+    const [corsAllowCredentials, setCorsAllowCredentials] = useState(false);
+    const [timeoutDuration, setTimeoutDuration] = useState("30");
+    const [timeoutUnit, setTimeoutUnit] = useState<TimeoutUnit>("seconds");
+    const [cardDraft, setCardDraft] = useState<AgentCardCorsDraft>(() => cardDraftFromConfig());
+
+    useEffect(() => {
+      if (!open) return;
+      const seconds =
+        configurations?.resilienceTimeoutSeconds ?? DEFAULT_RESILIENCE_TIMEOUT_SECONDS;
+      const { duration, unit } = toDurationAndUnit(seconds);
+      setTimeoutDuration(duration);
+      setTimeoutUnit(unit);
+    }, [open, configurations?.resilienceTimeoutSeconds]);
+
+    // Seed CORS from the env-scoped config on open; reset to defaults when no persisted config
+    // exists so stale edits from a previous open don't leak across reopens.
+    useEffect(() => {
+      if (!open) return;
+      const cors = configurations?.corsConfig;
+      if (!cors) {
+        setCorsEnabled(false);
+        setCorsAllowAll(true);
+        setCorsOrigins(["*"]);
+        setCorsMethods(DEFAULT_CORS_METHODS);
+        setCorsHeaders(DEFAULT_CORS_HEADERS);
+        setCorsAllowCredentials(false);
+        return;
+      }
+      if (cors.enabled !== undefined) setCorsEnabled(cors.enabled);
+      if (cors.allowOrigin !== undefined) {
+        const isWildcard = cors.allowOrigin.length === 1 && cors.allowOrigin[0] === "*";
+        setCorsAllowAll(isWildcard);
+        setCorsOrigins(cors.allowOrigin);
+      }
+      if (cors.allowMethods !== undefined) setCorsMethods(cors.allowMethods);
+      if (cors.allowHeaders !== undefined) setCorsHeaders(cors.allowHeaders);
+      if (cors.allowCredentials !== undefined) setCorsAllowCredentials(cors.allowCredentials);
+    }, [open, configurations?.corsConfig]);
+
+    // Seed the Agent Card CORS draft from the env-scoped config on open; defaults to inherit
+    // when no config exists yet.
+    useEffect(() => {
+      if (!open) return;
+      setCardDraft(cardDraftFromConfig(configurations?.agentCardCorsConfig));
+    }, [open, configurations?.agentCardCorsConfig]);
+
+    // Seed Endpoint Authentication from the env-scoped config on open.
+    useEffect(() => {
+      if (!open) return;
+      const cfg = configurations;
+      if (cfg?.enableOAuthSecurity) {
+        setAuthMode("oauth");
+      } else if (cfg?.enableApiKeySecurity) {
+        setAuthMode("apikey");
+      } else if (cfg?.enableApiKeySecurity === false) {
+        setAuthMode("none");
+      } else {
+        setAuthMode("apikey");
+      }
+      const oauth = cfg?.oauthConfig;
+      setOauthIssuers(oauth?.issuers ?? []);
+      setOauthAudiences(oauth?.audiences ?? []);
+      setOauthHeaderName(oauth?.headerName || "Authorization");
+      setOauthHeaderPrefix(oauth?.authHeaderPrefix || "Bearer");
+      setOauthForwardToken(oauth?.forwardToken ?? true);
+      // Seed on open from the specific auth fields; depending on the whole `configurations`
+      // object would re-seed on unrelated config changes.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [
+      open,
+      configurations?.enableApiKeySecurity,
+      configurations?.enableOAuthSecurity,
+      configurations?.oauthConfig,
+    ]);
+
+    const forwardToken = canForwardToken && oauthForwardToken;
+    const hasWildcardOrigin = corsAllowAll || corsOrigins.includes("*");
+    const editableCorsHeaders = isA2AAgent
+      ? corsHeaders.filter((header) => !isA2AVersionHeader(header))
+      : corsHeaders;
+    const cardInvalid = isA2AAgent && isCardDraftInvalid(cardDraft);
+    const oauthInvalid = hasGatewayPolicies && authMode === "oauth" && oauthIssuers.length === 0;
+
+    const resilienceTimeoutSeconds = timeoutUnit === "minutes"
+      ? Number(timeoutDuration) * 60
+      : Number(timeoutDuration);
+    const timeoutInvalid = hasGatewayPolicies && !isA2AAgent && (
+      timeoutDuration.trim() === ""
+      || !Number.isFinite(resilienceTimeoutSeconds)
+      || !Number.isInteger(resilienceTimeoutSeconds)
+      || resilienceTimeoutSeconds < MIN_RESILIENCE_TIMEOUT_SECONDS
+      || resilienceTimeoutSeconds > MAX_RESILIENCE_TIMEOUT_SECONDS
+    );
+
+
+    const handleTimeoutBlur = () => {
+      if (!timeoutInvalid) return;
+      setTimeoutDuration(String(DEFAULT_RESILIENCE_TIMEOUT_SECONDS));
+      setTimeoutUnit("seconds");
+    };
+
+    useEffect(() => {
+      onValidityChange?.(!oauthInvalid && !timeoutInvalid && !cardInvalid);
+    }, [oauthInvalid, timeoutInvalid, cardInvalid, onValidityChange]);
+
+    useImperativeHandle(
+      ref,
+      () => ({
+        validate: () => !oauthInvalid && !timeoutInvalid && !cardInvalid,
+        buildBody: () => {
+          if (!hasGatewayPolicies) return {};
+          return {
+            enableApiKeySecurity: authMode === "apikey",
+            enableOAuthSecurity: authMode === "oauth",
+            ...(authMode === "oauth" && {
+              oauthConfig: {
+                issuers: oauthIssuers,
+                audiences: oauthAudiences,
+                headerName: oauthHeaderName.trim() || "Authorization",
+                authHeaderPrefix: oauthHeaderPrefix.trim() || "Bearer",
+                forwardToken,
+              },
+            }),
+            corsConfig: {
+              enabled: corsEnabled,
+              allowOrigin: hasWildcardOrigin ? ["*"] : corsOrigins,
+              allowMethods: corsMethods,
+              allowHeaders: editableCorsHeaders,
+              allowCredentials: hasWildcardOrigin ? false : corsAllowCredentials,
+            },
+            ...(!isA2AAgent && {
+              resilienceTimeoutSeconds: timeoutInvalid
+                ? DEFAULT_RESILIENCE_TIMEOUT_SECONDS
+                : resilienceTimeoutSeconds,
+            }),
+            ...(isA2AAgent && { agentCardCorsConfig: cardDraftToPayload(cardDraft) }),
+          };
+        },
+      }),
+      [
+        hasGatewayPolicies, oauthInvalid, authMode, oauthIssuers, oauthAudiences, oauthHeaderName,
+        oauthHeaderPrefix, forwardToken, corsEnabled, corsOrigins, corsMethods,
+        corsAllowCredentials, hasWildcardOrigin, timeoutInvalid,
+        resilienceTimeoutSeconds, isA2AAgent, editableCorsHeaders, cardDraft, cardInvalid,
+      ],
+    );
+
+    // What each closed section shows on the right of its heading.
+    const authSummary = authMode === "oauth" ? "OAuth" : authMode === "apikey" ? "API key" : "None";
+    // A "*" in the origins list allows all origins too, as the saved policy does.
+    const corsSummary = !corsEnabled
+      ? "Off"
+      : hasWildcardOrigin
+        ? "On · all origins"
+        : `On · ${corsOrigins.length} origin${corsOrigins.length === 1 ? "" : "s"}`;
+    const timeoutSummary = `${timeoutDuration} ${timeoutUnit}`;
+
+    if (!hasGatewayPolicies) return null;
+
+    return (
+      <>
+        {/* ── Endpoint Authentication ──────────────────────────────── */}
+        <ConfigSection title="Endpoint Authentication" summary={authSummary} hasError={oauthInvalid}>
+          <Form.Subheader>
+            Choose how callers authenticate against this agent endpoint.
+          </Form.Subheader>
+          <Form.Stack spacing={1}>
+            <FormControl>
+              <RadioGroup
+                value={authMode}
+                onChange={(_, value) => {
+                  const mode = value as "none" | "apikey" | "oauth";
+                  setAuthMode(mode);
+                  if (mode === "oauth" && oauthIssuers.length === 0 && hasIdentityProviders) {
+                    setOauthIssuers(identityProviderOptions);
+                  }
+                }}
+              >
+                <FormControlLabel
+                  value="none"
+                  control={<Radio disabled={disabled} />}
+                  label="No authentication"
+                />
+                <FormControlLabel
+                  value="apikey"
+                  control={<Radio disabled={disabled} />}
+                  label="API key"
+                />
+                <FormControlLabel
+                  value="oauth"
+                  control={<Radio disabled={disabled || !hasIdentityProviders} />}
+                  label={
+                    hasIdentityProviders
+                      ? "OAuth"
+                      : "OAuth — configure an identity provider first"
+                  }
+                />
+              </RadioGroup>
+            </FormControl>
+
+            {isA2AAgent && authMode === "none" && (
+              <Alert severity="warning">
+                <Typography variant="caption">
+                  This agent can be called by anyone who can reach the gateway, and the extended
+                  Agent Card (GetExtendedAgentCard) will always return 401.
+                </Typography>
+              </Alert>
+            )}
+
+            <Collapse in={authMode === "apikey"}>
+              <FormControl fullWidth sx={{ mt: 1 }}>
+                <FormLabel>Header</FormLabel>
+                <TextField value="X-API-Key" size="small" fullWidth disabled />
+              </FormControl>
+            </Collapse>
+
+            <Collapse in={authMode === "oauth"}>
+              <Form.Stack spacing={2} sx={{ mt: 1 }}>
+                {!hasIdentityProviders && (
+                  <Alert severity="warning">
+                    <Typography variant="caption">
+                      No identity providers are configured. Add one under Security &rarr;
+                      Identity Providers first.
+                    </Typography>
+                  </Alert>
+                )}
+                <FormControl fullWidth error={oauthInvalid}>
+                  <FormLabel>Identity Providers</FormLabel>
+                  <Autocomplete
+                    multiple
+                    options={identityProviderOptions}
+                    value={oauthIssuers}
+                    onChange={(_, v) => setOauthIssuers(v as string[])}
+                    disabled={disabled || !hasIdentityProviders}
+                    renderTags={(vals, getTagProps) =>
+                      vals.map((opt, i) => (
+                        <Chip
+                          label={opt as string}
+                          size="small"
+                          {...getTagProps({ index: i })}
+                          key={opt as string}
+                        />
+                      ))
+                    }
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        size="small"
+                        error={oauthInvalid}
+                        placeholder={oauthIssuers.length === 0 ? "Select identity providers" : ""}
+                      />
+                    )}
+                  />
+                  {oauthInvalid && (
+                    <FormHelperText>Select at least one identity provider.</FormHelperText>
+                  )}
+                </FormControl>
+
+                <FormControl fullWidth>
+                  <FormLabel>Audiences</FormLabel>
+                  <Autocomplete
+                    multiple
+                    freeSolo
+                    options={[]}
+                    value={oauthAudiences}
+                    onChange={(_, v) => setOauthAudiences(v as string[])}
+                    disabled={disabled}
+                    renderTags={(vals, getTagProps) =>
+                      vals.map((opt, i) => (
+                        <Chip
+                          label={opt as string}
+                          size="small"
+                          {...getTagProps({ index: i })}
+                          key={opt as string}
+                        />
+                      ))
+                    }
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        size="small"
+                        placeholder={
+                          oauthAudiences.length === 0 ? "Add accepted audience (aud) values" : ""
+                        }
+                      />
+                    )}
+                  />
+                  <FormHelperText>
+                    Accepted token audiences (aud claim). Leave empty to disable audience
+                    validation.
+                  </FormHelperText>
+                </FormControl>
+
+                <Box display="flex" gap={2}>
+                  <FormControl fullWidth>
+                    <FormLabel>Header name</FormLabel>
+                    <TextField
+                      slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.KEY } }}
+                      size="small"
+                      fullWidth
+                      value={oauthHeaderName}
+                      disabled={disabled}
+                      onChange={(e) => setOauthHeaderName(e.target.value)}
+                      placeholder="Authorization"
+                    />
+                  </FormControl>
+                  <FormControl fullWidth>
+                    <FormLabel>Auth header prefix</FormLabel>
+                    <TextField
+                      slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.VALUE } }}
+                      size="small"
+                      fullWidth
+                      value={oauthHeaderPrefix}
+                      disabled={disabled}
+                      onChange={(e) => setOauthHeaderPrefix(e.target.value)}
+                      placeholder="Bearer"
+                    />
+                  </FormControl>
+                </Box>
+
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={forwardToken}
+                      onChange={(_, checked) => setOauthForwardToken(checked)}
+                      disabled={disabled || !canForwardToken}
+                    />
+                  }
+                  label={
+                    <Box display="flex" alignItems="center" gap={0.5}>
+                      Forward token to upstream
+                      <Tooltip
+                        title={`Sent to upstream as ${FORWARDED_TOKEN_HEADER} (original header removed).`}
+                      >
+                        <Box display="flex" color="text.secondary">
+                          <Info size={14} />
+                        </Box>
+                      </Tooltip>
+                    </Box>
+                  }
+                />
+                <Typography variant="caption" color="text.secondary" sx={{ mt: -1 }}>
+                  {canForwardToken
+                    ? "Forward the token header to the upstream service after validation. Disable to strip it before proxying."
+                    : "The token is never forwarded to an external agent. It is stripped after validation."}
+                </Typography>
+              </Form.Stack>
+            </Collapse>
+          </Form.Stack>
+        </ConfigSection>
+
+        {/* ── CORS ─────────────────────────────────────────────────── */}
+        <ConfigSection title="CORS Configuration" summary={corsSummary}>
+          <Form.Subheader>
+            Control which origins, methods, and headers may access this endpoint.
+          </Form.Subheader>
+          <Form.Stack spacing={1}>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={corsEnabled}
+                  onChange={(_, checked) => setCorsEnabled(checked)}
+                  disabled={disabled}
+                />
+              }
+              label="Enable CORS"
+            />
+            {isA2AAgent && (
+              <Box display="flex" alignItems="center" gap={1}>
+                <Tooltip title="Required by A2A clients; always sent.">
+                  <Chip label={A2A_VERSION_HEADER} size="small" />
+                </Tooltip>
+                <Typography variant="caption" color="text.secondary">
+                  Always an allowed header for A2A agents.
+                </Typography>
+              </Box>
+            )}
+            <Collapse in={corsEnabled}>
+              <Accordion
+                disableGutters
+                elevation={0}
+                sx={{
+                  mt: 1,
+                  border: "1px solid",
+                  borderColor: "divider",
+                  borderRadius: 1,
+                  "&:before": { display: "none" },
+                }}
+              >
+                <AccordionSummary expandIcon={<ChevronDown size={16} />}>
+                  <Typography variant="body2">Advanced</Typography>
+                </AccordionSummary>
+                <AccordionDetails>
+                  <Form.Stack spacing={2}>
+                    <Box display="flex" gap={2} alignItems="center">
+                      <FormControlLabel
+                        control={
+                          <Checkbox
+                            checked={corsAllowAll}
+                            onChange={(_, checked) => {
+                              setCorsAllowAll(checked);
+                              if (checked) {
+                                setCorsAllowCredentials(false);
+                                setCorsOrigins(["*"]);
+                              } else {
+                                setCorsOrigins((prev) => prev.filter((o) => o !== "*"));
+                              }
+                            }}
+                            disabled={disabled}
+                          />
+                        }
+                        label="Allow all origins"
+                      />
+                      <FormControlLabel
+                        control={
+                          <Checkbox
+                            checked={corsAllowCredentials}
+                            onChange={(_, checked) => setCorsAllowCredentials(checked)}
+                            disabled={disabled || hasWildcardOrigin}
+                          />
+                        }
+                        label="Allow credentials"
+                      />
+                    </Box>
+                    {!corsAllowAll && (
+                      <FormControl fullWidth>
+                        <FormLabel>Allowed origins</FormLabel>
+                        <Autocomplete
+                          multiple
+                          freeSolo
+                          options={[]}
+                          value={corsOrigins}
+                          onChange={(_, v) => setCorsOrigins(v as string[])}
+                          renderTags={(vals, getTagProps) =>
+                            vals.map((opt, i) => (
+                              <Chip
+                                label={opt as string}
+                                size="small"
+                                {...getTagProps({ index: i })}
+                                key={opt as string}
+                              />
+                            ))
+                          }
+                          renderInput={(params) => (
+                            <TextField {...params} size="small" placeholder="Add origin and press Enter"
+                              slotProps={{
+                                htmlInput: { ...params.inputProps, maxLength: INPUT_LIMITS.URL },
+                              }}
+                            />
+                          )}
+                        />
+                      </FormControl>
+                    )}
+                    <FormControl fullWidth>
+                      <FormLabel>Allowed methods</FormLabel>
+                      <Autocomplete
+                        multiple
+                        freeSolo
+                        options={[]}
+                        value={corsMethods}
+                        onChange={(_, v) => setCorsMethods(v as string[])}
+                        renderTags={(vals, getTagProps) =>
+                          vals.map((opt, i) => (
+                            <Chip
+                              label={opt as string}
+                              size="small"
+                              {...getTagProps({ index: i })}
+                              key={opt as string}
+                            />
+                          ))
+                        }
+                        renderInput={(params) => (
+                          <TextField {...params} size="small" placeholder="Add method and press Enter"
+                            slotProps={{
+                              htmlInput: { ...params.inputProps, maxLength: INPUT_LIMITS.KEY },
+                            }}
+                          />
+                        )}
+                      />
+                    </FormControl>
+                    <FormControl fullWidth>
+                      <FormLabel>Allowed headers</FormLabel>
+                      <Autocomplete
+                        multiple
+                        freeSolo
+                        options={[]}
+                        value={editableCorsHeaders}
+                        onChange={(_, v) => setCorsHeaders(v as string[])}
+                        renderTags={(vals, getTagProps) =>
+                          vals.map((opt, i) => (
+                            <Chip
+                              label={opt as string}
+                              size="small"
+                              {...getTagProps({ index: i })}
+                              key={opt as string}
+                            />
+                          ))
+                        }
+                        renderInput={(params) => (
+                          <TextField {...params} size="small" placeholder="Add header and press Enter"
+                            slotProps={{
+                              htmlInput: { ...params.inputProps, maxLength: INPUT_LIMITS.KEY },
+                            }}
+                          />
+                        )}
+                      />
+                    </FormControl>
+                  </Form.Stack>
+                </AccordionDetails>
+              </Accordion>
+            </Collapse>
+          </Form.Stack>
+        </ConfigSection>
+
+        {isA2AAgent && (
+          <ConfigSection
+            title="Agent Card CORS"
+            summary={agentCardCorsSummary(cardDraft)}
+            hasError={cardInvalid}
+          >
+            <AgentCardCorsSection draft={cardDraft} onChange={setCardDraft} disabled={disabled} />
+          </ConfigSection>
+        )}
+
+        {!isA2AAgent && (
+          <ConfigSection title="Request Timeout" summary={timeoutSummary} hasError={timeoutInvalid}>
+            <Form.Subheader>
+              Maximum duration an active connection can stay open between the agent and client
+            </Form.Subheader>
+            <Grid container spacing={2}>
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <FormControl fullWidth size="small" error={timeoutInvalid}>
+                  <FormLabel>Duration</FormLabel>
+                  <TextField
+                    size="small"
+                    type="number"
+                    placeholder="e.g. 30"
+                    value={timeoutDuration}
+                    onChange={(e) => setTimeoutDuration(e.target.value)}
+                    onBlur={handleTimeoutBlur}
+                    disabled={disabled}
+                    error={timeoutInvalid}
+                    helperText={
+                      timeoutInvalid
+                        ? `Enter a duration between ${MIN_RESILIENCE_TIMEOUT_SECONDS}s and `
+                          + `${MAX_RESILIENCE_TIMEOUT_SECONDS / 60}m`
+                        : undefined
+                    }
+                    slotProps={{ input: { inputProps: { min: 1, step: 1 } } }}
+                  />
+                </FormControl>
+              </Grid>
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <FormControl fullWidth size="small">
+                  <FormLabel>Unit</FormLabel>
+                  <Select
+                    size="small"
+                    value={timeoutUnit}
+                    onChange={(e) => setTimeoutUnit(e.target.value as TimeoutUnit)}
+                    disabled={disabled}
+                  >
+                    <MenuItem value="seconds">Seconds</MenuItem>
+                    <MenuItem value="minutes">Minutes</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+            </Grid>
+          </ConfigSection>
+        )}
+      </>
+    );
+  },
+);
+
+SecurityConfigSections.displayName = "SecurityConfigSections";

@@ -25,7 +25,6 @@ import {
 } from "react";
 import {
   useGetMCPProxy,
-  useListEnvironments,
   useListGateways,
   useUpdateMCPProxy,
 } from "@agent-management-platform/api-client";
@@ -34,7 +33,6 @@ import {
   absoluteRouteMap,
   isSelfHostedGateway,
   stripBasePath,
-  type Environment,
   type MCPEndpointConfig,
   type MCPProxyEndpoint,
 } from "@agent-management-platform/types";
@@ -69,11 +67,7 @@ import {
   useParams,
   useSearchParams,
 } from "react-router-dom";
-import {
-  environmentLabel,
-  normalizeVersion,
-  uniqueEnvironments,
-} from "@agent-management-platform/shared-component";
+import { normalizeVersion } from "@agent-management-platform/shared-component";
 import {
   CreatedMetadata,
   PageLayout,
@@ -87,9 +81,9 @@ import { MCPProxySecurityTab } from "./MCPProxySecurityTab";
 import { getCapabilityId } from "./mcpEndpoints";
 import { useCopyWithFeedback } from "./useCopyWithFeedback";
 
-// slug is a URL-safe stand-in for each tab, so the selected tab (and
-// environment, below) are shareable/deep-linkable and survive a page reload
-// instead of resetting to Overview/first-environment.
+// slug is a URL-safe stand-in for each tab, so the selected tab is
+// shareable/deep-linkable and survives a page reload instead of resetting to
+// Overview.
 const TAB_DEFS = [
   { label: "Overview", slug: "overview" },
   { label: "Connection", slug: "connection" },
@@ -255,9 +249,6 @@ export function ViewMCPProxy() {
     orgName: orgId,
     proxyId: routeProxyId,
   });
-  const { data: environments = [] } = useListEnvironments({
-    orgName: orgId ?? "",
-  });
   const updateMCPProxy = useUpdateMCPProxy();
   const { canWrite } = useResourceAccess("mcp_server");
 
@@ -312,47 +303,30 @@ export function ViewMCPProxy() {
     return [...names];
   }, [endpoints, selectedEndpointId]);
 
-  // The selected endpoint's flat config, consumed by every config tab. Environment
-  // bindings and per-env deployment status are surfaced separately as chips.
+  // The selected endpoint's flat config, consumed by every config tab. Gateway
+  // bindings and their deployment status are surfaced separately as chips.
   const selectedConfig: MCPEndpointConfig | undefined = selectedEndpoint;
 
-  // Joins the selected endpoint's environment bindings against the org's full
-  // environment list once — chips and the resolved Environment objects below
-  // both derive from this instead of each re-doing the same lookup.
-  const selectedEnvironmentBindings = useMemo(() => {
-    return (selectedEndpoint?.environments ?? []).map((binding) => ({
-      binding,
-      env: environments.find((item) => item.id === binding.environmentUuid),
-    }));
-  }, [selectedEndpoint, environments]);
-
-  // Chips describing each environment the selected endpoint is bound to, with its
-  // per-environment deployment status.
-  const selectedEnvChips = useMemo(
-    () =>
-      selectedEnvironmentBindings.map(({ binding, env }) => ({
-        id: binding.environmentUuid,
-        label: environmentLabel(env) || binding.environmentUuid,
-        status: binding.deploymentStatus,
-      })),
-    [selectedEnvironmentBindings],
-  );
-
-  // The full Environment objects (name/displayName) the selected endpoint is
-  // bound to — used by the Security tab's Create Scope panel to offer roles
-  // from every environment this MCP Server is actually reachable from.
-  const selectedEnvironments = useMemo(
-    () =>
-      uniqueEnvironments(
-        selectedEnvironmentBindings
-          .filter(({ binding }) => binding.deploymentStatus === "Deployed")
-          .map(({ env }) => env)
-          .filter((env): env is Environment => !!env),
-      ),
-    [selectedEnvironmentBindings],
-  );
-
   const { data: gatewaysData } = useListGateways({ orgName: orgId ?? "" });
+
+  // One chip per gateway binding of the selected endpoint, with its deployment status.
+  const deploymentChips = useMemo(() => {
+    const gatewayByUuid = new Map(
+      (gatewaysData?.gateways ?? []).map((gw) => [gw.uuid, gw]),
+    );
+    return (selectedEndpoint?.environments ?? []).map((binding) => {
+      const gateway = binding.gatewayId ? gatewayByUuid.get(binding.gatewayId) : undefined;
+      return {
+        id: binding.gatewayId || binding.environmentUuid,
+        label: gateway ? gateway.displayName || gateway.name : "Gateway",
+        status: binding.deploymentStatus,
+      };
+    });
+  }, [gatewaysData, selectedEndpoint]);
+
+  const isSelectedEndpointDeployed = (selectedEndpoint?.environments ?? []).some(
+    (binding) => binding.deploymentStatus === "Deployed",
+  );
   const isOnSelfHostedGateway = useMemo(() => {
     const selfHostedIds = new Set(
       (gatewaysData?.gateways ?? []).filter(isSelfHostedGateway).map((gw) => gw.uuid),
@@ -592,7 +566,7 @@ export function ViewMCPProxy() {
                     <MCPProxyOverviewTab
                       proxy={proxy}
                       config={selectedConfig}
-                      envChips={selectedEnvChips}
+                      deploymentChips={deploymentChips}
                       isLoading={isTabContentLoading}
                     />
                   )}
@@ -621,7 +595,7 @@ export function ViewMCPProxy() {
                       selectedEndpointId={selectedEndpointId}
                       orgName={orgId}
                       proxyId={routeProxyId}
-                      environments={selectedEnvironments}
+                      isDeployed={isSelectedEndpointDeployed}
                       otherEndpointTools={otherEndpointTools}
                       isOnSelfHostedGateway={isOnSelfHostedGateway}
                       isLoading={isTabContentLoading}

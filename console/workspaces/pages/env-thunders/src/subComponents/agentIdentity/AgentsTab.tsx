@@ -26,14 +26,13 @@ import {
   Typography,
 } from "@wso2/oxygen-ui";
 import { AlertTriangle, Search, Users } from "@wso2/oxygen-ui-icons-react";
-import { generatePath, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { generatePath, useNavigate, useParams } from "react-router-dom";
 import {
   useListAgentIdentityAgents,
   useOrgAgentDisplayNames,
 } from "@agent-management-platform/api-client";
 import { isListEmpty } from "@agent-management-platform/shared-component";
-import { absoluteRouteMap, type AgentIdentityAgentResponse } from "@agent-management-platform/types";
-import { withSearchParams } from "../../utils/withSearchParams";
+import { absoluteRouteMap, type AgentIdentityAgentResponse, DEFAULT_ENVIRONMENT } from "@agent-management-platform/types";
 
 const AVATAR_SX = { width: 28, height: 28, fontSize: 12 } as const;
 const MONO_SX = { fontFamily: "monospace" } as const;
@@ -49,14 +48,12 @@ const STATUS_COLORS: Record<string, StatusColor> = {
 
 export const AgentsTab: React.FC = () => {
   const { orgId } = useParams<{ orgId: string }>();
-  const [searchParams] = useSearchParams();
-  const envName = searchParams.get("envName") ?? "";
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
 
   const { data, isLoading, error } = useListAgentIdentityAgents({
     orgName: orgId,
-    envName,
+    envName: DEFAULT_ENVIRONMENT,
   });
   const { resolveAgentName, resolveProjectName } = useOrgAgentDisplayNames({ orgName: orgId });
 
@@ -96,17 +93,14 @@ export const AgentsTab: React.FC = () => {
   );
 
   const agentsNode =
-    absoluteRouteMap.children.org.children.thunderInstances.children.agents;
+    absoluteRouteMap.children.org.children.agentIdentity.children.agents;
   const agentDetailPath = (agent: AgentIdentityAgentResponse) =>
     orgId
-      ? withSearchParams(
-          generatePath(agentsNode.children.detail.path, {
+      ? generatePath(agentsNode.children.detail.path, {
             orgId,
             projectName: agent.projectName,
             agentName: agent.agentName,
-          }),
-          searchParams,
-        )
+          })
       : "#";
 
   const filteredAgents = useMemo(() => {
@@ -139,7 +133,7 @@ export const AgentsTab: React.FC = () => {
             <ListingTable.EmptyState
               illustration={<Users size={64} />}
               title="No agents yet"
-              description="Agents provisioned in this environment will appear here."
+              description="Provisioned agent identities will appear here."
             />
           )
         ) : (

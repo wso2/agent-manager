@@ -84,34 +84,6 @@ export interface AppConfig {
    * the vhost of the gateway mapped to that environment.
    */
   useConfiguredInstrumentationUrl?: boolean;
-  /**
-   * Base URL the API Platform Gateway uses to reach Agent Manager from inside
-   * the cluster. The add-environment.sh script appends /api/v1 and
-   * /auth/external/jwks.json to this as needed.
-   * Used to render the curl|bash command in the Create Environment drawer.
-   */
-  agentManagerInternalBaseUrl?: string;
-  /**
-   * host:port the API Platform Gateway uses to reach Agent Manager's
-   * internal control-plane channel (port 9243). Used to render the
-   * add-environment.sh command in the Create Environment drawer.
-   */
-  agentManagerInternalCpHost?: string;
-  /**
-   * Base domain env-Thunder instances are hosted under (e.g. amp.localhost,
-   * or a VM/production deployment's own domain). Mirrors the backend's
-   * IDP_HOST_BASE_DOMAIN. Used to render the correct
-   * IDP_HOST_BASE_DOMAIN value in the Create Environment drawer's
-   * generated add-environment.sh command, and to build the handle preview.
-   */
-  idpHostBaseDomain?: string;
-  /**
-   * Whether this deployment serves env-Thunder over TLS. Mirrors the
-   * backend's TLS_ENABLED. Piped into the Create Environment drawer's
-   * generated command so the chained add-environment-thunder.sh script
-   * provisions the matching scheme.
-   */
-  tlsEnabled?: boolean;
   guardrailsCatalogUrl: string;
   guardrailsDefinitionBaseUrl: string;
   /**

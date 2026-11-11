@@ -17,19 +17,16 @@
  */
 
 import React, { useCallback, useMemo } from "react";
-import { EnvironmentSelector } from "@agent-management-platform/shared-component";
 import {
-  NoDataFound,
   PageLayout,
   TIME_RANGE_OPTIONS,
   TimeRangeSelector,
   useTimeRangeParams,
 } from "@agent-management-platform/views";
 import { useParams, useSearchParams } from "react-router-dom";
-import { TraceListTimeRange } from "@agent-management-platform/types";
+import { DEFAULT_ENVIRONMENT, TraceListTimeRange } from "@agent-management-platform/types";
 import {
   useGetAgentMetrics,
-  useListAgentDeployments,
   isObserverConfigured,
   ConsoleAction,
   useTrack,
@@ -41,10 +38,10 @@ import {
   IconButton,
   Stack,
 } from "@wso2/oxygen-ui";
-import { PauseCircle, RefreshCcw } from "@wso2/oxygen-ui-icons-react";
+import { RefreshCcw } from "@wso2/oxygen-ui-icons-react";
 
 export const MetricsComponent: React.FC = () => {
-  const { agentId, orgId, projectId, envId } = useParams();
+  const { agentId, orgId, projectId } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const { track } = useTrack();
 
@@ -67,17 +64,12 @@ export const MetricsComponent: React.FC = () => {
     [searchParams, hasCustomRange],
   );
 
-  const { data: deployments } = useListAgentDeployments(
-    { orgName: orgId, projName: projectId, agentName: agentId },
-  );
-  const isSuspended = deployments === undefined ? undefined : deployments[envId ?? ""]?.status === "suspended";
-
   const metricsFilterRequest = useMemo(
     () => ({
-      environmentName: envId ?? "",
+      environmentName: DEFAULT_ENVIRONMENT,
       ...(hasCustomRange ? { startTime: customStartTime!, endTime: customEndTime! } : {}),
     }),
-    [envId, hasCustomRange, customStartTime, customEndTime],
+    [hasCustomRange, customStartTime, customEndTime],
   );
 
   const {
@@ -90,8 +82,7 @@ export const MetricsComponent: React.FC = () => {
     { agentName: agentId, orgName: orgId, projName: projectId },
     metricsFilterRequest,
     {
-      enabled: isSuspended === false && !!agentId && !!orgId &&
-        !!projectId && !!envId && (hasCustomRange || !!timeRange),
+      enabled: !!agentId && !!orgId && !!projectId && (hasCustomRange || !!timeRange),
       enableAutoRefresh: !hasCustomRange,
       timeRange: hasCustomRange ? undefined : timeRange,
     }
@@ -134,7 +125,6 @@ export const MetricsComponent: React.FC = () => {
       disableIcon
       actions={
         <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
-          <EnvironmentSelector />
           <TimeRangeSelector
             preset={timeRange}
             customStart={customStartTime}
@@ -160,19 +150,7 @@ export const MetricsComponent: React.FC = () => {
         </Stack>
       }
     >
-      {isSuspended ? (
-        <NoDataFound
-          iconElement={PauseCircle}
-          message="Environment Suspended"
-          subtitle="Metrics are unavailable while the environment is suspended."
-        />
-      ) : (
-        <MetricsView
-          metrics={metrics}
-          isLoading={isLoading}
-          error={error}
-        />
-      )}
+      <MetricsView metrics={metrics} isLoading={isLoading} error={error} />
     </PageLayout>
 
   );

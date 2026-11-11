@@ -16,49 +16,49 @@ export const generatedRouteMap =  {
           "wildPath": "/org/:orgId/profile/*",
           "children": {}
         },
-        "thunderInstances": {
-          "path": "/org/:orgId/thunder-instances",
-          "wildPath": "/org/:orgId/thunder-instances/*",
+        "agentIdentity": {
+          "path": "/org/:orgId/agent-identity",
+          "wildPath": "/org/:orgId/agent-identity/*",
           "children": {
             "agents": {
-              "path": "/org/:orgId/thunder-instances/agents",
-              "wildPath": "/org/:orgId/thunder-instances/agents/*",
+              "path": "/org/:orgId/agent-identity/agents",
+              "wildPath": "/org/:orgId/agent-identity/agents/*",
               "children": {
                 "detail": {
-                  "path": "/org/:orgId/thunder-instances/agents/:projectName/:agentName",
-                  "wildPath": "/org/:orgId/thunder-instances/agents/:projectName/:agentName/*",
+                  "path": "/org/:orgId/agent-identity/agents/:projectName/:agentName",
+                  "wildPath": "/org/:orgId/agent-identity/agents/:projectName/:agentName/*",
                   "children": {}
                 }
               }
             },
             "roles": {
-              "path": "/org/:orgId/thunder-instances/roles",
-              "wildPath": "/org/:orgId/thunder-instances/roles/*",
+              "path": "/org/:orgId/agent-identity/roles",
+              "wildPath": "/org/:orgId/agent-identity/roles/*",
               "children": {
                 "create": {
-                  "path": "/org/:orgId/thunder-instances/roles/create",
-                  "wildPath": "/org/:orgId/thunder-instances/roles/create/*",
+                  "path": "/org/:orgId/agent-identity/roles/create",
+                  "wildPath": "/org/:orgId/agent-identity/roles/create/*",
                   "children": {}
                 },
                 "detail": {
-                  "path": "/org/:orgId/thunder-instances/roles/:roleId",
-                  "wildPath": "/org/:orgId/thunder-instances/roles/:roleId/*",
+                  "path": "/org/:orgId/agent-identity/roles/:roleId",
+                  "wildPath": "/org/:orgId/agent-identity/roles/:roleId/*",
                   "children": {}
                 }
               }
             },
             "groups": {
-              "path": "/org/:orgId/thunder-instances/groups",
-              "wildPath": "/org/:orgId/thunder-instances/groups/*",
+              "path": "/org/:orgId/agent-identity/groups",
+              "wildPath": "/org/:orgId/agent-identity/groups/*",
               "children": {
                 "create": {
-                  "path": "/org/:orgId/thunder-instances/groups/create",
-                  "wildPath": "/org/:orgId/thunder-instances/groups/create/*",
+                  "path": "/org/:orgId/agent-identity/groups/create",
+                  "wildPath": "/org/:orgId/agent-identity/groups/create/*",
                   "children": {}
                 },
                 "detail": {
-                  "path": "/org/:orgId/thunder-instances/groups/:groupId",
-                  "wildPath": "/org/:orgId/thunder-instances/groups/:groupId/*",
+                  "path": "/org/:orgId/agent-identity/groups/:groupId",
+                  "wildPath": "/org/:orgId/agent-identity/groups/:groupId/*",
                   "children": {}
                 }
               }
@@ -201,39 +201,6 @@ export const generatedRouteMap =  {
           "wildPath": "/org/:orgId/events/*",
           "children": {}
         },
-        "deploymentPipelines": {
-          "path": "/org/:orgId/deployment-pipelines",
-          "wildPath": "/org/:orgId/deployment-pipelines/*",
-          "children": {
-            "view": {
-              "path": "/org/:orgId/deployment-pipelines/:pipelineName",
-              "wildPath": "/org/:orgId/deployment-pipelines/:pipelineName/*",
-              "children": {}
-            }
-          }
-        },
-        "environments": {
-          "path": "/org/:orgId/environments",
-          "wildPath": "/org/:orgId/environments/*",
-          "children": {
-            "view": {
-              "path": "/org/:orgId/environments/:envName",
-              "wildPath": "/org/:orgId/environments/:envName/*",
-              "children": {
-                "edit": {
-                  "path": "/org/:orgId/environments/:envName/edit",
-                  "wildPath": "/org/:orgId/environments/:envName/edit/*",
-                  "children": {}
-                },
-                "identityProvider": {
-                  "path": "/org/:orgId/environments/:envName/identity-provider",
-                  "wildPath": "/org/:orgId/environments/:envName/identity-provider/*",
-                  "children": {}
-                }
-              }
-            }
-          }
-        },
         "catalog": {
           "path": "/org/:orgId/catalog",
           "wildPath": "/org/:orgId/catalog/*",
@@ -278,28 +245,6 @@ export const generatedRouteMap =  {
               "path": "/org/:orgId/project/:projectId/newAgent",
               "wildPath": "/org/:orgId/project/:projectId/newAgent/*",
               "children": {
-                "create": {
-                  "path": "/org/:orgId/project/:projectId/newAgent/create",
-                  "wildPath": "/org/:orgId/project/:projectId/newAgent/create/*",
-                  "children": {
-                    "catalog": {
-                      "path": "/org/:orgId/project/:projectId/newAgent/create/catalog",
-                      "wildPath": "/org/:orgId/project/:projectId/newAgent/create/catalog/*",
-                      "children": {
-                        "withKind": {
-                          "path": "/org/:orgId/project/:projectId/newAgent/create/catalog/:kindId",
-                          "wildPath": "/org/:orgId/project/:projectId/newAgent/create/catalog/:kindId/*",
-                          "children": {}
-                        }
-                      }
-                    },
-                    "source": {
-                      "path": "/org/:orgId/project/:projectId/newAgent/create/source",
-                      "wildPath": "/org/:orgId/project/:projectId/newAgent/create/source/*",
-                      "children": {}
-                    }
-                  }
-                },
                 "connect": {
                   "path": "/org/:orgId/project/:projectId/newAgent/connect",
                   "wildPath": "/org/:orgId/project/:projectId/newAgent/connect/*",
@@ -364,19 +309,9 @@ export const generatedRouteMap =  {
                     }
                   }
                 },
-                "build": {
-                  "path": "/org/:orgId/project/:projectId/agents/:agentId/build",
-                  "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/build/*",
-                  "children": {}
-                },
                 "events": {
                   "path": "/org/:orgId/project/:projectId/agents/:agentId/events",
                   "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/events/*",
-                  "children": {}
-                },
-                "deployment": {
-                  "path": "/org/:orgId/project/:projectId/agents/:agentId/deployment",
-                  "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/deployment/*",
                   "children": {}
                 },
                 "publish": {
@@ -400,94 +335,83 @@ export const generatedRouteMap =  {
                     }
                   }
                 },
-                "environment": {
-                  "path": "/org/:orgId/project/:projectId/agents/:agentId/environment/:envId",
-                  "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/*",
+                "evaluation": {
+                  "path": "/org/:orgId/project/:projectId/agents/:agentId/evaluation",
+                  "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/evaluation/*",
                   "children": {
-                    "evaluation": {
-                      "path": "/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/evaluation",
-                      "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/evaluation/*",
+                    "monitor": {
+                      "path": "/org/:orgId/project/:projectId/agents/:agentId/evaluation/monitor",
+                      "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/evaluation/monitor/*",
                       "children": {
-                        "monitor": {
-                          "path": "/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/evaluation/monitor",
-                          "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/evaluation/monitor/*",
+                        "create": {
+                          "path": "/org/:orgId/project/:projectId/agents/:agentId/evaluation/monitor/create",
+                          "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/evaluation/monitor/create/*",
+                          "children": {}
+                        },
+                        "view": {
+                          "path": "/org/:orgId/project/:projectId/agents/:agentId/evaluation/monitor/view/:monitorId",
+                          "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/evaluation/monitor/view/:monitorId/*",
                           "children": {
-                            "create": {
-                              "path": "/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/evaluation/monitor/create",
-                              "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/evaluation/monitor/create/*",
-                              "children": {}
-                            },
-                            "view": {
-                              "path": "/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/evaluation/monitor/view/:monitorId",
-                              "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/evaluation/monitor/view/:monitorId/*",
-                              "children": {
-                                "runs": {
-                                  "path": "/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/evaluation/monitor/view/:monitorId/runs",
-                                  "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/evaluation/monitor/view/:monitorId/runs/*",
-                                  "children": {}
-                                }
-                              }
-                            },
-                            "edit": {
-                              "path": "/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/evaluation/monitor/edit/:monitorId",
-                              "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/evaluation/monitor/edit/:monitorId/*",
-                              "children": {}
-                            },
-                            "compare": {
-                              "path": "/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/evaluation/monitor/compare/:monitorId",
-                              "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/evaluation/monitor/compare/:monitorId/*",
+                            "runs": {
+                              "path": "/org/:orgId/project/:projectId/agents/:agentId/evaluation/monitor/view/:monitorId/runs",
+                              "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/evaluation/monitor/view/:monitorId/runs/*",
                               "children": {}
                             }
                           }
+                        },
+                        "edit": {
+                          "path": "/org/:orgId/project/:projectId/agents/:agentId/evaluation/monitor/edit/:monitorId",
+                          "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/evaluation/monitor/edit/:monitorId/*",
+                          "children": {}
+                        },
+                        "compare": {
+                          "path": "/org/:orgId/project/:projectId/agents/:agentId/evaluation/monitor/compare/:monitorId",
+                          "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/evaluation/monitor/compare/:monitorId/*",
+                          "children": {}
                         }
                       }
-                    },
-                    "deploy": {
-                      "path": "/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/deploy",
-                      "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/deploy/*",
+                    }
+                  }
+                },
+                "security": {
+                  "path": "/org/:orgId/project/:projectId/agents/:agentId/security",
+                  "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/security/*",
+                  "children": {}
+                },
+                "tryOut": {
+                  "path": "/org/:orgId/project/:projectId/agents/:agentId/tryOut",
+                  "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/tryOut/*",
+                  "children": {
+                    "api": {
+                      "path": "/org/:orgId/project/:projectId/agents/:agentId/tryOut/api",
+                      "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/tryOut/api/*",
                       "children": {}
                     },
-                    "security": {
-                      "path": "/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/security",
-                      "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/security/*",
+                    "chat": {
+                      "path": "/org/:orgId/project/:projectId/agents/:agentId/tryOut/chat",
+                      "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/tryOut/chat/*",
+                      "children": {}
+                    }
+                  }
+                },
+                "observability": {
+                  "path": "/org/:orgId/project/:projectId/agents/:agentId/observability",
+                  "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/observability/*",
+                  "children": {
+                    "traces": {
+                      "path": "/org/:orgId/project/:projectId/agents/:agentId/observability/traces",
+                      "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/observability/traces/*",
                       "children": {}
                     },
-                    "tryOut": {
-                      "path": "/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/tryOut",
-                      "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/tryOut/*",
-                      "children": {
-                        "api": {
-                          "path": "/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/tryOut/api",
-                          "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/tryOut/api/*",
-                          "children": {}
-                        },
-                        "chat": {
-                          "path": "/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/tryOut/chat",
-                          "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/tryOut/chat/*",
-                          "children": {}
-                        }
-                      }
+                    "logs": {
+                      "path": "/org/:orgId/project/:projectId/agents/:agentId/observability/logs",
+                      "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/observability/logs/*",
+                      "children": {}
                     },
-                    "observability": {
-                      "path": "/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/observability",
-                      "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/observability/*",
-                      "children": {
-                        "traces": {
-                          "path": "/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/observability/traces",
-                          "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/observability/traces/*",
-                          "children": {}
-                        },
-                        "logs": {
-                          "path": "/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/observability/logs",
-                          "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/observability/logs/*",
-                          "children": {}
-                        },
-                        "metrics": {
-                          "path": "/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/observability/metrics",
-                          "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/observability/metrics/*",
-                          "children": {}
-                        }
-                      }
+                    "metrics": {
+                      "path": "/org/:orgId/project/:projectId/agents/:agentId/observability/metrics",
+                      "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/observability/metrics/*",
+                      "children": {}
                     }
                   }
                 }

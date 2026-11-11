@@ -263,12 +263,6 @@ export function EventTypeChips({ types, max = 2 }: { types: string[]; max?: numb
   );
 }
 
-/** "env: production", "all envs". */
-export function filterLabel(environments: string[]): string {
-  if (environments.length === 0) return "all envs";
-  return `env: ${environments.join(", ")}`;
-}
-
 export function timeAgo(iso?: string): string {
   return formatRelativeTime(iso, { fallback: "never" });
 }

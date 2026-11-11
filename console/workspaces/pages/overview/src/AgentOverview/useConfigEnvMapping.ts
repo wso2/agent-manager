@@ -17,14 +17,14 @@
  */
 
 import { useEffect } from "react";
+import { DEFAULT_ENVIRONMENT } from "@agent-management-platform/types";
 import type { ConfigResolution } from "./useEnvFilteredConfigs";
 
 /**
- * Shared by LLMProviderConfigCard/MCPProxyConfigCard: picks this environment's
- * mapping out of a fetched config's envMappings, and reports back to
- * useEnvFilteredConfigs (via onResolved) whether the config applies to envId
- * once the fetch settles. A failed fetch reports "error" rather than being
- * treated the same as "this config just isn't deployed here" — `isConfigError`
+ * Shared by LLMProviderConfigCard/MCPProxyConfigCard: picks the mapping out of
+ * a fetched config's envMappings, and reports back to useEnvFilteredConfigs
+ * (via onResolved) whether the config is mapped once the fetch settles. A
+ * failed fetch reports "error" rather than "not mapped" — `isConfigError`
  * is the calling card's own detail-query `isError`, so a network/API failure
  * surfaces as a genuine error instead of the config silently vanishing.
  */
@@ -32,11 +32,10 @@ export function useConfigEnvMapping<TMapping>(
     envMappings: Record<string, TMapping> | undefined,
     isLoadingConfig: boolean,
     isConfigError: boolean,
-    envId: string,
     configId: string,
     onResolved: (configId: string, resolution: ConfigResolution) => void,
 ): TMapping | undefined {
-    const envMapping = envMappings?.[envId];
+    const envMapping = envMappings?.[DEFAULT_ENVIRONMENT];
     const isApplicable = !!envMapping;
 
     useEffect(() => {

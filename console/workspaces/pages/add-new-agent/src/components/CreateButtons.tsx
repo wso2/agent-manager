@@ -23,18 +23,14 @@ interface SummaryPanelProps {
     isPending: boolean;
     onCancel: () => void;
     onSubmit: () => void;
-    mode?: 'deploy' | 'connect';
     isNameEmpty?: boolean;
-    hasLLMVarConflicts?: boolean;
-    /** An MCP server's security is still loading or failed to load. */
-    hasUnresolvedMCPSecurity?: boolean;
 }
 
 export const CreateButtons = (
-    { lastSubmittedValidationErrors, isPending, onCancel, onSubmit, mode = 'deploy', isNameEmpty = false, hasLLMVarConflicts = false, hasUnresolvedMCPSecurity = false }: SummaryPanelProps
+    {
+        lastSubmittedValidationErrors, isPending, onCancel, onSubmit, isNameEmpty = false,
+    }: SummaryPanelProps
 ) => {
-    const isConnectMode = mode === 'connect';
-
     const errorsList = Object.values(lastSubmittedValidationErrors)
         .filter((error): error is string => !!error);
     const hasErrors = errorsList.length > 0;
@@ -57,12 +53,9 @@ export const CreateButtons = (
                     color="primary"
                     size='medium'
                     onClick={onSubmit}
-                    disabled={
-                        isPending || isNameEmpty || hasLLMVarConflicts ||
-                        hasUnresolvedMCPSecurity
-                    }
+                    disabled={isPending || isNameEmpty}
                 >
-                    {isConnectMode ? 'Register' : 'Create and deploy'}
+                    Register
                 </Button>
             </Box>
         </Box>

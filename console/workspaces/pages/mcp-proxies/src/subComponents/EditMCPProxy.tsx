@@ -34,13 +34,11 @@ import {
 } from "@agent-management-platform/views";
 import {
   useGetMCPProxy,
-  useListEnvironments,
   useUpdateMCPProxy,
 } from "@agent-management-platform/api-client";
 import { useUnsavedChangesGuard } from "@agent-management-platform/shared-component";
 import {
   absoluteRouteMap,
-  type Environment,
   type MCPProxy,
   INPUT_LIMITS,
 } from "@agent-management-platform/types";
@@ -67,14 +65,12 @@ const editMCPProxySchema = z.object({
 interface EditMCPProxyFormProps {
   proxy: MCPProxy;
   orgId: string;
-  environments: Environment[];
   viewHref: string;
 }
 
 function EditMCPProxyForm({
   proxy,
   orgId,
-  environments,
   viewHref,
 }: EditMCPProxyFormProps) {
   const navigate = useNavigate();
@@ -270,14 +266,12 @@ function EditMCPProxyForm({
           <Stack spacing={2}>
             <Typography variant="subtitle1">Endpoints</Typography>
             <Typography variant="body2" color="text.secondary">
-              {environments.length > 1
-                ? "Endpoints map backend MCP servers to environments. Editing an endpoint updates the upstream URL, authentication, and capabilities for the environments it serves. Environments left without an endpoint become unconfigured."
-                : "Editing an endpoint updates the upstream URL, authentication, and capabilities for this MCP Server."}
+              Editing an endpoint updates the upstream URL, authentication, and capabilities
+              for this MCP Server.
             </Typography>
 
             <EndpointsEditorSection
               orgId={orgId}
-              environments={environments}
               endpoints={endpoints}
               onEndpointsChange={setEndpoints}
               addOpen={addOpen}
@@ -318,8 +312,6 @@ function EditMCPProxyForm({
 export function EditMCPProxy() {
   const { orgId = "", proxyId = "" } = useParams<{ orgId: string; proxyId: string }>();
   const { data: proxy, isLoading, error, refetch } = useGetMCPProxy({ orgName: orgId, proxyId });
-  const { data: environments = [], isLoading: isEnvironmentsLoading } =
-    useListEnvironments({ orgName: orgId });
   const viewHref = generatePath(
     absoluteRouteMap.children.org.children.mcpProxies.children.view.path,
     { orgId, proxyId },
@@ -332,7 +324,7 @@ export function EditMCPProxy() {
       backHref={viewHref}
       backLabel="Back to MCP server"
     >
-      {isLoading || isEnvironmentsLoading ? (
+      {isLoading ? (
         <Skeleton variant="rounded" width="100%" height={400} />
       ) : !proxy ? (
         <LoadErrorNotice
@@ -346,7 +338,6 @@ export function EditMCPProxy() {
         <EditMCPProxyForm
           proxy={proxy}
           orgId={orgId}
-          environments={environments}
           viewHref={viewHref}
         />
       )}

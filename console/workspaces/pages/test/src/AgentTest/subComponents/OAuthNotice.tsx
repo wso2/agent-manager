@@ -56,7 +56,7 @@ export const OAuthNotice: React.FC<OAuthNoticeProps> = ({ endpoint }) => (
   -d '{"message": "Hello", "session_id": "test", "context": {}}'`}
     </Box>
     <Typography variant="caption" color="text.secondary">
-      To test from the console, also enable API key security in the deployment settings.
+      To test from the console, also enable API key security in the gateway security settings.
     </Typography>
   </StateNotice>
 );

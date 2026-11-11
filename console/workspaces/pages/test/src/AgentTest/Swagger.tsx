@@ -22,10 +22,10 @@ import {
   useGetAgentEndpoints,
   useGetAgentKindVersion,
   useGetBuild,
-  useListAgentDeployments,
   useTestAgentAPIKey,
 } from "@agent-management-platform/api-client";
 import { StateNotice } from "@agent-management-platform/views";
+import { DEFAULT_ENVIRONMENT } from "@agent-management-platform/types";
 import { getErrorMessage } from "@agent-management-platform/shared-component";
 import { Alert, Box, Button, Skeleton, Typography } from "@wso2/oxygen-ui";
 import { FileQuestion, FileX, KeyRound, RefreshCw, ServerCrash } from "@wso2/oxygen-ui-icons-react";
@@ -54,7 +54,7 @@ const disableAuthorizeAndInfoPluginCustomSecuritySchema = {
 };
 
 export function Swagger() {
-  const { orgId, projectId, agentId, envId } = useParams();
+  const { orgId, projectId, agentId } = useParams();
   const { data, isLoading, error } = useGetAgentEndpoints(
     {
       agentName: agentId,
@@ -62,11 +62,10 @@ export function Swagger() {
       projName: projectId,
     },
     {
-      environment: envId ?? "",
+      environment: DEFAULT_ENVIRONMENT,
     }
   );
 
-  // GetAgent returns only the lowest environment's config, so read per-env here.
   const { data: envConfig } = useGetAgentConfigurations(
     {
       orgName: orgId,
@@ -74,10 +73,10 @@ export function Swagger() {
       agentName: agentId,
     },
     {
-      environment: envId ?? "",
+      environment: DEFAULT_ENVIRONMENT,
     }
   );
-  // Absent means no per-env config row yet, so assume a key is required.
+  // Absent means no config row yet, so assume a key is required.
   const securityEnabled = envConfig?.enableApiKeySecurity ?? true;
   const oauthOnly = !!(
     envConfig?.enableOAuthSecurity && !envConfig?.enableApiKeySecurity
@@ -89,7 +88,7 @@ export function Swagger() {
     error: testKeyError,
     refetch: refetchTestKey,
   } = useTestAgentAPIKey(
-    { orgName: orgId, projName: projectId, agentName: agentId, envId },
+    { orgName: orgId, projName: projectId, agentName: agentId, envId: DEFAULT_ENVIRONMENT },
     { enabled: securityEnabled && !oauthOnly },
   );
   const testApiKey = testKey?.apiKey;
@@ -103,16 +102,9 @@ export function Swagger() {
   const endpoint = useMemo(() => Object.keys(data ?? {})?.[0] ?? "", [data]);
 
   // A kind-sourced agent runs no build of its own, so nothing ever writes an
-  // OpenAPI document onto its deployed endpoint. Resolve the spec from the kind
-  // version instead — kind version -> its source build — which is how the agent
+  // OpenAPI document onto its endpoint. Resolve the spec from the kind version
+  // instead — kind version -> its source build — which is how the agent
   // catalogue renders a kind's API spec.
-  //
-  // The version read is the one deployed in THIS environment, not the agent's
-  // creation-time kindVersion: redeploying on a newer version changes what the
-  // endpoint actually serves, and each environment moves independently, so the
-  // creation version would render a spec that no longer matches the running API.
-  // kindName is what identifies a kind agent; waiting on the endpoints response
-  // to notice a missing schema would just delay the lookups behind it.
   const deployedSpec = data?.[endpoint]?.schema?.content;
   const {
     data: agent,
@@ -123,14 +115,8 @@ export function Swagger() {
     projName: projectId,
     agentName: agentId,
   });
-  const { data: deployments, isLoading: isDeploymentsLoading } =
-    useListAgentDeployments({
-      orgName: orgId,
-      projName: projectId,
-      agentName: agentId,
-    });
-  const deployedKindVersion = deployments?.[envId ?? ""]?.kindVersion;
-  const needsKindSpec = !!agent?.kindName && !!deployedKindVersion;
+  const kindVersionTag = agent?.kindVersion;
+  const needsKindSpec = !!agent?.kindName && !!kindVersionTag;
   const {
     data: kindVersion,
     isLoading: isKindVersionLoading,
@@ -138,7 +124,7 @@ export function Swagger() {
   } = useGetAgentKindVersion({
     orgName: needsKindSpec ? orgId ?? "" : "",
     kindName: needsKindSpec ? agent?.kindName ?? "" : "",
-    versionTag: needsKindSpec ? deployedKindVersion ?? "" : "",
+    versionTag: needsKindSpec ? kindVersionTag ?? "" : "",
   });
   const {
     data: kindBuild,
@@ -151,8 +137,7 @@ export function Swagger() {
     buildName: kindVersion?.buildName ?? "",
   });
   const isKindSpecLoading =
-    !!agent?.kindName &&
-    (isDeploymentsLoading || (needsKindSpec && (isKindVersionLoading || isKindBuildLoading)));
+    needsKindSpec && (isKindVersionLoading || isKindBuildLoading);
   // Reading the kind's spec goes through the kind's source project, which the
   // viewer may not have access to, so these can fail on their own.
   const specLookupError = agentError ?? (needsKindSpec ? kindVersionError ?? kindBuildError : null);

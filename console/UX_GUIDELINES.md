@@ -15,7 +15,7 @@ Use Oxygen UI (`@wso2/oxygen-ui`, `@wso2/oxygen-ui-icons-react`) components and 
 - The primary CTA always sits in the page action position. Don't place it inside a card header, toolbar or table when the page has a header.
 - One contained (primary) button per page or card. Other actions are `outlined` or `text`.
 - Buttons, menu items and navigation labels use sentence case: "Create project", "Save changes", "Runtime logs". Keep acronyms and product names as written ("Add LLM provider", "Register MCP server").
-- **Exception:** a list that sits inside a tabbed card or under an environment selector (for example, agent identity groups and roles per environment) puts its create button inside that card, next to the tabs, not in the page header. The header action must make sense for the whole page.
+- **Exception:** a list that sits inside a tabbed card puts its create button inside that card, next to the tabs, not in the page header. The header action must make sense for the whole page.
 
 ## 2. Create and edit happen on pages, not drawers
 
@@ -84,9 +84,9 @@ Forms use Oxygen `Grid` with `size={{ ... }}`:
 
 ## 6. Empty, error and "not ready" states
 
-Use `StateNotice` (`@agent-management-platform/views`) for any state that blocks a page: not deployed, no successful build, OAuth-only security, missing config, load errors.
+Use `StateNotice` (`@agent-management-platform/views`) for any state that blocks a page: OAuth-only security, missing config, load errors.
 
-- Give a title that names the state ("Build your agent first"), one sentence of explanation, and **one** action that fixes it ("Go to Build").
+- Give a title that names the state ("Configure your agent first"), one sentence of explanation, and **one** action that fixes it ("Go to Configure").
 - Don't repeat the same action in two places on one page. If two cards are both empty for the same reason, only one carries the button.
 - Avoid step indicators ("1 Build, 2 Deploy, 3 Try it") in small cards; they crowd the layout.
 - Use `compact` inside cards and `contained` when the notice needs its own panel.
@@ -95,7 +95,7 @@ Use `StateNotice` (`@agent-management-platform/views`) for any state that blocks
 ## 7. Links and routes
 
 - Build every link with `generatePath(absoluteRouteMap...path, params)`. Don't hand-write URLs.
-- Use the route the page actually lives at. For example, an agent's Deploy page is `agents.children.deployment`, not `environment.children.deploy`. Check `libs/types/src/routes/routes.map.ts` before adding a link.
+- Use the route the page actually lives at. For example, an agent's traces page is `agents.children.observability.children.traces`. Check `libs/types/src/routes/routes.map.ts` before adding a link.
 - Keep navigation client-side with router `Link` / `navigate`. Avoid plain `href` anchors to app pages.
 
 ## 8. Layout and responsiveness

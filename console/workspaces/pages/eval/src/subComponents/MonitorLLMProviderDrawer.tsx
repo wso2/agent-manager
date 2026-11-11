@@ -20,7 +20,6 @@ import { type CatalogLLMProviderEntry } from "@agent-management-platform/types";
 import {
   useCreateLLMProvider,
   useListCatalogLLMProviders,
-  useGetEnvironment,
   useListLLMProviderTemplates,
 } from "@agent-management-platform/api-client";
 import {
@@ -76,9 +75,6 @@ interface MonitorLLMProviderDrawerProps {
   onClose: () => void;
   selectedProviderName?: string;
   onProviderChange: (name: string | undefined) => void;
-  // The monitor's environment. Only providers deployed to a managed gateway in it are
-  // listed, as a monitor can't use any other; without one nothing is listed.
-  environmentName?: string;
 }
 
 function getLatestDeployment(
@@ -280,7 +276,6 @@ export function MonitorLLMProviderDrawer({
   onClose,
   selectedProviderName,
   onProviderChange,
-  environmentName,
 }: MonitorLLMProviderDrawerProps) {
   const { orgId } = useParams<{ orgId: string }>();
   const { canWrite: canCreateProvider } = useResourceAccess("llm_provider");
@@ -306,15 +301,6 @@ export function MonitorLLMProviderDrawer({
   );
 
   const {
-    data: environment,
-    isLoading: isLoadingEnvironment,
-    isError: isEnvironmentError,
-    refetch: refetchEnvironment,
-  } = useGetEnvironment({ orgName: orgId, envName: environmentName });
-  const environmentLabel = environment?.displayName || environmentName;
-  // Without the environment's id the list can't be filtered, so it isn't fetched at all.
-  const environmentUnresolved = !isLoadingEnvironment && !environment?.id;
-  const {
     data: catalogData,
     isFetching,
     isError: isCatalogError,
@@ -324,12 +310,10 @@ export function MonitorLLMProviderDrawer({
     {
       limit: PAGE_SIZE,
       offset: fetchOffset,
-      environmentId: environment?.id,
       gatewayHosting: "MANAGED",
     },
-    { enabled: !!environment?.id },
   );
-  const isLoadingProviders = isFetching || isLoadingEnvironment;
+  const isLoadingProviders = isFetching;
   const { data: templatesData, isLoading: isLoadingTemplates } =
     useListLLMProviderTemplates(
       { orgName: orgId },
@@ -482,9 +466,7 @@ export function MonitorLLMProviderDrawer({
           <Stack spacing={2}>
             <Typography variant="body2" color="text.secondary">
               Select the LLM provider for all LLM-judge evaluators in this
-              monitor.
-              {environmentLabel &&
-                ` Only providers deployed to a managed gateway in ${environmentLabel} are listed.`}
+              monitor. Only providers deployed to a managed gateway are listed.
             </Typography>
             <SearchBar
               placeholder="Search providers"
@@ -493,24 +475,6 @@ export function MonitorLLMProviderDrawer({
               value={search}
               onChange={handleSearchChange}
             />
-            {environmentUnresolved && (
-              <Alert
-                severity={environmentName ? "error" : "info"}
-                action={
-                  isEnvironmentError ? (
-                    <Button size="small" color="inherit" onClick={() => refetchEnvironment()}>
-                      Retry
-                    </Button>
-                  ) : undefined
-                }
-              >
-                {!environmentName
-                  ? "Choose the monitor's environment first; its LLM providers are listed here."
-                  : isEnvironmentError
-                    ? `Couldn't load environment ${environmentName}, so its LLM providers can't be listed.`
-                    : `Environment ${environmentName} wasn't found, so its LLM providers can't be listed.`}
-              </Alert>
-            )}
             {isCatalogError && !isFetching && (
               <Alert
                 severity="error"
@@ -530,18 +494,17 @@ export function MonitorLLMProviderDrawer({
             )}
             {filteredProviders.length === 0 &&
               !isLoadingProviders &&
-              !environmentUnresolved &&
               !isCatalogError && (
               <ListingTable.EmptyState
                 title={
                   search.trim()
                     ? "No providers match your search"
-                    : `No LLM providers deployed to ${environmentLabel}`
+                    : "No LLM providers deployed to a managed gateway"
                 }
                 description={
                   search.trim()
                     ? "Try a different keyword."
-                    : `A monitor can only use an LLM provider deployed to a managed gateway in ${environmentLabel}. Deploy one from its Deployment tab on the LLM Providers page.`
+                    : "A monitor can only use an LLM provider deployed to a managed gateway. Deploy one from its Deployment tab on the LLM Providers page."
                 }
               />
             )}
@@ -597,9 +560,8 @@ export function MonitorLLMProviderDrawer({
             <Typography variant="body2" color="text.secondary">
               Create an LLM provider for this monitor&apos;s LLM-judge
               evaluators. It will be added to your organization&apos;s
-              provider catalog.
-              {environmentLabel &&
-                ` This monitor can only use it if it's deployed to a managed gateway in ${environmentLabel}.`}
+              provider catalog. This monitor can only use it if it&apos;s
+              deployed to a managed gateway.
             </Typography>
             <AddLLMProviderForm
               orgId={orgId ?? ""}

@@ -49,7 +49,7 @@ export function A2AProxyFields({
       {draft.enabled && (
         <>
           <Typography variant="caption" color="text.secondary">
-            Callers reach the agent through this environment&apos;s gateway, with its API keys,
+            Callers reach the agent through the gateway, with its API keys,
             CORS and observability. Add a header if the agent itself requires a credential.
           </Typography>
           <TextInput

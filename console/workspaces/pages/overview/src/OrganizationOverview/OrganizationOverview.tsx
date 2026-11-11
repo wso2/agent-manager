@@ -74,7 +74,7 @@ export const OrganizationOverview: React.FC = () => {
   const { data: projects, isLoading: isLoadingProjects } = useListProjects(params);
 
   const projectList = projects?.projects ?? [];
-  const identityRoutes = orgRoutes.children.thunderInstances.children;
+  const identityRoutes = orgRoutes.children.agentIdentity.children;
 
   const resourceCards: ResourceCardData[] = [
     {

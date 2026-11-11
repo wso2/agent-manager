@@ -16,7 +16,6 @@
  * under the License.
  */
 
-import { useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuthHooks } from "@agent-management-platform/auth";
 import { useApiMutation, useApiQuery } from "./react-query-notifications";
@@ -147,38 +146,6 @@ export function useListAgentKindVersions(
     queryFn: () => listAgentKindVersions(params, getToken),
     enabled: options?.enabled ?? (!!params.orgName && !!params.kindName),
   });
-}
-
-/**
- * Hook to resolve which Agent Kind version a deployed image matches, plus the
- * newest available version — shared by every "deployed vX" chip and
- * "newer version available" banner so the match logic lives in one place.
- */
-export function useDeployedAgentKindVersion(params: {
-  orgName?: string;
-  kindName?: string;
-  imageId?: string;
-}) {
-  const { orgName, kindName, imageId } = params;
-  const { data: kindVersions } = useListAgentKindVersions({
-    orgName: orgName ?? "",
-    kindName: kindName ?? "",
-  });
-
-  const deployedVersion = useMemo(() => {
-    if (!imageId || !kindName) return null;
-    return kindVersions?.find((v) => v.imageId === imageId)?.version ?? null;
-  }, [imageId, kindName, kindVersions]);
-
-  const latestKindVersion = useMemo(() => (
-    kindVersions?.length
-      ? [...kindVersions].sort(
-        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      )[0]
-      : undefined
-  ), [kindVersions]);
-
-  return { kindVersions, deployedVersion, latestKindVersion };
 }
 
 /**

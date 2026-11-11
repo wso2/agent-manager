@@ -38,6 +38,7 @@ import {
 import { useConfirmationDialog } from "@agent-management-platform/shared-component";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
 import {
+  DEFAULT_ENVIRONMENT,
   absoluteRouteMap,
   MonitorStatus,
   type MonitorResponse,
@@ -75,11 +76,10 @@ export function MonitorTable({ createAction }: MonitorTableProps) {
   // Start/stop needs monitor:execute on the server, not an update scope.
   const canExecute = useFeatureAccess("monitor_execute");
 
-  const { agentId, orgId, projectId, envId } = useParams<{
+  const { agentId, orgId, projectId } = useParams<{
     orgId: string;
     projectId: string;
     agentId: string;
-    envId: string;
   }>();
   const {
     data: monitorsList,
@@ -91,7 +91,7 @@ export function MonitorTable({ createAction }: MonitorTableProps) {
       projName: projectId,
       agentName: agentId,
     },
-    { environmentName: envId },
+    { environmentName: DEFAULT_ENVIRONMENT },
   );
 
   const { mutate: deleteMonitor } = useDeleteMonitor();
@@ -230,13 +230,12 @@ export function MonitorTable({ createAction }: MonitorTableProps) {
                 navigate(
                   generatePath(
                     absoluteRouteMap.children.org.children.projects.children
-                      .agents.children.environment.children.evaluation.children
+                      .agents.children.evaluation.children
                       .monitor.children.view.path,
                     {
                       agentId,
                       orgId,
                       projectId,
-                      envId,
                       monitorId: monitor.name,
                     },
                   ),
@@ -293,13 +292,12 @@ export function MonitorTable({ createAction }: MonitorTableProps) {
                           navigate(
                             generatePath(
                               absoluteRouteMap.children.org.children.projects
-                                .children.agents.children.environment.children
+                                .children.agents.children
                                 .evaluation.children.monitor.children.edit.path,
                               {
                                 agentId,
                                 orgId,
                                 projectId,
-                                envId,
                                 monitorId: monitor.name,
                               },
                             ),
@@ -315,9 +313,9 @@ export function MonitorTable({ createAction }: MonitorTableProps) {
                             navigate({
                               pathname: generatePath(
                                 absoluteRouteMap.children.org.children.projects
-                                  .children.agents.children.environment.children
+                                  .children.agents.children
                                   .evaluation.children.monitor.children.create.path,
-                                { agentId, orgId, projectId, envId },
+                                { agentId, orgId, projectId },
                               ),
                               search: `?duplicateFrom=${encodeURIComponent(monitor.name)}`,
                             })

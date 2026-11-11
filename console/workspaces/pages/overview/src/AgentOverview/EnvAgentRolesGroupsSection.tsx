@@ -29,27 +29,26 @@ import {
   OverviewSectionCard,
   useAgentRolesAndGroups,
 } from "@agent-management-platform/shared-component";
+import { DEFAULT_ENVIRONMENT } from "@agent-management-platform/types";
 import { buildAgentIdHref } from "./agentIdLink";
 
 interface EnvAgentRolesGroupsSectionProps {
   orgId: string;
   projectId: string;
   agentId: string;
-  envId: string;
 }
 
 /**
- * Per-environment "Agent ID" card, laid out like an identity badge: an
+ * "Agent ID" card, laid out like an identity badge: an
  * identity avatar, the Thunder Agent ID as an inline copyable value, and the
- * identity's roles/groups as `Role:`/`Group:` tags on one line. Rendered
- * inside an EnvironmentCard for both internal and external agents — the client
+ * identity's roles/groups as `Role:`/`Group:` tags on one line. The client
  * ID/secret/regenerate flow lives on the agent-level "Agent ID" page instead,
  * linked to via the "View all" button. The Thunder Agent ID mirrors the one
  * shown on that page, resolved from the same useListAgentIdentityAgents
  * response.
  */
 export const EnvAgentRolesGroupsSection: React.FC<EnvAgentRolesGroupsSectionProps> = ({
-  orgId, projectId, agentId, envId,
+  orgId, projectId, agentId,
 }) => {
   // useAgentIdentityBinding has no `enabled` option, so the ids are withheld
   // when Agent ID is disabled to keep the identity request from firing.
@@ -59,15 +58,13 @@ export const EnvAgentRolesGroupsSection: React.FC<EnvAgentRolesGroupsSectionProp
     binding, provisioned, isLoading: isLoadingIdentity, isError: isIdentityError,
   } = useAgentIdentityBinding(
     agentIdEnabled
-      ? { orgId, projectId, agentId, envId }
+      ? { orgId, projectId, agentId, envId: DEFAULT_ENVIRONMENT }
       : { orgId: "", projectId: "", agentId: "", envId: "" },
   );
   const isFailed = binding?.status === "failed";
-  // No binding row exists for this environment at all yet — distinct from
-  // "pending"/"in_progress" (already attempted, still running) or "failed"
-  // (attempted, didn't work). Older internal and external agents can both
-  // reach this state when an environment is added later, so the idempotent
-  // action below repairs only this genuinely missing binding.
+  // No binding row exists yet — distinct from "pending"/"in_progress"
+  // (already attempted, still running) or "failed" (attempted, didn't work);
+  // the idempotent action below repairs only this genuinely missing binding.
   const hasNoBinding = !isLoadingIdentity && !isIdentityError && !binding;
   const canSelfProvision = hasNoBinding;
 
@@ -75,7 +72,7 @@ export const EnvAgentRolesGroupsSection: React.FC<EnvAgentRolesGroupsSectionProp
   const handleRetry = () => {
     retryProvisioning({
       params: { orgName: orgId, projName: projectId, agentName: agentId },
-      body: { environment: envId },
+      body: { environment: DEFAULT_ENVIRONMENT },
     });
   };
 
@@ -90,18 +87,18 @@ export const EnvAgentRolesGroupsSection: React.FC<EnvAgentRolesGroupsSectionProp
   const handleProvision = () => {
     provisionIdentity({
       params: { orgName: orgId, projName: projectId, agentName: agentId },
-      query: { environment: envId },
+      query: { environment: DEFAULT_ENVIRONMENT },
     });
   };
 
   const { roles, groups, isLoading, isError: isRolesGroupsError } = useAgentRolesAndGroups({
-    orgId, projectId, agentId, envId, enabled: provisioned,
+    orgId, projectId, agentId, envId: DEFAULT_ENVIRONMENT, enabled: provisioned,
   });
 
   // Same lookup the agent-id page uses: the Thunder Agent ID is a field on the
-  // per-env identity-agents list, matched by agent + project name.
+  // identity-agents list, matched by agent + project name.
   const { data: identityAgentsData, isError: isAgentsError } = useListAgentIdentityAgents(
-    agentIdEnabled ? { orgName: orgId, envName: envId } : { orgName: "", envName: "" },
+    agentIdEnabled ? { orgName: orgId, envName: DEFAULT_ENVIRONMENT } : { orgName: "", envName: "" },
   );
   const thunderAgentId = useMemo(
     () => identityAgentsData?.agents.find(
@@ -125,7 +122,7 @@ export const EnvAgentRolesGroupsSection: React.FC<EnvAgentRolesGroupsSectionProp
   return (
     <OverviewSectionCard
       title="Agent ID"
-      actionHref={buildAgentIdHref(orgId, projectId, agentId, envId)}
+      actionHref={buildAgentIdHref(orgId, projectId, agentId)}
       sx={{ height: "100%" }}
     >
       <Box display="flex" gap={2} alignItems="center">
@@ -178,7 +175,7 @@ export const EnvAgentRolesGroupsSection: React.FC<EnvAgentRolesGroupsSectionProp
             </Typography>
           ) : canSelfProvision ? (
             <Typography variant="body2" color="text.disabled">
-              Not created for this environment yet
+              Not created yet
             </Typography>
           ) : provisioned ? (
             <Typography variant="body2" color="text.disabled">
@@ -226,7 +223,7 @@ export const EnvAgentRolesGroupsSection: React.FC<EnvAgentRolesGroupsSectionProp
       </Box>
       {isIdentityError && (
         <Alert severity="error" sx={{ mt: 1.5 }}>
-          Couldn&apos;t load the Agent ID for this environment. Refresh the page to try again.
+          Couldn&apos;t load the Agent ID. Refresh the page to try again.
         </Alert>
       )}
       {isFailed && !isLoadingIdentity && !isIdentityError && (
@@ -273,8 +270,8 @@ export const EnvAgentRolesGroupsSection: React.FC<EnvAgentRolesGroupsSectionProp
           sx={{ mt: 1.5, flexWrap: "wrap", "& .MuiAlert-action": { flexShrink: 0 } }}
         >
           {isProvisionError
-            ? "Couldn't create the Agent ID for this environment. Check that the environment is reachable, then try again."
-            : "This agent has no Agent ID for this environment yet."}
+            ? "Couldn't create the Agent ID. Try again."
+            : "This agent has no Agent ID yet."}
         </Alert>
       )}
     </OverviewSectionCard>

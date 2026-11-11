@@ -33,8 +33,6 @@ import {
   ListingTable,
   Skeleton,
   Stack,
-  Tab,
-  Tabs,
   Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
@@ -52,6 +50,7 @@ import { generatePath, Navigate, useNavigate, useParams } from "react-router-dom
 import { useResourceAccess } from "@agent-management-platform/feature-management";
 import {
   absoluteRouteMap,
+  DEFAULT_ENVIRONMENT,
   type CatalogSecuritySummary,
   type CatalogRateLimitingSummary,
   type LLMPolicy,
@@ -71,13 +70,8 @@ import {
   getErrorMessage,
   PolicyListSection,
   type PolicySelection as GuardrailSelection,
-  usePipelineEnvironmentsState,
   useUnsavedChangesGuard,
 } from "@agent-management-platform/shared-component";
-import {
-  BUILD_IN_PROGRESS_REASON,
-  useHasBuildInProgress,
-} from "./utils/buildInProgress";
 import { ProviderSelectDrawer } from "./ProviderSelectDrawer";
 import { ConfigNameSection } from "./Configure/subComponents/ConfigNameSection";
 import {
@@ -373,7 +367,6 @@ export const AddLLMProviderComponent: React.FC = () => {
   const { canWrite } = useResourceAccess("agent");
   const isEditMode = !!configId;
 
-  const [selectedEnvIndex, setSelectedEnvIndex] = useState(0);
   type SelectedProvider = {
     uuid: string;
     id: string;
@@ -393,8 +386,7 @@ export const AddLLMProviderComponent: React.FC = () => {
   // Track whether the user has manually edited env var names
   const envVarNamesEditedRef = useRef(false);
   const [providerDrawerOpen, setProviderDrawerOpen] = useState(false);
-  // Config name: auto-populated from the selected provider, but editable — when
-  // environments use different providers there is no single obvious default.
+  // Config name: auto-populated from the selected provider, but editable.
   const [configName, setConfigName] = useState("");
   const configNameEditedRef = useRef(false);
   // Edit mode snapshots the form once it has been seeded from the saved config.
@@ -429,22 +421,14 @@ export const AddLLMProviderComponent: React.FC = () => {
     agentName: agentId,
   });
   const isExternal = agent?.provisioning?.type === "external";
-  const hasBuildInProgress = useHasBuildInProgress(
-    { orgName: orgId, projName: projectId, agentName: agentId },
-    { enabled: !!agent && !isExternal && !agent.kindName },
-  );
-
-  const { environments, isLoading: isLoadingEnvironments } =
-    usePipelineEnvironmentsState(orgId, projectId);
   const { data: existingConfigsList } = useListAgentModelConfigs({
     orgName: orgId,
     projName: projectId,
     agentName: agentId,
   });
-  const selectedEnvironmentId = environments[selectedEnvIndex]?.id;
   const { data: catalogData } = useListCatalogLLMProviders(
     { orgName: orgId },
-    { limit: 50, environmentId: selectedEnvironmentId },
+    { limit: 50 },
   );
   const { data: templatesData } = useListLLMProviderTemplates({
     orgName: orgId,
@@ -544,24 +528,21 @@ export const AddLLMProviderComponent: React.FC = () => {
 
   // Auto-generate env var names from the selected provider's template in create mode
   const primaryTemplate = useMemo(() => {
-    const firstEnvName = environments[0]?.name;
-    const entry = firstEnvName ? providerByEnv[firstEnvName] : undefined;
+    const entry = providerByEnv[DEFAULT_ENVIRONMENT];
     return entry ? (entry.template ?? entry.id ?? "") : "";
-  }, [providerByEnv, environments]);
+  }, [providerByEnv]);
 
   useEffect(() => {
     if (isEditMode || envVarNamesEditedRef.current) return;
     setEnvVarNames(generateEnvVarNames(primaryTemplate));
   }, [primaryTemplate, isEditMode]);
 
-  // Suggested config name: a unique name derived from the display name of the
-  // first environment that has a provider (what the user sees on the card),
-  // falling back to the template/handle. Used both to auto-populate the field
+  // Suggested config name: a unique name derived from the selected provider's
+  // display name (what the user sees on the card), falling back to the
+  // template/handle. Used both to auto-populate the field
   // and as the save-time fallback, so the rule lives in one place.
   const suggestedConfigName = useMemo(() => {
-    const firstWithProvider = environments
-      .map((env) => providerByEnv[env.name])
-      .find(Boolean);
+    const firstWithProvider = providerByEnv[DEFAULT_ENVIRONMENT];
     const basis =
       firstWithProvider?.name ??
       firstWithProvider?.template ??
@@ -570,7 +551,7 @@ export const AddLLMProviderComponent: React.FC = () => {
     if (!basis) return "";
     const existingNames = (existingConfigsList?.configs ?? []).map((c) => c.name);
     return generateUniqueConfigName(basis, "llm", existingNames);
-  }, [environments, providerByEnv, existingConfigsList]);
+  }, [providerByEnv, existingConfigsList]);
 
   // Auto-populate the config name until the user renames it.
   useEffect(() => {
@@ -578,10 +559,7 @@ export const AddLLMProviderComponent: React.FC = () => {
     setConfigName(suggestedConfigName);
   }, [suggestedConfigName, isEditMode]);
 
-  const selectedEnvName = useMemo(
-    () => environments[selectedEnvIndex]?.name ?? "",
-    [environments, selectedEnvIndex],
-  );
+  const selectedEnvName = DEFAULT_ENVIRONMENT;
 
   const createConfig = useCreateAgentModelConfig();
   const updateConfig = useUpdateAgentModelConfig();
@@ -643,7 +621,7 @@ export const AddLLMProviderComponent: React.FC = () => {
     > = {};
     let hasAtLeastOneProvider = false;
 
-    for (const env of environments) {
+    for (const env of [{ name: DEFAULT_ENVIRONMENT }]) {
       const entry = providerByEnv[env.name];
       if (!entry) continue;
 
@@ -751,7 +729,6 @@ export const AddLLMProviderComponent: React.FC = () => {
     }
   }, [
     providerByEnv,
-    environments,
     guardrailsByEnv,
     envVarNames,
     configName,
@@ -775,13 +752,7 @@ export const AddLLMProviderComponent: React.FC = () => {
     (isEditMode &&
       !!existingConfig?.envMappings?.[envName]?.configuration?.providerName);
 
-  const hasAnyProvider = environments.some((env) =>
-    hasProviderForEnv(env.name),
-  );
-
-  const allEnvsHaveProvider =
-    environments.length > 0 &&
-    environments.every((env) => hasProviderForEnv(env.name));
+  const hasAnyProvider = hasProviderForEnv(DEFAULT_ENVIRONMENT);
   const isFormValid = hasAnyProvider;
 
   const mutationError = createConfig.isError
@@ -797,10 +768,8 @@ export const AddLLMProviderComponent: React.FC = () => {
     return <Navigate to={backHref} replace />;
   }
 
-  // Hold off rendering until the pipeline environments resolve (and, in edit
-  // mode, the existing config). Otherwise the env tabs briefly show all org
-  // environments before collapsing to the pipeline subset.
-  if (isLoadingEnvironments || (isEditMode && isLoadingConfig)) {
+  // In edit mode, hold off rendering until the existing config resolves.
+  if (isEditMode && isLoadingConfig) {
     return (
       <PageLayout
         title={isEditMode ? "Edit LLM Configuration" : "Add LLM Configuration"}
@@ -854,56 +823,6 @@ export const AddLLMProviderComponent: React.FC = () => {
         ) : null}
         <Box>
           <Typography variant="subtitle1" sx={{ mb: 1 }}>LLM Service Provider</Typography>
-          {environments.length > 1 && (
-            <>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                Select which LLM Service provider to use in each environment.
-              </Typography>
-              <Tabs
-                value={selectedEnvIndex}
-                onChange={(_, v: number) => setSelectedEnvIndex(v)}
-                sx={{ borderBottom: 1, borderColor: "divider", mb: 2 }}
-              >
-                {environments.map((env, idx) => {
-                  const hasProvider = hasProviderForEnv(env.name);
-                  return (
-                    <Tab
-                      key={env.name}
-                      label={
-                        <Stack
-                          direction="row"
-                          spacing={0.5}
-                          alignItems="center"
-                        >
-                          <span>{env.displayName ?? env.name}</span>
-                          {!hasProvider && (
-                            <Tooltip
-                              title="No provider selected"
-                              placement="top"
-                              arrow
-                            >
-                              <Box
-                                component="span"
-                                sx={{
-                                  width: 8,
-                                  height: 8,
-                                  borderRadius: "50%",
-                                  bgcolor: "warning.main",
-                                  display: "inline-block",
-                                }}
-                              />
-                            </Tooltip>
-                          )}
-                        </Stack>
-                      }
-                      value={idx}
-                    />
-                  );
-                })}
-              </Tabs>
-            </>
-          )}
-
           {providerByEnv[selectedEnvName] ? (
             (() => {
               const selectedUuid = providerByEnv[selectedEnvName]?.uuid;
@@ -1001,11 +920,7 @@ export const AddLLMProviderComponent: React.FC = () => {
             providers={providers}
             templateMap={templateMap}
             selectedUuid={providerByEnv[selectedEnvName]?.uuid ?? undefined}
-            subtitle={
-              environments.length > 1
-                ? `Choose the catalog provider for the ${environments[selectedEnvIndex]?.displayName ?? environments[selectedEnvIndex]?.name ?? ""} environment.`
-                : "Choose the catalog provider for this agent."
-            }
+            subtitle="Choose the catalog provider for this agent."
             onSelect={(uuid) => {
               if (!selectedEnvName) return;
               const picked = providers.find((p) => p.uuid === uuid);
@@ -1069,9 +984,8 @@ export const AddLLMProviderComponent: React.FC = () => {
           <Box>
             <Typography variant="subtitle1" sx={{ mb: 1 }}>Environment Variable Names</Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              These names are shared across all environments. The platform
-              injects the actual URL and API key values at runtime per
-              environment. Edit only if your code uses different names.
+              The platform injects the actual URL and API key values at
+              runtime. Edit only if your code uses different names.
             </Typography>
             <ListingTable.Container>
               <ListingTable density="compact">
@@ -1122,16 +1036,6 @@ export const AddLLMProviderComponent: React.FC = () => {
           </Box>
         )}
 
-        {hasAnyProvider && !allEnvsHaveProvider && (
-          <Alert severity="info" icon={<AlertTriangle size={18} />}>
-            Some environments don&apos;t have a provider selected. They will be
-            skipped on save.
-          </Alert>
-        )}
-
-        {hasBuildInProgress && (
-          <Alert severity="warning">{BUILD_IN_PROGRESS_REASON}</Alert>
-        )}
 
         {/* Actions */}
         <Box sx={{ display: "flex", gap: 1 }}>
@@ -1140,11 +1044,7 @@ export const AddLLMProviderComponent: React.FC = () => {
           </Button>
           <Tooltip
             title={
-              hasBuildInProgress
-                ? BUILD_IN_PROGRESS_REASON
-                : !isFormValid && !isPending
-                ? "Select a service provider for at least one environment to enable save"
-                : ""
+              !isFormValid && !isPending ? "Select a service provider to enable save" : ""
             }
             placement="top"
           >
@@ -1152,7 +1052,7 @@ export const AddLLMProviderComponent: React.FC = () => {
               <Button
                 variant="contained"
                 onClick={handleSave}
-                disabled={!isFormValid || isPending || hasBuildInProgress}
+                disabled={!isFormValid || isPending}
               >
                 {isPending ? "Saving…" : "Save"}
               </Button>

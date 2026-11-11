@@ -184,7 +184,6 @@ export function LLMProviderOverviewTab({
         url: buildInvokeUrl(g.vhost, providerData.context),
         displayName: g.displayName,
         name: g.name,
-        environment: g.environments?.[0],
       }));
   }, [
     providerData?.context,
@@ -198,7 +197,7 @@ export function LLMProviderOverviewTab({
     const deployedIds = new Set(providerData?.gateways ?? []);
     const allGateways = gatewaysData?.gateways ?? [];
     const knownIds = new Set(allGateways.map((g) => g.uuid));
-    const environmentChips = new Map<
+    const gatewayChips = new Map<
       string,
       { label: string; color: "success" | "info" | "warning"; reason?: string }
     >();
@@ -209,24 +208,17 @@ export function LLMProviderOverviewTab({
     );
     allGateways.forEach((g) => {
       if (!deployedIds.has(g.uuid)) return;
-      const environments = g.environments ?? [];
-      if (environments.length === 0) {
-        unmappedGatewayUuids.push(g.uuid);
-        return;
-      }
       const status = gatewayStatuses?.get(g.uuid);
       const pending = status && pendingStatusChip(status);
-      environments.forEach((env) => {
-        const name = env.displayName || env.name;
-        environmentChips.set(name, {
-          label: pending ? `${name} · ${pending.label}` : name,
-          color: pending ? pending.color : "success",
-          reason: status?.statusReason,
-        });
+      const name = g.displayName || g.name;
+      gatewayChips.set(g.uuid, {
+        label: pending ? `${name} · ${pending.label}` : name,
+        color: pending ? pending.color : "success",
+        reason: status?.statusReason,
       });
     });
     return {
-      environmentChips: [...environmentChips],
+      gatewayChips: [...gatewayChips],
       unmappedGatewayUuids,
     };
   }, [providerData?.gateways, gatewaysData, gatewayStatuses]);
@@ -513,7 +505,7 @@ export function LLMProviderOverviewTab({
                 Deployment
               </Typography>
               {/* Until the gateway list arrives, every deployed UUID would
-                  wrongly render as "Unmapped"; until the deployments list
+                  wrongly render as "Unknown gateway"; until the deployments list
                   arrives, every gateway would read as deploying. */}
               {(providerData.gateways ?? []).length > 0 &&
                 (isLoadingGateways || isLoadingDeployments) && (
@@ -523,8 +515,8 @@ export function LLMProviderOverviewTab({
                 !isLoadingGateways &&
                 !isLoadingDeployments && (
                 <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                  {deployedPlacement.environmentChips.map(([name, chip]) => (
-                    <Tooltip key={name} title={chip.reason ?? ""}>
+                  {deployedPlacement.gatewayChips.map(([uuid, chip]) => (
+                    <Tooltip key={uuid} title={chip.reason ?? ""}>
                       <Chip
                         label={chip.label}
                         size="small"
@@ -536,7 +528,7 @@ export function LLMProviderOverviewTab({
                   {deployedPlacement.unmappedGatewayUuids.map((uuid) => (
                     <Chip
                       key={uuid}
-                      label="Unmapped"
+                      label="Unknown gateway"
                       size="small"
                       variant="outlined"
                     />

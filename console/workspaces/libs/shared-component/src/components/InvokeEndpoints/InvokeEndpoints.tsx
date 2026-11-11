@@ -16,13 +16,12 @@
  * under the License.
  */
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useState } from "react";
 import {
   Alert,
   Box,
   Button,
   Card,
-  Chip,
   Divider,
   FormControl,
   FormLabel,
@@ -36,15 +35,7 @@ import {
 } from "@wso2/oxygen-ui";
 import { Copy, Key } from "@wso2/oxygen-ui-icons-react";
 
-/** Environment an invoke endpoint is exposed through. */
-export interface InvokeEndpointEnvironment {
-  id?: string;
-  name?: string;
-  displayName?: string;
-  isProduction?: boolean;
-}
-
-/** A single gateway invoke URL, optionally tagged with its environment. */
+/** A single gateway invoke URL. */
 export interface InvokeEndpoint {
   /** Stable id of the gateway backing this endpoint. */
   gatewayId: string;
@@ -53,12 +44,10 @@ export interface InvokeEndpoint {
   /** Gateway display name (falls back to name, then id). */
   displayName?: string;
   name?: string;
-  /** Environment this gateway belongs to. Used to group endpoints. */
-  environment?: InvokeEndpointEnvironment;
 }
 
 export interface InvokeEndpointsProps {
-  /** All invoke URLs to show, one per deployed gateway. Grouped by environment. */
+  /** All invoke URLs to show, one per deployed gateway. */
   endpoints: InvokeEndpoint[];
   /**
    * API key generation. The key is scoped to the parent resource (proxy /
@@ -75,21 +64,13 @@ export interface InvokeEndpointsProps {
   readOnly?: boolean;
 }
 
-interface EndpointGroup {
-  key: string;
-  environment?: InvokeEndpointEnvironment;
-  endpoints: InvokeEndpoint[];
-}
-
-const UNASSIGNED_KEY = "__unassigned__";
-
 function copyToClipboard(value: string): Promise<void> {
   return navigator.clipboard.writeText(value);
 }
 
 /**
  * Shows the invoke URLs of a deployed resource (MCP proxy / LLM provider)
- * grouped by environment — one read-only, copyable URL per gateway — followed
+ * — one read-only, copyable URL per gateway — followed
  * by a single API key generator for the whole resource.
  */
 export function InvokeEndpoints({
@@ -105,31 +86,6 @@ export function InvokeEndpoints({
   const theme = useTheme();
   const [copiedUrlId, setCopiedUrlId] = useState<string | null>(null);
   const [apiKeyCopied, setApiKeyCopied] = useState(false);
-
-  const groups = useMemo<EndpointGroup[]>(() => {
-    const map = new Map<string, EndpointGroup>();
-    for (const endpoint of endpoints) {
-      const env = endpoint.environment;
-      const key = env?.id || env?.name || UNASSIGNED_KEY;
-      const existing = map.get(key);
-      if (existing) {
-        existing.endpoints.push(endpoint);
-      } else {
-        map.set(key, { key, environment: env, endpoints: [endpoint] });
-      }
-    }
-    // Production environments first, then alphabetical; unassigned last.
-    return Array.from(map.values()).sort((a, b) => {
-      if (a.key === UNASSIGNED_KEY) return 1;
-      if (b.key === UNASSIGNED_KEY) return -1;
-      const aProd = a.environment?.isProduction ? 0 : 1;
-      const bProd = b.environment?.isProduction ? 0 : 1;
-      if (aProd !== bProd) return aProd - bProd;
-      const aName = a.environment?.displayName || a.environment?.name || "";
-      const bName = b.environment?.displayName || b.environment?.name || "";
-      return aName.localeCompare(bName);
-    });
-  }, [endpoints]);
 
   const handleCopyUrl = useCallback(async (endpoint: InvokeEndpoint) => {
     if (!endpoint.url) return;
@@ -175,77 +131,53 @@ export function InvokeEndpoints({
         <Alert severity="info">{emptyMessage}</Alert>
       ) : (
         <Stack spacing={2}>
-            {groups.map((group) => {
-              const envName =
-                group.environment?.displayName || group.environment?.name;
-              const envLabel = envName
-                ? /environment/i.test(envName)
-                  ? envName
-                  : `${envName} Environment`
-                : "Unassigned";
-              return (
-                <Card key={group.key} variant="outlined" sx={{ p: 2 }}>
-                  <Stack spacing={1.5}>
-                    <Stack direction="row" alignItems="center" gap={1}>
-                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                        {envLabel}
-                      </Typography>
-                      {group.environment?.isProduction && (
-                        <Chip
-                          size="small"
-                          variant="outlined"
-                          color="success"
-                          label="Production"
-                        />
-                      )}
-                    </Stack>
-                    {group.endpoints.map((endpoint) => (
-                      <FormControl
-                        key={endpoint.gatewayId}
-                        fullWidth
-                        size="small"
-                      >
-                        <FormLabel sx={{ mb: 0.5 }}>
-                          {endpoint.displayName ||
-                            endpoint.name ||
-                            endpoint.gatewayId}
-                        </FormLabel>
-                        <TextField
-                          size="small"
-                          fullWidth
-                          value={endpoint.url}
-                          slotProps={{
-                            input: {
-                              readOnly: true,
-                              endAdornment: (
-                                <InputAdornment position="end">
-                                  <Tooltip
-                                    title={
-                                      copiedUrlId === endpoint.gatewayId
-                                        ? "Copied!"
-                                        : "Copy"
-                                    }
-                                  >
-                                    <IconButton
-                                      size="small"
-                                      onClick={() => handleCopyUrl(endpoint)}
-                                      aria-label="Copy Invoke URL"
-                                    >
-                                      <Copy size={16} />
-                                    </IconButton>
-                                  </Tooltip>
-                                </InputAdornment>
-                              ),
-                            },
-                          }}
-                          sx={monospaceInputSx}
-                        />
-                      </FormControl>
-                    ))}
-                  </Stack>
-                </Card>
-              );
-            })}
+            <Card variant="outlined" sx={{ p: 2 }}>
+              <Stack spacing={1.5}>
+                {endpoints.map((endpoint) => (
+                  <FormControl
+                    key={endpoint.gatewayId}
+                    fullWidth
+                    size="small"
+                  >
+                    <FormLabel sx={{ mb: 0.5 }}>
+                      {endpoint.displayName ||
+                        endpoint.name ||
+                        endpoint.gatewayId}
+                    </FormLabel>
+                    <TextField
+                      size="small"
+                      fullWidth
+                      value={endpoint.url}
+                      slotProps={{
+                        input: {
+                          readOnly: true,
+                          endAdornment: (
+                            <InputAdornment position="end">
+                              <Tooltip
+                                title={
+                                  copiedUrlId === endpoint.gatewayId
+                                    ? "Copied!"
+                                    : "Copy"
+                                }
+                              >
+                                <IconButton
+                                  size="small"
+                                  onClick={() => handleCopyUrl(endpoint)}
+                                  aria-label="Copy Invoke URL"
+                                >
+                                  <Copy size={16} />
+                                </IconButton>
+                              </Tooltip>
+                            </InputAdornment>
+                          ),
+                        },
+                      }}
+                      sx={monospaceInputSx}
+                    />
+                  </FormControl>
+                ))}
+              </Stack>
+            </Card>
             {!readOnly && <Divider />}
 
             {!readOnly && (
@@ -256,7 +188,7 @@ export function InvokeEndpoints({
                     Generate API Key
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
-                    One API key works across all environments above.
+                    One API key works across all gateways above.
                   </Typography>
                 </Box>
                 <Box>
