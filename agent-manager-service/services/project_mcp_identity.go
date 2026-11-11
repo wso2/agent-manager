@@ -89,7 +89,8 @@ func (s *ProjectMCPProxyService) ensureBindingResourceServers(ctx context.Contex
 }
 
 // cleanUpBindingIdentity removes the resource server of a binding that left identity, and the roles' grants of the
-// proxy's scopes in envName, best effort. The resource server is the one registered at the binding's public URL; a
+// proxy's scopes in envName, best effort, and reports whether the removal is done, its cleanup ID cleared too. The
+// resource server is the one registered at the binding's public URL; a
 // binding with no gateway has none, and the removal waits for one, keeping the ID. With a cleanupID, a successful removal clears the binding's IdentityCleanupID
 // if it is still that one, so later identical PUTs leave grants made since alone while a newer pending removal stays.
 // When the proxy's scopes cannot be read it removes nothing, since deleting the resource server without them would
@@ -119,9 +120,12 @@ func (s *ProjectMCPProxyService) cleanUpBindingIdentity(
 		return false
 	}
 	if cleanupID != "" {
+		// Not cleared, the ID would have the next identical PUT remove whatever registers after this; the removal
+		// is repeated then instead, which is harmless, and registering waits for it.
 		if err := s.base.endpointRepo.ClearIdentityCleanupID(ctx, endpointUUID, cleanupID); err != nil {
 			s.base.logger.Warn("project MCP binding identity cleanup: clearing the cleanup ID failed",
 				"proxy", proxyHandleOf(proxy), "env", envName, "error", err)
+			return false
 		}
 	}
 	return true

@@ -843,6 +843,32 @@ func TestPutEnv_BackToIdentityKeepsAFailingCleanupPending(t *testing.T) {
 	assert.Len(t, calls.ensured, 1, "the identical PUT removed the old one, then registered")
 }
 
+// A removal whose cleanup ID cannot be cleared is not done: the binding does not register, since the ID left behind
+// would have the next identical PUT remove that registration; the next PUT repeats the removal, clears, then registers.
+func TestSyncBindingIdentity_UnclearedCleanupIDHoldsTheRegistration(t *testing.T) {
+	f := newBindingFixture(t)
+	calls := f.withThunder()
+	endpointRepo := f.svc.base.endpointRepo.(*repomocks.MCPProxyEndpointRepositoryMock)
+	clearID := endpointRepo.ClearIdentityCleanupIDFunc
+	endpointRepo.ClearIdentityCleanupIDFunc = func(context.Context, uuid.UUID, string) error { return errors.New("db down") }
+
+	_, _, err := f.put(t, models.MCPProxyEnvironmentRequest{Security: identityBinding()})
+	require.NoError(t, err)
+	assert.Len(t, calls.deleted, 1, "the new binding's leftover removal ran")
+	assert.Empty(t, calls.ensured, "but with its ID not cleared the binding does not register")
+	endpoint, ee := f.binding()
+	assert.NotEmpty(t, endpoint.Configuration.IdentityCleanupID)
+
+	endpointRepo.ClearIdentityCleanupIDFunc = clearID
+	f.status[ee.ArtifactUUID].Status = models.DeploymentStatusDeployed
+	_, _, err = f.put(t, models.MCPProxyEnvironmentRequest{Security: identityBinding()})
+	require.NoError(t, err)
+	assert.Len(t, calls.deleted, 2)
+	assert.Len(t, calls.ensured, 1)
+	endpoint, _ = f.binding()
+	assert.Empty(t, endpoint.Configuration.IdentityCleanupID)
+}
+
 // A stale removal can land after a newer write put the binding back on identity and registered it. The sync re-reads
 // the binding after acting and applies its current state again, so the binding is registered once more rather than
 // left without its resource server.
