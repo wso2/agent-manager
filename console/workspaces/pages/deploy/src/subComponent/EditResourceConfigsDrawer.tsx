@@ -503,7 +503,7 @@ export function EditResourceConfigsDrawer({
                         type="number"
                         size="small"
                         fullWidth
-                        disabled={isPending}
+                        disabled={isPending || !formData.autoScalingEnabled}
                         value={formData.minReplicas ?? 1}
                         onChange={(e) =>
                           handleFieldChange(
@@ -522,7 +522,7 @@ export function EditResourceConfigsDrawer({
                         type="number"
                         size="small"
                         fullWidth
-                        disabled={isPending}
+                        disabled={isPending || !formData.autoScalingEnabled}
                         value={formData.maxReplicas ?? 3}
                         onChange={(e) =>
                           handleFieldChange(
@@ -532,7 +532,9 @@ export function EditResourceConfigsDrawer({
                         }
                         error={!!(errors.maxReplicas || policyErrors.maxReplicas)}
                         helperText={errors.maxReplicas || policyErrors.maxReplicas}
-                        slotProps={{ input: { inputProps: { min: 1, max: replicasMax } } }}
+                        slotProps={{
+                          input: { inputProps: { min: 1, max: replicaPolicy?.maxReplicas } },
+                        }}
                       />
                     </Form.ElementWrapper>
                   </Form.Stack>
