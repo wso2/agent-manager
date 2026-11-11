@@ -271,8 +271,8 @@ func (s *ProjectMCPProxyService) bindingUpstreamURL(
 
 // saveAndDeployBinding writes the binding in tx, the proxy row locked, and deploys it on gateway, or with no gateway
 // only renders it (DeployRecord). A Failed binding with unchanged input is not rewritten, only re-deployed. A binding
-// that leaves identity, as the lock finds it, is written with a new IdentityCleanupID, and any other keeps the
-// pending one.
+// that leaves identity, as the lock finds it, or is new is written with a new IdentityCleanupID, and any other keeps
+// the pending one.
 func (s *ProjectMCPProxyService) saveAndDeployBinding(
 	ctx context.Context, tx *gorm.DB, ouID, proxyHandle, envName string, envUUID uuid.UUID, gateway *uuid.UUID,
 	desired, stored models.MCPEndpointConfig,
@@ -303,6 +303,12 @@ func (s *ProjectMCPProxyService) saveAndDeployBinding(
 		if mcpIdentityEnabled(lockedConfig.Security) && !mcpIdentityEnabled(desired.Security) {
 			cleanupID = uuid.NewString()
 		}
+		desired.IdentityCleanupID, stored.IdentityCleanupID = cleanupID, cleanupID
+	} else if s.base.resolver != nil {
+		// A new binding starts with a removal of any resource server an earlier binding of the proxy left in the
+		// environment when its own removal failed after it was deleted, so that one's grants never apply to this one.
+		// A new binding has no grants of its own yet: a role grants a proxy's scopes only where it is deployed.
+		cleanupID := uuid.NewString()
 		desired.IdentityCleanupID, stored.IdentityCleanupID = cleanupID, cleanupID
 	}
 	var artifactUUID uuid.UUID
