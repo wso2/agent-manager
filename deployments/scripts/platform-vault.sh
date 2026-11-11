@@ -11,7 +11,9 @@ init_platform_vault() (
     trap 'rm -f "$tmp"' EXIT
 
     if [[ ! -s "$seed_file" ]]; then
-        jq -n             --arg search_password "Aa1!$(openssl rand -hex 24)"             --arg observer "$(openssl rand -hex 32)"             --arg workload_publisher "$(openssl rand -hex 32)"             --arg monitor_publisher "$(openssl rand -hex 32)"             '{
+        # The OpenSearch Helm hooks base64-encode admin:<password> into a
+        # header. Keep the input within 57 bytes to avoid base64 line wrapping.
+        jq -n             --arg search_password "Aa1!$(openssl rand -hex 23)"             --arg observer "$(openssl rand -hex 32)"             --arg workload_publisher "$(openssl rand -hex 32)"             --arg monitor_publisher "$(openssl rand -hex 32)"             '{
                 "opensearch-username": "admin",
                 "opensearch-password": $search_password,
                 "observer-oauth-client-secret": $observer,
