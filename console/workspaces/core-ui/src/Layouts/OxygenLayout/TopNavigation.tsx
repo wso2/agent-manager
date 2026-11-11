@@ -13,11 +13,39 @@ import {
   useTheme,
 } from "@wso2/oxygen-ui";
 import { Plus } from "@wso2/oxygen-ui-icons-react";
-import { useMemo, useState } from "react";
+import { Component, useMemo, useState, type ReactNode } from "react";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
 import { asLink, LevelSwitcherCard } from "./LevelSwitcherCard";
 import { useActiveAgentPage, useActiveOrgPage, useActiveProjectPage } from "./path-map";
 import { useAuthHooks } from "@agent-management-platform/auth";
+import {
+  useExternalComponentModules,
+  type OrganizationSwitcherState,
+} from "@agent-management-platform/views";
+import { MountPoints } from "../../types";
+
+/**
+ * Isolates a component injected at MountPoints.OrganizationSwitcher, so a render
+ * error in it leaves the header with its own organization list.
+ */
+class OrganizationSwitcherBoundary extends Component<
+  { onError: () => void; children: ReactNode },
+  { failed: boolean }
+> {
+  state = { failed: false };
+
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+
+  componentDidCatch() {
+    this.props.onError();
+  }
+
+  render() {
+    return this.state.failed ? null : this.props.children;
+  }
+}
 
 const orgLabel = (
   org?: { name: string; displayName: string },
@@ -64,6 +92,30 @@ export function TopNavigation() {
     ? userInfo?.ouName || userInfo?.ouHandle
     : undefined;
 
+  // A deployment whose sign-in is bound to one organization can inject the
+  // organizations the user can move to (MountPoints.OrganizationSwitcher). They
+  // are used only while the injected component reports the current organization
+  // among more than one; otherwise the list above is.
+  const [organizationSwitcherModule] = useExternalComponentModules(
+    MountPoints.OrganizationSwitcher,
+  );
+  const [reportedSwitcher, setReportedSwitcher] =
+    useState<OrganizationSwitcherState | null>(null);
+  const externalSwitcher =
+    organizationSwitcherModule &&
+    reportedSwitcher &&
+    reportedSwitcher.organizations.length > 1 &&
+    reportedSwitcher.organizations.some(
+      (organization) => organization.id === reportedSwitcher.currentId,
+    )
+      ? reportedSwitcher
+      : null;
+  // While a switch runs the card names the organization the console is moving to.
+  const switchingToName = externalSwitcher?.organizations.find(
+    (organization) => organization.id === externalSwitcher.switchingId,
+  )?.name;
+  const canSwitchOrg = hasOtherOrgs || !!externalSwitcher;
+
   // Get all projects for the organization
   const { data: projects } = useListProjects({
     orgName: orgId,
@@ -85,12 +137,19 @@ export function TopNavigation() {
 
   return (
     <>
+      {organizationSwitcherModule && (
+        <OrganizationSwitcherBoundary onError={() => setReportedSwitcher(null)}>
+          <organizationSwitcherModule.component
+            onSwitcherChange={setReportedSwitcher}
+          />
+        </OrganizationSwitcherBoundary>
+      )}
       <Header.Switchers showDivider={false}>
         {organizations?.organizations && selectedOrganization && (
           <LevelSwitcherCard
-            label={hasOtherOrgs ? "Organizations" : "Organization"}
+            label={canSwitchOrg ? "Organizations" : "Organization"}
             chevronLabel="Switch organization"
-            canSwitch={hasOtherOrgs}
+            canSwitch={canSwitchOrg}
             anchorEl={orgAnchorEl}
             onOpenMenu={(e) => setOrgAnchorEl(e.currentTarget)}
             onCloseMenu={() => setOrgAnchorEl(null)}
@@ -102,12 +161,30 @@ export function TopNavigation() {
               goToLabel: `Go to ${orgLabel(selectedOrganization, soloOrgFallbackName)}`,
               content: (
                 <Typography variant="body1" noWrap sx={{ maxWidth: "100%" }}>
-                  {orgLabel(selectedOrganization, soloOrgFallbackName)}
+                  {switchingToName ??
+                    orgLabel(selectedOrganization, soloOrgFallbackName)}
                 </Typography>
               ),
             }}
           >
-            {hasOtherOrgs &&
+            {externalSwitcher &&
+              externalSwitcher.organizations.map((organization) => (
+                <MenuItem
+                  key={organization.id}
+                  selected={organization.id === externalSwitcher.currentId}
+                  disabled={!!externalSwitcher.switchingId}
+                  onClick={() => {
+                    setOrgAnchorEl(null);
+                    if (organization.id !== externalSwitcher.currentId) {
+                      externalSwitcher.onSwitch(organization.id);
+                    }
+                  }}
+                >
+                  {organization.name}
+                </MenuItem>
+              ))}
+            {!externalSwitcher &&
+              hasOtherOrgs &&
               organizations.organizations.map((organization) => (
                 <MenuItem
                   key={organization.name}
