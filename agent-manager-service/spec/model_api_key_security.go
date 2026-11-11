@@ -23,7 +23,7 @@ type APIKeySecurity struct {
 	Enabled *bool `json:"enabled,omitempty"`
 	// API key parameter name
 	Key *string `json:"key,omitempty"`
-	// Where the API key is located
+	// Where the API key is located. The gateway reads it from a header only: query is refused with 400 when an API key is enabled, except on an MCP proxy endpoint that already has it stored, which keeps it until it is moved to a header. It is still returned for such resources.
 	In *string `json:"in,omitempty"`
 }
 

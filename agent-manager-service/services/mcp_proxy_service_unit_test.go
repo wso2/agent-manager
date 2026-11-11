@@ -1594,3 +1594,36 @@ func TestConvertModelMCPProxyToListItem_EnvironmentsAndSource(t *testing.T) {
 
 	assert.NotNil(t, convertModelMCPProxyToListItem(&models.MCPProxy{}).Environments, "never null")
 }
+
+// An org endpoint asking for an API key outside a header is refused, as the gateway checks no other location; one that
+// already has it stored keeps it on update, so a proxy saved before the check can still be saved.
+func TestValidateMCPEndpointKeyLocations(t *testing.T) {
+	on, off := true, false
+	endpoint := func(id, in string, enabled bool) models.MCPProxyEndpointDTO {
+		return models.MCPProxyEndpointDTO{ID: id, Security: &models.SecurityConfig{
+			Enabled: &on, APIKey: &models.APIKeySecurity{Enabled: &enabled, Key: "k", In: in},
+		}}
+	}
+	stored := func(handle, in string) models.MCPProxyEndpoint {
+		return models.MCPProxyEndpoint{Handle: handle, Configuration: models.MCPEndpointConfig{
+			Security: &models.SecurityConfig{Enabled: &on, APIKey: &models.APIKeySecurity{Enabled: &on, Key: "k", In: in}},
+		}}
+	}
+
+	assert.NoError(t, validateMCPEndpointKeyLocations([]models.MCPProxyEndpointDTO{endpoint("main", "header", true)}, nil))
+	assert.NoError(t, validateMCPEndpointKeyLocations([]models.MCPProxyEndpointDTO{endpoint("main", "query", off)}, nil),
+		"an API key that is off is not checked")
+
+	err := validateMCPEndpointKeyLocations([]models.MCPProxyEndpointDTO{endpoint("main", "query", true)}, nil)
+	assert.ErrorIs(t, err, utils.ErrInvalidInput, "create")
+
+	err = validateMCPEndpointKeyLocations([]models.MCPProxyEndpointDTO{endpoint("main", "query", true)},
+		[]models.MCPProxyEndpoint{stored("main", "header")})
+	assert.ErrorIs(t, err, utils.ErrInvalidInput, "an update moving to the query")
+
+	assert.NoError(t, validateMCPEndpointKeyLocations([]models.MCPProxyEndpointDTO{endpoint("main", "query", true)},
+		[]models.MCPProxyEndpoint{stored("main", "query")}), "an endpoint stored with the query keeps it")
+	err = validateMCPEndpointKeyLocations([]models.MCPProxyEndpointDTO{endpoint("other", "query", true)},
+		[]models.MCPProxyEndpoint{stored("main", "query")})
+	assert.ErrorIs(t, err, utils.ErrInvalidInput, "only the endpoint that had it keeps it")
+}

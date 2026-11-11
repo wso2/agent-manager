@@ -1896,14 +1896,14 @@ type APIKeySecurity struct {
 	// Enabled Whether API key security is enabled
 	Enabled *bool `json:"enabled,omitempty"`
 
-	// In Where the API key is located
+	// In Where the API key is located. The gateway reads it from a header only: query is refused with 400 when an API key is enabled, except on an MCP proxy endpoint that already has it stored, which keeps it until it is moved to a header. It is still returned for such resources.
 	In *APIKeySecurityIn `json:"in,omitempty"`
 
 	// Key API key parameter name
 	Key *string `json:"key,omitempty"`
 }
 
-// APIKeySecurityIn Where the API key is located
+// APIKeySecurityIn Where the API key is located. The gateway reads it from a header only: query is refused with 400 when an API key is enabled, except on an MCP proxy endpoint that already has it stored, which keeps it until it is moved to a header. It is still returned for such resources.
 type APIKeySecurityIn string
 
 // AddAgentKindVersionRequest defines model for AddAgentKindVersionRequest.
