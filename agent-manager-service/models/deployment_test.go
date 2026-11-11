@@ -55,7 +55,7 @@ func TestDeploymentStatusValues(t *testing.T) {
 }
 
 func TestPlatformAgentExposureTable(t *testing.T) {
-	assert.Equal(t, "platform_agent_exposures", PlatformAgentExposure{}.TableName())
+	assert.Equal(t, "agent_exposures", PlatformAgentExposure{}.TableName())
 }
 
 // UserStatusOf is the design's table of what a user is shown for each row shape.

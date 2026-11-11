@@ -178,10 +178,6 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 	if !opts.Server {
 		return
 	}
-	if err := dbmigrations.RequireRunnable(cfg.Database.Driver); err != nil {
-		slog.Error("cannot start the server", "error", err)
-		os.Exit(1)
-	}
 	if cfg.IdentityManagementMode == string(thundersvc.IdentityManagementCPManaged) && opts.AgentThunderProvisioning == nil {
 		slog.Error("CP_MANAGED identity mode requires an AgentID provisioning implementation")
 		os.Exit(1)
@@ -263,12 +259,7 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 		}
 	}
 
-	// Start monitor scheduler with background context
-	schedulerCtx, schedulerCancel := context.WithCancel(backgroundCtx)
-	if err := dependencies.MonitorScheduler.Start(schedulerCtx); err != nil {
-		slog.Error("failed to start monitor scheduler", "error", err)
-		os.Exit(1)
-	}
+	// Lite runs no evaluation monitors, so the monitor scheduler is never started.
 
 	// Start the AgentID provisioning retry reconciler, but only when provisioning
 	// is enabled — otherwise there is nothing to reconcile.
@@ -354,11 +345,6 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 		}
 
 		stopBackground()
-		schedulerCancel()
-		if err := dependencies.MonitorScheduler.Stop(); err != nil {
-			slog.Error("error stopping monitor scheduler", "error", err)
-		}
-
 		agentThunderReconcilerCancel()
 		if agentThunderProvisioning != nil {
 			if err := dependencies.AgentThunderReconciler.Stop(); err != nil {
@@ -519,8 +505,8 @@ func loadBuiltInLLMTemplates(dependencies *wiring.AppParams) error {
 }
 
 // startEvents sets up the event bus, retrying until it answers, then starts
-// the publisher, the event dispatcher and the monitor alerting. A no-op
-// with events off.
+// the publisher and the event dispatcher. Lite runs no monitors, so monitor
+// alerting is not started. A no-op with events off.
 func startEvents(ctx context.Context, deps *wiring.AppParams) <-chan struct{} {
 	done := make(chan struct{})
 	if deps.EventBus == nil {
@@ -538,7 +524,6 @@ func startEvents(ctx context.Context, deps *wiring.AppParams) <-chan struct{} {
 		}{
 			{"event bus", deps.EventBus.Setup},
 			{"event dispatcher", deps.EventDispatcher.Start},
-			{"monitor alerting", deps.MonitorAlerts.Start},
 		}
 		for _, step := range steps {
 			for {
@@ -574,7 +559,7 @@ func startEvents(ctx context.Context, deps *wiring.AppParams) <-chan struct{} {
 	return done
 }
 
-// stopEvents stops the event dispatcher and the monitor alerting, flushes
+// stopEvents stops the event dispatcher, flushes
 // queued events and closes the bus.
 func stopEvents(deps *wiring.AppParams) {
 	if deps.EventBus == nil {
@@ -582,9 +567,6 @@ func stopEvents(deps *wiring.AppParams) {
 	}
 	if err := deps.EventDispatcher.Stop(); err != nil {
 		slog.Error("Failed to stop the event dispatcher", "error", err)
-	}
-	if err := deps.MonitorAlerts.Stop(); err != nil {
-		slog.Error("Failed to stop the monitor alerting", "error", err)
 	}
 	if publisher, ok := deps.EventPublisher.(*events.AsyncPublisher); ok {
 		publisher.Stop()

@@ -192,7 +192,7 @@ func (s *MCPProxyService) ensureMCPProxyEnvArtifactRow(tx *gorm.DB, deployProxy 
 		return nil
 	}
 	var existing int64
-	if err := tx.Model(&models.Artifact{}).Where("uuid = ? AND ou_id = ?", deployProxy.UUID, ouID).
+	if err := tx.Model(&models.Artifact{}).Where("id = ? AND org_id = ?", deployProxy.UUID, ouID).
 		Count(&existing).Error; err != nil {
 		return fmt.Errorf("failed to check MCP proxy environment artifact: %w", err)
 	}
@@ -392,15 +392,15 @@ func (s *MCPProxyService) deleteMCPProxyEnvironmentArtifacts(ctx context.Context
 
 // deleteMCPArtifactRows deletes a per-environment gateway artifact with its deployments and status rows, in tx.
 func deleteMCPArtifactRows(tx *gorm.DB, artifactUUID uuid.UUID, ouID string) error {
-	if err := tx.Where("artifact_uuid = ? AND ou_id = ?", artifactUUID, ouID).
+	if err := tx.Where("artifact_id = ? AND org_id = ?", artifactUUID, ouID).
 		Delete(&models.DeploymentStatusRecord{}).Error; err != nil {
 		return err
 	}
-	if err := tx.Where("artifact_uuid = ? AND ou_id = ?", artifactUUID, ouID).
+	if err := tx.Where("artifact_id = ? AND org_id = ?", artifactUUID, ouID).
 		Delete(&models.Deployment{}).Error; err != nil {
 		return err
 	}
-	return tx.Where("uuid = ? AND ou_id = ?", artifactUUID, ouID).Delete(&models.Artifact{}).Error
+	return tx.Where("id = ? AND org_id = ?", artifactUUID, ouID).Delete(&models.Artifact{}).Error
 }
 
 // prepareMCPArtifactDeletes builds the artifacts' delete events in tx, before their rows are deleted.

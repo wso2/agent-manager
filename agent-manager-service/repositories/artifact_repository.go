@@ -25,6 +25,7 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
+	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -64,7 +65,10 @@ func (r *ArtifactRepo) WithTx(tx *gorm.DB) ArtifactRepository {
 
 // Create inserts a new artifact within a transaction
 func (r *ArtifactRepo) Create(tx *gorm.DB, artifact *models.Artifact) error {
-	now := time.Now()
+	if _, err := ensureOrg(tx.Statement.Context, tx, artifact.OUID); err != nil {
+		return err
+	}
+	now := dbx.Now()
 	artifact.CreatedAt = now
 	artifact.UpdatedAt = now
 	return tx.Create(artifact).Error
@@ -72,7 +76,7 @@ func (r *ArtifactRepo) Create(tx *gorm.DB, artifact *models.Artifact) error {
 
 // Delete removes an artifact within a transaction
 func (r *ArtifactRepo) Delete(tx *gorm.DB, uuid string) error {
-	result := tx.Where("uuid = ?", uuid).Delete(&models.Artifact{})
+	result := tx.Where("id = ?", uuid).Delete(&models.Artifact{})
 	if result.Error != nil {
 		return result.Error
 	}
@@ -84,7 +88,7 @@ func (r *ArtifactRepo) Delete(tx *gorm.DB, uuid string) error {
 
 // Update modifies an artifact within a transaction
 func (r *ArtifactRepo) Update(tx *gorm.DB, artifact *models.Artifact) error {
-	artifact.UpdatedAt = time.Now()
+	artifact.UpdatedAt = dbx.Now()
 	updates := map[string]interface{}{
 		"updated_at": artifact.UpdatedAt,
 	}
@@ -99,7 +103,7 @@ func (r *ArtifactRepo) Update(tx *gorm.DB, artifact *models.Artifact) error {
 	}
 
 	result := tx.Model(&models.Artifact{}).
-		Where("uuid = ? AND ou_id = ?", artifact.UUID, artifact.OUID).
+		Where("id = ? AND org_id = ?", artifact.UUID, artifact.OUID).
 		Updates(updates)
 
 	if result.Error != nil {
@@ -115,7 +119,7 @@ func (r *ArtifactRepo) Update(tx *gorm.DB, artifact *models.Artifact) error {
 func (r *ArtifactRepo) Exists(kind, handle, orgUUID string) (bool, error) {
 	var count int64
 	err := r.db.Model(&models.Artifact{}).
-		Where("kind = ? AND handle = ? AND ou_id = ?", kind, handle, orgUUID).
+		Where("kind = ? AND handle = ? AND org_id = ?", kind, handle, orgUUID).
 		Count(&count).Error
 	if err != nil {
 		return false, err
@@ -138,8 +142,8 @@ func (r *ArtifactRepo) ListExisting(
 	}
 	var artifacts []models.Artifact
 	err := r.db.WithContext(ctx).
-		Select("uuid", "ou_id", "kind", "handle").
-		Where("ou_id = ? AND (uuid IN ? OR (kind = ? AND handle IN ?))", ouID, uuids, models.KindLLMProxy, llmProxyHandles).
+		Select("id", "org_id", "kind", "handle").
+		Where("org_id = ? AND (id IN ? OR (kind = ? AND handle IN ?))", ouID, uuids, models.KindLLMProxy, llmProxyHandles).
 		Find(&artifacts).Error
 	if err != nil {
 		return nil, fmt.Errorf("failed to list existing artifacts: %w", err)
@@ -154,7 +158,7 @@ func (r *ArtifactRepo) ListExisting(
 // GetByHandle retrieves an artifact by handle and organization
 func (r *ArtifactRepo) GetByHandle(handle, orgUUID string) (*models.Artifact, error) {
 	var artifact models.Artifact
-	err := r.db.Where("handle = ? AND ou_id = ?", handle, orgUUID).
+	err := r.db.Where("handle = ? AND org_id = ?", handle, orgUUID).
 		First(&artifact).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -169,7 +173,7 @@ func (r *ArtifactRepo) GetByHandle(handle, orgUUID string) (*models.Artifact, er
 // utils.ErrArtifactNotFound when no matching row exists.
 func (r *ArtifactRepo) GetByUUID(artifactUUID, orgUUID string) (*models.Artifact, error) {
 	var artifact models.Artifact
-	err := r.db.Where("uuid = ? AND ou_id = ?", artifactUUID, orgUUID).
+	err := r.db.Where("id = ? AND org_id = ?", artifactUUID, orgUUID).
 		First(&artifact).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -184,7 +188,7 @@ func (r *ArtifactRepo) GetByUUID(artifactUUID, orgUUID string) (*models.Artifact
 func (r *ArtifactRepo) ListByHandlePrefix(ctx context.Context, kinds []string, handlePrefix, orgUUID string) ([]*models.Artifact, error) {
 	var artifacts []*models.Artifact
 	err := r.db.WithContext(ctx).
-		Where(`kind IN ? AND ou_id = ? AND handle LIKE ? ESCAPE '\'`, kinds, orgUUID, escapeLikeWildcards(handlePrefix)+"%").
+		Where(`kind IN ? AND org_id = ? AND handle LIKE ? ESCAPE '\'`, kinds, orgUUID, escapeLikeWildcards(handlePrefix)+"%").
 		Find(&artifacts).Error
 	return artifacts, err
 }
@@ -193,7 +197,7 @@ func (r *ArtifactRepo) ListByHandlePrefix(ctx context.Context, kinds []string, h
 func (r *ArtifactRepo) CountByKindAndOrg(kind, orgUUID string) (int, error) {
 	var count int64
 	err := r.db.Model(&models.Artifact{}).
-		Where("kind = ? AND ou_id = ?", kind, orgUUID).
+		Where("kind = ? AND org_id = ?", kind, orgUUID).
 		Count(&count).Error
 	return int(count), err
 }
@@ -201,7 +205,7 @@ func (r *ArtifactRepo) CountByKindAndOrg(kind, orgUUID string) (int, error) {
 // UpdateCatalogStatus updates the in_catalog field for an artifact
 func (r *ArtifactRepo) UpdateCatalogStatus(tx *gorm.DB, uuid, organizationUUID string, inCatalog bool) error {
 	result := tx.Model(&models.Artifact{}).
-		Where("uuid = ? AND ou_id = ?", uuid, organizationUUID).
+		Where("id = ? AND org_id = ?", uuid, organizationUUID).
 		Updates(map[string]interface{}{
 			"in_catalog": inCatalog,
 			"updated_at": time.Now(),

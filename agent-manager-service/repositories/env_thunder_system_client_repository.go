@@ -18,10 +18,8 @@ package repositories
 
 import (
 	"context"
-	"errors"
 
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 )
@@ -41,35 +39,20 @@ type EnvThunderSystemClientRepository interface {
 	Delete(ctx context.Context, ouID, envName string) error
 }
 
-type envThunderSystemClientRepo struct {
-	db *gorm.DB
-}
+// envThunderSystemClientRepo stores no env-Thunder credential: Lite environments all use the platform Thunder.
+type envThunderSystemClientRepo struct{}
 
 // NewEnvThunderSystemClientRepo creates a new EnvThunderSystemClientRepository.
-func NewEnvThunderSystemClientRepo(db *gorm.DB) EnvThunderSystemClientRepository {
-	return &envThunderSystemClientRepo{db: db}
+func NewEnvThunderSystemClientRepo(*gorm.DB) EnvThunderSystemClientRepository {
+	return envThunderSystemClientRepo{}
 }
 
-func (r *envThunderSystemClientRepo) Get(ctx context.Context, ouID, envName string) (*models.EnvThunderSystemClient, error) {
-	var cred models.EnvThunderSystemClient
-	result := r.db.WithContext(ctx).Where("ou_id = ? AND env_name = ?", ouID, envName).First(&cred)
-	if result.Error != nil {
-		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return nil, gorm.ErrRecordNotFound
-		}
-		return nil, result.Error
-	}
-	return &cred, nil
+func (envThunderSystemClientRepo) Get(context.Context, string, string) (*models.EnvThunderSystemClient, error) {
+	return nil, gorm.ErrRecordNotFound
 }
 
-func (r *envThunderSystemClientRepo) Upsert(ctx context.Context, cred *models.EnvThunderSystemClient) error {
-	return r.db.WithContext(ctx).Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "ou_id"}, {Name: "env_name"}},
-		DoUpdates: clause.AssignmentColumns([]string{"client_id", "client_secret_encrypted", "updated_at"}),
-	}).Create(cred).Error
+func (envThunderSystemClientRepo) Upsert(context.Context, *models.EnvThunderSystemClient) error {
+	return ErrEnvThunderUnsupported
 }
 
-func (r *envThunderSystemClientRepo) Delete(ctx context.Context, ouID, envName string) error {
-	return r.db.WithContext(ctx).Where("ou_id = ? AND env_name = ?", ouID, envName).
-		Delete(&models.EnvThunderSystemClient{}).Error
-}
+func (envThunderSystemClientRepo) Delete(context.Context, string, string) error { return nil }

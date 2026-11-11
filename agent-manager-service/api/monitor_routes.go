@@ -19,7 +19,6 @@ package api
 import (
 	"github.com/wso2/agent-manager/agent-manager-service/controllers"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
-	"github.com/wso2/agent-manager/agent-manager-service/middleware/growthanalytics"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
 
@@ -33,63 +32,57 @@ func registerMonitorScoreRoutes(rr *middleware.RouteRegistrar, controller contro
 
 	// GET .../monitors/{monitorName}/scores - Get scores for a monitor (time-range based)
 	// Query params: startTime, endTime, evaluator (optional), level (optional), span_type (optional)
-	rr.HandleFuncWithValidationAndAuthz(route("GET", monitorBase+"/scores"), rbac.MonitorScoreRead, controller.GetMonitorScores)
+	rr.HandleFuncWithValidationAndAuthz(route("GET", monitorBase+"/scores"), rbac.MonitorScoreRead, notImplemented)
 
 	// GET .../monitors/{monitorName}/runs/{runId}/scores - Get per-run aggregated scores
-	rr.HandleFuncWithValidationAndAuthz(route("GET", monitorBase+"/runs/{runId}/scores"), rbac.MonitorScoreRead, controller.GetMonitorRunScores)
+	rr.HandleFuncWithValidationAndAuthz(route("GET", monitorBase+"/runs/{runId}/scores"), rbac.MonitorScoreRead, notImplemented)
 
 	// GET .../monitors/{monitorName}/scores/breakdown - Get scores grouped by span label (agent/LLM breakdown)
 	// Query params: startTime, endTime, level (required: "agent" or "llm")
-	rr.HandleFuncWithValidationAndAuthz(route("GET", monitorBase+"/scores/breakdown"), rbac.MonitorScoreRead, controller.GetGroupedScores)
+	rr.HandleFuncWithValidationAndAuthz(route("GET", monitorBase+"/scores/breakdown"), rbac.MonitorScoreRead, notImplemented)
 
 	// GET .../monitors/{monitorName}/scores/timeseries - Get time-series data for an evaluator
 	// Query params: startTime, endTime, evaluator (required), granularity (optional: hour/day/week)
-	rr.HandleFuncWithValidationAndAuthz(route("GET", monitorBase+"/scores/timeseries"), rbac.MonitorScoreRead, controller.GetScoresTimeSeries)
+	rr.HandleFuncWithValidationAndAuthz(route("GET", monitorBase+"/scores/timeseries"), rbac.MonitorScoreRead, notImplemented)
 
 	// GET .../agents/{agentName}/scores - Aggregated scores per trace for an agent
 	// Query params: startTime, endTime
-	rr.HandleFuncWithValidationAndAuthz(route("GET", agentBase+"/scores"), rbac.MonitorScoreRead, controller.GetAgentTraceScores)
+	rr.HandleFuncWithValidationAndAuthz(route("GET", agentBase+"/scores"), rbac.MonitorScoreRead, notImplemented)
 
 	// GET .../agents/{agentName}/traces/{traceId}/scores - Get all evaluation scores for a trace across all monitors
-	rr.HandleFuncWithValidationAndAuthz(route("GET", agentBase+"/traces/{traceId}/scores"), rbac.MonitorScoreRead, controller.GetTraceScores)
+	rr.HandleFuncWithValidationAndAuthz(route("GET", agentBase+"/traces/{traceId}/scores"), rbac.MonitorScoreRead, notImplemented)
 }
 
 func registerMonitorRoutes(rr *middleware.RouteRegistrar, controller controllers.MonitorController) {
 	base := "/orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors"
 
 	// GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors - List all monitors
-	rr.HandleFuncWithValidationAndAuthz(route("GET", base), rbac.MonitorRead, controller.ListMonitors)
+	rr.HandleFuncWithValidationAndAuthz(route("GET", base), rbac.MonitorRead, notImplemented)
 
 	// POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors - Create a new evaluation monitor
-	rr.HandleFuncWithValidationAndAuthz(route("POST", base), rbac.MonitorCreate,
-		growthanalytics.Track("amp.observability.create-monitor", actionDims("created-monitor"), controller.CreateMonitor))
+	rr.HandleFuncWithValidationAndAuthz(route("POST", base), rbac.MonitorCreate, notImplemented)
 
 	// GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName} - Get a specific monitor
-	rr.HandleFuncWithValidationAndAuthz(route("GET", base+"/{monitorName}"), rbac.MonitorRead, controller.GetMonitor)
+	rr.HandleFuncWithValidationAndAuthz(route("GET", base+"/{monitorName}"), rbac.MonitorRead, notImplemented)
 
 	// DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName} - Delete a monitor
-	rr.HandleFuncWithValidationAndAuthz(route("DELETE", base+"/{monitorName}"), rbac.MonitorDelete,
-		growthanalytics.Track("amp.observability.create-monitor", actionDims("deleted-monitor"), controller.DeleteMonitor))
+	rr.HandleFuncWithValidationAndAuthz(route("DELETE", base+"/{monitorName}"), rbac.MonitorDelete, notImplemented)
 
 	// PATCH /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName} - Update a monitor
-	rr.HandleFuncWithValidationAndAuthz(route("PATCH", base+"/{monitorName}"), rbac.MonitorUpdate,
-		growthanalytics.Track("amp.observability.create-monitor", actionDims("updated-monitor"), controller.UpdateMonitor))
+	rr.HandleFuncWithValidationAndAuthz(route("PATCH", base+"/{monitorName}"), rbac.MonitorUpdate, notImplemented)
 
 	// POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/stop - Stop a monitor
-	rr.HandleFuncWithValidationAndAuthz(route("POST", base+"/{monitorName}/stop"), rbac.MonitorExecute,
-		growthanalytics.Track("amp.observability.create-monitor.start-stop", actionDims("stopped-monitor"), controller.StopMonitor))
+	rr.HandleFuncWithValidationAndAuthz(route("POST", base+"/{monitorName}/stop"), rbac.MonitorExecute, notImplemented)
 
 	// POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/start - Start a monitor
-	rr.HandleFuncWithValidationAndAuthz(route("POST", base+"/{monitorName}/start"), rbac.MonitorExecute,
-		growthanalytics.Track("amp.observability.create-monitor.start-stop", actionDims("started-monitor"), controller.StartMonitor))
+	rr.HandleFuncWithValidationAndAuthz(route("POST", base+"/{monitorName}/start"), rbac.MonitorExecute, notImplemented)
 
 	// GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/runs - List monitor runs
-	rr.HandleFuncWithValidationAndAuthz(route("GET", base+"/{monitorName}/runs"), rbac.MonitorRead, controller.ListMonitorRuns)
+	rr.HandleFuncWithValidationAndAuthz(route("GET", base+"/{monitorName}/runs"), rbac.MonitorRead, notImplemented)
 
 	// POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/runs/{runId}/rerun - Create a new run with same time parameters
-	rr.HandleFuncWithValidationAndAuthz(route("POST", base+"/{monitorName}/runs/{runId}/rerun"), rbac.MonitorExecute,
-		growthanalytics.Track("amp.observability.create-monitor.rerun", actionDims("reran-monitor"), controller.RerunMonitor))
+	rr.HandleFuncWithValidationAndAuthz(route("POST", base+"/{monitorName}/runs/{runId}/rerun"), rbac.MonitorExecute, notImplemented)
 
 	// GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/runs/{runId}/logs - Get monitor run logs
-	rr.HandleFuncWithValidationAndAuthz(route("GET", base+"/{monitorName}/runs/{runId}/logs"), rbac.MonitorRead, controller.GetMonitorRunLogs)
+	rr.HandleFuncWithValidationAndAuthz(route("GET", base+"/{monitorName}/runs/{runId}/logs"), rbac.MonitorRead, notImplemented)
 }

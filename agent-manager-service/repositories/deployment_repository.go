@@ -24,8 +24,8 @@ import (
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 
+	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -110,14 +110,14 @@ func (r *DeploymentRepo) CreateWithLimitEnforcement(deployment *models.Deploymen
 	return r.db.Transaction(func(tx *gorm.DB) error {
 		// Generate UUID for deployment if not already set
 		if deployment.DeploymentID == uuid.Nil {
-			deployment.DeploymentID = uuid.New()
+			deployment.DeploymentID = uuid.Must(uuid.NewV7())
 		}
-		deployment.CreatedAt = time.Now()
+		deployment.CreatedAt = dbx.Now()
 
 		// Count total deployments for this artifact+Gateway
 		var count int64
 		if err := tx.Model(&models.Deployment{}).
-			Where("artifact_uuid = ? AND gateway_uuid = ? AND ou_id = ?",
+			Where("artifact_id = ? AND gateway_id = ? AND org_id = ?",
 				deployment.ArtifactUUID, deployment.GatewayUUID, deployment.OUID).
 			Count(&count).Error; err != nil {
 			return err
@@ -127,23 +127,26 @@ func (r *DeploymentRepo) CreateWithLimitEnforcement(deployment *models.Deploymen
 		if count >= int64(hardLimit) {
 			// Get oldest 5 ARCHIVED deployment IDs
 			var idsToDelete []uuid.UUID
-			if err := tx.Table("deployments d").
-				Select("d.deployment_id").
-				Joins("LEFT JOIN deployment_status s ON d.deployment_id = s.deployment_id "+
-					"AND d.artifact_uuid = s.artifact_uuid "+
-					"AND d.ou_id = s.ou_id "+
-					"AND d.gateway_uuid = s.gateway_uuid").
-				Where("d.artifact_uuid = ? AND d.gateway_uuid = ? AND d.ou_id = ? AND s.deployment_id IS NULL",
+			if err := tx.Table("artifact_deployments d").
+				Select("d.id").
+				Joins("LEFT JOIN artifact_gateway_status s ON d.id = s.deployment_id "+
+					"AND d.artifact_id = s.artifact_id "+
+					"AND d.gateway_id = s.gateway_id").
+				Where("d.artifact_id = ? AND d.gateway_id = ? AND d.org_id = ? AND s.deployment_id IS NULL",
 					deployment.ArtifactUUID, deployment.GatewayUUID, deployment.OUID).
 				Order("d.created_at ASC").
 				Limit(5).
-				Pluck("d.deployment_id", &idsToDelete).Error; err != nil {
+				Pluck("d.id", &idsToDelete).Error; err != nil {
 				return err
 			}
 
-			// Delete one-by-one to use row-level locks
+			// Delete one-by-one to use row-level locks; a deployment that is another's base loses that link first.
 			for _, id := range idsToDelete {
-				if err := tx.Where("deployment_id = ?", id).Delete(&models.Deployment{}).Error; err != nil {
+				if err := tx.Model(&models.Deployment{}).Where("base_deployment_id = ?", id).
+					Update("base_deployment_id", nil).Error; err != nil {
+					return err
+				}
+				if err := tx.Where("id = ?", id).Delete(&models.Deployment{}).Error; err != nil {
 					return err
 				}
 			}
@@ -161,7 +164,7 @@ func (r *DeploymentRepo) WithTx(tx *gorm.DB) DeploymentRepository {
 // GetWithContent retrieves a deployment including its content
 func (r *DeploymentRepo) GetWithContent(deploymentID, artifactUUID, orgUUID string) (*models.Deployment, error) {
 	var deployment models.Deployment
-	err := r.db.Where("deployment_id = ? AND artifact_uuid = ? AND ou_id = ?",
+	err := r.db.Where("id = ? AND artifact_id = ? AND org_id = ?",
 		deploymentID, artifactUUID, orgUUID).
 		First(&deployment).Error
 	if err != nil {
@@ -178,10 +181,12 @@ func (r *DeploymentRepo) GetWithContent(deploymentID, artifactUUID, orgUUID stri
 // user undeployed.
 func (r *DeploymentRepo) Delete(deploymentID, artifactUUID, orgUUID string) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
+		where := "deployment_id = ? AND artifact_id = ? AND org_id = ?"
+		if _, err := dbx.LockRows(tx, models.DeploymentStatusRecord{}.TableName(), "status", where, deploymentID, artifactUUID, orgUUID); err != nil {
+			return err
+		}
 		var rows []models.DeploymentStatusRecord
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-			Where("deployment_id = ? AND artifact_uuid = ? AND ou_id = ?", deploymentID, artifactUUID, orgUUID).
-			Find(&rows).Error; err != nil {
+		if err := tx.Where(where, deploymentID, artifactUUID, orgUUID).Find(&rows).Error; err != nil {
 			return err
 		}
 		for i := range rows {
@@ -192,13 +197,17 @@ func (r *DeploymentRepo) Delete(deploymentID, artifactUUID, orgUUID string) erro
 			}
 		}
 		if err := tx.Model(&models.DeploymentStatusRecord{}).
-			Where("deployment_id = ? AND artifact_uuid = ? AND ou_id = ? AND status = ?",
+			Where("deployment_id = ? AND artifact_id = ? AND org_id = ? AND status = ?",
 				deploymentID, artifactUUID, orgUUID, models.DeploymentStatusUndeployed).
 			UpdateColumn("deployment_id", nil).Error; err != nil {
 			return err
 		}
 
-		result := tx.Where("deployment_id = ? AND artifact_uuid = ? AND ou_id = ?", deploymentID, artifactUUID, orgUUID).
+		if err := tx.Model(&models.Deployment{}).Where("base_deployment_id = ?", deploymentID).
+			Update("base_deployment_id", nil).Error; err != nil {
+			return err
+		}
+		result := tx.Where("id = ? AND artifact_id = ? AND org_id = ?", deploymentID, artifactUUID, orgUUID).
 			Delete(&models.Deployment{})
 		if result.Error != nil {
 			return result.Error
@@ -221,15 +230,14 @@ func (r *DeploymentRepo) GetWithState(deploymentID, artifactUUID, orgUUID string
 // GetWithStateCtx is GetWithState with context propagation — see the interface doc comment.
 func (r *DeploymentRepo) GetWithStateCtx(ctx context.Context, deploymentID, artifactUUID, orgUUID string) (*models.Deployment, error) {
 	var deployment models.Deployment
-	err := r.db.WithContext(ctx).Table("deployments d").
-		Select("d.deployment_id, d.name, d.artifact_uuid, d.ou_id, d.gateway_uuid, "+
+	err := r.db.WithContext(ctx).Table("artifact_deployments d").
+		Select("d.id, d.name, d.artifact_id, d.org_id, d.gateway_id, "+
 			"d.base_deployment_id, d.metadata, d.created_at, "+
 			"s.status, s.updated_at AS status_updated_at, "+statusRowColumns).
-		Joins("LEFT JOIN deployment_status s ON d.deployment_id = s.deployment_id "+
-			"AND d.artifact_uuid = s.artifact_uuid "+
-			"AND d.ou_id = s.ou_id "+
-			"AND d.gateway_uuid = s.gateway_uuid").
-		Where("d.deployment_id = ? AND d.artifact_uuid = ? AND d.ou_id = ?",
+		Joins("LEFT JOIN artifact_gateway_status s ON d.id = s.deployment_id "+
+			"AND d.artifact_id = s.artifact_id "+
+			"AND d.gateway_id = s.gateway_id").
+		Where("d.id = ? AND d.artifact_id = ? AND d.org_id = ?",
 			deploymentID, artifactUUID, orgUUID).
 		Scan(&deployment).Error
 	if err != nil {
@@ -258,36 +266,35 @@ func (r *DeploymentRepo) GetDeploymentsWithState(artifactUUID, orgUUID string, g
 	query := `
         WITH AnnotatedDeployments AS (
             SELECT
-				d.deployment_id, d.name, d.artifact_uuid, d.ou_id, d.gateway_uuid,
+				d.id, d.name, d.artifact_id, d.org_id, d.gateway_id,
                 d.base_deployment_id, d.metadata, d.created_at,
                 s.status as current_status,
                 s.updated_at as status_updated_at,
                 s.status_desired, s.status_reason, s.next_attempt_at, s.render_reason,
                 ROW_NUMBER() OVER (
-                    PARTITION BY d.gateway_uuid
+                    PARTITION BY d.gateway_id
                     ORDER BY
                         (CASE WHEN s.status IS NOT NULL THEN 0 ELSE 1 END) ASC,
                         d.created_at DESC
                 ) as rank_idx
-			FROM deployments d
-			LEFT JOIN deployment_status s
-                ON d.deployment_id = s.deployment_id
-                AND d.gateway_uuid = s.gateway_uuid
-				AND d.artifact_uuid = s.artifact_uuid
-				AND d.ou_id = s.ou_id
-			WHERE d.artifact_uuid = ? AND d.ou_id = ?`
+			FROM artifact_deployments d
+			LEFT JOIN artifact_gateway_status s
+                ON d.id = s.deployment_id
+                AND d.gateway_id = s.gateway_id
+				AND d.artifact_id = s.artifact_id
+			WHERE d.artifact_id = ? AND d.org_id = ?`
 
 	args := []interface{}{artifactUUID, orgUUID}
 
 	if gatewayID != nil {
-		query += " AND d.gateway_uuid = ?"
+		query += " AND d.gateway_id = ?"
 		args = append(args, *gatewayID)
 	}
 
 	query += `
         )
         SELECT
-			deployment_id, name, artifact_uuid, ou_id, gateway_uuid,
+			id, name, artifact_id, org_id, gateway_id,
             base_deployment_id, metadata, created_at,
             current_status as status, status_updated_at,
             status_desired, status_reason, next_attempt_at, render_reason
@@ -305,7 +312,7 @@ func (r *DeploymentRepo) GetDeploymentsWithState(artifactUUID, orgUUID string, g
 		}
 	}
 
-	query += " ORDER BY gateway_uuid ASC, rank_idx ASC"
+	query += " ORDER BY gateway_id ASC, rank_idx ASC"
 
 	var deployments []*models.Deployment
 	err := r.db.Raw(query, args...).Scan(&deployments).Error

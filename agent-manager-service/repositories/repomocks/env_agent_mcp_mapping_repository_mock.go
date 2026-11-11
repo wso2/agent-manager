@@ -21,7 +21,7 @@ import (
 //			CreateFunc: func(ctx context.Context, tx *gorm.DB, mapping *models.EnvAgentMCPMapping, proxyMapping *models.MCPProxyMapping, handle string, name string, version string, ouID string) error {
 //				panic("mock out the Create method")
 //			},
-//			DeleteFunc: func(ctx context.Context, tx *gorm.DB, mappingID uint) error {
+//			DeleteFunc: func(ctx context.Context, tx *gorm.DB, configUUID uuid.UUID, envUUID uuid.UUID) error {
 //				panic("mock out the Delete method")
 //			},
 //			DeleteByConfigFunc: func(ctx context.Context, tx *gorm.DB, configUUID uuid.UUID) error {
@@ -50,7 +50,7 @@ type EnvAgentMCPMappingRepositoryMock struct {
 	CreateFunc func(ctx context.Context, tx *gorm.DB, mapping *models.EnvAgentMCPMapping, proxyMapping *models.MCPProxyMapping, handle string, name string, version string, ouID string) error
 
 	// DeleteFunc mocks the Delete method.
-	DeleteFunc func(ctx context.Context, tx *gorm.DB, mappingID uint) error
+	DeleteFunc func(ctx context.Context, tx *gorm.DB, configUUID uuid.UUID, envUUID uuid.UUID) error
 
 	// DeleteByConfigFunc mocks the DeleteByConfig method.
 	DeleteByConfigFunc func(ctx context.Context, tx *gorm.DB, configUUID uuid.UUID) error
@@ -94,8 +94,10 @@ type EnvAgentMCPMappingRepositoryMock struct {
 			Ctx context.Context
 			// Tx is the tx argument value.
 			Tx *gorm.DB
-			// MappingID is the mappingID argument value.
-			MappingID uint
+			// ConfigUUID is the configUUID argument value.
+			ConfigUUID uuid.UUID
+			// EnvUUID is the envUUID argument value.
+			EnvUUID uuid.UUID
 		}
 		// DeleteByConfig holds details about calls to the DeleteByConfig method.
 		DeleteByConfig []struct {
@@ -207,23 +209,25 @@ func (mock *EnvAgentMCPMappingRepositoryMock) CreateCalls() []struct {
 }
 
 // Delete calls DeleteFunc.
-func (mock *EnvAgentMCPMappingRepositoryMock) Delete(ctx context.Context, tx *gorm.DB, mappingID uint) error {
+func (mock *EnvAgentMCPMappingRepositoryMock) Delete(ctx context.Context, tx *gorm.DB, configUUID uuid.UUID, envUUID uuid.UUID) error {
 	if mock.DeleteFunc == nil {
 		panic("EnvAgentMCPMappingRepositoryMock.DeleteFunc: method is nil but EnvAgentMCPMappingRepository.Delete was just called")
 	}
 	callInfo := struct {
-		Ctx       context.Context
-		Tx        *gorm.DB
-		MappingID uint
+		Ctx        context.Context
+		Tx         *gorm.DB
+		ConfigUUID uuid.UUID
+		EnvUUID    uuid.UUID
 	}{
-		Ctx:       ctx,
-		Tx:        tx,
-		MappingID: mappingID,
+		Ctx:        ctx,
+		Tx:         tx,
+		ConfigUUID: configUUID,
+		EnvUUID:    envUUID,
 	}
 	mock.lockDelete.Lock()
 	mock.calls.Delete = append(mock.calls.Delete, callInfo)
 	mock.lockDelete.Unlock()
-	return mock.DeleteFunc(ctx, tx, mappingID)
+	return mock.DeleteFunc(ctx, tx, configUUID, envUUID)
 }
 
 // DeleteCalls gets all the calls that were made to Delete.
@@ -231,14 +235,16 @@ func (mock *EnvAgentMCPMappingRepositoryMock) Delete(ctx context.Context, tx *go
 //
 //	len(mockedEnvAgentMCPMappingRepository.DeleteCalls())
 func (mock *EnvAgentMCPMappingRepositoryMock) DeleteCalls() []struct {
-	Ctx       context.Context
-	Tx        *gorm.DB
-	MappingID uint
+	Ctx        context.Context
+	Tx         *gorm.DB
+	ConfigUUID uuid.UUID
+	EnvUUID    uuid.UUID
 } {
 	var calls []struct {
-		Ctx       context.Context
-		Tx        *gorm.DB
-		MappingID uint
+		Ctx        context.Context
+		Tx         *gorm.DB
+		ConfigUUID uuid.UUID
+		EnvUUID    uuid.UUID
 	}
 	mock.lockDelete.RLock()
 	calls = mock.calls.Delete

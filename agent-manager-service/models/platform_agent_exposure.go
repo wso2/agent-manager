@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 // AgentExposureProtocol is how the gateway exposes a platform agent.
@@ -35,21 +36,34 @@ const (
 // the gateway serves it. External agents are recorded by A2AProxy instead. Whether the gateway holds the agent is
 // the artifact's deployment_status row.
 type PlatformAgentExposure struct {
-	ID          uuid.UUID `gorm:"column:id;primaryKey;type:uuid;default:gen_random_uuid()"`
-	OUID        string    `gorm:"column:ou_id;not null"`
-	ProjectName string    `gorm:"column:project_name;not null"`
-	AgentName   string    `gorm:"column:agent_name;not null"`
-	// EnvironmentName is kept because platform lookups are by name.
-	EnvironmentName string    `gorm:"column:environment_name;not null"`
-	EnvironmentUUID uuid.UUID `gorm:"column:environment_uuid;type:uuid;not null"`
-	// ArtifactUUID is the per-environment artifact (one of models.AgentArtifactKinds): the agentId the gateway is told about and the
-	// key its API keys are bound to. The exposure goes with it.
-	ArtifactUUID uuid.UUID `gorm:"column:artifact_uuid;type:uuid;not null"`
-	// AgentUUID is the agent's id; nil when it couldn't be read.
-	AgentUUID *uuid.UUID            `gorm:"column:agent_uuid;type:uuid"`
-	Protocol  AgentExposureProtocol `gorm:"column:protocol;not null;default:'a2a'"`
-	CreatedAt time.Time             `gorm:"column:created_at;not null;default:NOW()"`
-	UpdatedAt time.Time             `gorm:"column:updated_at;not null;default:NOW()"`
+	ID              uuid.UUID `gorm:"column:id;primaryKey"`
+	OUID            string    `gorm:"column:org_id"`
+	ProjectName     string    `gorm:"-"`
+	AgentName       string    `gorm:"-"`
+	EnvironmentName string    `gorm:"-"`
+	EnvironmentUUID uuid.UUID `gorm:"column:environment_id"`
+	// ArtifactUUID is the per-environment artifact (one of models.AgentArtifactKinds): the agentId the gateway is told
+	// about and the key its API keys are bound to. The exposure goes with it.
+	ArtifactUUID uuid.UUID             `gorm:"column:artifact_id"`
+	AgentUUID    *uuid.UUID            `gorm:"column:agent_id"`
+	Protocol     AgentExposureProtocol `gorm:"column:protocol"`
+	CreatedAt    time.Time             `gorm:"column:created_at"`
+	UpdatedAt    time.Time             `gorm:"column:updated_at"`
 }
 
-func (PlatformAgentExposure) TableName() string { return "platform_agent_exposures" }
+func (PlatformAgentExposure) TableName() string { return "agent_exposures" }
+
+func (e *PlatformAgentExposure) ref() agentRef {
+	return agentRef{&e.OUID, &e.ProjectName, &e.AgentName, &e.AgentUUID, e.EnvironmentUUID, &e.EnvironmentName}
+}
+
+// BeforeCreate resolves the agent's id from its names.
+func (e *PlatformAgentExposure) BeforeCreate(tx *gorm.DB) error {
+	if e.Protocol == "" {
+		e.Protocol = AgentExposureProtocolA2A
+	}
+	return e.ref().resolve(tx)
+}
+
+// AfterFind fills the agent's and environment's names.
+func (e *PlatformAgentExposure) AfterFind(tx *gorm.DB) error { return e.ref().fill(tx) }

@@ -139,7 +139,7 @@ type rollbackResource struct {
 	proxyAPIKeyID     string                           // API key created for the proxy
 	providerAPIKeyID  string                           // API key name created for the provider
 	providerUUID      string                           // UUID of the provider (needed to revoke the provider API key)
-	mappingID         uint                             // ID of the env mapping to revert (HIGH-4, Scenario A only)
+	mappingKey        *models.EnvAgentModelMapping     // env mapping to revert (HIGH-4, Scenario A only): config and environment
 	oldProxyUUID      uuid.UUID                        // old proxy UUID to restore in the mapping on rollback (HIGH-4, Scenario A only)
 	providerSecretLoc *secretmanagersvc.SecretLocation // Location for provider API key secret
 	proxySecretLoc    *secretmanagersvc.SecretLocation // Location for proxy API key secret
@@ -1698,7 +1698,7 @@ func (s *agentConfigurationService) processEnvProviderChange(
 		providerAPIKeyID:  providerAPIKeyID,
 		providerUUID:      providerUUID,
 		providerSecretLoc: providerSecretLoc,
-		mappingID:         existingMapping.ID,
+		mappingKey:        &models.EnvAgentModelMapping{ConfigUUID: existingMapping.ConfigUUID, EnvironmentUUID: existingMapping.EnvironmentUUID},
 		oldProxyUUID:      existingMapping.LLMProxyUUID,
 	}
 
@@ -2097,7 +2097,7 @@ func (s *agentConfigurationService) processEnvRemoval(
 		if err := s.envVariableRepo.DeleteByConfigAndEnv(ctx, tx, configUUID, envUUIDParsed); err != nil {
 			return fmt.Errorf("failed to delete environment variables for %s: %w", envUUIDStr, err)
 		}
-		if err := s.envMappingRepo.Delete(ctx, tx, mapping.ID); err != nil {
+		if err := s.envMappingRepo.Delete(ctx, tx, mapping.ConfigUUID, mapping.EnvironmentUUID); err != nil {
 			return fmt.Errorf("failed to delete environment mapping for %s: %w", envUUIDStr, err)
 		}
 		return nil
@@ -2370,7 +2370,7 @@ func (s *agentConfigurationService) updateMCPConfigEnvironmentVariableNames(
 			return err
 		}
 		if err := tx.WithContext(ctx).Model(&models.AgentConfiguration{}).
-			Where("uuid = ?", config.UUID).
+			Where("id = ?", config.UUID).
 			Update("updated_at", time.Now()).Error; err != nil {
 			return fmt.Errorf("failed to bump MCP configuration updatedAt: %w", err)
 		}
@@ -2454,7 +2454,7 @@ func (s *agentConfigurationService) updateExistingMCPMapping(ctx context.Context
 	proxyMapping := buildMCPProxyMapping(sourceProxy.UUID, deployedProxy)
 	if err := s.db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.WithContext(ctx).Model(&models.Artifact{}).
-			Where("uuid = ?", mapping.ArtifactUUID).
+			Where("id = ?", mapping.ArtifactUUID).
 			Updates(map[string]interface{}{
 				"handle":     handle,
 				"name":       artifactName,
@@ -2466,19 +2466,19 @@ func (s *agentConfigurationService) updateExistingMCPMapping(ctx context.Context
 			return err
 		}
 		if err := tx.WithContext(ctx).Model(&models.MCPProxyMapping{}).
-			Where("uuid = ?", mapping.ArtifactUUID).
+			Where("id = ?", mapping.ArtifactUUID).
 			Updates(map[string]interface{}{
-				"source_mcp_proxy_uuid": proxyMapping.SourceMCPProxyUUID,
-				"description":           proxyMapping.Description,
-				"configuration":         proxyMapping.Configuration,
+				"source_mcp_proxy_id": proxyMapping.SourceMCPProxyUUID,
+				"description":         proxyMapping.Description,
+				"configuration":       proxyMapping.Configuration,
 			}).Error; err != nil {
 			return err
 		}
 		if err := tx.WithContext(ctx).Model(&models.EnvAgentMCPMapping{}).
-			Where("id = ?", mapping.ID).
+			Where("config_id = ? AND environment_id = ?", mapping.ConfigUUID, mapping.EnvironmentUUID).
 			Updates(map[string]interface{}{
-				"mcp_proxy_uuid": mapping.MCPProxyUUID,
-				"artifact_uuid":  mapping.ArtifactUUID,
+				"mcp_proxy_id":        mapping.MCPProxyUUID,
+				"mapping_artifact_id": mapping.ArtifactUUID,
 			}).Error; err != nil {
 			return err
 		}
@@ -2559,7 +2559,7 @@ func (s *agentConfigurationService) removeMCPMappingEnvironment(ctx context.Cont
 		if err := s.envVariableRepo.DeleteByConfigAndEnv(ctx, tx, config.UUID, mapping.EnvironmentUUID); err != nil {
 			return err
 		}
-		if err := s.envMCPMappingRepo.Delete(ctx, tx, mapping.ID); err != nil {
+		if err := s.envMCPMappingRepo.Delete(ctx, tx, mapping.ConfigUUID, mapping.EnvironmentUUID); err != nil {
 			return err
 		}
 		return s.deleteMCPMappingArtifacts(ctx, tx, ouID, mapping.ArtifactUUID)
@@ -2602,7 +2602,7 @@ func (s *agentConfigurationService) teardownMCPMappingKeepEnvVars(ctx context.Co
 ) error {
 	s.cleanupMCPMappingCredentials(ctx, config, mapping, envName, ouID)
 	return s.db.Transaction(func(tx *gorm.DB) error {
-		if err := s.envMCPMappingRepo.Delete(ctx, tx, mapping.ID); err != nil {
+		if err := s.envMCPMappingRepo.Delete(ctx, tx, mapping.ConfigUUID, mapping.EnvironmentUUID); err != nil {
 			return err
 		}
 		return s.deleteMCPMappingArtifacts(ctx, tx, ouID, mapping.ArtifactUUID)
@@ -4293,19 +4293,15 @@ func (s *agentConfigurationService) loadSecretRefForConfigEnv(ctx context.Contex
 	return "", nil
 }
 
+// updateMCPMappingSecretReference checks the environment's apikey variable exists. Lite keeps no secret references:
+// they named secrets hosted workloads mounted, and external agents are handed their keys instead.
 func (s *agentConfigurationService) updateMCPMappingSecretReference(ctx context.Context, configUUID, envUUID uuid.UUID, secretRefName string) error {
-	result := s.db.WithContext(ctx).Model(&models.AgentEnvConfigVariable{}).
-		Where("config_uuid = ? AND environment_uuid = ? AND variable_key = ?", configUUID, envUUID, "apikey").
-		Update("secret_reference", secretRefName)
-	if result.Error != nil {
-		return result.Error
-	}
-	if result.RowsAffected > 0 {
+	if secretRefName == "" {
 		return nil
 	}
 	var count int64
 	if err := s.db.WithContext(ctx).Model(&models.AgentEnvConfigVariable{}).
-		Where("config_uuid = ? AND environment_uuid = ? AND variable_key = ?", configUUID, envUUID, "apikey").
+		Where("config_id = ? AND environment_id = ? AND variable_key = ?", configUUID, envUUID, "apikey").
 		Count(&count).Error; err != nil {
 		return err
 	}
@@ -4420,8 +4416,8 @@ func (s *agentConfigurationService) cleanupNewMCPMapping(ctx context.Context, co
 				return err
 			}
 		}
-		if mapping.ID != 0 {
-			if err := s.envMCPMappingRepo.Delete(ctx, tx, mapping.ID); err != nil {
+		if mapping.ConfigUUID != uuid.Nil {
+			if err := s.envMCPMappingRepo.Delete(ctx, tx, mapping.ConfigUUID, mapping.EnvironmentUUID); err != nil {
 				return err
 			}
 		}
@@ -4623,23 +4619,23 @@ func (s *agentConfigurationService) rollbackProxies(ctx context.Context, resourc
 	// pointing at the old proxy. Reverting first repoints the FK away from the
 	// new proxy so its deletion below only removes the orphaned proxy row.
 	for _, res := range resources {
-		if res.mappingID != 0 && res.oldProxyUUID != uuid.Nil {
+		if res.mappingKey != nil && res.oldProxyUUID != uuid.Nil {
 			revertErr := s.db.Transaction(func(tx *gorm.DB) error {
 				result := tx.Model(&models.EnvAgentModelMapping{}).
-					Where("id = ?", res.mappingID).
-					Update("llm_proxy_uuid", res.oldProxyUUID)
+					Where("config_id = ? AND environment_id = ?", res.mappingKey.ConfigUUID, res.mappingKey.EnvironmentUUID).
+					Update("llm_proxy_id", res.oldProxyUUID)
 				if result.Error != nil {
 					return result.Error
 				}
 				if result.RowsAffected == 0 {
-					return fmt.Errorf("mapping %d not found", res.mappingID)
+					return fmt.Errorf("mapping %s/%s not found", res.mappingKey.ConfigUUID, res.mappingKey.EnvironmentUUID)
 				}
 				return nil
 			})
 			if revertErr != nil {
 				s.logger.Error(
 					"Failed to revert DB mapping to old proxy UUID during rollback — mapping may be dangling",
-					"mappingID", res.mappingID,
+					"configUUID", res.mappingKey.ConfigUUID, "environmentUUID", res.mappingKey.EnvironmentUUID,
 					"oldProxyUUID", res.oldProxyUUID,
 					"error", revertErr,
 				)

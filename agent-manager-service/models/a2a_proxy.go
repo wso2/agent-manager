@@ -20,26 +20,43 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 // A2AProxy marks an external agent's environment as published through the
 // environment's ingress gateway; the row existing is what makes it proxied.
 type A2AProxy struct {
-	ID              uuid.UUID `gorm:"column:id;primaryKey;type:uuid;default:gen_random_uuid()"`
-	OUID            string    `gorm:"column:ou_id;not null"`
-	ProjectName     string    `gorm:"column:project_name;not null"`
-	AgentName       string    `gorm:"column:agent_name;not null"`
-	EnvironmentUUID uuid.UUID `gorm:"column:environment_uuid;type:uuid;not null"`
-	EnvironmentName string    `gorm:"column:environment_name;not null"`
+	ID              uuid.UUID  `gorm:"column:id;primaryKey"`
+	OUID            string     `gorm:"column:org_id"`
+	ProjectName     string     `gorm:"-"`
+	AgentName       string     `gorm:"-"`
+	AgentUUID       *uuid.UUID `gorm:"column:agent_id"`
+	EnvironmentUUID uuid.UUID  `gorm:"column:environment_id"`
+	EnvironmentName string     `gorm:"-"`
+	// ArtifactUUID is the proxied environment's agent artifact, which the gateway serves the agent under.
+	ArtifactUUID uuid.UUID `gorm:"column:artifact_id"`
 	// UpstreamAuthHeader is empty when the gateway adds no credential upstream.
-	UpstreamAuthHeader string `gorm:"column:upstream_auth_header;not null;default:''"`
-	// UpstreamAuthSecret is the header value as base64 AES-256-GCM ciphertext; it is never returned.
-	UpstreamAuthSecret string    `gorm:"column:upstream_auth_secret;not null;default:''"`
-	CreatedAt          time.Time `gorm:"column:created_at;not null;default:NOW()"`
-	UpdatedAt          time.Time `gorm:"column:updated_at;not null;default:NOW()"`
+	UpstreamAuthHeader string `gorm:"column:upstream_auth_header"`
+	// UpstreamAuthSecretID is the secrets row holding the header value.
+	UpstreamAuthSecretID *uuid.UUID `gorm:"column:upstream_auth_secret_id"`
+	// UpstreamAuthSecret is the header value as base64 AES-256-GCM ciphertext, read from and written to the secrets
+	// row by the repository; it is never returned.
+	UpstreamAuthSecret string    `gorm:"-"`
+	CreatedAt          time.Time `gorm:"column:created_at"`
+	UpdatedAt          time.Time `gorm:"column:updated_at"`
 }
 
 func (A2AProxy) TableName() string { return "a2a_proxies" }
+
+func (p *A2AProxy) ref() agentRef {
+	return agentRef{&p.OUID, &p.ProjectName, &p.AgentName, &p.AgentUUID, p.EnvironmentUUID, &p.EnvironmentName}
+}
+
+// BeforeCreate resolves the agent's id from its names.
+func (p *A2AProxy) BeforeCreate(tx *gorm.DB) error { return p.ref().resolve(tx) }
+
+// AfterFind fills the agent's and environment's names.
+func (p *A2AProxy) AfterFind(tx *gorm.DB) error { return p.ref().fill(tx) }
 
 // UpstreamAuth is the gateway's upstream credential as a secretRef, or nil when there is none.
 func (p *A2AProxy) UpstreamAuth() *UpstreamAuth {

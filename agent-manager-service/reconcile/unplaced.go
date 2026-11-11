@@ -29,19 +29,18 @@ type RecordColumns struct {
 	EnvironmentUUID string
 }
 
-// UnplacedCondition is the WHERE condition every UnplacedRecords shares: the record's artifact has no
-// deployment_status row at all (an UNDEPLOYED row counts, so a user's undeploy sticks), and its environment has a
-// gateway mapped that isn't deleted, whose role is one of roles, the roles the kind can be placed on, and that is
-// managed (a self-hosted gateway is never a default). Gateway delete is a soft delete that leaves its mappings in
-// place. A steady-state pass reads nothing, and a record in an environment with no such gateway isn't re-read on
+// UnplacedCondition is the WHERE condition every UnplacedRecords shares: the record's artifact has no status row at
+// all (an UNDEPLOYED row counts, so a user's undeploy sticks), and its environment has a gateway attached whose role
+// is one of roles, the roles the kind can be placed on, and that is managed (a self-hosted gateway is never a
+// default). A steady-state pass reads nothing, and a record in an environment with no such gateway isn't re-read on
 // every pass.
 // ouID "" means every org; env nil means every environment.
 func UnplacedCondition(cols RecordColumns, roles []string, ouID string, env *uuid.UUID) (string, []any) {
-	condition := `NOT EXISTS (SELECT 1 FROM deployment_status ds
-			WHERE ds.artifact_uuid = ` + cols.ArtifactUUID + ` AND ds.ou_id = ` + cols.OUID + `)
-		AND EXISTS (SELECT 1 FROM gateway_environment_mappings gem
-			INNER JOIN gateways g ON g.uuid = gem.gateway_uuid AND g.deleted_at IS NULL AND g.hosting = ? AND g.gateway_functionality_type IN ?
-			WHERE gem.environment_uuid = ` + cols.EnvironmentUUID + `)`
+	condition := `NOT EXISTS (SELECT 1 FROM artifact_gateway_status ds
+			WHERE ds.artifact_id = ` + cols.ArtifactUUID + `)
+		AND EXISTS (SELECT 1 FROM gateway_environments gem
+			INNER JOIN gateways g ON g.id = gem.gateway_id AND g.hosting = ? AND g.functionality_type IN ?
+			WHERE gem.environment_id = ` + cols.EnvironmentUUID + `)`
 	args := []any{models.GatewayHostingManaged, roles}
 	if ouID != "" {
 		condition += " AND " + cols.OUID + " = ?"
@@ -58,8 +57,8 @@ func UnplacedCondition(cols RecordColumns, roles []string, ouID string, env *uui
 // gateway that is to be deployed or has a deploy owed, whatever its status. A row the user undeployed, with nothing
 // owed, doesn't count.
 func PlacedCondition(cols RecordColumns, env, gateway uuid.UUID) (string, []any) {
-	condition := cols.EnvironmentUUID + ` = ? AND EXISTS (SELECT 1 FROM deployment_status ds
-			WHERE ds.artifact_uuid = ` + cols.ArtifactUUID + ` AND ds.ou_id = ` + cols.OUID + `
-			AND ds.gateway_uuid = ? AND (ds.status_desired = ? OR ds.next_attempt_at IS NOT NULL))`
+	condition := cols.EnvironmentUUID + ` = ? AND EXISTS (SELECT 1 FROM artifact_gateway_status ds
+			WHERE ds.artifact_id = ` + cols.ArtifactUUID + `
+			AND ds.gateway_id = ? AND (ds.status_desired = ? OR ds.next_attempt_at IS NOT NULL))`
 	return condition, []any{env, gateway, models.DeploymentStatusDeployed}
 }

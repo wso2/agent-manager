@@ -31,7 +31,7 @@ import (
 func openTestSQLite(t *testing.T) *gorm.DB {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "nested", "amp.db")
-	gormDB, err := open(config.DatabaseConfig{Driver: config.DBDriverSQLite, SQLitePath: path}, config.POSTGRESQL{})
+	gormDB, err := Open(config.DatabaseConfig{Driver: config.DBDriverSQLite, SQLitePath: path}, config.POSTGRESQL{})
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		if sqlDB, err := gormDB.DB(); err == nil {

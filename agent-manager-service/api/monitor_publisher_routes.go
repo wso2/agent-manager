@@ -17,17 +17,12 @@
 package api
 
 import (
-	"net/http"
-
 	"github.com/wso2/agent-manager/agent-manager-service/controllers"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
-	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 )
 
 // RegisterMonitorPublisherRoutes registers monitor score publishing routes under the /publisher/ prefix.
 func RegisterMonitorPublisherRoutes(rr *middleware.RouteRegistrar, ctrl controllers.MonitorScoresPublisherController) {
-	// POST /publisher/monitors/{monitorId}/runs/{runId}/scores - Publish evaluation scores
-	handler := jwtassertion.PublisherClientAuthMiddleware()(http.HandlerFunc(ctrl.PublishScores))
-	rr.HandleFuncWithValidation(route("POST", "/publisher/monitors/{monitorId}/runs/{runId}/scores"),
-		handler.ServeHTTP)
+	// POST /publisher/monitors/{monitorId}/runs/{runId}/scores - Publish evaluation scores. Lite runs no monitors.
+	rr.HandleFuncWithValidation(route("POST", "/publisher/monitors/{monitorId}/runs/{runId}/scores"), notImplemented)
 }

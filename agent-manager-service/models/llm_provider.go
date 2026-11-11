@@ -25,14 +25,15 @@ import (
 
 // LLMProvider represents an LLM provider entity
 type LLMProvider struct {
-	UUID           uuid.UUID         `gorm:"column:uuid;primaryKey" json:"uuid"`
+	UUID           uuid.UUID         `gorm:"column:id;primaryKey" json:"uuid"`
+	OrgID          string            `gorm:"column:org_id" json:"-"`
 	Description    string            `gorm:"column:description" json:"description,omitempty"`
 	CreatedBy      string            `gorm:"column:created_by" json:"createdBy,omitempty"`
 	TemplateHandle string            `gorm:"column:template_handle" json:"templateHandle"`
-	OpenAPISpec    string            `gorm:"column:openapi_spec;type:text" json:"openapi,omitempty"`
-	ModelList      string            `gorm:"column:model_list;type:text" json:"-"` // TEXT field stores model list
+	OpenAPISpec    string            `gorm:"column:openapi_spec" json:"openapi,omitempty"`
+	ModelList      string            `gorm:"column:model_list" json:"-"` // TEXT field stores model list
 	Status         string            `gorm:"column:status" json:"status"`
-	Configuration  LLMProviderConfig `gorm:"column:configuration;type:jsonb;serializer:json" json:"configuration"`
+	Configuration  LLMProviderConfig `gorm:"column:configuration;serializer:json" json:"configuration"`
 
 	// Relations - populated via joins
 	Artifact       *Artifact          `gorm:"foreignKey:UUID;references:UUID" json:"artifact,omitempty"`

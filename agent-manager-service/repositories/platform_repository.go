@@ -22,14 +22,12 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 
+	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
-	"github.com/wso2/agent-manager/agent-manager-service/orgctx"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -109,49 +107,9 @@ func deref(s *string) string {
 	return *s
 }
 
-// orgByOUID returns the organization for an OU, creating it and its default
-// environment on first use.
+// orgByOUID returns the organization for an OU, creating it and its default environment on first use.
 func (r *platformRepo) orgByOUID(ctx context.Context, ouID string) (*models.Organization, error) {
-	if ouID == "" {
-		return nil, utils.ErrOrganizationNotFound
-	}
-	var org models.Organization
-	err := r.db.WithContext(ctx).Where("thunder_ou_id = ?", ouID).First(&org).Error
-	if err == nil {
-		return &org, nil
-	}
-	if !errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, err
-	}
-
-	handle := ouID
-	if resolved, ok := orgctx.GetResolvedOrg(ctx); ok && resolved.OUID == ouID && resolved.OuHandle != "" {
-		handle = resolved.OuHandle
-	}
-	now := time.Now().UTC()
-	org = models.Organization{
-		ID: newID(), Handle: handle, DisplayName: handle, ThunderOUID: &ouID,
-		CreatedAt: now, UpdatedAt: now,
-	}
-	env := models.Environment{
-		ID: newID(), OrgID: org.ID, Name: models.DefaultEnvironmentName, DisplayName: "Default",
-		CreatedAt: now, UpdatedAt: now,
-	}
-	txErr := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Create(&org).Error; err != nil {
-			return err
-		}
-		return tx.Create(&env).Error
-	})
-	if txErr != nil {
-		// A concurrent request may have created it first.
-		var existing models.Organization
-		if err := r.db.WithContext(ctx).Where("thunder_ou_id = ?", ouID).First(&existing).Error; err == nil {
-			return &existing, nil
-		}
-		return nil, fmt.Errorf("failed to create organization for OU %q: %w", ouID, txErr)
-	}
-	return &org, nil
+	return ensureOrg(ctx, r.db, ouID)
 }
 
 func orgResponse(o *models.Organization) *models.OrganizationResponse {
@@ -216,17 +174,17 @@ func (r *platformRepo) CreateProject(ctx context.Context, ouID string, in Create
 	if displayName == "" {
 		displayName = in.Name
 	}
-	now := time.Now().UTC()
+	now := dbx.Now()
 	p := models.Project{
 		ID: newID(), OrgID: org.ID, Name: in.Name, DisplayName: displayName,
 		Description: optional(in.Description), CreatedBy: optional(in.CreatedBy),
 		CreatedAt: now, UpdatedAt: now,
 	}
-	res := r.db.WithContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(&p)
-	if res.Error != nil {
-		return nil, res.Error
+	inserted, err := dbx.InsertIfAbsent(r.db.WithContext(ctx), &p)
+	if err != nil {
+		return nil, err
 	}
-	if res.RowsAffected == 0 {
+	if !inserted {
 		return nil, utils.ErrProjectAlreadyExists
 	}
 	return projectResponse(org, &p), nil
@@ -253,7 +211,7 @@ func (r *platformRepo) PatchProject(ctx context.Context, ouID, projectName strin
 	if err != nil {
 		return err
 	}
-	updates := map[string]interface{}{"updated_at": time.Now().UTC()}
+	updates := map[string]interface{}{"updated_at": dbx.Now()}
 	if displayName != nil {
 		updates["display_name"] = *displayName
 	}
@@ -353,7 +311,7 @@ func (r *platformRepo) CreateAgent(ctx context.Context, ouID, projectName string
 	if displayName == "" {
 		displayName = in.Name
 	}
-	now := time.Now().UTC()
+	now := dbx.Now()
 	a := models.Agent{
 		ID: newID(), OrgID: org.ID, ProjectID: p.ID, Name: in.Name, DisplayName: displayName,
 		Description: optional(in.Description), ProvisioningType: in.ProvisioningType,
@@ -369,11 +327,11 @@ func (r *platformRepo) CreateAgent(ctx context.Context, ouID, projectName string
 		a.Labels = append(a.Labels, models.AgentLabel{AgentID: a.ID, OrgID: org.ID, LabelKey: k, LabelValue: optional(in.Labels[k])})
 	}
 	err = r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		res := tx.Clauses(clause.OnConflict{DoNothing: true}).Omit("Labels").Create(&a)
-		if res.Error != nil {
-			return res.Error
+		inserted, err := dbx.InsertIfAbsent(tx, &a, "Labels")
+		if err != nil {
+			return err
 		}
-		if res.RowsAffected == 0 {
+		if !inserted {
 			return utils.ErrAgentAlreadyExists
 		}
 		if len(a.Labels) > 0 {
@@ -404,7 +362,7 @@ func (r *platformRepo) UpdateAgentBasicInfo(ctx context.Context, ouID, projectNa
 		if err := tx.Model(&models.Agent{}).Where("id = ?", a.ID).Updates(map[string]interface{}{
 			"display_name": displayName,
 			"description":  optional(description),
-			"updated_at":   time.Now().UTC(),
+			"updated_at":   dbx.Now(),
 		}).Error; err != nil {
 			return err
 		}

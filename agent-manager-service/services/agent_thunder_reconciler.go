@@ -22,23 +22,24 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/wso2/agent-manager/agent-manager-service/db"
+	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 )
 
+// reconcilerOwner names this process as the reconciler lease's owner.
+var reconcilerOwner = uuid.NewString()
+
 const (
 	reconcilerTickInterval = 1 * time.Minute
-	// reconcilerLockID is a distinct PostgreSQL advisory lock ID from
-	// schedulerLockID (monitor_scheduler.go) — each background loop in this
-	// service needs its own ID so they don't block each other.
-	reconcilerLockID           = int64(739281457)
+	// reconcilerLock is the seeded singleton lease that lets one replica scan for due bindings.
+	reconcilerLock             = "agent_identity.reconciler"
 	reconcilerBatchSize        = 50
 	reconcilerConcurrencyLimit = 10
 	promotionTopologyInterval  = 5 * time.Minute
-	// promotionReconcilerLockID serializes the project promotion topology pass
-	// across replicas; distinct from reconcilerLockID and schedulerLockID.
-	promotionReconcilerLockID = int64(739281458)
 )
 
 // AgentThunderReconcilerService sweeps PENDING agent Thunder bindings whose
@@ -101,32 +102,8 @@ func (s *agentThunderReconcilerService) runPromotionTopologyLoop(ctx context.Con
 	}
 }
 
-// runPromotionTopologyCycle runs one topology pass under a PostgreSQL advisory
-// lock so only one replica backfills promotion bindings at a time, the same
-// mechanism runCycle uses. The pass is idempotent, so the lock only avoids
-// redundant pipeline reads: a replica that does not get it just skips the pass.
-func (s *agentThunderReconcilerService) runPromotionTopologyCycle(
-	ctx context.Context, reconciler ProjectAgentIdentityPromotionReconciler,
-) {
-	tx := db.GetDB().WithContext(ctx).Begin()
-	if tx.Error != nil {
-		s.logger.Error("Failed to begin transaction for promotion topology advisory lock", "error", tx.Error)
-		return
-	}
-	// The transaction-scoped lock is released by the rollback; the pass itself
-	// uses its own connections and writes nothing through tx.
-	defer tx.Rollback()
-
-	var locked bool
-	if err := tx.Raw("SELECT pg_try_advisory_xact_lock(?)", promotionReconcilerLockID).Scan(&locked).Error; err != nil {
-		s.logger.Error("Failed to try promotion topology advisory lock", "error", err)
-		return
-	}
-	if !locked {
-		s.logger.Debug("Another instance is reconciling project AgentID promotions, skipping pass")
-		return
-	}
-	reconciler.ReconcileProjectAgentIdentityPromotions(ctx)
+// runPromotionTopologyCycle does nothing: Lite environments have no promotion pipeline to backfill bindings for.
+func (s *agentThunderReconcilerService) runPromotionTopologyCycle(context.Context, ProjectAgentIdentityPromotionReconciler) {
 }
 
 func (s *agentThunderReconcilerService) Stop() error {
@@ -155,40 +132,26 @@ func (s *agentThunderReconcilerService) runLoop(ctx context.Context) {
 	}
 }
 
-// runCycle sweeps due bindings under a PostgreSQL advisory lock so only one
-// replica of this service retries a given binding at a time — mirrors
-// monitor_scheduler.go's runSchedulerCycle exactly.
+// runCycle sweeps due bindings under a singleton lease so only one replica of this service retries a given binding
+// at a time. The lease only covers the FindDue scan: ClaimForAttempt guards each binding, so the slow Thunder calls
+// below run unlocked.
 func (s *agentThunderReconcilerService) runCycle(ctx context.Context) {
-	tx := db.GetDB().WithContext(ctx).Begin()
-	if tx.Error != nil {
-		s.logger.Error("Failed to begin transaction for agent thunder reconciler advisory lock", "error", tx.Error)
-		return
-	}
-
-	var locked bool
-	if err := tx.Raw("SELECT pg_try_advisory_xact_lock(?)", reconcilerLockID).Scan(&locked).Error; err != nil {
-		s.logger.Error("Failed to try agent thunder reconciler advisory lock", "error", err)
-		tx.Rollback()
+	conn := db.GetDB()
+	locked, err := dbx.TryLock(ctx, conn, reconcilerLock, reconcilerOwner, dbx.Now(), reconcilerTickInterval)
+	if err != nil {
+		s.logger.Error("Failed to take the agent thunder reconciler lease", "error", err)
 		return
 	}
 	if !locked {
 		s.logger.Debug("Another instance is running the agent thunder reconciler, skipping cycle")
-		tx.Rollback()
 		return
 	}
-
 	due, err := s.repo.FindDue(ctx, time.Now(), reconcilerBatchSize)
+	if unlockErr := dbx.Unlock(ctx, conn, reconcilerLock, reconcilerOwner); unlockErr != nil {
+		s.logger.Error("Failed to release the agent thunder reconciler lease", "error", unlockErr)
+	}
 	if err != nil {
 		s.logger.Error("Failed to query due agent thunder bindings", "error", err)
-		tx.Rollback()
-		return
-	}
-
-	// Release the lock/connection now — ClaimForAttempt already guards each
-	// binding individually, so the lock only needs to cover the FindDue scan,
-	// not the slow Thunder/OpenBao calls below.
-	if err := tx.Commit().Error; err != nil {
-		s.logger.Error("Failed to commit agent thunder reconciler advisory lock transaction", "error", err)
 		return
 	}
 

@@ -77,8 +77,14 @@ func loadEnvs() {
 	config.LogLevel = r.readOptionalString("LOG_LEVEL", "INFO")
 
 	// read database configs
+	// SQLite is the shipped database; a configured DB_HOST without DB_DRIVER still means PostgreSQL, so an install
+	// that names its server is never silently moved to a new empty file.
+	defaultDriver := DBDriverSQLite
+	if strings.TrimSpace(os.Getenv("DB_HOST")) != "" {
+		defaultDriver = DBDriverPostgres
+	}
 	config.Database = DatabaseConfig{
-		Driver:     strings.ToLower(strings.TrimSpace(r.readOptionalString("DB_DRIVER", DBDriverPostgres))),
+		Driver:     strings.ToLower(strings.TrimSpace(r.readOptionalString("DB_DRIVER", defaultDriver))),
 		SQLitePath: strings.TrimSpace(r.readOptionalString("DB_PATH", "data/agent-manager.db")),
 	}
 	// The server settings are required only when the database is a server.

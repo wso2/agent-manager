@@ -87,27 +87,8 @@ fi
 # ============================================================================
 echo ""
 echo "2️⃣  Start platform services"
-# Must migrate before agent-manager-service starts: it crashes on a fresh volume
-# (missing tables), and Air never auto-restarts a crash — only rebuilds on file changes.
-echo "🐘 Starting Postgres and waiting for it to be healthy..."
-docker compose -f "$COMPOSE_FILE" up -d --wait postgres
-
-# The migration run loads agent-manager-service/.env via ENV_FILE_PATH and
-# panics if it is missing. That file is gitignored, so a fresh checkout (e.g.
-# CI) won't have it; seed it from the tracked example, whose DB creds match the
-# compose-exposed Postgres on localhost:5432.
-if [ ! -f "$PROJECT_ROOT/agent-manager-service/.env" ]; then
-    echo "🌱 Seeding agent-manager-service/.env from .env.example..."
-    cp "$PROJECT_ROOT/agent-manager-service/.env.example" "$PROJECT_ROOT/agent-manager-service/.env"
-fi
-
-echo "🗄️  Running database migrations..."
-if ! (cd "$PROJECT_ROOT/agent-manager-service" && ENV_FILE_PATH=.env go run -mod=readonly . -migrate -server=false); then
-    echo "❌ Database migrations failed. Aborting platform setup."
-    exit 1
-fi
-echo "✅ Migrations completed"
-
+# The service applies its database migrations itself on start (-migrate in .air.toml): the SQLite file lives in
+# the agent_manager_data volume, which only the container can reach.
 echo "🚀 Starting Agent Manager platform services..."
 # --build is required, not an optimisation: plain `up -d` builds an image only
 # when none exists, so an image left over from an earlier checkout is reused
@@ -134,7 +115,7 @@ echo "✅ Agent Manager platform is running!"
 echo ""
 echo "🌐 Access points:"
 echo "   API:       http://localhost:9000"
-echo "   Database:  postgresql://agentmanager:agentmanager@localhost:5432/agentmanager"
+echo "   Database:  SQLite at /var/lib/agent-manager/agent-manager.db in the agent-manager-service container (make db-connect)"
 echo ""
 echo "📋 Useful commands:"
 echo "   View logs:      docker compose -f deployments/docker-compose.yml logs -f"

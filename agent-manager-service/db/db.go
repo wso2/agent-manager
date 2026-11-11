@@ -67,7 +67,7 @@ func (w slogWriter) Printf(format string, v ...interface{}) {
 }
 
 func initDbConn(dbCfg config.DatabaseConfig, cfg config.POSTGRESQL) *gorm.DB {
-	gormDB, err := open(dbCfg, cfg)
+	gormDB, err := Open(dbCfg, cfg)
 	if err != nil {
 		slog.Error("initDbConn: failed to open the database", "driver", dbCfg.Driver, "error", err)
 		os.Exit(1)
@@ -76,8 +76,8 @@ func initDbConn(dbCfg config.DatabaseConfig, cfg config.POSTGRESQL) *gorm.DB {
 	return gormDB
 }
 
-// open connects to the configured database. Pool, logger and GORM settings are the same for every driver.
-func open(dbCfg config.DatabaseConfig, cfg config.POSTGRESQL) (*gorm.DB, error) {
+// Open connects to the configured database. Pool, logger and GORM settings are the same for every driver.
+func Open(dbCfg config.DatabaseConfig, cfg config.POSTGRESQL) (*gorm.DB, error) {
 	var (
 		driverName string
 		dsn        string

@@ -28,7 +28,7 @@ type RestAPI struct {
 	ProjectUUID     uuid.UUID     `gorm:"column:project_uuid" json:"projectId"`
 	LifecycleStatus string        `gorm:"column:lifecycle_status" json:"lifeCycleStatus,omitempty"`
 	Transport       string        `gorm:"column:transport" json:"transport,omitempty"` // JSON array as TEXT
-	Configuration   RestAPIConfig `gorm:"column:configuration;type:jsonb;serializer:json" json:"configuration"`
+	Configuration   RestAPIConfig `gorm:"column:configuration;serializer:json" json:"configuration"`
 
 	// Relations - populated via joins
 	Artifact *Artifact `gorm:"foreignKey:UUID;references:UUID" json:"artifact,omitempty"`

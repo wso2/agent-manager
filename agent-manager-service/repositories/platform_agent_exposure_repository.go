@@ -22,8 +22,8 @@ import (
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 
+	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 )
 
@@ -79,44 +79,43 @@ func (r *platformAgentExposureRepository) Upsert(ctx context.Context, exposure *
 	if exposure.Protocol == "" {
 		exposure.Protocol = models.AgentExposureProtocolA2A
 	}
+	now := dbx.Now()
+	exposure.UpdatedAt = now
+	if exposure.ID == uuid.Nil {
+		exposure.ID = newID()
+	}
+	if exposure.CreatedAt.IsZero() {
+		exposure.CreatedAt = now
+	}
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		// A same-named row from a deleted environment must not outlive its replacement.
-		err := tx.Where("ou_id = ? AND project_name = ? AND agent_name = ? AND environment_name = ? AND environment_uuid <> ?",
-			exposure.OUID, exposure.ProjectName, exposure.AgentName, exposure.EnvironmentName, exposure.EnvironmentUUID).
-			Delete(&models.PlatformAgentExposure{}).Error
-		if err != nil {
-			return err
+		if exposure.AgentUUID == nil || *exposure.AgentUUID == uuid.Nil {
+			id, err := models.AgentIDByNames(tx, exposure.OUID, exposure.ProjectName, exposure.AgentName)
+			if err != nil {
+				return err
+			}
+			exposure.AgentUUID = &id
 		}
-		return tx.Clauses(clause.OnConflict{
-			Columns: []clause.Column{
-				{Name: "ou_id"},
-				{Name: "project_name"},
-				{Name: "agent_name"},
-				{Name: "environment_uuid"},
-			},
-			DoUpdates: clause.Assignments(map[string]interface{}{
-				"environment_name": exposure.EnvironmentName,
-				"artifact_uuid":    exposure.ArtifactUUID,
-				"agent_uuid":       exposure.AgentUUID,
-				"protocol":         exposure.Protocol,
-				"updated_at":       gorm.Expr("NOW()"),
-			}),
-		}).Create(exposure).Error
+		_, err := dbx.Upsert(tx, exposure, func(tx *gorm.DB) error {
+			return tx.Model(&models.PlatformAgentExposure{}).
+				Where("agent_id = ? AND environment_id = ?", *exposure.AgentUUID, exposure.EnvironmentUUID).
+				Updates(map[string]any{"artifact_id": exposure.ArtifactUUID, "protocol": exposure.Protocol, "updated_at": now}).Error
+		})
+		return err
 	})
 }
 
 func (r *platformAgentExposureRepository) Get(ctx context.Context, ouID, projectName, agentName string, environmentUUID uuid.UUID) (*models.PlatformAgentExposure, error) {
-	return r.first(ctx, "ou_id = ? AND project_name = ? AND agent_name = ? AND environment_uuid = ?",
-		ouID, projectName, agentName, environmentUUID)
+	cond, args := agentEnvIDCond(r.db, ouID, projectName, agentName, environmentUUID)
+	return r.first(ctx, cond, args...)
 }
 
 func (r *platformAgentExposureRepository) GetByArtifact(ctx context.Context, ouID string, artifactUUID uuid.UUID) (*models.PlatformAgentExposure, error) {
-	return r.first(ctx, "ou_id = ? AND artifact_uuid = ?", ouID, artifactUUID)
+	return r.first(ctx, "org_id = ? AND artifact_id = ?", ouID, artifactUUID)
 }
 
 func (r *platformAgentExposureRepository) first(ctx context.Context, query string, args ...interface{}) (*models.PlatformAgentExposure, error) {
 	var row models.PlatformAgentExposure
-	err := r.db.WithContext(ctx).Where(query, args...).First(&row).Error
+	err := r.db.WithContext(ctx).Where(query, args...).Take(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, ErrPlatformAgentExposureNotFound
 	}
@@ -127,7 +126,7 @@ func (r *platformAgentExposureRepository) first(ctx context.Context, query strin
 }
 
 func (r *platformAgentExposureRepository) ListForEnvironment(ctx context.Context, ouID string, environmentUUID uuid.UUID) ([]models.PlatformAgentExposure, error) {
-	return listForEnvironment[models.PlatformAgentExposure](ctx, r.db, ouID, environmentUUID, "agent_name ASC")
+	return listForEnvironment[models.PlatformAgentExposure](ctx, r.db, ouID, environmentUUID)
 }
 
 func (r *platformAgentExposureRepository) ListEnvironmentUUIDs(ctx context.Context, ouID, environmentName string) ([]uuid.UUID, error) {
@@ -135,10 +134,8 @@ func (r *platformAgentExposureRepository) ListEnvironmentUUIDs(ctx context.Conte
 }
 
 func (r *platformAgentExposureRepository) DeleteForAgentEnv(ctx context.Context, ouID, projectName, agentName string, environmentUUID uuid.UUID) error {
-	return r.db.WithContext(ctx).
-		Where("ou_id = ? AND project_name = ? AND agent_name = ? AND environment_uuid = ?",
-			ouID, projectName, agentName, environmentUUID).
-		Delete(&models.PlatformAgentExposure{}).Error
+	cond, args := agentEnvIDCond(r.db, ouID, projectName, agentName, environmentUUID)
+	return r.db.WithContext(ctx).Where(cond, args...).Delete(&models.PlatformAgentExposure{}).Error
 }
 
 func (r *platformAgentExposureRepository) DeleteForEnvironment(ctx context.Context, ouID string, environmentUUID uuid.UUID) error {
@@ -146,7 +143,6 @@ func (r *platformAgentExposureRepository) DeleteForEnvironment(ctx context.Conte
 }
 
 func (r *platformAgentExposureRepository) DeleteForAgent(ctx context.Context, ouID, projectName, agentName string) error {
-	return r.db.WithContext(ctx).
-		Where("ou_id = ? AND project_name = ? AND agent_name = ?", ouID, projectName, agentName).
-		Delete(&models.PlatformAgentExposure{}).Error
+	cond, args := agentCond(r.db, ouID, projectName, agentName)
+	return r.db.WithContext(ctx).Where(cond, args...).Delete(&models.PlatformAgentExposure{}).Error
 }

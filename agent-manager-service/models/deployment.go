@@ -26,14 +26,14 @@ import (
 // Status and UpdatedAt are populated from deployment_status table via JOIN
 // If Status is nil, the deployment is ARCHIVED (not currently active or undeployed)
 type Deployment struct {
-	DeploymentID     uuid.UUID              `gorm:"column:deployment_id;primaryKey" json:"deploymentId"`
+	DeploymentID     uuid.UUID              `gorm:"column:id;primaryKey" json:"deploymentId"`
 	Name             string                 `gorm:"column:name" json:"name"`
-	ArtifactUUID     uuid.UUID              `gorm:"column:artifact_uuid" json:"artifactId"`
-	OUID             string                 `gorm:"column:ou_id" json:"organizationId"`
-	GatewayUUID      uuid.UUID              `gorm:"column:gateway_uuid" json:"gatewayId"`
+	ArtifactUUID     uuid.UUID              `gorm:"column:artifact_id" json:"artifactId"`
+	OUID             string                 `gorm:"column:org_id" json:"organizationId"`
+	GatewayUUID      uuid.UUID              `gorm:"column:gateway_id" json:"gatewayId"`
 	BaseDeploymentID *uuid.UUID             `gorm:"column:base_deployment_id" json:"baseDeploymentId,omitempty"`
 	Content          []byte                 `gorm:"column:content" json:"-"`
-	Metadata         map[string]interface{} `gorm:"column:metadata;type:text;serializer:json" json:"metadata,omitempty"`
+	Metadata         map[string]interface{} `gorm:"column:metadata;serializer:json" json:"metadata,omitempty"`
 	CreatedAt        time.Time              `gorm:"column:created_at" json:"createdAt"`
 
 	// Lifecycle state fields (from deployment_status table via JOIN)
@@ -92,7 +92,7 @@ func stringOrEmpty(s *string) string {
 
 // TableName returns the table name for the Deployment model
 func (Deployment) TableName() string {
-	return "deployments"
+	return "artifact_deployments"
 }
 
 // DeploymentStatus represents the status of a deployment
@@ -112,9 +112,9 @@ const (
 
 // DeploymentStatusRecord is one artifact's state on one gateway, and the render queue for its next deploy.
 type DeploymentStatusRecord struct {
-	ArtifactUUID uuid.UUID `gorm:"column:artifact_uuid;primaryKey" json:"artifactId"`
-	OUID         string    `gorm:"column:ou_id;primaryKey" json:"organizationId"`
-	GatewayUUID  uuid.UUID `gorm:"column:gateway_uuid;primaryKey" json:"gatewayId"`
+	ArtifactUUID uuid.UUID `gorm:"column:artifact_id;primaryKey" json:"artifactId"`
+	OUID         string    `gorm:"column:org_id" json:"organizationId"`
+	GatewayUUID  uuid.UUID `gorm:"column:gateway_id;primaryKey" json:"gatewayId"`
 	// DeploymentID is nil while nothing has been sent (PENDING, or UNDEPLOYED reached from PENDING), and on an
 	// UNDEPLOYED row whose deployment was deleted.
 	DeploymentID *uuid.UUID       `gorm:"column:deployment_id" json:"deploymentId"`
@@ -134,7 +134,7 @@ type DeploymentStatusRecord struct {
 
 // TableName returns the table name for the DeploymentStatusRecord model
 func (DeploymentStatusRecord) TableName() string {
-	return "deployment_status"
+	return "artifact_gateway_status"
 }
 
 // NewPerformedAt is t as the gateway stores it: UTC at millisecond precision. A zero t becomes now, because the

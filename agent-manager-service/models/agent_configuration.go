@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 // LLMPolicies is a custom type for []LLMPolicy that handles JSONB scanning
@@ -49,129 +50,183 @@ func (p *LLMPolicies) Scan(value interface{}) error {
 	return json.Unmarshal(bytes, p)
 }
 
-// AgentConfiguration represents an agent's model configuration
+// AgentConfiguration represents an agent's model configuration. Services set and read the agent by its names
+// (AgentID, ProjectName) and the type by TypeID; the hooks translate them to the stored agent id and type text.
 type AgentConfiguration struct {
-	UUID        uuid.UUID `gorm:"column:uuid;type:uuid;primaryKey;default:gen_random_uuid()" json:"uuid"`
-	Name        string    `gorm:"column:name;type:varchar(255);not null" json:"name"`
-	Description string    `gorm:"column:description;type:text" json:"description,omitempty"`
-	AgentID     string    `gorm:"column:agent_id;type:varchar(255);not null" json:"agentId"`
-	TypeID      uint      `gorm:"column:type_id;type:integer;not null;default:1" json:"-"`
-	OUID        string    `gorm:"column:ou_id;type:varchar(255);not null" json:"organizationName"`
-	ProjectName string    `gorm:"column:project_name;type:varchar(255);not null" json:"projectName"`
-	CreatedAt   time.Time `gorm:"column:created_at;type:timestamp;default:CURRENT_TIMESTAMP" json:"createdAt"`
-	UpdatedAt   time.Time `gorm:"column:updated_at;type:timestamp;default:CURRENT_TIMESTAMP" json:"updatedAt"`
+	UUID        uuid.UUID `gorm:"column:id;primaryKey" json:"uuid"`
+	Name        string    `gorm:"column:name" json:"name"`
+	Description string    `gorm:"column:description" json:"description,omitempty"`
+	OUID        string    `gorm:"column:org_id" json:"organizationName"`
+	AgentUUID   uuid.UUID `gorm:"column:agent_id" json:"-"`
+	Type        string    `gorm:"column:type" json:"-"`
+	CreatedAt   time.Time `gorm:"column:created_at" json:"createdAt"`
+	UpdatedAt   time.Time `gorm:"column:updated_at" json:"updatedAt"`
 
-	// Relations (eager loaded)
-	EnvMappings    []EnvAgentModelMapping   `gorm:"foreignKey:ConfigUUID;constraint:OnDelete:CASCADE" json:"envMappings,omitempty"`
-	EnvMCPMappings []EnvAgentMCPMapping     `gorm:"foreignKey:ConfigUUID;constraint:OnDelete:CASCADE" json:"mcpEnvMappings,omitempty"`
-	EnvVariables   []AgentEnvConfigVariable `gorm:"foreignKey:ConfigUUID;constraint:OnDelete:CASCADE" json:"-"`
+	// AgentID is the agent's name and ProjectName its project's; TypeID is Type as a number.
+	AgentID     string `gorm:"-" json:"agentId"`
+	ProjectName string `gorm:"-" json:"projectName"`
+	TypeID      uint   `gorm:"-" json:"-"`
+
+	// Relationships
+	EnvMappings    []EnvAgentModelMapping   `gorm:"foreignKey:ConfigUUID" json:"envMappings,omitempty"`
+	EnvMCPMappings []EnvAgentMCPMapping     `gorm:"foreignKey:ConfigUUID" json:"mcpEnvMappings,omitempty"`
+	EnvVariables   []AgentEnvConfigVariable `gorm:"foreignKey:ConfigUUID" json:"-"`
 
 	// MCPProxyRef is the environment-agnostic MCP proxy an MCP-type configuration
-	// references. Nil for a non-MCP configuration, and for an MCP configuration whose
-	// environments name different proxies: there is no single answer then, so readers fall
-	// back to the per-environment mapping rows.
-	//
-	// Lives in its own table rather than as a column here because this row is polymorphic
-	// across LLM, MCP and agent configurations — see migration049.
+	// references, independent of which environments currently hold a deployed mapping.
 	MCPProxyRef *AgentMCPConfigProxy `gorm:"foreignKey:ConfigUUID;references:UUID" json:"mcpProxyRef,omitempty"`
 
-	// MCPEnvExclusions lists the environments an MCP connection was deliberately removed
-	// from. Its scope is every environment of the project's pipeline except these — see
-	// migration050 for why that is recorded rather than inferred from missing env var rows.
+	// MCPEnvExclusions are the environments an MCP connection was deliberately removed from.
 	MCPEnvExclusions []AgentMCPConfigEnvExclusion `gorm:"foreignKey:ConfigUUID;references:UUID" json:"-"`
 
-	// MCPScope is present once an MCP connection's scope has been recorded through
-	// MCPEnvExclusions. Without it the exclusions cannot be trusted — the connection predates
-	// them — and its scope is still the environments it has env var rows in (migration050).
+	// MCPScope is non-nil once the connection's environment scope has been recorded.
 	MCPScope *AgentMCPConfigScope `gorm:"foreignKey:ConfigUUID;references:UUID" json:"-"`
-}
-
-// AgentMCPConfigProxy binds one MCP-type AgentConfiguration to the org-level MCP proxy it
-// references, independent of any environment.
-//
-// The reference is kept here rather than on agent_configurations so that table stays
-// generic, and so the database can enforce that only an MCP configuration carries one: the
-// TypeID column is pinned to AgentConfigTypeIDMCP by a CHECK and joined back to
-// agent_configurations through a composite foreign key on (uuid, type_id). TypeID is
-// therefore redundant by design — it exists to make that key expressible.
-//
-// A row's presence is the whole signal. There is no NULL proxy state: a configuration
-// either records an environment-agnostic proxy or has no row at all.
-type AgentMCPConfigProxy struct {
-	ConfigUUID   uuid.UUID `gorm:"column:config_uuid;type:uuid;primaryKey" json:"configUuid"`
-	TypeID       uint      `gorm:"column:type_id;type:integer;not null;default:2" json:"-"`
-	MCPProxyUUID uuid.UUID `gorm:"column:mcp_proxy_uuid;type:uuid;not null" json:"mcpProxyUuid"`
-	CreatedAt    time.Time `gorm:"column:created_at;type:timestamp;default:CURRENT_TIMESTAMP" json:"createdAt"`
-	UpdatedAt    time.Time `gorm:"column:updated_at;type:timestamp;default:CURRENT_TIMESTAMP" json:"updatedAt"`
-}
-
-// AgentMCPConfigEnvExclusion records that an MCP connection was deliberately taken out of
-// one environment, so the binding reconcile leaves it unbound there. TypeID is pinned to
-// AgentConfigTypeIDMCP and exists only to carry the composite foreign key.
-type AgentMCPConfigEnvExclusion struct {
-	ConfigUUID      uuid.UUID `gorm:"column:config_uuid;type:uuid;primaryKey" json:"configUuid"`
-	EnvironmentUUID uuid.UUID `gorm:"column:environment_uuid;type:uuid;primaryKey" json:"environmentUuid"`
-	TypeID          uint      `gorm:"column:type_id;type:integer;not null;default:2" json:"-"`
-	CreatedAt       time.Time `gorm:"column:created_at;type:timestamp;default:CURRENT_TIMESTAMP" json:"createdAt"`
-}
-
-// AgentMCPConfigScope marks an MCP connection whose environment scope is recorded through
-// AgentMCPConfigEnvExclusion. Its presence is the whole signal; TypeID carries the composite
-// foreign key that restricts it to MCP configurations.
-type AgentMCPConfigScope struct {
-	ConfigUUID uuid.UUID `gorm:"column:config_uuid;type:uuid;primaryKey" json:"configUuid"`
-	TypeID     uint      `gorm:"column:type_id;type:integer;not null;default:2" json:"-"`
-	RecordedAt time.Time `gorm:"column:recorded_at;type:timestamp;default:CURRENT_TIMESTAMP" json:"recordedAt"`
-}
-
-// TableName returns the table name for the AgentMCPConfigScope model.
-func (AgentMCPConfigScope) TableName() string {
-	return "agent_mcp_config_scope"
-}
-
-// TableName returns the table name for the AgentMCPConfigEnvExclusion model.
-func (AgentMCPConfigEnvExclusion) TableName() string {
-	return "agent_mcp_config_env_exclusion"
-}
-
-// TableName returns the table name for the AgentMCPConfigProxy model.
-func (AgentMCPConfigProxy) TableName() string {
-	return "agent_mcp_config_proxy"
 }
 
 // TableName returns the table name for the AgentConfiguration model
 func (AgentConfiguration) TableName() string {
-	return "agent_configurations"
+	return "agent_model_configs"
 }
 
-// EnvAgentModelMapping represents environment-specific model configuration
-type EnvAgentModelMapping struct {
-	ID                  uint        `gorm:"column:id;primaryKey;autoIncrement" json:"-"`
-	ConfigUUID          uuid.UUID   `gorm:"column:config_uuid;type:uuid;not null" json:"configUuid"`
-	EnvironmentUUID     uuid.UUID   `gorm:"column:environment_uuid;type:uuid;not null" json:"environmentUuid"`
-	LLMProxyUUID        uuid.UUID   `gorm:"column:llm_proxy_uuid;type:uuid;not null" json:"llmProxyUuid"`
-	CreatedAt           time.Time   `gorm:"column:created_at;type:timestamp;default:CURRENT_TIMESTAMP" json:"createdAt"`
-	PolicyConfiguration LLMPolicies `gorm:"column:policy_configuration;type:jsonb;default:[]" json:"policyConfiguration,omitempty"`
+// BeforeSave stores the type as text and resolves the agent's id from its names.
+func (c *AgentConfiguration) BeforeSave(tx *gorm.DB) error {
+	if c.TypeID != 0 {
+		c.Type = AgentConfigTypeFromID(c.TypeID)
+	} else if c.Type == "" {
+		c.Type = AgentConfigTypeLLM
+	}
+	if c.AgentUUID == uuid.Nil && c.AgentID != "" {
+		id, err := AgentIDByNames(tx, c.OUID, c.ProjectName, c.AgentID)
+		if err != nil {
+			return err
+		}
+		c.AgentUUID = id
+	}
+	return nil
+}
 
-	// Relations (for preloading)
+// AfterFind fills the agent's names and the numeric type.
+func (c *AgentConfiguration) AfterFind(tx *gorm.DB) error {
+	c.TypeID = AgentConfigTypeToID(c.Type)
+	if c.AgentUUID == uuid.Nil || c.AgentID != "" {
+		return nil
+	}
+	project, agent, err := AgentNamesByID(tx, c.AgentUUID)
+	if err != nil {
+		return err
+	}
+	c.ProjectName, c.AgentID = project, agent
+	return nil
+}
+
+// AgentMCPConfigProxy binds one MCP-type AgentConfiguration to the org-level MCP proxy it references.
+type AgentMCPConfigProxy struct {
+	ConfigUUID   uuid.UUID `gorm:"column:config_id;primaryKey" json:"configUuid"`
+	OrgID        string    `gorm:"column:org_id" json:"-"`
+	MCPProxyUUID uuid.UUID `gorm:"column:mcp_proxy_id" json:"mcpProxyUuid"`
+	CreatedAt    time.Time `gorm:"column:created_at" json:"createdAt"`
+	UpdatedAt    time.Time `gorm:"column:updated_at" json:"updatedAt"`
+	TypeID       uint      `gorm:"-" json:"-"`
+}
+
+// TableName returns the table name for the AgentMCPConfigProxy model.
+func (AgentMCPConfigProxy) TableName() string {
+	return "agent_model_config_mcp"
+}
+
+// BeforeCreate copies the configuration's organization.
+func (p *AgentMCPConfigProxy) BeforeCreate(tx *gorm.DB) (err error) {
+	if p.OrgID == "" {
+		p.OrgID, err = orgIDOf(tx, "agent_model_configs", p.ConfigUUID)
+	}
+	return err
+}
+
+// AgentMCPConfigEnvExclusion records an environment an MCP connection was deliberately removed from. It shares
+// agent_model_config_mcp_envs with EnvAgentMCPMapping, as a row with excluded set and no mapping.
+type AgentMCPConfigEnvExclusion struct {
+	ConfigUUID      uuid.UUID `gorm:"column:config_id;primaryKey" json:"configUuid"`
+	EnvironmentUUID uuid.UUID `gorm:"column:environment_id;primaryKey" json:"environmentUuid"`
+	OrgID           string    `gorm:"column:org_id" json:"-"`
+	Excluded        bool      `gorm:"column:excluded" json:"-"`
+	CreatedAt       time.Time `gorm:"column:created_at" json:"createdAt"`
+	TypeID          uint      `gorm:"-" json:"-"`
+}
+
+// TableName returns the table name for the AgentMCPConfigEnvExclusion model.
+func (AgentMCPConfigEnvExclusion) TableName() string {
+	return "agent_model_config_mcp_envs"
+}
+
+// BeforeCreate marks the row as an exclusion and copies the configuration's organization.
+func (e *AgentMCPConfigEnvExclusion) BeforeCreate(tx *gorm.DB) (err error) {
+	e.Excluded = true
+	if e.CreatedAt.IsZero() {
+		e.CreatedAt = time.Now().UTC().Truncate(time.Microsecond)
+	}
+	if e.OrgID == "" {
+		e.OrgID, err = orgIDOf(tx, "agent_model_configs", e.ConfigUUID)
+	}
+	return err
+}
+
+// AgentMCPConfigScope marks an MCP connection whose environment scope has been recorded. It is the
+// scope_recorded_at column of the connection's agent_model_config_mcp row.
+type AgentMCPConfigScope struct {
+	ConfigUUID uuid.UUID `gorm:"column:config_id;primaryKey" json:"configUuid"`
+	RecordedAt time.Time `gorm:"column:scope_recorded_at" json:"recordedAt"`
+	TypeID     uint      `gorm:"-" json:"-"`
+}
+
+// TableName returns the table name for the AgentMCPConfigScope model.
+func (AgentMCPConfigScope) TableName() string {
+	return "agent_model_config_mcp"
+}
+
+// EnvAgentModelMapping represents per-environment LLM proxy mapping
+type EnvAgentModelMapping struct {
+	ConfigUUID          uuid.UUID   `gorm:"column:config_id;primaryKey" json:"configUuid"`
+	EnvironmentUUID     uuid.UUID   `gorm:"column:environment_id;primaryKey" json:"environmentUuid"`
+	OrgID               string      `gorm:"column:org_id" json:"-"`
+	LLMProxyUUID        uuid.UUID   `gorm:"column:llm_proxy_id" json:"llmProxyUuid"`
+	CreatedAt           time.Time   `gorm:"column:created_at" json:"createdAt"`
+	PolicyConfiguration LLMPolicies `gorm:"column:policy_configuration" json:"policyConfiguration,omitempty"`
+
+	// Relationships
 	LLMProxy *LLMProxy `gorm:"foreignKey:LLMProxyUUID" json:"llmProxy,omitempty"`
 }
 
 // TableName returns the table name for the EnvAgentModelMapping model
 func (EnvAgentModelMapping) TableName() string {
-	return "env_agent_model_mapping"
+	return "agent_model_config_llm"
 }
 
-// EnvAgentMCPMapping represents environment-specific MCP configuration.
-type EnvAgentMCPMapping struct {
-	ID              uint      `gorm:"column:id;primaryKey;autoIncrement" json:"-"`
-	ConfigUUID      uuid.UUID `gorm:"column:config_uuid;type:uuid;not null" json:"configUuid"`
-	EnvironmentUUID uuid.UUID `gorm:"column:environment_uuid;type:uuid;not null" json:"environmentUuid"`
-	MCPProxyUUID    uuid.UUID `gorm:"column:mcp_proxy_uuid;type:uuid;not null" json:"mcpProxyUuid"`
-	ArtifactUUID    uuid.UUID `gorm:"column:artifact_uuid;type:uuid;not null" json:"artifactUuid"`
-	CreatedAt       time.Time `gorm:"column:created_at;type:timestamp;default:CURRENT_TIMESTAMP" json:"createdAt"`
+// BeforeCreate copies the configuration's organization.
+func (m *EnvAgentModelMapping) BeforeCreate(tx *gorm.DB) (err error) {
+	if m.CreatedAt.IsZero() {
+		m.CreatedAt = time.Now().UTC().Truncate(time.Microsecond)
+	}
+	if m.PolicyConfiguration == nil {
+		m.PolicyConfiguration = LLMPolicies{}
+	}
+	if m.OrgID == "" {
+		m.OrgID, err = orgIDOf(tx, "agent_model_configs", m.ConfigUUID)
+	}
+	return err
+}
 
-	// Relations (for preloading)
+// EnvAgentMCPMapping is an MCP connection's binding in one environment: the agent's mapping artifact of the MCP
+// proxy. It shares agent_model_config_mcp_envs with AgentMCPConfigEnvExclusion, as a row that is not excluded.
+type EnvAgentMCPMapping struct {
+	ConfigUUID      uuid.UUID `gorm:"column:config_id;primaryKey" json:"configUuid"`
+	EnvironmentUUID uuid.UUID `gorm:"column:environment_id;primaryKey" json:"environmentUuid"`
+	OrgID           string    `gorm:"column:org_id" json:"-"`
+	MCPProxyUUID    uuid.UUID `gorm:"column:mcp_proxy_id" json:"mcpProxyUuid"`
+	ArtifactUUID    uuid.UUID `gorm:"column:mapping_artifact_id" json:"artifactUuid"`
+	Excluded        bool      `gorm:"column:excluded" json:"-"`
+	CreatedAt       time.Time `gorm:"column:created_at" json:"createdAt"`
+
+	// Relationships
 	MCPProxy        *MCPProxy        `gorm:"foreignKey:MCPProxyUUID" json:"mcpProxy,omitempty"`
 	MCPProxyMapping *MCPProxyMapping `gorm:"foreignKey:ArtifactUUID;references:UUID" json:"mcpProxyMapping,omitempty"`
 	Artifact        *Artifact        `gorm:"foreignKey:ArtifactUUID;references:UUID" json:"artifact,omitempty"`
@@ -179,21 +234,45 @@ type EnvAgentMCPMapping struct {
 
 // TableName returns the table name for the EnvAgentMCPMapping model.
 func (EnvAgentMCPMapping) TableName() string {
-	return "env_agent_mcp_mapping"
+	return "agent_model_config_mcp_envs"
 }
 
-// AgentEnvConfigVariable represents environment variable configuration
+// BeforeCreate copies the configuration's organization.
+func (m *EnvAgentMCPMapping) BeforeCreate(tx *gorm.DB) (err error) {
+	m.Excluded = false
+	if m.CreatedAt.IsZero() {
+		m.CreatedAt = time.Now().UTC().Truncate(time.Microsecond)
+	}
+	if m.OrgID == "" {
+		m.OrgID, err = orgIDOf(tx, "agent_model_configs", m.ConfigUUID)
+	}
+	return err
+}
+
+// AgentEnvConfigVariable is the name an environment variable of a configuration takes in one environment.
 type AgentEnvConfigVariable struct {
-	ID              uint      `gorm:"column:id;primaryKey;autoIncrement" json:"-"`
-	ConfigUUID      uuid.UUID `gorm:"column:config_uuid;type:uuid;not null" json:"-"`
-	EnvironmentUUID uuid.UUID `gorm:"column:environment_uuid;type:uuid;not null" json:"-"`
-	VariableName    string    `gorm:"column:variable_name;type:varchar(255);not null" json:"name"`
-	VariableKey     string    `gorm:"column:variable_key;type:varchar(255);not null" json:"key"`
-	SecretReference string    `gorm:"column:secret_reference;type:text;not null" json:"-"` // NEVER expose in API
-	CreatedAt       time.Time `gorm:"column:created_at;type:timestamp;default:CURRENT_TIMESTAMP" json:"-"`
+	ConfigUUID      uuid.UUID `gorm:"column:config_id;primaryKey" json:"-"`
+	EnvironmentUUID uuid.UUID `gorm:"column:environment_id;primaryKey" json:"-"`
+	VariableKey     string    `gorm:"column:variable_key;primaryKey" json:"key"`
+	OrgID           string    `gorm:"column:org_id" json:"-"`
+	VariableName    string    `gorm:"column:variable_name" json:"name"`
+	CreatedAt       time.Time `gorm:"column:created_at" json:"-"`
+	// SecretReference named a secret only hosted workloads mounted; external agents are handed their keys.
+	SecretReference string `gorm:"-" json:"-"`
 }
 
 // TableName returns the table name for the AgentEnvConfigVariable model
 func (AgentEnvConfigVariable) TableName() string {
-	return "agent_env_config_variables_mapping"
+	return "agent_model_config_vars"
+}
+
+// BeforeCreate copies the configuration's organization.
+func (v *AgentEnvConfigVariable) BeforeCreate(tx *gorm.DB) (err error) {
+	if v.CreatedAt.IsZero() {
+		v.CreatedAt = time.Now().UTC().Truncate(time.Microsecond)
+	}
+	if v.OrgID == "" {
+		v.OrgID, err = orgIDOf(tx, "agent_model_configs", v.ConfigUUID)
+	}
+	return err
 }

@@ -26,6 +26,7 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
+	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 )
 
@@ -65,14 +66,14 @@ func (r *CatalogRepo) ListByKind(orgUUID, kind string, limit, offset int) ([]mod
 	err := r.db.Transaction(func(tx *gorm.DB) error {
 		// Count total matching records
 		if err := tx.Model(&models.CatalogEntry{}).
-			Where("ou_id = ? AND kind = ? AND in_catalog = ?", orgUUID, kind, true).
+			Where("org_id = ? AND kind = ? AND in_catalog = ?", orgUUID, kind, true).
 			Count(&total).Error; err != nil {
 			return err
 		}
 
 		// Retrieve paginated results
 		if err := tx.
-			Where("ou_id = ? AND kind = ? AND in_catalog = ?", orgUUID, kind, true).
+			Where("org_id = ? AND kind = ? AND in_catalog = ?", orgUUID, kind, true).
 			Order("created_at DESC").
 			Limit(limit).
 			Offset(offset).
@@ -98,14 +99,14 @@ func (r *CatalogRepo) ListAll(orgUUID string, limit, offset int) ([]models.Catal
 	err := r.db.Transaction(func(tx *gorm.DB) error {
 		// Count total matching records
 		if err := tx.Model(&models.CatalogEntry{}).
-			Where("ou_id = ? AND in_catalog = ?", orgUUID, true).
+			Where("org_id = ? AND in_catalog = ?", orgUUID, true).
 			Count(&total).Error; err != nil {
 			return err
 		}
 
 		// Retrieve paginated results
 		if err := tx.
-			Where("ou_id = ? AND in_catalog = ?", orgUUID, true).
+			Where("org_id = ? AND in_catalog = ?", orgUUID, true).
 			Order("created_at DESC").
 			Limit(limit).
 			Offset(offset).
@@ -137,17 +138,17 @@ func (r *CatalogRepo) ListLLMProviders(filters *models.CatalogListFilters) ([]mo
 
 	// Build base query with common joins and conditions
 	baseQuery := r.db.Model(&models.LLMProvider{}).
-		Joins("JOIN artifacts a ON llm_providers.uuid = a.uuid").
-		Where("a.ou_id = ? AND a.kind = ? AND a.in_catalog = ?",
+		Joins("JOIN artifacts a ON llm_providers.id = a.id").
+		Where("a.org_id = ? AND a.kind = ? AND a.in_catalog = ?",
 			filters.OrganizationName, models.KindLLMProvider, true)
 
 	// Apply environment filter if provided: providers live (acked DEPLOYED) on a gateway of the environment
 	if filters.HasEnvironmentFilter() {
 		baseQuery = baseQuery.
-			Joins("JOIN deployment_status ds ON llm_providers.uuid = ds.artifact_uuid AND ds.ou_id = a.ou_id").
-			Joins("JOIN gateways g ON ds.gateway_uuid = g.uuid AND g.deleted_at IS NULL").
-			Joins("JOIN gateway_environment_mappings gem ON ds.gateway_uuid = gem.gateway_uuid").
-			Where("gem.environment_uuid = ? AND ds.status = ?",
+			Joins("JOIN artifact_gateway_status ds ON llm_providers.id = ds.artifact_id AND ds.org_id = a.org_id").
+			Joins("JOIN gateways g ON ds.gateway_id = g.id").
+			Joins("JOIN gateway_environments gem ON ds.gateway_id = gem.gateway_id").
+			Where("gem.environment_id = ? AND ds.status = ?",
 				filters.EnvironmentUUID, models.DeploymentStatusDeployed).
 			Distinct()
 		if filters.GatewayHosting != "" {
@@ -169,22 +170,22 @@ func (r *CatalogRepo) ListLLMProviders(filters *models.CatalogListFilters) ([]mo
 	// We'll fetch deployments separately and aggregate them
 	query := r.db.
 		Select(`
-			a.uuid, a.handle, a.name, a.version, a.kind, a.in_catalog, a.created_at,
+			a.id AS uuid, a.handle, a.name, a.version, a.kind, a.in_catalog, a.created_at,
 			llm_providers.description, llm_providers.created_by, llm_providers.status,
 			llm_providers.configuration, llm_providers.model_list,
-			a.ou_id
+			a.org_id AS organization_name
 		`).
 		Table("llm_providers").
-		Joins("JOIN artifacts a ON llm_providers.uuid = a.uuid").
-		Where("a.ou_id = ? AND a.kind = ? AND a.in_catalog = ?",
+		Joins("JOIN artifacts a ON llm_providers.id = a.id").
+		Where("a.org_id = ? AND a.kind = ? AND a.in_catalog = ?",
 			filters.OrganizationName, models.KindLLMProvider, true)
 
 	if filters.HasEnvironmentFilter() {
 		query = query.
-			Joins("JOIN deployment_status ds ON llm_providers.uuid = ds.artifact_uuid AND ds.ou_id = a.ou_id").
-			Joins("JOIN gateways g ON ds.gateway_uuid = g.uuid AND g.deleted_at IS NULL").
-			Joins("JOIN gateway_environment_mappings gem ON ds.gateway_uuid = gem.gateway_uuid").
-			Where("gem.environment_uuid = ? AND ds.status = ?",
+			Joins("JOIN artifact_gateway_status ds ON llm_providers.id = ds.artifact_id AND ds.org_id = a.org_id").
+			Joins("JOIN gateways g ON ds.gateway_id = g.id").
+			Joins("JOIN gateway_environments gem ON ds.gateway_id = gem.gateway_id").
+			Where("gem.environment_id = ? AND ds.status = ?",
 				filters.EnvironmentUUID, models.DeploymentStatusDeployed).
 			Distinct()
 		if filters.GatewayHosting != "" {
@@ -233,7 +234,7 @@ func (r *CatalogRepo) ListLLMProviders(filters *models.CatalogListFilters) ([]mo
 		if err != nil {
 			// Database UUIDs should always be valid - this indicates data corruption
 			r.db.Logger.Error(context.Background(),
-				"Database integrity error: invalid UUID in artifacts table - possible data corruption (uuid=%s, handle=%s, orgUUID=%s): %v",
+				"Database integrity error: invalid UUID in artifacts table - possible data corruption (id=%s, handle=%s, orgUUID=%s): %v",
 				row.UUID, row.Handle, row.OrganizationName, err)
 			return nil, 0, fmt.Errorf("database integrity error: invalid UUID %q in artifacts table (handle=%s): %w",
 				row.UUID, row.Handle, err)
@@ -341,7 +342,7 @@ func (r *CatalogRepo) populateDeploymentsInBatch(entries []models.CatalogLLMProv
 		GatewayName         string
 		GatewayDisplayName  string
 		GatewayVHost        string
-		EnvironmentUUID     string
+		EnvironmentUUID     *string
 		DeploymentUpdatedAt *time.Time
 		Status              models.DeploymentStatus
 		StatusDesired       models.DeploymentStatus
@@ -354,24 +355,27 @@ func (r *CatalogRepo) populateDeploymentsInBatch(entries []models.CatalogLLMProv
 
 	// Fetch all deployments for these providers in ONE query
 	query := r.db.
-		Table("deployment_status ds").
+		Table("artifact_gateway_status ds").
 		Select(`
-			ds.artifact_uuid,
-			ds.gateway_uuid,
-			g.name as gateway_name,
-			g.display_name as gateway_display_name,
-			g.vhost as gateway_vhost,
-			COALESCE(gem.environment_uuid::text, '') as environment_uuid,
+			ds.artifact_id AS artifact_uuid,
+			ds.gateway_id AS gateway_uuid,
+			g.name AS gateway_name,
+			g.display_name AS gateway_display_name,
+			g.vhost AS gateway_vhost,
+			gem.environment_id AS environment_uuid,
 			ds.status, ds.status_desired, ds.status_reason, ds.next_attempt_at, ds.render_reason,
 			ds.updated_at as deployment_updated_at
 		`).
-		Joins("JOIN gateways g ON ds.gateway_uuid = g.uuid AND g.deleted_at IS NULL").
-		Joins("LEFT JOIN gateway_environment_mappings gem ON ds.gateway_uuid = gem.gateway_uuid").
-		Where("ds.artifact_uuid IN ? AND ds.ou_id = ? AND ds.status = ?",
-			providerUUIDs, orgUUID, models.DeploymentStatusDeployed)
+		Joins("JOIN gateways g ON ds.gateway_id = g.id").
+		Joins("LEFT JOIN gateway_environments gem ON ds.gateway_id = gem.gateway_id").
+		Where("ds.org_id = ? AND ds.status = ?", orgUUID, models.DeploymentStatusDeployed)
 
-	if err := query.Scan(&deploymentRows).Error; err != nil {
-		return fmt.Errorf("failed to fetch deployments: %w", err)
+	for _, chunk := range dbx.Chunks(providerUUIDs) {
+		var part []DeploymentRow
+		if err := query.Session(&gorm.Session{}).Where("ds.artifact_id IN ?", chunk).Scan(&part).Error; err != nil {
+			return fmt.Errorf("failed to fetch deployments: %w", err)
+		}
+		deploymentRows = append(deploymentRows, part...)
 	}
 
 	// Group deployments by provider UUID
@@ -400,7 +404,7 @@ func (r *CatalogRepo) populateDeploymentsInBatch(entries []models.CatalogLLMProv
 				// Log invalid gateway UUID but skip this deployment instead of failing entire operation
 				// This indicates data corruption in deployment_status or gateways table
 				r.db.Logger.Warn(context.Background(),
-					"Invalid gateway UUID in deployment_status, skipping deployment (gatewayUUID=%s, artifactUUID=%s): %v",
+					"Invalid gateway UUID in artifact_gateway_status, skipping deployment (gatewayUUID=%s, artifactUUID=%s): %v",
 					row.GatewayUUID, row.ArtifactUUID, err)
 				skippedCount++
 				continue
@@ -417,8 +421,8 @@ func (r *CatalogRepo) populateDeploymentsInBatch(entries []models.CatalogLLMProv
 				VHost:      row.GatewayVHost,
 			}
 			// Store environment UUID temporarily; service layer will resolve to name
-			if row.EnvironmentUUID != "" {
-				envUUID := row.EnvironmentUUID
+			if row.EnvironmentUUID != nil && *row.EnvironmentUUID != "" {
+				envUUID := *row.EnvironmentUUID
 				deployment.EnvironmentName = &envUUID
 			}
 			deployments = append(deployments, deployment)

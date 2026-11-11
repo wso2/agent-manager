@@ -24,8 +24,8 @@ import (
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 
+	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 )
 
@@ -98,46 +98,72 @@ func NewA2AAgentCardRepository(db *gorm.DB) A2AAgentCardRepository {
 	return &a2aAgentCardRepository{db: db}
 }
 
+// agentCond matches the rows of the named agent.
+func agentCond(db *gorm.DB, ouID, projectName, agentName string) (string, []any) {
+	return "org_id = ? AND agent_id IN (?)", []any{ouID, models.AgentIDQuery(db, ouID, projectName, agentName)}
+}
+
+// agentEnvCond matches the named agent's rows in the named environment.
+func agentEnvCond(db *gorm.DB, ouID, projectName, agentName, environmentName string) (string, []any) {
+	cond, args := agentCond(db, ouID, projectName, agentName)
+	return cond + " AND environment_id IN (?)", append(args, models.EnvironmentIDQuery(db, ouID, environmentName))
+}
+
+// agentEnvIDCond matches the named agent's rows in an environment known by id.
+func agentEnvIDCond(db *gorm.DB, ouID, projectName, agentName string, environmentUUID uuid.UUID) (string, []any) {
+	cond, args := agentCond(db, ouID, projectName, agentName)
+	return cond + " AND environment_id = ?", append(args, environmentUUID)
+}
+
 func (r *a2aAgentCardRepository) Enqueue(ctx context.Context, card *models.A2AAgentCard) error {
-	// Postgres keeps microseconds; the Mark* guards compare against this value.
-	now := time.Now().Truncate(time.Microsecond)
+	now := dbx.Now()
 	card.Status = models.A2AAgentCardStatusPending
 	card.AttemptCount = 0
 	card.LastError = ""
 	card.NextAttemptAt = &now
 	card.UpdatedAt = now
-
-	changed := a2aCardSourceChanged
-	if card.Source == models.A2AAgentCardSourceExternal && card.SourceURL != "" {
-		changed += " OR " + a2aCardSourceURLChanged
+	if card.ID == uuid.Nil {
+		card.ID = newID()
 	}
-	updates := clause.AssignmentColumns([]string{"status", "attempt_count", "last_error", "next_attempt_at", "updated_at", "source"})
-	updates = append(updates, newSourceURLAssignments(changed)...)
+	if card.CreatedAt.IsZero() {
+		card.CreatedAt = now
+	}
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		// A same-named row from a deleted environment must not outlive its replacement.
-		err := tx.Where("ou_id = ? AND project_name = ? AND agent_name = ? AND environment_name = ? AND environment_uuid <> ?",
-			card.OUID, card.ProjectName, card.AgentName, card.EnvironmentName, card.EnvironmentUUID).
-			Delete(&models.A2AAgentCard{}).Error
-		if err != nil {
-			return err
+		if card.AgentUUID == nil || *card.AgentUUID == uuid.Nil {
+			id, err := models.AgentIDByNames(tx, card.OUID, card.ProjectName, card.AgentName)
+			if err != nil {
+				return err
+			}
+			card.AgentUUID = &id
 		}
-		return tx.Clauses(clause.OnConflict{
-			Columns: []clause.Column{
-				{Name: "ou_id"},
-				{Name: "project_name"},
-				{Name: "agent_name"},
-				{Name: "environment_uuid"},
-			},
-			DoUpdates: updates,
-		}).Create(card).Error
+		_, err := dbx.Upsert(tx, card, func(tx *gorm.DB) error {
+			var current models.A2AAgentCard
+			key := "agent_id = ? AND environment_id = ?"
+			if err := tx.Where(key, *card.AgentUUID, card.EnvironmentUUID).Take(&current).Error; err != nil {
+				return err
+			}
+			updates := map[string]any{
+				"status": card.Status, "attempt_count": 0, "last_error": "", "next_attempt_at": now, "updated_at": now,
+				"source": card.Source,
+			}
+			// A different source, or an external row naming a different URL, makes the stored card stale.
+			if current.Source != card.Source ||
+				(card.Source == models.A2AAgentCardSourceExternal && card.SourceURL != "" && current.SourceURL != card.SourceURL) {
+				updates["card"] = nil
+				updates["card_hash"] = ""
+				updates["fetched_at"] = nil
+				updates["source_url"] = card.SourceURL
+			}
+			return tx.Model(&models.A2AAgentCard{}).Where("id = ?", current.ID).Updates(updates).Error
+		})
+		return err
 	})
 }
 
 func (r *a2aAgentCardRepository) Requeue(ctx context.Context, ouID, projectName, agentName, environmentName string) error {
-	now := time.Now().Truncate(time.Microsecond)
-	result := r.db.WithContext(ctx).Model(&models.A2AAgentCard{}).
-		Where("ou_id = ? AND project_name = ? AND agent_name = ? AND environment_name = ?",
-			ouID, projectName, agentName, environmentName).
+	now := dbx.Now()
+	cond, args := agentEnvCond(r.db, ouID, projectName, agentName, environmentName)
+	result := r.db.WithContext(ctx).Model(&models.A2AAgentCard{}).Where(cond, args...).
 		Updates(map[string]interface{}{
 			"status":          models.A2AAgentCardStatusPending,
 			"attempt_count":   0,
@@ -154,50 +180,22 @@ func (r *a2aAgentCardRepository) Requeue(ctx context.Context, ouID, projectName,
 	return nil
 }
 
-const (
-	a2aCardSourceChanged    = "a2a_agent_cards.source IS DISTINCT FROM excluded.source"
-	a2aCardSourceURLChanged = "a2a_agent_cards.source_url IS DISTINCT FROM excluded.source_url"
-)
-
-// newSourceURLAssignments takes the new source_url and drops the old card when changed holds.
-func newSourceURLAssignments(changed string) []clause.Assignment {
-	keepUnlessChanged := func(column, replacement string) clause.Assignment {
-		return clause.Assignment{
-			Column: clause.Column{Name: column},
-			Value:  gorm.Expr("CASE WHEN " + changed + " THEN " + replacement + " ELSE a2a_agent_cards." + column + " END"),
-		}
-	}
-	return []clause.Assignment{
-		keepUnlessChanged("card", "NULL"),
-		keepUnlessChanged("card_hash", "''"),
-		keepUnlessChanged("fetched_at", "NULL"),
-		keepUnlessChanged("release_name", "''"),
-		keepUnlessChanged("source_url", "excluded.source_url"),
-	}
-}
-
-// a2aCardClaimColumns omits card: the reconciler compares card_hash and never reads the stored body.
-const a2aCardClaimColumns = `id, ou_id, project_name, agent_name, environment_name, environment_uuid, source, source_url, card_hash,
-	fetched_at, release_name, attempted_release_name, status, attempt_count, last_error, next_attempt_at, created_at, updated_at`
-
 func (r *a2aAgentCardRepository) WithTx(tx *gorm.DB) A2AAgentCardRepository {
 	return &a2aAgentCardRepository{db: tx}
 }
 
 func (r *a2aAgentCardRepository) ClearCard(ctx context.Context, ouID, projectName, agentName string, environmentUUID uuid.UUID) error {
-	result := r.db.WithContext(ctx).Model(&models.A2AAgentCard{}).
-		Where("ou_id = ? AND project_name = ? AND agent_name = ? AND environment_uuid = ?",
-			ouID, projectName, agentName, environmentUUID).
+	cond, args := agentEnvIDCond(r.db, ouID, projectName, agentName, environmentUUID)
+	result := r.db.WithContext(ctx).Model(&models.A2AAgentCard{}).Where(cond, args...).
 		Updates(map[string]interface{}{
 			"card":            nil,
 			"card_hash":       "",
 			"fetched_at":      nil,
-			"release_name":    "",
 			"status":          models.A2AAgentCardStatusPending,
 			"attempt_count":   0,
 			"last_error":      "",
 			"next_attempt_at": nil,
-			"updated_at":      time.Now().Truncate(time.Microsecond),
+			"updated_at":      dbx.Now(),
 		})
 	if result.Error != nil {
 		return result.Error
@@ -211,44 +209,51 @@ func (r *a2aAgentCardRepository) ClearCard(ctx context.Context, ouID, projectNam
 func (r *a2aAgentCardRepository) FailParked(
 	ctx context.Context, ouID, projectName, agentName string, environmentUUID uuid.UUID, lastErr string,
 ) error {
+	cond, args := agentEnvIDCond(r.db, ouID, projectName, agentName, environmentUUID)
 	return r.db.WithContext(ctx).Model(&models.A2AAgentCard{}).
-		Where("ou_id = ? AND project_name = ? AND agent_name = ? AND environment_uuid = ? AND status = ? AND next_attempt_at IS NULL",
-			ouID, projectName, agentName, environmentUUID, models.A2AAgentCardStatusPending).
+		Where(cond+" AND status = ? AND next_attempt_at IS NULL", append(args, models.A2AAgentCardStatusPending)...).
 		Updates(map[string]interface{}{
 			"status":     models.A2AAgentCardStatusFailed,
 			"last_error": lastErr,
-			"updated_at": time.Now().Truncate(time.Microsecond),
+			"updated_at": dbx.Now(),
 		}).Error
 }
 
+// ClaimDue leases each due row with its own conditional update that pushes next_attempt_at past the lease, so of
+// two concurrent claimers only the first still finds it due.
 func (r *a2aAgentCardRepository) ClaimDue(ctx context.Context, now time.Time, limit int) ([]models.A2AAgentCard, error) {
-	var claimed []models.A2AAgentCard
-	err := r.db.WithContext(ctx).Raw(
-		`
-		UPDATE a2a_agent_cards SET next_attempt_at = ?
-		WHERE id IN (
-			SELECT id FROM a2a_agent_cards
-			WHERE status = ? AND next_attempt_at <= ?
-			ORDER BY next_attempt_at ASC, created_at ASC
-			LIMIT ?
-			FOR UPDATE SKIP LOCKED
-		)
-		RETURNING `+a2aCardClaimColumns,
-		now.Add(A2AAgentCardClaimLease), models.A2AAgentCardStatusPending, now, limit,
-	).Scan(&claimed).Error
+	now = now.UTC().Truncate(time.Microsecond)
+	lease := now.Add(A2AAgentCardClaimLease)
+	db := r.db.WithContext(ctx)
+	var due []models.A2AAgentCard
+	err := db.Omit("card").Where("status = ? AND next_attempt_at <= ?", models.A2AAgentCardStatusPending, now).
+		Order("next_attempt_at ASC, created_at ASC").Limit(limit).Find(&due).Error
 	if err != nil {
 		return nil, err
+	}
+	claimed := make([]models.A2AAgentCard, 0, len(due))
+	for _, row := range due {
+		res := db.Model(&models.A2AAgentCard{}).
+			Where("id = ? AND status = ? AND next_attempt_at <= ?", row.ID, models.A2AAgentCardStatusPending, now).
+			UpdateColumn("next_attempt_at", lease)
+		if res.Error != nil {
+			return nil, res.Error
+		}
+		if res.RowsAffected == 0 {
+			continue
+		}
+		row.NextAttemptAt = &lease
+		claimed = append(claimed, row)
 	}
 	return claimed, nil
 }
 
-func (r *a2aAgentCardRepository) MarkFetched(ctx context.Context, read models.A2AAgentCard, card json.RawMessage, cardHash, fetchedURL, releaseName string) error {
+func (r *a2aAgentCardRepository) MarkFetched(ctx context.Context, read models.A2AAgentCard, card json.RawMessage, cardHash, fetchedURL, _ string) error {
 	updates := map[string]interface{}{
 		"status":          models.A2AAgentCardStatusFetched,
-		"fetched_at":      time.Now(),
+		"fetched_at":      dbx.Now(),
 		"last_error":      "",
 		"next_attempt_at": nil,
-		"release_name":    releaseName,
 	}
 	// An external row's source_url is the registered URL; a fetch through the gateway must not replace it.
 	if read.Source == models.A2AAgentCardSourcePlatform {
@@ -258,38 +263,30 @@ func (r *a2aAgentCardRepository) MarkFetched(ctx context.Context, read models.A2
 		updates["card"] = card
 		updates["card_hash"] = cardHash
 	}
-	return r.updateIfUnchanged(ctx, read, withAttemptedRelease(updates, releaseName))
+	return r.updateIfUnchanged(ctx, read, updates)
 }
 
-func (r *a2aAgentCardRepository) MarkAttemptFailed(ctx context.Context, read models.A2AAgentCard, lastErr, releaseName string, nextAttemptAt time.Time) error {
-	return r.updateIfUnchanged(ctx, read, withAttemptedRelease(map[string]interface{}{
+func (r *a2aAgentCardRepository) MarkAttemptFailed(ctx context.Context, read models.A2AAgentCard, lastErr, _ string, nextAttemptAt time.Time) error {
+	return r.updateIfUnchanged(ctx, read, map[string]interface{}{
 		"attempt_count":   gorm.Expr("attempt_count + 1"),
 		"last_error":      lastErr,
-		"next_attempt_at": nextAttemptAt,
-	}, releaseName))
+		"next_attempt_at": nextAttemptAt.UTC().Truncate(time.Microsecond),
+	})
 }
 
-func (r *a2aAgentCardRepository) MarkFailed(ctx context.Context, read models.A2AAgentCard, lastErr, releaseName string) error {
-	return r.updateIfUnchanged(ctx, read, withAttemptedRelease(map[string]interface{}{
+func (r *a2aAgentCardRepository) MarkFailed(ctx context.Context, read models.A2AAgentCard, lastErr, _ string) error {
+	return r.updateIfUnchanged(ctx, read, map[string]interface{}{
 		"status":          models.A2AAgentCardStatusFailed,
 		"attempt_count":   gorm.Expr("attempt_count + 1"),
 		"last_error":      lastErr,
 		"next_attempt_at": nil,
-	}, releaseName))
-}
-
-// withAttemptedRelease keeps the last known release when this attempt never learned one.
-func withAttemptedRelease(updates map[string]interface{}, releaseName string) map[string]interface{} {
-	if releaseName != "" {
-		updates["attempted_release_name"] = releaseName
-	}
-	return updates
+	})
 }
 
 func (r *a2aAgentCardRepository) updateIfUnchanged(ctx context.Context, read models.A2AAgentCard, updates map[string]interface{}) error {
-	updates["updated_at"] = time.Now()
+	updates["updated_at"] = dbx.Now()
 	result := r.db.WithContext(ctx).Model(&models.A2AAgentCard{}).
-		Where("id = ? AND updated_at = ?", read.ID, read.UpdatedAt).
+		Where("id = ? AND updated_at = ?", read.ID, read.UpdatedAt.UTC()).
 		Updates(updates)
 	if result.Error != nil {
 		return result.Error
@@ -302,7 +299,7 @@ func (r *a2aAgentCardRepository) updateIfUnchanged(ctx context.Context, read mod
 
 func (r *a2aAgentCardRepository) DeleteIfUnchanged(ctx context.Context, read models.A2AAgentCard) error {
 	result := r.db.WithContext(ctx).
-		Where("id = ? AND updated_at = ?", read.ID, read.UpdatedAt).
+		Where("id = ? AND updated_at = ?", read.ID, read.UpdatedAt.UTC()).
 		Delete(&models.A2AAgentCard{})
 	if result.Error != nil {
 		return result.Error
@@ -315,10 +312,8 @@ func (r *a2aAgentCardRepository) DeleteIfUnchanged(ctx context.Context, read mod
 
 func (r *a2aAgentCardRepository) Get(ctx context.Context, ouID, projectName, agentName, environmentName string) (*models.A2AAgentCard, error) {
 	var row models.A2AAgentCard
-	err := r.db.WithContext(ctx).
-		Where("ou_id = ? AND project_name = ? AND agent_name = ? AND environment_name = ?",
-			ouID, projectName, agentName, environmentName).
-		First(&row).Error
+	cond, args := agentEnvCond(r.db, ouID, projectName, agentName, environmentName)
+	err := r.db.WithContext(ctx).Where(cond, args...).Take(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, ErrA2AAgentCardNotFound
 	}
@@ -330,10 +325,8 @@ func (r *a2aAgentCardRepository) Get(ctx context.Context, ouID, projectName, age
 
 func (r *a2aAgentCardRepository) ListForAgent(ctx context.Context, ouID, projectName, agentName string) ([]models.A2AAgentCard, error) {
 	var rows []models.A2AAgentCard
-	err := r.db.WithContext(ctx).
-		Where("ou_id = ? AND project_name = ? AND agent_name = ?", ouID, projectName, agentName).
-		Order("environment_name ASC").
-		Find(&rows).Error
+	cond, args := agentCond(r.db, ouID, projectName, agentName)
+	err := r.db.WithContext(ctx).Where(cond, args...).Order("environment_id ASC").Find(&rows).Error
 	if err != nil {
 		return nil, err
 	}
@@ -341,31 +334,25 @@ func (r *a2aAgentCardRepository) ListForAgent(ctx context.Context, ouID, project
 }
 
 func (r *a2aAgentCardRepository) DeleteForAgent(ctx context.Context, ouID, projectName, agentName string) error {
-	return r.db.WithContext(ctx).
-		Where("ou_id = ? AND project_name = ? AND agent_name = ?", ouID, projectName, agentName).
-		Delete(&models.A2AAgentCard{}).Error
+	cond, args := agentCond(r.db, ouID, projectName, agentName)
+	return r.db.WithContext(ctx).Where(cond, args...).Delete(&models.A2AAgentCard{}).Error
 }
 
 func (r *a2aAgentCardRepository) DeleteForAgentEnv(ctx context.Context, ouID, projectName, agentName, environmentName string) error {
-	return r.db.WithContext(ctx).
-		Where("ou_id = ? AND project_name = ? AND agent_name = ? AND environment_name = ?",
-			ouID, projectName, agentName, environmentName).
-		Delete(&models.A2AAgentCard{}).Error
+	cond, args := agentEnvCond(r.db, ouID, projectName, agentName, environmentName)
+	return r.db.WithContext(ctx).Where(cond, args...).Delete(&models.A2AAgentCard{}).Error
 }
 
 func (r *a2aAgentCardRepository) DeleteForAgentEnvUUID(
 	ctx context.Context, ouID, projectName, agentName string, environmentUUID uuid.UUID,
 ) error {
-	return r.db.WithContext(ctx).
-		Where("ou_id = ? AND project_name = ? AND agent_name = ? AND environment_uuid = ?",
-			ouID, projectName, agentName, environmentUUID).
-		Delete(&models.A2AAgentCard{}).Error
+	cond, args := agentEnvIDCond(r.db, ouID, projectName, agentName, environmentUUID)
+	return r.db.WithContext(ctx).Where(cond, args...).Delete(&models.A2AAgentCard{}).Error
 }
 
 func (r *a2aAgentCardRepository) DeletePlatformForAgentEnv(ctx context.Context, ouID, projectName, agentName, environmentName string) error {
-	return r.db.WithContext(ctx).
-		Where("ou_id = ? AND project_name = ? AND agent_name = ? AND environment_name = ? AND source = ?",
-			ouID, projectName, agentName, environmentName, models.A2AAgentCardSourcePlatform).
+	cond, args := agentEnvCond(r.db, ouID, projectName, agentName, environmentName)
+	return r.db.WithContext(ctx).Where(cond+" AND source = ?", append(args, models.A2AAgentCardSourcePlatform)...).
 		Delete(&models.A2AAgentCard{}).Error
 }
 
@@ -374,7 +361,7 @@ func (r *a2aAgentCardRepository) DeleteForEnvironment(ctx context.Context, ouID 
 }
 
 func (r *a2aAgentCardRepository) ListForEnvironment(ctx context.Context, ouID string, environmentUUID uuid.UUID) ([]models.A2AAgentCard, error) {
-	return listForEnvironment[models.A2AAgentCard](ctx, r.db, ouID, environmentUUID, "project_name ASC, agent_name ASC")
+	return listForEnvironment[models.A2AAgentCard](ctx, r.db, ouID, environmentUUID)
 }
 
 func (r *a2aAgentCardRepository) ListEnvironmentUUIDs(ctx context.Context, ouID, environmentName string) ([]uuid.UUID, error) {
@@ -384,16 +371,16 @@ func (r *a2aAgentCardRepository) ListEnvironmentUUIDs(ctx context.Context, ouID,
 // deleteForEnvironment deletes every T row of the environment.
 func deleteForEnvironment[T any](ctx context.Context, db *gorm.DB, ouID string, environmentUUID uuid.UUID) error {
 	return db.WithContext(ctx).
-		Where("ou_id = ? AND environment_uuid = ?", ouID, environmentUUID).
+		Where("org_id = ? AND environment_id = ?", ouID, environmentUUID).
 		Delete(new(T)).Error
 }
 
-// listForEnvironment lists the T rows of one environment in the given order.
-func listForEnvironment[T any](ctx context.Context, db *gorm.DB, ouID string, environmentUUID uuid.UUID, order string) ([]T, error) {
+// listForEnvironment lists the T rows of one environment, in agent order.
+func listForEnvironment[T any](ctx context.Context, db *gorm.DB, ouID string, environmentUUID uuid.UUID) ([]T, error) {
 	var rows []T
 	err := db.WithContext(ctx).
-		Where("ou_id = ? AND environment_uuid = ?", ouID, environmentUUID).
-		Order(order).
+		Where("org_id = ? AND environment_id = ?", ouID, environmentUUID).
+		Order("agent_id ASC").
 		Find(&rows).Error
 	if err != nil {
 		return nil, err
@@ -401,11 +388,11 @@ func listForEnvironment[T any](ctx context.Context, db *gorm.DB, ouID string, en
 	return rows, nil
 }
 
-// listEnvironmentUUIDs lists the distinct environment UUIDs of the T rows recorded under environmentName.
+// listEnvironmentUUIDs lists the distinct environment ids of the T rows in the environment named environmentName.
 func listEnvironmentUUIDs[T any](ctx context.Context, db *gorm.DB, ouID, environmentName string) ([]uuid.UUID, error) {
 	var ids []uuid.UUID
 	err := db.WithContext(ctx).Model(new(T)).
-		Where("ou_id = ? AND environment_name = ?", ouID, environmentName).
-		Distinct().Pluck("environment_uuid", &ids).Error
+		Where("org_id = ? AND environment_id IN (?)", ouID, models.EnvironmentIDQuery(db, ouID, environmentName)).
+		Distinct().Pluck("environment_id", &ids).Error
 	return ids, err
 }

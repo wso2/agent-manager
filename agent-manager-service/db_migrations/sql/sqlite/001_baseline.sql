@@ -76,6 +76,7 @@ CREATE TABLE agent_labels (
 CREATE INDEX idx_agent_labels_org_id_label_key_label_value ON agent_labels (org_id, label_key, label_value);
 
 CREATE TABLE agent_identities (
+    id TEXT NOT NULL,
     agent_id TEXT NOT NULL,
     org_id TEXT NOT NULL,
     environment_id TEXT NOT NULL,
@@ -90,7 +91,8 @@ CREATE TABLE agent_identities (
     requested_by TEXT,
     created_at TIMESTAMP NOT NULL,
     updated_at TIMESTAMP NOT NULL,
-    CONSTRAINT pk_agent_identities PRIMARY KEY (agent_id, environment_id),
+    CONSTRAINT pk_agent_identities PRIMARY KEY (id),
+    CONSTRAINT uq_agent_identities_agent_id_environment_id UNIQUE (agent_id, environment_id),
     CONSTRAINT fk_agent_identities_org_id_agent_id FOREIGN KEY (org_id, agent_id) REFERENCES agents (org_id, id) ON DELETE CASCADE,
     CONSTRAINT fk_agent_identities_org_id_environment_id FOREIGN KEY (org_id, environment_id) REFERENCES environments (org_id, id),
     CONSTRAINT ck_agent_identities_1 CHECK (status IN ('pending', 'in_progress', 'completed', 'failed'))
@@ -504,7 +506,7 @@ CREATE TABLE agent_model_configs (
     CONSTRAINT uq_agent_model_configs_agent_id_name UNIQUE (agent_id, name),
     CONSTRAINT uq_agent_model_configs_org_id_id UNIQUE (org_id, id),
     CONSTRAINT fk_agent_model_configs_org_id_agent_id FOREIGN KEY (org_id, agent_id) REFERENCES agents (org_id, id) ON DELETE CASCADE,
-    CONSTRAINT ck_agent_model_configs_1 CHECK (type IN ('llm', 'mcp', 'other'))
+    CONSTRAINT ck_agent_model_configs_1 CHECK (type IN ('llm', 'mcp', 'agent'))
 );
 
 CREATE TABLE agent_model_config_llm (
@@ -540,15 +542,18 @@ CREATE TABLE agent_model_config_mcp_envs (
     environment_id TEXT NOT NULL,
     org_id TEXT NOT NULL,
     mapping_artifact_id TEXT,
+    mcp_proxy_id TEXT,
     excluded INTEGER NOT NULL,
     created_at TIMESTAMP NOT NULL,
     CONSTRAINT pk_agent_model_config_mcp_envs PRIMARY KEY (config_id, environment_id),
     CONSTRAINT fk_agent_model_config_mcp_envs_org_id_config_id FOREIGN KEY (org_id, config_id) REFERENCES agent_model_configs (org_id, id) ON DELETE CASCADE,
     CONSTRAINT fk_agent_model_config_mcp_envs_org_id_environment_id FOREIGN KEY (org_id, environment_id) REFERENCES environments (org_id, id),
     CONSTRAINT fk_agent_model_config_mcp_envs_org_id_mapping_artifact_id FOREIGN KEY (org_id, mapping_artifact_id) REFERENCES mcp_proxy_mappings (org_id, id),
+    CONSTRAINT fk_agent_model_config_mcp_envs_org_id_mcp_proxy_id FOREIGN KEY (org_id, mcp_proxy_id) REFERENCES mcp_proxies (org_id, id),
     CONSTRAINT ck_agent_model_config_mcp_envs_1 CHECK (excluded IN (0, 1))
 );
 CREATE INDEX idx_agent_model_config_mcp_envs_mapping_artifact_id ON agent_model_config_mcp_envs (mapping_artifact_id);
+CREATE INDEX idx_agent_model_config_mcp_envs_mcp_proxy_id ON agent_model_config_mcp_envs (mcp_proxy_id);
 
 CREATE TABLE agent_model_config_vars (
     config_id TEXT NOT NULL,
@@ -645,15 +650,18 @@ CREATE TABLE a2a_proxies (
     org_id TEXT NOT NULL,
     agent_id TEXT NOT NULL,
     environment_id TEXT NOT NULL,
+    artifact_id TEXT NOT NULL,
     upstream_auth_header TEXT,
     upstream_auth_secret_id TEXT,
     created_at TIMESTAMP NOT NULL,
     updated_at TIMESTAMP NOT NULL,
     CONSTRAINT pk_a2a_proxies PRIMARY KEY (id),
     CONSTRAINT uq_a2a_proxies_agent_id_environment_id UNIQUE (agent_id, environment_id),
+    CONSTRAINT uq_a2a_proxies_artifact_id UNIQUE (artifact_id),
     CONSTRAINT fk_a2a_proxies_org_id_agent_id FOREIGN KEY (org_id, agent_id) REFERENCES agents (org_id, id) ON DELETE CASCADE,
     CONSTRAINT fk_a2a_proxies_org_id_environment_id FOREIGN KEY (org_id, environment_id) REFERENCES environments (org_id, id),
-    CONSTRAINT fk_a2a_proxies_org_id_upstream_auth_secret_id FOREIGN KEY (org_id, upstream_auth_secret_id) REFERENCES secrets (org_id, id)
+    CONSTRAINT fk_a2a_proxies_org_id_upstream_auth_secret_id FOREIGN KEY (org_id, upstream_auth_secret_id) REFERENCES secrets (org_id, id),
+    CONSTRAINT fk_a2a_proxies_org_id_artifact_id FOREIGN KEY (org_id, artifact_id) REFERENCES artifacts (org_id, id)
 );
 CREATE INDEX idx_a2a_proxies_upstream_auth_secret_id ON a2a_proxies (upstream_auth_secret_id);
 

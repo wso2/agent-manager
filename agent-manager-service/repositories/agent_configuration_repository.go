@@ -21,9 +21,8 @@ import (
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 
-	"github.com/wso2/agent-manager/agent-manager-service/db/dberr"
+	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -117,34 +116,52 @@ func NewAgentConfigurationRepository(db *gorm.DB) AgentConfigurationRepository {
 }
 
 func (r *agentConfigurationRepository) Create(ctx context.Context, tx *gorm.DB, config *models.AgentConfiguration) error {
-	err := tx.WithContext(ctx).Create(config).Error
+	if config.UUID == uuid.Nil {
+		config.UUID = uuid.Must(uuid.NewV7())
+	}
+	now := dbx.Now()
+	if config.CreatedAt.IsZero() {
+		config.CreatedAt = now
+	}
+	config.UpdatedAt = now
+	inserted, err := dbx.InsertIfAbsent(tx.WithContext(ctx), config,
+		"EnvMappings", "EnvMCPMappings", "EnvVariables", "MCPProxyRef", "MCPEnvExclusions", "MCPScope")
 	if err != nil {
-		if dberr.IsDuplicateKey(err) {
-			return utils.ErrAgentConfigAlreadyExists
-		}
 		return err
 	}
+	if !inserted {
+		return utils.ErrAgentConfigAlreadyExists
+	}
 	return nil
+}
+
+// withRelations preloads a configuration's mappings. MCP mappings and exclusions share one table, told apart by
+// excluded; the scope is the proxy row once its scope_recorded_at is set.
+func withRelations(q *gorm.DB, envVariables bool) *gorm.DB {
+	q = q.
+		Preload("EnvMappings").
+		Preload("EnvMappings.LLMProxy").
+		Preload("EnvMCPMappings", "excluded = ?", false).
+		Preload("MCPProxyRef").
+		Preload("MCPEnvExclusions", "excluded = ?", true).
+		Preload("MCPScope", "scope_recorded_at IS NOT NULL").
+		Preload("EnvMCPMappings.Artifact").
+		Preload("EnvMCPMappings.MCPProxy").
+		Preload("EnvMCPMappings.MCPProxy.Artifact").
+		Preload("EnvMCPMappings.MCPProxy.Endpoints").
+		Preload("EnvMCPMappings.MCPProxy.Endpoints.Environments")
+	if envVariables {
+		q = q.Preload("EnvVariables")
+	}
+	return q
 }
 
 // GetByUUID loads one configuration with its LLM and MCP mappings. MCP mappings carry their
 // proxy's endpoint → environment bindings, which per-environment gateway resolution reads.
 func (r *agentConfigurationRepository) GetByUUID(ctx context.Context, configUUID uuid.UUID, ouID string) (*models.AgentConfiguration, error) {
 	var config models.AgentConfiguration
-	err := r.db.WithContext(ctx).
-		Preload("EnvMappings").
-		Preload("EnvMappings.LLMProxy").
-		Preload("EnvMCPMappings").
-		Preload("MCPProxyRef").
-		Preload("MCPEnvExclusions").
-		Preload("MCPScope").
-		Preload("EnvMCPMappings.Artifact").
-		Preload("EnvMCPMappings.MCPProxy").
-		Preload("EnvMCPMappings.MCPProxy.Artifact").
-		Preload("EnvMCPMappings.MCPProxy.Endpoints").
-		Preload("EnvMCPMappings.MCPProxy.Endpoints.Environments").
-		Preload("EnvVariables").
-		Where("uuid = ? AND ou_id = ?", configUUID, ouID).
+	err := withRelations(r.db.WithContext(ctx), true).
+		Where("id = ? AND org_id = ?", configUUID, ouID).
 		First(&config).Error
 	if err == nil {
 		backfillLLMProxyHandles(&config)
@@ -152,45 +169,32 @@ func (r *agentConfigurationRepository) GetByUUID(ctx context.Context, configUUID
 	return &config, err
 }
 
-// GetByAgentID loads an agent's configuration with the same relations as GetByUUID.
+// GetByAgentID loads an agent's configuration with the same relations as GetByUUID. agentID is the agent's name,
+// which is unique in its organization.
 func (r *agentConfigurationRepository) GetByAgentID(ctx context.Context, agentID, ouID string) (*models.AgentConfiguration, error) {
 	var config models.AgentConfiguration
-	err := r.db.WithContext(ctx).
-		Preload("EnvMappings").
-		Preload("EnvMappings.LLMProxy").
-		Preload("EnvMCPMappings").
-		Preload("MCPProxyRef").
-		Preload("MCPEnvExclusions").
-		Preload("MCPScope").
-		Preload("EnvMCPMappings.Artifact").
-		Preload("EnvMCPMappings.MCPProxy").
-		Preload("EnvMCPMappings.MCPProxy.Artifact").
-		Preload("EnvMCPMappings.MCPProxy.Endpoints").
-		Preload("EnvMCPMappings.MCPProxy.Endpoints.Environments").
-		Preload("EnvVariables").
-		Where("agent_id = ? AND ou_id = ?", agentID, ouID).
+	err := withRelations(r.db.WithContext(ctx), true).
+		Where("org_id = ? AND agent_id IN (?)", ouID,
+			r.db.Session(&gorm.Session{NewDB: true}).Table("agents").Select("id").Where("org_id = ? AND name = ?", ouID, agentID)).
 		First(&config).Error
 	if err == nil {
 		backfillLLMProxyHandles(&config)
 	}
 	return &config, err
+}
+
+// byAgent narrows q to one agent's configurations.
+func (r *agentConfigurationRepository) byAgent(q *gorm.DB, ouID, projectName, agentName string) *gorm.DB {
+	return q.Where("agent_model_configs.org_id = ? AND agent_model_configs.agent_id IN (?)", ouID,
+		models.AgentIDQuery(r.db, ouID, projectName, agentName))
 }
 
 // ListMCPConfigsByAgent lists an agent's MCP configurations with their mappings, proxies and
 // the proxies' endpoint → environment bindings.
 func (r *agentConfigurationRepository) ListMCPConfigsByAgent(ctx context.Context, ouID, projectName, agentID string) ([]models.AgentConfiguration, error) {
 	var configs []models.AgentConfiguration
-	err := r.db.WithContext(ctx).
-		Preload("EnvMCPMappings").
-		Preload("MCPProxyRef").
-		Preload("MCPEnvExclusions").
-		Preload("MCPScope").
-		Preload("EnvMCPMappings.Artifact").
-		Preload("EnvMCPMappings.MCPProxy").
-		Preload("EnvMCPMappings.MCPProxy.Artifact").
-		Preload("EnvMCPMappings.MCPProxy.Endpoints").
-		Preload("EnvMCPMappings.MCPProxy.Endpoints.Environments").
-		Where("ou_id = ? AND project_name = ? AND agent_id = ? AND type_id = ?", ouID, projectName, agentID, models.AgentConfigTypeIDMCP).
+	err := r.byAgent(withRelations(r.db.WithContext(ctx), false), ouID, projectName, agentID).
+		Where("agent_model_configs.type = ?", models.AgentConfigTypeMCP).
 		Find(&configs).Error
 	return configs, err
 }
@@ -199,20 +203,10 @@ func (r *agentConfigurationRepository) ListMCPConfigsByAgent(ctx context.Context
 // relations as ListMCPConfigsByAgent plus their env var rows.
 func (r *agentConfigurationRepository) ListMCPConfigsByProxy(ctx context.Context, ouID string, proxyUUID uuid.UUID) ([]models.AgentConfiguration, error) {
 	var configs []models.AgentConfiguration
-	err := r.db.WithContext(ctx).
-		Preload("EnvMCPMappings").
-		Preload("MCPProxyRef").
-		Preload("MCPEnvExclusions").
-		Preload("MCPScope").
-		Preload("EnvMCPMappings.Artifact").
-		Preload("EnvMCPMappings.MCPProxy").
-		Preload("EnvMCPMappings.MCPProxy.Artifact").
-		Preload("EnvMCPMappings.MCPProxy.Endpoints").
-		Preload("EnvMCPMappings.MCPProxy.Endpoints.Environments").
-		Preload("EnvVariables").
-		Joins("JOIN agent_mcp_config_proxy p ON p.config_uuid = agent_configurations.uuid").
-		Where("agent_configurations.ou_id = ? AND agent_configurations.type_id = ? AND p.mcp_proxy_uuid = ?",
-			ouID, models.AgentConfigTypeIDMCP, proxyUUID).
+	err := withRelations(r.db.WithContext(ctx), true).
+		Joins("JOIN agent_model_config_mcp p ON p.config_id = agent_model_configs.id").
+		Where("agent_model_configs.org_id = ? AND agent_model_configs.type = ? AND p.mcp_proxy_id = ?",
+			ouID, models.AgentConfigTypeMCP, proxyUUID).
 		Find(&configs).Error
 	return configs, err
 }
@@ -221,17 +215,13 @@ func (r *agentConfigurationRepository) ListMCPConfigsByProxy(ctx context.Context
 // re-pointing the existing one. Idempotent, so a reconcile converging a stale reference
 // and a write path recording a new one take the same path.
 func (r *agentConfigurationRepository) SetMCPProxyRef(ctx context.Context, tx *gorm.DB, configUUID, proxyUUID uuid.UUID) error {
-	ref := models.AgentMCPConfigProxy{
-		ConfigUUID:   configUUID,
-		TypeID:       models.AgentConfigTypeIDMCP,
-		MCPProxyUUID: proxyUUID,
-	}
-	return tx.WithContext(ctx).
-		Clauses(clause.OnConflict{
-			Columns:   []clause.Column{{Name: "config_uuid"}},
-			DoUpdates: clause.Assignments(map[string]any{"mcp_proxy_uuid": proxyUUID, "updated_at": gorm.Expr("CURRENT_TIMESTAMP")}),
-		}).
-		Create(&ref).Error
+	now := dbx.Now()
+	ref := models.AgentMCPConfigProxy{ConfigUUID: configUUID, MCPProxyUUID: proxyUUID, CreatedAt: now, UpdatedAt: now}
+	_, err := dbx.Upsert(tx.WithContext(ctx), &ref, func(db *gorm.DB) error {
+		return db.Model(&models.AgentMCPConfigProxy{}).Where("config_id = ?", configUUID).
+			Updates(map[string]any{"mcp_proxy_id": proxyUUID, "updated_at": now}).Error
+	})
+	return err
 }
 
 // SetMCPEnvScope adds exclude as exclusions and removes include from them, and marks the
@@ -240,13 +230,13 @@ func (r *agentConfigurationRepository) SetMCPProxyRef(ctx context.Context, tx *g
 // re-marking a marked connection are all no-ops.
 func (r *agentConfigurationRepository) SetMCPEnvScope(ctx context.Context, tx *gorm.DB, configUUID uuid.UUID, exclude, include []uuid.UUID) error {
 	db := tx.WithContext(ctx)
-	if err := db.Clauses(clause.OnConflict{DoNothing: true}).Create(&models.AgentMCPConfigScope{
-		ConfigUUID: configUUID, TypeID: models.AgentConfigTypeIDMCP,
-	}).Error; err != nil {
+	if err := db.Model(&models.AgentMCPConfigProxy{}).
+		Where("config_id = ? AND scope_recorded_at IS NULL", configUUID).
+		Update("scope_recorded_at", dbx.Now()).Error; err != nil {
 		return err
 	}
 	if len(include) > 0 {
-		if err := db.Where("config_uuid = ? AND environment_uuid IN ?", configUUID, include).
+		if err := db.Where("config_id = ? AND environment_id IN ? AND excluded = ?", configUUID, include, true).
 			Delete(&models.AgentMCPConfigEnvExclusion{}).Error; err != nil {
 			return err
 		}
@@ -255,26 +245,24 @@ func (r *agentConfigurationRepository) SetMCPEnvScope(ctx context.Context, tx *g
 	for _, envUUID := range include {
 		keep[envUUID] = struct{}{}
 	}
-	rows := make([]models.AgentMCPConfigEnvExclusion, 0, len(exclude))
 	for _, envUUID := range exclude {
 		if _, included := keep[envUUID]; included {
 			continue
 		}
-		rows = append(rows, models.AgentMCPConfigEnvExclusion{
-			ConfigUUID: configUUID, EnvironmentUUID: envUUID, TypeID: models.AgentConfigTypeIDMCP,
-		})
+		if _, err := dbx.InsertIfAbsent(db, &models.AgentMCPConfigEnvExclusion{
+			ConfigUUID: configUUID, EnvironmentUUID: envUUID,
+		}); err != nil {
+			return err
+		}
 	}
-	if len(rows) == 0 {
-		return nil
-	}
-	return db.Clauses(clause.OnConflict{DoNothing: true}).Create(&rows).Error
+	return nil
 }
 
 // ClearMCPProxyRef drops a configuration's proxy reference. Used when its environments stop
 // agreeing on a single proxy, which leaves no environment-agnostic answer to record.
 func (r *agentConfigurationRepository) ClearMCPProxyRef(ctx context.Context, tx *gorm.DB, configUUID uuid.UUID) error {
 	return tx.WithContext(ctx).
-		Where("config_uuid = ?", configUUID).
+		Where("config_id = ?", configUUID).
 		Delete(&models.AgentMCPConfigProxy{}).Error
 }
 
@@ -308,8 +296,8 @@ func backfillLLMProxyHandlesInMappings(mappings []models.EnvAgentModelMapping) {
 func (r *agentConfigurationRepository) List(ctx context.Context, ouID string, limit, offset int) ([]models.AgentConfiguration, error) {
 	var configs []models.AgentConfiguration
 	err := r.db.WithContext(ctx).
-		Where("ou_id = ?", ouID).
-		Order("created_at DESC").
+		Where("org_id = ?", ouID).
+		Order("created_at DESC, id").
 		Limit(limit).
 		Offset(offset).
 		Find(&configs).Error
@@ -320,16 +308,15 @@ func (r *agentConfigurationRepository) Count(ctx context.Context, ouID string) (
 	var count int64
 	err := r.db.WithContext(ctx).
 		Model(&models.AgentConfiguration{}).
-		Where("ou_id = ?", ouID).
+		Where("org_id = ?", ouID).
 		Count(&count).Error
 	return count, err
 }
 
 func (r *agentConfigurationRepository) ListByAgent(ctx context.Context, ouID, projectName, agentName string, limit, offset int) ([]models.AgentConfiguration, error) {
 	var configs []models.AgentConfiguration
-	err := r.db.WithContext(ctx).
-		Where("ou_id = ? AND project_name = ? AND agent_id = ?", ouID, projectName, agentName).
-		Order("created_at DESC").
+	err := r.byAgent(r.db.WithContext(ctx), ouID, projectName, agentName).
+		Order("created_at DESC, id").
 		Limit(limit).
 		Offset(offset).
 		Find(&configs).Error
@@ -338,9 +325,7 @@ func (r *agentConfigurationRepository) ListByAgent(ctx context.Context, ouID, pr
 
 func (r *agentConfigurationRepository) CountByAgent(ctx context.Context, ouID, projectName, agentName string) (int64, error) {
 	var count int64
-	err := r.db.WithContext(ctx).
-		Model(&models.AgentConfiguration{}).
-		Where("ou_id = ? AND project_name = ? AND agent_id = ?", ouID, projectName, agentName).
+	err := r.byAgent(r.db.WithContext(ctx).Model(&models.AgentConfiguration{}), ouID, projectName, agentName).
 		Count(&count).Error
 	return count, err
 }
@@ -349,9 +334,9 @@ func (r *agentConfigurationRepository) ListByAgentAndType(
 	ctx context.Context, ouID, projectName, agentName string, typeID uint, limit, offset int,
 ) ([]models.AgentConfiguration, error) {
 	var configs []models.AgentConfiguration
-	err := r.db.WithContext(ctx).
-		Where("ou_id = ? AND project_name = ? AND agent_id = ? AND type_id = ?", ouID, projectName, agentName, typeID).
-		Order("created_at DESC").
+	err := r.byAgent(r.db.WithContext(ctx), ouID, projectName, agentName).
+		Where("type = ?", models.AgentConfigTypeFromID(typeID)).
+		Order("created_at DESC, id").
 		Limit(limit).
 		Offset(offset).
 		Find(&configs).Error
@@ -362,20 +347,22 @@ func (r *agentConfigurationRepository) CountByAgentAndType(
 	ctx context.Context, ouID, projectName, agentName string, typeID uint,
 ) (int64, error) {
 	var count int64
-	err := r.db.WithContext(ctx).
-		Model(&models.AgentConfiguration{}).
-		Where("ou_id = ? AND project_name = ? AND agent_id = ? AND type_id = ?", ouID, projectName, agentName, typeID).
+	err := r.byAgent(r.db.WithContext(ctx).Model(&models.AgentConfiguration{}), ouID, projectName, agentName).
+		Where("type = ?", models.AgentConfigTypeFromID(typeID)).
 		Count(&count).Error
 	return count, err
 }
 
 func (r *agentConfigurationRepository) Update(ctx context.Context, tx *gorm.DB, config *models.AgentConfiguration) error {
-	return tx.WithContext(ctx).Save(config).Error
+	config.UpdatedAt = dbx.Now()
+	return tx.WithContext(ctx).
+		Omit("EnvMappings", "EnvMCPMappings", "EnvVariables", "MCPProxyRef", "MCPEnvExclusions", "MCPScope").
+		Save(config).Error
 }
 
 func (r *agentConfigurationRepository) Delete(ctx context.Context, tx *gorm.DB, configUUID uuid.UUID, ouID string) error {
 	return tx.WithContext(ctx).
-		Where("uuid = ? AND ou_id = ?", configUUID, ouID).
+		Where("id = ? AND org_id = ?", configUUID, ouID).
 		Delete(&models.AgentConfiguration{}).Error
 }
 
@@ -383,7 +370,7 @@ func (r *agentConfigurationRepository) Exists(ctx context.Context, configUUID uu
 	var count int64
 	err := r.db.WithContext(ctx).
 		Model(&models.AgentConfiguration{}).
-		Where("uuid = ? AND ou_id = ?", configUUID, ouID).
+		Where("id = ? AND org_id = ?", configUUID, ouID).
 		Count(&count).Error
 	return count > 0, err
 }

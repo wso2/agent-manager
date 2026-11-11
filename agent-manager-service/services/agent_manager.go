@@ -860,30 +860,27 @@ func (s *agentManagerService) DeleteAgent(ctx context.Context, ouID string, proj
 		return auditErr
 	}
 
-	// The agent row is the commit point. Cleanup below runs even when it is
-	// already gone, since an earlier partial delete may have left rows behind,
-	// each still holding a live LLM proxy credential.
+	// Teardown runs before the agent row goes: every agent-owned row cascades
+	// from it, and the cleanups find what to revoke (proxy credentials,
+	// identities, secrets) through those rows.
+	cleanupCtx, cancel := detachedCleanupContext(ctx)
+	defer cancel()
+	s.deleteAgentLLMConfigurations(cleanupCtx, ouID, projectName, agentName, isExternalAgent)
+	if s.agentThunderProvisioning != nil {
+		s.agentThunderProvisioning.DeleteAllBindings(cleanupCtx, ouID, projectName, agentName)
+	}
+	if configErr := s.agentConfigRepo.DeleteAllByAgent(ctx, ouID, projectName, agentName); configErr != nil {
+		s.logger.Warn("Failed to delete agent configs from database", "agentName", agentName, "error", configErr)
+	}
+	artifactErr := s.deleteAgentAPIArtifact(ctx, ouID, projectName, agentName, isA2AAgent)
+	s.cleanupAgentMonitors(ctx, ouID, projectName, agentName)
+
 	err := s.platform.DeleteAgent(ctx, ouID, projectName, agentName)
 	deleteAttempt.Complete(ctx, err)
 	if err != nil && !errors.Is(err, utils.ErrAgentNotFound) {
 		s.logger.Error("Failed to delete agent", "agentName", agentName, "error", err)
 		return err
 	}
-
-	go func() {
-		cleanupCtx, cancel := detachedCleanupContext(ctx)
-		defer cancel()
-		s.deleteAgentLLMConfigurations(cleanupCtx, ouID, projectName, agentName, isExternalAgent)
-	}()
-	if s.agentThunderProvisioning != nil {
-		go s.agentThunderProvisioning.DeleteAllBindings(context.WithoutCancel(ctx), ouID, projectName, agentName)
-	}
-	// Leaving these rows behind would let a same-named agent inherit them.
-	if configErr := s.agentConfigRepo.DeleteAllByAgent(ctx, ouID, projectName, agentName); configErr != nil {
-		s.logger.Warn("Failed to delete agent configs from database", "agentName", agentName, "error", configErr)
-	}
-	artifactErr := s.deleteAgentAPIArtifact(ctx, ouID, projectName, agentName, isA2AAgent)
-	s.cleanupAgentMonitors(ctx, ouID, projectName, agentName)
 	return artifactErr
 }
 
@@ -967,13 +964,8 @@ func (s *agentManagerService) clearInheritedA2AState(ctx context.Context, ouID, 
 	return nil
 }
 
-// cleanupAgentMonitors removes all monitors owned by an agent. Best-effort: orphaned
-// monitors are logged but do not fail the delete, matching the other post-delete cleanups.
-func (s *agentManagerService) cleanupAgentMonitors(ctx context.Context, ouID, projectName, agentName string) {
-	if err := s.monitorManagerService.DeleteMonitorsByAgent(context.WithoutCancel(ctx), ouID, projectName, agentName); err != nil {
-		s.logger.Warn("Failed to delete monitors during agent deletion", "agentName", agentName, "error", err)
-	}
-}
+// cleanupAgentMonitors has nothing to remove: Lite runs no monitors.
+func (s *agentManagerService) cleanupAgentMonitors(context.Context, string, string, string) {}
 
 // deleteAgentAPIArtifact removes the agent's per-environment API artifacts and
 // tells gateways holding an A2A Agent for them to drop it. It returns what it

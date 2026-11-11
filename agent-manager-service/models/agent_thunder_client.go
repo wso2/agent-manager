@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 // AgentProvisioningType identifies who ends up holding an AgentID's credential.
@@ -46,50 +47,56 @@ const (
 	AgentThunderStatusFailed     AgentThunderStatus = "failed"
 )
 
-// AgentThunderClient is the GORM model for the agent_thunder_clients table — the
-// binding record for one agent's AgentID in one environment.
+// AgentThunderClient is one agent's AgentID binding in one environment. Services name the agent and environment;
+// the hooks translate them to the stored ids. Lite agents are all external and environments have no promotion
+// pipeline, so the provisioning type, secret reference and promotion fields are not stored.
 type AgentThunderClient struct {
-	ID               uuid.UUID             `gorm:"column:id;primaryKey;type:uuid;default:gen_random_uuid()"`
-	OUID             string                `gorm:"column:ou_id;not null"`
-	ProjectName      string                `gorm:"column:project_name;not null"`
-	AgentName        string                `gorm:"column:agent_name;not null"`
-	EnvironmentName  string                `gorm:"column:environment_name;not null"`
-	ProvisioningType AgentProvisioningType `gorm:"column:provisioning_type;not null"`
-	ThunderAgentID   string                `gorm:"column:thunder_agent_id;not null;default:''"`
-	ThunderClientID  string                `gorm:"column:thunder_client_id;not null;default:''"`
-	// SecretRefPath stores the provider-managed SecretReference name for the
-	// credential (internal agents only). The column name is retained for schema
-	// compatibility.
-	SecretRefPath string             `gorm:"column:secret_ref_path;not null;default:''"`
-	Status        AgentThunderStatus `gorm:"column:status;not null;default:'pending'"`
-	// RequestedBy is the calling user's own subject (from AMS's existing
-	// incoming-request auth), captured for audit purposes only. Thunder's own
-	// "owner" field cannot carry this — each env-Thunder is a fully isolated
-	// instance with its own entity store, so a platform-Thunder user ID does
-	// not resolve there (verified live: env-Thunder rejects it with AGT-1039
-	// "owner not found"). This is AMS's own record of who asked, independent
-	// of what Thunder's API will accept.
-	RequestedBy     string     `gorm:"column:requested_by;not null;default:''"`
-	AttemptCount    int        `gorm:"column:attempt_count;not null;default:0"`
-	LastError       string     `gorm:"column:last_error;not null;default:''"`
-	LastAttemptedAt *time.Time `gorm:"column:last_attempted_at"`
+	ID               uuid.UUID             `gorm:"column:id;primaryKey"`
+	OUID             string                `gorm:"column:org_id"`
+	AgentUUID        *uuid.UUID            `gorm:"column:agent_id"`
+	EnvironmentUUID  uuid.UUID             `gorm:"column:environment_id"`
+	ProjectName      string                `gorm:"-"`
+	AgentName        string                `gorm:"-"`
+	EnvironmentName  string                `gorm:"-"`
+	ProvisioningType AgentProvisioningType `gorm:"-"`
+	ThunderAgentID   string                `gorm:"column:thunder_agent_id"`
+	ThunderClientID  string                `gorm:"column:thunder_client_id"`
+	SecretRefPath    string                `gorm:"-"`
+	Status           AgentThunderStatus    `gorm:"column:status"`
+	// RequestedBy is the calling user's own subject, kept for audit: an env-Thunder is an isolated instance, so a
+	// platform-Thunder user id does not resolve there as Thunder's own owner field.
+	RequestedBy  string `gorm:"column:requested_by"`
+	AttemptCount int    `gorm:"column:attempt_count"`
+	LastError    string `gorm:"column:last_error"`
+	// LastAttemptedAt is when the running attempt was claimed; ClaimedUntil is when that claim goes stale.
+	LastAttemptedAt *time.Time `gorm:"-"`
+	ClaimedUntil    *time.Time `gorm:"column:claimed_until"`
 	NextRetryAt     *time.Time `gorm:"column:next_retry_at"`
-	// PromotionSource names the environment this binding's identity is promoted
-	// from, for an environment whose identity is created by promotion into it.
-	// Empty means the identity is created directly in this environment. The
-	// reconciler promotes from here only once that environment's own binding is
-	// completed, which orders a pipeline's promotions.
-	PromotionSource string `gorm:"column:promotion_source;not null;default:''"`
-	// SyncAfter is when the carried set of a promoted binding is re-promoted: the
-	// agent's roles, groups or MCP resource servers changed after the binding was
-	// completed. A later change moves it later, so a burst of changes is one
-	// promotion. Nil means nothing is waiting.
-	SyncAfter *time.Time `gorm:"column:sync_after"`
-	CreatedAt time.Time  `gorm:"column:created_at;not null;default:NOW()"`
-	UpdatedAt time.Time  `gorm:"column:updated_at;not null;default:NOW()"`
+	PromotionSource string     `gorm:"-"`
+	SyncAfter       *time.Time `gorm:"-"`
+	CreatedAt       time.Time  `gorm:"column:created_at"`
+	UpdatedAt       time.Time  `gorm:"column:updated_at"`
 }
 
-func (AgentThunderClient) TableName() string { return "agent_thunder_clients" }
+func (AgentThunderClient) TableName() string { return "agent_identities" }
+
+func (c *AgentThunderClient) ref() agentRef {
+	return agentRef{&c.OUID, &c.ProjectName, &c.AgentName, &c.AgentUUID, c.EnvironmentUUID, &c.EnvironmentName}
+}
+
+// BeforeCreate resolves the agent's and environment's ids from their names.
+func (c *AgentThunderClient) BeforeCreate(tx *gorm.DB) error {
+	if err := resolveEnvironment(tx, c.OUID, c.EnvironmentName, &c.EnvironmentUUID); err != nil {
+		return err
+	}
+	return c.ref().resolve(tx)
+}
+
+// AfterFind fills the names and the Lite defaults of the fields that are not stored.
+func (c *AgentThunderClient) AfterFind(tx *gorm.DB) error {
+	c.ProvisioningType = AgentProvisioningTypeExternal
+	return c.ref().fill(tx)
+}
 
 // AgentIdentityEnvironmentView is one environment's AgentID binding, shaped for
 // display to a caller. This is a safe, side-effect-free read: it never carries

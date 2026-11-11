@@ -87,10 +87,10 @@ func (e *PlatformAgentExposures) target(ctx context.Context, record reconcile.Re
 // ingress gateway, as one UNION arm of pageUnplacedRecords.
 func unplacedExposureArm(protocol models.AgentExposureProtocol, ouID string, env *uuid.UUID) (string, []any) {
 	condition, args := reconcile.UnplacedCondition(reconcile.RecordColumns{
-		OUID: "a.ou_id", ArtifactUUID: "a.uuid", EnvironmentUUID: "e.environment_uuid",
+		OUID: "a.org_id", ArtifactUUID: "a.id", EnvironmentUUID: "e.environment_id",
 	}, models.IngressGatewayRoles, ouID, env)
-	arm := `SELECT a.ou_id, a.uuid AS artifact_uuid, a.handle, a.kind, e.environment_uuid
-			FROM platform_agent_exposures e JOIN artifacts a ON a.uuid = e.artifact_uuid
+	arm := `SELECT a.org_id, a.id AS artifact_id, a.handle, a.kind, e.environment_id
+			FROM agent_exposures e JOIN artifacts a ON a.id = e.artifact_id
 			WHERE e.protocol = ? AND ` + condition
 	return arm, append([]any{protocol}, args...)
 }
@@ -99,9 +99,9 @@ func unplacedExposureArm(protocol models.AgentExposureProtocol, ouID string, env
 // of a kind's PlacedOn query.
 func placedExposureArm(protocol models.AgentExposureProtocol, env, gateway uuid.UUID) (string, []any) {
 	condition, args := reconcile.PlacedCondition(reconcile.RecordColumns{
-		OUID: "a.ou_id", ArtifactUUID: "a.uuid", EnvironmentUUID: "e.environment_uuid",
+		OUID: "a.org_id", ArtifactUUID: "a.id", EnvironmentUUID: "e.environment_id",
 	}, env, gateway)
-	arm := `SELECT 1 FROM platform_agent_exposures e JOIN artifacts a ON a.uuid = e.artifact_uuid
+	arm := `SELECT 1 AS placed FROM agent_exposures e JOIN artifacts a ON a.id = e.artifact_id
 			WHERE e.protocol = ? AND ` + condition
 	return arm, append([]any{protocol}, args...)
 }

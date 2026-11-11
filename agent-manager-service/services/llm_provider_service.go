@@ -28,7 +28,6 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/db/dberr"
@@ -658,8 +657,7 @@ func (s *LLMProviderService) Update(ctx context.Context, providerID, ouID string
 	if err := s.providerRepo.Update(ctx, updates, providerID, ouID); err != nil {
 		// Renaming updates the artifact in the same transaction. Only its
 		// name/version constraint is a caller conflict; other DB failures remain errors.
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == "23505" && pgErr.ConstraintName == "uq_artifact_name_version_ou_id" {
+		if dberr.IsDuplicateKey(err) {
 			slog.Warn("LLMProviderService.Update: provider name and version already exist", "ouID", ouID, "providerID", providerID)
 			return nil, utils.ErrLLMProviderExists
 		}

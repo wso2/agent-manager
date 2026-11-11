@@ -19,17 +19,61 @@
 package dbmigrations
 
 import (
+	"context"
+	"fmt"
+	"net/url"
+	"strings"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 
 	"github.com/wso2/agent-manager/agent-manager-service/config"
+	"github.com/wso2/agent-manager/agent-manager-service/db"
 )
+
+// scratchDatabase creates an empty database next to the test database and drops it when the test ends.
+func scratchDatabase(t *testing.T) *gorm.DB {
+	t.Helper()
+	admin := db.DB(context.Background())
+	name := "baseline_" + strings.ReplaceAll(uuid.NewString(), "-", "")
+	require.NoError(t, admin.Exec(`CREATE DATABASE `+name).Error)
+	scratch, err := gorm.Open(postgres.Open(scratchDSN(name)), &gorm.Config{Logger: logger.Discard})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		if sqlDB, err := scratch.DB(); err == nil {
+			_ = sqlDB.Close()
+		}
+		require.NoError(t, admin.Exec(`DROP DATABASE IF EXISTS `+name+` WITH (FORCE)`).Error)
+	})
+	return scratch
+}
+
+func scratchDSN(dbName string) string {
+	cfg := config.GetConfig().POSTGRESQL
+	params := url.Values{}
+	if cfg.SSLMode != "" {
+		params.Set("sslmode", cfg.SSLMode)
+	}
+	if cfg.SSLRootCert != "" {
+		params.Set("sslrootcert", cfg.SSLRootCert)
+	}
+	return (&url.URL{
+		Scheme:   "postgres",
+		User:     url.UserPassword(cfg.User, cfg.Password),
+		Host:     fmt.Sprintf("%s:%d", cfg.Host, cfg.Port),
+		Path:     "/" + dbName,
+		RawQuery: params.Encode(),
+	}).String()
+}
 
 func TestPostgresBaselineAppliesAndEnforcesKeys(t *testing.T) {
 	scratch := scratchDatabase(t)
-	require.NoError(t, migrateBaseline(scratch, config.DBDriverPostgres))
-	require.NoError(t, migrateBaseline(scratch, config.DBDriverPostgres), "a second run must be a no-op")
+	require.NoError(t, MigrateBaseline(scratch, config.DBDriverPostgres))
+	require.NoError(t, MigrateBaseline(scratch, config.DBDriverPostgres), "a second run must be a no-op")
 
 	var locks []string
 	require.NoError(t, scratch.Raw("SELECT name FROM locks ORDER BY name").Scan(&locks).Error)

@@ -191,6 +191,11 @@ func (s *a2aProxyService) SetA2AProxy(
 		if attempt, err = s.beginAudit(ctx, audit.ActionAgentSetA2AProxy, t, proxy.UpstreamAuthHeader, authChanged); err != nil {
 			return err
 		}
+		artifact, err := s.ensureArtifact(tx, t)
+		if err != nil {
+			return err
+		}
+		proxy.ArtifactUUID = artifact.ArtifactUUID
 		if err := s.proxyRepo.WithTx(tx).Upsert(ctx, proxy); err != nil {
 			return fmt.Errorf("failed to save the A2A proxy: %w", err)
 		}
@@ -198,10 +203,6 @@ func (s *a2aProxyService) SetA2AProxy(
 			if err := s.switchFromDirect(ctx, tx, t); err != nil {
 				return err
 			}
-		}
-		artifact, err := s.ensureArtifact(tx, t)
-		if err != nil {
-			return err
 		}
 		return s.publisher.exposure.DeployRecord(ctx, tx, s.publisher.kind, t.key.EnvironmentUUID, artifact)
 	})

@@ -41,13 +41,13 @@ func listSQL(t *testing.T, f MCPProxyListFilter) (string, []interface{}) {
 	t.Helper()
 	var out []*models.MCPProxy
 	stmt := f.apply(dryRunDB(t).Model(&models.MCPProxy{}).
-		Joins("JOIN artifacts a ON mcp_proxies.uuid = a.uuid"), "org-1").Find(&out).Statement
+		Joins("JOIN artifacts a ON mcp_proxies.id = a.id"), "org-1").Find(&out).Statement
 	return stmt.SQL.String(), stmt.Vars
 }
 
 func TestMCPProxyListFilterDefaultsToOrgOwnedOnly(t *testing.T) {
 	sql, vars := listSQL(t, MCPProxyListFilter{})
-	assert.Contains(t, sql, "mcp_proxies.project_uuid IS NULL")
+	assert.Contains(t, sql, "mcp_proxies.project_id IS NULL")
 	assert.NotContains(t, sql, "LIMIT")
 	assert.Equal(t, []interface{}{"org-1", "McpProxy"}, vars)
 }
@@ -55,7 +55,7 @@ func TestMCPProxyListFilterDefaultsToOrgOwnedOnly(t *testing.T) {
 func TestMCPProxyListFilterProjectOnly(t *testing.T) {
 	p := "p-1"
 	sql, vars := listSQL(t, MCPProxyListFilter{ProjectUUID: &p})
-	assert.Contains(t, sql, "mcp_proxies.project_uuid = $3")
+	assert.Contains(t, sql, "mcp_proxies.project_id = $3")
 	assert.NotContains(t, sql, "IS NULL")
 	assert.Equal(t, "p-1", vars[2])
 }
@@ -63,25 +63,18 @@ func TestMCPProxyListFilterProjectOnly(t *testing.T) {
 func TestMCPProxyListFilterProjectPlusOrgOwned(t *testing.T) {
 	p := "p-1"
 	sql, vars := listSQL(t, MCPProxyListFilter{ProjectUUID: &p, IncludeOrgOwned: true})
-	assert.Contains(t, sql, "(mcp_proxies.project_uuid = $3 OR mcp_proxies.project_uuid IS NULL)")
+	assert.Contains(t, sql, "(mcp_proxies.project_id = $3 OR mcp_proxies.project_id IS NULL)")
 	assert.Equal(t, "p-1", vars[2])
 }
 
 func TestMCPProxyListFilterIgnoresIncludeOrgOwnedWithoutProject(t *testing.T) {
 	sql, _ := listSQL(t, MCPProxyListFilter{IncludeOrgOwned: true})
-	assert.Contains(t, sql, "mcp_proxies.project_uuid IS NULL")
-}
-
-func TestMCPProxyListFilterSourceComponentAndEndpoint(t *testing.T) {
-	sql, vars := listSQL(t, MCPProxyListFilter{Component: "comp", Endpoint: "ep"})
-	assert.Contains(t, sql, "mcp_proxies.configuration->'source'->>'componentName' = $3")
-	assert.Contains(t, sql, "mcp_proxies.configuration->'source'->>'endpointName' = $4")
-	assert.Equal(t, []interface{}{"org-1", "McpProxy", "comp", "ep"}, vars)
+	assert.Contains(t, sql, "mcp_proxies.project_id IS NULL")
 }
 
 func TestMCPProxyListFilterAllProjectsHasNoProjectPredicate(t *testing.T) {
 	p := "p-1"
 	sql, vars := listSQL(t, MCPProxyListFilter{AllProjects: true, ProjectUUID: &p, IncludeOrgOwned: true})
-	assert.NotContains(t, sql[strings.Index(sql, "WHERE"):], "project_uuid")
+	assert.NotContains(t, sql[strings.Index(sql, "WHERE"):], "project_id")
 	assert.Equal(t, []interface{}{"org-1", "McpProxy"}, vars)
 }

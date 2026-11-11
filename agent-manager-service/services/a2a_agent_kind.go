@@ -282,11 +282,11 @@ func (k *A2AAgentKind) UnplacedRecords(
 ) ([]reconcile.Record, error) {
 	exposed, exposedArgs := unplacedExposureArm(models.AgentExposureProtocolA2A, ouID, env)
 	proxied, proxiedArgs := reconcile.UnplacedCondition(reconcile.RecordColumns{
-		OUID: "a.ou_id", ArtifactUUID: "a.uuid", EnvironmentUUID: "p.environment_uuid",
+		OUID: "a.org_id", ArtifactUUID: "a.id", EnvironmentUUID: "p.environment_id",
 	}, models.IngressGatewayRoles, ouID, env)
 	arms := exposed + `
 			UNION ALL
-			SELECT a.ou_id, a.uuid, a.handle, a.kind, p.environment_uuid
+			SELECT a.org_id, a.id AS artifact_id, a.handle, a.kind, p.environment_id
 			FROM a2a_proxies p ` + repositories.A2AProxyArtifactJoin + `
 			WHERE ` + proxied
 	records, err := pageUnplacedRecords(ctx, db.DB(ctx), arms, append(exposedArgs, proxiedArgs...), afterKey, limit)
@@ -300,11 +300,11 @@ func (k *A2AAgentKind) UnplacedRecords(
 func (k *A2AAgentKind) PlacedOn(ctx context.Context, tx *gorm.DB, env, gateway uuid.UUID) (bool, error) {
 	exposed, exposedArgs := placedExposureArm(models.AgentExposureProtocolA2A, env, gateway)
 	proxied, proxiedArgs := reconcile.PlacedCondition(reconcile.RecordColumns{
-		OUID: "a.ou_id", ArtifactUUID: "a.uuid", EnvironmentUUID: "p.environment_uuid",
+		OUID: "a.org_id", ArtifactUUID: "a.id", EnvironmentUUID: "p.environment_id",
 	}, env, gateway)
 	return placedOn(ctx, tx, exposed+`
 		UNION ALL
-		SELECT 1 FROM a2a_proxies p `+repositories.A2AProxyArtifactJoin+`
+		SELECT 1 AS placed FROM a2a_proxies p `+repositories.A2AProxyArtifactJoin+`
 			WHERE `+proxied, append(exposedArgs, proxiedArgs...))
 }
 

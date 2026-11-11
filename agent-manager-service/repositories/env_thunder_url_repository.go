@@ -20,11 +20,9 @@ import (
 	"context"
 	"errors"
 
-	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // EnvThunderURLRepository defines data access for per-environment env-Thunder
@@ -65,64 +63,27 @@ type EnvThunderURLRepository interface {
 	ExistsByHandle(ctx context.Context, handle string) (bool, error)
 }
 
-type envThunderURLRepo struct {
-	db *gorm.DB
-}
+// ErrEnvThunderUnsupported means an environment was given its own Thunder, which Lite does not support: every
+// environment uses the platform Thunder.
+var ErrEnvThunderUnsupported = errors.New("per-environment Thunder is not supported")
+
+// envThunderURLRepo records no env-Thunder: Lite environments all use the platform Thunder, so none is ever
+// registered and Get always finds nothing.
+type envThunderURLRepo struct{}
 
 // NewEnvThunderURLRepo creates a new EnvThunderURLRepository.
-func NewEnvThunderURLRepo(db *gorm.DB) EnvThunderURLRepository {
-	return &envThunderURLRepo{db: db}
+func NewEnvThunderURLRepo(*gorm.DB) EnvThunderURLRepository {
+	return envThunderURLRepo{}
 }
 
-func (r *envThunderURLRepo) Get(ctx context.Context, ouID, envName string) (*models.EnvThunderURL, error) {
-	var rec models.EnvThunderURL
-	result := r.db.WithContext(ctx).Where("ou_id = ? AND env_name = ?", ouID, envName).First(&rec)
-	if result.Error != nil {
-		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return nil, gorm.ErrRecordNotFound
-		}
-		return nil, result.Error
-	}
-	return &rec, nil
+func (envThunderURLRepo) Get(context.Context, string, string) (*models.EnvThunderURL, error) {
+	return nil, gorm.ErrRecordNotFound
 }
 
-func (r *envThunderURLRepo) Insert(ctx context.Context, rec *models.EnvThunderURL) error {
-	err := r.db.WithContext(ctx).Create(rec).Error
-	if err == nil {
-		return nil
-	}
-	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-		// Distinguish WHICH unique constraint fired: (ou_id, env_name) means a
-		// concurrent request beat this one to the SAME environment (a race,
-		// not a real conflict — the caller adopts the winner); thunder_handle
-		// or thunder_url means that exact value is already owned by a
-		// DIFFERENT environment (a genuine collision, one per registration
-		// path — see EnvironmentService.SetThunderURL).
-		switch pgErr.ConstraintName {
-		case "uq_env_thunder_urls_ou_env":
-			return utils.ErrEnvThunderURLAlreadyClaimed
-		case "uq_env_thunder_urls_handle":
-			return utils.ErrThunderHandleTaken
-		case "uq_env_thunder_urls_url":
-			return utils.ErrThunderURLTaken
-		default:
-			return err
-		}
-	}
-	return err
+func (envThunderURLRepo) Insert(context.Context, *models.EnvThunderURL) error {
+	return ErrEnvThunderUnsupported
 }
 
-func (r *envThunderURLRepo) Delete(ctx context.Context, ouID, envName string) error {
-	return r.db.WithContext(ctx).Where("ou_id = ? AND env_name = ?", ouID, envName).
-		Delete(&models.EnvThunderURL{}).Error
-}
+func (envThunderURLRepo) Delete(context.Context, string, string) error { return nil }
 
-func (r *envThunderURLRepo) ExistsByHandle(ctx context.Context, handle string) (bool, error) {
-	var count int64
-	if err := r.db.WithContext(ctx).Model(&models.EnvThunderURL{}).
-		Where("thunder_handle = ?", handle).Count(&count).Error; err != nil {
-		return false, err
-	}
-	return count > 0, nil
-}
+func (envThunderURLRepo) ExistsByHandle(context.Context, string) (bool, error) { return false, nil }

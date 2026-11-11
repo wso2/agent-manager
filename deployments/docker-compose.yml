@@ -1,24 +1,4 @@
 services:
-  # PostgreSQL Database
-  postgres:
-    image: postgres:16-alpine
-    container_name: agent-manager-db
-    environment:
-      POSTGRES_DB: agentmanager
-      POSTGRES_USER: agentmanager
-      POSTGRES_PASSWORD: agentmanager
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U agentmanager" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - agent-manager
-
   # NATS JetStream: the event bus of platform events
   nats:
     image: nats:2.12-alpine
@@ -48,12 +28,9 @@ services:
       - "9000:8080"
       - "9243:9243"
     environment:
-      # Database Configuration
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_USER=agentmanager
-      - DB_PASSWORD=agentmanager
-      - DB_NAME=agentmanager
+      # Database: the SQLite file AMP Lite ships with, kept in a volume
+      - DB_DRIVER=sqlite
+      - DB_PATH=/var/lib/agent-manager/agent-manager.db
       # Server Configuration
       - SERVER_PORT=8080
       - SERVER_PUBLIC_URL=http://localhost:9000
@@ -150,12 +127,11 @@ services:
       - ../agent-manager-service:/app
       # Use container-specific keys (not host) so paths are correct
       - agent_manager_keys:/app/keys
+      - agent_manager_data:/var/lib/agent-manager
       # Keep container build output off the host mount
       - /app/tmp
       - /app/.bin
     depends_on:
-      postgres:
-        condition: service_healthy
       nats:
         condition: service_healthy
     networks:
@@ -169,7 +145,7 @@ services:
       - "api-platform-gateway.amp.localhost:host-gateway"
 
 volumes:
-  postgres_data:
+  agent_manager_data:
   nats_data:
   agent_manager_keys:
 

@@ -20,43 +20,61 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
-// AgentConfig is the GORM model for the agent_configs table.
-// Stores per-environment configuration for agents.
+// AgentConfig is an agent's gateway settings in one environment. Services name the agent and environment; the hooks
+// translate them to the stored ids. Lite hosts no agents, so the instrumentation fields are not stored.
 type AgentConfig struct {
-	ID                        uuid.UUID `gorm:"column:id;primaryKey;type:uuid;default:gen_random_uuid()"`
-	OUID                      string    `gorm:"column:ou_id;not null"`
-	ProjectName               string    `gorm:"column:project_name;not null"`
-	AgentName                 string    `gorm:"column:agent_name;not null"`
-	EnvironmentName           string    `gorm:"column:environment_name;not null"`
-	EnableAutoInstrumentation bool      `gorm:"column:enable_auto_instrumentation;not null"`
+	ID                        uuid.UUID  `gorm:"-"`
+	OUID                      string     `gorm:"column:org_id"`
+	AgentUUID                 *uuid.UUID `gorm:"column:agent_id;primaryKey"`
+	EnvironmentUUID           uuid.UUID  `gorm:"column:environment_id;primaryKey"`
+	ProjectName               string     `gorm:"-"`
+	AgentName                 string     `gorm:"-"`
+	EnvironmentName           string     `gorm:"-"`
+	EnableAutoInstrumentation bool       `gorm:"-"`
 	// InstrumentationVersion is the AMP instrumentation version selected for the
 	// agent. Nil means "use the platform default".
-	InstrumentationVersion *string   `gorm:"column:instrumentation_version"`
-	CreatedAt              time.Time `gorm:"column:created_at;not null;default:NOW()"`
-	UpdatedAt              time.Time `gorm:"column:updated_at;not null;default:NOW()"`
-	EnableApiKeySecurity   bool      `gorm:"column:enable_api_key_security;not null;default:true"`
-	CORSEnabled            bool      `gorm:"column:cors_enabled;not null;default:true"`
-	CORSAllowOrigins       []string  `gorm:"column:cors_allow_origins;type:jsonb;serializer:json;not null;default:'[\"http://localhost:3000\"]'"`
-	CORSAllowMethods       []string  `gorm:"column:cors_allow_methods;type:jsonb;serializer:json;not null;default:'[\"GET\",\"POST\",\"PUT\",\"DELETE\",\"PATCH\",\"OPTIONS\"]'"`
-	CORSAllowHeaders       []string  `gorm:"column:cors_allow_headers;type:jsonb;serializer:json;not null;default:'[\"authorization\",\"Content-Type\",\"Origin\",\"X-API-Key\"]'"`
-	CORSAllowCredentials   bool      `gorm:"column:cors_allow_credentials;not null;default:false"`
+	InstrumentationVersion *string   `gorm:"-"`
+	CreatedAt              time.Time `gorm:"column:created_at"`
+	UpdatedAt              time.Time `gorm:"column:updated_at"`
+	EnableApiKeySecurity   bool      `gorm:"column:api_key_security"`
+	CORSEnabled            bool      `gorm:"column:cors_enabled"`
+	CORSAllowOrigins       []string  `gorm:"column:cors_allow_origins;serializer:json"`
+	CORSAllowMethods       []string  `gorm:"column:cors_allow_methods;serializer:json"`
+	CORSAllowHeaders       []string  `gorm:"column:cors_allow_headers;serializer:json"`
+	CORSAllowCredentials   bool      `gorm:"column:cors_allow_credentials"`
 	// OAuth security. EnableApiKeySecurity and EnableOAuthSecurity are mutually
 	// exclusive — enforced at the service layer before persistence.
-	EnableOAuthSecurity      bool     `gorm:"column:enable_oauth_security;not null;default:false"`
-	OAuthIssuers             []string `gorm:"column:oauth_issuers;type:jsonb;serializer:json;not null;default:'[]'"`
-	OAuthAudiences           []string `gorm:"column:oauth_audiences;type:jsonb;serializer:json;not null;default:'[]'"`
-	OAuthHeaderName          string   `gorm:"column:oauth_header_name;not null;default:'Authorization'"`
-	OAuthAuthHeaderPrefix    string   `gorm:"column:oauth_auth_header_prefix;not null;default:'Bearer'"`
-	OAuthForwardToken        bool     `gorm:"column:oauth_forward_token;not null;default:true"`
-	ResilienceTimeoutSeconds *int32   `gorm:"column:resilience_timeout_seconds"`
+	EnableOAuthSecurity      bool     `gorm:"column:oauth_enabled"`
+	OAuthIssuers             []string `gorm:"column:oauth_issuers;serializer:json"`
+	OAuthAudiences           []string `gorm:"column:oauth_audiences;serializer:json"`
+	OAuthHeaderName          string   `gorm:"column:oauth_header_name"`
+	OAuthAuthHeaderPrefix    string   `gorm:"column:oauth_header_prefix"`
+	OAuthForwardToken        bool     `gorm:"column:oauth_forward_token"`
+	ResilienceTimeoutSeconds *int32   `gorm:"column:timeout_seconds"`
 	// Public Agent Card CORS override (A2A agents only). A nil CardCORSEnabled
 	// means the card inherits the agent's CORS, and the other three are nil too.
 	CardCORSEnabled          *bool    `gorm:"column:card_cors_enabled"`
-	CardCORSAllowOrigins     []string `gorm:"column:card_cors_allow_origins;type:jsonb;serializer:json"`
-	CardCORSAllowHeaders     []string `gorm:"column:card_cors_allow_headers;type:jsonb;serializer:json"`
+	CardCORSAllowOrigins     []string `gorm:"column:card_cors_allow_origins;serializer:json"`
+	CardCORSAllowHeaders     []string `gorm:"column:card_cors_allow_headers;serializer:json"`
 	CardCORSAllowCredentials *bool    `gorm:"column:card_cors_allow_credentials"`
 }
 
-func (AgentConfig) TableName() string { return "agent_configs" }
+func (AgentConfig) TableName() string { return "agent_gateway_settings" }
+
+func (c *AgentConfig) ref() agentRef {
+	return agentRef{&c.OUID, &c.ProjectName, &c.AgentName, &c.AgentUUID, c.EnvironmentUUID, &c.EnvironmentName}
+}
+
+// Resolve sets the stored agent and environment ids from the names.
+func (c *AgentConfig) Resolve(tx *gorm.DB) error {
+	if err := resolveEnvironment(tx, c.OUID, c.EnvironmentName, &c.EnvironmentUUID); err != nil {
+		return err
+	}
+	return c.ref().resolve(tx)
+}
+
+// AfterFind fills the agent's and environment's names.
+func (c *AgentConfig) AfterFind(tx *gorm.DB) error { return c.ref().fill(tx) }

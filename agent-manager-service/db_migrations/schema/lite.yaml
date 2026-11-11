@@ -87,6 +87,7 @@ tables:
 
   - name: agent_identities
     columns:
+      - {name: id, type: id}
       - {name: agent_id, type: id}
       - {name: org_id, type: id}
       - {name: environment_id, type: id}
@@ -101,7 +102,8 @@ tables:
       - {name: requested_by, type: text, size: 255, nullable: true}
       - {name: created_at, type: time}
       - {name: updated_at, type: time}
-    primary_key: [agent_id, environment_id]
+    primary_key: [id]
+    unique: [[agent_id, environment_id]]
     foreign_keys:
       - {columns: [org_id, agent_id], references: agents, ref_columns: [org_id, id], on_delete: cascade}
       - {columns: [org_id, environment_id], references: environments, ref_columns: [org_id, id]}
@@ -513,7 +515,7 @@ tables:
     foreign_keys:
       - {columns: [org_id, agent_id], references: agents, ref_columns: [org_id, id], on_delete: cascade}
     checks:
-      - "type IN ('llm', 'mcp', 'other')"
+      - "type IN ('llm', 'mcp', 'agent')"
 
   - name: agent_model_config_llm
     columns:
@@ -550,6 +552,7 @@ tables:
       - {name: environment_id, type: id}
       - {name: org_id, type: id}
       - {name: mapping_artifact_id, type: id, nullable: true}
+      - {name: mcp_proxy_id, type: id, nullable: true}
       - {name: excluded, type: bool}
       - {name: created_at, type: time}
     primary_key: [config_id, environment_id]
@@ -557,7 +560,8 @@ tables:
       - {columns: [org_id, config_id], references: agent_model_configs, ref_columns: [org_id, id], on_delete: cascade}
       - {columns: [org_id, environment_id], references: environments, ref_columns: [org_id, id]}
       - {columns: [org_id, mapping_artifact_id], references: mcp_proxy_mappings, ref_columns: [org_id, id]}
-    indexes: [[mapping_artifact_id]]
+      - {columns: [org_id, mcp_proxy_id], references: mcp_proxies, ref_columns: [org_id, id]}
+    indexes: [[mapping_artifact_id], [mcp_proxy_id]]
 
   - name: agent_model_config_vars
     columns:
@@ -661,16 +665,18 @@ tables:
       - {name: org_id, type: id}
       - {name: agent_id, type: id}
       - {name: environment_id, type: id}
+      - {name: artifact_id, type: id}
       - {name: upstream_auth_header, type: text, size: 255, nullable: true}
       - {name: upstream_auth_secret_id, type: id, nullable: true}
       - {name: created_at, type: time}
       - {name: updated_at, type: time}
     primary_key: [id]
-    unique: [[agent_id, environment_id]]
+    unique: [[agent_id, environment_id], [artifact_id]]
     foreign_keys:
       - {columns: [org_id, agent_id], references: agents, ref_columns: [org_id, id], on_delete: cascade}
       - {columns: [org_id, environment_id], references: environments, ref_columns: [org_id, id]}
       - {columns: [org_id, upstream_auth_secret_id], references: secrets, ref_columns: [org_id, id]}
+      - {columns: [org_id, artifact_id], references: artifacts, ref_columns: [org_id, id]}
     indexes: [[upstream_auth_secret_id]]
 
   # --- Events -------------------------------------------------------------------------------

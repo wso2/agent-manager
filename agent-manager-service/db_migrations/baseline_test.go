@@ -17,6 +17,7 @@
 package dbmigrations
 
 import (
+	"context"
 	"path/filepath"
 	"testing"
 	"time"
@@ -32,13 +33,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/db/dberr"
 	"github.com/wso2/agent-manager/agent-manager-service/db_migrations/schema"
 )
-
-func TestRequireRunnable(t *testing.T) {
-	require.NoError(t, RequireRunnable(config.DBDriverPostgres))
-	err := RequireRunnable(config.DBDriverSQLite)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "DB_DRIVER=sqlite")
-}
 
 func TestSplitStatements(t *testing.T) {
 	body := "-- header\n\nCREATE TABLE a (\n    id TEXT\n);\nCREATE INDEX i ON a (id);\n-- trailing comment\n"
@@ -67,13 +61,13 @@ func openMigratedSQLite(t *testing.T) *gorm.DB {
 	dsn := "file:" + filepath.Join(t.TempDir(), "amp.db") + "?_pragma=foreign_keys(1)&_time_format=sqlite"
 	gormDB, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{Logger: logger.Discard})
 	require.NoError(t, err)
-	require.NoError(t, migrateBaseline(gormDB, config.DBDriverSQLite))
+	require.NoError(t, MigrateBaseline(gormDB, config.DBDriverSQLite))
 	return gormDB
 }
 
 func TestSQLiteBaselineAppliesOnce(t *testing.T) {
 	gormDB := openMigratedSQLite(t)
-	require.NoError(t, migrateBaseline(gormDB, config.DBDriverSQLite), "a second run must be a no-op")
+	require.NoError(t, MigrateBaseline(gormDB, config.DBDriverSQLite), "a second run must be a no-op")
 
 	var tables int64
 	require.NoError(t, gormDB.Raw("SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name NOT IN ('migration_history')").Scan(&tables).Error)
@@ -126,4 +120,19 @@ func assertBaselineKeys(t *testing.T, gormDB *gorm.DB) {
 	}
 	require.NoError(t, insertGateway(`{"replicas": 1}`))
 	assert.Error(t, insertGateway("not json"), "JSON is validated")
+}
+
+func TestWaitForBaseline(t *testing.T) {
+	dsn := "file:" + filepath.Join(t.TempDir(), "amp.db") + "?_pragma=foreign_keys(1)&_time_format=sqlite"
+	gormDB, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{Logger: logger.Discard})
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	err = waitFor(ctx, gormDB, "001", 20*time.Millisecond)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.Contains(t, err.Error(), "latest applied: none")
+
+	require.NoError(t, MigrateBaseline(gormDB, config.DBDriverSQLite))
+	assert.NoError(t, waitFor(context.Background(), gormDB, "001", 20*time.Millisecond))
 }

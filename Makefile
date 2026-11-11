@@ -1,4 +1,4 @@
-.PHONY: help tools setup setup-colima setup-k3d setup-platform setup-gateway setup-console-local setup-console-local-force setup-amp teardown-amp reset-amp dev-up dev-down dev-restart dev-rebuild dev-logs dev-migrate thunder-up thunder-down thunder-restart thunder-reset teardown db-connect db-logs service-logs service-shell console-logs console stop-console port-forward stop-port-forward gen-eval-artifacts gen-instrumentation-contract check-contract-drift check-matrix-manifest e2e-test security-test security-test-static security-test-live
+.PHONY: help tools setup setup-colima setup-k3d setup-platform setup-gateway setup-console-local setup-console-local-force setup-amp teardown-amp reset-amp dev-up dev-down dev-restart dev-rebuild dev-logs dev-migrate thunder-up thunder-down thunder-restart thunder-reset teardown db-connect service-logs service-shell console-logs console stop-console port-forward stop-port-forward gen-eval-artifacts gen-instrumentation-contract check-contract-drift check-matrix-manifest e2e-test security-test security-test-static security-test-live
 
 # Default target
 help:
@@ -35,8 +35,7 @@ help:
 	@echo "  make thunder-reset      - Reset Platform Thunder (uninstall + PVC wipe + reinstall)"
 	@echo ""
 	@echo "🗄️  Database:"
-	@echo "  make db-connect         - Connect to PostgreSQL"
-	@echo "  make db-logs            - View database logs"
+	@echo "  make db-connect         - Open the SQLite database"
 	@echo ""
 	@echo "🔧 Service Debugging:"
 	@echo "  make service-logs       - View service logs"
@@ -247,10 +246,7 @@ stop-console:
 
 # Database commands
 db-connect:
-	@docker exec -it agent-manager-db psql -U agentmanager -d agentmanager
-
-db-logs:
-	@docker logs -f agent-manager-db
+	@docker exec -it agent-manager-service sqlite3 /var/lib/agent-manager/agent-manager.db
 
 # Service debugging
 service-logs:

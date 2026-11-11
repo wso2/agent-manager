@@ -96,8 +96,8 @@ func splitStatements(body string) []string {
 	return out
 }
 
-// migrateBaseline applies a database's SQL migrations, starting from the baseline.
-func migrateBaseline(dbConn *gorm.DB, driver string) error {
+// MigrateBaseline applies a database's SQL migrations, starting from the baseline.
+func MigrateBaseline(dbConn *gorm.DB, driver string) error {
 	list, err := sqlMigrationsFor(driver)
 	if err != nil {
 		return err

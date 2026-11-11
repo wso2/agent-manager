@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 // A2AAgentCardStatus is where one agent-environment card stands in the fetch cycle.
@@ -45,32 +46,42 @@ const (
 	A2AAgentCardSourceExternal A2AAgentCardSource = "external"
 )
 
-// A2AAgentCard is one agent-environment pair's public agent card and its fetch state.
+// A2AAgentCard is one agent-environment pair's public agent card and its fetch state. Services name the agent and
+// environment; the hooks translate them to the stored ids.
 type A2AAgentCard struct {
-	ID              uuid.UUID          `gorm:"column:id;primaryKey;type:uuid;default:gen_random_uuid()"`
-	OUID            string             `gorm:"column:ou_id;not null"`
-	ProjectName     string             `gorm:"column:project_name;not null"`
-	AgentName       string             `gorm:"column:agent_name;not null"`
-	EnvironmentName string             `gorm:"column:environment_name;not null"`
-	EnvironmentUUID uuid.UUID          `gorm:"column:environment_uuid;type:uuid;not null"`
-	Source          A2AAgentCardSource `gorm:"column:source;not null"`
-	// AgentUUID is the agent the card belongs to; nil skips the agent-replaced check.
-	AgentUUID *uuid.UUID `gorm:"column:agent_uuid;type:uuid"`
+	ID              uuid.UUID          `gorm:"column:id;primaryKey"`
+	OUID            string             `gorm:"column:org_id"`
+	ProjectName     string             `gorm:"-"`
+	AgentName       string             `gorm:"-"`
+	EnvironmentName string             `gorm:"-"`
+	EnvironmentUUID uuid.UUID          `gorm:"column:environment_id"`
+	Source          A2AAgentCardSource `gorm:"column:source"`
+	// AgentUUID is the agent the card belongs to; nil until resolved from the names.
+	AgentUUID *uuid.UUID `gorm:"column:agent_id"`
 	// SourceURL is the registered URL for external cards, and the last URL fetched for platform cards.
-	SourceURL string          `gorm:"column:source_url;not null;default:''"`
-	Card      json.RawMessage `gorm:"column:card;type:jsonb"`
-	CardHash  string          `gorm:"column:card_hash;not null;default:''"`
+	SourceURL string          `gorm:"column:source_url"`
+	Card      json.RawMessage `gorm:"column:card"`
+	CardHash  string          `gorm:"column:card_hash"`
 	FetchedAt *time.Time      `gorm:"column:fetched_at"`
-	// ReleaseName is the binding release a platform card was fetched from.
-	ReleaseName string `gorm:"column:release_name;not null;default:''"`
-	// AttemptedReleaseName is the release the last platform fetch ran against.
-	AttemptedReleaseName string             `gorm:"column:attempted_release_name;not null;default:''"`
-	Status               A2AAgentCardStatus `gorm:"column:status;not null;default:'pending'"`
-	AttemptCount         int                `gorm:"column:attempt_count;not null;default:0"`
-	LastError            string             `gorm:"column:last_error;not null;default:''"`
+	// ReleaseName and AttemptedReleaseName named the binding release a platform card came from; Lite has none.
+	ReleaseName          string             `gorm:"-"`
+	AttemptedReleaseName string             `gorm:"-"`
+	Status               A2AAgentCardStatus `gorm:"column:status"`
+	AttemptCount         int                `gorm:"column:attempt_count"`
+	LastError            string             `gorm:"column:last_error"`
 	NextAttemptAt        *time.Time         `gorm:"column:next_attempt_at"`
-	CreatedAt            time.Time          `gorm:"column:created_at;not null;default:NOW()"`
-	UpdatedAt            time.Time          `gorm:"column:updated_at;not null;default:NOW()"`
+	CreatedAt            time.Time          `gorm:"column:created_at"`
+	UpdatedAt            time.Time          `gorm:"column:updated_at"`
 }
 
-func (A2AAgentCard) TableName() string { return "a2a_agent_cards" }
+func (A2AAgentCard) TableName() string { return "agent_cards" }
+
+func (c *A2AAgentCard) ref() agentRef {
+	return agentRef{&c.OUID, &c.ProjectName, &c.AgentName, &c.AgentUUID, c.EnvironmentUUID, &c.EnvironmentName}
+}
+
+// BeforeCreate resolves the agent's id from its names.
+func (c *A2AAgentCard) BeforeCreate(tx *gorm.DB) error { return c.ref().resolve(tx) }
+
+// AfterFind fills the agent's and environment's names.
+func (c *A2AAgentCard) AfterFind(tx *gorm.DB) error { return c.ref().fill(tx) }

@@ -17,6 +17,7 @@
 package repositories
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"time"
@@ -24,6 +25,7 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
+	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 )
 
@@ -86,11 +88,14 @@ func unmarshalConfig(template *models.LLMProviderTemplate) error {
 // Create inserts a new LLM provider template
 func (r *LLMProviderTemplateRepo) Create(t *models.LLMProviderTemplate) error {
 	if t.UUID == uuid.Nil {
-		t.UUID = uuid.New()
+		t.UUID = uuid.Must(uuid.NewV7())
 	}
-	t.CreatedAt = time.Now()
-	t.UpdatedAt = time.Now()
-	// Ensure all user-created templates are marked as non-system
+	if _, err := ensureOrg(context.Background(), r.db, t.OUID); err != nil {
+		return err
+	}
+	t.CreatedAt = dbx.Now()
+	t.UpdatedAt = t.CreatedAt
+	// Stored templates are the org's own; built-in templates ship in code.
 	t.IsSystem = false
 
 	configJSON, err := json.Marshal(&llmProviderTemplateConfig{
@@ -114,8 +119,7 @@ func (r *LLMProviderTemplateRepo) Create(t *models.LLMProviderTemplate) error {
 // GetByID retrieves an LLM provider template by ID (handle)
 func (r *LLMProviderTemplateRepo) GetByHandle(templateHandle, orgUUID string) (*models.LLMProviderTemplate, error) {
 	var template models.LLMProviderTemplate
-	// Only fetch user templates (is_system = false)
-	err := r.db.Where("handle = ? AND ou_id = ? AND is_system = ?", templateHandle, orgUUID, false).
+	err := r.db.Where("handle = ? AND org_id = ?", templateHandle, orgUUID).
 		First(&template).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -134,8 +138,7 @@ func (r *LLMProviderTemplateRepo) GetByHandle(templateHandle, orgUUID string) (*
 // GetByUUID retrieves an LLM provider template by UUID
 func (r *LLMProviderTemplateRepo) GetByUUID(uuid, orgUUID string) (*models.LLMProviderTemplate, error) {
 	var template models.LLMProviderTemplate
-	// Only fetch user templates (is_system = false)
-	err := r.db.Where("uuid = ? AND ou_id = ? AND is_system = ?", uuid, orgUUID, false).
+	err := r.db.Where("id = ? AND org_id = ?", uuid, orgUUID).
 		First(&template).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -154,8 +157,7 @@ func (r *LLMProviderTemplateRepo) GetByUUID(uuid, orgUUID string) (*models.LLMPr
 // List retrieves LLM provider templates with pagination
 func (r *LLMProviderTemplateRepo) List(orgUUID string, limit, offset int) ([]*models.LLMProviderTemplate, error) {
 	var templates []*models.LLMProviderTemplate
-	// Only fetch user templates (is_system = false)
-	err := r.db.Where("ou_id = ? AND is_system = ?", orgUUID, false).
+	err := r.db.Where("org_id = ?", orgUUID).
 		Order("created_at DESC").
 		Limit(limit).
 		Offset(offset).
@@ -177,9 +179,8 @@ func (r *LLMProviderTemplateRepo) List(orgUUID string, limit, offset int) ([]*mo
 // Count counts LLM provider templates for an organization
 func (r *LLMProviderTemplateRepo) Count(orgUUID string) (int, error) {
 	var count int64
-	// Only count user templates (is_system = false)
 	err := r.db.Model(&models.LLMProviderTemplate{}).
-		Where("ou_id = ? AND is_system = ?", orgUUID, false).
+		Where("org_id = ?", orgUUID).
 		Count(&count).Error
 	return int(count), err
 }
@@ -203,9 +204,8 @@ func (r *LLMProviderTemplateRepo) Update(t *models.LLMProviderTemplate) error {
 	}
 	t.Configuration = string(configJSON)
 
-	// Only update user templates (is_system = false)
 	result := r.db.Model(&models.LLMProviderTemplate{}).
-		Where("handle = ? AND ou_id = ? AND is_system = ?", t.Handle, t.OUID, false).
+		Where("handle = ? AND org_id = ?", t.Handle, t.OUID).
 		Updates(map[string]interface{}{
 			"name":          t.Name,
 			"description":   t.Description,
@@ -224,8 +224,7 @@ func (r *LLMProviderTemplateRepo) Update(t *models.LLMProviderTemplate) error {
 
 // Delete removes an LLM provider template
 func (r *LLMProviderTemplateRepo) Delete(templateID, orgUUID string) error {
-	// Only delete user templates (is_system = false)
-	result := r.db.Where("handle = ? AND ou_id = ? AND is_system = ?", templateID, orgUUID, false).
+	result := r.db.Where("handle = ? AND org_id = ?", templateID, orgUUID).
 		Delete(&models.LLMProviderTemplate{})
 	if result.Error != nil {
 		return result.Error
@@ -239,9 +238,8 @@ func (r *LLMProviderTemplateRepo) Delete(templateID, orgUUID string) error {
 // Exists checks if an LLM provider template exists
 func (r *LLMProviderTemplateRepo) Exists(templateID, orgUUID string) (bool, error) {
 	var count int64
-	// Only check user templates (is_system = false)
 	err := r.db.Model(&models.LLMProviderTemplate{}).
-		Where("handle = ? AND ou_id = ? AND is_system = ?", templateID, orgUUID, false).
+		Where("handle = ? AND org_id = ?", templateID, orgUUID).
 		Count(&count).Error
 	if err != nil {
 		return false, err

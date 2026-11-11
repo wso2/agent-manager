@@ -454,6 +454,11 @@ var notEmittedFeatures = map[string]bool{
 	"amp.discovery.manage-kind":               true,
 	"amp.discovery.manage-kind.add-version":   true,
 	"amp.source-control.manage-git-secret":    true,
+	// Evaluation features: Lite runs no monitors or custom evaluators, so their routes answer 501.
+	"amp.observability.create-monitor":            true,
+	"amp.observability.create-monitor.start-stop": true,
+	"amp.observability.create-monitor.rerun":      true,
+	"amp.observability.custom-evaluator":          true,
 }
 
 // TestTaxonomyFeaturesHaveEmitters rejects stale declarations and exemptions.

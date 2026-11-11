@@ -25,14 +25,14 @@ import (
 // LLMProviderTemplate represents an LLM provider template
 // This structure matches api_platform/platform-api/src/internal/model/llm.go:129
 type LLMProviderTemplate struct {
-	UUID          uuid.UUID `gorm:"column:uuid;primaryKey" json:"uuid"`
-	OUID          string    `gorm:"column:ou_id" json:"organizationId"`
+	UUID          uuid.UUID `gorm:"column:id;primaryKey" json:"uuid"`
+	OUID          string    `gorm:"column:org_id" json:"organizationId"`
 	Handle        string    `gorm:"column:handle" json:"id"`
 	Name          string    `gorm:"column:name" json:"name"`
 	Description   string    `gorm:"column:description" json:"description,omitempty"`
 	CreatedBy     string    `gorm:"column:created_by" json:"createdBy,omitempty"`
-	IsSystem      bool      `gorm:"column:is_system;default:false" json:"isSystem"`
-	Configuration string    `gorm:"column:configuration;type:text" json:"-"` // TEXT field stores raw config as JSON
+	IsSystem      bool      `gorm:"-" json:"isSystem"`
+	Configuration string    `gorm:"column:configuration" json:"-"` // TEXT field stores raw config as JSON
 	CreatedAt     time.Time `gorm:"column:created_at" json:"createdAt"`
 	UpdatedAt     time.Time `gorm:"column:updated_at" json:"updatedAt"`
 
