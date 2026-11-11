@@ -171,9 +171,21 @@ const resourceConfigsSchema = z
       .optional()
       .refine((v) => !v || memoryPattern.test(v), "Use format like 512Mi or 2Gi"),
     autoScalingEnabled: z.boolean(),
-    minReplicas: z.number().int().min(1).optional(),
-    maxReplicas: z.number().int().min(1).optional(),
+    minReplicas: z.number().optional(),
+    maxReplicas: z.number().optional(),
   })
+  .refine(
+    ({ autoScalingEnabled, minReplicas }) =>
+      !autoScalingEnabled ||
+      (minReplicas !== undefined && Number.isSafeInteger(minReplicas) && minReplicas >= 1),
+    { message: "Min replicas must be a whole number of at least 1", path: ["minReplicas"] }
+  )
+  .refine(
+    ({ autoScalingEnabled, maxReplicas }) =>
+      !autoScalingEnabled ||
+      (maxReplicas !== undefined && Number.isSafeInteger(maxReplicas) && maxReplicas >= 1),
+    { message: "Max replicas must be a whole number of at least 1", path: ["maxReplicas"] }
+  )
   .refine(
     (data) => {
       if (!data.autoScalingEnabled) return true;
@@ -350,7 +362,7 @@ export function EditResourceConfigsDrawer({
   }, [open, replicaPolicy, handlePolicyFailure]);
 
   const isPolicyBlocking =
-    replicaPolicy === undefined || Object.keys(policyErrors).length > 0;
+    policyUnavailable || replicaPolicy === undefined || Object.keys(policyErrors).length > 0;
   const replicasMax = Math.min(10, replicaPolicy?.maxReplicas ?? 10);
 
   useEffect(() => {
