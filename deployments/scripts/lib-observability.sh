@@ -43,6 +43,16 @@ install_observability_stack() {
         --values "${deployments_dir}/values/opensearch.yaml" \
         --wait --timeout 15m || return 1
 
+    # Span IDs and attribute values are queried and aggregated as exact terms,
+    # which dynamic mapping would store as analyzed text. Applied before the
+    # collector writes its first span so every daily index picks it up.
+    echo "📐 Applying the trace index template..."
+    kubectl exec -i -n "${OBSERVABILITY_NAMESPACE}" opensearch-master-0 -c opensearch -- \
+        curl -sSfk -u "${OPENSEARCH_USERNAME}:${OPENSEARCH_PASSWORD}" \
+        -X PUT "https://localhost:9200/_index_template/amp-otel-traces" \
+        -H 'Content-Type: application/json' --data-binary @- \
+        < "${deployments_dir}/values/opensearch-traces-template.json" >/dev/null || return 1
+
     echo "📦 Installing OpenTelemetry Collector (${OTEL_COLLECTOR_CHART_VERSION})..."
     helm upgrade --install opentelemetry-collector opentelemetry-collector \
         --repo "${OTEL_COLLECTOR_CHART_REPO}" \
