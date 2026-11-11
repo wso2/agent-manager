@@ -490,14 +490,19 @@ func (s *ProjectMCPProxyService) deleteEnvironmentOf(ctx context.Context, ouID s
 	// The proxy's scopes, read before anything is deleted when the binding has a resource server to remove: the
 	// removal after the delete sweeps their grants from roles, and once the binding is gone nothing could retry a
 	// removal made without them. A binding never on identity has none, and costs the identity service nothing.
+	// Its public URL, the resource server's identifier, is read now too: once the binding is gone it cannot be.
 	var actions []string
+	var identifier string
 	actionsRead := false
-	if s.base.resolver != nil && bindingHasIdentityToRemove(bound.Configuration) {
-		var err error
-		if actions, err = s.proxyScopeActions(ctx, proxy); err != nil {
-			return err
+	if s.base.resolver != nil {
+		identifier, _ = s.base.MCPResourceServerIdentifier(ctx, ouID, ee.EnvironmentUUID, proxy)
+		if bindingHasIdentityToRemove(bound.Configuration) {
+			var err error
+			if actions, err = s.proxyScopeActions(ctx, proxy); err != nil {
+				return err
+			}
+			actionsRead = true
 		}
-		actionsRead = true
 	}
 	removeIdentity := false
 	if err := s.base.tx(ctx, func(tx *gorm.DB) error {
@@ -541,6 +546,10 @@ func (s *ProjectMCPProxyService) deleteEnvironmentOf(ctx context.Context, ouID s
 	if !removeIdentity || s.base.resolver == nil {
 		return nil
 	}
+	if identifier == "" {
+		// No public URL, so nothing was registered for the binding.
+		return nil
+	}
 	if !actionsRead {
 		// A PUT moved the binding to identity after it was read: its scopes are read now, and a failure leaves the
 		// resource server, as the binding is already gone.
@@ -551,7 +560,7 @@ func (s *ProjectMCPProxyService) deleteEnvironmentOf(ctx context.Context, ouID s
 			return nil
 		}
 	}
-	s.purgeBindingResourceServer(ctx, ouID, proxy, envName, actions)
+	s.purgeBindingResourceServer(ctx, ouID, proxy, envName, identifier, actions)
 	return nil
 }
 

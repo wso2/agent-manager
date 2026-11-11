@@ -619,6 +619,36 @@ func TestDeleteProxyResourceServer_DeletesActionsThenResourceThenRS(t *testing.T
 	assert.Less(t, resourceIdx, rsIdx)
 }
 
+// A resource server registered with a URL identifier carries no handle, as in real Thunder: the delete by bare handle
+// finds nothing and reports success, while the delete by identifier finds and removes it.
+func TestDeleteProxyResourceServerByIdentifier_FindsAURLRegisteredRS(t *testing.T) {
+	const url = "https://gw.example.com/p1/weather"
+	var deleted []string
+	srv := newTestThunderServer(t, func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/resource-servers":
+			_ = json.NewEncoder(w).Encode(map[string]any{"resourceServers": []any{map[string]string{"id": "rs-1", "identifier": url}}, "totalResults": 1})
+		case r.Method == http.MethodGet && r.URL.Path == "/resource-servers/rs-1/resources":
+			_ = json.NewEncoder(w).Encode(map[string]any{"resources": []any{map[string]string{"id": "res-1", "handle": "weather"}}, "totalResults": 1})
+		case r.Method == http.MethodGet && r.URL.Path == "/resource-servers/rs-1/resources/res-1/actions":
+			_ = json.NewEncoder(w).Encode(map[string]any{"actions": []any{}, "totalResults": 0})
+		case r.Method == http.MethodDelete:
+			deleted = append(deleted, r.URL.Path)
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			t.Fatalf("unexpected call %s %s", r.Method, r.URL.Path)
+		}
+	})
+	defer srv.Close()
+	client := NewIdentityClient(srv.URL, "sys-client", "sys-secret")
+
+	require.NoError(t, client.DeleteProxyResourceServer(context.Background(), "weather"))
+	assert.Empty(t, deleted, "by bare handle the URL-registered resource server is not found")
+
+	require.NoError(t, client.DeleteProxyResourceServerByIdentifier(context.Background(), "weather", url))
+	assert.Equal(t, []string{"/resource-servers/rs-1/resources/res-1", "/resource-servers/rs-1"}, deleted)
+}
+
 // TestDeleteProxyResourceServerAction_DeletesFromAnchorResource guards against
 // a regression where action deletion targeted the resource-server root
 // (/resource-servers/{id}/actions/{actionId}) instead of the anchor resource's

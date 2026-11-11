@@ -635,7 +635,9 @@ func TestPutEnv_JWT_400(t *testing.T) {
 // thunderCalls records the identity service calls the binding made.
 type thunderCalls struct {
 	ensured []struct{ env, handle, identifier string }
-	deleted []struct{ env, handle string }
+	// deleted records each resource server delete; identifier is the one it was found by, empty for a delete by
+	// bare handle.
+	deleted []struct{ env, handle, identifier string }
 	// swept counts the role listings a delete made to drop the proxy's scopes from roles.
 	swept int
 	// deleteErr, when set, fails every resource server delete after recording it.
@@ -658,7 +660,11 @@ func (f *bindingFixture) withThunder() *thunderCalls {
 					return "rs-1", nil
 				},
 				DeleteProxyResourceServerFunc: func(_ context.Context, handle string) error {
-					calls.deleted = append(calls.deleted, struct{ env, handle string }{envName, handle})
+					calls.deleted = append(calls.deleted, struct{ env, handle, identifier string }{envName, handle, ""})
+					return calls.deleteErr
+				},
+				DeleteProxyResourceServerByIdentifierFunc: func(_ context.Context, handle, identifier string) error {
+					calls.deleted = append(calls.deleted, struct{ env, handle, identifier string }{envName, handle, identifier})
 					return calls.deleteErr
 				},
 				ListRolesFunc: func(context.Context, string, int, int) ([]thundersvc.ThunderRole, int, error) {
@@ -751,7 +757,7 @@ func TestPutEnv_LeavingIdentity_DeletesTheResourceServer(t *testing.T) {
 	f := newBindingFixture(t)
 	calls := f.withThunder()
 
-	_, _, err := f.put(t, models.MCPProxyEnvironmentRequest{Security: identityBinding()})
+	resp, _, err := f.put(t, models.MCPProxyEnvironmentRequest{Security: identityBinding()})
 	require.NoError(t, err)
 	calls.forget()
 
@@ -760,6 +766,7 @@ func TestPutEnv_LeavingIdentity_DeletesTheResourceServer(t *testing.T) {
 	require.Len(t, calls.deleted, 1)
 	assert.Equal(t, bindingEnv, calls.deleted[0].env)
 	assert.Equal(t, bindingHandle, calls.deleted[0].handle)
+	assert.Equal(t, resp.PublicURL, calls.deleted[0].identifier, "the resource server registered at the binding's URL")
 	endpoint, _ := f.binding()
 	assert.Empty(t, endpoint.Configuration.IdentityCleanupID, "a removal that succeeded leaves nothing pending")
 }
@@ -857,7 +864,7 @@ func TestBindingIdentityCleanup_AStaleRemovalKeepsTheNewerID(t *testing.T) {
 
 	// The first removal, finishing late, succeeds but must not clear the second's ID.
 	calls.deleteErr = nil
-	f.svc.cleanUpBindingIdentity(context.Background(), testOrg, f.proxy, bindingEnv, endpoint.UUID, first)
+	f.svc.cleanUpBindingIdentity(context.Background(), testOrg, f.proxy, f.envUUID, bindingEnv, endpoint.UUID, first)
 	endpoint, _ = f.binding()
 	assert.Equal(t, second, endpoint.Configuration.IdentityCleanupID)
 }
@@ -980,7 +987,7 @@ func TestBindingResourceServerCleanup_FailedScopeLookupRemovesNothing(t *testing
 	require.NoError(t, err)
 	endpoint, _ := f.binding()
 	endpointRepo := f.svc.base.endpointRepo.(*repomocks.MCPProxyEndpointRepositoryMock)
-	f.svc.cleanUpBindingIdentity(context.Background(), testOrg, f.proxy, bindingEnv, endpoint.UUID, "cleanup-1")
+	f.svc.cleanUpBindingIdentity(context.Background(), testOrg, f.proxy, f.envUUID, bindingEnv, endpoint.UUID, "cleanup-1")
 	assert.Empty(t, calls.deleted)
 	assert.Empty(t, endpointRepo.ClearIdentityCleanupIDCalls(), "the ID stays for a retry")
 
@@ -1001,8 +1008,15 @@ func TestBindingIdentityCleanup_DropsTheProxyScopesFromRoles(t *testing.T) {
 		},
 	}
 
-	f.svc.cleanUpBindingIdentity(context.Background(), testOrg, f.proxy, bindingEnv, uuid.New(), "")
+	resp, _, err := f.put(t, models.MCPProxyEnvironmentRequest{})
+	require.NoError(t, err)
+	endpoint, _ := f.binding()
+	calls.forget()
+
+	f.svc.cleanUpBindingIdentity(context.Background(), testOrg, f.proxy, f.envUUID, bindingEnv, endpoint.UUID, "")
 	require.Len(t, calls.deleted, 1)
+	assert.Equal(t, resp.PublicURL, calls.deleted[0].identifier,
+		"found by the binding's public URL: the identity service returns no handle for a resource server")
 	assert.Equal(t, 2, calls.swept, "one role sweep per scope")
 }
 

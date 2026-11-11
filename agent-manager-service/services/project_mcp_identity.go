@@ -88,25 +88,33 @@ func (s *ProjectMCPProxyService) ensureBindingResourceServers(ctx context.Contex
 }
 
 // cleanUpBindingIdentity removes the resource server of a binding that left identity, and the roles' grants of the
-// proxy's scopes in envName, best effort. With a cleanupID, a successful removal clears the binding's IdentityCleanupID
+// proxy's scopes in envName, best effort. The resource server is the one registered at the binding's public URL; a
+// binding with no gateway has none, and the removal waits for one, keeping the ID. With a cleanupID, a successful removal clears the binding's IdentityCleanupID
 // if it is still that one, so later identical PUTs leave grants made since alone while a newer pending removal stays.
 // When the proxy's scopes cannot be read it removes nothing, since deleting the resource server without them would
 // leave their grants with nothing to sweep them; the ID stays and an identical PUT retries.
 func (s *ProjectMCPProxyService) cleanUpBindingIdentity(
-	ctx context.Context, ouID string, proxy *models.MCPProxy, envName string, endpointUUID uuid.UUID, cleanupID string,
+	ctx context.Context, ouID string, proxy *models.MCPProxy, envUUID uuid.UUID, envName string,
+	endpointUUID uuid.UUID, cleanupID string,
 ) bool {
 	if s.base.resolver == nil {
 		return false
 	}
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), ensureResourceServerPerEnvTimeout)
 	defer cancel()
+	identifier, err := s.base.MCPResourceServerIdentifier(ctx, ouID, envUUID, proxy)
+	if err != nil {
+		s.base.logger.Info("project MCP binding identity cleanup deferred: the binding has no public URL yet",
+			"proxy", proxyHandleOf(proxy), "env", envName, "error", err)
+		return false
+	}
 	actions, err := s.proxyScopeActions(ctx, proxy)
 	if err != nil {
 		s.base.logger.Warn("project MCP binding identity cleanup deferred: listing scopes failed",
 			"proxy", proxyHandleOf(proxy), "env", envName, "error", err)
 		return false
 	}
-	if !s.removeBindingResourceServer(ctx, ouID, proxy, envName, actions) {
+	if !s.removeBindingResourceServer(ctx, ouID, proxy, envName, identifier, actions) {
 		return false
 	}
 	if cleanupID != "" {
@@ -125,7 +133,7 @@ func (s *ProjectMCPProxyService) syncBindingIdentity(
 	ctx context.Context, ouID string, proxy *models.MCPProxy, envUUID uuid.UUID, envName string, endpoint *models.MCPProxyEndpoint,
 ) {
 	if cleanupID := endpoint.Configuration.IdentityCleanupID; cleanupID != "" {
-		if !s.cleanUpBindingIdentity(ctx, ouID, proxy, envName, endpoint.UUID, cleanupID) {
+		if !s.cleanUpBindingIdentity(ctx, ouID, proxy, envUUID, envName, endpoint.UUID, cleanupID) {
 			return
 		}
 	}
@@ -134,18 +142,18 @@ func (s *ProjectMCPProxyService) syncBindingIdentity(
 
 // purgeBindingResourceServer removes the resource server of a deleted binding that was on identity or had a removal
 // pending, best effort: with the binding gone no identical PUT can retry it, and a binding created in the environment
-// later removes a leftover before it registers. actions are the proxy's scope actions,
-// read before the binding was deleted so a failed read stops the delete instead. A resource server already gone, or an
-// environment without an identity service, is not an error.
+// later removes a leftover before it registers. identifier is the binding's public URL and actions the proxy's scope
+// actions, both read before the binding was deleted, when it could still give them; a failed scope read stops the
+// delete instead. A resource server already gone, or an environment without an identity service, is not an error.
 func (s *ProjectMCPProxyService) purgeBindingResourceServer(
-	ctx context.Context, ouID string, proxy *models.MCPProxy, envName string, actions []string,
+	ctx context.Context, ouID string, proxy *models.MCPProxy, envName, identifier string, actions []string,
 ) {
 	if s.base.resolver == nil {
 		return
 	}
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), ensureResourceServerPerEnvTimeout)
 	defer cancel()
-	s.removeBindingResourceServer(ctx, ouID, proxy, envName, actions)
+	s.removeBindingResourceServer(ctx, ouID, proxy, envName, identifier, actions)
 }
 
 // proxyScopeActions are the proxy's scope actions, as the proxy delete passes them, so a deployment can clean up what
@@ -165,15 +173,16 @@ func (s *ProjectMCPProxyService) proxyScopeActions(ctx context.Context, proxy *m
 	return actions, nil
 }
 
-// removeBindingResourceServer deletes the proxy's resource server in envName and drops actions from its roles, and
-// reports whether that succeeded. An environment without an identity service has nothing to remove.
+// removeBindingResourceServer deletes the proxy's resource server registered at identifier in envName and drops
+// actions from its roles, and reports whether that succeeded. The identity service returns no handle for a resource
+// server, so it is found by identifier. An environment without an identity service has nothing to remove.
 func (s *ProjectMCPProxyService) removeBindingResourceServer(
-	ctx context.Context, ouID string, proxy *models.MCPProxy, envName string, actions []string,
+	ctx context.Context, ouID string, proxy *models.MCPProxy, envName, identifier string, actions []string,
 ) bool {
 	handle := proxyHandleOf(proxy)
 	request := MCPResourceServerRequest{
 		OrganizationID: ouID, ProxyHandle: handle, DisplayName: mcpResourceServerDisplayName(proxy), Environment: envName,
-		Actions: actions,
+		Identifier: identifier, Actions: actions,
 	}
 	err := mcpResourceServerProviderFor(s.base.resolver, s.base.logger).DeleteMCPResourceServer(ctx, request)
 	switch {

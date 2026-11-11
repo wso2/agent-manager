@@ -40,8 +40,9 @@ type MCPResourceServerRequest struct {
 	// Environment is the one environment to act on. Agent Manager decides which environments a
 	// proxy is deployed to; the provider only acts on the one it is given.
 	Environment string
-	// Identifier is the absolute public URL the proxy is invoked at in Environment (RFC 8707).
-	// Empty on remove and delete.
+	// Identifier is the absolute public URL the proxy is invoked at in Environment (RFC 8707). Required on Ensure.
+	// On Delete it names the resource server to remove when set; the identity service returns no handle for a
+	// resource server registered with a URL identifier, so without it only one registered by bare handle is found.
 	Identifier string
 	// Actions are the scope actions to make sure exist (Ensure). On Delete they are the actions
 	// the proxy had, so a deployment can clean up what refers to them.
@@ -176,7 +177,12 @@ func (p *legacyMCPResourceServerProvider) DeleteMCPResourceServer(ctx context.Co
 	if err != nil {
 		return err
 	}
-	if err := client.DeleteProxyResourceServer(ctx, request.ProxyHandle); err != nil {
+	if request.Identifier != "" {
+		err = client.DeleteProxyResourceServerByIdentifier(ctx, request.ProxyHandle, request.Identifier)
+	} else {
+		err = client.DeleteProxyResourceServer(ctx, request.ProxyHandle)
+	}
+	if err != nil {
 		return err
 	}
 	for _, action := range request.Actions {
