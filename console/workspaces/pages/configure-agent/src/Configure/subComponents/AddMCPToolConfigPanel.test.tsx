@@ -21,7 +21,7 @@ import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@agent-management-platform/api-client", () => ({
-  useListMCPProxies: vi.fn(() => ({
+  useListAllMCPProxies: vi.fn(() => ({
     data: {
       list: [{ id: "proj-proxy", name: "Project Proxy", projectName: "p1" }],
     },
@@ -54,7 +54,7 @@ vi.mock("./MCPServerDisplay", () => ({
   ),
 }));
 
-import { useListMCPProxies } from "@agent-management-platform/api-client";
+import { useListAllMCPProxies } from "@agent-management-platform/api-client";
 import { AddMCPToolConfigPanel } from "./AddMCPToolConfigPanel";
 
 describe("AddMCPToolConfigPanel", () => {
@@ -64,7 +64,7 @@ describe("AddMCPToolConfigPanel", () => {
         <AddMCPToolConfigPanel open orgId="org" projectId="p1" agentId="a1" onClose={vi.fn()} />
       </MemoryRouter>,
     );
-    expect(useListMCPProxies).toHaveBeenCalledWith(
+    expect(useListAllMCPProxies).toHaveBeenCalledWith(
       { orgName: "org" },
       expect.objectContaining({ project: "p1" }),
     );

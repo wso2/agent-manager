@@ -48,7 +48,7 @@ vi.mock("@agent-management-platform/api-client", () => ({
   useGetMCPProxy: vi.fn(() => idle),
   useGetProjectMCPProxy: vi.fn(() => idle),
   useListEnvironments: vi.fn(() => envsResult),
-  useListMCPProxies: vi.fn(() => proxiesResult),
+  useListAllMCPProxies: vi.fn(() => proxiesResult),
   useListMCPProxyScopes: vi.fn(() => idle),
   useRefreshProjectMCPProxyCapabilities: vi.fn(() => mutationResult),
   useUpdateAgentMCPConfig: vi.fn(() => mutationResult),
@@ -74,7 +74,7 @@ vi.mock("./utils/buildInProgress", () => ({
 import {
   useGetMCPProxy,
   useGetProjectMCPProxy,
-  useListMCPProxies,
+  useListAllMCPProxies,
 } from "@agent-management-platform/api-client";
 import { ViewMCPServerComponent } from "./ViewMCPServer.Component";
 
@@ -93,7 +93,7 @@ const renderPage = () =>
 describe("ViewMCPServerComponent", () => {
   it("lists project proxies for the agent's project and resolves their display name", () => {
     renderPage();
-    expect(useListMCPProxies).toHaveBeenCalledWith(
+    expect(useListAllMCPProxies).toHaveBeenCalledWith(
       { orgName: "o" },
       expect.objectContaining({ project: "p1" }),
     );
@@ -109,8 +109,8 @@ describe("ViewMCPServerComponent", () => {
   });
 
   it("links an org proxy to the organization's MCP proxy page", () => {
-    vi.mocked(useListMCPProxies).mockReturnValue(
-      orgProxiesResult as unknown as ReturnType<typeof useListMCPProxies>,
+    vi.mocked(useListAllMCPProxies).mockReturnValue(
+      orgProxiesResult as unknown as ReturnType<typeof useListAllMCPProxies>,
     );
     renderPage();
     expect(

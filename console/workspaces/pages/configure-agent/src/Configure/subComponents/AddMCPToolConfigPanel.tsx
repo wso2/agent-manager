@@ -47,7 +47,7 @@ import {
   useCreateAgentMCPConfig,
   useGetAgent,
   useListAgentMCPConfigs,
-  useListMCPProxies,
+  useListAllMCPProxies,
 } from "@agent-management-platform/api-client";
 import {
   AGENTID_ENV_VAR_ROWS,
@@ -113,9 +113,9 @@ export function AddMCPToolConfigPanel({
 
   const { environments, isLoading: isLoadingEnvironments } =
     usePipelineEnvironmentsState(orgId, projectId);
-  const { data: proxiesData, isLoading: isLoadingProxies } = useListMCPProxies(
+  const { data: proxiesData, isLoading: isLoadingProxies } = useListAllMCPProxies(
     { orgName: orgId },
-    { limit: 50, offset: 0, project: projectId },
+    { project: projectId },
   );
   const { data: existingConfigsList } = useListAgentMCPConfigs(
     { orgName: orgId, projName: projectId, agentName: agentId },
