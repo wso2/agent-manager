@@ -18,12 +18,8 @@
 import type { ListQuery, OrgPathParams, OrgProjPathParams } from "./common";
 import type {
   APIKeySecurity,
-  CreateLLMAPIKeyRequest,
-  CreateLLMAPIKeyResponse,
   IdentitySecurity,
   Resilience,
-  RotateLLMAPIKeyRequest,
-  RotateLLMAPIKeyResponse,
   SecurityConfig,
   UpstreamAuth,
   UpstreamConfig,
@@ -325,11 +321,4 @@ export type FetchMCPProxyServerInfoPathParams = OrgPathParams;
 export type ProjectMCPProxyEnvironmentPathParams = GetProjectMCPProxyPathParams & {
   envName: string | undefined;
 };
-export type ProjectMCPProxyAPIKeyPathParams = ProjectMCPProxyEnvironmentPathParams & {
-  keyName: string;
-};
 export type DeleteProjectMCPProxyPathParams = GetProjectMCPProxyPathParams;
-export type CreateProjectMCPProxyAPIKeyRequest = CreateLLMAPIKeyRequest;
-export type CreateProjectMCPProxyAPIKeyResponse = CreateLLMAPIKeyResponse;
-export type RotateProjectMCPProxyAPIKeyRequest = RotateLLMAPIKeyRequest;
-export type RotateProjectMCPProxyAPIKeyResponse = RotateLLMAPIKeyResponse;

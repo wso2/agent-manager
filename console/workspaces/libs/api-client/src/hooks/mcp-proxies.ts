@@ -31,22 +31,15 @@ import type {
   MCPProxyListResponse,
   MCPServerInfoFetchRequest,
   MCPServerInfoFetchResponse,
-  CreateProjectMCPProxyAPIKeyRequest,
-  CreateProjectMCPProxyAPIKeyResponse,
   DeleteProjectMCPProxyPathParams,
-  ListAPIKeysResponse,
   ProjectMCPProxy,
-  ProjectMCPProxyAPIKeyPathParams,
   ProjectMCPProxyEnvironmentPathParams,
   ProjectMCPProxyEnvironmentRequest,
   ProjectMCPProxyRequest,
-  RotateProjectMCPProxyAPIKeyRequest,
-  RotateProjectMCPProxyAPIKeyResponse,
   UpdateMCPProxyPathParams,
 } from "@agent-management-platform/types";
 import {
   createMCPProxy,
-  createProjectMCPProxyAPIKey,
   deleteMCPProxy,
   deleteProjectMCPProxy,
   deleteProjectMCPProxyEnvironment,
@@ -56,10 +49,7 @@ import {
   refreshProjectMCPProxyCapabilities,
   listAllMCPProxies,
   listMCPProxies,
-  listProjectMCPProxyAPIKeys,
   putProjectMCPProxyEnvironment,
-  revokeProjectMCPProxyAPIKey,
-  rotateProjectMCPProxyAPIKey,
   updateMCPProxy,
   upsertProjectMCPProxy,
 } from "../apis";
@@ -268,80 +258,6 @@ export function usePutProjectMCPProxyEnvironment() {
       putProjectMCPProxyEnvironment(params, body, getToken),
     onSuccess: () => {
       invalidateProjectMCPProxies(queryClient);
-    },
-  });
-}
-
-const PROJECT_MCP_PROXY_API_KEY_QUERY_KEY = "project-mcp-proxy-api-keys";
-
-export function useListProjectMCPProxyAPIKeys(
-  params: ProjectMCPProxyEnvironmentPathParams,
-  options?: { enabled?: boolean },
-) {
-  const { getToken } = useAuthHooks();
-  return useApiQuery<ListAPIKeysResponse>({
-    queryKey: [PROJECT_MCP_PROXY_API_KEY_QUERY_KEY, params],
-    queryFn: () => listProjectMCPProxyAPIKeys(params, getToken),
-    enabled:
-      (options?.enabled ?? true) &&
-      !!(params.orgName && params.projName && params.proxyId && params.envName),
-  });
-}
-
-export function useCreateProjectMCPProxyAPIKey() {
-  const { getToken } = useAuthHooks();
-  const queryClient = useQueryClient();
-  return useApiMutation<
-    CreateProjectMCPProxyAPIKeyResponse,
-    unknown,
-    {
-      params: ProjectMCPProxyEnvironmentPathParams;
-      body: CreateProjectMCPProxyAPIKeyRequest;
-    }
-  >({
-    action: { verb: "create", target: "MCP server api key" },
-    mutationFn: ({ params, body }) =>
-      createProjectMCPProxyAPIKey(params, body, getToken),
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: [PROJECT_MCP_PROXY_API_KEY_QUERY_KEY],
-      });
-    },
-  });
-}
-
-export function useRotateProjectMCPProxyAPIKey() {
-  const { getToken } = useAuthHooks();
-  const queryClient = useQueryClient();
-  return useApiMutation<
-    RotateProjectMCPProxyAPIKeyResponse,
-    unknown,
-    {
-      params: ProjectMCPProxyAPIKeyPathParams;
-      body: RotateProjectMCPProxyAPIKeyRequest;
-    }
-  >({
-    action: { verb: "rotate", target: "MCP server api key" },
-    mutationFn: ({ params, body }) =>
-      rotateProjectMCPProxyAPIKey(params, body, getToken),
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: [PROJECT_MCP_PROXY_API_KEY_QUERY_KEY],
-      });
-    },
-  });
-}
-
-export function useRevokeProjectMCPProxyAPIKey() {
-  const { getToken } = useAuthHooks();
-  const queryClient = useQueryClient();
-  return useApiMutation<void, unknown, ProjectMCPProxyAPIKeyPathParams>({
-    action: { verb: "revoke", target: "MCP server api key" },
-    mutationFn: (params) => revokeProjectMCPProxyAPIKey(params, getToken),
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: [PROJECT_MCP_PROXY_API_KEY_QUERY_KEY],
-      });
     },
   });
 }
