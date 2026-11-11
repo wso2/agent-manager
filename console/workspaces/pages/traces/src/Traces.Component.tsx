@@ -117,7 +117,7 @@ export const TracesComponent: React.FC = () => {
     isPending: isOrgPending,
     isSuccess: isOrgSuccess,
   } = useGetOrganization({ orgName: orgId ?? "" });
-  const organization = orgData?.namespace;
+  const organization = orgData?.handle || orgData?.name;
 
   const {
     data: agentData,
