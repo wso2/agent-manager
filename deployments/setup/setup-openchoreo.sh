@@ -253,11 +253,13 @@ install_workflow_plane() {
 
 install_logs_module() {
     echo "Installing OpenSearch based logs module..."
+    # Bootstrap OpenSearch with the same password the setup hooks use.
     if ! helm upgrade --install observability-logs-opensearch \
       oci://ghcr.io/openchoreo/helm-charts/observability-logs-opensearch \
       --create-namespace \
       --namespace openchoreo-observability-plane \
       --version "${OBSERVABILITY_LOGS_OPENSEARCH_VERSION}" \
+      --set-json 'openSearch.extraEnvs=[{"name":"OPENSEARCH_INITIAL_ADMIN_PASSWORD","valueFrom":{"secretKeyRef":{"name":"opensearch-admin-credentials","key":"password"}}}]' \
       --set openSearchSetup.openSearchSecretName="opensearch-admin-credentials" \
       --set adapter.openSearchSecretName="opensearch-admin-credentials" \
       --timeout 10m; then
