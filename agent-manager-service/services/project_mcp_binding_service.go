@@ -160,8 +160,13 @@ func (s *ProjectMCPProxyService) PutEnvironment(
 		live := status == models.MCPDeploymentStatusDeployed || status == models.MCPDeploymentStatusDeploying
 		if live || (shown == nil && gateway == nil) {
 			// A repeated PUT also repairs the binding's resource server, which may have failed to register before
-			// or had no public URL to register while the binding waited for a gateway.
-			s.ensureBindingResourceServer(ctx, ouID, proxy, envUUID, envName)
+			// or had no public URL to register while the binding waited for a gateway; or, for a binding moved off
+			// identity, retries removing it if that failed.
+			if mcpIdentityEnabled(endpoint.Configuration.Security) {
+				s.ensureBindingResourceServer(ctx, ouID, proxy, envUUID, envName)
+			} else {
+				s.retryBindingResourceServerCleanup(ctx, ouID, proxy, envName)
+			}
 			resp, err := s.environmentResponse(ctx, ouID, proxy, endpoint, ee)
 			return resp, false, err
 		}

@@ -97,18 +97,51 @@ func (s *ProjectMCPProxyService) deleteBindingResourceServer(
 	}
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), ensureResourceServerPerEnvTimeout)
 	defer cancel()
-	handle := proxyHandleOf(proxy)
-	// The proxy's scopes, as the proxy delete passes them, so a deployment can clean up what refers to them.
-	var actions []string
-	if s.base.mcpProxyScopeRepo != nil {
-		scopes, err := s.base.mcpProxyScopeRepo.ListByProxy(ctx, proxy.UUID)
-		if err != nil {
-			s.base.logger.Warn("project MCP binding resource server delete: listing scopes failed", "proxy", handle, "error", err)
-		}
-		for _, scope := range scopes {
-			actions = append(actions, scope.Action)
-		}
+	s.removeBindingResourceServer(ctx, ouID, proxy, envName, s.proxyScopeActions(ctx, proxy))
+}
+
+// retryBindingResourceServerCleanup removes, again, the resource server of a binding that is not on identity, for an
+// identical PUT: the removal when the binding left identity is best effort, and this is its retry. It runs only while
+// the proxy has scopes, the grants of which a leftover resource server would keep in roles; one with none grants
+// nothing, and the next move to identity re-registers it. A resource server already gone is not an error.
+func (s *ProjectMCPProxyService) retryBindingResourceServerCleanup(
+	ctx context.Context, ouID string, proxy *models.MCPProxy, envName string,
+) {
+	if s.base.resolver == nil {
+		return
 	}
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), ensureResourceServerPerEnvTimeout)
+	defer cancel()
+	actions := s.proxyScopeActions(ctx, proxy)
+	if len(actions) == 0 {
+		return
+	}
+	s.removeBindingResourceServer(ctx, ouID, proxy, envName, actions)
+}
+
+// proxyScopeActions are the proxy's scope actions, as the proxy delete passes them, so a deployment can clean up what
+// refers to them. A failed lookup is logged and gives none.
+func (s *ProjectMCPProxyService) proxyScopeActions(ctx context.Context, proxy *models.MCPProxy) []string {
+	if s.base.mcpProxyScopeRepo == nil {
+		return nil
+	}
+	scopes, err := s.base.mcpProxyScopeRepo.ListByProxy(ctx, proxy.UUID)
+	if err != nil {
+		s.base.logger.Warn("project MCP binding resource server delete: listing scopes failed",
+			"proxy", proxyHandleOf(proxy), "error", err)
+	}
+	actions := make([]string, 0, len(scopes))
+	for _, scope := range scopes {
+		actions = append(actions, scope.Action)
+	}
+	return actions
+}
+
+// removeBindingResourceServer deletes the proxy's resource server in envName and drops actions from its roles.
+func (s *ProjectMCPProxyService) removeBindingResourceServer(
+	ctx context.Context, ouID string, proxy *models.MCPProxy, envName string, actions []string,
+) {
+	handle := proxyHandleOf(proxy)
 	request := MCPResourceServerRequest{
 		OrganizationID: ouID, ProxyHandle: handle, DisplayName: mcpResourceServerDisplayName(proxy), Environment: envName,
 		Actions: actions,

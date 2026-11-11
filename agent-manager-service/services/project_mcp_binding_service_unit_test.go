@@ -629,6 +629,8 @@ type thunderCalls struct {
 	deleted []struct{ env, handle string }
 	// swept counts the role listings a delete made to drop the proxy's scopes from roles.
 	swept int
+	// deleteErr, when set, fails every resource server delete after recording it.
+	deleteErr error
 }
 
 // withThunder gives the fixture an identity service that records resource server writes.
@@ -643,7 +645,7 @@ func (f *bindingFixture) withThunder() *thunderCalls {
 				},
 				DeleteProxyResourceServerFunc: func(_ context.Context, handle string) error {
 					calls.deleted = append(calls.deleted, struct{ env, handle string }{envName, handle})
-					return nil
+					return calls.deleteErr
 				},
 				ListRolesFunc: func(context.Context, string, int, int) ([]thundersvc.ThunderRole, int, error) {
 					calls.swept++
@@ -744,6 +746,39 @@ func TestPutEnv_LeavingIdentity_DeletesTheResourceServer(t *testing.T) {
 	require.Len(t, calls.deleted, 1)
 	assert.Equal(t, bindingEnv, calls.deleted[0].env)
 	assert.Equal(t, bindingHandle, calls.deleted[0].handle)
+}
+
+// Removing the resource server when a binding leaves identity is best effort; an identical PUT retries it while the
+// proxy has scopes whose grants a leftover would keep, and leaves it alone when there are none.
+func TestPutEnv_IdenticalPUTRetriesAFailedIdentityCleanup(t *testing.T) {
+	f := newBindingFixture(t)
+	calls := f.withThunder()
+	var scopes []models.MCPProxyScope
+	f.svc.base.mcpProxyScopeRepo = &repomocks.MCPProxyScopeRepositoryMock{
+		ListByProxyFunc: func(context.Context, uuid.UUID) ([]models.MCPProxyScope, error) { return scopes, nil },
+	}
+
+	_, _, err := f.put(t, models.MCPProxyEnvironmentRequest{Security: identityBinding()})
+	require.NoError(t, err)
+	calls.deleteErr = errors.New("identity service unavailable")
+	_, _, err = f.put(t, models.MCPProxyEnvironmentRequest{})
+	require.NoError(t, err, "the cleanup is best effort")
+	require.Len(t, calls.deleted, 1)
+
+	_, ee := f.binding()
+	f.status[ee.ArtifactUUID].Status = models.DeploymentStatusDeployed
+	calls.deleteErr = nil
+	_, created, err := f.put(t, models.MCPProxyEnvironmentRequest{})
+	require.NoError(t, err)
+	assert.False(t, created)
+	assert.Len(t, calls.deleted, 1, "no scopes: nothing a leftover would grant, so no retry")
+
+	scopes = []models.MCPProxyScope{{Action: "read"}}
+	_, _, err = f.put(t, models.MCPProxyEnvironmentRequest{})
+	require.NoError(t, err)
+	require.Len(t, calls.deleted, 2, "the identical PUT retries the removal")
+	assert.Equal(t, 1, calls.swept, "and drops the scope from roles")
+	assert.Len(t, f.deployed, 2, "without redeploying")
 }
 
 // A binding with no gateway has no public URL to register yet; the PUT after the gateway arrives registers it.
