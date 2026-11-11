@@ -164,16 +164,6 @@ export function upstreamAuthRequest(
   };
 }
 
-/** How a binding is secured, as the Security tab chooses it. */
-export type BindingSecurityMethod = "apiKey" | "identity" | "none";
-
-export function bindingSecurityMethod(
-  security: ProjectMCPProxyEnvironmentSecurity | undefined,
-): BindingSecurityMethod {
-  if (bindingUsesIdentity(security)) return "identity";
-  return bindingRequiresAPIKey(security) ? "apiKey" : "none";
-}
-
 /**
  * The PUT body that keeps a binding as it is. The binding PUT replaces the whole
  * configuration, so every save starts from this and changes only its own field.
@@ -249,7 +239,30 @@ export function applyBindingConfigChange(
     if (upstreamAuth) binding.upstreamAuth = upstreamAuth;
     else delete binding.upstreamAuth;
   }
+  if (fields.security) binding.security = bindingSecurityFrom(fields.security);
   return binding;
+}
+
+/**
+ * The org Security tab's endpoint security as a binding's. That tab sends both variants with
+ * one of them enabled, and security left on with neither for "None"; the binding takes the one
+ * enabled variant, and an explicit enabled false for none, which the service otherwise refuses.
+ */
+export function bindingSecurityFrom(
+  security: NonNullable<MCPEndpointConfig["security"]>,
+): ProjectMCPProxyEnvironmentSecurity {
+  if (security.enabled === false) return { enabled: false };
+  if (security.identity?.enabled) {
+    return { enabled: true, identity: { enabled: true } };
+  }
+  if (security.apiKey?.enabled) {
+    return apiKeySecurity(
+      true,
+      security.apiKey.key || DEFAULT_API_KEY_HEADER,
+      security.apiKey.in ?? "header",
+    );
+  }
+  return { enabled: false };
 }
 
 /** The project proxy as the org Overview tab reads it. */

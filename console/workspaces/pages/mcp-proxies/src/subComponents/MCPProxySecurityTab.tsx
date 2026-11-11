@@ -31,7 +31,6 @@ import {
   type APIKeyLocation,
   type Environment,
   type MCPEndpointConfig,
-  type MCPProxy,
   type MCPProxyScopeResponse,
   INPUT_LIMITS,
 } from "@agent-management-platform/types";
@@ -132,6 +131,8 @@ export type MCPProxySecurityTabProps = {
   selectedEndpointId: string;
   orgName: string | undefined;
   proxyId: string | undefined;
+  /** Set for a project MCP proxy, whose scopes are under its project's routes. */
+  projName?: string;
   /**
    * Environments the selected endpoint is deployed to, for the Create Scope
    * panel's role picker.
@@ -145,7 +146,7 @@ export type MCPProxySecurityTabProps = {
   /** OAuth (Agent Identity) is unavailable while the endpoint is on a self-hosted gateway. */
   isOnSelfHostedGateway?: boolean;
   isLoading?: boolean;
-  onUpdate: (fields: Partial<MCPEndpointConfig>) => Promise<MCPProxy>;
+  onUpdate: (fields: Partial<MCPEndpointConfig>) => Promise<unknown>;
   isUpdating: boolean;
   /** Reports unsaved edits so the parent can guard tab, endpoint and page switches. */
   onDirtyChange?: (dirty: boolean) => void;
@@ -156,6 +157,7 @@ export function MCPProxySecurityTab({
   selectedEndpointId,
   orgName,
   proxyId,
+  projName,
   environments,
   otherEndpointTools = NO_TOOLS,
   isOnSelfHostedGateway = false,
@@ -241,7 +243,7 @@ export function MCPProxySecurityTab({
   );
 
   const { data: scopesData, isPending: scopesPending } = useListMCPProxyScopes(
-    { orgName: orgName ?? "", proxyId: proxyId ?? "" },
+    { orgName: orgName ?? "", proxyId: proxyId ?? "", projName },
     { enabled: authenticationType === "identity" && !!proxyId },
   );
   // The persisted source of truth: what the tool-scope table diffs against on
@@ -435,7 +437,7 @@ export function MCPProxySecurityTab({
         try {
           for (const u of updates) {
             await updateMCPProxyScope.mutateAsync({
-              params: { orgName, proxyId, scopeAction: u.action },
+              params: { orgName, proxyId, projName, scopeAction: u.action },
               body: { tools: u.tools },
             });
             committedCount += 1;
@@ -475,6 +477,7 @@ export function MCPProxySecurityTab({
     otherEndpointTools,
     orgName,
     proxyId,
+    projName,
     onUpdate,
     updateMCPProxyScope,
   ]);
@@ -492,6 +495,7 @@ export function MCPProxySecurityTab({
           await deleteMCPProxyScope.mutateAsync({
             orgName,
             proxyId,
+            projName,
             scopeAction: scope.action,
           });
           // Drop it from any row referencing it immediately — the reseed
@@ -509,7 +513,7 @@ export function MCPProxySecurityTab({
         },
       });
     },
-    [orgName, proxyId, addConfirmation, deleteMCPProxyScope, resetToolScopeRows],
+    [orgName, proxyId, projName, addConfirmation, deleteMCPProxyScope, resetToolScopeRows],
   );
 
   const isDisabled = isLoading || !config || !canWrite;
@@ -837,6 +841,7 @@ export function MCPProxySecurityTab({
           onClose={() => setCreateScopeDrawerOpen(false)}
           orgName={orgName}
           proxyId={proxyId}
+          projName={projName}
           environments={environments}
           tools={toolEntries}
           blockedTools={blockedToolIds}

@@ -15,16 +15,7 @@
  * under the License.
  */
 
-import { useEffect, useState } from "react";
-import {
-  Alert,
-  Button,
-  Chip,
-  ListingTable,
-  MenuItem,
-  Stack,
-  Tooltip,
-} from "@wso2/oxygen-ui";
+import { Button, Chip, ListingTable, Tooltip } from "@wso2/oxygen-ui";
 import { ShieldOff } from "@wso2/oxygen-ui-icons-react";
 import {
   useCreateProjectMCPProxyAPIKey,
@@ -37,28 +28,8 @@ import {
   type CreateAPIKeyInput,
 } from "@agent-management-platform/shared-component";
 import { useResourceAccess } from "@agent-management-platform/feature-management";
-import { TextInput } from "@agent-management-platform/views";
-import type {
-  APIKeyLocation,
-  ProjectMCPProxyEnvironment,
-  ProjectMCPProxyEnvironmentRequest,
-} from "@agent-management-platform/types";
-import {
-  apiKeyLocation,
-  apiKeyName,
-  apiKeySecurity,
-  bindingRequestFrom,
-  bindingRequiresAPIKey,
-  bindingSecurityMethod,
-  bindingUsesIdentity,
-  type BindingSecurityMethod,
-  DEFAULT_API_KEY_HEADER,
-} from "./projectBinding";
-
-/** Saves a whole binding request for the selected environment. */
-export type SaveBinding = (
-  request: ProjectMCPProxyEnvironmentRequest,
-) => Promise<unknown>;
+import type { ProjectMCPProxyEnvironment } from "@agent-management-platform/types";
+import { bindingRequiresAPIKey, bindingUsesIdentity } from "./projectBinding";
 
 const STATUS_COLOR: Record<string, "success" | "warning" | "error"> = {
   Deployed: "success",
@@ -94,126 +65,6 @@ export function BindingStatusChip({
         color={STATUS_COLOR[env.deploymentStatus]}
       />
     </Tooltip>
-  );
-}
-
-/**
- * How callers authenticate to the gateway in this environment: an API key (and where),
- * OAuth (identity), or nothing.
- */
-export function BindingSecurityTab({
-  env,
-  onSave,
-  isSaving,
-}: {
-  env: ProjectMCPProxyEnvironment;
-  onSave: SaveBinding;
-  isSaving: boolean;
-}) {
-  const { canWrite } = useResourceAccess("mcp_server");
-  const [method, setMethod] = useState<BindingSecurityMethod>(
-    bindingSecurityMethod(env.security),
-  );
-  const required = method === "apiKey";
-  const [header, setHeader] = useState(apiKeyName(env.security));
-  const [location, setLocation] = useState<APIKeyLocation>(
-    apiKeyLocation(env.security),
-  );
-
-  useEffect(() => {
-    setMethod(bindingSecurityMethod(env.security));
-    setHeader(apiKeyName(env.security));
-    setLocation(apiKeyLocation(env.security));
-  }, [env]);
-
-  const isDirty =
-    method !== bindingSecurityMethod(env.security) ||
-    (required &&
-      (header.trim() !== apiKeyName(env.security) ||
-        location !== apiKeyLocation(env.security)));
-
-  const save = () =>
-    onSave({
-      ...bindingRequestFrom(env),
-      security:
-        method === "identity"
-          ? { enabled: true, identity: { enabled: true } }
-          : apiKeySecurity(required, header.trim(), location),
-    });
-
-  return (
-    <Stack spacing={3} maxWidth={560}>
-      <TextInput
-        select
-        label="Authentication"
-        size="small"
-        value={method}
-        disabled={!canWrite}
-        onChange={(event) =>
-          setMethod(event.target.value as BindingSecurityMethod)
-        }
-        sx={{ maxWidth: 280 }}
-      >
-        <MenuItem value="apiKey">API Key</MenuItem>
-        <MenuItem value="identity">OAuth</MenuItem>
-        <MenuItem value="none">None</MenuItem>
-      </TextInput>
-      {method === "none" && (
-        <Alert severity="warning">
-          Anyone who can reach the gateway can call this MCP server in this
-          environment.
-        </Alert>
-      )}
-      {method === "identity" && (
-        <Alert severity="info">
-          Callers present an OAuth access token from this environment&apos;s
-          identity provider, requested for this MCP server&apos;s URL. Agents in
-          this project use their Agent ID; grant them access through roles.
-        </Alert>
-      )}
-      {required && (
-        <Stack direction="row" spacing={2} alignItems="flex-start">
-          <TextInput
-            label="Key name"
-            placeholder={`e.g. ${DEFAULT_API_KEY_HEADER}`}
-            size="small"
-            value={header}
-            disabled={!canWrite}
-            onChange={(event) => setHeader(event.target.value)}
-            helperText="The header callers send the key in."
-            fullWidth
-          />
-          <TextInput
-            select
-            label="Location"
-            size="small"
-            value={location}
-            disabled={!canWrite}
-            onChange={(event) =>
-              setLocation(event.target.value as APIKeyLocation)
-            }
-            sx={{ minWidth: 140 }}
-          >
-            <MenuItem value="header">Header</MenuItem>
-            {/* The gateway reads the key from a header only; listed so a stored query shows. */}
-            <MenuItem value="query" disabled>
-              Query (not supported by the gateway)
-            </MenuItem>
-          </TextInput>
-        </Stack>
-      )}
-      {canWrite && (
-        <Stack direction="row">
-          <Button
-            variant="contained"
-            disabled={!isDirty || isSaving || (required && !header.trim())}
-            onClick={() => void save()}
-          >
-            Save
-          </Button>
-        </Stack>
-      )}
-    </Stack>
   );
 }
 

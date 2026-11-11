@@ -24,7 +24,7 @@ import {
   bindingRequestFrom,
   projectProxyEndpointDraft,
   bindingRequiresAPIKey,
-  bindingSecurityMethod,
+  bindingSecurityFrom,
   DEFAULT_API_KEY_HEADER,
   keptBindingRequest,
   planURLProxySave,
@@ -55,11 +55,8 @@ describe("bindingRequiresAPIKey", () => {
 describe("an OAuth (identity) binding", () => {
   const identity = { enabled: true, identity: { enabled: true } };
 
-  it("asks for no API key and reads as OAuth", () => {
+  it("asks for no API key", () => {
     expect(bindingRequiresAPIKey(identity)).toBe(false);
-    expect(bindingSecurityMethod(identity)).toBe("identity");
-    expect(bindingSecurityMethod({ enabled: false, identity: { enabled: true } })).toBe("none");
-    expect(bindingSecurityMethod(undefined)).toBe("apiKey");
   });
 
   it("keeps OAuth when any tab saves the binding", () => {
@@ -77,6 +74,57 @@ describe("an OAuth (identity) binding", () => {
     };
     const config = bindingEndpointConfig(proxy, { ...base, security: identity });
     expect(config.security).toEqual(identity);
+  });
+});
+
+// The org Security tab sends both variants, one of them enabled, and security left on with neither
+// for "None".
+describe("bindingSecurityFrom", () => {
+  it("takes OAuth from the org Security tab", () => {
+    expect(
+      bindingSecurityFrom({
+        enabled: true,
+        apiKey: { enabled: false, key: "", in: "header" },
+        identity: { enabled: true },
+      }),
+    ).toEqual({ enabled: true, identity: { enabled: true } });
+  });
+
+  it("takes an API key, defaulting its header", () => {
+    expect(
+      bindingSecurityFrom({
+        enabled: true,
+        apiKey: { enabled: true, key: "X-Weather-Key", in: "header" },
+        identity: { enabled: false },
+      }),
+    ).toEqual({ enabled: true, apiKey: { enabled: true, key: "X-Weather-Key", in: "header" } });
+    expect(
+      bindingSecurityFrom({ enabled: true, apiKey: { enabled: true, key: "" } }),
+    ).toEqual({
+      enabled: true,
+      apiKey: { enabled: true, key: DEFAULT_API_KEY_HEADER, in: "header" },
+    });
+  });
+
+  it("turns security off for None, which the service would refuse left on", () => {
+    expect(
+      bindingSecurityFrom({
+        enabled: true,
+        apiKey: { enabled: false, key: "", in: "header" },
+        identity: { enabled: false },
+      }),
+    ).toEqual({ enabled: false });
+    expect(bindingSecurityFrom({ enabled: false })).toEqual({ enabled: false });
+  });
+
+  it("is applied when the Security tab saves, keeping the rest of the binding", () => {
+    const request = applyBindingConfigChange(
+      { ...base, gatewayId: "gw-1", policies: [{ name: "basic-ratelimit", version: "v1" }] },
+      { security: { enabled: true, apiKey: { enabled: false }, identity: { enabled: true } } },
+    );
+    expect(request.security).toEqual({ enabled: true, identity: { enabled: true } });
+    expect(request.gatewayId).toBe("gw-1");
+    expect(request.policies).toEqual([{ name: "basic-ratelimit", version: "v1" }]);
   });
 });
 
