@@ -63,6 +63,10 @@ spec:
               type: string
               default: "./Dockerfile"
               description: "Path to the Dockerfile relative to the repository root"
+        secretOuID:
+          type: string
+          default: ""
+          description: "Organization whose secret store keys the first-environment binding references. Set per run by Agent Manager."
         gitSecretKVPath:
           type: string
           default: ""
@@ -250,6 +254,8 @@ spec:
             value: ${parameters.environmentVariables}
           - name: file-mounts
             value: ${parameters.fileMounts}
+          - name: secret-ou-id
+            value: ${parameters.secretOuID}
           - name: registry-push-secret
             value: ${metadata.workflowRunName}-registry-push-secret
           - name: workload-publisher-secret-name

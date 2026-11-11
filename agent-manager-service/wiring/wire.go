@@ -394,10 +394,19 @@ func inHouseStoreConfig(cfg config.Config, db *gorm.DB) (*secretmanagersvc.Store
 	return &secretmanagersvc.StoreConfig{
 		Provider: inhouse.ProviderName,
 		InHouse: &secretmanagersvc.InHouseConfig{
-			DB:            db,
-			EncryptionKey: key,
+			DB:             db,
+			EncryptionKey:  key,
+			MaxSecretBytes: inHouseMaxSecretBytes(cfg),
 		},
 	}, nil
+}
+
+// inHouseMaxSecretBytes sizes one stored secret. An agent's env secrets and
+// sensitive file mounts for one environment are stored together, so a secret
+// must hold the whole file mount budget the API accepts, plus room for the env
+// secrets beside it.
+func inHouseMaxSecretBytes(cfg config.Config) int {
+	return cfg.FileMountLimits.MaxTotalBytes + inhouse.DefaultMaxSecretBytes
 }
 
 // ProvideGatewayManifestCacheBackend builds the gateway-manifest cache backend

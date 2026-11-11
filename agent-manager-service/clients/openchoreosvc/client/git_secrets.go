@@ -31,3 +31,25 @@ func GitSecretReferenceName(ouID, name string) string {
 // workflowParamGitSecretKVPath is the build workflow parameter carrying the
 // secret store key of the run's Git credentials.
 const workflowParamGitSecretKVPath = "gitSecretKVPath"
+
+// workflowParamSecretOuID is the build workflow parameter naming the
+// organization whose secret store keys the run's first-environment binding
+// references (see workflowParamsReferenceSecrets).
+const workflowParamSecretOuID = "secretOuID"
+
+// workflowParamsReferenceSecrets reports whether the component's env vars or
+// file mounts read a value from a secret.
+func workflowParamsReferenceSecrets(params map[string]interface{}) bool {
+	for _, field := range []string{workflowParamEnvironmentVariables, workflowParamFileMounts} {
+		entries, _ := params[field].([]interface{})
+		for _, e := range entries {
+			entry, _ := e.(map[string]interface{})
+			from, _ := entry["valueFrom"].(map[string]interface{})
+			ref, _ := from["secretKeyRef"].(map[string]interface{})
+			if name, _ := ref["name"].(string); name != "" {
+				return true
+			}
+		}
+	}
+	return false
+}

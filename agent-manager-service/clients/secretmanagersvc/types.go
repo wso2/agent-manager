@@ -79,6 +79,9 @@ type InHouseConfig struct {
 	DB *gorm.DB
 	// EncryptionKey is the 32-byte AES-256 key secrets are sealed with.
 	EncryptionKey []byte
+	// MaxSecretBytes bounds the combined size of one secret's keys and values.
+	// Zero uses the store's default.
+	MaxSecretBytes int
 }
 
 // SecretResolver returns the plaintext value of one key of a stored secret.

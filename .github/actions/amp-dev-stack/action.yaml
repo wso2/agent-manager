@@ -60,5 +60,9 @@ runs:
         # agent-manager container can reach the forwards via the bridge gateway
         # (a 127.0.0.1-only forward is unreachable from inside the container).
         (cd deployments/setup && PORT_FORWARD_ADDRESS=0.0.0.0 ./port-forward.sh --platform --background)
+        # Same order as `make setup`: the in-house secret store (ESO webhook
+        # ClusterSecretStore) and the observability plane, once the platform is up.
+        make setup-secret-store
+        make setup-observability
         make setup-gateway
         (cd deployments/setup && PORT_FORWARD_ADDRESS=0.0.0.0 ./port-forward.sh --background)

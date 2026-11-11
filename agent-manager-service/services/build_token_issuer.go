@@ -33,6 +33,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/requests"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
+	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc/providers/inhouse"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
@@ -232,10 +233,10 @@ func (i *buildTokenIssuer) issue(ctx context.Context, tokenURL, ouID string) (*c
 		return nil, fmt.Errorf("%w: failed to store the token for organization %s: %w", errBuildToken, ouID, err)
 	}
 	if secretRefName == "" {
-		return nil, fmt.Errorf("%w: the secret store returned no SecretReference for organization %s", errBuildToken, ouID)
+		return nil, fmt.Errorf("%w: the secret store returned no secret name for organization %s", errBuildToken, ouID)
 	}
-	i.logger.Info("Issued build token", "ouID", ouID, "clientId", i.clientID, "secretRefName", secretRefName)
-	return &client.BuildClientParams{SecretRefName: secretRefName}, nil
+	i.logger.Info("Issued build token", "ouID", ouID, "clientId", i.clientID, "secretName", secretRefName)
+	return &client.BuildClientParams{SecretKVPath: inhouse.RemoteKey(ouID, secretRefName)}, nil
 }
 
 // buildTokenResponse is the identity provider's token response.

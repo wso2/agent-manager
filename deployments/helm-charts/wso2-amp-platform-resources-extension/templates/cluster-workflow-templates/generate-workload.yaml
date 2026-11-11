@@ -56,6 +56,8 @@ spec:
             value: '{{ "{{" }}workflow.parameters.environment-variables{{ "}}" }}'
           - name: FILE_MOUNTS
             value: '{{ "{{" }}workflow.parameters.file-mounts{{ "}}" }}'
+          - name: SECRET_OU_ID
+            value: '{{ "{{" }}workflow.parameters.secret-ou-id{{ "}}" }}'
           - name: RUN_NAME
             value: '{{ "{{" }}inputs.parameters.run-name{{ "}}" }}'
           - name: OAUTH_URL
@@ -202,30 +204,39 @@ spec:
                 }
               ' > "$OUT_JSON"
 
-            # The same env vars and file mounts, shaped as ReleaseBinding
-            # workloadOverrides. Emitted as null when the component has neither, so
-            # Step 7 can leave spec.workloadOverrides unset rather than writing an
-            # empty container object.
+            # The same env vars and file mounts, shaped for the first environment's
+            # ReleaseBinding. Plain values go to workloadOverrides. Secret values go to
+            # componentTypeEnvironmentConfigs secretEnvs / secretFiles as direct secret
+            # store keys (<ouID>/<secret>), which the agent-api ComponentType renders
+            # into one ExternalSecret. This matches what Agent Manager writes for
+            # every later binding update. A secret entry without an organization
+            # fails the build: it could not resolve.
             jq -n -c \
               --argjson envVars "$ENV_VARS" \
-              --argjson fileMounts "$FILE_MOUNTS" '
-                def secret_ref:
-                  (.valueFrom.secretKeyRef.name // "") as $n
-                  | (.valueFrom.secretKeyRef.key // "") as $k
-                  | if $n != "" and $k != ""
-                    then { valueFrom: { secretKeyRef: { name: $n, key: $k } } }
-                    else { value: (.value // "") }
-                    end;
+              --argjson fileMounts "$FILE_MOUNTS" \
+              --arg ouID "$SECRET_OU_ID" '
+                def secret_of:
+                  { name: (.valueFrom.secretKeyRef.name // ""), key: (.valueFrom.secretKeyRef.key // "") };
+                def is_secret: (secret_of | .name != "" and .key != "");
+                def remote_key: if $ouID == "" then error("secret references need secret-ou-id") else $ouID + "/" + secret_of.name end;
 
-                def env_entry: { key: .name } + secret_ref;
-
-                def file_entry: { key: .key, mountPath: .mountPath } + secret_ref;
-
-                (
-                  (if ($envVars | length) > 0 then { env: [ $envVars[] | env_entry ] } else {} end)
-                  + (if ($fileMounts | length) > 0 then { files: [ $fileMounts[] | file_entry ] } else {} end)
-                ) as $container
-                | if ($container | length) > 0 then { container: $container } else null end
+                ([ $envVars[] | select(is_secret | not) | { key: .name, value: (.value // "") } ]) as $plainEnv
+                | ([ $fileMounts[] | select(is_secret | not) | { key: .key, mountPath: .mountPath, value: (.value // "") } ]) as $plainFiles
+                | ([ $envVars[] | select(is_secret)
+                     | { name: .name, secret: secret_of.name, property: secret_of.key, remoteKey: remote_key } ]) as $secretEnvs
+                | ([ $fileMounts[] | select(is_secret)
+                     | { key: .key, mountPath: .mountPath, secret: secret_of.name, property: secret_of.key, remoteKey: remote_key } ]) as $secretFiles
+                | (
+                    (if ($plainEnv | length) > 0 then { env: $plainEnv } else {} end)
+                    + (if ($plainFiles | length) > 0 then { files: $plainFiles } else {} end)
+                  ) as $container
+                | {
+                    overrides: (if ($container | length) > 0 then { container: $container } else null end),
+                    configs: (
+                      (if ($secretEnvs | length) > 0 then { secretEnvs: $secretEnvs } else {} end)
+                      + (if ($secretFiles | length) > 0 then { secretFiles: $secretFiles } else {} end)
+                    )
+                  }
               ' > "$OUT_OVERRIDES_JSON"
 
             # The API server payload carries no apiVersion/kind; the YAML rendered
@@ -491,10 +502,12 @@ spec:
                           environment: $environment,
                           releaseName: $releaseName
                         }
-                        + (if $overrides[0] != null then { workloadOverrides: $overrides[0] } else {} end)
-                        + (if $healthChecks != null
-                           then { componentTypeEnvironmentConfigs: { healthChecks: $healthChecks } }
-                           else {} end)
+                        + (if $overrides[0].overrides != null then { workloadOverrides: $overrides[0].overrides } else {} end)
+                        + (($overrides[0].configs
+                            + (if $healthChecks != null then { healthChecks: $healthChecks } else {} end)) as $configs
+                           | if ($configs | length) > 0
+                             then { componentTypeEnvironmentConfigs: $configs }
+                             else {} end)
                       )
                     }
                   ' > /mnt/vol/releasebinding.json

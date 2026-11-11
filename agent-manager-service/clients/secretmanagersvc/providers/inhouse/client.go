@@ -58,6 +58,8 @@ func (secretRow) TableName() string { return "secrets" }
 type Client struct {
 	db    *gorm.DB
 	vault vault.SecretVault
+	// maxBytes bounds one secret's keys and values (see seal).
+	maxBytes int
 }
 
 var _ secretmanagersvc.SecretsClient = (*Client)(nil)
@@ -85,13 +87,24 @@ func validateOuID(ouID string) error {
 	return nil
 }
 
-// MaxSecretKeys and MaxSecretBytes bound one secret. A secret becomes one
-// Kubernetes Secret, whose limit is 1 MiB, and a workload typically holds about
-// ten keys, so these leave ample room while rejecting accidental bulk writes.
+// MaxSecretKeys bounds the keys of one secret, and DefaultMaxSecretBytes the
+// combined size of its keys and values when the store is configured without a
+// size (InHouseConfig.MaxSecretBytes). A workload typically holds about ten
+// keys, so these reject accidental bulk writes. The size is counted on the raw
+// keys and values, not their JSON encoding, so a value that escapes heavily in
+// JSON is not refused below the size the caller was promised.
 const (
-	MaxSecretKeys  = 100
-	MaxSecretBytes = 256 << 10
+	MaxSecretKeys         = 100
+	DefaultMaxSecretBytes = 256 << 10
 )
+
+func secretPayloadBytes(data map[string]string) int {
+	n := 0
+	for k, v := range data {
+		n += len(k) + len(v)
+	}
+	return n
+}
 
 func (c *Client) seal(ctx context.Context, data map[string]string) ([]byte, string, []string, error) {
 	if len(data) == 0 {
@@ -100,12 +113,12 @@ func (c *Client) seal(ctx context.Context, data map[string]string) ([]byte, stri
 	if len(data) > MaxSecretKeys {
 		return nil, "", nil, fmt.Errorf("%w: a secret holds at most %d keys, got %d", utils.ErrInvalidInput, MaxSecretKeys, len(data))
 	}
+	if size := secretPayloadBytes(data); size > c.maxBytes {
+		return nil, "", nil, fmt.Errorf("%w: a secret holds at most %d bytes of keys and values, got %d", utils.ErrInvalidInput, c.maxBytes, size)
+	}
 	plaintext, err := json.Marshal(data)
 	if err != nil {
 		return nil, "", nil, fmt.Errorf("failed to encode secret data: %w", err)
-	}
-	if len(plaintext) > MaxSecretBytes {
-		return nil, "", nil, fmt.Errorf("%w: a secret holds at most %d KiB", utils.ErrInvalidInput, MaxSecretBytes>>10)
 	}
 	ciphertext, err := c.vault.Encrypt(ctx, plaintext)
 	if err != nil {

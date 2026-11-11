@@ -35,6 +35,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
+	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc/providers/inhouse"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/orgctx"
@@ -161,7 +162,7 @@ func TestBuildTokenIssuer_IssuesAndStoresAnOrganizationToken(t *testing.T) {
 	got, err := issuer.IssueBuildToken(reqCtx, btOrg)
 	require.NoError(t, err)
 	require.NotNil(t, got)
-	assert.Equal(t, btSecretRef, got.SecretRefName)
+	assert.Equal(t, inhouse.RemoteKey(btOrg, btSecretRef), got.SecretKVPath)
 
 	// The organization token endpoint, with the service's own client.
 	assert.Equal(t, 1, idp.calls)
@@ -335,13 +336,13 @@ func TestBuildTokenIssuer_Failures(t *testing.T) {
 		assert.NotContains(t, err.Error(), token)
 	})
 
-	t.Run("secret store returns no SecretReference", func(t *testing.T) {
+	t.Run("secret store returns no secret name", func(t *testing.T) {
 		idp := &btIdP{status: http.StatusOK, body: `{"access_token":"` + validToken(t) + `"}`}
 		store := &btStore{}
 		issuer := newTestBuildTokenIssuer(idp.server(t), store.mock("", nil))
 		_, err := issuer.IssueBuildToken(auditableCtx(t), btOrg)
 		require.ErrorIs(t, err, errBuildToken)
-		assert.Contains(t, err.Error(), "no SecretReference")
+		assert.Contains(t, err.Error(), "no secret name")
 	})
 
 	t.Run("refuses to issue a token without an audit trail", func(t *testing.T) {
@@ -436,7 +437,7 @@ func TestAgentManagerBuildClientFor(t *testing.T) {
 		assert.Zero(t, idp.calls, "nothing is issued until the run's workflow takes the token")
 		got, err := source(auditableCtx(t))
 		require.NoError(t, err)
-		assert.Equal(t, btSecretRef, got.SecretRefName)
+		assert.Equal(t, inhouse.RemoteKey(btOrg, btSecretRef), got.SecretKVPath)
 		assert.True(t, strings.HasSuffix(idp.path, "/ou/"+btOrg+"/oauth2/token"))
 	})
 }

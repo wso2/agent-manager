@@ -128,6 +128,12 @@ func (c *openChoreoClient) TriggerBuild(ctx context.Context, ouID, projectName, 
 			delete(repo, "secretRef")
 		}
 	}
+	// The build binds its first environment itself, and that binding names secret
+	// env vars and file mounts by store key, which is scoped by organization. The
+	// organization comes from here, never from the component's own parameters.
+	if workflowParamsReferenceSecrets(params) {
+		params[workflowParamSecretOuID] = ouID
+	}
 	if commitID != "" {
 		// Set commit in nested repository.revision.commit format expected by workflow
 		if repo, ok := params["repository"].(map[string]interface{}); ok {

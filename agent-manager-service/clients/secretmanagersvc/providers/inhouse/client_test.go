@@ -190,6 +190,22 @@ func TestInHouseSecretLimits(t *testing.T) {
 	_, err := c.PushSecret(context.Background(), loc, tooMany, meta)
 	require.ErrorIs(t, err, utils.ErrInvalidInput)
 
-	_, err = c.PushSecret(context.Background(), loc, map[string]string{"K": strings.Repeat("x", MaxSecretBytes)}, meta)
+	_, err = c.PushSecret(context.Background(), loc, map[string]string{"K": strings.Repeat("x", DefaultMaxSecretBytes)}, meta)
 	require.ErrorIs(t, err, utils.ErrInvalidInput)
+
+	// The size counts raw keys and values: a value that grows six-fold in JSON
+	// (control characters escape as \u00XX) still fits when its raw size does.
+	escaping := strings.Repeat("\x01", DefaultMaxSecretBytes/2)
+	_, err = c.PushSecret(context.Background(), loc, map[string]string{"K": escaping}, meta)
+	require.NoError(t, err)
+}
+
+func TestInHouseSecretLimitFollowsConfig(t *testing.T) {
+	c := newTestClient(t)
+	c.maxBytes = 300 << 10
+	loc := secretmanagersvc.SecretLocation{OrgName: "ou-" + uuid.NewString(), EntityName: "file"}
+	// A 290 KiB sensitive file fits a store sized for the file mount budget.
+	_, err := c.PushSecret(context.Background(), loc, map[string]string{"cert.pem": strings.Repeat("x", 290<<10)},
+		&secretmanagersvc.SecretMetadata{ManagedBy: "m"})
+	require.NoError(t, err)
 }

@@ -50,6 +50,10 @@ spec:
               default: "."
               description: "Path to the application directory within the repository"
               x-openchoreo-component-parameter-repository-app-path: true
+        secretOuID:
+          type: string
+          default: ""
+          description: "Organization whose secret store keys the first-environment binding references. Set per run by Agent Manager."
         gitSecretKVPath:
           type: string
           default: ""
@@ -217,6 +221,8 @@ spec:
             value: ${parameters.environmentVariables}
           - name: file-mounts
             value: ${parameters.fileMounts}
+          - name: secret-ou-id
+            value: ${parameters.secretOuID}
           - name: registry-push-secret
             value: ${metadata.workflowRunName}-registry-push-secret
           - name: workload-publisher-secret-name

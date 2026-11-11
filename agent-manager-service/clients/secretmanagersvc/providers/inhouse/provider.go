@@ -77,5 +77,9 @@ func NewClient(cfg *secretmanagersvc.InHouseConfig) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Client{db: cfg.DB, vault: v}, nil
+	maxBytes := cfg.MaxSecretBytes
+	if maxBytes <= 0 {
+		maxBytes = DefaultMaxSecretBytes
+	}
+	return &Client{db: cfg.DB, vault: v, maxBytes: maxBytes}, nil
 }
