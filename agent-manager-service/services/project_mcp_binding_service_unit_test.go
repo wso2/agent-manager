@@ -825,6 +825,20 @@ func TestDeleteBindingResourceServer_OnlyForIdentity(t *testing.T) {
 	assert.Zero(t, calls.swept, "a proxy with no scopes has none to drop from roles")
 }
 
+// A deleted binding's resource server is removed whatever its security: one that left identity keeps its resource
+// server if that removal failed, and no PUT can retry it once the binding is gone.
+func TestPurgeBindingResourceServer_RemovesItWhateverTheSecurity(t *testing.T) {
+	f := newBindingFixture(t)
+	calls := f.withThunder()
+	_, _, err := f.put(t, models.MCPProxyEnvironmentRequest{})
+	require.NoError(t, err)
+
+	f.svc.purgeBindingResourceServer(context.Background(), testOrg, f.proxy, bindingEnv)
+	require.Len(t, calls.deleted, 1, "an api-key binding's leftover is removed too")
+	assert.Equal(t, bindingEnv, calls.deleted[0].env)
+	assert.Equal(t, bindingHandle, calls.deleted[0].handle)
+}
+
 // The delete passes the proxy's scopes, as the proxy delete does, so the roles granting them are cleaned up.
 func TestDeleteBindingResourceServer_DropsTheProxyScopesFromRoles(t *testing.T) {
 	f := newBindingFixture(t)

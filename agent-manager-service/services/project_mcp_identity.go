@@ -100,6 +100,19 @@ func (s *ProjectMCPProxyService) deleteBindingResourceServer(
 	s.removeBindingResourceServer(ctx, ouID, proxy, envName, s.proxyScopeActions(ctx, proxy))
 }
 
+// purgeBindingResourceServer removes the resource server of a deleted binding, best effort, whatever its security was
+// when deleted: a binding that left identity may still have one if that removal failed, and with the binding gone no
+// identical PUT can retry it. A resource server already gone, or an environment without an identity service, is not
+// an error.
+func (s *ProjectMCPProxyService) purgeBindingResourceServer(ctx context.Context, ouID string, proxy *models.MCPProxy, envName string) {
+	if s.base.resolver == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), ensureResourceServerPerEnvTimeout)
+	defer cancel()
+	s.removeBindingResourceServer(ctx, ouID, proxy, envName, s.proxyScopeActions(ctx, proxy))
+}
+
 // retryBindingResourceServerCleanup removes, again, the resource server of a binding that is not on identity, for an
 // identical PUT: the removal when the binding left identity is best effort, and this is its retry. It runs only while
 // the proxy has scopes, the grants of which a leftover resource server would keep in roles; one with none grants
@@ -146,7 +159,14 @@ func (s *ProjectMCPProxyService) removeBindingResourceServer(
 		OrganizationID: ouID, ProxyHandle: handle, DisplayName: mcpResourceServerDisplayName(proxy), Environment: envName,
 		Actions: actions,
 	}
-	if err := mcpResourceServerProviderFor(s.base.resolver, s.base.logger).DeleteMCPResourceServer(ctx, request); err != nil {
+	err := mcpResourceServerProviderFor(s.base.resolver, s.base.logger).DeleteMCPResourceServer(ctx, request)
+	switch {
+	case err == nil:
+	case errors.Is(err, thundersvc.ErrThunderNotProvisioned):
+		// No identity provider in the environment, so no resource server to remove.
+		s.base.logger.Info("project MCP binding resource server delete skipped: the environment has no identity provider",
+			"proxy", handle, "env", envName)
+	default:
 		s.base.logger.Warn("project MCP binding resource server delete failed", "proxy", handle, "env", envName,
 			"error", err)
 	}

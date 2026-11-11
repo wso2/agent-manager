@@ -478,8 +478,6 @@ func (s *ProjectMCPProxyService) deleteEnvironmentOf(ctx context.Context, ouID s
 	if err := s.ensureBindingNotInUse(ctx, proxy.UUID, ee.EnvironmentUUID); err != nil {
 		return err
 	}
-	// The security of the binding deleted, read under the lock: a PUT committed since proxy was read may have changed it.
-	var deletedSecurity *models.SecurityConfig
 	if err := s.base.tx(ctx, func(tx *gorm.DB) error {
 		locked, err := s.base.repo.GetByHandleForUpdate(ctx, tx, proxyHandleOf(proxy), ouID)
 		if err != nil {
@@ -493,7 +491,6 @@ func (s *ProjectMCPProxyService) deleteEnvironmentOf(ctx context.Context, ouID s
 		if ee == nil {
 			return utils.ErrMCPProxyEnvironmentNotBound
 		}
-		deletedSecurity = endpoint.Configuration.Security
 		ref := models.ArtifactRef{OUID: ouID, ArtifactUUID: ee.ArtifactUUID, Kind: models.KindMCPMapping}
 		events, err := s.base.core.PrepareDelete(ctx, tx, ref)
 		if err != nil {
@@ -518,7 +515,7 @@ func (s *ProjectMCPProxyService) deleteEnvironmentOf(ctx context.Context, ouID s
 	}); err != nil {
 		return err
 	}
-	s.deleteBindingResourceServer(ctx, ouID, proxy, envName, deletedSecurity)
+	s.purgeBindingResourceServer(ctx, ouID, proxy, envName)
 	return nil
 }
 
