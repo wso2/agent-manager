@@ -30,6 +30,10 @@ import {
 import {
   getErrorMessage,
   useUnsavedChangesGuard,
+  editLLMProviderSchema,
+  type EditLLMProviderFormValues,
+  LLM_PROVIDER_NAME_MAX_LENGTH,
+  LLM_PROVIDER_DESCRIPTION_MAX_LENGTH,
 } from "@agent-management-platform/shared-component";
 import { PageLayout, TextInput, useFormValidation, LoadErrorNotice } from "@agent-management-platform/views";
 import {
@@ -41,12 +45,6 @@ import {
   type LLMProviderResponse,
 } from "@agent-management-platform/types";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
-import {
-  editLLMProviderSchema,
-  type EditLLMProviderFormValues,
-  LLM_PROVIDER_NAME_MAX_LENGTH,
-  LLM_PROVIDER_DESCRIPTION_MAX_LENGTH,
-} from "../form/schema";
 
 interface EditLLMProviderFormProps {
   provider: LLMProviderResponse;

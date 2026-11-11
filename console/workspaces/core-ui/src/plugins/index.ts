@@ -17,4 +17,4 @@
  */
 
 export * from "./PluginProvider";
-export { builtinPlugins } from "./builtinPlugins";
+export { builtinModules } from "./builtinModules";

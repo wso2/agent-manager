@@ -24,27 +24,17 @@ import { Code, MonitorCheck } from "@wso2/oxygen-ui-icons-react";
 import { useFeatureAccess } from "@agent-management-platform/feature-management";
 import {
   absoluteRouteMap,
-  relativeRouteMap,
   PLUGIN_API_VERSION,
   type PluginManifest,
 } from "@agent-management-platform/types";
 
-// Route-map shorthands: relative paths for routes, absolute ones for links.
-const orgRoutes = relativeRouteMap.children.org.children;
+// Route-map shorthands (absolute paths, used for both routes and links).
 const orgNav = absoluteRouteMap.children.org.children;
-const agentRoutes = orgRoutes.projects.children.agents.children;
 const agentNav = orgNav.projects.children.agents.children;
 
-const evaluators = orgRoutes.evaluators;
+const evaluators = orgNav.evaluators;
 // Monitor pages live under environment/:envId/evaluation/monitor.
-const environment = agentRoutes.environment;
-const monitor = environment.children.evaluation.children.monitor;
-const monitorBase =
-  environment.path +
-  "/" +
-  environment.children.evaluation.path +
-  "/" +
-  monitor.path;
+const monitor = agentNav.environment.children.evaluation.children.monitor;
 
 const evaluatorRoute = (id: string, path: string, page: string) => ({
   type: "route" as const,
@@ -65,44 +55,43 @@ const monitorRoute = (id: string, path: string, page: string) => ({
 export const evalPlugin: PluginManifest = {
   id: "eval",
   name: "Evaluation",
-  module: "evaluation",
   apiVersion: PLUGIN_API_VERSION,
   contributions: [
     evaluatorRoute("evaluators-page", evaluators.path, "evalEvaluators"),
     evaluatorRoute(
       "create-evaluator-page",
-      evaluators.path + "/" + evaluators.children.create.path,
+      evaluators.children.create.path,
       "createEvaluator",
     ),
     evaluatorRoute(
       "edit-evaluator-page",
-      evaluators.path + "/" + evaluators.children.edit.path,
+      evaluators.children.edit.path,
       "editEvaluator",
     ),
     evaluatorRoute(
       "view-evaluator-page",
-      evaluators.path + "/" + evaluators.children.view.path,
+      evaluators.children.view.path,
       "viewEvaluator",
     ),
-    monitorRoute("monitors-page", monitorBase, "evalMonitors"),
+    monitorRoute("monitors-page", monitor.path, "evalMonitors"),
     monitorRoute(
       "create-monitor-page",
-      monitorBase + "/" + monitor.children.create.path,
+      monitor.children.create.path,
       "createMonitor",
     ),
     monitorRoute(
       "edit-monitor-page",
-      monitorBase + "/" + monitor.children.edit.path,
+      monitor.children.edit.path,
       "editMonitor",
     ),
     monitorRoute(
       "compare-monitor-page",
-      monitorBase + "/" + monitor.children.compare.path,
+      monitor.children.compare.path,
       "compareMonitor",
     ),
     monitorRoute(
       "view-monitor-page",
-      monitorBase + "/" + monitor.children.view.path + "/*",
+      monitor.children.view.path + "/*",
       "viewMonitor",
     ),
     {

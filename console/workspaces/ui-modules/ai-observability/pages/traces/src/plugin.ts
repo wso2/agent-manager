@@ -19,21 +19,13 @@
 // Plugin manifest. The shell imports this module eagerly, so it must not import
 // the page components: they are reached only through the dynamic import() in
 // `load`, which keeps them in their own chunk.
-//
-// Part of the "observability" module (with traces, logs and metrics), which
-// maps to the observability extension chart: disabling the module turns all
-// three off.
 import { Workflow } from "@wso2/oxygen-ui-icons-react";
 import {
   absoluteRouteMap,
-  relativeRouteMap,
   PLUGIN_API_VERSION,
   type PluginManifest,
 } from "@agent-management-platform/types";
 
-const environment =
-  relativeRouteMap.children.org.children.projects.children.agents.children
-    .environment;
 const observability =
   absoluteRouteMap.children.org.children.projects.children.agents.children
     .environment.children.observability;
@@ -41,19 +33,13 @@ const observability =
 export const tracesPlugin: PluginManifest = {
   id: "traces",
   name: "Traces",
-  module: "observability",
   apiVersion: PLUGIN_API_VERSION,
   contributions: [
     {
       type: "route",
       id: "page",
       level: "agent",
-      path:
-        environment.path +
-        "/" +
-        environment.children.observability.path +
-        "/" +
-        environment.children.observability.children.traces.path,
+      path: observability.children.traces.path,
       load: () =>
         import("./Traces.Component").then((m) => ({ default: m.TracesComponent })),
     },

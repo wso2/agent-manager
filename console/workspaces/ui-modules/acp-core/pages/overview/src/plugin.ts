@@ -23,15 +23,13 @@ import type { ComponentType } from "react";
 import { Home, LayoutDashboard } from "@wso2/oxygen-ui-icons-react";
 import {
   absoluteRouteMap,
-  relativeRouteMap,
   PLUGIN_API_VERSION,
   type PluginManifest,
 } from "@agent-management-platform/types";
 
-// Route-map shorthands: relative paths for routes, absolute ones for links.
-const orgRoutes = relativeRouteMap.children.org.children;
+// Route-map shorthands (absolute paths, used for both routes and links).
 const orgNav = absoluteRouteMap.children.org.children;
-const agentRoutes = orgRoutes.projects.children.agents.children;
+const agentNav = orgNav.projects.children.agents.children;
 
 export const overviewPlugin: PluginManifest = {
   id: "overview",
@@ -72,7 +70,7 @@ export const overviewPlugin: PluginManifest = {
       type: "route",
       id: "edit-project-page",
       level: "project",
-      path: orgRoutes.projects.children.edit.path,
+      path: orgNav.projects.children.edit.path,
       load: () =>
         import("./index").then((m) => ({
           default: m.EditProject as ComponentType,
@@ -82,7 +80,7 @@ export const overviewPlugin: PluginManifest = {
       type: "route",
       id: "edit-agent-page",
       level: "agent",
-      path: agentRoutes.edit.path,
+      path: agentNav.edit.path,
       load: () =>
         import("./index").then((m) => ({
           default: m.EditAgent as ComponentType,

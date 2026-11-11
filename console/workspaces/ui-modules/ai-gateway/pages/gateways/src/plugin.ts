@@ -22,7 +22,6 @@
 import { Network } from "@wso2/oxygen-ui-icons-react";
 import {
   absoluteRouteMap,
-  relativeRouteMap,
   PLUGIN_API_VERSION,
   type PluginManifest,
 } from "@agent-management-platform/types";
@@ -40,7 +39,7 @@ export const gatewaysPlugin: PluginManifest = {
       type: "route",
       id: "page",
       level: "org",
-      path: relativeRouteMap.children.org.children.gateways.path + "/*",
+      path: absoluteRouteMap.children.org.children.gateways.path + "/*",
       load: () =>
         import("./Gateways.Organization").then((m) => ({
           default: m.GatewaysOrganization,

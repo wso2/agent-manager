@@ -24,16 +24,13 @@ import { Rocket } from "@wso2/oxygen-ui-icons-react";
 import { useRouteAgent } from "@agent-management-platform/api-client";
 import {
   absoluteRouteMap,
-  relativeRouteMap,
   PLUGIN_API_VERSION,
   type PluginActivationState,
   type PluginManifest,
 } from "@agent-management-platform/types";
 
-// Route-map shorthands: relative paths for routes, absolute ones for links.
-const orgRoutes = relativeRouteMap.children.org.children;
+// Route-map shorthands (absolute paths, used for both routes and links).
 const orgNav = absoluteRouteMap.children.org.children;
-const agentRoutes = orgRoutes.projects.children.agents.children;
 const agentNav = orgNav.projects.children.agents.children;
 
 /** Internal agents run on the platform; external ones are only proxied. */
@@ -52,7 +49,7 @@ export const deployPlugin: PluginManifest = {
       type: "route",
       id: "page",
       level: "agent",
-      path: agentRoutes.deployment.path,
+      path: agentNav.deployment.path,
       load: () =>
         import("./index").then((m) => ({
           default: m.metaData.levels!.component as ComponentType,

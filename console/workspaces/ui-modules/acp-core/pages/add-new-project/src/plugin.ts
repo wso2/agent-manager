@@ -21,13 +21,13 @@
 // each `load`, which keeps them in the package's own chunk.
 import type { ComponentType } from "react";
 import {
-  relativeRouteMap,
+  absoluteRouteMap,
   PLUGIN_API_VERSION,
   type PluginManifest,
 } from "@agent-management-platform/types";
 
-// Route-map shorthands: relative paths for routes, absolute ones for links.
-const orgRoutes = relativeRouteMap.children.org.children;
+// Route-map shorthands (absolute paths, used for both routes and links).
+const orgNav = absoluteRouteMap.children.org.children;
 
 export const addNewProjectPlugin: PluginManifest = {
   id: "add-new-project",
@@ -38,7 +38,7 @@ export const addNewProjectPlugin: PluginManifest = {
       type: "route",
       id: "page",
       level: "org",
-      path: orgRoutes.newProject.path,
+      path: orgNav.newProject.path,
       load: () =>
         import("./index").then((m) => ({
           default: m.metaData.component as ComponentType,

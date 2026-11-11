@@ -43,6 +43,7 @@ import {
   type ReactNode,
 } from "react";
 import {
+  absoluteRouteMap,
   globalConfig,
   PLUGIN_API_VERSION,
   type PluginActivationHook,
@@ -52,6 +53,8 @@ import {
   type PluginManifest,
   type PluginNavItemContribution,
   type PluginPanelContribution,
+  type UIModuleInstallPhase,
+  type UIModuleManifest,
 } from "@agent-management-platform/types";
 import {
   ExternalModuleProvider,
@@ -79,19 +82,40 @@ interface ActivationProbeSpec {
   useActivation: PluginActivationHook;
 }
 
+interface CatalogEntry {
+  module: UIModuleManifest;
+  plugins: PluginManifest[];
+}
+
 interface PluginHostValue {
-  /** Installed plugins minus invalid and config-disabled ones. */
+  /** Valid modules and their valid plugins, enabled or not. */
+  catalog: CatalogEntry[];
+  /** Plugins that are enabled (by config and overrides) and therefore run. */
   plugins: PluginManifest[];
   probes: ActivationProbeSpec[];
   states: Record<string, PluginActivationState>;
   report: (key: string, state: PluginActivationState) => void;
+  /** Enabled/disabled overrides from the Module manager, keyed like the config. */
+  overrides: Record<string, boolean>;
+  setOverride: (key: string, enabled: boolean | undefined) => void;
+  /** Each module's install phase (detection plus setup-page changes). */
+  phases: Record<string, UIModuleInstallPhase>;
+  /** Install phases set on setup pages; in memory only for now. */
+  installOverrides: Record<string, UIModuleInstallPhase>;
+  setInstallPhase: (moduleId: string, phase: UIModuleInstallPhase | undefined) => void;
 }
 
 const PluginHostContext = createContext<PluginHostValue>({
+  catalog: [],
   plugins: [],
   probes: [],
   states: {},
   report: () => {},
+  overrides: {},
+  setOverride: () => {},
+  phases: {},
+  installOverrides: {},
+  setInstallPhase: () => {},
 });
 
 // lazy() must return the same component on every render, or React remounts the
@@ -129,28 +153,85 @@ function panelComponentFor(panel: PluginPanelContribution) {
   return component;
 }
 
-/** Drops manifests that cannot be used, and says why on the console. */
-function usableManifests(plugins: PluginManifest[]): PluginManifest[] {
-  const disabled = new Set(globalConfig?.plugins?.disabled ?? []);
-  const seen = new Set<string>();
-  return plugins.filter((plugin) => {
-    if (plugin.apiVersion !== PLUGIN_API_VERSION) {
-      // eslint-disable-next-line no-console -- surface bad plugins to the operator
-      console.warn(
-        `[plugins] "${plugin.id}" targets plugin API ${plugin.apiVersion}, ` +
+function warn(message: string) {
+  // eslint-disable-next-line no-console -- surface bad modules to the operator
+  console.warn(`[ui-modules] ${message}`);
+}
+
+/** Drops modules and plugins that cannot be used, and says why on the console. */
+function buildCatalog(modules: UIModuleManifest[]): CatalogEntry[] {
+  const seenModules = new Set<string>();
+  const seenPlugins = new Set<string>();
+  const catalog: CatalogEntry[] = [];
+  for (const module of modules) {
+    if (module.apiVersion !== PLUGIN_API_VERSION) {
+      warn(
+        `Module "${module.id}" targets plugin API ${module.apiVersion}, ` +
           `the console supports ${PLUGIN_API_VERSION}; skipping it.`,
       );
-      return false;
+      continue;
     }
-    if (seen.has(plugin.id)) {
-      // eslint-disable-next-line no-console -- surface bad plugins to the operator
-      console.warn(`[plugins] Duplicate plugin id "${plugin.id}"; skipping the later one.`);
-      return false;
+    if (seenModules.has(module.id)) {
+      warn(`Duplicate module id "${module.id}"; skipping the later one.`);
+      continue;
     }
-    seen.add(plugin.id);
-    return !disabled.has(plugin.id) && !(plugin.module && disabled.has(plugin.module));
-  });
+    seenModules.add(module.id);
+    const plugins = module.plugins.filter((plugin) => {
+      if (plugin.apiVersion !== PLUGIN_API_VERSION) {
+        warn(
+          `Plugin "${module.id}/${plugin.id}" targets plugin API ${plugin.apiVersion}, ` +
+            `the console supports ${PLUGIN_API_VERSION}; skipping it.`,
+        );
+        return false;
+      }
+      if (seenPlugins.has(plugin.id)) {
+        warn(`Duplicate plugin id "${plugin.id}" in "${module.id}"; skipping it.`);
+        return false;
+      }
+      seenPlugins.add(plugin.id);
+      return true;
+    });
+    catalog.push({ module, plugins });
+  }
+  return catalog;
 }
+
+/** Key for a plugin in the disabled list and in overrides: "<module>/<plugin>". */
+export const pluginKey = (moduleId: string, pluginId: string) => `${moduleId}/${pluginId}`;
+
+/** The runtime config's disabled list: module ids, "<module>/<plugin>" or plugin ids. */
+function configDisabled(): Set<string> {
+  return new Set(globalConfig?.uiModules?.disabled ?? []);
+}
+
+function moduleEnabledByConfig(disabled: Set<string>, moduleId: string) {
+  return !disabled.has(moduleId);
+}
+
+function pluginEnabledByConfig(disabled: Set<string>, moduleId: string, pluginId: string) {
+  return !disabled.has(pluginKey(moduleId, pluginId)) && !disabled.has(pluginId);
+}
+
+/** Probe key for a module's install detection hook. */
+const installKey = (moduleId: string) => `install:${moduleId}`;
+
+function installPhaseOf(
+  module: UIModuleManifest,
+  states: Record<string, PluginActivationState>,
+  installOverrides: Record<string, UIModuleInstallPhase>,
+): UIModuleInstallPhase {
+  if (module.core) return "installed";
+  const override = installOverrides[module.id];
+  if (override) return override;
+  if (!module.installation?.useDetect) return "installed";
+  const detected = states[installKey(module.id)];
+  if (detected === undefined) return "checking";
+  return detected ? "installed" : "not-installed";
+}
+
+/** Pages run while a module is installed, or still being checked (no flicker). */
+const pagesMayRun = (phase: UIModuleInstallPhase) =>
+  phase === "installed" || phase === "checking";
 
 const contributionKey = (pluginId: string, contributionId: string) =>
   `${pluginId}:${contributionId}`;
@@ -201,7 +282,7 @@ function useContributions() {
 }
 
 export interface PluginProviderProps {
-  plugins: PluginManifest[];
+  modules: UIModuleManifest[];
   /** Modules passed to CoreUI the legacy way; active plugin panels are added. */
   externalModules?: ExternalModule[];
   children: ReactNode;
@@ -210,14 +291,93 @@ export interface PluginProviderProps {
 const NO_MODULES: ExternalModule[] = [];
 
 export function PluginProvider({
-  plugins,
+  modules,
   externalModules = NO_MODULES,
   children,
 }: PluginProviderProps) {
-  const usable = useMemo(() => usableManifests(plugins), [plugins]);
+  const catalog = useMemo(() => buildCatalog(modules), [modules]);
+
+  // Module manager changes. Kept in memory only for now: a reload goes back to
+  // the runtime config.
+  const [overrides, setOverrides] = useState<Record<string, boolean>>({});
+  const setOverride = useCallback((key: string, enabled: boolean | undefined) => {
+    setOverrides((prev) => {
+      const next = { ...prev };
+      if (enabled === undefined) delete next[key];
+      else next[key] = enabled;
+      return next;
+    });
+  }, []);
+
+  const [installOverrides, setInstallOverrides] = useState<
+    Record<string, UIModuleInstallPhase>
+  >({});
+  const setInstallPhase = useCallback(
+    (moduleId: string, phase: UIModuleInstallPhase | undefined) => {
+      setInstallOverrides((prev) => {
+        const next = { ...prev };
+        if (phase === undefined) delete next[moduleId];
+        else next[moduleId] = phase;
+        return next;
+      });
+    },
+    [],
+  );
+
+  const [states, setStates] = useState<Record<string, PluginActivationState>>({});
+  const report = useCallback((key: string, state: PluginActivationState) => {
+    setStates((prev) =>
+      key in prev && prev[key] === state ? prev : { ...prev, [key]: state },
+    );
+  }, []);
+
+  // Install detection runs for every module, enabled or not, so the Module
+  // manager can show what is installed.
+  const installProbes = useMemo(() => {
+    const list: ActivationProbeSpec[] = [];
+    for (const { module } of catalog) {
+      const useDetect = module.installation?.useDetect;
+      if (module.core || !useDetect) continue;
+      list.push({
+        key: installKey(module.id),
+        useActivation: () => {
+          const detected = useDetect();
+          return detected === undefined ? undefined : detected === "installed";
+        },
+      });
+    }
+    return list;
+  }, [catalog]);
+
+  const phases = useMemo(() => {
+    const result: Record<string, UIModuleInstallPhase> = {};
+    for (const { module } of catalog) {
+      result[module.id] = installPhaseOf(module, states, installOverrides);
+    }
+    return result;
+  }, [catalog, states, installOverrides]);
+
+  const usable = useMemo(() => {
+    const disabled = configDisabled();
+    const list: PluginManifest[] = [];
+    for (const { module, plugins } of catalog) {
+      if (!pagesMayRun(phases[module.id] ?? "installed")) continue;
+      // Core modules cannot be turned off as a whole.
+      const moduleOn =
+        module.core || (overrides[module.id] ?? moduleEnabledByConfig(disabled, module.id));
+      if (!moduleOn) continue;
+      for (const plugin of plugins) {
+        const key = pluginKey(module.id, plugin.id);
+        if (overrides[key] ?? pluginEnabledByConfig(disabled, module.id, plugin.id)) {
+          list.push(plugin);
+        }
+      }
+    }
+    return list;
+  }, [catalog, overrides, phases]);
 
   const probes = useMemo(() => {
-    const list: ActivationProbeSpec[] = [];
+    const list: ActivationProbeSpec[] = [...installProbes];
     for (const plugin of usable) {
       if (plugin.useActivation) {
         list.push({ key: plugin.id, useActivation: plugin.useActivation });
@@ -232,18 +392,33 @@ export function PluginProvider({
       }
     }
     return list;
-  }, [usable]);
-
-  const [states, setStates] = useState<Record<string, PluginActivationState>>({});
-  const report = useCallback((key: string, state: PluginActivationState) => {
-    setStates((prev) =>
-      key in prev && prev[key] === state ? prev : { ...prev, [key]: state },
-    );
-  }, []);
+  }, [usable, installProbes]);
 
   const value = useMemo(
-    () => ({ plugins: usable, probes, states, report }),
-    [usable, probes, states, report],
+    () => ({
+      catalog,
+      plugins: usable,
+      probes,
+      states,
+      report,
+      overrides,
+      setOverride,
+      phases,
+      installOverrides,
+      setInstallPhase,
+    }),
+    [
+      catalog,
+      usable,
+      probes,
+      states,
+      report,
+      overrides,
+      setOverride,
+      phases,
+      installOverrides,
+      setInstallPhase,
+    ],
   );
 
   return (
@@ -358,16 +533,43 @@ export function PluginActivators() {
  * including pending ones, so a deep link does not 404 while activation hooks
  * are still loading their data; render them with PluginRouteElement.
  */
+/** Absolute route of each level, which absolute plugin paths must start with. */
+const LEVEL_PATHS: Record<PluginLevel, string> = {
+  org: absoluteRouteMap.children.org.path,
+  project: absoluteRouteMap.children.org.children.projects.path,
+  agent: absoluteRouteMap.children.org.children.projects.children.agents.path,
+};
+
+/**
+ * Turns a plugin route path into one relative to its level. Relative paths
+ * pass through; an absolute path (an absoluteRouteMap entry, optionally with
+ * "/*") has the level's own path stripped. Returns null when an absolute path
+ * is not under the level, which React Router would otherwise throw on,
+ * taking the whole console down.
+ */
+function relativeToLevel(level: PluginLevel, path: string, key: string): string | null {
+  if (!path.startsWith("/")) return path;
+  const base = LEVEL_PATHS[level];
+  if (path.startsWith(base + "/")) return path.slice(base.length + 1);
+  warn(`Route "${key}" has path "${path}", which is not under its ${level} level (${base}); skipping it.`);
+  return null;
+}
+
 export function usePluginRoutes(level: PluginLevel): ActivePluginRoute[] {
   const contributions = useContributions();
   return useMemo(() => {
     const routes: ActivePluginRoute[] = [];
     for (const { contribution, key, state } of contributions) {
       if (contribution.type === "route" && contribution.level === level && state !== false) {
+        const path =
+          contribution.path === undefined
+            ? undefined
+            : relativeToLevel(level, contribution.path, key);
+        if (path === null) continue;
         routes.push({
           key,
           level,
-          path: contribution.path,
+          path,
           index: contribution.index,
           state,
           Component: lazyFor(contribution.load),
@@ -419,4 +621,141 @@ export function usePluginNavItems(
     }
     return items.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   }, [contributions, level, section]);
+}
+
+// ---------------------------------------------------------------------------
+// Module manager
+
+export interface UIModulePluginStatus {
+  id: string;
+  name: string;
+  /** On after config and Module manager changes. */
+  enabled: boolean;
+  /** What the runtime config alone says. */
+  enabledByConfig: boolean;
+  /**
+   * The plugin-wide activation hook's latest answer: true/false, undefined
+   * while deciding, or "always" when the plugin has no hook. Null when the
+   * plugin is not enabled, since its hooks do not run.
+   */
+  activation: PluginActivationState | "always" | null;
+  pages: number;
+  navItems: number;
+  panels: number;
+}
+
+export interface UIModuleStatus {
+  id: string;
+  name: string;
+  description: string;
+  /** Core modules are always installed and cannot be turned off as a whole. */
+  core: boolean;
+  enabled: boolean;
+  enabledByConfig: boolean;
+  /** Where the module is in its install lifecycle. */
+  installPhase: UIModuleInstallPhase;
+  /**
+   * What the module's detection hook reports: installed / not-installed,
+   * "checking" while it runs, or null when the module has no detection.
+   */
+  detected: UIModuleInstallPhase | null;
+  /** True when the setup page has set the install phase (in memory). */
+  installChanged: boolean;
+  installation: UIModuleManifest["installation"];
+  /** The module's own extra setup content, if any. */
+  SetupContent: LazyExoticComponent<ComponentType> | null;
+  plugins: UIModulePluginStatus[];
+}
+
+/**
+ * Every installed module and page plugin with its enabled state, plus setters
+ * that override the runtime config in memory (until the page reloads).
+ */
+export function useUIModuleManager() {
+  const {
+    catalog,
+    plugins,
+    states,
+    overrides,
+    setOverride,
+    phases,
+    installOverrides,
+    setInstallPhase,
+  } = useContext(PluginHostContext);
+
+  const modules = useMemo<UIModuleStatus[]>(() => {
+    const disabled = configDisabled();
+    const running = new Set(plugins.map((plugin) => plugin.id));
+    return catalog.map(({ module, plugins: modulePlugins }) => {
+      const enabledByConfig = module.core || moduleEnabledByConfig(disabled, module.id);
+      const detectedState = states[installKey(module.id)];
+      return {
+        id: module.id,
+        name: module.name,
+        description: module.description,
+        core: !!module.core,
+        enabledByConfig,
+        enabled: module.core ? true : (overrides[module.id] ?? enabledByConfig),
+        installPhase: phases[module.id] ?? "installed",
+        detected:
+          module.core || !module.installation?.useDetect
+            ? null
+            : detectedState === undefined
+              ? "checking"
+              : detectedState
+                ? "installed"
+                : "not-installed",
+        installChanged: module.id in installOverrides,
+        installation: module.installation,
+        SetupContent: module.setup ? lazyFor(module.setup) : null,
+        plugins: modulePlugins.map((plugin) => {
+          const key = pluginKey(module.id, plugin.id);
+          const pluginByConfig = pluginEnabledByConfig(disabled, module.id, plugin.id);
+          const isRunning = running.has(plugin.id);
+          const count = (type: string) =>
+            plugin.contributions.filter((c) => c.type === type).length;
+          return {
+            id: plugin.id,
+            name: plugin.name,
+            enabledByConfig: pluginByConfig,
+            enabled: overrides[key] ?? pluginByConfig,
+            activation: !isRunning
+              ? null
+              : plugin.useActivation
+                ? states[plugin.id]
+                : "always",
+            pages: count("route"),
+            navItems: count("nav-item"),
+            panels: count("panel"),
+          };
+        }),
+      };
+    });
+  }, [catalog, plugins, states, overrides, phases, installOverrides]);
+
+  const disabledByConfig = useMemo(() => configDisabled(), []);
+
+  return {
+    modules,
+    /** True when anything was changed here since load (enabled or install state). */
+    hasChanges: Object.keys(overrides).length + Object.keys(installOverrides).length > 0,
+    /** Sets a module's install phase from its setup page; undefined goes back to detection. */
+    setInstallPhase,
+    setModuleEnabled: (moduleId: string, enabled: boolean) =>
+      setOverride(
+        moduleId,
+        enabled === moduleEnabledByConfig(disabledByConfig, moduleId) ? undefined : enabled,
+      ),
+    setPluginEnabled: (moduleId: string, pluginId: string, enabled: boolean) =>
+      setOverride(
+        pluginKey(moduleId, pluginId),
+        enabled === pluginEnabledByConfig(disabledByConfig, moduleId, pluginId)
+          ? undefined
+          : enabled,
+      ),
+    resetChanges: () => {
+      for (const key of Object.keys(overrides)) setOverride(key, undefined);
+      for (const key of Object.keys(installOverrides)) setInstallPhase(key, undefined);
+    },
+  };
 }

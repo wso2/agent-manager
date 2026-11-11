@@ -24,15 +24,13 @@ import { BrainCircuit } from "@wso2/oxygen-ui-icons-react";
 import { useFeatureManagement } from "@agent-management-platform/feature-management";
 import {
   absoluteRouteMap,
-  relativeRouteMap,
   PLUGIN_API_VERSION,
   type PluginManifest,
 } from "@agent-management-platform/types";
 
-// Route-map shorthands: relative paths for routes, absolute ones for links.
-const orgRoutes = relativeRouteMap.children.org.children;
+// Route-map shorthands (absolute paths, used for both routes and links).
 const orgNav = absoluteRouteMap.children.org.children;
-const agentRoutes = orgRoutes.projects.children.agents.children;
+const agentNav = orgNav.projects.children.agents.children;
 
 /** The Resources section shows when the user can read any of its resources. */
 const useResourcesNav = () => {
@@ -54,7 +52,7 @@ export const llmProvidersPlugin: PluginManifest = {
       type: "route",
       id: "org-page",
       level: "org",
-      path: orgRoutes.llmProviders.path + "/*",
+      path: orgNav.llmProviders.path + "/*",
       load: () =>
         import("./index").then((m) => ({
           default: m.metaData.levels!.organization as ComponentType,
@@ -64,7 +62,7 @@ export const llmProvidersPlugin: PluginManifest = {
       type: "route",
       id: "add-org-page",
       level: "org",
-      path: orgRoutes.llmProviders.path + "/" + orgRoutes.llmProviders.children.add.path,
+      path: orgNav.llmProviders.children.add.path,
       load: () =>
         import("./index").then((m) => ({
           default: m.metaData.levels!.addLLMProvidersOrganization as ComponentType,
@@ -74,7 +72,7 @@ export const llmProvidersPlugin: PluginManifest = {
       type: "route",
       id: "agent-page",
       level: "agent",
-      path: agentRoutes.configure.path + "/" + agentRoutes.configure.children.llmProviders.path,
+      path: agentNav.configure.children.llmProviders.path,
       load: () =>
         import("./index").then((m) => ({
           default: m.metaData.levels!.component as ComponentType,

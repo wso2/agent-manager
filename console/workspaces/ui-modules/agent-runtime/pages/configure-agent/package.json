@@ -55,9 +55,8 @@
     "@agent-management-platform/types": "workspace:*",
     "@agent-management-platform/feature-management": "workspace:*",
     "@agent-management-platform/shared-component": "workspace:*",
-    "@agent-management-platform/llm-providers": "workspace:*",
-    "@agent-management-platform/mcp-proxies": "workspace:*",
-    "zod": "4.6.7"
+    "zod": "4.6.7",
+    "@agent-management-platform/deploy": "workspace:*"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "6.6.3",

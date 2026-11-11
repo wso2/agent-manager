@@ -80,7 +80,7 @@ source "${VENV_DIR}/bin/activate"
 pip install --quiet --upgrade pip
 
 if [[ "${DEV_MODE}" == "true" ]]; then
-    LOCAL_AMP_EVAL="${SCRIPT_DIR}/../../../../../libs/amp-evaluation"
+    LOCAL_AMP_EVAL="${SCRIPT_DIR}/../../../../../../../libs/amp-evaluation"
 
     if [[ -d "${LOCAL_AMP_EVAL}" ]]; then
         log_info "Installing amp-evaluation from local source (dev mode)..."
@@ -297,8 +297,8 @@ print("\n".join(lines))
 # Write the AI copilot guide to the webapp public/prompts directory
 import os, sys
 output_dir = os.path.dirname(os.path.abspath(os.environ.get("OUTPUT_FILE", __file__)))
-# output_dir = console/workspaces/pages/eval/src/generated — go up 5 levels to console/
-public_prompts_dir = os.path.normpath(os.path.join(output_dir, "..", "..", "..", "..", "..", "apps", "webapp", "public", "prompts"))
+# output_dir = console/workspaces/ui-modules/ai-observability/pages/eval/src/generated — go up 7 levels to console/
+public_prompts_dir = os.path.normpath(os.path.join(output_dir, "..", "..", "..", "..", "..", "..", "..", "apps", "webapp", "public", "prompts"))
 os.makedirs(public_prompts_dir, exist_ok=True)
 guide_path = os.path.join(public_prompts_dir, "writing-evaluators.md")
 with open(guide_path, "w") as f:
@@ -307,7 +307,7 @@ print(f"Wrote AI copilot guide to {guide_path}", file=sys.stderr)
 PYTHON_SCRIPT
 
 # Append supported packages list (read from evaluation-job/requirements.txt)
-REQUIREMENTS_FILE="${SCRIPT_DIR}/../../../../../evaluation-job/requirements.txt"
+REQUIREMENTS_FILE="${SCRIPT_DIR}/../../../../../../../evaluation-job/requirements.txt"
 if [[ -f "$REQUIREMENTS_FILE" ]]; then
     python3 - "$REQUIREMENTS_FILE" >> "${OUTPUT_FILE}" << 'PKGS_SCRIPT'
 import re, sys

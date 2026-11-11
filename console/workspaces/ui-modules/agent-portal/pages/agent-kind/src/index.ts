@@ -21,7 +21,11 @@ export const metaData: PageMetadata = {
 
 export { PublishComponent, PublishedList, CatalogOrganization, CatalogKindDetails };
 export { PublishVersionDetails } from "./Publish.VersionDetails";
-export { CatalogKindListing } from "./subComponents/CatalogKindListing";
-export type { CatalogKindListingProps } from "./subComponents/CatalogKindListing";
+// The listing lives in shared-component (ACP Core's create-agent flow uses it
+// too); re-exported here for existing importers.
+export {
+  CatalogKindListing,
+  type CatalogKindListingProps,
+} from "@agent-management-platform/shared-component";
 
 export default PublishComponent;

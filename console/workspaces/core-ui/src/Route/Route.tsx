@@ -30,7 +30,13 @@ import {
 import { OxygenLayout } from "../Layouts";
 import { Protected } from "../Providers/Protected";
 import { ErrorPages } from "@agent-management-platform/shared-component";
-import { Login } from "../pages";
+import {
+  Login,
+  ModuleManager,
+  ModuleSetup,
+  MODULE_MANAGER_PATH,
+  MODULE_SETUP_PATH,
+} from "../pages";
 import { LoadingFallback } from "../components/LoadingFallback";
 import {
   relativeRouteMap,
@@ -261,6 +267,9 @@ export function RootRouter() {
           >
             {renderPluginRoutes(orgPluginRoutes)}
             {renderExternalModules(orgPageModules)}
+            {/* Shell pages: module overview (user menu) and each module's setup page. */}
+            <Route path={MODULE_MANAGER_PATH} element={<ModuleManager />} />
+            <Route path={MODULE_SETUP_PATH} element={<ModuleSetup />} />
             {/* Back-compat: identities pages moved under Settings → IDP Settings */}
             <Route path="identities/*" element={<LegacyIdentitiesRedirect />} />
             <Route

@@ -25,23 +25,23 @@ import {
   type ExternalModule,
 } from "@agent-management-platform/views";
 import type { FeatureFlags } from "@agent-management-platform/feature-management";
-import type { PluginManifest } from "@agent-management-platform/types";
+import type { UIModuleManifest } from "@agent-management-platform/types";
 import type { UseFeatureAccess } from "../../types/featureAccess";
-import { PluginProvider, builtinPlugins } from "../../plugins";
+import { PluginProvider, builtinModules } from "../../plugins";
 import { RuntimeConfigProvider } from "./RuntimeConfigProvider";
 import { FeatureAccessBridge } from "./FeatureAccessBridge";
 
 export const GlobalProviders = ({
   children,
   externalPageModules,
-  plugins = builtinPlugins,
+  modules = builtinModules,
   featureFlags,
   useFeatureAccess,
 }: {
   children: React.ReactNode;
   externalPageModules?: ExternalModule[];
-  /** Built-in plus any extra plugins; must keep the same identity across renders. */
-  plugins?: PluginManifest[];
+  /** Built-in plus any extra UI modules; must keep the same identity across renders. */
+  modules?: UIModuleManifest[];
   featureFlags?: Partial<FeatureFlags>;
   useFeatureAccess?: UseFeatureAccess;
 }) => {
@@ -54,7 +54,7 @@ export const GlobalProviders = ({
               <FeatureAccessBridge featureFlags={featureFlags} useAccess={useFeatureAccess}>
                 <ConfirmationDialogProvider>
                   <PluginProvider
-                    plugins={plugins}
+                    modules={modules}
                     externalModules={externalPageModules}
                   >
                     {children}

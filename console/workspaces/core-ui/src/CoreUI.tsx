@@ -19,19 +19,19 @@
 import { useMemo } from 'react';
 import type { ExternalModule } from '@agent-management-platform/views';
 import type { FeatureFlags } from '@agent-management-platform/feature-management';
-import type { PluginManifest } from '@agent-management-platform/types';
+import type { UIModuleManifest } from '@agent-management-platform/types';
 import type { UseFeatureAccess } from './types/featureAccess';
 import { GlobalProviders } from './Providers';
 import { RootRouter } from './Route';
-import { builtinPlugins } from './plugins';
+import { builtinModules } from './plugins';
 
 export interface CoreUIProps {
   externalPageModules?: ExternalModule[];
   /**
-   * Extra plugins to register next to the built-in ones. Pass a stable array
+   * Extra UI modules to register next to the built-in ones. Pass a stable array
    * (a module constant), not a new one on every render.
    */
-  plugins?: PluginManifest[];
+  modules?: UIModuleManifest[];
   /** Feature flags; override the runtime config's `featureFlags`. */
   featureFlags?: Partial<FeatureFlags>;
   /**
@@ -41,15 +41,15 @@ export interface CoreUIProps {
   useFeatureAccess?: UseFeatureAccess;
 }
 
-function CoreUI({ externalPageModules, plugins, featureFlags, useFeatureAccess }: CoreUIProps) {
-  const allPlugins = useMemo(
-    () => (plugins?.length ? [...builtinPlugins, ...plugins] : builtinPlugins),
-    [plugins],
+function CoreUI({ externalPageModules, modules, featureFlags, useFeatureAccess }: CoreUIProps) {
+  const allModules = useMemo(
+    () => (modules?.length ? [...builtinModules, ...modules] : builtinModules),
+    [modules],
   );
   return (
     <GlobalProviders
       externalPageModules={externalPageModules}
-      plugins={allPlugins}
+      modules={allModules}
       featureFlags={featureFlags}
       useFeatureAccess={useFeatureAccess}
     >

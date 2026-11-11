@@ -37,15 +37,15 @@ import {
   type AddLLMProviderFormValues,
   LLM_PROVIDER_NAME_MAX_LENGTH,
   LLM_PROVIDER_DESCRIPTION_MAX_LENGTH,
-} from "../form/schema";
-import { useValidatedForm } from "../hooks/useValidatedForm";
+} from "./schema";
+import { useValidatedForm } from "./useValidatedForm";
+import { EnvironmentGatewaySelector } from "../EnvironmentGatewaySelector/EnvironmentGatewaySelector";
+import { getErrorMessage } from "../../utils/errorHelpers";
 import {
-  EgressGatewaySelector,
-  getErrorMessage,
   PolicyListSection,
-  ResilienceTimeoutFields,
   type PolicySelection as GuardrailSelection,
-} from "@agent-management-platform/shared-component";
+} from "../PolicyListSection/PolicyListSection";
+import { ResilienceTimeoutFields } from "../ResilienceTimeoutFields";
 import { TextInput, FormGridSpacer } from "@agent-management-platform/views";
 import { useListGateways } from "@agent-management-platform/api-client";
 import { INPUT_LIMITS } from "@agent-management-platform/types";

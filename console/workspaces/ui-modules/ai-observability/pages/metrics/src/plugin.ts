@@ -19,23 +19,15 @@
 // Plugin manifest. The shell imports this module eagerly, so it must not import
 // the page components: they are reached only through the dynamic import() in
 // `load`, which keeps them in their own chunk.
-//
-// Part of the "observability" module (with traces, logs and metrics), which
-// maps to the observability extension chart: disabling the module turns all
-// three off.
 import { Gauge } from "@wso2/oxygen-ui-icons-react";
 import { useRouteAgent } from "@agent-management-platform/api-client";
 import {
   absoluteRouteMap,
-  relativeRouteMap,
   PLUGIN_API_VERSION,
   type PluginActivationState,
   type PluginManifest,
 } from "@agent-management-platform/types";
 
-const environment =
-  relativeRouteMap.children.org.children.projects.children.agents.children
-    .environment;
 const observability =
   absoluteRouteMap.children.org.children.projects.children.agents.children
     .environment.children.observability;
@@ -55,19 +47,13 @@ function useNotExternalAgent(): PluginActivationState {
 export const metricsPlugin: PluginManifest = {
   id: "metrics",
   name: "System metrics",
-  module: "observability",
   apiVersion: PLUGIN_API_VERSION,
   contributions: [
     {
       type: "route",
       id: "page",
       level: "agent",
-      path:
-        environment.path +
-        "/" +
-        environment.children.observability.path +
-        "/" +
-        environment.children.observability.children.metrics.path,
+      path: observability.children.metrics.path,
       load: () =>
         import("./Metrics.Component").then((m) => ({ default: m.MetricsComponent })),
     },

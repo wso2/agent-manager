@@ -99,12 +99,14 @@ export interface AppConfig {
   };
   /** Feature flags, read through @agent-management-platform/feature-management. */
   featureFlags?: Partial<FeatureFlags>;
-  /** Console plugins (feature modules); see PluginManifest. */
-  plugins?: {
+  /** Console UI modules and their page plugins; see UIModuleManifest. */
+  uiModules?: {
     /**
-     * Plugin ids or module names (PluginManifest.module) to turn off. A
-     * disabled plugin's routes, nav items and panels are not registered, its
-     * activation hooks never run, and its page chunks are never loaded.
+     * What to turn off: a module id ("ai-observability") turns off the whole
+     * module, "<module>/<plugin>" ("ai-observability/logs") or a bare plugin
+     * id ("logs") turns off one page plugin. A disabled plugin's routes, nav
+     * items and panels are not registered, its activation hooks never run,
+     * and its page chunks are never loaded.
      */
     disabled?: string[];
   };

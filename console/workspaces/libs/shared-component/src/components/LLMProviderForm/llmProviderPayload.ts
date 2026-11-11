@@ -25,7 +25,7 @@ import type {
   AddLLMProviderFormValues,
   GuardrailSelection,
   TemplateCard,
-} from "../subComponents/AddLLMProviderForm";
+} from "./AddLLMProviderForm";
 
 export const toProviderId = (name: string): string =>
   name

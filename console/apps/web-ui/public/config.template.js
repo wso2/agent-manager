@@ -94,10 +94,11 @@ window.__RUNTIME_CONFIG__ = {
     // Resources managed outside the console; their pages are hidden.
     externallyManagedGateway: '$FEATURE_FLAG_EXTERNALLY_MANAGED_GATEWAY' === 'true',
   },
-  plugins: {
-    // Comma-separated plugin ids or module names to turn off,
-    // e.g. "gateways,observability".
-    disabled: '$DISABLED_PLUGINS'.split(',').map((id) => id.trim()).filter(Boolean),
+  uiModules: {
+    // Comma-separated UI modules or pages to turn off: a module id turns off
+    // the whole module ("ai-observability"), "<module>/<page>" one page
+    // ("ai-observability/logs").
+    disabled: '$DISABLED_UI_MODULES'.split(',').map((id) => id.trim()).filter(Boolean),
   },
   maxRequestBodyBytes: '$MAX_REQUEST_BODY_BYTES',
   fileMountMaxFileBytes: '$FILE_MOUNT_MAX_FILE_BYTES',

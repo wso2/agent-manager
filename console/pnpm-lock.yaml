@@ -108,72 +108,42 @@ importers:
 
   workspaces/core-ui:
     dependencies:
-      '@agent-management-platform/add-new-agent':
-        specifier: workspace:*
-        version: link:../pages/add-new-agent
-      '@agent-management-platform/add-new-project':
-        specifier: workspace:*
-        version: link:../pages/add-new-project
-      '@agent-management-platform/agent-security':
-        specifier: workspace:*
-        version: link:../pages/agent-security
       '@agent-management-platform/api-client':
         specifier: workspace:*
         version: link:../libs/api-client
       '@agent-management-platform/auth':
         specifier: workspace:*
         version: link:../libs/auth
-      '@agent-management-platform/configure-agent':
-        specifier: workspace:*
-        version: link:../pages/configure-agent
-      '@agent-management-platform/env-thunders':
-        specifier: workspace:*
-        version: link:../pages/env-thunders
       '@agent-management-platform/eslint-config':
         specifier: workspace:*
         version: link:../libs/eslint-config
-      '@agent-management-platform/eval':
-        specifier: workspace:*
-        version: link:../pages/eval
       '@agent-management-platform/feature-management':
         specifier: workspace:*
         version: link:../libs/feature-management
-      '@agent-management-platform/gateways':
-        specifier: workspace:*
-        version: link:../pages/gateways
-      '@agent-management-platform/level-resource-listing':
-        specifier: workspace:*
-        version: link:../pages/level-resource-listing
-      '@agent-management-platform/llm-providers':
-        specifier: workspace:*
-        version: link:../pages/llm-providers
-      '@agent-management-platform/logs':
-        specifier: workspace:*
-        version: link:../pages/logs
-      '@agent-management-platform/mcp-proxies':
-        specifier: workspace:*
-        version: link:../pages/mcp-proxies
-      '@agent-management-platform/metrics':
-        specifier: workspace:*
-        version: link:../pages/metrics
-      '@agent-management-platform/overview':
-        specifier: workspace:*
-        version: link:../pages/overview
-      '@agent-management-platform/settings':
-        specifier: workspace:*
-        version: link:../pages/settings
       '@agent-management-platform/shared-component':
         specifier: workspace:*
         version: link:../libs/shared-component
-      '@agent-management-platform/test':
-        specifier: workspace:*
-        version: link:../pages/test
-      '@agent-management-platform/traces':
-        specifier: workspace:*
-        version: link:../pages/traces
       '@agent-management-platform/types':
         specifier: workspace:*
         version: link:../libs/types
+      '@agent-management-platform/ui-module-acp-core':
+        specifier: workspace:*
+        version: link:../ui-modules/acp-core
+      '@agent-management-platform/ui-module-agent-identity':
+        specifier: workspace:*
+        version: link:../ui-modules/agent-identity
+      '@agent-management-platform/ui-module-agent-portal':
+        specifier: workspace:*
+        version: link:../ui-modules/agent-portal
+      '@agent-management-platform/ui-module-agent-runtime':
+        specifier: workspace:*
+        version: link:../ui-modules/agent-runtime
+      '@agent-management-platform/ui-module-ai-gateway':
+        specifier: workspace:*
+        version: link:../ui-modules/ai-gateway
+      '@agent-management-platform/ui-module-ai-observability':
+        specifier: workspace:*
+        version: link:../ui-modules/ai-observability
       '@agent-management-platform/views':
         specifier: workspace:*
         version: link:../libs/views
@@ -951,23 +921,102 @@ importers:
         specifier: 3.1.3
         version: 3.1.3(@types/debug@4.1.13)(@types/node@24.6.0)(jsdom@26.1.0)(less@4.3.0)(lightningcss@1.33.0)
 
-  workspaces/pages/add-new-agent:
+  workspaces/ui-modules/acp-core:
     dependencies:
-      '@agent-management-platform/api-client':
+      '@agent-management-platform/add-new-agent':
         specifier: workspace:*
-        version: link:../../libs/api-client
-      '@agent-management-platform/feature-management':
+        version: link:pages/add-new-agent
+      '@agent-management-platform/add-new-project':
         specifier: workspace:*
-        version: link:../../libs/feature-management
-      '@agent-management-platform/shared-component':
+        version: link:pages/add-new-project
+      '@agent-management-platform/level-resource-listing':
         specifier: workspace:*
-        version: link:../../libs/shared-component
+        version: link:pages/level-resource-listing
+      '@agent-management-platform/overview':
+        specifier: workspace:*
+        version: link:pages/overview
+      '@agent-management-platform/settings':
+        specifier: workspace:*
+        version: link:pages/settings
       '@agent-management-platform/types':
         specifier: workspace:*
         version: link:../../libs/types
+    devDependencies:
+      '@agent-management-platform/eslint-config':
+        specifier: workspace:*
+        version: link:../../libs/eslint-config
+      '@eslint/eslintrc':
+        specifier: 3.3.1
+        version: 3.3.1
+      '@eslint/js':
+        specifier: 9.36.0
+        version: 9.36.0
+      '@types/node':
+        specifier: 24.6.0
+        version: 24.6.0
+      '@types/react':
+        specifier: 19.2.14
+        version: 19.2.14
+      '@typescript-eslint/eslint-plugin':
+        specifier: 8.33.1
+        version: 8.33.1(@typescript-eslint/parser@8.33.1(eslint@9.36.0)(typescript@5.9.3))(eslint@9.36.0)(typescript@5.9.3)
+      '@typescript-eslint/parser':
+        specifier: 8.33.1
+        version: 8.33.1(eslint@9.36.0)(typescript@5.9.3)
+      eslint:
+        specifier: 9.36.0
+        version: 9.36.0
+      eslint-config-prettier:
+        specifier: 10.1.5
+        version: 10.1.5(eslint@9.36.0)
+      eslint-import-resolver-typescript:
+        specifier: 4.4.1
+        version: 4.4.1(eslint-plugin-import@2.31.0)(eslint@9.36.0)
+      eslint-plugin-import:
+        specifier: 2.31.0
+        version: 2.31.0(@typescript-eslint/parser@8.33.1(eslint@9.36.0)(typescript@5.9.3))(eslint-import-resolver-typescript@4.4.1)(eslint@9.36.0)
+      eslint-plugin-prettier:
+        specifier: 5.4.0
+        version: 5.4.0(eslint-config-prettier@10.1.5(eslint@9.36.0))(eslint@9.36.0)(prettier@3.5.3)
+      eslint-plugin-react:
+        specifier: 7.37.5
+        version: 7.37.5(eslint@9.36.0)
+      eslint-plugin-react-hooks:
+        specifier: 7.0.0
+        version: 7.0.0(eslint@9.36.0)
+      globals:
+        specifier: 16.4.0
+        version: 16.4.0
+      prettier:
+        specifier: 3.5.3
+        version: 3.5.3
+      react:
+        specifier: 19.2.3
+        version: 19.2.3
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      typescript-eslint:
+        specifier: 8.45.0
+        version: 8.45.0(eslint@9.36.0)(typescript@5.9.3)
+
+  workspaces/ui-modules/acp-core/pages/add-new-agent:
+    dependencies:
+      '@agent-management-platform/api-client':
+        specifier: workspace:*
+        version: link:../../../../libs/api-client
+      '@agent-management-platform/feature-management':
+        specifier: workspace:*
+        version: link:../../../../libs/feature-management
+      '@agent-management-platform/shared-component':
+        specifier: workspace:*
+        version: link:../../../../libs/shared-component
+      '@agent-management-platform/types':
+        specifier: workspace:*
+        version: link:../../../../libs/types
       '@agent-management-platform/views':
         specifier: workspace:*
-        version: link:../../libs/views
+        version: link:../../../../libs/views
       '@babel/runtime-corejs3':
         specifier: 7.29.7
         version: 7.29.7
@@ -1010,7 +1059,7 @@ importers:
     devDependencies:
       '@agent-management-platform/eslint-config':
         specifier: workspace:*
-        version: link:../../libs/eslint-config
+        version: link:../../../../libs/eslint-config
       '@eslint/eslintrc':
         specifier: 3.3.1
         version: 3.3.1
@@ -1135,23 +1184,23 @@ importers:
         specifier: 3.1.3
         version: 3.1.3(@types/debug@4.1.13)(@types/node@24.6.0)(jsdom@26.1.0)(less@4.3.0)(lightningcss@1.33.0)
 
-  workspaces/pages/add-new-project:
+  workspaces/ui-modules/acp-core/pages/add-new-project:
     dependencies:
       '@agent-management-platform/api-client':
         specifier: workspace:*
-        version: link:../../libs/api-client
+        version: link:../../../../libs/api-client
       '@agent-management-platform/feature-management':
         specifier: workspace:*
-        version: link:../../libs/feature-management
+        version: link:../../../../libs/feature-management
       '@agent-management-platform/shared-component':
         specifier: workspace:*
-        version: link:../../libs/shared-component
+        version: link:../../../../libs/shared-component
       '@agent-management-platform/types':
         specifier: workspace:*
-        version: link:../../libs/types
+        version: link:../../../../libs/types
       '@agent-management-platform/views':
         specifier: workspace:*
-        version: link:../../libs/views
+        version: link:../../../../libs/views
       '@babel/runtime-corejs3':
         specifier: 7.29.7
         version: 7.29.7
@@ -1194,7 +1243,7 @@ importers:
     devDependencies:
       '@agent-management-platform/eslint-config':
         specifier: workspace:*
-        version: link:../../libs/eslint-config
+        version: link:../../../../libs/eslint-config
       '@eslint/eslintrc':
         specifier: 3.3.1
         version: 3.3.1
@@ -1319,23 +1368,23 @@ importers:
         specifier: 3.1.3
         version: 3.1.3(@types/debug@4.1.13)(@types/node@24.6.0)(jsdom@26.1.0)(less@4.3.0)(lightningcss@1.33.0)
 
-  workspaces/pages/agent-security:
+  workspaces/ui-modules/acp-core/pages/identities:
     dependencies:
       '@agent-management-platform/api-client':
         specifier: workspace:*
-        version: link:../../libs/api-client
+        version: link:../../../../libs/api-client
       '@agent-management-platform/feature-management':
         specifier: workspace:*
-        version: link:../../libs/feature-management
+        version: link:../../../../libs/feature-management
       '@agent-management-platform/shared-component':
         specifier: workspace:*
-        version: link:../../libs/shared-component
+        version: link:../../../../libs/shared-component
       '@agent-management-platform/types':
         specifier: workspace:*
-        version: link:../../libs/types
+        version: link:../../../../libs/types
       '@agent-management-platform/views':
         specifier: workspace:*
-        version: link:../../libs/views
+        version: link:../../../../libs/views
       '@babel/runtime-corejs3':
         specifier: 7.29.7
         version: 7.29.7
@@ -1378,309 +1427,7 @@ importers:
     devDependencies:
       '@agent-management-platform/eslint-config':
         specifier: workspace:*
-        version: link:../../libs/eslint-config
-      '@eslint/eslintrc':
-        specifier: 3.3.1
-        version: 3.3.1
-      '@eslint/js':
-        specifier: 9.36.0
-        version: 9.36.0
-      '@testing-library/jest-dom':
-        specifier: 6.6.3
-        version: 6.6.3
-      '@testing-library/react':
-        specifier: 16.3.0
-        version: 16.3.0(@testing-library/dom@10.4.0)(@types/react-dom@19.1.9(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      '@types/jest':
-        specifier: 29.5.14
-        version: 29.5.14
-      '@types/node':
-        specifier: 24.6.0
-        version: 24.6.0
-      '@types/react':
-        specifier: 19.2.14
-        version: 19.2.14
-      '@types/react-dom':
-        specifier: 19.1.9
-        version: 19.1.9(@types/react@19.2.14)
-      '@typescript-eslint/eslint-plugin':
-        specifier: 8.33.1
-        version: 8.33.1(@typescript-eslint/parser@8.33.1(eslint@9.36.0)(typescript@5.9.3))(eslint@9.36.0)(typescript@5.9.3)
-      '@typescript-eslint/parser':
-        specifier: 8.33.1
-        version: 8.33.1(eslint@9.36.0)(typescript@5.9.3)
-      '@vitejs/plugin-react':
-        specifier: 5.0.4
-        version: 5.0.4(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0))
-      eslint:
-        specifier: 9.36.0
-        version: 9.36.0
-      eslint-config-prettier:
-        specifier: 10.1.5
-        version: 10.1.5(eslint@9.36.0)
-      eslint-import-resolver-typescript:
-        specifier: 4.4.1
-        version: 4.4.1(eslint-plugin-import@2.31.0)(eslint@9.36.0)
-      eslint-plugin-import:
-        specifier: 2.31.0
-        version: 2.31.0(@typescript-eslint/parser@8.33.1(eslint@9.36.0)(typescript@5.9.3))(eslint-import-resolver-typescript@4.4.1)(eslint@9.36.0)
-      eslint-plugin-jest-dom:
-        specifier: 5.5.0
-        version: 5.5.0(@testing-library/dom@10.4.0)(eslint@9.36.0)
-      eslint-plugin-prettier:
-        specifier: 5.4.0
-        version: 5.4.0(eslint-config-prettier@10.1.5(eslint@9.36.0))(eslint@9.36.0)(prettier@3.5.3)
-      eslint-plugin-react:
-        specifier: 7.37.5
-        version: 7.37.5(eslint@9.36.0)
-      eslint-plugin-react-hooks:
-        specifier: 7.0.0
-        version: 7.0.0(eslint@9.36.0)
-      eslint-plugin-testing-library:
-        specifier: 7.4.0
-        version: 7.4.0(eslint@9.36.0)(typescript@5.9.3)
-      globals:
-        specifier: 16.4.0
-        version: 16.4.0
-      jsdom:
-        specifier: 26.1.0
-        version: 26.1.0
-      postcss:
-        specifier: 8.5.3
-        version: 8.5.3
-      postcss-simple-vars:
-        specifier: 7.0.1
-        version: 7.0.1(postcss@8.5.3)
-      prettier:
-        specifier: 3.5.3
-        version: 3.5.3
-      react:
-        specifier: 19.2.3
-        version: 19.2.3
-      typescript:
-        specifier: 5.9.3
-        version: 5.9.3
-      typescript-eslint:
-        specifier: 8.45.0
-        version: 8.45.0(eslint@9.36.0)(typescript@5.9.3)
-      vite:
-        specifier: 6.3.5
-        version: 6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0)
-      vite-plugin-dts:
-        specifier: 4.5.4
-        version: 4.5.4(@types/node@24.6.0)(rollup@4.62.4)(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0))
-      vitest:
-        specifier: 3.1.3
-        version: 3.1.3(@types/debug@4.1.13)(@types/node@24.6.0)(jsdom@26.1.0)(less@4.3.0)(lightningcss@1.33.0)
-
-  workspaces/pages/configure-agent:
-    dependencies:
-      '@agent-management-platform/api-client':
-        specifier: workspace:*
-        version: link:../../libs/api-client
-      '@agent-management-platform/feature-management':
-        specifier: workspace:*
-        version: link:../../libs/feature-management
-      '@agent-management-platform/llm-providers':
-        specifier: workspace:*
-        version: link:../llm-providers
-      '@agent-management-platform/mcp-proxies':
-        specifier: workspace:*
-        version: link:../mcp-proxies
-      '@agent-management-platform/shared-component':
-        specifier: workspace:*
-        version: link:../../libs/shared-component
-      '@agent-management-platform/types':
-        specifier: workspace:*
-        version: link:../../libs/types
-      '@agent-management-platform/views':
-        specifier: workspace:*
-        version: link:../../libs/views
-      '@babel/runtime-corejs3':
-        specifier: 7.29.7
-        version: 7.29.7
-      '@emotion/react':
-        specifier: 11.13.5
-        version: 11.13.5(@types/react@19.2.14)(react@19.2.3)
-      '@emotion/styled':
-        specifier: 11.13.5
-        version: 11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3)
-      '@wso2/oxygen-ui':
-        specifier: 0.20.0
-        version: 0.20.0(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.20.0(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      '@wso2/oxygen-ui-icons-react':
-        specifier: 0.20.0
-        version: 0.20.0(react@19.2.3)
-      clsx:
-        specifier: 2.1.1
-        version: 2.1.1
-      date-fns:
-        specifier: 4.1.0
-        version: 4.1.0
-      lodash:
-        specifier: 4.18.1
-        version: 4.18.1
-      react-dom:
-        specifier: 19.2.3
-        version: 19.2.3(react@19.2.3)
-      react-router-dom:
-        specifier: 6.30.6
-        version: 6.30.6(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      zod:
-        specifier: 4.6.7
-        version: 4.6.7
-    devDependencies:
-      '@agent-management-platform/eslint-config':
-        specifier: workspace:*
-        version: link:../../libs/eslint-config
-      '@eslint/eslintrc':
-        specifier: 3.3.1
-        version: 3.3.1
-      '@eslint/js':
-        specifier: 9.36.0
-        version: 9.36.0
-      '@testing-library/jest-dom':
-        specifier: 6.6.3
-        version: 6.6.3
-      '@testing-library/react':
-        specifier: 16.3.0
-        version: 16.3.0(@testing-library/dom@10.4.0)(@types/react-dom@19.1.9(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      '@types/jest':
-        specifier: 29.5.14
-        version: 29.5.14
-      '@types/node':
-        specifier: 24.6.0
-        version: 24.6.0
-      '@types/react':
-        specifier: 19.2.14
-        version: 19.2.14
-      '@types/react-dom':
-        specifier: 19.1.9
-        version: 19.1.9(@types/react@19.2.14)
-      '@typescript-eslint/eslint-plugin':
-        specifier: 8.33.1
-        version: 8.33.1(@typescript-eslint/parser@8.33.1(eslint@9.36.0)(typescript@5.9.3))(eslint@9.36.0)(typescript@5.9.3)
-      '@typescript-eslint/parser':
-        specifier: 8.33.1
-        version: 8.33.1(eslint@9.36.0)(typescript@5.9.3)
-      '@vitejs/plugin-react':
-        specifier: 5.0.4
-        version: 5.0.4(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0))
-      eslint:
-        specifier: 9.36.0
-        version: 9.36.0
-      eslint-config-prettier:
-        specifier: 10.1.5
-        version: 10.1.5(eslint@9.36.0)
-      eslint-import-resolver-typescript:
-        specifier: 4.4.1
-        version: 4.4.1(eslint-plugin-import@2.31.0)(eslint@9.36.0)
-      eslint-plugin-import:
-        specifier: 2.31.0
-        version: 2.31.0(@typescript-eslint/parser@8.33.1(eslint@9.36.0)(typescript@5.9.3))(eslint-import-resolver-typescript@4.4.1)(eslint@9.36.0)
-      eslint-plugin-jest-dom:
-        specifier: 5.5.0
-        version: 5.5.0(@testing-library/dom@10.4.0)(eslint@9.36.0)
-      eslint-plugin-prettier:
-        specifier: 5.4.0
-        version: 5.4.0(eslint-config-prettier@10.1.5(eslint@9.36.0))(eslint@9.36.0)(prettier@3.5.3)
-      eslint-plugin-react:
-        specifier: 7.37.5
-        version: 7.37.5(eslint@9.36.0)
-      eslint-plugin-react-hooks:
-        specifier: 7.0.0
-        version: 7.0.0(eslint@9.36.0)
-      eslint-plugin-testing-library:
-        specifier: 7.4.0
-        version: 7.4.0(eslint@9.36.0)(typescript@5.9.3)
-      globals:
-        specifier: 16.4.0
-        version: 16.4.0
-      jsdom:
-        specifier: 26.1.0
-        version: 26.1.0
-      postcss:
-        specifier: 8.5.3
-        version: 8.5.3
-      postcss-simple-vars:
-        specifier: 7.0.1
-        version: 7.0.1(postcss@8.5.3)
-      prettier:
-        specifier: 3.5.3
-        version: 3.5.3
-      react:
-        specifier: 19.2.3
-        version: 19.2.3
-      typescript:
-        specifier: 5.9.3
-        version: 5.9.3
-      typescript-eslint:
-        specifier: 8.45.0
-        version: 8.45.0(eslint@9.36.0)(typescript@5.9.3)
-      vite:
-        specifier: 6.3.5
-        version: 6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0)
-      vite-plugin-dts:
-        specifier: 4.5.4
-        version: 4.5.4(@types/node@24.6.0)(rollup@4.62.4)(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0))
-      vitest:
-        specifier: 3.1.3
-        version: 3.1.3(@types/debug@4.1.13)(@types/node@24.6.0)(jsdom@26.1.0)(less@4.3.0)(lightningcss@1.33.0)
-
-  workspaces/pages/env-thunders:
-    dependencies:
-      '@agent-management-platform/api-client':
-        specifier: workspace:*
-        version: link:../../libs/api-client
-      '@agent-management-platform/feature-management':
-        specifier: workspace:*
-        version: link:../../libs/feature-management
-      '@agent-management-platform/shared-component':
-        specifier: workspace:*
-        version: link:../../libs/shared-component
-      '@agent-management-platform/types':
-        specifier: workspace:*
-        version: link:../../libs/types
-      '@agent-management-platform/views':
-        specifier: workspace:*
-        version: link:../../libs/views
-      '@babel/runtime-corejs3':
-        specifier: 7.29.7
-        version: 7.29.7
-      '@emotion/react':
-        specifier: 11.13.5
-        version: 11.13.5(@types/react@19.2.14)(react@19.2.3)
-      '@emotion/styled':
-        specifier: 11.13.5
-        version: 11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3)
-      '@mui/icons-material':
-        specifier: 7.0.0
-        version: 7.0.0(@mui/material@7.0.0(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(@types/react@19.2.14)(react@19.2.3)
-      '@mui/material':
-        specifier: 7.0.0
-        version: 7.0.0(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      '@wso2/oxygen-ui':
-        specifier: 0.20.0
-        version: 0.20.0(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.20.0(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      '@wso2/oxygen-ui-icons-react':
-        specifier: 0.20.0
-        version: 0.20.0(react@19.2.3)
-      lodash:
-        specifier: 4.18.1
-        version: 4.18.1
-      react-dom:
-        specifier: 19.2.3
-        version: 19.2.3(react@19.2.3)
-      react-router-dom:
-        specifier: 6.30.6
-        version: 6.30.6(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      zod:
-        specifier: 4.6.7
-        version: 4.6.7
-    devDependencies:
-      '@agent-management-platform/eslint-config':
-        specifier: workspace:*
-        version: link:../../libs/eslint-config
+        version: link:../../../../libs/eslint-config
       '@eslint/eslintrc':
         specifier: 3.3.1
         version: 3.3.1
@@ -1772,524 +1519,23 @@ importers:
         specifier: 3.1.3
         version: 3.1.3(@types/debug@4.1.13)(@types/node@24.6.0)(jsdom@26.1.0)(less@4.3.0)(lightningcss@1.33.0)
 
-  workspaces/pages/eval:
+  workspaces/ui-modules/acp-core/pages/level-resource-listing:
     dependencies:
       '@agent-management-platform/api-client':
         specifier: workspace:*
-        version: link:../../libs/api-client
+        version: link:../../../../libs/api-client
       '@agent-management-platform/feature-management':
         specifier: workspace:*
-        version: link:../../libs/feature-management
-      '@agent-management-platform/llm-providers':
-        specifier: workspace:*
-        version: link:../llm-providers
+        version: link:../../../../libs/feature-management
       '@agent-management-platform/shared-component':
         specifier: workspace:*
-        version: link:../../libs/shared-component
+        version: link:../../../../libs/shared-component
       '@agent-management-platform/types':
         specifier: workspace:*
-        version: link:../../libs/types
+        version: link:../../../../libs/types
       '@agent-management-platform/views':
         specifier: workspace:*
-        version: link:../../libs/views
-      '@babel/runtime-corejs3':
-        specifier: 7.29.7
-        version: 7.29.7
-      '@emotion/react':
-        specifier: 11.13.5
-        version: 11.13.5(@types/react@19.2.14)(react@19.2.3)
-      '@emotion/styled':
-        specifier: 11.13.5
-        version: 11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3)
-      '@monaco-editor/react':
-        specifier: 4.7.0
-        version: 4.7.0(monaco-editor@0.56.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      '@mui/icons-material':
-        specifier: 7.0.0
-        version: 7.0.0(@mui/material@7.0.0(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(@types/react@19.2.14)(react@19.2.3)
-      '@mui/material':
-        specifier: 7.0.0
-        version: 7.0.0(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      '@tanstack/react-query':
-        specifier: 5.90.5
-        version: 5.90.5(react@19.2.3)
-      '@wso2/oxygen-ui':
-        specifier: 0.20.0
-        version: 0.20.0(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.20.0(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      '@wso2/oxygen-ui-charts-react':
-        specifier: 0.20.0
-        version: 0.20.0(@types/react@19.2.14)(@wso2/oxygen-ui@0.20.0(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.20.0(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react-is@19.2.8)(react@19.2.3)(redux@5.0.1)
-      '@wso2/oxygen-ui-icons-react':
-        specifier: 0.20.0
-        version: 0.20.0(react@19.2.3)
-      clsx:
-        specifier: 2.1.1
-        version: 2.1.1
-      date-fns:
-        specifier: 4.1.0
-        version: 4.1.0
-      lodash:
-        specifier: 4.18.1
-        version: 4.18.1
-      react-dom:
-        specifier: 19.2.3
-        version: 19.2.3(react@19.2.3)
-      react-router-dom:
-        specifier: 6.30.6
-        version: 6.30.6(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      zod:
-        specifier: 4.6.7
-        version: 4.6.7
-    devDependencies:
-      '@agent-management-platform/eslint-config':
-        specifier: workspace:*
-        version: link:../../libs/eslint-config
-      '@eslint/eslintrc':
-        specifier: 3.3.1
-        version: 3.3.1
-      '@eslint/js':
-        specifier: 9.36.0
-        version: 9.36.0
-      '@storybook/addon-essentials':
-        specifier: 8.6.13
-        version: 8.6.13(@types/react@19.2.14)(storybook@8.6.13(prettier@3.5.3))
-      '@storybook/addon-interactions':
-        specifier: 8.6.13
-        version: 8.6.13(storybook@8.6.13(prettier@3.5.3))
-      '@storybook/addon-onboarding':
-        specifier: 8.6.13
-        version: 8.6.13(storybook@8.6.13(prettier@3.5.3))
-      '@storybook/blocks':
-        specifier: 8.6.13
-        version: 8.6.13(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(storybook@8.6.13(prettier@3.5.3))
-      '@storybook/react':
-        specifier: 8.6.13
-        version: 8.6.13(@storybook/test@8.6.13(storybook@8.6.13(prettier@3.5.3)))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(storybook@8.6.13(prettier@3.5.3))(typescript@5.9.3)
-      '@storybook/react-vite':
-        specifier: 8.6.13
-        version: 8.6.13(@storybook/test@8.6.13(storybook@8.6.13(prettier@3.5.3)))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(rollup@4.62.4)(storybook@8.6.13(prettier@3.5.3))(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0))
-      '@storybook/test':
-        specifier: 8.6.13
-        version: 8.6.13(storybook@8.6.13(prettier@3.5.3))
-      '@testing-library/jest-dom':
-        specifier: 6.6.3
-        version: 6.6.3
-      '@testing-library/react':
-        specifier: 16.3.0
-        version: 16.3.0(@testing-library/dom@10.4.0)(@types/react-dom@19.1.9(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      '@types/jest':
-        specifier: 29.5.14
-        version: 29.5.14
-      '@types/lodash':
-        specifier: 4.17.13
-        version: 4.17.13
-      '@types/node':
-        specifier: 24.6.0
-        version: 24.6.0
-      '@types/react':
-        specifier: 19.2.14
-        version: 19.2.14
-      '@types/react-dom':
-        specifier: 19.1.9
-        version: 19.1.9(@types/react@19.2.14)
-      '@typescript-eslint/eslint-plugin':
-        specifier: 8.33.1
-        version: 8.33.1(@typescript-eslint/parser@8.33.1(eslint@9.36.0)(typescript@5.9.3))(eslint@9.36.0)(typescript@5.9.3)
-      '@typescript-eslint/parser':
-        specifier: 8.33.1
-        version: 8.33.1(eslint@9.36.0)(typescript@5.9.3)
-      '@vitejs/plugin-react':
-        specifier: 5.0.4
-        version: 5.0.4(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0))
-      eslint:
-        specifier: 9.36.0
-        version: 9.36.0
-      eslint-config-prettier:
-        specifier: 10.1.5
-        version: 10.1.5(eslint@9.36.0)
-      eslint-import-resolver-typescript:
-        specifier: 4.4.1
-        version: 4.4.1(eslint-plugin-import@2.31.0)(eslint@9.36.0)
-      eslint-plugin-import:
-        specifier: 2.31.0
-        version: 2.31.0(@typescript-eslint/parser@8.33.1(eslint@9.36.0)(typescript@5.9.3))(eslint-import-resolver-typescript@4.4.1)(eslint@9.36.0)
-      eslint-plugin-jest-dom:
-        specifier: 5.5.0
-        version: 5.5.0(@testing-library/dom@10.4.0)(eslint@9.36.0)
-      eslint-plugin-prettier:
-        specifier: 5.4.0
-        version: 5.4.0(eslint-config-prettier@10.1.5(eslint@9.36.0))(eslint@9.36.0)(prettier@3.5.3)
-      eslint-plugin-react:
-        specifier: 7.37.5
-        version: 7.37.5(eslint@9.36.0)
-      eslint-plugin-react-hooks:
-        specifier: 7.0.0
-        version: 7.0.0(eslint@9.36.0)
-      eslint-plugin-storybook:
-        specifier: 0.12.0
-        version: 0.12.0(eslint@9.36.0)(typescript@5.9.3)
-      eslint-plugin-testing-library:
-        specifier: 7.4.0
-        version: 7.4.0(eslint@9.36.0)(typescript@5.9.3)
-      globals:
-        specifier: 16.4.0
-        version: 16.4.0
-      jsdom:
-        specifier: 26.1.0
-        version: 26.1.0
-      postcss:
-        specifier: 8.5.3
-        version: 8.5.3
-      postcss-simple-vars:
-        specifier: 7.0.1
-        version: 7.0.1(postcss@8.5.3)
-      prettier:
-        specifier: 3.5.3
-        version: 3.5.3
-      react:
-        specifier: 19.2.3
-        version: 19.2.3
-      storybook:
-        specifier: 8.6.13
-        version: 8.6.13(prettier@3.5.3)
-      typescript:
-        specifier: 5.9.3
-        version: 5.9.3
-      typescript-eslint:
-        specifier: 8.45.0
-        version: 8.45.0(eslint@9.36.0)(typescript@5.9.3)
-      vite:
-        specifier: 6.3.5
-        version: 6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0)
-      vite-plugin-dts:
-        specifier: 4.5.4
-        version: 4.5.4(@types/node@24.6.0)(rollup@4.62.4)(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0))
-      vitest:
-        specifier: 3.1.3
-        version: 3.1.3(@types/debug@4.1.13)(@types/node@24.6.0)(jsdom@26.1.0)(less@4.3.0)(lightningcss@1.33.0)
-
-  workspaces/pages/gateways:
-    dependencies:
-      '@agent-management-platform/api-client':
-        specifier: workspace:*
-        version: link:../../libs/api-client
-      '@agent-management-platform/auth':
-        specifier: workspace:*
-        version: link:../../libs/auth
-      '@agent-management-platform/feature-management':
-        specifier: workspace:*
-        version: link:../../libs/feature-management
-      '@agent-management-platform/shared-component':
-        specifier: workspace:*
-        version: link:../../libs/shared-component
-      '@agent-management-platform/types':
-        specifier: workspace:*
-        version: link:../../libs/types
-      '@agent-management-platform/views':
-        specifier: workspace:*
-        version: link:../../libs/views
-      '@babel/runtime-corejs3':
-        specifier: 7.29.7
-        version: 7.29.7
-      '@emotion/react':
-        specifier: 11.13.5
-        version: 11.13.5(@types/react@19.2.14)(react@19.2.3)
-      '@emotion/styled':
-        specifier: 11.13.5
-        version: 11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3)
-      '@mui/icons-material':
-        specifier: 7.0.0
-        version: 7.0.0(@mui/material@7.0.0(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(@types/react@19.2.14)(react@19.2.3)
-      '@mui/material':
-        specifier: 7.0.0
-        version: 7.0.0(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      '@wso2/oxygen-ui':
-        specifier: 0.20.0
-        version: 0.20.0(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.20.0(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      '@wso2/oxygen-ui-icons-react':
-        specifier: 0.20.0
-        version: 0.20.0(react@19.2.3)
-      clsx:
-        specifier: 2.1.1
-        version: 2.1.1
-      date-fns:
-        specifier: 4.1.0
-        version: 4.1.0
-      lodash:
-        specifier: 4.18.1
-        version: 4.18.1
-      react-dom:
-        specifier: 19.2.3
-        version: 19.2.3(react@19.2.3)
-      react-router-dom:
-        specifier: 6.30.6
-        version: 6.30.6(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      zod:
-        specifier: 4.6.7
-        version: 4.6.7
-    devDependencies:
-      '@agent-management-platform/eslint-config':
-        specifier: workspace:*
-        version: link:../../libs/eslint-config
-      '@eslint/eslintrc':
-        specifier: 3.3.1
-        version: 3.3.1
-      '@eslint/js':
-        specifier: 9.36.0
-        version: 9.36.0
-      '@testing-library/jest-dom':
-        specifier: 6.6.3
-        version: 6.6.3
-      '@testing-library/react':
-        specifier: 16.3.0
-        version: 16.3.0(@testing-library/dom@10.4.0)(@types/react-dom@19.1.9(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      '@types/jest':
-        specifier: 29.5.14
-        version: 29.5.14
-      '@types/node':
-        specifier: 24.6.0
-        version: 24.6.0
-      '@types/react':
-        specifier: 19.2.14
-        version: 19.2.14
-      '@types/react-dom':
-        specifier: 19.1.9
-        version: 19.1.9(@types/react@19.2.14)
-      '@typescript-eslint/eslint-plugin':
-        specifier: 8.33.1
-        version: 8.33.1(@typescript-eslint/parser@8.33.1(eslint@9.36.0)(typescript@5.9.3))(eslint@9.36.0)(typescript@5.9.3)
-      '@typescript-eslint/parser':
-        specifier: 8.33.1
-        version: 8.33.1(eslint@9.36.0)(typescript@5.9.3)
-      '@vitejs/plugin-react':
-        specifier: 5.0.4
-        version: 5.0.4(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0))
-      eslint:
-        specifier: 9.36.0
-        version: 9.36.0
-      eslint-config-prettier:
-        specifier: 10.1.5
-        version: 10.1.5(eslint@9.36.0)
-      eslint-import-resolver-typescript:
-        specifier: 4.4.1
-        version: 4.4.1(eslint-plugin-import@2.31.0)(eslint@9.36.0)
-      eslint-plugin-import:
-        specifier: 2.31.0
-        version: 2.31.0(@typescript-eslint/parser@8.33.1(eslint@9.36.0)(typescript@5.9.3))(eslint-import-resolver-typescript@4.4.1)(eslint@9.36.0)
-      eslint-plugin-jest-dom:
-        specifier: 5.5.0
-        version: 5.5.0(@testing-library/dom@10.4.0)(eslint@9.36.0)
-      eslint-plugin-prettier:
-        specifier: 5.4.0
-        version: 5.4.0(eslint-config-prettier@10.1.5(eslint@9.36.0))(eslint@9.36.0)(prettier@3.5.3)
-      eslint-plugin-react:
-        specifier: 7.37.5
-        version: 7.37.5(eslint@9.36.0)
-      eslint-plugin-react-hooks:
-        specifier: 7.0.0
-        version: 7.0.0(eslint@9.36.0)
-      eslint-plugin-testing-library:
-        specifier: 7.4.0
-        version: 7.4.0(eslint@9.36.0)(typescript@5.9.3)
-      globals:
-        specifier: 16.4.0
-        version: 16.4.0
-      jsdom:
-        specifier: 26.1.0
-        version: 26.1.0
-      postcss:
-        specifier: 8.5.3
-        version: 8.5.3
-      postcss-simple-vars:
-        specifier: 7.0.1
-        version: 7.0.1(postcss@8.5.3)
-      prettier:
-        specifier: 3.5.3
-        version: 3.5.3
-      react:
-        specifier: 19.2.3
-        version: 19.2.3
-      typescript:
-        specifier: 5.9.3
-        version: 5.9.3
-      typescript-eslint:
-        specifier: 8.45.0
-        version: 8.45.0(eslint@9.36.0)(typescript@5.9.3)
-      vite:
-        specifier: 6.3.5
-        version: 6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0)
-      vitest:
-        specifier: 3.1.3
-        version: 3.1.3(@types/debug@4.1.13)(@types/node@24.6.0)(jsdom@26.1.0)(less@4.3.0)(lightningcss@1.33.0)
-
-  workspaces/pages/identities:
-    dependencies:
-      '@agent-management-platform/api-client':
-        specifier: workspace:*
-        version: link:../../libs/api-client
-      '@agent-management-platform/feature-management':
-        specifier: workspace:*
-        version: link:../../libs/feature-management
-      '@agent-management-platform/shared-component':
-        specifier: workspace:*
-        version: link:../../libs/shared-component
-      '@agent-management-platform/types':
-        specifier: workspace:*
-        version: link:../../libs/types
-      '@agent-management-platform/views':
-        specifier: workspace:*
-        version: link:../../libs/views
-      '@babel/runtime-corejs3':
-        specifier: 7.29.7
-        version: 7.29.7
-      '@emotion/react':
-        specifier: 11.13.5
-        version: 11.13.5(@types/react@19.2.14)(react@19.2.3)
-      '@emotion/styled':
-        specifier: 11.13.5
-        version: 11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3)
-      '@mui/icons-material':
-        specifier: 7.0.0
-        version: 7.0.0(@mui/material@7.0.0(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(@types/react@19.2.14)(react@19.2.3)
-      '@mui/material':
-        specifier: 7.0.0
-        version: 7.0.0(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      '@wso2/oxygen-ui':
-        specifier: 0.20.0
-        version: 0.20.0(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.20.0(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      '@wso2/oxygen-ui-icons-react':
-        specifier: 0.20.0
-        version: 0.20.0(react@19.2.3)
-      clsx:
-        specifier: 2.1.1
-        version: 2.1.1
-      date-fns:
-        specifier: 4.1.0
-        version: 4.1.0
-      lodash:
-        specifier: 4.18.1
-        version: 4.18.1
-      react-dom:
-        specifier: 19.2.3
-        version: 19.2.3(react@19.2.3)
-      react-router-dom:
-        specifier: 6.30.6
-        version: 6.30.6(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      zod:
-        specifier: 4.6.7
-        version: 4.6.7
-    devDependencies:
-      '@agent-management-platform/eslint-config':
-        specifier: workspace:*
-        version: link:../../libs/eslint-config
-      '@eslint/eslintrc':
-        specifier: 3.3.1
-        version: 3.3.1
-      '@eslint/js':
-        specifier: 9.36.0
-        version: 9.36.0
-      '@testing-library/jest-dom':
-        specifier: 6.6.3
-        version: 6.6.3
-      '@testing-library/react':
-        specifier: 16.3.0
-        version: 16.3.0(@testing-library/dom@10.4.0)(@types/react-dom@19.1.9(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      '@types/jest':
-        specifier: 29.5.14
-        version: 29.5.14
-      '@types/node':
-        specifier: 24.6.0
-        version: 24.6.0
-      '@types/react':
-        specifier: 19.2.14
-        version: 19.2.14
-      '@types/react-dom':
-        specifier: 19.1.9
-        version: 19.1.9(@types/react@19.2.14)
-      '@typescript-eslint/eslint-plugin':
-        specifier: 8.33.1
-        version: 8.33.1(@typescript-eslint/parser@8.33.1(eslint@9.36.0)(typescript@5.9.3))(eslint@9.36.0)(typescript@5.9.3)
-      '@typescript-eslint/parser':
-        specifier: 8.33.1
-        version: 8.33.1(eslint@9.36.0)(typescript@5.9.3)
-      '@vitejs/plugin-react':
-        specifier: 5.0.4
-        version: 5.0.4(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0))
-      eslint:
-        specifier: 9.36.0
-        version: 9.36.0
-      eslint-config-prettier:
-        specifier: 10.1.5
-        version: 10.1.5(eslint@9.36.0)
-      eslint-import-resolver-typescript:
-        specifier: 4.4.1
-        version: 4.4.1(eslint-plugin-import@2.31.0)(eslint@9.36.0)
-      eslint-plugin-import:
-        specifier: 2.31.0
-        version: 2.31.0(@typescript-eslint/parser@8.33.1(eslint@9.36.0)(typescript@5.9.3))(eslint-import-resolver-typescript@4.4.1)(eslint@9.36.0)
-      eslint-plugin-jest-dom:
-        specifier: 5.5.0
-        version: 5.5.0(@testing-library/dom@10.4.0)(eslint@9.36.0)
-      eslint-plugin-prettier:
-        specifier: 5.4.0
-        version: 5.4.0(eslint-config-prettier@10.1.5(eslint@9.36.0))(eslint@9.36.0)(prettier@3.5.3)
-      eslint-plugin-react:
-        specifier: 7.37.5
-        version: 7.37.5(eslint@9.36.0)
-      eslint-plugin-react-hooks:
-        specifier: 7.0.0
-        version: 7.0.0(eslint@9.36.0)
-      eslint-plugin-testing-library:
-        specifier: 7.4.0
-        version: 7.4.0(eslint@9.36.0)(typescript@5.9.3)
-      globals:
-        specifier: 16.4.0
-        version: 16.4.0
-      jsdom:
-        specifier: 26.1.0
-        version: 26.1.0
-      postcss:
-        specifier: 8.5.3
-        version: 8.5.3
-      postcss-simple-vars:
-        specifier: 7.0.1
-        version: 7.0.1(postcss@8.5.3)
-      prettier:
-        specifier: 3.5.3
-        version: 3.5.3
-      react:
-        specifier: 19.2.3
-        version: 19.2.3
-      typescript:
-        specifier: 5.9.3
-        version: 5.9.3
-      typescript-eslint:
-        specifier: 8.45.0
-        version: 8.45.0(eslint@9.36.0)(typescript@5.9.3)
-      vite:
-        specifier: 6.3.5
-        version: 6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0)
-      vitest:
-        specifier: 3.1.3
-        version: 3.1.3(@types/debug@4.1.13)(@types/node@24.6.0)(jsdom@26.1.0)(less@4.3.0)(lightningcss@1.33.0)
-
-  workspaces/pages/level-resource-listing:
-    dependencies:
-      '@agent-management-platform/api-client':
-        specifier: workspace:*
-        version: link:../../libs/api-client
-      '@agent-management-platform/feature-management':
-        specifier: workspace:*
-        version: link:../../libs/feature-management
-      '@agent-management-platform/shared-component':
-        specifier: workspace:*
-        version: link:../../libs/shared-component
-      '@agent-management-platform/types':
-        specifier: workspace:*
-        version: link:../../libs/types
-      '@agent-management-platform/views':
-        specifier: workspace:*
-        version: link:../../libs/views
+        version: link:../../../../libs/views
       '@wso2/oxygen-ui':
         specifier: 0.20.0
         version: 0.20.0(@mui/system@7.3.11(@emotion/react@11.14.0(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.20.0(react@19.2.3))(react-dom@19.2.4(react@19.2.3))(react@19.2.3)
@@ -2302,7 +1548,7 @@ importers:
     devDependencies:
       '@agent-management-platform/eslint-config':
         specifier: workspace:*
-        version: link:../../libs/eslint-config
+        version: link:../../../../libs/eslint-config
       '@eslint/eslintrc':
         specifier: 3.3.1
         version: 3.3.1
@@ -2397,711 +1643,29 @@ importers:
         specifier: 3.1.3
         version: 3.1.3(@types/debug@4.1.13)(@types/node@24.6.0)(jsdom@26.1.0)(less@4.3.0)(lightningcss@1.33.0)
 
-  workspaces/pages/llm-providers:
+  workspaces/ui-modules/acp-core/pages/overview:
     dependencies:
       '@agent-management-platform/api-client':
         specifier: workspace:*
-        version: link:../../libs/api-client
-      '@agent-management-platform/feature-management':
-        specifier: workspace:*
-        version: link:../../libs/feature-management
-      '@agent-management-platform/shared-component':
-        specifier: workspace:*
-        version: link:../../libs/shared-component
-      '@agent-management-platform/traces':
-        specifier: workspace:*
-        version: link:../traces
-      '@agent-management-platform/types':
-        specifier: workspace:*
-        version: link:../../libs/types
-      '@agent-management-platform/views':
-        specifier: workspace:*
-        version: link:../../libs/views
-      '@emotion/react':
-        specifier: 11.13.5
-        version: 11.13.5(@types/react@19.2.14)(react@19.2.3)
-      '@emotion/styled':
-        specifier: 11.13.5
-        version: 11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3)
-      '@mui/icons-material':
-        specifier: 7.0.0
-        version: 7.0.0(@mui/material@7.0.0(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(@types/react@19.2.14)(react@19.2.3)
-      '@mui/material':
-        specifier: 7.0.0
-        version: 7.0.0(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      '@wso2/oxygen-ui':
-        specifier: 0.20.0
-        version: 0.20.0(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.20.0(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      '@wso2/oxygen-ui-icons-react':
-        specifier: 0.20.0
-        version: 0.20.0(react@19.2.3)
-      clsx:
-        specifier: 2.1.1
-        version: 2.1.1
-      date-fns:
-        specifier: 4.1.0
-        version: 4.1.0
-      js-yaml:
-        specifier: 4.3.2
-        version: 4.3.2
-      react-dom:
-        specifier: 19.2.3
-        version: 19.2.3(react@19.2.3)
-      react-router-dom:
-        specifier: 6.30.6
-        version: 6.30.6(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      zod:
-        specifier: 4.6.7
-        version: 4.6.7
-    devDependencies:
-      '@agent-management-platform/eslint-config':
-        specifier: workspace:*
-        version: link:../../libs/eslint-config
-      '@eslint/eslintrc':
-        specifier: 3.3.1
-        version: 3.3.1
-      '@eslint/js':
-        specifier: 9.36.0
-        version: 9.36.0
-      '@storybook/addon-essentials':
-        specifier: 8.6.13
-        version: 8.6.13(@types/react@19.2.14)(storybook@8.6.13(prettier@3.5.3))
-      '@storybook/addon-interactions':
-        specifier: 8.6.13
-        version: 8.6.13(storybook@8.6.13(prettier@3.5.3))
-      '@storybook/addon-onboarding':
-        specifier: 8.6.13
-        version: 8.6.13(storybook@8.6.13(prettier@3.5.3))
-      '@storybook/blocks':
-        specifier: 8.6.13
-        version: 8.6.13(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(storybook@8.6.13(prettier@3.5.3))
-      '@storybook/react':
-        specifier: 8.6.13
-        version: 8.6.13(@storybook/test@8.6.13(storybook@8.6.13(prettier@3.5.3)))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(storybook@8.6.13(prettier@3.5.3))(typescript@5.9.3)
-      '@storybook/react-vite':
-        specifier: 8.6.13
-        version: 8.6.13(@storybook/test@8.6.13(storybook@8.6.13(prettier@3.5.3)))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(rollup@4.62.4)(storybook@8.6.13(prettier@3.5.3))(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0))
-      '@storybook/test':
-        specifier: 8.6.13
-        version: 8.6.13(storybook@8.6.13(prettier@3.5.3))
-      '@testing-library/jest-dom':
-        specifier: 6.6.3
-        version: 6.6.3
-      '@testing-library/react':
-        specifier: 16.3.0
-        version: 16.3.0(@testing-library/dom@10.4.0)(@types/react-dom@19.1.9(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      '@types/jest':
-        specifier: 29.5.14
-        version: 29.5.14
-      '@types/js-yaml':
-        specifier: 4.0.9
-        version: 4.0.9
-      '@types/node':
-        specifier: 24.6.0
-        version: 24.6.0
-      '@types/react':
-        specifier: 19.2.14
-        version: 19.2.14
-      '@types/react-dom':
-        specifier: 19.1.9
-        version: 19.1.9(@types/react@19.2.14)
-      '@typescript-eslint/eslint-plugin':
-        specifier: 8.33.1
-        version: 8.33.1(@typescript-eslint/parser@8.33.1(eslint@9.36.0)(typescript@5.9.3))(eslint@9.36.0)(typescript@5.9.3)
-      '@typescript-eslint/parser':
-        specifier: 8.33.1
-        version: 8.33.1(eslint@9.36.0)(typescript@5.9.3)
-      '@vitejs/plugin-react':
-        specifier: 5.0.4
-        version: 5.0.4(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0))
-      eslint:
-        specifier: 9.36.0
-        version: 9.36.0
-      eslint-config-prettier:
-        specifier: 10.1.5
-        version: 10.1.5(eslint@9.36.0)
-      eslint-import-resolver-typescript:
-        specifier: 4.4.1
-        version: 4.4.1(eslint-plugin-import@2.31.0)(eslint@9.36.0)
-      eslint-plugin-import:
-        specifier: 2.31.0
-        version: 2.31.0(@typescript-eslint/parser@8.33.1(eslint@9.36.0)(typescript@5.9.3))(eslint-import-resolver-typescript@4.4.1)(eslint@9.36.0)
-      eslint-plugin-jest-dom:
-        specifier: 5.5.0
-        version: 5.5.0(@testing-library/dom@10.4.0)(eslint@9.36.0)
-      eslint-plugin-prettier:
-        specifier: 5.4.0
-        version: 5.4.0(eslint-config-prettier@10.1.5(eslint@9.36.0))(eslint@9.36.0)(prettier@3.5.3)
-      eslint-plugin-react:
-        specifier: 7.37.5
-        version: 7.37.5(eslint@9.36.0)
-      eslint-plugin-react-hooks:
-        specifier: 7.0.0
-        version: 7.0.0(eslint@9.36.0)
-      eslint-plugin-storybook:
-        specifier: 0.12.0
-        version: 0.12.0(eslint@9.36.0)(typescript@5.9.3)
-      eslint-plugin-testing-library:
-        specifier: 7.4.0
-        version: 7.4.0(eslint@9.36.0)(typescript@5.9.3)
-      globals:
-        specifier: 16.4.0
-        version: 16.4.0
-      jsdom:
-        specifier: 26.1.0
-        version: 26.1.0
-      postcss:
-        specifier: 8.5.3
-        version: 8.5.3
-      postcss-simple-vars:
-        specifier: 7.0.1
-        version: 7.0.1(postcss@8.5.3)
-      prettier:
-        specifier: 3.5.3
-        version: 3.5.3
-      react:
-        specifier: 19.2.3
-        version: 19.2.3
-      storybook:
-        specifier: 8.6.13
-        version: 8.6.13(prettier@3.5.3)
-      typescript:
-        specifier: 5.9.3
-        version: 5.9.3
-      typescript-eslint:
-        specifier: 8.45.0
-        version: 8.45.0(eslint@9.36.0)(typescript@5.9.3)
-      vite:
-        specifier: 6.3.5
-        version: 6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0)
-      vite-plugin-dts:
-        specifier: 4.5.4
-        version: 4.5.4(@types/node@24.6.0)(rollup@4.62.4)(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0))
-      vitest:
-        specifier: 3.1.3
-        version: 3.1.3(@types/debug@4.1.13)(@types/node@24.6.0)(jsdom@26.1.0)(less@4.3.0)(lightningcss@1.33.0)
-
-  workspaces/pages/logs:
-    dependencies:
-      '@agent-management-platform/api-client':
-        specifier: workspace:*
-        version: link:../../libs/api-client
-      '@agent-management-platform/shared-component':
-        specifier: workspace:*
-        version: link:../../libs/shared-component
-      '@agent-management-platform/types':
-        specifier: workspace:*
-        version: link:../../libs/types
-      '@agent-management-platform/views':
-        specifier: workspace:*
-        version: link:../../libs/views
-      '@babel/runtime-corejs3':
-        specifier: 7.29.7
-        version: 7.29.7
-      '@emotion/react':
-        specifier: 11.13.5
-        version: 11.13.5(@types/react@19.2.14)(react@19.2.3)
-      '@emotion/styled':
-        specifier: 11.13.5
-        version: 11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3)
-      '@mui/icons-material':
-        specifier: 7.0.0
-        version: 7.0.0(@mui/material@7.0.0(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(@types/react@19.2.14)(react@19.2.3)
-      '@mui/material':
-        specifier: 7.0.0
-        version: 7.0.0(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      '@wso2/oxygen-ui':
-        specifier: 0.20.0
-        version: 0.20.0(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.20.0(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      '@wso2/oxygen-ui-icons-react':
-        specifier: 0.20.0
-        version: 0.20.0(react@19.2.3)
-      clsx:
-        specifier: 2.1.1
-        version: 2.1.1
-      date-fns:
-        specifier: 4.1.0
-        version: 4.1.0
-      lodash:
-        specifier: 4.18.1
-        version: 4.18.1
-      react-dom:
-        specifier: 19.2.3
-        version: 19.2.3(react@19.2.3)
-      react-router-dom:
-        specifier: 6.30.6
-        version: 6.30.6(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      zod:
-        specifier: 4.6.7
-        version: 4.6.7
-    devDependencies:
-      '@agent-management-platform/eslint-config':
-        specifier: workspace:*
-        version: link:../../libs/eslint-config
-      '@eslint/eslintrc':
-        specifier: 3.3.1
-        version: 3.3.1
-      '@eslint/js':
-        specifier: 9.36.0
-        version: 9.36.0
-      '@storybook/addon-essentials':
-        specifier: 8.6.13
-        version: 8.6.13(@types/react@19.2.14)(storybook@8.6.13(prettier@3.5.3))
-      '@storybook/addon-interactions':
-        specifier: 8.6.13
-        version: 8.6.13(storybook@8.6.13(prettier@3.5.3))
-      '@storybook/addon-onboarding':
-        specifier: 8.6.13
-        version: 8.6.13(storybook@8.6.13(prettier@3.5.3))
-      '@storybook/blocks':
-        specifier: 8.6.13
-        version: 8.6.13(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(storybook@8.6.13(prettier@3.5.3))
-      '@storybook/react':
-        specifier: 8.6.13
-        version: 8.6.13(@storybook/test@8.6.13(storybook@8.6.13(prettier@3.5.3)))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(storybook@8.6.13(prettier@3.5.3))(typescript@5.9.3)
-      '@storybook/react-vite':
-        specifier: 8.6.13
-        version: 8.6.13(@storybook/test@8.6.13(storybook@8.6.13(prettier@3.5.3)))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(rollup@4.62.4)(storybook@8.6.13(prettier@3.5.3))(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0))
-      '@storybook/test':
-        specifier: 8.6.13
-        version: 8.6.13(storybook@8.6.13(prettier@3.5.3))
-      '@testing-library/jest-dom':
-        specifier: 6.6.3
-        version: 6.6.3
-      '@testing-library/react':
-        specifier: 16.3.0
-        version: 16.3.0(@testing-library/dom@10.4.0)(@types/react-dom@19.1.9(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      '@types/jest':
-        specifier: 29.5.14
-        version: 29.5.14
-      '@types/lodash':
-        specifier: 4.17.13
-        version: 4.17.13
-      '@types/node':
-        specifier: 24.6.0
-        version: 24.6.0
-      '@types/react':
-        specifier: 19.2.14
-        version: 19.2.14
-      '@types/react-dom':
-        specifier: 19.1.9
-        version: 19.1.9(@types/react@19.2.14)
-      '@typescript-eslint/eslint-plugin':
-        specifier: 8.33.1
-        version: 8.33.1(@typescript-eslint/parser@8.33.1(eslint@9.36.0)(typescript@5.9.3))(eslint@9.36.0)(typescript@5.9.3)
-      '@typescript-eslint/parser':
-        specifier: 8.33.1
-        version: 8.33.1(eslint@9.36.0)(typescript@5.9.3)
-      '@vitejs/plugin-react':
-        specifier: 5.0.4
-        version: 5.0.4(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0))
-      eslint:
-        specifier: 9.36.0
-        version: 9.36.0
-      eslint-config-prettier:
-        specifier: 10.1.5
-        version: 10.1.5(eslint@9.36.0)
-      eslint-import-resolver-typescript:
-        specifier: 4.4.1
-        version: 4.4.1(eslint-plugin-import@2.31.0)(eslint@9.36.0)
-      eslint-plugin-import:
-        specifier: 2.31.0
-        version: 2.31.0(@typescript-eslint/parser@8.33.1(eslint@9.36.0)(typescript@5.9.3))(eslint-import-resolver-typescript@4.4.1)(eslint@9.36.0)
-      eslint-plugin-jest-dom:
-        specifier: 5.5.0
-        version: 5.5.0(@testing-library/dom@10.4.0)(eslint@9.36.0)
-      eslint-plugin-prettier:
-        specifier: 5.4.0
-        version: 5.4.0(eslint-config-prettier@10.1.5(eslint@9.36.0))(eslint@9.36.0)(prettier@3.5.3)
-      eslint-plugin-react:
-        specifier: 7.37.5
-        version: 7.37.5(eslint@9.36.0)
-      eslint-plugin-react-hooks:
-        specifier: 7.0.0
-        version: 7.0.0(eslint@9.36.0)
-      eslint-plugin-storybook:
-        specifier: 0.12.0
-        version: 0.12.0(eslint@9.36.0)(typescript@5.9.3)
-      eslint-plugin-testing-library:
-        specifier: 7.4.0
-        version: 7.4.0(eslint@9.36.0)(typescript@5.9.3)
-      globals:
-        specifier: 16.4.0
-        version: 16.4.0
-      jsdom:
-        specifier: 26.1.0
-        version: 26.1.0
-      postcss:
-        specifier: 8.5.3
-        version: 8.5.3
-      postcss-simple-vars:
-        specifier: 7.0.1
-        version: 7.0.1(postcss@8.5.3)
-      prettier:
-        specifier: 3.5.3
-        version: 3.5.3
-      react:
-        specifier: 19.2.3
-        version: 19.2.3
-      storybook:
-        specifier: 8.6.13
-        version: 8.6.13(prettier@3.5.3)
-      typescript:
-        specifier: 5.9.3
-        version: 5.9.3
-      typescript-eslint:
-        specifier: 8.45.0
-        version: 8.45.0(eslint@9.36.0)(typescript@5.9.3)
-      vite:
-        specifier: 6.3.5
-        version: 6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0)
-      vite-plugin-dts:
-        specifier: 4.5.4
-        version: 4.5.4(@types/node@24.6.0)(rollup@4.62.4)(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0))
-      vitest:
-        specifier: 3.1.3
-        version: 3.1.3(@types/debug@4.1.13)(@types/node@24.6.0)(jsdom@26.1.0)(less@4.3.0)(lightningcss@1.33.0)
-
-  workspaces/pages/mcp-proxies:
-    dependencies:
-      '@agent-management-platform/api-client':
-        specifier: workspace:*
-        version: link:../../libs/api-client
+        version: link:../../../../libs/api-client
       '@agent-management-platform/auth':
         specifier: workspace:*
-        version: link:../../libs/auth
+        version: link:../../../../libs/auth
       '@agent-management-platform/feature-management':
         specifier: workspace:*
-        version: link:../../libs/feature-management
-      '@agent-management-platform/shared-component':
-        specifier: workspace:*
-        version: link:../../libs/shared-component
-      '@agent-management-platform/types':
-        specifier: workspace:*
-        version: link:../../libs/types
-      '@agent-management-platform/views':
-        specifier: workspace:*
-        version: link:../../libs/views
-      '@emotion/react':
-        specifier: 11.13.5
-        version: 11.13.5(@types/react@19.2.14)(react@19.2.3)
-      '@emotion/styled':
-        specifier: 11.13.5
-        version: 11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3)
-      '@mui/material':
-        specifier: 7.0.0
-        version: 7.0.0(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      '@tanstack/react-query':
-        specifier: 5.90.5
-        version: 5.90.5(react@19.2.3)
-      '@wso2/oxygen-ui':
-        specifier: 0.20.0
-        version: 0.20.0(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.20.0(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      '@wso2/oxygen-ui-icons-react':
-        specifier: 0.20.0
-        version: 0.20.0(react@19.2.3)
-      lodash:
-        specifier: 4.18.1
-        version: 4.18.1
-      react-dom:
-        specifier: 19.2.3
-        version: 19.2.3(react@19.2.3)
-      react-router-dom:
-        specifier: 6.30.6
-        version: 6.30.6(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      zod:
-        specifier: 4.6.7
-        version: 4.6.7
-    devDependencies:
-      '@agent-management-platform/eslint-config':
-        specifier: workspace:*
-        version: link:../../libs/eslint-config
-      '@eslint/eslintrc':
-        specifier: 3.3.1
-        version: 3.3.1
-      '@eslint/js':
-        specifier: 9.36.0
-        version: 9.36.0
-      '@types/lodash':
-        specifier: 4.17.13
-        version: 4.17.13
-      '@types/node':
-        specifier: 24.6.0
-        version: 24.6.0
-      '@types/react':
-        specifier: 19.2.14
-        version: 19.2.14
-      '@types/react-dom':
-        specifier: 19.1.9
-        version: 19.1.9(@types/react@19.2.14)
-      '@typescript-eslint/eslint-plugin':
-        specifier: 8.33.1
-        version: 8.33.1(@typescript-eslint/parser@8.33.1(eslint@9.36.0)(typescript@5.9.3))(eslint@9.36.0)(typescript@5.9.3)
-      '@typescript-eslint/parser':
-        specifier: 8.33.1
-        version: 8.33.1(eslint@9.36.0)(typescript@5.9.3)
-      '@vitejs/plugin-react':
-        specifier: 5.0.4
-        version: 5.0.4(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0))
-      eslint:
-        specifier: 9.36.0
-        version: 9.36.0
-      eslint-config-prettier:
-        specifier: 10.1.5
-        version: 10.1.5(eslint@9.36.0)
-      eslint-import-resolver-typescript:
-        specifier: 4.4.1
-        version: 4.4.1(eslint-plugin-import@2.31.0)(eslint@9.36.0)
-      eslint-plugin-import:
-        specifier: 2.31.0
-        version: 2.31.0(@typescript-eslint/parser@8.33.1(eslint@9.36.0)(typescript@5.9.3))(eslint-import-resolver-typescript@4.4.1)(eslint@9.36.0)
-      eslint-plugin-prettier:
-        specifier: 5.4.0
-        version: 5.4.0(eslint-config-prettier@10.1.5(eslint@9.36.0))(eslint@9.36.0)(prettier@3.5.3)
-      eslint-plugin-react:
-        specifier: 7.37.5
-        version: 7.37.5(eslint@9.36.0)
-      eslint-plugin-react-hooks:
-        specifier: 7.0.0
-        version: 7.0.0(eslint@9.36.0)
-      eslint-plugin-storybook:
-        specifier: 0.12.0
-        version: 0.12.0(eslint@9.36.0)(typescript@5.9.3)
-      globals:
-        specifier: 16.4.0
-        version: 16.4.0
-      postcss:
-        specifier: 8.5.3
-        version: 8.5.3
-      postcss-simple-vars:
-        specifier: 7.0.1
-        version: 7.0.1(postcss@8.5.3)
-      prettier:
-        specifier: 3.5.3
-        version: 3.5.3
-      react:
-        specifier: 19.2.3
-        version: 19.2.3
-      typescript:
-        specifier: 5.9.3
-        version: 5.9.3
-      typescript-eslint:
-        specifier: 8.45.0
-        version: 8.45.0(eslint@9.36.0)(typescript@5.9.3)
-      vite:
-        specifier: 6.3.5
-        version: 6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0)
-      vite-plugin-dts:
-        specifier: 4.5.4
-        version: 4.5.4(@types/node@24.6.0)(rollup@4.62.4)(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0))
-
-  workspaces/pages/metrics:
-    dependencies:
-      '@agent-management-platform/api-client':
-        specifier: workspace:*
-        version: link:../../libs/api-client
-      '@agent-management-platform/shared-component':
-        specifier: workspace:*
-        version: link:../../libs/shared-component
-      '@agent-management-platform/types':
-        specifier: workspace:*
-        version: link:../../libs/types
-      '@agent-management-platform/views':
-        specifier: workspace:*
-        version: link:../../libs/views
-      '@babel/runtime-corejs3':
-        specifier: 7.29.7
-        version: 7.29.7
-      '@emotion/react':
-        specifier: 11.13.5
-        version: 11.13.5(@types/react@19.2.14)(react@19.2.3)
-      '@emotion/styled':
-        specifier: 11.13.5
-        version: 11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3)
-      '@mui/icons-material':
-        specifier: 7.0.0
-        version: 7.0.0(@mui/material@7.0.0(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(@types/react@19.2.14)(react@19.2.3)
-      '@mui/material':
-        specifier: 7.0.0
-        version: 7.0.0(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      '@wso2/oxygen-ui':
-        specifier: 0.20.0
-        version: 0.20.0(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.20.0(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      '@wso2/oxygen-ui-charts-react':
-        specifier: 0.20.0
-        version: 0.20.0(@types/react@19.2.14)(@wso2/oxygen-ui@0.20.0(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.20.0(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react-is@19.2.8)(react@19.2.3)(redux@5.0.1)
-      '@wso2/oxygen-ui-icons-react':
-        specifier: 0.20.0
-        version: 0.20.0(react@19.2.3)
-      clsx:
-        specifier: 2.1.1
-        version: 2.1.1
-      date-fns:
-        specifier: 4.1.0
-        version: 4.1.0
-      lodash:
-        specifier: 4.18.1
-        version: 4.18.1
-      react-dom:
-        specifier: 19.2.3
-        version: 19.2.3(react@19.2.3)
-      react-router-dom:
-        specifier: 6.30.6
-        version: 6.30.6(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      zod:
-        specifier: 4.6.7
-        version: 4.6.7
-    devDependencies:
-      '@agent-management-platform/eslint-config':
-        specifier: workspace:*
-        version: link:../../libs/eslint-config
-      '@eslint/eslintrc':
-        specifier: 3.3.1
-        version: 3.3.1
-      '@eslint/js':
-        specifier: 9.36.0
-        version: 9.36.0
-      '@storybook/addon-essentials':
-        specifier: 8.6.13
-        version: 8.6.13(@types/react@19.2.14)(storybook@8.6.13(prettier@3.5.3))
-      '@storybook/addon-interactions':
-        specifier: 8.6.13
-        version: 8.6.13(storybook@8.6.13(prettier@3.5.3))
-      '@storybook/addon-onboarding':
-        specifier: 8.6.13
-        version: 8.6.13(storybook@8.6.13(prettier@3.5.3))
-      '@storybook/blocks':
-        specifier: 8.6.13
-        version: 8.6.13(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(storybook@8.6.13(prettier@3.5.3))
-      '@storybook/react':
-        specifier: 8.6.13
-        version: 8.6.13(@storybook/test@8.6.13(storybook@8.6.13(prettier@3.5.3)))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(storybook@8.6.13(prettier@3.5.3))(typescript@5.9.3)
-      '@storybook/react-vite':
-        specifier: 8.6.13
-        version: 8.6.13(@storybook/test@8.6.13(storybook@8.6.13(prettier@3.5.3)))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(rollup@4.62.4)(storybook@8.6.13(prettier@3.5.3))(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0))
-      '@storybook/test':
-        specifier: 8.6.13
-        version: 8.6.13(storybook@8.6.13(prettier@3.5.3))
-      '@testing-library/jest-dom':
-        specifier: 6.6.3
-        version: 6.6.3
-      '@testing-library/react':
-        specifier: 16.3.0
-        version: 16.3.0(@testing-library/dom@10.4.0)(@types/react-dom@19.1.9(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      '@types/jest':
-        specifier: 29.5.14
-        version: 29.5.14
-      '@types/lodash':
-        specifier: 4.17.13
-        version: 4.17.13
-      '@types/node':
-        specifier: 24.6.0
-        version: 24.6.0
-      '@types/react':
-        specifier: 19.2.14
-        version: 19.2.14
-      '@types/react-dom':
-        specifier: 19.1.9
-        version: 19.1.9(@types/react@19.2.14)
-      '@typescript-eslint/eslint-plugin':
-        specifier: 8.33.1
-        version: 8.33.1(@typescript-eslint/parser@8.33.1(eslint@9.36.0)(typescript@5.9.3))(eslint@9.36.0)(typescript@5.9.3)
-      '@typescript-eslint/parser':
-        specifier: 8.33.1
-        version: 8.33.1(eslint@9.36.0)(typescript@5.9.3)
-      '@vitejs/plugin-react':
-        specifier: 5.0.4
-        version: 5.0.4(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0))
-      eslint:
-        specifier: 9.36.0
-        version: 9.36.0
-      eslint-config-prettier:
-        specifier: 10.1.5
-        version: 10.1.5(eslint@9.36.0)
-      eslint-import-resolver-typescript:
-        specifier: 4.4.1
-        version: 4.4.1(eslint-plugin-import@2.31.0)(eslint@9.36.0)
-      eslint-plugin-import:
-        specifier: 2.31.0
-        version: 2.31.0(@typescript-eslint/parser@8.33.1(eslint@9.36.0)(typescript@5.9.3))(eslint-import-resolver-typescript@4.4.1)(eslint@9.36.0)
-      eslint-plugin-jest-dom:
-        specifier: 5.5.0
-        version: 5.5.0(@testing-library/dom@10.4.0)(eslint@9.36.0)
-      eslint-plugin-prettier:
-        specifier: 5.4.0
-        version: 5.4.0(eslint-config-prettier@10.1.5(eslint@9.36.0))(eslint@9.36.0)(prettier@3.5.3)
-      eslint-plugin-react:
-        specifier: 7.37.5
-        version: 7.37.5(eslint@9.36.0)
-      eslint-plugin-react-hooks:
-        specifier: 7.0.0
-        version: 7.0.0(eslint@9.36.0)
-      eslint-plugin-storybook:
-        specifier: 0.12.0
-        version: 0.12.0(eslint@9.36.0)(typescript@5.9.3)
-      eslint-plugin-testing-library:
-        specifier: 7.4.0
-        version: 7.4.0(eslint@9.36.0)(typescript@5.9.3)
-      globals:
-        specifier: 16.4.0
-        version: 16.4.0
-      jsdom:
-        specifier: 26.1.0
-        version: 26.1.0
-      postcss:
-        specifier: 8.5.3
-        version: 8.5.3
-      postcss-simple-vars:
-        specifier: 7.0.1
-        version: 7.0.1(postcss@8.5.3)
-      prettier:
-        specifier: 3.5.3
-        version: 3.5.3
-      react:
-        specifier: 19.2.3
-        version: 19.2.3
-      storybook:
-        specifier: 8.6.13
-        version: 8.6.13(prettier@3.5.3)
-      typescript:
-        specifier: 5.9.3
-        version: 5.9.3
-      typescript-eslint:
-        specifier: 8.45.0
-        version: 8.45.0(eslint@9.36.0)(typescript@5.9.3)
-      vite:
-        specifier: 6.3.5
-        version: 6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0)
-      vite-plugin-dts:
-        specifier: 4.5.4
-        version: 4.5.4(@types/node@24.6.0)(rollup@4.62.4)(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0))
-      vitest:
-        specifier: 3.1.3
-        version: 3.1.3(@types/debug@4.1.13)(@types/node@24.6.0)(jsdom@26.1.0)(less@4.3.0)(lightningcss@1.33.0)
-
-  workspaces/pages/overview:
-    dependencies:
-      '@agent-management-platform/api-client':
-        specifier: workspace:*
-        version: link:../../libs/api-client
-      '@agent-management-platform/auth':
-        specifier: workspace:*
-        version: link:../../libs/auth
-      '@agent-management-platform/feature-management':
-        specifier: workspace:*
-        version: link:../../libs/feature-management
+        version: link:../../../../libs/feature-management
       '@agent-management-platform/level-resource-listing':
         specifier: workspace:*
         version: link:../level-resource-listing
       '@agent-management-platform/shared-component':
         specifier: workspace:*
-        version: link:../../libs/shared-component
+        version: link:../../../../libs/shared-component
       '@agent-management-platform/types':
         specifier: workspace:*
-        version: link:../../libs/types
+        version: link:../../../../libs/types
       '@agent-management-platform/views':
         specifier: workspace:*
-        version: link:../../libs/views
+        version: link:../../../../libs/views
       '@babel/runtime-corejs3':
         specifier: 7.29.7
         version: 7.29.7
@@ -3147,7 +1711,7 @@ importers:
     devDependencies:
       '@agent-management-platform/eslint-config':
         specifier: workspace:*
-        version: link:../../libs/eslint-config
+        version: link:../../../../libs/eslint-config
       '@eslint/eslintrc':
         specifier: 3.3.1
         version: 3.3.1
@@ -3269,29 +1833,29 @@ importers:
         specifier: 3.1.3
         version: 3.1.3(@types/debug@4.1.13)(@types/node@24.6.0)(jsdom@26.1.0)(less@4.3.0)(lightningcss@1.33.0)
 
-  workspaces/pages/settings:
+  workspaces/ui-modules/acp-core/pages/settings:
     dependencies:
       '@agent-management-platform/api-client':
         specifier: workspace:*
-        version: link:../../libs/api-client
+        version: link:../../../../libs/api-client
       '@agent-management-platform/auth':
         specifier: workspace:*
-        version: link:../../libs/auth
+        version: link:../../../../libs/auth
       '@agent-management-platform/feature-management':
         specifier: workspace:*
-        version: link:../../libs/feature-management
+        version: link:../../../../libs/feature-management
       '@agent-management-platform/identities':
         specifier: workspace:*
         version: link:../identities
       '@agent-management-platform/shared-component':
         specifier: workspace:*
-        version: link:../../libs/shared-component
+        version: link:../../../../libs/shared-component
       '@agent-management-platform/types':
         specifier: workspace:*
-        version: link:../../libs/types
+        version: link:../../../../libs/types
       '@agent-management-platform/views':
         specifier: workspace:*
-        version: link:../../libs/views
+        version: link:../../../../libs/views
       '@babel/runtime-corejs3':
         specifier: 7.29.7
         version: 7.29.7
@@ -3334,7 +1898,7 @@ importers:
     devDependencies:
       '@agent-management-platform/eslint-config':
         specifier: workspace:*
-        version: link:../../libs/eslint-config
+        version: link:../../../../libs/eslint-config
       '@eslint/eslintrc':
         specifier: 3.3.1
         version: 3.3.1
@@ -3426,20 +1990,1136 @@ importers:
         specifier: 3.1.3
         version: 3.1.3(@types/debug@4.1.13)(@types/node@24.6.0)(jsdom@26.1.0)(less@4.3.0)(lightningcss@1.33.0)
 
-  workspaces/pages/test:
+  workspaces/ui-modules/agent-identity:
     dependencies:
-      '@agent-management-platform/api-client':
+      '@agent-management-platform/env-thunders':
         specifier: workspace:*
-        version: link:../../libs/api-client
-      '@agent-management-platform/shared-component':
+        version: link:pages/env-thunders
+      '@agent-management-platform/feature-management':
         specifier: workspace:*
-        version: link:../../libs/shared-component
+        version: link:../../libs/feature-management
       '@agent-management-platform/types':
         specifier: workspace:*
         version: link:../../libs/types
+    devDependencies:
+      '@agent-management-platform/eslint-config':
+        specifier: workspace:*
+        version: link:../../libs/eslint-config
+      '@eslint/eslintrc':
+        specifier: 3.3.1
+        version: 3.3.1
+      '@eslint/js':
+        specifier: 9.36.0
+        version: 9.36.0
+      '@types/node':
+        specifier: 24.6.0
+        version: 24.6.0
+      '@types/react':
+        specifier: 19.2.14
+        version: 19.2.14
+      '@typescript-eslint/eslint-plugin':
+        specifier: 8.33.1
+        version: 8.33.1(@typescript-eslint/parser@8.33.1(eslint@9.36.0)(typescript@5.9.3))(eslint@9.36.0)(typescript@5.9.3)
+      '@typescript-eslint/parser':
+        specifier: 8.33.1
+        version: 8.33.1(eslint@9.36.0)(typescript@5.9.3)
+      eslint:
+        specifier: 9.36.0
+        version: 9.36.0
+      eslint-config-prettier:
+        specifier: 10.1.5
+        version: 10.1.5(eslint@9.36.0)
+      eslint-import-resolver-typescript:
+        specifier: 4.4.1
+        version: 4.4.1(eslint-plugin-import@2.31.0)(eslint@9.36.0)
+      eslint-plugin-import:
+        specifier: 2.31.0
+        version: 2.31.0(@typescript-eslint/parser@8.33.1(eslint@9.36.0)(typescript@5.9.3))(eslint-import-resolver-typescript@4.4.1)(eslint@9.36.0)
+      eslint-plugin-prettier:
+        specifier: 5.4.0
+        version: 5.4.0(eslint-config-prettier@10.1.5(eslint@9.36.0))(eslint@9.36.0)(prettier@3.5.3)
+      eslint-plugin-react:
+        specifier: 7.37.5
+        version: 7.37.5(eslint@9.36.0)
+      eslint-plugin-react-hooks:
+        specifier: 7.0.0
+        version: 7.0.0(eslint@9.36.0)
+      globals:
+        specifier: 16.4.0
+        version: 16.4.0
+      prettier:
+        specifier: 3.5.3
+        version: 3.5.3
+      react:
+        specifier: 19.2.3
+        version: 19.2.3
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      typescript-eslint:
+        specifier: 8.45.0
+        version: 8.45.0(eslint@9.36.0)(typescript@5.9.3)
+
+  workspaces/ui-modules/agent-identity/pages/env-thunders:
+    dependencies:
+      '@agent-management-platform/api-client':
+        specifier: workspace:*
+        version: link:../../../../libs/api-client
+      '@agent-management-platform/feature-management':
+        specifier: workspace:*
+        version: link:../../../../libs/feature-management
+      '@agent-management-platform/shared-component':
+        specifier: workspace:*
+        version: link:../../../../libs/shared-component
+      '@agent-management-platform/types':
+        specifier: workspace:*
+        version: link:../../../../libs/types
       '@agent-management-platform/views':
         specifier: workspace:*
-        version: link:../../libs/views
+        version: link:../../../../libs/views
+      '@babel/runtime-corejs3':
+        specifier: 7.29.7
+        version: 7.29.7
+      '@emotion/react':
+        specifier: 11.13.5
+        version: 11.13.5(@types/react@19.2.14)(react@19.2.3)
+      '@emotion/styled':
+        specifier: 11.13.5
+        version: 11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3)
+      '@mui/icons-material':
+        specifier: 7.0.0
+        version: 7.0.0(@mui/material@7.0.0(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(@types/react@19.2.14)(react@19.2.3)
+      '@mui/material':
+        specifier: 7.0.0
+        version: 7.0.0(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@wso2/oxygen-ui':
+        specifier: 0.20.0
+        version: 0.20.0(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.20.0(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@wso2/oxygen-ui-icons-react':
+        specifier: 0.20.0
+        version: 0.20.0(react@19.2.3)
+      lodash:
+        specifier: 4.18.1
+        version: 4.18.1
+      react-dom:
+        specifier: 19.2.3
+        version: 19.2.3(react@19.2.3)
+      react-router-dom:
+        specifier: 6.30.6
+        version: 6.30.6(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      zod:
+        specifier: 4.6.7
+        version: 4.6.7
+    devDependencies:
+      '@agent-management-platform/eslint-config':
+        specifier: workspace:*
+        version: link:../../../../libs/eslint-config
+      '@eslint/eslintrc':
+        specifier: 3.3.1
+        version: 3.3.1
+      '@eslint/js':
+        specifier: 9.36.0
+        version: 9.36.0
+      '@testing-library/jest-dom':
+        specifier: 6.6.3
+        version: 6.6.3
+      '@testing-library/react':
+        specifier: 16.3.0
+        version: 16.3.0(@testing-library/dom@10.4.0)(@types/react-dom@19.1.9(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@types/jest':
+        specifier: 29.5.14
+        version: 29.5.14
+      '@types/node':
+        specifier: 24.6.0
+        version: 24.6.0
+      '@types/react':
+        specifier: 19.2.14
+        version: 19.2.14
+      '@types/react-dom':
+        specifier: 19.1.9
+        version: 19.1.9(@types/react@19.2.14)
+      '@typescript-eslint/eslint-plugin':
+        specifier: 8.33.1
+        version: 8.33.1(@typescript-eslint/parser@8.33.1(eslint@9.36.0)(typescript@5.9.3))(eslint@9.36.0)(typescript@5.9.3)
+      '@typescript-eslint/parser':
+        specifier: 8.33.1
+        version: 8.33.1(eslint@9.36.0)(typescript@5.9.3)
+      '@vitejs/plugin-react':
+        specifier: 5.0.4
+        version: 5.0.4(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0))
+      eslint:
+        specifier: 9.36.0
+        version: 9.36.0
+      eslint-config-prettier:
+        specifier: 10.1.5
+        version: 10.1.5(eslint@9.36.0)
+      eslint-import-resolver-typescript:
+        specifier: 4.4.1
+        version: 4.4.1(eslint-plugin-import@2.31.0)(eslint@9.36.0)
+      eslint-plugin-import:
+        specifier: 2.31.0
+        version: 2.31.0(@typescript-eslint/parser@8.33.1(eslint@9.36.0)(typescript@5.9.3))(eslint-import-resolver-typescript@4.4.1)(eslint@9.36.0)
+      eslint-plugin-jest-dom:
+        specifier: 5.5.0
+        version: 5.5.0(@testing-library/dom@10.4.0)(eslint@9.36.0)
+      eslint-plugin-prettier:
+        specifier: 5.4.0
+        version: 5.4.0(eslint-config-prettier@10.1.5(eslint@9.36.0))(eslint@9.36.0)(prettier@3.5.3)
+      eslint-plugin-react:
+        specifier: 7.37.5
+        version: 7.37.5(eslint@9.36.0)
+      eslint-plugin-react-hooks:
+        specifier: 7.0.0
+        version: 7.0.0(eslint@9.36.0)
+      eslint-plugin-testing-library:
+        specifier: 7.4.0
+        version: 7.4.0(eslint@9.36.0)(typescript@5.9.3)
+      globals:
+        specifier: 16.4.0
+        version: 16.4.0
+      jsdom:
+        specifier: 26.1.0
+        version: 26.1.0
+      postcss:
+        specifier: 8.5.3
+        version: 8.5.3
+      postcss-simple-vars:
+        specifier: 7.0.1
+        version: 7.0.1(postcss@8.5.3)
+      prettier:
+        specifier: 3.5.3
+        version: 3.5.3
+      react:
+        specifier: 19.2.3
+        version: 19.2.3
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      typescript-eslint:
+        specifier: 8.45.0
+        version: 8.45.0(eslint@9.36.0)(typescript@5.9.3)
+      vite:
+        specifier: 6.3.5
+        version: 6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0)
+      vitest:
+        specifier: 3.1.3
+        version: 3.1.3(@types/debug@4.1.13)(@types/node@24.6.0)(jsdom@26.1.0)(less@4.3.0)(lightningcss@1.33.0)
+
+  workspaces/ui-modules/agent-portal:
+    dependencies:
+      '@agent-management-platform/agent-kind':
+        specifier: workspace:*
+        version: link:pages/agent-kind
+      '@agent-management-platform/types':
+        specifier: workspace:*
+        version: link:../../libs/types
+    devDependencies:
+      '@agent-management-platform/eslint-config':
+        specifier: workspace:*
+        version: link:../../libs/eslint-config
+      '@eslint/eslintrc':
+        specifier: 3.3.1
+        version: 3.3.1
+      '@eslint/js':
+        specifier: 9.36.0
+        version: 9.36.0
+      '@types/node':
+        specifier: 24.6.0
+        version: 24.6.0
+      '@types/react':
+        specifier: 19.2.14
+        version: 19.2.14
+      '@typescript-eslint/eslint-plugin':
+        specifier: 8.33.1
+        version: 8.33.1(@typescript-eslint/parser@8.33.1(eslint@9.36.0)(typescript@5.9.3))(eslint@9.36.0)(typescript@5.9.3)
+      '@typescript-eslint/parser':
+        specifier: 8.33.1
+        version: 8.33.1(eslint@9.36.0)(typescript@5.9.3)
+      eslint:
+        specifier: 9.36.0
+        version: 9.36.0
+      eslint-config-prettier:
+        specifier: 10.1.5
+        version: 10.1.5(eslint@9.36.0)
+      eslint-import-resolver-typescript:
+        specifier: 4.4.1
+        version: 4.4.1(eslint-plugin-import@2.31.0)(eslint@9.36.0)
+      eslint-plugin-import:
+        specifier: 2.31.0
+        version: 2.31.0(@typescript-eslint/parser@8.33.1(eslint@9.36.0)(typescript@5.9.3))(eslint-import-resolver-typescript@4.4.1)(eslint@9.36.0)
+      eslint-plugin-prettier:
+        specifier: 5.4.0
+        version: 5.4.0(eslint-config-prettier@10.1.5(eslint@9.36.0))(eslint@9.36.0)(prettier@3.5.3)
+      eslint-plugin-react:
+        specifier: 7.37.5
+        version: 7.37.5(eslint@9.36.0)
+      eslint-plugin-react-hooks:
+        specifier: 7.0.0
+        version: 7.0.0(eslint@9.36.0)
+      globals:
+        specifier: 16.4.0
+        version: 16.4.0
+      prettier:
+        specifier: 3.5.3
+        version: 3.5.3
+      react:
+        specifier: 19.2.3
+        version: 19.2.3
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      typescript-eslint:
+        specifier: 8.45.0
+        version: 8.45.0(eslint@9.36.0)(typescript@5.9.3)
+
+  workspaces/ui-modules/agent-portal/pages/agent-kind:
+    dependencies:
+      '@agent-management-platform/api-client':
+        specifier: workspace:*
+        version: link:../../../../libs/api-client
+      '@agent-management-platform/feature-management':
+        specifier: workspace:*
+        version: link:../../../../libs/feature-management
+      '@agent-management-platform/shared-component':
+        specifier: workspace:*
+        version: link:../../../../libs/shared-component
+      '@agent-management-platform/types':
+        specifier: workspace:*
+        version: link:../../../../libs/types
+      '@agent-management-platform/views':
+        specifier: workspace:*
+        version: link:../../../../libs/views
+      '@emotion/react':
+        specifier: 11.13.5
+        version: 11.13.5(@types/react@19.2.14)(react@19.2.3)
+      '@emotion/styled':
+        specifier: 11.13.5
+        version: 11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3)
+      '@monaco-editor/react':
+        specifier: 4.7.0
+        version: 4.7.0(monaco-editor@0.56.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@mui/icons-material':
+        specifier: 7.0.0
+        version: 7.0.0(@mui/material@7.0.0(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(@types/react@19.2.14)(react@19.2.3)
+      '@mui/material':
+        specifier: 7.0.0
+        version: 7.0.0(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@wso2/oxygen-ui':
+        specifier: 0.20.0
+        version: 0.20.0(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.20.0(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@wso2/oxygen-ui-icons-react':
+        specifier: 0.20.0
+        version: 0.20.0(react@19.2.3)
+      date-fns:
+        specifier: 4.1.0
+        version: 4.1.0
+      react:
+        specifier: 19.2.3
+        version: 19.2.3
+      react-dom:
+        specifier: 19.2.3
+        version: 19.2.3(react@19.2.3)
+      react-router-dom:
+        specifier: 6.30.6
+        version: 6.30.6(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+    devDependencies:
+      '@agent-management-platform/eslint-config':
+        specifier: workspace:*
+        version: link:../../../../libs/eslint-config
+      '@eslint/eslintrc':
+        specifier: 3.3.1
+        version: 3.3.1
+      '@testing-library/jest-dom':
+        specifier: 6.6.3
+        version: 6.6.3
+      '@types/jest':
+        specifier: 29.5.14
+        version: 29.5.14
+      '@types/node':
+        specifier: 24.6.0
+        version: 24.6.0
+      '@types/react':
+        specifier: 19.2.14
+        version: 19.2.14
+      '@types/react-dom':
+        specifier: 19.1.9
+        version: 19.1.9(@types/react@19.2.14)
+      '@vitejs/plugin-react':
+        specifier: 5.0.4
+        version: 5.0.4(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0))
+      eslint:
+        specifier: 9.36.0
+        version: 9.36.0
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      vite:
+        specifier: 6.3.5
+        version: 6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0)
+      vite-plugin-dts:
+        specifier: 4.5.4
+        version: 4.5.4(@types/node@24.6.0)(rollup@4.62.4)(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0))
+      vitest:
+        specifier: 3.1.3
+        version: 3.1.3(@types/debug@4.1.13)(@types/node@24.6.0)(jsdom@26.1.0)(less@4.3.0)(lightningcss@1.33.0)
+
+  workspaces/ui-modules/agent-runtime:
+    dependencies:
+      '@agent-management-platform/build':
+        specifier: workspace:*
+        version: link:pages/build
+      '@agent-management-platform/configure-agent':
+        specifier: workspace:*
+        version: link:pages/configure-agent
+      '@agent-management-platform/deploy':
+        specifier: workspace:*
+        version: link:pages/deploy
+      '@agent-management-platform/deployment-pipelines':
+        specifier: workspace:*
+        version: link:pages/deployment-pipelines
+      '@agent-management-platform/test':
+        specifier: workspace:*
+        version: link:pages/test
+      '@agent-management-platform/types':
+        specifier: workspace:*
+        version: link:../../libs/types
+    devDependencies:
+      '@agent-management-platform/eslint-config':
+        specifier: workspace:*
+        version: link:../../libs/eslint-config
+      '@eslint/eslintrc':
+        specifier: 3.3.1
+        version: 3.3.1
+      '@eslint/js':
+        specifier: 9.36.0
+        version: 9.36.0
+      '@types/node':
+        specifier: 24.6.0
+        version: 24.6.0
+      '@types/react':
+        specifier: 19.2.14
+        version: 19.2.14
+      '@typescript-eslint/eslint-plugin':
+        specifier: 8.33.1
+        version: 8.33.1(@typescript-eslint/parser@8.33.1(eslint@9.36.0)(typescript@5.9.3))(eslint@9.36.0)(typescript@5.9.3)
+      '@typescript-eslint/parser':
+        specifier: 8.33.1
+        version: 8.33.1(eslint@9.36.0)(typescript@5.9.3)
+      eslint:
+        specifier: 9.36.0
+        version: 9.36.0
+      eslint-config-prettier:
+        specifier: 10.1.5
+        version: 10.1.5(eslint@9.36.0)
+      eslint-import-resolver-typescript:
+        specifier: 4.4.1
+        version: 4.4.1(eslint-plugin-import@2.31.0)(eslint@9.36.0)
+      eslint-plugin-import:
+        specifier: 2.31.0
+        version: 2.31.0(@typescript-eslint/parser@8.33.1(eslint@9.36.0)(typescript@5.9.3))(eslint-import-resolver-typescript@4.4.1)(eslint@9.36.0)
+      eslint-plugin-prettier:
+        specifier: 5.4.0
+        version: 5.4.0(eslint-config-prettier@10.1.5(eslint@9.36.0))(eslint@9.36.0)(prettier@3.5.3)
+      eslint-plugin-react:
+        specifier: 7.37.5
+        version: 7.37.5(eslint@9.36.0)
+      eslint-plugin-react-hooks:
+        specifier: 7.0.0
+        version: 7.0.0(eslint@9.36.0)
+      globals:
+        specifier: 16.4.0
+        version: 16.4.0
+      prettier:
+        specifier: 3.5.3
+        version: 3.5.3
+      react:
+        specifier: 19.2.3
+        version: 19.2.3
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      typescript-eslint:
+        specifier: 8.45.0
+        version: 8.45.0(eslint@9.36.0)(typescript@5.9.3)
+
+  workspaces/ui-modules/agent-runtime/pages/build:
+    dependencies:
+      '@agent-management-platform/api-client':
+        specifier: workspace:*
+        version: link:../../../../libs/api-client
+      '@agent-management-platform/feature-management':
+        specifier: workspace:*
+        version: link:../../../../libs/feature-management
+      '@agent-management-platform/shared-component':
+        specifier: workspace:*
+        version: link:../../../../libs/shared-component
+      '@agent-management-platform/types':
+        specifier: workspace:*
+        version: link:../../../../libs/types
+      '@agent-management-platform/views':
+        specifier: workspace:*
+        version: link:../../../../libs/views
+      '@babel/runtime-corejs3':
+        specifier: 7.29.7
+        version: 7.29.7
+      '@emotion/react':
+        specifier: 11.13.5
+        version: 11.13.5(@types/react@19.2.14)(react@19.2.3)
+      '@emotion/styled':
+        specifier: 11.13.5
+        version: 11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3)
+      '@mui/icons-material':
+        specifier: 7.0.0
+        version: 7.0.0(@mui/material@7.0.0(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(@types/react@19.2.14)(react@19.2.3)
+      '@mui/material':
+        specifier: 7.0.0
+        version: 7.0.0(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@wso2/oxygen-ui':
+        specifier: 0.20.0
+        version: 0.20.0(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.20.0(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@wso2/oxygen-ui-icons-react':
+        specifier: 0.20.0
+        version: 0.20.0(react@19.2.3)
+      clsx:
+        specifier: 2.1.1
+        version: 2.1.1
+      date-fns:
+        specifier: 4.1.0
+        version: 4.1.0
+      lodash:
+        specifier: 4.18.1
+        version: 4.18.1
+      react-dom:
+        specifier: 19.2.3
+        version: 19.2.3(react@19.2.3)
+      react-router-dom:
+        specifier: 6.30.6
+        version: 6.30.6(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      zod:
+        specifier: 4.6.7
+        version: 4.6.7
+    devDependencies:
+      '@agent-management-platform/eslint-config':
+        specifier: workspace:*
+        version: link:../../../../libs/eslint-config
+      '@eslint/eslintrc':
+        specifier: 3.3.1
+        version: 3.3.1
+      '@eslint/js':
+        specifier: 9.36.0
+        version: 9.36.0
+      '@storybook/addon-essentials':
+        specifier: 8.6.13
+        version: 8.6.13(@types/react@19.2.14)(storybook@8.6.13(prettier@3.5.3))
+      '@storybook/addon-interactions':
+        specifier: 8.6.13
+        version: 8.6.13(storybook@8.6.13(prettier@3.5.3))
+      '@storybook/addon-onboarding':
+        specifier: 8.6.13
+        version: 8.6.13(storybook@8.6.13(prettier@3.5.3))
+      '@storybook/blocks':
+        specifier: 8.6.13
+        version: 8.6.13(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(storybook@8.6.13(prettier@3.5.3))
+      '@storybook/react':
+        specifier: 8.6.13
+        version: 8.6.13(@storybook/test@8.6.13(storybook@8.6.13(prettier@3.5.3)))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(storybook@8.6.13(prettier@3.5.3))(typescript@5.9.3)
+      '@storybook/react-vite':
+        specifier: 8.6.13
+        version: 8.6.13(@storybook/test@8.6.13(storybook@8.6.13(prettier@3.5.3)))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(rollup@4.62.4)(storybook@8.6.13(prettier@3.5.3))(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0))
+      '@storybook/test':
+        specifier: 8.6.13
+        version: 8.6.13(storybook@8.6.13(prettier@3.5.3))
+      '@testing-library/jest-dom':
+        specifier: 6.6.3
+        version: 6.6.3
+      '@testing-library/react':
+        specifier: 16.3.0
+        version: 16.3.0(@testing-library/dom@10.4.0)(@types/react-dom@19.1.9(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@types/jest':
+        specifier: 29.5.14
+        version: 29.5.14
+      '@types/node':
+        specifier: 24.6.0
+        version: 24.6.0
+      '@types/react':
+        specifier: 19.2.14
+        version: 19.2.14
+      '@types/react-dom':
+        specifier: 19.1.9
+        version: 19.1.9(@types/react@19.2.14)
+      '@typescript-eslint/eslint-plugin':
+        specifier: 8.33.1
+        version: 8.33.1(@typescript-eslint/parser@8.33.1(eslint@9.36.0)(typescript@5.9.3))(eslint@9.36.0)(typescript@5.9.3)
+      '@typescript-eslint/parser':
+        specifier: 8.33.1
+        version: 8.33.1(eslint@9.36.0)(typescript@5.9.3)
+      '@vitejs/plugin-react':
+        specifier: 5.0.4
+        version: 5.0.4(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0))
+      eslint:
+        specifier: 9.36.0
+        version: 9.36.0
+      eslint-config-prettier:
+        specifier: 10.1.5
+        version: 10.1.5(eslint@9.36.0)
+      eslint-import-resolver-typescript:
+        specifier: 4.4.1
+        version: 4.4.1(eslint-plugin-import@2.31.0)(eslint@9.36.0)
+      eslint-plugin-import:
+        specifier: 2.31.0
+        version: 2.31.0(@typescript-eslint/parser@8.33.1(eslint@9.36.0)(typescript@5.9.3))(eslint-import-resolver-typescript@4.4.1)(eslint@9.36.0)
+      eslint-plugin-jest-dom:
+        specifier: 5.5.0
+        version: 5.5.0(@testing-library/dom@10.4.0)(eslint@9.36.0)
+      eslint-plugin-prettier:
+        specifier: 5.4.0
+        version: 5.4.0(eslint-config-prettier@10.1.5(eslint@9.36.0))(eslint@9.36.0)(prettier@3.5.3)
+      eslint-plugin-react:
+        specifier: 7.37.5
+        version: 7.37.5(eslint@9.36.0)
+      eslint-plugin-react-hooks:
+        specifier: 7.0.0
+        version: 7.0.0(eslint@9.36.0)
+      eslint-plugin-storybook:
+        specifier: 0.12.0
+        version: 0.12.0(eslint@9.36.0)(typescript@5.9.3)
+      eslint-plugin-testing-library:
+        specifier: 7.4.0
+        version: 7.4.0(eslint@9.36.0)(typescript@5.9.3)
+      globals:
+        specifier: 16.4.0
+        version: 16.4.0
+      jsdom:
+        specifier: 26.1.0
+        version: 26.1.0
+      postcss:
+        specifier: 8.5.3
+        version: 8.5.3
+      postcss-simple-vars:
+        specifier: 7.0.1
+        version: 7.0.1(postcss@8.5.3)
+      prettier:
+        specifier: 3.5.3
+        version: 3.5.3
+      react:
+        specifier: 19.2.3
+        version: 19.2.3
+      storybook:
+        specifier: 8.6.13
+        version: 8.6.13(prettier@3.5.3)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      typescript-eslint:
+        specifier: 8.45.0
+        version: 8.45.0(eslint@9.36.0)(typescript@5.9.3)
+      vite:
+        specifier: 6.3.5
+        version: 6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0)
+      vite-plugin-dts:
+        specifier: 4.5.4
+        version: 4.5.4(@types/node@24.6.0)(rollup@4.62.4)(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0))
+      vitest:
+        specifier: 3.1.3
+        version: 3.1.3(@types/debug@4.1.13)(@types/node@24.6.0)(jsdom@26.1.0)(less@4.3.0)(lightningcss@1.33.0)
+
+  workspaces/ui-modules/agent-runtime/pages/configure-agent:
+    dependencies:
+      '@agent-management-platform/api-client':
+        specifier: workspace:*
+        version: link:../../../../libs/api-client
+      '@agent-management-platform/deploy':
+        specifier: workspace:*
+        version: link:../deploy
+      '@agent-management-platform/feature-management':
+        specifier: workspace:*
+        version: link:../../../../libs/feature-management
+      '@agent-management-platform/shared-component':
+        specifier: workspace:*
+        version: link:../../../../libs/shared-component
+      '@agent-management-platform/types':
+        specifier: workspace:*
+        version: link:../../../../libs/types
+      '@agent-management-platform/views':
+        specifier: workspace:*
+        version: link:../../../../libs/views
+      '@babel/runtime-corejs3':
+        specifier: 7.29.7
+        version: 7.29.7
+      '@emotion/react':
+        specifier: 11.13.5
+        version: 11.13.5(@types/react@19.2.14)(react@19.2.3)
+      '@emotion/styled':
+        specifier: 11.13.5
+        version: 11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3)
+      '@wso2/oxygen-ui':
+        specifier: 0.20.0
+        version: 0.20.0(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.20.0(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@wso2/oxygen-ui-icons-react':
+        specifier: 0.20.0
+        version: 0.20.0(react@19.2.3)
+      clsx:
+        specifier: 2.1.1
+        version: 2.1.1
+      date-fns:
+        specifier: 4.1.0
+        version: 4.1.0
+      lodash:
+        specifier: 4.18.1
+        version: 4.18.1
+      react-dom:
+        specifier: 19.2.3
+        version: 19.2.3(react@19.2.3)
+      react-router-dom:
+        specifier: 6.30.6
+        version: 6.30.6(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      zod:
+        specifier: 4.6.7
+        version: 4.6.7
+    devDependencies:
+      '@agent-management-platform/eslint-config':
+        specifier: workspace:*
+        version: link:../../../../libs/eslint-config
+      '@eslint/eslintrc':
+        specifier: 3.3.1
+        version: 3.3.1
+      '@eslint/js':
+        specifier: 9.36.0
+        version: 9.36.0
+      '@testing-library/jest-dom':
+        specifier: 6.6.3
+        version: 6.6.3
+      '@testing-library/react':
+        specifier: 16.3.0
+        version: 16.3.0(@testing-library/dom@10.4.0)(@types/react-dom@19.1.9(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@types/jest':
+        specifier: 29.5.14
+        version: 29.5.14
+      '@types/node':
+        specifier: 24.6.0
+        version: 24.6.0
+      '@types/react':
+        specifier: 19.2.14
+        version: 19.2.14
+      '@types/react-dom':
+        specifier: 19.1.9
+        version: 19.1.9(@types/react@19.2.14)
+      '@typescript-eslint/eslint-plugin':
+        specifier: 8.33.1
+        version: 8.33.1(@typescript-eslint/parser@8.33.1(eslint@9.36.0)(typescript@5.9.3))(eslint@9.36.0)(typescript@5.9.3)
+      '@typescript-eslint/parser':
+        specifier: 8.33.1
+        version: 8.33.1(eslint@9.36.0)(typescript@5.9.3)
+      '@vitejs/plugin-react':
+        specifier: 5.0.4
+        version: 5.0.4(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0))
+      eslint:
+        specifier: 9.36.0
+        version: 9.36.0
+      eslint-config-prettier:
+        specifier: 10.1.5
+        version: 10.1.5(eslint@9.36.0)
+      eslint-import-resolver-typescript:
+        specifier: 4.4.1
+        version: 4.4.1(eslint-plugin-import@2.31.0)(eslint@9.36.0)
+      eslint-plugin-import:
+        specifier: 2.31.0
+        version: 2.31.0(@typescript-eslint/parser@8.33.1(eslint@9.36.0)(typescript@5.9.3))(eslint-import-resolver-typescript@4.4.1)(eslint@9.36.0)
+      eslint-plugin-jest-dom:
+        specifier: 5.5.0
+        version: 5.5.0(@testing-library/dom@10.4.0)(eslint@9.36.0)
+      eslint-plugin-prettier:
+        specifier: 5.4.0
+        version: 5.4.0(eslint-config-prettier@10.1.5(eslint@9.36.0))(eslint@9.36.0)(prettier@3.5.3)
+      eslint-plugin-react:
+        specifier: 7.37.5
+        version: 7.37.5(eslint@9.36.0)
+      eslint-plugin-react-hooks:
+        specifier: 7.0.0
+        version: 7.0.0(eslint@9.36.0)
+      eslint-plugin-testing-library:
+        specifier: 7.4.0
+        version: 7.4.0(eslint@9.36.0)(typescript@5.9.3)
+      globals:
+        specifier: 16.4.0
+        version: 16.4.0
+      jsdom:
+        specifier: 26.1.0
+        version: 26.1.0
+      postcss:
+        specifier: 8.5.3
+        version: 8.5.3
+      postcss-simple-vars:
+        specifier: 7.0.1
+        version: 7.0.1(postcss@8.5.3)
+      prettier:
+        specifier: 3.5.3
+        version: 3.5.3
+      react:
+        specifier: 19.2.3
+        version: 19.2.3
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      typescript-eslint:
+        specifier: 8.45.0
+        version: 8.45.0(eslint@9.36.0)(typescript@5.9.3)
+      vite:
+        specifier: 6.3.5
+        version: 6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0)
+      vite-plugin-dts:
+        specifier: 4.5.4
+        version: 4.5.4(@types/node@24.6.0)(rollup@4.62.4)(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0))
+      vitest:
+        specifier: 3.1.3
+        version: 3.1.3(@types/debug@4.1.13)(@types/node@24.6.0)(jsdom@26.1.0)(less@4.3.0)(lightningcss@1.33.0)
+
+  workspaces/ui-modules/agent-runtime/pages/deploy:
+    dependencies:
+      '@agent-management-platform/api-client':
+        specifier: workspace:*
+        version: link:../../../../libs/api-client
+      '@agent-management-platform/shared-component':
+        specifier: workspace:*
+        version: link:../../../../libs/shared-component
+      '@agent-management-platform/types':
+        specifier: workspace:*
+        version: link:../../../../libs/types
+      '@agent-management-platform/views':
+        specifier: workspace:*
+        version: link:../../../../libs/views
+      '@babel/runtime-corejs3':
+        specifier: 7.29.7
+        version: 7.29.7
+      '@emotion/react':
+        specifier: 11.13.5
+        version: 11.13.5(@types/react@19.2.14)(react@19.2.3)
+      '@emotion/styled':
+        specifier: 11.13.5
+        version: 11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3)
+      '@mui/icons-material':
+        specifier: 7.0.0
+        version: 7.0.0(@mui/material@7.0.0(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(@types/react@19.2.14)(react@19.2.3)
+      '@mui/material':
+        specifier: 7.0.0
+        version: 7.0.0(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@wso2/oxygen-ui':
+        specifier: 0.20.0
+        version: 0.20.0(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.20.0(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@wso2/oxygen-ui-icons-react':
+        specifier: 0.20.0
+        version: 0.20.0(react@19.2.3)
+      clsx:
+        specifier: 2.1.1
+        version: 2.1.1
+      date-fns:
+        specifier: 4.1.0
+        version: 4.1.0
+      lodash:
+        specifier: 4.18.1
+        version: 4.18.1
+      react-dom:
+        specifier: 19.2.3
+        version: 19.2.3(react@19.2.3)
+      react-router-dom:
+        specifier: 6.30.6
+        version: 6.30.6(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      zod:
+        specifier: 4.6.7
+        version: 4.6.7
+    devDependencies:
+      '@agent-management-platform/eslint-config':
+        specifier: workspace:*
+        version: link:../../../../libs/eslint-config
+      '@eslint/eslintrc':
+        specifier: 3.3.1
+        version: 3.3.1
+      '@eslint/js':
+        specifier: 9.36.0
+        version: 9.36.0
+      '@storybook/addon-essentials':
+        specifier: 8.6.13
+        version: 8.6.13(@types/react@19.2.14)(storybook@8.6.13(prettier@3.5.3))
+      '@storybook/addon-interactions':
+        specifier: 8.6.13
+        version: 8.6.13(storybook@8.6.13(prettier@3.5.3))
+      '@storybook/addon-onboarding':
+        specifier: 8.6.13
+        version: 8.6.13(storybook@8.6.13(prettier@3.5.3))
+      '@storybook/blocks':
+        specifier: 8.6.13
+        version: 8.6.13(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(storybook@8.6.13(prettier@3.5.3))
+      '@storybook/react':
+        specifier: 8.6.13
+        version: 8.6.13(@storybook/test@8.6.13(storybook@8.6.13(prettier@3.5.3)))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(storybook@8.6.13(prettier@3.5.3))(typescript@5.9.3)
+      '@storybook/react-vite':
+        specifier: 8.6.13
+        version: 8.6.13(@storybook/test@8.6.13(storybook@8.6.13(prettier@3.5.3)))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(rollup@4.62.4)(storybook@8.6.13(prettier@3.5.3))(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0))
+      '@storybook/test':
+        specifier: 8.6.13
+        version: 8.6.13(storybook@8.6.13(prettier@3.5.3))
+      '@testing-library/jest-dom':
+        specifier: 6.6.3
+        version: 6.6.3
+      '@testing-library/react':
+        specifier: 16.3.0
+        version: 16.3.0(@testing-library/dom@10.4.0)(@types/react-dom@19.1.9(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@types/jest':
+        specifier: 29.5.14
+        version: 29.5.14
+      '@types/node':
+        specifier: 24.6.0
+        version: 24.6.0
+      '@types/react':
+        specifier: 19.2.14
+        version: 19.2.14
+      '@types/react-dom':
+        specifier: 19.1.9
+        version: 19.1.9(@types/react@19.2.14)
+      '@typescript-eslint/eslint-plugin':
+        specifier: 8.33.1
+        version: 8.33.1(@typescript-eslint/parser@8.33.1(eslint@9.36.0)(typescript@5.9.3))(eslint@9.36.0)(typescript@5.9.3)
+      '@typescript-eslint/parser':
+        specifier: 8.33.1
+        version: 8.33.1(eslint@9.36.0)(typescript@5.9.3)
+      '@vitejs/plugin-react':
+        specifier: 5.0.4
+        version: 5.0.4(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0))
+      eslint:
+        specifier: 9.36.0
+        version: 9.36.0
+      eslint-config-prettier:
+        specifier: 10.1.5
+        version: 10.1.5(eslint@9.36.0)
+      eslint-import-resolver-typescript:
+        specifier: 4.4.1
+        version: 4.4.1(eslint-plugin-import@2.31.0)(eslint@9.36.0)
+      eslint-plugin-import:
+        specifier: 2.31.0
+        version: 2.31.0(@typescript-eslint/parser@8.33.1(eslint@9.36.0)(typescript@5.9.3))(eslint-import-resolver-typescript@4.4.1)(eslint@9.36.0)
+      eslint-plugin-jest-dom:
+        specifier: 5.5.0
+        version: 5.5.0(@testing-library/dom@10.4.0)(eslint@9.36.0)
+      eslint-plugin-prettier:
+        specifier: 5.4.0
+        version: 5.4.0(eslint-config-prettier@10.1.5(eslint@9.36.0))(eslint@9.36.0)(prettier@3.5.3)
+      eslint-plugin-react:
+        specifier: 7.37.5
+        version: 7.37.5(eslint@9.36.0)
+      eslint-plugin-react-hooks:
+        specifier: 7.0.0
+        version: 7.0.0(eslint@9.36.0)
+      eslint-plugin-storybook:
+        specifier: 0.12.0
+        version: 0.12.0(eslint@9.36.0)(typescript@5.9.3)
+      eslint-plugin-testing-library:
+        specifier: 7.4.0
+        version: 7.4.0(eslint@9.36.0)(typescript@5.9.3)
+      globals:
+        specifier: 16.4.0
+        version: 16.4.0
+      jsdom:
+        specifier: 26.1.0
+        version: 26.1.0
+      postcss:
+        specifier: 8.5.3
+        version: 8.5.3
+      postcss-simple-vars:
+        specifier: 7.0.1
+        version: 7.0.1(postcss@8.5.3)
+      prettier:
+        specifier: 3.5.3
+        version: 3.5.3
+      react:
+        specifier: 19.2.3
+        version: 19.2.3
+      storybook:
+        specifier: 8.6.13
+        version: 8.6.13(prettier@3.5.3)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      typescript-eslint:
+        specifier: 8.45.0
+        version: 8.45.0(eslint@9.36.0)(typescript@5.9.3)
+      vite:
+        specifier: 6.3.5
+        version: 6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0)
+      vite-plugin-dts:
+        specifier: 4.5.4
+        version: 4.5.4(@types/node@24.6.0)(rollup@4.62.4)(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0))
+      vitest:
+        specifier: 3.1.3
+        version: 3.1.3(@types/debug@4.1.13)(@types/node@24.6.0)(jsdom@26.1.0)(less@4.3.0)(lightningcss@1.33.0)
+
+  workspaces/ui-modules/agent-runtime/pages/deployment-pipelines:
+    dependencies:
+      '@agent-management-platform/api-client':
+        specifier: workspace:*
+        version: link:../../../../libs/api-client
+      '@agent-management-platform/auth':
+        specifier: workspace:*
+        version: link:../../../../libs/auth
+      '@agent-management-platform/feature-management':
+        specifier: workspace:*
+        version: link:../../../../libs/feature-management
+      '@agent-management-platform/shared-component':
+        specifier: workspace:*
+        version: link:../../../../libs/shared-component
+      '@agent-management-platform/types':
+        specifier: workspace:*
+        version: link:../../../../libs/types
+      '@agent-management-platform/views':
+        specifier: workspace:*
+        version: link:../../../../libs/views
+      '@babel/runtime-corejs3':
+        specifier: 7.29.7
+        version: 7.29.7
+      '@emotion/react':
+        specifier: 11.13.5
+        version: 11.13.5(@types/react@19.2.14)(react@19.2.3)
+      '@emotion/styled':
+        specifier: 11.13.5
+        version: 11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3)
+      '@mui/icons-material':
+        specifier: 7.0.0
+        version: 7.0.0(@mui/material@7.0.0(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(@types/react@19.2.14)(react@19.2.3)
+      '@mui/material':
+        specifier: 7.0.0
+        version: 7.0.0(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@wso2/oxygen-ui':
+        specifier: 0.20.0
+        version: 0.20.0(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.20.0(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@wso2/oxygen-ui-icons-react':
+        specifier: 0.20.0
+        version: 0.20.0(react@19.2.3)
+      clsx:
+        specifier: 2.1.1
+        version: 2.1.1
+      date-fns:
+        specifier: 4.1.0
+        version: 4.1.0
+      lodash:
+        specifier: 4.18.1
+        version: 4.18.1
+      react-dom:
+        specifier: 19.2.3
+        version: 19.2.3(react@19.2.3)
+      react-router-dom:
+        specifier: 6.30.6
+        version: 6.30.6(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      zod:
+        specifier: 4.6.7
+        version: 4.6.7
+    devDependencies:
+      '@agent-management-platform/eslint-config':
+        specifier: workspace:*
+        version: link:../../../../libs/eslint-config
+      '@eslint/eslintrc':
+        specifier: 3.3.1
+        version: 3.3.1
+      '@eslint/js':
+        specifier: 9.36.0
+        version: 9.36.0
+      '@testing-library/jest-dom':
+        specifier: 6.6.3
+        version: 6.6.3
+      '@testing-library/react':
+        specifier: 16.3.0
+        version: 16.3.0(@testing-library/dom@10.4.0)(@types/react-dom@19.1.9(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@types/jest':
+        specifier: 29.5.14
+        version: 29.5.14
+      '@types/node':
+        specifier: 24.6.0
+        version: 24.6.0
+      '@types/react':
+        specifier: 19.2.14
+        version: 19.2.14
+      '@types/react-dom':
+        specifier: 19.1.9
+        version: 19.1.9(@types/react@19.2.14)
+      '@typescript-eslint/eslint-plugin':
+        specifier: 8.33.1
+        version: 8.33.1(@typescript-eslint/parser@8.33.1(eslint@9.36.0)(typescript@5.9.3))(eslint@9.36.0)(typescript@5.9.3)
+      '@typescript-eslint/parser':
+        specifier: 8.33.1
+        version: 8.33.1(eslint@9.36.0)(typescript@5.9.3)
+      '@vitejs/plugin-react':
+        specifier: 5.0.4
+        version: 5.0.4(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0))
+      eslint:
+        specifier: 9.36.0
+        version: 9.36.0
+      eslint-config-prettier:
+        specifier: 10.1.5
+        version: 10.1.5(eslint@9.36.0)
+      eslint-import-resolver-typescript:
+        specifier: 4.4.1
+        version: 4.4.1(eslint-plugin-import@2.31.0)(eslint@9.36.0)
+      eslint-plugin-import:
+        specifier: 2.31.0
+        version: 2.31.0(@typescript-eslint/parser@8.33.1(eslint@9.36.0)(typescript@5.9.3))(eslint-import-resolver-typescript@4.4.1)(eslint@9.36.0)
+      eslint-plugin-jest-dom:
+        specifier: 5.5.0
+        version: 5.5.0(@testing-library/dom@10.4.0)(eslint@9.36.0)
+      eslint-plugin-prettier:
+        specifier: 5.4.0
+        version: 5.4.0(eslint-config-prettier@10.1.5(eslint@9.36.0))(eslint@9.36.0)(prettier@3.5.3)
+      eslint-plugin-react:
+        specifier: 7.37.5
+        version: 7.37.5(eslint@9.36.0)
+      eslint-plugin-react-hooks:
+        specifier: 7.0.0
+        version: 7.0.0(eslint@9.36.0)
+      eslint-plugin-testing-library:
+        specifier: 7.4.0
+        version: 7.4.0(eslint@9.36.0)(typescript@5.9.3)
+      globals:
+        specifier: 16.4.0
+        version: 16.4.0
+      jsdom:
+        specifier: 26.1.0
+        version: 26.1.0
+      postcss:
+        specifier: 8.5.3
+        version: 8.5.3
+      postcss-simple-vars:
+        specifier: 7.0.1
+        version: 7.0.1(postcss@8.5.3)
+      prettier:
+        specifier: 3.5.3
+        version: 3.5.3
+      react:
+        specifier: 19.2.3
+        version: 19.2.3
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      typescript-eslint:
+        specifier: 8.45.0
+        version: 8.45.0(eslint@9.36.0)(typescript@5.9.3)
+      vite:
+        specifier: 6.3.5
+        version: 6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0)
+      vitest:
+        specifier: 3.1.3
+        version: 3.1.3(@types/debug@4.1.13)(@types/node@24.6.0)(jsdom@26.1.0)(less@4.3.0)(lightningcss@1.33.0)
+
+  workspaces/ui-modules/agent-runtime/pages/test:
+    dependencies:
+      '@agent-management-platform/api-client':
+        specifier: workspace:*
+        version: link:../../../../libs/api-client
+      '@agent-management-platform/shared-component':
+        specifier: workspace:*
+        version: link:../../../../libs/shared-component
+      '@agent-management-platform/types':
+        specifier: workspace:*
+        version: link:../../../../libs/types
+      '@agent-management-platform/views':
+        specifier: workspace:*
+        version: link:../../../../libs/views
       '@babel/runtime-corejs3':
         specifier: 7.29.7
         version: 7.29.7
@@ -3485,7 +3165,7 @@ importers:
     devDependencies:
       '@agent-management-platform/eslint-config':
         specifier: workspace:*
-        version: link:../../libs/eslint-config
+        version: link:../../../../libs/eslint-config
       '@eslint/eslintrc':
         specifier: 3.3.1
         version: 3.3.1
@@ -3610,20 +3290,1355 @@ importers:
         specifier: 3.1.3
         version: 3.1.3(@types/debug@4.1.13)(@types/node@24.6.0)(jsdom@26.1.0)(less@4.3.0)(lightningcss@1.33.0)
 
-  workspaces/pages/traces:
+  workspaces/ui-modules/ai-gateway:
+    dependencies:
+      '@agent-management-platform/agent-security':
+        specifier: workspace:*
+        version: link:pages/agent-security
+      '@agent-management-platform/gateways':
+        specifier: workspace:*
+        version: link:pages/gateways
+      '@agent-management-platform/llm-providers':
+        specifier: workspace:*
+        version: link:pages/llm-providers
+      '@agent-management-platform/mcp-proxies':
+        specifier: workspace:*
+        version: link:pages/mcp-proxies
+      '@agent-management-platform/types':
+        specifier: workspace:*
+        version: link:../../libs/types
+    devDependencies:
+      '@agent-management-platform/eslint-config':
+        specifier: workspace:*
+        version: link:../../libs/eslint-config
+      '@eslint/eslintrc':
+        specifier: 3.3.1
+        version: 3.3.1
+      '@eslint/js':
+        specifier: 9.36.0
+        version: 9.36.0
+      '@types/node':
+        specifier: 24.6.0
+        version: 24.6.0
+      '@types/react':
+        specifier: 19.2.14
+        version: 19.2.14
+      '@typescript-eslint/eslint-plugin':
+        specifier: 8.33.1
+        version: 8.33.1(@typescript-eslint/parser@8.33.1(eslint@9.36.0)(typescript@5.9.3))(eslint@9.36.0)(typescript@5.9.3)
+      '@typescript-eslint/parser':
+        specifier: 8.33.1
+        version: 8.33.1(eslint@9.36.0)(typescript@5.9.3)
+      eslint:
+        specifier: 9.36.0
+        version: 9.36.0
+      eslint-config-prettier:
+        specifier: 10.1.5
+        version: 10.1.5(eslint@9.36.0)
+      eslint-import-resolver-typescript:
+        specifier: 4.4.1
+        version: 4.4.1(eslint-plugin-import@2.31.0)(eslint@9.36.0)
+      eslint-plugin-import:
+        specifier: 2.31.0
+        version: 2.31.0(@typescript-eslint/parser@8.33.1(eslint@9.36.0)(typescript@5.9.3))(eslint-import-resolver-typescript@4.4.1)(eslint@9.36.0)
+      eslint-plugin-prettier:
+        specifier: 5.4.0
+        version: 5.4.0(eslint-config-prettier@10.1.5(eslint@9.36.0))(eslint@9.36.0)(prettier@3.5.3)
+      eslint-plugin-react:
+        specifier: 7.37.5
+        version: 7.37.5(eslint@9.36.0)
+      eslint-plugin-react-hooks:
+        specifier: 7.0.0
+        version: 7.0.0(eslint@9.36.0)
+      globals:
+        specifier: 16.4.0
+        version: 16.4.0
+      prettier:
+        specifier: 3.5.3
+        version: 3.5.3
+      react:
+        specifier: 19.2.3
+        version: 19.2.3
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      typescript-eslint:
+        specifier: 8.45.0
+        version: 8.45.0(eslint@9.36.0)(typescript@5.9.3)
+
+  workspaces/ui-modules/ai-gateway/pages/agent-security:
+    dependencies:
+      '@agent-management-platform/api-client':
+        specifier: workspace:*
+        version: link:../../../../libs/api-client
+      '@agent-management-platform/feature-management':
+        specifier: workspace:*
+        version: link:../../../../libs/feature-management
+      '@agent-management-platform/shared-component':
+        specifier: workspace:*
+        version: link:../../../../libs/shared-component
+      '@agent-management-platform/types':
+        specifier: workspace:*
+        version: link:../../../../libs/types
+      '@agent-management-platform/views':
+        specifier: workspace:*
+        version: link:../../../../libs/views
+      '@babel/runtime-corejs3':
+        specifier: 7.29.7
+        version: 7.29.7
+      '@emotion/react':
+        specifier: 11.13.5
+        version: 11.13.5(@types/react@19.2.14)(react@19.2.3)
+      '@emotion/styled':
+        specifier: 11.13.5
+        version: 11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3)
+      '@mui/icons-material':
+        specifier: 7.0.0
+        version: 7.0.0(@mui/material@7.0.0(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(@types/react@19.2.14)(react@19.2.3)
+      '@mui/material':
+        specifier: 7.0.0
+        version: 7.0.0(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@wso2/oxygen-ui':
+        specifier: 0.20.0
+        version: 0.20.0(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.20.0(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@wso2/oxygen-ui-icons-react':
+        specifier: 0.20.0
+        version: 0.20.0(react@19.2.3)
+      clsx:
+        specifier: 2.1.1
+        version: 2.1.1
+      date-fns:
+        specifier: 4.1.0
+        version: 4.1.0
+      lodash:
+        specifier: 4.18.1
+        version: 4.18.1
+      react-dom:
+        specifier: 19.2.3
+        version: 19.2.3(react@19.2.3)
+      react-router-dom:
+        specifier: 6.30.6
+        version: 6.30.6(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      zod:
+        specifier: 4.6.7
+        version: 4.6.7
+    devDependencies:
+      '@agent-management-platform/eslint-config':
+        specifier: workspace:*
+        version: link:../../../../libs/eslint-config
+      '@eslint/eslintrc':
+        specifier: 3.3.1
+        version: 3.3.1
+      '@eslint/js':
+        specifier: 9.36.0
+        version: 9.36.0
+      '@testing-library/jest-dom':
+        specifier: 6.6.3
+        version: 6.6.3
+      '@testing-library/react':
+        specifier: 16.3.0
+        version: 16.3.0(@testing-library/dom@10.4.0)(@types/react-dom@19.1.9(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@types/jest':
+        specifier: 29.5.14
+        version: 29.5.14
+      '@types/node':
+        specifier: 24.6.0
+        version: 24.6.0
+      '@types/react':
+        specifier: 19.2.14
+        version: 19.2.14
+      '@types/react-dom':
+        specifier: 19.1.9
+        version: 19.1.9(@types/react@19.2.14)
+      '@typescript-eslint/eslint-plugin':
+        specifier: 8.33.1
+        version: 8.33.1(@typescript-eslint/parser@8.33.1(eslint@9.36.0)(typescript@5.9.3))(eslint@9.36.0)(typescript@5.9.3)
+      '@typescript-eslint/parser':
+        specifier: 8.33.1
+        version: 8.33.1(eslint@9.36.0)(typescript@5.9.3)
+      '@vitejs/plugin-react':
+        specifier: 5.0.4
+        version: 5.0.4(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0))
+      eslint:
+        specifier: 9.36.0
+        version: 9.36.0
+      eslint-config-prettier:
+        specifier: 10.1.5
+        version: 10.1.5(eslint@9.36.0)
+      eslint-import-resolver-typescript:
+        specifier: 4.4.1
+        version: 4.4.1(eslint-plugin-import@2.31.0)(eslint@9.36.0)
+      eslint-plugin-import:
+        specifier: 2.31.0
+        version: 2.31.0(@typescript-eslint/parser@8.33.1(eslint@9.36.0)(typescript@5.9.3))(eslint-import-resolver-typescript@4.4.1)(eslint@9.36.0)
+      eslint-plugin-jest-dom:
+        specifier: 5.5.0
+        version: 5.5.0(@testing-library/dom@10.4.0)(eslint@9.36.0)
+      eslint-plugin-prettier:
+        specifier: 5.4.0
+        version: 5.4.0(eslint-config-prettier@10.1.5(eslint@9.36.0))(eslint@9.36.0)(prettier@3.5.3)
+      eslint-plugin-react:
+        specifier: 7.37.5
+        version: 7.37.5(eslint@9.36.0)
+      eslint-plugin-react-hooks:
+        specifier: 7.0.0
+        version: 7.0.0(eslint@9.36.0)
+      eslint-plugin-testing-library:
+        specifier: 7.4.0
+        version: 7.4.0(eslint@9.36.0)(typescript@5.9.3)
+      globals:
+        specifier: 16.4.0
+        version: 16.4.0
+      jsdom:
+        specifier: 26.1.0
+        version: 26.1.0
+      postcss:
+        specifier: 8.5.3
+        version: 8.5.3
+      postcss-simple-vars:
+        specifier: 7.0.1
+        version: 7.0.1(postcss@8.5.3)
+      prettier:
+        specifier: 3.5.3
+        version: 3.5.3
+      react:
+        specifier: 19.2.3
+        version: 19.2.3
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      typescript-eslint:
+        specifier: 8.45.0
+        version: 8.45.0(eslint@9.36.0)(typescript@5.9.3)
+      vite:
+        specifier: 6.3.5
+        version: 6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0)
+      vite-plugin-dts:
+        specifier: 4.5.4
+        version: 4.5.4(@types/node@24.6.0)(rollup@4.62.4)(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0))
+      vitest:
+        specifier: 3.1.3
+        version: 3.1.3(@types/debug@4.1.13)(@types/node@24.6.0)(jsdom@26.1.0)(less@4.3.0)(lightningcss@1.33.0)
+
+  workspaces/ui-modules/ai-gateway/pages/gateways:
+    dependencies:
+      '@agent-management-platform/api-client':
+        specifier: workspace:*
+        version: link:../../../../libs/api-client
+      '@agent-management-platform/auth':
+        specifier: workspace:*
+        version: link:../../../../libs/auth
+      '@agent-management-platform/feature-management':
+        specifier: workspace:*
+        version: link:../../../../libs/feature-management
+      '@agent-management-platform/shared-component':
+        specifier: workspace:*
+        version: link:../../../../libs/shared-component
+      '@agent-management-platform/types':
+        specifier: workspace:*
+        version: link:../../../../libs/types
+      '@agent-management-platform/views':
+        specifier: workspace:*
+        version: link:../../../../libs/views
+      '@babel/runtime-corejs3':
+        specifier: 7.29.7
+        version: 7.29.7
+      '@emotion/react':
+        specifier: 11.13.5
+        version: 11.13.5(@types/react@19.2.14)(react@19.2.3)
+      '@emotion/styled':
+        specifier: 11.13.5
+        version: 11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3)
+      '@mui/icons-material':
+        specifier: 7.0.0
+        version: 7.0.0(@mui/material@7.0.0(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(@types/react@19.2.14)(react@19.2.3)
+      '@mui/material':
+        specifier: 7.0.0
+        version: 7.0.0(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@wso2/oxygen-ui':
+        specifier: 0.20.0
+        version: 0.20.0(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.20.0(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@wso2/oxygen-ui-icons-react':
+        specifier: 0.20.0
+        version: 0.20.0(react@19.2.3)
+      clsx:
+        specifier: 2.1.1
+        version: 2.1.1
+      date-fns:
+        specifier: 4.1.0
+        version: 4.1.0
+      lodash:
+        specifier: 4.18.1
+        version: 4.18.1
+      react-dom:
+        specifier: 19.2.3
+        version: 19.2.3(react@19.2.3)
+      react-router-dom:
+        specifier: 6.30.6
+        version: 6.30.6(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      zod:
+        specifier: 4.6.7
+        version: 4.6.7
+    devDependencies:
+      '@agent-management-platform/eslint-config':
+        specifier: workspace:*
+        version: link:../../../../libs/eslint-config
+      '@eslint/eslintrc':
+        specifier: 3.3.1
+        version: 3.3.1
+      '@eslint/js':
+        specifier: 9.36.0
+        version: 9.36.0
+      '@testing-library/jest-dom':
+        specifier: 6.6.3
+        version: 6.6.3
+      '@testing-library/react':
+        specifier: 16.3.0
+        version: 16.3.0(@testing-library/dom@10.4.0)(@types/react-dom@19.1.9(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@types/jest':
+        specifier: 29.5.14
+        version: 29.5.14
+      '@types/node':
+        specifier: 24.6.0
+        version: 24.6.0
+      '@types/react':
+        specifier: 19.2.14
+        version: 19.2.14
+      '@types/react-dom':
+        specifier: 19.1.9
+        version: 19.1.9(@types/react@19.2.14)
+      '@typescript-eslint/eslint-plugin':
+        specifier: 8.33.1
+        version: 8.33.1(@typescript-eslint/parser@8.33.1(eslint@9.36.0)(typescript@5.9.3))(eslint@9.36.0)(typescript@5.9.3)
+      '@typescript-eslint/parser':
+        specifier: 8.33.1
+        version: 8.33.1(eslint@9.36.0)(typescript@5.9.3)
+      '@vitejs/plugin-react':
+        specifier: 5.0.4
+        version: 5.0.4(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0))
+      eslint:
+        specifier: 9.36.0
+        version: 9.36.0
+      eslint-config-prettier:
+        specifier: 10.1.5
+        version: 10.1.5(eslint@9.36.0)
+      eslint-import-resolver-typescript:
+        specifier: 4.4.1
+        version: 4.4.1(eslint-plugin-import@2.31.0)(eslint@9.36.0)
+      eslint-plugin-import:
+        specifier: 2.31.0
+        version: 2.31.0(@typescript-eslint/parser@8.33.1(eslint@9.36.0)(typescript@5.9.3))(eslint-import-resolver-typescript@4.4.1)(eslint@9.36.0)
+      eslint-plugin-jest-dom:
+        specifier: 5.5.0
+        version: 5.5.0(@testing-library/dom@10.4.0)(eslint@9.36.0)
+      eslint-plugin-prettier:
+        specifier: 5.4.0
+        version: 5.4.0(eslint-config-prettier@10.1.5(eslint@9.36.0))(eslint@9.36.0)(prettier@3.5.3)
+      eslint-plugin-react:
+        specifier: 7.37.5
+        version: 7.37.5(eslint@9.36.0)
+      eslint-plugin-react-hooks:
+        specifier: 7.0.0
+        version: 7.0.0(eslint@9.36.0)
+      eslint-plugin-testing-library:
+        specifier: 7.4.0
+        version: 7.4.0(eslint@9.36.0)(typescript@5.9.3)
+      globals:
+        specifier: 16.4.0
+        version: 16.4.0
+      jsdom:
+        specifier: 26.1.0
+        version: 26.1.0
+      postcss:
+        specifier: 8.5.3
+        version: 8.5.3
+      postcss-simple-vars:
+        specifier: 7.0.1
+        version: 7.0.1(postcss@8.5.3)
+      prettier:
+        specifier: 3.5.3
+        version: 3.5.3
+      react:
+        specifier: 19.2.3
+        version: 19.2.3
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      typescript-eslint:
+        specifier: 8.45.0
+        version: 8.45.0(eslint@9.36.0)(typescript@5.9.3)
+      vite:
+        specifier: 6.3.5
+        version: 6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0)
+      vitest:
+        specifier: 3.1.3
+        version: 3.1.3(@types/debug@4.1.13)(@types/node@24.6.0)(jsdom@26.1.0)(less@4.3.0)(lightningcss@1.33.0)
+
+  workspaces/ui-modules/ai-gateway/pages/llm-providers:
+    dependencies:
+      '@agent-management-platform/api-client':
+        specifier: workspace:*
+        version: link:../../../../libs/api-client
+      '@agent-management-platform/feature-management':
+        specifier: workspace:*
+        version: link:../../../../libs/feature-management
+      '@agent-management-platform/shared-component':
+        specifier: workspace:*
+        version: link:../../../../libs/shared-component
+      '@agent-management-platform/types':
+        specifier: workspace:*
+        version: link:../../../../libs/types
+      '@agent-management-platform/views':
+        specifier: workspace:*
+        version: link:../../../../libs/views
+      '@emotion/react':
+        specifier: 11.13.5
+        version: 11.13.5(@types/react@19.2.14)(react@19.2.3)
+      '@emotion/styled':
+        specifier: 11.13.5
+        version: 11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3)
+      '@mui/icons-material':
+        specifier: 7.0.0
+        version: 7.0.0(@mui/material@7.0.0(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(@types/react@19.2.14)(react@19.2.3)
+      '@mui/material':
+        specifier: 7.0.0
+        version: 7.0.0(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@wso2/oxygen-ui':
+        specifier: 0.20.0
+        version: 0.20.0(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.20.0(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@wso2/oxygen-ui-icons-react':
+        specifier: 0.20.0
+        version: 0.20.0(react@19.2.3)
+      clsx:
+        specifier: 2.1.1
+        version: 2.1.1
+      date-fns:
+        specifier: 4.1.0
+        version: 4.1.0
+      js-yaml:
+        specifier: 4.3.2
+        version: 4.3.2
+      react-dom:
+        specifier: 19.2.3
+        version: 19.2.3(react@19.2.3)
+      react-router-dom:
+        specifier: 6.30.6
+        version: 6.30.6(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      zod:
+        specifier: 4.6.7
+        version: 4.6.7
+    devDependencies:
+      '@agent-management-platform/eslint-config':
+        specifier: workspace:*
+        version: link:../../../../libs/eslint-config
+      '@eslint/eslintrc':
+        specifier: 3.3.1
+        version: 3.3.1
+      '@eslint/js':
+        specifier: 9.36.0
+        version: 9.36.0
+      '@storybook/addon-essentials':
+        specifier: 8.6.13
+        version: 8.6.13(@types/react@19.2.14)(storybook@8.6.13(prettier@3.5.3))
+      '@storybook/addon-interactions':
+        specifier: 8.6.13
+        version: 8.6.13(storybook@8.6.13(prettier@3.5.3))
+      '@storybook/addon-onboarding':
+        specifier: 8.6.13
+        version: 8.6.13(storybook@8.6.13(prettier@3.5.3))
+      '@storybook/blocks':
+        specifier: 8.6.13
+        version: 8.6.13(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(storybook@8.6.13(prettier@3.5.3))
+      '@storybook/react':
+        specifier: 8.6.13
+        version: 8.6.13(@storybook/test@8.6.13(storybook@8.6.13(prettier@3.5.3)))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(storybook@8.6.13(prettier@3.5.3))(typescript@5.9.3)
+      '@storybook/react-vite':
+        specifier: 8.6.13
+        version: 8.6.13(@storybook/test@8.6.13(storybook@8.6.13(prettier@3.5.3)))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(rollup@4.62.4)(storybook@8.6.13(prettier@3.5.3))(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0))
+      '@storybook/test':
+        specifier: 8.6.13
+        version: 8.6.13(storybook@8.6.13(prettier@3.5.3))
+      '@testing-library/jest-dom':
+        specifier: 6.6.3
+        version: 6.6.3
+      '@testing-library/react':
+        specifier: 16.3.0
+        version: 16.3.0(@testing-library/dom@10.4.0)(@types/react-dom@19.1.9(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@types/jest':
+        specifier: 29.5.14
+        version: 29.5.14
+      '@types/js-yaml':
+        specifier: 4.0.9
+        version: 4.0.9
+      '@types/node':
+        specifier: 24.6.0
+        version: 24.6.0
+      '@types/react':
+        specifier: 19.2.14
+        version: 19.2.14
+      '@types/react-dom':
+        specifier: 19.1.9
+        version: 19.1.9(@types/react@19.2.14)
+      '@typescript-eslint/eslint-plugin':
+        specifier: 8.33.1
+        version: 8.33.1(@typescript-eslint/parser@8.33.1(eslint@9.36.0)(typescript@5.9.3))(eslint@9.36.0)(typescript@5.9.3)
+      '@typescript-eslint/parser':
+        specifier: 8.33.1
+        version: 8.33.1(eslint@9.36.0)(typescript@5.9.3)
+      '@vitejs/plugin-react':
+        specifier: 5.0.4
+        version: 5.0.4(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0))
+      eslint:
+        specifier: 9.36.0
+        version: 9.36.0
+      eslint-config-prettier:
+        specifier: 10.1.5
+        version: 10.1.5(eslint@9.36.0)
+      eslint-import-resolver-typescript:
+        specifier: 4.4.1
+        version: 4.4.1(eslint-plugin-import@2.31.0)(eslint@9.36.0)
+      eslint-plugin-import:
+        specifier: 2.31.0
+        version: 2.31.0(@typescript-eslint/parser@8.33.1(eslint@9.36.0)(typescript@5.9.3))(eslint-import-resolver-typescript@4.4.1)(eslint@9.36.0)
+      eslint-plugin-jest-dom:
+        specifier: 5.5.0
+        version: 5.5.0(@testing-library/dom@10.4.0)(eslint@9.36.0)
+      eslint-plugin-prettier:
+        specifier: 5.4.0
+        version: 5.4.0(eslint-config-prettier@10.1.5(eslint@9.36.0))(eslint@9.36.0)(prettier@3.5.3)
+      eslint-plugin-react:
+        specifier: 7.37.5
+        version: 7.37.5(eslint@9.36.0)
+      eslint-plugin-react-hooks:
+        specifier: 7.0.0
+        version: 7.0.0(eslint@9.36.0)
+      eslint-plugin-storybook:
+        specifier: 0.12.0
+        version: 0.12.0(eslint@9.36.0)(typescript@5.9.3)
+      eslint-plugin-testing-library:
+        specifier: 7.4.0
+        version: 7.4.0(eslint@9.36.0)(typescript@5.9.3)
+      globals:
+        specifier: 16.4.0
+        version: 16.4.0
+      jsdom:
+        specifier: 26.1.0
+        version: 26.1.0
+      postcss:
+        specifier: 8.5.3
+        version: 8.5.3
+      postcss-simple-vars:
+        specifier: 7.0.1
+        version: 7.0.1(postcss@8.5.3)
+      prettier:
+        specifier: 3.5.3
+        version: 3.5.3
+      react:
+        specifier: 19.2.3
+        version: 19.2.3
+      storybook:
+        specifier: 8.6.13
+        version: 8.6.13(prettier@3.5.3)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      typescript-eslint:
+        specifier: 8.45.0
+        version: 8.45.0(eslint@9.36.0)(typescript@5.9.3)
+      vite:
+        specifier: 6.3.5
+        version: 6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0)
+      vite-plugin-dts:
+        specifier: 4.5.4
+        version: 4.5.4(@types/node@24.6.0)(rollup@4.62.4)(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0))
+      vitest:
+        specifier: 3.1.3
+        version: 3.1.3(@types/debug@4.1.13)(@types/node@24.6.0)(jsdom@26.1.0)(less@4.3.0)(lightningcss@1.33.0)
+
+  workspaces/ui-modules/ai-gateway/pages/mcp-proxies:
+    dependencies:
+      '@agent-management-platform/api-client':
+        specifier: workspace:*
+        version: link:../../../../libs/api-client
+      '@agent-management-platform/auth':
+        specifier: workspace:*
+        version: link:../../../../libs/auth
+      '@agent-management-platform/feature-management':
+        specifier: workspace:*
+        version: link:../../../../libs/feature-management
+      '@agent-management-platform/shared-component':
+        specifier: workspace:*
+        version: link:../../../../libs/shared-component
+      '@agent-management-platform/types':
+        specifier: workspace:*
+        version: link:../../../../libs/types
+      '@agent-management-platform/views':
+        specifier: workspace:*
+        version: link:../../../../libs/views
+      '@emotion/react':
+        specifier: 11.13.5
+        version: 11.13.5(@types/react@19.2.14)(react@19.2.3)
+      '@emotion/styled':
+        specifier: 11.13.5
+        version: 11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3)
+      '@mui/material':
+        specifier: 7.0.0
+        version: 7.0.0(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@tanstack/react-query':
+        specifier: 5.90.5
+        version: 5.90.5(react@19.2.3)
+      '@wso2/oxygen-ui':
+        specifier: 0.20.0
+        version: 0.20.0(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.20.0(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@wso2/oxygen-ui-icons-react':
+        specifier: 0.20.0
+        version: 0.20.0(react@19.2.3)
+      lodash:
+        specifier: 4.18.1
+        version: 4.18.1
+      react-dom:
+        specifier: 19.2.3
+        version: 19.2.3(react@19.2.3)
+      react-router-dom:
+        specifier: 6.30.6
+        version: 6.30.6(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      zod:
+        specifier: 4.6.7
+        version: 4.6.7
+    devDependencies:
+      '@agent-management-platform/eslint-config':
+        specifier: workspace:*
+        version: link:../../../../libs/eslint-config
+      '@eslint/eslintrc':
+        specifier: 3.3.1
+        version: 3.3.1
+      '@eslint/js':
+        specifier: 9.36.0
+        version: 9.36.0
+      '@types/lodash':
+        specifier: 4.17.13
+        version: 4.17.13
+      '@types/node':
+        specifier: 24.6.0
+        version: 24.6.0
+      '@types/react':
+        specifier: 19.2.14
+        version: 19.2.14
+      '@types/react-dom':
+        specifier: 19.1.9
+        version: 19.1.9(@types/react@19.2.14)
+      '@typescript-eslint/eslint-plugin':
+        specifier: 8.33.1
+        version: 8.33.1(@typescript-eslint/parser@8.33.1(eslint@9.36.0)(typescript@5.9.3))(eslint@9.36.0)(typescript@5.9.3)
+      '@typescript-eslint/parser':
+        specifier: 8.33.1
+        version: 8.33.1(eslint@9.36.0)(typescript@5.9.3)
+      '@vitejs/plugin-react':
+        specifier: 5.0.4
+        version: 5.0.4(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0))
+      eslint:
+        specifier: 9.36.0
+        version: 9.36.0
+      eslint-config-prettier:
+        specifier: 10.1.5
+        version: 10.1.5(eslint@9.36.0)
+      eslint-import-resolver-typescript:
+        specifier: 4.4.1
+        version: 4.4.1(eslint-plugin-import@2.31.0)(eslint@9.36.0)
+      eslint-plugin-import:
+        specifier: 2.31.0
+        version: 2.31.0(@typescript-eslint/parser@8.33.1(eslint@9.36.0)(typescript@5.9.3))(eslint-import-resolver-typescript@4.4.1)(eslint@9.36.0)
+      eslint-plugin-prettier:
+        specifier: 5.4.0
+        version: 5.4.0(eslint-config-prettier@10.1.5(eslint@9.36.0))(eslint@9.36.0)(prettier@3.5.3)
+      eslint-plugin-react:
+        specifier: 7.37.5
+        version: 7.37.5(eslint@9.36.0)
+      eslint-plugin-react-hooks:
+        specifier: 7.0.0
+        version: 7.0.0(eslint@9.36.0)
+      eslint-plugin-storybook:
+        specifier: 0.12.0
+        version: 0.12.0(eslint@9.36.0)(typescript@5.9.3)
+      globals:
+        specifier: 16.4.0
+        version: 16.4.0
+      postcss:
+        specifier: 8.5.3
+        version: 8.5.3
+      postcss-simple-vars:
+        specifier: 7.0.1
+        version: 7.0.1(postcss@8.5.3)
+      prettier:
+        specifier: 3.5.3
+        version: 3.5.3
+      react:
+        specifier: 19.2.3
+        version: 19.2.3
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      typescript-eslint:
+        specifier: 8.45.0
+        version: 8.45.0(eslint@9.36.0)(typescript@5.9.3)
+      vite:
+        specifier: 6.3.5
+        version: 6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0)
+      vite-plugin-dts:
+        specifier: 4.5.4
+        version: 4.5.4(@types/node@24.6.0)(rollup@4.62.4)(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0))
+
+  workspaces/ui-modules/ai-observability:
     dependencies:
       '@agent-management-platform/api-client':
         specifier: workspace:*
         version: link:../../libs/api-client
-      '@agent-management-platform/shared-component':
+      '@agent-management-platform/eval':
         specifier: workspace:*
-        version: link:../../libs/shared-component
+        version: link:pages/eval
+      '@agent-management-platform/logs':
+        specifier: workspace:*
+        version: link:pages/logs
+      '@agent-management-platform/metrics':
+        specifier: workspace:*
+        version: link:pages/metrics
+      '@agent-management-platform/traces':
+        specifier: workspace:*
+        version: link:pages/traces
       '@agent-management-platform/types':
         specifier: workspace:*
         version: link:../../libs/types
+    devDependencies:
+      '@agent-management-platform/eslint-config':
+        specifier: workspace:*
+        version: link:../../libs/eslint-config
+      '@eslint/eslintrc':
+        specifier: 3.3.1
+        version: 3.3.1
+      '@eslint/js':
+        specifier: 9.36.0
+        version: 9.36.0
+      '@types/node':
+        specifier: 24.6.0
+        version: 24.6.0
+      '@types/react':
+        specifier: 19.2.14
+        version: 19.2.14
+      '@typescript-eslint/eslint-plugin':
+        specifier: 8.33.1
+        version: 8.33.1(@typescript-eslint/parser@8.33.1(eslint@9.36.0)(typescript@5.9.3))(eslint@9.36.0)(typescript@5.9.3)
+      '@typescript-eslint/parser':
+        specifier: 8.33.1
+        version: 8.33.1(eslint@9.36.0)(typescript@5.9.3)
+      eslint:
+        specifier: 9.36.0
+        version: 9.36.0
+      eslint-config-prettier:
+        specifier: 10.1.5
+        version: 10.1.5(eslint@9.36.0)
+      eslint-import-resolver-typescript:
+        specifier: 4.4.1
+        version: 4.4.1(eslint-plugin-import@2.31.0)(eslint@9.36.0)
+      eslint-plugin-import:
+        specifier: 2.31.0
+        version: 2.31.0(@typescript-eslint/parser@8.33.1(eslint@9.36.0)(typescript@5.9.3))(eslint-import-resolver-typescript@4.4.1)(eslint@9.36.0)
+      eslint-plugin-prettier:
+        specifier: 5.4.0
+        version: 5.4.0(eslint-config-prettier@10.1.5(eslint@9.36.0))(eslint@9.36.0)(prettier@3.5.3)
+      eslint-plugin-react:
+        specifier: 7.37.5
+        version: 7.37.5(eslint@9.36.0)
+      eslint-plugin-react-hooks:
+        specifier: 7.0.0
+        version: 7.0.0(eslint@9.36.0)
+      globals:
+        specifier: 16.4.0
+        version: 16.4.0
+      prettier:
+        specifier: 3.5.3
+        version: 3.5.3
+      react:
+        specifier: 19.2.3
+        version: 19.2.3
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      typescript-eslint:
+        specifier: 8.45.0
+        version: 8.45.0(eslint@9.36.0)(typescript@5.9.3)
+
+  workspaces/ui-modules/ai-observability/pages/eval:
+    dependencies:
+      '@agent-management-platform/api-client':
+        specifier: workspace:*
+        version: link:../../../../libs/api-client
+      '@agent-management-platform/feature-management':
+        specifier: workspace:*
+        version: link:../../../../libs/feature-management
+      '@agent-management-platform/shared-component':
+        specifier: workspace:*
+        version: link:../../../../libs/shared-component
+      '@agent-management-platform/types':
+        specifier: workspace:*
+        version: link:../../../../libs/types
       '@agent-management-platform/views':
         specifier: workspace:*
-        version: link:../../libs/views
+        version: link:../../../../libs/views
+      '@babel/runtime-corejs3':
+        specifier: 7.29.7
+        version: 7.29.7
+      '@emotion/react':
+        specifier: 11.13.5
+        version: 11.13.5(@types/react@19.2.14)(react@19.2.3)
+      '@emotion/styled':
+        specifier: 11.13.5
+        version: 11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3)
+      '@monaco-editor/react':
+        specifier: 4.7.0
+        version: 4.7.0(monaco-editor@0.56.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@mui/icons-material':
+        specifier: 7.0.0
+        version: 7.0.0(@mui/material@7.0.0(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(@types/react@19.2.14)(react@19.2.3)
+      '@mui/material':
+        specifier: 7.0.0
+        version: 7.0.0(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@tanstack/react-query':
+        specifier: 5.90.5
+        version: 5.90.5(react@19.2.3)
+      '@wso2/oxygen-ui':
+        specifier: 0.20.0
+        version: 0.20.0(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.20.0(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@wso2/oxygen-ui-charts-react':
+        specifier: 0.20.0
+        version: 0.20.0(@types/react@19.2.14)(@wso2/oxygen-ui@0.20.0(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.20.0(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react-is@19.2.8)(react@19.2.3)(redux@5.0.1)
+      '@wso2/oxygen-ui-icons-react':
+        specifier: 0.20.0
+        version: 0.20.0(react@19.2.3)
+      clsx:
+        specifier: 2.1.1
+        version: 2.1.1
+      date-fns:
+        specifier: 4.1.0
+        version: 4.1.0
+      lodash:
+        specifier: 4.18.1
+        version: 4.18.1
+      react-dom:
+        specifier: 19.2.3
+        version: 19.2.3(react@19.2.3)
+      react-router-dom:
+        specifier: 6.30.6
+        version: 6.30.6(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      zod:
+        specifier: 4.6.7
+        version: 4.6.7
+    devDependencies:
+      '@agent-management-platform/eslint-config':
+        specifier: workspace:*
+        version: link:../../../../libs/eslint-config
+      '@eslint/eslintrc':
+        specifier: 3.3.1
+        version: 3.3.1
+      '@eslint/js':
+        specifier: 9.36.0
+        version: 9.36.0
+      '@storybook/addon-essentials':
+        specifier: 8.6.13
+        version: 8.6.13(@types/react@19.2.14)(storybook@8.6.13(prettier@3.5.3))
+      '@storybook/addon-interactions':
+        specifier: 8.6.13
+        version: 8.6.13(storybook@8.6.13(prettier@3.5.3))
+      '@storybook/addon-onboarding':
+        specifier: 8.6.13
+        version: 8.6.13(storybook@8.6.13(prettier@3.5.3))
+      '@storybook/blocks':
+        specifier: 8.6.13
+        version: 8.6.13(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(storybook@8.6.13(prettier@3.5.3))
+      '@storybook/react':
+        specifier: 8.6.13
+        version: 8.6.13(@storybook/test@8.6.13(storybook@8.6.13(prettier@3.5.3)))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(storybook@8.6.13(prettier@3.5.3))(typescript@5.9.3)
+      '@storybook/react-vite':
+        specifier: 8.6.13
+        version: 8.6.13(@storybook/test@8.6.13(storybook@8.6.13(prettier@3.5.3)))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(rollup@4.62.4)(storybook@8.6.13(prettier@3.5.3))(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0))
+      '@storybook/test':
+        specifier: 8.6.13
+        version: 8.6.13(storybook@8.6.13(prettier@3.5.3))
+      '@testing-library/jest-dom':
+        specifier: 6.6.3
+        version: 6.6.3
+      '@testing-library/react':
+        specifier: 16.3.0
+        version: 16.3.0(@testing-library/dom@10.4.0)(@types/react-dom@19.1.9(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@types/jest':
+        specifier: 29.5.14
+        version: 29.5.14
+      '@types/lodash':
+        specifier: 4.17.13
+        version: 4.17.13
+      '@types/node':
+        specifier: 24.6.0
+        version: 24.6.0
+      '@types/react':
+        specifier: 19.2.14
+        version: 19.2.14
+      '@types/react-dom':
+        specifier: 19.1.9
+        version: 19.1.9(@types/react@19.2.14)
+      '@typescript-eslint/eslint-plugin':
+        specifier: 8.33.1
+        version: 8.33.1(@typescript-eslint/parser@8.33.1(eslint@9.36.0)(typescript@5.9.3))(eslint@9.36.0)(typescript@5.9.3)
+      '@typescript-eslint/parser':
+        specifier: 8.33.1
+        version: 8.33.1(eslint@9.36.0)(typescript@5.9.3)
+      '@vitejs/plugin-react':
+        specifier: 5.0.4
+        version: 5.0.4(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0))
+      eslint:
+        specifier: 9.36.0
+        version: 9.36.0
+      eslint-config-prettier:
+        specifier: 10.1.5
+        version: 10.1.5(eslint@9.36.0)
+      eslint-import-resolver-typescript:
+        specifier: 4.4.1
+        version: 4.4.1(eslint-plugin-import@2.31.0)(eslint@9.36.0)
+      eslint-plugin-import:
+        specifier: 2.31.0
+        version: 2.31.0(@typescript-eslint/parser@8.33.1(eslint@9.36.0)(typescript@5.9.3))(eslint-import-resolver-typescript@4.4.1)(eslint@9.36.0)
+      eslint-plugin-jest-dom:
+        specifier: 5.5.0
+        version: 5.5.0(@testing-library/dom@10.4.0)(eslint@9.36.0)
+      eslint-plugin-prettier:
+        specifier: 5.4.0
+        version: 5.4.0(eslint-config-prettier@10.1.5(eslint@9.36.0))(eslint@9.36.0)(prettier@3.5.3)
+      eslint-plugin-react:
+        specifier: 7.37.5
+        version: 7.37.5(eslint@9.36.0)
+      eslint-plugin-react-hooks:
+        specifier: 7.0.0
+        version: 7.0.0(eslint@9.36.0)
+      eslint-plugin-storybook:
+        specifier: 0.12.0
+        version: 0.12.0(eslint@9.36.0)(typescript@5.9.3)
+      eslint-plugin-testing-library:
+        specifier: 7.4.0
+        version: 7.4.0(eslint@9.36.0)(typescript@5.9.3)
+      globals:
+        specifier: 16.4.0
+        version: 16.4.0
+      jsdom:
+        specifier: 26.1.0
+        version: 26.1.0
+      postcss:
+        specifier: 8.5.3
+        version: 8.5.3
+      postcss-simple-vars:
+        specifier: 7.0.1
+        version: 7.0.1(postcss@8.5.3)
+      prettier:
+        specifier: 3.5.3
+        version: 3.5.3
+      react:
+        specifier: 19.2.3
+        version: 19.2.3
+      storybook:
+        specifier: 8.6.13
+        version: 8.6.13(prettier@3.5.3)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      typescript-eslint:
+        specifier: 8.45.0
+        version: 8.45.0(eslint@9.36.0)(typescript@5.9.3)
+      vite:
+        specifier: 6.3.5
+        version: 6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0)
+      vite-plugin-dts:
+        specifier: 4.5.4
+        version: 4.5.4(@types/node@24.6.0)(rollup@4.62.4)(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0))
+      vitest:
+        specifier: 3.1.3
+        version: 3.1.3(@types/debug@4.1.13)(@types/node@24.6.0)(jsdom@26.1.0)(less@4.3.0)(lightningcss@1.33.0)
+
+  workspaces/ui-modules/ai-observability/pages/logs:
+    dependencies:
+      '@agent-management-platform/api-client':
+        specifier: workspace:*
+        version: link:../../../../libs/api-client
+      '@agent-management-platform/shared-component':
+        specifier: workspace:*
+        version: link:../../../../libs/shared-component
+      '@agent-management-platform/types':
+        specifier: workspace:*
+        version: link:../../../../libs/types
+      '@agent-management-platform/views':
+        specifier: workspace:*
+        version: link:../../../../libs/views
+      '@babel/runtime-corejs3':
+        specifier: 7.29.7
+        version: 7.29.7
+      '@emotion/react':
+        specifier: 11.13.5
+        version: 11.13.5(@types/react@19.2.14)(react@19.2.3)
+      '@emotion/styled':
+        specifier: 11.13.5
+        version: 11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3)
+      '@mui/icons-material':
+        specifier: 7.0.0
+        version: 7.0.0(@mui/material@7.0.0(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(@types/react@19.2.14)(react@19.2.3)
+      '@mui/material':
+        specifier: 7.0.0
+        version: 7.0.0(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@wso2/oxygen-ui':
+        specifier: 0.20.0
+        version: 0.20.0(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.20.0(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@wso2/oxygen-ui-icons-react':
+        specifier: 0.20.0
+        version: 0.20.0(react@19.2.3)
+      clsx:
+        specifier: 2.1.1
+        version: 2.1.1
+      date-fns:
+        specifier: 4.1.0
+        version: 4.1.0
+      lodash:
+        specifier: 4.18.1
+        version: 4.18.1
+      react-dom:
+        specifier: 19.2.3
+        version: 19.2.3(react@19.2.3)
+      react-router-dom:
+        specifier: 6.30.6
+        version: 6.30.6(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      zod:
+        specifier: 4.6.7
+        version: 4.6.7
+    devDependencies:
+      '@agent-management-platform/eslint-config':
+        specifier: workspace:*
+        version: link:../../../../libs/eslint-config
+      '@eslint/eslintrc':
+        specifier: 3.3.1
+        version: 3.3.1
+      '@eslint/js':
+        specifier: 9.36.0
+        version: 9.36.0
+      '@storybook/addon-essentials':
+        specifier: 8.6.13
+        version: 8.6.13(@types/react@19.2.14)(storybook@8.6.13(prettier@3.5.3))
+      '@storybook/addon-interactions':
+        specifier: 8.6.13
+        version: 8.6.13(storybook@8.6.13(prettier@3.5.3))
+      '@storybook/addon-onboarding':
+        specifier: 8.6.13
+        version: 8.6.13(storybook@8.6.13(prettier@3.5.3))
+      '@storybook/blocks':
+        specifier: 8.6.13
+        version: 8.6.13(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(storybook@8.6.13(prettier@3.5.3))
+      '@storybook/react':
+        specifier: 8.6.13
+        version: 8.6.13(@storybook/test@8.6.13(storybook@8.6.13(prettier@3.5.3)))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(storybook@8.6.13(prettier@3.5.3))(typescript@5.9.3)
+      '@storybook/react-vite':
+        specifier: 8.6.13
+        version: 8.6.13(@storybook/test@8.6.13(storybook@8.6.13(prettier@3.5.3)))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(rollup@4.62.4)(storybook@8.6.13(prettier@3.5.3))(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0))
+      '@storybook/test':
+        specifier: 8.6.13
+        version: 8.6.13(storybook@8.6.13(prettier@3.5.3))
+      '@testing-library/jest-dom':
+        specifier: 6.6.3
+        version: 6.6.3
+      '@testing-library/react':
+        specifier: 16.3.0
+        version: 16.3.0(@testing-library/dom@10.4.0)(@types/react-dom@19.1.9(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@types/jest':
+        specifier: 29.5.14
+        version: 29.5.14
+      '@types/lodash':
+        specifier: 4.17.13
+        version: 4.17.13
+      '@types/node':
+        specifier: 24.6.0
+        version: 24.6.0
+      '@types/react':
+        specifier: 19.2.14
+        version: 19.2.14
+      '@types/react-dom':
+        specifier: 19.1.9
+        version: 19.1.9(@types/react@19.2.14)
+      '@typescript-eslint/eslint-plugin':
+        specifier: 8.33.1
+        version: 8.33.1(@typescript-eslint/parser@8.33.1(eslint@9.36.0)(typescript@5.9.3))(eslint@9.36.0)(typescript@5.9.3)
+      '@typescript-eslint/parser':
+        specifier: 8.33.1
+        version: 8.33.1(eslint@9.36.0)(typescript@5.9.3)
+      '@vitejs/plugin-react':
+        specifier: 5.0.4
+        version: 5.0.4(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0))
+      eslint:
+        specifier: 9.36.0
+        version: 9.36.0
+      eslint-config-prettier:
+        specifier: 10.1.5
+        version: 10.1.5(eslint@9.36.0)
+      eslint-import-resolver-typescript:
+        specifier: 4.4.1
+        version: 4.4.1(eslint-plugin-import@2.31.0)(eslint@9.36.0)
+      eslint-plugin-import:
+        specifier: 2.31.0
+        version: 2.31.0(@typescript-eslint/parser@8.33.1(eslint@9.36.0)(typescript@5.9.3))(eslint-import-resolver-typescript@4.4.1)(eslint@9.36.0)
+      eslint-plugin-jest-dom:
+        specifier: 5.5.0
+        version: 5.5.0(@testing-library/dom@10.4.0)(eslint@9.36.0)
+      eslint-plugin-prettier:
+        specifier: 5.4.0
+        version: 5.4.0(eslint-config-prettier@10.1.5(eslint@9.36.0))(eslint@9.36.0)(prettier@3.5.3)
+      eslint-plugin-react:
+        specifier: 7.37.5
+        version: 7.37.5(eslint@9.36.0)
+      eslint-plugin-react-hooks:
+        specifier: 7.0.0
+        version: 7.0.0(eslint@9.36.0)
+      eslint-plugin-storybook:
+        specifier: 0.12.0
+        version: 0.12.0(eslint@9.36.0)(typescript@5.9.3)
+      eslint-plugin-testing-library:
+        specifier: 7.4.0
+        version: 7.4.0(eslint@9.36.0)(typescript@5.9.3)
+      globals:
+        specifier: 16.4.0
+        version: 16.4.0
+      jsdom:
+        specifier: 26.1.0
+        version: 26.1.0
+      postcss:
+        specifier: 8.5.3
+        version: 8.5.3
+      postcss-simple-vars:
+        specifier: 7.0.1
+        version: 7.0.1(postcss@8.5.3)
+      prettier:
+        specifier: 3.5.3
+        version: 3.5.3
+      react:
+        specifier: 19.2.3
+        version: 19.2.3
+      storybook:
+        specifier: 8.6.13
+        version: 8.6.13(prettier@3.5.3)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      typescript-eslint:
+        specifier: 8.45.0
+        version: 8.45.0(eslint@9.36.0)(typescript@5.9.3)
+      vite:
+        specifier: 6.3.5
+        version: 6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0)
+      vite-plugin-dts:
+        specifier: 4.5.4
+        version: 4.5.4(@types/node@24.6.0)(rollup@4.62.4)(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0))
+      vitest:
+        specifier: 3.1.3
+        version: 3.1.3(@types/debug@4.1.13)(@types/node@24.6.0)(jsdom@26.1.0)(less@4.3.0)(lightningcss@1.33.0)
+
+  workspaces/ui-modules/ai-observability/pages/metrics:
+    dependencies:
+      '@agent-management-platform/api-client':
+        specifier: workspace:*
+        version: link:../../../../libs/api-client
+      '@agent-management-platform/shared-component':
+        specifier: workspace:*
+        version: link:../../../../libs/shared-component
+      '@agent-management-platform/types':
+        specifier: workspace:*
+        version: link:../../../../libs/types
+      '@agent-management-platform/views':
+        specifier: workspace:*
+        version: link:../../../../libs/views
+      '@babel/runtime-corejs3':
+        specifier: 7.29.7
+        version: 7.29.7
+      '@emotion/react':
+        specifier: 11.13.5
+        version: 11.13.5(@types/react@19.2.14)(react@19.2.3)
+      '@emotion/styled':
+        specifier: 11.13.5
+        version: 11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3)
+      '@mui/icons-material':
+        specifier: 7.0.0
+        version: 7.0.0(@mui/material@7.0.0(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(@types/react@19.2.14)(react@19.2.3)
+      '@mui/material':
+        specifier: 7.0.0
+        version: 7.0.0(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@wso2/oxygen-ui':
+        specifier: 0.20.0
+        version: 0.20.0(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.20.0(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@wso2/oxygen-ui-charts-react':
+        specifier: 0.20.0
+        version: 0.20.0(@types/react@19.2.14)(@wso2/oxygen-ui@0.20.0(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.20.0(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react-is@19.2.8)(react@19.2.3)(redux@5.0.1)
+      '@wso2/oxygen-ui-icons-react':
+        specifier: 0.20.0
+        version: 0.20.0(react@19.2.3)
+      clsx:
+        specifier: 2.1.1
+        version: 2.1.1
+      date-fns:
+        specifier: 4.1.0
+        version: 4.1.0
+      lodash:
+        specifier: 4.18.1
+        version: 4.18.1
+      react-dom:
+        specifier: 19.2.3
+        version: 19.2.3(react@19.2.3)
+      react-router-dom:
+        specifier: 6.30.6
+        version: 6.30.6(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      zod:
+        specifier: 4.6.7
+        version: 4.6.7
+    devDependencies:
+      '@agent-management-platform/eslint-config':
+        specifier: workspace:*
+        version: link:../../../../libs/eslint-config
+      '@eslint/eslintrc':
+        specifier: 3.3.1
+        version: 3.3.1
+      '@eslint/js':
+        specifier: 9.36.0
+        version: 9.36.0
+      '@storybook/addon-essentials':
+        specifier: 8.6.13
+        version: 8.6.13(@types/react@19.2.14)(storybook@8.6.13(prettier@3.5.3))
+      '@storybook/addon-interactions':
+        specifier: 8.6.13
+        version: 8.6.13(storybook@8.6.13(prettier@3.5.3))
+      '@storybook/addon-onboarding':
+        specifier: 8.6.13
+        version: 8.6.13(storybook@8.6.13(prettier@3.5.3))
+      '@storybook/blocks':
+        specifier: 8.6.13
+        version: 8.6.13(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(storybook@8.6.13(prettier@3.5.3))
+      '@storybook/react':
+        specifier: 8.6.13
+        version: 8.6.13(@storybook/test@8.6.13(storybook@8.6.13(prettier@3.5.3)))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(storybook@8.6.13(prettier@3.5.3))(typescript@5.9.3)
+      '@storybook/react-vite':
+        specifier: 8.6.13
+        version: 8.6.13(@storybook/test@8.6.13(storybook@8.6.13(prettier@3.5.3)))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(rollup@4.62.4)(storybook@8.6.13(prettier@3.5.3))(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0))
+      '@storybook/test':
+        specifier: 8.6.13
+        version: 8.6.13(storybook@8.6.13(prettier@3.5.3))
+      '@testing-library/jest-dom':
+        specifier: 6.6.3
+        version: 6.6.3
+      '@testing-library/react':
+        specifier: 16.3.0
+        version: 16.3.0(@testing-library/dom@10.4.0)(@types/react-dom@19.1.9(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@types/jest':
+        specifier: 29.5.14
+        version: 29.5.14
+      '@types/lodash':
+        specifier: 4.17.13
+        version: 4.17.13
+      '@types/node':
+        specifier: 24.6.0
+        version: 24.6.0
+      '@types/react':
+        specifier: 19.2.14
+        version: 19.2.14
+      '@types/react-dom':
+        specifier: 19.1.9
+        version: 19.1.9(@types/react@19.2.14)
+      '@typescript-eslint/eslint-plugin':
+        specifier: 8.33.1
+        version: 8.33.1(@typescript-eslint/parser@8.33.1(eslint@9.36.0)(typescript@5.9.3))(eslint@9.36.0)(typescript@5.9.3)
+      '@typescript-eslint/parser':
+        specifier: 8.33.1
+        version: 8.33.1(eslint@9.36.0)(typescript@5.9.3)
+      '@vitejs/plugin-react':
+        specifier: 5.0.4
+        version: 5.0.4(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0))
+      eslint:
+        specifier: 9.36.0
+        version: 9.36.0
+      eslint-config-prettier:
+        specifier: 10.1.5
+        version: 10.1.5(eslint@9.36.0)
+      eslint-import-resolver-typescript:
+        specifier: 4.4.1
+        version: 4.4.1(eslint-plugin-import@2.31.0)(eslint@9.36.0)
+      eslint-plugin-import:
+        specifier: 2.31.0
+        version: 2.31.0(@typescript-eslint/parser@8.33.1(eslint@9.36.0)(typescript@5.9.3))(eslint-import-resolver-typescript@4.4.1)(eslint@9.36.0)
+      eslint-plugin-jest-dom:
+        specifier: 5.5.0
+        version: 5.5.0(@testing-library/dom@10.4.0)(eslint@9.36.0)
+      eslint-plugin-prettier:
+        specifier: 5.4.0
+        version: 5.4.0(eslint-config-prettier@10.1.5(eslint@9.36.0))(eslint@9.36.0)(prettier@3.5.3)
+      eslint-plugin-react:
+        specifier: 7.37.5
+        version: 7.37.5(eslint@9.36.0)
+      eslint-plugin-react-hooks:
+        specifier: 7.0.0
+        version: 7.0.0(eslint@9.36.0)
+      eslint-plugin-storybook:
+        specifier: 0.12.0
+        version: 0.12.0(eslint@9.36.0)(typescript@5.9.3)
+      eslint-plugin-testing-library:
+        specifier: 7.4.0
+        version: 7.4.0(eslint@9.36.0)(typescript@5.9.3)
+      globals:
+        specifier: 16.4.0
+        version: 16.4.0
+      jsdom:
+        specifier: 26.1.0
+        version: 26.1.0
+      postcss:
+        specifier: 8.5.3
+        version: 8.5.3
+      postcss-simple-vars:
+        specifier: 7.0.1
+        version: 7.0.1(postcss@8.5.3)
+      prettier:
+        specifier: 3.5.3
+        version: 3.5.3
+      react:
+        specifier: 19.2.3
+        version: 19.2.3
+      storybook:
+        specifier: 8.6.13
+        version: 8.6.13(prettier@3.5.3)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      typescript-eslint:
+        specifier: 8.45.0
+        version: 8.45.0(eslint@9.36.0)(typescript@5.9.3)
+      vite:
+        specifier: 6.3.5
+        version: 6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0)
+      vite-plugin-dts:
+        specifier: 4.5.4
+        version: 4.5.4(@types/node@24.6.0)(rollup@4.62.4)(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.33.0))
+      vitest:
+        specifier: 3.1.3
+        version: 3.1.3(@types/debug@4.1.13)(@types/node@24.6.0)(jsdom@26.1.0)(less@4.3.0)(lightningcss@1.33.0)
+
+  workspaces/ui-modules/ai-observability/pages/traces:
+    dependencies:
+      '@agent-management-platform/api-client':
+        specifier: workspace:*
+        version: link:../../../../libs/api-client
+      '@agent-management-platform/shared-component':
+        specifier: workspace:*
+        version: link:../../../../libs/shared-component
+      '@agent-management-platform/types':
+        specifier: workspace:*
+        version: link:../../../../libs/types
+      '@agent-management-platform/views':
+        specifier: workspace:*
+        version: link:../../../../libs/views
       '@babel/runtime-corejs3':
         specifier: 7.29.7
         version: 7.29.7
@@ -3672,7 +4687,7 @@ importers:
     devDependencies:
       '@agent-management-platform/eslint-config':
         specifier: workspace:*
-        version: link:../../libs/eslint-config
+        version: link:../../../../libs/eslint-config
       '@eslint/eslintrc':
         specifier: 3.3.1
         version: 3.3.1
@@ -7299,7 +8314,6 @@ packages:
   image-size@0.5.5:
     resolution: {integrity: sha512-6TDAlDPZxUFCv+fuOkIoXT/V/f3Qbq8e37p+YOiYrUv3v9cc3/6x78VdfPgFVaB9dZYeLUfKgHRebpkm/oP2VQ==}
     engines: {node: '>=0.10.0'}
-    deprecated: Please migrate to image-size@2.x
     hasBin: true
 
   immer@10.2.0:
@@ -7999,7 +9013,6 @@ packages:
 
   node-abort-controller@3.1.1:
     resolution: {integrity: sha512-AGK2yQKIjRuqnc6VkX2Xj5d+QW8xZ87pa1UK6yA6ouUyuxfHuMP6umE5QK7UmTeOAymo+Zx1Fxiuw9rVx8taHQ==}
-    deprecated: This package is no longer needed on supported Node.js versions. Node.js 16+ includes AbortController and AbortSignal as built-in globals. All Node.js versions requiring this polyfill are end-of-life. Use the built-in globals instead.
 
   node-addon-api@8.9.1:
     resolution: {integrity: sha512-4eUQWVPCUUUiBjLnHS3cXWeC6ryoPUc0U3rP7IuzapoGbzMqd/r6KKO0clr0b+snQhsrueFEhCZDdK+LK7hxKg==}
@@ -11985,8 +12998,8 @@ snapshots:
 
   '@typescript-eslint/project-service@8.45.0(typescript@5.9.3)':
     dependencies:
-      '@typescript-eslint/tsconfig-utils': 8.45.0(typescript@5.9.3)
-      '@typescript-eslint/types': 8.45.0
+      '@typescript-eslint/tsconfig-utils': 8.66.0(typescript@5.9.3)
+      '@typescript-eslint/types': 8.66.0
       debug: 4.4.3
       typescript: 5.9.3
     transitivePeerDependencies:
@@ -11994,8 +13007,8 @@ snapshots:
 
   '@typescript-eslint/project-service@8.45.0(typescript@6.0.3)':
     dependencies:
-      '@typescript-eslint/tsconfig-utils': 8.45.0(typescript@6.0.3)
-      '@typescript-eslint/types': 8.45.0
+      '@typescript-eslint/tsconfig-utils': 8.66.0(typescript@6.0.3)
+      '@typescript-eslint/types': 8.66.0
       debug: 4.4.3
       typescript: 6.0.3
     transitivePeerDependencies:

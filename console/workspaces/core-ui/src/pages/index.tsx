@@ -20,3 +20,4 @@
 // `/plugin` entry and ../plugins/builtinPlugins.ts registers them. Only the
 // shell's own pages live here.
 export * from "./Login";
+export * from "./ModuleManager";

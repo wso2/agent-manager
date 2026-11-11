@@ -32,13 +32,13 @@ import {
   getAvatarInitials,
   ResourceListShell,
   useConfirmationDialog,
+  MCPLogo,
 } from "@agent-management-platform/shared-component";
 import {
   absoluteRouteMap,
   type MCPProxyListItem,
 } from "@agent-management-platform/types";
 import { useResourceAccess } from "@agent-management-platform/feature-management";
-import { MCPLogo } from "../components/MCPLogo";
 
 interface MCPProxyTableProps {
   /** CTA shown in the empty state; the page owns how a server gets registered. */

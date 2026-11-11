@@ -21,7 +21,7 @@ import { buildScript } from "./manageIdentityProviderScript";
 // The package root also exports the UI components, which do not load under
 // vitest; the builder only needs the script helpers.
 vi.mock("@agent-management-platform/shared-component", () =>
-  import("../../../../libs/shared-component/src/utils/gatewayScripts"),
+  import("../../../../../../libs/shared-component/src/utils/gatewayScripts"),
 );
 
 type RuntimeConfig = Record<string, string | undefined>;

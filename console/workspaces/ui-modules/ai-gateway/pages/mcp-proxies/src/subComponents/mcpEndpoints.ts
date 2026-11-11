@@ -16,7 +16,6 @@
  */
 
 import type {
-  MCPEndpointConfig,
   MCPProxyCapabilities,
   MCPProxyEndpoint,
   MCPProxyPolicy,
@@ -24,18 +23,12 @@ import type {
   UpstreamAuth,
 } from "@agent-management-platform/types";
 import type { EndpointDraft } from "./EndpointFormFields";
+import {
+  CAPABILITY_SECTION_KEY,
+  getCapabilityId,
+  type CapabilityKind,
+} from "@agent-management-platform/shared-component";
 import { ACL_POLICY_NAME, REWRITE_POLICY_NAME } from "../constants";
-
-export type CapabilityKind = "tool" | "resource" | "prompt";
-
-// Policy-params section key for each capability kind (the ACL and Rewrite
-// policies both key their per-kind config off these names) — shared so every
-// reader/writer of those policies' params agrees on the same section names.
-export const CAPABILITY_SECTION_KEY: Record<CapabilityKind, string> = {
-  tool: "tools",
-  resource: "resources",
-  prompt: "prompts",
-};
 
 // Default for a brand-new endpoint (no prior config) — matches upstream's
 // long-standing default (AddMCPProxyForm on main hardcodes the same shape):
@@ -54,64 +47,18 @@ export const DEFAULT_ENDPOINT_SECURITY = {
 // configuration pages derive their runtime variables from the same definition
 // this page renders. Re-exported here for existing importers.
 export {
+  CAPABILITY_SECTION_KEY,
+  getCapabilityId,
+  isToolBlockedByAcl,
+  parseAclSection,
+  type CapabilityKind,
+} from "@agent-management-platform/shared-component";
+export {
   getAuthenticationTypeLabel,
   isAPIKeySecurityEnabled,
   resolveAuthenticationType,
   type AuthenticationType,
 } from "@agent-management-platform/shared-component";
-
-// Backend identifier of a capability entry, matching the resolution used by the
-// Rewrite / Manage Tools tabs (resources key on uri, tools/prompts on name).
-export function getCapabilityId(
-  kind: CapabilityKind,
-  raw: Record<string, unknown> | undefined,
-): string | null {
-  if (!raw) return null;
-  const value =
-    kind === "resource" ? (raw.uri ?? raw.name) : (raw.name ?? raw.uri);
-  if (typeof value !== "string") return null;
-  const trimmed = value.trim();
-  return trimmed.length ? trimmed : null;
-}
-
-// Reads one capability-kind section (e.g. "tools") off an ACL policy's params —
-// the single source of truth for the allow/deny + exceptions shape, shared by
-// isToolBlockedByAcl below and MCPProxyManageToolsTab's parseExistingAclPolicy.
-export function parseAclSection(
-  params: Record<string, unknown> | undefined,
-  sectionKey: string,
-): { mode: "allow" | "deny" | null; exceptions: string[] } {
-  const section = params?.[sectionKey] as Record<string, unknown> | undefined;
-  if (!section) return { mode: null, exceptions: [] };
-
-  const rawMode = String(section.mode ?? "").toLowerCase();
-  const mode = rawMode === "allow" || rawMode === "deny" ? rawMode : null;
-  const exceptions = Array.isArray(section.exceptions)
-    ? (section.exceptions as unknown[])
-        .filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0)
-        .map((entry) => entry.trim())
-    : [];
-
-  return { mode, exceptions };
-}
-
-// Whether a tool is currently blocked by the Manage Tools tab's ACL policy
-// (allow-all-except-exceptions, or deny-all-except-exceptions) — used by the
-// Security tab to flag RBAC scope bindings on tools that ACL has shut off.
-export function isToolBlockedByAcl(
-  config: MCPEndpointConfig | undefined,
-  toolIdentifier: string,
-): boolean {
-  const policy = config?.policies?.find((p) => p.name === ACL_POLICY_NAME);
-  const { mode, exceptions } = parseAclSection(
-    policy?.params as Record<string, unknown> | undefined,
-    "tools",
-  );
-  if (!mode) return false;
-
-  const isException = exceptions.includes(toolIdentifier);
-  return mode === "deny" ? !isException : isException;
-}
 
 function collectCapabilityIds(
   kind: CapabilityKind,

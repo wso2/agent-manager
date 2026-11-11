@@ -21,16 +21,14 @@
 // each `load`, which keeps them in the package's own chunk.
 import type { ComponentType } from "react";
 import { useFeatureManagement } from "@agent-management-platform/feature-management";
-import { MCPLogo } from "./MCPLogo";
+import { MCPLogo } from "@agent-management-platform/shared-component";
 import {
   absoluteRouteMap,
-  relativeRouteMap,
   PLUGIN_API_VERSION,
   type PluginManifest,
 } from "@agent-management-platform/types";
 
-// Route-map shorthands: relative paths for routes, absolute ones for links.
-const orgRoutes = relativeRouteMap.children.org.children;
+// Route-map shorthands (absolute paths, used for both routes and links).
 const orgNav = absoluteRouteMap.children.org.children;
 
 /** The Resources section shows when the user can read any of its resources. */
@@ -53,7 +51,7 @@ export const mcpProxiesPlugin: PluginManifest = {
       type: "route",
       id: "page",
       level: "org",
-      path: orgRoutes.mcpProxies.path + "/*",
+      path: orgNav.mcpProxies.path + "/*",
       load: () =>
         import("./index").then((m) => ({
           default: m.metaData.levels!.organization as ComponentType,

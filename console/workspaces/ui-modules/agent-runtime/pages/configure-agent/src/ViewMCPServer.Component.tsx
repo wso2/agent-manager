@@ -36,6 +36,8 @@ import {
   useMCPProxyEndpoints,
   useThunderInstanceForEnv,
   useUnsavedChangesGuard,
+  getCapabilityId,
+  isToolBlockedByAcl,
 } from "@agent-management-platform/shared-component";
 import {
   Alert,
@@ -76,10 +78,6 @@ import {
   type EnvProviderConfigMappings,
   type MCPProxyEndpoint,
 } from "@agent-management-platform/types";
-import {
-  getCapabilityId,
-  isToolBlockedByAcl,
-} from "@agent-management-platform/mcp-proxies";
 import {
   generatePath,
   useLocation,

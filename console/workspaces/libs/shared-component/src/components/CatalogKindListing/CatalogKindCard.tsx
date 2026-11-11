@@ -1,6 +1,6 @@
 import React from "react";
 import { ListingCard, Stack, Tooltip, Typography } from "@wso2/oxygen-ui";
-import { formatRelativeTime } from "@agent-management-platform/shared-component";
+import { formatRelativeTime } from "../../utils/format";
 import { Link } from "react-router-dom";
 import { BookOpenText } from "@wso2/oxygen-ui-icons-react";
 import type { AgentKindResponse } from "@agent-management-platform/types";

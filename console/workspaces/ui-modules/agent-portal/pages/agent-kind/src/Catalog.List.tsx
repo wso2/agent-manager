@@ -20,7 +20,7 @@ import React from "react";
 import { generatePath, useParams } from "react-router-dom";
 import { PageLayout } from "@agent-management-platform/views";
 import { absoluteRouteMap, type AgentKindResponse } from "@agent-management-platform/types";
-import { CatalogKindListing } from "./subComponents/CatalogKindListing";
+import { CatalogKindListing } from "@agent-management-platform/shared-component";
 import { useListAgentKinds } from "@agent-management-platform/api-client";
 
 export const CatalogList: React.FC = () => {

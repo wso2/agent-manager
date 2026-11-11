@@ -31,3 +31,4 @@ export * from './utils/mcpEnvVarSpec';
 export * from './utils/mcpScopeBindings';
 export * from './utils/useMCPProxySecurity';
 export * from './utils/useUnsavedChangesGuard';
+export * from './utils/mcpAcl';

@@ -55,8 +55,7 @@ vi.mock("@agent-management-platform/shared-component", async (orig) => ({
   useConfirmIfUnsaved: () => (fn: () => void) => fn(),
   useThunderInstanceForEnv: () => idle,
   useUnsavedChangesGuard: () => ({ allowNavigation: (fn: () => void) => fn() }),
-}));
-vi.mock("@agent-management-platform/mcp-proxies", () => ({
+  // MCP helpers and logo live in shared-component (AI Gateway owns the pages).
   getCapabilityId: () => undefined,
   isToolBlockedByAcl: () => false,
   MCPLogo: () => null,

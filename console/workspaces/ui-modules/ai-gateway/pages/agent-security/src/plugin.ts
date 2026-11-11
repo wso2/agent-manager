@@ -22,17 +22,15 @@
 import { ShieldCheck } from "@wso2/oxygen-ui-icons-react";
 import {
   absoluteRouteMap,
-  relativeRouteMap,
   PLUGIN_API_VERSION,
   type PluginActivationState,
   type PluginManifest,
 } from "@agent-management-platform/types";
 import { useRouteAgent } from "@agent-management-platform/api-client";
 
-const agentRoutes = {
-  relative: relativeRouteMap.children.org.children.projects.children.agents.children,
-  absolute: absoluteRouteMap.children.org.children.projects.children.agents.children,
-};
+// Absolute paths, used for both the route and the link.
+const agentRoutes =
+  absoluteRouteMap.children.org.children.projects.children.agents.children;
 
 /**
  * Credentials (gateway API keys) apply to agents that are reached through the
@@ -60,10 +58,7 @@ export const agentSecurityPlugin: PluginManifest = {
       type: "route",
       id: "credentials-page",
       level: "agent",
-      path:
-        agentRoutes.relative.environment.path +
-        "/" +
-        agentRoutes.relative.environment.children.security.path,
+      path: agentRoutes.environment.children.security.path,
       load: () =>
         import("./SecurityPage").then((m) => ({ default: m.SecurityPage })),
     },
@@ -75,7 +70,7 @@ export const agentSecurityPlugin: PluginManifest = {
       order: 10,
       label: "Credentials",
       icon: ShieldCheck,
-      route: agentRoutes.absolute.environment.children.security,
+      route: agentRoutes.environment.children.security,
       useActivation: useCredentialsActivation,
     },
   ],

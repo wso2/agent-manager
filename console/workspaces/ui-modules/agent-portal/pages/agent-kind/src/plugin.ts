@@ -24,16 +24,13 @@ import { BookOpenText, Megaphone } from "@wso2/oxygen-ui-icons-react";
 import { useRouteAgent } from "@agent-management-platform/api-client";
 import {
   absoluteRouteMap,
-  relativeRouteMap,
   PLUGIN_API_VERSION,
   type PluginActivationState,
   type PluginManifest,
 } from "@agent-management-platform/types";
 
-// Route-map shorthands: relative paths for routes, absolute ones for links.
-const orgRoutes = relativeRouteMap.children.org.children;
+// Route-map shorthands (absolute paths, used for both routes and links).
 const orgNav = absoluteRouteMap.children.org.children;
-const agentRoutes = orgRoutes.projects.children.agents.children;
 const agentNav = orgNav.projects.children.agents.children;
 
 /** Internal agents built from source, i.e. not created from a catalog kind. */
@@ -46,14 +43,13 @@ const useSourceBuiltAgent = (): PluginActivationState => {
 export const agentKindPlugin: PluginManifest = {
   id: "agent-kind",
   name: "Agent catalog and publishing",
-  module: "catalog",
   apiVersion: PLUGIN_API_VERSION,
   contributions: [
     {
       type: "route",
       id: "catalog-page",
       level: "org",
-      path: orgRoutes.catalog.path + "/*",
+      path: orgNav.catalog.path + "/*",
       load: () =>
         import("./index").then((m) => ({
           default: m.metaData.levels!.organization as ComponentType,
@@ -63,7 +59,7 @@ export const agentKindPlugin: PluginManifest = {
       type: "route",
       id: "publish-page",
       level: "agent",
-      path: agentRoutes.publish.path + "/*",
+      path: agentNav.publish.path + "/*",
       load: () =>
         import("./index").then((m) => ({
           default: m.metaData.levels!.publishOrganization as ComponentType,

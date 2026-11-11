@@ -15,7 +15,10 @@
  * under the License.
  */
 
-export const ACL_POLICY_NAME = "mcp-acl-list";
+import { MCP_ACL_POLICY_NAME } from "@agent-management-platform/shared-component";
+
+// Defined in shared-component, where Agent Runtime reads the same policy.
+export const ACL_POLICY_NAME = MCP_ACL_POLICY_NAME;
 export const AUTHENTICATION_POLICY_NAME = "mcp-auth";
 export const AUTHORIZATION_POLICY_NAME = "mcp-authz";
 export const REWRITE_POLICY_NAME = "mcp-rewrite";

@@ -58,7 +58,6 @@
     "@agent-management-platform/types": "workspace:*",
     "@agent-management-platform/feature-management": "workspace:*",
     "@agent-management-platform/shared-component": "workspace:*",
-    "@agent-management-platform/traces": "workspace:*",
     "js-yaml": "4.3.2",
     "zod": "4.6.7"
   },

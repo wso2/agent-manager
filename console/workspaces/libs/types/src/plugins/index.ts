@@ -92,9 +92,13 @@ export interface PluginRouteContribution extends PluginContributionBase {
   type: "route";
   level: PluginLevel;
   /**
-   * Path relative to the level's route, as passed to <Route path>. Append "/*"
-   * when the page owns nested routes. Omit it together with `index: true` for
-   * the level's landing page (e.g. the org overview).
+   * Where the page is mounted. Either absolute, preferably straight from
+   * absoluteRouteMap (e.g. `agents.children.environment.children.observability
+   * .children.metrics.path`), or relative to the level's route. Absolute paths
+   * must start with the level's own path; the shell makes them relative and
+   * skips (with a console warning) one that does not. Append "/*" when the
+   * page owns nested routes. Omit it together with `index: true` for the
+   * level's landing page (e.g. the org overview).
    */
   path?: string;
   /** The level's index route, rendered at the level's own URL. */
@@ -152,12 +156,6 @@ export interface PluginManifest {
   id: string;
   /** Human-readable name. */
   name: string;
-  /**
-   * Product module this plugin belongs to, e.g. "observability". Several
-   * plugins can share one; listing the module in the config's disabled list
-   * turns all of them off, while listing a plugin id turns off just that one.
-   */
-  module?: string;
   /** Must equal PLUGIN_API_VERSION. */
   apiVersion: number;
   /**
@@ -166,4 +164,79 @@ export interface PluginManifest {
    */
   useActivation?: PluginActivationHook;
   contributions: PluginContribution[];
+}
+
+/**
+ * A UI module: a product area of the console (for example "AI Gateway") made
+ * of one or more page plugins. Modules are the unit operators turn on and off;
+ * each page plugin inside can also be turned off on its own.
+ *
+ * In the repository a module lives in workspaces/ui-modules/<id>: the folder is
+ * a package that exports this manifest, and its pages are packages under
+ * workspaces/ui-modules/<id>/pages.
+ */
+export interface UIModuleManifest {
+  /** Stable id, e.g. "ai-gateway". Used in the disabled list. */
+  id: string;
+  /** Display name, e.g. "AI Gateway". */
+  name: string;
+  /** One line on what the module provides. */
+  description: string;
+  /** Must equal PLUGIN_API_VERSION. */
+  apiVersion: number;
+  /**
+   * Core modules ship with every console: always installed, and the module as
+   * a whole cannot be turned off (single pages still can).
+   */
+  core?: boolean;
+  /**
+   * How the module's backend gets installed. Each module has a setup page
+   * (/org/:orgId/ui-modules/<id>) that walks through these steps. Omit for a
+   * module that needs nothing beyond the console.
+   */
+  installation?: UIModuleInstallation;
+  /**
+   * Extra, module-specific content for the setup page (settings, health
+   * checks). Rendered below the install and page sections.
+   */
+  setup?: PluginComponentLoader;
+  /** The module's page plugins. Plugin ids must be unique across modules. */
+  plugins: PluginManifest[];
+}
+
+/** Whether a module's backend is present. */
+export type UIModuleInstallState = "installed" | "not-installed";
+
+/**
+ * Where a module is in its install lifecycle, as the console sees it:
+ * "checking" while detection runs, "installing" while someone works through
+ * the setup page's steps. A module's pages show only when it is installed
+ * (or still being checked, to avoid flicker).
+ */
+export type UIModuleInstallPhase = UIModuleInstallState | "installing" | "checking";
+
+/** One step on a module's setup page. */
+export interface UIModuleInstallStep {
+  title: string;
+  description?: string;
+  /**
+   * Shell command to run, shown with a copy button. "{chartRegistry}" and
+   * "{chartVersion}" are filled from the runtime config (ampChartRegistry,
+   * chartVersion).
+   */
+  command?: string;
+}
+
+export interface UIModuleInstallation {
+  /** Helm chart that provides the module's backend, e.g. "wso2-amp-observability-extension". */
+  chart?: string;
+  /** Ordered steps for installing the backend. */
+  steps: UIModuleInstallStep[];
+  /**
+   * React hook, written by the module, that detects whether the backend is
+   * installed (for example from the service's /api/v1/config). Return
+   * undefined while checking. Without it the module counts as installed until
+   * someone marks it otherwise on its setup page.
+   */
+  useDetect?: () => UIModuleInstallState | undefined;
 }

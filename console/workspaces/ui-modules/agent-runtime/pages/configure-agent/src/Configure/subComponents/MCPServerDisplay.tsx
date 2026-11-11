@@ -18,7 +18,7 @@
 import { Avatar, Box, Stack, Typography } from "@wso2/oxygen-ui";
 import { SelectionIndicator } from "@agent-management-platform/views";
 import type { MCPProxyListItem } from "@agent-management-platform/types";
-import { MCPLogo } from "@agent-management-platform/mcp-proxies";
+import { MCPLogo } from "@agent-management-platform/shared-component";
 
 interface MCPServerDisplayProps {
   server: MCPProxyListItem | null;

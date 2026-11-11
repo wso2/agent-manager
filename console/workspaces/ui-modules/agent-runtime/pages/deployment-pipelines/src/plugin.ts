@@ -25,7 +25,6 @@
 import { Layers, Workflow } from "@wso2/oxygen-ui-icons-react";
 import {
   absoluteRouteMap,
-  relativeRouteMap,
   PLUGIN_API_VERSION,
   type PluginManifest,
 } from "@agent-management-platform/types";
@@ -48,7 +47,7 @@ export const deploymentPipelinesPlugin: PluginManifest = {
       type: "route",
       id: "environments-page",
       level: "org",
-      path: relativeRouteMap.children.org.children.environments.path + "/*",
+      path: absoluteRouteMap.children.org.children.environments.path + "/*",
       useActivation: useEnvironmentsActivation,
       load: () =>
         import("./Environments.Organization").then((m) => ({
@@ -71,7 +70,7 @@ export const deploymentPipelinesPlugin: PluginManifest = {
       id: "pipelines-page",
       level: "org",
       path:
-        relativeRouteMap.children.org.children.deploymentPipelines.path + "/*",
+        absoluteRouteMap.children.org.children.deploymentPipelines.path + "/*",
       useActivation: usePipelinesActivation,
       load: () =>
         import("./DeploymentPipelines.Organization").then((m) => ({

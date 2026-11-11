@@ -41,14 +41,16 @@ export {
   AddLLMProvidersOrganization,
 };
 
-export { AddLLMProviderForm } from './subComponents/AddLLMProviderForm';
+// The add-provider form lives in shared-component (other modules use it);
+// re-exported here for existing importers.
+export { AddLLMProviderForm } from '@agent-management-platform/shared-component';
 export type {
   AddLLMProviderFormValues,
   GuardrailSelection,
   TemplateCard,
-} from './subComponents/AddLLMProviderForm';
+} from '@agent-management-platform/shared-component';
 export {
   buildCreateLLMProviderRequest,
   mapLLMProviderTemplatesToCards,
   toProviderId,
-} from './utils/llmProviderPayload';
+} from '@agent-management-platform/shared-component';

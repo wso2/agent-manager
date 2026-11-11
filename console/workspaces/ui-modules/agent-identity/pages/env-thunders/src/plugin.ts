@@ -27,15 +27,12 @@ import {
 import { thunderInstancesMetadata } from "./metadata";
 import {
   absoluteRouteMap,
-  relativeRouteMap,
   PLUGIN_API_VERSION,
   type PluginManifest,
 } from "@agent-management-platform/types";
 
-// Route-map shorthands: relative paths for routes, absolute ones for links.
-const orgRoutes = relativeRouteMap.children.org.children;
+// Route-map shorthands (absolute paths, used for both routes and links).
 const orgNav = absoluteRouteMap.children.org.children;
-const agentRoutes = orgRoutes.projects.children.agents.children;
 const agentNav = orgNav.projects.children.agents.children;
 
 const thunderInstances = orgNav.thunderInstances;
@@ -46,7 +43,6 @@ const useAgentIdentitiesNav = () => useFeatureAccess("agent_identity_read");
 export const agentIdentityPlugin: PluginManifest = {
   id: "agent-identity",
   name: "Agent identity",
-  module: "agent-identity",
   apiVersion: PLUGIN_API_VERSION,
   // Pages, not just menu items, stay unreachable while the feature is off.
   useActivation: () => useFeatureFlag("enableAgentIdentity"),
@@ -55,7 +51,7 @@ export const agentIdentityPlugin: PluginManifest = {
       type: "route",
       id: "org-page",
       level: "org",
-      path: orgRoutes.thunderInstances.path + "/*",
+      path: orgNav.thunderInstances.path + "/*",
       load: () =>
         import("./index").then((m) => ({
           default: m.thunderInstancesMetaData.levels!.organization as ComponentType,
@@ -65,7 +61,7 @@ export const agentIdentityPlugin: PluginManifest = {
       type: "route",
       id: "agent-id-page",
       level: "agent",
-      path: agentRoutes.agentId.path,
+      path: agentNav.agentId.path,
       load: () =>
         import("./index").then((m) => ({
           default: m.agentIdMetaData.component as ComponentType,

@@ -23,13 +23,11 @@ import type { ComponentType } from "react";
 import { Bot, Box } from "@wso2/oxygen-ui-icons-react";
 import {
   absoluteRouteMap,
-  relativeRouteMap,
   PLUGIN_API_VERSION,
   type PluginManifest,
 } from "@agent-management-platform/types";
 
-// Route-map shorthands: relative paths for routes, absolute ones for links.
-const orgRoutes = relativeRouteMap.children.org.children;
+// Route-map shorthands (absolute paths, used for both routes and links).
 const orgNav = absoluteRouteMap.children.org.children;
 
 export const resourceListingPlugin: PluginManifest = {
@@ -41,7 +39,7 @@ export const resourceListingPlugin: PluginManifest = {
       type: "route",
       id: "projects-page",
       level: "org",
-      path: orgRoutes.projectListing.path,
+      path: orgNav.projectListing.path,
       load: () =>
         import("./index").then((m) => ({
           default: m.metaData.levels!.organization as ComponentType,
@@ -51,7 +49,7 @@ export const resourceListingPlugin: PluginManifest = {
       type: "route",
       id: "agents-page",
       level: "project",
-      path: orgRoutes.projects.children.agentListing.path,
+      path: orgNav.projects.children.agentListing.path,
       load: () =>
         import("./index").then((m) => ({
           default: m.metaData.levels!.project as ComponentType,

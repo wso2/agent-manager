@@ -31,15 +31,12 @@ import {
 } from "@agent-management-platform/feature-management";
 import {
   absoluteRouteMap,
-  relativeRouteMap,
   PLUGIN_API_VERSION,
   type PluginManifest,
 } from "@agent-management-platform/types";
 
-// Route-map shorthands: relative paths for routes, absolute ones for links.
-const orgRoutes = relativeRouteMap.children.org.children;
+// Route-map shorthands (absolute paths, used for both routes and links).
 const orgNav = absoluteRouteMap.children.org.children;
-const agentRoutes = orgRoutes.projects.children.agents.children;
 const agentNav = orgNav.projects.children.agents.children;
 
 /**
@@ -80,7 +77,7 @@ export const settingsPlugin: PluginManifest = {
       type: "route",
       id: "settings-page",
       level: "org",
-      path: orgRoutes.settings.path + "/*",
+      path: orgNav.settings.path + "/*",
       load: () =>
         import("./index").then((m) => ({
           default: m.metaData.levels!.organization as ComponentType,
@@ -90,7 +87,7 @@ export const settingsPlugin: PluginManifest = {
       type: "route",
       id: "org-events-page",
       level: "org",
-      path: orgRoutes.events.path + "/*",
+      path: orgNav.events.path + "/*",
       load: () =>
         import("./index").then((m) => ({
           default: m.OrgEvents as ComponentType,
@@ -100,7 +97,7 @@ export const settingsPlugin: PluginManifest = {
       type: "route",
       id: "project-events-page",
       level: "project",
-      path: orgRoutes.projects.children.events.path + "/*",
+      path: orgNav.projects.children.events.path + "/*",
       load: () =>
         import("./index").then((m) => ({
           default: m.ProjectEvents as ComponentType,
@@ -110,7 +107,7 @@ export const settingsPlugin: PluginManifest = {
       type: "route",
       id: "agent-events-page",
       level: "agent",
-      path: agentRoutes.events.path + "/*",
+      path: agentNav.events.path + "/*",
       load: () =>
         import("./index").then((m) => ({
           default: m.AgentEvents as ComponentType,

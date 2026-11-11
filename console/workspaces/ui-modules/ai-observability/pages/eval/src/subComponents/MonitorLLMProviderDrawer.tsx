@@ -28,17 +28,15 @@ import {
   mapLLMProviderTemplatesToCards,
   type AddLLMProviderFormValues,
   type GuardrailSelection,
-} from "@agent-management-platform/llm-providers";
+  formatRelativeTime,
+  useConfirmIfUnsaved,
+  useUnsavedChangesGuard,
+} from "@agent-management-platform/shared-component";
 import {
   DrawerContent,
   DrawerHeader,
   DrawerWrapper,
 } from "@agent-management-platform/views";
-import {
-  formatRelativeTime,
-  useConfirmIfUnsaved,
-  useUnsavedChangesGuard,
-} from "@agent-management-platform/shared-component";
 import {
   Alert,
   Avatar,

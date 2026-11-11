@@ -7,14 +7,14 @@
     "skipLibCheck": true,
     "baseUrl": ".",
     "paths": {
-      "@agent-management-platform/shared-component": ["../../libs/shared-component/src"],
-      "@agent-management-platform/shared-component/*": ["../../libs/shared-component/src/*"],
-      "@agent-management-platform/views": ["../../libs/views/src"],
-      "@agent-management-platform/views/*": ["../../libs/views/src/*"],
-      "@agent-management-platform/api-client": ["../../libs/api-client/src"],
-      "@agent-management-platform/api-client/*": ["../../libs/api-client/src/*"],
-      "@agent-management-platform/types": ["../../libs/types/src"],
-      "@agent-management-platform/types/*": ["../../libs/types/src/*"]
+      "@agent-management-platform/shared-component": ["../../../../libs/shared-component/src"],
+      "@agent-management-platform/shared-component/*": ["../../../../libs/shared-component/src/*"],
+      "@agent-management-platform/views": ["../../../../libs/views/src"],
+      "@agent-management-platform/views/*": ["../../../../libs/views/src/*"],
+      "@agent-management-platform/api-client": ["../../../../libs/api-client/src"],
+      "@agent-management-platform/api-client/*": ["../../../../libs/api-client/src/*"],
+      "@agent-management-platform/types": ["../../../../libs/types/src"],
+      "@agent-management-platform/types/*": ["../../../../libs/types/src/*"]
     },
     "ignoreDeprecations": "5.0",
     /* Bundler mode */

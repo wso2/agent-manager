@@ -23,6 +23,11 @@ import { useResourceAccess } from "@agent-management-platform/feature-management
 import {
   getErrorMessage,
   useUnsavedChangesGuard,
+  AddLLMProviderForm,
+  type AddLLMProviderFormValues,
+  type GuardrailSelection,
+  buildCreateLLMProviderRequest,
+  mapLLMProviderTemplatesToCards,
 } from "@agent-management-platform/shared-component";
 import { absoluteRouteMap } from "@agent-management-platform/types";
 import {
@@ -30,15 +35,6 @@ import {
   useListGateways,
   useListLLMProviderTemplates,
 } from "@agent-management-platform/api-client";
-import {
-  AddLLMProviderForm,
-  type AddLLMProviderFormValues,
-  type GuardrailSelection,
-} from "./subComponents/AddLLMProviderForm";
-import {
-  buildCreateLLMProviderRequest,
-  mapLLMProviderTemplatesToCards,
-} from "./utils/llmProviderPayload";
 
 export const AddLLMProvidersOrganization: React.FC = () => {
   const { orgId } = useParams<{ orgId: string }>();

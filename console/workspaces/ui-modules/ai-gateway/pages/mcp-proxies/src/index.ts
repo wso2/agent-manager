@@ -7,7 +7,7 @@
  */
 
 import { AddMCPProxyOrganization } from "./AddMCPProxy.Organization";
-import { MCPLogo } from "./components/MCPLogo";
+import { MCPLogo } from "@agent-management-platform/shared-component";
 import { MCPProxiesOrganization } from "./MCPProxies.Organization";
 import { ViewMCPProxy } from "./subComponents/ViewMCPProxy";
 import {
