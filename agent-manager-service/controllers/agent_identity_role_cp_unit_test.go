@@ -51,10 +51,9 @@ type fakeRoleProvider struct {
 	getRef  services.IdentityRoleRef
 	written []services.IdentityRoleWrite
 
-	deleted        []services.IdentityRoleRef
-	assignments    *thundersvc.AgentRoleAssignments
-	assigneeWrites []string // "add" or "remove", then the write
-	assigned       []services.IdentityRoleAssignmentWrite
+	deleted     []services.IdentityRoleRef
+	assignments *thundersvc.AgentRoleAssignments
+	assigned    []services.IdentityRoleAssignmentWrite
 }
 
 func (p *fakeRoleProvider) record(call string) {

@@ -38,7 +38,7 @@ const (
 	a2aCardBatch        = 50
 	a2aCardBaseBackoff  = 5 * time.Second
 	a2aCardMaxBackoff   = time.Minute
-	// a2aCardAttemptTimeout bounds one row's OpenChoreo reads, DNS check and fetch.
+	// a2aCardAttemptTimeout bounds one row's platform reads, DNS check and fetch.
 	a2aCardAttemptTimeout = 30 * time.Second
 	// a2aCardBatchBudget leaves the claim lease a minute to record the last outcome.
 	a2aCardBatchBudget = repositories.A2AAgentCardClaimLease - time.Minute
@@ -49,9 +49,6 @@ const (
 	// a2aCardUnstorableError replaces a card the store refuses to take as text.
 	a2aCardUnstorableError = "the agent card contains characters that cannot be stored"
 )
-
-// errA2ACardRolloutInProgress means the agent's latest release is not serving in this environment yet.
-var errA2ACardRolloutInProgress = newA2APublicError("agent is still rolling out in this environment", nil)
 
 // errA2ACardNotDeployed means the agent has no live binding in the row's environment.
 var errA2ACardNotDeployed = errors.New("agent is not deployed in this environment")

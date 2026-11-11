@@ -426,7 +426,7 @@ func gatewayPagination(r *http.Request) (limit, offset int) {
 // fetched once for the whole page rather than per gateway.
 func (c *gatewayController) toSpecGatewayList(ctx context.Context, ouID string, gatewaysResp *services.GatewayListResponse, limit, offset int) spec.GatewayListResponse {
 	log := logger.GetLogger(ctx)
-	// Fetch OpenChoreo environments ONCE for the entire organization (not per-gateway)
+	// Fetch environments ONCE for the entire organization (not per-gateway)
 	ocEnvironments, err := c.ocClient.ListEnvironments(ctx, ouID)
 	if err != nil {
 		log.Warn("failed to list environments", "error", err)
@@ -650,7 +650,7 @@ func (c *gatewayController) GetGatewayEnvironments(w http.ResponseWriter, r *htt
 	ouID := middleware.OUIDFromRequest(r)
 	gatewayID := strings.TrimSpace(r.PathValue("gatewayID"))
 
-	// Get environments from DB (via OpenChoreo)
+	// Get environments from DB
 	environments := c.getGatewayEnvironmentsFromDB(ctx, ouID, gatewayID)
 
 	// Convert to spec responses
@@ -883,7 +883,7 @@ func (c *gatewayController) getGatewayEnvironmentMappingsBulk(ctx context.Contex
 	return allMappings
 }
 
-// matchGatewayEnvironments matches gateway environment mappings with OpenChoreo environment details
+// matchGatewayEnvironments matches gateway environment mappings with environment details
 // This function is used by both single-gateway and bulk-gateway queries
 func (c *gatewayController) matchGatewayEnvironments(
 	mappings []models.GatewayEnvironmentMapping,
@@ -904,7 +904,7 @@ func (c *gatewayController) matchGatewayEnvironments(
 		envMap[env.UUID] = env
 	}
 
-	// Match mapped environments with OpenChoreo data
+	// Match mapped environments with environment data
 	var environments []models.GatewayEnvironmentResponse
 	for _, mapping := range mappings {
 		envUUIDStr := mapping.EnvironmentUUID.String()
@@ -916,7 +916,7 @@ func (c *gatewayController) matchGatewayEnvironments(
 	return environments
 }
 
-// gatewayEnvironmentResponse is an OpenChoreo environment as a gateway response lists it.
+// gatewayEnvironmentResponse is an environment as a gateway response lists it.
 func gatewayEnvironmentResponse(env *models.EnvironmentResponse, ouID string) models.GatewayEnvironmentResponse {
 	return models.GatewayEnvironmentResponse{
 		UUID:             env.UUID,

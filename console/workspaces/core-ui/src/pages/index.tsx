@@ -221,23 +221,6 @@ export const LazyAgentEvents = lazy(() =>
   }))
 );
 
-// Agent Kind
-export const LazyCatalogOrg = lazy(() =>
-  import("@agent-management-platform/agent-kind").then((m) => ({
-    default: m.metaData.levels!.organization as ComponentType,
-  }))
-);
-export const LazyPublishComponent = lazy(() =>
-  import("@agent-management-platform/agent-kind").then((m) => ({
-    default: m.metaData.levels!.component as ComponentType,
-  }))
-);
-export const LazyPublishOrg = lazy(() =>
-  import("@agent-management-platform/agent-kind").then((m) => ({
-    default: m.metaData.levels!.publishOrganization as ComponentType,
-  }))
-);
-
 // Agent identity — code-split into its own chunk
 export const LazyAgentIdentityOrg = lazy(() =>
   import("@agent-management-platform/env-thunders").then((m) => ({

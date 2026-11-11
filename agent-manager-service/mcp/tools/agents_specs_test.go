@@ -103,28 +103,5 @@ func agentToolSpecs() []toolTestSpec {
 				}
 			},
 		},
-		{
-			name:                "create_internal_agent_python",
-			toolset:             "agent",
-			permissions:         []rbac.Permission{rbac.AgentCreate},
-			descriptionKeywords: []string{"internal", "python", "agent"},
-			descriptionMinLen:   20,
-			requiredParams: []string{
-				"project_name", "agent_name", "display_name", "repository_url",
-				"branch", "app_path", "interface_type", "env",
-			},
-			optionalParams: []string{
-				"description", "language_version",
-				"run_command", "port", "base_path", "openapi_path",
-				"enable_auto_instrumentation", "instrumentation_version",
-				"github_installation_id",
-			},
-			// Skipping invocation for this tool: the schema requires `env`
-			// (an array of {key,value} objects) and the production handler
-			// has additional cross-field validation around interface_type.
-			// Tier 3 covers it with a dedicated test.
-			expectedMethod: "",
-			validateCall:   func(t *testing.T, args []interface{}) {},
-		},
 	}
 }

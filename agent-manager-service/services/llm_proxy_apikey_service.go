@@ -58,7 +58,7 @@ func NewLLMProxyAPIKeyService(
 
 // resolveProjectScopedProxy looks up an LLM proxy and validates that it belongs
 // to the caller's project. The project name is resolved to its UUID via
-// OpenChoreo, then the proxy lookup is scoped to org + project + proxy so a
+// the platform repository, then the proxy lookup is scoped to org + project + proxy so a
 // proxy owned by a different project is reported as not found rather than being
 // treated as a wildcard match.
 func (s *LLMProxyAPIKeyService) resolveProjectScopedProxy(

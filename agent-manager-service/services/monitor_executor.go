@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"regexp"
 	"time"
 
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -115,16 +114,3 @@ func (e *monitorExecutor) UpdateNextRunTime(ctx context.Context, monitorID uuid.
 	e.logger.Debug("Updated next_run_time", "monitorID", monitorID, "nextRunTime", nextRunTime)
 	return nil
 }
-
-// evalJobEvaluator is the JSON structure passed to the evaluation job for each evaluator.
-type evalJobEvaluator struct {
-	Identifier   string                        `json:"identifier"`
-	DisplayName  string                        `json:"displayName"`
-	Config       map[string]interface{}        `json:"config"`
-	Type         string                        `json:"type,omitempty"`         // "code" or "llm_judge" for custom
-	Level        string                        `json:"level,omitempty"`        // "trace", "agent", or "llm"
-	Source       string                        `json:"source,omitempty"`       // Python code or prompt template
-	ConfigSchema []models.EvaluatorConfigParam `json:"configSchema,omitempty"` // parameter schema for custom evaluators
-}
-
-var nonDNS1123 = regexp.MustCompile(`[^a-z0-9-]+`)

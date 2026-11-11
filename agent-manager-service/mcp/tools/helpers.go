@@ -98,13 +98,6 @@ func stringProperty(description string) map[string]any {
 	}
 }
 
-func boolProperty(description string) map[string]any {
-	return map[string]any{
-		"type":        "boolean",
-		"description": description,
-	}
-}
-
 func intProperty(description string) map[string]any {
 	return map[string]any{
 		"type":        "integer",
@@ -117,14 +110,6 @@ func arrayProperty(description string, itemSchema map[string]any) map[string]any
 		"type":        "array",
 		"description": description,
 		"items":       itemSchema,
-	}
-}
-
-func enumProperty(description string, values []string) map[string]any {
-	return map[string]any{
-		"type":        "string",
-		"description": description,
-		"enum":        values,
 	}
 }
 

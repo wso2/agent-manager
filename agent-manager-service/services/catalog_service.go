@@ -104,21 +104,21 @@ type CatalogService interface {
 }
 
 type catalogService struct {
-	logger           *slog.Logger
-	catalogRepo      repositories.CatalogRepository
-	openChoreoClient repositories.PlatformRepository
+	logger       *slog.Logger
+	catalogRepo  repositories.CatalogRepository
+	platformRepo repositories.PlatformRepository
 }
 
 // NewCatalogService creates a new catalog service
 func NewCatalogService(
 	logger *slog.Logger,
 	catalogRepo repositories.CatalogRepository,
-	openChoreoClient repositories.PlatformRepository,
+	platformRepo repositories.PlatformRepository,
 ) CatalogService {
 	return &catalogService{
-		logger:           logger,
-		catalogRepo:      catalogRepo,
-		openChoreoClient: openChoreoClient,
+		logger:       logger,
+		catalogRepo:  catalogRepo,
+		platformRepo: platformRepo,
 	}
 }
 
@@ -254,7 +254,7 @@ func (s *catalogService) ListLLMProviders(ctx context.Context, filters *models.C
 // buildEnvironmentMapping fetches all environments and builds UUID to name mapping
 func (s *catalogService) buildEnvironmentMapping(ctx context.Context, ouID string) (map[string]string, error) {
 	// Fetch all environments
-	environments, err := s.openChoreoClient.ListEnvironments(ctx, ouID)
+	environments, err := s.platformRepo.ListEnvironments(ctx, ouID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list environments: %w", err)
 	}

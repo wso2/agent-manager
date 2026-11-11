@@ -253,7 +253,7 @@ func validateResourceMaxMemory(value *string, maxMemory string, fieldName string
 // applies at render time), CPU/memory requests never exceed limits. Kubernetes
 // rejects a requests>limits pod spec at admission time, and that failure happens deep
 // in the sandbox/deployment controller — invisible to this API — so it must be caught
-// here, before anything is written to OpenChoreo.
+// here, before anything is written to the platform store.
 func ValidateResourceRequestsWithinLimits(requested spec.ResourceConfig, current *spec.ResourceConfig) error {
 	var currentRequests *spec.ResourceRequests
 	var currentLimits *spec.ResourceLimits
@@ -381,7 +381,7 @@ func validateAgentPayload(payload agentPayload) error {
 		return err
 	}
 	// File mounts on the create payload (under .configuration.Files) — guard size /
-	// key shape / dedup early so a bad request fails before we touch OpenChoreo.
+	// key shape / dedup early so a bad request fails before we touch the platform store.
 	if payload.configuration != nil {
 		if err := ValidateFileMounts(payload.configuration.Files); err != nil {
 			return fmt.Errorf("invalid file mounts: %w", err)
@@ -868,7 +868,7 @@ var (
 const maxHealthCheckSeconds = 3600
 
 // validateHealthChecks checks the startup, readiness and liveness checks when sent.
-// OpenChoreo checks the same rules only when it renders the pod, so a bad value
+// The runtime checks the same rules only when it renders the pod, so a bad value
 // saved here would fail every later deploy instead of this request.
 func validateHealthChecks(healthChecks *spec.HealthChecks) error {
 	// Not sent: nothing to check.

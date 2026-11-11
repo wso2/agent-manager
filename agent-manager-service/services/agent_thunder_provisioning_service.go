@@ -349,10 +349,10 @@ func agentThunderBindingOrgContext(ctx context.Context, binding models.AgentThun
 	return withOrgContext(ctx, binding.OUID)
 }
 
-// withOrgContext names organization ouID on ctx so the OpenChoreo client sends it as
-// X-Impersonate-Org. A request carries its organization from the token, but work that runs outside a
+// withOrgContext names organization ouID on ctx so platform calls are scoped
+// to it. A request carries its organization from the token, but work that runs outside a
 // request (the reconciler's retries, the promotion topology pass) has neither a token nor an
-// organization. Deployments that call OpenChoreo with a machine token that is not scoped to one
+// organization. Deployments that call the platform with a machine token that is not scoped to one
 // organization are refused (HTTP 400) without the header. A context that already names the same
 // organization is returned as it is, so a request keeps its organization handle.
 func withOrgContext(ctx context.Context, ouID string) context.Context {
@@ -765,7 +765,7 @@ func (s *agentThunderProvisioningService) AttemptProvision(ctx context.Context, 
 	isExternal := binding.ProvisioningType == models.AgentProvisioningTypeExternal
 
 	// The project as the identity platform knows it, read once for every request below. An outage of
-	// OpenChoreo waits for the next tick without using an attempt: the name would put the AgentID in a
+	// the platform store waits for the next tick without using an attempt: the name would put the AgentID in a
 	// project the provider invents.
 	projectID := binding.ProjectName
 	if s.identityManagementMode == thundersvc.IdentityManagementCPManaged {
@@ -1216,7 +1216,7 @@ func (s *agentThunderProvisioningService) recordFailure(
 
 // userFacingProvisioningError maps a provisioning failure to a short, fixed,
 // end-user-safe message — cause may wrap arbitrary internal detail (Thunder,
-// OpenChoreo, the secret manager, even a raw DB error) that must never reach
+// the platform store, the secret manager, even a raw DB error) that must never reach
 // the UI. The two Thunder sentinels get distinct messages since they call for
 // different remediation; everything else collapses to one generic message.
 func userFacingProvisioningError(cause error) string {
@@ -1577,7 +1577,7 @@ func (s *agentThunderProvisioningService) DeleteAllBindings(ctx context.Context,
 	}
 	if err := s.repo.DeleteByIDs(ctx, ids); err != nil {
 		// Do NOT return here: by the time this method runs, the agent's own
-		// primary record (the OpenChoreo Component) is already gone from the
+		// primary record (the agent row) is already gone from the
 		// caller's perspective — this is best-effort cleanup of everything
 		// ELSE the agent left behind. A failed DB-row delete leaves a few
 		// stale local rows behind (now with secret_ref_path already cleared
@@ -1655,7 +1655,7 @@ func (s *agentThunderProvisioningService) DeleteAllBindings(ctx context.Context,
 					return
 				}
 				// Best effort: deleting a project's agents often follows the project's own removal from
-				// OpenChoreo, and a deletion must not wait for an ID that can no longer be read.
+				// the platform store, and a deletion must not wait for an ID that can no longer be read.
 				deleteProjectID, idErr := s.projectIdentityID(ctx, ouID, projectName)
 				if idErr != nil {
 					deleteProjectID = projectName

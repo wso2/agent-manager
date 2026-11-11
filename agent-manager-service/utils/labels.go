@@ -64,7 +64,7 @@ func ValidateLabels(labels map[string]string) error {
 }
 
 // ValidateLabelValue checks a single value against the Kubernetes label-value
-// rules, for values the platform stores as labels on OpenChoreo resources
+// rules, for values the platform stores as labels on platform resources
 // rather than accepting from the user's label map. field names the offending
 // input in the detail message.
 func ValidateLabelValue(value, field string) error {

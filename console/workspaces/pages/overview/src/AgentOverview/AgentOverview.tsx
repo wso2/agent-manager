@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { useGetAgent, useGetAgentKind, useUserDisplayName } from "@agent-management-platform/api-client";
+import { useGetAgent, useUserDisplayName } from "@agent-management-platform/api-client";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
 import { AgentOverviewContent } from "./AgentOverviewContent";
 import { Box, Button, Divider, Skeleton, Stack } from "@wso2/oxygen-ui";
@@ -56,7 +56,6 @@ export function AgentOverview() {
         userId: agent?.createdBy?.id ?? "",
     });
     const createdByName = resolvedName ?? agent?.createdBy?.display ?? agent?.createdBy?.id;
-    const { data: kind } = useGetAgentKind({ orgName: orgId ?? "", kindName: agent?.kindName ?? "" });
 
     return (
         <PageLayout
@@ -67,8 +66,6 @@ export function AgentOverview() {
                     <AgentTypeChips
                         provisioning={agent?.provisioning}
                         agentType={agent?.agentType}
-                        kindName={agent?.kindName}
-                        kindDisplayName={kind?.displayName}
                     />
                 </Stack>
             }

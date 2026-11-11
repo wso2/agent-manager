@@ -201,17 +201,6 @@ export const generatedRouteMap =  {
           "wildPath": "/org/:orgId/events/*",
           "children": {}
         },
-        "catalog": {
-          "path": "/org/:orgId/catalog",
-          "wildPath": "/org/:orgId/catalog/*",
-          "children": {
-            "kindDetails": {
-              "path": "/org/:orgId/catalog/kind/:kindId",
-              "wildPath": "/org/:orgId/catalog/kind/:kindId/*",
-              "children": {}
-            }
-          }
-        },
         "newProject": {
           "path": "/org/:orgId/newProject",
           "wildPath": "/org/:orgId/newProject/*",
@@ -313,27 +302,6 @@ export const generatedRouteMap =  {
                   "path": "/org/:orgId/project/:projectId/agents/:agentId/events",
                   "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/events/*",
                   "children": {}
-                },
-                "publish": {
-                  "path": "/org/:orgId/project/:projectId/agents/:agentId/publish",
-                  "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/publish/*",
-                  "children": {
-                    "createNewVersion": {
-                      "path": "/org/:orgId/project/:projectId/agents/:agentId/publish/create-new-version",
-                      "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/publish/create-new-version/*",
-                      "children": {}
-                    },
-                    "editKind": {
-                      "path": "/org/:orgId/project/:projectId/agents/:agentId/publish/edit-kind",
-                      "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/publish/edit-kind/*",
-                      "children": {}
-                    },
-                    "versionDetails": {
-                      "path": "/org/:orgId/project/:projectId/agents/:agentId/publish/version-details/:versionId",
-                      "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/publish/version-details/:versionId/*",
-                      "children": {}
-                    }
-                  }
                 },
                 "evaluation": {
                   "path": "/org/:orgId/project/:projectId/agents/:agentId/evaluation",

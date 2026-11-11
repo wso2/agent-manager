@@ -30,8 +30,8 @@ const (
 	AgentExposureProtocolREST AgentExposureProtocol = "rest"
 )
 
-// PlatformAgentExposure records that AMS exposes an agent it hosts in OpenChoreo through the environment's ingress
-// gateway. Nothing else in AMS says so: the agent's subtype lives in OpenChoreo, and its card row only appears once
+// PlatformAgentExposure records that AMS exposes an agent it hosts through the environment's ingress
+// gateway. Nothing else in AMS says so: the agent's subtype lives in the agent record, and its card row only appears once
 // the gateway serves it. External agents are recorded by A2AProxy instead. Whether the gateway holds the agent is
 // the artifact's deployment_status row.
 type PlatformAgentExposure struct {
@@ -39,13 +39,13 @@ type PlatformAgentExposure struct {
 	OUID        string    `gorm:"column:ou_id;not null"`
 	ProjectName string    `gorm:"column:project_name;not null"`
 	AgentName   string    `gorm:"column:agent_name;not null"`
-	// EnvironmentName is kept because OpenChoreo calls are by name.
+	// EnvironmentName is kept because platform lookups are by name.
 	EnvironmentName string    `gorm:"column:environment_name;not null"`
 	EnvironmentUUID uuid.UUID `gorm:"column:environment_uuid;type:uuid;not null"`
 	// ArtifactUUID is the per-environment artifact (one of models.AgentArtifactKinds): the agentId the gateway is told about and the
 	// key its API keys are bound to. The exposure goes with it.
 	ArtifactUUID uuid.UUID `gorm:"column:artifact_uuid;type:uuid;not null"`
-	// AgentUUID is the OpenChoreo component; nil when it couldn't be read.
+	// AgentUUID is the agent's id; nil when it couldn't be read.
 	AgentUUID *uuid.UUID            `gorm:"column:agent_uuid;type:uuid"`
 	Protocol  AgentExposureProtocol `gorm:"column:protocol;not null;default:'a2a'"`
 	CreatedAt time.Time             `gorm:"column:created_at;not null;default:NOW()"`

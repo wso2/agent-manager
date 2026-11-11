@@ -302,7 +302,7 @@ func (s *environmentService) ListThunderInstances(ctx context.Context, ouID stri
 
 	// Thunder naming (release name, namespace, host, issuer URL) is keyed by the
 	// org NAME the provisioning scripts deployed with (ORG_NAME, e.g. "default"),
-	// which is the OpenChoreo namespace — not the OU id from the JWT. Probing or
+	// which is the org namespace — not the OU id from the JWT. Probing or
 	// advertising URLs derived from the OU id would point at instances that don't
 	// exist.
 	orgNamespace, err := ResolveNamespace(ctx)

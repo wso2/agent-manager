@@ -43,7 +43,7 @@ type a2aAgentEnv struct {
 
 // A2AAgentKind exposes A2A agents through their environment's ingress gateway. A platform agent is recorded in
 // platform_agent_exposures, an external agent in a2a_proxies (joined to its artifact on the handle). Its Render
-// calls OpenChoreo, or fetches the external origin's card, so only the worker renders it.
+// reads the platform store, or fetches the external origin's card, so only the worker renders it.
 type A2AAgentKind struct {
 	tx              TxRunner
 	exposures       *PlatformAgentExposures

@@ -46,18 +46,18 @@ type Provider interface {
 // SecretsClient performs secret operations on a backend.
 // This interface follows the external-secrets SecretsClient pattern.
 // Each provider interprets the SecretLocation according to its storage model
-// (e.g. the OpenChoreo provider derives the secret name from the location).
+// (e.g. a provider may derive the secret name from the location).
 // Providers are expected to manage any SecretReference CRs internally.
 type SecretsClient interface {
 	// PushSecret writes a secret to the backend, replacing all existing data.
-	// Returns the secret reference identifier (the secret name for OpenChoreo).
+	// Returns the secret reference identifier (e.g. the secret name).
 	// If the secret already exists, it will be fully replaced.
 	// Metadata is used for ownership tracking (managed-by).
 	PushSecret(ctx context.Context, location SecretLocation, data map[string]string, metadata *SecretMetadata) (string, error)
 
 	// PatchSecret merges data with an existing secret.
 	// Keys in data are added/updated, keys in keysToDelete are removed, omitted keys are preserved.
-	// Returns the secret reference identifier (the secret name for OpenChoreo).
+	// Returns the secret reference identifier (e.g. the secret name).
 	// Returns ErrSecretNotFound if the secret doesn't exist.
 	PatchSecret(ctx context.Context, location SecretLocation, data map[string]string, keysToDelete []string, metadata *SecretMetadata) (string, error)
 

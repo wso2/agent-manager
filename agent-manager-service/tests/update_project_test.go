@@ -48,7 +48,7 @@ func TestUpdateProject(t *testing.T) {
 		payload := spec.UpdateProjectRequest{
 			DisplayName:        "Updated Project",
 			Description:        "updated description",
-			DeploymentPipeline: "new-pipeline",
+			DeploymentPipeline: stringPtr("new-pipeline"),
 		}
 		body, _ := json.Marshal(payload)
 		url := fmt.Sprintf("/api/v1/orgs/%s/projects/my-project", testUpdateProjectOrgName)
@@ -70,7 +70,7 @@ func TestUpdateProject(t *testing.T) {
 		platformRepo := apitestutils.CreateMockPlatformRepository()
 		app := apitestutils.MakeAppClientWithDeps(t, wiring.TestClients{PlatformRepository: platformRepo}, authMiddleware)
 
-		payload := spec.UpdateProjectRequest{DisplayName: "", Description: "d", DeploymentPipeline: "new-pipeline"}
+		payload := spec.UpdateProjectRequest{DisplayName: "", Description: "d", DeploymentPipeline: stringPtr("new-pipeline")}
 		body, _ := json.Marshal(payload)
 		url := fmt.Sprintf("/api/v1/orgs/%s/projects/my-project", testUpdateProjectOrgName)
 		req := httptest.NewRequest(http.MethodPut, url, bytes.NewBuffer(body))
@@ -86,7 +86,7 @@ func TestUpdateProject(t *testing.T) {
 		platformRepo := apitestutils.CreateMockPlatformRepository()
 		app := apitestutils.MakeAppClientWithDeps(t, wiring.TestClients{PlatformRepository: platformRepo}, jwtassertion.NewMockMiddlewareWithOUID(t, "nonexistent-org"))
 
-		payload := spec.UpdateProjectRequest{DisplayName: "Updated", Description: "d", DeploymentPipeline: "new-pipeline"}
+		payload := spec.UpdateProjectRequest{DisplayName: "Updated", Description: "d", DeploymentPipeline: stringPtr("new-pipeline")}
 		body, _ := json.Marshal(payload)
 		url := "/api/v1/orgs/nonexistent-org/projects/my-project"
 		req := httptest.NewRequest(http.MethodPut, url, bytes.NewBuffer(body))
@@ -105,7 +105,7 @@ func TestUpdateProject(t *testing.T) {
 		}
 		app := apitestutils.MakeAppClientWithDeps(t, wiring.TestClients{PlatformRepository: platformRepo}, authMiddleware)
 
-		payload := spec.UpdateProjectRequest{DisplayName: "Updated", Description: "d", DeploymentPipeline: "new-pipeline"}
+		payload := spec.UpdateProjectRequest{DisplayName: "Updated", Description: "d", DeploymentPipeline: stringPtr("new-pipeline")}
 		body, _ := json.Marshal(payload)
 		url := fmt.Sprintf("/api/v1/orgs/%s/projects/my-project", testUpdateProjectOrgName)
 		req := httptest.NewRequest(http.MethodPut, url, bytes.NewBuffer(body))

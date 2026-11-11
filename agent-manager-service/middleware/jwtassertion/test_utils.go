@@ -55,7 +55,7 @@ func NewMockMiddleware(t *testing.T) Middleware {
 
 // NewMockMiddlewareWithOUID is like NewMockMiddleware but lets the caller pin
 // the token's OU ID. Use it to exercise org-scoped behaviour that depends on a
-// specific OU ID — e.g. an organization the OpenChoreo mock reports as missing.
+// specific OU ID — e.g. an organization the platform repository mock reports as missing.
 func NewMockMiddlewareWithOUID(t *testing.T, ouID string) Middleware {
 	t.Helper()
 

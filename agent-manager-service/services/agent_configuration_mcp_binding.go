@@ -469,28 +469,6 @@ func (s *agentConfigurationService) ReconcileMCPBindingsForEnvironment(ctx conte
 	return errors.Join(errs...)
 }
 
-// resolveConfigMCPProxy loads the proxy a connection references, preloaded with the
-// endpoint graph a reconcile reads. found is false — without an error — when the
-// connection records no single environment-agnostic proxy, or when the proxy it named has
-// since been deleted. Neither is a failure: such a connection is only ever reconciled from
-// the proxy side, where the caller names the proxy.
-func (s *agentConfigurationService) resolveConfigMCPProxy(
-	ctx context.Context, config *models.AgentConfiguration, ouID string,
-) (proxy *models.MCPProxy, found bool, err error) {
-	proxyUUID, recorded := configMCPProxyUUID(config)
-	if !recorded {
-		return nil, false, nil
-	}
-	proxy, err = s.mcpProxyRepo.GetByUUID(ctx, proxyUUID.String(), ouID)
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, false, nil // proxy deleted; its mappings cascade away with it
-		}
-		return nil, false, fmt.Errorf("failed to load MCP proxy %s for configuration %s: %w", proxyUUID, config.UUID, err)
-	}
-	return proxy, true, nil
-}
-
 // configMCPProxyUUID returns the proxy this connection references and whether it records
 // one at all. Precedence must match mcpConfigTargetsProxy exactly: unanimous mapping rows
 // first, the recorded reference only when they don't agree. If the two disagreed, a stale
@@ -919,7 +897,7 @@ func (s *agentConfigurationService) activateMCPMappingForEnv(
 	}
 
 	if mcpProxyAPIKeySecurityEnabled(sourceProxy, envUUID.String()) {
-		if _, err = s.ensureMCPMappingCredentials(ctx, config, mapping, envName, ouID); err != nil {
+		if _, err = s.ensureMCPMappingCredentials(ctx, config, mapping, envName, ouID, inputs.policy); err != nil {
 			return err
 		}
 	} else if err = s.updateMCPMappingSecretReference(ctx, config.UUID, envUUID, ""); err != nil {

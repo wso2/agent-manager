@@ -47,7 +47,7 @@ const (
 
 	// triggerFailureBackoffCap bounds the retry delay after a failed trigger. Without a
 	// delay a permanently broken monitor is retried every tick, and each attempt costs
-	// a round of Thunder and OpenChoreo calls.
+	// a round of Thunder and platform calls.
 	triggerFailureBackoffCap = 15 * time.Minute
 )
 
@@ -202,9 +202,9 @@ func (s *monitorSchedulerService) triggerMonitor(ctx context.Context, monitor *m
 	endTime := time.Now().Add(-safetyDelta)
 	nextRunTime := endTime.Add(interval)
 
-	// Carry the org the way a request would. The OpenChoreo client reads the resolved
-	// org from the context to stamp its impersonation header, and only the HTTP
-	// middleware ever sets it — so a scheduled run reaches OpenChoreo with no org at
+	// Carry the org the way a request would. Platform calls read the resolved
+	// org from the context, and only the HTTP
+	// middleware ever sets it — so a scheduled run would reach them with no org at
 	// all and endpoints that resolve one from the caller reject the request. The
 	// scheduler knows which org it is acting for, so it says so.
 	ctx = orgctx.WithResolvedOrg(ctx, orgctx.ResolvedOrg{OUID: monitor.OUID})
@@ -251,7 +251,7 @@ func (s *monitorSchedulerService) triggerMonitor(ctx context.Context, monitor *m
 // backOff pushes a failed monitor's next_run_time forward so the next cycle does not
 // retry it immediately. Leaving next_run_time in the past makes every tick re-attempt
 // a monitor that is broken for a reason a minute will not fix, and each attempt costs
-// a round of Thunder and OpenChoreo calls. The delay is the monitor's own interval,
+// a round of Thunder and platform calls. The delay is the monitor's own interval,
 // which is the cadence it asked for, capped so a daily monitor is not stalled a day by
 // one transient error. Failing to record the backoff is logged, not returned: the
 // caller is already reporting the trigger failure, and the next tick retries either way.
@@ -271,7 +271,7 @@ func (s *monitorSchedulerService) backOff(ctx context.Context, monitor *models.M
 	s.logger.Info("Backed off failed monitor", "monitor", monitor.Name, "retryAt", retryAt)
 }
 
-// syncRunStatus queries OpenChoreo API for pending/running workflows and updates DB
+// syncRunStatus queries the workflow runtime for pending/running workflows and updates DB
 func (s *monitorSchedulerService) syncRunStatus(ctx context.Context) error {
 	// Replay even when no workflows remain pending/running.
 	if reconciler, ok := s.runObserver.(interface{ Reconcile(context.Context) error }); ok {
@@ -299,7 +299,7 @@ func (s *monitorSchedulerService) syncRunStatus(ctx context.Context) error {
 	return nil
 }
 
-// syncSingleRunStatus queries OpenChoreo API for a single run and updates DB
+// syncSingleRunStatus queries the workflow runtime for a single run and updates DB
 func (s *monitorSchedulerService) syncSingleRunStatus(ctx context.Context, run *models.MonitorRun) error {
 	monitor, err := s.monitorRepo.GetMonitorByID(run.MonitorID)
 	if err != nil {

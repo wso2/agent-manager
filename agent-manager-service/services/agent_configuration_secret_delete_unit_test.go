@@ -65,3 +65,38 @@ func TestDeleteProxyAPIKeySecret_PicksPersistedNameOverLocation(t *testing.T) {
 		assert.Equal(t, loc.SecretRefName(), deletedName)
 	})
 }
+
+// TestStoreProxyAPIKey_SkipsExternalAgents covers both policies: a platform agent's key is
+// stored for injection, while an external agent's key is handed over and never stored.
+func TestStoreProxyAPIKey_SkipsExternalAgents(t *testing.T) {
+	loc := secretmanagersvc.SecretLocation{
+		OrgName: "acme", ProjectName: "proj1", AgentName: "my-agent", EnvironmentName: "default",
+		ConfigName: "cfg", EntityName: "cfg-proxy", SecretKey: secretmanagersvc.SecretKeyAPIKey,
+	}
+
+	t.Run("platform agent", func(t *testing.T) {
+		var stored map[string]string
+		svc := &agentConfigurationService{secretClient: &clientmocks.SecretManagementClientMock{
+			CreateSecretFunc: func(_ context.Context, _ secretmanagersvc.SecretLocation, data map[string]string) (string, error) {
+				stored = data
+				return "cfg-secret", nil
+			},
+		}}
+
+		refName, storedLoc, err := svc.storeProxyAPIKey(context.Background(), platformAgentPolicy, loc, "key")
+		require.NoError(t, err)
+		assert.Equal(t, "cfg-secret", refName)
+		require.NotNil(t, storedLoc)
+		assert.Equal(t, loc, *storedLoc)
+		assert.Equal(t, map[string]string{secretmanagersvc.SecretKeyAPIKey: "key"}, stored)
+	})
+
+	t.Run("external agent", func(t *testing.T) {
+		svc := &agentConfigurationService{secretClient: &clientmocks.SecretManagementClientMock{}}
+
+		refName, storedLoc, err := svc.storeProxyAPIKey(context.Background(), externalAgentPolicy, loc, "key")
+		require.NoError(t, err)
+		assert.Empty(t, refName)
+		assert.Nil(t, storedLoc)
+	})
+}

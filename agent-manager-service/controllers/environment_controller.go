@@ -195,44 +195,6 @@ func convertToSpecEnvironmentResponse(env *models.GatewayEnvironmentResponse) sp
 // name); the OC client constructs those at request time.
 // -----------------------------------------------------------------------------
 
-func fromSpecGatewaySpec(g *spec.GatewaySpec) *models.GatewaySpec {
-	if g == nil {
-		return nil
-	}
-	return &models.GatewaySpec{
-		Ingress: fromSpecGatewayNetworkSpec(g.Ingress),
-		Egress:  fromSpecGatewayNetworkSpec(g.Egress),
-	}
-}
-
-func fromSpecGatewayNetworkSpec(n *spec.GatewayNetworkSpec) *models.GatewayNetworkSpec {
-	if n == nil {
-		return nil
-	}
-	return &models.GatewayNetworkSpec{
-		External: fromSpecGatewayEndpointSpec(n.External),
-		Internal: fromSpecGatewayEndpointSpec(n.Internal),
-	}
-}
-
-func fromSpecGatewayEndpointSpec(e *spec.GatewayEndpointSpec) *models.GatewayEndpointSpec {
-	if e == nil {
-		return nil
-	}
-	return &models.GatewayEndpointSpec{
-		HTTP:  fromSpecGatewayListenerSpec(e.Http),
-		HTTPS: fromSpecGatewayListenerSpec(e.Https),
-		TLS:   fromSpecGatewayListenerSpec(e.Tls),
-	}
-}
-
-func fromSpecGatewayListenerSpec(l *spec.GatewayListenerSpec) *models.GatewayListenerSpec {
-	if l == nil {
-		return nil
-	}
-	return &models.GatewayListenerSpec{Port: l.Port, Host: l.Host}
-}
-
 func toSpecGatewaySpec(g *models.GatewaySpec) *spec.GatewaySpec {
 	if g == nil {
 		return nil

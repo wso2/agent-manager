@@ -26,7 +26,7 @@ import (
 
 // ProjectIdentityIDResolver names a project the way the identity platform keeps it. A deployment
 // whose identity control plane keeps its own project for each Agent Manager project, such as WSO2
-// Cloud, gives it the ID of the OpenChoreo project, so an AgentID created for the project lands in the
+// Cloud, gives it the ID of the Agent Manager project, so an AgentID created for the project lands in the
 // project the control plane already has instead of one the provider would have to invent.
 //
 // An empty ID with no error means no ID is known, and the request carries the project name as before.
@@ -44,7 +44,7 @@ type platformProjectIdentityIDResolver struct {
 	platform repositories.PlatformRepository
 }
 
-// NewPlatformProjectIdentityIDResolver reads a project's ID (its OpenChoreo UID).
+// NewPlatformProjectIdentityIDResolver reads a project's ID (its platform UID).
 func NewPlatformProjectIdentityIDResolver(platform repositories.PlatformRepository) ProjectIdentityIDResolver {
 	return &platformProjectIdentityIDResolver{platform: platform}
 }
@@ -61,7 +61,7 @@ func (r *platformProjectIdentityIDResolver) ProjectIdentityID(ctx context.Contex
 }
 
 // projectIdentityID is the ID the identity platform knows the project by: the resolver's, or the
-// project name when none is known (LEGACY_DIRECT, no resolver, or OpenChoreo has no ID for it).
+// project name when none is known (LEGACY_DIRECT, no resolver, or the platform store has no ID for it).
 // A resolver that cannot answer is an error, never the name: the name would make the provider
 // create a project of its own, and the AgentID would be in the wrong one.
 func (s *agentThunderProvisioningService) projectIdentityID(ctx context.Context, organizationID, projectName string) (string, error) {

@@ -180,7 +180,7 @@ type AgentURL struct {
 	Status *models.UserStatus
 }
 
-// For is the URL to show: the gateway's, else openChoreoURL while direct, else "".
+// For is the URL to show: the gateway's, else directURL while direct, else "".
 func (u AgentURL) For(directURL string) string {
 	switch {
 	case u.Gateway != "":

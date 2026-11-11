@@ -220,17 +220,6 @@ export const rootRouteMap: AppRoute = {
                     index: true,
                     children: {},
                 },
-                catalog: {
-                    path: 'catalog',
-                    index: true,
-                    children: {
-                        kindDetails: {
-                            path: "kind/:kindId",
-                            index: true,
-                            children: {}
-                        }
-                    },
-                },
                 newProject: {
                     path: 'newProject',
                     index: true,
@@ -332,27 +321,6 @@ export const rootRouteMap: AppRoute = {
                                     path: 'events',
                                     index: true,
                                     children: {},
-                                },
-                                publish: {
-                                    path: "publish",
-                                    index: true,
-                                    children: {
-                                        createNewVersion: {
-                                            path: 'create-new-version',
-                                            index: true,
-                                            children: {},
-                                        },
-                                        editKind: {
-                                            path: 'edit-kind',
-                                            index: true,
-                                            children: {},
-                                        },
-                                        versionDetails: {
-                                            path: 'version-details/:versionId',
-                                            index: true,
-                                            children: {},
-                                        },
-                                    },
                                 },
                                 evaluation: {
                                     path: 'evaluation',

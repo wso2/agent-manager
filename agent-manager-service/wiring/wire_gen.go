@@ -646,8 +646,8 @@ func ProvideAgentBuildOptionsController(
 
 // ProvideSecretManagementClient creates the secret management service client.
 // If the provider implements secretmanagersvc.SecretReferenceManager and
-// reports that it manages SecretReferences itself, the OpenChoreo client is
-// not forwarded — preventing the high-level client from making redundant
+// reports that it manages SecretReferences itself, no SecretReference client is
+// forwarded — preventing the high-level client from making redundant
 // SecretReference CRUD calls.
 func ProvideSecretManagementClient(cfg config.Config, secretProvider secretmanagersvc.Provider) (secretmanagersvc.SecretManagementClient, error) {
 	return secretmanagersvc.NewSecretManagementClientWithConfig(secretmanagersvc.SecretManagementClientConfig{

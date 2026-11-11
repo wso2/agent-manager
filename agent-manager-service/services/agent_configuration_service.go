@@ -224,12 +224,6 @@ func sanitizeForK8sName(s string) string {
 
 const proxyNamePrefixMaxLen = 10
 
-// agentConfigListAll disables the row cap on the per-agent configuration listing used when
-// rebuilding or auditing an agent's system-managed env vars: a truncated listing there
-// silently drops bindings from promotion and from the unresolved-binding audit. GORM omits
-// the LIMIT clause for a negative value.
-const agentConfigListAll = -1
-
 // agentAppIdentifier builds a stable, collision-resistant handle for the per-agent-per-env
 // AIApplication. Format: "<agentPrefix>-<16-hex-chars>".
 func agentAppIdentifier(projectName, agentID, envName string) string {
@@ -1147,14 +1141,13 @@ func (s *agentConfigurationService) createLLMConfig(ctx context.Context, ouID, p
 			EntityName:      proxy.Handle,
 			SecretKey:       secretmanagersvc.SecretKeyAPIKey,
 		}
-		secretRefName, err := s.secretClient.CreateSecret(ctx, proxySecretLoc,
-			map[string]string{secretmanagersvc.SecretKeyAPIKey: proxyAPIKey.APIKey})
+		secretRefName, storedLoc, err := s.storeProxyAPIKey(ctx, policy, proxySecretLoc, proxyAPIKey.APIKey)
 		if err != nil {
 			s.rollbackProxies(ctx, rollbackResources, ouID)
 			s.compensatingDeleteConfig(ctx, config.UUID, ouID)
 			return nil, fmt.Errorf("failed to store proxy API key in KV for environment %s: %w", envName, err)
 		}
-		rollbackResources[rbIdx].proxySecretLoc = &proxySecretLoc
+		rollbackResources[rbIdx].proxySecretLoc = storedLoc
 		rollbackResources[rbIdx].secretRefName = secretRefName
 
 		// Public proxy URL (nil-safe context) — what an external agent's operator is handed.
@@ -1459,8 +1452,7 @@ func (s *agentConfigurationService) createMCPConfig(ctx context.Context, ouID, p
 				EntityName:      fmt.Sprintf("%s-proxy", scopedID),
 				SecretKey:       secretmanagersvc.SecretKeyAPIKey,
 			}
-			secretRefName, err = s.secretClient.CreateSecret(ctx, proxySecretLoc,
-				map[string]string{secretmanagersvc.SecretKeyAPIKey: proxyAPIKey.APIKey})
+			secretRefName, _, err = s.storeProxyAPIKey(ctx, policy, proxySecretLoc, proxyAPIKey.APIKey)
 			if err != nil {
 				if revokeErr := s.revokeMCPMappingAPIKey(ctx, ouID, sharedArtifactUUID, mapping.ArtifactUUID, proxyAPIKey.KeyID); revokeErr != nil {
 					s.logger.Warn("failed to revoke MCP API key after secret persistence failure", "environment", envName, "err", revokeErr)
@@ -1658,6 +1650,19 @@ func (s *agentConfigurationService) ListMCP(ctx context.Context, ouID, projectNa
 // processEnvProviderChange handles Scenario A: provider changed for an existing environment.
 // External ops run outside any transaction; a short per-env TX follows.
 // Returns the old proxy handle (for later cleanup) and the rollback resource for the new proxy.
+// storeProxyAPIKey keeps a proxy API key in the secret store when the policy injects it later. It returns the
+// SecretReference name and the stored location; both are empty when the key is only handed to an external agent.
+func (s *agentConfigurationService) storeProxyAPIKey(ctx context.Context, policy placementPolicy, loc secretmanagersvc.SecretLocation, apiKey string) (string, *secretmanagersvc.SecretLocation, error) {
+	if !policy.storesCredentials() {
+		return "", nil, nil
+	}
+	refName, err := s.secretClient.CreateSecret(ctx, loc, map[string]string{secretmanagersvc.SecretKeyAPIKey: apiKey})
+	if err != nil {
+		return "", nil, err
+	}
+	return refName, &loc, nil
+}
+
 func (s *agentConfigurationService) processEnvProviderChange(
 	ctx context.Context,
 	configUUID uuid.UUID,
@@ -1739,13 +1744,12 @@ func (s *agentConfigurationService) processEnvProviderChange(
 		EntityName:      proxy.Handle,
 		SecretKey:       secretmanagersvc.SecretKeyAPIKey,
 	}
-	secretRefName, err := s.secretClient.CreateSecret(ctx, proxySecretLoc,
-		map[string]string{secretmanagersvc.SecretKeyAPIKey: proxyAPIKey.APIKey})
+	secretRefName, storedLoc, err := s.storeProxyAPIKey(ctx, policy, proxySecretLoc, proxyAPIKey.APIKey)
 	if err != nil {
 		s.rollbackProxies(ctx, []rollbackResource{rbRes}, ouID)
 		return "", rollbackResource{}, pendingAppBinding{}, fmt.Errorf("processEnvProviderChange: failed to store proxy API key in KV for environment %s: %w", envName, err)
 	}
-	rbRes.proxySecretLoc = &proxySecretLoc
+	rbRes.proxySecretLoc = storedLoc
 	rbRes.secretRefName = secretRefName
 
 	envConfigTemplates, err := s.buildEnvironmentVariables(config.Name, varNamesToOverrides(existingVarNames))
@@ -1998,13 +2002,12 @@ func (s *agentConfigurationService) processNewEnv(
 		EntityName:      proxy.Handle,
 		SecretKey:       secretmanagersvc.SecretKeyAPIKey,
 	}
-	secretRefName, err := s.secretClient.CreateSecret(ctx, proxySecretLoc,
-		map[string]string{secretmanagersvc.SecretKeyAPIKey: proxyAPIKey.APIKey})
+	secretRefName, storedLoc, err := s.storeProxyAPIKey(ctx, policy, proxySecretLoc, proxyAPIKey.APIKey)
 	if err != nil {
 		s.rollbackProxies(ctx, []rollbackResource{rbRes}, ouID)
 		return rollbackResource{}, pendingAppBinding{}, fmt.Errorf("processNewEnv: failed to store proxy API key in KV for environment %s: %w", envName, err)
 	}
-	rbRes.proxySecretLoc = &proxySecretLoc
+	rbRes.proxySecretLoc = storedLoc
 	rbRes.secretRefName = secretRefName
 
 	envConfigTemplates, err := s.buildEnvironmentVariables(config.Name, varNamesToOverrides(existingVarNames))
@@ -3084,7 +3087,7 @@ func (s *agentConfigurationService) deleteLLMConfig(ctx context.Context, existin
 
 	environments, err := s.ocClient.ListEnvironments(ctx, ouID)
 	if err != nil {
-		return fmt.Errorf("error while list environments from open choreo. %w", err)
+		return fmt.Errorf("error while listing environments: %w", err)
 	}
 
 	envIDNameMap := make(map[string]string)
@@ -3407,7 +3410,7 @@ func (s *agentConfigurationService) deleteMCPConfig(ctx context.Context, existin
 
 	envs, err := s.ocClient.ListEnvironments(ctx, ouID)
 	if err != nil {
-		return fmt.Errorf("error while list environments from open choreo. %w", err)
+		return fmt.Errorf("error while listing environments: %w", err)
 	}
 	envIDNameMap := make(map[string]string, len(envs))
 	for _, env := range envs {
@@ -4246,21 +4249,6 @@ func (s *agentConfigurationService) mcpEnvTemplatesFromVars(
 	return envTemplates, nil
 }
 
-// resolveEnvironmentUUID resolves an environment name to its UUID.
-func (s *agentConfigurationService) resolveEnvironmentUUID(
-	ctx context.Context, ouID, environmentName string,
-) (uuid.UUID, error) {
-	env, err := s.ocClient.GetEnvironment(ctx, ouID, environmentName)
-	if err != nil {
-		return uuid.Nil, fmt.Errorf("failed to get environment %q: %w", environmentName, err)
-	}
-	envUUID, err := uuid.Parse(env.UUID)
-	if err != nil {
-		return uuid.Nil, fmt.Errorf("invalid environment UUID %q: %w", env.UUID, err)
-	}
-	return envUUID, nil
-}
-
 // loadExistingVarNames loads the variable key→name mapping from DB for a config.
 // Names are config-level (identical across all environments). The first occurrence per key
 // is used; a warning is logged if divergence is detected (indicates a data integrity problem).
@@ -4327,7 +4315,7 @@ func (s *agentConfigurationService) updateMCPMappingSecretReference(ctx context.
 	return nil
 }
 
-func (s *agentConfigurationService) ensureMCPMappingCredentials(ctx context.Context, config *models.AgentConfiguration, mapping *models.EnvAgentMCPMapping, envName, ouID string) (string, error) {
+func (s *agentConfigurationService) ensureMCPMappingCredentials(ctx context.Context, config *models.AgentConfiguration, mapping *models.EnvAgentMCPMapping, envName, ouID string, policy placementPolicy) (string, error) {
 	keyName := mcpMappingAPIKeyName(config, envName)
 	// storageUUID scopes the key to this agent (persistence + listing); apiID is the shared
 	// per-environment proxy artifact the gateway validates the key against.
@@ -4344,7 +4332,8 @@ func (s *agentConfigurationService) ensureMCPMappingCredentials(ctx context.Cont
 	if err != nil {
 		return "", fmt.Errorf("failed to inspect MCP API key for environment %s: %w", envName, err)
 	}
-	if secretRefName != "" && keyExists {
+	// An external agent's key is never stored, so the key alone shows it is provisioned.
+	if keyExists && (secretRefName != "" || !policy.storesCredentials()) {
 		if err := s.revokeStaleMCPMappingAPIKeys(ctx, ouID, apiID, storageUUID, keyName); err != nil {
 			return "", fmt.Errorf("failed to revoke stale MCP API keys for environment %s: %w", envName, err)
 		}
@@ -4370,6 +4359,12 @@ func (s *agentConfigurationService) ensureMCPMappingCredentials(ctx context.Cont
 		return "", fmt.Errorf("failed to ensure AI application for MCP environment %s: %w", envName, err)
 	}
 
+	if !policy.storesCredentials() {
+		if err := s.revokeStaleMCPMappingAPIKeys(ctx, ouID, apiID, storageUUID, keyName); err != nil {
+			return "", fmt.Errorf("failed to revoke stale MCP API keys for environment %s: %w", envName, err)
+		}
+		return "", nil
+	}
 	secretLoc := mcpMappingSecretLocation(config, ouID, envName)
 	newSecretRefName, err := s.secretClient.CreateSecret(ctx, secretLoc,
 		map[string]string{secretmanagersvc.SecretKeyAPIKey: proxyAPIKey.APIKey})
@@ -4400,7 +4395,7 @@ func (s *agentConfigurationService) ensureMCPMappingCredentials(ctx context.Cont
 
 func (s *agentConfigurationService) reconcileMCPMappingCredentials(ctx context.Context, config *models.AgentConfiguration, mapping *models.EnvAgentMCPMapping, sourceProxy *models.MCPProxy, envName, ouID string, envTemplates []EnvConfigTemplate, policy placementPolicy, firstEnvName string) error {
 	if mcpProxyAPIKeySecurityEnabled(sourceProxy, mapping.EnvironmentUUID.String()) {
-		if _, err := s.ensureMCPMappingCredentials(ctx, config, mapping, envName, ouID); err != nil {
+		if _, err := s.ensureMCPMappingCredentials(ctx, config, mapping, envName, ouID, policy); err != nil {
 			return err
 		}
 		return nil
@@ -4434,32 +4429,6 @@ func (s *agentConfigurationService) cleanupNewMCPMapping(ctx context.Context, co
 	}); err != nil {
 		s.logger.Warn("failed to clean up new MCP mapping after partial failure", "environment", envName, "artifactUUID", mapping.ArtifactUUID, "err", err)
 	}
-}
-
-func uniqueVariableNames(vars []models.AgentEnvConfigVariable) []string {
-	seen := make(map[string]struct{}, len(vars))
-	names := make([]string, 0, len(vars))
-	for _, v := range vars {
-		if strings.TrimSpace(v.VariableName) == "" {
-			continue
-		}
-		if _, ok := seen[v.VariableName]; ok {
-			continue
-		}
-		seen[v.VariableName] = struct{}{}
-		names = append(names, v.VariableName)
-	}
-	return names
-}
-
-func variableNamesForEnv(vars []models.AgentEnvConfigVariable, envUUID uuid.UUID) []string {
-	filtered := make([]models.AgentEnvConfigVariable, 0, len(vars))
-	for _, v := range vars {
-		if v.EnvironmentUUID == envUUID {
-			filtered = append(filtered, v)
-		}
-	}
-	return uniqueVariableNames(filtered)
 }
 
 // dedupeEnvVariablesByKey collapses per-environment DB rows into config-level entries.

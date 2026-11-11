@@ -31,7 +31,7 @@ import (
 
 // IdentityProviderWithContext is an identity provider mirror row enriched with the
 // gateway and environment it is registered to, for the org-wide listing.
-// EnvironmentUUID is the OpenChoreo environment id from gateway_environment_mappings;
+// EnvironmentUUID is the environment id from gateway_environment_mappings;
 // there is no local environments table, so the env name is resolved separately.
 type IdentityProviderWithContext struct {
 	models.GatewayIdentityProvider

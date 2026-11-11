@@ -50,7 +50,7 @@ type MCPProxyRepository interface {
 	// utils.ErrMCPProxyNotFound when it is in another project or is org-owned.
 	GetInProject(ctx context.Context, handle, orgUUID, projectUUID string) (*models.MCPProxy, error)
 	// GetInProjectByName returns the project proxy stored under projectName, whatever project
-	// UUID it carries: the lookup for a project that no longer exists in OpenChoreo, whose
+	// UUID it carries: the lookup for a project that no longer exists, whose
 	// proxies keep the UUID of the deleted project. utils.ErrMCPProxyNotFound when there is
 	// none, or the handle is an org proxy or another project's.
 	GetInProjectByName(ctx context.Context, handle, orgUUID, projectName string) (*models.MCPProxy, error)
@@ -78,7 +78,7 @@ type MCPProxyListFilter struct {
 	IncludeOrgOwned bool
 	// ProjectName, when set and ProjectUUID is not, lists the project proxies stored under
 	// that project name whatever project UUID they carry: the listing for a project that no
-	// longer exists in OpenChoreo. Org proxies are never included.
+	// longer exists. Org proxies are never included.
 	ProjectName *string
 	// Component and Endpoint, when non-empty, match configuration.source.
 	Component, Endpoint string

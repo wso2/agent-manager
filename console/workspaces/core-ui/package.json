@@ -61,7 +61,6 @@
     "@agent-management-platform/env-thunders": "workspace:*",
     "@agent-management-platform/settings": "workspace:*",
     "@agent-management-platform/agent-security": "workspace:*",
-    "@agent-management-platform/agent-kind": "workspace:*",
     "swagger-ui-react": "5.34.0",
     "@monaco-editor/react": "4.7.0"
   },

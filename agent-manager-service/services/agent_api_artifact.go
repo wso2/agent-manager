@@ -112,20 +112,6 @@ func ensureExposedAgentEnvAPIArtifact(
 	return ensureAgentEnvAPIArtifact(db, artifactRepo, ouID, projectName, agentName, environmentID, shape.ArtifactKind)
 }
 
-// legacyAgentEnvAPIArtifact reads or creates the API artifact a legacy release's api-configuration trait serves the
-// agent in the environment with. An existing row keeps its kind: a legacy release never switches it.
-func legacyAgentEnvAPIArtifact(
-	db *gorm.DB,
-	artifactRepo repositories.ArtifactRepository,
-	ouID, projectName, agentName, environmentID string,
-) (*models.Artifact, error) {
-	artifact, err := agentEnvAPIArtifact(artifactRepo, ouID, projectName, agentName, environmentID, models.AgentArtifactKinds...)
-	if !errors.Is(err, utils.ErrArtifactNotFound) {
-		return artifact, err
-	}
-	return ensureAgentEnvAPIArtifact(db, artifactRepo, ouID, projectName, agentName, environmentID, models.KindAgent)
-}
-
 func switchArtifactKind(
 	db *gorm.DB, artifactRepo repositories.ArtifactRepository, artifact *models.Artifact, kind string,
 ) (*models.Artifact, error) {

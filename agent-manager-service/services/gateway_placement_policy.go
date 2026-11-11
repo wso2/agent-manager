@@ -52,8 +52,12 @@ func placementPolicyFor(agent *models.AgentResponse) placementPolicy {
 	return platformAgentPolicy
 }
 
-// external is true when AMS hands the agent its credentials instead of injecting them into an OpenChoreo workload.
+// external is true when AMS hands the agent its credentials instead of injecting them into a hosted workload.
 func (p placementPolicy) external() bool { return p.consumer == externalAgentConsumer }
+
+// storesCredentials is true when AMS keeps the consumer's proxy key in the secret store to inject it later.
+// An external agent is handed its key once and nothing reads it back, so it is not stored.
+func (p placementPolicy) storesCredentials() bool { return !p.external() }
 
 func (p placementPolicy) allowsSelfHosted() bool { return p.consumer == externalAgentConsumer }
 

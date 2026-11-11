@@ -55,7 +55,7 @@ var ErrOverrideOrgNotFound = errors.New("organization not found")
 //     path never says one org while the request acts on another;
 //   - resolver allows it: the whole ResolvedOrg — OUID and handle — is
 //     rewritten to the target, the handle being looked up because the header
-//     carries the UUID only. Handlers and the outbound OpenChoreo client then
+//     carries the UUID only. Handlers and the platform repository then
 //     act on the target org. The switch is logged and audited with the
 //     caller's client id.
 //

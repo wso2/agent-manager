@@ -800,13 +800,3 @@ func cloneStringInterfaceMap(in map[string]interface{}) map[string]interface{} {
 	}
 	return out
 }
-
-func deploymentName(proxy *models.MCPProxy) string {
-	if strings.TrimSpace(proxy.Handle) != "" {
-		return fmt.Sprintf("%s-deployment", proxy.Handle)
-	}
-	if proxy.Artifact != nil && strings.TrimSpace(proxy.Artifact.Handle) != "" {
-		return fmt.Sprintf("%s-deployment", proxy.Artifact.Handle)
-	}
-	return fmt.Sprintf("%s-deployment", proxy.UUID.String())
-}

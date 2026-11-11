@@ -40,7 +40,6 @@ export * from './agent-mcp-proxies';
 export * from './gateways';
 export * from './guardrails';
 export * from './identities';
-export * from './agent-kinds';
 export * from './thunder-instances';
 export * from './mcp-proxy-scopes';
 export * from './token-scopes';

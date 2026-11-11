@@ -65,7 +65,7 @@ func NewA2AAgentCardService(
 func (s *a2aAgentCardService) GetA2AAgentCard(
 	ctx context.Context, ouID, projectName, agentName, envName string,
 ) (*models.A2AAgentCard, error) {
-	// Rows exist only for live A2A agents, so OpenChoreo is asked only on a miss.
+	// Rows exist only for live A2A agents, so the platform store is asked only on a miss.
 	row, err := s.cardRepo.Get(ctx, ouID, projectName, agentName, envName)
 	if err == nil {
 		return row, nil

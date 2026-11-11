@@ -64,7 +64,7 @@ func TestCreateProject(t *testing.T) {
 			Name:               testCreateProjectName,
 			DisplayName:        "Test Project Display",
 			Description:        stringPtr("Test project description"),
-			DeploymentPipeline: "default",
+			DeploymentPipeline: stringPtr("default"),
 		}
 
 		body, err := json.Marshal(payload)
@@ -118,7 +118,7 @@ func TestCreateProject(t *testing.T) {
 			payload: spec.CreateProjectRequest{
 				Name:               "INVALID-PROJECT-NAME!",
 				DisplayName:        "Test Project",
-				DeploymentPipeline: "default",
+				DeploymentPipeline: stringPtr("default"),
 			},
 			setupMock: func() *repomocks.PlatformRepositoryMock {
 				mock := apitestutils.CreateMockPlatformRepository()
@@ -156,7 +156,7 @@ func TestCreateProject(t *testing.T) {
 			payload: spec.CreateProjectRequest{
 				Name:               "valid-project",
 				DisplayName:        "Test Project",
-				DeploymentPipeline: "default",
+				DeploymentPipeline: stringPtr("default"),
 			},
 			setupMock: func() *repomocks.PlatformRepositoryMock {
 				mock := apitestutils.CreateMockPlatformRepository()
@@ -175,7 +175,7 @@ func TestCreateProject(t *testing.T) {
 			payload: spec.CreateProjectRequest{
 				Name:               "existing-project",
 				DisplayName:        "Existing Project",
-				DeploymentPipeline: "default",
+				DeploymentPipeline: stringPtr("default"),
 				Description:        stringPtr(""),
 			},
 			setupMock: func() *repomocks.PlatformRepositoryMock {
@@ -201,7 +201,7 @@ func TestCreateProject(t *testing.T) {
 			payload: spec.CreateProjectRequest{
 				Name:               "test-project",
 				DisplayName:        "Test Project",
-				DeploymentPipeline: "default",
+				DeploymentPipeline: stringPtr("default"),
 				Description:        stringPtr(""),
 			},
 			setupMock: func() *repomocks.PlatformRepositoryMock {
@@ -221,7 +221,7 @@ func TestCreateProject(t *testing.T) {
 			payload: spec.CreateProjectRequest{
 				Name:               "failing-project",
 				DisplayName:        "Failing Project",
-				DeploymentPipeline: "default",
+				DeploymentPipeline: stringPtr("default"),
 				Description:        stringPtr(""),
 			},
 			setupMock: func() *repomocks.PlatformRepositoryMock {

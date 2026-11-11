@@ -35,7 +35,7 @@ import (
 )
 
 // RestAgentKind exposes REST agents (chat-api, custom-api) as a gateway RestApi on their environment's ingress
-// gateway. The exposure is recorded in platform_agent_exposures; Render calls OpenChoreo for the agent's endpoint,
+// gateway. The exposure is recorded in platform_agent_exposures; Render reads the agent's endpoint from the platform store,
 // so only the worker renders it.
 type RestAgentKind struct {
 	exposures       *PlatformAgentExposures

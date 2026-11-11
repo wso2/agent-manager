@@ -20,8 +20,6 @@ import {
   useGetAgent,
   useGetAgentConfigurations,
   useGetAgentEndpoints,
-  useGetAgentKindVersion,
-  useGetBuild,
   useTestAgentAPIKey,
 } from "@agent-management-platform/api-client";
 import { StateNotice } from "@agent-management-platform/views";
@@ -101,13 +99,8 @@ export function Swagger() {
 
   const endpoint = useMemo(() => Object.keys(data ?? {})?.[0] ?? "", [data]);
 
-  // A kind-sourced agent runs no build of its own, so nothing ever writes an
-  // OpenAPI document onto its endpoint. Resolve the spec from the kind version
-  // instead — kind version -> its source build — which is how the agent
-  // catalogue renders a kind's API spec.
   const deployedSpec = data?.[endpoint]?.schema?.content;
   const {
-    data: agent,
     isLoading: isAgentLoading,
     error: agentError,
   } = useGetAgent({
@@ -115,34 +108,8 @@ export function Swagger() {
     projName: projectId,
     agentName: agentId,
   });
-  const kindVersionTag = agent?.kindVersion;
-  const needsKindSpec = !!agent?.kindName && !!kindVersionTag;
-  const {
-    data: kindVersion,
-    isLoading: isKindVersionLoading,
-    error: kindVersionError,
-  } = useGetAgentKindVersion({
-    orgName: needsKindSpec ? orgId ?? "" : "",
-    kindName: needsKindSpec ? agent?.kindName ?? "" : "",
-    versionTag: needsKindSpec ? kindVersionTag ?? "" : "",
-  });
-  const {
-    data: kindBuild,
-    isLoading: isKindBuildLoading,
-    error: kindBuildError,
-  } = useGetBuild({
-    orgName: needsKindSpec ? orgId ?? "" : "",
-    projName: kindVersion?.sourceProjectName ?? "",
-    agentName: kindVersion?.sourceAgentName ?? "",
-    buildName: kindVersion?.buildName ?? "",
-  });
-  const isKindSpecLoading =
-    needsKindSpec && (isKindVersionLoading || isKindBuildLoading);
-  // Reading the kind's spec goes through the kind's source project, which the
-  // viewer may not have access to, so these can fail on their own.
-  const specLookupError = agentError ?? (needsKindSpec ? kindVersionError ?? kindBuildError : null);
-  const specContent =
-    deployedSpec || kindBuild?.inputInterface?.schema?.content;
+  const specLookupError = agentError;
+  const specContent = deployedSpec;
 
   // The gateway drops CORS headers on 401s, so a cross-origin 401 rejects
   // fetch with a TypeError before swagger-ui's responseInterceptor runs.
@@ -221,7 +188,6 @@ export function Swagger() {
   if (
     isLoading ||
     isAgentLoading ||
-    isKindSpecLoading ||
     (securityEnabled && isLoadingTestKey)
   ) {
     return <Skeleton variant="rounded" height={500} />;
@@ -260,9 +226,7 @@ export function Swagger() {
   }
 
   // A failed lookup is not the same as an agent that has no schema, so only claim
-  // the latter once every lookup the spec could have come from has succeeded. A
-  // schema we already have still renders — an error resolving the kind's copy is
-  // irrelevant then.
+  // the latter once the lookup has succeeded. A schema we already have still renders.
   if (!specContent && specLookupError) {
     return (
       <StateNotice

@@ -268,14 +268,6 @@ func TestDeleteA2ACardSourceRejectsAPlatformAgent(t *testing.T) {
 	assert.Zero(t, hooks.removed)
 }
 
-// agentGoneDuringEnqueue swaps the agent lookup the moment the row is written, as a racing delete would.
-func agentGoneDuringEnqueue(repo *repomocks.A2AAgentCardRepositoryMock, oc *repomocks.PlatformRepositoryMock, after func(context.Context, string, string, string) (*models.AgentResponse, error)) {
-	repo.EnqueueFunc = func(context.Context, *models.A2AAgentCard) error {
-		oc.GetAgentFunc = after
-		return nil
-	}
-}
-
 // Unresolvable and internal hosts must look alike, or the reply is an internal-DNS oracle.
 func TestSetA2ACardSourceHidesWhyAHostIsRefused(t *testing.T) {
 	svc, _, _ := cardServiceFor("external", "a2a-agent")

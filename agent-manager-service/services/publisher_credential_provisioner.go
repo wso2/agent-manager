@@ -33,8 +33,6 @@ import (
 	"gorm.io/gorm"
 )
 
-const schedulerRoleName = "amp-monitor-scheduler"
-
 // ErrNotThunderMode is returned when the provisioner is not in Thunder mode.
 var ErrNotThunderMode = errors.New("not in Thunder mode")
 
@@ -47,7 +45,7 @@ var ErrSchedulerCredentialNotFound = errors.New("scheduler credentials not found
 
 // PublisherCredentials holds the provisioned OAuth2 credentials for publishing scores.
 // Per-org (Thunder) credentials are referenced by SecretRefName, which the evaluation
-// workflow resolves through OpenChoreo. Static credentials have no SecretReference and
+// workflow resolves. Static credentials have no SecretReference and
 // are referenced by SecretKVPath and SecretKey directly.
 type PublisherCredentials struct {
 	ClientID      string // OAuth2 client ID (becomes JWT subject)
@@ -229,7 +227,7 @@ func (p *publisherCredentialProvisioner) EnsureCredentials(ctx context.Context, 
 	return result.(*PublisherCredentials), nil
 }
 
-// provisionPublisherCredentials provisions the eval-job pod's credential — bound to no OpenChoreo role.
+// provisionPublisherCredentials provisions the eval-job pod's credential — bound to no platform role.
 func (p *publisherCredentialProvisioner) provisionPublisherCredentials(ctx context.Context, ouID, orgUUID string) (*PublisherCredentials, error) {
 	// Check DB for existing credentials
 	existing, err := p.credRepo.GetByOrgName(ouID)

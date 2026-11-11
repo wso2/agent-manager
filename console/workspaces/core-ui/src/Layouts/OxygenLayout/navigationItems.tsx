@@ -34,8 +34,6 @@ import {
   Lock,
   LayoutDashboard,
   Box,
-  BookOpenText,
-  Megaphone,
   Activity,
   Gauge,
   MonitorCheck,
@@ -401,7 +399,7 @@ export function useNavigationItems(): Array<
     ];
   }
 
-  if (orgId && projectId && agentId && agent?.kindName) {
+  if (orgId && projectId && agentId) {
     return [
       {
         label: "Overview",
@@ -448,168 +446,6 @@ export function useNavigationItems(): Array<
             href: generatePath(
               absoluteRouteMap.children.org.children.projects.children.agents
                 .children.tryOut.path,
-              { orgId, projectId, agentId },
-            ),
-          },
-        ],
-      },
-      ...agentSecuritySections,
-      {
-        title: "Observability",
-        type: "section",
-        icon: <Activity />,
-        collapsible: true,
-        items: [
-          {
-            label: "Traces",
-            type: "item",
-            icon: <Workflow size={20} />,
-            isActive: !!matchPath(
-              absoluteRouteMap.children.org.children.projects.children.agents
-                .children.observability.children.traces
-                .wildPath,
-              pathname,
-            ),
-            href: generatePath(
-              absoluteRouteMap.children.org.children.projects.children.agents
-                .children.observability.children.traces
-                .path,
-              { orgId, projectId, agentId },
-            ),
-          },
-          {
-            label: "Runtime logs",
-            type: "item",
-            icon: <Logs size={20} />,
-            isActive: !!matchPath(
-              absoluteRouteMap.children.org.children.projects.children.agents
-                .children.observability.children.logs
-                .wildPath,
-              pathname,
-            ),
-            href: generatePath(
-              absoluteRouteMap.children.org.children.projects.children.agents
-                .children.observability.children.logs.path,
-              { orgId, projectId, agentId },
-            ),
-          },
-          {
-            label: "System metrics",
-            type: "item",
-            icon: <Gauge size={20} />,
-            isActive: !!matchPath(
-              absoluteRouteMap.children.org.children.projects.children.agents
-                .children.observability.children.metrics
-                .wildPath,
-              pathname,
-            ),
-            href: generatePath(
-              absoluteRouteMap.children.org.children.projects.children.agents
-                .children.observability.children.metrics
-                .path,
-              { orgId, projectId, agentId },
-            ),
-          },
-        ],
-      },
-      {
-        title: "Evaluation",
-        type: "section",
-        icon: <EvaluationOutline />,
-        collapsible: true,
-        items: [
-          {
-            label: "Monitors",
-            type: "item",
-            icon: <MonitorCheck size={20} />,
-            isActive: !!matchPath(
-              absoluteRouteMap.children.org.children.projects.children.agents
-                .children.evaluation.children.monitor
-                .wildPath,
-              pathname,
-            ),
-            href: generatePath(
-              absoluteRouteMap.children.org.children.projects.children.agents
-                .children.evaluation.children.monitor.path,
-              { orgId, projectId, agentId },
-            ),
-          },
-        ],
-      },
-      ...eventsItem(eventsAgentRoute, { orgId, projectId, agentId }),
-      ...externalNavItems
-        .filter((item) => item.level === "component")
-        .map((item) => ({
-          label: item.title,
-          type: "item" as const,
-          icon: item.icon,
-          isActive: !!matchPath(item.route, pathname),
-          href: generatePath(item.route, { orgId, projectId, agentId }),
-        })),
-    ];
-  }
-  if (orgId && projectId && agentId && !agent?.kindName) {
-    return [
-      {
-        label: "Overview",
-        type: "item",
-        icon: <LayoutDashboard size={20} />,
-        isActive: !!matchPath(
-          absoluteRouteMap.children.org.children.projects.children.agents.path,
-          pathname,
-        ),
-        href: generatePath(
-          absoluteRouteMap.children.org.children.projects.children.agents.path,
-          { orgId, projectId, agentId },
-        ),
-      },
-      {
-        title: "Agent lifecycle",
-        type: "section",
-        icon: <GitBranch />,
-        collapsible: true,
-        items: [
-          {
-            label: "Configure",
-            type: "item",
-            icon: <Settings size={20} />,
-            isActive: !!matchPath(
-              agentsChildren.configure?.wildPath ?? "",
-              pathname,
-            ),
-            href: generatePath(agentsChildren.configure?.path ?? "", {
-              orgId,
-              projectId,
-              agentId,
-            }),
-          },
-          {
-            label: "Try it",
-            type: "item",
-            icon: <FlaskConical size={20} />,
-            isActive: !!matchPath(
-              absoluteRouteMap.children.org.children.projects.children.agents
-                .children.tryOut.wildPath,
-              pathname,
-            ),
-            href: generatePath(
-              absoluteRouteMap.children.org.children.projects.children.agents
-                .children.tryOut.path,
-              { orgId, projectId, agentId },
-            ),
-          },
-          {
-            label: "Publish",
-            type: "item",
-            icon: <Megaphone size={20} />,
-            isActive: !!matchPath(
-              absoluteRouteMap.children.org.children.projects.children.agents
-                .children.publish.wildPath,
-              pathname,
-            ),
-            href: generatePath(
-              absoluteRouteMap.children.org.children.projects.children.agents
-                .children.publish.path,
               { orgId, projectId, agentId },
             ),
           },
@@ -773,19 +609,6 @@ export function useNavigationItems(): Array<
         ),
         isActive: !!matchPath(
           absoluteRouteMap.children.org.children.projectListing.path,
-          pathname,
-        ),
-      },
-      {
-        label: "Agent catalog",
-        type: "item",
-        icon: <BookOpenText size={20} />,
-        href: generatePath(
-          absoluteRouteMap.children.org.children.catalog.path,
-          { orgId },
-        ),
-        isActive: !!matchPath(
-          absoluteRouteMap.children.org.children.catalog.wildPath,
           pathname,
         ),
       },

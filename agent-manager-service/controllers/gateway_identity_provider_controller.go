@@ -74,7 +74,7 @@ func (c *gatewayController) ListIdentityProviders(w http.ResponseWriter, r *http
 	}
 
 	// Environments live, not the AMS DB. Resolve the env UUID on each
-	// mapping to a display name via the OpenChoreo client (same source the gateways
+	// mapping to a display name via the platform repository (same source the gateways
 	// list uses). Best-effort: rows still render without an env name on failure.
 	envNames := make(map[string]string)
 	if envs, envErr := c.ocClient.ListEnvironments(ctx, ouID); envErr == nil {

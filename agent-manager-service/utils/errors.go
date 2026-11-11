@@ -146,7 +146,7 @@ var (
 	// after that point is never picked up by the in-flight build. Maps to 409.
 	ErrBuildInProgress            = errors.New("a build is already in progress for this agent")
 	ErrProjectHasAssociatedAgents = errors.New("project has associated agents")
-	// ErrComponentNotReconcilable reports that OpenChoreo cannot reconcile the agent's Component,
+	// ErrComponentNotReconcilable reports that the runtime cannot reconcile the agent's Component,
 	// so a deploy or promote would be silently discarded: the writes land on the Component and
 	// Workload, but no new ComponentRelease is cut, so the pods restart on the previous snapshot
 	// with the old image and env. Both operations are refused up front rather than reporting a

@@ -52,13 +52,11 @@ import {
   LazyOrgEvents,
   LazyProjectEvents,
   LazyAgentEvents,
-  LazyCatalogOrg,
   LazyAddNewAgent,
   LazyAddNewProject,
   LazyEditProject,
   LazyEditAgent,
   LazySecurityComponent,
-  LazyPublishOrg,
   LazyTestComponent,
   LazyTracesComponent,
   LazyLogsComponent,
@@ -381,10 +379,6 @@ export function RootRouter() {
               element={<LazyViewEvaluatorOrg />}
             />
             <Route
-              path={relativeRouteMap.children.org.children.catalog.path + "/*"}
-              element={<LazyCatalogOrg />}
-            />
-            <Route
               path={relativeRouteMap.children.org.children.newProject.path}
               element={
                 <Suspense fallback={<LoadingFallback />}>
@@ -591,13 +585,6 @@ export function RootRouter() {
                 <Route
                   path={agentRoutes.security.path}
                   element={<SecurityRouteElement />}
-                />
-                <Route
-                  path={
-                    relativeRouteMap.children.org.children.projects.children
-                      .agents.children.publish.path + "/*"
-                  }
-                  element={<LazyPublishOrg />}
                 />
                 <Route
                   path={

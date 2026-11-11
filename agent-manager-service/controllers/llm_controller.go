@@ -96,7 +96,7 @@ func NewLLMController(
 	}
 }
 
-// resolveProjectUUID resolves project name to UUID using OpenChoreo client
+// resolveProjectUUID resolves project name to UUID using the platform repository
 func (c *llmController) resolveProjectUUID(ctx context.Context, ouID, projectName string) (string, error) {
 	project, err := c.ocClient.GetProject(ctx, ouID, projectName)
 	if err != nil {

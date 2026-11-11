@@ -1362,7 +1362,7 @@ func buildPolicies(cfg resolvedCORSConfig) []map[string]interface{} {
 // The environment tier is an authorization axis of its own, about *where* an
 // action lands rather than what it is: agent:env-non-production is the floor,
 // and agent:env-production is held in addition to it to reach the environments
-// OpenChoreo flags. A production environment requires both — the production
+// flagged as production. A production environment requires both — the production
 // grant is an extra permission stacked on the floor, not a wider substitute for
 // it. That is not a free choice: the REST routes and the two MCP tools declare
 // the floor statically and deny before this method is reached, so a rule of
@@ -1587,54 +1587,6 @@ func (s *agentManagerService) RetryAgentIdentityProvisioning(ctx context.Context
 	return s.agentThunderProvisioning.RetryProvisioning(ctx, ouID, projectName, agentName, environmentName)
 }
 
-// maxBriefUIDetail caps how much of an unbounded upstream detail (a Thunder
-// failure message) a caller-facing error echoes. These promotion errors are
-// rendered inline in the console, which shows the message and reason together,
-// so the full text goes to the log instead.
-const maxBriefUIDetail = 40
-
-// maxBriefConnectionList budgets the connection names a blocked promotion puts
-// on screen. Names are dropped whole and the remainder counted — truncating the
-// joined string mid-name would put a connection that does not exist in front of
-// the user, and the full list goes to the log either way.
-const maxBriefConnectionList = 40
-
-// promotionIdentityPollInterval/promotionIdentityPollBudget bound
-// pollForTargetIdentityReady. Variables (not consts) so tests can shrink them
-// to keep the "still not ready after polling" path fast.
-var (
-	promotionIdentityPollInterval = 300 * time.Millisecond
-	promotionIdentityPollBudget   = 3 * time.Second
-)
-
-// identityManagedByControlPlane reports whether AgentIDs are managed by the
-// identity control plane (CP_MANAGED). Anything that cannot say so, including a
-// deployment with AgentID provisioning disabled, is LEGACY_DIRECT.
-func (s *agentManagerService) identityManagedByControlPlane() bool {
-	provider, ok := s.agentThunderProvisioning.(IdentityManagementModeProvider)
-	return ok && provider.IdentityManagementMode() == thundersvc.IdentityManagementCPManaged
-}
-
-// identityBindingStatusForLog describes the target's AgentID binding for a log
-// line: its status, "missing" when there is no row, or "unknown" when it cannot
-// be read. Never fails the caller.
-func (s *agentManagerService) identityBindingStatusForLog(ctx context.Context, ouID, projectName, agentName, envName string) string {
-	if s.agentThunderProvisioning == nil {
-		return "unknown"
-	}
-	state, err := s.agentThunderProvisioning.GetBindingState(ctx, ouID, projectName, agentName, envName)
-	switch {
-	case err != nil:
-		return "unknown"
-	case state == nil:
-		return "missing"
-	case state.Status == models.AgentThunderStatusCompleted && !state.HasSecret:
-		return "completed without secret"
-	default:
-		return string(state.Status)
-	}
-}
-
 // UpdateAgentDeploySettings updates per-environment deploy settings (CORS, API key security,
 // auto instrumentation) on an existing release binding without redeploying or promoting the
 // agent. Triggers a pod rollout so policy changes take effect immediately. Any field omitted
@@ -1763,7 +1715,7 @@ func (s *agentManagerService) GetAgentDeployments(ctx context.Context, ouID stri
 
 // resolveGatewayDeployments shows each bound environment's deployment as the gateway serves it: every endpoint at
 // the agent's gateway URL, and the gateway deployment's status. Best-effort: an environment whose gateway deployment
-// can't be read keeps its OpenChoreo URLs and shows no gateway status.
+// can't be read keeps its direct URLs and shows no gateway status.
 func (s *agentManagerService) resolveGatewayDeployments(
 	ctx context.Context, agent *models.AgentResponse, ouID, projectName, agentName string, deployments []*models.DeploymentResponse,
 ) {

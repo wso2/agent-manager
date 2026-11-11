@@ -40,8 +40,8 @@ type AgentKindRepository interface {
 	//
 	// NOTE: this is intentionally a plain existence check, not lock-protected.
 	// There's a check-then-act gap between this and whatever the caller does next
-	// (e.g. deleting the agent in OpenChoreo), but closing it fully would mean
-	// holding a DB transaction open across OpenChoreo/secret-manager network
+	// (e.g. deleting the agent), but closing it fully would mean
+	// holding a DB transaction open across platform/secret-manager network
 	// calls — a worse trade than the risk it prevents. That risk also requires
 	// two admins racing the exact same agent within milliseconds, and is
 	// independently mitigated by publishVersion verifying the source agent still

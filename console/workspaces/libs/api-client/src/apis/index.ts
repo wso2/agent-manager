@@ -39,7 +39,6 @@ export * from './agent-mcp-proxies';
 export * from './gateways';
 export * from './identities';
 export * from './thunder-instances';
-export * from './agent-kinds';
 export * from './mcp-proxy-scopes';
 export * from './agent-identity';
 export * from './telemetry';

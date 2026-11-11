@@ -44,17 +44,6 @@ const (
 	tierDevEnv  = "development"
 )
 
-// nonProductionEnvStub is the GetEnvironment stub the deploy and promote
-// fixtures need now that both paths resolve their target through requireEnvTier:
-// an ordinary non-production environment, under whatever name the path asks for.
-// A test that cares about the tier states its own environment instead — see
-// tierService below, which is the only place the production flag is interesting.
-func nonProductionEnvStub() func(ctx context.Context, ouID, envName string) (*models.EnvironmentResponse, error) {
-	return func(_ context.Context, _, envName string) (*models.EnvironmentResponse, error) {
-		return &models.EnvironmentResponse{Name: envName}, nil
-	}
-}
-
 // tierService returns a service whose only live dependency is a platform
 // repository that reports envName's production flag, plus the calls counter so a
 // test can assert the lookup happened.

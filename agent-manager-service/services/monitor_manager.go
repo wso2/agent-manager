@@ -100,7 +100,7 @@ func NewMonitorManagerService(
 	}
 }
 
-// CreateMonitor creates a new evaluation monitor with DB persistence and OpenChoreo CR
+// CreateMonitor creates a new evaluation monitor with DB persistence
 func (s *monitorManagerService) CreateMonitor(ctx context.Context, ouID string, req *models.CreateMonitorRequest) (*models.MonitorResponse, error) {
 	s.logger.Info(
 		"Creating monitor",
@@ -128,7 +128,7 @@ func (s *monitorManagerService) CreateMonitor(ctx context.Context, ouID string, 
 		return nil, fmt.Errorf("llmProvider is required when using llm_judge evaluators: %w", utils.ErrInvalidInput)
 	}
 
-	// Resolve agent ID via OpenChoreo
+	// Resolve agent ID
 	agent, err := s.ocClient.GetAgent(ctx, ouID, req.ProjectName, req.AgentName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve agent: %w", err)
@@ -280,8 +280,8 @@ func (s *monitorManagerService) CreateMonitor(ctx context.Context, ouID string, 
 			return nil, fmt.Errorf("failed to write composite LLM proxy secret: %w", err)
 		}
 
-		// Persist the SecretReference name. The workflow resolves it through
-		// OpenChoreo to mount LLM_API_KEY into the evaluation job pod.
+		// Persist the SecretReference name. The workflow resolves it
+		// to mount LLM_API_KEY into the evaluation job pod.
 		mapping.SecretKVPath = secretRefName
 		if err := s.monitorLLMMappingRepo.Update(ctx, s.db, mapping); err != nil {
 			s.llmProvisioner.RollbackProxy(ctx, rollbackState, ouID)
@@ -1482,7 +1482,7 @@ func (s *monitorManagerService) resolveMonitorGateway(
 		ouID, providerUUIDStr, envUUID)
 }
 
-// monitorEnvironmentOf is the monitor's environment id, an OpenChoreo UUID stored as text; nil when it isn't one.
+// monitorEnvironmentOf is the monitor's environment id, a UUID stored as text; nil when it isn't one.
 func monitorEnvironmentOf(monitor *models.Monitor) uuid.UUID {
 	envUUID, err := uuid.Parse(monitor.EnvironmentID)
 	if err != nil {

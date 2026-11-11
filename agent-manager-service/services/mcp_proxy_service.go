@@ -164,7 +164,7 @@ func NewMCPProxyService(
 	}
 }
 
-// externalAgentLookupFrom reads an agent's provisioning type from its OpenChoreo component. The
+// externalAgentLookupFrom reads an agent's provisioning type from its agent record. The
 // component is looked up by organization and name only, so no project is passed.
 func externalAgentLookupFrom(ocClient repositories.PlatformRepository) externalAgentLookup {
 	if ocClient == nil {
@@ -658,7 +658,7 @@ func (s *MCPProxyService) Update(ctx context.Context, orgUUID, proxyID string, r
 
 // Delete removes an MCP proxy by handle. MCP proxy mappings are deployable artifacts
 // derived from an MCP proxy, so the source proxy cannot be deleted while mappings exist.
-// A project proxy is refused (utils.ErrMCPProxyProjectOwned) unless OpenChoreo no longer
+// A project proxy is refused (utils.ErrMCPProxyProjectOwned) unless the platform store no longer
 // has its project.
 func (s *MCPProxyService) Delete(ctx context.Context, orgUUID, orgName, proxyID string) error {
 	_ = orgName // unused: cleanup now resolves env-Thunder by orgUUID (ouID), not orgName
@@ -693,7 +693,7 @@ func (s *MCPProxyService) Delete(ctx context.Context, orgUUID, orgName, proxyID 
 	return s.deleteLoadedMCPProxy(ctx, orgUUID, handle, proxy)
 }
 
-// projectGone reports whether OpenChoreo no longer has the project a project proxy was published by, looked up
+// projectGone reports whether the platform store no longer has the project a project proxy was published by, looked up
 // by the project name stored on the proxy. A project of that name with another UUID was re-created after the
 // proxy's was deleted, so the proxy's own project is gone too. A lookup failure other than not-found is returned,
 // never taken for a gone project.
@@ -1654,7 +1654,7 @@ func (s *MCPProxyService) loadMCPProxyAgentUse(ctx context.Context, orgUUID stri
 }
 
 // anyInternalAgent reports whether any configuration belongs to a platform-hosted agent, asking
-// once per agent. An agent OpenChoreo doesn't know is skipped: its configuration is an orphan.
+// once per agent. An agent the platform store doesn't know is skipped: its configuration is an orphan.
 // Any other lookup failure is returned, refusing the placement.
 func (s *MCPProxyService) anyInternalAgent(ctx context.Context, configs []models.AgentConfiguration) (bool, error) {
 	type agentKey struct{ ouID, name string }

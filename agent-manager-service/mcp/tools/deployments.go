@@ -33,31 +33,12 @@ type listDeploymentsInput struct {
 	ProjectName string `json:"project_name"`
 	AgentName   string `json:"agent_name"`
 }
-type deployEnvVarInput struct {
-	Key         string  `json:"key"`
-	Value       *string `json:"value,omitempty"`
-	IsSensitive *bool   `json:"is_sensitive,omitempty"`
-	SecretRef   *string `json:"secret_ref,omitempty"`
-}
 
 // output structs
 type listDeploymentsOutput struct {
 	ProjectName string                                    `json:"project_name"`
 	AgentName   string                                    `json:"agent_name"`
 	Deployments map[string]spec.DeploymentDetailsResponse `json:"deployments"`
-}
-type deployAgentOutput struct {
-	ProjectName string `json:"project_name"`
-	AgentName   string `json:"agent_name"`
-	Environment string `json:"environment"`
-	Note        string `json:"note,omitempty"`
-}
-type updateDeploymentStateOutput struct {
-	Message     string `json:"message"`
-	ProjectName string `json:"project_name"`
-	AgentName   string `json:"agent_name"`
-	Environment string `json:"environment"`
-	State       string `json:"state"`
 }
 
 func (t *Toolsets) registerDeploymentTools(server *gomcp.Server, reg *toolRegistry) {

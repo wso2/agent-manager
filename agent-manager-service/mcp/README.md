@@ -55,7 +55,6 @@ That's it — Claude Code now sees the platform's tools alongside its own.
 | --- | --- |
 | `list_agents` | Paginated list of agents within a project |
 | `create_external_agent` | Register an externally-hosted agent. Returns the agent identity, an API token (scoped to the optional `environment`; defaults to the org's only environment, required when several exist), and step-by-step instrumentation instructions for Python or Ballerina runtimes |
-| `create_internal_agent_python` | Create a platform-managed Python agent: source repo, branch, app path, optional config schema, env vars. Triggers the initial build automatically |
 
 ### Builds
 

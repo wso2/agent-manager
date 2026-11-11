@@ -26,7 +26,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -93,7 +92,7 @@ func (c *infraResourceController) ListOrganizations(w http.ResponseWriter, r *ht
 		return
 	}
 
-	// OpenChoreo has no notion of the org handle; the only one known here is the
+	// The platform store has no notion of the org handle; the only one known here is the
 	// caller's, from the token. It can be attributed only when the list holds a
 	// single org — in cloud the list is always scoped to the caller's own org.
 	if total == 1 && len(orgs) == 1 && orgs[0] != nil {
@@ -332,27 +331,4 @@ func (c *infraResourceController) ListOrgEnvironments(w http.ResponseWriter, r *
 	}
 	environmentsListResponse := utils.ConvertToEnvironmentListResponse(environments)
 	utils.WriteSuccessResponse(w, http.StatusOK, environmentsListResponse)
-}
-
-func requirePromotionPaths(w http.ResponseWriter, paths []spec.PromotionPath) bool {
-	if len(paths) == 0 {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "promotionPaths must contain at least one entry")
-		return false
-	}
-	return true
-}
-
-func convertSpecPromotionPaths(specPaths []spec.PromotionPath) []models.PromotionPath {
-	modelPaths := make([]models.PromotionPath, len(specPaths))
-	for i, p := range specPaths {
-		targets := make([]models.TargetEnvironmentRef, len(p.TargetEnvironmentRefs))
-		for j, t := range p.TargetEnvironmentRefs {
-			targets[j] = models.TargetEnvironmentRef{Name: t.Name}
-		}
-		modelPaths[i] = models.PromotionPath{
-			SourceEnvironmentRef:  p.SourceEnvironmentRef,
-			TargetEnvironmentRefs: targets,
-		}
-	}
-	return modelPaths
 }

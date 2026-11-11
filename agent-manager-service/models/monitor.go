@@ -238,7 +238,7 @@ type OrgPublisherCredential struct {
 	OUID     string    `gorm:"column:ou_id;not null;uniqueIndex:uq_org_publisher_creds_ou_id"`
 	OrgUUID  string    `gorm:"column:org_uuid;not null;default:''"`
 	ClientID string    `gorm:"column:client_id;not null"`
-	// SecretKVPath holds the name of the OpenChoreo SecretReference for the
+	// SecretKVPath holds the name of the SecretReference for the
 	// credential. Rows written before the name was persisted hold its remote
 	// store path instead.
 	SecretKVPath          string    `gorm:"column:secret_kv_path;not null"`
@@ -250,14 +250,14 @@ type OrgPublisherCredential struct {
 
 func (OrgPublisherCredential) TableName() string { return "org_publisher_credentials" }
 
-// OrgSchedulerCredential stores per-org OAuth2 credentials for the scheduler's own OpenChoreo
+// OrgSchedulerCredential stores per-org OAuth2 credentials for the scheduler's own platform
 // calls; never injected into the evaluation-job pod.
 type OrgSchedulerCredential struct {
 	ID       uuid.UUID `gorm:"column:id;primaryKey;type:uuid;default:gen_random_uuid()"`
 	OUID     string    `gorm:"column:ou_id;not null;uniqueIndex:uq_org_scheduler_creds_ou_id"`
 	OrgUUID  string    `gorm:"column:org_uuid;not null;default:''"`
 	ClientID string    `gorm:"column:client_id;not null"`
-	// SecretKVPath holds the name of the OpenChoreo SecretReference for the
+	// SecretKVPath holds the name of the SecretReference for the
 	// credential. Rows written before the name was persisted hold its remote
 	// store path instead.
 	SecretKVPath          string    `gorm:"column:secret_kv_path;not null"`
