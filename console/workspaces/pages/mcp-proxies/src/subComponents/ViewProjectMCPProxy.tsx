@@ -96,10 +96,13 @@ function InfoCard({
   label,
   value,
   onCopy,
+  emptyText = "—",
 }: {
   label: string;
   value?: string;
   onCopy?: () => void;
+  /** Shown in place of a value that is not there yet. */
+  emptyText?: string;
 }) {
   return (
     <Card variant="outlined" sx={{ p: 2, height: "100%" }}>
@@ -116,7 +119,7 @@ function InfoCard({
             variant="body2"
             sx={{ fontFamily: "monospace", wordBreak: "break-all" }}
           >
-            {value || "—"}
+            {value || emptyText}
           </Typography>
           {value && onCopy && (
             <Tooltip title={`Copy ${label}`}>
@@ -397,6 +400,23 @@ export function ViewProjectMCPProxy() {
                 <InfoCard
                   label="Source"
                   value={`${proxy.source.componentName} / ${proxy.source.endpointName}`}
+                />
+              </Grid>
+            )}
+            {selected && (
+              // Each environment is served by its own gateway, at /<project><context>.
+              <Grid size={{ xs: 12 }}>
+                <InfoCard
+                  label={`Invoke URL (${envLabel(
+                    selected.environmentUuid,
+                    selected.environmentName,
+                  )})`}
+                  value={selected.publicUrl}
+                  onCopy={() =>
+                    selected.publicUrl &&
+                    handleCopy(selected.publicUrl, "Invoke URL")
+                  }
+                  emptyText="Available once the server is deployed to a gateway in this environment."
                 />
               </Grid>
             )}
