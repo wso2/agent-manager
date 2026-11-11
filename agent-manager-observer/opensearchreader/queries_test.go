@@ -34,7 +34,67 @@ func TestListQuery(t *testing.T) {
 
 func TestDetailQueryHasNamespaceGuard(t *testing.T) {
 	b, _ := json.Marshal(detailQuery("default", "t1", "s1"))
-	if !strings.Contains(string(b), `"resource.openchoreo.dev/namespace":"default"`) {
-		t.Error("namespace guard missing")
+	s := string(b)
+	for _, want := range []string{
+		`"resource.openchoreo.dev/namespace":"default"`,
+		`"traceId":"t1"`,
+		`"spanId":"s1"`,
+		`"size":1`,
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("detail query missing %s", want)
+		}
 	}
 }
+
+func TestSpansQuery(t *testing.T) {
+	w := window{Start: time.Unix(1000, 0), End: time.Unix(2000, 0)}
+
+	// With attributes excluded (includeAttrs = false)
+	b, err := json.Marshal(spansQuery(scope.UIDs{Namespace: "default", Component: "abc"}, "trace-xyz", w, false, false, 50))
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(b)
+	for _, want := range []string{
+		`"traceId":"trace-xyz"`,
+		`"resource.openchoreo.dev/component-uid":"abc"`,
+		`"resource.openchoreo.dev/namespace":"default"`,
+		`"excludes":["attributes","resource"]`,
+		`"order":"asc"`,
+		`"size":50`,
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("spans query (without attrs) missing %s", want)
+		}
+	}
+
+	// With attributes included (includeAttrs = true)
+	bWithAttrs, _ := json.Marshal(spansQuery(scope.UIDs{Namespace: "default"}, "trace-xyz", w, true, true, 100))
+	sWithAttrs := string(bWithAttrs)
+	if strings.Contains(sWithAttrs, `"excludes"`) {
+		t.Error("attributes should not be excluded when includeAttrs is true")
+	}
+	if !strings.Contains(sWithAttrs, `"order":"desc"`) {
+		t.Error("expected descending order when desc is true")
+	}
+}
+
+func TestBatchQuery(t *testing.T) {
+	w := window{Start: time.Unix(1000, 0), End: time.Unix(2000, 0)}
+	b, err := json.Marshal(batchQuery(scope.UIDs{Namespace: "default"}, []string{"t1", "t2"}, w, 1000))
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(b)
+	for _, want := range []string{
+		`"terms":{"traceId":["t1","t2"]}`,
+		`"resource.openchoreo.dev/namespace":"default"`,
+		`"size":1000`,
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("batch query missing %s", want)
+		}
+	}
+}
+
