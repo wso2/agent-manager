@@ -20,8 +20,8 @@ var _ MappedNullable = &ProjectMCPProxyUpstream{}
 // ProjectMCPProxyUpstream struct for ProjectMCPProxyUpstream
 type ProjectMCPProxyUpstream struct {
 	Url string `json:"url"`
-	// Request only. A URL change to another origin (scheme, host or port) is refused with 400 while any binding has a stored upstream credential, which is never sent to another origin. With resetBindingAuth true, the change instead clears every binding's stored credential in the same update, and the bindings are redeployed without one; set new credentials with each binding's PUT. Ignored when the origin does not change.
-	ResetBindingAuth *bool `json:"resetBindingAuth,omitempty"`
+	// Request only. A URL change to another origin (scheme, host or port) is refused with 400 while any binding has a stored upstream credential, which is never sent to another origin. resetBindingAuthFor names the bindings, by environment name, whose stored credential the change clears in the same update instead; they are redeployed without one, and new credentials are set with each binding's PUT. A binding with a stored credential that is not named refuses the change with 409 CONFLICT and nothing is stored: read the proxy again and retry. Ignored when the origin does not change.
+	ResetBindingAuthFor []string `json:"resetBindingAuthFor,omitempty"`
 }
 
 // NewProjectMCPProxyUpstream instantiates a new ProjectMCPProxyUpstream object
@@ -66,36 +66,36 @@ func (o *ProjectMCPProxyUpstream) SetUrl(v string) {
 	o.Url = v
 }
 
-// GetResetBindingAuth returns the ResetBindingAuth field value if set, zero value otherwise.
-func (o *ProjectMCPProxyUpstream) GetResetBindingAuth() bool {
-	if o == nil || IsNil(o.ResetBindingAuth) {
-		var ret bool
+// GetResetBindingAuthFor returns the ResetBindingAuthFor field value if set, zero value otherwise.
+func (o *ProjectMCPProxyUpstream) GetResetBindingAuthFor() []string {
+	if o == nil || IsNil(o.ResetBindingAuthFor) {
+		var ret []string
 		return ret
 	}
-	return *o.ResetBindingAuth
+	return o.ResetBindingAuthFor
 }
 
-// GetResetBindingAuthOk returns a tuple with the ResetBindingAuth field value if set, nil otherwise
+// GetResetBindingAuthForOk returns a tuple with the ResetBindingAuthFor field value if set, nil otherwise
 // and a boolean to check if the value has been set.
-func (o *ProjectMCPProxyUpstream) GetResetBindingAuthOk() (*bool, bool) {
-	if o == nil || IsNil(o.ResetBindingAuth) {
+func (o *ProjectMCPProxyUpstream) GetResetBindingAuthForOk() ([]string, bool) {
+	if o == nil || IsNil(o.ResetBindingAuthFor) {
 		return nil, false
 	}
-	return o.ResetBindingAuth, true
+	return o.ResetBindingAuthFor, true
 }
 
-// HasResetBindingAuth returns a boolean if a field has been set.
-func (o *ProjectMCPProxyUpstream) HasResetBindingAuth() bool {
-	if o != nil && !IsNil(o.ResetBindingAuth) {
+// HasResetBindingAuthFor returns a boolean if a field has been set.
+func (o *ProjectMCPProxyUpstream) HasResetBindingAuthFor() bool {
+	if o != nil && !IsNil(o.ResetBindingAuthFor) {
 		return true
 	}
 
 	return false
 }
 
-// SetResetBindingAuth gets a reference to the given bool and assigns it to the ResetBindingAuth field.
-func (o *ProjectMCPProxyUpstream) SetResetBindingAuth(v bool) {
-	o.ResetBindingAuth = &v
+// SetResetBindingAuthFor gets a reference to the given []string and assigns it to the ResetBindingAuthFor field.
+func (o *ProjectMCPProxyUpstream) SetResetBindingAuthFor(v []string) {
+	o.ResetBindingAuthFor = v
 }
 
 func (o ProjectMCPProxyUpstream) MarshalJSON() ([]byte, error) {
@@ -109,8 +109,8 @@ func (o ProjectMCPProxyUpstream) MarshalJSON() ([]byte, error) {
 func (o ProjectMCPProxyUpstream) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
 	toSerialize["url"] = o.Url
-	if !IsNil(o.ResetBindingAuth) {
-		toSerialize["resetBindingAuth"] = o.ResetBindingAuth
+	if !IsNil(o.ResetBindingAuthFor) {
+		toSerialize["resetBindingAuthFor"] = o.ResetBindingAuthFor
 	}
 	return toSerialize, nil
 }

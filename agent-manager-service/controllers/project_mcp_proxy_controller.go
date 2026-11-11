@@ -135,6 +135,9 @@ func (c *projectMCPProxyController) UpsertProjectMCPProxy(w http.ResponseWriter,
 				"MCP proxy already exists", err.Error(), utils.ErrCodeMCPProxyAlreadyExists)
 		case errors.Is(err, utils.ErrMCPProxyCreateNotPermitted):
 			utils.WriteErrorResponse(w, http.StatusForbidden, "Creating MCP proxies is not permitted")
+		case errors.Is(err, utils.ErrMCPProxyBindingsChanged):
+			utils.WriteErrorResponseWithReason(w, http.StatusConflict,
+				utils.ErrMCPProxyBindingsChanged.Error(), err.Error(), utils.ErrCodeConflict)
 		case errors.Is(err, utils.ErrMCPProxyHandleInUse):
 			utils.WriteErrorResponseWithReason(w, http.StatusConflict,
 				"MCP proxy id is already in use", err.Error(), utils.ErrCodeHandleInUse)

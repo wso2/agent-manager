@@ -385,5 +385,9 @@ var (
 	ErrAPIKeyChanged = errors.New("the API key was changed by another request; retry")
 	// ErrMCPProxyURLChanged means a project MCP proxy's URL moved to another origin while a binding carrying an
 	// upstream credential was being saved: the credential was given for the old origin (409 CONFLICT).
-	ErrMCPProxyURLChanged = errors.New("the MCP proxy's URL moved to another host while this binding was saved; read it again and retry")
+	// ErrMCPProxyBindingsChanged means a project MCP proxy's move to another origin found a binding with a stored
+	// upstream credential that the request's resetBindingAuthFor does not name: the caller's view of the proxy's
+	// bindings is out of date (409 CONFLICT).
+	ErrMCPProxyBindingsChanged = errors.New("the MCP proxy has a binding this request does not cover; read it again and retry")
+	ErrMCPProxyURLChanged      = errors.New("the MCP proxy's URL moved to another host while this binding was saved; read it again and retry")
 )

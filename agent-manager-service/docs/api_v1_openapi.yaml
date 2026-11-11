@@ -7463,7 +7463,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "409":
-          description: HANDLE_IN_USE. The handle belongs to an org-level proxy or another project's proxy; or CONTEXT_IN_USE. The new context clashes on a bound gateway
+          description: HANDLE_IN_USE. The handle belongs to an org-level proxy or another project's proxy; or CONTEXT_IN_USE. The new context clashes on a bound gateway; or CONFLICT. A move to another origin found a binding with a stored credential that upstream.resetBindingAuthFor does not name
           content:
             application/json:
               schema:
@@ -19935,15 +19935,19 @@ components:
           type: string
           format: uri
           example: https://mcp.example.com/mcp
-        resetBindingAuth:
-          type: boolean
+        resetBindingAuthFor:
+          type: array
           writeOnly: true
+          items:
+            type: string
           description: >-
             Request only. A URL change to another origin (scheme, host or port) is refused with 400
             while any binding has a stored upstream credential, which is never sent to another origin.
-            With resetBindingAuth true, the change instead clears every binding's stored credential in the
-            same update, and the bindings are redeployed without one; set new credentials with each
-            binding's PUT. Ignored when the origin does not change.
+            resetBindingAuthFor names the bindings, by environment name, whose stored credential the
+            change clears in the same update instead; they are redeployed without one, and new
+            credentials are set with each binding's PUT. A binding with a stored credential that is not
+            named refuses the change with 409 CONFLICT and nothing is stored: read the proxy again and
+            retry. Ignored when the origin does not change.
 
     ProjectMCPProxyResponse:
       type: object

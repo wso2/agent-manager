@@ -121,7 +121,7 @@ function ProjectEditForm({
               params,
               body: {
                 ...details,
-                upstream: { url: step.url, resetBindingAuth: step.resetBindingAuth || undefined },
+                upstream: { url: step.url, resetBindingAuthFor: step.resetBindingAuthFor },
               },
             });
           } else {

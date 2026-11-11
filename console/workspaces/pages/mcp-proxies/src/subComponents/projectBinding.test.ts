@@ -387,7 +387,9 @@ describe("planURLProxySave", () => {
       [],
     );
     expect(kinds(steps)).toEqual(["proxy", "binding:dev", "binding:prod"]);
-    expect(steps[0].kind === "proxy" && steps[0].resetBindingAuth).toBe(false);
+    expect(
+      steps[0].kind === "proxy" && steps[0].resetBindingAuthFor,
+    ).toBeUndefined();
   });
 
   it("changes the proxy first, then removes unassigned environments", () => {
@@ -422,7 +424,11 @@ describe("planURLProxySave", () => {
     // No request clears a credential before the proxy update, which clears them itself.
     expect(kinds(steps)).toEqual(["proxy", "binding:dev", "binding:prod"]);
     const [update, setDev] = steps;
-    expect(update.kind === "proxy" && update.resetBindingAuth).toBe(true);
+    // Only the environments this page loaded: the service refuses one it did not know of.
+    expect(update.kind === "proxy" && update.resetBindingAuthFor).toEqual([
+      "dev",
+      "prod",
+    ]);
     expect(setDev.kind === "binding" && setDev.body.upstreamAuth).toEqual(auth);
   });
 
@@ -455,7 +461,10 @@ describe("planURLProxySave", () => {
       [],
     );
     expect(kinds(steps)).toEqual(["proxy", "binding:dev", "binding:prod"]);
-    expect(steps[0].kind === "proxy" && steps[0].resetBindingAuth).toBe(true);
+    expect(steps[0].kind === "proxy" && steps[0].resetBindingAuthFor).toEqual([
+      "dev",
+      "prod",
+    ]);
     expect(
       steps.every((s) => s.kind !== "binding" || !s.body.upstreamAuth),
     ).toBe(true);

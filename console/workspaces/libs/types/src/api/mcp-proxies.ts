@@ -217,10 +217,11 @@ export interface MCPProxySource {
 export interface ProjectMCPProxyUpstream {
   url: string;
   /**
-   * Request only. Lets a URL change to another origin clear every binding's stored upstream
-   * credential in the same update, rather than be refused while one is stored.
+   * Request only. On a URL change to another origin, the environments whose stored upstream
+   * credential the update clears, rather than refuse the change. A binding with a stored
+   * credential that is not named refuses it with 409: the caller's view is out of date.
    */
-  resetBindingAuth?: boolean;
+  resetBindingAuthFor?: string[];
 }
 
 /**

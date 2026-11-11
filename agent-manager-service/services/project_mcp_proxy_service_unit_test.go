@@ -703,8 +703,8 @@ func TestUpsertCreateOnly_HandleTakenMeanwhileByAnotherArtifact(t *testing.T) {
 	assert.NotErrorIs(t, err, utils.ErrMCPProxyExists)
 }
 
-// With resetBindingAuth, a move to another origin clears the bindings' stored credentials in the same update instead of
-// being refused; on the same origin the credential is kept.
+// With resetBindingAuthFor naming a binding, a move to another origin clears its stored credential in the same update
+// instead of being refused; on the same origin the credential is kept.
 func TestUpsertByURL_URLChangeToAnotherOriginCanResetTheCredentials(t *testing.T) {
 	apiKey, header, secret := "api-key", "X-Key", "s3cret"
 	for name, tc := range map[string]struct {
@@ -720,13 +720,13 @@ func TestUpsertByURL_URLChangeToAnotherOriginCanResetTheCredentials(t *testing.T
 			_, _, err := f.svc.Upsert(ctx, testOrg, testProjName, testProjA, "docs", urlReq())
 			require.NoError(t, err)
 			f.proxies["docs"].Endpoints = []models.MCPProxyEndpoint{{
-				UUID: uuid.New(), Configuration: models.MCPEndpointConfig{Upstream: &models.UpstreamEndpoint{
+				UUID: uuid.New(), Name: "dev", Configuration: models.MCPEndpointConfig{Upstream: &models.UpstreamEndpoint{
 					URL: publicMCPURL, Auth: &models.UpstreamAuth{Type: &apiKey, Header: &header, Value: &secret},
 				}},
 			}}
 
 			req := urlReq()
-			req.Upstream = &models.ProjectMCPProxyUpstream{URL: tc.newURL, ResetBindingAuth: true}
+			req.Upstream = &models.ProjectMCPProxyUpstream{URL: tc.newURL, ResetBindingAuthFor: []string{"dev"}}
 			_, _, err = f.svc.Upsert(ctx, testOrg, testProjName, testProjA, "docs", req)
 			require.NoError(t, err)
 			require.Len(t, f.updatedEps, 1)
@@ -735,4 +735,29 @@ func TestUpsertByURL_URLChangeToAnotherOriginCanResetTheCredentials(t *testing.T
 			assert.Equal(t, 1, f.updateCalls, "the proxy and its bindings change in one update")
 		})
 	}
+}
+
+// A move to another origin refuses, and changes nothing, when a binding with a stored credential is not named in
+// resetBindingAuthFor: the caller did not know of it, so its credential is neither cleared unseen nor sent to the new
+// host.
+func TestUpsertByURL_URLChangeRefusedForABindingTheCallerDidNotName(t *testing.T) {
+	apiKey, header, secret := "api-key", "X-Key", "s3cret"
+	f := newProjectProxyFixture(t)
+	ctx := context.Background()
+	_, _, err := f.svc.Upsert(ctx, testOrg, testProjName, testProjA, "docs", urlReq())
+	require.NoError(t, err)
+	withAuth := func(name string) models.MCPProxyEndpoint {
+		return models.MCPProxyEndpoint{
+			UUID: uuid.New(), Name: name, Configuration: models.MCPEndpointConfig{Upstream: &models.UpstreamEndpoint{
+				URL: publicMCPURL, Auth: &models.UpstreamAuth{Type: &apiKey, Header: &header, Value: &secret},
+			}},
+		}
+	}
+	f.proxies["docs"].Endpoints = []models.MCPProxyEndpoint{withAuth("dev"), withAuth("prod")}
+
+	req := urlReq()
+	req.Upstream = &models.ProjectMCPProxyUpstream{URL: "https://1.1.1.1/mcp", ResetBindingAuthFor: []string{"dev"}}
+	_, _, err = f.svc.Upsert(ctx, testOrg, testProjName, testProjA, "docs", req)
+	assert.ErrorIs(t, err, utils.ErrMCPProxyBindingsChanged)
+	assert.Zero(t, f.updateCalls, "the proxy is not changed")
 }

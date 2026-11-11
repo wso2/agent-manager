@@ -338,7 +338,7 @@ export type URLProxySaveStep =
       envName: string;
       body: ProjectMCPProxyEnvironmentRequest;
     }
-  | { kind: "proxy"; url: string; resetBindingAuth: boolean };
+  | { kind: "proxy"; url: string; resetBindingAuthFor?: string[] };
 
 /** What the edit form sets on every environment, when the user changed it. */
 export interface URLProxyEdits {
@@ -351,8 +351,10 @@ export interface URLProxyEdits {
  * The requests that save an edit of a server registered by URL, checked before any is sent so a
  * save that cannot succeed writes nothing. The proxy goes first, so a proxy the service refuses
  * leaves every environment as it was. A stored credential must not reach a new host: when the
- * URL moves to another host, the proxy update clears the stored credentials in the same
- * transaction (resetBindingAuth), and each kept environment then gets the value typed now.
+ * URL moves to another host, the proxy update clears the stored credentials of the environments
+ * this page loaded in the same transaction (resetBindingAuthFor), and each kept environment then
+ * gets the value typed now. An environment added since the page loaded is not named, so the
+ * service refuses the move rather than clear or move a credential the user has not seen.
  */
 export function planURLProxySave(
   proxy: ProjectMCPProxy,
@@ -402,7 +404,17 @@ export function planURLProxySave(
   }
 
   const steps: URLProxySaveStep[] = [
-    { kind: "proxy", url: edits.url, resetBindingAuth: movesHost },
+    {
+      kind: "proxy",
+      url: edits.url,
+      ...(movesHost
+        ? {
+            resetBindingAuthFor: proxy.environments.map(
+              (env) => env.environmentName,
+            ),
+          }
+        : {}),
+    },
   ];
   for (const env of proxy.environments) {
     if (!kept.has(env.environmentUuid)) {

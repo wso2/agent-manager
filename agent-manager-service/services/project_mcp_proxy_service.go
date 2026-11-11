@@ -399,8 +399,9 @@ type desiredProjectMCPProxy struct {
 	// Exactly one of source and upstreamURL is set.
 	source      *models.MCPProxySource
 	upstreamURL string
-	// resetBindingAuth lets a move to another origin clear the bindings' stored credentials.
-	resetBindingAuth bool
+	// resetBindingAuthFor names the bindings (by environment) whose stored credentials a move to another origin
+	// clears; nil when the request names none, and the move is refused while any binding has one.
+	resetBindingAuthFor map[string]bool
 }
 
 func normalizeProjectMCPProxyRequest(handle string, req models.ProjectMCPProxyRequest) (desiredProjectMCPProxy, error) {
@@ -419,7 +420,12 @@ func normalizeProjectMCPProxyRequest(handle string, req models.ProjectMCPProxyRe
 	}
 	if req.Upstream != nil {
 		d.upstreamURL = strings.TrimSpace(req.Upstream.URL)
-		d.resetBindingAuth = req.Upstream.ResetBindingAuth
+		if req.Upstream.ResetBindingAuthFor != nil {
+			d.resetBindingAuthFor = map[string]bool{}
+			for _, env := range req.Upstream.ResetBindingAuthFor {
+				d.resetBindingAuthFor[strings.TrimSpace(env)] = true
+			}
+		}
 	}
 	if handle == "" || len(handle) > 100 || !mcpProxyHandleRe.MatchString(handle) {
 		return d, fmt.Errorf("%w: proxy id must be kebab-case (lowercase letters, digits, single hyphens) and at most 100 characters", utils.ErrInvalidInput)
@@ -561,7 +567,7 @@ func (s *ProjectMCPProxyService) update(
 				}
 				return fmt.Errorf("failed to lock the MCP proxy: %w", err)
 			}
-			if err := s.updateBindingUpstreams(ctx, tx, locked, d.upstreamURL, d.resetBindingAuth); err != nil {
+			if err := s.updateBindingUpstreams(ctx, tx, locked, d.upstreamURL, d.resetBindingAuthFor); err != nil {
 				return err
 			}
 			lockedEndpoints = locked.Endpoints
@@ -569,7 +575,7 @@ func (s *ProjectMCPProxyService) update(
 		return s.base.repo.Update(ctx, tx, &updated, ouID)
 	}); err != nil {
 		if errors.Is(err, utils.ErrMCPContextInUse) || errors.Is(err, utils.ErrMCPProxyNotFound) ||
-			errors.Is(err, utils.ErrInvalidInput) {
+			errors.Is(err, utils.ErrInvalidInput) || errors.Is(err, utils.ErrMCPProxyBindingsChanged) {
 			return nil, err
 		}
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -661,7 +667,7 @@ func (d desiredProjectMCPProxy) applyUpstream(cfg *models.MCPProxyConfig) {
 // updateBindingUpstreams points every binding of a proxy registered by URL at its new URL, in tx. The bindings are
 // re-rendered once the proxy is stored (rerenderBindings).
 func (s *ProjectMCPProxyService) updateBindingUpstreams(
-	ctx context.Context, tx *gorm.DB, proxy *models.MCPProxy, upstreamURL string, resetAuth bool,
+	ctx context.Context, tx *gorm.DB, proxy *models.MCPProxy, upstreamURL string, resetAuthFor map[string]bool,
 ) error {
 	for i := range proxy.Endpoints {
 		endpoint := proxy.Endpoints[i]
@@ -670,11 +676,15 @@ func (s *ProjectMCPProxyService) updateBindingUpstreams(
 		}
 		upstream := *endpoint.Configuration.Upstream
 		// The stored credential is sent to the URL, so it may not follow the URL to another origin: the move is
-		// refused, or, when the caller asks for it, the credential is cleared with it in this transaction.
+		// refused, or, for a binding the caller names, the credential is cleared with it in this transaction. A
+		// binding the caller does not name is one it did not know of, and its credential is neither cleared nor sent.
 		if upstream.Auth != nil && !sameURLOrigin(upstream.URL, upstreamURL) {
-			if !resetAuth {
+			switch {
+			case resetAuthFor == nil:
 				return fmt.Errorf("%w: upstream.url moves to another origin while a binding has upstream auth; "+
-					"clear its upstreamAuth first, or set upstream.resetBindingAuth", utils.ErrInvalidInput)
+					"clear its upstreamAuth first, or name it in upstream.resetBindingAuthFor", utils.ErrInvalidInput)
+			case !resetAuthFor[strings.TrimSpace(endpoint.Name)]:
+				return fmt.Errorf("%w: environment %q", utils.ErrMCPProxyBindingsChanged, endpoint.Name)
 			}
 			upstream.Auth = nil
 		}
