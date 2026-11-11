@@ -46,6 +46,7 @@ type AgentController interface {
 	UpdateAgentBasicInfo(w http.ResponseWriter, r *http.Request)
 	DeleteAgent(w http.ResponseWriter, r *http.Request)
 	GetAgentDeployments(w http.ResponseWriter, r *http.Request)
+	GetAgentConfigurations(w http.ResponseWriter, r *http.Request)
 	GenerateName(w http.ResponseWriter, r *http.Request)
 	UpdateAgentDeploySettings(w http.ResponseWriter, r *http.Request)
 	GetAgentIdentity(w http.ResponseWriter, r *http.Request)
@@ -947,4 +948,43 @@ func (c *agentController) GetAgentGroups(w http.ResponseWriter, r *http.Request)
 
 	log.Info("GetAgentGroups: completed", "orgName", orgName, "agentName", agentName, "envID", envID)
 	utils.WriteSuccessResponse(w, http.StatusOK, map[string]any{"groups": groups})
+}
+
+// GetAgentConfigurations returns the agent's gateway settings (auto-instrumentation,
+// CORS, endpoint authentication) for the environment. External agents have no env
+// vars or file mounts the platform manages, so those lists are always empty.
+func (c *agentController) GetAgentConfigurations(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	log := logger.GetLogger(ctx)
+
+	ouID := middleware.OUIDFromRequest(r)
+	projName := r.PathValue(utils.PathParamProjName)
+	agentName := r.PathValue(utils.PathParamAgentName)
+	environment := r.URL.Query().Get("environment")
+	if environment == "" {
+		environment = models.DefaultEnvironmentName
+	}
+
+	if _, err := c.agentService.GetAgent(ctx, ouID, projName, agentName); err != nil {
+		log.Error("GetAgentConfigurations: failed to get agent", "error", err)
+		handleCommonErrors(w, err, "Failed to get configurations")
+		return
+	}
+	envCfg, err := c.agentService.GetAgentEnvConfig(ctx, ouID, projName, agentName, environment)
+	if err != nil {
+		log.Error("GetAgentConfigurations: failed to read agent config", "error", err)
+		handleCommonErrors(w, err, "Failed to get configurations")
+		return
+	}
+	resp := spec.ConfigurationResponse{
+		ProjectName: projName,
+		AgentName:   agentName,
+		Environment: environment,
+		Configurations: spec.ConfigurationResponseConfigurations{
+			Env:   []spec.ConfigurationItem{},
+			Files: []spec.FileMount{},
+		},
+	}
+	utils.PopulateConfigurationResponseFromAgentConfig(&resp, envCfg)
+	utils.WriteSuccessResponse(w, http.StatusOK, resp)
 }
