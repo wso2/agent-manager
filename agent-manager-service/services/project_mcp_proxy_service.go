@@ -533,6 +533,8 @@ func (s *ProjectMCPProxyService) update(
 	updated.Configuration.SpecVersion = d.specVersion
 	d.applyUpstream(&updated.Configuration)
 
+	// The bindings as of the URL change's lock: a binding created since existing was read is re-rendered too.
+	var lockedEndpoints []models.MCPProxyEndpoint
 	if err := s.base.tx(ctx, func(tx *gorm.DB) error {
 		if adopting {
 			if err := s.base.repo.ReassignProject(ctx, tx, existing.UUID, ouID,
@@ -562,6 +564,7 @@ func (s *ProjectMCPProxyService) update(
 			if err := s.updateBindingUpstreams(ctx, tx, locked, d.upstreamURL, d.resetBindingAuth); err != nil {
 				return err
 			}
+			lockedEndpoints = locked.Endpoints
 		}
 		return s.base.repo.Update(ctx, tx, &updated, ouID)
 	}); err != nil {
@@ -585,7 +588,11 @@ func (s *ProjectMCPProxyService) update(
 		return projectMCPProxyResponse(&updated), nil
 	}
 	// The proxy's name, version and context are part of every bound environment's gateway artifact.
-	s.rerenderBindings(ctx, ouID, &updated)
+	rerendered := updated
+	if lockedEndpoints != nil {
+		rerendered.Endpoints = lockedEndpoints
+	}
+	s.rerenderBindings(ctx, ouID, &rerendered)
 	// The artifact timestamp moved with the update.
 	if updated.Artifact != nil {
 		art := *updated.Artifact

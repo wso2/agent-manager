@@ -95,6 +95,8 @@ type bindingFixture struct {
 	// proxyUpdates counts proxy row writes; rerenders counts redeploys queued for the proxy's bindings.
 	proxyUpdates int
 	rerenders    int
+	// rerendered is the artifact of each redeploy queued, in order.
+	rerendered []uuid.UUID
 }
 
 func newBindingFixture(t *testing.T) *bindingFixture {
@@ -205,8 +207,9 @@ func newBindingFixture(t *testing.T) *bindingFixture {
 			return nil, nil
 		},
 		LockStatusRowsFunc: func(context.Context, *gorm.DB, string, []uuid.UUID) error { return nil },
-		QueueRenderFunc: func(context.Context, *gorm.DB, string, uuid.UUID, []uuid.UUID, string, repositories.QueueScope) (int64, error) {
+		QueueRenderFunc: func(_ context.Context, _ *gorm.DB, _ string, artifactUUID uuid.UUID, _ []uuid.UUID, _ string, _ repositories.QueueScope) (int64, error) {
 			f.rerenders++
+			f.rerendered = append(f.rerendered, artifactUUID)
 			return 0, nil
 		},
 		LockEnvironmentMappingFunc: mappedEverywhere,
@@ -1144,6 +1147,35 @@ func TestUpsert_URLProxyURLChangeUpdatesItsBindings(t *testing.T) {
 	endpoint, _ := f.binding()
 	assert.Equal(t, "https://8.8.4.4/mcp", endpoint.Configuration.Upstream.URL)
 	assert.Positive(t, f.rerenders, "the bindings are redeployed")
+}
+
+// A binding created after the proxy was read, and before its URL change locked it, is redeployed with the new URL
+// too: the redeploys come from the locked proxy's bindings, not the copy read first.
+func TestUpsert_URLProxyURLChangeRedeploysABindingCreatedMeanwhile(t *testing.T) {
+	f := newBindingFixture(t)
+	f.asURLProxy("https://8.8.8.8/mcp")
+	_, _, err := f.put(t, models.MCPProxyEnvironmentRequest{})
+	require.NoError(t, err)
+	_, ee := f.binding()
+	// The read the update starts from predates the binding.
+	repo := f.svc.base.repo.(*repomocks.MCPProxyRepositoryMock)
+	readFirst := repo.GetInProjectFunc
+	repo.GetInProjectFunc = func(ctx context.Context, handle, org, project string) (*models.MCPProxy, error) {
+		p, err := readFirst(ctx, handle, org, project)
+		if p != nil {
+			p.Endpoints = nil
+		}
+		return p, err
+	}
+	f.rerendered = nil
+
+	_, _, err = f.svc.Upsert(context.Background(), testOrg, bindingProject, bindingProjectUUID, bindingHandle,
+		models.ProjectMCPProxyRequest{
+			Name: "Weather", Version: "v1", Context: "/weather",
+			Upstream: &models.ProjectMCPProxyUpstream{URL: "https://8.8.4.4/mcp"},
+		})
+	require.NoError(t, err)
+	assert.Contains(t, f.rerendered, ee.ArtifactUUID, "the binding created meanwhile is redeployed")
 }
 
 func bindingTimeouts(timeout, idle string) *models.Resilience {
