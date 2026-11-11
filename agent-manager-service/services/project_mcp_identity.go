@@ -22,6 +22,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
@@ -126,18 +127,65 @@ func (s *ProjectMCPProxyService) cleanUpBindingIdentity(
 	return true
 }
 
+// maxBindingIdentitySyncPasses bounds how often syncBindingIdentity re-applies a binding's identity state that changed
+// under it; each pass is one identity service round and one read.
+const maxBindingIdentitySyncPasses = 3
+
 // syncBindingIdentity brings a saved binding's identity service state in line with it, best effort: a pending removal
 // of its old resource server runs first, and a binding on identity is registered only once nothing is pending, so a
 // removal that fails is retried by the next PUT before the binding registers again.
+//
+// Concurrent PUTs of one binding sync without a lock, none being held across identity service calls: after acting,
+// each re-reads the binding and, if another write changed its identity state meanwhile, applies the new state again.
+// The sync that finishes last therefore acts on the latest state, so a stale removal landing after a newer
+// registration is followed by that registration again rather than leaving the binding without its resource server.
 func (s *ProjectMCPProxyService) syncBindingIdentity(
 	ctx context.Context, ouID string, proxy *models.MCPProxy, envUUID uuid.UUID, envName string, endpoint *models.MCPProxyEndpoint,
 ) {
-	if cleanupID := endpoint.Configuration.IdentityCleanupID; cleanupID != "" {
-		if !s.cleanUpBindingIdentity(ctx, ouID, proxy, envUUID, envName, endpoint.UUID, cleanupID) {
+	for pass := 0; pass < maxBindingIdentitySyncPasses; pass++ {
+		identity := mcpIdentityEnabled(endpoint.Configuration.Security)
+		cleanupID := endpoint.Configuration.IdentityCleanupID
+		cleared := false
+		if cleanupID != "" {
+			if !s.cleanUpBindingIdentity(ctx, ouID, proxy, envUUID, envName, endpoint.UUID, cleanupID) {
+				return
+			}
+			cleared = true
+		}
+		s.ensureBindingResourceServer(ctx, ouID, proxy, envUUID, envName)
+
+		fresh, freshEndpoint := s.rereadBinding(ctx, ouID, proxy, envUUID)
+		if freshEndpoint == nil {
+			return // gone: the delete removes its resource server
+		}
+		current := freshEndpoint.Configuration
+		if mcpIdentityEnabled(current.Security) == identity &&
+			(current.IdentityCleanupID == cleanupID || (cleared && current.IdentityCleanupID == "")) {
 			return
 		}
+		proxy, endpoint = fresh, freshEndpoint
 	}
-	s.ensureBindingResourceServer(ctx, ouID, proxy, envUUID, envName)
+	s.base.logger.Warn("project MCP binding identity sync: the binding kept changing; the next PUT syncs it",
+		"proxy", proxyHandleOf(proxy), "env", envName)
+}
+
+// rereadBinding reads the proxy again with its binding in envUUID, or nil when either is gone or cannot be read.
+func (s *ProjectMCPProxyService) rereadBinding(
+	ctx context.Context, ouID string, proxy *models.MCPProxy, envUUID uuid.UUID,
+) (*models.MCPProxy, *models.MCPProxyEndpoint) {
+	fresh, err := s.base.repo.GetInProject(ctx, proxyHandleOf(proxy), ouID, valueOrEmpty(proxy.ProjectUUID))
+	if err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			s.base.logger.Warn("project MCP binding identity sync: re-reading the binding failed",
+				"proxy", proxyHandleOf(proxy), "error", err)
+		}
+		return nil, nil
+	}
+	endpoint, ee := resolveMCPEndpointForEnv(fresh, envUUID.String())
+	if ee == nil {
+		return nil, nil
+	}
+	return fresh, endpoint
 }
 
 // purgeBindingResourceServer removes the resource server of a deleted binding that was on identity or had a removal

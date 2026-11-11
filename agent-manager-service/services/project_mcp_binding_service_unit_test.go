@@ -642,6 +642,8 @@ type thunderCalls struct {
 	swept int
 	// deleteErr, when set, fails every resource server delete after recording it.
 	deleteErr error
+	// onDelete, when set, runs inside each resource server delete, as a concurrent write landing meanwhile would.
+	onDelete func()
 }
 
 // forget drops what was recorded so far, such as the leftover removal a new binding starts with.
@@ -665,6 +667,9 @@ func (f *bindingFixture) withThunder() *thunderCalls {
 				},
 				DeleteProxyResourceServerByIdentifierFunc: func(_ context.Context, handle, identifier string) error {
 					calls.deleted = append(calls.deleted, struct{ env, handle, identifier string }{envName, handle, identifier})
+					if calls.onDelete != nil {
+						calls.onDelete()
+					}
 					return calls.deleteErr
 				},
 				ListRolesFunc: func(context.Context, string, int, int) ([]thundersvc.ThunderRole, int, error) {
@@ -836,6 +841,30 @@ func TestPutEnv_BackToIdentityKeepsAFailingCleanupPending(t *testing.T) {
 	endpoint, _ = f.binding()
 	assert.Empty(t, endpoint.Configuration.IdentityCleanupID)
 	assert.Len(t, calls.ensured, 1, "the identical PUT removed the old one, then registered")
+}
+
+// A stale removal can land after a newer write put the binding back on identity and registered it. The sync re-reads
+// the binding after acting and applies its current state again, so the binding is registered once more rather than
+// left without its resource server.
+func TestSyncBindingIdentity_AStaleRemovalIsFollowedByTheNewerRegistration(t *testing.T) {
+	f := newBindingFixture(t)
+	calls := f.withThunder()
+	_, _, err := f.put(t, models.MCPProxyEnvironmentRequest{Security: identityBinding()})
+	require.NoError(t, err)
+	calls.forget()
+
+	// While this PUT's removal runs, a newer PUT commits the binding back on identity, its own sync done.
+	calls.onDelete = func() {
+		calls.onDelete = nil
+		for i := range f.proxy.Endpoints {
+			f.proxy.Endpoints[i].Configuration.Security = mcpIdentitySecurity()
+			f.proxy.Endpoints[i].Configuration.IdentityCleanupID = ""
+		}
+	}
+	_, _, err = f.put(t, models.MCPProxyEnvironmentRequest{})
+	require.NoError(t, err)
+	require.Len(t, calls.deleted, 1, "the stale removal ran")
+	assert.Len(t, calls.ensured, 1, "and the binding, back on identity, was registered again after it")
 }
 
 // A removal that finishes after the binding left identity again clears only its own ID: the newer write's ID, whose
