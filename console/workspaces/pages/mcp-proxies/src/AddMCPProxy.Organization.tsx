@@ -11,7 +11,7 @@ import { generatePath, Navigate, useNavigate, useParams } from "react-router-dom
 import { useResourceAccess } from "@agent-management-platform/feature-management";
 import { PageLayout } from "@agent-management-platform/views";
 import { absoluteRouteMap } from "@agent-management-platform/types";
-import { AddMCPProxyForm } from "./subComponents/AddMCPProxyForm";
+import { OrgAddMCPProxyForm } from "./subComponents/AddMCPProxyForm";
 
 export const AddMCPProxyOrganization = () => {
   const { orgId } = useParams<{ orgId: string }>();
@@ -36,7 +36,7 @@ export const AddMCPProxyOrganization = () => {
       backLabel="Back to MCP server list"
       disableIcon
     >
-      <AddMCPProxyForm onCancel={() => navigate(backHref)} />
+      <OrgAddMCPProxyForm onCancel={() => navigate(backHref)} />
     </PageLayout>
   );
 };
