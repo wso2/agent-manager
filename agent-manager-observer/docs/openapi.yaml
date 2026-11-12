@@ -709,11 +709,14 @@ components:
           schema:
             $ref: "#/components/schemas/ErrorResponse"
     ObserverUnavailable:
-      description: Observer Service not configured (OPENCHOREO_OBSERVER_URL unset)
+      description: Traces are disabled (`TRACE_BACKEND=off`); `error` is `observability_disabled`
       content:
         application/json:
           schema:
             $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error: observability_disabled
+            message: Traces are disabled
     Forbidden:
       description: Publisher-audience (`amp-publisher-*`) tokens are not permitted on this endpoint
       content:

@@ -31,9 +31,11 @@ func main() {
 		slog.Error("Failed to load config", "error", err)
 		os.Exit(1)
 	}
-	if err := cfg.Observer.ValidateClientCredentials(); err != nil {
-		slog.Error("Invalid observer credentials config", "error", err)
-		os.Exit(1)
+	if cfg.Traces.UsesOpenChoreo() {
+		if err := cfg.Observer.ValidateClientCredentials(); err != nil {
+			slog.Error("Invalid observer credentials config", "error", err)
+			os.Exit(1)
+		}
 	}
 
 	authProvider := observer.NewAuthProvider(

@@ -7,8 +7,9 @@ Small Go service that serves the console's trace/observability API. It is **not*
 ```text
 HTTP → RequestLogger → CORS → mux ┬→ /health                             (no auth)
                                    ├→ /.well-known/oauth-protected-resource (no auth)
-                                   ├→ JWTAuth → /api/v1/*  → handlers/ → controllers/ → observer/ (HTTP client) → Observer service
-                                   │                                                 ↘ opensearch/ (span parsing / enrichment)
+                                   ├→ JWTAuth → /api/v1/*  → handlers/ → controllers/ → store.TraceStore (traces) → store/openchoreo → observer/ (HTTP client) → Observer service
+                                   │                                    │            ↘ observer/ directly (logs, metrics, build logs)
+                                   │                                    ↘ opensearch/ (span parsing / enrichment)
                                    └→ JWTAuth → /mcp, /mcp/ → mcp/tools/ → controllers/ (same as above, no HTTP hop)
 ```
 
@@ -16,7 +17,12 @@ HTTP → RequestLogger → CORS → mux ┬→ /health                          
 
 - **`handlers/`** — parse/validate the request, extract path params, call the controller, write the response. Client-facing errors are generic (`"Failed to retrieve …"`); real detail is logged server-side.
 - **`controllers/`** — orchestration + enrichment. Fetches trace overviews, then fans out to fetch span details and aggregates input/output/token usage.
-- **`observer/`** — the typed HTTP client to the upstream Observer (`QueryTraces`, `QueryTraceSpans`, `GetSpanDetails`), plus auth token management and response→`opensearch.Span` conversion.
+- **`store/`** — the trace data access layer. `TraceStore` (`QueryTraces`, `QueryTraceSpans`, `GetSpanDetails`) takes a `Scope` on every call: the request's org, project, agent and environment names, plus ID fields a resolver will fill. `TRACE_BACKEND` picks the backend:
+  - `store/openchoreo` (default) wraps `observer.TraceReader`, maps the Scope's names to the observer's namespace and filters, and keeps today's requests unchanged.
+  - `store/off` answers every call with `store.ErrDisabled`, which the trace handlers return as `503` with `error: observability_disabled`.
+  - `QueryTraces` and `QueryTraceSpans` reject a Scope with no org (`store.ErrMissingOrg`) before any query. `GetSpanDetails` doesn't yet, because span-detail callers send no org.
+  - `store/storetest` is the suite every backend must pass (first test: two orgs with colliding project and agent IDs). `store/memory` is an in-memory fake that passes it.
+- **`observer/`** — the typed HTTP client to the upstream Observer (`QueryTraces`, `QueryTraceSpans`, `GetSpanDetails`, logs, metrics), plus auth token management. Controllers read traces only through `store.TraceStore`; logs, metrics and build logs still use `observer.Client`.
 - **`opensearch/`** — pure span-parsing logic. Extracts input/output from spans; branches by vendor (CrewAI via `crewai.*` attributes vs LangChain/Traceloop via `traceloop.entity.*`).
 - **`config/`** — env-var config loading + startup validation.
 - **`mcp/`** — the `am-obs-mcp` streamable-HTTP MCP server (`mcp/setup.go`) and its seven tools (`mcp/tools/`): `get_runtime_logs`, `get_build_logs`, `get_metrics`, `list_traces`, `get_traces`, `get_trace_details`, `get_span_details`.
@@ -33,9 +39,12 @@ HTTP → RequestLogger → CORS → mux ┬→ /health                          
 | Server + route table, shared with cloud via `app.Run` | `app/app.go` |
 | HTTP handlers, path parsing | `handlers/handlers.go` |
 | Orchestration + enrichment | `controllers/controller.go` |
+| Trace data access layer (`Scope`, `TraceStore`, errors) | `store/store.go` |
+| Trace backends | `store/openchoreo/`, `store/off/` |
+| Backend test suite + in-memory fake | `store/storetest/`, `store/memory/` |
 | Observer client (interface + impl) | `observer/client.go`, `observer/types.go` |
 | Observer auth (token cache + retry) | `observer/auth.go` |
-| Response conversion | `observer/convert.go` |
+| Span → `opensearch.Span` conversion | `controllers/span_convert.go` |
 | Span parsing / vendor branches | `opensearch/process.go`, `opensearch/crewai_process.go` |
 | JWT / CORS / request logging | `middleware/` |
 | Config + validation | `config/config.go` |
@@ -71,6 +80,7 @@ make mock-traces  # generate OTLP traces via telemetrygen (for local testing)
 | Var | Config field (`config.Load()` result) | Purpose |
 |---|---|---|
 | `AM_OBSERVER_PORT` | `cfg.Server.Port` | listen port (default 9098) |
+| `TRACE_BACKEND` | `cfg.Traces.Backend` | where traces are read from: `openchoreo` (default) or `off` |
 | `OPENCHOREO_OBSERVER_URL` | `cfg.Observer.BaseURL` | upstream Observer base URL |
 | `IDP_TOKEN_URL` | `cfg.Observer.TokenURL` | Observer OAuth2 token endpoint |
 | `IDP_CLIENT_ID` | `cfg.Observer.ClientID` | Observer OAuth2 client id |
@@ -82,7 +92,7 @@ make mock-traces  # generate OTLP traces via telemetrygen (for local testing)
 | `IS_LOCAL_DEV_ENV` | `cfg.Auth.IsLocalDevEnv` | `true` skips JWT signature validation (checks expiry only) |
 | `LOG_LEVEL` | `cfg.LogLevel` | DEBUG/INFO/WARN/ERROR |
 
-The four `cfg.Observer.*` fields are required together once `OPENCHOREO_OBSERVER_URL` is set; the `cfg.Auth.*` fields are required unless `IsLocalDevEnv` is true.
+`OPENCHOREO_OBSERVER_URL` is required, and `main.go` requires the `IDP_*` client credentials, only when `TRACE_BACKEND` is `openchoreo`. The `cfg.Auth.*` fields are required unless `IsLocalDevEnv` is true.
 
 Co-dependent values are checked together — a partially-set Observer or Auth config fails at startup, not first request. `getEnvAsList` parses comma-separated issuer/audience lists.
 
