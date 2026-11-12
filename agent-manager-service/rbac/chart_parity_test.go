@@ -40,6 +40,9 @@ import (
 const (
 	bootstrapPath = "../../deployments/helm-charts/wso2-amp-thunder-extension/templates/amp-thunder-bootstrap.yaml"
 	extValuesPath = "../../deployments/helm-charts/wso2-amp-thunder-extension/values.yaml"
+	// The catalog is advertised a second time, from the agent-manager chart, as
+	// OAUTH_SCOPES_SUPPORTED.
+	amChartValuesPath = "../../deployments/helm-charts/wso2-agent-manager/values.yaml"
 
 	resourceServerDoc = "60-amp-resource-server.yaml"
 )
@@ -226,4 +229,47 @@ func TestAmpScopesAllowlistCoversCatalog(t *testing.T) {
 	}
 
 	diffScopeSets(t, "ampScopes allowlist", catalogScopes(t), chartSide)
+}
+
+// TestAdvertisedScopesMatchCatalog covers the one copy of the catalog that lives
+// outside the Thunder extension chart: OAUTH_SCOPES_SUPPORTED, which
+// agent-manager-service publishes in its RFC 9728 protected-resource metadata
+// (api/well_known_routes.go) and which amctl reads to decide which scopes to
+// request at login (cli/pkg/clients/discovery.go).
+//
+// A scope missing here is one the CLI never asks for, so an operator holding the
+// role still gets a token without it — a 403 on a route their role allows, with
+// nothing wrong anywhere the error points. Unlike the resource-server tree this
+// is a single comma-separated string in a different chart, so nothing else
+// checks it.
+func TestAdvertisedScopesMatchCatalog(t *testing.T) {
+	raw, err := os.ReadFile(amChartValuesPath)
+	if err != nil {
+		t.Skipf("chart not present at %s: %v", amChartValuesPath, err)
+	}
+	var values struct {
+		AgentManagerService struct {
+			Config struct {
+				OAuthScopesSupported string `yaml:"oauthScopesSupported"`
+			} `yaml:"config"`
+		} `yaml:"agentManagerService"`
+	}
+	if err := yaml.Unmarshal(raw, &values); err != nil {
+		t.Fatalf("parse %s: %v", amChartValuesPath, err)
+	}
+
+	advertised := values.AgentManagerService.Config.OAuthScopesSupported
+	if strings.TrimSpace(advertised) == "" {
+		t.Fatalf("%s: agentManagerService.config.oauthScopesSupported is empty; "+
+			"the protected-resource metadata endpoint answers 503 without it", amChartValuesPath)
+	}
+
+	chartSide := make(map[Permission]bool)
+	for _, scope := range strings.Split(advertised, ",") {
+		if trimmed, ok := strings.CutPrefix(strings.TrimSpace(scope), ResourceServer+":"); ok {
+			chartSide[Permission(trimmed)] = true
+		}
+	}
+
+	diffScopeSets(t, "oauthScopesSupported", catalogScopes(t), chartSide)
 }

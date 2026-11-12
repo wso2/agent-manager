@@ -149,6 +149,10 @@ services:
       - EVENTS_MODE=nats
       - EVENTS_NATS_URL=nats://nats:4222
       - EVENTS_ALLOW_PRIVATE_DESTINATIONS=true
+      # File-based authentication configuration
+      - AUTH_MODE=file
+      - FILE_AUTH_USERS_PATH=/app/localdata/users.yaml
+      - KEY_MANAGER_JWKS_URL=http://localhost:8080/auth/external/jwks.json
     volumes:
       # Mount source code for hot-reloading
       - ../agent-manager-service:/app

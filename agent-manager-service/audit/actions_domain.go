@@ -41,6 +41,12 @@ const (
 	ActionGatewayTokenRotate Action = "gateway-token:rotate"
 	ActionGatewayTokenRevoke Action = "gateway-token:revoke"
 
+	// ActionAuthLogin covers a file-mode sign-in attempt, successful or not.
+	// One action for both outcomes: "show me every attempt on this account"
+	// is the question an audit trail exists to answer, and splitting success
+	// from failure into two actions makes that query a union of two.
+	ActionAuthLogin Action = "authn:login"
+
 	ActionAgentTokenMint              Action = "agent-token:mint"
 	ActionAgentTokenRegenerateTracing Action = "agent-token:regenerate-tracing"
 
@@ -252,6 +258,20 @@ func init() {
 	registerCredential(ActionGatewayTokenRevoke, map[string]FieldKind{
 		"gatewayName": KindName,
 		"tokenId":     KindIdentifier,
+	})
+
+	// Credential class: a successful login hands back a bearer token carrying
+	// the full scope set of the user's roles.
+	registerCredential(ActionAuthLogin, map[string]FieldKind{
+		"username": KindName,
+		// Which privileges the token went out with. Recorded on success only;
+		// a refused attempt was granted none.
+		"roles": KindNameList,
+		// Why a refusal happened, as a fixed label ("unknown-user",
+		// "bad-password") rather than free text, so refusals are countable.
+		// Never which of the two it was in the response — only here.
+		"reason":    KindEnum,
+		"expiresIn": KindCount,
 	})
 
 	registerCredential(ActionAgentTokenMint, map[string]FieldKind{

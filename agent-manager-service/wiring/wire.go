@@ -37,6 +37,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/controllers"
 	"github.com/wso2/agent-manager/agent-manager-service/eventhub"
 	"github.com/wso2/agent-manager/agent-manager-service/events"
+	"github.com/wso2/agent-manager/agent-manager-service/fileauth"
 	"github.com/wso2/agent-manager/agent-manager-service/instrumentation"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
@@ -79,6 +80,7 @@ var serviceProviderSet = wire.NewSet(
 	services.NewAgentKindService,
 	services.NewInfraResourceManager,
 	services.NewAgentTokenManagerService,
+	fileauth.NewService,
 	ProvideGitCredentialsService,
 	services.NewRepositoryService,
 	services.NewMonitorExecutor,

@@ -97,6 +97,10 @@ func MakeHTTPHandlerWithPolicy(params *wiring.AppParams, extraAPIRoutes func(*ht
 	// Register OAuth 2.0 Protected Resource Metadata (RFC 9728) at root level (no authentication required)
 	registerWellKnownRoutes(mux)
 
+	// Register the file-based login endpoint at root level. It is where a
+	// caller goes to obtain a token, so it cannot itself require one.
+	registerFileAuthRoutes(mux, params.FileAuthService, params.AuditRecorder, config.GetConfig().CORSAllowedOrigin)
+
 	// Register service-configuration discovery endpoint at root level (no authentication required)
 	registerConfigRoutes(mux)
 
