@@ -2,8 +2,8 @@ name: Nightly Dev Build
 
 run-name: Nightly Dev Build #${{ github.run_number }}${{ inputs.dry_run && ' (dry run)' || '' }}
 
-# Builds the images and charts, runs the e2e tests, and publishes the nightly
-# tag only when they pass. Manual runs are dry runs by default.
+# Builds the images, runs the e2e tests on the Docker Compose stack, and
+# publishes the nightly tag only when they pass. Manual runs are dry runs by default.
 
 on:
   schedule:
@@ -34,7 +34,6 @@ permissions:
 env:
   REGISTRY: ${{ vars.AMP_REGISTRY || 'ghcr.io' }}
   REGISTRY_ORG: ${{ vars.AMP_REGISTRY_ORG || 'wso2' }}
-  HELM_REGISTRY: ${{ vars.AMP_HELM_REGISTRY || 'oci://ghcr.io/wso2' }}
 
 jobs:
   # Dated version used by all jobs. A dry run gets its own version.
@@ -69,7 +68,6 @@ jobs:
     timeout-minutes: 10
     outputs:
       images: ${{ steps.set-matrix.outputs.images }}
-      charts: ${{ steps.set-matrix.outputs.charts }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
@@ -77,23 +75,14 @@ jobs:
         id: set-matrix
         run: |
           CONFIG_FILE=".github/release-config.json"
-          CHARTS_BASE_PATH=$(jq -r '.config["charts-base-path"]' "$CONFIG_FILE")
-
-          IMAGES=$(jq -c --arg base "$CHARTS_BASE_PATH" '[.images[] | {
+          IMAGES=$(jq -c '[.images[] | {
             name: .name,
             "service-dir": .dir,
             dockerfile: (.dir + "/Dockerfile"),
             context: (.context // "")
           }]' "$CONFIG_FILE")
 
-          CHARTS=$(jq -c --arg base "$CHARTS_BASE_PATH" '[.charts[] | {
-            name: .,
-            path: ($base + "/" + .),
-            "chart-file": ($base + "/" + . + "/Chart.yaml")
-          }]' "$CONFIG_FILE")
-
           echo "images=$IMAGES" >> "$GITHUB_OUTPUT"
-          echo "charts=$CHARTS" >> "$GITHUB_OUTPUT"
 
   build-images:
     name: Build ${{ matrix.image.name }}
@@ -146,84 +135,11 @@ jobs:
           tag: ${{ needs.compute-version.outputs.dev-version }}
           context: ${{ matrix.image.context }}
 
-  package-charts:
-    name: Package ${{ matrix.chart.name }}
-    needs: [compute-version, build-images, load-config]
-    runs-on: [self-hosted, amp-nightly-e2e]
-    timeout-minutes: 30
-    permissions:
-      contents: read
-      packages: write
-    strategy:
-      fail-fast: false
-      matrix:
-        chart: ${{ fromJson(needs.load-config.outputs.charts) }}
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-
-      - name: Install Helm (deployments/setup/cluster-tools.env)
-        uses: ./.github/actions/setup-cluster-clis
-        with:
-          k3d: "false"
-          kubectl: "false"
-
-      - name: Cache Helm chart dependencies
-        if: hashFiles(format('{0}/Chart.lock', matrix.chart.path)) != ''
-        uses: actions/cache@v5
-        with:
-          path: ${{ matrix.chart.path }}/charts
-          key: helm-charts-${{ hashFiles(format('{0}/Chart.lock', matrix.chart.path)) }}
-
-      - name: Patch chart image tags
-        env:
-          DEV_VERSION: ${{ needs.compute-version.outputs.dev-version }}
-        run: |
-          # Use the nightly version as the image tag, and point the console's
-          # doc links at /docs/next: a nightly is built from main, so its
-          # features are documented in the unreleased docs, not in latest.
-          find ./deployments/helm-charts -name "values.yaml" -type f | while read -r f; do
-            sed -i.bak \
-              -e "s|tag: \"0\.0\.0-dev\"|tag: \"${DEV_VERSION}\"|g" \
-              -e "s|docsVersion: \"latest\"|docsVersion: \"next\"|g" \
-              "$f"
-            rm -f "${f}.bak"
-          done
-          if ! grep -q 'docsVersion: "next"' ./deployments/helm-charts/wso2-agent-manager/values.yaml; then
-            echo "::error::docsVersion was not patched to next in wso2-agent-manager/values.yaml"
-            exit 1
-          fi
-          echo "✅ Patched image tags to ${DEV_VERSION} and docs version to next"
-
-      - name: Package and push ${{ matrix.chart.name }}
-        if: hashFiles(matrix.chart.chart-file) != ''
-        run: |
-          bash .github/scripts/package-helm-chart.sh \
-            "$CHART_PATH" \
-            "$DEV_VERSION" \
-            "$HELM_REGISTRY" \
-            "$HELM_TOKEN"
-        env:
-          CHART_PATH: ${{ matrix.chart.path }}
-          DEV_VERSION: ${{ needs.compute-version.outputs.dev-version }}
-          HELM_REGISTRY: ${{ env.HELM_REGISTRY }}
-          HELM_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Used instead of HELM_TOKEN when set.
-          REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
-          REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
-
-      # Log out after pushing the charts.
-      - name: Log out of the Helm registry
-        if: always()
-        run: |
-          helm registry logout "${HELM_REGISTRY#oci://}" || true
-          # Newer Helm saves the login under the host only.
-          helm registry logout "$(echo "${HELM_REGISTRY#oci://}" | cut -d/ -f1)" || true
-
   e2e:
     name: E2E
-    needs: [compute-version, package-charts]
+    needs: [compute-version, build-images]
     runs-on: [self-hosted, amp-nightly-e2e]
-    timeout-minutes: 260
+    timeout-minutes: 200
     permissions:
       contents: read
       checks: write
@@ -238,40 +154,34 @@ jobs:
         with:
           registry: ${{ env.REGISTRY }}
 
-      - name: Clear saved Helm registry logins
-        run: rm -f ~/.config/helm/registry/config.json
-
       - name: Setup Go
         uses: ./.github/actions/setup-go
 
-      # Check the runner is ready before the long install.
-      - name: Preflight
-        uses: ./.github/actions/preflight-k3d
+      - name: Log in to the container registry
+        uses: docker/login-action@v3
         with:
-          min-cpus: '8'
-          min-memory-gb: '13'
-          min-disk-gb: '60'
-          enforce-capacity: 'true'
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.REGISTRY_USERNAME || github.actor }}
+          password: ${{ secrets.REGISTRY_PASSWORD || secrets.GITHUB_TOKEN }}
 
+      # Run the images this nightly just pushed on the Docker Compose stack.
       - name: Install platform
         id: install-platform
-        timeout-minutes: 60
+        timeout-minutes: 20
         env:
           VERSION: ${{ needs.compute-version.outputs.dev-version }}
         run: |
-          # Install from the same registry the charts were pushed to.
-          export HELM_CHART_REGISTRY="${HELM_REGISTRY#oci://}"
-          cd deployments/quick-start && bash install.sh
+          bash .github/scripts/pin-standalone-images.sh "${VERSION}" "${REGISTRY}/${REGISTRY_ORG}"
+          cd deployments/standalone
+          cp .env.example .env
+          docker compose up -d --wait --wait-timeout 600 --scale amp-console=0
 
       - name: Run e2e tests
         id: e2e-tests
         timeout-minutes: 120
         env:
-          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.INSTRUMENTATION_TEST_OPENAI_API_KEY }}
           GINKGO_PROCS: ${{ inputs.ginkgo_procs || '1' }}
-          # Use the shared Thunder instead of one per test environment.
-          PROVISION_THUNDER: "false"
         run: |
           set -o pipefail
           # Suites run one at a time by default. --timeout is the total budget.
@@ -284,80 +194,27 @@ jobs:
         id: security-tests
         if: ${{ !cancelled() && steps.install-platform.outcome == 'success' }}
         timeout-minutes: 60
-        env:
-          SECURITY_PROBE_REPOSITORY_URL: ${{ format('{0}/{1}', github.server_url, github.repository) }}
-          SECURITY_PROBE_REPOSITORY_BRANCH: ${{ github.ref_name }}
         run: |
           set -o pipefail
           make security-test-live 2>&1 | tee test/e2e/security-output.log
 
-      # Print a short cluster summary to help debug failures.
-      - name: Dump cluster state to the job log
+      - name: Dump service logs
         if: ${{ always() && steps.install-platform.outcome != 'skipped' }}
+        working-directory: deployments/standalone
         run: |
-          echo "::group::Pods not Running/Completed (all namespaces)"
-          kubectl get pods -A -o wide 2>/dev/null | awk 'NR==1 || ($4 != "Running" && $4 != "Completed")' | head -100 || true
-          echo "::endgroup::"
-          echo "::group::Warning events (last 100, oldest first)"
-          kubectl get events -A --field-selector type=Warning --sort-by=.lastTimestamp 2>/dev/null | tail -100 || true
-          echo "::endgroup::"
-          echo "::group::Node allocated resources"
-          kubectl describe nodes 2>/dev/null | sed -n '/Allocated resources/,/^Events/p' || true
-          echo "::endgroup::"
-          # Agent pods run in the dp-* namespaces.
-          for ns in $(kubectl get ns --no-headers -o custom-columns=":metadata.name" 2>/dev/null | grep '^dp-'); do
-            echo "::group::Agent runtime pods in ${ns}"
-            kubectl get pods -n "$ns" -o wide 2>/dev/null || true
-            kubectl get pods -n "$ns" --no-headers 2>/dev/null \
-              | awk '$3 != "Running" && $3 != "Completed" { print $1 }' \
-              | while read -r p; do
-                  echo "--- describe pod/${p} (conditions and events)"
-                  kubectl describe pod "$p" -n "$ns" 2>/dev/null | sed -n '/^Conditions:/,$p' | head -60 || true
-                done
-            echo "::endgroup::"
-          done
-          echo "::group::Evaluation / monitor workloads"
-          kubectl get jobs,cronjobs,pods -n wso2-amp -o wide 2>/dev/null | head -60 || true
-          echo "::endgroup::"
-
-      - name: Dump pod logs
-        if: ${{ always() && steps.install-platform.outcome != 'skipped' }}
-        run: |
-          mkdir -p /tmp/pod-logs
-          kubectl logs deployment/amp-api -n wso2-amp --tail=500 --all-containers=true > /tmp/pod-logs/amp-api.txt 2>&1 || true
-          kubectl logs deployment/amp-observer -n amp-observability --tail=500 --all-containers=true > /tmp/pod-logs/amp-observer.txt 2>&1 || true
-          kubectl describe clustersecretstore default > /tmp/pod-logs/clustersecretstore-default.txt 2>&1 || true
-          kubectl get pods -A -o wide > /tmp/pod-logs/all-pods.txt 2>&1 || true
-          kubectl get events -A --field-selector type=Warning --sort-by=.lastTimestamp > /tmp/pod-logs/warning-events.txt 2>&1 || true
-          kubectl describe nodes > /tmp/pod-logs/nodes-describe.txt 2>&1 || true
-          kubectl top nodes > /tmp/pod-logs/nodes-top.txt 2>&1 || true
-          kubectl top pods -A --sort-by=cpu > /tmp/pod-logs/pods-top-cpu.txt 2>&1 || true
-          # Agent pods.
-          for ns in $(kubectl get ns --no-headers -o custom-columns=":metadata.name" 2>/dev/null | grep '^dp-'); do
-            for pod in $(kubectl get pods -n "$ns" --no-headers -o custom-columns=":metadata.name" 2>/dev/null); do
-              kubectl logs "$pod" -n "$ns" --all-containers=true --tail=500 > "/tmp/pod-logs/dp-${ns}-${pod}.txt" 2>&1 || true
-              kubectl describe pod "$pod" -n "$ns" > "/tmp/pod-logs/describe-${ns}--${pod}.txt" 2>&1 || true
-            done
-          done
-          # Gateway and Thunder pods of each environment.
-          for ns in $(kubectl get ns --no-headers -o custom-columns=":metadata.name" 2>/dev/null \
-              | grep -E '^(default-|amp-thunder-)' || true); do
-            for pod in $(kubectl get pods -n "$ns" --no-headers -o custom-columns=":metadata.name" 2>/dev/null); do
-              kubectl logs "$pod" -n "$ns" --all-containers=true --tail=200 > "/tmp/pod-logs/ns-${ns}--${pod}.txt" 2>&1 || true
-            done
-            kubectl get pods -n "$ns" --no-headers 2>/dev/null \
-              | awk '$3 != "Running" && $3 != "Completed" { print $1 }' \
-              | while read -r p; do
-                  kubectl describe pod "$p" -n "$ns" > "/tmp/pod-logs/describe-${ns}--${p}.txt" 2>&1 || true
-                done
+          mkdir -p /tmp/service-logs
+          docker compose ps -a > /tmp/service-logs/services.txt 2>&1 || true
+          docker stats --no-stream > /tmp/service-logs/stats.txt 2>&1 || true
+          for service in $(docker compose config --services); do
+            docker compose logs --no-color --tail 500 "$service" > "/tmp/service-logs/${service}.txt" 2>&1 || true
           done
 
-      - name: Upload pod logs
+      - name: Upload service logs
         if: ${{ always() && steps.install-platform.outcome != 'skipped' }}
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
-          name: pod-logs
-          path: /tmp/pod-logs/
+          name: service-logs
+          path: /tmp/service-logs/
           retention-days: 7
 
       # Only publishes; the test step decides pass or fail.
@@ -420,7 +277,7 @@ jobs:
           echo "summary=$SUMMARY" >> "$GITHUB_OUTPUT"
           echo "Test summary: $SUMMARY"
 
-      # Last step, as the steps above still use the cluster.
+      # Last step, as the steps above still use the stack.
       - name: Teardown
         if: ${{ always() }}
         uses: ./.github/actions/teardown-self-hosted
@@ -499,12 +356,6 @@ jobs:
           - amp-api
           - amp-console
           - amp-observer
-          - amp-quick-start
-          - amp-evaluation-monitor
-          - wso2-agent-manager
-          - wso2-amp-observability-extension
-          - wso2-amp-thunder-extension
-          - wso2-amp-api-platform-gateway-extension
     steps:
       # Skip packages that do not exist yet.
       - name: Check if package ${{ matrix.package }} exists
@@ -540,7 +391,7 @@ jobs:
   # Posts the result of every run, except cancelled runs and dry runs.
   notify-google-chat:
     name: Notify Google Chat
-    needs: [compute-version, load-config, build-images, package-charts, e2e, publish-dev-tag]
+    needs: [compute-version, load-config, build-images, e2e, publish-dev-tag]
     if: ${{ !cancelled() && needs.compute-version.outputs.dry-run != 'true' }}
     runs-on: [self-hosted, amp-nightly-e2e]
     timeout-minutes: 10
@@ -554,23 +405,21 @@ jobs:
           VERSION_RESULT: ${{ needs.compute-version.result }}
           CONFIG_RESULT: ${{ needs.load-config.result }}
           BUILD_RESULT: ${{ needs.build-images.result }}
-          PACKAGE_RESULT: ${{ needs.package-charts.result }}
           E2E_RESULT: ${{ needs.e2e.result }}
           TAG_RESULT: ${{ needs.publish-dev-tag.result }}
         run: |
-          STAGES="version=${VERSION_RESULT} config=${CONFIG_RESULT} build=${BUILD_RESULT} package=${PACKAGE_RESULT} e2e=${E2E_RESULT} tag=${TAG_RESULT}"
+          STAGES="version=${VERSION_RESULT} config=${CONFIG_RESULT} build=${BUILD_RESULT} e2e=${E2E_RESULT} tag=${TAG_RESULT}"
           echo "Stages: ${STAGES}"
           if [ -z "${GCHAT_WEBHOOK_URL}" ]; then
             echo "::warning::GCHAT_WEBHOOK_URL secret is not set; skipping Chat notification."
             exit 0
           fi
-          if [ "${BUILD_RESULT}" = "success" ] && [ "${PACKAGE_RESULT}" = "success" ] && [ "${E2E_RESULT}" = "success" ] && [ "${TAG_RESULT}" = "success" ]; then
+          if [ "${BUILD_RESULT}" = "success" ] && [ "${E2E_RESULT}" = "success" ] && [ "${TAG_RESULT}" = "success" ]; then
             HEADLINE="*🟢 Nightly passed* — \`${DEV_VERSION}\`"
           else
             # Report the earliest stage that failed.
             FAILED_STAGE="tag"
             [ "${E2E_RESULT}" != "success" ] && FAILED_STAGE="e2e"
-            [ "${PACKAGE_RESULT}" != "success" ] && FAILED_STAGE="package"
             [ "${BUILD_RESULT}" != "success" ] && FAILED_STAGE="build"
             SETUP_FAILED=""
             case "${VERSION_RESULT}" in failure|cancelled) SETUP_FAILED="compute-version" ;; esac

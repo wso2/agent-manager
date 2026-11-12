@@ -15,32 +15,15 @@ warn() { echo "::warning::$*"; }
 
 have() { command -v "$1" >/dev/null 2>&1; }
 
-echo "::group::Teardown — cluster and workloads"
-
-# --- k3d ------------------------------------------------------------------
-# Deleting the clusters also frees their host ports.
-if have k3d; then
-  clusters="$(k3d cluster list --no-headers 2>/dev/null | awk '{print $1}')"
-  if [ -n "${clusters}" ]; then
-    log "Deleting k3d clusters: $(echo "${clusters}" | tr '\n' ' ')"
-    k3d cluster delete --all >/dev/null 2>&1 || warn "k3d cluster delete --all did not complete cleanly; the container sweep below should still remove the nodes."
-  else
-    log "No k3d clusters present"
-  fi
-else
-  log "k3d not installed — nothing to delete"
-fi
+echo "::group::Teardown — compose stack"
 
 # --- compose --------------------------------------------------------------
-# In case a job started the docker compose stack.
-if have docker && [ -f deployments/docker-compose.yml ]; then
-  docker compose -f deployments/docker-compose.yml down -v --remove-orphans >/dev/null 2>&1 \
+# In case a job started the docker compose stack (deployments/standalone).
+if have docker && [ -f deployments/standalone/docker-compose.yml ]; then
+  ( cd deployments/standalone \
+    && docker compose --profile console-image down -v --remove-orphans >/dev/null 2>&1 ) \
     && log "Compose stack removed" || true
 fi
-
-# --- stray port-forwards ---------------------------------------------------
-# Stop leftover kubectl port-forwards.
-pkill -f 'kubectl.*port-forward' >/dev/null 2>&1 && log "Killed stray kubectl port-forwards" || true
 
 echo "::endgroup::"
 
@@ -129,7 +112,6 @@ echo "::group::Teardown — credentials and workspace"
 # --- registry logout -------------------------------------------------------
 if [ -n "${REGISTRY}" ]; then
   docker logout "${REGISTRY}" >/dev/null 2>&1 && log "docker logout ${REGISTRY}" || true
-  have helm && helm registry logout "${REGISTRY}" >/dev/null 2>&1 && log "helm registry logout ${REGISTRY}" || true
 fi
 
 # --- workspace leftovers ---------------------------------------------------

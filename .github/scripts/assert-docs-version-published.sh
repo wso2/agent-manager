@@ -5,8 +5,8 @@
 # The documentation lives in wso2/docs-agent-platform, so the manifest is read
 # from that repository's main branch rather than from a local checkout. 
 #
-# update-helm-charts.sh runs this too, but only once the release branch and tags
-# already exist. 
+# stamp-standalone-release.sh runs this too, but only once the release branch and
+# tags already exist.
 #
 # Usage: assert-docs-version-published.sh <docs-version> <target-version>
 set -euo pipefail

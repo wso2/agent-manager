@@ -4,8 +4,8 @@
 #
 # Those fetches are what the release bundle exists to replace. They break in
 # three ways that are all invisible until an install is already running: GitHub
-# rate-limits unauthenticated requests per IP and `helm --values <url>` does not
-# retry on the 429, an egress-restricted cluster cannot reach the host at all,
+# rate-limits unauthenticated requests per IP and an install step does not
+# retry on the 429, an egress-restricted host cannot reach GitHub at all,
 # and a private mirror of this repository serves no public raw URL. Without a
 # check they creep back in, because adding one is always the shortest diff.
 #

@@ -6,56 +6,53 @@ on:
       - main
     paths:
       - 'deployments/**'
-      - '.github/scripts/check-no-raw-github-fetches.sh'
-      - '.github/scripts/rewrite-image-registry.sh'
-      - '.github/scripts/build-vm-bundle.sh'
-      - '.github/scripts/tests/**'
+      - '.github/scripts/**'
       - '.github/workflows/deployments-pr-checks.yml'
 
-# Everything here reads the checkout and runs bash; nothing needs write access.
 permissions:
   contents: read
 
 jobs:
-  installer-checks:
-    name: Installer Scripts
-    # Plain bash and shellcheck only, so the shared runner pool is unnecessary.
+  standalone-checks:
+    name: Standalone Bundle
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # The release bundle exists so an install needs no network access to
-      # GitHub. Nothing else catches a fetch creeping back in, and adding one is
-      # always the shortest diff.
       - name: Assert no raw-GitHub fetches of this repository
         run: bash .github/scripts/check-no-raw-github-fetches.sh
         shell: bash
 
-      # These suites existed but no workflow ran them, so a regression in the
-      # installer helpers reached a release unchallenged.
-      - name: Registry auth helper tests
-        run: bash deployments/scripts/tests/lib-registry-auth.sh
-        shell: bash
-
-      - name: VM helper preflight tests
-        run: bash deployments/vm/tests/preflight.sh
-        shell: bash
-
-      # The rewrite is the one script here that can quietly retag someone
-      # else's image, so its allowlist behaviour is worth a gate.
-      - name: Image registry rewrite tests
-        run: bash .github/scripts/tests/rewrite-image-registry.sh
-        shell: bash
-
-      - name: Shellcheck the installer scripts
+      - name: Shellcheck the deployment scripts
         run: |
-          # -S error matches what these scripts are already clean at; the
-          # info-level advice across the tree is a separate cleanup.
           shellcheck -S error \
-            deployments/scripts/*.sh \
             deployments/setup/*.sh \
-            deployments/quick-start/*.sh \
-            deployments/vm/*.sh \
+            deployments/standalone/thunder/render.sh \
+            deployments/standalone/gateway/gateway-init.sh \
             .github/scripts/*.sh
+        shell: bash
+
+      - name: Validate the compose files
+        working-directory: deployments/standalone
+        run: |
+          cp .env.example .env
+          docker compose config -q
+          docker compose -f docker-compose.yml -f docker-compose.build.yml -f docker-compose.dev.yml config -q
+        shell: bash
+
+      # A release bundle must run from its own files, pinned to published images.
+      - name: Build and validate a release bundle
+        run: |
+          work="$(mktemp -d)"
+          git archive HEAD | tar -x -C "$work"
+          cd "$work"
+          bash .github/scripts/pin-standalone-images.sh v0.0.0-check ghcr.io/wso2
+          bash .github/scripts/build-standalone-bundle.sh 0.0.0-check dist
+          mkdir unpacked && tar xzf dist/wso2-agent-manager-standalone-0.0.0-check.tar.gz -C unpacked
+          cd unpacked/standalone
+          test ! -e docker-compose.build.yml && test ! -e docker-compose.dev.yml
+          cp .env.example .env
+          docker compose config -q
+          grep -q '^AMP_API_IMAGE=ghcr.io/wso2/amp-api:v0.0.0-check$' .env
         shell: bash
