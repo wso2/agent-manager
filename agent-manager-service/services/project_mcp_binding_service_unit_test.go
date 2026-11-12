@@ -659,6 +659,8 @@ type thunderCalls struct {
 	onEnsure func()
 	// listRolesErr, when set, fails the role listing a delete sweeps grants with.
 	listRolesErr error
+	// renamed records each resource server moved to a new identifier.
+	renamed []struct{ from, to string }
 }
 
 // forget drops what was recorded so far, such as the leftover removal a new binding starts with.
@@ -689,6 +691,13 @@ func (f *bindingFixture) withThunder() *thunderCalls {
 						calls.onDelete()
 					}
 					return calls.deleteErr
+				},
+				RenameProxyResourceServerIdentifierFunc: func(_ context.Context, _, from, to string) error {
+					calls.renamed = append(calls.renamed, struct{ from, to string }{from, to})
+					return nil
+				},
+				DeleteProxyResourceServerActionFunc: func(context.Context, string, string) (string, error) {
+					return "", nil // as for a URL-registered resource server, which is not found by handle
 				},
 				ListRolesFunc: func(context.Context, string, int, int) ([]thundersvc.ThunderRole, int, error) {
 					calls.swept++
@@ -969,6 +978,36 @@ func TestEnsureResourceServersForProxy_SkipsABindingWithACleanupPending(t *testi
 	}
 	f.svc.base.EnsureResourceServersForProxy(context.Background(), testOrg, f.proxy, []string{"read"})
 	assert.Len(t, calls.ensured, 1, "one with a removal pending does not")
+}
+
+// After a context change the bindings' resource servers are moved from their old URLs to the new ones in place,
+// keeping the roles' grants, rather than new ones registered beside them.
+func TestEnsureBindingResourceServers_MovesTheOldRegistration(t *testing.T) {
+	f := newBindingFixture(t)
+	calls := f.withThunder()
+	resp, _, err := f.put(t, models.MCPProxyEnvironmentRequest{Security: identityBinding()})
+	require.NoError(t, err)
+	calls.forget()
+
+	const oldURL = "https://gw.example.com/p1/old-context"
+	f.svc.ensureBindingResourceServers(context.Background(), testOrg, f.proxy, map[uuid.UUID]string{f.envUUID: oldURL})
+	require.Len(t, calls.renamed, 1)
+	assert.Equal(t, oldURL, calls.renamed[0].from)
+	assert.Equal(t, resp.PublicURL, calls.renamed[0].to)
+	assert.Len(t, calls.ensured, 1)
+}
+
+// A deleted scope's grants are swept even when its resource server is not found by handle, as one registered with a
+// URL identifier is not.
+func TestRemoveMCPResourceServerAction_SweepsWhenTheResourceServerIsNotFoundByHandle(t *testing.T) {
+	f := newBindingFixture(t)
+	calls := f.withThunder()
+	provider := mcpResourceServerProviderFor(f.svc.base.resolver, f.svc.base.logger)
+	err := provider.RemoveMCPResourceServerAction(context.Background(), MCPResourceServerRequest{
+		OrganizationID: testOrg, ProxyHandle: bindingHandle, Environment: bindingEnv,
+	}, "read")
+	require.NoError(t, err)
+	assert.Equal(t, 1, calls.swept)
 }
 
 // A stale removal can land after a newer write put the binding back on identity and registered it. The sync re-reads

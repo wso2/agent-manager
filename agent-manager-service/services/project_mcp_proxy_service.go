@@ -539,6 +539,12 @@ func (s *ProjectMCPProxyService) update(
 	updated.Configuration.SpecVersion = d.specVersion
 	d.applyUpstream(&updated.Configuration)
 	contextChanged := mcpGatewayContext(&updated, "") != mcpGatewayContext(existing, "")
+	// The identity bindings' URLs before the change, which their resource servers are registered at: they are moved
+	// to the new URLs after it, keeping the roles' grants.
+	var previousIdentifiers map[uuid.UUID]string
+	if contextChanged && s.base.resolver != nil {
+		previousIdentifiers = s.bindingResourceIdentifiers(ctx, ouID, existing)
+	}
 
 	// The bindings as of the URL change's lock: a binding created since existing was read is re-rendered too.
 	var lockedEndpoints []models.MCPProxyEndpoint
@@ -602,7 +608,7 @@ func (s *ProjectMCPProxyService) update(
 	s.rerenderBindings(ctx, ouID, &rerendered)
 	if contextChanged {
 		// Every binding's public URL carries the context, and an identity binding's resource identifier is that URL.
-		s.ensureBindingResourceServers(ctx, ouID, &rerendered)
+		s.ensureBindingResourceServers(ctx, ouID, &rerendered, previousIdentifiers)
 	}
 	// The artifact timestamp moved with the update.
 	if updated.Artifact != nil {

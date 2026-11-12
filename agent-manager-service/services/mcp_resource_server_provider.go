@@ -44,6 +44,10 @@ type MCPResourceServerRequest struct {
 	// On Delete it names the resource server to remove when set; the identity service returns no handle for a
 	// resource server registered with a URL identifier, so without it only one registered by bare handle is found.
 	Identifier string
+	// PreviousIdentifier, on Ensure, is the URL the proxy was invoked at before a change moved it to Identifier. A
+	// resource server registered there is moved to Identifier in place, keeping its actions and the roles' grants,
+	// rather than a new one registered beside it. Providers that do not track it may ignore it.
+	PreviousIdentifier string
 	// Actions are the scope actions to make sure exist (Ensure). On Delete they are the actions
 	// the proxy had, so a deployment can clean up what refers to them.
 	Actions []string
@@ -149,6 +153,11 @@ func (p *legacyMCPResourceServerProvider) EnsureMCPResourceServer(ctx context.Co
 	if err != nil {
 		return MCPResourceServerResult{}, err
 	}
+	if request.PreviousIdentifier != "" && request.PreviousIdentifier != request.Identifier {
+		if err := client.RenameProxyResourceServerIdentifier(ctx, request.ProxyHandle, request.PreviousIdentifier, request.Identifier); err != nil {
+			return MCPResourceServerResult{}, err
+		}
+	}
 	id, err := client.EnsureProxyResourceServer(ctx, request.ProxyHandle, request.DisplayName, request.Identifier, request.Actions)
 	if err != nil {
 		return MCPResourceServerResult{}, err
@@ -161,13 +170,11 @@ func (p *legacyMCPResourceServerProvider) RemoveMCPResourceServerAction(ctx cont
 	if err != nil {
 		return err
 	}
-	rsID, err := client.DeleteProxyResourceServerAction(ctx, request.ProxyHandle, action)
-	if err != nil {
+	if _, err := client.DeleteProxyResourceServerAction(ctx, request.ProxyHandle, action); err != nil {
 		return err
 	}
-	if rsID == "" {
-		return nil // the resource server was never projected into this environment, so no role holds it
-	}
+	// Swept whether or not the action's resource server was found: one registered with a URL identifier is not
+	// found by handle, yet roles may grant its scope. The sweep matches the exact "<handle>:<action>" scope only.
 	return sweepRolePermission(ctx, p.log(), client, request.Environment, request.ProxyHandle+":"+action)
 }
 

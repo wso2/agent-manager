@@ -130,6 +130,9 @@ type IdentityClient interface {
 	// RFC 8707 resource the proxy is invoked at). Thunder returns no handle for an RS, so one registered with a URL
 	// identifier is found only by that identifier. Missing RS is not an error.
 	DeleteProxyResourceServerByIdentifier(ctx context.Context, proxyHandle, identifier string) error
+	// RenameProxyResourceServerIdentifier moves the proxy's RS registered at from to identifier to, in place, so its
+	// resources, actions and the roles' grants of them carry over. Missing RS at from is not an error.
+	RenameProxyResourceServerIdentifier(ctx context.Context, proxyHandle, from, to string) error
 
 	// Organization units
 	GetOUIDByHandle(ctx context.Context, handle string) (string, error)
@@ -1376,6 +1379,34 @@ func proxyResourceServerBody(name, identifier, proxyHandle, ouID string) map[str
 		"delimiter":  proxyResourceServerDelimiter,
 		"type":       proxyResourceServerType,
 	}
+}
+
+// RenameProxyResourceServerIdentifier finds the proxy's RS by its old identifier, which a URL-registered RS is found
+// by only (Thunder returns no handle for it), and rewrites the identifier in place. Both identifiers are canonicalized
+// as EnsureProxyResourceServer stores them. A missing RS at from, or one already at to, is not an error.
+func (c *thunderClient) RenameProxyResourceServerIdentifier(ctx context.Context, proxyHandle, from, to string) error {
+	from, err := canonicalMCPResourceIdentifier(from)
+	if err != nil {
+		return err
+	}
+	if to, err = canonicalMCPResourceIdentifier(to); err != nil {
+		return err
+	}
+	if from == to {
+		return nil
+	}
+	token, err := c.getSystemToken(ctx)
+	if err != nil {
+		return err
+	}
+	mu := c.ensureProxyResourceServerMu(proxyHandle)
+	mu.Lock()
+	defer mu.Unlock()
+	rs, err := c.findResourceServer(ctx, token, func(rs *ThunderResourceServer) bool { return rs.Identifier == from })
+	if err != nil || rs == nil {
+		return err
+	}
+	return c.updateProxyResourceServerIdentifier(ctx, token, rs, proxyHandle, to)
 }
 
 // updateProxyResourceServerIdentifier rewrites a drifted identifier in place via

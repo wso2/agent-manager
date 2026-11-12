@@ -649,6 +649,33 @@ func TestDeleteProxyResourceServerByIdentifier_FindsAURLRegisteredRS(t *testing.
 	assert.Equal(t, []string{"/resource-servers/rs-1/resources/res-1", "/resource-servers/rs-1"}, deleted)
 }
 
+// A rename finds the resource server by its old URL identifier, which has no handle in Thunder, and rewrites the
+// identifier in place, so its resources, actions and grants carry over.
+func TestRenameProxyResourceServerIdentifier_RewritesInPlace(t *testing.T) {
+	const from, to = "https://gw.example.com/p1/old", "https://gw.example.com/p1/new"
+	var put map[string]any
+	srv := newTestThunderServer(t, func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/resource-servers":
+			_ = json.NewEncoder(w).Encode(map[string]any{"resourceServers": []any{map[string]string{"id": "rs-1", "name": "Weather", "identifier": from}}, "totalResults": 1})
+		case r.Method == http.MethodGet && r.URL.Path == "/organization-units/tree/default":
+			_ = json.NewEncoder(w).Encode(map[string]string{"id": "ou-1"})
+		case r.Method == http.MethodPut && r.URL.Path == "/resource-servers/rs-1":
+			_ = json.NewDecoder(r.Body).Decode(&put)
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"id":"rs-1"}`))
+		default:
+			t.Fatalf("unexpected call %s %s", r.Method, r.URL.Path)
+		}
+	})
+	defer srv.Close()
+	client := NewIdentityClient(srv.URL, "sys-client", "sys-secret")
+
+	require.NoError(t, client.RenameProxyResourceServerIdentifier(context.Background(), "weather", from, to))
+	require.NotNil(t, put, "the resource server was updated in place")
+	assert.Equal(t, to, put["identifier"])
+}
+
 // TestDeleteProxyResourceServerAction_DeletesFromAnchorResource guards against
 // a regression where action deletion targeted the resource-server root
 // (/resource-servers/{id}/actions/{actionId}) instead of the anchor resource's

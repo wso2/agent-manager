@@ -139,6 +139,9 @@ import (
 //			RemoveRolePermissionsFunc: func(ctx context.Context, roleID string, req thundersvc.RolePermissionRequest) error {
 //				panic("mock out the RemoveRolePermissions method")
 //			},
+//			RenameProxyResourceServerIdentifierFunc: func(ctx context.Context, proxyHandle string, from string, to string) error {
+//				panic("mock out the RenameProxyResourceServerIdentifier method")
+//			},
 //			UpdateGroupFunc: func(ctx context.Context, groupID string, req thundersvc.UpdateGroupRequest) (*thundersvc.ThunderGroup, error) {
 //				panic("mock out the UpdateGroup method")
 //			},
@@ -280,6 +283,9 @@ type EnvIdentityClientMock struct {
 
 	// RemoveRolePermissionsFunc mocks the RemoveRolePermissions method.
 	RemoveRolePermissionsFunc func(ctx context.Context, roleID string, req thundersvc.RolePermissionRequest) error
+
+	// RenameProxyResourceServerIdentifierFunc mocks the RenameProxyResourceServerIdentifier method.
+	RenameProxyResourceServerIdentifierFunc func(ctx context.Context, proxyHandle string, from string, to string) error
 
 	// UpdateGroupFunc mocks the UpdateGroup method.
 	UpdateGroupFunc func(ctx context.Context, groupID string, req thundersvc.UpdateGroupRequest) (*thundersvc.ThunderGroup, error)
@@ -638,6 +644,17 @@ type EnvIdentityClientMock struct {
 			// Req is the req argument value.
 			Req thundersvc.RolePermissionRequest
 		}
+		// RenameProxyResourceServerIdentifier holds details about calls to the RenameProxyResourceServerIdentifier method.
+		RenameProxyResourceServerIdentifier []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// ProxyHandle is the proxyHandle argument value.
+			ProxyHandle string
+			// From is the from argument value.
+			From string
+			// To is the to argument value.
+			To string
+		}
 		// UpdateGroup holds details about calls to the UpdateGroup method.
 		UpdateGroup []struct {
 			// Ctx is the ctx argument value.
@@ -716,6 +733,7 @@ type EnvIdentityClientMock struct {
 	lockRemoveGroupMembers                    sync.RWMutex
 	lockRemoveRoleAssignees                   sync.RWMutex
 	lockRemoveRolePermissions                 sync.RWMutex
+	lockRenameProxyResourceServerIdentifier   sync.RWMutex
 	lockUpdateGroup                           sync.RWMutex
 	lockUpdateRole                            sync.RWMutex
 	lockUpdateUser                            sync.RWMutex
@@ -2307,6 +2325,50 @@ func (mock *EnvIdentityClientMock) RemoveRolePermissionsCalls() []struct {
 	mock.lockRemoveRolePermissions.RLock()
 	calls = mock.calls.RemoveRolePermissions
 	mock.lockRemoveRolePermissions.RUnlock()
+	return calls
+}
+
+// RenameProxyResourceServerIdentifier calls RenameProxyResourceServerIdentifierFunc.
+func (mock *EnvIdentityClientMock) RenameProxyResourceServerIdentifier(ctx context.Context, proxyHandle string, from string, to string) error {
+	if mock.RenameProxyResourceServerIdentifierFunc == nil {
+		panic("EnvIdentityClientMock.RenameProxyResourceServerIdentifierFunc: method is nil but EnvIdentityClient.RenameProxyResourceServerIdentifier was just called")
+	}
+	callInfo := struct {
+		Ctx         context.Context
+		ProxyHandle string
+		From        string
+		To          string
+	}{
+		Ctx:         ctx,
+		ProxyHandle: proxyHandle,
+		From:        from,
+		To:          to,
+	}
+	mock.lockRenameProxyResourceServerIdentifier.Lock()
+	mock.calls.RenameProxyResourceServerIdentifier = append(mock.calls.RenameProxyResourceServerIdentifier, callInfo)
+	mock.lockRenameProxyResourceServerIdentifier.Unlock()
+	return mock.RenameProxyResourceServerIdentifierFunc(ctx, proxyHandle, from, to)
+}
+
+// RenameProxyResourceServerIdentifierCalls gets all the calls that were made to RenameProxyResourceServerIdentifier.
+// Check the length with:
+//
+//	len(mockedEnvIdentityClient.RenameProxyResourceServerIdentifierCalls())
+func (mock *EnvIdentityClientMock) RenameProxyResourceServerIdentifierCalls() []struct {
+	Ctx         context.Context
+	ProxyHandle string
+	From        string
+	To          string
+} {
+	var calls []struct {
+		Ctx         context.Context
+		ProxyHandle string
+		From        string
+		To          string
+	}
+	mock.lockRenameProxyResourceServerIdentifier.RLock()
+	calls = mock.calls.RenameProxyResourceServerIdentifier
+	mock.lockRenameProxyResourceServerIdentifier.RUnlock()
 	return calls
 }
 

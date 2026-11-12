@@ -39,7 +39,7 @@ import (
 // caller's ensure loop sends, registers it again. A binding with no gateway yet has no public URL to register, so it
 // is skipped until a PUT after placement or a role write that grants its scopes, which ensures it as for an org proxy.
 func (s *ProjectMCPProxyService) ensureBindingResourceServer(
-	ctx context.Context, ouID string, proxy *models.MCPProxy, envUUID uuid.UUID, envName string,
+	ctx context.Context, ouID string, proxy *models.MCPProxy, envUUID uuid.UUID, envName, previousIdentifier string,
 ) {
 	endpoint, ee := resolveMCPEndpointForEnv(proxy, envUUID.String())
 	if endpoint == nil || ee == nil || !mcpIdentityEnabled(endpoint.Configuration.Security) || s.base.resolver == nil {
@@ -60,7 +60,7 @@ func (s *ProjectMCPProxyService) ensureBindingResourceServer(
 			actions = append(actions, scope.Action)
 		}
 	}
-	_, err := s.base.ensureProxyResourceServerInEnv(ctx, ouID, envUUID, envName, proxy, actions)
+	_, err := s.base.ensureProxyResourceServerInEnvFrom(ctx, ouID, envUUID, envName, proxy, actions, previousIdentifier)
 	switch {
 	case err == nil:
 		s.base.logger.Info("project MCP binding resource server registered", "proxy", handle, "env", envName)
@@ -77,15 +77,39 @@ func (s *ProjectMCPProxyService) ensureBindingResourceServer(
 }
 
 // ensureBindingResourceServers registers the resource server of every identity binding of the proxy: after a change
-// to the proxy's context, which every binding's public URL, and so its resource identifier, carries.
-func (s *ProjectMCPProxyService) ensureBindingResourceServers(ctx context.Context, ouID string, proxy *models.MCPProxy) {
+// to the proxy's context, which every binding's public URL, and so its resource identifier, carries. previous holds
+// each binding's URL before the change, by environment: the resource server registered there is moved to the new URL
+// in place, keeping the roles' grants, instead of being left behind. A binding with a removal pending is skipped; its
+// own sync registers it once that is done.
+func (s *ProjectMCPProxyService) ensureBindingResourceServers(
+	ctx context.Context, ouID string, proxy *models.MCPProxy, previous map[uuid.UUID]string,
+) {
+	for i := range proxy.Endpoints {
+		endpoint := &proxy.Endpoints[i]
+		if len(endpoint.Environments) != 1 || !mcpIdentityEnabled(endpoint.Configuration.Security) ||
+			endpoint.Configuration.IdentityCleanupID != "" {
+			continue
+		}
+		envUUID := endpoint.Environments[0].EnvironmentUUID
+		s.ensureBindingResourceServer(ctx, ouID, proxy, envUUID, endpoint.Name, previous[envUUID])
+	}
+}
+
+// bindingResourceIdentifiers are the public URLs of the proxy's identity bindings, by environment: the identifiers
+// their resource servers are registered at. A binding with no public URL yet has none.
+func (s *ProjectMCPProxyService) bindingResourceIdentifiers(ctx context.Context, ouID string, proxy *models.MCPProxy) map[uuid.UUID]string {
+	identifiers := map[uuid.UUID]string{}
 	for i := range proxy.Endpoints {
 		endpoint := &proxy.Endpoints[i]
 		if len(endpoint.Environments) != 1 || !mcpIdentityEnabled(endpoint.Configuration.Security) {
 			continue
 		}
-		s.ensureBindingResourceServer(ctx, ouID, proxy, endpoint.Environments[0].EnvironmentUUID, endpoint.Name)
+		envUUID := endpoint.Environments[0].EnvironmentUUID
+		if identifier, err := s.base.MCPResourceServerIdentifier(ctx, ouID, envUUID, proxy); err == nil {
+			identifiers[envUUID] = identifier
+		}
 	}
+	return identifiers
 }
 
 // cleanUpBindingIdentity removes the resource server of a binding that left identity, and the roles' grants of the
@@ -156,9 +180,15 @@ func (s *ProjectMCPProxyService) syncBindingIdentity(
 			}
 			cleared = true
 		}
-		s.ensureBindingResourceServer(ctx, ouID, proxy, envUUID, envName)
+		s.ensureBindingResourceServer(ctx, ouID, proxy, envUUID, envName, "")
 
-		fresh, freshEndpoint := s.rereadBinding(ctx, ouID, proxy, envUUID)
+		fresh, freshEndpoint, err := s.rereadBinding(ctx, ouID, proxy, envUUID)
+		if err != nil {
+			// The state this pass acted on stays stored; the next PUT of the binding syncs it again.
+			s.base.logger.Warn("project MCP binding identity sync: re-reading the binding failed; the next PUT syncs it",
+				"proxy", proxyHandleOf(proxy), "env", envName, "error", err)
+			return
+		}
 		if freshEndpoint == nil {
 			return // gone: the delete removes its resource server
 		}
@@ -178,7 +208,11 @@ func (s *ProjectMCPProxyService) syncBindingIdentity(
 				return
 			}
 			if marked {
-				if fresh, freshEndpoint = s.rereadBinding(ctx, ouID, proxy, envUUID); freshEndpoint == nil {
+				if fresh, freshEndpoint, err = s.rereadBinding(ctx, ouID, proxy, envUUID); err != nil || freshEndpoint == nil {
+					if err != nil {
+						s.base.logger.Warn("project MCP binding identity sync: re-reading the binding failed; the next PUT syncs it",
+							"proxy", proxyHandleOf(proxy), "env", envName, "error", err)
+					}
 					return
 				}
 			}
@@ -189,23 +223,23 @@ func (s *ProjectMCPProxyService) syncBindingIdentity(
 		"proxy", proxyHandleOf(proxy), "env", envName)
 }
 
-// rereadBinding reads the proxy again with its binding in envUUID, or nil when either is gone or cannot be read.
+// rereadBinding reads the proxy again with its binding in envUUID. A proxy or binding that is gone gives nil and no
+// error; a read that fails gives the error.
 func (s *ProjectMCPProxyService) rereadBinding(
 	ctx context.Context, ouID string, proxy *models.MCPProxy, envUUID uuid.UUID,
-) (*models.MCPProxy, *models.MCPProxyEndpoint) {
+) (*models.MCPProxy, *models.MCPProxyEndpoint, error) {
 	fresh, err := s.base.repo.GetInProject(ctx, proxyHandleOf(proxy), ouID, valueOrEmpty(proxy.ProjectUUID))
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil, nil
+	}
 	if err != nil {
-		if !errors.Is(err, gorm.ErrRecordNotFound) {
-			s.base.logger.Warn("project MCP binding identity sync: re-reading the binding failed",
-				"proxy", proxyHandleOf(proxy), "error", err)
-		}
-		return nil, nil
+		return nil, nil, fmt.Errorf("failed to re-read the MCP proxy binding: %w", err)
 	}
 	endpoint, ee := resolveMCPEndpointForEnv(fresh, envUUID.String())
 	if ee == nil {
-		return nil, nil
+		return nil, nil, nil
 	}
-	return fresh, endpoint
+	return fresh, endpoint, nil
 }
 
 // purgeBindingResourceServer removes the resource server of a deleted binding that was on identity or had a removal

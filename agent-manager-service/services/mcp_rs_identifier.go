@@ -124,13 +124,22 @@ func mcpResourceServerDisplayName(proxy *models.MCPProxy) string {
 func (s *MCPProxyService) ensureProxyResourceServerInEnv(
 	ctx context.Context, ouID string, envID uuid.UUID, envName string, proxy *models.MCPProxy, actions []string,
 ) (string, error) {
+	return s.ensureProxyResourceServerInEnvFrom(ctx, ouID, envID, envName, proxy, actions, "")
+}
+
+// ensureProxyResourceServerInEnvFrom is ensureProxyResourceServerInEnv for a proxy whose URL in the environment moved
+// from previousIdentifier: the resource server registered there is moved to the current URL, keeping its grants.
+func (s *MCPProxyService) ensureProxyResourceServerInEnvFrom(
+	ctx context.Context, ouID string, envID uuid.UUID, envName string, proxy *models.MCPProxy, actions []string,
+	previousIdentifier string,
+) (string, error) {
 	identifier, err := s.MCPResourceServerIdentifier(ctx, ouID, envID, proxy)
 	if err != nil {
 		return "", err
 	}
 	result, err := mcpResourceServerProviderFor(s.resolver, s.logger).EnsureMCPResourceServer(ctx, MCPResourceServerRequest{
 		OrganizationID: ouID, ProxyHandle: proxyHandleOf(proxy), DisplayName: mcpResourceServerDisplayName(proxy),
-		Environment: envName, Identifier: identifier, Actions: actions,
+		Environment: envName, Identifier: identifier, PreviousIdentifier: previousIdentifier, Actions: actions,
 	})
 	return result.ResourceServerID, err
 }

@@ -23,6 +23,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
@@ -272,16 +273,22 @@ func TestLegacyMCPResourceServerProvider(t *testing.T) {
 		require.ErrorContains(t, provider.RemoveMCPResourceServerAction(ctx, request, "read"), "env-Thunder unavailable")
 	})
 
-	t.Run("no roles are swept when the resource server was never there", func(t *testing.T) {
-		// ListRoles is not stubbed: the mock panics if it is called.
+	t.Run("roles are swept even when the resource server is not found by handle", func(t *testing.T) {
+		// One registered with a URL identifier is not found by handle, yet roles may grant its scope.
+		swept := 0
 		provider := &legacyMCPResourceServerProvider{logger: discardLogger(), resolver: &clientmocks.EnvThunderResolverMock{
 			ResolveIdentityFunc: func(context.Context, string, string, string) (thundersvc.EnvIdentityClient, error) {
 				return &clientmocks.EnvIdentityClientMock{
 					DeleteProxyResourceServerActionFunc: func(context.Context, string, string) (string, error) { return "", nil },
+					ListRolesFunc: func(context.Context, string, int, int) ([]thundersvc.ThunderRole, int, error) {
+						swept++
+						return nil, 0, nil
+					},
 				}, nil
 			},
 		}}
 		require.NoError(t, provider.RemoveMCPResourceServerAction(ctx, request, "read"))
+		assert.Equal(t, 1, swept)
 	})
 
 	t.Run("a failed server delete skips the role sweep", func(t *testing.T) {
