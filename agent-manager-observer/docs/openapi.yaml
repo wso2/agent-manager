@@ -1,4 +1,5 @@
 openapi: 3.0.3
+# checkov:skip=CKV_OPENAPI_5:GET /health is an anonymous liveness probe. The observability routes require a bearer token.
 info:
   title: Agent Manager Observer API
   description: |

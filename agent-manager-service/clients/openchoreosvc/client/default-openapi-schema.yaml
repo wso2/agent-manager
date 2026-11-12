@@ -1,4 +1,6 @@
 openapi: 3.0.3
+# checkov:skip=CKV_OPENAPI_4:The default chat schema defines the workload contract. The deployment configures API key or JWT authentication at the gateway.
+# checkov:skip=CKV_OPENAPI_5:POST /chat inherits the deployed gateway policy, which can also be configured for anonymous access.
 info:
   title: Default Chat Agent API
   description: >
