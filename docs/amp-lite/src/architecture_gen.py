@@ -107,22 +107,11 @@ comp("amapi", 560, 330, 560, 180, GREEN, "Agent Manager API",
      "REST API and MCP server<br/>registers external agents and issues their agent tokens<br/>"
      "LLM, MCP, A2A and gateway config<br/>secrets encrypted in the SQL database<br/>RBAC and audit log",
      logos=[IMG["amapi_logo0"]])
-comp("thunder", 300, 570, 360, 230, RED, "ThunderID",
+comp("thunder", 300, 570, 820, 230, RED, "ThunderID",
      "<b>For people and services:</b> single sign-on (console, CLI, MCP); users, roles and groups<br/><br/>"
      "<b>For agents:</b> an agent ID and OAuth client per external agent, created by Agent Manager<br/><br/>"
      "the only identity provider; no per-environment instances",
      logos=[IMG["thunder_logo0"]], logo_size=22, prod="one per install", prod_color=RED)
-
-# planned (greyed)
-box("planned", 680, 570, 440, 230, GREY, fill="#F8FAFC", dashed=True)
-text("planned_lbl", 696, 580, 410, 16, "PLANNED · deferred", size=12, color="#64748b", bold=True, valign="middle")
-text("planned_sub", 696, 598, 410, 16, "not installed in Lite; shown for orientation", size=10.5, color="#64748b", italic=True)
-sub("pl_evals", 696, 624, 200, 160,
-    "<b>Evaluations &amp; monitors</b><br/><br/>scheduled LLM-as-judge scoring of agent traces",
-    GREY, "#FFFFFF", color="#64748b", dashed=True)
-sub("pl_hosted", 908, 624, 196, 160,
-    "<b>Hosted agents</b><br/><br/>builds, deploys and sandboxed pods; API routes kept, answer 501",
-    GREY, "#FFFFFF", color="#64748b", dashed=True)
 
 # ---------------------------------------------------------------- data plane
 box("dp", 1180, 290, 860, 280, INDIGO, fill="#F5F5FF", arc=2)
@@ -130,7 +119,7 @@ text("dp_lbl", 1200, 298, 820, 20, "DATA PLANE", size=13, color=INDIGO, bold=Tru
 comp("gw", 1200, 330, 560, 220, INDIGO, "AI Gateway",
      "• inbound: the public entry point for agent endpoints; API keys and OAuth tokens checked here<br/>"
      "• outbound: LLM and MCP proxy, guardrails, token and cost limits; provider keys stay in the gateway<br/>"
-     "• rate-limit counters in memory, or in Redis when the gateway has more than one replica",
+     "• rate-limit counters kept in memory",
      logos=[IMG["gw_logo0"]], prod="bundled default gateway for the org · more can be added per org", prod_color=INDIGO)
 comp("tracegw", 1780, 330, 240, 220, ORANGE, "Trace ingest",
      "OTLP at /otel/v1/traces<br/>checks the agent token<br/>maps its organization, project and agent claims to "
@@ -167,10 +156,7 @@ comp("thdb", 54, 610, 172, 190, BLUE, "ThunderID data",
      "users, agent identities and OAuth clients<br/>Thunder's own database, separate from Agent Manager's",
      logos=[DB_ICON], logo_size=22, title_size=13)
 
-backing("bk_right", 2080, 290, 210, 530)
-comp("redis", 2094, 340, 182, 210, REDIS, "Redis",
-     "AI Gateway rate limits and Agent Manager's gateway manifest cache, when they run more than one replica",
-     logos=[IMG["redis_g_logo0"]], logo_size=22, title_size=13)
+backing("bk_right", 2080, 590, 210, 230)
 comp("os", 2094, 630, 182, 180, "#005EB8", "OpenSearch",
      "traces (otel-traces-* index)",
      logos=[IMG["os_logo0"]], logo_size=22, title_size=13)
@@ -216,9 +202,6 @@ edge("f_api_db", [(580, 510), (580, 528), (226, 528)], BLUE, "amapi", "sqldb")
 label("l_data", 288, 510, 80, "read / write", BLUE)
 edge("f_th_db", [(300, 700), (226, 700)], BLUE, "thunder", "thdb")
 
-edge("f_gw_redis", [(1700, 330), (1700, 312), (2070, 312), (2070, 400), (2094, 400)], REDIS, "gw", "redis")
-label("l_rl", 1840, 296, 80, "rate limits", REDIS)
-
 # telemetry
 edge("f_tgw_collect", [(1960, 550), (1960, 646)], ORANGE, "tracegw", "collect")
 label("l_fwd", 1730, 582, 222, "spans + x-user-*-name headers", ORANGE, align="right")
@@ -236,7 +219,6 @@ LG = [
     (INDIGO, False, "agent traffic"),
     (ORANGE, False, "telemetry (traces)"),
     (BLUE, False, "data reads / writes"),
-    (REDIS, False, "Redis rate limits / cache"),
 ]
 cols = [296, 796, 1296, 1796]
 for i, (c, d, t) in enumerate(LG):
@@ -244,8 +226,6 @@ for i, (c, d, t) in enumerate(LG):
     y = 948 if i < 4 else 978
     edge(f"lg_e{i}", [(x, y), (x + 34, y)], c, dashed=d)
     text(f"lg_t{i}", x + 42, y - 8, 226, 16, t, size=11, color="#0f172a", valign="middle")
-box("lg_planned", 1296, 970, 34, 16, GREY, fill="#F8FAFC", dashed=True, arc=6)
-text("lg_planned_t", 1338, 970, 226, 16, "planned, not in Lite yet", size=11, color="#0f172a", valign="middle")
 pill("lg_lb", 296, 1002, 120, "LOAD BALANCER")
 text("lg_lb_t", 424, 1002, 950, 18,
      "entry point at the cluster edge: today one shared kgateway Gateway (amp-gateway) with three listeners",
