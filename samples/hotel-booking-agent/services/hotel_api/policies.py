@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import html
 import logging
+import traceback
 from pathlib import Path
 
 from fastapi import APIRouter, Query, status
@@ -42,6 +44,10 @@ def init_policy_store() -> None:
     logger.info("policy search ready (in-memory)")
 
 
+def _sanitize_for_log(value: str) -> str:
+    return html.escape(value).replace("\r", "").replace("\n", "")
+
+
 @router.get("/hotels/{hotel_id}/policies/search")
 def search_policies_route(hotel_id: str, q: str, k: int = Query(5, ge=1, le=20)):
     if _store is None:
@@ -56,12 +62,21 @@ def search_policies_route(hotel_id: str, q: str, k: int = Query(5, ge=1, le=20))
     try:
         docs = _store.similarity_search(q, k=k, filter=search_filter)
     except Exception:
-        logger.exception("policy search failed: hotel_id=%r", hotel_id)
+        logger.error(
+            "policy search failed: hotel_id=%r traceback=%a",
+            _sanitize_for_log(hotel_id),
+            _sanitize_for_log(traceback.format_exc()),
+        )
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"message": "Policy search failed", "error_code": "POLICY_SEARCH_FAILED"},
         )
-    logger.info("policy search (%s) returned %s results for hotel_id=%r", _backend, len(docs), hotel_id)
+    logger.info(
+        "policy search (%s) returned %d results for hotel_id=%r",
+        _sanitize_for_log(str(_backend)),
+        len(docs),
+        _sanitize_for_log(hotel_id),
+    )
     return {
         "hotel_id": hotel_id,
         "source": _backend,
