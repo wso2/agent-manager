@@ -107,7 +107,8 @@ type PublisherCredentialProvisioner interface {
 	// GetOCClientForOrg returns an OC client authenticated with the org's publisher app token.
 	// Used by the scheduler which runs without a user request context and therefore has no
 	// user JWT in ctx. Decrypts the stored client secret and exchanges it for an access token
-	// via the IDP token endpoint.
+	// via the IDP token endpoint. With config.OpenChoreoConfig.ServiceTokenImpersonatesOrgs it
+	// returns the service's own client instead, which acts for the org in ctx by impersonation.
 	// In non-Thunder mode returns nil, ErrNotThunderMode — callers must fall back to the system OC client.
 	GetOCClientForOrg(ctx context.Context, ouID string) (client.OpenChoreoClient, error)
 }
@@ -150,6 +151,9 @@ type publisherCredentialProvisioner struct {
 	encryptionKey     []byte
 	idpTokenURL       string
 	ocBaseURL         string
+	// impersonatesOrgs hands out ocClient for every org: it names the org from the
+	// context in X-Impersonate-Org (config.OpenChoreoConfig.ServiceTokenImpersonatesOrgs).
+	impersonatesOrgs bool
 
 	sfg singleflight.Group // serializes provisioning and per-org client construction
 
@@ -215,6 +219,7 @@ func NewPublisherCredentialProvisioner(
 		encryptionKey:     encryptionKey,
 		idpTokenURL:       cfg.IDP.TokenURL,
 		ocBaseURL:         cfg.OpenChoreo.BaseURL,
+		impersonatesOrgs:  cfg.OpenChoreo.ServiceTokenImpersonatesOrgs,
 		orgOCClients:      make(map[string]client.OpenChoreoClient),
 		orgOCGen:          make(map[string]uint64),
 	}, nil
@@ -474,6 +479,10 @@ func (p *publisherCredentialProvisioner) evictOrgOCClient(ouID string) {
 // is built once per org and cached, so connection-pool keep-alive and token-refresh state
 // are preserved across scheduler cycles.
 func (p *publisherCredentialProvisioner) GetOCClientForOrg(ctx context.Context, ouID string) (client.OpenChoreoClient, error) {
+	if p.impersonatesOrgs {
+		return p.ocClient, nil
+	}
+
 	p.orgOCMu.RLock()
 	c, ok := p.orgOCClients[ouID]
 	p.orgOCMu.RUnlock()

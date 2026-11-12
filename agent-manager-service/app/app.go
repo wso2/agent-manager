@@ -113,6 +113,13 @@ type Options struct {
 	// BackgroundContextDecorator optionally marks contexts created for trusted
 	// background workers. Request contexts never pass through this hook.
 	BackgroundContextDecorator func(context.Context) context.Context
+	// ServiceTokenImpersonatesOrgs makes the monitor scheduler, and the monitor
+	// run expiry on delete, act for an organization with this service's own
+	// OpenChoreo client and the X-Impersonate-Org header instead of a per-org
+	// Thunder client (amp-scheduler-<ouId>). Set it only where the OpenChoreo API
+	// trusts that header from this service's token. false (the open-source
+	// default) keeps the per-org client.
+	ServiceTokenImpersonatesOrgs bool
 	// AgentThunderProvisioning is the deployment-specific AgentID provisioning
 	// implementation. A factory because the open-source impl is DB-backed and the
 	// DB is initialized inside Run. nil disables provisioning (identity endpoints
@@ -162,6 +169,7 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 	cfg := config.GetConfig()
 	// Set before anything builds an OpenChoreo client, which all read it from config.
 	cfg.OpenChoreo.ResourceLabels = maps.Clone(opts.ResourceLabels)
+	cfg.OpenChoreo.ServiceTokenImpersonatesOrgs = opts.ServiceTokenImpersonatesOrgs
 	// Installed before the HTTP server starts, so no request sees it change.
 	middleware.SetOrgOverrideResolver(opts.OrgOverrideResolver)
 

@@ -192,6 +192,23 @@ func TestGetOCClientForOrg_ReadsFromSchedulerCredRepo(t *testing.T) {
 	assert.NotNil(t, ocClient)
 }
 
+// The repo mocks have no funcs: they panic if an impersonating provisioner touches them.
+func TestGetOCClientForOrg_ImpersonatingReturnsServiceClient(t *testing.T) {
+	serviceClient := &clientmocks.OpenChoreoClientMock{}
+	p := &publisherCredentialProvisioner{
+		ocClient:          serviceClient,
+		impersonatesOrgs:  true,
+		credRepo:          &repomocks.OrgPublisherCredentialRepositoryMock{},
+		schedulerCredRepo: &repomocks.OrgSchedulerCredentialRepositoryMock{},
+		logger:            discardLogger(),
+		orgOCClients:      make(map[string]occlient.OpenChoreoClient),
+	}
+
+	ocClient, err := p.GetOCClientForOrg(context.Background(), "acme")
+	require.NoError(t, err)
+	assert.Same(t, serviceClient, ocClient)
+}
+
 // Orgs whose monitors predate the credential split have no scheduler credential yet —
 // GetOCClientForOrg must provision one on demand rather than fail permanently.
 func TestGetOCClientForOrg_ProvisionsOnDemand_WhenSchedulerCredMissing(t *testing.T) {

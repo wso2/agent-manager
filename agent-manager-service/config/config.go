@@ -397,6 +397,13 @@ type OpenChoreoConfig struct {
 	// through app.Options.ResourceLabels. Their keys are treated as system
 	// labels, so they are never surfaced or replaced as user labels.
 	ResourceLabels map[string]string
+	// ServiceTokenImpersonatesOrgs makes background work act for an organization
+	// through this service's own OpenChoreo client, which names the org in the
+	// X-Impersonate-Org header, instead of through a per-org scheduler client.
+	// Not read from the environment: a deployment whose OpenChoreo API trusts that
+	// header from this service's token sets it through
+	// app.Options.ServiceTokenImpersonatesOrgs.
+	ServiceTokenImpersonatesOrgs bool
 	// BuildWorkflowKind is the kind recorded on a new source-built agent's
 	// Component workflow reference: "Workflow" (namespaced, resolves the
 	// WorkflowPlane in the organization's own namespace) or "ClusterWorkflow".
