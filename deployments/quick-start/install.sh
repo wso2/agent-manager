@@ -500,9 +500,14 @@ check_docker_permissions() {
         return 1
     fi
 
-    local sock_gid
+    local sock_gid docker_err
     sock_gid=$(stat -c '%g' "${docker_sock}")
-    if ! id -G | tr ' ' '\n' | grep -qx "${sock_gid}"; then
+    if [ -r "${docker_sock}" ] && [ -w "${docker_sock}" ]; then
+        # The socket is accessible, so the failure is not a permission problem.
+        docker_err=$(docker ps 2>&1 >/dev/null || true)
+        log_error "Docker is not reachable: ${docker_err}"
+        log_info "Check the active Docker context and that the daemon is running."
+    elif ! id -G | tr ' ' '\n' | grep -qx "${sock_gid}"; then
         log_error "Cannot access ${docker_sock}: this shell is not in its group (${sock_gid})."
         log_info "Start the container with ./start.sh, or add --group-add ${sock_gid} to your docker run command."
     else
