@@ -153,6 +153,7 @@ func TestLoad_OpenSearchDefaults(t *testing.T) {
 
 func TestLoad_TraceBackendDefaultsToOpenSearch(t *testing.T) {
 	setRequiredEnv(t)
+	t.Setenv("TRACE_BACKEND", "")
 	cfg, err := Load()
 	if err != nil {
 		t.Fatalf("Load: %v", err)
