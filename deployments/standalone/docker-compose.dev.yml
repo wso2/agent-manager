@@ -11,7 +11,16 @@ services:
       dockerfile: Dockerfile.dev
     # Fixed name: `make dev-migrate` and agent-manager-service/Makefile exec into it.
     container_name: agent-manager-service
-    command: ["/bin/sh", "-c", "bash /app/scripts/gen_keys.sh && air -c .air.toml"]
+    # air builds as root; the service runs as 1000:1000 like the release image,
+    # so `make up` can read the keys, database and certs this leaves behind.
+    command:
+      - /bin/sh
+      - -c
+      - >-
+        bash /app/scripts/gen_keys.sh &&
+        chown -R 1000:1000 /app/keys /var/lib/agent-manager &&
+        exec air -c .air.toml
+        -build.full_bin "su-exec 1000:1000 ./tmp/agent-manager-service"
     volumes:
       - ../../agent-manager-service:/app
       - amp-keys:/app/keys

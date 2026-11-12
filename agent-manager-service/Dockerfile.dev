@@ -1,10 +1,11 @@
 FROM public.ecr.aws/docker/library/golang:1.26.10-alpine
 
-# Install Air for hot-reloading, bash/openssl for key generation and sqlite for make db-connect.
+# Install Air for hot-reloading, bash/openssl for key generation, sqlite for
+# make db-connect and su-exec to run the service as the release image's user.
 # Air is pinned: the image ships GOTOOLCHAIN=local, so any Air release that
 # needs a newer Go than the base image above fails the build. Bump this pin
 # and the base image together.
-RUN apk add --no-cache 'ca-certificates>=20261020' 'ca-certificates-bundle>=20261020' bash openssl sqlite && \
+RUN apk add --no-cache 'ca-certificates>=20261020' 'ca-certificates-bundle>=20261020' bash openssl sqlite su-exec && \
     go install github.com/air-verse/air@v1.67.1
 
 WORKDIR /app

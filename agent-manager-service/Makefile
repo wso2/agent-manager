@@ -146,5 +146,5 @@ gen-evaluators: ## Generate builtin evaluators using PyPI amp-evaluation SDK
 .PHONY: dev-migrate
 dev-migrate: ## Run database migrations (in the compose container, which holds the SQLite volume)
 	@echo "🗄️  Running database migrations..."
-	@docker exec agent-manager-service go run -mod=readonly . -migrate -server=false
+	@docker exec agent-manager-service sh -c 'go build -mod=readonly -o /tmp/amp-migrate . && su-exec 1000:1000 /tmp/amp-migrate -migrate -server=false'
 	@echo "✅ Migrations completed"
