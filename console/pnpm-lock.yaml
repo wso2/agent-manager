@@ -380,15 +380,30 @@ importers:
       '@agent-management-platform/types':
         specifier: workspace:*
         version: link:../types
+      '@agent-management-platform/views':
+        specifier: workspace:*
+        version: link:../views
       '@babel/runtime-corejs3':
         specifier: 7.29.7
         version: 7.29.7
+      '@emotion/react':
+        specifier: 11.13.5
+        version: 11.13.5(@types/react@19.2.14)(react@19.2.3)
+      '@emotion/styled':
+        specifier: 11.13.5
+        version: 11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3)
       '@tanstack/react-query':
         specifier: 5.90.5
         version: 5.90.5(react@19.2.3)
       '@thunderid/react':
         specifier: 1.12.0
         version: 1.12.0(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@wso2/oxygen-ui':
+        specifier: 0.20.0
+        version: 0.20.0(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.20.0(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@wso2/oxygen-ui-icons-react':
+        specifier: 0.20.0
+        version: 0.20.0(react@19.2.3)
       clsx:
         specifier: 2.1.1
         version: 2.1.1
@@ -7936,6 +7951,7 @@ packages:
   image-size@0.5.5:
     resolution: {integrity: sha512-6TDAlDPZxUFCv+fuOkIoXT/V/f3Qbq8e37p+YOiYrUv3v9cc3/6x78VdfPgFVaB9dZYeLUfKgHRebpkm/oP2VQ==}
     engines: {node: '>=0.10.0'}
+    deprecated: Please migrate to image-size@2.x
     hasBin: true
 
   immer@10.2.0:

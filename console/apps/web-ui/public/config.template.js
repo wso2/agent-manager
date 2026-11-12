@@ -66,6 +66,11 @@ window.__RUNTIME_CONFIG__ = {
     storage: 'localStorage',
   },
   disableAuth: '$DISABLE_AUTH' === 'true',
+  // 'thunder' | 'file' | 'none'. Must match the server's AUTH_MODE: the server
+  // decides which tokens it accepts, this only decides how the console asks for
+  // one. Empty falls back to disableAuth, then to 'file' — the same default the
+  // service uses, so an unconfigured pair still agrees.
+  authMode: '$AUTH_MODE' || undefined,
   // Pinned at image build to the BASE_PATH the assets were built with (see the
   // Dockerfile), so the router basename always matches the Vite asset base.
   basePath: '$BASE_PATH',

@@ -16,7 +16,11 @@
  * under the License.
  */
 
-import { useAuthHooks } from "@agent-management-platform/auth";
+import {
+  isFileAuthMode,
+  LoginForm,
+  useAuthHooks,
+} from "@agent-management-platform/auth";
 import { withBasePath } from "@agent-management-platform/types";
 import { FullPageLoader } from "@agent-management-platform/views";
 import { useEffect, useMemo } from "react";
@@ -69,7 +73,10 @@ export function Login() {
       return;
     }
 
-    if (!isOAuthCallback) {
+    // File mode has nowhere to send the user: the credential form below is the
+    // sign-in surface, so calling login() would only reload the page under
+    // their typing.
+    if (!isOAuthCallback && !isFileAuthMode) {
       login();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -82,6 +89,12 @@ export function Login() {
     userInfo,
     // login, comment out to avoid infinite re-render
   ]);
+
+  // The loader stands in for a redirect that is already under way. In file
+  // mode no redirect is coming, so showing one would be a lie that never ends.
+  if (isFileAuthMode && !isAuthenticated) {
+    return <LoginForm />;
+  }
 
   return <FullPageLoader />;
 }
