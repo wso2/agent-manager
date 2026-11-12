@@ -5,6 +5,7 @@ on:
     paths:
       - 'samples/a2a-agent/**'
       - 'test/sample-smoke/a2a/**'
+      - 'test/sample-smoke/external_agent.py'
       - 'test/instrumentation-matrix/heavy/amp_client.py'
       - 'test/instrumentation-matrix/harness/classify.py'
       - '.github/workflows/a2a-sample-pr-checks.yaml'
@@ -19,8 +20,6 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  SAMPLE_REPO: https://github.com/${{ github.event.pull_request.head.repo.full_name || github.repository }}
-  SAMPLE_BRANCH: ${{ github.head_ref || github.ref_name }}
   SAMPLE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
 
 jobs:
@@ -52,102 +51,39 @@ jobs:
           path: ${{ runner.temp }}/a2a-local/
 
   platform-smoke:
-    name: A2A deploy and trace smoke
-    # Disabled: builds and deploys a hosted agent, which AMP no longer runs (external agents only).
-    if: ${{ vars.AMP_HOSTED_AGENTS_ENABLED == 'true' }}
+    name: A2A external agent and trace smoke
     needs: local-smoke
     runs-on: ubuntu-24.04
-    timeout-minutes: 100
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v6
         with:
           repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
           ref: ${{ env.SAMPLE_SHA }}
           persist-credentials: false
+      # Agent Manager on Docker Compose, built from this checkout.
       - uses: ./.github/actions/amp-dev-stack
-      - name: Load and wait for the PR Observer image
-        timeout-minutes: 8
-        shell: bash
-        run: |
-          set -euo pipefail
-          reports="$RUNNER_TEMP/a2a-platform"
-          mkdir -p "$reports"
-          image=amp-observer:0.0.0-dev
-          archive="$RUNNER_TEMP/a2a-observer.tar"
-          trap 'rm -f "$archive"' EXIT
-          # The stack builds this image from the PR checkout. Import directly
-          # and verify via CRI rather than relying on k3d's import exit status.
-          docker image inspect "$image" --format '{{.Id}}' > "$reports/observer-image.txt"
-          docker save "$image" -o "$archive"
-          nodes=$(kubectl get nodes -o jsonpath='{.items[*].metadata.name}')
-          test -n "$nodes"
-          for node in $nodes; do
-            timeout 120s docker exec -i "$node" ctr --address /run/k3s/containerd/containerd.sock --namespace k8s.io images import - < "$archive"
-            timeout 30s docker exec "$node" crictl --runtime-endpoint unix:///run/k3s/containerd/containerd.sock inspecti "docker.io/library/$image" \
-              > "$reports/observer-image-$node.json"
-          done
-          # This dev image exists only locally; never try a registry fallback.
-          kubectl -n amp-observability patch deployment amp-observer --type=strategic \
-            -p '{"spec":{"template":{"spec":{"containers":[{"name":"observer","imagePullPolicy":"Never"}]}}}}'
-          kubectl -n amp-observability rollout status deployment/amp-observer --timeout=180s
-          # The earlier forward may have exited while its pod was unavailable.
-          (cd deployments/setup && PORT_FORWARD_ADDRESS=0.0.0.0 ./port-forward.sh --platform --background)
-          curl --fail --silent --show-error --retry 30 --retry-connrefused \
-            --retry-delay 2 --retry-max-time 90 --max-time 5 http://localhost:9098/health
       - uses: actions/setup-python@v6
         with:
           python-version: '3.11'
       - run: python -m pip install requests
-      - name: Build PR source, deploy, invoke, and find its trace
+      - name: Run the sample as an external agent and find its trace
         env:
-          # Bootstrap fixture credential for this job's ephemeral dev stack, not a repository secret.
+          # Bootstrap fixture credential for this job's ephemeral stack, not a repository secret.
           IDP_CLIENT_SECRET: amp-api-client-secret
         run: |
           python test/sample-smoke/a2a/a2a_platform_smoke.py \
-            --repo "$SAMPLE_REPO" --branch "$SAMPLE_BRANCH" --sha "$SAMPLE_SHA" \
-            --reports "$RUNNER_TEMP/a2a-platform"
-      - name: Capture Docker, k3s, and cluster diagnostics on failure
+            --python python --reports "$RUNNER_TEMP/a2a-platform"
+      - name: Capture stack logs on failure
         if: failure()
-        shell: bash
+        working-directory: deployments/standalone
         run: |
-          # Every command is bounded and best-effort: keep collecting evidence
-          # even when Docker or the Kubernetes API is unavailable.
           reports="$RUNNER_TEMP/a2a-platform"
           mkdir -p "$reports"
-          timeout 15s docker info --format \
-            'Name={{.Name}} Version={{.ServerVersion}} Driver={{.Driver}} CPUs={{.NCPU}} Memory={{.MemTotal}}' \
-            > "$reports/docker-info.txt" 2>&1 || true
-          timeout 15s docker ps -a --format \
-            'table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}' \
-            > "$reports/docker-containers.txt" 2>&1 || true
-          ip address > "$reports/runner-addresses.txt" 2>&1 || true
-          ip route > "$reports/runner-routes.txt" 2>&1 || true
-
-          # Inspect only state/network fields; full inspect output includes env
-          # values. The server container's logs contain the k3s startup logs.
-          timeout 15s docker ps -a --filter name=k3d-amp-dev \
-            --format '{{.Names}}' > "$reports/k3d-containers.txt" \
-            2> "$reports/k3d-discovery-errors.txt" || true
-          while IFS= read -r container; do
-            [ -n "$container" ] || continue
-            timeout 15s docker inspect --format \
-              'State={{json .State}} Ports={{json .NetworkSettings.Ports}} Networks={{json .NetworkSettings.Networks}}' \
-              "$container" > "$reports/$container-state.txt" 2>&1 || true
-            timeout 20s docker logs --timestamps --tail=300 "$container" \
-              > "$reports/$container.log" 2>&1 || true
-          done < "$reports/k3d-containers.txt"
-
-          timeout 15s kubectl config view --minify \
-            -o jsonpath='{.clusters[0].cluster.server}' \
-            > "$reports/kubernetes-api-server.txt" 2>&1 || true
-          timeout 15s kubectl --request-timeout=10s get --raw=/readyz \
-            > "$reports/kubernetes-readyz.txt" 2>&1 || true
-          timeout 20s kubectl --request-timeout=10s get nodes -o wide \
-            > "$reports/cluster-nodes.txt" 2>&1 || true
-          timeout 20s kubectl --request-timeout=10s get pods -A -o wide \
-            > "$reports/cluster-pods.txt" 2>&1 || true
-          timeout 20s kubectl --request-timeout=10s get events -A --field-selector type=Warning \
-            > "$reports/cluster-events.txt" 2>&1 || true
+          docker compose ps -a > "$reports/services.txt" 2>&1 || true
+          for service in amp-api amp-observer gateway-controller gateway-runtime otel-collector; do
+            docker compose logs --no-color --tail 300 "$service" > "$reports/$service.log" 2>&1 || true
+          done
       - uses: actions/upload-artifact@v7
         if: always()
         with:

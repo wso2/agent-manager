@@ -1,8 +1,8 @@
 """Mocked-HTTP tests for the heavy-tier AMP client + observer.
 
 These exercise control flow and response parsing without a live AMP stack:
-token caching, the deploy sequence, build-failure handling, best-effort
-teardown, and the list→summaries→detail span assembly. They do NOT prove
+token caching, external-agent registration, best-effort teardown, and the
+list→summaries→detail span assembly. They do NOT prove
 the implementation works against a real cluster — only that the plumbing
 and shape-coercion are internally consistent.
 """
@@ -64,7 +64,7 @@ def test_access_token_requests_rbac_scopes():
     requested = body["scope"][0].split()
     # Thunder v0.45 namespaces AMP scopes with the `amp:` resource-server handle;
     # the service enforces the prefixed names (rbac.Permission.Scope).
-    for required in ("amp:project:create", "amp:agent:create", "amp:agent:api-key-manage", "amp:project:delete"):
+    for required in ("amp:project:create", "amp:agent:create", "amp:agent:token-manage", "amp:project:delete"):
         assert required in requested
 
 
@@ -75,187 +75,29 @@ def test_access_token_raises_on_failure():
         _client().access_token()
 
 
-def _mock_happy_deploy(org="default", name="traceloop-0-60-0-langchain-0-3-27-py3-11"):
-    p = f"/api/v1/orgs/{org}/projects/{name}"
-    a = f"{p}/agents/{name}"
-    responses.add(responses.POST, f"{BASE}/api/v1/orgs/{org}/projects", json={"name": name}, status=202)
+@responses.activate
+def test_register_external_agent_creates_project_agent_and_token():
+    _mock_token()
+    name = "traceloop-0-60-0-langchain"
+    p = f"/api/v1/orgs/default/projects/{name}"
+    responses.add(responses.POST, f"{BASE}/api/v1/orgs/default/projects", json={"name": name}, status=202)
     responses.add(responses.POST, f"{BASE}{p}/agents", json={"name": name}, status=202)
-    # build: appears, then completes with an imageId
-    responses.add(responses.GET, f"{BASE}{a}/builds", json={"builds": [{"buildName": "b1"}]}, status=200)
-    responses.add(responses.GET, f"{BASE}{a}/builds/b1", json={"buildName": "b1", "status": "Completed", "imageId": "img-9"}, status=200)
-    # No POST /deployments: the agent auto-deploys on create; the driver only
-    # polls GET /deployments for the active endpoint.
-    responses.add(
-        responses.GET, f"{BASE}{a}/deployments",
-        # endpoint is the agent's base URL; the driver appends /chat at invoke.
-        json={"default": {"status": "active", "gatewayStatus": "DEPLOYED",
-                          "endpoints": [{"url": "http://agent.test"}]}},
-        status=200,
-    )
-    responses.add(responses.POST, f"{BASE}{a}/environments/default/api-keys", json={"apiKey": "key-xyz"}, status=201)
-    return name
+    responses.add(responses.POST, f"{BASE}{p}/agents/{name}/token", json={"token": "agent-tok"}, status=200)
+
+    assert _client().register_external_agent("default", name) == "agent-tok"
+
+    import json as _json
+    agent_body = _json.loads([c for c in responses.calls if c.request.url == f"{BASE}{p}/agents"][0].request.body)
+    assert agent_body["provisioning"] == {"type": "external"}
 
 
 @responses.activate
-def test_deploy_agent_happy_path():
+def test_register_external_agent_surfaces_unexpected_status():
     _mock_token()
-    cell_id = "traceloop-0.60.0-langchain-0.3.27-py3.11"
-    name = _mock_happy_deploy(name=_safe_name(cell_id))
-    d = _client().deploy_agent(
-        cell_id=cell_id,
-        instrumentation_version="0.2.1",
-        framework_name="langchain",
-        framework_package="langchain",
-        framework_version="0.3.27",
-        python_version="3.11",
-    )
-    assert d.endpoint_url == "http://agent.test"
-    assert d.api_key == "key-xyz"
-    assert d.image_id == "img-9"
-    assert d.agent_name == name
-
-
-@responses.activate
-def test_deploy_agent_uses_framework_specific_sample_path():
-    """The agent-create payload's appPath comes from DEPLOYABLE_SAMPLES, so a
-    crewai cell builds samples/crewai-agent, not the langchain default."""
-    import json
-
-    _mock_token()
-    cell_id = "traceloop-0.60.0-crewai-1.1.0-py3.11"
-    _mock_happy_deploy(name=_safe_name(cell_id))
-    _client().deploy_agent(
-        cell_id=cell_id,
-        instrumentation_version="0.2.1",
-        framework_name="crewai",
-        framework_package="crewai",
-        framework_version="1.1.0",
-        python_version="3.11",
-    )
-    agent_post = next(
-        c for c in responses.calls
-        if c.request.method == "POST" and c.request.url.rstrip("/").endswith("/agents")
-    )
-    body = json.loads(agent_post.request.body)
-    repo = body["provisioning"]["repository"]
-    assert repo["appPath"] == "/samples/crewai-agent"
-    assert body["build"]["buildpack"]["runCommand"] == "python main.py"
-    # Source ref defaults to wso2/agent-manager@main.
-    assert repo["url"] == "https://github.com/wso2/agent-manager"
-    assert repo["branch"] == "main"
-    # The crewai sample's writable-HOME/storage env is set on the workload
-    # (non-sensitive) so the instrumentor + app survive the read-only HOME.
-    env = {e["key"]: e for e in body["configurations"]["env"]}
-    assert env["HOME"]["value"] == "/tmp" and env["HOME"]["isSensitive"] is False
-    assert env["CREWAI_STORAGE_DIR"]["value"] == "/tmp/crewai"
-
-
-@responses.activate
-def test_deploy_agent_repo_ref_is_overridable():
-    """repo_url/repo_branch override the agent source the buildpack clones, so
-    a PR can validate a sample on its own branch before it merges to main."""
-    import json
-
-    _mock_token()
-    cell_id = "traceloop-0.60.0-langchain-0.3.27-py3.11"
-    _mock_happy_deploy(name=_safe_name(cell_id))
-    _client().deploy_agent(
-        cell_id=cell_id,
-        instrumentation_version="0.2.1",
-        framework_name="langchain",
-        framework_package="langchain",
-        framework_version="0.3.27",
-        python_version="3.11",
-        repo_url="https://github.com/acme/fork",
-        repo_branch="fix/my-branch",
-    )
-    agent_post = next(
-        c for c in responses.calls
-        if c.request.method == "POST" and c.request.url.rstrip("/").endswith("/agents")
-    )
-    repo = json.loads(agent_post.request.body)["provisioning"]["repository"]
-    assert repo["url"] == "https://github.com/acme/fork"
-    assert repo["branch"] == "fix/my-branch"
-
-
-@responses.activate
-def test_deploy_agent_raises_on_build_failure():
-    _mock_token()
-    name = "x"
-    a = f"/api/v1/orgs/default/projects/{name}/agents/{name}"
-    responses.add(responses.POST, f"{BASE}/api/v1/orgs/default/projects", json={}, status=202)
-    responses.add(responses.POST, f"{BASE}/api/v1/orgs/default/projects/{name}/agents", json={}, status=202)
-    responses.add(responses.GET, f"{BASE}{a}/builds", json={"builds": [{"buildName": "b1"}]}, status=200)
-    responses.add(responses.GET, f"{BASE}{a}/builds/b1", json={"buildName": "b1", "status": "Failed"}, status=200)
-    with pytest.raises(AmpError, match="failed"):
-        _client().deploy_agent(
-            cell_id=name, instrumentation_version="0.2.1",
-            framework_name="langchain",
-            framework_package="langchain", framework_version="0.3.27", python_version="3.11",
-        )
-
-
-def _mock_deploy_until_deployments(name):
-    a = f"/api/v1/orgs/default/projects/{name}/agents/{name}"
-    responses.add(responses.POST, f"{BASE}/api/v1/orgs/default/projects", json={}, status=202)
-    responses.add(responses.POST, f"{BASE}/api/v1/orgs/default/projects/{name}/agents", json={}, status=202)
-    responses.add(responses.GET, f"{BASE}{a}/builds", json={"builds": [{"buildName": "b1"}]}, status=200)
-    responses.add(responses.GET, f"{BASE}{a}/builds/b1", json={"buildName": "b1", "status": "Completed", "imageId": "img-9"}, status=200)
-    responses.add(responses.POST, f"{BASE}{a}/environments/default/api-keys", json={"apiKey": "key-xyz"}, status=201)
-    return f"{BASE}{a}/deployments"
-
-
-@responses.activate
-def test_deploy_agent_waits_for_gateway_deployed(monkeypatch):
-    """An active deployment isn't reachable until the ingress gateway has
-    acknowledged it (its URL is blank or 404s meanwhile), so the client keeps
-    polling, including while the gateway status can't be read."""
-    monkeypatch.setattr("heavy.amp_client._DEPLOY_POLL_S", 0)
-    _mock_token()
-    deployments = _mock_deploy_until_deployments("x")
-    for gw, url in ((None, ""), ("DEPLOYING", ""), ("DEPLOYED", "http://agent.test")):
-        dep = {"status": "active", "endpoints": [{"url": url}]}
-        if gw:
-            dep["gatewayStatus"] = gw
-        responses.add(responses.GET, deployments, json={"default": dep}, status=200)
-    d = _client().deploy_agent(
-        cell_id="x", instrumentation_version="0.2.1",
-        framework_name="langchain",
-        framework_package="langchain", framework_version="0.3.27", python_version="3.11",
-    )
-    assert d.endpoint_url == "http://agent.test"
-    assert sum(c.request.url == deployments for c in responses.calls) == 3
-
-
-@responses.activate
-def test_deploy_agent_raises_on_gateway_failure():
-    _mock_token()
-    deployments = _mock_deploy_until_deployments("x")
-    responses.add(
-        responses.GET, deployments,
-        json={"default": {"status": "active", "gatewayStatus": "UNDEPLOYED",
-                          "gatewayStatusReason": "no gateway in this environment",
-                          "endpoints": [{"url": "http://agent.test"}]}},
-        status=200,
-    )
-    with pytest.raises(AmpError, match="no gateway in this environment"):
-        _client().deploy_agent(
-            cell_id="x", instrumentation_version="0.2.1",
-            framework_name="langchain",
-            framework_package="langchain", framework_version="0.3.27", python_version="3.11",
-        )
-
-
-@responses.activate
-def test_deploy_agent_surfaces_unexpected_status():
-    _mock_token()
-    responses.add(responses.POST, f"{BASE}/api/v1/orgs/default/projects", json={"error": "dup"}, status=409)
-    with pytest.raises(AmpError, match="→ 409"):
-        _client().deploy_agent(
-            cell_id="x", instrumentation_version="0.2.1",
-            framework_name="langchain",
-            framework_package="langchain", framework_version="0.3.27", python_version="3.11",
-        )
+    responses.add(responses.POST, f"{BASE}/api/v1/orgs/default/projects",
+                  json={"code": "VALIDATION_ERROR"}, status=400)
+    with pytest.raises(AmpError, match="400"):
+        _client().register_external_agent("default", "x")
 
 
 @responses.activate
@@ -266,34 +108,8 @@ def test_teardown_is_best_effort():
     # DELETE returns 500 — teardown must swallow it, not raise.
     responses.add(responses.DELETE, f"{BASE}/api/v1/orgs/default/projects/p/agents/a", status=500)
     responses.add(responses.DELETE, f"{BASE}/api/v1/orgs/default/projects/p", status=500)
-    d = DeployedAgent(
-        org="default", project_name="p", agent_name="a", environment="default",
-        endpoint_url="http://x", api_key="k",
-    )
+    d = DeployedAgent(org="default", project_name="p", agent_name="a", environment="default")
     _client().teardown_agent(d)  # must not raise
-
-
-@responses.activate
-def test_deploy_agent_tears_down_after_failure():
-    """A deploy that fails after the project and agent exist removes them: the
-    driver only tears down agents deploy_agent returned, so nothing else will."""
-    _mock_token()
-    name = "x"
-    p = f"/api/v1/orgs/default/projects/{name}"
-    responses.add(responses.POST, f"{BASE}/api/v1/orgs/default/projects", json={}, status=202)
-    responses.add(responses.POST, f"{BASE}{p}/agents", json={}, status=202)
-    responses.add(responses.GET, f"{BASE}{p}/agents/{name}/builds", json={"builds": [{"buildName": "b1"}]}, status=200)
-    responses.add(responses.GET, f"{BASE}{p}/agents/{name}/builds/b1", json={"buildName": "b1", "status": "Failed"}, status=200)
-    responses.add(responses.DELETE, f"{BASE}{p}/agents/{name}", status=204)
-    responses.add(responses.DELETE, f"{BASE}{p}", status=204)
-    with pytest.raises(AmpError, match="failed"):
-        _client().deploy_agent(
-            cell_id=name, instrumentation_version="0.2.1",
-            framework_name="langchain",
-            framework_package="langchain", framework_version="0.3.27", python_version="3.11",
-        )
-    deleted = [c.request.url for c in responses.calls if c.request.method == "DELETE"]
-    assert deleted == [f"{BASE}{p}/agents/{name}", f"{BASE}{p}"]
 
 
 @responses.activate
@@ -301,10 +117,7 @@ def test_poll_traces_assembles_validator_spans():
     _mock_token()
     from heavy.amp_client import DeployedAgent
 
-    d = DeployedAgent(
-        org="default", project_name="p", agent_name="a", environment="default",
-        endpoint_url="http://x", api_key="k",
-    )
+    d = DeployedAgent(org="default", project_name="p", agent_name="a", environment="default")
     responses.add(responses.GET, f"{OBS}/api/v1/traces", json={"traces": [{"traceId": "t1"}]}, status=200)
     responses.add(responses.GET, f"{OBS}/api/v1/traces/t1/spans", json={"spans": [{"spanId": "s1"}]}, status=200)
     responses.add(
@@ -330,10 +143,7 @@ def test_poll_traces_empty_when_no_traces():
     _mock_token()
     from heavy.amp_client import DeployedAgent
 
-    d = DeployedAgent(
-        org="default", project_name="p", agent_name="a", environment="default",
-        endpoint_url="http://x", api_key="k",
-    )
+    d = DeployedAgent(org="default", project_name="p", agent_name="a", environment="default")
     responses.add(responses.GET, f"{OBS}/api/v1/traces", json={"traces": []}, status=200)
     assert poll_traces(_client(), d, OBS, timeout_s=1) == []
 

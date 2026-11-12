@@ -1,22 +1,25 @@
 """Heavy-tier failure diagnostics: capture pipeline-boundary evidence when a
 cell captures 0 spans, and classify which boundary the trail went cold at.
 
-Evidence is gathered best-effort from `kubectl logs` (agent pod + otel
-collector); any kubectl failure leaves the corresponding field None
-(indeterminate) and never raises. The classifier is pure so it unit-tests
-without a cluster.
+Evidence is gathered best-effort from the locally run agent's log and the
+collector's `docker compose logs` (deployments/standalone); any failure leaves
+the corresponding field None (indeterminate) and never raises. The classifier
+is pure so it unit-tests without a stack.
 """
 from __future__ import annotations
 
+import os
+from pathlib import Path
 import re
 import subprocess
 from dataclasses import dataclass, field
 
 from harness.categorize import FailureCategory
-from heavy.amp_client import DeployedAgent
 
-_COLLECTOR_DEPLOY = "opentelemetry-collector"
+_COLLECTOR_SERVICE = "otel-collector"
 _LOG_TAIL = "300"
+_COMPOSE_DIR = Path(os.environ.get(
+    "AMP_COMPOSE_DIR", Path(__file__).resolve().parents[3] / "deployments/standalone"))
 
 
 @dataclass
@@ -44,39 +47,20 @@ def classify_no_spans(ev: Evidence) -> FailureCategory:
     return FailureCategory.NO_SPANS_CAPTURED
 
 
-def _kubectl(args: list[str]) -> tuple[int, str]:
-    """Run a kubectl command best-effort; return (returncode, stdout+stderr)."""
+def _compose_logs(service: str) -> tuple[int, str]:
+    """Tail a compose service's logs best-effort; return (returncode, output)."""
     try:
         proc = subprocess.run(
-            ["kubectl", *args], capture_output=True, text=True, timeout=30
+            ["docker", "compose", "logs", "--no-color", "--tail", _LOG_TAIL, service],
+            cwd=_COMPOSE_DIR, capture_output=True, text=True, timeout=30,
         )
         return proc.returncode, (proc.stdout or "") + (proc.stderr or "")
     except Exception:  # noqa: BLE001 - diagnostics must never raise
         return 127, ""
 
 
-def _find_pod(agent_name: str) -> tuple[str, str] | None:
-    """Return (namespace, pod) for the deployed agent's pod, or None."""
-    rc, out = _kubectl([
-        "get", "pods", "-A", "--no-headers",
-        "-o", "custom-columns=NS:.metadata.namespace,NAME:.metadata.name",
-    ])
-    if rc != 0:
-        return None
-    for line in out.splitlines():
-        parts = line.split()
-        if len(parts) == 2 and agent_name in parts[1]:
-            return parts[0], parts[1]
-    return None
-
-
-def _agent_signals(agent_name: str, ev: Evidence) -> None:
-    pod = _find_pod(agent_name)
-    if pod is None:
-        return
-    ns, name = pod
-    rc, log = _kubectl(["logs", "-n", ns, name, "--all-containers", "--tail", _LOG_TAIL])
-    if rc != 0 or not log:
+def _agent_signals(log: str, ev: Evidence) -> None:
+    if not log:
         return
     ev.raw["agent"] = log[-2000:]
     if "Automatic Tracing initialized successfully" in log:
@@ -97,21 +81,7 @@ def _agent_signals(agent_name: str, ev: Evidence) -> None:
 
 
 def _collector_signals(ev: Evidence) -> None:
-    rc, out = _kubectl([
-        "get", "deploy", "-A", "--no-headers",
-        "-o", "custom-columns=NS:.metadata.namespace,NAME:.metadata.name",
-    ])
-    if rc != 0:
-        return
-    ns = None
-    for line in out.splitlines():
-        parts = line.split()
-        if len(parts) == 2 and _COLLECTOR_DEPLOY in parts[1]:
-            ns = parts[0]
-            break
-    if ns is None:
-        return
-    rc, log = _kubectl(["logs", "-n", ns, f"deploy/{_COLLECTOR_DEPLOY}", "--tail", _LOG_TAIL])
+    rc, log = _compose_logs(_COLLECTOR_SERVICE)
     if rc != 0:
         return
     ev.raw["collector"] = log[-2000:]
@@ -120,10 +90,10 @@ def _collector_signals(ev: Evidence) -> None:
     ev.collector_received = ("TracesExporter" in log) or ("spans" in log.lower())
 
 
-def collect_failure_evidence(deployed: DeployedAgent) -> Evidence:
+def collect_failure_evidence(agent_log: str) -> Evidence:
     """Gather agent + collector log signals for a 0-span cell. Best-effort:
     each probe is independent and any failure leaves its fields None."""
     ev = Evidence()
-    _agent_signals(deployed.agent_name, ev)
+    _agent_signals(agent_log, ev)
     _collector_signals(ev)
     return ev

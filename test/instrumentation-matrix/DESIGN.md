@@ -786,6 +786,11 @@ means adding a deployable sample under `samples/` and an entry to
 
 ### 9.3 Infra
 
+> **Superseded.** The heavy tier no longer runs on Kubernetes: it brings Agent
+> Manager up with Docker Compose and runs each cell's sample locally as an
+> external agent. RUNBOOK.md §7 describes the current flow; the rest of this
+> section is the original k3d design.
+
 k3d on a GHA-hosted runner (default) with a self-hosted-runner escape hatch.
 
 ```
