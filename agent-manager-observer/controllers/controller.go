@@ -1433,8 +1433,9 @@ func (c *TracingController) GetTraceSpans(ctx context.Context, traceID string, p
 }
 
 // GetSpanDetail fetches full span details including enriched AmpAttributes.
-func (c *TracingController) GetSpanDetail(ctx context.Context, traceID, spanID string) (*opensearch.Span, error) {
-	details, err := c.traces.GetSpanDetails(ctx, store.Scope{}, traceID, spanID)
+// organization may be empty, which leaves the lookup unscoped.
+func (c *TracingController) GetSpanDetail(ctx context.Context, organization, traceID, spanID string) (*opensearch.Span, error) {
+	details, err := c.traces.GetSpanDetails(ctx, store.Scope{Names: store.Names{Org: organization}}, traceID, spanID)
 	if err != nil {
 		return nil, err
 	}

@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/wso2/agent-manager/agent-manager-observer/controllers"
+	"github.com/wso2/agent-manager/agent-manager-observer/middleware"
 	"github.com/wso2/agent-manager/agent-manager-observer/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-observer/store"
 )
@@ -86,6 +87,9 @@ func (h *Handler) GetTraceOverviews(w http.ResponseWriter, r *http.Request) {
 	organization := query.Get("organization")
 	if organization == "" {
 		writeError(w, http.StatusBadRequest, "organization is required")
+		return
+	}
+	if denyOtherOrg(w, r, organization) {
 		return
 	}
 
@@ -194,6 +198,9 @@ func (h *Handler) GetTraceSpans(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "organization is required")
 		return
 	}
+	if denyOtherOrg(w, r, organization) {
+		return
+	}
 
 	startTime, err := parseRFC3339(query.Get("startTime"))
 	if err != nil {
@@ -250,6 +257,9 @@ func (h *Handler) ExportTraces(w http.ResponseWriter, r *http.Request) {
 	organization := query.Get("organization")
 	if organization == "" {
 		writeError(w, http.StatusBadRequest, "organization is required")
+		return
+	}
+	if denyOtherOrg(w, r, organization) {
 		return
 	}
 
@@ -343,7 +353,13 @@ func (h *Handler) GetSpanDetail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := h.controller.GetSpanDetail(r.Context(), traceID, spanID)
+	// organization is optional: callers that send none keep today's unscoped lookup.
+	organization := r.URL.Query().Get("organization")
+	if organization != "" && denyOtherOrg(w, r, organization) {
+		return
+	}
+
+	result, err := h.controller.GetSpanDetail(r.Context(), organization, traceID, spanID)
 	if err != nil {
 		log.Error("Failed to get v1 span detail", "traceId", traceID, "spanId", spanID, "error", err)
 		writeTraceError(w, err, "Failed to retrieve span detail")
@@ -808,6 +824,19 @@ func optionalStr(s string) *string {
 	return &s
 }
 
+// denyOtherOrg writes 403 and returns true when the token's org is not organization.
+func denyOtherOrg(w http.ResponseWriter, r *http.Request, organization string) bool {
+	claims := middleware.GetTokenClaims(r.Context())
+	// Known gap: tokens with no org claim (client credentials) are not checked.
+	if claims == nil || claims.OuHandle == "" || claims.OuHandle == organization {
+		return false
+	}
+	logger.GetLogger(r.Context()).Info("Rejected trace request for another organization",
+		"organization", organization, "tokenOrganization", claims.OuHandle)
+	writeError(w, http.StatusForbidden, "organization does not match the caller's organization")
+	return true
+}
+
 // writeJSON writes data as a JSON response with status.
 func writeJSON(w http.ResponseWriter, status int, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
@@ -822,10 +851,14 @@ func writeError(w http.ResponseWriter, status int, message string) {
 	writeJSON(w, status, ErrorResponse{Error: "error", Message: message})
 }
 
-// writeTraceError writes 503 observability_disabled when traces are off, else 500 with message.
+// writeTraceError writes 503 when traces are off, 404 when not in the scope, else 500 with message.
 func writeTraceError(w http.ResponseWriter, err error, message string) {
-	if errors.Is(err, store.ErrDisabled) {
+	switch {
+	case errors.Is(err, store.ErrDisabled):
 		writeJSON(w, http.StatusServiceUnavailable, ErrorResponse{Error: ErrCodeObservabilityDisabled, Message: "Traces are disabled"})
+		return
+	case errors.Is(err, store.ErrNotFound):
+		writeError(w, http.StatusNotFound, "trace or span not found")
 		return
 	}
 	writeError(w, http.StatusInternalServerError, message)

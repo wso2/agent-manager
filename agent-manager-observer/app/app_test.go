@@ -182,3 +182,37 @@ func TestNewTraceStore(t *testing.T) {
 		}
 	}
 }
+
+// orgToken is scopedToken for a user of org ouHandle.
+func orgToken(t *testing.T, ouHandle string) string {
+	t.Helper()
+	claims := jwt.MapClaims{
+		"sub":      "test-user",
+		"scope":    rbac.TraceRead.Scope(),
+		"ouId":     "ou-" + ouHandle,
+		"ouHandle": ouHandle,
+		"exp":      time.Now().Add(time.Hour).Unix(),
+	}
+	signed, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte("k"))
+	if err != nil {
+		t.Fatalf("sign token: %v", err)
+	}
+	return signed
+}
+
+func TestNewHandler_UserFromOtherOrgGets403(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Errorf("unexpected upstream call: %s %s", r.Method, r.URL.Path)
+	}))
+	defer upstream.Close()
+
+	r := httptest.NewRequest(http.MethodGet, "/api/v1/traces?organization=abc&project=p&agent=a&environment=dev"+
+		"&startTime=2026-01-01T00:00:00Z&endTime=2026-01-02T00:00:00Z", nil)
+	r.Header.Set("Authorization", "Bearer "+orgToken(t, "xyz"))
+	rec := httptest.NewRecorder()
+	newTestHandler(t, upstream.URL).ServeHTTP(rec, r)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d (body: %s)", rec.Code, rec.Body.String())
+	}
+}

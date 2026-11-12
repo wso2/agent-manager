@@ -102,11 +102,20 @@ Co-dependent values are checked together — a partially-set Observer or Auth co
 
 The **observer client** holds its own OAuth2 client-credentials token (cached with a 30s expiry buffer). On a `401` it invalidates the token and retries once, falling back from Basic-auth to POST-form auth for Keycloak compatibility.
 
-### ⚠️ Known gap: no caller-org authorization
+### ⚠️ Known gap: caller-org authorization is partial
 
-`middleware.JWTAuth` only validates the token itself (signature/issuer/audience). It does **not** cross-check the token's org against the requested organization. The handlers read the target org straight from the query string (`organization := query.Get("organization")` in `handlers/handlers.go`) into `controllers.TraceQueryParams.Organization`, which becomes the OpenSearch `Namespace`. **Any valid token can therefore query any organization's traces** — there is no tenant isolation in the request path today.
+`middleware.JWTAuth` only validates the token itself (signature/issuer/audience). The org check lives in the REST trace handlers (`denyOtherOrg` in `handlers/handlers.go`), right after reading `organization`.
 
-The intended rule (not yet enforced): the caller's org identity from the JWT must match (or be authorized for) the `organization` query param before the trace query runs. If you add multi-tenant enforcement, do it in the handlers right after reading `organization`, before constructing `TraceQueryParams` — reject with `403` on mismatch. Until then, treat this service as trusting its network boundary for tenant isolation.
+**Enforced:**
+- `GET /api/v1/traces`, `/traces/export` and `/traces/{traceId}/spans`: a token with an `ouHandle` claim (user tokens) gets `403` when `organization` is not its `ouHandle`.
+- `GET /api/v1/traces/{traceId}/spans/{spanId}`: `organization` is optional. When sent, it gets the same `403` check and is passed to the store as the Scope's org; a backend that knows a span's org returns `store.ErrNotFound`, which the handler turns into `404`.
+
+**Not enforced:**
+- Tokens with no `ouHandle` (client-credentials tokens, e.g. the evaluation job) can still query any org.
+- Span detail without `organization` (what the console, amctl and MCP send today) is unscoped.
+- The `openchoreo` backend cannot return `404` for a span in another org: spans carry no org, and `NamespaceFor` maps every org to one namespace.
+- The `/mcp` tools take `organization` as input and do not check it against the token.
+- Logs, build logs and metrics do not check `organization`.
 
 ## Engineering rules (as practiced here)
 

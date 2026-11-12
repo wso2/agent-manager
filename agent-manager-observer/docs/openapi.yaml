@@ -166,6 +166,8 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/TraceForbidden"
         "503":
           $ref: "#/components/responses/ObserverUnavailable"
         "500":
@@ -243,6 +245,8 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/TraceForbidden"
         "503":
           $ref: "#/components/responses/ObserverUnavailable"
         "500":
@@ -294,6 +298,10 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/TraceForbidden"
+        "404":
+          $ref: "#/components/responses/TraceNotFound"
         "503":
           $ref: "#/components/responses/ObserverUnavailable"
         "500":
@@ -307,6 +315,9 @@ paths:
       description: |
         Returns the full span including all OTEL attributes and enriched AmpAttributes
         (semantic kind, input/output, token usage, LLM data, tool calls, etc.).
+
+        `organization` is optional. When it is sent, a span outside that organization returns 404.
+        On the `openchoreo` backend spans carry no organization, so it is not checked there.
       operationId: getSpanDetail
       security:
         - bearerAuth: []
@@ -325,6 +336,7 @@ paths:
           schema:
             type: string
             example: "a1b2c3d4e5f60001"
+        - $ref: "#/components/parameters/organizationOptional"
       responses:
         "200":
           description: Full enriched span
@@ -336,6 +348,10 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/TraceForbidden"
+        "404":
+          $ref: "#/components/responses/TraceNotFound"
         "503":
           $ref: "#/components/responses/ObserverUnavailable"
         "500":
@@ -496,6 +512,14 @@ components:
       description: Environment name
       schema:
         type: string
+    organizationOptional:
+      name: organization
+      in: query
+      required: false
+      description: Organization name; when sent, the span must belong to it
+      schema:
+        type: string
+        example: "default"
     projectOptional:
       name: project
       in: query
@@ -717,6 +741,27 @@ components:
           example:
             error: observability_disabled
             message: Traces are disabled
+    TraceForbidden:
+      description: |
+        The token lacks the trace-read scope, or `organization` is not the caller's organization
+        (the `ouHandle` claim of a user token). Tokens with no `ouHandle`, such as client-credentials
+        tokens, are not checked against `organization`.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error: error
+            message: organization does not match the caller's organization
+    TraceNotFound:
+      description: The trace or span is not in the requested organization
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error: error
+            message: trace or span not found
     Forbidden:
       description: Publisher-audience (`amp-publisher-*`) tokens are not permitted on this endpoint
       content:
