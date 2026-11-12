@@ -1,9 +1,14 @@
-name: Manual Instrumentation Local Smoke Checks
+name: Manual Instrumentation Smoke Checks
 on:
   pull_request:
     paths:
       - 'samples/manual-instrumentation-agent/**'
       - 'test/sample-smoke/local/**'
+      - 'test/sample-smoke/manual_instrumentation/**'
+      - 'test/sample-smoke/external_agent.py'
+      - 'test/instrumentation-matrix/heavy/amp_client.py'
+      - 'test/instrumentation-matrix/harness/classify.py'
+      - '.github/actions/amp-dev-stack/**'
       - '.github/workflows/manual-instrumentation-agent-local-smoke.yaml'
   workflow_dispatch:
 permissions:
@@ -36,3 +41,45 @@ jobs:
         with:
           name: local-smoke-manual-instrumentation-agent
           path: ${{ runner.temp }}/smoke-reports/
+
+  platform-smoke:
+    name: Manual Instrumentation external agent and trace smoke
+    needs: smoke
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      # Agent Manager on Docker Compose, built from this checkout.
+      - uses: ./.github/actions/amp-dev-stack
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - run: python -m pip install requests
+      - name: Test platform smoke guards
+        run: python -m unittest discover -s test/sample-smoke/manual_instrumentation -p 'test_*.py' -v
+      - name: Run the sample as an external agent and find its trace
+        env:
+          # Bootstrap fixture credential for this job's ephemeral stack, not a repository secret.
+          IDP_CLIENT_SECRET: amp-api-client-secret
+        run: |
+          python test/sample-smoke/manual_instrumentation/platform_smoke.py \
+            --python python --reports "$RUNNER_TEMP/manual-instrumentation-platform"
+      - name: Capture stack logs on failure
+        if: failure()
+        working-directory: deployments/standalone
+        run: |
+          reports="$RUNNER_TEMP/manual-instrumentation-platform"
+          mkdir -p "$reports"
+          docker compose ps -a > "$reports/services.txt" 2>&1 || true
+          for service in amp-api amp-observer gateway-controller gateway-runtime otel-collector; do
+            docker compose logs --no-color --tail 300 "$service" > "$reports/$service.log" 2>&1 || true
+          done
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: manual-instrumentation-platform-smoke
+          path: ${{ runner.temp }}/manual-instrumentation-platform/

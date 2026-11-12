@@ -18,6 +18,7 @@ from datetime import datetime, timedelta, timezone
 import json
 import os
 from pathlib import Path
+import re
 import signal
 import socket
 import subprocess
@@ -62,6 +63,9 @@ class ExternalSample:
     extra_env: dict[str, str] = field(default_factory=dict)
     # Prefix of the per-invocation marker the model stub looks for.
     marker_prefix: str = "smoke-"
+    # False for a sample that configures its own exporter (init_otel) and so
+    # runs without the amp-instrument wrapper.
+    auto_instrument: bool = True
 
 
 def request(url, body=None, headers=None, timeout=30):
@@ -126,10 +130,22 @@ def started(command, cwd, env, log_path):
             stop_process(process)
 
 
+def without_instrumentation_pin(requirements, work):
+    # A sample's own amp-instrumentation pin would conflict with the checkout's copy.
+    lines = Path(requirements).read_text().splitlines()
+    kept = [line for line in lines if not re.match(r"\s*amp[-_]instrumentation\b", line, re.I)]
+    if kept == lines:
+        return Path(requirements)
+    filtered = Path(work) / "requirements.txt"
+    filtered.write_text("\n".join(kept) + "\n")
+    return filtered
+
+
 def make_venv(python, work, requirements, log_path, *extra):
     venv = Path(work)
     subprocess.run([python, "-m", "venv", str(venv)], check=True)
     executable = str(venv / "bin/python")
+    requirements = without_instrumentation_pin(requirements, venv)
     with log_path.open("a") as log:
         subprocess.run([executable, "-m", "pip", "install", "--disable-pip-version-check", "-r", str(requirements), *extra],
                        stdout=log, stderr=subprocess.STDOUT, check=True)
@@ -202,7 +218,7 @@ def run(args, sample: ExternalSample):
             model_url = stack.enter_context(sample.model())
             service_env = sample.services(stack, reports) if sample.services else {}
 
-            phase = "application startup under amp-instrument"
+            phase = "application startup"
             print(f"==> {phase}", flush=True)
             port = free_port()
             env = base_env()
@@ -211,7 +227,8 @@ def run(args, sample: ExternalSample):
             env.update(sample.env(model_url, port))
             env.update(AMP_OTEL_ENDPOINT=args.gateway.rstrip("/") + "/otel", AMP_AGENT_API_KEY=token,
                        AMP_TRACE_CONTENT="true", OTEL_BSP_SCHEDULE_DELAY="100", PYTHONUNBUFFERED="1")
-            command = [str(venv / "bin/amp-instrument"), str(venv / "bin/python"),
+            wrapper = [str(venv / "bin/amp-instrument")] if sample.auto_instrument else []
+            command = [*wrapper, str(venv / "bin/python"),
                        *[part.replace("{port}", str(port)) for part in sample.command]]
             app = stack.enter_context(started(command, sample.app_dir, env, reports / "application.log"))
             endpoint = f"http://127.0.0.1:{port}"
@@ -229,7 +246,8 @@ def run(args, sample: ExternalSample):
             print(f"==> {phase}", flush=True)
             trace_id = poll_trace(client, deployed, args.observer, marker, since, reports)
             (reports / "result.json").write_text(json.dumps({"traceId": trace_id, "response": result}, indent=2, default=str) + "\n")
-            print(f"PASS: local app under amp-instrument → model round trip → AI Gateway → trace {trace_id}")
+            how = "under amp-instrument" if sample.auto_instrument else "with its own exporter"
+            print(f"PASS: local app {how} → model round trip → AI Gateway → trace {trace_id}")
     except BaseException:
         print(f"FAIL: {phase}; reports: {reports}", file=sys.stderr)
         for log in ("install.log", "application.log"):

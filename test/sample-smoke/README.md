@@ -32,5 +32,10 @@ Defaults match the stack's `.env.example`; override with `--api`, `--observer`,
 `AMP_GATEWAY_URL`, `IDP_TOKEN_URL`). Reports hold the install and application
 logs, the model evidence, the trace listing and the matching spans.
 
-In CI each sample's `*-sample-pr-checks.yaml` runs the local smoke, then the
+`manual_instrumentation/` has only the platform smoke; its local smoke is in
+`local/`, and the sample runs without `amp-instrument` because it exports its
+own spans (`ExternalSample.auto_instrument=False`).
+
+In CI each sample's `*-sample-pr-checks.yaml` (Manual Instrumentation:
+`manual-instrumentation-agent-local-smoke.yaml`) runs the local smoke, then the
 platform smoke on a stack built from the PR by `.github/actions/amp-dev-stack`.
