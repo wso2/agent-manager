@@ -522,7 +522,7 @@ var testClientProviderSet = wire.NewSet(
 	ProvideEnvThunderResolver,
 )
 
-// thunderProvisioningTestSet builds the OpenBao-backed provisioning service for
+// thunderProvisioningTestSet builds the provisioning service for
 // the test wiring only; production injects it via InitializeAppParams.
 var thunderProvisioningTestSet = wire.NewSet(services.NewAgentThunderProvisioningService)
 

@@ -39,7 +39,7 @@ runs:
       run: |
         set -euo pipefail
         # k3d cluster + prerequisites (Gateway API, cert-manager, kgateway,
-        # the AMP Gateway, OpenBao)
+        # the AMP Gateway)
         make setup-k3d
         # Thunder + the API Platform Gateway operator.
         (cd deployments/setup && ./setup-amp-extensions.sh)

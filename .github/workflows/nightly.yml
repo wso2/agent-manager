@@ -326,7 +326,6 @@ jobs:
           mkdir -p /tmp/pod-logs
           kubectl logs deployment/amp-api -n wso2-amp --tail=500 --all-containers=true > /tmp/pod-logs/amp-api.txt 2>&1 || true
           kubectl logs deployment/amp-observer -n amp-observability --tail=500 --all-containers=true > /tmp/pod-logs/amp-observer.txt 2>&1 || true
-          kubectl logs -n openbao openbao-0 --tail=500 > /tmp/pod-logs/openbao.txt 2>&1 || true
           kubectl describe clustersecretstore default > /tmp/pod-logs/clustersecretstore-default.txt 2>&1 || true
           kubectl get pods -A -o wide > /tmp/pod-logs/all-pods.txt 2>&1 || true
           kubectl get events -A --field-selector type=Warning --sort-by=.lastTimestamp > /tmp/pod-logs/warning-events.txt 2>&1 || true

@@ -1249,7 +1249,7 @@ func TestRegenerateSecret_External_NeverStoresSecret(t *testing.T) {
 // TestRegenerateSecret_ConcurrentCallsForSameBinding_Serialized guards against
 // interleaving two rotations of the same binding: without a per-binding lock,
 // two concurrent RegenerateSecret calls could rotate Thunder in one order but
-// write to OpenBao in the other, leaving the stored secret mismatched with
+// write to the secret store in the other, leaving the stored secret mismatched with
 // whatever Thunder actually considers active.
 func TestRegenerateSecret_ConcurrentCallsForSameBinding_Serialized(t *testing.T) {
 	var inFlight int32
@@ -1397,7 +1397,7 @@ func TestRevokeSecret_StoredSecretDeleteFails_LeavesSecretRefPathSetForRetry(t *
 	}
 	store := &clientmocks.SecretManagementClientMock{
 		DeleteSecretFunc: func(_ context.Context, _ secretmanagersvc.SecretLocation, _ string) error {
-			return errors.New("openbao unavailable")
+			return errors.New("secret store unavailable")
 		},
 	}
 	updateSecretRefCalled := false
@@ -1754,7 +1754,7 @@ func TestDeleteAllBindings_DeletesRowsBeforeSlowThunderCleanup(t *testing.T) {
 // against it via Upsert's OnConflict DoNothing.
 // TestDeleteAllBindings_ContinuesExternalCleanupOnDeleteByIDsFailure documents
 // a deliberate behavior change: this used to abort ALL cleanup (including
-// live Thunder identities, SecretReference CRs, and OpenBao secrets) the
+// live Thunder identities, SecretReference CRs, and stored secrets) the
 // moment the local DB row delete failed. That left external, still-active
 // resources orphaned indefinitely — worse than a few stale local rows, since
 // an orphaned Thunder identity can still mint valid tokens. Failing the DB
@@ -1801,7 +1801,7 @@ func TestDeleteAllBindings_ContinuesExternalCleanupOnDeleteByIDsFailure(t *testi
 	svc.DeleteAllBindings(context.Background(), "acme", "proj1", "my-agent")
 
 	assert.True(t, thunderDeleted, "a failed local DB row delete must not block deleting the live Thunder identity")
-	assert.True(t, secretDeleted, "a failed local DB row delete must not block deleting the OpenBao secret")
+	assert.True(t, secretDeleted, "a failed local DB row delete must not block deleting the stored secret")
 	assert.Equal(t, []uuid.UUID{bindingID}, clearedSecretRefIDs,
 		"secret_ref_path must be cleared even when the row-delete itself fails, so the surviving row can't be "+
 			"picked up by the reconciler's FindRecentlyCompletedInternal sweep and re-injected against already-deleted resources")
@@ -1812,7 +1812,7 @@ func TestDeleteAllBindings_ContinuesExternalCleanupOnDeleteByIDsFailure(t *testi
 // concurrent AttemptProvision already holding the SAME binding's lock finishes
 // AFTER DeleteAllBindings has snapshotted the (still not-yet-provisioned) row
 // via FindByAgent. Without waiting for that lock and re-fetching, the freshly
-// minted Thunder identity and OpenBao secret the attempt just wrote would
+// minted Thunder identity and stored secret the attempt just wrote would
 // never be cleaned up here — orphaned, and still able to mint valid tokens.
 func TestDeleteAllBindings_WaitsForInFlightAttemptProvision_NoOrphanedThunderIdentity(t *testing.T) {
 	bindingID := uuid.New()
@@ -1925,7 +1925,7 @@ func TestDeleteAllBindings_WaitsForInFlightAttemptProvision_NoOrphanedThunderIde
 	assert.Equal(t, []string{"thunder-agent-1"}, deletedThunderIDs,
 		"the Thunder identity the concurrent attempt just created must be cleaned up, not orphaned")
 	assert.Equal(t, []string{"dev"}, deletedSecretEnvs,
-		"the OpenBao secret the concurrent attempt just stored must be cleaned up, not orphaned")
+		"the stored secret the concurrent attempt just stored must be cleaned up, not orphaned")
 }
 
 // TestDeleteAllBindings_ReleasesEachBindingsLockAfterItsOwnCleanup_NotAfterAll
@@ -2238,7 +2238,7 @@ func TestKeyedMutex_EvictionSafeUnderConcurrentReacquire(t *testing.T) {
 }
 
 // TestKeyedMutex_LockReturnsPromptlyWhenCtxDoneWhileWaiting guards the actual
-// harm behind holding this lock across Thunder/OpenBao I/O: a waiter must not
+// harm behind holding this lock across Thunder/secret-store I/O: a waiter must not
 // be stuck for as long as the current holder's I/O takes just because ITS OWN
 // context says to give up sooner. Without ctx-awareness, this waiter would
 // block until unlockHeld() below is called instead of returning immediately.
@@ -2569,7 +2569,7 @@ func TestDeleteAllBindings_ContinuesExternalCleanupWhenDBRowDeleteFails(t *testi
 
 func TestAttemptProvision_SerializesWithRegenerateSecret(t *testing.T) {
 	// Proves AttemptProvision and RegenerateSecret cannot interleave their
-	// Thunder RegenerateAgentSecret + OpenBao Store calls for the same
+	// Thunder RegenerateAgentSecret + secret-store calls for the same
 	// binding: AttemptProvision's recovery branch holds the binding lock for
 	// its full duration, so a concurrent RegenerateSecret call must wait
 	// until it releases.

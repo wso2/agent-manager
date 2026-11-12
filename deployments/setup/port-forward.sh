@@ -90,7 +90,6 @@ if $PLATFORM; then
     start_forward "OpenSearch (9200)"                -n "$OBSERVABILITY_NAMESPACE" svc/opensearch 9200:9200
     start_forward "OpenTelemetry Collector (21893)"  -n "$OBSERVABILITY_NAMESPACE" svc/opentelemetry-collector 21893:4318
     start_forward "Agent Manager Observer (9098)"    -n "$OBSERVABILITY_NAMESPACE" svc/amp-observer 9098:9098
-    start_forward "OpenBao (8200)"                   -n openbao svc/openbao 8200:8200
 fi
 
 echo ""
@@ -99,7 +98,6 @@ if $PLATFORM; then
     echo "   Thunder IDP:              http://localhost:8090"
     echo "   OpenSearch:               http://localhost:9200"
     echo "   Agent Manager Observer:   http://localhost:9098"
-    echo "   OpenBao:     http://localhost:8200"
 fi
 
 echo ""

@@ -8,7 +8,7 @@ help:
 	@echo "  make tools                   - Install pinned Go dev tools into .tools/bin (see tools.mk)"
 	@echo "  make setup                   - Complete setup (tools + Colima + k3d + AMP layer)"
 	@echo "  make setup-colima            - Start Colima VM"
-	@echo "  make setup-k3d              - Create k3d cluster + prerequisites (cert-manager, kgateway, AMP Gateway, OpenBao)"
+	@echo "  make setup-k3d              - Create k3d cluster + prerequisites (cert-manager, kgateway, AMP Gateway)"
 	@echo "  make setup-platform          - Build images and start core platform services"
 	@echo "  make setup-gateway           - Install API Platform Gateway (run via make setup)"
 	@echo "  make setup-console-local     - Install console deps (only if changed)"

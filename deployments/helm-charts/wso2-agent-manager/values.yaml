@@ -360,45 +360,10 @@ agentManagerService:
       deploymentModel: "on-prem"
       environment: ""
     
-    # Secret Manager configuration
+    # Secret Manager configuration. "unsupported" rejects secret writes until
+    # the database-backed provider lands.
     secretManager:
-      provider: "openbao"
-      baseURL: ""
-
-    # OpenBao KV store configuration (for user deployment secrets)
-    openbao:
-      # OpenBao URL (the install scripts deploy OpenBao into the "openbao" namespace)
-      url: "http://openbao.openbao.svc.cluster.local:8200"
-      # KV secrets engine path
-      path: "secret"
-      version: "v2"
-      # OpenBao token (for dev mode, use "root"). When set, it is stored in the
-      # chart-managed Secret and injected via secretKeyRef — never as a plaintext
-      # env var in the pod spec.
-      # For production, use existingSecret to reference an externally-managed
-      # Secret containing the token instead.
-      token: "root"
-      existingSecret: ""
-      # Key to read from existingSecret. Applies ONLY when existingSecret is set;
-      # the chart-managed Secret always uses the fixed key "openbao-token".
-      existingSecretKey: "openbao-token"
-
-    # Workflow Plane OpenBao configuration (for Git Secrets)
-    # Used to fetch git credentials for private repository access
-    workflowPlaneOpenbao:
-      # Workflow plane OpenBao URL
-      url: "http://openbao.openbao.svc.cluster.local:8200"
-      # KV mount path git credentials are read from.
-      path: "secret"
-      # OpenBao token. When set, it is stored in the chart-managed Secret and
-      # injected via secretKeyRef — never as a plaintext env var in the pod spec.
-      # For production, use existingSecret instead.
-      token: "root"
-      existingSecret: ""
-      # Key to read from existingSecret. Applies ONLY when existingSecret is set.
-      # The chart-managed Secret packs both OpenBao tokens into one Secret, so this
-      # token is stored there under the distinct key "workflow-plane-openbao-token".
-      existingSecretKey: "openbao-token"
+      provider: "unsupported"
 
     # Gateway-reported policy manifest cache. A gateway pushes its whole manifest each
     # time it (re)connects to the control plane; manifests are large, so they are cached

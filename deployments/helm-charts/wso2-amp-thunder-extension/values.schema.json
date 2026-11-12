@@ -1532,7 +1532,7 @@
                 },
                 "clientSecret": {
                   "default": "amp-publisher-client-secret",
-                  "description": "OAuth 2.0 client secret Allowed values: Override in production; must match the value stored in OpenBao at secret/amp-publisher-client-secret (used by ExternalSecret at workflow runtime).",
+                  "description": "OAuth 2.0 client secret Allowed values: Override in production.",
                   "title": "clientSecret",
                   "type": "string"
                 },

@@ -14,7 +14,6 @@ source "$SCRIPT_DIR/utils.sh"
 GATEWAY_API_VERSION="v1.4.1"
 CERT_MANAGER_VERSION="v1.19.2"
 KGATEWAY_VERSION="v2.3.11"
-OPENBAO_VERSION="0.25.6"
 
 echo "=== Installing cluster prerequisites ==="
 
@@ -74,21 +73,6 @@ echo ""
 echo "4️⃣  AMP Gateway"
 kubectl --context "${CLUSTER_CONTEXT}" apply -f "${SCRIPT_DIR}/../k8s/amp-gateway.yaml"
 echo "✅ AMP Gateway applied"
-
-# ============================================================================
-# Step 5: Install OpenBao (agent-manager-service secret store)
-# ============================================================================
-echo ""
-echo "5️⃣  OpenBao"
-helm_install_if_not_exists "openbao" "openbao" \
-    "oci://ghcr.io/openbao/charts/openbao" \
-    --version ${OPENBAO_VERSION} \
-    --values ../values/openbao.yaml
-echo " ✅ OpenBao installed successfully"
-
-echo "⏳ Waiting for OpenBao to be ready..."
-kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=openbao -n openbao --context ${CLUSTER_CONTEXT} --timeout=120s
-echo "✅ OpenBao is ready!"
 
 echo ""
 echo "✅ All prerequisites installed successfully!"

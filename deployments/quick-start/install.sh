@@ -6,8 +6,8 @@ set -euo pipefail
 # ============================================================================
 # This script provides a comprehensive, idempotent installation that:
 # 1. Creates a k3d cluster
-# 2. Installs cluster prerequisites (cert-manager, kgateway + the AMP Gateway,
-#    OpenBao) and AMP's trace storage (OpenSearch + OpenTelemetry Collector)
+# 2. Installs cluster prerequisites (cert-manager, kgateway + the AMP Gateway)
+#    and AMP's trace storage (OpenSearch + OpenTelemetry Collector)
 # 3. Installs Agent Management Platform
 #
 # The script is idempotent - it can be run multiple times safely.
@@ -459,7 +459,7 @@ check_docker_permissions() {
 }
 
 # Check prerequisites
-log_step "Step 1/9: Verifying prerequisites"
+log_step "Step 1/8: Verifying prerequisites"
 
 # Check Docker access first
 if ! check_docker_permissions; then
@@ -516,7 +516,7 @@ log_success "All prerequisites verified"
 # Step 2: Setup k3d Cluster
 # ============================================================================
 
-log_step "Step 2/9: Setting up k3d cluster"
+log_step "Step 2/8: Setting up k3d cluster"
 
 # Check if cluster already exists
 if k3d cluster list 2>/dev/null | grep -q "${CLUSTER_NAME}"; then
@@ -654,7 +654,7 @@ fi
 # Step 3: Apply CoreDNS Custom Configuration
 # ============================================================================
 
-log_step "Step 3/9: Applying CoreDNS Custom Configuration"
+log_step "Step 3/8: Applying CoreDNS Custom Configuration"
 
 log_info "Applying CoreDNS custom configuration for AMP..."
 # COREDNS_FILE is overridable (env) so the VM installer can substitute a config
@@ -685,7 +685,7 @@ fi
 # Step 4: Install Cluster Prerequisites
 # ============================================================================
 
-log_step "Step 4/9: Installing Cluster Prerequisites (Cert Manager, Gateway API CRDs, kgateway, AMP Gateway)"
+log_step "Step 4/8: Installing Cluster Prerequisites (Cert Manager, Gateway API CRDs, kgateway, AMP Gateway)"
 
 # Install Cert Manager
 log_info "Installing Cert Manager..."
@@ -748,38 +748,10 @@ else
 fi
 
 # ============================================================================
-# Step 5: Setup Secrets (OpenBao)
+# Step 5: Install Trace Storage (OpenSearch + OpenTelemetry Collector)
 # ============================================================================
 
-log_step "Step 5/9: Setup Secrets (OpenBao)"
-
-# OpenBao is agent-manager-service's KV store for the secrets it manages.
-log_info "Installing OpenBao..."
-if helm upgrade --install openbao oci://ghcr.io/openbao/charts/openbao \
-    --kube-context ${CLUSTER_CONTEXT} \
-    --namespace openbao \
-    --create-namespace \
-    --version 0.25.6 \
-    --values "${DEPLOYMENTS_DIR}/values/openbao.yaml" \
-    --timeout 180s &>/dev/null; then
-    log_success "OpenBao installed successfully"
-else
-    log_error "Failed to install OpenBao"
-    exit 1
-fi
-
-log_info "Waiting for OpenBao to be ready..."
-if kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=openbao -n openbao --context ${CLUSTER_CONTEXT} --timeout=120s 2>/dev/null; then
-    log_success "OpenBao is ready"
-else
-    log_warning "OpenBao may still be starting (non-fatal)"
-fi
-
-# ============================================================================
-# Step 6: Install Trace Storage (OpenSearch + OpenTelemetry Collector)
-# ============================================================================
-
-log_step "Step 6/9: Installing Trace Storage (OpenSearch + OpenTelemetry Collector)"
+log_step "Step 5/8: Installing Trace Storage (OpenSearch + OpenTelemetry Collector)"
 
 # shellcheck source=../scripts/lib-observability.sh
 source "${DEPLOYMENTS_DIR}/scripts/lib-observability.sh"
@@ -790,11 +762,11 @@ fi
 log_success "Trace storage installed"
 
 # ============================================================================
-# Step 7: Install Gateway Operator
+# Step 6: Install Gateway Operator
 # ============================================================================
 
 
-log_step "Step 7/9: Installing Gateway Operator"
+log_step "Step 6/8: Installing Gateway Operator"
 log_info "Installing Gateway Operator..."
 # Pinning gateway.helm.chartVersion alone is NOT enough: the chart's own
 # default values.yaml can still reference an older gateway-controller/
@@ -830,10 +802,10 @@ log_success "Gateway Operator installed"
 log_success "Gateway Operator setup complete"
 
 # ============================================================================
-# Step 8: Install AMP Thunder Extension
+# Step 7: Install AMP Thunder Extension
 # ============================================================================
 
-log_step "Step 8/9: Installing WSO2 AMP Thunder Extension"
+log_step "Step 7/8: Installing WSO2 AMP Thunder Extension"
 
 log_info "Installing WSO2 AMP Thunder Extension..."
 log_info "Gateway API CRDs and Gateway Operator are now available"
@@ -854,10 +826,10 @@ fi
 echo ""
 
 # ============================================================================
-# Step 9: Install Agent Management Platform
+# Step 8: Install Agent Management Platform
 # ============================================================================
 
-log_step "Step 9/9: Installing Agent Management Platform"
+log_step "Step 8/8: Installing Agent Management Platform"
 
 # Verify prerequisites
 if ! verify_amp_prerequisites; then

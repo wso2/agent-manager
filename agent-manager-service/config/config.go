@@ -121,12 +121,6 @@ type Config struct {
 	// Secret Manager configuration
 	SecretManager SecretManagerConfig
 
-	// OpenBao KV store configuration (data plane - for deployment secrets)
-	OpenBao OpenBaoConfig
-
-	// WorkflowPlaneOpenBao KV store configuration (workflow plane - for git secrets)
-	WorkflowPlaneOpenBao OpenBaoConfig
-
 	// Thunder admin API configuration for provisioning OAuth apps
 	Thunder ThunderConfig
 	// IdentityManagementMode controls project AgentID creation. Existing
@@ -343,17 +337,6 @@ type TLSConfig struct {
 type SecretManagerConfig struct {
 	// Provider is the secret store provider name (e.g., "unsupported")
 	Provider string
-}
-
-// OpenBaoConfig holds OpenBao KV store configuration.
-// Only KV v2 secrets engine is supported.
-type OpenBaoConfig struct {
-	// URL is the OpenBao server URL (e.g., http://openbao.openbao.svc:8200)
-	URL string
-	// Token is the authentication token
-	Token string `json:"-"`
-	// Path is the KV secrets engine mount path (default: "secret")
-	Path string
 }
 
 // GitHubConfig holds GitHub API configuration

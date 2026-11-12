@@ -385,7 +385,7 @@ thunder:
     # AMP Publisher Client configuration (for evaluation job to publish scores)
     ampPublisherClient:
       clientId: "amp-publisher-client"
-      clientSecret: "amp-publisher-client-secret"  # Override in production; must match the value stored in OpenBao at secret/amp-publisher-client-secret (used by ExternalSecret at workflow runtime)
+      clientSecret: "amp-publisher-client-secret"  # Override in production
       name: "AMP Publisher Client"
       description: "Client application for evaluation job to publish scores"
       grantTypes:

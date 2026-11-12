@@ -6,7 +6,7 @@ set -euo pipefail
 # ============================================================================
 # This script completely removes:
 # 1. All Agent Management Platform helm releases, including each org's gateway
-# 2. All prerequisite helm releases: trace storage, OpenBao, kgateway,
+# 2. All prerequisite helm releases: trace storage, kgateway,
 #    cert-manager (unless --amp-only is used)
 # 3. All custom resources, the namespaces install.sh created, and (unless
 #    --amp-only is used) the CRDs it installed and the CoreDNS rewrites it added
@@ -219,13 +219,12 @@ BASE_RELEASES="
 gateway-operator amp-gateway-operator
 opentelemetry-collector ${OBSERVABILITY_NS}
 opensearch ${OBSERVABILITY_NS}
-openbao openbao
 kgateway kgateway-system
 kgateway-crds kgateway-system
 cert-manager cert-manager
 "
 AMP_NAMESPACES="${AMP_NS} amp-thunder"
-BASE_NAMESPACES="amp-gateway-operator ${OBSERVABILITY_NS} amp-gateway openbao kgateway-system cert-manager"
+BASE_NAMESPACES="amp-gateway-operator ${OBSERVABILITY_NS} amp-gateway kgateway-system cert-manager"
 
 # Entries install.sh adds to the coredns-custom ConfigMap, as "<key> <hostname
 # it rewrites>": deployments/k8s/coredns-amp-custom.yaml on k3d, and

@@ -125,7 +125,6 @@ jobs:
           JWT_SIGNING_PRIVATE_KEY_PATH=$(pwd)/keys/private.pem
           JWT_SIGNING_PUBLIC_KEYS_CONFIG=$(pwd)/keys/public-keys-config.json
           ENCRYPTION_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
-          OPENBAO_TOKEN=test-token
           EOF
           # The isolated test runner creates/drops its own DB (agentmanager_test)
           # and runs migrations itself, so no separate migrate step is needed.

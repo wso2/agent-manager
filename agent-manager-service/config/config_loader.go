@@ -261,19 +261,6 @@ func loadEnvs() {
 		Provider: r.readOptionalString("SECRET_MANAGER_PROVIDER", "unsupported"),
 	}
 
-	// OpenBao KV store configuration (data plane - for deployment secrets)
-	config.OpenBao = OpenBaoConfig{
-		URL:   r.readOptionalString("OPENBAO_URL", "http://localhost:8200"),
-		Token: r.readOptionalString("OPENBAO_TOKEN", ""),
-		Path:  r.readOptionalString("OPENBAO_PATH", "secret"),
-	}
-
-	// Workflow plane OpenBao KV store configuration (for git secrets)
-	config.WorkflowPlaneOpenBao = OpenBaoConfig{
-		URL:   r.readOptionalString("WORKFLOW_PLANE_OPENBAO_URL", "http://localhost:8200"),
-		Token: r.readOptionalString("WORKFLOW_PLANE_OPENBAO_TOKEN", ""),
-	}
-
 	// Thunder admin API configuration for provisioning per-org OAuth apps
 	config.Thunder = ThunderConfig{
 		BaseURL:                  r.readOptionalString("THUNDER_BASE_URL", ""),
