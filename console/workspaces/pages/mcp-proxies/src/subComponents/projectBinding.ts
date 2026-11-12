@@ -57,12 +57,28 @@ export function proxyRequestFrom(
 /** The header a binding's API key is read from when none is set (the service's default). */
 export const DEFAULT_API_KEY_HEADER = "X-API-Key";
 
+/**
+ * Whether the binding is secured with identity: callers present an OAuth access token
+ * from the environment's identity provider, requested for the binding's URL. Agents in
+ * the project meet it with their AgentID.
+ */
+export function bindingUsesIdentity(
+  security: ProjectMCPProxyEnvironmentSecurity | undefined,
+): boolean {
+  return (
+    !!security &&
+    security.enabled !== false &&
+    security.identity?.enabled === true
+  );
+}
+
 /** Whether the binding asks callers for an API key. */
 export function bindingRequiresAPIKey(
   security: ProjectMCPProxyEnvironmentSecurity | undefined,
 ): boolean {
   if (!security) return true; // no security reads back as the default, an API key
   if (security.enabled === false) return false;
+  if (bindingUsesIdentity(security)) return false;
   return security.apiKey?.enabled !== false;
 }
 
@@ -119,10 +135,16 @@ export function checkBindingRequest(
   }
 }
 
-/** The binding's security as it reads back, with the service's defaults filled in. */
+/**
+ * The binding's security as it reads back, with the service's defaults filled in. An OAuth
+ * binding stays OAuth, so a save from another tab never turns it into an API key one.
+ */
 function securityWithDefaults(
   security: ProjectMCPProxyEnvironmentSecurity | undefined,
 ): ProjectMCPProxyEnvironmentSecurity {
+  if (bindingUsesIdentity(security)) {
+    return { enabled: true, identity: { enabled: true } };
+  }
   return apiKeySecurity(
     bindingRequiresAPIKey(security),
     apiKeyName(security),
@@ -217,7 +239,30 @@ export function applyBindingConfigChange(
     if (upstreamAuth) binding.upstreamAuth = upstreamAuth;
     else delete binding.upstreamAuth;
   }
+  if (fields.security) binding.security = bindingSecurityFrom(fields.security);
   return binding;
+}
+
+/**
+ * The org Security tab's endpoint security as a binding's. That tab sends both variants with the
+ * selected one enabled, and neither for "None", but carries security.enabled over from what was
+ * stored, so the method is read from the variants alone: the one enabled, or an explicit enabled
+ * false for none, which the service otherwise refuses.
+ */
+export function bindingSecurityFrom(
+  security: NonNullable<MCPEndpointConfig["security"]>,
+): ProjectMCPProxyEnvironmentSecurity {
+  if (security.identity?.enabled) {
+    return { enabled: true, identity: { enabled: true } };
+  }
+  if (security.apiKey?.enabled) {
+    return apiKeySecurity(
+      true,
+      security.apiKey.key || DEFAULT_API_KEY_HEADER,
+      security.apiKey.in ?? "header",
+    );
+  }
+  return { enabled: false };
 }
 
 /** The project proxy as the org Overview tab reads it. */

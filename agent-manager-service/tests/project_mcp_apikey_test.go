@@ -499,15 +499,51 @@ func TestProjectMCPBindingAPIKeys(t *testing.T) {
 		assert.Positive(t, revokes, "the revoke event is stored for the gateway")
 	})
 
-	t.Run("removing the binding deletes its keys", func(t *testing.T) {
+	// revokesFor counts the revoke events stored for the gateway naming the artifact and the key.
+	revokesFor := func(t *testing.T, artifact uuid.UUID, keyName string) int64 {
+		t.Helper()
+		var n int64
+		require.NoError(t, gdb.Raw(`SELECT count(*) FROM eventhub_events WHERE gateway_id = ? AND entity_type = ?
+			AND event_data LIKE ? AND event_data LIKE ?`, gatewayID.String(), "apikey.revoked",
+			`%"apiId":"`+artifact.String()+`"%`, `%"keyName":"`+keyName+`"%`).Scan(&n).Error)
+		return n
+	}
+
+	t.Run("removing the binding deletes its keys and revokes them at the gateway", func(t *testing.T) {
 		stg := artifactOf(t, stgEnv)
-		require.Len(t, storedKeys(t, stg), 1)
+		keys := storedKeys(t, stg)
+		require.Len(t, keys, 1)
+		before := revokesFor(t, stg, keys[0].Name)
 
 		rr := do(http.MethodDelete, "/"+handle+"/environments/"+stgEnv, nil)
 		require.Equal(t, http.StatusNoContent, rr.Code, rr.Body.String())
 		assert.Empty(t, storedKeys(t, stg), "the keys cascade with the binding's artifact")
+		assert.Equal(t, before+1, revokesFor(t, stg, keys[0].Name), "the gateway is told the key is revoked")
 
 		rr = do(http.MethodGet, keysPath(stgEnv), nil)
 		require.Equal(t, http.StatusNotFound, rr.Code, rr.Body.String())
+	})
+
+	t.Run("deleting the proxy revokes every binding's keys at the gateway", func(t *testing.T) {
+		// Security was turned off above; turn the api key back on and issue a key to revoke.
+		rr := do(http.MethodPut, "/"+handle+"/environments/"+devEnv, map[string]any{})
+		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+		rr = do(http.MethodPost, keysPath(devEnv), map[string]any{"name": "last"})
+		require.Equal(t, http.StatusCreated, rr.Code, rr.Body.String())
+
+		dev := artifactOf(t, devEnv)
+		keys := storedKeys(t, dev)
+		require.NotEmpty(t, keys)
+		before := map[string]int64{}
+		for _, k := range keys {
+			before[k.Name] = revokesFor(t, dev, k.Name)
+		}
+
+		rr = do(http.MethodDelete, "/"+handle, nil)
+		require.Equal(t, http.StatusNoContent, rr.Code, rr.Body.String())
+		assert.Empty(t, storedKeys(t, dev))
+		for _, k := range keys {
+			assert.Equal(t, before[k.Name]+1, revokesFor(t, dev, k.Name), "key %s is revoked at the gateway", k.Name)
+		}
 	})
 }

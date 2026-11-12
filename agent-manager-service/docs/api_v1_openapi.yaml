@@ -7626,9 +7626,10 @@ paths:
            placed (400 IMMUTABLE_FIELD). No gateway in the environment is not an error: the binding is saved and
            validated by a render, deploymentStatus is absent and deploymentStatusReason is NO_GATEWAY.
            The binding is deployed once a gateway is mapped to the environment.
-        3. Validates security. Phase 1 accepts apiKey (the default when security is omitted) and no
-           security (security.enabled false, or no variant enabled). jwt returns 400 "jwt security is not
-           available yet"; identity returns 400.
+        3. Validates security: apiKey (the default when security is omitted, or left on with no variant
+           enabled), identity (OAuth tokens from the environment's identity provider; mutually exclusive with
+           apiKey, 400), or no security (security.enabled false only). An apiKey with enabled false while
+           security stays on returns 400. jwt returns 400 "jwt security is not available yet".
         4. Checks the gateway context /<projName><context> against every other artifact on that gateway:
            equal, containing or nested is 409 CONTEXT_IN_USE and nothing is stored. With no gateway yet,
            the check runs at placement and a clash shows as Failed with reason CONTEXT_IN_USE.
@@ -7638,6 +7639,14 @@ paths:
         An identical PUT on a Deployed or Deploying binding returns 200 with no new deployment. A PUT
         re-queues a Failed binding even when nothing changed. The request body replaces the binding's
         security, policies and upstream auth; an omitted field resets to its default.
+
+        An identity binding is an OAuth resource server in the environment's identity provider, with the
+        binding's publicUrl as its identifier. Its gateway policy accepts access tokens issued by that
+        provider (ThunderKeyManager) for that resource: request the token with publicUrl as the RFC 8707
+        resource. The resource server is registered once the binding has a gateway, by this PUT or a later
+        one (a repeated PUT registers it again), and removed when the binding is deleted. The OAuth clients
+        that call it, and the roles that let them, are managed in the identity provider. AM agents in the
+        project call it with their AgentID.
       operationId: putProjectMCPProxyEnvironment
       requestBody:
         required: true
@@ -7661,7 +7670,7 @@ paths:
         "400":
           description: >-
             AMBIGUOUS_GATEWAY, IMMUTABLE_FIELD (the gateway is fixed once placed), or VALIDATION_ERROR (an invalid
-            request, jwt/identity security, or an invalid policy or upstream auth). A malformed body gives
+            request, jwt security, identity together with apiKey, or an invalid policy or upstream auth). A malformed body gives
             `Invalid request body`.
           content:
             application/json:
@@ -8169,6 +8178,192 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /orgs/{orgName}/projects/{projName}/mcp-proxies/{proxyId}/scopes:
+    get:
+      summary: List a project MCP proxy's scopes
+      description: >-
+        Lists the project proxy's scopes. A scope is an action on the proxy's resource server (token scope
+        "<proxy-handle>:<action>"); roles grant it to agents, and every binding secured with identity enforces
+        it on the tools it covers.
+      operationId: listProjectMCPProxyScopes
+      tags: [MCPProxyScopes]
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: proxyId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: X-Impersonate-Org
+          in: header
+          required: false
+          description: >-
+            Tenant org UUID for trusted service callers, as on the project MCP proxy routes. Honoured only for
+            allow-listed clients, otherwise 403; the orgName path segment must then be that org's handle.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Scope list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MCPProxyScopeListResponse"
+        "404":
+          description: Project or MCP proxy not found
+    post:
+      summary: Create a project MCP proxy scope
+      description: >-
+        Creates the scope, adds its action to the resource server of every binding secured with identity, and
+        deploys those bindings again so the gateway enforces it on its tools.
+      operationId: createProjectMCPProxyScope
+      tags: [MCPProxyScopes]
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: proxyId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: X-Impersonate-Org
+          in: header
+          required: false
+          description: >-
+            Tenant org UUID for trusted service callers, as on the project MCP proxy routes. Honoured only for
+            allow-listed clients, otherwise 403; the orgName path segment must then be that org's handle.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MCPProxyScopeRequest"
+      responses:
+        "201":
+          description: Scope created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MCPProxyScopeResponse"
+        "400":
+          description: Invalid action, tools, or unknown tool name (VALIDATION_ERROR)
+        "404":
+          description: Project or MCP proxy not found
+        "409":
+          description: A scope with this action already exists on the proxy (CONFLICT)
+  /orgs/{orgName}/projects/{projName}/mcp-proxies/{proxyId}/scopes/{scopeAction}:
+    put:
+      summary: Update a project MCP proxy scope
+      description: Updates description and/or tools. The action itself is immutable (rename = delete + create).
+      operationId: updateProjectMCPProxyScope
+      tags: [MCPProxyScopes]
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: proxyId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: scopeAction
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: X-Impersonate-Org
+          in: header
+          required: false
+          description: >-
+            Tenant org UUID for trusted service callers, as on the project MCP proxy routes. Honoured only for
+            allow-listed clients, otherwise 403; the orgName path segment must then be that org's handle.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MCPProxyScopeUpdateRequest"
+      responses:
+        "200":
+          description: Scope updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MCPProxyScopeResponse"
+        "400":
+          description: Invalid or unknown tool name (VALIDATION_ERROR)
+        "404":
+          description: Project, MCP proxy or scope not found
+    delete:
+      summary: Delete a project MCP proxy scope
+      description: >-
+        Deletes the scope. Best-effort removal of the corresponding identity provider action and role
+        permissions, then the bindings are deployed again; tools the scope covered become authenticated-only
+        unless another scope covers them.
+      operationId: deleteProjectMCPProxyScope
+      tags: [MCPProxyScopes]
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: proxyId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: scopeAction
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: X-Impersonate-Org
+          in: header
+          required: false
+          description: >-
+            Tenant org UUID for trusted service callers, as on the project MCP proxy routes. Honoured only for
+            allow-listed clients, otherwise 403; the orgName path segment must then be that org's handle.
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Scope deleted
+        "404":
+          description: Project, MCP proxy or scope not found
   /orgs/{orgName}/mcp-proxies/{proxyId}/scopes:
     get:
       summary: List MCP proxy scopes
@@ -20135,12 +20330,13 @@ components:
     MCPProxyEnvironmentSecurity:
       type: object
       description: >-
-        A binding's security. Phase 1 accepts apiKey, which is also the default when the field is omitted
-        or names no variant (an api key in the X-API-Key header), and no security (enabled false only). An
-        apiKey with enabled false while security is not disabled is rejected with 400 VALIDATION_ERROR. jwt
-        is rejected with 400 "jwt security is not available yet", and identity with 400. The API key is read
-        from a header only: apiKey.in "query" is rejected with 400 VALIDATION_ERROR, as the gateway checks
-        no other location.
+        A binding's security: apiKey, which is also the default when the field is omitted or names no
+        variant (an api key in the X-API-Key header); identity, OAuth access tokens from the environment's
+        identity provider issued for the binding's publicUrl (mutually exclusive with apiKey); or no
+        security (enabled false only). An apiKey with enabled false while security is not disabled is
+        rejected with 400 VALIDATION_ERROR. jwt is rejected with 400 "jwt security is not available yet".
+        The API key is read from a header only: apiKey.in "query" is rejected with 400 VALIDATION_ERROR, as
+        the gateway checks no other location.
       properties:
         enabled:
           type: boolean

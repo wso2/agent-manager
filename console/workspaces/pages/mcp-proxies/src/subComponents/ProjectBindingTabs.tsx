@@ -15,18 +15,7 @@
  * under the License.
  */
 
-import { useEffect, useState } from "react";
-import {
-  Alert,
-  Button,
-  Chip,
-  FormControlLabel,
-  ListingTable,
-  MenuItem,
-  Stack,
-  Switch,
-  Tooltip,
-} from "@wso2/oxygen-ui";
+import { Button, Chip, ListingTable, Tooltip } from "@wso2/oxygen-ui";
 import { ShieldOff } from "@wso2/oxygen-ui-icons-react";
 import {
   useCreateProjectMCPProxyAPIKey,
@@ -39,25 +28,8 @@ import {
   type CreateAPIKeyInput,
 } from "@agent-management-platform/shared-component";
 import { useResourceAccess } from "@agent-management-platform/feature-management";
-import { TextInput } from "@agent-management-platform/views";
-import type {
-  APIKeyLocation,
-  ProjectMCPProxyEnvironment,
-  ProjectMCPProxyEnvironmentRequest,
-} from "@agent-management-platform/types";
-import {
-  apiKeyLocation,
-  apiKeyName,
-  apiKeySecurity,
-  bindingRequestFrom,
-  bindingRequiresAPIKey,
-  DEFAULT_API_KEY_HEADER,
-} from "./projectBinding";
-
-/** Saves a whole binding request for the selected environment. */
-export type SaveBinding = (
-  request: ProjectMCPProxyEnvironmentRequest,
-) => Promise<unknown>;
+import type { ProjectMCPProxyEnvironment } from "@agent-management-platform/types";
+import { bindingRequiresAPIKey, bindingUsesIdentity } from "./projectBinding";
 
 const STATUS_COLOR: Record<string, "success" | "warning" | "error"> = {
   Deployed: "success",
@@ -96,105 +68,6 @@ export function BindingStatusChip({
   );
 }
 
-/** Whether callers present an API key to the gateway, and where. */
-export function BindingSecurityTab({
-  env,
-  onSave,
-  isSaving,
-}: {
-  env: ProjectMCPProxyEnvironment;
-  onSave: SaveBinding;
-  isSaving: boolean;
-}) {
-  const { canWrite } = useResourceAccess("mcp_server");
-  const [required, setRequired] = useState(bindingRequiresAPIKey(env.security));
-  const [header, setHeader] = useState(apiKeyName(env.security));
-  const [location, setLocation] = useState<APIKeyLocation>(
-    apiKeyLocation(env.security),
-  );
-
-  useEffect(() => {
-    setRequired(bindingRequiresAPIKey(env.security));
-    setHeader(apiKeyName(env.security));
-    setLocation(apiKeyLocation(env.security));
-  }, [env]);
-
-  const isDirty =
-    required !== bindingRequiresAPIKey(env.security) ||
-    (required &&
-      (header.trim() !== apiKeyName(env.security) ||
-        location !== apiKeyLocation(env.security)));
-
-  const save = () =>
-    onSave({
-      ...bindingRequestFrom(env),
-      security: apiKeySecurity(required, header.trim(), location),
-    });
-
-  return (
-    <Stack spacing={3} maxWidth={560}>
-      <FormControlLabel
-        control={
-          <Switch
-            checked={required}
-            disabled={!canWrite}
-            onChange={(event) => setRequired(event.target.checked)}
-          />
-        }
-        label="Require an API key"
-      />
-      {!required && (
-        <Alert severity="warning">
-          Anyone who can reach the gateway can call this MCP server in this
-          environment.
-        </Alert>
-      )}
-      {required && (
-        <Stack direction="row" spacing={2} alignItems="flex-start">
-          <TextInput
-            label="Key name"
-            placeholder={`e.g. ${DEFAULT_API_KEY_HEADER}`}
-            size="small"
-            value={header}
-            disabled={!canWrite}
-            onChange={(event) => setHeader(event.target.value)}
-            helperText="The header callers send the key in."
-            fullWidth
-          />
-          <TextInput
-            select
-            label="Location"
-            size="small"
-            value={location}
-            disabled={!canWrite}
-            onChange={(event) =>
-              setLocation(event.target.value as APIKeyLocation)
-            }
-            sx={{ minWidth: 140 }}
-          >
-            <MenuItem value="header">Header</MenuItem>
-            {/* The gateway reads the key from a header only; listed so a stored query shows. */}
-            <MenuItem value="query" disabled>
-              Query (not supported by the gateway)
-            </MenuItem>
-          </TextInput>
-        </Stack>
-      )}
-      {canWrite && (
-        <Stack direction="row">
-          <Button
-            variant="contained"
-            disabled={!isDirty || isSaving || (required && !header.trim())}
-            onClick={() => void save()}
-          >
-            Save
-          </Button>
-        </Stack>
-      )}
-    </Stack>
-  );
-}
-
 /** The binding's API keys, when it asks callers for one. */
 export function BindingAPIKeysTab({
   env,
@@ -227,8 +100,16 @@ export function BindingAPIKeysTab({
       <ListingTable.Container>
         <ListingTable.EmptyState
           illustration={<ShieldOff size={48} />}
-          title="API key authentication is disabled"
-          description="Turn on API keys from the Security tab to manage keys for this environment."
+          title={
+            bindingUsesIdentity(env.security)
+              ? "This environment uses OAuth"
+              : "API key authentication is disabled"
+          }
+          description={
+            bindingUsesIdentity(env.security)
+              ? "Callers present OAuth access tokens instead of API keys. Switch to API keys from the Security tab to manage keys for this environment."
+              : "Turn on API keys from the Security tab to manage keys for this environment."
+          }
           action={
             <Button variant="outlined" onClick={onGoToSecurity}>
               Go to Security Tab

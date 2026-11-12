@@ -36,6 +36,12 @@ import (
 type MCPProxyEndpointRepository interface {
 	CreateEndpoint(ctx context.Context, tx *gorm.DB, endpoint *models.MCPProxyEndpoint) error
 	UpdateEndpoint(ctx context.Context, tx *gorm.DB, endpoint *models.MCPProxyEndpoint) error
+	// ClearIdentityCleanupID drops the endpoint's identityCleanupId once the removal it names succeeded, if it is still
+	// that ID.
+	ClearIdentityCleanupID(ctx context.Context, endpointUUID uuid.UUID, cleanupID string) error
+	// MarkIdentityCleanupID sets the endpoint's identityCleanupId to cleanupID while it is off identity security with
+	// none set, and reports whether it did.
+	MarkIdentityCleanupID(ctx context.Context, endpointUUID uuid.UUID, cleanupID string) (bool, error)
 	DeleteEndpoint(ctx context.Context, tx *gorm.DB, endpointUUID uuid.UUID) error
 	GetEndpoint(ctx context.Context, endpointUUID uuid.UUID) (*models.MCPProxyEndpoint, error)
 	// ListEndpointsByProxy returns every endpoint of the proxy with its
@@ -104,6 +110,36 @@ func (r *mcpProxyEndpointRepository) UpdateEndpoint(ctx context.Context, tx *gor
 		return gorm.ErrRecordNotFound
 	}
 	return nil
+}
+
+// ClearIdentityCleanupID removes the identityCleanupId key from the endpoint's configuration in place, so nothing else
+// a binding write stored since is touched, and only while it is cleanupID: a write that left identity again since set
+// a new ID, whose removal is still to run. A missing endpoint, or a different ID, is not an error.
+func (r *mcpProxyEndpointRepository) ClearIdentityCleanupID(ctx context.Context, endpointUUID uuid.UUID, cleanupID string) error {
+	if err := r.db.WithContext(ctx).Exec(
+		`UPDATE mcp_proxy_endpoints SET configuration = configuration - 'identityCleanupId' - 'identityCleanupIdentifier'
+		WHERE uuid = ? AND configuration->>'identityCleanupId' = ?`,
+		endpointUUID, cleanupID).Error; err != nil {
+		return fmt.Errorf("failed to clear the MCP proxy endpoint's identity cleanup ID: %w", err)
+	}
+	return nil
+}
+
+// MarkIdentityCleanupID sets identityCleanupId to cleanupID in place, only while the endpoint is off identity security
+// (security and its identity variant not both enabled, as mcpIdentityEnabled reads them) and has no identityCleanupId:
+// a registration that finished after the binding left identity, and after that write's own removal, leaves a resource
+// server nothing else would remove. It reports whether the endpoint was marked.
+func (r *mcpProxyEndpointRepository) MarkIdentityCleanupID(ctx context.Context, endpointUUID uuid.UUID, cleanupID string) (bool, error) {
+	result := r.db.WithContext(ctx).Exec(
+		`UPDATE mcp_proxy_endpoints SET configuration = jsonb_set(configuration, '{identityCleanupId}', to_jsonb(?::text))
+		WHERE uuid = ? AND configuration->'identityCleanupId' IS NULL
+			AND NOT (COALESCE(configuration#>>'{security,enabled}', '') = 'true'
+				AND COALESCE(configuration#>>'{security,identity,enabled}', '') = 'true')`,
+		cleanupID, endpointUUID)
+	if result.Error != nil {
+		return false, fmt.Errorf("failed to mark the MCP proxy endpoint for identity cleanup: %w", result.Error)
+	}
+	return result.RowsAffected > 0, nil
 }
 
 func (r *mcpProxyEndpointRepository) DeleteEndpoint(ctx context.Context, tx *gorm.DB, endpointUUID uuid.UUID) error {

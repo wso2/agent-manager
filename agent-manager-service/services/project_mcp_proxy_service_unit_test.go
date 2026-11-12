@@ -431,6 +431,22 @@ func TestDeleteUndeploysAllEnvironments(t *testing.T) {
 	assert.Equal(t, []string{"orders"}, f.deletedProxy)
 }
 
+// An artifact teardown that rolls back keeps the artifact and the API keys the gateways accept, so the proxy is not
+// deleted: the error goes back for a retry, which would otherwise find nothing left to reach those keys.
+func TestDeleteStopsWhenAnArtifactTeardownFails(t *testing.T) {
+	f := newProjectProxyFixture(t)
+	ctx := context.Background()
+	_, _, err := f.svc.Upsert(ctx, testOrg, testProjName, testProjA, "orders", orderReq())
+	require.NoError(t, err)
+	f.endpointEnvs = []models.MCPProxyEndpointEnvironment{{ArtifactUUID: uuid.New()}}
+	teardownErr := errors.New("revocation staging failed")
+	f.svc.base.tx = func(context.Context, func(tx *gorm.DB) error) error { return teardownErr }
+
+	err = f.svc.Delete(ctx, testOrg, testProjName, testProjA, "orders")
+	require.ErrorIs(t, err, teardownErr)
+	assert.Empty(t, f.deletedProxy, "the proxy stays for a retry")
+}
+
 func TestUpsert_MIMCPServer_400(t *testing.T) {
 	for _, existing := range []bool{false, true} {
 		name := "create"

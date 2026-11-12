@@ -15,7 +15,7 @@
  * under the License.
  */
 
-import { type SyntheticEvent, useCallback, useMemo } from "react";
+import { type SyntheticEvent, useCallback, useMemo, useState } from "react";
 import {
   Alert,
   Box,
@@ -46,16 +46,20 @@ import {
 import {
   useGetProjectMCPProxy,
   useListEnvironments,
+  useListGateways,
   usePutProjectMCPProxyEnvironment,
   useRefreshProjectMCPProxyCapabilities,
 } from "@agent-management-platform/api-client";
 import {
   environmentLabel,
   normalizeVersion,
+  useUnsavedChangesGuard,
 } from "@agent-management-platform/shared-component";
 import { useResourceAccess } from "@agent-management-platform/feature-management";
 import {
   absoluteRouteMap,
+  type Environment,
+  isSelfHostedGateway,
   type MCPEndpointConfig,
   type ProjectMCPProxyEnvironmentRequest,
 } from "@agent-management-platform/types";
@@ -65,11 +69,9 @@ import { MCPProxyManageToolsTab } from "./MCPProxyManageToolsTab";
 import { MCPProxyOverviewTab } from "./MCPProxyOverviewTab";
 import { MCPProxyPoliciesTab } from "./MCPProxyPoliciesTab";
 import { MCPProxyRewriteTab } from "./MCPProxyRewriteTab";
-import {
-  BindingAPIKeysTab,
-  BindingSecurityTab,
-  BindingStatusChip,
-} from "./ProjectBindingTabs";
+import { MCPProxySecurityTab } from "./MCPProxySecurityTab";
+import { getCapabilityId } from "./mcpEndpoints";
+import { BindingAPIKeysTab, BindingStatusChip } from "./ProjectBindingTabs";
 import {
   applyBindingConfigChange,
   bindingEndpointConfig,
@@ -248,6 +250,47 @@ export function ViewProjectMCPProxy() {
     [selected, saveBinding],
   );
   const isUpdating = putBinding.isPending;
+
+  // A scope covers the proxy's tools in every environment, but the Security tab lists the selected
+  // binding's only, so its Save keeps the other bindings' tools on the scopes it updates.
+  const otherBindingTools = useMemo(() => {
+    const names = new Set<string>();
+    for (const binding of bindings) {
+      if (binding.environmentName === selected?.environmentName) continue;
+      for (const raw of binding.capabilities?.tools ?? []) {
+        const name = getCapabilityId("tool", raw);
+        if (name) names.add(name);
+      }
+    }
+    return [...names];
+  }, [bindings, selected?.environmentName]);
+  // A binding whose discovery has not finished has no tools yet; its scope assignments are kept.
+  const otherBindingToolsIncomplete = bindings.some(
+    (binding) =>
+      binding.environmentName !== selected?.environmentName && !binding.capabilities?.tools,
+  );
+
+  // Unsaved Security tab edits: switching tab or environment, or leaving the page, asks first.
+  const [securityDirty, setSecurityDirty] = useState(false);
+  useUnsavedChangesGuard(securityDirty);
+
+  // The selected binding's environment, once deployed, for the Create Scope panel's role picker.
+  const selectedScopeEnvironments = useMemo<Environment[]>(() => {
+    if (selected?.deploymentStatus !== "Deployed") return [];
+    const env = environments.find((item) => item.id === selected.environmentUuid);
+    return env ? [env] : [];
+  }, [environments, selected?.deploymentStatus, selected?.environmentUuid]);
+
+  // OAuth is unavailable on a self-hosted gateway, as on the org page.
+  const { data: gatewaysData } = useListGateways({ orgName: orgId ?? "" });
+  const isOnSelfHostedGateway = useMemo(
+    () =>
+      !!selected?.gatewayId &&
+      (gatewaysData?.gateways ?? []).some(
+        (gw) => gw.uuid === selected.gatewayId && isSelfHostedGateway(gw),
+      ),
+    [gatewaysData, selected?.gatewayId],
+  );
 
   const backHref = generatePath(
     absoluteRouteMap.children.org.children.projects.children.mcpProxies.path,
@@ -558,10 +601,19 @@ export function ViewProjectMCPProxy() {
                   />
                 )}
                 {activeTabSlug === "security" && (
-                  <BindingSecurityTab
-                    env={selected}
-                    onSave={saveBinding}
-                    isSaving={isUpdating}
+                  <MCPProxySecurityTab
+                    config={selectedConfig}
+                    selectedEndpointId={selected.environmentName}
+                    orgName={orgId}
+                    projName={projectId}
+                    proxyId={proxyId}
+                    environments={selectedScopeEnvironments}
+                    otherEndpointTools={otherBindingTools}
+                    otherEndpointToolsIncomplete={otherBindingToolsIncomplete}
+                    onDirtyChange={setSecurityDirty}
+                    isOnSelfHostedGateway={isOnSelfHostedGateway}
+                    onUpdate={updateSelectedConfig}
+                    isUpdating={isUpdating}
                   />
                 )}
                 {activeTabSlug === "api-keys" && (

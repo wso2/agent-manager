@@ -126,6 +126,13 @@ type IdentityClient interface {
 	// permission-anchor resource, then that resource, then the RS itself
 	// (Thunder blocks deletion while children exist). Missing RS is not an error.
 	DeleteProxyResourceServer(ctx context.Context, proxyHandle string) error
+	// DeleteProxyResourceServerByIdentifier is DeleteProxyResourceServer for the RS registered with identifier (the
+	// RFC 8707 resource the proxy is invoked at). Thunder returns no handle for an RS, so one registered with a URL
+	// identifier is found only by that identifier. Missing RS is not an error.
+	DeleteProxyResourceServerByIdentifier(ctx context.Context, proxyHandle, identifier string) error
+	// RenameProxyResourceServerIdentifier moves the proxy's RS registered at from to identifier to, in place, so its
+	// resources, actions and the roles' grants of them carry over. Missing RS at from is not an error.
+	RenameProxyResourceServerIdentifier(ctx context.Context, proxyHandle, from, to string) error
 
 	// Organization units
 	GetOUIDByHandle(ctx context.Context, handle string) (string, error)
@@ -1374,6 +1381,34 @@ func proxyResourceServerBody(name, identifier, proxyHandle, ouID string) map[str
 	}
 }
 
+// RenameProxyResourceServerIdentifier finds the proxy's RS by its old identifier, which a URL-registered RS is found
+// by only (Thunder returns no handle for it), and rewrites the identifier in place. Both identifiers are canonicalized
+// as EnsureProxyResourceServer stores them. A missing RS at from, or one already at to, is not an error.
+func (c *thunderClient) RenameProxyResourceServerIdentifier(ctx context.Context, proxyHandle, from, to string) error {
+	from, err := canonicalMCPResourceIdentifier(from)
+	if err != nil {
+		return err
+	}
+	if to, err = canonicalMCPResourceIdentifier(to); err != nil {
+		return err
+	}
+	if from == to {
+		return nil
+	}
+	token, err := c.getSystemToken(ctx)
+	if err != nil {
+		return err
+	}
+	mu := c.ensureProxyResourceServerMu(proxyHandle)
+	mu.Lock()
+	defer mu.Unlock()
+	rs, err := c.findResourceServer(ctx, token, func(rs *ThunderResourceServer) bool { return rs.Identifier == from })
+	if err != nil || rs == nil {
+		return err
+	}
+	return c.updateProxyResourceServerIdentifier(ctx, token, rs, proxyHandle, to)
+}
+
 // updateProxyResourceServerIdentifier rewrites a drifted identifier in place via
 // PUT /resource-servers/{id}.
 func (c *thunderClient) updateProxyResourceServerIdentifier(ctx context.Context, token string, rs *ThunderResourceServer, proxyHandle, identifier string) error {
@@ -1439,13 +1474,28 @@ func (c *thunderClient) DeleteProxyResourceServerAction(ctx context.Context, pro
 // Thunder blocks deletion while children exist, so they are removed bottom-up.
 // A missing resource server is not an error.
 func (c *thunderClient) DeleteProxyResourceServer(ctx context.Context, proxyHandle string) error {
+	// Same limitation as DeleteProxyResourceServerAction: no identifier is
+	// known here, so this can only match a pre-migration bare-handle row.
+	return c.deleteProxyResourceServer(ctx, proxyHandle, "")
+}
+
+// DeleteProxyResourceServerByIdentifier deletes the proxy's RS registered with identifier, bottom-up as
+// DeleteProxyResourceServer does. The identifier is canonicalized as EnsureProxyResourceServer stores it. A missing
+// RS is not an error.
+func (c *thunderClient) DeleteProxyResourceServerByIdentifier(ctx context.Context, proxyHandle, identifier string) error {
+	canonical, err := canonicalMCPResourceIdentifier(identifier)
+	if err != nil {
+		return err
+	}
+	return c.deleteProxyResourceServer(ctx, proxyHandle, canonical)
+}
+
+func (c *thunderClient) deleteProxyResourceServer(ctx context.Context, proxyHandle, identifier string) error {
 	token, err := c.getSystemToken(ctx)
 	if err != nil {
 		return err
 	}
-	// Same limitation as DeleteProxyResourceServerAction: no identifier is
-	// known here, so this can only match a pre-migration bare-handle row.
-	rs, err := c.findProxyResourceServer(ctx, token, proxyHandle, "")
+	rs, err := c.findProxyResourceServer(ctx, token, proxyHandle, identifier)
 	if err != nil {
 		return err
 	}

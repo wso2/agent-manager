@@ -155,6 +155,10 @@ func (s *ProjectMCPProxyService) PutEnvironment(
 		}
 		live := status == models.MCPDeploymentStatusDeployed || status == models.MCPDeploymentStatusDeploying
 		if live || (shown == nil && gateway == nil) {
+			// A repeated PUT also retries a pending removal of the binding's old resource server, and repairs its
+			// resource server, which may have failed to register before or had no public URL to register while the
+			// binding waited for a gateway.
+			s.syncBindingIdentity(ctx, ouID, proxy, envUUID, envName, endpoint)
 			resp, err := s.environmentResponse(ctx, ouID, proxy, endpoint, ee)
 			return resp, false, err
 		}
@@ -173,8 +177,22 @@ func (s *ProjectMCPProxyService) PutEnvironment(
 	if err != nil {
 		return nil, false, err
 	}
+	// A binding leaving identity keeps the URL its resource server is registered at for the removal, which may run
+	// after a context change has moved the binding's URL.
+	leavingIdentifier := ""
+	if s.base.resolver != nil && exists && mcpIdentityEnabled(endpoint.Configuration.Security) &&
+		!mcpIdentityEnabled(desired.Security) {
+		identifier, err := s.base.MCPResourceServerIdentifier(ctx, ouID, envUUID, proxy)
+		switch {
+		case err == nil:
+			leavingIdentifier = identifier
+		case !errors.Is(err, ErrMCPProxyNotDeployedToEnvironment):
+			return nil, false, fmt.Errorf("failed to read the binding's resource identifier: %w", err)
+		}
+	}
 	if err := s.base.tx(ctx, func(tx *gorm.DB) error {
-		return s.saveAndDeployBinding(ctx, tx, ouID, proxyHandleOf(proxy), envName, envUUID, gateway, desired, stored)
+		return s.saveAndDeployBinding(ctx, tx, ouID, proxyHandleOf(proxy), envName, envUUID, gateway, desired, stored,
+			leavingIdentifier)
 	}); err != nil {
 		switch {
 		case errors.Is(err, utils.ErrMCPContextInUse), errors.Is(err, utils.ErrMCPProxyNotFound),
@@ -199,6 +217,10 @@ func (s *ProjectMCPProxyService) PutEnvironment(
 	if ee == nil {
 		return nil, false, fmt.Errorf("the saved binding of %q in %q is missing", handle, envName)
 	}
+	// A binding off identity no longer accepts its tokens: the write gave it a cleanup ID, and its resource server and
+	// the roles' grants of it go now, the ID cleared once that succeeds. One back on identity with a removal still
+	// pending has it done before it registers again, so grants made for its old registration do not apply again.
+	s.syncBindingIdentity(ctx, ouID, saved, envUUID, envName, endpoint)
 	resp, err := s.environmentResponse(ctx, ouID, saved, endpoint, ee)
 	return resp, !exists, err
 }
@@ -262,10 +284,12 @@ func (s *ProjectMCPProxyService) bindingUpstreamURL(
 }
 
 // saveAndDeployBinding writes the binding in tx, the proxy row locked, and deploys it on gateway, or with no gateway
-// only renders it (DeployRecord). A Failed binding with unchanged input is not rewritten, only re-deployed.
+// only renders it (DeployRecord). A Failed binding with unchanged input is not rewritten, only re-deployed. A binding
+// that leaves identity, as the lock finds it, or is new is written with a new IdentityCleanupID, and any other keeps
+// the pending one.
 func (s *ProjectMCPProxyService) saveAndDeployBinding(
 	ctx context.Context, tx *gorm.DB, ouID, proxyHandle, envName string, envUUID uuid.UUID, gateway *uuid.UUID,
-	desired, stored models.MCPEndpointConfig,
+	desired, stored models.MCPEndpointConfig, leavingIdentifier string,
 ) error {
 	// Serialize binding writes on one gateway, taken first as the gateway mapping path does, so two bindings
 	// with overlapping contexts can't both pass the context check before either deploys.
@@ -285,6 +309,23 @@ func (s *ProjectMCPProxyService) saveAndDeployBinding(
 		return err
 	}
 	endpoint, ee := resolveMCPEndpointForEnv(locked, envUUID.String())
+	if ee != nil {
+		lockedConfig := endpoint.Configuration
+		// A pending removal's ID is kept until that removal succeeds, by writes that return to identity too: they
+		// run it before registering, so grants made for the old registration do not apply again.
+		cleanupID, cleanupIdentifier := lockedConfig.IdentityCleanupID, lockedConfig.IdentityCleanupIdentifier
+		if mcpIdentityEnabled(lockedConfig.Security) && !mcpIdentityEnabled(desired.Security) {
+			cleanupID, cleanupIdentifier = uuid.NewString(), leavingIdentifier
+		}
+		desired.IdentityCleanupID, stored.IdentityCleanupID = cleanupID, cleanupID
+		desired.IdentityCleanupIdentifier, stored.IdentityCleanupIdentifier = cleanupIdentifier, cleanupIdentifier
+	} else if s.base.resolver != nil {
+		// A new binding starts with a removal of any resource server an earlier binding of the proxy left in the
+		// environment when its own removal failed after it was deleted, so that one's grants never apply to this one.
+		// A new binding has no grants of its own yet: a role grants a proxy's scopes only where it is deployed.
+		cleanupID := uuid.NewString()
+		desired.IdentityCleanupID, stored.IdentityCleanupID = cleanupID, cleanupID
+	}
 	var artifactUUID uuid.UUID
 	var artifactHandle string
 	if ee == nil {
@@ -454,14 +495,50 @@ func (s *ProjectMCPProxyService) DeleteEnvironmentInDeletedProject(ctx context.C
 
 func (s *ProjectMCPProxyService) deleteEnvironmentOf(ctx context.Context, ouID string, proxy *models.MCPProxy, envName string) error {
 	envName = strings.TrimSpace(envName)
-	_, ee := bindingByEnvironmentName(proxy, envName)
+	bound, ee := bindingByEnvironmentName(proxy, envName)
 	if ee == nil {
 		return utils.ErrMCPProxyEnvironmentNotBound
 	}
 	if err := s.ensureBindingNotInUse(ctx, proxy.UUID, ee.EnvironmentUUID); err != nil {
 		return err
 	}
-	return s.base.tx(ctx, func(tx *gorm.DB) error {
+	// The proxy's scopes, read before anything is deleted when the binding has a resource server to remove: the
+	// removal after the delete sweeps their grants from roles, and once the binding is gone nothing could retry a
+	// removal made without them. A binding never on identity has none, and costs the identity service nothing.
+	// Its public URL, the resource server's identifier, is read now too: once the binding is gone it cannot be.
+	var actions []string
+	var identifier string
+	actionsRead := false
+	if s.base.resolver != nil {
+		needsCleanup := bindingHasIdentityToRemove(bound.Configuration)
+		var err error
+		identifier, err = s.base.MCPResourceServerIdentifier(ctx, ouID, ee.EnvironmentUUID, proxy)
+		if stored := bound.Configuration.IdentityCleanupIdentifier; stored != "" && bound.Configuration.IdentityCleanupID != "" {
+			// A pending removal keeps the URL it is for, which a context change may have moved since.
+			identifier, err = stored, nil
+		}
+		switch {
+		case err == nil:
+		case errors.Is(err, ErrMCPProxyNotDeployedToEnvironment):
+			// No public URL: nothing was ever registered for the binding.
+			identifier = ""
+		case needsCleanup:
+			// The binding has a resource server to remove and no way to find it once deleted: it stays for a retry.
+			return fmt.Errorf("failed to read the binding's resource identifier: %w", err)
+		default:
+			s.base.logger.Warn("project MCP binding delete: reading the resource identifier failed",
+				"proxy", proxyHandleOf(proxy), "env", envName, "error", err)
+			identifier = ""
+		}
+		if needsCleanup {
+			if actions, err = s.proxyScopeActions(ctx, proxy); err != nil {
+				return err
+			}
+			actionsRead = true
+		}
+	}
+	removeIdentity := false
+	if err := s.base.tx(ctx, func(tx *gorm.DB) error {
 		locked, err := s.base.repo.GetByHandleForUpdate(ctx, tx, proxyHandleOf(proxy), ouID)
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -474,8 +551,14 @@ func (s *ProjectMCPProxyService) deleteEnvironmentOf(ctx context.Context, ouID s
 		if ee == nil {
 			return utils.ErrMCPProxyEnvironmentNotBound
 		}
+		removeIdentity = bindingHasIdentityToRemove(endpoint.Configuration)
 		ref := models.ArtifactRef{OUID: ouID, ArtifactUUID: ee.ArtifactUUID, Kind: models.KindMCPMapping}
 		events, err := s.base.core.PrepareDelete(ctx, tx, ref)
+		if err != nil {
+			return err
+		}
+		// The binding's API keys go with its artifact; the gateways are told in the same transaction.
+		publishRevoked, err := s.base.apiKeyBroadcaster.stageArtifactKeysRevokedTx(ctx, tx, ouID, ee.ArtifactUUID)
 		if err != nil {
 			return err
 		}
@@ -486,8 +569,38 @@ func (s *ProjectMCPProxyService) deleteEnvironmentOf(ctx context.Context, ouID s
 		if err := s.base.endpointRepo.DeleteEndpoint(ctx, tx, endpoint.UUID); err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 			return err
 		}
+		if err := publishRevoked(); err != nil {
+			return err
+		}
 		return events.Publish(ctx, tx)
-	})
+	}); err != nil {
+		return err
+	}
+	if !removeIdentity || s.base.resolver == nil {
+		return nil
+	}
+	if identifier == "" {
+		// No public URL, so nothing was registered for the binding.
+		return nil
+	}
+	if !actionsRead {
+		// A PUT moved the binding to identity after it was read: its scopes are read now, and a failure leaves the
+		// resource server, as the binding is already gone.
+		var err error
+		if actions, err = s.proxyScopeActions(ctx, proxy); err != nil {
+			s.base.logger.Warn("project MCP binding resource server delete skipped: listing scopes failed",
+				"proxy", proxyHandleOf(proxy), "env", envName, "error", err)
+			return nil
+		}
+	}
+	s.purgeBindingResourceServer(ctx, ouID, proxy, envName, identifier, actions)
+	return nil
+}
+
+// bindingHasIdentityToRemove reports whether a binding has a resource server, and its scopes' grants, to remove: it
+// is on identity, or it left identity and that removal has not succeeded yet.
+func bindingHasIdentityToRemove(config models.MCPEndpointConfig) bool {
+	return mcpIdentityEnabled(config.Security) || config.IdentityCleanupID != ""
 }
 
 // ensureBindingNotInUse refuses with ErrMCPProxyHasMappings when an agent is mapped to the proxy in envUUID: the
@@ -600,8 +713,9 @@ func (s *ProjectMCPProxyService) bindingGateway(
 }
 
 // normalizeBindingSecurity is the binding's security with its defaults applied. Omitted, it is apiKey in an
-// X-API-Key header. Present, it is apiKey when that variant is given and not disabled, and no security when
-// security.enabled is false or no variant is enabled (the contract's "none"). Phase 1 refuses jwt and identity.
+// X-API-Key header. Present, it is identity (OAuth tokens from the environment's Thunder) when that variant is
+// enabled, apiKey when that variant is given and not disabled, and no security when security.enabled is false or no
+// variant is enabled (the contract's "none"). identity and apiKey are mutually exclusive; jwt is refused.
 func normalizeBindingSecurity(in *models.MCPProxyEnvironmentSecurity) (*models.SecurityConfig, error) {
 	if in == nil {
 		return defaultMCPProxySecurity(nil), nil
@@ -609,8 +723,15 @@ func normalizeBindingSecurity(in *models.MCPProxyEnvironmentSecurity) (*models.S
 	if in.JWT != nil && !isExplicitlyFalse(in.JWT.Enabled) {
 		return nil, fmt.Errorf("%w: %w", utils.ErrInvalidInput, utils.ErrMCPJWTSecurityNotAvailable)
 	}
-	if in.Identity != nil && !isExplicitlyFalse(in.Identity.Enabled) {
-		return nil, fmt.Errorf("%w: identity security is not available on project MCP proxies", utils.ErrInvalidInput)
+	if in.Identity != nil && isBoolTrue(in.Identity.Enabled) && !isExplicitlyFalse(in.Enabled) {
+		// An apiKey given without enabled is on, as it is without identity, so it conflicts too.
+		if in.APIKey != nil && !isExplicitlyFalse(in.APIKey.Enabled) {
+			return nil, fmt.Errorf("%w: apiKey and identity security are mutually exclusive", utils.ErrInvalidInput)
+		}
+		enabled := true
+		return defaultMCPProxySecurity(&models.SecurityConfig{
+			Enabled: &enabled, Identity: &models.IdentitySecurity{Enabled: &enabled},
+		}), nil
 	}
 	// Only an explicit enabled false turns security off. Security left on with no variant defaults to the api
 	// key, as an omitted security does, so a caller asking for security never gets an open endpoint.
@@ -934,6 +1055,10 @@ func bindingSecurityResponse(security *models.SecurityConfig) *models.MCPProxyEn
 	if security.APIKey != nil {
 		apiKey := *security.APIKey
 		out.APIKey = &apiKey
+	}
+	if security.Identity != nil {
+		identity := *security.Identity
+		out.Identity = &identity
 	}
 	return out
 }

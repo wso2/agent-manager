@@ -47,6 +47,10 @@ type ProjectMCPProxyController interface {
 	IssueProjectMCPProxyEnvironmentTestAPIKey(w http.ResponseWriter, r *http.Request)
 	RotateProjectMCPProxyEnvironmentAPIKey(w http.ResponseWriter, r *http.Request)
 	RevokeProjectMCPProxyEnvironmentAPIKey(w http.ResponseWriter, r *http.Request)
+	ListProjectMCPProxyScopes(w http.ResponseWriter, r *http.Request)
+	CreateProjectMCPProxyScope(w http.ResponseWriter, r *http.Request)
+	UpdateProjectMCPProxyScope(w http.ResponseWriter, r *http.Request)
+	DeleteProjectMCPProxyScope(w http.ResponseWriter, r *http.Request)
 }
 
 // pathParamEnvName is the environment segment of the project MCP proxy binding routes.
@@ -54,15 +58,17 @@ const pathParamEnvName = "envName"
 
 type projectMCPProxyController struct {
 	service  *services.ProjectMCPProxyService
+	scopes   services.MCPProxyScopeService
 	ocClient client.OpenChoreoClient
 }
 
 // NewProjectMCPProxyController creates the project MCP proxy controller.
 func NewProjectMCPProxyController(
 	service *services.ProjectMCPProxyService,
+	scopes services.MCPProxyScopeService,
 	ocClient client.OpenChoreoClient,
 ) ProjectMCPProxyController {
-	return &projectMCPProxyController{service: service, ocClient: ocClient}
+	return &projectMCPProxyController{service: service, scopes: scopes, ocClient: ocClient}
 }
 
 // resolveProject maps {projName} to the OpenChoreo project. On failure it has written the
