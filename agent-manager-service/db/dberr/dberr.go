@@ -21,9 +21,9 @@ package dberr
 import (
 	"errors"
 
-	gosqlite "github.com/glebarez/go-sqlite"
 	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/gorm"
+	"modernc.org/sqlite"
 	sqlite3 "modernc.org/sqlite/lib"
 )
 
@@ -64,7 +64,7 @@ func postgresCode(err error) (string, bool) {
 }
 
 func sqliteCode(err error) (int, bool) {
-	var sqliteErr *gosqlite.Error
+	var sqliteErr *sqlite.Error
 	if errors.As(err, &sqliteErr) {
 		return sqliteErr.Code(), true
 	}

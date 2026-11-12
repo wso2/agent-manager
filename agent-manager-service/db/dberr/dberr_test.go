@@ -21,17 +21,17 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/glebarez/sqlite"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/db/dberr"
+	"github.com/wso2/agent-manager/agent-manager-service/db/sqlitedialect"
 )
 
 func TestClassifiesSQLiteErrors(t *testing.T) {
-	gormDB, err := gorm.Open(sqlite.Open("file:"+filepath.Join(t.TempDir(), "amp.db")+"?_pragma=foreign_keys(1)"), &gorm.Config{})
+	gormDB, err := gorm.Open(sqlitedialect.Open("file:"+filepath.Join(t.TempDir(), "amp.db")+"?_pragma=foreign_keys(1)"), &gorm.Config{})
 	require.NoError(t, err)
 	require.NoError(t, gormDB.Exec("CREATE TABLE parents (id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE)").Error)
 	require.NoError(t, gormDB.Exec("CREATE TABLE children (id TEXT PRIMARY KEY, parent_id TEXT NOT NULL REFERENCES parents(id))").Error)

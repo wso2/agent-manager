@@ -22,14 +22,15 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/wso2/agent-manager/agent-manager-service/db/sqlitedialect"
 )
 
 // A statement skipped because its context ended reports that, rather than a nil result and no error.
 func TestCancelledContextIsAnError(t *testing.T) {
-	sqlDB, err := sql.Open(sqlite.DriverName, "file:"+filepath.Join(t.TempDir(), "c.db"))
+	sqlDB, err := sql.Open(sqlitedialect.DriverName, "file:"+filepath.Join(t.TempDir(), "c.db"))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = sqlDB.Close() })
 	pool := New(sqlDB, RetryParams{MaxRetries: 1}).(*connPool)

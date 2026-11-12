@@ -55,7 +55,8 @@ func countPostgresOnly(t *testing.T, root string) map[string]int {
 		rel = filepath.ToSlash(rel)
 		if d.IsDir() {
 			switch rel {
-			case "tmp", "spec", "vendor", "clients/clientmocks":
+			// db/sqlitedialect is the SQLite dialect itself: it names these clauses to translate them.
+			case "tmp", "spec", "vendor", "clients/clientmocks", "db/sqlitedialect":
 				return filepath.SkipDir
 			}
 			return nil

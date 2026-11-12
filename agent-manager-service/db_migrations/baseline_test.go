@@ -22,7 +22,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/glebarez/sqlite"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -31,6 +30,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/db/dberr"
+	"github.com/wso2/agent-manager/agent-manager-service/db/sqlitedialect"
 	"github.com/wso2/agent-manager/agent-manager-service/db_migrations/schema"
 )
 
@@ -59,7 +59,7 @@ func TestEveryDialectHasTheSameMigrations(t *testing.T) {
 func openMigratedSQLite(t *testing.T) *gorm.DB {
 	t.Helper()
 	dsn := "file:" + filepath.Join(t.TempDir(), "amp.db") + "?_pragma=foreign_keys(1)&_txlock=immediate"
-	gormDB, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{Logger: logger.Discard})
+	gormDB, err := gorm.Open(sqlitedialect.Open(dsn), &gorm.Config{Logger: logger.Discard})
 	require.NoError(t, err)
 	require.NoError(t, MigrateBaseline(gormDB, config.DBDriverSQLite))
 	return gormDB
@@ -124,7 +124,7 @@ func assertBaselineKeys(t *testing.T, gormDB *gorm.DB) {
 
 func TestWaitForBaseline(t *testing.T) {
 	dsn := "file:" + filepath.Join(t.TempDir(), "amp.db") + "?_pragma=foreign_keys(1)&_txlock=immediate"
-	gormDB, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{Logger: logger.Discard})
+	gormDB, err := gorm.Open(sqlitedialect.Open(dsn), &gorm.Config{Logger: logger.Discard})
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)

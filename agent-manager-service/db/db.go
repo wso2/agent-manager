@@ -26,7 +26,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/glebarez/sqlite"
 	_ "github.com/jackc/pgx/v5/stdlib" // PostgreSQL driver
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -34,6 +33,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/db/connpool"
+	"github.com/wso2/agent-manager/agent-manager-service/db/sqlitedialect"
 )
 
 var (
@@ -93,9 +93,9 @@ func Open(dbCfg config.DatabaseConfig, cfg config.POSTGRESQL) (*gorm.DB, error) 
 		if err := os.MkdirAll(filepath.Dir(dbCfg.SQLitePath), 0o750); err != nil {
 			return nil, fmt.Errorf("creating the SQLite directory: %w", err)
 		}
-		driverName, dsn = sqlite.DriverName, makeSQLiteConnString(dbCfg.SQLitePath)
+		driverName, dsn = sqlitedialect.DriverName, makeSQLiteConnString(dbCfg.SQLitePath)
 		dialector = func(dsn string, conn gorm.ConnPool) gorm.Dialector {
-			return &sqlite.Dialector{DSN: dsn, Conn: conn}
+			return &sqlitedialect.Dialector{DSN: dsn, Conn: conn}
 		}
 	default:
 		return nil, fmt.Errorf("unsupported database driver %q", dbCfg.Driver)
@@ -145,16 +145,17 @@ func Open(dbCfg config.DatabaseConfig, cfg config.POSTGRESQL) (*gorm.DB, error) 
 }
 
 // makeSQLiteConnString enables foreign keys and WAL on every connection, and starts every transaction with the write
-// lock (BEGIN IMMEDIATE) so a transaction that reads and then writes never fails to upgrade its lock. The driver writes
-// times as "2006-01-02 15:04:05.999999999-07:00": with UTC the suffix is "+00:00", and "+" sorts before ".", so text
-// order is time order even though trailing fractional zeros are dropped. A "Z" suffix would break that. That layout is
-// the driver's default; _time_format is left unset because setting it makes the driver ignore _txlock.
+// lock (BEGIN IMMEDIATE) so a transaction that reads and then writes never fails to upgrade its lock. _time_format=sqlite
+// writes times as "2006-01-02 15:04:05.999999999-07:00": with UTC the suffix is "+00:00", and "+" sorts before ".", so
+// text order is time order even though trailing fractional zeros are dropped. A "Z" suffix would break that, and so
+// would the driver's default, time.Time.String, which appends the zone name.
 func makeSQLiteConnString(path string) string {
 	params := url.Values{}
 	params.Add("_pragma", "foreign_keys(1)")
 	params.Add("_pragma", "journal_mode(WAL)")
 	params.Add("_pragma", "busy_timeout(5000)")
 	params.Set("_txlock", "immediate")
+	params.Set("_time_format", "sqlite")
 	return "file:" + path + "?" + params.Encode()
 }
 
