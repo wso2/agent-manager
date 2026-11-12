@@ -1,0 +1,32 @@
+resource_type: application
+id: amctl-client
+type: browser # public redirect client (authorization_code + PKCE, loopback redirect)
+name: "AMCTL"
+description: "AMP CLI application for interactive user login"
+ouId: "01900000-0000-7000-8000-000000000001"
+logoUrl: "https://wso2.cachefly.net/wso2/sites/all/image_resources/logos/WSO2-Pulse-Orange.webp"
+authFlowHandle: default-flow
+themeId: amp-console-theme
+layoutId: "0e0dc039-bae9-4563-82b9-ee4e76f9a58c"
+allowedUserTypes: ["engineer"]
+inboundAuthConfig:
+  - type: oauth2
+    config:
+      clientId: {{ q .CLIClient.ID }}
+      redirectUris: {{ json .CLIClient.RedirectURIs }}
+      grantTypes: ["authorization_code","refresh_token"]
+      responseTypes: ["code"]
+      tokenEndpointAuthMethod: "none"
+      pkceRequired: true
+      publicClient: true
+      scopes: {{ json (clientScopes) }}
+      token:
+        accessToken:
+          userConfig:
+            validityPeriod: 3600
+            attributes: ["given_name","family_name","email","username","groups","ouId","ouHandle"]
+        idToken:
+          validityPeriod: 3600
+          userAttributes: ["given_name","family_name","email","username","groups","ouId","ouHandle"]
+        refreshToken:
+          validityPeriod: 2592000

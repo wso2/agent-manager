@@ -1,0 +1,33 @@
+resource_type: application
+id: amp-console-client
+type: browser # public redirect client (authorization_code + PKCE console login)
+name: "AMP Console"
+description: "AMP Console Application"
+ouId: "01900000-0000-7000-8000-000000000001"
+logoUrl: "https://wso2.cachefly.net/wso2/sites/all/image_resources/logos/WSO2-Pulse-Orange.webp"
+authFlowHandle: default-flow
+themeId: amp-console-theme
+layoutId: "0e0dc039-bae9-4563-82b9-ee4e76f9a58c"
+allowedUserTypes: ["engineer"]
+inboundAuthConfig:
+  - type: oauth2
+    config:
+      clientId: {{ q .ConsoleClient.ID }}
+      clientSecret: {{ q .ConsoleClient.Secret }}
+      redirectUris: {{ json .ConsoleRedirectURIs }}
+      grantTypes: ["authorization_code","refresh_token"]
+      responseTypes: ["code"]
+      tokenEndpointAuthMethod: "none"
+      pkceRequired: true
+      publicClient: true
+      scopes: {{ json (clientScopes) }}
+      token:
+        accessToken:
+          userConfig:
+            validityPeriod: 3600
+            attributes: ["given_name","family_name","email","username","groups","ouId","ouHandle"]
+        idToken:
+          validityPeriod: 3600
+          userAttributes: ["given_name","family_name","email","username","groups","ouId","ouHandle"]
+        refreshToken:
+          validityPeriod: 2592000

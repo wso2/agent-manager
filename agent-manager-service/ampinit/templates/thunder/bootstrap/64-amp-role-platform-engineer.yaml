@@ -1,0 +1,12 @@
+resource_type: role
+id: amp-role-platform-engineer
+name: Platform Engineer
+description: "Platform engineering: manage environments, gateways, projects, the LLM and MCP catalog, agent identities, and agent deployments in every environment"
+ouHandle: default
+permissions:
+  - resourceServerId: amp-resource-server
+    permissions: {{ json (rolePermissions "Platform Engineer") }}
+  - resourceServerId: "amp-agent-manager-mcp-resource-srv"
+    permissions: {{ json (rolePermissions "Platform Engineer" "amp-agent-manager-mcp-resource-srv") }}
+  - resourceServerId: "amp-observer-mcp-resource-server"
+    permissions: {{ json (rolePermissions "Platform Engineer" "amp-observer-mcp-resource-server") }}

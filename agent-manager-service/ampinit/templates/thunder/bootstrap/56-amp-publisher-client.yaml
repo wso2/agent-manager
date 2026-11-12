@@ -1,0 +1,21 @@
+resource_type: application
+id: amp-publisher-client
+type: m2m # client_credentials only, no interactive login
+name: "AMP Publisher Client"
+description: "Client application for evaluation job to publish scores"
+ouId: "01900000-0000-7000-8000-000000000001"
+inboundAuthConfig:
+  - type: oauth2
+    config:
+      clientId: {{ q .PublisherClient.ID }}
+      clientSecret: {{ q .PublisherClient.Secret }}
+      grantTypes: ["client_credentials"]
+      tokenEndpointAuthMethod: "client_secret_basic"
+      pkceRequired: false
+      publicClient: false
+      scopes: {{ json (clientScopes) }}
+      token:
+        accessToken:
+          clientConfig:
+            validityPeriod: 3600
+            attributes: ["ouId", "ouHandle"]

@@ -1,0 +1,12 @@
+resource_type: role
+id: amp-role-ai-lead
+name: AI Lead
+description: "AI lead access: manage LLM providers, MCP servers, and evaluators"
+ouHandle: default
+permissions:
+  - resourceServerId: amp-resource-server
+    permissions: {{ json (rolePermissions "AI Lead") }}
+  - resourceServerId: "amp-agent-manager-mcp-resource-srv"
+    permissions: {{ json (rolePermissions "AI Lead" "amp-agent-manager-mcp-resource-srv") }}
+  - resourceServerId: "amp-observer-mcp-resource-server"
+    permissions: {{ json (rolePermissions "AI Lead" "amp-observer-mcp-resource-server") }}

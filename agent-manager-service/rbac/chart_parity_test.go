@@ -22,34 +22,26 @@
 // bootstrap and enforced by no route for as long as it existed. This test makes
 // the Go declarations authoritative and the bootstrap checkable against them.
 //
-// The bootstrap resources are plain YAML files that deployments/standalone
-// renders into ThunderID; only @@NAME@@ placeholders are substituted, and none
-// of them appear in the documents read here.
+// The ampinit package generates the bootstrap: role grants come from
+// PredefinedRolePermissions and client scope lists from the resource-server
+// tree, so the tree is the one hand-written copy left to check. Its template
+// has no template actions, so it is read here as plain YAML (ampinit imports
+// this package, so it cannot be rendered from here).
 package rbac
 
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"gopkg.in/yaml.v3"
 )
 
 const (
-	bootstrapDir = "../../deployments/standalone/thunder/bootstrap"
+	bootstrapDir = "../ampinit/templates/thunder/bootstrap"
 
 	resourceServerDoc = "60-amp-resource-server.yaml"
-	apiClientDoc      = "50-amp-api-client.yaml"
 )
-
-// chartRoleDocs maps each bootstrap role document to the Go role it must match.
-var chartRoleDocs = map[string]string{
-	"61-amp-role-admin.yaml":             RoleAdmin,
-	"62-amp-role-developer.yaml":         RoleDeveloper,
-	"63-amp-role-ai-lead.yaml":           RoleAILead,
-	"64-amp-role-platform-engineer.yaml": RolePlatformEngineer,
-}
 
 // bootstrapDocument returns one bootstrap resource file.
 func bootstrapDocument(t *testing.T, name string) []byte {
@@ -111,86 +103,4 @@ func TestResourceServerTreeMatchesCatalog(t *testing.T) {
 	}
 
 	diffScopeSets(t, "resource-server tree", catalogScopes(t), chartSide)
-}
-
-// TestRoleDocumentsMatchPredefinedRoles keeps the documentation map and the
-// enforcement in step. Either side changing alone is the drift this closes.
-func TestRoleDocumentsMatchPredefinedRoles(t *testing.T) {
-	for docKey, roleName := range chartRoleDocs {
-		var doc struct {
-			Name        string `yaml:"name"`
-			Permissions []struct {
-				ResourceServerID string   `yaml:"resourceServerId"`
-				Permissions      []string `yaml:"permissions"`
-			} `yaml:"permissions"`
-		}
-		if err := yaml.Unmarshal(bootstrapDocument(t, docKey), &doc); err != nil {
-			t.Errorf("parse %s: %v", docKey, err)
-			continue
-		}
-		if doc.Name != roleName {
-			t.Errorf("%s declares name %q, want %q", docKey, doc.Name, roleName)
-		}
-
-		chartSide := make(map[Permission]bool)
-		for _, block := range doc.Permissions {
-			// MCP resource servers repeat a subset of the same scopes; the
-			// canonical grant is the amp-resource-server block.
-			if block.ResourceServerID != "amp-resource-server" {
-				continue
-			}
-			for _, scope := range block.Permissions {
-				trimmed, ok := strings.CutPrefix(scope, ResourceServer+":")
-				if !ok {
-					t.Errorf("%s: scope %q is not prefixed %q", docKey, scope, ResourceServer+":")
-					continue
-				}
-				chartSide[Permission(trimmed)] = true
-			}
-		}
-
-		goSide := make(map[Permission]bool)
-		for _, perm := range PredefinedRolePermissions[roleName] {
-			goSide[perm] = true
-		}
-		diffScopeSets(t, docKey, goSide, chartSide)
-	}
-}
-
-// TestAmpScopesAllowlistCoversCatalog guards the third failure mode. Thunder
-// grants only scopes an app's registered list contains, so a catalog scope
-// missing from the API client's scopes is a role binding that resolves to
-// nothing at token time.
-func TestAmpScopesAllowlistCoversCatalog(t *testing.T) {
-	chartSide := make(map[Permission]bool)
-	for _, scope := range apiClientScopes(t) {
-		if trimmed, ok := strings.CutPrefix(scope, ResourceServer+":"); ok {
-			chartSide[Permission(trimmed)] = true
-		}
-	}
-
-	diffScopeSets(t, "API client scopes", catalogScopes(t), chartSide)
-}
-
-// apiClientScopes returns the scopes registered on the bootstrap's
-// amp-api-client application.
-func apiClientScopes(t *testing.T) []string {
-	t.Helper()
-	var app struct {
-		InboundAuthConfig []struct {
-			Config struct {
-				Scopes []string `yaml:"scopes"`
-			} `yaml:"config"`
-		} `yaml:"inboundAuthConfig"`
-	}
-	if err := yaml.Unmarshal(bootstrapDocument(t, apiClientDoc), &app); err != nil {
-		t.Fatalf("parse %s: %v", apiClientDoc, err)
-	}
-	for _, cfg := range app.InboundAuthConfig {
-		if len(cfg.Config.Scopes) > 0 {
-			return cfg.Config.Scopes
-		}
-	}
-	t.Fatalf("%s registers no scopes", apiClientDoc)
-	return nil
 }

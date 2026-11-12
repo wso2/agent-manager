@@ -27,6 +27,10 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"gopkg.in/yaml.v3"
+
+	"github.com/wso2/agent-manager/agent-manager-service/ampinit"
 )
 
 // Static authorization invariants over the route table.
@@ -679,25 +683,27 @@ func predefinedRoleScopesByHandle(t *testing.T) map[string]map[string]bool {
 	return roles
 }
 
-// thunderBootstrapDir holds the ThunderID bootstrap resources the standalone
-// install loads; each is a plain YAML file.
-const thunderBootstrapDir = "../../deployments/standalone/thunder/bootstrap"
+// thunderBootstrap renders the ThunderID bootstrap resources the standalone
+// install generates.
+func thunderBootstrap(t *testing.T) map[string][]byte {
+	t.Helper()
+	files, err := ampinit.RenderThunder(ampinit.SampleThunderConfig())
+	if err != nil {
+		t.Fatalf("render Thunder bootstrap: %v", err)
+	}
+	return files
+}
 
 func thunderBootstrapRoleScopes(t *testing.T) map[string]map[string]bool {
 	t.Helper()
 
 	// Each predefined role is a declarative bootstrap resource. Parse complete
-	// role files rather than arbitrary scope lines so a formatting or
-	// resource-identity change fails loudly instead of producing a partial policy.
-	files, err := filepath.Glob(filepath.Join(thunderBootstrapDir, "*-amp-role-*.yaml"))
-	if err != nil || len(files) == 0 {
-		t.Fatalf("list Thunder bootstrap roles in %s: %v", thunderBootstrapDir, err)
-	}
-	roleFilePattern := regexp.MustCompile(`^\d+-amp-role-([a-z-]+)\.yaml$`)
-	scopePattern := regexp.MustCompile(`(?m)^\s+- "?(amp:[^"\s]+)"?\s*$`)
+	// role documents so a format or resource-identity change fails loudly
+	// instead of producing a partial policy.
+	roleFilePattern := regexp.MustCompile(`^bootstrap/\d+-amp-role-([a-z-]+)\.yaml$`)
 	roles := map[string]map[string]bool{}
-	for _, path := range files {
-		match := roleFilePattern.FindStringSubmatch(filepath.Base(path))
+	for name, source := range thunderBootstrap(t) {
+		match := roleFilePattern.FindStringSubmatch(name)
 		if match == nil {
 			continue
 		}
@@ -705,33 +711,34 @@ func thunderBootstrapRoleScopes(t *testing.T) map[string]map[string]bool {
 		if !containsMapValue(predefinedRoleHandles, handle) {
 			continue
 		}
-		if _, duplicate := roles[handle]; duplicate {
-			t.Fatalf("Thunder bootstrap configures predefined role %q more than once", handle)
+		var doc struct {
+			ResourceType string `yaml:"resource_type"`
+			ID           string `yaml:"id"`
+			Permissions  []struct {
+				ResourceServerID string   `yaml:"resourceServerId"`
+				Permissions      []string `yaml:"permissions"`
+			} `yaml:"permissions"`
 		}
-		source, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatalf("read Thunder bootstrap role: %v", err)
+		if err := yaml.Unmarshal(source, &doc); err != nil {
+			t.Fatalf("parse Thunder bootstrap role %q: %v", handle, err)
 		}
-		block := string(source)
-		if !strings.Contains(block, "resource_type: role\n") ||
-			!strings.Contains(block, "id: amp-role-"+handle+"\n") ||
-			!strings.Contains(block, "  - resourceServerId: amp-resource-server\n") {
+		if doc.ResourceType != "role" || doc.ID != "amp-role-"+handle {
 			t.Fatalf("Thunder bootstrap role %q no longer has the reviewed declarative role identity", handle)
 		}
 		// MCP resource servers intentionally repeat a role's applicable scope
 		// strings under different resourceServerId values. This invariant compares
 		// the service policy with the canonical amp-resource-server block only.
-		block = block[strings.Index(block, "  - resourceServerId: amp-resource-server\n"):]
-		if next := strings.Index(block[1:], "  - resourceServerId:"); next >= 0 {
-			block = block[:next+1]
-		}
 		roles[handle] = map[string]bool{}
-		for _, scopeMatch := range scopePattern.FindAllStringSubmatch(block, -1) {
-			scope := scopeMatch[1]
-			if roles[handle][scope] {
-				t.Errorf("Thunder bootstrap role %q grants duplicate permission %q", handle, scope)
+		for _, block := range doc.Permissions {
+			if block.ResourceServerID != "amp-resource-server" {
+				continue
 			}
-			roles[handle][scope] = true
+			for _, scope := range block.Permissions {
+				if roles[handle][scope] {
+					t.Errorf("Thunder bootstrap role %q grants duplicate permission %q", handle, scope)
+				}
+				roles[handle][scope] = true
+			}
 		}
 		if len(roles[handle]) == 0 {
 			t.Fatalf("parsed zero AMP permissions for Thunder bootstrap role %q", handle)
@@ -751,21 +758,22 @@ func thunderBootstrapRoleScopes(t *testing.T) map[string]map[string]bool {
 func thunderAMPScopeCatalog(t *testing.T) map[string]bool {
 	t.Helper()
 
-	path := filepath.Join(thunderBootstrapDir, "50-amp-api-client.yaml")
-	contents, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("read Thunder API client: %v", err)
+	var app struct {
+		InboundAuthConfig []struct {
+			Config struct {
+				Scopes []string `yaml:"scopes"`
+			} `yaml:"config"`
+		} `yaml:"inboundAuthConfig"`
 	}
-	listPattern := regexp.MustCompile(`(?m)^\s+scopes: \[(.*)\]\s*$`)
-	match := listPattern.FindStringSubmatch(string(contents))
-	if match == nil {
-		t.Fatalf("no scopes list in %s", path)
+	if err := yaml.Unmarshal(thunderBootstrap(t)["bootstrap/50-amp-api-client.yaml"], &app); err != nil {
+		t.Fatalf("parse Thunder API client: %v", err)
 	}
 	scopes := map[string]bool{}
-	for _, item := range strings.Split(match[1], ",") {
-		scope := strings.Trim(strings.TrimSpace(item), `"`)
-		if strings.HasPrefix(scope, "amp:") {
-			scopes[scope] = true
+	for _, cfg := range app.InboundAuthConfig {
+		for _, scope := range cfg.Config.Scopes {
+			if strings.HasPrefix(scope, "amp:") {
+				scopes[scope] = true
+			}
 		}
 	}
 	if len(scopes) == 0 {

@@ -1,0 +1,48 @@
+resource_type: theme
+id: amp-console-theme
+handle: "wso2-agent-manager-console"
+displayName: "WSO2 Agent Manager Console Theme"
+theme:
+  colorSchemes:
+    dark:
+      colors:
+        background:
+          default: '#121212'
+          paper: '#1e1e1e'
+        primary:
+          contrastText: '#ffffff'
+          dark: '#e74420'
+          main: '#fa7b3f'
+        secondary:
+          contrastText: '#000000'
+          dark: '#fa7b3f'
+          main: '#ff9966'
+        text:
+          primary: '#ffffff'
+          secondary: '#cccccc'
+    light:
+      colors:
+        background:
+          default: '#f7f8fb'
+          paper: '#ffffff'
+        primary:
+          contrastText: '#ffffff'
+          dark: '#e74420'
+          main: '#fa7b3f'
+        secondary:
+          contrastText: '#ffffff'
+          dark: '#0d0d1a'
+          main: '#1a1a2e'
+        text:
+          primary: '#000000'
+          secondary: '#494848'
+  defaultColorScheme: light
+  direction: ltr
+  shape:
+    borderRadius: 8
+  typography:
+    fontFamily: Inter Variable, sans-serif
+    h1:
+      fontSize: 1.75rem
+      fontWeight: 600
+      lineHeight: 1.3

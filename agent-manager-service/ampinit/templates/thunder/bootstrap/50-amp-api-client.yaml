@@ -1,0 +1,38 @@
+# ouId (not ouHandle) on every application document in this file: the declarative
+# importer resolves ouHandle correctly for roles/groups/users, but not for
+# applications, so an application bootstrapped with ouHandle: default ends up with
+# no OU at all, and its client_credentials tokens carry no ouId/ouHandle claim —
+# agent-manager-service's RequireOrgMatch then rejects them as "missing ou identity
+# in token". "01900000-0000-7000-8000-000000000001" is ThunderID's own built-in
+# "default" OU, fixed on every install rather than generated per instance, mirroring
+# what the pre-declarative bootstrap scripts did: resolve "default" once and send
+# the real id. This on-prem deployment only ever runs a single org/OU ("default",
+# AMP's internal default org) — multi-org support is a future
+# concern, not something to solve here.
+#
+# ouId alone is NOT enough: Thunder only embeds ouId/ouHandle as token claims when
+# a client's own token.accessToken.clientConfig.attributes opts in. Every
+# client_credentials-only application in this file needs this attributes list, or
+# its tokens keep getting rejected as "missing ou identity in token" even though
+# ouId above is set correctly.
+resource_type: application
+id: amp-api-client
+type: m2m # client_credentials only, no interactive login
+name: "AMP API Client"
+description: "Client application for AMP API access"
+ouId: "01900000-0000-7000-8000-000000000001"
+inboundAuthConfig:
+  - type: oauth2
+    config:
+      clientId: {{ q .APIClient.ID }}
+      clientSecret: {{ q .APIClient.Secret }}
+      grantTypes: ["client_credentials"]
+      tokenEndpointAuthMethod: "client_secret_basic"
+      pkceRequired: false
+      publicClient: false
+      scopes: {{ json (clientScopes) }}
+      token:
+        accessToken:
+          clientConfig:
+            validityPeriod: 3600
+            attributes: ["ouId", "ouHandle"]

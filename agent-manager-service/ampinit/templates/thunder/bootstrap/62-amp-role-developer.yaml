@@ -1,0 +1,12 @@
+resource_type: role
+id: amp-role-developer
+name: Developer
+description: "Development access: build, deploy, and observe agents within projects"
+ouHandle: default
+permissions:
+  - resourceServerId: amp-resource-server
+    permissions: {{ json (rolePermissions "Developer") }}
+  - resourceServerId: "amp-agent-manager-mcp-resource-srv"
+    permissions: {{ json (rolePermissions "Developer" "amp-agent-manager-mcp-resource-srv") }}
+  - resourceServerId: "amp-observer-mcp-resource-server"
+    permissions: {{ json (rolePermissions "Developer" "amp-observer-mcp-resource-server") }}
