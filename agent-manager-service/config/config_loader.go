@@ -162,6 +162,13 @@ func loadEnvs() {
 			r.errors = append(r.errors, fmt.Errorf("A2A_CARD_FETCH_DIAL_ADDR must contain a non-empty host and port"))
 		}
 	}
+	config.A2ACardTestUpstreamHosts = r.readOptionalStringList("A2A_CARD_TEST_UPSTREAM_HOSTS", "")
+	if len(config.A2ACardTestUpstreamHosts) > 0 {
+		slog.Warn(fmt.Sprintf(
+			"A2A_CARD_TEST_UPSTREAM_HOSTS is set: A2A card URLs on %s skip the public-host check and may carry an "+
+				"upstream credential over http. This is a test-only setting.",
+			strings.Join(config.A2ACardTestUpstreamHosts, ", ")))
+	}
 	config.KeyManagerConfigurations = KeyManagerConfigurations{
 		// Comma-separated list of allowed issuers and audiences
 		Issuer:   r.readOptionalStringList("KEY_MANAGER_ISSUER", "Agent Management Platform Local"),
