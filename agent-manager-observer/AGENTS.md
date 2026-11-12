@@ -7,8 +7,8 @@ Small Go service that serves the console's trace/observability API. It queries t
 ```text
 HTTP → RequestLogger → CORS → mux ┬→ /health                             (no auth)
                                    ├→ /.well-known/oauth-protected-resource (no auth)
-                                   ├→ JWTAuth → /api/v1/*  → handlers/ → controllers/ → observer/ (OpenSearch client) → OpenSearch
-                                   │                                                 ↘ opensearch/ (span parsing / enrichment)
+                                   ├→ JWTAuth → /api/v1/*  → handlers/ → controllers/ → store.TraceStore → store/opensearch → observer/ (OpenSearch client) → OpenSearch
+                                   │                                    ↘ opensearch/ (span parsing / enrichment)
                                    └→ JWTAuth → /mcp, /mcp/ → mcp/tools/ → controllers/ (same as above, no HTTP hop)
 ```
 
@@ -16,7 +16,13 @@ HTTP → RequestLogger → CORS → mux ┬→ /health                          
 
 - **`handlers/`** — parse/validate the request, extract path params, call the controller, write the response. Client-facing errors are generic (`"Failed to retrieve …"`); real detail is logged server-side.
 - **`controllers/`** — orchestration + enrichment. Fetches trace overviews, then fans out to fetch span details and aggregates input/output/token usage.
-- **`observer/`** — the OpenSearch trace client (`QueryTraces`, `QueryTraceSpans`, `GetSpanDetails`) and span→`opensearch.Span` conversion. Queries are scoped by the `agent-manager/organization`, `agent-manager/project` and `agent-manager/agent` resource attributes (names) the collector stamps on every span; `QueryTraces` lists traces whose root span starts in the window.
+- **`store/`** — the trace data access layer. `TraceStore` (`QueryTraces`, `QueryTraceSpans`, `GetSpanDetails`) takes a `Scope` on every call: the request's org, project and agent names, plus ID fields a resolver will fill. `TRACE_BACKEND` picks the backend:
+  - `store/opensearch` (default) wraps `observer.Client` and scopes by the Scope's org, project and agent names. `GetSpanDetails` returns `store.ErrNotFound` for a span that is missing or carries another org.
+  - `store/openchoreo` reads from an OpenChoreo observer through its own HTTP client and token provider (`client.go`, `auth.go`), mapping the Scope's names to the observer's namespace and filters.
+  - `store/off` answers every call with `store.ErrDisabled`, which the trace handlers return as `503` with `error: observability_disabled`.
+  - `QueryTraces` and `QueryTraceSpans` reject a Scope with no org (`store.ErrMissingOrg`) before any query. `GetSpanDetails` doesn't, because span-detail callers send no org.
+  - `store/storetest` is the suite a backend that isolates orgs must pass (first test: two orgs with colliding project and agent IDs). `store/opensearch` and `store/memory`, an in-memory fake, run it.
+- **`observer/`** — the OpenSearch trace client (`QueryTraces`, `QueryTraceSpans`, `GetSpanDetails`) and the span index template. Queries are scoped by the `agent-manager/organization`, `agent-manager/project` and `agent-manager/agent` resource attributes (names) the collector stamps on every span; `QueryTraces` lists traces whose root span starts in the window. Controllers reach it only through `store.TraceStore`.
 - **`opensearch/`** — pure span-parsing logic. Extracts input/output from spans; branches by vendor (CrewAI via `crewai.*` attributes vs LangChain/Traceloop via `traceloop.entity.*`).
 - **`config/`** — env-var config loading + startup validation.
 - **`mcp/`** — the `am-obs-mcp` streamable-HTTP MCP server (`mcp/setup.go`) and its four trace tools (`mcp/tools/`): `list_traces`, `get_traces`, `get_trace_details`, `get_span_details`.
@@ -34,8 +40,11 @@ HTTP → RequestLogger → CORS → mux ┬→ /health                          
 | Server + route table, shared with cloud via `app.Run` | `app/app.go` |
 | HTTP handlers, path parsing | `handlers/handlers.go` |
 | Orchestration + enrichment | `controllers/controller.go` |
+| Trace data access layer (`Scope`, `TraceStore`, errors) | `store/store.go` |
+| Trace backends | `store/opensearch/`, `store/openchoreo/`, `store/off/` |
+| Backend test suite + in-memory fake | `store/storetest/`, `store/memory/` |
 | OpenSearch trace client (interface + impl) | `observer/client.go`, `observer/types.go` |
-| Span conversion | `observer/convert.go` |
+| Span → `opensearch.Span` conversion | `controllers/span_convert.go` |
 | Span parsing / vendor branches | `opensearch/process.go`, `opensearch/crewai_process.go` |
 | JWT / CORS / request logging | `middleware/` |
 | Config + validation | `config/config.go` |
@@ -71,17 +80,21 @@ make mock-traces  # generate OTLP traces via telemetrygen (for local testing)
 | Var | Config field (`config.Load()` result) | Purpose |
 |---|---|---|
 | `AM_OBSERVER_PORT` | `cfg.Server.Port` | listen port (default 9098) |
-| `OPENSEARCH_ADDRESS` | `cfg.OpenSearch.Address` | OpenSearch base URL (required) |
+| `TRACE_BACKEND` | `cfg.Traces.Backend` | where traces are read from: `opensearch` (default), `openchoreo` or `off` |
+| `OPENSEARCH_ADDRESS` | `cfg.OpenSearch.Address` | OpenSearch base URL (required for `opensearch`) |
 | `OPENSEARCH_USERNAME` / `OPENSEARCH_PASSWORD` | `cfg.OpenSearch.Username` / `Password` | basic auth (optional) |
 | `OPENSEARCH_TRACE_INDEX` | `cfg.OpenSearch.TraceIndex` | span index pattern (default `otel-traces-*`) |
 | `OPENSEARCH_TLS_INSECURE_SKIP_VERIFY` | `cfg.OpenSearch.InsecureSkipVerify` | skip TLS verification for a self-signed OpenSearch (default `false`) |
+| `OPENCHOREO_OBSERVER_URL` | `cfg.OpenChoreo.BaseURL` | OpenChoreo observer base URL (required for `openchoreo`) |
+| `IDP_TOKEN_URL` / `IDP_CLIENT_ID` / `IDP_CLIENT_SECRET` | `cfg.OpenChoreo.TokenURL` / `ClientID` / `ClientSecret` | OAuth2 client credentials for the OpenChoreo observer (required for `openchoreo`) |
+| `OBSERVER_DEFAULT_NAMESPACE` | `cfg.OpenChoreo.DefaultNamespace` | namespace `openchoreo` trace queries run in (default `default`) |
 | `KEY_MANAGER_JWKS_URL` | `cfg.Auth.JWKSUrl` | JWKS endpoint for JWT validation |
 | `KEY_MANAGER_ISSUER` | `cfg.Auth.Issuer` (list) | accepted token issuers (comma-separated) |
 | `KEY_MANAGER_AUDIENCE` | `cfg.Auth.Audience` (list) | accepted audiences (comma-separated) |
 | `IS_LOCAL_DEV_ENV` | `cfg.Auth.IsLocalDevEnv` | `true` skips JWT signature validation (checks expiry only) |
 | `LOG_LEVEL` | `cfg.LogLevel` | DEBUG/INFO/WARN/ERROR |
 
-`OPENSEARCH_ADDRESS` is required; the `cfg.Auth.*` fields are required unless `IsLocalDevEnv` is true.
+Each backend's settings are required only when `TRACE_BACKEND` selects it: `OPENSEARCH_ADDRESS` for `opensearch`, `OPENCHOREO_OBSERVER_URL` and the `IDP_*` client credentials for `openchoreo`, none for `off`. The `cfg.Auth.*` fields are required unless `IsLocalDevEnv` is true.
 
 Co-dependent values are checked together — a partially-set Auth config fails at startup, not first request. `getEnvAsList` parses comma-separated issuer/audience lists.
 

@@ -26,9 +26,39 @@ import (
 // Config holds all configuration for agent-manager-observer
 type Config struct {
 	Server     ServerConfig
+	Traces     TracesConfig
 	OpenSearch OpenSearchConfig
+	OpenChoreo OpenChoreoConfig
 	LogLevel   string
 	Auth       AuthConfig
+}
+
+// Trace backends TRACE_BACKEND accepts.
+const (
+	TraceBackendOpenSearch = "opensearch"
+	TraceBackendOpenChoreo = "openchoreo"
+	TraceBackendOff        = "off"
+)
+
+// TracesConfig picks where traces are read from.
+type TracesConfig struct {
+	// Backend is TraceBackendOpenSearch, TraceBackendOpenChoreo or TraceBackendOff.
+	Backend string
+}
+
+// UsesOpenSearch reports whether traces are read from OpenSearch; an empty Backend counts as OpenSearch.
+func (t TracesConfig) UsesOpenSearch() bool {
+	return t.Backend == "" || t.Backend == TraceBackendOpenSearch
+}
+
+// OpenChoreoConfig holds the settings of the openchoreo trace backend.
+type OpenChoreoConfig struct {
+	BaseURL      string
+	TokenURL     string
+	ClientID     string
+	ClientSecret string
+	// DefaultNamespace is the namespace every trace query runs in.
+	DefaultNamespace string
 }
 
 // OpenSearchConfig holds the connection settings for the trace store.
@@ -80,6 +110,9 @@ func Load() (*Config, error) {
 		Server: ServerConfig{
 			Port: getEnvAsInt("AM_OBSERVER_PORT", 9098),
 		},
+		Traces: TracesConfig{
+			Backend: strings.ToLower(strings.TrimSpace(getEnv("TRACE_BACKEND", TraceBackendOpenSearch))),
+		},
 		OpenSearch: OpenSearchConfig{
 			Address:            getEnv("OPENSEARCH_ADDRESS", ""),
 			Username:           getEnv("OPENSEARCH_USERNAME", ""),
@@ -87,6 +120,13 @@ func Load() (*Config, error) {
 			TraceIndex:         getEnv("OPENSEARCH_TRACE_INDEX", "otel-traces-*"),
 			IndexTemplate:      getEnvAllowEmpty("OPENSEARCH_INDEX_TEMPLATE", "amp-otel-traces"),
 			InsecureSkipVerify: getEnvAsBool("OPENSEARCH_TLS_INSECURE_SKIP_VERIFY", false),
+		},
+		OpenChoreo: OpenChoreoConfig{
+			BaseURL:          getEnv("OPENCHOREO_OBSERVER_URL", ""),
+			TokenURL:         getEnv("IDP_TOKEN_URL", ""),
+			ClientID:         getEnv("IDP_CLIENT_ID", ""),
+			ClientSecret:     getEnv("IDP_CLIENT_SECRET", ""),
+			DefaultNamespace: getEnv("OBSERVER_DEFAULT_NAMESPACE", "default"),
 		},
 		LogLevel: getEnv("LOG_LEVEL", "INFO"),
 		Auth: AuthConfig{
@@ -115,8 +155,29 @@ func (c *Config) validate() error {
 	if err := c.Auth.validate(); err != nil {
 		return err
 	}
-	if err := c.OpenSearch.validate(); err != nil {
-		return err
+	switch c.Traces.Backend {
+	case TraceBackendOpenSearch:
+		return c.OpenSearch.validate()
+	case TraceBackendOpenChoreo:
+		return c.OpenChoreo.validate()
+	case TraceBackendOff:
+		return nil
+	default:
+		return fmt.Errorf("TRACE_BACKEND must be %q, %q or %q, got %q",
+			TraceBackendOpenSearch, TraceBackendOpenChoreo, TraceBackendOff, c.Traces.Backend)
+	}
+}
+
+func (o *OpenChoreoConfig) validate() error {
+	for _, v := range []struct{ name, value string }{
+		{"OPENCHOREO_OBSERVER_URL", o.BaseURL},
+		{"IDP_TOKEN_URL", o.TokenURL},
+		{"IDP_CLIENT_ID", o.ClientID},
+		{"IDP_CLIENT_SECRET", o.ClientSecret},
+	} {
+		if strings.TrimSpace(v.value) == "" {
+			return fmt.Errorf("%s is required when TRACE_BACKEND is %q", v.name, TraceBackendOpenChoreo)
+		}
 	}
 	return nil
 }

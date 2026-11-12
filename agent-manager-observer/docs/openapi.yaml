@@ -167,6 +167,8 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "503":
+          $ref: "#/components/responses/ObserverUnavailable"
         "500":
           $ref: "#/components/responses/InternalError"
 
@@ -242,6 +244,8 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "503":
+          $ref: "#/components/responses/ObserverUnavailable"
         "500":
           $ref: "#/components/responses/InternalError"
 
@@ -291,6 +295,8 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "503":
+          $ref: "#/components/responses/ObserverUnavailable"
         "500":
           $ref: "#/components/responses/InternalError"
 
@@ -331,6 +337,8 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "503":
+          $ref: "#/components/responses/ObserverUnavailable"
         "500":
           $ref: "#/components/responses/InternalError"
 
@@ -697,6 +705,15 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/ErrorResponse"
+    ObserverUnavailable:
+      description: Traces are disabled (`TRACE_BACKEND=off`); `error` is `observability_disabled`
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error: observability_disabled
+            message: Traces are disabled
     Forbidden:
       description: Publisher-audience (`amp-publisher-*`) tokens are not permitted on this endpoint
       content:

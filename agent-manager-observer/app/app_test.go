@@ -27,6 +27,9 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-observer/config"
 	"github.com/wso2/agent-manager/agent-manager-observer/rbac"
+	"github.com/wso2/agent-manager/agent-manager-observer/store/off"
+	"github.com/wso2/agent-manager/agent-manager-observer/store/openchoreo"
+	"github.com/wso2/agent-manager/agent-manager-observer/store/opensearch"
 )
 
 func newTestHandler(t *testing.T, openSearchURL string) http.Handler {
@@ -140,5 +143,48 @@ func TestRun_ReturnsListenError(t *testing.T) {
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("Run did not return after failing to bind")
+	}
+}
+
+func TestNewHandler_TraceBackendOff(t *testing.T) {
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Errorf("unexpected backend call: %s %s", r.Method, r.URL.Path)
+	}))
+	defer backend.Close()
+
+	cfg := &config.Config{
+		OpenSearch: config.OpenSearchConfig{Address: backend.URL, TraceIndex: "otel-traces-*"},
+		Traces:     config.TracesConfig{Backend: config.TraceBackendOff},
+		Auth:       config.AuthConfig{IsLocalDevEnv: true},
+	}
+	r := httptest.NewRequest(http.MethodGet,
+		"/api/v1/traces/abc/spans?organization=default&startTime=2026-01-01T00:00:00Z&endTime=2026-01-02T00:00:00Z", nil)
+	r.Header.Set("Authorization", "Bearer "+scopedToken(t, rbac.TraceRead.Scope()))
+	rec := httptest.NewRecorder()
+	newHandler(cfg).ServeHTTP(rec, r)
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503, got %d (body: %s)", rec.Code, rec.Body.String())
+	}
+}
+
+func TestNewTraceStore(t *testing.T) {
+	cfgFor := func(backend string) *config.Config {
+		return &config.Config{
+			Traces:     config.TracesConfig{Backend: backend},
+			OpenSearch: config.OpenSearchConfig{Address: "http://opensearch:9200", TraceIndex: "otel-traces-*"},
+			OpenChoreo: config.OpenChoreoConfig{BaseURL: "http://observer", DefaultNamespace: "default"},
+		}
+	}
+	if _, ok := newTraceStore(cfgFor(config.TraceBackendOff)).(off.Store); !ok {
+		t.Error("off: want off.Store")
+	}
+	if _, ok := newTraceStore(cfgFor(config.TraceBackendOpenChoreo)).(*openchoreo.Store); !ok {
+		t.Error("openchoreo: want *openchoreo.Store")
+	}
+	for _, backend := range []string{config.TraceBackendOpenSearch, ""} {
+		if _, ok := newTraceStore(cfgFor(backend)).(*opensearch.Store); !ok {
+			t.Errorf("%q: want *opensearch.Store", backend)
+		}
 	}
 }

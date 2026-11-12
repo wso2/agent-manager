@@ -150,3 +150,82 @@ func TestLoad_OpenSearchDefaults(t *testing.T) {
 		t.Error("expected TLS verification on by default")
 	}
 }
+
+func TestLoad_TraceBackendDefaultsToOpenSearch(t *testing.T) {
+	setRequiredEnv(t)
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.Traces.Backend != TraceBackendOpenSearch {
+		t.Errorf("Traces.Backend = %q, want %q", cfg.Traces.Backend, TraceBackendOpenSearch)
+	}
+}
+
+func TestLoad_TraceBackendOpenSearchNeedsAddress(t *testing.T) {
+	t.Setenv("OPENSEARCH_ADDRESS", "")
+	t.Setenv("IS_LOCAL_DEV_ENV", "true")
+	t.Setenv("TRACE_BACKEND", "opensearch")
+	if _, err := Load(); err == nil {
+		t.Fatal("expected an error for opensearch without OPENSEARCH_ADDRESS")
+	}
+}
+
+func TestLoad_TraceBackendOffNeedsNoBackendSettings(t *testing.T) {
+	t.Setenv("OPENSEARCH_ADDRESS", "")
+	t.Setenv("OPENCHOREO_OBSERVER_URL", "")
+	t.Setenv("IS_LOCAL_DEV_ENV", "true")
+	t.Setenv("TRACE_BACKEND", "off")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.Traces.Backend != TraceBackendOff {
+		t.Errorf("Traces.Backend = %q, want %q", cfg.Traces.Backend, TraceBackendOff)
+	}
+}
+
+func TestLoad_TraceBackendOpenChoreo(t *testing.T) {
+	settings := map[string]string{
+		"OPENCHOREO_OBSERVER_URL": "http://observer:8080",
+		"IDP_TOKEN_URL":           "http://idp/oauth2/token",
+		"IDP_CLIENT_ID":           "client",
+		"IDP_CLIENT_SECRET":       "secret",
+	}
+	setAll := func(t *testing.T) {
+		t.Setenv("OPENSEARCH_ADDRESS", "")
+		t.Setenv("IS_LOCAL_DEV_ENV", "true")
+		t.Setenv("TRACE_BACKEND", "openchoreo")
+		for k, v := range settings {
+			t.Setenv(k, v)
+		}
+	}
+
+	t.Run("needs no OpenSearch", func(t *testing.T) {
+		setAll(t)
+		cfg, err := Load()
+		if err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+		if cfg.Traces.Backend != TraceBackendOpenChoreo || cfg.OpenChoreo.DefaultNamespace != "default" {
+			t.Errorf("Traces = %+v, OpenChoreo = %+v", cfg.Traces, cfg.OpenChoreo)
+		}
+	})
+	for name := range settings {
+		t.Run("needs "+name, func(t *testing.T) {
+			setAll(t)
+			t.Setenv(name, "")
+			if _, err := Load(); err == nil {
+				t.Fatalf("expected an error without %s", name)
+			}
+		})
+	}
+}
+
+func TestLoad_TraceBackendUnknown(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("TRACE_BACKEND", "clickhouse")
+	if _, err := Load(); err == nil {
+		t.Fatal("expected an error for an unknown TRACE_BACKEND")
+	}
+}

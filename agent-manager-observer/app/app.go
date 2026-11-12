@@ -37,6 +37,9 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-observer/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-observer/observer"
 	"github.com/wso2/agent-manager/agent-manager-observer/rbac"
+	"github.com/wso2/agent-manager/agent-manager-observer/store"
+	"github.com/wso2/agent-manager/agent-manager-observer/store/off"
+	"github.com/wso2/agent-manager/agent-manager-observer/store/openchoreo"
 	"github.com/wso2/agent-manager/agent-manager-observer/store/opensearch"
 )
 
@@ -51,11 +54,13 @@ func Run(cfg *config.Config, _ Options) error {
 
 	// The collector waits for the observer to be healthy, so the template is
 	// in place before it creates the first span index.
-	tmplCtx, cancelTmpl := context.WithTimeout(context.Background(), 3*time.Minute)
-	err := observer.EnsureIndexTemplate(tmplCtx, cfg.OpenSearch, 3*time.Second)
-	cancelTmpl()
-	if err != nil {
-		return err
+	if cfg.Traces.UsesOpenSearch() {
+		tmplCtx, cancelTmpl := context.WithTimeout(context.Background(), 3*time.Minute)
+		err := observer.EnsureIndexTemplate(tmplCtx, cfg.OpenSearch, 3*time.Second)
+		cancelTmpl()
+		if err != nil {
+			return err
+		}
 	}
 
 	// Create server
@@ -117,8 +122,7 @@ func newHandler(cfg *config.Config) http.Handler {
 	// Authenticated API routes
 	apiMux := http.NewServeMux()
 
-	traceClient := observer.NewClient(cfg.OpenSearch)
-	controller := controllers.NewTracingController(opensearch.New(traceClient))
+	controller := controllers.NewTracingController(newTraceStore(cfg))
 	obsController := controllers.NewObservabilityController()
 	handler := handlers.NewHandler(controller, obsController)
 
@@ -145,7 +149,8 @@ func newHandler(cfg *config.Config) http.Handler {
 	apiMux.Handle("/api/v1/build-logs", requireBuildLog(http.HandlerFunc(handler.GetBuildLogs)))
 	apiMux.Handle("/api/v1/metrics", requireMetric(http.HandlerFunc(handler.GetMetrics)))
 
-	slog.Info("v1 routes registered", "openSearchAddress", cfg.OpenSearch.Address, "traceIndex", cfg.OpenSearch.TraceIndex)
+	slog.Info("v1 routes registered", "traceBackend", cfg.Traces.Backend,
+		"openSearchAddress", cfg.OpenSearch.Address, "traceIndex", cfg.OpenSearch.TraceIndex)
 
 	// Apply JWT auth middleware to API routes
 	authenticatedHandler := middleware.JWTAuth(cfg.Auth)(apiMux)
@@ -167,6 +172,20 @@ func newHandler(cfg *config.Config) http.Handler {
 	loggerHandler := logger.RequestLogger()(corsHandler)
 
 	return loggerHandler
+}
+
+// newTraceStore returns the trace backend cfg names; OpenSearch when unset.
+func newTraceStore(cfg *config.Config) store.TraceStore {
+	switch cfg.Traces.Backend {
+	case config.TraceBackendOff:
+		return off.Store{}
+	case config.TraceBackendOpenChoreo:
+		oc := cfg.OpenChoreo
+		auth := openchoreo.NewAuthProvider(oc.TokenURL, oc.ClientID, oc.ClientSecret)
+		return openchoreo.New(openchoreo.NewClient(oc.BaseURL, auth, oc.DefaultNamespace))
+	default:
+		return opensearch.New(observer.NewClient(cfg.OpenSearch))
+	}
 }
 
 func setupLogger(cfg *config.Config) {
