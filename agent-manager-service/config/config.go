@@ -55,6 +55,10 @@ type Config struct {
 	// Default Chat API configuration
 	DefaultChatAPI     DefaultChatAPIConfig
 	DefaultGatewayPort int
+	// DefaultGateway is the gateway registered from configuration at startup.
+	DefaultGateway DefaultGatewayConfig
+	// OtelIngest is the trace-ingest API pushed to every gateway.
+	OtelIngest OtelIngestConfig
 	// A2ACardFetchDialAddr, when set, is the host:port every platform card fetch dials instead of its URL host.
 	A2ACardFetchDialAddr string
 
@@ -622,4 +626,25 @@ type ResourceLimitsConfig struct {
 	MaxCPU string
 	// MaxMemory is the maximum memory value (Kubernetes quantity string) applied to both requests and limits
 	MaxMemory string
+}
+
+// DefaultGatewayConfig registers one gateway at startup, so a bundled gateway connects with no manual
+// step. An empty Name turns it off.
+type DefaultGatewayConfig struct {
+	Name        string
+	DisplayName string
+	Vhost       string
+	// FunctionalityType is INGRESS, EGRESS or BOTH.
+	FunctionalityType string
+	// OrgOUID and OrgHandle are the Thunder OU the gateway belongs to.
+	OrgOUID   string
+	OrgHandle string
+	// Token is the registration token the gateway connects with, read from TokenFile when empty.
+	Token     string
+	TokenFile string
+}
+
+// OtelIngestConfig is the built-in OTLP trace-ingest API. An empty UpstreamURL turns it off.
+type OtelIngestConfig struct {
+	UpstreamURL string
 }

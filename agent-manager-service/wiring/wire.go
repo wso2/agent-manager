@@ -37,6 +37,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/events"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
+	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
@@ -285,6 +286,9 @@ var reconcileProviderSet = wire.NewSet(
 	services.NewPlatformAgentExposures,
 	services.NewA2AAgentKind,
 	services.NewRestAgentKind,
+	ProvideOtelIngestKind,
+	services.NewOtelIngestPublisher,
+	ProvideDefaultGatewaySeeder,
 	ProvideReconcileKinds,
 	ProvideReconcileCore,
 	wire.Bind(new(services.GatewayArtifacts), new(*reconcile.Core)),
@@ -342,10 +346,33 @@ func ProvideWebSocketController(
 	hub eventhub.EventHub,
 	gatewayService *services.PlatformGatewayService,
 	ackHandler *services.DeploymentAckHandler,
+	otelIngest *services.OtelIngestPublisher,
 	cfg config.Config,
+	logger *slog.Logger,
 ) controllers.WebSocketController {
 	rateLimitCount := cfg.WebSocket.RateLimitPerMin
-	return controllers.NewWebSocketController(manager, hub, gatewayService, ackHandler, rateLimitCount)
+	// A connecting gateway gets the trace-ingest API if it does not serve the current one yet.
+	onConnect := func(ctx context.Context, gateway *models.Gateway) {
+		ctx, cancel := context.WithTimeout(ctx, time.Minute)
+		defer cancel()
+		if err := otelIngest.EnsureOnGateway(ctx, gateway.OUID, gateway.UUID); err != nil {
+			logger.Error("Failed to deploy the trace-ingest API", "gatewayID", gateway.UUID, "error", err)
+		}
+	}
+	return controllers.NewWebSocketController(manager, hub, gatewayService, ackHandler, rateLimitCount, onConnect)
+}
+
+// ProvideOtelIngestKind is the built-in trace-ingest API, accepting tokens Agent Manager signs.
+func ProvideOtelIngestKind(cfg config.Config) *services.OtelIngestKind {
+	return services.NewOtelIngestKind(cfg.OtelIngest.UpstreamURL, cfg.JWTSigning.Issuer)
+}
+
+// ProvideDefaultGatewaySeeder registers the gateway named in configuration.
+func ProvideDefaultGatewaySeeder(
+	cfg config.Config, gateways *services.PlatformGatewayService, repo repositories.GatewayRepository,
+	platform repositories.PlatformRepository, logger *slog.Logger,
+) *services.DefaultGatewaySeeder {
+	return services.NewDefaultGatewaySeeder(cfg.DefaultGateway, gateways, repo, platform, logger)
 }
 
 // ProvideDeploymentAckHandler creates a new deployment ack handler that runs the reconcile kinds' after-live hooks.
@@ -356,9 +383,9 @@ func ProvideDeploymentAckHandler(deploymentRepo repositories.DeploymentRepositor
 // ProvideReconcileKinds lists the gateway artifact kinds the reconcile core deploys.
 func ProvideReconcileKinds(
 	llmProvider *services.LLMProviderKind, llmProxy *services.LLMProxyKind, mcp *services.MCPProxyKind,
-	agent *services.A2AAgentKind, restAgent *services.RestAgentKind,
+	agent *services.A2AAgentKind, restAgent *services.RestAgentKind, otelIngest *services.OtelIngestKind,
 ) reconcile.Kinds {
-	return reconcile.Kinds{llmProvider, llmProxy, mcp, agent, restAgent}
+	return reconcile.Kinds{llmProvider, llmProxy, mcp, agent, restAgent, otelIngest}
 }
 
 // ProvideReconcileCore builds the reconcile core with the worker's intervals, lease and attempt budget from cfg, and

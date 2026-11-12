@@ -160,6 +160,22 @@ func loadEnvs() {
 
 	config.InstrumentationURL = r.readOptionalString("INSTRUMENTATION_URL", "http://default-default.gateway.localhost:19080/otel")
 	config.DefaultGatewayPort = int(r.readOptionalInt64("DEFAULT_GATEWAY_PORT", 19080))
+	config.DefaultGateway = DefaultGatewayConfig{
+		Name:              strings.TrimSpace(r.readOptionalString("DEFAULT_GATEWAY_NAME", "")),
+		DisplayName:       r.readOptionalString("DEFAULT_GATEWAY_DISPLAY_NAME", "Default AI Gateway"),
+		Vhost:             r.readOptionalString("DEFAULT_GATEWAY_VHOST", ""),
+		FunctionalityType: r.readOptionalString("DEFAULT_GATEWAY_TYPE", "BOTH"),
+		OrgOUID:           r.readOptionalString("DEFAULT_GATEWAY_ORG_OU_ID", "01900000-0000-7000-8000-000000000001"),
+		OrgHandle:         r.readOptionalString("DEFAULT_GATEWAY_ORG_HANDLE", "default"),
+		Token:             strings.TrimSpace(r.readOptionalString("DEFAULT_GATEWAY_TOKEN", "")),
+		TokenFile:         r.readOptionalString("DEFAULT_GATEWAY_TOKEN_FILE", ""),
+	}
+	if g := config.DefaultGateway; g.Name != "" && (g.Vhost == "" || (g.Token == "" && g.TokenFile == "")) {
+		r.errors = append(r.errors, fmt.Errorf(
+			"DEFAULT_GATEWAY_NAME needs DEFAULT_GATEWAY_VHOST and DEFAULT_GATEWAY_TOKEN or DEFAULT_GATEWAY_TOKEN_FILE",
+		))
+	}
+	config.OtelIngest = OtelIngestConfig{UpstreamURL: r.readOptionalString("OTEL_INGEST_UPSTREAM_URL", "")}
 	config.A2ACardFetchDialAddr = r.readOptionalString("A2A_CARD_FETCH_DIAL_ADDR", "")
 	if addr := config.A2ACardFetchDialAddr; addr != "" {
 		if host, port, err := net.SplitHostPort(addr); err != nil {

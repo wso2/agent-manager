@@ -301,7 +301,7 @@ tables:
     foreign_keys:
       - {columns: [org_id], references: organizations, ref_columns: [id]}
     checks:
-      - "kind IN ('RestApi', 'WebSubAPI', 'LlmProvider', 'LlmProxy', 'Agent', 'McpProxy', 'McpProxyMapping')"
+      - "kind IN ('RestApi', 'WebSubAPI', 'LlmProvider', 'LlmProxy', 'Agent', 'McpProxy', 'McpProxyMapping', 'OtelIngest')"
 
   - name: artifact_deployments
     columns:

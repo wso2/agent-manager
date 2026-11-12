@@ -238,6 +238,15 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 
 	dependencies.AgentManagerService.SetEntitlementChecker(opts.EntitlementChecker)
 
+	// Registers the gateway named in configuration before any gateway can connect.
+	seedCtx, seedCancel := context.WithTimeout(context.Background(), time.Minute)
+	err = dependencies.DefaultGatewaySeeder.Seed(seedCtx)
+	seedCancel()
+	if err != nil {
+		slog.Error("failed to register the default gateway", "error", err)
+		os.Exit(1)
+	}
+
 	// Background workers have no request behind them, so nothing installs a
 	// recorder on their contexts the way the HTTP middleware does. Install one
 	// here, or their audit emits would reach the "not installed" fallback and

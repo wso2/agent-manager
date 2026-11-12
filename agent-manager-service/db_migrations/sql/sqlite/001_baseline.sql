@@ -293,7 +293,7 @@ CREATE TABLE artifacts (
     CONSTRAINT uq_artifacts_org_id_id UNIQUE (org_id, id),
     CONSTRAINT fk_artifacts_org_id FOREIGN KEY (org_id) REFERENCES organizations (id),
     CONSTRAINT ck_artifacts_1 CHECK (in_catalog IN (0, 1)),
-    CONSTRAINT ck_artifacts_2 CHECK (kind IN ('RestApi', 'WebSubAPI', 'LlmProvider', 'LlmProxy', 'Agent', 'McpProxy', 'McpProxyMapping'))
+    CONSTRAINT ck_artifacts_2 CHECK (kind IN ('RestApi', 'WebSubAPI', 'LlmProvider', 'LlmProxy', 'Agent', 'McpProxy', 'McpProxyMapping', 'OtelIngest'))
 );
 
 CREATE TABLE artifact_deployments (

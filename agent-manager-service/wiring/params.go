@@ -83,6 +83,7 @@ type AppParams struct {
 	A2ACardReconciler                services.A2ACardReconcilerService
 	DeploymentTimeoutSweeper         services.DeploymentTimeoutSweeper
 	ReconcileWorker                  *reconcile.Worker
+	DefaultGatewaySeeder             *services.DefaultGatewaySeeder
 
 	// Services
 	LLMTemplateStore         *services.LLMTemplateStore

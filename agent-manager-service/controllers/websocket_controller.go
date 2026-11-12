@@ -31,6 +31,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/eventhub"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
+	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
 	ws "github.com/wso2/agent-manager/agent-manager-service/websocket"
 )
@@ -47,6 +48,7 @@ type websocketController struct {
 	hub            eventhub.EventHub
 	gatewayService *services.PlatformGatewayService
 	ackHandler     *services.DeploymentAckHandler
+	onConnect      GatewayConnectHook
 	upgrader       websocket.Upgrader
 
 	// Rate limiting: track connection attempts per gateway ID
@@ -66,19 +68,24 @@ type ConnectionAckDTO struct {
 	Timestamp    string `json:"timestamp"`
 }
 
-// NewWebSocketController creates a new WebSocket controller
+// GatewayConnectHook runs, in its own goroutine, each time a gateway connects.
+type GatewayConnectHook func(ctx context.Context, gateway *models.Gateway)
+
+// NewWebSocketController creates a new WebSocket controller. onConnect may be nil.
 func NewWebSocketController(
 	manager *ws.Manager,
 	hub eventhub.EventHub,
 	gatewayService *services.PlatformGatewayService,
 	ackHandler *services.DeploymentAckHandler,
 	rateLimitCount int,
+	onConnect GatewayConnectHook,
 ) WebSocketController {
 	ctrl := &websocketController{
 		manager:        manager,
 		hub:            hub,
 		gatewayService: gatewayService,
 		ackHandler:     ackHandler,
+		onConnect:      onConnect,
 		upgrader: websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool {
 				// TODO: Implement proper origin checking in production
@@ -240,6 +247,10 @@ func (c *websocketController) Connect(w http.ResponseWriter, r *http.Request) {
 		log.Error("Failed to update gateway active status to true",
 			"gatewayID", gatewayID, "gatewayName", gatewayName,
 			"ouID", ouID, "error", err)
+	}
+
+	if c.onConnect != nil {
+		go c.onConnect(context.WithoutCancel(ctx), gateway)
 	}
 
 	// Start reading messages (blocks until connection closes)

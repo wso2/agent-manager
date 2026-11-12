@@ -49,6 +49,8 @@ const (
 	KindAgent       = "Agent"
 	KindMCPProxy    = "McpProxy"
 	KindMCPMapping  = "McpProxyMapping"
+	// KindOtelIngest is the built-in trace-ingest API every gateway serves; gateways know it as a RestApi.
+	KindOtelIngest = "OtelIngest"
 )
 
 // AgentArtifactKinds are the artifact kinds a platform-hosted agent's per-environment artifact can have.
