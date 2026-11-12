@@ -3,37 +3,31 @@ set -e
 
 # Get the absolute directory of this script
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/env.sh"
 source "$SCRIPT_DIR/utils.sh"
 
 # ============================================================================
 # Linux: skip the VM entirely
 # ============================================================================
 # Colima exists to give macOS a Linux Docker daemon. On Linux that daemon is
-# already native, and interposing a VM would strand k3d and docker-compose in a
-# daemon separate from the host's — bind mounts, published ports and
-# host.docker.internal all stop lining up. So on Linux we validate the native
-# daemon and hand straight over to the k3d setup.
+# already native, and interposing a VM would strand docker compose in a daemon
+# separate from the host's — bind mounts and published ports stop lining up.
+# So on Linux we only validate the native daemon.
 if [ "$(uname -s)" = "Linux" ]; then
     echo "=== Checking prerequisites ==="
     check_command docker
-    check_command k3d
-    check_command kubectl
-    check_command helm
 
     echo ""
     echo "=== Linux detected — using the native Docker daemon (no Colima VM) ==="
 
     # Checked before reachability: a stale Colima context makes `docker info`
     # fail too, and the honest diagnosis is the wrong context rather than a
-    # stopped daemon. Such a context silently points every later docker/k3d
-    # call at a VM daemon while the cluster and compose state live on the
-    # native one.
+    # stopped daemon. Such a context silently points every later docker call
+    # at a VM daemon while the compose state lives on the native one.
     DOCKER_CONTEXT_NAME="$(docker context show)"
     case "$DOCKER_CONTEXT_NAME" in
         colima*)
             echo "❌ Active Docker context is '$DOCKER_CONTEXT_NAME' (a Colima VM)."
-            echo "   On Linux this hides the native daemon from k3d and docker compose."
+            echo "   On Linux this hides the native daemon from docker compose."
             echo "   Switch back with:  docker context use default"
             exit 1
             ;;
@@ -49,7 +43,7 @@ if [ "$(uname -s)" = "Linux" ]; then
 
     echo "✅ Docker is running (context: $DOCKER_CONTEXT_NAME)"
     echo ""
-    echo "✅ Setup complete! You can now proceed with k3d cluster setup."
+    echo "✅ Setup complete! Start AMP with: make dev-up"
     exit 0
 fi
 
@@ -65,9 +59,6 @@ COLIMA_VM_TYPE="${COLIMA_VM_TYPE:-vz}"
 echo "=== Checking prerequisites ==="
 check_command colima
 check_command docker
-check_command k3d
-check_command kubectl
-check_command helm
 
 echo ""
 echo "=== Setting up Colima for Agent Manager Platform ==="
@@ -133,7 +124,7 @@ echo "🐳 Docker Context:"
 docker context show
 
 echo ""
-echo "✅ Setup complete! You can now proceed with k3d cluster setup."
+echo "✅ Setup complete! Start AMP with: make dev-up"
 echo ""
 echo "💡 Useful commands:"
 echo "   colima status --profile $PROFILE"

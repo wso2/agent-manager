@@ -40,26 +40,19 @@ This branch is **AMP Lite**, a development preview of Agent Manager without Open
 | **amp-python-instrumentation-provider** ([python-instrumentation-provider](python-instrumentation-provider)) | Kubernetes init container for automatic Python instrumentation of hosted agents (not used in Lite yet) |
 | **amp-evaluation** ([libs/amp-evaluation](libs/amp-evaluation)) | Python library for scoring agent traces (evaluations are deferred in Lite) |
 
-## Helm Charts
+## Deployment
 
-Charts are in [deployments/helm-charts](deployments/helm-charts):
-
-| Chart | Description |
-|-------|-------------|
-| `wso2-agent-manager` | Main platform deployment: console and Agent Manager API |
-| `wso2-amp-thunder-extension` | ThunderID identity provider for people, services and agents |
-| `wso2-amp-api-platform-gateway-extension` | AI Gateway, registered with the platform |
-| `wso2-amp-observability-extension` | Agent Manager Observer for querying traces |
+AMP Lite runs on Docker Compose; there is no Kubernetes or Helm. [deployments/standalone](deployments/standalone) holds the stack: ThunderID, the Agent Manager API, console and observer, the AI Gateway (controller and runtime), and OpenSearch with an OpenTelemetry collector for traces. Each release attaches the same files as `wso2-agent-manager-standalone-<version>.tar.gz`, pinned to that release's images.
 
 ## Getting Started
 
-AMP Lite runs from source in development:
+Run AMP Lite from this checkout with Docker:
 
 ```bash
-make setup
+make up
 ```
 
-This installs the dev tools, starts a Colima VM and a local k3d cluster, installs the prerequisites, builds and starts the platform, and opens the console at http://localhost:3000 (API at http://localhost:9000). Run `make help` for the individual steps.
+This builds the images and starts the stack; the console is at http://localhost:3000 and the API at http://localhost:9000 (sign in as `admin`, password `THUNDER_ADMIN_PASSWORD` in `deployments/standalone/.env`). For development, `make dev-up` runs the API from source with hot reload and the console with Vite. Run `make help` for the rest.
 
 For the released Agent Manager, which runs on OpenChoreo, see the [Quick Start Guide](https://wso2.com/agent-platform/docs/latest/get-started/quick-start/).
 

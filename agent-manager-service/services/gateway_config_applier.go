@@ -29,8 +29,9 @@ import (
 // UpsertGatewayIdentityProvider). An applier closes that gap by updating the gateway
 // before the mirror is written.
 //
-// In open-source deployments this is nil and the gateway config is applied out of band
-// by deployments/scripts/manage-identity-provider.sh. Cloud deployments inject an
+// In open-source deployments this is nil and the gateway config is applied out of band:
+// the operator adds the key manager to the gateway's config.toml (the console shows the
+// entry) and restarts it. Cloud deployments inject an
 // implementation (via app.Options) that patches the per-environment gateway config
 // server-side, so a single API request keeps the gateway and the mirror in sync.
 //

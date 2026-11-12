@@ -145,9 +145,8 @@ func loadEnvs() {
 		// Tracing configuration
 		IsTraceContentEnabled: r.readOptionalBool("OTEL_TRACELOOP_TRACE_CONTENT", true),
 
-		// OTLP Exporter configuration. Routed through kgateway by hostname
-		// ("<env>-<org>.gateway.localhost") like agent trace exports, so the
-		// endpoint stays independent of the gateway runtime's namespace.
+		// OTLP Exporter configuration: the AI Gateway's /otel API, addressed by
+		// its vhost ("<env>-<org>.gateway.localhost") like agent trace exports.
 		ExporterEndpoint: r.readOptionalString("OTEL_EXPORTER_OTLP_ENDPOINT", "http://default-default.gateway.localhost:19080/otel"),
 	}
 

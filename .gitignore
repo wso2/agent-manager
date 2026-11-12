@@ -76,8 +76,6 @@ config/database.yml
 secrets/
 credentials/
 
-# Local development configurations
-deployments/values/api-platform-operator-local-config.yaml
 
 mocks/
 libs/amp-evaluation/samples-old/
