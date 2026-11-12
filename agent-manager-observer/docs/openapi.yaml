@@ -811,6 +811,10 @@ components:
         attributes:
           type: object
           additionalProperties: true
+        resource:
+          type: object
+          description: The span's OTel resource attributes
+          additionalProperties: true
 
     FullTrace:
       type: object
@@ -1104,6 +1108,10 @@ components:
           type: string
         spanName:
           type: string
+        spanKind:
+          type: string
+          description: Semantic span type, derived from the span name
+          enum: [llm, tool, embedding, retriever, rerank, agent, crewaitask, chain, unknown]
         parentSpanId:
           type: string
           nullable: true
@@ -1166,7 +1174,7 @@ components:
         kind:
           type: string
           description: Semantic span type
-          enum: [llm, tool, embedding, retriever, agent, crewaitask, chain, unknown]
+          enum: [llm, tool, embedding, retriever, rerank, agent, crewaitask, chain, unknown]
         input:
           description: Input data (type varies by kind)
           nullable: true
@@ -1211,6 +1219,9 @@ components:
           type: integer
         totalTokens:
           type: integer
+        partial:
+          type: boolean
+          description: True when the token count was summed over only some of the trace's spans
 
     TraceStatus:
       type: object
