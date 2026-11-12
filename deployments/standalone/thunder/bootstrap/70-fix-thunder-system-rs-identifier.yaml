@@ -1,0 +1,56 @@
+# ThunderID's own built-in "System" resource server (created by its OWN default
+# bootstrap, backend/cmd/server/bootstrap/01-default-resources.yaml) hardcodes
+# identifier: https://localhost:8090/mcp — NOT templated to the deployment's actual
+# publicUrl. The native /console app's config.js derives its OWN OAuth
+# resource_identifier from configuration.server.publicUrl (correctly, e.g.
+# "@@THUNDER_PUBLIC_URL@@/mcp" for us), so the two never match, and every
+# native-console login redirects back with "invalid_target: The resource parameter
+# does not match any registered resource server" — the console loads but silently
+# renders nothing. This document re-declares the SAME
+# resource server (same id, so it's an update not a duplicate) with the correct
+# identifier, preserving its full resources/actions tree verbatim so nothing Thunder's
+# own native Administrator role depends on gets dropped. Runs after Thunder's own
+# 01-default-resources.yaml (all resource_server docs execute in filename order
+# within their dependency-order group), so this updates rather than fails to find it.
+resource_type: resource_server
+id: "01900000-0000-7000-8000-000000000020"
+name: System
+description: System resource server
+identifier: "@@THUNDER_PUBLIC_URL@@/mcp"
+ouHandle: default
+resources:
+  - name: System
+    handle: system
+    description: System resource
+  - name: Organization Unit
+    handle: ou
+    description: Organization unit resource
+    parent: system
+    actions:
+      - name: View
+        handle: view
+        description: Read-only access to organization units
+  - name: User
+    handle: user
+    description: User resource
+    parent: system
+    actions:
+      - name: View
+        handle: view
+        description: Read-only access to users
+  - name: Group
+    handle: group
+    description: Group resource
+    parent: system
+    actions:
+      - name: View
+        handle: view
+        description: Read-only access to groups
+  - name: User Type
+    handle: usertype
+    description: User type resource
+    parent: system
+    actions:
+      - name: View
+        handle: view
+        description: Read-only access to user types

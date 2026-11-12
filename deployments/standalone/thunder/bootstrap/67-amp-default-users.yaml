@@ -1,0 +1,34 @@
+resource_type: user
+# Merges into Thunder's own built-in admin account (created by its internal
+# bootstrap, backend/cmd/server/bootstrap/01-default-resources.yaml, at this exact
+# fixed id) instead of creating a second, separate user — matching how the previous
+# bootstrap script looked up and reused this same native account rather than
+# creating its own. One benefit beyond parity: this account is already a member of
+# Thunder's built-in "Administrators" group (system permission), so it works for
+# both the AMP console and ThunderID's own native console without a second AMP-side
+# role granting that permission. type stays "Person" (Thunder's own native schema
+# for this account, not our "engineer" schema) since we're updating that existing
+# entity in place, not creating a new one.
+#
+# No credentials block here, deliberately: Thunder's own "01-" bootstrap document
+# (which runs first in the same import batch, since it sorts before "67-") already
+# creates this exact user and sets its credential from
+# thunder.setup.admin.passwordRef (see values.yaml — generated once by this chart's
+# own admin-credentials.yaml, not an inline value here). Setting credentials again
+# here, on the very same id in the very same batch, fails with USR-1028 "Credential
+# update not allowed" — Thunder refuses a second credential write against a user
+# that already has one, even within a single bootstrap run. defaultUsers[0] has no
+# password field for this reason — it would be silently unused, not a real copy.
+id: "01900000-0000-7000-8000-000000000030"
+type: Person
+ouHandle: default
+# email is required by Thunder's own "Person" user-type schema (the only other
+# required field besides username); this is an update on an existing entity, so
+# omitting a required attribute fails schema validation the same as it would on
+# create. Thunder's own "01-" document sets this to admin@example.com by default,
+# which is kept here since defaultUsers has no configurable email field.
+attributes:
+  username: "admin"
+  email: "admin@example.com"
+  given_name: "Admin"
+  family_name: "User"

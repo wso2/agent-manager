@@ -1,0 +1,28 @@
+resource_type: user_type
+id: engineer
+category: user
+name: "engineer"
+ouHandle: default
+allowSelfRegistration: true
+systemAttributes:
+  display: username
+schema:
+  username:
+    type: string
+    displayName: Username
+    required: true
+    unique: true
+  password:
+    type: string
+    displayName: Password
+    required: true
+    credential: true
+  given_name:
+    type: string
+    displayName: First Name
+  family_name:
+    type: string
+    displayName: Last Name
+  email:
+    type: string
+    displayName: Email

@@ -1,0 +1,70 @@
+resource_type: resource_server
+id: "amp-agent-manager-mcp-resource-srv"
+name: "AMP Agent Manager MCP"
+description: "Resource identifier for the agent-manager MCP endpoint"
+identifier: "@@AMP_PUBLIC_URL@@/mcp"
+ouHandle: default
+delimiter: ":"
+resources:
+  - name: Agent Manager
+    handle: amp
+    description: Top-level namespace for Agent Manager MCP permissions
+  - name: Project
+    handle: project
+    parent: amp
+    description: Project operations exposed by Agent Manager MCP
+    actions:
+      - { name: Create, handle: create, description: "Create a project" }
+      - { name: Read, handle: read, description: "View project details" }
+  - name: Environment
+    handle: environment
+    parent: amp
+    description: Environment operations exposed by Agent Manager MCP
+    actions:
+      - { name: Read, handle: read, description: "View environment details" }
+  - name: Agent
+    handle: agent
+    parent: amp
+    description: Agent operations exposed by Agent Manager MCP
+    actions:
+      - { name: Create, handle: create, description: "Create an agent" }
+      - { name: Read, handle: read, description: "View agent details" }
+      - { name: Build, handle: build, description: "Trigger an agent build" }
+      - { name: Act on Non-Production Environments, handle: env-non-production, description: "Deploy or suspend an agent in a non-production environment" }
+      - { name: Suspend, handle: suspend, description: "Suspend an agent deployment" }
+      - { name: Manage Token, handle: token-manage, description: "Generate agent tokens" }
+      - { name: Update, handle: update, description: "Attach LLM providers and MCP proxies to an agent" }
+  - name: LLM Provider
+    handle: llm-provider
+    parent: amp
+    description: LLM provider operations exposed by Agent Manager MCP
+    actions:
+      - { name: Read, handle: read, description: "View LLM providers and guardrails" }
+      - { name: Update, handle: update, description: "Change LLM provider guardrails" }
+  - name: MCP Server
+    handle: mcp-server
+    parent: amp
+    description: MCP proxy operations exposed by Agent Manager MCP
+    actions:
+      - { name: Read, handle: read, description: "View MCP proxies" }
+---
+resource_type: resource_server
+id: "amp-observer-mcp-resource-server"
+name: "AMP Observer MCP"
+description: "Resource identifier for the observer MCP endpoint"
+identifier: "@@OBSERVER_PUBLIC_URL@@/mcp"
+ouHandle: default
+delimiter: ":"
+resources:
+  - name: Agent Manager
+    handle: amp
+    description: Top-level namespace for Agent Manager MCP permissions
+  - name: Observability
+    handle: observability
+    parent: amp
+    description: Observability MCP permissions
+    actions:
+      - { name: Trace Read, handle: trace-read, description: "Read agent execution traces" }
+      - { name: Log Read, handle: log-read, description: "Read agent runtime logs" }
+      - { name: Build Log Read, handle: build-log-read, description: "Read agent build logs" }
+      - { name: Metric Read, handle: metric-read, description: "Read agent and system metrics" }

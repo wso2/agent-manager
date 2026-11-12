@@ -1,0 +1,316 @@
+# AMP Lite without Kubernetes: `docker compose up` from this directory.
+# Copy .env.example to .env first. Each service publishes its own port; there
+# is no ingress controller or reverse proxy. Browsers use the public names
+# (*.localhost resolves to 127.0.0.1); containers dial the service names, and
+# ThunderID's public URL stays the token issuer everywhere. Clients such as
+# curl pin *.localhost to loopback, so service-to-service URLs never use it.
+
+x-thunder: &thunder
+  image: ${THUNDER_IMAGE}
+  environment: &thunder-env
+    THUNDER_HOST: ${THUNDER_HOST}
+    THUNDER_PORT: ${THUNDER_PORT}
+    THUNDER_PUBLIC_URL: http://${THUNDER_HOST}:${THUNDER_PORT}
+    AMP_PUBLIC_URL: http://localhost:${AMP_API_PORT}
+    OBSERVER_PUBLIC_URL: http://localhost:${OBSERVER_PORT}
+    CONSOLE_URL: http://localhost:${CONSOLE_PORT}
+    AMP_API_CLIENT_SECRET: ${AMP_API_CLIENT_SECRET}
+    AMP_CONSOLE_CLIENT_SECRET: ${AMP_CONSOLE_CLIENT_SECRET}
+    AMP_PUBLISHER_CLIENT_SECRET: ${AMP_PUBLISHER_CLIENT_SECRET}
+    AMP_SYSTEM_CLIENT_SECRET: ${AMP_SYSTEM_CLIENT_SECRET}
+  entrypoint: ["/bin/sh", "/amp/thunder/render.sh"]
+  networks: [amp]
+
+x-gateway-init: &gateway-init
+  image: alpine:3.24
+  entrypoint: ["/bin/sh", "-c", "apk add --no-cache -q curl openssl && exec /bin/sh /amp/gateway/gateway-init.sh \"$$@\"", "--"]
+  volumes:
+    - ./gateway:/amp/gateway:ro
+    - gateway-config:/amp/gw
+  networks: [amp]
+
+services:
+  # --- Identity ---------------------------------------------------------------
+  thunder-setup:
+    <<: *thunder
+    command: ["--setup"]
+    environment:
+      <<: *thunder-env
+      ADMIN_USERNAME: admin
+      ADMIN_PASSWORD: ${THUNDER_ADMIN_PASSWORD}
+    volumes:
+      - ./thunder:/amp/thunder:ro
+      - thunder-db:/opt/thunderid/database
+      - thunder-certs:/opt/thunderid/config/certs
+      - thunder-secrets:/opt/thunderid/config/secrets
+
+  thunder:
+    <<: *thunder
+    ports:
+      - "${THUNDER_PORT}:${THUNDER_PORT}"
+    volumes:
+      - ./thunder:/amp/thunder:ro
+      - thunder-db:/opt/thunderid/database
+      - thunder-certs:/opt/thunderid/config/certs:ro
+      - thunder-secrets:/opt/thunderid/config/secrets:ro
+    depends_on:
+      thunder-setup:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost ${THUNDER_PORT}"]
+      interval: 3s
+      retries: 40
+    networks:
+      amp:
+        aliases: ["${THUNDER_HOST}"]
+    restart: unless-stopped
+
+  # --- Trace storage ------------------------------------------------------------
+  opensearch:
+    image: ${OPENSEARCH_IMAGE}
+    environment:
+      discovery.type: single-node
+      OPENSEARCH_JAVA_OPTS: -Xms512m -Xmx512m
+      OPENSEARCH_INITIAL_ADMIN_PASSWORD: ${OPENSEARCH_PASSWORD}
+    ulimits:
+      memlock: { soft: -1, hard: -1 }
+      nofile: { soft: 65536, hard: 65536 }
+    volumes:
+      - opensearch-data:/usr/share/opensearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sfk -u 'admin:${OPENSEARCH_PASSWORD}' https://localhost:9200/_cluster/health"]
+      interval: 5s
+      retries: 60
+    networks: [amp]
+    restart: unless-stopped
+
+  opensearch-init:
+    image: curlimages/curl:8.17.0
+    command:
+      - -sSfk
+      - -u
+      - admin:${OPENSEARCH_PASSWORD}
+      - -X
+      - PUT
+      - https://opensearch:9200/_index_template/amp-otel-traces
+      - -H
+      - "Content-Type: application/json"
+      - --data-binary
+      - "@/amp/traces-template.json"
+    volumes:
+      - ./opensearch/traces-template.json:/amp/traces-template.json:ro
+    depends_on:
+      opensearch:
+        condition: service_healthy
+    networks: [amp]
+
+  otel-collector:
+    image: ${OTEL_COLLECTOR_IMAGE}
+    command: ["--config=/etc/otelcol/config.yaml"]
+    environment:
+      OPENSEARCH_USERNAME: admin
+      OPENSEARCH_PASSWORD: ${OPENSEARCH_PASSWORD}
+    volumes:
+      - ./otel-collector/config.yaml:/etc/otelcol/config.yaml:ro
+    depends_on:
+      opensearch-init:
+        condition: service_completed_successfully
+    networks: [amp]
+    restart: unless-stopped
+
+  # --- Agent Manager ------------------------------------------------------------
+  amp-api:
+    image: ${AMP_API_IMAGE}
+    command: ["-migrate"]
+    ports:
+      - "${AMP_API_PORT}:8080"
+      - "${AMP_INTERNAL_PORT}:9243"
+    environment:
+      DB_DRIVER: sqlite
+      DB_PATH: /var/lib/agent-manager/agent-manager.db
+      SERVER_PORT: "8080"
+      SERVER_PUBLIC_URL: http://localhost:${AMP_API_PORT}
+      CORS_ALLOWED_ORIGIN: http://localhost:${CONSOLE_PORT}
+      OAUTH_AUTHORIZATION_SERVERS: http://${THUNDER_HOST}:${THUNDER_PORT}
+      OAUTH_SCOPES_SUPPORTED: "amp:llm-proxy:deploy,amp:mcp-server:create,amp:org:invite-member,amp:role:delete,amp:monitor:read,amp:agent:env-production,amp:git-secret:delete,amp:llm-provider:delete,amp:mcp-server:configure-guardrail,amp:deployment-pipeline:create,amp:deployment-pipeline:read,amp:deployment-pipeline:update,amp:deployment-pipeline:delete,amp:gateway:delete,amp:group:delete,amp:llm-proxy:update,amp:monitor:score-read,amp:llm-provider-template:update,amp:agent:build,amp:agent:rollback,amp:agent:token-manage,amp:evaluator:read,amp:llm-provider-template:read,amp:monitor:create,amp:agent:suspend,amp:gateway:token-manage,amp:git-secret:read,amp:mcp-server:connect,amp:mcp-server:api-key-manage,amp:mcp-server:read,amp:observability:log-read,amp:group:create,amp:observability:trace-read,amp:org:remove-member,amp:agent:env-non-production,amp:group:read,amp:llm-provider-template:create,amp:project:delete,amp:agent:create,amp:evaluator:create,amp:llm-provider:read,amp:org:modify-settings,amp:catalog:read,amp:environment:update,amp:group:update,amp:llm-proxy:delete,amp:project:read,amp:data-plane:read,amp:agent:read,amp:environment:read,amp:llm-provider:configure-guardrail,amp:observability:build-log-read,amp:org:assign-role,amp:project:update,amp:mcp-server:delete,amp:environment:delete,amp:evaluator:update,amp:git-secret:create,amp:monitor:execute,amp:llm-provider:api-key-manage,amp:gateway:read,amp:agent:update,amp:llm-provider-template:delete,amp:monitor:delete,amp:org:view,amp:llm-provider:create,amp:mcp-server:update,amp:org:manage-idp,amp:role:read,amp:role:update,amp:agent:delete,amp:gateway:create,amp:llm-provider:deploy,amp:llm-proxy:api-key-manage,amp:monitor:update,amp:org:manage-service-account,amp:role:create,amp:evaluator:delete,amp:llm-provider:connect,amp:llm-provider:update,amp:llm-proxy:read,amp:monitor:score-publish,amp:observability:metric-read,amp:project:create,amp:repository:read,amp:gateway:update,amp:environment:create,amp:llm-proxy:create,amp:agent:api-key-manage,amp:agent-kind:read,amp:agent-kind:create,amp:agent-kind:update,amp:agent-kind:delete,amp:profile:read,amp:profile:update-attributes,amp:scope:create,amp:scope:read,amp:scope:update,amp:scope:delete,amp:agent-identity:read,amp:agent-identity:create,amp:agent-identity:update,amp:agent-identity:delete,amp:events:read,amp:events:manage"
+      IS_ON_PREM_DEPLOYMENT: "true"
+      AMP_DEPLOYMENT_MODEL: on-prem
+      JWT_SIGNING_PRIVATE_KEY_PATH: /app/keys/private.pem
+      JWT_SIGNING_PUBLIC_KEYS_CONFIG: /app/keys/public-keys-config.json
+      JWT_SIGNING_ACTIVE_KEY_ID: key-1
+      JWT_SIGNING_DEFAULT_EXPIRY: 2160h
+      JWT_SIGNING_ISSUER: agent-manager-service
+      JWT_SIGNING_DEFAULT_ENVIRONMENT: default
+      AM_OBSERVER_URL: http://amp-observer:9098
+      AM_OBSERVER_PUBLIC_URL: http://localhost:${OBSERVER_PORT}
+      IDP_TOKEN_URL: http://thunder:${THUNDER_PORT}/oauth2/token
+      IDP_CLIENT_ID: amp-api-client
+      IDP_CLIENT_SECRET: ${AMP_API_CLIENT_SECRET}
+      KEY_MANAGER_JWKS_URL: http://thunder:${THUNDER_PORT}/oauth2/jwks
+      KEY_MANAGER_ISSUER: Agent Management Platform Local,http://${THUNDER_HOST}:${THUNDER_PORT}
+      KEY_MANAGER_AUDIENCE: urn:wso2:amp,localhost,amp-publisher-*,amp-api-client,amp-console-client,amctl,am-mcp,http://localhost:${AMP_API_PORT}/mcp
+      THUNDER_BASE_URL: http://${THUNDER_HOST}:${THUNDER_PORT}
+      THUNDER_RESOLVE_TO_HOST: thunder:${THUNDER_PORT}
+      THUNDER_CLIENT_ID: amp-system-client
+      THUNDER_CLIENT_SECRET: ${AMP_SYSTEM_CLIENT_SECRET}
+      SECRET_MANAGER_PROVIDER: unsupported
+      ENCRYPTION_KEY: ${AMP_ENCRYPTION_KEY}
+      INTERNAL_SERVER_CERT_DIR: /var/lib/agent-manager/certs
+      EVENTS_MODE: embedded
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://${GATEWAY_HOST}:${GATEWAY_PORT}/otel
+      INSTRUMENTATION_URL: http://${GATEWAY_HOST}:${GATEWAY_PORT}/otel
+      DEFAULT_GATEWAY_PORT: ${GATEWAY_PORT}
+      A2A_CARD_FETCH_DIAL_ADDR: gateway-runtime:19080
+      PLATFORM_ADMIN_OU_ID: 01900000-0000-7000-8000-000000000001
+    volumes:
+      - amp-data:/var/lib/agent-manager
+      - amp-keys:/app/keys
+    depends_on:
+      thunder:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/healthz >/dev/null"]
+      interval: 3s
+      retries: 60
+    networks: [amp]
+    restart: unless-stopped
+
+  amp-observer:
+    image: ${AMP_OBSERVER_IMAGE}
+    ports:
+      - "${OBSERVER_PORT}:9098"
+    environment:
+      AM_OBSERVER_PORT: "9098"
+      OPENSEARCH_ADDRESS: https://opensearch:9200
+      OPENSEARCH_TRACE_INDEX: otel-traces-*
+      OPENSEARCH_TLS_INSECURE_SKIP_VERIFY: "true"
+      OPENSEARCH_USERNAME: admin
+      OPENSEARCH_PASSWORD: ${OPENSEARCH_PASSWORD}
+      KEY_MANAGER_JWKS_URL: http://thunder:${THUNDER_PORT}/oauth2/jwks
+      KEY_MANAGER_ISSUER: http://${THUNDER_HOST}:${THUNDER_PORT}
+      KEY_MANAGER_AUDIENCE: urn:wso2:amp,amp-api-client,amp-console-client,am-obs-mcp,http://localhost:${OBSERVER_PORT}/mcp
+      SERVER_PUBLIC_URL: http://localhost:${OBSERVER_PORT}
+      OAUTH_AUTHORIZATION_SERVERS: http://${THUNDER_HOST}:${THUNDER_PORT}
+      OAUTH_SCOPES_SUPPORTED: amp:observability:log-read,amp:observability:trace-read,amp:observability:metric-read,amp:observability:build-log-read
+    depends_on:
+      opensearch:
+        condition: service_healthy
+      thunder:
+        condition: service_healthy
+    networks: [amp]
+    restart: unless-stopped
+
+  amp-console:
+    image: ${AMP_CONSOLE_IMAGE}
+    ports:
+      - "${CONSOLE_PORT}:3000"
+    environment:
+      AUTH_CLIENT_ID: amp-console-client
+      AUTH_BASE_URL: http://${THUNDER_HOST}:${THUNDER_PORT}
+      AUTH_SCOPES: "openid profile email amp:org:view amp:org:modify-settings amp:org:invite-member amp:org:remove-member amp:org:assign-role amp:org:manage-idp amp:org:manage-service-account amp:project:create amp:project:read amp:project:update amp:project:delete amp:environment:create amp:environment:read amp:environment:update amp:environment:delete amp:gateway:create amp:gateway:read amp:gateway:update amp:gateway:delete amp:gateway:token-manage amp:data-plane:read amp:deployment-pipeline:create amp:deployment-pipeline:read amp:deployment-pipeline:update amp:deployment-pipeline:delete amp:git-secret:create amp:git-secret:read amp:git-secret:delete amp:llm-provider-template:create amp:llm-provider-template:read amp:llm-provider-template:update amp:llm-provider-template:delete amp:llm-provider:create amp:llm-provider:read amp:llm-provider:update amp:llm-provider:delete amp:llm-provider:configure-guardrail amp:llm-provider:connect amp:llm-provider:deploy amp:llm-provider:api-key-manage amp:mcp-server:create amp:mcp-server:read amp:mcp-server:update amp:mcp-server:delete amp:mcp-server:configure-guardrail amp:mcp-server:connect amp:mcp-server:api-key-manage amp:llm-proxy:create amp:llm-proxy:read amp:llm-proxy:update amp:llm-proxy:delete amp:llm-proxy:deploy amp:llm-proxy:api-key-manage amp:evaluator:create amp:evaluator:read amp:evaluator:update amp:evaluator:delete amp:agent:create amp:agent:read amp:agent:update amp:agent:delete amp:agent:build amp:agent:env-non-production amp:agent:env-production amp:agent:rollback amp:agent:suspend amp:agent:token-manage amp:agent:api-key-manage amp:monitor:create amp:monitor:read amp:monitor:update amp:monitor:delete amp:monitor:execute amp:monitor:score-read amp:monitor:score-publish amp:events:read amp:events:manage amp:observability:trace-read amp:observability:log-read amp:observability:build-log-read amp:observability:metric-read amp:role:create amp:role:read amp:role:update amp:role:delete amp:group:create amp:group:read amp:group:update amp:group:delete amp:catalog:read amp:repository:read amp:agent-kind:read amp:agent-kind:create amp:agent-kind:update amp:agent-kind:delete amp:profile:read amp:profile:update-attributes amp:scope:create amp:scope:read amp:scope:update amp:scope:delete amp:agent-identity:read amp:agent-identity:create amp:agent-identity:update amp:agent-identity:delete"
+      SIGN_IN_REDIRECT_URL: http://localhost:${CONSOLE_PORT}/login
+      SIGN_OUT_REDIRECT_URL: http://localhost:${CONSOLE_PORT}/login
+      API_BASE_URL: http://localhost:${AMP_API_PORT}
+      DISABLE_AUTH: "false"
+      GATEWAY_CONTROL_PLANE_URL: https://localhost:${AMP_INTERNAL_PORT}
+      GATEWAY_VERSION: v2026.09.24
+      INSTRUMENTATION_URL: http://${GATEWAY_HOST}:${GATEWAY_PORT}/otel
+      DOCS_URL: https://wso2.com/agent-platform/docs/${DOCS_VERSION:-next}
+      FILE_MOUNT_MAX_FILE_BYTES: "1000000"
+      FEATURE_FLAG_ENABLE_PROFILE_MANAGEMENT: "true"
+      FEATURE_FLAG_ENABLE_USER_MANAGEMENT: "true"
+      FEATURE_FLAG_ENABLE_SELF_HOSTED_GATEWAYS: "true"
+      FEATURE_FLAG_EXTERNALLY_MANAGED_GATEWAY: "false"
+    depends_on:
+      amp-api:
+        condition: service_healthy
+    networks: [amp]
+    restart: unless-stopped
+
+  # --- AI Gateway -----------------------------------------------------------------
+  gateway-init:
+    <<: *gateway-init
+    environment:
+      AMP_API_URL: http://amp-api:8080/api/v1
+      IDP_TOKEN_URL: http://thunder:${THUNDER_PORT}/oauth2/token
+      IDP_CLIENT_ID: amp-api-client
+      IDP_CLIENT_SECRET: ${AMP_API_CLIENT_SECRET}
+      ORG_NAME: default
+      ENVIRONMENT_NAME: default
+      GATEWAY_NAME: default
+      GATEWAY_DISPLAY_NAME: Default AI Gateway
+      GATEWAY_TYPE: BOTH
+      GATEWAY_VHOST: http://${GATEWAY_HOST}:${GATEWAY_PORT}
+      CONTROLPLANE_HOST: amp-api:9243
+      GATEWAY_ADMIN_PASSWORD: ${GATEWAY_ADMIN_PASSWORD}
+      AMP_JWKS_URL: http://amp-api:8080/auth/external/jwks.json
+      THUNDER_ISSUER: http://${THUNDER_HOST}:${THUNDER_PORT}
+      THUNDER_JWKS_URL: http://thunder:${THUNDER_PORT}/oauth2/jwks
+    depends_on:
+      amp-api:
+        condition: service_healthy
+
+  gateway-controller:
+    image: ${GATEWAY_CONTROLLER_IMAGE}
+    command: ["-config", "/amp/gw/config.toml"]
+    environment:
+      GATEWAY_CONTROLLER_HOST: gateway-controller
+    volumes:
+      - gateway-config:/amp/gw:ro
+      - gateway-data:/app/data
+    depends_on:
+      gateway-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9092/api/admin/v1/health >/dev/null"]
+      interval: 3s
+      retries: 40
+    networks: [amp]
+    restart: unless-stopped
+
+  gateway-runtime:
+    image: ${GATEWAY_RUNTIME_IMAGE}
+    command: ["--pol.config", "/amp/gw/config.toml"]
+    ports:
+      - "${GATEWAY_PORT}:19080"
+    environment:
+      GATEWAY_CONTROLLER_HOST: gateway-controller
+      ROUTER_ADMIN_ENABLED: "false"
+    volumes:
+      - gateway-config:/amp/gw:ro
+      - ./gateway/model_prices.json:/etc/policy-engine/llm-pricing/model_prices.json:ro
+    depends_on:
+      gateway-controller:
+        condition: service_healthy
+      # Starts once the trace-ingest API is loaded; also keeps `up --wait`
+      # from treating the finished one-shot as a failure.
+      gateway-apis:
+        condition: service_completed_successfully
+    networks:
+      amp:
+        aliases: ["${GATEWAY_HOST}"]
+    restart: unless-stopped
+
+  gateway-apis:
+    <<: *gateway-init
+    command: ["--apis"]
+    environment:
+      CONTROLLER_URL: http://gateway-controller:9090
+      GATEWAY_ADMIN_PASSWORD: ${GATEWAY_ADMIN_PASSWORD}
+      OTEL_UPSTREAM_URL: http://otel-collector:4318
+    depends_on:
+      gateway-controller:
+        condition: service_healthy
+
+volumes:
+  thunder-db:
+  thunder-certs:
+  thunder-secrets:
+  opensearch-data:
+  amp-data:
+  amp-keys:
+  gateway-config:
+  gateway-data:
+
+networks:
+  amp:

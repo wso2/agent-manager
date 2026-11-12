@@ -1,0 +1,10 @@
+# Builds the Agent Manager images from this checkout instead of pulling them.
+# `make up` and `make dev-up` add this file; the release bundle leaves it out.
+
+services:
+  amp-api:
+    build: ../../agent-manager-service
+  amp-observer:
+    build: ../../agent-manager-observer
+  amp-console:
+    build: ../../console

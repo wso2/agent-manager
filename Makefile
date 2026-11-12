@@ -1,45 +1,44 @@
-.PHONY: help tools setup setup-colima setup-k3d setup-platform setup-gateway setup-console-local setup-console-local-force setup-amp teardown-amp reset-amp dev-up dev-down dev-restart dev-rebuild dev-logs dev-migrate thunder-up thunder-down thunder-restart thunder-reset teardown db-connect service-logs service-shell console-logs console stop-console port-forward stop-port-forward gen-eval-artifacts gen-instrumentation-contract check-contract-drift check-matrix-manifest e2e-test security-test security-test-static security-test-live
+.PHONY: help tools setup setup-colima setup-console-local setup-console-local-force up down logs reset dev-up dev-down dev-restart dev-rebuild dev-logs dev-migrate thunder-restart thunder-reset teardown db-connect service-logs service-shell console-logs console stop-console gen-eval-artifacts gen-instrumentation-contract check-contract-drift check-matrix-manifest e2e-test security-test security-test-static security-test-live
 
 # Default target
 help:
 	@echo "Agent Manager Platform - Development Commands"
 	@echo ""
+	@echo "The stack runs with Docker Compose from deployments/standalone (no Kubernetes)."
+	@echo ""
 	@echo "🚀 Setup (run once):"
 	@echo "  make tools                   - Install pinned Go dev tools into .tools/bin (see tools.mk)"
-	@echo "  make setup                   - Complete setup (tools + Colima + k3d + AMP layer)"
-	@echo "  make setup-colima            - Start Colima VM"
-	@echo "  make setup-k3d              - Create k3d cluster + prerequisites (cert-manager, kgateway, AMP Gateway)"
-	@echo "  make setup-platform          - Build images and start core platform services"
-	@echo "  make setup-gateway           - Install API Platform Gateway (run via make setup)"
+	@echo "  make setup                   - Complete setup (tools + dev stack + console)"
+	@echo "  make setup-colima            - Start Colima VM (macOS Docker host)"
 	@echo "  make setup-console-local     - Install console deps (only if changed)"
 	@echo "  make setup-console-local-force - Force reinstall console deps"
 	@echo ""
-	@echo "💻 Daily Development:"
-	@echo "  make dev-up                  - Start platform services (service, db) and the console"
-	@echo "  make dev-down                - Stop platform services and the console"
-	@echo "  make dev-restart             - Restart platform services and the console"
-	@echo "  make dev-rebuild             - Rebuild images and restart services"
-	@echo "  make dev-logs                - Tail compose logs (service, db)"
+	@echo "📦 Full stack from images (console in nginx on :3000):"
+	@echo "  make up                      - Build images and start the whole stack"
+	@echo "  make down                    - Stop the stack (data kept)"
+	@echo "  make logs                    - Tail all stack logs"
+	@echo "  make reset                   - Stop the stack and delete all its data"
+	@echo ""
+	@echo "💻 Daily Development (API hot-reloads under air, console via vite):"
+	@echo "  make dev-up                  - Start the stack and the console dev server"
+	@echo "  make dev-down                - Stop the stack and the console"
+	@echo "  make dev-restart             - Restart the stack and the console"
+	@echo "  make dev-rebuild             - Rebuild images and restart"
+	@echo "  make dev-logs                - Tail stack logs"
 	@echo "  make console                 - Start (or restart) the console dev server on :3000 (BACKGROUND=true to detach)"
 	@echo "  make stop-console            - Stop the console dev server"
-	@echo "  make dev-migrate             - Generate evaluators and run database migrations (run after dev-up/setup)"
+	@echo "  make dev-migrate             - Run database migrations (air also migrates on every start)"
 	@echo ""
-	@echo "☸️  Cluster:"
-	@echo "  make port-forward       - Stop and restart all port-forwards (interactive)"
-	@echo "  make stop-port-forward  - Stop all active port-forwards"
-	@echo ""
-	@echo "⚡ Platform Thunder (Control Plane IDP):"
-	@echo "  make thunder-up         - Install or upgrade Platform Thunder"
-	@echo "  make thunder-down       - Uninstall Platform Thunder"
-	@echo "  make thunder-restart    - Restart Platform Thunder pods"
-	@echo "  make thunder-reset      - Reset Platform Thunder (uninstall + PVC wipe + reinstall)"
+	@echo "⚡ ThunderID:"
+	@echo "  make thunder-restart    - Restart ThunderID"
+	@echo "  make thunder-reset      - Wipe ThunderID data and bootstrap it again"
 	@echo ""
 	@echo "🗄️  Database:"
-	@echo "  make db-connect         - Open the SQLite database"
+	@echo "  make db-connect         - Open the SQLite database (dev stack)"
 	@echo ""
 	@echo "🔧 Service Debugging:"
-	@echo "  make service-logs       - View service logs"
-	@echo "  make service-shell      - Shell into service container"
+	@echo "  make service-logs       - View API logs"
+	@echo "  make service-shell      - Shell into the API container"
 	@echo "  make console-logs       - Tail console dev server logs"
 	@echo ""
 	@echo "🔧 Code Generation:"
@@ -50,89 +49,58 @@ help:
 	@echo "  make amctl-release-dry-run   - Cross-compile all targets without publishing"
 	@echo "  make amctl-test              - Run amctl tests"
 	@echo "🧪 E2E Tests:"
-	@echo "  make setup-ai-gateway   - Install AI Gateway (needed for LLM proxy tests)"
-	@echo "  make e2e-test           - Run E2E tests (cluster must be running)"
+	@echo "  make e2e-test           - Run E2E tests (stack must be running)"
 	@echo ""
 	@echo "🔒 Security Tests:"
 	@echo "  make security-test         - Run all security tests (static + live)"
-	@echo "  make security-test-static  - Route-table authz invariants (no cluster needed)"
+	@echo "  make security-test-static  - Route-table authz invariants (no stack needed)"
 	@echo "  make security-test-live    - Security suites against a running deployment"
 	@echo ""
 	@echo "🧹 Cleanup:"
-	@echo "  make reset-amp          - Fast reset: teardown-amp + setup-amp (cluster base preserved)"
-	@echo "  make teardown-amp       - Remove AMP layer only (Thunder, observability, platform, gateways)"
-	@echo "  make setup-amp          - (Re)install the AMP layer atop the existing cluster base"
-	@echo "  make teardown           - Remove everything (k3d cluster + platform)"
+	@echo "  make teardown           - Stop everything and delete all stack data"
 	@echo ""
 
 # Pinned Go-written dev tools (codegen, linters, test runners).
 # Included after help so help stays the default goal.
 include tools.mk
 
-# Cluster name/context shared with deployments/setup/env.sh.
-CLUSTER_NAME ?= amp-dev
+# Docker Compose stack (see deployments/standalone/README.md). The dev overlay
+# swaps the API image for a hot-reloading source build and leaves the console
+# to `make console`.
+STACK_DIR   := deployments/standalone
+COMPOSE     := docker compose --project-directory $(STACK_DIR) -f $(STACK_DIR)/docker-compose.yml -f $(STACK_DIR)/docker-compose.build.yml
+DEV_COMPOSE := $(COMPOSE) -f $(STACK_DIR)/docker-compose.dev.yml
+
+$(STACK_DIR)/.env:
+	@cp $(STACK_DIR)/.env.example $@
+	@echo "📝 Created $@ from .env.example"
 
 # Complete setup
-setup: tools setup-colima setup-k3d
-	@$(MAKE) setup-amp
+setup: tools
+	@$(MAKE) dev-up
 	@echo ""
-	@echo "Run 'make stop-port-forward' to stop port-forwards"
-	@echo "Run 'make port-forward' to restart in a dedicated terminal"
-	@echo "Run 'make stop-console' to stop the console"
+	@echo "Run 'make dev-down' to stop the stack and the console"
 
-# AMP layer: everything above the cluster base (colima, k3d, prerequisites).
-reset-amp:
-	@$(MAKE) teardown-amp
-	@$(MAKE) setup-amp
-
-teardown-amp:
-	@cd deployments/setup && ./teardown-amp.sh
-
-setup-amp:
-	@cd deployments/setup && ./setup-amp-extensions.sh $(CURDIR)
-	@$(MAKE) -C agent-manager-observer docker-load-k3d K3D_CLUSTER_NAME=$(CLUSTER_NAME)
-	@cd deployments/setup && ./setup-amp-observability-extension.sh $(CURDIR)
-	@$(MAKE) setup-platform
-	@$(MAKE) dev-migrate
-	@cd deployments/setup && ./port-forward.sh --platform --background
-	@$(MAKE) wait-ams-healthy
-	@$(MAKE) setup-gateway
-	@cd deployments/setup && ./port-forward.sh --background
-	@$(MAKE) console BACKGROUND=true
-	@echo ""
-	@echo "✅ AMP layer ready!"
-	@echo "   Console: http://localhost:3000"
+# Full stack from images
+up: $(STACK_DIR)/.env
+	@echo "🚀 Building images and starting AMP..."
+	@$(COMPOSE) up -d --build --wait
+	@echo "✅ AMP is running"
+	@echo "   Console: http://localhost:3000 (sign in as admin, password THUNDER_ADMIN_PASSWORD in $(STACK_DIR)/.env)"
 	@echo "   API:     http://localhost:9000"
-	@bash deployments/scripts/print-admin-credentials.sh http://localhost:3000 amp-thunder || true
 
-# Air recompiles the Go service on a fresh container start, so :9000 lags
-# `docker compose up` by up to a couple of minutes. Steps that call the AMS API
-# (setup-gateway) must gate on this or they fail with HTTP 000.
-wait-ams-healthy:
-	@echo "⏳ Waiting for agent-manager-service on :9000..."
-	@for i in $$(seq 1 60); do \
-		curl -sf http://localhost:9000/healthz >/dev/null 2>&1 && exit 0; \
-		sleep 3; \
-	done; \
-	echo "❌ agent-manager-service not healthy on :9000 after 3 minutes"; exit 1
+down:
+	@$(COMPOSE) down
+
+logs:
+	@$(COMPOSE) logs -f
+
+reset:
+	@$(COMPOSE) --profile console-image down -v
 
 # Setup individual components
 setup-colima:
 	@cd deployments/setup && ./setup-colima.sh
-
-setup-k3d:
-	@cd deployments/setup && ./setup-k3d.sh && ./setup-prerequisites.sh
-
-gen-keys:
-	@echo "🔑 Generating JWT signing keys..."
-	@cd agent-manager-service && make gen-keys
-	@echo "✅ JWT signing keys generated in agent-manager-service/keys/"
-
-setup-platform: gen-keys
-	@cd deployments/setup && ./setup-platform.sh
-
-setup-gateway:
-	@cd deployments/setup && ./setup-gateway.sh
 
 # Console local setup. The install is gated on console/pnpm-lock.yaml.
 .make:
@@ -159,83 +127,51 @@ setup-console-local-force:
 # Daily development commands
 # --build: plain `up -d` reuses an image built from an older Dockerfile, silently
 # running a stale toolchain. Cached layers keep the no-change case near-free.
-dev-up: gen-keys
-	@cd deployments/setup && ./ensure-k3d-running.sh
-	@echo "🚀 Starting Agent Manager platform..."
-	@cd deployments && docker compose up -d --build
+dev-up: $(STACK_DIR)/.env
+	@echo "🚀 Starting Agent Manager (dev)..."
+	@$(DEV_COMPOSE) up -d --build --wait
 	@$(MAKE) console BACKGROUND=true
 	@echo "✅ Platform is running!"
-	@echo "   Console: http://localhost:3000"
-	@echo "   API:     http://localhost:8080"
+	@echo "   Console: http://localhost:3000 (sign in as admin, password THUNDER_ADMIN_PASSWORD in $(STACK_DIR)/.env)"
+	@echo "   API:     http://localhost:9000"
 
 dev-down:
-	@echo "🛑 Stopping Agent Manager platform..."
-	@cd deployments && docker compose down
+	@echo "🛑 Stopping Agent Manager..."
+	@$(DEV_COMPOSE) down
 	@$(MAKE) stop-console
 	@echo "✅ Platform stopped"
 
 dev-restart:
-	@echo "🔄 Restarting Agent Manager platform..."
-	@cd deployments && docker compose restart
+	@echo "🔄 Restarting Agent Manager..."
+	@$(DEV_COMPOSE) restart
 	@$(MAKE) console BACKGROUND=true
 	@echo "✅ Platform restarted"
 
 dev-rebuild:
 	@echo "🧹 Stopping services..."
-	@cd deployments && docker compose down
+	@$(DEV_COMPOSE) down
 	@echo "🔨 Rebuilding Docker images..."
-	@cd deployments && docker compose build --no-cache
+	@$(DEV_COMPOSE) build --no-cache
 	@$(MAKE) dev-up
 
 dev-logs:
-	@cd deployments && docker compose logs -f
+	@$(DEV_COMPOSE) logs -f
 
 dev-migrate:
 	@cd agent-manager-service && make dev-migrate
 
-# Platform Thunder management
-thunder-up:
-	@echo "📦 Installing/Upgrading Platform Thunder (amp-thunder-extension)..."
-	@helm dependency update deployments/helm-charts/wso2-amp-thunder-extension
-	@helm upgrade --install amp-thunder-extension deployments/helm-charts/wso2-amp-thunder-extension \
-		--namespace amp-thunder --create-namespace \
-		--set thunder.bootstrap.agentManagerMcpBaseUrl=http://localhost:9000 \
-		--set thunder.setup.admin.password=admin
-	@echo "⏳ Waiting for Platform Thunder deployment..."
-	@kubectl rollout status deployment -n amp-thunder -l app.kubernetes.io/instance=amp-thunder-extension --timeout=120s 2>/dev/null || true
-	@echo "✅ Platform Thunder is up and running!"
-
-thunder-down:
-	@echo "🛑 Uninstalling Platform Thunder (amp-thunder-extension)..."
-	@helm uninstall amp-thunder-extension -n amp-thunder 2>/dev/null || true
-	@kubectl delete job -n amp-thunder -l app.kubernetes.io/instance=amp-thunder-extension --wait --timeout=60s 2>/dev/null || true
-	@echo "✅ Platform Thunder uninstalled"
-
+# ThunderID
 thunder-restart:
-	@echo "🔄 Restarting Platform Thunder deployment..."
-	@kubectl rollout restart deployment -n amp-thunder -l app.kubernetes.io/instance=amp-thunder-extension 2>/dev/null || true
-	@kubectl rollout status deployment -n amp-thunder -l app.kubernetes.io/instance=amp-thunder-extension --timeout=120s 2>/dev/null || true
-	@echo "✅ Platform Thunder restarted"
+	@$(COMPOSE) restart thunder
 
-thunder-reset:
-	@echo "🧹 Resetting Platform Thunder (uninstall + job/PVC delete + reinstall)..."
-	@helm uninstall amp-thunder-extension -n amp-thunder --wait --timeout=2m 2>/dev/null || true
-	@kubectl delete job -n amp-thunder -l app.kubernetes.io/instance=amp-thunder-extension --wait --timeout=60s 2>/dev/null || true
-	@kubectl delete pvc -n amp-thunder -l app.kubernetes.io/instance=amp-thunder-extension --wait --timeout=60s 2>/dev/null || true
-	@$(MAKE) thunder-up
-	@echo "✅ Platform Thunder reset complete!"
-
-# Port forwarding for in-cluster services
-PLATFORM   ?=
-BACKGROUND ?=
-
-port-forward:
-	@cd deployments/setup && ./port-forward.sh \
-		$(if $(filter true,$(PLATFORM)),--platform) \
-		$(if $(filter true,$(BACKGROUND)),--background)
-
-stop-port-forward:
-	@cd deployments/setup && ./stop-port-forward.sh
+# Deletes ThunderID's users, applications and keys; tokens it issued stop working.
+thunder-reset: $(STACK_DIR)/.env
+	@echo "🧹 Resetting ThunderID (data wipe + bootstrap)..."
+	@$(COMPOSE) rm -sf thunder thunder-setup
+	@project=$$($(COMPOSE) config --format json | sed -n 's/^ *"name": "\(.*\)",$$/\1/p' | head -1); \
+		docker volume rm $${project}_thunder-db $${project}_thunder-certs $${project}_thunder-secrets
+	@$(COMPOSE) up -d --wait thunder
+	@echo "✅ ThunderID reset complete!"
 
 # Console dev server (pnpm dev on :3000)
 console: setup-console-local
@@ -246,14 +182,14 @@ stop-console:
 
 # Database commands
 db-connect:
-	@docker exec -it agent-manager-service sqlite3 /var/lib/agent-manager/agent-manager.db
+	@$(COMPOSE) exec amp-api sqlite3 /var/lib/agent-manager/agent-manager.db
 
 # Service debugging
 service-logs:
-	@docker logs -f agent-manager-service
+	@$(COMPOSE) logs -f amp-api
 
 service-shell:
-	@docker exec -it agent-manager-service sh
+	@$(COMPOSE) exec amp-api sh
 
 console-logs:
 	@test -f .make/console.log || { echo "ℹ️  No console log: logs are only written by 'make console BACKGROUND=true'"; exit 1; }
@@ -292,27 +228,6 @@ check-contract-drift:
 check-matrix-manifest:
 	@scripts/check-matrix-manifest.py
 
-# AI Gateway setup (required for LLM proxy/guardrail tests)
-setup-ai-gateway: dev-migrate
-	@echo "🚀 Installing AI Gateway extension..."
-	@helm upgrade --install amp-ai-gateway deployments/helm-charts/wso2-amp-api-platform-gateway-extension \
-		--namespace amp-gateway \
-		--set apiGateway.namespace=amp-gateway \
-		--set agentManager.apiUrl="http://host.k3d.internal:9000/api/v1" \
-		--set agentManager.idp.tokenUrl="http://amp-thunder-extension-service.amp-thunder.svc.cluster.local:8090/oauth2/token" \
-		--set agentManager.idp.clientId="amp-api-client" \
-		--set agentManager.idp.clientSecret="amp-api-client-secret" \
-		--set gateway.name="default" \
-		--set gateway.displayName="Default AI Gateway" \
-		--set gateway.vhost="http://ai-gateway.amp.localhost:8084" \
-		--set gateway.type="EGRESS" \
-		--set apiGateway.controlPlane.host="host.k3d.internal:9243" \
-		--set developmentMode=true
-	@echo "⏳ Waiting for gateway bootstrap job..."
-	@kubectl wait --for=condition=complete job/amp-ai-gateway-bootstrap \
-		-n amp-gateway --timeout=300s 2>/dev/null || true
-	@echo "✅ AI Gateway installed"
-
 # E2E tests
 # Run all (parallel):    make e2e-test
 # Run one suite:         make e2e-test SUITE=monitors
@@ -332,13 +247,13 @@ e2e-test:
 #
 # Two layers, both run by `make security-test`:
 #
-#   security-test-static  Go unit tests over the route table. No cluster needed.
+#   security-test-static  Go unit tests over the route table. No stack needed.
 #   security-test-live    Ginkgo suites against a running deployment.
 #
 # The live suites live in test/e2e/security/ — deliberately NOT under
 # test/e2e/tests/, because `make e2e-test` and the e2e CI job both glob
 # ./tests/... and must not pick them up. They share the e2e framework/ and
-# operations/ packages and run against the same cluster `make e2e-test` needs.
+# operations/ packages and run against the same stack `make e2e-test` needs.
 #
 # Run all:            make security-test
 # Static only:        make security-test-static
@@ -379,7 +294,7 @@ security-test-static:
 		go test -mod=readonly ./api/ -run '$(SECURITY_STATIC_TESTS)' -v
 
 security-test-live:
-	@echo "Running security tests (cluster must be running)..."
+	@echo "Running security tests (stack must be running)..."
 	@cd test/e2e && set -a && [ -f .env ] && . ./.env; set +a && \
 		go run github.com/onsi/ginkgo/v2/ginkgo -v $(SECURITY_GINKGO_PROCS) --timeout 45m \
 		--poll-progress-after=300s --keep-going --junit-report=security-report.xml --output-dir=. \
@@ -388,4 +303,5 @@ security-test-live:
 
 # Cleanup
 teardown:
-	@cd deployments/setup && ./teardown.sh
+	@$(MAKE) stop-console
+	@$(DEV_COMPOSE) --profile console-image down -v

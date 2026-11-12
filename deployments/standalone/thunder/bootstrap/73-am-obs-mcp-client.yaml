@@ -1,0 +1,32 @@
+resource_type: application
+id: am-obs-mcp-client
+type: browser # public redirect client (authorization_code + PKCE, loopback redirect)
+name: "AMP Observer MCP"
+description: "AMP Observer MCP application for interactive user login"
+ouId: "01900000-0000-7000-8000-000000000001"
+logoUrl: "https://wso2.cachefly.net/wso2/sites/all/image_resources/logos/WSO2-Pulse-Orange.webp"
+authFlowHandle: default-flow
+themeId: amp-console-theme
+layoutId: "0e0dc039-bae9-4563-82b9-ee4e76f9a58c"
+allowedUserTypes: ["engineer"]
+inboundAuthConfig:
+  - type: oauth2
+    config:
+      clientId: "am-obs-mcp"
+      redirectUris: ["http://127.0.0.1:33419/callback","http://localhost:33419/callback"]
+      grantTypes: ["authorization_code","refresh_token"]
+      responseTypes: ["code"]
+      tokenEndpointAuthMethod: "none"
+      pkceRequired: true
+      publicClient: true
+      scopes: ["openid","profile","email","amp:observability:trace-read","amp:observability:log-read","amp:observability:build-log-read","amp:observability:metric-read"]
+      token:
+        accessToken:
+          userConfig:
+            validityPeriod: 3600
+            attributes: ["given_name","family_name","email","username","groups","ouId","ouHandle"]
+        idToken:
+          validityPeriod: 3600
+          userAttributes: ["given_name","family_name","email","username","groups","ouId","ouHandle"]
+        refreshToken:
+          validityPeriod: 2592000

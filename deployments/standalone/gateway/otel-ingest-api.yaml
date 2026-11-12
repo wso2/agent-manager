@@ -1,0 +1,34 @@
+# OTLP trace ingest on the AI Gateway: agents post spans to /otel/v1/traces
+# with their Agent Manager token in x-amp-api-key. The token's claims become
+# x-user-* headers, which the collector turns into resource attributes.
+apiVersion: gateway.api-platform.wso2.com/v1
+kind: RestApi
+metadata:
+  name: otel-ingest-v1.0
+spec:
+  displayName: otel-ingest
+  version: v1.0
+  context: /otel
+  upstream:
+    main:
+      url: @@OTEL_UPSTREAM_URL@@
+  policies:
+    - name: jwt-auth
+      version: v1
+      params:
+        headerName: x-amp-api-key
+        authHeaderPrefix: ""
+        issuers:
+          - agent-manager-service
+        claimMappings:
+          sub: x-user-id
+          component_uid: x-user-component
+          environment_uid: x-user-environment
+          project_uid: x-user-project
+          namespace: x-user-namespace
+          organization: x-user-organization-name
+          project: x-user-project-name
+          agent: x-user-agent-name
+  operations:
+    - method: POST
+      path: /v1/traces

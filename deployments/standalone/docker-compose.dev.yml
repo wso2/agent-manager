@@ -1,0 +1,27 @@
+# Development overlay: `make dev-up` layers this on docker-compose.yml.
+# The API runs from the source tree under air (rebuilds on save, migrates on
+# start), and the console runs on the host with `make console` (vite on :3000)
+# instead of the nginx image.
+
+services:
+  amp-api:
+    image: amp-api:dev
+    build:
+      context: ../../agent-manager-service
+      dockerfile: Dockerfile.dev
+    # Fixed name: `make dev-migrate` and agent-manager-service/Makefile exec into it.
+    container_name: agent-manager-service
+    command: ["/bin/sh", "-c", "bash /app/scripts/gen_keys.sh && air -c .air.toml"]
+    volumes:
+      - ../../agent-manager-service:/app
+      - amp-keys:/app/keys
+      - amp-data:/var/lib/agent-manager
+      # Keep container build output off the host mount.
+      - /app/tmp
+      - /app/.bin
+    healthcheck:
+      # air compiles before serving; the first start takes a minute or two.
+      start_period: 300s
+
+  amp-console:
+    profiles: ["console-image"]
