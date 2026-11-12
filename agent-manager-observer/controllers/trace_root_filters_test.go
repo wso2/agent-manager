@@ -30,6 +30,8 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-observer/observer"
 	"github.com/wso2/agent-manager/agent-manager-observer/opensearch"
+	"github.com/wso2/agent-manager/agent-manager-observer/store"
+	"github.com/wso2/agent-manager/agent-manager-observer/store/openchoreo"
 )
 
 // langGraphFake scripts n LangGraph-shaped traces one second apart, newest
@@ -148,7 +150,7 @@ func wantPages(fake *fakeObserverClient, params TraceQueryParams, n int, match f
 		order[i] = i
 	}
 	sort.SliceStable(order, func(a, b int) bool {
-		return compareTraces(fake.traces[order[a]], fake.traces[order[b]], asc) < 0
+		return compareTraces(store.Trace(fake.traces[order[a]]), store.Trace(fake.traces[order[b]]), asc) < 0
 	})
 	edge := params.StartTime
 	if asc {
@@ -282,7 +284,7 @@ func fetchedTraces(t *testing.T, fake *fakeObserverClient) (lists, roots, others
 // status=error over ok roots: one root fetch per examined trace, no span lists.
 func TestGetTraceOverviews_StatusRejectsAtRoot(t *testing.T) {
 	fake := langGraphFake(120, noRootAttrs)
-	c := NewTracingController(fake)
+	c := NewTracingController(openchoreo.New(fake))
 	params := lookBackParams(10)
 	params.Filters = TraceFilters{Status: TraceStatusError}
 
@@ -307,7 +309,7 @@ func TestGetTraceOverviews_ConversationIDRejectsAtRoot(t *testing.T) {
 		}
 		return map[string]interface{}{"gen_ai.conversation.id": "conv-other"}
 	})
-	c := NewTracingController(fake)
+	c := NewTracingController(openchoreo.New(fake))
 	params := lookBackParams(5)
 
 	resp, err := c.GetTraceOverviews(context.Background(), params)
@@ -383,7 +385,7 @@ func TestGetTraceOverviews_RootFilterPages(t *testing.T) {
 				params.SortOrder = order
 				fake := langGraphFake(600, rootAttrs)
 
-				pages := pagesOf(t, NewTracingController(fake), params, 3)
+				pages := pagesOf(t, NewTracingController(openchoreo.New(fake)), params, 3)
 
 				assertPages(t, pages, wantPages(fake, params, 3, tt.match))
 				assertLangGraphRows(t, fake, pages)
@@ -409,7 +411,7 @@ func TestGetTraceOverviews_StatusErrorFivePercentCallCounts(t *testing.T) {
 	}
 
 	fake := langGraphFake(200, errorEvery(20))
-	ids, _, truncated := traceIDs(NewTracingController(fake), t, params)
+	ids, _, truncated := traceIDs(NewTracingController(openchoreo.New(fake)), t, params)
 
 	if !slices.Equal(ids, want) || truncated {
 		t.Fatalf("traces = %v, truncated %v; want %v, false", ids, truncated, want)

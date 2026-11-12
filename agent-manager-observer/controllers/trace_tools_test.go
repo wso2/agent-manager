@@ -22,7 +22,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wso2/agent-manager/agent-manager-observer/observer"
+	"github.com/wso2/agent-manager/agent-manager-observer/store"
+	"github.com/wso2/agent-manager/agent-manager-observer/store/openchoreo"
 )
 
 // costRootCompleteFake is costFake(true) with roots that fill input, output
@@ -77,13 +78,13 @@ func assertSameCost(t *testing.T, got, want costRow) {
 // inner .tool span errored. Both name search_issues.
 func TestToolsFromSpanList_ExportMCPTrace(t *testing.T) {
 	at := func(ms int) time.Time { return lookBackWindowEnd.Add(time.Duration(ms) * time.Millisecond) }
-	unset := &observer.SpanStatus{Code: "unset"}
-	spans := []observer.SpanInfo{
+	unset := &store.SpanStatus{Code: "unset"}
+	spans := []store.Span{
 		{SpanID: "s1", SpanName: "execute_task tools", StartTime: at(4), Status: unset},
 		{SpanID: "s2", SpanName: "execute_tool search_issues", StartTime: at(11), Status: unset},
 		{SpanID: "s3", SpanName: "execute_tool check_system_status", StartTime: at(23), Status: unset},
-		{SpanID: "s4", SpanName: "initialize.mcp", StartTime: at(500), Status: &observer.SpanStatus{Code: "ok"}},
-		{SpanID: "s5", SpanName: "search_issues.tool", StartTime: at(1710), Status: &observer.SpanStatus{Code: "error", Message: "failed to search issues"}},
+		{SpanID: "s4", SpanName: "initialize.mcp", StartTime: at(500), Status: &store.SpanStatus{Code: "ok"}},
+		{SpanID: "s5", SpanName: "search_issues.tool", StartTime: at(1710), Status: &store.SpanStatus{Code: "error", Message: "failed to search issues"}},
 		{SpanID: "s6", SpanName: "ChatOpenAI.chat", StartTime: at(5212), Status: unset},
 		// Upstream lists the root last.
 		{SpanID: "root", SpanName: "invoke_agent LangGraph", StartTime: at(0), Status: unset},
@@ -95,7 +96,7 @@ func TestToolsFromSpanList_ExportMCPTrace(t *testing.T) {
 
 // Only names and OTel statuses count: tool attributes and error attributes don't.
 func TestToolsFromSpanList_IgnoresAttributes(t *testing.T) {
-	spans := []observer.SpanInfo{
+	spans := []store.Span{
 		{SpanID: "a", SpanName: "lookup.tool", StartTime: lookBackWindowEnd,
 			Attributes: map[string]interface{}{"error.type": "tool_error", "gen_ai.tool.status": "error"}},
 		{SpanID: "b", SpanName: "search_issues", StartTime: lookBackWindowEnd,
@@ -112,8 +113,8 @@ func TestToolsFromSpanList_IgnoresAttributes(t *testing.T) {
 // later failed call fails the tool.
 func TestToolsFromSpanList_DistinctInStartOrder(t *testing.T) {
 	at := func(s int) time.Time { return lookBackWindowEnd.Add(time.Duration(s) * time.Second) }
-	errored := &observer.SpanStatus{Code: "Error"}
-	spans := []observer.SpanInfo{
+	errored := &store.SpanStatus{Code: "Error"}
+	spans := []store.Span{
 		{SpanID: "a", SpanName: "execute_tool b_tool", StartTime: at(3), Status: errored},
 		{SpanID: "b", SpanName: "execute_tool a_tool", StartTime: at(1)},
 		{SpanID: "c", SpanName: "execute_tool", StartTime: at(0), Status: errored},
@@ -195,7 +196,7 @@ func TestIncludeTools_Rows(t *testing.T) {
 			params := lookBackParams(31)
 			params.Filters = TraceFilters{}
 			params.Include = tt.include
-			resp, err := NewTracingController(tt.fixture()).GetTraceOverviews(t.Context(), params)
+			resp, err := NewTracingController(openchoreo.New(tt.fixture())).GetTraceOverviews(t.Context(), params)
 			if err != nil {
 				t.Fatalf("GetTraceOverviews: %v", err)
 			}
@@ -233,7 +234,7 @@ func TestIncludeTools_ListFetchFailureKeepsRow(t *testing.T) {
 	params.Filters = TraceFilters{}
 	params.Include.Tools = true
 	ctx, logs := logContext()
-	resp, err := NewTracingController(fake).GetTraceOverviews(ctx, params)
+	resp, err := NewTracingController(openchoreo.New(fake)).GetTraceOverviews(ctx, params)
 	if err != nil {
 		t.Fatalf("GetTraceOverviews: %v", err)
 	}

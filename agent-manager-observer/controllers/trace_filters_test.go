@@ -24,6 +24,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-observer/observer"
 	"github.com/wso2/agent-manager/agent-manager-observer/opensearch"
+	"github.com/wso2/agent-manager/agent-manager-observer/store/openchoreo"
 )
 
 // ptr returns a pointer to v.
@@ -144,7 +145,7 @@ func TestGetTraceOverviews_ModelFilterFetchesModels(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.model, func(t *testing.T) {
 			fake := rootCompleteFake()
-			c := NewTracingController(fake)
+			c := NewTracingController(openchoreo.New(fake))
 			params := baseParams()
 			params.Filters.Model = tt.model
 
@@ -180,7 +181,7 @@ func TestGetTraceOverviews_ModelFilterFetchesModels(t *testing.T) {
 // A status-only filter costs no span-list call.
 func TestGetTraceOverviews_StatusFilterFetchesNoModels(t *testing.T) {
 	fake := rootCompleteFake()
-	c := NewTracingController(fake)
+	c := NewTracingController(openchoreo.New(fake))
 	params := baseParams()
 	params.Filters.Status = TraceStatusOK
 
@@ -227,7 +228,7 @@ func TestGetTraceOverviews_FiltersDropNonMatching(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			fake := newFake()
-			c := NewTracingController(fake)
+			c := NewTracingController(openchoreo.New(fake))
 			params := baseParams()
 			params.Filters = tt.filters
 
@@ -244,7 +245,7 @@ func TestGetTraceOverviews_FiltersDropNonMatching(t *testing.T) {
 				}
 			}
 			// Only traces passing the summary filters get a root fetch.
-			wantRootFetches := int32(len(filterTraceInfos(fake.traces, tt.filters)))
+			wantRootFetches := int32(len(filterTraceInfos(storeTraces(fake.traces), tt.filters)))
 			if got := atomic.LoadInt32(&fake.getSpanDetailsCalls); got != wantRootFetches {
 				t.Errorf("GetSpanDetails calls = %d, want %d", got, wantRootFetches)
 			}
@@ -252,7 +253,7 @@ func TestGetTraceOverviews_FiltersDropNonMatching(t *testing.T) {
 	}
 
 	t.Run("unfiltered", func(t *testing.T) {
-		c := NewTracingController(newFake())
+		c := NewTracingController(openchoreo.New(newFake()))
 
 		resp, err := c.GetTraceOverviews(context.Background(), baseParams())
 		if err != nil {
@@ -272,7 +273,7 @@ func TestGetTraceOverviews_LookedBackToIsWindowStart(t *testing.T) {
 		"empty":       {},
 	} {
 		t.Run(name, func(t *testing.T) {
-			c := NewTracingController(fake)
+			c := NewTracingController(openchoreo.New(fake))
 			params := baseParams()
 			params.StartTime = start
 

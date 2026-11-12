@@ -23,6 +23,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-observer/controllers"
 	"github.com/wso2/agent-manager/agent-manager-observer/observer"
+	"github.com/wso2/agent-manager/agent-manager-observer/store/openchoreo"
 )
 
 // include=tools sets Tools, alone or beside models; an unknown value is an error.
@@ -62,7 +63,7 @@ func TestGetTraceOverviews_IncludeTools(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.query, func(t *testing.T) {
 			fake := &fakeObserverClient{traces: []observer.TraceInfo{{TraceID: "trace-1", RootSpanID: "root", SpanCount: 2}}}
-			h := NewHandler(controllers.NewTracingController(fake), nil)
+			h := NewHandler(controllers.NewTracingController(openchoreo.New(fake)), nil)
 
 			r := httptest.NewRequest(http.MethodGet, "/api/v1/traces?"+baseParams()+tt.query, nil)
 			rec := httptest.NewRecorder()

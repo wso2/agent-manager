@@ -28,8 +28,8 @@ import (
 	"time"
 )
 
-// Client is the interface for querying trace data from the observer service.
-type Client interface {
+// TraceReader reads traces from the observer service.
+type TraceReader interface {
 	// QueryTraces fetches a paginated list of traces matching the given request.
 	QueryTraces(ctx context.Context, req TracesQueryRequest) (*TracesQueryResponse, error)
 
@@ -39,14 +39,19 @@ type Client interface {
 	// GetSpanDetails fetches the full details (including OTEL attributes) for a single span.
 	GetSpanDetails(ctx context.Context, traceID, spanID string) (*SpanDetailsResponse, error)
 
+	// NamespaceFor resolves the namespace a trace query is scoped to.
+	NamespaceFor(organization string) string
+}
+
+// Client is the interface for querying trace data from the observer service.
+type Client interface {
+	TraceReader
+
 	// QueryLogs fetches log entries matching the given request.
 	QueryLogs(ctx context.Context, req LogsQueryRequest) (*LogsQueryResponse, error)
 
 	// QueryMetrics fetches a resource metrics time series for the given request.
 	QueryMetrics(ctx context.Context, req MetricsQueryRequest) (*ResourceMetricsTimeSeries, error)
-
-	// NamespaceFor resolves the namespace a trace query is scoped to.
-	NamespaceFor(organization string) string
 }
 
 // TokenProvider supplies the bearer token sent to the observer upstream.

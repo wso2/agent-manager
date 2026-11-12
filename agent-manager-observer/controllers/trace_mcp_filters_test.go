@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/wso2/agent-manager/agent-manager-observer/observer"
+	"github.com/wso2/agent-manager/agent-manager-observer/store/openchoreo"
 )
 
 // githubHandshakeOutput is the initialize.mcp output from the IT helpdesk export.
@@ -230,7 +231,7 @@ func TestGetTraceOverviews_IncludeMCPServers(t *testing.T) {
 	params.Filters = TraceFilters{}
 	params.Include = Include{MCPServers: true}
 
-	resp, err := NewTracingController(fake).GetTraceOverviews(t.Context(), params)
+	resp, err := NewTracingController(openchoreo.New(fake)).GetTraceOverviews(t.Context(), params)
 	if err != nil {
 		t.Fatalf("GetTraceOverviews: %v", err)
 	}
@@ -254,7 +255,7 @@ func TestGetTraceOverviews_MCPServerNoHandshakeCostsOneList(t *testing.T) {
 	params := lookBackParams(10)
 	params.Filters = TraceFilters{MCPServer: "github"}
 
-	ids, _, truncated := traceIDs(NewTracingController(fake), t, params)
+	ids, _, truncated := traceIDs(NewTracingController(openchoreo.New(fake)), t, params)
 
 	if len(ids) != 0 || !truncated {
 		t.Fatalf("got %v, truncated %v; want none, true", ids, truncated)
@@ -278,7 +279,7 @@ func TestGetTraceOverviews_MCPServerOneHandshake(t *testing.T) {
 	params := lookBackParams(10)
 	params.Filters = TraceFilters{MCPServer: "GitHub"}
 
-	ids, _, _ := traceIDs(NewTracingController(fake), t, params)
+	ids, _, _ := traceIDs(NewTracingController(openchoreo.New(fake)), t, params)
 
 	want := make([]string, 0, 10)
 	for i := 0; i < 60; i += 6 {
@@ -317,7 +318,7 @@ func TestGetTraceOverviews_MCPServerHandshakeCap(t *testing.T) {
 	params.Filters = TraceFilters{}
 	params.Include = Include{MCPServers: true}
 
-	resp, err := NewTracingController(fake).GetTraceOverviews(t.Context(), params)
+	resp, err := NewTracingController(openchoreo.New(fake)).GetTraceOverviews(t.Context(), params)
 	if err != nil {
 		t.Fatalf("GetTraceOverviews: %v", err)
 	}
@@ -338,7 +339,7 @@ func TestGetTraceOverviews_MCPServerHandshakeCap(t *testing.T) {
 		}
 	}
 
-	ids, _, _ := traceIDs(NewTracingController(mcpToolsFake(8)), t, exportParams(5, TraceFilters{MCPServer: "late-server"}))
+	ids, _, _ := traceIDs(NewTracingController(openchoreo.New(mcpToolsFake(8))), t, exportParams(5, TraceFilters{MCPServer: "late-server"}))
 	if len(ids) != 0 {
 		t.Errorf("mcpServer=late-server matched %v, want none: those handshakes are past the cap", ids)
 	}
@@ -369,7 +370,7 @@ func TestGetTraceOverviews_MCPServerHandshakeAfterOtherChecks(t *testing.T) {
 			params := lookBackParams(3)
 			params.Filters = tt.filters
 
-			ids, _, _ := traceIDs(NewTracingController(fake), t, params)
+			ids, _, _ := traceIDs(NewTracingController(openchoreo.New(fake)), t, params)
 
 			if !slices.Equal(ids, tt.want) {
 				t.Fatalf("traces = %v, want %v", ids, tt.want)
@@ -397,7 +398,7 @@ func TestGetTraceOverviews_MCPServerOverCapCostsNothing(t *testing.T) {
 	params := lookBackParams(10)
 	params.Filters = TraceFilters{MCPServer: "github"}
 
-	ids, _, truncated := traceIDs(NewTracingController(fake), t, params)
+	ids, _, truncated := traceIDs(NewTracingController(openchoreo.New(fake)), t, params)
 
 	if len(ids) != 0 || !truncated {
 		t.Errorf("got %d traces, truncated %v; want 0, true", len(ids), truncated)
@@ -446,7 +447,7 @@ func TestGetTraceOverviews_MCPServerFilterMatchesFullEnrichment(t *testing.T) {
 				params.SortOrder = order
 				fake := mcpFilterFake()
 
-				pages := pagesListedOnce(t, NewTracingController(fake), fake, params, 3)
+				pages := pagesListedOnce(t, NewTracingController(openchoreo.New(fake)), fake, params, 3)
 
 				assertPages(t, pages, wantPages(fake, params, 3, match))
 				for _, page := range pages {
@@ -517,7 +518,7 @@ func TestGetTraceOverviews_MCPServerHandshakeFails(t *testing.T) {
 			params.Include = Include{MCPServers: true}
 			ctx, logs := logContext()
 
-			resp, err := NewTracingController(fake).GetTraceOverviews(ctx, params)
+			resp, err := NewTracingController(openchoreo.New(fake)).GetTraceOverviews(ctx, params)
 			if err != nil {
 				t.Fatalf("GetTraceOverviews: %v", err)
 			}
@@ -553,7 +554,7 @@ func TestExportTraces_MCPServerHandshakeFailsInSelection(t *testing.T) {
 	fake := mcpFake(1)
 	fake.failCall = failTimes(map[string]int{"mcp-0-0000": -1})
 
-	resp := mustExport(t, NewTracingController(fake), exportParams(3, TraceFilters{MCPServer: "github"}))
+	resp := mustExport(t, NewTracingController(openchoreo.New(fake)), exportParams(3, TraceFilters{MCPServer: "github"}))
 
 	if got, want := exportedIDs(resp), []string{"trace-0006", "trace-0012", "trace-0018"}; !slices.Equal(got, want) {
 		t.Fatalf("exported %v, want %v", got, want)
@@ -567,7 +568,7 @@ func TestExportTraces_MCPServerHandshakeFailsInSelection(t *testing.T) {
 func TestExportTraces_MCPServerFetchesSpansOnlyForMatches(t *testing.T) {
 	fake := mcpFake(1)
 
-	resp := mustExport(t, NewTracingController(fake), exportParams(5, TraceFilters{MCPServer: "atlassian"}))
+	resp := mustExport(t, NewTracingController(openchoreo.New(fake)), exportParams(5, TraceFilters{MCPServer: "atlassian"}))
 
 	want := []string{"trace-0003", "trace-0009", "trace-0015", "trace-0021", "trace-0027"}
 	if got := exportedIDs(resp); !slices.Equal(got, want) {

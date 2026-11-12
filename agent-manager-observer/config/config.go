@@ -27,8 +27,26 @@ import (
 type Config struct {
 	Server   ServerConfig
 	Observer ObserverConfig
+	Traces   TracesConfig
 	LogLevel string
 	Auth     AuthConfig
+}
+
+// Trace backends TRACE_BACKEND accepts.
+const (
+	TraceBackendOpenChoreo = "openchoreo"
+	TraceBackendOff        = "off"
+)
+
+// TracesConfig picks where traces are read from.
+type TracesConfig struct {
+	// Backend is TraceBackendOpenChoreo or TraceBackendOff.
+	Backend string
+}
+
+// UsesOpenChoreo reports whether traces are read from the OpenChoreo observer.
+func (t TracesConfig) UsesOpenChoreo() bool {
+	return t.Backend == TraceBackendOpenChoreo
 }
 
 // ObserverConfig holds configuration for the observer service HTTP client
@@ -84,6 +102,9 @@ func Load() (*Config, error) {
 			ClientSecret:     getEnv("IDP_CLIENT_SECRET", ""),
 			DefaultNamespace: getEnv("OBSERVER_DEFAULT_NAMESPACE", "default"),
 		},
+		Traces: TracesConfig{
+			Backend: strings.ToLower(strings.TrimSpace(getEnv("TRACE_BACKEND", TraceBackendOpenChoreo))),
+		},
 		LogLevel: getEnv("LOG_LEVEL", "INFO"),
 		Auth: AuthConfig{
 			JWKSUrl:              getEnv("KEY_MANAGER_JWKS_URL", ""),
@@ -111,10 +132,24 @@ func (c *Config) validate() error {
 	if err := c.Auth.validate(); err != nil {
 		return err
 	}
-	if err := c.Observer.validate(); err != nil {
+	if err := c.Traces.validate(); err != nil {
 		return err
 	}
+	if c.Traces.UsesOpenChoreo() {
+		if err := c.Observer.validate(); err != nil {
+			return err
+		}
+	}
 	return nil
+}
+
+func (t *TracesConfig) validate() error {
+	switch t.Backend {
+	case TraceBackendOpenChoreo, TraceBackendOff:
+		return nil
+	default:
+		return fmt.Errorf("TRACE_BACKEND must be %q or %q, got %q", TraceBackendOpenChoreo, TraceBackendOff, t.Backend)
+	}
 }
 
 func (o *ObserverConfig) validate() error {
