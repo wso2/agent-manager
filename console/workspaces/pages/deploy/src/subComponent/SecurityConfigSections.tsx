@@ -52,7 +52,7 @@ import {
 } from "@wso2/oxygen-ui";
 import { ChevronDown, Info } from "@wso2/oxygen-ui-icons-react";
 import { isExternalAgent, servesA2A } from "@agent-management-platform/views";
-import { ConfigSection } from "@agent-management-platform/shared-component";
+import { ConfigSection, identityProviderLabel } from "@agent-management-platform/shared-component";
 import {
   forwardRef,
   useEffect,
@@ -386,13 +386,14 @@ export const SecurityConfigSections = forwardRef<SecurityConfigHandle, SecurityC
                   <Autocomplete
                     multiple
                     options={identityProviderOptions}
+                    getOptionLabel={(opt) => identityProviderLabel(opt as string)}
                     value={oauthIssuers}
                     onChange={(_, v) => setOauthIssuers(v as string[])}
                     disabled={disabled || !hasIdentityProviders}
                     renderTags={(vals, getTagProps) =>
                       vals.map((opt, i) => (
                         <Chip
-                          label={opt as string}
+                          label={identityProviderLabel(opt as string)}
                           size="small"
                           {...getTagProps({ index: i })}
                           key={opt as string}
