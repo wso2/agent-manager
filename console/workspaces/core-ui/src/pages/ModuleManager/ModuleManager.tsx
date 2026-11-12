@@ -16,52 +16,80 @@
  * under the License.
  */
 
-// Module manager: an overview of the console's UI modules, whether each is
-// installed and on, with a link to each module's setup page. Changes happen on
-// the setup pages (ModuleSetup), not here.
+// Module marketplace (/org/:orgId/ui-modules, from the user menu): every
+// console module as a card with an Install / Uninstall button and a link to
+// its details page.
 //
-// This page belongs to the shell, not to a module, so it can never switch
-// itself off.
+// MOCK: installing only changes in-memory state; see moduleUi.tsx.
+//
+// This page belongs to the shell, not to a module, so it can never be
+// uninstalled.
 
+import { useMemo, useState, type ChangeEvent } from "react";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
 import {
   Alert,
+  Avatar,
   Box,
   Button,
   Card,
   CardContent,
+  Chip,
+  Grid,
+  SearchBar,
   Stack,
+  Tab,
+  Tabs,
   Typography,
 } from "@wso2/oxygen-ui";
 import { PageLayout } from "@agent-management-platform/views";
 import { useUIModuleManager, type UIModuleStatus } from "../../plugins";
-import { ConfigChip, InstallChip, pagesSummary } from "./moduleUi";
+import {
+  InstallButton,
+  listingFor,
+  marketplaceState,
+  StatusChip,
+} from "./moduleUi";
 import { MODULE_SETUP_ROUTE } from "./routes";
 
-function ModuleRow({ module, onOpen }: { module: UIModuleStatus; onOpen: () => void }) {
-  const needsSetup =
-    !!module.installation && module.installPhase !== "installed" && !module.core;
+type Filter = "all" | "installed" | "available";
+
+const isInstalled = (module: UIModuleStatus) => {
+  const state = marketplaceState(module);
+  return state === "installed" || state === "built-in";
+};
+
+function ModuleCard({ module, onDetails }: { module: UIModuleStatus; onDetails: () => void }) {
+  const listing = listingFor(module.id);
+  const Icon = listing.icon;
+  const state = marketplaceState(module);
   return (
-    <Card variant="outlined">
-      <CardContent>
-        <Stack direction="row" alignItems="center" spacing={2}>
+    <Card variant="outlined" sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
+      <CardContent sx={{ flex: 1, display: "flex", flexDirection: "column", gap: 1.5 }}>
+        <Stack direction="row" spacing={1.5} alignItems="center">
+          <Avatar variant="rounded" sx={{ bgcolor: "primary.main", width: 44, height: 44 }}>
+            <Icon size={24} />
+          </Avatar>
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Stack direction="row" alignItems="center" spacing={1}>
-              <Typography variant="h6">{module.name}</Typography>
-              <InstallChip module={module} />
-              {!module.core && (
-                <ConfigChip enabled={module.enabled} enabledByConfig={module.enabledByConfig} />
-              )}
-            </Stack>
-            <Typography variant="body2" color="text.secondary">
-              {module.description}
+            <Typography variant="h6" noWrap>
+              {module.name}
             </Typography>
             <Typography variant="caption" color="text.secondary">
-              {module.id} · {pagesSummary(module)}
+              by {listing.publisher} · v{listing.version}
             </Typography>
           </Box>
-          <Button variant={needsSetup ? "contained" : "outlined"} onClick={onOpen}>
-            {needsSetup ? "Set up" : "Manage"}
+          <StatusChip state={state} />
+        </Stack>
+        <Typography variant="body2" color="text.secondary" sx={{ flex: 1 }}>
+          {module.description}
+        </Typography>
+        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+          <Chip size="small" label={listing.category} />
+        </Stack>
+        <Stack direction="row" spacing={1} sx={{ mt: "auto", pt: 1 }}>
+          <InstallButton module={module} size="small" />
+          <Button size="small" variant="text" onClick={onDetails}>
+            Details
           </Button>
         </Stack>
       </CardContent>
@@ -73,34 +101,81 @@ export function ModuleManager() {
   const { orgId } = useParams();
   const navigate = useNavigate();
   const { modules, hasChanges, resetChanges } = useUIModuleManager();
+  const [filter, setFilter] = useState<Filter>("all");
+  const [search, setSearch] = useState("");
+
+  const visible = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return modules.filter((module) => {
+      if (filter === "installed" && !isInstalled(module)) return false;
+      if (filter === "available" && isInstalled(module)) return false;
+      if (!query) return true;
+      return [module.name, module.description, listingFor(module.id).category]
+        .join(" ")
+        .toLowerCase()
+        .includes(query);
+    });
+  }, [modules, filter, search]);
+
+  const installedCount = modules.filter(isInstalled).length;
 
   return (
     <PageLayout
-      title="Module manager"
-      description="See which console modules are installed and on. Open a module to set it up or change it."
+      title="Marketplace"
+      description="Add capabilities to the console. Install a module to add its pages; uninstall it to remove them."
       disableIcon
       actions={
         <Button variant="outlined" disabled={!hasChanges} onClick={resetChanges}>
-          Reset to config
+          Reset
         </Button>
       }
     >
       <Stack spacing={2}>
         <Alert severity="info">
-          Changes made on module setup pages apply straight away but only in this browser
-          tab, and are lost when you reload. To make them permanent, set{" "}
-          <code>uiModules.disabled</code> in the console&apos;s runtime config (the{" "}
-          <code>DISABLED_UI_MODULES</code> environment variable).
+          Preview: installing and uninstalling here only changes this browser tab and is undone
+          when you reload. Nothing is deployed to the cluster.
         </Alert>
-        {modules.map((module) => (
-          <ModuleRow
-            key={module.id}
-            module={module}
-            onOpen={() =>
-              navigate(generatePath(MODULE_SETUP_ROUTE, { orgId: orgId ?? "", moduleId: module.id }))
-            }
-          />
-        ))}
+        <Stack
+          direction={{ xs: "column", md: "row" }}
+          spacing={2}
+          alignItems={{ md: "center" }}
+          justifyContent="space-between"
+        >
+          <Box sx={{ width: { xs: "100%", md: 400 } }}>
+            <SearchBar
+              placeholder="Search modules"
+              size="small"
+              fullWidth
+              value={search}
+              onChange={(event: ChangeEvent<HTMLInputElement>) => setSearch(event.target.value)}
+            />
+          </Box>
+          <Tabs value={filter} onChange={(_, value: Filter) => setFilter(value)}>
+            <Tab value="all" label={`All (${modules.length})`} />
+            <Tab value="installed" label={`Installed (${installedCount})`} />
+            <Tab value="available" label={`Available (${modules.length - installedCount})`} />
+          </Tabs>
+        </Stack>
+        {visible.length === 0 ? (
+          <Typography variant="body2" color="text.secondary" sx={{ py: 4, textAlign: "center" }}>
+            No modules match.
+          </Typography>
+        ) : (
+          <Grid container spacing={2}>
+            {visible.map((module) => (
+              <Grid key={module.id} size={{ xs: 12, md: 6, xl: 4 }}>
+                <ModuleCard
+                  module={module}
+                  onDetails={() =>
+                    navigate(
+                      generatePath(MODULE_SETUP_ROUTE, { orgId: orgId ?? "", moduleId: module.id }),
+                    )
+                  }
+                />
+              </Grid>
+            ))}
+          </Grid>
+        )}
       </Stack>
     </PageLayout>
   );

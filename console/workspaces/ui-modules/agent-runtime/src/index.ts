@@ -37,7 +37,5 @@ export const agentRuntimeModule: UIModuleManifest = {
   name: "Agent Runtime",
   description: "Configure, build, deploy and try agents; environments and deployment pipelines.",
   apiVersion: PLUGIN_API_VERSION,
-  // Ships with every console: always installed, cannot be turned off as a whole.
-  core: true,
   plugins: [configureAgentPlugin, buildPlugin, deployPlugin, testPlugin, deploymentPipelinesPlugin],
 };

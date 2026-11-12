@@ -37,8 +37,6 @@ export const acpCoreModule: UIModuleManifest = {
   name: "ACP Core",
   description: "Overview, project and agent listings, create flows, settings and events.",
   apiVersion: PLUGIN_API_VERSION,
-  // Ships with every console: always installed, cannot be turned off as a whole.
-  core: true,
   plugins: [
     overviewPlugin,
     resourceListingPlugin,

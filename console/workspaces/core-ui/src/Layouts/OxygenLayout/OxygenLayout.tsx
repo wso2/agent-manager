@@ -168,7 +168,7 @@ export function OxygenLayout() {
                 {orgId && (
                   <UserMenu.Item
                     icon={<Boxes />}
-                    label="Module manager"
+                    label="Marketplace"
                     onClick={() => navigate(generatePath(MODULE_MANAGER_ROUTE, { orgId }))}
                   />
                 )}

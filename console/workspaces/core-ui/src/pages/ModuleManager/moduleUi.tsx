@@ -16,89 +16,148 @@
  * under the License.
  */
 
-// Status chips shared by the Module manager overview and module setup pages.
+// Shared pieces for the module marketplace and module details pages.
+//
+// MOCK: install and uninstall only change in-memory state (PluginProvider);
+// nothing is deployed. Listing details (icon, category, version, publisher)
+// are mock data kept here until modules publish their own.
 
-import { Chip, Tooltip } from "@wso2/oxygen-ui";
-import type { UIModuleInstallPhase } from "@agent-management-platform/types";
-import type { UIModulePluginStatus, UIModuleStatus } from "../../plugins";
+import { useCallback } from "react";
+import {
+  Activity,
+  BookOpenText,
+  Box as BoxIcon,
+  IdCard,
+  Network,
+  Rocket,
+} from "@wso2/oxygen-ui-icons-react";
+import {
+  Button,
+  Chip,
+  CircularProgress,
+} from "@wso2/oxygen-ui";
+import { useConfirmationDialog } from "@agent-management-platform/shared-component";
+import type { IconType } from "@agent-management-platform/types";
+import { useUIModuleManager, type UIModuleStatus } from "../../plugins";
+
+export interface MarketplaceListing {
+  icon: IconType;
+  category: string;
+  publisher: string;
+  version: string;
+}
+
+const MOCK_LISTINGS: Record<string, MarketplaceListing> = {
+  "acp-core": { icon: BoxIcon, category: "Platform", publisher: "WSO2", version: "1.0.0" },
+  "agent-runtime": { icon: Rocket, category: "Runtime", publisher: "WSO2", version: "1.0.0" },
+  "ai-gateway": { icon: Network, category: "Gateway", publisher: "WSO2", version: "1.0.0" },
+  "ai-observability": { icon: Activity, category: "Observability", publisher: "WSO2", version: "1.0.0" },
+  "agent-identity": { icon: IdCard, category: "Security", publisher: "WSO2", version: "1.0.0" },
+  "agent-portal": { icon: BookOpenText, category: "Catalog", publisher: "WSO2", version: "1.0.0" },
+};
+
+const FALLBACK_LISTING: MarketplaceListing = {
+  icon: BoxIcon,
+  category: "Extension",
+  publisher: "Third party",
+  version: "1.0.0",
+};
+
+export const listingFor = (moduleId: string) => MOCK_LISTINGS[moduleId] ?? FALLBACK_LISTING;
 
 export function countLabel(count: number, singular: string) {
   return `${count} ${singular}${count === 1 ? "" : "s"}`;
 }
 
-const INSTALL_LABEL: Record<UIModuleInstallPhase, string> = {
-  installed: "Installed",
-  "not-installed": "Not installed",
-  installing: "Installing",
-  checking: "Checking",
-};
+/** Marketplace state of a module: what its card and details page show. */
+export type MarketplaceState = "built-in" | "installed" | "installing" | "available" | "checking";
 
-export function InstallChip({ module }: { module: UIModuleStatus }) {
-  if (module.core) {
-    return <Chip size="small" variant="outlined" label="Core" />;
+export function marketplaceState(module: UIModuleStatus): MarketplaceState {
+  if (module.core) return "built-in";
+  if (module.installPhase === "installing") return "installing";
+  if (module.installPhase === "checking") return "checking";
+  if (module.installPhase === "installed" && module.enabled) return "installed";
+  return "available";
+}
+
+export function StatusChip({ state }: { state: MarketplaceState }) {
+  switch (state) {
+    case "built-in":
+      return <Chip size="small" variant="outlined" label="Built in" />;
+    case "installed":
+      return <Chip size="small" color="success" variant="outlined" label="Installed" />;
+    case "installing":
+      return <Chip size="small" color="info" label="Installing" />;
+    case "checking":
+      return <Chip size="small" variant="outlined" label="Checking" />;
+    default:
+      return null;
   }
-  const phase = module.installPhase;
-  const color =
-    phase === "installed" ? "success" : phase === "not-installed" ? "default" : "info";
-  return (
-    <Chip
-      size="small"
-      color={color}
-      variant={phase === "installed" ? "outlined" : "filled"}
-      label={INSTALL_LABEL[phase]}
-    />
+}
+
+/** How long the mock install "runs" before the module counts as installed. */
+const MOCK_INSTALL_MS = 1500;
+
+/** Mock install / uninstall. Only changes in-memory state; nothing is deployed. */
+export function useModuleInstaller() {
+  const { setInstallPhase, setModuleEnabled } = useUIModuleManager();
+  const { addConfirmation } = useConfirmationDialog();
+
+  const install = useCallback(
+    (module: UIModuleStatus) => {
+      setInstallPhase(module.id, "installing");
+      setModuleEnabled(module.id, true);
+      window.setTimeout(() => setInstallPhase(module.id, "installed"), MOCK_INSTALL_MS);
+    },
+    [setInstallPhase, setModuleEnabled],
   );
+
+  const uninstall = useCallback(
+    (module: UIModuleStatus) =>
+      addConfirmation({
+        analytics: { entity: "ui-module", action: "uninstall" },
+        title: `Uninstall ${module.name}?`,
+        description: `Its pages and menu items are removed from the console. You can install it again from the marketplace.`,
+        confirmButtonText: "Uninstall",
+        confirmButtonColor: "error",
+        onConfirm: () => setInstallPhase(module.id, "not-installed"),
+      }),
+    [addConfirmation, setInstallPhase],
+  );
+
+  return { install, uninstall };
 }
 
-/** Shows when the current state differs from, or comes from, the runtime config. */
-export function ConfigChip({
-  enabled,
-  enabledByConfig,
+/** The card's and details page's main action for a module. */
+export function InstallButton({
+  module,
+  size,
 }: {
-  enabled: boolean;
-  enabledByConfig: boolean;
+  module: UIModuleStatus;
+  size?: "small" | "medium";
 }) {
-  if (enabled !== enabledByConfig) {
+  const { install, uninstall } = useModuleInstaller();
+  const state = marketplaceState(module);
+  if (state === "built-in") return null;
+  if (state === "installing" || state === "checking") {
     return (
-      <Tooltip title="Changed here. The change lasts until you reload the page.">
-        <Chip size="small" color="info" label="Changed" />
-      </Tooltip>
+      <Button
+        size={size}
+        variant="contained"
+        disabled
+        startIcon={<CircularProgress size={14} color="inherit" />}
+      >
+        {state === "installing" ? "Installing" : "Checking"}
+      </Button>
     );
   }
-  if (!enabledByConfig) {
-    return (
-      <Tooltip title="Turned off in the runtime config (uiModules.disabled).">
-        <Chip size="small" variant="outlined" label="Off in config" />
-      </Tooltip>
-    );
-  }
-  return null;
-}
-
-/** Explains why an enabled page might still not show for this user. */
-export function ActivationChip({
-  activation,
-}: {
-  activation: UIModulePluginStatus["activation"];
-}) {
-  if (activation === null || activation === "always") return null;
-  if (activation === undefined) {
-    return <Chip size="small" variant="outlined" label="Checking" />;
-  }
-  return activation ? (
-    <Chip size="small" color="success" variant="outlined" label="Active" />
+  return state === "installed" ? (
+    <Button size={size} variant="outlined" color="error" onClick={() => uninstall(module)}>
+      Uninstall
+    </Button>
   ) : (
-    <Tooltip title="The page is on, but its own check hides it here (for example a feature flag or your access).">
-      <Chip size="small" color="warning" variant="outlined" label="Hidden by its check" />
-    </Tooltip>
+    <Button size={size} variant="contained" onClick={() => install(module)}>
+      Install
+    </Button>
   );
-}
-
-/** One-line summary of whether the module's pages are showing. */
-export function pagesSummary(module: UIModuleStatus): string {
-  if (module.installPhase === "not-installed") return "Not installed: its pages are hidden";
-  if (module.installPhase === "installing") return "Installing: its pages are hidden until done";
-  if (!module.enabled) return "Off: none of its pages load";
-  const on = module.plugins.filter((p) => p.enabled).length;
-  return `${on} of ${module.plugins.length} pages on`;
 }
