@@ -56,7 +56,8 @@ spec:
                         https://*)
                             echo "Using basic authentication (username/password)"
                             REPO_AUTHORITY=${REPO#https://}
-                            export GIT_CHECKOUT_HOST="${REPO_AUTHORITY%%/*}" GIT_SECRET_PATH
+                            REPO_AUTHORITY=${REPO_AUTHORITY%%/*}
+                            export GIT_CHECKOUT_HOST="${REPO_AUTHORITY##*@}" GIT_SECRET_PATH
 
                             helper_dir=$(mktemp -d /tmp/checkout-git.XXXXXX)
                             trap 'rm -rf "$helper_dir"' EXIT
@@ -68,17 +69,21 @@ spec:
 
             protocol=
             host=
+            username=
             while IFS= read -r field && [ -n "$field" ]; do
                 case "$field" in
                     protocol=*) protocol=${field#protocol=} ;;
                     host=*) host=${field#host=} ;;
+                    username=*) username=${field#username=} ;;
                 esac
             done
             [ "$protocol" = https ] && [ "$host" = "$GIT_CHECKOUT_HOST" ] || exit 0
 
-            username=git
-            if [ -f "$GIT_SECRET_PATH/username" ]; then
-                username=$(cat "$GIT_SECRET_PATH/username")
+            if [ -z "$username" ]; then
+                username=git
+                if [ -f "$GIT_SECRET_PATH/username" ]; then
+                    username=$(cat "$GIT_SECRET_PATH/username")
+                fi
             fi
             password=$(cat "$GIT_SECRET_PATH/password")
 
