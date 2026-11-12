@@ -18,7 +18,6 @@
 
 export * from './common';
 export * from './config';
-export * from './instrumentation';
 export * from './agent-model-configs';
 export * from './agent-mcp-configs';
 export * from './agent-api-keys';

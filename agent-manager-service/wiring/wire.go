@@ -35,7 +35,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/controllers"
 	"github.com/wso2/agent-manager/agent-manager-service/eventhub"
 	"github.com/wso2/agent-manager/agent-manager-service/events"
-	"github.com/wso2/agent-manager/agent-manager-service/instrumentation"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/reconcile"
@@ -44,7 +43,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/services/eventdestinations"
 	"github.com/wso2/agent-manager/agent-manager-service/services/eventdestinations/notify"
 	"github.com/wso2/agent-manager/agent-manager-service/services/eventdestinations/webhook"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 	"github.com/wso2/agent-manager/agent-manager-service/websocket"
 )
 
@@ -129,12 +127,6 @@ var serviceProviderSet = wire.NewSet(
 	services.NewMonitorAlertProcessor,
 )
 
-var instrumentationProviderSet = wire.NewSet(
-	ProvideInstrumentationCatalog,
-	ProvideSupportedPythonVersions,
-	ProvideDefaultPythonVersion,
-)
-
 var controllerProviderSet = wire.NewSet(
 	controllers.NewAgentController,
 	controllers.NewInfraResourceController,
@@ -157,7 +149,6 @@ var controllerProviderSet = wire.NewSet(
 	controllers.NewMonitorScoresPublisherController,
 	controllers.NewEvaluatorController,
 	controllers.NewCatalogController,
-	ProvideAgentBuildOptionsController,
 	controllers.NewAgentConfigurationController,
 	controllers.NewIdentityController,
 	controllers.NewMCPProxyScopeController,
@@ -206,101 +197,6 @@ func ProvideAuditRecorder(cfg config.Config, logger *slog.Logger) audit.Recorder
 		BatchSize:     cfg.Audit.BatchSize,
 		FlushInterval: time.Duration(cfg.Audit.FlushIntervalMs) * time.Millisecond,
 	})
-}
-
-// ProvideInstrumentationCatalog loads the instrumentation catalog and
-// installs it as the process-wide default so legacy callers via
-// instrumentation.GetCatalog get the same instance Wire hands to the new
-// controllers.
-func ProvideInstrumentationCatalog(cfg config.Config) (*instrumentation.Catalog, error) {
-	cat, err := instrumentation.Load(
-		cfg.OTEL.InstrumentationExtensionPath,
-		cfg.OTEL.DefaultInstrumentationVersion,
-	)
-	if err != nil {
-		return nil, err
-	}
-	if err := validateDefaultCoversBuildpackPython(cat); err != nil {
-		return nil, err
-	}
-	instrumentation.SetCatalog(cat)
-	return cat, nil
-}
-
-// validateDefaultCoversBuildpackPython rejects a catalog whose default
-// instrumentation entry doesn't cover any Python the buildpack provider
-// can build. Without this check a misconfigured override (e.g. an
-// extension entry that narrows the default's pythonVersions to a value
-// the buildpack can't build) lets the server boot cleanly, then the
-// create-agent form is unusable: no Python the user can pick is
-// compatible with the platform default. Failing fast here surfaces the
-// misconfiguration at helm-upgrade time instead.
-func validateDefaultCoversBuildpackPython(cat *instrumentation.Catalog) error {
-	entry, ok := cat.Get(cat.Default())
-	if !ok {
-		return fmt.Errorf("default instrumentation version %q not in effective set", cat.Default())
-	}
-	bpPython := utils.SupportedPythonVersions()
-	for _, p := range entry.PythonVersions {
-		for _, bp := range bpPython {
-			if p == bp {
-				return nil
-			}
-		}
-	}
-	return fmt.Errorf(
-		"default instrumentation version %q supports python %v but the buildpack provider supports %v; no overlap means the create-agent form would offer no valid combination",
-		cat.Default(), entry.PythonVersions, bpPython,
-	)
-}
-
-// SupportedPythonVersions is a distinct type so Wire can disambiguate
-// from other []string providers.
-type SupportedPythonVersions []string
-
-// DefaultPythonVersion is a distinct type so Wire can disambiguate from
-// other string providers.
-type DefaultPythonVersion string
-
-// ProvideSupportedPythonVersions exposes the buildpack-derived Python
-// list to the AgentBuildOptions controller.
-func ProvideSupportedPythonVersions() SupportedPythonVersions {
-	return SupportedPythonVersions(utils.SupportedPythonVersions())
-}
-
-// defaultPythonVersion is the platform's preferred Python for new
-// agents. Hardcoded today; promote to a chart value if customers need
-// to override it per install.
-const defaultPythonVersion = "3.11"
-
-// ProvideDefaultPythonVersion returns the platform default Python
-// version, panicking at boot if the constant is no longer present in
-// the buildpack-supported list. The two values share no compile-time
-// link; without this guard a developer pruning utils.Buildpacks could
-// ship a chart whose /agent-build-options advertises a default the
-// backend then rejects.
-func ProvideDefaultPythonVersion() DefaultPythonVersion {
-	for _, p := range utils.SupportedPythonVersions() {
-		if p == defaultPythonVersion {
-			return defaultPythonVersion
-		}
-	}
-	panic(fmt.Sprintf(
-		"default python version %q not present in buildpack-supported list %v; "+
-			"update defaultPythonVersion in wire.go alongside any buildpack change",
-		defaultPythonVersion, utils.SupportedPythonVersions(),
-	))
-}
-
-// ProvideAgentBuildOptionsController wraps the controller constructor
-// so Wire can resolve the typed default + supported list back to the
-// plain string / []string the constructor takes.
-func ProvideAgentBuildOptionsController(
-	cat *instrumentation.Catalog,
-	supportedPython SupportedPythonVersions,
-	defaultPython DefaultPythonVersion,
-) controllers.AgentBuildOptionsController {
-	return controllers.NewAgentBuildOptionsController(cat, []string(supportedPython), string(defaultPython))
 }
 
 // ProvideSecretManagementClient creates the secret management service client.
@@ -721,7 +617,6 @@ func InitializeAppParamsWithEnvThunderEndpoints(cfg *config.Config, db *gorm.DB,
 		websocketProviderSet,
 		reconcileProviderSet,
 		serviceProviderSet,
-		instrumentationProviderSet,
 		controllerProviderSet,
 		ProvideAuthMiddleware,
 		ProvideJWTSigningConfig,
@@ -746,7 +641,6 @@ func InitializeTestAppParamsWithClientMocks(
 		websocketProviderSet,
 		reconcileProviderSet,
 		serviceProviderSet,
-		instrumentationProviderSet,
 		controllerProviderSet,
 		configProviderSet,
 		ProvideJWTSigningConfig,

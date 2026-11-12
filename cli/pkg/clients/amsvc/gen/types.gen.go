@@ -1873,48 +1873,6 @@ type AddAgentKindVersionRequest struct {
 	Version string `json:"version"`
 }
 
-// AgentBuildOptionsInstrumentation defines model for AgentBuildOptionsInstrumentation.
-type AgentBuildOptionsInstrumentation struct {
-	// DefaultVersion AMP instrumentation version pre-selected on the create-agent form.
-	DefaultVersion string `json:"defaultVersion"`
-
-	// Versions Effective instrumentation catalog: embedded baseline merged with any
-	// operator-supplied extension entries, sorted newest-first by numeric
-	// component compare.
-	Versions []AgentBuildOptionsInstrumentationEntry `json:"versions"`
-}
-
-// AgentBuildOptionsInstrumentationEntry defines model for AgentBuildOptionsInstrumentationEntry.
-type AgentBuildOptionsInstrumentationEntry struct {
-	// PythonVersions Bare-minor Python versions this instrumentation version supports.
-	// The init-container image is ABI-locked to the Python runtime, so a
-	// selection outside this list will fail to pull at deploy time.
-	PythonVersions []string `json:"pythonVersions"`
-
-	// TraceloopSdk The bundled OpenLLMetry (Traceloop) SDK version this
-	// instrumentation release ships. Optional: operator-supplied
-	// extension entries may omit it.
-	TraceloopSdk *string `json:"traceloopSdk,omitempty"`
-
-	// Version The amp-instrumentation semver.
-	Version string `json:"version"`
-}
-
-// AgentBuildOptionsPython defines model for AgentBuildOptionsPython.
-type AgentBuildOptionsPython struct {
-	// DefaultVersion Bare-minor Python version pre-selected on the create-agent form.
-	DefaultVersion string `json:"defaultVersion"`
-
-	// SupportedVersions Bare-minor Python versions the buildpack provider can build.
-	SupportedVersions []string `json:"supportedVersions"`
-}
-
-// AgentBuildOptionsResponse defines model for AgentBuildOptionsResponse.
-type AgentBuildOptionsResponse struct {
-	Instrumentation AgentBuildOptionsInstrumentation `json:"instrumentation"`
-	Python          AgentBuildOptionsPython          `json:"python"`
-}
-
 // AgentCardCORSConfig CORS for the public Agent Card route (/.well-known/agent-card.json) of an A2A agent. The card route sits outside the agent-wide policy chain, so it has its own CORS. Methods are always GET and OPTIONS. Applies only to A2A agents.
 type AgentCardCORSConfig struct {
 	// AllowCredentials Whether credentials are allowed. Cannot be true when allowOrigin contains "*".
@@ -2931,7 +2889,7 @@ type CreateAgentRequest struct {
 	// DisplayName Display name of the agent
 	DisplayName string `json:"displayName"`
 
-	// GithubApp Optional GitHub App source binding for cloud deployments. The control plane consumes this metadata, persists it through the deployment-provided repository source provider, and never forwards it to OpenChoreo. When omitted, public-repository and PAT-backed behavior is unchanged.
+	// GithubApp Optional GitHub App source binding for cloud deployments. The control plane consumes this metadata, persists it through the deployment-provided repository source provider, and never forwards it. When omitted, public-repository and PAT-backed behavior is unchanged.
 	GithubApp *GitHubAppSource `json:"githubApp,omitempty"`
 
 	// HealthChecks Startup, readiness and liveness checks for the agent's container. A check that is not set uses the default: startup and readiness are TCP checks on the agent's port, and there is no liveness check.
@@ -3239,7 +3197,7 @@ type CreateOrganizationRequest struct {
 
 // CreateProjectRequest defines model for CreateProjectRequest.
 type CreateProjectRequest struct {
-	DeploymentPipeline string `json:"deploymentPipeline"`
+	DeploymentPipeline *string `json:"deploymentPipeline,omitempty"`
 
 	// Description Description of the project
 	Description *string `json:"description,omitempty"`
@@ -4221,7 +4179,7 @@ type GitCredentials struct {
 	Username string `json:"username"`
 }
 
-// GitHubAppSource Optional GitHub App source binding for cloud deployments. The control plane consumes this metadata, persists it through the deployment-provided repository source provider, and never forwards it to OpenChoreo. When omitted, public-repository and PAT-backed behavior is unchanged.
+// GitHubAppSource Optional GitHub App source binding for cloud deployments. The control plane consumes this metadata, persists it through the deployment-provided repository source provider, and never forwards it. When omitted, public-repository and PAT-backed behavior is unchanged.
 type GitHubAppSource struct {
 	// AppPath Source directory; defaults to provisioning.repository.appPath
 	AppPath *string `json:"appPath,omitempty"`
@@ -5336,7 +5294,7 @@ type MCPProxyScopeUpdateRequest struct {
 	Tools *[]string `json:"tools,omitempty"`
 }
 
-// MCPProxySource The OpenChoreo component endpoint a project MCP proxy fronts. Fixed after create.
+// MCPProxySource The hosted agent endpoint a project MCP proxy fronts. Fixed after create.
 type MCPProxySource struct {
 	ComponentName string `json:"componentName"`
 	EndpointName  string `json:"endpointName"`
@@ -5726,7 +5684,7 @@ type ProjectMCPProxyListItem struct {
 	Id           string                              `json:"id"`
 	Name         string                              `json:"name"`
 
-	// Source The OpenChoreo component endpoint a project MCP proxy fronts. Fixed after create.
+	// Source The hosted agent endpoint a project MCP proxy fronts. Fixed after create.
 	Source    MCPProxySource `json:"source"`
 	UpdatedAt *time.Time     `json:"updatedAt,omitempty"`
 	Version   string         `json:"version"`
@@ -5752,7 +5710,7 @@ type ProjectMCPProxyRequest struct {
 	// Name Display name
 	Name string `json:"name"`
 
-	// Source The OpenChoreo component endpoint a project MCP proxy fronts. Fixed after create.
+	// Source The hosted agent endpoint a project MCP proxy fronts. Fixed after create.
 	Source MCPProxySource `json:"source"`
 
 	// Version Defaults to v1
@@ -5773,7 +5731,7 @@ type ProjectMCPProxyResponse struct {
 	Name           string  `json:"name"`
 	ProjectName    string  `json:"projectName"`
 
-	// Source The OpenChoreo component endpoint a project MCP proxy fronts. Fixed after create.
+	// Source The hosted agent endpoint a project MCP proxy fronts. Fixed after create.
 	Source    MCPProxySource `json:"source"`
 	UpdatedAt *time.Time     `json:"updatedAt,omitempty"`
 	Version   string         `json:"version"`
@@ -6815,7 +6773,7 @@ type UpdateMonitorRequest struct {
 
 // UpdateProjectRequest defines model for UpdateProjectRequest.
 type UpdateProjectRequest struct {
-	DeploymentPipeline string `json:"deploymentPipeline"`
+	DeploymentPipeline *string `json:"deploymentPipeline,omitempty"`
 
 	// Description Description of the project
 	Description string `json:"description"`

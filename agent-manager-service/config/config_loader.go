@@ -135,13 +135,6 @@ func loadEnvs() {
 	config.PackageVersion = r.readOptionalString("AMP_VERSION", Version)
 
 	config.OTEL = OTELConfig{
-		SDKVolumeName: r.readOptionalString("OTEL_SDK_VOLUME_NAME", "otel-tracing-sdk-volume"),
-		SDKMountPath:  r.readOptionalString("OTEL_SDK_MOUNT_PATH", "/otel-tracing-sdk"),
-
-		DefaultInstrumentationVersion: r.readOptionalString("OTEL_DEFAULT_INSTRUMENTATION_VERSION", "0.5.0"),
-
-		InstrumentationExtensionPath: r.readOptionalString("INSTRUMENTATION_EXTENSION_PATH", "/etc/amp/instrumentation-extension.yaml"),
-
 		// Tracing configuration
 		IsTraceContentEnabled: r.readOptionalBool("OTEL_TRACELOOP_TRACE_CONTENT", true),
 

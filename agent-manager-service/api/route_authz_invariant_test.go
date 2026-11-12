@@ -80,8 +80,6 @@ func (r routeRegistration) String() string {
 // and pattern: replacing an exempt route while keeping the same number of raw
 // registrations must not silently inherit the old exemption.
 var unguardedRouteAllowlist = map[routeKey]string{
-	{"registerAgentBuildOptionsRoutes", "HandleFuncWithValidation", "GET /orgs/{orgName}/agent-build-options"}: "GET /orgs/{orgName}/agent-build-options returns static build-option metadata " +
-		"(no org data). Still org-resolved via RequireOrgMatch.",
 	{"RegisterMonitorPublisherRoutes", "HandleFuncWithValidation", "POST /publisher/monitors/{monitorId}/runs/{runId}/scores"}: "POST /publisher/.../scores is guarded by jwtassertion.PublisherClientAuthMiddleware, " +
 		"which requires an amp-publisher-* audience instead of an amp: scope.",
 	{"RegisterWebSocketRoutes", "HandleFunc", "GET /ws/gateways/connect"}: "GET /ws/gateways/connect is on internalMux and authenticates the gateway with an " +

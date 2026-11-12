@@ -371,22 +371,6 @@ type CORSConfig struct {
 
 // OTELConfig holds all OpenTelemetry related configuration
 type OTELConfig struct {
-	// Instrumentation configuration
-	SDKVolumeName string
-	SDKMountPath  string
-
-	// DefaultInstrumentationVersion is the AMP instrumentation version used for an
-	// agent that has not selected one; it resolves to the pre-built
-	// amp-python-instrumentation-provider:<version>-python<X.Y> init-container image.
-	// Validated at app startup against the assembled instrumentation catalog.
-	DefaultInstrumentationVersion string
-
-	// InstrumentationExtensionPath is the on-disk YAML file holding
-	// operator-supplied catalog extension entries; consumed by
-	// instrumentation.Load. An empty value or missing file is treated as
-	// no extension (baseline-only catalog).
-	InstrumentationExtensionPath string
-
 	// Tracing configuration
 	IsTraceContentEnabled bool
 
