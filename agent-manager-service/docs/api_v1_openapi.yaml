@@ -1,4 +1,5 @@
 openapi: 3.0.3
+# checkov:skip=CKV_OPENAPI_5:GET /config bootstraps CLI clients and GET /auth/external/jwks.json publishes public signing keys. Both are intentionally anonymous.
 info:
   version: 1.0.0
   title: Agent Manager Service API

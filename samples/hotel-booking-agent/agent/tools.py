@@ -91,7 +91,14 @@ def _call_hotel_api(
 ) -> dict[str, Any]:
     url = _booking_api_url(path)
     try:
-        response = requests.request(method, url, params=params, json=json_body, timeout=30)
+        response = requests.request(
+            method,
+            url,
+            headers={"Authorization": f"Bearer {settings.hotel_api_token.get_secret_value()}"},
+            params=params,
+            json=json_body,
+            timeout=30,
+        )
         response.raise_for_status()
     except requests.RequestException:
         logger.exception("Hotel API request failed: %s %s", method, url)

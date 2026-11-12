@@ -46,17 +46,20 @@ cd samples/hotel-booking-agent/services/hotel_api
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
+export HOTEL_API_TOKEN="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
 export OPENAI_API_KEY="<your-openai-api-key>"
 export PINECONE_API_KEY="<your-pinecone-api-key>"  # optional; omit to use the in-memory policy store
 
 python -m uvicorn service:app --host 0.0.0.0 --port 9091
 ```
 
-With a Pinecone key, the first start creates the `hotel-policies` index and ingests the policy PDFs. Without one, the logs show `policy search ready (in-memory)`. Check it is up with `curl http://localhost:9091/health`.
+Configure the same `HOTEL_API_TOKEN` on the agent and the Hotel API. The Hotel API requires it as an `Authorization: Bearer` credential for hotel and booking routes. Check liveness with `curl http://localhost:9091/health`.
+
+With a Pinecone key, the first start creates the `hotel-policies` index and ingests the policy PDFs. Without one, the logs show `policy search ready (in-memory)`.
 
 ### Making the Hotel API reachable
 
-- **Externally-hosted agent on the same machine:** use `http://localhost:9091`. Nothing else is needed.
+- **Externally-hosted agent on the same machine:** use `http://localhost:9091`.
 - **Platform-hosted agent:** the agent runs in the Agent Manager cluster, so `localhost` won't reach your machine. Either deploy the Hotel API somewhere the cluster can reach, or expose your local one with a tunnel. For example, with [ngrok](https://ngrok.com/docs/getting-started/):
 
   ```bash
@@ -65,7 +68,7 @@ With a Pinecone key, the first start creates the `hotel-policies` index and inge
 
   Use the `https://...ngrok-free.app` (or similar) URL it prints as `HOTEL_API_BASE_URL`.
 
-> The Hotel API has no authentication. Anyone with the URL can create or cancel bookings in the sample data, so stop the tunnel when you're done.
+Use HTTPS for remote access so the shared token is encrypted in transit.
 
 ## Step 2a: Run it platform-hosted (internal agent)
 
@@ -91,9 +94,10 @@ Add these environment variables:
 ```env
 OPENAI_API_KEY=<your-openai-api-key>
 HOTEL_API_BASE_URL=<hotel-api-url-reachable-from-the-cluster>
+HOTEL_API_TOKEN=<the-token-configured-on-the-hotel-api>
 ```
 
-Then click **Deploy** and wait for the build to finish.
+Mark `HOTEL_API_TOKEN` as sensitive. Then click **Deploy** and wait for the build to finish.
 
 ## Step 2b: Run it externally-hosted (external agent)
 
@@ -110,6 +114,7 @@ export AMP_OTEL_ENDPOINT="<your-amp-otel-endpoint>"
 export AMP_AGENT_API_KEY="<key-from-the-amp-console>"
 export OPENAI_API_KEY="<your-openai-api-key>"
 export HOTEL_API_BASE_URL="http://localhost:9091"
+export HOTEL_API_TOKEN="<the-token-configured-on-the-hotel-api>"
 
 amp-instrument uvicorn app:app --host 0.0.0.0 --port 8000
 ```
@@ -147,6 +152,7 @@ Open **Observability** in the left navigation and select **Traces**. Each chat t
 |---|---|---|---|
 | `OPENAI_API_KEY` | Yes | | Model calls |
 | `HOTEL_API_BASE_URL` | Yes | `http://localhost:9091` | Where the tools call the Hotel API |
+| `HOTEL_API_TOKEN` | Yes | | Shared bearer token configured on the Hotel API |
 | `OPENAI_MODEL` | No | `gpt-4o-mini` | Chat model |
 | `WEATHER_API_KEY` | No | | Enables the weather tool |
 | `WEATHER_API_BASE_URL` | No | `http://api.weatherapi.com/v1` | WeatherAPI endpoint |

@@ -102,6 +102,7 @@ export const sampleAgents: SampleAgentDefinition[] = [
     envVars: [
       { key: "OPENAI_API_KEY", isSensitive: true },
       { key: "HOTEL_API_BASE_URL" },
+      { key: "HOTEL_API_TOKEN", isSensitive: true },
     ],
   },
   {
