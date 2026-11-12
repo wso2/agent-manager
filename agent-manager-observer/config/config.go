@@ -37,7 +37,10 @@ type OpenSearchConfig struct {
 	Username string
 	Password string
 	// TraceIndex is the index pattern the OTel collector writes spans to.
-	TraceIndex         string
+	TraceIndex string
+	// IndexTemplate is the index template the observer puts on startup so
+	// span fields map as keywords; empty skips it.
+	IndexTemplate      string
 	InsecureSkipVerify bool
 }
 
@@ -82,6 +85,7 @@ func Load() (*Config, error) {
 			Username:           getEnv("OPENSEARCH_USERNAME", ""),
 			Password:           getEnv("OPENSEARCH_PASSWORD", ""),
 			TraceIndex:         getEnv("OPENSEARCH_TRACE_INDEX", "otel-traces-*"),
+			IndexTemplate:      getEnvAllowEmpty("OPENSEARCH_INDEX_TEMPLATE", "amp-otel-traces"),
 			InsecureSkipVerify: getEnvAsBool("OPENSEARCH_TLS_INSECURE_SKIP_VERIFY", false),
 		},
 		LogLevel: getEnv("LOG_LEVEL", "INFO"),
@@ -146,6 +150,14 @@ func (a *AuthConfig) validate() error {
 // Helper functions
 func getEnv(key, defaultValue string) string {
 	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
+}
+
+// getEnvAllowEmpty is getEnv, except that a variable set to "" stays empty.
+func getEnvAllowEmpty(key, defaultValue string) string {
+	if value, ok := os.LookupEnv(key); ok {
 		return value
 	}
 	return defaultValue

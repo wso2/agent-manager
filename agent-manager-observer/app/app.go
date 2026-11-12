@@ -48,6 +48,15 @@ func Run(cfg *config.Config, _ Options) error {
 
 	slog.Info("Starting agent-manager-observer", "port", cfg.Server.Port)
 
+	// The collector waits for the observer to be healthy, so the template is
+	// in place before it creates the first span index.
+	tmplCtx, cancelTmpl := context.WithTimeout(context.Background(), 3*time.Minute)
+	err := observer.EnsureIndexTemplate(tmplCtx, cfg.OpenSearch, 3*time.Second)
+	cancelTmpl()
+	if err != nil {
+		return err
+	}
+
 	// Create server
 	server := &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.Server.Port),
