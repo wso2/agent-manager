@@ -23,9 +23,7 @@ logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("manual-instrumentation-agent")
 
 # Configure the OTLP exporter to AMP. Reads AMP_OTEL_ENDPOINT and
-# AMP_AGENT_API_KEY from the environment:
-#   * platform-hosted (auto-instrumentation OFF): AMP's env-injection trait sets both
-#   * externally-hosted: you set both yourself
+# AMP_AGENT_API_KEY from the environment; you set both yourself.
 # init_otel() raises ValueError if either is missing, and is idempotent.
 init_otel()
 

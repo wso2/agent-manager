@@ -44,7 +44,7 @@ def _tracer() -> trace.Tracer:
 # --- Trace content toggle --------------------------------------------------
 # On the auto path the Traceloop SDK reads TRACELOOP_TRACE_CONTENT. On the
 # manual path you control span content yourself, so this sample honours
-# AMP_TRACE_CONTENT (the variable the platform env-injection trait sets) so
+# AMP_TRACE_CONTENT (the variable amp-instrument also reads) so
 # prompt/completion text can be suppressed without dropping the spans.
 
 def _trace_content_enabled() -> bool:

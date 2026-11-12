@@ -6,13 +6,13 @@ against WSO2 Agent Manager's **manual instrumentation contract**.
 
 ## What this demonstrates
 
-Most AMP agents are auto-instrumented. A platform-injected init container, or the
-`amp-instrument` CLI, loads the Traceloop SDK, which monkey-patches known
-frameworks like LangChain, LlamaIndex, and CrewAI.
+Most Python agents are auto-instrumented: the `amp-instrument` CLI loads the
+Traceloop SDK, which monkey-patches known frameworks like LangChain, LlamaIndex,
+and CrewAI.
 
 But Traceloop doesn't cover every framework. If yours isn't covered, or you just
-want full control over the spans you emit, you take the **manual path**: turn
-auto-instrumentation off and emit your own spans. This sample is a worked example
+want full control over the spans you emit, you take the **manual path**: run
+the agent without `amp-instrument` and emit your own spans. This sample is a worked example
 of that path. It's a small retrieval-augmented agent on a hand-written framework
 (plain Python, nothing Traceloop knows about), and its spans render in the AMP
 Console exactly like auto-instrumented ones.
@@ -74,24 +74,33 @@ whether it's required, is [the contract](https://wso2.com/agent-platform/docs/la
 
 - Python 3.10 to 3.13.
 - An OpenAI API key. The LLM and embedding spans make real OpenAI calls.
-- An agent registered in the AMP Console, which gives you an `AMP_AGENT_API_KEY`
-  and the OTLP endpoint.
+- Agent Manager running. From the repository root, `make up` starts it (see
+  [`deployments/standalone`](../../deployments/standalone/README.md)).
 
-## Run it externally-hosted
+## Register it in Agent Manager
 
-First register the agent in the AMP Console and generate its API key. Follow
-[Register an externally-hosted agent](https://wso2.com/agent-platform/docs/latest/tutorials/create-your-first-agent/#register-an-externally-hosted-agent).
-That gives you the OTLP endpoint and the `AMP_AGENT_API_KEY`.
+You run the agent yourself; Agent Manager registers it and issues the token its
+traces are sent with.
 
-Then set the two AMP environment variables yourself and run the agent:
+1. Sign in to the console at <http://localhost:3000> as `admin` (the password is
+   `THUNDER_ADMIN_PASSWORD` in `deployments/standalone/.env`).
+2. Open the **Default** project, click **Add Agent**, and register an agent
+   named `Manual Instrumentation Agent`.
+3. In the **Set up agent** panel that opens, pick a token duration and click
+   **Generate**. Copy the `AMP_OTEL_ENDPOINT` and `AMP_AGENT_API_KEY` values it
+   shows.
+
+## Run it
+
+Set the two AMP environment variables yourself and run the agent:
 
 ```bash
 cd samples/manual-instrumentation-agent
 python3 -m venv .venv && . .venv/bin/activate
 pip install -r requirements.txt
 
-export AMP_OTEL_ENDPOINT="<your-amp-otel-endpoint>"
-export AMP_AGENT_API_KEY="<key-from-the-amp-console>"
+export AMP_OTEL_ENDPOINT="http://default-default.gateway.localhost:19080/otel"
+export AMP_AGENT_API_KEY="<key-from-the-console>"
 export OPENAI_API_KEY="<your-openai-key>"
 
 python main.py
@@ -101,36 +110,9 @@ There's no `amp-instrument` wrapper here; that's the auto path. On the manual
 path you run the app directly, and `init_otel()` inside `app.py` wires up the
 exporter.
 
-## Run it platform-hosted
-
-Deploy it through AMP like any other agent, with one difference: **turn
-auto-instrumentation off**. With it off, AMP attaches the env-injection trait
-instead of the auto-instrumentation init container. The trait still supplies
-`AMP_OTEL_ENDPOINT` and `AMP_AGENT_API_KEY`, so the agent has what it needs to
-export. It just does the instrumentation itself.
-
-Follow [Create a platform-hosted agent](https://wso2.com/agent-platform/docs/latest/tutorials/create-your-first-agent/#create-a-platform-hosted-agent)
-for the full walkthrough. Use these values in the create-agent form:
-
-| Field | Value |
-|---|---|
-| Display Name | `Manual Instrumentation Agent` |
-| GitHub Repository | `https://github.com/wso2/agent-manager` |
-| Branch | `main` |
-| App Path | `samples/manual-instrumentation-agent` |
-| Language | `Python` |
-| Language Version | `3.11` |
-| Start Command | `python main.py` |
-| Port | `8000` |
-| **Enable auto instrumentation** | **Off** |
-
-Add one environment variable, `OPENAI_API_KEY`. Leave `AMP_OTEL_ENDPOINT` and
-`AMP_AGENT_API_KEY` unset; the env-injection trait provides them.
-
 ## Testing
 
-If you ran it externally-hosted, the agent is listening on `localhost:8000`, so
-`curl` it directly:
+The agent is listening on `localhost:8000`, so `curl` it directly:
 
 ```bash
 curl -X POST http://localhost:8000/chat \
@@ -138,11 +120,7 @@ curl -X POST http://localhost:8000/chat \
   -d '{"session_id": "demo-1", "message": "How does AMP handle observability?"}'
 ```
 
-If you deployed it platform-hosted, the agent runs inside the AMP cluster, not on
-your machine. Test it from the agent's **Chat** interface in the AMP Console
-instead.
-
-Either way, the response is the agent's answer, and behind it one full trace was
+The response is the agent's answer, and behind it one full trace was
 emitted.
 
 The bundled knowledge base is a handful of facts about WSO2 Agent Manager, so ask
@@ -150,7 +128,7 @@ it questions it can actually answer:
 
 - `What is WSO2 Agent Manager?`
 - `How does AMP handle observability?`
-- `How are platform-hosted Python agents instrumented?`
+- `How are Python agents auto-instrumented?`
 - `When should I use manual instrumentation instead of auto-instrumentation?`
 - `What do LLM-as-judge evaluators need from a trace?`
 

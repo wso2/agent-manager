@@ -1,7 +1,7 @@
 """Fire a set of scripted conversations at the agent to seed traces.
 
-A monitor needs a body of past traces to score, and clicking through the Try It
-console a dozen times is tedious. This drives the same conversations reliably.
+A monitor needs a body of past traces to score, and sending a dozen chats by
+hand is tedious. This drives the same conversations reliably.
 
 Usage::
 

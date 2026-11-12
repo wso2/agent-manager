@@ -4,7 +4,7 @@ A LangGraph hotel assistant that searches hotels, checks availability, answers h
 
 > **This is a multi-service sample.** The agent calls external APIs, and for the full experience you need to run a second service:
 >
-> - **Hotel API** (`services/hotel_api`): the agent's tools call this FastAPI service over HTTP for hotels, availability, bookings, and policy search. Deploy or run it first, somewhere the agent can reach it.
+> - **Hotel API** (`services/hotel_api`): the agent's tools call this FastAPI service over HTTP for hotels, availability, bookings, and policy search. Run it first, somewhere the agent can reach it.
 > - **Pinecone API key (optional, recommended)**: the Hotel API can store and search the hotel policy documents in Pinecone. Without a key it uses an in-memory store, which works for trying the sample but is rebuilt on every restart.
 > - **External APIs**: OpenAI for the model and embeddings, and optionally Pinecone for policy search and WeatherAPI for forecasts.
 
@@ -13,7 +13,7 @@ A LangGraph hotel assistant that searches hotels, checks availability, answers h
 - A tool-calling LangGraph agent with 10 tools and per-session conversation memory.
 - An agent whose tools are a separate HTTP service; each tool call appears as its own span.
 - Retrieval over your own documents: policy PDFs are embedded by the Hotel API and searched per hotel.
-- Zero-code tracing, either platform-hosted (auto-instrumentation) or externally-hosted (`amp-instrument`).
+- Zero-code tracing with `amp-instrument`.
 
 ## How it works
 
@@ -36,10 +36,9 @@ user ──POST /chat──▶ Agent (agent/) ──HTTP──▶ Hotel API (ser
 - An [OpenAI API key](https://platform.openai.com/api-keys).
 - Optional but recommended: a Pinecone API key for policy search. Without one, the Hotel API keeps policies in memory. [Create a free Pinecone account](https://app.pinecone.io/), then [create an API key](https://docs.pinecone.io/guides/projects/manage-api-keys). You don't need to create an index; the Hotel API creates `hotel-policies` on first start.
 - Optional: a [WeatherAPI](https://www.weatherapi.com/) key for weather forecasts.
+- Agent Manager running. From the repository root, `make up` starts it (see [`deployments/standalone`](../../deployments/standalone/README.md)).
 
 ## Step 1: Run the Hotel API
-
-Both deployment options below need the Hotel API running first.
 
 ```bash
 cd samples/hotel-booking-agent/services/hotel_api
@@ -54,60 +53,29 @@ python -m uvicorn service:app --host 0.0.0.0 --port 9091
 
 With a Pinecone key, the first start creates the `hotel-policies` index and ingests the policy PDFs. Without one, the logs show `policy search ready (in-memory)`. Check it is up with `curl http://localhost:9091/health`.
 
-### Making the Hotel API reachable
+The agent reaches it at `http://localhost:9091` when both run on the same machine.
 
-- **Externally-hosted agent on the same machine:** use `http://localhost:9091`. Nothing else is needed.
-- **Platform-hosted agent:** the agent runs in the Agent Manager cluster, so `localhost` won't reach your machine. Either deploy the Hotel API somewhere the cluster can reach, or expose your local one with a tunnel. For example, with [ngrok](https://ngrok.com/docs/getting-started/):
+> The Hotel API has no authentication. Anyone who can reach it can create or cancel bookings in the sample data, so do not expose it beyond your machine.
 
-  ```bash
-  ngrok http 9091
-  ```
+## Step 2: Register the agent
 
-  Use the `https://...ngrok-free.app` (or similar) URL it prints as `HOTEL_API_BASE_URL`.
+You run the agent yourself; Agent Manager registers it and issues the token its traces are sent with.
 
-> The Hotel API has no authentication. Anyone with the URL can create or cancel bookings in the sample data, so stop the tunnel when you're done.
+1. Sign in to the console at <http://localhost:3000> as `admin` (the password is `THUNDER_ADMIN_PASSWORD` in `deployments/standalone/.env`).
+2. Open the **Default** project, click **Add Agent**, and register an agent named `Hotel Booking Agent`.
+3. In the **Set up agent** panel that opens, choose **Python**, pick a token duration and click **Generate**. Copy the `AMP_OTEL_ENDPOINT` and `AMP_AGENT_API_KEY` values it shows.
 
-## Step 2a: Run it platform-hosted (internal agent)
+## Step 3: Run the agent
 
-Follow [Create a platform-hosted agent](https://wso2.com/agent-platform/docs/latest/tutorials/create-your-first-agent/#create-a-platform-hosted-agent) for the full walkthrough. In the Default project, click **Add Agent**, choose **Platform-Hosted Agent**, and use these values:
-
-| Field | Value |
-|---|---|
-| Display Name | `Hotel Booking Agent` |
-| Description | `AI-powered hotel booking assistant` |
-| GitHub Repository | `https://github.com/wso2/agent-manager` |
-| Branch | `main` |
-| App Path | `samples/hotel-booking-agent/agent` |
-| Language | `Python` |
-| Language Version | `3.11` |
-| Start Command | `python -m uvicorn app:app --host 0.0.0.0 --port 8000` |
-| Port | `8000` |
-| Agent Interface | `Chat Agent` |
-| Enable auto instrumentation | On |
-| AMP Instrumentation Version | `0.4.1` |
-
-Add these environment variables:
-
-```env
-OPENAI_API_KEY=<your-openai-api-key>
-HOTEL_API_BASE_URL=<hotel-api-url-reachable-from-the-cluster>
-```
-
-Then click **Deploy** and wait for the build to finish.
-
-## Step 2b: Run it externally-hosted (external agent)
-
-First register the agent and generate its API key. Follow [Register an externally-hosted agent](https://wso2.com/agent-platform/docs/latest/tutorials/create-your-first-agent/#register-an-externally-hosted-agent). That gives you the OTLP endpoint and the `AMP_AGENT_API_KEY`.
-
-Then install the agent with the [AMP instrumentation package](https://wso2.com/agent-platform/docs/latest/guides/amp-instrumentation/) and run it through `amp-instrument`:
+Install the agent with the [AMP instrumentation package](https://wso2.com/agent-platform/docs/latest/guides/amp-instrumentation/) and run it through `amp-instrument`:
 
 ```bash
 cd samples/hotel-booking-agent/agent
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt amp-instrumentation==0.4.1
 
-export AMP_OTEL_ENDPOINT="<your-amp-otel-endpoint>"
-export AMP_AGENT_API_KEY="<key-from-the-amp-console>"
+export AMP_OTEL_ENDPOINT="http://default-default.gateway.localhost:19080/otel"
+export AMP_AGENT_API_KEY="<key-from-the-console>"
 export OPENAI_API_KEY="<your-openai-api-key>"
 export HOTEL_API_BASE_URL="http://localhost:9091"
 
@@ -116,9 +84,7 @@ amp-instrument uvicorn app:app --host 0.0.0.0 --port 8000
 
 Set these as shell variables, not in a `.env` file, so `amp-instrument` can read them.
 
-## Step 3: Try it
-
-For a platform-hosted agent, open **Try It** in the left navigation. For an externally-hosted agent, call it directly:
+## Step 4: Try it
 
 ```bash
 curl -X POST http://localhost:8000/chat \
@@ -135,9 +101,9 @@ What is the pet policy at The Crimson Tower Tokyo?
 Book 1 room at Brooklyn Heights Loft Hotel from Feb 7 to Feb 8, 2027 for 1 guest. Guest: Alex Doe, alex@example.com, +1-555-0100.
 ```
 
-## Step 4: Observe the traces
+## Step 5: Observe the traces
 
-Open **Observability** in the left navigation and select **Traces**. Each chat turn shows the LangGraph run, the OpenAI calls, and the tool calls to the Hotel API.
+Open the agent in the console and go to **Observability → Traces**. Each chat turn shows the LangGraph run, the OpenAI calls, and the tool calls to the Hotel API.
 
 ## Configuration reference
 

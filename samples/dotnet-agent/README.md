@@ -1,17 +1,17 @@
 # .NET External Agent Sample
 
 A small .NET agent that sends OpenTelemetry GenAI traces to WSO2 Agent Manager
-(AMP) as an externally-hosted agent. It's the .NET version of the Python
+(AMP) as an external agent. It's the .NET version of the Python
 [`manual-instrumentation-agent`](../manual-instrumentation-agent) and uses the
 same trace contract, so it shows up in the AMP Console the same way.
 
 ## What this shows
 
-AMP auto-instruments Python and Ballerina agents for you. There's no equivalent
-for .NET yet, so a .NET agent connects through the external-agent path instead.
-You host and run the agent yourself, and it pushes traces to AMP's OTLP
-endpoint. AMP doesn't build or run it. It just registers the agent and gives you
-an API key to authenticate the traces you send.
+Python agents get zero-code tracing from `amp-instrument`, and Ballerina agents
+from `ballerinax/amp`. There's no equivalent for .NET yet, so a .NET agent
+configures its own OTLP exporter. You run the agent yourself, and it pushes
+traces to AMP's OTLP endpoint. AMP registers the agent and gives you an API key
+to authenticate the traces you send.
 
 The agent itself is a small weather assistant built with
 [Microsoft Agent Framework](https://learn.microsoft.com/en-us/agent-framework/overview/)
@@ -57,8 +57,8 @@ when content capture is on. The full list is in
 
 - .NET 10 SDK (see below to install)
 - An OpenAI API key (or any OpenAI-compatible endpoint, set via `OPENAI_BASE_URL`)
-- An agent registered in the AMP Console, which gives you the `AMP_AGENT_API_KEY`
-  and the OTLP endpoint
+- Agent Manager running. From the repository root, `make up` starts it (see
+  [`deployments/standalone`](../../deployments/standalone/README.md)).
 
 ### Installing the .NET SDK
 
@@ -85,17 +85,23 @@ see a `10.x` version).
 
 ## Run it
 
-Register the agent in the AMP Console first and generate its API key. See
-[Register an externally-hosted agent](https://wso2.com/agent-platform/docs/latest/tutorials/create-your-first-agent/#register-an-externally-hosted-agent).
-That gives you the OTLP endpoint and the `AMP_AGENT_API_KEY`.
+Register the agent first:
+
+1. Sign in to the console at <http://localhost:3000> as `admin` (the password is
+   `THUNDER_ADMIN_PASSWORD` in `deployments/standalone/.env`).
+2. Open the **Default** project, click **Add Agent**, and register an agent
+   named `Weather Agent`.
+3. In the **Set up agent** panel that opens, pick a token duration and click
+   **Generate**. Copy the API key it shows. `AMP_OTEL_ENDPOINT` is the AI
+   Gateway's `/otel` path, without `/v1/traces`.
 
 Then set the environment variables and run it:
 
 ```bash
 cd samples/dotnet-agent
 
-export AMP_OTEL_ENDPOINT="<your-amp-otel-endpoint>"
-export AMP_AGENT_API_KEY="<key-from-the-amp-console>"
+export AMP_OTEL_ENDPOINT="http://default-default.gateway.localhost:19080/otel"
+export AMP_AGENT_API_KEY="<key-from-the-console>"
 export OPENAI_API_KEY="<your-openai-key>"
 
 dotnet run

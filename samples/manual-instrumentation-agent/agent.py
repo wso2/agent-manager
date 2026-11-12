@@ -56,8 +56,8 @@ KNOWLEDGE_BASE = [
      "text": "AMP captures every agent interaction (LLM calls, tool calls, "
              "retrievals) as OpenTelemetry traces stored for analysis."},
     {"id": "kb-3", "title": "Auto-instrumentation",
-     "text": "Platform-hosted Python agents are auto-instrumented by an injected "
-             "init container; externally-hosted agents use the amp-instrument CLI."},
+     "text": "Python agents are auto-instrumented by running them under the "
+             "amp-instrument CLI from the amp-instrumentation package."},
     {"id": "kb-4", "title": "Manual instrumentation",
      "text": "Agents on a framework the Traceloop SDK does not cover emit their "
              "own OpenTelemetry GenAI spans against AMP's published contract."},

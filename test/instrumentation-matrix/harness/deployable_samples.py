@@ -28,12 +28,11 @@ class DeployableSample:
     asgi_app: str  # uvicorn target inside app_path, e.g. "app:app"
     expected_kinds: tuple[str, ...]  # span kinds the driver asserts coverage of
     # Non-sensitive env vars set on the running agent. Needed when a sample
-    # (or the instrumentation provider's sitecustomize, which imports the
-    # framework at interpreter startup — before the app runs) requires
-    # environment that must exist before the process starts. CrewAI writes
-    # under $HOME at import; the buildpack container's HOME=/nonexistent is
-    # read-only, so both the CrewAI instrumentor and the app crash without
-    # these. Tuple of pairs (not a dict) to keep the dataclass frozen-friendly.
+    # (or amp-instrument, which imports the framework at interpreter startup —
+    # before the app runs) requires environment that must exist before the
+    # process starts. CrewAI writes under $HOME at import, so it crashes under a
+    # read-only HOME without these. Tuple of pairs (not a dict) to keep the
+    # dataclass frozen-friendly.
     env: tuple[tuple[str, str], ...] = ()
     # Shared by dependency compatibility checks and heavy cell selection.
     min_python: str = "3.10"
