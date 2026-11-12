@@ -581,37 +581,41 @@ func (r *eventRepository) SubscriptionsUsing(
 // with no project becomes org-only: available to none, rather than silently to all.
 func (r *eventRepository) RemoveProjectFromDestinations(ctx context.Context, ouID, projectName string) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var affected []uuid.UUID
-		if err := tx.Model(&destinationProject{}).
-			Where("org_id = ? AND project_id IN (?)", ouID, projectIDQuery(tx, ouID, projectName)).
-			Pluck("destination_id", &affected).Error; err != nil {
-			return err
-		}
-		if len(affected) == 0 {
-			return nil
-		}
-		if err := tx.Where("org_id = ? AND project_id IN (?)", ouID, projectIDQuery(tx, ouID, projectName)).
-			Delete(&destinationProject{}).Error; err != nil {
-			return err
-		}
-		now := dbx.Now()
-		for _, id := range affected {
-			var left int64
-			if err := tx.Model(&destinationProject{}).Where("destination_id = ?", id).Count(&left).Error; err != nil {
-				return err
-			}
-			updates := map[string]any{"updated_at": now}
-			if left == 0 {
-				updates["availability"] = models.DestinationAvailableOrg
-			}
-			if err := tx.Model(&models.EventDestination{}).
-				Where("id = ? AND availability = ?", id, models.DestinationAvailableProjects).
-				Updates(updates).Error; err != nil {
-				return err
-			}
-		}
-		return nil
+		return removeProjectFromDestinations(tx, ouID, projectName)
 	})
+}
+
+func removeProjectFromDestinations(tx *gorm.DB, ouID, projectName string) error {
+	var affected []uuid.UUID
+	if err := tx.Model(&destinationProject{}).
+		Where("org_id = ? AND project_id IN (?)", ouID, projectIDQuery(tx, ouID, projectName)).
+		Pluck("destination_id", &affected).Error; err != nil {
+		return err
+	}
+	if len(affected) == 0 {
+		return nil
+	}
+	if err := tx.Where("org_id = ? AND project_id IN (?)", ouID, projectIDQuery(tx, ouID, projectName)).
+		Delete(&destinationProject{}).Error; err != nil {
+		return err
+	}
+	now := dbx.Now()
+	for _, id := range affected {
+		var left int64
+		if err := tx.Model(&destinationProject{}).Where("destination_id = ?", id).Count(&left).Error; err != nil {
+			return err
+		}
+		updates := map[string]any{"updated_at": now}
+		if left == 0 {
+			updates["availability"] = models.DestinationAvailableOrg
+		}
+		if err := tx.Model(&models.EventDestination{}).
+			Where("id = ? AND availability = ?", id, models.DestinationAvailableProjects).
+			Updates(updates).Error; err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // loadSubscriptions fills the subscriptions' project and agent names, event types and environments.
