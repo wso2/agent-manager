@@ -640,7 +640,7 @@ func runCostScenario(t *testing.T, sc costScenario) costRow {
 	}
 	ctx, _ := logContext()
 	if sc.cursorPage {
-		first, err := NewTracingController(fixture()).GetTraceOverviews(ctx, params)
+		first, err := NewTracingController(testStore(fixture())).GetTraceOverviews(ctx, params)
 		if err != nil {
 			t.Fatalf("%s: first page: %v", sc.name, err)
 		}
@@ -659,7 +659,7 @@ func runCostScenario(t *testing.T, sc costScenario) costRow {
 		}
 	}
 	client := meter(t, fake)
-	c := NewTracingController(client)
+	c := NewTracingController(testStore(client))
 	var resp any
 	first := "trace-0000"
 	if sc.export {

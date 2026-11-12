@@ -28,6 +28,8 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-observer/observer"
 	"github.com/wso2/agent-manager/agent-manager-observer/opensearch"
+	"github.com/wso2/agent-manager/agent-manager-observer/store"
+	osstore "github.com/wso2/agent-manager/agent-manager-observer/store/opensearch"
 )
 
 // fakeObserverClient is a minimal observer.Client implementation that the
@@ -225,6 +227,27 @@ func (f *fakeObserverClient) GetSpanDetails(ctx context.Context, _, spanID strin
 	return nil, fmt.Errorf("fake: span %s not found", spanID)
 }
 
+// testStore is the OpenSearch store over client, with spans ingested under baseParams' organization.
+func testStore(client observer.Client) store.TraceStore {
+	return osstore.New(orgStamped{client})
+}
+
+// orgStamped serves a client's span details as ingested under baseParams' organization.
+type orgStamped struct{ observer.Client }
+
+func (o orgStamped) GetSpanDetails(ctx context.Context, traceID, spanID string) (*observer.SpanDetailsResponse, error) {
+	d, err := o.Client.GetSpanDetails(ctx, traceID, spanID)
+	if err != nil {
+		return nil, err
+	}
+	stamped := *d
+	stamped.ResourceAttributes = map[string]interface{}{opensearch.ResourceOrganization: baseParams().Organization}
+	for k, v := range d.ResourceAttributes {
+		stamped.ResourceAttributes[k] = v
+	}
+	return &stamped, nil
+}
+
 // makeRootSpan constructs an opensearch.Span suitable for passing to
 // enrichTrace as the rootSpan argument.
 func makeRootSpan(spanID string, attrs map[string]interface{}) *opensearch.Span {
@@ -233,6 +256,15 @@ func makeRootSpan(spanID string, attrs map[string]interface{}) *opensearch.Span 
 		Name:       "invoke_agent LangGraph",
 		Attributes: attrs,
 	}
+}
+
+// storeTraces converts observer traces to the store's type.
+func storeTraces(in []observer.TraceInfo) []store.Trace {
+	out := make([]store.Trace, len(in))
+	for i, t := range in {
+		out[i] = store.Trace(t)
+	}
+	return out
 }
 
 // baseTraceInfo returns a TraceInfo with sane defaults; tests override
@@ -279,9 +311,9 @@ func TestEnrichTraceOverview_RootHasEntityAndUsageShortCircuits(t *testing.T) {
 		"gen_ai.usage.output_tokens": float64(3),
 	})
 	fake := &fakeObserverClient{rootSpan: &observer.SpanDetailsResponse{SpanID: "root"}}
-	c := NewTracingController(fake)
+	c := NewTracingController(testStore(fake))
 
-	res, _ := c.enrichTrace(context.Background(), baseParams(), baseTraceInfo(5), root, nil, testFetchSem(), testMCP())
+	res, _ := c.enrichTrace(context.Background(), baseParams(), store.Trace(baseTraceInfo(5)), root, nil, testFetchSem(), testMCP())
 	input, output, tokens := res.input, res.output, res.tokenUsage
 
 	if input == nil || output == nil {
@@ -306,9 +338,9 @@ func TestEnrichTraceOverview_RootEntityTokensUsedWhenNoLeaves(t *testing.T) {
 		"traceloop.entity.output": `{"outputs":{"messages":[{"kwargs":{"content":"hi back","response_metadata":{"token_usage":{"prompt_tokens":10,"completion_tokens":3,"total_tokens":13}}}}]}}`,
 	})
 	fake := &fakeObserverClient{rootSpan: &observer.SpanDetailsResponse{SpanID: "root"}}
-	c := NewTracingController(fake)
+	c := NewTracingController(testStore(fake))
 
-	res, _ := c.enrichTrace(context.Background(), baseParams(), baseTraceInfo(5), root, nil, testFetchSem(), testMCP())
+	res, _ := c.enrichTrace(context.Background(), baseParams(), store.Trace(baseTraceInfo(5)), root, nil, testFetchSem(), testMCP())
 	tokens := res.tokenUsage
 
 	if tokens == nil || tokens.TotalTokens != 13 {
@@ -342,9 +374,9 @@ func TestEnrichTraceOverview_FallsBackToChildChainSpan(t *testing.T) {
 			},
 		},
 	}
-	c := NewTracingController(fake)
+	c := NewTracingController(testStore(fake))
 
-	res, _ := c.enrichTrace(context.Background(), baseParams(), baseTraceInfo(5), root, nil, testFetchSem(), testMCP())
+	res, _ := c.enrichTrace(context.Background(), baseParams(), store.Trace(baseTraceInfo(5)), root, nil, testFetchSem(), testMCP())
 	input, output, tokens := res.input, res.output, res.tokenUsage
 
 	if input == nil || output == nil {
@@ -390,9 +422,9 @@ func TestEnrichTraceOverview_AggregatesFromLeafLLMSpans(t *testing.T) {
 			},
 		},
 	}
-	c := NewTracingController(fake)
+	c := NewTracingController(testStore(fake))
 
-	res, _ := c.enrichTrace(context.Background(), baseParams(), baseTraceInfo(5), root, nil, testFetchSem(), testMCP())
+	res, _ := c.enrichTrace(context.Background(), baseParams(), store.Trace(baseTraceInfo(5)), root, nil, testFetchSem(), testMCP())
 	input, output, tokens := res.input, res.output, res.tokenUsage
 
 	if input != "first user msg" {
@@ -451,9 +483,9 @@ func TestEnrichTraceOverview_LangGraphSumsLeavesOverEntityOutput(t *testing.T) {
 		}
 	}
 	fake := &fakeObserverClient{spans: spans, spanDetails: details}
-	c := NewTracingController(fake)
+	c := NewTracingController(testStore(fake))
 
-	res, _ := c.enrichTrace(context.Background(), baseParams(), baseTraceInfo(24), root, nil, testFetchSem(), testMCP())
+	res, _ := c.enrichTrace(context.Background(), baseParams(), store.Trace(baseTraceInfo(24)), root, nil, testFetchSem(), testMCP())
 	input, output, tokens := res.input, res.output, res.tokenUsage
 
 	if input == nil || output == nil {
@@ -469,9 +501,9 @@ func TestEnrichTraceOverview_LangGraphSumsLeavesOverEntityOutput(t *testing.T) {
 func TestEnrichTraceOverview_AllEmptyReturnsNil(t *testing.T) {
 	root := makeRootSpan("root", map[string]interface{}{})
 	fake := &fakeObserverClient{spans: []observer.SpanInfo{}}
-	c := NewTracingController(fake)
+	c := NewTracingController(testStore(fake))
 
-	res, _ := c.enrichTrace(context.Background(), baseParams(), baseTraceInfo(1), root, nil, testFetchSem(), testMCP())
+	res, _ := c.enrichTrace(context.Background(), baseParams(), store.Trace(baseTraceInfo(1)), root, nil, testFetchSem(), testMCP())
 	input, output, tokens := res.input, res.output, res.tokenUsage
 
 	if input != nil || output != nil || tokens != nil {
@@ -505,13 +537,13 @@ func TestEnrichTraceOverview_LeafCapHonoredAndPartialFlagged(t *testing.T) {
 		}
 	}
 	fake := &fakeObserverClient{spans: spans, spanDetails: details}
-	c := NewTracingController(fake)
+	c := NewTracingController(testStore(fake))
 
 	// SpanCount stays clearly under the skip threshold so step 3 runs; the
 	// cap (maxLLMLeavesPerTrace) is what should trigger Partial. Using
 	// threshold-1 expresses "below the skip threshold" independently of
 	// whether the guard ever tightens from > to >=.
-	res, _ := c.enrichTrace(context.Background(), baseParams(), baseTraceInfo(skipLeafAggregationSpanCountThreshold-1), root, nil, testFetchSem(), testMCP())
+	res, _ := c.enrichTrace(context.Background(), baseParams(), store.Trace(baseTraceInfo(skipLeafAggregationSpanCountThreshold-1)), root, nil, testFetchSem(), testMCP())
 	tokens := res.tokenUsage
 
 	if tokens == nil {
@@ -548,9 +580,9 @@ func TestEnrichTraceOverview_FailedLeafFetchFlagsPartial(t *testing.T) {
 			},
 		},
 	}
-	c := NewTracingController(fake)
+	c := NewTracingController(testStore(fake))
 
-	res, _ := c.enrichTrace(context.Background(), baseParams(), baseTraceInfo(5), root, nil, testFetchSem(), testMCP())
+	res, _ := c.enrichTrace(context.Background(), baseParams(), store.Trace(baseTraceInfo(5)), root, nil, testFetchSem(), testMCP())
 	tokens := res.tokenUsage
 
 	if tokens == nil {
@@ -579,10 +611,10 @@ func TestEnrichTraceOverview_SkipsLeafAggregationForHugeTraces(t *testing.T) {
 			"leaf-1": {SpanID: "leaf-1", Attributes: map[string]interface{}{"gen_ai.usage.input_tokens": float64(1)}},
 		},
 	}
-	c := NewTracingController(fake)
+	c := NewTracingController(testStore(fake))
 
 	hugeTrace := baseTraceInfo(skipLeafAggregationSpanCountThreshold + 1)
-	res, _ := c.enrichTrace(context.Background(), baseParams(), hugeTrace, root, nil, testFetchSem(), testMCP())
+	res, _ := c.enrichTrace(context.Background(), baseParams(), store.Trace(hugeTrace), root, nil, testFetchSem(), testMCP())
 	input, output, tokens := res.input, res.output, res.tokenUsage
 
 	if input != nil || output != nil || tokens != nil {
@@ -615,7 +647,7 @@ func TestExportTraces_UsesBulkAttributes(t *testing.T) {
 			{SpanID: "child", SpanName: "llm", ParentSpanID: "root", Kind: "INTERNAL", Status: &observer.SpanStatus{Code: "ok"}, StartTime: now.Add(-30 * time.Second), EndTime: now},
 		},
 	}
-	c := NewTracingController(fake)
+	c := NewTracingController(testStore(fake))
 
 	resp, err := c.ExportTraces(context.Background(), baseParams())
 	if err != nil {
@@ -733,7 +765,7 @@ func TestGetTraceOverviews_ModelsFromLeafLLMSpans(t *testing.T) {
 			},
 		},
 	)
-	c := NewTracingController(fake)
+	c := NewTracingController(testStore(fake))
 
 	ov := singleOverview(t, c, baseParams())
 
@@ -759,7 +791,7 @@ func TestGetTraceOverviews_ChainSpanShortCircuit_IncludeModels(t *testing.T) {
 	for _, includeModels := range []bool{true, false} {
 		t.Run(fmt.Sprintf("include.models=%t", includeModels), func(t *testing.T) {
 			fake := chainSpanFake()
-			c := NewTracingController(fake)
+			c := NewTracingController(testStore(fake))
 			params := baseParams()
 			params.Include.Models = includeModels
 
@@ -861,7 +893,7 @@ func TestGetTraceOverviews_RootComplete_IncludeModels(t *testing.T) {
 				},
 				nil,
 			)
-			c := NewTracingController(fake)
+			c := NewTracingController(testStore(fake))
 			params := baseParams()
 			params.Include.Models = includeModels
 
@@ -908,11 +940,11 @@ func TestEnrichTraceOverview_IncludeModelsFetchesNoSpanDetails(t *testing.T) {
 				Attributes: map[string]interface{}{"gen_ai.response.model": "gpt-4o"}},
 		},
 	}
-	c := NewTracingController(fake)
+	c := NewTracingController(testStore(fake))
 	params := baseParams()
 	params.Include.Models = true
 
-	res, _ := c.enrichTrace(context.Background(), params, baseTraceInfo(2), root, nil, testFetchSem(), testMCP())
+	res, _ := c.enrichTrace(context.Background(), params, store.Trace(baseTraceInfo(2)), root, nil, testFetchSem(), testMCP())
 	models := res.models
 
 	assertModels(t, models, []string{"gpt-4o"})
@@ -941,7 +973,7 @@ func TestGetTraceOverviews_IncludeModelsNotCappedAtLeafLimit(t *testing.T) {
 		})
 	}
 	fake := overviewFake(completeRootAttrs(), spans, nil)
-	c := NewTracingController(fake)
+	c := NewTracingController(testStore(fake))
 	params := baseParams()
 	params.Include.Models = true
 
@@ -968,7 +1000,7 @@ func TestGetTraceOverviews_IncludeModelsSkipsHugeTraces(t *testing.T) {
 		nil,
 	)
 	fake.traces[0].SpanCount = skipLeafAggregationSpanCountThreshold + 1
-	c := NewTracingController(fake)
+	c := NewTracingController(testStore(fake))
 	params := baseParams()
 	params.Include.Models = true
 
@@ -1005,7 +1037,7 @@ func TestGetTraceOverviews_NoLLMSpansLeavesModelsEmpty(t *testing.T) {
 			"tool-1": {SpanID: "tool-1", SpanName: "search_web.tool", Attributes: map[string]interface{}{"gen_ai.tool.name": "search_web"}},
 		},
 	)
-	c := NewTracingController(fake)
+	c := NewTracingController(testStore(fake))
 	params := baseParams()
 	params.Include.Models = true
 

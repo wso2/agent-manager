@@ -37,6 +37,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-observer/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-observer/observer"
 	"github.com/wso2/agent-manager/agent-manager-observer/rbac"
+	"github.com/wso2/agent-manager/agent-manager-observer/store/opensearch"
 )
 
 // Options holds deployment-specific hooks for Run; the zero value is the OSS default.
@@ -117,7 +118,7 @@ func newHandler(cfg *config.Config) http.Handler {
 	apiMux := http.NewServeMux()
 
 	traceClient := observer.NewClient(cfg.OpenSearch)
-	controller := controllers.NewTracingController(traceClient)
+	controller := controllers.NewTracingController(opensearch.New(traceClient))
 	obsController := controllers.NewObservabilityController()
 	handler := handlers.NewHandler(controller, obsController)
 

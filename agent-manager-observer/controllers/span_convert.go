@@ -14,22 +14,22 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package observer
+package controllers
 
 import (
 	"github.com/wso2/agent-manager/agent-manager-observer/opensearch"
+	"github.com/wso2/agent-manager/agent-manager-observer/store"
 )
 
-func statusCodeAndMessage(s *SpanStatus) (code, message string) {
+func statusCodeAndMessage(s *store.SpanStatus) (code, message string) {
 	if s == nil {
 		return "", ""
 	}
 	return s.Code, s.Message
 }
 
-// ConvertSpanDetailsToSpan builds an opensearch.Span from a SpanDetailsResponse,
-// ready to be passed to opensearch.ProcessSpan.
-func ConvertSpanDetailsToSpan(traceID string, d *SpanDetailsResponse) opensearch.Span {
+// spanFromDetails builds an opensearch.Span, ready for opensearch.ProcessSpan, from a span's details.
+func spanFromDetails(traceID string, d *store.SpanDetails) opensearch.Span {
 	service := opensearch.ServiceFromResource(d.ResourceAttributes)
 	code, message := statusCodeAndMessage(d.Status)
 	return opensearch.Span{
@@ -49,9 +49,8 @@ func ConvertSpanDetailsToSpan(traceID string, d *SpanDetailsResponse) opensearch
 	}
 }
 
-// ConvertSpanInfoToSpan builds an opensearch.Span from a SpanInfo queried with
-// IncludeAttributes, so the export path needs no GetSpanDetails round-trip.
-func ConvertSpanInfoToSpan(traceID string, s SpanInfo) opensearch.Span {
+// spanFromSummary builds an opensearch.Span from a span-list entry fetched with attributes.
+func spanFromSummary(traceID string, s store.Span) opensearch.Span {
 	service := opensearch.ServiceFromResource(s.ResourceAttributes)
 	code, message := statusCodeAndMessage(s.Status)
 	return opensearch.Span{

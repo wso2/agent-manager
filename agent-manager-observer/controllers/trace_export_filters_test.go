@@ -61,7 +61,7 @@ func mustExport(t *testing.T, c *TracingController, params TraceQueryParams) *op
 // status=error fetches full spans only for the error traces.
 func TestExportTraces_StatusErrorFetchesSpansOnlyForMatches(t *testing.T) {
 	fake := langGraphFake(60, errorEvery(10))
-	c := NewTracingController(fake)
+	c := NewTracingController(testStore(fake))
 
 	resp := mustExport(t, c, exportParams(100, TraceFilters{Status: TraceStatusError}))
 
@@ -92,7 +92,7 @@ func TestExportTraces_StatusErrorFetchesSpansOnlyForMatches(t *testing.T) {
 // Without filters the export makes one QueryTraces and one span fetch per trace, as before.
 func TestExportTraces_NoFilterUnchanged(t *testing.T) {
 	fake := langGraphFake(60, noRootAttrs)
-	c := NewTracingController(fake)
+	c := NewTracingController(testStore(fake))
 
 	resp := mustExport(t, c, exportParams(20, TraceFilters{}))
 
@@ -120,7 +120,7 @@ func TestExportTraces_NoFilterUnchanged(t *testing.T) {
 // A rare filter stops at the examine cap and fetches no full spans for non-matches.
 func TestExportTraces_StopsAtExamineCap(t *testing.T) {
 	fake := langGraphFake(maxExaminedTraces+100, noRootAttrs)
-	c := NewTracingController(fake)
+	c := NewTracingController(testStore(fake))
 
 	resp := mustExport(t, c, exportParams(100, TraceFilters{Status: TraceStatusError}))
 
@@ -141,7 +141,7 @@ func TestExportTraces_StopsAtExamineCap(t *testing.T) {
 // A model filter selects by models without the caller setting Include.Models.
 func TestExportTraces_ModelFilter(t *testing.T) {
 	fake := langGraphFake(20, noRootAttrs)
-	c := NewTracingController(fake)
+	c := NewTracingController(testStore(fake))
 
 	resp := mustExport(t, c, exportParams(3, TraceFilters{Model: "claude"}))
 
@@ -172,7 +172,7 @@ func TestExportTraces_SelectsSameTracesAsList(t *testing.T) {
 	}
 	for name, f := range filters {
 		t.Run(name, func(t *testing.T) {
-			c := NewTracingController(langGraphFake(80, errorEvery(7)))
+			c := NewTracingController(testStore(langGraphFake(80, errorEvery(7))))
 			params := exportParams(15, f)
 
 			list, err := c.GetTraceOverviews(context.Background(), params)
@@ -200,7 +200,7 @@ func TestExportTraces_SelectsSameTracesAsList(t *testing.T) {
 // and fetches full spans only for them. The list's budget would not stop it.
 func TestExportTraces_StopsAtTimeBudget(t *testing.T) {
 	fake := langGraphFake(600, errorEvery(30))
-	c := NewTracingController(fake)
+	c := NewTracingController(testStore(fake))
 	advanceOnRoot(fake, withClock(c), "root-0100", exportLookBackBudget)
 	ctx, logs := logContext()
 
@@ -242,7 +242,7 @@ func TestExportTraces_SpanCapSetsSpansTruncated(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			fake := langGraphFake(60, errorEvery(10))
 			fake.traces[10].SpanCount = MaxSpansPerRequest + 1
-			c := NewTracingController(fake)
+			c := NewTracingController(testStore(fake))
 			ctx, logs := logContext()
 
 			resp, err := c.ExportTraces(ctx, exportParams(100, f))
@@ -266,7 +266,7 @@ func TestExportTraces_SpanCapSetsSpansTruncated(t *testing.T) {
 // A filtered export stopped by the examine cap is truncated without spansTruncated.
 func TestExportTraces_ExamineCapLeavesSpansTruncatedFalse(t *testing.T) {
 	fake := langGraphFake(maxExaminedTraces+100, errorEvery(100))
-	c := NewTracingController(fake)
+	c := NewTracingController(testStore(fake))
 
 	resp := mustExport(t, c, exportParams(100, TraceFilters{Status: TraceStatusError}))
 
@@ -287,7 +287,7 @@ func TestExportTraces_CompleteExportSetsNeither(t *testing.T) {
 	}
 	for name, f := range filters {
 		t.Run(name, func(t *testing.T) {
-			c := NewTracingController(langGraphFake(60, errorEvery(10)))
+			c := NewTracingController(testStore(langGraphFake(60, errorEvery(10))))
 
 			resp := mustExport(t, c, exportParams(100, f))
 
@@ -363,7 +363,7 @@ func TestExportTraces_RootFetchFails(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			fake := langGraphFake(60, errorEvery(10))
 			fake.failCall = failTimes(map[string]int{tt.root: tt.times})
-			c := NewTracingController(fake)
+			c := NewTracingController(testStore(fake))
 			ctx, logs := logContext()
 
 			resp, err := c.ExportTraces(ctx, exportParams(100, TraceFilters{Status: TraceStatusError}))
@@ -411,7 +411,7 @@ func TestExportTraces_SpanListFailsInSelection(t *testing.T) {
 			fake := langGraphFake(20, noRootAttrs)
 			fake.failCall = failTimes(map[string]int{tt.trace: -1})
 
-			resp := mustExport(t, NewTracingController(fake), exportParams(3, tt.filters))
+			resp := mustExport(t, NewTracingController(testStore(fake)), exportParams(3, tt.filters))
 
 			if got := exportedIDs(resp); !slices.Equal(got, tt.want) {
 				t.Fatalf("exported %v, want %v", got, tt.want)
@@ -442,7 +442,7 @@ func TestExportTraces_LeafFailsInSelection(t *testing.T) {
 			fake := langGraphFake(20, noRootAttrs)
 			fake.failCall = failTimes(map[string]int{"leaf-a-0001": -1})
 
-			resp := mustExport(t, NewTracingController(fake), exportParams(3, TraceFilters{MinTokens: ptr(tt.minTokens)}))
+			resp := mustExport(t, NewTracingController(testStore(fake)), exportParams(3, TraceFilters{MinTokens: ptr(tt.minTokens)}))
 
 			if got := exportedIDs(resp); !slices.Equal(got, tt.want) {
 				t.Fatalf("exported %v, want %v", got, tt.want)
@@ -459,7 +459,7 @@ func TestExportTraces_NoRootSpanIDInSelection(t *testing.T) {
 	fake := langGraphFake(60, errorEvery(10))
 	fake.traces[20].RootSpanID = ""
 
-	resp := mustExport(t, NewTracingController(fake), exportParams(100, TraceFilters{Status: TraceStatusError}))
+	resp := mustExport(t, NewTracingController(testStore(fake)), exportParams(100, TraceFilters{Status: TraceStatusError}))
 
 	want := []string{"trace-0000", "trace-0010", "trace-0030", "trace-0040", "trace-0050"}
 	if got := exportedIDs(resp); !slices.Equal(got, want) {
@@ -493,7 +493,7 @@ func TestExportTraces_SpanFetchFails(t *testing.T) {
 			fake := langGraphFake(60, noRootAttrs)
 			fake.failCall = failTimes(map[string]int{"trace-0005": tt.times})
 
-			resp := mustExport(t, NewTracingController(fake), exportParams(20, TraceFilters{}))
+			resp := mustExport(t, NewTracingController(testStore(fake)), exportParams(20, TraceFilters{}))
 
 			if got := exportedIDs(resp); !slices.Equal(got, tt.want) {
 				t.Fatalf("exported %v, want %v", got, tt.want)
@@ -513,7 +513,7 @@ func TestExportTraces_SpanFetchFailsFiltered(t *testing.T) {
 	fake := langGraphFake(60, errorEvery(10))
 	fake.failCall = failTimes(map[string]int{"trace-0020": -1})
 
-	resp := mustExport(t, NewTracingController(fake), exportParams(100, TraceFilters{Status: TraceStatusError}))
+	resp := mustExport(t, NewTracingController(testStore(fake)), exportParams(100, TraceFilters{Status: TraceStatusError}))
 
 	want := []string{"trace-0000", "trace-0010", "trace-0030", "trace-0040", "trace-0050"}
 	if got := exportedIDs(resp); !slices.Equal(got, want) {
@@ -533,7 +533,7 @@ func TestExportTraces_NoRootSpanListed(t *testing.T) {
 	spans := fake.spansByTrace["trace-0007"]
 	fake.spansByTrace["trace-0007"] = spans[:len(spans)-1] // the root is last
 
-	resp := mustExport(t, NewTracingController(fake), exportParams(20, TraceFilters{}))
+	resp := mustExport(t, NewTracingController(testStore(fake)), exportParams(20, TraceFilters{}))
 
 	if got := exportedIDs(resp); len(got) != 19 || slices.Contains(got, "trace-0007") {
 		t.Fatalf("exported %v, want the other 19", got)
@@ -551,7 +551,7 @@ func TestExportTraces_EveryTraceFails(t *testing.T) {
 	fake := langGraphFake(60, noRootAttrs)
 	fake.failCall = func(id string) error { return fmt.Errorf("fake: %s unavailable", id) }
 
-	resp, err := NewTracingController(fake).ExportTraces(context.Background(), exportParams(20, TraceFilters{}))
+	resp, err := NewTracingController(testStore(fake)).ExportTraces(context.Background(), exportParams(20, TraceFilters{}))
 
 	if err == nil || resp != nil {
 		t.Fatalf("err = %v, response %v; want an error and no response", err, resp != nil)
@@ -585,7 +585,7 @@ func TestExportTraces_Cancelled(t *testing.T) {
 				return nil
 			}
 
-			resp, err := NewTracingController(fake).ExportTraces(ctx, exportParams(20, tt.filters))
+			resp, err := NewTracingController(testStore(fake)).ExportTraces(ctx, exportParams(20, tt.filters))
 
 			if !errors.Is(err, context.Canceled) || resp != nil {
 				t.Fatalf("err = %v, response %v; want context.Canceled and no response", err, resp != nil)

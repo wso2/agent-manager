@@ -14,19 +14,20 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package observer
+package controllers
 
 import (
 	"testing"
 	"time"
 
 	"github.com/wso2/agent-manager/agent-manager-observer/opensearch"
+	"github.com/wso2/agent-manager/agent-manager-observer/store"
 )
 
-func TestConvertSpanInfoToSpan(t *testing.T) {
+func TestSpanFromSummary(t *testing.T) {
 	start := time.Now().Add(-time.Minute)
 	end := time.Now()
-	info := SpanInfo{
+	info := store.Span{
 		SpanID:       "span-1",
 		SpanName:     "llm call",
 		ParentSpanID: "root",
@@ -34,14 +35,14 @@ func TestConvertSpanInfoToSpan(t *testing.T) {
 		EndTime:      end,
 		DurationNs:   42,
 		Kind:         "INTERNAL",
-		Status:       &SpanStatus{Code: "error", Message: "boom: connection refused"},
+		Status:       &store.SpanStatus{Code: "error", Message: "boom: connection refused"},
 		Attributes:   map[string]interface{}{"gen_ai.system": "openai"},
 		ResourceAttributes: map[string]interface{}{
 			opensearch.ResourceAgent: "comp-abc",
 		},
 	}
 
-	span := ConvertSpanInfoToSpan("trace-1", info)
+	span := spanFromSummary("trace-1", info)
 
 	if span.TraceID != "trace-1" || span.SpanID != "span-1" || span.ParentSpanID != "root" {
 		t.Errorf("identity fields not mapped: %+v", span)

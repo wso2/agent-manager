@@ -29,6 +29,8 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-observer/controllers"
 	"github.com/wso2/agent-manager/agent-manager-observer/observer"
+	"github.com/wso2/agent-manager/agent-manager-observer/opensearch"
+	osstore "github.com/wso2/agent-manager/agent-manager-observer/store/opensearch"
 )
 
 // newHandler creates a Handler with nil controllers — safe for validation-only
@@ -300,8 +302,11 @@ func (f *fakeObserverClient) QueryTraceSpans(_ context.Context, _ string, req ob
 	return &observer.TraceSpansQueryResponse{}, nil
 }
 
+// GetSpanDetails returns an empty span ingested under baseParams' organization.
 func (f *fakeObserverClient) GetSpanDetails(_ context.Context, _, _ string) (*observer.SpanDetailsResponse, error) {
-	return &observer.SpanDetailsResponse{}, nil
+	return &observer.SpanDetailsResponse{
+		ResourceAttributes: map[string]interface{}{opensearch.ResourceOrganization: "default"},
+	}, nil
 }
 
 func TestParseLogLevels(t *testing.T) {
@@ -365,7 +370,7 @@ func TestGetTraceOverviews_IncludeQueryParam(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			fake := &fakeObserverClient{traces: []observer.TraceInfo{{TraceID: "trace-1", RootSpanID: "root", SpanCount: 2}}}
-			h := NewHandler(controllers.NewTracingController(fake), nil)
+			h := NewHandler(controllers.NewTracingController(osstore.New(fake)), nil)
 
 			r := httptest.NewRequest(http.MethodGet, "/api/v1/traces?"+baseParams()+tt.query, nil)
 			rec := httptest.NewRecorder()
@@ -449,7 +454,7 @@ func TestTraceEndpoints_FilterValueLength(t *testing.T) {
 		for _, param := range []string{"model", "conversationId"} {
 			for name, v := range values {
 				t.Run(path+" "+param+" "+name, func(t *testing.T) {
-					h := NewHandler(controllers.NewTracingController(&fakeObserverClient{}), nil)
+					h := NewHandler(controllers.NewTracingController(osstore.New(&fakeObserverClient{})), nil)
 					r := httptest.NewRequest(http.MethodGet, path+"?"+baseParams()+"&"+param+"="+url.QueryEscape(v.value), nil)
 					rec := httptest.NewRecorder()
 					handler(h)(rec, r)
@@ -501,7 +506,7 @@ func TestGetTraceOverviews_InvalidCursor(t *testing.T) {
 // A valid cursor returns 200.
 func TestGetTraceOverviews_ValidCursorAccepted(t *testing.T) {
 	fake := &fakeObserverClient{traces: []observer.TraceInfo{{TraceID: "trace-1", RootSpanID: "root", SpanCount: 2}}}
-	h := NewHandler(controllers.NewTracingController(fake), nil)
+	h := NewHandler(controllers.NewTracingController(osstore.New(fake)), nil)
 	cursor := controllers.TraceCursor{Rank: 5, Time: time.Date(2026, 4, 2, 0, 0, 0, 500, time.UTC)}.Encode()
 
 	r := httptest.NewRequest(http.MethodGet, "/api/v1/traces?"+baseParams()+"&cursor="+cursor, nil)
@@ -567,7 +572,7 @@ func TestParseTraceFilters(t *testing.T) {
 // A model filter requests inline attributes without include=models.
 func TestGetTraceOverviews_ModelFilterPassedThrough(t *testing.T) {
 	fake := &fakeObserverClient{traces: []observer.TraceInfo{{TraceID: "trace-1", RootSpanID: "root", SpanCount: 2}}}
-	h := NewHandler(controllers.NewTracingController(fake), nil)
+	h := NewHandler(controllers.NewTracingController(osstore.New(fake)), nil)
 
 	r := httptest.NewRequest(http.MethodGet, "/api/v1/traces?"+baseParams()+"&model=gpt-4o", nil)
 	rec := httptest.NewRecorder()

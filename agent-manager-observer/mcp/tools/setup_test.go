@@ -27,7 +27,9 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-observer/controllers"
 	"github.com/wso2/agent-manager/agent-manager-observer/observer"
+	"github.com/wso2/agent-manager/agent-manager-observer/opensearch"
 	"github.com/wso2/agent-manager/agent-manager-observer/rbac"
+	osstore "github.com/wso2/agent-manager/agent-manager-observer/store/opensearch"
 )
 
 // constants for testing
@@ -97,7 +99,7 @@ func (f *fakeObserverClient) GetSpanDetails(_ context.Context, traceID, spanID s
 	resp := &observer.SpanDetailsResponse{
 		SpanID:             spanID,
 		Attributes:         map[string]interface{}{},
-		ResourceAttributes: map[string]interface{}{},
+		ResourceAttributes: map[string]interface{}{opensearch.ResourceOrganization: testOrgName},
 	}
 	for _, s := range f.spans[traceID] {
 		if s.SpanID == spanID {
@@ -119,7 +121,7 @@ func setupTestServer(t *testing.T) (*gomcp.ClientSession, *fakeObserverClient) {
 
 	fake := newFakeObserverClient()
 	toolsets := &Toolsets{
-		Tracing: controllers.NewTracingController(fake),
+		Tracing: controllers.NewTracingController(osstore.New(fake)),
 		// The in-memory transport carries no Authorization header, so the real
 		// guard would refuse every call. Authorization has its own tests
 		// (authorization_test.go, observability_guard_test.go); these specs are

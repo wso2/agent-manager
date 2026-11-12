@@ -105,7 +105,7 @@ func traceIDs(c *TracingController, t *testing.T, params TraceQueryParams) ([]st
 // shows the page's last trace is settled.
 func TestGetTraceOverviews_NoFilterQueriesOnce(t *testing.T) {
 	fake := lookBackFake(200, 5)
-	c := NewTracingController(fake)
+	c := NewTracingController(testStore(fake))
 	params := lookBackParams(20)
 	params.Filters = TraceFilters{}
 
@@ -128,7 +128,7 @@ func TestGetTraceOverviews_NoFilterQueriesOnce(t *testing.T) {
 // A 1-in-5 filter keeps looking back until the page is full.
 func TestGetTraceOverviews_LookBackFillsPage(t *testing.T) {
 	fake := lookBackFake(400, 5)
-	c := NewTracingController(fake)
+	c := NewTracingController(testStore(fake))
 
 	ids, lookedBackTo, truncated := traceIDs(c, t, lookBackParams(25))
 
@@ -162,7 +162,7 @@ func TestGetTraceOverviews_LookBackFillsPage(t *testing.T) {
 // A filter that never matches stops at the examine cap.
 func TestGetTraceOverviews_LookBackStopsAtCap(t *testing.T) {
 	fake := lookBackFake(1000, 5)
-	c := NewTracingController(fake)
+	c := NewTracingController(testStore(fake))
 	params := lookBackParams(10)
 	params.Filters.ConversationID = "conv-none"
 
@@ -193,7 +193,7 @@ func TestGetTraceOverviews_LookBackWindowExhausted(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			fake := lookBackFake(120, 5)
-			c := NewTracingController(fake)
+			c := NewTracingController(testStore(fake))
 			params := lookBackParams(100)
 			params.SortOrder = tt.sortOrder
 
@@ -212,7 +212,7 @@ func TestGetTraceOverviews_LookBackWindowExhausted(t *testing.T) {
 // Ascending order pages forward, so lookedBackTo is the newest trace examined.
 func TestGetTraceOverviews_LookBackAscending(t *testing.T) {
 	fake := lookBackFake(400, 5)
-	c := NewTracingController(fake)
+	c := NewTracingController(testStore(fake))
 	params := lookBackParams(25)
 	params.SortOrder = "asc"
 
@@ -234,7 +234,7 @@ func TestGetTraceOverviews_LookBackSharedBoundaryTimestamp(t *testing.T) {
 	for i := 45; i < 55; i++ {
 		fake.traces[i].StartTime = fake.traces[45].StartTime
 	}
-	c := NewTracingController(fake)
+	c := NewTracingController(testStore(fake))
 
 	ids, _, _ := traceIDs(c, t, lookBackParams(200))
 
@@ -251,7 +251,7 @@ func TestGetTraceOverviews_LookBackBatchAtOneTimestamp(t *testing.T) {
 		fake.traces[i].StartTime = fake.traces[0].StartTime
 		fake.traces[i].EndTime = fake.traces[0].StartTime
 	}
-	c := NewTracingController(fake)
+	c := NewTracingController(testStore(fake))
 
 	ids, _, truncated := traceIDs(c, t, lookBackParams(200))
 
@@ -274,7 +274,7 @@ func TestGetTraceOverviews_LookBackOverlappingTraces(t *testing.T) {
 			for i := range fake.traces {
 				fake.traces[i].EndTime = fake.traces[i].StartTime.Add(5 * time.Second)
 			}
-			c := NewTracingController(fake)
+			c := NewTracingController(testStore(fake))
 			params := lookBackParams(1000)
 			params.SortOrder = sortOrder
 
@@ -295,7 +295,7 @@ func TestGetTraceOverviews_LookBackOverlappingTraces(t *testing.T) {
 // Summary filters drop traces before enrichment but still count as examined.
 func TestGetTraceOverviews_LookBackPreFilterCountsAsExamined(t *testing.T) {
 	fake := lookBackFake(1000, 1)
-	c := NewTracingController(fake)
+	c := NewTracingController(testStore(fake))
 	params := lookBackParams(10)
 	params.Filters = TraceFilters{MinSpanCount: ptr(100)}
 
@@ -315,7 +315,7 @@ func TestGetTraceOverviews_LookBackHonoursCancel(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	fake.onQueryTraces = cancel
-	c := NewTracingController(fake)
+	c := NewTracingController(testStore(fake))
 
 	_, err := c.GetTraceOverviews(ctx, lookBackParams(25))
 
@@ -440,7 +440,7 @@ func TestGetTraceOverviews_LookBackStopsAtTimeBudget(t *testing.T) {
 		for _, tt := range tests {
 			t.Run(fmt.Sprintf("%s/1 in %d", tt.name, matchEvery), func(t *testing.T) {
 				fake := lookBackFake(600, matchEvery)
-				c := NewTracingController(fake)
+				c := NewTracingController(testStore(fake))
 				advanceOnRoot(fake, withClock(c), tt.passOn, listLookBackBudget)
 				params := lookBackParams(10)
 				ctx, logs := logContext()
@@ -473,7 +473,7 @@ func TestGetTraceOverviews_LookBackStopsAtTimeBudget(t *testing.T) {
 				assertNoDuplicates(t, got)
 
 				unbudgetedFake := lookBackFake(600, matchEvery)
-				unbudgeted := NewTracingController(unbudgetedFake)
+				unbudgeted := NewTracingController(testStore(unbudgetedFake))
 				withClock(unbudgeted)
 				if want := pageIDs(pageAll(t, unbudgeted, unbudgetedFake, lookBackParams(10))); !reflect.DeepEqual(got, want) {
 					t.Errorf("paged %v, want %v as with no budget", got, want)
@@ -486,7 +486,7 @@ func TestGetTraceOverviews_LookBackStopsAtTimeBudget(t *testing.T) {
 // A budget already spent when the first fetch returns still examines one chunk.
 func TestGetTraceOverviews_LookBackBudgetSpentOnFirstFetch(t *testing.T) {
 	fake := lookBackFake(600, 1000)
-	c := NewTracingController(fake)
+	c := NewTracingController(testStore(fake))
 	clock := withClock(c)
 	fake.onQueryTraces = func() { clock.advance(listLookBackBudget) }
 
@@ -517,7 +517,7 @@ func TestGetTraceOverviews_LookBackBudgetSpentOnFirstFetch(t *testing.T) {
 func TestGetTraceOverviews_LookBackBudgetCancelsInFlightFetch(t *testing.T) {
 	fake := lookBackFake(600, 1000)
 	fake.failOnDone = true
-	c := NewTracingController(fake)
+	c := NewTracingController(testStore(fake))
 	clock := withClock(c)
 	var cancelled atomic.Bool
 	fake.onGetSpanDetails = func(ctx context.Context, spanID string) {
@@ -567,7 +567,7 @@ func TestGetTraceOverviews_LookBackLeafFetchWarnings(t *testing.T) {
 	t.Run("cut by budget", func(t *testing.T) {
 		fake := langGraphFake(200, noRootAttrs)
 		fake.failOnDone = true
-		c := NewTracingController(fake)
+		c := NewTracingController(testStore(fake))
 		clock := withClock(c)
 		var once sync.Once
 		fake.onGetSpanDetails = func(_ context.Context, spanID string) {
@@ -598,7 +598,7 @@ func TestGetTraceOverviews_LookBackLeafFetchWarnings(t *testing.T) {
 		fake.failCall = failTimes(map[string]int{"leaf-a-0050": -1})
 		ctx, logs := logContext()
 
-		if _, err := NewTracingController(fake).GetTraceOverviews(ctx, params); err != nil {
+		if _, err := NewTracingController(testStore(fake)).GetTraceOverviews(ctx, params); err != nil {
 			t.Fatalf("GetTraceOverviews returned error: %v", err)
 		}
 
@@ -612,7 +612,7 @@ func TestGetTraceOverviews_LookBackLeafFetchWarnings(t *testing.T) {
 // walk stops before the chunk rather than listing them as failed.
 func TestGetTraceOverviews_LookBackNoRetryPastBudget(t *testing.T) {
 	fake := lookBackFake(600, 1000)
-	c := NewTracingController(fake)
+	c := NewTracingController(testStore(fake))
 	clock := withClock(c)
 	var calls atomic.Int32
 	fake.onGetSpanDetails = func(_ context.Context, spanID string) {
@@ -676,7 +676,7 @@ func TestRequestTimeoutBoundsEveryCall(t *testing.T) {
 				}
 			}
 
-			if err := tt.run(NewTracingController(tt.fake)); err != nil {
+			if err := tt.run(NewTracingController(testStore(tt.fake))); err != nil {
 				t.Fatalf("returned error: %v", err)
 			}
 
@@ -700,7 +700,7 @@ func TestGetTraceOverviews_PageFailsWhenCtxEndsDuringEnrichment(t *testing.T) {
 	params := lookBackParams(20)
 	params.Filters = TraceFilters{}
 
-	resp, err := NewTracingController(fake).GetTraceOverviews(ctx, params)
+	resp, err := NewTracingController(testStore(fake)).GetTraceOverviews(ctx, params)
 
 	if !errors.Is(err, context.Canceled) || resp != nil {
 		t.Fatalf("err = %v, response %v; want context.Canceled and no response", err, resp != nil)
@@ -710,7 +710,7 @@ func TestGetTraceOverviews_PageFailsWhenCtxEndsDuringEnrichment(t *testing.T) {
 // A clock short of the list's budget leaves the walk to the examine cap.
 func TestGetTraceOverviews_LookBackWithinBudget(t *testing.T) {
 	fake := lookBackFake(600, 1000)
-	c := NewTracingController(fake)
+	c := NewTracingController(testStore(fake))
 	advanceOnRoot(fake, withClock(c), "root-0050", listLookBackBudget-time.Nanosecond)
 	ctx, logs := logContext()
 
@@ -758,7 +758,7 @@ func TestGetTraceOverviews_LookBackRootFetchFails(t *testing.T) {
 			fake.failCall = failTimes(map[string]int{"root-0005": tt.times})
 			ctx, logs := logContext()
 
-			resp, err := NewTracingController(fake).GetTraceOverviews(ctx, lookBackParams(10))
+			resp, err := NewTracingController(testStore(fake)).GetTraceOverviews(ctx, lookBackParams(10))
 			if err != nil {
 				t.Fatalf("GetTraceOverviews returned error: %v", err)
 			}
@@ -801,7 +801,7 @@ func TestGetTraceOverviews_LookBackEveryRootFetchFails(t *testing.T) {
 	fake := lookBackFake(200, 5)
 	fake.failCall = failEvery
 
-	resp, err := NewTracingController(fake).GetTraceOverviews(context.Background(), lookBackParams(10))
+	resp, err := NewTracingController(testStore(fake)).GetTraceOverviews(context.Background(), lookBackParams(10))
 
 	if err == nil || resp != nil {
 		t.Fatalf("err = %v, response %v; want an error and no response", err, resp != nil)
@@ -838,7 +838,7 @@ func TestGetTraceOverviews_PageRootFetchFails(t *testing.T) {
 			params := lookBackParams(20)
 			params.Filters = TraceFilters{}
 
-			resp, err := NewTracingController(fake).GetTraceOverviews(context.Background(), params)
+			resp, err := NewTracingController(testStore(fake)).GetTraceOverviews(context.Background(), params)
 
 			if tt.wantErr {
 				if err == nil || resp != nil {
@@ -880,7 +880,7 @@ func TestGetTraceOverviews_LookBackOneTraceReads(t *testing.T) {
 			params.Filters = tt.filters
 			ctx, logs := logContext()
 
-			resp, err := NewTracingController(fake).GetTraceOverviews(ctx, params)
+			resp, err := NewTracingController(testStore(fake)).GetTraceOverviews(ctx, params)
 			if err != nil {
 				t.Fatalf("GetTraceOverviews returned error: %v", err)
 			}

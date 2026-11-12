@@ -138,7 +138,7 @@ func TestGetTraceOverviews_CursorPagesWholeWindow(t *testing.T) {
 		for _, tt := range tests {
 			t.Run(sortOrder+"/"+tt.name, func(t *testing.T) {
 				fake := overlappingFake(300, tt.matchEvery)
-				c := NewTracingController(fake)
+				c := NewTracingController(testStore(fake))
 				params := cursorParams(20, sortOrder, tt.filtered)
 				if tt.summary {
 					longEvery(fake, func(i int) bool { return i%tt.matchEvery == 0 })
@@ -195,7 +195,7 @@ func TestGetTraceOverviews_CursorChangeBeforeCursor(t *testing.T) {
 		for _, tt := range tests {
 			t.Run(fmt.Sprintf("%s/filtered=%t", tt.name, filtered), func(t *testing.T) {
 				fake := overlappingFake(300, 1)
-				c := NewTracingController(fake)
+				c := NewTracingController(testStore(fake))
 				params := cursorParams(20, "desc", filtered)
 
 				first, err := c.GetTraceOverviews(context.Background(), params)
@@ -235,7 +235,7 @@ func TestGetTraceOverviews_CursorTiesMakeProgress(t *testing.T) {
 				fake.traces[i].StartTime = fake.traces[10].StartTime
 				fake.traces[i].EndTime = fake.traces[10].StartTime
 			}
-			c := NewTracingController(fake)
+			c := NewTracingController(testStore(fake))
 			params := cursorParams(10, "desc", true)
 			if tt.filters != nil {
 				params.Filters = *tt.filters
@@ -263,7 +263,7 @@ func TestGetTraceOverviews_CursorInsideLargeTieGroup(t *testing.T) {
 		fake.traces[i].StartTime = fake.traces[10].StartTime
 		fake.traces[i].EndTime = fake.traces[10].StartTime
 	}
-	c := NewTracingController(fake)
+	c := NewTracingController(testStore(fake))
 	params := cursorParams(20, "desc", false)
 
 	var ids []string
@@ -309,7 +309,7 @@ func TestGetTraceOverviews_CursorPastNonMatchingTies(t *testing.T) {
 				fake.traces[i].StartTime = fake.traces[0].StartTime
 				fake.traces[i].EndTime = fake.traces[0].StartTime
 			}
-			c := NewTracingController(fake)
+			c := NewTracingController(testStore(fake))
 
 			pages := pageAll(t, c, fake, cursorParams(20, sortOrder, true))
 
@@ -347,7 +347,7 @@ func TestGetTraceOverviews_CursorTiesInAnyOrder(t *testing.T) {
 						fake.traces[i].StartTime = fake.traces[i-i%group].StartTime
 						fake.traces[i].EndTime = fake.traces[i].StartTime
 					}
-					c := NewTracingController(fake)
+					c := NewTracingController(testStore(fake))
 
 					pages := pageAll(t, c, fake, cursorParams(10, sortOrder, tt.filtered))
 
@@ -369,7 +369,7 @@ func TestGetTraceOverviews_TieGroupPastDepthCap(t *testing.T) {
 				fake.traces[i].StartTime = tie
 				fake.traces[i].EndTime = tie
 			}
-			c := NewTracingController(fake)
+			c := NewTracingController(testStore(fake))
 
 			resp, err := c.GetTraceOverviews(context.Background(), cursorParams(20, "desc", filtered))
 			if err != nil {
@@ -414,7 +414,7 @@ func TestGetTraceOverviews_CursorWithoutID(t *testing.T) {
 	for _, filtered := range []bool{false, true} {
 		t.Run(fmt.Sprintf("filtered=%t", filtered), func(t *testing.T) {
 			fake := lookBackFake(60, 1)
-			c := NewTracingController(fake)
+			c := NewTracingController(testStore(fake))
 			params := cursorParams(10, "desc", filtered)
 			raw := fmt.Sprintf(`{"r":10,"t":%q}`, fake.traces[9].StartTime.Format(time.RFC3339Nano))
 			cur, err := DecodeTraceCursor(base64.RawURLEncoding.EncodeToString([]byte(raw)))
@@ -438,7 +438,7 @@ func TestGetTraceOverviews_CursorWithoutID(t *testing.T) {
 // page picks up where it stopped.
 func TestGetTraceOverviews_CursorContinuesPastExamineCap(t *testing.T) {
 	fake := lookBackFake(1000, 200)
-	c := NewTracingController(fake)
+	c := NewTracingController(testStore(fake))
 
 	pages := pageAll(t, c, fake, lookBackParams(10))
 
@@ -456,7 +456,7 @@ func TestGetTraceOverviews_CursorDepthCap(t *testing.T) {
 	for _, filtered := range []bool{false, true} {
 		t.Run(fmt.Sprintf("filtered=%t", filtered), func(t *testing.T) {
 			fake := lookBackFake(maxCursorDepth+1000, 1)
-			c := NewTracingController(fake)
+			c := NewTracingController(testStore(fake))
 			params := cursorParams(20, "desc", filtered)
 			at := fake.traces[maxCursorDepth-11]
 			params.Cursor = &TraceCursor{Rank: maxCursorDepth - 10, Time: at.StartTime, ID: at.TraceID}
@@ -495,7 +495,7 @@ func TestGetTraceOverviews_UnfilteredPagesToDepthCap(t *testing.T) {
 		for _, limit := range []int{10, 500, 999, 1000} {
 			t.Run(fmt.Sprintf("%s/limit=%d", sortOrder, limit), func(t *testing.T) {
 				fake := lookBackFake(1500, 1)
-				c := NewTracingController(fake)
+				c := NewTracingController(testStore(fake))
 
 				pages := pageAll(t, c, fake, cursorParams(limit, sortOrder, false))
 
@@ -554,7 +554,7 @@ func TestGetTraceOverviews_CursorRankClampedAtDepthCap(t *testing.T) {
 			add(fmt.Sprintf("late-after-%03d", i), cursorTime.Add(-time.Duration(i)*time.Millisecond))
 		}
 	}
-	c := NewTracingController(fake)
+	c := NewTracingController(testStore(fake))
 	params := lookBackParams(10)
 	params.Cursor = &TraceCursor{Rank: at + 1, Time: cursorTime}
 
