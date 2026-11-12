@@ -176,6 +176,11 @@ func (s *MCPProxyService) EnsureResourceServersForProxy(ctx context.Context, ouI
 		if !mcpIdentityEnabled(endpoint.Configuration.Security) {
 			continue
 		}
+		// A project binding with an identity cleanup pending registers only once that removal is done, by its own
+		// sync: registering now would bring the old resource server's grants back.
+		if endpoint.Configuration.IdentityCleanupID != "" {
+			continue
+		}
 		for j := range endpoint.Environments {
 			ee := &endpoint.Environments[j]
 			if ee.ArtifactUUID == uuid.Nil {

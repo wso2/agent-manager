@@ -430,13 +430,14 @@ func (s *mcpProxyScopeService) cleanupDeletedScope(ctx context.Context, ouID str
 // share it without duplicating the env-Thunder-OU-trap-prone ListRoles walk.
 // ListRoles("") pages all roles WITH permissions populated, so filtering is
 // in-memory (same pattern as GetGroupRoles, identity_client.go).
-func sweepRolePermission(ctx context.Context, logger *slog.Logger, client thundersvc.EnvIdentityClient, envName, scopeStr string) {
+func sweepRolePermission(ctx context.Context, logger *slog.Logger, client thundersvc.EnvIdentityClient, envName, scopeStr string) error {
 	const pageSize = 50
+	var errs []error
 	for offset := 0; ; {
 		roles, total, err := client.ListRoles(ctx, "", offset, pageSize)
 		if err != nil {
 			logger.Warn("scope cleanup: role sweep aborted", "env", envName, "scope", scopeStr, "error", err)
-			return
+			return errors.Join(append(errs, fmt.Errorf("list roles to strip %q: %w", scopeStr, err))...)
 		}
 		for _, role := range roles {
 			for _, grp := range role.Permissions {
@@ -447,12 +448,13 @@ func sweepRolePermission(ctx context.Context, logger *slog.Logger, client thunde
 					ResourceServerID: grp.ResourceServerID, Permissions: []string{scopeStr},
 				}); err != nil {
 					logger.Warn("scope cleanup: permission strip failed", "env", envName, "role", role.ID, "scope", scopeStr, "error", err)
+					errs = append(errs, fmt.Errorf("strip %q from role %s: %w", scopeStr, role.ID, err))
 				}
 			}
 		}
 		offset += len(roles)
 		if offset >= total || len(roles) == 0 {
-			return
+			return errors.Join(errs...)
 		}
 	}
 }

@@ -48,6 +48,9 @@ import (
 //			ListEndpointsByProxyFunc: func(ctx context.Context, proxyUUID uuid.UUID) ([]models.MCPProxyEndpoint, error) {
 //				panic("mock out the ListEndpointsByProxy method")
 //			},
+//			MarkIdentityCleanupIDFunc: func(ctx context.Context, endpointUUID uuid.UUID, cleanupID string) (bool, error) {
+//				panic("mock out the MarkIdentityCleanupID method")
+//			},
 //			RemoveEndpointEnvironmentFunc: func(ctx context.Context, tx *gorm.DB, endpointUUID uuid.UUID, envUUID uuid.UUID) error {
 //				panic("mock out the RemoveEndpointEnvironment method")
 //			},
@@ -90,6 +93,9 @@ type MCPProxyEndpointRepositoryMock struct {
 
 	// ListEndpointsByProxyFunc mocks the ListEndpointsByProxy method.
 	ListEndpointsByProxyFunc func(ctx context.Context, proxyUUID uuid.UUID) ([]models.MCPProxyEndpoint, error)
+
+	// MarkIdentityCleanupIDFunc mocks the MarkIdentityCleanupID method.
+	MarkIdentityCleanupIDFunc func(ctx context.Context, endpointUUID uuid.UUID, cleanupID string) (bool, error)
 
 	// RemoveEndpointEnvironmentFunc mocks the RemoveEndpointEnvironment method.
 	RemoveEndpointEnvironmentFunc func(ctx context.Context, tx *gorm.DB, endpointUUID uuid.UUID, envUUID uuid.UUID) error
@@ -179,6 +185,15 @@ type MCPProxyEndpointRepositoryMock struct {
 			// ProxyUUID is the proxyUUID argument value.
 			ProxyUUID uuid.UUID
 		}
+		// MarkIdentityCleanupID holds details about calls to the MarkIdentityCleanupID method.
+		MarkIdentityCleanupID []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// EndpointUUID is the endpointUUID argument value.
+			EndpointUUID uuid.UUID
+			// CleanupID is the cleanupID argument value.
+			CleanupID string
+		}
 		// RemoveEndpointEnvironment holds details about calls to the RemoveEndpointEnvironment method.
 		RemoveEndpointEnvironment []struct {
 			// Ctx is the ctx argument value.
@@ -210,6 +225,7 @@ type MCPProxyEndpointRepositoryMock struct {
 	lockListEndpointEnvironments        sync.RWMutex
 	lockListEndpointEnvironmentsByProxy sync.RWMutex
 	lockListEndpointsByProxy            sync.RWMutex
+	lockMarkIdentityCleanupID           sync.RWMutex
 	lockRemoveEndpointEnvironment       sync.RWMutex
 	lockUpdateEndpoint                  sync.RWMutex
 }
@@ -591,6 +607,46 @@ func (mock *MCPProxyEndpointRepositoryMock) ListEndpointsByProxyCalls() []struct
 	mock.lockListEndpointsByProxy.RLock()
 	calls = mock.calls.ListEndpointsByProxy
 	mock.lockListEndpointsByProxy.RUnlock()
+	return calls
+}
+
+// MarkIdentityCleanupID calls MarkIdentityCleanupIDFunc.
+func (mock *MCPProxyEndpointRepositoryMock) MarkIdentityCleanupID(ctx context.Context, endpointUUID uuid.UUID, cleanupID string) (bool, error) {
+	if mock.MarkIdentityCleanupIDFunc == nil {
+		panic("MCPProxyEndpointRepositoryMock.MarkIdentityCleanupIDFunc: method is nil but MCPProxyEndpointRepository.MarkIdentityCleanupID was just called")
+	}
+	callInfo := struct {
+		Ctx          context.Context
+		EndpointUUID uuid.UUID
+		CleanupID    string
+	}{
+		Ctx:          ctx,
+		EndpointUUID: endpointUUID,
+		CleanupID:    cleanupID,
+	}
+	mock.lockMarkIdentityCleanupID.Lock()
+	mock.calls.MarkIdentityCleanupID = append(mock.calls.MarkIdentityCleanupID, callInfo)
+	mock.lockMarkIdentityCleanupID.Unlock()
+	return mock.MarkIdentityCleanupIDFunc(ctx, endpointUUID, cleanupID)
+}
+
+// MarkIdentityCleanupIDCalls gets all the calls that were made to MarkIdentityCleanupID.
+// Check the length with:
+//
+//	len(mockedMCPProxyEndpointRepository.MarkIdentityCleanupIDCalls())
+func (mock *MCPProxyEndpointRepositoryMock) MarkIdentityCleanupIDCalls() []struct {
+	Ctx          context.Context
+	EndpointUUID uuid.UUID
+	CleanupID    string
+} {
+	var calls []struct {
+		Ctx          context.Context
+		EndpointUUID uuid.UUID
+		CleanupID    string
+	}
+	mock.lockMarkIdentityCleanupID.RLock()
+	calls = mock.calls.MarkIdentityCleanupID
+	mock.lockMarkIdentityCleanupID.RUnlock()
 	return calls
 }
 

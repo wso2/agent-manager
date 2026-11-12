@@ -39,6 +39,9 @@ type MCPProxyEndpointRepository interface {
 	// ClearIdentityCleanupID drops the endpoint's identityCleanupId once the removal it names succeeded, if it is still
 	// that ID.
 	ClearIdentityCleanupID(ctx context.Context, endpointUUID uuid.UUID, cleanupID string) error
+	// MarkIdentityCleanupID sets the endpoint's identityCleanupId to cleanupID while it is off identity security with
+	// none set, and reports whether it did.
+	MarkIdentityCleanupID(ctx context.Context, endpointUUID uuid.UUID, cleanupID string) (bool, error)
 	DeleteEndpoint(ctx context.Context, tx *gorm.DB, endpointUUID uuid.UUID) error
 	GetEndpoint(ctx context.Context, endpointUUID uuid.UUID) (*models.MCPProxyEndpoint, error)
 	// ListEndpointsByProxy returns every endpoint of the proxy with its
@@ -120,6 +123,23 @@ func (r *mcpProxyEndpointRepository) ClearIdentityCleanupID(ctx context.Context,
 		return fmt.Errorf("failed to clear the MCP proxy endpoint's identity cleanup ID: %w", err)
 	}
 	return nil
+}
+
+// MarkIdentityCleanupID sets identityCleanupId to cleanupID in place, only while the endpoint is off identity security
+// (security and its identity variant not both enabled, as mcpIdentityEnabled reads them) and has no identityCleanupId:
+// a registration that finished after the binding left identity, and after that write's own removal, leaves a resource
+// server nothing else would remove. It reports whether the endpoint was marked.
+func (r *mcpProxyEndpointRepository) MarkIdentityCleanupID(ctx context.Context, endpointUUID uuid.UUID, cleanupID string) (bool, error) {
+	result := r.db.WithContext(ctx).Exec(
+		`UPDATE mcp_proxy_endpoints SET configuration = jsonb_set(configuration, '{identityCleanupId}', to_jsonb(?::text))
+		WHERE uuid = ? AND configuration->'identityCleanupId' IS NULL
+			AND NOT (COALESCE(configuration#>>'{security,enabled}', '') = 'true'
+				AND COALESCE(configuration#>>'{security,identity,enabled}', '') = 'true')`,
+		cleanupID, endpointUUID)
+	if result.Error != nil {
+		return false, fmt.Errorf("failed to mark the MCP proxy endpoint for identity cleanup: %w", result.Error)
+	}
+	return result.RowsAffected > 0, nil
 }
 
 func (r *mcpProxyEndpointRepository) DeleteEndpoint(ctx context.Context, tx *gorm.DB, endpointUUID uuid.UUID) error {

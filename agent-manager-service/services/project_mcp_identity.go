@@ -167,6 +167,22 @@ func (s *ProjectMCPProxyService) syncBindingIdentity(
 			(current.IdentityCleanupID == cleanupID || (cleared && current.IdentityCleanupID == "")) {
 			return
 		}
+		// This pass registered the binding, but a write took it off identity meanwhile and that write's own removal
+		// already ran: nothing else would remove what this pass registered, so it is marked for removal, and the next
+		// pass removes it.
+		if identity && !mcpIdentityEnabled(current.Security) && current.IdentityCleanupID == "" {
+			marked, err := s.base.endpointRepo.MarkIdentityCleanupID(ctx, freshEndpoint.UUID, uuid.NewString())
+			if err != nil {
+				s.base.logger.Warn("project MCP binding identity sync: marking a stale registration for removal failed",
+					"proxy", proxyHandleOf(proxy), "env", envName, "error", err)
+				return
+			}
+			if marked {
+				if fresh, freshEndpoint = s.rereadBinding(ctx, ouID, proxy, envUUID); freshEndpoint == nil {
+					return
+				}
+			}
+		}
 		proxy, endpoint = fresh, freshEndpoint
 	}
 	s.base.logger.Warn("project MCP binding identity sync: the binding kept changing; the next PUT syncs it",

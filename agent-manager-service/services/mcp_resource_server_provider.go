@@ -168,8 +168,7 @@ func (p *legacyMCPResourceServerProvider) RemoveMCPResourceServerAction(ctx cont
 	if rsID == "" {
 		return nil // the resource server was never projected into this environment, so no role holds it
 	}
-	sweepRolePermission(ctx, p.log(), client, request.Environment, request.ProxyHandle+":"+action)
-	return nil
+	return sweepRolePermission(ctx, p.log(), client, request.Environment, request.ProxyHandle+":"+action)
 }
 
 func (p *legacyMCPResourceServerProvider) DeleteMCPResourceServer(ctx context.Context, request MCPResourceServerRequest) error {
@@ -185,10 +184,15 @@ func (p *legacyMCPResourceServerProvider) DeleteMCPResourceServer(ctx context.Co
 	if err != nil {
 		return err
 	}
+	// Every action is swept even when one fails; the failures are returned together, so a caller that retries
+	// (a binding's pending identity cleanup) does so until every role has lost the grants.
+	var errs []error
 	for _, action := range request.Actions {
-		sweepRolePermission(ctx, p.log(), client, request.Environment, request.ProxyHandle+":"+action)
+		if err := sweepRolePermission(ctx, p.log(), client, request.Environment, request.ProxyHandle+":"+action); err != nil {
+			errs = append(errs, err)
+		}
 	}
-	return nil
+	return errors.Join(errs...)
 }
 
 func (p *legacyMCPResourceServerProvider) log() *slog.Logger {
