@@ -10,7 +10,7 @@
 # gateway, and the gateway connects and receives its APIs from amp-api.
 
 x-thunder: &thunder
-  image: ${THUNDER_IMAGE}
+  image: ${THUNDER_IMAGE:?copy .env.example to .env first}
   environment: &thunder-env
     THUNDER_PORT: ${THUNDER_PORT}
   entrypoint: ["/bin/sh", "/amp/thunder/entrypoint.sh"]
@@ -23,7 +23,7 @@ services:
   # below. Reruns regenerate the configuration and keep generated keys and
   # tokens.
   amp-init:
-    image: ${AMP_API_IMAGE}
+    image: ${AMP_API_IMAGE:?copy .env.example to .env first}
     # Writes into fresh named volumes and hands each file to the uid that reads it.
     user: "0:0"
     entrypoint: ["/go/bin/agent-manager-service"]
@@ -114,7 +114,7 @@ services:
 
   # --- Trace storage ------------------------------------------------------------
   opensearch:
-    image: ${OPENSEARCH_IMAGE}
+    image: ${OPENSEARCH_IMAGE:?copy .env.example to .env first}
     environment:
       discovery.type: single-node
       OPENSEARCH_JAVA_OPTS: -Xms512m -Xmx512m
@@ -132,7 +132,7 @@ services:
     restart: unless-stopped
 
   otel-collector:
-    image: ${OTEL_COLLECTOR_IMAGE}
+    image: ${OTEL_COLLECTOR_IMAGE:?copy .env.example to .env first}
     command: ["--config=/etc/otelcol/config.yaml"]
     environment:
       OPENSEARCH_USERNAME: admin
@@ -149,7 +149,7 @@ services:
 
   # --- Agent Manager ------------------------------------------------------------
   amp-api:
-    image: ${AMP_API_IMAGE}
+    image: ${AMP_API_IMAGE:?copy .env.example to .env first}
     command: ["-migrate"]
     ports:
       - "${AMP_API_PORT}:8080"
@@ -221,7 +221,7 @@ services:
     restart: unless-stopped
 
   amp-observer:
-    image: ${AMP_OBSERVER_IMAGE}
+    image: ${AMP_OBSERVER_IMAGE:?copy .env.example to .env first}
     ports:
       - "${OBSERVER_PORT}:9098"
     environment:
@@ -250,7 +250,7 @@ services:
     restart: unless-stopped
 
   amp-console:
-    image: ${AMP_CONSOLE_IMAGE}
+    image: ${AMP_CONSOLE_IMAGE:?copy .env.example to .env first}
     ports:
       - "${CONSOLE_PORT}:3000"
     environment:
@@ -281,7 +281,7 @@ services:
   # token amp-api registered at startup; amp-api pushes its APIs, including the
   # trace-ingest API, over that connection.
   gateway-controller:
-    image: ${GATEWAY_CONTROLLER_IMAGE}
+    image: ${GATEWAY_CONTROLLER_IMAGE:?copy .env.example to .env first}
     command: ["-config", "/amp/gw/config.toml"]
     environment:
       GATEWAY_CONTROLLER_HOST: gateway-controller
@@ -299,7 +299,7 @@ services:
     restart: unless-stopped
 
   gateway-runtime:
-    image: ${GATEWAY_RUNTIME_IMAGE}
+    image: ${GATEWAY_RUNTIME_IMAGE:?copy .env.example to .env first}
     command: ["--pol.config", "/amp/gw/config.toml"]
     ports:
       - "${GATEWAY_PORT}:19080"
