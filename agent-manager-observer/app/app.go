@@ -131,6 +131,7 @@ func newHandler(cfg *config.Config, tokenProvider observer.TokenProvider) http.H
 			handler.GetTraceSpans(w, r)
 		}
 	})))
+	apiMux.Handle("/api/v1/observability/config", requireTrace(handlers.GetObservabilityConfig(cfg.Traces)))
 
 	// Data routes carry per-route scope requirements. Publisher-audience
 	// tokens are confined to trace-read by RequirePermission (replacing the

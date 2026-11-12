@@ -22,6 +22,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -214,5 +215,24 @@ func TestNewHandler_UserFromOtherOrgGets403(t *testing.T) {
 
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("expected 403, got %d (body: %s)", rec.Code, rec.Body.String())
+	}
+}
+
+func TestNewHandler_ObservabilityConfig(t *testing.T) {
+	cfg := &config.Config{
+		Observer: config.ObserverConfig{BaseURL: "http://observer", DefaultNamespace: "default"},
+		Traces:   config.TracesConfig{Backend: config.TraceBackendOff},
+		Auth:     config.AuthConfig{IsLocalDevEnv: true},
+	}
+	r := httptest.NewRequest(http.MethodGet, "/api/v1/observability/config", nil)
+	r.Header.Set("Authorization", "Bearer "+scopedToken(t))
+	rec := httptest.NewRecorder()
+	newHandler(cfg, requestTokenProvider{}).ServeHTTP(rec, r)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d (body: %s)", rec.Code, rec.Body.String())
+	}
+	if want := `{"traces":{"enabled":false,"backend":"off"}}`; strings.TrimSpace(rec.Body.String()) != want {
+		t.Errorf("body = %s, want %s", rec.Body.String(), want)
 	}
 }
