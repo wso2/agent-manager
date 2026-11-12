@@ -106,6 +106,7 @@ components:
       properties:
         detail:
           type: array
+          maxItems: 16
           items:
             $ref: "#/components/schemas/ValidationError"
           title: Detail

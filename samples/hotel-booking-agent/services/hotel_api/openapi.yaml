@@ -27,6 +27,7 @@ paths:
   /bookings:
     get:
       summary: List bookings for the caller
+      description: Returns up to 100 bookings in creation order. Use offset to fetch later pages.
       parameters:
         - name: x-user-id
           in: header
@@ -38,6 +39,13 @@ paths:
           required: false
           schema:
             type: string
+        - name: offset
+          in: query
+          description: Number of the caller's bookings to skip.
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
       responses:
         "200":
           description: List of bookings
@@ -45,6 +53,7 @@ paths:
             application/json:
               schema:
                 type: array
+                maxItems: 100
                 items:
                   $ref: "#/components/schemas/Booking"
     post:

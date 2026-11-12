@@ -496,15 +496,21 @@ def list_bookings_tool(user_id: Optional[str] = None, status: Optional[str] = No
         dict[str, Any]: List of bookings.
     """
     logger.info("list_bookings_tool called: user_id=%s status=%s", user_id, status)
-    params = {"user_id": user_id} if user_id else None
-    response = _call_hotel_api(
-        "GET",
-        "/bookings",
-        params=params,
-    )
-    if isinstance(response, dict) and response.get("error"):
-        return response
-    bookings = response if isinstance(response, list) else []
+    page_size = 100  # Match the Hotel API's booking list contract.
+    bookings: list[dict[str, Any]] = []
+    params: dict[str, Any] = {"user_id": user_id} if user_id else {}
+    while True:
+        response = _call_hotel_api("GET", "/bookings", params={**params, "offset": len(bookings)})
+        if isinstance(response, dict) and response.get("error"):
+            return response
+        if not isinstance(response, list):
+            break
+        # Older Hotel API deployments ignore offset and return the same page.
+        if bookings and response == bookings[-page_size:]:
+            break
+        bookings.extend(response)
+        if len(response) != page_size:
+            break
     normalized_status = (status or "ALL").strip().upper()
     if normalized_status in {"AVAILABLE", "ACTIVE"}:
         normalized_status = "CONFIRMED"

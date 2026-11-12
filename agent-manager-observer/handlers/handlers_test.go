@@ -411,6 +411,8 @@ func TestGetTraceOverviews_IncludeQueryParam(t *testing.T) {
 		{name: "all three values are accepted", query: "&include=models,tools,mcpServers", wantModels: true, wantStatus: http.StatusOK},
 		{name: "duplicates beyond three items are accepted", query: "&include=models,tools,mcpServers,models", wantModels: true, wantStatus: http.StatusOK},
 		{name: "duplicates across repeated parameters are accepted", query: "&include=models,tools&include=models,tools", wantModels: true, wantStatus: http.StatusOK},
+		{name: "maximum items accepted", query: "&include=" + strings.Repeat("models,", maxIncludeItems-1) + "models", wantModels: true, wantStatus: http.StatusOK},
+		{name: "limit applies across repeated parameters", query: strings.Repeat("&include=models", maxIncludeItems) + "&include=tools", wantStatus: http.StatusBadRequest},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
