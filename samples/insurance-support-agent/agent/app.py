@@ -6,6 +6,7 @@ os.environ.setdefault("OTEL_SEMCONV_STABILITY_OPT_IN", "gen_ai_latest_experiment
 import logging
 import asyncio
 from contextlib import asynccontextmanager
+import html
 import threading
 import traceback
 import uuid
@@ -109,7 +110,7 @@ def chat(req: ChatRequest) -> ChatResponse:
         # Upstream errors can carry gateway URLs and provider payloads — log, do not return.
         log.error(
             "agent invocation failed: session_id=%a traceback=%a",
-            session_id,
+            html.escape(session_id).replace("\r", "").replace("\n", ""),
             traceback.format_exc(),
         )
         raise HTTPException(status_code=500, detail="agent invocation failed") from exc

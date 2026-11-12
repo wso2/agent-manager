@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import html
 import json
 import logging
 import traceback
@@ -61,6 +62,10 @@ def _resolve_thread_id(session_id: str, context: dict[str, Any]) -> str:
     return f"anonymous:{session_id}"
 
 
+def _sanitize_for_log(value: str) -> str:
+    return html.escape(value).replace("\r", "").replace("\n", "")
+
+
 @app.post("/chat", response_model=ChatResponse)
 def chat(request: ChatRequest) -> ChatResponse:
     wrapped_message = _wrap_user_message(request.message, request.context)
@@ -76,8 +81,8 @@ def chat(request: ChatRequest) -> ChatResponse:
     except Exception:
         logging.error(
             "chat invoke failed: thread_id=%a session_id=%a traceback=%a",
-            thread_id,
-            request.session_id,
+            _sanitize_for_log(thread_id),
+            _sanitize_for_log(request.session_id),
             traceback.format_exc(),
         )
         raise HTTPException(
