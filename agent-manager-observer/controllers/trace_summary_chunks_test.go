@@ -22,6 +22,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/wso2/agent-manager/agent-manager-observer/store/openchoreo"
 )
 
 // longEvery gives trace i a 2 s duration when long(i), and 0 otherwise.
@@ -96,7 +98,7 @@ func TestGetTraceOverviews_SummaryOnlyEnrichesPage(t *testing.T) {
 	want := longIDs(10, sixtyPercent)
 
 	fake := longEvery(langGraphFake(200, noRootAttrs), sixtyPercent)
-	ids, _, truncated := traceIDs(NewTracingController(fake), t, params)
+	ids, _, truncated := traceIDs(NewTracingController(openchoreo.New(fake)), t, params)
 
 	if !slices.Equal(ids, want) || truncated {
 		t.Fatalf("traces = %v, truncated %v; want %v, false", ids, truncated, want)
@@ -119,7 +121,7 @@ func TestGetTraceOverviews_SummaryOnlyRootFetchFails(t *testing.T) {
 	delete(fake.spanDetails, "root-0002")
 	want := slices.DeleteFunc(longIDs(11, sixtyPercent), func(id string) bool { return id == "trace-0002" })
 
-	pages := pagesOf(t, NewTracingController(fake), params, 1)
+	pages := pagesOf(t, NewTracingController(openchoreo.New(fake)), params, 1)
 
 	last := fake.traces[traceIndex(t, want[len(want)-1])]
 	assertPages(t, pages, []wantPage{{ids: want, lookedBackTo: last.StartTime, more: true}})
@@ -175,7 +177,7 @@ func TestGetTraceOverviews_SummaryOnlyPages(t *testing.T) {
 				fake := longEvery(langGraphFake(600, noRootAttrs), sixtyPercent)
 				tt.mutate(fake)
 
-				pages := pagesOf(t, NewTracingController(fake), params, 3)
+				pages := pagesOf(t, NewTracingController(openchoreo.New(fake)), params, 3)
 
 				assertPages(t, pages, wantPages(fake, params, 3, tt.match))
 				assertLangGraphRows(t, fake, pages)

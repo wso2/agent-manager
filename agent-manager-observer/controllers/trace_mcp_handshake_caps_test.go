@@ -24,7 +24,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wso2/agent-manager/agent-manager-observer/observer"
+	"github.com/wso2/agent-manager/agent-manager-observer/store"
+	"github.com/wso2/agent-manager/agent-manager-observer/store/openchoreo"
 )
 
 // mcpEveryTraceFake is costFake(true) with n handshakes naming server(i) in every trace i, each under its own tool call.
@@ -59,7 +60,7 @@ func pageOrder(fake *fakeObserverClient, params TraceQueryParams) []int {
 		order[i] = i
 	}
 	sort.SliceStable(order, func(a, b int) bool {
-		return compareTraces(fake.traces[order[a]], fake.traces[order[b]], params.SortOrder == "asc") < 0
+		return compareTraces(store.Trace(fake.traces[order[a]]), store.Trace(fake.traces[order[b]]), params.SortOrder == "asc") < 0
 	})
 	return order
 }
@@ -67,15 +68,15 @@ func pageOrder(fake *fakeObserverClient, params TraceQueryParams) []int {
 // handshakesToFetch keeps the first handshake per tool in start order, up to maxMCPHandshakesPerTrace.
 func TestHandshakesToFetch(t *testing.T) {
 	at := func(ms int) time.Time { return lookBackWindowEnd.Add(time.Duration(ms) * time.Millisecond) }
-	span := func(id, name, parent string, ms int) observer.SpanInfo {
-		return observer.SpanInfo{SpanID: id, SpanName: name, ParentSpanID: parent, StartTime: at(ms)}
+	span := func(id, name, parent string, ms int) store.Span {
+		return store.Span{SpanID: id, SpanName: name, ParentSpanID: parent, StartTime: at(ms)}
 	}
-	handshake := func(id, parent string, ms int) observer.SpanInfo { return span(id, "initialize.mcp", parent, ms) }
+	handshake := func(id, parent string, ms int) store.Span { return span(id, "initialize.mcp", parent, ms) }
 	chain := span("chain", "LangGraph.workflow", "root", 0)
 
 	// Each list holds 8 handshakes, listed latest first.
-	oneSpan := []observer.SpanInfo{chain, span("t", "execute_tool search_issues", "chain", 0)}
-	var oneTool, eightTools, lone []observer.SpanInfo
+	oneSpan := []store.Span{chain, span("t", "execute_tool search_issues", "chain", 0)}
+	var oneTool, eightTools, lone []store.Span
 	for k := 7; k >= 0; k-- {
 		tool, h := fmt.Sprintf("t%d", k), fmt.Sprintf("h%d", k)
 		oneSpan = append(oneSpan, handshake(h, "t", k))
@@ -86,24 +87,24 @@ func TestHandshakesToFetch(t *testing.T) {
 
 	tests := []struct {
 		name  string
-		spans []observer.SpanInfo
+		spans []store.Span
 		want  []string
 	}{
-		{name: "no handshake", spans: []observer.SpanInfo{chain, span("t", "execute_tool search_issues", "chain", 0)}},
+		{name: "no handshake", spans: []store.Span{chain, span("t", "execute_tool search_issues", "chain", 0)}},
 		{name: "8 under one tool span", spans: oneSpan, want: []string{"h0"}},
 		{name: "8 calls of one tool", spans: oneTool, want: []string{"h0"}},
 		{name: "8 tools", spans: eightTools, want: []string{"h0", "h1", "h2", "h3", "h4"}},
-		{name: "one tool in both naming styles", spans: []observer.SpanInfo{
+		{name: "one tool in both naming styles", spans: []store.Span{
 			span("a", "search_issues.tool", "chain", 2), handshake("h2", "a", 3),
 			span("b", "execute_tool search_issues", "chain", 0), handshake("h1", "b", 1),
 		}, want: []string{"h1"}},
 		{name: "parent not in the list", spans: lone, want: []string{"h0", "h1", "h2", "h3", "h4"}},
-		{name: "parent not a tool", spans: []observer.SpanInfo{chain, handshake("h2", "chain", 2), handshake("h1", "chain", 1)},
+		{name: "parent not a tool", spans: []store.Span{chain, handshake("h2", "chain", 2), handshake("h1", "chain", 1)},
 			want: []string{"h1", "h2"}},
-		{name: "parent names no tool", spans: []observer.SpanInfo{
+		{name: "parent names no tool", spans: []store.Span{
 			span("t", "execute_tool", "chain", 0), handshake("h1", "t", 1), handshake("h2", "t", 2),
 		}, want: []string{"h1", "h2"}},
-		{name: "a lone handshake beside a tool's", spans: []observer.SpanInfo{
+		{name: "a lone handshake beside a tool's", spans: []store.Span{
 			span("t", "execute_tool search_issues", "chain", 0), handshake("h3", "t", 3), handshake("h2", "t", 2), handshake("h1", "gone", 1),
 		}, want: []string{"h1", "h2"}},
 	}
@@ -129,7 +130,7 @@ func TestGetTraceOverviews_MCPServersOneFetchPerTool(t *testing.T) {
 			params.Filters = TraceFilters{}
 			params.Include = Include{MCPServers: true}
 
-			resp, err := NewTracingController(fake).GetTraceOverviews(t.Context(), params)
+			resp, err := NewTracingController(openchoreo.New(fake)).GetTraceOverviews(t.Context(), params)
 			if err != nil {
 				t.Fatalf("GetTraceOverviews: %v", err)
 			}
@@ -173,7 +174,7 @@ func TestGetTraceOverviews_MCPHandshakeCapStopsWalk(t *testing.T) {
 				params.SortOrder = order
 				ctx, logs := logContext()
 
-				resp, err := NewTracingController(fake).GetTraceOverviews(ctx, params)
+				resp, err := NewTracingController(openchoreo.New(fake)).GetTraceOverviews(ctx, params)
 				if err != nil {
 					t.Fatalf("GetTraceOverviews: %v", err)
 				}
@@ -243,7 +244,7 @@ func TestGetTraceOverviews_MCPHandshakeCapPagesEveryMatchOnce(t *testing.T) {
 				params.Include = tt.include
 				params.SortOrder = order
 				fake := tt.fixture()
-				c := NewTracingController(fake)
+				c := NewTracingController(openchoreo.New(fake))
 
 				var want []string
 				for _, p := range wantPages(fake, params, len(fake.traces), match) {
@@ -304,7 +305,7 @@ func TestExportTraces_MCPHandshakeCapTruncates(t *testing.T) {
 	})
 	ctx, logs := logContext()
 
-	resp, err := NewTracingController(fake).ExportTraces(ctx, exportParams(10, TraceFilters{MCPServer: "github"}))
+	resp, err := NewTracingController(openchoreo.New(fake)).ExportTraces(ctx, exportParams(10, TraceFilters{MCPServer: "github"}))
 	if err != nil {
 		t.Fatalf("ExportTraces: %v", err)
 	}
@@ -328,7 +329,7 @@ func TestGetTraceOverviews_MCPHandshakeCapOnlyWithMCP(t *testing.T) {
 		params.Filters = TraceFilters{Tool: "send_email"}
 		ctx, logs := logContext()
 
-		resp, err := NewTracingController(fake).GetTraceOverviews(ctx, params)
+		resp, err := NewTracingController(openchoreo.New(fake)).GetTraceOverviews(ctx, params)
 		if err != nil {
 			t.Fatalf("GetTraceOverviews: %v", err)
 		}
@@ -352,7 +353,7 @@ func TestGetTraceOverviews_MCPHandshakeCapOnlyWithMCP(t *testing.T) {
 		params.Filters = TraceFilters{}
 		params.Include = Include{MCPServers: true}
 
-		resp, err := NewTracingController(fake).GetTraceOverviews(t.Context(), params)
+		resp, err := NewTracingController(openchoreo.New(fake)).GetTraceOverviews(t.Context(), params)
 		if err != nil {
 			t.Fatalf("GetTraceOverviews: %v", err)
 		}

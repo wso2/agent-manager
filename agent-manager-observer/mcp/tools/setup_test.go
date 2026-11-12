@@ -28,6 +28,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-observer/controllers"
 	"github.com/wso2/agent-manager/agent-manager-observer/observer"
 	"github.com/wso2/agent-manager/agent-manager-observer/rbac"
+	"github.com/wso2/agent-manager/agent-manager-observer/store/openchoreo"
 )
 
 // constants for testing
@@ -135,7 +136,7 @@ func setupTestServer(t *testing.T) (*gomcp.ClientSession, *fakeObserverClient) {
 
 	fake := newFakeObserverClient()
 	toolsets := &Toolsets{
-		Tracing:       controllers.NewTracingController(fake),
+		Tracing:       controllers.NewTracingController(openchoreo.New(fake)),
 		Observability: controllers.NewObservabilityController(fake),
 		// The in-memory transport carries no Authorization header, so the real
 		// guard would refuse every call. Authorization has its own tests

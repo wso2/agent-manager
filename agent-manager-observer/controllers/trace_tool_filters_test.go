@@ -27,6 +27,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-observer/observer"
 	"github.com/wso2/agent-manager/agent-manager-observer/opensearch"
+	"github.com/wso2/agent-manager/agent-manager-observer/store/openchoreo"
 )
 
 // matchesTools judges tool and toolError on tools and failedTools.
@@ -194,7 +195,7 @@ func referenceOverviews(t *testing.T, fake *fakeObserverClient, include Include)
 	params := lookBackParams(len(fake.traces))
 	params.Filters = TraceFilters{}
 	params.Include = include
-	resp, err := NewTracingController(fake).GetTraceOverviews(t.Context(), params)
+	resp, err := NewTracingController(openchoreo.New(fake)).GetTraceOverviews(t.Context(), params)
 	if err != nil {
 		t.Fatalf("reference GetTraceOverviews: %v", err)
 	}
@@ -246,7 +247,7 @@ func TestGetTraceOverviews_ToolFiltersMatchFullEnrichment(t *testing.T) {
 				params.SortOrder = order
 				fake := toolFilterFake()
 
-				pages := pagesListedOnce(t, NewTracingController(fake), fake, params, 3)
+				pages := pagesListedOnce(t, NewTracingController(openchoreo.New(fake)), fake, params, 3)
 
 				assertPages(t, pages, wantPages(fake, params, 3, match))
 				for _, page := range pages {
@@ -338,7 +339,7 @@ func TestGetTraceOverviews_ToolErrorCallCounts(t *testing.T) {
 	params := lookBackParams(10)
 	params.Filters = TraceFilters{ToolError: true}
 
-	ids, _, truncated := traceIDs(NewTracingController(fake), t, params)
+	ids, _, truncated := traceIDs(NewTracingController(openchoreo.New(fake)), t, params)
 
 	want := make([]string, 0, 10)
 	for i := 0; i < 300; i += 30 {
@@ -374,7 +375,7 @@ func TestGetTraceOverviews_ToolWithStatusReadsRootFirst(t *testing.T) {
 	params := lookBackParams(5)
 	params.Filters = TraceFilters{Tool: "search_issues", Status: TraceStatusError}
 
-	ids, _, _ := traceIDs(NewTracingController(fake), t, params)
+	ids, _, _ := traceIDs(NewTracingController(openchoreo.New(fake)), t, params)
 
 	// Roots fail on every 20th trace and tools run on every 3rd: every 60th matches.
 	want := []string{"trace-0000", "trace-0060", "trace-0120", "trace-0180", "trace-0240"}
@@ -400,7 +401,7 @@ func TestGetTraceOverviews_ToolWithModelOneAttributeList(t *testing.T) {
 	params := lookBackParams(5)
 	params.Filters = TraceFilters{Tool: "search_issues", Model: "gpt"}
 
-	ids, _, _ := traceIDs(NewTracingController(fake), t, params)
+	ids, _, _ := traceIDs(NewTracingController(openchoreo.New(fake)), t, params)
 
 	// Tools run on every 3rd trace and gpt-4o-mini on the even ones, except
 	// every 50th, which has rare-model.
@@ -428,7 +429,7 @@ func TestGetTraceOverviews_ToolFilterOverCapCostsNothing(t *testing.T) {
 		params := lookBackParams(10)
 		params.Filters = filters
 
-		ids, _, truncated := traceIDs(NewTracingController(fake), t, params)
+		ids, _, truncated := traceIDs(NewTracingController(openchoreo.New(fake)), t, params)
 
 		if len(ids) != 0 || !truncated {
 			t.Errorf("%+v: got %d traces, truncated %v; want 0, true", filters, len(ids), truncated)
@@ -446,7 +447,7 @@ func TestGetTraceOverviews_ToolWithModelOverThresholdRejectsAtRoot(t *testing.T)
 	params := lookBackParams(10)
 	params.Filters = TraceFilters{Tool: "search_issues", Model: "gpt"}
 
-	ids, _, _ := traceIDs(NewTracingController(fake), t, params)
+	ids, _, _ := traceIDs(NewTracingController(openchoreo.New(fake)), t, params)
 
 	if len(ids) != 0 {
 		t.Fatalf("traces = %v, want none", ids)
@@ -464,7 +465,7 @@ func TestGetTraceOverviews_ToolWithModelOverThresholdRejectsAtRoot(t *testing.T)
 func TestExportTraces_ToolErrorFetchesSpansOnlyForMatches(t *testing.T) {
 	fake := costFake(true)
 
-	resp := mustExport(t, NewTracingController(fake), exportParams(10, TraceFilters{ToolError: true}))
+	resp := mustExport(t, NewTracingController(openchoreo.New(fake)), exportParams(10, TraceFilters{ToolError: true}))
 
 	want := make([]string, 0, 10)
 	for i := 0; i < 300; i += 30 {
@@ -476,7 +477,7 @@ func TestExportTraces_ToolErrorFetchesSpansOnlyForMatches(t *testing.T) {
 	if got := atomic.LoadInt32(&fake.attrSpansCalls); got != 10 {
 		t.Errorf("full span fetches = %d, want 10, one per match", got)
 	}
-	page, err := NewTracingController(costFake(true)).GetTraceOverviews(t.Context(), exportParams(10, TraceFilters{ToolError: true}))
+	page, err := NewTracingController(openchoreo.New(costFake(true))).GetTraceOverviews(t.Context(), exportParams(10, TraceFilters{ToolError: true}))
 	if err != nil {
 		t.Fatalf("GetTraceOverviews: %v", err)
 	}
@@ -503,7 +504,7 @@ func TestGetTraceOverviews_ToolErrorCursorPagesWholeWindow(t *testing.T) {
 			params.Filters = TraceFilters{ToolError: true}
 			params.SortOrder = order
 
-			pages := pageAll(t, NewTracingController(fake), fake, params)
+			pages := pageAll(t, NewTracingController(openchoreo.New(fake)), fake, params)
 
 			// Traces 0-3 end after the window, so their roots are outside it.
 			want := map[string]bool{}
@@ -548,7 +549,7 @@ func TestGetTraceOverviews_ToolFilterSpanListFails(t *testing.T) {
 			params.Filters = tt.filters
 			ctx, logs := logContext()
 
-			resp, err := NewTracingController(fake).GetTraceOverviews(ctx, params)
+			resp, err := NewTracingController(openchoreo.New(fake)).GetTraceOverviews(ctx, params)
 			if err != nil {
 				t.Fatalf("GetTraceOverviews: %v", err)
 			}
@@ -588,7 +589,7 @@ func TestExportTraces_ToolFilterSpanListFailsInSelection(t *testing.T) {
 	fake := costFake(true)
 	fake.failCall = failTimes(map[string]int{"trace-0000": -1})
 
-	resp := mustExport(t, NewTracingController(fake), exportParams(3, TraceFilters{ToolError: true}))
+	resp := mustExport(t, NewTracingController(openchoreo.New(fake)), exportParams(3, TraceFilters{ToolError: true}))
 
 	if got, want := exportedIDs(resp), []string{"trace-0030", "trace-0060", "trace-0090"}; !slices.Equal(got, want) {
 		t.Fatalf("exported %v, want %v", got, want)
@@ -608,7 +609,7 @@ func TestGetTraceOverviews_ToolFilterEmptySpanList(t *testing.T) {
 	params.Filters = TraceFilters{ToolError: true}
 	ctx, logs := logContext()
 
-	resp, err := NewTracingController(fake).GetTraceOverviews(ctx, params)
+	resp, err := NewTracingController(openchoreo.New(fake)).GetTraceOverviews(ctx, params)
 	if err != nil {
 		t.Fatalf("GetTraceOverviews: %v", err)
 	}

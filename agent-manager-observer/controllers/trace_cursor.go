@@ -25,7 +25,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wso2/agent-manager/agent-manager-observer/observer"
+	"github.com/wso2/agent-manager/agent-manager-observer/store"
 )
 
 // TraceCursor names the trace a trace-list page stopped on. Traces are in
@@ -74,7 +74,7 @@ func DecodeTraceCursor(s string) (*TraceCursor, error) {
 
 // compareTraces orders traces by page order: start time in the sort order,
 // then trace ID ascending.
-func compareTraces(a, b observer.TraceInfo, asc bool) int {
+func compareTraces(a, b store.Trace, asc bool) int {
 	if c := a.StartTime.Compare(b.StartTime); c != 0 {
 		if asc {
 			return c
@@ -86,15 +86,15 @@ func compareTraces(a, b observer.TraceInfo, asc bool) int {
 
 // pastCursor reports whether t comes strictly after cur in page order. Every
 // trace is past a nil cursor.
-func pastCursor(t observer.TraceInfo, cur *TraceCursor, asc bool) bool {
-	return cur == nil || compareTraces(t, observer.TraceInfo{StartTime: cur.Time, TraceID: cur.ID}, asc) > 0
+func pastCursor(t store.Trace, cur *TraceCursor, asc bool) bool {
+	return cur == nil || compareTraces(t, store.Trace{StartTime: cur.Time, TraceID: cur.ID}, asc) > 0
 }
 
 // sortedTraces returns a copy of traces in page order. The upstream sorts by
 // start time only, so traces with the same start time come back in any order.
-func sortedTraces(traces []observer.TraceInfo, asc bool) []observer.TraceInfo {
+func sortedTraces(traces []store.Trace, asc bool) []store.Trace {
 	sorted := slices.Clone(traces)
-	slices.SortFunc(sorted, func(a, b observer.TraceInfo) int { return compareTraces(a, b, asc) })
+	slices.SortFunc(sorted, func(a, b store.Trace) int { return compareTraces(a, b, asc) })
 	return sorted
 }
 
@@ -103,7 +103,7 @@ func sortedTraces(traces []observer.TraceInfo, asc bool) []observer.TraceInfo {
 // limit can hold only part of the traces at its last start time, so a page
 // may stop only on a settled trace. complete means the response holds the
 // whole window.
-func settledLen(sorted []observer.TraceInfo, complete bool) int {
+func settledLen(sorted []store.Trace, complete bool) int {
 	n := len(sorted)
 	if complete || n == 0 {
 		return n

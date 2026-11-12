@@ -37,6 +37,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-observer/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-observer/observer"
 	"github.com/wso2/agent-manager/agent-manager-observer/rbac"
+	"github.com/wso2/agent-manager/agent-manager-observer/store/openchoreo"
 )
 
 // Options holds deployment-specific hooks for Run; the zero value is the OSS default.
@@ -109,7 +110,7 @@ func newHandler(cfg *config.Config, tokenProvider observer.TokenProvider) http.H
 
 	// v1 routes — observer-backed
 	observerClient := observer.NewClient(cfg.Observer.BaseURL, tokenProvider, cfg.Observer.DefaultNamespace)
-	controller := controllers.NewTracingController(observerClient)
+	controller := controllers.NewTracingController(openchoreo.New(observerClient))
 	obsController := controllers.NewObservabilityController(observerClient)
 	handler := handlers.NewHandler(controller, obsController)
 

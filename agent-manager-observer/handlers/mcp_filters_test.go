@@ -24,6 +24,7 @@ import (
 	"testing"
 
 	"github.com/wso2/agent-manager/agent-manager-observer/controllers"
+	"github.com/wso2/agent-manager/agent-manager-observer/store/openchoreo"
 )
 
 // include=mcpServers sets MCPServers, alone or beside the others; the name is case-sensitive.
@@ -103,7 +104,7 @@ func TestTraceEndpoints_MCPServerFilter(t *testing.T) {
 	for path, handler := range endpoints {
 		for _, tt := range tests {
 			t.Run(path+" "+tt.name, func(t *testing.T) {
-				h := NewHandler(controllers.NewTracingController(&fakeObserverClient{}), nil)
+				h := NewHandler(controllers.NewTracingController(openchoreo.New(&fakeObserverClient{})), nil)
 				r := httptest.NewRequest(http.MethodGet, path+"?"+baseParams()+tt.query, nil)
 				rec := httptest.NewRecorder()
 				handler(h)(rec, r)

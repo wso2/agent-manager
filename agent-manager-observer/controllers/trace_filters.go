@@ -24,8 +24,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/wso2/agent-manager/agent-manager-observer/observer"
 	"github.com/wso2/agent-manager/agent-manager-observer/opensearch"
+	"github.com/wso2/agent-manager/agent-manager-observer/store"
 )
 
 // TraceStatusFilter selects traces by error status.
@@ -279,7 +279,7 @@ func matchesSummary(durationNs int64, spanCount int, f TraceFilters) bool {
 }
 
 // summaryChunkLen is the shortest prefix of traces holding need survivors.
-func summaryChunkLen(traces []observer.TraceInfo, f TraceFilters, need int) int {
+func summaryChunkLen(traces []store.Trace, f TraceFilters, need int) int {
 	for i, t := range traces {
 		if matchesSummary(t.DurationNs, t.SpanCount, f) {
 			need--
@@ -292,8 +292,8 @@ func summaryChunkLen(traces []observer.TraceInfo, f TraceFilters, need int) int 
 }
 
 // filterTraceInfos drops traces the summary already rules out, before enrichment.
-func filterTraceInfos(traces []observer.TraceInfo, f TraceFilters) []observer.TraceInfo {
-	matched := make([]observer.TraceInfo, 0, len(traces))
+func filterTraceInfos(traces []store.Trace, f TraceFilters) []store.Trace {
+	matched := make([]store.Trace, 0, len(traces))
 	for _, t := range traces {
 		if matchesSummary(t.DurationNs, t.SpanCount, f) {
 			matched = append(matched, t)

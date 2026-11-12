@@ -26,6 +26,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-observer/observer"
 	"github.com/wso2/agent-manager/agent-manager-observer/opensearch"
+	"github.com/wso2/agent-manager/agent-manager-observer/store/openchoreo"
 )
 
 // threadIDKey is where Traceloop's LangChain instrumentation puts LangGraph's thread_id.
@@ -79,7 +80,7 @@ func TestGetTraceOverviews_ConversationIDFromChildSpans(t *testing.T) {
 			params := lookBackParams(10)
 			params.Filters = TraceFilters{}
 
-			pages := pagesOf(t, NewTracingController(fake), params, 1)
+			pages := pagesOf(t, NewTracingController(openchoreo.New(fake)), params, 1)
 
 			if len(pages[0].Traces) != 10 {
 				t.Fatalf("got %d traces, want 10", len(pages[0].Traces))
@@ -113,7 +114,7 @@ func TestGetTraceOverviews_ConversationIDFilterReadsChildSpans(t *testing.T) {
 	params := lookBackParams(5)
 	params.Filters.ConversationID = "thread-match"
 
-	ids, _, truncated := traceIDs(NewTracingController(fake), t, params)
+	ids, _, truncated := traceIDs(NewTracingController(openchoreo.New(fake)), t, params)
 
 	want := []string{"trace-0000", "trace-0010", "trace-0020", "trace-0030", "trace-0040"}
 	if !slices.Equal(ids, want) || truncated {
@@ -155,7 +156,7 @@ func TestGetTraceOverviews_ConversationIDFilterSpanListFails(t *testing.T) {
 			params.Filters.ConversationID = "thread-match"
 			ctx, logs := logContext()
 
-			resp, err := NewTracingController(fake).GetTraceOverviews(ctx, params)
+			resp, err := NewTracingController(openchoreo.New(fake)).GetTraceOverviews(ctx, params)
 			if err != nil {
 				t.Fatalf("GetTraceOverviews returned error: %v", err)
 			}
@@ -194,7 +195,7 @@ func TestGetTraceOverviews_ConversationIDFilterCompleteRootReadsChild(t *testing
 	params := lookBackParams(10)
 	params.Filters.ConversationID = "thread-match"
 
-	ids, _, truncated := traceIDs(NewTracingController(fake), t, params)
+	ids, _, truncated := traceIDs(NewTracingController(openchoreo.New(fake)), t, params)
 
 	want := []string{"trace-0000", "trace-0010", "trace-0020"}
 	if !slices.Equal(ids, want) || truncated {
@@ -221,7 +222,7 @@ func TestGetTraceOverviews_ConversationIDFilterCompleteRootNoIDAnywhere(t *testi
 	params := lookBackParams(10)
 	ctx, logs := logContext()
 
-	resp, err := NewTracingController(fake).GetTraceOverviews(ctx, params)
+	resp, err := NewTracingController(openchoreo.New(fake)).GetTraceOverviews(ctx, params)
 	if err != nil {
 		t.Fatalf("GetTraceOverviews returned error: %v", err)
 	}
@@ -264,7 +265,7 @@ func TestGetTraceOverviews_ConversationIDFilterUnreadSpans(t *testing.T) {
 			params.Filters.ConversationID = "thread-match"
 			ctx, logs := logContext()
 
-			resp, err := NewTracingController(fake).GetTraceOverviews(ctx, params)
+			resp, err := NewTracingController(openchoreo.New(fake)).GetTraceOverviews(ctx, params)
 			if err != nil {
 				t.Fatalf("GetTraceOverviews returned error: %v", err)
 			}
@@ -306,7 +307,7 @@ func TestGetTraceOverviews_ConversationIDFilterUnreadLeaves(t *testing.T) {
 			tt.setup(fake)
 			params := lookBackParams(20)
 			params.Filters.ConversationID = "thread-match"
-			c := NewTracingController(fake)
+			c := NewTracingController(openchoreo.New(fake))
 			ctx, logs := logContext()
 
 			resp, err := c.GetTraceOverviews(ctx, params)
@@ -378,7 +379,7 @@ func TestGetTraceOverviews_MissingConversationID(t *testing.T) {
 		return ""
 	})
 
-	ids, _, truncated := traceIDs(NewTracingController(fake), t, missingConversationParams(10))
+	ids, _, truncated := traceIDs(NewTracingController(openchoreo.New(fake)), t, missingConversationParams(10))
 
 	want := []string{"trace-0000", "trace-0004", "trace-0005", "trace-0006", "trace-0007",
 		"trace-0008", "trace-0009", "trace-0010", "trace-0014", "trace-0015"}
@@ -427,7 +428,7 @@ func TestGetTraceOverviews_MissingConversationIDUnreadSpans(t *testing.T) {
 			fake := langGraphFake(20, completeRootNoID)
 			tt.setup(fake)
 			params := missingConversationParams(20)
-			c := NewTracingController(fake)
+			c := NewTracingController(openchoreo.New(fake))
 			ctx, logs := logContext()
 
 			resp, err := c.GetTraceOverviews(ctx, params)
