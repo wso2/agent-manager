@@ -86,7 +86,6 @@ data:
       - type: oauth2
         config:
           clientId: {{ .Values.thunder.bootstrap.ampConsoleClient.clientId | quote }}
-          clientSecret: {{ .Values.thunder.bootstrap.ampConsoleClient.clientSecret | quote }}
           redirectUris: {{ .Values.thunder.bootstrap.ampConsoleClient.redirectUris | toJson }}
           grantTypes: {{ .Values.thunder.bootstrap.ampConsoleClient.grantTypes | toJson }}
           responseTypes: {{ .Values.thunder.bootstrap.ampConsoleClient.responseTypes | toJson }}
@@ -298,8 +297,8 @@ data:
     # templating.
     #
     # This value IS the token's "aud" claim, so it must stay in sync with every
-    # audience allow-list that accepts platform-Thunder tokens: agent-manager-service's
-    # and agent-manager-observer's KEY_MANAGER_AUDIENCE, and env-Thunder's
+    # audience allow-list for tokens issued by the platform identity provider.
+    # This includes KEY_MANAGER_AUDIENCE on both API services and env-Thunder's
     # trustedIssuer.audience (PLATFORM_THUNDER_TOKEN_AUDIENCE in add-environment-thunder.sh).
     # It does NOT affect any amp:* scope string — those come from resource handles plus
     # the delimiter below, never from this identifier.

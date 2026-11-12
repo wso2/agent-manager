@@ -47,4 +47,7 @@ RUN chmod +x /usr/local/bin/setup-instrumentation.py
 USER 1000:1000
 
 ENV INSTRUMENTATION_PROVIDER=otel-tracing
+# Kubernetes tracks init completion by the copy script's exit status.
+HEALTHCHECK NONE
+
 CMD ["python3", "/usr/local/bin/setup-instrumentation.py"]

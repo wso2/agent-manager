@@ -220,6 +220,7 @@ agentManagerService:
       existingSecret: ""
       # Key to read from existingSecret. Applies ONLY when existingSecret is set;
       # the chart-managed Secret always uses the fixed key "encryption-key".
+      # checkov:skip=CKV_SECRET_6:Kubernetes Secret data key
       existingSecretKey: "encryption-key"
 
     # Shared secret Caddy presents on the on-demand-TLS ask endpoint
@@ -230,6 +231,7 @@ agentManagerService:
     thunderAskSecret:
       value: ""
       existingSecret: ""
+      # checkov:skip=CKV_SECRET_6:Kubernetes Secret data key
       existingSecretKey: "thunder-ask-secret"
 
     # Kubeconfig (empty for in-cluster, or provide config)
@@ -321,6 +323,9 @@ agentManagerService:
     oidc:
       tokenUrl: "http://amp-thunder-extension-service.amp-thunder.svc.cluster.local:8090/oauth2/token"
       clientId: "amp-api-client"
+      # Set existingSecret to read the client credential from an existing Secret.
+      existingSecret: ""
+      existingSecretKey: "idp-client-secret"
       clientSecret: "amp-api-client-secret"
     # JWT Signing configuration
     jwtSigning:
@@ -334,6 +339,7 @@ agentManagerService:
     github:
       token: ""
       existingSecret: ""
+      # checkov:skip=CKV_SECRET_6:Kubernetes Secret data key
       existingSecretKey: "github-token"
 
     # Growth analytics: feature-usage events and console actions sent to
@@ -354,6 +360,7 @@ agentManagerService:
       # When set it replaces the caller's JWT as the credential.
       applicationId: ""
       existingSecret: ""
+      # checkov:skip=CKV_SECRET_6:Kubernetes Secret data key
       existingSecretKey: "moesif-application-id"
       # Reported on each event as deployment_model / environment.
       deploymentModel: "on-prem"
@@ -384,6 +391,7 @@ agentManagerService:
       existingSecret: ""
       # Key to read from existingSecret. Applies ONLY when existingSecret is set;
       # the chart-managed Secret always uses the fixed key "openbao-token".
+      # checkov:skip=CKV_SECRET_6:Kubernetes Secret data key
       existingSecretKey: "openbao-token"
 
     # Workflow Plane OpenBao configuration (for Git Secrets)
@@ -401,6 +409,7 @@ agentManagerService:
       # Key to read from existingSecret. Applies ONLY when existingSecret is set.
       # The chart-managed Secret packs both OpenBao tokens into one Secret, so this
       # token is stored there under the distinct key "workflow-plane-openbao-token".
+      # checkov:skip=CKV_SECRET_6:Kubernetes Secret data key
       existingSecretKey: "openbao-token"
 
     # Gateway-reported policy manifest cache. A gateway pushes its whole manifest each
@@ -427,6 +436,7 @@ agentManagerService:
         existingSecret: ""
         # Key to read from existingSecret. Applies ONLY when existingSecret is set;
         # the chart-managed Secret always uses the fixed key "gateway-manifest-cache-redis-password".
+        # checkov:skip=CKV_SECRET_6:Kubernetes Secret data key
         existingSecretKey: "gateway-manifest-cache-redis-password"
 
     # Agent resource limits — operator-configured upper bounds enforced on PUT /resource-configs
@@ -475,6 +485,7 @@ agentManagerService:
       clientSecret: "amp-system-client-secret"
       # Reference to an existing secret containing the Thunder client secret
       existingSecret: ""
+      # checkov:skip=CKV_SECRET_6:Kubernetes Secret data key
       existingSecretKey: "thunder-client-secret"
   # Certificate configuration
   certificates:

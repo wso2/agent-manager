@@ -919,8 +919,16 @@
                 },
                 "clientSecret": {
                   "default": "amp-api-client-secret",
-                  "description": "OAuth 2.0 client secret. Prefer an existing Secret in real deployments.",
+                  "description": "OAuth 2.0 client secret used when existingSecret is unset.",
                   "title": "clientSecret",
+                  "type": "string"
+                },
+                "existingSecret": {
+                  "description": "Name of an existing Kubernetes Secret in the release namespace.",
+                  "type": "string"
+                },
+                "existingSecretKey": {
+                  "description": "Data key in the existing Kubernetes Secret. Defaults to idp-client-secret.",
                   "type": "string"
                 }
               },

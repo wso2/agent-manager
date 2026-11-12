@@ -500,15 +500,8 @@ check_docker_permissions() {
         return 1
     fi
 
-    # Socket exists but docker ps failed — likely a permissions issue.
-    log_warning "Docker socket permissions issue detected. Attempting to fix..."
-    if sudo chmod 666 "${docker_sock}" 2>/dev/null; then
-        log_success "Docker socket permissions fixed"
-        return 0
-    else
-        log_error "Cannot fix Docker socket permissions. Please run: sudo chmod 666 ${docker_sock}"
-        return 1
-    fi
+    log_error "Cannot access ${docker_sock}. Check Docker's socket group and your group membership."
+    return 1
 }
 
 # Check prerequisites

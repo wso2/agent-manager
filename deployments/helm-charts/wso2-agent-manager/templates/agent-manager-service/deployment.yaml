@@ -162,6 +162,18 @@ spec:
                   name: {{ include "agent-management-platform.agentManagerService.fullname" . }}
                   key: api-key
                   {{- end }}
+            {{- with .Values.agentManagerService.config.oidc }}
+            - name: IDP_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  {{- if .existingSecret }}
+                  name: {{ .existingSecret | quote }}
+                  key: {{ .existingSecretKey | default "idp-client-secret" | quote }}
+                  {{- else }}
+                  name: {{ include "agent-management-platform.agentManagerService.fullname" $ }}
+                  key: idp-client-secret
+                  {{- end }}
+            {{- end }}
             - name: GITHUB_TOKEN
               valueFrom:
                 secretKeyRef:

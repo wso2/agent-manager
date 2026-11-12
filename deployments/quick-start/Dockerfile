@@ -16,7 +16,6 @@ RUN apk add --no-cache \
   bind-tools netcat-openbsd tcpdump \
   htop procps \
   vim \
-  sudo \
   wget 'ca-certificates>=20261020' 'ca-certificates-bundle>=20261020' ncurses && \
   mkdir -p /etc/bash_completion.d
 
@@ -31,9 +30,7 @@ RUN curl -fsSL "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${TARGETA
   k3d completion bash > /etc/bash_completion.d/k3d
 
 # Create user
-RUN adduser -D -h ${USER_HOME} -s /bin/bash wso2-amp && \
-    echo "wso2-amp ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/wso2-amp && \
-    chmod 0440 /etc/sudoers.d/wso2-amp
+RUN adduser -D -h ${USER_HOME} -s /bin/bash wso2-amp
 
 # Build context is the repo root (see release-config.json: amp-quick-start
 # sets "context": "."), so paths below are repo-relative. This lets the image
@@ -48,7 +45,6 @@ COPY --chown=wso2-amp:wso2-amp deployments/quick-start/install.sh ${USER_HOME}/i
 COPY --chown=wso2-amp:wso2-amp deployments/quick-start/install-helpers.sh ${USER_HOME}/install-helpers.sh
 COPY --chown=wso2-amp:wso2-amp deployments/quick-start/uninstall.sh ${USER_HOME}/uninstall.sh
 COPY --chown=wso2-amp:wso2-amp deployments/quick-start/k3d-config.yaml ${USER_HOME}/k3d-config.yaml
-COPY --chown=root:root deployments/quick-start/entrypoint.sh /entrypoint.sh
 
 # Bundle deployment resources next to the scripts (flat layout). install.sh
 # resolves these under ${SCRIPT_DIR} when the parent-relative repo layout is
@@ -60,13 +56,17 @@ COPY --chown=wso2-amp:wso2-amp deployments/k8s/coredns-amp-custom.yaml ${USER_HO
 # thunder-naming.sh, so both (and the other env helpers) must ship together.
 COPY --chown=wso2-amp:wso2-amp deployments/scripts/ ${USER_HOME}/scripts/
 RUN chmod +x ${USER_HOME}/install.sh && \
-    chmod +x /entrypoint.sh && \
     chmod +x ${USER_HOME}/install-helpers.sh && \
     chmod +x ${USER_HOME}/uninstall.sh
 
 # Set working directory
 WORKDIR ${USER_HOME}
 
-# Set entrypoint
-ENTRYPOINT ["/entrypoint.sh"]
+USER wso2-amp
+
+# The installer needs a reachable Docker daemon throughout its session.
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
+    CMD docker info --format '{{.ServerVersion}}' >/dev/null || exit 1
+
+ENTRYPOINT ["/bin/bash", "-l"]
 

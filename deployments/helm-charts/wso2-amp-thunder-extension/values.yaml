@@ -569,7 +569,6 @@ thunder:
     # AMP Console Client configuration
     ampConsoleClient:
       clientId: "amp-console-client"
-      clientSecret: "amp-console-client-secret"
       name: "AMP Console"
       description: "AMP Console Application"
       logoUrl: "https://wso2.cachefly.net/wso2/sites/all/image_resources/logos/WSO2-Pulse-Orange.webp"

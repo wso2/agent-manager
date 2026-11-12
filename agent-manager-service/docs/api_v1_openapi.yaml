@@ -22913,7 +22913,7 @@ components:
           description: User attributes map (include password when creating credentials)
           example:
             username: "john.doe"
-            password: "secure-password"
+            password: "example"
             email: "john@example.com"
 
     UpdateUserRequest:
