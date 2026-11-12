@@ -12,6 +12,15 @@ WSO2 Agent Manager provides a comprehensive platform for enterprise AI agent man
 
 Built on [OpenChoreo](https://github.com/openchoreo/openchoreo) for internal agent deployments, the platform leverages OpenTelemetry for extensible instrumentation across multiple AI frameworks.
 
+## Architecture
+
+AMP Lite (Agent Manager without OpenChoreo, development preview):
+
+![AMP Lite architecture](docs/amp-lite/architecture.png)
+
+- [Database schema](docs/amp-lite/database-schema.md) and [data model diagram](docs/amp-lite/data-model.png)
+- Editable sources (draw.io, HTML and generators): [docs/amp-lite](docs/amp-lite/README.md)
+
 ## Key Features
 
 - **Deploy at Scale** - Deploy and run AI agents on Kubernetes with production-ready configurations
