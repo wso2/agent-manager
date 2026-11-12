@@ -22,7 +22,7 @@ export * from './utils/policyParameterEditor';
 export * from './utils/format';
 export * from './utils/resourceName';
 export * from './utils/url';
-export * from './utils/gatewayScripts';
+export * from './utils/releaseRef';
 export * from './utils/promptGuides';
 export * from './utils/clipboard';
 export * from './utils/openApiSpec';

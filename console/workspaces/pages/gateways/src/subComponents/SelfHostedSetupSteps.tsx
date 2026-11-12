@@ -16,7 +16,7 @@
  */
 
 import { type ReactNode, useState } from "react";
-import { Alert, Box, Button, Stack, Tab, Tabs, Typography } from "@wso2/oxygen-ui";
+import { Alert, Box, Button, Stack, Typography } from "@wso2/oxygen-ui";
 import { Check, Copy } from "@wso2/oxygen-ui-icons-react";
 import {
   useCreateSelfHostedGatewayToken,
@@ -30,7 +30,6 @@ import {
   activeTokens,
   cpHostFromUrl,
   dockerCommands,
-  helmCommands,
   reconfigureToken,
 } from "./selfHostedSetup";
 
@@ -134,7 +133,6 @@ export function SelfHostedSetupSteps({
   gatewayId,
   initialToken = null,
 }: SelfHostedSetupStepsProps) {
-  const [tab, setTab] = useState<"docker" | "helm">("docker");
   const [token, setToken] = useState<string | null>(initialToken);
   const [justReconfigured, setJustReconfigured] = useState(false);
   const [reconfiguring, setReconfiguring] = useState(false);
@@ -201,74 +199,40 @@ export function SelfHostedSetupSteps({
 
   const docker = dockerCommands(version, cpHost, token ?? TOKEN_PLACEHOLDER);
   const dockerDisplay = dockerCommands(version, cpHost, TOKEN_PLACEHOLDER);
-  const helm = helmCommands(version, cpHost, token ?? TOKEN_PLACEHOLDER);
-  const helmDisplay = helmCommands(version, cpHost, TOKEN_PLACEHOLDER);
 
   return (
     <Stack spacing={2}>
       {reconfigureError && <Alert severity="error">{reconfigureError}</Alert>}
-      <Tabs value={tab} onChange={(_, value) => setTab(value)}>
-        <Tab value="docker" label="Docker" />
-        <Tab value="helm" label="Kubernetes (Helm)" />
-      </Tabs>
-
-      {tab === "docker" && (
-        <Stack spacing={3}>
-          <Step number={1} title="Download the gateway">
-            <CommandField display={docker.download} copyLabel="download command" />
-          </Step>
-          <Step number={2} title="Set up the gateway">
-            <StepText>
-              Run the setup script. It creates the listener certificate, the at-rest encryption key
-              and the api-platform.env file.
-            </StepText>
-            <CommandField display={docker.setup} copyLabel="setup command" />
-          </Step>
-          <Step number={3} title="Configure the gateway">
-            {token ? (
-              <>
-                {tokenNote}
-                <StepText>Add the control plane connection settings to api-platform.env.</StepText>
-                <CommandField
-                  display={dockerDisplay.configure}
-                  copyValue={docker.configure}
-                  copyLabel="configure command"
-                />
-              </>
-            ) : (
-              reconfigurePrompt
-            )}
-          </Step>
-          <Step number={4} title="Start the gateway">
-            <CommandField display={docker.start} copyLabel="start command" />
-          </Step>
-        </Stack>
-      )}
-
-      {tab === "helm" && (
-        <Stack spacing={3}>
-          <Step number={1} title="Create the encryption key secret">
-            <CommandField
-              display={helmDisplay.createEncryptionKeySecret}
-              copyLabel="encryption key commands"
-            />
-          </Step>
-          <Step number={2} title="Install the chart">
-            {token ? (
-              <>
-                {tokenNote}
-                <CommandField
-                  display={helmDisplay.install}
-                  copyValue={helm.install}
-                  copyLabel="helm install command"
-                />
-              </>
-            ) : (
-              reconfigurePrompt
-            )}
-          </Step>
-        </Stack>
-      )}
+      <Stack spacing={3}>
+        <Step number={1} title="Download the gateway">
+          <CommandField display={docker.download} copyLabel="download command" />
+        </Step>
+        <Step number={2} title="Set up the gateway">
+          <StepText>
+            Run the setup script. It creates the listener certificate, the at-rest encryption key
+            and the api-platform.env file.
+          </StepText>
+          <CommandField display={docker.setup} copyLabel="setup command" />
+        </Step>
+        <Step number={3} title="Configure the gateway">
+          {token ? (
+            <>
+              {tokenNote}
+              <StepText>Add the control plane connection settings to api-platform.env.</StepText>
+              <CommandField
+                display={dockerDisplay.configure}
+                copyValue={docker.configure}
+                copyLabel="configure command"
+              />
+            </>
+          ) : (
+            reconfigurePrompt
+          )}
+        </Step>
+        <Step number={4} title="Start the gateway">
+          <CommandField display={docker.start} copyLabel="start command" />
+        </Step>
+      </Stack>
     </Stack>
   );
 }

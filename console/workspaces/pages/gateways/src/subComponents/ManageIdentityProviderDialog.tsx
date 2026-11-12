@@ -32,13 +32,12 @@ import {
   Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
-import { Copy, Eye, EyeOff, KeyRound, Trash } from "@wso2/oxygen-ui-icons-react";
+import { Copy, KeyRound, Trash } from "@wso2/oxygen-ui-icons-react";
 import {
   DrawerContent,
   DrawerHeader,
   DrawerWrapper,
 } from "@agent-management-platform/views";
-import { useAuthHooks } from "@agent-management-platform/auth";
 import {
   useDeleteIdentityProvider,
   useDiscoverOidc,
@@ -46,7 +45,6 @@ import {
   useUpsertIdentityProvider,
 } from "@agent-management-platform/api-client";
 import {
-  DEFAULT_ENVIRONMENT,
   isManagedGateway,
   type IdentityProvider,
   INPUT_LIMITS,
@@ -56,15 +54,12 @@ import {
   useUnsavedChangesGuard,
 } from "@agent-management-platform/shared-component";
 import {
-  buildScript,
+  buildKeyManagerConfig,
   type ManageIdentityProviderMode,
-  type ScriptInputs,
-} from "./manageIdentityProviderScript";
+} from "./gatewayKeyManagerConfig";
 import { useFeatureFlag } from "@agent-management-platform/feature-management";
 
 export type { ManageIdentityProviderMode };
-
-const TOKEN_MASK = "•••••••••••••••";
 
 interface ManageIdentityProviderDialogProps {
   open: boolean;
@@ -90,7 +85,6 @@ export function ManageIdentityProviderDialog({
 }: ManageIdentityProviderDialogProps) {
   const isDelete = mode === "delete";
   const isGatewayLocked = !!lockedGateway;
-  const { getToken } = useAuthHooks();
 
   const [gatewayId, setGatewayId] = useState("");
   const [name, setName] = useState("");
@@ -104,13 +98,11 @@ export function ManageIdentityProviderDialog({
   const [discoveryError, setDiscoveryError] = useState<string | null>(null);
   const discover = useDiscoverOidc({ orgName: orgId });
 
-  const [showToken, setShowToken] = useState(false);
-  const [resolvedToken, setResolvedToken] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
-  // Managed mode: when enabled, the server patches the gateway runtime config
-  // directly. When off (self-hosted default), the dialog renders the script
-  // snippet exactly as before.
+  // Managed mode: the server patches the gateway runtime config directly. When
+  // off (self-hosted default), the operator edits the gateway's config.toml;
+  // either way the submit records the provider in Agent Manager.
   const managedMode = useFeatureFlag("enableIdentityProviderManagedMode");
   const upsertIdp = useUpsertIdentityProvider();
   const deleteIdp = useDeleteIdentityProvider();
@@ -120,7 +112,7 @@ export function ManageIdentityProviderDialog({
     ? !!gatewayId && !!name
     : !!gatewayId && !!name.trim() && !!issuer.trim() && !!jwksUri.trim();
 
-  const handleManagedSubmit = useCallback(async () => {
+  const handleSubmit = useCallback(async () => {
     try {
       if (isDelete) {
         await deleteIdp.mutateAsync({ orgName: orgId, gatewayId, name });
@@ -162,8 +154,6 @@ export function ManageIdentityProviderDialog({
   // Reset form when the dialog opens, seeding from the provider for delete.
   useEffect(() => {
     if (!open) return;
-    setShowToken(false);
-    setResolvedToken(null);
     setCopied(false);
     setDiscoveryUrl("");
     setDiscoveryError(null);
@@ -197,21 +187,6 @@ export function ManageIdentityProviderDialog({
   // post-save close stay direct.
   const handleGuardedClose = () => confirmIfUnsaved(onClose, isDirty);
 
-  const handleToggleToken = useCallback(async () => {
-    if (showToken) {
-      setShowToken(false);
-      setResolvedToken(null);
-      return;
-    }
-    try {
-      const token = await getToken();
-      setResolvedToken(token);
-      setShowToken(true);
-    } catch {
-      // silently fail
-    }
-  }, [showToken, getToken]);
-
   const handleDiscover = useCallback(async () => {
     const url = discoveryUrl.trim();
     if (!url) return;
@@ -227,36 +202,20 @@ export function ManageIdentityProviderDialog({
     }
   }, [discoveryUrl, discover]);
 
-  const scriptInputs = useCallback(
-    (token: string): ScriptInputs => ({
-      orgId,
-      envName: DEFAULT_ENVIRONMENT,
-      gatewayId,
-      name,
-      issuer,
-      jwksUri,
-      skipTlsVerify,
-      mode,
-      token,
-    }),
-    [orgId, gatewayId, name, issuer, jwksUri, skipTlsVerify, mode],
+  const keyManagerConfig = useMemo(
+    () => buildKeyManagerConfig({ name, issuer, jwksUri, skipTlsVerify }),
+    [name, issuer, jwksUri, skipTlsVerify],
   );
 
   const handleCopy = useCallback(async () => {
     try {
-      const token = resolvedToken ?? (await getToken());
-      await navigator.clipboard.writeText(buildScript(scriptInputs(token)));
+      await navigator.clipboard.writeText(keyManagerConfig);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
       // silently fail
     }
-  }, [resolvedToken, getToken, scriptInputs]);
-
-  const displayScript = useMemo(
-    () => buildScript(scriptInputs(showToken && resolvedToken ? resolvedToken : TOKEN_MASK)),
-    [scriptInputs, showToken, resolvedToken],
-  );
+  }, [keyManagerConfig]);
 
   const gatewayField = (
     <FormControl fullWidth disabled={isDelete}>
@@ -308,10 +267,9 @@ export function ManageIdentityProviderDialog({
               </>
             ) : (
               <>
-                Identity providers are owned by the gateway. This command patches the gateway
-                configuration and syncs Agent Manager. Run it in a terminal with{" "}
-                <code>kubectl</code>, <code>helm</code>, and <code>jq</code> configured against
-                your cluster — for the quickstart, run it inside the dev container shell.
+                Identity providers are owned by the gateway: its <code>configs/config.toml</code>{" "}
+                lists the token issuers it accepts. Update that file and restart the gateway, then{" "}
+                {isDelete ? "remove" : "add"} the provider here so Agent Manager lists it.
               </>
             )}
           </Typography>
@@ -399,79 +357,60 @@ export function ManageIdentityProviderDialog({
           </Stack>
 
           {!managedMode && (
-          <Stack spacing={1}>
-            <Typography variant="body2">Run this command:</Typography>
-            <Box
-              sx={{
-                position: "relative",
-                bgcolor: "grey.900",
-                borderRadius: 1,
-              }}
-            >
-              <Box sx={{ position: "absolute", top: 6, right: 6, display: "flex", gap: 0.5 }}>
-                <Tooltip title={showToken ? "Hide token" : "Show token"}>
-                  <IconButton size="small" onClick={handleToggleToken} sx={{ color: "grey.400" }}>
-                    {showToken ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </IconButton>
-                </Tooltip>
-                <Tooltip title={copied ? "Copied!" : "Copy"}>
-                  <IconButton
-                    size="small"
-                    onClick={handleCopy}
-                    sx={{ color: copied ? "success.light" : "grey.400" }}
-                  >
-                    <Copy size={16} />
-                  </IconButton>
-                </Tooltip>
+            <Stack spacing={1}>
+              <Typography variant="body2">
+                {isDelete
+                  ? "Remove this entry from the gateway's configs/config.toml, then restart the gateway:"
+                  : "Add this entry to the gateway's configs/config.toml, then restart the gateway:"}
+              </Typography>
+              <Box sx={{ position: "relative", bgcolor: "grey.900", borderRadius: 1 }}>
+                <Box sx={{ position: "absolute", top: 6, right: 6 }}>
+                  <Tooltip title={copied ? "Copied!" : "Copy"}>
+                    <IconButton
+                      size="small"
+                      onClick={handleCopy}
+                      sx={{ color: copied ? "success.light" : "grey.400" }}
+                    >
+                      <Copy size={16} />
+                    </IconButton>
+                  </Tooltip>
+                </Box>
+                {/* Scrolls on its own so the copy icon stays put. */}
+                <Box
+                  sx={{
+                    p: 2,
+                    pr: 6,
+                    fontFamily: "monospace",
+                    fontSize: "0.8125rem",
+                    color: "grey.100",
+                    whiteSpace: "pre",
+                    overflowX: "auto",
+                  }}
+                >
+                  {keyManagerConfig}
+                </Box>
               </Box>
-              {/* Scrolls on its own so the copy/show icons stay put. */}
-              <Box
-                sx={{
-                  p: 2,
-                  pr: 9,
-                  fontFamily: "monospace",
-                  fontSize: "0.8125rem",
-                  color: "grey.100",
-                  whiteSpace: "pre",
-                  overflowX: "auto",
-                }}
-              >
-                {displayScript}
-              </Box>
-            </Box>
-            <Typography variant="caption" color="text.secondary">
-              Your access token will be substituted when you copy.
-            </Typography>
-          </Stack>
-          )}
-
-          {!managedMode && (
-            <Alert severity="info">
-              Once the script completes, the list reflects the change. The script is idempotent —
-              safe to re-run.
-            </Alert>
+            </Stack>
           )}
 
           <Box display="flex" justifyContent="flex-end" gap={1}>
             <Button variant="outlined" color="inherit" onClick={onClose}>
-              {managedMode ? "Cancel" : "Close"}
+              Cancel
             </Button>
-            {managedMode && (
-              <Button
-                variant="contained"
-                color={isDelete ? "error" : "primary"}
-                onClick={handleManagedSubmit}
-                disabled={!canSubmit || isSubmitting}
-              >
-                {isSubmitting
-                  ? isDelete
-                    ? "Removing…"
-                    : "Saving…"
-                  : isDelete
-                    ? "Remove"
-                    : "Add"}
-              </Button>
-            )}
+            <Button
+              variant="contained"
+              color={isDelete ? "error" : "primary"}
+              onClick={handleSubmit}
+              disabled={!canSubmit || isSubmitting}
+            >
+              {isSubmitting
+                ? isDelete
+                  ? "Removing…"
+                  : "Saving…"
+                : isDelete
+                  ? "Remove"
+                  : "Add"}
+            </Button>
           </Box>
         </Stack>
       </DrawerContent>
