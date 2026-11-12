@@ -93,14 +93,22 @@ def wait_ready(url, process=None, timeout=120):
     raise TimeoutError(f"Readiness timed out for {url}: {last}")
 
 
+class NotReady(Exception):
+    """A poll attempt hit a transient server error; try again until the deadline."""
+
+
 def wait_until(description, poll, timeout=180):
     deadline = time.monotonic() + timeout
+    last = None
     while time.monotonic() < deadline:
-        result = poll()
+        try:
+            result = poll()
+        except NotReady as exc:
+            result, last = None, exc
         if result:
             return result
         time.sleep(5)
-    raise TimeoutError(f"Timed out waiting for {description}")
+    raise TimeoutError(f"Timed out waiting for {description}" + (f" (last error: {last})" if last else ""))
 
 
 def free_port():
@@ -172,6 +180,10 @@ def poll_trace(client, deployed, observer, marker, since, reports):
     def get(path, query=None):
         response = client._session.get(observer.rstrip("/") + path, params=query,
                                        headers={"Authorization": f"Bearer {client.access_token()}"}, timeout=30)
+        # The first span creates the day's trace index, and searches fail until
+        # its shard starts; any other error, or one that outlasts the wait, fails.
+        if response.status_code >= 500:
+            raise NotReady(f"{path} returned {response.status_code}: {response.text[:200]}")
         response.raise_for_status()
         return response.json()
 
