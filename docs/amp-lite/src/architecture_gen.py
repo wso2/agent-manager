@@ -14,6 +14,7 @@ import sys
 OUT_DIR = sys.argv[1]
 IMG = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "logos.json")))
 
+STACK_ICON = base64.b64encode(b'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><g fill="none" stroke="#1D63ED" stroke-width="1.8"><rect x="3" y="13" width="5" height="5"/><rect x="9.5" y="13" width="5" height="5"/><rect x="16" y="13" width="5" height="5"/><rect x="6.2" y="6.5" width="5" height="5"/><rect x="12.8" y="6.5" width="5" height="5"/></g></svg>''').decode()
 DB_ICON = base64.b64encode(b'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><g fill="none" stroke="#336791" stroke-width="2"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></g></svg>''').decode()
 
 W, H = 2330, 1090
@@ -84,15 +85,15 @@ actor("a_llm", 1180, 240, "LLMs &amp; MCP", "model providers · MCP servers", lo
 actor("a_cons", 1440, 200, "Agent consumers", "apps, users, other agents")
 actor("a_ext", 1660, 380, "Your agents (hosted elsewhere)", "any cloud, on-prem or SaaS · registered in AMP as external agents")
 
-# ---------------------------------------------------------------- cluster + edge
-box("cluster", 260, 230, 1800, 630, "#326ce5", fill="none", arc=1, sw=2, dashed=True, dash="10 6")
-image("cl_logo", 770, 242, 24, 24, IMG["cl_logo"])
-text("cl_lbl", 802, 244, 380, 20, "Kubernetes cluster (local k3d in development)", size=14, color="#326ce5", valign="middle")
+# ---------------------------------------------------------------- stack + ports
+box("cluster", 260, 230, 1800, 630, "#1D63ED", fill="none", arc=1, sw=2, dashed=True, dash="10 6")
+image("cl_logo", 840, 242, 24, 24, STACK_ICON)
+text("cl_lbl", 872, 244, 420, 20, "Docker Compose stack (docker compose up)", size=14, color="#1D63ED", valign="middle")
 
-pill("lb_cp", 350, 221, 440, "LOAD BALANCER · amp-gateway :8080 · console · API · login")
+pill("lb_cp", 350, 221, 440, "PORTS · console :3000 · API + MCP :9000 · ThunderID :8080")
 pill("egress", 1260, 221, 100, "EGRESS", fill="#7f1d1d")
-pill("lb_dp", 1400, 221, 610, "LOAD BALANCER · amp-gateway :19080 · agent endpoints · trace ingest")
-pill("lb_op", 1560, 851, 360, "LOAD BALANCER · amp-gateway :11080 · traces")
+pill("lb_dp", 1400, 221, 610, "PORT :19080 · AI Gateway runtime · agent endpoints · trace ingest")
+pill("lb_op", 1560, 851, 360, "PORT :9098 · Agent Manager Observer · traces")
 for pid, x, y, w in (("lb_cp", 350, 221, 440), ("egress", 1260, 221, 100), ("lb_dp", 1400, 221, 610), ("lb_op", 1560, 851, 360)):
     reg(pid, x, y, w, 18)
 
@@ -105,13 +106,19 @@ comp("console", 300, 330, 240, 180, GREEN, "Console",
      logos=[IMG["console_logo0"]])
 comp("amapi", 560, 330, 560, 180, GREEN, "Agent Manager API",
      "REST API and MCP server<br/>registers external agents and issues their agent tokens<br/>"
-     "LLM, MCP, A2A and gateway config<br/>secrets encrypted in the SQL database<br/>RBAC and audit log",
+     "LLM, MCP, A2A and gateway config; RBAC and audit log<br/>at startup: migrates the database and registers the default gateway<br/>"
+     "gateways connect over a WebSocket on :9243",
      logos=[IMG["amapi_logo0"]])
-comp("thunder", 300, 570, 820, 230, RED, "ThunderID",
+comp("thunder", 300, 560, 820, 170, RED, "ThunderID",
      "<b>For people and services:</b> single sign-on (console, CLI, MCP); users, roles and groups<br/><br/>"
      "<b>For agents:</b> an agent ID and OAuth client per external agent, created by Agent Manager<br/><br/>"
-     "the only identity provider; no per-environment instances",
+     "the only identity provider; thunder-setup applies the generated bootstrap and re-runs only when it changes",
      logos=[IMG["thunder_logo0"]], logo_size=22, prod="one per install", prod_color=RED)
+
+sub("init", 300, 742, 820, 62,
+    "<b>amp-init</b> (one-shot, before everything else): generates the ThunderID config and bootstrap, "
+    "and the gateway's config.toml, encryption key, TLS certificate and registration token; all set from .env",
+    SLATE, "#F1F5F9")
 
 # ---------------------------------------------------------------- data plane
 box("dp", 1180, 290, 860, 280, INDIGO, fill="#F5F5FF", arc=2)
@@ -119,18 +126,18 @@ text("dp_lbl", 1200, 298, 820, 20, "DATA PLANE", size=13, color=INDIGO, bold=Tru
 comp("gw", 1200, 330, 560, 220, INDIGO, "AI Gateway",
      "• inbound: the public entry point for agent endpoints; API keys and OAuth tokens checked here<br/>"
      "• outbound: LLM and MCP proxy, guardrails, token and cost limits; provider keys stay in the gateway<br/>"
-     "• rate-limit counters kept in memory",
-     logos=[IMG["gw_logo0"]], prod="bundled default gateway for the org · more can be added per org", prod_color=INDIGO)
+     "• gateway-controller pulls its config from Agent Manager; gateway-runtime (Envoy) serves the traffic",
+     logos=[IMG["gw_logo0"]], prod="default gateway registered at startup · more can be added per org", prod_color=INDIGO)
 comp("tracegw", 1780, 330, 240, 220, ORANGE, "Trace ingest",
      "OTLP at /otel/v1/traces<br/>checks the agent token<br/>maps its organization, project and agent claims to "
-     "x-user-*-name headers<br/>forwards to the OTel Collector",
-     logos=[IMG["tracegw_logo0"]], prod="/otel route on the AI Gateway", prod_color=ORANGE)
+     "x-user-*-name headers<br/>forwards to the OTel Collector<br/>Agent Manager pushes this API to every gateway",
+     logos=[IMG["tracegw_logo0"]], prod="/otel API on the AI Gateway", prod_color=ORANGE)
 
 # ---------------------------------------------------------------- observability plane
 box("op", 1180, 610, 860, 210, ORANGE, fill="#FFF8EE", arc=2)
 text("op_lbl", 1200, 618, 820, 20, "OBSERVABILITY PLANE", size=13, color=ORANGE, bold=True, valign="middle")
 comp("observer", 1200, 646, 260, 140, ORANGE, "Agent Manager Observer",
-     "traces per agent for the console, CLI and AI assistants<br/>queries OpenSearch directly",
+     "traces per agent for the console, CLI and AI assistants<br/>applies the otel-traces-* index template at startup",
      logos=[IMG["observer_logo0"]], title_size=13)
 sub("tags", 1480, 646, 260, 140,
     "<b>Tenant tags on every span</b><br/>agent token claims: organization · project · agent<br/>"
@@ -150,7 +157,7 @@ def backing(id, x, y, w, h, sub_text=""):
 
 backing("bk_left", 40, 290, 200, 530)
 comp("sqldb", 54, 340, 172, 230, BLUE, "SQL database",
-     "Agent Manager data, audit log, and secrets encrypted with ENCRYPTION_KEY (AES-256-GCM)<br/><i>SQLite or PostgreSQL 18 today; SQL Server 2025 and Oracle 19c planned</i>",
+     "Agent Manager data, audit log, and secrets encrypted with ENCRYPTION_KEY (AES-256-GCM)<br/><i>SQLite by default, PostgreSQL 18 with the postgres profile; SQL Server 2025 and Oracle 19c planned</i>",
      logos=[DB_ICON], logo_size=22, title_size=13)
 comp("thdb", 54, 610, 172, 190, BLUE, "ThunderID data",
      "users, agent identities and OAuth clients<br/>Thunder's own database, separate from Agent Manager's",
@@ -193,14 +200,14 @@ edge("f_lb_obs", [(1560, 860), (1160, 860), (1160, 740), (1200, 740)], GREEN, "l
 
 # control plane
 edge("f_api_gwcfg", [(1120, 400), (1200, 400)], GREEN, "amapi", "gw")
-label("l_gwcfg", 1128, 366, 64, "gateway<br/>config", GREEN, align="center", fill="#FFFFFF", h=30)
-edge("f_sso", [(420, 510), (420, 570)], RED, "console", "thunder", dashed=True)
+label("l_gwcfg", 1128, 366, 64, "config<br/>:9243", GREEN, align="center", fill="#FFFFFF", h=30)
+edge("f_sso", [(420, 510), (420, 560)], RED, "console", "thunder", dashed=True)
 label("l_sso", 428, 546, 100, "single sign-on", RED)
-edge("f_api_th", [(620, 510), (620, 570)], RED, "amapi", "thunder", dashed=True)
+edge("f_api_th", [(620, 510), (620, 560)], RED, "amapi", "thunder", dashed=True)
 label("l_ids", 628, 546, 160, "creates agent identities", RED)
 edge("f_api_db", [(580, 510), (580, 528), (226, 528)], BLUE, "amapi", "sqldb")
 label("l_data", 288, 510, 80, "read / write", BLUE)
-edge("f_th_db", [(300, 700), (226, 700)], BLUE, "thunder", "thdb")
+edge("f_th_db", [(300, 680), (226, 680)], BLUE, "thunder", "thdb")
 
 # telemetry
 edge("f_tgw_collect", [(1960, 550), (1960, 646)], ORANGE, "tracegw", "collect")
@@ -226,14 +233,14 @@ for i, (c, d, t) in enumerate(LG):
     y = 948 if i < 4 else 978
     edge(f"lg_e{i}", [(x, y), (x + 34, y)], c, dashed=d)
     text(f"lg_t{i}", x + 42, y - 8, 226, 16, t, size=11, color="#0f172a", valign="middle")
-pill("lg_lb", 296, 1002, 120, "LOAD BALANCER")
-text("lg_lb_t", 424, 1002, 950, 18,
-     "entry point at the cluster edge: today one shared kgateway Gateway (amp-gateway) with three listeners",
+pill("lg_lb", 296, 1002, 120, "PORT")
+text("lg_lb_t", 424, 1002, 1100, 18,
+     "a published host port: each service listens on its own port; no ingress, load balancer or reverse proxy",
      size=11, color="#0f172a", valign="middle")
 
 text("footer", 40, 1050, 2250, 20,
      "AMP Lite (WSO2 Agent Manager without OpenChoreo) as it runs in development today; not production-ready. "
-     "Agents run outside the cluster and are registered as external agents; each organization has one internal default environment. "
+     "Agents run outside the stack and are registered as external agents; each organization has one internal default environment. "
      "Logos are trademarks of their respective owners.",
      size=10.5, valign="middle")
 
