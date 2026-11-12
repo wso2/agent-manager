@@ -193,7 +193,7 @@ TOP = 190
 card("project", "tenancy", 50, TOP, 230, "Project", "projects",
      "Groups an org's agents and the LLM and MCP proxies they use.",
      [("name", "URL name, immutable"), ("display_name", ""), ("description", "")],
-     rel="Can't be deleted while it has agents; its other rows go with it.")
+     rel="Can't be deleted while it has agents, LLM proxies or MCP servers.")
 card("org", "tenancy", 350, TOP, 240, "Organization", "organizations",
      "The tenant and root of all data. Never renamed or deleted.",
      [("handle", "URL name, unique"), ("display_name", ""), ("thunder_ou_id", "Thunder org unit")])
@@ -275,7 +275,7 @@ card("apikeys", "gateway", 975, RY, 245, "API key", "api_keys",
      [("name", "unique per artifact"), ("key_hash", ""), ("masked_key", ""), ("status", ""), ("expires_at", "")])
 card("artifact", "gateway", 1280, RY, 250, "Artifact", "artifacts",
      "Base row for anything deployable to a gateway.",
-     [("kind", "LlmProvider | LlmProxy |"), ("", "McpProxy | McpProxyMapping |"), ("", "Agent | RestApi | WebSubAPI"),
+     [("kind", "LlmProvider | LlmProxy |"), ("", "McpProxy | McpProxyMapping |"), ("", "Agent | RestApi | WebSubAPI |"), ("", "OtelIngest"),
       ("handle", "unique per org"), ("name, version", "unique per org")])
 card("deploy", "gateway", 1590, RY, 270, "Gateway deployment", "artifact_deployments",
      "Each rendered version of an artifact sent to a gateway.",

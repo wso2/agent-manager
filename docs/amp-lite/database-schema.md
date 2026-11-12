@@ -97,9 +97,9 @@ Unique: (org_id, name); (org_id, id) for child composite keys.
 
 ### Behaviour
 
-- First start seeds the default org (handle from config), its `default` environment, its Thunder org unit, a default project in it, and the org's gateway and token. The gateway is attached to the default environment.
+- First start seeds the default org (handle from config), its `default` environment, its Thunder org unit, a default project in it, and the configured default gateway with its registration token, attached to the default environment. This runs on every start: it creates the org and its default environment if missing and keeps an existing gateway and token.
 - Orgs are never renamed or deleted. Creating an org creates its `default` environment in the same transaction, and its Thunder org unit; if Thunder fails, the org is not saved.
-- Deleting a project is refused while it has agents. Other project-owned rows are deleted with it.
+- Deleting a project is refused while it still has agents, LLM proxies or MCP servers; the conflict names what is left. Its event subscriptions and its entries in event destinations' project lists are removed in the same transaction, before the project row.
 - Dropped from today's API: org `namespace`, project `deploymentPipeline`. There is no pipeline table.
 
 ## Environments
@@ -218,10 +218,11 @@ Common changes to every existing table here: `ou_id` becomes `org_id` (FK); left
 
 ### Artifacts and gateway deployments
 
-- `artifacts`: base row for every gateway-deployable item (kind: RestApi, WebSubAPI, LlmProvider, LlmProxy, Agent, McpProxy, McpProxyMapping). Unique (org_id, handle), (org_id, name, version).
+- `artifacts`: base row for every gateway-deployable item (kind: RestApi, WebSubAPI, LlmProvider, LlmProxy, Agent, McpProxy, McpProxyMapping, OtelIngest). Unique (org_id, handle), (org_id, name, version).
 - `artifact_deployments` (was `deployments`): artifact_id cascade; gateway_id and base_deployment_id no action (SQL Server rejects multiple cascade paths and self-referencing SET NULL; the service clears them). content binary, metadata JSON.
 - `artifact_gateway_status` (was `deployment_status`): PK (artifact_id, gateway_id), org_id. Cascade from artifact only; deleting a gateway clears its rows in the service. Status CHECK constraints kept. claimed_by, claimed_until for the render queue.
-- Typed rows share the artifact's id (`llm_providers`, `llm_proxies`, `mcp_proxies`, `mcp_proxy_mappings`): FK id → artifacts(id) ON DELETE CASCADE, so deleting the artifact deletes the typed row and everything under it. Their project FK has no action; deleting a project deletes its proxies' artifacts first, in the service.
+- Typed rows share the artifact's id (`llm_providers`, `llm_proxies`, `mcp_proxies`, `mcp_proxy_mappings`): FK id → artifacts(id) ON DELETE CASCADE, so deleting the artifact deletes the typed row and everything under it. Their project FK has no action, so a project that still has LLM proxies or MCP servers can't be deleted.
+- `OtelIngest`: the built-in trace-ingest API (`/otel`) that every gateway serves. One artifact per org (handle `amp-otel-ingest`), created when a gateway first connects and deployed to each gateway on connect unless it already serves the current version. Gateways receive it as a RestApi. It has no typed row.
 
 ### LLM
 
@@ -238,7 +239,7 @@ Common changes to every existing table here: `ou_id` becomes `org_id` (FK); left
 - `agent_model_config_vars` (was `agent_env_config_variables_mapping`): PK (config_id, environment_id, variable_key), variable_name. `secret_reference` dropped (only fed hosted workloads).
 - `ai_applications`: one per agent per environment, unique (agent_id, environment_id), cascade from the agent; handle, name.
 - All of these cascade from the config or agent; the environment FK has no action.
-- `api_keys`: org_id, artifact_id (cascade), name unique per artifact, display_name, key_hash (indexed), masked_key, status, purpose, expires_at.
+- `api_keys`: org_id, artifact_id (cascade), name unique per artifact, display_name, key_hash (indexed), masked_key, status, purpose, expires_at. An external agent's proxy key is returned once in the response; only its hash is kept, and no copy goes to `secrets`.
 
 ### MCP
 
