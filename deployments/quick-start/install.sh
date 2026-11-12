@@ -500,7 +500,16 @@ check_docker_permissions() {
         return 1
     fi
 
-    log_error "Cannot access ${docker_sock}. Check Docker's socket group and your group membership."
+    local sock_gid
+    sock_gid=$(stat -c '%g' "${docker_sock}")
+    if ! id -G | tr ' ' '\n' | grep -qx "${sock_gid}"; then
+        log_error "Cannot access ${docker_sock}: this shell is not in its group (${sock_gid})."
+        log_info "Start the container with ./start.sh, or add --group-add ${sock_gid} to your docker run command."
+    else
+        log_error "Cannot access ${docker_sock}: its group (${sock_gid}) has no write permission."
+        log_info "On the Docker host, run: sudo chmod g+w /var/run/docker.sock"
+        log_info "Then exit this container and start it again."
+    fi
     return 1
 }
 

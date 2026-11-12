@@ -6,7 +6,7 @@ set -eu
 
 keys_dir="${JWT_SIGNING_KEYS_DIR:-/app/keys}"
 if [ ! -w "$keys_dir" ] || { [ -f "$keys_dir/private.pem" ] && [ ! -r "$keys_dir/private.pem" ]; }; then
-    echo "Cannot access the signing keys in $keys_dir. See the volume ownership command in deployments/docker-compose.yml." >&2
+    echo "Cannot access the signing keys in $keys_dir. Start the stack with make dev-up, which fixes the volume ownership, or see deployments/docker-compose.yml." >&2
     exit 1
 fi
 

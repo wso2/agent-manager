@@ -159,7 +159,8 @@ services:
       # Mount source code for hot-reloading
       - ../agent-manager-service:/app:ro
       # Use container-specific keys (not host) so paths are correct.
-      # To migrate a volume from the root-run image after rebuilding:
+      # deployments/setup/start-dev-compose.sh hands this volume to UID 1000 before
+      # starting. Without that script, run once after rebuilding:
       # docker compose run --rm --no-deps --user root --entrypoint chown agent-manager-service -R 1000:1000 /var/lib/agent-manager/keys
       - agent_manager_keys:/var/lib/agent-manager/keys
     depends_on:

@@ -20,4 +20,11 @@ if [[ -z "${IDP_CLIENT_SECRET:-}" || -z "${THUNDER_CLIENT_SECRET:-}" ]]; then
 fi
 
 export IDP_CLIENT_SECRET THUNDER_CLIENT_SECRET
-exec docker compose -f "$SCRIPT_DIR/../docker-compose.yml" up -d --build "$@"
+compose=(docker compose -f "$SCRIPT_DIR/../docker-compose.yml")
+"${compose[@]}" build agent-manager-service
+# Keys volumes created by the earlier root-run image are owned by root; hand them
+# to the runtime user. Safe to repeat on a volume that is already migrated.
+"${compose[@]}" run --rm --no-deps --user root --entrypoint chown \
+    agent-manager-service -R 1000:1000 /var/lib/agent-manager/keys
+# --wait fails the command when a service exits or never turns healthy.
+exec "${compose[@]}" up -d --build --wait "$@"
