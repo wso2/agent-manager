@@ -97,6 +97,10 @@ def health() -> dict[str, str]:
     return {"status": "ok", "company": CONFIG.company_name}
 
 
+def _sanitize_for_log(value: str) -> str:
+    return html.escape(value).replace("\r", "").replace("\n", "")
+
+
 @app.post("/chat", response_model=ChatResponse)
 def chat(req: ChatRequest) -> ChatResponse:
     if not req.message.strip():
@@ -110,8 +114,8 @@ def chat(req: ChatRequest) -> ChatResponse:
         # Upstream errors can carry gateway URLs and provider payloads — log, do not return.
         log.error(
             "agent invocation failed: session_id=%a traceback=%a",
-            html.escape(session_id).replace("\r", "").replace("\n", ""),
-            traceback.format_exc(),
+            _sanitize_for_log(session_id),
+            _sanitize_for_log(traceback.format_exc()),
         )
         raise HTTPException(status_code=500, detail="agent invocation failed") from exc
 

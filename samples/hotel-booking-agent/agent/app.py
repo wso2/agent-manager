@@ -83,7 +83,7 @@ def chat(request: ChatRequest) -> ChatResponse:
             "chat invoke failed: thread_id=%a session_id=%a traceback=%a",
             _sanitize_for_log(thread_id),
             _sanitize_for_log(request.session_id),
-            traceback.format_exc(),
+            _sanitize_for_log(traceback.format_exc()),
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

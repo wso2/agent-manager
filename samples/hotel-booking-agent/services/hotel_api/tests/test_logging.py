@@ -56,10 +56,13 @@ class PolicyLoggingTests(unittest.TestCase):
 
     def test_policy_search_success_contains_hostile_hotel_ids(self):
         """Preserve successful search results while containing hostile identifiers."""
-        for hotel_id in [
-            "hotel\r\nERROR forged event",
-            'hotel","level":"ERROR","message":"forged',
-            'hotel\x00\x1b\t\\"\u2028\u2029',
+        for hotel_id, logged_hotel_id in [
+            ("hotel\r\n<west>\rnorth\n&", "hotel&lt;west&gt;north&amp;"),
+            (
+                'hotel","level":"ERROR","message":"forged',
+                "hotel&quot;,&quot;level&quot;:&quot;ERROR&quot;,&quot;message&quot;:&quot;forged",
+            ),
+            ("hotel\x00\x1b\t\\\u2028\u2029", "hotel\x00\x1b\t\\\u2028\u2029"),
         ]:
             with self.subTest(hotel_id=hotel_id):
                 self.output.seek(0)
@@ -79,15 +82,28 @@ class PolicyLoggingTests(unittest.TestCase):
                 self.assertEqual(event["logger"], "policies")
                 self.assertEqual(
                     event["message"],
-                    "policy search (pinecone) returned 1 results for hotel_id=%r" % hotel_id,
+                    "policy search (pinecone) returned 1 results for hotel_id=%r" % logged_hotel_id,
                 )
                 self.assertNotIn("private query", self.output.getvalue())
                 self.assertNotIn("policy document", self.output.getvalue())
 
+    def test_policy_search_logs_backend_label_and_integer_count(self):
+        """Sanitize the backend label and preserve the original response value."""
+        backend = "<memory>\r\n"
+        store = Mock()
+        store.similarity_search.return_value = []
+        with patch.object(policies, "_store", store), patch.object(policies, "_backend", backend):
+            result = policies.search_policies_route("hotel", "question", k=3)
+        self.assertEqual(result["source"], backend)
+        self.assertEqual(
+            self.read_event()["message"],
+            "policy search (&lt;memory&gt;) returned 0 results for hotel_id='hotel'",
+        )
+
     def test_policy_search_failure_contains_exception_and_preserves_response(self):
         """Keep exception details in one event without changing the error response."""
-        hotel_id = "hotel\r\nERROR forged event"
-        upstream_error = 'upstream\r\nERROR forged failure\x1b\x00\u2028\u2029'
+        hotel_id = "hotel\r\n<west>\rnorth\n&"
+        upstream_error = "upstream\r\n<west>\rnorth\n&\x1b\x00\u2028\u2029"
         store = Mock()
         store.similarity_search.side_effect = RuntimeError(upstream_error)
         with patch.object(policies, "_store", store), patch.object(policies, "_backend", "pinecone"):
@@ -99,10 +115,15 @@ class PolicyLoggingTests(unittest.TestCase):
         event = self.read_event()
         self.assertEqual(event["level"], "ERROR")
         self.assertEqual(event["logger"], "policies")
-        self.assertEqual(event["message"], "policy search failed: hotel_id=%r" % hotel_id)
-        self.assertIn("Traceback (most recent call last)", event["exception"])
-        self.assertIn("RuntimeError", event["exception"])
-        self.assertIn(upstream_error, event["exception"])
+        self.assertTrue(event["message"].startswith(
+            "policy search failed: hotel_id='hotel&lt;west&gt;north&amp;' traceback="
+        ))
+        self.assertIn("Traceback (most recent call last)", event["message"])
+        self.assertIn(
+            r"RuntimeError: upstream&lt;west&gt;north&amp;\x1b\x00\u2028\u2029",
+            event["message"],
+        )
+        self.assertNotIn("exception", event)
         self.assertNotIn("private query", self.output.getvalue())
 
     def test_unconfigured_policy_search_remains_unavailable(self):
