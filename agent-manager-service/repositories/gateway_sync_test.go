@@ -157,7 +157,7 @@ func TestListContentForGateway(t *testing.T) {
 	assert.Equal(t, current.DeploymentID, got[0].DeploymentID)
 	assert.Equal(t, current.Content, got[0].Content)
 
-	got, err = repo.ListContentForGateway(context.Background(), "another-org", gateway.GatewayUUID.String(),
+	got, err = repo.ListContentForGateway(context.Background(), uuid.NewString(), gateway.GatewayUUID.String(),
 		[]uuid.UUID{current.DeploymentID})
 	require.NoError(t, err)
 	assert.Empty(t, got)

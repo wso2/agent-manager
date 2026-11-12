@@ -416,7 +416,7 @@ func TestA2AAgentCardListForAgentOrdersByEnvironment(t *testing.T) {
 	assert.Equal(t, "Development", rows[0].EnvironmentName)
 	assert.Equal(t, "Production", rows[1].EnvironmentName)
 
-	none, err := repo.ListForAgent(ctx, "other-org", dev.ProjectName, dev.AgentName)
+	none, err := repo.ListForAgent(ctx, uuid.NewString(), dev.ProjectName, dev.AgentName)
 	require.NoError(t, err)
 	assert.Empty(t, none, "rows are org-scoped")
 }
@@ -441,7 +441,7 @@ func TestA2AAgentCardListForEnvironmentNamesEveryAgentInIt(t *testing.T) {
 	assert.Equal(t, first.AgentName, rows[0].AgentName)
 	assert.Equal(t, second.AgentName, rows[1].AgentName)
 
-	none, err := repo.ListForEnvironment(ctx, "other-org", first.EnvironmentUUID)
+	none, err := repo.ListForEnvironment(ctx, uuid.NewString(), first.EnvironmentUUID)
 	require.NoError(t, err)
 	assert.Empty(t, none, "rows are org-scoped")
 }
@@ -460,7 +460,7 @@ func TestA2AAgentCardGetAndDelete(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, dev.ID, got.ID)
 
-	_, err = repo.Get(ctx, "other-org", dev.ProjectName, dev.AgentName, "Development")
+	_, err = repo.Get(ctx, uuid.NewString(), dev.ProjectName, dev.AgentName, "Development")
 	assert.ErrorIs(t, err, ErrA2AAgentCardNotFound, "rows are org-scoped")
 
 	require.NoError(t, repo.DeleteForAgentEnv(ctx, dev.OUID, dev.ProjectName, dev.AgentName, "Development"))
@@ -660,7 +660,7 @@ func TestA2AAgentCardClearCardSupersedesAnInFlightFetch(t *testing.T) {
 
 func TestA2AAgentCardClearCardNeedsARow(t *testing.T) {
 	repo := NewA2AAgentCardRepository(db.GetDB())
-	err := repo.ClearCard(context.Background(), "ou-none", "checkout", "ghost", uuid.New())
+	err := repo.ClearCard(context.Background(), uuid.NewString(), "checkout", "ghost", uuid.New())
 	assert.ErrorIs(t, err, ErrA2AAgentCardNotFound)
 }
 

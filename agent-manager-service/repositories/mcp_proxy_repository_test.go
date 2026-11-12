@@ -22,6 +22,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
@@ -128,7 +129,7 @@ func TestListFilters(t *testing.T) {
 		assert.EqualValues(t, 3, total)
 	})
 	t.Run("other organizations are invisible", func(t *testing.T) {
-		got, total, err := repo.List(ctx, "other-"+ou, MCPProxyListFilter{ProjectUUID: &p1, IncludeOrgOwned: true})
+		got, total, err := repo.List(ctx, uuid.NewString(), MCPProxyListFilter{ProjectUUID: &p1, IncludeOrgOwned: true})
 		require.NoError(t, err)
 		assert.Empty(t, got)
 		assert.EqualValues(t, 0, total)
@@ -157,6 +158,6 @@ func TestGetInProjectRejectsOtherProject(t *testing.T) {
 	assert.ErrorIs(t, err, utils.ErrMCPProxyNotFound, "the proxy lives in another project")
 	_, err = repo.GetInProject(ctx, "org-a", ou, p1)
 	assert.ErrorIs(t, err, utils.ErrMCPProxyNotFound, "an organization proxy is not in any project")
-	_, err = repo.GetInProject(ctx, "p1-a", "other-"+ou, p1)
+	_, err = repo.GetInProject(ctx, "p1-a", uuid.NewString(), p1)
 	assert.ErrorIs(t, err, utils.ErrMCPProxyNotFound, "other organizations are invisible")
 }

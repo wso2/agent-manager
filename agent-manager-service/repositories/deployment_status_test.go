@@ -608,7 +608,7 @@ func TestGetPullable(t *testing.T) {
 	assert.Nil(t, pull(pending))
 
 	other := deploying
-	other.OUID = "another-org"
+	other.OUID = uuid.NewString()
 	assert.Nil(t, pull(other))
 }
 
