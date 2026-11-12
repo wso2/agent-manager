@@ -59,4 +59,3 @@ Tests use **pytest** with `conftest.py` fixtures (`clean_environment`, `mock_tra
 - A `sitecustomize.py` in the app's own working dir will shadow the bootstrap one (a warning is printed) — don't ship one in instrumented apps.
 - `init_otel()` reads `AMP_OTEL_ENDPOINT` / `AMP_AGENT_API_KEY` at call time, not import time.
 
-See also the sibling init-container that ships this package into pods: `../../python-instrumentation-provider/AGENTS.md`.

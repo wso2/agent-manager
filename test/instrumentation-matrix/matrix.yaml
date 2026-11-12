@@ -3,13 +3,8 @@ schemaVersion: 1
 providers:
   traceloop:
     versions: ["0.61.0", "0.62.1", "0.62.3", "0.62.4", "0.63.0"]
-    # Maps traceloop_version → init-container instrumentation_version. The
-    # heavy tier resolves the image tag
-    # `amp-python-instrumentation-provider:<instr>-python<X.Y>` from this map.
-    # Keep entries here even when release-config.json drops a version — that
-    # catalog tracks what's actively shipped, not what the matrix tests. Run
-    # `make check-matrix-manifest` to enforce that this map covers everything
-    # release-config.json currently lists.
+    # Maps traceloop_version → the amp-instrumentation release that pins it.
+    # The heavy tier installs `amp-instrumentation==<instr>` from this map.
     instrumentationVersions:
       "0.61.0": "0.3.0"
       "0.62.1": "0.4.0"
@@ -28,7 +23,7 @@ providers:
   otel-genai:
     # OTel-GenAI-native shape (Microsoft Agent Framework / OpenAI .NET SDK, i.e.
     # samples/dotnet-agent/). Emission-only, like the manual provider — no
-    # init-container, so no instrumentationVersions. The cell re-expresses the
+    # amp-instrumentation release, so no instrumentationVersions. The cell re-expresses the
     # native span shape in Python; the concrete OTel SDK version is pinned via
     # the framework package below.
     versions: ["0.1.0"]
@@ -136,8 +131,7 @@ frameworks:
     extras: [openai==2.38.0]
 
 python:
-  # Must cover every Python AMP baselines in .github/release-config.json.
-  # scripts/check-matrix-manifest.py enforces this. Locally, filter to one
+  # Every Python amp-instrumentation supports. Locally, filter to one
   # cell with --cell-id so you don't need every Python installed; CI fans
   # out across all four.
   versions: ["3.10", "3.11", "3.12", "3.13"]

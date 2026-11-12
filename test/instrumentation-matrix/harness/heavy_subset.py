@@ -50,7 +50,7 @@ def select_heavy_subset(cells: list[Cell], manifest: Manifest) -> list[Cell]:
     out: list[Cell] = []
     seen: set[str] = set()
     for c in cells:
-        # Heavy only covers the default (init-container-shipping) provider;
+        # Heavy only covers the default (amp-instrumentation) provider;
         # manual cells are emission-only.
         if c.provider_name != default.provider:
             continue

@@ -37,7 +37,6 @@ This branch is **AMP Lite**, a development preview of Agent Manager without Open
 | **amp-observer** ([agent-manager-observer](agent-manager-observer)) | API for querying trace data in OpenSearch |
 | **amctl** ([cli](cli)) | Command-line client for the Agent Manager API |
 | **amp-instrumentation** ([libs/amp-instrumentation](libs/amp-instrumentation)) | Python auto-instrumentation package for AI frameworks |
-| **amp-python-instrumentation-provider** ([python-instrumentation-provider](python-instrumentation-provider)) | Kubernetes init container for automatic Python instrumentation of hosted agents (not used in Lite yet) |
 | **amp-evaluation** ([libs/amp-evaluation](libs/amp-evaluation)) | Python library for scoring agent traces (evaluations are deferred in Lite) |
 
 ## Deployment

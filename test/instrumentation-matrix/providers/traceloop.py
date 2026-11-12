@@ -11,7 +11,7 @@ class TraceloopProvider:
     def package_specs(self, version: str) -> list[str]:
         return [
             f"traceloop-sdk=={version}",
-            # Mirrors python-instrumentation-provider/requirements.txt: wrapt 2.x
+            # Mirrors libs/amp-instrumentation/pyproject.toml: wrapt 2.x
             # removed the `module=` kwarg that opentelemetry-instrumentation-*
             # 0.61.0 still calls.
             "wrapt<2.0.0",

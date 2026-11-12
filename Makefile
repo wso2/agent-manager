@@ -1,4 +1,4 @@
-.PHONY: help tools setup setup-colima setup-console-local setup-console-local-force up down logs reset dev-up dev-down dev-restart dev-rebuild dev-logs dev-migrate thunder-restart thunder-reset teardown db-connect service-logs service-shell console-logs console stop-console gen-eval-artifacts gen-instrumentation-contract check-contract-drift check-matrix-manifest e2e-test security-test security-test-static security-test-live
+.PHONY: help tools setup setup-colima setup-console-local setup-console-local-force up down logs reset dev-up dev-down dev-restart dev-rebuild dev-logs dev-migrate thunder-restart thunder-reset teardown db-connect service-logs service-shell console-logs console stop-console gen-eval-artifacts gen-instrumentation-contract check-contract-drift e2e-test security-test security-test-static security-test-live
 
 # Default target
 help:
@@ -225,8 +225,6 @@ gen-instrumentation-contract:
 check-contract-drift:
 	@scripts/check-contract-drift.sh
 
-check-matrix-manifest:
-	@scripts/check-matrix-manifest.py
 
 # E2E tests
 # Run all (parallel):    make e2e-test

@@ -9,7 +9,7 @@ span names shaped ``{operation} {model}`` (e.g. ``chat gpt-4o-mini``),
 The .NET external-agent sample (``samples/dotnet-agent/``) emits exactly this
 shape. This provider re-expresses it in Python so the shape is locked into the
 compatibility matrix and validated against the same contract bundle the observer
-reads. It is emission-only (no init-container / instrumentationVersions), like
+reads. It is emission-only (no amp-instrumentation release / instrumentationVersions), like
 the ``manual`` provider. See ``harness/classify.py`` — the classifier already
 recognises this semconv.
 """

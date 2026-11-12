@@ -54,8 +54,7 @@ All three are edits to [`matrix.yaml`](./matrix.yaml):
 - **New Traceloop version**: add it to `providers.traceloop.versions` **and**
   add a `providers.traceloop.instrumentationVersions["<ver>"]` entry mapping
   it to the `amp-instrumentation` release (`instrumentation_version`, needed by the heavy
-  tier — see §7). `make check-matrix-manifest` enforces that this map covers
-  every version `release-config.json` currently ships.
+  tier — see §7).
 
 **Example — add a new framework (`haystack`):**
 
@@ -364,7 +363,3 @@ regenerating, or a schema is hand-edited without a matching observer change,
 the build fails. Every deliberate concession (a relaxed `required`, a
 stringified type) is justified by an `F-NNN` entry in `FINDINGS.md`.
 
-`check-matrix-manifest` (same CI job) separately enforces that `matrix.yaml`
-covers every `(traceloop_version, instrumentation_version, python_version)`
-that `release-config.json` currently ships — the matrix may be a superset,
-but never a subset, of what AMP baselines.

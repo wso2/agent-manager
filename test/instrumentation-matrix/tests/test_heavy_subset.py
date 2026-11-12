@@ -65,7 +65,7 @@ def test_subset_covers_each_deployable_framework_per_provider_version():
     sub = select_heavy_subset(cells, m)
     pairs = {(c.provider_version, c.framework_name) for c in sub}
     # Both deployable frameworks appear under both provider versions: the
-    # restored per-framework heavy axis, crossed with the init-container axis.
+    # restored per-framework heavy axis, crossed with the amp-instrumentation axis.
     assert pairs == {
         ("0.60.0", "langchain"),
         ("0.61.0", "langchain"),
