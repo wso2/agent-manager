@@ -1975,10 +1975,10 @@ paths:
         - Environments
       summary: Get environment gateways
       description: |
-        List all gateways mapped to a specific environment.
+        List up to 1000 gateways mapped to a specific environment, newest first.
 
-        This endpoint returns all gateways that are available in this environment,
-        useful for understanding which gateways can be used by agents in this environment.
+        To page through all results, use `GET /orgs/{orgName}/gateways` with
+        the `environment` filter and `limit` and `offset` parameters.
       operationId: getEnvironmentGateways
       responses:
         "200":
@@ -1990,6 +1990,7 @@ paths:
                 properties:
                   gateways:
                     type: array
+                    maxItems: 1000
                     items:
                       $ref: "#/components/schemas/GatewayResponse"
         "400":

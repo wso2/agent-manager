@@ -6,7 +6,10 @@ import logging
 import traceback
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException, Request, status
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from langchain_core.messages import HumanMessage
 from pydantic import BaseModel, Field, field_validator
 
@@ -41,6 +44,16 @@ class ChatResponse(BaseModel):
     response: str
 
 app = FastAPI(title="Hotel Booking Agent")
+MAX_VALIDATION_ERRORS = 16
+
+
+@app.exception_handler(RequestValidationError)
+async def request_validation_error_handler(_request: Request, exc: RequestValidationError) -> JSONResponse:
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+        content={"detail": jsonable_encoder(exc.errors()[:MAX_VALIDATION_ERRORS])},
+    )
+
 
 def _wrap_user_message(user_message: str, context: dict[str, Any]) -> str:
     now = datetime.now(timezone.utc).isoformat()

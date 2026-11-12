@@ -958,10 +958,10 @@ func (r ApiGetEnvironmentGatewaysRequest) Execute() (*GetEnvironmentGateways200R
 /*
 GetEnvironmentGateways Get environment gateways
 
-List all gateways mapped to a specific environment.
+List up to 1000 gateways mapped to a specific environment, newest first.
 
-This endpoint returns all gateways that are available in this environment,
-useful for understanding which gateways can be used by agents in this environment.
+To page through all results, use `GET /orgs/{orgName}/gateways` with
+the `environment` filter and `limit` and `offset` parameters.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param orgName Organization name/handle

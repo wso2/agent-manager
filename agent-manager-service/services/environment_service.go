@@ -501,6 +501,10 @@ func uniqueUUIDs(ids []uuid.UUID) []uuid.UUID {
 }
 
 func (s *environmentService) GetEnvironmentGateways(ctx context.Context, ouID string, envID string) ([]models.GatewayResponse, error) {
+	const maxEnvironmentGateways = 1000 // Keep in sync with the OpenAPI response limit.
+	if ouID == "" {
+		return nil, fmt.Errorf("%w: ouID is required", utils.ErrInvalidInput)
+	}
 	s.logger.Info("Getting environment gateways", "envID", envID, "ouID", ouID)
 
 	// Verify environment exists in OpenChoreo (envID is environment name)
@@ -520,29 +524,18 @@ func (s *environmentService) GetEnvironmentGateways(ctx context.Context, ouID st
 		return nil, fmt.Errorf("invalid environment UUID: %w", err)
 	}
 
-	// Get gateway-environment mappings from repository
-	mappings, err := s.gatewayRepo.GetEnvironmentMappingsByEnvironmentID(envUUID.String())
+	environmentID := envUUID.String()
+	var filters repositories.GatewayFilterOptions
+	filters.OrganizationID = ouID
+	filters.EnvironmentID = &environmentID
+	filters.Limit = maxEnvironmentGateways
+	gateways, err := s.gatewayRepo.ListWithFiltersCtx(ctx, filters)
 	if err != nil {
-		s.logger.Error("Failed to get gateway mappings from repository", "environmentID", envUUID.String(), "error", err)
-		return nil, fmt.Errorf("failed to get gateway mappings: %w", err)
+		return nil, fmt.Errorf("failed to list gateways for environment %s: %w", environmentID, err)
 	}
 
-	// Fetch each gateway from the gateway repository
-	responses := make([]models.GatewayResponse, 0, len(mappings))
-	for _, mapping := range mappings {
-		gatewayID := mapping.GatewayUUID.String()
-
-		// Get gateway details from repository
-		gateway, err := s.gatewayRepo.GetByUUID(gatewayID)
-		if err != nil {
-			s.logger.Warn("Failed to get gateway from repository", "gatewayID", gatewayID, "error", err)
-			continue
-		}
-		if gateway == nil {
-			s.logger.Warn("Gateway not found", "gatewayID", gatewayID)
-			continue
-		}
-
+	responses := make([]models.GatewayResponse, 0, len(gateways))
+	for _, gateway := range gateways {
 		// Convert gateway model to response
 		status := string(models.GatewayStatusInactive)
 		if gateway.IsActive {
