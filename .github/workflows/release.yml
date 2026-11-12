@@ -513,6 +513,11 @@ jobs:
           cd deployments/quick-start && bash install.sh
 
       - name: Enable A2A test upstream
+        # A failure here must not skip the e2e run: the script exports the variable
+        # first, so only the external A2A specs fail.
+        continue-on-error: true
+        # Release tags cut before this script existed have neither it nor the A2A suite.
+        if: ${{ hashFiles('.github/scripts/enable-a2a-test-upstream.sh') != '' }}
         env:
           # Must match the host of the platform agent's external URL
           # (the environment gateway's vhost, <env>-<org>.gateway.localhost).

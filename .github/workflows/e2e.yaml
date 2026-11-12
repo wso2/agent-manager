@@ -51,6 +51,9 @@ jobs:
           cd deployments/quick-start && VERSION=${{ env.HELM_CHART_VERSION }} bash install.sh
 
       - name: Enable A2A test upstream
+        # A failure here must not skip the e2e run: the script exports the variable
+        # first, so only the external A2A specs fail.
+        continue-on-error: true
         env:
           # Must match the host of the platform agent's external URL
           # (the environment gateway's vhost, <env>-<org>.gateway.localhost).

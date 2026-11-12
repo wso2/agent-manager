@@ -398,6 +398,11 @@ func TestA2ATestUpstreamHosts_Allows(t *testing.T) {
 	}
 }
 
+func TestA2ATestUpstreamHosts_NormalizesEntries(t *testing.T) {
+	h := newA2ATestUpstreamHosts([]string{"Default-Default.Gateway.Localhost."})
+	assert.True(t, h.allows("http://default-default.gateway.localhost:19080/x"))
+}
+
 func TestA2ATestUpstreamHosts_EmptyEntryAllowsNothing(t *testing.T) {
 	h := newA2ATestUpstreamHosts([]string{".", ""})
 	assert.False(t, h.allows("/relative/.well-known/agent-card.json"))

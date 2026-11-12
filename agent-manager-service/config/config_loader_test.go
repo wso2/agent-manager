@@ -1269,14 +1269,14 @@ func TestLoadEnvs_A2ACardTestUpstreamHosts(t *testing.T) {
 		"DB_NAME":              "unit",
 	}
 
-	t.Run("entries are trimmed, lower-cased and lose a trailing dot", func(t *testing.T) {
+	t.Run("entries are trimmed and empty ones dropped", func(t *testing.T) {
 		for k, v := range requiredEnv {
 			t.Setenv(k, v)
 		}
 		t.Setenv("A2A_CARD_TEST_UPSTREAM_HOSTS", " A.example ,, c.example. ")
 		loadEnvs()
 
-		want := []string{"a.example", "c.example"}
+		want := []string{"A.example", "c.example."}
 		if got := config.A2ACardTestUpstreamHosts; !reflect.DeepEqual(got, want) {
 			t.Errorf("A2ACardTestUpstreamHosts = %v, want %v", got, want)
 		}

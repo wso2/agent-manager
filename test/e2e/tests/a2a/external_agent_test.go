@@ -59,7 +59,7 @@ var _ = Describe("Proxied external A2A agent:", Label("a2a", "external-agent"), 
 		}
 	})
 
-	It("registers with the platform agent's card as its source", func() {
+	It("registers and fetches the platform agent's card as its source", func() {
 		agentops.CreateAgent(Default, Client, &agentops.CreateAgentParams{
 			OrgName:     Cfg.DefaultOrg,
 			ProjectName: framework.E2ESharedProjectName,
@@ -67,6 +67,9 @@ var _ = Describe("Proxied external A2A agent:", Label("a2a", "external-agent"), 
 		})
 
 		a2aops.SetCardSource(Default, Client, Cfg.DefaultOrg, framework.E2ESharedProjectName, agentName, Cfg.DefaultEnv, Agent.CardURL)
+		// Waited for before SetProxy: once proxied, the card is fetched through the gateway, which cannot reach this upstream.
+		card := a2aops.WaitForCardFetched(Client, Cfg.DefaultOrg, framework.E2ESharedProjectName, agentName, Cfg.DefaultEnv, 2*time.Minute)
+		Expect(card.SourceURL).To(Equal(Agent.CardURL))
 		a2aops.SetProxy(Default, Client, Cfg.DefaultOrg, framework.E2ESharedProjectName, agentName, Cfg.DefaultEnv, "X-API-Key", Agent.APIKey)
 	})
 

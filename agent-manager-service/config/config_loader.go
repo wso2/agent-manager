@@ -162,10 +162,11 @@ func loadEnvs() {
 			r.errors = append(r.errors, fmt.Errorf("A2A_CARD_FETCH_DIAL_ADDR must contain a non-empty host and port"))
 		}
 	}
-	config.A2ACardTestUpstreamHosts = normalizeHostnames(r.readOptionalStringList("A2A_CARD_TEST_UPSTREAM_HOSTS", ""))
+	config.A2ACardTestUpstreamHosts = r.readOptionalStringList("A2A_CARD_TEST_UPSTREAM_HOSTS", "")
 	if len(config.A2ACardTestUpstreamHosts) > 0 {
 		slog.Warn(fmt.Sprintf(
-			"A2A_CARD_TEST_UPSTREAM_HOSTS is set: A2A card URL guards are bypassed for %s. This is a test-only setting.",
+			"A2A_CARD_TEST_UPSTREAM_HOSTS is set: A2A card URLs on %s skip the public-host check and may carry an "+
+				"upstream credential over http. This is a test-only setting.",
 			strings.Join(config.A2ACardTestUpstreamHosts, ", ")))
 	}
 	config.KeyManagerConfigurations = KeyManagerConfigurations{
@@ -998,13 +999,4 @@ func validateEventsConfig(cfg EventsConfig) []error {
 		errs = append(errs, fmt.Errorf("EVENTS_DELIVERY_RETENTION_DAYS must be positive, got %d", cfg.DeliveryRetentionDays))
 	}
 	return errs
-}
-
-// normalizeHostnames lower-cases each hostname and drops a trailing dot, so it compares equal to a URL's Hostname().
-func normalizeHostnames(hosts []string) []string {
-	normalized := make([]string, 0, len(hosts))
-	for _, host := range hosts {
-		normalized = append(normalized, strings.TrimSuffix(strings.ToLower(host), "."))
-	}
-	return normalized
 }
