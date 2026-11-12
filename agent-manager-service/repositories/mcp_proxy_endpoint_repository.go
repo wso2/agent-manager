@@ -117,7 +117,7 @@ func (r *mcpProxyEndpointRepository) UpdateEndpoint(ctx context.Context, tx *gor
 // a new ID, whose removal is still to run. A missing endpoint, or a different ID, is not an error.
 func (r *mcpProxyEndpointRepository) ClearIdentityCleanupID(ctx context.Context, endpointUUID uuid.UUID, cleanupID string) error {
 	if err := r.db.WithContext(ctx).Exec(
-		`UPDATE mcp_proxy_endpoints SET configuration = configuration - 'identityCleanupId'
+		`UPDATE mcp_proxy_endpoints SET configuration = configuration - 'identityCleanupId' - 'identityCleanupIdentifier'
 		WHERE uuid = ? AND configuration->>'identityCleanupId' = ?`,
 		endpointUUID, cleanupID).Error; err != nil {
 		return fmt.Errorf("failed to clear the MCP proxy endpoint's identity cleanup ID: %w", err)

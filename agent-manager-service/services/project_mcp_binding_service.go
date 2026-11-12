@@ -177,8 +177,22 @@ func (s *ProjectMCPProxyService) PutEnvironment(
 	if err != nil {
 		return nil, false, err
 	}
+	// A binding leaving identity keeps the URL its resource server is registered at for the removal, which may run
+	// after a context change has moved the binding's URL.
+	leavingIdentifier := ""
+	if s.base.resolver != nil && exists && mcpIdentityEnabled(endpoint.Configuration.Security) &&
+		!mcpIdentityEnabled(desired.Security) {
+		identifier, err := s.base.MCPResourceServerIdentifier(ctx, ouID, envUUID, proxy)
+		switch {
+		case err == nil:
+			leavingIdentifier = identifier
+		case !errors.Is(err, ErrMCPProxyNotDeployedToEnvironment):
+			return nil, false, fmt.Errorf("failed to read the binding's resource identifier: %w", err)
+		}
+	}
 	if err := s.base.tx(ctx, func(tx *gorm.DB) error {
-		return s.saveAndDeployBinding(ctx, tx, ouID, proxyHandleOf(proxy), envName, envUUID, gateway, desired, stored)
+		return s.saveAndDeployBinding(ctx, tx, ouID, proxyHandleOf(proxy), envName, envUUID, gateway, desired, stored,
+			leavingIdentifier)
 	}); err != nil {
 		switch {
 		case errors.Is(err, utils.ErrMCPContextInUse), errors.Is(err, utils.ErrMCPProxyNotFound),
@@ -275,7 +289,7 @@ func (s *ProjectMCPProxyService) bindingUpstreamURL(
 // the pending one.
 func (s *ProjectMCPProxyService) saveAndDeployBinding(
 	ctx context.Context, tx *gorm.DB, ouID, proxyHandle, envName string, envUUID uuid.UUID, gateway *uuid.UUID,
-	desired, stored models.MCPEndpointConfig,
+	desired, stored models.MCPEndpointConfig, leavingIdentifier string,
 ) error {
 	// Serialize binding writes on one gateway, taken first as the gateway mapping path does, so two bindings
 	// with overlapping contexts can't both pass the context check before either deploys.
@@ -299,11 +313,12 @@ func (s *ProjectMCPProxyService) saveAndDeployBinding(
 		lockedConfig := endpoint.Configuration
 		// A pending removal's ID is kept until that removal succeeds, by writes that return to identity too: they
 		// run it before registering, so grants made for the old registration do not apply again.
-		cleanupID := lockedConfig.IdentityCleanupID
+		cleanupID, cleanupIdentifier := lockedConfig.IdentityCleanupID, lockedConfig.IdentityCleanupIdentifier
 		if mcpIdentityEnabled(lockedConfig.Security) && !mcpIdentityEnabled(desired.Security) {
-			cleanupID = uuid.NewString()
+			cleanupID, cleanupIdentifier = uuid.NewString(), leavingIdentifier
 		}
 		desired.IdentityCleanupID, stored.IdentityCleanupID = cleanupID, cleanupID
+		desired.IdentityCleanupIdentifier, stored.IdentityCleanupIdentifier = cleanupIdentifier, cleanupIdentifier
 	} else if s.base.resolver != nil {
 		// A new binding starts with a removal of any resource server an earlier binding of the proxy left in the
 		// environment when its own removal failed after it was deleted, so that one's grants never apply to this one.
@@ -498,6 +513,10 @@ func (s *ProjectMCPProxyService) deleteEnvironmentOf(ctx context.Context, ouID s
 		needsCleanup := bindingHasIdentityToRemove(bound.Configuration)
 		var err error
 		identifier, err = s.base.MCPResourceServerIdentifier(ctx, ouID, ee.EnvironmentUUID, proxy)
+		if stored := bound.Configuration.IdentityCleanupIdentifier; stored != "" && bound.Configuration.IdentityCleanupID != "" {
+			// A pending removal keeps the URL it is for, which a context change may have moved since.
+			identifier, err = stored, nil
+		}
 		switch {
 		case err == nil:
 		case errors.Is(err, ErrMCPProxyNotDeployedToEnvironment):

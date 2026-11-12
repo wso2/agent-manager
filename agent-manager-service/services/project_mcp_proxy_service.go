@@ -543,7 +543,10 @@ func (s *ProjectMCPProxyService) update(
 	// to the new URLs after it, keeping the roles' grants.
 	var previousIdentifiers map[uuid.UUID]string
 	if contextChanged && s.base.resolver != nil {
-		previousIdentifiers = s.bindingResourceIdentifiers(ctx, ouID, existing)
+		var err error
+		if previousIdentifiers, err = s.bindingResourceIdentifiers(ctx, ouID, existing); err != nil {
+			return nil, err
+		}
 	}
 
 	// The bindings as of the URL change's lock: a binding created since existing was read is re-rendered too.

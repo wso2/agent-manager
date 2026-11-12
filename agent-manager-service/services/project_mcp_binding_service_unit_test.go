@@ -186,6 +186,7 @@ func newBindingFixture(t *testing.T) *bindingFixture {
 			for i := range f.proxy.Endpoints {
 				if f.proxy.Endpoints[i].UUID == endpointUUID && f.proxy.Endpoints[i].Configuration.IdentityCleanupID == cleanupID {
 					f.proxy.Endpoints[i].Configuration.IdentityCleanupID = ""
+					f.proxy.Endpoints[i].Configuration.IdentityCleanupIdentifier = ""
 				}
 			}
 			return nil
@@ -1010,6 +1011,79 @@ func TestRemoveMCPResourceServerAction_SweepsWhenTheResourceServerIsNotFoundByHa
 	assert.Equal(t, 1, calls.swept)
 }
 
+// A binding leaving identity keeps the URL its resource server is registered at with the cleanup ID; a removal retried
+// later uses that URL, even after a context change moved the binding's own.
+func TestPutEnv_LeavingIdentity_KeepsTheURLForTheRemoval(t *testing.T) {
+	f := newBindingFixture(t)
+	calls := f.withThunder()
+	resp, _, err := f.put(t, models.MCPProxyEnvironmentRequest{Security: identityBinding()})
+	require.NoError(t, err)
+	calls.forget()
+
+	calls.deleteErr = errors.New("identity service unavailable")
+	_, _, err = f.put(t, models.MCPProxyEnvironmentRequest{})
+	require.NoError(t, err)
+	endpoint, ee := f.binding()
+	assert.Equal(t, resp.PublicURL, endpoint.Configuration.IdentityCleanupIdentifier)
+
+	// As if a context change has moved the binding's URL since.
+	const oldURL = "https://gw.example.com/p1/old-context"
+	for i := range f.proxy.Endpoints {
+		f.proxy.Endpoints[i].Configuration.IdentityCleanupIdentifier = oldURL
+	}
+	calls.deleteErr = nil
+	f.status[ee.ArtifactUUID].Status = models.DeploymentStatusDeployed
+	_, _, err = f.put(t, models.MCPProxyEnvironmentRequest{})
+	require.NoError(t, err)
+	require.Len(t, calls.deleted, 2)
+	assert.Equal(t, oldURL, calls.deleted[1].identifier, "the retry removes the resource server at the URL it was left at")
+	endpoint, _ = f.binding()
+	assert.Empty(t, endpoint.Configuration.IdentityCleanupID)
+	assert.Empty(t, endpoint.Configuration.IdentityCleanupIdentifier)
+}
+
+// A binding deleted while its sync registered it may have had its resource server removed by the delete before that
+// registration: the sync, finding the binding gone, removes what it registered.
+func TestSyncBindingIdentity_RemovesARegistrationRacingTheDelete(t *testing.T) {
+	f := newBindingFixture(t)
+	calls := f.withThunder()
+	resp, _, err := f.put(t, models.MCPProxyEnvironmentRequest{Security: identityBinding()})
+	require.NoError(t, err)
+	_, ee := f.binding()
+	f.status[ee.ArtifactUUID].Status = models.DeploymentStatusDeployed
+	calls.forget()
+
+	endpoints := f.proxy.Endpoints
+	calls.onEnsure = func() {
+		calls.onEnsure = nil
+		f.proxy.Endpoints = nil // deleted, its own removal done
+	}
+	_, _, _ = f.put(t, models.MCPProxyEnvironmentRequest{Security: identityBinding()})
+	f.proxy.Endpoints = endpoints
+	require.Len(t, calls.ensured, 1)
+	require.Len(t, calls.deleted, 1, "the registration made while the binding was deleted is removed")
+	assert.Equal(t, resp.PublicURL, calls.deleted[0].identifier)
+}
+
+// The identifiers a context change moves registrations from are read strictly: a binding with no public URL has none,
+// but a failure to read one is returned, so the update does not go on and leave a registration at the old URL.
+func TestBindingResourceIdentifiers_ReturnsALookupFailure(t *testing.T) {
+	f := newBindingFixture(t)
+	f.withThunder()
+	resp, _, err := f.put(t, models.MCPProxyEnvironmentRequest{Security: identityBinding()})
+	require.NoError(t, err)
+
+	identifiers, err := f.svc.bindingResourceIdentifiers(context.Background(), testOrg, f.proxy)
+	require.NoError(t, err)
+	assert.Equal(t, map[uuid.UUID]string{f.envUUID: resp.PublicURL}, identifiers)
+
+	lookupErr := errors.New("db down")
+	deployments := f.svc.base.deploymentRepo.(*repomocks.DeploymentRepositoryMock)
+	deployments.PlacedGatewaysFunc = func(context.Context, string, uuid.UUID) ([]string, error) { return nil, lookupErr }
+	_, err = f.svc.bindingResourceIdentifiers(context.Background(), testOrg, f.proxy)
+	require.ErrorIs(t, err, lookupErr)
+}
+
 // A stale removal can land after a newer write put the binding back on identity and registered it. The sync re-reads
 // the binding after acting and applies its current state again, so the binding is registered once more rather than
 // left without its resource server.
@@ -1060,7 +1134,7 @@ func TestBindingIdentityCleanup_AStaleRemovalKeepsTheNewerID(t *testing.T) {
 
 	// The first removal, finishing late, succeeds but must not clear the second's ID.
 	calls.deleteErr = nil
-	f.svc.cleanUpBindingIdentity(context.Background(), testOrg, f.proxy, f.envUUID, bindingEnv, endpoint.UUID, first)
+	f.svc.cleanUpBindingIdentity(context.Background(), testOrg, f.proxy, f.envUUID, bindingEnv, endpoint.UUID, first, "")
 	endpoint, _ = f.binding()
 	assert.Equal(t, second, endpoint.Configuration.IdentityCleanupID)
 }
@@ -1205,7 +1279,7 @@ func TestBindingResourceServerCleanup_FailedScopeLookupRemovesNothing(t *testing
 	require.NoError(t, err)
 	endpoint, _ := f.binding()
 	endpointRepo := f.svc.base.endpointRepo.(*repomocks.MCPProxyEndpointRepositoryMock)
-	f.svc.cleanUpBindingIdentity(context.Background(), testOrg, f.proxy, f.envUUID, bindingEnv, endpoint.UUID, "cleanup-1")
+	f.svc.cleanUpBindingIdentity(context.Background(), testOrg, f.proxy, f.envUUID, bindingEnv, endpoint.UUID, "cleanup-1", "")
 	assert.Empty(t, calls.deleted)
 	assert.Empty(t, endpointRepo.ClearIdentityCleanupIDCalls(), "the ID stays for a retry")
 
@@ -1231,7 +1305,7 @@ func TestBindingIdentityCleanup_DropsTheProxyScopesFromRoles(t *testing.T) {
 	endpoint, _ := f.binding()
 	calls.forget()
 
-	f.svc.cleanUpBindingIdentity(context.Background(), testOrg, f.proxy, f.envUUID, bindingEnv, endpoint.UUID, "")
+	f.svc.cleanUpBindingIdentity(context.Background(), testOrg, f.proxy, f.envUUID, bindingEnv, endpoint.UUID, "", "")
 	require.Len(t, calls.deleted, 1)
 	assert.Equal(t, resp.PublicURL, calls.deleted[0].identifier,
 		"found by the binding's public URL: the identity service returns no handle for a resource server")

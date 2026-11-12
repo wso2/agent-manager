@@ -26,6 +26,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // A project binding secured with identity is an OAuth resource server in its environment's identity service, as an
@@ -96,8 +97,11 @@ func (s *ProjectMCPProxyService) ensureBindingResourceServers(
 }
 
 // bindingResourceIdentifiers are the public URLs of the proxy's identity bindings, by environment: the identifiers
-// their resource servers are registered at. A binding with no public URL yet has none.
-func (s *ProjectMCPProxyService) bindingResourceIdentifiers(ctx context.Context, ouID string, proxy *models.MCPProxy) map[uuid.UUID]string {
+// their resource servers are registered at. A binding with no public URL yet has none. Any other failure to read one
+// is returned, so the caller does not go on without the URL a registration would be left behind at.
+func (s *ProjectMCPProxyService) bindingResourceIdentifiers(
+	ctx context.Context, ouID string, proxy *models.MCPProxy,
+) (map[uuid.UUID]string, error) {
 	identifiers := map[uuid.UUID]string{}
 	for i := range proxy.Endpoints {
 		endpoint := &proxy.Endpoints[i]
@@ -105,11 +109,15 @@ func (s *ProjectMCPProxyService) bindingResourceIdentifiers(ctx context.Context,
 			continue
 		}
 		envUUID := endpoint.Environments[0].EnvironmentUUID
-		if identifier, err := s.base.MCPResourceServerIdentifier(ctx, ouID, envUUID, proxy); err == nil {
+		identifier, err := s.base.MCPResourceServerIdentifier(ctx, ouID, envUUID, proxy)
+		switch {
+		case err == nil:
 			identifiers[envUUID] = identifier
+		case !errors.Is(err, ErrMCPProxyNotDeployedToEnvironment):
+			return nil, fmt.Errorf("failed to read the resource identifier of binding %q: %w", endpoint.Name, err)
 		}
 	}
-	return identifiers
+	return identifiers, nil
 }
 
 // cleanUpBindingIdentity removes the resource server of a binding that left identity, and the roles' grants of the
@@ -121,14 +129,18 @@ func (s *ProjectMCPProxyService) bindingResourceIdentifiers(ctx context.Context,
 // leave their grants with nothing to sweep them; the ID stays and an identical PUT retries.
 func (s *ProjectMCPProxyService) cleanUpBindingIdentity(
 	ctx context.Context, ouID string, proxy *models.MCPProxy, envUUID uuid.UUID, envName string,
-	endpointUUID uuid.UUID, cleanupID string,
+	endpointUUID uuid.UUID, cleanupID, storedIdentifier string,
 ) bool {
 	if s.base.resolver == nil {
 		return false
 	}
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), ensureResourceServerPerEnvTimeout)
 	defer cancel()
-	identifier, err := s.base.MCPResourceServerIdentifier(ctx, ouID, envUUID, proxy)
+	// The URL kept when the binding left identity, else its current one.
+	identifier, err := storedIdentifier, error(nil)
+	if identifier == "" {
+		identifier, err = s.base.MCPResourceServerIdentifier(ctx, ouID, envUUID, proxy)
+	}
 	if err != nil {
 		s.base.logger.Info("project MCP binding identity cleanup deferred: the binding has no public URL yet",
 			"proxy", proxyHandleOf(proxy), "env", envName, "error", err)
@@ -175,10 +187,16 @@ func (s *ProjectMCPProxyService) syncBindingIdentity(
 		cleanupID := endpoint.Configuration.IdentityCleanupID
 		cleared := false
 		if cleanupID != "" {
-			if !s.cleanUpBindingIdentity(ctx, ouID, proxy, envUUID, envName, endpoint.UUID, cleanupID) {
+			if !s.cleanUpBindingIdentity(ctx, ouID, proxy, envUUID, envName, endpoint.UUID, cleanupID,
+				endpoint.Configuration.IdentityCleanupIdentifier) {
 				return
 			}
 			cleared = true
+		}
+		// The URL this pass registers at, so a registration racing the binding's delete can be removed after it.
+		registeredAt := ""
+		if identity {
+			registeredAt, _ = s.base.MCPResourceServerIdentifier(ctx, ouID, envUUID, proxy)
 		}
 		s.ensureBindingResourceServer(ctx, ouID, proxy, envUUID, envName, "")
 
@@ -190,7 +208,12 @@ func (s *ProjectMCPProxyService) syncBindingIdentity(
 			return
 		}
 		if freshEndpoint == nil {
-			return // gone: the delete removes its resource server
+			// Deleted meanwhile. Its delete removed the resource server, but may have done so before this pass
+			// registered it again, so what this pass registered is removed too.
+			if registeredAt != "" {
+				s.removeRegistrationOfDeletedBinding(ctx, ouID, proxy, envName, registeredAt)
+			}
+			return
 		}
 		current := freshEndpoint.Configuration
 		if mcpIdentityEnabled(current.Security) == identity &&
@@ -223,13 +246,27 @@ func (s *ProjectMCPProxyService) syncBindingIdentity(
 		"proxy", proxyHandleOf(proxy), "env", envName)
 }
 
+// removeRegistrationOfDeletedBinding removes the resource server a sync registered at identifier for a binding that
+// was deleted meanwhile, with the roles' grants of the proxy's scopes there, best effort.
+func (s *ProjectMCPProxyService) removeRegistrationOfDeletedBinding(
+	ctx context.Context, ouID string, proxy *models.MCPProxy, envName, identifier string,
+) {
+	actions, err := s.proxyScopeActions(ctx, proxy)
+	if err != nil {
+		s.base.logger.Warn("project MCP binding identity sync: listing scopes failed; a deleted binding's registration is left",
+			"proxy", proxyHandleOf(proxy), "env", envName, "error", err)
+		return
+	}
+	s.removeBindingResourceServer(ctx, ouID, proxy, envName, identifier, actions)
+}
+
 // rereadBinding reads the proxy again with its binding in envUUID. A proxy or binding that is gone gives nil and no
 // error; a read that fails gives the error.
 func (s *ProjectMCPProxyService) rereadBinding(
 	ctx context.Context, ouID string, proxy *models.MCPProxy, envUUID uuid.UUID,
 ) (*models.MCPProxy, *models.MCPProxyEndpoint, error) {
 	fresh, err := s.base.repo.GetInProject(ctx, proxyHandleOf(proxy), ouID, valueOrEmpty(proxy.ProjectUUID))
-	if errors.Is(err, gorm.ErrRecordNotFound) {
+	if errors.Is(err, utils.ErrMCPProxyNotFound) || errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil, nil
 	}
 	if err != nil {
