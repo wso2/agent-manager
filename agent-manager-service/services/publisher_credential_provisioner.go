@@ -27,7 +27,6 @@ import (
 	"golang.org/x/sync/singleflight"
 	"gorm.io/gorm"
 
-	ocauth "github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/auth"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
@@ -546,11 +545,7 @@ func (p *publisherCredentialProvisioner) GetOCClientForOrg(ctx context.Context, 
 			return nil, fmt.Errorf("failed to decrypt publisher secret for org %s: %w", ouID, err)
 		}
 
-		authProv := ocauth.NewAuthProvider(ocauth.Config{
-			TokenURL:     p.idpTokenURL,
-			ClientID:     cred.ClientID,
-			ClientSecret: string(secretBytes),
-		})
+		authProv := newOrgClientAuthProvider(p.idpTokenURL, cred.ClientID, string(secretBytes))
 		ocCl, err := client.NewOpenChoreoClient(&client.Config{
 			BaseURL:          p.ocBaseURL,
 			DefaultNamespace: config.GetConfig().OpenChoreo.DefaultNamespace,
