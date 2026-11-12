@@ -1,0 +1,55 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+description: Agent Manager MCP
+
+prompts:
+  - '{{prompt}}'
+
+providers:
+  - id: file://node_modules/@wso2/eval-kit/lib/capped.js
+    label: agent
+    config:
+      target: anthropic:claude-agent-sdk
+      apiKeyRequired: false
+      model: claude-sonnet-5-5
+      max_turns: 10
+      max_budget_usd: 0.5
+      strict_mcp_config: true
+      setting_sources: []
+      persist_session: false
+      tools: []
+      custom_allowed_tools:
+        - mcp__agent-manager__list_projects
+        - mcp__agent-manager__list_project_agent_pairs
+        - mcp__agent-manager__list_agents
+        - mcp__agent-manager__list_environments
+        - mcp__agent-manager__list_builds
+        - mcp__agent-manager__get_build_details
+        - mcp__agent-manager__list_deployments
+      mcp:
+        enabled: true
+        servers:
+          - name: agent-manager
+            url: '{{ env.AMP_MCP_URL }}'
+            headers:
+              Authorization: 'Bearer ${AMP_MCP_TOKEN}'
+
+defaultTest:
+  options:
+    provider:
+      id: file://node_modules/@wso2/eval-kit/lib/capped.js
+      label: judge
+      config:
+        target: anthropic:claude-agent-sdk
+        judge: true
+        apiKeyRequired: false
+        model: claude-opus-5-5
+        max_turns: 1
+        max_budget_usd: 0.3
+        strict_mcp_config: true
+        setting_sources: []
+        persist_session: false
+        tools: []
+        custom_system_prompt: You are a strict evaluation judge. Reply with only the JSON object the user asks for.
+
+tests:
+  - file://tests/*.yaml

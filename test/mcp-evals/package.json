@@ -1,0 +1,24 @@
+{
+  "name": "agent-manager-mcp-evals",
+  "private": true,
+  "description": "promptfoo evals for the Agent Manager MCP server against a real running instance",
+  "type": "module",
+  "engines": { "node": ">=22.22.0" },
+  "scripts": {
+    "eval": "eval-kit eval",
+    "list": "eval-kit list",
+    "show": "eval-kit show",
+    "view": "eval-kit view",
+    "compare": "eval-kit compare",
+    "pin": "eval-kit pin",
+    "tools": "eval-kit tools",
+    "login": "eval-kit login",
+    "promptfoo": "eval-kit promptfoo",
+    "doctor": "eval-kit doctor"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "0.3.283",
+    "@wso2/eval-kit": "https://github.com/wso2/agent-skills/releases/download/eval-kit-v0.2.0/wso2-eval-kit-0.2.0.tgz",
+    "promptfoo": "0.124.1"
+  }
+}
