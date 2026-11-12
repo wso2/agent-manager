@@ -7,9 +7,11 @@
 #
 # Usage: enable-a2a-test-upstream.sh <hostname>[,<hostname>...]
 #
-# The setting is patched onto the amp-api Deployment after install. A later
-# `helm upgrade` reverts it, and that is deliberate: the chart has no Helm value
-# for this variable and it must never become a production setting.
+# The setting is patched onto the amp-api Deployment after install; the chart has
+# no Helm value for it and it must never become a production setting. A later
+# `helm upgrade` keeps it (Helm's three-way merge leaves fields it did not set),
+# so on a long-lived cluster remove it explicitly:
+#   kubectl set env deployment/amp-api -n wso2-amp A2A_CARD_TEST_UPSTREAM_HOSTS-
 set -euo pipefail
 
 if [ $# -ne 1 ] || [ -z "$1" ]; then

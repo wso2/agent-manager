@@ -25,12 +25,12 @@ import (
 )
 
 // waitForStatus polls get every 2s until it reports the wanted status. A
-// not-found result counts as not yet. A failed status (the card reports
-// "failed", the proxy "FAILED") stops at once with the
-// last error; a timeout reports the last seen status and error.
-func waitForStatus(get func() (status, lastError string, found bool), want, label string, timeout time.Duration) {
+// not-found result counts as not yet, and a failed assertion in get fails only
+// that poll, so the timeout reports it. A failed status (the card reports
+// "failed", the proxy "FAILED") stops at once with the last error.
+func waitForStatus(get func(g Gomega) (status, lastError string, found bool), want, label string, timeout time.Duration) {
 	Eventually(func(g Gomega) {
-		status, lastError, found := get()
+		status, lastError, found := get(g)
 		if found && strings.EqualFold(status, "failed") {
 			StopTrying(fmt.Sprintf("%s failed: %s", label, lastError)).Now()
 		}

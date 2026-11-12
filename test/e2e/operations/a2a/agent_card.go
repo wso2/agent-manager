@@ -59,16 +59,14 @@ func SetCardSource(g Gomega, c *framework.AMPClient, org, proj, agent, env, card
 // not exist yet counts as not ready; a failed fetch stops the wait at once.
 func WaitForCardFetched(c *framework.AMPClient, org, proj, agent, env string, timeout time.Duration) framework.AgentCardResponse {
 	var card framework.AgentCardResponse
-	waitForStatus(func() (string, string, bool) {
+	waitForStatus(func(g Gomega) (string, string, bool) {
 		resp, err := c.Get(agentCardPath(org, proj, agent, env))
-		if err != nil {
-			return "", err.Error(), false
-		}
+		g.Expect(err).NotTo(HaveOccurred())
 		defer resp.Body.Close()
 		if resp.StatusCode == http.StatusNotFound {
 			return "", "", false
 		}
-		card = framework.DecodeBody[framework.AgentCardResponse](Default, resp)
+		card = framework.ExpectStatusAndDecode[framework.AgentCardResponse](g, resp, http.StatusOK)
 		return card.Status, card.LastError, true
 	}, "fetched", "agent card", timeout)
 	return card

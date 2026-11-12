@@ -42,16 +42,14 @@ func SetProxy(g Gomega, c *framework.AMPClient, org, proj, agent, env, header, v
 // WaitForProxyPublished polls until the A2A proxy is deployed to the gateway. A proxy that
 // does not exist yet counts as not ready; a failed publish stops the wait at once.
 func WaitForProxyPublished(c *framework.AMPClient, org, proj, agent, env string, timeout time.Duration) {
-	waitForStatus(func() (string, string, bool) {
+	waitForStatus(func(g Gomega) (string, string, bool) {
 		resp, err := c.Get(proxyPath(org, proj, agent, env))
-		if err != nil {
-			return "", err.Error(), false
-		}
+		g.Expect(err).NotTo(HaveOccurred())
 		defer resp.Body.Close()
 		if resp.StatusCode == http.StatusNotFound {
 			return "", "", false
 		}
-		proxy := framework.DecodeBody[framework.A2AProxyResponse](Default, resp)
+		proxy := framework.ExpectStatusAndDecode[framework.A2AProxyResponse](g, resp, http.StatusOK)
 		return proxy.Status, proxy.LastError, true
 	}, "DEPLOYED", "a2a proxy", timeout)
 }

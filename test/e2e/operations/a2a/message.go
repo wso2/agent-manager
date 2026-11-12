@@ -48,10 +48,18 @@ func JSONRPCURL(card json.RawMessage) string {
 	return ""
 }
 
-// SendMessage posts a JSON-RPC SendMessage to rpcURL and returns the raw 200
-// response body, after asserting it carries a result and no error. An empty
-// apiKey sends no X-API-Key header.
-func SendMessage(rpcURL, apiKey, text string) string {
+// SentTask is the task the agent created for a SendMessage.
+type SentTask struct {
+	ID     string `json:"id"`
+	Status struct {
+		State string `json:"state"`
+	} `json:"status"`
+}
+
+// SendMessage posts a JSON-RPC SendMessage to rpcURL and returns the task the
+// agent created for it. Any final state passes, so the check does not depend
+// on the agent's model call succeeding. An empty apiKey sends no X-API-Key header.
+func SendMessage(rpcURL, apiKey, text string) SentTask {
 	body := map[string]any{
 		"jsonrpc": "2.0",
 		"id":      1,
@@ -71,9 +79,17 @@ func SendMessage(rpcURL, apiKey, text string) string {
 
 	raw := agentops.InvokeEndpointWithHeaders(rpcURL, body, headers, true)
 
-	var reply map[string]json.RawMessage
+	var reply struct {
+		Result *struct {
+			Task *SentTask `json:"task"`
+		} `json:"result"`
+		Error json.RawMessage `json:"error"`
+	}
 	Expect(json.Unmarshal([]byte(raw), &reply)).To(Succeed(), "SendMessage reply is not JSON: %s", raw)
-	Expect(reply).To(HaveKey("result"), "SendMessage reply: %s", raw)
-	Expect(reply).NotTo(HaveKey("error"), "SendMessage reply: %s", raw)
-	return raw
+	Expect(reply.Error).To(BeEmpty(), "SendMessage reply: %s", raw)
+	Expect(reply.Result).NotTo(BeNil(), "SendMessage reply has no result: %s", raw)
+	Expect(reply.Result.Task).NotTo(BeNil(), "SendMessage result has no task: %s", raw)
+	Expect(reply.Result.Task.ID).NotTo(BeEmpty(), "SendMessage task has no id: %s", raw)
+	Expect(reply.Result.Task.Status.State).To(HavePrefix("TASK_STATE_"), "SendMessage task state: %s", raw)
+	return *reply.Result.Task
 }
