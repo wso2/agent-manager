@@ -403,6 +403,31 @@ func TestResolveThunderBaseURL_FallsBackToLoopback(t *testing.T) {
 	}
 }
 
+func TestResolveThunderBaseURL_PlatformThunderUsesConfiguredDialHost(t *testing.T) {
+	orig := config.GetConfig().Thunder
+	defer func() { config.GetConfig().Thunder = orig }()
+	config.GetConfig().Thunder.BaseURL = "http://thunder.amp.localhost:8080"
+	config.GetConfig().Thunder.ResolveToHost = "thunder:8080"
+
+	candidates := thunderBaseURLCandidates("acme", "default", "http://thunder.amp.localhost:8080/", true)
+	last := candidates[len(candidates)-1]
+	if last.resolveToHost != "thunder:8080" || last.external {
+		t.Fatalf("want a trusted platform candidate dialling thunder:8080, got %+v", last)
+	}
+
+	prober := func(_ context.Context, c thunderURLCandidate) bool {
+		return c.resolveToHost == "thunder:8080"
+	}
+	got, ok := resolveThunderBaseURL(context.Background(), "acme", "default", "http://thunder.amp.localhost:8080", true, prober)
+	if !ok || got.resolveToHost != "thunder:8080" {
+		t.Errorf("want the platform Thunder reached through thunder:8080, got %+v (ok=%v)", got, ok)
+	}
+
+	if other := thunderBaseURLCandidates("acme", "staging", "https://stage-idp.example.com", true); len(other) != 2 {
+		t.Errorf("a non-platform Thunder must not get the platform dial host, got %+v", other)
+	}
+}
+
 func TestResolveThunderBaseURL_AllUnreachable(t *testing.T) {
 	prober := func(_ context.Context, _ thunderURLCandidate) bool { return false }
 

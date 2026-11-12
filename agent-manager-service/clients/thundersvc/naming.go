@@ -233,6 +233,14 @@ func thunderBaseURLCandidates(org, env, thunderURL string, callerSupplied bool) 
 		{baseURL: ThunderInternalURL(org, env)},
 		{baseURL: externalBaseURL, external: callerSupplied},
 	}
+	// The platform Thunder's URL is deployment configuration, not stored or
+	// user-supplied data, so it is dialled the way the platform client is:
+	// through THUNDER_RESOLVE_TO_HOST when set, and without the SSRF guard (it
+	// is a private address in a container network).
+	if platform := config.GetConfig().Thunder; platform.BaseURL != "" &&
+		strings.TrimRight(thunderURL, "/") == strings.TrimRight(platform.BaseURL, "/") {
+		candidates = append(candidates, thunderURLCandidate{baseURL: externalBaseURL, resolveToHost: platform.ResolveToHost})
+	}
 	if config.GetConfig().IsLocalDevEnv {
 		candidates = append(
 			candidates,
