@@ -217,7 +217,9 @@ func TestMCPResourceServerProxyDeleteGoesThroughTheProvider(t *testing.T) {
 	envA, envB := uuid.New(), uuid.New()
 	proxy, svc := deployedIdentityProxy(envA, envB)
 
-	svc.cleanupProxyResourceServers(context.Background(), "ou-1", proxy, []models.MCPProxyScope{{Action: "read"}, {Action: "write"}})
+	identifiers := map[uuid.UUID]string{envA: "https://gw.example.com/deepwiki"}
+	svc.cleanupProxyResourceServers(context.Background(), "ou-1", proxy, []models.MCPProxyScope{{Action: "read"}, {Action: "write"}},
+		identifiers)
 
 	require.Len(t, provider.deleted, 2)
 	for i, env := range []string{"dev", "prod"} {
@@ -226,6 +228,9 @@ func TestMCPResourceServerProxyDeleteGoesThroughTheProvider(t *testing.T) {
 		require.Equal(t, "deepwiki", provider.deleted[i].ProxyHandle)
 		require.Equal(t, []string{"read", "write"}, provider.deleted[i].Actions, "the actions the proxy had")
 	}
+	require.Equal(t, "https://gw.example.com/deepwiki", provider.deleted[0].Identifier,
+		"found by the URL it was registered at: one registered by URL is not found by handle")
+	require.Empty(t, provider.deleted[1].Identifier, "no URL known: looked up by handle")
 }
 
 func TestMCPResourceServerRequestsAreCheckedBeforeTheProvider(t *testing.T) {

@@ -1084,6 +1084,37 @@ func TestBindingResourceIdentifiers_ReturnsALookupFailure(t *testing.T) {
 	require.ErrorIs(t, err, lookupErr)
 }
 
+// A proxy delete reads its bindings' URLs before tearing them down: the current public URL of an identity binding, the
+// URL a binding with a cleanup pending kept, and a lookup failure for either returned so the delete stops first.
+func TestProxyResourceIdentifiers(t *testing.T) {
+	f := newBindingFixture(t)
+	f.withThunder()
+	resp, _, err := f.put(t, models.MCPProxyEnvironmentRequest{Security: identityBinding()})
+	require.NoError(t, err)
+
+	identifiers, err := f.svc.base.proxyResourceIdentifiers(context.Background(), testOrg, f.proxy)
+	require.NoError(t, err)
+	assert.Equal(t, map[uuid.UUID]string{f.envUUID: resp.PublicURL}, identifiers)
+
+	const oldURL = "https://gw.example.com/p1/old-context"
+	for i := range f.proxy.Endpoints {
+		f.proxy.Endpoints[i].Configuration.IdentityCleanupID = "cleanup-1"
+		f.proxy.Endpoints[i].Configuration.IdentityCleanupIdentifier = oldURL
+	}
+	identifiers, err = f.svc.base.proxyResourceIdentifiers(context.Background(), testOrg, f.proxy)
+	require.NoError(t, err)
+	assert.Equal(t, map[uuid.UUID]string{f.envUUID: oldURL}, identifiers, "a pending cleanup's kept URL")
+
+	for i := range f.proxy.Endpoints {
+		f.proxy.Endpoints[i].Configuration.IdentityCleanupIdentifier = ""
+	}
+	lookupErr := errors.New("db down")
+	deployments := f.svc.base.deploymentRepo.(*repomocks.DeploymentRepositoryMock)
+	deployments.PlacedGatewaysFunc = func(context.Context, string, uuid.UUID) ([]string, error) { return nil, lookupErr }
+	_, err = f.svc.base.proxyResourceIdentifiers(context.Background(), testOrg, f.proxy)
+	require.ErrorIs(t, err, lookupErr)
+}
+
 // A stale removal can land after a newer write put the binding back on identity and registered it. The sync re-reads
 // the binding after acting and applies its current state again, so the binding is registered once more rather than
 // left without its resource server.
