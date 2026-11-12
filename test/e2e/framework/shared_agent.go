@@ -40,56 +40,15 @@ const E2EMonitorPrefix = "e2e-test-mon-monitor-"
 // config-only coverage.
 const TestMCPServerURL = "https://db720294-98fd-40f4-85a1-cc6a3b65bc9a-prod.e1-us-east-azure.choreoapis.dev/godzilla/mcp-everything-server/v1.0/mcp"
 
-// Shared Projects and Agent
+// Shared project
 const E2ESharedProjectName = "e2e-test-shared"
-const SharedITHelpdeskAgentName = "e2e-it-helpdesk"
-
-// E2ESharedKindName is the fixed kind name published and consumed by the
-// catalog tests. Using a stable name avoids needing cross-suite
-// coordination of a randomly-generated kind name.
-const E2ESharedKindName = "e2e-it-helpdesk-kind"
-
-// E2ESharedKindVersion is the version used when publishing the shared kind.
-const E2ESharedKindVersion = "1.0.0"
 
 const (
 	// E2ECLIProjectPrefix is the prefix for projects owned solely by the amctl
 	// CLI e2e suite. Distinct from E2EProjectPrefix so the suite can mutate its
 	// own agent freely; the stale sweep reaps it as a teardown backstop.
 	E2ECLIProjectPrefix = "e2e-cli-"
-	// E2ECLIProjectName is the project owning the CLI suite's agent. Torn down on
-	// exit (amctl.WithSharedTeardown) and rebuilt fresh next run.
-	E2ECLIProjectName = E2ECLIProjectPrefix + "shared"
-	// CLILifecycleAgentName is the agent the amctl CLI suite builds, redeploys,
-	// and observes.
-	CLILifecycleAgentName = "e2e-cli-it-helpdesk"
 )
-
-// CLILifecycleAgent is a handle to the dedicated CLI-owned IT-helpdesk agent:
-// a built/deployed/ready agent the amctl CLI suite drives mutating and
-// observability commands against. Same shape as SharedITHelpdeskAgent but
-// semantically owned by the CLI suite alone. It is provisioned once on parallel
-// process 1 and serialized to every process via the suite's
-// SynchronizedBeforeSuite, so its fields carry JSON tags.
-type CLILifecycleAgent struct {
-	ProjectName string          `json:"projectName"`
-	AgentName   string          `json:"agentName"`
-	BuildName   string          `json:"buildName"`
-	EndpointURL string          `json:"endpointURL"`
-	APIKey      string          `json:"apiKey"`
-	InvokeReq   json.RawMessage `json:"invokeReq"`
-}
-
-// SharedITHelpdeskAgent holds details of the shared internal chat agent that is
-// provisioned once in BeforeSuite and reused by multiple test suites.
-type SharedITHelpdeskAgent struct {
-	ProjectName string          `json:"projectName"`
-	AgentName   string          `json:"agentName"`
-	BuildName   string          `json:"buildName"`
-	EndpointURL string          `json:"endpointURL"`
-	APIKey      string          `json:"apiKey"`
-	InvokeReq   json.RawMessage `json:"invokeReq"`
-}
 
 // WaitForAPIReady polls the health endpoint until the API is ready.
 func WaitForAPIReady(cfg *Config) {

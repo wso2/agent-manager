@@ -50,7 +50,8 @@ var _ = Describe("amctl project CRUD", Label("cli", "project"), Ordered, func() 
 		p := cliproject.CreateProject(Default, H, H.Org(), projName, displayName, description)
 		Expect(p.Name).To(Equal(projName))
 		Expect(p.DisplayName).To(Equal(displayName))
-		Expect(p.DeploymentPipeline).To(Equal("default"))
+		// Projects have no deployment pipeline: environments are internal.
+		Expect(p.DeploymentPipeline).To(BeEmpty())
 	})
 
 	It("gets the created project", func() {

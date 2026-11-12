@@ -44,12 +44,10 @@ func TestAgent(t *testing.T) {
 	RunSpecs(t, "Agent Suite")
 }
 
-// The shared project that the internal/external agent specs build into is
-// created once here (on a single process) rather than by the specs themselves,
-// so that under `ginkgo -p` the specs — distributed across parallel processes —
-// do not race to create it. The two-env promotion infra is provisioned lazily by
-// the promotion container's BeforeAll (only that one container needs it). Each
-// process still builds its own API client.
+// The shared project the agent specs create agents in is created once here (on
+// a single process) rather than by the specs themselves, so that under
+// `ginkgo -p` the specs — distributed across parallel processes — do not race
+// to create it. Each process still builds its own API client.
 var _ = SynchronizedBeforeSuite(func() []byte {
 	cfg := framework.LoadConfig()
 

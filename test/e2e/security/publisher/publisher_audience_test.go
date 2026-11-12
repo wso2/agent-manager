@@ -32,22 +32,8 @@ func publisherPath() string {
 }
 
 var _ = Describe("SEC-PUB-001: score publisher audience", Label("security", "publisher"), func() {
-	It("allows an amp-publisher-* token to reach the ingestion handler", func(ctx SpecContext) {
-		resp, err := framework.NewAMPClientWithToken(cfg, publisherClient.Token).
-			PostWithContext(ctx, publisherPath(), nil)
-		Expect(err).NotTo(HaveOccurred())
-		defer resp.Body.Close()
-		Expect(resp.StatusCode).To(Equal(http.StatusBadRequest),
-			"a valid publisher token should reach body validation; 401/403 means the audience boundary rejected it")
-	})
-
-	It("denies a normal AMP API token", func(ctx SpecContext) {
-		resp, err := normalClient.PostWithContext(ctx, publisherPath(), nil)
-		Expect(err).NotTo(HaveOccurred())
-		defer resp.Body.Close()
-		framework.ExpectForbidden(Default, resp, "normal API client on publisher-only score ingestion")
-	})
-
+	// Score ingestion answers 501 in this deployment (no evaluation runtime), so
+	// only the audience checks that reject before any handler are asserted here.
 	It("rejects a publisher lookalike audience", func(ctx SpecContext) {
 		resp, err := framework.NewAMPClientWithToken(cfg, lookalikeClient.Token).
 			PostWithContext(ctx, publisherPath(), nil)

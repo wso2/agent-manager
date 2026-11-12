@@ -14,13 +14,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
-// Validates evaluator management: listing built-in evaluators and creating
-// a custom Python code evaluator.
+// Validates evaluator listing: the built-in evaluators are served. Custom
+// evaluators need the evaluation runtime, which this deployment does not run.
 
 package evaluators
 
 import (
-	"github.com/google/uuid"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -28,14 +27,7 @@ import (
 )
 
 var _ = Describe("Evaluators:", Ordered, Label("evaluators"), func() {
-	var (
-		builtinEvalIdentifier string
-		customEvalIdentifier  string
-	)
-
-	BeforeAll(func() {
-		customEvalIdentifier = "e2e-test-eval-evaluator-" + uuid.New().String()[:8]
-	})
+	var builtinEvalIdentifier string
 
 	It("lists evaluators including the built-in ones", func() {
 		evals := evaluator.ListEvaluators(Default, Client, Cfg.DefaultOrg)
@@ -49,28 +41,5 @@ var _ = Describe("Evaluators:", Ordered, Label("evaluators"), func() {
 		}
 		Expect(builtinEvalIdentifier).NotTo(BeEmpty(), "expected 'length_compliance' evaluator")
 		GinkgoWriter.Printf("Found built-in evaluator: %s\n", builtinEvalIdentifier)
-	})
-
-	It("creates a custom code evaluator", func() {
-		customEval := evaluator.CreateCustomEvaluator(Default, Client, &evaluator.CreateCustomEvaluatorParams{
-			OrgName:     Cfg.DefaultOrg,
-			Identifier:  customEvalIdentifier,
-			DisplayName: "E2E Custom Evaluator",
-			Description: "Custom code evaluator for e2e test",
-			Type:        "code",
-			Level:       "trace",
-			Source: `from amp_evaluation import EvalResult
-from amp_evaluation.trace.models import Trace
-
-def evaluate(trace: Trace) -> EvalResult:
-    return EvalResult(
-        score=1.0,
-        passed=True,
-        explanation="e2e test evaluator always passes",
-    )
-`,
-		})
-		Expect(customEval.Identifier).To(Equal(customEvalIdentifier))
-		GinkgoWriter.Printf("Custom evaluator created: %s\n", customEval.Identifier)
 	})
 })
