@@ -35,6 +35,8 @@ tags:
     description: Component and build logs; not implemented (requires JWT)
   - name: metrics
     description: Resource metrics; not implemented (requires JWT)
+  - name: config
+    description: Which observability features this deployment serves (requires JWT)
 
 paths:
   /health:
@@ -357,6 +359,33 @@ paths:
           $ref: "#/components/responses/ObserverUnavailable"
         "500":
           $ref: "#/components/responses/InternalError"
+
+  /api/v1/observability/config:
+    get:
+      tags:
+        - config
+      summary: Get the observability configuration
+      description: |
+        Says whether traces are served and which backend (`TRACE_BACKEND`) serves them, so a client
+        can hide trace pages when traces are off.
+      operationId: getObservabilityConfig
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Observability configuration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ObservabilityConfig"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: The token lacks the trace-read scope
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /api/v1/logs:
     get:
@@ -773,6 +802,26 @@ components:
             $ref: "#/components/schemas/ErrorResponse"
 
   schemas:
+    ObservabilityConfig:
+      type: object
+      required:
+        - traces
+      properties:
+        traces:
+          type: object
+          required:
+            - enabled
+            - backend
+          properties:
+            enabled:
+              type: boolean
+              description: False when `TRACE_BACKEND` is `off`
+            backend:
+              type: string
+              description: The `TRACE_BACKEND` value; `opensearch` when unset
+              enum: [opensearch, openchoreo, "off"]
+              example: opensearch
+
     HealthOkResponse:
       type: object
       required:

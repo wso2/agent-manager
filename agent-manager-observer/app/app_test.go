@@ -20,6 +20,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -220,5 +221,29 @@ func TestNewHandler_UserFromOtherOrgGets403(t *testing.T) {
 
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("expected 403, got %d (body: %s)", rec.Code, rec.Body.String())
+	}
+}
+
+func TestNewHandler_ObservabilityConfig(t *testing.T) {
+	for backend, want := range map[string]string{
+		"":                     `{"traces":{"enabled":true,"backend":"opensearch"}}`,
+		config.TraceBackendOff: `{"traces":{"enabled":false,"backend":"off"}}`,
+	} {
+		cfg := &config.Config{
+			OpenSearch: config.OpenSearchConfig{Address: "http://opensearch:9200", TraceIndex: "otel-traces-*"},
+			Traces:     config.TracesConfig{Backend: backend},
+			Auth:       config.AuthConfig{IsLocalDevEnv: true},
+		}
+		r := httptest.NewRequest(http.MethodGet, "/api/v1/observability/config", nil)
+		r.Header.Set("Authorization", "Bearer "+scopedToken(t, rbac.TraceRead.Scope()))
+		rec := httptest.NewRecorder()
+		newHandler(cfg).ServeHTTP(rec, r)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("%q: expected 200, got %d (body: %s)", backend, rec.Code, rec.Body.String())
+		}
+		if strings.TrimSpace(rec.Body.String()) != want {
+			t.Errorf("%q: body = %s, want %s", backend, rec.Body.String(), want)
+		}
 	}
 }
