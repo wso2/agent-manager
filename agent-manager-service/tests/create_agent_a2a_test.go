@@ -64,7 +64,8 @@ func TestCreateExternalAgentWithA2ASubTypeGetsNoGatewayPublication(t *testing.T)
 	require.Len(t, platformRepo.CreateAgentCalls(), 1)
 
 	var queued int64
-	require.NoError(t, db.GetDB().Model(&models.PlatformAgentExposure{}).
-		Where("agent_name = ?", agentName).Count(&queued).Error)
+	gdb := db.GetDB()
+	require.NoError(t, gdb.Model(&models.PlatformAgentExposure{}).
+		Where("agent_id IN (?)", models.AgentIDQuery(gdb, jwtassertion.MockOUID, testProjName, agentName)).Count(&queued).Error)
 	require.Zero(t, queued, "an external agent is never exposed as a platform agent")
 }

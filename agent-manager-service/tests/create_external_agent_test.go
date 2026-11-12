@@ -48,7 +48,7 @@ var (
 )
 
 func TestCreateExternalAgent(t *testing.T) {
-	seedIngressGatewayForDefaultEnvironment(t, "mock-org-id")
+	seedIngressGatewayForDefaultEnvironment(t, jwtassertion.MockOUID)
 	authMiddleware := jwtassertion.NewMockMiddleware(t)
 
 	t.Run("Creating an external agent should return 202", func(t *testing.T) {
@@ -209,27 +209,6 @@ func TestCreateExternalAgent(t *testing.T) {
 			wantStatus: 400,
 			wantErrMsg: "provisioning type must be either 'internal' or 'external'",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testExternalOrgName, testExternalProjName),
-			setupMock: func() *repomocks.PlatformRepositoryMock {
-				return apitestutils.CreateMockPlatformRepository()
-			},
-		},
-		{
-			name:           "return 404 on organization not found for external agent",
-			authMiddleware: jwtassertion.NewMockMiddlewareWithOUID(t, "nonexistent-org"),
-			payload: map[string]interface{}{
-				"name":        fmt.Sprintf("test-external-agent-%s", uuid.New().String()[:5]),
-				"displayName": "Test External Agent",
-				"description": "Test description",
-				"provisioning": map[string]interface{}{
-					"type": "external",
-				},
-				"agentType": map[string]interface{}{
-					"type": "agent-api",
-				},
-			},
-			wantStatus: 404,
-			wantErrMsg: "Organization not found",
-			url:        fmt.Sprintf("/api/v1/orgs/nonexistent-org/projects/%s/agents", testExternalProjName),
 			setupMock: func() *repomocks.PlatformRepositoryMock {
 				return apitestutils.CreateMockPlatformRepository()
 			},

@@ -29,11 +29,13 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
+	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/db"
+	"github.com/wso2/agent-manager/agent-manager-service/db/dbtest"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 )
 
-// snapshotTx opens a REPEATABLE READ transaction that is rolled back when the
+// snapshotTx opens a snapshot transaction that is rolled back when the
 // test ends.
 //
 // The queries under test deliberately carry no ou_id predicate, and other
@@ -45,7 +47,12 @@ import (
 // included.
 func snapshotTx(t *testing.T) *gorm.DB {
 	t.Helper()
-	tx := db.GetDB().Begin(&sql.TxOptions{Isolation: sql.LevelRepeatableRead})
+	// SQLite has no isolation levels to choose: its transactions already see one state, and take the write lock.
+	var opts []*sql.TxOptions
+	if config.GetConfig().Database.Driver == config.DBDriverPostgres {
+		opts = append(opts, &sql.TxOptions{Isolation: sql.LevelRepeatableRead})
+	}
+	tx := db.GetDB().Begin(opts...)
 	require.NoError(t, tx.Error, "begin snapshot transaction")
 	t.Cleanup(func() { _ = tx.Rollback().Error })
 	return tx
@@ -78,15 +85,13 @@ func insertFailureFixture(
 	require.NoError(t, gormDB.Create(gw).Error, "insert fixture %s", name)
 
 	require.NoError(t, gormDB.Exec(
-		"UPDATE gateways SET is_active = ?, updated_at = ? WHERE uuid = ?",
+		"UPDATE gateways SET is_active = ?, updated_at = ? WHERE id = ?",
 		isActive, updatedAt, id,
 	).Error, "pin liveness columns for %s", name)
 
 	if softDeleted {
-		require.NoError(t, gormDB.Exec(
-			"UPDATE gateways SET deleted_at = ? WHERE uuid = ?", time.Now(), id,
-		).Error,
-			"soft-delete %s", name)
+		// Gateways are deleted outright now, so a deleted one is simply gone.
+		require.NoError(t, gormDB.Exec("DELETE FROM gateways WHERE id = ?", id).Error, "delete %s", name)
 	}
 	return id
 }
@@ -114,7 +119,7 @@ func TestGatewayRepo_FailureSummaryAllOrgs(t *testing.T) {
 	baseline, err := repo.CountFailureSummaryAllOrgs(ctx, window)
 	require.NoError(t, err)
 
-	const orgA, orgB = "ou-failure-summary-a", "ou-failure-summary-b"
+	orgA, orgB := dbtest.Org(t, tx), dbtest.Org(t, tx)
 	hourAgo := time.Now().Add(-time.Hour)
 
 	// Counted: disconnected, and disconnected since before the cutoff.
@@ -189,10 +194,10 @@ func TestGatewayRepo_FailureSummaryIgnoresSelfHosted(t *testing.T) {
 	baseline, err := repo.CountFailureSummaryAllOrgs(ctx, window)
 	require.NoError(t, err)
 
-	const org = "ou-failure-summary-self-hosted"
+	org := dbtest.Org(t, tx)
 	stale := insertFailureFixture(t, tx, org, "gw-self-hosted-stale", false, time.Now().Add(-time.Hour), false)
 	abandoned := insertFailureFixture(t, tx, org, "gw-self-hosted-abandoned", false, time.Now().Add(-8*24*time.Hour), false)
-	require.NoError(t, tx.Exec("UPDATE gateways SET hosting = ? WHERE uuid IN (?, ?)",
+	require.NoError(t, tx.Exec("UPDATE gateways SET hosting = ? WHERE id IN (?, ?)",
 		models.GatewayHostingSelfHosted, stale, abandoned).Error)
 
 	got, err := repo.CountFailureSummaryAllOrgs(ctx, window)
@@ -221,7 +226,7 @@ func TestGatewayRepo_ListFailedGatewaysAllOrgs_Limit(t *testing.T) {
 		NotOlderThan: now.Add(-7 * 24 * time.Hour),
 	}
 
-	const org = "ou-failure-summary-limit"
+	org := dbtest.Org(t, tx)
 	oldest := insertFailureFixture(t, tx, org, "gw-limit-oldest", false, time.Now().Add(-6*24*time.Hour), false)
 	insertFailureFixture(t, tx, org, "gw-limit-newer", false, time.Now().Add(-30*time.Minute), false)
 

@@ -35,11 +35,12 @@ func TestAgentConfigCreateIfAbsentKeepsAnExistingRow(t *testing.T) {
 	repo := NewAgentConfigRepo(db.GetDB())
 	ctx := context.Background()
 	saved := &models.AgentConfig{
-		OUID: "ou-" + uuid.New().String()[:8], ProjectName: "checkout",
+		OUID: testOrg(t), ProjectName: "checkout",
 		AgentName: "cfg-" + uuid.New().String()[:8], EnvironmentName: "Development",
 		EnableApiKeySecurity: false, CORSEnabled: false,
 		OAuthHeaderName: "X-Saved", OAuthAuthHeaderPrefix: models.DefaultOAuthAuthHeaderPrefix,
 	}
+	seedAgent(t, saved.OUID, saved.ProjectName, saved.AgentName, saved.EnvironmentName)
 	t.Cleanup(func() { _ = repo.DeleteAllByAgent(ctx, saved.OUID, saved.ProjectName, saved.AgentName) })
 	require.NoError(t, repo.Upsert(ctx, saved))
 
@@ -58,11 +59,12 @@ func TestAgentConfigCreateIfAbsentInsertsDefaults(t *testing.T) {
 	repo := NewAgentConfigRepo(db.GetDB())
 	ctx := context.Background()
 	cfg := &models.AgentConfig{
-		OUID: "ou-" + uuid.New().String()[:8], ProjectName: "checkout",
+		OUID: testOrg(t), ProjectName: "checkout",
 		AgentName: "cfg-new-" + uuid.New().String()[:8], EnvironmentName: "Development",
 		EnableApiKeySecurity: true, CORSEnabled: true, CORSAllowOrigins: []string{"*"},
 		OAuthHeaderName: models.DefaultOAuthHeaderName, OAuthAuthHeaderPrefix: models.DefaultOAuthAuthHeaderPrefix,
 	}
+	seedAgent(t, cfg.OUID, cfg.ProjectName, cfg.AgentName, cfg.EnvironmentName)
 	t.Cleanup(func() { _ = repo.DeleteAllByAgent(ctx, cfg.OUID, cfg.ProjectName, cfg.AgentName) })
 	require.NoError(t, repo.CreateIfAbsent(ctx, cfg))
 
@@ -76,8 +78,10 @@ func TestAgentConfigCreateIfAbsentInsertsDefaults(t *testing.T) {
 func TestAgentConfigDeleteForEnvironmentDropsEveryAgentsConfig(t *testing.T) {
 	repo := NewAgentConfigRepo(db.GetDB())
 	ctx := context.Background()
-	ouID := "ou-" + uuid.New().String()[:8]
+	ouID := testOrg(t)
 	agentA, agentB := "cfg-a-"+uuid.New().String()[:8], "cfg-b-"+uuid.New().String()[:8]
+	seedAgent(t, ouID, "checkout", agentA, "dev", "prod")
+	seedAgent(t, ouID, "checkout", agentB)
 	newConfig := func(agent, env string) *models.AgentConfig {
 		return &models.AgentConfig{
 			OUID: ouID, ProjectName: "checkout", AgentName: agent, EnvironmentName: env,

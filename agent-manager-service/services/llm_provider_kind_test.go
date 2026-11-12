@@ -65,7 +65,7 @@ func (f *providerFixture) newProvider(t *testing.T) *models.LLMProvider {
 	provider.Configuration.Handle = "p-" + uuid.NewString()[:8]
 	provider.Configuration.Upstream.Main.Auth = nil
 	t.Cleanup(func() {
-		db.GetDB().Exec(`DELETE FROM artifacts WHERE handle = ? AND ou_id = ?`, provider.Configuration.Handle, f.sync.ouID)
+		db.GetDB().Exec(`DELETE FROM artifacts WHERE handle = ? AND org_id = ?`, provider.Configuration.Handle, f.sync.ouID)
 	})
 	return provider
 }
@@ -73,7 +73,7 @@ func (f *providerFixture) newProvider(t *testing.T) *models.LLMProvider {
 func (f *providerFixture) artifactCount(t *testing.T, handle string) int64 {
 	t.Helper()
 	var n int64
-	require.NoError(t, db.GetDB().Table("artifacts").Where("handle = ? AND ou_id = ?", handle, f.sync.ouID).Count(&n).Error)
+	require.NoError(t, db.GetDB().Table("artifacts").Where("handle = ? AND org_id = ?", handle, f.sync.ouID).Count(&n).Error)
 	return n
 }
 
@@ -141,7 +141,7 @@ func TestDeleteReachesEveryActiveGatewayOfTheOrg(t *testing.T) {
 	f := newProviderFixture(t)
 	other := f.sync.seedGateway(t, f.sync.ouID)
 	inactive := f.sync.seedGateway(t, f.sync.ouID)
-	require.NoError(t, db.GetDB().Exec(`UPDATE gateways SET is_active = FALSE WHERE uuid = ?`, inactive).Error)
+	require.NoError(t, db.GetDB().Exec(`UPDATE gateways SET is_active = FALSE WHERE id = ?`, inactive).Error)
 	created, err := f.providers.Create(context.Background(), f.sync.ouID, "me", f.newProvider(t))
 	require.NoError(t, err)
 

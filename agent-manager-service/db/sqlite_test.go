@@ -18,6 +18,7 @@ package db
 
 import (
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -99,4 +100,57 @@ func TestSQLiteTimesSortInTimeOrder(t *testing.T) {
 	var first row
 	require.NoError(t, gormDB.Table("rows").Where("id = ?", 3).Take(&first).Error)
 	assert.True(t, first.At.Equal(times[2]), "round trip: got %v, want %v", first.At, times[2])
+}
+
+// Transactions take the write lock when they begin, so concurrent ones that read before writing wait for each other
+// instead of failing to upgrade their lock with SQLITE_BUSY.
+func TestSQLiteConcurrentReadThenWriteTransactions(t *testing.T) {
+	gormDB := openTestSQLite(t)
+	require.NoError(t, gormDB.Exec("CREATE TABLE counters (id INTEGER PRIMARY KEY, n INTEGER NOT NULL)").Error)
+	require.NoError(t, gormDB.Exec("INSERT INTO counters (id, n) VALUES (1, 0)").Error)
+
+	var wg sync.WaitGroup
+	errs := make(chan error, 8)
+	for range 8 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			errs <- gormDB.Transaction(func(tx *gorm.DB) error {
+				var n int64
+				if err := tx.Raw("SELECT n FROM counters WHERE id = 1").Scan(&n).Error; err != nil {
+					return err
+				}
+				time.Sleep(10 * time.Millisecond)
+				return tx.Exec("UPDATE counters SET n = ? WHERE id = 1", n+1).Error
+			})
+		}()
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		require.NoError(t, err)
+	}
+	var n int64
+	require.NoError(t, gormDB.Raw("SELECT n FROM counters WHERE id = 1").Scan(&n).Error)
+	assert.EqualValues(t, 8, n, "no update may be lost")
+}
+
+// Times are compared as text, so a time given in another zone is stored in UTC like every other.
+func TestSQLiteStoresTimesInUTCWhateverTheirZone(t *testing.T) {
+	gormDB := openTestSQLite(t)
+	require.NoError(t, gormDB.Exec("CREATE TABLE due (id INTEGER PRIMARY KEY, at TIMESTAMP NOT NULL)").Error)
+	colombo := time.FixedZone("Asia/Colombo", 5*3600+30*60)
+	past := time.Now().Add(-time.Minute).In(colombo)
+	require.NoError(t, gormDB.Exec("INSERT INTO due (id, at) VALUES (1, ?)", past).Error)
+	require.NoError(t, gormDB.Transaction(func(tx *gorm.DB) error {
+		return tx.Exec("INSERT INTO due (id, at) VALUES (2, ?)", &past).Error
+	}))
+
+	var n int64
+	require.NoError(t, gormDB.Raw("SELECT count(*) FROM due WHERE at <= ?", time.Now().UTC()).Scan(&n).Error)
+	assert.EqualValues(t, 2, n, "a past time is due, whatever zone it was written in")
+	require.NoError(t, gormDB.Transaction(func(tx *gorm.DB) error {
+		return tx.Raw("SELECT count(*) FROM due WHERE at > ?", time.Now().In(colombo)).Scan(&n).Error
+	}))
+	assert.EqualValues(t, 0, n)
 }

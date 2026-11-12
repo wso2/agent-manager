@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"sort"
 	"time"
 
 	"github.com/google/uuid"
@@ -326,10 +327,10 @@ func (r *a2aAgentCardRepository) Get(ctx context.Context, ouID, projectName, age
 func (r *a2aAgentCardRepository) ListForAgent(ctx context.Context, ouID, projectName, agentName string) ([]models.A2AAgentCard, error) {
 	var rows []models.A2AAgentCard
 	cond, args := agentCond(r.db, ouID, projectName, agentName)
-	err := r.db.WithContext(ctx).Where(cond, args...).Order("environment_id ASC").Find(&rows).Error
-	if err != nil {
+	if err := r.db.WithContext(ctx).Where(cond, args...).Find(&rows).Error; err != nil {
 		return nil, err
 	}
+	sort.Slice(rows, func(i, j int) bool { return rows[i].EnvironmentName < rows[j].EnvironmentName })
 	return rows, nil
 }
 
@@ -361,7 +362,7 @@ func (r *a2aAgentCardRepository) DeleteForEnvironment(ctx context.Context, ouID 
 }
 
 func (r *a2aAgentCardRepository) ListForEnvironment(ctx context.Context, ouID string, environmentUUID uuid.UUID) ([]models.A2AAgentCard, error) {
-	return listForEnvironment[models.A2AAgentCard](ctx, r.db, ouID, environmentUUID)
+	return listForEnvironment[models.A2AAgentCard](ctx, r.db, models.A2AAgentCard{}.TableName(), ouID, environmentUUID)
 }
 
 func (r *a2aAgentCardRepository) ListEnvironmentUUIDs(ctx context.Context, ouID, environmentName string) ([]uuid.UUID, error) {
@@ -375,12 +376,14 @@ func deleteForEnvironment[T any](ctx context.Context, db *gorm.DB, ouID string, 
 		Delete(new(T)).Error
 }
 
-// listForEnvironment lists the T rows of one environment, in agent order.
-func listForEnvironment[T any](ctx context.Context, db *gorm.DB, ouID string, environmentUUID uuid.UUID) ([]T, error) {
+// listForEnvironment lists the T rows (of table) in one environment, ordered by project and agent name.
+func listForEnvironment[T any](ctx context.Context, db *gorm.DB, table, ouID string, environmentUUID uuid.UUID) ([]T, error) {
 	var rows []T
-	err := db.WithContext(ctx).
-		Where("org_id = ? AND environment_id = ?", ouID, environmentUUID).
-		Order("agent_id ASC").
+	err := db.WithContext(ctx).Table(table).Select(table+".*").
+		Joins("JOIN agents ag ON ag.id = "+table+".agent_id").
+		Joins("JOIN projects pr ON pr.id = ag.project_id").
+		Where(table+".org_id = ? AND "+table+".environment_id = ?", ouID, environmentUUID).
+		Order("pr.name ASC, ag.name ASC").
 		Find(&rows).Error
 	if err != nil {
 		return nil, err

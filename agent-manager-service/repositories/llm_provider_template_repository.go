@@ -209,7 +209,7 @@ func (r *LLMProviderTemplateRepo) Update(t *models.LLMProviderTemplate) error {
 		Updates(map[string]interface{}{
 			"name":          t.Name,
 			"description":   t.Description,
-			"configuration": t.Configuration,
+			"configuration": dbx.JSON(t.Configuration),
 			"updated_at":    t.UpdatedAt,
 		})
 

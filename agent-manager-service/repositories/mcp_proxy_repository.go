@@ -151,7 +151,7 @@ func (r *MCPProxyRepo) Update(ctx context.Context, tx *gorm.DB, p *models.MCPPro
 		Where("id = ?", p.UUID).
 		Updates(map[string]interface{}{
 			"description":   p.Description,
-			"configuration": p.Configuration,
+			"configuration": dbx.JSON(p.Configuration),
 		})
 	if result.Error != nil {
 		return result.Error

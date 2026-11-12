@@ -327,7 +327,7 @@ func (r *GatewayRepo) UpdateGateway(gateway *models.Gateway) error {
 			"display_name": gateway.DisplayName,
 			"description":  gateway.Description,
 			"is_critical":  gateway.IsCritical,
-			"properties":   gateway.Properties,
+			"properties":   dbx.JSON(gateway.Properties),
 			"runtime_url":  gateway.RuntimeURL,
 			"updated_at":   gateway.UpdatedAt,
 		})

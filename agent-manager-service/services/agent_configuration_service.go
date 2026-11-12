@@ -35,6 +35,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
+	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/reconcile"
@@ -2470,7 +2471,7 @@ func (s *agentConfigurationService) updateExistingMCPMapping(ctx context.Context
 			Updates(map[string]interface{}{
 				"source_mcp_proxy_id": proxyMapping.SourceMCPProxyUUID,
 				"description":         proxyMapping.Description,
-				"configuration":       proxyMapping.Configuration,
+				"configuration":       dbx.JSON(proxyMapping.Configuration),
 			}).Error; err != nil {
 			return err
 		}

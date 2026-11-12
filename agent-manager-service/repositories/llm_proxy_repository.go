@@ -107,7 +107,9 @@ func convertProxyResults(results []proxyWithArtifact) []*models.LLMProxy {
 
 // getProxyUUIDByHandle retrieves the proxy UUID from a handle
 func (r *LLMProxyRepo) getProxyUUIDByHandle(tx *gorm.DB, handle string, ouID string) (uuid.UUID, error) {
-	var artifact struct{ UUID uuid.UUID }
+	var artifact struct {
+		UUID uuid.UUID `gorm:"column:id"`
+	}
 	result := tx.Table("artifacts").
 		Select("id").
 		Where("handle = ? AND org_id = ? AND kind = ?", handle, ouID, models.KindLLMProxy).
@@ -323,7 +325,7 @@ func (r *LLMProxyRepo) Update(p *models.LLMProxy, handle string, ouID string) er
 				"description":   p.Description,
 				"provider_id":   p.ProviderUUID,
 				"openapi_spec":  p.OpenAPISpec,
-				"configuration": p.Configuration,
+				"configuration": dbx.JSON(p.Configuration),
 			})
 
 		if updateResult.Error != nil {

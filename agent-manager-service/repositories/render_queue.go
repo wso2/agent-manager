@@ -276,22 +276,19 @@ const DriftScanLock = "gateway.drift_scan"
 // driftScanLease bounds how long a replica that died mid-scan keeps the scan from the others.
 const driftScanLease = 10 * time.Minute
 
-// instanceID names this process as a lease owner.
-var instanceID = uuid.NewString()
-
-// TryLockDriftScan claims this interval's drift scan until UnlockDriftScan or the lease runs out. false means another
-// replica holds it.
-func TryLockDriftScan(conn *gorm.DB) (bool, error) {
-	locked, err := dbx.TryLock(conn.Statement.Context, conn, DriftScanLock, instanceID, dbx.Now(), driftScanLease)
+// TryLockDriftScan claims this interval's drift scan for owner until UnlockDriftScan or the lease runs out. false
+// means another worker holds it.
+func TryLockDriftScan(ctx context.Context, db *gorm.DB, owner string) (bool, error) {
+	locked, err := dbx.TryLock(ctx, db, DriftScanLock, owner, dbx.Now(), driftScanLease)
 	if err != nil {
 		return false, fmt.Errorf("failed to try the drift scan lock: %w", err)
 	}
 	return locked, nil
 }
 
-// UnlockDriftScan releases the scan TryLockDriftScan claimed.
-func UnlockDriftScan(conn *gorm.DB) error {
-	if err := dbx.Unlock(conn.Statement.Context, conn, DriftScanLock, instanceID); err != nil {
+// UnlockDriftScan releases the scan owner claimed.
+func UnlockDriftScan(ctx context.Context, db *gorm.DB, owner string) error {
+	if err := dbx.Unlock(ctx, db, DriftScanLock, owner); err != nil {
 		return fmt.Errorf("failed to release the drift scan lock: %w", err)
 	}
 	return nil

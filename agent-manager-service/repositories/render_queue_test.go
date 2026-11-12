@@ -20,8 +20,8 @@ package repositories
 
 import (
 	"context"
-	"math/rand/v2"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -38,10 +38,14 @@ import (
 const testLease = 2 * time.Minute
 
 // queueEpoch is a moment no other test's row is due at: ClaimDueRenders claims across the whole table, and
-// integration packages share the database, so these tests make their rows due in 1990 and claim "then".
+// integration packages share the database, so these tests make their rows due in the 1990s and claim "then". Each
+// epoch is a day before the previous one, so rows an earlier test left due, or leased, are never due at it.
 func queueEpoch() time.Time {
-	return time.Date(1990, 1, 1, 0, 0, 0, 0, time.UTC).Add(time.Duration(rand.IntN(1_000_000)) * time.Minute)
+	n := queueEpochs.Add(1)
+	return time.Date(1999, 1, 1, 0, 0, 0, 0, time.UTC).Add(-time.Duration(n) * 24 * time.Hour)
 }
+
+var queueEpochs atomic.Int64
 
 func renderQueue() DeploymentRepository { return NewDeploymentRepo(db.GetDB()) }
 
@@ -59,7 +63,7 @@ func insertPending(t *testing.T, p models.Placement, reason string) bool {
 func dueAt(t *testing.T, p models.Placement, at time.Time) {
 	t.Helper()
 	require.NoError(t, db.GetDB().Exec(
-		`UPDATE deployment_status SET next_attempt_at = ? WHERE artifact_uuid = ? AND ou_id = ? AND gateway_uuid = ?`,
+		`UPDATE artifact_gateway_status SET next_attempt_at = ? WHERE artifact_id = ? AND org_id = ? AND gateway_id = ?`,
 		at, p.ArtifactUUID, p.OUID, p.GatewayUUID,
 	).Error)
 }
@@ -141,7 +145,7 @@ func TestInsertPendingRacingBeginUndeploy(t *testing.T) {
 
 		var rows int64
 		require.NoError(t, db.GetDB().Model(&models.DeploymentStatusRecord{}).
-			Where("artifact_uuid = ? AND ou_id = ?", p.ArtifactUUID, p.OUID).Count(&rows).Error)
+			Where("artifact_id = ? AND org_id = ?", p.ArtifactUUID, p.OUID).Count(&rows).Error)
 		assert.Equal(t, int64(1), rows)
 		row := statusRow(t, p)
 		if undeployErr == nil {
@@ -161,12 +165,12 @@ func TestQueueRender(t *testing.T) {
 		deployment := startDeploy(t, placed)
 		applyAck(t, placed, deployAck(deployment.DeploymentID, models.DeploymentAckStatusSuccess, ""), nil)
 		undeployed := placed
-		undeployed.GatewayUUID = seedPlacement(t, models.KindLLMProvider).GatewayUUID
+		undeployed.GatewayUUID = newGateway(t, undeployed.OUID, models.GatewayRoleEgress)
 		startDeploy(t, undeployed)
 		_, err := beginUndeploy(t, undeployed)
 		require.NoError(t, err)
-		require.NoError(t, db.GetDB().Exec(`UPDATE deployment_status SET attempt_count = 4
-			WHERE artifact_uuid = ? AND gateway_uuid = ?`, placed.ArtifactUUID, placed.GatewayUUID).Error)
+		require.NoError(t, db.GetDB().Exec(`UPDATE artifact_gateway_status SET attempt_count = 4
+			WHERE artifact_id = ? AND gateway_id = ?`, placed.ArtifactUUID, placed.GatewayUUID).Error)
 
 		assert.Equal(t, int64(1), queue(t, placed, nil, QueueScopePlaced))
 
@@ -193,7 +197,7 @@ func TestQueueRender(t *testing.T) {
 	t.Run("gateways limit the rows", func(t *testing.T) {
 		p := seedPlacement(t, models.KindLLMProvider)
 		other := p
-		other.GatewayUUID = seedPlacement(t, models.KindLLMProvider).GatewayUUID
+		other.GatewayUUID = newGateway(t, other.OUID, models.GatewayRoleEgress)
 		startDeploy(t, p)
 		startDeploy(t, other)
 
@@ -280,7 +284,7 @@ func TestClaimDueRendersSkipsRowsAnotherClaimerHolds(t *testing.T) {
 func TestClaimDueRendersOf(t *testing.T) {
 	p := seedPlacement(t, models.KindLLMProvider)
 	other := p
-	other.GatewayUUID = seedPlacement(t, models.KindLLMProvider).GatewayUUID
+	other.GatewayUUID = newGateway(t, other.OUID, models.GatewayRoleEgress)
 	startDeploy(t, p)
 	startDeploy(t, other)
 	queue(t, p, nil, QueueScopePlaced)
@@ -364,8 +368,8 @@ func TestRecordRenderOutcome(t *testing.T) {
 		epoch := queueEpoch()
 		p := seedPlacement(t, models.KindAgent)
 		require.True(t, insertPending(t, p, "placed"))
-		require.NoError(t, db.GetDB().Exec(`UPDATE deployment_status SET attempt_count = 2
-			WHERE artifact_uuid = ? AND gateway_uuid = ?`, p.ArtifactUUID, p.GatewayUUID).Error)
+		require.NoError(t, db.GetDB().Exec(`UPDATE artifact_gateway_status SET attempt_count = 2
+			WHERE artifact_id = ? AND gateway_id = ?`, p.ArtifactUUID, p.GatewayUUID).Error)
 		dueAt(t, p, epoch)
 		return p, claimOne(t, p, epoch), epoch
 	}
@@ -489,12 +493,12 @@ func TestAbandonRender(t *testing.T) {
 }
 
 func TestListDeployedForDrift(t *testing.T) {
-	ouID := testOU()
-	gateway := seedPlacement(t, models.KindAgent).GatewayUUID
+	ouID := testOU(t)
+	gateway := newGateway(t, ouID, models.GatewayRoleEgress)
 	exposed := func(t *testing.T, kind string, protocol models.AgentExposureProtocol) models.Placement {
 		exposure := newTestExposure(t, ouID, "agent-"+uuid.NewString()[:8], uuid.New())
 		exposure.Protocol = protocol
-		require.NoError(t, db.GetDB().Exec(`UPDATE artifacts SET kind = ? WHERE uuid = ?`, kind, exposure.ArtifactUUID).Error)
+		require.NoError(t, db.GetDB().Exec(`UPDATE artifacts SET kind = ? WHERE id = ?`, kind, exposure.ArtifactUUID).Error)
 		require.NoError(t, NewPlatformAgentExposureRepository(db.GetDB()).Upsert(context.Background(), exposure))
 		return models.Placement{
 			ArtifactRef: models.ArtifactRef{
@@ -558,10 +562,8 @@ func TestGatewayDeleteRemovesItsStatusRows(t *testing.T) {
 	require.NoError(t, NewGatewayRepo(db.GetDB()).Delete(p.GatewayUUID.String(), p.OUID))
 
 	var kept []models.DeploymentStatusRecord
-	require.NoError(t, db.GetDB().Where("gateway_uuid = ?", p.GatewayUUID).Find(&kept).Error)
-	require.Len(t, kept, 1, "the PENDING row goes, or it would keep rendering; the user's undeploy stays")
-	assert.Equal(t, models.DeploymentStatusUndeployed, kept[0].Status)
-	assert.Nil(t, kept[0].NextAttemptAt)
+	require.NoError(t, db.GetDB().Where("gateway_id = ?", p.GatewayUUID).Find(&kept).Error)
+	assert.Empty(t, kept, "the gateway is deleted outright, and its status rows with it, the user's undeploy too")
 }
 
 // A gateway with nothing held can be deleted (HasGatewayDeployments), but it may still have a deploy owed: a PENDING
@@ -590,6 +592,6 @@ func TestGatewayDeleteLeavesNothingToRender(t *testing.T) {
 	}
 	var rows int64
 	require.NoError(t, db.GetDB().Model(&models.DeploymentStatusRecord{}).
-		Where("gateway_uuid = ?", pending.GatewayUUID).Count(&rows).Error)
+		Where("gateway_id = ?", pending.GatewayUUID).Count(&rows).Error)
 	assert.Zero(t, rows)
 }

@@ -44,8 +44,10 @@ type connPool struct {
 }
 
 var (
-	_ gorm.ConnPool       = &connPool{}
-	_ gorm.GetDBConnector = &connPool{}
+	_ gorm.ConnPool         = &connPool{}
+	_ gorm.GetDBConnector   = &connPool{}
+	_ gorm.ConnPoolBeginner = &connPool{}
+	_ gorm.TxCommitter      = &txPool{}
 )
 
 func New(db *sql.DB, retryParams RetryParams) gorm.ConnPool {
@@ -67,54 +69,78 @@ func (c *connPool) Conn(ctx context.Context) (*sql.Conn, error) {
 	return c.DB.Conn(ctx)
 }
 
-func (c *connPool) BeginTx(ctx context.Context, opts *sql.TxOptions) (tx *sql.Tx, err error) {
+// BeginTx returns the transaction wrapped, so its statements get the same argument handling as the pool's.
+func (c *connPool) BeginTx(ctx context.Context, opts *sql.TxOptions) (gorm.ConnPool, error) {
 	slog.Debug("connPool:BeginTx", "log_type", "connPool", "opts", opts)
-	c.retry(ctx, "BeginTx", func() error {
+	var tx *sql.Tx
+	var err error
+	retryErr := c.retry(ctx, "BeginTx", func() error {
 		// `tx` contains *sql.DB, retries won't work for queries run on `tx`
 		tx, err = c.DB.BeginTx(ctx, opts)
 		return err
 	})
-	return tx, err
+	if err == nil {
+		err = retryErr
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &txPool{Tx: tx, db: c.DB}, nil
 }
 
 func (c *connPool) PrepareContext(ctx context.Context, query string) (stmt *sql.Stmt, err error) {
 	slog.Debug("connPool:PrepareContext", "log_type", "connPool", "query", query)
-	c.retry(ctx, "PrepareContext", func() error {
+	retryErr := c.retry(ctx, "PrepareContext", func() error {
 		// `stmt` contains *sql.DB, retries won't work for queries run on `stmt`
 		stmt, err = c.DB.PrepareContext(ctx, query)
 		return err
 	})
+	if err == nil {
+		err = retryErr
+	}
 	return stmt, err
 }
 
 func (c *connPool) ExecContext(ctx context.Context, query string, args ...interface{}) (result sql.Result, err error) {
 	slog.Debug("connPool:ExecContext", "log_type", "connPool", "query", query)
-	c.retry(ctx, "ExecContext", func() error {
-		result, err = c.DB.ExecContext(ctx, query, args...)
+	retryErr := c.retry(ctx, "ExecContext", func() error {
+		result, err = c.DB.ExecContext(ctx, query, utcArgs(args)...)
 		return err
 	})
+	if err == nil {
+		err = retryErr
+	}
 	return result, err
 }
 
 func (c *connPool) QueryContext(ctx context.Context, query string, args ...interface{}) (rows *sql.Rows, err error) {
 	slog.Debug("connPool:QueryContext", "log_type", "connPool", "query", query)
-	c.retry(ctx, "QueryContext", func() error {
-		rows, err = c.DB.QueryContext(ctx, query, args...)
+	retryErr := c.retry(ctx, "QueryContext", func() error {
+		rows, err = c.DB.QueryContext(ctx, query, utcArgs(args)...)
 		return err
 	})
+	if err == nil {
+		err = retryErr
+	}
 	return rows, err
 }
 
 func (c *connPool) QueryRowContext(ctx context.Context, query string, args ...interface{}) (val *sql.Row) {
 	slog.Debug("connPool:QueryRowContext", "log_type", "connPool", "query", query)
-	c.retry(ctx, "QueryRowContext", func() error {
-		val = c.DB.QueryRowContext(ctx, query, args...)
+	_ = c.retry(ctx, "QueryRowContext", func() error {
+		val = c.DB.QueryRowContext(ctx, query, utcArgs(args)...)
 		return val.Err()
 	})
+	if val == nil {
+		// Never run because ctx ended: the row carries ctx's error.
+		val = c.DB.QueryRowContext(ctx, query, utcArgs(args)...)
+	}
 	return val
 }
 
-func (c *connPool) retry(ctx context.Context, fn string, op func() error) {
+// retry runs op until it succeeds, fails for good or the retries run out. It returns ctx's error when ctx ends before
+// op ran, so a caller never mistakes a skipped operation for one that succeeded with no result.
+func (c *connPool) retry(ctx context.Context, fn string, op func() error) error {
 	var err error
 	maxAttempts := c.retryParams.MaxRetries + 1
 	for attempts := 1; attempts <= maxAttempts; attempts++ {
@@ -126,13 +152,16 @@ func (c *connPool) retry(ctx context.Context, fn string, op func() error) {
 				"log_type", "connPool",
 				"fn", fn,
 				"context_error", ctx.Err())
-			return
+			if err == nil {
+				err = ctx.Err()
+			}
+			return err
 		default:
 		}
 
 		err = op()
 		if err == nil || !isRetryableError(err) {
-			return
+			return err
 		}
 
 		slog.Error("connPool operation failed",
@@ -152,10 +181,11 @@ func (c *connPool) retry(ctx context.Context, fn string, op func() error) {
 					"log_type", "connPool",
 					"fn", fn,
 					"context_error", ctx.Err())
-				return
+				return err
 			}
 		}
 	}
+	return err
 }
 
 func isRetryableError(err error) bool {
@@ -178,3 +208,49 @@ const (
 	dbIsTimeout   = "timed out"
 	dbIsFailedRPC = "failed to send RPC"
 )
+
+// txPool is a transaction begun on the pool.
+type txPool struct {
+	*sql.Tx
+	db *sql.DB
+}
+
+func (t *txPool) GetDBConn() (*sql.DB, error) { return t.db, nil }
+
+func (t *txPool) ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error) {
+	return t.Tx.ExecContext(ctx, query, utcArgs(args)...)
+}
+
+func (t *txPool) QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error) {
+	return t.Tx.QueryContext(ctx, query, utcArgs(args)...)
+}
+
+func (t *txPool) QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row {
+	return t.Tx.QueryRowContext(ctx, query, utcArgs(args)...)
+}
+
+// utcArgs converts time arguments to UTC. Every database stores the same instant either way, but SQLite keeps times
+// as text with their offset and compares them as text, which orders correctly only when every value is in one zone.
+func utcArgs(args []interface{}) []interface{} {
+	out := args
+	for i, arg := range args {
+		var utc interface{}
+		switch v := arg.(type) {
+		case time.Time:
+			utc = v.UTC()
+		case *time.Time:
+			if v == nil {
+				continue
+			}
+			u := v.UTC()
+			utc = &u
+		default:
+			continue
+		}
+		if &out[0] == &args[0] {
+			out = append([]interface{}(nil), args...)
+		}
+		out[i] = utc
+	}
+	return out
+}

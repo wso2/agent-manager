@@ -22,11 +22,10 @@ import (
 	"context"
 	"testing"
 
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
+	"github.com/wso2/agent-manager/agent-manager-service/db/dberr"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 )
 
@@ -44,7 +43,7 @@ func TestLLMProviderRepo_Update_NameAndVersion(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			gdb := db.GetDB()
 			repo := NewLLMProviderRepo(gdb)
-			orgUUID := uuid.New().String()
+			orgUUID := newOrg(t)
 			create := func(handle, name, version string) *models.LLMProvider {
 				provider := &models.LLMProvider{
 					Description:    "original description",
@@ -55,10 +54,6 @@ func TestLLMProviderRepo_Update_NameAndVersion(t *testing.T) {
 					Status: "CREATED",
 				}
 				require.NoError(t, repo.Create(gdb, provider, handle, name, version, orgUUID))
-				t.Cleanup(func() {
-					gdb.Exec("DELETE FROM llm_providers WHERE uuid = ?", provider.UUID)
-					gdb.Exec("DELETE FROM artifacts WHERE uuid = ?", provider.UUID)
-				})
 				return provider
 			}
 			create("provider-a", "Provider A", tt.otherVersion)
@@ -73,10 +68,7 @@ func TestLLMProviderRepo_Update_NameAndVersion(t *testing.T) {
 
 			err := repo.Update(context.Background(), updates, provider.UUID.String(), orgUUID)
 			if tt.wantConflict {
-				var pgErr *pgconn.PgError
-				require.ErrorAs(t, err, &pgErr)
-				require.Equal(t, "23505", pgErr.Code)
-				require.Equal(t, "uq_artifact_name_version_ou_id", pgErr.ConstraintName)
+				require.True(t, dberr.IsDuplicateKey(err), "the name and version are taken: %v", err)
 			} else {
 				require.NoError(t, err)
 			}
@@ -112,7 +104,7 @@ func TestLLMProviderRepo_Update_NameAndVersion(t *testing.T) {
 func TestLLMProviderRepo_Update_SyncsArtifactName(t *testing.T) {
 	gdb := db.GetDB()
 	repo := NewLLMProviderRepo(gdb)
-	orgUUID := uuid.New().String()
+	orgUUID := newOrg(t)
 
 	provider := &models.LLMProvider{
 		TemplateHandle: "openai",
@@ -127,11 +119,6 @@ func TestLLMProviderRepo_Update_SyncsArtifactName(t *testing.T) {
 	require.NoError(t, repo.Create(gdb, provider, provider.Configuration.Handle,
 		provider.Configuration.Name, provider.Configuration.Version, orgUUID))
 
-	t.Cleanup(func() {
-		gdb.Exec("DELETE FROM llm_providers WHERE uuid = ?", provider.UUID)
-		gdb.Exec("DELETE FROM artifacts WHERE uuid = ?", provider.UUID)
-	})
-
 	updates := &models.LLMProvider{
 		Configuration: models.LLMProviderConfig{
 			Name:     "Renamed Provider",
@@ -143,7 +130,7 @@ func TestLLMProviderRepo_Update_SyncsArtifactName(t *testing.T) {
 	require.NoError(t, repo.Update(context.Background(), updates, provider.UUID.String(), orgUUID))
 
 	var artifact models.Artifact
-	require.NoError(t, gdb.First(&artifact, "uuid = ?", provider.UUID).Error)
+	require.NoError(t, gdb.First(&artifact, "id = ?", provider.UUID).Error)
 	require.Equal(t, "Renamed Provider", artifact.Name,
 		"Update must sync the new name into artifacts.name — that's what every read path serves as the provider's display name")
 }
@@ -156,7 +143,7 @@ func TestLLMProviderRepo_Update_SyncsArtifactName(t *testing.T) {
 func TestLLMProviderRepo_Update_EmptyNameLeavesArtifactNameUnchanged(t *testing.T) {
 	gdb := db.GetDB()
 	repo := NewLLMProviderRepo(gdb)
-	orgUUID := uuid.New().String()
+	orgUUID := newOrg(t)
 
 	provider := &models.LLMProvider{
 		TemplateHandle: "openai",
@@ -171,11 +158,6 @@ func TestLLMProviderRepo_Update_EmptyNameLeavesArtifactNameUnchanged(t *testing.
 	require.NoError(t, repo.Create(gdb, provider, provider.Configuration.Handle,
 		provider.Configuration.Name, provider.Configuration.Version, orgUUID))
 
-	t.Cleanup(func() {
-		gdb.Exec("DELETE FROM llm_providers WHERE uuid = ?", provider.UUID)
-		gdb.Exec("DELETE FROM artifacts WHERE uuid = ?", provider.UUID)
-	})
-
 	updates := &models.LLMProvider{
 		Description: "updated description only",
 		Configuration: models.LLMProviderConfig{
@@ -187,6 +169,6 @@ func TestLLMProviderRepo_Update_EmptyNameLeavesArtifactNameUnchanged(t *testing.
 	require.NoError(t, repo.Update(context.Background(), updates, provider.UUID.String(), orgUUID))
 
 	var artifact models.Artifact
-	require.NoError(t, gdb.First(&artifact, "uuid = ?", provider.UUID).Error)
+	require.NoError(t, gdb.First(&artifact, "id = ?", provider.UUID).Error)
 	require.Equal(t, "Keep This Name", artifact.Name)
 }

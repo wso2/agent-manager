@@ -20,11 +20,13 @@ package tests
 
 import (
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
+	"github.com/wso2/agent-manager/agent-manager-service/db/dbtest"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/tests/apitestutils"
 )
@@ -35,20 +37,23 @@ import (
 func seedIngressGatewayForDefaultEnvironment(t *testing.T, ouID string) uuid.UUID {
 	t.Helper()
 	gdb := db.GetDB()
-	gatewayID := uuid.New()
-	name := "test-gw-" + gatewayID.String()[:8]
-	require.NoError(t, gdb.Exec(
-		`INSERT INTO gateways (uuid, name, display_name, vhost, gateway_functionality_type, ou_id, is_active)
-		 VALUES (?, ?, ?, ?, ?, ?, TRUE)`,
-		gatewayID, name, name, "agents.example.com", models.GatewayRoleIngress, ouID,
-	).Error)
-	require.NoError(t, gdb.Exec(
-		`INSERT INTO gateway_environment_mappings (gateway_uuid, environment_uuid) VALUES (?, ?)`,
-		gatewayID, uuid.MustParse(apitestutils.DefaultEnvironmentUUID),
-	).Error)
-	t.Cleanup(func() {
-		gdb.Exec(`DELETE FROM gateway_environment_mappings WHERE gateway_uuid = ?`, gatewayID)
-		gdb.Exec(`DELETE FROM gateways WHERE uuid = ?`, gatewayID)
-	})
-	return gatewayID
+	ensureOrgRow(t, ouID)
+	env := uuid.MustParse(apitestutils.DefaultEnvironmentUUID)
+	dbtest.EnvironmentNamed(t, gdb, ouID, env, "default-"+env.String()[:8])
+	return dbtest.GatewayIn(t, gdb, ouID, models.GatewayRoleIngress, env).UUID
+}
+
+// ensureOrgRow makes sure the organization the mocked tokens name exists.
+func ensureOrgRow(t *testing.T, ouID string) {
+	t.Helper()
+	gdb := db.GetDB()
+	var n int64
+	require.NoError(t, gdb.Model(&models.Organization{}).Where("id = ?", ouID).Count(&n).Error)
+	if n > 0 {
+		return
+	}
+	now := time.Now().UTC()
+	require.NoError(t, gdb.Create(&models.Organization{
+		ID: uuid.MustParse(ouID), Handle: "mock-org", DisplayName: "Mock org", ThunderOUID: &ouID, CreatedAt: now, UpdatedAt: now,
+	}).Error)
 }

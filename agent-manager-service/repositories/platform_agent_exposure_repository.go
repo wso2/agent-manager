@@ -126,7 +126,7 @@ func (r *platformAgentExposureRepository) first(ctx context.Context, query strin
 }
 
 func (r *platformAgentExposureRepository) ListForEnvironment(ctx context.Context, ouID string, environmentUUID uuid.UUID) ([]models.PlatformAgentExposure, error) {
-	return listForEnvironment[models.PlatformAgentExposure](ctx, r.db, ouID, environmentUUID)
+	return listForEnvironment[models.PlatformAgentExposure](ctx, r.db, models.PlatformAgentExposure{}.TableName(), ouID, environmentUUID)
 }
 
 func (r *platformAgentExposureRepository) ListEnvironmentUUIDs(ctx context.Context, ouID, environmentName string) ([]uuid.UUID, error) {

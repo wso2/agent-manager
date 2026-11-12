@@ -151,7 +151,7 @@ func TestGenerateAgentToken(t *testing.T) {
 		// Validate the component_uid matches what we expect
 		require.Equal(t, tokenComponentUid, claims["component_uid"])
 		require.Equal(t, tokenEnvUid, claims["environment_uid"])
-		require.Equal(t, "mock-org-id", claims["org_id"])
+		require.Equal(t, jwtassertion.MockOUID, claims["org_id"])
 	})
 
 	t.Run("Invalid expiry duration - malformed string", func(t *testing.T) {

@@ -222,7 +222,7 @@ func (r *LLMProviderRepo) Update(ctx context.Context, p *models.LLMProvider, pro
 				"template_handle": p.TemplateHandle,
 				"openapi_spec":    p.OpenAPISpec,
 				"model_list":      p.ModelList,
-				"configuration":   p.Configuration,
+				"configuration":   dbx.JSON(p.Configuration),
 			})
 
 		if result.Error != nil {
@@ -350,7 +350,9 @@ func (r *LLMProviderRepo) DeleteTx(ctx context.Context, tx *gorm.DB, providerID,
 func (r *LLMProviderRepo) deleteIn(tx *gorm.DB, providerUUID uuid.UUID, providerID, orgUUID string) error {
 	// Verify the provider exists and belongs to the organization
 	slog.Info("LLMProviderRepo.Delete: verifying provider exists", "providerID", providerID, "uuid", providerUUID, "orgUUID", orgUUID)
-	var artifact struct{ UUID uuid.UUID }
+	var artifact struct {
+		UUID uuid.UUID `gorm:"column:id"`
+	}
 	result := tx.Table("artifacts").
 		Select("id").
 		Where("id = ? AND org_id = ? AND kind = ?", providerUUID, orgUUID, models.KindLLMProvider).

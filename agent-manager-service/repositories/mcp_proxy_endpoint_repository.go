@@ -24,6 +24,7 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
+	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 )
 
@@ -84,7 +85,7 @@ func (r *mcpProxyEndpointRepository) UpdateEndpoint(ctx context.Context, tx *gor
 			"handle":        endpoint.Handle,
 			"name":          endpoint.Name,
 			"status":        endpoint.Status,
-			"configuration": endpoint.Configuration,
+			"configuration": dbx.JSON(endpoint.Configuration),
 		})
 	if result.Error != nil {
 		return fmt.Errorf("failed to update MCP proxy endpoint: %w", result.Error)

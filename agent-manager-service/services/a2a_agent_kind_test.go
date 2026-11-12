@@ -31,6 +31,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
+	"github.com/wso2/agent-manager/agent-manager-service/db/dbtest"
 	"github.com/wso2/agent-manager/agent-manager-service/eventhub"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/reconcile"
@@ -63,11 +64,9 @@ func newA2AFixture(t *testing.T) *a2aFixture {
 		Provisioning: models.Provisioning{Type: "external"}, Type: models.AgentType{Type: "external-agent-api"},
 	}
 	gormDB := db.GetDB()
-	f.gateway = f.sync.seedGateway(t, f.sync.ouID)
-	require.NoError(t, gormDB.Exec(`UPDATE gateways SET gateway_functionality_type = ? WHERE uuid = ?`,
-		models.GatewayRoleIngress, f.gateway).Error)
-	require.NoError(t, gormDB.Exec(`INSERT INTO gateway_environment_mappings (gateway_uuid, environment_uuid) VALUES (?, ?)`,
-		f.gateway, f.env).Error)
+	dbtest.EnvironmentNamed(t, gormDB, f.sync.ouID, f.env, "dev")
+	f.gateway = dbtest.GatewayIn(t, gormDB, f.sync.ouID, models.GatewayRoleIngress, f.env).UUID
+	f.external.UUID = dbtest.EnsureAgent(t, gormDB, f.sync.ouID, f.external.ProjectName, f.external.Name).String()
 	oc := &repomocks.PlatformRepositoryMock{
 		GetAgentFunc: func(context.Context, string, string, string) (*models.AgentResponse, error) {
 			return f.external, nil
@@ -103,12 +102,6 @@ func newA2AFixture(t *testing.T) *a2aFixture {
 		NewAgentExposurePublisher(tx, exposures, artifacts, f.sync.repo, gateways, f.core, testLogger()), kind)
 	f.proxies = NewA2AProxyService(tx, proxies, cards, repositories.NewAgentConfigRepo(gormDB),
 		repositories.NewArtifactRepo(gormDB), f.publisher, oc, make([]byte, 32), testLogger())
-	t.Cleanup(func() {
-		for _, table := range []string{"a2a_proxies", "a2a_agent_cards", "agent_configs"} {
-			gormDB.Exec(`DELETE FROM `+table+` WHERE ou_id = ?`, f.sync.ouID)
-		}
-		gormDB.Exec(`DELETE FROM artifacts WHERE ou_id = ? AND kind IN ?`, f.sync.ouID, models.AgentArtifactKinds)
-	})
 	return f
 }
 
@@ -168,7 +161,7 @@ func (f *a2aFixture) seedAPIKey(t *testing.T, artifact models.ArtifactRef, name,
 		CreatedAt: time.Now(), UpdatedAt: time.Now(), ExpiresAt: expiresAt,
 	}
 	require.NoError(t, repositories.NewAPIKeyRepo(db.GetDB()).Upsert(&stored))
-	t.Cleanup(func() { db.GetDB().Exec(`DELETE FROM api_keys WHERE uuid = ?`, stored.UUID) })
+	t.Cleanup(func() { db.GetDB().Exec(`DELETE FROM api_keys WHERE id = ?`, stored.UUID) })
 	return stored
 }
 
@@ -191,8 +184,7 @@ func (f *a2aFixture) platformAgent(t *testing.T) (models.ArtifactRef, agentExpos
 	artifact, err := ensureAgentEnvAPIArtifact(db.GetDB(), repositories.NewArtifactRepo(db.GetDB()), f.sync.ouID, "proj",
 		name, f.env.String(), models.KindAgent)
 	require.NoError(t, err)
-	t.Cleanup(func() { db.GetDB().Exec(`DELETE FROM artifacts WHERE uuid = ?`, artifact.UUID) })
-	agentUUID := uuid.New()
+	agentUUID := dbtest.EnsureAgent(t, db.GetDB(), f.sync.ouID, "proj", name)
 	return agentArtifactRef(artifact), agentExposureKey{
 		OUID: f.sync.ouID, ProjectName: "proj", AgentName: name, EnvironmentName: "dev", EnvironmentUUID: f.env,
 		AgentUUID: &agentUUID,
@@ -297,12 +289,13 @@ func TestRemovingAProxiedEnvironmentsCardURLUndeploysAndDeletesTheProxyTogether(
 func TestPlacementPassPlacesAnExternalAgentFromItsProxyAlone(t *testing.T) {
 	f := newA2AFixture(t)
 	f.registerCard(t)
-	require.NoError(t, repositories.NewA2AProxyRepository(db.GetDB()).Upsert(context.Background(), &models.A2AProxy{
-		OUID: f.sync.ouID, ProjectName: "proj", AgentName: f.external.Name, EnvironmentName: "dev", EnvironmentUUID: f.env,
-	}))
-	_, err := ensureAgentEnvAPIArtifact(db.GetDB(), repositories.NewArtifactRepo(db.GetDB()), f.sync.ouID, "proj",
+	created, err := ensureAgentEnvAPIArtifact(db.GetDB(), repositories.NewArtifactRepo(db.GetDB()), f.sync.ouID, "proj",
 		f.external.Name, f.env.String(), models.KindAgent)
 	require.NoError(t, err)
+	require.NoError(t, repositories.NewA2AProxyRepository(db.GetDB()).Upsert(context.Background(), &models.A2AProxy{
+		OUID: f.sync.ouID, ProjectName: "proj", AgentName: f.external.Name, EnvironmentName: "dev", EnvironmentUUID: f.env,
+		ArtifactUUID: created.UUID,
+	}))
 	artifact := f.externalArtifact(t)
 	require.Nil(t, f.row(t, artifact))
 

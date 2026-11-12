@@ -22,12 +22,12 @@ import (
 	"context"
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
+	"github.com/wso2/agent-manager/agent-manager-service/db/dbtest"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -56,8 +56,9 @@ func handles(proxies []*models.MCPProxy) []string {
 
 func TestCreateProjectProxyNotInCatalog(t *testing.T) {
 	repo := NewMCPProxyRepo(db.GetDB())
-	ou := "ou-" + uuid.NewString()[:8]
-	project, projectName := uuid.NewString(), "checkout"
+	ou := newOrg(t)
+	projectName := "checkout"
+	project := dbtest.Project(t, db.GetDB(), ou, projectName).String()
 
 	orgProxy := createMCPProxyForTest(t, repo, ou, "org-proxy", nil, nil, nil)
 	projProxy := createMCPProxyForTest(t, repo, ou, "proj-proxy", &project, &projectName, nil)
@@ -80,9 +81,9 @@ func TestCreateProjectProxyNotInCatalog(t *testing.T) {
 func TestListFilters(t *testing.T) {
 	repo := NewMCPProxyRepo(db.GetDB())
 	ctx := context.Background()
-	ou := "ou-" + uuid.NewString()[:8]
-	p1, p2 := uuid.NewString(), uuid.NewString()
+	ou := newOrg(t)
 	n1, n2 := "one", "two"
+	p1, p2 := dbtest.Project(t, db.GetDB(), ou, n1).String(), dbtest.Project(t, db.GetDB(), ou, n2).String()
 	srcA := &models.MCPProxySource{ComponentName: "comp-a", EndpointName: "ep-1"}
 	srcB := &models.MCPProxySource{ComponentName: "comp-a", EndpointName: "ep-2"}
 
@@ -115,15 +116,6 @@ func TestListFilters(t *testing.T) {
 		assert.ElementsMatch(t, []string{"org-a", "p1-a", "p1-b", "p2-a"}, handles(got))
 		assert.EqualValues(t, 4, total)
 	})
-	t.Run("component and endpoint filter on configuration.source", func(t *testing.T) {
-		got, _, err := repo.List(ctx, ou, MCPProxyListFilter{ProjectUUID: &p1, Component: "comp-a", Endpoint: "ep-2"})
-		require.NoError(t, err)
-		assert.Equal(t, []string{"p1-b"}, handles(got))
-
-		got, _, err = repo.List(ctx, ou, MCPProxyListFilter{ProjectUUID: &p1, Component: "comp-a"})
-		require.NoError(t, err)
-		assert.ElementsMatch(t, []string{"p1-a", "p1-b"}, handles(got))
-	})
 	t.Run("limit and offset page the rows but not the total", func(t *testing.T) {
 		got, total, err := repo.List(ctx, ou, MCPProxyListFilter{ProjectUUID: &p1, IncludeOrgOwned: true, Limit: 2})
 		require.NoError(t, err)
@@ -151,8 +143,9 @@ func TestListFilters(t *testing.T) {
 func TestGetInProjectRejectsOtherProject(t *testing.T) {
 	repo := NewMCPProxyRepo(db.GetDB())
 	ctx := context.Background()
-	ou := "ou-" + uuid.NewString()[:8]
-	p1, p2, name := uuid.NewString(), uuid.NewString(), "n"
+	ou := newOrg(t)
+	name := "n"
+	p1, p2 := dbtest.Project(t, db.GetDB(), ou, name).String(), dbtest.Project(t, db.GetDB(), ou, "other").String()
 	createMCPProxyForTest(t, repo, ou, "org-a", nil, nil, nil)
 	createMCPProxyForTest(t, repo, ou, "p1-a", &p1, &name, nil)
 

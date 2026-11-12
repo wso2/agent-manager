@@ -27,6 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
+	"github.com/wso2/agent-manager/agent-manager-service/db/dbtest"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -38,10 +39,13 @@ import (
 func TestAssignGatewayConcurrentEnvironmentsRefused(t *testing.T) {
 	gdb := db.DB(context.Background())
 	id := seedRuntimeURLGateway(t, gdb, "env-fixed-"+uuid.NewString()[:8])
-	t.Cleanup(func() { require.NoError(t, gdb.Exec(`DELETE FROM gateways WHERE uuid = ?`, id).Error) })
+	org := gatewayOrgOf(t, gdb, id)
 	svc := services.NewPlatformGatewayService(repositories.NewGatewayRepo(gdb), nil)
 
 	environments := []string{uuid.NewString(), uuid.NewString()}
+	for _, env := range environments {
+		dbtest.EnvironmentWithID(t, gdb, org, uuid.MustParse(env))
+	}
 	errs := make([]error, len(environments))
 	var wg sync.WaitGroup
 	for i, env := range environments {
@@ -62,6 +66,6 @@ func TestAssignGatewayConcurrentEnvironmentsRefused(t *testing.T) {
 	}
 	require.Equal(t, 1, refused, "exactly one assign must be refused; errors: %v", errs)
 	var mappings int64
-	require.NoError(t, gdb.Raw(`SELECT count(*) FROM gateway_environment_mappings WHERE gateway_uuid = ?`, id).Row().Scan(&mappings))
+	require.NoError(t, gdb.Raw(`SELECT count(*) FROM gateway_environments WHERE gateway_id = ?`, id).Row().Scan(&mappings))
 	require.EqualValues(t, 1, mappings)
 }

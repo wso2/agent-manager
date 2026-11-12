@@ -66,6 +66,10 @@ func (r *APIKeyRepo) Upsert(key *models.StoredAPIKey) error {
 	if key.UUID == uuid.Nil {
 		key.UUID = uuid.Must(uuid.NewV7())
 	}
+	// A key written without a purpose is a user's, as the column's default once made it.
+	if key.Purpose == 0 {
+		key.Purpose = models.APIKeyPurposeUserManaged
+	}
 	_, err := dbx.Upsert(r.db, key, func(db *gorm.DB) error {
 		return db.Model(&models.StoredAPIKey{}).Where("artifact_id = ? AND name = ?", key.ArtifactUUID, key.Name).
 			Updates(map[string]any{

@@ -221,7 +221,7 @@ func (r *a2aProxyRepository) DeleteForEnvironment(ctx context.Context, ouID stri
 }
 
 func (r *a2aProxyRepository) ListForEnvironment(ctx context.Context, ouID string, environmentUUID uuid.UUID) ([]models.A2AProxy, error) {
-	rows, err := listForEnvironment[models.A2AProxy](ctx, r.db, ouID, environmentUUID)
+	rows, err := listForEnvironment[models.A2AProxy](ctx, r.db, models.A2AProxy{}.TableName(), ouID, environmentUUID)
 	if err != nil {
 		return nil, err
 	}

@@ -31,6 +31,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
+	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -39,22 +40,12 @@ import (
 func seedPlacement(t *testing.T, kind string) models.Placement {
 	t.Helper()
 	gdb := db.GetDB()
-	ouID := "ou-" + uuid.NewString()[:8]
-	gatewayID, artifactUUID := uuid.New(), uuid.New()
-	name := "status-gw-" + gatewayID.String()[:8]
-	require.NoError(t, gdb.Exec(
-		`INSERT INTO gateways (uuid, name, display_name, vhost, gateway_functionality_type, ou_id, is_active)
-		 VALUES (?, ?, ?, ?, ?, ?, TRUE)`,
-		gatewayID, name, name, "gw.example", models.GatewayRoleEgress, ouID,
-	).Error)
+	ouID := newOrg(t)
+	gatewayID, artifactUUID := newGateway(t, ouID, models.GatewayRoleEgress), uuid.New()
 	handle := "handle-" + artifactUUID.String()[:8]
 	require.NoError(t, NewArtifactRepo(gdb).Create(gdb, &models.Artifact{
 		UUID: artifactUUID, Handle: handle, Name: handle, Version: "v1.0", Kind: kind, OUID: ouID,
 	}))
-	t.Cleanup(func() {
-		gdb.Exec(`DELETE FROM artifacts WHERE uuid = ?`, artifactUUID)
-		gdb.Exec(`DELETE FROM gateways WHERE uuid = ?`, gatewayID)
-	})
 	return models.Placement{
 		ArtifactRef: models.ArtifactRef{OUID: ouID, ArtifactUUID: artifactUUID, Kind: kind, Handle: handle},
 		GatewayUUID: gatewayID,
@@ -99,31 +90,27 @@ func statusRow(t *testing.T, p models.Placement) models.DeploymentStatusRecord {
 // insertPendingRow writes a deploy owed to a gateway that was never sent anything.
 func insertPendingRow(t *testing.T, p models.Placement) {
 	t.Helper()
-	require.NoError(t, db.GetDB().Exec(
-		`INSERT INTO deployment_status (artifact_uuid, ou_id, gateway_uuid, status, status_desired, performed_at,
-		 next_attempt_at, render_reason, updated_at)
-		 VALUES (?, ?, ?, 'PENDING', 'DEPLOYED', NOW(), NOW(), 'waiting', NOW())`,
-		p.ArtifactUUID, p.OUID, p.GatewayUUID,
-	).Error)
+	now := dbx.Now()
+	require.NoError(t, db.GetDB().Create(&models.DeploymentStatusRecord{
+		ArtifactUUID: p.ArtifactUUID, OUID: p.OUID, GatewayUUID: p.GatewayUUID,
+		Status: models.DeploymentStatusPending, StatusDesired: models.DeploymentStatusDeployed,
+		PerformedAt: now, NextAttemptAt: &now, RenderReason: "waiting", UpdatedAt: now,
+	}).Error)
 }
 
 // queueRender marks a deploy owed on the row, as the render queue would.
 func queueRender(t *testing.T, p models.Placement) {
 	t.Helper()
-	require.NoError(t, db.GetDB().Exec(
-		`UPDATE deployment_status SET next_attempt_at = NOW(), attempt_count = 3, render_reason = 'waiting'
-		 WHERE artifact_uuid = ? AND ou_id = ? AND gateway_uuid = ?`,
-		p.ArtifactUUID, p.OUID, p.GatewayUUID,
-	).Error)
+	require.NoError(t, db.GetDB().Model(&models.DeploymentStatusRecord{}).
+		Where(statusRowWhere, p.ArtifactUUID, p.OUID, p.GatewayUUID).
+		Updates(map[string]any{"next_attempt_at": dbx.Now(), "attempt_count": 3, "render_reason": "waiting"}).Error)
 }
 
 func backdate(t *testing.T, p models.Placement, by time.Duration) {
 	t.Helper()
-	require.NoError(t, db.GetDB().Exec(
-		`UPDATE deployment_status SET performed_at = performed_at - make_interval(secs => ?)
-		 WHERE artifact_uuid = ? AND ou_id = ? AND gateway_uuid = ?`,
-		by.Seconds(), p.ArtifactUUID, p.OUID, p.GatewayUUID,
-	).Error)
+	require.NoError(t, db.GetDB().Model(&models.DeploymentStatusRecord{}).
+		Where(statusRowWhere, p.ArtifactUUID, p.OUID, p.GatewayUUID).
+		Update("performed_at", statusRow(t, p).PerformedAt.Add(-by)).Error)
 }
 
 func deployAck(deploymentID uuid.UUID, status, errorCode string) models.DeploymentAck {
@@ -198,7 +185,7 @@ func TestStartDeployPrunesTheOldestArchivedDeployments(t *testing.T) {
 	}
 
 	var kept []uuid.UUID
-	require.NoError(t, db.GetDB().Raw(`SELECT deployment_id FROM deployments WHERE artifact_uuid = ? AND ou_id = ?`,
+	require.NoError(t, db.GetDB().Raw(`SELECT id FROM artifact_deployments WHERE artifact_id = ? AND org_id = ?`,
 		p.ArtifactUUID, p.OUID).Scan(&kept).Error)
 	assert.Less(t, len(kept), 26)
 	assert.NotContains(t, kept, ids[0], "the oldest archived deployment is pruned")
@@ -439,14 +426,14 @@ func TestApplyAckDeploy(t *testing.T) {
 		p := seedPlacement(t, models.KindLLMProvider)
 		deployment := startDeploy(t, p)
 		afterLive := func(_ context.Context, tx *gorm.DB, _ models.Placement, _ uuid.UUID) error {
-			require.NoError(t, tx.Exec(`UPDATE artifacts SET name = 'written-by-hook' WHERE uuid = ?`, p.ArtifactUUID).Error)
+			require.NoError(t, tx.Exec(`UPDATE artifacts SET name = 'written-by-hook' WHERE id = ?`, p.ArtifactUUID).Error)
 			return errors.New("hook failed")
 		}
 
 		assert.True(t, applyAck(t, p, deployAck(deployment.DeploymentID, models.DeploymentAckStatusSuccess, ""), afterLive))
 		assert.Equal(t, models.DeploymentStatusDeployed, statusRow(t, p).Status)
 		var name string
-		require.NoError(t, db.GetDB().Raw(`SELECT name FROM artifacts WHERE uuid = ?`, p.ArtifactUUID).Scan(&name).Error)
+		require.NoError(t, db.GetDB().Raw(`SELECT name FROM artifacts WHERE id = ?`, p.ArtifactUUID).Scan(&name).Error)
 		assert.Equal(t, p.Handle, name, "the hook's writes are rolled back")
 	})
 }
@@ -548,7 +535,7 @@ func TestFailStaleTransitionalDoesNotOverwriteAConcurrentAck(t *testing.T) {
 	backdate(t, p, 10*time.Minute)
 
 	tx := db.GetDB().Begin()
-	require.NoError(t, tx.Exec(`UPDATE deployment_status SET status = 'DEPLOYED' WHERE deployment_id = ?`,
+	require.NoError(t, tx.Exec(`UPDATE artifact_gateway_status SET status = 'DEPLOYED' WHERE deployment_id = ?`,
 		deployment.DeploymentID).Error)
 	swept := make(chan int64)
 	go func() {
@@ -673,26 +660,34 @@ func TestDeleteKeepsTheStatusRow(t *testing.T) {
 	assert.Nil(t, row.DeploymentID)
 }
 
-// LockStatusRows holds the artifacts' rows until its transaction ends.
+// LockStatusRows holds the artifacts' rows until its transaction ends: a second locker waits for it.
 func TestLockStatusRows(t *testing.T) {
 	p := seedPlacement(t, models.KindLLMProvider)
 	startDeploy(t, p)
-	other := seedPlacement(t, models.KindLLMProvider)
-	startDeploy(t, other)
 	gdb := db.GetDB()
+	repo := NewDeploymentRepo(gdb)
 
 	locked := gdb.Begin()
 	t.Cleanup(func() { locked.Rollback() })
-	require.NoError(t, NewDeploymentRepo(gdb).LockStatusRows(context.Background(), locked, p.OUID,
-		[]uuid.UUID{p.ArtifactUUID, uuid.New()}))
+	require.NoError(t, repo.LockStatusRows(context.Background(), locked, p.OUID, []uuid.UUID{p.ArtifactUUID, uuid.New()}))
 
-	tryLock := func(target models.Placement) error {
-		return gdb.Transaction(func(tx *gorm.DB) error {
-			return tx.Exec(`SELECT 1 FROM deployment_status WHERE artifact_uuid = ? FOR UPDATE NOWAIT`,
-				target.ArtifactUUID).Error
+	var order []string
+	var mu sync.Mutex
+	note := func(s string) { mu.Lock(); order = append(order, s); mu.Unlock() }
+	done := make(chan error, 1)
+	go func() {
+		done <- gdb.Transaction(func(tx *gorm.DB) error {
+			if err := repo.LockStatusRows(context.Background(), tx, p.OUID, []uuid.UUID{p.ArtifactUUID}); err != nil {
+				return err
+			}
+			note("second")
+			return nil
 		})
-	}
-	assert.Error(t, tryLock(p), "the row is held")
-	assert.NoError(t, tryLock(other), "another artifact's row is not")
-	assert.NoError(t, NewDeploymentRepo(gdb).LockStatusRows(context.Background(), locked, p.OUID, nil))
+	}()
+	time.Sleep(200 * time.Millisecond)
+	note("first released")
+	require.NoError(t, repo.LockStatusRows(context.Background(), locked, p.OUID, nil))
+	require.NoError(t, locked.Commit().Error)
+	require.NoError(t, <-done)
+	assert.Equal(t, []string{"first released", "second"}, order, "the row is held until the transaction ends")
 }

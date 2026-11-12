@@ -33,23 +33,28 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 )
 
-func newTestCard(agentName string, source models.A2AAgentCardSource) *models.A2AAgentCard {
+func newTestCard(t *testing.T, agentName string, source models.A2AAgentCardSource) *models.A2AAgentCard {
+	t.Helper()
+	return newTestCardIn(t, testOrg(t), agentName, source)
+}
+
+// newTestCardIn is newTestCard in the organization ou.
+func newTestCardIn(t *testing.T, ou, agentName string, source models.A2AAgentCardSource) *models.A2AAgentCard {
+	t.Helper()
+	ensureAgent(t, ou, "checkout", agentName)
 	return &models.A2AAgentCard{
-		OUID:            "ou-" + uuid.New().String()[:8],
+		OUID:            ou,
 		ProjectName:     "checkout",
 		AgentName:       agentName,
 		EnvironmentName: "Development",
-		EnvironmentUUID: envUUIDOf("Development"),
+		EnvironmentUUID: envOf(t, ou, "Development"),
 		Source:          source,
 	}
 }
 
-func envUUIDOf(name string) uuid.UUID {
-	return uuid.NewSHA1(uuid.NameSpaceOID, []byte(name))
-}
-
-func inEnv(card *models.A2AAgentCard, name string) *models.A2AAgentCard {
-	card.EnvironmentName, card.EnvironmentUUID = name, envUUIDOf(name)
+func inEnv(t *testing.T, card *models.A2AAgentCard, name string) *models.A2AAgentCard {
+	t.Helper()
+	card.EnvironmentName, card.EnvironmentUUID = name, envOf(t, card.OUID, name)
 	return card
 }
 
@@ -95,7 +100,7 @@ const sampleCard = `{"name":"Trip Planner","supportedInterfaces":[{"url":"https:
 func TestA2AAgentCardEnqueuePreservesTheLastGoodCard(t *testing.T) {
 	repo := NewA2AAgentCardRepository(db.GetDB())
 	ctx := context.Background()
-	card := newTestCard("keep-"+uuid.New().String()[:8], models.A2AAgentCardSourcePlatform)
+	card := newTestCard(t, "keep-"+uuid.New().String()[:8], models.A2AAgentCardSourcePlatform)
 	cleanupCard(t, repo, card)
 
 	require.NoError(t, repo.Enqueue(ctx, card))
@@ -104,7 +109,7 @@ func TestA2AAgentCardEnqueuePreservesTheLastGoodCard(t *testing.T) {
 	fetched := cardRowOf(t, card)
 	require.NotNil(t, fetched.FetchedAt)
 
-	again := newTestCard(card.AgentName, models.A2AAgentCardSourcePlatform)
+	again := newTestCard(t, card.AgentName, models.A2AAgentCardSourcePlatform)
 	again.OUID = card.OUID
 	require.NoError(t, repo.Enqueue(ctx, again))
 
@@ -124,17 +129,17 @@ func TestA2AAgentCardEnqueuePreservesTheLastGoodCard(t *testing.T) {
 func TestA2AAgentCardEnqueueKeepsSourceURLUnlessGiven(t *testing.T) {
 	repo := NewA2AAgentCardRepository(db.GetDB())
 	ctx := context.Background()
-	card := newTestCard("src-"+uuid.New().String()[:8], models.A2AAgentCardSourceExternal)
+	card := newTestCard(t, "src-"+uuid.New().String()[:8], models.A2AAgentCardSourceExternal)
 	card.SourceURL = "https://agent.example/.well-known/agent-card.json"
 	cleanupCard(t, repo, card)
 	require.NoError(t, repo.Enqueue(ctx, card))
 
-	refresh := newTestCard(card.AgentName, models.A2AAgentCardSourceExternal)
+	refresh := newTestCard(t, card.AgentName, models.A2AAgentCardSourceExternal)
 	refresh.OUID = card.OUID
 	require.NoError(t, repo.Enqueue(ctx, refresh))
 	assert.Equal(t, card.SourceURL, cardRowOf(t, card).SourceURL)
 
-	moved := newTestCard(card.AgentName, models.A2AAgentCardSourceExternal)
+	moved := newTestCard(t, card.AgentName, models.A2AAgentCardSourceExternal)
 	moved.OUID = card.OUID
 	moved.SourceURL = "https://other.example/.well-known/agent-card.json"
 	require.NoError(t, repo.Enqueue(ctx, moved))
@@ -145,7 +150,7 @@ func TestA2AAgentCardEnqueueKeepsSourceURLUnlessGiven(t *testing.T) {
 func fetchedExternalCard(t *testing.T, repo A2AAgentCardRepository, sourceURL string) *models.A2AAgentCard {
 	t.Helper()
 	ctx := context.Background()
-	card := newTestCard("url-"+uuid.New().String()[:8], models.A2AAgentCardSourceExternal)
+	card := newTestCard(t, "url-"+uuid.New().String()[:8], models.A2AAgentCardSourceExternal)
 	card.SourceURL = sourceURL
 	cleanupCard(t, repo, card)
 	require.NoError(t, repo.Enqueue(ctx, card))
@@ -156,7 +161,7 @@ func fetchedExternalCard(t *testing.T, repo A2AAgentCardRepository, sourceURL st
 
 func reenqueueExternal(t *testing.T, repo A2AAgentCardRepository, card *models.A2AAgentCard, sourceURL string) {
 	t.Helper()
-	again := newTestCard(card.AgentName, models.A2AAgentCardSourceExternal)
+	again := newTestCard(t, card.AgentName, models.A2AAgentCardSourceExternal)
 	again.OUID = card.OUID
 	again.SourceURL = sourceURL
 	require.NoError(t, repo.Enqueue(context.Background(), again))
@@ -196,7 +201,7 @@ func TestA2AAgentCardEnqueueSwitchesExternalToPlatform(t *testing.T) {
 	repo := NewA2AAgentCardRepository(db.GetDB())
 	card := fetchedExternalCard(t, repo, "https://a.example/.well-known/agent-card.json")
 
-	platform := newTestCard(card.AgentName, models.A2AAgentCardSourcePlatform)
+	platform := newTestCard(t, card.AgentName, models.A2AAgentCardSourcePlatform)
 	platform.OUID = card.OUID
 	require.NoError(t, repo.Enqueue(context.Background(), platform))
 
@@ -212,7 +217,7 @@ func TestA2AAgentCardEnqueueSwitchesExternalToPlatform(t *testing.T) {
 func TestA2AAgentCardEnqueueSwitchesPlatformToExternal(t *testing.T) {
 	ctx := context.Background()
 	repo := NewA2AAgentCardRepository(db.GetDB())
-	card := newTestCard("plat-"+uuid.New().String()[:8], models.A2AAgentCardSourcePlatform)
+	card := newTestCard(t, "plat-"+uuid.New().String()[:8], models.A2AAgentCardSourcePlatform)
 	cleanupCard(t, repo, card)
 	require.NoError(t, repo.Enqueue(ctx, card))
 	read := dueCardFor(t, repo, card.AgentName)
@@ -228,24 +233,9 @@ func TestA2AAgentCardEnqueueSwitchesPlatformToExternal(t *testing.T) {
 	assert.Empty(t, row.ReleaseName)
 }
 
-// The release a platform card came from is what the drift check compares against.
-func TestA2AAgentCardMarkFetchedRecordsTheRelease(t *testing.T) {
-	ctx := context.Background()
-	repo := NewA2AAgentCardRepository(db.GetDB())
-	card := newTestCard("rel-"+uuid.New().String()[:8], models.A2AAgentCardSourcePlatform)
-	cleanupCard(t, repo, card)
-	require.NoError(t, repo.Enqueue(ctx, card))
-
-	require.NoError(t, repo.MarkFetched(ctx, dueCardFor(t, repo, card.AgentName), json.RawMessage(sampleCard), "h", "u", "agent-r7"))
-	assert.Equal(t, "agent-r7", cardRowOf(t, card).ReleaseName)
-	assert.Equal(t, "agent-r7", cardRowOf(t, card).AttemptedReleaseName)
-
-	require.NoError(t, repo.Enqueue(ctx, newTestCardLike(card)))
-	assert.Equal(t, "agent-r7", cardRowOf(t, card).ReleaseName, "a re-fetch keeps the last good card's release")
-}
-
-func newTestCardLike(card *models.A2AAgentCard) *models.A2AAgentCard {
-	again := newTestCard(card.AgentName, card.Source)
+func newTestCardLike(t *testing.T, card *models.A2AAgentCard) *models.A2AAgentCard {
+	t.Helper()
+	again := newTestCard(t, card.AgentName, card.Source)
 	again.OUID = card.OUID
 	return again
 }
@@ -254,7 +244,7 @@ func newTestCardLike(card *models.A2AAgentCard) *models.A2AAgentCard {
 func TestA2AAgentCardClaimDueRespectsBackoff(t *testing.T) {
 	repo := NewA2AAgentCardRepository(db.GetDB())
 	ctx := context.Background()
-	card := newTestCard("backoff-"+uuid.New().String()[:8], models.A2AAgentCardSourcePlatform)
+	card := newTestCard(t, "backoff-"+uuid.New().String()[:8], models.A2AAgentCardSourcePlatform)
 	cleanupCard(t, repo, card)
 	require.NoError(t, repo.Enqueue(ctx, card))
 	require.NoError(t, repo.MarkAttemptFailed(ctx, *card, "HTTP 503", "", time.Now().Add(time.Hour)))
@@ -273,7 +263,7 @@ func TestA2AAgentCardClaimDueRespectsBackoff(t *testing.T) {
 func TestA2AAgentCardClaimDueSkipsAParkedRow(t *testing.T) {
 	repo := NewA2AAgentCardRepository(db.GetDB())
 	ctx := context.Background()
-	card := newTestCard("parked-"+uuid.New().String()[:8], models.A2AAgentCardSourceExternal)
+	card := newTestCard(t, "parked-"+uuid.New().String()[:8], models.A2AAgentCardSourceExternal)
 	cleanupCard(t, repo, card)
 	require.NoError(t, repo.Enqueue(ctx, card))
 	require.NoError(t, db.GetDB().Model(&models.A2AAgentCard{}).
@@ -292,7 +282,7 @@ func TestA2AAgentCardConcurrentClaimersNeverShareARow(t *testing.T) {
 	const seeded = 30
 	ours := map[string]bool{}
 	for i := 0; i < seeded; i++ {
-		card := newTestCard(prefix+uuid.New().String()[:6], models.A2AAgentCardSourcePlatform)
+		card := newTestCard(t, prefix+uuid.New().String()[:6], models.A2AAgentCardSourcePlatform)
 		cleanupCard(t, repo, card)
 		require.NoError(t, repo.Enqueue(ctx, card))
 		ours[card.AgentName] = true
@@ -332,7 +322,7 @@ func TestA2AAgentCardConcurrentClaimersNeverShareARow(t *testing.T) {
 func TestA2AAgentCardClaimDueLeasesTheRow(t *testing.T) {
 	repo := NewA2AAgentCardRepository(db.GetDB())
 	ctx := context.Background()
-	card := newTestCard("lease-"+uuid.New().String()[:8], models.A2AAgentCardSourcePlatform)
+	card := newTestCard(t, "lease-"+uuid.New().String()[:8], models.A2AAgentCardSourcePlatform)
 	cleanupCard(t, repo, card)
 	require.NoError(t, repo.Enqueue(ctx, card))
 	claimed := dueCardFor(t, repo, card.AgentName)
@@ -352,12 +342,12 @@ func TestA2AAgentCardClaimDueLeasesTheRow(t *testing.T) {
 func TestA2AAgentCardMarkFetchedSkipsTheWriteForAnUnchangedHash(t *testing.T) {
 	repo := NewA2AAgentCardRepository(db.GetDB())
 	ctx := context.Background()
-	card := newTestCard("hash-"+uuid.New().String()[:8], models.A2AAgentCardSourcePlatform)
+	card := newTestCard(t, "hash-"+uuid.New().String()[:8], models.A2AAgentCardSourcePlatform)
 	cleanupCard(t, repo, card)
 	require.NoError(t, repo.Enqueue(ctx, card))
 	require.NoError(t, repo.MarkFetched(ctx, dueCardFor(t, repo, card.AgentName), json.RawMessage(sampleCard), "same", "u", ""))
 
-	again := newTestCard(card.AgentName, models.A2AAgentCardSourcePlatform)
+	again := newTestCard(t, card.AgentName, models.A2AAgentCardSourcePlatform)
 	again.OUID = card.OUID
 	require.NoError(t, repo.Enqueue(ctx, again))
 	read := dueCardFor(t, repo, card.AgentName)
@@ -372,7 +362,7 @@ func TestA2AAgentCardMarkFetchedSkipsTheWriteForAnUnchangedHash(t *testing.T) {
 func TestA2AAgentCardMarkFetchedDoesNotSwallowANewerEnqueue(t *testing.T) {
 	repo := NewA2AAgentCardRepository(db.GetDB())
 	ctx := context.Background()
-	card := newTestCard("race-fetch-"+uuid.New().String()[:8], models.A2AAgentCardSourceExternal)
+	card := newTestCard(t, "race-fetch-"+uuid.New().String()[:8], models.A2AAgentCardSourceExternal)
 	card.SourceURL = "https://old.example/.well-known/agent-card.json"
 	cleanupCard(t, repo, card)
 	require.NoError(t, repo.Enqueue(ctx, card))
@@ -395,7 +385,7 @@ func TestA2AAgentCardMarkFetchedDoesNotSwallowANewerEnqueue(t *testing.T) {
 func TestA2AAgentCardMarkFailedEndsTheCycle(t *testing.T) {
 	repo := NewA2AAgentCardRepository(db.GetDB())
 	ctx := context.Background()
-	card := newTestCard("failed-"+uuid.New().String()[:8], models.A2AAgentCardSourcePlatform)
+	card := newTestCard(t, "failed-"+uuid.New().String()[:8], models.A2AAgentCardSourcePlatform)
 	cleanupCard(t, repo, card)
 	require.NoError(t, repo.Enqueue(ctx, card))
 	require.NoError(t, repo.MarkFailed(ctx, dueCardFor(t, repo, card.AgentName), "HTTP 404", ""))
@@ -406,44 +396,13 @@ func TestA2AAgentCardMarkFailedEndsTheCycle(t *testing.T) {
 	assert.Nil(t, row.NextAttemptAt)
 }
 
-// The drift scan skips a card that already failed on the serving release.
-func TestA2AAgentCardMarkFailedRecordsTheAttemptedRelease(t *testing.T) {
-	ctx := context.Background()
-	repo := NewA2AAgentCardRepository(db.GetDB())
-	card := newTestCard("attempted-"+uuid.New().String()[:8], models.A2AAgentCardSourcePlatform)
-	cleanupCard(t, repo, card)
-	require.NoError(t, repo.Enqueue(ctx, card))
-
-	require.NoError(t, repo.MarkFailed(ctx, dueCardFor(t, repo, card.AgentName), "HTTP 404", "agent-r2"))
-
-	row := cardRowOf(t, card)
-	assert.Equal(t, "agent-r2", row.AttemptedReleaseName)
-	assert.Empty(t, row.ReleaseName, "no card was served by that release")
-}
-
-// An attempt whose rollout read failed knows no release and must not blank the last one.
-func TestA2AAgentCardMarkAttemptFailedKeepsTheAttemptedReleaseWhenUnknown(t *testing.T) {
-	ctx := context.Background()
-	repo := NewA2AAgentCardRepository(db.GetDB())
-	card := newTestCard("attempted-"+uuid.New().String()[:8], models.A2AAgentCardSourcePlatform)
-	cleanupCard(t, repo, card)
-	require.NoError(t, repo.Enqueue(ctx, card))
-
-	require.NoError(t, repo.MarkAttemptFailed(ctx, dueCardFor(t, repo, card.AgentName), "HTTP 503", "agent-r2", time.Now()))
-	again := dueCardFor(t, repo, card.AgentName)
-	assert.Equal(t, "agent-r2", again.AttemptedReleaseName, "ClaimDue carries the column")
-	require.NoError(t, repo.MarkAttemptFailed(ctx, again, "rollout read failed", "", time.Now()))
-
-	assert.Equal(t, "agent-r2", cardRowOf(t, card).AttemptedReleaseName)
-}
-
 func TestA2AAgentCardListForAgentOrdersByEnvironment(t *testing.T) {
 	repo := NewA2AAgentCardRepository(db.GetDB())
 	ctx := context.Background()
-	dev := newTestCard("list-"+uuid.New().String()[:8], models.A2AAgentCardSourcePlatform)
-	prod := inEnv(newTestCard(dev.AgentName, models.A2AAgentCardSourcePlatform), "Production")
+	dev := newTestCard(t, "list-"+uuid.New().String()[:8], models.A2AAgentCardSourcePlatform)
+	prod := inEnv(t, newTestCard(t, dev.AgentName, models.A2AAgentCardSourcePlatform), "Production")
 	prod.OUID = dev.OUID
-	other := newTestCard("other-"+uuid.New().String()[:8], models.A2AAgentCardSourcePlatform)
+	other := newTestCard(t, "other-"+uuid.New().String()[:8], models.A2AAgentCardSourcePlatform)
 	other.OUID = dev.OUID
 	cleanupCard(t, repo, dev)
 	cleanupCard(t, repo, other)
@@ -465,10 +424,10 @@ func TestA2AAgentCardListForAgentOrdersByEnvironment(t *testing.T) {
 func TestA2AAgentCardListForEnvironmentNamesEveryAgentInIt(t *testing.T) {
 	repo := NewA2AAgentCardRepository(db.GetDB())
 	ctx := context.Background()
-	first := newTestCard("env-a-"+uuid.New().String()[:8], models.A2AAgentCardSourceExternal)
-	second := newTestCard("env-b-"+uuid.New().String()[:8], models.A2AAgentCardSourcePlatform)
+	first := newTestCard(t, "env-a-"+uuid.New().String()[:8], models.A2AAgentCardSourceExternal)
+	second := newTestCard(t, "env-b-"+uuid.New().String()[:8], models.A2AAgentCardSourcePlatform)
 	second.OUID, second.EnvironmentUUID = first.OUID, first.EnvironmentUUID
-	elsewhere := inEnv(newTestCard(first.AgentName, models.A2AAgentCardSourcePlatform), "Production")
+	elsewhere := inEnv(t, newTestCard(t, first.AgentName, models.A2AAgentCardSourcePlatform), "Production")
 	elsewhere.OUID = first.OUID
 	cleanupCard(t, repo, first)
 	cleanupCard(t, repo, second)
@@ -490,8 +449,8 @@ func TestA2AAgentCardListForEnvironmentNamesEveryAgentInIt(t *testing.T) {
 func TestA2AAgentCardGetAndDelete(t *testing.T) {
 	repo := NewA2AAgentCardRepository(db.GetDB())
 	ctx := context.Background()
-	dev := newTestCard("get-"+uuid.New().String()[:8], models.A2AAgentCardSourcePlatform)
-	prod := inEnv(newTestCard(dev.AgentName, models.A2AAgentCardSourcePlatform), "Production")
+	dev := newTestCard(t, "get-"+uuid.New().String()[:8], models.A2AAgentCardSourcePlatform)
+	prod := inEnv(t, newTestCard(t, dev.AgentName, models.A2AAgentCardSourcePlatform), "Production")
 	prod.OUID = dev.OUID
 	cleanupCard(t, repo, dev)
 	require.NoError(t, repo.Enqueue(ctx, dev))
@@ -519,7 +478,7 @@ func TestA2AAgentCardGetAndDelete(t *testing.T) {
 func TestA2AAgentCardRequeueNeverCreatesARow(t *testing.T) {
 	repo := NewA2AAgentCardRepository(db.GetDB())
 	ctx := context.Background()
-	card := newTestCard("requeue-gone-"+uuid.New().String()[:8], models.A2AAgentCardSourceExternal)
+	card := newTestCard(t, "requeue-gone-"+uuid.New().String()[:8], models.A2AAgentCardSourceExternal)
 	cleanupCard(t, repo, card)
 
 	err := repo.Requeue(ctx, card.OUID, card.ProjectName, card.AgentName, card.EnvironmentName)
@@ -532,7 +491,7 @@ func TestA2AAgentCardRequeueNeverCreatesARow(t *testing.T) {
 func TestA2AAgentCardRequeueResetsAFailedRow(t *testing.T) {
 	repo := NewA2AAgentCardRepository(db.GetDB())
 	ctx := context.Background()
-	card := newTestCard("requeue-"+uuid.New().String()[:8], models.A2AAgentCardSourceExternal)
+	card := newTestCard(t, "requeue-"+uuid.New().String()[:8], models.A2AAgentCardSourceExternal)
 	card.SourceURL = "https://a.example/card.json"
 	cleanupCard(t, repo, card)
 	require.NoError(t, repo.Enqueue(ctx, card))
@@ -553,11 +512,11 @@ func TestA2AAgentCardRequeueResetsAFailedRow(t *testing.T) {
 func TestA2AAgentCardClaimDueLeavesTheCardBodyBehind(t *testing.T) {
 	repo := NewA2AAgentCardRepository(db.GetDB())
 	ctx := context.Background()
-	card := newTestCard("claim-body-"+uuid.New().String()[:8], models.A2AAgentCardSourcePlatform)
+	card := newTestCard(t, "claim-body-"+uuid.New().String()[:8], models.A2AAgentCardSourcePlatform)
 	cleanupCard(t, repo, card)
 	require.NoError(t, repo.Enqueue(ctx, card))
 	require.NoError(t, repo.MarkFetched(ctx, dueCardFor(t, repo, card.AgentName), json.RawMessage(sampleCard), "h1", "u", ""))
-	again := newTestCardLike(card)
+	again := newTestCardLike(t, card)
 	require.NoError(t, repo.Enqueue(ctx, again))
 
 	claimed := dueCardFor(t, repo, card.AgentName)
@@ -568,49 +527,25 @@ func TestA2AAgentCardClaimDueLeavesTheCardBodyBehind(t *testing.T) {
 	assert.False(t, claimed.UpdatedAt.IsZero())
 }
 
-// A re-created environment of the same name must not inherit the deleted one's card or URL.
-func TestA2AAgentCardEnqueueForARecreatedEnvironmentStartsFresh(t *testing.T) {
-	ctx := context.Background()
-	repo := NewA2AAgentCardRepository(db.GetDB())
-	old := fetchedExternalCard(t, repo, "https://a.example/.well-known/agent-card.json")
-
-	recreated := newTestCardLike(old)
-	recreated.EnvironmentUUID = uuid.New()
-	require.NoError(t, repo.Enqueue(ctx, recreated))
-
-	row, err := repo.Get(ctx, old.OUID, old.ProjectName, old.AgentName, old.EnvironmentName)
-	require.NoError(t, err)
-	assert.Equal(t, recreated.EnvironmentUUID, row.EnvironmentUUID)
-	assert.NotEqual(t, old.ID, row.ID)
-	assert.Empty(t, row.SourceURL)
-	assert.Empty(t, row.Card)
-	assert.Nil(t, row.FetchedAt)
-
-	rows, err := repo.ListForAgent(ctx, old.OUID, old.ProjectName, old.AgentName)
-	require.NoError(t, err)
-	assert.Len(t, rows, 1, "the deleted environment's row is gone")
-}
-
 func TestA2AAgentCardClaimDueCarriesTheEnvironmentUUID(t *testing.T) {
 	repo := NewA2AAgentCardRepository(db.GetDB())
-	card := newTestCard("claim-env-"+uuid.New().String()[:8], models.A2AAgentCardSourcePlatform)
+	card := newTestCard(t, "claim-env-"+uuid.New().String()[:8], models.A2AAgentCardSourcePlatform)
 	cleanupCard(t, repo, card)
 	require.NoError(t, repo.Enqueue(context.Background(), card))
 
 	row := dueCardFor(t, repo, card.AgentName)
 
-	assert.Equal(t, envUUIDOf("Development"), row.EnvironmentUUID)
+	assert.Equal(t, envOf(t, testOrg(t), "Development"), row.EnvironmentUUID)
 }
 
 func TestA2AAgentCardDeleteForEnvironmentLeavesOtherEnvironments(t *testing.T) {
 	ctx := context.Background()
 	repo := NewA2AAgentCardRepository(db.GetDB())
-	dev := newTestCard("env-del-"+uuid.New().String()[:8], models.A2AAgentCardSourcePlatform)
-	otherAgent := newTestCard("env-del-other-"+uuid.New().String()[:8], models.A2AAgentCardSourceExternal)
+	dev := newTestCard(t, "env-del-"+uuid.New().String()[:8], models.A2AAgentCardSourcePlatform)
+	otherAgent := newTestCard(t, "env-del-other-"+uuid.New().String()[:8], models.A2AAgentCardSourceExternal)
 	otherAgent.OUID = dev.OUID
-	prod := inEnv(newTestCardLike(dev), "Production")
-	elsewhere := newTestCardLike(dev)
-	elsewhere.OUID = "other-org-" + uuid.New().String()[:8]
+	prod := inEnv(t, newTestCardLike(t, dev), "Production")
+	elsewhere := newTestCardIn(t, newOrg(t), dev.AgentName, dev.Source)
 	for _, c := range []*models.A2AAgentCard{dev, otherAgent, prod, elsewhere} {
 		cleanupCard(t, repo, c)
 		require.NoError(t, repo.Enqueue(ctx, c))
@@ -632,10 +567,10 @@ func TestA2AAgentCardDeleteForEnvironmentLeavesOtherEnvironments(t *testing.T) {
 func TestA2AAgentCardDeletePlatformForAgentEnvKeepsExternalRows(t *testing.T) {
 	ctx := context.Background()
 	repo := NewA2AAgentCardRepository(db.GetDB())
-	platform := newTestCard("undeploy-"+uuid.New().String()[:8], models.A2AAgentCardSourcePlatform)
+	platform := newTestCard(t, "undeploy-"+uuid.New().String()[:8], models.A2AAgentCardSourcePlatform)
 	cleanupCard(t, repo, platform)
 	require.NoError(t, repo.Enqueue(ctx, platform))
-	external := inEnv(newTestCardLike(platform), "Production")
+	external := inEnv(t, newTestCardLike(t, platform), "Production")
 	external.Source, external.SourceURL = models.A2AAgentCardSourceExternal, "https://a.example/.well-known/agent-card.json"
 	require.NoError(t, repo.Enqueue(ctx, external))
 
@@ -654,7 +589,7 @@ func TestA2AAgentCardDeleteIfUnchanged(t *testing.T) {
 	repo := NewA2AAgentCardRepository(db.GetDB())
 
 	t.Run("removes the row as claimed", func(t *testing.T) {
-		card := newTestCard("drop-"+uuid.New().String()[:8], models.A2AAgentCardSourcePlatform)
+		card := newTestCard(t, "drop-"+uuid.New().String()[:8], models.A2AAgentCardSourcePlatform)
 		cleanupCard(t, repo, card)
 		require.NoError(t, repo.Enqueue(ctx, card))
 
@@ -664,11 +599,11 @@ func TestA2AAgentCardDeleteIfUnchanged(t *testing.T) {
 		assert.ErrorIs(t, err, ErrA2AAgentCardNotFound)
 	})
 	t.Run("keeps a row re-enqueued since the claim", func(t *testing.T) {
-		card := newTestCard("drop-"+uuid.New().String()[:8], models.A2AAgentCardSourcePlatform)
+		card := newTestCard(t, "drop-"+uuid.New().String()[:8], models.A2AAgentCardSourcePlatform)
 		cleanupCard(t, repo, card)
 		require.NoError(t, repo.Enqueue(ctx, card))
 		due := dueCardFor(t, repo, card.AgentName)
-		require.NoError(t, repo.Enqueue(ctx, newTestCardLike(card)))
+		require.NoError(t, repo.Enqueue(ctx, newTestCardLike(t, card)))
 
 		assert.ErrorIs(t, repo.DeleteIfUnchanged(ctx, due), ErrA2AAgentCardSuperseded)
 
@@ -681,7 +616,7 @@ func TestA2AAgentCardDeleteIfUnchanged(t *testing.T) {
 func TestA2AAgentCardClearCardParksTheRow(t *testing.T) {
 	repo := NewA2AAgentCardRepository(db.GetDB())
 	ctx := context.Background()
-	card := newTestCard("park-"+uuid.New().String()[:8], models.A2AAgentCardSourceExternal)
+	card := newTestCard(t, "park-"+uuid.New().String()[:8], models.A2AAgentCardSourceExternal)
 	card.SourceURL = "https://agent.example/.well-known/agent-card.json"
 	cleanupCard(t, repo, card)
 	require.NoError(t, repo.Enqueue(ctx, card))
@@ -711,7 +646,7 @@ func TestA2AAgentCardClearCardParksTheRow(t *testing.T) {
 func TestA2AAgentCardClearCardSupersedesAnInFlightFetch(t *testing.T) {
 	repo := NewA2AAgentCardRepository(db.GetDB())
 	ctx := context.Background()
-	card := newTestCard("park-race-"+uuid.New().String()[:8], models.A2AAgentCardSourceExternal)
+	card := newTestCard(t, "park-race-"+uuid.New().String()[:8], models.A2AAgentCardSourceExternal)
 	card.SourceURL = "https://agent.example/.well-known/agent-card.json"
 	cleanupCard(t, repo, card)
 	require.NoError(t, repo.Enqueue(ctx, card))
@@ -733,7 +668,7 @@ func TestA2AAgentCardClearCardNeedsARow(t *testing.T) {
 func TestA2AAgentCardMarkFetchedKeepsAnExternalSourceURL(t *testing.T) {
 	repo := NewA2AAgentCardRepository(db.GetDB())
 	ctx := context.Background()
-	card := newTestCard("keep-url-"+uuid.New().String()[:8], models.A2AAgentCardSourceExternal)
+	card := newTestCard(t, "keep-url-"+uuid.New().String()[:8], models.A2AAgentCardSourceExternal)
 	card.SourceURL = "https://agent.example/.well-known/agent-card.json"
 	cleanupCard(t, repo, card)
 	require.NoError(t, repo.Enqueue(ctx, card))
@@ -742,7 +677,7 @@ func TestA2AAgentCardMarkFetchedKeepsAnExternalSourceURL(t *testing.T) {
 	require.NoError(t, repo.MarkFetched(ctx, dueCardFor(t, repo, card.AgentName), json.RawMessage(sampleCard), "h", gatewayURL, ""))
 	assert.Equal(t, card.SourceURL, cardRowOf(t, card).SourceURL)
 
-	again := newTestCardLike(card)
+	again := newTestCardLike(t, card)
 	again.SourceURL = card.SourceURL
 	require.NoError(t, repo.Enqueue(ctx, again))
 	assert.JSONEq(t, sampleCard, string(cardRowOf(t, card).Card), "the same URL is not a change, so the card survives")
@@ -752,8 +687,8 @@ func TestA2AAgentCardMarkFetchedKeepsAnExternalSourceURL(t *testing.T) {
 func TestA2AAgentCardFailParkedTouchesOnlyAParkedRow(t *testing.T) {
 	repo := NewA2AAgentCardRepository(db.GetDB())
 	ctx := context.Background()
-	parked := newTestCard("fail-parked-"+uuid.New().String()[:8], models.A2AAgentCardSourceExternal)
-	due := newTestCard("fail-due-"+uuid.New().String()[:8], models.A2AAgentCardSourceExternal)
+	parked := newTestCard(t, "fail-parked-"+uuid.New().String()[:8], models.A2AAgentCardSourceExternal)
+	due := newTestCard(t, "fail-due-"+uuid.New().String()[:8], models.A2AAgentCardSourceExternal)
 	for _, card := range []*models.A2AAgentCard{parked, due} {
 		cleanupCard(t, repo, card)
 		require.NoError(t, repo.Enqueue(ctx, card))

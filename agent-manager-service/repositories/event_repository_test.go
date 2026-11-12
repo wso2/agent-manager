@@ -39,7 +39,7 @@ func TestEventDestinationRejectsStaleWrites(t *testing.T) {
 			ctx := context.Background()
 			repo := NewEventRepository(db.GetDB())
 			d := &models.EventDestination{
-				ID: uuid.New(), OUID: "ou-" + uuid.NewString(), Name: "webhook",
+				ID: uuid.New(), OUID: newOrg(t), Name: "webhook",
 				Kind:            models.DestinationKindWebhook,
 				Config:          json.RawMessage(`{"url":"https://old.example.com"}`),
 				SecretEncrypted: []byte("old-secret"),
@@ -69,7 +69,7 @@ func TestEventDestinationRejectsStaleWrites(t *testing.T) {
 			assert.Equal(t, current.SecretEncrypted, saved.SecretEncrypted)
 			assert.JSONEq(t, string(current.Config), string(saved.Config))
 			assert.Equal(t, current.Availability, saved.Availability)
-			assert.True(t, current.UpdatedAt.Equal(saved.UpdatedAt), "returned revision matches PostgreSQL precision")
+			assert.True(t, current.UpdatedAt.Equal(saved.UpdatedAt), "returned revision matches the stored one")
 
 			// An edit based on the latest value succeeds without reverting
 			// the secret or settings written by the first request.
@@ -88,7 +88,7 @@ func TestEventDeliveryClaimAndFinishedOutcomes(t *testing.T) {
 	ctx := context.Background()
 	repo := NewEventRepository(db.GetDB())
 	d := &models.EventDestination{
-		ID: uuid.New(), OUID: "ou-" + uuid.NewString(), Name: "webhook",
+		ID: uuid.New(), OUID: newOrg(t), Name: "webhook",
 		Kind: models.DestinationKindWebhook, Config: json.RawMessage(`{"url":"https://example.com"}`),
 		Availability: models.DestinationAvailableAll, Projects: []string{},
 	}
@@ -139,7 +139,7 @@ func TestEventDeliveryFailStaleDeliveries(t *testing.T) {
 	gdb := db.GetDB()
 	repo := NewEventRepository(gdb)
 	d := &models.EventDestination{
-		ID: uuid.New(), OUID: "ou-" + uuid.NewString(), Name: "webhook",
+		ID: uuid.New(), OUID: newOrg(t), Name: "webhook",
 		Kind: models.DestinationKindWebhook, Config: json.RawMessage(`{"url":"https://example.com"}`),
 		Availability: models.DestinationAvailableAll, Projects: []string{},
 	}

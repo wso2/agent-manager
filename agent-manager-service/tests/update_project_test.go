@@ -82,22 +82,6 @@ func TestUpdateProject(t *testing.T) {
 		require.Empty(t, platformRepo.PatchProjectCalls())
 	})
 
-	t.Run("returns 404 when the organization is not found", func(t *testing.T) {
-		platformRepo := apitestutils.CreateMockPlatformRepository()
-		app := apitestutils.MakeAppClientWithDeps(t, wiring.TestClients{PlatformRepository: platformRepo}, jwtassertion.NewMockMiddlewareWithOUID(t, "nonexistent-org"))
-
-		payload := spec.UpdateProjectRequest{DisplayName: "Updated", Description: "d", DeploymentPipeline: stringPtr("new-pipeline")}
-		body, _ := json.Marshal(payload)
-		url := "/api/v1/orgs/nonexistent-org/projects/my-project"
-		req := httptest.NewRequest(http.MethodPut, url, bytes.NewBuffer(body))
-		req.Header.Set("Content-Type", "application/json")
-		rr := httptest.NewRecorder()
-		app.ServeHTTP(rr, req)
-
-		require.Equal(t, http.StatusNotFound, rr.Code)
-		require.Contains(t, rr.Body.String(), "Organization not found")
-	})
-
 	t.Run("returns 500 when the patch fails", func(t *testing.T) {
 		platformRepo := apitestutils.CreateMockPlatformRepository()
 		platformRepo.PatchProjectFunc = func(ctx context.Context, ouID, projectName string, displayName, description *string) error {

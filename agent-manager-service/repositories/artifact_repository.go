@@ -76,12 +76,43 @@ func (r *ArtifactRepo) Create(tx *gorm.DB, artifact *models.Artifact) error {
 
 // Delete removes an artifact within a transaction
 func (r *ArtifactRepo) Delete(tx *gorm.DB, uuid string) error {
-	result := tx.Where("id = ?", uuid).Delete(&models.Artifact{})
-	if result.Error != nil {
-		return result.Error
+	return tx.Transaction(func(tx *gorm.DB) error {
+		if err := deleteArtifactDependents(tx, uuid); err != nil {
+			return err
+		}
+		result := tx.Where("id = ?", uuid).Delete(&models.Artifact{})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return gorm.ErrRecordNotFound
+		}
+		return nil
+	})
+}
+
+// deleteArtifactDependents removes the rows that exist only for the artifact: an agent exposure, an A2A proxy (with its
+// upstream secret) and an MCP endpoint's environment binding. Their tables already cascade from their parent, and
+// schema rule 7 allows one cascading key per table, so they go here rather than by a second cascade.
+func deleteArtifactDependents(tx *gorm.DB, artifactID string) error {
+	if err := tx.Where("artifact_id = ?", artifactID).Delete(&models.MCPProxyEndpointEnvironment{}).Error; err != nil {
+		return err
 	}
-	if result.RowsAffected == 0 {
-		return gorm.ErrRecordNotFound
+	if err := tx.Where("artifact_id = ?", artifactID).Delete(&models.PlatformAgentExposure{}).Error; err != nil {
+		return err
+	}
+	var proxies []models.A2AProxy
+	if err := tx.Session(&gorm.Session{SkipHooks: true}).Select("id, upstream_auth_secret_id").
+		Where("artifact_id = ?", artifactID).Find(&proxies).Error; err != nil {
+		return err
+	}
+	for _, p := range proxies {
+		if err := tx.Where("id = ?", p.ID).Delete(&models.A2AProxy{}).Error; err != nil {
+			return err
+		}
+		if err := deleteSecret(tx, p.UpstreamAuthSecretID); err != nil {
+			return err
+		}
 	}
 	return nil
 }

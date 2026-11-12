@@ -81,18 +81,22 @@ func Open(dbCfg config.DatabaseConfig, cfg config.POSTGRESQL) (*gorm.DB, error) 
 	var (
 		driverName string
 		dsn        string
-		dialector  func(dsn string) gorm.Dialector
+		dialector  func(dsn string, conn gorm.ConnPool) gorm.Dialector
 	)
 	switch dbCfg.Driver {
 	case config.DBDriverPostgres:
 		driverName, dsn = "pgx", makeConnString(cfg)
-		dialector = postgres.Open
+		dialector = func(dsn string, conn gorm.ConnPool) gorm.Dialector {
+			return postgres.New(postgres.Config{DSN: dsn, Conn: conn})
+		}
 	case config.DBDriverSQLite:
 		if err := os.MkdirAll(filepath.Dir(dbCfg.SQLitePath), 0o750); err != nil {
 			return nil, fmt.Errorf("creating the SQLite directory: %w", err)
 		}
 		driverName, dsn = sqlite.DriverName, makeSQLiteConnString(dbCfg.SQLitePath)
-		dialector = sqlite.Open
+		dialector = func(dsn string, conn gorm.ConnPool) gorm.Dialector {
+			return &sqlite.Dialector{DSN: dsn, Conn: conn}
+		}
 	default:
 		return nil, fmt.Errorf("unsupported database driver %q", dbCfg.Driver)
 	}
@@ -122,7 +126,9 @@ func Open(dbCfg config.DatabaseConfig, cfg config.POSTGRESQL) (*gorm.DB, error) 
 		},
 	)
 
-	gormDB, err := gorm.Open(dialector(dsn), &gorm.Config{
+	// The dialector is given the wrapped pool: left to itself it opens a pool of its own from the DSN, bypassing
+	// the retries, the pool settings and the UTC time arguments.
+	gormDB, err := gorm.Open(dialector(dsn, connPool), &gorm.Config{
 		Logger:                 gormLogger,
 		SkipDefaultTransaction: cfg.SkipDefaultTransaction,
 		PrepareStmt:            false,
@@ -139,16 +145,16 @@ func Open(dbCfg config.DatabaseConfig, cfg config.POSTGRESQL) (*gorm.DB, error) 
 }
 
 // makeSQLiteConnString enables foreign keys and WAL on every connection, and starts every transaction with the write
-// lock (BEGIN IMMEDIATE) so a transaction that reads and then writes never fails to upgrade its lock. Times are written
-// as "2006-01-02 15:04:05.999999999-07:00": with UTC the suffix is "+00:00", and "+" sorts before ".", so text order
-// is time order even though trailing fractional zeros are dropped. A "Z" suffix would break that.
+// lock (BEGIN IMMEDIATE) so a transaction that reads and then writes never fails to upgrade its lock. The driver writes
+// times as "2006-01-02 15:04:05.999999999-07:00": with UTC the suffix is "+00:00", and "+" sorts before ".", so text
+// order is time order even though trailing fractional zeros are dropped. A "Z" suffix would break that. That layout is
+// the driver's default; _time_format is left unset because setting it makes the driver ignore _txlock.
 func makeSQLiteConnString(path string) string {
 	params := url.Values{}
 	params.Add("_pragma", "foreign_keys(1)")
 	params.Add("_pragma", "journal_mode(WAL)")
 	params.Add("_pragma", "busy_timeout(5000)")
 	params.Set("_txlock", "immediate")
-	params.Set("_time_format", "sqlite")
 	return "file:" + path + "?" + params.Encode()
 }
 

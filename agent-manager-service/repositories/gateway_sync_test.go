@@ -39,7 +39,7 @@ func seedArtifactOn(t *testing.T, p models.Placement, ouID, kind string) models.
 	require.NoError(t, NewArtifactRepo(gdb).Create(gdb, &models.Artifact{
 		UUID: artifactUUID, Handle: handle, Name: handle, Version: "v1.0", Kind: kind, OUID: ouID,
 	}))
-	t.Cleanup(func() { gdb.Exec(`DELETE FROM artifacts WHERE uuid = ?`, artifactUUID) })
+	t.Cleanup(func() { gdb.Exec(`DELETE FROM artifacts WHERE id = ?`, artifactUUID) })
 	return models.Placement{
 		ArtifactRef: models.ArtifactRef{OUID: ouID, ArtifactUUID: artifactUUID, Kind: kind, Handle: handle},
 		GatewayUUID: p.GatewayUUID,
@@ -100,8 +100,8 @@ func TestListForGatewaySync(t *testing.T) {
 
 	otherGateway := seedPlacement(t, models.KindLLMProvider)
 	startDeploy(t, otherGateway)
-	otherOrg := seedArtifactOn(t, gateway, "ou-"+uuid.NewString()[:8], models.KindLLMProvider)
-	startDeploy(t, otherOrg)
+	// Another org's artifact can't be placed on this gateway at all: its status row would break the org key.
+	otherOrg := seedArtifactOn(t, gateway, newOrg(t), models.KindLLMProvider)
 
 	got := listForGatewaySync(t, gateway)
 
@@ -168,7 +168,7 @@ func TestArtifactListExisting(t *testing.T) {
 	provider := seedPlacement(t, models.KindLLMProvider)
 	proxy := seedArtifactOn(t, provider, provider.OUID, models.KindLLMProxy)
 	notAProxy := seedArtifactOn(t, provider, provider.OUID, models.KindMCPMapping)
-	otherOrg := seedArtifactOn(t, provider, "ou-"+uuid.NewString()[:8], models.KindLLMProxy)
+	otherOrg := seedArtifactOn(t, provider, newOrg(t), models.KindLLMProxy)
 
 	got, err := repo.ListExisting(context.Background(), provider.OUID,
 		[]uuid.UUID{provider.ArtifactUUID, otherOrg.ArtifactUUID, uuid.New()},

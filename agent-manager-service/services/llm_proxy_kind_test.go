@@ -20,7 +20,7 @@ package services
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"log/slog"
 	"testing"
 	"time"
@@ -31,6 +31,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
+	"github.com/wso2/agent-manager/agent-manager-service/db/dbtest"
 	"github.com/wso2/agent-manager/agent-manager-service/eventhub"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/reconcile"
@@ -68,9 +69,7 @@ func newProxyFixture(t *testing.T) *proxyFixture {
 func (f *proxyFixture) mapGateway(t *testing.T, env uuid.UUID) uuid.UUID {
 	t.Helper()
 	gateway := f.sync.seedGateway(t, f.sync.ouID)
-	require.NoError(t, db.GetDB().Exec(
-		`INSERT INTO gateway_environment_mappings (gateway_uuid, environment_uuid) VALUES (?, ?)`, gateway, env,
-	).Error)
+	dbtest.MapGateway(t, db.GetDB(), f.sync.ouID, gateway, env)
 	return gateway
 }
 
@@ -79,28 +78,19 @@ func (f *proxyFixture) newProxy(t *testing.T) *models.LLMProxy {
 	proxy := goldenProxy()
 	proxy.UUID = uuid.Nil
 	proxy.Handle = "px-" + uuid.NewString()[:8]
-	proxy.ProjectUUID = uuid.New()
+	proxy.ProjectUUID = dbtest.EnsureProject(t, db.GetDB(), f.sync.ouID, "p")
 	proxy.ProviderUUID = f.provider.UUID
 	proxy.Configuration.Provider = f.provider.UUID.String()
 	require.NoError(t, repositories.NewLLMProxyRepo(db.GetDB()).Create(context.Background(), proxy, proxy.Handle,
 		proxy.Handle, "v1.0", f.sync.ouID))
-	t.Cleanup(func() { db.GetDB().Exec(`DELETE FROM artifacts WHERE uuid = ?`, proxy.UUID) })
 	return proxy
 }
 
 // mapToAgent saves the agent-config record that says proxy should be deployed in env.
 func (f *proxyFixture) mapToAgent(t *testing.T, proxy *models.LLMProxy, env uuid.UUID) {
 	t.Helper()
-	configUUID := uuid.New()
-	require.NoError(t, db.GetDB().Exec(
-		`INSERT INTO agent_configurations (uuid, name, agent_id, project_name, ou_id) VALUES (?, ?, ?, 'p', ?)`,
-		configUUID, "c-"+configUUID.String()[:8], "a-"+configUUID.String()[:8], f.sync.ouID,
-	).Error)
-	require.NoError(t, db.GetDB().Exec(
-		`INSERT INTO env_agent_model_mapping (config_uuid, environment_uuid, llm_proxy_uuid) VALUES (?, ?, ?)`,
-		configUUID, env, proxy.UUID,
-	).Error)
-	t.Cleanup(func() { db.GetDB().Exec(`DELETE FROM agent_configurations WHERE uuid = ?`, configUUID) })
+	agent := dbtest.EnsureAgent(t, db.GetDB(), f.sync.ouID, "p", "a-"+uuid.NewString()[:8])
+	dbtest.LLMConfig(t, db.GetDB(), f.sync.ouID, agent, env, proxy.UUID)
 }
 
 func (f *proxyFixture) row(t *testing.T, proxy *models.LLMProxy, gateway uuid.UUID) *models.DeploymentStatusRecord {
@@ -279,7 +269,7 @@ func TestAgentConfigProxyUpdateAfterAPublicUndeploySaves(t *testing.T) {
 	gormDB := db.GetDB()
 	mappings := repositories.NewEnvAgentModelMappingRepository(gormDB)
 	var mapping models.EnvAgentModelMapping
-	require.NoError(t, gormDB.Preload("LLMProxy").Where("llm_proxy_uuid = ?", proxy.UUID).First(&mapping).Error)
+	require.NoError(t, gormDB.Preload("LLMProxy").Where("llm_proxy_id = ?", proxy.UUID).First(&mapping).Error)
 	mapping.LLMProxy.Handle = proxy.Handle
 	svc := &agentConfigurationService{
 		db:                        gormDB,
@@ -394,7 +384,7 @@ func scenarioBRollback(t *testing.T, f *proxyFixture) (
 func deploymentExists(t *testing.T, id uuid.UUID) bool {
 	t.Helper()
 	var count int64
-	require.NoError(t, db.GetDB().Model(&models.Deployment{}).Where("deployment_id = ?", id).Count(&count).Error)
+	require.NoError(t, db.GetDB().Model(&models.Deployment{}).Where("id = ?", id).Count(&count).Error)
 	return count == 1
 }
 
@@ -518,9 +508,9 @@ func TestScenarioBPolicyWriteFailureRollsBackWithoutUndeploying(t *testing.T) {
 	gormDB := db.GetDB()
 	mappings := repositories.NewEnvAgentModelMappingRepository(gormDB)
 	var mapping models.EnvAgentModelMapping
-	require.NoError(t, gormDB.Preload("LLMProxy").Where("llm_proxy_uuid = ?", proxy.UUID).First(&mapping).Error)
+	require.NoError(t, gormDB.Preload("LLMProxy").Where("llm_proxy_id = ?", proxy.UUID).Take(&mapping).Error)
 	mapping.LLMProxy.Handle = proxy.Handle
-	refusePolicyWrites(t, mapping.ID)
+	refusePolicyWrites(t, gormDB)
 	svc := &agentConfigurationService{
 		db:                        gormDB,
 		envMappingRepo:            mappings,
@@ -554,21 +544,14 @@ func TestScenarioBPolicyWriteFailureRollsBackWithoutUndeploying(t *testing.T) {
 	assert.False(t, deploymentExists(t, rollback.supersededDeploymentID))
 }
 
-// refusePolicyWrites makes every update of one env_agent_model_mapping row fail, until the test ends.
-func refusePolicyWrites(t *testing.T, mappingID uint) {
+// refusePolicyWrites makes every update of an agent's LLM mapping fail, until the test ends.
+func refusePolicyWrites(t *testing.T, gormDB *gorm.DB) {
 	t.Helper()
 	name := "refuse_policy_write_" + uuid.NewString()[:8]
-	gormDB := db.GetDB()
-	require.NoError(t, gormDB.Exec(fmt.Sprintf(
-		`CREATE FUNCTION %s() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'policy write refused'; END $$`,
-		name,
-	)).Error)
-	t.Cleanup(func() { assert.NoError(t, gormDB.Exec("DROP FUNCTION IF EXISTS "+name+"()").Error) })
-	require.NoError(t, gormDB.Exec(fmt.Sprintf(
-		`CREATE TRIGGER %s BEFORE UPDATE ON env_agent_model_mapping FOR EACH ROW WHEN (OLD.id = %d) EXECUTE FUNCTION %s()`,
-		name, mappingID, name,
-	)).Error)
-	t.Cleanup(func() {
-		assert.NoError(t, gormDB.Exec("DROP TRIGGER IF EXISTS "+name+" ON env_agent_model_mapping").Error)
-	})
+	require.NoError(t, gormDB.Callback().Update().Before("gorm:update").Register(name, func(tx *gorm.DB) {
+		if tx.Statement.Table == (models.EnvAgentModelMapping{}).TableName() {
+			_ = tx.AddError(errors.New("policy write refused"))
+		}
+	}))
+	t.Cleanup(func() { require.NoError(t, gormDB.Callback().Update().Remove(name)) })
 }

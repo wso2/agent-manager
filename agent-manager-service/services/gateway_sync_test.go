@@ -29,6 +29,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
+	"github.com/wso2/agent-manager/agent-manager-service/db/dbtest"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 )
@@ -43,7 +44,7 @@ type syncFixture struct {
 
 func newSyncFixture(t *testing.T) *syncFixture {
 	t.Helper()
-	f := &syncFixture{ouID: "ou-" + uuid.NewString()[:8], repo: repositories.NewDeploymentRepo(db.GetDB())}
+	f := &syncFixture{ouID: dbtest.Org(t, db.GetDB()), repo: repositories.NewDeploymentRepo(db.GetDB())}
 	f.gateway = f.seedGateway(t, f.ouID)
 	f.svc = NewGatewayInternalAPIService(nil, nil, f.repo, repositories.NewArtifactRepo(db.GetDB()), nil, nil, nil,
 		gatewayKinds())
@@ -52,15 +53,7 @@ func newSyncFixture(t *testing.T) *syncFixture {
 
 func (f *syncFixture) seedGateway(t *testing.T, ouID string) uuid.UUID {
 	t.Helper()
-	gatewayID := uuid.New()
-	name := "sync-gw-" + gatewayID.String()[:8]
-	require.NoError(t, db.GetDB().Exec(
-		`INSERT INTO gateways (uuid, name, display_name, vhost, gateway_functionality_type, ou_id, is_active)
-		 VALUES (?, ?, ?, ?, ?, ?, TRUE)`,
-		gatewayID, name, name, "gw.example", models.GatewayRoleEgress, ouID,
-	).Error)
-	t.Cleanup(func() { db.GetDB().Exec(`DELETE FROM gateways WHERE uuid = ?`, gatewayID) })
-	return gatewayID
+	return dbtest.GatewayIn(t, db.GetDB(), ouID, models.GatewayRoleEgress).UUID
 }
 
 func (f *syncFixture) seedArtifact(t *testing.T, ouID, kind string) models.ArtifactRef {
@@ -70,7 +63,6 @@ func (f *syncFixture) seedArtifact(t *testing.T, ouID, kind string) models.Artif
 	require.NoError(t, repositories.NewArtifactRepo(db.GetDB()).Create(db.GetDB(), &models.Artifact{
 		UUID: artifactUUID, Handle: handle, Name: handle, Version: "v1.0", Kind: kind, OUID: ouID,
 	}))
-	t.Cleanup(func() { db.GetDB().Exec(`DELETE FROM artifacts WHERE uuid = ?`, artifactUUID) })
 	return models.ArtifactRef{OUID: ouID, ArtifactUUID: artifactUUID, Kind: kind, Handle: handle}
 }
 
@@ -95,15 +87,15 @@ func (f *syncFixture) snapshot(t *testing.T) statusSnapshot {
 	t.Helper()
 	var s statusSnapshot
 	require.NoError(t, db.GetDB().Raw(
-		`SELECT * FROM deployment_status WHERE gateway_uuid = ? ORDER BY artifact_uuid`, f.gateway,
+		`SELECT * FROM artifact_gateway_status WHERE gateway_id = ? ORDER BY artifact_id`, f.gateway,
 	).
 		Scan(&s.Rows).Error)
 	require.NoError(t, db.GetDB().Raw(
-		`SELECT COALESCE(MAX(seq), 0) FROM eventhub_gateway_states WHERE gateway_id = ?`, f.gateway.String(),
+		`SELECT COALESCE(MAX(seq), 0) FROM gateway_event_states WHERE gateway_id = ?`, f.gateway.String(),
 	).
 		Scan(&s.Seq).Error)
 	require.NoError(t, db.GetDB().Raw(
-		`SELECT COUNT(*) FROM eventhub_events WHERE gateway_id = ?`, f.gateway.String(),
+		`SELECT COUNT(*) FROM gateway_events WHERE gateway_id = ?`, f.gateway.String(),
 	).Scan(&s.Events).Error)
 	return s
 }
@@ -127,13 +119,16 @@ func TestListGatewayDeploymentsOverTheDatabase(t *testing.T) {
 		return err
 	}))
 	// Old enough for the sweeper, which this read must not stand in for.
-	require.NoError(t, db.GetDB().Exec(
-		`UPDATE deployment_status SET performed_at = performed_at - INTERVAL '1 hour' WHERE gateway_uuid = ?`,
-		f.gateway,
-	).Error)
+	var rows []models.DeploymentStatusRecord
+	require.NoError(t, db.GetDB().Where("gateway_id = ?", f.gateway).Find(&rows).Error)
+	for _, row := range rows {
+		require.NoError(t, db.GetDB().Model(&models.DeploymentStatusRecord{}).
+			Where("artifact_id = ? AND gateway_id = ?", row.ArtifactUUID, row.GatewayUUID).
+			Update("performed_at", row.PerformedAt.Add(-time.Hour)).Error)
+	}
 
 	before := f.snapshot(t)
-	time.Sleep(10 * time.Millisecond) // so a write's NOW() would differ
+	time.Sleep(10 * time.Millisecond) // so a write's timestamp would differ
 
 	got, err := f.svc.ListGatewayDeployments(ctx, f.ouID, f.gateway.String())
 	require.NoError(t, err)
@@ -188,10 +183,10 @@ func TestCheckArtifactsExistOverTheDatabase(t *testing.T) {
 	require.NoError(t, repositories.NewArtifactRepo(db.GetDB()).Delete(db.GetDB(), deleted.ArtifactUUID.String()))
 	deletedProxy := f.seedArtifact(t, f.ouID, models.KindLLMProxy)
 	require.NoError(t, repositories.NewArtifactRepo(db.GetDB()).Delete(db.GetDB(), deletedProxy.ArtifactUUID.String()))
-	otherOrgID := "ou-" + uuid.NewString()[:8]
+	otherOrgID := dbtest.Org(t, db.GetDB())
 	otherOrg := f.seedArtifact(t, otherOrgID, models.KindLLMProvider)
 	otherOrgProxy := f.seedArtifact(t, otherOrgID, models.KindLLMProxy)
-	require.NoError(t, db.GetDB().Exec(`UPDATE artifacts SET handle = ? WHERE uuid = ?`,
+	require.NoError(t, db.GetDB().Exec(`UPDATE artifacts SET handle = ? WHERE id = ?`,
 		deletedProxy.Handle, otherOrgProxy.ArtifactUUID).Error, "another org's proxy holds the deleted proxy's handle")
 
 	got, err := f.svc.CheckArtifactsExist(ctx, f.ouID, []string{

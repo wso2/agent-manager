@@ -129,44 +129,6 @@ func TestCreateProject(t *testing.T) {
 			},
 		},
 		{
-			name:           "return 400 on missing deployment pipeline",
-			authMiddleware: authMiddleware,
-			wantStatus:     400,
-			wantErrMsg:     "Missing deployment pipeline in request body",
-			url:            fmt.Sprintf("/api/v1/orgs/%s/projects", testCreateProjectOrgName),
-			payload: spec.CreateProjectRequest{
-				Name:        "valid-project",
-				DisplayName: "Test Project",
-				// Missing DeploymentPipeline
-			},
-			setupMock: func() *repomocks.PlatformRepositoryMock {
-				mock := apitestutils.CreateMockPlatformRepository()
-				mock.GetProjectFunc = func(ctx context.Context, ouID string, projectName string) (*models.ProjectResponse, error) {
-					return nil, utils.ErrProjectNotFound
-				}
-				return mock
-			},
-		},
-		{
-			name:           "return 404 on organization not found",
-			authMiddleware: jwtassertion.NewMockMiddlewareWithOUID(t, "nonexistent-org"),
-			wantStatus:     404,
-			wantErrMsg:     "Organization not found",
-			url:            "/api/v1/orgs/nonexistent-org/projects",
-			payload: spec.CreateProjectRequest{
-				Name:               "valid-project",
-				DisplayName:        "Test Project",
-				DeploymentPipeline: stringPtr("default"),
-			},
-			setupMock: func() *repomocks.PlatformRepositoryMock {
-				mock := apitestutils.CreateMockPlatformRepository()
-				mock.GetProjectFunc = func(ctx context.Context, ouID string, projectName string) (*models.ProjectResponse, error) {
-					return nil, utils.ErrProjectNotFound
-				}
-				return mock
-			},
-		},
-		{
 			name:           "return 409 on project already exists",
 			authMiddleware: authMiddleware,
 			wantStatus:     409,

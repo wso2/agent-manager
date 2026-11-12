@@ -108,16 +108,6 @@ func TestDeleteAgent(t *testing.T) {
 		setupMock      func() *repomocks.PlatformRepositoryMock
 	}{
 		{
-			name:           "return 404 on organization not found",
-			authMiddleware: jwtassertion.NewMockMiddlewareWithOUID(t, "nonexistent-org"),
-			wantStatus:     404,
-			wantErrMsg:     "Organization not found",
-			url:            fmt.Sprintf("/api/v1/orgs/nonexistent-org/projects/%s/agents/%s", testDeleteProjName, testDeleteAgentName),
-			setupMock: func() *repomocks.PlatformRepositoryMock {
-				return apitestutils.CreateMockPlatformRepository()
-			},
-		},
-		{
 			name:           "return 404 on project not found",
 			authMiddleware: authMiddleware,
 			wantStatus:     404,

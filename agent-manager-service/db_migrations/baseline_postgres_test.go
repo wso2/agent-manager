@@ -38,6 +38,9 @@ import (
 // scratchDatabase creates an empty database next to the test database and drops it when the test ends.
 func scratchDatabase(t *testing.T) *gorm.DB {
 	t.Helper()
+	if config.GetConfig().Database.Driver != config.DBDriverPostgres {
+		t.Skip("needs DB_DRIVER=postgres")
+	}
 	admin := db.DB(context.Background())
 	name := "baseline_" + strings.ReplaceAll(uuid.NewString(), "-", "")
 	require.NoError(t, admin.Exec(`CREATE DATABASE `+name).Error)

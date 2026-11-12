@@ -30,6 +30,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/reconcile"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 )
 
 const (
@@ -400,7 +401,14 @@ func deleteMCPArtifactRows(tx *gorm.DB, artifactUUID uuid.UUID, ouID string) err
 		Delete(&models.Deployment{}).Error; err != nil {
 		return err
 	}
-	return tx.Where("id = ? AND org_id = ?", artifactUUID, ouID).Delete(&models.Artifact{}).Error
+	var inOrg int64
+	if err := tx.Model(&models.Artifact{}).Where("id = ? AND org_id = ?", artifactUUID, ouID).Count(&inOrg).Error; err != nil {
+		return err
+	}
+	if inOrg == 0 {
+		return nil
+	}
+	return repositories.NewArtifactRepo(tx).Delete(tx, artifactUUID.String())
 }
 
 // prepareMCPArtifactDeletes builds the artifacts' delete events in tx, before their rows are deleted.

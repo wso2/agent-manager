@@ -35,6 +35,9 @@ import (
 // postgresBaseline is a fresh database next to the test database, holding the PostgreSQL baseline.
 func postgresBaseline(t *testing.T) *gorm.DB {
 	t.Helper()
+	if config.GetConfig().Database.Driver != config.DBDriverPostgres {
+		t.Skip("needs DB_DRIVER=postgres")
+	}
 	admin := db.DB(context.Background())
 	name := "dbx_" + strings.ReplaceAll(uuid.NewString(), "-", "")
 	require.NoError(t, admin.Exec(`CREATE DATABASE `+name).Error)

@@ -58,7 +58,7 @@ func TestEveryDialectHasTheSameMigrations(t *testing.T) {
 
 func openMigratedSQLite(t *testing.T) *gorm.DB {
 	t.Helper()
-	dsn := "file:" + filepath.Join(t.TempDir(), "amp.db") + "?_pragma=foreign_keys(1)&_time_format=sqlite"
+	dsn := "file:" + filepath.Join(t.TempDir(), "amp.db") + "?_pragma=foreign_keys(1)&_txlock=immediate"
 	gormDB, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{Logger: logger.Discard})
 	require.NoError(t, err)
 	require.NoError(t, MigrateBaseline(gormDB, config.DBDriverSQLite))
@@ -123,7 +123,7 @@ func assertBaselineKeys(t *testing.T, gormDB *gorm.DB) {
 }
 
 func TestWaitForBaseline(t *testing.T) {
-	dsn := "file:" + filepath.Join(t.TempDir(), "amp.db") + "?_pragma=foreign_keys(1)&_time_format=sqlite"
+	dsn := "file:" + filepath.Join(t.TempDir(), "amp.db") + "?_pragma=foreign_keys(1)&_txlock=immediate"
 	gormDB, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{Logger: logger.Discard})
 	require.NoError(t, err)
 

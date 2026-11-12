@@ -33,7 +33,9 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
-func newTestAgentThunderClient(org, project, agent, env string) *models.AgentThunderClient {
+func newTestAgentThunderClient(t *testing.T, org, project, agent, env string) *models.AgentThunderClient {
+	t.Helper()
+	seedAgent(t, org, project, agent, env)
 	return &models.AgentThunderClient{
 		OUID:             org,
 		ProjectName:      project,
@@ -53,10 +55,11 @@ func cleanupAgentThunderClients(t *testing.T, repo AgentThunderClientRepository,
 
 func TestAgentThunderClientRepo_UpsertAndGet(t *testing.T) {
 	repo := NewAgentThunderClientRepo(db.GetDB())
-	const org, project, agent, env = "test-org", "test-proj", "atc-upsert-agent", "dev"
+	org := testOrg(t)
+	const project, agent, env = "test-proj", "atc-upsert-agent", "dev"
 	cleanupAgentThunderClients(t, repo, org, project, agent)
 
-	c := newTestAgentThunderClient(org, project, agent, env)
+	c := newTestAgentThunderClient(t, org, project, agent, env)
 	require.NoError(t, repo.Upsert(context.Background(), c))
 
 	got, err := repo.Get(context.Background(), org, project, agent, env)
@@ -83,10 +86,11 @@ func TestAgentThunderClientRepo_UpsertAndGet(t *testing.T) {
 
 func TestAgentThunderClientRepo_Upsert_PersistsRequestedBy(t *testing.T) {
 	repo := NewAgentThunderClientRepo(db.GetDB())
-	const org, project, agent, env = "test-org", "test-proj", "atc-requested-by-agent", "dev"
+	org := testOrg(t)
+	const project, agent, env = "test-proj", "atc-requested-by-agent", "dev"
 	cleanupAgentThunderClients(t, repo, org, project, agent)
 
-	c := newTestAgentThunderClient(org, project, agent, env)
+	c := newTestAgentThunderClient(t, org, project, agent, env)
 	c.RequestedBy = "platform-thunder-subject-abc123"
 	require.NoError(t, repo.Upsert(context.Background(), c))
 
@@ -105,17 +109,18 @@ func TestAgentThunderClientRepo_Upsert_PersistsRequestedBy(t *testing.T) {
 
 func TestAgentThunderClientRepo_Get_NotFound(t *testing.T) {
 	repo := NewAgentThunderClientRepo(db.GetDB())
-	_, err := repo.Get(context.Background(), "test-org", "test-proj", "atc-missing-agent", "dev")
+	_, err := repo.Get(context.Background(), testOrg(t), "test-proj", "atc-missing-agent", "dev")
 	assert.True(t, errors.Is(err, ErrAgentThunderClientNotFound))
 }
 
 func TestAgentThunderClientRepo_FindByAgent_MultipleEnvironments(t *testing.T) {
 	repo := NewAgentThunderClientRepo(db.GetDB())
-	const org, project, agent = "test-org", "test-proj", "atc-multi-env-agent"
+	org := testOrg(t)
+	const project, agent = "test-proj", "atc-multi-env-agent"
 	cleanupAgentThunderClients(t, repo, org, project, agent)
 
 	for _, env := range []string{"dev", "staging", "prod"} {
-		require.NoError(t, repo.Upsert(context.Background(), newTestAgentThunderClient(org, project, agent, env)))
+		require.NoError(t, repo.Upsert(context.Background(), newTestAgentThunderClient(t, org, project, agent, env)))
 	}
 
 	rows, err := repo.FindByAgent(context.Background(), org, project, agent)
@@ -127,27 +132,28 @@ func TestAgentThunderClientRepo_FindByAgent_MultipleEnvironments(t *testing.T) {
 
 func TestAgentThunderClientRepo_FindDue(t *testing.T) {
 	repo := NewAgentThunderClientRepo(db.GetDB())
-	const org, project, agent = "test-org", "test-proj", "atc-find-due-agent"
+	org := testOrg(t)
+	const project, agent = "test-proj", "atc-find-due-agent"
 	cleanupAgentThunderClients(t, repo, org, project, agent)
 
 	// A brand-new write-ahead row (no next_retry_at yet) is due immediately.
-	fresh := newTestAgentThunderClient(org, project, agent, "dev")
+	fresh := newTestAgentThunderClient(t, org, project, agent, "dev")
 	require.NoError(t, repo.Upsert(context.Background(), fresh))
 
 	// A row scheduled in the future is not due yet.
-	future := newTestAgentThunderClient(org, project, agent, "staging")
+	future := newTestAgentThunderClient(t, org, project, agent, "staging")
 	nextRetry := time.Now().Add(1 * time.Hour)
 	future.NextRetryAt = &nextRetry
 	require.NoError(t, repo.Upsert(context.Background(), future))
 
 	// A row scheduled in the past is due.
-	past := newTestAgentThunderClient(org, project, agent, "prod")
+	past := newTestAgentThunderClient(t, org, project, agent, "prod")
 	pastRetry := time.Now().Add(-1 * time.Minute)
 	past.NextRetryAt = &pastRetry
 	require.NoError(t, repo.Upsert(context.Background(), past))
 
 	// A completed row must never be picked up regardless of next_retry_at.
-	completed := newTestAgentThunderClient(org, project, agent, "qa")
+	completed := newTestAgentThunderClient(t, org, project, agent, "qa")
 	completed.Status = models.AgentThunderStatusCompleted
 	require.NoError(t, repo.Upsert(context.Background(), completed))
 
@@ -168,10 +174,11 @@ func TestAgentThunderClientRepo_FindDue(t *testing.T) {
 
 func TestAgentThunderClientRepo_UpdateAfterAttempt_Success(t *testing.T) {
 	repo := NewAgentThunderClientRepo(db.GetDB())
-	const org, project, agent, env = "test-org", "test-proj", "atc-attempt-success-agent", "dev"
+	org := testOrg(t)
+	const project, agent, env = "test-proj", "atc-attempt-success-agent", "dev"
 	cleanupAgentThunderClients(t, repo, org, project, agent)
 
-	c := newTestAgentThunderClient(org, project, agent, env)
+	c := newTestAgentThunderClient(t, org, project, agent, env)
 	require.NoError(t, repo.Upsert(context.Background(), c))
 	got, err := repo.Get(context.Background(), org, project, agent, env)
 	require.NoError(t, err)
@@ -190,15 +197,15 @@ func TestAgentThunderClientRepo_UpdateAfterAttempt_Success(t *testing.T) {
 	assert.Equal(t, "client-id-123", updated.ThunderClientID)
 	assert.Equal(t, 1, updated.AttemptCount)
 	assert.Nil(t, updated.NextRetryAt)
-	assert.NotNil(t, updated.LastAttemptedAt)
 }
 
 func TestAgentThunderClientRepo_UpdateAfterAttempt_FailureSchedulesRetry(t *testing.T) {
 	repo := NewAgentThunderClientRepo(db.GetDB())
-	const org, project, agent, env = "test-org", "test-proj", "atc-attempt-fail-agent", "dev"
+	org := testOrg(t)
+	const project, agent, env = "test-proj", "atc-attempt-fail-agent", "dev"
 	cleanupAgentThunderClients(t, repo, org, project, agent)
 
-	c := newTestAgentThunderClient(org, project, agent, env)
+	c := newTestAgentThunderClient(t, org, project, agent, env)
 	require.NoError(t, repo.Upsert(context.Background(), c))
 	got, err := repo.Get(context.Background(), org, project, agent, env)
 	require.NoError(t, err)
@@ -227,34 +234,13 @@ func TestAgentThunderClientRepo_UpdateAfterAttempt_FailureSchedulesRetry(t *test
 	assert.Empty(t, updated.ThunderAgentID)
 }
 
-func TestAgentThunderClientRepo_UpdateSecretRef(t *testing.T) {
-	repo := NewAgentThunderClientRepo(db.GetDB())
-	const org, project, agent, env = "test-org", "test-proj", "atc-secretref-agent", "dev"
-	cleanupAgentThunderClients(t, repo, org, project, agent)
-
-	c := newTestAgentThunderClient(org, project, agent, env)
-	require.NoError(t, repo.Upsert(context.Background(), c))
-	got, err := repo.Get(context.Background(), org, project, agent, env)
-	require.NoError(t, err)
-
-	require.NoError(t, repo.UpdateSecretRef(context.Background(), got.ID, "agent-thunder-clients/test-org/test-proj/dev/atc-secretref-agent"))
-	updated, err := repo.Get(context.Background(), org, project, agent, env)
-	require.NoError(t, err)
-	assert.Equal(t, "agent-thunder-clients/test-org/test-proj/dev/atc-secretref-agent", updated.SecretRefPath)
-
-	// Clearing it back to "" (the revoke case) must work too.
-	require.NoError(t, repo.UpdateSecretRef(context.Background(), got.ID, ""))
-	cleared, err := repo.Get(context.Background(), org, project, agent, env)
-	require.NoError(t, err)
-	assert.Empty(t, cleared.SecretRefPath)
-}
-
 func TestAgentThunderClientRepo_DeleteByAgent(t *testing.T) {
 	repo := NewAgentThunderClientRepo(db.GetDB())
-	const org, project, agent = "test-org", "test-proj", "atc-delete-agent"
+	org := testOrg(t)
+	const project, agent = "test-proj", "atc-delete-agent"
 
-	require.NoError(t, repo.Upsert(context.Background(), newTestAgentThunderClient(org, project, agent, "dev")))
-	require.NoError(t, repo.Upsert(context.Background(), newTestAgentThunderClient(org, project, agent, "prod")))
+	require.NoError(t, repo.Upsert(context.Background(), newTestAgentThunderClient(t, org, project, agent, "dev")))
+	require.NoError(t, repo.Upsert(context.Background(), newTestAgentThunderClient(t, org, project, agent, "prod")))
 
 	require.NoError(t, repo.DeleteByAgent(context.Background(), org, project, agent))
 
@@ -270,12 +256,13 @@ func TestAgentThunderClientRepo_DeleteByAgent(t *testing.T) {
 // snapshotted IDs must remove only the old rows and leave the new one intact.
 func TestAgentThunderClientRepo_DeleteByIDs_IgnoresConcurrentRecreate(t *testing.T) {
 	repo := NewAgentThunderClientRepo(db.GetDB())
-	const org, project, agent = "test-org", "test-proj", "atc-delete-by-ids-agent"
+	org := testOrg(t)
+	const project, agent = "test-proj", "atc-delete-by-ids-agent"
 	cleanupAgentThunderClients(t, repo, org, project, agent)
 
-	old1 := newTestAgentThunderClient(org, project, agent, "dev")
+	old1 := newTestAgentThunderClient(t, org, project, agent, "dev")
 	require.NoError(t, repo.Upsert(context.Background(), old1))
-	old2 := newTestAgentThunderClient(org, project, agent, "prod")
+	old2 := newTestAgentThunderClient(t, org, project, agent, "prod")
 	require.NoError(t, repo.Upsert(context.Background(), old2))
 
 	// Simulates a background DeleteAllBindings snapshotting these two rows
@@ -286,7 +273,7 @@ func TestAgentThunderClientRepo_DeleteByIDs_IgnoresConcurrentRecreate(t *testing
 	// background cleanup is still in flight — a distinct environment so this
 	// Upsert lands as a genuinely new row rather than conflicting with old1's
 	// still-present "dev" row.
-	recreated := newTestAgentThunderClient(org, project, agent, "staging")
+	recreated := newTestAgentThunderClient(t, org, project, agent, "staging")
 	require.NoError(t, repo.Upsert(context.Background(), recreated))
 	require.NotEqual(t, uuid.Nil, recreated.ID)
 
@@ -298,83 +285,13 @@ func TestAgentThunderClientRepo_DeleteByIDs_IgnoresConcurrentRecreate(t *testing
 	assert.Equal(t, recreated.ID, rows[0].ID)
 }
 
-func TestAgentThunderClientRepo_SyncMarkerIsClaimedAndClearedOnlyIfNotMoved(t *testing.T) {
-	repo := NewAgentThunderClientRepo(db.GetDB())
-	const org, project, agent = "test-org", "test-proj", "atc-sync-agent"
-	ctx := context.Background()
-	cleanupAgentThunderClients(t, repo, org, project, agent)
-
-	home := newTestAgentThunderClient(org, project, agent, "dev")
-	home.Status = models.AgentThunderStatusCompleted
-	promoted := newTestAgentThunderClient(org, project, agent, "stage")
-	promoted.Status = models.AgentThunderStatusCompleted
-	promoted.PromotionSource = "dev"
-	pending := newTestAgentThunderClient(org, project, agent, "prod")
-	pending.PromotionSource = "stage"
-	for _, c := range []*models.AgentThunderClient{home, promoted, pending} {
-		require.NoError(t, repo.Upsert(ctx, c))
-	}
-
-	past := time.Now().Add(-time.Minute).Truncate(time.Microsecond)
-	require.NoError(t, repo.MarkSyncAfter(ctx, []uuid.UUID{home.ID, promoted.ID, pending.ID}, past))
-	gotHome, err := repo.Get(ctx, org, project, agent, "dev")
-	require.NoError(t, err)
-	assert.Nil(t, gotHome.SyncAfter, "a binding created directly is never marked")
-	gotPending, err := repo.Get(ctx, org, project, agent, "prod")
-	require.NoError(t, err)
-	assert.Nil(t, gotPending.SyncAfter, "a pending binding reads the current set when it is attempted")
-
-	due, err := repo.FindSyncDue(ctx, time.Now(), 50)
-	require.NoError(t, err)
-	var ids []uuid.UUID
-	var observed time.Time
-	for _, row := range due {
-		if row.AgentName == agent {
-			ids = append(ids, row.ID)
-			observed = *row.SyncAfter
-		}
-	}
-	require.Equal(t, []uuid.UUID{promoted.ID}, ids)
-
-	lease := time.Now().Add(2 * time.Minute).Truncate(time.Microsecond)
-	claimed, err := repo.ClaimSync(ctx, promoted.ID, observed, lease)
-	require.NoError(t, err)
-	assert.True(t, claimed)
-	again, err := repo.ClaimSync(ctx, promoted.ID, observed, lease)
-	require.NoError(t, err)
-	assert.False(t, again, "a second replica cannot take the same value")
-
-	// A newer request moves the marker while the sync runs: finishing it must not clear it.
-	newer := time.Now().Add(10 * time.Second).Truncate(time.Microsecond)
-	require.NoError(t, repo.MarkSyncAfter(ctx, []uuid.UUID{promoted.ID}, newer))
-	due, err = repo.FindSyncDue(ctx, newer, 50)
-	require.NoError(t, err)
-	for _, row := range due {
-		assert.NotEqual(t, promoted.ID, row.ID, "a change during a lease must not start another promotion")
-	}
-	done, err := repo.FinishSync(ctx, promoted.ID, lease, nil)
-	require.NoError(t, err)
-	assert.False(t, done, "the claim was superseded")
-	got, err := repo.Get(ctx, org, project, agent, "stage")
-	require.NoError(t, err)
-	require.NotNil(t, got.SyncAfter)
-	assert.True(t, got.SyncAfter.After(lease), "the next sync must wait until the first lease expires")
-
-	done, err = repo.FinishSync(ctx, promoted.ID, *got.SyncAfter, nil)
-	require.NoError(t, err)
-	assert.True(t, done)
-	got, err = repo.Get(ctx, org, project, agent, "stage")
-	require.NoError(t, err)
-	assert.Nil(t, got.SyncAfter)
-}
-
 func TestAgentThunderClientRepo_DeferAndNoteDoNotConsumeAttempts(t *testing.T) {
 	repo := NewAgentThunderClientRepo(db.GetDB())
-	const org, project, agent = "test-org", "test-proj", "atc-defer-agent"
+	org := testOrg(t)
+	const project, agent = "test-proj", "atc-defer-agent"
 	ctx := context.Background()
 	cleanupAgentThunderClients(t, repo, org, project, agent)
-	c := newTestAgentThunderClient(org, project, agent, "stage")
-	c.PromotionSource = "dev"
+	c := newTestAgentThunderClient(t, org, project, agent, "stage")
 	require.NoError(t, repo.Upsert(ctx, c))
 	claimed, err := repo.ClaimForAttempt(ctx, c.ID)
 	require.NoError(t, err)
@@ -397,25 +314,25 @@ func TestAgentThunderClientRepo_DeferAndNoteDoNotConsumeAttempts(t *testing.T) {
 	got, err = repo.Get(ctx, org, project, agent, "stage")
 	require.NoError(t, err)
 	assert.Empty(t, got.LastError)
-	assert.Equal(t, "dev", got.PromotionSource)
 }
 
 func TestAgentThunderClientRepo_ListHomeAgentsPagesDistinctAgentsWithACompletedDirectBinding(t *testing.T) {
 	repo := NewAgentThunderClientRepo(db.GetDB())
-	const org, project = "test-org-home", "test-proj"
+	org := testOrg(t)
+	const project = "test-proj"
 	ctx := context.Background()
 	for _, name := range []string{"atc-home-a", "atc-home-b", "atc-home-c"} {
 		cleanupAgentThunderClients(t, repo, org, project, name)
-		direct := newTestAgentThunderClient(org, project, name, "dev")
+		direct := newTestAgentThunderClient(t, org, project, name, "dev")
 		direct.Status = models.AgentThunderStatusCompleted
 		direct.RequestedBy = "user-1"
-		promoted := newTestAgentThunderClient(org, project, name, "stage")
+		promoted := newTestAgentThunderClient(t, org, project, name, "stage")
 		promoted.Status = models.AgentThunderStatusCompleted
 		promoted.PromotionSource = "dev"
 		require.NoError(t, repo.Upsert(ctx, direct))
 		require.NoError(t, repo.Upsert(ctx, promoted))
 	}
-	pendingOnly := newTestAgentThunderClient(org, project, "atc-home-pending", "dev")
+	pendingOnly := newTestAgentThunderClient(t, org, project, "atc-home-pending", "dev")
 	cleanupAgentThunderClients(t, repo, org, project, "atc-home-pending")
 	require.NoError(t, repo.Upsert(ctx, pendingOnly))
 

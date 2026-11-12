@@ -41,7 +41,7 @@ func TestUpdateGatewayPersistsRuntimeURLColumn(t *testing.T) {
 	svc := services.NewPlatformGatewayService(repositories.NewGatewayRepo(tx), nil)
 	want := "http://api-platform-acme-dev-gw-gateway-gateway-runtime.acme-dev:22893"
 
-	resp, err := svc.UpdateGateway(id.String(), "runtime-url-test-org", nil, nil, nil, nil, &want)
+	resp, err := svc.UpdateGateway(id.String(), gatewayOrgOf(t, tx, id), nil, nil, nil, nil, &want)
 	require.NoError(t, err)
 	require.Equal(t, want, resp.RuntimeURL)
 
@@ -58,7 +58,7 @@ func TestUpdateGatewayRejectsInvalidRuntimeURL(t *testing.T) {
 	svc := services.NewPlatformGatewayService(repositories.NewGatewayRepo(tx), nil)
 	bad := "http://exfil.dev:53"
 
-	_, err := svc.UpdateGateway(id.String(), "runtime-url-test-org", nil, nil, nil, nil, &bad)
+	_, err := svc.UpdateGateway(id.String(), gatewayOrgOf(t, tx, id), nil, nil, nil, nil, &bad)
 	require.ErrorIs(t, err, utils.ErrBadRequest)
 	require.False(t, runtimeURLOf(t, tx, id).Valid)
 }

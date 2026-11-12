@@ -34,14 +34,8 @@ import (
 func seedAgentDeployment(t *testing.T) (artifactUUID uuid.UUID, ouID string) {
 	t.Helper()
 	gdb := db.GetDB()
-	ouID = "ou-" + uuid.New().String()[:8]
-	gatewayID, artifactUUID := uuid.New(), uuid.New()
-	name := "dep-gw-" + gatewayID.String()[:8]
-	require.NoError(t, gdb.Exec(
-		`INSERT INTO gateways (uuid, name, display_name, vhost, gateway_functionality_type, ou_id, is_active)
-		 VALUES (?, ?, ?, ?, ?, ?, TRUE)`,
-		gatewayID, name, name, "gw.example", models.GatewayRoleIngress, ouID,
-	).Error)
+	ouID = newOrg(t)
+	gatewayID, artifactUUID := newGateway(t, ouID, models.GatewayRoleIngress), uuid.New()
 	require.NoError(t, NewArtifactRepo(gdb).Create(gdb, &models.Artifact{
 		UUID: artifactUUID, Handle: "proj/agent/" + artifactUUID.String(), Name: "agent-" + artifactUUID.String()[:8],
 		Version: "v1.0", Kind: models.KindAgent, OUID: ouID,
@@ -58,10 +52,6 @@ func seedAgentDeployment(t *testing.T) (artifactUUID uuid.UUID, ouID string) {
 		Status: models.DeploymentAckStatusSuccess,
 	}, nil)
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		gdb.Exec(`DELETE FROM artifacts WHERE uuid = ?`, artifactUUID)
-		gdb.Exec(`DELETE FROM gateways WHERE uuid = ?`, gatewayID)
-	})
 	return artifactUUID, ouID
 }
 
@@ -70,7 +60,7 @@ func TestCreateWithLimitEnforcementRecordsDesiredStateAndPerformedAt(t *testing.
 	artifactUUID, ouID := seedAgentDeployment(t)
 	gdb := db.GetDB()
 	var row models.DeploymentStatusRecord
-	require.NoError(t, gdb.Where("artifact_uuid = ? AND ou_id = ?", artifactUUID, ouID).First(&row).Error)
+	require.NoError(t, gdb.Where("artifact_id = ? AND org_id = ?", artifactUUID, ouID).First(&row).Error)
 	assert.Equal(t, models.DeploymentStatusDeployed, row.StatusDesired)
 	assert.Equal(t, models.NewPerformedAt(row.PerformedAt), row.PerformedAt.UTC(), "performed_at is in milliseconds")
 	require.NotNil(t, row.DeploymentID)

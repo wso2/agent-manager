@@ -27,11 +27,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/db"
+	"github.com/wso2/agent-manager/agent-manager-service/db/dbtest"
+	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 )
@@ -102,13 +105,10 @@ func TestAgentThunderReconciler_StopsOnStopChannel(t *testing.T) {
 func TestAgentThunderReconciler_AdvisoryLockBlocksConcurrentCycle(t *testing.T) {
 	ctx := context.Background()
 
-	holdTx := db.DB(ctx).Begin()
-	require.NoError(t, holdTx.Error)
-	defer holdTx.Rollback()
-
-	var locked bool
-	require.NoError(t, holdTx.Raw("SELECT pg_try_advisory_xact_lock(?)", reconcilerLockID).Scan(&locked).Error)
+	locked, err := dbx.TryLock(ctx, db.DB(ctx), reconcilerLock, "another-instance", dbx.Now(), time.Minute)
+	require.NoError(t, err)
 	require.True(t, locked)
+	t.Cleanup(func() { _ = dbx.Unlock(ctx, db.DB(ctx), reconcilerLock, "another-instance") })
 
 	var attemptCalled atomic.Int32
 	provisioning := &fakeProvisioningService{
@@ -124,9 +124,12 @@ func TestAgentThunderReconciler_AdvisoryLockBlocksConcurrentCycle(t *testing.T) 
 func TestAgentThunderReconciler_RunCycle_RetriesDueBindings(t *testing.T) {
 	ctx := context.Background()
 	repo := repositories.NewAgentThunderClientRepo(db.GetDB())
-	const org, project, agent = "test-org", "test-proj", "reconciler-cycle-agent"
+	org := dbtest.Org(t, db.GetDB())
+	const project, agent = "test-proj", "reconciler-cycle-agent"
+	dbtest.EnsureAgent(t, db.GetDB(), org, project, agent)
 	t.Cleanup(func() { _ = repo.DeleteByAgent(ctx, org, project, agent) })
 
+	seedEnvs(t, org, "dev", "staging")
 	due := &models.AgentThunderClient{
 		OUID: org, ProjectName: project, AgentName: agent, EnvironmentName: "dev",
 		ProvisioningType: models.AgentProvisioningTypeExternal, Status: models.AgentThunderStatusPending,
@@ -169,11 +172,14 @@ func TestAgentThunderReconciler_RunCycle_RetriesDueBindings(t *testing.T) {
 func TestAgentThunderReconciler_RunCycle_AttemptsRunConcurrently(t *testing.T) {
 	ctx := context.Background()
 	repo := repositories.NewAgentThunderClientRepo(db.GetDB())
-	const org, project, agent = "test-org", "test-proj", "reconciler-concurrency-agent"
+	org := dbtest.Org(t, db.GetDB())
+	const project, agent = "test-proj", "reconciler-concurrency-agent"
+	dbtest.EnsureAgent(t, db.GetDB(), org, project, agent)
 	t.Cleanup(func() { _ = repo.DeleteByAgent(ctx, org, project, agent) })
 
 	const n = 5
 	envs := []string{"env1", "env2", "env3", "env4", "env5"}
+	seedEnvs(t, org, envs...)
 	for _, env := range envs {
 		require.NoError(t, repo.Upsert(ctx, &models.AgentThunderClient{
 			OUID: org, ProjectName: project, AgentName: agent, EnvironmentName: env,
@@ -216,12 +222,15 @@ func TestAgentThunderReconciler_RunCycle_AttemptsRunConcurrently(t *testing.T) {
 func TestAgentThunderReconciler_RunCycle_ConcurrencyIsCapped(t *testing.T) {
 	ctx := context.Background()
 	repo := repositories.NewAgentThunderClientRepo(db.GetDB())
-	const org, project, agent = "test-org", "test-proj", "reconciler-cap-concurrency-agent"
+	org := dbtest.Org(t, db.GetDB())
+	const project, agent = "test-proj", "reconciler-cap-concurrency-agent"
+	dbtest.EnsureAgent(t, db.GetDB(), org, project, agent)
 	t.Cleanup(func() { _ = repo.DeleteByAgent(ctx, org, project, agent) })
 
 	const totalBindings = 15
 	for i := range totalBindings {
 		env := fmt.Sprintf("env-%d", i)
+		seedEnvs(t, org, env)
 		require.NoError(t, repo.Upsert(ctx, &models.AgentThunderClient{
 			OUID: org, ProjectName: project, AgentName: agent, EnvironmentName: env,
 			ProvisioningType: models.AgentProvisioningTypeExternal, Status: models.AgentThunderStatusPending,
@@ -309,3 +318,11 @@ func (f *fakeProvisioningService) GetAgentGroups(context.Context, string, string
 
 // compile-time interface check
 var _ AgentThunderProvisioningService = (*fakeProvisioningService)(nil)
+
+// seedEnvs creates the organization's environments named names.
+func seedEnvs(t *testing.T, org string, names ...string) {
+	t.Helper()
+	for _, name := range names {
+		dbtest.EnvironmentNamed(t, db.GetDB(), org, uuid.New(), name)
+	}
+}

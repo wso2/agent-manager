@@ -27,6 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
+	"github.com/wso2/agent-manager/agent-manager-service/db/dbtest"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 )
 
@@ -36,26 +37,18 @@ func seedCatalogProvider(t *testing.T) (models.Placement, uuid.UUID) {
 	t.Helper()
 	gdb := db.GetDB()
 	p := seedPlacement(t, models.KindLLMProvider)
-	gdb.Exec(`DELETE FROM artifacts WHERE uuid = ?`, p.ArtifactUUID)
 	provider := &models.LLMProvider{
 		TemplateHandle: "openai",
 		Configuration: models.LLMProviderConfig{
-			Name: "Catalog " + p.Handle, Handle: p.Handle, Version: "v1.0", Template: "openai",
+			Name: "Catalog " + p.Handle, Handle: p.Handle + "-provider", Version: "v1.0", Template: "openai",
 		},
 		Status: "CREATED",
 	}
-	require.NoError(t, NewLLMProviderRepo(gdb).Create(gdb, provider, p.Handle, provider.Configuration.Name, "v1.0", p.OUID))
+	require.NoError(t, NewLLMProviderRepo(gdb).Create(gdb, provider, provider.Configuration.Handle,
+		provider.Configuration.Name, "v1.0", p.OUID))
 	require.NoError(t, NewArtifactRepo(gdb).UpdateCatalogStatus(gdb, provider.UUID.String(), p.OUID, true))
-	env := uuid.New()
-	require.NoError(t, NewGatewayRepo(gdb).CreateEnvironmentMapping(&models.GatewayEnvironmentMapping{
-		GatewayUUID: p.GatewayUUID, EnvironmentUUID: env,
-	}))
-	t.Cleanup(func() {
-		gdb.Exec(`DELETE FROM llm_providers WHERE uuid = ?`, provider.UUID)
-		gdb.Exec(`DELETE FROM artifacts WHERE uuid = ?`, provider.UUID)
-		gdb.Exec(`DELETE FROM gateway_environment_mappings WHERE gateway_uuid = ?`, p.GatewayUUID)
-	})
-	p.ArtifactUUID = provider.UUID
+	env := dbtest.Environment(t, gdb, p.OUID) // the gateway is mapped to it
+	p.ArtifactUUID, p.Handle = provider.UUID, provider.Configuration.Handle
 	return p, env
 }
 
@@ -137,7 +130,7 @@ func TestCatalogEnvironmentFilterByGatewayHosting(t *testing.T) {
 	assert.Len(t, list(models.GatewayHostingManaged), 1, "seeded gateways are managed by default")
 	assert.Empty(t, list(models.GatewayHostingSelfHosted))
 
-	require.NoError(t, db.GetDB().Exec(`UPDATE gateways SET hosting = ? WHERE uuid = ?`,
+	require.NoError(t, db.GetDB().Exec(`UPDATE gateways SET hosting = ? WHERE id = ?`,
 		models.GatewayHostingSelfHosted, p.GatewayUUID).Error)
 	assert.Empty(t, list(models.GatewayHostingManaged))
 	assert.Len(t, list(models.GatewayHostingSelfHosted), 1)

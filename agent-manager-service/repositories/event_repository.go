@@ -445,7 +445,7 @@ func (r *eventRepository) UpdateDestination(
 		d.SecretID = secretID
 		if err := tx.Model(&models.EventDestination{}).Where("id = ?", d.ID).
 			Select("name", "description", "config", "secret_id", "availability", "updated_at").
-			Updates(d).Error; err != nil {
+			UpdateColumns(d).Error; err != nil {
 			return err
 		}
 		if secretID == nil {

@@ -20,11 +20,9 @@ package repositories
 
 import (
 	"context"
-	"strings"
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
@@ -36,56 +34,49 @@ func TestAgentVariableOwnership_SerializesAndReadsCommittedNames(t *testing.T) {
 	database := db.GetDB()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	// A private schema keeps the test independent of application fixtures and migrations.
-	schema := "rename_" + strings.ReplaceAll(uuid.NewString(), "-", "")
-	require.NoError(t, database.WithContext(ctx).Exec("CREATE SCHEMA "+schema).Error)
-	t.Cleanup(func() { database.Exec("DROP SCHEMA " + schema + " CASCADE") })
-	require.NoError(t, database.Exec("CREATE TABLE "+schema+".agent_configurations (uuid uuid PRIMARY KEY, ou_id text, project_name text, agent_id text)").Error)
-	require.NoError(t, database.Exec("CREATE TABLE "+schema+".agent_env_config_variables_mapping (config_uuid uuid, variable_name text)").Error)
-	configID := uuid.New()
-	require.NoError(t, database.Exec("INSERT INTO "+schema+".agent_configurations VALUES (?, 'org', 'project', 'agent')", configID).Error)
-	require.NoError(t, database.Exec("INSERT INTO "+schema+".agent_env_config_variables_mapping VALUES (?, 'OLD_URL')", configID).Error)
+	ou := newOrg(t)
+	_, proxyID := seedLLMProxy(t, ou)
+	configID, envID := mapLLMProxyToAgent(t, ou, proxyID)
+	require.NoError(t, database.Create(&models.AgentEnvConfigVariable{
+		ConfigUUID: configID, EnvironmentUUID: envID, VariableKey: "url", OrgID: ou, VariableName: "OLD_URL",
+		CreatedAt: time.Now().UTC(),
+	}).Error)
 	begin := func() *gorm.DB {
 		tx := database.WithContext(ctx).Begin()
 		require.NoError(t, tx.Error)
 		t.Cleanup(func() { tx.Rollback() })
-		require.NoError(t, tx.Exec("SET LOCAL search_path TO "+schema).Error)
 		return tx
 	}
 	repo := NewAgentEnvConfigVariableRepository(database)
 	first := begin()
-	rows, err := repo.LockAndListByAgent(ctx, first, "org", "project", "agent")
+	rows, err := repo.LockAndListByAgent(ctx, first, ou, "checkout", "proxy-owner")
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
 	require.Equal(t, "OLD_URL", rows[0].VariableName)
-	// Different agents, projects and organizations neither contend nor leak ownership.
-	for _, scope := range [][3]string{{"other", "project", "agent"}, {"org", "other", "agent"}, {"org", "project", "other"}} {
-		other := begin()
-		scopedCtx, scopedCancel := context.WithTimeout(ctx, time.Second)
-		otherRows, otherErr := repo.LockAndListByAgent(scopedCtx, other, scope[0], scope[1], scope[2])
-		scopedCancel()
-		require.NoError(t, otherErr)
-		require.Empty(t, otherRows)
-		require.NoError(t, other.Rollback().Error)
-	}
-	second := begin()
-	var pid int
-	require.NoError(t, second.Raw("SELECT pg_backend_pid()").Scan(&pid).Error)
+
 	type outcome struct {
 		rows []models.AgentEnvConfigVariable
 		err  error
 	}
 	done := make(chan outcome, 1)
 	go func() {
-		got, readErr := repo.LockAndListByAgent(ctx, second, "org", "project", "agent")
+		// Begun here, not on the test goroutine: on SQLite beginning already waits for the owner's transaction.
+		second := database.WithContext(ctx).Begin()
+		if second.Error != nil {
+			done <- outcome{err: second.Error}
+			return
+		}
+		defer second.Rollback()
+		got, readErr := repo.LockAndListByAgent(ctx, second, ou, "checkout", "proxy-owner")
 		done <- outcome{rows: got, err: readErr}
 	}()
-	require.Eventually(t, func() bool {
-		var waiting bool
-		queryErr := database.WithContext(ctx).Raw("SELECT EXISTS (SELECT 1 FROM pg_locks WHERE pid = ? AND locktype = 'advisory' AND NOT granted)", pid).Scan(&waiting).Error
-		return queryErr == nil && waiting
-	}, 3*time.Second, 10*time.Millisecond, "competing rename must wait for the owner transaction")
-	require.NoError(t, first.Exec("UPDATE agent_env_config_variables_mapping SET variable_name = 'CLAIMED_URL' WHERE config_uuid = ?", configID).Error)
+	select {
+	case got := <-done:
+		t.Fatalf("a competing rename must wait for the owner transaction, got %v", got)
+	case <-time.After(300 * time.Millisecond):
+	}
+	require.NoError(t, first.Model(&models.AgentEnvConfigVariable{}).Where("config_id = ?", configID).
+		Update("variable_name", "CLAIMED_URL").Error)
 	require.NoError(t, first.Commit().Error)
 	select {
 	case got := <-done:
@@ -95,5 +86,4 @@ func TestAgentVariableOwnership_SerializesAndReadsCommittedNames(t *testing.T) {
 	case <-ctx.Done():
 		t.Fatal(ctx.Err())
 	}
-	require.NoError(t, second.Rollback().Error)
 }

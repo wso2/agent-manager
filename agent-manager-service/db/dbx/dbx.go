@@ -20,6 +20,8 @@ package dbx
 
 import (
 	"context"
+	"database/sql/driver"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -234,4 +236,18 @@ func Unlock(ctx context.Context, db *gorm.DB, name, owner string) error {
 func LockRows(tx *gorm.DB, table, column, where string, args ...any) (int64, error) {
 	res := tx.Table(table).Where(where, args...).Update(column, gorm.Expr(column))
 	return res.RowsAffected, res.Error
+}
+
+// JSON is v encoded as JSON text, for a JSON column set in a map update: GORM applies a field's serializer only when
+// it writes the struct, and only some drivers encode a Go struct or map on their own.
+func JSON(v any) driver.Valuer { return jsonValue{v} }
+
+type jsonValue struct{ v any }
+
+func (j jsonValue) Value() (driver.Value, error) {
+	b, err := json.Marshal(j.v)
+	if err != nil {
+		return nil, err
+	}
+	return string(b), nil
 }
