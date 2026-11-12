@@ -23,16 +23,21 @@ Startup, in order:
 
 ## Run
 
-From the repository root, `make up` builds the Agent Manager images from this checkout and starts the whole stack; `make dev-up` instead runs the API from source under air (hot reload, via `docker-compose.dev.yml`) and the console with `make console` on :3000. Both create `.env` from `.env.example` on first run. `make help` lists the rest (`down`, `logs`, `reset`, `thunder-reset`, …).
+From a release bundle (this folder, unpacked), the images are already pinned in `.env.example`:
 
-Without make, from this directory:
+```bash
+cp .env.example .env
+docker compose up -d --wait
+```
+
+From a source checkout, `make up` at the repository root builds the Agent Manager images and starts the whole stack; `make dev-up` instead runs the API from source under air (hot reload, via `docker-compose.dev.yml`) and the console with `make console` on :3000. Both create `.env` from `.env.example` on first run. `make help` lists the rest (`down`, `logs`, `reset`, `thunder-reset`, …). Without make, run this from `deployments/standalone`:
 
 ```bash
 cp .env.example .env
 docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build --wait
 ```
 
-`docker-compose.build.yml` builds the Agent Manager images from this checkout. Release bundles leave it out and pin `.env.example` to the published images, so there it is just `docker compose up -d --wait`.
+`docker-compose.build.yml` builds the Agent Manager images from the checkout; release bundles leave it out.
 
 Sign in to the console as `admin` with `THUNDER_ADMIN_PASSWORD` from `.env`.
 
@@ -42,7 +47,7 @@ SQLite is the default database. To use PostgreSQL, uncomment `COMPOSE_PROFILES=p
 
 On Linux hosts OpenSearch needs `sudo sysctl -w vm.max_map_count=262144`; Docker Desktop and Colima already set it.
 
-The ports clash with the k3d development cluster (8080, 19080). Stop one before starting the other, or change the ports in `.env`.
+On macOS with Colima, keep this folder inside your home folder: Colima shares only that with its VM, and the bind mounts come up empty anywhere else.
 
 ## Send a trace
 

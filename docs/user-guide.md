@@ -36,6 +36,8 @@ tar xzf wso2-agent-manager-standalone-<version>.tar.gz && cd standalone
 cp .env.example .env
 ```
 
+On macOS with Colima, unpack it inside your home folder. Colima shares only your home folder with its VM, so the stack can't read its files from anywhere else, such as `/tmp`.
+
 Edit `.env` before the first start. The defaults are for local development only. Change these for anything shared:
 
 | Setting | What to set |
@@ -69,12 +71,12 @@ The API creates and migrates its tables on every start. Switching databases late
 
 Open http://localhost:3000 and sign in as `admin` with the `THUNDER_ADMIN_PASSWORD` from `.env`.
 
-Each organization has one project named **Default** to start with. Create more projects from the console.
+A new install has no projects. Create one with **Add project** before you register an agent.
 
 ## Register an agent and send traces
 
-1. In the console, open a project and click **Add Agent**.
-2. In the **Set up agent** panel, choose your agent's language, pick a token duration and click **Generate**. Copy the `AMP_OTEL_ENDPOINT` and `AMP_AGENT_API_KEY` values it shows. The key is shown only once.
+1. In the console, open a project, click **New agent**, enter a name and click **Register**.
+2. The **Setup Agent** panel opens with an API key already generated, valid for 90 days. To change that, pick another **Token Duration** and click **Regenerate**. Choose your agent's language, then copy the `AMP_OTEL_ENDPOINT` and `AMP_AGENT_API_KEY` values it shows. The key is shown only once; reopen the panel later with **Set up agent** on the agent's page to generate a new one.
 3. Run your agent with those two values set. For a Python agent, install [amp-instrumentation](../libs/amp-instrumentation) and start the agent through `amp-instrument`; it traces common AI frameworks with no code changes:
 
    ```bash
@@ -122,6 +124,7 @@ The data lives in Docker volumes named after `COMPOSE_PROJECT_NAME` (default `am
 ## Troubleshooting
 
 - **A port is already in use:** change the matching `*_PORT` setting in `.env` and start again.
+- **`thunder-setup` fails with `can't open '/amp/thunder/entrypoint.sh'`:** Docker can't see the bundle's folder. On macOS with Colima, move the `standalone` folder inside your home folder.
 - **`thunder.amp.localhost` or `*.gateway.localhost` doesn't resolve:** browsers resolve `*.localhost` to 127.0.0.1 themselves, but some command-line tools and agent runtimes don't. Add the names to `/etc/hosts`, or call `localhost:19080` with a `Host: default-default.gateway.localhost` header.
 - **OpenSearch exits on Linux:** set `vm.max_map_count` as shown under Requirements.
 - **Traces don't appear:** check that the agent's key hasn't expired, and that the agent can reach the gateway address in `AMP_OTEL_ENDPOINT`. `docker compose logs gateway-runtime otel-collector` shows rejected or failed requests.
