@@ -8,13 +8,11 @@ An open control plane designed for enterprises to deploy, manage, and govern AI 
 
 ## Overview
 
-WSO2 Agent Manager provides a comprehensive platform for enterprise AI agent management. It enables organizations to deploy AI agents (both internally hosted and externally deployed), monitor their behavior through full-stack observability, and enforce governance policies at scale.
+WSO2 Agent Manager provides a platform for enterprise AI agent management. Organizations register the AI agents they run, govern how those agents reach models, tools and other agents, and trace what they do.
 
-Built on [OpenChoreo](https://github.com/openchoreo/openchoreo) for internal agent deployments, the platform leverages OpenTelemetry for extensible instrumentation across multiple AI frameworks.
+This branch is **AMP Lite**, a development preview of Agent Manager without OpenChoreo. Lite connects external agents only: agents run wherever you host them and are registered in AMP, which issues their identities, fronts their traffic through the AI Gateway and collects their traces. Each organization has one internal `default` environment that the console and API never show. Hosted agents (builds and deployments) and evaluations are deferred; their API routes answer `501 Not Implemented`. Lite is not production-ready.
 
 ## Architecture
-
-AMP Lite (Agent Manager without OpenChoreo, development preview):
 
 ![AMP Lite architecture](docs/amp-lite/architecture.png)
 
@@ -23,36 +21,43 @@ AMP Lite (Agent Manager without OpenChoreo, development preview):
 
 ## Key Features
 
-- **Deploy at Scale** - Deploy and run AI agents on Kubernetes with production-ready configurations
-- **Lifecycle Management** - Manage agent versions, configurations, and deployments from a unified control plane
-- **Governance** - Enforce policies, manage access controls, and ensure compliance across all agents
-- **Full Observability** - Capture traces, metrics, and logs for complete visibility into agent behavior
+- **External Agents** - Register agents hosted anywhere and manage their configuration from one control plane
+- **Agent Identity** - Give every agent its own identity and OAuth client in ThunderID
+- **AI Gateway** - Route agent traffic and LLM, MCP and A2A calls through a gateway with API keys, OAuth, guardrails and rate limits
+- **Governance** - Enforce policies and access controls with role-based permissions and an audit log
+- **Tracing** - Capture OpenTelemetry traces per organization, project and agent, and browse them in the console
 - **Auto-Instrumentation** - OpenTelemetry-based instrumentation for AI frameworks with zero code changes
-- **External Agent Support** - Monitor and govern externally deployed agents alongside internal ones
 
 ## Components
 
 | Component | Description |
 |-----------|-------------|
-| **amp-instrumentation** | Python auto-instrumentation package for AI frameworks | 
+| **amp-instrumentation** | Python auto-instrumentation package for AI frameworks |
 | **amp-console** | Web-based management console for the platform |
-| **amp-api** | Backend API powering the control plane | 
-| **amp-trace-observer** | API for querying and analyzing trace data | 
-| **amp-python-instrumentation-provider** | Kubernetes init container for automatic Python instrumentation |
+| **amp-api** | Backend API powering the control plane |
+| **amp-trace-observer** | API for querying trace data in OpenSearch |
+| **amp-python-instrumentation-provider** | Kubernetes init container for automatic Python instrumentation of hosted agents (not used in Lite yet) |
 
 ## Helm Charts
 
-Deploy WSO2 Agent Manager on Kubernetes using our Helm charts:
-
 | Chart | Description |
 |-------|-------------|
-| `wso2-agent-manager` | Main platform deployment |
-| `wso2-amp-build-extension` | Build extension for OpenChoreo |
-| `wso2-amp-observability-extension` | Observability stack extension for OpenChoreo |
+| `wso2-agent-manager` | Main platform deployment: console and Agent Manager API |
+| `wso2-amp-thunder-extension` | ThunderID identity provider for people, services and agents |
+| `wso2-amp-api-platform-gateway-extension` | AI Gateway, registered with the platform |
+| `wso2-amp-observability-extension` | Agent Manager Observer for querying traces |
 
 ## Getting Started
 
-For installation instructions and a step-by-step guide, see the [Quick Start Guide](https://wso2.com/agent-platform/docs/latest/get-started/quick-start/).
+AMP Lite runs from source in development:
+
+```bash
+make setup
+```
+
+This installs the dev tools, starts a Colima VM and a local k3d cluster, installs the prerequisites, builds and starts the platform, and opens the console at http://localhost:3000 (API at http://localhost:9000). Run `make help` for the individual steps.
+
+For the released Agent Manager, which runs on OpenChoreo, see the [Quick Start Guide](https://wso2.com/agent-platform/docs/latest/get-started/quick-start/).
 
 ## Contributing
 
