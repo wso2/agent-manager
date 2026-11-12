@@ -34,6 +34,8 @@ tags:
     description: Observer Service-backed component and build logs (requires JWT)
   - name: metrics
     description: Observer Service-backed resource metrics (requires JWT)
+  - name: config
+    description: Which observability features this deployment serves (requires JWT)
 
 paths:
   /health:
@@ -166,6 +168,8 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/TraceForbidden"
         "503":
           $ref: "#/components/responses/ObserverUnavailable"
         "500":
@@ -243,6 +247,8 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/TraceForbidden"
         "503":
           $ref: "#/components/responses/ObserverUnavailable"
         "500":
@@ -294,6 +300,10 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/TraceForbidden"
+        "404":
+          $ref: "#/components/responses/TraceNotFound"
         "503":
           $ref: "#/components/responses/ObserverUnavailable"
         "500":
@@ -307,6 +317,9 @@ paths:
       description: |
         Returns the full span including all OTEL attributes and enriched AmpAttributes
         (semantic kind, input/output, token usage, LLM data, tool calls, etc.).
+
+        `organization` is optional. When it is sent, a span outside that organization returns 404.
+        On the `openchoreo` backend spans carry no organization, so it is not checked there.
       operationId: getSpanDetail
       security:
         - bearerAuth: []
@@ -325,6 +338,7 @@ paths:
           schema:
             type: string
             example: "a1b2c3d4e5f60001"
+        - $ref: "#/components/parameters/organizationOptional"
       responses:
         "200":
           description: Full enriched span
@@ -336,10 +350,41 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/TraceForbidden"
+        "404":
+          $ref: "#/components/responses/TraceNotFound"
         "503":
           $ref: "#/components/responses/ObserverUnavailable"
         "500":
           $ref: "#/components/responses/InternalError"
+
+  /api/v1/observability/config:
+    get:
+      tags:
+        - config
+      summary: Get the observability configuration
+      description: |
+        Says whether traces are served and which backend (`TRACE_BACKEND`) serves them, so a client
+        can hide trace pages when traces are off.
+      operationId: getObservabilityConfig
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Observability configuration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ObservabilityConfig"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: The token lacks the trace-read scope
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /api/v1/logs:
     get:
@@ -496,6 +541,14 @@ components:
       description: Environment name
       schema:
         type: string
+    organizationOptional:
+      name: organization
+      in: query
+      required: false
+      description: Organization name; when sent, the span must belong to it
+      schema:
+        type: string
+        example: "default"
     projectOptional:
       name: project
       in: query
@@ -709,11 +762,35 @@ components:
           schema:
             $ref: "#/components/schemas/ErrorResponse"
     ObserverUnavailable:
-      description: Observer Service not configured (OPENCHOREO_OBSERVER_URL unset)
+      description: Traces are disabled (`TRACE_BACKEND=off`); `error` is `observability_disabled`
       content:
         application/json:
           schema:
             $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error: observability_disabled
+            message: Traces are disabled
+    TraceForbidden:
+      description: |
+        The token lacks the trace-read scope, or `organization` is not the caller's organization
+        (the `ouHandle` claim of a user token). Tokens with no `ouHandle`, such as client-credentials
+        tokens, are not checked against `organization`.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error: error
+            message: organization does not match the caller's organization
+    TraceNotFound:
+      description: The trace or span is not in the requested organization
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error: error
+            message: trace or span not found
     Forbidden:
       description: Publisher-audience (`amp-publisher-*`) tokens are not permitted on this endpoint
       content:
@@ -728,6 +805,25 @@ components:
             $ref: "#/components/schemas/ErrorResponse"
 
   schemas:
+    ObservabilityConfig:
+      type: object
+      required:
+        - traces
+      properties:
+        traces:
+          type: object
+          required:
+            - enabled
+            - backend
+          properties:
+            enabled:
+              type: boolean
+              description: False when `TRACE_BACKEND` is `off`
+            backend:
+              type: string
+              description: The `TRACE_BACKEND` value
+              example: openchoreo
+
     HealthOkResponse:
       type: object
       required:
@@ -807,6 +903,10 @@ components:
           nullable: true
         attributes:
           type: object
+          additionalProperties: true
+        resource:
+          type: object
+          description: The span's OTel resource attributes
           additionalProperties: true
 
     FullTrace:
@@ -1101,6 +1201,10 @@ components:
           type: string
         spanName:
           type: string
+        spanKind:
+          type: string
+          description: Semantic span type, derived from the span name
+          enum: [llm, tool, embedding, retriever, rerank, agent, crewaitask, chain, unknown]
         parentSpanId:
           type: string
           nullable: true
@@ -1163,7 +1267,7 @@ components:
         kind:
           type: string
           description: Semantic span type
-          enum: [llm, tool, embedding, retriever, agent, crewaitask, chain, unknown]
+          enum: [llm, tool, embedding, retriever, rerank, agent, crewaitask, chain, unknown]
         input:
           description: Input data (type varies by kind)
           nullable: true
@@ -1208,6 +1312,9 @@ components:
           type: integer
         totalTokens:
           type: integer
+        partial:
+          type: boolean
+          description: True when the token count was summed over only some of the trace's spans
 
     TraceStatus:
       type: object

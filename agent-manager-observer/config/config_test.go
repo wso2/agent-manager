@@ -199,3 +199,45 @@ func TestObserverConfig_ValidateClientCredentials(t *testing.T) {
 		})
 	}
 }
+
+func TestLoad_TraceBackendDefaultsToOpenChoreo(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("TRACE_BACKEND", "")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.Traces.Backend != TraceBackendOpenChoreo {
+		t.Errorf("Traces.Backend = %q, want %q", cfg.Traces.Backend, TraceBackendOpenChoreo)
+	}
+}
+
+func TestLoad_TraceBackendOffNeedsNoObserver(t *testing.T) {
+	t.Setenv("OPENCHOREO_OBSERVER_URL", "")
+	t.Setenv("IS_LOCAL_DEV_ENV", "true")
+	t.Setenv("TRACE_BACKEND", "off")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.Traces.Backend != TraceBackendOff {
+		t.Errorf("Traces.Backend = %q, want %q", cfg.Traces.Backend, TraceBackendOff)
+	}
+}
+
+func TestLoad_TraceBackendOpenChoreoNeedsObserver(t *testing.T) {
+	t.Setenv("OPENCHOREO_OBSERVER_URL", "")
+	t.Setenv("IS_LOCAL_DEV_ENV", "true")
+	t.Setenv("TRACE_BACKEND", "openchoreo")
+	if _, err := Load(); err == nil {
+		t.Fatal("expected an error for openchoreo without OPENCHOREO_OBSERVER_URL")
+	}
+}
+
+func TestLoad_TraceBackendUnknown(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("TRACE_BACKEND", "clickhouse")
+	if _, err := Load(); err == nil {
+		t.Fatal("expected an error for an unknown TRACE_BACKEND")
+	}
+}

@@ -24,6 +24,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-observer/observer"
 	"github.com/wso2/agent-manager/agent-manager-observer/opensearch"
+	"github.com/wso2/agent-manager/agent-manager-observer/store/openchoreo"
 )
 
 // leafPathFake scripts an OpenAI Agents-shaped trace: an empty root and n LLM
@@ -84,8 +85,8 @@ func TestGetTraceOverviews_InlineSpans(t *testing.T) {
 			noModelsParams := params
 			noModelsParams.Include.Models = false
 
-			got := singleOverview(t, NewTracingController(fake), params)
-			noModels := singleOverview(t, NewTracingController(noModelsFake), noModelsParams)
+			got := singleOverview(t, NewTracingController(openchoreo.New(fake)), params)
+			noModels := singleOverview(t, NewTracingController(openchoreo.New(noModelsFake)), noModelsParams)
 
 			for _, ov := range []opensearch.TraceOverview{got, noModels} {
 				if ov.Input != tt.input || ov.Output != tt.output {
@@ -113,7 +114,7 @@ func TestGetTraceOverviews_RootMissingFromSpanList(t *testing.T) {
 	params := baseParams()
 	params.Include.Models = true
 
-	ov := singleOverview(t, NewTracingController(fake), params)
+	ov := singleOverview(t, NewTracingController(openchoreo.New(fake)), params)
 
 	assertModels(t, ov.Models, []string{"gpt-4o", "claude-sonnet-4-5"})
 	if ov.Output != "chain out" || ov.TokenUsage == nil || ov.TokenUsage.TotalTokens != 25 {
@@ -134,7 +135,7 @@ func TestGetTraceOverviews_RootFilterSkipsListFirst(t *testing.T) {
 	params.Filters = TraceFilters{Status: TraceStatusError}
 	params.Include.Models = true
 
-	ids, _, _ := traceIDs(NewTracingController(fake), t, params)
+	ids, _, _ := traceIDs(NewTracingController(openchoreo.New(fake)), t, params)
 
 	if len(ids) != 0 {
 		t.Fatalf("traces = %v, want none", ids)
@@ -183,7 +184,7 @@ func TestGetTraceOverviews_InlineSpansPages(t *testing.T) {
 				params.Include.Models = true
 				fake := overThreshold(withModel(langGraphFake(600, rootAttrs), 9, "rare-model"), 5)
 
-				pages := pagesOf(t, NewTracingController(fake), params, 3)
+				pages := pagesOf(t, NewTracingController(openchoreo.New(fake)), params, 3)
 
 				assertPages(t, pages, wantPages(fake, params, 3, tt.match))
 				assertLangGraphRows(t, fake, pages)

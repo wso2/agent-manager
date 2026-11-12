@@ -37,6 +37,9 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-observer/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-observer/observer"
 	"github.com/wso2/agent-manager/agent-manager-observer/rbac"
+	"github.com/wso2/agent-manager/agent-manager-observer/store"
+	"github.com/wso2/agent-manager/agent-manager-observer/store/off"
+	"github.com/wso2/agent-manager/agent-manager-observer/store/openchoreo"
 )
 
 // Options holds deployment-specific hooks for Run; the zero value is the OSS default.
@@ -109,7 +112,7 @@ func newHandler(cfg *config.Config, tokenProvider observer.TokenProvider) http.H
 
 	// v1 routes — observer-backed
 	observerClient := observer.NewClient(cfg.Observer.BaseURL, tokenProvider, cfg.Observer.DefaultNamespace)
-	controller := controllers.NewTracingController(observerClient)
+	controller := controllers.NewTracingController(newTraceStore(cfg.Traces, observerClient))
 	obsController := controllers.NewObservabilityController(observerClient)
 	handler := handlers.NewHandler(controller, obsController)
 
@@ -128,6 +131,7 @@ func newHandler(cfg *config.Config, tokenProvider observer.TokenProvider) http.H
 			handler.GetTraceSpans(w, r)
 		}
 	})))
+	apiMux.Handle("/api/v1/observability/config", requireTrace(handlers.GetObservabilityConfig(cfg.Traces)))
 
 	// Data routes carry per-route scope requirements. Publisher-audience
 	// tokens are confined to trace-read by RequirePermission (replacing the
@@ -136,7 +140,7 @@ func newHandler(cfg *config.Config, tokenProvider observer.TokenProvider) http.H
 	apiMux.Handle("/api/v1/build-logs", requireBuildLog(http.HandlerFunc(handler.GetBuildLogs)))
 	apiMux.Handle("/api/v1/metrics", requireMetric(http.HandlerFunc(handler.GetMetrics)))
 
-	slog.Info("v1 observer-backed routes registered", "observerBaseURL", cfg.Observer.BaseURL)
+	slog.Info("v1 observer-backed routes registered", "observerBaseURL", cfg.Observer.BaseURL, "traceBackend", cfg.Traces.Backend)
 
 	// Apply JWT auth middleware to API routes
 	authenticatedHandler := middleware.JWTAuth(cfg.Auth)(apiMux)
@@ -159,6 +163,14 @@ func newHandler(cfg *config.Config, tokenProvider observer.TokenProvider) http.H
 	loggerHandler := logger.RequestLogger()(corsHandler)
 
 	return loggerHandler
+}
+
+// newTraceStore returns the trace backend cfg names; OpenChoreo when unset.
+func newTraceStore(cfg config.TracesConfig, client observer.TraceReader) store.TraceStore {
+	if cfg.Backend == config.TraceBackendOff {
+		return off.Store{}
+	}
+	return openchoreo.New(client)
 }
 
 func setupLogger(cfg *config.Config) {

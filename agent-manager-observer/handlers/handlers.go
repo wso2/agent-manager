@@ -18,6 +18,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -27,7 +28,9 @@ import (
 	"time"
 
 	"github.com/wso2/agent-manager/agent-manager-observer/controllers"
+	"github.com/wso2/agent-manager/agent-manager-observer/middleware"
 	"github.com/wso2/agent-manager/agent-manager-observer/middleware/logger"
+	"github.com/wso2/agent-manager/agent-manager-observer/store"
 )
 
 const (
@@ -56,6 +59,9 @@ var validLogLevels = map[string]bool{
 	"ERROR": true,
 }
 
+// ErrCodeObservabilityDisabled is the error code of a trace call when traces are off.
+const ErrCodeObservabilityDisabled = "observability_disabled"
+
 // ErrorResponse is the standard error body for all endpoints.
 type ErrorResponse struct {
 	Error   string `json:"error"`
@@ -81,6 +87,9 @@ func (h *Handler) GetTraceOverviews(w http.ResponseWriter, r *http.Request) {
 	organization := query.Get("organization")
 	if organization == "" {
 		writeError(w, http.StatusBadRequest, "organization is required")
+		return
+	}
+	if denyOtherOrg(w, r, organization) {
 		return
 	}
 
@@ -165,7 +174,7 @@ func (h *Handler) GetTraceOverviews(w http.ResponseWriter, r *http.Request) {
 	result, err := h.controller.GetTraceOverviews(r.Context(), params)
 	if err != nil {
 		log.Error("Failed to get trace overviews", "error", err)
-		writeError(w, http.StatusInternalServerError, "Failed to retrieve trace overviews")
+		writeTraceError(w, err, "Failed to retrieve trace overviews")
 		return
 	}
 
@@ -187,6 +196,9 @@ func (h *Handler) GetTraceSpans(w http.ResponseWriter, r *http.Request) {
 	organization := query.Get("organization")
 	if organization == "" {
 		writeError(w, http.StatusBadRequest, "organization is required")
+		return
+	}
+	if denyOtherOrg(w, r, organization) {
 		return
 	}
 
@@ -228,7 +240,7 @@ func (h *Handler) GetTraceSpans(w http.ResponseWriter, r *http.Request) {
 	result, err := h.controller.GetTraceSpans(r.Context(), traceID, params)
 	if err != nil {
 		log.Error("Failed to get v1 trace spans", "traceId", traceID, "error", err)
-		writeError(w, http.StatusInternalServerError, "Failed to retrieve trace spans")
+		writeTraceError(w, err, "Failed to retrieve trace spans")
 		return
 	}
 
@@ -245,6 +257,9 @@ func (h *Handler) ExportTraces(w http.ResponseWriter, r *http.Request) {
 	organization := query.Get("organization")
 	if organization == "" {
 		writeError(w, http.StatusBadRequest, "organization is required")
+		return
+	}
+	if denyOtherOrg(w, r, organization) {
 		return
 	}
 
@@ -312,7 +327,7 @@ func (h *Handler) ExportTraces(w http.ResponseWriter, r *http.Request) {
 	result, err := h.controller.ExportTraces(r.Context(), params)
 	if err != nil {
 		log.Error("Failed to export v1 traces", "error", err)
-		writeError(w, http.StatusInternalServerError, "Failed to export traces")
+		writeTraceError(w, err, "Failed to export traces")
 		return
 	}
 
@@ -338,10 +353,16 @@ func (h *Handler) GetSpanDetail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := h.controller.GetSpanDetail(r.Context(), traceID, spanID)
+	// organization is optional: callers that send none keep today's unscoped lookup.
+	organization := r.URL.Query().Get("organization")
+	if organization != "" && denyOtherOrg(w, r, organization) {
+		return
+	}
+
+	result, err := h.controller.GetSpanDetail(r.Context(), organization, traceID, spanID)
 	if err != nil {
 		log.Error("Failed to get v1 span detail", "traceId", traceID, "spanId", spanID, "error", err)
-		writeError(w, http.StatusInternalServerError, "Failed to retrieve span detail")
+		writeTraceError(w, err, "Failed to retrieve span detail")
 		return
 	}
 
@@ -803,6 +824,19 @@ func optionalStr(s string) *string {
 	return &s
 }
 
+// denyOtherOrg writes 403 and returns true when the token's org is not organization.
+func denyOtherOrg(w http.ResponseWriter, r *http.Request, organization string) bool {
+	claims := middleware.GetTokenClaims(r.Context())
+	// Known gap: tokens with no org claim (client credentials) are not checked.
+	if claims == nil || claims.OuHandle == "" || claims.OuHandle == organization {
+		return false
+	}
+	logger.GetLogger(r.Context()).Info("Rejected trace request for another organization",
+		"organization", organization, "tokenOrganization", claims.OuHandle)
+	writeError(w, http.StatusForbidden, "organization does not match the caller's organization")
+	return true
+}
+
 // writeJSON writes data as a JSON response with status.
 func writeJSON(w http.ResponseWriter, status int, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
@@ -815,4 +849,17 @@ func writeJSON(w http.ResponseWriter, status int, data interface{}) {
 // writeError writes message as a JSON error response with status.
 func writeError(w http.ResponseWriter, status int, message string) {
 	writeJSON(w, status, ErrorResponse{Error: "error", Message: message})
+}
+
+// writeTraceError writes 503 when traces are off, 404 when not in the scope, else 500 with message.
+func writeTraceError(w http.ResponseWriter, err error, message string) {
+	switch {
+	case errors.Is(err, store.ErrDisabled):
+		writeJSON(w, http.StatusServiceUnavailable, ErrorResponse{Error: ErrCodeObservabilityDisabled, Message: "Traces are disabled"})
+		return
+	case errors.Is(err, store.ErrNotFound):
+		writeError(w, http.StatusNotFound, "trace or span not found")
+		return
+	}
+	writeError(w, http.StatusInternalServerError, message)
 }

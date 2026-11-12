@@ -28,8 +28,8 @@ import (
 	"time"
 
 	"github.com/wso2/agent-manager/agent-manager-observer/middleware/logger"
-	"github.com/wso2/agent-manager/agent-manager-observer/observer"
 	"github.com/wso2/agent-manager/agent-manager-observer/opensearch"
+	"github.com/wso2/agent-manager/agent-manager-observer/store"
 )
 
 const (
@@ -75,16 +75,16 @@ const (
 	maxCursorDepth = 1000
 )
 
-// TracingController provides tracing functionality via the observer service.
+// TracingController serves trace reads from a store.TraceStore.
 type TracingController struct {
-	observerClient observer.Client
+	traces store.TraceStore
 	// budget bounds a look-back walk's context.
 	budget func(context.Context, time.Duration) (context.Context, context.CancelFunc)
 }
 
-// NewTracingController creates a new tracing controller.
-func NewTracingController(observerClient observer.Client) *TracingController {
-	return &TracingController{observerClient: observerClient, budget: context.WithTimeout}
+// NewTracingController creates a tracing controller that reads from traces.
+func NewTracingController(traces store.TraceStore) *TracingController {
+	return &TracingController{traces: traces, budget: context.WithTimeout}
 }
 
 // TraceQueryParams holds parameters for trace queries.
@@ -125,7 +125,7 @@ type SpanSummary struct {
 }
 
 // returns (e.g. "Error"), which is enough for the trace tree to flag failed spans.
-func spanStatusIsError(s *observer.SpanStatus) bool {
+func spanStatusIsError(s *store.SpanStatus) bool {
 	return s != nil && strings.EqualFold(s.Code, "error")
 }
 
@@ -204,7 +204,7 @@ func (c *TracingController) traceOverviewPage(ctx context.Context, params TraceQ
 	}
 	for {
 		fetchLimit := fetchSize(size)
-		tracesResp, err := c.observerClient.QueryTraces(ctx, c.traceListRequest(params, fetchLimit))
+		tracesResp, err := c.traces.QueryTraces(ctx, params.scope(), traceListRequest(params, fetchLimit))
 		if err != nil {
 			return nil, walkStats{}, err
 		}
@@ -289,7 +289,7 @@ func (c *TracingController) lookBackForMatches(ctx context.Context, params Trace
 	// rootless is the latest fetch's slots spent on traces rooted outside the window.
 	examined, read, skipped, rootless := 0, 0, 0, 0
 	// last is the last trace examined, or where the walk began.
-	last := observer.TraceInfo{StartTime: walkStart(params)}
+	last := store.Trace{StartTime: walkStart(params)}
 	if cur != nil {
 		last.TraceID = cur.ID
 	}
@@ -356,7 +356,7 @@ func (c *TracingController) lookBackForMatches(ctx context.Context, params Trace
 			return stopAtHandshakeCap()
 		}
 		fetchLimit := fetchSize(size)
-		tracesResp, err := c.observerClient.QueryTraces(fetchCtx(), c.traceListRequest(params, fetchLimit))
+		tracesResp, err := c.traces.QueryTraces(fetchCtx(), params.scope(), traceListRequest(params, fetchLimit))
 		if err != nil {
 			if ctx.Err() == nil && pastBudget() {
 				return stopAtBudget()
@@ -371,7 +371,7 @@ func (c *TracingController) lookBackForMatches(ctx context.Context, params Trace
 		traces := sortedTraces(tracesResp.Traces, asc)
 		complete := len(traces) >= tracesResp.Total
 		settled := settledLen(traces, complete)
-		fresh := make([]observer.TraceInfo, 0, settled)
+		fresh := make([]store.Trace, 0, settled)
 		for _, t := range traces[:settled] {
 			if _, ok := seen[t.TraceID]; ok {
 				continue
@@ -468,21 +468,31 @@ func (c *TracingController) lookBackForMatches(ctx context.Context, params Trace
 	}
 }
 
-// traceListRequest builds the QueryTraces request for params' window.
-func (c *TracingController) traceListRequest(params TraceQueryParams, limit int) observer.TracesQueryRequest {
-	sortOrder := params.SortOrder
-	return observer.TracesQueryRequest{
+// traceListRequest builds the QueryTraces query for params' window.
+func traceListRequest(params TraceQueryParams, limit int) store.TraceQuery {
+	return store.TraceQuery{
 		StartTime: params.StartTime,
 		EndTime:   params.EndTime,
-		Limit:     &limit,
-		SortOrder: &sortOrder,
-		SearchScope: observer.ComponentSearchScope{
-			Namespace:   c.observerClient.NamespaceFor(params.Organization),
-			Project:     params.Project,
-			Component:   params.Agent,
-			Environment: params.Environment,
-		},
+		Limit:     limit,
+		SortOrder: params.SortOrder,
 	}
+}
+
+// scope is the store.Scope for params' organization, project, agent and environment.
+func (p TraceQueryParams) scope() store.Scope {
+	return store.Scope{Names: store.Names{
+		Org:         p.Organization,
+		Project:     deref(p.Project),
+		Agent:       deref(p.Agent),
+		Environment: deref(p.Environment),
+	}}
+}
+
+func deref(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
 }
 
 // walkStart is where a walk begins: the cursor time, or the window's near edge.
@@ -511,8 +521,8 @@ func formatCursor(t time.Time) string {
 }
 
 // tracesWithIDs keeps the traces whose IDs are in ids, in order.
-func tracesWithIDs(traces []observer.TraceInfo, ids []string) []observer.TraceInfo {
-	kept := make([]observer.TraceInfo, 0, len(ids))
+func tracesWithIDs(traces []store.Trace, ids []string) []store.Trace {
+	kept := make([]store.Trace, 0, len(ids))
 	for _, t := range traces {
 		if slices.Contains(ids, t.TraceID) {
 			kept = append(kept, t)
@@ -545,7 +555,7 @@ const (
 func (c *TracingController) enrichTraces(
 	ctx context.Context,
 	params TraceQueryParams,
-	traces []observer.TraceInfo,
+	traces []store.Trace,
 	handshakes *atomic.Int32,
 ) (overviews []opensearch.TraceOverview, failed []string) {
 	log := logger.GetLogger(ctx)
@@ -580,12 +590,12 @@ func (c *TracingController) enrichTraces(
 			continue
 		}
 		wg.Add(1)
-		go func(idx int, t observer.TraceInfo) {
+		go func(idx int, t store.Trace) {
 			defer wg.Done()
 			outerSem <- struct{}{}
 			defer func() { <-outerSem }()
 
-			var spans []observer.SpanInfo
+			var spans []store.Span
 			var root *opensearch.Span
 			mcp := mcpLookup{handshakes: handshakes}
 			toolsFirst := c.toolListFirst(params, t)
@@ -616,7 +626,7 @@ func (c *TracingController) enrichTraces(
 			}
 			if root == nil {
 				innerSem <- struct{}{}
-				details, err := c.observerClient.GetSpanDetails(ctx, t.TraceID, t.RootSpanID)
+				details, err := c.traces.GetSpanDetails(ctx, params.scope(), t.TraceID, t.RootSpanID)
 				<-innerSem
 				if err != nil {
 					// A fetch a done ctx cut short isn't warned about.
@@ -627,7 +637,7 @@ func (c *TracingController) enrichTraces(
 					results[idx] = result{verdict: enrichFailed}
 					return
 				}
-				enriched := opensearch.ProcessSpan(observer.ConvertSpanDetailsToSpan(t.TraceID, details))
+				enriched := opensearch.ProcessSpan(spanFromDetails(t.TraceID, details))
 				root = &enriched
 			}
 			// Status is root-only by design.
@@ -694,7 +704,7 @@ func (c *TracingController) enrichTraces(
 // listSpansFirst reports whether t's span list is fetched with attributes
 // whatever the root holds, so it can supply the root. Root filters keep the
 // root fetch first, so a trace they reject never downloads its list.
-func (c *TracingController) listSpansFirst(params TraceQueryParams, t observer.TraceInfo) bool {
+func (c *TracingController) listSpansFirst(params TraceQueryParams, t store.Trace) bool {
 	return params.Include.Models &&
 		t.SpanCount <= skipLeafAggregationSpanCountThreshold &&
 		params.Filters.Status == TraceStatusAny && !params.Filters.hasConversationFilter()
@@ -704,7 +714,7 @@ func (c *TracingController) listSpansFirst(params TraceQueryParams, t observer.T
 // list before its root is fetched. Root filters keep the root first, as for
 // listSpansFirst, and so does a model filter that rejects t at its root for its
 // span count.
-func (c *TracingController) toolListFirst(params TraceQueryParams, t observer.TraceInfo) bool {
+func (c *TracingController) toolListFirst(params TraceQueryParams, t store.Trace) bool {
 	return params.Filters.hasSpanListFilter() &&
 		t.SpanCount <= maxToolListSpans &&
 		params.Filters.Status == TraceStatusAny && !params.Filters.hasConversationFilter() &&
@@ -716,15 +726,15 @@ func (c *TracingController) toolListFirst(params TraceQueryParams, t observer.Tr
 func (c *TracingController) plainSpanList(
 	ctx context.Context,
 	params TraceQueryParams,
-	t observer.TraceInfo,
+	t store.Trace,
 	fetchSem chan struct{},
-) []observer.SpanInfo {
+) []store.Span {
 	spans, ok := c.fetchTraceSpanSummaries(ctx, params, t, fetchSem, false)
 	switch {
 	case !ok:
 		return nil
 	case spans == nil:
-		return []observer.SpanInfo{}
+		return []store.Span{}
 	}
 	return spans
 }
@@ -734,19 +744,19 @@ func (c *TracingController) plainSpanList(
 func (c *TracingController) rootFromSpanList(
 	ctx context.Context,
 	params TraceQueryParams,
-	t observer.TraceInfo,
+	t store.Trace,
 	fetchSem chan struct{},
-) (spans []observer.SpanInfo, root *opensearch.Span) {
+) (spans []store.Span, root *opensearch.Span) {
 	spans, ok := c.fetchTraceSpanSummaries(ctx, params, t, fetchSem, true)
 	if !ok {
 		return nil, nil
 	}
 	if spans == nil {
-		spans = []observer.SpanInfo{}
+		spans = []store.Span{}
 	}
 	for _, s := range spans {
 		if s.SpanID == t.RootSpanID {
-			span := opensearch.ProcessSpan(observer.ConvertSpanInfoToSpan(t.TraceID, s))
+			span := opensearch.ProcessSpan(spanFromSummary(t.TraceID, s))
 			return spans, &span
 		}
 	}
@@ -828,9 +838,9 @@ type traceEnrichment struct {
 func (c *TracingController) enrichTrace(
 	ctx context.Context,
 	params TraceQueryParams,
-	traceInfo observer.TraceInfo,
+	traceInfo store.Trace,
 	rootSpan *opensearch.Span,
-	spans []observer.SpanInfo,
+	spans []store.Span,
 	fetchSem chan struct{},
 	mcp *mcpLookup,
 ) (traceEnrichment, enrichVerdict) {
@@ -922,7 +932,7 @@ func (c *TracingController) enrichTrace(
 
 	// Step 2: immediate child of the root (Traceloop chain span path).
 	if !rootComplete || conversationPending(conversationID, params.Filters) {
-		childInput, childOutput, childTokens, childEntityTokens, childConversationID, ok, childUnread := c.tryChildChainSpan(ctx, traceInfo.TraceID, rootSpan.SpanID, spans, modelsFromList, fetchSem)
+		childInput, childOutput, childTokens, childEntityTokens, childConversationID, ok, childUnread := c.tryChildChainSpan(ctx, params.scope(), traceInfo.TraceID, rootSpan.SpanID, spans, modelsFromList, fetchSem)
 		if ok {
 			if input == nil {
 				input = childInput
@@ -961,7 +971,7 @@ func (c *TracingController) enrichTrace(
 				return traceEnrichment{}, enrichFailed
 			}
 		} else {
-			leafInput, leafOutput, leafTokens, leafModels, leafConversationID, leavesUnread, leafIDUnread := c.aggregateFromLeafLLMSpans(ctx, traceInfo.TraceID, spans, modelsFromList, fetchSem)
+			leafInput, leafOutput, leafTokens, leafModels, leafConversationID, leavesUnread, leafIDUnread := c.aggregateFromLeafLLMSpans(ctx, params.scope(), traceInfo.TraceID, spans, modelsFromList, fetchSem)
 			if models == nil {
 				models = leafModels
 			}
@@ -1000,10 +1010,10 @@ func (c *TracingController) enrichTrace(
 func (c *TracingController) fetchTraceSpanSummaries(
 	ctx context.Context,
 	params TraceQueryParams,
-	traceInfo observer.TraceInfo,
+	traceInfo store.Trace,
 	fetchSem chan struct{},
 	includeAttributes bool,
-) ([]observer.SpanInfo, bool) {
+) ([]store.Span, bool) {
 	log := logger.GetLogger(ctx)
 
 	spanLimit := traceInfo.SpanCount
@@ -1011,17 +1021,11 @@ func (c *TracingController) fetchTraceSpanSummaries(
 		spanLimit = MaxSpansPerRequest
 	}
 	fetchSem <- struct{}{}
-	spansResp, err := c.observerClient.QueryTraceSpans(ctx, traceInfo.TraceID, observer.TracesQueryRequest{
+	spansResp, err := c.traces.QueryTraceSpans(ctx, params.scope(), traceInfo.TraceID, store.SpanQuery{
 		StartTime:         params.StartTime,
 		EndTime:           params.EndTime,
-		Limit:             &spanLimit,
+		Limit:             spanLimit,
 		IncludeAttributes: includeAttributes,
-		SearchScope: observer.ComponentSearchScope{
-			Namespace:   c.observerClient.NamespaceFor(params.Organization),
-			Project:     params.Project,
-			Component:   params.Agent,
-			Environment: params.Environment,
-		},
 	})
 	<-fetchSem
 	if err != nil {
@@ -1036,11 +1040,11 @@ func (c *TracingController) fetchTraceSpanSummaries(
 
 // modelsFromSpanList returns the distinct model names across the leaf LLM
 // spans of a span list fetched with inline attributes, in start-time order.
-func modelsFromSpanList(traceID string, spans []observer.SpanInfo) []string {
+func modelsFromSpanList(traceID string, spans []store.Span) []string {
 	leaves := make([]opensearch.Span, 0)
 	for _, s := range spans {
 		if opensearch.IsLLMLeafSpan(s.SpanName) {
-			leaves = append(leaves, opensearch.ProcessSpan(observer.ConvertSpanInfoToSpan(traceID, s)))
+			leaves = append(leaves, opensearch.ProcessSpan(spanFromSummary(traceID, s)))
 		}
 	}
 	if len(leaves) == 0 {
@@ -1053,7 +1057,7 @@ func modelsFromSpanList(traceID string, spans []observer.SpanInfo) []string {
 // toolsFromSpanList returns the distinct non-empty tool names in a span list,
 // in start-time order, and those with any span whose status is error. It reads
 // span names and statuses only, even when the list carries attributes.
-func toolsFromSpanList(spans []observer.SpanInfo) (tools, failedTools []string) {
+func toolsFromSpanList(spans []store.Span) (tools, failedTools []string) {
 	type toolCall struct {
 		name   string
 		start  time.Time
@@ -1096,15 +1100,15 @@ type mcpLookup struct {
 func (c *TracingController) readMCPServers(
 	ctx context.Context,
 	params TraceQueryParams,
-	t observer.TraceInfo,
-	spans []observer.SpanInfo,
+	t store.Trace,
+	spans []store.Span,
 	fetchSem chan struct{},
 	mcp *mcpLookup,
 ) enrichVerdict {
 	if mcp.read {
 		return enrichKept
 	}
-	servers, ok := c.mcpServersFromSpanList(ctx, t.TraceID, spans, fetchSem, mcp.handshakes)
+	servers, ok := c.mcpServersFromSpanList(ctx, params.scope(), t.TraceID, spans, fetchSem, mcp.handshakes)
 	mcp.servers, mcp.read = servers, true
 	switch {
 	case !ok && params.Filters.MCPServer != "":
@@ -1118,8 +1122,9 @@ func (c *TracingController) readMCPServers(
 // mcpServersFromSpanList returns the distinct servers the handshakesToFetch spans name; ok is false when a fetch fails.
 func (c *TracingController) mcpServersFromSpanList(
 	ctx context.Context,
+	scope store.Scope,
 	traceID string,
-	spans []observer.SpanInfo,
+	spans []store.Span,
 	fetchSem chan struct{},
 	fetched *atomic.Int32,
 ) (servers []string, ok bool) {
@@ -1134,7 +1139,7 @@ func (c *TracingController) mcpServersFromSpanList(
 		go func() {
 			defer wg.Done()
 			fetchSem <- struct{}{}
-			details, err := c.observerClient.GetSpanDetails(ctx, traceID, s.SpanID)
+			details, err := c.traces.GetSpanDetails(ctx, scope, traceID, s.SpanID)
 			<-fetchSem
 			if err != nil {
 				if ctx.Err() == nil {
@@ -1158,8 +1163,8 @@ func (c *TracingController) mcpServersFromSpanList(
 }
 
 // handshakesToFetch picks the first handshake per parent tool in start order, up to maxMCPHandshakesPerTrace.
-func handshakesToFetch(spans []observer.SpanInfo) []observer.SpanInfo {
-	var handshakes []observer.SpanInfo
+func handshakesToFetch(spans []store.Span) []store.Span {
+	var handshakes []store.Span
 	for _, s := range spans {
 		if opensearch.IsMCPHandshakeSpan(s.SpanName) {
 			handshakes = append(handshakes, s)
@@ -1176,7 +1181,7 @@ func handshakesToFetch(spans []observer.SpanInfo) []observer.SpanInfo {
 	}
 	type key struct{ tool, span string }
 	seen := make(map[key]bool, len(handshakes))
-	picked := make([]observer.SpanInfo, 0, min(len(handshakes), maxMCPHandshakesPerTrace))
+	picked := make([]store.Span, 0, min(len(handshakes), maxMCPHandshakesPerTrace))
 	for _, h := range handshakes {
 		k := key{span: h.SpanID}
 		if parent, ok := names[h.ParentSpanID]; ok {
@@ -1210,9 +1215,10 @@ func handshakesToFetch(spans []observer.SpanInfo) []observer.SpanInfo {
 // unread=true when the fetch fails.
 func (c *TracingController) tryChildChainSpan(
 	ctx context.Context,
+	scope store.Scope,
 	traceID string,
 	rootSpanID string,
-	spans []observer.SpanInfo,
+	spans []store.Span,
 	inline bool,
 	fetchSem chan struct{},
 ) (input interface{}, output interface{}, tokens, entityTokens *opensearch.TokenUsage, conversationID string, ok, unread bool) {
@@ -1240,11 +1246,11 @@ func (c *TracingController) tryChildChainSpan(
 
 	var childSpan opensearch.Span
 	if inline {
-		childSpan = opensearch.ProcessSpan(observer.ConvertSpanInfoToSpan(traceID, spans[child]))
+		childSpan = opensearch.ProcessSpan(spanFromSummary(traceID, spans[child]))
 	} else {
 		childID := spans[child].SpanID
 		fetchSem <- struct{}{}
-		details, err := c.observerClient.GetSpanDetails(ctx, traceID, childID)
+		details, err := c.traces.GetSpanDetails(ctx, scope, traceID, childID)
 		<-fetchSem
 		if err != nil {
 			if ctx.Err() == nil {
@@ -1253,7 +1259,7 @@ func (c *TracingController) tryChildChainSpan(
 			}
 			return nil, nil, nil, nil, "", false, true
 		}
-		childSpan = opensearch.ProcessSpan(observer.ConvertSpanDetailsToSpan(traceID, details))
+		childSpan = opensearch.ProcessSpan(spanFromDetails(traceID, details))
 	}
 
 	input, output = opensearch.ExtractRootSpanInputOutput(&childSpan)
@@ -1281,15 +1287,16 @@ func (c *TracingController) tryChildChainSpan(
 // leaf that failed or was cut off by the cap.
 func (c *TracingController) aggregateFromLeafLLMSpans(
 	ctx context.Context,
+	scope store.Scope,
 	traceID string,
-	spans []observer.SpanInfo,
+	spans []store.Span,
 	inline bool,
 	fetchSem chan struct{},
 ) (input interface{}, output interface{}, tokens *opensearch.TokenUsage, models []string, conversationID string, unread, idUnread bool) {
 	log := logger.GetLogger(ctx)
 
 	// Filter to leaf LLM spans, ordered by start time.
-	leaves := make([]observer.SpanInfo, 0)
+	leaves := make([]store.Span, 0)
 	for _, s := range spans {
 		if opensearch.IsLLMLeafSpan(s.SpanName) {
 			leaves = append(leaves, s)
@@ -1313,7 +1320,7 @@ func (c *TracingController) aggregateFromLeafLLMSpans(
 	var wg sync.WaitGroup
 	for i, leaf := range leaves {
 		if inline {
-			fetched[i] = opensearch.ProcessSpan(observer.ConvertSpanInfoToSpan(traceID, leaf))
+			fetched[i] = opensearch.ProcessSpan(spanFromSummary(traceID, leaf))
 			continue
 		}
 		wg.Add(1)
@@ -1322,7 +1329,7 @@ func (c *TracingController) aggregateFromLeafLLMSpans(
 			fetchSem <- struct{}{}
 			defer func() { <-fetchSem }()
 
-			details, err := c.observerClient.GetSpanDetails(ctx, traceID, spanID)
+			details, err := c.traces.GetSpanDetails(ctx, scope, traceID, spanID)
 			if err != nil {
 				if ctx.Err() == nil {
 					log.Warn("aggregateFromLeafLLMSpans: GetSpanDetails failed for leaf",
@@ -1330,7 +1337,7 @@ func (c *TracingController) aggregateFromLeafLLMSpans(
 				}
 				return
 			}
-			fetched[idx] = opensearch.ProcessSpan(observer.ConvertSpanDetailsToSpan(traceID, details))
+			fetched[idx] = opensearch.ProcessSpan(spanFromDetails(traceID, details))
 		}(i, leaf.SpanID)
 	}
 	wg.Wait()
@@ -1386,21 +1393,12 @@ func (c *TracingController) aggregateFromLeafLLMSpans(
 func (c *TracingController) GetTraceSpans(ctx context.Context, traceID string, params TraceQueryParams) (*SpanListResponse, error) {
 	log := logger.GetLogger(ctx)
 
-	sortOrder := params.SortOrder
-	req := observer.TracesQueryRequest{
+	spansResp, err := c.traces.QueryTraceSpans(ctx, params.scope(), traceID, store.SpanQuery{
 		StartTime: params.StartTime,
 		EndTime:   params.EndTime,
-		Limit:     &params.Limit,
-		SortOrder: &sortOrder,
-		SearchScope: observer.ComponentSearchScope{
-			Namespace:   c.observerClient.NamespaceFor(params.Organization),
-			Project:     params.Project,
-			Component:   params.Agent,
-			Environment: params.Environment,
-		},
-	}
-
-	spansResp, err := c.observerClient.QueryTraceSpans(ctx, traceID, req)
+		Limit:     params.Limit,
+		SortOrder: params.SortOrder,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -1435,13 +1433,14 @@ func (c *TracingController) GetTraceSpans(ctx context.Context, traceID string, p
 }
 
 // GetSpanDetail fetches full span details including enriched AmpAttributes.
-func (c *TracingController) GetSpanDetail(ctx context.Context, traceID, spanID string) (*opensearch.Span, error) {
-	details, err := c.observerClient.GetSpanDetails(ctx, traceID, spanID)
+// organization may be empty, which leaves the lookup unscoped.
+func (c *TracingController) GetSpanDetail(ctx context.Context, organization, traceID, spanID string) (*opensearch.Span, error) {
+	details, err := c.traces.GetSpanDetails(ctx, store.Scope{Names: store.Names{Org: organization}}, traceID, spanID)
 	if err != nil {
 		return nil, err
 	}
 
-	span := observer.ConvertSpanDetailsToSpan(traceID, details)
+	span := spanFromDetails(traceID, details)
 	enriched := opensearch.ProcessSpan(span)
 	return &enriched, nil
 }
@@ -1482,7 +1481,7 @@ func (c *TracingController) ExportTraces(ctx context.Context, params TraceQueryP
 
 	for i, t := range traces {
 		wg.Add(1)
-		go func(idx int, traceInfo observer.TraceInfo) {
+		go func(idx int, traceInfo store.Trace) {
 			defer wg.Done()
 
 			outerSem <- struct{}{}
@@ -1497,21 +1496,15 @@ func (c *TracingController) ExportTraces(ctx context.Context, params TraceQueryP
 				spanLimit = MaxSpansPerRequest
 			}
 
-			spansReq := observer.TracesQueryRequest{
+			spansReq := store.SpanQuery{
 				StartTime:         params.StartTime,
 				EndTime:           params.EndTime,
-				Limit:             &spanLimit,
+				Limit:             spanLimit,
 				IncludeAttributes: true,
-				SearchScope: observer.ComponentSearchScope{
-					Namespace:   c.observerClient.NamespaceFor(params.Organization),
-					Project:     params.Project,
-					Component:   params.Agent,
-					Environment: params.Environment,
-				},
 			}
-			spansResp, err := c.observerClient.QueryTraceSpans(ctx, traceInfo.TraceID, spansReq)
+			spansResp, err := c.traces.QueryTraceSpans(ctx, params.scope(), traceInfo.TraceID, spansReq)
 			if err != nil && ctx.Err() == nil {
-				spansResp, err = c.observerClient.QueryTraceSpans(ctx, traceInfo.TraceID, spansReq)
+				spansResp, err = c.traces.QueryTraceSpans(ctx, params.scope(), traceInfo.TraceID, spansReq)
 			}
 			if err != nil {
 				results[idx] = traceResult{idx: idx, err: fmt.Errorf("trace %s: query spans: %w", traceInfo.TraceID, err)}
@@ -1523,7 +1516,7 @@ func (c *TracingController) ExportTraces(ctx context.Context, params TraceQueryP
 			// directly — no per-span GetSpanDetails round-trips.
 			spans := make([]opensearch.Span, 0, len(spansResp.Spans))
 			for _, s := range spansResp.Spans {
-				enriched := opensearch.ProcessSpan(observer.ConvertSpanInfoToSpan(traceInfo.TraceID, s))
+				enriched := opensearch.ProcessSpan(spanFromSummary(traceInfo.TraceID, s))
 				spans = append(spans, enriched)
 			}
 			sort.Slice(spans, func(i, j int) bool {
@@ -1655,9 +1648,9 @@ func (c *TracingController) ExportTraces(ctx context.Context, params TraceQueryP
 // from the start of the window, so the examine cap, maxMCPHandshakesPerRequest
 // and exportLookBackBudget apply, and lists the examined traces it couldn't read
 // in FailedTraceIDs.
-func (c *TracingController) selectExportTraces(ctx context.Context, params TraceQueryParams) ([]observer.TraceInfo, *opensearch.TraceExportResponse, error) {
+func (c *TracingController) selectExportTraces(ctx context.Context, params TraceQueryParams) ([]store.Trace, *opensearch.TraceExportResponse, error) {
 	if params.Filters.IsZero() {
-		tracesResp, err := c.observerClient.QueryTraces(ctx, c.traceListRequest(params, params.Limit))
+		tracesResp, err := c.traces.QueryTraces(ctx, params.scope(), traceListRequest(params, params.Limit))
 		if err != nil {
 			return nil, nil, err
 		}
@@ -1669,7 +1662,7 @@ func (c *TracingController) selectExportTraces(ctx context.Context, params Trace
 	if err != nil {
 		return nil, nil, fmt.Errorf("controllers.ExportTraces: %w", err)
 	}
-	traces := make([]observer.TraceInfo, 0, len(page.Traces))
+	traces := make([]store.Trace, 0, len(page.Traces))
 	for _, ov := range page.Traces {
 		t, err := traceInfoOf(ov)
 		if err != nil {
@@ -1695,16 +1688,16 @@ func (c *TracingController) selectExportTraces(ctx context.Context, params Trace
 }
 
 // traceInfoOf rebuilds the trace-list fields export needs from an overview.
-func traceInfoOf(ov opensearch.TraceOverview) (observer.TraceInfo, error) {
+func traceInfoOf(ov opensearch.TraceOverview) (store.Trace, error) {
 	start, err := time.Parse(time.RFC3339Nano, ov.StartTime)
 	if err != nil {
-		return observer.TraceInfo{}, fmt.Errorf("trace %s: start time: %w", ov.TraceID, err)
+		return store.Trace{}, fmt.Errorf("trace %s: start time: %w", ov.TraceID, err)
 	}
 	end, err := time.Parse(time.RFC3339Nano, ov.EndTime)
 	if err != nil {
-		return observer.TraceInfo{}, fmt.Errorf("trace %s: end time: %w", ov.TraceID, err)
+		return store.Trace{}, fmt.Errorf("trace %s: end time: %w", ov.TraceID, err)
 	}
-	return observer.TraceInfo{
+	return store.Trace{
 		TraceID:      ov.TraceID,
 		RootSpanID:   ov.RootSpanID,
 		RootSpanName: ov.RootSpanName,

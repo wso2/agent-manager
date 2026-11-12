@@ -22,6 +22,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -29,7 +30,10 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-observer/config"
 	"github.com/wso2/agent-manager/agent-manager-observer/middleware"
+	"github.com/wso2/agent-manager/agent-manager-observer/observer"
 	"github.com/wso2/agent-manager/agent-manager-observer/rbac"
+	"github.com/wso2/agent-manager/agent-manager-observer/store/off"
+	"github.com/wso2/agent-manager/agent-manager-observer/store/openchoreo"
 )
 
 type requestTokenProvider struct{}
@@ -143,5 +147,92 @@ func TestRun_ReturnsListenError(t *testing.T) {
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("Run did not return after failing to bind")
+	}
+}
+
+func TestNewHandler_TraceBackendOff(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Errorf("unexpected upstream call: %s %s", r.Method, r.URL.Path)
+	}))
+	defer upstream.Close()
+
+	cfg := &config.Config{
+		Observer: config.ObserverConfig{BaseURL: upstream.URL, DefaultNamespace: "default"},
+		Traces:   config.TracesConfig{Backend: config.TraceBackendOff},
+		Auth:     config.AuthConfig{IsLocalDevEnv: true},
+	}
+	r := httptest.NewRequest(http.MethodGet,
+		"/api/v1/traces/abc/spans?organization=default&startTime=2026-01-01T00:00:00Z&endTime=2026-01-02T00:00:00Z", nil)
+	r.Header.Set("Authorization", "Bearer "+scopedToken(t))
+	rec := httptest.NewRecorder()
+	newHandler(cfg, requestTokenProvider{}).ServeHTTP(rec, r)
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503, got %d (body: %s)", rec.Code, rec.Body.String())
+	}
+}
+
+func TestNewTraceStore(t *testing.T) {
+	client := observer.NewClient("http://observer", requestTokenProvider{}, "default")
+	if _, ok := newTraceStore(config.TracesConfig{Backend: config.TraceBackendOff}, client).(off.Store); !ok {
+		t.Error("off: want off.Store")
+	}
+	for _, backend := range []string{config.TraceBackendOpenChoreo, ""} {
+		if _, ok := newTraceStore(config.TracesConfig{Backend: backend}, client).(*openchoreo.Store); !ok {
+			t.Errorf("%q: want *openchoreo.Store", backend)
+		}
+	}
+}
+
+// orgToken is scopedToken for a user of org ouHandle.
+func orgToken(t *testing.T, ouHandle string) string {
+	t.Helper()
+	claims := jwt.MapClaims{
+		"sub":      "test-user",
+		"scope":    rbac.TraceRead.Scope(),
+		"ouId":     "ou-" + ouHandle,
+		"ouHandle": ouHandle,
+		"exp":      time.Now().Add(time.Hour).Unix(),
+	}
+	signed, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte("k"))
+	if err != nil {
+		t.Fatalf("sign token: %v", err)
+	}
+	return signed
+}
+
+func TestNewHandler_UserFromOtherOrgGets403(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Errorf("unexpected upstream call: %s %s", r.Method, r.URL.Path)
+	}))
+	defer upstream.Close()
+
+	r := httptest.NewRequest(http.MethodGet, "/api/v1/traces?organization=abc&project=p&agent=a&environment=dev"+
+		"&startTime=2026-01-01T00:00:00Z&endTime=2026-01-02T00:00:00Z", nil)
+	r.Header.Set("Authorization", "Bearer "+orgToken(t, "xyz"))
+	rec := httptest.NewRecorder()
+	newTestHandler(t, upstream.URL).ServeHTTP(rec, r)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d (body: %s)", rec.Code, rec.Body.String())
+	}
+}
+
+func TestNewHandler_ObservabilityConfig(t *testing.T) {
+	cfg := &config.Config{
+		Observer: config.ObserverConfig{BaseURL: "http://observer", DefaultNamespace: "default"},
+		Traces:   config.TracesConfig{Backend: config.TraceBackendOff},
+		Auth:     config.AuthConfig{IsLocalDevEnv: true},
+	}
+	r := httptest.NewRequest(http.MethodGet, "/api/v1/observability/config", nil)
+	r.Header.Set("Authorization", "Bearer "+scopedToken(t))
+	rec := httptest.NewRecorder()
+	newHandler(cfg, requestTokenProvider{}).ServeHTTP(rec, r)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d (body: %s)", rec.Code, rec.Body.String())
+	}
+	if want := `{"traces":{"enabled":false,"backend":"off"}}`; strings.TrimSpace(rec.Body.String()) != want {
+		t.Errorf("body = %s, want %s", rec.Body.String(), want)
 	}
 }

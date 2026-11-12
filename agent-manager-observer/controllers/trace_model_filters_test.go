@@ -25,6 +25,7 @@ import (
 	"testing"
 
 	"github.com/wso2/agent-manager/agent-manager-observer/opensearch"
+	"github.com/wso2/agent-manager/agent-manager-observer/store/openchoreo"
 )
 
 // withModel sets the model on both leaves of every nth trace (from 0).
@@ -60,7 +61,7 @@ func TestGetTraceOverviews_ModelRejectsAfterSpanList(t *testing.T) {
 	params := lookBackParams(10)
 	params.Filters = TraceFilters{Model: "llama"}
 
-	ids, _, truncated := traceIDs(NewTracingController(fake), t, params)
+	ids, _, truncated := traceIDs(NewTracingController(openchoreo.New(fake)), t, params)
 
 	if len(ids) != 0 || truncated {
 		t.Fatalf("got %d traces, truncated %v; want 0, false", len(ids), truncated)
@@ -83,7 +84,7 @@ func TestGetTraceOverviews_ModelRejectsOverThresholdAtRoot(t *testing.T) {
 	params := lookBackParams(10)
 	params.Filters = TraceFilters{Model: "gpt"}
 
-	ids, _, _ := traceIDs(NewTracingController(fake), t, params)
+	ids, _, _ := traceIDs(NewTracingController(openchoreo.New(fake)), t, params)
 
 	if len(ids) != 0 {
 		t.Fatalf("traces = %v, want none", ids)
@@ -103,7 +104,7 @@ func TestGetTraceOverviews_ModelMatchRunsFullCascade(t *testing.T) {
 	params := lookBackParams(5)
 	params.Filters = TraceFilters{Model: "claude"}
 
-	resp, err := NewTracingController(fake).GetTraceOverviews(context.Background(), params)
+	resp, err := NewTracingController(openchoreo.New(fake)).GetTraceOverviews(context.Background(), params)
 	if err != nil {
 		t.Fatalf("GetTraceOverviews returned error: %v", err)
 	}
@@ -182,7 +183,7 @@ func TestGetTraceOverviews_ModelFilterPages(t *testing.T) {
 				// every 5th trace over the span threshold.
 				fake := overThreshold(withModel(langGraphFake(600, errorEvery(7)), 9, "rare-model"), 5)
 
-				pages := pagesOf(t, NewTracingController(fake), params, 3)
+				pages := pagesOf(t, NewTracingController(openchoreo.New(fake)), params, 3)
 
 				assertPages(t, pages, wantPages(fake, params, 3, tt.match))
 				assertLangGraphRows(t, fake, pages)
@@ -213,7 +214,7 @@ func TestGetTraceOverviews_IncludeModelsWithoutFilterCallCounts(t *testing.T) {
 	params.Include.Models = true
 	fake := langGraphFake(30, noRootAttrs)
 
-	pages := pagesOf(t, NewTracingController(fake), params, 1)
+	pages := pagesOf(t, NewTracingController(openchoreo.New(fake)), params, 1)
 
 	want := make([]string, 0, 10)
 	for i := 0; i < 10; i++ {
@@ -243,7 +244,7 @@ func TestGetTraceOverviews_ModelTwoPercentCallCounts(t *testing.T) {
 	}
 
 	fake := withModel(langGraphFake(600, noRootAttrs), 50, "rare-model")
-	ids, _, _ := traceIDs(NewTracingController(fake), t, params)
+	ids, _, _ := traceIDs(NewTracingController(openchoreo.New(fake)), t, params)
 
 	if !slices.Equal(ids, want) {
 		t.Fatalf("traces = %v, want %v", ids, want)

@@ -366,7 +366,7 @@ func getSpanDetails(tracing *controllers.TracingController, authorize func(*gomc
 			return nil, nil, err
 		}
 
-		result, err := tracing.GetSpanDetail(ctx, traceID, spanID)
+		result, err := tracing.GetSpanDetail(ctx, "", traceID, spanID)
 		if err != nil {
 			return nil, nil, wrapToolError("get_span_details", err)
 		}
