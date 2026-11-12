@@ -1,8 +1,0 @@
-resource_type: group
-id: amp-admins
-name: Agent Manager Admins
-description: Administrative group with full access to all AMP resources
-ouHandle: default
-members:
-  - id: "01900000-0000-7000-8000-000000000030"
-    type: user

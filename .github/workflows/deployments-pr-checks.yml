@@ -28,8 +28,7 @@ jobs:
         run: |
           shellcheck -S error \
             deployments/setup/*.sh \
-            deployments/standalone/thunder/render.sh \
-            deployments/standalone/gateway/gateway-init.sh \
+            deployments/standalone/thunder/entrypoint.sh \
             .github/scripts/*.sh
         shell: bash
 
@@ -39,6 +38,7 @@ jobs:
           cp .env.example .env
           docker compose config -q
           docker compose -f docker-compose.yml -f docker-compose.build.yml -f docker-compose.dev.yml config -q
+          COMPOSE_PROFILES=postgres AMP_DB_DRIVER=postgres docker compose config -q
         shell: bash
 
       # A release bundle must run from its own files, pinned to published images.

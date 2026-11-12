@@ -11,8 +11,15 @@ Runs AMP Lite with no Kubernetes, Helm or ingress controller. Every service publ
 | `amp-observer` | Trace query API | http://localhost:9098 |
 | `gateway-runtime` | AI Gateway (agent traffic, `/otel/v1/traces`) | http://default-default.gateway.localhost:19080 |
 | `opensearch`, `otel-collector` | Trace store and pipeline | internal only |
+| `postgres` (optional profile) | PostgreSQL instead of SQLite | internal only |
 
-One-shot services run before the long-running ones and are safe to rerun: `thunder-setup` bootstraps ThunderID once, `opensearch-init` applies the trace index template, `gateway-init` registers the gateway with Agent Manager and renders its config, and `gateway-apis` loads the trace-ingest API into the gateway.
+Startup, in order:
+
+1. `amp-init` (the `amp-api` image, `-init-thunder` / `-init-gateway`) writes ThunderID's configuration and bootstrap resources and the AI Gateway's `config.toml` from the settings in `docker-compose.yml` and `.env`: public URLs, ports, client IDs and secrets, default users. Scope lists and role grants come from Agent Manager's own permission catalog. On the first run it also creates the gateway's encryption key, listener certificate and registration token (unless `DEFAULT_GATEWAY_TOKEN` is set), and keeps them afterwards.
+2. `thunder-setup` runs ThunderID's setup when the generated bootstrap differs from the one last applied. A rerun is additive: it updates AMP's clients, roles and settings and keeps everything else in ThunderID's database. It also sets the admin password to `THUNDER_ADMIN_PASSWORD` again.
+3. `amp-api` migrates its database, then registers the default gateway (`DEFAULT_GATEWAY_*`) with the token from step 1, creating the `default` organization and environment if needed.
+4. `gateway-controller` connects to `amp-api` with that token. On every gateway connection, `amp-api` deploys the built-in trace-ingest API (`/otel`, `OTEL_INGEST_UPSTREAM_URL`) on the gateway if it does not serve the current version. It is a control-plane deployment, so a gateway restart or resync keeps it.
+5. `amp-observer` applies the `otel-traces-*` index template (span IDs and attributes as keywords) to OpenSearch before it reports healthy; `otel-collector` waits for that.
 
 ## Run
 
@@ -28,6 +35,10 @@ docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build -
 `docker-compose.build.yml` builds the Agent Manager images from this checkout. Release bundles leave it out and pin `.env.example` to the published images, so there it is just `docker compose up -d --wait`.
 
 Sign in to the console as `admin` with `THUNDER_ADMIN_PASSWORD` from `.env`.
+
+### PostgreSQL
+
+SQLite is the default database. To use PostgreSQL, uncomment `COMPOSE_PROFILES=postgres` and `AMP_DB_DRIVER=postgres` in `.env` (or run `make up DB=postgres`); `amp-api` migrates it on start. Switching does not copy data between the two.
 
 On Linux hosts OpenSearch needs `sudo sysctl -w vm.max_map_count=262144`; Docker Desktop and Colima already set it.
 
@@ -52,11 +63,11 @@ Browsers resolve `*.localhost` to 127.0.0.1, so the public URLs above work from 
 
 ```bash
 docker compose down        # keep data
-docker compose down -v     # delete all data, including ThunderID users and the database
+docker compose --profile postgres down -v   # delete all data, including ThunderID users and the database
 ```
 
 ## Files
 
-- `thunder/` — ThunderID configuration and AMP bootstrap resources (clients, scopes, roles, default admin), rendered by `render.sh` from `@@NAME@@` placeholders.
-- `gateway/` — gateway config template, `gateway-init.sh`, the trace-ingest API and LLM pricing data.
-- `otel-collector/config.yaml`, `opensearch/traces-template.json` — trace pipeline.
+- `thunder/entrypoint.sh` — installs the configuration `amp-init` generated into the ThunderID image and runs its setup or server. The templates live in `agent-manager-service/ampinit`.
+- `gateway/model_prices.json` — LLM pricing data for the gateway's cost policies.
+- `otel-collector/config.yaml` — trace pipeline. The index template is built into the observer.

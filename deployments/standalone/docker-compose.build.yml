@@ -4,6 +4,10 @@
 services:
   amp-api:
     build: ../../agent-manager-service
+  # Same image as amp-api; built here too so the dev overlay, which swaps
+  # amp-api for a source build, still has it.
+  amp-init:
+    build: ../../agent-manager-service
   amp-observer:
     build: ../../agent-manager-observer
   amp-console:

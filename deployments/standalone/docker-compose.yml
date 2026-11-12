@@ -4,32 +4,55 @@
 # (*.localhost resolves to 127.0.0.1); containers dial the service names, and
 # ThunderID's public URL stays the token issuer everywhere. Clients such as
 # curl pin *.localhost to loopback, so service-to-service URLs never use it.
+#
+# Startup order: amp-init writes the ThunderID and gateway configuration,
+# thunder-setup applies ThunderID's bootstrap, amp-api registers the default
+# gateway, and the gateway connects and receives its APIs from amp-api.
 
 x-thunder: &thunder
   image: ${THUNDER_IMAGE}
   environment: &thunder-env
-    THUNDER_HOST: ${THUNDER_HOST}
     THUNDER_PORT: ${THUNDER_PORT}
-    THUNDER_PUBLIC_URL: http://${THUNDER_HOST}:${THUNDER_PORT}
-    AMP_PUBLIC_URL: http://localhost:${AMP_API_PORT}
-    OBSERVER_PUBLIC_URL: http://localhost:${OBSERVER_PORT}
-    CONSOLE_URL: http://localhost:${CONSOLE_PORT}
-    AMP_API_CLIENT_SECRET: ${AMP_API_CLIENT_SECRET}
-    AMP_CONSOLE_CLIENT_SECRET: ${AMP_CONSOLE_CLIENT_SECRET}
-    AMP_PUBLISHER_CLIENT_SECRET: ${AMP_PUBLISHER_CLIENT_SECRET}
-    AMP_SYSTEM_CLIENT_SECRET: ${AMP_SYSTEM_CLIENT_SECRET}
-  entrypoint: ["/bin/sh", "/amp/thunder/render.sh"]
-  networks: [amp]
-
-x-gateway-init: &gateway-init
-  image: alpine:3.24
-  entrypoint: ["/bin/sh", "-c", "apk add --no-cache -q curl openssl && exec /bin/sh /amp/gateway/gateway-init.sh \"$$@\"", "--"]
-  volumes:
-    - ./gateway:/amp/gateway:ro
-    - gateway-config:/amp/gw
+  entrypoint: ["/bin/sh", "/amp/thunder/entrypoint.sh"]
   networks: [amp]
 
 services:
+  # --- Generated configuration --------------------------------------------------
+  # Writes ThunderID's configuration and bootstrap resources, and the AI
+  # Gateway's config.toml, keys and registration token, from the settings
+  # below. Reruns regenerate the configuration and keep generated keys and
+  # tokens.
+  amp-init:
+    image: ${AMP_API_IMAGE}
+    # Writes into fresh named volumes and hands each file to the uid that reads it.
+    user: "0:0"
+    entrypoint: ["/go/bin/agent-manager-service"]
+    command: ["-init-thunder=/out/thunder", "-init-gateway=/out/gateway"]
+    environment:
+      THUNDER_PUBLIC_URL: http://${THUNDER_HOST}:${THUNDER_PORT}
+      THUNDER_PORT: ${THUNDER_PORT}
+      AMP_PUBLIC_URL: http://localhost:${AMP_API_PORT}
+      OBSERVER_PUBLIC_URL: http://localhost:${OBSERVER_PORT}
+      CONSOLE_URL: http://localhost:${CONSOLE_PORT}
+      AMP_API_CLIENT_SECRET: ${AMP_API_CLIENT_SECRET}
+      AMP_CONSOLE_CLIENT_SECRET: ${AMP_CONSOLE_CLIENT_SECRET}
+      AMP_PUBLISHER_CLIENT_SECRET: ${AMP_PUBLISHER_CLIENT_SECRET}
+      AMP_SYSTEM_CLIENT_SECRET: ${AMP_SYSTEM_CLIENT_SECRET}
+      AMP_DEFAULT_USERS: ${AMP_DEFAULT_USERS:-}
+      GATEWAY_CONTROLPLANE_HOST: amp-api:9243
+      DEFAULT_GATEWAY_TOKEN: ${DEFAULT_GATEWAY_TOKEN:-}
+      GATEWAY_ADMIN_PASSWORD: ${GATEWAY_ADMIN_PASSWORD}
+      GATEWAY_AMP_JWKS_URL: http://amp-api:8080/auth/external/jwks.json
+      GATEWAY_THUNDER_JWKS_URL: http://thunder:${THUNDER_PORT}/oauth2/jwks
+      GATEWAY_HOST: ${GATEWAY_HOST}
+      THUNDER_FILE_OWNER: "10001:10001"
+      GATEWAY_FILE_OWNER: "10001:10001"
+      AMP_FILE_OWNER: "1000:1000"
+    volumes:
+      - thunder-config:/out/thunder
+      - gateway-config:/out/gateway
+    networks: [amp]
+
   # --- Identity ---------------------------------------------------------------
   thunder-setup:
     <<: *thunder
@@ -40,9 +63,13 @@ services:
       ADMIN_PASSWORD: ${THUNDER_ADMIN_PASSWORD}
     volumes:
       - ./thunder:/amp/thunder:ro
+      - thunder-config:/amp/thunder-config:ro
       - thunder-db:/opt/thunderid/database
       - thunder-certs:/opt/thunderid/config/certs
       - thunder-secrets:/opt/thunderid/config/secrets
+    depends_on:
+      amp-init:
+        condition: service_completed_successfully
 
   thunder:
     <<: *thunder
@@ -50,6 +77,7 @@ services:
       - "${THUNDER_PORT}:${THUNDER_PORT}"
     volumes:
       - ./thunder:/amp/thunder:ro
+      - thunder-config:/amp/thunder-config:ro
       - thunder-db:/opt/thunderid/database
       - thunder-certs:/opt/thunderid/config/certs:ro
       - thunder-secrets:/opt/thunderid/config/secrets:ro
@@ -63,6 +91,25 @@ services:
     networks:
       amp:
         aliases: ["${THUNDER_HOST}"]
+    restart: unless-stopped
+
+  # --- Database (optional) ------------------------------------------------------
+  # SQLite is the default. With COMPOSE_PROFILES=postgres and AMP_DB_DRIVER=postgres
+  # in .env, amp-api uses this PostgreSQL instead.
+  postgres:
+    image: ${POSTGRES_IMAGE:-postgres:18-alpine}
+    profiles: ["postgres"]
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-amp}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-amp}
+      POSTGRES_DB: ${POSTGRES_DB:-agent_manager}
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-amp} -d ${POSTGRES_DB:-agent_manager}"]
+      interval: 3s
+      retries: 40
+    networks: [amp]
     restart: unless-stopped
 
   # --- Trace storage ------------------------------------------------------------
@@ -84,26 +131,6 @@ services:
     networks: [amp]
     restart: unless-stopped
 
-  opensearch-init:
-    image: curlimages/curl:8.17.0
-    command:
-      - -sSfk
-      - -u
-      - admin:${OPENSEARCH_PASSWORD}
-      - -X
-      - PUT
-      - https://opensearch:9200/_index_template/amp-otel-traces
-      - -H
-      - "Content-Type: application/json"
-      - --data-binary
-      - "@/amp/traces-template.json"
-    volumes:
-      - ./opensearch/traces-template.json:/amp/traces-template.json:ro
-    depends_on:
-      opensearch:
-        condition: service_healthy
-    networks: [amp]
-
   otel-collector:
     image: ${OTEL_COLLECTOR_IMAGE}
     command: ["--config=/etc/otelcol/config.yaml"]
@@ -113,8 +140,10 @@ services:
     volumes:
       - ./otel-collector/config.yaml:/etc/otelcol/config.yaml:ro
     depends_on:
-      opensearch-init:
-        condition: service_completed_successfully
+      # The observer puts the span index template before it reports healthy,
+      # so the first span index is created with keyword mappings.
+      amp-observer:
+        condition: service_healthy
     networks: [amp]
     restart: unless-stopped
 
@@ -126,8 +155,14 @@ services:
       - "${AMP_API_PORT}:8080"
       - "${AMP_INTERNAL_PORT}:9243"
     environment:
-      DB_DRIVER: sqlite
+      DB_DRIVER: ${AMP_DB_DRIVER:-sqlite}
       DB_PATH: /var/lib/agent-manager/agent-manager.db
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_USER: ${POSTGRES_USER:-amp}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-amp}
+      DB_NAME: ${POSTGRES_DB:-agent_manager}
+      DB_SSL_MODE: disable
       SERVER_PORT: "8080"
       SERVER_PUBLIC_URL: http://localhost:${AMP_API_PORT}
       CORS_ALLOWED_ORIGIN: http://localhost:${CONSOLE_PORT}
@@ -162,12 +197,22 @@ services:
       DEFAULT_GATEWAY_PORT: ${GATEWAY_PORT}
       A2A_CARD_FETCH_DIAL_ADDR: gateway-runtime:19080
       PLATFORM_ADMIN_OU_ID: 01900000-0000-7000-8000-000000000001
+      # The bundled gateway, registered at startup with the token amp-init wrote.
+      DEFAULT_GATEWAY_NAME: default
+      DEFAULT_GATEWAY_VHOST: http://${GATEWAY_HOST}:${GATEWAY_PORT}
+      DEFAULT_GATEWAY_TOKEN_FILE: /amp/gw/registration-token
+      # Every gateway gets the trace-ingest API (/otel), forwarding to the collector.
+      OTEL_INGEST_UPSTREAM_URL: http://otel-collector:4318
     volumes:
       - amp-data:/var/lib/agent-manager
       - amp-keys:/app/keys
+      - gateway-config:/amp/gw:ro
     depends_on:
       thunder:
         condition: service_healthy
+      postgres:
+        condition: service_healthy
+        required: false
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8080/healthz >/dev/null"]
       interval: 3s
@@ -197,6 +242,10 @@ services:
         condition: service_healthy
       thunder:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -T 4 -O /dev/null http://127.0.0.1:9098/health"]
+      interval: 3s
+      retries: 60
     networks: [amp]
     restart: unless-stopped
 
@@ -228,28 +277,9 @@ services:
     restart: unless-stopped
 
   # --- AI Gateway -----------------------------------------------------------------
-  gateway-init:
-    <<: *gateway-init
-    environment:
-      AMP_API_URL: http://amp-api:8080/api/v1
-      IDP_TOKEN_URL: http://thunder:${THUNDER_PORT}/oauth2/token
-      IDP_CLIENT_ID: amp-api-client
-      IDP_CLIENT_SECRET: ${AMP_API_CLIENT_SECRET}
-      ORG_NAME: default
-      ENVIRONMENT_NAME: default
-      GATEWAY_NAME: default
-      GATEWAY_DISPLAY_NAME: Default AI Gateway
-      GATEWAY_TYPE: BOTH
-      GATEWAY_VHOST: http://${GATEWAY_HOST}:${GATEWAY_PORT}
-      CONTROLPLANE_HOST: amp-api:9243
-      GATEWAY_ADMIN_PASSWORD: ${GATEWAY_ADMIN_PASSWORD}
-      AMP_JWKS_URL: http://amp-api:8080/auth/external/jwks.json
-      THUNDER_ISSUER: http://${THUNDER_HOST}:${THUNDER_PORT}
-      THUNDER_JWKS_URL: http://thunder:${THUNDER_PORT}/oauth2/jwks
-    depends_on:
-      amp-api:
-        condition: service_healthy
-
+  # Uses config.toml from amp-init and connects to amp-api with the registration
+  # token amp-api registered at startup; amp-api pushes its APIs, including the
+  # trace-ingest API, over that connection.
   gateway-controller:
     image: ${GATEWAY_CONTROLLER_IMAGE}
     command: ["-config", "/amp/gw/config.toml"]
@@ -259,8 +289,8 @@ services:
       - gateway-config:/amp/gw:ro
       - gateway-data:/app/data
     depends_on:
-      gateway-init:
-        condition: service_completed_successfully
+      amp-api:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:9092/api/admin/v1/health >/dev/null"]
       interval: 3s
@@ -282,31 +312,26 @@ services:
     depends_on:
       gateway-controller:
         condition: service_healthy
-      # Starts once the trace-ingest API is loaded; also keeps `up --wait`
-      # from treating the finished one-shot as a failure.
-      gateway-apis:
-        condition: service_completed_successfully
+      otel-collector:
+        condition: service_started
+    # Healthy once the router listens and the trace-ingest upstream accepts
+    # connections, so `up --wait` returns with /otel/v1/traces working.
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 19080 && nc -z otel-collector 4318"]
+      interval: 3s
+      retries: 40
     networks:
       amp:
         aliases: ["${GATEWAY_HOST}"]
     restart: unless-stopped
 
-  gateway-apis:
-    <<: *gateway-init
-    command: ["--apis"]
-    environment:
-      CONTROLLER_URL: http://gateway-controller:9090
-      GATEWAY_ADMIN_PASSWORD: ${GATEWAY_ADMIN_PASSWORD}
-      OTEL_UPSTREAM_URL: http://otel-collector:4318
-    depends_on:
-      gateway-controller:
-        condition: service_healthy
-
 volumes:
+  thunder-config:
   thunder-db:
   thunder-certs:
   thunder-secrets:
   opensearch-data:
+  postgres-data:
   amp-data:
   amp-keys:
   gateway-config:

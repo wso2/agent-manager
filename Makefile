@@ -18,6 +18,7 @@ help:
 	@echo "  make down                    - Stop the stack (data kept)"
 	@echo "  make logs                    - Tail all stack logs"
 	@echo "  make reset                   - Stop the stack and delete all its data"
+	@echo "  DB=postgres                  - With up/dev-up/reset: use PostgreSQL instead of SQLite"
 	@echo ""
 	@echo "💻 Daily Development (API hot-reloads under air, console via vite):"
 	@echo "  make dev-up                  - Start the stack and the console dev server"
@@ -34,7 +35,7 @@ help:
 	@echo "  make thunder-reset      - Wipe ThunderID data and bootstrap it again"
 	@echo ""
 	@echo "🗄️  Database:"
-	@echo "  make db-connect         - Open the SQLite database (dev stack)"
+	@echo "  make db-connect         - Open the database (SQLite, or PostgreSQL with DB=postgres)"
 	@echo ""
 	@echo "🔧 Service Debugging:"
 	@echo "  make service-logs       - View API logs"
@@ -68,6 +69,11 @@ include tools.mk
 # swaps the API image for a hot-reloading source build and leaves the console
 # to `make console`.
 STACK_DIR   := deployments/standalone
+# DB=postgres runs the postgres profile and points the API at it (SQLite otherwise).
+ifeq ($(DB),postgres)
+export COMPOSE_PROFILES := postgres
+export AMP_DB_DRIVER := postgres
+endif
 COMPOSE     := docker compose --project-directory $(STACK_DIR) -f $(STACK_DIR)/docker-compose.yml -f $(STACK_DIR)/docker-compose.build.yml
 DEV_COMPOSE := $(COMPOSE) -f $(STACK_DIR)/docker-compose.dev.yml
 
@@ -96,7 +102,7 @@ logs:
 	@$(COMPOSE) logs -f
 
 reset:
-	@$(COMPOSE) --profile console-image down -v
+	@$(COMPOSE) --profile console-image --profile postgres down -v
 
 # Setup individual components
 setup-colima:
@@ -165,9 +171,10 @@ thunder-restart:
 	@$(COMPOSE) restart thunder
 
 # Deletes ThunderID's users, applications and keys; tokens it issued stop working.
+# The configuration amp-init generates is kept and applied again.
 thunder-reset: $(STACK_DIR)/.env
 	@echo "🧹 Resetting ThunderID (data wipe + bootstrap)..."
-	@$(COMPOSE) rm -sf thunder thunder-setup
+	@$(COMPOSE) rm -sf thunder thunder-setup amp-init
 	@project=$$($(COMPOSE) config --format json | sed -n 's/^ *"name": "\(.*\)",$$/\1/p' | head -1); \
 		docker volume rm $${project}_thunder-db $${project}_thunder-certs $${project}_thunder-secrets
 	@$(COMPOSE) up -d --wait thunder
@@ -182,7 +189,11 @@ stop-console:
 
 # Database commands
 db-connect:
+ifeq ($(DB),postgres)
+	@$(COMPOSE) exec postgres sh -c 'psql -U "$$POSTGRES_USER" "$$POSTGRES_DB"'
+else
 	@$(COMPOSE) exec amp-api sqlite3 /var/lib/agent-manager/agent-manager.db
+endif
 
 # Service debugging
 service-logs:
@@ -302,4 +313,4 @@ security-test-live:
 # Cleanup
 teardown:
 	@$(MAKE) stop-console
-	@$(DEV_COMPOSE) --profile console-image down -v
+	@$(DEV_COMPOSE) --profile console-image --profile postgres down -v
