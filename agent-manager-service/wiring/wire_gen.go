@@ -9,9 +9,6 @@ package wiring
 import (
 	"context"
 	"fmt"
-	"log/slog"
-	"time"
-
 	"github.com/google/wire"
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
@@ -20,6 +17,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/controllers"
 	"github.com/wso2/agent-manager/agent-manager-service/eventhub"
 	"github.com/wso2/agent-manager/agent-manager-service/events"
+	"github.com/wso2/agent-manager/agent-manager-service/fileauth"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
@@ -31,6 +29,8 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/services/eventdestinations/webhook"
 	"github.com/wso2/agent-manager/agent-manager-service/websocket"
 	"gorm.io/gorm"
+	"log/slog"
+	"time"
 )
 
 // Injectors from wire.go:
@@ -191,6 +191,10 @@ func InitializeAppParamsWithEnvThunderEndpoints(cfg *config.Config, db *gorm.DB,
 	defaultGatewaySeeder := ProvideDefaultGatewaySeeder(configConfig, platformGatewayService, gatewayRepository, platformRepository, logger)
 	eventDispatcherService := services.NewEventDispatcherService(bus, eventRepository, eventDestinationService, configConfig, logger)
 	monitorAlertProcessor := services.NewMonitorAlertProcessor(bus, monitorAlertRepository, logger)
+	service, err := fileauth.NewService(cfg, logger)
+	if err != nil {
+		return nil, err
+	}
 	appParams := &AppParams{
 		AuthMiddleware:                   middleware,
 		Logger:                           logger,
@@ -242,6 +246,7 @@ func InitializeAppParamsWithEnvThunderEndpoints(cfg *config.Config, db *gorm.DB,
 		PlatformGatewayService:           platformGatewayService,
 		MCPProxyService:                  mcpProxyService,
 		AgentConfigurationService:        agentConfigurationService,
+		FileAuthService:                  service,
 		EventBus:                         bus,
 		EventPublisher:                   publisher,
 		PlatformRepository:               platformRepository,
@@ -404,6 +409,10 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	defaultGatewaySeeder := ProvideDefaultGatewaySeeder(configConfig, platformGatewayService, gatewayRepository, platformRepository, logger)
 	eventDispatcherService := services.NewEventDispatcherService(bus, eventRepository, eventDestinationService, configConfig, logger)
 	monitorAlertProcessor := services.NewMonitorAlertProcessor(bus, monitorAlertRepository, logger)
+	service, err := fileauth.NewService(cfg, logger)
+	if err != nil {
+		return nil, err
+	}
 	appParams := &AppParams{
 		AuthMiddleware:                   authMiddleware,
 		Logger:                           logger,
@@ -455,6 +464,7 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 		PlatformGatewayService:           platformGatewayService,
 		MCPProxyService:                  mcpProxyService,
 		AgentConfigurationService:        agentConfigurationService,
+		FileAuthService:                  service,
 		EventBus:                         bus,
 		EventPublisher:                   publisher,
 		PlatformRepository:               platformRepository,
@@ -480,7 +490,7 @@ var clientProviderSet = wire.NewSet(repositories.NewPlatformRepo, ProvideSecretM
 	ProvideOUHandleLookup, thundersvc.NewProber, services.NewPlatformThunderSecretReader, services.NewPlatformThunderURLReader, ProvideEnvThunderResolverWithEndpoints,
 )
 
-var serviceProviderSet = wire.NewSet(services.NewAgentManagerService, services.NewInfraResourceManager, services.NewAgentTokenManagerService, services.NewMonitorExecutor, services.NewMonitorManagerService, ProvideThunderConfig, services.NewMonitorSchedulerService, services.NewAgentThunderReconcilerService, services.NewA2ACardFetcher, services.NewA2ACardReconcilerService, services.NewConfiguredDeploymentTimeoutSweeper, services.NewA2AAgentCardService, ProvideTxRunner, services.NewAgentExposurePublisher, services.NewA2APublisher, services.NewA2AProxyService, ProvideA2AProxyHooks, services.NewEvaluatorManagerService, services.NewEnvironmentService, ProvidePlatformGatewayService, services.NewLLMProviderTemplateService, services.NewLLMProviderService, services.NewLLMProxyService, services.NewLLMProviderDeploymentService, services.NewLLMProviderAPIKeyService, services.NewLLMProxyAPIKeyService, services.NewAgentAPIKeyService, services.NewLLMProxyDeploymentService, services.NewMCPProxyService, services.NewMCPProxyScopeService, wire.Bind(new(services.MCPProxyRedeployer), new(*services.MCPProxyService)), wire.Bind(new(controllers.MCPResourceServerIdentifierResolver), new(*services.MCPProxyService)), services.NewGatewayInternalAPIService, services.NewMonitorScoresService, services.NewCatalogService, services.NewLLMProxyProvisioner, services.NewAgentConfigurationService, services.NewLLMTemplateStore, services.NewAIApplicationService, ProvideEventBus,
+var serviceProviderSet = wire.NewSet(services.NewAgentManagerService, services.NewInfraResourceManager, services.NewAgentTokenManagerService, fileauth.NewService, services.NewMonitorExecutor, services.NewMonitorManagerService, ProvideThunderConfig, services.NewMonitorSchedulerService, services.NewAgentThunderReconcilerService, services.NewA2ACardFetcher, services.NewA2ACardReconcilerService, services.NewConfiguredDeploymentTimeoutSweeper, services.NewA2AAgentCardService, ProvideTxRunner, services.NewAgentExposurePublisher, services.NewA2APublisher, services.NewA2AProxyService, ProvideA2AProxyHooks, services.NewEvaluatorManagerService, services.NewEnvironmentService, ProvidePlatformGatewayService, services.NewLLMProviderTemplateService, services.NewLLMProviderService, services.NewLLMProxyService, services.NewLLMProviderDeploymentService, services.NewLLMProviderAPIKeyService, services.NewLLMProxyAPIKeyService, services.NewAgentAPIKeyService, services.NewLLMProxyDeploymentService, services.NewMCPProxyService, services.NewMCPProxyScopeService, wire.Bind(new(services.MCPProxyRedeployer), new(*services.MCPProxyService)), wire.Bind(new(controllers.MCPResourceServerIdentifierResolver), new(*services.MCPProxyService)), services.NewGatewayInternalAPIService, services.NewMonitorScoresService, services.NewCatalogService, services.NewLLMProxyProvisioner, services.NewAgentConfigurationService, services.NewLLMTemplateStore, services.NewAIApplicationService, ProvideEventBus,
 	ProvideEventPublisher, repositories.NewEventOutboxRepository, services.NewMonitorRunEvents, ProvideDestinationDrivers, services.NewEventDestinationService, services.NewEventSubscriptionService, wire.Bind(new(services.EventsCleaner), new(services.EventSubscriptionService)), wire.Bind(new(services.DestinationResolver), new(services.EventDestinationService)), services.NewEventDispatcherService, services.NewMonitorAlertService, services.NewMonitorAlertProcessor,
 )
 

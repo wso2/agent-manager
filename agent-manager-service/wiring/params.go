@@ -33,6 +33,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/controllers"
 	"github.com/wso2/agent-manager/agent-manager-service/eventhub"
 	"github.com/wso2/agent-manager/agent-manager-service/events"
+	"github.com/wso2/agent-manager/agent-manager-service/fileauth"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/reconcile"
@@ -99,6 +100,10 @@ type AppParams struct {
 	PlatformGatewayService       *services.PlatformGatewayService
 	MCPProxyService              *services.MCPProxyService
 	AgentConfigurationService    services.AgentConfigurationService
+
+	// FileAuthService backs the file-based login endpoint. It is always
+	// constructed; it reports itself disabled unless AUTH_MODE=file.
+	FileAuthService fileauth.Service
 
 	// Events
 	EventBus       events.Bus

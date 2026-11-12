@@ -32,6 +32,7 @@ package rbac
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"gopkg.in/yaml.v3"
@@ -39,6 +40,11 @@ import (
 
 const (
 	bootstrapDir = "../ampinit/templates/thunder/bootstrap"
+	// The catalog is advertised a second time, as OAUTH_SCOPES_SUPPORTED on the
+	// amp-api service of the standalone stack. It used to live in the
+	// agent-manager Helm chart; the charts went with the OpenChoreo removal and
+	// the Compose stack is now the only place that declares it.
+	standaloneComposePath = "../../deployments/standalone/docker-compose.yml"
 
 	resourceServerDoc = "60-amp-resource-server.yaml"
 )
@@ -103,4 +109,44 @@ func TestResourceServerTreeMatchesCatalog(t *testing.T) {
 	}
 
 	diffScopeSets(t, "resource-server tree", catalogScopes(t), chartSide)
+}
+
+// TestAdvertisedScopesMatchCatalog covers the second copy of the catalog:
+// OAUTH_SCOPES_SUPPORTED, which agent-manager-service publishes in its RFC 9728
+// protected-resource metadata (api/well_known_routes.go) and which amctl reads
+// to decide which scopes to request at login (cli/pkg/clients/discovery.go).
+//
+// A scope missing there is one the CLI never asks for, so an operator holding
+// the role still gets a token without it — a 403 on a route their role allows,
+// with nothing wrong anywhere the error points. It is a single comma-separated
+// string in a deployment file, so nothing else checks it.
+func TestAdvertisedScopesMatchCatalog(t *testing.T) {
+	raw, err := os.ReadFile(standaloneComposePath)
+	if err != nil {
+		t.Skipf("standalone stack not present at %s: %v", standaloneComposePath, err)
+	}
+
+	var compose struct {
+		Services map[string]struct {
+			Environment map[string]string `yaml:"environment"`
+		} `yaml:"services"`
+	}
+	if err := yaml.Unmarshal(raw, &compose); err != nil {
+		t.Fatalf("parse %s: %v", standaloneComposePath, err)
+	}
+
+	advertised := compose.Services["amp-api"].Environment["OAUTH_SCOPES_SUPPORTED"]
+	if strings.TrimSpace(advertised) == "" {
+		t.Fatalf("%s: amp-api declares no OAUTH_SCOPES_SUPPORTED; "+
+			"the protected-resource metadata endpoint answers 503 without it", standaloneComposePath)
+	}
+
+	chartSide := make(map[Permission]bool)
+	for _, scope := range strings.Split(advertised, ",") {
+		if trimmed, ok := strings.CutPrefix(strings.TrimSpace(scope), ResourceServer+":"); ok {
+			chartSide[Permission(trimmed)] = true
+		}
+	}
+
+	diffScopeSets(t, "OAUTH_SCOPES_SUPPORTED", catalogScopes(t), chartSide)
 }
