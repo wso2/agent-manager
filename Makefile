@@ -76,6 +76,9 @@ export AMP_DB_DRIVER := postgres
 endif
 COMPOSE     := docker compose --project-directory $(STACK_DIR) -f $(STACK_DIR)/docker-compose.yml -f $(STACK_DIR)/docker-compose.build.yml
 DEV_COMPOSE := $(COMPOSE) -f $(STACK_DIR)/docker-compose.dev.yml
+# The stop targets name every profile, so they also stop PostgreSQL from a
+# DB=postgres run and the nginx console from `make up`.
+ALL_PROFILES := --profile console-image --profile postgres
 
 $(STACK_DIR)/.env:
 	@cp $(STACK_DIR)/.env.example $@
@@ -96,13 +99,13 @@ up: $(STACK_DIR)/.env
 	@echo "   API:     http://localhost:9000"
 
 down:
-	@$(COMPOSE) down
+	@$(COMPOSE) $(ALL_PROFILES) down
 
 logs:
 	@$(COMPOSE) logs -f
 
 reset:
-	@$(COMPOSE) --profile console-image --profile postgres down -v
+	@$(COMPOSE) $(ALL_PROFILES) down -v
 
 # Setup individual components
 setup-colima:
@@ -135,6 +138,7 @@ setup-console-local-force:
 # running a stale toolchain. Cached layers keep the no-change case near-free.
 dev-up: $(STACK_DIR)/.env
 	@echo "🚀 Starting Agent Manager (dev)..."
+	@$(DEV_COMPOSE) --profile console-image rm -sf amp-console
 	@$(DEV_COMPOSE) up -d --build --wait
 	@$(MAKE) console BACKGROUND=true
 	@echo "✅ Platform is running!"
@@ -143,7 +147,7 @@ dev-up: $(STACK_DIR)/.env
 
 dev-down:
 	@echo "🛑 Stopping Agent Manager..."
-	@$(DEV_COMPOSE) down
+	@$(DEV_COMPOSE) $(ALL_PROFILES) down
 	@$(MAKE) stop-console
 	@echo "✅ Platform stopped"
 
@@ -155,7 +159,7 @@ dev-restart:
 
 dev-rebuild:
 	@echo "🧹 Stopping services..."
-	@$(DEV_COMPOSE) down
+	@$(DEV_COMPOSE) $(ALL_PROFILES) down
 	@echo "🔨 Rebuilding Docker images..."
 	@$(DEV_COMPOSE) build --no-cache
 	@$(MAKE) dev-up
@@ -313,4 +317,4 @@ security-test-live:
 # Cleanup
 teardown:
 	@$(MAKE) stop-console
-	@$(DEV_COMPOSE) --profile console-image --profile postgres down -v
+	@$(DEV_COMPOSE) $(ALL_PROFILES) down -v
