@@ -9,16 +9,17 @@ RUN apk add --no-cache 'ca-certificates>=20261020' 'ca-certificates-bundle>=2026
 
 WORKDIR /app
 
-# Copy go mod files first for better caching
-COPY go.mod go.sum ./
-COPY clients/openchoreosvc/auth ./clients/openchoreosvc/auth
-RUN go mod download
-
 # Seed ownership for Compose volumes. The bind-mounted source stays read-only.
 RUN addgroup -g 1000 app && adduser -D -u 1000 -G app app && \
     mkdir -p /app/keys /app/tmp && chown 1000:1000 /app/keys /app/tmp
-ENV GOCACHE=/home/app/.cache/go-build
+ENV GOCACHE=/home/app/.cache/go-build \
+    GOMODCACHE=/home/app/.cache/go-mod
 USER 1000:1000
+
+# Prime the runtime user's module cache before mounting source for hot reload.
+COPY go.mod go.sum ./
+COPY clients/openchoreosvc/auth ./clients/openchoreosvc/auth
+RUN go mod download
 
 # Expose the application port
 EXPOSE 8080
