@@ -61,6 +61,6 @@ ENV GODEBUG=x509negativeserial=1
 EXPOSE 8080
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
-    CMD wget -q -T 4 -O /dev/null "http://127.0.0.1:${SERVER_PORT:-8080}/healthz" || exit 1
+    CMD ["/go/bin/agent-manager-service", "-healthcheck"]
 
 ENTRYPOINT ["/app/entrypoint.sh"]

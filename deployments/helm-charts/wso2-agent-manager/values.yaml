@@ -324,6 +324,8 @@ agentManagerService:
       tokenUrl: "http://amp-thunder-extension-service.amp-thunder.svc.cluster.local:8090/oauth2/token"
       clientId: "amp-api-client"
       # Set existingSecret to read the client credential from an existing Secret.
+      # After updating that Secret, restart the Agent Manager service Deployment
+      # so its pods read the new value.
       existingSecret: ""
       existingSecretKey: "idp-client-secret"
       clientSecret: "amp-api-client-secret"

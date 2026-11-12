@@ -9,9 +9,9 @@ RUN apk add --no-cache 'ca-certificates>=20261020' 'ca-certificates-bundle>=2026
 
 WORKDIR /app
 
-# Seed ownership for Compose volumes. The bind-mounted source stays read-only.
+# Seed ownership for the keys volume outside the read-only source mount.
 RUN addgroup -g 1000 app && adduser -D -u 1000 -G app app && \
-    mkdir -p /app/keys /app/tmp && chown 1000:1000 /app/keys /app/tmp
+    mkdir -p /var/lib/agent-manager/keys && chown 1000:1000 /var/lib/agent-manager/keys
 ENV GOCACHE=/home/app/.cache/go-build \
     GOMODCACHE=/home/app/.cache/go-mod
 USER 1000:1000
@@ -25,7 +25,7 @@ RUN go mod download
 EXPOSE 8080
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=2m --retries=3 \
-    CMD wget -q -T 4 -O /dev/null "http://127.0.0.1:${SERVER_PORT:-8080}/healthz" || exit 1
+    CMD ["/tmp/agent-manager-air/agent-manager-service", "-healthcheck"]
 
 # Run key generation script then start Air for hot-reloading
-CMD ["/bin/sh", "-c", "bash /app/scripts/gen_keys.sh && air -c .air.toml"]
+CMD ["/app/scripts/dev-entrypoint.sh"]
