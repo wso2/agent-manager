@@ -431,6 +431,8 @@ jobs:
           docker compose up -d --wait --wait-timeout 600 --scale amp-console=0
 
       - name: Run e2e tests
+        env:
+          OPENAI_API_KEY: ${{ secrets.INSTRUMENTATION_TEST_OPENAI_API_KEY }}
         run: |
           set -o pipefail
           cd test/e2e && go run github.com/onsi/ginkgo/v2/ginkgo -v --procs=2 --timeout 60m \
