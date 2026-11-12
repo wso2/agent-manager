@@ -35,8 +35,7 @@ from a2a.types.a2a_pb2 import (
 
 from agent import SKILL_ACTION_ITEMS, SKILL_SUMMARIZE, NotesAgentExecutor
 
-# For local runs only: the deployed pod gets its environment from AMP. Loading
-# here means the agent card below sees AGENT_PUBLIC_BASE_URL either way.
+# Loading here means the agent card below sees AGENT_PUBLIC_BASE_URL from .env.
 load_dotenv()
 
 PORT = 9099
@@ -54,9 +53,8 @@ class DefaultProtocolVersion:
     may omit it, so the version this agent serves is applied here rather than
     left to the caller.
 
-    This only helps direct calls, such as a local run. Behind AMP's gateway a
-    request without the header is rejected with a 400 before it reaches the
-    agent, so deployed clients must send it themselves.
+    This only helps direct calls. A proxy that rejects requests without the
+    header never lets them reach the agent, so clients should send it.
     """
 
     def __init__(self, app: Callable) -> None:

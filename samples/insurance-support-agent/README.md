@@ -1,11 +1,11 @@
 # Insurance Support Agent
 
-An end-to-end sample: a Strands agent deployed on WSO2 Agent Manager, plus a
-browser UI that logs a customer in with OAuth2 and chats with the agent through
-the gateway.
+An end-to-end sample: a Strands agent that sends its traces to WSO2 Agent
+Manager as an external agent, plus a browser UI that chats with it and can log a
+customer in with OAuth2.
 
-The agent works on its own — deploy it and chat from **Try It**. The login flow
-is an optional second step, and the UI runs with or without it.
+The agent works on its own — run it and call `/chat`. The UI is an optional
+second step, and it runs with or without a login.
 
 The browser client is a separate app with its own README — see [`web/`](web/README.md).
 
@@ -32,7 +32,7 @@ Sample data (all Ada Lovelace): policies `OZ-AUTO-4417` (motor), `OZ-HOME-2280`
 (home and contents), `OZ-TRAV-9153` (travel); claims `CLM-10432` (in review) and
 `CLM-10876` (settled).
 
-## External AWS deployment
+## Running on AWS
 
 For an instrumented ECS container, see [Run on Amazon ECS](ECS-EXTERNAL.md).
 To use Amazon Bedrock through the Agent Manager AI gateway, see
@@ -40,24 +40,48 @@ To use Amazon Bedrock through the Agent Manager AI gateway, see
 
 For a supplied read-only insurance MCP server and AgentID OAuth client, follow
 [Connect the insurance MCP tools](MCP-TOOLS.md). This mode requires configuration
-and deployment, not custom server or client code.
+and hosting the server, not custom server or client code.
 
 ## Prerequisites
 
 - An OpenAI API key
-- Python 3.11+ to run the agent locally
+- Python 3.11+
+- Agent Manager running. From the repository root, `make up` starts it (see
+  [`deployments/standalone`](../../deployments/standalone/README.md)).
 
-## Run locally
+## Register it in Agent Manager
+
+You run the agent yourself; Agent Manager registers it and issues the token its
+traces are sent with.
+
+1. Sign in to the console at <http://localhost:3000> as `admin` (the password is
+   `THUNDER_ADMIN_PASSWORD` in `deployments/standalone/.env`).
+2. Open the **Default** project, click **Add Agent**, and register an agent
+   named `Insurance Support Agent`.
+3. In the **Set up agent** panel that opens, choose **Python**, pick a token
+   duration and click **Generate**. Copy the `AMP_OTEL_ENDPOINT` and
+   `AMP_AGENT_API_KEY` values it shows.
+
+## Run it
 
 ```bash
-cd agent
+cd samples/insurance-support-agent/agent
 python3.11 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements.txt amp-instrumentation==0.4.1
+
+export AMP_OTEL_ENDPOINT="http://default-default.gateway.localhost:19080/otel"
+export AMP_AGENT_API_KEY="<key-from-the-console>"
 export OPENAI_API_KEY=<your-key>
 export CORS_ALLOW_ORIGINS="http://localhost:5173"
-python main.py
+
+amp-instrument python main.py
 ```
 
+Set the `AMP_*` values as shell variables, not in `.env`, so `amp-instrument`
+can read them. To run it without tracing, leave out `amp-instrument` and the two
+`AMP_*` variables.
+
+Then call it:
 
 ```bash
 curl -X POST http://localhost:8000/chat \
@@ -75,7 +99,7 @@ setup.
 | Variable             | Required | Default          | Purpose                                                                  |
 | -------------------- | -------- | ---------------- | ------------------------------------------------------------------------ |
 | `OPENAI_API_KEY`     | yes      | —                | Model credential                                                         |
-| `PORT`               | yes       | `8000`           | Override if required only;                 |
+| `PORT`               | no       | `8000`           | Listening port                                                           |
 | `CORS_ALLOW_ORIGINS` | no       | —                | Comma-separated origins. Local testing only — see [CORS](#cors)          |
 | `OPENAI_BASE_URL`    | no       | OpenAI's default | Any OpenAI-compatible endpoint — an AM LLM provider, a proxy             |
 | `OPENAI_MODEL`       | no       | `gpt-4o-mini`    | Model id                                                                 |
@@ -91,77 +115,31 @@ supply in `OPENAI_API_KEY` is then the gateway's key.
 
 ## CORS
 
-A browser calling the agent from another origin needs CORS headers. Where they
-come from depends on how the agent is reached:
-
-- **Deployed behind the gateway** — configure it in Agent Manager. Open the
-  agent, go to its CORS settings, and add `http://localhost:5173` (or whatever
-  origin serves the client) to the allowed origins. Leave
-  `CORS_ALLOW_ORIGINS` unset on the agent: the gateway already sends the
-  headers, and two sets of them make browsers reject the response.
-- **Running the agent directly on your machine** — there is no gateway in the
-  path, so set `CORS_ALLOW_ORIGINS=http://localhost:5173` on the agent instead.
-
-## 1. Deploy in Agent Manager
-
-### Step 1: Create the agent
-
-1. Navigate to a project
-2. Select the **Platform-Hosted Agent** card
-3. Pick **Source Code** as the source type
-
-### Step 2: Configure agent details
-
-| Field                 | Value                                            |
-| --------------------- | ------------------------------------------------ |
-| **Display Name**      | `Insurance Support Agent`                        |
-| **Description**       | `Customer support agent for policies and claims` |
-| **GitHub Repository** | `https://github.com/wso2/agent-manager`          |
-| **Branch**            | `main`                                           |
-| **App Path**          | `/samples/insurance-support-agent/agent`               |
-| **Language**          | `Python`                                         |
-| **Language Version**  | `3.11`                                           |
-| **Start Command**     | `python main.py`                                 |
-
-### Step 3: Select the agent interface
-
-Choose **Chat Agent**.
-
-### Step 4: Environment variables
-
-```env
-OPENAI_API_KEY=<your-openai-api-key>
-PORT=8000
-```
-
-### Step 5: Deploy
-
-Review and click **Deploy**. The build takes roughly 6-10 minutes.
-
-## 2. Invoke the agent
-
-Use **Try It** in the left navigation, or point the web client at the deployed
-agent — see [`web/README.md`](web/README.md). To call it from the browser, add
-the client's origin to the agent's CORS settings first — see [CORS](#cors).
+A browser calling the agent from another origin needs CORS headers. With the
+agent called directly, set `CORS_ALLOW_ORIGINS=http://localhost:5173` (or
+whatever origin serves the client) on the agent. If you put a proxy in front of
+the agent that already sends CORS headers, leave `CORS_ALLOW_ORIGINS` unset: two
+sets of them make browsers reject the response.
 
 ## Known limits
 
 The agent keys conversation history on the caller-supplied `session_id`, not
-the authenticated subject — the gateway checks the token, but the agent never
-reads it, so it can't tell one signed-in customer from another. Anyone holding
-a valid token who knows a `session_id` can resume that conversation. Sessions
+the authenticated subject — whatever checks the token in front of the agent,
+the agent never reads it, so it can't tell one signed-in customer from another.
+Anyone holding a valid token who knows a `session_id` can resume that conversation. Sessions
 also live in process memory, capped at 500 with the oldest evicted first —
-fine for a demo, not for a real deployment. Both should be fixed (key on the
+fine for a demo, not for production. Both should be fixed (key on the
 authenticated subject, move storage out of process) before this goes further
 than a sample. See [`web/README.md`](web/README.md#known-limits) for the
 client-side implications.
 
 ## Observability
 
-Leave **auto instrumentation** enabled (it is on by default). The platform's
-instrumentation installs a global OpenTelemetry tracer provider, and the Strands
-agent emits its agent, event-loop and tool spans into it — so this sample needs
-no tracing code and does not install `strands-agents[otel]`.
+Run the agent under `amp-instrument`. It installs a global OpenTelemetry tracer
+provider, and the Strands agent emits its agent, event-loop and tool spans into
+it — so this sample needs no tracing code and does not install
+`strands-agents[otel]`. Each chat turn appears under the agent's
+**Observability → Traces** in the console.
 
 Two details matter if you adapt this sample:
 
@@ -169,9 +147,4 @@ Two details matter if you adapt this sample:
   before importing Strands. Without it, tool input and output are not recorded
   as span attributes and the trace view shows tool spans without their data.
 - `agent/requirements.txt` pins `wrapt==1.17.3`. Strands otherwise resolves
-  wrapt 2.x, which removed an argument that the platform's auto-instrumentation
-  still uses.
-
-Disabling auto instrumentation removes the OpenTelemetry SDK from the image
-entirely, so the agent would then need to install and configure its own
-exporter.
+  wrapt 2.x, which removed an argument that `amp-instrumentation` still uses.

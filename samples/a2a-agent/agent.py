@@ -67,8 +67,7 @@ _client: AsyncOpenAI | None = None
 def client() -> AsyncOpenAI:
     """The OpenAI client, created on first use.
 
-    Reads ``OPENAI_API_KEY`` from the environment, which the platform injects
-    as a secret when the agent is deployed through AMP.
+    Reads ``OPENAI_API_KEY`` from the environment.
     """
     global _client
     if _client is None:

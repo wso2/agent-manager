@@ -1,4 +1,4 @@
-# Leave Assistant Agent (Ballerina) - Deployment Guide
+# Leave Assistant Agent (Ballerina)
 
 ## Overview
 
@@ -13,7 +13,7 @@ The agent enforces real approval logic itself, not just record-keeping:
 
 The service exposes `POST /chat` on port `8000`.
 
-This is the reference sample for Agent Manager's **Ballerina buildpack**. Unlike the Python samples in this repository, it's built directly from source with no Dockerfile, and, because Ballerina buildpacks don't need one, no language version or start command to configure.
+This is the reference Ballerina sample. Instead of `amp-instrument`, it traces through the `ballerinax/amp` module: one side-effect import plus `observabilityIncluded = true` in `Ballerina.toml`.
 
 ## Sample Employees
 
@@ -26,62 +26,45 @@ Two employees are seeded in memory so you can exercise both the happy path and t
 
 ## Prerequisites
 
-### Required API Keys
+- [Ballerina](https://ballerina.io/downloads/) `2201.13.4`, the distribution `Ballerina.toml` declares.
+- An **OpenAI API key** for model inference (the agent uses `gpt-4o`).
+- Agent Manager running. From the repository root, `make up` starts it (see [`deployments/standalone`](../../deployments/standalone/README.md)).
 
-- **OpenAI API Key**: for model inference (the agent uses `gpt-4o`)
+## Register it in Agent Manager
 
-## Deployment Instructions
+You run the agent yourself; Agent Manager registers it and issues the token its traces are sent with.
 
-### Step 1: Access Agent Manager
+1. Sign in to the console at <http://localhost:3000> as `admin` (the password is `THUNDER_ADMIN_PASSWORD` in `deployments/standalone/.env`).
+2. Open the **Default** project, click **Add Agent**, and register an agent named `Leave Assistant`.
+3. In the **Set up agent** panel that opens, choose **Ballerina** and version **2201.13.x**, pick a token duration and click **Generate**. Copy the endpoint and API key it shows.
 
-1. Navigate to the **Default** project
-2. Click **"Add Agent"**
-3. Select the **Platform-Hosted Agent** card
-4. Pick **Source Code** as the source type
+## Run it
 
-### Step 2: Configure Agent Details
+Ballerina reads `configurable` values from environment variables named `BAL_CONFIG_VAR_<NAME>`, where `<NAME>` is the configurable's identifier, uppercased, prefixed with its module for imported modules. This agent declares `openAiApiKey`; `ballerinax/amp` declares the trace endpoint and key:
 
-Fill in the agent creation form with these values:
+```bash
+cd samples/leave-assistant-agent
 
-| Field | Value |
-| --- | --- |
-| **Display Name** | `Leave Assistant` |
-| **Description** | `Ballerina employee leave-request assistant` |
-| **GitHub Repository** | `https://github.com/wso2/agent-manager` |
-| **Branch** | `main` |
-| **App Path** | `samples/leave-assistant-agent` |
-| **Language** | `Ballerina` |
-| **Port** | `8000` |
+export BAL_CONFIG_VAR_OPENAIAPIKEY="<your-openai-api-key>"
+export BAL_CONFIG_VAR_BALLERINAX_AMP_OTELENDPOINT="http://default-default.gateway.localhost:19080/otel"
+export BAL_CONFIG_VAR_BALLERINAX_AMP_APIKEY="<key-from-the-console>"
 
-Ballerina is the one buildpack that doesn't ask for a **Language Version** or **Start Command**. The platform builds and runs `main.bal` directly, and the fields don't appear once you select it.
-
-### Step 3: Select Agent Interface
-
-- Choose **"Chat Agent"** as the agent interface type
-
-### Step 4: Configure Environment Variables
-
-Ballerina reads `configurable` values from environment variables named `BAL_CONFIG_VAR_<NAME>`, where `<NAME>` is the configurable's identifier, uppercased. This agent declares one configurable, `openAiApiKey`, so set:
-
-```env
-BAL_CONFIG_VAR_OPENAIAPIKEY=<your-openai-api-key>
+bal run    # serves on http://localhost:8000
 ```
 
-This is different from every Python sample in this repository, which read a plain `OPENAI_API_KEY`. It's the same convention the [AMP instrumentation guide](https://github.com/wso2/docs-agent-platform/blob/main/docs/guides/amp-instrumentation.mdx) uses for `ballerinax/amp`'s own configurables, just applied to this agent's own key instead.
+The Python samples in this repository read a plain `OPENAI_API_KEY` instead. You can also put the values in a git-ignored `Config.toml`; never commit real credentials to it.
 
-### Step 5: Deploy the Agent
+## Try it
 
-1. Review all configuration details
-2. Click **"Deploy"**
-3. Wait for the build to complete
+```bash
+curl -s localhost:8000/chat \
+  -H 'content-type: application/json' \
+  -d '{"session_id": "s1", "message": "What is my leave balance? My employee id is E-3001"}'
+```
 
-## Testing Your Agent
+Expect back `{"response": "..."}`. See the note below on why the field names are `session_id`/`response`, not Ballerina's own `sessionId`/`message`.
 
-### Step 1: Navigate to Chat Interface
-
-Click on the **"Try It"** section on the left navigation.
-
-### Step 2: Test Sample Interactions
+### Sample interactions
 
 Try these in order. Together they exercise every rule the agent enforces, not just the tool calls:
 
@@ -129,33 +112,14 @@ Check E-3001's balance again after cancelling. The 2 days should be back, confir
 Approve the pending 5-day leave request for E-3001
 ```
 
-### Step 3: Observe Traces
+### Observe the traces
 
-1. Click on the **"Observability"** tab on the left navigation and select **Traces**
-2. Open a trace to see which tools were called for each message. `getCurrentDate` should appear before `requestLeave` whenever the message uses a relative date like "tomorrow" or "next Monday"
-
-## Run Locally
-
-```bash
-cd samples/leave-assistant-agent
-echo 'openAiApiKey = "<your-openai-api-key>"' > Config.toml
-bal run    # serves on http://localhost:8000
-```
-
-```bash
-curl -s localhost:8000/chat \
-  -H 'content-type: application/json' \
-  -d '{"session_id": "s1", "message": "What is my leave balance? My employee id is E-3001"}'
-```
-
-Expect back `{"response": "..."}`. See the note below on why the field names are `session_id`/`response`, not Ballerina's own `sessionId`/`message`.
-
-`Config.toml` is git-ignored. Never commit real credentials to it.
+Open the agent in the console and go to **Observability → Traces**. Open a trace to see which tools were called for each message. `getCurrentDate` should appear before `requestLeave` whenever the message uses a relative date like "tomorrow" or "next Monday"
 
 ## Notes
 
-- **The request/response types are hand-written, not `ballerina/ai`'s own `ChatReqMessage`/`ChatRespMessage`.** Those module types use `sessionId`/`message`. Agent Manager's actual Chat Agent contract sends `session_id` and expects `response` back, matching every Python sample here, plus an unused `context` field. Binding straight to `ai:ChatReqMessage` also requires `ai:Listener`, whose `ChatService` contract locks you into that exact camelCase shape with no way to override it. This sample uses a plain `http:Listener` with its own open `ChatRequest`/closed `ChatResponse` types instead. If you're adapting this pattern for your own Ballerina agent, keep that distinction, or you'll hit the same 400s (`undefined field 'session_id'`, then `undefined field 'context'`) the moment the real platform calls it instead of a hand-written curl test.
+- **The request/response types are hand-written, not `ballerina/ai`'s own `ChatReqMessage`/`ChatRespMessage`.** Those module types use `sessionId`/`message`. Agent Manager's Chat Agent contract sends `session_id` and expects `response` back, matching every Python sample here, plus an unused `context` field. Binding straight to `ai:ChatReqMessage` also requires `ai:Listener`, whose `ChatService` contract locks you into that exact camelCase shape with no way to override it. This sample uses a plain `http:Listener` with its own open `ChatRequest`/closed `ChatResponse` types instead. If you're adapting this pattern for your own Ballerina agent, keep that distinction, or you'll hit the same 400s (`undefined field 'session_id'`, then `undefined field 'context'`) the moment a real chat client calls it instead of a hand-written curl test.
 - Leave request ids are returned by `requestLeave` and `listMyLeaveRequests`. The system prompt tells the agent to reuse an id from an earlier reply rather than ask the user for one, which is why the test sequence above refers to a request by description and still works. The agent resolves it to an id itself via `listMyLeaveRequests`.
-- `approveLeaveRequest` and `rejectLeaveRequest` aren't gated behind any real authorization in this sample. Anyone in the chat can call them. That's deliberate: the point here is the Ballerina buildpack and the approval *logic*, not building a role-based access model. A production version would check the caller's role before allowing either.
-- The in-memory employee and leave-request stores reset on every restart. There's no database. That's deliberate too: the point of this sample is the Ballerina buildpack and the `ai:Agent` / `@ai:AgentTool` pattern, not persistence.
+- `approveLeaveRequest` and `rejectLeaveRequest` aren't gated behind any real authorization in this sample. Anyone in the chat can call them. That's deliberate: the point here is the Ballerina agent and the approval *logic*, not building a role-based access model. A production version would check the caller's role before allowing either.
+- The in-memory employee and leave-request stores reset on every restart. There's no database. That's deliberate too: the point of this sample is the `ai:Agent` / `@ai:AgentTool` pattern, not persistence.
 - `ballerinax/amp` is imported for its side effect only (`import ballerinax/amp as _;`). It wires up AMP's OpenTelemetry auto-instrumentation with no code changes beyond the import.
