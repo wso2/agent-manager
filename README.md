@@ -1,10 +1,10 @@
 # WSO2 Agent Manager
 
-[![Go Report Card](https://goreportcard.com/badge/github.com/wso2/ai-agent-management-platform/agent-manager-service)](https://goreportcard.com/report/github.com/wso2/ai-agent-management-platform/agent-manager-service)
-[![Platform Release](https://img.shields.io/github/v/release/wso2/ai-agent-management-platform?filter=amp/*&label=platform&color=orange)](https://github.com/wso2/agent-manager/releases?q=amp)
-[![Python Instrumentation](https://img.shields.io/github/v/release/wso2/ai-agent-management-platform?filter=amp-instrumentation/*&label=python-instrumentation&color=blue)](https://github.com/wso2/agent-manager/releases?q=amp-instrumentation)
+[![Go Report Card](https://goreportcard.com/badge/github.com/wso2/agent-manager/agent-manager-service)](https://goreportcard.com/report/github.com/wso2/agent-manager/agent-manager-service)
+[![Platform Release](https://img.shields.io/github/v/release/wso2/agent-manager?filter=amp/*&label=platform&color=orange)](https://github.com/wso2/agent-manager/releases?q=amp)
+[![Python Instrumentation](https://img.shields.io/github/v/release/wso2/agent-manager?filter=amp-instrumentation/*&label=python-instrumentation&color=blue)](https://github.com/wso2/agent-manager/releases?q=amp-instrumentation)
 
-An open control plane designed for enterprises to deploy, manage, and govern AI agents at scale.
+An open control plane for enterprises to register, govern and observe AI agents.
 
 ## Overview
 
@@ -32,13 +32,17 @@ This branch is **AMP Lite**, a development preview of Agent Manager without Open
 
 | Component | Description |
 |-----------|-------------|
-| **amp-instrumentation** | Python auto-instrumentation package for AI frameworks |
-| **amp-console** | Web-based management console for the platform |
-| **amp-api** | Backend API powering the control plane |
-| **amp-trace-observer** | API for querying trace data in OpenSearch |
-| **amp-python-instrumentation-provider** | Kubernetes init container for automatic Python instrumentation of hosted agents (not used in Lite yet) |
+| **amp-console** ([console](console)) | Web-based management console for the platform |
+| **amp-api** ([agent-manager-service](agent-manager-service)) | Backend API and MCP server powering the control plane |
+| **amp-observer** ([agent-manager-observer](agent-manager-observer)) | API for querying trace data in OpenSearch |
+| **amctl** ([cli](cli)) | Command-line client for the Agent Manager API |
+| **amp-instrumentation** ([libs/amp-instrumentation](libs/amp-instrumentation)) | Python auto-instrumentation package for AI frameworks |
+| **amp-python-instrumentation-provider** ([python-instrumentation-provider](python-instrumentation-provider)) | Kubernetes init container for automatic Python instrumentation of hosted agents (not used in Lite yet) |
+| **amp-evaluation** ([libs/amp-evaluation](libs/amp-evaluation)) | Python library for scoring agent traces (evaluations are deferred in Lite) |
 
 ## Helm Charts
+
+Charts are in [deployments/helm-charts](deployments/helm-charts):
 
 | Chart | Description |
 |-------|-------------|
