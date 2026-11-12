@@ -21,6 +21,7 @@ import (
 	"context"
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/wso2/agent-manager/agent-manager-observer/store"
 )
@@ -70,7 +71,7 @@ func (m *Store) QueryTraces(_ context.Context, s store.Scope, q store.TraceQuery
 
 	var traces []store.Trace
 	for _, e := range m.entries {
-		if inScope(e.scope, s) && inWindow(e.trace, q) {
+		if inScope(e.scope, s) && inWindow(e.trace.StartTime, q.StartTime, q.EndTime) {
 			traces = append(traces, e.trace)
 		}
 	}
@@ -102,6 +103,9 @@ func (m *Store) QueryTraceSpans(_ context.Context, s store.Scope, traceID string
 	}
 	spans := make([]store.Span, 0, len(e.spans))
 	for _, d := range e.spans {
+		if !inWindow(d.StartTime, q.StartTime, q.EndTime) {
+			continue
+		}
 		sp := store.Span{
 			SpanID: d.SpanID, SpanName: d.SpanName, ParentSpanID: d.ParentSpanID,
 			StartTime: d.StartTime, EndTime: d.EndTime, DurationNs: d.DurationNs,
@@ -112,6 +116,12 @@ func (m *Store) QueryTraceSpans(_ context.Context, s store.Scope, traceID string
 		}
 		spans = append(spans, sp)
 	}
+	sort.SliceStable(spans, func(i, j int) bool {
+		if q.SortOrder == "desc" {
+			return spans[i].StartTime.After(spans[j].StartTime)
+		}
+		return spans[i].StartTime.Before(spans[j].StartTime)
+	})
 	total := len(spans)
 	if q.Limit > 0 && len(spans) > q.Limit {
 		spans = spans[:q.Limit]
@@ -137,22 +147,19 @@ func (m *Store) GetSpanDetails(_ context.Context, s store.Scope, traceID, spanID
 	return nil, store.ErrNotFound
 }
 
-// find returns the Scope's trace with traceID; a Scope with no org matches on the ID alone.
+// find returns the Scope's trace with traceID.
 func (m *Store) find(s store.Scope, traceID string) (entry, bool) {
 	for _, e := range m.entries {
-		if e.trace.TraceID != traceID {
-			continue
-		}
-		if s.OrgID == "" && s.Names.Org == "" || inScope(e.scope, s) {
+		if e.trace.TraceID == traceID && inScope(e.scope, s) {
 			return e, true
 		}
 	}
 	return entry{}, false
 }
 
-// inScope reports whether a trace stored under have is visible to want.
+// inScope reports whether a trace stored under have is visible to want; an empty org ID matches nothing.
 func inScope(have, want store.Scope) bool {
-	return have.OrgID == want.OrgID &&
+	return have.OrgID != "" && have.OrgID == want.OrgID &&
 		matches(have.ProjectID, want.ProjectID) &&
 		matches(have.AgentID, want.AgentID) &&
 		matches(have.EnvironmentID, want.EnvironmentID)
@@ -163,9 +170,10 @@ func matches(have, want string) bool {
 	return want == "" || have == want
 }
 
-func inWindow(t store.Trace, q store.TraceQuery) bool {
-	if !q.StartTime.IsZero() && t.StartTime.Before(q.StartTime) {
+// inWindow reports whether at is within [from, to]; a zero bound is open.
+func inWindow(at, from, to time.Time) bool {
+	if !from.IsZero() && at.Before(from) {
 		return false
 	}
-	return q.EndTime.IsZero() || !t.StartTime.After(q.EndTime)
+	return to.IsZero() || !at.After(to)
 }

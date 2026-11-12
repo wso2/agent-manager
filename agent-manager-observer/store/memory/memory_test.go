@@ -18,7 +18,9 @@ package memory_test
 
 import (
 	"context"
+	"errors"
 	"testing"
+	"time"
 
 	"github.com/wso2/agent-manager/agent-manager-observer/store"
 	"github.com/wso2/agent-manager/agent-manager-observer/store/memory"
@@ -52,5 +54,43 @@ func TestEmptyOrgRunsNoQuery(t *testing.T) {
 	}
 	if n := m.Queries(); n != 0 {
 		t.Errorf("Queries() = %d, want 0", n)
+	}
+}
+
+func TestQueryTraceSpans_WindowAndOrder(t *testing.T) {
+	base := time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)
+	sc := store.Scope{OrgID: "org-a", Names: store.Names{Org: "acme"}}
+	m := memory.New()
+	m.Add(sc, store.Trace{TraceID: "t1"},
+		store.SpanDetails{SpanID: "early", StartTime: base},
+		store.SpanDetails{SpanID: "a", StartTime: base.Add(2 * time.Hour)},
+		store.SpanDetails{SpanID: "b", StartTime: base.Add(3 * time.Hour)},
+	)
+
+	page, err := m.QueryTraceSpans(context.Background(), sc, "t1", store.SpanQuery{
+		StartTime: base.Add(time.Hour), EndTime: base.Add(4 * time.Hour), SortOrder: "desc", Limit: 1,
+	})
+	if err != nil {
+		t.Fatalf("QueryTraceSpans: %v", err)
+	}
+	if page.Total != 2 || len(page.Spans) != 1 || page.Spans[0].SpanID != "b" {
+		t.Errorf("QueryTraceSpans = %+v, want total 2 and only span b", page)
+	}
+}
+
+func TestNameOnlyScopesDoNotMatch(t *testing.T) {
+	m := memory.New()
+	m.Add(store.Scope{Names: store.Names{Org: "acme"}}, store.Trace{TraceID: "t1"}, store.SpanDetails{SpanID: "s1"})
+	other := store.Scope{Names: store.Names{Org: "globex"}}
+
+	page, err := m.QueryTraces(context.Background(), other, store.TraceQuery{})
+	if err != nil {
+		t.Fatalf("QueryTraces: %v", err)
+	}
+	if len(page.Traces) != 0 {
+		t.Errorf("QueryTraces leaked %+v", page.Traces)
+	}
+	if _, err := m.GetSpanDetails(context.Background(), store.Scope{}, "t1", "s1"); !errors.Is(err, store.ErrNotFound) {
+		t.Errorf("GetSpanDetails with no org error = %v, want ErrNotFound", err)
 	}
 }

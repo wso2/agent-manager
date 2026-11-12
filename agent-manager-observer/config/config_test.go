@@ -202,6 +202,7 @@ func TestObserverConfig_ValidateClientCredentials(t *testing.T) {
 
 func TestLoad_TraceBackendDefaultsToOpenChoreo(t *testing.T) {
 	setRequiredEnv(t)
+	t.Setenv("TRACE_BACKEND", "")
 	cfg, err := Load()
 	if err != nil {
 		t.Fatalf("Load: %v", err)
