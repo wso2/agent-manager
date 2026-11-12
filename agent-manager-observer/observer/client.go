@@ -28,7 +28,8 @@ import (
 	"time"
 )
 
-type TraceReader interface{
+// TraceReader reads traces from the observer service.
+type TraceReader interface {
 	// QueryTraces fetches a paginated list of traces matching the given request.
 	QueryTraces(ctx context.Context, req TracesQueryRequest) (*TracesQueryResponse, error)
 
@@ -44,7 +45,6 @@ type TraceReader interface{
 
 // Client is the interface for querying trace data from the observer service.
 type Client interface {
-
 	TraceReader
 
 	// QueryLogs fetches log entries matching the given request.
