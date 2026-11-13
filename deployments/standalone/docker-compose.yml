@@ -39,10 +39,11 @@ services:
       AMP_PUBLISHER_CLIENT_SECRET: ${AMP_PUBLISHER_CLIENT_SECRET}
       AMP_SYSTEM_CLIENT_SECRET: ${AMP_SYSTEM_CLIENT_SECRET}
       AMP_DEFAULT_USERS: ${AMP_DEFAULT_USERS:-}
-      # The admin account, mirroring the one ThunderID's setup creates so the
-      # same credentials work whichever AUTH_MODE is in use.
+      # The admin account. Agent Manager owns it; ThunderID's setup is given
+      # the same value below, so the credentials work whichever AUTH_MODE is in
+      # use and the account outlives ThunderID if the stack ever drops it.
       AMP_ADMIN_USERNAME: admin
-      AMP_ADMIN_PASSWORD: ${THUNDER_ADMIN_PASSWORD}
+      AMP_ADMIN_PASSWORD: ${AMP_ADMIN_PASSWORD}
       # The organization a file-mode token names. Matches amp-api's
       # PLATFORM_ADMIN_OU_ID so both describe the same organization.
       PLATFORM_ADMIN_OU_ID: 01900000-0000-7000-8000-000000000001
@@ -68,7 +69,9 @@ services:
     environment:
       <<: *thunder-env
       ADMIN_USERNAME: admin
-      ADMIN_PASSWORD: ${THUNDER_ADMIN_PASSWORD}
+      # Agent Manager's admin password, not one of ThunderID's own: the same
+      # account signs in whichever mode is configured.
+      ADMIN_PASSWORD: ${AMP_ADMIN_PASSWORD}
     volumes:
       - ./thunder:/amp/thunder:ro
       - thunder-config:/amp/thunder-config:ro

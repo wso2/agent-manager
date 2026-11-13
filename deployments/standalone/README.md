@@ -16,7 +16,7 @@ Runs AMP Lite with no Kubernetes, Helm or ingress controller. Every service publ
 Startup, in order:
 
 1. `amp-init` (the `amp-api` image, `-init-thunder` / `-init-gateway`) writes ThunderID's configuration and bootstrap resources and the AI Gateway's `config.toml` from the settings in `docker-compose.yml` and `.env`: public URLs, ports, client IDs and secrets, default users. Scope lists and role grants come from Agent Manager's own permission catalog. On the first run it also creates the gateway's encryption key, listener certificate and registration token (unless `DEFAULT_GATEWAY_TOKEN` is set), and keeps them afterwards.
-2. `thunder-setup` runs ThunderID's setup when the generated bootstrap differs from the one last applied. A rerun is additive: it updates AMP's clients, roles and settings and keeps everything else in ThunderID's database. It also sets the admin password to `THUNDER_ADMIN_PASSWORD` again.
+2. `thunder-setup` runs ThunderID's setup when the generated bootstrap differs from the one last applied. A rerun is additive: it updates AMP's clients, roles and settings and keeps everything else in ThunderID's database. It also sets the admin password to `AMP_ADMIN_PASSWORD` again.
 3. `amp-api` migrates its database, then registers the default gateway (`DEFAULT_GATEWAY_*`) with the token from step 1, creating the `default` organization and environment if needed.
 4. `gateway-controller` connects to `amp-api` with that token. On every gateway connection, `amp-api` deploys the built-in trace-ingest API (`/otel`, `OTEL_INGEST_UPSTREAM_URL`) on the gateway if it does not serve the current version. It is a control-plane deployment, so a gateway restart or resync keeps it.
 5. `amp-observer` applies the `otel-traces-*` index template (span IDs and attributes as keywords) to OpenSearch before it reports healthy; `otel-collector` waits for that.
@@ -39,7 +39,7 @@ docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build -
 
 `docker-compose.build.yml` builds the Agent Manager images from the checkout; release bundles leave it out.
 
-Sign in to the console as `admin` with `THUNDER_ADMIN_PASSWORD` from `.env`.
+Sign in to the console as `admin` with `AMP_ADMIN_PASSWORD` from `.env`.
 
 ### PostgreSQL
 

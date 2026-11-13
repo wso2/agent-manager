@@ -42,7 +42,7 @@ Edit `.env` before the first start. The defaults are for local development only.
 
 | Setting | What to set |
 |---|---|
-| `THUNDER_ADMIN_PASSWORD` | The console admin password |
+| `AMP_ADMIN_PASSWORD` | The console admin password |
 | `AMP_API_CLIENT_SECRET`, `AMP_CONSOLE_CLIENT_SECRET`, `AMP_PUBLISHER_CLIENT_SECRET`, `AMP_SYSTEM_CLIENT_SECRET` | Random strings |
 | `AMP_ENCRYPTION_KEY` | 64 hex characters, from `openssl rand -hex 32`. It encrypts stored secrets; keep it safe, because data encrypted with it can't be read without it |
 | `GATEWAY_ADMIN_PASSWORD`, `OPENSEARCH_PASSWORD` | Strong passwords (OpenSearch needs upper case, lower case, a digit and a symbol) |
@@ -69,7 +69,7 @@ The API creates and migrates its tables on every start. Switching databases late
 
 ## Sign in
 
-Open http://localhost:3000 and sign in as `admin` with the `THUNDER_ADMIN_PASSWORD` from `.env`.
+Open http://localhost:3000 and sign in as `admin` with the `AMP_ADMIN_PASSWORD` from `.env`.
 
 A new install has no projects. Create one with **Add project** before you register an agent.
 
@@ -115,7 +115,7 @@ Run these from the `standalone` folder:
 
 Download and unpack the new bundle in a new folder, then copy your `.env` into it. Check the new `.env.example` for added settings, then stop the old stack and start the new one with `docker compose up -d --wait`. Keep the same `COMPOSE_PROJECT_NAME`, so the new stack uses the same data volumes. The API migrates the database on start.
 
-When the generated ThunderID settings change, ThunderID's setup runs again. It keeps your users and data, but it resets the admin password to `THUNDER_ADMIN_PASSWORD`.
+When the generated ThunderID settings change, ThunderID's setup runs again. It keeps your users and data, but it resets the admin password to `AMP_ADMIN_PASSWORD`.
 
 ### Back up
 
@@ -128,7 +128,7 @@ The data lives in Docker volumes named after `COMPOSE_PROJECT_NAME` (default `am
 - **`thunder.amp.localhost` or `*.gateway.localhost` doesn't resolve:** browsers resolve `*.localhost` to 127.0.0.1 themselves, but some command-line tools and agent runtimes don't. Add the names to `/etc/hosts`, or call `localhost:19080` with a `Host: default-default.gateway.localhost` header.
 - **OpenSearch exits on Linux:** set `vm.max_map_count` as shown under Requirements.
 - **Traces don't appear:** check that the agent's key hasn't expired, and that the agent can reach the gateway address in `AMP_OTEL_ENDPOINT`. `docker compose logs gateway-runtime otel-collector` shows rejected or failed requests.
-- **Sign-in fails after an upgrade:** the admin password was reset to `THUNDER_ADMIN_PASSWORD` in `.env`.
+- **Sign-in fails after an upgrade:** the admin password was reset to `AMP_ADMIN_PASSWORD` in `.env`.
 
 ## Limits of this preview
 
