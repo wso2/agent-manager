@@ -121,6 +121,7 @@ components:
       properties:
         loc:
           type: array
+          maxItems: 16
           items:
             anyOf:
               - type: string

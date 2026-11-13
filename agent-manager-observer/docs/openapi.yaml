@@ -677,8 +677,9 @@ components:
       explode: false
       description: |
         Keep traces without the named fields, as a comma-separated list. The parameter
-        may be repeated. At most one distinct value is accepted; repeated values
-        are ignored. Unknown values return 400.
+        may be repeated. Up to 16 entries are accepted across all occurrences,
+        including duplicates and empty entries. Duplicate and empty entries are
+        ignored when filtering. Unknown values return 400.
 
         - `conversationId`: keep traces with no conversation ID on the root, its first
           child or its LLM spans. A trace with an ID on its root is ruled out at the root;
@@ -689,6 +690,7 @@ components:
           (400).
       schema:
         type: array
+        maxItems: 16
         items:
           type: string
           enum: [conversationId]

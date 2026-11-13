@@ -18,19 +18,85 @@ package controllers
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/google/uuid"
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
+	"github.com/wso2/agent-manager/agent-manager-service/spec"
 )
 
 const defaultEnvUUID = "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+
+func TestGetGatewayEnvironments_Pagination(t *testing.T) {
+	gatewayID := uuid.NewString()
+	var mappings []models.GatewayEnvironmentMapping
+	var environments []*models.EnvironmentResponse
+	for i := maxGatewayEnvironments + 1; i > 0; i-- {
+		id := uuid.MustParse(fmt.Sprintf("00000000-0000-0000-0000-%012d", i))
+		mappings = append(mappings, models.GatewayEnvironmentMapping{EnvironmentUUID: id})
+		environments = append(environments, &models.EnvironmentResponse{UUID: id.String()})
+	}
+	repo := &repomocks.GatewayRepositoryMock{
+		GetEnvironmentMappingsByGatewayIDFunc: func(_ string) ([]models.GatewayEnvironmentMapping, error) {
+			return mappings, nil
+		},
+	}
+	ctrl := &gatewayController{
+		gatewayService: services.NewPlatformGatewayService(repo, nil),
+		ocClient: &clientmocks.OpenChoreoClientMock{
+			ListEnvironmentsFunc: func(_ context.Context, _ string) ([]*models.EnvironmentResponse, error) {
+				return environments, nil
+			},
+		},
+	}
+
+	for _, tc := range []struct {
+		query     string
+		wantCount int
+		wantFirst string
+	}{
+		{"", maxGatewayEnvironments, environments[len(environments)-1].UUID},
+		{fmt.Sprintf("?offset=%d", maxGatewayEnvironments), 1, environments[0].UUID},
+		{fmt.Sprintf("?offset=%d", len(environments)), 0, ""},
+	} {
+		t.Run(tc.query, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodGet, "/orgs/acme/gateways/"+gatewayID+"/environments"+tc.query, nil)
+			req.SetPathValue("gatewayID", gatewayID)
+			ctrl.GetGatewayEnvironments(w, req)
+			if w.Code != http.StatusOK {
+				t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
+			}
+			var response spec.GetGatewayEnvironments200Response
+			if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+				t.Fatal(err)
+			}
+			if len(response.Environments) != tc.wantCount {
+				t.Fatalf("got %d environments, want %d", len(response.Environments), tc.wantCount)
+			}
+			if tc.wantCount > 0 && response.Environments[0].Id != tc.wantFirst {
+				t.Errorf("first environment = %q, want %q", response.Environments[0].Id, tc.wantFirst)
+			}
+		})
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/orgs/acme/gateways/"+gatewayID+"/environments?offset=-1", nil)
+	w := httptest.NewRecorder()
+	(&gatewayController{}).GetGatewayEnvironments(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("negative offset status = %d, want 400", w.Code)
+	}
+}
 
 func listGatewaysRequest(
 	t *testing.T, query string, repo *repomocks.GatewayRepositoryMock,

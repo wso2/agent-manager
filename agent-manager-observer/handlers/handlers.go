@@ -42,8 +42,8 @@ const (
 	maxLogRangeDays = 14
 	// maxIncludeItems matches the include array limit in docs/openapi.yaml.
 	maxIncludeItems = 32
-	// maxMissingItems matches the missing parameter enum size in docs/openapi.yaml.
-	maxMissingItems = 1
+	// maxMissingItems matches the missing array limit in docs/openapi.yaml.
+	maxMissingItems = 16
 )
 
 // validLogLevels are the log levels accepted (case-insensitively) by the
@@ -679,22 +679,18 @@ func parseTraceFilters(query url.Values) (controllers.TraceFilters, error) {
 	return f, nil
 }
 
-// parseMissing accepts at most maxMissingItems distinct non-empty fields.
-// Repeated values are ignored; unknown values are an error.
+// parseMissing bounds the total number of entries across repeated parameters.
 func parseMissing(raw []string) (controllers.MissingFields, error) {
 	var missing controllers.MissingFields
-	seen := make(map[string]struct{}, maxMissingItems)
+	count := 0
 	for _, list := range raw {
-		for _, item := range strings.Split(list, ",") {
-			item = strings.TrimSpace(item)
+		for item := range strings.SplitSeq(list, ",") {
+			count++
+			if count > maxMissingItems {
+				return controllers.MissingFields{}, fmt.Errorf("too many missing values: at most %d are allowed", maxMissingItems)
+			}
 			if err := controllers.ParseMissingField(&missing, item, "conversationId"); err != nil {
 				return controllers.MissingFields{}, err
-			}
-			if item != "" {
-				seen[item] = struct{}{}
-				if len(seen) > maxMissingItems {
-					return controllers.MissingFields{}, fmt.Errorf("too many missing values: at most %d are allowed", maxMissingItems)
-				}
 			}
 		}
 	}
