@@ -23,14 +23,16 @@ export interface CreateProjectRequest {
   name: string;
   displayName: string;
   description?: string;
-  deploymentPipeline: string;
+  /** Omitted when the agent runtime is not installed: such a project deploys nothing. */
+  deploymentPipeline?: string;
 }
 
 export interface UpdateProjectRequest {
   name: string;
   displayName: string;
   description?: string;
-  deploymentPipeline: string;
+  /** Omitted to leave the project's pipeline unchanged (e.g. no agent runtime). */
+  deploymentPipeline?: string;
 }
 
 // Responses

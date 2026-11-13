@@ -24,6 +24,7 @@ import {
   useFormValidation,
   FormGridSpacer,
   LoadErrorNotice,
+  useIsUIModuleInstalled,
 } from "@agent-management-platform/views";
 import { z } from "zod";
 import { generatePath, Navigate, useNavigate, useParams } from "react-router-dom";
@@ -90,7 +91,7 @@ interface EditProjectFormValues {
   deploymentPipeline: string;
 }
 
-const editProjectSchema = z.object({
+const editProjectBaseSchema = z.object({
   displayName: z
     .string()
     .trim()
@@ -103,6 +104,11 @@ const editProjectSchema = z.object({
     .regex(/^[a-z0-9-]+$/, 'Name must be lowercase letters, numbers, and hyphens only (no spaces)')
     .max(50, 'Name must be at most 50 characters'),
   description: z.string().trim().optional(),
+  // Only required while the agent runtime is installed (editProjectSchema).
+  deploymentPipeline: z.string().trim(),
+});
+
+const editProjectSchema = editProjectBaseSchema.extend({
   deploymentPipeline: z
     .string()
     .trim()
@@ -111,6 +117,10 @@ const editProjectSchema = z.object({
 
 function EditProjectForm({ project, orgId, projectHref }: EditProjectFormProps) {
   const navigate = useNavigate();
+  // Deployment pipelines belong to the agent runtime; without it there is no
+  // pipeline to pick. Undefined while its install state is being detected.
+  const runtimeInstalled = useIsUIModuleInstalled('agent-runtime');
+  const showPipeline = runtimeInstalled === true;
   const [formData, setFormData] = useState<EditProjectFormValues>({
     name: project.name,
     displayName: project.displayName,
@@ -124,7 +134,9 @@ function EditProjectForm({ project, orgId, projectHref }: EditProjectFormProps) 
     validateForm,
     clearErrors,
     setFieldError,
-  } = useFormValidation<EditProjectFormValues>(editProjectSchema);
+  } = useFormValidation<EditProjectFormValues>(
+    showPipeline ? editProjectSchema : editProjectBaseSchema,
+  );
 
   const { isDirty: formChanged, checkDirty, resetDirty } = useDirtyState(formData);
   const { allowNavigation } = useUnsavedChangesGuard(formChanged);
@@ -143,13 +155,15 @@ function EditProjectForm({ project, orgId, projectHref }: EditProjectFormProps) 
 
   const { data: pipelinesData, isLoading: isPipelinesLoading } = useListDeploymentPipelines(
     { orgName: orgId },
+    undefined,
+    { enabled: !!orgId && showPipeline },
   );
   const pipelines = useMemo(
     () => pipelinesData?.deploymentPipelines ?? [],
     [pipelinesData?.deploymentPipelines],
   );
 
-  const { data: environments } = useListEnvironments({ orgName: orgId });
+  const { data: environments } = useListEnvironments({ orgName: showPipeline ? orgId : '' });
   const envDisplayNameMap = useMemo(() => {
     const map = new Map<string, string>();
     (environments ?? []).forEach((e) => map.set(e.name, e.displayName ?? e.name));
@@ -180,7 +194,8 @@ function EditProjectForm({ project, orgId, projectHref }: EditProjectFormProps) 
       name: formData.name,
       displayName: formData.displayName,
       description: formData.description,
-      deploymentPipeline: formData.deploymentPipeline,
+      // Left out without the runtime, so the project's pipeline stays as it is.
+      ...(showPipeline ? { deploymentPipeline: formData.deploymentPipeline } : {}),
     };
 
     updateProject(payload, {
@@ -192,7 +207,7 @@ function EditProjectForm({ project, orgId, projectHref }: EditProjectFormProps) 
     });
   }, [
     formData, validateForm, updateProject, clearErrors, resetDirty,
-    allowNavigation, navigate, projectHref,
+    allowNavigation, navigate, projectHref, showPipeline,
   ]);
 
   const isValid = useMemo(() => {
@@ -236,54 +251,58 @@ function EditProjectForm({ project, orgId, projectHref }: EditProjectFormProps) 
                 helperText={errors.description}
               />
             </Grid>
-            <FormGridSpacer />
-            <Grid size={{ xs: 12, md: 6, xl: 4 }}>
-              <Form.ElementWrapper label="Deployment Pipeline" name="deploymentPipeline">
-                <Select
-                  id="deploymentPipeline"
-                  value={formData.deploymentPipeline}
-                  onChange={(e) => handleFieldChange('deploymentPipeline', e.target.value as string)}
-                  error={!!errors.deploymentPipeline}
-                  disabled={isPipelinesLoading || isPending}
-                  displayEmpty
-                  renderValue={(value) => {
-                    const selected = pipelines.find((p) => p.name === value);
-                    if (!selected) {
-                      return (
-                        <Typography variant="body2" color="text.disabled">
-                          Select a pipeline
-                        </Typography>
-                      );
-                    }
-                    return (
-                      <SelectedPipelineValue
-                        pipeline={selected}
-                        envDisplayNameMap={envDisplayNameMap}
-                      />
-                    );
-                  }}
-                  fullWidth
-                  size="small"
-                >
-                  {isPipelinesLoading && (
-                    <MenuItem value="" disabled>
-                      <Stack direction="row" alignItems="center" gap={1}>
-                        <CircularProgress size={12} />
-                        <Typography variant="caption">Loading pipelines...</Typography>
-                      </Stack>
-                    </MenuItem>
-                  )}
-                  {!isPipelinesLoading && pipelines.length === 0 && (
-                    <MenuItem value="" disabled>No deployment pipelines available</MenuItem>
-                  )}
-                  {pipelines.map((p) => (
-                    <MenuItem key={p.name} value={p.name}>
-                      <PipelineMenuItem pipeline={p} envDisplayNameMap={envDisplayNameMap} />
-                    </MenuItem>
-                  ))}
-                </Select>
-              </Form.ElementWrapper>
-            </Grid>
+            {showPipeline && (
+              <>
+                <FormGridSpacer />
+                <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+                  <Form.ElementWrapper label="Deployment Pipeline" name="deploymentPipeline">
+                    <Select
+                      id="deploymentPipeline"
+                      value={formData.deploymentPipeline}
+                      onChange={(e) => handleFieldChange('deploymentPipeline', e.target.value as string)}
+                      error={!!errors.deploymentPipeline}
+                      disabled={isPipelinesLoading || isPending}
+                      displayEmpty
+                      renderValue={(value) => {
+                        const selected = pipelines.find((p) => p.name === value);
+                        if (!selected) {
+                          return (
+                            <Typography variant="body2" color="text.disabled">
+                              Select a pipeline
+                            </Typography>
+                          );
+                        }
+                        return (
+                          <SelectedPipelineValue
+                            pipeline={selected}
+                            envDisplayNameMap={envDisplayNameMap}
+                          />
+                        );
+                      }}
+                      fullWidth
+                      size="small"
+                    >
+                      {isPipelinesLoading && (
+                        <MenuItem value="" disabled>
+                          <Stack direction="row" alignItems="center" gap={1}>
+                            <CircularProgress size={12} />
+                            <Typography variant="caption">Loading pipelines...</Typography>
+                          </Stack>
+                        </MenuItem>
+                      )}
+                      {!isPipelinesLoading && pipelines.length === 0 && (
+                        <MenuItem value="" disabled>No deployment pipelines available</MenuItem>
+                      )}
+                      {pipelines.map((p) => (
+                        <MenuItem key={p.name} value={p.name}>
+                          <PipelineMenuItem pipeline={p} envDisplayNameMap={envDisplayNameMap} />
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </Form.ElementWrapper>
+                </Grid>
+              </>
+            )}
           </Grid>
         </Form.Stack>
         <Box display="flex" gap={1} mt={2}>
@@ -299,7 +318,7 @@ function EditProjectForm({ project, orgId, projectHref }: EditProjectFormProps) 
             type="submit"
             variant="contained"
             color="primary"
-            disabled={!isValid || isPending}
+            disabled={!isValid || isPending || runtimeInstalled === undefined}
           >
             {isPending ? "Updating..." : "Update project"}
           </Button>

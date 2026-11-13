@@ -58,8 +58,10 @@ import {
 } from "@agent-management-platform/types";
 import {
   ExternalModuleProvider,
+  UIModuleStatusProvider,
   type ExternalComponentModule,
   type ExternalModule,
+  type UIModuleStatusMap,
 } from "@agent-management-platform/views";
 import { useLocation } from "react-router-dom";
 
@@ -341,6 +343,18 @@ export function PluginProvider({
     return result;
   }, [catalog, states, installOverrides]);
 
+  // Install status for pages in other modules (useIsUIModuleInstalled). A module
+  // the runtime config turns off counts as not installed.
+  const moduleStatus = useMemo<UIModuleStatusMap>(() => {
+    const disabled = configDisabled();
+    const result: UIModuleStatusMap = {};
+    for (const { module } of catalog) {
+      const enabled = !!module.core || moduleEnabledByConfig(disabled, module.id);
+      result[module.id] = enabled ? phases[module.id] ?? "installed" : "not-installed";
+    }
+    return result;
+  }, [catalog, phases]);
+
   // What the runtime config turns off stays off for the page's lifetime; the
   // AI module manager cannot switch it back on.
   const usable = useMemo(() => {
@@ -414,7 +428,9 @@ export function PluginProvider({
 
   return (
     <PluginHostContext.Provider value={value}>
-      <PanelModules externalModules={externalModules}>{children}</PanelModules>
+      <UIModuleStatusProvider value={moduleStatus}>
+        <PanelModules externalModules={externalModules}>{children}</PanelModules>
+      </UIModuleStatusProvider>
     </PluginHostContext.Provider>
   );
 }

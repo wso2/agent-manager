@@ -22,6 +22,7 @@ import {
   PageLayout,
   useFormValidation,
   useDirtyState,
+  useIsUIModuleInstalled,
   useReturnTo,
 } from '@agent-management-platform/views';
 import { useUnsavedChangesGuard } from '@agent-management-platform/shared-component';
@@ -60,8 +61,14 @@ export const AddNewProject: React.FC = () => {
   }), [orgId]);
 
   const { mutate: createProject, isPending, error } = useCreateProject(params);
+  // Deployment pipelines belong to the agent runtime. Without it a project has
+  // nothing to deploy, so it is created without one; undefined while the
+  // runtime's install state is still being detected.
+  const runtimeInstalled = useIsUIModuleInstalled('agent-runtime');
   const { data: pipelinesData, isLoading: isPipelinesLoading, error: pipelinesError } =
-    useListDeploymentPipelines({ orgName: orgId });
+    useListDeploymentPipelines({ orgName: orgId }, undefined, {
+      enabled: !!orgId && runtimeInstalled === true,
+    });
 
   // Projects start on the "default" pipeline (else the first one); it can be changed later.
   const defaultPipeline = useMemo(() => {
@@ -90,7 +97,8 @@ export const AddNewProject: React.FC = () => {
       setLastSubmittedValidationErrors({});
     }
 
-    if (!defaultPipeline) {
+    if (runtimeInstalled === undefined) return;
+    if (runtimeInstalled && !defaultPipeline) {
       setLastSubmittedValidationErrors({
         deploymentPipeline: pipelinesError
           ? 'Could not load deployment pipelines. Try again.'
@@ -103,7 +111,7 @@ export const AddNewProject: React.FC = () => {
       name: formData.name,
       displayName: formData.displayName,
       description: formData.description?.trim() || undefined,
-      deploymentPipeline: defaultPipeline,
+      ...(runtimeInstalled && defaultPipeline ? { deploymentPipeline: defaultPipeline } : {}),
     }, {
       onSuccess: () => {
         resetDirty();
@@ -122,7 +130,8 @@ export const AddNewProject: React.FC = () => {
       }
     });
   }, [formData, validateForm, createProject,
-    navigate, allowNavigation, params.orgName, defaultPipeline, pipelinesError,
+    navigate, allowNavigation, params.orgName, runtimeInstalled, defaultPipeline,
+    pipelinesError,
     resetDirty, clearErrors, errors]);
 
   if (!canWrite) {
@@ -159,7 +168,7 @@ export const AddNewProject: React.FC = () => {
         )}
         <CreateButtons
           lastSubmittedValidationErrors={lastSubmittedValidationErrors}
-          isPending={isPending || isPipelinesLoading}
+          isPending={isPending || runtimeInstalled === undefined || isPipelinesLoading}
           onCancel={handleCancel}
           onSubmit={handleCreateProject}
           isNameEmpty={!formData.name.trim()}
