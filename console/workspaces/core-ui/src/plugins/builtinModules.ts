@@ -27,7 +27,7 @@ import { agentPortalModule } from "@agent-management-platform/ui-module-agent-po
 /**
  * UI modules that ship with the console, in the order the Module manager lists
  * them. Each lives in workspaces/ui-modules/<id>. Turn a module, or one of its
- * pages, off with the runtime config's `uiModules.disabled` list; extra modules
+ * pages, off in apps/web-ui/public/ui-modules.js; extra modules
  * can be passed to CoreUI.
  */
 export const builtinModules: UIModuleManifest[] = [

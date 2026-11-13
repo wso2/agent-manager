@@ -44,7 +44,7 @@ import {
 } from "react";
 import {
   absoluteRouteMap,
-  globalConfig,
+  getDisabledUIModules,
   PLUGIN_API_VERSION,
   type PluginActivationHook,
   type PluginActivationState,
@@ -195,9 +195,9 @@ function buildCatalog(modules: UIModuleManifest[]): CatalogEntry[] {
 /** Key for a plugin in the disabled list: "<module>/<plugin>". */
 export const pluginKey = (moduleId: string, pluginId: string) => `${moduleId}/${pluginId}`;
 
-/** The runtime config's disabled list: module ids, "<module>/<plugin>" or plugin ids. */
+/** What public/ui-modules.js turns off: module ids, "<module>/<plugin>" or plugin ids. */
 function configDisabled(): Set<string> {
-  return new Set(globalConfig?.uiModules?.disabled ?? []);
+  return new Set(getDisabledUIModules());
 }
 
 function moduleEnabledByConfig(disabled: Set<string>, moduleId: string) {
@@ -618,7 +618,7 @@ export interface UIModuleStatus {
   description: string;
   /** Core modules are always installed and cannot be turned off as a whole. */
   core: boolean;
-  /** False when the runtime config (uiModules.disabled) turns the module off. */
+  /** False when public/ui-modules.js turns the module off. */
   enabled: boolean;
   /** Where the module is in its install lifecycle. */
   installPhase: UIModuleInstallPhase;

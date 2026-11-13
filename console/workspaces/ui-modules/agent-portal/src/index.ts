@@ -17,8 +17,8 @@
  */
 
 // Agent Portal UI module. Lists the module's page plugins; the console registers
-// modules, and operators turn a whole module or a single page off with the
-// runtime config's uiModules.disabled list (or in the Module manager).
+// modules, and operators turn a whole module or a single page off in
+// public/ui-modules.js (apps/web-ui).
 //
 // Import only each page package's `/plugin` entry: the package root pulls in
 // its page components and would put them in the shell's main chunk.

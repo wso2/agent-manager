@@ -59,6 +59,10 @@ const isInstalled = (module: UIModuleStatus) => {
   return state === "installed" || state === "built-in";
 };
 
+/** Can be installed: not installed, and not turned off in ui-modules.js. */
+const isAvailable = (module: UIModuleStatus) =>
+  !isInstalled(module) && marketplaceState(module) !== "turned-off";
+
 function ModuleCard({ module, onDetails }: { module: UIModuleStatus; onDetails: () => void }) {
   const listing = listingFor(module.id);
   const Icon = listing.icon;
@@ -108,12 +112,7 @@ export function ModuleManager() {
     const query = search.trim().toLowerCase();
     return modules.filter((module) => {
       if (filter === "installed" && !isInstalled(module)) return false;
-      if (
-        filter === "available" &&
-        (isInstalled(module) || marketplaceState(module) === "turned-off")
-      ) {
-        return false;
-      }
+      if (filter === "available" && !isAvailable(module)) return false;
       if (!query) return true;
       return [module.name, module.description, listingFor(module.id).category]
         .join(" ")
@@ -123,6 +122,7 @@ export function ModuleManager() {
   }, [modules, filter, search]);
 
   const installedCount = modules.filter(isInstalled).length;
+  const availableCount = modules.filter(isAvailable).length;
 
   return (
     <PageLayout
@@ -158,7 +158,7 @@ export function ModuleManager() {
           <Tabs value={filter} onChange={(_, value: Filter) => setFilter(value)}>
             <Tab value="all" label={`All (${modules.length})`} />
             <Tab value="installed" label={`Installed (${installedCount})`} />
-            <Tab value="available" label={`Available (${modules.length - installedCount})`} />
+            <Tab value="available" label={`Available (${availableCount})`} />
           </Tabs>
         </Stack>
         {visible.length === 0 ? (

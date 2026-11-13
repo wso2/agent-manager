@@ -101,11 +101,8 @@ window.__RUNTIME_CONFIG__ = {
     externallyManagedGateway: '$FEATURE_FLAG_EXTERNALLY_MANAGED_GATEWAY' === 'true',
     externallyManagedPipeline: '$FEATURE_FLAG_EXTERNALLY_MANAGED_PIPELINE' === 'true',
   },
+  // Which UI modules are on comes from ui-modules.js, next to this file.
   uiModules: {
-    // Comma-separated UI modules or pages to turn off: a module id turns off
-    // the whole module ("ai-observability"), "<module>/<page>" one page
-    // ("ai-observability/logs").
-    disabled: '$DISABLED_UI_MODULES'.split(',').map((id) => id.trim()).filter(Boolean),
     // Shows the Marketplace page (a front-end preview for now). Off by default.
     marketplace: '$ENABLE_UI_MARKETPLACE' === 'true',
   },

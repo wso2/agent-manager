@@ -80,7 +80,7 @@ export type MarketplaceState =
 
 export function marketplaceState(module: UIModuleStatus): MarketplaceState {
   if (module.core) return "built-in";
-  // Turned off by the deployment (uiModules.disabled): the Marketplace must not
+  // Turned off by the deployment (public/ui-modules.js): the Marketplace must not
   // switch it back on.
   if (!module.enabled) return "turned-off";
   if (module.installPhase === "installing") return "installing";
