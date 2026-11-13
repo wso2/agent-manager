@@ -24,8 +24,9 @@
  * It has already regressed once. The first implementation keyed on `orgs` and
  * `projects` while the app's real routes were `/org/:orgId` and
  * `project/:projectId`, so it matched nothing and forwarded the handles
- * verbatim. (Routes are now `/organizations/:orgId` and `projects/:projectId`.) These tests exist so that particular mistake, and the
- * class it belongs to, cannot come back silently.
+ * verbatim. (Routes are now `/organizations/:orgId` and `projects/:projectId`.)
+ * These tests exist so that particular mistake, and the class it belongs to,
+ * cannot come back silently.
  */
 
 import { beforeEach, describe, expect, it } from "vitest";
