@@ -32,6 +32,18 @@ runs:
         set -euo pipefail
         cd deployments/standalone
         cp .env.example .env
+        # These jobs authenticate as a machine client, with client_credentials
+        # against ThunderID (test/instrumentation-matrix/heavy/amp_client.py),
+        # so the stack runs in identity-provider mode. File mode mints and
+        # validates its own tokens and would refuse ThunderID's.
+        #
+        # Switching the mode means all three values: the JWKS defaults follow
+        # AUTH_MODE's default, not AUTH_MODE itself.
+        {
+          echo "AUTH_MODE=idp"
+          echo "KEY_MANAGER_JWKS_URL=http://thunder:8080/oauth2/jwks"
+          echo "OBSERVER_JWKS_URL=http://thunder:8080/oauth2/jwks"
+        } >> .env
         export COMPOSE_FILE=docker-compose.yml:docker-compose.build.yml
         # OpenSearch refuses to start below this on Linux hosts.
         sudo sysctl -w vm.max_map_count=262144

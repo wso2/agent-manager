@@ -115,10 +115,9 @@ func LoadUserFile(path string) (*UserFile, error) {
 		}
 
 		hash := strings.TrimSpace(u.PasswordHash)
-		switch {
-		case hash == "":
+		if hash == "" {
 			problems = append(problems, where+": passwordHash is empty")
-		default:
+		} else {
 			// bcrypt.Cost parses the whole hash, not just its prefix. A
 			// truncated value like "$2a$" passes a prefix test, loads cleanly,
 			// and then rejects every password for that account — which reads as
