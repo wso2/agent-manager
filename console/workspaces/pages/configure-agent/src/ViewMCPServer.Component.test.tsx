@@ -80,10 +80,10 @@ import { ViewMCPServerComponent } from "./ViewMCPServer.Component";
 
 const renderPage = () =>
   render(
-    <MemoryRouter initialEntries={["/org/o/project/p1/agent/a1/mcp/cfg"]}>
+    <MemoryRouter initialEntries={["/organizations/o/projects/p1/agent/a1/mcp/cfg"]}>
       <Routes>
         <Route
-          path="/org/:orgId/project/:projectId/agent/:agentId/mcp/:proxyId"
+          path="/organizations/:orgId/projects/:projectId/agent/:agentId/mcp/:proxyId"
           element={<ViewMCPServerComponent />}
         />
       </Routes>

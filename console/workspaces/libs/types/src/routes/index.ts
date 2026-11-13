@@ -22,3 +22,4 @@ export { type AppRoute, type GeneratedRoute } from './types';
 export { IDENTITY_ENV_PARAM } from './identityParams';
 
 export { relativeRouteMap, absoluteRouteMap };
+export { legacyRoutePath } from './legacyRoutes';

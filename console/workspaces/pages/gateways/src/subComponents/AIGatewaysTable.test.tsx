@@ -86,7 +86,7 @@ const renderTable = () =>
   render(
     <FeatureManagementProvider featureFlags={featureFlags}>
       <MemoryRouter
-        initialEntries={["/org/acme"]}
+        initialEntries={["/organizations/acme"]}
         future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
       >
         <AIGatewaysTable onAddGateway={vi.fn()} />

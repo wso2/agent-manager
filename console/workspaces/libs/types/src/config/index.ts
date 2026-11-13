@@ -183,7 +183,7 @@ export const getBasePath = (): string => {
 };
 
 /**
- * Prefix a router-relative path ("/org/x") with the base path for use in
+ * Prefix a router-relative path ("/organizations/x") with the base path for use in
  * `window.location.assign`, `window.open`, `href` and anything else that
  * bypasses react-router (which already applies the basename).
  *

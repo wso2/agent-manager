@@ -47,36 +47,36 @@ describe("orgRouteId", () => {
 
 describe("legacyOrgRedirectPath", () => {
   it("moves an old namespace link onto the handle, keeping the rest of the path", () => {
-    expect(legacyOrgRedirectPath(`/org/${NS}/catalog`, NS, cloudOrgs))
-      .toBe("/org/agent-manager-team/catalog");
-    expect(legacyOrgRedirectPath(`/org/${NS}/project/default/agents/a1/traces`, NS, cloudOrgs))
-      .toBe("/org/agent-manager-team/project/default/agents/a1/traces");
-    expect(legacyOrgRedirectPath(`/org/${NS}`, NS, cloudOrgs)).toBe("/org/agent-manager-team");
+    expect(legacyOrgRedirectPath(`/organizations/${NS}/catalog`, NS, cloudOrgs))
+      .toBe("/organizations/agent-manager-team/catalog");
+    expect(legacyOrgRedirectPath(`/organizations/${NS}/projects/default/agents/a1/traces`, NS, cloudOrgs))
+      .toBe("/organizations/agent-manager-team/projects/default/agents/a1/traces");
+    expect(legacyOrgRedirectPath(`/organizations/${NS}`, NS, cloudOrgs)).toBe("/organizations/agent-manager-team");
   });
 
   it("leaves a handle link alone", () => {
-    expect(legacyOrgRedirectPath("/org/agent-manager-team/catalog", "agent-manager-team", cloudOrgs))
+    expect(legacyOrgRedirectPath("/organizations/agent-manager-team/catalog", "agent-manager-team", cloudOrgs))
       .toBeUndefined();
   });
 
   it("leaves links alone where the name is the route id", () => {
     // Local setup: handle and namespace are both "default".
-    expect(legacyOrgRedirectPath("/org/default/catalog", "default", [{ name: "default", handle: "default" }]))
+    expect(legacyOrgRedirectPath("/organizations/default/catalog", "default", [{ name: "default", handle: "default" }]))
       .toBeUndefined();
     // No handle reported (e.g. several orgs): the name stays in the URL.
-    expect(legacyOrgRedirectPath("/org/default", "default", [{ name: "default" }, { name: "other" }]))
+    expect(legacyOrgRedirectPath("/organizations/default", "default", [{ name: "default" }, { name: "other" }]))
       .toBeUndefined();
   });
 
   it("does not redirect an org the user can't see, or before orgs load", () => {
-    expect(legacyOrgRedirectPath("/org/someone-else/catalog", "someone-else", cloudOrgs)).toBeUndefined();
-    expect(legacyOrgRedirectPath(`/org/${NS}/catalog`, NS, undefined)).toBeUndefined();
+    expect(legacyOrgRedirectPath("/organizations/someone-else/catalog", "someone-else", cloudOrgs)).toBeUndefined();
+    expect(legacyOrgRedirectPath(`/organizations/${NS}/catalog`, NS, undefined)).toBeUndefined();
     expect(legacyOrgRedirectPath("/", undefined, cloudOrgs)).toBeUndefined();
   });
 
   it("only rewrites the org segment of the path", () => {
     // A project that happens to share the namespace's name keeps its name.
-    expect(legacyOrgRedirectPath(`/org/${NS}/project/${NS}`, NS, cloudOrgs))
-      .toBe(`/org/agent-manager-team/project/${NS}`);
+    expect(legacyOrgRedirectPath(`/organizations/${NS}/projects/${NS}`, NS, cloudOrgs))
+      .toBe(`/organizations/agent-manager-team/projects/${NS}`);
   });
 });

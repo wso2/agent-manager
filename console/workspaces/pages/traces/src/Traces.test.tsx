@@ -185,10 +185,10 @@ const currentParams = () => new URLSearchParams(screen.getByTestId("search").tex
 /** The traces page at the given search string. */
 const pageTree = (search: string) => (
     <ThemeProvider theme={createTheme()}>
-      <MemoryRouter initialEntries={[`/org/o/project/p/agents/a/environment/dev/traces${search}`]}>
+      <MemoryRouter initialEntries={[`/organizations/o/projects/p/agents/a/environment/dev/traces${search}`]}>
         <Routes>
           <Route
-            path="/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/traces"
+            path="/organizations/:orgId/projects/:projectId/agents/:agentId/environment/:envId/traces"
             element={
               <>
                 <TracesComponent />
