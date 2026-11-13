@@ -7199,6 +7199,12 @@ type ListGatewaysParams struct {
 // ListGatewaysParamsStatus defines parameters for ListGateways.
 type ListGatewaysParamsStatus string
 
+// GetGatewayEnvironmentsParams defines parameters for GetGatewayEnvironments.
+type GetGatewayEnvironmentsParams struct {
+	// Offset Number of mapped environments to skip
+	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
 // ListGitSecretsParams defines parameters for ListGitSecrets.
 type ListGitSecretsParams struct {
 	// Limit Maximum number of results to return
