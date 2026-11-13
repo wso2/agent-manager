@@ -146,9 +146,6 @@ func handleCommonErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 	case errors.Is(err, utils.ErrEnvironmentNotFound):
 		utils.WriteErrorResponseWithReason(w, http.StatusNotFound,
 			"Environment not found", err.Error(), utils.ErrCodeEnvironmentNotFound)
-	case errors.Is(err, utils.ErrGitSecretNotFound):
-		utils.WriteErrorResponseWithReason(w, http.StatusNotFound,
-			"Git secret not found", err.Error(), utils.ErrCodeGitSecretNotFound)
 	case errors.Is(err, utils.ErrAgentKindNotFound):
 		utils.WriteErrorResponseWithReason(w, http.StatusNotFound,
 			"Agent kind not found", err.Error(), utils.ErrCodeNotFound)
@@ -181,9 +178,6 @@ func handleCommonErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 	case errors.Is(err, utils.ErrSecretPathConflict):
 		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
 			"Secret path conflict", err.Error(), utils.ErrCodeConflict)
-	case errors.Is(err, utils.ErrGitSecretAlreadyExists):
-		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
-			"Git secret already exists", err.Error(), utils.ErrCodeGitSecretAlreadyExists)
 	case errors.Is(err, utils.ErrAgentKindAlreadyExists):
 		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
 			"Agent kind already exists", err.Error(), utils.ErrCodeConflict)
@@ -222,9 +216,6 @@ func handleCommonErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 	case errors.Is(err, utils.ErrDeploymentPipelineNotFound):
 		utils.WriteErrorResponseWithReason(w, http.StatusBadRequest,
 			"Deployment pipeline not found", err.Error(), utils.ErrCodeBadRequest)
-	case errors.Is(err, utils.ErrGitSecretInvalidType):
-		utils.WriteErrorResponseWithReason(w, http.StatusBadRequest,
-			"Invalid git secret type", err.Error(), utils.ErrCodeGitSecretInvalidType)
 	case errors.Is(err, utils.ErrBuildNotComplete):
 		utils.WriteErrorResponseWithReason(w, http.StatusBadRequest,
 			"Build not complete", err.Error(), utils.ErrCodeBadRequest)

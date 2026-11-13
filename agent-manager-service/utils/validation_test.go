@@ -23,8 +23,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
 )
 
-func strPtrForTest(s string) *string { return &s }
-
 func TestValidateTemplateHandle(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -231,35 +229,4 @@ func TestValidateUpdateCustomEvaluatorPayload_SourceContentChecks(t *testing.T) 
 	if !strings.Contains(err.Error(), "import subprocess") {
 		t.Errorf("error %q should mention import subprocess", err)
 	}
-}
-
-func TestValidateListCommitsRequest_ComponentIdentity(t *testing.T) {
-	t.Run("accepts project and component together", func(t *testing.T) {
-		req := &spec.ListCommitsRequest{
-			Owner:         "acme",
-			Repo:          "agents",
-			ProjectName:   strPtrForTest(" default "),
-			ComponentName: strPtrForTest(" private-agent "),
-		}
-
-		if err := ValidateListCommitsRequest(req); err != nil {
-			t.Fatalf("ValidateListCommitsRequest() unexpected error = %v", err)
-		}
-		if req.GetProjectName() != "default" || req.GetComponentName() != "private-agent" {
-			t.Fatalf("component identity was not normalized: %q/%q", req.GetProjectName(), req.GetComponentName())
-		}
-	})
-
-	t.Run("rejects a partial component identity", func(t *testing.T) {
-		req := &spec.ListCommitsRequest{
-			Owner:       "acme",
-			Repo:        "agents",
-			ProjectName: strPtrForTest("default"),
-		}
-
-		err := ValidateListCommitsRequest(req)
-		if err == nil || !strings.Contains(err.Error(), "must be provided together") {
-			t.Fatalf("ValidateListCommitsRequest() error = %v, want paired-field validation error", err)
-		}
-	})
 }
