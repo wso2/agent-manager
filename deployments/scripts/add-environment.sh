@@ -736,9 +736,8 @@ ensure_gateway_encryption_key() {   # <namespace>
 
 ensure_gateway_encryption_key "${GATEWAY_NAMESPACE}"
 
-# The production guide keeps the real gateway IDP credentials in this Secret. A pod cannot read a
-# Secret from another namespace, so put a copy beside each gateway. When it does not exist
-# (quick-start, k3d, VM) nothing changes: the chart's default credentials are used, as before.
+# The installer or operator provides gateway IDP credentials in the data plane.
+# A pod cannot read a Secret from another namespace, so copy it beside each gateway.
 # Returns 0 when copied, 2 when the Secret does not exist, 1 on any other failure.
 copy_idp_secret() {
     local id sec err
@@ -791,9 +790,11 @@ if [ "${IDP_COPY_RC}" -eq 0 ]; then
     echo "🔑 Using the gateway IDP credentials from openchoreo-data-plane/gateway-idp-credentials"
     HELM_ARGS+=(--set agentManager.idp.existingSecret=gateway-idp-credentials)
 elif [ "${IDP_COPY_RC}" -ne 2 ]; then
-    # Only a missing Secret may fall back to the chart default; any other failure would
-    # install a gateway with the wrong password.
+    # A missing source is handled below. Other failures must stop the install.
     echo "❌ Could not copy openchoreo-data-plane/gateway-idp-credentials into '${GATEWAY_NAMESPACE}'." >&2
+    exit 1
+else
+    echo "❌ Create openchoreo-data-plane/gateway-idp-credentials before installing a gateway." >&2
     exit 1
 fi
 

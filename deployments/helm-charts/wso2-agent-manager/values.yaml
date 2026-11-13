@@ -321,14 +321,17 @@ agentManagerService:
 
     # OIDC configuration for Thunder integration
     oidc:
+      # checkov:skip=CKV_SECRET_6:OAuth endpoint URL
       tokenUrl: "http://amp-thunder-extension-service.amp-thunder.svc.cluster.local:8090/oauth2/token"
       clientId: "amp-api-client"
-      # Set existingSecret to read the client credential from an existing Secret.
+      # Defaults to amp-platform-oauth in this namespace when no inline secret is supplied.
+      # Set existingSecret to read the client credential from another Secret.
       # After updating that Secret, restart the Agent Manager service Deployment
       # so its pods read the new value.
       existingSecret: ""
+      # checkov:skip=CKV_SECRET_6:Kubernetes Secret data key
       existingSecretKey: "idp-client-secret"
-      clientSecret: "amp-api-client-secret"
+      clientSecret: ""
     # JWT Signing configuration
     jwtSigning:
       privateKeyPath: "/app/keys/private.pem"
@@ -483,8 +486,8 @@ agentManagerService:
       systemResourceIdentifier: ""
       # OAuth2 client ID of the system app (with Administrator role)
       clientId: "amp-system-client"
-      # OAuth2 client secret of the system app
-      clientSecret: "amp-system-client-secret"
+      # Defaults to amp-platform-oauth in this namespace when no inline secret is supplied.
+      clientSecret: ""
       # Reference to an existing secret containing the Thunder client secret
       existingSecret: ""
       # checkov:skip=CKV_SECRET_6:Kubernetes Secret data key

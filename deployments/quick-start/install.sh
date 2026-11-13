@@ -547,6 +547,11 @@ if ! command_exists curl; then
     exit 1
 fi
 
+if ! command_exists openssl; then
+    log_error "openssl is not installed"
+    exit 1
+fi
+
 if ! command_exists lsof; then
     log_error "lsof is not installed"
     exit 1
@@ -852,6 +857,12 @@ fi
 # ============================================================================
 
 log_step "Step 6/13: Setup Secrets (OpenBao for Workflow Plane)"
+
+# Provision shared OAuth credentials before their first consumer starts.
+if ! platform_oauth_init || ! platform_oauth_for_openbao; then
+    log_error "Failed to provision platform OAuth credentials"
+    exit 1
+fi
 
 # Install OpenBao for Workflow Plane secret management
 log_info "Installing OpenBao for Workflow Plane..."

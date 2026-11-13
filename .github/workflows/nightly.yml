@@ -287,6 +287,10 @@ jobs:
         run: |
           set -o pipefail
           # Suites run one at a time by default. --timeout is the total budget.
+          if [[ -f deployments/scripts/platform-oauth.sh ]]; then
+            source deployments/scripts/platform-oauth.sh
+            platform_oauth_test_env
+          fi
           cd test/e2e && go run github.com/onsi/ginkgo/v2/ginkgo -v --procs="${GINKGO_PROCS}" --timeout 90m \
             --poll-progress-after=600s --keep-going --junit-report=report.xml \
             ./tests/... 2>&1 | tee e2e-output.log

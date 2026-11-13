@@ -163,6 +163,38 @@ thunder:
         - "http://localhost:3000"
         - "http://console.amp.localhost:8080"
   setup:
+    # Supply independent hex values in this Secret for clients with an empty clientSecret.
+    secretEnv:
+      - name: OBSERVER_RESOURCE_READER_SECRET
+        secretName: amp-platform-oauth
+        # checkov:skip=CKV_SECRET_6:Kubernetes Secret data key
+        secretKey: OBSERVER_RESOURCE_READER_SECRET
+        optional: true
+      - name: WORKLOAD_PUBLISHER_SECRET
+        secretName: amp-platform-oauth
+        # checkov:skip=CKV_SECRET_6:Kubernetes Secret data key
+        secretKey: WORKLOAD_PUBLISHER_SECRET
+        optional: true
+      - name: AMP_API_CLIENT_SECRET
+        secretName: amp-platform-oauth
+        # checkov:skip=CKV_SECRET_6:Kubernetes Secret data key
+        secretKey: AMP_API_CLIENT_SECRET
+        optional: true
+      - name: AMP_SYSTEM_CLIENT_SECRET
+        secretName: amp-platform-oauth
+        # checkov:skip=CKV_SECRET_6:Kubernetes Secret data key
+        secretKey: AMP_SYSTEM_CLIENT_SECRET
+        optional: true
+      - name: AMP_PUBLISHER_CLIENT_SECRET
+        secretName: amp-platform-oauth
+        # checkov:skip=CKV_SECRET_6:Kubernetes Secret data key
+        secretKey: AMP_PUBLISHER_CLIENT_SECRET
+        optional: true
+      - name: AM_OBSERVER_CLIENT_SECRET
+        secretName: amp-platform-oauth
+        # checkov:skip=CKV_SECRET_6:Kubernetes Secret data key
+        secretKey: AM_OBSERVER_CLIENT_SECRET
+        optional: true
     enabled: true
     backoffLimit: 3
     ttlSecondsAfterFinished: 86400
@@ -355,10 +387,11 @@ thunder:
         - 72-am-observer-client.yaml
         - 73-am-obs-mcp-client.yaml
         - 73-amp-csp-config.yaml
+    # Blank clientSecret fields use the matching key from the setup Secret.
     # Observer Resource Reader Client configuration (for observability plane to read resources)
     observerResourceReaderClient:
       clientId: "openchoreo-observer-resource-reader-client" # clusterauthzrolebinding is already created with this clientId by openchoreo, so it should not be changed unless the corresponding ClusterAuthzRoleBinding is also updated
-      clientSecret: "openchoreo-observer-resource-reader-client-secret"
+      clientSecret: ""
       name: "OpenChoreo Observer Resource Reader"
       description: "OpenChoreo Observer Resource Reader Client for reading resources from control plane"
       grantTypes:
@@ -370,7 +403,7 @@ thunder:
     # Workload Publisher Client configuration (for CI workflows to create workloads)
     workloadPublisherClient:
       clientId: "openchoreo-workload-publisher-client" # clusterauthzrolebinding is already created with this clientId by openchoreo, so it should not be changed unless the corresponding ClusterAuthzRoleBinding is also updated
-      clientSecret: "openchoreo-workload-publisher-secret"
+      clientSecret: ""
       name: "Workload Publisher"
       description: "OpenChoreo Workload Publisher Client for creating workloads from CI workflows"
       grantTypes:
@@ -382,7 +415,7 @@ thunder:
     # AMP API Client configuration
     ampApiClient:
       clientId: "amp-api-client"
-      clientSecret: "amp-api-client-secret"
+      clientSecret: ""
       name: "AMP API Client"
       description: "Client application for AMP API access"
       grantTypes:
@@ -392,12 +425,9 @@ thunder:
       publicClient: false
       accessTokenValidityPeriod: 3600
     # AMP System Client configuration (for agent-manager to provision per-org OAuth apps via Thunder admin API)
-    # WARNING: clientSecret below is a LOCAL-DEVELOPMENT-ONLY placeholder.
-    # In production, override ampSystemClient.clientSecret via a Kubernetes Secret
-    # or external secret manager. Deploying with this default value is insecure.
     ampSystemClient:
       clientId: "amp-system-client"
-      clientSecret: "amp-system-client-secret"
+      clientSecret: ""
       name: "AMP System Client"
       description: "System client for agent-manager to provision per-org OAuth apps"
       grantTypes:
@@ -409,7 +439,7 @@ thunder:
     # AMP Publisher Client configuration (for evaluation job to publish scores)
     ampPublisherClient:
       clientId: "amp-publisher-client"
-      clientSecret: "amp-publisher-client-secret"  # Override in production; must match the value stored in OpenBao at secret/amp-publisher-client-secret (used by ExternalSecret at workflow runtime)
+      clientSecret: ""
       name: "AMP Publisher Client"
       description: "Client application for evaluation job to publish scores"
       grantTypes:
@@ -424,15 +454,11 @@ thunder:
     # (amp-observer-reader-binding in wso2-amp-platform-resources-extension),
     # NOT from AMP scopes — it has no scope allowance at all, so its tokens
     # fail agent-manager-service's scope checks by construction.
-    # WARNING: clientSecret below is a LOCAL-DEVELOPMENT-ONLY placeholder.
-    # In production, override amObserverClient.clientSecret via a Kubernetes
-    # Secret or external secret manager. Deploying with this default value is
-    # insecure.
     # NOTE: pre-install bootstrap job only — see the upgrade note on
     # mcpResourceServers below / docs/reference/mcp-server.mdx.
     amObserverClient:
       clientId: "am-observer-client"
-      clientSecret: "am-observer-client-secret"
+      clientSecret: ""
       name: "AM Observer Client"
       description: "Dedicated client for agent-manager-observer to read observability data from the OpenChoreo observer"
       grantTypes:

@@ -283,6 +283,7 @@ openchoreo-status:
 thunder-up:
 	@echo "📦 Installing/Upgrading Platform Thunder (amp-thunder-extension)..."
 	@helm dependency update deployments/helm-charts/wso2-amp-thunder-extension
+	@bash -ec 'source deployments/scripts/platform-oauth.sh; platform_oauth_init'
 	@helm upgrade --install amp-thunder-extension deployments/helm-charts/wso2-amp-thunder-extension \
 		--namespace amp-thunder --create-namespace \
 		--set thunder.bootstrap.agentManagerMcpBaseUrl=http://localhost:9000 \
@@ -384,12 +385,12 @@ check-matrix-manifest:
 # AI Gateway setup (required for LLM proxy/guardrail tests)
 setup-ai-gateway: dev-migrate
 	@echo "🚀 Installing AI Gateway extension..."
+	@bash -ec 'source deployments/scripts/platform-oauth.sh; platform_oauth_for_gateway openchoreo-data-plane'
 	@helm upgrade --install amp-ai-gateway deployments/helm-charts/wso2-amp-api-platform-gateway-extension \
 		--namespace openchoreo-data-plane \
 		--set agentManager.apiUrl="http://host.k3d.internal:9000/api/v1" \
 		--set agentManager.idp.tokenUrl="http://amp-thunder-extension-service.amp-thunder.svc.cluster.local:8090/oauth2/token" \
-		--set agentManager.idp.clientId="amp-api-client" \
-		--set agentManager.idp.clientSecret="amp-api-client-secret" \
+		--set agentManager.idp.existingSecret=gateway-idp-credentials \
 		--set gateway.name="default" \
 		--set gateway.displayName="Default AI Gateway" \
 		--set gateway.vhost="http://ai-gateway.amp.localhost:8084" \
@@ -411,6 +412,7 @@ GINKGO_PROCS := $(if $(FOCUS),--procs=1,-p)
 e2e-test:
 	@echo "Running E2E tests..."
 	@cd test/e2e && set -a && [ -f .env ] && . ./.env; set +a && \
+		bash -ec 'source ../../deployments/scripts/platform-oauth.sh; platform_oauth_test_env; exec "$$@"' _ \
 		go run github.com/onsi/ginkgo/v2/ginkgo -v $(GINKGO_PROCS) --timeout 45m --poll-progress-after=600s \
 		--keep-going --junit-report=e2e-report.xml --output-dir=. \
 		$(if $(FOCUS),--focus="$(FOCUS)") $(if $(SUITE),./tests/$(SUITE)/...,./tests/...)
@@ -470,6 +472,7 @@ security-test-static:
 security-test-live:
 	@echo "Running security tests (cluster must be running)..."
 	@cd test/e2e && set -a && [ -f .env ] && . ./.env; set +a && \
+		bash -ec 'source ../../deployments/scripts/platform-oauth.sh; platform_oauth_test_env; exec "$$@"' _ \
 		go run github.com/onsi/ginkgo/v2/ginkgo -v $(SECURITY_GINKGO_PROCS) --timeout 45m \
 		--poll-progress-after=300s --keep-going --junit-report=security-report.xml --output-dir=. \
 		$(if $(FOCUS),--focus="$(FOCUS)") $(if $(SUITE),./security/$(SUITE)/...,./security/...)

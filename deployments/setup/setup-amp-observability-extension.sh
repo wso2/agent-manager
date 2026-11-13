@@ -8,6 +8,9 @@ set -euo pipefail
 # (`make -C agent-manager-observer docker-load-k3d`).
 
 PROJECT_ROOT="$1"
+source "$PROJECT_ROOT/deployments/scripts/platform-oauth.sh"
+
+platform_oauth_for_observer openchoreo-observability-plane
 
 echo "📦 Observability Extension (Agent Manager Observer)"
 echo "   Installing/upgrading Agent Manager Observer (local dev: JWKS disabled, unverified JWT parse)..."

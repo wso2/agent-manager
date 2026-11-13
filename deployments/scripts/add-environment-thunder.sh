@@ -127,7 +127,7 @@ set -euo pipefail
 #   - IDP_TOKEN_URL (default: http://thunder.amp.localhost:8080/oauth2/token) —
 #     platform Thunder token endpoint (used only when AGENT_MANAGER_TOKEN is unset).
 #   - IDP_CLIENT_ID (default: amp-api-client), IDP_CLIENT_SECRET
-#     (default: amp-api-client-secret) — the platform system client to grant as.
+#     (defaults to the platform OAuth Secret) — the platform client to grant as.
 #     AMS derives the stored credential's OU ID from this token itself (never
 #     from a client-supplied value — see models.EnvThunderSystemClient's doc
 #     comment; org_name is not persisted for this credential at all).

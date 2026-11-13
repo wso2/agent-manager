@@ -57,15 +57,17 @@ spec:
               value: "{{ .Values.amObserver.observer.idpTokenUrl }}"
             - name: OBSERVER_DEFAULT_NAMESPACE
               value: "{{ .Values.amObserver.observer.defaultNamespace }}"
+            {{- $credentials := .Values.amObserver.observer }}
+            {{- $secretName := $credentials.existingSecret | default (ternary "observer-idp-credentials" "amp-observer-oauth" (not (empty $credentials.idpClientSecret))) }}
             - name: IDP_CLIENT_ID
               valueFrom:
                 secretKeyRef:
-                  name: {{ ternary .Values.amObserver.observer.existingSecret "observer-idp-credentials" (not (empty .Values.amObserver.observer.existingSecret)) }}
+                  name: {{ $secretName | quote }}
                   key: {{ ternary (.Values.amObserver.observer.existingSecretClientIdKey | default "idpClientId") "idpClientId" (not (empty .Values.amObserver.observer.existingSecret)) }}
             - name: IDP_CLIENT_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: {{ ternary .Values.amObserver.observer.existingSecret "observer-idp-credentials" (not (empty .Values.amObserver.observer.existingSecret)) }}
+                  name: {{ $secretName | quote }}
                   key: {{ ternary (.Values.amObserver.observer.existingSecretClientSecretKey | default "idpClientSecret") "idpClientSecret" (not (empty .Values.amObserver.observer.existingSecret)) }}
             # JWT auth — must match agent-manager keyManager config
             - name: IS_LOCAL_DEV_ENV

@@ -41,6 +41,25 @@ Deploy WSO2 Agent Manager on Kubernetes using our Helm charts:
 | `wso2-amp-build-extension` | Build extension for OpenChoreo |
 | `wso2-amp-observability-extension` | Observability stack extension for OpenChoreo |
 
+### Platform OAuth credentials
+
+The bundled installers generate platform OAuth client secrets per cluster.
+For direct Helm installs, provision a Secret named `amp-platform-oauth` in the
+Thunder release namespace with six independently generated hex values. The key
+names are listed in `thunder.setup.secretEnv`. The setup Job reads them when
+it registers the OAuth clients.
+
+Configure Agent Manager, the gateway, and AMP Observer with matching
+namespace-local Secrets. The chart values document the default Secret names
+and keys. For a direct install with OpenChoreo, configure the workload publisher,
+resource reader, and evaluation publisher with their matching secrets in the
+configured secret store.
+
+For existing installations that used the old defaults, rotate the six
+credentials in Thunder and update the corresponding Kubernetes Secrets and
+OpenBao entries before upgrading consumers. Thunder's setup Job runs on first
+install, so a Helm upgrade alone does not rotate a registered credential.
+
 ## Getting Started
 
 For installation instructions and a step-by-step guide, see the [Quick Start Guide](https://wso2.com/agent-platform/docs/latest/get-started/quick-start/).

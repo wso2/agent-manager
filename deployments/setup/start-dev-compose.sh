@@ -3,9 +3,19 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/env.sh"
+source "$SCRIPT_DIR/../scripts/platform-oauth.sh"
 
 # Keep the developer stack aligned with the Thunder release installed by setup.
 # Export either value explicitly to use a different set of client credentials.
+if [[ -z "${IDP_CLIENT_SECRET:-}" || -z "${THUNDER_CLIENT_SECRET:-}" ]]; then
+    # Older installed Thunder charts may still hold explicit inline credentials.
+    if [[ -z "${IDP_CLIENT_SECRET:-}" ]]; then
+        IDP_CLIENT_SECRET="$(platform_oauth_read AMP_API_CLIENT_SECRET "$CLUSTER_CONTEXT" 2>/dev/null)" || true
+    fi
+    if [[ -z "${THUNDER_CLIENT_SECRET:-}" ]]; then
+        THUNDER_CLIENT_SECRET="$(platform_oauth_read AMP_SYSTEM_CLIENT_SECRET "$CLUSTER_CONTEXT" 2>/dev/null)" || true
+    fi
+fi
 if [[ -z "${IDP_CLIENT_SECRET:-}" || -z "${THUNDER_CLIENT_SECRET:-}" ]]; then
     command -v jq >/dev/null || { echo "Install jq or export both Thunder client credentials." >&2; exit 1; }
     bootstrap=$(helm get values amp-thunder-extension --namespace amp-thunder \
