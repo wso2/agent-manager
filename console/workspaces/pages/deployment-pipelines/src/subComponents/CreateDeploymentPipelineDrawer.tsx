@@ -27,7 +27,7 @@ import {
   TextField,
   Typography,
 } from "@wso2/oxygen-ui";
-import { GitBranch } from "@wso2/oxygen-ui-icons-react";
+import { Workflow } from "@wso2/oxygen-ui-icons-react";
 import {
   DrawerContent,
   DrawerHeader,
@@ -139,7 +139,7 @@ export function CreateDeploymentPipelineDrawer(
 
   return (
     <DrawerWrapper open={open} onClose={handleGuardedClose}>
-      <DrawerHeader icon={<GitBranch size={24} />} title="Create Deployment Pipeline" onClose={handleGuardedClose} />
+      <DrawerHeader icon={<Workflow size={24} />} title="Create Deployment Pipeline" onClose={handleGuardedClose} />
       <DrawerContent>
         <form onSubmit={handleSubmit}>
           <Stack spacing={3}>

@@ -28,7 +28,7 @@ import {
 } from "@agent-management-platform/shared-component";
 import type { DeploymentPipelineResponse, Environment } from "@agent-management-platform/types";
 import { Avatar, Box, Button, Divider, Form, Stack, Typography } from "@wso2/oxygen-ui";
-import { Check, Circle, GitBranch } from "@wso2/oxygen-ui-icons-react";
+import { Check, Circle, Workflow } from "@wso2/oxygen-ui-icons-react";
 import { useCallback, useState } from "react";
 import { buildPromotionChain, PromotionChainChips } from "./promotionChain";
 
@@ -78,7 +78,7 @@ export function SelectPipelineDrawer({
 
   return (
     <DrawerWrapper open={open} onClose={handleRequestClose} minWidth={620} maxWidth={620}>
-      <DrawerHeader icon={<GitBranch size={24} />} title="Select Deployment Pipeline" onClose={handleRequestClose} />
+      <DrawerHeader icon={<Workflow size={24} />} title="Select Deployment Pipeline" onClose={handleRequestClose} />
       <DrawerContent>
         <Box display="flex" flexDirection="column" gap={2} flexGrow={1}>
           <Stack spacing={1}>

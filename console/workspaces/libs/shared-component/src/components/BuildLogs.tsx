@@ -25,7 +25,7 @@ import {
   DrawerContent,
   LogsPanel,
 } from "@agent-management-platform/views";
-import { Clock, FileText, Logs } from "@wso2/oxygen-ui-icons-react";
+import { Clock, Logs } from "@wso2/oxygen-ui-icons-react";
 import { formatRelativeTime } from "../utils/format";
 import { Alert, Box, Stack, Typography } from "@wso2/oxygen-ui";
 import { BuildSteps, BuildStepsSkeleton } from "./BuildSteps";
@@ -119,7 +119,7 @@ export function BuildLogs({
   const logsEmptyState = {
     title: emptyState.title,
     description: emptyState.subtitle,
-    illustration: <FileText size={64} />,
+    illustration: <Logs size={64} />,
   };
 
   return (

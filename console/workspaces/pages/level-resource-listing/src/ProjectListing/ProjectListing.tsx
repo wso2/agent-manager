@@ -37,10 +37,10 @@ import {
   Skeleton,
 } from "@wso2/oxygen-ui";
 import {
-  Package,
   Plus,
   Search,
   Trash2 as TrashOutline,
+  Box as ProjectIcon,
 } from "@wso2/oxygen-ui-icons-react";
 import { type MouseEvent, useCallback, useMemo, useState } from "react";
 import {
@@ -88,7 +88,7 @@ function ProjectCard(props: {
     <ListingCard
       title={project.displayName}
       description={project.description}
-      icon={<Package size={20} />}
+      icon={<ProjectIcon size={20} />}
       updatedLabel="Created"
       updatedTime={formatRelativeTime(project.createdAt)}
       updatedDateTime={project.createdAt}
@@ -174,7 +174,7 @@ export function ProjectListing() {
       {isEmpty ? (
         <ListingTable.Container>
           <ListingTable.EmptyState
-            illustration={<Package size={64} />}
+            illustration={<ProjectIcon size={64} />}
             title="No projects yet"
             description="Create a project to group your agents and their configuration."
             action={createButton}

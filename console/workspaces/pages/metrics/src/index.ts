@@ -18,12 +18,12 @@
 
 import { MetricsComponent } from './Metrics.Component';
 import type { PageMetadata } from '@agent-management-platform/types';
-import { BarChart3 } from '@wso2/oxygen-ui-icons-react';
+import { Gauge } from '@wso2/oxygen-ui-icons-react';
 
 export const metaData: PageMetadata = {
   title: 'System Metrics',
   description: 'A page component for System Metrics',
-  icon: BarChart3,
+  icon: Gauge,
   path: '/metrics',
   component: MetricsComponent,
   levels: {

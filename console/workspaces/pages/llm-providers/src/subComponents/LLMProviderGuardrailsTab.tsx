@@ -45,7 +45,7 @@ import {
   TablePagination,
   Typography,
 } from "@wso2/oxygen-ui";
-import { ChevronDown, Plus, Search, ShieldAlert } from "@wso2/oxygen-ui-icons-react";
+import { ChevronDown, Plus, Search, Braces } from "@wso2/oxygen-ui-icons-react";
 import {
   PolicySelectorDrawer,
   type ParameterValues,
@@ -528,7 +528,7 @@ export function LLMProviderGuardrailsTab({
               ) : resources.length === 0 ? (
                 <ListingTable.Container>
                   <ListingTable.EmptyState
-                    illustration={<ShieldAlert size={64} />}
+                    illustration={<Braces size={64} />}
                     title="No resources found"
                     description="Add an OpenAPI specification to define resources for resource-wise guardrails."
                   />

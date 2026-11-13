@@ -29,8 +29,8 @@ import {
 import {
   Plus,
   Search,
-  DoorClosedLocked,
   Trash,
+  Network,
 } from "@wso2/oxygen-ui-icons-react";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
 import {
@@ -319,7 +319,7 @@ export function AIGatewaysTable({ onAddGateway }: AIGatewaysTableProps) {
       isSearchEmpty={filteredGateways.length === 0}
       loadingPlaceholder={loadingRows}
       emptyState={{
-        illustration: <DoorClosedLocked size={64} />,
+        illustration: <Network size={64} />,
         title: "No available gateway",
         description: "No gateways have been configured yet.",
         // The page header shows Add Gateway once there are gateways.

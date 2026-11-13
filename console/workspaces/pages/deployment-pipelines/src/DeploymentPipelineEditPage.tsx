@@ -27,7 +27,7 @@ import {
   Stack,
   Typography,
 } from "@wso2/oxygen-ui";
-import { AlertTriangle, GitBranch } from "@wso2/oxygen-ui-icons-react";
+import { AlertTriangle, Workflow } from "@wso2/oxygen-ui-icons-react";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
 import {
   PageLayout,
@@ -230,7 +230,7 @@ export function DeploymentPipelineEditPage() {
       return (
         <ListingTable.Container>
           <ListingTable.EmptyState
-            illustration={<GitBranch size={64} />}
+            illustration={<Workflow size={64} />}
             title="Pipeline not found"
             description={`No deployment pipeline named "${pipelineName}" exists in this organization.`}
             action={

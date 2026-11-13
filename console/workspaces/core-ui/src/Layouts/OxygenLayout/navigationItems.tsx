@@ -19,7 +19,6 @@
 import {
   ClipboardCheck as EvaluationOutline,
   Settings,
-  Home,
   Hammer,
   FlaskConical,
   Workflow,
@@ -795,7 +794,7 @@ export function useNavigationItems(): Array<
       {
         label: "Overview",
         type: "item",
-        icon: <Home size={20} />,
+        icon: <LayoutDashboard size={20} />,
         href: generatePath(
           absoluteRouteMap.children.org.children.projects.path,
           { orgId, projectId },
@@ -858,7 +857,7 @@ export function useNavigationItems(): Array<
       {
         label: "Overview",
         type: "item",
-        icon: <Home size={20} />,
+        icon: <LayoutDashboard size={20} />,
         href: generatePath(absoluteRouteMap.children.org.path, { orgId }),
         isActive: !!matchPath(absoluteRouteMap.children.org.path, pathname),
       },

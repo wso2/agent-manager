@@ -31,10 +31,10 @@ import {
 import {
   AlertTriangle,
   ArrowRight,
-  GitBranch,
   Plus,
   Search,
   Trash,
+  Workflow,
 } from "@wso2/oxygen-ui-icons-react";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
 import {
@@ -274,7 +274,7 @@ export function DeploymentPipelineTable({
       isSearchEmpty={filtered.length === 0}
       loadingPlaceholder={loadingRows}
       emptyState={{
-        illustration: <GitBranch size={64} />,
+        illustration: <Workflow size={64} />,
         title: "No deployment pipelines yet",
         description:
           "Deployment pipelines define the promotion path for your agents across environments.",

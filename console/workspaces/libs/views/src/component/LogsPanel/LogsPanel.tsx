@@ -30,9 +30,9 @@ import {
     useTheme,
 } from "@wso2/oxygen-ui";
 import {
-    FileText,
-    TextWrap,
-    AlertCircle,
+  TextWrap,
+  AlertCircle,
+  Logs,
 } from "@wso2/oxygen-ui-icons-react";
 
 export interface LogsPanelProps {
@@ -231,7 +231,7 @@ const LogsPanelRows = (
 const defaultEmptyState = {
     title: "No logs found",
     description: "Try adjusting your search or time range",
-    illustration: <FileText size={64} />,
+    illustration: <Logs size={64} />,
 };
 
 const SCROLL_THRESHOLD = 80; // px from edge to trigger load

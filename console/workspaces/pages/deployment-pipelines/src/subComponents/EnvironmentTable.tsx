@@ -27,7 +27,7 @@ import {
   TablePagination,
   Typography,
 } from "@wso2/oxygen-ui";
-import { Plus, Search, Server, Trash } from "@wso2/oxygen-ui-icons-react";
+import { Plus, Search, Trash, Layers } from "@wso2/oxygen-ui-icons-react";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
 import { useListEnvironments } from "@agent-management-platform/api-client";
 import {
@@ -176,7 +176,7 @@ export function EnvironmentTable({
       isSearchEmpty={filtered.length === 0}
       loadingPlaceholder={loadingRows}
       emptyState={{
-        illustration: <Server size={64} />,
+        illustration: <Layers size={64} />,
         title: "No environments yet",
         description:
           "Create an environment to define where your agents are deployed.",
