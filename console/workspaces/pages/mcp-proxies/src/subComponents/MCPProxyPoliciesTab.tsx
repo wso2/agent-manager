@@ -22,7 +22,6 @@ import {
 } from "@agent-management-platform/api-client";
 import type {
   MCPEndpointConfig,
-  MCPProxy,
   MCPProxyPolicy,
 } from "@agent-management-platform/types";
 import {
@@ -62,7 +61,7 @@ export type MCPProxyPoliciesTabProps = {
   config: MCPEndpointConfig | undefined;
   selectedEndpointId: string;
   orgName?: string;
-  onUpdate: (fields: Partial<MCPEndpointConfig>) => Promise<MCPProxy>;
+  onUpdate: (fields: Partial<MCPEndpointConfig>) => Promise<unknown>;
   isUpdating: boolean;
 };
 
@@ -163,7 +162,7 @@ export function MCPProxyPoliciesTab({
       }
       title="Policies"
       description="Add policies to this server and drag to change their execution order."
-      addButtonLabel="Add Policy"
+      addButtonLabel="Add policy"
       drawerAddTitle="Add Policy"
       drawerEditTitle="Edit Policy"
       drawerAddSubtitle="Choose a policy to configure advanced options."

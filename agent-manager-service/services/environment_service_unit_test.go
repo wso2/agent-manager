@@ -47,6 +47,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -729,8 +730,8 @@ func TestEnvironmentService_DeleteEnvironmentDropsA2ACards(t *testing.T) {
 }
 
 // -----------------------------------------------------------------------------
-// GetEnvironmentGateways — verify env, resolve mappings, fan-out per gateway,
-// skip missing/errored gateways, and map IsActive -> status string.
+// GetEnvironmentGateways — verify the environment, scope and bound the query,
+// and map IsActive to the wire status.
 // -----------------------------------------------------------------------------
 
 func TestEnvironmentService_GetEnvironmentGateways(t *testing.T) {
@@ -750,15 +751,15 @@ func TestEnvironmentService_GetEnvironmentGateways(t *testing.T) {
 		assert.ErrorIs(t, err, utils.ErrEnvironmentNotFound)
 	})
 
-	t.Run("wraps a mapping-lookup error", func(t *testing.T) {
-		boom := errors.New("mapping query failed")
+	t.Run("wraps a gateway-list error", func(t *testing.T) {
+		boom := errors.New("gateway query failed")
 		oc := &clientmocks.OpenChoreoClientMock{
 			GetEnvironmentFunc: func(_ context.Context, _, _ string) (*models.EnvironmentResponse, error) {
 				return &models.EnvironmentResponse{UUID: envUUID, Name: "dev"}, nil
 			},
 		}
 		repo := &repomocks.GatewayRepositoryMock{
-			GetEnvironmentMappingsByEnvironmentIDFunc: func(_ string) ([]models.GatewayEnvironmentMapping, error) {
+			ListWithFiltersCtxFunc: func(_ context.Context, _ repositories.GatewayFilterOptions) ([]*models.Gateway, error) {
 				return nil, boom
 			},
 		}
@@ -770,10 +771,8 @@ func TestEnvironmentService_GetEnvironmentGateways(t *testing.T) {
 		assert.ErrorIs(t, err, boom)
 	})
 
-	t.Run("aggregates gateways and skips missing/errored ones", func(t *testing.T) {
+	t.Run("lists a bounded page for the organization and environment", func(t *testing.T) {
 		activeGW := uuid.New()
-		errorGW := uuid.New()
-		missingGW := uuid.New()
 
 		oc := &clientmocks.OpenChoreoClientMock{
 			GetEnvironmentFunc: func(_ context.Context, _, _ string) (*models.EnvironmentResponse, error) {
@@ -781,33 +780,21 @@ func TestEnvironmentService_GetEnvironmentGateways(t *testing.T) {
 			},
 		}
 		repo := &repomocks.GatewayRepositoryMock{
-			GetEnvironmentMappingsByEnvironmentIDFunc: func(_ string) ([]models.GatewayEnvironmentMapping, error) {
-				return []models.GatewayEnvironmentMapping{
-					{GatewayUUID: activeGW},
-					{GatewayUUID: errorGW},
-					{GatewayUUID: missingGW},
-				}, nil
-			},
-			GetByUUIDFunc: func(id string) (*models.Gateway, error) {
-				switch id {
-				case activeGW.String():
-					return &models.Gateway{
-						UUID:                     activeGW,
-						Name:                     "gw-active",
-						DisplayName:              "Active GW",
-						GatewayFunctionalityType: "egress",
-						Vhost:                    "gw.example.com",
-						IsCritical:               true,
-						IsActive:                 true,
-					}, nil
-				case errorGW.String():
-					return nil, errors.New("transient") // skipped, not fatal
-				case missingGW.String():
-					//nolint:nilnil // intentionally exercising the (nil, nil) "missing, skip" input the service must handle
-					return nil, nil // skipped
-				default:
-					return nil, errors.New("unexpected gateway id")
-				}
+			ListWithFiltersCtxFunc: func(_ context.Context, filters repositories.GatewayFilterOptions) ([]*models.Gateway, error) {
+				assert.Equal(t, org, filters.OrganizationID)
+				require.NotNil(t, filters.EnvironmentID)
+				assert.Equal(t, envUUID, *filters.EnvironmentID)
+				assert.Equal(t, 1000, filters.Limit)
+				assert.Zero(t, filters.Offset)
+				return []*models.Gateway{{
+					UUID:                     activeGW,
+					Name:                     "gw-active",
+					DisplayName:              "Active GW",
+					GatewayFunctionalityType: "egress",
+					Vhost:                    "gw.example.com",
+					IsCritical:               true,
+					IsActive:                 true,
+				}}, nil
 			},
 		}
 		svc := newEnvService(repo, oc)
@@ -815,7 +802,7 @@ func TestEnvironmentService_GetEnvironmentGateways(t *testing.T) {
 		resp, err := svc.GetEnvironmentGateways(context.Background(), org, envID)
 
 		require.NoError(t, err)
-		require.Len(t, resp, 1) // only the active gateway survives
+		require.Len(t, resp, 1)
 		assert.Equal(t, "gw-active", resp[0].Name)
 		assert.Equal(t, activeGW.String(), resp[0].UUID)
 		assert.Equal(t, org, resp[0].OrganizationName)
@@ -831,11 +818,8 @@ func TestEnvironmentService_GetEnvironmentGateways(t *testing.T) {
 			},
 		}
 		repo := &repomocks.GatewayRepositoryMock{
-			GetEnvironmentMappingsByEnvironmentIDFunc: func(_ string) ([]models.GatewayEnvironmentMapping, error) {
-				return []models.GatewayEnvironmentMapping{{GatewayUUID: gw}}, nil
-			},
-			GetByUUIDFunc: func(_ string) (*models.Gateway, error) {
-				return &models.Gateway{UUID: gw, Name: "gw-idle", IsActive: false}, nil
+			ListWithFiltersCtxFunc: func(_ context.Context, _ repositories.GatewayFilterOptions) ([]*models.Gateway, error) {
+				return []*models.Gateway{{UUID: gw, Name: "gw-idle", IsActive: false}}, nil
 			},
 		}
 		svc := newEnvService(repo, oc)

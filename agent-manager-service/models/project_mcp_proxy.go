@@ -41,12 +41,25 @@ func MCPProxyGatewayDisplayName(projectName *string, name string) string {
 
 // ProjectMCPProxyRequest is the body of PUT /orgs/{org}/projects/{project}/mcp-proxies/{proxyId}.
 type ProjectMCPProxyRequest struct {
-	Name           string         `json:"name"`
-	Description    string         `json:"description,omitempty"`
-	Version        string         `json:"version,omitempty"`
-	Context        string         `json:"context,omitempty"`
-	McpSpecVersion string         `json:"mcpSpecVersion,omitempty"`
-	Source         MCPProxySource `json:"source"`
+	Name           string `json:"name"`
+	Description    string `json:"description,omitempty"`
+	Version        string `json:"version,omitempty"`
+	Context        string `json:"context,omitempty"`
+	McpSpecVersion string `json:"mcpSpecVersion,omitempty"`
+	// Source and Upstream are exclusive: a proxy fronts either a component endpoint of the project, whose
+	// in-cluster address each binding resolves from the component's release binding, or a public URL that
+	// every binding uses as it is.
+	Source   *MCPProxySource          `json:"source,omitempty"`
+	Upstream *ProjectMCPProxyUpstream `json:"upstream,omitempty"`
+}
+
+// ProjectMCPProxyUpstream is the public upstream a project proxy registered by URL fronts.
+type ProjectMCPProxyUpstream struct {
+	URL string `json:"url"`
+	// ResetBindingAuthFor, on a request that moves the URL to another origin, names the bindings (by environment) whose
+	// stored upstream credential the update clears instead of refusing the move. A binding with a stored credential
+	// that is not named refuses the move (ErrMCPProxyBindingsChanged): the caller did not know of it. Never returned.
+	ResetBindingAuthFor []string `json:"resetBindingAuthFor,omitempty"`
 }
 
 // MCPProxyEnvironmentRequest is the body of PUT .../mcp-proxies/{proxyId}/environments/{envName}.
@@ -59,6 +72,10 @@ type MCPProxyEnvironmentRequest struct {
 	Security           *MCPProxyEnvironmentSecurity     `json:"security,omitempty"`
 	Policies           []MCPPolicy                      `json:"policies,omitempty"`
 	UpstreamAuth       *MCPProxyEnvironmentUpstreamAuth `json:"upstreamAuth,omitempty"`
+	// Capabilities is the MCP server's tools, prompts and resources in this environment, stored as given.
+	Capabilities *MCPProxyCapabilities `json:"capabilities,omitempty"`
+	// Resilience is the binding's request and idle timeouts on the gateway; omitted, the gateway's defaults.
+	Resilience *Resilience `json:"resilience,omitempty"`
 }
 
 // MCPProxyEnvironmentSecurity is a binding's SecurityConfig: SecurityConfig with a jwt variant.
@@ -110,8 +127,21 @@ type MCPProxyEnvironmentResponse struct {
 	Security     *MCPProxyEnvironmentSecurity             `json:"security,omitempty"`
 	Policies     []MCPPolicy                              `json:"policies,omitempty"`
 	UpstreamAuth *MCPProxyEnvironmentUpstreamAuthRedacted `json:"upstreamAuth,omitempty"`
-	UpdatedAt    *time.Time                               `json:"updatedAt,omitempty"`
+	Capabilities *MCPProxyCapabilities                    `json:"capabilities,omitempty"`
+	Resilience   *Resilience                              `json:"resilience,omitempty"`
+	// CapabilitiesSource says where Capabilities came from: "caller" (the binding PUT) or "discovered" (AMS listed
+	// them from the MCP server). Absent with no capabilities.
+	CapabilitiesSource string `json:"capabilitiesSource,omitempty"`
+	// CapabilityDiscovery is AMS's discovery of the binding's capabilities, when one was queued.
+	CapabilityDiscovery *MCPCapabilityDiscoveryStatus `json:"capabilityDiscovery,omitempty"`
+	UpdatedAt           *time.Time                    `json:"updatedAt,omitempty"`
 }
+
+// Where a binding's capabilities came from.
+const (
+	MCPCapabilitiesSourceCaller     = "caller"
+	MCPCapabilitiesSourceDiscovered = "discovered"
+)
 
 // MCPDeploymentStatusReasonNoGateway is the reason a binding shows while its environment has no gateway.
 const MCPDeploymentStatusReasonNoGateway = "NO_GATEWAY"
@@ -125,7 +155,8 @@ type ProjectMCPProxyResponse struct {
 	Context        string                        `json:"context"`
 	McpSpecVersion string                        `json:"mcpSpecVersion,omitempty"`
 	ProjectName    string                        `json:"projectName"`
-	Source         MCPProxySource                `json:"source"`
+	Source         *MCPProxySource               `json:"source,omitempty"`
+	Upstream       *ProjectMCPProxyUpstream      `json:"upstream,omitempty"`
 	Environments   []MCPProxyEnvironmentResponse `json:"environments"`
 	CreatedBy      string                        `json:"createdBy,omitempty"`
 	CreatedAt      *time.Time                    `json:"createdAt,omitempty"`
@@ -147,7 +178,8 @@ type ProjectMCPProxyListItem struct {
 	Description  string                              `json:"description,omitempty"`
 	Version      string                              `json:"version"`
 	Context      string                              `json:"context"`
-	Source       MCPProxySource                      `json:"source"`
+	Source       *MCPProxySource                     `json:"source,omitempty"`
+	Upstream     *ProjectMCPProxyUpstream            `json:"upstream,omitempty"`
 	Environments []ProjectMCPProxyEnvironmentSummary `json:"environments"`
 	CreatedAt    *time.Time                          `json:"createdAt,omitempty"`
 	UpdatedAt    *time.Time                          `json:"updatedAt,omitempty"`

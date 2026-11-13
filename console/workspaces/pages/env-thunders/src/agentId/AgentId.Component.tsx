@@ -533,7 +533,7 @@ const AgentIdentitySection: React.FC<AgentIdentitySectionProps> = ({
                     isRegenerating ? <CircularProgress size={16} /> : <RotateCcwKey size={16} />
                   }
                 >
-                  {isRegenerating ? "Regenerating..." : "Regenerate Secret"}
+                  {isRegenerating ? "Regenerating..." : "Regenerate secret"}
                 </Button>
               )}
             </Box>
@@ -705,7 +705,7 @@ const AgentIdentitySection: React.FC<AgentIdentitySectionProps> = ({
               Cancel
             </Button>
             <Button variant="contained" disabled={isSaving} onClick={() => void handleSaveChanges()}>
-              {isSaving ? "Saving..." : "Save Changes"}
+              {isSaving ? "Saving..." : "Save changes"}
             </Button>
           </Stack>
         </Box>

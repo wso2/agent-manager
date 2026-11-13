@@ -207,7 +207,7 @@ export const CreateGitSecretModal = ({
           onClick={handleSubmit}
           disabled={isPending}
         >
-          {isPending ? 'Creating...' : 'Create Secret'}
+          {isPending ? 'Creating...' : 'Create secret'}
         </Button>
       </DialogActions>
     </Dialog>

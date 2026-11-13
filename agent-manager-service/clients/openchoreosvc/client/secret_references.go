@@ -18,6 +18,8 @@ package client
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -264,7 +266,8 @@ func (c *openChoreoClient) DeleteSecretReference(ctx context.Context, ouID, secr
 // GetWorkloadSecretRefNames retrieves the names of every SecretReference an agent's
 // configuration points at, so DeleteAgent can clean them up along with their KV entries.
 //
-// Two sources are unioned, because a secret-backed value can be in either:
+// Three sources are unioned, because a secret-backed value can be in any of them:
+//
 //   - each ReleaseBinding's spec.workloadOverrides, where per-environment configuration now
 //     lives. Every binding for the component is scanned, not just the first environment's: a
 //     value set by a deploy reaches only the environment deployed to, so a secret can exist in
@@ -272,75 +275,139 @@ func (c *openChoreoClient) DeleteSecretReference(ctx context.Context, ouID, secr
 //   - the Workload's container spec, where configuration used to be written before it moved to
 //     the bindings (see EnsureReleaseAndBinding for why). Agents created before that move still
 //     carry their refs there, and skipping them would orphan the secret and the CR permanently.
+//   - the Component's build workflow parameters, where creation seeds the agent's configuration
+//     and its agent API key. An agent that never built or deployed has no binding and no
+//     Workload, so this is the only place its secret refs are recorded. A Component that is
+//     already gone (a retried delete) contributes nothing rather than failing the lookup.
 //
 // Env vars and file mounts both carry valueFrom.secretKeyRef, so both are scanned in each source.
+//
+// Each source is read even when another fails, so one failed read does not lose the refs the
+// others hold: the refs that could be collected are returned together with the failures,
+// joined into one error.
 func (c *openChoreoClient) GetWorkloadSecretRefNames(ctx context.Context, ouID, projectName, componentName string) ([]string, error) {
 	namespaceName := c.NamespaceFor(ouID)
 
-	// Collect unique secret reference names across both sources.
+	// Collect unique secret reference names across all sources.
 	secretRefNames := make(map[string]struct{})
+	err := errors.Join(
+		c.collectComponentWorkflowSecretRefNames(ctx, namespaceName, componentName, secretRefNames),
+		c.collectReleaseBindingSecretRefNames(ctx, namespaceName, componentName, secretRefNames),
+		c.collectWorkloadSecretRefNames(ctx, namespaceName, componentName, secretRefNames),
+	)
 
-	// Source 1: per-environment configuration on the release bindings.
-	bindingsResp, err := c.ocClient.ListReleaseBindingsWithResponse(ctx, namespaceName, &gen.ListReleaseBindingsParams{
+	result := make([]string, 0, len(secretRefNames))
+	for name := range secretRefNames {
+		result = append(result, name)
+	}
+	return result, err
+}
+
+// collectReleaseBindingSecretRefNames adds the SecretReference names in every ReleaseBinding's
+// workloadOverrides, where per-environment configuration lives.
+func (c *openChoreoClient) collectReleaseBindingSecretRefNames(ctx context.Context, namespaceName, componentName string, out map[string]struct{}) error {
+	resp, err := c.ocClient.ListReleaseBindingsWithResponse(ctx, namespaceName, &gen.ListReleaseBindingsParams{
 		Component: &componentName,
 		Limit:     &defaultListLimit,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to list release bindings: %w", err)
+		return fmt.Errorf("failed to list release bindings: %w", err)
 	}
-	if bindingsResp.StatusCode() != http.StatusOK {
-		return nil, handleErrorResponse(bindingsResp.StatusCode(), ErrorResponses{
-			JSON401: bindingsResp.JSON401,
-			JSON403: bindingsResp.JSON403,
-			JSON404: bindingsResp.JSON404,
-			JSON500: bindingsResp.JSON500,
-		})
-	}
-	if bindingsResp.JSON200 != nil {
-		for _, binding := range bindingsResp.JSON200.Items {
-			if binding.Spec == nil || binding.Spec.WorkloadOverrides == nil ||
-				binding.Spec.WorkloadOverrides.Container == nil {
-				continue
-			}
-			container := binding.Spec.WorkloadOverrides.Container
-			collectSecretRefNames(container.Env, container.Files, secretRefNames)
-		}
-	}
-
-	// Source 2: the workload itself, for agents predating the move to bindings.
-	resp, err := c.ocClient.ListWorkloadsWithResponse(ctx, namespaceName, &gen.ListWorkloadsParams{
-		Component: &componentName,
-		Limit:     &defaultListLimit,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to list workloads: %w", err)
-	}
-
 	if resp.StatusCode() != http.StatusOK {
-		return nil, handleErrorResponse(resp.StatusCode(), ErrorResponses{
+		return handleErrorResponse(resp.StatusCode(), ErrorResponses{
 			JSON401: resp.JSON401,
 			JSON403: resp.JSON403,
 			JSON404: resp.JSON404,
 			JSON500: resp.JSON500,
 		})
 	}
+	if resp.JSON200 == nil {
+		return nil
+	}
+	for _, binding := range resp.JSON200.Items {
+		if binding.Spec == nil || binding.Spec.WorkloadOverrides == nil ||
+			binding.Spec.WorkloadOverrides.Container == nil {
+			continue
+		}
+		container := binding.Spec.WorkloadOverrides.Container
+		collectSecretRefNames(container.Env, container.Files, out)
+	}
+	return nil
+}
 
-	if resp.JSON200 != nil {
-		for _, workload := range resp.JSON200.Items {
-			if workload.Spec == nil || workload.Spec.Container == nil {
-				continue
-			}
-			collectSecretRefNames(workload.Spec.Container.Env, workload.Spec.Container.Files, secretRefNames)
+// collectWorkloadSecretRefNames adds the SecretReference names in the Workload's container
+// spec, for agents created before configuration moved to the bindings.
+func (c *openChoreoClient) collectWorkloadSecretRefNames(ctx context.Context, namespaceName, componentName string, out map[string]struct{}) error {
+	resp, err := c.ocClient.ListWorkloadsWithResponse(ctx, namespaceName, &gen.ListWorkloadsParams{
+		Component: &componentName,
+		Limit:     &defaultListLimit,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to list workloads: %w", err)
+	}
+	if resp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(resp.StatusCode(), ErrorResponses{
+			JSON401: resp.JSON401,
+			JSON403: resp.JSON403,
+			JSON404: resp.JSON404,
+			JSON500: resp.JSON500,
+		})
+	}
+	if resp.JSON200 == nil {
+		return nil
+	}
+	for _, workload := range resp.JSON200.Items {
+		if workload.Spec == nil || workload.Spec.Container == nil {
+			continue
+		}
+		collectSecretRefNames(workload.Spec.Container.Env, workload.Spec.Container.Files, out)
+	}
+	return nil
+}
+
+// collectComponentWorkflowSecretRefNames adds the SecretReference names behind the
+// valueFrom.secretKeyRef entries in the Component's build workflow env vars and file mounts.
+func (c *openChoreoClient) collectComponentWorkflowSecretRefNames(ctx context.Context, namespaceName, componentName string, out map[string]struct{}) error {
+	resp, err := c.ocClient.GetComponentWithResponse(ctx, namespaceName, componentName)
+	if err != nil {
+		return fmt.Errorf("failed to get component: %w", err)
+	}
+	if resp.StatusCode() == http.StatusNotFound {
+		return nil
+	}
+	if resp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(resp.StatusCode(), ErrorResponses{
+			JSON401: resp.JSON401,
+			JSON403: resp.JSON403,
+			JSON404: resp.JSON404,
+			JSON500: resp.JSON500,
+		})
+	}
+	if resp.JSON200 == nil || resp.JSON200.Spec == nil || resp.JSON200.Spec.Workflow == nil ||
+		resp.JSON200.Spec.Workflow.Parameters == nil {
+		return nil
+	}
+	params := *resp.JSON200.Spec.Workflow.Parameters
+	for _, param := range []string{workflowParamEnvironmentVariables, workflowParamFileMounts} {
+		raw, ok := params[param]
+		if !ok || raw == nil {
+			continue
+		}
+		data, err := json.Marshal(raw)
+		if err != nil {
+			return fmt.Errorf("encode Component workflow parameter %q: %w", param, err)
+		}
+		var entries []struct {
+			ValueFrom *gen.EnvVarValueFrom `json:"valueFrom"`
+		}
+		if err := json.Unmarshal(data, &entries); err != nil {
+			return fmt.Errorf("decode Component workflow parameter %q: %w", param, err)
+		}
+		for _, entry := range entries {
+			addSecretRefName(entry.ValueFrom, out)
 		}
 	}
-
-	// Convert map to slice
-	result := make([]string, 0, len(secretRefNames))
-	for name := range secretRefNames {
-		result = append(result, name)
-	}
-
-	return result, nil
+	return nil
 }
 
 // collectSecretRefNames adds the SecretReference names behind any valueFrom.secretKeyRef in the

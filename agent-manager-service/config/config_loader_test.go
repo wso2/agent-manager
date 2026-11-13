@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"fmt"
 	"log/slog"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -1255,6 +1256,41 @@ func TestLoadEnvs_AgentIdentityForceSyncWait(t *testing.T) {
 		loadEnvs()
 		if got := config.SecretManager.AgentIdentityForceSyncApplyTimeout; got != "5m" {
 			t.Errorf("AgentIdentityForceSyncApplyTimeout = %q, want 5m", got)
+		}
+	})
+}
+
+func TestLoadEnvs_A2ACardTestUpstreamHosts(t *testing.T) {
+	requiredEnv := map[string]string{
+		"OPEN_CHOREO_BASE_URL": "http://localhost/api/v1",
+		"DB_HOST":              "localhost",
+		"DB_USER":              "unit",
+		"DB_PASSWORD":          "unit",
+		"DB_NAME":              "unit",
+	}
+
+	t.Run("entries are trimmed and empty ones dropped", func(t *testing.T) {
+		for k, v := range requiredEnv {
+			t.Setenv(k, v)
+		}
+		t.Setenv("A2A_CARD_TEST_UPSTREAM_HOSTS", " A.example ,, c.example. ")
+		loadEnvs()
+
+		want := []string{"A.example", "c.example."}
+		if got := config.A2ACardTestUpstreamHosts; !reflect.DeepEqual(got, want) {
+			t.Errorf("A2ACardTestUpstreamHosts = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("unset loads empty", func(t *testing.T) {
+		for k, v := range requiredEnv {
+			t.Setenv(k, v)
+		}
+		t.Setenv("A2A_CARD_TEST_UPSTREAM_HOSTS", "")
+		loadEnvs()
+
+		if got := config.A2ACardTestUpstreamHosts; len(got) != 0 {
+			t.Errorf("A2ACardTestUpstreamHosts = %v, want empty", got)
 		}
 	})
 }

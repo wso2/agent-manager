@@ -30,6 +30,8 @@ const (
 	ErrCodeInvalidInput   = "INVALID_INPUT"
 	// ErrCodeHandleInUse: the MCP proxy handle belongs to an org-level or another project's proxy.
 	ErrCodeHandleInUse = "HANDLE_IN_USE"
+	// ErrCodeMCPProxyAlreadyExists: a create-only PUT (If-None-Match: *) named a project MCP proxy that exists.
+	ErrCodeMCPProxyAlreadyExists = "MCP_PROXY_ALREADY_EXISTS"
 	// ErrCodeProjectOwned: an org route tried to mutate a project-scoped MCP proxy.
 	ErrCodeProjectOwned = "PROJECT_OWNED"
 	// ErrCodeMCPProxyInUse: AM agents still use the MCP proxy, so it cannot be deleted.
@@ -42,6 +44,10 @@ const (
 	ErrCodeContextInUse = "CONTEXT_IN_USE"
 	// ErrCodeAmbiguousGateway: the binding's environment has several egress gateways and no gatewayId was given.
 	ErrCodeAmbiguousGateway = "AMBIGUOUS_GATEWAY"
+	// ErrCodeAPIKeySecurityDisabled: an API key was asked for on a binding not secured with an API key.
+	ErrCodeAPIKeySecurityDisabled = "API_KEY_SECURITY_DISABLED"
+	// ErrCodeCapabilitiesGivenByCaller: discovery was asked for on a binding whose caller gave its capabilities.
+	ErrCodeCapabilitiesGivenByCaller = "CAPABILITIES_GIVEN_BY_CALLER"
 	// ErrCodeEntitlementDenied: the organization's subscription does not allow the create (402).
 	ErrCodeEntitlementDenied = "ENTITLEMENT_DENIED"
 

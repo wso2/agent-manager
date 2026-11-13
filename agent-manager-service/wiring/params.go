@@ -88,6 +88,7 @@ type AppParams struct {
 	MonitorScheduler                 services.MonitorSchedulerService
 	AgentThunderReconciler           services.AgentThunderReconcilerService
 	A2ACardReconciler                services.A2ACardReconcilerService
+	MCPCapabilityDiscovery           services.ProjectMCPCapabilityDiscoveryService
 	DeploymentTimeoutSweeper         services.DeploymentTimeoutSweeper
 	ReconcileWorker                  *reconcile.Worker
 

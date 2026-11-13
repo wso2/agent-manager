@@ -578,7 +578,7 @@ export function MonitorLLMProviderDrawer({
                   onClick={() => setMode("create")}
                   sx={{ alignSelf: "flex-start" }}
                 >
-                  Add LLM Provider
+                  Add LLM provider
                 </Button>
               </>
             )}

@@ -22,6 +22,7 @@ import {
     useGetMCPProxy,
     useListEnvironments,
 } from "@agent-management-platform/api-client";
+import { useMCPProxyEndpoints } from "@agent-management-platform/shared-component";
 import type {
     AgentModelConfigListItem,
     ProviderConfig,
@@ -67,7 +68,7 @@ function getToolName(raw: Record<string, unknown>): string | undefined {
 
 /**
  * One "MCP Proxies" preview row. The agent config only references a proxy by
- * name/id, so this card fetches the org-level MCPProxy (env-bound endpoint,
+ * name/id, so this card fetches the MCPProxy's endpoints (env-bound endpoint,
  * matched the same way ViewMCPServer.Component.tsx does via environmentUuid)
  * to list the tools that endpoint exposes. Configs not mapped to `envId` at
  * all report themselves as inapplicable and render nothing — never falls
@@ -93,15 +94,22 @@ export const MCPProxyConfigCard: React.FC<MCPProxyConfigCardProps> = ({
     const {
         data: environments, isLoading: isLoadingEnvironments, isError: isEnvironmentsError,
     } = useListEnvironments({ orgName: orgId });
+    // The proxy's own name for the label, and for its tools an org proxy's
+    // endpoints or a project proxy's environments (read from its project route)
+    // in the same shape. Both read the same org GET, which is fetched once.
+    const { data: proxy } = useGetMCPProxy({
+        orgName: orgId,
+        proxyId: proxyName ?? "",
+    });
     const {
-        data: proxy, isLoading: isLoadingProxy, isError: isProxyError,
-    } = useGetMCPProxy({
+        proxy: proxyEndpoints, isLoading: isLoadingProxy, isError: isProxyError,
+    } = useMCPProxyEndpoints({
         orgName: orgId,
         proxyId: proxyName ?? "",
     });
 
     const envUuid = environments?.find((env) => env.name === envId)?.id;
-    const endpoint = proxy?.endpoints?.find((ep) =>
+    const endpoint = proxyEndpoints?.endpoints?.find((ep) =>
         ep.environments?.some((binding) => binding.environmentUuid === envUuid),
     );
 
@@ -123,11 +131,18 @@ export const MCPProxyConfigCard: React.FC<MCPProxyConfigCardProps> = ({
     // read as "no tools" before we've actually found the right one.
     const isLoading = isLoadingConfig || isLoadingProxy || isLoadingEnvironments;
     const hasLoadError = isConfigError || isProxyError || isEnvironmentsError;
+    // A project proxy's tools may still be on their way: while its discovery is
+    // pending, or after it failed, "No tools exposed" would read as a final answer.
+    const discovery = endpoint?.capabilityDiscovery?.status;
     const subtitle = hasLoadError
         ? "Unable to load tools"
         : toolNames.length > 0
             ? `Tools: ${toolNames.join(", ")}`
-            : "No tools exposed";
+            : discovery === "Pending"
+                ? "Discovering tools…"
+                : discovery === "Failed"
+                    ? "Tool discovery failed"
+                    : "No tools exposed";
 
     if (!visible) {
         return null;

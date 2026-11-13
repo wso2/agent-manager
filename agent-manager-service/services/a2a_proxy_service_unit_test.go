@@ -940,3 +940,15 @@ func TestSetA2AProxyRejectsAnAgentFromAnotherProject(t *testing.T) {
 	assert.ErrorIs(t, err, utils.ErrAgentNotFound)
 	assert.Zero(t, h.transactions)
 }
+
+func TestRequireHTTPSForSecret_ListedHostMayUseHTTP(t *testing.T) {
+	hosts := newA2ATestUpstreamHosts([]string{listedTestUpstreamHost})
+	url := "http://" + listedTestUpstreamHost + ":19080/a/.well-known/agent-card.json"
+	assert.NoError(t, requireHTTPSForSecret(url, "s3cret", hosts))
+}
+
+func TestRequireHTTPSForSecret_UnlistedHTTPStillRefused(t *testing.T) {
+	hosts := newA2ATestUpstreamHosts([]string{listedTestUpstreamHost})
+	err := requireHTTPSForSecret("http://other.example/a/.well-known/agent-card.json", "s3cret", hosts)
+	assert.ErrorIs(t, err, utils.ErrA2AProxyUpstreamAuthNeedsHTTPS)
+}

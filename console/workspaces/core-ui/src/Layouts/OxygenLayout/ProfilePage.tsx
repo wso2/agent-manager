@@ -252,7 +252,7 @@ export const ProfilePage: React.FC = () => {
           {isProfileManagementEnabled && (
             <Stack direction="row" spacing={1} justifyContent="flex-end">
               <Button variant="contained" onClick={handleProfileSubmit} disabled={isUpdatingProfile}>
-                {isUpdatingProfile ? "Saving..." : "Save Changes"}
+                {isUpdatingProfile ? "Saving..." : "Save changes"}
               </Button>
             </Stack>
           )}
@@ -308,7 +308,7 @@ export const ProfilePage: React.FC = () => {
               onClick={handleCredentialSubmit}
               disabled={isUpdatingProfile || !credentialData.newPassword}
             >
-              {isUpdatingProfile ? "Updating..." : "Update Password"}
+              {isUpdatingProfile ? "Updating..." : "Update password"}
             </Button>
           </Stack>
         </Stack>

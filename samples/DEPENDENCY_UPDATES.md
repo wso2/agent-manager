@@ -6,7 +6,7 @@ execution can be delayed.
 
 | Ecosystem | Coverage |
 | --- | --- |
-| pip | All nine sample `requirements.txt` directories |
+| pip | All eight sample `requirements.txt` directories |
 | npm | Insurance Support web manifest and lock file |
 | NuGet | .NET agent project package references |
 | Docker | .NET agent and Insurance Support agent/MCP server Dockerfiles, including `Dockerfile.ecs` |
@@ -72,7 +72,7 @@ the new combined PR is available.
 
 - Declare Python dependencies with an explicit version constraint. Dependabot
   leaves unversioned requirements unchanged for routine version updates. The
-  A2A, CrewAI, Customer Support, and Manual Instrumentation samples pin their
+  A2A, Customer Support, and Manual Instrumentation samples pin their
   direct requirements so updates are proposed for review rather than silently
   adopted by the next install.
 - `leave-assistant-agent` uses Ballerina, which Dependabot does not support.

@@ -60,7 +60,7 @@ const renderDrawer = (agent: AgentResponse) =>
   );
 
 const save = async () => {
-  fireEvent.click(screen.getByRole("button", { name: "Update Build Configuration" }));
+  fireEvent.click(screen.getByRole("button", { name: "Update build configuration" }));
   await waitFor(() => expect(mutate).toHaveBeenCalled());
   return mutate.mock.calls[0][0].body;
 };

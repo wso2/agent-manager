@@ -111,6 +111,7 @@ func newProxySyncFixture(t *testing.T) *proxySyncFixture {
 		reconcile.Config{Lease: time.Minute, AttemptBudget: 3}, slog.New(slog.DiscardHandler))
 
 	encryptionKey := make([]byte, 32)
+	inMockTx(apiKeyRepo)
 	apiKeySvc := NewLLMProviderAPIKeyService(providerRepo, gatewayRepo, NewGatewayEventsService(&stubEventHub{}), apiKeyRepo)
 	f.svc = NewLLMProviderService(nil, providerRepo, nil, nil, f.proxyRepo, nil, encryptionKey, gatewayRepo, f.deployRepo,
 		nil, nil, apiKeySvc)

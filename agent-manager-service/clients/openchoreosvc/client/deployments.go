@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math"
 	"net/http"
 	"slices"
 	"strings"
@@ -1698,16 +1699,15 @@ func (c *openChoreoClient) fetchRuntimeReplicaState(ctx context.Context, namespa
 	return state
 }
 
-// agentStartupBudget bounds how long an agent may report "still starting" before the
-// deployment is called failed instead.
+// agentStartupBudget is the least time an agent may report "still starting" before the
+// deployment is called failed instead. bootBudget raises it for an agent whose startup
+// check allows longer.
 //
-// The number comes from the probes the agent-api component type renders (see
-// component-types/agent-api.yaml): a startup probe of initialDelaySeconds 10 +
-// periodSeconds 5 x failureThreshold 60 = 310s, after which kubelet kills the container
-// and the warm pool replaces the pod. The extra slack covers what happens before the
-// container starts at all — pulling the agent image and running the instrumentation init
-// container — which is charged to the same clock, because the only timestamp available
-// is the binding's (getLastDeployedTime), not the container's.
+// The number comes from the default startup probe the agent-api component type renders
+// (see component-types/agent-api.yaml): initialDelaySeconds 10 + periodSeconds 5 x
+// failureThreshold 60 = 310s, after which kubelet kills the container and the warm pool
+// replaces the pod, plus slack for what happens before the container starts (see
+// agentPreStartMargin). It is the floor for a short or switched-off startup check.
 //
 // Past this point the startup probe has already given up at least once, so nothing is
 // still starting. Observed case: an agent throttled at its 100m CPU limit never finished
@@ -1715,8 +1715,137 @@ func (c *openChoreoClient) fetchRuntimeReplicaState(ctx context.Context, namespa
 // showed "in progress" indefinitely.
 const agentStartupBudget = 10 * time.Minute
 
+// agentPreStartMargin covers what happens before the container starts at all — scheduling
+// the pod, pulling the agent image and running the instrumentation init container. It is
+// charged to the same clock as the startup probe, because the only timestamp available is
+// the binding's (deployAttemptTime), not the container's.
+const agentPreStartMargin = 5 * time.Minute
+
+// bootBudget returns how long this binding's agent may report "still starting" before the
+// deployment is called failed: the longest it may take to become ready, plus
+// agentPreStartMargin, and never less than agentStartupBudget. That longest is the longer of
+// its startup probe's window and its first readiness check; with the startup check off,
+// also its liveness probe's window.
+//
+// Example: a startup check of initial delay 10s + interval 10s x 120 failures allowed has a
+// window of 1210s, so the budget is 1210s + 5m = about 25 minutes. With the default checks
+// (startup 310s) the budget is 10m10s; shorter or switched-off checks get the 10-minute floor.
+func bootBudget(binding *gen.ReleaseBinding) time.Duration {
+	healthChecks := bindingHealthChecks(binding)
+	longest := max(startupProbeWindow(healthChecks.Startup), firstReadinessCheck(healthChecks.Readiness))
+
+	// With the startup check on, liveness waits until it passes, so liveness cannot let the
+	// agent start for longer. With it off, liveness runs from container start, and the agent
+	// may keep starting until liveness gives up: the console tells users to give liveness an
+	// initial delay longer than the agent takes to start.
+	startupOff := healthChecks.Startup != nil && !utils.BoolPointerAsBool(healthChecks.Startup.Enabled, true)
+	if startupOff {
+		longest = max(longest, livenessProbeWindow(healthChecks.Liveness))
+	}
+
+	budget := longest + agentPreStartMargin
+	if budget < agentStartupBudget {
+		return agentStartupBudget
+	}
+	return budget
+}
+
+// bindingHealthChecks returns the health checks written onto the binding together with its
+// release; agent-api.yaml renders the agent's probes from them. None written, or a value
+// that can't be read, gives empty checks, which stand for the default probes.
+func bindingHealthChecks(binding *gen.ReleaseBinding) models.HealthChecks {
+	if binding.Spec == nil || binding.Spec.ComponentTypeEnvironmentConfigs == nil {
+		return models.HealthChecks{}
+	}
+	healthChecks, err := healthChecksFromMap(*binding.Spec.ComponentTypeEnvironmentConfigs)
+	if err != nil {
+		slog.Debug("failed to read the health checks, using the default boot budget",
+			"binding", binding.Metadata.Name, "error", err)
+		return models.HealthChecks{}
+	}
+	if healthChecks == nil {
+		return models.HealthChecks{}
+	}
+	return *healthChecks
+}
+
+// startupProbeWindow returns how long kubelet gives the agent's startup probe before it
+// restarts the container (see restartWindow). Returns 0 when the startup check is switched
+// off, as there is no probe to wait for.
+func startupProbeWindow(startup *models.HealthCheck) time.Duration {
+	// Not set: the default probe. Set: each field that is not set falls back to its default.
+	if startup == nil {
+		startup = &models.HealthCheck{}
+	}
+
+	// Switched off: no startup probe renders.
+	if !utils.BoolPointerAsBool(startup.Enabled, true) {
+		return 0
+	}
+
+	return restartWindow(startup, utils.StartupCheckDefaults)
+}
+
+// livenessProbeWindow returns how long kubelet gives the agent's liveness probe, from
+// container start, before it restarts the container (see restartWindow). Returns 0 when
+// there is no liveness probe: none is rendered unless the check is set and not switched off.
+func livenessProbeWindow(liveness *models.HealthCheck) time.Duration {
+	// Not set, or switched off: no liveness probe renders.
+	if liveness == nil || !utils.BoolPointerAsBool(liveness.Enabled, true) {
+		return 0
+	}
+
+	return restartWindow(liveness, utils.LivenessCheckDefaults)
+}
+
+// restartWindow returns how long a probe that keeps failing takes before kubelet restarts the
+// container: initial delay + the longer of interval and timeout x failures allowed. A probe
+// still running when the next is due delays it, so the longer of the two is the real gap
+// between attempts. A field that is not set falls back to its default.
+func restartWindow(check *models.HealthCheck, defaults utils.HealthCheckDefaults) time.Duration {
+	initialDelay := int64(utils.IntPointerAsInt(check.InitialDelaySeconds, defaults.InitialDelaySeconds))
+	period := int64(utils.IntPointerAsInt(check.PeriodSeconds, defaults.PeriodSeconds))
+	timeout := int64(utils.IntPointerAsInt(check.TimeoutSeconds, defaults.TimeoutSeconds))
+	failures := int64(utils.IntPointerAsInt(check.FailureThreshold, defaults.FailureThreshold))
+	seconds := initialDelay + max(period, timeout)*failures
+
+	// Agent Manager validates health checks before saving them, but the binding can also be
+	// edited in OpenChoreo directly, whose schema sets only minimums. Keep the window between
+	// 0 and the most time.Duration can hold with agentPreStartMargin still added, so a huge
+	// window does not wrap around to a short or negative one.
+	maxSeconds := int64((math.MaxInt64 - agentPreStartMargin) / time.Second)
+	seconds = min(max(seconds, 0), maxSeconds)
+	return time.Duration(seconds) * time.Second
+}
+
+// firstReadinessCheck returns the latest the agent's first readiness check can run: its
+// initial delay + one interval. Kubelet runs no readiness check before the initial delay,
+// counted from container start whether or not a startup check is on, and the first one can
+// land up to an interval after it. An agent that loads a model behind a long readiness delay
+// cannot be ready sooner. Returns 0 when the readiness check is switched off: the agent is
+// ready as soon as it is running.
+func firstReadinessCheck(readiness *models.HealthCheck) time.Duration {
+	// Not set: the default probe. Set: each field that is not set falls back to its default.
+	if readiness == nil {
+		readiness = &models.HealthCheck{}
+	}
+
+	// Switched off: no readiness probe renders.
+	if !utils.BoolPointerAsBool(readiness.Enabled, true) {
+		return 0
+	}
+
+	// Each is an int32, so the sum fits in time.Duration; only a negative value from a direct
+	// edit in OpenChoreo needs guarding.
+	defaults := utils.ReadinessCheckDefaults
+	initialDelay := int64(utils.IntPointerAsInt(readiness.InitialDelaySeconds, defaults.InitialDelaySeconds))
+	period := int64(utils.IntPointerAsInt(readiness.PeriodSeconds, defaults.PeriodSeconds))
+	seconds := max(initialDelay+period, 0)
+	return time.Duration(seconds) * time.Second
+}
+
 // bootDeadlineExceeded reports whether a booting agent has been booting for longer than
-// any pod could plausibly take to start.
+// its pod could plausibly take to start (bootBudget).
 //
 // Measured from deployAttemptTime, never from getLastDeployedTime: the latter falls back
 // to the binding's creation timestamp, which would date a rollout that has just started
@@ -1730,7 +1859,7 @@ func bootDeadlineExceeded(binding *gen.ReleaseBinding) bool {
 	if started.IsZero() {
 		return false
 	}
-	return time.Since(started) > agentStartupBudget
+	return time.Since(started) > bootBudget(binding)
 }
 
 // probedPorts lists the ports the platform's TCP startup probe targets, taken from the
@@ -1807,7 +1936,7 @@ func determineDeploymentStatus(binding *gen.ReleaseBinding, runtime runtimeRepli
 							"binding", binding.Metadata.Name,
 							"environment", bindingEnvironment(binding),
 							"elapsed", time.Since(deployAttemptTime(binding)).Round(time.Second),
-							"budget", agentStartupBudget,
+							"budget", bootBudget(binding),
 							"probedPorts", probedPorts(binding),
 							"desiredReplicas", runtime.desired,
 							"readyReplicas", runtime.ready)

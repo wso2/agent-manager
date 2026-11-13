@@ -1,11 +1,16 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import html
 import json
 import logging
+import traceback
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException, Request, status
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from langchain_core.messages import HumanMessage
 from pydantic import BaseModel, Field, field_validator
 
@@ -40,6 +45,16 @@ class ChatResponse(BaseModel):
     response: str
 
 app = FastAPI(title="Hotel Booking Agent")
+MAX_VALIDATION_ERRORS = 16
+
+
+@app.exception_handler(RequestValidationError)
+async def request_validation_error_handler(_request: Request, exc: RequestValidationError) -> JSONResponse:
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+        content={"detail": jsonable_encoder(exc.errors()[:MAX_VALIDATION_ERRORS])},
+    )
+
 
 def _wrap_user_message(user_message: str, context: dict[str, Any]) -> str:
     now = datetime.now(timezone.utc).isoformat()
@@ -50,16 +65,6 @@ def _wrap_user_message(user_message: str, context: dict[str, Any]) -> str:
         f"User Query:\n{user_message}"
     )
 
-def _sanitize_for_log(value: str) -> str:
-    """Escape CR/LF so untrusted input can't forge extra log lines or fields.
-
-    html.escape() is the wrong tool here: it guards against HTML/XSS when a
-    value is rendered in a browser, not against log injection, and leaves
-    \\r/\\n untouched.
-    """
-    return value.replace("\r", "\\r").replace("\n", "\\n")
-
-
 def _resolve_thread_id(session_id: str, context: dict[str, Any]) -> str:
     session_id = session_id.strip()
     if not session_id:
@@ -68,6 +73,10 @@ def _resolve_thread_id(session_id: str, context: dict[str, Any]) -> str:
     if isinstance(context_user_id, str) and context_user_id.strip():
         return f"{context_user_id.strip()}:{session_id}"
     return f"anonymous:{session_id}"
+
+
+def _sanitize_for_log(value: str) -> str:
+    return html.escape(value).replace("\r", "").replace("\n", "")
 
 
 @app.post("/chat", response_model=ChatResponse)
@@ -83,10 +92,11 @@ def chat(request: ChatRequest) -> ChatResponse:
             },
         )
     except Exception:
-        logging.exception(
-            "chat invoke failed: thread_id=%s session_id=%s",
+        logging.error(
+            "chat invoke failed: thread_id=%a session_id=%a traceback=%a",
             _sanitize_for_log(thread_id),
             _sanitize_for_log(request.session_id),
+            _sanitize_for_log(traceback.format_exc()),
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

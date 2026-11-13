@@ -1216,6 +1216,27 @@ func (e LogEntryLogLevel) Valid() bool {
 	}
 }
 
+// Defines values for MCPCapabilityDiscoveryStatusStatus.
+const (
+	MCPCapabilityDiscoveryStatusStatusDiscovered MCPCapabilityDiscoveryStatusStatus = "Discovered"
+	MCPCapabilityDiscoveryStatusStatusFailed     MCPCapabilityDiscoveryStatusStatus = "Failed"
+	MCPCapabilityDiscoveryStatusStatusPending    MCPCapabilityDiscoveryStatusStatus = "Pending"
+)
+
+// Valid indicates whether the value is a known member of the MCPCapabilityDiscoveryStatusStatus enum.
+func (e MCPCapabilityDiscoveryStatusStatus) Valid() bool {
+	switch e {
+	case MCPCapabilityDiscoveryStatusStatusDiscovered:
+		return true
+	case MCPCapabilityDiscoveryStatusStatusFailed:
+		return true
+	case MCPCapabilityDiscoveryStatusStatusPending:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for MCPEndpointEnvironmentDeploymentStatus.
 const (
 	MCPEndpointEnvironmentDeploymentStatusDeployed    MCPEndpointEnvironmentDeploymentStatus = "Deployed"
@@ -1258,6 +1279,24 @@ func (e MCPProjectDeploymentStatus) Valid() bool {
 	case MCPProjectDeploymentStatusDeploying:
 		return true
 	case MCPProjectDeploymentStatusFailed:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for MCPProxyEnvironmentResponseCapabilitiesSource.
+const (
+	Caller     MCPProxyEnvironmentResponseCapabilitiesSource = "caller"
+	Discovered MCPProxyEnvironmentResponseCapabilitiesSource = "discovered"
+)
+
+// Valid indicates whether the value is a known member of the MCPProxyEnvironmentResponseCapabilitiesSource enum.
+func (e MCPProxyEnvironmentResponseCapabilitiesSource) Valid() bool {
+	switch e {
+	case Caller:
+		return true
+	case Discovered:
 		return true
 	default:
 		return false
@@ -1737,22 +1776,22 @@ func (e GetAgentTraceScoresParamsSortOrder) Valid() bool {
 
 // Defines values for ListProjectEventDeliveriesParamsStatus.
 const (
-	ListProjectEventDeliveriesParamsStatusDelivered ListProjectEventDeliveriesParamsStatus = "delivered"
-	ListProjectEventDeliveriesParamsStatusFailed    ListProjectEventDeliveriesParamsStatus = "failed"
-	ListProjectEventDeliveriesParamsStatusPending   ListProjectEventDeliveriesParamsStatus = "pending"
-	ListProjectEventDeliveriesParamsStatusSkipped   ListProjectEventDeliveriesParamsStatus = "skipped"
+	Delivered ListProjectEventDeliveriesParamsStatus = "delivered"
+	Failed    ListProjectEventDeliveriesParamsStatus = "failed"
+	Pending   ListProjectEventDeliveriesParamsStatus = "pending"
+	Skipped   ListProjectEventDeliveriesParamsStatus = "skipped"
 )
 
 // Valid indicates whether the value is a known member of the ListProjectEventDeliveriesParamsStatus enum.
 func (e ListProjectEventDeliveriesParamsStatus) Valid() bool {
 	switch e {
-	case ListProjectEventDeliveriesParamsStatusDelivered:
+	case Delivered:
 		return true
-	case ListProjectEventDeliveriesParamsStatusFailed:
+	case Failed:
 		return true
-	case ListProjectEventDeliveriesParamsStatusPending:
+	case Pending:
 		return true
-	case ListProjectEventDeliveriesParamsStatusSkipped:
+	case Skipped:
 		return true
 	default:
 		return false
@@ -1783,6 +1822,21 @@ func (e GetLLMProxyDeploymentsParamsStatus) Valid() bool {
 	case UNDEPLOYED:
 		return true
 	case UNDEPLOYING:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UpsertProjectMCPProxyParamsIfNoneMatch.
+const (
+	Asterisk UpsertProjectMCPProxyParamsIfNoneMatch = "*"
+)
+
+// Valid indicates whether the value is a known member of the UpsertProjectMCPProxyParamsIfNoneMatch enum.
+func (e UpsertProjectMCPProxyParamsIfNoneMatch) Valid() bool {
+	switch e {
+	case Asterisk:
 		return true
 	default:
 		return false
@@ -1842,14 +1896,14 @@ type APIKeySecurity struct {
 	// Enabled Whether API key security is enabled
 	Enabled *bool `json:"enabled,omitempty"`
 
-	// In Where the API key is located
+	// In Where the API key is located. The gateway reads it from a header only: query is refused with 400 when an API key is enabled, except on an MCP proxy endpoint that already has it stored, which keeps it until it is moved to a header. It is still returned for such resources.
 	In *APIKeySecurityIn `json:"in,omitempty"`
 
 	// Key API key parameter name
 	Key *string `json:"key,omitempty"`
 }
 
-// APIKeySecurityIn Where the API key is located
+// APIKeySecurityIn Where the API key is located. The gateway reads it from a header only: query is refused with 400 when an API key is enabled, except on an MCP proxy endpoint that already has it stored, which keeps it until it is moved to a header. It is still returned for such resources.
 type APIKeySecurityIn string
 
 // AddAgentKindVersionRequest defines model for AddAgentKindVersionRequest.
@@ -4442,6 +4496,15 @@ type InputInterfaceSchema struct {
 	Path *string `json:"path,omitempty"`
 }
 
+// IssueBindingTestAPIKeyRequest defines model for IssueBindingTestAPIKeyRequest.
+type IssueBindingTestAPIKeyRequest struct {
+	// ExpiresAt When the key expires (RFC 3339). Must be in the future and no more than 24 hours away. Defaults to one hour from now.
+	ExpiresAt *time.Time `json:"expiresAt,omitempty"`
+
+	// ForUser The caller's user the key is issued for, e.g. their user ID. It picks the user's key slots and is not stored.
+	ForUser string `json:"forUser"`
+}
+
 // IssueTestAPIKeyResponse defines model for IssueTestAPIKeyResponse.
 type IssueTestAPIKeyResponse struct {
 	// ApiKey The test API key value to send as the X-API-Key header.
@@ -4456,7 +4519,7 @@ type IssueTestAPIKeyResponse struct {
 	// once the gateway reconnects and syncs.
 	GatewayConnected *bool `json:"gatewayConnected,omitempty"`
 
-	// KeyId The fixed name "console-test".
+	// KeyId The key's name.
 	KeyId   *string `json:"keyId,omitempty"`
 	Message *string `json:"message,omitempty"`
 	Status  string  `json:"status"`
@@ -4994,6 +5057,21 @@ type LogsResponse struct {
 	TotalCount int        `json:"totalCount"`
 }
 
+// MCPCapabilityDiscoveryStatus AMS's discovery of a binding's capabilities from the MCP server, through the binding's gateway. Queued each time the binding deploys when its caller gave no capabilities, and by the refresh route. Absent when none was queued.
+type MCPCapabilityDiscoveryStatus struct {
+	// DiscoveredAt When the capabilities were last discovered.
+	DiscoveredAt *time.Time `json:"discoveredAt,omitempty"`
+
+	// LastError Why the last attempt failed. Absent once discovered.
+	LastError *string `json:"lastError,omitempty"`
+
+	// Status Pending: queued or retrying (lastError says why the last attempt failed). Discovered: the capabilities are the ones last discovered. Failed: given up on until the next deploy or refresh.
+	Status MCPCapabilityDiscoveryStatusStatus `json:"status"`
+}
+
+// MCPCapabilityDiscoveryStatusStatus Pending: queued or retrying (lastError says why the last attempt failed). Discovered: the capabilities are the ones last discovered. Failed: given up on until the next deploy or refresh.
+type MCPCapabilityDiscoveryStatusStatus string
+
 // MCPConfigRequest defines model for MCPConfigRequest.
 type MCPConfigRequest struct {
 	// EnvironmentVariables Optional custom environment variable names exposed to the agent
@@ -5092,16 +5170,22 @@ type MCPProxyEndpoint struct {
 
 // MCPProxyEnvironmentRequest Replaces the binding's configuration. Every field is optional; an omitted field resets to its default.
 type MCPProxyEnvironmentRequest struct {
+	// Capabilities The tools, prompts and resources the MCP server exposes in this environment, as its tools/list, prompts/list and resources/list return them. Optional. Given, they are stored as given and AMS does not discover them; each tool needs a name, and a change redeploys the binding. Omitted, AMS discovers them from the MCP server through the binding's gateway once the binding is deployed (see capabilityDiscovery on the response), and a later PUT without capabilities keeps what it discovered.
+	Capabilities *MCPProxyCapabilities `json:"capabilities,omitempty"`
+
 	// GatewayId Required only when the environment has more than one egress-capable gateway. Cannot change once placed. Must name a managed gateway: a self-hosted gateway has no route to the in-cluster upstream, so naming one is rejected with 400 VALIDATION_ERROR.
 	GatewayId *openapi_types.UUID `json:"gatewayId,omitempty"`
 
 	// Policies Gateway policies, e.g. CORS and basic-ratelimit. Each needs a name and a version.
 	Policies *[]MCPPolicy `json:"policies,omitempty"`
 
-	// ReleaseBindingName The source component's release binding to front. Required only when the component has more than one release binding in the environment, one per deployment track for example; without it such a component is rejected with 400 VALIDATION_ERROR. It must be a binding of the source component in this project and environment, or it is rejected with 400 VALIDATION_ERROR.
+	// ReleaseBindingName The source component's release binding to front. Required only when the component has more than one release binding in the environment, one per deployment track for example; without it such a component is rejected with 400 VALIDATION_ERROR. It must be a binding of the source component in this project and environment, or it is rejected with 400 VALIDATION_ERROR. A proxy registered by URL has no release binding: setting it there is 400 VALIDATION_ERROR.
 	ReleaseBindingName *string `json:"releaseBindingName,omitempty"`
 
-	// Security A binding's security. Phase 1 accepts apiKey, which is also the default when the field is omitted or names no variant (an api key in the X-API-Key header), and no security (enabled false only). An apiKey with enabled false while security is not disabled is rejected with 400 VALIDATION_ERROR. jwt is rejected with 400 "jwt security is not available yet", and identity with 400.
+	// Resilience The binding's request and idle timeouts on the gateway. Optional; omitted, the gateway's defaults apply. A change redeploys the binding.
+	Resilience *Resilience `json:"resilience,omitempty"`
+
+	// Security A binding's security: apiKey, which is also the default when the field is omitted or names no variant (an api key in the X-API-Key header); identity, OAuth access tokens from the environment's identity provider issued for the binding's publicUrl (mutually exclusive with apiKey); or no security (enabled false only). An apiKey with enabled false while security is not disabled is rejected with 400 VALIDATION_ERROR. jwt is rejected with 400 "jwt security is not available yet". The API key is read from a header only: apiKey.in "query" is rejected with 400 VALIDATION_ERROR, as the gateway checks no other location.
 	Security *MCPProxyEnvironmentSecurity `json:"security,omitempty"`
 
 	// UpstreamAuth Credentials the gateway adds when it calls the upstream.
@@ -5110,6 +5194,15 @@ type MCPProxyEnvironmentRequest struct {
 
 // MCPProxyEnvironmentResponse defines model for MCPProxyEnvironmentResponse.
 type MCPProxyEnvironmentResponse struct {
+	// Capabilities The binding's capabilities: the ones given on the last PUT, or the ones AMS discovered (see capabilitiesSource). Absent when there are none yet.
+	Capabilities *MCPProxyCapabilities `json:"capabilities,omitempty"`
+
+	// CapabilitiesSource Where capabilities came from: caller (the binding PUT) or discovered (AMS listed them from the MCP server). Absent with no capabilities.
+	CapabilitiesSource *MCPProxyEnvironmentResponseCapabilitiesSource `json:"capabilitiesSource,omitempty"`
+
+	// CapabilityDiscovery AMS's discovery of a binding's capabilities from the MCP server, through the binding's gateway. Queued each time the binding deploys when its caller gave no capabilities, and by the refresh route. Absent when none was queued.
+	CapabilityDiscovery *MCPCapabilityDiscoveryStatus `json:"capabilityDiscovery,omitempty"`
+
 	// Context The proxy's context, as given, without the project prefix.
 	Context string `json:"context"`
 
@@ -5131,13 +5224,19 @@ type MCPProxyEnvironmentResponse struct {
 	// ReleaseBindingName The release binding the binding was given. Absent when none was given.
 	ReleaseBindingName *string `json:"releaseBindingName,omitempty"`
 
-	// Security A binding's security. Phase 1 accepts apiKey, which is also the default when the field is omitted or names no variant (an api key in the X-API-Key header), and no security (enabled false only). An apiKey with enabled false while security is not disabled is rejected with 400 VALIDATION_ERROR. jwt is rejected with 400 "jwt security is not available yet", and identity with 400.
+	// Resilience The binding's request and idle timeouts. Absent when the gateway's defaults apply.
+	Resilience *Resilience `json:"resilience,omitempty"`
+
+	// Security A binding's security: apiKey, which is also the default when the field is omitted or names no variant (an api key in the X-API-Key header); identity, OAuth access tokens from the environment's identity provider issued for the binding's publicUrl (mutually exclusive with apiKey); or no security (enabled false only). An apiKey with enabled false while security is not disabled is rejected with 400 VALIDATION_ERROR. jwt is rejected with 400 "jwt security is not available yet". The API key is read from a header only: apiKey.in "query" is rejected with 400 VALIDATION_ERROR, as the gateway checks no other location.
 	Security     *MCPProxyEnvironmentSecurity             `json:"security,omitempty"`
 	UpdatedAt    *time.Time                               `json:"updatedAt,omitempty"`
 	UpstreamAuth *MCPProxyEnvironmentUpstreamAuthRedacted `json:"upstreamAuth,omitempty"`
 }
 
-// MCPProxyEnvironmentSecurity A binding's security. Phase 1 accepts apiKey, which is also the default when the field is omitted or names no variant (an api key in the X-API-Key header), and no security (enabled false only). An apiKey with enabled false while security is not disabled is rejected with 400 VALIDATION_ERROR. jwt is rejected with 400 "jwt security is not available yet", and identity with 400.
+// MCPProxyEnvironmentResponseCapabilitiesSource Where capabilities came from: caller (the binding PUT) or discovered (AMS listed them from the MCP server). Absent with no capabilities.
+type MCPProxyEnvironmentResponseCapabilitiesSource string
+
+// MCPProxyEnvironmentSecurity A binding's security: apiKey, which is also the default when the field is omitted or names no variant (an api key in the X-API-Key header); identity, OAuth access tokens from the environment's identity provider issued for the binding's publicUrl (mutually exclusive with apiKey); or no security (enabled false only). An apiKey with enabled false while security is not disabled is rejected with 400 VALIDATION_ERROR. jwt is rejected with 400 "jwt security is not available yet". The API key is read from a header only: apiKey.in "query" is rejected with 400 VALIDATION_ERROR, as the gateway checks no other location.
 type MCPProxyEnvironmentSecurity struct {
 	ApiKey  *APIKeySecurity `json:"apiKey,omitempty"`
 	Enabled *bool           `json:"enabled,omitempty"`
@@ -5154,7 +5253,7 @@ type MCPProxyEnvironmentUpstreamAuth struct {
 	Header *string                             `json:"header,omitempty"`
 	Type   MCPProxyEnvironmentUpstreamAuthType `json:"type"`
 
-	// Value Required with api-key. Stored encrypted; never returned.
+	// Value Required with api-key, unless the binding already has an api-key upstream auth: an omitted value then keeps the stored one. Stored encrypted; never returned.
 	Value *string `json:"value,omitempty"`
 }
 
@@ -5177,6 +5276,13 @@ type MCPProxyJWTSecurity struct {
 	Issuers   *[]string `json:"issuers,omitempty"`
 }
 
+// MCPProxyListEnvironment defines model for MCPProxyListEnvironment.
+type MCPProxyListEnvironment struct {
+	// EnvironmentName Set for a project-owned proxy, whose binding is named after its environment.
+	EnvironmentName *string `json:"environmentName,omitempty"`
+	EnvironmentUuid string  `json:"environmentUuid"`
+}
+
 // MCPProxyListItem defines model for MCPProxyListItem.
 type MCPProxyListItem struct {
 	// Context MCP proxy context path
@@ -5191,6 +5297,9 @@ type MCPProxyListItem struct {
 	// Description Description of the MCP proxy
 	Description *string `json:"description,omitempty"`
 
+	// Environments The environments the proxy is bound to.
+	Environments *[]MCPProxyListEnvironment `json:"environments,omitempty"`
+
 	// Id Unique handle for the MCP proxy
 	Id *string `json:"id,omitempty"`
 
@@ -5202,6 +5311,9 @@ type MCPProxyListItem struct {
 
 	// ProjectName Set for a project-owned proxy; absent for an org-level one
 	ProjectName *string `json:"projectName,omitempty"`
+
+	// Source The component endpoint a project-owned proxy fronts; absent for an org-level one.
+	Source *MCPProxySource `json:"source,omitempty"`
 
 	// Status MCP proxy status
 	Status *string `json:"status,omitempty"`
@@ -5726,10 +5838,13 @@ type ProjectMCPProxyListItem struct {
 	Id           string                              `json:"id"`
 	Name         string                              `json:"name"`
 
-	// Source The OpenChoreo component endpoint a project MCP proxy fronts. Fixed after create.
-	Source    MCPProxySource `json:"source"`
-	UpdatedAt *time.Time     `json:"updatedAt,omitempty"`
-	Version   string         `json:"version"`
+	// Source Set for a proxy that fronts a project component endpoint.
+	Source    *MCPProxySource `json:"source,omitempty"`
+	UpdatedAt *time.Time      `json:"updatedAt,omitempty"`
+
+	// Upstream Set for a proxy registered by a public URL.
+	Upstream *ProjectMCPProxyUpstream `json:"upstream,omitempty"`
+	Version  string                   `json:"version"`
 }
 
 // ProjectMCPProxyListResponse defines model for ProjectMCPProxyListResponse.
@@ -5752,8 +5867,11 @@ type ProjectMCPProxyRequest struct {
 	// Name Display name
 	Name string `json:"name"`
 
-	// Source The OpenChoreo component endpoint a project MCP proxy fronts. Fixed after create.
-	Source MCPProxySource `json:"source"`
+	// Source The project component endpoint the proxy fronts. Each environment binding calls the endpoint's in-cluster address there, resolved from the component's release binding. Exclusive with upstream; one of the two is required. Fixed after create.
+	Source *MCPProxySource `json:"source,omitempty"`
+
+	// Upstream A public MCP server URL the proxy fronts, which every environment binding calls as it is. Exclusive with source; one of the two is required. A private or loopback address is 400 VALIDATION_ERROR. The URL may change; a proxy registered by URL cannot take a source later, nor the other way round.
+	Upstream *ProjectMCPProxyUpstream `json:"upstream,omitempty"`
 
 	// Version Defaults to v1
 	Version *string `json:"version,omitempty"`
@@ -5773,10 +5891,20 @@ type ProjectMCPProxyResponse struct {
 	Name           string  `json:"name"`
 	ProjectName    string  `json:"projectName"`
 
-	// Source The OpenChoreo component endpoint a project MCP proxy fronts. Fixed after create.
-	Source    MCPProxySource `json:"source"`
-	UpdatedAt *time.Time     `json:"updatedAt,omitempty"`
-	Version   string         `json:"version"`
+	// Source Set for a proxy that fronts a project component endpoint.
+	Source    *MCPProxySource `json:"source,omitempty"`
+	UpdatedAt *time.Time      `json:"updatedAt,omitempty"`
+
+	// Upstream Set for a proxy registered by a public URL.
+	Upstream *ProjectMCPProxyUpstream `json:"upstream,omitempty"`
+	Version  string                   `json:"version"`
+}
+
+// ProjectMCPProxyUpstream defines model for ProjectMCPProxyUpstream.
+type ProjectMCPProxyUpstream struct {
+	// ResetBindingAuthFor Request only. A URL change to another origin (scheme, host or port) is refused with 400 while any binding has a stored upstream credential, which is never sent to another origin. resetBindingAuthFor names the bindings, by environment name, whose stored credential the change clears in the same update instead; they are redeployed without one, and new credentials are set with each binding's PUT. A binding with a stored credential that is not named refuses the change with 409 CONFLICT and nothing is stored: read the proxy again and retry. Ignored when the origin does not change.
+	ResetBindingAuthFor *[]string `json:"resetBindingAuthFor,omitempty"`
+	Url                 string    `json:"url"`
 }
 
 // ProjectResponse defines model for ProjectResponse.
@@ -7498,9 +7626,15 @@ type GetProjectMCPProxyParams struct {
 
 // UpsertProjectMCPProxyParams defines parameters for UpsertProjectMCPProxy.
 type UpsertProjectMCPProxyParams struct {
+	// IfNoneMatch `*` makes the request create-only. A proxy that exists under this handle in the project is left as it is and the request returns 412.
+	IfNoneMatch *UpsertProjectMCPProxyParamsIfNoneMatch `json:"If-None-Match,omitempty"`
+
 	// XImpersonateOrg Tenant org UUID for trusted service callers. Honoured only for clients that the deployment's org override resolver allow-lists; otherwise the request is refused with 403. Replaces both the org UUID and the handle for the request. The orgName path segment must then be that org's handle, or the request is refused with 403. A 403 here is final, not a missing grant on the org: it means the caller may not impersonate, the org does not exist, or the path names another org; do not retry it. A 502 means the org's handle could not be looked up and is retryable.
 	XImpersonateOrg *openapi_types.UUID `json:"X-Impersonate-Org,omitempty"`
 }
+
+// UpsertProjectMCPProxyParamsIfNoneMatch defines parameters for UpsertProjectMCPProxy.
+type UpsertProjectMCPProxyParamsIfNoneMatch string
 
 // DeleteProjectMCPProxyEnvironmentParams defines parameters for DeleteProjectMCPProxyEnvironment.
 type DeleteProjectMCPProxyEnvironmentParams struct {
@@ -7518,6 +7652,30 @@ type GetProjectMCPProxyEnvironmentParams struct {
 type PutProjectMCPProxyEnvironmentParams struct {
 	// XImpersonateOrg Tenant org UUID for trusted service callers. Honoured only for clients that the deployment's org override resolver allow-lists; otherwise the request is refused with 403. Replaces both the org UUID and the handle for the request. The orgName path segment must then be that org's handle, or the request is refused with 403. A 403 here is final, not a missing grant on the org: it means the caller may not impersonate, the org does not exist, or the path names another org; do not retry it. A 502 means the org's handle could not be looked up and is retryable.
 	XImpersonateOrg *openapi_types.UUID `json:"X-Impersonate-Org,omitempty"`
+}
+
+// ListProjectMCPProxyScopesParams defines parameters for ListProjectMCPProxyScopes.
+type ListProjectMCPProxyScopesParams struct {
+	// XImpersonateOrg Tenant org UUID for trusted service callers, as on the project MCP proxy routes. Honoured only for allow-listed clients, otherwise 403; the orgName path segment must then be that org's handle.
+	XImpersonateOrg *string `json:"X-Impersonate-Org,omitempty"`
+}
+
+// CreateProjectMCPProxyScopeParams defines parameters for CreateProjectMCPProxyScope.
+type CreateProjectMCPProxyScopeParams struct {
+	// XImpersonateOrg Tenant org UUID for trusted service callers, as on the project MCP proxy routes. Honoured only for allow-listed clients, otherwise 403; the orgName path segment must then be that org's handle.
+	XImpersonateOrg *string `json:"X-Impersonate-Org,omitempty"`
+}
+
+// DeleteProjectMCPProxyScopeParams defines parameters for DeleteProjectMCPProxyScope.
+type DeleteProjectMCPProxyScopeParams struct {
+	// XImpersonateOrg Tenant org UUID for trusted service callers, as on the project MCP proxy routes. Honoured only for allow-listed clients, otherwise 403; the orgName path segment must then be that org's handle.
+	XImpersonateOrg *string `json:"X-Impersonate-Org,omitempty"`
+}
+
+// UpdateProjectMCPProxyScopeParams defines parameters for UpdateProjectMCPProxyScope.
+type UpdateProjectMCPProxyScopeParams struct {
+	// XImpersonateOrg Tenant org UUID for trusted service callers, as on the project MCP proxy routes. Honoured only for allow-listed clients, otherwise 403; the orgName path segment must then be that org's handle.
+	XImpersonateOrg *string `json:"X-Impersonate-Org,omitempty"`
 }
 
 // ListRepositoryBranchesParams defines parameters for ListRepositoryBranches.
@@ -7822,6 +7980,21 @@ type UpsertProjectMCPProxyJSONRequestBody = ProjectMCPProxyRequest
 
 // PutProjectMCPProxyEnvironmentJSONRequestBody defines body for PutProjectMCPProxyEnvironment for application/json ContentType.
 type PutProjectMCPProxyEnvironmentJSONRequestBody = MCPProxyEnvironmentRequest
+
+// CreateProjectMCPProxyEnvironmentAPIKeyJSONRequestBody defines body for CreateProjectMCPProxyEnvironmentAPIKey for application/json ContentType.
+type CreateProjectMCPProxyEnvironmentAPIKeyJSONRequestBody = CreateLLMAPIKeyRequest
+
+// IssueProjectMCPProxyEnvironmentTestAPIKeyJSONRequestBody defines body for IssueProjectMCPProxyEnvironmentTestAPIKey for application/json ContentType.
+type IssueProjectMCPProxyEnvironmentTestAPIKeyJSONRequestBody = IssueBindingTestAPIKeyRequest
+
+// RotateProjectMCPProxyEnvironmentAPIKeyJSONRequestBody defines body for RotateProjectMCPProxyEnvironmentAPIKey for application/json ContentType.
+type RotateProjectMCPProxyEnvironmentAPIKeyJSONRequestBody = RotateLLMAPIKeyRequest
+
+// CreateProjectMCPProxyScopeJSONRequestBody defines body for CreateProjectMCPProxyScope for application/json ContentType.
+type CreateProjectMCPProxyScopeJSONRequestBody = MCPProxyScopeRequest
+
+// UpdateProjectMCPProxyScopeJSONRequestBody defines body for UpdateProjectMCPProxyScope for application/json ContentType.
+type UpdateProjectMCPProxyScopeJSONRequestBody = MCPProxyScopeUpdateRequest
 
 // ListRepositoryBranchesJSONRequestBody defines body for ListRepositoryBranches for application/json ContentType.
 type ListRepositoryBranchesJSONRequestBody = ListBranchesRequest

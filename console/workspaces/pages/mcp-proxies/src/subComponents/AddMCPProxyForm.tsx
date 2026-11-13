@@ -27,6 +27,7 @@ import {
   INPUT_LIMITS,
 } from "@agent-management-platform/types";
 import {
+  Alert,
   Button,
   CircularProgress,
   Form,
@@ -51,7 +52,7 @@ const MAX_HANDLE_LENGTH = 100;
 const SEMVER_PATTERN =
   /^\d+\.\d+\.\d+(?:-[0-9A-Za-z-.]+)?(?:\+[0-9A-Za-z-.]+)?$/;
 
-interface AddMCPProxyFormValues {
+interface VersionFormValues {
   version: string;
 }
 
@@ -63,14 +64,68 @@ const addMCPProxySchema = z.object({
     .regex(SEMVER_PATTERN, "Use a semantic version, e.g. 0.0.1"),
 });
 
-interface AddMCPProxyFormProps {
-  onCancel: () => void;
+/** The server's details as the register form submits them, trimmed. */
+export interface AddMCPProxyFormValues {
+  /** The handle the server is registered under. */
+  id: string;
+  name: string;
+  version: string;
+  description?: string;
+  context?: string;
 }
 
-export function AddMCPProxyForm({ onCancel }: AddMCPProxyFormProps) {
+/** Where the form goes once the server is registered. */
+export interface AddMCPProxyNavigation {
+  to: string;
+  state?: unknown;
+}
+
+export interface AddMCPProxyFormProps {
+  onCancel: () => void;
+  /**
+   * Registers the server. It resolves with where to go next, or rejects to keep the user on
+   * the form; the caller shows the reason (as `error`, or the mutation's own message).
+   */
+  onSubmit: (
+    values: AddMCPProxyFormValues,
+    endpoints: EndpointDraft[],
+  ) => Promise<AddMCPProxyNavigation>;
+  isSubmitting: boolean;
+  /** Shown above the endpoints, when the last submit failed. */
+  error?: string;
+  /** The context a name suggests, from its handle. */
+  defaultContext: (handle: string) => string;
+  handleHelperText: string;
+  /** Shown under the context field, given the context typed so far. */
+  contextHelperText?: (context: string) => string | undefined;
+  endpointsTitle?: string;
+  /** Shown under the endpoints title; defaults to the org wording. */
+  endpointsDescription?: string;
+  emptyStateText?: string;
+  /** The most endpoints the server takes; see EndpointsEditorSection. */
+  maxEndpoints?: number;
+}
+
+/** The MCP server register form: its details and its endpoints. Registering is the caller's. */
+export function AddMCPProxyForm({
+  onCancel,
+  onSubmit,
+  isSubmitting,
+  error,
+  defaultContext,
+  handleHelperText,
+  contextHelperText,
+  endpointsTitle = "Endpoints",
+  endpointsDescription,
+  emptyStateText = "No endpoints added yet.",
+  maxEndpoints,
+}: AddMCPProxyFormProps) {
   const navigate = useNavigate();
   const { orgId } = useParams<{ orgId: string }>();
-  const createMCPProxy = useCreateMCPProxy();
+  const contextFor = useCallback(
+    (name: string) => defaultContext(toHandle(name)),
+    [defaultContext],
+  );
   const { data: environments = [] } = useListEnvironments({
     orgName: orgId ?? "",
   });
@@ -87,7 +142,7 @@ export function AddMCPProxyForm({ onCancel }: AddMCPProxyFormProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const { errors, validateField, validateForm, setFieldError } =
-    useFormValidation<AddMCPProxyFormValues>(addMCPProxySchema);
+    useFormValidation<VersionFormValues>(addMCPProxySchema);
 
   // Derived from the handle actually submitted (toHandle(handle || name)), so a handle
   // auto-generated from a long name is caught too, not just a manually-typed one.
@@ -96,8 +151,6 @@ export function AddMCPProxyForm({ onCancel }: AddMCPProxyFormProps) {
     effectiveHandle.length > MAX_HANDLE_LENGTH
       ? `Handle must be at most ${MAX_HANDLE_LENGTH} characters (currently ${effectiveHandle.length}).`
       : undefined;
-
-  const isCreating = createMCPProxy.isPending;
 
   const isDirty =
     Boolean(proxyName) ||
@@ -118,16 +171,16 @@ export function AddMCPProxyForm({ onCancel }: AddMCPProxyFormProps) {
 
   const handleNameChange = useCallback(
     (value: string) => {
-      const previousContext = proxyName ? `/default/${toHandle(proxyName)}` : "";
+      const previousContext = proxyName ? contextFor(proxyName) : "";
       setProxyName(value);
       if (!proxyContext || proxyContext === previousContext) {
-        setProxyContext(value ? `/default/${toHandle(value)}` : "");
+        setProxyContext(value ? contextFor(value) : "");
       }
       if (!handleEdited) {
         setHandle(toHandle(value));
       }
     },
-    [proxyContext, proxyName, handleEdited],
+    [proxyContext, proxyName, handleEdited, contextFor],
   );
 
   const handleHandleChange = useCallback((value: string) => {
@@ -142,7 +195,7 @@ export function AddMCPProxyForm({ onCancel }: AddMCPProxyFormProps) {
       if (!proxyName && draft.serverName) {
         setProxyName(draft.serverName);
         if (!proxyContext) {
-          setProxyContext(`/default/${toHandle(draft.serverName)}`);
+          setProxyContext(contextFor(draft.serverName));
         }
         if (!handleEdited) {
           setHandle(toHandle(draft.serverName));
@@ -152,49 +205,45 @@ export function AddMCPProxyForm({ onCancel }: AddMCPProxyFormProps) {
         handleVersionChange(draft.serverVersion);
       }
     },
-    [proxyContext, proxyName, proxyVersion, handleEdited, handleVersionChange],
+    [
+      proxyContext,
+      proxyName,
+      proxyVersion,
+      handleEdited,
+      handleVersionChange,
+      contextFor,
+    ],
   );
 
   const handleCreate = useCallback(async () => {
-    if (!orgId || endpoints.length === 0) return;
+    if (endpoints.length === 0) return;
     if (!validateForm({ version: proxyVersion })) return;
-
     const name = proxyName.trim();
-
-    // Each endpoint carries its own upstream, fetched capabilities and default security,
-    // and is bound to one or more environments. The org-level proxy is a grouping and
-    // deploys nothing itself.
-    const body: MCPProxy = {
-      id: toHandle(handle || name),
-      name,
-      version: proxyVersion.trim(),
-      description: proxyDescription.trim() || undefined,
-      context: proxyContext.trim() || undefined,
-      endpoints: (() => {
-        const usedHandles = new Set<string>();
-        return endpoints.map((endpoint, index) =>
-          draftToEndpoint(endpoint, index, undefined, usedHandles),
-        );
-      })(),
-    };
-
-    await createMCPProxy.mutateAsync({ params: { orgName: orgId }, body });
-    allowNavigation(() =>
-      navigate(
-        generatePath(absoluteRouteMap.children.org.children.mcpProxies.path, {
-          orgId,
-        }),
-      ),
-    );
+    let next: AddMCPProxyNavigation;
+    try {
+      next = await onSubmit(
+        {
+          id: toHandle(handle || name),
+          name,
+          version: proxyVersion.trim(),
+          description: proxyDescription.trim() || undefined,
+          context: proxyContext.trim() || undefined,
+        },
+        endpoints,
+      );
+    } catch {
+      // The caller shows why; the form stays as it is.
+      return;
+    }
+    allowNavigation(() => navigate(next.to, { state: next.state }));
   }, [
     allowNavigation,
-    createMCPProxy,
     endpoints,
+    handle,
     navigate,
-    orgId,
+    onSubmit,
     proxyContext,
     proxyDescription,
-    handle,
     proxyName,
     proxyVersion,
     validateForm,
@@ -207,7 +256,7 @@ export function AddMCPProxyForm({ onCancel }: AddMCPProxyFormProps) {
     !errors.version &&
     !handleLengthError &&
     endpoints.length > 0 &&
-    !isCreating;
+    !isSubmitting;
 
   return (
     <Stack spacing={3}>
@@ -228,14 +277,13 @@ export function AddMCPProxyForm({ onCancel }: AddMCPProxyFormProps) {
               label="Handle"
               placeholder="e.g. github-mcp-server"
               maxLength={MAX_HANDLE_LENGTH}
-              hideCharacterCount={!isHandleEditable || handle.length < MAX_HANDLE_LENGTH}
+              hideCharacterCount={
+                !isHandleEditable || handle.length < MAX_HANDLE_LENGTH
+              }
               value={handle}
               onChange={(event) => handleHandleChange(event.target.value)}
               error={Boolean(handleLengthError)}
-              helperText={
-                handleLengthError ??
-                "Generated from the name. Unique and immutable once registered."
-              }
+              helperText={handleLengthError ?? handleHelperText}
               disabled={!isHandleEditable && !handle}
               slotProps={{
                 htmlInput: { readOnly: !isHandleEditable },
@@ -275,6 +323,7 @@ export function AddMCPProxyForm({ onCancel }: AddMCPProxyFormProps) {
             <TextInput
               label="Context (optional)"
               placeholder="/github"
+              helperText={contextHelperText?.(proxyContext)}
               maxLength={INPUT_LIMITS.PATH}
               hideCharacterCount={proxyContext.length < INPUT_LIMITS.PATH}
               value={proxyContext}
@@ -302,12 +351,14 @@ export function AddMCPProxyForm({ onCancel }: AddMCPProxyFormProps) {
         </Grid>
 
         <Stack spacing={2}>
-          <Typography variant="subtitle1">Endpoints</Typography>
+          <Typography variant="subtitle1">{endpointsTitle}</Typography>
           <Typography variant="body2" color="text.secondary">
-            {environments.length > 1
-              ? "Add a backend endpoint and assign it to one or more environments. Environments without an endpoint are simply left unconfigured."
-              : "Add a backend endpoint for this MCP Server."}
+            {endpointsDescription ??
+              (environments.length > 1
+                ? "Add a backend endpoint and assign it to one or more environments. Environments without an endpoint are simply left unconfigured."
+                : "Add a backend endpoint for this MCP Server.")}
           </Typography>
+          {error && <Alert severity="error">{error}</Alert>}
 
           <EndpointsEditorSection
             orgId={orgId ?? ""}
@@ -318,8 +369,9 @@ export function AddMCPProxyForm({ onCancel }: AddMCPProxyFormProps) {
             onAddOpenChange={setAddOpen}
             editingId={editingId}
             onEditingIdChange={setEditingId}
-            emptyStateText="No endpoints added yet."
+            emptyStateText={emptyStateText}
             onEndpointAdded={handleEndpointAdded}
+            maxEndpoints={maxEndpoints}
           />
         </Stack>
       </Form.Stack>
@@ -334,16 +386,55 @@ export function AddMCPProxyForm({ onCancel }: AddMCPProxyFormProps) {
             disabled={!canCreate}
             onClick={handleCreate}
             startIcon={
-              isCreating ? (
+              isSubmitting ? (
                 <CircularProgress size={16} color="inherit" />
               ) : undefined
             }
           >
-            {isCreating ? "Creating" : "Create"}
+            {isSubmitting ? "Creating" : "Create"}
           </Button>
         </Stack>
       )}
     </Stack>
+  );
+}
+
+/**
+ * Registers an org MCP server: one request with every endpoint, each bound to its
+ * environments. The org-level proxy is a grouping and deploys nothing itself.
+ */
+export function OrgAddMCPProxyForm({ onCancel }: { onCancel: () => void }) {
+  const { orgId = "" } = useParams<{ orgId: string }>();
+  const createMCPProxy = useCreateMCPProxy();
+
+  const handleSubmit = useCallback(
+    async (values: AddMCPProxyFormValues, endpoints: EndpointDraft[]) => {
+      const usedHandles = new Set<string>();
+      const body: MCPProxy = {
+        ...values,
+        endpoints: endpoints.map((endpoint, index) =>
+          draftToEndpoint(endpoint, index, undefined, usedHandles),
+        ),
+      };
+      // A failure is shown by the mutation's own error message.
+      await createMCPProxy.mutateAsync({ params: { orgName: orgId }, body });
+      return {
+        to: generatePath(absoluteRouteMap.children.org.children.mcpProxies.path, {
+          orgId,
+        }),
+      };
+    },
+    [createMCPProxy, orgId],
+  );
+
+  return (
+    <AddMCPProxyForm
+      onCancel={onCancel}
+      onSubmit={handleSubmit}
+      isSubmitting={createMCPProxy.isPending}
+      defaultContext={(handle) => `/default/${handle}`}
+      handleHelperText="Generated from the name. Unique and immutable once registered."
+    />
   );
 }
 

@@ -328,7 +328,7 @@ export function AIGatewaysTable({ onAddGateway }: AIGatewaysTableProps) {
         action:
           selfHostedEnabled && onAddGateway ? (
             <Button variant="contained" startIcon={<Plus size={16} />} onClick={onAddGateway}>
-              Add Gateway
+              Add gateway
             </Button>
           ) : undefined,
       }}

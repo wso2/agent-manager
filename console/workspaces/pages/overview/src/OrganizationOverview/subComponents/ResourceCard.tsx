@@ -45,6 +45,8 @@ export interface ResourceCardData {
   to: string;
   /** For resources with no single org-wide total (agent identity is per environment). */
   countless?: boolean;
+  /** The count is still loading. */
+  loading?: boolean;
   /** Stays on the overview with no items, so there is always a way to add one. */
   alwaysShow?: boolean;
 }
@@ -123,7 +125,7 @@ export function ResourceCard({ card, index, leaving, onPause }: ResourceCardProp
             <Typography variant="h6" component="h2" sx={{ fontWeight: 600 }}>
               {card.title}
             </Typography>
-            {!card.countless && !!card.count && (
+            {!card.countless && (card.loading || !!card.count) && (
               <>
                 <Divider orientation="vertical" flexItem />
                 <ResourceCount count={card.count} animate={false} />

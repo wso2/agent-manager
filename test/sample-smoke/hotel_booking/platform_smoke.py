@@ -8,6 +8,7 @@ import io
 import os
 from pathlib import Path
 import re
+import secrets
 import signal
 import subprocess
 import sys
@@ -106,7 +107,7 @@ def start_forward(namespace, target, port, log_path):
         raise
 
 
-def install_stub(namespace, hotel_image):
+def install_stub(namespace, hotel_image, hotel_token):
     kubectl("create", "namespace", namespace)
     script = (ROOT / "samples/hotel-booking-agent/scripts/model_smoke.py").read_text()
     labels = {"app": "hotel-booking-model"}
@@ -127,12 +128,15 @@ def install_stub(namespace, hotel_image):
     ]
     pod = resources[1]["spec"]["template"]["spec"]
     pod["containers"].append({"name": "hotel", "image": hotel_image, "imagePullPolicy": "Never",
+        "env": [{"name": "HOTEL_API_TOKEN", "valueFrom": {"secretKeyRef": {"name": "hotel-api", "key": "token"}}}],
         "ports": [{"containerPort": 9091}],
         "readinessProbe": {"httpGet": {"path": "/health", "port": 9091}},
         "resources": {"requests": {"cpu": "100m", "memory": "256Mi"}, "limits": {"cpu": "500m", "memory": "768Mi"}},
         "securityContext": {"runAsNonRoot": True, "runAsUser": 10001, "allowPrivilegeEscalation": False, "capabilities": {"drop": ["ALL"]}}})
     resources[2]["spec"]["ports"].append({"name": "hotel", "port": 9091, "targetPort": 9091})
     resources[2]["spec"]["ports"][0]["name"] = "model"
+    resources.append({"apiVersion": "v1", "kind": "Secret",
+        "metadata": {"name": "hotel-api", "namespace": namespace}, "stringData": {"token": hotel_token}})
     kubectl("apply", "-f", "-", data=json.dumps({"apiVersion": "v1", "kind": "List", "items": resources}))
     kubectl("-n", namespace, "rollout", "status", "deployment/model", "--timeout=120s", timeout=135)
     return f"http://model.{namespace}.svc.cluster.local:8099/v1"
@@ -252,7 +256,8 @@ def run(args):
         print(f"==> {phase}", flush=True)
         # Namespace is unique to this run; cleanup also runs after partial creation.
         namespace_created = True
-        model_url = install_stub(name, hotel_image)
+        hotel_token = secrets.token_urlsafe(32)
+        model_url = install_stub(name, hotel_image, hotel_token)
         forward, forward_log, stub_local = start_forward(name, "service/model", 8099, reports / "model-forward.log")
         forwards.append((forward, forward_log))
         wait_ready(stub_local + "/health", forward)
@@ -265,6 +270,7 @@ def run(args):
             "HOTEL_API_BASE_URL": f"http://model.{name}.svc.cluster.local:9091",
             "AMP_TRACE_CONTENT": "true",
         }.items()]
+        env.append({"key": "HOTEL_API_TOKEN", "value": hotel_token, "isSensitive": True})
         client._request("POST", base + "/agents", json={
             "name": name, "displayName": name,
             "provisioning": {"type": "internal", "repository": {"url": args.repo, "branch": args.branch, "appPath": "/samples/hotel-booking-agent/agent"}},

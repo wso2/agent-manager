@@ -1,6 +1,6 @@
 # Local sample smoke tests
 
-This suite covers CrewAI, Customer Support, .NET, Leave Assistant, and Manual
+This suite covers Customer Support, .NET, Leave Assistant, and Manual
 Instrumentation. A2A, Hotel Booking, Insurance Support, and IT Helpdesk are outside
 this workflow. Existing nightly and platform workflows are unchanged.
 
@@ -11,7 +11,6 @@ tool and only returns the final response after validating the tool result.
 
 | Sample | Request exercised | Readiness |
 | --- | --- | --- |
-| CrewAI | Researcher calls `country_capital_lookup`; editor completes the answer | `/openapi.json` |
 | Customer Support | `lookup_policy` retrieves refund text from a local FAQ using stub embeddings | `/openapi.json` |
 | .NET | `GetWeather` returns the seeded Paris weather | `/healthz` |
 | Leave Assistant | `getLeaveBalance` reads employee E-3001 | `/chat` responds 405 to GET |
@@ -30,7 +29,6 @@ Python 3.11+, plus .NET 10 for .NET or the distribution declared in
 CI installs Ballerina 2201.13.4 with a verified installer checksum.
 
 ```bash
-python3.11 test/sample-smoke/local/run.py crewai-agent --reports /tmp/crewai-smoke
 python3.11 test/sample-smoke/local/run.py customer-support-agent --reports /tmp/customer-smoke
 python3.11 test/sample-smoke/local/run.py dotnet-agent --reports /tmp/dotnet-smoke
 python3.11 test/sample-smoke/local/run.py leave-assistant-agent --reports /tmp/leave-smoke
@@ -57,7 +55,7 @@ Each sample has an independently named `<sample>-local-smoke.yaml` workflow.
 Each workflow checks out the exact PR head, including forks and Dependabot.
 Changes under that sample select its workflow, including Python requirements,
 NuGet project files, Ballerina manifests/lockfiles, and Dockerfiles. Shared harness
-changes select all five workflows; each workflow also supports manual dispatch.
+changes select all four workflows; each workflow also supports manual dispatch.
 Dockerfile changes trigger local source builds/tests; this suite does not build
 container images. Ballerina changes are covered even though Dependabot does not
 support that ecosystem.

@@ -46,6 +46,7 @@ type projectProxyFixture struct {
 	svc          *ProjectMCPProxyService
 	proxies      map[string]*models.MCPProxy // handle -> proxy
 	endpoints    []*models.MCPProxyEndpoint
+	updatedEps   []models.MCPProxyEndpoint
 	updateCalls  int
 	createCalls  int
 	txCalls      int
@@ -53,6 +54,10 @@ type projectProxyFixture struct {
 	endpointEnvs []models.MCPProxyEndpointEnvironment
 	deletedProxy []string
 	reassigned   []string // "handle:from->to" per ReassignProject
+	// beforeLock runs as the proxy row is locked: what another transaction committed before the lock.
+	beforeLock func()
+	// createErr fails the insert, as a handle another artifact took meanwhile does.
+	createErr error
 
 	componentTypes  map[string]string // component name -> OpenChoreo component type (default agent-api)
 	getComponentErr error
@@ -93,6 +98,17 @@ func newProjectProxyFixture(t *testing.T) *projectProxyFixture {
 			}
 			return utils.ErrMCPProxyNotFound
 		},
+		GetByHandleForUpdateFunc: func(_ context.Context, _ *gorm.DB, handle, _ string) (*models.MCPProxy, error) {
+			if f.beforeLock != nil {
+				f.beforeLock()
+			}
+			p, ok := f.proxies[handle]
+			if !ok {
+				return nil, gorm.ErrRecordNotFound
+			}
+			cp := *p
+			return &cp, nil
+		},
 		GetByHandleFunc: func(_ context.Context, handle, _ string) (*models.MCPProxy, error) {
 			p, ok := f.proxies[handle]
 			if !ok {
@@ -106,6 +122,9 @@ func newProjectProxyFixture(t *testing.T) *projectProxyFixture {
 			return ok, nil
 		},
 		CreateFunc: func(_ context.Context, _ *gorm.DB, p *models.MCPProxy, handle, name, version, _ string, projectUUID, projectName *string) error {
+			if f.createErr != nil {
+				return f.createErr
+			}
 			f.createCalls++
 			p.UUID = uuid.New()
 			p.ProjectUUID, p.ProjectName = projectUUID, projectName
@@ -140,6 +159,10 @@ func newProjectProxyFixture(t *testing.T) *projectProxyFixture {
 	endpointRepo := &repomocks.MCPProxyEndpointRepositoryMock{
 		CreateEndpointFunc: func(_ context.Context, _ *gorm.DB, e *models.MCPProxyEndpoint) error {
 			f.endpoints = append(f.endpoints, e)
+			return nil
+		},
+		UpdateEndpointFunc: func(_ context.Context, _ *gorm.DB, e *models.MCPProxyEndpoint) error {
+			f.updatedEps = append(f.updatedEps, *e)
 			return nil
 		},
 		ListEndpointEnvironmentsByProxyFunc: func(_ context.Context, _ uuid.UUID) ([]models.MCPProxyEndpointEnvironment, error) {
@@ -183,7 +206,7 @@ func newProjectProxyFixture(t *testing.T) *projectProxyFixture {
 			return &models.AgentResponse{Name: name, ProjectName: projectName, Type: models.AgentType{Type: typ}}, nil
 		},
 	}
-	f.svc = NewProjectMCPProxyService(base, oc)
+	f.svc = NewProjectMCPProxyService(base, oc, nil)
 	return f
 }
 
@@ -192,7 +215,7 @@ func orderReq() models.ProjectMCPProxyRequest {
 		Name:        "Orders MCP",
 		Description: "orders",
 		Context:     "/orders-mcp-3f2a9c1e",
-		Source:      models.MCPProxySource{ComponentName: "orders-mcp", EndpointName: "mcp"},
+		Source:      &models.MCPProxySource{ComponentName: "orders-mcp", EndpointName: "mcp"},
 	}
 }
 
@@ -287,15 +310,33 @@ func TestUpsertHandleOwnedByOrgProxy_409HandleInUse(t *testing.T) {
 func TestUpsertCreateNotPermitted(t *testing.T) {
 	f := newProjectProxyFixture(t)
 	ctx := context.Background()
-	_, _, err := f.svc.UpsertWithCreateCheck(ctx, testOrg, testProjName, testProjA, "orders", orderReq(), false)
+	_, _, err := f.svc.UpsertWithCreateCheck(ctx, testOrg, testProjName, testProjA, "orders", orderReq(), false, false)
 	assert.ErrorIs(t, err, utils.ErrMCPProxyCreateNotPermitted)
 	assert.Zero(t, f.createCalls)
 
 	_, _, err = f.svc.Upsert(ctx, testOrg, testProjName, testProjA, "orders", orderReq())
 	require.NoError(t, err)
-	_, created, err := f.svc.UpsertWithCreateCheck(ctx, testOrg, testProjName, testProjA, "orders", orderReq(), false)
+	_, created, err := f.svc.UpsertWithCreateCheck(ctx, testOrg, testProjName, testProjA, "orders", orderReq(), false, false)
 	require.NoError(t, err, "an existing proxy needs no create permission")
 	assert.False(t, created)
+}
+
+// A create-only PUT registers a new proxy, and refuses a handle the project already has without changing it.
+func TestUpsertCreateOnly(t *testing.T) {
+	f := newProjectProxyFixture(t)
+	ctx := context.Background()
+	_, created, err := f.svc.UpsertWithCreateCheck(ctx, testOrg, testProjName, testProjA, "docs", urlReq(), true, true)
+	require.NoError(t, err)
+	assert.True(t, created)
+
+	again := urlReq()
+	again.Name = "Someone else's MCP"
+	again.Upstream.URL = "https://1.1.1.1/mcp"
+	_, _, err = f.svc.UpsertWithCreateCheck(ctx, testOrg, testProjName, testProjA, "docs", again, true, true)
+	assert.ErrorIs(t, err, utils.ErrMCPProxyExists)
+	assert.Zero(t, f.updateCalls)
+	assert.Equal(t, "Docs MCP", f.proxies["docs"].Configuration.Name)
+	assert.Equal(t, publicMCPURL, f.proxies["docs"].Configuration.Upstream.Main.URL)
 }
 
 func TestUpsertValidation(t *testing.T) {
@@ -388,6 +429,22 @@ func TestDeleteUndeploysAllEnvironments(t *testing.T) {
 	require.NoError(t, f.svc.Delete(ctx, testOrg, testProjName, testProjA, "orders"))
 	assert.Equal(t, 2, f.txCalls, "one teardown per environment artifact")
 	assert.Equal(t, []string{"orders"}, f.deletedProxy)
+}
+
+// An artifact teardown that rolls back keeps the artifact and the API keys the gateways accept, so the proxy is not
+// deleted: the error goes back for a retry, which would otherwise find nothing left to reach those keys.
+func TestDeleteStopsWhenAnArtifactTeardownFails(t *testing.T) {
+	f := newProjectProxyFixture(t)
+	ctx := context.Background()
+	_, _, err := f.svc.Upsert(ctx, testOrg, testProjName, testProjA, "orders", orderReq())
+	require.NoError(t, err)
+	f.endpointEnvs = []models.MCPProxyEndpointEnvironment{{ArtifactUUID: uuid.New()}}
+	teardownErr := errors.New("revocation staging failed")
+	f.svc.base.tx = func(context.Context, func(tx *gorm.DB) error) error { return teardownErr }
+
+	err = f.svc.Delete(ctx, testOrg, testProjName, testProjA, "orders")
+	require.ErrorIs(t, err, teardownErr)
+	assert.Empty(t, f.deletedProxy, "the proxy stays for a retry")
 }
 
 func TestUpsert_MIMCPServer_400(t *testing.T) {
@@ -490,4 +547,233 @@ func TestUpsert_ContextSegments(t *testing.T) {
 			assert.Equal(t, good, resp.Context, "reads back as sent")
 		})
 	}
+}
+
+// publicMCPURL is a public upstream that needs no DNS lookup.
+const publicMCPURL = "https://8.8.8.8/mcp"
+
+func urlReq() models.ProjectMCPProxyRequest {
+	return models.ProjectMCPProxyRequest{
+		Name:     "Docs MCP",
+		Upstream: &models.ProjectMCPProxyUpstream{URL: publicMCPURL},
+	}
+}
+
+// A project proxy can front a public URL instead of a component endpoint: no component is looked up, and the URL
+// reads back as the proxy's upstream.
+func TestUpsertByURL_StoredAndReadBack(t *testing.T) {
+	f := newProjectProxyFixture(t)
+	f.getComponentErr = errors.New("no component is looked up for a URL proxy")
+	ctx := context.Background()
+
+	resp, created, err := f.svc.Upsert(ctx, testOrg, testProjName, testProjA, "docs", urlReq())
+	require.NoError(t, err)
+	assert.True(t, created)
+	assert.Nil(t, resp.Source)
+	require.NotNil(t, resp.Upstream)
+	assert.Equal(t, publicMCPURL, resp.Upstream.URL)
+
+	stored := f.proxies["docs"]
+	assert.Nil(t, stored.Configuration.Source)
+	require.NotNil(t, stored.Configuration.Upstream.Main)
+	assert.Equal(t, publicMCPURL, stored.Configuration.Upstream.Main.URL)
+
+	_, created, err = f.svc.Upsert(ctx, testOrg, testProjName, testProjA, "docs", urlReq())
+	require.NoError(t, err)
+	assert.False(t, created)
+	assert.Zero(t, f.updateCalls, "identical body must not write")
+}
+
+func TestUpsertByURL_Validation(t *testing.T) {
+	ctx := context.Background()
+	for name, mutate := range map[string]func(*models.ProjectMCPProxyRequest){
+		"neither source nor upstream": func(r *models.ProjectMCPProxyRequest) { r.Upstream = nil },
+		"both source and upstream": func(r *models.ProjectMCPProxyRequest) {
+			r.Source = &models.MCPProxySource{ComponentName: "c", EndpointName: "e"}
+		},
+		"not a URL":     func(r *models.ProjectMCPProxyRequest) { r.Upstream.URL = "not a url" },
+		"a private URL": func(r *models.ProjectMCPProxyRequest) { r.Upstream.URL = "http://10.0.0.5:8080/mcp" },
+		"loopback":      func(r *models.ProjectMCPProxyRequest) { r.Upstream.URL = "http://127.0.0.1/mcp" },
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := newProjectProxyFixture(t)
+			req := urlReq()
+			mutate(&req)
+			_, _, err := f.svc.Upsert(ctx, testOrg, testProjName, testProjA, "docs", req)
+			assert.ErrorIs(t, err, utils.ErrInvalidInput)
+			assert.Zero(t, f.createCalls)
+		})
+	}
+}
+
+// A proxy keeps what it fronts: a sourced proxy cannot become a URL proxy, nor the other way round.
+func TestUpsertByURL_KindIsImmutable(t *testing.T) {
+	f := newProjectProxyFixture(t)
+	ctx := context.Background()
+	_, _, err := f.svc.Upsert(ctx, testOrg, testProjName, testProjA, "orders", orderReq())
+	require.NoError(t, err)
+	_, _, err = f.svc.Upsert(ctx, testOrg, testProjName, testProjA, "docs", urlReq())
+	require.NoError(t, err)
+
+	toURL := urlReq()
+	toURL.Name = "Orders MCP"
+	_, _, err = f.svc.Upsert(ctx, testOrg, testProjName, testProjA, "orders", toURL)
+	assert.ErrorIs(t, err, utils.ErrImmutableFieldChange)
+
+	toSource := orderReq()
+	_, _, err = f.svc.Upsert(ctx, testOrg, testProjName, testProjA, "docs", toSource)
+	assert.ErrorIs(t, err, utils.ErrImmutableFieldChange)
+	assert.Zero(t, f.updateCalls)
+}
+
+// A binding's stored upstream credential is sent to the proxy's URL, so the URL may not move to another origin while
+// a binding holds one; the same origin, or a binding without a credential, takes the new URL.
+func TestUpsertByURL_URLChangeKeepsCredentialOnOrigin(t *testing.T) {
+	apiKey, header, secret := "api-key", "X-Key", "s3cret"
+	for name, tc := range map[string]struct {
+		withAuth bool
+		newURL   string
+		wantErr  bool
+	}{
+		"another origin with auth":    {withAuth: true, newURL: "https://1.1.1.1/mcp", wantErr: true},
+		"another port with auth":      {withAuth: true, newURL: "https://8.8.8.8:8443/mcp", wantErr: true},
+		"another scheme with auth":    {withAuth: true, newURL: "http://8.8.8.8/mcp", wantErr: true},
+		"same origin with auth":       {withAuth: true, newURL: "https://8.8.8.8:443/v2/mcp"},
+		"another origin without auth": {newURL: "https://1.1.1.1/mcp"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := newProjectProxyFixture(t)
+			ctx := context.Background()
+			_, _, err := f.svc.Upsert(ctx, testOrg, testProjName, testProjA, "docs", urlReq())
+			require.NoError(t, err)
+			upstream := &models.UpstreamEndpoint{URL: publicMCPURL}
+			if tc.withAuth {
+				upstream.Auth = &models.UpstreamAuth{Type: &apiKey, Header: &header, Value: &secret}
+			}
+			f.proxies["docs"].Endpoints = []models.MCPProxyEndpoint{{
+				UUID: uuid.New(), Configuration: models.MCPEndpointConfig{Upstream: upstream},
+			}}
+
+			req := urlReq()
+			req.Upstream.URL = tc.newURL
+			_, _, err = f.svc.Upsert(ctx, testOrg, testProjName, testProjA, "docs", req)
+			if tc.wantErr {
+				assert.ErrorIs(t, err, utils.ErrInvalidInput)
+				assert.Empty(t, f.updatedEps)
+				assert.Zero(t, f.updateCalls)
+				return
+			}
+			require.NoError(t, err)
+			require.Len(t, f.updatedEps, 1)
+			assert.Equal(t, tc.newURL, f.updatedEps[0].Configuration.Upstream.URL)
+		})
+	}
+}
+
+func TestSameURLOrigin(t *testing.T) {
+	assert.True(t, sameURLOrigin("https://a.example/mcp", "https://A.example:443/other"))
+	assert.False(t, sameURLOrigin("https://a.example/mcp", "https://b.example/mcp"))
+	assert.False(t, sameURLOrigin("https://a.example/mcp", "not a url"))
+	assert.False(t, sameURLOrigin("", ""))
+}
+
+// A binding PUT committed after the proxy was read and before its URL change locked it is kept: the bindings are
+// rewritten from the locked proxy, not the copy read first.
+func TestUpsertByURL_URLChangeKeepsABindingSavedMeanwhile(t *testing.T) {
+	f := newProjectProxyFixture(t)
+	ctx := context.Background()
+	_, _, err := f.svc.Upsert(ctx, testOrg, testProjName, testProjA, "docs", urlReq())
+	require.NoError(t, err)
+	endpointUUID := uuid.New()
+	f.proxies["docs"].Endpoints = []models.MCPProxyEndpoint{{
+		UUID: endpointUUID, Configuration: models.MCPEndpointConfig{Upstream: &models.UpstreamEndpoint{URL: publicMCPURL}},
+	}}
+	policies := []models.MCPPolicy{{Name: "basic-ratelimit", Version: "v1"}}
+	f.beforeLock = func() {
+		saved := *f.proxies["docs"]
+		saved.Endpoints = []models.MCPProxyEndpoint{{
+			UUID: endpointUUID,
+			Configuration: models.MCPEndpointConfig{
+				Upstream: &models.UpstreamEndpoint{URL: publicMCPURL}, Policies: policies,
+			},
+		}}
+		f.proxies["docs"] = &saved
+	}
+
+	req := urlReq()
+	req.Upstream.URL = "https://8.8.8.8/v2/mcp"
+	_, _, err = f.svc.Upsert(ctx, testOrg, testProjName, testProjA, "docs", req)
+	require.NoError(t, err)
+	require.Len(t, f.updatedEps, 1)
+	assert.Equal(t, "https://8.8.8.8/v2/mcp", f.updatedEps[0].Configuration.Upstream.URL)
+	assert.Equal(t, policies, f.updatedEps[0].Configuration.Policies, "the binding saved meanwhile keeps its policies")
+}
+
+// A create-only PUT whose insert loses the handle to something other than this project's proxy (another kind of
+// artifact, say) answers HANDLE_IN_USE, as a plain PUT does, not "already exists".
+func TestUpsertCreateOnly_HandleTakenMeanwhileByAnotherArtifact(t *testing.T) {
+	f := newProjectProxyFixture(t)
+	f.createErr = fmt.Errorf("%w: handle already in use by another artifact", utils.ErrMCPProxyHandleInUse)
+	_, _, err := f.svc.UpsertWithCreateCheck(context.Background(), testOrg, testProjName, testProjA, "docs", urlReq(), true, true)
+	assert.ErrorIs(t, err, utils.ErrMCPProxyHandleInUse)
+	assert.NotErrorIs(t, err, utils.ErrMCPProxyExists)
+}
+
+// With resetBindingAuthFor naming a binding, a move to another origin clears its stored credential in the same update
+// instead of being refused; on the same origin the credential is kept.
+func TestUpsertByURL_URLChangeToAnotherOriginCanResetTheCredentials(t *testing.T) {
+	apiKey, header, secret := "api-key", "X-Key", "s3cret"
+	for name, tc := range map[string]struct {
+		newURL   string
+		wantAuth bool
+	}{
+		"another origin": {newURL: "https://1.1.1.1/mcp"},
+		"same origin":    {newURL: "https://8.8.8.8/v2/mcp", wantAuth: true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := newProjectProxyFixture(t)
+			ctx := context.Background()
+			_, _, err := f.svc.Upsert(ctx, testOrg, testProjName, testProjA, "docs", urlReq())
+			require.NoError(t, err)
+			f.proxies["docs"].Endpoints = []models.MCPProxyEndpoint{{
+				UUID: uuid.New(), Name: "dev", Configuration: models.MCPEndpointConfig{Upstream: &models.UpstreamEndpoint{
+					URL: publicMCPURL, Auth: &models.UpstreamAuth{Type: &apiKey, Header: &header, Value: &secret},
+				}},
+			}}
+
+			req := urlReq()
+			req.Upstream = &models.ProjectMCPProxyUpstream{URL: tc.newURL, ResetBindingAuthFor: []string{"dev"}}
+			_, _, err = f.svc.Upsert(ctx, testOrg, testProjName, testProjA, "docs", req)
+			require.NoError(t, err)
+			require.Len(t, f.updatedEps, 1)
+			assert.Equal(t, tc.newURL, f.updatedEps[0].Configuration.Upstream.URL)
+			assert.Equal(t, tc.wantAuth, f.updatedEps[0].Configuration.Upstream.Auth != nil)
+			assert.Equal(t, 1, f.updateCalls, "the proxy and its bindings change in one update")
+		})
+	}
+}
+
+// A move to another origin refuses, and changes nothing, when a binding with a stored credential is not named in
+// resetBindingAuthFor: the caller did not know of it, so its credential is neither cleared unseen nor sent to the new
+// host.
+func TestUpsertByURL_URLChangeRefusedForABindingTheCallerDidNotName(t *testing.T) {
+	apiKey, header, secret := "api-key", "X-Key", "s3cret"
+	f := newProjectProxyFixture(t)
+	ctx := context.Background()
+	_, _, err := f.svc.Upsert(ctx, testOrg, testProjName, testProjA, "docs", urlReq())
+	require.NoError(t, err)
+	withAuth := func(name string) models.MCPProxyEndpoint {
+		return models.MCPProxyEndpoint{
+			UUID: uuid.New(), Name: name, Configuration: models.MCPEndpointConfig{Upstream: &models.UpstreamEndpoint{
+				URL: publicMCPURL, Auth: &models.UpstreamAuth{Type: &apiKey, Header: &header, Value: &secret},
+			}},
+		}
+	}
+	f.proxies["docs"].Endpoints = []models.MCPProxyEndpoint{withAuth("dev"), withAuth("prod")}
+
+	req := urlReq()
+	req.Upstream = &models.ProjectMCPProxyUpstream{URL: "https://1.1.1.1/mcp", ResetBindingAuthFor: []string{"dev"}}
+	_, _, err = f.svc.Upsert(ctx, testOrg, testProjName, testProjA, "docs", req)
+	assert.ErrorIs(t, err, utils.ErrMCPProxyBindingsChanged)
+	assert.Zero(t, f.updateCalls, "the proxy is not changed")
 }

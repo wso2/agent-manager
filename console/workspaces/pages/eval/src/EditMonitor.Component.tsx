@@ -260,7 +260,7 @@ export const EditMonitorComponent: React.FC = () => {
     <MonitorFormWizard
       title={"Edit " + (monitorData?.displayName ?? "Monitor")}
       backHref={backHref}
-      submitLabel="Save Changes"
+      submitLabel="Save changes"
       initialValues={initialValues}
       onSubmit={handleUpdateMonitor}
       isSubmitting={isUpdating || isSavingAlert}

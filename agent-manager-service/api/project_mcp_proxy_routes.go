@@ -50,4 +50,25 @@ func RegisterProjectMCPProxyRoutes(
 	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("PUT "+binding, rbac.MCPServerUpdate, orgOverride, ctrl.PutProjectMCPProxyEnvironment)
 	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("GET "+binding, rbac.MCPServerRead, orgOverride, ctrl.GetProjectMCPProxyEnvironment)
 	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("DELETE "+binding, rbac.MCPServerUpdate, orgOverride, ctrl.DeleteProjectMCPProxyEnvironment)
+	// Queues AMS's discovery of the binding's capabilities from the MCP server, through its gateway.
+	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("POST "+binding+"/capabilities/refresh", rbac.MCPServerUpdate, orgOverride,
+		ctrl.RefreshProjectMCPProxyEnvironmentCapabilities)
+
+	// A binding's API keys: the keys its callers present to the gateway in that environment. Reading the masked
+	// list needs read; issuing, rotating and revoking a key need the API key permission.
+	const keys = binding + "/api-keys"
+	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("GET "+keys, rbac.MCPServerRead, orgOverride, ctrl.ListProjectMCPProxyEnvironmentAPIKeys)
+	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("POST "+keys, rbac.MCPServerAPIKeyManage, orgOverride, ctrl.CreateProjectMCPProxyEnvironmentAPIKey)
+	// A short-lived test key issued for one of the caller's users; see IssueEnvironmentTestAPIKey.
+	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("POST "+keys+"/test", rbac.MCPServerAPIKeyManage, orgOverride, ctrl.IssueProjectMCPProxyEnvironmentTestAPIKey)
+	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("PUT "+keys+"/{keyName}", rbac.MCPServerAPIKeyManage, orgOverride, ctrl.RotateProjectMCPProxyEnvironmentAPIKey)
+	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("DELETE "+keys+"/{keyName}", rbac.MCPServerAPIKeyManage, orgOverride, ctrl.RevokeProjectMCPProxyEnvironmentAPIKey)
+
+	// Scopes: actions on the proxy's resource server, granted to agents through roles and enforced per tool on every
+	// binding secured with identity. Gated on the scope permissions, as on the org route.
+	const scopes = base + "/{proxyId}/scopes"
+	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("GET "+scopes, rbac.ScopeRead, orgOverride, ctrl.ListProjectMCPProxyScopes)
+	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("POST "+scopes, rbac.ScopeCreate, orgOverride, ctrl.CreateProjectMCPProxyScope)
+	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("PUT "+scopes+"/{scopeAction}", rbac.ScopeUpdate, orgOverride, ctrl.UpdateProjectMCPProxyScope)
+	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("DELETE "+scopes+"/{scopeAction}", rbac.ScopeDelete, orgOverride, ctrl.DeleteProjectMCPProxyScope)
 }

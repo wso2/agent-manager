@@ -161,6 +161,21 @@ type MCPEndpointConfig struct {
 	// ReleaseBindingName is the source component's release binding a project proxy binding was resolved from,
 	// when it was given one. Unset on org proxies.
 	ReleaseBindingName string `json:"releaseBindingName,omitempty"`
+	// CapabilitiesDiscovered marks a project proxy binding's Capabilities as discovered by AMS from the MCP server,
+	// rather than given by the caller. A binding PUT without capabilities keeps discovered ones.
+	CapabilitiesDiscovered bool `json:"capabilitiesDiscovered,omitempty"`
+	// CapabilityDiscovery is the binding's capability discovery, while one is queued or once one ran. Project
+	// proxy bindings only.
+	CapabilityDiscovery *MCPCapabilityDiscoveryState `json:"capabilityDiscovery,omitempty"`
+	// IdentityCleanupID marks a project proxy binding that left identity security while its resource server and the
+	// roles' grants of its scopes are not removed yet. Each write that leaves identity sets a new ID, later writes that
+	// stay off identity keep it, and a successful removal clears it only while it is still that removal's ID, so an
+	// older removal finishing late never clears a newer one's. An identical PUT retries the removal while it is set.
+	IdentityCleanupID string `json:"identityCleanupId,omitempty"`
+	// IdentityCleanupIdentifier is the public URL the binding's resource server was registered at when it left
+	// identity, kept with IdentityCleanupID so the removal finds it even after a proxy context change moved the
+	// binding's URL. Empty when not known then; the removal uses the binding's current URL.
+	IdentityCleanupIdentifier string `json:"identityCleanupIdentifier,omitempty"`
 }
 
 // MCP proxy per-environment deployment status values reported on read.
@@ -271,9 +286,20 @@ type MCPProxyListItem struct {
 	McpSpecVersion *string    `json:"mcpSpecVersion,omitempty"`
 	Name           *string    `json:"name,omitempty"`
 	ProjectName    *string    `json:"projectName,omitempty"`
-	Status         *string    `json:"status,omitempty"`
-	UpdatedAt      *time.Time `json:"updatedAt,omitempty"`
-	Version        *string    `json:"version,omitempty"`
+	// Source is the component endpoint a project proxy was published from; absent for an org proxy.
+	Source    *MCPProxySource `json:"source,omitempty"`
+	Status    *string         `json:"status,omitempty"`
+	UpdatedAt *time.Time      `json:"updatedAt,omitempty"`
+	Version   *string         `json:"version,omitempty"`
+	// Environments are the environments the proxy is bound to.
+	Environments []MCPProxyListEnvironment `json:"environments"`
+}
+
+// MCPProxyListEnvironment is one environment an MCP proxy in a list is bound to.
+type MCPProxyListEnvironment struct {
+	EnvironmentUUID string `json:"environmentUuid"`
+	// EnvironmentName is set for a project proxy, whose binding is named after its environment.
+	EnvironmentName string `json:"environmentName,omitempty"`
 }
 
 // MCPProxyListResponse is the response body for listing MCP proxies.

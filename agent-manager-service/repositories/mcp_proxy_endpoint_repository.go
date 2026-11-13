@@ -18,8 +18,10 @@ package repositories
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -34,6 +36,12 @@ import (
 type MCPProxyEndpointRepository interface {
 	CreateEndpoint(ctx context.Context, tx *gorm.DB, endpoint *models.MCPProxyEndpoint) error
 	UpdateEndpoint(ctx context.Context, tx *gorm.DB, endpoint *models.MCPProxyEndpoint) error
+	// ClearIdentityCleanupID drops the endpoint's identityCleanupId once the removal it names succeeded, if it is still
+	// that ID.
+	ClearIdentityCleanupID(ctx context.Context, endpointUUID uuid.UUID, cleanupID string) error
+	// MarkIdentityCleanupID sets the endpoint's identityCleanupId to cleanupID while it is off identity security with
+	// none set, and reports whether it did.
+	MarkIdentityCleanupID(ctx context.Context, endpointUUID uuid.UUID, cleanupID string) (bool, error)
 	DeleteEndpoint(ctx context.Context, tx *gorm.DB, endpointUUID uuid.UUID) error
 	GetEndpoint(ctx context.Context, endpointUUID uuid.UUID) (*models.MCPProxyEndpoint, error)
 	// ListEndpointsByProxy returns every endpoint of the proxy with its
@@ -47,6 +55,9 @@ type MCPProxyEndpointRepository interface {
 	// uq_proxy_env_single, or gorm.ErrRecordNotFound when the proxy has no
 	// endpoint bound to that environment.
 	GetEndpointEnvByProxyAndEnv(ctx context.Context, proxyUUID, envUUID uuid.UUID) (*models.MCPProxyEndpointEnvironment, error)
+	// GetEndpointEnvByArtifact returns the (endpoint, environment) row whose gateway artifact is artifactUUID, or
+	// gorm.ErrRecordNotFound.
+	GetEndpointEnvByArtifact(ctx context.Context, artifactUUID uuid.UUID) (*models.MCPProxyEndpointEnvironment, error)
 	// ListEndpointEnvironmentsByProxy returns every endpoint→environment binding
 	// for the proxy. Used by the delete teardown to collect all artifact UUIDs.
 	ListEndpointEnvironmentsByProxy(ctx context.Context, proxyUUID uuid.UUID) ([]models.MCPProxyEndpointEnvironment, error)
@@ -74,18 +85,24 @@ func (r *mcpProxyEndpointRepository) CreateEndpoint(ctx context.Context, tx *gor
 	return nil
 }
 
+// UpdateEndpoint writes the endpoint, keeping the stored configuration's capabilityDiscovery key whatever
+// endpoint.Configuration carries: that key is the capability discovery's bookkeeping, written only by its own
+// conditional statements (MCPCapabilityDiscoveryRepository) without the proxy lock a binding write holds. Taking it
+// from the row in the same statement means a discovery queued, claimed or recorded between the caller's read and
+// this write is never overwritten.
 func (r *mcpProxyEndpointRepository) UpdateEndpoint(ctx context.Context, tx *gorm.DB, endpoint *models.MCPProxyEndpoint) error {
 	if endpoint == nil || endpoint.UUID == uuid.Nil {
 		return gorm.ErrRecordNotFound
 	}
-	result := tx.WithContext(ctx).Model(&models.MCPProxyEndpoint{}).
-		Where("uuid = ?", endpoint.UUID).
-		Updates(map[string]interface{}{
-			"handle":        endpoint.Handle,
-			"name":          endpoint.Name,
-			"status":        endpoint.Status,
-			"configuration": endpoint.Configuration,
-		})
+	configuration, err := json.Marshal(endpoint.Configuration)
+	if err != nil {
+		return fmt.Errorf("failed to encode MCP proxy endpoint configuration: %w", err)
+	}
+	result := tx.WithContext(ctx).Exec(`UPDATE mcp_proxy_endpoints SET handle = ?, name = ?, status = ?, updated_at = ?,
+		configuration = CASE WHEN configuration->'capabilityDiscovery' IS NULL THEN ?::jsonb - 'capabilityDiscovery'
+			ELSE jsonb_set(?::jsonb, '{capabilityDiscovery}', configuration->'capabilityDiscovery') END
+		WHERE uuid = ?`,
+		endpoint.Handle, endpoint.Name, endpoint.Status, time.Now(), string(configuration), string(configuration), endpoint.UUID)
 	if result.Error != nil {
 		return fmt.Errorf("failed to update MCP proxy endpoint: %w", result.Error)
 	}
@@ -93,6 +110,36 @@ func (r *mcpProxyEndpointRepository) UpdateEndpoint(ctx context.Context, tx *gor
 		return gorm.ErrRecordNotFound
 	}
 	return nil
+}
+
+// ClearIdentityCleanupID removes the identityCleanupId key from the endpoint's configuration in place, so nothing else
+// a binding write stored since is touched, and only while it is cleanupID: a write that left identity again since set
+// a new ID, whose removal is still to run. A missing endpoint, or a different ID, is not an error.
+func (r *mcpProxyEndpointRepository) ClearIdentityCleanupID(ctx context.Context, endpointUUID uuid.UUID, cleanupID string) error {
+	if err := r.db.WithContext(ctx).Exec(
+		`UPDATE mcp_proxy_endpoints SET configuration = configuration - 'identityCleanupId' - 'identityCleanupIdentifier'
+		WHERE uuid = ? AND configuration->>'identityCleanupId' = ?`,
+		endpointUUID, cleanupID).Error; err != nil {
+		return fmt.Errorf("failed to clear the MCP proxy endpoint's identity cleanup ID: %w", err)
+	}
+	return nil
+}
+
+// MarkIdentityCleanupID sets identityCleanupId to cleanupID in place, only while the endpoint is off identity security
+// (security and its identity variant not both enabled, as mcpIdentityEnabled reads them) and has no identityCleanupId:
+// a registration that finished after the binding left identity, and after that write's own removal, leaves a resource
+// server nothing else would remove. It reports whether the endpoint was marked.
+func (r *mcpProxyEndpointRepository) MarkIdentityCleanupID(ctx context.Context, endpointUUID uuid.UUID, cleanupID string) (bool, error) {
+	result := r.db.WithContext(ctx).Exec(
+		`UPDATE mcp_proxy_endpoints SET configuration = jsonb_set(configuration, '{identityCleanupId}', to_jsonb(?::text))
+		WHERE uuid = ? AND configuration->'identityCleanupId' IS NULL
+			AND NOT (COALESCE(configuration#>>'{security,enabled}', '') = 'true'
+				AND COALESCE(configuration#>>'{security,identity,enabled}', '') = 'true')`,
+		cleanupID, endpointUUID)
+	if result.Error != nil {
+		return false, fmt.Errorf("failed to mark the MCP proxy endpoint for identity cleanup: %w", result.Error)
+	}
+	return result.RowsAffected > 0, nil
 }
 
 func (r *mcpProxyEndpointRepository) DeleteEndpoint(ctx context.Context, tx *gorm.DB, endpointUUID uuid.UUID) error {
@@ -191,4 +238,16 @@ func (r *mcpProxyEndpointRepository) ListEndpointEnvironmentsByProxy(ctx context
 		return nil, fmt.Errorf("failed to list MCP proxy endpoint environments by proxy: %w", err)
 	}
 	return envs, nil
+}
+
+func (r *mcpProxyEndpointRepository) GetEndpointEnvByArtifact(ctx context.Context, artifactUUID uuid.UUID) (*models.MCPProxyEndpointEnvironment, error) {
+	var ee models.MCPProxyEndpointEnvironment
+	err := r.db.WithContext(ctx).Where("artifact_uuid = ?", artifactUUID).Take(&ee).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, err
+		}
+		return nil, fmt.Errorf("failed to resolve MCP proxy endpoint environment: %w", err)
+	}
+	return &ee, nil
 }

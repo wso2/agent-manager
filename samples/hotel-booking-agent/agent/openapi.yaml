@@ -1,4 +1,6 @@
 openapi: 3.1.0
+# checkov:skip=CKV_OPENAPI_4:The sample chat workload runs directly for local development. Hosted ingress authentication is configured separately.
+# checkov:skip=CKV_OPENAPI_5:POST /chat has no application-level authentication in the sample.
 info:
   title: Hotel Booking Agent
   version: 0.1.0
@@ -104,6 +106,7 @@ components:
       properties:
         detail:
           type: array
+          maxItems: 16
           items:
             $ref: "#/components/schemas/ValidationError"
           title: Detail

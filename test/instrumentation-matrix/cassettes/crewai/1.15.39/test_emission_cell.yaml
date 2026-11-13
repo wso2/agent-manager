@@ -1,0 +1,594 @@
+interactions:
+- request:
+    body: '{"input": [{"role": "user", "content": "\nCurrent Task: Look up the capital
+      of France using the tool.\n\nThis is the expected criteria for your final answer:
+      A sentence stating the capital of France.\nyou MUST return the actual complete
+      content as the final answer, not a summary."}], "instructions": "You are Geography
+      researcher. You always call the lookup tool to answer geography questions.\nYour
+      personal goal is: Look up the capital of a country using the lookup tool.",
+      "model": "gpt-4o-mini", "tools": [{"type": "function", "name": "country_capital_lookup",
+      "description": "Return the capital city of a country.", "parameters": {"properties":
+      {"country": {"title": "Country", "type": "string"}}, "required": ["country"],
+      "type": "object", "additionalProperties": false}}]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      authorization:
+      - REDACTED
+      connection:
+      - keep-alive
+      content-length:
+      - '752'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 2.54.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 2.54.0
+      x-stainless-read-timeout:
+      - '600'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.12.9
+    method: POST
+    uri: https://api.openai.com/v1/responses/input_tokens
+  response:
+    body:
+      string: "{\n  \"object\": \"response.input_tokens\",\n  \"input_tokens\": 129\n}"
+    headers:
+      access-control-expose-headers:
+      - X-Request-ID, Server-Timing-Total
+      - CF-Ray
+      - CF-Ray
+      alt-svc:
+      - h3=":443"; ma=86400
+      connection:
+      - keep-alive
+      content-length:
+      - '62'
+      content-type:
+      - application/json
+      date:
+      - Mon, 09 Nov 2026 05:40:08 GMT
+      server:
+      - cloudflare
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      transfer-encoding:
+      - chunked
+      x-content-type-options:
+      - nosniff
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages": [{"role": "system", "content": "You are Geography researcher.
+      You always call the lookup tool to answer geography questions.\nYour personal
+      goal is: Look up the capital of a country using the lookup tool."}, {"role":
+      "user", "content": "\nCurrent Task: Look up the capital of France using the
+      tool.\n\nThis is the expected criteria for your final answer: A sentence stating
+      the capital of France.\nyou MUST return the actual complete content as the final
+      answer, not a summary."}], "model": "gpt-4o-mini", "tool_choice": "auto", "tools":
+      [{"type": "function", "function": {"name": "country_capital_lookup", "description":
+      "Return the capital city of a country.", "strict": true, "parameters": {"properties":
+      {"country": {"type": "string"}}, "required": ["country"], "type": "object",
+      "additionalProperties": false}}}]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      authorization:
+      - REDACTED
+      connection:
+      - keep-alive
+      content-length:
+      - '798'
+      content-type:
+      - application/json
+      cookie:
+      - REDACTED
+      host:
+      - api.openai.com
+      traceparent:
+      - 00-5e1956e086702b7b8b3ea68aee69eaa3-a0e07a6fe9cd1eee-03
+      user-agent:
+      - OpenAI/Python 2.54.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 2.54.0
+      x-stainless-raw-response:
+      - 'true'
+      x-stainless-read-timeout:
+      - '600'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.12.9
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-EiCOwlbfLxT9jUSGJkCrSZSxrh2gb\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1794202810,\n  \"model\": \"gpt-4o-mini-2024-07-18\",\n
+        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+        \"assistant\",\n        \"content\": null,\n        \"tool_calls\": [\n          {\n
+        \           \"id\": \"call_rzGfEI1BU93BiKYX8C7lKFdr\",\n            \"type\":
+        \"function\",\n            \"function\": {\n              \"name\": \"country_capital_lookup\",\n
+        \             \"arguments\": \"{\\\"country\\\":\\\"France\\\"}\"\n            }\n
+        \         }\n        ],\n        \"refusal\": null,\n        \"annotations\":
+        []\n      },\n      \"logprobs\": null,\n      \"finish_reason\": \"tool_calls\"\n
+        \   }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 128,\n    \"completion_tokens\":
+        16,\n    \"total_tokens\": 144,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\":
+        0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
+        {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
+        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
+        \"default\",\n  \"system_fingerprint\": \"fp_65ae270b29\"\n}\n"
+    headers:
+      access-control-expose-headers:
+      - X-Request-ID
+      - CF-Ray
+      - CF-Ray
+      alt-svc:
+      - h3=":443"; ma=86400
+      connection:
+      - keep-alive
+      content-length:
+      - '1101'
+      content-type:
+      - application/json
+      date:
+      - Mon, 09 Nov 2026 05:40:11 GMT
+      server:
+      - cloudflare
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      transfer-encoding:
+      - chunked
+      x-content-type-options:
+      - nosniff
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"input": [{"role": "user", "content": "The capital of France is Paris."}],
+      "model": "gpt-4o-mini"}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      authorization:
+      - REDACTED
+      connection:
+      - keep-alive
+      content-length:
+      - '93'
+      content-type:
+      - application/json
+      cookie:
+      - REDACTED
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 2.54.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 2.54.0
+      x-stainless-read-timeout:
+      - '600'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.12.9
+    method: POST
+    uri: https://api.openai.com/v1/responses/input_tokens
+  response:
+    body:
+      string: "{\n  \"object\": \"response.input_tokens\",\n  \"input_tokens\": 14\n}"
+    headers:
+      access-control-expose-headers:
+      - X-Request-ID, Server-Timing-Total
+      - CF-Ray
+      - CF-Ray
+      alt-svc:
+      - h3=":443"; ma=86400
+      connection:
+      - keep-alive
+      content-length:
+      - '61'
+      content-type:
+      - application/json
+      date:
+      - Mon, 09 Nov 2026 05:40:11 GMT
+      server:
+      - cloudflare
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      transfer-encoding:
+      - chunked
+      x-content-type-options:
+      - nosniff
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"input": [{"role": "user", "content": "\nCurrent Task: Look up the capital
+      of France using the tool.\n\nThis is the expected criteria for your final answer:
+      A sentence stating the capital of France.\nyou MUST return the actual complete
+      content as the final answer, not a summary."}, {"type": "function_call", "call_id":
+      "call_rzGfEI1BU93BiKYX8C7lKFdr", "name": "country_capital_lookup", "arguments":
+      "{\"country\":\"France\"}"}, {"type": "function_call_output", "call_id": "call_rzGfEI1BU93BiKYX8C7lKFdr",
+      "output": "The capital of France is Paris."}], "instructions": "You are Geography
+      researcher. You always call the lookup tool to answer geography questions.\nYour
+      personal goal is: Look up the capital of a country using the lookup tool.",
+      "model": "gpt-4o-mini", "tools": [{"type": "function", "name": "country_capital_lookup",
+      "description": "Return the capital city of a country.", "parameters": {"properties":
+      {"country": {"title": "Country", "type": "string"}}, "required": ["country"],
+      "type": "object", "additionalProperties": false}}]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      authorization:
+      - REDACTED
+      connection:
+      - keep-alive
+      content-length:
+      - '1007'
+      content-type:
+      - application/json
+      cookie:
+      - REDACTED
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 2.54.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 2.54.0
+      x-stainless-read-timeout:
+      - '600'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.12.9
+    method: POST
+    uri: https://api.openai.com/v1/responses/input_tokens
+  response:
+    body:
+      string: "{\n  \"object\": \"response.input_tokens\",\n  \"input_tokens\": 160\n}"
+    headers:
+      access-control-expose-headers:
+      - X-Request-ID, Server-Timing-Total
+      - CF-Ray
+      - CF-Ray
+      alt-svc:
+      - h3=":443"; ma=86400
+      connection:
+      - keep-alive
+      content-length:
+      - '62'
+      content-type:
+      - application/json
+      date:
+      - Mon, 09 Nov 2026 05:40:12 GMT
+      server:
+      - cloudflare
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      transfer-encoding:
+      - chunked
+      x-content-type-options:
+      - nosniff
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages": [{"role": "system", "content": "You are Geography researcher.
+      You always call the lookup tool to answer geography questions.\nYour personal
+      goal is: Look up the capital of a country using the lookup tool."}, {"role":
+      "user", "content": "\nCurrent Task: Look up the capital of France using the
+      tool.\n\nThis is the expected criteria for your final answer: A sentence stating
+      the capital of France.\nyou MUST return the actual complete content as the final
+      answer, not a summary."}, {"role": "assistant", "content": null, "tool_calls":
+      [{"id": "call_rzGfEI1BU93BiKYX8C7lKFdr", "type": "function", "function": {"name":
+      "country_capital_lookup", "arguments": "{\"country\":\"France\"}"}}]}, {"role":
+      "tool", "tool_call_id": "call_rzGfEI1BU93BiKYX8C7lKFdr", "name": "country_capital_lookup",
+      "content": "The capital of France is Paris."}], "model": "gpt-4o-mini", "tool_choice":
+      "auto", "tools": [{"type": "function", "function": {"name": "country_capital_lookup",
+      "description": "Return the capital city of a country.", "strict": true, "parameters":
+      {"properties": {"country": {"type": "string"}}, "required": ["country"], "type":
+      "object", "additionalProperties": false}}}]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      authorization:
+      - REDACTED
+      connection:
+      - keep-alive
+      content-length:
+      - '1129'
+      content-type:
+      - application/json
+      cookie:
+      - REDACTED
+      host:
+      - api.openai.com
+      traceparent:
+      - 00-5e1956e086702b7b8b3ea68aee69eaa3-990fb9bf5b26785a-03
+      user-agent:
+      - OpenAI/Python 2.54.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 2.54.0
+      x-stainless-raw-response:
+      - 'true'
+      x-stainless-read-timeout:
+      - '600'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.12.9
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-EiCOyugZBUN9x6F5QVvHEwg8Fx7o3\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1794202812,\n  \"model\": \"gpt-4o-mini-2024-07-18\",\n
+        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+        \"assistant\",\n        \"content\": \"The capital of France is Paris.\",\n
+        \       \"refusal\": null,\n        \"annotations\": []\n      },\n      \"logprobs\":
+        null,\n      \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\":
+        161,\n    \"completion_tokens\": 8,\n    \"total_tokens\": 169,\n    \"prompt_tokens_details\":
+        {\n      \"cached_tokens\": 0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
+        {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
+        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
+        \"default\",\n  \"system_fingerprint\": \"fp_65ae270b29\"\n}\n"
+    headers:
+      access-control-expose-headers:
+      - X-Request-ID
+      - CF-Ray
+      - CF-Ray
+      alt-svc:
+      - h3=":443"; ma=86400
+      connection:
+      - keep-alive
+      content-length:
+      - '839'
+      content-type:
+      - application/json
+      date:
+      - Mon, 09 Nov 2026 05:40:13 GMT
+      server:
+      - cloudflare
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      transfer-encoding:
+      - chunked
+      x-content-type-options:
+      - nosniff
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"input": [{"role": "user", "content": "\nCurrent Task: Shorten the researcher''s
+      previous answer to a single short sentence.\n\nThis is the expected criteria
+      for your final answer: One short sentence naming the capital.\nyou MUST return
+      the actual complete content as the final answer, not a summary.\n\nThis is the
+      context you''re working with:\nThe capital of France is Paris.\n\nProvide your
+      complete response:"}], "instructions": "You are Editor. You compress answers
+      to the minimum useful form.\nYour personal goal is: Shorten the researcher''s
+      answer to a single short sentence.", "model": "gpt-4o-mini"}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      authorization:
+      - REDACTED
+      connection:
+      - keep-alive
+      content-length:
+      - '600'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 2.54.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 2.54.0
+      x-stainless-read-timeout:
+      - '600'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.12.9
+    method: POST
+    uri: https://api.openai.com/v1/responses/input_tokens
+  response:
+    body:
+      string: "{\n  \"object\": \"response.input_tokens\",\n  \"input_tokens\": 111\n}"
+    headers:
+      access-control-expose-headers:
+      - X-Request-ID, Server-Timing-Total
+      - CF-Ray
+      - CF-Ray
+      alt-svc:
+      - h3=":443"; ma=86400
+      connection:
+      - keep-alive
+      content-length:
+      - '62'
+      content-type:
+      - application/json
+      date:
+      - Mon, 09 Nov 2026 05:40:13 GMT
+      server:
+      - cloudflare
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      transfer-encoding:
+      - chunked
+      x-content-type-options:
+      - nosniff
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages": [{"role": "system", "content": "You are Editor. You compress
+      answers to the minimum useful form.\nYour personal goal is: Shorten the researcher''s
+      answer to a single short sentence."}, {"role": "user", "content": "\nCurrent
+      Task: Shorten the researcher''s previous answer to a single short sentence.\n\nThis
+      is the expected criteria for your final answer: One short sentence naming the
+      capital.\nyou MUST return the actual complete content as the final answer, not
+      a summary.\n\nThis is the context you''re working with:\nThe capital of France
+      is Paris.\n\nProvide your complete response:"}], "model": "gpt-4o-mini"}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      authorization:
+      - REDACTED
+      connection:
+      - keep-alive
+      content-length:
+      - '616'
+      content-type:
+      - application/json
+      cookie:
+      - REDACTED
+      host:
+      - api.openai.com
+      traceparent:
+      - 00-5e1956e086702b7b8b3ea68aee69eaa3-414e4bff75798a01-03
+      user-agent:
+      - OpenAI/Python 2.54.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 2.54.0
+      x-stainless-raw-response:
+      - 'true'
+      x-stainless-read-timeout:
+      - '600'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.12.9
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-EiCOzKY3qSqTwufhjMuhFhHIyMiKn\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1794202813,\n  \"model\": \"gpt-4o-mini-2024-07-18\",\n
+        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+        \"assistant\",\n        \"content\": \"The capital of France is Paris.\",\n
+        \       \"refusal\": null,\n        \"annotations\": []\n      },\n      \"logprobs\":
+        null,\n      \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\":
+        111,\n    \"completion_tokens\": 7,\n    \"total_tokens\": 118,\n    \"prompt_tokens_details\":
+        {\n      \"cached_tokens\": 0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
+        {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
+        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
+        \"default\",\n  \"system_fingerprint\": \"fp_6449a38fbb\"\n}\n"
+    headers:
+      access-control-expose-headers:
+      - X-Request-ID
+      - CF-Ray
+      - CF-Ray
+      alt-svc:
+      - h3=":443"; ma=86400
+      connection:
+      - keep-alive
+      content-length:
+      - '839'
+      content-type:
+      - application/json
+      date:
+      - Mon, 09 Nov 2026 05:40:14 GMT
+      server:
+      - cloudflare
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      transfer-encoding:
+      - chunked
+      x-content-type-options:
+      - nosniff
+    status:
+      code: 200
+      message: OK
+version: 1

@@ -297,7 +297,7 @@ export function AttributesSection({ attributes }: AttributesSectionProps) {
         alignItems="center"
       >
         <TextInput
-          placeholder="Search..."
+          placeholder="Search attributes"
           value={searchText}
           onChange={(e) => handleSearchChange(e.target.value)}
           size="small"

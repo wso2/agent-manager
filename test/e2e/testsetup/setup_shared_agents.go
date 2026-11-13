@@ -28,6 +28,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/wso2/agent-manager/test/e2e/framework"
+	a2aops "github.com/wso2/agent-manager/test/e2e/operations/a2a"
 	agentops "github.com/wso2/agent-manager/test/e2e/operations/agent"
 	"github.com/wso2/agent-manager/test/e2e/operations/build"
 	"github.com/wso2/agent-manager/test/e2e/operations/deployment"
@@ -240,6 +241,47 @@ func deleteProjectBestEffort(client *framework.AMPClient, orgName, projName stri
 	}
 }
 
+// SetupSharedA2AAgent provisions the shared A2A sample agent (idempotently) and
+// waits for its platform card to be fetched. The card reconciler requires the
+// rollout to be serving, so a fetched card is the readiness signal. The card is
+// waited for here only; no spec waits for it again.
+func SetupSharedA2AAgent(client *framework.AMPClient, cfg *framework.Config) *framework.SharedA2AAgent {
+	Expect(cfg.OpenAIAPIKey).NotTo(BeEmpty(), "OPENAI_API_KEY must be set for the A2A agent")
+
+	agent := &framework.SharedA2AAgent{
+		ProjectName: framework.E2ESharedProjectName,
+		AgentName:   framework.SharedA2AAgentName,
+	}
+	EnsureProject(client, cfg, agent.ProjectName, "E2E Shared Project", "Shared project for e2e tests")
+	createReq := framework.NewA2AAgentRequest(agent.AgentName,
+		"A2A sample agent shared across the A2A specs",
+		map[string]string{"OPENAI_API_KEY": cfg.OpenAIAPIKey})
+	ensureSharedAgentDeployed(client, cfg, agent.ProjectName, agent.AgentName, createReq)
+
+	ginkgo.By(fmt.Sprintf("Waiting for agent %q card", agent.AgentName))
+	card := a2aops.WaitForCardFetched(client, cfg.DefaultOrg, agent.ProjectName, agent.AgentName,
+		cfg.DefaultEnv, 12*time.Minute)
+	agent.CardURL = card.SourceURL
+
+	var endpointURL string
+	resolveEndpointAndKey(client, cfg, agent.ProjectName, agent.AgentName, cfg.DefaultEnv,
+		&endpointURL, &agent.APIKey)
+
+	ginkgo.GinkgoWriter.Printf("Shared A2A agent ready: project=%s agent=%s card=%s\n",
+		agent.ProjectName, agent.AgentName, agent.CardURL)
+	return agent
+}
+
+// SynchronizedSharedA2AAgent returns the two SynchronizedBeforeSuite phase
+// functions for suites that share the A2A sample agent.
+func SynchronizedSharedA2AAgent(
+	cfg **framework.Config,
+	client **framework.AMPClient,
+	agent **framework.SharedA2AAgent,
+) (func() []byte, func([]byte)) {
+	return synchronizedAgentSetup(SetupSharedA2AAgent, cfg, client, agent)
+}
+
 // SetupSharedPromotableITHelpdeskAgent provisions the shared promotable IT
 // helpdesk agent: it ensures a second environment and a deployment pipeline
 // exist, builds the agent, and deploys it to the default environment. It is
@@ -282,11 +324,24 @@ func SetupSharedPromotableITHelpdeskAgent(ctx context.Context, client *framework
 // After create/recreate/in-progress it waits for build success, an active
 // deployment, and runtime readiness.
 func ensureSharedAgentReady(client *framework.AMPClient, cfg *framework.Config, projName, agentName, description string) string {
-	agentPath := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s", cfg.DefaultOrg, projName, agentName)
 	createReq := framework.NewITHelpdeskAgentRequest(agentName, description, map[string]string{
 		"OPENAI_API_KEY": cfg.OpenAIAPIKey,
 		"DATABASE_URL":   "http://localhost:5000",
 	})
+	buildName := ensureSharedAgentDeployed(client, cfg, projName, agentName, createReq)
+
+	ginkgo.By(fmt.Sprintf("Waiting for agent %q readiness", agentName))
+	deployment.WaitForReadiness(client, cfg.DefaultOrg, projName, agentName, cfg.DefaultEnv, 10*time.Minute)
+
+	return buildName
+}
+
+// ensureSharedAgentDeployed is the reuse / recreate / create switch plus the
+// build and deployment waits shared by every shared agent. It returns the build
+// name ("" when an already-active agent was reused) and leaves runtime
+// readiness to the caller.
+func ensureSharedAgentDeployed(client *framework.AMPClient, cfg *framework.Config, projName, agentName string, createReq framework.CreateAgentRequest) string {
+	agentPath := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s", cfg.DefaultOrg, projName, agentName)
 
 	status := deployment.DeploymentStatus(client, cfg.DefaultOrg, projName, agentName, cfg.DefaultEnv)
 	switch {
@@ -332,9 +387,6 @@ func ensureSharedAgentReady(client *framework.AMPClient, cfg *framework.Config, 
 		Environment: cfg.DefaultEnv,
 		Timeout:     5 * time.Minute,
 	})
-
-	ginkgo.By(fmt.Sprintf("Waiting for agent %q readiness", agentName))
-	deployment.WaitForReadiness(client, cfg.DefaultOrg, projName, agentName, cfg.DefaultEnv, 10*time.Minute)
 
 	return buildName
 }

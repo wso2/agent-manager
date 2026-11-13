@@ -62,7 +62,7 @@ export const TokenExpirySelector: React.FC<TokenExpirySelectorProps> = ({
   disabled,
   size = "small",
 }) => {
-  const anchorRef = useRef<HTMLElement>(null);
+  const anchorRef = useRef<HTMLDivElement>(null);
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [draft, setDraft] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);

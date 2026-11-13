@@ -194,7 +194,7 @@ export const EvalEvaluatorsOrganization: React.FC = () => {
       startIcon={<Plus />}
       color="primary"
     >
-      Create Evaluator
+      Create evaluator
     </Button>
   );
 

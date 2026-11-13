@@ -5,6 +5,8 @@ from types import SimpleNamespace
 
 import pytest
 
+from harness.deployable_samples import DeployableSample
+
 
 @pytest.fixture
 def compat():
@@ -17,7 +19,17 @@ def compat():
 
 
 def test_resolves_supported_pairs_and_preserves_other_sample_python310(compat, monkeypatch, capsys):
-    """Only CrewAI drops Python 3.10, while all supported pairs resolve."""
+    """A sample's minimum Python does not restrict other samples."""
+    monkeypatch.setitem(
+        compat.DEPLOYABLE_SAMPLES,
+        "example",
+        DeployableSample(
+            app_path="/test/fixtures/example-agent",
+            run_command="python example.py",
+            expected_kinds=("llm",),
+            min_python="3.11",
+        ),
+    )
     calls = []
 
     def resolve(args, **kwargs):
@@ -30,19 +42,19 @@ def test_resolves_supported_pairs_and_preserves_other_sample_python310(compat, m
     assert set(calls) == {
         ("customer-support-agent", version) for version in ("3.10", "3.11", "3.12", "3.13")
     } | {
-        ("crewai-agent", version) for version in ("3.11", "3.12", "3.13")
+        ("example-agent", version) for version in ("3.11", "3.12", "3.13")
     }
     assert len(calls) == 7
-    assert "Skipping samples/crewai-agent on Python 3.10" in capsys.readouterr().out
+    assert "Skipping samples/test/fixtures/example-agent on Python 3.10" in capsys.readouterr().out
 
 
 def test_supported_runtime_resolution_failure_is_reported(compat, monkeypatch, capsys):
     """A supported interpreter failure still fails the compatibility check."""
     def resolve(args, **kwargs):
         """Capture dependency resolutions without accessing a package index."""
-        failed = "crewai-agent" in args[6] and args[5] == "3.11"
+        failed = args[5] == "3.11"
         return SimpleNamespace(returncode=int(failed))
 
     monkeypatch.setattr(compat.subprocess, "run", resolve)
     assert compat.main() == 1
-    assert "samples/crewai-agent/requirements.txt does not resolve on Python 3.11" in capsys.readouterr().err
+    assert "samples/customer-support-agent/requirements.txt does not resolve on Python 3.11" in capsys.readouterr().err

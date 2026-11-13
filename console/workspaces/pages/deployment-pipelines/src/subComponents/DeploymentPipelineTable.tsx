@@ -243,7 +243,7 @@ export function DeploymentPipelineTable({
       startIcon={<Plus size={16} />}
       onClick={onCreatePipeline}
     >
-      Create Pipeline
+      Create pipeline
     </Button>
   );
 

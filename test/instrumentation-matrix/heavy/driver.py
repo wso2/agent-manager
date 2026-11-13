@@ -80,11 +80,9 @@ def _expected_kinds(cell: Cell) -> list[str]:
     """Span kinds to assert for this cell, taken from the *deployed sample*.
 
     Heavy deploys the sample matching the cell's framework (see
-    harness.deployable_samples), so the asserted kinds are that sample's:
-    `llm` for the LangGraph customer-support-agent the langchain cell deploys,
-    `llm`+`agent`+`crewaitask` for the crewai agent. Any richer kinds a sample
-    also emits are still shape-validated via validate_all and surfaced in the
-    coverage "actual" list. Per-framework span shape is the emission tier's job.
+    harness.deployable_samples). The customer-support sample must emit
+    `llm`. The driver validates every captured span and includes its kind in
+    the coverage "actual" list. Per-framework span shape is the emission tier's job.
     """
     return list(DEPLOYABLE_SAMPLES[cell.framework_name].expected_kinds)
 

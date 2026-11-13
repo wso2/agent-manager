@@ -79,6 +79,8 @@ export interface UseMCPProxyEndpointsResult {
    * Undefined until there is an answer, and while no proxy is selected.
    */
   proxy: Pick<MCPProxy, "endpoints"> | undefined;
+  /** The project that owns a project proxy; undefined for an org proxy and until known. */
+  ownerProject?: string;
   isLoading: boolean;
   isError: boolean;
 }
@@ -125,6 +127,7 @@ export function useMCPProxyEndpoints({
 
   return {
     proxy,
+    ownerProject,
     isLoading: isOrgLoading || (Boolean(ownerProject) && isProjectLoading),
     isError: isOrgError || (Boolean(ownerProject) && isProjectError),
   };

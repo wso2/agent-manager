@@ -55,7 +55,7 @@ export const LLMProvidersOrganization: React.FC = () => {
       )}
       startIcon={<Plus size={16} />}
     >
-      Add Service Provider
+      Add service provider
     </Button>
   );
 

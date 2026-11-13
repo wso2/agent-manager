@@ -70,8 +70,9 @@ import {
   useGetAgent,
   useGetAgentMCPConfig,
   useListEnvironments,
-  useListMCPProxies,
+  useListAllMCPProxies,
   useListMCPProxyScopes,
+  useRefreshProjectMCPProxyCapabilities,
   useUpdateAgentMCPConfig,
 } from "@agent-management-platform/api-client";
 import {
@@ -270,7 +271,7 @@ const ConnectIdentityCredentials: React.FC<{
             }
             sx={{ flexShrink: 0 }}
           >
-            {isRegenerating ? "Regenerating..." : "Regenerate Secret"}
+            {isRegenerating ? "Regenerating..." : "Regenerate secret"}
           </Button>
         )}
       </Stack>
@@ -397,9 +398,9 @@ export const ViewMCPServerComponent = () => {
     orgId,
     projectId,
   );
-  const { data: proxiesData } = useListMCPProxies(
+  const { data: proxiesData } = useListAllMCPProxies(
     { orgName: orgId },
-    { limit: 50, offset: 0, project: projectId },
+    { project: projectId },
   );
   const servers = useMemo(() => proxiesData?.list ?? [], [proxiesData]);
   const updateConfig = useUpdateAgentMCPConfig();
@@ -461,6 +462,7 @@ export const ViewMCPServerComponent = () => {
   // project route) in the same shape.
   const {
     proxy: sourceProxyDetails,
+    ownerProject: sourceProxyProject,
     isLoading: isLoadingProxyDetails,
     isError: isProxyDetailsError,
   } = useMCPProxyEndpoints({
@@ -505,6 +507,33 @@ export const ViewMCPServerComponent = () => {
   // A failure here would otherwise look identical to "this environment
   // genuinely has no tools" — surfaced separately in the Tools section below.
   const isToolsError = isEnvironmentsError || isProxyDetailsError || isScopesError;
+
+  // A project proxy's tools are discovered by Agent Manager after each deploy. While
+  // that is pending, or once it failed, "no tools" is not the answer yet: say so, and
+  // for a failure offer to run discovery again.
+  const toolDiscovery = sourceProxyEndpoint?.capabilityDiscovery;
+  const { mutate: rediscoverTools, isPending: isRediscoveringTools } =
+    useRefreshProjectMCPProxyCapabilities();
+  const canRediscoverTools =
+    Boolean(sourceProxyProject) && Boolean(selectedEnvName) && toolDiscovery?.status === "Failed";
+  const emptyToolsState =
+    toolDiscovery?.status === "Pending"
+      ? {
+          title: "Discovering tools",
+          description:
+            "Agent Manager is listing this MCP server's tools through its gateway. They appear here once found.",
+        }
+      : toolDiscovery?.status === "Failed"
+        ? {
+            title: "Tool discovery failed",
+            description: toolDiscovery.lastError
+              ? `Agent Manager could not list this MCP server's tools: ${toolDiscovery.lastError}`
+              : "Agent Manager could not list this MCP server's tools.",
+          }
+        : {
+            title: "No tools available",
+            description: "This environment's endpoint hasn't reported any tools yet.",
+          };
 
   // Tools belong to the endpoint bound to the selected environment.
   const toolRows = useMemo<ToolRow[]>(() => {
@@ -1084,8 +1113,26 @@ export const ViewMCPServerComponent = () => {
             <ListingTable.Container>
               <ListingTable.EmptyState
                 illustration={<Wrench size={56} />}
-                title="No tools available"
-                description="This environment's endpoint hasn't reported any tools yet."
+                {...emptyToolsState}
+                action={
+                  canRediscoverTools ? (
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      disabled={isRediscoveringTools}
+                      onClick={() =>
+                        rediscoverTools({
+                          orgName: orgId ?? "",
+                          projName: sourceProxyProject ?? "",
+                          proxyId: configProxyName ?? "",
+                          envName: selectedEnvName,
+                        })
+                      }
+                    >
+                      {isRediscoveringTools ? "Starting…" : "Discover tools again"}
+                    </Button>
+                  ) : undefined
+                }
               />
             </ListingTable.Container>
           ) : (

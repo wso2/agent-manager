@@ -41,6 +41,16 @@ type ProjectMCPProxyController interface {
 	PutProjectMCPProxyEnvironment(w http.ResponseWriter, r *http.Request)
 	GetProjectMCPProxyEnvironment(w http.ResponseWriter, r *http.Request)
 	DeleteProjectMCPProxyEnvironment(w http.ResponseWriter, r *http.Request)
+	RefreshProjectMCPProxyEnvironmentCapabilities(w http.ResponseWriter, r *http.Request)
+	ListProjectMCPProxyEnvironmentAPIKeys(w http.ResponseWriter, r *http.Request)
+	CreateProjectMCPProxyEnvironmentAPIKey(w http.ResponseWriter, r *http.Request)
+	IssueProjectMCPProxyEnvironmentTestAPIKey(w http.ResponseWriter, r *http.Request)
+	RotateProjectMCPProxyEnvironmentAPIKey(w http.ResponseWriter, r *http.Request)
+	RevokeProjectMCPProxyEnvironmentAPIKey(w http.ResponseWriter, r *http.Request)
+	ListProjectMCPProxyScopes(w http.ResponseWriter, r *http.Request)
+	CreateProjectMCPProxyScope(w http.ResponseWriter, r *http.Request)
+	UpdateProjectMCPProxyScope(w http.ResponseWriter, r *http.Request)
+	DeleteProjectMCPProxyScope(w http.ResponseWriter, r *http.Request)
 }
 
 // pathParamEnvName is the environment segment of the project MCP proxy binding routes.
@@ -48,15 +58,17 @@ const pathParamEnvName = "envName"
 
 type projectMCPProxyController struct {
 	service  *services.ProjectMCPProxyService
+	scopes   services.MCPProxyScopeService
 	ocClient client.OpenChoreoClient
 }
 
 // NewProjectMCPProxyController creates the project MCP proxy controller.
 func NewProjectMCPProxyController(
 	service *services.ProjectMCPProxyService,
+	scopes services.MCPProxyScopeService,
 	ocClient client.OpenChoreoClient,
 ) ProjectMCPProxyController {
-	return &projectMCPProxyController{service: service, ocClient: ocClient}
+	return &projectMCPProxyController{service: service, scopes: scopes, ocClient: ocClient}
 }
 
 // resolveProject maps {projName} to the OpenChoreo project. On failure it has written the
@@ -118,11 +130,20 @@ func (c *projectMCPProxyController) UpsertProjectMCPProxy(w http.ResponseWriter,
 
 	// The route gates on update; an insert additionally needs the create permission.
 	canCreate := jwtassertion.HoldsAnyScope(ctx, rbac.MCPServerCreate)
-	resp, created, err := c.service.UpsertWithCreateCheck(ctx, ouID, project.Name, project.UUID, handle, req, canCreate)
+	// If-None-Match: * makes the PUT create-only, so a registration cannot replace an existing proxy.
+	createOnly := strings.TrimSpace(r.Header.Get("If-None-Match")) == "*"
+	resp, created, err := c.service.UpsertWithCreateCheck(ctx, ouID, project.Name, project.UUID, handle, req,
+		canCreate, createOnly)
 	if err != nil {
 		switch {
+		case errors.Is(err, utils.ErrMCPProxyExists):
+			utils.WriteErrorResponseWithReason(w, http.StatusPreconditionFailed,
+				"MCP proxy already exists", err.Error(), utils.ErrCodeMCPProxyAlreadyExists)
 		case errors.Is(err, utils.ErrMCPProxyCreateNotPermitted):
 			utils.WriteErrorResponse(w, http.StatusForbidden, "Creating MCP proxies is not permitted")
+		case errors.Is(err, utils.ErrMCPProxyBindingsChanged):
+			utils.WriteErrorResponseWithReason(w, http.StatusConflict,
+				utils.ErrMCPProxyBindingsChanged.Error(), err.Error(), utils.ErrCodeConflict)
 		case errors.Is(err, utils.ErrMCPProxyHandleInUse):
 			utils.WriteErrorResponseWithReason(w, http.StatusConflict,
 				"MCP proxy id is already in use", err.Error(), utils.ErrCodeHandleInUse)
@@ -376,6 +397,12 @@ func writeProjectMCPBindingError(w http.ResponseWriter, err error) bool {
 	case errors.Is(err, utils.ErrMCPContextInUse):
 		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
 			utils.ErrMCPContextInUse.Error(), err.Error(), utils.ErrCodeContextInUse)
+	case errors.Is(err, utils.ErrMCPProxyURLChanged):
+		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
+			utils.ErrMCPProxyURLChanged.Error(), "", utils.ErrCodeConflict)
+	case errors.Is(err, utils.ErrMCPCapabilitiesGivenByCaller):
+		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
+			utils.ErrMCPCapabilitiesGivenByCaller.Error(), "", utils.ErrCodeCapabilitiesGivenByCaller)
 	case errors.Is(err, utils.ErrMCPProxyHasMappings):
 		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
 			utils.ErrMCPProxyHasMappings.Error(), "", utils.ErrCodeMCPProxyInUse)
@@ -392,4 +419,26 @@ func writeProjectMCPBindingError(w http.ResponseWriter, err error) bool {
 		return false
 	}
 	return true
+}
+
+// RefreshProjectMCPProxyEnvironmentCapabilities handles POST .../mcp-proxies/{proxyId}/environments/{envName}/capabilities/refresh.
+func (c *projectMCPProxyController) RefreshProjectMCPProxyEnvironmentCapabilities(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	ouID := middleware.OUIDFromRequest(r)
+	handle := r.PathValue(utils.PathParamProxyId)
+	envName := r.PathValue(pathParamEnvName)
+	project, ok := c.resolveProject(w, r, ouID)
+	if !ok {
+		return
+	}
+	resp, err := c.service.RefreshEnvironmentCapabilities(ctx, ouID, project.UUID, handle, envName)
+	if err != nil {
+		if !writeProjectMCPBindingError(w, err) {
+			logger.GetLogger(ctx).Error("RefreshProjectMCPProxyEnvironmentCapabilities: failed",
+				"ouID", ouID, "handle", handle, "environment", envName, "error", err)
+			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to queue the capability discovery")
+		}
+		return
+	}
+	utils.WriteSuccessResponse(w, http.StatusAccepted, resp)
 }

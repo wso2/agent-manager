@@ -9,10 +9,8 @@ single source of truth for:
   * which sample each cell deploys (heavy/amp_client.py), and
   * which span kinds the driver asserts for that sample (heavy/driver.py).
 
-`expected_kinds` are the kinds the *deployed sample* emits — for the LangGraph
-customer-support-agent that the langchain cell deploys, that's just `llm`; the
-crewai agent additionally emits `agent` and `crewaitask`. Tool spans are not
-asserted (Traceloop 0.60 may fold them into span events; see FINDINGS F-003).
+`expected_kinds` lists the span kinds each deployment must emit. The
+LangGraph customer-support-agent used by the langchain cells must emit `llm`.
 
 To make another framework deployable: add a sample to wso2/agent-manager-samples
 mirroring this contract, then add an entry here.
@@ -30,10 +28,7 @@ class DeployableSample:
     # Non-sensitive env vars set on the deployed workload. Needed when a sample
     # (or the instrumentation provider's sitecustomize, which imports the
     # framework at interpreter startup — before the app runs) requires
-    # environment that must exist before the process starts. CrewAI writes
-    # under $HOME at import; the buildpack container's HOME=/nonexistent is
-    # read-only, so both the CrewAI instrumentor and the app crash without
-    # these. Tuple of pairs (not a dict) to keep the dataclass frozen-friendly.
+    # environment that must exist before the process starts.
     env: tuple[tuple[str, str], ...] = ()
     # Shared by dependency compatibility checks and heavy deployment selection.
     min_python: str = "3.10"
@@ -50,12 +45,5 @@ DEPLOYABLE_SAMPLES: dict[str, DeployableSample] = {
         app_path="/customer-support-agent",
         run_command="python main.py",
         expected_kinds=("llm",),
-    ),
-    "crewai": DeployableSample(
-        app_path="/crewai-agent",
-        run_command="python main.py",
-        expected_kinds=("llm", "agent", "crewaitask"),
-        min_python="3.11",
-        env=(("HOME", "/tmp"), ("CREWAI_STORAGE_DIR", "/tmp/crewai")),
     ),
 }

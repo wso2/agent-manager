@@ -327,7 +327,7 @@ export function useNavigationItems(): Array<
           href: generatePath(item.route, { orgId, projectId, agentId }),
         })),
       {
-        title: "Agent Lifecycle",
+        title: "Agent lifecycle",
         type: "section",
         icon: <GitBranch />,
         collapsible: true,
@@ -452,7 +452,7 @@ export function useNavigationItems(): Array<
         ),
       },
       {
-        title: "Agent Lifecycle",
+        title: "Agent lifecycle",
         type: "section",
         icon: <GitBranch />,
         collapsible: true,
@@ -487,7 +487,7 @@ export function useNavigationItems(): Array<
             ),
           },
           {
-            label: "Try It",
+            label: "Try it",
             type: "item",
             icon: <FlaskConical size={20} />,
             isActive: !!matchPath(
@@ -528,7 +528,7 @@ export function useNavigationItems(): Array<
             ),
           },
           {
-            label: "Runtime Logs",
+            label: "Runtime logs",
             type: "item",
             icon: <Logs size={20} />,
             isActive: !!matchPath(
@@ -544,7 +544,7 @@ export function useNavigationItems(): Array<
             ),
           },
           {
-            label: "System Metrics",
+            label: "System metrics",
             type: "item",
             icon: <Gauge size={20} />,
             isActive: !!matchPath(
@@ -614,7 +614,7 @@ export function useNavigationItems(): Array<
         ),
       },
       {
-        title: "Agent Lifecycle",
+        title: "Agent lifecycle",
         type: "section",
         icon: <GitBranch />,
         collapsible: true,
@@ -664,7 +664,7 @@ export function useNavigationItems(): Array<
             ),
           },
           {
-            label: "Try It",
+            label: "Try it",
             type: "item",
             icon: <FlaskConical size={20} />,
             isActive: !!matchPath(
@@ -720,7 +720,7 @@ export function useNavigationItems(): Array<
             ),
           },
           {
-            label: "Runtime Logs",
+            label: "Runtime logs",
             type: "item",
             icon: <Logs size={20} />,
             isActive: !!matchPath(
@@ -736,7 +736,7 @@ export function useNavigationItems(): Array<
             ),
           },
           {
-            label: "System Metrics",
+            label: "System metrics",
             type: "item",
             icon: <Gauge size={20} />,
             isActive: !!matchPath(
@@ -831,6 +831,25 @@ export function useNavigationItems(): Array<
             pathname,
           ),
       },
+      ...(hasAccess("mcp_server_read")
+        ? [
+            {
+              label: "MCP servers",
+              type: "item" as const,
+              icon: <MCPLogo size={20} />,
+              href: generatePath(
+                absoluteRouteMap.children.org.children.projects.children
+                  .mcpProxies.path,
+                { orgId, projectId },
+              ),
+              isActive: !!matchPath(
+                absoluteRouteMap.children.org.children.projects.children
+                  .mcpProxies.wildPath,
+                pathname,
+              ),
+            },
+          ]
+        : []),
       ...eventsItem(eventsProjectRoute, { orgId, projectId }),
     ];
   }
@@ -857,7 +876,7 @@ export function useNavigationItems(): Array<
         ),
       },
       {
-        label: "Agent Catalog",
+        label: "Agent catalog",
         type: "item",
         icon: <BookOpenText size={20} />,
         href: generatePath(
@@ -896,7 +915,7 @@ export function useNavigationItems(): Array<
               collapsible: true,
               items: [
                 {
-                  label: "LLM Service Providers",
+                  label: "LLM service providers",
                   type: "item" as const,
                   icon: <BrainCircuit size={20} />,
                   href: generatePath(llmProvidersOrgRoute.path, { orgId }),
@@ -906,7 +925,7 @@ export function useNavigationItems(): Array<
                   ),
                 },
                 {
-                  label: "MCP Servers",
+                  label: "MCP servers",
                   type: "item" as const,
                   icon: <MCPLogo size={20} />,
                   href: generatePath(mcpProxiesOrgRoute.path, { orgId }),
@@ -971,7 +990,7 @@ export function useNavigationItems(): Array<
                 ...(canViewPipelines
                   ? [
                       {
-                        label: "Deployment Pipelines",
+                        label: "Deployment pipelines",
                         type: "item" as const,
                         icon: <Workflow size={20} />,
                         href: generatePath(deploymentPipelinesOrgRoute.path, {
@@ -991,7 +1010,7 @@ export function useNavigationItems(): Array<
       ...(agentIdEnabled && navVisibility.agentIdentities
         ? [
             {
-              title: "Agent Identities",
+              title: "Agent identities",
               type: "section" as const,
               icon: <thunderInstancesMetadata.icon />,
               collapsible: true,

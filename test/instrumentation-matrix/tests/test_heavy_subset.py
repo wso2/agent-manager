@@ -1,6 +1,9 @@
 from pathlib import Path
 
+import pytest
+
 from harness.cell_filter import CellFilter
+from harness.deployable_samples import DEPLOYABLE_SAMPLES, DeployableSample
 from harness.heavy_subset import filter_shard, heavy_shards, select_heavy_run, select_heavy_subset
 from harness.manifest import (
     DefaultCell,
@@ -25,8 +28,19 @@ def test_subset_is_one_cell_for_minimal_fixture():
     assert sub[0].framework_name == "langchain"
 
 
-def _multi_manifest() -> Manifest:
-    """Two traceloop versions x two deployable frameworks x one python."""
+@pytest.fixture
+def multi_manifest(monkeypatch) -> Manifest:
+    """Two Traceloop versions and a synthetic second deployable framework."""
+    monkeypatch.setitem(
+        DEPLOYABLE_SAMPLES,
+        "example",
+        DeployableSample(
+            app_path="/test/fixtures/example-agent",
+            run_command="python example.py",
+            expected_kinds=("llm",),
+            min_python="3.11",
+        ),
+    )
     return Manifest(
         schema_version=1,
         providers={
@@ -46,11 +60,11 @@ def _multi_manifest() -> Manifest:
                 span_kinds=["llm"],
             ),
             FrameworkEntry(
-                name="crewai",
-                package="crewai",
+                name="example",
+                package="example",
                 versions=["1.1.0"],
-                sample_path="cells/crewai_sample.py",
-                span_kinds=["llm", "agent", "crewaitask"],
+                sample_path="cells/example_sample.py",
+                span_kinds=["llm"],
             ),
         ],
         python_versions=["3.11"],
@@ -59,8 +73,9 @@ def _multi_manifest() -> Manifest:
     )
 
 
-def test_subset_covers_each_deployable_framework_per_provider_version():
-    m = _multi_manifest()
+def test_subset_covers_each_deployable_framework_per_provider_version(multi_manifest):
+    """Select a deployment for each provider and deployable framework pair."""
+    m = multi_manifest
     cells = expand_matrix(m)
     sub = select_heavy_subset(cells, m)
     pairs = {(c.provider_version, c.framework_name) for c in sub}
@@ -69,21 +84,23 @@ def test_subset_covers_each_deployable_framework_per_provider_version():
     assert pairs == {
         ("0.60.0", "langchain"),
         ("0.61.0", "langchain"),
-        ("0.60.0", "crewai"),
-        ("0.61.0", "crewai"),
+        ("0.60.0", "example"),
+        ("0.61.0", "example"),
     }
 
 
-def test_subset_deduplicates_cell_ids():
-    m = _multi_manifest()
+def test_subset_deduplicates_cell_ids(multi_manifest):
+    """Schedule each heavy cell once."""
+    m = multi_manifest
     cells = expand_matrix(m)
     sub = select_heavy_subset(cells, m)
     ids = [c.id for c in sub]
     assert len(ids) == len(set(ids))
 
 
-def test_subset_excludes_non_deployable_frameworks():
-    m = _multi_manifest()
+def test_subset_excludes_non_deployable_frameworks(multi_manifest):
+    """Exclude emission-only frameworks from the heavy subset."""
+    m = multi_manifest
     # llama-index has no deployable sample, so it must never enter the subset.
     m.frameworks.append(
         FrameworkEntry(
@@ -96,42 +113,43 @@ def test_subset_excludes_non_deployable_frameworks():
     )
     cells = expand_matrix(m)
     sub = select_heavy_subset(cells, m)
-    assert all(c.framework_name in {"langchain", "crewai"} for c in sub)
+    assert all(c.framework_name in {"langchain", "example"} for c in sub)
     assert "llama-index" not in {c.framework_name for c in sub}
 
 
-def test_subset_preserves_python310_for_langchain_and_requires_python311_for_crewai():
-    """Bound CrewAI runtime selection without reducing other samples' coverage."""
-    m = _multi_manifest()
+def test_subset_applies_each_samples_python_minimum(multi_manifest):
+    """A sample's Python minimum does not restrict other samples."""
+    m = multi_manifest
     m.python_versions = ["3.10", "3.11", "3.12", "3.13"]
     cells = expand_matrix(m)
     sub = select_heavy_subset(cells, m)
     # Python is a heavy axis: the agent is rebuilt on each interpreter.
     assert {c.python for c in sub if c.framework_name == "langchain"} == {"3.10", "3.11", "3.12", "3.13"}
-    assert {c.python for c in sub if c.framework_name == "crewai"} == {"3.11", "3.12", "3.13"}
-    # 2 provider versions x (4 LangChain Pythons + 3 CrewAI Pythons).
+    assert {c.python for c in sub if c.framework_name == "example"} == {"3.11", "3.12", "3.13"}
+    # 2 provider versions x (4 LangChain runtimes + 3 example runtimes).
     assert len(sub) == 14
 
 
-def test_per_provider_axis_pins_each_framework_to_its_representative_version():
+def test_per_provider_axis_pins_each_framework_to_its_representative_version(multi_manifest):
     """The default framework pins to the default_cell version; other deployable
     frameworks pin to their first declared version. One cell per provider
     version per framework, never one per (provider_version x framework_version)."""
-    m = _multi_manifest()
+    m = multi_manifest
     m.frameworks[0].versions = ["0.3.27", "0.4.0"]  # langchain (default fw)
-    m.frameworks[1].versions = ["1.1.0", "1.2.0"]  # crewai
+    m.frameworks[1].versions = ["1.1.0", "1.2.0"]  # example
     cells = expand_matrix(m)
     sub = select_heavy_subset(cells, m)
     langchain = [c for c in sub if c.framework_name == "langchain"]
-    crewai = [c for c in sub if c.framework_name == "crewai"]
+    example = [c for c in sub if c.framework_name == "example"]
     assert {c.framework_version for c in langchain} == {"0.3.27"}  # default_cell
-    assert {c.framework_version for c in crewai} == {"1.1.0"}  # first declared
+    assert {c.framework_version for c in example} == {"1.1.0"}  # first declared
     assert {c.provider_version for c in langchain} == {"0.60.0", "0.61.0"}
-    assert {c.provider_version for c in crewai} == {"0.60.0", "0.61.0"}
+    assert {c.provider_version for c in example} == {"0.60.0", "0.61.0"}
 
 
-def test_heavy_shards_are_the_provider_versions_in_order():
-    m = _multi_manifest()
+def test_heavy_shards_are_the_provider_versions_in_order(multi_manifest):
+    """Sort heavy shards by numeric provider version."""
+    m = multi_manifest
     m.providers["traceloop"].versions = ["0.61.0", "0.60.0", "0.62.10", "0.62.4"]
     m.providers["traceloop"].instrumentation_versions.update({"0.62.10": "0.5.0", "0.62.4": "0.4.2"})
     sub = select_heavy_subset(expand_matrix(m), m)
@@ -139,41 +157,44 @@ def test_heavy_shards_are_the_provider_versions_in_order():
     assert heavy_shards(sub) == ["0.60.0", "0.61.0", "0.62.4", "0.62.10"]
 
 
-def test_filter_shard_keeps_only_that_provider_version():
-    m = _multi_manifest()
+def test_filter_shard_keeps_only_that_provider_version(multi_manifest):
+    """Partition heavy cells by their provider version."""
+    m = multi_manifest
     sub = select_heavy_subset(expand_matrix(m), m)
     shard = filter_shard(sub, "0.61.0")
     assert {c.provider_version for c in shard} == {"0.61.0"}
-    assert {c.framework_name for c in shard} == {"langchain", "crewai"}
+    assert {c.framework_name for c in shard} == {"langchain", "example"}
     # Every cell lands in exactly one shard.
     assert sorted(c.id for s in heavy_shards(sub) for c in filter_shard(sub, s)) == sorted(
         c.id for c in sub
     )
 
 
-def test_select_heavy_run_applies_filters_to_the_subset():
+def test_select_heavy_run_applies_filters_to_the_subset(multi_manifest):
     """Manual filters preserve sample runtime restrictions."""
-    m = _multi_manifest()
+    m = multi_manifest
     m.python_versions = ["3.10", "3.11"]
-    run = select_heavy_run(m, CellFilter(traceloop_versions={"0.61.0"}, frameworks={"crewai"}))
-    assert {(c.provider_version, c.framework_name) for c in run} == {("0.61.0", "crewai")}
+    run = select_heavy_run(m, CellFilter(traceloop_versions={"0.61.0"}, frameworks={"example"}))
+    assert {(c.provider_version, c.framework_name) for c in run} == {("0.61.0", "example")}
     assert {c.python for c in run} == {"3.11"}
 
 
-def test_select_heavy_run_filter_to_non_deployable_framework_is_empty():
-    m = _multi_manifest()
+def test_select_heavy_run_filter_to_non_deployable_framework_is_empty(multi_manifest):
+    """Return no deployments for an emission-only framework filter."""
+    m = multi_manifest
     assert select_heavy_run(m, CellFilter(frameworks={"llama-index"})) == []
 
 
-def test_select_heavy_run_cell_id_ignores_filters():
-    m = _multi_manifest()
-    target = "traceloop-0.60.0-crewai-1.1.0-py3.11"
+def test_select_heavy_run_cell_id_ignores_filters(multi_manifest):
+    """Use the requested heavy cell even when filters would exclude it."""
+    m = multi_manifest
+    target = "traceloop-0.60.0-example-1.1.0-py3.11"
     run = select_heavy_run(m, CellFilter(traceloop_versions={"0.61.0"}), cell_id=target)
     assert [c.id for c in run] == [target]
 
 
-def test_select_heavy_run_cannot_force_unsupported_python_by_cell_id():
+def test_select_heavy_run_cannot_force_unsupported_python_by_cell_id(multi_manifest):
     """An explicit cell ID cannot bypass sample runtime constraints."""
-    m = _multi_manifest()
+    m = multi_manifest
     m.python_versions = ["3.10", "3.11"]
-    assert select_heavy_run(m, cell_id="traceloop-0.60.0-crewai-1.1.0-py3.10") == []
+    assert select_heavy_run(m, cell_id="traceloop-0.60.0-example-1.1.0-py3.10") == []

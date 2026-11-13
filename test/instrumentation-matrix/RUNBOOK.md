@@ -28,9 +28,26 @@ console/UI test — it asserts the *shape* of emitted telemetry, nothing more.
 
 All three are edits to [`matrix.yaml`](./matrix.yaml):
 
-- **New framework version**: add it to that framework's `versions:` list. No
-  cassette re-record needed — different framework versions produce different
-  *spans* but identical *HTTP* (the cassette captures the latter).
+- **New framework version**: add it to that framework's `versions:` list.
+  Usually no cassette re-record is needed — versions share the framework's
+  cassette when their HTTP is the same. When the HTTP changes (a new prompt
+  format, or a switch to native tool calling), the shared cassette can still
+  replay but skips the code path the cell is meant to exercise. Record that
+  version into `cassettes/<framework>/<version>/`, which the harness prefers
+  over the framework-level cassette (CrewAI 1.15 needed its own: it calls
+  tools natively where 1.1 used ReAct text).
+  The harness only uses that directory once it exists, so create it first,
+  then record through the cell itself so the right framework version is
+  installed:
+
+  ```bash
+  mkdir -p cassettes/<framework>/<version>
+  OPENAI_API_KEY=sk-... VCR_RECORD_MODE=once \
+    nox -s emission -- --cell-id=traceloop-<ver>-<framework>-<version>-py3.12
+  ```
+
+  `once` only records when the cassette file is absent. To re-record a
+  version that already has one, delete its `test_emission_cell.yaml` first.
 - **New framework**: add a `frameworks:` block (`name`, `package`, `versions`,
   `samplePath`, `spanKinds`, optional `extras`), add a sample under
   `cells/<framework>_sample.py`, and record its cassette (§4 of the design,
@@ -232,7 +249,6 @@ It has a **per-framework axis for frameworks that ship a deployable sample**.
 path, run command, and the span kinds the driver asserts:
 
 - `langchain` → `samples/customer-support-agent` (LangChain/LangGraph), asserts `llm`
-- `crewai` → `samples/crewai-agent`, asserts `llm` + `agent` + `crewaitask`
 
 The driver deploys the sample matching each cell's framework and asserts that
 framework's kinds (plus shape-validation of every captured span). The other two
@@ -241,21 +257,16 @@ version** (the init-container image) and the **python version** (the buildpack
 interpreter). So the subset (`harness/heavy_subset.py`) is one cell per
 (Traceloop version × python) for each deployable framework, pinned to that
 framework's representative version and restricted to that sample's supported
-Python versions from `harness/deployable_samples.py`. CrewAI requires Python
-3.11+; the customer-support sample retains Python 3.10 coverage. With one
-Traceloop version and Python 3.10–3.13, that's seven cells (four customer-support
-and three CrewAI). The dependency compatibility check uses the same runtime
-constraints.
+Python versions from `harness/deployable_samples.py`. The customer-support
+sample covers Python 3.10–3.13, so each Traceloop version has four heavy cells.
+The dependency compatibility check uses the same runtime constraints.
 
-The nightly and manual workflows run one heavy job per Traceloop version, each on its own stack
-(seven cells). A new Traceloop release in `matrix.yaml` adds a
-parallel shard automatically; it does not lengthen the existing ones.
+The nightly and manual workflows run one heavy job per Traceloop version, each
+on its own stack. A new Traceloop release in `matrix.yaml` adds a parallel shard.
 
-Frameworks without a deployable sample (`langgraph`, `llama-index`,
-`openai-direct`, `anthropic-direct`) stay emission-only — per-framework span
-*shape* for them is the emission tier's job. Adding a deployable sample under
-`samples/` plus a `DEPLOYABLE_SAMPLES` entry is what brings a framework into the
-heavy axis.
+Frameworks without a deployable sample, including CrewAI, stay in the emission
+tier for span-shape validation. Adding a deployable sample under `samples/` and
+registering it in `DEPLOYABLE_SAMPLES` adds it to the heavy tier.
 
 ### Bring-up: build-from-source
 

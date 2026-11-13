@@ -90,6 +90,14 @@ type CreateAPIKeyRequest struct {
 	ExpiresAt *string `json:"expiresAt,omitempty"`
 }
 
+// IssueBindingTestAPIKeyRequest is the body of POST .../mcp-proxies/{proxyId}/environments/{envName}/api-keys/test.
+type IssueBindingTestAPIKeyRequest struct {
+	// ForUser is the caller's user the key is issued for. It picks the user's key slots.
+	ForUser string `json:"forUser"`
+	// ExpiresAt is the optional expiry in RFC 3339; one hour from now when omitted.
+	ExpiresAt *string `json:"expiresAt,omitempty"`
+}
+
 // IssueTestAPIKeyResponse is returned by the test-key issuance endpoint.
 // Includes ExpiresAt so the console can schedule rotation before expiry.
 type IssueTestAPIKeyResponse struct {

@@ -58,7 +58,7 @@ import {
 import { useParams, useNavigate, generatePath } from "react-router-dom";
 import {
   useListEnvironments,
-  useListMCPProxies,
+  useListAllMCPProxies,
 } from "@agent-management-platform/api-client";
 import {
   EnvironmentVariablesReference,
@@ -416,7 +416,7 @@ export const MCPProxySection: React.FC<MCPProxySectionProps> = ({
   hideHeading = false,
   actionSlot,
 }) => {
-  const { orgId } = useParams<{ orgId: string }>();
+  const { orgId, projectId } = useParams<{ orgId: string; projectId: string }>();
 
   // editingIndex: index of the entry whose proxy is being selected, or null when adding new
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
@@ -437,9 +437,11 @@ export const MCPProxySection: React.FC<MCPProxySectionProps> = ({
     [environments, initialEnvironmentName],
   );
 
-  const { data: proxyData, isLoading: proxiesLoading } = useListMCPProxies(
+  // The project's own MCP servers are offered with the org's, as in the agent's Tools picker,
+  // every page of them.
+  const { data: proxyData, isLoading: proxiesLoading } = useListAllMCPProxies(
     { orgName: orgId },
-    { limit: 50 },
+    { project: projectId },
   );
 
   const proxies = useMemo<ProxyInfo[]>(
@@ -686,7 +688,7 @@ export const MCPProxySection: React.FC<MCPProxySectionProps> = ({
                                 )
                               }
                             >
-                              Register MCP Server
+                              Register MCP server
                             </Button>
                           ) : undefined
                         }
@@ -737,7 +739,7 @@ export const MCPProxySection: React.FC<MCPProxySectionProps> = ({
                 >
                   <Plus size={16} />
                   <Typography variant="body2" color="primary">
-                    Register MCP Server
+                    Register MCP server
                   </Typography>
                   <ExternalLink size={14} />
                 </Box>

@@ -1,13 +1,17 @@
 openapi: 3.0.3
+# checkov:skip=CKV_OPENAPI_5:GET /health is an anonymous liveness probe. Hotel and booking operations require a bearer token.
 info:
   title: Hotel Booking API
   version: "1.0.0"
 servers:
   - url: http://localhost:9091
+security:
+  - hotelApiBearer: []
 paths:
   /health:
     get:
       summary: Health check
+      security: []
       responses:
         "200":
           description: OK
@@ -23,6 +27,7 @@ paths:
   /bookings:
     get:
       summary: List bookings for the caller
+      description: Returns up to 100 bookings in creation order. Use offset to fetch later pages.
       parameters:
         - name: x-user-id
           in: header
@@ -34,6 +39,13 @@ paths:
           required: false
           schema:
             type: string
+        - name: offset
+          in: query
+          description: Number of the caller's bookings to skip.
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
       responses:
         "200":
           description: List of bookings
@@ -41,6 +53,7 @@ paths:
             application/json:
               schema:
                 type: array
+                maxItems: 100
                 items:
                   $ref: "#/components/schemas/Booking"
     post:
@@ -349,6 +362,11 @@ paths:
         "503":
           description: Policy search is not configured
 components:
+  securitySchemes:
+    hotelApiBearer:
+      type: http
+      scheme: bearer
+      description: Shared Hotel API token configured in HOTEL_API_TOKEN.
   schemas:
     PolicySearchResponse:
       type: object

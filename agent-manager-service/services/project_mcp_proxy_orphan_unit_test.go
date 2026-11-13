@@ -67,12 +67,22 @@ func TestUpsertAdoptsProxyLeftBySameNamedDeletedProject(t *testing.T) {
 	assert.Len(t, f.reassigned, 1, "an adopted proxy is not adopted again")
 }
 
+// A create-only PUT does not adopt: the handle names a proxy the project's predecessor left.
+func TestUpsertCreateOnlyDoesNotAdopt(t *testing.T) {
+	f := orphanFixture(t)
+	_, _, err := f.svc.UpsertWithCreateCheck(context.Background(), testOrg, testProjName, testProjA, "orders", orderReq(), true, true)
+	assert.ErrorIs(t, err, utils.ErrMCPProxyExists)
+	assert.Empty(t, f.reassigned)
+	assert.Zero(t, f.updateCalls)
+	assert.Equal(t, 1, f.createCalls, "only the fixture's own create")
+}
+
 func TestUpsertAdoptionAppliesTheBody(t *testing.T) {
 	f := orphanFixture(t)
 	req := orderReq()
 	req.Name = "Orders MCP v2"
 
-	resp, created, err := f.svc.UpsertWithCreateCheck(context.Background(), testOrg, testProjName, testProjA, "orders", req, false)
+	resp, created, err := f.svc.UpsertWithCreateCheck(context.Background(), testOrg, testProjName, testProjA, "orders", req, false, false)
 	require.NoError(t, err, "adopting needs no create permission: the proxy exists")
 	assert.False(t, created)
 	assert.Equal(t, "Orders MCP v2", resp.Name)

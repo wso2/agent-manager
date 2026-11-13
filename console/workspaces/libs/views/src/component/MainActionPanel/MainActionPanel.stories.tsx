@@ -85,7 +85,7 @@ export const Default: Story = {
           Cancel
         </Button>
         <Button variant="contained" startIcon={<Save />}>
-          Save Changes
+          Save changes
         </Button>
       </Stack>
     ),
@@ -97,7 +97,7 @@ export const WithTitle: Story = {
     children: (
       <Box>
         <Typography variant="h6" sx={{ mb: 2 }}>
-          Agent Configuration
+          Agent configuration
         </Typography>
         <Stack direction="row" spacing={2} justifyContent="space-between" alignItems="center">
           <Typography variant="body2" color="text.secondary">
@@ -108,7 +108,7 @@ export const WithTitle: Story = {
               Cancel
             </Button>
             <Button variant="contained" startIcon={<Save />}>
-              Save Configuration
+              Save configuration
             </Button>
           </Stack>
         </Stack>
@@ -126,7 +126,7 @@ export const AgentCreationPanel: Story = {
         <Stack direction="row" spacing={2} justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
           <Box>
             <Typography variant="h6">
-              Create New Agent
+              Create new agent
             </Typography>
             <Typography variant="body2" color="text.secondary">
               Configure your AI agent settings
@@ -159,7 +159,7 @@ export const AgentCreationPanel: Story = {
               Edit
             </Button>
             <Button variant="contained" startIcon={<Add />}>
-              Create Agent
+              Create agent
             </Button>
           </Stack>
         </Stack>
@@ -197,7 +197,7 @@ export const FilledVariant: Story = {
             Discard
           </Button>
           <Button variant="contained" size="small" startIcon={<Save />}>
-            Save Now
+            Save now
           </Button>
         </Stack>
       </Stack>
@@ -214,7 +214,7 @@ export const DangerActions: Story = {
         <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2 }}>
           <Warning color="warning" />
           <Typography variant="h6" color="warning.main">
-            Delete Agent
+            Delete agent
           </Typography>
         </Stack>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
@@ -225,7 +225,7 @@ export const DangerActions: Story = {
             Cancel
           </Button>
           <Button variant="contained" color="error" startIcon={<Delete />}>
-            Delete Agent
+            Delete agent
           </Button>
         </Stack>
       </Box>
@@ -242,7 +242,7 @@ export const MultiStepWizard: Story = {
         <Stack direction="row" spacing={2} justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
           <Box>
             <Typography variant="h6">
-              Agent Setup Wizard
+              Agent setup wizard
             </Typography>
             <Typography variant="body2" color="text.secondary">
               Step 2 of 4: Configure Environment
@@ -258,14 +258,14 @@ export const MultiStepWizard: Story = {
         <Divider sx={{ mb: 2 }} />
         <Stack direction="row" spacing={2} justifyContent="space-between" alignItems="center">
           <Button variant="outlined" startIcon={<Cancel />}>
-            Cancel Setup
+            Cancel setup
           </Button>
           <Stack direction="row" spacing={2}>
             <Button variant="outlined">
               Previous
             </Button>
             <Button variant="contained" startIcon={<Save />}>
-              Next Step
+              Next step
             </Button>
           </Stack>
         </Stack>
@@ -321,7 +321,7 @@ export const CustomStyling: Story = {
             },
           }}
         >
-          Save Changes
+          Save changes
         </Button>
       </Stack>
     ),

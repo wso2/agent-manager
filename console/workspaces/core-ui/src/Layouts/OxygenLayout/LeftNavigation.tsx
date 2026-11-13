@@ -18,7 +18,16 @@
 
 import { Box, Divider, Sidebar, Tooltip } from "@wso2/oxygen-ui";
 import { PanelLeftClose, PanelLeftOpen } from "@wso2/oxygen-ui-icons-react";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  cloneElement,
+  isValidElement,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactElement,
+  type ReactNode,
+} from "react";
 import { Link, useNavigate, type LinkProps } from "react-router-dom";
 
 export interface NavigationItem {
@@ -83,10 +92,25 @@ function NavigationLink({ tooltip, ...props }: LinkProps & { tooltip: string }) 
 }
 
 /** Same tooltip as NavigationLink, for a sidebar item that isn't a link. */
-function NavigationTooltip({ tooltip, children }: { tooltip: string; children?: ReactNode }) {
+function NavigationTooltip({
+  tooltip,
+  expanded,
+  children,
+}: {
+  tooltip: string;
+  /** Sets aria-expanded on the item button, which Sidebar.Item doesn't expose. */
+  expanded?: boolean;
+  children?: ReactNode;
+}) {
+  const content =
+    expanded !== undefined && isValidElement(children)
+      ? cloneElement(children as ReactElement<{ "aria-expanded"?: boolean }>, {
+          "aria-expanded": expanded,
+        })
+      : children;
   return (
     <Tooltip title={tooltip} placement="right" slotProps={NAV_TOOLTIP_SLOT_PROPS}>
-      <Box sx={{ display: "block" }}>{children}</Box>
+      <Box sx={{ display: "block" }}>{content}</Box>
     </Tooltip>
   );
 }
@@ -271,7 +295,7 @@ export function LeftNavigation({
         <Sidebar.Category>
           <Sidebar.Item
             id={COLLAPSE_TOGGLE_ID}
-            link={<NavigationTooltip tooltip={collapsed ? "Expand" : ""} />}
+            link={<NavigationTooltip tooltip={collapsed ? "Expand" : ""} expanded={!collapsed} />}
           >
             <Sidebar.ItemIcon>
               {collapsed ? <PanelLeftOpen size={20} /> : <PanelLeftClose size={20} />}

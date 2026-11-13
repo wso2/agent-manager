@@ -21,12 +21,14 @@ var _ MappedNullable = &MCPProxyEnvironmentRequest{}
 type MCPProxyEnvironmentRequest struct {
 	// Required only when the environment has more than one egress-capable gateway. Cannot change once placed. Must name a managed gateway: a self-hosted gateway has no route to the in-cluster upstream, so naming one is rejected with 400 VALIDATION_ERROR.
 	GatewayId *string `json:"gatewayId,omitempty"`
-	// The source component's release binding to front. Required only when the component has more than one release binding in the environment, one per deployment track for example; without it such a component is rejected with 400 VALIDATION_ERROR. It must be a binding of the source component in this project and environment, or it is rejected with 400 VALIDATION_ERROR.
+	// The source component's release binding to front. Required only when the component has more than one release binding in the environment, one per deployment track for example; without it such a component is rejected with 400 VALIDATION_ERROR. It must be a binding of the source component in this project and environment, or it is rejected with 400 VALIDATION_ERROR. A proxy registered by URL has no release binding: setting it there is 400 VALIDATION_ERROR.
 	ReleaseBindingName *string                      `json:"releaseBindingName,omitempty"`
 	Security           *MCPProxyEnvironmentSecurity `json:"security,omitempty"`
 	// Gateway policies, e.g. CORS and basic-ratelimit. Each needs a name and a version.
 	Policies     []MCPPolicy                      `json:"policies,omitempty"`
 	UpstreamAuth *MCPProxyEnvironmentUpstreamAuth `json:"upstreamAuth,omitempty"`
+	Capabilities *MCPProxyCapabilities            `json:"capabilities,omitempty"`
+	Resilience   *Resilience                      `json:"resilience,omitempty"`
 }
 
 // NewMCPProxyEnvironmentRequest instantiates a new MCPProxyEnvironmentRequest object
@@ -206,6 +208,70 @@ func (o *MCPProxyEnvironmentRequest) SetUpstreamAuth(v MCPProxyEnvironmentUpstre
 	o.UpstreamAuth = &v
 }
 
+// GetCapabilities returns the Capabilities field value if set, zero value otherwise.
+func (o *MCPProxyEnvironmentRequest) GetCapabilities() MCPProxyCapabilities {
+	if o == nil || IsNil(o.Capabilities) {
+		var ret MCPProxyCapabilities
+		return ret
+	}
+	return *o.Capabilities
+}
+
+// GetCapabilitiesOk returns a tuple with the Capabilities field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *MCPProxyEnvironmentRequest) GetCapabilitiesOk() (*MCPProxyCapabilities, bool) {
+	if o == nil || IsNil(o.Capabilities) {
+		return nil, false
+	}
+	return o.Capabilities, true
+}
+
+// HasCapabilities returns a boolean if a field has been set.
+func (o *MCPProxyEnvironmentRequest) HasCapabilities() bool {
+	if o != nil && !IsNil(o.Capabilities) {
+		return true
+	}
+
+	return false
+}
+
+// SetCapabilities gets a reference to the given MCPProxyCapabilities and assigns it to the Capabilities field.
+func (o *MCPProxyEnvironmentRequest) SetCapabilities(v MCPProxyCapabilities) {
+	o.Capabilities = &v
+}
+
+// GetResilience returns the Resilience field value if set, zero value otherwise.
+func (o *MCPProxyEnvironmentRequest) GetResilience() Resilience {
+	if o == nil || IsNil(o.Resilience) {
+		var ret Resilience
+		return ret
+	}
+	return *o.Resilience
+}
+
+// GetResilienceOk returns a tuple with the Resilience field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *MCPProxyEnvironmentRequest) GetResilienceOk() (*Resilience, bool) {
+	if o == nil || IsNil(o.Resilience) {
+		return nil, false
+	}
+	return o.Resilience, true
+}
+
+// HasResilience returns a boolean if a field has been set.
+func (o *MCPProxyEnvironmentRequest) HasResilience() bool {
+	if o != nil && !IsNil(o.Resilience) {
+		return true
+	}
+
+	return false
+}
+
+// SetResilience gets a reference to the given Resilience and assigns it to the Resilience field.
+func (o *MCPProxyEnvironmentRequest) SetResilience(v Resilience) {
+	o.Resilience = &v
+}
+
 func (o MCPProxyEnvironmentRequest) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -230,6 +296,12 @@ func (o MCPProxyEnvironmentRequest) ToMap() (map[string]interface{}, error) {
 	}
 	if !IsNil(o.UpstreamAuth) {
 		toSerialize["upstreamAuth"] = o.UpstreamAuth
+	}
+	if !IsNil(o.Capabilities) {
+		toSerialize["capabilities"] = o.Capabilities
+	}
+	if !IsNil(o.Resilience) {
+		toSerialize["resilience"] = o.Resilience
 	}
 	return toSerialize, nil
 }

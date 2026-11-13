@@ -40,9 +40,8 @@ const (
 	// maxLogRangeDays is the maximum startTime..endTime span accepted by
 	// /api/v1/logs, ported from agent-manager-service/utils/constants.go.
 	maxLogRangeDays = 14
-	// maxIncludeItems caps distinct include values at the enum size documented
-	// in docs/openapi.yaml.
-	maxIncludeItems = 3
+	// maxIncludeItems matches the include array limit in docs/openapi.yaml.
+	maxIncludeItems = 32
 	// maxMissingItems matches the missing parameter enum size in docs/openapi.yaml.
 	maxMissingItems = 1
 )
@@ -607,20 +606,17 @@ func parseSortOrder(s, defaultVal string) (string, error) {
 }
 
 // parseInclude parses the comma-separated include query parameter of
-// GET /api/v1/traces; unknown values are an error. At most maxIncludeItems
-// distinct non-empty items are accepted; repeated values are ignored.
+// GET /api/v1/traces. The limit applies across repeated parameters.
 func parseInclude(raw []string) (controllers.Include, error) {
 	var include controllers.Include
-	seen := make(map[string]struct{}, maxIncludeItems)
+	count := 0
 	for _, list := range raw {
-		for _, item := range strings.Split(list, ",") {
-			v := strings.TrimSpace(item)
-			if v != "" {
-				seen[v] = struct{}{}
-				if len(seen) > maxIncludeItems {
-					return controllers.Include{}, fmt.Errorf("too many include values: at most %d are allowed", maxIncludeItems)
-				}
+		for item := range strings.SplitSeq(list, ",") {
+			count++
+			if count > maxIncludeItems {
+				return controllers.Include{}, fmt.Errorf("too many include values: at most %d are allowed", maxIncludeItems)
 			}
+			v := strings.TrimSpace(item)
 			switch v {
 			case "":
 			case "models":

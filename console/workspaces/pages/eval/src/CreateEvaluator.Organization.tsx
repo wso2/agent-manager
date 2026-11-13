@@ -89,7 +89,7 @@ export const CreateEvaluatorOrganization: React.FC = () => {
           onSubmit={handleSubmit}
           isSubmitting={isPending}
           serverError={error}
-          submitLabel="Create Evaluator"
+          submitLabel="Create evaluator"
         />
       </SectionErrorBoundary>
     </PageLayout>

@@ -236,7 +236,7 @@ export function PolicySelectorDrawer({
   subtitle = "Choose a policy to configure advanced options.",
   policyNoun = "policy",
   loadingLabel = "Loading policies...",
-  searchPlaceholder = "Search policies...",
+  searchPlaceholder = "Search policies",
   catalogErrorLabel = "Failed to load policies.",
   emptySearchTitle = "No policies match your search",
   emptySearchDescription = "Try a different keyword or clear the search filter.",

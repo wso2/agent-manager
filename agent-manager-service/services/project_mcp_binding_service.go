@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -32,6 +33,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
+	"github.com/wso2/agent-manager/agent-manager-service/utils/ssrf"
 )
 
 // mcpUpstreamPath is the path an MCP server serves Streamable HTTP on when its endpoint declares none. The gateway
@@ -81,29 +83,13 @@ func (s *ProjectMCPProxyService) PutEnvironment(
 	if err != nil {
 		return nil, false, err
 	}
-	source := projectMCPProxySource(proxy)
 	releaseBindingName := strings.TrimSpace(valueOrEmpty(req.ReleaseBindingName))
 
-	// (1) Upstream. AMS resolved this URL itself from OpenChoreo, so unlike a user-supplied upstream
-	// (validateMCPEndpoints) it is not put through the SSRF check: it is an in-cluster service address by design.
-	// A component deployed on several tracks has a release binding per track in the environment; releaseBindingName
-	// picks one, and without it such a component is refused rather than one of its bindings picked at random.
-	serviceURL, err := s.ocClient.GetReleaseBindingEndpointServiceURL(
-		ctx, ouID, projectName, source.ComponentName, source.EndpointName, envName, releaseBindingName)
-	switch {
-	case errors.Is(err, occlient.ErrAmbiguousReleaseBinding):
-		return nil, false, fmt.Errorf("%w: set releaseBindingName to pick one: %w", utils.ErrInvalidInput, err)
-	case errors.Is(err, occlient.ErrReleaseBindingMismatch):
-		return nil, false, fmt.Errorf("%w: releaseBindingName: %w", utils.ErrInvalidInput, err)
-	case errors.Is(err, occlient.ErrReleaseBindingNotFound), errors.Is(err, occlient.ErrEndpointNotFound):
-		return nil, false, fmt.Errorf("%w: %w", utils.ErrMCPUpstreamNotReady, err)
-	case err != nil:
-		return nil, false, fmt.Errorf("failed to resolve the source component's endpoint: %w", err)
-	case strings.TrimSpace(serviceURL) == "":
-		return nil, false, fmt.Errorf("%w: component %q endpoint %q has no service URL in %q yet",
-			utils.ErrMCPUpstreamNotReady, source.ComponentName, source.EndpointName, envName)
+	// (1) Upstream.
+	upstreamURL, err := s.bindingUpstreamURL(ctx, ouID, projectName, envName, proxy, releaseBindingName)
+	if err != nil {
+		return nil, false, err
 	}
-	upstreamURL := mcpUpstreamURL(strings.TrimSpace(serviceURL))
 
 	endpoint, ee := resolveMCPEndpointForEnv(proxy, envUUID.String())
 	exists := ee != nil
@@ -132,12 +118,31 @@ func (s *ProjectMCPProxyService) PutEnvironment(
 	if err != nil {
 		return nil, false, err
 	}
+	if auth, err = s.keepStoredUpstreamValue(auth, endpoint); err != nil {
+		return nil, false, err
+	}
+	capabilities, err := normalizeBindingCapabilities(req.Capabilities)
+	if err != nil {
+		return nil, false, err
+	}
+	resilience, err := normalizeBindingResilience(req.Resilience)
+	if err != nil {
+		return nil, false, err
+	}
 
 	desired := models.MCPEndpointConfig{
 		Upstream:           &models.UpstreamEndpoint{URL: upstreamURL, Auth: auth},
+		Resilience:         resilience,
 		Policies:           policies,
 		Security:           security,
 		ReleaseBindingName: releaseBindingName,
+		Capabilities:       capabilities,
+	}
+	// Capabilities AMS discovered are kept by a PUT that gives none; a PUT that gives some replaces them. The
+	// discovery state itself is never written here: UpdateEndpoint keeps the stored one.
+	if capabilities == nil && exists && endpoint.Configuration.CapabilitiesDiscovered {
+		desired.Capabilities = endpoint.Configuration.Capabilities
+		desired.CapabilitiesDiscovered = true
 	}
 	if exists && s.sameBindingConfig(endpoint.Configuration, desired) {
 		shown, err := s.shownStatus(ctx, ouID, ee.ArtifactUUID)
@@ -150,6 +155,10 @@ func (s *ProjectMCPProxyService) PutEnvironment(
 		}
 		live := status == models.MCPDeploymentStatusDeployed || status == models.MCPDeploymentStatusDeploying
 		if live || (shown == nil && gateway == nil) {
+			// A repeated PUT also retries a pending removal of the binding's old resource server, and repairs its
+			// resource server, which may have failed to register before or had no public URL to register while the
+			// binding waited for a gateway.
+			s.syncBindingIdentity(ctx, ouID, proxy, envUUID, envName, endpoint)
 			resp, err := s.environmentResponse(ctx, ouID, proxy, endpoint, ee)
 			return resp, false, err
 		}
@@ -168,11 +177,26 @@ func (s *ProjectMCPProxyService) PutEnvironment(
 	if err != nil {
 		return nil, false, err
 	}
+	// A binding leaving identity keeps the URL its resource server is registered at for the removal, which may run
+	// after a context change has moved the binding's URL.
+	leavingIdentifier := ""
+	if s.base.resolver != nil && exists && mcpIdentityEnabled(endpoint.Configuration.Security) &&
+		!mcpIdentityEnabled(desired.Security) {
+		identifier, err := s.base.MCPResourceServerIdentifier(ctx, ouID, envUUID, proxy)
+		switch {
+		case err == nil:
+			leavingIdentifier = identifier
+		case !errors.Is(err, ErrMCPProxyNotDeployedToEnvironment):
+			return nil, false, fmt.Errorf("failed to read the binding's resource identifier: %w", err)
+		}
+	}
 	if err := s.base.tx(ctx, func(tx *gorm.DB) error {
-		return s.saveAndDeployBinding(ctx, tx, ouID, proxyHandleOf(proxy), envName, envUUID, gateway, desired, stored)
+		return s.saveAndDeployBinding(ctx, tx, ouID, proxyHandleOf(proxy), envName, envUUID, gateway, desired, stored,
+			leavingIdentifier)
 	}); err != nil {
 		switch {
-		case errors.Is(err, utils.ErrMCPContextInUse), errors.Is(err, utils.ErrMCPProxyNotFound):
+		case errors.Is(err, utils.ErrMCPContextInUse), errors.Is(err, utils.ErrMCPProxyNotFound),
+			errors.Is(err, utils.ErrMCPProxyURLChanged):
 			return nil, false, err
 		case errors.Is(err, errPlacementFixed):
 			return nil, false, fmt.Errorf("%w: gatewayId: %w", utils.ErrImmutableFieldChange, err)
@@ -193,6 +217,10 @@ func (s *ProjectMCPProxyService) PutEnvironment(
 	if ee == nil {
 		return nil, false, fmt.Errorf("the saved binding of %q in %q is missing", handle, envName)
 	}
+	// A binding off identity no longer accepts its tokens: the write gave it a cleanup ID, and its resource server and
+	// the roles' grants of it go now, the ID cleared once that succeeds. One back on identity with a removal still
+	// pending has it done before it registers again, so grants made for its old registration do not apply again.
+	s.syncBindingIdentity(ctx, ouID, saved, envUUID, envName, endpoint)
 	resp, err := s.environmentResponse(ctx, ouID, saved, endpoint, ee)
 	return resp, !exists, err
 }
@@ -211,11 +239,57 @@ func (s *ProjectMCPProxyService) checkBindingContext(
 		reconcile.NewRoute(gatewayContext, valueOrEmpty(vhost), gw.Vhost))
 }
 
+// bindingUpstreamURL is the upstream a binding of the proxy calls in envName. A proxy registered by URL calls that
+// URL, which must be public: a managed gateway calls it as given. A sourced proxy calls its component endpoint's
+// in-cluster address in the environment, which AMS resolves from OpenChoreo itself.
+func (s *ProjectMCPProxyService) bindingUpstreamURL(
+	ctx context.Context, ouID, projectName, envName string, proxy *models.MCPProxy, releaseBindingName string,
+) (string, error) {
+	source := projectMCPProxySource(proxy)
+	if source == nil {
+		if releaseBindingName != "" {
+			return "", fmt.Errorf("%w: releaseBindingName applies only to a proxy with a source", utils.ErrInvalidInput)
+		}
+		upstreamURL := projectMCPProxyUpstreamURL(proxy)
+		if upstreamURL == "" {
+			return "", fmt.Errorf("%w: the MCP proxy has neither a source nor an upstream", utils.ErrInvalidInput)
+		}
+		if err := ssrf.ValidateURL(ctx, upstreamURL); err != nil {
+			return "", fmt.Errorf("%w: upstream.url: %w", utils.ErrInvalidInput, err)
+		}
+		return upstreamURL, nil
+	}
+
+	// AMS resolves this URL itself from OpenChoreo, so unlike a user-supplied upstream (validateMCPEndpoints) it is
+	// not put through the SSRF check: it is an in-cluster service address by design.
+	// A component deployed on several tracks has a release binding per track in the environment; releaseBindingName
+	// picks one, and without it such a component is refused rather than one of its bindings picked at random.
+	serviceURL, err := s.ocClient.GetReleaseBindingEndpointServiceURL(
+		ctx, ouID, projectName, source.ComponentName, source.EndpointName, envName, releaseBindingName,
+	)
+	switch {
+	case errors.Is(err, occlient.ErrAmbiguousReleaseBinding):
+		return "", fmt.Errorf("%w: set releaseBindingName to pick one: %w", utils.ErrInvalidInput, err)
+	case errors.Is(err, occlient.ErrReleaseBindingMismatch):
+		return "", fmt.Errorf("%w: releaseBindingName: %w", utils.ErrInvalidInput, err)
+	case errors.Is(err, occlient.ErrReleaseBindingNotFound), errors.Is(err, occlient.ErrEndpointNotFound):
+		return "", fmt.Errorf("%w: %w", utils.ErrMCPUpstreamNotReady, err)
+	case err != nil:
+		return "", fmt.Errorf("failed to resolve the source component's endpoint: %w", err)
+	case strings.TrimSpace(serviceURL) == "":
+		return "", fmt.Errorf("%w: component %q endpoint %q has no service URL in %q yet",
+			utils.ErrMCPUpstreamNotReady, source.ComponentName, source.EndpointName, envName)
+	}
+	return mcpUpstreamURL(strings.TrimSpace(serviceURL)), nil
+}
+
 // saveAndDeployBinding writes the binding in tx, the proxy row locked, and deploys it on gateway, or with no gateway
-// only renders it (DeployRecord). A Failed binding with unchanged input is not rewritten, only re-deployed.
+// only renders it (DeployRecord). A Failed binding with unchanged input is not rewritten, only re-deployed. A binding
+// that leaves identity, as the lock finds it, or is new is written with a new IdentityCleanupID, and any other keeps
+// the pending one.
 func (s *ProjectMCPProxyService) saveAndDeployBinding(
 	ctx context.Context, tx *gorm.DB, ouID, proxyHandle, envName string, envUUID uuid.UUID, gateway *uuid.UUID,
-	desired, stored models.MCPEndpointConfig,
+	desired, stored models.MCPEndpointConfig, leavingIdentifier string,
 ) error {
 	// Serialize binding writes on one gateway, taken first as the gateway mapping path does, so two bindings
 	// with overlapping contexts can't both pass the context check before either deploys.
@@ -231,7 +305,27 @@ func (s *ProjectMCPProxyService) saveAndDeployBinding(
 		}
 		return fmt.Errorf("failed to lock the MCP proxy: %w", err)
 	}
+	if desired, stored, err = followLockedProxyURL(locked, desired, stored); err != nil {
+		return err
+	}
 	endpoint, ee := resolveMCPEndpointForEnv(locked, envUUID.String())
+	if ee != nil {
+		lockedConfig := endpoint.Configuration
+		// A pending removal's ID is kept until that removal succeeds, by writes that return to identity too: they
+		// run it before registering, so grants made for the old registration do not apply again.
+		cleanupID, cleanupIdentifier := lockedConfig.IdentityCleanupID, lockedConfig.IdentityCleanupIdentifier
+		if mcpIdentityEnabled(lockedConfig.Security) && !mcpIdentityEnabled(desired.Security) {
+			cleanupID, cleanupIdentifier = uuid.NewString(), leavingIdentifier
+		}
+		desired.IdentityCleanupID, stored.IdentityCleanupID = cleanupID, cleanupID
+		desired.IdentityCleanupIdentifier, stored.IdentityCleanupIdentifier = cleanupIdentifier, cleanupIdentifier
+	} else if s.base.resolver != nil {
+		// A new binding starts with a removal of any resource server an earlier binding of the proxy left in the
+		// environment when its own removal failed after it was deleted, so that one's grants never apply to this one.
+		// A new binding has no grants of its own yet: a role grants a proxy's scopes only where it is deployed.
+		cleanupID := uuid.NewString()
+		desired.IdentityCleanupID, stored.IdentityCleanupID = cleanupID, cleanupID
+	}
 	var artifactUUID uuid.UUID
 	var artifactHandle string
 	if ee == nil {
@@ -261,6 +355,29 @@ func (s *ProjectMCPProxyService) saveAndDeployBinding(
 		}
 	}
 	return s.base.deployMCPArtifact(ctx, tx, &models.MCPProxy{UUID: artifactUUID, Handle: artifactHandle}, ouID, envUUID, gateway)
+}
+
+// followLockedProxyURL points a binding of a proxy registered by URL at the URL the locked proxy has. desired and
+// stored were prepared from the proxy read before the lock; a URL change committed since is kept rather than undone. A
+// move to another origin is refused when the binding carries an upstream credential, which was given (or kept) for the
+// old origin and must not be sent to the new one; that change also cleared the stored credentials it covered.
+func followLockedProxyURL(
+	locked *models.MCPProxy, desired, stored models.MCPEndpointConfig,
+) (models.MCPEndpointConfig, models.MCPEndpointConfig, error) {
+	if locked.Configuration.Source != nil || desired.Upstream == nil {
+		return desired, stored, nil
+	}
+	lockedURL := projectMCPProxyUpstreamURL(locked)
+	if lockedURL == "" || lockedURL == desired.Upstream.URL {
+		return desired, stored, nil
+	}
+	if desired.Upstream.Auth != nil && !sameURLOrigin(desired.Upstream.URL, lockedURL) {
+		return desired, stored, utils.ErrMCPProxyURLChanged
+	}
+	desiredUpstream, storedUpstream := *desired.Upstream, *stored.Upstream
+	desiredUpstream.URL, storedUpstream.URL = lockedURL, lockedURL
+	desired.Upstream, stored.Upstream = &desiredUpstream, &storedUpstream
+	return desired, stored, nil
 }
 
 // createBinding inserts the binding's endpoint, its gateway artifact row and the (endpoint, environment) row.
@@ -378,14 +495,50 @@ func (s *ProjectMCPProxyService) DeleteEnvironmentInDeletedProject(ctx context.C
 
 func (s *ProjectMCPProxyService) deleteEnvironmentOf(ctx context.Context, ouID string, proxy *models.MCPProxy, envName string) error {
 	envName = strings.TrimSpace(envName)
-	_, ee := bindingByEnvironmentName(proxy, envName)
+	bound, ee := bindingByEnvironmentName(proxy, envName)
 	if ee == nil {
 		return utils.ErrMCPProxyEnvironmentNotBound
 	}
 	if err := s.ensureBindingNotInUse(ctx, proxy.UUID, ee.EnvironmentUUID); err != nil {
 		return err
 	}
-	return s.base.tx(ctx, func(tx *gorm.DB) error {
+	// The proxy's scopes, read before anything is deleted when the binding has a resource server to remove: the
+	// removal after the delete sweeps their grants from roles, and once the binding is gone nothing could retry a
+	// removal made without them. A binding never on identity has none, and costs the identity service nothing.
+	// Its public URL, the resource server's identifier, is read now too: once the binding is gone it cannot be.
+	var actions []string
+	var identifier string
+	actionsRead := false
+	if s.base.resolver != nil {
+		needsCleanup := bindingHasIdentityToRemove(bound.Configuration)
+		var err error
+		identifier, err = s.base.MCPResourceServerIdentifier(ctx, ouID, ee.EnvironmentUUID, proxy)
+		if stored := bound.Configuration.IdentityCleanupIdentifier; stored != "" && bound.Configuration.IdentityCleanupID != "" {
+			// A pending removal keeps the URL it is for, which a context change may have moved since.
+			identifier, err = stored, nil
+		}
+		switch {
+		case err == nil:
+		case errors.Is(err, ErrMCPProxyNotDeployedToEnvironment):
+			// No public URL: nothing was ever registered for the binding.
+			identifier = ""
+		case needsCleanup:
+			// The binding has a resource server to remove and no way to find it once deleted: it stays for a retry.
+			return fmt.Errorf("failed to read the binding's resource identifier: %w", err)
+		default:
+			s.base.logger.Warn("project MCP binding delete: reading the resource identifier failed",
+				"proxy", proxyHandleOf(proxy), "env", envName, "error", err)
+			identifier = ""
+		}
+		if needsCleanup {
+			if actions, err = s.proxyScopeActions(ctx, proxy); err != nil {
+				return err
+			}
+			actionsRead = true
+		}
+	}
+	removeIdentity := false
+	if err := s.base.tx(ctx, func(tx *gorm.DB) error {
 		locked, err := s.base.repo.GetByHandleForUpdate(ctx, tx, proxyHandleOf(proxy), ouID)
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -398,8 +551,14 @@ func (s *ProjectMCPProxyService) deleteEnvironmentOf(ctx context.Context, ouID s
 		if ee == nil {
 			return utils.ErrMCPProxyEnvironmentNotBound
 		}
+		removeIdentity = bindingHasIdentityToRemove(endpoint.Configuration)
 		ref := models.ArtifactRef{OUID: ouID, ArtifactUUID: ee.ArtifactUUID, Kind: models.KindMCPMapping}
 		events, err := s.base.core.PrepareDelete(ctx, tx, ref)
+		if err != nil {
+			return err
+		}
+		// The binding's API keys go with its artifact; the gateways are told in the same transaction.
+		publishRevoked, err := s.base.apiKeyBroadcaster.stageArtifactKeysRevokedTx(ctx, tx, ouID, ee.ArtifactUUID)
 		if err != nil {
 			return err
 		}
@@ -410,8 +569,38 @@ func (s *ProjectMCPProxyService) deleteEnvironmentOf(ctx context.Context, ouID s
 		if err := s.base.endpointRepo.DeleteEndpoint(ctx, tx, endpoint.UUID); err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 			return err
 		}
+		if err := publishRevoked(); err != nil {
+			return err
+		}
 		return events.Publish(ctx, tx)
-	})
+	}); err != nil {
+		return err
+	}
+	if !removeIdentity || s.base.resolver == nil {
+		return nil
+	}
+	if identifier == "" {
+		// No public URL, so nothing was registered for the binding.
+		return nil
+	}
+	if !actionsRead {
+		// A PUT moved the binding to identity after it was read: its scopes are read now, and a failure leaves the
+		// resource server, as the binding is already gone.
+		var err error
+		if actions, err = s.proxyScopeActions(ctx, proxy); err != nil {
+			s.base.logger.Warn("project MCP binding resource server delete skipped: listing scopes failed",
+				"proxy", proxyHandleOf(proxy), "env", envName, "error", err)
+			return nil
+		}
+	}
+	s.purgeBindingResourceServer(ctx, ouID, proxy, envName, identifier, actions)
+	return nil
+}
+
+// bindingHasIdentityToRemove reports whether a binding has a resource server, and its scopes' grants, to remove: it
+// is on identity, or it left identity and that removal has not succeeded yet.
+func bindingHasIdentityToRemove(config models.MCPEndpointConfig) bool {
+	return mcpIdentityEnabled(config.Security) || config.IdentityCleanupID != ""
 }
 
 // ensureBindingNotInUse refuses with ErrMCPProxyHasMappings when an agent is mapped to the proxy in envUUID: the
@@ -513,9 +702,9 @@ func (s *ProjectMCPProxyService) bindingGateway(
 	case err != nil:
 		return nil, fmt.Errorf("failed to resolve the environment's gateway: %w", err)
 	}
-	// A self-hosted gateway is customer-run: it has no route to the in-cluster upstream, and must not be sent the
-	// internal hostname or the upstream auth. The environment never infers one, so only a named one, or a placement
-	// on one, gets here.
+	// A self-hosted gateway is customer-run: a sourced binding's in-cluster upstream has no route from it, and its
+	// internal hostname and upstream auth must not be sent there. A binding registered by URL is held to the same
+	// rule. The environment never infers one, so only a named one, or a placement on one, gets here.
 	if !gateway.IsManaged() {
 		return nil, fmt.Errorf("%w: gatewayId: project MCP proxies deploy only on managed gateways, and %s is self-hosted",
 			utils.ErrInvalidInput, gateway.UUID)
@@ -524,8 +713,9 @@ func (s *ProjectMCPProxyService) bindingGateway(
 }
 
 // normalizeBindingSecurity is the binding's security with its defaults applied. Omitted, it is apiKey in an
-// X-API-Key header. Present, it is apiKey when that variant is given and not disabled, and no security when
-// security.enabled is false or no variant is enabled (the contract's "none"). Phase 1 refuses jwt and identity.
+// X-API-Key header. Present, it is identity (OAuth tokens from the environment's Thunder) when that variant is
+// enabled, apiKey when that variant is given and not disabled, and no security when security.enabled is false or no
+// variant is enabled (the contract's "none"). identity and apiKey are mutually exclusive; jwt is refused.
 func normalizeBindingSecurity(in *models.MCPProxyEnvironmentSecurity) (*models.SecurityConfig, error) {
 	if in == nil {
 		return defaultMCPProxySecurity(nil), nil
@@ -533,8 +723,15 @@ func normalizeBindingSecurity(in *models.MCPProxyEnvironmentSecurity) (*models.S
 	if in.JWT != nil && !isExplicitlyFalse(in.JWT.Enabled) {
 		return nil, fmt.Errorf("%w: %w", utils.ErrInvalidInput, utils.ErrMCPJWTSecurityNotAvailable)
 	}
-	if in.Identity != nil && !isExplicitlyFalse(in.Identity.Enabled) {
-		return nil, fmt.Errorf("%w: identity security is not available on project MCP proxies", utils.ErrInvalidInput)
+	if in.Identity != nil && isBoolTrue(in.Identity.Enabled) && !isExplicitlyFalse(in.Enabled) {
+		// An apiKey given without enabled is on, as it is without identity, so it conflicts too.
+		if in.APIKey != nil && !isExplicitlyFalse(in.APIKey.Enabled) {
+			return nil, fmt.Errorf("%w: apiKey and identity security are mutually exclusive", utils.ErrInvalidInput)
+		}
+		enabled := true
+		return defaultMCPProxySecurity(&models.SecurityConfig{
+			Enabled: &enabled, Identity: &models.IdentitySecurity{Enabled: &enabled},
+		}), nil
 	}
 	// Only an explicit enabled false turns security off. Security left on with no variant defaults to the api
 	// key, as an omitted security does, so a caller asking for security never gets an open endpoint.
@@ -554,8 +751,10 @@ func normalizeBindingSecurity(in *models.MCPProxyEnvironmentSecurity) (*models.S
 		apiKey = &copied
 	}
 	security := defaultMCPProxySecurity(&models.SecurityConfig{Enabled: in.Enabled, APIKey: apiKey})
-	if security.APIKey.In != "header" && security.APIKey.In != "query" {
-		return nil, fmt.Errorf("%w: security.apiKey.in must be header or query", utils.ErrInvalidInput)
+	// The gateway's api-key-auth policy reads the key from a header only: a binding taking it from the query would
+	// deploy but accept no call, and its capability discovery would fail for good.
+	if err := security.ValidateAPIKeyLocation(); err != nil {
+		return nil, fmt.Errorf("%w: security.apiKey.in: %w", utils.ErrInvalidInput, err)
 	}
 	return security, nil
 }
@@ -586,13 +785,100 @@ func normalizeBindingUpstreamAuth(in *models.MCPProxyEnvironmentUpstreamAuth) (*
 		return nil, nil //nolint:nilnil // no upstream auth
 	case "api-key":
 		header, value := strings.TrimSpace(in.Header), in.Value
-		if header == "" || value == "" {
-			return nil, fmt.Errorf("%w: upstreamAuth needs both header and value", utils.ErrInvalidInput)
+		if header == "" {
+			return nil, fmt.Errorf("%w: upstreamAuth needs a header", utils.ErrInvalidInput)
 		}
-		return &models.UpstreamAuth{Type: &typ, Header: &header, Value: &value}, nil
+		auth := &models.UpstreamAuth{Type: &typ, Header: &header}
+		// An empty value keeps the binding's stored one (keepStoredUpstreamValue), so a caller that reads the
+		// redacted binding back can send it unchanged.
+		if value != "" {
+			auth.Value = &value
+		}
+		return auth, nil
 	default:
 		return nil, fmt.Errorf("%w: upstreamAuth.type must be api-key or none", utils.ErrInvalidInput)
 	}
+}
+
+// maxBindingCapabilityEntries bounds each of a binding's tools, prompts and resources lists, and
+// maxBindingCapabilitiesBytes their encoded size, so a caller cannot store an unbounded document in the endpoint row.
+const (
+	maxBindingCapabilityEntries = 1000
+	maxBindingCapabilitiesBytes = 1 << 20
+)
+
+// normalizeBindingCapabilities is the binding's capabilities as stored: nil when none are given (or all lists are
+// empty), otherwise the given lists with each tool, prompt and resource checked for its identifying field.
+func normalizeBindingCapabilities(in *models.MCPProxyCapabilities) (*models.MCPProxyCapabilities, error) {
+	if in == nil {
+		return nil, nil //nolint:nilnil // no capabilities given
+	}
+	out := &models.MCPProxyCapabilities{}
+	lists := []struct {
+		kind, key string
+		in        *[]map[string]interface{}
+		out       **[]map[string]interface{}
+	}{
+		{"tools", "name", in.Tools, &out.Tools},
+		{"prompts", "name", in.Prompts, &out.Prompts},
+		{"resources", "uri", in.Resources, &out.Resources},
+	}
+	for _, l := range lists {
+		if l.in == nil || len(*l.in) == 0 {
+			continue
+		}
+		if len(*l.in) > maxBindingCapabilityEntries {
+			return nil, fmt.Errorf("%w: capabilities.%s has %d entries, more than the limit of %d",
+				utils.ErrInvalidInput, l.kind, len(*l.in), maxBindingCapabilityEntries)
+		}
+		for i, entry := range *l.in {
+			if id, ok := entry[l.key].(string); !ok || strings.TrimSpace(id) == "" {
+				return nil, fmt.Errorf("%w: capabilities.%s[%d] needs a %s", utils.ErrInvalidInput, l.kind, i, l.key)
+			}
+		}
+		list := slices.Clone(*l.in)
+		*l.out = &list
+	}
+	if out.Tools == nil && out.Prompts == nil && out.Resources == nil {
+		return nil, nil //nolint:nilnil // only empty lists given
+	}
+	encoded, err := json.Marshal(out)
+	if err != nil {
+		return nil, fmt.Errorf("%w: capabilities: %w", utils.ErrInvalidInput, err)
+	}
+	if len(encoded) > maxBindingCapabilitiesBytes {
+		return nil, fmt.Errorf("%w: capabilities is %d bytes, more than the limit of %d",
+			utils.ErrInvalidInput, len(encoded), maxBindingCapabilitiesBytes)
+	}
+	return out, nil
+}
+
+// keepStoredUpstreamValue fills an api-key upstream auth given without a value from the binding's stored one, which
+// a binding read never returns. With no stored api-key auth to keep, the value is required.
+func (s *ProjectMCPProxyService) keepStoredUpstreamValue(
+	auth *models.UpstreamAuth, endpoint *models.MCPProxyEndpoint,
+) (*models.UpstreamAuth, error) {
+	if auth == nil || auth.Value != nil {
+		return auth, nil
+	}
+	missing := fmt.Errorf("%w: upstreamAuth needs a value", utils.ErrInvalidInput)
+	if endpoint == nil || endpoint.Configuration.Upstream == nil || endpoint.Configuration.Upstream.Auth == nil {
+		return nil, missing
+	}
+	stored := endpoint.Configuration.Upstream.Auth
+	if !strings.EqualFold(valueOrEmpty(stored.Type), "api-key") {
+		return nil, missing
+	}
+	value, err := s.storedUpstreamValue(stored)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read the stored upstream auth: %w", err)
+	}
+	if value == "" {
+		return nil, missing
+	}
+	kept := *auth
+	kept.Value = &value
+	return &kept, nil
 }
 
 // storeBindingConfig is desired as it is stored: the upstream credential encrypted.
@@ -629,7 +915,28 @@ func (s *ProjectMCPProxyService) sameBindingConfig(stored, desired models.MCPEnd
 		s.sameUpstreamAuth(storedAuth, desiredAuth) &&
 		sameJSON(stored.Security, desired.Security) &&
 		sameJSON(nilIfEmptyPolicies(stored.Policies), nilIfEmptyPolicies(desired.Policies)) &&
-		stored.Resilience == nil && stored.Capabilities == nil
+		sameJSON(stored.Capabilities, desired.Capabilities) &&
+		stored.CapabilitiesDiscovered == desired.CapabilitiesDiscovered &&
+		sameJSON(stored.Resilience, desired.Resilience)
+}
+
+// normalizeBindingResilience is the binding's timeouts as stored: trimmed, an empty one dropped, and nil when
+// neither is set. Each is a duration the gateway takes, e.g. "15s", "500ms", or "0s" to turn it off.
+func normalizeBindingResilience(in *models.Resilience) (*models.Resilience, error) {
+	if in == nil {
+		return nil, nil //nolint:nilnil // no timeouts: the gateway's defaults
+	}
+	out := &models.Resilience{
+		Timeout:     stringPtrIfNotEmpty(strings.TrimSpace(valueOrEmpty(in.Timeout))),
+		IdleTimeout: stringPtrIfNotEmpty(strings.TrimSpace(valueOrEmpty(in.IdleTimeout))),
+	}
+	if out.Timeout == nil && out.IdleTimeout == nil {
+		return nil, nil //nolint:nilnil // no timeouts: the gateway's defaults
+	}
+	if err := out.Validate(); err != nil {
+		return nil, fmt.Errorf("%w: %w", utils.ErrInvalidInput, err)
+	}
+	return out, nil
 }
 
 func (s *ProjectMCPProxyService) sameUpstreamAuth(stored, desired *models.UpstreamAuth) bool {
@@ -639,15 +946,19 @@ func (s *ProjectMCPProxyService) sameUpstreamAuth(stored, desired *models.Upstre
 	if valueOrEmpty(stored.Type) != valueOrEmpty(desired.Type) || valueOrEmpty(stored.Header) != valueOrEmpty(desired.Header) {
 		return false
 	}
-	storedValue := valueOrEmpty(stored.Value)
-	if stored.SecretRef != nil {
-		decrypted, err := utils.DecryptSecretRef(*stored.SecretRef, s.base.encryptionKey)
-		if err != nil {
-			return false
-		}
-		storedValue = decrypted
+	storedValue, err := s.storedUpstreamValue(stored)
+	if err != nil {
+		return false
 	}
 	return storedValue == valueOrEmpty(desired.Value)
+}
+
+// storedUpstreamValue is a stored upstream credential's value: its encrypted secret ref decrypted, or its plain value.
+func (s *ProjectMCPProxyService) storedUpstreamValue(stored *models.UpstreamAuth) (string, error) {
+	if stored.SecretRef != nil {
+		return utils.DecryptSecretRef(*stored.SecretRef, s.base.encryptionKey)
+	}
+	return valueOrEmpty(stored.Value), nil
 }
 
 func nilIfEmptyPolicies(policies []models.MCPPolicy) []models.MCPPolicy {
@@ -688,12 +999,24 @@ func (s *ProjectMCPProxyService) environmentResponse(
 		ReleaseBindingName: cfg.ReleaseBindingName,
 		Security:           bindingSecurityResponse(cfg.Security),
 		Policies:           copyMCPPolicies(cfg.Policies),
+		Capabilities:       copyMCPCapabilities(cfg.Capabilities),
+		Resilience:         copyResilience(cfg.Resilience),
 		UpdatedAt:          timePtrIfNotZero(endpoint.UpdatedAt),
 	}
 	if cfg.Upstream != nil && cfg.Upstream.Auth != nil {
 		resp.UpstreamAuth = &models.MCPProxyEnvironmentUpstreamAuthRedacted{
 			Type: valueOrEmpty(cfg.Upstream.Auth.Type), Header: valueOrEmpty(cfg.Upstream.Auth.Header),
 		}
+	}
+	if cfg.Capabilities != nil {
+		resp.CapabilitiesSource = models.MCPCapabilitiesSourceCaller
+		if cfg.CapabilitiesDiscovered {
+			resp.CapabilitiesSource = models.MCPCapabilitiesSourceDiscovered
+		}
+	}
+	// A caller's capabilities are not discovered: an earlier discovery's state no longer applies.
+	if cfg.CapabilityDiscovery != nil && !callerGaveCapabilities(cfg) {
+		resp.CapabilityDiscovery = models.MCPCapabilityDiscoveryStatusOf(*cfg.CapabilityDiscovery)
 	}
 	shown, err := s.shownStatus(ctx, ouID, ee.ArtifactUUID)
 	if err != nil {
@@ -733,6 +1056,10 @@ func bindingSecurityResponse(security *models.SecurityConfig) *models.MCPProxyEn
 		apiKey := *security.APIKey
 		out.APIKey = &apiKey
 	}
+	if security.Identity != nil {
+		identity := *security.Identity
+		out.Identity = &identity
+	}
 	return out
 }
 
@@ -764,4 +1091,47 @@ func (s *ProjectMCPProxyService) rerenderBindings(ctx context.Context, ouID stri
 				"proxyUUID", proxy.UUID, "artifactUUID", artifact.ArtifactUUID, "ouID", ouID, "error", err)
 		}
 	}
+}
+
+// RefreshEnvironmentCapabilities queues the binding's capability discovery now, with a fresh attempt budget, and
+// returns the binding. A binding whose caller gave capabilities is refused (ErrMCPCapabilitiesGivenByCaller): a PUT
+// without capabilities hands them to discovery. A binding not deployed yet is queued and retried until it is.
+func (s *ProjectMCPProxyService) RefreshEnvironmentCapabilities(
+	ctx context.Context, ouID, projectUUID, handle, envName string,
+) (*models.MCPProxyEnvironmentResponse, error) {
+	if s.discoveries == nil {
+		return nil, fmt.Errorf("capability discovery is not configured")
+	}
+	proxy, err := s.getInProject(ctx, ouID, projectUUID, handle)
+	if err != nil {
+		return nil, err
+	}
+	endpoint, ee := bindingByEnvironmentName(proxy, strings.TrimSpace(envName))
+	if ee == nil {
+		return nil, utils.ErrMCPProxyEnvironmentNotBound
+	}
+	if callerGaveCapabilities(endpoint.Configuration) {
+		return nil, utils.ErrMCPCapabilitiesGivenByCaller
+	}
+	if err := s.discoveries.Enqueue(ctx, ee.ArtifactUUID); err != nil {
+		return nil, fmt.Errorf("failed to queue the capability discovery: %w", err)
+	}
+	return s.GetEnvironment(ctx, ouID, "", projectUUID, handle, envName)
+}
+
+// copyResilience is r with its own timeout strings, so a response never shares the stored config's.
+func copyResilience(r *models.Resilience) *models.Resilience {
+	if r == nil {
+		return nil
+	}
+	out := &models.Resilience{}
+	if r.Timeout != nil {
+		t := *r.Timeout
+		out.Timeout = &t
+	}
+	if r.IdleTimeout != nil {
+		t := *r.IdleTimeout
+		out.IdleTimeout = &t
+	}
+	return out
 }

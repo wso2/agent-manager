@@ -31,7 +31,6 @@ import {
   type APIKeyLocation,
   type Environment,
   type MCPEndpointConfig,
-  type MCPProxy,
   type MCPProxyScopeResponse,
   INPUT_LIMITS,
 } from "@agent-management-platform/types";
@@ -64,9 +63,15 @@ import {
 import { useResourceAccess } from "@agent-management-platform/feature-management";
 import { CreateScopeDrawer } from "./CreateScopeDrawer";
 
-const KEY_LOCATION_OPTIONS: { value: APIKeyLocation; label: string }[] = [
+// The gateway's api-key-auth policy reads the key from a header only. Query stays listed, disabled,
+// so a proxy that has it stored still shows it and can be moved to a header.
+const KEY_LOCATION_OPTIONS: {
+  value: APIKeyLocation;
+  label: string;
+  disabled?: boolean;
+}[] = [
   { value: "header", label: "header" },
-  { value: "query", label: "query" },
+  { value: "query", label: "query (not supported by the gateway)", disabled: true },
 ];
 
 const AUTHENTICATION_TYPE_OPTIONS: AuthenticationType[] = [
@@ -126,6 +131,8 @@ export type MCPProxySecurityTabProps = {
   selectedEndpointId: string;
   orgName: string | undefined;
   proxyId: string | undefined;
+  /** Set for a project MCP proxy, whose scopes are under its project's routes. */
+  projName?: string;
   /**
    * Environments the selected endpoint is deployed to, for the Create Scope
    * panel's role picker.
@@ -136,10 +143,16 @@ export type MCPProxySecurityTabProps = {
    * table lists only the selected endpoint's, so Save keeps these tools on the scopes it updates.
    */
   otherEndpointTools?: readonly string[];
+  /**
+   * Set while another endpoint's tools are not known yet (discovery has not finished). Save then
+   * keeps every tool a scope has that this endpoint does not list, rather than pruning tools it
+   * cannot see.
+   */
+  otherEndpointToolsIncomplete?: boolean;
   /** OAuth (Agent Identity) is unavailable while the endpoint is on a self-hosted gateway. */
   isOnSelfHostedGateway?: boolean;
   isLoading?: boolean;
-  onUpdate: (fields: Partial<MCPEndpointConfig>) => Promise<MCPProxy>;
+  onUpdate: (fields: Partial<MCPEndpointConfig>) => Promise<unknown>;
   isUpdating: boolean;
   /** Reports unsaved edits so the parent can guard tab, endpoint and page switches. */
   onDirtyChange?: (dirty: boolean) => void;
@@ -150,8 +163,10 @@ export function MCPProxySecurityTab({
   selectedEndpointId,
   orgName,
   proxyId,
+  projName,
   environments,
   otherEndpointTools = NO_TOOLS,
+  otherEndpointToolsIncomplete = false,
   isOnSelfHostedGateway = false,
   isLoading = false,
   onUpdate,
@@ -234,8 +249,13 @@ export function MCPProxySecurityTab({
     [toolEntries, config?.policies],
   );
 
-  const { data: scopesData, isPending: scopesPending } = useListMCPProxyScopes(
-    { orgName: orgName ?? "", proxyId: proxyId ?? "" },
+  const {
+    data: scopesData,
+    isPending: scopesPending,
+    isError: scopesFailed,
+    refetch: refetchScopes,
+  } = useListMCPProxyScopes(
+    { orgName: orgName ?? "", proxyId: proxyId ?? "", projName },
     { enabled: authenticationType === "identity" && !!proxyId },
   );
   // The persisted source of truth: what the tool-scope table diffs against on
@@ -329,7 +349,7 @@ export function MCPProxySecurityTab({
           analytics: { entity: "mcp-proxy", action: "switch-auth-method" },
           title: "Switch authentication method?",
           description: `This proxy is currently secured with ${getAuthenticationTypeLabel(savedType)}. Switching to ${getAuthenticationTypeLabel(nextType)} will break any agent already configured to use it, until their tool configuration is updated to match.`,
-          confirmButtonText: "Switch Method",
+          confirmButtonText: "Switch method",
           confirmButtonColor: "error",
           onConfirm: () => setAuthenticationType(nextType),
         });
@@ -420,7 +440,17 @@ export function MCPProxySecurityTab({
       // saved via their own REST calls rather than bundled into the security
       // payload above.
       if (authenticationType === "identity" && toolScopesDirty && orgName && proxyId) {
-        const updates = computeScopeToolUpdates(toolScopeRows, catalogScopes, otherEndpointTools);
+        // With another endpoint's tools unknown, every tool a scope has outside this endpoint is
+        // kept: it may be one of those.
+        const keptTools = otherEndpointToolsIncomplete
+          ? [
+              ...otherEndpointTools,
+              ...catalogScopes
+                .flatMap((scope) => scope.tools)
+                .filter((tool) => !toolEntries.includes(tool)),
+            ]
+          : otherEndpointTools;
+        const updates = computeScopeToolUpdates(toolScopeRows, catalogScopes, keptTools);
 
         // Sequential rather than Promise.all: a rejection must not leave the
         // remaining updates in flight, and the committed prefix has to be
@@ -429,7 +459,7 @@ export function MCPProxySecurityTab({
         try {
           for (const u of updates) {
             await updateMCPProxyScope.mutateAsync({
-              params: { orgName, proxyId, scopeAction: u.action },
+              params: { orgName, proxyId, projName, scopeAction: u.action },
               body: { tools: u.tools },
             });
             committedCount += 1;
@@ -467,8 +497,10 @@ export function MCPProxySecurityTab({
     catalogScopes,
     toolEntries,
     otherEndpointTools,
+    otherEndpointToolsIncomplete,
     orgName,
     proxyId,
+    projName,
     onUpdate,
     updateMCPProxyScope,
   ]);
@@ -486,6 +518,7 @@ export function MCPProxySecurityTab({
           await deleteMCPProxyScope.mutateAsync({
             orgName,
             proxyId,
+            projName,
             scopeAction: scope.action,
           });
           // Drop it from any row referencing it immediately — the reseed
@@ -503,7 +536,7 @@ export function MCPProxySecurityTab({
         },
       });
     },
-    [orgName, proxyId, addConfirmation, deleteMCPProxyScope, resetToolScopeRows],
+    [orgName, proxyId, projName, addConfirmation, deleteMCPProxyScope, resetToolScopeRows],
   );
 
   const isDisabled = isLoading || !config || !canWrite;
@@ -582,7 +615,7 @@ export function MCPProxySecurityTab({
               startIcon={<Plus size={16} />}
               onClick={() => setCreateScopeDrawerOpen(true)}
             >
-              Create Scope
+              Create scope
             </Button>
           </Stack>
           )}
@@ -673,7 +706,20 @@ export function MCPProxySecurityTab({
               </ListingTable.Container>
             ))}
 
-          {authorizationTab === "scopes" &&
+          {scopesFailed && (
+            <Alert
+              severity="error"
+              action={
+                <Button color="inherit" size="small" onClick={() => void refetchScopes()}>
+                  Retry
+                </Button>
+              }
+            >
+              Could not load this MCP server&apos;s scopes.
+            </Alert>
+          )}
+
+          {authorizationTab === "scopes" && !scopesFailed &&
             (!scopesPending && catalogScopes.length === 0 ? (
               <ListingTable.Container>
                 <ListingTable.EmptyState
@@ -735,7 +781,7 @@ export function MCPProxySecurityTab({
                 onChange={(e) => setKeyIn(e.target.value as APIKeyLocation)}
             >
                 {KEY_LOCATION_OPTIONS.map((opt) => (
-                  <MenuItem key={opt.value} value={opt.value}>
+                  <MenuItem key={opt.value} value={opt.value} disabled={opt.disabled}>
                     {opt.label}
                   </MenuItem>
                 ))}
@@ -831,6 +877,7 @@ export function MCPProxySecurityTab({
           onClose={() => setCreateScopeDrawerOpen(false)}
           orgName={orgName}
           proxyId={proxyId}
+          projName={projName}
           environments={environments}
           tools={toolEntries}
           blockedTools={blockedToolIds}

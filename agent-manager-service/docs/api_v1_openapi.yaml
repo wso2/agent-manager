@@ -1,4 +1,5 @@
 openapi: 3.0.3
+# checkov:skip=CKV_OPENAPI_5:GET /config bootstraps CLI clients and GET /auth/external/jwks.json publishes public signing keys. Both are intentionally anonymous.
 info:
   version: 1.0.0
   title: Agent Manager Service API
@@ -1975,10 +1976,10 @@ paths:
         - Environments
       summary: Get environment gateways
       description: |
-        List all gateways mapped to a specific environment.
+        List up to 1000 gateways mapped to a specific environment, newest first.
 
-        This endpoint returns all gateways that are available in this environment,
-        useful for understanding which gateways can be used by agents in this environment.
+        To page through all results, use `GET /orgs/{orgName}/gateways` with
+        the `environment` filter and `limit` and `offset` parameters.
       operationId: getEnvironmentGateways
       responses:
         "200":
@@ -1990,6 +1991,7 @@ paths:
                 properties:
                   gateways:
                     type: array
+                    maxItems: 1000
                     items:
                       $ref: "#/components/schemas/GatewayResponse"
         "400":
@@ -7402,7 +7404,20 @@ paths:
         Only a project proxy stored under this project's name is adopted, never an org-level proxy or
         another project's. Its bindings stay; re-PUT each binding to refresh its upstream from the
         re-created project's component.
+
+        Send `If-None-Match: *` to only create: a handle this project already has, or would adopt,
+        returns 412 MCP_PROXY_ALREADY_EXISTS and nothing is changed.
       operationId: upsertProjectMCPProxy
+      parameters:
+        - name: If-None-Match
+          in: header
+          required: false
+          description: >-
+            `*` makes the request create-only. A proxy that exists under this handle in the project is
+            left as it is and the request returns 412.
+          schema:
+            type: string
+            enum: ["*"]
       requestBody:
         required: true
         content:
@@ -7450,7 +7465,13 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "409":
-          description: HANDLE_IN_USE. The handle belongs to an org-level proxy or another project's proxy; or CONTEXT_IN_USE. The new context clashes on a bound gateway
+          description: HANDLE_IN_USE. The handle belongs to an org-level proxy or another project's proxy; or CONTEXT_IN_USE. The new context clashes on a bound gateway; or CONFLICT. A move to another origin found a binding with a stored credential that upstream.resetBindingAuthFor does not name
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "412":
+          description: MCP_PROXY_ALREADY_EXISTS. If-None-Match is `*` and the project already has a proxy with this handle
           content:
             application/json:
               schema:
@@ -7607,9 +7628,10 @@ paths:
            placed (400 IMMUTABLE_FIELD). No gateway in the environment is not an error: the binding is saved and
            validated by a render, deploymentStatus is absent and deploymentStatusReason is NO_GATEWAY.
            The binding is deployed once a gateway is mapped to the environment.
-        3. Validates security. Phase 1 accepts apiKey (the default when security is omitted) and no
-           security (security.enabled false, or no variant enabled). jwt returns 400 "jwt security is not
-           available yet"; identity returns 400.
+        3. Validates security: apiKey (the default when security is omitted, or left on with no variant
+           enabled), identity (OAuth tokens from the environment's identity provider; mutually exclusive with
+           apiKey, 400), or no security (security.enabled false only). An apiKey with enabled false while
+           security stays on returns 400. jwt returns 400 "jwt security is not available yet".
         4. Checks the gateway context /<projName><context> against every other artifact on that gateway:
            equal, containing or nested is 409 CONTEXT_IN_USE and nothing is stored. With no gateway yet,
            the check runs at placement and a clash shows as Failed with reason CONTEXT_IN_USE.
@@ -7619,6 +7641,14 @@ paths:
         An identical PUT on a Deployed or Deploying binding returns 200 with no new deployment. A PUT
         re-queues a Failed binding even when nothing changed. The request body replaces the binding's
         security, policies and upstream auth; an omitted field resets to its default.
+
+        An identity binding is an OAuth resource server in the environment's identity provider, with the
+        binding's publicUrl as its identifier. Its gateway policy accepts access tokens issued by that
+        provider (ThunderKeyManager) for that resource: request the token with publicUrl as the RFC 8707
+        resource. The resource server is registered once the binding has a gateway, by this PUT or a later
+        one (a repeated PUT registers it again), and removed when the binding is deleted. The OAuth clients
+        that call it, and the roles that let them, are managed in the identity provider. AM agents in the
+        project call it with their AgentID.
       operationId: putProjectMCPProxyEnvironment
       requestBody:
         required: true
@@ -7642,7 +7672,7 @@ paths:
         "400":
           description: >-
             AMBIGUOUS_GATEWAY, IMMUTABLE_FIELD (the gateway is fixed once placed), or VALIDATION_ERROR (an invalid
-            request, jwt/identity security, or an invalid policy or upstream auth). A malformed body gives
+            request, jwt security, identity together with apiKey, or an invalid policy or upstream auth). A malformed body gives
             `Invalid request body`.
           content:
             application/json:
@@ -7667,7 +7697,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "409":
-          description: UPSTREAM_NOT_READY or CONTEXT_IN_USE. Nothing was stored
+          description: UPSTREAM_NOT_READY, CONTEXT_IN_USE, or CONFLICT when the proxy's URL moved to another host while a binding with an upstream credential was saved (read the proxy again and retry). Nothing was stored
           content:
             application/json:
               schema:
@@ -7763,7 +7793,579 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /orgs/{orgName}/projects/{projName}/mcp-proxies/{proxyId}/environments/{envName}/capabilities/refresh:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: >-
+          Organization handle. The org comes from the token, or from X-Impersonate-Org, in which
+          case this must be that org's handle.
+        schema:
+          type: string
+      - name: projName
+        in: path
+        required: true
+        description: OpenChoreo project name. Unknown project returns 404 PROJECT_NOT_FOUND.
+        schema:
+          type: string
+      - name: proxyId
+        in: path
+        required: true
+        description: Proxy handle, unique across the org.
+        schema:
+          type: string
+          pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+          maxLength: 100
+      - name: envName
+        in: path
+        required: true
+        description: >-
+          Environment name, e.g. development. An environment the proxy has no binding in returns
+          404 NOT_FOUND.
+        schema:
+          type: string
+    post:
+      tags:
+        - Project MCP Proxy Environments
+      summary: Discover a project MCP proxy binding's capabilities again
+      description: |
+        Queues AMS's discovery of the binding's tools, prompts and resources from the MCP server, through the
+        binding's gateway, with a fresh attempt budget, and returns the binding. Discovery runs in the
+        background: poll GET for capabilityDiscovery. A binding not deployed yet is retried until it is.
 
+        Use it when the MCP server's tools changed without a redeploy, or after a Failed discovery. A
+        binding whose caller gave capabilities returns 409 CAPABILITIES_GIVEN_BY_CALLER: a binding PUT
+        without capabilities hands them to discovery.
+      operationId: refreshProjectMCPProxyEnvironmentCapabilities
+      responses:
+        "202":
+          description: Discovery queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MCPProxyEnvironmentResponse"
+        "404":
+          description: Project, proxy or binding not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: The binding's capabilities were given by its caller (CAPABILITIES_GIVEN_BY_CALLER)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/projects/{projName}/mcp-proxies/{proxyId}/environments/{envName}/api-keys:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: >-
+          Organization handle. The org comes from the token, or from X-Impersonate-Org, in which
+          case this must be that org's handle.
+        schema:
+          type: string
+      - name: projName
+        in: path
+        required: true
+        description: OpenChoreo project name. Unknown project returns 404 PROJECT_NOT_FOUND.
+        schema:
+          type: string
+      - name: proxyId
+        in: path
+        required: true
+        description: Proxy handle, unique across the org.
+        schema:
+          type: string
+          pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+          maxLength: 100
+      - name: envName
+        in: path
+        required: true
+        description: >-
+          Environment name, e.g. development. An environment the proxy has no binding in returns
+          404 NOT_FOUND.
+        schema:
+          type: string
+    get:
+      tags:
+        - Project MCP Proxy API Keys
+      summary: List the API keys of a project MCP proxy binding
+      description: >-
+        The API keys issued for the binding in this environment, masked. Only keys issued through these
+        routes are listed; the keys AMS issues for AM agents that use the proxy are not.
+      operationId: listProjectMCPProxyEnvironmentAPIKeys
+      responses:
+        "200":
+          description: The binding's API keys
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListAPIKeysResponse"
+        "404":
+          description: Project, proxy or binding not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      tags:
+        - Project MCP Proxy API Keys
+      summary: Issue an API key for a project MCP proxy binding
+      description: |
+        Issues an API key that callers present to the gateway for this binding, in the header the binding's
+        security names (X-API-Key by default). The key value is returned once and cannot be read again;
+        rotate the key to get a new value.
+
+        The key is sent to every gateway of the organization, and a gateway that connects later receives it
+        when it syncs. It belongs to the binding: removing the binding or the proxy deletes its keys, and a
+        later binding in the same environment starts with none.
+
+        A binding not secured with an API key returns 409 API_KEY_SECURITY_DISABLED. A name the binding
+        already has a key for returns 409 CONFLICT.
+      operationId: createProjectMCPProxyEnvironmentAPIKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateLLMAPIKeyRequest"
+      responses:
+        "201":
+          description: API key issued. apiKey is the value, returned only now.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateLLMAPIKeyResponse"
+        "400":
+          description: >-
+            Neither name nor displayName given, an invalid name, or an expiresAt that is not an RFC 3339 time in
+            the future (VALIDATION_ERROR)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Project, proxy or binding not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: The binding is not secured with an API key (API_KEY_SECURITY_DISABLED), or already has a key of this name (CONFLICT)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/projects/{projName}/mcp-proxies/{proxyId}/environments/{envName}/api-keys/test:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: >-
+          Organization handle. The org comes from the token, or from X-Impersonate-Org, in which
+          case this must be that org's handle.
+        schema:
+          type: string
+      - name: projName
+        in: path
+        required: true
+        description: OpenChoreo project name. Unknown project returns 404 PROJECT_NOT_FOUND.
+        schema:
+          type: string
+      - name: proxyId
+        in: path
+        required: true
+        description: Proxy handle, unique across the org.
+        schema:
+          type: string
+          pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+          maxLength: 100
+      - name: envName
+        in: path
+        required: true
+        description: >-
+          Environment name, e.g. development. An environment the proxy has no binding in returns
+          404 NOT_FOUND.
+        schema:
+          type: string
+    post:
+      tags:
+        - Project MCP Proxy API Keys
+      summary: Issue a test API key for a project MCP proxy binding
+      description: |
+        Issues a short-lived API key for one of the caller's users, for trying the MCP server. The key value
+        is returned once and is sent to every gateway of the organization, as other binding keys are.
+
+        Each user has three test key slots per binding. A free slot takes the new key; when all three are
+        taken, the slot issued longest ago gets the new value and its old value stops working. keyId names
+        the slot.
+
+        Test keys are not returned by the list route, and the rotate and revoke routes do not reach them.
+        They are removed with the binding. A binding not secured with an API key returns
+        409 API_KEY_SECURITY_DISABLED.
+      operationId: issueProjectMCPProxyEnvironmentTestAPIKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IssueBindingTestAPIKeyRequest"
+      responses:
+        "200":
+          description: Test API key issued. apiKey is the value, returned only now.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IssueTestAPIKeyResponse"
+        "400":
+          description: forUser missing or too long, or an invalid expiresAt (VALIDATION_ERROR)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Project, proxy or binding not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: >-
+            The binding is not secured with an API key (API_KEY_SECURITY_DISABLED), or concurrent test key
+            requests for the same user kept taking the slots (CONFLICT); retry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/projects/{projName}/mcp-proxies/{proxyId}/environments/{envName}/api-keys/{keyName}:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: >-
+          Organization handle. The org comes from the token, or from X-Impersonate-Org, in which
+          case this must be that org's handle.
+        schema:
+          type: string
+      - name: projName
+        in: path
+        required: true
+        description: OpenChoreo project name. Unknown project returns 404 PROJECT_NOT_FOUND.
+        schema:
+          type: string
+      - name: proxyId
+        in: path
+        required: true
+        description: Proxy handle, unique across the org.
+        schema:
+          type: string
+          pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+          maxLength: 100
+      - name: envName
+        in: path
+        required: true
+        description: >-
+          Environment name, e.g. development. An environment the proxy has no binding in returns
+          404 NOT_FOUND.
+        schema:
+          type: string
+      - name: keyName
+        in: path
+        required: true
+        description: The API key's name.
+        schema:
+          type: string
+    put:
+      tags:
+        - Project MCP Proxy API Keys
+      summary: Rotate an API key of a project MCP proxy binding
+      description: >-
+        Gives the key a new value, returned once, and sends it to the organization's gateways. The old value
+        stops working. Without an expiresAt the key keeps the expiry it had; an expired key needs a new expiresAt.
+        A binding not secured with an API key returns 409 API_KEY_SECURITY_DISABLED, and a key another request
+        rotated or revoked meanwhile returns 409 CONFLICT.
+      operationId: rotateProjectMCPProxyEnvironmentAPIKey
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RotateLLMAPIKeyRequest"
+      responses:
+        "200":
+          description: API key rotated. apiKey is the new value, returned only now.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RotateLLMAPIKeyResponse"
+        "400":
+          description: >-
+            expiresAt is not an RFC 3339 time or is not in the future, or the key has expired and no new
+            expiresAt was given (VALIDATION_ERROR)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Project, proxy, binding or key not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: >-
+            The binding is not secured with an API key (API_KEY_SECURITY_DISABLED), or another request rotated or
+            revoked the key meanwhile (CONFLICT)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      tags:
+        - Project MCP Proxy API Keys
+      summary: Revoke an API key of a project MCP proxy binding
+      description: >-
+        Deletes the key and revokes it on the organization's gateways. Works whatever the binding's
+        security, so a key issued before security was turned off can still be removed.
+      operationId: revokeProjectMCPProxyEnvironmentAPIKey
+      responses:
+        "204":
+          description: API key revoked
+        "404":
+          description: Project, proxy, binding or key not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/projects/{projName}/mcp-proxies/{proxyId}/scopes:
+    get:
+      summary: List a project MCP proxy's scopes
+      description: >-
+        Lists the project proxy's scopes. A scope is an action on the proxy's resource server (token scope
+        "<proxy-handle>:<action>"); roles grant it to agents, and every binding secured with identity enforces
+        it on the tools it covers.
+      operationId: listProjectMCPProxyScopes
+      tags: [MCPProxyScopes]
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: proxyId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: X-Impersonate-Org
+          in: header
+          required: false
+          description: >-
+            Tenant org UUID for trusted service callers, as on the project MCP proxy routes. Honoured only for
+            allow-listed clients, otherwise 403; the orgName path segment must then be that org's handle.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Scope list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MCPProxyScopeListResponse"
+        "404":
+          description: Project or MCP proxy not found
+    post:
+      summary: Create a project MCP proxy scope
+      description: >-
+        Creates the scope, adds its action to the resource server of every binding secured with identity, and
+        deploys those bindings again so the gateway enforces it on its tools.
+      operationId: createProjectMCPProxyScope
+      tags: [MCPProxyScopes]
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: proxyId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: X-Impersonate-Org
+          in: header
+          required: false
+          description: >-
+            Tenant org UUID for trusted service callers, as on the project MCP proxy routes. Honoured only for
+            allow-listed clients, otherwise 403; the orgName path segment must then be that org's handle.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MCPProxyScopeRequest"
+      responses:
+        "201":
+          description: Scope created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MCPProxyScopeResponse"
+        "400":
+          description: Invalid action, tools, or unknown tool name (VALIDATION_ERROR)
+        "404":
+          description: Project or MCP proxy not found
+        "409":
+          description: A scope with this action already exists on the proxy (CONFLICT)
+  /orgs/{orgName}/projects/{projName}/mcp-proxies/{proxyId}/scopes/{scopeAction}:
+    put:
+      summary: Update a project MCP proxy scope
+      description: Updates description and/or tools. The action itself is immutable (rename = delete + create).
+      operationId: updateProjectMCPProxyScope
+      tags: [MCPProxyScopes]
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: proxyId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: scopeAction
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: X-Impersonate-Org
+          in: header
+          required: false
+          description: >-
+            Tenant org UUID for trusted service callers, as on the project MCP proxy routes. Honoured only for
+            allow-listed clients, otherwise 403; the orgName path segment must then be that org's handle.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MCPProxyScopeUpdateRequest"
+      responses:
+        "200":
+          description: Scope updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MCPProxyScopeResponse"
+        "400":
+          description: Invalid or unknown tool name (VALIDATION_ERROR)
+        "404":
+          description: Project, MCP proxy or scope not found
+    delete:
+      summary: Delete a project MCP proxy scope
+      description: >-
+        Deletes the scope. Best-effort removal of the corresponding identity provider action and role
+        permissions, then the bindings are deployed again; tools the scope covered become authenticated-only
+        unless another scope covers them.
+      operationId: deleteProjectMCPProxyScope
+      tags: [MCPProxyScopes]
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: proxyId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: scopeAction
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: X-Impersonate-Org
+          in: header
+          required: false
+          description: >-
+            Tenant org UUID for trusted service callers, as on the project MCP proxy routes. Honoured only for
+            allow-listed clients, otherwise 403; the orgName path segment must then be that org's handle.
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Scope deleted
+        "404":
+          description: Project, MCP proxy or scope not found
   /orgs/{orgName}/mcp-proxies/{proxyId}/scopes:
     get:
       summary: List MCP proxy scopes
@@ -12681,6 +13283,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: A requested MCP scope is not ready in the selected environment. The role remains unchanged.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "502":
           description: The environment's identity provider rejected the request
           content:
@@ -14400,6 +15008,25 @@ components:
           nullable: true
           description: Expiration timestamp if set.
 
+    IssueBindingTestAPIKeyRequest:
+      type: object
+      required:
+        - forUser
+      properties:
+        forUser:
+          type: string
+          minLength: 1
+          maxLength: 256
+          description: >-
+            The caller's user the key is issued for, e.g. their user ID. It picks the user's key slots and is
+            not stored.
+        expiresAt:
+          type: string
+          format: date-time
+          description: >-
+            When the key expires (RFC 3339). Must be in the future and no more than 24 hours away.
+            Defaults to one hour from now.
+
     IssueTestAPIKeyResponse:
       type: object
       required:
@@ -14412,7 +15039,7 @@ components:
           type: string
         keyId:
           type: string
-          description: The fixed name "console-test".
+          description: The key's name.
         apiKey:
           type: string
           description: The test API key value to send as the X-API-Key header.
@@ -19401,6 +20028,17 @@ components:
           type: string
           description: Set for a project-owned proxy; absent for an org-level one
           readOnly: true
+        source:
+          allOf:
+            - $ref: "#/components/schemas/MCPProxySource"
+          description: The component endpoint a project-owned proxy fronts; absent for an org-level one.
+          readOnly: true
+        environments:
+          type: array
+          description: The environments the proxy is bound to.
+          readOnly: true
+          items:
+            $ref: "#/components/schemas/MCPProxyListEnvironment"
         status:
           type: string
           description: MCP proxy status
@@ -19418,6 +20056,17 @@ components:
           format: date-time
           description: Timestamp when the resource was last updated
           readOnly: true
+
+    MCPProxyListEnvironment:
+      type: object
+      required:
+        - environmentUuid
+      properties:
+        environmentUuid:
+          type: string
+        environmentName:
+          type: string
+          description: Set for a project-owned proxy, whose binding is named after its environment.
 
     MCPProxySource:
       type: object
@@ -19437,7 +20086,6 @@ components:
       type: object
       required:
         - name
-        - source
       properties:
         name:
           type: string
@@ -19461,7 +20109,42 @@ components:
           description: MCP protocol version of the upstream server, if known
           example: "2025-06-18"
         source:
-          $ref: "#/components/schemas/MCPProxySource"
+          allOf:
+            - $ref: "#/components/schemas/MCPProxySource"
+          description: >-
+            The project component endpoint the proxy fronts. Each environment binding calls the endpoint's
+            in-cluster address there, resolved from the component's release binding. Exclusive with upstream;
+            one of the two is required. Fixed after create.
+        upstream:
+          allOf:
+            - $ref: "#/components/schemas/ProjectMCPProxyUpstream"
+          description: >-
+            A public MCP server URL the proxy fronts, which every environment binding calls as it is. Exclusive
+            with source; one of the two is required. A private or loopback address is 400 VALIDATION_ERROR.
+            The URL may change; a proxy registered by URL cannot take a source later, nor the other way round.
+
+    ProjectMCPProxyUpstream:
+      type: object
+      required:
+        - url
+      properties:
+        url:
+          type: string
+          format: uri
+          example: https://mcp.example.com/mcp
+        resetBindingAuthFor:
+          type: array
+          writeOnly: true
+          items:
+            type: string
+          description: >-
+            Request only. A URL change to another origin (scheme, host or port) is refused with 400
+            while any binding has a stored upstream credential, which is never sent to another origin.
+            resetBindingAuthFor names the bindings, by environment name, whose stored credential the
+            change clears in the same update instead; they are redeployed without one, and new
+            credentials are set with each binding's PUT. A binding with a stored credential that is not
+            named refuses the change with 409 CONFLICT and nothing is stored: read the proxy again and
+            retry. Ignored when the origin does not change.
 
     ProjectMCPProxyResponse:
       type: object
@@ -19471,7 +20154,6 @@ components:
         - version
         - context
         - projectName
-        - source
         - environments
       properties:
         id:
@@ -19490,7 +20172,13 @@ components:
         projectName:
           type: string
         source:
-          $ref: "#/components/schemas/MCPProxySource"
+          allOf:
+            - $ref: "#/components/schemas/MCPProxySource"
+          description: Set for a proxy that fronts a project component endpoint.
+        upstream:
+          allOf:
+            - $ref: "#/components/schemas/ProjectMCPProxyUpstream"
+          description: Set for a proxy registered by a public URL.
         environments:
           type: array
           items:
@@ -19532,7 +20220,6 @@ components:
         - name
         - version
         - context
-        - source
         - environments
       properties:
         id:
@@ -19546,7 +20233,13 @@ components:
         context:
           type: string
         source:
-          $ref: "#/components/schemas/MCPProxySource"
+          allOf:
+            - $ref: "#/components/schemas/MCPProxySource"
+          description: Set for a proxy that fronts a project component endpoint.
+        upstream:
+          allOf:
+            - $ref: "#/components/schemas/ProjectMCPProxyUpstream"
+          description: Set for a proxy registered by a public URL.
         environments:
           type: array
           description: A summary per binding. GET the binding for its security and policies.
@@ -19607,7 +20300,8 @@ components:
             The source component's release binding to front. Required only when the component has more
             than one release binding in the environment, one per deployment track for example; without it
             such a component is rejected with 400 VALIDATION_ERROR. It must be a binding of the source
-            component in this project and environment, or it is rejected with 400 VALIDATION_ERROR.
+            component in this project and environment, or it is rejected with 400 VALIDATION_ERROR. A proxy
+            registered by URL has no release binding: setting it there is 400 VALIDATION_ERROR.
           example: orders-main-development
         security:
           $ref: "#/components/schemas/MCPProxyEnvironmentSecurity"
@@ -19618,14 +20312,33 @@ components:
             $ref: "#/components/schemas/MCPPolicy"
         upstreamAuth:
           $ref: "#/components/schemas/MCPProxyEnvironmentUpstreamAuth"
+        capabilities:
+          allOf:
+            - $ref: "#/components/schemas/MCPProxyCapabilities"
+          description: >-
+            The tools, prompts and resources the MCP server exposes in this environment, as its tools/list,
+            prompts/list and resources/list return them. Optional. Given, they are stored as given and AMS
+            does not discover them; each tool needs a name, and a change redeploys the binding. Omitted, AMS
+            discovers them from the MCP server through the binding's gateway once the binding is deployed
+            (see capabilityDiscovery on the response), and a later PUT without capabilities keeps what it
+            discovered.
+        resilience:
+          allOf:
+            - $ref: "#/components/schemas/Resilience"
+          description: >-
+            The binding's request and idle timeouts on the gateway. Optional; omitted, the gateway's defaults
+            apply. A change redeploys the binding.
 
     MCPProxyEnvironmentSecurity:
       type: object
       description: >-
-        A binding's security. Phase 1 accepts apiKey, which is also the default when the field is omitted
-        or names no variant (an api key in the X-API-Key header), and no security (enabled false only). An
-        apiKey with enabled false while security is not disabled is rejected with 400 VALIDATION_ERROR. jwt
-        is rejected with 400 "jwt security is not available yet", and identity with 400.
+        A binding's security: apiKey, which is also the default when the field is omitted or names no
+        variant (an api key in the X-API-Key header); identity, OAuth access tokens from the environment's
+        identity provider issued for the binding's publicUrl (mutually exclusive with apiKey); or no
+        security (enabled false only). An apiKey with enabled false while security is not disabled is
+        rejected with 400 VALIDATION_ERROR. jwt is rejected with 400 "jwt security is not available yet".
+        The API key is read from a header only: apiKey.in "query" is rejected with 400 VALIDATION_ERROR, as
+        the gateway checks no other location.
       properties:
         enabled:
           type: boolean
@@ -19668,7 +20381,9 @@ components:
         value:
           type: string
           writeOnly: true
-          description: Required with api-key. Stored encrypted; never returned.
+          description: >-
+            Required with api-key, unless the binding already has an api-key upstream auth: an omitted
+            value then keeps the stored one. Stored encrypted; never returned.
 
     MCPProxyEnvironmentUpstreamAuthRedacted:
       type: object
@@ -19682,6 +20397,29 @@ components:
             - none
         header:
           type: string
+
+    MCPCapabilityDiscoveryStatus:
+      type: object
+      description: >-
+        AMS's discovery of a binding's capabilities from the MCP server, through the binding's gateway.
+        Queued each time the binding deploys when its caller gave no capabilities, and by the refresh route.
+        Absent when none was queued.
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum: [Pending, Discovered, Failed]
+          description: >-
+            Pending: queued or retrying (lastError says why the last attempt failed). Discovered: the
+            capabilities are the ones last discovered. Failed: given up on until the next deploy or refresh.
+        lastError:
+          type: string
+          description: Why the last attempt failed. Absent once discovered.
+        discoveredAt:
+          type: string
+          format: date-time
+          description: When the capabilities were last discovered.
 
     MCPProxyEnvironmentResponse:
       type: object
@@ -19729,6 +20467,24 @@ components:
             $ref: "#/components/schemas/MCPPolicy"
         upstreamAuth:
           $ref: "#/components/schemas/MCPProxyEnvironmentUpstreamAuthRedacted"
+        capabilities:
+          allOf:
+            - $ref: "#/components/schemas/MCPProxyCapabilities"
+          description: >-
+            The binding's capabilities: the ones given on the last PUT, or the ones AMS discovered (see
+            capabilitiesSource). Absent when there are none yet.
+        resilience:
+          allOf:
+            - $ref: "#/components/schemas/Resilience"
+          description: The binding's request and idle timeouts. Absent when the gateway's defaults apply.
+        capabilitiesSource:
+          type: string
+          enum: [caller, discovered]
+          description: >-
+            Where capabilities came from: caller (the binding PUT) or discovered (AMS listed them from the
+            MCP server). Absent with no capabilities.
+        capabilityDiscovery:
+          $ref: "#/components/schemas/MCPCapabilityDiscoveryStatus"
         updatedAt:
           type: string
           format: date-time
@@ -20379,7 +21135,10 @@ components:
           example: api-key
         in:
           type: string
-          description: Where the API key is located
+          description: >-
+            Where the API key is located. The gateway reads it from a header only: query is refused with
+            400 when an API key is enabled, except on an MCP proxy endpoint that already has it stored,
+            which keeps it until it is moved to a header. It is still returned for such resources.
           enum:
             - header
             - query

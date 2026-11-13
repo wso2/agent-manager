@@ -236,7 +236,7 @@ export function BuildPanel({
             startIcon={<Wrench size={16} />}
             disabled={isPending || isLoadingAgent || !selectedBranch}
           >
-            Trigger Build
+            Trigger build
           </Button>
         </Box>
       </DrawerContent>

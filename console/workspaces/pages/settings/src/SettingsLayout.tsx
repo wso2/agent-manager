@@ -91,7 +91,7 @@ export const SettingsLayout: React.FC<{ children: ReactNode }> = ({
   }
 
   const sections: SubNavSection[] = userMgmtItems.length > 0
-    ? [{ title: "User Management", items: userMgmtItems }]
+    ? [{ title: "User management", items: userMgmtItems }]
     : [];
 
   return (

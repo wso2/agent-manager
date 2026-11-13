@@ -122,7 +122,7 @@ export const GroupsPage: React.FC = () => {
       onClick={() => navigate(createPath)}
       disabled={!isUserManagementEnabled}
     >
-      Create Group
+      Create group
     </Button>
   ) : undefined;
 

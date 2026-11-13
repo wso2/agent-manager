@@ -114,6 +114,8 @@ services:
       - OPENBAO_URL=http://host.docker.internal:8200
       # Platform A2A card fetches dial the host gateway; *.localhost resolves to the container itself.
       - A2A_CARD_FETCH_DIAL_ADDR=host.docker.internal:19080
+      # Test-only: hosts the A2A card URL guards let through. Leave empty outside e2e runs.
+      - A2A_CARD_TEST_UPSTREAM_HOSTS=${A2A_CARD_TEST_UPSTREAM_HOSTS:-}
       - OPENBAO_TOKEN=root
       - OPENBAO_PATH=secret
       - OPENBAO_VERSION=v2

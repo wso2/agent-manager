@@ -441,7 +441,7 @@ function EditableConfigParams({
           variant="outlined"
           onClick={() => onChange([...configSchema, emptyParam()])}
         >
-          Add Param
+          Add param
         </Button>
       </Stack>
 
@@ -972,7 +972,7 @@ export const ViewEvaluatorOrganization: React.FC = () => {
               startIcon={<Edit size={16} />}
               onClick={handleStartEdit}
             >
-              Edit Evaluator
+              Edit evaluator
             </Button>
           )}
           {isEditing && (

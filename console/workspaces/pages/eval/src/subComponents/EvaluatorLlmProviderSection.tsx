@@ -120,7 +120,7 @@ export function EvaluatorLlmProviderSection({
                 <Plus size={16} />
               </ListItemIcon>
               <Typography variant="body2" color="primary">
-                Add LLM Provider
+                Add LLM provider
               </Typography>
               <ListItemIcon sx={{ ml: "auto", minWidth: "unset" }}>
                 <ExternalLink size={14} />

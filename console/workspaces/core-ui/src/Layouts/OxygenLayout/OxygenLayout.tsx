@@ -160,7 +160,7 @@ export function OxygenLayout() {
                 {orgId && profileManagementEnabled && (
                   <UserMenu.Item
                     icon={<Settings />}
-                    label="Profile Settings"
+                    label="Profile settings"
                     onClick={() => setProfileOpen(true)}
                   />
                 )}
@@ -173,7 +173,7 @@ export function OxygenLayout() {
         <AppShell.Sidebar>
           <LeftNavigation
             collapsed={collapsed}
-            onToggleCollapse={() => setCollapsed(!collapsed)}
+            onToggleCollapse={() => setCollapsed((prev) => !prev)}
             activeItem={activeItem}
             mainItems={mainItems}
             groupedItems={groupedItems}

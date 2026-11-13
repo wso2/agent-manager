@@ -252,7 +252,7 @@ import (
 //			SetReleaseBindingSecretSyncRevisionFunc: func(ctx context.Context, ouID string, componentName string, envName string, revision string) error {
 //				panic("mock out the SetReleaseBindingSecretSyncRevision method")
 //			},
-//			SyncEditedWorkloadSecretsFunc: func(ctx context.Context, ouID string, componentName string, envName string, secretRefName string, editedKeys []string) error {
+//			SyncEditedWorkloadSecretsFunc: func(ctx context.Context, ouID string, componentName string, envName string, editedKeys []string) error {
 //				panic("mock out the SyncEditedWorkloadSecrets method")
 //			},
 //			TriggerBuildFunc: func(ctx context.Context, ouID string, projectName string, componentName string, commitID string, workflowRunName string, runEnvVars []client.EnvVar, buildClient client.BuildClientSource) (*models.BuildResponse, error) {
@@ -536,7 +536,7 @@ type OpenChoreoClientMock struct {
 	SetReleaseBindingSecretSyncRevisionFunc func(ctx context.Context, ouID string, componentName string, envName string, revision string) error
 
 	// SyncEditedWorkloadSecretsFunc mocks the SyncEditedWorkloadSecrets method.
-	SyncEditedWorkloadSecretsFunc func(ctx context.Context, ouID string, componentName string, envName string, secretRefName string, editedKeys []string) error
+	SyncEditedWorkloadSecretsFunc func(ctx context.Context, ouID string, componentName string, envName string, editedKeys []string) error
 
 	// TriggerBuildFunc mocks the TriggerBuild method.
 	TriggerBuildFunc func(ctx context.Context, ouID string, projectName string, componentName string, commitID string, workflowRunName string, runEnvVars []client.EnvVar, buildClient client.BuildClientSource) (*models.BuildResponse, error)
@@ -1433,8 +1433,6 @@ type OpenChoreoClientMock struct {
 			ComponentName string
 			// EnvName is the envName argument value.
 			EnvName string
-			// SecretRefName is the secretRefName argument value.
-			SecretRefName string
 			// EditedKeys is the editedKeys argument value.
 			EditedKeys []string
 		}
@@ -5117,7 +5115,7 @@ func (mock *OpenChoreoClientMock) SetReleaseBindingSecretSyncRevisionCalls() []s
 }
 
 // SyncEditedWorkloadSecrets calls SyncEditedWorkloadSecretsFunc.
-func (mock *OpenChoreoClientMock) SyncEditedWorkloadSecrets(ctx context.Context, ouID string, componentName string, envName string, secretRefName string, editedKeys []string) error {
+func (mock *OpenChoreoClientMock) SyncEditedWorkloadSecrets(ctx context.Context, ouID string, componentName string, envName string, editedKeys []string) error {
 	if mock.SyncEditedWorkloadSecretsFunc == nil {
 		panic("OpenChoreoClientMock.SyncEditedWorkloadSecretsFunc: method is nil but OpenChoreoClient.SyncEditedWorkloadSecrets was just called")
 	}
@@ -5126,20 +5124,18 @@ func (mock *OpenChoreoClientMock) SyncEditedWorkloadSecrets(ctx context.Context,
 		OuID          string
 		ComponentName string
 		EnvName       string
-		SecretRefName string
 		EditedKeys    []string
 	}{
 		Ctx:           ctx,
 		OuID:          ouID,
 		ComponentName: componentName,
 		EnvName:       envName,
-		SecretRefName: secretRefName,
 		EditedKeys:    editedKeys,
 	}
 	mock.lockSyncEditedWorkloadSecrets.Lock()
 	mock.calls.SyncEditedWorkloadSecrets = append(mock.calls.SyncEditedWorkloadSecrets, callInfo)
 	mock.lockSyncEditedWorkloadSecrets.Unlock()
-	return mock.SyncEditedWorkloadSecretsFunc(ctx, ouID, componentName, envName, secretRefName, editedKeys)
+	return mock.SyncEditedWorkloadSecretsFunc(ctx, ouID, componentName, envName, editedKeys)
 }
 
 // SyncEditedWorkloadSecretsCalls gets all the calls that were made to SyncEditedWorkloadSecrets.
@@ -5151,7 +5147,6 @@ func (mock *OpenChoreoClientMock) SyncEditedWorkloadSecretsCalls() []struct {
 	OuID          string
 	ComponentName string
 	EnvName       string
-	SecretRefName string
 	EditedKeys    []string
 } {
 	var calls []struct {
@@ -5159,7 +5154,6 @@ func (mock *OpenChoreoClientMock) SyncEditedWorkloadSecretsCalls() []struct {
 		OuID          string
 		ComponentName string
 		EnvName       string
-		SecretRefName string
 		EditedKeys    []string
 	}
 	mock.lockSyncEditedWorkloadSecrets.RLock()

@@ -99,7 +99,7 @@ export const ViewGateway: React.FC = () => {
               )
             }
           >
-            Edit Gateway
+            Edit gateway
           </Button>
           )
         }

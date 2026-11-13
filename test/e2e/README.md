@@ -45,6 +45,13 @@ the last rebuilds them fresh.
 | Single-env IT helpdesk agent | `testsetup.SetupSharedITHelpdeskAgent` |
 | Two-env promotion infra + agent | `testsetup.EnsurePromotableInfra` / `SetupSharedPromotableITHelpdeskAgent` |
 | Catalog kind | published by the `catalog` suite |
+| A2A sample agent (`e2e-a2a-agent`) | `testsetup.SynchronizedSharedA2AAgent`, used by the `a2a` suite |
+
+The `a2a` suite builds its own A2A sample agent once per suite; its
+external-agent specs (card source accepted and proxy deployed; the proxied
+card fetch and invocation are not covered, because the gateway cannot reach a
+`*.localhost` upstream) also need `A2A_CARD_TEST_UPSTREAM_HOSTS` set on
+both the test side and the service, and skip when the test side leaves it unset.
 
 The `agent` suite is the canonical builder; other suites reuse by name. All
 `testsetup` helpers are idempotent (check-then-reuse).

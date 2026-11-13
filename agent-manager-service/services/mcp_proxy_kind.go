@@ -41,8 +41,11 @@ type mcpArtifact struct {
 	deployable  *models.MCPProxy
 	proxyHandle string
 	scopes      []models.MCPProxyScope
-	// projectScoped: a project proxy's binding, whose upstream AMS resolved itself.
+	// projectScoped: a project proxy's binding.
 	projectScoped bool
+	// resolvedUpstream: the binding of a project proxy with a source, whose in-cluster upstream AMS resolved
+	// itself. A project proxy registered by URL calls a caller-supplied URL, checked as any other.
+	resolvedUpstream bool
 }
 
 // newMCPArtifact is what the binding ee of endpoint renders from.
@@ -51,10 +54,11 @@ func newMCPArtifact(
 	scopes []models.MCPProxyScope,
 ) *mcpArtifact {
 	return &mcpArtifact{
-		deployable:    buildMCPProxyEnvArtifact(proxy, endpoint, ee),
-		proxyHandle:   mcpSourceHandle(proxy),
-		scopes:        scopes,
-		projectScoped: proxy.ProjectUUID != nil,
+		deployable:       buildMCPProxyEnvArtifact(proxy, endpoint, ee),
+		proxyHandle:      mcpSourceHandle(proxy),
+		scopes:           scopes,
+		projectScoped:    proxy.ProjectUUID != nil,
+		resolvedUpstream: proxy.ProjectUUID != nil && proxy.Configuration.Source != nil,
 	}
 }
 
@@ -64,12 +68,49 @@ func newMCPArtifact(
 type MCPProxyKind struct {
 	gatewayRepo    repositories.GatewayRepository
 	deploymentRepo repositories.DeploymentRepository
-	load           func(ctx context.Context, artifact models.ArtifactRef) (*mcpArtifact, error)
+	// discoveries queues a project binding's capability discovery once it is live; nil queues none.
+	discoveries repositories.MCPCapabilityDiscoveryRepository
+	load        func(ctx context.Context, artifact models.ArtifactRef) (*mcpArtifact, error)
 }
 
 // NewMCPProxyKind reads MCP proxies through the request's transaction when there is one.
-func NewMCPProxyKind(gatewayRepo repositories.GatewayRepository, deploymentRepo repositories.DeploymentRepository) *MCPProxyKind {
-	return &MCPProxyKind{gatewayRepo: gatewayRepo, deploymentRepo: deploymentRepo, load: loadMCPArtifact}
+func NewMCPProxyKind(
+	gatewayRepo repositories.GatewayRepository, deploymentRepo repositories.DeploymentRepository,
+	discoveries repositories.MCPCapabilityDiscoveryRepository,
+) *MCPProxyKind {
+	return &MCPProxyKind{gatewayRepo: gatewayRepo, deploymentRepo: deploymentRepo, discoveries: discoveries, load: loadMCPArtifact}
+}
+
+// AfterLive queues the capability discovery of a project proxy binding that has just gone live, unless its caller
+// gave capabilities. Every deploy queues it again, so a new release's tools replace the old ones.
+func (k *MCPProxyKind) AfterLive(ctx context.Context, tx *gorm.DB, p models.Placement, _ uuid.UUID) error {
+	if k.discoveries == nil {
+		return nil
+	}
+	var binding models.MCPProxyEndpointEnvironment
+	err := tx.WithContext(ctx).Where("artifact_uuid = ?", p.ArtifactUUID).Take(&binding).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("failed to read the MCP proxy binding: %w", err)
+	}
+	proxy, err := repositories.NewMCPProxyRepo(tx).GetByUUID(ctx, binding.MCPProxyUUID.String(), p.OUID)
+	if errors.Is(err, gorm.ErrRecordNotFound) || errors.Is(err, utils.ErrMCPProxyNotFound) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("failed to read the MCP proxy: %w", err)
+	}
+	if proxy.ProjectUUID == nil {
+		return nil
+	}
+	for i := range proxy.Endpoints {
+		if proxy.Endpoints[i].UUID == binding.EndpointUUID && !callerGaveCapabilities(proxy.Endpoints[i].Configuration) {
+			return k.discoveries.WithTx(tx).Enqueue(ctx, p.ArtifactUUID)
+		}
+	}
+	return nil
 }
 
 // loadMCPArtifact finds the artifact's (endpoint, environment) binding; gorm.ErrRecordNotFound when it is gone.
@@ -232,9 +273,9 @@ func (k *MCPProxyKind) Targets(ctx context.Context, record reconcile.Record) (uu
 	return gateway.UUID, true, nil
 }
 
-// isProjectScoped reports whether the artifact is a project proxy's binding. A project binding's upstream is an
-// in-cluster address that a customer-run, self-hosted gateway has no route to, so it is never placed on one. An
-// artifact that is gone is not: Render reports it.
+// isProjectScoped reports whether the artifact is a project proxy's binding, which is never placed on a customer-run,
+// self-hosted gateway: a sourced binding's upstream is an in-cluster address such a gateway has no route to, and a
+// binding registered by URL is held to the same rule. An artifact that is gone is not: Render reports it.
 func (k *MCPProxyKind) isProjectScoped(ctx context.Context, record reconcile.Record) (bool, error) {
 	a, err := k.load(ctx, record.ArtifactRef)
 	if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -251,7 +292,7 @@ func (k *MCPProxyKind) isProjectScoped(ctx context.Context, record reconcile.Rec
 }
 
 // upstreamIsPublic re-runs the private-address check on the artifact's upstreams for a managed target. An
-// artifact that is gone passes: Render reports it. A project proxy's binding passes too: its upstream is the
+// artifact that is gone passes: Render reports it. A sourced project proxy's binding passes too: its upstream is the
 // in-cluster address AMS resolved from the project's own release binding, never a caller-supplied URL.
 func (k *MCPProxyKind) upstreamIsPublic(ctx context.Context, record reconcile.Record, gateway *models.Gateway) (bool, error) {
 	a, err := k.load(ctx, record.ArtifactRef)
@@ -261,7 +302,7 @@ func (k *MCPProxyKind) upstreamIsPublic(ctx context.Context, record reconcile.Re
 	if err != nil {
 		return false, err
 	}
-	if a.projectScoped {
+	if a.resolvedUpstream {
 		return true, nil
 	}
 	upstream := a.deployable.Configuration.Upstream

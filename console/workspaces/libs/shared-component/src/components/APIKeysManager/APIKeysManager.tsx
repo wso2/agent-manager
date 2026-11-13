@@ -36,6 +36,7 @@ import {
 import {
   Key,
   Plus,
+  RefreshCw,
   ServerCrash,
   Trash2 as DeleteIcon,
 } from "@wso2/oxygen-ui-icons-react";
@@ -101,6 +102,13 @@ export interface APIKeysManagerProps {
   onCreate: (input: CreateAPIKeyInput) => Promise<string | undefined>;
   /** Revokes the key with the given name. */
   onRevoke: (keyName: string) => void;
+  /**
+   * Regenerates the key with the given name, keeping its name and expiry, and resolves with
+   * the one-time plaintext of the new key. Offers Regenerate on each key when given.
+   */
+  onRotate?: (keyName: string) => Promise<string | undefined>;
+  /** True while a regenerate request is in flight. */
+  isRotating?: boolean;
   /** Hides create and revoke, for users who can't manage keys. */
   readOnly?: boolean;
 }
@@ -276,6 +284,8 @@ export function APIKeysManager({
   emptyDescription,
   onCreate,
   onRevoke,
+  onRotate,
+  isRotating = false,
   readOnly = false,
 }: APIKeysManagerProps) {
   const [createOpen, setCreateOpen] = useState(false);
@@ -300,13 +310,34 @@ export function APIKeysManager({
     });
   };
 
+  // The service regenerates a key with its expiry, so an expired key needs a new one instead.
+  const isExpired = (key: APIKeyInfo) =>
+    !!key.expiresAt && new Date(key.expiresAt).getTime() <= Date.now();
+
+  const handleRotate = (key: APIKeyInfo) => {
+    if (!onRotate) return;
+    addConfirmation({
+      analytics: { entity: "api-key", action: "rotate" },
+      title: "Regenerate API Key",
+      description: `Regenerate "${key.displayName || key.name}"? The current key stops working immediately; requests must use the new one, which is shown once.`,
+      confirmButtonText: "Regenerate",
+      confirmButtonIcon: <RefreshCw size={16} />,
+      onConfirm: () => {
+        onRotate(key.name)
+          .then((value) => value && setNewKeyValue(value))
+          // The request's own error message says why.
+          .catch(() => undefined);
+      },
+    });
+  };
+
   const createButton = readOnly ? undefined : (
     <Button
       variant="contained"
       startIcon={<Plus size={16} />}
       onClick={() => setCreateOpen(true)}
     >
-      Create API Key
+      Create API key
     </Button>
   );
 
@@ -345,7 +376,7 @@ export function APIKeysManager({
                 <ListingTable.Cell width="25%">Key</ListingTable.Cell>
                 <ListingTable.Cell width="120px">Status</ListingTable.Cell>
                 <ListingTable.Cell width="180px">Expires</ListingTable.Cell>
-                <ListingTable.Cell align="right" width="72px" />
+                <ListingTable.Cell align="right" width={onRotate ? "104px" : "72px"} />
               </ListingTable.Row>
             </ListingTable.Head>
             <ListingTable.Body>
@@ -381,6 +412,27 @@ export function APIKeysManager({
                     </Typography>
                   </ListingTable.Cell>
                   <ListingTable.Cell align="right">
+                    {!readOnly && onRotate && (
+                      <Tooltip
+                        title={
+                          isExpired(key)
+                            ? "An expired key can't be regenerated; create a new one"
+                            : "Regenerate"
+                        }
+                      >
+                        <span>
+                          <IconButton
+                            size="small"
+                            onClick={() => handleRotate(key)}
+                            disabled={isRotating || isExpired(key)}
+                            aria-label="Regenerate API key"
+                            sx={{ color: "text.secondary" }}
+                          >
+                            <RefreshCw size={16} />
+                          </IconButton>
+                        </span>
+                      </Tooltip>
+                    )}
                     {!readOnly && (
                     <Tooltip title="Revoke">
                       <span>

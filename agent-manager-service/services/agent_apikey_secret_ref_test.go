@@ -427,7 +427,7 @@ func updateConfigurationsService(t *testing.T, configs []models.EnvVars, configs
 		GetComponentConfigurationsFunc: func(context.Context, string, string, string, string) ([]models.EnvVars, error) {
 			return configs, configsErr
 		},
-		SyncEditedWorkloadSecretsFunc: func(context.Context, string, string, string, string, []string) error {
+		SyncEditedWorkloadSecretsFunc: func(context.Context, string, string, string, []string) error {
 			return nil
 		},
 		ReplaceReleaseBindingWorkloadOverridesFunc: func(_ context.Context, _, _, _ string, env []client.EnvVar, _ []client.FileVar) error {

@@ -18,6 +18,11 @@
 // platform agent: set (create→POST), get, list, set (update→GET+PUT), unset
 // (whole-config DELETE), and the post-unset not-found envelope. Asserts JSON
 // envelopes and exit codes only.
+//
+// Platform-hosted agents can only bind LLM providers deployed to a managed
+// gateway in the environment, so BeforeAll deploys the provider to an active
+// gateway in DefaultEnv. Like the mcp spec, this makes the suite depend on a
+// running AI gateway there.
 
 package cliagentplatformtests
 
@@ -30,6 +35,7 @@ import (
 
 	"github.com/wso2/agent-manager/test/e2e/framework"
 	cliagent "github.com/wso2/agent-manager/test/e2e/operations/cli/agent"
+	cligateway "github.com/wso2/agent-manager/test/e2e/operations/cli/gateway"
 	clillmprovider "github.com/wso2/agent-manager/test/e2e/operations/cli/llmprovider"
 )
 
@@ -43,10 +49,9 @@ var _ = Describe("amctl agent llm (CLI-owned agent)", Label("cli", "agent", "llm
 	var providerID string
 
 	BeforeAll(func() {
-		// A config-only provider (no gateway/upstream/api-key) for the agent's
-		// llm config to reference.
+		gatewayName := cligateway.WaitForActiveEgressGateway(H, H.Org(), cfg.DefaultEnv, 3*time.Minute)
 		providerID = framework.E2ELLMProviderPrefix + uuid.New().String()[:8]
-		clillmprovider.CreateLLMProvider(Default, H, H.Org(), providerID, "CLI E2E LLM Provider", "openai")
+		clillmprovider.CreateLLMProvider(Default, H, H.Org(), providerID, "CLI E2E LLM Provider", "openai", gatewayName)
 
 		// LIFO cleanup: unset the agent config first, then delete the provider.
 		DeferCleanup(func() {

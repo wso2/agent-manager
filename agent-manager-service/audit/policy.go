@@ -179,6 +179,7 @@ var sensitiveReadPaths = map[string]bool{
 	"/orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys":                            true,
 	"/orgs/{orgName}/projects/{projName}/agents/{agentName}/mcp-configs/{configId}/environments/{envName}/api-keys":   true,
 	"/orgs/{orgName}/projects/{projName}/agents/{agentName}/model-configs/{configId}/environments/{envName}/api-keys": true,
+	"/orgs/{orgName}/projects/{projName}/mcp-proxies/{proxyId}/environments/{envName}/api-keys":                       true,
 	"/orgs/{orgName}/gateways/{gatewayID}/tokens":                                                                     true,
 	"/orgs/{orgName}/self-hosted-gateways/{gatewayID}/tokens":                                                         true,
 	"/orgs/{orgName}/projects/{projName}/agents/{agentName}/identities":                                               true,
@@ -301,6 +302,12 @@ var actionOverrides = map[string]Action{
 	"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/mcp-configs/{configId}/environments/{envName}/api-keys/{keyName}":      "api-key:rotate",
 	"DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}/mcp-configs/{configId}/environments/{envName}/api-keys/{keyName}":   "api-key:revoke",
 
+	// One permission, several operations — project MCP proxy binding API keys.
+	"POST /orgs/{orgName}/projects/{projName}/mcp-proxies/{proxyId}/environments/{envName}/api-keys":             "api-key:create",
+	"POST /orgs/{orgName}/projects/{projName}/mcp-proxies/{proxyId}/environments/{envName}/api-keys/test":        "api-key:issue-test",
+	"PUT /orgs/{orgName}/projects/{projName}/mcp-proxies/{proxyId}/environments/{envName}/api-keys/{keyName}":    "api-key:rotate",
+	"DELETE /orgs/{orgName}/projects/{projName}/mcp-proxies/{proxyId}/environments/{envName}/api-keys/{keyName}": "api-key:revoke",
+
 	// One permission, several operations — gateway tokens and configuration.
 	"POST /orgs/{orgName}/gateways/{gatewayID}/tokens":                         "gateway-token:rotate",
 	"DELETE /orgs/{orgName}/gateways/{gatewayID}/tokens/{tokenID}":             "gateway-token:revoke",
@@ -388,6 +395,7 @@ var actionOverrides = map[string]Action{
 	"GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys":                            "api-key:list",
 	"GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/mcp-configs/{configId}/environments/{envName}/api-keys":   "api-key:list",
 	"GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/model-configs/{configId}/environments/{envName}/api-keys": "api-key:list",
+	"GET /orgs/{orgName}/projects/{projName}/mcp-proxies/{proxyId}/environments/{envName}/api-keys":                       "api-key:list",
 	"GET /orgs/{orgName}/gateways/{gatewayID}/tokens":                                                                     "gateway-token:list",
 	"GET /orgs/{orgName}/self-hosted-gateways/{gatewayID}/tokens":                                                         "gateway-token:list",
 	"GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/identities":                                               "agent-identity:read",

@@ -257,7 +257,7 @@ export function TracesTable({
         </>
       ) : manual && hasMore ? (
         <Button size="small" variant="text" onClick={loadMore} startIcon={<ArrowDown size={16} />}>
-          Load More Traces
+          Load more traces
         </Button>
       ) : null}
       {hasActiveFilters && lookedBackTo && (

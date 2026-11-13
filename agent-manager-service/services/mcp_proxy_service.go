@@ -85,6 +85,9 @@ const (
 
 // MCPProxyService handles MCP proxy operations.
 type MCPProxyService struct {
+	// strictLists fails a fetch whose tools, prompts or resources list failed, instead of leaving that list out.
+	// Capability discovery sets it: it stores what it lists, so a failed list must be retried, not stored as empty.
+	strictLists            bool
 	db                     *gorm.DB
 	tx                     TxRunner
 	repo                   repositories.MCPProxyRepository
@@ -251,6 +254,9 @@ func (s *MCPProxyService) Create(ctx context.Context, orgUUID, createdBy string,
 		return nil, err
 	}
 	if err := validateMCPProxyDeploymentHandleLengths(handle, req.Endpoints); err != nil {
+		return nil, err
+	}
+	if err := validateMCPEndpointKeyLocations(req.Endpoints, nil); err != nil {
 		return nil, err
 	}
 	if err := s.validateMCPEndpointSecurity(ctx, orgUUID, req.Endpoints, nil); err != nil {
@@ -539,9 +545,14 @@ func (s *MCPProxyService) Update(ctx context.Context, orgUUID, proxyID string, r
 	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, fmt.Errorf("failed to get MCP proxy before update: %w", err)
 	}
+	var existingEndpoints []models.MCPProxyEndpoint
 	if err == nil && existingProxy != nil {
 		existingArtifactByEnv = indexExistingMCPEndpoints(existingProxy.Endpoints).artifactByEnv
 		proxyUUID = existingProxy.UUID
+		existingEndpoints = existingProxy.Endpoints
+	}
+	if err := validateMCPEndpointKeyLocations(req.Endpoints, existingEndpoints); err != nil {
+		return nil, err
 	}
 	if err := s.validateMCPEndpointSecurity(ctx, orgUUID, req.Endpoints, existingArtifactByEnv); err != nil {
 		return nil, err
@@ -567,6 +578,11 @@ func (s *MCPProxyService) Update(ctx context.Context, orgUUID, proxyID string, r
 		}
 		if proxy.ProjectUUID != nil {
 			return utils.ErrMCPProxyProjectOwned
+		}
+		// Checked again against the locked endpoints: an update committed since the check above may have moved an
+		// endpoint off a stored query location, which then no longer excuses one in this request.
+		if err := validateMCPEndpointKeyLocations(req.Endpoints, proxy.Endpoints); err != nil {
+			return err
 		}
 
 		// Index the existing graph so buildMCPEndpointsForStorage can preserve per-env
@@ -619,7 +635,7 @@ func (s *MCPProxyService) Update(ctx context.Context, orgUUID, proxyID string, r
 		if rejected := mcpDeployRejection(err); rejected != nil {
 			return nil, rejected
 		}
-		if errors.Is(err, utils.ErrMCPProxyNotFound) {
+		if errors.Is(err, utils.ErrMCPProxyNotFound) || errors.Is(err, utils.ErrInvalidInput) {
 			return nil, err
 		}
 		if mapped := s.mapMCPProxyWriteError(err, handle, orgUUID); mapped != nil {
@@ -828,9 +844,20 @@ func (s *MCPProxyService) deleteLoadedMCPProxy(ctx context.Context, orgUUID, han
 	// every scope string to strip from role permissions.
 	scopes, _ := s.mcpProxyScopeRepo.ListByProxy(ctx, proxy.UUID)
 
+	// The URLs its resource servers are registered at, read before the artifacts go: MCPResourceServerIdentifier
+	// needs their placement, and the identity service finds a URL-registered resource server by that URL only.
+	identifiers, err := s.proxyResourceIdentifiers(ctx, orgUUID, proxy)
+	if err != nil {
+		return err
+	}
+
 	// Tear down the per-(endpoint,env) gateway artifacts this proxy deployed before removing
 	// the proxy row. The endpoint and join rows cascade-delete with the parent proxy; here we
-	// only need to broadcast deletion and remove the backing artifacts rows. Best-effort.
+	// only need to broadcast deletion and remove the backing artifacts rows. A failure stops the
+	// delete: each artifact goes in its own transaction with its API key revocations, and one that
+	// rolled back still holds keys the gateways accept, which nothing would reach once the proxy
+	// row is gone. The artifacts already removed take their binding rows with them, so a retry
+	// lists only the ones left.
 	var artifactUUIDs []uuid.UUID
 	endpointEnvs, err := s.endpointRepo.ListEndpointEnvironmentsByProxy(ctx, proxy.UUID)
 	if err != nil {
@@ -842,7 +869,7 @@ func (s *MCPProxyService) deleteLoadedMCPProxy(ctx context.Context, orgUUID, han
 		}
 	}
 	if err := s.deleteMCPProxyEnvironmentArtifacts(ctx, artifactUUIDs, orgUUID); err != nil {
-		s.logger.Warn("Failed to delete MCP proxy endpoint artifacts during proxy delete", "proxyID", proxy.UUID, "error", err)
+		return fmt.Errorf("failed to delete the MCP proxy's gateway artifacts: %w", err)
 	}
 
 	if err := s.repo.Delete(ctx, handle, orgUUID); err != nil {
@@ -852,9 +879,46 @@ func (s *MCPProxyService) deleteLoadedMCPProxy(ctx context.Context, orgUUID, han
 		return fmt.Errorf("failed to delete MCP proxy: %w", err)
 	}
 
-	s.cleanupProxyResourceServers(ctx, orgUUID, proxy, scopes)
+	s.cleanupProxyResourceServers(ctx, orgUUID, proxy, scopes, identifiers)
 
 	return nil
+}
+
+// proxyResourceIdentifiers are the URLs the proxy's resource servers are registered at, by environment: the URL a
+// project binding with an identity cleanup pending kept when it left identity, else the binding's current public URL.
+// One with no public URL has none, and its resource server is looked up by handle. A failure to read the URL of a
+// binding on identity, or with a cleanup pending, is returned: the delete stops before tearing anything down, since
+// without the URL its resource server could not be found afterwards.
+func (s *MCPProxyService) proxyResourceIdentifiers(ctx context.Context, ouID string, proxy *models.MCPProxy) (map[uuid.UUID]string, error) {
+	identifiers := map[uuid.UUID]string{}
+	if s.resolver == nil {
+		return identifiers, nil
+	}
+	for i := range proxy.Endpoints {
+		endpoint := &proxy.Endpoints[i]
+		config := endpoint.Configuration
+		hasRegistration := mcpIdentityEnabled(config.Security) || config.IdentityCleanupID != ""
+		for j := range endpoint.Environments {
+			envUUID := endpoint.Environments[j].EnvironmentUUID
+			if config.IdentityCleanupID != "" && config.IdentityCleanupIdentifier != "" {
+				identifiers[envUUID] = config.IdentityCleanupIdentifier
+				continue
+			}
+			identifier, err := s.MCPResourceServerIdentifier(ctx, ouID, envUUID, proxy)
+			switch {
+			case err == nil:
+				identifiers[envUUID] = identifier
+			case errors.Is(err, ErrMCPProxyNotDeployedToEnvironment):
+			case hasRegistration:
+				return nil, fmt.Errorf("failed to read the resource identifier of MCP proxy %q in %s: %w",
+					proxyHandleOf(proxy), envUUID, err)
+			default:
+				s.logger.Warn("proxy delete: reading a resource identifier failed", "proxy", proxyHandleOf(proxy),
+					"env", envUUID, "error", err)
+			}
+		}
+	}
+	return identifiers, nil
 }
 
 // cleanupProxyResourceServers best-effort tears down the proxy's per-environment Thunder
@@ -864,7 +928,9 @@ func (s *MCPProxyService) deleteLoadedMCPProxy(ctx context.Context, orgUUID, han
 // the endpoint's identity-security flag — see cleanupDeletedScope for why: RS ensure at
 // role-write time doesn't check it either, so skipping cleanup here leaks the RS whenever
 // security was disabled.
-func (s *MCPProxyService) cleanupProxyResourceServers(ctx context.Context, ouID string, proxy *models.MCPProxy, scopes []models.MCPProxyScope) {
+func (s *MCPProxyService) cleanupProxyResourceServers(
+	ctx context.Context, ouID string, proxy *models.MCPProxy, scopes []models.MCPProxyScope, identifiers map[uuid.UUID]string,
+) {
 	handle := proxyHandleOf(proxy)
 	actions := make([]string, len(scopes))
 	for i, scope := range scopes {
@@ -885,13 +951,15 @@ func (s *MCPProxyService) cleanupProxyResourceServers(ctx context.Context, ouID 
 	for i := range proxy.Endpoints {
 		endpoint := &proxy.Endpoints[i]
 		for j := range endpoint.Environments {
-			name, ok := envName[endpoint.Environments[j].EnvironmentUUID.String()]
+			envUUID := endpoint.Environments[j].EnvironmentUUID
+			name, ok := envName[envUUID.String()]
 			if !ok {
 				continue // environment no longer exists — nothing to clean
 			}
+			// By the URL it was registered at when known: one registered by URL is not found by handle.
 			request := MCPResourceServerRequest{
 				OrganizationID: ouID, ProxyHandle: handle, DisplayName: mcpResourceServerDisplayName(proxy),
-				Environment: name, Actions: actions,
+				Environment: name, Identifier: identifiers[envUUID], Actions: actions,
 			}
 			if err := provider.DeleteMCPResourceServer(ctx, request); err != nil {
 				s.logger.Warn("proxy delete: resource server delete failed", "env", name, "proxy", handle, "error", err)
@@ -1320,7 +1388,23 @@ func convertModelMCPProxyToListItem(proxy *models.MCPProxy) models.MCPProxyListI
 	if version == "" {
 		version = proxy.Configuration.Version
 	}
+	environments := []models.MCPProxyListEnvironment{}
+	for _, endpoint := range proxy.Endpoints {
+		for _, ee := range endpoint.Environments {
+			env := models.MCPProxyListEnvironment{EnvironmentUUID: ee.EnvironmentUUID.String()}
+			if proxy.ProjectUUID != nil {
+				env.EnvironmentName = endpoint.Name
+			}
+			environments = append(environments, env)
+		}
+	}
+	var source *models.MCPProxySource
+	if proxy.ProjectUUID != nil {
+		source = projectMCPProxySource(proxy)
+	}
 	return models.MCPProxyListItem{
+		Environments:   environments,
+		Source:         source,
 		Context:        proxy.Configuration.Context,
 		CreatedAt:      timePtrIfNotZero(createdAt),
 		CreatedBy:      stringPtrIfNotEmpty(proxy.CreatedBy),
@@ -1398,6 +1482,31 @@ func validateMCPProxyDeploymentHandleLengths(proxyHandle string, endpoints []mod
 					utils.ErrInvalidInput, endpointHandle, len(artifactHandle), maxMCPProxyDeploymentHandleLength,
 				)
 			}
+		}
+	}
+	return nil
+}
+
+// validateMCPEndpointKeyLocations refuses an endpoint that asks callers for an API key anywhere but a header: the
+// gateway's api-key-auth policy reads the key from a header only, so such an endpoint deploys but accepts no call. An
+// endpoint that already has a query location stored keeps it on update, so a proxy saved before this check can still
+// be saved; it moves to a header from its Security tab. stored is the proxy's current endpoints, nil on create.
+func validateMCPEndpointKeyLocations(endpoints []models.MCPProxyEndpointDTO, stored []models.MCPProxyEndpoint) error {
+	storedElsewhere := map[string]bool{}
+	for _, endpoint := range stored {
+		if endpoint.Configuration.Security.ValidateAPIKeyLocation() != nil {
+			storedElsewhere[strings.TrimSpace(endpoint.Handle)] = true
+		}
+	}
+	for _, endpoint := range endpoints {
+		// Judged on the security as it is stored, where an omitted enabled flag is true.
+		sec := defaultMCPProxySecurity(endpoint.Security)
+		if !isBoolTrue(sec.Enabled) || sec.APIKey == nil || !isBoolTrue(sec.APIKey.Enabled) {
+			continue
+		}
+		handle := strings.TrimSpace(endpoint.ID)
+		if err := sec.ValidateAPIKeyLocation(); err != nil && !storedElsewhere[handle] {
+			return fmt.Errorf("%w: endpoint %q: security.apiKey.in: %w", utils.ErrInvalidInput, handle, err)
 		}
 	}
 	return nil
@@ -2172,9 +2281,10 @@ func obtainValidMCPVersionsFromServer(versions []string) *[]string {
 
 // fetchToolsPromptsAndResources asks the server for its tools, prompts and resources, and builds
 // the response with them, the server's info and the MCP versions it supports.
-// protocolVersion decides how to send each request (see postJSONRPCForVersion). A failed list is
-// left out of the response, but running out of time fails the whole fetch, so a cut-off probe
-// is not reported as complete.
+// protocolVersion decides how to send each request (see postJSONRPCForVersion). A list the server
+// does not implement (-32601) is none. Any other failed list is left out of the response, or fails
+// the fetch when strictLists is set. Running out of time always fails the whole fetch, so a
+// cut-off probe is not reported as complete.
 func (s *MCPProxyService) fetchToolsPromptsAndResources(ctx context.Context, endpointURL string, sessionID string, headerName string, headerValue string, protocolVersion string, serverInfo map[string]interface{}, serverVersions []string) (*models.MCPServerInfoFetchResponse, error) {
 	resp := &models.MCPServerInfoFetchResponse{}
 	if serverInfo != nil {
@@ -2182,13 +2292,25 @@ func (s *MCPProxyService) fetchToolsPromptsAndResources(ctx context.Context, end
 	}
 	resp.SupportedVersions = obtainValidMCPVersionsFromServer(serverVersions)
 
-	if tools := s.fetchTools(ctx, endpointURL, sessionID, headerName, headerValue, protocolVersion); len(tools) > 0 {
+	tools, err := s.fetchTools(ctx, endpointURL, sessionID, headerName, headerValue, protocolVersion)
+	if err := s.listFailed(err); err != nil {
+		return nil, err
+	}
+	if len(tools) > 0 {
 		resp.Tools = &tools
 	}
-	if prompts := s.fetchPrompts(ctx, endpointURL, sessionID, headerName, headerValue, protocolVersion); len(prompts) > 0 {
+	prompts, err := s.fetchPrompts(ctx, endpointURL, sessionID, headerName, headerValue, protocolVersion)
+	if err := s.listFailed(err); err != nil {
+		return nil, err
+	}
+	if len(prompts) > 0 {
 		resp.Prompts = &prompts
 	}
-	if resources := s.fetchResources(ctx, endpointURL, sessionID, headerName, headerValue, protocolVersion); len(resources) > 0 {
+	resources, err := s.fetchResources(ctx, endpointURL, sessionID, headerName, headerValue, protocolVersion)
+	if err := s.listFailed(err); err != nil {
+		return nil, err
+	}
+	if len(resources) > 0 {
 		resp.Resources = &resources
 	}
 
@@ -2353,61 +2475,73 @@ func (s *MCPProxyService) initializeMCPServer(ctx context.Context, endpointURL s
 	return headers.Get(mcpSessionHeader), initResult.Result.ProtocolVersion, initResult.Result.ServerInfo, nil
 }
 
-func (s *MCPProxyService) fetchTools(ctx context.Context, endpointURL string, sessionID string, headerName string, headerValue string, protocolVersion string) []map[string]interface{} {
+// listFailed is err when the fetch must fail on it (strictLists), or nil after logging it.
+func (s *MCPProxyService) listFailed(err error) error {
+	if err == nil {
+		return nil
+	}
+	if s.strictLists {
+		return err
+	}
+	s.logger.Warn("Failed to list MCP capabilities, continuing with available info", "error", err)
+	return nil
+}
+
+// mcpListError is a list's JSON-RPC error, or nil when there is none or the server does not implement the method,
+// which means it has none of that kind.
+func mcpListError(method string, e *mcpJSONRPCError) error {
+	if e == nil || e.Code == mcpJSONRPCMethodNotFound {
+		return nil
+	}
+	return fmt.Errorf("%s returned an error: %s", method, e.Message)
+}
+
+func (s *MCPProxyService) fetchTools(ctx context.Context, endpointURL string, sessionID string, headerName string, headerValue string, protocolVersion string) ([]map[string]interface{}, error) {
 	req := mcpJSONRPCRequest{JSONRPC: mcpJSONRPCVersion, ID: 2, Method: mcpMethodToolsList}
 	body, err := s.postJSONRPCForVersion(ctx, endpointURL, req, sessionID, headerName, headerValue, protocolVersion)
 	if err != nil {
-		s.logger.Warn("Failed to fetch MCP tools, continuing with available info", "error", err)
-		return nil
+		return nil, fmt.Errorf("failed to fetch MCP tools: %w", err)
 	}
 	var result mcpToolsResult
 	if err := json.Unmarshal(body, &result); err != nil {
-		s.logger.Warn("Failed to parse MCP tools response, continuing with available info", "error", err)
-		return nil
+		return nil, fmt.Errorf("failed to parse MCP tools response: %w", err)
 	}
-	if result.Error != nil {
-		s.logger.Warn("tools/list returned an error, continuing with available info", "error", result.Error.Message)
-		return nil
+	if err := mcpListError(mcpMethodToolsList, result.Error); err != nil {
+		return nil, err
 	}
-	return result.Result.Tools
+	return result.Result.Tools, nil
 }
 
-func (s *MCPProxyService) fetchPrompts(ctx context.Context, endpointURL string, sessionID string, headerName string, headerValue string, protocolVersion string) []map[string]interface{} {
+func (s *MCPProxyService) fetchPrompts(ctx context.Context, endpointURL string, sessionID string, headerName string, headerValue string, protocolVersion string) ([]map[string]interface{}, error) {
 	req := mcpJSONRPCRequest{JSONRPC: mcpJSONRPCVersion, ID: 3, Method: mcpMethodPromptsList}
 	body, err := s.postJSONRPCForVersion(ctx, endpointURL, req, sessionID, headerName, headerValue, protocolVersion)
 	if err != nil {
-		s.logger.Warn("Failed to fetch MCP prompts, continuing with available info", "error", err)
-		return nil
+		return nil, fmt.Errorf("failed to fetch MCP prompts: %w", err)
 	}
 	var result mcpPromptsResult
 	if err := json.Unmarshal(body, &result); err != nil {
-		s.logger.Warn("Failed to parse MCP prompts response, continuing with available info", "error", err)
-		return nil
+		return nil, fmt.Errorf("failed to parse MCP prompts response: %w", err)
 	}
-	if result.Error != nil {
-		s.logger.Warn("prompts/list returned an error, continuing with available info", "error", result.Error.Message)
-		return nil
+	if err := mcpListError(mcpMethodPromptsList, result.Error); err != nil {
+		return nil, err
 	}
-	return result.Result.Prompts
+	return result.Result.Prompts, nil
 }
 
-func (s *MCPProxyService) fetchResources(ctx context.Context, endpointURL string, sessionID string, headerName string, headerValue string, protocolVersion string) []map[string]interface{} {
+func (s *MCPProxyService) fetchResources(ctx context.Context, endpointURL string, sessionID string, headerName string, headerValue string, protocolVersion string) ([]map[string]interface{}, error) {
 	req := mcpJSONRPCRequest{JSONRPC: mcpJSONRPCVersion, ID: 4, Method: mcpMethodResourcesList}
 	body, err := s.postJSONRPCForVersion(ctx, endpointURL, req, sessionID, headerName, headerValue, protocolVersion)
 	if err != nil {
-		s.logger.Warn("Failed to fetch MCP resources, continuing with available info", "error", err)
-		return nil
+		return nil, fmt.Errorf("failed to fetch MCP resources: %w", err)
 	}
 	var result mcpResourcesResult
 	if err := json.Unmarshal(body, &result); err != nil {
-		s.logger.Warn("Failed to parse MCP resources response, continuing with available info", "error", err)
-		return nil
+		return nil, fmt.Errorf("failed to parse MCP resources response: %w", err)
 	}
-	if result.Error != nil {
-		s.logger.Warn("resources/list returned an error, continuing with available info", "error", result.Error.Message)
-		return nil
+	if err := mcpListError(mcpMethodResourcesList, result.Error); err != nil {
+		return nil, err
 	}
-	return result.Result.Resources
+	return result.Result.Resources, nil
 }
 
 func (s *MCPProxyService) postJSONRPCWithSession(ctx context.Context, endpointURL string, payload interface{}, sessionID string, headerName string, headerValue string) ([]byte, error) {
@@ -2573,6 +2707,9 @@ type mcpHTTPStatusError struct {
 func (e *mcpHTTPStatusError) Error() string {
 	return fmt.Sprintf("request failed with status %d: %s", e.StatusCode, e.Body)
 }
+
+// mcpJSONRPCMethodNotFound is JSON-RPC's "Method not found" error code.
+const mcpJSONRPCMethodNotFound = -32601
 
 type mcpJSONRPCError struct {
 	Code    int    `json:"code"`

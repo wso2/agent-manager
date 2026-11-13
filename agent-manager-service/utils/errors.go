@@ -172,7 +172,8 @@ var (
 	ErrScopeNotFound                  = errors.New("scope not found")
 	// ErrA2AProxyOriginChangeNeedsAuthReset keeps a stored upstream secret from following the card URL to another origin. Maps to 409.
 	ErrA2AProxyOriginChangeNeedsAuthReset = errors.New(
-		"the stored upstream credential would be sent to the new card URL's origin; clear the upstream auth before moving the card to another origin, then enter it again")
+		"the stored upstream credential would be sent to the new card URL's origin; clear the upstream auth before moving the card to another origin, then enter it again",
+	)
 
 	// HTTP errors
 	ErrBadRequest   = errors.New("bad request")
@@ -366,4 +367,27 @@ var (
 	// ErrMCPAmbiguousGateway means the binding's environment has more than one egress gateway and the
 	// request named none (400 AMBIGUOUS_GATEWAY on the project binding routes).
 	ErrMCPAmbiguousGateway = errors.New("the environment has more than one egress gateway; specify gatewayId")
+	// ErrMCPAPIKeySecurityDisabled means a key was asked for on a project MCP proxy binding that is not secured with
+	// an API key, so the gateway would never check it (409 API_KEY_SECURITY_DISABLED).
+	ErrMCPAPIKeySecurityDisabled = errors.New("API key security is not enabled on this binding")
+	// ErrMCPCapabilitiesGivenByCaller means discovery was asked for on a project MCP proxy binding whose caller gave
+	// its capabilities, which AMS leaves alone (409 CAPABILITIES_GIVEN_BY_CALLER).
+	ErrMCPCapabilitiesGivenByCaller = errors.New("the binding's capabilities were given by its caller")
+	// ErrMCPAPIKeyNotFound means the binding has no API key of that name (404).
+	ErrMCPAPIKeyNotFound = errors.New("API key not found")
+	// ErrMCPAPIKeyExists means the binding already has an API key of that name (409 CONFLICT).
+	ErrMCPAPIKeyExists = errors.New("an API key with this name already exists on the binding")
+	// ErrAPIKeyNameTaken means an insert found the artifact already has an API key of that name: another request
+	// claimed it between the caller's read and its write.
+	ErrAPIKeyNameTaken = errors.New("API key name is already taken")
+	// ErrAPIKeyChanged means a conditional replace found the API key changed or removed by another request since it
+	// was read (409 CONFLICT).
+	ErrAPIKeyChanged = errors.New("the API key was changed by another request; retry")
+	// ErrMCPProxyURLChanged means a project MCP proxy's URL moved to another origin while a binding carrying an
+	// upstream credential was being saved: the credential was given for the old origin (409 CONFLICT).
+	// ErrMCPProxyBindingsChanged means a project MCP proxy's move to another origin found a binding with a stored
+	// upstream credential that the request's resetBindingAuthFor does not name: the caller's view of the proxy's
+	// bindings is out of date (409 CONFLICT).
+	ErrMCPProxyBindingsChanged = errors.New("the MCP proxy has a binding this request does not cover; read it again and retry")
+	ErrMCPProxyURLChanged      = errors.New("the MCP proxy's URL moved to another host while this binding was saved; read it again and retry")
 )

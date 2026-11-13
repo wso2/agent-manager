@@ -266,7 +266,7 @@ export const EnvAgentRolesGroupsSection: React.FC<EnvAgentRolesGroupsSectionProp
               startIcon={isProvisioning ? <CircularProgress size={14} color="inherit" /> : <Fingerprint size={14} />}
               sx={{ whiteSpace: "nowrap" }}
             >
-              {isProvisioning ? "Creating..." : "Create Agent ID"}
+              {isProvisioning ? "Creating..." : "Create agent ID"}
             </Button>
             )
           }

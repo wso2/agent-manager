@@ -47,7 +47,7 @@ import {
   useCreateAgentMCPConfig,
   useGetAgent,
   useListAgentMCPConfigs,
-  useListMCPProxies,
+  useListAllMCPProxies,
 } from "@agent-management-platform/api-client";
 import {
   AGENTID_ENV_VAR_ROWS,
@@ -113,9 +113,14 @@ export function AddMCPToolConfigPanel({
 
   const { environments, isLoading: isLoadingEnvironments } =
     usePipelineEnvironmentsState(orgId, projectId);
-  const { data: proxiesData, isLoading: isLoadingProxies } = useListMCPProxies(
+  const {
+    data: proxiesData,
+    isLoading: isLoadingProxies,
+    isError: isProxiesError,
+    refetch: refetchProxies,
+  } = useListAllMCPProxies(
     { orgName: orgId },
-    { limit: 50, offset: 0, project: projectId },
+    { project: projectId },
   );
   const { data: existingConfigsList } = useListAgentMCPConfigs(
     { orgName: orgId, projName: projectId, agentName: agentId },
@@ -346,6 +351,18 @@ export function AddMCPToolConfigPanel({
                   Array.from({ length: 3 }).map((_, i) => (
                     <Skeleton key={i} variant="rounded" height={72} />
                   ))
+                ) : isProxiesError ? (
+                  // A list that failed to load is not an empty one.
+                  <Alert
+                    severity="error"
+                    action={
+                      <Button color="inherit" size="small" onClick={() => refetchProxies()}>
+                        Retry
+                      </Button>
+                    }
+                  >
+                    Couldn&apos;t load the MCP servers.
+                  </Alert>
                 ) : servers.length === 0 ? (
                   <ListingTable.Container>
                     <ListingTable.EmptyState
@@ -368,7 +385,7 @@ export function AddMCPToolConfigPanel({
                               )
                             }
                           >
-                            Register MCP Server
+                            Register MCP server
                           </Button>
                         ) : undefined
                       }

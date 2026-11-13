@@ -4,15 +4,17 @@ import json
 import logging
 import uuid
 from datetime import datetime, timezone
+from itertools import islice
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Query, status
 
 logger = logging.getLogger(__name__)
 
 DATA_PATH = Path(__file__).resolve().parent / "storage" / "bookings.json"
 DATA_PATH.parent.mkdir(parents=True, exist_ok=True)
+BOOKINGS_PAGE_SIZE = 100
 
 router = APIRouter()
 
@@ -106,10 +108,13 @@ def create_booking(payload: dict[str, Any]):
 
 
 @router.get("/bookings")
-def get_bookings(user_id: str):
+def get_bookings(user_id: str, offset: Annotated[int, Query(ge=0)] = 0):
     try:
         bookings = _load_bookings()
-        return [booking for booking in bookings if booking.get("user_id") == user_id]
+        matching = (booking for booking in bookings if booking.get("user_id") == user_id)
+        if offset >= len(bookings):
+            return []
+        return list(islice(matching, offset, offset + BOOKINGS_PAGE_SIZE))
     except Exception:
         logger.exception("get_bookings: failed to fetch bookings")
         raise HTTPException(

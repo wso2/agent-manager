@@ -180,7 +180,7 @@ export const TraceFilterBar: React.FC<TraceFilterBarProps> = ({
             onClick={() => (open ? onOpenChange(false) : openDrawer())}
             sx={{ textTransform: "none", borderColor: "divider" }}
           >
-            Advanced Filters
+            Advanced filters
           </Button>
         </Stack>
         <StatusToggle

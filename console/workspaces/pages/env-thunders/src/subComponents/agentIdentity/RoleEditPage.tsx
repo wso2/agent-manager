@@ -552,7 +552,7 @@ export const RoleEditPage: React.FC = () => {
               Cancel
             </Button>
             <Button variant="contained" onClick={handleSave} disabled={isSaving}>
-              {isSaving ? "Saving..." : "Save Changes"}
+              {isSaving ? "Saving..." : "Save changes"}
             </Button>
           </Stack>
         )}
