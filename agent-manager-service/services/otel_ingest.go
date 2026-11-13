@@ -50,7 +50,6 @@ var otelIngestClaimHeaders = map[string]string{
 	"component_uid":   "x-user-component",
 	"environment_uid": "x-user-environment",
 	"project_uid":     "x-user-project",
-	"namespace":       "x-user-namespace",
 	"organization":    "x-user-organization-name",
 	"project":         "x-user-project-name",
 	"agent":           "x-user-agent-name",

@@ -5616,9 +5616,6 @@ type OrganizationResponse struct {
 
 	// Name Name of the organization
 	Name string `json:"name"`
-
-	// Namespace Namespace of the organization
-	Namespace string `json:"namespace"`
 }
 
 // PaginationInfo defines model for PaginationInfo.
@@ -6889,6 +6886,9 @@ type AgentIdentityOrgName = string
 
 // AgentIdentityRoleID defines model for AgentIdentityRoleID.
 type AgentIdentityRoleID = string
+
+// NotImplemented defines model for NotImplemented.
+type NotImplemented = ErrorResponse
 
 // ListOrganizationsParams defines parameters for ListOrganizations.
 type ListOrganizationsParams struct {

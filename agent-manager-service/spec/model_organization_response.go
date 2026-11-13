@@ -26,8 +26,6 @@ type OrganizationResponse struct {
 	DisplayName string `json:"displayName"`
 	// Description of the organization
 	Description string `json:"description"`
-	// Namespace of the organization
-	Namespace string `json:"namespace"`
 	// Human-readable handle of the organization (the caller's OU handle), used in console URLs. Omitted when it cannot be determined.
 	Handle *string `json:"handle,omitempty"`
 	// Timestamp when the organization was created
@@ -38,12 +36,11 @@ type OrganizationResponse struct {
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewOrganizationResponse(name string, displayName string, description string, namespace string, createdAt time.Time) *OrganizationResponse {
+func NewOrganizationResponse(name string, displayName string, description string, createdAt time.Time) *OrganizationResponse {
 	this := OrganizationResponse{}
 	this.Name = name
 	this.DisplayName = displayName
 	this.Description = description
-	this.Namespace = namespace
 	this.CreatedAt = createdAt
 	return &this
 }
@@ -128,30 +125,6 @@ func (o *OrganizationResponse) SetDescription(v string) {
 	o.Description = v
 }
 
-// GetNamespace returns the Namespace field value
-func (o *OrganizationResponse) GetNamespace() string {
-	if o == nil {
-		var ret string
-		return ret
-	}
-
-	return o.Namespace
-}
-
-// GetNamespaceOk returns a tuple with the Namespace field value
-// and a boolean to check if the value has been set.
-func (o *OrganizationResponse) GetNamespaceOk() (*string, bool) {
-	if o == nil {
-		return nil, false
-	}
-	return &o.Namespace, true
-}
-
-// SetNamespace sets field value
-func (o *OrganizationResponse) SetNamespace(v string) {
-	o.Namespace = v
-}
-
 // GetHandle returns the Handle field value if set, zero value otherwise.
 func (o *OrganizationResponse) GetHandle() string {
 	if o == nil || IsNil(o.Handle) {
@@ -221,7 +194,6 @@ func (o OrganizationResponse) ToMap() (map[string]interface{}, error) {
 	toSerialize["name"] = o.Name
 	toSerialize["displayName"] = o.DisplayName
 	toSerialize["description"] = o.Description
-	toSerialize["namespace"] = o.Namespace
 	if !IsNil(o.Handle) {
 		toSerialize["handle"] = o.Handle
 	}

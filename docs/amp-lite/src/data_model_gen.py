@@ -206,8 +206,7 @@ card("env", "tenancy", 660, TOP, 230, "Environment", "environments",
 AY = 640
 card("agent", "agents", 60, AY, 250, "Agent", "agents",
      "An external agent registered with AMP. Lite connects agents; it doesn't build or run them.",
-     [("name", "unique per org"), ("display_name", ""), ("provisioning_type", "external"),
-      ("agent_type", ""), ("sub_type", "chat-api | custom-api | a2a-agent")])
+     [("name", "unique per org"), ("display_name", ""), ("provisioning_type", "external")])
 card("labels", "agents", 360, AY, 240, "Agent label", "agent_labels",
      "Key/value tags for filtering agents.",
      [("label_key", ""), ("label_value", "")], rel="Up to 10 per agent.")

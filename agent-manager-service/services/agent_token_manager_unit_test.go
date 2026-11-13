@@ -260,6 +260,34 @@ func TestAgentTokenManager_GenerateToken_ClientErrors(t *testing.T) {
 		require.Error(t, err)
 		assert.ErrorIs(t, err, boom)
 	})
+
+	t.Run("refuses to mint when the organization lookup fails", func(t *testing.T) {
+		boom := errors.New("organization lookup failed")
+		oc := fullClientMock("comp-uuid", "env-uuid", "proj-uuid")
+		oc.GetOrganizationFunc = func(_ context.Context, _ string) (*models.OrganizationResponse, error) {
+			return nil, boom
+		}
+		svc := newTokenManager(t, oc)
+
+		resp, err := svc.GenerateToken(auditableCtx(t), base)
+
+		require.Error(t, err)
+		assert.Nil(t, resp)
+		assert.ErrorIs(t, err, boom)
+	})
+
+	t.Run("refuses to mint when the organization has no handle", func(t *testing.T) {
+		oc := fullClientMock("comp-uuid", "env-uuid", "proj-uuid")
+		oc.GetOrganizationFunc = func(_ context.Context, _ string) (*models.OrganizationResponse, error) {
+			return &models.OrganizationResponse{}, nil
+		}
+		svc := newTokenManager(t, oc)
+
+		resp, err := svc.GenerateToken(auditableCtx(t), base)
+
+		require.Error(t, err)
+		assert.Nil(t, resp)
+	})
 }
 
 // fullClientMock returns a mock where all three lookups succeed with the given
@@ -356,7 +384,7 @@ func TestAgentTokenManager_GenerateToken_HappyPath(t *testing.T) {
 	assert.Equal(t, "env-uuid", claims.EnvironmentUid)
 	assert.Equal(t, "proj-uuid", claims.ProjectUid)
 	assert.Equal(t, "org-123", claims.OrgId)
-	assert.Equal(t, config.GetConfig().OrgNamespace, claims.Namespace, "namespace claim comes from the configured org namespace, not the raw OU id")
+	assert.Equal(t, "acme", claims.Organization)
 	assert.Equal(t, "my-agent", claims.Subject)
 	assert.Equal(t, "agent-manager-test", claims.Issuer)
 	assert.NotEmpty(t, claims.ID, "jti claim must be set for forward-compatible revocation")

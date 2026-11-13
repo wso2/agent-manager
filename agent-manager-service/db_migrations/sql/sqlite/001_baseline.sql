@@ -52,8 +52,6 @@ CREATE TABLE agents (
     display_name TEXT NOT NULL,
     description TEXT,
     provisioning_type TEXT NOT NULL,
-    agent_type TEXT NOT NULL,
-    sub_type TEXT,
     created_by TEXT,
     created_at TIMESTAMP NOT NULL,
     updated_at TIMESTAMP NOT NULL,

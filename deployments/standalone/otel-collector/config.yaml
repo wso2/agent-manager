@@ -60,9 +60,6 @@ processors:
     - key: agent-manager/project-uid
       from_context: metadata.x-user-project
       action: upsert
-    - key: agent-manager/namespace
-      from_context: metadata.x-user-namespace
-      action: upsert
     - key: agent-manager/org-id
       from_context: metadata.x-org-id
       action: upsert

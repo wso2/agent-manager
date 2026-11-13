@@ -51,8 +51,6 @@ CREATE TABLE agents (
     display_name VARCHAR(255) NOT NULL,
     description VARCHAR(1000),
     provisioning_type VARCHAR(16) NOT NULL,
-    agent_type VARCHAR(32) NOT NULL,
-    sub_type VARCHAR(32),
     created_by VARCHAR(255),
     created_at TIMESTAMPTZ NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL,

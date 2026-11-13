@@ -32,6 +32,15 @@ const (
 	AgentTypeExternalAPI AgentType = "external-agent-api"
 )
 
+// AgentTypeForProvisioning is the agentType.type the API reports for an agent.
+// It is not stored: it follows from the provisioning type one-to-one.
+func AgentTypeForProvisioning(provisioningType string) AgentType {
+	if provisioningType == string(InternalAgent) {
+		return AgentTypeAPI
+	}
+	return AgentTypeExternalAPI
+}
+
 type AgentSubType string
 
 const (

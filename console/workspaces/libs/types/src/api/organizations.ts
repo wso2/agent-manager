@@ -28,7 +28,6 @@ export interface OrganizationResponse {
   name: string;
   displayName: string;
   description: string;
-  namespace: string;
   createdAt: string; // ISO date-time
   handle?: string; // org handle for console URLs; omitted when the backend can't tell
 }

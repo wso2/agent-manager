@@ -84,27 +84,6 @@ func IsValidationError(err error) *ValidationError {
 	return nil
 }
 
-// ErrEntitlementDenied is returned when the organization's subscription does
-// not allow a create. Maps to 402.
-var ErrEntitlementDenied = errors.New("not allowed by the organization's subscription")
-
-// EntitlementDeniedError carries the user-facing reason a subscription refused
-// a create, and matches ErrEntitlementDenied under errors.Is.
-type EntitlementDeniedError struct {
-	// Message is shown to the user, e.g. which limit was reached and how to raise it.
-	Message string
-}
-
-// Error implements the error interface, returning the user-facing message.
-func (e *EntitlementDeniedError) Error() string {
-	return e.Message
-}
-
-// Unwrap exposes ErrEntitlementDenied to errors.Is.
-func (e *EntitlementDeniedError) Unwrap() error {
-	return ErrEntitlementDenied
-}
-
 var (
 	// Resource not found errors
 	ErrProjectNotFound               = errors.New("project not found")

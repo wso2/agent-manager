@@ -18,13 +18,10 @@ package services
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
 	"time"
-
-	"github.com/wso2/agent-manager/agent-manager-service/workloadpolicy"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/db"
@@ -182,13 +179,6 @@ func (s *monitorSchedulerService) triggerPendingMonitors(ctx context.Context) er
 
 // triggerMonitor creates a WorkflowRun CR for a single monitor
 func (s *monitorSchedulerService) triggerMonitor(ctx context.Context, monitor *models.Monitor) error {
-	if err := workloadpolicy.Check(ctx, monitor.OUID); err != nil {
-		if errors.Is(err, workloadpolicy.ErrSuspended) {
-			s.logger.DebugContext(ctx, "Skipping monitor for suspended subscription", "orgID", monitor.OUID, "monitor", monitor.Name)
-			return nil
-		}
-		return fmt.Errorf("check monitor workload admission: %w", err)
-	}
 	if monitor.IntervalMinutes == nil {
 		return fmt.Errorf("interval_minutes is nil for monitor %s", monitor.Name)
 	}

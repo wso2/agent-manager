@@ -45,7 +45,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/services"
 	"github.com/wso2/agent-manager/agent-manager-service/signals"
 	"github.com/wso2/agent-manager/agent-manager-service/wiring"
-	"github.com/wso2/agent-manager/agent-manager-service/workloadpolicy"
 
 	"go.uber.org/automaxprocs/maxprocs"
 	"gorm.io/gorm"
@@ -61,8 +60,6 @@ const (
 // Options holds the configuration options for running the application.
 // These are typically parsed from command-line flags in main.
 type Options struct {
-	// WorkloadGuard is inherited by authenticated requests and background workers.
-	WorkloadGuard workloadpolicy.Guard
 	// APIMiddleware wraps the authenticated API mux before dispatch.
 	APIMiddleware func(*http.ServeMux) http.Handler
 	// StartBackground starts deployment-specific workers before the scheduler.
@@ -122,11 +119,6 @@ type Options struct {
 	// the env-Thunder system-client credential from AMS's own Postgres — that one
 	// is not read back from a key vault.
 	AgentThunderProvisioning func(db *gorm.DB, secretMgmtClient secretmanagersvc.SecretManagementClient, platform repositories.PlatformRepository, encryptionKey []byte) services.AgentThunderProvisioningService
-	// EntitlementChecker asks whether the organization's subscription allows an
-	// agent create. nil (the open-source default) allows every create; cloud
-	// deployments inject a check against their billing system. See
-	// services.EntitlementChecker.
-	EntitlementChecker services.EntitlementChecker
 	// OrgOverrideResolver lets a deployment's control plane act on a tenant's
 	// behalf on the few routes it drives (gateway listing, environment Thunder
 	// registration, gateway identity providers), typically by trusting an
@@ -236,8 +228,6 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 		os.Exit(1)
 	}
 
-	dependencies.AgentManagerService.SetEntitlementChecker(opts.EntitlementChecker)
-
 	// Registers the gateway named in configuration before any gateway can connect.
 	seedCtx, seedCancel := context.WithTimeout(context.Background(), time.Minute)
 	err = dependencies.DefaultGatewaySeeder.Seed(seedCtx)
@@ -256,7 +246,6 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 	if opts.BackgroundContextDecorator != nil {
 		backgroundCtx = opts.BackgroundContextDecorator(backgroundCtx)
 	}
-	backgroundCtx = workloadpolicy.WithGuard(backgroundCtx, opts.WorkloadGuard)
 
 	stopBackground := func() {}
 	if opts.StartBackground != nil {
@@ -313,7 +302,7 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 	recordStartupPosture(dependencies.AuditRecorder)
 
 	// Create main API server handler
-	handler := api.MakeHTTPHandlerWithPolicy(dependencies, opts.ExtraAPIRoutes, opts.APIMiddleware, opts.WorkloadGuard)
+	handler := api.MakeHTTPHandlerWithMiddleware(dependencies, opts.ExtraAPIRoutes, opts.APIMiddleware)
 	mainServer := &http.Server{
 		Addr:           fmt.Sprintf("%s:%d", cfg.ServerHost, cfg.ServerPort),
 		Handler:        handler,

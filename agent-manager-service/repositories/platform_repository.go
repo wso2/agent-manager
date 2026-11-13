@@ -45,8 +45,6 @@ type CreateAgentInput struct {
 	DisplayName      string
 	Description      string
 	ProvisioningType string
-	AgentType        string
-	SubType          string
 	Labels           map[string]string
 	CreatedBy        string
 }
@@ -290,7 +288,7 @@ func agentResponse(projectName string, a *models.Agent) *models.AgentResponse {
 		ProjectName:  projectName,
 		CreatedAt:    a.CreatedAt,
 		Provisioning: models.Provisioning{Type: a.ProvisioningType},
-		Type:         models.AgentType{Type: a.AgentType, SubType: deref(a.SubType)},
+		Type:         models.AgentType{Type: string(utils.AgentTypeForProvisioning(a.ProvisioningType))},
 		Labels:       labels,
 	}
 }
@@ -333,7 +331,7 @@ func (r *platformRepo) CreateAgent(ctx context.Context, ouID, projectName string
 	a := models.Agent{
 		ID: newID(), OrgID: org.ID, ProjectID: p.ID, Name: in.Name, DisplayName: displayName,
 		Description: optional(in.Description), ProvisioningType: in.ProvisioningType,
-		AgentType: in.AgentType, SubType: optional(in.SubType), CreatedBy: optional(in.CreatedBy),
+		CreatedBy: optional(in.CreatedBy),
 		CreatedAt: now, UpdatedAt: now,
 	}
 	keys := make([]string, 0, len(in.Labels))

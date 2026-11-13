@@ -69,7 +69,6 @@ type AgentTokenClaims struct {
 	EnvironmentUid string `json:"environment_uid"`
 	ProjectUid     string `json:"project_uid,omitempty"`
 	OrgId          string `json:"org_id"`
-	Namespace      string `json:"namespace"`
 	// Organization, Project and Agent name the agent the token belongs to.
 	// The gateway stamps them on ingested spans, and the observer scopes trace
 	// queries by them.
@@ -295,12 +294,15 @@ func (s *agentTokenManagerService) GenerateToken(ctx context.Context, req Genera
 		return nil, fmt.Errorf("failed to get project: %w", err)
 	}
 
-	// Traces are stamped with this namespace at ingest (via the gateway ->
-	// collector), so the claim carries the namespace rather than the raw OU id.
-	namespace, err := ResolveNamespace(ctx)
+	// The observer scopes trace reads by the organization claim, so a token
+	// without one would ingest spans no console view ever shows.
+	org, err := s.ocClient.GetOrganization(ctx, req.OrgName)
 	if err != nil {
-		s.logger.Error("Failed to resolve namespace", "ouID", req.OrgName, "error", err)
-		return nil, err
+		s.logger.Error("Failed to get organization", "ouID", req.OrgName, "error", err)
+		return nil, fmt.Errorf("failed to get organization: %w", err)
+	}
+	if org == nil || org.Handle == "" {
+		return nil, fmt.Errorf("organization %q has no handle to put in the token", req.OrgName)
 	}
 
 	// Determine expiry duration
@@ -326,12 +328,9 @@ func (s *agentTokenManagerService) GenerateToken(ctx context.Context, req Genera
 		EnvironmentUid: environment.UUID,
 		ProjectUid:     project.UUID,
 		OrgId:          req.OrgId,
-		Namespace:      namespace,
+		Organization:   org.Handle,
 		Project:        project.Name,
 		Agent:          component.Name,
-	}
-	if org, orgErr := s.ocClient.GetOrganization(ctx, req.OrgName); orgErr == nil {
-		claims.Organization = org.Handle
 	}
 
 	// Get the active signing key

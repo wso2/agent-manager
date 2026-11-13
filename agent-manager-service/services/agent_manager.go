@@ -44,9 +44,6 @@ type AgentManagerService interface {
 	ListAgents(ctx context.Context, ouID string, projName string, labelFilter map[string]string, limit int32, offset int32) ([]*models.AgentResponse, int32, error)
 	ListOrgAgents(ctx context.Context, ouID string) ([]*models.AgentSummary, error)
 	CreateAgent(ctx context.Context, ouID string, projectName string, req *spec.CreateAgentRequest) error
-	// SetEntitlementChecker installs an optional subscription check for agent
-	// creates. It is called once during startup, before the HTTP server begins serving.
-	SetEntitlementChecker(checker EntitlementChecker)
 	UpdateAgentBasicInfo(ctx context.Context, ouID string, projectName string, agentName string, req *spec.UpdateAgentBasicInfoRequest) (*models.AgentResponse, error)
 	DeleteAgent(ctx context.Context, ouID string, projectName string, agentName string) error
 	GetAgent(ctx context.Context, ouID string, projectName string, agentName string) (*models.AgentResponse, error)
@@ -75,7 +72,6 @@ type agentManagerService struct {
 	agentThunderProvisioning  AgentThunderProvisioningService
 	monitorManagerService     MonitorManagerService
 	identityClient            thundersvc.IdentityClient
-	entitlementChecker        EntitlementChecker
 	a2aPublisher              *A2APublisher
 	a2aCardRepo               repositories.A2AAgentCardRepository
 	deploymentRepo            repositories.DeploymentRepository
@@ -122,22 +118,6 @@ func NewAgentManagerService(
 		gatewayRepo:               gatewayRepo,
 		logger:                    logger,
 	}
-}
-
-// requireIngressGateway refuses an environment that has no INGRESS or BOTH gateway to expose an API agent through.
-func (s *agentManagerService) requireIngressGateway(ouID string, env *models.EnvironmentResponse) error {
-	envUUID, err := uuid.Parse(env.UUID)
-	if err != nil {
-		return fmt.Errorf("environment %s has an invalid UUID %q: %w", env.Name, env.UUID, err)
-	}
-	gateway, err := findIngressGateway(s.gatewayRepo, ouID, envUUID)
-	if err != nil {
-		return err
-	}
-	if gateway == nil {
-		return fmt.Errorf("%w: environment %s has no ingress gateway", utils.ErrEnvironmentHasNoGateway, env.Name)
-	}
-	return nil
 }
 
 // Build type constants
@@ -420,12 +400,6 @@ func (s *agentManagerService) CreateAgent(ctx context.Context, ouID string, proj
 	if err != nil {
 		return err
 	}
-	isAPIAgent := req.AgentType != nil && req.AgentType.Type == string(utils.AgentTypeAPI)
-	if isAPIAgent {
-		if err := s.requireIngressGateway(ouID, env); err != nil {
-			return err
-		}
-	}
 	if len(req.ModelConfig) > 0 {
 		handles := make([]string, 0, len(req.ModelConfig))
 		for _, mc := range req.ModelConfig {
@@ -444,19 +418,12 @@ func (s *agentManagerService) CreateAgent(ctx context.Context, ouID string, proj
 			return err
 		}
 	}
-	if err := s.checkAgentEntitlement(ctx, ouID, req); err != nil {
-		return err
-	}
 
 	in := repositories.CreateAgentInput{
 		Name:             req.Name,
 		DisplayName:      req.DisplayName,
 		Description:      utils.StrPointerAsStr(req.Description, ""),
 		ProvisioningType: req.Provisioning.Type,
-	}
-	if req.AgentType != nil {
-		in.AgentType = req.AgentType.Type
-		in.SubType = utils.StrPointerAsStr(req.AgentType.SubType, "")
 	}
 	if req.Labels != nil {
 		in.Labels = *req.Labels
@@ -476,26 +443,10 @@ func (s *agentManagerService) CreateAgent(ctx context.Context, ouID string, proj
 		return err
 	}
 
-	var agentAPIArtifact *models.Artifact
-	if shape, ok := agentGatewayShapeFor(utils.StrPointerAsStr(req.AgentType.SubType, "")); isAPIAgent && ok {
-		agentAPIArtifact, err = ensureAgentEnvAPIArtifact(s.db, s.artifactRepo, ouID, projectName, req.Name, env.UUID, shape.ArtifactKind)
-		if err != nil {
-			if errDeletion := s.platform.DeleteAgent(ctx, ouID, projectName, req.Name); errDeletion != nil {
-				s.logger.Error("Failed to roll back agent after API artifact create failure", "agentName", req.Name, "error", errDeletion)
-			}
-			return fmt.Errorf("failed to create agent API artifact record: %w", err)
-		}
-	}
-
 	rollbackAgentCreate := func(reason string) {
 		s.deleteAgentLLMConfigurations(context.WithoutCancel(ctx), ouID, projectName, req.Name, true)
 		if errDeletion := s.platform.DeleteAgent(context.WithoutCancel(ctx), ouID, projectName, req.Name); errDeletion != nil {
 			s.logger.Error("Failed to roll back agent", "agentName", req.Name, "reason", reason, "error", errDeletion)
-		}
-		if agentAPIArtifact != nil {
-			if errDeletion := s.artifactRepo.Delete(s.db, agentAPIArtifact.UUID.String()); errDeletion != nil {
-				s.logger.Error("Failed to roll back agent API artifact record", "agentName", req.Name, "reason", reason, "error", errDeletion)
-			}
 		}
 	}
 	if len(req.ModelConfig) > 0 {
@@ -514,34 +465,6 @@ func (s *agentManagerService) CreateAgent(ctx context.Context, ouID string, proj
 	s.provisionAgentIdentities(ctx, ouID, projectName, req, "")
 	s.logger.Info("Agent created", "agentName", req.Name, "ouID", ouID, "projectName", projectName)
 	return nil
-}
-
-func (s *agentManagerService) SetEntitlementChecker(checker EntitlementChecker) {
-	s.entitlementChecker = checker
-}
-
-// checkAgentEntitlement asks the installed EntitlementChecker whether the
-// organization may create one more agent of the requested kind. Internal and
-// external agents are separate component types, so each is limited on its own.
-func (s *agentManagerService) checkAgentEntitlement(ctx context.Context, ouID string, req *spec.CreateAgentRequest) error {
-	if s.entitlementChecker == nil {
-		return nil
-	}
-	componentType := constants.ComponentTypeInternalAgentAPI
-	if req.Provisioning.Type == string(utils.ExternalAgent) {
-		componentType = constants.ComponentTypeExternalAgentAPI
-	}
-	err := s.entitlementChecker.CheckCreate(ctx, ouID, componentType, 1)
-	switch {
-	case err == nil:
-		return nil
-	case errors.Is(err, utils.ErrEntitlementDenied):
-		s.logger.Info("Agent create refused by entitlement check", "agentName", req.Name, "ouID", ouID, "componentType", componentType, "error", err)
-		return err
-	default:
-		s.logger.Error("Entitlement check failed", "agentName", req.Name, "ouID", ouID, "componentType", componentType, "error", err)
-		return fmt.Errorf("entitlement check for %s: %w", componentType, err)
-	}
 }
 
 // provisionAgentIdentities starts AgentID provisioning for the agent: one Thunder

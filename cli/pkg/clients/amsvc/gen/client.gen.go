@@ -22832,6 +22832,7 @@ type ListAgentKindsResp struct {
 	JSON200      *AgentKindListResponse
 	JSON401      *ErrorResponse
 	JSON500      *ErrorResponse
+	JSON501      *NotImplemented
 }
 
 // Status returns HTTPResponse.Status
@@ -22856,6 +22857,7 @@ type DeleteAgentKindResp struct {
 	JSON404      *ErrorResponse
 	JSON409      *ErrorResponse
 	JSON500      *ErrorResponse
+	JSON501      *NotImplemented
 }
 
 // Status returns HTTPResponse.Status
@@ -22879,6 +22881,7 @@ type GetAgentKindResp struct {
 	HTTPResponse *http.Response
 	JSON200      *AgentKindResponse
 	JSON500      *ErrorResponse
+	JSON501      *NotImplemented
 }
 
 // Status returns HTTPResponse.Status
@@ -22903,6 +22906,7 @@ type UpdateAgentKindResp struct {
 	JSON200      *AgentKindResponse
 	JSON404      *ErrorResponse
 	JSON500      *ErrorResponse
+	JSON501      *NotImplemented
 }
 
 // Status returns HTTPResponse.Status
@@ -22926,6 +22930,7 @@ type ListAgentKindVersionsResp struct {
 	HTTPResponse *http.Response
 	JSON200      *[]AgentKindVersionResponse
 	JSON500      *ErrorResponse
+	JSON501      *NotImplemented
 }
 
 // Status returns HTTPResponse.Status
@@ -22952,6 +22957,7 @@ type AddAgentKindVersionResp struct {
 	JSON404      *ErrorResponse
 	JSON409      *ErrorResponse
 	JSON500      *ErrorResponse
+	JSON501      *NotImplemented
 }
 
 // Status returns HTTPResponse.Status
@@ -22975,6 +22981,7 @@ type DeleteAgentKindVersionResp struct {
 	HTTPResponse *http.Response
 	JSON404      *ErrorResponse
 	JSON500      *ErrorResponse
+	JSON501      *NotImplemented
 }
 
 // Status returns HTTPResponse.Status
@@ -22999,6 +23006,7 @@ type GetAgentKindVersionResp struct {
 	JSON200      *AgentKindVersionResponse
 	JSON404      *ErrorResponse
 	JSON500      *ErrorResponse
+	JSON501      *NotImplemented
 }
 
 // Status returns HTTPResponse.Status
@@ -23073,6 +23081,7 @@ type ListDataPlanesResp struct {
 	JSON200      *DataPlaneListResponse
 	JSON404      *ErrorResponse
 	JSON500      *ErrorResponse
+	JSON501      *NotImplemented
 }
 
 // Status returns HTTPResponse.Status
@@ -23098,6 +23107,7 @@ type ListDeploymentPipelinesResp struct {
 	JSON400      *ErrorResponse
 	JSON404      *ErrorResponse
 	JSON500      *ErrorResponse
+	JSON501      *NotImplemented
 }
 
 // Status returns HTTPResponse.Status
@@ -23123,6 +23133,7 @@ type CreateDeploymentPipelineResp struct {
 	JSON400      *ErrorResponse
 	JSON409      *ErrorResponse
 	JSON500      *ErrorResponse
+	JSON501      *NotImplemented
 }
 
 // Status returns HTTPResponse.Status
@@ -23146,6 +23157,7 @@ type DeleteDeploymentPipelineResp struct {
 	HTTPResponse *http.Response
 	JSON404      *ErrorResponse
 	JSON500      *ErrorResponse
+	JSON501      *NotImplemented
 }
 
 // Status returns HTTPResponse.Status
@@ -23171,6 +23183,7 @@ type UpdateDeploymentPipelineResp struct {
 	JSON400      *ErrorResponse
 	JSON404      *ErrorResponse
 	JSON500      *ErrorResponse
+	JSON501      *NotImplemented
 }
 
 // Status returns HTTPResponse.Status
@@ -23222,6 +23235,7 @@ type CreateEnvironmentResp struct {
 	JSON401      *ErrorResponse
 	JSON409      *ErrorResponse
 	JSON500      *ErrorResponse
+	JSON501      *NotImplemented
 }
 
 // Status returns HTTPResponse.Status
@@ -23247,6 +23261,7 @@ type DeleteEnvironmentResp struct {
 	JSON401      *ErrorResponse
 	JSON404      *ErrorResponse
 	JSON500      *ErrorResponse
+	JSON501      *NotImplemented
 }
 
 // Status returns HTTPResponse.Status
@@ -23299,6 +23314,7 @@ type UpdateEnvironmentResp struct {
 	JSON401      *ErrorResponse
 	JSON404      *ErrorResponse
 	JSON500      *ErrorResponse
+	JSON501      *NotImplemented
 }
 
 // Status returns HTTPResponse.Status
@@ -23351,6 +23367,7 @@ type DeleteEnvironmentThunderSystemClientResp struct {
 	JSON401      *ErrorResponse
 	JSON403      *ErrorResponse
 	JSON500      *ErrorResponse
+	JSON501      *NotImplemented
 }
 
 // Status returns HTTPResponse.Status
@@ -23376,6 +23393,7 @@ type SetEnvironmentThunderSystemClientResp struct {
 	JSON401      *ErrorResponse
 	JSON403      *ErrorResponse
 	JSON500      *ErrorResponse
+	JSON501      *NotImplemented
 }
 
 // Status returns HTTPResponse.Status
@@ -23400,6 +23418,7 @@ type DeleteEnvironmentThunderUrlResp struct {
 	JSON401      *ErrorResponse
 	JSON403      *ErrorResponse
 	JSON500      *ErrorResponse
+	JSON501      *NotImplemented
 }
 
 // Status returns HTTPResponse.Status
@@ -23426,6 +23445,7 @@ type GetEnvironmentThunderUrlResp struct {
 	JSON403      *ErrorResponse
 	JSON404      *ErrorResponse
 	JSON500      *ErrorResponse
+	JSON501      *NotImplemented
 }
 
 // Status returns HTTPResponse.Status
@@ -23453,6 +23473,7 @@ type SetEnvironmentThunderUrlResp struct {
 	JSON403      *ErrorResponse
 	JSON409      *ErrorResponse
 	JSON500      *ErrorResponse
+	JSON501      *NotImplemented
 }
 
 // Status returns HTTPResponse.Status
@@ -24837,6 +24858,7 @@ type ListGitSecretsResp struct {
 	HTTPResponse *http.Response
 	JSON200      *GitSecretListResponse
 	JSON500      *ErrorResponse
+	JSON501      *NotImplemented
 }
 
 // Status returns HTTPResponse.Status
@@ -24862,6 +24884,7 @@ type CreateGitSecretResp struct {
 	JSON400      *ErrorResponse
 	JSON409      *ErrorResponse
 	JSON500      *ErrorResponse
+	JSON501      *NotImplemented
 }
 
 // Status returns HTTPResponse.Status
@@ -24885,6 +24908,7 @@ type DeleteGitSecretResp struct {
 	HTTPResponse *http.Response
 	JSON404      *ErrorResponse
 	JSON500      *ErrorResponse
+	JSON501      *NotImplemented
 }
 
 // Status returns HTTPResponse.Status
@@ -26426,7 +26450,6 @@ type CreateAgentResp struct {
 	HTTPResponse *http.Response
 	JSON202      *AgentResponse
 	JSON400      *ErrorResponse
-	JSON402      *ErrorResponse
 	JSON404      *ErrorResponse
 	JSON409      *ErrorResponse
 	JSON500      *ErrorResponse
@@ -26527,6 +26550,7 @@ type UpdateAgentBuildParametersResp struct {
 	JSON400      *ErrorResponse
 	JSON404      *ErrorResponse
 	JSON500      *ErrorResponse
+	JSON501      *NotImplemented
 }
 
 // Status returns HTTPResponse.Status
@@ -26552,6 +26576,7 @@ type GetAgentBuildsResp struct {
 	JSON400      *ErrorResponse
 	JSON404      *ErrorResponse
 	JSON500      *ErrorResponse
+	JSON501      *NotImplemented
 }
 
 // Status returns HTTPResponse.Status
@@ -26578,6 +26603,7 @@ type BuildAgentResp struct {
 	JSON404      *ErrorResponse
 	JSON409      *ErrorResponse
 	JSON500      *ErrorResponse
+	JSON501      *NotImplemented
 }
 
 // Status returns HTTPResponse.Status
@@ -26602,6 +26628,7 @@ type GetBuildResp struct {
 	JSON200      *BuildDetailsResponse
 	JSON404      *ErrorResponse
 	JSON500      *ErrorResponse
+	JSON501      *NotImplemented
 }
 
 // Status returns HTTPResponse.Status
@@ -26650,6 +26677,7 @@ type UpdateAgentConfigurationsResp struct {
 	JSON400      *ErrorResponse
 	JSON404      *ErrorResponse
 	JSON500      *ErrorResponse
+	JSON501      *NotImplemented
 	JSON503      *ErrorResponse
 }
 
@@ -26725,6 +26753,7 @@ type DeployAgentResp struct {
 	JSON404      *ErrorResponse
 	JSON409      *ErrorResponse
 	JSON500      *ErrorResponse
+	JSON501      *NotImplemented
 	JSON503      *ErrorResponse
 }
 
@@ -26751,6 +26780,7 @@ type UpdateAgentDeploymentStateResp struct {
 	JSON400      *ErrorResponse
 	JSON404      *ErrorResponse
 	JSON500      *ErrorResponse
+	JSON501      *NotImplemented
 }
 
 // Status returns HTTPResponse.Status
@@ -26775,6 +26805,7 @@ type GetAgentEndpointsResp struct {
 	JSON200      *EndpointsResponse
 	JSON404      *ErrorResponse
 	JSON500      *ErrorResponse
+	JSON501      *NotImplemented
 }
 
 // Status returns HTTPResponse.Status
@@ -28320,6 +28351,7 @@ type PromoteAgentResp struct {
 	JSON404      *ErrorResponse
 	JSON409      *ErrorResponse
 	JSON500      *ErrorResponse
+	JSON501      *NotImplemented
 	JSON503      *ErrorResponse
 }
 
@@ -28347,6 +28379,7 @@ type PublishAgentKindResp struct {
 	JSON404      *ErrorResponse
 	JSON409      *ErrorResponse
 	JSON500      *ErrorResponse
+	JSON501      *NotImplemented
 }
 
 // Status returns HTTPResponse.Status
@@ -28371,6 +28404,7 @@ type GetAgentResourceConfigsResp struct {
 	JSON200      *AgentResourceConfigsResponse
 	JSON404      *ErrorResponse
 	JSON500      *ErrorResponse
+	JSON501      *NotImplemented
 }
 
 // Status returns HTTPResponse.Status
@@ -28396,6 +28430,7 @@ type UpdateAgentResourceConfigsResp struct {
 	JSON400      *ErrorResponse
 	JSON404      *ErrorResponse
 	JSON500      *ErrorResponse
+	JSON501      *NotImplemented
 }
 
 // Status returns HTTPResponse.Status
@@ -28521,6 +28556,7 @@ type RegenerateAgentTracingTokenResp struct {
 	JSON400      *ErrorResponse
 	JSON401      *ErrorResponse
 	JSON404      *ErrorResponse
+	JSON501      *NotImplemented
 }
 
 // Status returns HTTPResponse.Status
@@ -28545,6 +28581,7 @@ type GetDeploymentPipelineResp struct {
 	JSON200      *DeploymentPipelineResponse
 	JSON404      *ErrorResponse
 	JSON500      *ErrorResponse
+	JSON501      *NotImplemented
 }
 
 // Status returns HTTPResponse.Status
@@ -29128,6 +29165,7 @@ type ListProjectMCPProxiesResp struct {
 	JSON403      *ErrorResponse
 	JSON404      *ErrorResponse
 	JSON500      *ErrorResponse
+	JSON501      *NotImplemented
 }
 
 // Status returns HTTPResponse.Status
@@ -29154,6 +29192,7 @@ type DeleteProjectMCPProxyResp struct {
 	JSON404      *ErrorResponse
 	JSON409      *ErrorResponse
 	JSON500      *ErrorResponse
+	JSON501      *NotImplemented
 }
 
 // Status returns HTTPResponse.Status
@@ -29180,6 +29219,7 @@ type GetProjectMCPProxyResp struct {
 	JSON403      *ErrorResponse
 	JSON404      *ErrorResponse
 	JSON500      *ErrorResponse
+	JSON501      *NotImplemented
 }
 
 // Status returns HTTPResponse.Status
@@ -29209,6 +29249,7 @@ type UpsertProjectMCPProxyResp struct {
 	JSON404      *ErrorResponse
 	JSON409      *ErrorResponse
 	JSON500      *ErrorResponse
+	JSON501      *NotImplemented
 }
 
 // Status returns HTTPResponse.Status
@@ -29235,6 +29276,7 @@ type DeleteProjectMCPProxyEnvironmentResp struct {
 	JSON404      *ErrorResponse
 	JSON409      *ErrorResponse
 	JSON500      *ErrorResponse
+	JSON501      *NotImplemented
 }
 
 // Status returns HTTPResponse.Status
@@ -29261,6 +29303,7 @@ type GetProjectMCPProxyEnvironmentResp struct {
 	JSON403      *ErrorResponse
 	JSON404      *ErrorResponse
 	JSON500      *ErrorResponse
+	JSON501      *NotImplemented
 }
 
 // Status returns HTTPResponse.Status
@@ -29290,6 +29333,7 @@ type PutProjectMCPProxyEnvironmentResp struct {
 	JSON404      *ErrorResponse
 	JSON409      *ErrorResponse
 	JSON500      *ErrorResponse
+	JSON501      *NotImplemented
 }
 
 // Status returns HTTPResponse.Status
@@ -29316,6 +29360,7 @@ type ListRepositoryBranchesResp struct {
 	JSON404      *ErrorResponse
 	JSON429      *ErrorResponse
 	JSON500      *ErrorResponse
+	JSON501      *NotImplemented
 }
 
 // Status returns HTTPResponse.Status
@@ -29342,6 +29387,7 @@ type ListRepositoryCommitsResp struct {
 	JSON404      *ErrorResponse
 	JSON429      *ErrorResponse
 	JSON500      *ErrorResponse
+	JSON501      *NotImplemented
 }
 
 // Status returns HTTPResponse.Status
@@ -29570,6 +29616,7 @@ type CheckThunderUrlAvailabilityResp struct {
 	JSON401      *ErrorResponse
 	JSON403      *ErrorResponse
 	JSON500      *ErrorResponse
+	JSON501      *NotImplemented
 }
 
 // Status returns HTTPResponse.Status
@@ -33122,6 +33169,13 @@ func ParseListAgentKindsResp(rsp *http.Response) (*ListAgentKindsResp, error) {
 		}
 		response.JSON500 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest NotImplemented
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
+
 	}
 
 	return response, nil
@@ -33162,6 +33216,13 @@ func ParseDeleteAgentKindResp(rsp *http.Response) (*DeleteAgentKindResp, error) 
 		}
 		response.JSON500 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest NotImplemented
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
+
 	}
 
 	return response, nil
@@ -33194,6 +33255,13 @@ func ParseGetAgentKindResp(rsp *http.Response) (*GetAgentKindResp, error) {
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest NotImplemented
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
 
 	}
 
@@ -33235,6 +33303,13 @@ func ParseUpdateAgentKindResp(rsp *http.Response) (*UpdateAgentKindResp, error) 
 		}
 		response.JSON500 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest NotImplemented
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
+
 	}
 
 	return response, nil
@@ -33267,6 +33342,13 @@ func ParseListAgentKindVersionsResp(rsp *http.Response) (*ListAgentKindVersionsR
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest NotImplemented
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
 
 	}
 
@@ -33322,6 +33404,13 @@ func ParseAddAgentKindVersionResp(rsp *http.Response) (*AddAgentKindVersionResp,
 		}
 		response.JSON500 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest NotImplemented
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
+
 	}
 
 	return response, nil
@@ -33354,6 +33443,13 @@ func ParseDeleteAgentKindVersionResp(rsp *http.Response) (*DeleteAgentKindVersio
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest NotImplemented
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
 
 	}
 
@@ -33394,6 +33490,13 @@ func ParseGetAgentKindVersionResp(rsp *http.Response) (*GetAgentKindVersionResp,
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest NotImplemented
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
 
 	}
 
@@ -33529,6 +33632,13 @@ func ParseListDataPlanesResp(rsp *http.Response) (*ListDataPlanesResp, error) {
 		}
 		response.JSON500 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest NotImplemented
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
+
 	}
 
 	return response, nil
@@ -33575,6 +33685,13 @@ func ParseListDeploymentPipelinesResp(rsp *http.Response) (*ListDeploymentPipeli
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest NotImplemented
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
 
 	}
 
@@ -33623,6 +33740,13 @@ func ParseCreateDeploymentPipelineResp(rsp *http.Response) (*CreateDeploymentPip
 		}
 		response.JSON500 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest NotImplemented
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
+
 	}
 
 	return response, nil
@@ -33655,6 +33779,13 @@ func ParseDeleteDeploymentPipelineResp(rsp *http.Response) (*DeleteDeploymentPip
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest NotImplemented
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
 
 	}
 
@@ -33702,6 +33833,13 @@ func ParseUpdateDeploymentPipelineResp(rsp *http.Response) (*UpdateDeploymentPip
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest NotImplemented
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
 
 	}
 
@@ -33804,6 +33942,13 @@ func ParseCreateEnvironmentResp(rsp *http.Response) (*CreateEnvironmentResp, err
 		}
 		response.JSON500 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest NotImplemented
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
+
 	}
 
 	return response, nil
@@ -33850,6 +33995,13 @@ func ParseDeleteEnvironmentResp(rsp *http.Response) (*DeleteEnvironmentResp, err
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest NotImplemented
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
 
 	}
 
@@ -33959,6 +34111,13 @@ func ParseUpdateEnvironmentResp(rsp *http.Response) (*UpdateEnvironmentResp, err
 		}
 		response.JSON500 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest NotImplemented
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
+
 	}
 
 	return response, nil
@@ -34055,6 +34214,13 @@ func ParseDeleteEnvironmentThunderSystemClientResp(rsp *http.Response) (*DeleteE
 		}
 		response.JSON500 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest NotImplemented
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
+
 	}
 
 	return response, nil
@@ -34102,6 +34268,13 @@ func ParseSetEnvironmentThunderSystemClientResp(rsp *http.Response) (*SetEnviron
 		}
 		response.JSON500 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest NotImplemented
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
+
 	}
 
 	return response, nil
@@ -34141,6 +34314,13 @@ func ParseDeleteEnvironmentThunderUrlResp(rsp *http.Response) (*DeleteEnvironmen
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest NotImplemented
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
 
 	}
 
@@ -34195,6 +34375,13 @@ func ParseGetEnvironmentThunderUrlResp(rsp *http.Response) (*GetEnvironmentThund
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest NotImplemented
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
 
 	}
 
@@ -34256,6 +34443,13 @@ func ParseSetEnvironmentThunderUrlResp(rsp *http.Response) (*SetEnvironmentThund
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest NotImplemented
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
 
 	}
 
@@ -36637,6 +36831,13 @@ func ParseListGitSecretsResp(rsp *http.Response) (*ListGitSecretsResp, error) {
 		}
 		response.JSON500 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest NotImplemented
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
+
 	}
 
 	return response, nil
@@ -36684,6 +36885,13 @@ func ParseCreateGitSecretResp(rsp *http.Response) (*CreateGitSecretResp, error) 
 		}
 		response.JSON500 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest NotImplemented
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
+
 	}
 
 	return response, nil
@@ -36716,6 +36924,13 @@ func ParseDeleteGitSecretResp(rsp *http.Response) (*DeleteGitSecretResp, error) 
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest NotImplemented
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
 
 	}
 
@@ -39681,13 +39896,6 @@ func ParseCreateAgentResp(rsp *http.Response) (*CreateAgentResp, error) {
 		}
 		response.JSON400 = &dest
 
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 402:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON402 = &dest
-
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
 		var dest ErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -39876,6 +40084,13 @@ func ParseUpdateAgentBuildParametersResp(rsp *http.Response) (*UpdateAgentBuildP
 		}
 		response.JSON500 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest NotImplemented
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
+
 	}
 
 	return response, nil
@@ -39922,6 +40137,13 @@ func ParseGetAgentBuildsResp(rsp *http.Response) (*GetAgentBuildsResp, error) {
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest NotImplemented
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
 
 	}
 
@@ -39977,6 +40199,13 @@ func ParseBuildAgentResp(rsp *http.Response) (*BuildAgentResp, error) {
 		}
 		response.JSON500 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest NotImplemented
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
+
 	}
 
 	return response, nil
@@ -40016,6 +40245,13 @@ func ParseGetBuildResp(rsp *http.Response) (*GetBuildResp, error) {
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest NotImplemented
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
 
 	}
 
@@ -40096,6 +40332,13 @@ func ParseUpdateAgentConfigurationsResp(rsp *http.Response) (*UpdateAgentConfigu
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest NotImplemented
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
 		var dest ErrorResponse
@@ -40238,6 +40481,13 @@ func ParseDeployAgentResp(rsp *http.Response) (*DeployAgentResp, error) {
 		}
 		response.JSON500 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest NotImplemented
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
 		var dest ErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -40292,6 +40542,13 @@ func ParseUpdateAgentDeploymentStateResp(rsp *http.Response) (*UpdateAgentDeploy
 		}
 		response.JSON500 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest NotImplemented
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
+
 	}
 
 	return response, nil
@@ -40331,6 +40588,13 @@ func ParseGetAgentEndpointsResp(rsp *http.Response) (*GetAgentEndpointsResp, err
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest NotImplemented
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
 
 	}
 
@@ -43211,6 +43475,13 @@ func ParsePromoteAgentResp(rsp *http.Response) (*PromoteAgentResp, error) {
 		}
 		response.JSON500 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest NotImplemented
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
 		var dest ErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -43272,6 +43543,13 @@ func ParsePublishAgentKindResp(rsp *http.Response) (*PublishAgentKindResp, error
 		}
 		response.JSON500 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest NotImplemented
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
+
 	}
 
 	return response, nil
@@ -43311,6 +43589,13 @@ func ParseGetAgentResourceConfigsResp(rsp *http.Response) (*GetAgentResourceConf
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest NotImplemented
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
 
 	}
 
@@ -43358,6 +43643,13 @@ func ParseUpdateAgentResourceConfigsResp(rsp *http.Response) (*UpdateAgentResour
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest NotImplemented
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
 
 	}
 
@@ -43594,6 +43886,13 @@ func ParseRegenerateAgentTracingTokenResp(rsp *http.Response) (*RegenerateAgentT
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest NotImplemented
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
+
 	}
 
 	return response, nil
@@ -43633,6 +43932,13 @@ func ParseGetDeploymentPipelineResp(rsp *http.Response) (*GetDeploymentPipelineR
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest NotImplemented
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
 
 	}
 
@@ -44759,6 +45065,13 @@ func ParseListProjectMCPProxiesResp(rsp *http.Response) (*ListProjectMCPProxiesR
 		}
 		response.JSON500 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest NotImplemented
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
+
 	}
 
 	return response, nil
@@ -44813,6 +45126,13 @@ func ParseDeleteProjectMCPProxyResp(rsp *http.Response) (*DeleteProjectMCPProxyR
 		}
 		response.JSON500 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest NotImplemented
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
+
 	}
 
 	return response, nil
@@ -44866,6 +45186,13 @@ func ParseGetProjectMCPProxyResp(rsp *http.Response) (*GetProjectMCPProxyResp, e
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest NotImplemented
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
 
 	}
 
@@ -44942,6 +45269,13 @@ func ParseUpsertProjectMCPProxyResp(rsp *http.Response) (*UpsertProjectMCPProxyR
 		}
 		response.JSON500 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest NotImplemented
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
+
 	}
 
 	return response, nil
@@ -44996,6 +45330,13 @@ func ParseDeleteProjectMCPProxyEnvironmentResp(rsp *http.Response) (*DeleteProje
 		}
 		response.JSON500 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest NotImplemented
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
+
 	}
 
 	return response, nil
@@ -45049,6 +45390,13 @@ func ParseGetProjectMCPProxyEnvironmentResp(rsp *http.Response) (*GetProjectMCPP
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest NotImplemented
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
 
 	}
 
@@ -45125,6 +45473,13 @@ func ParsePutProjectMCPProxyEnvironmentResp(rsp *http.Response) (*PutProjectMCPP
 		}
 		response.JSON500 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest NotImplemented
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
+
 	}
 
 	return response, nil
@@ -45179,6 +45534,13 @@ func ParseListRepositoryBranchesResp(rsp *http.Response) (*ListRepositoryBranche
 		}
 		response.JSON500 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest NotImplemented
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
+
 	}
 
 	return response, nil
@@ -45232,6 +45594,13 @@ func ParseListRepositoryCommitsResp(rsp *http.Response) (*ListRepositoryCommitsR
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest NotImplemented
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
 
 	}
 
@@ -45676,6 +46045,13 @@ func ParseCheckThunderUrlAvailabilityResp(rsp *http.Response) (*CheckThunderUrlA
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest NotImplemented
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
 
 	}
 
