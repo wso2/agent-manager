@@ -22,10 +22,3 @@ const (
 	MinResilienceTimeoutSeconds     int32 = 1
 	MaxResilienceTimeoutSeconds     int32 = 3600
 )
-
-// Agent kinds as reported to entitlement checks. Internal and external agents
-// are limited separately.
-const (
-	ComponentTypeInternalAgentAPI = "proxy/agent-api"
-	ComponentTypeExternalAgentAPI = "proxy/external-agent-api"
-)
