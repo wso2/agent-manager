@@ -23,13 +23,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 )
 
-// ResolveNamespace returns the namespace traces are stamped with at ingest and
-// the observer scopes reads by. The deployment runs a single namespace, so
-// every OU maps to it.
-func ResolveNamespace(context.Context) (string, error) {
-	return config.GetConfig().OrgNamespace, nil
-}
-
 // ThunderOrgNamespace returns the org namespace/handle used to address an
 // env-Thunder instance (see thundersvc.ThunderReleaseName) for AgentID
 // provisioning and injection. Deliberately config-pinned

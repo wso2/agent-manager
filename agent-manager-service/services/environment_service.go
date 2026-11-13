@@ -226,10 +226,7 @@ func (s *environmentService) ListThunderInstances(ctx context.Context, ouID stri
 	// which is the org namespace — not the OU id from the JWT. Probing or
 	// advertising URLs derived from the OU id would point at instances that don't
 	// exist.
-	orgNamespace, err := ResolveNamespace(ctx)
-	if err != nil {
-		return nil, err
-	}
+	orgNamespace := ThunderOrgNamespace()
 
 	// Only the default environment has a Thunder: the platform one. Probes are
 	// fanned out (bounded by maxThunderProbeConcurrency) since each can take a

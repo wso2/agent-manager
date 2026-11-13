@@ -90,8 +90,8 @@ type Config struct {
 	// GitHub configuration for repository API access
 	GitHub GitHubConfig
 
-	// OrgNamespace names the namespace trace ingestion and env-Thunder instances
-	// are addressed by. The deployment runs a single namespace.
+	// OrgNamespace names the org the ThunderID instances are addressed by
+	// (release name, namespace, host). The deployment runs a single one.
 	OrgNamespace string
 
 	// Internal Server configuration (for WebSocket and gateway internal APIs)

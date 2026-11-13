@@ -69,7 +69,8 @@ func createMockPlatformRepositoryForToken(agentName string, componentUid string,
 		},
 		GetOrganizationFunc: func(ctx context.Context, orgName string) (*models.OrganizationResponse, error) {
 			return &models.OrganizationResponse{
-				Name: orgName,
+				Name:   orgName,
+				Handle: orgName,
 			}, nil
 		},
 		ListOrganizationsFunc: func(_ context.Context) ([]*models.OrganizationResponse, error) {

@@ -37,7 +37,6 @@ func TestUse_ValidOrg(t *testing.T) {
 	clientFn, closeFn := newTestClient(t, http.StatusOK, amsvc.OrganizationResponse{
 		Name:        "acme",
 		DisplayName: "Acme Corp",
-		Namespace:   "acme",
 	})
 	defer closeFn()
 
@@ -118,7 +117,7 @@ func TestUse_DanglingCurrentInstance(t *testing.T) {
 		},
 	})
 	clientFn, closeFn := newTestClient(t, http.StatusOK, amsvc.OrganizationResponse{
-		Name: "acme", DisplayName: "Acme", Namespace: "acme",
+		Name: "acme", DisplayName: "Acme",
 	})
 	defer closeFn()
 

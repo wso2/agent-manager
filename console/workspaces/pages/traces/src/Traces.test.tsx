@@ -32,7 +32,7 @@ vi.mock("@agent-management-platform/api-client", () => ({
   useTraceList: vi.fn(),
   useExportTraces: vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false })),
   useGetOrganization: vi.fn(() => ({
-    data: { namespace: "ns" },
+    data: { name: "ns", handle: "ns" },
     isPending: false,
     isSuccess: true,
   })),

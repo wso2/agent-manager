@@ -16246,9 +16246,6 @@ components:
         description:
           type: string
           description: Description of the organization
-        namespace:
-          type: string
-          description: Namespace of the organization
         handle:
           type: string
           description: Human-readable handle of the organization (the caller's OU handle), used in console URLs. Omitted when it cannot be determined.
@@ -16261,7 +16258,6 @@ components:
         - createdAt
         - displayName
         - description
-        - namespace
     OrganizationListItem:
       type: object
       properties:
