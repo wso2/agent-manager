@@ -462,9 +462,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "409":
-          description: >-
-            The agent already exists, or it is an API agent and its first environment has no ingress gateway
-            to serve it (code `ENVIRONMENT_HAS_NO_GATEWAY`)
+          description: The agent already exists
           content:
             application/json:
               schema:

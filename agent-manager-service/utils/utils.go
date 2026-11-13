@@ -113,12 +113,20 @@ func validateAgentPayload(payload agentPayload) error {
 			"agentType is required",
 		)
 	}
-	return validateAgentType(*payload.agentType)
+	return validateAgentType(*payload.agentType, payload.provisioning.Type)
 }
 
-func validateAgentType(agentType spec.AgentType) error {
+// validateAgentType accepts only the agent type that matches the provisioning
+// type: the type is not stored, and reads report the one derived from provisioning.
+func validateAgentType(agentType spec.AgentType, provisioningType string) error {
 	if agentType.Type != string(AgentTypeAPI) && agentType.Type != string(AgentTypeExternalAPI) {
 		return fmt.Errorf("unsupported agent type: %s", agentType.Type)
+	}
+	if want := AgentTypeForProvisioning(provisioningType); agentType.Type != string(want) {
+		return NewValidationError(
+			fmt.Sprintf("Agent type must be %s for %s agents", want, provisioningType),
+			fmt.Sprintf("agentType.type must be %q for provisioning type %q, got %q", want, provisioningType, agentType.Type),
+		)
 	}
 	return nil
 }

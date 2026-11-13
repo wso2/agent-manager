@@ -34,8 +34,18 @@ func TestIsA2AAgentSubType(t *testing.T) {
 
 func TestValidateAgentTypeAcceptsA2A(t *testing.T) {
 	subType := string(AgentSubTypeA2A)
-	err := validateAgentType(spec.AgentType{Type: string(AgentTypeAPI), SubType: &subType})
+	err := validateAgentType(spec.AgentType{Type: string(AgentTypeAPI), SubType: &subType}, string(InternalAgent))
 	assert.NoError(t, err)
+}
+
+// The agent type is derived from provisioning on reads, so a create that names
+// the other one is refused rather than silently reported back differently.
+func TestValidateAgentCreatePayloadRejectsMismatchedAgentType(t *testing.T) {
+	request := externalAgentRequest("")
+	request.AgentType.Type = string(AgentTypeAPI)
+	err := ValidateAgentCreatePayload(request)
+	require.Error(t, err)
+	assert.ErrorContains(t, err, `agentType.type must be "external-agent-api"`)
 }
 
 func externalAgentRequest(subType string) spec.CreateAgentRequest {

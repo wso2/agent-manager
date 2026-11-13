@@ -51,7 +51,7 @@ func TestCreateAgent_DoesNotEchoSecretValues(t *testing.T) {
 		Name:         "yolo",
 		DisplayName:  "Yolo",
 		Provisioning: spec.Provisioning{Type: "external"},
-		AgentType:    &spec.AgentType{Type: "agent-api"},
+		AgentType:    &spec.AgentType{Type: "external-agent-api"},
 		Configurations: &spec.Configurations{
 			Env: []spec.EnvironmentVariable{
 				{Key: "OPENAI_API_KEY", Value: spec.PtrString("sk-super-secret"), IsSensitive: spec.PtrBool(true)},

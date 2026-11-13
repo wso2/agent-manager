@@ -120,22 +120,6 @@ func NewAgentManagerService(
 	}
 }
 
-// requireIngressGateway refuses an environment that has no INGRESS or BOTH gateway to expose an API agent through.
-func (s *agentManagerService) requireIngressGateway(ouID string, env *models.EnvironmentResponse) error {
-	envUUID, err := uuid.Parse(env.UUID)
-	if err != nil {
-		return fmt.Errorf("environment %s has an invalid UUID %q: %w", env.Name, env.UUID, err)
-	}
-	gateway, err := findIngressGateway(s.gatewayRepo, ouID, envUUID)
-	if err != nil {
-		return err
-	}
-	if gateway == nil {
-		return fmt.Errorf("%w: environment %s has no ingress gateway", utils.ErrEnvironmentHasNoGateway, env.Name)
-	}
-	return nil
-}
-
 // Build type constants
 const (
 	BuildTypeBuildpack = "buildpack"
@@ -416,12 +400,6 @@ func (s *agentManagerService) CreateAgent(ctx context.Context, ouID string, proj
 	if err != nil {
 		return err
 	}
-	isAPIAgent := req.AgentType != nil && req.AgentType.Type == string(utils.AgentTypeAPI)
-	if isAPIAgent {
-		if err := s.requireIngressGateway(ouID, env); err != nil {
-			return err
-		}
-	}
 	if len(req.ModelConfig) > 0 {
 		handles := make([]string, 0, len(req.ModelConfig))
 		for _, mc := range req.ModelConfig {
@@ -465,26 +443,10 @@ func (s *agentManagerService) CreateAgent(ctx context.Context, ouID string, proj
 		return err
 	}
 
-	var agentAPIArtifact *models.Artifact
-	if shape, ok := agentGatewayShapeFor(utils.StrPointerAsStr(req.AgentType.SubType, "")); isAPIAgent && ok {
-		agentAPIArtifact, err = ensureAgentEnvAPIArtifact(s.db, s.artifactRepo, ouID, projectName, req.Name, env.UUID, shape.ArtifactKind)
-		if err != nil {
-			if errDeletion := s.platform.DeleteAgent(ctx, ouID, projectName, req.Name); errDeletion != nil {
-				s.logger.Error("Failed to roll back agent after API artifact create failure", "agentName", req.Name, "error", errDeletion)
-			}
-			return fmt.Errorf("failed to create agent API artifact record: %w", err)
-		}
-	}
-
 	rollbackAgentCreate := func(reason string) {
 		s.deleteAgentLLMConfigurations(context.WithoutCancel(ctx), ouID, projectName, req.Name, true)
 		if errDeletion := s.platform.DeleteAgent(context.WithoutCancel(ctx), ouID, projectName, req.Name); errDeletion != nil {
 			s.logger.Error("Failed to roll back agent", "agentName", req.Name, "reason", reason, "error", errDeletion)
-		}
-		if agentAPIArtifact != nil {
-			if errDeletion := s.artifactRepo.Delete(s.db, agentAPIArtifact.UUID.String()); errDeletion != nil {
-				s.logger.Error("Failed to roll back agent API artifact record", "agentName", req.Name, "reason", reason, "error", errDeletion)
-			}
 		}
 	}
 	if len(req.ModelConfig) > 0 {
