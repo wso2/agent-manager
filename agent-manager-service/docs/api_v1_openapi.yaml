@@ -174,6 +174,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
     post:
       summary: Create a deployment pipeline for an organization
       operationId: createDeploymentPipeline
@@ -214,6 +216,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
   /orgs/{orgName}/projects:
     post:
@@ -766,6 +770,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/resource-configs:
     get:
@@ -812,6 +818,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
     put:
       summary: Update agent resource configurations
       operationId: updateAgentResourceConfigs
@@ -868,6 +876,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
   /orgs/{orgName}/utils/generate-name:
     post:
@@ -1027,6 +1037,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
     get:
       summary: Get Builds of an Agent
       operationId: getAgentBuilds
@@ -1088,6 +1100,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/builds/{buildName}:
     get:
       summary: Get build details
@@ -1132,6 +1146,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/publish-kind:
     post:
       summary: Publish agent as an Agent Kind version
@@ -1199,6 +1215,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/deployments:
     post:
@@ -1265,6 +1283,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
     get:
       summary: List agent deployments with detailed information
@@ -1365,6 +1385,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/promote:
     post:
@@ -1438,6 +1460,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/deploy-settings:
     put:
@@ -1545,6 +1569,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/configurations:
     get:
@@ -1653,6 +1679,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
   # ============================================
   # GATEWAY ENVIRONMENT ENDPOINTS
   # ============================================
@@ -1766,6 +1794,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
   /orgs/{orgName}/environments/{envID}:
     parameters:
@@ -1869,6 +1899,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
     delete:
       tags:
@@ -1907,6 +1939,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
   /orgs/{orgName}/environments/{envID}/gateways:
     parameters:
@@ -2045,6 +2079,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
     delete:
       tags:
@@ -2078,6 +2114,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
   /orgs/{orgName}/environments/{envID}/thunder-url:
     parameters:
@@ -2139,6 +2177,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
     put:
       tags:
@@ -2226,6 +2266,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
     delete:
       tags:
@@ -2260,6 +2302,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
   /orgs/{orgName}/thunder-url-availability:
     parameters:
@@ -2328,6 +2372,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
   # ============================================
   # AI GATEWAY ENDPOINTS
@@ -3830,6 +3876,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
   /orgs/{orgName}/projects/{projName}/deployment-pipeline:
     get:
       summary: Get deployment pipeline for a project
@@ -3867,6 +3915,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
   /orgs/{orgName}/deployment-pipelines/{pipelineName}:
     put:
@@ -3917,6 +3967,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
     delete:
       summary: Delete a deployment pipeline
       description: Deletes the named deployment pipeline.
@@ -3949,6 +4001,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/token:
     post:
@@ -4075,6 +4129,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/identities:
     parameters:
@@ -5753,6 +5809,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
   /orgs/{orgName}/repositories/commits:
     parameters:
@@ -5829,6 +5887,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
   # ============================================
   # LLM PROVIDER AND PROXY MANAGEMENT ENDPOINTS
@@ -7293,6 +7353,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
   /orgs/{orgName}/projects/{projName}/mcp-proxies/{proxyId}:
     parameters:
@@ -7417,6 +7479,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
     get:
       tags:
@@ -7457,6 +7521,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
     delete:
       tags:
@@ -7500,6 +7566,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
   /orgs/{orgName}/projects/{projName}/mcp-proxies/{proxyId}/environments/{envName}:
     parameters:
@@ -7634,6 +7702,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
     get:
       tags:
@@ -7674,6 +7744,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
     delete:
       tags:
@@ -7718,6 +7790,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
 
   /orgs/{orgName}/mcp-proxies/{proxyId}/scopes:
@@ -11010,6 +11084,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
   /orgs/{orgName}/agent-kinds/{kindName}:
     get:
       summary: Get an Agent Kind
@@ -11044,6 +11120,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
     put:
       summary: Update an Agent Kind
       description: Update display name or description of an Agent Kind.
@@ -11086,6 +11164,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
     delete:
       summary: Delete an Agent Kind
       description: Deletes an Agent Kind and all its versions from the catalog. Fails with 409 if any agents are currently instantiated from this kind.
@@ -11124,6 +11204,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
   /orgs/{orgName}/agent-kinds/{kindName}/versions:
     get:
@@ -11159,6 +11241,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
     post:
       summary: Add a version to an Agent Kind
       description: Publishes a new version of an existing Agent Kind using a specific build from an agent.
@@ -11213,6 +11297,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
   /orgs/{orgName}/agent-kinds/{kindName}/versions/{versionTag}:
     get:
@@ -11255,6 +11341,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
     delete:
       summary: Delete an Agent Kind version
       operationId: deleteAgentKindVersion
@@ -11291,6 +11379,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
   /orgs/{orgName}/git-secrets:
     get:
@@ -11336,6 +11426,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
     post:
       summary: Create a git secret
       description: Creates a new git secret for authenticating with git repositories
@@ -11380,6 +11472,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
   /orgs/{orgName}/git-secrets/{secretName}:
     delete:
@@ -11419,6 +11513,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
   /orgs/{orgName}/identities/users:
     get:
@@ -13951,6 +14047,13 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
 
 components:
+  responses:
+    NotImplemented:
+      description: Not available in this version. The operation needs a hosted agent runtime, which this version does not provide.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
   securitySchemes:
     bearerAuth:
       type: http
