@@ -312,16 +312,17 @@ function EditProjectForm({ project, orgId, projectHref }: EditProjectFormProps) 
 export function EditProject() {
   const { orgId = "", projectId = "" } = useParams<{ orgId: string; projectId: string }>();
   const { canWrite } = useResourceAccess("project");
+  // An external app owns project management: old links to this page go there.
+  const externalManageUrl = getExternalProjectManageUrl(projectId);
+  // Skip the project fetch when this page only redirects away.
   const { data: project, isLoading, error, refetch } = useGetProject({
     orgName: orgId,
-    projName: projectId,
+    projName: externalManageUrl ? undefined : projectId,
   });
   const projectHref = generatePath(absoluteRouteMap.children.org.children.projects.path, {
     orgId,
     projectId,
   });
-  // An external app owns project management: old links to this page go there.
-  const externalManageUrl = getExternalProjectManageUrl(projectId);
 
   useEffect(() => {
     if (externalManageUrl) {

@@ -217,22 +217,32 @@ export const stripBasePath = (pathname: string): string => {
 };
 
 /**
+ * The configured external project-management host without a trailing slash, or
+ * undefined when unset or not an absolute http(s) URL (a bare host such as
+ * "console.example.com" would otherwise be followed as a relative path).
+ */
+const getExternalProjectManagementHost = (): string | undefined => {
+  const host = (globalConfig?.externalProjectManagementUrl ?? "")
+    .trim()
+    .replace(/\/+$/, "");
+  return /^https?:\/\/[^/]/i.test(host) ? host : undefined;
+};
+
+/**
  * Where to manage a project when an external app owns project management, or
  * undefined when projects are managed in this console.
  */
 export const getExternalProjectManageUrl = (
   projectHandle: string,
 ): string | undefined => {
-  const host = (globalConfig?.externalProjectManagementUrl ?? "")
-    .trim()
-    .replace(/\/+$/, "");
+  const host = getExternalProjectManagementHost();
   if (!host) return undefined;
   return `${host}/projects/${encodeURIComponent(projectHandle)}/manage`;
 };
 
 /** Whether an external app owns project management (see externalProjectManagementUrl). */
 export const isProjectManagedExternally = (): boolean =>
-  !!globalConfig?.externalProjectManagementUrl?.trim();
+  getExternalProjectManagementHost() !== undefined;
 
 const buildRange = (duration: Duration) => {
   const endTime = new Date();

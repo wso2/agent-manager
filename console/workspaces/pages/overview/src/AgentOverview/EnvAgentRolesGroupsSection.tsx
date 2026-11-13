@@ -135,6 +135,8 @@ export const EnvAgentRolesGroupsSection: React.FC<EnvAgentRolesGroupsSectionProp
             width: 48,
             height: 48,
             flexShrink: 0,
+            // `light` is circular by default; keep the rounded tile shape.
+            borderRadius: 2,
           }}
         >
           <Fingerprint size={24} />

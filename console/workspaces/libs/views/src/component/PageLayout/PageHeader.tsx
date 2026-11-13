@@ -118,7 +118,7 @@ export function PageHeader({
       {avatarProps &&
         (isLoading ? (
           <PageTitle.Avatar
-            variant={avatarProps.variant}
+            variant={avatarShape}
             sx={{ bgcolor: 'transparent' }}
           >
             <Skeleton

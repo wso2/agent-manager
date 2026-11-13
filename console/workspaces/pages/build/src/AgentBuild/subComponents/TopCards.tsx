@@ -57,7 +57,6 @@ const getBuildStatusColor = (status: BuildStatus): IconTileColor => {
 };
 
 const getSuccessRateColor = (rate: number): IconTileColor => {
-  if (isNaN(rate)) return "warning";
   if (rate >= 0.9) return "success";
   if (rate >= 0.5) return "warning";
   return "error";
