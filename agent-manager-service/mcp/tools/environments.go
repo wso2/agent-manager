@@ -53,6 +53,7 @@ func (t *Toolsets) registerEnvironmentTools(server *gomcp.Server, reg *toolRegis
 			"limit":  intProperty(fmt.Sprintf("Optional. Max environments to return (default %d, min %d, max %d).", utils.DefaultLimit, utils.MinLimit, utils.MaxLimit)),
 			"offset": intProperty(fmt.Sprintf("Optional. Pagination offset (default %d, min %d).", utils.DefaultOffset, utils.MinOffset)),
 		}, nil),
+		Annotations: &gomcp.ToolAnnotations{ReadOnlyHint: true},
 	}, audit.ActionEnvironmentRead, listEnvironments(t.EnvironmentToolset), rbac.EnvironmentRead)
 }
 

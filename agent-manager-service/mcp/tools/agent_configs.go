@@ -122,6 +122,7 @@ func (t *Toolsets) registerAgentConfigTools(server *gomcp.Server, reg *toolRegis
 				productionEnvironmentsNote, map[string]any{"type": "string"}),
 			"guardrails": arrayProperty("Optional. Guardrails for this agent's LLM traffic, on top of any on the provider.", guardrailSchema()),
 		}, []string{"project_name", "agent_name", "provider_id"}),
+		Annotations: &gomcp.ToolAnnotations{ReadOnlyHint: false, DestructiveHint: new(false)},
 	}, audit.ActionAgentUpdate, attachLLMProvider(t.AgentConfigToolset, t.EnvironmentToolset, t.AgentToolset, t.LLMProviderToolset), rbac.AgentUpdate)
 
 	addTool(reg, server, &gomcp.Tool{
@@ -139,6 +140,7 @@ func (t *Toolsets) registerAgentConfigTools(server *gomcp.Server, reg *toolRegis
 			"environments": arrayProperty("Optional. Environment names to configure. Defaults to every environment, including ones the proxy is not deployed to yet. "+
 				productionEnvironmentsNote, map[string]any{"type": "string"}),
 		}, []string{"project_name", "agent_name", "proxy_id"}),
+		Annotations: &gomcp.ToolAnnotations{ReadOnlyHint: false, DestructiveHint: new(false)},
 	}, audit.ActionAgentUpdate, attachMCPProxy(t.AgentConfigToolset, t.EnvironmentToolset, t.AgentToolset), rbac.AgentUpdate)
 }
 

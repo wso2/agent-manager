@@ -88,18 +88,21 @@ func (t *Toolsets) registerObservabilityTools(server *gomcp.Server) {
 		Name: "get_runtime_logs",
 		Description: "Return runtime logs for an agent. " +
 			"Runtime logs are the application logs emitted by a deployed agent, and they can be filtered by time window, log level, sort order, or text search.",
+		Annotations: &gomcp.ToolAnnotations{ReadOnlyHint: true},
 	}, withToolLogging("get_runtime_logs", getRuntimeLogs(t.Observability, t.guard(rbac.LogRead))))
 
 	gomcp.AddTool(server, &gomcp.Tool{
 		Name: "get_build_logs",
 		Description: "Return logs for a specific build of an internal agent. " +
 			"Build logs are the step-by-step output produced while packaging the agent source into a runnable image.",
+		Annotations: &gomcp.ToolAnnotations{ReadOnlyHint: true},
 	}, withToolLogging("get_build_logs", getBuildLogs(t.Observability, t.guard(rbac.BuildLogRead))))
 
 	gomcp.AddTool(server, &gomcp.Tool{
 		Name: "get_metrics",
 		Description: "Return CPU and memory usage, request and limit metrics for an agent over a selected time range. " +
 			"Metrics describe runtime resource consumption for a deployment in a specific environment.",
+		Annotations: &gomcp.ToolAnnotations{ReadOnlyHint: true},
 	}, withToolLogging("get_metrics", getMetrics(t.Observability, t.guard(rbac.MetricRead))))
 }
 

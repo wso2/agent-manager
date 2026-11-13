@@ -83,6 +83,7 @@ func (t *Toolsets) registerDeploymentTools(server *gomcp.Server, reg *toolRegist
 			"project_name": stringProperty("Required. Project name where the agent exists."),
 			"agent_name":   stringProperty("Required. Name of the agent to check deployments for."),
 		}, []string{"project_name", "agent_name"}),
+		Annotations: &gomcp.ToolAnnotations{ReadOnlyHint: true},
 	}, audit.ActionAgentRead, listDeployments(t.DeploymentToolset), rbac.AgentRead)
 
 	addTool(reg, server, &gomcp.Tool{
@@ -102,6 +103,7 @@ func (t *Toolsets) registerDeploymentTools(server *gomcp.Server, reg *toolRegist
 				"secret_ref":   stringProperty("Optional. Reference to existing secret."),
 			}, []string{"key"})),
 		}, []string{"project_name", "agent_name", "image_id"}),
+		Annotations: &gomcp.ToolAnnotations{ReadOnlyHint: false, DestructiveHint: new(true)},
 	}, audit.ActionAgentDeploy, deployAgent(t.DeploymentToolset), rbac.AgentEnvNonProduction)
 
 	addTool(reg, server, &gomcp.Tool{
@@ -114,6 +116,7 @@ func (t *Toolsets) registerDeploymentTools(server *gomcp.Server, reg *toolRegist
 			"environment":  stringProperty("Required. Environment name. Use list_environments to discover valid names."),
 			"state":        enumProperty("Required. Desired deployment action for the selected environment.", []string{"redeploy", "undeploy"}),
 		}, []string{"project_name", "agent_name", "environment", "state"}),
+		Annotations: &gomcp.ToolAnnotations{ReadOnlyHint: false, DestructiveHint: new(true)},
 	}, audit.ActionAgentChangeDeploymentState, updateDeploymentState(t.DeploymentToolset), rbac.AgentSuspend, rbac.AgentEnvNonProduction)
 }
 

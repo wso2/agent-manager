@@ -151,6 +151,7 @@ func (t *Toolsets) registerAgentTools(server *gomcp.Server, reg *toolRegistry) {
 			"limit":        intProperty(fmt.Sprintf("Optional. Max agents to return (default %d, min %d, max %d).", utils.DefaultLimit, utils.MinLimit, utils.MaxLimit)),
 			"offset":       intProperty(fmt.Sprintf("Optional. Pagination offset (default %d, min %d).", utils.DefaultOffset, utils.MinOffset)),
 		}, []string{"project_name"}),
+		Annotations: &gomcp.ToolAnnotations{ReadOnlyHint: true},
 	}, audit.ActionAgentRead, listAgents(t.AgentToolset), rbac.AgentRead)
 
 	if t.ProjectToolset != nil {
@@ -167,6 +168,7 @@ func (t *Toolsets) registerAgentTools(server *gomcp.Server, reg *toolRegistry) {
 				"agent_limit":    intProperty(fmt.Sprintf("Optional. Max agents per project to return (default %d, min %d, max %d).", utils.DefaultLimit, utils.MinLimit, utils.MaxLimit)),
 				"agent_offset":   intProperty(fmt.Sprintf("Optional. Agent pagination offset within each project (default %d, min %d, max %d).", utils.DefaultOffset, utils.MinOffset, math.MaxInt32)),
 			}, nil),
+			Annotations: &gomcp.ToolAnnotations{ReadOnlyHint: true},
 		}, audit.ActionAgentRead, listProjectAgentPairs(t.AgentToolset, t.ProjectToolset), rbac.AgentRead, rbac.ProjectRead)
 	}
 	// needs the environment toolset to resolve the token environment
@@ -183,6 +185,7 @@ func (t *Toolsets) registerAgentTools(server *gomcp.Server, reg *toolRegistry) {
 				"language":     stringProperty("Required. Agent language for setup guide (python or ballerina)."),
 				"environment":  stringProperty("Optional. Environment the generated API token is scoped to. If omitted, the organization's only environment is used; required when more than one environment is configured. Use list_environments to discover valid names."),
 			}, []string{"project_name", "agent_name", "display_name", "language"}),
+			Annotations: &gomcp.ToolAnnotations{ReadOnlyHint: false, DestructiveHint: new(false)},
 		}, audit.ActionAgentCreate, createExternalAgent(t.AgentToolset, t.EnvironmentToolset), rbac.AgentCreate, rbac.AgentTokenManage)
 	}
 
@@ -222,6 +225,7 @@ func (t *Toolsets) registerAgentTools(server *gomcp.Server, reg *toolRegistry) {
 				"required": []string{"key", "value"},
 			}),
 		}, []string{"project_name", "agent_name", "display_name", "repository_url", "branch", "app_path", "interface_type", "env"}),
+		Annotations: &gomcp.ToolAnnotations{ReadOnlyHint: false, DestructiveHint: new(false)},
 	}, audit.ActionAgentCreate, createInternalAgentPython(t.AgentToolset), rbac.AgentCreate)
 }
 
