@@ -48,7 +48,7 @@ func provisionWithResolver(t *testing.T, resolver ProjectIdentityIDResolver) (re
 	t.Helper()
 	binding := models.AgentThunderClient{
 		ID: uuid.New(), OUID: "org-1", ProjectName: "project-1", AgentName: "agent-1",
-		EnvironmentName: "development", ProvisioningType: models.AgentProvisioningTypeInternal,
+		EnvironmentName: models.DefaultEnvironmentName, ProvisioningType: models.AgentProvisioningTypeInternal,
 	}
 	repo := &repomocks.AgentThunderClientRepositoryMock{
 		FindByAgentFunc:     noExistingBindings,
@@ -79,7 +79,6 @@ func provisionWithResolver(t *testing.T, resolver ProjectIdentityIDResolver) (re
 	}
 	svc := newTestProvisioningService(repo, &clientmocks.EnvThunderResolverMock{}, store)
 	require.NoError(t, svc.(ProjectAgentIdentityProviderSetter).SetProjectAgentIdentityProvider(thundersvc.IdentityManagementCPManaged, provider))
-	svc.(ProjectPipelineReaderSetter).SetProjectPipelineReader(sourceOnlyReader("development", nil))
 	svc.(ProjectIdentityIDResolverSetter).SetProjectIdentityIDResolver(resolver)
 
 	svc.AttemptProvision(context.Background(), binding)
@@ -158,34 +157,6 @@ func TestPlatformProjectIdentityIDResolver(t *testing.T) {
 			assert.Equal(t, tt.want, got)
 		})
 	}
-}
-
-func TestAttemptProvision_PromotionCarriesTheProjectsIdentityID(t *testing.T) {
-	const projectUID = "01a1b99b-649e-7ffa-af90-e7d2e80a8fcd"
-	binding := promotedBinding(models.AgentProvisioningTypeInternal)
-	repo := &repomocks.AgentThunderClientRepositoryMock{
-		ClaimForAttemptFunc: func(context.Context, uuid.UUID) (bool, error) { return true, nil },
-		GetFunc: func(context.Context, string, string, string, string) (*models.AgentThunderClient, error) {
-			return completedSource(), nil
-		},
-		UpdateAfterAttemptFunc: func(context.Context, uuid.UUID, repositories.AgentThunderAttemptUpdate) error { return nil },
-	}
-	store := &clientmocks.SecretManagementClientMock{
-		CreateSecretFunc: func(context.Context, secretmanagersvc.SecretLocation, map[string]string) (string, error) {
-			return "target-secret-reference", nil
-		},
-	}
-	platform := &fakeTargetPlatform{}
-	svc := newPromotionService(t, repo, store, platform.provider(t), nil)
-	svc.(ProjectIdentityIDResolverSetter).SetProjectIdentityIDResolver(projectIdentityIDResolverFunc(
-		func(context.Context, string, string) (string, error) { return projectUID, nil },
-	))
-
-	svc.AttemptProvision(context.Background(), binding)
-
-	require.Len(t, platform.requests, 1)
-	assert.Equal(t, projectUID, platform.requests[0].ProjectID)
-	assert.Equal(t, binding.ProjectName, platform.requests[0].ProjectName)
 }
 
 // A project that no longer exists is not an outage: waiting for it would never end. The attempt

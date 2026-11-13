@@ -315,36 +315,3 @@ func TestAgentThunderClientRepo_DeferAndNoteDoNotConsumeAttempts(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, got.LastError)
 }
-
-func TestAgentThunderClientRepo_ListHomeAgentsPagesDistinctAgentsWithACompletedDirectBinding(t *testing.T) {
-	repo := NewAgentThunderClientRepo(db.GetDB())
-	org := testOrg(t)
-	const project = "test-proj"
-	ctx := context.Background()
-	for _, name := range []string{"atc-home-a", "atc-home-b", "atc-home-c"} {
-		cleanupAgentThunderClients(t, repo, org, project, name)
-		direct := newTestAgentThunderClient(t, org, project, name, "dev")
-		direct.Status = models.AgentThunderStatusCompleted
-		direct.RequestedBy = "user-1"
-		promoted := newTestAgentThunderClient(t, org, project, name, "stage")
-		promoted.Status = models.AgentThunderStatusCompleted
-		promoted.PromotionSource = "dev"
-		require.NoError(t, repo.Upsert(ctx, direct))
-		require.NoError(t, repo.Upsert(ctx, promoted))
-	}
-	pendingOnly := newTestAgentThunderClient(t, org, project, "atc-home-pending", "dev")
-	cleanupAgentThunderClients(t, repo, org, project, "atc-home-pending")
-	require.NoError(t, repo.Upsert(ctx, pendingOnly))
-
-	// Start just before this test's organization so rows other tests left do not interfere.
-	first, err := repo.ListHomeAgents(ctx, &AgentRef{OUID: org}, 2)
-	require.NoError(t, err)
-	require.Len(t, first, 2)
-	assert.Equal(t, "atc-home-a", first[0].AgentName)
-	assert.Equal(t, "dev", first[0].EnvironmentName)
-	assert.Equal(t, "user-1", first[0].RequestedBy)
-	second, err := repo.ListHomeAgents(ctx, &first[1], 2)
-	require.NoError(t, err)
-	require.NotEmpty(t, second)
-	assert.Equal(t, "atc-home-c", second[0].AgentName, "one entry per agent, in order, and no pending-only agent")
-}

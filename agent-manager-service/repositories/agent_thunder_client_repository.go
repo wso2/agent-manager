@@ -158,21 +158,6 @@ type AgentThunderClientRepository interface {
 	// SetLastError records a short user safe note on a binding without touching
 	// its status or attempt bookkeeping. An empty note clears it.
 	SetLastError(ctx context.Context, id uuid.UUID, note string) error
-
-	// ListHomeAgents pages through the distinct agents that have a completed
-	// binding created directly in an environment (promotion_source is empty),
-	// ordered by (org, project, agent). after is nil for the first page.
-	ListHomeAgents(ctx context.Context, after *AgentRef, limit int) ([]AgentRef, error)
-}
-
-// AgentRef identifies one agent. It doubles as the keyset cursor of ListHomeAgents.
-type AgentRef struct {
-	OUID             string
-	ProjectName      string
-	AgentName        string
-	EnvironmentName  string
-	ProvisioningType models.AgentProvisioningType
-	RequestedBy      string
 }
 
 // ReconcileCursor identifies the last row returned by a previous
@@ -427,41 +412,4 @@ func (r *AgentThunderClientRepo) SetLastError(ctx context.Context, id uuid.UUID,
 		return fmt.Errorf("set agent thunder client note: %w", err)
 	}
 	return nil
-}
-
-// ListHomeAgents pages through the agents with a completed binding, by (org, project, agent) name. Every Lite binding
-// is created directly in its environment. The page is cut in Go, since the cursor is by names and rows store ids.
-func (r *AgentThunderClientRepo) ListHomeAgents(ctx context.Context, after *AgentRef, limit int) ([]AgentRef, error) {
-	var rows []models.AgentThunderClient
-	if err := r.db.WithContext(ctx).Where("status = ?", models.AgentThunderStatusCompleted).
-		Order("created_at, id").Find(&rows).Error; err != nil {
-		return nil, fmt.Errorf("list agents with a completed identity: %w", err)
-	}
-	less := func(a, b AgentRef) bool {
-		if a.OUID != b.OUID {
-			return a.OUID < b.OUID
-		}
-		if a.ProjectName != b.ProjectName {
-			return a.ProjectName < b.ProjectName
-		}
-		return a.AgentName < b.AgentName
-	}
-	seen := make(map[AgentRef]bool, len(rows))
-	refs := make([]AgentRef, 0, len(rows))
-	for _, row := range rows {
-		key := AgentRef{OUID: row.OUID, ProjectName: row.ProjectName, AgentName: row.AgentName}
-		if seen[key] || (after != nil && !less(*after, key)) {
-			continue
-		}
-		seen[key] = true
-		refs = append(refs, AgentRef{
-			OUID: row.OUID, ProjectName: row.ProjectName, AgentName: row.AgentName,
-			EnvironmentName: row.EnvironmentName, ProvisioningType: row.ProvisioningType, RequestedBy: row.RequestedBy,
-		})
-	}
-	sort.Slice(refs, func(i, j int) bool { return less(refs[i], refs[j]) })
-	if len(refs) > limit {
-		refs = refs[:limit]
-	}
-	return refs, nil
 }

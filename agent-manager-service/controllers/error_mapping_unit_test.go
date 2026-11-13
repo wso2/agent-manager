@@ -57,7 +57,7 @@ func TestHandleCommonErrors_ValidationErrorWithSentinel_KeepsItsOwnMessage(t *te
 func TestHandleCommonErrors_AgentIdentityRequiresPromotion_Is409(t *testing.T) {
 	rr := httptest.NewRecorder()
 
-	handleCommonErrors(rr, fmt.Errorf("%w: staging", services.ErrProjectAgentIdentityRequiresPromotion),
+	handleCommonErrors(rr, fmt.Errorf("%w: staging", services.ErrProjectAgentIdentityDefaultEnvironmentOnly),
 		"Failed to provision agent identity")
 
 	assert.Equal(t, http.StatusConflict, rr.Code)

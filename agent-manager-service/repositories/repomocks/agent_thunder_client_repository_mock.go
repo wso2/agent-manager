@@ -55,9 +55,6 @@ import (
 //			GetFunc: func(ctx context.Context, ouID string, projectName string, agentName string, environmentName string) (*models.AgentThunderClient, error) {
 //				panic("mock out the Get method")
 //			},
-//			ListHomeAgentsFunc: func(ctx context.Context, after *repositories.AgentRef, limit int) ([]repositories.AgentRef, error) {
-//				panic("mock out the ListHomeAgents method")
-//			},
 //			MarkSyncAfterFunc: func(ctx context.Context, ids []uuid.UUID, at time.Time) error {
 //				panic("mock out the MarkSyncAfter method")
 //			},
@@ -121,9 +118,6 @@ type AgentThunderClientRepositoryMock struct {
 
 	// GetFunc mocks the Get method.
 	GetFunc func(ctx context.Context, ouID string, projectName string, agentName string, environmentName string) (*models.AgentThunderClient, error)
-
-	// ListHomeAgentsFunc mocks the ListHomeAgents method.
-	ListHomeAgentsFunc func(ctx context.Context, after *repositories.AgentRef, limit int) ([]repositories.AgentRef, error)
 
 	// MarkSyncAfterFunc mocks the MarkSyncAfter method.
 	MarkSyncAfterFunc func(ctx context.Context, ids []uuid.UUID, at time.Time) error
@@ -268,15 +262,6 @@ type AgentThunderClientRepositoryMock struct {
 			// EnvironmentName is the environmentName argument value.
 			EnvironmentName string
 		}
-		// ListHomeAgents holds details about calls to the ListHomeAgents method.
-		ListHomeAgents []struct {
-			// Ctx is the ctx argument value.
-			Ctx context.Context
-			// After is the after argument value.
-			After *repositories.AgentRef
-			// Limit is the limit argument value.
-			Limit int
-		}
 		// MarkSyncAfter holds details about calls to the MarkSyncAfter method.
 		MarkSyncAfter []struct {
 			// Ctx is the ctx argument value.
@@ -351,7 +336,6 @@ type AgentThunderClientRepositoryMock struct {
 	lockFindSyncDue                   sync.RWMutex
 	lockFinishSync                    sync.RWMutex
 	lockGet                           sync.RWMutex
-	lockListHomeAgents                sync.RWMutex
 	lockMarkSyncAfter                 sync.RWMutex
 	lockReleaseClaim                  sync.RWMutex
 	lockResetFailedForRetry           sync.RWMutex
@@ -862,46 +846,6 @@ func (mock *AgentThunderClientRepositoryMock) GetCalls() []struct {
 	mock.lockGet.RLock()
 	calls = mock.calls.Get
 	mock.lockGet.RUnlock()
-	return calls
-}
-
-// ListHomeAgents calls ListHomeAgentsFunc.
-func (mock *AgentThunderClientRepositoryMock) ListHomeAgents(ctx context.Context, after *repositories.AgentRef, limit int) ([]repositories.AgentRef, error) {
-	if mock.ListHomeAgentsFunc == nil {
-		panic("AgentThunderClientRepositoryMock.ListHomeAgentsFunc: method is nil but AgentThunderClientRepository.ListHomeAgents was just called")
-	}
-	callInfo := struct {
-		Ctx   context.Context
-		After *repositories.AgentRef
-		Limit int
-	}{
-		Ctx:   ctx,
-		After: after,
-		Limit: limit,
-	}
-	mock.lockListHomeAgents.Lock()
-	mock.calls.ListHomeAgents = append(mock.calls.ListHomeAgents, callInfo)
-	mock.lockListHomeAgents.Unlock()
-	return mock.ListHomeAgentsFunc(ctx, after, limit)
-}
-
-// ListHomeAgentsCalls gets all the calls that were made to ListHomeAgents.
-// Check the length with:
-//
-//	len(mockedAgentThunderClientRepository.ListHomeAgentsCalls())
-func (mock *AgentThunderClientRepositoryMock) ListHomeAgentsCalls() []struct {
-	Ctx   context.Context
-	After *repositories.AgentRef
-	Limit int
-} {
-	var calls []struct {
-		Ctx   context.Context
-		After *repositories.AgentRef
-		Limit int
-	}
-	mock.lockListHomeAgents.RLock()
-	calls = mock.calls.ListHomeAgents
-	mock.lockListHomeAgents.RUnlock()
 	return calls
 }
 

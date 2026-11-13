@@ -39,7 +39,6 @@ const (
 	reconcilerLock             = "agent_identity.reconciler"
 	reconcilerBatchSize        = 50
 	reconcilerConcurrencyLimit = 10
-	promotionTopologyInterval  = 5 * time.Minute
 )
 
 // AgentThunderReconcilerService sweeps PENDING agent Thunder bindings whose
@@ -78,32 +77,8 @@ func (s *agentThunderReconcilerService) Start(ctx context.Context) error {
 	// own doc comment) must never delay the time-sensitive PENDING-binding
 	// retry cycle below.
 	go s.runLoop(ctx)
-	if _, ok := s.provisioning.(ProjectAgentIdentityPromotionReconciler); ok {
-		go s.runPromotionTopologyLoop(ctx)
-	}
 	s.logger.Info("Agent thunder provisioning reconciler started")
 	return nil
-}
-
-func (s *agentThunderReconcilerService) runPromotionTopologyLoop(ctx context.Context) {
-	reconciler := s.provisioning.(ProjectAgentIdentityPromotionReconciler)
-	s.runPromotionTopologyCycle(ctx, reconciler)
-	ticker := time.NewTicker(promotionTopologyInterval)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ticker.C:
-			s.runPromotionTopologyCycle(ctx, reconciler)
-		case <-s.stopCh:
-			return
-		case <-ctx.Done():
-			return
-		}
-	}
-}
-
-// runPromotionTopologyCycle does nothing: Lite environments have no promotion pipeline to backfill bindings for.
-func (s *agentThunderReconcilerService) runPromotionTopologyCycle(context.Context, ProjectAgentIdentityPromotionReconciler) {
 }
 
 func (s *agentThunderReconcilerService) Stop() error {

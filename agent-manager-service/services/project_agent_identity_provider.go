@@ -42,7 +42,7 @@ type ProjectAgentIdentityRequest struct {
 	// RequestedBy is the subject of the agent's creator as far as Agent Manager
 	// knows: the requester of the agent's earliest binding. It is empty when the
 	// agent was created without a user, for example by a system, and stays empty
-	// even if a later repair or promotion was requested by a user. A provider that
+	// even if a later repair was requested by a user. A provider that
 	// records an owner uses it, and falls back to its own default when it is empty.
 	RequestedBy string
 	// NeedsSecret asks Provision to return a client secret. It is set for
@@ -61,71 +61,18 @@ type ProjectAgentIdentityResult struct {
 	ClientSecret string
 }
 
-// ProjectIdentityEnvironment is one environment of a project's promotion
-// topology. PromotesTo contains only valid outgoing promotion edges.
-type ProjectIdentityEnvironment struct {
-	Name       string
-	PromotesTo []string
-}
-
-// ProjectAgentIdentityPromotionRequest identifies one AgentID promotion. The
-// provider owns previewing the change and selecting only ExistingAgentID.
-// TargetClientID and TargetClientSecret are chosen by AMS (see Promote).
-// SourceEnvironment is always a direct parent of TargetEnvironment in the
-// project's current pipeline, so a provider may only promote along that edge.
-type ProjectAgentIdentityPromotionRequest struct {
-	OrganizationID     string
-	ProjectID          string
-	ProjectName        string
-	AgentName          string
-	SourceEnvironment  string
-	TargetEnvironment  string
-	ProvisioningType   models.AgentProvisioningType
-	ExistingAgentID    string
-	ExistingClientID   string
-	TargetClientID     string
-	TargetClientSecret string
-	NeedsSecret        bool
-}
-
 // ProjectAgentIdentityProvider is implemented by deployments that can create
 // project-scoped AgentIDs through an identity control plane. The provider only
-// executes operations for the environment named in the request; the project's
-// environment order comes from ProjectPipelineReader, never from the provider.
+// executes operations for the environment named in the request.
 //
 // Provision creates the identity in request.Environment, which AMS always sets
-// to the pipeline source environment. It must be idempotent for
+// to the default environment. It must be idempotent for
 // ExistingAgentID, must reject non-source environments, and must not persist
 // the returned secret. Activate makes the identity effective in that same
 // source environment and must be idempotent.
 type ProjectAgentIdentityProvider interface {
 	Provision(ctx context.Context, request ProjectAgentIdentityRequest) (ProjectAgentIdentityResult, error)
 	Activate(ctx context.Context, request ProjectAgentIdentityRequest, agentID string) error
-}
-
-// ProjectAgentIdentityPromotionProvider extends source provisioning with
-// AgentID-only promotion between environments.
-type ProjectAgentIdentityPromotionProvider interface {
-	ProjectAgentIdentityProvider
-
-	// Promote carries ONLY the AgentID (request.ExistingAgentID) from
-	// request.SourceEnvironment to request.TargetEnvironment. The source is
-	// always a direct parent of the target in the project's current pipeline;
-	// the provider may promote only along that edge, and returns
-	// ErrProjectAgentIdentityPromotionPathUnavailable (wrapped is fine) when its
-	// identity service has no such path yet, so AMS waits and asks again instead
-	// of failing the binding. It must be idempotent.
-	//
-	// Contract for the target credential: the provider MUST set
-	// request.TargetClientID and request.TargetClientSecret on the target
-	// environment unconditionally (overwrite, idempotent), whether or not the
-	// environment reports them missing. AMS generates a fresh secret on every
-	// attempt and stores exactly the secret Promote returns, so a value the
-	// provider keeps because it already existed would diverge from the stored
-	// one after any retry. The result must echo the client ID and secret that
-	// were set. For external agents the secret is set the same way but AMS never
-	// stores it; it can only be obtained by regenerating it.
-	Promote(ctx context.Context, request ProjectAgentIdentityPromotionRequest) (ProjectAgentIdentityResult, error)
 }
 
 // ProjectAgentIdentitySecretRequest names one AgentID credential in one environment.
@@ -144,7 +91,7 @@ type ProjectAgentIdentitySecretRequest struct {
 
 // ProjectAgentIdentitySecretProvider is an optional capability of a
 // ProjectAgentIdentityProvider: it replaces the client secret of an existing
-// AgentID in one environment. AMS owns the secret value (like Promote), so
+// AgentID in one environment. AMS owns the secret value, so
 // the identity control plane never generates it.
 type ProjectAgentIdentitySecretProvider interface {
 	// SetSecret makes ClientSecret the only valid secret of the AgentID in request.Environment.
@@ -162,7 +109,7 @@ type ProjectAgentIdentityDeleteRequest struct {
 	AgentName      string
 	AgentID        string
 	ClientID       string
-	// Source reports that Environment is the project's pipeline source, where the control plane holds the AgentID.
+	// Source reports that Environment holds the AgentID in the control plane; always true.
 	Source bool
 }
 
@@ -170,9 +117,7 @@ type ProjectAgentIdentityDeleteRequest struct {
 // must have in CP_MANAGED mode (SetProjectAgentIdentityProvider rejects one without
 // it): it removes an AgentID from one environment.
 type ProjectAgentIdentityDeletionProvider interface {
-	// DeleteAgentIdentity removes request.AgentID from request.Environment. It is called for the
-	// source environment first (the AgentID leaves the control plane configuration), then for each
-	// promoted environment. MUST be idempotent: an AgentID that is already gone is success. It
+	// DeleteAgentIdentity removes request.AgentID from request.Environment. MUST be idempotent: an AgentID that is already gone is success. It
 	// returns only after the environment's identity service has accepted the removal.
 	DeleteAgentIdentity(ctx context.Context, request ProjectAgentIdentityDeleteRequest) error
 }
@@ -183,40 +128,10 @@ type ProjectAgentIdentityDeletionProvider interface {
 // used for a CP-managed environment.
 var errProjectAgentIdentitySecretUnavailable = errors.New("project AgentID secret provider is not configured")
 
-// ErrProjectAgentIdentityRequiresPromotion tells callers not to create another
-// identity directly in a non-source environment.
-var ErrProjectAgentIdentityRequiresPromotion = fmt.Errorf(
-	"%w: project AgentID must be promoted to this environment", utils.ErrConflict,
-)
-
-// ErrProjectAgentIdentitySourceUnavailable marks a promotion target whose source
-// environment binding is missing or FAILED, so waiting for it cannot succeed
-// until someone fixes the source.
-var ErrProjectAgentIdentitySourceUnavailable = errors.New(
-	"project AgentID source environment identity is missing or failed",
-)
-
-// ErrProjectAgentIdentityEnvironmentNotInPipeline marks a promotion target that
-// is no longer an outgoing target of any environment in the project's current
-// pipeline, so there is nothing to promote it from.
-var ErrProjectAgentIdentityEnvironmentNotInPipeline = errors.New(
-	"project AgentID environment is no longer part of the project pipeline",
-)
-
-// ErrProjectAgentIdentityEnvironmentIsPipelineSource marks a promotion target
-// that is now the first environment of the project's pipeline, so its identity
-// cannot be promoted from another environment. Re-homing an AgentID to a new
-// source environment is not supported.
-var ErrProjectAgentIdentityEnvironmentIsPipelineSource = errors.New(
-	"project AgentID environment is now the first environment of the project pipeline",
-)
-
-// ErrProjectAgentIdentityPromotionPathUnavailable is returned (wrapped is fine)
-// by a provider's Promote when the identity service has no promotion path for
-// the requested source to target edge yet. It is a wait, not a failure: AMS
-// defers the attempt and tries again later without consuming its retry budget.
-var ErrProjectAgentIdentityPromotionPathUnavailable = errors.New(
-	"project AgentID promotion path is not available yet",
+// ErrProjectAgentIdentityDefaultEnvironmentOnly tells callers that only the default
+// environment holds a project AgentID.
+var ErrProjectAgentIdentityDefaultEnvironmentOnly = fmt.Errorf(
+	"%w: a project AgentID exists only in the default environment", utils.ErrConflict,
 )
 
 // ProjectAgentIdentityProviderSetter is an optional deployment hook. The

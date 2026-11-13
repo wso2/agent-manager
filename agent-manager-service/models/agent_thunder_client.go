@@ -72,7 +72,6 @@ type AgentThunderClient struct {
 	LastAttemptedAt *time.Time `gorm:"-"`
 	ClaimedUntil    *time.Time `gorm:"column:claimed_until"`
 	NextRetryAt     *time.Time `gorm:"column:next_retry_at"`
-	PromotionSource string     `gorm:"-"`
 	SyncAfter       *time.Time `gorm:"-"`
 	CreatedAt       time.Time  `gorm:"column:created_at"`
 	UpdatedAt       time.Time  `gorm:"column:updated_at"`
