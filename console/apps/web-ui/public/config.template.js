@@ -75,6 +75,7 @@ window.__RUNTIME_CONFIG__ = {
   gatewayVersion: '$GATEWAY_VERSION',
   ampVersion: '$AMP_VERSION',
   scriptBaseUrl: '$SCRIPT_BASE_URL',
+  externalProjectManagementUrl: '$EXTERNAL_PROJECT_MANAGEMENT_URL',
   ampRegistry: '$AMP_REGISTRY',
   ampChartRegistry: '$AMP_CHART_REGISTRY',
   bundleUrl: '$BUNDLE_URL',

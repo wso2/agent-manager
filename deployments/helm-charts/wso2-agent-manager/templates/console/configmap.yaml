@@ -28,6 +28,9 @@ data:
   # Empty derives the public raw.githubusercontent.com URL from AMP_VERSION; set
   # it where that host is unreachable or serves nothing for this build.
   SCRIPT_BASE_URL: {{ .Values.console.config.scriptBaseUrl | default "" | quote }}
+  # Host of an external app that owns project management. When set, the console
+  # hides project deletion and "Manage project" opens <host>/projects/<handle>/manage.
+  EXTERNAL_PROJECT_MANAGEMENT_URL: {{ .Values.console.config.externalProjectManagementUrl | default "" | quote }}
   # Base URL the evaluator AI Copilot prompt links the writing guide from.
   # Empty derives the public raw.githubusercontent.com URL from AMP_VERSION.
   PROMPTS_BASE_URL: {{ .Values.console.config.promptsBaseUrl | default "" | quote }}

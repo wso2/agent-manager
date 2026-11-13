@@ -18,11 +18,14 @@
 
 import React, { useEffect } from "react";
 import { Box, Button, Stack } from "@wso2/oxygen-ui";
-import { Edit, Package } from "@wso2/oxygen-ui-icons-react";
+import { Package, Settings } from "@wso2/oxygen-ui-icons-react";
 import { PageLayout } from "@agent-management-platform/views";
 import { AgentList } from "@agent-management-platform/level-resource-listing";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
-import { absoluteRouteMap } from "@agent-management-platform/types";
+import {
+  absoluteRouteMap,
+  getExternalProjectManageUrl,
+} from "@agent-management-platform/types";
 import { useFeatureAccess, useResourceAccess } from "@agent-management-platform/feature-management";
 import {
   useListAgents,
@@ -52,6 +55,16 @@ export const ProjectOverview: React.FC = () => {
     orgName: orgId,
     projName: projectId,
   });
+  // An external app may own project management; send "Manage project" there.
+  const externalManageUrl = getExternalProjectManageUrl(projectId);
+  const manageProject = () => {
+    if (externalManageUrl) {
+      window.location.assign(externalManageUrl);
+      return;
+    }
+    navigate(generatePath(projectRoutes.children.edit.path, { orgId, projectId }));
+  };
+
   // Only a successful, empty response counts; a failed load must not redirect.
   const hasNoAgents = isAgentsLoaded && !agents?.agents?.length;
 
@@ -76,13 +89,11 @@ export const ProjectOverview: React.FC = () => {
           <Button
             variant="outlined"
             size="small"
-            startIcon={<Edit size={16} />}
-            onClick={() =>
-              navigate(generatePath(projectRoutes.children.edit.path, { orgId, projectId }))
-            }
+            startIcon={<Settings size={16} />}
+            onClick={manageProject}
             disabled={!project}
           >
-            Edit project
+            Manage project
           </Button>
         )
       }

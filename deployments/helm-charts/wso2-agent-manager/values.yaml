@@ -584,6 +584,11 @@ console:
     # -- Base URL for the console's generated deployment-script commands.
     # Empty derives the public raw.githubusercontent.com URL from ampVersion.
     scriptBaseUrl: ""
+    # -- Host of an external app that owns project management. When set, the
+    # console hides project deletion and "Manage project" opens
+    # <externalProjectManagementUrl>/projects/<projectHandle>/manage.
+    # Empty manages projects in the console.
+    externalProjectManagementUrl: ""
     # -- Base URL the evaluator AI Copilot prompt links the writing guide from.
     # Empty derives the public raw.githubusercontent.com URL from ampVersion.
     promptsBaseUrl: ""

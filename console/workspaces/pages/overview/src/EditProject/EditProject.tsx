@@ -29,7 +29,7 @@ import { z } from "zod";
 import { generatePath, Navigate, useNavigate, useParams } from "react-router-dom";
 import { useResourceAccess } from "@agent-management-platform/feature-management";
 import { useGetProject, useListDeploymentPipelines, useListEnvironments, useUpdateProject } from "@agent-management-platform/api-client";
-import { absoluteRouteMap, type DeploymentPipelineResponse, ProjectResponse, UpdateProjectRequest, INPUT_LIMITS } from "@agent-management-platform/types";
+import { absoluteRouteMap, getExternalProjectManageUrl, type DeploymentPipelineResponse, ProjectResponse, UpdateProjectRequest, INPUT_LIMITS } from "@agent-management-platform/types";
 import { useUnsavedChangesGuard } from "@agent-management-platform/shared-component";
 import { useEffect, useState, useCallback, useMemo } from "react";
 
@@ -320,6 +320,18 @@ export function EditProject() {
     orgId,
     projectId,
   });
+  // An external app owns project management: old links to this page go there.
+  const externalManageUrl = getExternalProjectManageUrl(projectId);
+
+  useEffect(() => {
+    if (externalManageUrl) {
+      window.location.replace(externalManageUrl);
+    }
+  }, [externalManageUrl]);
+
+  if (externalManageUrl) {
+    return null;
+  }
 
   if (!canWrite) {
     return <Navigate to={projectHref} replace />;
@@ -327,7 +339,7 @@ export function EditProject() {
 
   return (
     <PageLayout
-      title="Edit Project"
+      title="Manage Project"
       disableIcon
       backHref={projectHref}
       backLabel="Back to project"

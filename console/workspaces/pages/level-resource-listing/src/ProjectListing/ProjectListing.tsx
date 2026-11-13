@@ -25,6 +25,7 @@ import {
 import { generatePath, Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   absoluteRouteMap,
+  isProjectManagedExternally,
   type ProjectResponse,
 } from "@agent-management-platform/types";
 import {
@@ -106,6 +107,8 @@ export function ProjectListing() {
   const { orgId } = useParams();
   const location = useLocation();
   const { canWrite } = useResourceAccess("project");
+  // Projects owned by an external app are deleted there, not here.
+  const canDelete = canWrite && !isProjectManagedExternally();
 
   const {
     data: projects,
@@ -203,7 +206,7 @@ export function ProjectListing() {
                   <ProjectCard
                     key={project.name}
                     project={project}
-                    handleDeleteProject={canWrite ? handleDeleteProject : undefined}
+                    handleDeleteProject={canDelete ? handleDeleteProject : undefined}
                   />
                 ))}
             </Box>
