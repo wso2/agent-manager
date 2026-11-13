@@ -179,7 +179,7 @@ export const AgentsTab: React.FC = () => {
                     <ListingTable.Cell>
                       <ListingTable.CellIcon
                         icon={
-                          <Avatar sx={AVATAR_SX}>
+                          <Avatar variant="light" sx={AVATAR_SX}>
                             {agent.displayName.charAt(0).toUpperCase() || "A"}
                           </Avatar>
                         }

@@ -176,7 +176,7 @@ export const RolesPage: React.FC = () => {
                       <ListingTable.Cell>
                         <ListingTable.CellIcon
                           icon={
-                            <Avatar sx={AVATAR_SX}>
+                            <Avatar variant="light" sx={AVATAR_SX}>
                               {role.name.charAt(0).toUpperCase() || "R"}
                             </Avatar>
                           }

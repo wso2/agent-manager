@@ -208,11 +208,14 @@ export function GatewayIdentityProvidersCard({
                   <ListingTable.CellIcon
                     icon={
                       <Avatar
+                        variant="light"
                         sx={{
                           width: 28,
                           height: 28,
-                          bgcolor: isSystem ? "action.selected" : "primary.main",
-                          color: isSystem ? "text.secondary" : "primary.contrastText",
+                          ...(isSystem && {
+                            bgcolor: "action.selected",
+                            color: "text.secondary",
+                          }),
                         }}
                       >
                         <KeyRound size={16} />

@@ -312,9 +312,8 @@ export function DeploymentPipelineTable({
               <ListingTable.Cell>
                 <Stack direction="row" alignItems="center" spacing={2}>
                   <Avatar
+                    variant="light"
                     sx={{
-                      bgcolor: "primary.main",
-                      color: "primary.contrastText",
                       fontSize: 16,
                       height: 36,
                       width: 36,

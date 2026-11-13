@@ -80,8 +80,6 @@ const AVATAR_SX = {
   width: 28,
   height: 28,
   fontSize: 12,
-  bgcolor: "primary.main",
-  color: "primary.contrastText",
 } as const;
 
 const matchesQuery = (gateway: GatewayResponse, query: string) => {
@@ -231,7 +229,7 @@ export function AIGatewaysTable({ onAddGateway }: AIGatewaysTableProps) {
         <ListingTable.Cell>
           <ListingTable.CellIcon
             icon={
-              <Avatar sx={AVATAR_SX}>
+              <Avatar variant="light" sx={AVATAR_SX}>
                 {getAvatarInitials(displayName, { fallback: "G", maxChars: 1 })}
               </Avatar>
             }

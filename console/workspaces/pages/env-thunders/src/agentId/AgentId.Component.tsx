@@ -138,7 +138,7 @@ function IdentityAssignmentTable({
               <ListingTable.Cell>
                 <ListingTable.CellIcon
                   icon={
-                    <Avatar sx={{ width: 28, height: 28, fontSize: 12 }}>
+                    <Avatar variant="light" sx={{ width: 28, height: 28, fontSize: 12 }}>
                       {item.name.charAt(0).toUpperCase()}
                     </Avatar>
                   }

@@ -75,8 +75,6 @@ const GATEWAY_AVATAR_SX = {
   width: 28,
   height: 28,
   fontSize: 12,
-  bgcolor: "primary.main",
-  color: "primary.contrastText",
 } as const;
 
 export function EnvironmentViewPage() {
@@ -282,7 +280,7 @@ export function EnvironmentViewPage() {
                         <ListingTable.Cell>
                           <ListingTable.CellIcon
                             icon={
-                              <Avatar sx={GATEWAY_AVATAR_SX}>
+                              <Avatar variant="light" sx={GATEWAY_AVATAR_SX}>
                                 {getAvatarInitials(gw.displayName ?? gw.name, {
                                   fallback: "G",
                                   maxChars: 1,
@@ -362,12 +360,8 @@ export function EnvironmentViewPage() {
                         <ListingTable.CellIcon
                           icon={
                             <Avatar
-                              sx={{
-                                width: 28,
-                                height: 28,
-                                bgcolor: "primary.main",
-                                color: "primary.contrastText",
-                              }}
+                              variant="light"
+                              sx={{ width: 28, height: 28 }}
                             >
                               <KeyRound size={16} />
                             </Avatar>

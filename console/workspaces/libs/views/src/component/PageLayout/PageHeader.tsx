@@ -59,7 +59,7 @@ export interface PageHeaderProps {
    */
   meta?: ReactNode;
   /**
-   * Avatar beside the title. Defaults to a `primary` letter tile built from
+   * Avatar beside the title. Defaults to a `primary` light letter tile built from
    * `title`; pass a spec to override (logo `src`, brand `color`, custom
    * `children`), or `null` to drop the avatar entirely.
    */
@@ -81,6 +81,7 @@ export function PageHeader({
   actions,
   isLoading = false,
 }: PageHeaderProps) {
+  const avatarShape = avatar?.shape ?? 'circular';
   const avatarProps =
     avatar === null
       ? null
@@ -121,7 +122,7 @@ export function PageHeader({
             sx={{ bgcolor: 'transparent' }}
           >
             <Skeleton
-              variant={avatarProps.variant === 'circular' ? 'circular' : 'rounded'}
+              variant={avatarShape === 'circular' ? 'circular' : 'rounded'}
               width="100%"
               height="100%"
             />

@@ -18,7 +18,7 @@
 
 import React, { useEffect } from "react";
 import { Box, Button, Stack } from "@wso2/oxygen-ui";
-import { Edit } from "@wso2/oxygen-ui-icons-react";
+import { Edit, Package } from "@wso2/oxygen-ui-icons-react";
 import { PageLayout } from "@agent-management-platform/views";
 import { AgentList } from "@agent-management-platform/level-resource-listing";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
@@ -32,6 +32,9 @@ import { AgentTypeSummary } from "./subComponents/AgentTypeSummary";
 import { DeploymentPipelineCard } from "./subComponents/DeploymentPipelineCard";
 
 const projectRoutes = absoluteRouteMap.children.org.children.projects;
+
+// Same box icon as the project rows on the organization overview.
+const PROJECT_AVATAR = { children: <Package size={24} /> };
 
 export const ProjectOverview: React.FC = () => {
   const { orgId = "", projectId = "" } = useParams<{
@@ -66,6 +69,7 @@ export const ProjectOverview: React.FC = () => {
     <PageLayout
       title={project?.displayName ?? "Project Overview"}
       description={project?.description}
+      avatar={PROJECT_AVATAR}
       isLoading={isLoading}
       actions={
         canWriteProject && (
