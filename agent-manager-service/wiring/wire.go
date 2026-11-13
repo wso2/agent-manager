@@ -246,7 +246,6 @@ var loggerProviderSet = wire.NewSet(
 
 var repositoryProviderSet = wire.NewSet(
 	ProvideGatewayRepository,
-	ProvideAgentKindRepository,
 	ProvideLLMProviderTemplateRepository,
 	ProvideLLMProviderRepository,
 	ProvideLLMProxyRepository,
@@ -494,10 +493,6 @@ func ProvideOrgPublisherCredentialRepository(db *gorm.DB) repositories.OrgPublis
 
 func ProvideOrgSchedulerCredentialRepository(db *gorm.DB) repositories.OrgSchedulerCredentialRepository {
 	return repositories.NewOrgSchedulerCredentialRepo(db)
-}
-
-func ProvideAgentKindRepository(db *gorm.DB) repositories.AgentKindRepository {
-	return repositories.NewAgentKindRepo(db)
 }
 
 func ProvideAIApplicationRepository(db *gorm.DB) repositories.AIApplicationRepository {

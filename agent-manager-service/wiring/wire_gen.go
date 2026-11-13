@@ -9,9 +9,6 @@ package wiring
 import (
 	"context"
 	"fmt"
-	"log/slog"
-	"time"
-
 	"github.com/google/wire"
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
@@ -31,6 +28,8 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/services/eventdestinations/webhook"
 	"github.com/wso2/agent-manager/agent-manager-service/websocket"
 	"gorm.io/gorm"
+	"log/slog"
+	"time"
 )
 
 // Injectors from wire.go:
@@ -576,7 +575,6 @@ var loggerProviderSet = wire.NewSet(
 
 var repositoryProviderSet = wire.NewSet(
 	ProvideGatewayRepository,
-	ProvideAgentKindRepository,
 	ProvideLLMProviderTemplateRepository,
 	ProvideLLMProviderRepository,
 	ProvideLLMProxyRepository,
@@ -800,10 +798,6 @@ func ProvideOrgPublisherCredentialRepository(db *gorm.DB) repositories.OrgPublis
 
 func ProvideOrgSchedulerCredentialRepository(db *gorm.DB) repositories.OrgSchedulerCredentialRepository {
 	return repositories.NewOrgSchedulerCredentialRepo(db)
-}
-
-func ProvideAgentKindRepository(db *gorm.DB) repositories.AgentKindRepository {
-	return repositories.NewAgentKindRepo(db)
 }
 
 func ProvideAIApplicationRepository(db *gorm.DB) repositories.AIApplicationRepository {
