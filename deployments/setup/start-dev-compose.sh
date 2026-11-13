@@ -24,7 +24,15 @@ compose=(docker compose -f "$SCRIPT_DIR/../docker-compose.yml")
 "${compose[@]}" build agent-manager-service
 # Keys volumes created by the earlier root-run image are owned by root; hand them
 # to the runtime user. Safe to repeat on a volume that is already migrated.
-"${compose[@]}" run --rm --no-deps --user root --entrypoint chown \
-    agent-manager-service -R 1000:1000 /var/lib/agent-manager/keys
+# A plain docker run mounts only the volume, so it does not clash with a running
+# service over its fixed network address.
+project=$("${compose[@]}" config | sed -n 's/^name: //p')
+keys_volume="${project}_agent_manager_keys"
+if docker volume inspect "$keys_volume" >/dev/null 2>&1; then
+    image="${project}-agent-manager-service"
+    docker run --rm --user root --entrypoint chown \
+        -v "$keys_volume:/var/lib/agent-manager/keys" \
+        "$image" -R 1000:1000 /var/lib/agent-manager/keys
+fi
 # --wait fails the command when a service exits or never turns healthy.
 exec "${compose[@]}" up -d --build --wait "$@"
