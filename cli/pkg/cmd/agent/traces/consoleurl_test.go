@@ -30,8 +30,10 @@ import (
 )
 
 const (
-	consolePath = "/org/acme/project/triage/agents/my-agent/environment/dev/observability/traces"
-	testTraceID = "4bf92f3577b34da6a3ce929d0e0e4736"
+	consolePath = "/organizations/acme/projects/triage/agents/my-agent/environment/dev/observability/traces"
+	// legacyConsolePath is consolePath on the old /org/:orgId/project/:projectId route.
+	legacyConsolePath = "/org/acme/project/triage/agents/my-agent/environment/dev/observability/traces"
+	testTraceID       = "4bf92f3577b34da6a3ce929d0e0e4736"
 )
 
 var traceArgs = []string{"trace", "my-agent", testTraceID, "--project", "triage", "--env", "dev"}
@@ -181,6 +183,8 @@ func TestFromURL_FormsReadTheSame(t *testing.T) {
 		{"traces", "--from-url", consolePath + query},
 		{"traces", "--from-url", "https://console.example.com/amp/console" + consolePath + "/" + query + "#top"},
 		{"traces", "--from-url", "https://console.example.com/org/console" + consolePath + query},
+		{"traces", "--from-url", legacyConsolePath + query},
+		{"traces", "--from-url", "https://console.example.com/organizations/console" + legacyConsolePath + query},
 	} {
 		got := mustRun(t, args...)
 		sameRequest(t, want.requests[0], got.requests[0])
@@ -262,7 +266,7 @@ func TestFromURL_Rejects(t *testing.T) {
 		{"filter set twice", []string{"traces", "--tool", "b", "--from-url", consolePath + "?tool=a"}, "--tool"},
 		{"condition sets the URL's filter", []string{"traces", "--condition", "error_status", "--from-url", full}, "status"},
 		{"tool_call_fails with toolError", []string{"traces", "--condition", "tool_call_fails", "--from-url", consolePath + "?toolError=true"}, "--tool-error"},
-		{"not the trace list", []string{"traces", "--from-url", "/org/acme/project/triage/agents/my-agent/environment/dev/observability/logs"}, "trace list"},
+		{"not the trace list", []string{"traces", "--from-url", "/organizations/acme/projects/triage/agents/my-agent/environment/dev/observability/logs"}, "trace list"},
 		{"start without end", []string{"traces", "--from-url", consolePath + "?startTime=" + testStart}, "endTime"},
 		{"start after end", []string{"traces", "--from-url", consolePath + "?startTime=" + testEnd + "&endTime=" + testStart}, "startTime"},
 		{"status", []string{"traces", "--from-url", consolePath + "?status=failed"}, "status"},
