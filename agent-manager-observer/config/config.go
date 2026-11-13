@@ -17,16 +17,28 @@
 package config
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"strconv"
 	"strings"
+	"time"
+)
+
+const (
+	TraceBackendOpenChoreo = "openchoreo"
+	TraceBackendClickHouse = "clickhouse"
+	TraceBackendOpenSearch = "opensearch"
+
+	TraceLayoutExporter = "exporter"
+	TraceLayoutTenant   = "tenant"
 )
 
 // Config holds all configuration for agent-manager-observer
 type Config struct {
 	Server   ServerConfig
 	Observer ObserverConfig
+	Traces   TraceReaderConfig
 	LogLevel string
 	Auth     AuthConfig
 }
@@ -39,6 +51,29 @@ type ObserverConfig struct {
 	ClientSecret string
 	// DefaultNamespace scopes all trace queries to a single namespace.
 	DefaultNamespace string
+}
+
+type TraceReaderConfig struct {
+	Backend         string
+	Addr            string
+	Database        string
+	User            string
+	Password        string
+	MaxOpenConns    int
+	MaxIdleConns    int
+	ConnMaxLifetime time.Duration
+	DialTimeout     time.Duration
+	Table           string
+	Layout          string
+	ScopeUIDs       string
+
+	OSAddr        string
+	OSUser        string
+	OSPassword    string
+	OSIndex       string
+	OSInsecureTLS bool
+
+	Batching bool
 }
 
 // AuthConfig holds JWT authentication configuration
@@ -84,6 +119,31 @@ func Load() (*Config, error) {
 			ClientSecret:     getEnv("IDP_CLIENT_SECRET", ""),
 			DefaultNamespace: getEnv("OBSERVER_DEFAULT_NAMESPACE", "default"),
 		},
+		Traces: TraceReaderConfig{
+			Backend:  getEnv("TRACE_BACKEND", TraceBackendOpenChoreo),
+			Addr:     getEnv("CLICKHOUSE_ADDR", ""),
+			Database: getEnv("CLICKHOUSE_DATABASE", "otel"),
+			User:     getEnv("CLICKHOUSE_USER", "default"),
+			Password: getEnv("CLICKHOUSE_PASSWORD", ""),
+
+			MaxOpenConns:    getEnvAsInt("CLICKHOUSE_MAX_OPEN_CONNS", 10),
+			MaxIdleConns:    getEnvAsInt("CLICKHOUSE_MAX_IDLE_CONNS", 5),
+			ConnMaxLifetime: getEnvAsDuration("CLICKHOUSE_CONN_MAX_LIFETIME", time.Hour),
+			DialTimeout:     getEnvAsDuration("CLICKHOUSE_DIAL_TIMEOUT", 5*time.Second),
+
+			Table:  getEnv("CLICKHOUSE_TRACES_TABLE", "otel_traces"),
+			Layout: getEnv("CLICKHOUSE_TRACES_LAYOUT", TraceLayoutExporter),
+
+			OSAddr:        getEnv("OPENSEARCH_ADDR", ""),
+			OSUser:        getEnv("OPENSEARCH_USERNAME", ""),
+			OSPassword:    getEnv("OPENSEARCH_PASSWORD", ""),
+			OSInsecureTLS: getEnvAsBool("OPENSEARCH_INSECURE_TLS", false),
+			OSIndex:       getEnv("OPENSEARCH_TRACES_INDEX", "otel-traces-*"),
+
+			ScopeUIDs: getEnv("TRACE_SCOPE_UIDS", getEnv("CLICKHOUSE_SCOPE_UIDS", "")),
+
+			Batching: getEnvAsBool("TRACE_BATCHING", false),
+		},
 		LogLevel: getEnv("LOG_LEVEL", "INFO"),
 		Auth: AuthConfig{
 			JWKSUrl:              getEnv("KEY_MANAGER_JWKS_URL", ""),
@@ -114,6 +174,9 @@ func (c *Config) validate() error {
 	if err := c.Observer.validate(); err != nil {
 		return err
 	}
+	if err := c.Traces.validate(c.Auth.IsLocalDevEnv); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -136,6 +199,62 @@ func (o ObserverConfig) ValidateClientCredentials() error {
 		return fmt.Errorf("IDP_CLIENT_SECRET is required")
 	}
 	return nil
+}
+
+func (t TraceReaderConfig) validate(isLocalDev bool) error {
+	switch t.Backend {
+	case TraceBackendOpenChoreo:
+		return nil
+	case TraceBackendClickHouse:
+		if strings.TrimSpace(t.Addr) == "" {
+			return fmt.Errorf("CLICKHOUSE_ADDR is required when TRACE_BACKEND is %q", TraceBackendClickHouse)
+		}
+		if strings.TrimSpace(t.User) == "" {
+			return fmt.Errorf("CLICKHOUSE_USER is required when TRACE_BACKEND is %q", TraceBackendClickHouse)
+		}
+		if t.Password == "" && !isLocalDev {
+			return fmt.Errorf("CLICKHOUSE_PASSWORD is required when TRACE_BACKEND is %q and IS_LOCAL_DEV_ENV is false", TraceBackendClickHouse)
+		}
+		if t.MaxOpenConns <= 0 || t.MaxIdleConns < 0 || t.DialTimeout <= 0 || t.ConnMaxLifetime <= 0 {
+			return fmt.Errorf("CLICKHOUSE_* pool and timeout settings must be positive")
+		}
+		if strings.TrimSpace(t.Table) == "" {
+			return fmt.Errorf("CLICKHOUSE_TRACES_TABLE is required when TRACE_BACKEND is %q", TraceBackendClickHouse)
+		}
+		if t.Layout != TraceLayoutExporter && t.Layout != TraceLayoutTenant {
+			return fmt.Errorf("CLICKHOUSE_TRACES_LAYOUT must be either 'exporter' or 'tenant' when TRACE_BACKEND is %q", TraceBackendClickHouse)
+		}
+		if len(t.ScopeUIDs) == 0 {
+			return fmt.Errorf("CLICKHOUSE_SCOPE_UIDS is required when TRACE_BACKEND is %q", TraceBackendClickHouse)
+		}
+		if !json.Valid([]byte(t.ScopeUIDs)) {
+			return fmt.Errorf("CLICKHOUSE_SCOPE_UIDS must be valid JSON")
+		}
+		return nil
+	case TraceBackendOpenSearch:
+		if strings.TrimSpace(t.OSAddr) == "" {
+			return fmt.Errorf("OPENSEARCH_ADDR is required when TRACE_BACKEND is %q", TraceBackendOpenSearch)
+		}
+		if strings.TrimSpace(t.OSUser) == "" {
+			return fmt.Errorf("OPENSEARCH_USERNAME is required when TRACE_BACKEND is %q", TraceBackendOpenSearch)
+		}
+		if t.OSPassword == "" && !isLocalDev {
+			return fmt.Errorf("OPENSEARCH_PASSWORD is required when TRACE_BACKEND is %q and IS_LOCAL_DEV_ENV is false", TraceBackendOpenSearch)
+		}
+		if strings.TrimSpace(t.OSIndex) == "" {
+			return fmt.Errorf("OPENSEARCH_TRACES_INDEX is required when TRACE_BACKEND is %q", TraceBackendOpenSearch)
+		}
+		if t.OSInsecureTLS && !isLocalDev {
+			return fmt.Errorf("OPENSEARCH_INSECURE_TLS is only allowed when IS_LOCAL_DEV_ENV is true")
+		}
+		if !json.Valid([]byte(t.ScopeUIDs)) {
+			return fmt.Errorf("TRACE_SCOPE_UIDS must be valid JSON")
+		}
+		return nil
+	default:
+		return fmt.Errorf("unknown TRACE_BACKEND %q (use %q or %q)",
+			t.Backend, TraceBackendOpenChoreo, TraceBackendClickHouse)
+	}
 }
 
 func (a *AuthConfig) validate() error {
@@ -166,6 +285,15 @@ func getEnvAsInt(key string, defaultValue int) int {
 	if value := os.Getenv(key); value != "" {
 		if intVal, err := strconv.Atoi(value); err == nil {
 			return intVal
+		}
+	}
+	return defaultValue
+}
+
+func getEnvAsDuration(key string, defaultValue time.Duration) time.Duration {
+	if value := os.Getenv(key); value != "" {
+		if durVal, err := time.ParseDuration(value); err == nil {
+			return durVal
 		}
 	}
 	return defaultValue

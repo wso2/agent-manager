@@ -298,7 +298,7 @@ func TestEnrichTraceOverview_RootHasEntityAndUsageShortCircuits(t *testing.T) {
 	fake := &fakeObserverClient{rootSpan: &observer.SpanDetailsResponse{SpanID: "root"}}
 	c := NewTracingController(fake)
 
-	res, _ := c.enrichTrace(context.Background(), baseParams(), baseTraceInfo(5), root, nil, testFetchSem(), testMCP())
+	res, _ := c.enrichTrace(context.Background(), baseParams(), baseTraceInfo(5), root, nil, false, testFetchSem(), testMCP())
 	input, output, tokens := res.input, res.output, res.tokenUsage
 
 	if input == nil || output == nil {
@@ -325,7 +325,7 @@ func TestEnrichTraceOverview_RootEntityTokensUsedWhenNoLeaves(t *testing.T) {
 	fake := &fakeObserverClient{rootSpan: &observer.SpanDetailsResponse{SpanID: "root"}}
 	c := NewTracingController(fake)
 
-	res, _ := c.enrichTrace(context.Background(), baseParams(), baseTraceInfo(5), root, nil, testFetchSem(), testMCP())
+	res, _ := c.enrichTrace(context.Background(), baseParams(), baseTraceInfo(5), root, nil, false, testFetchSem(), testMCP())
 	tokens := res.tokenUsage
 
 	if tokens == nil || tokens.TotalTokens != 13 {
@@ -361,7 +361,7 @@ func TestEnrichTraceOverview_FallsBackToChildChainSpan(t *testing.T) {
 	}
 	c := NewTracingController(fake)
 
-	res, _ := c.enrichTrace(context.Background(), baseParams(), baseTraceInfo(5), root, nil, testFetchSem(), testMCP())
+	res, _ := c.enrichTrace(context.Background(), baseParams(), baseTraceInfo(5), root, nil, false, testFetchSem(), testMCP())
 	input, output, tokens := res.input, res.output, res.tokenUsage
 
 	if input == nil || output == nil {
@@ -409,7 +409,7 @@ func TestEnrichTraceOverview_AggregatesFromLeafLLMSpans(t *testing.T) {
 	}
 	c := NewTracingController(fake)
 
-	res, _ := c.enrichTrace(context.Background(), baseParams(), baseTraceInfo(5), root, nil, testFetchSem(), testMCP())
+	res, _ := c.enrichTrace(context.Background(), baseParams(), baseTraceInfo(5), root, nil, false, testFetchSem(), testMCP())
 	input, output, tokens := res.input, res.output, res.tokenUsage
 
 	if input != "first user msg" {
@@ -470,7 +470,7 @@ func TestEnrichTraceOverview_LangGraphSumsLeavesOverEntityOutput(t *testing.T) {
 	fake := &fakeObserverClient{spans: spans, spanDetails: details}
 	c := NewTracingController(fake)
 
-	res, _ := c.enrichTrace(context.Background(), baseParams(), baseTraceInfo(24), root, nil, testFetchSem(), testMCP())
+	res, _ := c.enrichTrace(context.Background(), baseParams(), baseTraceInfo(24), root, nil, false, testFetchSem(), testMCP())
 	input, output, tokens := res.input, res.output, res.tokenUsage
 
 	if input == nil || output == nil {
@@ -488,7 +488,7 @@ func TestEnrichTraceOverview_AllEmptyReturnsNil(t *testing.T) {
 	fake := &fakeObserverClient{spans: []observer.SpanInfo{}}
 	c := NewTracingController(fake)
 
-	res, _ := c.enrichTrace(context.Background(), baseParams(), baseTraceInfo(1), root, nil, testFetchSem(), testMCP())
+	res, _ := c.enrichTrace(context.Background(), baseParams(), baseTraceInfo(1), root, nil, false, testFetchSem(), testMCP())
 	input, output, tokens := res.input, res.output, res.tokenUsage
 
 	if input != nil || output != nil || tokens != nil {
@@ -528,7 +528,7 @@ func TestEnrichTraceOverview_LeafCapHonoredAndPartialFlagged(t *testing.T) {
 	// cap (maxLLMLeavesPerTrace) is what should trigger Partial. Using
 	// threshold-1 expresses "below the skip threshold" independently of
 	// whether the guard ever tightens from > to >=.
-	res, _ := c.enrichTrace(context.Background(), baseParams(), baseTraceInfo(skipLeafAggregationSpanCountThreshold-1), root, nil, testFetchSem(), testMCP())
+	res, _ := c.enrichTrace(context.Background(), baseParams(), baseTraceInfo(skipLeafAggregationSpanCountThreshold-1), root, nil, false, testFetchSem(), testMCP())
 	tokens := res.tokenUsage
 
 	if tokens == nil {
@@ -567,7 +567,7 @@ func TestEnrichTraceOverview_FailedLeafFetchFlagsPartial(t *testing.T) {
 	}
 	c := NewTracingController(fake)
 
-	res, _ := c.enrichTrace(context.Background(), baseParams(), baseTraceInfo(5), root, nil, testFetchSem(), testMCP())
+	res, _ := c.enrichTrace(context.Background(), baseParams(), baseTraceInfo(5), root, nil, false, testFetchSem(), testMCP())
 	tokens := res.tokenUsage
 
 	if tokens == nil {
@@ -599,7 +599,7 @@ func TestEnrichTraceOverview_SkipsLeafAggregationForHugeTraces(t *testing.T) {
 	c := NewTracingController(fake)
 
 	hugeTrace := baseTraceInfo(skipLeafAggregationSpanCountThreshold + 1)
-	res, _ := c.enrichTrace(context.Background(), baseParams(), hugeTrace, root, nil, testFetchSem(), testMCP())
+	res, _ := c.enrichTrace(context.Background(), baseParams(), hugeTrace, root, nil, false, testFetchSem(), testMCP())
 	input, output, tokens := res.input, res.output, res.tokenUsage
 
 	if input != nil || output != nil || tokens != nil {
@@ -929,7 +929,7 @@ func TestEnrichTraceOverview_IncludeModelsFetchesNoSpanDetails(t *testing.T) {
 	params := baseParams()
 	params.Include.Models = true
 
-	res, _ := c.enrichTrace(context.Background(), params, baseTraceInfo(2), root, nil, testFetchSem(), testMCP())
+	res, _ := c.enrichTrace(context.Background(), params, baseTraceInfo(2), root, nil, false, testFetchSem(), testMCP())
 	models := res.models
 
 	assertModels(t, models, []string{"gpt-4o"})
