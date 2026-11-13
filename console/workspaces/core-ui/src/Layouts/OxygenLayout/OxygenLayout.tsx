@@ -35,7 +35,7 @@ import { useNavigationItems } from "./navigationItems";
 import { TopNavigation } from "./TopNavigation";
 import { orgRouteId, useGetUserProfile, useListOrganizations } from "@agent-management-platform/api-client";
 import { MountPoints } from "../../types";
-import { MODULE_MANAGER_ROUTE } from "../../pages/ModuleManager";
+import { isMarketplaceEnabled, MODULE_MANAGER_ROUTE } from "../../pages/ModuleManager";
 import { useFeatureFlag } from "@agent-management-platform/feature-management";
 
 // Oxygen UI's UserMenu treats a non-URL `avatar` string as literal initials
@@ -165,7 +165,7 @@ export function OxygenLayout() {
                     onClick={() => setProfileOpen(true)}
                   />
                 )}
-                {orgId && (
+                {orgId && isMarketplaceEnabled() && (
                   <UserMenu.Item
                     icon={<Boxes />}
                     label="Marketplace"

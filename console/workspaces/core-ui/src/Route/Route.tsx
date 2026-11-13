@@ -31,6 +31,7 @@ import { OxygenLayout } from "../Layouts";
 import { Protected } from "../Providers/Protected";
 import { ErrorPages } from "@agent-management-platform/shared-component";
 import {
+  isMarketplaceEnabled,
   Login,
   ModuleManager,
   ModuleSetup,
@@ -267,9 +268,14 @@ export function RootRouter() {
           >
             {renderPluginRoutes(orgPluginRoutes)}
             {renderExternalModules(orgPageModules)}
-            {/* Shell pages: module overview (user menu) and each module's setup page. */}
-            <Route path={MODULE_MANAGER_PATH} element={<ModuleManager />} />
-            <Route path={MODULE_SETUP_PATH} element={<ModuleSetup />} />
+            {/* Shell pages: the Marketplace (user menu) and each module's details
+                page, only when the runtime config turns them on. */}
+            {isMarketplaceEnabled() && (
+              <>
+                <Route path={MODULE_MANAGER_PATH} element={<ModuleManager />} />
+                <Route path={MODULE_SETUP_PATH} element={<ModuleSetup />} />
+              </>
+            )}
             {/* Back-compat: identities pages moved under Settings → IDP Settings */}
             <Route path="identities/*" element={<LegacyIdentitiesRedirect />} />
             <Route

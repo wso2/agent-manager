@@ -99,6 +99,8 @@ window.__RUNTIME_CONFIG__ = {
     // the whole module ("ai-observability"), "<module>/<page>" one page
     // ("ai-observability/logs").
     disabled: '$DISABLED_UI_MODULES'.split(',').map((id) => id.trim()).filter(Boolean),
+    // Shows the Marketplace page (a front-end preview for now). Off by default.
+    marketplace: '$ENABLE_UI_MARKETPLACE' === 'true',
   },
   maxRequestBodyBytes: '$MAX_REQUEST_BODY_BYTES',
   fileMountMaxFileBytes: '$FILE_MOUNT_MAX_FILE_BYTES',

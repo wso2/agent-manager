@@ -70,13 +70,22 @@ export function countLabel(count: number, singular: string) {
 }
 
 /** Marketplace state of a module: what its card and details page show. */
-export type MarketplaceState = "built-in" | "installed" | "installing" | "available" | "checking";
+export type MarketplaceState =
+  | "built-in"
+  | "installed"
+  | "installing"
+  | "available"
+  | "checking"
+  | "turned-off";
 
 export function marketplaceState(module: UIModuleStatus): MarketplaceState {
   if (module.core) return "built-in";
+  // Turned off by the deployment (uiModules.disabled): the Marketplace must not
+  // switch it back on.
+  if (!module.enabled) return "turned-off";
   if (module.installPhase === "installing") return "installing";
   if (module.installPhase === "checking") return "checking";
-  if (module.installPhase === "installed" && module.enabled) return "installed";
+  if (module.installPhase === "installed") return "installed";
   return "available";
 }
 
@@ -90,6 +99,8 @@ export function StatusChip({ state }: { state: MarketplaceState }) {
       return <Chip size="small" color="info" label="Installing" />;
     case "checking":
       return <Chip size="small" variant="outlined" label="Checking" />;
+    case "turned-off":
+      return <Chip size="small" variant="outlined" label="Turned off by admin" />;
     default:
       return null;
   }
@@ -100,16 +111,17 @@ const MOCK_INSTALL_MS = 1500;
 
 /** Mock install / uninstall. Only changes in-memory state; nothing is deployed. */
 export function useModuleInstaller() {
-  const { setInstallPhase, setModuleEnabled } = useUIModuleManager();
+  const { setInstallPhase } = useUIModuleManager();
   const { addConfirmation } = useConfirmationDialog();
 
+  // Only the install phase changes: a module the deployment turned off stays
+  // off (its card offers no Install).
   const install = useCallback(
     (module: UIModuleStatus) => {
       setInstallPhase(module.id, "installing");
-      setModuleEnabled(module.id, true);
       window.setTimeout(() => setInstallPhase(module.id, "installed"), MOCK_INSTALL_MS);
     },
-    [setInstallPhase, setModuleEnabled],
+    [setInstallPhase],
   );
 
   const uninstall = useCallback(
@@ -138,7 +150,7 @@ export function InstallButton({
 }) {
   const { install, uninstall } = useModuleInstaller();
   const state = marketplaceState(module);
-  if (state === "built-in") return null;
+  if (state === "built-in" || state === "turned-off") return null;
   if (state === "installing" || state === "checking") {
     return (
       <Button

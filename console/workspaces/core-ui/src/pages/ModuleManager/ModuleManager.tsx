@@ -108,7 +108,12 @@ export function ModuleManager() {
     const query = search.trim().toLowerCase();
     return modules.filter((module) => {
       if (filter === "installed" && !isInstalled(module)) return false;
-      if (filter === "available" && isInstalled(module)) return false;
+      if (
+        filter === "available" &&
+        (isInstalled(module) || marketplaceState(module) === "turned-off")
+      ) {
+        return false;
+      }
       if (!query) return true;
       return [module.name, module.description, listingFor(module.id).category]
         .join(" ")

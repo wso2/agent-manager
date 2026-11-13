@@ -20,10 +20,7 @@
 // the page components: they are reached only through the dynamic import() in
 // each `load`, which keeps them in the package's own chunk.
 import type { ComponentType } from "react";
-import {
-  useFeatureAccess,
-  useFeatureFlag,
-} from "@agent-management-platform/feature-management";
+import { useFeatureAccess } from "@agent-management-platform/feature-management";
 import { thunderInstancesMetadata } from "./metadata";
 import {
   absoluteRouteMap,
@@ -44,8 +41,8 @@ export const agentIdentityPlugin: PluginManifest = {
   id: "agent-identity",
   name: "Agent identity",
   apiVersion: PLUGIN_API_VERSION,
-  // Pages, not just menu items, stay unreachable while the feature is off.
-  useActivation: () => useFeatureFlag("enableAgentIdentity"),
+  // No feature-flag check here: the Agent Identity module's install detection
+  // (enableAgentIdentity) already keeps these pages off until it is installed.
   contributions: [
     {
       type: "route",

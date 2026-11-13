@@ -109,6 +109,12 @@ export interface AppConfig {
      * and its page chunks are never loaded.
      */
     disabled?: string[];
+    /**
+     * Shows the Marketplace (user menu → Marketplace) and the module details
+     * pages. Off by default: install and uninstall there are a front-end
+     * preview that deploys nothing.
+     */
+    marketplace?: boolean;
   };
 }
 
