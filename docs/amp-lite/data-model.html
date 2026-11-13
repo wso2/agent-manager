@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>AMP Lite data model</title>
+<title>Agent Manager data model</title>
 <style>
 :root { color-scheme: light; }
 html, body { margin: 0; background: #ffffff; }
@@ -29,9 +29,9 @@ svg .ctable { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monosp
 </style>
 </head>
 <body>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2880 1918" width="100%" role="img" aria-labelledby="dtitle ddesc">
-<title id="dtitle">AMP Lite data model</title>
-<desc id="ddesc">Main tables of AMP Lite grouped into tenancy, agents, AI gateway, secrets, events, audit, and internals, with labelled relationships.</desc>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2880 2552" width="100%" role="img" aria-labelledby="dtitle ddesc">
+<title id="dtitle">Agent Manager data model</title>
+<desc id="ddesc">Main tables of AMP Lite grouped into tenancy, agents, AI gateway, secrets, events, audit, internals, evaluation and agent runtime, with labelled relationships.</desc>
 <defs>
 <filter id="shadow" x="-5%" y="-5%" width="110%" height="115%"><feDropShadow dx="0" dy="1" stdDeviation="1.4" flood-color="#0f172a" flood-opacity="0.10"/></filter>
 <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#334155"/></marker>
@@ -39,9 +39,9 @@ svg .ctable { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monosp
 <marker id="arrowp" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#ffffff" stroke="#7c3aed" stroke-width="1.5"/></marker>
 <marker id="arrowc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#0891b2"/></marker>
 </defs>
-<rect x="0" y="0" width="2880" height="1918" fill="#ffffff"/>
-<text x="30" y="52" class="title">AMP Lite data model</text>
-<text x="32" y="80" class="subtitle">WSO2 Agent Manager without OpenChoreo. One database holds everything the control plane manages; environments exist but stay hidden.</text>
+<rect x="0" y="0" width="2880" height="2552" fill="#ffffff"/>
+<text x="30" y="52" class="title">Agent Manager data model</text>
+<text x="32" y="80" class="subtitle">One schema for all three tiers (AI Gateway, Agent Manager, Agent Runtime), created on first start. Tables a tier does not use stay empty; environments stay hidden below Agent Runtime.</text>
 <rect x="1560" y="14" width="1290" height="104" rx="8" fill="#f8fafc" stroke="#cbd5e1"/>
 <text x="1574" y="36" class="legtitle">Legend</text>
 <path d="M 1574 60 L 1618 60" stroke="#334155" stroke-width="1.8" fill="none" marker-end="url(#arrow)"/>
@@ -62,11 +62,11 @@ svg .ctable { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monosp
 <text x="2435" y="81" class="chip" fill="#3730a3" text-anchor="middle">worker queue</text>
 <text x="2508" y="81" class="legtext">workers claim rows with a lease</text>
 <rect x="2390" y="91" width="100" height="16" rx="4" fill="#ffffff" stroke="#94a3b8" stroke-dasharray="5 4"/>
-<text x="2508" y="103" class="legtext">dashed card: hidden, deferred, or outside this database</text>
-<rect x="30" y="132" width="885" height="390" rx="14" fill="#eff6ff" stroke="#2563eb" stroke-opacity="0.45" stroke-width="1.5"/>
+<text x="2508" y="103" class="legtext">dashed card: hidden, or outside this database</text>
+<rect x="30" y="132" width="885" height="420" rx="14" fill="#eff6ff" stroke="#2563eb" stroke-opacity="0.45" stroke-width="1.5"/>
 <text x="48" y="162" class="aname" fill="#2563eb">TENANCY</text>
-<rect x="30" y="544" width="885" height="1124" rx="14" fill="#ecfdf5" stroke="#059669" stroke-opacity="0.45" stroke-width="1.5"/>
-<text x="48" y="574" class="aname" fill="#059669">AGENTS AND IDENTITY</text>
+<rect x="30" y="574" width="885" height="1094" rx="14" fill="#ecfdf5" stroke="#059669" stroke-opacity="0.45" stroke-width="1.5"/>
+<text x="48" y="604" class="aname" fill="#059669">AGENTS AND IDENTITY</text>
 <rect x="945" y="132" width="1057" height="1536" rx="14" fill="#f5f3ff" stroke="#7c3aed" stroke-opacity="0.45" stroke-width="1.5"/>
 <text x="963" y="162" class="aname" fill="#7c3aed">AI GATEWAY: GATEWAYS, ARTIFACTS, LLM AND MCP</text>
 <rect x="2022" y="132" width="828" height="278" rx="14" fill="#fef2f2" stroke="#dc2626" stroke-opacity="0.45" stroke-width="1.5"/>
@@ -77,12 +77,16 @@ svg .ctable { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monosp
 <text x="2040" y="1050" class="aname" fill="#b45309">AUDIT LOG AND CONSOLE USAGE</text>
 <rect x="2022" y="1314" width="828" height="354" rx="14" fill="#f8fafc" stroke="#475569" stroke-opacity="0.45" stroke-width="1.5"/>
 <text x="2040" y="1344" class="aname" fill="#475569">INTERNALS (WORKERS)</text>
-<rect x="30" y="1690" width="2820" height="198" rx="14" fill="#ffffff" stroke="#64748b" stroke-opacity="0.45" stroke-width="1.5" stroke-dasharray="8 6"/>
-<text x="48" y="1720" class="aname" fill="#64748b">NOT IN AMP LITE YET, OR KEPT OUTSIDE THIS DATABASE</text>
-<text x="320" y="438" class="anote">Every table carries org_id, and children point at parents through (org_id, parent id),</text>
-<text x="320" y="456" class="anote">so no row can reach another org's data.</text>
-<text x="320" y="482" class="anote">First start seeds the default org, its default environment, a default project, and the</text>
-<text x="320" y="500" class="anote">bundled gateway with its token.</text>
+<rect x="30" y="1690" width="2820" height="306" rx="14" fill="#fdf2f8" stroke="#be185d" stroke-opacity="0.45" stroke-width="1.5"/>
+<text x="48" y="1720" class="aname" fill="#be185d">EVALUATION AND ALERTS (AGENT MANAGER TIER; EMPTY ON AI GATEWAY)</text>
+<rect x="30" y="2018" width="2820" height="298" rx="14" fill="#f7fee7" stroke="#4d7c0f" stroke-opacity="0.45" stroke-width="1.5"/>
+<text x="48" y="2048" class="aname" fill="#4d7c0f">AGENT RUNTIME (AGENT RUNTIME TIER; EMPTY BELOW IT)</text>
+<rect x="30" y="2338" width="2820" height="184" rx="14" fill="#ffffff" stroke="#64748b" stroke-opacity="0.45" stroke-width="1.5" stroke-dasharray="8 6"/>
+<text x="48" y="2368" class="aname" fill="#64748b">KEPT OUTSIDE THIS DATABASE</text>
+<text x="320" y="468" class="anote">Every table carries org_id, and children point at parents through (org_id, parent id),</text>
+<text x="320" y="486" class="anote">so no row can reach another org's data.</text>
+<text x="320" y="512" class="anote">First start seeds the default org, its default environment and deployment pipeline,</text>
+<text x="320" y="530" class="anote">a default project, and the bundled gateway with its token.</text>
 <text x="2402" y="1050" class="anote">No foreign keys: rows outlive what they describe.</text>
 <text x="2380" y="214" class="anote2">Referenced by secret_id from LLM providers,</text>
 <text x="2380" y="233" class="anote2">LLM proxies, MCP endpoints, A2A proxies and</text>
@@ -183,20 +187,22 @@ svg .ctable { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monosp
 <text x="364" y="324"><tspan class="fkey">thunder_ou_id</tspan><tspan class="fnote" dx="7">Thunder org unit</tspan></text>
 </g>
 <g class="card" id="card-env">
-<rect x="660" y="190" width="230" height="198" rx="9" fill="#f8fafc" stroke="#64748b" stroke-width="1.6" stroke-dasharray="7 5" filter="url(#shadow)"/>
+<rect x="660" y="190" width="230" height="228" rx="9" fill="#f8fafc" stroke="#64748b" stroke-width="1.6" stroke-dasharray="7 5" filter="url(#shadow)"/>
 <text x="674" y="214" class="ctitle" fill="#334155">Environment</text>
 <rect x="808" y="199" width="70" height="20" rx="10" fill="#334155"/>
 <text x="843" y="213" class="badge" text-anchor="middle">HIDDEN</text>
 <text x="674" y="228" class="ctable">environments</text>
-<text x="674" y="250" class="cpurpose" fill="#334155">Exactly one per org, named</text>
-<text x="674" y="266" class="cpurpose" fill="#334155">default, created with the org.</text>
-<text x="674" y="282" class="cpurpose" fill="#334155">Never shown in or accepted by</text>
-<text x="674" y="298" class="cpurpose" fill="#334155">the API or console.</text>
-<text x="674" y="316" class="crel" fill="#2563eb">Kept so more environments can come</text>
-<text x="674" y="330" class="crel" fill="#2563eb">later with no table changes.</text>
-<line x1="674" y1="337" x2="878" y2="337" stroke="#e2e8f0"/>
-<text x="674" y="354"><tspan class="fkey">name</tspan><tspan class="fnote" dx="7">always 'default'</tspan></text>
-<text x="674" y="370"><tspan class="fkey">is_production</tspan><tspan class="fnote" dx="7">no</tspan></text>
+<text x="674" y="250" class="cpurpose" fill="#334155">One per org, named default,</text>
+<text x="674" y="266" class="cpurpose" fill="#334155">created with the org and hidden</text>
+<text x="674" y="282" class="cpurpose" fill="#334155">below the Agent Runtime tier.</text>
+<text x="674" y="300" class="crel" fill="#2563eb">Agent Runtime adds rows;</text>
+<text x="674" y="314" class="crel" fill="#2563eb">per-environment tables don't</text>
+<text x="674" y="328" class="crel" fill="#2563eb">change.</text>
+<line x1="674" y1="335" x2="878" y2="335" stroke="#e2e8f0"/>
+<text x="674" y="352"><tspan class="fkey">name</tspan><tspan class="fnote" dx="7">'default' + runtime envs</tspan></text>
+<text x="674" y="368"><tspan class="fkey">is_production</tspan></text>
+<text x="674" y="384"><tspan class="fkey">runtime_id</tspan><tspan class="fnote" dx="7">runtime tier</tspan></text>
+<text x="674" y="400"><tspan class="fkey">isolation_tier</tspan><tspan class="fnote" dx="7">gvisor | kata</tspan></text>
 </g>
 <g class="card" id="card-agent">
 <rect x="60" y="640" width="250" height="168" rx="9" fill="#ffffff" stroke="#059669" stroke-width="1.6" filter="url(#shadow)"/>
@@ -682,65 +688,231 @@ svg .ctable { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monosp
 <text x="2064" y="1506"><tspan class="fkey">expires_at</tspan></text>
 </g>
 <g class="card" id="card-queues">
-<rect x="2440" y="1372" width="380" height="140" rx="9" fill="#ffffff" stroke="#475569" stroke-width="1.6" filter="url(#shadow)"/>
-<rect x="2440" y="1372" width="6" height="140" rx="3" fill="#475569"/>
+<rect x="2440" y="1372" width="380" height="156" rx="9" fill="#ffffff" stroke="#475569" stroke-width="1.6" filter="url(#shadow)"/>
+<rect x="2440" y="1372" width="6" height="156" rx="3" fill="#475569"/>
 <text x="2454" y="1396" class="ctitle" fill="#0f172a">Queue columns</text>
 <text x="2454" y="1410" class="ctable">claimed_by, claimed_until</text>
 <text x="2454" y="1432" class="cpurpose" fill="#0f172a">Rows a worker claims carry a lease instead of a lock:</text>
 <text x="2454" y="1448" class="cpurpose" fill="#0f172a">agent identities, agent cards, deployment status, event</text>
-<text x="2454" y="1464" class="cpurpose" fill="#0f172a">outbox, event deliveries.</text>
-<rect x="2454" y="1478" width="89" height="18" rx="9" fill="#e0e7ff"/>
-<text x="2499" y="1491" class="chip" fill="#3730a3" text-anchor="middle">worker queue</text>
+<text x="2454" y="1464" class="cpurpose" fill="#0f172a">outbox, event deliveries, monitors, monitor runs,</text>
+<text x="2454" y="1480" class="cpurpose" fill="#0f172a">builds, agent deployments.</text>
+<rect x="2454" y="1494" width="89" height="18" rx="9" fill="#e0e7ff"/>
+<text x="2499" y="1507" class="chip" fill="#3730a3" text-anchor="middle">worker queue</text>
 </g>
-<g class="card" id="card-d_eval">
-<rect x="60" y="1748" width="360" height="110" rx="9" fill="#fafafa" stroke="#94a3b8" stroke-width="1.6" stroke-dasharray="7 5" filter="url(#shadow)"/>
-<text x="74" y="1772" class="ctitle" fill="#64748b">Evaluation</text>
-<text x="74" y="1786" class="ctable">monitors, runs, scores, evaluators, alerts,</text>
-<text x="74" y="1800" class="ctable">eval credentials</text>
-<text x="74" y="1822" class="cpurpose" fill="#64748b">Deferred. Credentials would move to secrets and gain</text>
-<text x="74" y="1838" class="cpurpose" fill="#64748b">an environment.</text>
+<g class="card" id="card-evaluator">
+<rect x="60" y="1748" width="320" height="218" rx="9" fill="#ffffff" stroke="#be185d" stroke-width="1.6" filter="url(#shadow)"/>
+<rect x="60" y="1748" width="6" height="218" rx="3" fill="#be185d"/>
+<text x="74" y="1772" class="ctitle" fill="#0f172a">Custom evaluator</text>
+<text x="74" y="1786" class="ctable">evaluators</text>
+<text x="74" y="1808" class="cpurpose" fill="#0f172a">An org's own code or LLM-judge evaluator.</text>
+<text x="74" y="1824" class="cpurpose" fill="#0f172a">Built-ins ship in code.</text>
+<line x1="74" y1="1833" x2="368" y2="1833" stroke="#e2e8f0"/>
+<text x="74" y="1850"><tspan class="fkey">identifier</tspan><tspan class="fnote" dx="7">unique per org</tspan></text>
+<text x="74" y="1866"><tspan class="fkey">type</tspan><tspan class="fnote" dx="7">code | llm_judge</tspan></text>
+<text x="74" y="1882"><tspan class="fkey">level</tspan><tspan class="fnote" dx="7">trace | agent | llm</tspan></text>
 </g>
-<g class="card" id="card-d_host">
-<rect x="444" y="1748" width="360" height="110" rx="9" fill="#fafafa" stroke="#94a3b8" stroke-width="1.6" stroke-dasharray="7 5" filter="url(#shadow)"/>
-<text x="458" y="1772" class="ctitle" fill="#64748b">Hosted-agent runtime</text>
-<text x="458" y="1786" class="ctable">builds, deployments, env vars, resources,</text>
-<text x="458" y="1800" class="ctable">git credentials, agent kinds</text>
-<text x="458" y="1822" class="cpurpose" fill="#64748b">Lite only connects external agents. Added if hosted</text>
-<text x="458" y="1838" class="cpurpose" fill="#64748b">agents come to Lite.</text>
+<g class="card" id="card-monitor">
+<rect x="404" y="1748" width="320" height="218" rx="9" fill="#ffffff" stroke="#be185d" stroke-width="1.6" filter="url(#shadow)"/>
+<rect x="404" y="1748" width="6" height="218" rx="3" fill="#be185d"/>
+<text x="418" y="1772" class="ctitle" fill="#0f172a">Monitor</text>
+<text x="418" y="1786" class="ctable">monitors, monitor_evaluators</text>
+<text x="418" y="1808" class="cpurpose" fill="#0f172a">Scores an agent's traces on a schedule (future)</text>
+<text x="418" y="1824" class="cpurpose" fill="#0f172a">or over a past window, with chosen evaluators.</text>
+<line x1="418" y1="1833" x2="712" y2="1833" stroke="#e2e8f0"/>
+<text x="418" y="1850"><tspan class="fkey">type</tspan><tspan class="fnote" dx="7">future | past</tspan></text>
+<text x="418" y="1866"><tspan class="fkey">next_run_at</tspan></text>
+<text x="418" y="1882"><tspan class="fkey">sampling_percent</tspan><tspan class="fnote" dx="7">1-100</tspan></text>
+<text x="418" y="1898"><tspan class="fkey">judge_llm_proxy_id</tspan><tspan class="fnote" dx="7">LLM judge route</tspan></text>
+<rect x="418" y="1908" width="108" height="18" rx="9" fill="#e2e8f0"/>
+<text x="472" y="1921" class="chip" fill="#334155" text-anchor="middle">per environment</text>
+<rect x="531.5" y="1908" width="89" height="18" rx="9" fill="#e0e7ff"/>
+<text x="576" y="1921" class="chip" fill="#3730a3" text-anchor="middle">worker queue</text>
+<rect x="418" y="1930" width="95" height="18" rx="9" fill="#fee2e2"/>
+<text x="466" y="1943" class="chip" fill="#991b1b" text-anchor="middle">uses a secret</text>
 </g>
-<g class="card" id="card-d_pmcp">
-<rect x="828" y="1748" width="360" height="110" rx="9" fill="#fafafa" stroke="#94a3b8" stroke-width="1.6" stroke-dasharray="7 5" filter="url(#shadow)"/>
-<text x="842" y="1772" class="ctitle" fill="#64748b">Project MCP proxies</text>
-<text x="842" y="1794" class="cpurpose" fill="#64748b">Exposing a hosted agent's own MCP endpoint. Deferred.</text>
+<g class="card" id="card-mrun">
+<rect x="748" y="1748" width="320" height="218" rx="9" fill="#ffffff" stroke="#be185d" stroke-width="1.6" filter="url(#shadow)"/>
+<rect x="748" y="1748" width="6" height="218" rx="3" fill="#be185d"/>
+<text x="762" y="1772" class="ctitle" fill="#0f172a">Monitor run</text>
+<text x="762" y="1786" class="ctable">monitor_runs</text>
+<text x="762" y="1808" class="cpurpose" fill="#0f172a">One evaluation job over a trace window. Deleted</text>
+<text x="762" y="1824" class="cpurpose" fill="#0f172a">with its monitor.</text>
+<line x1="762" y1="1833" x2="1056" y2="1833" stroke="#e2e8f0"/>
+<text x="762" y="1850"><tspan class="fkey">trace_start, trace_end</tspan></text>
+<text x="762" y="1866"><tspan class="fkey">status</tspan><tspan class="fnote" dx="7">pending ... success | failed</tspan></text>
+<text x="762" y="1882"><tspan class="fkey">job_ref</tspan><tspan class="fnote" dx="7">runner id</tspan></text>
+<rect x="762" y="1892" width="89" height="18" rx="9" fill="#e0e7ff"/>
+<text x="807" y="1905" class="chip" fill="#3730a3" text-anchor="middle">worker queue</text>
 </g>
-<g class="card" id="card-d_envs">
-<rect x="1212" y="1748" width="360" height="110" rx="9" fill="#fafafa" stroke="#94a3b8" stroke-width="1.6" stroke-dasharray="7 5" filter="url(#shadow)"/>
-<text x="1226" y="1772" class="ctitle" fill="#64748b">More environments</text>
-<text x="1226" y="1786" class="ctable">environment rows, deployment pipeline,</text>
-<text x="1226" y="1800" class="ctable">per-env Thunder</text>
-<text x="1226" y="1822" class="cpurpose" fill="#64748b">Full product only. Per-environment tables already</text>
-<text x="1226" y="1838" class="cpurpose" fill="#64748b">carry environment_id.</text>
+<g class="card" id="card-score">
+<rect x="1092" y="1748" width="320" height="218" rx="9" fill="#ffffff" stroke="#be185d" stroke-width="1.6" filter="url(#shadow)"/>
+<rect x="1092" y="1748" width="6" height="218" rx="3" fill="#be185d"/>
+<text x="1106" y="1772" class="ctitle" fill="#0f172a">Scores</text>
+<text x="1106" y="1786" class="ctable">monitor_run_evaluators, scores</text>
+<text x="1106" y="1808" class="cpurpose" fill="#0f172a">Per-evaluator aggregates of a run, and one</text>
+<text x="1106" y="1824" class="cpurpose" fill="#0f172a">score per trace or span.</text>
+<line x1="1106" y1="1833" x2="1400" y2="1833" stroke="#e2e8f0"/>
+<text x="1106" y="1850"><tspan class="fkey">aggregations</tspan><tspan class="fnote" dx="7">JSON</tspan></text>
+<text x="1106" y="1866"><tspan class="fkey">item_key</tspan><tspan class="fnote" dx="7">trace or trace/span</tspan></text>
+<text x="1106" y="1882"><tspan class="fkey">score_bp</tspan><tspan class="fnote" dx="7">0-10000</tspan></text>
+</g>
+<g class="card" id="card-malert">
+<rect x="1436" y="1748" width="320" height="218" rx="9" fill="#ffffff" stroke="#be185d" stroke-width="1.6" filter="url(#shadow)"/>
+<rect x="1436" y="1748" width="6" height="218" rx="3" fill="#be185d"/>
+<text x="1450" y="1772" class="ctitle" fill="#0f172a">Monitor alert</text>
+<text x="1450" y="1786" class="ctable">monitor_alerts, monitor_alert_destinations</text>
+<text x="1450" y="1808" class="cpurpose" fill="#0f172a">Score thresholds and run outcomes that notify</text>
+<text x="1450" y="1824" class="cpurpose" fill="#0f172a">event destinations.</text>
+<line x1="1450" y1="1833" x2="1744" y2="1833" stroke="#e2e8f0"/>
+<text x="1450" y="1850"><tspan class="fkey">thresholds</tspan><tspan class="fnote" dx="7">JSON</tspan></text>
+<text x="1450" y="1866"><tspan class="fkey">destination_id</tspan><tspan class="fnote" dx="7">one row per destination</tspan></text>
+</g>
+<g class="card" id="card-osc">
+<rect x="1780" y="1748" width="320" height="218" rx="9" fill="#ffffff" stroke="#be185d" stroke-width="1.6" filter="url(#shadow)"/>
+<rect x="1780" y="1748" width="6" height="218" rx="3" fill="#be185d"/>
+<text x="1794" y="1772" class="ctitle" fill="#0f172a">Org service client</text>
+<text x="1794" y="1786" class="ctable">org_service_clients</text>
+<text x="1794" y="1808" class="cpurpose" fill="#0f172a">The org's eval publisher and scheduler clients.</text>
+<line x1="1794" y1="1817" x2="2088" y2="1817" stroke="#e2e8f0"/>
+<text x="1794" y="1834"><tspan class="fkey">purpose</tspan><tspan class="fnote" dx="7">eval_publisher | eval_scheduler</tspan></text>
+<text x="1794" y="1850"><tspan class="fkey">secret_id</tspan></text>
+<rect x="1794" y="1860" width="95" height="18" rx="9" fill="#fee2e2"/>
+<text x="1842" y="1873" class="chip" fill="#991b1b" text-anchor="middle">uses a secret</text>
+</g>
+<g class="card" id="card-rt">
+<rect x="60" y="2076" width="320" height="210" rx="9" fill="#ffffff" stroke="#4d7c0f" stroke-width="1.6" filter="url(#shadow)"/>
+<rect x="60" y="2076" width="6" height="210" rx="3" fill="#4d7c0f"/>
+<text x="74" y="2100" class="ctitle" fill="#0f172a">Runtime and pipeline</text>
+<text x="74" y="2114" class="ctable">runtimes, deployment_pipelines,</text>
+<text x="74" y="2128" class="ctable">_environments, _paths</text>
+<text x="74" y="2150" class="cpurpose" fill="#0f172a">Where environments run agents, and the order</text>
+<text x="74" y="2166" class="cpurpose" fill="#0f172a">agents are promoted in. Every org has a default</text>
+<text x="74" y="2182" class="cpurpose" fill="#0f172a">pipeline.</text>
+<line x1="74" y1="2191" x2="368" y2="2191" stroke="#e2e8f0"/>
+<text x="74" y="2208"><tspan class="fkey">kind</tspan><tspan class="fnote" dx="7">kubernetes | docker</tspan></text>
+<text x="74" y="2224"><tspan class="fkey">position</tspan><tspan class="fnote" dx="7">stage order</tspan></text>
+<text x="74" y="2240"><tspan class="fkey">source -&gt; target</tspan><tspan class="fnote" dx="7">promotion path</tspan></text>
+<rect x="74" y="2250" width="95" height="18" rx="9" fill="#fee2e2"/>
+<text x="122" y="2263" class="chip" fill="#991b1b" text-anchor="middle">uses a secret</text>
+</g>
+<g class="card" id="card-workload">
+<rect x="404" y="2076" width="320" height="210" rx="9" fill="#ffffff" stroke="#4d7c0f" stroke-width="1.6" filter="url(#shadow)"/>
+<rect x="404" y="2076" width="6" height="210" rx="3" fill="#4d7c0f"/>
+<text x="418" y="2100" class="ctitle" fill="#0f172a">Agent workload</text>
+<text x="418" y="2114" class="ctable">agent_workloads, git_credentials</text>
+<text x="418" y="2136" class="cpurpose" fill="#0f172a">What a hosted agent or MCP server runs and how</text>
+<text x="418" y="2152" class="cpurpose" fill="#0f172a">it is built.</text>
+<line x1="418" y1="2161" x2="712" y2="2161" stroke="#e2e8f0"/>
+<text x="418" y="2178"><tspan class="fkey">workload_type</tspan><tspan class="fnote" dx="7">agent | mcp_server</tspan></text>
+<text x="418" y="2194"><tspan class="fkey">source_type</tspan><tspan class="fnote" dx="7">repository | image | agent_kind</tspan></text>
+<text x="418" y="2210"><tspan class="fkey">repo_url, build_type</tspan></text>
+<rect x="418" y="2220" width="95" height="18" rx="9" fill="#fee2e2"/>
+<text x="466" y="2233" class="chip" fill="#991b1b" text-anchor="middle">uses a secret</text>
+</g>
+<g class="card" id="card-build">
+<rect x="748" y="2076" width="320" height="210" rx="9" fill="#ffffff" stroke="#4d7c0f" stroke-width="1.6" filter="url(#shadow)"/>
+<rect x="748" y="2076" width="6" height="210" rx="3" fill="#4d7c0f"/>
+<text x="762" y="2100" class="ctitle" fill="#0f172a">Build</text>
+<text x="762" y="2114" class="ctable">builds</text>
+<text x="762" y="2136" class="cpurpose" fill="#0f172a">One build of a hosted agent into an image,</text>
+<text x="762" y="2152" class="cpurpose" fill="#0f172a">claimed by the build dispatcher.</text>
+<line x1="762" y1="2161" x2="1056" y2="2161" stroke="#e2e8f0"/>
+<text x="762" y="2178"><tspan class="fkey">status</tspan><tspan class="fnote" dx="7">pending ... succeeded</tspan></text>
+<text x="762" y="2194"><tspan class="fkey">image_ref</tspan></text>
+<text x="762" y="2210"><tspan class="fkey">commit_id</tspan></text>
+<rect x="762" y="2220" width="89" height="18" rx="9" fill="#e0e7ff"/>
+<text x="807" y="2233" class="chip" fill="#3730a3" text-anchor="middle">worker queue</text>
+</g>
+<g class="card" id="card-kind">
+<rect x="1092" y="2076" width="320" height="210" rx="9" fill="#ffffff" stroke="#4d7c0f" stroke-width="1.6" filter="url(#shadow)"/>
+<rect x="1092" y="2076" width="6" height="210" rx="3" fill="#4d7c0f"/>
+<text x="1106" y="2100" class="ctitle" fill="#0f172a">Agent kind</text>
+<text x="1106" y="2114" class="ctable">agent_kinds, agent_kind_versions,</text>
+<text x="1106" y="2128" class="ctable">agent_kind_labels</text>
+<text x="1106" y="2150" class="cpurpose" fill="#0f172a">A published, reusable agent image others can</text>
+<text x="1106" y="2166" class="cpurpose" fill="#0f172a">deploy.</text>
+<line x1="1106" y1="2175" x2="1400" y2="2175" stroke="#e2e8f0"/>
+<text x="1106" y="2192"><tspan class="fkey">name</tspan><tspan class="fnote" dx="7">unique per org</tspan></text>
+<text x="1106" y="2208"><tspan class="fkey">version</tspan><tspan class="fnote" dx="7">unique per kind</tspan></text>
+<text x="1106" y="2224"><tspan class="fkey">image_ref</tspan></text>
+</g>
+<g class="card" id="card-release">
+<rect x="1436" y="2076" width="320" height="210" rx="9" fill="#ffffff" stroke="#4d7c0f" stroke-width="1.6" filter="url(#shadow)"/>
+<rect x="1436" y="2076" width="6" height="210" rx="3" fill="#4d7c0f"/>
+<text x="1450" y="2100" class="ctitle" fill="#0f172a">Release and deployment</text>
+<text x="1450" y="2114" class="ctable">agent_releases, agent_deployments</text>
+<text x="1450" y="2136" class="cpurpose" fill="#0f172a">An immutable image + config snapshot, and which</text>
+<text x="1450" y="2152" class="cpurpose" fill="#0f172a">release runs in each environment.</text>
+<line x1="1450" y1="2161" x2="1744" y2="2161" stroke="#e2e8f0"/>
+<text x="1450" y="2178"><tspan class="fkey">desired_state</tspan><tspan class="fnote" dx="7">active | suspended | undeployed</tspan></text>
+<text x="1450" y="2194"><tspan class="fkey">status</tspan></text>
+<text x="1450" y="2210"><tspan class="fkey">promoted_from_environment_id</tspan></text>
+<rect x="1450" y="2220" width="108" height="18" rx="9" fill="#e2e8f0"/>
+<text x="1504" y="2233" class="chip" fill="#334155" text-anchor="middle">per environment</text>
+<rect x="1563.5" y="2220" width="89" height="18" rx="9" fill="#e0e7ff"/>
+<text x="1608" y="2233" class="chip" fill="#3730a3" text-anchor="middle">worker queue</text>
+</g>
+<g class="card" id="card-rconf">
+<rect x="1780" y="2076" width="320" height="210" rx="9" fill="#ffffff" stroke="#4d7c0f" stroke-width="1.6" filter="url(#shadow)"/>
+<rect x="1780" y="2076" width="6" height="210" rx="3" fill="#4d7c0f"/>
+<text x="1794" y="2100" class="ctitle" fill="#0f172a">Runtime config</text>
+<text x="1794" y="2114" class="ctable">agent_runtime_configs, agent_env_vars,</text>
+<text x="1794" y="2128" class="ctable">agent_file_mounts</text>
+<text x="1794" y="2150" class="cpurpose" fill="#0f172a">Resources, scaling, sandbox tier,</text>
+<text x="1794" y="2166" class="cpurpose" fill="#0f172a">instrumentation, env vars and files per</text>
+<text x="1794" y="2182" class="cpurpose" fill="#0f172a">environment.</text>
+<line x1="1794" y1="2191" x2="2088" y2="2191" stroke="#e2e8f0"/>
+<text x="1794" y="2208"><tspan class="fkey">isolation_tier</tspan><tspan class="fnote" dx="7">sandbox</tspan></text>
+<text x="1794" y="2224"><tspan class="fkey">replicas</tspan></text>
+<text x="1794" y="2240"><tspan class="fkey">secret_id</tspan><tspan class="fnote" dx="7">sensitive values</tspan></text>
+<rect x="1794" y="2250" width="108" height="18" rx="9" fill="#e2e8f0"/>
+<text x="1848" y="2263" class="chip" fill="#334155" text-anchor="middle">per environment</text>
+<rect x="1907.5" y="2250" width="95" height="18" rx="9" fill="#fee2e2"/>
+<text x="1955" y="2263" class="chip" fill="#991b1b" text-anchor="middle">uses a secret</text>
+</g>
+<g class="card" id="card-memory">
+<rect x="2124" y="2076" width="320" height="210" rx="9" fill="#ffffff" stroke="#4d7c0f" stroke-width="1.6" filter="url(#shadow)"/>
+<rect x="2124" y="2076" width="6" height="210" rx="3" fill="#4d7c0f"/>
+<text x="2138" y="2100" class="ctitle" fill="#0f172a">Agent memory store</text>
+<text x="2138" y="2114" class="ctable">agent_memory_stores</text>
+<text x="2138" y="2136" class="cpurpose" fill="#0f172a">Memory a hosted agent keeps, and where. The</text>
+<text x="2138" y="2152" class="cpurpose" fill="#0f172a">memory itself lives in the backend.</text>
+<line x1="2138" y1="2161" x2="2432" y2="2161" stroke="#e2e8f0"/>
+<text x="2138" y="2178"><tspan class="fkey">memory_type</tspan><tspan class="fnote" dx="7">short_term | long_term</tspan></text>
+<text x="2138" y="2194"><tspan class="fkey">backend</tspan></text>
+<text x="2138" y="2210"><tspan class="fkey">retention_days</tspan></text>
+<rect x="2138" y="2220" width="108" height="18" rx="9" fill="#e2e8f0"/>
+<text x="2192" y="2233" class="chip" fill="#334155" text-anchor="middle">per environment</text>
+<rect x="2251.5" y="2220" width="95" height="18" rx="9" fill="#fee2e2"/>
+<text x="2299" y="2233" class="chip" fill="#991b1b" text-anchor="middle">uses a secret</text>
 </g>
 <g class="card" id="card-o_thunder">
-<rect x="1626" y="1748" width="360" height="110" rx="9" fill="#fafafa" stroke="#94a3b8" stroke-width="1.6" stroke-dasharray="7 5" filter="url(#shadow)"/>
-<text x="1640" y="1772" class="ctitle" fill="#64748b">Thunder</text>
-<text x="1640" y="1786" class="ctable">own database</text>
-<text x="1640" y="1808" class="cpurpose" fill="#64748b">Issues agent identities. Ours stores only the IDs it</text>
-<text x="1640" y="1824" class="cpurpose" fill="#64748b">returns. One Thunder per install, set in config.</text>
+<rect x="60" y="2396" width="360" height="96" rx="9" fill="#fafafa" stroke="#94a3b8" stroke-width="1.6" stroke-dasharray="7 5" filter="url(#shadow)"/>
+<text x="74" y="2420" class="ctitle" fill="#64748b">Thunder</text>
+<text x="74" y="2434" class="ctable">own database</text>
+<text x="74" y="2456" class="cpurpose" fill="#64748b">Issues agent identities. Ours stores only the IDs it</text>
+<text x="74" y="2472" class="cpurpose" fill="#64748b">returns. One Thunder per install, set in config.</text>
 </g>
 <g class="card" id="card-o_obs">
-<rect x="2010" y="1748" width="360" height="110" rx="9" fill="#fafafa" stroke="#94a3b8" stroke-width="1.6" stroke-dasharray="7 5" filter="url(#shadow)"/>
-<text x="2024" y="1772" class="ctitle" fill="#64748b">Traces, logs, metrics</text>
-<text x="2024" y="1786" class="ctable">observability store</text>
-<text x="2024" y="1808" class="cpurpose" fill="#64748b">Agent traces, runtime and build logs, and metrics</text>
-<text x="2024" y="1824" class="cpurpose" fill="#64748b">live outside this database.</text>
+<rect x="444" y="2396" width="360" height="96" rx="9" fill="#fafafa" stroke="#94a3b8" stroke-width="1.6" stroke-dasharray="7 5" filter="url(#shadow)"/>
+<text x="458" y="2420" class="ctitle" fill="#64748b">Traces, logs, metrics</text>
+<text x="458" y="2434" class="ctable">observability store</text>
+<text x="458" y="2456" class="cpurpose" fill="#64748b">Agent traces, runtime and build logs, and metrics</text>
+<text x="458" y="2472" class="cpurpose" fill="#64748b">live outside this database.</text>
 </g>
 <g class="card" id="card-o_users">
-<rect x="2394" y="1748" width="360" height="110" rx="9" fill="#fafafa" stroke="#94a3b8" stroke-width="1.6" stroke-dasharray="7 5" filter="url(#shadow)"/>
-<text x="2408" y="1772" class="ctitle" fill="#64748b">Users and roles</text>
-<text x="2408" y="1786" class="ctable">config file</text>
-<text x="2408" y="1808" class="cpurpose" fill="#64748b">Console sign-in and role mapping come from a file.</text>
-<text x="2408" y="1824" class="cpurpose" fill="#64748b">Tables refer to users by username.</text>
+<rect x="828" y="2396" width="360" height="96" rx="9" fill="#fafafa" stroke="#94a3b8" stroke-width="1.6" stroke-dasharray="7 5" filter="url(#shadow)"/>
+<text x="842" y="2420" class="ctitle" fill="#64748b">Users and roles</text>
+<text x="842" y="2434" class="ctable">config file</text>
+<text x="842" y="2456" class="cpurpose" fill="#64748b">Console sign-in and role mapping come from a file.</text>
+<text x="842" y="2472" class="cpurpose" fill="#64748b">Tables refer to users by username.</text>
+</g>
+<g class="card" id="card-o_mem">
+<rect x="1212" y="2396" width="360" height="96" rx="9" fill="#fafafa" stroke="#94a3b8" stroke-width="1.6" stroke-dasharray="7 5" filter="url(#shadow)"/>
+<text x="1226" y="2420" class="ctitle" fill="#64748b">Memory contents</text>
+<text x="1226" y="2434" class="ctable">memory backend</text>
+<text x="1226" y="2456" class="cpurpose" fill="#64748b">Agent memory records live in the configured backend;</text>
+<text x="1226" y="2472" class="cpurpose" fill="#64748b">this database holds only the store's settings.</text>
 </g>
 </svg>
 </body>

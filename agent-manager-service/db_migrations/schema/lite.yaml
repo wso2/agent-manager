@@ -1,5 +1,7 @@
-# AMP Lite database schema, in logical types. Source of truth for the per-database baselines:
-# edit this file, then run `make schema`. Rules and decisions: the AMP Lite schema design.
+# Agent Manager database schema, in logical types. It covers all three product tiers (AI Gateway, Agent Manager,
+# Agent Runtime), so moving up a tier needs no schema change; tables of features a tier doesn't use stay empty.
+# Source of truth for the per-database baselines: edit this file, then run `make schema`, and record the change in
+# docs/amp-lite/migration.md. Rules and decisions: docs/amp-lite/database-schema.md.
 #
 # Types: id (UUID v7 from the app), text (needs size), longtext, json, bool, int, bigint, time (UTC), binary.
 # Every column is NOT NULL unless `nullable: true`. on_delete is `cascade` or omitted (no action).
@@ -28,6 +30,48 @@ tables:
       - {name: name, type: text, size: 63}
       - {name: display_name, type: text, size: 255}
       - {name: description, type: text, size: 1000, nullable: true}
+      - {name: deployment_pipeline_id, type: id, nullable: true}
+      - {name: created_by, type: text, size: 255, nullable: true}
+      - {name: created_at, type: time}
+      - {name: updated_at, type: time}
+    primary_key: [id]
+    unique: [[org_id, name], [org_id, id]]
+    foreign_keys:
+      - {columns: [org_id], references: organizations, ref_columns: [id]}
+      - {columns: [org_id, deployment_pipeline_id], references: deployment_pipelines, ref_columns: [org_id, id]}
+    indexes: [[deployment_pipeline_id]]
+
+  - name: environments
+    columns:
+      - {name: id, type: id}
+      - {name: org_id, type: id}
+      - {name: name, type: text, size: 63}
+      - {name: display_name, type: text, size: 255}
+      - {name: description, type: text, size: 1000, nullable: true}
+      - {name: is_production, type: bool}
+      - {name: runtime_id, type: id, nullable: true}
+      - {name: isolation_tier, type: text, size: 16, nullable: true}
+      - {name: dns_prefix, type: text, size: 63, nullable: true}
+      - {name: created_at, type: time}
+      - {name: updated_at, type: time}
+    primary_key: [id]
+    unique: [[org_id, name], [org_id, id]]
+    foreign_keys:
+      - {columns: [org_id], references: organizations, ref_columns: [id]}
+      - {columns: [org_id, runtime_id], references: runtimes, ref_columns: [org_id, id]}
+    checks:
+      - "isolation_tier IN ('gvisor', 'kata')"
+    indexes: [[runtime_id]]
+
+  # --- Deployment pipelines (Agent Runtime; every org has a `default` pipeline holding its default environment) ---
+
+  - name: deployment_pipelines
+    columns:
+      - {name: id, type: id}
+      - {name: org_id, type: id}
+      - {name: name, type: text, size: 63}
+      - {name: display_name, type: text, size: 255}
+      - {name: description, type: text, size: 1000, nullable: true}
       - {name: created_by, type: text, size: 255, nullable: true}
       - {name: created_at, type: time}
       - {name: updated_at, type: time}
@@ -36,19 +80,37 @@ tables:
     foreign_keys:
       - {columns: [org_id], references: organizations, ref_columns: [id]}
 
-  - name: environments
+  - name: deployment_pipeline_environments
     columns:
-      - {name: id, type: id}
+      - {name: pipeline_id, type: id}
+      - {name: environment_id, type: id}
       - {name: org_id, type: id}
-      - {name: name, type: text, size: 63}
-      - {name: display_name, type: text, size: 255}
-      - {name: is_production, type: bool}
+      - {name: position, type: int}
       - {name: created_at, type: time}
-      - {name: updated_at, type: time}
-    primary_key: [id]
-    unique: [[org_id, name], [org_id, id]]
+    primary_key: [pipeline_id, environment_id]
+    unique: [[pipeline_id, position]]
     foreign_keys:
-      - {columns: [org_id], references: organizations, ref_columns: [id]}
+      - {columns: [org_id, pipeline_id], references: deployment_pipelines, ref_columns: [org_id, id], on_delete: cascade}
+      - {columns: [org_id, environment_id], references: environments, ref_columns: [org_id, id]}
+    checks:
+      - "position >= 0"
+    indexes: [[org_id, environment_id]]
+
+  - name: deployment_pipeline_paths
+    columns:
+      - {name: pipeline_id, type: id}
+      - {name: source_environment_id, type: id}
+      - {name: target_environment_id, type: id}
+      - {name: org_id, type: id}
+      - {name: created_at, type: time}
+    primary_key: [pipeline_id, source_environment_id, target_environment_id]
+    foreign_keys:
+      - {columns: [org_id, pipeline_id], references: deployment_pipelines, ref_columns: [org_id, id], on_delete: cascade}
+      - {columns: [org_id, source_environment_id], references: environments, ref_columns: [org_id, id]}
+      - {columns: [org_id, target_environment_id], references: environments, ref_columns: [org_id, id]}
+    checks:
+      - "source_environment_id <> target_environment_id"
+    indexes: [[org_id, target_environment_id]]
 
   # --- Agents -------------------------------------------------------------------------------
 
@@ -404,6 +466,27 @@ tables:
       - {columns: [org_id, upstream_secret_id], references: secrets, ref_columns: [org_id, id]}
     indexes: [[org_id, project_id], [provider_id], [upstream_secret_id]]
 
+  # --- REST APIs ----------------------------------------------------------------------------
+
+  - name: rest_apis
+    columns:
+      - {name: id, type: id}
+      - {name: org_id, type: id}
+      - {name: project_id, type: id}
+      - {name: description, type: longtext, nullable: true}
+      - {name: lifecycle_status, type: text, size: 20}
+      - {name: transport, type: json}
+      - {name: configuration, type: json}
+      - {name: upstream_secret_id, type: id, nullable: true}
+      - {name: created_by, type: text, size: 255, nullable: true}
+    primary_key: [id]
+    unique: [[org_id, id]]
+    foreign_keys:
+      - {columns: [org_id, id], references: artifacts, ref_columns: [org_id, id], on_delete: cascade}
+      - {columns: [org_id, project_id], references: projects, ref_columns: [org_id, id]}
+      - {columns: [org_id, upstream_secret_id], references: secrets, ref_columns: [org_id, id]}
+    indexes: [[org_id, project_id], [upstream_secret_id]]
+
   # --- MCP proxies --------------------------------------------------------------------------
 
   - name: mcp_proxies
@@ -411,6 +494,7 @@ tables:
       - {name: id, type: id}
       - {name: org_id, type: id}
       - {name: project_id, type: id, nullable: true}
+      - {name: source_agent_id, type: id, nullable: true}
       - {name: description, type: longtext, nullable: true}
       - {name: status, type: text, size: 20}
       - {name: configuration, type: json}
@@ -420,7 +504,10 @@ tables:
     foreign_keys:
       - {columns: [org_id, id], references: artifacts, ref_columns: [org_id, id], on_delete: cascade}
       - {columns: [org_id, project_id], references: projects, ref_columns: [org_id, id]}
-    indexes: [[org_id, project_id]]
+      - {columns: [org_id, source_agent_id], references: agents, ref_columns: [org_id, id]}
+    checks:
+      - "source_agent_id IS NULL OR project_id IS NOT NULL"
+    indexes: [[org_id, project_id], [source_agent_id]]
 
   - name: mcp_proxy_mappings
     columns:
@@ -786,6 +873,9 @@ tables:
       - {name: response_code, type: int, nullable: true}
       - {name: last_error, type: longtext, nullable: true}
       - {name: delivered_at, type: time, nullable: true}
+      - {name: monitor_alert_id, type: id, nullable: true}
+      - {name: source_event_id, type: text, size: 128, nullable: true}
+      - {name: payload, type: json, nullable: true}
       - {name: claimed_by, type: text, size: 255, nullable: true}
       - {name: claimed_until, type: time, nullable: true}
       - {name: created_at, type: time}
@@ -794,7 +884,7 @@ tables:
     unique: [[destination_id, event_id]]
     foreign_keys:
       - {columns: [org_id, destination_id], references: event_destinations, ref_columns: [org_id, id], on_delete: cascade}
-    indexes: [[org_id, created_at], [destination_id, created_at], [status, claimed_until]]
+    indexes: [[org_id, created_at], [destination_id, created_at], [status, claimed_until], [source_event_id]]
 
   - name: event_delivery_subscriptions
     columns:
@@ -804,6 +894,504 @@ tables:
     foreign_keys:
       - {columns: [delivery_id], references: event_deliveries, ref_columns: [id], on_delete: cascade}
     indexes: [[subscription_id]]
+
+  # --- Evaluation (Agent Manager tier) --------------------------------------------------------
+
+  - name: evaluators
+    columns:
+      - {name: id, type: id}
+      - {name: org_id, type: id}
+      - {name: identifier, type: text, size: 128}
+      - {name: display_name, type: text, size: 128}
+      - {name: description, type: text, size: 512, nullable: true}
+      - {name: version, type: text, size: 20}
+      - {name: type, type: text, size: 16}
+      - {name: level, type: text, size: 16}
+      - {name: source, type: longtext}
+      - {name: config_schema, type: json}
+      - {name: tags, type: json}
+      - {name: created_by, type: text, size: 255, nullable: true}
+      - {name: created_at, type: time}
+      - {name: updated_at, type: time}
+    primary_key: [id]
+    unique: [[org_id, identifier], [org_id, id]]
+    foreign_keys:
+      - {columns: [org_id], references: organizations, ref_columns: [id]}
+    checks:
+      - "type IN ('code', 'llm_judge')"
+      - "level IN ('trace', 'agent', 'llm')"
+
+  - name: monitors
+    columns:
+      - {name: id, type: id}
+      - {name: org_id, type: id}
+      - {name: agent_id, type: id}
+      - {name: environment_id, type: id}
+      - {name: name, type: text, size: 63}
+      - {name: display_name, type: text, size: 128}
+      - {name: description, type: text, size: 512, nullable: true}
+      - {name: type, type: text, size: 16}
+      - {name: enabled, type: bool}
+      - {name: interval_minutes, type: int, nullable: true}
+      - {name: next_run_at, type: time, nullable: true}
+      - {name: trace_start, type: time, nullable: true}
+      - {name: trace_end, type: time, nullable: true}
+      - {name: sampling_percent, type: int}
+      - {name: judge_llm_provider_id, type: id, nullable: true}
+      - {name: judge_llm_proxy_id, type: id, nullable: true}
+      - {name: judge_api_key_secret_id, type: id, nullable: true}
+      - {name: judge_policy_configuration, type: json, nullable: true}
+      - {name: claimed_by, type: text, size: 255, nullable: true}
+      - {name: claimed_until, type: time, nullable: true}
+      - {name: created_by, type: text, size: 255, nullable: true}
+      - {name: created_at, type: time}
+      - {name: updated_at, type: time}
+    primary_key: [id]
+    unique: [[agent_id, name], [org_id, id]]
+    foreign_keys:
+      - {columns: [org_id, agent_id], references: agents, ref_columns: [org_id, id], on_delete: cascade}
+      - {columns: [org_id, environment_id], references: environments, ref_columns: [org_id, id]}
+      - {columns: [org_id, judge_llm_provider_id], references: llm_providers, ref_columns: [org_id, id]}
+      - {columns: [org_id, judge_llm_proxy_id], references: llm_proxies, ref_columns: [org_id, id]}
+      - {columns: [org_id, judge_api_key_secret_id], references: secrets, ref_columns: [org_id, id]}
+    checks:
+      - "type IN ('future', 'past')"
+      - "(type = 'future' AND interval_minutes IS NOT NULL) OR (type = 'past' AND trace_start IS NOT NULL AND trace_end IS NOT NULL)"
+      - "sampling_percent BETWEEN 1 AND 100"
+    indexes: [[enabled, next_run_at], [judge_llm_provider_id], [judge_llm_proxy_id], [judge_api_key_secret_id]]
+
+  - name: monitor_evaluators
+    columns:
+      - {name: monitor_id, type: id}
+      - {name: evaluator_identifier, type: text, size: 128}
+      - {name: org_id, type: id}
+      - {name: display_name, type: text, size: 128}
+      - {name: position, type: int}
+      - {name: config, type: json, nullable: true}
+    primary_key: [monitor_id, evaluator_identifier]
+    foreign_keys:
+      - {columns: [org_id, monitor_id], references: monitors, ref_columns: [org_id, id], on_delete: cascade}
+    indexes: [[org_id, evaluator_identifier]]
+
+  - name: monitor_runs
+    columns:
+      - {name: id, type: id}
+      - {name: org_id, type: id}
+      - {name: monitor_id, type: id}
+      - {name: evaluators, type: json}
+      - {name: judge_config, type: json, nullable: true}
+      - {name: trace_start, type: time}
+      - {name: trace_end, type: time}
+      - {name: status, type: text, size: 16}
+      - {name: job_ref, type: text, size: 255, nullable: true}
+      - {name: started_at, type: time, nullable: true}
+      - {name: completed_at, type: time, nullable: true}
+      - {name: error_message, type: longtext, nullable: true}
+      - {name: event_queued_at, type: time, nullable: true}
+      - {name: attempt_count, type: int}
+      - {name: claimed_by, type: text, size: 255, nullable: true}
+      - {name: claimed_until, type: time, nullable: true}
+      - {name: created_at, type: time}
+      - {name: updated_at, type: time}
+    primary_key: [id]
+    unique: [[org_id, id]]
+    foreign_keys:
+      - {columns: [org_id, monitor_id], references: monitors, ref_columns: [org_id, id], on_delete: cascade}
+    checks:
+      - "status IN ('pending', 'running', 'success', 'failed')"
+    indexes: [[monitor_id, created_at], [monitor_id, trace_start, trace_end], [status, claimed_until]]
+
+  - name: monitor_run_evaluators
+    columns:
+      - {name: id, type: id}
+      - {name: org_id, type: id}
+      - {name: run_id, type: id}
+      - {name: monitor_id, type: id}
+      - {name: evaluator_identifier, type: text, size: 128}
+      - {name: evaluator_name, type: text, size: 255}
+      - {name: level, type: text, size: 16}
+      - {name: aggregations, type: json}
+      - {name: item_count, type: int}
+      - {name: skipped_count, type: int}
+      - {name: created_at, type: time}
+    primary_key: [id]
+    unique: [[run_id, evaluator_name], [org_id, id]]
+    foreign_keys:
+      - {columns: [org_id, run_id], references: monitor_runs, ref_columns: [org_id, id], on_delete: cascade}
+    checks:
+      - "level IN ('trace', 'agent', 'llm')"
+    indexes: [[monitor_id, evaluator_name]]
+
+  - name: scores
+    columns:
+      - {name: id, type: id}
+      - {name: org_id, type: id}
+      - {name: run_evaluator_id, type: id}
+      - {name: monitor_id, type: id}
+      - {name: item_key, type: text, size: 512}
+      - {name: trace_id, type: text, size: 255}
+      - {name: span_id, type: text, size: 255, nullable: true}
+      - {name: span_label, type: text, size: 255, nullable: true}
+      - {name: score_bp, type: int, nullable: true}
+      - {name: explanation, type: longtext, nullable: true}
+      - {name: skip_reason, type: longtext, nullable: true}
+      - {name: trace_start_time, type: time}
+      - {name: created_at, type: time}
+    primary_key: [id]
+    unique: [[run_evaluator_id, item_key]]
+    foreign_keys:
+      - {columns: [org_id, run_evaluator_id], references: monitor_run_evaluators, ref_columns: [org_id, id], on_delete: cascade}
+    checks:
+      - "score_bp BETWEEN 0 AND 10000"
+    indexes: [[monitor_id, trace_start_time], [trace_id, span_id], [monitor_id, span_label]]
+
+  - name: monitor_alerts
+    columns:
+      - {name: id, type: id}
+      - {name: org_id, type: id}
+      - {name: monitor_id, type: id}
+      - {name: notify_on_failure, type: bool}
+      - {name: notify_on_success, type: bool}
+      - {name: thresholds, type: json}
+      - {name: breached, type: json}
+      - {name: last_evaluated_at, type: time, nullable: true}
+      - {name: created_at, type: time}
+      - {name: updated_at, type: time}
+    primary_key: [id]
+    unique: [[monitor_id], [org_id, id]]
+    foreign_keys:
+      - {columns: [org_id, monitor_id], references: monitors, ref_columns: [org_id, id], on_delete: cascade}
+
+  - name: monitor_alert_destinations
+    columns:
+      - {name: alert_id, type: id}
+      - {name: destination_id, type: id}
+      - {name: org_id, type: id}
+    primary_key: [alert_id, destination_id]
+    foreign_keys:
+      - {columns: [org_id, alert_id], references: monitor_alerts, ref_columns: [org_id, id], on_delete: cascade}
+      - {columns: [org_id, destination_id], references: event_destinations, ref_columns: [org_id, id]}
+    indexes: [[org_id, destination_id]]
+
+  - name: org_service_clients
+    columns:
+      - {name: org_id, type: id}
+      - {name: purpose, type: text, size: 32}
+      - {name: client_id, type: text, size: 255}
+      - {name: secret_id, type: id, nullable: true}
+      - {name: created_at, type: time}
+      - {name: updated_at, type: time}
+    primary_key: [org_id, purpose]
+    foreign_keys:
+      - {columns: [org_id], references: organizations, ref_columns: [id]}
+      - {columns: [org_id, secret_id], references: secrets, ref_columns: [org_id, id]}
+    checks:
+      - "purpose IN ('eval_publisher', 'eval_scheduler')"
+    indexes: [[secret_id]]
+
+  # --- Agent runtime (Agent Runtime tier: hosted agents and MCP servers) -----------------------
+
+  - name: runtimes
+    columns:
+      - {name: id, type: id}
+      - {name: org_id, type: id}
+      - {name: name, type: text, size: 63}
+      - {name: display_name, type: text, size: 255}
+      - {name: description, type: text, size: 1000, nullable: true}
+      - {name: kind, type: text, size: 16}
+      - {name: endpoint, type: text, size: 2048, nullable: true}
+      - {name: config, type: json}
+      - {name: credential_secret_id, type: id, nullable: true}
+      - {name: is_active, type: bool}
+      - {name: created_by, type: text, size: 255, nullable: true}
+      - {name: created_at, type: time}
+      - {name: updated_at, type: time}
+    primary_key: [id]
+    unique: [[org_id, name], [org_id, id]]
+    foreign_keys:
+      - {columns: [org_id], references: organizations, ref_columns: [id]}
+      - {columns: [org_id, credential_secret_id], references: secrets, ref_columns: [org_id, id]}
+    checks:
+      - "kind IN ('kubernetes', 'docker')"
+    indexes: [[credential_secret_id]]
+
+  - name: git_credentials
+    columns:
+      - {name: id, type: id}
+      - {name: org_id, type: id}
+      - {name: name, type: text, size: 63}
+      - {name: auth_type, type: text, size: 16}
+      - {name: username, type: text, size: 255, nullable: true}
+      - {name: secret_id, type: id}
+      - {name: created_by, type: text, size: 255, nullable: true}
+      - {name: created_at, type: time}
+      - {name: updated_at, type: time}
+    primary_key: [id]
+    unique: [[org_id, name], [org_id, id]]
+    foreign_keys:
+      - {columns: [org_id], references: organizations, ref_columns: [id]}
+      - {columns: [org_id, secret_id], references: secrets, ref_columns: [org_id, id]}
+    checks:
+      - "auth_type IN ('basic', 'ssh')"
+    indexes: [[secret_id]]
+
+  - name: agent_kinds
+    columns:
+      - {name: id, type: id}
+      - {name: org_id, type: id}
+      - {name: name, type: text, size: 63}
+      - {name: display_name, type: text, size: 255}
+      - {name: description, type: longtext, nullable: true}
+      - {name: source_agent_id, type: id, nullable: true}
+      - {name: created_by, type: text, size: 255, nullable: true}
+      - {name: created_at, type: time}
+      - {name: updated_at, type: time}
+    primary_key: [id]
+    unique: [[org_id, name], [org_id, id]]
+    foreign_keys:
+      - {columns: [org_id], references: organizations, ref_columns: [id]}
+      - {columns: [org_id, source_agent_id], references: agents, ref_columns: [org_id, id]}
+    indexes: [[source_agent_id]]
+
+  - name: agent_kind_labels
+    columns:
+      - {name: kind_id, type: id}
+      - {name: label_key, type: text, size: 63}
+      - {name: org_id, type: id}
+      - {name: label_value, type: text, size: 63, nullable: true}
+    primary_key: [kind_id, label_key]
+    foreign_keys:
+      - {columns: [org_id, kind_id], references: agent_kinds, ref_columns: [org_id, id], on_delete: cascade}
+    indexes: [[org_id, label_key, label_value]]
+
+  - name: builds
+    columns:
+      - {name: id, type: id}
+      - {name: org_id, type: id}
+      - {name: agent_id, type: id}
+      - {name: name, type: text, size: 255}
+      - {name: status, type: text, size: 16}
+      - {name: parameters, type: json}
+      - {name: commit_id, type: text, size: 64, nullable: true}
+      - {name: image_ref, type: text, size: 1024, nullable: true}
+      - {name: interface, type: json, nullable: true}
+      - {name: health_checks, type: json, nullable: true}
+      - {name: steps, type: json, nullable: true}
+      - {name: job_ref, type: text, size: 255, nullable: true}
+      - {name: attempt_count, type: int}
+      - {name: last_error, type: longtext, nullable: true}
+      - {name: claimed_by, type: text, size: 255, nullable: true}
+      - {name: claimed_until, type: time, nullable: true}
+      - {name: requested_by, type: text, size: 255, nullable: true}
+      - {name: started_at, type: time, nullable: true}
+      - {name: finished_at, type: time, nullable: true}
+      - {name: created_at, type: time}
+      - {name: updated_at, type: time}
+    primary_key: [id]
+    unique: [[agent_id, name], [org_id, id]]
+    foreign_keys:
+      - {columns: [org_id, agent_id], references: agents, ref_columns: [org_id, id], on_delete: cascade}
+    checks:
+      - "status IN ('pending', 'running', 'succeeded', 'failed', 'cancelled')"
+      - "status <> 'succeeded' OR image_ref IS NOT NULL"
+    indexes: [[agent_id, created_at], [status, claimed_until]]
+
+  - name: agent_kind_versions
+    columns:
+      - {name: id, type: id}
+      - {name: org_id, type: id}
+      - {name: kind_id, type: id}
+      - {name: version, type: text, size: 30}
+      - {name: build_id, type: id, nullable: true}
+      - {name: image_ref, type: text, size: 1024}
+      - {name: config_schema, type: json}
+      - {name: metadata, type: json, nullable: true}
+      - {name: created_by, type: text, size: 255, nullable: true}
+      - {name: created_at, type: time}
+    primary_key: [id]
+    unique: [[kind_id, version], [org_id, id]]
+    foreign_keys:
+      - {columns: [org_id, kind_id], references: agent_kinds, ref_columns: [org_id, id], on_delete: cascade}
+      - {columns: [org_id, build_id], references: builds, ref_columns: [org_id, id]}
+    indexes: [[build_id]]
+
+  - name: agent_workloads
+    columns:
+      - {name: agent_id, type: id}
+      - {name: org_id, type: id}
+      - {name: workload_type, type: text, size: 16}
+      - {name: source_type, type: text, size: 16}
+      - {name: repo_url, type: text, size: 2048, nullable: true}
+      - {name: repo_branch, type: text, size: 255, nullable: true}
+      - {name: repo_app_path, type: text, size: 1024, nullable: true}
+      - {name: git_credential_id, type: id, nullable: true}
+      - {name: build_type, type: text, size: 16, nullable: true}
+      - {name: language, type: text, size: 32, nullable: true}
+      - {name: language_version, type: text, size: 32, nullable: true}
+      - {name: run_command, type: text, size: 1024, nullable: true}
+      - {name: dockerfile_path, type: text, size: 1024, nullable: true}
+      - {name: image_ref, type: text, size: 1024, nullable: true}
+      - {name: agent_kind_version_id, type: id, nullable: true}
+      - {name: interface_type, type: text, size: 16, nullable: true}
+      - {name: port, type: int, nullable: true}
+      - {name: base_path, type: text, size: 255, nullable: true}
+      - {name: interface_schema_path, type: text, size: 1024, nullable: true}
+      - {name: health_checks, type: json, nullable: true}
+      - {name: created_at, type: time}
+      - {name: updated_at, type: time}
+    primary_key: [agent_id]
+    foreign_keys:
+      - {columns: [org_id, agent_id], references: agents, ref_columns: [org_id, id], on_delete: cascade}
+      - {columns: [org_id, git_credential_id], references: git_credentials, ref_columns: [org_id, id]}
+      - {columns: [org_id, agent_kind_version_id], references: agent_kind_versions, ref_columns: [org_id, id]}
+    checks:
+      - "workload_type IN ('agent', 'mcp_server')"
+      - "source_type IN ('repository', 'image', 'agent_kind')"
+      - "build_type IN ('buildpack', 'docker')"
+      - "(source_type = 'repository' AND repo_url IS NOT NULL AND build_type IS NOT NULL) OR (source_type = 'image' AND image_ref IS NOT NULL) OR (source_type = 'agent_kind' AND agent_kind_version_id IS NOT NULL)"
+    indexes: [[git_credential_id], [agent_kind_version_id]]
+
+  - name: agent_releases
+    columns:
+      - {name: id, type: id}
+      - {name: org_id, type: id}
+      - {name: agent_id, type: id}
+      - {name: build_id, type: id, nullable: true}
+      - {name: image_ref, type: text, size: 1024}
+      - {name: config, type: json}
+      - {name: created_by, type: text, size: 255, nullable: true}
+      - {name: created_at, type: time}
+    primary_key: [id]
+    unique: [[org_id, id]]
+    foreign_keys:
+      - {columns: [org_id, agent_id], references: agents, ref_columns: [org_id, id], on_delete: cascade}
+      - {columns: [org_id, build_id], references: builds, ref_columns: [org_id, id]}
+    indexes: [[agent_id, created_at], [build_id]]
+
+  - name: agent_deployments
+    columns:
+      - {name: id, type: id}
+      - {name: org_id, type: id}
+      - {name: agent_id, type: id}
+      - {name: environment_id, type: id}
+      - {name: release_id, type: id}
+      - {name: desired_state, type: text, size: 16}
+      - {name: status, type: text, size: 16}
+      - {name: status_reason, type: longtext, nullable: true}
+      - {name: promoted_from_environment_id, type: id, nullable: true}
+      - {name: deployed_by, type: text, size: 255, nullable: true}
+      - {name: deployed_at, type: time, nullable: true}
+      - {name: attempt_count, type: int}
+      - {name: next_attempt_at, type: time, nullable: true}
+      - {name: claimed_by, type: text, size: 255, nullable: true}
+      - {name: claimed_until, type: time, nullable: true}
+      - {name: created_at, type: time}
+      - {name: updated_at, type: time}
+    primary_key: [id]
+    unique: [[agent_id, environment_id], [org_id, id]]
+    foreign_keys:
+      - {columns: [org_id, agent_id], references: agents, ref_columns: [org_id, id], on_delete: cascade}
+      - {columns: [org_id, environment_id], references: environments, ref_columns: [org_id, id]}
+      - {columns: [org_id, release_id], references: agent_releases, ref_columns: [org_id, id]}
+      - {columns: [org_id, promoted_from_environment_id], references: environments, ref_columns: [org_id, id]}
+    checks:
+      - "desired_state IN ('active', 'suspended', 'undeployed')"
+      - "status IN ('pending', 'deploying', 'active', 'suspended', 'undeploying', 'undeployed', 'failed')"
+    indexes: [[org_id, environment_id], [release_id], [status, next_attempt_at]]
+
+  - name: agent_runtime_configs
+    columns:
+      - {name: agent_id, type: id}
+      - {name: environment_id, type: id}
+      - {name: org_id, type: id}
+      - {name: cpu_request, type: text, size: 16, nullable: true}
+      - {name: cpu_limit, type: text, size: 16, nullable: true}
+      - {name: memory_request, type: text, size: 16, nullable: true}
+      - {name: memory_limit, type: text, size: 16, nullable: true}
+      - {name: replicas, type: int, nullable: true}
+      - {name: autoscaling_enabled, type: bool}
+      - {name: min_replicas, type: int, nullable: true}
+      - {name: max_replicas, type: int, nullable: true}
+      - {name: isolation_tier, type: text, size: 16, nullable: true}
+      - {name: warm_pool_size, type: int, nullable: true}
+      - {name: instrumentation_enabled, type: bool}
+      - {name: instrumentation_version, type: text, size: 32, nullable: true}
+      - {name: created_at, type: time}
+      - {name: updated_at, type: time}
+    primary_key: [agent_id, environment_id]
+    foreign_keys:
+      - {columns: [org_id, agent_id], references: agents, ref_columns: [org_id, id], on_delete: cascade}
+      - {columns: [org_id, environment_id], references: environments, ref_columns: [org_id, id]}
+    checks:
+      - "isolation_tier IN ('gvisor', 'kata')"
+      - "min_replicas IS NULL OR max_replicas IS NULL OR min_replicas <= max_replicas"
+
+  - name: agent_env_vars
+    columns:
+      - {name: agent_id, type: id}
+      - {name: environment_id, type: id}
+      - {name: name, type: text, size: 255}
+      - {name: org_id, type: id}
+      - {name: value, type: longtext, nullable: true}
+      - {name: secret_id, type: id, nullable: true}
+      - {name: is_system, type: bool}
+      - {name: created_at, type: time}
+      - {name: updated_at, type: time}
+    primary_key: [agent_id, environment_id, name]
+    foreign_keys:
+      - {columns: [org_id, agent_id], references: agents, ref_columns: [org_id, id], on_delete: cascade}
+      - {columns: [org_id, environment_id], references: environments, ref_columns: [org_id, id]}
+      - {columns: [org_id, secret_id], references: secrets, ref_columns: [org_id, id]}
+    checks:
+      - "value IS NULL OR secret_id IS NULL"
+    indexes: [[secret_id]]
+
+  - name: agent_file_mounts
+    columns:
+      - {name: agent_id, type: id}
+      - {name: environment_id, type: id}
+      - {name: mount_path, type: text, size: 255}
+      - {name: org_id, type: id}
+      - {name: file_key, type: text, size: 255}
+      - {name: content, type: longtext, nullable: true}
+      - {name: secret_id, type: id, nullable: true}
+      - {name: created_at, type: time}
+      - {name: updated_at, type: time}
+    primary_key: [agent_id, environment_id, mount_path]
+    foreign_keys:
+      - {columns: [org_id, agent_id], references: agents, ref_columns: [org_id, id], on_delete: cascade}
+      - {columns: [org_id, environment_id], references: environments, ref_columns: [org_id, id]}
+      - {columns: [org_id, secret_id], references: secrets, ref_columns: [org_id, id]}
+    checks:
+      - "content IS NULL OR secret_id IS NULL"
+    indexes: [[secret_id]]
+
+  - name: agent_memory_stores
+    columns:
+      - {name: id, type: id}
+      - {name: org_id, type: id}
+      - {name: agent_id, type: id}
+      - {name: environment_id, type: id}
+      - {name: name, type: text, size: 63}
+      - {name: memory_type, type: text, size: 16}
+      - {name: backend, type: text, size: 32}
+      - {name: config, type: json}
+      - {name: secret_id, type: id, nullable: true}
+      - {name: retention_days, type: int, nullable: true}
+      - {name: status, type: text, size: 16}
+      - {name: last_error, type: longtext, nullable: true}
+      - {name: created_at, type: time}
+      - {name: updated_at, type: time}
+    primary_key: [id]
+    unique: [[agent_id, environment_id, name], [org_id, id]]
+    foreign_keys:
+      - {columns: [org_id, agent_id], references: agents, ref_columns: [org_id, id], on_delete: cascade}
+      - {columns: [org_id, environment_id], references: environments, ref_columns: [org_id, id]}
+      - {columns: [org_id, secret_id], references: secrets, ref_columns: [org_id, id]}
+    checks:
+      - "memory_type IN ('short_term', 'long_term')"
+      - "status IN ('provisioning', 'ready', 'failed', 'deleting')"
+    indexes: [[secret_id]]
 
   # --- Audit log and console usage (insert only, no foreign keys) -------------------------------
 
@@ -875,3 +1463,7 @@ tables:
     seed:
       - {name: agent_identity.reconciler}
       - {name: gateway.drift_scan}
+      - {name: monitor.scheduler}
+      - {name: monitor.alerts}
+      - {name: build.dispatcher}
+      - {name: deployment.reconciler}

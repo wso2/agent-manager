@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generates the AMP Lite data-model diagram (HTML with inline SVG)."""
+"""Generates the Agent Manager data-model diagram (HTML with inline SVG) for all three product tiers."""
 import html
 import os
 import sys
@@ -17,7 +17,9 @@ AREAS = {
     "events": dict(name="Events and webhooks", color="#0891b2", fill="#ecfeff"),
     "audit": dict(name="Audit log and console usage", color="#b45309", fill="#fffbeb"),
     "internal": dict(name="Internals (workers)", color="#475569", fill="#f8fafc"),
-    "deferred": dict(name="Not in AMP Lite yet, or kept outside this database", color="#64748b", fill="#ffffff"),
+    "eval": dict(name="Evaluation and alerts (Agent Manager tier; empty on AI Gateway)", color="#be185d", fill="#fdf2f8"),
+    "runtime": dict(name="Agent runtime (Agent Runtime tier; empty below it)", color="#4d7c0f", fill="#f7fee7"),
+    "deferred": dict(name="Kept outside this database", color="#64748b", fill="#ffffff"),
 }
 
 CHIPS = {
@@ -198,9 +200,10 @@ card("org", "tenancy", 350, TOP, 240, "Organization", "organizations",
      "The tenant and root of all data. Never renamed or deleted.",
      [("handle", "URL name, unique"), ("display_name", ""), ("thunder_ou_id", "Thunder org unit")])
 card("env", "tenancy", 660, TOP, 230, "Environment", "environments",
-     "Exactly one per org, named default, created with the org. Never shown in or accepted by the API or console.",
-     [("name", "always 'default'"), ("is_production", "no")],
-     rel="Kept so more environments can come later with no table changes.", hidden=True)
+     "One per org, named default, created with the org and hidden below the Agent Runtime tier.",
+     [("name", "'default' + runtime envs"), ("is_production", ""), ("runtime_id", "runtime tier"),
+      ("isolation_tier", "gvisor | kata")],
+     rel="Agent Runtime adds rows; per-environment tables don't change.", hidden=True)
 
 # ---------------------------------------------------------------- Agents
 AY = 640
@@ -359,25 +362,66 @@ card("locks", "internal", RX, 0, 360, "Lock", "locks",
      "A lease that lets only one instance run a singleton worker.",
      [("name", "e.g. gateway.drift_scan"), ("owner", "empty = free"), ("expires_at", "")])
 card("queues", "internal", RX + 390, 0, 380, "Queue columns", "claimed_by, claimed_until",
-     "Rows a worker claims carry a lease instead of a lock: agent identities, agent cards, deployment status, event outbox, event deliveries.",
+     "Rows a worker claims carry a lease instead of a lock: agent identities, agent cards, deployment status, event outbox, event deliveries, monitors, monitor runs, builds, agent deployments.",
      [], chips=["queue"])
 
-# ---------------------------------------------------------------- Deferred strip
+# ---------------------------------------------------------------- Evaluation and runtime rows
+RW, RSP = 320, 344
+evaluation = [
+    ("evaluator", "Custom evaluator", "evaluators",
+     "An org's own code or LLM-judge evaluator. Built-ins ship in code.",
+     [("identifier", "unique per org"), ("type", "code | llm_judge"), ("level", "trace | agent | llm")], []),
+    ("monitor", "Monitor", "monitors, monitor_evaluators",
+     "Scores an agent's traces on a schedule (future) or over a past window, with chosen evaluators.",
+     [("type", "future | past"), ("next_run_at", ""), ("sampling_percent", "1-100"),
+      ("judge_llm_proxy_id", "LLM judge route")], ["env", "queue", "secret"]),
+    ("mrun", "Monitor run", "monitor_runs",
+     "One evaluation job over a trace window. Deleted with its monitor.",
+     [("trace_start, trace_end", ""), ("status", "pending ... success | failed"), ("job_ref", "runner id")],
+     ["queue"]),
+    ("score", "Scores", "monitor_run_evaluators, scores",
+     "Per-evaluator aggregates of a run, and one score per trace or span.",
+     [("aggregations", "JSON"), ("item_key", "trace or trace/span"), ("score_bp", "0-10000")], []),
+    ("malert", "Monitor alert", "monitor_alerts, monitor_alert_destinations",
+     "Score thresholds and run outcomes that notify event destinations.",
+     [("thresholds", "JSON"), ("destination_id", "one row per destination")], []),
+    ("osc", "Org service client", "org_service_clients",
+     "The org's eval publisher and scheduler clients.",
+     [("purpose", "eval_publisher | eval_scheduler"), ("secret_id", "")], ["secret"]),
+]
+runtime = [
+    ("rt", "Runtime and pipeline", "runtimes, deployment_pipelines, _environments, _paths",
+     "Where environments run agents, and the order agents are promoted in. Every org has a default pipeline.",
+     [("kind", "kubernetes | docker"), ("position", "stage order"), ("source -> target", "promotion path")],
+     ["secret"]),
+    ("workload", "Agent workload", "agent_workloads, git_credentials",
+     "What a hosted agent or MCP server runs and how it is built.",
+     [("workload_type", "agent | mcp_server"), ("source_type", "repository | image | agent_kind"),
+      ("repo_url, build_type", "")], ["secret"]),
+    ("build", "Build", "builds",
+     "One build of a hosted agent into an image, claimed by the build dispatcher.",
+     [("status", "pending ... succeeded"), ("image_ref", ""), ("commit_id", "")], ["queue"]),
+    ("kind", "Agent kind", "agent_kinds, agent_kind_versions, agent_kind_labels",
+     "A published, reusable agent image others can deploy.",
+     [("name", "unique per org"), ("version", "unique per kind"), ("image_ref", "")], []),
+    ("release", "Release and deployment", "agent_releases, agent_deployments",
+     "An immutable image + config snapshot, and which release runs in each environment.",
+     [("desired_state", "active | suspended | undeployed"), ("status", ""), ("promoted_from_environment_id", "")],
+     ["env", "queue"]),
+    ("rconf", "Runtime config", "agent_runtime_configs, agent_env_vars, agent_file_mounts",
+     "Resources, scaling, sandbox tier, instrumentation, env vars and files per environment.",
+     [("isolation_tier", "sandbox"), ("replicas", ""), ("secret_id", "sensitive values")], ["env", "secret"]),
+    ("memory", "Agent memory store", "agent_memory_stores",
+     "Memory a hosted agent keeps, and where. The memory itself lives in the backend.",
+     [("memory_type", "short_term | long_term"), ("backend", ""), ("retention_days", "")], ["env", "secret"]),
+]
+for rows, area in ((evaluation, "eval"), (runtime, "runtime")):
+    x = 60
+    for key, t, tb, p, f, ch in rows:
+        card(key, area, x, 0, RW, t, tb, p, f, chips=ch)
+        x += RSP
 DW = 360
 dx = 60
-deferred = [
-    ("d_eval", "Evaluation", "monitors, runs, scores, evaluators, alerts, eval credentials",
-     "Deferred. Credentials would move to secrets and gain an environment."),
-    ("d_host", "Hosted-agent runtime", "builds, deployments, env vars, resources, git credentials, agent kinds",
-     "Lite only connects external agents. Added if hosted agents come to Lite."),
-    ("d_pmcp", "Project MCP proxies", "",
-     "Exposing a hosted agent's own MCP endpoint. Deferred."),
-    ("d_envs", "More environments", "environment rows, deployment pipeline, per-env Thunder",
-     "Full product only. Per-environment tables already carry environment_id."),
-]
-for key, t, tb, p in deferred:
-    card(key, "deferred", dx, 0, DW, t, tb, p, deferred=True)
-    dx += DW + 24
 outside = [
     ("o_thunder", "Thunder", "own database",
      "Issues agent identities. Ours stores only the IDs it returns. One Thunder per install, set in config."),
@@ -385,8 +429,9 @@ outside = [
      "Agent traces, runtime and build logs, and metrics live outside this database."),
     ("o_users", "Users and roles", "config file",
      "Console sign-in and role mapping come from a file. Tables refer to users by username."),
+    ("o_mem", "Memory contents", "memory backend",
+     "Agent memory records live in the configured backend; this database holds only the store's settings."),
 ]
-dx += 30
 for key, t, tb, p in outside:
     card(key, "deferred", dx, 0, DW, t, tb, p, deferred=True)
     dx += DW + 24
@@ -429,13 +474,16 @@ bottom = max(i_b[3], MID_BOTTOM)
 area_boxes["internal"] = [R_X0, i_b[1], R_X1, bottom]
 area_boxes["agents"][3] = area_boxes["gateway"][3] = bottom
 MID_BOTTOM = bottom
-DY = bottom + 22 + 58
-dh = max(c.h for c in cards.values() if c.area == "deferred")
-for c in cards.values():
-    if c.area == "deferred":
-        c.y = DY
-        c.h = dh
-area_boxes["deferred"] = [LEFT_X0, DY - 58, R_X1, DY + dh + 30]
+y_top = bottom + 22
+for area in ("eval", "runtime", "deferred"):
+    row_y = y_top + 58
+    rh = max(c.h for c in cards.values() if c.area == area)
+    for c in cards.values():
+        if c.area == area:
+            c.y = row_y
+            c.h = rh
+    area_boxes[area] = [LEFT_X0, y_top, R_X1, row_y + rh + 30]
+    y_top = area_boxes[area][3] + 22
 H = int(area_boxes["deferred"][3] + 30)
 
 # ---------------------------------------------------------------- Arrows
@@ -579,9 +627,9 @@ def render_svg(viewbox=None, width=None):
     vb = viewbox or (0, 0, W, H)
     out = [f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{vb[0]} {vb[1]} {vb[2]} {vb[3]}" '
            f'width="{width or "100%"}" role="img" aria-labelledby="dtitle ddesc">']
-    out.append('<title id="dtitle">AMP Lite data model</title>')
+    out.append('<title id="dtitle">Agent Manager data model</title>')
     out.append('<desc id="ddesc">Main tables of AMP Lite grouped into tenancy, agents, AI gateway, secrets, '
-               'events, audit, and internals, with labelled relationships.</desc>')
+               'events, audit, internals, evaluation and agent runtime, with labelled relationships.</desc>')
     out.append("""<defs>
 <filter id="shadow" x="-5%" y="-5%" width="110%" height="115%"><feDropShadow dx="0" dy="1" stdDeviation="1.4" flood-color="#0f172a" flood-opacity="0.10"/></filter>
 <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#334155"/></marker>
@@ -590,9 +638,9 @@ def render_svg(viewbox=None, width=None):
 <marker id="arrowc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#0891b2"/></marker>
 </defs>""")
     out.append(f'<rect x="0" y="0" width="{W}" height="{H}" fill="#ffffff"/>')
-    out.append('<text x="30" y="52" class="title">AMP Lite data model</text>')
-    out.append('<text x="32" y="80" class="subtitle">WSO2 Agent Manager without OpenChoreo. One database holds '
-               'everything the control plane manages; environments exist but stay hidden.</text>')
+    out.append('<text x="30" y="52" class="title">Agent Manager data model</text>')
+    out.append('<text x="32" y="80" class="subtitle">One schema for all three tiers (AI Gateway, Agent Manager, Agent Runtime), created on first '
+               'start. Tables a tier does not use stay empty; environments stay hidden below Agent Runtime.</text>')
     # legend
     lx, ly0 = 1560, 14
     out.append(f'<rect x="{lx}" y="{ly0}" width="1290" height="104" rx="8" fill="#f8fafc" stroke="#cbd5e1"/>')
@@ -623,7 +671,7 @@ def render_svg(viewbox=None, width=None):
         out.append(f'<text x="{chip_x + 118}" y="{yy + 13}" class="legtext">{esc(desc)}</text>')
     yy = ly0 + 10 + 3 * 22 + 1
     out.append(f'<rect x="{chip_x}" y="{yy}" width="100" height="16" rx="4" fill="#ffffff" stroke="#94a3b8" stroke-dasharray="5 4"/>')
-    out.append(f'<text x="{chip_x + 118}" y="{yy + 12}" class="legtext">dashed card: hidden, deferred, or outside this database</text>')
+    out.append(f'<text x="{chip_x + 118}" y="{yy + 12}" class="legtext">dashed card: hidden, or outside this database</text>')
     # areas
     for key, box in area_boxes.items():
         a = AREAS[key]
@@ -635,8 +683,8 @@ def render_svg(viewbox=None, width=None):
     tb = area_boxes["tenancy"]
     tnotes = ["Every table carries org_id, and children point at parents through (org_id, parent id),",
               "so no row can reach another org's data.",
-              "First start seeds the default org, its default environment, a default project, and the",
-              "bundled gateway with its token."]
+              "First start seeds the default org, its default environment and deployment pipeline,",
+              "a default project, and the bundled gateway with its token."]
     for i, ln in enumerate(tnotes):
         out.append(f'<text x="{tb[0] + 290}" y="{tb[3] - 84 + i * 18 + (8 if i >= 2 else 0)}" class="anote">{esc(ln)}</text>')
     ab = area_boxes["audit"]
@@ -692,7 +740,7 @@ svg .ctable { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monosp
 """
 
 
-def page(svg, title="AMP Lite data model"):
+def page(svg, title="Agent Manager data model"):
     return f"""<!doctype html>
 <html lang="en">
 <head>

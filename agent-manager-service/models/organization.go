@@ -68,6 +68,33 @@ func (Environment) TableName() string { return "environments" }
 // DefaultEnvironmentName is the name of every organization's only environment.
 const DefaultEnvironmentName = "default"
 
+// DeploymentPipeline orders an organization's environments for promotion. Every organization gets one named
+// DefaultPipelineName holding its default environment; only the Agent Runtime tier reads it.
+type DeploymentPipeline struct {
+	ID          uuid.UUID `gorm:"column:id;primaryKey"`
+	OrgID       uuid.UUID `gorm:"column:org_id"`
+	Name        string    `gorm:"column:name"`
+	DisplayName string    `gorm:"column:display_name"`
+	CreatedAt   time.Time `gorm:"column:created_at"`
+	UpdatedAt   time.Time `gorm:"column:updated_at"`
+}
+
+func (DeploymentPipeline) TableName() string { return "deployment_pipelines" }
+
+// DeploymentPipelineEnvironment places an environment in a pipeline; position 0 is the first stage.
+type DeploymentPipelineEnvironment struct {
+	PipelineID    uuid.UUID `gorm:"column:pipeline_id;primaryKey"`
+	EnvironmentID uuid.UUID `gorm:"column:environment_id;primaryKey"`
+	OrgID         uuid.UUID `gorm:"column:org_id"`
+	Position      int       `gorm:"column:position"`
+	CreatedAt     time.Time `gorm:"column:created_at"`
+}
+
+func (DeploymentPipelineEnvironment) TableName() string { return "deployment_pipeline_environments" }
+
+// DefaultPipelineName is the name of the pipeline every organization starts with.
+const DefaultPipelineName = "default"
+
 // Agent is an agent registered in a project. Only external agents exist
 // without a hosted runtime.
 type Agent struct {

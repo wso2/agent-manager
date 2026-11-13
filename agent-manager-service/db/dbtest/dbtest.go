@@ -33,8 +33,8 @@ import (
 
 func now() time.Time { return time.Now().UTC().Truncate(time.Microsecond) }
 
-// Org creates an organization with its default environment and returns the organization's id, which is also its
-// Thunder OU id.
+// Org creates an organization with its default environment and pipeline, as the service does, and returns the
+// organization's id, which is also its Thunder OU id.
 func Org(t *testing.T, db *gorm.DB) string {
 	t.Helper()
 	id := uuid.Must(uuid.NewV7())
@@ -43,9 +43,16 @@ func Org(t *testing.T, db *gorm.DB) string {
 	require.NoError(t, db.Create(&models.Organization{
 		ID: id, Handle: "org-" + ou[len(ou)-12:], DisplayName: "Test org", ThunderOUID: &ou, CreatedAt: ts, UpdatedAt: ts,
 	}).Error)
+	envID, pipelineID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
 	require.NoError(t, db.Create(&models.Environment{
-		ID: uuid.Must(uuid.NewV7()), OrgID: id, Name: models.DefaultEnvironmentName, DisplayName: "Default",
+		ID: envID, OrgID: id, Name: models.DefaultEnvironmentName, DisplayName: "Default",
 		CreatedAt: ts, UpdatedAt: ts,
+	}).Error)
+	require.NoError(t, db.Create(&models.DeploymentPipeline{
+		ID: pipelineID, OrgID: id, Name: models.DefaultPipelineName, DisplayName: "Default", CreatedAt: ts, UpdatedAt: ts,
+	}).Error)
+	require.NoError(t, db.Create(&models.DeploymentPipelineEnvironment{
+		PipelineID: pipelineID, EnvironmentID: envID, OrgID: id, CreatedAt: ts,
 	}).Error)
 	return ou
 }

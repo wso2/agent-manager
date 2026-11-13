@@ -35,7 +35,8 @@ import (
 // lookups below translate project, agent and environment names, so repositories keep the interfaces the services
 // call while storing only ids.
 
-// ensureOrg returns the organization for an OU, creating it and its default environment on first use.
+// ensureOrg returns the organization for an OU, creating it, its default environment and its default deployment
+// pipeline (which holds that environment) on first use.
 func ensureOrg(ctx context.Context, db *gorm.DB, ouID string) (*models.Organization, error) {
 	if ouID == "" {
 		return nil, utils.ErrOrganizationNotFound
@@ -67,11 +68,20 @@ func ensureOrg(ctx context.Context, db *gorm.DB, ouID string) (*models.Organizat
 		ID: newID(), OrgID: org.ID, Name: models.DefaultEnvironmentName, DisplayName: "Default",
 		CreatedAt: now, UpdatedAt: now,
 	}
+	pipeline := models.DeploymentPipeline{
+		ID: newID(), OrgID: org.ID, Name: models.DefaultPipelineName, DisplayName: "Default",
+		CreatedAt: now, UpdatedAt: now,
+	}
+	stage := models.DeploymentPipelineEnvironment{
+		PipelineID: pipeline.ID, EnvironmentID: env.ID, OrgID: org.ID, Position: 0, CreatedAt: now,
+	}
 	txErr := db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Create(&org).Error; err != nil {
-			return err
+		for _, row := range []any{&org, &env, &pipeline, &stage} {
+			if err := tx.Create(row).Error; err != nil {
+				return err
+			}
 		}
-		return tx.Create(&env).Error
+		return nil
 	})
 	if txErr != nil {
 		// A concurrent request may have created it first.
