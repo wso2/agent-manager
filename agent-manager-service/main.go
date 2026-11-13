@@ -34,10 +34,11 @@ func main() {
 	waitForMigrationsFlag := flag.Bool("wait-for-migrations", false, "wait until the database migrations are applied")
 	initThunderDir := flag.String("init-thunder", "", "write ThunderID's configuration into this directory and exit")
 	initGatewayDir := flag.String("init-gateway", "", "write the AI Gateway's configuration into this directory and exit")
+	initFileAuthDir := flag.String("init-fileauth", "", "write the file-based sign-in user file into this directory and exit")
 	flag.Parse()
 
-	if *initThunderDir != "" || *initGatewayDir != "" {
-		if err := ampinit.Run(*initThunderDir, *initGatewayDir); err != nil {
+	if *initThunderDir != "" || *initGatewayDir != "" || *initFileAuthDir != "" {
+		if err := ampinit.Run(*initThunderDir, *initGatewayDir, *initFileAuthDir); err != nil {
 			slog.Error("writing component configuration failed", "error", err)
 			os.Exit(1)
 		}
