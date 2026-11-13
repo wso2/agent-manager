@@ -6,5 +6,6 @@ reviews:
     # Enable reviews for PRs targeting these base branches
     base_branches:
       - main
+      - amp-2.x
       - oc-0.7-migration
       - "feature/*"
