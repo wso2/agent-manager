@@ -23,7 +23,6 @@ import (
 	"time"
 
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
-	"github.com/wso2/agent-manager/agent-manager-service/workloadpolicy"
 
 	"github.com/google/uuid"
 
@@ -95,9 +94,6 @@ func NewMonitorExecutor(
 
 // ExecuteMonitorRun creates a WorkflowRun and a MonitorRun DB record
 func (e *monitorExecutor) ExecuteMonitorRun(ctx context.Context, params ExecuteMonitorRunParams) (*ExecuteMonitorRunResult, error) {
-	if err := workloadpolicy.Check(ctx, params.OUID); err != nil {
-		return nil, err
-	}
 	if len(params.Evaluators) == 0 {
 		return nil, fmt.Errorf("evaluators must not be empty for monitor %s", params.Monitor.Name)
 	}

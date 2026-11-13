@@ -25,7 +25,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/wiring"
-	"github.com/wso2/agent-manager/agent-manager-service/workloadpolicy"
 
 	"github.com/wso2/agent-manager/agent-manager-service/mcp"
 )
@@ -74,16 +73,12 @@ func registerAPIRoutes(rr *middleware.RouteRegistrar, params *wiring.AppParams) 
 // extraAPIRoutes, if non-nil, is called to register additional routes onto the
 // authenticated /api/v1 sub-mux before middleware is applied.
 func MakeHTTPHandler(params *wiring.AppParams, extraAPIRoutes func(*http.ServeMux, *wiring.AppParams)) http.Handler {
-	return MakeHTTPHandlerWithPolicy(params, extraAPIRoutes, nil, nil)
+	return MakeHTTPHandlerWithMiddleware(params, extraAPIRoutes, nil)
 }
 
-// MakeHTTPHandlerWithPolicy adds deployment-specific admission after authentication.
-func MakeHTTPHandlerWithPolicy(params *wiring.AppParams, extraAPIRoutes func(*http.ServeMux, *wiring.AppParams), apiMiddleware func(*http.ServeMux) http.Handler, guard workloadpolicy.Guard) http.Handler {
-	withPolicy := func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			next.ServeHTTP(w, r.WithContext(workloadpolicy.WithGuard(r.Context(), guard)))
-		})
-	}
+// MakeHTTPHandlerWithMiddleware is MakeHTTPHandler with apiMiddleware, if non-nil,
+// wrapping the authenticated API mux before dispatch.
+func MakeHTTPHandlerWithMiddleware(params *wiring.AppParams, extraAPIRoutes func(*http.ServeMux, *wiring.AppParams), apiMiddleware func(*http.ServeMux) http.Handler) http.Handler {
 	mux := http.NewServeMux()
 
 	// Register health check
@@ -107,7 +102,7 @@ func MakeHTTPHandlerWithPolicy(params *wiring.AppParams, extraAPIRoutes func(*ht
 	// a handler emits.
 	mcpMiddleware := func(next http.Handler) http.Handler {
 		return params.AuthMiddleware(
-			withPolicy(middleware.WithAuditRecorder(params.AuditRecorder, audit.SurfaceMCP)(next)),
+			middleware.WithAuditRecorder(params.AuditRecorder, audit.SurfaceMCP)(next),
 		)
 	}
 	mcp.RegisterRoute(mux, mcp.Dependencies{
@@ -141,7 +136,7 @@ func MakeHTTPHandlerWithPolicy(params *wiring.AppParams, extraAPIRoutes func(*ht
 	if apiMiddleware != nil {
 		apiHandler = apiMiddleware(apiMux)
 	}
-	apiHandler = params.AuthMiddleware(withPolicy(apiHandler))
+	apiHandler = params.AuthMiddleware(apiHandler)
 	apiHandler = logger.RequestLogger()(apiHandler)
 	apiHandler = middleware.AddCorrelationID()(apiHandler)
 	apiHandler = middleware.CORS(config.GetConfig().CORSAllowedOrigin)(apiHandler)
