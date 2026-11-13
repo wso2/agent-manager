@@ -2,19 +2,26 @@
 # Shared credentials for the bundled single-cluster installers. The source
 # Secret is created before OpenBao and Thunder start and survives Helm retries.
 
+# A missing Secret or empty key returns 2. API and decoding failures return 1.
+platform_oauth_secret_data() {
+    local namespace="$1" name="$2" key="$3" encoded
+    shift 3
+    encoded="$(kubectl "$@" get secret "$name" -n "$namespace" --ignore-not-found -o "jsonpath={.data.$key}")" || return 1
+    if [[ -z "$encoded" ]]; then
+        printf 'Missing %s in %s/%s\n' "$key" "$namespace" "$name" >&2
+        return 2
+    fi
+    printf '%s' "$encoded"
+}
+
 platform_oauth_read() {
-    local key="$1" namespace="${THUNDER_NS:-amp-thunder}"
-    local encoded
+    local key="$1" namespace="${THUNDER_NS:-amp-thunder}" encoded
     local -a context=()
     if [[ -n "${2:-}" ]]; then
         context=(--context "$2")
     fi
-    encoded="$(kubectl ${context[@]+"${context[@]}"} get secret amp-platform-oauth -n "$namespace" -o "jsonpath={.data.$key}")" || return 1
-    if [ -z "$encoded" ]; then
-        printf 'Missing %s in %s/amp-platform-oauth\n' "$key" "$namespace" >&2
-        return 1
-    fi
-    printf '%s' "$encoded" | openssl base64 -d -A
+    encoded="$(platform_oauth_secret_data "$namespace" amp-platform-oauth "$key" ${context[@]+"${context[@]}"})" || return $?
+    printf '%s' "$encoded" | openssl base64 -d -A || return 1
 }
 
 platform_oauth_init() (
@@ -53,7 +60,12 @@ platform_oauth_copy() (
     shift 2
     kubectl create namespace "$namespace" --dry-run=client -o yaml | kubectl apply -f - >/dev/null || exit 1
     existing="$(kubectl get secret "$name" -n "$namespace" --ignore-not-found -o name)" || exit 1
-    [[ -z "$existing" ]] || exit 0
+    if [[ -n "$existing" ]]; then
+        for pair in "$@"; do
+            platform_oauth_secret_data "$namespace" "$name" "${pair%%=*}" >/dev/null || exit 1
+        done
+        exit 0
+    fi
     umask 077
     directory="$(mktemp -d)" || exit 1
     trap 'rm -rf "$directory"' EXIT
@@ -65,7 +77,9 @@ platform_oauth_copy() (
         sources+=("--from-file=$key=$directory/$key")
     done
     if ! kubectl create secret generic "$name" -n "$namespace" "${sources[@]}" >/dev/null; then
-        kubectl get secret "$name" -n "$namespace" >/dev/null || exit 1
+        for pair in "$@"; do
+            platform_oauth_secret_data "$namespace" "$name" "${pair%%=*}" >/dev/null || exit 1
+        done
     fi
 )
 

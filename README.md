@@ -57,8 +57,13 @@ configured secret store.
 
 For existing installations that used the old defaults, rotate the six
 credentials in Thunder and update the corresponding Kubernetes Secrets and
-OpenBao entries before upgrading consumers. Thunder's setup Job runs on first
-install, so a Helm upgrade alone does not rotate a registered credential.
+OpenBao entries before upgrading consumers. If you use the bundled OpenBao
+release, upgrade it with the updated `deployments/single-cluster/values-openbao.yaml`
+after populating its namespace-local Secret. The updated post-start hook uses
+that Secret on restart. Clear previously supplied inline `clientSecret` and
+`idpClientSecret` values when switching a chart to the rotated Kubernetes Secret.
+Thunder's setup Job runs on first install, so rotate existing applications
+through Thunder before rolling out these changes.
 
 ## Getting Started
 
