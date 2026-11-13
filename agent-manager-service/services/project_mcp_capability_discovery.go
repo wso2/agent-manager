@@ -32,13 +32,10 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
+	"github.com/wso2/agent-manager/agent-manager-service/utils/ssrf"
 )
 
-// A project MCP proxy binding whose caller sent no capabilities has them discovered by AMS: once the binding is
-// deployed (the MCP kind's AfterLive queues it), the reconciler lists the MCP server's tools, prompts and resources
-// through the binding's public gateway URL and stores them on the binding. AMS cannot reach the MCP server itself:
-// its upstream is an in-cluster address of the data plane. A binding secured with an API key is probed with a
-// short-lived console-managed key, issued for the attempt and revoked after it.
+// A project MCP proxy binding whose caller sent no capabilities has them discovered by AMS
 
 const (
 	mcpDiscoveryTickInterval = 10 * time.Second
@@ -79,9 +76,11 @@ type projectMCPCapabilityDiscoveryService struct {
 	discoveries repositories.MCPCapabilityDiscoveryRepository
 	bindings    *ProjectMCPProxyService
 	probe       MCPCapabilityProber
-	logger      *slog.Logger
-	stopCh      chan struct{}
-	stopOnce    sync.Once
+	// probeUpstream probes an MCP server at its own URL, which its owner gave, so it is SSRF-guarded.
+	probeUpstream MCPCapabilityProber
+	logger        *slog.Logger
+	stopCh        chan struct{}
+	stopOnce      sync.Once
 
 	attemptTimeout time.Duration
 	batchBudget    time.Duration
@@ -94,7 +93,18 @@ func NewProjectMCPCapabilityDiscoveryService(
 	discoveries repositories.MCPCapabilityDiscoveryRepository, bindings *ProjectMCPProxyService, logger *slog.Logger,
 ) ProjectMCPCapabilityDiscoveryService {
 	client := newMCPDiscoveryClient(config.GetConfig().A2ACardFetchDialAddr)
-	return newProjectMCPCapabilityDiscoveryService(discoveries, bindings, newMCPDiscoveryProber(client, logger), logger)
+	s := newProjectMCPCapabilityDiscoveryService(discoveries, bindings, newMCPDiscoveryProber(client, logger), logger)
+	s.probeUpstream = newMCPDiscoveryProber(newMCPUpstreamDiscoveryClient(), logger)
+	return s
+}
+
+// newMCPUpstreamDiscoveryClient is the client that probes an MCP server at its upstream URL.
+func newMCPUpstreamDiscoveryClient() *http.Client {
+	client := ssrf.NewClient(mcpRequestTimeout)
+	client.CheckRedirect = func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+	return client
 }
 
 // newMCPDiscoveryClient is the probe's HTTP client. It is not the SSRF-guarded one: the URL is built by AMS from a
@@ -127,11 +137,12 @@ func newProjectMCPCapabilityDiscoveryService(
 	probe MCPCapabilityProber, logger *slog.Logger,
 ) *projectMCPCapabilityDiscoveryService {
 	return &projectMCPCapabilityDiscoveryService{
-		discoveries: discoveries,
-		bindings:    bindings,
-		probe:       probe,
-		logger:      logger,
-		stopCh:      make(chan struct{}),
+		discoveries:   discoveries,
+		bindings:      bindings,
+		probe:         probe,
+		probeUpstream: probe,
+		logger:        logger,
+		stopCh:        make(chan struct{}),
 
 		attemptTimeout: mcpDiscoveryAttemptTimeout,
 		batchBudget:    mcpDiscoveryBatchBudget,
@@ -227,6 +238,14 @@ func (s *projectMCPCapabilityDiscoveryService) attempt(
 	if err != nil {
 		return nil, err
 	}
+	if target.upstream {
+		info, err := s.probeUpstream(ctx, target.publicURL, target.headerName, target.headerValue)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list the MCP server's capabilities at its upstream %s: %w",
+				target.publicURL, redactSecret(err, target.headerValue))
+		}
+		return normalizeDiscoveredCapabilities(info)
+	}
 	headerName, headerValue := "", ""
 	if target.security.RequiresAPIKey() {
 		name, in := target.security.APIKeyNameAndLocation(mcpDiscoveryDefaultAPIKeyHeader)
@@ -250,6 +269,12 @@ func (s *projectMCPCapabilityDiscoveryService) attempt(
 		return nil, fmt.Errorf("failed to list the MCP server's capabilities at %s: %w",
 			target.publicURL, redactSecret(err, headerValue))
 	}
+	return normalizeDiscoveredCapabilities(info)
+}
+
+// normalizeDiscoveredCapabilities is a probe's answer as a binding stores it; capabilities it cannot store are a
+// permanent failure.
+func normalizeDiscoveredCapabilities(info *models.MCPServerInfoFetchResponse) (*models.MCPProxyCapabilities, error) {
 	capabilities, err := normalizeBindingCapabilities(&models.MCPProxyCapabilities{
 		Tools: info.Tools, Prompts: info.Prompts, Resources: info.Resources,
 	})
@@ -399,6 +424,11 @@ type mcpDiscoveryTarget struct {
 	artifact  string
 	publicURL string
 	security  *models.SecurityConfig
+	// upstream marks a target probed at the MCP server's own URL instead of through the gateway (publicURL is then
+	// the upstream URL), with the binding's upstream credential in headerName/headerValue when it has one.
+	upstream    bool
+	headerName  string
+	headerValue string
 }
 
 // bindingByArtifact finds the project proxy binding whose gateway artifact is artifactUUID. errMCPDiscoveryNotNeeded
@@ -457,16 +487,37 @@ func (s *ProjectMCPProxyService) discoveryTarget(ctx context.Context, ouID strin
 		}
 		return nil, fmt.Errorf("the binding is not deployed (%s)", status)
 	}
+	security := endpoint.Configuration.Security
+	if security != nil && (security.Enabled == nil || *security.Enabled) && !security.RequiresAPIKey() {
+		return s.upstreamDiscoveryTarget(proxy, endpoint, ee)
+	}
 	if resp.PublicURL == "" {
 		return nil, fmt.Errorf("the binding's gateway has no public URL")
 	}
-	security := endpoint.Configuration.Security
-	if security != nil && (security.Enabled == nil || *security.Enabled) && !security.RequiresAPIKey() {
+	return &mcpDiscoveryTarget{artifact: ee.ArtifactUUID.String(), publicURL: resp.PublicURL, security: security}, nil
+}
+
+// upstreamDiscoveryTarget is the target of a binding whose gateway takes only a scheme AMS cannot get a credential
+// for (Agent Identity)
+func (s *ProjectMCPProxyService) upstreamDiscoveryTarget(
+	proxy *models.MCPProxy, endpoint *models.MCPProxyEndpoint, ee *models.MCPProxyEndpointEnvironment,
+) (*mcpDiscoveryTarget, error) {
+	upstream := endpoint.Configuration.Upstream
+	if proxy.Configuration.Source != nil || upstream == nil || strings.TrimSpace(upstream.URL) == "" {
 		return nil, &mcpDiscoveryPermanentError{
-			reason: "the binding is secured with a scheme AMS cannot authenticate to; send capabilities with the binding",
+			reason: "the binding is secured with a scheme AMS cannot authenticate to, and its MCP server is " +
+				"reachable only through the gateway; send capabilities with the binding",
 		}
 	}
-	return &mcpDiscoveryTarget{artifact: ee.ArtifactUUID.String(), publicURL: resp.PublicURL, security: security}, nil
+	target := &mcpDiscoveryTarget{artifact: ee.ArtifactUUID.String(), publicURL: strings.TrimSpace(upstream.URL), upstream: true}
+	if auth := upstream.Auth; auth != nil && strings.EqualFold(valueOrEmpty(auth.Type), "api-key") {
+		value, err := s.storedUpstreamValue(auth)
+		if err != nil {
+			return nil, &mcpDiscoveryPermanentError{reason: "the binding's upstream credential cannot be read"}
+		}
+		target.headerName, target.headerValue = strings.TrimSpace(valueOrEmpty(auth.Header)), value
+	}
+	return target, nil
 }
 
 // issueDiscoveryKey issues the console-managed key a discovery attempt probes with, sent to the organization's
