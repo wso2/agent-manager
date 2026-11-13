@@ -19,7 +19,6 @@ export DB_PORT="${DB_PORT:-5432}"
 export DB_USER="${DB_USER:-unit}"
 export DB_PASSWORD="${DB_PASSWORD:-unit}"
 export DB_NAME="${DB_NAME:-unit}"
-export OPEN_CHOREO_BASE_URL="${OPEN_CHOREO_BASE_URL:-http://localhost/api/v1}"
 export ENCRYPTION_KEY="${ENCRYPTION_KEY:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}"
 export SERVER_PORT="${SERVER_PORT:-8080}"
 

@@ -29,7 +29,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
-	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
 	"github.com/wso2/agent-manager/agent-manager-service/events"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
@@ -68,17 +67,17 @@ func newTestSubscriptionService() (EventSubscriptionService, *memEventStore, *re
 // existingTargets is an OpenChoreo where every project and agent exists
 // except those named "missing", with development and production
 // environments.
-func existingTargets() *clientmocks.OpenChoreoClientMock {
-	return &clientmocks.OpenChoreoClientMock{
+func existingTargets() *repomocks.PlatformRepositoryMock {
+	return &repomocks.PlatformRepositoryMock{
 		GetProjectFunc: func(_ context.Context, _, project string) (*models.ProjectResponse, error) {
 			if project == "missing" {
-				return nil, utils.ErrNotFound
+				return nil, utils.ErrProjectNotFound
 			}
 			return &models.ProjectResponse{Name: project}, nil
 		},
-		GetComponentFunc: func(_ context.Context, _, project, agent string) (*models.AgentResponse, error) {
+		GetAgentFunc: func(_ context.Context, _, project, agent string) (*models.AgentResponse, error) {
 			if project == "missing" || agent == "missing" {
-				return nil, utils.ErrNotFound
+				return nil, utils.ErrAgentNotFound
 			}
 			return &models.AgentResponse{Name: agent, ProjectName: project}, nil
 		},

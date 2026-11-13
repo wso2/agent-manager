@@ -252,13 +252,13 @@ type SecretManagementClient interface {
 	// CreateSecret creates or updates a secret at the location derived from SecretLocation.
 	// This REPLACES all secret data at the location.
 	// The secret name is derived from location using SecretRefName().
-	// Returns the openchoreo secretRefName
+	// Returns the provider's secretRefName
 	CreateSecret(ctx context.Context, location SecretLocation, data map[string]string) (string, error)
 
 	// PatchSecret merges data with an existing secret (server-side merge).
 	// Keys in data are added/updated, keys in keysToDelete are removed.
 	// The secret name is derived from location using SecretRefName().
-	// Returns the openchoreo secretRefName
+	// Returns the provider's secretRefName
 	PatchSecret(ctx context.Context, location SecretLocation, data map[string]string, keysToDelete []string) (string, error)
 
 	// DeleteSecret deletes a secret and its associated SecretReference.
@@ -287,7 +287,7 @@ type secretManagementClient struct {
 type SecretManagementClientConfig struct {
 	// StoreConfig is the secret store configuration.
 	StoreConfig *StoreConfig
-	// Provider is the secrets provider (e.g., the OpenChoreo secret API).
+	// Provider is the secrets provider (e.g., a secret store API).
 	Provider Provider
 }
 

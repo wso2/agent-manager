@@ -16,8 +16,6 @@
 
 package framework
 
-import "encoding/json"
-
 // NewCreateProjectRequest returns a project creation request bound to the given
 // deployment pipeline.
 func NewCreateProjectRequest(name, displayName, description, deploymentPipeline string) CreateProjectRequest {
@@ -26,59 +24,6 @@ func NewCreateProjectRequest(name, displayName, description, deploymentPipeline 
 		DisplayName:        displayName,
 		Description:        &description,
 		DeploymentPipeline: deploymentPipeline,
-	}
-}
-
-// NewITHelpdeskAgentRequest returns a request for creating the IT helpdesk agent
-// from /samples/it-helpdesk-agent. The agent is expected to run with USE_LLM_PROVIDER=true,
-// with LLM_PROVIDER_URL and LLM_PROVIDER_KEY injected via a model config rather than
-// passed directly as env vars.
-func NewITHelpdeskAgentRequest(name, description string, envVars map[string]string) CreateAgentRequest {
-	autoInstr := true
-	sensitiveKeys := map[string]bool{
-		"OPENAI_API_KEY": true,
-	}
-
-	var env []EnvironmentVariable
-	for key, val := range envVars {
-		env = append(env, EnvironmentVariable{
-			Key:         key,
-			Value:       val,
-			IsSensitive: sensitiveKeys[key],
-		})
-	}
-
-	return CreateAgentRequest{
-		Name:        name,
-		DisplayName: name,
-		Description: description,
-		Provisioning: Provisioning{
-			Type: "internal",
-			Repository: &Repository{
-				URL:     "https://github.com/wso2/agent-manager",
-				Branch:  "main",
-				AppPath: "/samples/it-helpdesk-agent",
-			},
-		},
-		AgentType: AgentType{
-			Type:    "agent-api",
-			SubType: "chat-api",
-		},
-		Build: &BuildConfig{
-			Type: "buildpack",
-			Buildpack: &BuildpackConfig{
-				Language:        "python",
-				LanguageVersion: "3.11",
-				RunCommand:      "python main.py",
-			},
-		},
-		Configurations: &Configurations{
-			Env:                       env,
-			EnableAutoInstrumentation: &autoInstr,
-		},
-		InputInterface: &InputInterface{
-			Type: "HTTP",
-		},
 	}
 }
 
@@ -96,81 +41,4 @@ func NewExternalAgentRequest(name, description string) CreateAgentRequest {
 			SubType: "custom-api",
 		},
 	}
-}
-
-// NewSecurityProbeAgentRequest returns the deterministic, non-LLM runtime
-// fixture used by security/runtime. Its OpenAPI surface accepts only named
-// probes; it is intentionally not a general-purpose command or URL executor.
-func NewSecurityProbeAgentRequest(cfg *Config, name string) CreateAgentRequest {
-	autoInstr := false
-	return CreateAgentRequest{
-		Name:        name,
-		DisplayName: name,
-		Description: "Disposable deterministic agent for sandbox and AgentID security tests",
-		Provisioning: Provisioning{
-			Type: "internal",
-			Repository: &Repository{
-				URL:     cfg.SecurityProbeRepository,
-				Branch:  cfg.SecurityProbeBranch,
-				AppPath: cfg.SecurityProbeAppPath,
-			},
-		},
-		AgentType: AgentType{Type: "agent-api", SubType: "custom-api"},
-		Build: &BuildConfig{
-			Type: "buildpack",
-			Buildpack: &BuildpackConfig{
-				Language:        "python",
-				LanguageVersion: "3.11",
-				RunCommand:      "python main.py",
-			},
-		},
-		Configurations: &Configurations{EnableAutoInstrumentation: &autoInstr},
-		InputInterface: &InputInterface{
-			Type:     "HTTP",
-			Port:     8000,
-			BasePath: "/",
-			Schema:   &InputInterfaceSchema{Path: "/openapi.yaml"},
-		},
-	}
-}
-
-// NewAgentFromKindRequest returns a request to create an agent from a published
-// catalog kind. The agent reuses the kind's pre-built image, so no build step
-// is required. Runtime configuration (e.g. OPENAI_API_KEY) must be supplied via
-// envVars; sensitive keys are automatically marked as such.
-func NewAgentFromKindRequest(name, kindName, kindVersion string, envVars map[string]string) CreateAgentRequest {
-	autoInstr := true
-	sensitiveKeys := map[string]bool{
-		"OPENAI_API_KEY": true,
-	}
-
-	var env []EnvironmentVariable
-	for key, val := range envVars {
-		env = append(env, EnvironmentVariable{
-			Key:         key,
-			Value:       val,
-			IsSensitive: sensitiveKeys[key],
-		})
-	}
-
-	return CreateAgentRequest{
-		Name:        name,
-		DisplayName: name,
-		Provisioning: Provisioning{
-			Type: "internal",
-			AgentKind: &AgentKindRef{
-				Name:    kindName,
-				Version: kindVersion,
-			},
-		},
-		Configurations: &Configurations{
-			Env:                       env,
-			EnableAutoInstrumentation: &autoInstr,
-		},
-	}
-}
-
-// DefaultInvokeRequest returns the standard chat invocation payload.
-func DefaultInvokeRequest() json.RawMessage {
-	return json.RawMessage(`{"session_id":"session-44","message":"Hello, what can you do?","context":{}}`)
 }

@@ -25,20 +25,23 @@ import (
 
 // Config holds all configuration for agent-manager-observer
 type Config struct {
-	Server   ServerConfig
-	Observer ObserverConfig
-	LogLevel string
-	Auth     AuthConfig
+	Server     ServerConfig
+	OpenSearch OpenSearchConfig
+	LogLevel   string
+	Auth       AuthConfig
 }
 
-// ObserverConfig holds configuration for the observer service HTTP client
-type ObserverConfig struct {
-	BaseURL      string
-	TokenURL     string
-	ClientID     string
-	ClientSecret string
-	// DefaultNamespace scopes all trace queries to a single namespace.
-	DefaultNamespace string
+// OpenSearchConfig holds the connection settings for the trace store.
+type OpenSearchConfig struct {
+	Address  string
+	Username string
+	Password string
+	// TraceIndex is the index pattern the OTel collector writes spans to.
+	TraceIndex string
+	// IndexTemplate is the index template the observer puts on startup so
+	// span fields map as keywords; empty skips it.
+	IndexTemplate      string
+	InsecureSkipVerify bool
 }
 
 // AuthConfig holds JWT authentication configuration
@@ -77,12 +80,13 @@ func Load() (*Config, error) {
 		Server: ServerConfig{
 			Port: getEnvAsInt("AM_OBSERVER_PORT", 9098),
 		},
-		Observer: ObserverConfig{
-			BaseURL:          getEnv("OPENCHOREO_OBSERVER_URL", ""),
-			TokenURL:         getEnv("IDP_TOKEN_URL", ""),
-			ClientID:         getEnv("IDP_CLIENT_ID", ""),
-			ClientSecret:     getEnv("IDP_CLIENT_SECRET", ""),
-			DefaultNamespace: getEnv("OBSERVER_DEFAULT_NAMESPACE", "default"),
+		OpenSearch: OpenSearchConfig{
+			Address:            getEnv("OPENSEARCH_ADDRESS", ""),
+			Username:           getEnv("OPENSEARCH_USERNAME", ""),
+			Password:           getEnv("OPENSEARCH_PASSWORD", ""),
+			TraceIndex:         getEnv("OPENSEARCH_TRACE_INDEX", "otel-traces-*"),
+			IndexTemplate:      getEnvAllowEmpty("OPENSEARCH_INDEX_TEMPLATE", "amp-otel-traces"),
+			InsecureSkipVerify: getEnvAsBool("OPENSEARCH_TLS_INSECURE_SKIP_VERIFY", false),
 		},
 		LogLevel: getEnv("LOG_LEVEL", "INFO"),
 		Auth: AuthConfig{
@@ -111,29 +115,18 @@ func (c *Config) validate() error {
 	if err := c.Auth.validate(); err != nil {
 		return err
 	}
-	if err := c.Observer.validate(); err != nil {
+	if err := c.OpenSearch.validate(); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (o *ObserverConfig) validate() error {
-	if strings.TrimSpace(o.BaseURL) == "" {
-		return fmt.Errorf("OPENCHOREO_OBSERVER_URL is required")
+func (o *OpenSearchConfig) validate() error {
+	if strings.TrimSpace(o.Address) == "" {
+		return fmt.Errorf("OPENSEARCH_ADDRESS is required")
 	}
-	return nil
-}
-
-// ValidateClientCredentials checks the IDP settings needed by observer.NewAuthProvider.
-func (o ObserverConfig) ValidateClientCredentials() error {
-	if strings.TrimSpace(o.TokenURL) == "" {
-		return fmt.Errorf("IDP_TOKEN_URL is required")
-	}
-	if strings.TrimSpace(o.ClientID) == "" {
-		return fmt.Errorf("IDP_CLIENT_ID is required")
-	}
-	if strings.TrimSpace(o.ClientSecret) == "" {
-		return fmt.Errorf("IDP_CLIENT_SECRET is required")
+	if strings.TrimSpace(o.TraceIndex) == "" {
+		return fmt.Errorf("OPENSEARCH_TRACE_INDEX must not be empty")
 	}
 	return nil
 }
@@ -157,6 +150,14 @@ func (a *AuthConfig) validate() error {
 // Helper functions
 func getEnv(key, defaultValue string) string {
 	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
+}
+
+// getEnvAllowEmpty is getEnv, except that a variable set to "" stays empty.
+func getEnvAllowEmpty(key, defaultValue string) string {
+	if value, ok := os.LookupEnv(key); ok {
 		return value
 	}
 	return defaultValue

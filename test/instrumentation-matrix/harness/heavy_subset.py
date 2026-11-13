@@ -1,26 +1,26 @@
 """Pick a representative subset of cells for the heavy tier.
 
-The heavy tier is expensive — every cell deploys a real agent against a k3d
-stack, hits the API, polls the observer. So we run a sample, not the full
-matrix.
+The heavy tier is expensive — every cell installs and runs a real agent as an
+external agent of a live Agent Manager stack, hits the API, polls the observer.
+So we run a sample, not the full matrix.
 
-**Heavy has a per-framework axis for frameworks that ship a deployable sample.**
+**Heavy has a per-framework axis for frameworks that ship a runnable sample.**
 `harness/deployable_samples.py` lists them (langchain -> customer-support-agent,
-crewai -> crewai-agent today). For each, the driver deploys the matching sample
-and asserts that framework's span kinds. Frameworks without a deployable sample
+crewai -> crewai-agent today). For each, the driver runs the matching sample
+and asserts that framework's span kinds. Frameworks without a runnable sample
 (`langgraph`, `llama-index`, `openai-direct`, `anthropic-direct`) stay
 emission-only — their per-framework span *shape* is the emission tier's job (it
 runs each `cells/<framework>_sample.py` in-process).
 
-Three axes change what gets deployed, so the subset crosses all three:
+Three axes change what gets run, so the subset crosses all three:
 
-1. **instrumentation/Traceloop version** — pins the init-container image.
-2. **python version** — the buildpack builds (and instrumentation runs) the
-   agent on that interpreter, so a py-version-specific break surfaces through
-   the deployed pipeline. Only sample-supported interpreters are selected.
+1. **instrumentation/Traceloop version** — pins the amp-instrumentation release.
+2. **python version** — the agent (and instrumentation) runs on that
+   interpreter, so a py-version-specific break surfaces through the live
+   pipeline. Only sample-supported interpreters are selected.
 3. **framework** — but only frameworks in DEPLOYABLE_SAMPLES.
 
-So the subset is one cell per (Traceloop version x python) for each deployable
+So the subset is one cell per (Traceloop version x python) for each runnable
 framework, pinned to that framework's representative version: the default-cell
 version for the default framework, the first declared version otherwise.
 """
@@ -50,7 +50,7 @@ def select_heavy_subset(cells: list[Cell], manifest: Manifest) -> list[Cell]:
     out: list[Cell] = []
     seen: set[str] = set()
     for c in cells:
-        # Heavy only covers the default (init-container-shipping) provider;
+        # Heavy only covers the default (amp-instrumentation) provider;
         # manual cells are emission-only.
         if c.provider_name != default.provider:
             continue

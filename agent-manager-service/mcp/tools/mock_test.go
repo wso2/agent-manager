@@ -96,37 +96,6 @@ func (m *MockToolsetHandler) CreateAgent(
 	return m.createAgentErr
 }
 
-// Build Toolset Handler
-
-func (m *MockToolsetHandler) ListAgentBuilds(
-	ctx context.Context, ouID string, projectName string, agentName string,
-	limit int32, offset int32,
-) ([]*models.BuildResponse, int32, error) {
-	m.recordCall("ListAgentBuilds", ouID, projectName, agentName, limit, offset)
-	return []*models.BuildResponse{
-		{Name: "test-build", Status: "BuildSucceeded"},
-	}, 1, nil
-}
-
-func (m *MockToolsetHandler) GetBuild(
-	ctx context.Context, ouID string, projectName string, agentName string, buildName string,
-) (*models.BuildDetailsResponse, error) {
-	m.recordCall("GetBuild", ouID, projectName, agentName, buildName)
-	return &models.BuildDetailsResponse{
-		BuildResponse: models.BuildResponse{
-			Name:   buildName,
-			Status: "BuildSucceeded",
-		},
-	}, nil
-}
-
-func (m *MockToolsetHandler) BuildAgent(
-	ctx context.Context, ouID string, projectName string, agentName string, commitId string,
-) (*models.BuildResponse, error) {
-	m.recordCall("BuildAgent", ouID, projectName, agentName, commitId)
-	return &models.BuildResponse{Name: "test-build", Status: "BuildInitiated"}, nil
-}
-
 // Deployment Toolset Handler
 
 func (m *MockToolsetHandler) GetAgentDeployments(
@@ -134,22 +103,6 @@ func (m *MockToolsetHandler) GetAgentDeployments(
 ) ([]*models.DeploymentResponse, error) {
 	m.recordCall("GetAgentDeployments", ouID, projectName, agentName)
 	return []*models.DeploymentResponse{}, nil
-}
-
-func (m *MockToolsetHandler) DeployAgent(
-	ctx context.Context, ouID string, projectName string, agentName string,
-	req *spec.DeployAgentRequest,
-) (string, error) {
-	m.recordCall("DeployAgent", ouID, projectName, agentName, req)
-	return testEnvName, nil
-}
-
-func (m *MockToolsetHandler) UpdateDeploymentState(
-	ctx context.Context, ouID string, projectName string, agentName string,
-	environment string, state string,
-) error {
-	m.recordCall("UpdateDeploymentState", ouID, projectName, agentName, environment, state)
-	return nil
 }
 
 // Environment Toolset Handler

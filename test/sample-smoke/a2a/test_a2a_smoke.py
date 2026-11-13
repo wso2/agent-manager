@@ -1,10 +1,8 @@
 """Prevent accepting protocol errors, failed tasks, wrong artifacts or stale calls."""
-import copy
 import unittest
-from unittest.mock import patch
 from a2a_smoke import check_task, check_evidence
-from a2a_platform_smoke import SAMPLE
-from platform_smoke import validate_source, project_deleted
+from a2a_platform_smoke import A2A
+from external_agent import trace_matches
 
 MARKER = 'smoke-' + 'a' * 32
 
@@ -23,23 +21,12 @@ class Guards(unittest.TestCase):
         for calls in ([], [{'marker': MARKER, 'skill': 'summary'}], [{'marker': 'stale', 'skill': s} for s in ('summary', 'actions')]):
             with self.assertRaises(AssertionError): check_evidence({'calls': calls}, MARKER)
 
-    def test_a2a_source_path_and_exact_commit_are_required(self):
-        sha = '1' * 40; repo = 'https://github.com/wso2/agent-manager'
-        build = {'buildParameters': {'repoUrl': repo, 'branch': 'feature', 'commitId': sha[:8], 'appPath': '/' + SAMPLE['path']}}
-        workflow = {'spec': {'workflow': {'parameters': {'repository': {'url': repo, 'revision': {'commit': sha}}}}}}
-        validate_source(build, workflow, sha, repo, 'feature', '/samples/a2a-agent')
-        for field, value in (('appPath', '/samples/other-agent'), ('commitId', '2' * 8)):
-            wrong = copy.deepcopy(build); wrong['buildParameters'][field] = value
-            with self.assertRaises(AssertionError): validate_source(wrong, workflow, sha, repo, 'feature', '/samples/a2a-agent')
+    def test_trace_must_contain_this_invocation_on_a_model_span(self):
+        self.assertFalse(trace_matches([], MARKER))
+        self.assertFalse(trace_matches([{'attributes': {'gen_ai.operation.name': 'chat', 'content': 'other request'}}], MARKER))
+        self.assertTrue(trace_matches([{'attributes': {'gen_ai.operation.name': 'chat', 'content': MARKER}}], MARKER))
 
-    def test_project_cleanup_requires_actual_removal_and_propagates_errors(self):
-        with patch('platform_smoke.kubectl') as kubectl:
-            kubectl.return_value = '{"items":[{"metadata":{"deletionTimestamp":"now"}}]}'
-            self.assertFalse(project_deleted('a2a-smoke-test'))
-            kubectl.return_value = '{"items":[]}'
-            self.assertTrue(project_deleted('a2a-smoke-test'))
-            self.assertIn('metadata.name=a2a-smoke-test', kubectl.call_args.args)
-            kubectl.side_effect = RuntimeError('cluster unavailable')
-            with self.assertRaises(RuntimeError): project_deleted('a2a-smoke-test')
+    def test_registered_names_fit_the_project_name_limit(self):
+        self.assertLessEqual(len(A2A.name_prefix) + 12, 25)
 
 if __name__ == '__main__': unittest.main()

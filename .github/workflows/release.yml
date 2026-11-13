@@ -23,7 +23,6 @@ run-name: Agent Manager Release ${{ inputs.target_version }}
 env:
   REGISTRY: ${{ vars.AMP_REGISTRY || 'ghcr.io' }}
   REGISTRY_ORG: ${{ vars.AMP_REGISTRY_ORG || 'wso2' }}
-  HELM_REGISTRY: ${{ vars.AMP_HELM_REGISTRY || 'oci://ghcr.io/wso2' }}
 
 # Default token scope is read-only; jobs that publish, push or deploy
 # request the extra scopes they need at job level.
@@ -143,60 +142,10 @@ jobs:
           TARGET_RELEASE: ${{ inputs.target_version }}
         shell: bash
 
-      - name: Update Helm chart versions
+      - name: Pin the standalone bundle to this release's images
         run: |
-          bash .github/scripts/update-helm-charts.sh \
-            "$TARGET_RELEASE"
-          # Images follow REGISTRY/REGISTRY_ORG, so the charts have to as well.
-          # Without this a build publishing elsewhere ships charts still
-          # defaulting to the public registry, and the install silently pulls
-          # someone else's image of that tag rather than the one just built.
-          if [ "${REGISTRY}/${REGISTRY_ORG}" != "ghcr.io/wso2" ]; then
-            bash .github/scripts/rewrite-image-registry.sh \
-              "ghcr.io/wso2" "${REGISTRY}/${REGISTRY_ORG}"
-          fi
-        env:
-          TARGET_RELEASE: ${{ inputs.target_version }}
-        shell: bash
-
-      - name: Update install-helpers.sh
-        run: |
-          bash .github/scripts/update-install-helpers.sh \
-            "$TARGET_RELEASE" \
-            "./deployments/quick-start/install-helpers.sh"
-        env:
-          TARGET_RELEASE: ${{ inputs.target_version }}
-        shell: bash
-
-      - name: Update start.sh
-        run: |
-          bash .github/scripts/update-install-helpers.sh \
-            "$TARGET_RELEASE" \
-            "./deployments/quick-start/start.sh"
-        env:
-          TARGET_RELEASE: ${{ inputs.target_version }}
-        shell: bash
-
-      - name: Update the k3d installers
-        run: |
-          bash .github/scripts/update-install-helpers.sh \
-            "$TARGET_RELEASE" \
-            "./deployments/quick-start/k3d-install.sh"
-          bash .github/scripts/update-install-helpers.sh \
-            "$TARGET_RELEASE" \
-            "./deployments/quick-start/k3d-install-subscription.sh"
-        env:
-          TARGET_RELEASE: ${{ inputs.target_version }}
-        shell: bash
-
-      - name: Update the isolation installers
-        run: |
-          bash .github/scripts/update-install-helpers.sh \
-            "$TARGET_RELEASE" \
-            "./deployments/setup/install-gvisor.sh"
-          bash .github/scripts/update-install-helpers.sh \
-            "$TARGET_RELEASE" \
-            "./deployments/setup/install-kata.sh"
+          bash .github/scripts/stamp-standalone-release.sh \
+            "$TARGET_RELEASE" "${REGISTRY}/${REGISTRY_ORG}"
         env:
           TARGET_RELEASE: ${{ inputs.target_version }}
         shell: bash
@@ -278,8 +227,6 @@ jobs:
       - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
     outputs:
       images: ${{ steps.set-matrix.outputs.images }}
-      instrumentation-images: ${{ steps.set-matrix.outputs.instrumentation-images }}
-      charts: ${{ steps.set-matrix.outputs.charts }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -291,39 +238,15 @@ jobs:
         run: |
           CONFIG_FILE=".github/release-config.json"
 
-          # Read base configuration
-          CHARTS_BASE_PATH=$(jq -r '.config["charts-base-path"]' "$CONFIG_FILE")
-
-          # Expand images configuration (add resolved paths)
-          IMAGES=$(jq -c --arg base "$CHARTS_BASE_PATH" '[.images[] | {
+          IMAGES=$(jq -c '[.images[] | {
             name: .name,
             "service-dir": .dir,
             dockerfile: (.dir + "/Dockerfile"),
             context: (.context // "")
           }]' "$CONFIG_FILE")
 
-          # Expand charts configuration (add resolved paths)
-          CHARTS=$(jq -c --arg base "$CHARTS_BASE_PATH" '[.charts[] | {
-            name: .,
-            path: ($base + "/" + .),
-            "chart-file": ($base + "/" + . + "/Chart.yaml")
-          }]' "$CONFIG_FILE")
-
-          # Expand python-instrumentation-provider into one entry per (AMP instrumentation version × Python version)
-          INSTRUMENTATION_IMAGES=$(jq -c '[.["python-instrumentation-provider"][]
-            | .instrumentation_version as $iv
-            | .traceloop_version as $tv
-            | .python_versions[]
-            | {instrumentation_version: $iv, traceloop_version: $tv, python_version: .}]' "$CONFIG_FILE")
-
           echo "images=$IMAGES" >> $GITHUB_OUTPUT
-          echo "instrumentation-images=$INSTRUMENTATION_IMAGES" >> $GITHUB_OUTPUT
-          echo "charts=$CHARTS" >> $GITHUB_OUTPUT
-
-          echo "✅ Loaded configuration:"
-          echo "  - Images: $(echo "$IMAGES" | jq '. | length')"
-          echo "  - Instrumentation images: $(echo "$INSTRUMENTATION_IMAGES" | jq '. | length')"
-          echo "  - Charts: $(echo "$CHARTS" | jq '. | length')"
+          echo "✅ Loaded configuration: $(echo "$IMAGES" | jq '. | length') images"
         shell: bash
 
   build-images:
@@ -365,195 +288,71 @@ jobs:
           tag: v${{ inputs.target_version }}
           context: ${{ matrix.image.context }}
 
-  build-python-instrumentation-provider-images:
-    name: Build Instrumentation Provider ${{ matrix.image.instrumentation_version }} (Python ${{ matrix.image.python_version }})
-    needs: load-config
-    runs-on:
-      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
-    permissions:
-      contents: read
-      packages: write
-    strategy:
-      fail-fast: true
-      matrix:
-        image: ${{ fromJson(needs.load-config.outputs.instrumentation-images) }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-        with:
-          ref: amp/v${{ inputs.target_version }}
-
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ secrets.REGISTRY_USERNAME || github.actor }}
-          password: ${{ secrets.REGISTRY_PASSWORD || secrets.GITHUB_TOKEN }}
-
-      - name: Build and push instrumentation image ${{ matrix.image.instrumentation_version }}-python${{ matrix.image.python_version }}
-        uses: ./.github/actions/build-single-platform-docker-image
-        with:
-          service-dir: python-instrumentation-provider
-          image-name: amp-python-instrumentation-provider
-          registry: ${{ env.REGISTRY }}
-          registry-org: ${{ env.REGISTRY_ORG }}
-          tag: ${{ matrix.image.instrumentation_version }}-python${{ matrix.image.python_version }}
-          platform: linux/amd64
-          build-args: |
-            PYTHON_VERSION=${{ matrix.image.python_version }}
-            TRACELOOP_VERSION=${{ matrix.image.traceloop_version }}
-
-  package-charts:
-    name: Package ${{ matrix.chart.name }}
-    needs:
-      [load-config, build-images, build-python-instrumentation-provider-images]
-    runs-on:
-      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
-    permissions:
-      contents: read
-      packages: write
-    strategy:
-      fail-fast: true
-      matrix:
-        chart: ${{ fromJson(needs.load-config.outputs.charts) }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-        with:
-          ref: amp/v${{ inputs.target_version }}
-
-      # A release cut from an older branch (amp-patch-*) can predate
-      # setup-cluster-clis. Tooling runs from the dispatched commit (no ref: = github.sha).
-      - name: Checkout release tooling
-        uses: actions/checkout@v6
-        with:
-          path: .release-tools
-
-      - name: Install Helm (deployments/setup/cluster-tools.env)
-        uses: ./.release-tools/.github/actions/setup-cluster-clis
-        with:
-          k3d: "false"
-          kubectl: "false"
-
-      - name: Cache Helm chart dependencies
-        id: helm-cache
-        if: hashFiles(format('{0}/Chart.lock', matrix.chart.path)) != ''
-        uses: actions/cache@v5
-        with:
-          path: ${{ matrix.chart.path }}/charts
-          key: helm-charts-${{ hashFiles(format('{0}/Chart.lock', matrix.chart.path)) }}
-
-      - name: Package and push ${{ matrix.chart.name }}
-        if: hashFiles(matrix.chart.chart-file) != ''
-        run: |
-          bash .github/scripts/package-helm-chart.sh \
-            "$CHART_PATH" \
-            "$TARGET_RELEASE" \
-            "$HELM_REGISTRY" \
-            "$HELM_TOKEN"
-        env:
-          CHART_PATH: ${{ matrix.chart.path }}
-          TARGET_RELEASE: ${{ inputs.target_version }}
-          HELM_REGISTRY: ${{ env.HELM_REGISTRY }}
-          HELM_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # package-helm-chart.sh prefers these over the positional token, so a
-          # custom HELM_REGISTRY authenticates with its own credentials instead of
-          # a GITHUB_TOKEN that means nothing to it.
-          REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
-          REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
-        shell: bash
-
   e2e:
     name: E2E
-    needs:
-      [
-        build-images,
-        build-python-instrumentation-provider-images,
-        package-charts,
-      ]
+    needs: [build-images]
     runs-on: ubuntu-24.04
-    timeout-minutes: 130
+    timeout-minutes: 90
     permissions:
       contents: read
       checks: write
-    env:
-      YQ_VERSION: v4.45.4
-      YQ_SHA256: b96de04645707e14a12f52c37e6266832e03c29e95b9b139cddcae7314466e69
+      packages: read
     steps:
       - name: Clone the code
         uses: actions/checkout@v6
         with:
           ref: amp/v${{ inputs.target_version }}
 
-      # A release cut from an older branch (amp-patch-*) can predate
-      # setup-cluster-clis. Tooling runs from the dispatched commit (no ref: = github.sha).
-      - name: Checkout release tooling
-        uses: actions/checkout@v6
-        with:
-          path: .release-tools
-
       - name: Setup Go
         uses: ./.github/actions/setup-go
 
-      - name: Install cluster CLIs (deployments/setup/cluster-tools.env)
-        uses: ./.release-tools/.github/actions/setup-cluster-clis
+      - name: Log in to the container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.REGISTRY_USERNAME || github.actor }}
+          password: ${{ secrets.REGISTRY_PASSWORD || secrets.GITHUB_TOKEN }}
 
-      - name: Install yq
-        run: |
-          curl -fsSL -o /tmp/yq "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64"
-          echo "${YQ_SHA256}  /tmp/yq" | sha256sum -c -
-          sudo install /tmp/yq /usr/local/bin/yq
-
-      - name: Install platform
+      # The release commit pins .env.example to the images built above.
+      - name: Start the released stack
         id: install-platform
-        env:
-          VERSION: ${{ inputs.target_version }}
-          REPO_OWNER: ${{ github.repository_owner }}
+        working-directory: deployments/standalone
         run: |
-          cd deployments/quick-start && bash install.sh
+          cp .env.example .env
+          sudo sysctl -w vm.max_map_count=262144
+          docker compose up -d --wait --wait-timeout 600 --scale amp-console=0
 
       - name: Run e2e tests
         env:
-          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.INSTRUMENTATION_TEST_OPENAI_API_KEY }}
-          # add-environment.sh requires CHART_VERSION; pin it to the same chart
-          # version the platform was installed with above.
-          CHART_VERSION: ${{ inputs.target_version }}
         run: |
           set -o pipefail
-          cd test/e2e && go run github.com/onsi/ginkgo/v2/ginkgo -v --procs=2 --timeout 70m \
+          cd test/e2e && go run github.com/onsi/ginkgo/v2/ginkgo -v --procs=2 --timeout 60m \
             --poll-progress-after=600s --keep-going --junit-report=report.xml \
             ./tests/... 2>&1 | tee e2e-output.log
 
       - name: Run security conformance tests
         if: ${{ !cancelled() && steps.install-platform.outcome == 'success' }}
-        env:
-          SECURITY_PROBE_REPOSITORY_URL: ${{ format('{0}/{1}', github.server_url, github.repository) }}
-          SECURITY_PROBE_REPOSITORY_BRANCH: amp/v${{ inputs.target_version }}
         run: |
           set -o pipefail
           make security-test-live 2>&1 | tee test/e2e/security-output.log
 
-      - name: Dump pod logs on failure
+      - name: Dump service logs on failure
         if: failure()
+        working-directory: deployments/standalone
         run: |
-          mkdir -p /tmp/pod-logs
-          kubectl logs deployment/amp-api -n wso2-amp --tail=500 --all-containers=true > /tmp/pod-logs/amp-api.txt 2>&1 || true
-          kubectl logs deployment/openchoreo-api -n openchoreo-control-plane --tail=500 --all-containers=true > /tmp/pod-logs/openchoreo-api.txt 2>&1 || true
-          kubectl logs deployment/amp-observer -n openchoreo-observability-plane --tail=500 --all-containers=true > /tmp/pod-logs/amp-observer.txt 2>&1 || true
-          kubectl logs deployment/observer -n openchoreo-observability-plane --tail=500 --all-containers=true > /tmp/pod-logs/observer.txt 2>&1 || true
-          kubectl logs deployment/cluster-agent-workflowplane -n openchoreo-workflow-plane --tail=500 --all-containers=true > /tmp/pod-logs/cluster-agent-workflowplane.txt 2>&1 || true
-          for pod in $(kubectl get pods -n workflows-default --no-headers -o custom-columns=":metadata.name" 2>/dev/null); do
-            kubectl logs "$pod" -n workflows-default --all-containers=true --tail=200 > "/tmp/pod-logs/wf-pod-${pod}.txt" 2>&1 || true
+          mkdir -p /tmp/service-logs
+          docker compose ps -a > /tmp/service-logs/services.txt 2>&1 || true
+          for service in $(docker compose config --services); do
+            docker compose logs --no-color --tail 500 "$service" > "/tmp/service-logs/${service}.txt" 2>&1 || true
           done
-          kubectl get workflows -n workflows-default -o yaml > /tmp/pod-logs/argo-workflows-status.txt 2>&1 || true
 
-      - name: Upload pod logs
+      - name: Upload service logs
         if: failure()
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
-          name: pod-logs
-          path: /tmp/pod-logs/
+          name: service-logs
+          path: /tmp/service-logs/
           retention-days: 7
 
       - name: Publish test results
@@ -586,13 +385,7 @@ jobs:
     name: Create Release
     # E2E is intentionally NOT a dependency here: it runs in parallel and reports
     # red/green for the same run, but it does not gate the release.
-    needs:
-      [
-        prepare-release,
-        build-images,
-        build-python-instrumentation-provider-images,
-        package-charts,
-      ]
+    needs: [prepare-release, build-images]
     runs-on:
       - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
     permissions:
@@ -629,29 +422,13 @@ jobs:
               echo "- \`${REGISTRY}/${REGISTRY_ORG}/${name}:v${VERSION}\`"
             done
 
-            jq -r '.["python-instrumentation-provider"][] | .instrumentation_version as $iv | .python_versions[] | "\($iv) \(.)"' "$CONFIG_FILE" | while read -r iv pyver; do
-              echo "- \`${REGISTRY}/${REGISTRY_ORG}/amp-python-instrumentation-provider:${iv}-python${pyver}\`"
-            done
-
             echo ""
-            echo "### Helm Charts"
-            jq -r '.charts[]' "$CONFIG_FILE" | while read -r chart; do
-              echo "- \`${HELM_REGISTRY}/${chart}:${VERSION}\`"
-            done
-
-
-            echo ""
-            echo "### Install bundle"
-            echo "\`wso2-agent-manager-${VERSION}.tar.gz\` bundles both the VM and quick-start installers. \`bootstrap.sh\`, \`start.sh\` and \`k3d-install.sh\` are also attached standalone as the one-command entry points:"
+            echo "### Run it"
+            echo "\`wso2-agent-manager-standalone-${VERSION}.tar.gz\` is the Docker Compose bundle, pinned to the images above:"
             echo '```'
-            echo "# VM install"
-            echo "curl -fsSL https://github.com/${REPO_OWNER}/agent-manager/releases/download/amp/v${VERSION}/bootstrap.sh | sudo bash -s -- simple --host <PUBLIC_IP> --version ${VERSION}"
-            echo ""
-            echo "# Quick-start (local dev container)"
-            echo "curl -fsSL https://github.com/${REPO_OWNER}/agent-manager/releases/download/amp/v${VERSION}/start.sh -o start.sh && chmod +x start.sh && ./start.sh"
-            echo ""
-            echo "# Local k3d cluster, installed directly on the host"
-            echo "curl -fsSL https://github.com/${REPO_OWNER}/agent-manager/releases/download/amp/v${VERSION}/k3d-install.sh | bash"
+            echo "curl -fsSLO https://github.com/${REPO_OWNER}/agent-manager/releases/download/amp/v${VERSION}/wso2-agent-manager-standalone-${VERSION}.tar.gz"
+            echo "tar xzf wso2-agent-manager-standalone-${VERSION}.tar.gz && cd standalone"
+            echo "cp .env.example .env && docker compose up -d --wait"
             echo '```'
           } > /tmp/release-body.md
 
@@ -667,9 +444,9 @@ jobs:
           REPO_OWNER: ${{ github.repository_owner }}
         shell: bash
 
-      - name: Package install bundle
+      - name: Package the standalone bundle
         run: |
-          bash .github/scripts/build-vm-bundle.sh \
+          bash .github/scripts/build-standalone-bundle.sh \
             "$TARGET_RELEASE" \
             dist/
         env:

@@ -20,46 +20,38 @@ package repositories
 
 import (
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
+	"github.com/wso2/agent-manager/agent-manager-service/db/dbtest"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 )
 
-// A soft delete does not fire the FK cascades a hard delete relied on, so Delete has
-// to do their work: the gateway's token stops authenticating, its archived deployment
-// history goes, and its identity providers stop being offered for its environment.
-func TestGatewayDelete_SoftDeleteCleansUpWhatTheCascadeUsedTo(t *testing.T) {
+// Delete removes the gateway outright, and with it what only it used: its token stops authenticating, its archived
+// deployment history goes, and its identity providers stop being offered for its environment.
+func TestGatewayDeleteRemovesTheGatewayAndWhatOnlyItUsed(t *testing.T) {
 	gdb := db.GetDB()
 	repo := NewGatewayRepo(gdb)
-	ouID := "ou-" + uuid.New().String()[:8]
-	gatewayID, envID, artifactUUID := uuid.New(), uuid.New(), uuid.New()
-	name := "soft-gw-" + gatewayID.String()[:8]
+	ouID := newOrg(t)
+	gatewayID, artifactUUID := newGateway(t, ouID, models.GatewayRoleIngress), uuid.New()
+	envID := dbtest.Environment(t, gdb, ouID)
+	var gw models.Gateway
+	require.NoError(t, gdb.Where("id = ?", gatewayID).Take(&gw).Error)
 
-	require.NoError(t, gdb.Exec(
-		`INSERT INTO gateways (uuid, name, display_name, vhost, gateway_functionality_type, ou_id, is_active)
-		 VALUES (?, ?, ?, ?, ?, ?, TRUE)`,
-		gatewayID, name, name, "gw.example", models.GatewayRoleIngress, ouID,
-	).Error)
-	t.Cleanup(func() {
-		gdb.Exec(`DELETE FROM artifacts WHERE uuid = ?`, artifactUUID)
-		gdb.Exec(`DELETE FROM gateways WHERE ou_id = ?`, ouID)
-	})
-	require.NoError(t, gdb.Exec(
-		`INSERT INTO gateway_tokens (uuid, gateway_uuid, token_prefix, token_hash, salt, status)
-		 VALUES (?, ?, ?, 'hash', 'salt', 'active')`,
-		uuid.New(), gatewayID, gatewayID.String(),
-	).Error)
-	require.NoError(t, gdb.Create(&models.GatewayEnvironmentMapping{GatewayUUID: gatewayID, EnvironmentUUID: envID}).Error)
+	require.NoError(t, gdb.Create(&models.GatewayToken{
+		UUID: uuid.New(), OrgID: uuid.MustParse(ouID), GatewayUUID: gatewayID, TokenPrefix: gatewayID.String()[:8],
+		TokenHash: "hash", Salt: "salt", Status: "active", CreatedAt: time.Now().UTC(),
+	}).Error)
 	require.NoError(t, repo.UpsertIdentityProvider(&models.GatewayIdentityProvider{
 		UUID: uuid.New(), GatewayUUID: gatewayID, Name: "customer-idp", Issuer: "https://idp.example",
 		JWKSUri: "https://idp.example/jwks", Type: models.IdentityProviderTypeCustom,
 	}))
 
-	// Archived history only: DeleteGateway refuses a gateway with deployment_status rows.
+	// Archived history only: DeleteGateway refuses a gateway with status rows.
 	require.NoError(t, NewArtifactRepo(gdb).Create(gdb, &models.Artifact{
 		UUID: artifactUUID, Handle: "proj/agent/" + artifactUUID.String(), Name: "agent-" + artifactUUID.String()[:8],
 		Version: "v1.0", Kind: models.KindAgent, OUID: ouID,
@@ -70,20 +62,16 @@ func TestGatewayDelete_SoftDeleteCleansUpWhatTheCascadeUsedTo(t *testing.T) {
 		Name: "agent-deployment", ArtifactUUID: artifactUUID, OUID: ouID, GatewayUUID: gatewayID,
 		Content: []byte("kind: Agent\n"), Status: &deployed,
 	}, 10))
-	require.NoError(t, gdb.Where("artifact_uuid = ? AND ou_id = ? AND gateway_uuid = ?", artifactUUID, ouID, gatewayID).
+	require.NoError(t, gdb.Where(statusRowWhere, artifactUUID, ouID, gatewayID).
 		Delete(&models.DeploymentStatusRecord{}).Error)
 
 	require.NoError(t, repo.Delete(gatewayID.String(), ouID))
 
-	var deletedAtSet bool
-	require.NoError(t, gdb.Raw(`SELECT deleted_at IS NOT NULL FROM gateways WHERE uuid = ?`, gatewayID).
-		Scan(&deletedAtSet).Error)
-	assert.True(t, deletedAtSet, "the gateway row must be kept and marked deleted, not removed")
-
-	var activeTokens int64
-	require.NoError(t, gdb.Model(&models.GatewayToken{}).
-		Where("gateway_uuid = ? AND status = ?", gatewayID, "active").Count(&activeTokens).Error)
-	assert.Zero(t, activeTokens, "a deleted gateway's token must no longer authenticate")
+	var gateways, tokens int64
+	require.NoError(t, gdb.Model(&models.Gateway{}).Where("id = ?", gatewayID).Count(&gateways).Error)
+	assert.Zero(t, gateways, "the gateway row is removed")
+	require.NoError(t, gdb.Model(&models.GatewayToken{}).Where("gateway_id = ?", gatewayID).Count(&tokens).Error)
+	assert.Zero(t, tokens, "a deleted gateway's token must no longer authenticate")
 
 	history, err := deployments.GetDeploymentsWithState(artifactUUID.String(), ouID, nil, nil, 10)
 	require.NoError(t, err)
@@ -96,10 +84,8 @@ func TestGatewayDelete_SoftDeleteCleansUpWhatTheCascadeUsedTo(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, orgProviders)
 
-	// The name is free again: the unique index only covers live gateways.
-	require.NoError(t, gdb.Exec(
-		`INSERT INTO gateways (uuid, name, display_name, vhost, gateway_functionality_type, ou_id, is_active)
-		 VALUES (?, ?, ?, ?, ?, ?, TRUE)`,
-		uuid.New(), name, name, "gw.example", models.GatewayRoleIngress, ouID,
-	).Error)
+	// The name is free again.
+	reused := gw
+	reused.UUID = uuid.New()
+	require.NoError(t, gdb.Create(&reused).Error)
 }

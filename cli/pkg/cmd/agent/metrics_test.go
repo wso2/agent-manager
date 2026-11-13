@@ -41,7 +41,7 @@ func TestMetrics_TextOutput(t *testing.T) {
 
 	err := runMetrics(context.Background(), &MetricsOptions{
 		IO: ios, Client: amClient, Observer: observer, Scope: baseScope(),
-		Org: "acme", Proj: "triage", AgentName: "my-agent", Env: "dev",
+		Org: "acme", Proj: "triage", AgentName: "my-agent",
 		StartTime: "2026-05-12T00:00:00Z", EndTime: "2026-05-13T00:00:00Z",
 	})
 	if err != nil {
@@ -61,7 +61,7 @@ func TestMetrics_RejectsExternalAgent(t *testing.T) {
 
 	err := runMetrics(context.Background(), &MetricsOptions{
 		IO: ios, Client: client, Observer: unreachableObserverClient, Scope: baseScope(),
-		Org: "acme", Proj: "triage", AgentName: "ext-agent", Env: "dev",
+		Org: "acme", Proj: "triage", AgentName: "ext-agent",
 		StartTime: "2026-05-12T00:00:00Z", EndTime: "2026-05-13T00:00:00Z",
 	})
 	if err == nil {
@@ -83,7 +83,7 @@ func TestMetrics_JSONOutput(t *testing.T) {
 
 	err := runMetrics(context.Background(), &MetricsOptions{
 		IO: ios, Client: amClient, Observer: observer, Scope: baseScope(),
-		Org: "acme", Proj: "triage", AgentName: "my-agent", Env: "dev",
+		Org: "acme", Proj: "triage", AgentName: "my-agent",
 		StartTime: "2026-05-12T00:00:00Z", EndTime: "2026-05-13T00:00:00Z",
 	})
 	if err != nil {

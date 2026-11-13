@@ -20,22 +20,25 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 // MCPProxy represents an MCP proxy entity.
 type MCPProxy struct {
-	UUID          uuid.UUID      `gorm:"column:uuid;primaryKey" json:"uuid"`
+	UUID          uuid.UUID      `gorm:"column:id;primaryKey" json:"uuid"`
+	OrgID         string         `gorm:"column:org_id" json:"-"`
 	Description   string         `gorm:"column:description" json:"description,omitempty"`
 	CreatedBy     string         `gorm:"column:created_by" json:"createdBy,omitempty"`
 	Status        string         `gorm:"column:status" json:"status"`
-	Configuration MCPProxyConfig `gorm:"column:configuration;type:jsonb;serializer:json" json:"configuration"`
+	Configuration MCPProxyConfig `gorm:"column:configuration;serializer:json" json:"configuration"`
 	// ProjectUUID and ProjectName are set together for a project-scoped proxy and
 	// are both nil for an organization-level proxy.
-	ProjectUUID *string `gorm:"column:project_uuid" json:"projectUuid,omitempty"`
-	ProjectName *string `gorm:"column:project_name" json:"projectName,omitempty"`
+	ProjectUUID *string `gorm:"column:project_id" json:"projectUuid,omitempty"`
+	// ProjectName is read from the project; it isn't stored on the proxy.
+	ProjectName *string `gorm:"-" json:"projectName,omitempty"`
 
 	Artifact  *Artifact          `gorm:"foreignKey:UUID;references:UUID" json:"artifact,omitempty"`
-	Endpoints []MCPProxyEndpoint `gorm:"foreignKey:MCPProxyUUID;references:UUID;constraint:OnDelete:CASCADE" json:"endpoints,omitempty"`
+	Endpoints []MCPProxyEndpoint `gorm:"foreignKey:MCPProxyUUID;references:UUID" json:"endpoints,omitempty"`
 
 	OrganizationName string    `gorm:"-" json:"organizationName,omitempty"`
 	ID               string    `gorm:"-" json:"id,omitempty"`
@@ -51,13 +54,27 @@ func (MCPProxy) TableName() string {
 	return "mcp_proxies"
 }
 
+// AfterFind reads the project name of a project-scoped proxy.
+func (p *MCPProxy) AfterFind(tx *gorm.DB) error {
+	if p.ProjectUUID == nil || p.ProjectName != nil {
+		return nil
+	}
+	var row struct{ Name string }
+	if err := fresh(tx).Table("projects").Select("name").Where("id = ?", *p.ProjectUUID).Take(&row).Error; err != nil {
+		return err
+	}
+	p.ProjectName = &row.Name
+	return nil
+}
+
 // MCPProxyMapping represents an agent-scoped MCP proxy mapping deployment.
 type MCPProxyMapping struct {
-	UUID               uuid.UUID      `gorm:"column:uuid;primaryKey" json:"uuid"`
-	SourceMCPProxyUUID uuid.UUID      `gorm:"column:source_mcp_proxy_uuid" json:"sourceMcpProxyUuid"`
+	UUID               uuid.UUID      `gorm:"column:id;primaryKey" json:"uuid"`
+	OrgID              string         `gorm:"column:org_id" json:"-"`
+	SourceMCPProxyUUID uuid.UUID      `gorm:"column:source_mcp_proxy_id" json:"sourceMcpProxyUuid"`
 	Description        string         `gorm:"column:description" json:"description,omitempty"`
 	Status             string         `gorm:"column:status" json:"status"`
-	Configuration      MCPProxyConfig `gorm:"column:configuration;type:jsonb;serializer:json" json:"configuration"`
+	Configuration      MCPProxyConfig `gorm:"column:configuration;serializer:json" json:"configuration"`
 
 	Artifact       *Artifact `gorm:"foreignKey:UUID;references:UUID" json:"artifact,omitempty"`
 	SourceMCPProxy *MCPProxy `gorm:"foreignKey:SourceMCPProxyUUID;references:UUID" json:"sourceMcpProxy,omitempty"`
@@ -105,16 +122,17 @@ type MCPProxySource struct {
 // endpoint handle is unique (uq_mcp_endpoint_handle) and an environment maps to at
 // most one endpoint (uq_proxy_env_single on the join table).
 type MCPProxyEndpoint struct {
-	UUID          uuid.UUID         `gorm:"column:uuid;primaryKey" json:"uuid"`
-	MCPProxyUUID  uuid.UUID         `gorm:"column:mcp_proxy_uuid" json:"mcpProxyUuid"`
+	UUID          uuid.UUID         `gorm:"column:id;primaryKey" json:"uuid"`
+	OrgID         string            `gorm:"column:org_id" json:"-"`
+	MCPProxyUUID  uuid.UUID         `gorm:"column:mcp_proxy_id" json:"mcpProxyUuid"`
 	Handle        string            `gorm:"column:handle" json:"handle"`
 	Name          string            `gorm:"column:name" json:"name,omitempty"`
 	Status        string            `gorm:"column:status" json:"status"`
-	Configuration MCPEndpointConfig `gorm:"column:configuration;type:jsonb;serializer:json" json:"configuration"`
+	Configuration MCPEndpointConfig `gorm:"column:configuration;serializer:json" json:"configuration"`
 	CreatedAt     time.Time         `gorm:"column:created_at" json:"createdAt,omitempty"`
 	UpdatedAt     time.Time         `gorm:"column:updated_at" json:"updatedAt,omitempty"`
 
-	Environments []MCPProxyEndpointEnvironment `gorm:"foreignKey:EndpointUUID;references:UUID;constraint:OnDelete:CASCADE" json:"environments,omitempty"`
+	Environments []MCPProxyEndpointEnvironment `gorm:"foreignKey:EndpointUUID;references:UUID" json:"environments,omitempty"`
 }
 
 // TableName returns the table name for the MCPProxyEndpoint model.
@@ -122,16 +140,24 @@ func (MCPProxyEndpoint) TableName() string {
 	return "mcp_proxy_endpoints"
 }
 
+// BeforeCreate copies the proxy's organization.
+func (e *MCPProxyEndpoint) BeforeCreate(tx *gorm.DB) (err error) {
+	if e.OrgID == "" {
+		e.OrgID, err = orgIDOf(tx, "mcp_proxies", e.MCPProxyUUID)
+	}
+	return err
+}
+
 // MCPProxyEndpointEnvironment maps one endpoint to one environment and holds the
 // stable gateway artifact identity (ArtifactUUID) and deployment status for that
 // (endpoint, environment) deployment. MCPProxyUUID is denormalized from the endpoint
 // so the DB can enforce uq_proxy_env_single (one endpoint per environment per proxy).
 type MCPProxyEndpointEnvironment struct {
-	ID              uint      `gorm:"column:id;primaryKey;autoIncrement" json:"id,omitempty"`
-	MCPProxyUUID    uuid.UUID `gorm:"column:mcp_proxy_uuid" json:"mcpProxyUuid"`
-	EndpointUUID    uuid.UUID `gorm:"column:endpoint_uuid" json:"endpointUuid"`
-	EnvironmentUUID uuid.UUID `gorm:"column:environment_uuid" json:"environmentUuid"`
-	ArtifactUUID    uuid.UUID `gorm:"column:artifact_uuid" json:"artifactUuid"`
+	EndpointUUID    uuid.UUID `gorm:"column:endpoint_id;primaryKey" json:"endpointUuid"`
+	EnvironmentUUID uuid.UUID `gorm:"column:environment_id;primaryKey" json:"environmentUuid"`
+	OrgID           string    `gorm:"column:org_id" json:"-"`
+	MCPProxyUUID    uuid.UUID `gorm:"column:mcp_proxy_id" json:"mcpProxyUuid"`
+	ArtifactUUID    uuid.UUID `gorm:"column:artifact_id" json:"artifactUuid"`
 	Status          string    `gorm:"column:status" json:"status"`
 	CreatedAt       time.Time `gorm:"column:created_at" json:"createdAt,omitempty"`
 	// RequestedGatewayUUID is the caller's explicit egress gateway choice for this
@@ -143,6 +169,17 @@ type MCPProxyEndpointEnvironment struct {
 // TableName returns the table name for the MCPProxyEndpointEnvironment model.
 func (MCPProxyEndpointEnvironment) TableName() string {
 	return "mcp_proxy_endpoint_environments"
+}
+
+// BeforeCreate copies the proxy's organization.
+func (e *MCPProxyEndpointEnvironment) BeforeCreate(tx *gorm.DB) (err error) {
+	if e.CreatedAt.IsZero() {
+		e.CreatedAt = time.Now().UTC().Truncate(time.Microsecond)
+	}
+	if e.OrgID == "" {
+		e.OrgID, err = orgIDOf(tx, "mcp_proxies", e.MCPProxyUUID)
+	}
+	return err
 }
 
 // MCPEndpointConfig is the deployable configuration stored on one endpoint's

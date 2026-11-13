@@ -38,23 +38,20 @@ var _ = Describe("amctl agent CRUD (build-free)", Label("cli", "agent"), Ordered
 		description = "Created by the amctl agent e2e CRUD spec"
 	)
 	var (
-		projName     string
-		agentName    string
-		platformName string
+		projName  string
+		agentName string
 	)
 
 	BeforeAll(func() {
 		projName = framework.E2EProjectPrefix + uuid.New().String()[:8]
 		agentName = framework.E2EAgentPrefix + uuid.New().String()[:8]
-		platformName = framework.E2EAgentPrefix + uuid.New().String()[:8]
 		// LIFO cleanup: agents first, then the project. Best-effort; the stale sweep backstops.
 		DeferCleanup(func() {
-			_ = H.Run("agent", "delete", platformName, "--org", H.Org(), "--project", projName, "--yes", "--json")
 			_ = H.Run("agent", "delete", agentName, "--org", H.Org(), "--project", projName, "--yes", "--json")
 			_ = H.Run("project", "delete", projName, "--org", H.Org(), "--yes", "--json")
 		})
 		cliproject.CreateProject(Default, H, H.Org(), projName, "CLI E2E Agent Project", "Project for the amctl agent e2e CRUD spec")
-		GinkgoWriter.Printf("CLI agent project=%s external=%s platform=%s\n", projName, agentName, platformName)
+		GinkgoWriter.Printf("CLI agent project=%s external=%s\n", projName, agentName)
 	})
 
 	It("prints an agent manifest template", func() {
@@ -87,30 +84,9 @@ var _ = Describe("amctl agent CRUD (build-free)", Label("cli", "agent"), Ordered
 	It("shows status with no deployments", func() {
 		st := cliagent.AgentStatus(Default, H, H.Org(), projName, agentName)
 		Expect(st.Agent).To(Equal(agentName))
-		// The agent inherits the project's default pipeline (a single "default"
-		// environment) and reports "not-deployed" there until something deploys.
-		Expect(st.Environments).To(HaveLen(1))
-		Expect(st.Environments[0].Name).To(Equal("default"))
-		Expect(st.Environments[0].Status).To(Equal("not-deployed"))
-	})
-
-	It("creates a platform (internal) agent, triggering build+deploy", func() {
-		a := cliagent.CreateInternalAgent(Default, H, cliagent.InternalAgentParams{
-			Org:             H.Org(),
-			Project:         projName,
-			Name:            platformName,
-			DisplayName:     "CLI E2E Platform Agent",
-			RepoURL:         "https://github.com/wso2/agent-manager",
-			RepoBranch:      "main",
-			RepoPath:        "/samples/it-helpdesk-agent",
-			Language:        "python",
-			LanguageVersion: "3.11",
-			RunCommand:      "python main.py",
-		})
-		Expect(a.Name).To(Equal(platformName))
-		Expect(a.AgentType.Type).To(Equal("agent-api"))
-		Expect(a.AgentType.SubType).To(Equal("chat-api"))
-		Expect(a.Provisioning.Type).To(Equal("internal"))
+		// Environments are internal to the platform, so an external agent
+		// reports none.
+		Expect(st.Environments).To(BeEmpty())
 	})
 
 	It("deletes the external agent", func() {

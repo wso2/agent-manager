@@ -19,9 +19,6 @@
 // Export AI Agent Management Platform views
 export * from './component';
 
-// Export agent icons
-export * from './icons';
-
 // Export hooks
 export * from './hooks';
 

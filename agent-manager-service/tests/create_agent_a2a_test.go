@@ -20,18 +20,15 @@ package tests
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
@@ -39,88 +36,13 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/wiring"
 )
 
-var testAgentNameA2A = fmt.Sprintf("a2a-agent-%s", uuid.New().String()[:5])
-
-// An a2a-agent is served only through its environment's ingress gateway, so
-// neither route trait is attached at create.
-func TestCreateA2AAgentOmitsAPIConfigurationTrait(t *testing.T) {
-	seedIngressGatewayForDefaultEnvironment(t, "mock-org-id")
-	authMiddleware := jwtassertion.NewMockMiddleware(t)
-
-	openChoreoClient := apitestutils.CreateMockOpenChoreoClient()
-	openChoreoClient.GetComponentFunc = func(ctx context.Context, namespaceName, projectName, componentName string) (*models.AgentResponse, error) {
-		return &models.AgentResponse{
-			UUID:         uuid.New().String(),
-			Name:         componentName,
-			ProjectName:  projectName,
-			Provisioning: models.Provisioning{Type: "internal"},
-			CreatedAt:    time.Now(),
-		}, nil
-	}
-
-	testClients := wiring.TestClients{
-		OpenChoreoClient: openChoreoClient,
-		SecretMgmtClient: apitestutils.CreateMockSecretManagementClient(),
-	}
-	app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
-
-	reqBody := new(bytes.Buffer)
-	require.NoError(t, json.NewEncoder(reqBody).Encode(map[string]interface{}{
-		"name":        testAgentNameA2A,
-		"displayName": "A2A Trip Planner",
-		"description": "A2A Agent Description",
-		"provisioning": map[string]interface{}{
-			"type": "internal",
-			"repository": map[string]interface{}{
-				"url":     "https://github.com/example/a2a-agent",
-				"branch":  "main",
-				"appPath": "/",
-			},
-		},
-		"agentType": map[string]interface{}{
-			"type":    "agent-api",
-			"subType": "a2a-agent",
-		},
-		"build": map[string]interface{}{
-			"type":   "docker",
-			"docker": map[string]interface{}{"dockerfilePath": "/Dockerfile"},
-		},
-		"inputInterface": map[string]interface{}{
-			"type": "HTTP",
-			"port": 9099,
-		},
-	}))
-
-	req := httptest.NewRequest(
-		http.MethodPost,
-		fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testOrgName, testProjName),
-		reqBody,
-	)
-	req.Header.Set("Content-Type", "application/json")
-	rr := httptest.NewRecorder()
-	app.ServeHTTP(rr, req)
-
-	require.Equal(t, http.StatusAccepted, rr.Code, "body: %s", rr.Body.String())
-
-	attachTraitsCalls := openChoreoClient.AttachTraitsCalls()
-	require.Len(t, attachTraitsCalls, 1)
-	for _, tr := range attachTraitsCalls[0].TraitRequests {
-		require.NotEqual(t, client.TraitAPIManagement, tr.TraitType,
-			"an a2a-agent must not be given the api-configuration trait")
-		require.NotEqual(t, client.TraitA2AGatewayRoute, tr.TraitType,
-			"an a2a-agent must not be given the a2a-gateway-route trait")
-	}
-	require.NotEmpty(t, attachTraitsCalls[0].TraitRequests,
-		"the instrumentation traits are still attached")
-}
-
 // An external agent sent with the old a2a-agent subtype is created like any external agent: no trait, no publication.
 func TestCreateExternalAgentWithA2ASubTypeGetsNoGatewayPublication(t *testing.T) {
 	authMiddleware := jwtassertion.NewMockMiddleware(t)
-	openChoreoClient := apitestutils.CreateMockOpenChoreoClient()
+	platformRepo := apitestutils.CreateMockPlatformRepository()
 	testClients := wiring.TestClients{
-		OpenChoreoClient: openChoreoClient,
-		SecretMgmtClient: apitestutils.CreateMockSecretManagementClient(),
+		PlatformRepository: platformRepo,
+		SecretMgmtClient:   apitestutils.CreateMockSecretManagementClient(),
 	}
 	app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
 	agentName := fmt.Sprintf("ext-a2a-%s", uuid.New().String()[:5])
@@ -139,12 +61,11 @@ func TestCreateExternalAgentWithA2ASubTypeGetsNoGatewayPublication(t *testing.T)
 	app.ServeHTTP(rr, req)
 	require.Equal(t, http.StatusAccepted, rr.Code, "body: %s", rr.Body.String())
 
-	created := openChoreoClient.CreateComponentCalls()
-	require.Len(t, created, 1)
-	require.Empty(t, openChoreoClient.AttachTraitsCalls(), "no a2a-gateway-route or any other trait")
+	require.Len(t, platformRepo.CreateAgentCalls(), 1)
 
 	var queued int64
-	require.NoError(t, db.GetDB().Model(&models.PlatformAgentExposure{}).
-		Where("agent_name = ?", agentName).Count(&queued).Error)
+	gdb := db.GetDB()
+	require.NoError(t, gdb.Model(&models.PlatformAgentExposure{}).
+		Where("agent_id IN (?)", models.AgentIDQuery(gdb, jwtassertion.MockOUID, testProjName, agentName)).Count(&queued).Error)
 	require.Zero(t, queued, "an external agent is never exposed as a platform agent")
 }

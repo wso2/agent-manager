@@ -29,6 +29,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
+	"github.com/wso2/agent-manager/agent-manager-service/db/dbtest"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
@@ -42,7 +43,7 @@ var errRollback = errors.New("roll back the test transaction")
 func lostInsertRace(t *testing.T) (ouID, envID string, winner *models.Artifact, racing repositories.ArtifactRepository) {
 	t.Helper()
 	artifacts := repositories.NewArtifactRepo(db.GetDB())
-	ouID, envID = "ou-"+uuid.New().String()[:8], uuid.New().String()
+	ouID, envID = dbtest.Org(t, db.GetDB()), uuid.New().String()
 	winner = &models.Artifact{
 		UUID: uuid.New(), Handle: agentEnvAPIArtifactHandle("checkout", "weather", envID),
 		Name: "weather-winner-" + envID[:8], Version: "v1.0", Kind: models.KindAgent, OUID: ouID,
@@ -72,7 +73,7 @@ func lostInsertRace(t *testing.T) (ouID, envID string, winner *models.Artifact, 
 // Inside a transaction the artifact is read through it, so one the transaction created is found, not inserted again.
 func TestEnsureAgentEnvAPIArtifactReadsThroughTheCallersTransaction(t *testing.T) {
 	artifacts := repositories.NewArtifactRepo(db.GetDB())
-	ouID, envID := "ou-"+uuid.New().String()[:8], uuid.New().String()
+	ouID, envID := dbtest.Org(t, db.GetDB()), uuid.New().String()
 
 	err := db.GetDB().Transaction(func(tx *gorm.DB) error {
 		created, err := ensureAgentEnvAPIArtifact(tx, artifacts, ouID, "checkout", "weather", envID, models.KindAgent)
@@ -109,7 +110,7 @@ func TestEnsureAgentEnvAPIArtifactReturnsTheWinnerOutsideATransaction(t *testing
 
 func TestEnsureAgentEnvAPIArtifactCreatesKind(t *testing.T) {
 	artifacts := repositories.NewArtifactRepo(db.GetDB())
-	ouID, envID := "ou-"+uuid.New().String()[:8], uuid.New().String()
+	ouID, envID := dbtest.Org(t, db.GetDB()), uuid.New().String()
 
 	err := db.GetDB().Transaction(func(tx *gorm.DB) error {
 		created, err := ensureAgentEnvAPIArtifact(tx, artifacts, ouID, "checkout", "weather", envID, models.KindRestAPI)
@@ -134,7 +135,7 @@ func TestEnsureAgentEnvAPIArtifactRefusesTheWinnerOfAnotherKindInTheInsertRace(t
 // An agent's prefix must not match a longer agent name, or a name its LIKE wildcards would.
 func TestListByHandlePrefixFindsOnlyThatAgentsArtifacts(t *testing.T) {
 	artifacts := repositories.NewArtifactRepo(db.GetDB())
-	ouID := "ou-" + uuid.New().String()[:8]
+	ouID := dbtest.Org(t, db.GetDB())
 	create := func(agentName, kind string) *models.Artifact {
 		envID := uuid.New().String()
 		a := &models.Artifact{

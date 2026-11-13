@@ -61,7 +61,6 @@ export interface EvaluatorInfo {
 interface PerformanceByEvaluatorCardProps {
   evaluators: EvaluatorInfo[];
   timeRange: TraceListTimeRange;
-  environmentId?: string;
   traceStart?: string;
   traceEnd?: string;
 }
@@ -69,17 +68,15 @@ interface PerformanceByEvaluatorCardProps {
 const PerformanceByEvaluatorCard: React.FC<PerformanceByEvaluatorCardProps> = ({
   evaluators,
   timeRange,
-  environmentId,
   traceStart,
   traceEnd,
 }) => {
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
-  const { orgId, projectId, agentId, envId, monitorId } = useParams<{
+  const { orgId, projectId, agentId, monitorId } = useParams<{
     orgId: string;
     projectId: string;
     agentId: string;
-    envId: string;
     monitorId: string;
   }>();
 
@@ -218,13 +215,12 @@ const PerformanceByEvaluatorCard: React.FC<PerformanceByEvaluatorCardProps> = ({
             to={(() => {
               const basePath = generatePath(
                 absoluteRouteMap.children.org.children.projects.children.agents
-                  .children.environment.children.observability.children.traces
+                  .children.observability.children.traces
                   .path,
                 {
                   orgId: orgId ?? "",
                   projectId: projectId ?? "",
                   agentId: agentId ?? "",
-                  envId: environmentId ?? envId ?? "",
                 },
               );
               const params = new URLSearchParams();

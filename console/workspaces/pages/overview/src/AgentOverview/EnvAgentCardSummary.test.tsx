@@ -28,7 +28,7 @@ vi.mock("@agent-management-platform/api-client", () => ({
 import { useGetAgent, useGetAgentCard } from "@agent-management-platform/api-client";
 import { EnvAgentCardSummary } from "./EnvAgentCardSummary";
 
-const CONFIGURE_HREF = "/org/org/project/proj/agents/agent/configure?tab=a2a&env=dev";
+const CONFIGURE_HREF = "/org/org/project/proj/agents/agent/configure?tab=a2a";
 
 const mockAgent = (subType: string) =>
   vi.mocked(useGetAgent).mockReturnValue({
@@ -46,7 +46,7 @@ const notFound = { data: null };
 const renderSummary = (external = false) =>
   render(
     <MemoryRouter>
-      <EnvAgentCardSummary orgId="org" projectId="proj" agentId="agent" envId="dev" external={external} />
+      <EnvAgentCardSummary orgId="org" projectId="proj" agentId="agent" external={external} />
     </MemoryRouter>,
   );
 
@@ -89,7 +89,7 @@ describe("EnvAgentCardSummary", () => {
     mockCard(notFound);
     const summary = (agentId: string) => (
       <MemoryRouter>
-        <EnvAgentCardSummary orgId="org" projectId="proj" agentId={agentId} envId="dev" external />
+        <EnvAgentCardSummary orgId="org" projectId="proj" agentId={agentId} external />
       </MemoryRouter>
     );
     renderSummary(true).unmount();

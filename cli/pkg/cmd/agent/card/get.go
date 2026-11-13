@@ -35,7 +35,6 @@ import (
 
 const (
 	a2aSubType         = "a2a-agent"
-	envNotFoundCode    = "ENVIRONMENT_NOT_FOUND"
 	notFetchedYetLabel = "(not fetched yet)"
 )
 
@@ -45,13 +44,11 @@ type GetOptions struct {
 	Client       func(context.Context) (*amsvc.ClientWithResponses, error)
 	ResolveScope func(*cobra.Command, bool, bool) (string, string, error)
 	ResolveAgent func([]string) (string, []string, error)
-	ResolveEnv   func(*cobra.Command) (string, error)
-	MakeScope    func(org, proj, agent, env string) render.Scope
+	MakeScope    func(org, proj, agent string) render.Scope
 
 	Org       string
 	Proj      string
 	AgentName string
-	Env       string
 	Scope     render.Scope
 }
 
@@ -69,13 +66,12 @@ func NewGetCmd(f *cmdutil.Factory) *cobra.Command {
 		Client:       f.AgentManager,
 		ResolveScope: f.ResolveOrgProject,
 		ResolveAgent: f.ResolveAgent,
-		ResolveEnv:   f.ResolveEnvironment,
-		MakeScope:    f.EnvScope,
+		MakeScope:    f.AgentScope,
 	}
 
 	cmd := &cobra.Command{
 		Use:   "get [agent]",
-		Short: "Show an agent's card and routing in an environment",
+		Short: "Show an agent's card and routing",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			org, proj, err := opts.ResolveScope(cmd, true, true)
@@ -86,22 +82,17 @@ func NewGetCmd(f *cmdutil.Factory) *cobra.Command {
 			if err != nil {
 				return render.Error(opts.IO, render.Scope{}, err)
 			}
-			env, err := opts.ResolveEnv(cmd)
-			if err != nil {
-				return render.Error(opts.IO, render.Scope{}, err)
-			}
-			opts.Org, opts.Proj, opts.AgentName, opts.Env = org, proj, agentName, env
-			opts.Scope = opts.MakeScope(org, proj, agentName, env)
+			opts.Org, opts.Proj, opts.AgentName = org, proj, agentName
+			opts.Scope = opts.MakeScope(org, proj, agentName)
 			return runGet(cmd.Context(), opts)
 		},
 	}
-	cmdutil.AddEnvFlag(cmd)
 	cmd.ValidArgsFunction = completeAgentArg(f)
 	return cmd
 }
 
 func runGet(ctx context.Context, o *GetOptions) error {
-	if err := validateTarget(o.AgentName, o.Env); err != nil {
+	if err := validateTarget(o.AgentName); err != nil {
 		return render.Error(o.IO, o.Scope, err)
 	}
 	client, err := o.Client(ctx)
@@ -129,8 +120,6 @@ func runGet(ctx context.Context, o *GetOptions) error {
 		if status.Proxy, status.RoutingUnknown, err = fetchProxy(ctx, client, o); err != nil {
 			return render.Error(o.IO, o.Scope, err)
 		}
-	} else if err := requireEnvironment(ctx, client, o); err != nil {
-		return render.Error(o.IO, o.Scope, err)
 	}
 	if status.Card, err = fetchCard(ctx, client, o); err != nil {
 		return render.Error(o.IO, o.Scope, err)
@@ -143,9 +132,9 @@ func runGet(ctx context.Context, o *GetOptions) error {
 	return nil
 }
 
-// fetchProxy returns nil when the environment is direct, and unknown when the caller lacks the environment scope.
+// fetchProxy returns nil when the card is direct, and unknown when the caller may not read the routing.
 func fetchProxy(ctx context.Context, client *amsvc.ClientWithResponses, o *GetOptions) (proxy *amsvc.A2AProxyResponse, unknown bool, err error) {
-	resp, err := client.GetA2AProxyWithResponse(ctx, o.Org, o.Proj, o.AgentName, o.Env)
+	resp, err := client.GetA2AProxyWithResponse(ctx, o.Org, o.Proj, o.AgentName, cmdutil.DefaultEnvironment)
 	if err != nil {
 		return nil, false, clierr.Newf(clierr.Transport, "%v", err)
 	}
@@ -154,30 +143,16 @@ func fetchProxy(ctx context.Context, client *amsvc.ClientWithResponses, o *GetOp
 		return resp.JSON200, false, nil
 	case resp.StatusCode() == http.StatusForbidden:
 		return nil, true, nil
-	case resp.StatusCode() == http.StatusNotFound && (resp.JSON404 == nil || resp.JSON404.Code != envNotFoundCode):
+	case resp.StatusCode() == http.StatusNotFound:
 		return nil, false, nil
 	}
 	return nil, false, cmdutil.ErrorFromServer(resp.HTTPResponse,
 		cmdutil.FirstNonNil(resp.JSON401, resp.JSON404, resp.JSON500))
 }
 
-// requireEnvironment fails on an unknown environment, which the card read alone reports as "no card yet".
-func requireEnvironment(ctx context.Context, client *amsvc.ClientWithResponses, o *GetOptions) error {
-	resp, err := client.GetEnvironmentWithResponse(ctx, o.Org, o.Env)
-	if err != nil {
-		return clierr.Newf(clierr.Transport, "%v", err)
-	}
-	switch resp.StatusCode() {
-	case http.StatusOK, http.StatusForbidden:
-		return nil // a forbidden lookup can't prove the env is missing, so the card read decides
-	}
-	return cmdutil.ErrorFromServer(resp.HTTPResponse,
-		cmdutil.FirstNonNil(resp.JSON400, resp.JSON401, resp.JSON404, resp.JSON500))
-}
-
 // fetchCard returns nil when no card row exists.
 func fetchCard(ctx context.Context, client *amsvc.ClientWithResponses, o *GetOptions) (*amsvc.AgentCardResponse, error) {
-	resp, err := client.GetAgentCardWithResponse(ctx, o.Org, o.Proj, o.AgentName, o.Env)
+	resp, err := client.GetAgentCardWithResponse(ctx, o.Org, o.Proj, o.AgentName, cmdutil.DefaultEnvironment)
 	if err != nil {
 		return nil, clierr.Newf(clierr.Transport, "%v", err)
 	}
@@ -193,13 +168,12 @@ func fetchCard(ctx context.Context, client *amsvc.ClientWithResponses, o *GetOpt
 
 func printCardStatus(ios *iostreams.IOStreams, o *GetOptions, external bool, s CardStatus) {
 	w := ios.Out
-	fmt.Fprintf(w, "Environment: %s\n", o.Env)
 	if external {
 		printRouting(w, s.Proxy, s.RoutingUnknown)
 	}
 	if s.Card == nil {
 		if external {
-			fmt.Fprintf(w, "no card URL registered; run: amctl agent card set %s --env %s --url <url>\n", o.AgentName, o.Env)
+			fmt.Fprintf(w, "no card URL registered; run: amctl agent card set %s --url <url>\n", o.AgentName)
 		} else {
 			fmt.Fprintln(w, "no card fetched yet")
 		}
@@ -219,7 +193,7 @@ func printCardStatus(ios *iostreams.IOStreams, o *GetOptions, external bool, s C
 
 func printRouting(w io.Writer, proxy *amsvc.A2AProxyResponse, unknown bool) {
 	if unknown {
-		fmt.Fprintln(w, "Routing: unknown (no permission to read gateway routing in this environment)")
+		fmt.Fprintln(w, "Routing: unknown (no permission to read gateway routing)")
 		return
 	}
 	if proxy == nil {

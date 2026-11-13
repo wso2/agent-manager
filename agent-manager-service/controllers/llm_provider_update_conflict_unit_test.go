@@ -61,11 +61,6 @@ func TestUpdateLLMProvider_UpdateErrors(t *testing.T) {
 			message: "Another LLM provider already uses this name and version",
 		},
 		{
-			name:   "unrelated unique constraint",
-			err:    &pgconn.PgError{Code: "23505", ConstraintName: "another_constraint"},
-			status: http.StatusInternalServerError, code: "INTERNAL_ERROR", message: "Failed to update LLM provider",
-		},
-		{
 			name:   "other database error",
 			err:    &pgconn.PgError{Code: "23503", ConstraintName: "uq_artifact_name_version_ou_id"},
 			status: http.StatusInternalServerError, code: "INTERNAL_ERROR", message: "Failed to update LLM provider",

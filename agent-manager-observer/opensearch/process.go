@@ -73,13 +73,8 @@ func parseSpan(source map[string]interface{}) Span {
 		span.Kind = kind
 	}
 
-	// Extract component UID from resource
 	if resource, ok := source["resource"].(map[string]interface{}); ok {
-		if componentUid, ok := resource["openchoreo.dev/component-uid"].(string); ok {
-			span.Service = componentUid
-		}
-
-		// Store the complete resource object
+		span.Service = ServiceFromResource(resource)
 		span.Resource = resource
 	}
 
@@ -463,7 +458,7 @@ func extractAgentSystemPrompt(attrs map[string]interface{}) string {
 }
 
 // extractSpanStatus determines the error status of a span. statusMessage is the
-// developer-facing message from the span's OTel status (OpenChoreo 1.2.0+); it is
+// developer-facing message from the span's OTel status; it is
 // carried through verbatim so the console can surface it (typically set on error).
 func extractSpanStatus(attrs map[string]interface{}, spanStatus, statusMessage string) *SpanStatus {
 	status := &SpanStatus{
@@ -2479,8 +2474,14 @@ func hasTaskAttributes(attrs map[string]interface{}, spanName string) bool {
 	return false
 }
 
+// ServiceFromResource returns the agent name the span was ingested under.
+func ServiceFromResource(resource map[string]interface{}) string {
+	agent, _ := resource[ResourceAgent].(string)
+	return agent
+}
+
 // ProcessSpan enriches a Span with AmpAttributes using type detection and
-// attribute extraction. Used by the controller for observer-sourced spans.
+// attribute extraction. Used by the controller for trace-store spans.
 func ProcessSpan(span Span) Span {
 	spanType := DetermineSpanType(span)
 	ampAttrs := &AmpAttributes{

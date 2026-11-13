@@ -8,7 +8,7 @@ import uvicorn
 
 from app import app
 
-# Platform-hosted chat agents are routed to 8000; override only for local runs.
+# Clients and the web UI default to 8000; override only if it is taken.
 DEFAULT_PORT = 8000
 
 

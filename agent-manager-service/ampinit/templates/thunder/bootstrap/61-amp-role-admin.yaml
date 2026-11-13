@@ -1,0 +1,17 @@
+resource_type: role
+id: amp-role-admin
+name: Agent Manager Admin
+description: Full administrative access to all AMP resources
+ouHandle: default
+permissions:
+  - resourceServerId: amp-resource-server
+    permissions: {{ json (rolePermissions "Agent Manager Admin") }}
+  - resourceServerId: "amp-agent-manager-mcp-resource-srv"
+    permissions: {{ json (rolePermissions "Agent Manager Admin" "amp-agent-manager-mcp-resource-srv") }}
+  - resourceServerId: "amp-observer-mcp-resource-server"
+    permissions: {{ json (rolePermissions "Agent Manager Admin" "amp-observer-mcp-resource-server") }}
+assignments:
+  - id: amp-api-client
+    type: app
+  - id: amp-admins
+    type: group

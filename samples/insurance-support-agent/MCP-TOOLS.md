@@ -35,7 +35,7 @@ Every other HTTP request requires `X-Insurance-Upstream-Key`.
 
 For local smoke tests, install `mcp-server/requirements.txt`, set the upstream key,
 and run `python mcp-server/server.py`. This listens on port `8001`; local testing
-does not replace a reachable HTTPS endpoint for the SaaS gateway.
+does not replace an HTTPS endpoint the AI Gateway can reach.
 
 ## 2. Register and authorize the proxy in the console
 
@@ -45,18 +45,18 @@ does not replace a reachable HTTPS endpoint for the SaaS gateway.
    Use proxy handle `insurance-policies`. Fetch tools and save the proxy. Keep this key in the gateway
    configuration; do not give it to the agent.
 2. In **Manage Tools**, choose **Deny all**, then allow only `list_policies` and
-   `lookup_policy`. Deploy the proxy to the environment used by your agent.
+   `lookup_policy`. Deploy the proxy to your gateway.
 3. On **Security**, select **OAuth**. Create action `read`, producing scope
    `insurance-policies:read`, and map **both** policy tools to it. Under
-   **Agent ID → Roles**, create `policy-reader` in the same environment, add
+   **Agent ID → Roles**, create `policy-reader`, add
    that scope, and assign the external agent's identity. Apply the configuration.
    Unscoped tools default to permitted for authenticated callers: map every tool
    you intend to restrict. The [authorization guide](https://wso2.com/agent-platform/docs/cloud/guides/authorize-agent-access-to-mcp-tools/)
    provides scope/role/assignment API requests if your console differs.
 4. On the external agent, open **Configure → Tool Configurations → Add Tool
    Configuration**, select the insurance proxy, and save. Open **Connect to MCP
-   Server** for the target environment and copy the proxy endpoint. Open the
-   agent's **Agent ID → Overview** in that environment. Copy the OAuth client ID,
+   Server** and copy the proxy endpoint. Open the
+   agent's **Agent ID → Overview**. Copy the OAuth client ID,
    choose **Regenerate Secret**, and store the secret. Copy **Token Endpoint**
    under **OAuth2 Endpoints**. The overview card's Agent ID is not the client ID.
 

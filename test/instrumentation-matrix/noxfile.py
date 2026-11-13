@@ -123,11 +123,11 @@ def heavy(session):
     """Run the heavy tier against a live AMP stack.
 
     Pre-condition (caller's responsibility — the nightly / manual workflows
-    use the `amp-dev-stack` composite for this): AMP is up on k3d, built from
-    the working tree, with the API + observer reachable on their default
-    localhost ports. Service URLs + IDP creds default in heavy/driver.py;
-    only OPENAI_API_KEY / ANTHROPIC_API_KEY need to be set (forwarded into
-    each deployed agent). See RUNBOOK.md §7 for the full deploy contract.
+    use the `amp-dev-stack` composite for this): Agent Manager is up on
+    Docker Compose (deployments/standalone), built from the working tree, on
+    its default ports, and each cell's `python<X.Y>` is on PATH. Service URLs +
+    IDP creds default in heavy/driver.py; only OPENAI_API_KEY /
+    ANTHROPIC_API_KEY need to be set (passed to each local agent).
     """
     # Use the interpreter that's running nox itself — that's the matrix
     # venv locally and the workflow's setup-python interpreter in CI. A bare

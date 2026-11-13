@@ -1,7 +1,7 @@
 """AgentID bearer tokens for OAuth-secured MCP proxies.
 
-Agent Manager injects four ``AMP_AGENTID_*`` env vars into every platform-hosted
-agent's pod (see ``config.py``). When ``MCP_OAUTH=true``, this module turns them
+The four ``AMP_AGENTID_*`` env vars hold the agent's AgentID client credentials
+(see ``config.py``). When ``MCP_OAUTH=true``, this module turns them
 into an OAuth 2.0 ``client_credentials`` access token and attaches it to every
 MCP request as ``Authorization: Bearer``, in place of the proxy API key.
 """
@@ -21,7 +21,7 @@ log = logging.getLogger("it-helpdesk")
 
 
 class AgentIdentityNotProvisionedError(Exception):
-    """AgentID has not finished provisioning for this environment yet."""
+    """AgentID has not finished provisioning for this agent yet."""
 
 
 class AgentIdentityAuth(httpx.Auth):

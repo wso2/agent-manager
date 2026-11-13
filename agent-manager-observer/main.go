@@ -22,7 +22,6 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-observer/app"
 	"github.com/wso2/agent-manager/agent-manager-observer/config"
-	"github.com/wso2/agent-manager/agent-manager-observer/observer"
 )
 
 func main() {
@@ -31,17 +30,7 @@ func main() {
 		slog.Error("Failed to load config", "error", err)
 		os.Exit(1)
 	}
-	if err := cfg.Observer.ValidateClientCredentials(); err != nil {
-		slog.Error("Invalid observer credentials config", "error", err)
-		os.Exit(1)
-	}
-
-	authProvider := observer.NewAuthProvider(
-		cfg.Observer.TokenURL,
-		cfg.Observer.ClientID,
-		cfg.Observer.ClientSecret,
-	)
-	if err := app.Run(cfg, authProvider, app.Options{}); err != nil {
+	if err := app.Run(cfg, app.Options{}); err != nil {
 		slog.Error("Observer stopped", "error", err)
 		os.Exit(1)
 	}

@@ -26,6 +26,7 @@ type Config struct {
 	AuthHeader          string
 	AutoMaxProcsEnabled bool
 	LogLevel            string
+	Database            DatabaseConfig
 	POSTGRESQL          POSTGRESQL
 	// HTTP Server timeout configurations
 	ReadTimeoutSeconds  int
@@ -54,6 +55,10 @@ type Config struct {
 	// Default Chat API configuration
 	DefaultChatAPI     DefaultChatAPIConfig
 	DefaultGatewayPort int
+	// DefaultGateway is the gateway registered from configuration at startup.
+	DefaultGateway DefaultGatewayConfig
+	// OtelIngest is the trace-ingest API pushed to every gateway.
+	OtelIngest OtelIngestConfig
 	// A2ACardFetchDialAddr, when set, is the host:port every platform card fetch dials instead of its URL host.
 	A2ACardFetchDialAddr string
 
@@ -68,24 +73,6 @@ type Config struct {
 	// unless GrowthAnalytics.Enabled is true and MoesifCollectorBaseURL is
 	// set (both off by default); IsOnPremDeployment isn't consulted.
 	GrowthAnalytics GrowthAnalyticsConfig
-
-	// ThunderHostBaseDomain is the domain suffix env-Thunder's developer-facing
-	// hostnames are built from: "<handle>.<ThunderHostBaseDomain>".
-	// Default "amp.localhost" matches local dev (k3d + the *.amp.localhost wildcard
-	// cert). VM/production deployments set this to their own base domain (e.g. a
-	// sslip.io address) — see deployments/vm/lib-vm.sh, which sets the identical
-	// value when provisioning env-Thunder so the Go-reported URLs and the actually
-	// deployed Thunder instance's own self-configured issuer never diverge.
-	ThunderHostBaseDomain string
-
-	// ThunderAskSecret, when set, is the shared secret Caddy's on-demand-TLS ask
-	// call presents (header X-Thunder-Ask-Secret) to /internal/thunder-ask so
-	// that call can be told apart from the public internet, which reaches the
-	// same path through the api host's own catch-all route — see
-	// api/thunder_ask_routes.go. Empty by default: a deployment that hasn't set
-	// this (e.g. one upgrading without regenerating its Caddyfile) keeps today's
-	// single shared rate limit rather than breaking.
-	ThunderAskSecret string
 
 	// OAuthAuthorizationServers is the list of OAuth 2.0 authorization server URLs
 	// advertised in the RFC 9728 protected resource metadata document. Each entry
@@ -103,8 +90,9 @@ type Config struct {
 	// GitHub configuration for repository API access
 	GitHub GitHubConfig
 
-	// OpenChoreo API configuration
-	OpenChoreo OpenChoreoConfig
+	// OrgNamespace names the namespace trace ingestion and env-Thunder instances
+	// are addressed by. The deployment runs a single namespace.
+	OrgNamespace string
 
 	// Internal Server configuration (for WebSocket and gateway internal APIs)
 	InternalServer InternalServerConfig
@@ -119,18 +107,8 @@ type Config struct {
 	// Secret Manager configuration
 	SecretManager SecretManagerConfig
 
-	// OpenBao KV store configuration (data plane - for deployment secrets)
-	OpenBao OpenBaoConfig
-
-	// WorkflowPlaneOpenBao KV store configuration (workflow plane - for git secrets)
-	WorkflowPlaneOpenBao OpenBaoConfig
-
 	// Thunder admin API configuration for provisioning OAuth apps
 	Thunder ThunderConfig
-	// BuildClient configures the organization-scoped token a source build's
-	// workload step uses to call this service's build publisher endpoint instead
-	// of the OpenChoreo API. See BuildClientConfig.
-	BuildClient BuildClientConfig
 	// IdentityManagementMode controls project AgentID creation. Existing
 	// installations remain on direct environment-Thunder management.
 	IdentityManagementMode string
@@ -214,15 +192,6 @@ type Config struct {
 	// cache lives. The default in-memory backend is process-local and therefore
 	// inconsistent across replicas — set Backend to "redis" in HA deployments.
 	GatewayManifestCache GatewayManifestCacheConfig
-
-	// GatewayPublicVhostFallback hands a platform-hosted agent the gateway's
-	// public vhost for its LLM proxy URL when the gateway registered no
-	// in-cluster runtimeUrl. Off by default: on-premises gateways always
-	// register one, and an in-cluster caller sent out through the public
-	// ingress is usually blocked by its NetworkPolicy, so a missing runtimeUrl
-	// fails closed. Deployments whose gateways register only a vhost (WSO2
-	// Cloud) turn it on. GATEWAY_PUBLIC_VHOST_FALLBACK.
-	GatewayPublicVhostFallback bool
 
 	// EvalJobsUsePublicGatewayURL points scheduled evaluation jobs at the LLM
 	// proxy's public gateway vhost instead of the gateway's in-cluster address.
@@ -343,68 +312,8 @@ type TLSConfig struct {
 
 // SecretManagerConfig holds secret manager client configuration
 type SecretManagerConfig struct {
-	// Provider is the secret store provider name (e.g., "openchoreo")
+	// Provider is the secret store provider name (e.g., "unsupported")
 	Provider string
-	// TargetPlaneKind is the kind of the plane hosting secret data
-	// (e.g. "ClusterDataPlane")
-	TargetPlaneKind string
-	// TargetPlaneName is the name of the plane hosting secret data
-	TargetPlaneName string
-	// RefreshInterval is how often SecretReference CRs should refresh from the
-	// secret store (default: "1h")
-	RefreshInterval string
-	// AgentIdentityRefreshInterval is the fallback wait after rotating an
-	// Agent ID credential when force-sync could not be confirmed (default: "10m").
-	// It must cover the workload's secret-env ExternalSecret refresh interval.
-	AgentIdentityRefreshInterval string
-	// AgentIdentityForceSyncWait is how long to wait after forcing the workload's
-	// secret-env ExternalSecret to re-sync on rotation, before rolling the pod
-	// (default: "20s"). Used instead of AgentIdentityRefreshInterval whenever
-	// the force-sync write succeeds.
-	AgentIdentityForceSyncWait string
-	// AgentIdentityForceSyncApplyTimeout bounds how long to wait, before the
-	// AgentIdentityForceSyncWait above, for the new force-sync revision to show
-	// up on the live ExternalSecret (default: "2m"). On timeout a warning is
-	// logged and the pod is rolled after AgentIdentityRefreshInterval, not the
-	// short force-sync wait, because the force-sync was not confirmed.
-	AgentIdentityForceSyncApplyTimeout string
-}
-
-// OpenBaoConfig holds OpenBao KV store configuration.
-// Only KV v2 secrets engine is supported.
-type OpenBaoConfig struct {
-	// URL is the OpenBao server URL (e.g., http://openbao.openbao.svc:8200)
-	URL string
-	// Token is the authentication token
-	Token string `json:"-"`
-	// Path is the KV secrets engine mount path (default: "secret")
-	Path string
-}
-
-// OpenChoreoConfig holds OpenChoreo API configuration
-type OpenChoreoConfig struct {
-	// BaseURL is the OpenChoreo API base URL
-	BaseURL string
-	// DefaultNamespace is the OpenChoreo namespace (organization) all API
-	// calls are scoped to. The deployment runs single-namespace.
-	DefaultNamespace string
-	// SystemLabelKeyPrefixes lists component label-key prefixes that are
-	// reserved for internal use and never surfaced as user labels in agent
-	// API responses.
-	SystemLabelKeyPrefixes []string
-	// ResourceLabels are stamped on every Component and ReleaseBinding Agent
-	// Manager writes. Not read from the environment: a deployment injects them
-	// through app.Options.ResourceLabels. Their keys are treated as system
-	// labels, so they are never surfaced or replaced as user labels.
-	ResourceLabels map[string]string
-	// BuildWorkflowKind is the kind recorded on a new source-built agent's
-	// Component workflow reference: "Workflow" (namespaced, resolves the
-	// WorkflowPlane in the organization's own namespace) or "ClusterWorkflow".
-	// Empty (the default) records no kind, which OpenChoreo and builds.go both
-	// treat as ClusterWorkflow — the single cluster-wide workflow plane every
-	// on-premises install uses. Existing agents keep the kind they were created
-	// with.
-	BuildWorkflowKind string
 }
 
 // GitHubConfig holds GitHub API configuration
@@ -439,22 +348,6 @@ type CORSConfig struct {
 
 // OTELConfig holds all OpenTelemetry related configuration
 type OTELConfig struct {
-	// Instrumentation configuration
-	SDKVolumeName string
-	SDKMountPath  string
-
-	// DefaultInstrumentationVersion is the AMP instrumentation version used for an
-	// agent that has not selected one; it resolves to the pre-built
-	// amp-python-instrumentation-provider:<version>-python<X.Y> init-container image.
-	// Validated at app startup against the assembled instrumentation catalog.
-	DefaultInstrumentationVersion string
-
-	// InstrumentationExtensionPath is the on-disk YAML file holding
-	// operator-supplied catalog extension entries; consumed by
-	// instrumentation.Load. An empty value or missing file is treated as
-	// no extension (baseline-only catalog).
-	InstrumentationExtensionPath string
-
 	// Tracing configuration
 	IsTraceContentEnabled bool
 
@@ -531,6 +424,19 @@ type GrowthAnalyticsConfig struct {
 	// local-dev default — omits the field rather than reporting a blank
 	// environment, so local traffic does not create an empty bucket.
 	Environment string
+}
+
+// Database drivers selectable through DB_DRIVER.
+const (
+	DBDriverPostgres = "postgres"
+	DBDriverSQLite   = "sqlite"
+)
+
+// DatabaseConfig picks the database. POSTGRESQL holds the server settings, and its pool settings apply to every driver.
+type DatabaseConfig struct {
+	Driver string
+	// SQLitePath is the database file used when Driver is sqlite.
+	SQLitePath string
 }
 
 type POSTGRESQL struct {
@@ -618,46 +524,6 @@ type InternalServerConfig struct {
 	MaxHeaderBytes      int
 }
 
-// BuildClientConfig controls the organization-scoped build token.
-//
-// When Enabled, every source build of an agent whose build workflow is listed in
-// Workflows carries an access token for its organization. This service obtains it
-// from the identity provider's organization token endpoint
-// (<IDP_TOKEN_URL without /oauth2/token>/ou/<ouId>/oauth2/token) with its own
-// client (IDP_CLIENT_ID / IDP_CLIENT_SECRET), stores it in the secret store and
-// passes the run only the name of the SecretReference holding it, as the run's
-// ampBuild parameter. The build's workload step hands the generated Workload,
-// with that token, to this service's build publisher endpoint, which performs the
-// OpenChoreo writes for that organization only. The build never holds a client
-// secret and needs no OpenChoreo credential of its own.
-//
-// Off by default: the build workflows and their workload step must declare the
-// ampBuild parameter before it is enabled. A namespaced Workflow that does not
-// declare it is not given the parameter, and its build keeps its previous path. A
-// ClusterWorkflow is not read: listing it in Workflows is taken to mean it
-// declares ampBuild (and ampBuild.secretStore when SecretStore is set), so list
-// only ClusterWorkflows that are installed that way. The identity provider must
-// support the organization token endpoint, and KEY_MANAGER_AUDIENCE must admit
-// IDP_CLIENT_ID, the audience of the tokens it issues.
-type BuildClientConfig struct {
-	// Enabled turns on build tokens and the build publisher endpoint
-	// (AMP_BUILD_CLIENT_ENABLED). Requires IDP_TOKEN_URL (ending in /oauth2/token),
-	// IDP_CLIENT_ID and IDP_CLIENT_SECRET.
-	Enabled bool
-	// Workflows names the build workflows (Workflow or ClusterWorkflow names)
-	// whose runs receive a build token (AMP_BUILD_CLIENT_WORKFLOWS). Only list
-	// workflows that wire parameters.ampBuild through to their workload step. A
-	// listed ClusterWorkflow is given the token without its schema being read.
-	Workflows []string
-	// SecretStore names the ClusterSecretStore a build run reads its token through
-	// (AMP_BUILD_CLIENT_SECRET_STORE), passed as parameters.ampBuild.secretStore.
-	// Empty passes none, and the workflow reads the token through its workflow
-	// plane's store. Set it where the token is stored somewhere that store cannot
-	// read; a run then gets the token only if its workflow declares
-	// ampBuild.secretStore.
-	SecretStore string
-}
-
 // ThunderConfig holds Thunder admin API configuration for provisioning OAuth apps
 type ThunderConfig struct {
 	// BaseURL is the Thunder API base URL (if empty, provisioner uses static defaults).
@@ -733,4 +599,25 @@ type ResourceLimitsConfig struct {
 	MaxCPU string
 	// MaxMemory is the maximum memory value (Kubernetes quantity string) applied to both requests and limits
 	MaxMemory string
+}
+
+// DefaultGatewayConfig registers one gateway at startup, so a bundled gateway connects with no manual
+// step. An empty Name turns it off.
+type DefaultGatewayConfig struct {
+	Name        string
+	DisplayName string
+	Vhost       string
+	// FunctionalityType is INGRESS, EGRESS or BOTH.
+	FunctionalityType string
+	// OrgOUID and OrgHandle are the Thunder OU the gateway belongs to.
+	OrgOUID   string
+	OrgHandle string
+	// Token is the registration token the gateway connects with, read from TokenFile when empty.
+	Token     string
+	TokenFile string
+}
+
+// OtelIngestConfig is the built-in OTLP trace-ingest API. An empty UpstreamURL turns it off.
+type OtelIngestConfig struct {
+	UpstreamURL string
 }

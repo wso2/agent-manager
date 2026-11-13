@@ -78,8 +78,7 @@ type attachConfigOutput struct {
 }
 
 const attachNote = "The agent reads the connection from the environment variables listed here. " +
-	"An agent that is already running picks them up on its next deployment; use build_agent and deploy_agent, " +
-	"or update_deployment_state with redeploy."
+	"Set them where the agent runs and restart it to pick up the change."
 
 // externalAttachNote is the note for an agent that runs outside the platform:
 // nothing is injected or deployed, and the key the create issued was revoked
@@ -321,7 +320,8 @@ func requireProductionTier(
 	}
 	// Recorded as the services record a tier refusal on deploy, so alerting on
 	// authz:deny sees attaches too.
-	audit.RecordAncillary(ctx, audit.ActionAuthzDeny,
+	audit.RecordAncillary(
+		ctx, audit.ActionAuthzDeny,
 		audit.Org(ouID),
 		audit.Environment(refused[0]),
 		audit.OutcomeOpt(audit.OutcomeDeny),

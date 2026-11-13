@@ -43,7 +43,6 @@ type SetOptions struct {
 	AgentName string
 
 	Name        string
-	Env         string
 	Proxy       string
 	URLEnv      string
 	APIKeyEnv   string
@@ -60,11 +59,9 @@ func NewSetCmd(f *cmdutil.Factory) *cobra.Command {
 	}
 
 	cmd := &cobra.Command{
-		Use:   "set [agent] --name <config> --env <env> --proxy <handle>",
-		Short: "Bind an MCP proxy to an agent's environment",
-		Long: "Create or update an agent's MCP proxy configuration for a single " +
-			"environment. Other environments on the same configuration are preserved.",
-		Args: cobra.MaximumNArgs(1),
+		Use:   "set [agent] --name <config> --proxy <handle>",
+		Short: "Bind an MCP proxy to an agent",
+		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			org, proj, err := opts.ResolveScope(cmd, true, true)
 			if err != nil {
@@ -81,13 +78,11 @@ func NewSetCmd(f *cmdutil.Factory) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&opts.Name, "name", "", "Name of the MCP configuration (required)")
-	cmd.Flags().StringVar(&opts.Env, "env", "", "Environment to bind the proxy in (required)")
 	cmd.Flags().StringVar(&opts.Proxy, "proxy", "", "Handle of a configured MCP proxy (required)")
 	cmd.Flags().StringVar(&opts.URLEnv, "url-env", "", "Env var name for the proxy URL (default: auto-generated)")
 	cmd.Flags().StringVar(&opts.APIKeyEnv, "apikey-env", "", "Env var name for the proxy API key (default: auto-generated)")
 	cmd.Flags().StringVar(&opts.Description, "description", "", "Optional description for the configuration")
 	_ = cmd.MarkFlagRequired("name")
-	_ = cmd.MarkFlagRequired("env")
 	_ = cmd.MarkFlagRequired("proxy")
 	return cmd
 }
@@ -125,7 +120,7 @@ func runSet(ctx context.Context, o *SetOptions) error {
 		body := amsvc.CreateAgentModelConfigRequest{
 			Name:                 o.Name,
 			Type:                 amsvc.CreateAgentModelConfigRequestTypeMcp,
-			EnvMappings:          map[string]amsvc.EnvModelConfigRequest{o.Env: mapping},
+			EnvMappings:          map[string]amsvc.EnvModelConfigRequest{cmdutil.DefaultEnvironment: mapping},
 			EnvironmentVariables: envVars,
 			Description:          modelconfig.OptionalString(o.Description),
 		}
@@ -139,8 +134,7 @@ func runSet(ctx context.Context, o *SetOptions) error {
 		}
 		result, verb = resp.JSON201, "created"
 	} else {
-		// Read-merge-write: PUT replaces the entire envMappings set, so we must
-		// re-send every existing environment alongside the one we are changing.
+		// Read-merge-write: PUT replaces the entire envMappings set.
 		current, err := client.GetAgentMCPConfigWithResponse(ctx, o.Org, o.Proj, o.AgentName, id)
 		if err != nil {
 			return render.Error(o.IO, o.Scope, clierr.Newf(clierr.Transport, "%v", err))
@@ -150,7 +144,7 @@ func runSet(ctx context.Context, o *SetOptions) error {
 				cmdutil.FirstNonNil(current.JSON400, current.JSON404, current.JSON500)))
 		}
 		merged := modelconfig.MergeExistingEnvMappings(current.JSON200, toEnvModelConfigRequest)
-		merged[o.Env] = mapping
+		merged[cmdutil.DefaultEnvironment] = mapping
 
 		body := amsvc.UpdateAgentModelConfigRequest{EnvMappings: &merged}
 		if envVars != nil {
@@ -174,7 +168,7 @@ func runSet(ctx context.Context, o *SetOptions) error {
 		return render.JSONSuccess(o.IO, o.Scope, result)
 	}
 	cs := o.IO.StderrColorScheme()
-	fmt.Fprintf(o.IO.ErrOut, "%s %s MCP config %q: bound proxy %q to environment %q\n",
-		cs.SuccessIcon(), verb, o.Name, o.Proxy, o.Env)
+	fmt.Fprintf(o.IO.ErrOut, "%s %s MCP config %q: bound proxy %q\n",
+		cs.SuccessIcon(), verb, o.Name, o.Proxy)
 	return nil
 }

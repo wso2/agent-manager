@@ -31,21 +31,19 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/events"
 )
 
-// Use an isolated transaction/schema so claims never consume other tests' work.
+// Claims take any available row, so the test runs in a transaction it rolls back, after emptying the outbox there.
 func TestEventOutboxLeaseRecovery(t *testing.T) {
 	database := db.GetDB()
-	schema := "outbox_" + uuid.New().String()[:8]
-	require.NoError(t, database.Exec("CREATE SCHEMA "+schema).Error)
-	t.Cleanup(func() { assert.NoError(t, database.Exec("DROP SCHEMA "+schema+" CASCADE").Error) })
+	ou := newOrg(t)
 	tx := database.Begin()
 	defer tx.Rollback()
-	require.NoError(t, tx.Exec("SET LOCAL search_path TO "+schema+", public").Error)
-	require.NoError(t, tx.Exec(`CREATE TABLE event_outbox (
- id TEXT PRIMARY KEY, body JSONB NOT NULL, lease TEXT NOT NULL DEFAULT '',
- available_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`).Error)
+	require.NoError(t, tx.Exec("DELETE FROM event_outbox").Error)
+	makeAvailable := func() {
+		require.NoError(t, tx.Exec("UPDATE event_outbox SET available_at = ?", time.Now().Add(-time.Second)).Error)
+	}
 	repo := NewEventOutboxRepository(tx)
 	ctx := context.Background()
-	e := events.New(uuid.NewString(), events.TypeMonitorRunFailed, events.ScopeAgent, "ou-1", "p", "a", time.Now())
+	e := events.New(uuid.NewString(), events.TypeMonitorRunFailed, events.ScopeAgent, ou, "p", "a", time.Now())
 	require.NoError(t, repo.Put(ctx, e))
 	require.NoError(t, repo.Put(ctx, e))
 	first, err := repo.Claim(ctx)
@@ -57,7 +55,7 @@ func TestEventOutboxLeaseRecovery(t *testing.T) {
 	next, err := repo.Claim(ctx)
 	require.NoError(t, err)
 	assert.Empty(t, next, "unexpired claims are exclusive")
-	require.NoError(t, tx.Exec("UPDATE event_outbox SET available_at = NOW() - INTERVAL '1 second'").Error)
+	makeAvailable()
 	recovered, err := repo.Claim(ctx)
 	require.NoError(t, err)
 	require.Len(t, recovered, 1)
@@ -70,7 +68,7 @@ func TestEventOutboxLeaseRecovery(t *testing.T) {
 	next, err = repo.Claim(ctx)
 	require.NoError(t, err)
 	assert.Empty(t, next, "failed sends back off")
-	require.NoError(t, tx.Exec("UPDATE event_outbox SET available_at = NOW() - INTERVAL '1 second'").Error)
+	makeAvailable()
 	next, err = repo.Claim(ctx)
 	require.NoError(t, err)
 	require.Len(t, next, 1)

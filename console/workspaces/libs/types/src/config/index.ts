@@ -41,32 +41,10 @@ export interface AppConfig {
   /** Gateway version used in setup commands (default: v2026.09.24). */
   gatewayVersion?: string;
   /**
-   * Agent Manager release version (e.g. v0.15.0); pins the deployment-script
-   * git tag (amp/vX.Y.Z).
+   * Agent Manager release version (e.g. v0.15.0); pins links to files published
+   * from this release (git tag amp/vX.Y.Z).
    */
   ampVersion?: string;
-  /**
-   * Base URL the console's generated commands fetch deployment scripts from.
-   * Empty (the default) derives the public raw.githubusercontent.com URL for
-   * the release ref. Set it where those raw URLs are not reachable — a private
-   * mirror of this repository serves none, so every generated command would
-   * fail — to any host serving deployments/scripts, without a trailing slash.
-   */
-  scriptBaseUrl?: string;
-  /**
-   * Private registry the platform was installed from, as a host and path prefix
-   * (e.g. "registry.example.com/my-project"). Empty for the public registry.
-   * When set, the generated environment and identity provider commands pull
-   * the gateway extension chart from it, and the environment command runs from
-   * the release bundle so it can create the image pull secrets.
-   */
-  ampRegistry?: string;
-  /** Helm chart registry of a private install. Empty derives `<ampRegistry>/helm-charts`. */
-  ampChartRegistry?: string;
-  /** Release bundle the private-registry environment command extracts the scripts from. */
-  bundleUrl?: string;
-  /** Version of the installed Agent Manager chart, e.g. "2.0.0-u1". */
-  chartVersion?: string;
   /**
    * Base URL the evaluator AI Copilot prompt links the writing guide from.
    * Empty (the default) derives the public raw.githubusercontent.com URL for the
@@ -84,34 +62,6 @@ export interface AppConfig {
    * the vhost of the gateway mapped to that environment.
    */
   useConfiguredInstrumentationUrl?: boolean;
-  /**
-   * Base URL the API Platform Gateway uses to reach Agent Manager from inside
-   * the cluster. The add-environment.sh script appends /api/v1 and
-   * /auth/external/jwks.json to this as needed.
-   * Used to render the curl|bash command in the Create Environment drawer.
-   */
-  agentManagerInternalBaseUrl?: string;
-  /**
-   * host:port the API Platform Gateway uses to reach Agent Manager's
-   * internal control-plane channel (port 9243). Used to render the
-   * add-environment.sh command in the Create Environment drawer.
-   */
-  agentManagerInternalCpHost?: string;
-  /**
-   * Base domain env-Thunder instances are hosted under (e.g. amp.localhost,
-   * or a VM/production deployment's own domain). Mirrors the backend's
-   * IDP_HOST_BASE_DOMAIN. Used to render the correct
-   * IDP_HOST_BASE_DOMAIN value in the Create Environment drawer's
-   * generated add-environment.sh command, and to build the handle preview.
-   */
-  idpHostBaseDomain?: string;
-  /**
-   * Whether this deployment serves env-Thunder over TLS. Mirrors the
-   * backend's TLS_ENABLED. Piped into the Create Environment drawer's
-   * generated command so the chained add-environment-thunder.sh script
-   * provisions the matching scheme.
-   */
-  tlsEnabled?: boolean;
   guardrailsCatalogUrl: string;
   guardrailsDefinitionBaseUrl: string;
   /**

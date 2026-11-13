@@ -56,7 +56,6 @@ export const addSelfHostedGatewaySchema = z.object({
       /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/,
       "Use lowercase letters, numbers and hyphens, not starting or ending with a hyphen",
     ),
-  environment: z.string().min(1, "Select an environment"),
   publicUrl: z
     .string()
     .refine(

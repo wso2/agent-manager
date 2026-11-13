@@ -100,8 +100,8 @@ func serve(body any) http.HandlerFunc {
 }
 
 var (
-	listArgs   = []string{"traces", "my-agent", "--project", "triage", "--env", "dev"}
-	exportArgs = []string{"traces", "export", "my-agent", "--project", "triage", "--env", "dev"}
+	listArgs   = []string{"traces", "my-agent", "--project", "triage"}
+	exportArgs = []string{"traces", "export", "my-agent", "--project", "triage"}
 )
 
 // consoleParamFlags maps each console trace-list param to the CLI flags that send
@@ -186,7 +186,7 @@ func TestExportCmd_RejectsCursor(t *testing.T) {
 
 // The default list and export send exactly the scope, window, limit and sort they sent before.
 func TestTracesCmd_DefaultRequestsUnchanged(t *testing.T) {
-	want := []string{"agent", "endTime", "environment", "limit", "organization", "project", "sortOrder", "startTime"}
+	want := []string{"agent", "endTime", "limit", "organization", "project", "sortOrder", "startTime"}
 	for _, tc := range []struct {
 		name string
 		args []string

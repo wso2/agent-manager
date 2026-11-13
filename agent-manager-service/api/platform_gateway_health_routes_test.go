@@ -27,7 +27,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
-	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/controllers"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
@@ -68,7 +67,7 @@ func platformHealthMux(t *testing.T, total, failed, abandoned int64) *http.Serve
 	}
 	ctrl := controllers.NewGatewayController(
 		services.NewPlatformGatewayService(repo, nil),
-		&clientmocks.OpenChoreoClientMock{},
+		&repomocks.PlatformRepositoryMock{},
 		nil,
 	)
 

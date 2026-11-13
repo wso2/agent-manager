@@ -23,16 +23,10 @@ import (
 )
 
 func TestLoad_CustomPort(t *testing.T) {
-	_ = os.Setenv("OPENCHOREO_OBSERVER_URL", "http://localhost:8085")
-	_ = os.Setenv("IDP_TOKEN_URL", "http://localhost:8090/oauth2/token")
-	_ = os.Setenv("IDP_CLIENT_ID", "amp-api-client")
-	_ = os.Setenv("IDP_CLIENT_SECRET", "amp-api-client-secret")
+	_ = os.Setenv("OPENSEARCH_ADDRESS", "https://localhost:9200")
 	_ = os.Setenv("AM_OBSERVER_PORT", "8080")
 	_ = os.Setenv("IS_LOCAL_DEV_ENV", "true")
-	defer func() { _ = os.Unsetenv("OPENCHOREO_OBSERVER_URL") }()
-	defer func() { _ = os.Unsetenv("IDP_TOKEN_URL") }()
-	defer func() { _ = os.Unsetenv("IDP_CLIENT_ID") }()
-	defer func() { _ = os.Unsetenv("IDP_CLIENT_SECRET") }()
+	defer func() { _ = os.Unsetenv("OPENSEARCH_ADDRESS") }()
 	defer func() { _ = os.Unsetenv("AM_OBSERVER_PORT") }()
 	defer func() { _ = os.Unsetenv("IS_LOCAL_DEV_ENV") }()
 
@@ -45,29 +39,20 @@ func TestLoad_CustomPort(t *testing.T) {
 	}
 }
 
-func TestLoad_MissingObserverConfig(t *testing.T) {
-	_ = os.Unsetenv("OPENCHOREO_OBSERVER_URL")
-	_ = os.Unsetenv("IDP_TOKEN_URL")
-	_ = os.Unsetenv("IDP_CLIENT_ID")
-	_ = os.Unsetenv("IDP_CLIENT_SECRET")
+func TestLoad_MissingOpenSearchAddress(t *testing.T) {
+	_ = os.Unsetenv("OPENSEARCH_ADDRESS")
 
 	_, err := Load()
 	if err == nil {
-		t.Fatal("expected error for missing observer config, got nil")
+		t.Fatal("expected error for missing OpenSearch address, got nil")
 	}
 }
 
 func TestLoad_InvalidPort(t *testing.T) {
-	_ = os.Setenv("OPENCHOREO_OBSERVER_URL", "http://localhost:8085")
-	_ = os.Setenv("IDP_TOKEN_URL", "http://localhost:8090/oauth2/token")
-	_ = os.Setenv("IDP_CLIENT_ID", "amp-api-client")
-	_ = os.Setenv("IDP_CLIENT_SECRET", "amp-api-client-secret")
+	_ = os.Setenv("OPENSEARCH_ADDRESS", "https://localhost:9200")
 	_ = os.Setenv("AM_OBSERVER_PORT", "0")
 	_ = os.Setenv("IS_LOCAL_DEV_ENV", "true")
-	defer func() { _ = os.Unsetenv("OPENCHOREO_OBSERVER_URL") }()
-	defer func() { _ = os.Unsetenv("IDP_TOKEN_URL") }()
-	defer func() { _ = os.Unsetenv("IDP_CLIENT_ID") }()
-	defer func() { _ = os.Unsetenv("IDP_CLIENT_SECRET") }()
+	defer func() { _ = os.Unsetenv("OPENSEARCH_ADDRESS") }()
 	defer func() { _ = os.Unsetenv("AM_OBSERVER_PORT") }()
 	defer func() { _ = os.Unsetenv("IS_LOCAL_DEV_ENV") }()
 
@@ -78,16 +63,10 @@ func TestLoad_InvalidPort(t *testing.T) {
 }
 
 func TestLoad_PortTooHigh(t *testing.T) {
-	_ = os.Setenv("OPENCHOREO_OBSERVER_URL", "http://localhost:8085")
-	_ = os.Setenv("IDP_TOKEN_URL", "http://localhost:8090/oauth2/token")
-	_ = os.Setenv("IDP_CLIENT_ID", "amp-api-client")
-	_ = os.Setenv("IDP_CLIENT_SECRET", "amp-api-client-secret")
+	_ = os.Setenv("OPENSEARCH_ADDRESS", "https://localhost:9200")
 	_ = os.Setenv("AM_OBSERVER_PORT", "70000")
 	_ = os.Setenv("IS_LOCAL_DEV_ENV", "true")
-	defer func() { _ = os.Unsetenv("OPENCHOREO_OBSERVER_URL") }()
-	defer func() { _ = os.Unsetenv("IDP_TOKEN_URL") }()
-	defer func() { _ = os.Unsetenv("IDP_CLIENT_ID") }()
-	defer func() { _ = os.Unsetenv("IDP_CLIENT_SECRET") }()
+	defer func() { _ = os.Unsetenv("OPENSEARCH_ADDRESS") }()
 	defer func() { _ = os.Unsetenv("AM_OBSERVER_PORT") }()
 	defer func() { _ = os.Unsetenv("IS_LOCAL_DEV_ENV") }()
 
@@ -98,16 +77,10 @@ func TestLoad_PortTooHigh(t *testing.T) {
 }
 
 func TestLoad_MissingJWKSWhenNotLocalDev(t *testing.T) {
-	_ = os.Setenv("OPENCHOREO_OBSERVER_URL", "http://localhost:8085")
-	_ = os.Setenv("IDP_TOKEN_URL", "http://localhost:8090/oauth2/token")
-	_ = os.Setenv("IDP_CLIENT_ID", "amp-api-client")
-	_ = os.Setenv("IDP_CLIENT_SECRET", "amp-api-client-secret")
+	_ = os.Setenv("OPENSEARCH_ADDRESS", "https://localhost:9200")
 	_ = os.Unsetenv("KEY_MANAGER_JWKS_URL")
 	_ = os.Setenv("IS_LOCAL_DEV_ENV", "false")
-	defer func() { _ = os.Unsetenv("OPENCHOREO_OBSERVER_URL") }()
-	defer func() { _ = os.Unsetenv("IDP_TOKEN_URL") }()
-	defer func() { _ = os.Unsetenv("IDP_CLIENT_ID") }()
-	defer func() { _ = os.Unsetenv("IDP_CLIENT_SECRET") }()
+	defer func() { _ = os.Unsetenv("OPENSEARCH_ADDRESS") }()
 	defer func() { _ = os.Unsetenv("IS_LOCAL_DEV_ENV") }()
 
 	_, err := Load()
@@ -118,10 +91,7 @@ func TestLoad_MissingJWKSWhenNotLocalDev(t *testing.T) {
 
 func setRequiredEnv(t *testing.T) {
 	t.Helper()
-	t.Setenv("OPENCHOREO_OBSERVER_URL", "http://localhost:8085")
-	t.Setenv("IDP_TOKEN_URL", "http://localhost:8090/oauth2/token")
-	t.Setenv("IDP_CLIENT_ID", "amp-api-client")
-	t.Setenv("IDP_CLIENT_SECRET", "amp-api-client-secret")
+	t.Setenv("OPENSEARCH_ADDRESS", "http://localhost:8085")
 	t.Setenv("IS_LOCAL_DEV_ENV", "true")
 }
 
@@ -166,36 +136,17 @@ func TestLoad_OAuthConfigured(t *testing.T) {
 	}
 }
 
-func TestLoad_DoesNotRequireClientCredentials(t *testing.T) {
-	t.Setenv("OPENCHOREO_OBSERVER_URL", "http://localhost:8085")
-	t.Setenv("IS_LOCAL_DEV_ENV", "true")
-	t.Setenv("IDP_TOKEN_URL", "")
-	t.Setenv("IDP_CLIENT_ID", "")
-	t.Setenv("IDP_CLIENT_SECRET", "")
+func TestLoad_OpenSearchDefaults(t *testing.T) {
+	setRequiredEnv(t)
 
-	if _, err := Load(); err != nil {
-		t.Fatalf("expected no error without IDP settings, got %v", err)
-	}
-}
-
-func TestObserverConfig_ValidateClientCredentials(t *testing.T) {
-	valid := ObserverConfig{TokenURL: "http://idp/token", ClientID: "id", ClientSecret: "secret"}
-	if err := valid.ValidateClientCredentials(); err != nil {
+	cfg, err := Load()
+	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
-
-	tests := map[string]func(*ObserverConfig){
-		"missing token URL":     func(c *ObserverConfig) { c.TokenURL = "" },
-		"missing client ID":     func(c *ObserverConfig) { c.ClientID = " " },
-		"missing client secret": func(c *ObserverConfig) { c.ClientSecret = "" },
+	if cfg.OpenSearch.TraceIndex != "otel-traces-*" {
+		t.Errorf("unexpected default TraceIndex: %q", cfg.OpenSearch.TraceIndex)
 	}
-	for name, mutate := range tests {
-		t.Run(name, func(t *testing.T) {
-			c := valid
-			mutate(&c)
-			if err := c.ValidateClientCredentials(); err == nil {
-				t.Error("expected error, got nil")
-			}
-		})
+	if cfg.OpenSearch.InsecureSkipVerify {
+		t.Error("expected TLS verification on by default")
 	}
 }

@@ -26,9 +26,8 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
-	observersvc "github.com/wso2/agent-manager/agent-manager-service/clients/observersvc"
-	occlient "github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/controllers"
@@ -53,10 +52,8 @@ type AppParams struct {
 
 	// Controllers
 	AgentController                  controllers.AgentController
-	AgentKindController              controllers.AgentKindController
 	InfraResourceController          controllers.InfraResourceController
 	AgentTokenController             controllers.AgentTokenController
-	RepositoryController             controllers.RepositoryController
 	EnvironmentController            controllers.EnvironmentController
 	GatewayController                controllers.GatewayController
 	LLMController                    controllers.LLMController
@@ -68,18 +65,14 @@ type AppParams struct {
 	A2AProxyController               controllers.A2AProxyController
 	LLMProxyDeploymentController     controllers.LLMProxyDeploymentController
 	MCPProxyController               controllers.MCPProxyController
-	ProjectMCPProxyController        controllers.ProjectMCPProxyController
 	WebSocketController              controllers.WebSocketController
 	GatewayInternalController        controllers.GatewayInternalController
 	MonitorController                controllers.MonitorController
 	MonitorScoresController          controllers.MonitorScoresController
 	MonitorScoresPublisherController controllers.MonitorScoresPublisherController
-	BuildPublisherController         controllers.BuildPublisherController
 	EvaluatorController              controllers.EvaluatorController
 	CatalogController                controllers.CatalogController
-	AgentBuildOptionsController      controllers.AgentBuildOptionsController
 	AgentConfigurationController     controllers.AgentConfigurationController
-	GitSecretController              controllers.GitSecretController
 	IdentityController               controllers.IdentityController
 	MCPProxyScopeController          controllers.MCPProxyScopeController
 	AgentIdentityController          controllers.AgentIdentityController
@@ -90,19 +83,16 @@ type AppParams struct {
 	A2ACardReconciler                services.A2ACardReconcilerService
 	DeploymentTimeoutSweeper         services.DeploymentTimeoutSweeper
 	ReconcileWorker                  *reconcile.Worker
+	DefaultGatewaySeeder             *services.DefaultGatewaySeeder
 
 	// Services
-	LLMTemplateStore              *services.LLMTemplateStore
-	InfraResourceManager          services.InfraResourceManager
-	AgentManagerService           services.AgentManagerService
-	RepositoryService             services.RepositoryService
-	AgentTokenManagerService      services.AgentTokenManagerService
-	AgentIdentityInjectionService services.AgentIdentityInjectionService
-	EnvironmentService            services.EnvironmentService
-	EventDispatcher               services.EventDispatcherService
-	MonitorAlerts                 services.MonitorAlertProcessor
-	BuildPublisherService         services.BuildPublisherService
-	BuildTokenIssuer              services.BuildTokenIssuer
+	LLMTemplateStore         *services.LLMTemplateStore
+	InfraResourceManager     services.InfraResourceManager
+	AgentManagerService      services.AgentManagerService
+	AgentTokenManagerService services.AgentTokenManagerService
+	EnvironmentService       services.EnvironmentService
+	EventDispatcher          services.EventDispatcherService
+	MonitorAlerts            services.MonitorAlertProcessor
 	// Services the MCP connection tools call directly.
 	LLMProviderService           *services.LLMProviderService
 	LLMProviderDeploymentService *services.LLMProviderDeploymentService
@@ -114,9 +104,8 @@ type AppParams struct {
 	EventBus       events.Bus
 	EventPublisher events.Publisher
 
-	// Clients
-	OpenChoreoClient  occlient.OpenChoreoClient
-	ObserverSvcClient observersvc.ObserverSvcClient
+	// PlatformRepository stores organizations, projects, environments and agents.
+	PlatformRepository repositories.PlatformRepository
 
 	// WebSocket
 	WebSocketManager *websocket.Manager
@@ -130,9 +119,8 @@ type AppParams struct {
 
 // TestClients contains all mock clients needed for testing
 type TestClients struct {
-	OpenChoreoClient  occlient.OpenChoreoClient
-	SecretMgmtClient  secretmanagersvc.SecretManagementClient
-	ObserverSvcClient observersvc.ObserverSvcClient
+	PlatformRepository repositories.PlatformRepository
+	SecretMgmtClient   secretmanagersvc.SecretManagementClient
 	// OUHandleLookup replaces the Thunder-backed OU ID → handle lookup when set.
 	OUHandleLookup middleware.OUHandleLookup
 }

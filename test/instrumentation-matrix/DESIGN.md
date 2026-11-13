@@ -786,6 +786,11 @@ means adding a deployable sample under `samples/` and an entry to
 
 ### 9.3 Infra
 
+> **Superseded.** The heavy tier no longer runs on Kubernetes: it brings Agent
+> Manager up with Docker Compose and runs each cell's sample locally as an
+> external agent. RUNBOOK.md §7 describes the current flow; the rest of this
+> section is the original k3d design.
+
 k3d on a GHA-hosted runner (default) with a self-hosted-runner escape hatch.
 
 ```
@@ -843,15 +848,15 @@ real provider calls.
   `instrumentation_version` field on the build request controls which
   init-container image lands in the rendered pod.
 - OpenSearch state is reset between cells via `spans-*` index deletion in
-  the `openchoreo-observability-plane` namespace.
+  the `amp-observability` namespace.
 
 ### 9.5 Build-from-source bring-up
 
 The heavy CI job stands up AMP from the **working tree** via the dev
 `make setup` chain, wrapped in the `.github/actions/amp-dev-stack`
-composite action: `setup-k3d` → `setup-openchoreo` (which builds the
-amp-observer + python-instrumentation-provider images from source and
-`k3d image import`s them) → `setup-platform` (agent-manager-service via
+composite action: `setup-k3d` → AMP extensions (Thunder, gateway operator)
+→ trace storage + observer (builds amp-observer from source and
+`k3d image import`s it) → `setup-platform` (agent-manager-service via
 docker-compose) → migrate → port-forward → gateway.
 
 This is deliberately **not** `deployments/quick-start/install.sh`, which

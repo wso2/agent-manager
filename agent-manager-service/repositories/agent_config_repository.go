@@ -18,12 +18,11 @@ package repositories
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 
+	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 )
 
@@ -62,51 +61,57 @@ func NewAgentConfigRepo(db *gorm.DB) AgentConfigRepository {
 	return &AgentConfigRepo{db: db}
 }
 
+// agentConfigColumns are the settings an Upsert rewrites.
+var agentConfigColumns = []string{
+	"api_key_security", "cors_enabled", "cors_allow_origins", "cors_allow_methods", "cors_allow_headers",
+	"cors_allow_credentials", "oauth_enabled", "oauth_issuers", "oauth_audiences", "oauth_header_name",
+	"oauth_header_prefix", "oauth_forward_token", "timeout_seconds", "card_cors_enabled", "card_cors_allow_origins",
+	"card_cors_allow_headers", "card_cors_allow_credentials", "updated_at",
+}
+
+// prepare resolves the config's ids and stamps it. The required JSON lists are never NULL: a nil list is empty.
+func (r *AgentConfigRepo) prepare(db *gorm.DB, config *models.AgentConfig) error {
+	if err := config.Resolve(db); err != nil {
+		return err
+	}
+	for _, list := range []*[]string{
+		&config.CORSAllowOrigins, &config.CORSAllowMethods, &config.CORSAllowHeaders, &config.OAuthIssuers, &config.OAuthAudiences,
+	} {
+		if *list == nil {
+			*list = []string{}
+		}
+	}
+	now := dbx.Now()
+	if config.CreatedAt.IsZero() {
+		config.CreatedAt = now
+	}
+	config.UpdatedAt = now
+	return nil
+}
+
 // Upsert creates or updates an agent config for a specific environment
 func (r *AgentConfigRepo) Upsert(ctx context.Context, config *models.AgentConfig) error {
-	// clause.Assignments bypasses GORM's serializer:json tag, so []string fields
-	// must be pre-serialized to JSON strings and cast to jsonb explicitly.
-	originsJSON, _ := json.Marshal(config.CORSAllowOrigins)
-	methodsJSON, _ := json.Marshal(config.CORSAllowMethods)
-	headersJSON, _ := json.Marshal(config.CORSAllowHeaders)
-	oauthIssuersJSON, _ := json.Marshal(config.OAuthIssuers)
-	oauthAudiencesJSON, _ := json.Marshal(config.OAuthAudiences)
-
-	// Use Select("*") to force GORM to include all fields including boolean false values
-	// Without this, GORM skips "zero value" fields like false booleans during Create
-	return r.db.WithContext(ctx).Select("*").Clauses(clause.OnConflict{
-		Columns: []clause.Column{{Name: "ou_id"}, {Name: "project_name"}, {Name: "agent_name"}, {Name: "environment_name"}},
-		DoUpdates: clause.Assignments(map[string]interface{}{
-			"enable_auto_instrumentation": config.EnableAutoInstrumentation,
-			"instrumentation_version":     config.InstrumentationVersion,
-			"enable_api_key_security":     config.EnableApiKeySecurity,
-			"cors_enabled":                config.CORSEnabled,
-			"cors_allow_origins":          clause.Expr{SQL: "?::jsonb", Vars: []interface{}{string(originsJSON)}},
-			"cors_allow_methods":          clause.Expr{SQL: "?::jsonb", Vars: []interface{}{string(methodsJSON)}},
-			"cors_allow_headers":          clause.Expr{SQL: "?::jsonb", Vars: []interface{}{string(headersJSON)}},
-			"cors_allow_credentials":      config.CORSAllowCredentials,
-			"enable_oauth_security":       config.EnableOAuthSecurity,
-			"oauth_issuers":               clause.Expr{SQL: "?::jsonb", Vars: []interface{}{string(oauthIssuersJSON)}},
-			"oauth_audiences":             clause.Expr{SQL: "?::jsonb", Vars: []interface{}{string(oauthAudiencesJSON)}},
-			"oauth_header_name":           config.OAuthHeaderName,
-			"oauth_auth_header_prefix":    config.OAuthAuthHeaderPrefix,
-			"oauth_forward_token":         config.OAuthForwardToken,
-			"resilience_timeout_seconds":  config.ResilienceTimeoutSeconds,
-			"card_cors_enabled":           config.CardCORSEnabled,
-			"card_cors_allow_origins":     nullableJSONB(config.CardCORSAllowOrigins),
-			"card_cors_allow_headers":     nullableJSONB(config.CardCORSAllowHeaders),
-			"card_cors_allow_credentials": config.CardCORSAllowCredentials,
-			"updated_at":                  clause.Expr{SQL: "NOW()"},
-		}),
-	}).Create(config).Error
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := r.prepare(tx, config); err != nil {
+			return err
+		}
+		_, err := dbx.Upsert(tx, config, func(tx *gorm.DB) error {
+			return tx.Model(&models.AgentConfig{}).
+				Where("agent_id = ? AND environment_id = ?", *config.AgentUUID, config.EnvironmentUUID).
+				Select(agentConfigColumns).Updates(config).Error
+		})
+		return err
+	})
 }
 
 // CreateIfAbsent inserts the config unless the environment already has one.
 func (r *AgentConfigRepo) CreateIfAbsent(ctx context.Context, config *models.AgentConfig) error {
-	return r.db.WithContext(ctx).Select("*").Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "ou_id"}, {Name: "project_name"}, {Name: "agent_name"}, {Name: "environment_name"}},
-		DoNothing: true,
-	}).Create(config).Error
+	db := r.db.WithContext(ctx)
+	if err := r.prepare(db, config); err != nil {
+		return err
+	}
+	_, err := dbx.InsertIfAbsent(db, config)
+	return err
 }
 
 // WithTx returns the repository bound to tx.
@@ -114,21 +119,11 @@ func (r *AgentConfigRepo) WithTx(tx *gorm.DB) AgentConfigRepository {
 	return &AgentConfigRepo{db: tx}
 }
 
-// nullableJSONB writes a nil slice as SQL NULL rather than the JSON literal
-// null, so an inheriting card leaves its columns genuinely empty.
-func nullableJSONB(values []string) interface{} {
-	if values == nil {
-		return nil
-	}
-	encoded, _ := json.Marshal(values)
-	return clause.Expr{SQL: "?::jsonb", Vars: []interface{}{string(encoded)}}
-}
-
 // Get retrieves agent config for a specific agent and environment
 func (r *AgentConfigRepo) Get(ctx context.Context, ouID, projectName, agentName, environmentName string) (*models.AgentConfig, error) {
 	var config models.AgentConfig
-	err := r.db.WithContext(ctx).Where("ou_id = ? AND project_name = ? AND agent_name = ? AND environment_name = ?",
-		ouID, projectName, agentName, environmentName).First(&config).Error
+	cond, args := agentEnvCond(r.db, ouID, projectName, agentName, environmentName)
+	err := r.db.WithContext(ctx).Where(cond, args...).Take(&config).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrAgentConfigNotFound
@@ -140,12 +135,13 @@ func (r *AgentConfigRepo) Get(ctx context.Context, ouID, projectName, agentName,
 
 // DeleteAllByAgent removes all configs for an agent (used when agent is deleted)
 func (r *AgentConfigRepo) DeleteAllByAgent(ctx context.Context, ouID, projectName, agentName string) error {
-	return r.db.WithContext(ctx).Where("ou_id = ? AND project_name = ? AND agent_name = ?",
-		ouID, projectName, agentName).Delete(&models.AgentConfig{}).Error
+	cond, args := agentCond(r.db, ouID, projectName, agentName)
+	return r.db.WithContext(ctx).Where(cond, args...).Delete(&models.AgentConfig{}).Error
 }
 
 // DeleteForEnvironment removes every agent's config for a deleted environment.
 func (r *AgentConfigRepo) DeleteForEnvironment(ctx context.Context, ouID, environmentName string) error {
-	return r.db.WithContext(ctx).Where("ou_id = ? AND environment_name = ?", ouID, environmentName).
+	return r.db.WithContext(ctx).
+		Where("org_id = ? AND environment_id IN (?)", ouID, models.EnvironmentIDQuery(r.db, ouID, environmentName)).
 		Delete(&models.AgentConfig{}).Error
 }

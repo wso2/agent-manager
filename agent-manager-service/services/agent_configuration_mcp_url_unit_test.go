@@ -27,8 +27,6 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
-	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
@@ -246,11 +244,8 @@ func selfHostedMCPConfigService(t *testing.T) (*agentConfigurationService, *mcpU
 			return []*models.EnvironmentResponse{{UUID: f.envUUID.String(), Name: "dev"}}, nil
 		},
 	}
-	svc.ocClient = &clientmocks.OpenChoreoClientMock{
-		GetProjectDeploymentPipelineFunc: func(context.Context, string, string) (*models.DeploymentPipelineResponse, error) {
-			return nil, utils.ErrDeploymentPipelineNotFound
-		},
-		GetComponentFunc: func(context.Context, string, string, string) (*models.AgentResponse, error) {
+	svc.ocClient = &repomocks.PlatformRepositoryMock{
+		GetAgentFunc: func(context.Context, string, string, string) (*models.AgentResponse, error) {
 			return &models.AgentResponse{Provisioning: models.Provisioning{Type: string(utils.InternalAgent)}}, nil
 		},
 	}
@@ -390,17 +385,14 @@ func selfHostedBackfillService(
 	svc.agentConfigRepo = &repomocks.AgentConfigurationRepositoryMock{
 		GetByUUIDFunc: func(context.Context, uuid.UUID, string) (*models.AgentConfiguration, error) { return config, nil },
 	}
-	svc.ocClient = &clientmocks.OpenChoreoClientMock{
-		GetProjectDeploymentPipelineFunc: func(context.Context, string, string) (*models.DeploymentPipelineResponse, error) {
-			return nil, utils.ErrDeploymentPipelineNotFound
-		},
-		GetComponentFunc: func(context.Context, string, string, string) (*models.AgentResponse, error) {
+	svc.ocClient = &repomocks.PlatformRepositoryMock{
+		GetAgentFunc: func(context.Context, string, string, string) (*models.AgentResponse, error) {
 			return &models.AgentResponse{Provisioning: models.Provisioning{Type: string(provisioning)}}, nil
 		},
 	}
 	svc.infraResourceManager = stubInfraManager{
 		listOrgEnvs: func(context.Context, string) ([]*models.EnvironmentResponse, error) {
-			return []*models.EnvironmentResponse{{UUID: f.envUUID.String(), Name: "dev"}}, nil
+			return []*models.EnvironmentResponse{{UUID: f.envUUID.String(), Name: models.DefaultEnvironmentName}}, nil
 		},
 	}
 	activated = &[]uuid.UUID{}
@@ -580,38 +572,5 @@ func TestAgentMCPURLs_EmptyOnSelfHostedGateway(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, resp.EnvModelConfig["dev"].LLMProxy)
 		assert.Nil(t, resp.EnvModelConfig["dev"].LLMProxy.URL)
-	})
-
-	t.Run("AgentID audience", func(t *testing.T) {
-		svc := f.newService()
-		svc.envMCPMappingRepo = &repomocks.EnvAgentMCPMappingRepositoryMock{
-			ListByConfigFunc: func(context.Context, uuid.UUID) ([]models.EnvAgentMCPMapping, error) {
-				return []models.EnvAgentMCPMapping{f.mapping}, nil
-			},
-		}
-		url, err := svc.systemManagedMCPURL(ctx, config, f.ouID, "dev", f.envUUID)
-		require.NoError(t, err)
-		assert.Empty(t, url)
-	})
-
-	t.Run("renamed URL variable", func(t *testing.T) {
-		url, err := f.newService().renamedMCPProxyURL(ctx, config, &f.mapping, "dev", f.ouID)
-		require.NoError(t, err)
-		assert.Empty(t, url)
-	})
-
-	t.Run("injected variables", func(t *testing.T) {
-		svc := f.newService()
-		var injected []client.EnvVar
-		svc.ocClient = &clientmocks.OpenChoreoClientMock{
-			UpdateReleaseBindingEnvVarsFunc: func(_ context.Context, _, _, _, _ string, envVars []client.EnvVar) error {
-				injected = envVars
-				return nil
-			},
-		}
-		templates := []EnvConfigTemplate{{Key: "url", Name: "MCP_URL"}, {Key: "apikey", Name: "MCP_API_KEY"}}
-		err := svc.injectMCPMappingEnvVars(ctx, config, &f.mapping, f.mapping.MCPProxy, "dev", f.ouID, templates, "")
-		require.NoError(t, err)
-		assert.Equal(t, []client.EnvVar{{Key: "MCP_URL"}, {Key: "MCP_API_KEY"}}, injected)
 	})
 }

@@ -145,7 +145,6 @@ type ListTracesParams struct {
 	Organization string
 	Project      string
 	Agent        string
-	Environment  string
 	StartTime    time.Time
 	EndTime      time.Time
 	Limit        *int
@@ -182,7 +181,6 @@ type GetTraceSpansParams struct {
 	Organization string
 	Project      *string
 	Agent        *string
-	Environment  *string
 	StartTime    time.Time
 	EndTime      time.Time
 	Limit        *int
@@ -194,7 +192,6 @@ type RuntimeLogsParams struct {
 	Organization string
 	Project      string
 	Agent        string
-	Environment  string
 	StartTime    string
 	EndTime      string
 	SearchPhrase string
@@ -214,7 +211,6 @@ type MetricsParams struct {
 	Organization string
 	Project      string
 	Agent        string
-	Environment  string
 	StartTime    string
 	EndTime      string
 }

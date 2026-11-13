@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/growthanalytics"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
@@ -73,7 +72,7 @@ type llmController struct {
 	// also has its config reclaimed from the gateways still holding it.
 	proxyDeploymentService *services.LLMProxyDeploymentService
 	artifactRepo           repositories.ArtifactRepository
-	ocClient               client.OpenChoreoClient
+	ocClient               repositories.PlatformRepository
 }
 
 // NewLLMController creates a new LLM controller
@@ -84,7 +83,7 @@ func NewLLMController(
 	deploymentService *services.LLMProviderDeploymentService,
 	proxyDeploymentService *services.LLMProxyDeploymentService,
 	artifactRepo repositories.ArtifactRepository,
-	ocClient client.OpenChoreoClient,
+	ocClient repositories.PlatformRepository,
 ) LLMController {
 	return &llmController{
 		templateService:        templateService,
@@ -97,7 +96,7 @@ func NewLLMController(
 	}
 }
 
-// resolveProjectUUID resolves project name to UUID using OpenChoreo client
+// resolveProjectUUID resolves project name to UUID using the platform repository
 func (c *llmController) resolveProjectUUID(ctx context.Context, ouID, projectName string) (string, error) {
 	project, err := c.ocClient.GetProject(ctx, ouID, projectName)
 	if err != nil {
@@ -770,7 +769,8 @@ func (c *llmController) UpdateLLMProvider(w http.ResponseWriter, r *http.Request
 		syncCtx := context.WithoutCancel(r.Context())
 		go func() {
 			if err := c.providerService.SyncDependentProxyAuthHeaders(
-				syncCtx, updated, ouID, c.proxyService, c.proxyDeploymentService); err != nil {
+				syncCtx, updated, ouID, c.proxyService, c.proxyDeploymentService,
+			); err != nil {
 				log.Error("UpdateLLMProvider: failed to sync dependent proxy auth headers",
 					"ouID", ouID, "providerID", providerID, "error", err)
 			}

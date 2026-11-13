@@ -28,7 +28,6 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
-	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/events"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/growthanalytics"
@@ -45,24 +44,11 @@ type AgentController interface {
 	GetAgent(w http.ResponseWriter, r *http.Request)
 	CreateAgent(w http.ResponseWriter, r *http.Request)
 	UpdateAgentBasicInfo(w http.ResponseWriter, r *http.Request)
-	UpdateAgentBuildParameters(w http.ResponseWriter, r *http.Request)
 	DeleteAgent(w http.ResponseWriter, r *http.Request)
-	BuildAgent(w http.ResponseWriter, r *http.Request)
-	DeployAgent(w http.ResponseWriter, r *http.Request)
-	ListAgentBuilds(w http.ResponseWriter, r *http.Request)
 	GetAgentDeployments(w http.ResponseWriter, r *http.Request)
-	UpdateDeploymentState(w http.ResponseWriter, r *http.Request)
-	GetAgentEndpoints(w http.ResponseWriter, r *http.Request)
-	GetBuild(w http.ResponseWriter, r *http.Request)
 	GetAgentConfigurations(w http.ResponseWriter, r *http.Request)
 	GenerateName(w http.ResponseWriter, r *http.Request)
-	GetAgentResourceConfigs(w http.ResponseWriter, r *http.Request)
-	UpdateAgentResourceConfigs(w http.ResponseWriter, r *http.Request)
-	PublishKind(w http.ResponseWriter, r *http.Request)
-	PromoteAgent(w http.ResponseWriter, r *http.Request)
 	UpdateAgentDeploySettings(w http.ResponseWriter, r *http.Request)
-	UpdateAgentConfigurations(w http.ResponseWriter, r *http.Request)
-	RegenerateTracingToken(w http.ResponseWriter, r *http.Request)
 	GetAgentIdentity(w http.ResponseWriter, r *http.Request)
 	RegenerateAgentIdentitySecret(w http.ResponseWriter, r *http.Request)
 	RevokeAgentIdentitySecret(w http.ResponseWriter, r *http.Request)
@@ -73,21 +59,18 @@ type AgentController interface {
 }
 
 type agentController struct {
-	agentService     services.AgentManagerService
-	agentKindService services.AgentKindService
-	eventsCleaner    services.EventsCleaner
+	agentService  services.AgentManagerService
+	eventsCleaner services.EventsCleaner
 }
 
 // NewAgentController returns a new AgentController instance.
 func NewAgentController(
 	agentService services.AgentManagerService,
-	agentKindService services.AgentKindService,
 	eventsCleaner services.EventsCleaner,
 ) AgentController {
 	return &agentController{
-		agentService:     agentService,
-		agentKindService: agentKindService, // kept for PublishKind
-		eventsCleaner:    eventsCleaner,
+		agentService:  agentService,
+		eventsCleaner: eventsCleaner,
 	}
 }
 
@@ -114,11 +97,10 @@ func writeSubscriptionSuspended(w http.ResponseWriter) {
 // handleCommonErrors writes the HTTP error response for the sentinel errors the agent services
 // return, and a 500 with fallbackMsg for anything else.
 func handleCommonErrors(w http.ResponseWriter, err error, fallbackMsg string) {
+	if writeIfNotImplemented(w, err) {
+		return
+	}
 	switch {
-	case errors.Is(err, utils.ErrWorkloadSecretSyncUnconfirmed):
-		utils.WriteErrorResponseWithReason(w, http.StatusServiceUnavailable,
-			"Secret values were saved, but the rollout stopped because secret sync could not be confirmed.",
-			"", utils.ErrCodeServiceUnavailable)
 	case errors.Is(err, workloadpolicy.ErrSuspended):
 		writeSubscriptionSuspended(w)
 	// A ValidationError raised below the controller (e.g. a stored agent kind
@@ -154,26 +136,9 @@ func handleCommonErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 	case errors.Is(err, utils.ErrMCPProxyNotFound):
 		utils.WriteErrorResponseWithReason(w, http.StatusNotFound,
 			"MCP proxy not found", err.Error(), utils.ErrCodeNotFound)
-	case errors.Is(err, utils.ErrBuildNotFound):
-		utils.WriteErrorResponseWithReason(w, http.StatusNotFound,
-			"Build not found", err.Error(), utils.ErrCodeBuildNotFound)
 	case errors.Is(err, utils.ErrEnvironmentNotFound):
 		utils.WriteErrorResponseWithReason(w, http.StatusNotFound,
 			"Environment not found", err.Error(), utils.ErrCodeEnvironmentNotFound)
-	case errors.Is(err, utils.ErrGitSecretNotFound):
-		utils.WriteErrorResponseWithReason(w, http.StatusNotFound,
-			"Git secret not found", err.Error(), utils.ErrCodeGitSecretNotFound)
-	case errors.Is(err, utils.ErrAgentKindNotFound):
-		utils.WriteErrorResponseWithReason(w, http.StatusNotFound,
-			"Agent kind not found", err.Error(), utils.ErrCodeNotFound)
-	case errors.Is(err, utils.ErrKindVersionNotFound):
-		utils.WriteErrorResponseWithReason(w, http.StatusNotFound,
-			"Agent kind version not found", err.Error(), utils.ErrCodeNotFound)
-	case errors.Is(err, utils.ErrSourceAgentNotFound):
-		utils.WriteErrorResponseWithReason(w, http.StatusNotFound,
-			"Source agent not found", err.Error(), utils.ErrCodeNotFound)
-
-	// Conflict errors
 	case errors.Is(err, utils.ErrAgentAlreadyExists):
 		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
 			"Agent already exists", err.Error(), utils.ErrCodeAgentAlreadyExists)
@@ -186,38 +151,14 @@ func handleCommonErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 	case errors.Is(err, utils.ErrProjectHasAssociatedAgents):
 		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
 			"Project has associated agents", err.Error(), utils.ErrCodeConflict)
-	case errors.Is(err, utils.ErrDeploymentPipelineAlreadyExists):
-		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
-			"A deployment pipeline with this name already exists. Choose a different name.", "", utils.ErrCodeConflict)
-	case errors.Is(err, utils.ErrDeploymentPipelineInUse):
-		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
-			"Deployment pipeline is referenced by one or more projects", err.Error(), utils.ErrCodeConflict)
 	case errors.Is(err, utils.ErrSecretPathConflict):
 		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
 			"Secret path conflict", err.Error(), utils.ErrCodeConflict)
-	case errors.Is(err, utils.ErrGitSecretAlreadyExists):
-		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
-			"Git secret already exists", err.Error(), utils.ErrCodeGitSecretAlreadyExists)
-	case errors.Is(err, utils.ErrAgentKindAlreadyExists):
-		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
-			"Agent kind already exists", err.Error(), utils.ErrCodeConflict)
-	case errors.Is(err, utils.ErrKindVersionAlreadyExists):
-		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
-			"Agent kind version already exists", err.Error(), utils.ErrCodeConflict)
-	case errors.Is(err, utils.ErrKindImageAlreadyPublished):
-		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
-			"Build image already published", err.Error(), utils.ErrCodeConflict)
-	case errors.Is(err, utils.ErrAgentKindHasInstances):
-		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
-			"Agent kind has active instances", err.Error(), utils.ErrCodeConflict)
-	case errors.Is(err, utils.ErrAgentIsKindSource):
-		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
-			"Agent is the source of an agent kind", err.Error(), utils.ErrCodeConflict)
 	case errors.Is(err, utils.ErrResourceBeingDeleted):
 		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
 			"A resource with this name is still being deleted", err.Error(), utils.ErrCodeConflict)
 	// Generic conflict catch-all: any unclassified conflict (e.g. a raw "already exists"
-	// from OpenChoreo) is a 409, never a 500. Keep this after the specific conflict cases
+	//) is a 409, never a 500. Keep this after the specific conflict cases
 	// above so they win; err.Error() carries the detail in the response reason.
 	case errors.Is(err, utils.ErrConflict):
 		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
@@ -233,30 +174,6 @@ func handleCommonErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 	case errors.Is(err, utils.ErrBadRequest):
 		utils.WriteErrorResponseWithReason(w, http.StatusBadRequest,
 			"Bad request", err.Error(), utils.ErrCodeBadRequest)
-	case errors.Is(err, utils.ErrDeploymentPipelineNotFound):
-		utils.WriteErrorResponseWithReason(w, http.StatusBadRequest,
-			"Deployment pipeline not found", err.Error(), utils.ErrCodeBadRequest)
-	case errors.Is(err, utils.ErrGitSecretInvalidType):
-		utils.WriteErrorResponseWithReason(w, http.StatusBadRequest,
-			"Invalid git secret type", err.Error(), utils.ErrCodeGitSecretInvalidType)
-	case errors.Is(err, utils.ErrBuildNotComplete):
-		utils.WriteErrorResponseWithReason(w, http.StatusBadRequest,
-			"Build not complete", err.Error(), utils.ErrCodeBadRequest)
-	case errors.Is(err, utils.ErrMissingKindConfigValue):
-		utils.WriteErrorResponseWithReason(w, http.StatusBadRequest,
-			"Missing required configuration value", err.Error(), utils.ErrCodeValidation)
-	case errors.Is(err, utils.ErrDeploymentInProgress):
-		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
-			"A deployment is already in progress", err.Error(), utils.ErrCodeConflict)
-	case errors.Is(err, utils.ErrComponentNotReconcilable):
-		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
-			"Agent cannot be deployed in its current state", err.Error(), utils.ErrCodeConflict)
-	case errors.Is(err, utils.ErrPromotionNeedsRedeploy):
-		// The console's promote drawer shows only the message, so it carries the steps too.
-		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
-			"Agent must be deployed again before this promotion: deploy the agent again, promote it up to "+
-				"the source environment if that is not the first environment, then retry this promotion",
-			err.Error(), utils.ErrCodeConflict)
 	case errors.Is(err, utils.ErrEnvironmentHasNoGateway):
 		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
 			"Environment has no ingress gateway", err.Error(), utils.ErrCodeEnvironmentHasNoGateway)
@@ -394,13 +311,19 @@ func (c *agentController) CreateAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Hosted agents need an agent runtime; refuse them before validating the
+	// fields only they carry.
+	if payload.Provisioning.Type == string(utils.InternalAgent) {
+		utils.WriteErrorResponse(w, http.StatusNotImplemented, "Only external agents can be created in this deployment")
+		return
+	}
 	if err := utils.ValidateAgentCreatePayload(payload); err != nil {
 		log.Error("CreateAgent: invalid agent payload", "error", err)
 		utils.WriteValidationErrorResponse(w, err)
 		return
 	}
 
-	growthanalytics.SetDimension(ctx, "creation_method", creationMethodFor(payload.Provisioning))
+	growthanalytics.SetDimension(ctx, "creation_method", "external")
 
 	err := c.agentService.CreateAgent(ctx, ouID, projName, &payload)
 	if err != nil {
@@ -420,25 +343,10 @@ func (c *agentController) CreateAgent(w http.ResponseWriter, r *http.Request) {
 		Provisioning:   payload.Provisioning,
 		AgentType:      agentType,
 		Configurations: utils.RedactSecretConfigValues(payload.Configurations),
-		Build:          payload.Build,
 		CreatedAt:      time.Now(),
 	}
 
 	utils.WriteSuccessResponse(w, http.StatusAccepted, response)
-}
-
-// creationMethodFor maps a create-agent request's provisioning block to the
-// amp.agent-development.create-agent taxonomy's creation_method dimension:
-// "external" for operator-hosted agents, "from-kind" when scaffolded from an
-// agent kind template, "platform-hosted" otherwise (built and run by us).
-func creationMethodFor(provisioning spec.Provisioning) string {
-	if provisioning.Type == string(utils.ExternalAgent) {
-		return "external"
-	}
-	if provisioning.AgentKind != nil {
-		return "from-kind"
-	}
-	return "platform-hosted"
 }
 
 func (c *agentController) UpdateAgentBasicInfo(w http.ResponseWriter, r *http.Request) {
@@ -473,100 +381,6 @@ func (c *agentController) UpdateAgentBasicInfo(w http.ResponseWriter, r *http.Re
 	utils.WriteSuccessResponse(w, http.StatusOK, agentResponse)
 }
 
-func (c *agentController) UpdateAgentBuildParameters(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	log := logger.GetLogger(ctx)
-
-	// Extract path parameters
-	ouID := middleware.OUIDFromRequest(r)
-	projName := r.PathValue(utils.PathParamProjName)
-	agentName := r.PathValue(utils.PathParamAgentName)
-
-	// Parse and validate request body
-	var payload spec.UpdateAgentBuildParametersRequest
-	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-		log.Error("UpdateAgentBuildParameters: failed to decode request body", "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
-		return
-	}
-	if err := utils.ValidateAgentBuildParametersUpdatePayload(payload); err != nil {
-		utils.WriteValidationErrorResponse(w, err)
-		return
-	}
-
-	agent, err := c.agentService.UpdateAgentBuildParameters(ctx, ouID, projName, agentName, &payload)
-	if err != nil {
-		log.Error("UpdateAgentBuildParameters: failed to update agent build parameters", "error", err)
-		handleCommonErrors(w, err, "Failed to update agent build parameters")
-		return
-	}
-
-	agentResponse := utils.ConvertToAgentResponse(agent)
-	utils.WriteSuccessResponse(w, http.StatusOK, agentResponse)
-}
-
-func (c *agentController) GetAgentResourceConfigs(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	log := logger.GetLogger(ctx)
-
-	// Extract path parameters
-	ouID := middleware.OUIDFromRequest(r)
-	projName := r.PathValue(utils.PathParamProjName)
-	agentName := r.PathValue(utils.PathParamAgentName)
-	environment := r.URL.Query().Get("environment")
-
-	if environment == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "environment query parameter is required")
-		return
-	}
-
-	configs, err := c.agentService.GetAgentResourceConfigs(ctx, ouID, projName, agentName, environment)
-	if err != nil {
-		log.Error("GetAgentResourceConfigs: failed to get agent resource configurations", "error", err)
-		handleCommonErrors(w, err, "Failed to get agent resource configurations")
-		return
-	}
-
-	utils.WriteSuccessResponse(w, http.StatusOK, configs)
-}
-
-func (c *agentController) UpdateAgentResourceConfigs(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	log := logger.GetLogger(ctx)
-
-	// Extract path parameters
-	ouID := middleware.OUIDFromRequest(r)
-	projName := r.PathValue(utils.PathParamProjName)
-	agentName := r.PathValue(utils.PathParamAgentName)
-	environment := r.URL.Query().Get("environment")
-
-	if environment == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "environment query parameter is required")
-		return
-	}
-
-	// Parse and validate request body
-	var payload spec.UpdateAgentResourceConfigsRequest
-	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-		log.Error("UpdateAgentResourceConfigs: failed to decode request body", "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
-		return
-	}
-	if err := utils.ValidateAgentResourceConfigsPayload(payload, config.GetConfig().PerAgentResourceLimits); err != nil {
-		utils.WriteValidationErrorResponse(w, err)
-		return
-	}
-
-	resourceConfigs, err := c.agentService.UpdateAgentResourceConfigs(ctx, ouID, projName, agentName, environment, &payload)
-	if err != nil {
-		log.Error("UpdateAgentResourceConfigs: failed to update agent resource configurations", "error", err)
-		handleCommonErrors(w, err, "Failed to update agent resource configurations")
-		return
-	}
-
-	utils.WriteSuccessResponse(w, http.StatusOK, resourceConfigs)
-}
-
 func (c *agentController) DeleteAgent(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
@@ -585,111 +399,6 @@ func (c *agentController) DeleteAgent(w http.ResponseWriter, r *http.Request) {
 		c.eventsCleaner.RemoveForAgent(ctx, ouID, projName, agentName)
 	}
 	utils.WriteSuccessResponse(w, http.StatusNoContent, "")
-}
-
-func (c *agentController) BuildAgent(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	log := logger.GetLogger(ctx)
-
-	// Extract path parameters
-	ouID := middleware.OUIDFromRequest(r)
-	projName := r.PathValue(utils.PathParamProjName)
-	agentName := r.PathValue(utils.PathParamAgentName)
-
-	// Parse query parameters
-	commitId := r.URL.Query().Get("commitId")
-	if commitId == "" {
-		log.Debug("BuildAgent: commitId not provided, using latest commit")
-	}
-	if err := utils.ValidateGitCommitID(commitId); err != nil {
-		log.Debug("BuildAgent: invalid commitId", "error", err)
-		utils.WriteValidationErrorResponse(w, err)
-		return
-	}
-	build, err := c.agentService.BuildAgent(ctx, ouID, projName, agentName, commitId)
-	if err != nil {
-		log.Error("BuildAgent: failed to build agent", "error", err)
-		handleCommonErrors(w, err, "Failed to build agent")
-		return
-	}
-
-	buildResponse := utils.ConvertToBuildResponse(build)
-	utils.WriteSuccessResponse(w, http.StatusAccepted, buildResponse)
-}
-
-func (c *agentController) DeployAgent(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	log := logger.GetLogger(ctx)
-
-	// Extract path parameters
-	ouID := middleware.OUIDFromRequest(r)
-	projName := r.PathValue(utils.PathParamProjName)
-	agentName := r.PathValue(utils.PathParamAgentName)
-
-	// Parse and validate request body
-	var payload spec.DeployAgentRequest
-	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-		log.Error("DeployAgent: failed to decode request body", "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
-		return
-	}
-
-	if err := utils.ValidateDeployAgentRequest(&payload); err != nil {
-		log.Error("DeployAgent: invalid request", "error", err)
-		utils.WriteValidationErrorResponse(w, err)
-		return
-	}
-
-	deployedEnv, err := c.agentService.DeployAgent(ctx, ouID, projName, agentName, &payload)
-	if err != nil {
-		log.Error("DeployAgent: failed to deploy agent", "error", err)
-		handleCommonErrors(w, err, "Failed to deploy agent")
-		return
-	}
-	growthanalytics.SetDimension(ctx, "environment_type", deployedEnv)
-
-	response := &spec.DeploymentResponse{
-		AgentName:   agentName,
-		ProjectName: projName,
-		ImageId:     payload.ImageId,
-		Environment: deployedEnv,
-	}
-	utils.WriteSuccessResponse(w, http.StatusAccepted, response)
-}
-
-func (c *agentController) PromoteAgent(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	log := logger.GetLogger(ctx)
-
-	ouID := middleware.OUIDFromRequest(r)
-	projName := r.PathValue(utils.PathParamProjName)
-	agentName := r.PathValue(utils.PathParamAgentName)
-
-	var payload spec.PromoteAgentRequest
-	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-		log.Error("PromoteAgent: failed to decode request body", "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
-		return
-	}
-	if err := utils.ValidatePromoteAgentRequest(&payload); err != nil {
-		log.Error("PromoteAgent: invalid request", "error", err)
-		utils.WriteValidationErrorResponse(w, err)
-		return
-	}
-
-	if err := c.agentService.PromoteAgent(ctx, ouID, projName, agentName, &payload); err != nil {
-		log.Error("PromoteAgent: failed to promote agent", "error", err)
-		handleCommonErrors(w, err, "Failed to promote agent")
-		return
-	}
-
-	response := &spec.PromoteAgentResponse{
-		AgentName:         &agentName,
-		ProjectName:       &projName,
-		SourceEnvironment: &payload.SourceEnvironment,
-		TargetEnvironment: &payload.TargetEnvironment,
-	}
-	utils.WriteSuccessResponse(w, http.StatusAccepted, response)
 }
 
 func (c *agentController) UpdateAgentDeploySettings(w http.ResponseWriter, r *http.Request) {
@@ -718,140 +427,6 @@ func (c *agentController) UpdateAgentDeploySettings(w http.ResponseWriter, r *ht
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
-}
-
-func (c *agentController) UpdateAgentConfigurations(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	log := logger.GetLogger(ctx)
-
-	ouID := middleware.OUIDFromRequest(r)
-	projName := r.PathValue(utils.PathParamProjName)
-	agentName := r.PathValue(utils.PathParamAgentName)
-
-	var payload spec.UpdateAgentConfigurationsRequest
-	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-		log.Error("UpdateAgentConfigurations: failed to decode request body", "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
-		return
-	}
-	if payload.EnvironmentName == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "environmentName is required")
-		return
-	}
-	events.SetEnvironment(ctx, payload.EnvironmentName)
-
-	if err := c.agentService.UpdateAgentConfigurations(ctx, ouID, projName, agentName, &payload); err != nil {
-		log.Error("UpdateAgentConfigurations: failed to update configurations", "error", err)
-		handleCommonErrors(w, err, "Failed to update agent configurations")
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
-}
-
-func (c *agentController) RegenerateTracingToken(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	log := logger.GetLogger(ctx)
-
-	ouID := middleware.OUIDFromRequest(r)
-	projName := r.PathValue(utils.PathParamProjName)
-	agentName := r.PathValue(utils.PathParamAgentName)
-
-	var payload spec.TracingTokenRegenerateRequest
-	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-		log.Error("RegenerateTracingToken: failed to decode request body", "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
-		return
-	}
-	if payload.EnvironmentName == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "environmentName is required")
-		return
-	}
-
-	expiresIn := ""
-	if payload.ExpiresIn != nil {
-		expiresIn = *payload.ExpiresIn
-	}
-
-	// Rotating the tracing token invalidates the one the deployed agent is
-	// using, so it is credential material and is refused when unrecordable.
-	attempt, ok := beginAuditOrFail(
-		w, r, "RegenerateTracingToken", "Failed to regenerate tracing token", audit.ActionAgentTokenRegenerateTracing,
-		audit.Org(ouID),
-		audit.ResourceNamed(audit.ResourceAgent, agentName, agentName),
-		audit.Project(projName),
-		audit.Environment(payload.EnvironmentName),
-		audit.Detail("agentName", agentName),
-	)
-	if !ok {
-		return
-	}
-
-	result, err := c.agentService.RegenerateAgentTracingToken(ctx, ouID, projName, agentName, payload.EnvironmentName, expiresIn)
-	if err != nil {
-		attempt.Complete(ctx, err)
-		log.Error("RegenerateTracingToken: failed to regenerate tracing token", "error", err)
-		handleCommonErrors(w, err, "Failed to regenerate tracing token")
-		return
-	}
-	attempt.Complete(ctx, nil)
-
-	utils.WriteSuccessResponse(w, http.StatusOK, spec.TracingTokenRegenerateResponse{
-		EnvironmentName: result.EnvironmentName,
-		ExpiresAt:       result.ExpiresAt,
-		RotatedAt:       result.RotatedAt,
-	})
-}
-
-func (c *agentController) ListAgentBuilds(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	log := logger.GetLogger(ctx)
-
-	// Extract path parameters
-	ouID := middleware.OUIDFromRequest(r)
-	projName := r.PathValue(utils.PathParamProjName)
-	agentName := r.PathValue(utils.PathParamAgentName)
-
-	// Parse query parameters
-	limitStr := r.URL.Query().Get("limit")
-	if limitStr == "" {
-		limitStr = strconv.Itoa(utils.DefaultLimit)
-	}
-	offsetStr := r.URL.Query().Get("offset")
-	if offsetStr == "" {
-		offsetStr = strconv.Itoa(utils.DefaultOffset)
-	}
-
-	// Parse and validate pagination parameters
-	limit, err := strconv.Atoi(limitStr)
-	if err != nil || limit < utils.MinLimit || limit > utils.MaxLimit {
-		log.Error("ListAgentBuilds: invalid limit parameter", "limit", limitStr)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("Invalid limit parameter: must be between %d and %d", utils.MinLimit, utils.MaxLimit))
-		return
-	}
-
-	offset, err := strconv.Atoi(offsetStr)
-	if err != nil || offset < utils.MinOffset {
-		log.Error("ListAgentBuilds: invalid offset parameter", "offset", offsetStr)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("Invalid offset parameter: must be %d or greater", utils.MinOffset))
-		return
-	}
-
-	builds, total, err := c.agentService.ListAgentBuilds(ctx, ouID, projName, agentName, int32(limit), int32(offset))
-	if err != nil {
-		log.Error("ListAgentBuilds: failed to list agent builds", "error", err)
-		handleCommonErrors(w, err, "Failed to list agent builds")
-		return
-	}
-
-	buildResponses := utils.ConvertToBuildListResponse(builds)
-	response := &spec.BuildsListResponse{
-		Builds: buildResponses,
-		Total:  total,
-		Limit:  int32(limit),
-		Offset: int32(offset),
-	}
-
-	utils.WriteSuccessResponse(w, http.StatusOK, response)
 }
 
 func (c *agentController) GenerateName(w http.ResponseWriter, r *http.Request) {
@@ -890,27 +465,6 @@ func (c *agentController) GenerateName(w http.ResponseWriter, r *http.Request) {
 	utils.WriteSuccessResponse(w, http.StatusOK, response)
 }
 
-func (c *agentController) GetBuild(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	log := logger.GetLogger(ctx)
-
-	// Extract path parameters
-	ouID := middleware.OUIDFromRequest(r)
-	projName := r.PathValue(utils.PathParamProjName)
-	agentName := r.PathValue(utils.PathParamAgentName)
-	buildName := r.PathValue(utils.PathParamBuildName)
-
-	build, err := c.agentService.GetBuild(ctx, ouID, projName, agentName, buildName)
-	if err != nil {
-		log.Error("GetBuild: failed to get build", "error", err)
-		handleCommonErrors(w, err, "Failed to get build")
-		return
-	}
-
-	buildResponse := utils.ConvertToBuildDetailsResponse(build)
-	utils.WriteSuccessResponse(w, http.StatusOK, buildResponse)
-}
-
 func (c *agentController) GetAgentDeployments(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
@@ -929,239 +483,6 @@ func (c *agentController) GetAgentDeployments(w http.ResponseWriter, r *http.Req
 
 	deploymentResponses := utils.ConvertToDeploymentDetailsResponse(deployments)
 	utils.WriteSuccessResponse(w, http.StatusOK, deploymentResponses)
-}
-
-func (c *agentController) UpdateDeploymentState(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	log := logger.GetLogger(ctx)
-
-	// Extract path parameters
-	ouID := middleware.OUIDFromRequest(r)
-	projName := r.PathValue(utils.PathParamProjName)
-	agentName := r.PathValue(utils.PathParamAgentName)
-
-	// Parse and validate request body
-	var payload spec.UpdateDeploymentStateRequest
-	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-		log.Error("UpdateDeploymentState: failed to decode request body", "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
-		return
-	}
-
-	// Validate required fields
-	if payload.Environment == "" {
-		log.Error("UpdateDeploymentState: missing required field 'environment'")
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Missing required field 'environment'")
-		return
-	}
-	if payload.State == "" {
-		log.Error("UpdateDeploymentState: missing required field 'state'")
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Missing required field 'state'")
-		return
-	}
-
-	// Validate state value
-	if payload.State != utils.DeploymentStateActive && payload.State != utils.DeploymentStateUndeploy {
-		log.Error("UpdateDeploymentState: invalid state value", "state", payload.State)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid state value: must be 'Active' or 'Undeploy'")
-		return
-	}
-
-	// The gating permission is agent:suspend, but this route also resumes and
-	// undeploys, so the record names the state actually requested.
-	stateAttempt, ok := beginAuditOrFail(
-		w, r, "UpdateDeploymentState", "Failed to update deployment state", audit.ActionAgentChangeDeploymentState,
-		audit.Org(ouID),
-		audit.ResourceNamed(audit.ResourceAgent, agentName, agentName),
-		audit.Project(projName),
-		audit.Environment(payload.Environment),
-		audit.Detail("agentName", agentName),
-		audit.Detail("environment", payload.Environment),
-		audit.Detail("toState", string(payload.State)),
-	)
-	if !ok {
-		return
-	}
-
-	err := c.agentService.UpdateAgentDeploymentState(ctx, ouID, projName, agentName, payload.Environment, payload.State)
-	if err != nil {
-		stateAttempt.Complete(ctx, err)
-		log.Error("UpdateDeploymentState: failed to update deployment state", "error", err)
-		handleCommonErrors(w, err, "Failed to update deployment state")
-		return
-	}
-
-	stateAttempt.Complete(ctx, nil)
-
-	response := spec.UpdateDeploymentStateResponse{
-		Message:     "Deployment state transition request accepted",
-		Environment: payload.Environment,
-		State:       payload.State,
-	}
-	utils.WriteSuccessResponse(w, http.StatusOK, response)
-}
-
-func (c *agentController) GetAgentEndpoints(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	log := logger.GetLogger(ctx)
-
-	// Extract path parameters
-	ouID := middleware.OUIDFromRequest(r)
-	projName := r.PathValue(utils.PathParamProjName)
-	agentName := r.PathValue(utils.PathParamAgentName)
-	environment := r.URL.Query().Get("environment")
-	if environment == "" {
-		log.Error("GetAgentEndpoints: missing required query parameter 'environment'")
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Missing required query parameter 'environment'")
-		return
-	}
-
-	endpoints, err := c.agentService.GetAgentEndpoints(ctx, ouID, projName, agentName, environment)
-	if err != nil {
-		log.Error("GetAgentEndpoints: failed to get agent endpoints", "error", err)
-		handleCommonErrors(w, err, "Failed to get agent endpoints")
-		return
-	}
-
-	endpointResponses := utils.ConvertToAgentEndpointResponse(endpoints)
-	utils.WriteSuccessResponse(w, http.StatusOK, endpointResponses)
-}
-
-func (c *agentController) GetAgentConfigurations(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	log := logger.GetLogger(ctx)
-
-	// Extract path parameters
-	ouID := middleware.OUIDFromRequest(r)
-	projName := r.PathValue(utils.PathParamProjName)
-	agentName := r.PathValue(utils.PathParamAgentName)
-
-	environment := r.URL.Query().Get("environment")
-	if environment == "" {
-		log.Error("GetAgentConfigurations: missing required query parameter 'environment'")
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Missing required query parameter 'environment'")
-		return
-	}
-
-	configurations, err := c.agentService.GetAgentConfigurations(ctx, ouID, projName, agentName, environment)
-	if err != nil {
-		log.Error("GetAgentConfigurations: failed to get configurations", "error", err)
-		handleCommonErrors(w, err, "Failed to get configurations")
-		return
-	}
-
-	// Convert configurations to response format
-	configurationItems := make([]spec.ConfigurationItem, len(configurations))
-	for i, config := range configurations {
-		value := config.Value
-		var secretRef *string
-		if config.IsSensitive {
-			value = "" // redact sensitive values in the response for extra layer of security
-			secretRef = &config.SecretRef
-		}
-		configurationItems[i] = spec.ConfigurationItem{
-			Key:         config.Key,
-			Value:       value,
-			IsSensitive: spec.PtrBool(config.IsSensitive),
-			SecretRef:   secretRef,
-			IsSystem:    spec.PtrBool(config.IsSystem),
-		}
-	}
-
-	// Fetch file mounts
-	fileMounts, err := c.agentService.GetAgentFileMounts(ctx, ouID, projName, agentName, environment)
-	if err != nil {
-		log.Error("GetAgentConfigurations: failed to get file mounts", "error", err)
-		handleCommonErrors(w, err, "Failed to get file mounts")
-		return
-	}
-
-	// Convert file mounts to response format
-	fileMountItems := make([]spec.FileMount, 0)
-	for _, fm := range fileMounts {
-		value := fm.Value
-		var secretRef *string
-		isSensitive := fm.IsSensitive
-		if isSensitive {
-			value = ""
-			secretRef = &fm.SecretRef
-		}
-		fileMountItems = append(fileMountItems, spec.FileMount{
-			Key:         fm.Key,
-			MountPath:   fm.MountPath,
-			Value:       &value,
-			IsSensitive: &isSensitive,
-			SecretRef:   secretRef,
-		})
-	}
-
-	configurationsResponse := spec.ConfigurationResponse{
-		ProjectName: projName,
-		AgentName:   agentName,
-		Environment: environment,
-		Configurations: spec.ConfigurationResponseConfigurations{
-			Env:   configurationItems,
-			Files: fileMountItems,
-		},
-	}
-
-	// Per-environment config: seeds the console's Auto-Instrumentation, CORS, and Endpoint
-	// Authentication controls for THIS environment, rather than the lowest-environment values
-	// GetAgent returns. nil (no config persisted yet) leaves the fields unset.
-	envCfg, err := c.agentService.GetAgentEnvConfig(ctx, ouID, projName, agentName, environment)
-	if err != nil {
-		log.Error("GetAgentConfigurations: failed to read per-env config", "error", err)
-		handleCommonErrors(w, err, "Failed to get configurations")
-		return
-	}
-	utils.PopulateConfigurationResponseFromAgentConfig(&configurationsResponse, envCfg)
-
-	utils.WriteSuccessResponse(w, http.StatusOK, configurationsResponse)
-}
-
-func (c *agentController) PublishKind(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	log := logger.GetLogger(ctx)
-
-	ouID := middleware.OUIDFromRequest(r)
-	projName := r.PathValue(utils.PathParamProjName)
-	agentName := r.PathValue(utils.PathParamAgentName)
-
-	var payload spec.PublishAgentKindRequest
-	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
-		return
-	}
-
-	if payload.GetKindName() == "" || payload.GetVersion() == "" || payload.GetBuildName() == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "kindName, version, and buildName are required")
-		return
-	}
-
-	// The tag is stamped onto every agent created from this version as a label,
-	// so reject an unusable one here rather than at agent-creation time.
-	if err := utils.ValidateLabelValue(payload.GetVersion(), "version"); err != nil {
-		log.Debug("PublishKind: invalid version tag", "error", err)
-		utils.WriteValidationErrorResponse(w, err)
-		return
-	}
-
-	if payload.KindLabels != nil {
-		if err := utils.ValidateLabels(*payload.KindLabels); err != nil {
-			log.Debug("PublishKind: invalid kind labels", "error", err)
-			utils.WriteValidationErrorResponse(w, err)
-			return
-		}
-	}
-
-	result, err := c.agentKindService.PublishKind(ctx, ouID, projName, agentName, &payload)
-	if err != nil {
-		log.Error("Failed to publish agent kind", "error", err)
-		handleCommonErrors(w, err, "Failed to publish agent kind")
-		return
-	}
-
-	utils.WriteSuccessResponse(w, http.StatusCreated, result)
 }
 
 // GetAgentIdentity handles GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/identities
@@ -1543,4 +864,43 @@ func (c *agentController) GetAgentGroups(w http.ResponseWriter, r *http.Request)
 
 	log.Info("GetAgentGroups: completed", "orgName", orgName, "agentName", agentName, "envID", envID)
 	utils.WriteSuccessResponse(w, http.StatusOK, map[string]any{"groups": groups})
+}
+
+// GetAgentConfigurations returns the agent's gateway settings (auto-instrumentation,
+// CORS, endpoint authentication) for the environment. External agents have no env
+// vars or file mounts the platform manages, so those lists are always empty.
+func (c *agentController) GetAgentConfigurations(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	log := logger.GetLogger(ctx)
+
+	ouID := middleware.OUIDFromRequest(r)
+	projName := r.PathValue(utils.PathParamProjName)
+	agentName := r.PathValue(utils.PathParamAgentName)
+	environment := r.URL.Query().Get("environment")
+	if environment == "" {
+		environment = models.DefaultEnvironmentName
+	}
+
+	if _, err := c.agentService.GetAgent(ctx, ouID, projName, agentName); err != nil {
+		log.Error("GetAgentConfigurations: failed to get agent", "error", err)
+		handleCommonErrors(w, err, "Failed to get configurations")
+		return
+	}
+	envCfg, err := c.agentService.GetAgentEnvConfig(ctx, ouID, projName, agentName, environment)
+	if err != nil {
+		log.Error("GetAgentConfigurations: failed to read agent config", "error", err)
+		handleCommonErrors(w, err, "Failed to get configurations")
+		return
+	}
+	resp := spec.ConfigurationResponse{
+		ProjectName: projName,
+		AgentName:   agentName,
+		Environment: environment,
+		Configurations: spec.ConfigurationResponseConfigurations{
+			Env:   []spec.ConfigurationItem{},
+			Files: []spec.FileMount{},
+		},
+	}
+	utils.PopulateConfigurationResponseFromAgentConfig(&resp, envCfg)
+	utils.WriteSuccessResponse(w, http.StatusOK, resp)
 }

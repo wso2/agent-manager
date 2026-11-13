@@ -40,7 +40,7 @@ func newHandler() *Handler {
 // baseParams returns a query string with all required parameters present,
 // using the field names the handlers actually read (organization, agent).
 func baseParams() string {
-	return "organization=default&project=myproject&agent=myagent&environment=dev" +
+	return "organization=default&project=myproject&agent=myagent" +
 		"&startTime=2026-04-01T00:00:00Z&endTime=2026-04-06T23:59:59Z"
 }
 
@@ -79,14 +79,6 @@ func TestGetTraceOverviews_MissingProject(t *testing.T) {
 func TestGetTraceOverviews_MissingComponent(t *testing.T) {
 	h := newHandler()
 	r := httptest.NewRequest(http.MethodGet, "/api/v1/traces?namespace=default&project=p&environment=e&startTime=2026-04-01T00:00:00Z&endTime=2026-04-06T23:59:59Z", nil)
-	rec := httptest.NewRecorder()
-	h.GetTraceOverviews(rec, r)
-	assertBadRequest(t, rec)
-}
-
-func TestGetTraceOverviews_MissingEnvironment(t *testing.T) {
-	h := newHandler()
-	r := httptest.NewRequest(http.MethodGet, "/api/v1/traces?namespace=default&project=p&component=c&startTime=2026-04-01T00:00:00Z&endTime=2026-04-06T23:59:59Z", nil)
 	rec := httptest.NewRecorder()
 	h.GetTraceOverviews(rec, r)
 	assertBadRequest(t, rec)
@@ -168,14 +160,6 @@ func TestExportTraces_MissingComponent(t *testing.T) {
 	assertBadRequest(t, rec)
 }
 
-func TestExportTraces_MissingEnvironment(t *testing.T) {
-	h := newHandler()
-	r := httptest.NewRequest(http.MethodGet, "/api/v1/traces/export?namespace=default&project=p&component=c&startTime=2026-04-01T00:00:00Z&endTime=2026-04-06T23:59:59Z", nil)
-	rec := httptest.NewRecorder()
-	h.ExportTraces(rec, r)
-	assertBadRequest(t, rec)
-}
-
 func TestExportTraces_MissingStartTime(t *testing.T) {
 	h := newHandler()
 	r := httptest.NewRequest(http.MethodGet, "/api/v1/traces/export?namespace=default&project=p&component=c&environment=e&endTime=2026-04-06T23:59:59Z", nil)
@@ -213,14 +197,6 @@ func TestGetLogs_MissingProject(t *testing.T) {
 func TestGetLogs_MissingAgent(t *testing.T) {
 	h := newHandler()
 	r := httptest.NewRequest(http.MethodGet, "/api/v1/logs?organization=default&project=p&environment=e&startTime=2026-04-01T00:00:00Z&endTime=2026-04-06T23:59:59Z", nil)
-	rec := httptest.NewRecorder()
-	h.GetLogs(rec, r)
-	assertBadRequest(t, rec)
-}
-
-func TestGetLogs_MissingEnvironment(t *testing.T) {
-	h := newHandler()
-	r := httptest.NewRequest(http.MethodGet, "/api/v1/logs?organization=default&project=p&agent=a&startTime=2026-04-01T00:00:00Z&endTime=2026-04-06T23:59:59Z", nil)
 	rec := httptest.NewRecorder()
 	h.GetLogs(rec, r)
 	assertBadRequest(t, rec)
@@ -282,55 +258,6 @@ func TestGetLogs_TimeRangeExceeds14Days(t *testing.T) {
 	assertBadRequest(t, rec)
 }
 
-// An unknown log level is ignored (filtering by the valid ones) rather than
-// failing the whole request, matching typical filter semantics.
-func TestGetLogs_UnknownLogLevelIgnored(t *testing.T) {
-	fake := &fakeObserverClient{}
-	h := NewHandler(nil, controllers.NewObservabilityController(fake))
-
-	r := httptest.NewRequest(http.MethodGet, "/api/v1/logs?"+baseParams()+"&logLevels=INFO,BOGUS", nil)
-	rec := httptest.NewRecorder()
-	h.GetLogs(rec, r)
-
-	assertStatus(t, rec, http.StatusOK)
-	if got := fake.lastLogsReq.LogLevels; len(got) != 1 || got[0] != "INFO" {
-		t.Errorf("expected only valid levels forwarded, got %v", got)
-	}
-}
-
-// A trailing or duplicate comma yields empty tokens that must be skipped, not
-// rejected as an invalid ("") level.
-func TestGetLogs_EmptyLogLevelTokensSkipped(t *testing.T) {
-	fake := &fakeObserverClient{}
-	h := NewHandler(nil, controllers.NewObservabilityController(fake))
-
-	r := httptest.NewRequest(http.MethodGet, "/api/v1/logs?"+baseParams()+"&logLevels=INFO,,ERROR,", nil)
-	rec := httptest.NewRecorder()
-	h.GetLogs(rec, r)
-
-	assertStatus(t, rec, http.StatusOK)
-	got := fake.lastLogsReq.LogLevels
-	if len(got) != 2 || got[0] != "INFO" || got[1] != "ERROR" {
-		t.Errorf("expected [INFO ERROR], got %v", got)
-	}
-}
-
-// When every supplied level is unknown, no filter is applied (nil levels)
-// rather than failing the request.
-func TestGetLogs_AllUnknownLogLevelsYieldNoFilter(t *testing.T) {
-	fake := &fakeObserverClient{}
-	h := NewHandler(nil, controllers.NewObservabilityController(fake))
-
-	r := httptest.NewRequest(http.MethodGet, "/api/v1/logs?"+baseParams()+"&logLevels=BOGUS,NOPE", nil)
-	rec := httptest.NewRecorder()
-	h.GetLogs(rec, r)
-
-	assertStatus(t, rec, http.StatusOK)
-	if got := fake.lastLogsReq.LogLevels; len(got) != 0 {
-		t.Errorf("expected no log-level filter, got %v", got)
-	}
-}
-
 func TestGetLogs_LimitTooHigh(t *testing.T) {
 	h := newHandler()
 	r := httptest.NewRequest(http.MethodGet, "/api/v1/logs?"+baseParams()+"&limit=10001", nil)
@@ -359,7 +286,6 @@ func TestGetLogs_InvalidSortOrder(t *testing.T) {
 // handler tests can assert on pass-through parameters.
 type fakeObserverClient struct {
 	traces       []observer.TraceInfo
-	lastLogsReq  observer.LogsQueryRequest
 	lastSpansReq observer.TracesQueryRequest
 }
 
@@ -378,17 +304,41 @@ func (f *fakeObserverClient) GetSpanDetails(_ context.Context, _, _ string) (*ob
 	return &observer.SpanDetailsResponse{}, nil
 }
 
-func (f *fakeObserverClient) QueryLogs(_ context.Context, req observer.LogsQueryRequest) (*observer.LogsQueryResponse, error) {
-	f.lastLogsReq = req
-	return &observer.LogsQueryResponse{}, nil
+func TestParseLogLevels(t *testing.T) {
+	tests := map[string][]string{
+		"INFO,BOGUS":      {"INFO"},
+		"INFO,,ERROR,":    {"INFO", "ERROR"},
+		"BOGUS,NOPE":      nil,
+		"":                nil,
+		"warn, error ,io": {"WARN", "ERROR"},
+	}
+	for in, want := range tests {
+		got := parseLogLevels(in)
+		if len(got) != len(want) {
+			t.Errorf("parseLogLevels(%q) = %v, want %v", in, got, want)
+			continue
+		}
+		for i := range want {
+			if got[i] != want[i] {
+				t.Errorf("parseLogLevels(%q) = %v, want %v", in, got, want)
+			}
+		}
+	}
 }
 
-func (f *fakeObserverClient) QueryMetrics(_ context.Context, _ observer.MetricsQueryRequest) (*observer.ResourceMetricsTimeSeries, error) {
-	return &observer.ResourceMetricsTimeSeries{}, nil
-}
-
-func (f *fakeObserverClient) NamespaceFor(_ string) string {
-	return "default"
+// Runtime logs, build logs and metrics have no source for external agents.
+func TestObservabilityRoutes_NotImplemented(t *testing.T) {
+	h := NewHandler(nil, controllers.NewObservabilityController())
+	routes := map[string]func(http.ResponseWriter, *http.Request){
+		"/api/v1/logs?" + baseParams():                        h.GetLogs,
+		"/api/v1/metrics?" + baseParams():                     h.GetMetrics,
+		"/api/v1/build-logs?organization=default&buildName=b": h.GetBuildLogs,
+	}
+	for target, serve := range routes {
+		rec := httptest.NewRecorder()
+		serve(rec, httptest.NewRequest(http.MethodGet, target, nil))
+		assertStatus(t, rec, http.StatusNotImplemented)
+	}
 }
 
 // include=models maps to IncludeAttributes on the span-list request; unknown values are rejected.
@@ -629,37 +579,6 @@ func TestGetTraceOverviews_ModelFilterPassedThrough(t *testing.T) {
 	}
 }
 
-func TestGetLogs_SearchPhrasePassedThrough(t *testing.T) {
-	fake := &fakeObserverClient{}
-	h := NewHandler(nil, controllers.NewObservabilityController(fake))
-
-	r := httptest.NewRequest(http.MethodGet, "/api/v1/logs?"+baseParams()+"&searchPhrase=connection+refused", nil)
-	rec := httptest.NewRecorder()
-	h.GetLogs(rec, r)
-
-	assertStatus(t, rec, http.StatusOK)
-	if fake.lastLogsReq.SearchPhrase == nil {
-		t.Fatal("expected searchPhrase to be forwarded to the upstream request, got nil")
-	}
-	if got := *fake.lastLogsReq.SearchPhrase; got != "connection refused" {
-		t.Errorf("expected searchPhrase %q, got %q", "connection refused", got)
-	}
-}
-
-func TestGetLogs_EmptySearchPhraseOmittedUpstream(t *testing.T) {
-	fake := &fakeObserverClient{}
-	h := NewHandler(nil, controllers.NewObservabilityController(fake))
-
-	r := httptest.NewRequest(http.MethodGet, "/api/v1/logs?"+baseParams(), nil)
-	rec := httptest.NewRecorder()
-	h.GetLogs(rec, r)
-
-	assertStatus(t, rec, http.StatusOK)
-	if fake.lastLogsReq.SearchPhrase != nil {
-		t.Errorf("expected no searchPhrase upstream when absent, got %q", *fake.lastLogsReq.SearchPhrase)
-	}
-}
-
 func TestGetLogs_MethodNotAllowed(t *testing.T) {
 	h := newHandler()
 	r := httptest.NewRequest(http.MethodPost, "/api/v1/logs?"+baseParams(), nil)
@@ -715,14 +634,6 @@ func TestGetMetrics_MissingProject(t *testing.T) {
 func TestGetMetrics_MissingAgent(t *testing.T) {
 	h := newHandler()
 	r := httptest.NewRequest(http.MethodGet, "/api/v1/metrics?organization=default&project=p&environment=e&startTime=2026-04-01T00:00:00Z&endTime=2026-04-06T23:59:59Z", nil)
-	rec := httptest.NewRecorder()
-	h.GetMetrics(rec, r)
-	assertBadRequest(t, rec)
-}
-
-func TestGetMetrics_MissingEnvironment(t *testing.T) {
-	h := newHandler()
-	r := httptest.NewRequest(http.MethodGet, "/api/v1/metrics?organization=default&project=p&agent=a&startTime=2026-04-01T00:00:00Z&endTime=2026-04-06T23:59:59Z", nil)
 	rec := httptest.NewRecorder()
 	h.GetMetrics(rec, r)
 	assertBadRequest(t, rec)

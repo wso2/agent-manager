@@ -34,7 +34,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
+	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/db"
+	"github.com/wso2/agent-manager/agent-manager-service/db/dbtest"
 	"github.com/wso2/agent-manager/agent-manager-service/eventhub"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
@@ -43,10 +45,13 @@ import (
 // Fake kinds. fakeKind is gateway-addressed; fakeEnvKind adds per-environment records kept in
 // reconcile_fake_records, a table only these tests use.
 
+// The artifacts table only takes real kind names, and each test's core registers only fakes, so the fakes borrow
+// kinds the tests never register for real.
 const (
-	fakeGatewayKind = "FakeGateway"
-	fakeEnvKindName = "FakeEnv"
-	fakeAgentKind   = "FakeAgent"
+	fakeGatewayKind = "WebSubAPI"
+	fakeEnvKindName = "RestApi"
+	fakeAgentKind   = "Agent"
+	fakeDriftKind   = "McpProxyMapping"
 )
 
 type fakeKind struct {
@@ -154,7 +159,8 @@ func newFakeEnvKind(inline bool) *fakeEnvKind {
 
 func (k *fakeEnvKind) UnplacedRecords(ctx context.Context, ouID string, env *uuid.UUID, afterKey string, limit int) ([]Record, error) {
 	condition, args := UnplacedCondition(
-		RecordColumns{OUID: "r.ou_id", ArtifactUUID: "r.artifact_uuid", EnvironmentUUID: "r.environment_uuid"}, k.roles, ouID, env)
+		RecordColumns{OUID: "r.ou_id", ArtifactUUID: "r.artifact_uuid", EnvironmentUUID: "r.environment_uuid"}, k.roles, ouID, env,
+	)
 	var rows []struct {
 		RecordKey        string     `gorm:"column:record_key"`
 		OUID             string     `gorm:"column:ou_id"`
@@ -180,11 +186,12 @@ func (k *fakeEnvKind) UnplacedRecords(ctx context.Context, ouID string, env *uui
 
 func (k *fakeEnvKind) PlacedOn(ctx context.Context, tx *gorm.DB, env, gateway uuid.UUID) (bool, error) {
 	condition, args := PlacedCondition(
-		RecordColumns{OUID: "r.ou_id", ArtifactUUID: "r.artifact_uuid", EnvironmentUUID: "r.environment_uuid"}, env, gateway)
-	var placed bool
-	err := tx.WithContext(ctx).Raw(`SELECT EXISTS (SELECT 1 FROM reconcile_fake_records r WHERE `+condition+`)`,
-		args...).Scan(&placed).Error
-	return placed, err
+		RecordColumns{OUID: "r.ou_id", ArtifactUUID: "r.artifact_uuid", EnvironmentUUID: "r.environment_uuid"}, env, gateway,
+	)
+	var n int64
+	err := tx.WithContext(ctx).Raw(`SELECT COUNT(*) FROM reconcile_fake_records r WHERE `+condition,
+		args...).Scan(&n).Error
+	return n > 0, err
 }
 
 func (k *fakeEnvKind) Targets(ctx context.Context, record Record) (uuid.UUID, bool, error) {
@@ -192,9 +199,9 @@ func (k *fakeEnvKind) Targets(ctx context.Context, record Record) (uuid.UUID, bo
 		return k.targets(record)
 	}
 	var gateways []uuid.UUID
-	err := db.GetDB().WithContext(ctx).Raw(`SELECT m.gateway_uuid FROM gateway_environment_mappings m
-		INNER JOIN gateways g ON g.uuid = m.gateway_uuid AND g.deleted_at IS NULL
-		WHERE m.environment_uuid = ? ORDER BY m.gateway_uuid LIMIT 1`, record.EnvironmentUUID).Scan(&gateways).Error
+	err := db.GetDB().WithContext(ctx).Table("gateway_environments m").Select("m.gateway_id").
+		Joins("INNER JOIN gateways g ON g.id = m.gateway_id").
+		Where("m.environment_id = ?", record.EnvironmentUUID).Order("m.gateway_id").Limit(1).Scan(&gateways).Error
 	if err != nil || len(gateways) == 0 {
 		return uuid.Nil, false, err
 	}
@@ -205,14 +212,19 @@ var fakeRecordsTable sync.Once
 
 func ensureFakeRecordsTable(t *testing.T) {
 	t.Helper()
+	// The id type must match artifacts.id, which the baseline declares per database.
+	idType := "TEXT"
+	if config.GetConfig().Database.Driver == config.DBDriverPostgres {
+		idType = "UUID"
+	}
 	fakeRecordsTable.Do(func() {
 		require.NoError(t, db.GetDB().Exec(`CREATE TABLE IF NOT EXISTS reconcile_fake_records (
 			record_key TEXT PRIMARY KEY,
 			ou_id VARCHAR(255) NOT NULL,
-			artifact_uuid UUID NOT NULL REFERENCES artifacts(uuid) ON DELETE CASCADE,
+			artifact_uuid `+idType+` NOT NULL REFERENCES artifacts(id) ON DELETE CASCADE,
 			handle TEXT NOT NULL,
-			environment_uuid UUID NOT NULL,
-			requested_gateway UUID)`).Error)
+			environment_uuid `+idType+` NOT NULL,
+			requested_gateway `+idType+`)`).Error)
 	})
 }
 
@@ -228,7 +240,10 @@ func fakeRecordExistsIn(gdb *gorm.DB, artifactUUID uuid.UUID) bool {
 
 // Fixtures.
 
-func testOU() string { return "ou-" + uuid.NewString()[:8] }
+func testOU(t *testing.T) string {
+	t.Helper()
+	return dbtest.Org(t, db.GetDB())
+}
 
 // seedGateway registers a gateway in ouID, mapped to envs.
 func seedGateway(t *testing.T, ouID string, envs ...uuid.UUID) uuid.UUID {
@@ -239,25 +254,7 @@ func seedGateway(t *testing.T, ouID string, envs ...uuid.UUID) uuid.UUID {
 // seedGatewayWithRole is seedGateway for a gateway of the given role.
 func seedGatewayWithRole(t *testing.T, ouID, role string, envs ...uuid.UUID) uuid.UUID {
 	t.Helper()
-	gdb := db.GetDB()
-	gatewayID := uuid.New()
-	name := "reconcile-gw-" + gatewayID.String()[:8]
-	require.NoError(t, gdb.Exec(
-		`INSERT INTO gateways (uuid, name, display_name, vhost, gateway_functionality_type, ou_id, is_active)
-		 VALUES (?, ?, ?, ?, ?, ?, TRUE)`,
-		gatewayID, name, name, "gw.example", role, ouID).Error)
-	for _, env := range envs {
-		require.NoError(t, gdb.Create(&models.GatewayEnvironmentMapping{GatewayUUID: gatewayID, EnvironmentUUID: env}).Error)
-	}
-	t.Cleanup(func() {
-		gdb.Exec(`DELETE FROM eventhub_events WHERE gateway_id = ?`, gatewayID.String())
-		gdb.Exec(`DELETE FROM eventhub_gateway_states WHERE gateway_id = ?`, gatewayID.String())
-		gdb.Exec(`DELETE FROM deployment_status WHERE gateway_uuid = ?`, gatewayID)
-		gdb.Exec(`DELETE FROM deployments WHERE gateway_uuid = ?`, gatewayID)
-		gdb.Exec(`DELETE FROM gateway_environment_mappings WHERE gateway_uuid = ?`, gatewayID)
-		gdb.Exec(`DELETE FROM gateways WHERE uuid = ?`, gatewayID)
-	})
-	return gatewayID
+	return dbtest.GatewayIn(t, db.GetDB(), ouID, role, envs...).UUID
 }
 
 func seedArtifact(t *testing.T, ouID, kind string) models.ArtifactRef {
@@ -268,13 +265,12 @@ func seedArtifact(t *testing.T, ouID, kind string) models.ArtifactRef {
 	require.NoError(t, repositories.NewArtifactRepo(gdb).Create(gdb, &models.Artifact{
 		UUID: artifactUUID, Handle: handle, Name: handle, Version: "v1.0", Kind: kind, OUID: ouID,
 	}))
-	t.Cleanup(func() { gdb.Exec(`DELETE FROM artifacts WHERE uuid = ?`, artifactUUID) })
 	return models.ArtifactRef{OUID: ouID, ArtifactUUID: artifactUUID, Kind: kind, Handle: handle}
 }
 
 func seedPlacement(t *testing.T, kind string) models.Placement {
 	t.Helper()
-	ouID := testOU()
+	ouID := testOU(t)
 	return models.Placement{ArtifactRef: seedArtifact(t, ouID, kind), GatewayUUID: seedGateway(t, ouID)}
 }
 
@@ -307,8 +303,18 @@ func testConfig() Config {
 
 func testLogger() *slog.Logger { return slog.New(slog.NewTextHandler(io.Discard, nil)) }
 
+// skipOnSQLite skips a test that needs two writers at once, which SQLite serializes.
+func skipOnSQLite(t *testing.T, why string) {
+	t.Helper()
+	if config.GetConfig().Database.Driver == config.DBDriverSQLite {
+		t.Skip(why)
+	}
+}
+
 func newCore(t *testing.T, kinds ...Kind) *Core {
 	t.Helper()
+	// Made before any test transaction: SQLite lets one connection write at a time.
+	ensureFakeRecordsTable(t)
 	hub, err := eventhub.NewSQLBackend(db.GetDB(), testLogger(), eventhub.DefaultSQLBackendConfig())
 	require.NoError(t, err)
 	return NewCore(db.GetDB(), repositories.NewDeploymentRepo(db.GetDB()), hub, kinds, testConfig(), testLogger())
@@ -344,8 +350,9 @@ func advance(core *Core, by time.Duration) time.Time {
 func dueAt(t *testing.T, p models.Placement, at time.Time) {
 	t.Helper()
 	require.NoError(t, db.GetDB().Exec(
-		`UPDATE deployment_status SET next_attempt_at = ? WHERE artifact_uuid = ? AND ou_id = ? AND gateway_uuid = ?`,
-		at, p.ArtifactUUID, p.OUID, p.GatewayUUID).Error)
+		`UPDATE artifact_gateway_status SET next_attempt_at = ? WHERE artifact_id = ? AND org_id = ? AND gateway_id = ?`,
+		at, p.ArtifactUUID, p.OUID, p.GatewayUUID,
+	).Error)
 }
 
 func statusRow(t *testing.T, p models.Placement) *models.DeploymentStatusRecord {
@@ -368,7 +375,7 @@ type sentEvent struct {
 func eventsFor(t *testing.T, gatewayID uuid.UUID) []sentEvent {
 	t.Helper()
 	var data []string
-	require.NoError(t, db.GetDB().Raw(`SELECT event_data FROM eventhub_events WHERE gateway_id = ? ORDER BY seq`,
+	require.NoError(t, db.GetDB().Raw(`SELECT event_data FROM gateway_events WHERE gateway_id = ? ORDER BY seq`,
 		gatewayID.String()).Scan(&data).Error)
 	events := make([]sentEvent, 0, len(data))
 	for _, d := range data {
@@ -683,7 +690,7 @@ func TestDeployRecord(t *testing.T) {
 	t.Run("an inline kind deploys on the environment's gateway", func(t *testing.T) {
 		kind := newFakeEnvKind(true)
 		core := newCore(t, kind)
-		ouID, env := testOU(), uuid.New()
+		ouID, env := testOU(t), uuid.New()
 		gateway := seedGateway(t, ouID, env)
 		ref := seedArtifact(t, ouID, fakeEnvKindName)
 
@@ -704,7 +711,7 @@ func TestDeployRecord(t *testing.T) {
 		kind := newFakeEnvKind(true)
 		kind.targets = func(Record) (uuid.UUID, bool, error) { panic("Targets isn't asked") }
 		core := newCore(t, kind)
-		ouID, env := testOU(), uuid.New()
+		ouID, env := testOU(t), uuid.New()
 		seedGateway(t, ouID, env)
 		requested := seedGateway(t, ouID, env)
 		ref := seedArtifact(t, ouID, fakeEnvKindName)
@@ -721,7 +728,7 @@ func TestDeployRecord(t *testing.T) {
 	t.Run("no gateway: a valid record is rendered once and writes no row", func(t *testing.T) {
 		kind := newFakeEnvKind(true)
 		core := newCore(t, kind)
-		ref := seedArtifact(t, testOU(), fakeEnvKindName)
+		ref := seedArtifact(t, testOU(t), fakeEnvKindName)
 
 		var applied *Applied
 		require.NoError(t, inTx(t, func(tx *gorm.DB) error {
@@ -741,7 +748,7 @@ func TestDeployRecord(t *testing.T) {
 			return Rendered{}, errors.New("invalid security config")
 		})
 		core := newCore(t, kind)
-		ref := seedArtifact(t, testOU(), fakeEnvKindName)
+		ref := seedArtifact(t, testOU(t), fakeEnvKindName)
 
 		err := inTx(t, func(tx *gorm.DB) error {
 			record := seedRecord(t, tx, ref, uuid.New())
@@ -759,7 +766,7 @@ func TestDeployRecord(t *testing.T) {
 			return Rendered{}, errors.New("invalid security config")
 		})
 		core := newCore(t, kind)
-		ouID, env := testOU(), uuid.New()
+		ouID, env := testOU(t), uuid.New()
 		gateway := seedGateway(t, ouID, env)
 		ref := seedArtifact(t, ouID, fakeEnvKindName)
 
@@ -777,7 +784,7 @@ func TestDeployRecord(t *testing.T) {
 	t.Run("a kind that doesn't render inline places a PENDING row and nudges", func(t *testing.T) {
 		kind := newFakeEnvKind(false)
 		core := newCore(t, kind)
-		ouID, env := testOU(), uuid.New()
+		ouID, env := testOU(t), uuid.New()
 		gateway := seedGateway(t, ouID, env)
 		ref := seedArtifact(t, ouID, fakeEnvKindName)
 
@@ -800,7 +807,7 @@ func assertNoRows(t *testing.T, ref models.ArtifactRef) {
 	t.Helper()
 	var rows int64
 	require.NoError(t, db.GetDB().Model(&models.DeploymentStatusRecord{}).
-		Where("artifact_uuid = ?", ref.ArtifactUUID).Count(&rows).Error)
+		Where("artifact_id = ?", ref.ArtifactUUID).Count(&rows).Error)
 	assert.Zero(t, rows)
 }
 
@@ -808,7 +815,7 @@ func assertNoRows(t *testing.T, ref models.ArtifactRef) {
 func TestPlaceEnv(t *testing.T) {
 	kind := newFakeEnvKind(true)
 	_, worker := newWorker(t, kind)
-	ouID, env, otherEnv := testOU(), uuid.New(), uuid.New()
+	ouID, env, otherEnv := testOU(t), uuid.New(), uuid.New()
 	ref := seedArtifact(t, ouID, fakeEnvKindName)
 	seedRecord(t, nil, ref, env)
 	otherRef := seedArtifact(t, ouID, fakeEnvKindName)
@@ -831,7 +838,7 @@ func TestPlaceEnv(t *testing.T) {
 func TestPlaceAll(t *testing.T) {
 	kind := newFakeEnvKind(true)
 	_, worker := newWorker(t, kind)
-	ouID, env := testOU(), uuid.New()
+	ouID, env := testOU(t), uuid.New()
 	ref := seedArtifact(t, ouID, fakeEnvKindName)
 	seedRecord(t, nil, ref, env)
 	gateway := seedGateway(t, ouID, env)
@@ -844,9 +851,10 @@ func TestPlaceAll(t *testing.T) {
 // The placement pass racing a user undeploy: the record is deleted after the pass read it, so the pass inserts a
 // PENDING row; Render's re-check undeploys it with no event, and the next pass doesn't re-place it.
 func TestPlacementPassRacingAUserUndeploy(t *testing.T) {
+	skipOnSQLite(t, "the racing undeploy is a second writer, which SQLite runs only after the placement's transaction")
 	kind := newFakeEnvKind(true)
 	_, worker := newWorker(t, kind)
-	ouID, env := testOU(), uuid.New()
+	ouID, env := testOU(t), uuid.New()
 	ref := seedArtifact(t, ouID, fakeEnvKindName)
 	seedRecord(t, nil, ref, env)
 	gateway := seedGateway(t, ouID, env)
@@ -874,7 +882,7 @@ func TestPlacementPassRacingAUserUndeploy(t *testing.T) {
 
 func TestUnplacedRecordsExcludeSoftDeletedGateways(t *testing.T) {
 	kind := newFakeEnvKind(true)
-	ouID, env := testOU(), uuid.New()
+	ouID, env := testOU(t), uuid.New()
 	ref := seedArtifact(t, ouID, fakeEnvKindName)
 	seedRecord(t, nil, ref, env)
 	gateway := seedGateway(t, ouID, env)
@@ -901,7 +909,7 @@ func TestUnplacedRecordsNeedAGatewayOfTheKindsRole(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			kind := newFakeEnvKind(true)
 			kind.roles = tc.roles
-			ouID, env := testOU(), uuid.New()
+			ouID, env := testOU(t), uuid.New()
 			ref := seedArtifact(t, ouID, fakeEnvKindName)
 			seedRecord(t, nil, ref, env)
 			seedGatewayWithRole(t, ouID, tc.wrongRole, env)
@@ -921,11 +929,11 @@ func TestUnplacedRecordsNeedAGatewayOfTheKindsRole(t *testing.T) {
 
 func TestUnplacedConditionIgnoresSelfHosted(t *testing.T) {
 	kind := newFakeEnvKind(true)
-	ouID, env := testOU(), uuid.New()
+	ouID, env := testOU(t), uuid.New()
 	ref := seedArtifact(t, ouID, fakeEnvKindName)
 	seedRecord(t, nil, ref, env)
 	selfHosted := seedGatewayWithRole(t, ouID, models.GatewayRoleEgress, env)
-	require.NoError(t, db.GetDB().Exec(`UPDATE gateways SET hosting = ? WHERE uuid = ?`,
+	require.NoError(t, db.GetDB().Exec(`UPDATE gateways SET hosting = ? WHERE id = ?`,
 		models.GatewayHostingSelfHosted, selfHosted).Error)
 
 	records, err := kind.UnplacedRecords(context.Background(), ouID, &env, "", 10)
@@ -940,11 +948,13 @@ func TestUnplacedConditionIgnoresSelfHosted(t *testing.T) {
 }
 
 func TestGatewayDeleteKeepsAUserUndeploy(t *testing.T) {
+	t.Skip("gateways are deleted outright now, and their status rows with them, so the undeploy no longer outlives " +
+		"its gateway; a replacement gateway in the environment gets the record placed again")
 	for name, sent := range map[string]bool{"undeployed after a deploy": true, "undeployed from PENDING": false} {
 		t.Run(name, func(t *testing.T) {
 			kind := newFakeEnvKind(true)
 			core, worker := newWorker(t, kind)
-			ouID, env := testOU(), uuid.New()
+			ouID, env := testOU(t), uuid.New()
 			ref := seedArtifact(t, ouID, fakeEnvKindName)
 			seedRecord(t, nil, ref, env)
 			old := seedGateway(t, ouID, env)
@@ -985,7 +995,7 @@ func TestGatewayDeleteKeepsAUserUndeploy(t *testing.T) {
 func TestGatewayDeleteDropsAnUndeployOwedADeploy(t *testing.T) {
 	kind := newFakeEnvKind(true)
 	core, worker := newWorker(t, kind)
-	ouID, env := testOU(), uuid.New()
+	ouID, env := testOU(t), uuid.New()
 	ref := seedArtifact(t, ouID, fakeEnvKindName)
 	seedRecord(t, nil, ref, env)
 	old := seedGateway(t, ouID, env)
@@ -1005,7 +1015,7 @@ func TestGatewayDeleteDropsAnUndeployOwedADeploy(t *testing.T) {
 }
 
 func TestGatewayDeleteRemovesPendingRows(t *testing.T) {
-	ouID := testOU()
+	ouID := testOU(t)
 	p := models.Placement{ArtifactRef: seedArtifact(t, ouID, fakeEnvKindName), GatewayUUID: seedGateway(t, ouID)}
 	insertPending(t, p)
 	require.NotNil(t, statusRow(t, p))
@@ -1037,7 +1047,7 @@ func TestAfterLive(t *testing.T) {
 	t.Run("a hook error doesn't roll back the ack", func(t *testing.T) {
 		kind := newFakeEnvKind(true)
 		core := newCore(t, kind)
-		ouID, env := testOU(), uuid.New()
+		ouID, env := testOU(t), uuid.New()
 		gateway := seedGateway(t, ouID, env)
 		ref := seedArtifact(t, ouID, fakeEnvKindName)
 		hookRef := seedArtifact(t, ouID, fakeEnvKindName)
@@ -1061,7 +1071,7 @@ func TestAfterLive(t *testing.T) {
 
 // Drift runs on one replica per interval: of two workers scanning at once, one scans.
 func TestDriftRunsOnOneReplica(t *testing.T) {
-	kind := newFakeKind("FakeDrift", true)
+	kind := newFakeKind(fakeDriftKind, true)
 	core, first := newWorker(t, kind)
 	second := NewWorker(newCore(t, kind), testLogger())
 	p := seedDeployedDriftPlacement(t, core)
@@ -1099,22 +1109,26 @@ func TestDriftRunsOnOneReplica(t *testing.T) {
 
 func seedDeployedDriftPlacement(t *testing.T, core *Core) models.Placement {
 	t.Helper()
-	p := models.Placement{ArtifactRef: seedArtifact(t, testOU(), "FakeDrift")}
+	p := models.Placement{ArtifactRef: seedArtifact(t, testOU(t), fakeDriftKind)}
 	p.GatewayUUID = seedGateway(t, p.OUID)
 	ack(t, core, p, deploy(t, core, p).DeploymentID, models.DeploymentAckStatusSuccess)
 	return p
 }
 
 func TestDriftScanHoldsNoTransactionOpen(t *testing.T) {
-	kind := newFakeKind("FakeDrift", true)
+	kind := newFakeKind(fakeDriftKind, true)
 	core, worker := newWorker(t, kind)
 	p := seedDeployedDriftPlacement(t, core)
-	var states []string
+	var owner *string
+	var writeErr error
 	kind.drifted = func(got models.Placement) bool {
 		if got == p {
-			db.GetDB().Raw(`SELECT s.state FROM pg_locks l JOIN pg_stat_activity s USING (pid)
-				WHERE l.locktype = 'advisory' AND l.classid = ? AND l.objid = hashtext(?)::oid`,
-				repositories.DriftScanLockNamespace, repositories.DriftScanLockKey).Scan(&states)
+			db.GetDB().Raw(`SELECT owner FROM locks WHERE name = ?`, repositories.DriftScanLock).Scan(&owner)
+			// Another connection can still write while the scan runs: it holds a lease, not a transaction.
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+			writeErr = db.GetDB().WithContext(ctx).Exec(`UPDATE locks SET name = name WHERE name = ?`,
+				repositories.DriftScanLock).Error
 		}
 		return false
 	}
@@ -1122,12 +1136,12 @@ func TestDriftScanHoldsNoTransactionOpen(t *testing.T) {
 	_, err := worker.CheckDrift(context.Background())
 
 	require.NoError(t, err)
-	require.Len(t, states, 1, "the scan's lock is found in pg_locks while the scan runs")
-	assert.Equal(t, "idle", states[0])
+	require.NotNil(t, owner, "the scan holds the drift lease while it runs")
+	assert.NoError(t, writeErr)
 }
 
 func TestDriftScanReleasesTheLockOnError(t *testing.T) {
-	kind := newFakeKind("FakeDrift", true)
+	kind := newFakeKind(fakeDriftKind, true)
 	core, first := newWorker(t, kind)
 	second := NewWorker(newCore(t, kind), testLogger())
 	p := seedDeployedDriftPlacement(t, core)
@@ -1148,25 +1162,6 @@ func TestDriftScanReleasesTheLockOnError(t *testing.T) {
 	scanned, err = second.CheckDrift(context.Background())
 	require.NoError(t, err)
 	assert.True(t, scanned, "the failed scan released the lock")
-}
-
-// An unlock that fails ends the pinned connection's session, which releases the lock with it.
-func TestDriftUnlockFailureDiscardsTheConnection(t *testing.T) {
-	_, worker := newWorker(t)
-	var pid int
-	err := db.DB(context.Background()).Connection(func(conn *gorm.DB) error {
-		require.NoError(t, conn.Raw("SELECT pg_backend_pid()").Scan(&pid).Error)
-		require.Error(t, repositories.UnlockDriftScan(conn), "the lock was never taken")
-		worker.unlockDriftScan(context.Background(), conn)
-		return nil
-	})
-	require.NoError(t, err)
-
-	assert.Eventually(t, func() bool {
-		var sessions int64
-		require.NoError(t, db.DB(context.Background()).Raw("SELECT count(*) FROM pg_stat_activity WHERE pid = ?", pid).Scan(&sessions).Error)
-		return sessions == 0
-	}, 5*time.Second, 50*time.Millisecond)
 }
 
 // MarkStale touches only placed rows.
@@ -1217,7 +1212,7 @@ var errServesEnvironment = errors.New("the gateway serves the environment")
 
 // unmapInTx removes the gateway's mapping to env in tx as the gateway service does: delete, then check.
 func unmapInTx(ctx context.Context, core *Core, tx *gorm.DB, gateway, env uuid.UUID) error {
-	if err := tx.Exec(`DELETE FROM gateway_environment_mappings WHERE gateway_uuid = ? AND environment_uuid = ?`,
+	if err := tx.Exec(`DELETE FROM gateway_environments WHERE gateway_id = ? AND environment_id = ?`,
 		gateway, env).Error; err != nil {
 		return err
 	}
@@ -1244,7 +1239,7 @@ func notDoneWithin[T any](t *testing.T, ch <-chan T, what string) {
 func TestUnmapWaitsForAPlacementInProgress(t *testing.T) {
 	kind := newFakeEnvKind(false)
 	core := newCore(t, kind)
-	ouID, env := testOU(), uuid.New()
+	ouID, env := testOU(t), uuid.New()
 	gateway := seedGateway(t, ouID, env)
 	record := seedRecord(t, nil, seedArtifact(t, ouID, fakeEnvKindName), env)
 	placing := db.GetDB().Begin()
@@ -1268,7 +1263,7 @@ func TestUnmapWaitsForAPlacementInProgress(t *testing.T) {
 func TestPlacementWaitsForAnUnmapInProgress(t *testing.T) {
 	kind := newFakeEnvKind(false)
 	core := newCore(t, kind)
-	ouID, env := testOU(), uuid.New()
+	ouID, env := testOU(t), uuid.New()
 	gateway := seedGateway(t, ouID, env)
 	kind.targets = func(Record) (uuid.UUID, bool, error) { return gateway, true, nil }
 	record := seedRecord(t, nil, seedArtifact(t, ouID, fakeEnvKindName), env)
@@ -1297,7 +1292,7 @@ func TestPlacementWaitsForAnUnmapInProgress(t *testing.T) {
 func TestMarkStaleOfAGoneRecordIsNotAFailure(t *testing.T) {
 	kind := newFakeEnvKind(true)
 	core := newCore(t, kind)
-	ouID := testOU()
+	ouID := testOU(t)
 	env := uuid.New()
 	gateway := seedGateway(t, ouID, env)
 	record := seedRecord(t, nil, seedArtifact(t, ouID, fakeEnvKindName), env)
@@ -1321,7 +1316,7 @@ func TestPrepareDeleteSendsToEveryGatewaySentTheArtifactAndEveryActiveGateway(t 
 	undeployed.GatewayUUID = seedGateway(t, p.OUID)
 	pending := p
 	pending.GatewayUUID = seedGateway(t, p.OUID)
-	require.NoError(t, db.GetDB().Exec(`UPDATE gateways SET is_active = FALSE WHERE uuid IN (?, ?)`,
+	require.NoError(t, db.GetDB().Exec(`UPDATE gateways SET is_active = ? WHERE id IN (?, ?)`, false,
 		undeployed.GatewayUUID, pending.GatewayUUID).Error)
 	bystander := seedGateway(t, p.OUID)
 	deploy(t, core, p)
@@ -1334,7 +1329,7 @@ func TestPrepareDeleteSendsToEveryGatewaySentTheArtifactAndEveryActiveGateway(t 
 		if err != nil {
 			return err
 		}
-		if err := tx.Exec(`DELETE FROM artifacts WHERE uuid = ?`, p.ArtifactUUID).Error; err != nil {
+		if err := tx.Exec(`DELETE FROM artifacts WHERE id = ?`, p.ArtifactUUID).Error; err != nil {
 			return err
 		}
 		return events.Publish(context.Background(), tx)

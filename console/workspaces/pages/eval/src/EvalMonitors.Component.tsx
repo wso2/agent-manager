@@ -18,19 +18,17 @@
 
 import React from "react";
 import { PageLayout } from "@agent-management-platform/views";
-import { EnvironmentSelector } from "@agent-management-platform/shared-component";
-import { Button, Stack } from "@wso2/oxygen-ui";
+import { Button } from "@wso2/oxygen-ui";
 import { Plus } from "@wso2/oxygen-ui-icons-react";
 import { generatePath, Link, useParams } from "react-router-dom";
-import { absoluteRouteMap } from "@agent-management-platform/types";
+import { absoluteRouteMap, DEFAULT_ENVIRONMENT } from "@agent-management-platform/types";
 import { useListMonitors } from "@agent-management-platform/api-client";
 import { useResourceAccess } from "@agent-management-platform/feature-management";
 import { MonitorTable } from "./subComponents/MonitorTable";
 
 export const EvalMonitorsComponent: React.FC = () => {
-  const { agentId, envId, orgId, projectId } = useParams<{
+  const { agentId, orgId, projectId } = useParams<{
     agentId: string;
-    envId: string;
     orgId: string;
     projectId: string;
   }>();
@@ -39,7 +37,7 @@ export const EvalMonitorsComponent: React.FC = () => {
   // Same query as the table (deduped); the header CTA only shows once the list has items.
   const { data: monitorsList } = useListMonitors(
     { orgName: orgId, projName: projectId, agentName: agentId },
-    { environmentName: envId },
+    { environmentName: DEFAULT_ENVIRONMENT },
   );
   const hasItems = (monitorsList?.monitors?.length ?? 0) > 0;
 
@@ -50,13 +48,8 @@ export const EvalMonitorsComponent: React.FC = () => {
       component={Link}
       to={generatePath(
         absoluteRouteMap.children.org.children.projects.children.agents.children
-          .environment.children.evaluation.children.monitor.children.create.path,
-        {
-          orgId: orgId,
-          projectId: projectId,
-          agentId: agentId,
-          envId: envId,
-        },
+          .evaluation.children.monitor.children.create.path,
+        { orgId, projectId, agentId },
       )}
       startIcon={<Plus />}
       color="primary"
@@ -69,12 +62,7 @@ export const EvalMonitorsComponent: React.FC = () => {
     <PageLayout
       title="Eval Monitors"
       disableIcon
-      actions={
-        <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
-          <EnvironmentSelector />
-          {hasItems && canWrite && createButton}
-        </Stack>
-      }
+      actions={hasItems && canWrite ? createButton : undefined}
     >
       <MonitorTable createAction={canWrite ? createButton : undefined} />
     </PageLayout>

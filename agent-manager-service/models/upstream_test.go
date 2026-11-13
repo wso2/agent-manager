@@ -18,6 +18,8 @@ package models
 
 import "testing"
 
+func strPtr(s string) *string { return &s }
+
 func TestResilienceValidate(t *testing.T) {
 	tests := []struct {
 		name       string

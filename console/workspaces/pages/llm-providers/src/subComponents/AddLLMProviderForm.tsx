@@ -40,7 +40,7 @@ import {
 } from "../form/schema";
 import { useValidatedForm } from "../hooks/useValidatedForm";
 import {
-  EnvironmentGatewaySelector,
+  EgressGatewaySelector,
   getErrorMessage,
   PolicyListSection,
   ResilienceTimeoutFields,
@@ -199,7 +199,7 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
 
   const [guardrails, setGuardrails] = useState<GuardrailSelection[]>([]);
   const [isGatewaySelectionValid, setIsGatewaySelectionValid] = useState(true);
-  // True once the selector auto-resolved a single unambiguous environment —
+  // True once the selector auto-resolved a single unambiguous gateway —
   // nothing to configure, so the whole section (including its title) hides.
   const [isSingleGatewayChoice, setIsSingleGatewayChoice] = useState(false);
   const [endpointEditable, setEndpointEditable] = useState(false);
@@ -673,7 +673,7 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
       )}
       <Collapse in={!!formData.templateId}>
         {isSingleGatewayChoice ? (
-          <EnvironmentGatewaySelector
+          <EgressGatewaySelector
             orgId={orgId}
             value={formData.gatewayIds ?? []}
             onChange={(ids) => handleFieldChange("gatewayIds", ids)}
@@ -697,7 +697,7 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
                     creating an LLM provider.
                   </Alert>
                 )}
-              <EnvironmentGatewaySelector
+              <EgressGatewaySelector
                 orgId={orgId}
                 value={formData.gatewayIds ?? []}
                 onChange={(ids) => handleFieldChange("gatewayIds", ids)}

@@ -19,6 +19,8 @@ package observer
 import (
 	"testing"
 	"time"
+
+	"github.com/wso2/agent-manager/agent-manager-observer/opensearch"
 )
 
 func TestConvertSpanInfoToSpan(t *testing.T) {
@@ -35,7 +37,7 @@ func TestConvertSpanInfoToSpan(t *testing.T) {
 		Status:       &SpanStatus{Code: "error", Message: "boom: connection refused"},
 		Attributes:   map[string]interface{}{"gen_ai.system": "openai"},
 		ResourceAttributes: map[string]interface{}{
-			"openchoreo.dev/component-uid": "comp-abc",
+			opensearch.ResourceAgent: "comp-abc",
 		},
 	}
 
@@ -57,12 +59,12 @@ func TestConvertSpanInfoToSpan(t *testing.T) {
 		t.Errorf("expected DurationInNanos 42, got %d", span.DurationInNanos)
 	}
 	if span.Service != "comp-abc" {
-		t.Errorf("expected Service from component-uid, got %q", span.Service)
+		t.Errorf("expected Service from agent resource attribute, got %q", span.Service)
 	}
 	if span.Attributes["gen_ai.system"] != "openai" {
 		t.Errorf("expected attributes preserved, got %+v", span.Attributes)
 	}
-	if span.Resource["openchoreo.dev/component-uid"] != "comp-abc" {
+	if span.Resource[opensearch.ResourceAgent] != "comp-abc" {
 		t.Errorf("expected resource preserved, got %+v", span.Resource)
 	}
 }

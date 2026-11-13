@@ -19,7 +19,7 @@
 // fast unit tier with all collaborators mocked:
 //
 //   - repositories.CatalogRepository -> repomocks.CatalogRepositoryMock
-//   - client.OpenChoreoClient        -> clientmocks.OpenChoreoClientMock
+//   - repositories.PlatformRepository        -> repomocks.PlatformRepositoryMock
 //
 // The service has no sentinel errors of its own; it validates input, branches on
 // the kind/deployment shape, wraps repository/client errors with %w, and (for
@@ -42,14 +42,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 )
 
 // newCatalogService wires the service with a discard logger and the two mocked
 // dependencies.
-func newCatalogService(repo *repomocks.CatalogRepositoryMock, oc *clientmocks.OpenChoreoClientMock) CatalogService {
+func newCatalogService(repo *repomocks.CatalogRepositoryMock, oc *repomocks.PlatformRepositoryMock) CatalogService {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	return NewCatalogService(logger, repo, oc)
 }
@@ -62,7 +61,7 @@ func TestCatalogService_ListCatalog(t *testing.T) {
 	t.Run("rejects empty ouID", func(t *testing.T) {
 		// Both repo methods left nil: hitting either would panic, proving the
 		// guard short-circuits before any data access.
-		svc := newCatalogService(&repomocks.CatalogRepositoryMock{}, &clientmocks.OpenChoreoClientMock{})
+		svc := newCatalogService(&repomocks.CatalogRepositoryMock{}, &repomocks.PlatformRepositoryMock{})
 
 		entries, total, err := svc.ListCatalog(context.Background(), "", "agent", 10, 0)
 
@@ -83,7 +82,7 @@ func TestCatalogService_ListCatalog(t *testing.T) {
 			},
 			// ListByKind left nil: must NOT be reached.
 		}
-		svc := newCatalogService(repo, &clientmocks.OpenChoreoClientMock{})
+		svc := newCatalogService(repo, &repomocks.PlatformRepositoryMock{})
 
 		entries, total, err := svc.ListCatalog(context.Background(), "acme", "", 10, 5)
 
@@ -104,7 +103,7 @@ func TestCatalogService_ListCatalog(t *testing.T) {
 			},
 			// ListAll left nil: must NOT be reached.
 		}
-		svc := newCatalogService(repo, &clientmocks.OpenChoreoClientMock{})
+		svc := newCatalogService(repo, &repomocks.PlatformRepositoryMock{})
 
 		entries, total, err := svc.ListCatalog(context.Background(), "acme", "agent", 20, 0)
 
@@ -121,7 +120,7 @@ func TestCatalogService_ListCatalog(t *testing.T) {
 				return nil, 0, boom
 			},
 		}
-		svc := newCatalogService(repo, &clientmocks.OpenChoreoClientMock{})
+		svc := newCatalogService(repo, &repomocks.PlatformRepositoryMock{})
 
 		entries, total, err := svc.ListCatalog(context.Background(), "acme", "", 10, 0)
 
@@ -141,7 +140,7 @@ func TestCatalogService_ListCatalog(t *testing.T) {
 func TestCatalogService_ListLLMProviders(t *testing.T) {
 	t.Run("rejects nil filters", func(t *testing.T) {
 		// Repo left nil: must NOT be reached.
-		svc := newCatalogService(&repomocks.CatalogRepositoryMock{}, &clientmocks.OpenChoreoClientMock{})
+		svc := newCatalogService(&repomocks.CatalogRepositoryMock{}, &repomocks.PlatformRepositoryMock{})
 
 		entries, total, err := svc.ListLLMProviders(context.Background(), nil)
 
@@ -152,7 +151,7 @@ func TestCatalogService_ListLLMProviders(t *testing.T) {
 
 	t.Run("rejects invalid filters (empty org)", func(t *testing.T) {
 		// Validate() fails on empty OrganizationName before any repo access.
-		svc := newCatalogService(&repomocks.CatalogRepositoryMock{}, &clientmocks.OpenChoreoClientMock{})
+		svc := newCatalogService(&repomocks.CatalogRepositoryMock{}, &repomocks.PlatformRepositoryMock{})
 
 		_, _, err := svc.ListLLMProviders(context.Background(), &models.CatalogListFilters{
 			OrganizationName: "",
@@ -169,7 +168,7 @@ func TestCatalogService_ListLLMProviders(t *testing.T) {
 				return nil, 0, boom
 			},
 		}
-		svc := newCatalogService(repo, &clientmocks.OpenChoreoClientMock{})
+		svc := newCatalogService(repo, &repomocks.PlatformRepositoryMock{})
 
 		_, _, err := svc.ListLLMProviders(context.Background(), &models.CatalogListFilters{
 			OrganizationName: "wrap-org",
@@ -190,7 +189,7 @@ func TestCatalogService_ListLLMProviders(t *testing.T) {
 		}
 		// ListEnvironments left nil: hitting it would panic, asserting the
 		// service does NOT make the external call when there is nothing to enrich.
-		svc := newCatalogService(repo, &clientmocks.OpenChoreoClientMock{})
+		svc := newCatalogService(repo, &repomocks.PlatformRepositoryMock{})
 
 		entries, total, err := svc.ListLLMProviders(context.Background(), &models.CatalogListFilters{
 			OrganizationName: "no-deploy-org",
@@ -223,7 +222,7 @@ func TestCatalogService_ListLLMProviders(t *testing.T) {
 			},
 		}
 		listEnvCalled := false
-		oc := &clientmocks.OpenChoreoClientMock{
+		oc := &repomocks.PlatformRepositoryMock{
 			ListEnvironmentsFunc: func(_ context.Context, namespace string) ([]*models.EnvironmentResponse, error) {
 				listEnvCalled = true
 				assert.Equal(t, "resolve-org", namespace)
@@ -270,7 +269,7 @@ func TestCatalogService_ListLLMProviders(t *testing.T) {
 				}, 1, nil
 			},
 		}
-		oc := &clientmocks.OpenChoreoClientMock{
+		oc := &repomocks.PlatformRepositoryMock{
 			ListEnvironmentsFunc: func(_ context.Context, _ string) ([]*models.EnvironmentResponse, error) {
 				return nil, errors.New("openchoreo unreachable")
 			},

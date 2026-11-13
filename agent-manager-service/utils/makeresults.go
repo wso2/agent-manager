@@ -86,64 +86,7 @@ func ConvertToAgentResponse(component *models.AgentResponse) spec.AgentResponse 
 		return spec.AgentResponse{}
 	}
 
-	if component.Provisioning.Type == string(InternalAgent) {
-		return convertToInternalAgentResponse(component)
-	}
 	return convertToExternalAgentResponse(component)
-}
-
-func convertToInternalAgentResponse(component *models.AgentResponse) spec.AgentResponse {
-	repoConfig := &spec.RepositoryConfig{
-		Url:     component.Provisioning.Repository.Url,
-		Branch:  component.Provisioning.Repository.Branch,
-		AppPath: component.Provisioning.Repository.AppPath,
-	}
-	if component.Provisioning.Repository.SecretRef != "" {
-		repoConfig.SetSecretRef(component.Provisioning.Repository.SecretRef)
-	} else {
-		repoConfig.SecretRef.Set(nil) // explicitly set to null for public repos
-	}
-
-	response := spec.AgentResponse{
-		Uuid:        component.UUID,
-		Name:        component.Name,
-		DisplayName: component.DisplayName,
-		Description: component.Description,
-		ProjectName: component.ProjectName,
-		CreatedAt:   component.CreatedAt,
-		Status:      &component.Status,
-		Provisioning: spec.Provisioning{
-			Type:       component.Provisioning.Type,
-			Repository: repoConfig,
-		},
-		AgentType: spec.AgentType{
-			Type:    component.Type.Type,
-			SubType: &component.Type.SubType,
-		},
-		InputInterface: convertToInputInterface(component.InputInterface),
-		HealthChecks:   convertToHealthChecks(component.HealthChecks),
-		Build:          convertToBuild(component.Build),
-		Configurations: convertToConfigurations(component.Configurations),
-		KindName: func() *string {
-			if component.KindName == "" {
-				return nil
-			}
-			return &component.KindName
-		}(),
-		// Absent for source-built agents, and for kind-sourced agents created
-		// before the version was recorded on the component.
-		KindVersion: func() *string {
-			if component.KindVersion == "" {
-				return nil
-			}
-			return &component.KindVersion
-		}(),
-		CreatedBy: convertToCreatedBy(component.CreatedBy),
-	}
-	if len(component.Labels) > 0 {
-		response.SetLabels(component.Labels)
-	}
-	return response
 }
 
 // convertToCreatedBy maps the best-effort agent-creator info resolved in
@@ -155,45 +98,6 @@ func convertToCreatedBy(createdBy *models.AgentCreatedBy) *spec.AgentCreatedBy {
 	result := &spec.AgentCreatedBy{Id: createdBy.ID}
 	if createdBy.Display != "" {
 		result.Display = &createdBy.Display
-	}
-	return result
-}
-
-func convertToConfigurations(configs *models.Configurations) *spec.Configurations {
-	if configs == nil {
-		return nil
-	}
-	result := &spec.Configurations{
-		EnableAutoInstrumentation: configs.EnableAutoInstrumentation,
-		EnableApiKeySecurity:      configs.EnableApiKeySecurity,
-		EnableOAuthSecurity:       configs.EnableOAuthSecurity,
-		ResilienceTimeoutSeconds:  configs.ResilienceTimeoutSeconds,
-	}
-	// Surface the pinned AMP instrumentation version on reads so the deploy/promote
-	// UI shows the currently-applied version instead of falling back to the platform
-	// default. Left unset (omitted) when the agent has no pin.
-	if configs.InstrumentationVersion != nil {
-		result.InstrumentationVersion.Set(configs.InstrumentationVersion)
-	}
-	if configs.CorsConfig != nil {
-		corsConfig := spec.CORSConfig{
-			Enabled:          configs.CorsConfig.Enabled,
-			AllowOrigin:      configs.CorsConfig.AllowOrigin,
-			AllowMethods:     configs.CorsConfig.AllowMethods,
-			AllowHeaders:     configs.CorsConfig.AllowHeaders,
-			AllowCredentials: configs.CorsConfig.AllowCredentials,
-		}
-		result.CorsConfig = &corsConfig
-	}
-	if configs.OAuthConfig != nil {
-		oauthConfig := spec.OAuthConfig{
-			Issuers:          configs.OAuthConfig.Issuers,
-			Audiences:        configs.OAuthConfig.Audiences,
-			HeaderName:       &configs.OAuthConfig.HeaderName,
-			AuthHeaderPrefix: &configs.OAuthConfig.AuthHeaderPrefix,
-			ForwardToken:     &configs.OAuthConfig.ForwardToken,
-		}
-		result.OauthConfig = &oauthConfig
 	}
 	return result
 }
@@ -258,173 +162,6 @@ func convertToExternalAgentResponse(component *models.AgentResponse) spec.AgentR
 	return response
 }
 
-func ConvertToBuildResponse(build *models.BuildResponse) spec.BuildResponse {
-	if build == nil {
-		return spec.BuildResponse{}
-	}
-	return spec.BuildResponse{
-		BuildId:         &build.UUID,
-		AgentName:       build.AgentName,
-		ProjectName:     build.ProjectName,
-		Status:          &build.Status,
-		StartedAt:       build.StartedAt,
-		ImageId:         &build.ImageId,
-		BuildName:       build.Name,
-		EndedAt:         build.EndedAt,
-		BuildParameters: convertToBuildParameters(build.BuildParameters),
-		// The checks this build runs with wherever it is deployed; nil when it recorded none.
-		HealthChecks: convertToHealthChecks(build.HealthChecks),
-	}
-}
-
-func convertToBuildParameters(params models.BuildParameters) spec.BuildParameters {
-	bp := spec.BuildParameters{
-		CommitId:        params.CommitID,
-		Branch:          params.Branch,
-		RepoUrl:         params.RepoUrl,
-		AppPath:         params.AppPath,
-		Language:        params.Language,
-		LanguageVersion: params.LanguageVersion,
-		RunCommand:      params.RunCommand,
-	}
-	if params.DockerfilePath != "" {
-		bp.DockerfilePath = spec.PtrString(params.DockerfilePath)
-	}
-	return bp
-}
-
-func ConvertToBuildListResponse(builds []*models.BuildResponse) []spec.BuildResponse {
-	if len(builds) == 0 {
-		return []spec.BuildResponse{}
-	}
-	responses := make([]spec.BuildResponse, len(builds))
-	for i, build := range builds {
-		responses[i] = ConvertToBuildResponse(build)
-	}
-	return responses
-}
-
-func ConvertToBuildDetailsResponse(buildDetails *models.BuildDetailsResponse) spec.BuildDetailsResponse {
-	if buildDetails == nil {
-		return spec.BuildDetailsResponse{}
-	}
-
-	steps := make([]spec.BuildStep, len(buildDetails.Steps))
-	for i, step := range buildDetails.Steps {
-		steps[i] = spec.BuildStep{
-			Type:       step.Type,
-			Status:     step.Status,
-			Message:    step.Message,
-			StartedAt:  step.StartedAt,
-			FinishedAt: step.FinishedAt,
-		}
-	}
-
-	response := spec.BuildDetailsResponse{
-		BuildId:         &buildDetails.UUID,
-		AgentName:       buildDetails.AgentName,
-		ProjectName:     buildDetails.ProjectName,
-		Status:          &buildDetails.Status,
-		StartedAt:       buildDetails.StartedAt,
-		ImageId:         &buildDetails.ImageId,
-		BuildName:       buildDetails.Name,
-		Percent:         &buildDetails.Percent,
-		Steps:           steps,
-		DurationSeconds: &buildDetails.DurationSeconds,
-		EndedAt:         buildDetails.EndedAt,
-		BuildParameters: convertToBuildParameters(buildDetails.BuildParameters),
-		HealthChecks:    convertToHealthChecks(buildDetails.HealthChecks),
-		InputInterface:  convertToInputInterface(buildDetails.InputInterface),
-	}
-
-	return response
-}
-
-// convertToHealthChecks converts the saved health checks to the API response. Nil stays nil,
-// meaning none are saved.
-func convertToHealthChecks(healthChecks *models.HealthChecks) *spec.HealthChecks {
-	if healthChecks == nil {
-		return nil
-	}
-	return &spec.HealthChecks{
-		Startup:   convertToHealthCheck(healthChecks.Startup),
-		Readiness: convertToHealthCheck(healthChecks.Readiness),
-		Liveness:  convertToHealthCheck(healthChecks.Liveness),
-	}
-}
-
-func convertToHealthCheck(healthCheck *models.HealthCheck) *spec.HealthCheck {
-	if healthCheck == nil {
-		return nil
-	}
-	return &spec.HealthCheck{
-		Enabled:             healthCheck.Enabled,
-		Type:                healthCheck.Type,
-		Path:                healthCheck.Path,
-		Port:                healthCheck.Port,
-		InitialDelaySeconds: healthCheck.InitialDelaySeconds,
-		PeriodSeconds:       healthCheck.PeriodSeconds,
-		TimeoutSeconds:      healthCheck.TimeoutSeconds,
-		FailureThreshold:    healthCheck.FailureThreshold,
-	}
-}
-
-func convertToInputInterface(input *models.InputInterface) *spec.InputInterface {
-	if input == nil {
-		return nil
-	}
-
-	result := &spec.InputInterface{
-		Type: input.Type,
-		Port: &input.Port,
-	}
-
-	if input.Schema != nil {
-		result.Schema = &spec.InputInterfaceSchema{}
-		if input.Schema.Path != "" {
-			result.Schema.Path = &input.Schema.Path
-		}
-		if input.Schema.Content != "" {
-			result.Schema.Content = &input.Schema.Content
-		}
-	}
-	if input.BasePath != "" {
-		result.BasePath = &input.BasePath
-	}
-
-	return result
-}
-
-func convertToBuild(build *models.Build) *spec.Build {
-	if build == nil {
-		return nil
-	}
-
-	if build.Buildpack != nil {
-		return &spec.Build{
-			BuildpackBuild: &spec.BuildpackBuild{
-				Type: build.Type,
-				Buildpack: spec.BuildpackConfig{
-					Language:        build.Buildpack.Language,
-					LanguageVersion: &build.Buildpack.LanguageVersion,
-					RunCommand:      &build.Buildpack.RunCommand,
-				},
-			},
-		}
-	} else if build.Docker != nil {
-		return &spec.Build{
-			DockerBuild: &spec.DockerBuild{
-				Type: build.Type,
-				Docker: spec.DockerConfig{
-					DockerfilePath: build.Docker.DockerfilePath,
-				},
-			},
-		}
-	}
-
-	return nil
-}
-
 func ConvertToDeploymentDetailsResponse(deploymentDetails []*models.DeploymentResponse) map[string]spec.DeploymentDetailsResponse {
 	result := make(map[string]spec.DeploymentDetailsResponse)
 
@@ -450,39 +187,15 @@ func ConvertToDeploymentDetailsResponse(deploymentDetails []*models.DeploymentRe
 		}
 
 		deploymentResponse := spec.DeploymentDetailsResponse{
-			ImageId:                deployment.ImageId,
 			Status:                 deployment.Status,
-			LastDeployed:           deployment.LastDeployedAt,
 			Endpoints:              endpoints,
 			EnvironmentDisplayName: envDisplayName,
-			KindVersion:            stringToPtr(deployment.KindVersion),
 			GatewayStatus:          stringToPtr(deployment.GatewayStatus),
 			GatewayStatusReason:    stringToPtr(deployment.GatewayStatusReason),
-			HealthChecks:           convertToHealthChecks(deployment.HealthChecks),
 		}
 
 		// Add to result map with environment name as key
 		result[deployment.Environment] = deploymentResponse
-	}
-
-	return result
-}
-
-func ConvertToAgentEndpointResponse(endpointDetails map[string]models.EndpointsResponse) map[string]spec.EndpointConfiguration {
-	result := make(map[string]spec.EndpointConfiguration)
-
-	if len(endpointDetails) == 0 {
-		return result
-	}
-	for endpointName, details := range endpointDetails {
-		result[endpointName] = spec.EndpointConfiguration{
-			Url:          details.URL,
-			EndpointName: endpointName,
-			Visibility:   details.Visibility,
-			Schema: spec.EndpointSchema{
-				Content: details.Schema.Content,
-			},
-		}
 	}
 
 	return result
@@ -517,48 +230,6 @@ func ConvertToEnvironmentResponse(env *models.EnvironmentResponse) spec.Environm
 	}
 }
 
-func ConvertToDeploymentPipelinesListResponse(pipelines []*models.DeploymentPipelineResponse, total int32, limit int32, offset int32) spec.DeploymentPipelineListResponse {
-	responses := make([]spec.DeploymentPipelineResponse, len(pipelines))
-	for i, pipeline := range pipelines {
-		responses[i] = ConvertToDeploymentPipelineResponse(pipeline)
-	}
-
-	return spec.DeploymentPipelineListResponse{
-		DeploymentPipelines: responses,
-		Total:               total,
-		Limit:               limit,
-		Offset:              offset,
-	}
-}
-
-func ConvertToDeploymentPipelineResponse(pipeline *models.DeploymentPipelineResponse) spec.DeploymentPipelineResponse {
-	if pipeline == nil {
-		return spec.DeploymentPipelineResponse{}
-	}
-
-	promotionPaths := make([]spec.PromotionPath, len(pipeline.PromotionPaths))
-	for i, path := range pipeline.PromotionPaths {
-		targetRefs := make([]spec.TargetEnvironmentRef, len(path.TargetEnvironmentRefs))
-		for j, target := range path.TargetEnvironmentRefs {
-			targetRefs[j] = spec.TargetEnvironmentRef{
-				Name: target.Name,
-			}
-		}
-		promotionPaths[i] = spec.PromotionPath{
-			SourceEnvironmentRef:  path.SourceEnvironmentRef,
-			TargetEnvironmentRefs: targetRefs,
-		}
-	}
-
-	return spec.DeploymentPipelineResponse{
-		Name:           pipeline.Name,
-		DisplayName:    pipeline.DisplayName,
-		Description:    pipeline.Description,
-		CreatedAt:      pipeline.CreatedAt,
-		PromotionPaths: promotionPaths,
-	}
-}
-
 func ConvertToOrganizationResponse(org *models.OrganizationResponse) spec.OrganizationResponse {
 	if org == nil {
 		return spec.OrganizationResponse{}
@@ -569,7 +240,6 @@ func ConvertToOrganizationResponse(org *models.OrganizationResponse) spec.Organi
 		CreatedAt:   org.CreatedAt,
 		DisplayName: org.DisplayName,
 		Description: org.Description,
-		Namespace:   org.Namespace,
 		Handle:      stringToPtr(org.Handle),
 	}
 }
@@ -610,7 +280,7 @@ func ConvertToProjectResponse(project *models.ProjectResponse) spec.ProjectRespo
 		DisplayName:        project.DisplayName,
 		Description:        project.Description,
 		CreatedAt:          project.CreatedAt,
-		DeploymentPipeline: project.DeploymentPipeline,
+		DeploymentPipeline: "",
 	}
 }
 
@@ -620,12 +290,11 @@ func ConvertToProjectListItem(project *models.ProjectResponse) spec.ProjectListI
 	}
 
 	return spec.ProjectListItem{
-		Uuid:               project.UUID,
-		Name:               project.Name,
-		DisplayName:        project.DisplayName,
-		Description:        &project.Description,
-		CreatedAt:          project.CreatedAt,
-		DeploymentPipeline: &project.DeploymentPipeline,
+		Uuid:        project.UUID,
+		Name:        project.Name,
+		DisplayName: project.DisplayName,
+		Description: &project.Description,
+		CreatedAt:   project.CreatedAt,
 	}
 }
 
@@ -655,24 +324,6 @@ func ConvertToLogsResponse(buildLogs models.LogsResponse) spec.LogsResponse {
 		Logs:       logEntries,
 		TotalCount: buildLogs.TotalCount,
 		TookMs:     buildLogs.TookMs,
-	}
-
-	return responses
-}
-
-func ConvertToDataPlaneListResponse(dataPlanes []*models.DataPlaneResponse) []spec.DataPlane {
-	if len(dataPlanes) == 0 {
-		return []spec.DataPlane{}
-	}
-
-	responses := make([]spec.DataPlane, len(dataPlanes))
-	for i, dp := range dataPlanes {
-		responses[i] = spec.DataPlane{
-			Name:        dp.Name,
-			DisplayName: dp.DisplayName,
-			Description: dp.Description,
-			CreatedAt:   dp.CreatedAt,
-		}
 	}
 
 	return responses

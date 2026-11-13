@@ -22,7 +22,7 @@ const isIngressCapable = (gateway: GatewayResponse): boolean =>
   gateway.gatewayType === "INGRESS" || gateway.gatewayType === "BOTH";
 
 /**
- * The vhost an agent's traces go to: the environment's OTEL RestApi is published on a
+ * The vhost an agent's traces go to: the OTEL RestApi is published on a
  * managed gateway, an ingress-capable one when there is one. A self-hosted gateway is the
  * customer's, never where an agent's telemetry goes.
  */

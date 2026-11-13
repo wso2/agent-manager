@@ -127,8 +127,8 @@ func printConfig(io *iostreams.IOStreams, c *amsvc.AgentModelConfigResponse) err
 		}
 		sort.Strings(envs)
 
-		fmt.Fprintf(io.Out, "\nenvironments:\n")
-		tp := tableprinter.New(io, "env", "provider", "url", "status")
+		fmt.Fprintf(io.Out, "\nbinding:\n")
+		tp := tableprinter.New(io, "provider", "url", "status")
 		for _, env := range envs {
 			m := c.EnvMappings[env]
 			provider, url, status := "-", "-", "-"
@@ -143,7 +143,6 @@ func printConfig(io *iostreams.IOStreams, c *amsvc.AgentModelConfigResponse) err
 					status = *m.Configuration.Status
 				}
 			}
-			tp.AddField(env, tableprinter.WithColor(cs.Bold))
 			tp.AddField(provider)
 			tp.AddField(url, tableprinter.WithColor(cs.Gray))
 			tp.AddField(status)

@@ -30,6 +30,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/reconcile"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 )
 
 const (
@@ -192,7 +193,7 @@ func (s *MCPProxyService) ensureMCPProxyEnvArtifactRow(tx *gorm.DB, deployProxy 
 		return nil
 	}
 	var existing int64
-	if err := tx.Model(&models.Artifact{}).Where("uuid = ? AND ou_id = ?", deployProxy.UUID, ouID).
+	if err := tx.Model(&models.Artifact{}).Where("id = ? AND org_id = ?", deployProxy.UUID, ouID).
 		Count(&existing).Error; err != nil {
 		return fmt.Errorf("failed to check MCP proxy environment artifact: %w", err)
 	}
@@ -392,15 +393,22 @@ func (s *MCPProxyService) deleteMCPProxyEnvironmentArtifacts(ctx context.Context
 
 // deleteMCPArtifactRows deletes a per-environment gateway artifact with its deployments and status rows, in tx.
 func deleteMCPArtifactRows(tx *gorm.DB, artifactUUID uuid.UUID, ouID string) error {
-	if err := tx.Where("artifact_uuid = ? AND ou_id = ?", artifactUUID, ouID).
+	if err := tx.Where("artifact_id = ? AND org_id = ?", artifactUUID, ouID).
 		Delete(&models.DeploymentStatusRecord{}).Error; err != nil {
 		return err
 	}
-	if err := tx.Where("artifact_uuid = ? AND ou_id = ?", artifactUUID, ouID).
+	if err := tx.Where("artifact_id = ? AND org_id = ?", artifactUUID, ouID).
 		Delete(&models.Deployment{}).Error; err != nil {
 		return err
 	}
-	return tx.Where("uuid = ? AND ou_id = ?", artifactUUID, ouID).Delete(&models.Artifact{}).Error
+	var inOrg int64
+	if err := tx.Model(&models.Artifact{}).Where("id = ? AND org_id = ?", artifactUUID, ouID).Count(&inOrg).Error; err != nil {
+		return err
+	}
+	if inOrg == 0 {
+		return nil
+	}
+	return repositories.NewArtifactRepo(tx).Delete(tx, artifactUUID.String())
 }
 
 // prepareMCPArtifactDeletes builds the artifacts' delete events in tx, before their rows are deleted.
@@ -799,14 +807,4 @@ func cloneStringInterfaceMap(in map[string]interface{}) map[string]interface{} {
 		out[key] = value
 	}
 	return out
-}
-
-func deploymentName(proxy *models.MCPProxy) string {
-	if strings.TrimSpace(proxy.Handle) != "" {
-		return fmt.Sprintf("%s-deployment", proxy.Handle)
-	}
-	if proxy.Artifact != nil && strings.TrimSpace(proxy.Artifact.Handle) != "" {
-		return fmt.Sprintf("%s-deployment", proxy.Artifact.Handle)
-	}
-	return fmt.Sprintf("%s-deployment", proxy.UUID.String())
 }

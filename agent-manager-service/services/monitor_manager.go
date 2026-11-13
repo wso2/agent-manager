@@ -29,8 +29,6 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
-	"github.com/wso2/agent-manager/agent-manager-service/clients/observersvc"
-	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/events"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
@@ -38,15 +36,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
-)
-
-const (
-	// WorkflowRun CR constants
-	resourceKindWorkflowRun  = "WorkflowRun"
-	workflowRunAPIVersion    = "openchoreo.dev/v1alpha1"
-	monitorLabelResourceType = "amp.wso2.com/resource-type"
-	monitorLabelAgentName    = "amp.wso2.com/agent-name"
-	monitorResourceTypeValue = "monitor"
 )
 
 // MonitorManagerService defines the interface for monitor operations
@@ -71,8 +60,7 @@ type MonitorManagerService interface {
 type monitorManagerService struct {
 	logger                *slog.Logger
 	db                    *gorm.DB
-	ocClient              client.OpenChoreoClient
-	observerClient        observersvc.ObserverSvcClient
+	ocClient              repositories.PlatformRepository
 	executor              MonitorExecutor
 	evaluatorService      EvaluatorManagerService
 	monitorRepo           repositories.MonitorRepository
@@ -87,8 +75,7 @@ type monitorManagerService struct {
 func NewMonitorManagerService(
 	logger *slog.Logger,
 	db *gorm.DB,
-	ocClient client.OpenChoreoClient,
-	observerClient observersvc.ObserverSvcClient,
+	ocClient repositories.PlatformRepository,
 	executor MonitorExecutor,
 	evaluatorService EvaluatorManagerService,
 	monitorRepo repositories.MonitorRepository,
@@ -102,7 +89,6 @@ func NewMonitorManagerService(
 		logger:                logger,
 		db:                    db,
 		ocClient:              ocClient,
-		observerClient:        observerClient,
 		executor:              executor,
 		evaluatorService:      evaluatorService,
 		monitorRepo:           monitorRepo,
@@ -114,7 +100,7 @@ func NewMonitorManagerService(
 	}
 }
 
-// CreateMonitor creates a new evaluation monitor with DB persistence and OpenChoreo CR
+// CreateMonitor creates a new evaluation monitor with DB persistence
 func (s *monitorManagerService) CreateMonitor(ctx context.Context, ouID string, req *models.CreateMonitorRequest) (*models.MonitorResponse, error) {
 	s.logger.Info(
 		"Creating monitor",
@@ -142,8 +128,8 @@ func (s *monitorManagerService) CreateMonitor(ctx context.Context, ouID string, 
 		return nil, fmt.Errorf("llmProvider is required when using llm_judge evaluators: %w", utils.ErrInvalidInput)
 	}
 
-	// Resolve agent ID via OpenChoreo
-	agent, err := s.ocClient.GetComponent(ctx, ouID, req.ProjectName, req.AgentName)
+	// Resolve agent ID
+	agent, err := s.ocClient.GetAgent(ctx, ouID, req.ProjectName, req.AgentName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve agent: %w", err)
 	}
@@ -294,8 +280,8 @@ func (s *monitorManagerService) CreateMonitor(ctx context.Context, ouID string, 
 			return nil, fmt.Errorf("failed to write composite LLM proxy secret: %w", err)
 		}
 
-		// Persist the SecretReference name. The workflow resolves it through
-		// OpenChoreo to mount LLM_API_KEY into the evaluation job pod.
+		// Persist the SecretReference name. The workflow resolves it
+		// to mount LLM_API_KEY into the evaluation job pod.
 		mapping.SecretKVPath = secretRefName
 		if err := s.monitorLLMMappingRepo.Update(ctx, s.db, mapping); err != nil {
 			s.llmProvisioner.RollbackProxy(ctx, rollbackState, ouID)
@@ -735,40 +721,9 @@ func (s *monitorManagerService) DeleteMonitor(ctx context.Context, ouID, project
 		// Continue with deletion — proxies are best-effort cleanup
 	}
 
-	// Get all runs to delete their WorkflowRun CRs
-	runs, err := s.monitorRepo.GetMonitorRunsByMonitorID(monitor.ID)
-	if err != nil {
-		s.logger.Error("Failed to get monitor runs for cleanup", "error", err)
-	}
-
 	// Delete from DB (cascade will delete runs and monitor_llm_mapping)
 	if err := s.monitorRepo.DeleteMonitor(monitor); err != nil {
 		return fmt.Errorf("failed to delete monitor from DB: %w", err)
-	}
-
-	// Expire WorkflowRuns by setting a short TTL.
-	// Use an org-scoped client in Thunder mode (same as the scheduler for CreateWorkflowRun).
-	// Fail-closed: if we cannot obtain the org-scoped client, skip expiry rather than
-	// falling back to the shared system client which would be cross-tenant.
-	var ocClient client.OpenChoreoClient
-	if s.provisioner.IsThunderMode() {
-		orgClient, err := s.provisioner.GetOCClientForOrg(ctx, ouID)
-		if err != nil {
-			s.logger.Error("Skipping WorkflowRun expiry: failed to get org-scoped OC client", "ouID", ouID, "error", err)
-		} else {
-			ocClient = orgClient
-		}
-	} else {
-		ocClient = s.ocClient
-	}
-	if ocClient != nil {
-		for _, run := range runs {
-			// Todo: This would be replaced by deletion once OpenChoreo supports it
-			s.logger.Info("Calling ExpireWorkflowRun", "ouID", ouID, "runName", run.Name)
-			if err := ocClient.ExpireWorkflowRun(ctx, ouID, run.Name); err != nil {
-				s.logger.Error("Failed to expire WorkflowRun", "monitorName", monitorName, "runName", run.Name, "error", err)
-			}
-		}
 	}
 
 	audit.Record(
@@ -1079,18 +1034,8 @@ func (s *monitorManagerService) GetMonitorRunLogs(ctx context.Context, ouID, org
 		return nil, fmt.Errorf("failed to get monitor run: %w", err)
 	}
 
-	// Fetch logs from observer service using the workflow run name. The
-	// observer's "organization" query parameter is the org name/handle, not
-	// the OU UUID — every other consumer (console, CLI, MCP tools) sends the
-	// handle, so this s2s call does too.
-	logs, err := s.observerClient.GetWorkflowRunLogs(ctx, orgHandle, run.Name)
-	if err != nil {
-		s.logger.Error("Failed to get workflow run logs from observer service", "runID", runID, "error", err)
-		return nil, fmt.Errorf("failed to get workflow run logs: %w", err)
-	}
-
-	s.logger.Info("Fetched monitor run logs successfully", "runID", runID, "logCount", len(logs.Logs))
-	return logs, nil
+	// Run logs came from the evaluation workflow runtime, which is not available.
+	return nil, fmt.Errorf("%w: logs for monitor run %s are not available", utils.ErrNotImplemented, run.Name)
 }
 
 // getLatestRun fetches the most recent run for a monitor
@@ -1513,7 +1458,7 @@ func (s *monitorManagerService) monitorLLMProvider(ouID, providerName string) (*
 }
 
 // requireManagedMonitorProvider refuses, before anything is created or changed, a monitor whose evaluation
-// jobs would run in OpenChoreo through a provider with no deployment on a managed gateway in the environment.
+// jobs would run through a provider with no deployment on a managed gateway in the environment.
 func (s *monitorManagerService) requireManagedMonitorProvider(
 	ctx context.Context, ouID, providerName string, provider *models.LLMProvider, envName string, envUUID uuid.UUID,
 ) error {
@@ -1537,7 +1482,7 @@ func (s *monitorManagerService) resolveMonitorGateway(
 		ouID, providerUUIDStr, envUUID)
 }
 
-// monitorEnvironmentOf is the monitor's environment id, an OpenChoreo UUID stored as text; nil when it isn't one.
+// monitorEnvironmentOf is the monitor's environment id, a UUID stored as text; nil when it isn't one.
 func monitorEnvironmentOf(monitor *models.Monitor) uuid.UUID {
 	envUUID, err := uuid.Parse(monitor.EnvironmentID)
 	if err != nil {

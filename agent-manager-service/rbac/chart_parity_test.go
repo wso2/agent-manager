@@ -14,96 +14,43 @@
 // specific language governing permissions and limitations
 // under the License.
 
-// Parity between the Go catalog and the Helm chart that enforces it.
+// Parity between the Go catalog and the Thunder bootstrap that enforces it.
 //
 // PredefinedRolePermissions has no consumers: it documents what the Thunder
-// bootstrap ConfigMap actually enforces. Two independent copies of the same
+// bootstrap resources actually enforce. Two independent copies of the same
 // decision drift, and they had — agent:deploy-production was granted by the
-// chart and enforced by no route for as long as it existed. This test makes the
-// Go declarations authoritative and the chart checkable against them.
+// bootstrap and enforced by no route for as long as it existed. This test makes
+// the Go declarations authoritative and the bootstrap checkable against them.
 //
-// The four role documents and the resource-server document inside the ConfigMap
-// are plain YAML with no Go templating, so they parse directly. If templating is
-// ever introduced into them, this test breaks loudly rather than silently
-// stopping checking — which is the correct failure.
+// The ampinit package generates the bootstrap: role grants come from
+// PredefinedRolePermissions and client scope lists from the resource-server
+// tree, so the tree is the one hand-written copy left to check. Its template
+// has no template actions, so it is read here as plain YAML (ampinit imports
+// this package, so it cannot be rendered from here).
 package rbac
 
 import (
 	"os"
-	"regexp"
-	"strings"
+	"path/filepath"
 	"testing"
 
 	"gopkg.in/yaml.v3"
 )
 
 const (
-	bootstrapPath = "../../deployments/helm-charts/wso2-amp-thunder-extension/templates/amp-thunder-bootstrap.yaml"
-	extValuesPath = "../../deployments/helm-charts/wso2-amp-thunder-extension/values.yaml"
+	bootstrapDir = "../ampinit/templates/thunder/bootstrap"
 
 	resourceServerDoc = "60-amp-resource-server.yaml"
 )
 
-// chartRoleDocs maps each bootstrap role document to the Go role it must match.
-var chartRoleDocs = map[string]string{
-	"61-amp-role-admin.yaml":             RoleAdmin,
-	"62-amp-role-developer.yaml":         RoleDeveloper,
-	"63-amp-role-ai-lead.yaml":           RoleAILead,
-	"64-amp-role-platform-engineer.yaml": RolePlatformEngineer,
-}
-
-// configMapKeyLine matches the start of any ConfigMap data entry, which is what
-// bounds the document extracted before it.
-var configMapKeyLine = regexp.MustCompile(`^  [\w.-]+: \|\s*$`)
-
-// bootstrapDocument returns one ConfigMap literal block, dedented so it parses
-// as YAML on its own.
-func bootstrapDocument(t *testing.T, raw, key string) string {
+// bootstrapDocument returns one bootstrap resource file.
+func bootstrapDocument(t *testing.T, name string) []byte {
 	t.Helper()
-	lines := strings.Split(raw, "\n")
-	start := -1
-	for i, line := range lines {
-		if strings.TrimSpace(line) == key+": |" {
-			start = i + 1
-			break
-		}
-	}
-	if start < 0 {
-		t.Fatalf("ConfigMap key %q not found in %s", key, bootstrapPath)
-	}
-	var body []string
-	templateDepth := 0
-	for _, line := range lines[start:] {
-		if configMapKeyLine.MatchString(line) {
-			break
-		}
-		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "{{- range ") || strings.HasPrefix(trimmed, "{{- if ") {
-			templateDepth++
-			continue
-		}
-		if strings.HasPrefix(trimmed, "{{- end") && templateDepth > 0 {
-			templateDepth--
-			continue
-		}
-		if templateDepth > 0 {
-			continue
-		}
-		if strings.Contains(line, "{{") {
-			t.Fatalf("document %q now contains Go templating (%q); this test can no longer parse it as YAML", key, strings.TrimSpace(line))
-		}
-		body = append(body, strings.TrimPrefix(line, "    "))
-	}
-	return strings.Join(body, "\n")
-}
-
-func readBootstrap(t *testing.T) string {
-	t.Helper()
-	raw, err := os.ReadFile(bootstrapPath)
+	raw, err := os.ReadFile(filepath.Join(bootstrapDir, name))
 	if err != nil {
-		t.Skipf("chart not present at %s (module checked out without the chart?): %v", bootstrapPath, err)
+		t.Fatalf("read bootstrap resource %s: %v", name, err)
 	}
-	return string(raw)
+	return raw
 }
 
 // diffScopeSets reports what one side has that the other does not, so a failure
@@ -137,7 +84,7 @@ func TestResourceServerTreeMatchesCatalog(t *testing.T) {
 			} `yaml:"actions"`
 		} `yaml:"resources"`
 	}
-	if err := yaml.Unmarshal([]byte(bootstrapDocument(t, readBootstrap(t), resourceServerDoc)), &rs); err != nil {
+	if err := yaml.Unmarshal(bootstrapDocument(t, resourceServerDoc), &rs); err != nil {
 		t.Fatalf("parse %s: %v", resourceServerDoc, err)
 	}
 	if rs.Delimiter != ":" {
@@ -156,74 +103,4 @@ func TestResourceServerTreeMatchesCatalog(t *testing.T) {
 	}
 
 	diffScopeSets(t, "resource-server tree", catalogScopes(t), chartSide)
-}
-
-// TestRoleDocumentsMatchPredefinedRoles keeps the documentation map and the
-// enforcement in step. Either side changing alone is the drift this closes.
-func TestRoleDocumentsMatchPredefinedRoles(t *testing.T) {
-	raw := readBootstrap(t)
-	for docKey, roleName := range chartRoleDocs {
-		var doc struct {
-			Name        string `yaml:"name"`
-			Permissions []struct {
-				ResourceServerID string   `yaml:"resourceServerId"`
-				Permissions      []string `yaml:"permissions"`
-			} `yaml:"permissions"`
-		}
-		if err := yaml.Unmarshal([]byte(bootstrapDocument(t, raw, docKey)), &doc); err != nil {
-			t.Errorf("parse %s: %v", docKey, err)
-			continue
-		}
-		if doc.Name != roleName {
-			t.Errorf("%s declares name %q, want %q", docKey, doc.Name, roleName)
-		}
-
-		chartSide := make(map[Permission]bool)
-		for _, block := range doc.Permissions {
-			for _, scope := range block.Permissions {
-				trimmed, ok := strings.CutPrefix(scope, ResourceServer+":")
-				if !ok {
-					t.Errorf("%s: scope %q is not prefixed %q", docKey, scope, ResourceServer+":")
-					continue
-				}
-				chartSide[Permission(trimmed)] = true
-			}
-		}
-
-		goSide := make(map[Permission]bool)
-		for _, perm := range PredefinedRolePermissions[roleName] {
-			goSide[perm] = true
-		}
-		diffScopeSets(t, docKey, goSide, chartSide)
-	}
-}
-
-// TestAmpScopesAllowlistCoversCatalog guards the third failure mode. Thunder
-// grants only scopes an app's registered list contains, so a catalog scope
-// missing from ampScopes is a role binding that resolves to nothing at token
-// time.
-func TestAmpScopesAllowlistCoversCatalog(t *testing.T) {
-	raw, err := os.ReadFile(extValuesPath)
-	if err != nil {
-		t.Skipf("chart not present at %s: %v", extValuesPath, err)
-	}
-	var values struct {
-		Thunder struct {
-			Bootstrap struct {
-				AmpScopes []string `yaml:"ampScopes"`
-			} `yaml:"bootstrap"`
-		} `yaml:"thunder"`
-	}
-	if err := yaml.Unmarshal(raw, &values); err != nil {
-		t.Fatalf("parse %s: %v", extValuesPath, err)
-	}
-
-	chartSide := make(map[Permission]bool)
-	for _, scope := range values.Thunder.Bootstrap.AmpScopes {
-		if trimmed, ok := strings.CutPrefix(scope, ResourceServer+":"); ok {
-			chartSide[Permission(trimmed)] = true
-		}
-	}
-
-	diffScopeSets(t, "ampScopes allowlist", catalogScopes(t), chartSide)
 }

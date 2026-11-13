@@ -1,6 +1,6 @@
 """Test-only sitecustomize.
 
-Mirrors python-instrumentation-provider/sitecustomize.py with one change: the
+Mirrors what amp-instrumentation's bootstrap sets up, with one change: the
 OTLP HTTP exporter is replaced by InMemorySpanExporter so the cell harness can
 read spans synchronously.
 

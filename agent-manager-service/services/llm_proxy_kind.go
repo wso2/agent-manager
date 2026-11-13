@@ -20,11 +20,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
+	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/eventhub"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/reconcile"
@@ -138,40 +140,28 @@ func (k *LLMProxyKind) vhost(ref reconcile.EventRef) string {
 	return k.vhostOf(ref.Tx, ref.ArtifactRef)
 }
 
-// monitorEnvironmentUUID reads a monitor's environment id, stored as text, as a UUID; NULL when it isn't one.
-const monitorEnvironmentUUID = `(CASE WHEN mon.environment_id ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
-	THEN mon.environment_id::uuid END)`
-
-// UnplacedRecords are the agents' and monitors' proxies with no row yet,
-// in environments with a gateway of the kind's role.
+// UnplacedRecords are the agents' proxies with no row yet, in environments with a gateway of the kind's role.
+// Evaluation monitors are not part of Lite, so their proxies are never placed here.
 func (k *LLMProxyKind) UnplacedRecords(
 	ctx context.Context, ouID string, env *uuid.UUID, afterKey string, limit int,
 ) ([]reconcile.Record, error) {
 	agents, agentArgs := reconcile.UnplacedCondition(reconcile.RecordColumns{
-		OUID: "a.ou_id", ArtifactUUID: "a.uuid", EnvironmentUUID: "m.environment_uuid",
+		OUID: "a.org_id", ArtifactUUID: "a.id", EnvironmentUUID: "m.environment_id",
 	}, models.EgressGatewayRoles, ouID, env)
-	monitors, monitorArgs := reconcile.UnplacedCondition(reconcile.RecordColumns{
-		OUID: "a.ou_id", ArtifactUUID: "a.uuid", EnvironmentUUID: monitorEnvironmentUUID,
-	}, models.EgressGatewayRoles, ouID, env)
-	query := `SELECT * FROM (
-			SELECT a.ou_id, a.uuid AS artifact_uuid, a.handle, m.environment_uuid
-			FROM env_agent_model_mapping m JOIN artifacts a ON a.uuid = m.llm_proxy_uuid
-			WHERE ` + agents + `
-			UNION
-			SELECT a.ou_id, a.uuid, a.handle, ` + monitorEnvironmentUUID + `
-			FROM monitor_llm_mapping m JOIN artifacts a ON a.uuid = m.llm_proxy_uuid
-			JOIN monitors mon ON mon.id = m.monitor_id
-			WHERE ` + monitors + `
-		) r WHERE r.artifact_uuid::text || '/' || r.environment_uuid::text > ?
-		ORDER BY r.artifact_uuid::text || '/' || r.environment_uuid::text LIMIT ?`
-	args := append(append(agentArgs, monitorArgs...), afterKey, limit)
-	var rows []struct {
-		OUID            string    `gorm:"column:ou_id"`
-		ArtifactUUID    uuid.UUID `gorm:"column:artifact_uuid"`
-		Handle          string    `gorm:"column:handle"`
-		EnvironmentUUID uuid.UUID `gorm:"column:environment_uuid"`
+	q := db.DB(ctx).Table("agent_model_config_llm m").
+		Select("a.org_id, a.id AS artifact_id, a.handle, m.environment_id").
+		Joins("JOIN artifacts a ON a.id = m.llm_proxy_id").
+		Where(agents, agentArgs...)
+	if artifact, environment, ok := strings.Cut(afterKey, "/"); ok {
+		q = dbx.After(q, []string{"a.id", "m.environment_id"}, []any{artifact, environment})
 	}
-	if err := db.DB(ctx).Raw(query, args...).Scan(&rows).Error; err != nil {
+	var rows []struct {
+		OUID            string    `gorm:"column:org_id"`
+		ArtifactUUID    uuid.UUID `gorm:"column:artifact_id"`
+		Handle          string    `gorm:"column:handle"`
+		EnvironmentUUID uuid.UUID `gorm:"column:environment_id"`
+	}
+	if err := q.Order("a.id, m.environment_id").Limit(limit).Scan(&rows).Error; err != nil {
 		return nil, fmt.Errorf("failed to list unplaced LLM proxies: %w", err)
 	}
 	records := make([]reconcile.Record, 0, len(rows))
@@ -187,21 +177,14 @@ func (k *LLMProxyKind) UnplacedRecords(
 	return records, nil
 }
 
-// PlacedOn: an agent's or monitor's proxy in env placed on gateway. A proxy deployed by the public route has no
+// PlacedOn: an agent's proxy in env placed on gateway. A proxy deployed by the public route has no
 // per-environment record, so it never counts.
 func (k *LLMProxyKind) PlacedOn(ctx context.Context, tx *gorm.DB, env, gateway uuid.UUID) (bool, error) {
 	agents, agentArgs := reconcile.PlacedCondition(reconcile.RecordColumns{
-		OUID: "a.ou_id", ArtifactUUID: "a.uuid", EnvironmentUUID: "m.environment_uuid",
+		OUID: "a.org_id", ArtifactUUID: "a.id", EnvironmentUUID: "m.environment_id",
 	}, env, gateway)
-	monitors, monitorArgs := reconcile.PlacedCondition(reconcile.RecordColumns{
-		OUID: "a.ou_id", ArtifactUUID: "a.uuid", EnvironmentUUID: monitorEnvironmentUUID,
-	}, env, gateway)
-	return placedOn(ctx, tx, `SELECT 1 FROM env_agent_model_mapping m JOIN artifacts a ON a.uuid = m.llm_proxy_uuid
-			WHERE `+agents+`
-		UNION ALL
-		SELECT 1 FROM monitor_llm_mapping m JOIN artifacts a ON a.uuid = m.llm_proxy_uuid
-			JOIN monitors mon ON mon.id = m.monitor_id
-			WHERE `+monitors, append(agentArgs, monitorArgs...))
+	return placedOn(ctx, tx, `SELECT 1 AS placed FROM agent_model_config_llm m JOIN artifacts a ON a.id = m.llm_proxy_id
+			WHERE `+agents, agentArgs)
 }
 
 // placementPassPolicy is the policy the placement pass applies to every unplaced LLM proxy, whoever its consumer:

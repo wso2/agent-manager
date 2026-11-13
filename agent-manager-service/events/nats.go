@@ -99,7 +99,8 @@ var _ Bus = (*NATSBus)(nil)
 // keeps retrying in the background when the server is not up yet, so a slow
 // NATS start does not stop the service.
 func Connect(url, token, name string, logger *slog.Logger) (*NATSBus, error) {
-	nc, err := nats.Connect(url,
+	nc, err := nats.Connect(
+		url,
 		nats.Name(name),
 		nats.Token(token),
 		nats.RetryOnFailedConnect(true),

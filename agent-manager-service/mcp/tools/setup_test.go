@@ -31,7 +31,6 @@ const (
 	testOrgName     = "default-org"
 	testProjectName = "default-project"
 	testAgentName   = "default-agent"
-	testBuildName   = "default-build"
 	testEnvName     = "default-env"
 	testDisplayName = "Default Display Name"
 
@@ -55,7 +54,6 @@ func setupTestServer(t *testing.T) (*gomcp.ClientSession, *MockToolsetHandler) {
 	toolsets := &Toolsets{
 		ProjectToolset:     mock,
 		AgentToolset:       mock,
-		BuildToolset:       mock,
 		DeploymentToolset:  mock,
 		EnvironmentToolset: mock,
 		LLMProviderToolset: mock,
@@ -115,7 +113,7 @@ type toolTestSpec struct {
 	name string
 
 	// Toolset group names, used by partial-registration tests
-	toolset string // "project", "agent", "build", "deployment", "environment", "llm-provider", "gateway", "mcp-proxy", "agent-config"
+	toolset string // "project", "agent", "deployment", "environment", "llm-provider", "gateway", "mcp-proxy", "agent-config"
 
 	// Permissions the tool must declare via addTool. Required: the
 	// registration test fails any tool whose spec leaves this empty.
@@ -140,7 +138,6 @@ var allToolSpecs = func() []toolTestSpec {
 	specs := make([]toolTestSpec, 0)
 	specs = append(specs, projectToolSpecs()...)
 	specs = append(specs, agentToolSpecs()...)
-	specs = append(specs, buildToolSpecs()...)
 	specs = append(specs, deploymentToolSpecs()...)
 	specs = append(specs, environmentToolSpecs()...)
 	specs = append(specs, llmProviderToolSpecs()...)

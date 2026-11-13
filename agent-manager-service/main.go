@@ -18,12 +18,12 @@ package main
 
 import (
 	"flag"
-	"strings"
+	"log/slog"
+	"os"
 
+	"github.com/wso2/agent-manager/agent-manager-service/ampinit"
 	"github.com/wso2/agent-manager/agent-manager-service/app"
-	ocauth "github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/auth"
-	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc/providers/openchoreo"
-	"github.com/wso2/agent-manager/agent-manager-service/config"
+	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc/providers/unsupported"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
 )
 
@@ -32,26 +32,26 @@ func main() {
 	serverFlag := flag.Bool("server", true, "start the http Server")
 	migrateFlag := flag.Bool("migrate", false, "migrate the database")
 	waitForMigrationsFlag := flag.Bool("wait-for-migrations", false, "wait until the database migrations are applied")
+	initThunderDir := flag.String("init-thunder", "", "write ThunderID's configuration into this directory and exit")
+	initGatewayDir := flag.String("init-gateway", "", "write the AI Gateway's configuration into this directory and exit")
 	flag.Parse()
 
-	cfg := config.GetConfig()
+	if *initThunderDir != "" || *initGatewayDir != "" {
+		if err := ampinit.Run(*initThunderDir, *initGatewayDir); err != nil {
+			slog.Error("writing component configuration failed", "error", err)
+			os.Exit(1)
+		}
+		return
+	}
 
-	// Open-source: OAuth2 client credentials auth
-	authProvider := ocauth.NewAuthProvider(ocauth.Config{
-		TokenURL:     cfg.IDP.TokenURL,
-		ClientID:     cfg.IDP.ClientID,
-		ClientSecret: cfg.IDP.ClientSecret,
-		Scope:        strings.Join(cfg.OAuthScopesSupported, " "),
-	})
-
-	// Secret management via the OpenChoreo secret management API
-	secretProvider := openchoreo.NewProvider()
+	// No secret store is bundled yet; secret writes report ErrNotSupported.
+	secretProvider := unsupported.NewProvider()
 
 	// Open-source: DB-backed AgentID provisioning (env-Thunder credential read
 	// from Postgres, not a key vault — see DBBackedAgentThunderProvisioning)
 	agentThunderProvisioning := services.DBBackedAgentThunderProvisioning()
 
-	app.Run(authProvider, secretProvider, app.Options{
+	app.Run(secretProvider, app.Options{
 		Server:                   *serverFlag,
 		Migrate:                  *migrateFlag,
 		WaitForMigrations:        *waitForMigrationsFlag,

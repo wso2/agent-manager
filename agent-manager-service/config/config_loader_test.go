@@ -18,7 +18,6 @@ package config
 
 import (
 	"bytes"
-	"fmt"
 	"log/slog"
 	"strings"
 	"testing"
@@ -177,7 +176,6 @@ func TestValidateThunderConfig(t *testing.T) {
 
 func TestLoadEnvs_ThunderResourceServerSelection(t *testing.T) {
 	requiredEnv := map[string]string{
-		"OPEN_CHOREO_BASE_URL":  "http://localhost/api/v1",
 		"DB_HOST":               "localhost",
 		"DB_USER":               "unit",
 		"DB_PASSWORD":           "unit",
@@ -522,68 +520,6 @@ func TestValidatePostgresTLSConfig(t *testing.T) {
 	}
 }
 
-func TestValidateSecretManagerConfig(t *testing.T) {
-	tests := []struct {
-		name        string
-		interval    string
-		wantErrors  int
-		errContains string
-	}{
-		{
-			name:       "documented default accepted",
-			interval:   "15s",
-			wantErrors: 0,
-		},
-		{
-			name:       "other valid positive duration accepted",
-			interval:   "1h",
-			wantErrors: 0,
-		},
-		{
-			name:        "malformed duration rejected",
-			interval:    "not-a-duration",
-			wantErrors:  1,
-			errContains: "AGENT_IDENTITY_REFRESH_INTERVAL",
-		},
-		{
-			name:        "zero rejected",
-			interval:    "0s",
-			wantErrors:  1,
-			errContains: "must be a positive duration",
-		},
-		{
-			name:        "negative rejected",
-			interval:    "-15s",
-			wantErrors:  1,
-			errContains: "must be a positive duration",
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			cfg := &Config{SecretManager: SecretManagerConfig{AgentIdentityRefreshInterval: tc.interval, AgentIdentityForceSyncWait: "20s", AgentIdentityForceSyncApplyTimeout: "2m"}}
-			r := &configReader{}
-			validateSecretManagerConfig(cfg, r)
-
-			if len(r.errors) != tc.wantErrors {
-				t.Fatalf("expected %d errors, got %d: %v", tc.wantErrors, len(r.errors), r.errors)
-			}
-			if tc.errContains != "" {
-				found := false
-				for _, e := range r.errors {
-					if strings.Contains(e.Error(), tc.errContains) {
-						found = true
-						break
-					}
-				}
-				if !found {
-					t.Errorf("expected an error containing %q, got %v", tc.errContains, r.errors)
-				}
-			}
-		})
-	}
-}
-
 func TestValidateGatewayManifestCacheConfig(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -654,11 +590,10 @@ func TestValidateGatewayManifestCacheConfig(t *testing.T) {
 
 func TestLoadEnvs_ObserverConfig(t *testing.T) {
 	requiredEnv := map[string]string{
-		"OPEN_CHOREO_BASE_URL": "http://localhost/api/v1",
-		"DB_HOST":              "localhost",
-		"DB_USER":              "unit",
-		"DB_PASSWORD":          "unit",
-		"DB_NAME":              "unit",
+		"DB_HOST":     "localhost",
+		"DB_USER":     "unit",
+		"DB_PASSWORD": "unit",
+		"DB_NAME":     "unit",
 	}
 
 	setEnv := func(t *testing.T, vars map[string]string) {
@@ -1048,12 +983,11 @@ func TestIsLoopbackHost(t *testing.T) {
 // value must not switch on Application ID mode with a blank credential.
 func TestLoadEnvs_MoesifApplicationID(t *testing.T) {
 	for k, v := range map[string]string{
-		"OPEN_CHOREO_BASE_URL": "http://localhost/api/v1",
-		"DB_HOST":              "localhost",
-		"DB_USER":              "unit",
-		"DB_PASSWORD":          "unit",
-		"DB_NAME":              "unit",
-		"MOESIF_ENABLED":       "true",
+		"DB_HOST":        "localhost",
+		"DB_USER":        "unit",
+		"DB_PASSWORD":    "unit",
+		"DB_NAME":        "unit",
+		"MOESIF_ENABLED": "true",
 	} {
 		t.Setenv(k, v)
 	}
@@ -1088,30 +1022,6 @@ func TestGrowthAnalyticsAuthMode(t *testing.T) {
 	}
 	if got := growthAnalyticsAuthMode(GrowthAnalyticsConfig{}); got != "caller-jwt" {
 		t.Errorf("without ID = %q, want caller-jwt", got)
-	}
-}
-
-func TestValidateOpenChoreoBuildWorkflowKind(t *testing.T) {
-	for _, tc := range []struct {
-		kind    string
-		wantErr bool
-	}{
-		{kind: "", wantErr: false},
-		{kind: "Workflow", wantErr: false},
-		{kind: "ClusterWorkflow", wantErr: false},
-		{kind: "workflow", wantErr: true},
-		{kind: "Pipeline", wantErr: true},
-	} {
-		t.Run(fmt.Sprintf("kind=%q", tc.kind), func(t *testing.T) {
-			r := &configReader{}
-			validateOpenChoreoBuildWorkflowKind(&Config{OpenChoreo: OpenChoreoConfig{BuildWorkflowKind: tc.kind}}, r)
-			if tc.wantErr && len(r.errors) == 0 {
-				t.Fatalf("expected an error for %q", tc.kind)
-			}
-			if !tc.wantErr && len(r.errors) != 0 {
-				t.Fatalf("unexpected errors for %q: %v", tc.kind, r.errors)
-			}
-		})
 	}
 }
 
@@ -1186,75 +1096,62 @@ func TestRequirePositiveReportsEachNonPositiveField(t *testing.T) {
 	}
 }
 
-func TestValidateSecretManagerConfig_ForceSyncWait(t *testing.T) {
-	for _, tc := range []struct {
-		wait    string
-		wantErr bool
-	}{{"20s", false}, {"1m", false}, {"bad", true}, {"0s", true}, {"-1s", true}} {
-		for _, name := range []string{"AGENT_IDENTITY_FORCE_SYNC_WAIT", "AGENT_IDENTITY_FORCE_SYNC_APPLY_TIMEOUT"} {
-			sm := SecretManagerConfig{AgentIdentityRefreshInterval: "15s", AgentIdentityForceSyncWait: "20s", AgentIdentityForceSyncApplyTimeout: "2m"}
-			if name == "AGENT_IDENTITY_FORCE_SYNC_WAIT" {
-				sm.AgentIdentityForceSyncWait = tc.wait
-			} else {
-				sm.AgentIdentityForceSyncApplyTimeout = tc.wait
-			}
+func TestValidateDatabaseConfig(t *testing.T) {
+	tests := []struct {
+		name       string
+		cfg        DatabaseConfig
+		wantErrors int
+	}{
+		{name: "postgres", cfg: DatabaseConfig{Driver: DBDriverPostgres}},
+		{name: "sqlite with a path", cfg: DatabaseConfig{Driver: DBDriverSQLite, SQLitePath: "data/amp.db"}},
+		{name: "sqlite without a path", cfg: DatabaseConfig{Driver: DBDriverSQLite}, wantErrors: 1},
+		{name: "unknown driver", cfg: DatabaseConfig{Driver: "mysql"}, wantErrors: 1},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
 			r := &configReader{}
-			validateSecretManagerConfig(&Config{SecretManager: sm}, r)
-			if (len(r.errors) > 0) != tc.wantErr {
-				t.Errorf("%s %q: wantErr=%v got %v", name, tc.wait, tc.wantErr, r.errors)
+			validateDatabaseConfig(&Config{Database: tc.cfg}, r)
+			if len(r.errors) != tc.wantErrors {
+				t.Fatalf("got errors %v, want %d", r.errors, tc.wantErrors)
 			}
-			if tc.wantErr && (len(r.errors) != 1 || !strings.Contains(r.errors[0].Error(), name)) {
-				t.Errorf("%s %q: expected one error naming the variable, got %v", name, tc.wait, r.errors)
-			}
-		}
+		})
 	}
 }
 
-func TestLoadEnvs_AgentIdentityForceSyncWait(t *testing.T) {
-	for k, v := range map[string]string{
-		"OPEN_CHOREO_BASE_URL": "http://localhost/api/v1",
-		"DB_HOST":              "localhost",
-		"DB_USER":              "unit",
-		"DB_PASSWORD":          "unit",
-		"DB_NAME":              "unit",
-	} {
-		t.Setenv(k, v)
+func TestLoadEnvs_DatabaseDriver(t *testing.T) {
+	setEnv := func(t *testing.T, vars map[string]string) {
+		t.Helper()
+		for k, v := range vars {
+			t.Setenv(k, v)
+		}
+	}
+	thunderEnv := map[string]string{
+		"THUNDER_BASE_URL":      "https://idp.example.com",
+		"THUNDER_CLIENT_ID":     "system-client",
+		"THUNDER_CLIENT_SECRET": "system-secret",
 	}
 
-	t.Run("periodic fallback defaults to 10m", func(t *testing.T) {
-		t.Setenv("AGENT_IDENTITY_REFRESH_INTERVAL", "")
+	t.Run("defaults to postgres", func(t *testing.T) {
+		setEnv(t, thunderEnv)
+		setEnv(t, map[string]string{"DB_HOST": "localhost", "DB_USER": "unit", "DB_PASSWORD": "unit", "DB_NAME": "unit"})
+		t.Setenv("DB_DRIVER", "")
 		loadEnvs()
-		if got := config.SecretManager.AgentIdentityRefreshInterval; got != "10m" {
-			t.Errorf("AgentIdentityRefreshInterval = %q, want 10m", got)
+		if config.Database.Driver != DBDriverPostgres {
+			t.Errorf("driver = %q, want %q", config.Database.Driver, DBDriverPostgres)
 		}
 	})
 
-	t.Run("defaults to 20s", func(t *testing.T) {
-		t.Setenv("AGENT_IDENTITY_FORCE_SYNC_WAIT", "")
+	t.Run("sqlite needs no server settings", func(t *testing.T) {
+		setEnv(t, thunderEnv)
+		setEnv(t, map[string]string{"DB_HOST": "", "DB_USER": "", "DB_PASSWORD": "", "DB_NAME": ""})
+		t.Setenv("DB_DRIVER", " SQLite ")
+		t.Setenv("DB_PATH", "/var/lib/amp/amp.db")
 		loadEnvs()
-		if got := config.SecretManager.AgentIdentityForceSyncWait; got != "20s" {
-			t.Errorf("AgentIdentityForceSyncWait = %q, want 20s", got)
+		if config.Database.Driver != DBDriverSQLite {
+			t.Errorf("driver = %q, want %q", config.Database.Driver, DBDriverSQLite)
 		}
-	})
-
-	t.Run("override is honored", func(t *testing.T) {
-		t.Setenv("AGENT_IDENTITY_FORCE_SYNC_WAIT", "45s")
-		loadEnvs()
-		if got := config.SecretManager.AgentIdentityForceSyncWait; got != "45s" {
-			t.Errorf("AgentIdentityForceSyncWait = %q, want 45s", got)
-		}
-	})
-
-	t.Run("apply timeout defaults to 2m and can be overridden", func(t *testing.T) {
-		t.Setenv("AGENT_IDENTITY_FORCE_SYNC_APPLY_TIMEOUT", "")
-		loadEnvs()
-		if got := config.SecretManager.AgentIdentityForceSyncApplyTimeout; got != "2m" {
-			t.Errorf("AgentIdentityForceSyncApplyTimeout = %q, want 2m", got)
-		}
-		t.Setenv("AGENT_IDENTITY_FORCE_SYNC_APPLY_TIMEOUT", "5m")
-		loadEnvs()
-		if got := config.SecretManager.AgentIdentityForceSyncApplyTimeout; got != "5m" {
-			t.Errorf("AgentIdentityForceSyncApplyTimeout = %q, want 5m", got)
+		if config.Database.SQLitePath != "/var/lib/amp/amp.db" {
+			t.Errorf("path = %q", config.Database.SQLitePath)
 		}
 	})
 }

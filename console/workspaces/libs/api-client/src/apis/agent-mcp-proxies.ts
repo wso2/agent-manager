@@ -15,15 +15,15 @@
  * under the License.
  */
 
-import type {
-  AddAgentMCPProxyPathParams,
-  AddAgentMCPProxyRequest,
-  AgentMCPProxyListResponse,
-  AgentMCPConfigResponse,
-  CreateAgentMCPConfigRequest,
-  ListAgentMCPProxiesPathParams,
+import {
+  DEFAULT_ENVIRONMENT,
+  type AddAgentMCPProxyPathParams,
+  type AddAgentMCPProxyRequest,
+  type AgentMCPProxyListResponse,
+  type AgentMCPConfigResponse,
+  type CreateAgentMCPConfigRequest,
+  type ListAgentMCPProxiesPathParams,
 } from "@agent-management-platform/types";
-import { listEnvironments } from "./deployments";
 import {
   createAgentMCPConfig,
   getAgentMCPConfig,
@@ -55,14 +55,9 @@ export async function addAgentMCPProxy(
   body: AddAgentMCPProxyRequest,
   getToken?: () => Promise<string>,
 ): Promise<AgentMCPConfigResponse> {
-  const envs = await listEnvironments({ orgName: params.orgName }, getToken);
-  const envMappings: CreateAgentMCPConfigRequest["envMappings"] = {};
-  for (const env of envs) {
-    envMappings[env.name] = {
-      proxyId: body.proxyId,
-      configuration: {},
-    };
-  }
+  const envMappings: CreateAgentMCPConfigRequest["envMappings"] = {
+    [DEFAULT_ENVIRONMENT]: { proxyId: body.proxyId, configuration: {} },
+  };
 
   return createAgentMCPConfig(
     params,

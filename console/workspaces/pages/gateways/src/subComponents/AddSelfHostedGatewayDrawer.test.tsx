@@ -26,7 +26,6 @@ const hoisted = vi.hoisted(() => ({
 }));
 
 vi.mock("@agent-management-platform/api-client", () => ({
-  useListEnvironments: () => ({ data: [{ name: "dev", displayName: "Development" }] }),
   useCreateSelfHostedGateway: () => ({ mutateAsync: hoisted.createGateway, isPending: false }),
   useCreateSelfHostedGatewayToken: () => ({ mutateAsync: hoisted.createToken, isPending: false }),
 }));
@@ -83,8 +82,6 @@ describe("AddSelfHostedGatewayDrawer name", () => {
     render(<AddSelfHostedGatewayDrawer open onClose={vi.fn()} orgId="acme" />);
 
     type(displayNameField(), "Edge One");
-    fireEvent.mouseDown(screen.getByRole("combobox", { name: "Environment" }));
-    fireEvent.click(screen.getByRole("option", { name: "Development" }));
     type(screen.getByPlaceholderText("https://gateway.example.com"), "https://edge.example.com");
     fireEvent.click(screen.getByRole("button", { name: "Create" }));
 
@@ -92,7 +89,7 @@ describe("AddSelfHostedGatewayDrawer name", () => {
     expect(hoisted.createGateway.mock.calls[0][0].body).toMatchObject({
       displayName: "Edge One",
       handle: "edge-one",
-      environment: "dev",
+      environment: "default",
     });
   });
 

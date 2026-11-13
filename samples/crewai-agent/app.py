@@ -8,9 +8,8 @@ os.environ.setdefault("CREWAI_TRACING_ENABLED", "false")
 os.environ.setdefault("CREWAI_DISABLE_TRACING_PROMPT", "true")
 os.environ.setdefault("LITELLM_LOCAL_MODEL_COST_MAP", "True")
 # CrewAI writes under $HOME at import (a storage dir) and at Crew() construction
-# (a credentials dir). When deployed, the platform sets HOME + CREWAI_STORAGE_DIR
-# to writable paths. This block is a fallback so the sample also runs standalone
-# under a read-only HOME; it no-ops when HOME is already writable or preset.
+# (a credentials dir). This block points both at /tmp when HOME is read-only
+# (as in a container); it no-ops when HOME is already writable or preset.
 os.environ.setdefault("CREWAI_STORAGE_DIR", "/tmp/crewai")
 if not os.access(os.path.expanduser("~"), os.W_OK):
     os.environ["HOME"] = "/tmp"
@@ -22,16 +21,14 @@ from pydantic import BaseModel
 
 from agent.crew import create_crew
 
-# Present when the platform runs the agent under amp-instrument; absent in a
-# plain local run.
+# Present when the agent runs under amp-instrument; absent in a plain run.
 try:
     from traceloop.sdk import Traceloop
 except ImportError:
     Traceloop = None
 
 app = FastAPI()
-# Load environment variables from a .env file (if present) for local runs; in
-# the deployed pod the platform injects OPENAI_API_KEY as a sensitive env var.
+# Load environment variables from a .env file, if present.
 dotenv.load_dotenv()
 crew = create_crew()
 

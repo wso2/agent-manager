@@ -27,65 +27,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 )
 
-// TestThunderOriginFromHandle_RespectsBaseDomainConfig locks in that a VM
-// deployment's IDP_HOST_BASE_DOMAIN override flows straight through into
-// the on-prem write-time origin computation — this is what makes
-// deployments/vm/lib-vm.sh setting the same value (both for
-// add-environment-thunder.sh's THUNDER_HOST_BASE_DOMAIN and this Go config)
-// keep the URL AMS stores and the actually-deployed Thunder instance's own
-// issuer in sync.
-func TestThunderOriginFromHandle_RespectsBaseDomainConfig(t *testing.T) {
-	orig := config.GetConfig().ThunderHostBaseDomain
-	defer func() { config.GetConfig().ThunderHostBaseDomain = orig }()
-
-	config.GetConfig().ThunderHostBaseDomain = "amp.203.0.113.10.sslip.io"
-	got := ThunderOriginFromHandle("x7f2q9kz")
-	want := "http://x7f2q9kz.amp.203.0.113.10.sslip.io:8080"
-	if got != want {
-		t.Errorf("ThunderOriginFromHandle with overridden base domain: want %q, got %q", want, got)
-	}
-}
-
-// TestThunderOriginFromHandle_RespectsTLSConfig locks in that TLS_ENABLED (the
-// same flag deployments/vm/lib-vm.sh already sets for platform Thunder's own
-// advertised URLs) switches env-Thunder's computed scheme AND drops the :8080
-// suffix — matching Caddy terminating on the standard HTTPS port on a VM,
-// rather than the k3d gateway's plain-HTTP :8080 in local dev. Also confirms
-// ThunderIssuerURL/ThunderExternalTokenURL/ThunderExternalJWKSURL only ever
-// use the already-resolved origin they're given — no independent TLS/domain
-// awareness of their own, since a caller-supplied row's origin never came
-// from this config at all.
-func TestThunderOriginFromHandle_RespectsTLSConfig(t *testing.T) {
-	origDomain := config.GetConfig().ThunderHostBaseDomain
-	origTLS := config.GetConfig().TLSConfig.EnableTLS
-	defer func() {
-		config.GetConfig().ThunderHostBaseDomain = origDomain
-		config.GetConfig().TLSConfig.EnableTLS = origTLS
-	}()
-	config.GetConfig().ThunderHostBaseDomain = "amp.203.0.113.10.sslip.io"
-
-	config.GetConfig().TLSConfig.EnableTLS = false
-	originNoTLS := ThunderOriginFromHandle("x7f2q9kz")
-	if want := "http://x7f2q9kz.amp.203.0.113.10.sslip.io:8080"; originNoTLS != want {
-		t.Errorf("ThunderOriginFromHandle (TLS off): want %q, got %q", want, originNoTLS)
-	}
-	if got, want := ThunderIssuerURL(originNoTLS), originNoTLS; got != want {
-		t.Errorf("ThunderIssuerURL must return its input unchanged: want %q, got %q", want, got)
-	}
-	if got, want := ThunderExternalJWKSURL(originNoTLS), originNoTLS+"/oauth2/jwks"; got != want {
-		t.Errorf("ThunderExternalJWKSURL (TLS off): want %q, got %q", want, got)
-	}
-
-	config.GetConfig().TLSConfig.EnableTLS = true
-	originTLS := ThunderOriginFromHandle("x7f2q9kz")
-	if want := "https://x7f2q9kz.amp.203.0.113.10.sslip.io"; originTLS != want {
-		t.Errorf("ThunderOriginFromHandle (TLS on): want %q, got %q", want, originTLS)
-	}
-	if got, want := ThunderExternalTokenURL(originTLS), originTLS+"/oauth2/token"; got != want {
-		t.Errorf("ThunderExternalTokenURL (TLS on): want %q, got %q", want, got)
-	}
-}
-
 // TestThunderIssuerURL_NeverPanics locks in that ThunderIssuerURL (an identity
 // function over an already-resolved, stored origin) has no fail-loud contract
 // of its own — that check belongs to whatever resolved the origin in the
@@ -100,20 +41,6 @@ func TestThunderIssuerURL_NeverPanics(t *testing.T) {
 	if got := ThunderIssuerURL(""); got != "" {
 		t.Errorf(`expected ThunderIssuerURL("") == "", got %q`, got)
 	}
-}
-
-// TestThunderOriginFromHandle_PanicsOnEmptyHandle guards the fail-loud
-// contract: a caller must check for "not provisioned" (an environment with no
-// registered handle) BEFORE building a URL — ThunderOriginFromHandle takes
-// only a handle, with no org/env fallback to degrade to, so an empty handle
-// panics instead of producing a guessable address.
-func TestThunderOriginFromHandle_PanicsOnEmptyHandle(t *testing.T) {
-	defer func() {
-		if recover() == nil {
-			t.Error(`expected ThunderOriginFromHandle("") to panic`)
-		}
-	}()
-	ThunderOriginFromHandle("")
 }
 
 // TestThunderBaseURLCandidates_PanicsOnEmptyThunderURL mirrors the same
@@ -400,6 +327,31 @@ func TestResolveThunderBaseURL_FallsBackToLoopback(t *testing.T) {
 	}
 	if got.resolveToHost != "127.0.0.1:8080" {
 		t.Errorf("want 127.0.0.1 dial override, got %+v", got)
+	}
+}
+
+func TestResolveThunderBaseURL_PlatformThunderUsesConfiguredDialHost(t *testing.T) {
+	orig := config.GetConfig().Thunder
+	defer func() { config.GetConfig().Thunder = orig }()
+	config.GetConfig().Thunder.BaseURL = "http://thunder.amp.localhost:8080"
+	config.GetConfig().Thunder.ResolveToHost = "thunder:8080"
+
+	candidates := thunderBaseURLCandidates("acme", "default", "http://thunder.amp.localhost:8080/", true)
+	last := candidates[len(candidates)-1]
+	if last.resolveToHost != "thunder:8080" || last.external {
+		t.Fatalf("want a trusted platform candidate dialling thunder:8080, got %+v", last)
+	}
+
+	prober := func(_ context.Context, c thunderURLCandidate) bool {
+		return c.resolveToHost == "thunder:8080"
+	}
+	got, ok := resolveThunderBaseURL(context.Background(), "acme", "default", "http://thunder.amp.localhost:8080", true, prober)
+	if !ok || got.resolveToHost != "thunder:8080" {
+		t.Errorf("want the platform Thunder reached through thunder:8080, got %+v (ok=%v)", got, ok)
+	}
+
+	if other := thunderBaseURLCandidates("acme", "staging", "https://stage-idp.example.com", true); len(other) != 2 {
+		t.Errorf("a non-platform Thunder must not get the platform dial host, got %+v", other)
 	}
 }
 

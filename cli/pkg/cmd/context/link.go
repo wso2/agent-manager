@@ -31,8 +31,6 @@ import (
 	"github.com/wso2/agent-manager/cli/pkg/render"
 )
 
-const defaultEnvironment = "default"
-
 type LinkOptions struct {
 	IO           *iostreams.IOStreams
 	Config       func() (*config.Config, error)
@@ -44,11 +42,10 @@ type LinkOptions struct {
 }
 
 type LinkResult struct {
-	Dir         string `json:"dir"`
-	Org         string `json:"org"`
-	Project     string `json:"project"`
-	Environment string `json:"environment"`
-	Agent       string `json:"agent,omitempty"`
+	Dir     string `json:"dir"`
+	Org     string `json:"org"`
+	Project string `json:"project"`
+	Agent   string `json:"agent,omitempty"`
 }
 
 func NewLinkCmd(f *cmdutil.Factory) *cobra.Command {
@@ -63,8 +60,7 @@ func NewLinkCmd(f *cmdutil.Factory) *cobra.Command {
 		Use:   "link",
 		Short: "Link the current directory to an org, project, and optional agent",
 		Long: `Link associates the current working directory with a specific org, project,
-and optionally an agent. Linked directories always use the "default"
-environment. Once linked, commands run from this directory (or any
+and optionally an agent. Once linked, commands run from this directory (or any
 subdirectory) use this context automatically.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -113,15 +109,6 @@ func runLink(ctx context.Context, o *LinkOptions, org, project string, scope ren
 		return render.Error(o.IO, scope, cmdutil.ErrorFromServer(projResp.HTTPResponse, cmdutil.FirstNonNil(projResp.JSON404, projResp.JSON500)))
 	}
 
-	envResp, err := client.GetEnvironmentWithResponse(ctx, org, defaultEnvironment)
-	if err != nil {
-		return render.Error(o.IO, scope, clierr.Newf(clierr.Transport, "%v", err))
-	}
-	if envResp.JSON200 == nil {
-		return render.Error(o.IO, scope, cmdutil.ErrorFromServer(envResp.HTTPResponse, cmdutil.FirstNonNil(envResp.JSON404, envResp.JSON400, envResp.JSON500)))
-	}
-	scope.Environment = defaultEnvironment
-
 	if o.Agent != "" {
 		if err := cmdutil.ValidatePathParam("agent", o.Agent); err != nil {
 			return render.Error(o.IO, scope, err)
@@ -137,10 +124,9 @@ func runLink(ctx context.Context, o *LinkOptions, org, project string, scope ren
 	}
 
 	cfg.LinkProject(wd, config.LinkedProject{
-		Org:         org,
-		Project:     project,
-		Environment: defaultEnvironment,
-		Agent:       o.Agent,
+		Org:     org,
+		Project: project,
+		Agent:   o.Agent,
 	})
 	if err := cfg.Save(); err != nil {
 		return render.Error(o.IO, scope, clierr.Newf(clierr.ConfigSaveFailed, "save config: %v", err))
@@ -148,16 +134,15 @@ func runLink(ctx context.Context, o *LinkOptions, org, project string, scope ren
 
 	if o.IO.JSON {
 		return render.JSONSuccess(o.IO, scope, LinkResult{
-			Dir:         wd,
-			Org:         org,
-			Project:     project,
-			Environment: defaultEnvironment,
-			Agent:       o.Agent,
+			Dir:     wd,
+			Org:     org,
+			Project: project,
+			Agent:   o.Agent,
 		})
 	}
 
 	cs := o.IO.StderrColorScheme()
-	fmt.Fprintf(o.IO.ErrOut, "%s Linked %s to %s/%s (env: %s)", cs.SuccessIcon(), cs.Bold(wd), cs.Cyan(org), cs.Bold(project), cs.Green(defaultEnvironment))
+	fmt.Fprintf(o.IO.ErrOut, "%s Linked %s to %s/%s", cs.SuccessIcon(), cs.Bold(wd), cs.Cyan(org), cs.Bold(project))
 	if o.Agent != "" {
 		fmt.Fprintf(o.IO.ErrOut, " (agent: %s)\n", cs.Yellow(o.Agent))
 	} else {

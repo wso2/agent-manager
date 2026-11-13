@@ -33,6 +33,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
+	"github.com/wso2/agent-manager/agent-manager-service/db/dbtest"
 )
 
 // newTestBackend returns a backend with prepared statements and no background loops; tests poll by hand.
@@ -40,20 +41,21 @@ func newTestBackend(t *testing.T) *SQLBackend {
 	t.Helper()
 	backend, err := NewSQLBackend(db.GetDB(), slog.New(slog.NewTextHandler(io.Discard, nil)), DefaultSQLBackendConfig())
 	require.NoError(t, err)
-	require.NoError(t, backend.prepareStatements())
-	t.Cleanup(backend.closeStatements)
 	return backend
 }
 
-// newTestGateway registers a fresh gateway id with the backend and removes its state (and events) afterwards.
+// newTestGateway registers a fresh gateway, in an organization of its own, with the backend.
 func newTestGateway(t *testing.T, backend *SQLBackend) string {
 	t.Helper()
-	gatewayID := "gw-" + uuid.NewString()
+	gatewayID := unregisteredGateway(t)
 	require.NoError(t, backend.RegisterGateway(gatewayID))
-	t.Cleanup(func() {
-		db.GetDB().Exec(`DELETE FROM eventhub_gateway_states WHERE gateway_id = ?`, gatewayID)
-	})
 	return gatewayID
+}
+
+// unregisteredGateway is a fresh gateway the backend has not seen yet.
+func unregisteredGateway(t *testing.T) string {
+	t.Helper()
+	return dbtest.Gateway(t, db.GetDB(), dbtest.Org(t, db.GetDB()), "ingress").UUID.String()
 }
 
 func testEvent(entityID string) Event {
@@ -76,7 +78,7 @@ func drain(ch <-chan Event) []string {
 func eventSeqs(t *testing.T, gatewayID string) []int64 {
 	t.Helper()
 	var seqs []int64
-	require.NoError(t, db.GetDB().Raw(`SELECT seq FROM eventhub_events WHERE gateway_id = ? ORDER BY seq`, gatewayID).
+	require.NoError(t, db.GetDB().Raw(`SELECT seq FROM gateway_events WHERE gateway_id = ? ORDER BY seq`, gatewayID).
 		Scan(&seqs).Error)
 	return seqs
 }
@@ -84,10 +86,7 @@ func eventSeqs(t *testing.T, gatewayID string) []int64 {
 // Every event takes the next number in its gateway's sequence, under the gateway-state row lock.
 func TestPublishEventNumbersEventsPerGateway(t *testing.T) {
 	backend := newTestBackend(t)
-	gatewayID := "seq-" + uuid.NewString()
-	t.Cleanup(func() {
-		db.GetDB().Exec(`DELETE FROM eventhub_gateway_states WHERE gateway_id = ?`, gatewayID)
-	})
+	gatewayID := unregisteredGateway(t)
 
 	for range 2 {
 		require.NoError(t, backend.PublishEvent(context.Background(), gatewayID, testEvent("e")))
@@ -95,7 +94,7 @@ func TestPublishEventNumbersEventsPerGateway(t *testing.T) {
 
 	assert.Equal(t, []int64{1, 2}, eventSeqs(t, gatewayID))
 	var stateSeq int64
-	require.NoError(t, db.GetDB().Raw(`SELECT seq FROM eventhub_gateway_states WHERE gateway_id = ?`, gatewayID).
+	require.NoError(t, db.GetDB().Raw(`SELECT seq FROM gateway_event_states WHERE gateway_id = ?`, gatewayID).
 		Scan(&stateSeq).Error)
 	assert.EqualValues(t, 2, stateSeq)
 }
@@ -189,7 +188,7 @@ func TestPublishEventTxSkipsADuplicateEventWithoutAbortingTheTransaction(t *test
 	}))
 
 	var count int64
-	require.NoError(t, db.GetDB().Raw(`SELECT count(*) FROM eventhub_events WHERE event_id = ?`, event.EventID).
+	require.NoError(t, db.GetDB().Raw(`SELECT count(*) FROM gateway_events WHERE id = ?`, event.EventID).
 		Scan(&count).Error)
 	assert.EqualValues(t, 1, count)
 }
@@ -197,10 +196,7 @@ func TestPublishEventTxSkipsADuplicateEventWithoutAbortingTheTransaction(t *test
 // A gateway with no state row yet gets one on its first publish.
 func TestPublishEventTxCreatesTheGatewayState(t *testing.T) {
 	backend := newTestBackend(t)
-	gatewayID := "unregistered-" + uuid.NewString()
-	t.Cleanup(func() {
-		db.GetDB().Exec(`DELETE FROM eventhub_gateway_states WHERE gateway_id = ?`, gatewayID)
-	})
+	gatewayID := unregisteredGateway(t)
 
 	require.NoError(t, db.GetDB().Transaction(func(tx *gorm.DB) error {
 		return backend.PublishEventTx(context.Background(), tx, gatewayID, testEvent("e"))

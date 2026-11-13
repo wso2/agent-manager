@@ -27,10 +27,9 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-observer/mcp/tools"
 )
 
-// Dependencies holds the controllers backing the seven am-obs-mcp tools.
+// Dependencies holds the controllers backing the am-obs-mcp tools.
 type Dependencies struct {
-	Tracing       *controllers.TracingController
-	Observability *controllers.ObservabilityController
+	Tracing *controllers.TracingController
 }
 
 // RegisterRoute builds the MCP HTTP handler and registers it on mux at
@@ -44,8 +43,7 @@ func RegisterRoute(mux *http.ServeMux, deps Dependencies, authMiddleware func(ht
 	}, nil)
 
 	toolsets := &tools.Toolsets{
-		Tracing:       deps.Tracing,
-		Observability: deps.Observability,
+		Tracing: deps.Tracing,
 	}
 	toolsets.Register(server)
 

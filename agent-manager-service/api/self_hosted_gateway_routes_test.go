@@ -30,7 +30,6 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
-	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
 	"github.com/wso2/agent-manager/agent-manager-service/controllers"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
@@ -149,7 +148,7 @@ func newSelfHostedFixture(t *testing.T) *selfHostedFixture {
 		return nil
 	}
 
-	ocClient := &clientmocks.OpenChoreoClientMock{
+	ocClient := &repomocks.PlatformRepositoryMock{
 		ListEnvironmentsFunc: func(context.Context, string) ([]*models.EnvironmentResponse, error) {
 			return []*models.EnvironmentResponse{{UUID: uuid.NewString(), Name: "dev"}}, nil
 		},

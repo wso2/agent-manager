@@ -29,7 +29,6 @@ import {
 import { TextInput } from "@agent-management-platform/views";
 import {
   type APIKeyLocation,
-  type Environment,
   type MCPEndpointConfig,
   type MCPProxy,
   type MCPProxyScopeResponse,
@@ -126,11 +125,8 @@ export type MCPProxySecurityTabProps = {
   selectedEndpointId: string;
   orgName: string | undefined;
   proxyId: string | undefined;
-  /**
-   * Environments the selected endpoint is deployed to, for the Create Scope
-   * panel's role picker.
-   */
-  environments: Environment[];
+  /** Whether the selected endpoint is deployed, for the Create Scope role picker. */
+  isDeployed: boolean;
   /**
    * Tool names of the proxy's other endpoints. A scope covers the tools of every endpoint but this
    * table lists only the selected endpoint's, so Save keeps these tools on the scopes it updates.
@@ -150,7 +146,7 @@ export function MCPProxySecurityTab({
   selectedEndpointId,
   orgName,
   proxyId,
-  environments,
+  isDeployed,
   otherEndpointTools = NO_TOOLS,
   isOnSelfHostedGateway = false,
   isLoading = false,
@@ -831,7 +827,7 @@ export function MCPProxySecurityTab({
           onClose={() => setCreateScopeDrawerOpen(false)}
           orgName={orgName}
           proxyId={proxyId}
-          environments={environments}
+          isDeployed={isDeployed}
           tools={toolEntries}
           blockedTools={blockedToolIds}
         />

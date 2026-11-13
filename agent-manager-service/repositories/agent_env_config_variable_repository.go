@@ -22,8 +22,8 @@ import (
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 
+	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 )
 
@@ -73,23 +73,19 @@ func (r *agentEnvConfigVariableRepository) CreateBatch(ctx context.Context, tx *
 	if len(variables) == 0 {
 		return nil
 	}
-	return tx.WithContext(ctx).
-		Clauses(clause.OnConflict{
-			Columns: []clause.Column{
-				{Name: "config_uuid"},
-				{Name: "environment_uuid"},
-				{Name: "variable_name"},
-				{Name: "variable_key"},
-			},
-			DoNothing: true,
-		}).
-		Create(&variables).Error
+	db := tx.WithContext(ctx)
+	for i := range variables {
+		if _, err := dbx.InsertIfAbsent(db, &variables[i]); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (r *agentEnvConfigVariableRepository) ListByConfigAndEnv(ctx context.Context, configUUID, envUUID uuid.UUID) ([]models.AgentEnvConfigVariable, error) {
 	var variables []models.AgentEnvConfigVariable
 	err := r.db.WithContext(ctx).
-		Where("config_uuid = ? AND environment_uuid = ?", configUUID, envUUID).
+		Where("config_id = ? AND environment_id = ?", configUUID, envUUID).
 		Find(&variables).Error
 	return variables, err
 }
@@ -97,16 +93,19 @@ func (r *agentEnvConfigVariableRepository) ListByConfigAndEnv(ctx context.Contex
 func (r *agentEnvConfigVariableRepository) ListByConfig(ctx context.Context, configUUID uuid.UUID) ([]models.AgentEnvConfigVariable, error) {
 	var variables []models.AgentEnvConfigVariable
 	err := r.db.WithContext(ctx).
-		Where("config_uuid = ?", configUUID).
+		Where("config_id = ?", configUUID).
 		Find(&variables).Error
 	return variables, err
 }
 
 func (r *agentEnvConfigVariableRepository) ListByConfigForUpdate(ctx context.Context, tx *gorm.DB, configUUID uuid.UUID) ([]models.AgentEnvConfigVariable, error) {
+	if _, err := dbx.LockRows(tx.WithContext(ctx), models.AgentEnvConfigVariable{}.TableName(), "variable_name",
+		"config_id = ?", configUUID); err != nil {
+		return nil, err
+	}
 	var variables []models.AgentEnvConfigVariable
 	err := tx.WithContext(ctx).
-		Clauses(clause.Locking{Strength: "UPDATE"}).
-		Where("config_uuid = ?", configUUID).
+		Where("config_id = ?", configUUID).
 		Find(&variables).Error
 	return variables, err
 }
@@ -115,7 +114,7 @@ func (r *agentEnvConfigVariableRepository) UpdateVariableNames(ctx context.Conte
 	for key, name := range keyNameMap {
 		result := tx.WithContext(ctx).
 			Model(&models.AgentEnvConfigVariable{}).
-			Where("config_uuid = ? AND variable_key = ?", configUUID, key).
+			Where("config_id = ? AND variable_key = ?", configUUID, key).
 			Update("variable_name", name)
 		if result.Error != nil {
 			return result.Error
@@ -127,7 +126,7 @@ func (r *agentEnvConfigVariableRepository) UpdateVariableNames(ctx context.Conte
 			var count int64
 			if err := tx.WithContext(ctx).
 				Model(&models.AgentEnvConfigVariable{}).
-				Where("config_uuid = ? AND variable_key = ?", configUUID, key).
+				Where("config_id = ? AND variable_key = ?", configUUID, key).
 				Count(&count).Error; err != nil {
 				return err
 			}
@@ -142,48 +141,32 @@ func (r *agentEnvConfigVariableRepository) UpdateVariableNames(ctx context.Conte
 
 func (r *agentEnvConfigVariableRepository) DeleteByConfig(ctx context.Context, tx *gorm.DB, configUUID uuid.UUID) error {
 	return tx.WithContext(ctx).
-		Where("config_uuid = ?", configUUID).
+		Where("config_id = ?", configUUID).
 		Delete(&models.AgentEnvConfigVariable{}).Error
 }
 
 func (r *agentEnvConfigVariableRepository) DeleteByConfigAndEnv(ctx context.Context, tx *gorm.DB, configUUID, envUUID uuid.UUID) error {
 	return tx.WithContext(ctx).
-		Where("config_uuid = ? AND environment_uuid = ?", configUUID, envUUID).
+		Where("config_id = ? AND environment_id = ?", configUUID, envUUID).
 		Delete(&models.AgentEnvConfigVariable{}).Error
 }
 
-func (r *agentEnvConfigVariableRepository) ListSecretReferencesByAgentAndEnv(ctx context.Context, agentID, ouID string, envUUID uuid.UUID) ([]string, error) {
-	var rows []struct {
-		SecretReference string
-	}
-	err := r.db.WithContext(ctx).
-		Table("agent_env_config_variables_mapping AS v").
-		Select("DISTINCT v.secret_reference").
-		Joins("JOIN agent_configurations AS c ON c.uuid = v.config_uuid").
-		Where("c.agent_id = ? AND c.ou_id = ? AND v.environment_uuid = ? AND v.secret_reference != ''",
-			agentID, ouID, envUUID).
-		Scan(&rows).Error
-	if err != nil {
-		return nil, fmt.Errorf("failed to list LLM config secret references: %w", err)
-	}
-	refs := make([]string, 0, len(rows))
-	for _, row := range rows {
-		refs = append(refs, row.SecretReference)
-	}
-	return refs, nil
+// ListSecretReferencesByAgentAndEnv returns nothing: secret references named secrets that hosted workloads mounted,
+// and external agents are handed their keys instead, so none are stored.
+func (r *agentEnvConfigVariableRepository) ListSecretReferencesByAgentAndEnv(context.Context, string, string, uuid.UUID) ([]string, error) {
+	return nil, nil
 }
 
 // LockAndListByAgent takes the agent lock before any configuration row lock. A
 // separate read after acquisition sees names committed by a competing rename.
 func (r *agentEnvConfigVariableRepository) LockAndListByAgent(ctx context.Context, tx *gorm.DB, ouID, projectName, agentID string) ([]models.AgentEnvConfigVariable, error) {
-	key := fmt.Sprintf("%q/%q/%q", ouID, projectName, agentID)
-	if err := advisoryXactLock(tx.WithContext(ctx), agentVariableLockNamespace, key); err != nil {
+	if _, err := lockAgent(ctx, tx, ouID, projectName, agentID); err != nil {
 		return nil, fmt.Errorf("lock agent variable names: %w", err)
 	}
 	var variables []models.AgentEnvConfigVariable
-	err := tx.WithContext(ctx).Table("agent_env_config_variables_mapping AS v").Select("v.*").
-		Joins("JOIN agent_configurations AS c ON c.uuid = v.config_uuid").
-		Where("c.ou_id = ? AND c.project_name = ? AND c.agent_id = ?", ouID, projectName, agentID).
+	err := tx.WithContext(ctx).Table("agent_model_config_vars v").Select("v.*").
+		Joins("JOIN agent_model_configs c ON c.id = v.config_id").
+		Where("c.org_id = ? AND c.agent_id IN (?)", ouID, models.AgentIDQuery(tx, ouID, projectName, agentID)).
 		Find(&variables).Error
 	return variables, err
 }

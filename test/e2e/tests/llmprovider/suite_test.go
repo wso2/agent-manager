@@ -38,26 +38,14 @@ var Client *framework.AMPClient
 // Cfg is the shared test configuration.
 var Cfg *framework.Config
 
-// SharedITHelpdeskAgent is the shared single-environment IT helpdesk agent.
-var SharedITHelpdeskAgent *framework.SharedITHelpdeskAgent
-
-// SharedPromotableITHelpdeskAgent is the shared two-environment IT helpdesk agent.
-var SharedPromotableITHelpdeskAgent *framework.SharedPromotableITHelpdeskAgent
-
-// LLMProviderID is an OpenAI-backed LLM provider, provisioned once on the
-// default AI gateway and used by the post-deploy tests on the shared IT helpdesk agent and the shared promotable IT helpdesk agent.
-var LLMProviderID string
-
 func TestLLMProvider(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "LLM Provider Suite")
 }
 
-// The shared project is created once here (on a single process) because the
-// internal-agent and external-agent containers both build agents into it and run
-// on different parallel processes under `ginkgo -p`. The two-env promotion infra
-// is provisioned lazily by the two-env container's BeforeAll (only that one
-// container needs it). Each process still builds its own API client.
+// The shared project is created once here (on a single process) so parallel
+// processes under `ginkgo -p` do not race to create it. Each process still
+// builds its own API client.
 var _ = SynchronizedBeforeSuite(func() []byte {
 	cfg := framework.LoadConfig()
 

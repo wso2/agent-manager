@@ -56,7 +56,8 @@ var _ = Describe("Project management:", Label("project", "deletion-conflict"), O
 			Request: createProjReq,
 		})
 		Expect(proj.Name).To(Equal(projName))
-		Expect(proj.DeploymentPipeline).To(Equal("default"))
+		// Projects have no deployment pipeline: environments are internal.
+		Expect(proj.DeploymentPipeline).To(BeEmpty())
 		GinkgoWriter.Printf("Project: %s\n", projName)
 	})
 

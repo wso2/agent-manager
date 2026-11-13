@@ -251,7 +251,7 @@ func TestEveryToolSchemaRefusesUndeclaredProperties(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListTools: %v", err)
 	}
-	if len(res.Tools) < 20 {
+	if len(res.Tools) < 15 {
 		t.Fatalf("listed %d tools, want every registered tool", len(res.Tools))
 	}
 	for _, tool := range res.Tools {
@@ -306,8 +306,8 @@ func TestAttachNoteFollowsTheAgentKind(t *testing.T) {
 	}{
 		{
 			"platform agent", "attach_llm_provider_to_agent", string(utils.InternalAgent), llm,
-			[]string{"deploy_agent"},
-			[]string{"external agent"},
+			[]string{"restart it"},
+			[]string{"external agent", "deploy_agent"},
 		},
 		{
 			"external agent, LLM", "attach_llm_provider_to_agent", string(utils.ExternalAgent), llm,

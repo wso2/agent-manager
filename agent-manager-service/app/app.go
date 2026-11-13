@@ -25,7 +25,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"maps"
 	"net/http"
 	"os"
 	"sync"
@@ -33,7 +32,6 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/api"
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
-	occlient "github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
@@ -41,6 +39,7 @@ import (
 	dbmigrations "github.com/wso2/agent-manager/agent-manager-service/db_migrations"
 	"github.com/wso2/agent-manager/agent-manager-service/events"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/resources"
 	"github.com/wso2/agent-manager/agent-manager-service/server"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
@@ -122,27 +121,12 @@ type Options struct {
 	// credentials). encryptionKey is the platform ENCRYPTION_KEY, used to decrypt
 	// the env-Thunder system-client credential from AMS's own Postgres — that one
 	// is not read back from a key vault.
-	AgentThunderProvisioning func(db *gorm.DB, secretMgmtClient secretmanagersvc.SecretManagementClient, ocClient occlient.OpenChoreoClient, encryptionKey []byte) services.AgentThunderProvisioningService
-	// BuildSecretProvisioner provisions the per-run git clone secret before a source
-	// build's WorkflowRun is created. nil (the open-source default) is a no-op: private
-	// repos are cloned via the PAT-backed git secret the user created (or public repos
-	// anonymously). A deployment can inject an implementation that mints a short-lived
-	// token from a platform GitHub App. See services.BuildSecretProvisioner.
-	BuildSecretProvisioner services.BuildSecretProvisioner
-	// RepositoryCommitProvider optionally resolves commit history from a
-	// deployment-specific component source binding. nil preserves the standard
-	// anonymous/static-token and PAT-backed repository behavior.
-	RepositoryCommitProvider services.RepositoryCommitProvider
+	AgentThunderProvisioning func(db *gorm.DB, secretMgmtClient secretmanagersvc.SecretManagementClient, platform repositories.PlatformRepository, encryptionKey []byte) services.AgentThunderProvisioningService
 	// EntitlementChecker asks whether the organization's subscription allows an
 	// agent create. nil (the open-source default) allows every create; cloud
 	// deployments inject a check against their billing system. See
 	// services.EntitlementChecker.
 	EntitlementChecker services.EntitlementChecker
-	// ResourceLabels are stamped on every Component and ReleaseBinding Agent
-	// Manager writes to OpenChoreo. nil (the open-source default) stamps none;
-	// cloud deployments inject their own, e.g. the product label WSO2 Cloud's
-	// product-scoped suspension selects ReleaseBindings by.
-	ResourceLabels map[string]string
 	// OrgOverrideResolver lets a deployment's control plane act on a tenant's
 	// behalf on the few routes it drives (gateway listing, environment Thunder
 	// registration, gateway identity providers), typically by trusting an
@@ -154,14 +138,10 @@ type Options struct {
 
 // Run starts the application with the provided providers and options.
 // This is the main entry point that both open-source and cloud main.go will call.
-// The authProvider parameter allows different deployments to inject their own
-// authentication mechanism (e.g., OAuth2 for open-source, workload identity for cloud).
-// The secretProvider parameter allows different deployments to inject their own
-// secret management backend (e.g., the OpenChoreo secret API for open-source, cloud-specific for cloud).
-func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Provider, opts Options) {
+// The secretProvider parameter lets each deployment inject its own secret
+// management backend.
+func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 	cfg := config.GetConfig()
-	// Set before anything builds an OpenChoreo client, which all read it from config.
-	cfg.OpenChoreo.ResourceLabels = maps.Clone(opts.ResourceLabels)
 	// Installed before the HTTP server starts, so no request sees it change.
 	middleware.SetOrgOverrideResolver(opts.OrgOverrideResolver)
 
@@ -223,19 +203,7 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 	// Deployment-specific AgentID provisioning; nil disables it.
 	var agentThunderProvisioning services.AgentThunderProvisioningService
 	if opts.AgentThunderProvisioning != nil {
-		// Built once here (not inside wiring.InitializeAppParams, which builds
-		// its own separate instance below for every other secret-backed
-		// service) because agentThunderProvisioning must exist before
-		// InitializeAppParams runs — see SetWorkloadInjector's doc comment for
-		// why. Both instances point at the same secret backend, so this
-		// duplication is harmless (occlient/secretmanagersvc clients are
-		// stateless wrappers, not connections).
-		ocClientForProvisioning, err := wiring.ProvideOCClient(*cfg, authProvider)
-		if err != nil {
-			slog.Error("failed to create OpenChoreo client for AgentID provisioning", "error", err)
-			os.Exit(1)
-		}
-		secretMgmtClientForProvisioning, err := wiring.ProvideSecretManagementClient(*cfg, secretProvider, ocClientForProvisioning)
+		secretMgmtClientForProvisioning, err := wiring.ProvideSecretManagementClient(*cfg, secretProvider)
 		if err != nil {
 			slog.Error("failed to create secret management client for AgentID provisioning", "error", err)
 			os.Exit(1)
@@ -245,7 +213,7 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 			slog.Error("failed to load encryption key for AgentID provisioning", "error", err)
 			os.Exit(1)
 		}
-		agentThunderProvisioning = opts.AgentThunderProvisioning(database, secretMgmtClientForProvisioning, ocClientForProvisioning, encryptionKey)
+		agentThunderProvisioning = opts.AgentThunderProvisioning(database, secretMgmtClientForProvisioning, repositories.NewPlatformRepo(database), encryptionKey)
 		if setter, ok := agentThunderProvisioning.(services.ProjectAgentIdentityProviderSetter); ok {
 			if err := setter.SetProjectAgentIdentityProvider(
 				thundersvc.IdentityManagementMode(cfg.IdentityManagementMode), opts.ProjectAgentIdentityProvider,
@@ -262,26 +230,22 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 		}
 	}
 
-	dependencies, err := wiring.InitializeAppParamsWithEnvThunderEndpoints(cfg, database, authProvider, secretProvider, opts.GatewayConfigApplier, agentThunderProvisioning, opts.BuildSecretProvisioner, opts.EnvThunderEndpointResolver)
+	dependencies, err := wiring.InitializeAppParamsWithEnvThunderEndpoints(cfg, database, secretProvider, opts.GatewayConfigApplier, agentThunderProvisioning, opts.EnvThunderEndpointResolver)
 	if err != nil {
 		slog.Error("failed to initialize app dependencies", "error", err)
 		os.Exit(1)
 	}
 
-	// Backfill the real AgentIdentityInjectionService into agentThunderProvisioning
-	// now that it exists (agentThunderProvisioning is built above, before
-	// InitializeAppParams constructs the OpenChoreo client this service depends
-	// on). Must happen before the reconciler and HTTP server start below — see
-	// services.WorkloadInjectorSetter's doc comment for why that ordering makes
-	// this race-free. Type-asserted rather than a method on
-	// AgentThunderProvisioningService itself: an alternative deployment's
-	// provisioning implementation that does no workload injection simply
-	// doesn't implement this optional interface.
-	if setter, ok := agentThunderProvisioning.(services.WorkloadInjectorSetter); ok {
-		setter.SetWorkloadInjector(dependencies.AgentIdentityInjectionService)
-	}
-	dependencies.RepositoryService.SetCommitProvider(opts.RepositoryCommitProvider)
 	dependencies.AgentManagerService.SetEntitlementChecker(opts.EntitlementChecker)
+
+	// Registers the gateway named in configuration before any gateway can connect.
+	seedCtx, seedCancel := context.WithTimeout(context.Background(), time.Minute)
+	err = dependencies.DefaultGatewaySeeder.Seed(seedCtx)
+	seedCancel()
+	if err != nil {
+		slog.Error("failed to register the default gateway", "error", err)
+		os.Exit(1)
+	}
 
 	// Background workers have no request behind them, so nothing installs a
 	// recorder on their contexts the way the HTTP middleware does. Install one
@@ -292,22 +256,7 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 	if opts.BackgroundContextDecorator != nil {
 		backgroundCtx = opts.BackgroundContextDecorator(backgroundCtx)
 	}
-	// The workload guard goes on the background context before anything takes
-	// it: the build publisher's OpenChoreo calls are derived from this context,
-	// so a guard installed later would let a build of a suspended organization
-	// publish.
 	backgroundCtx = workloadpolicy.WithGuard(backgroundCtx, opts.WorkloadGuard)
-	// The build publisher acts for a build token's organization with this
-	// service's own credential, which only the background context may use; it
-	// derives each request's OpenChoreo calls from this context. The build token
-	// issuer stores each token with that credential too. Both are installed before
-	// the HTTP server starts below, so no request sees them change.
-	if setter, ok := dependencies.BuildPublisherService.(services.BuildPublisherBackgroundContextSetter); ok {
-		setter.SetBackgroundContext(backgroundCtx)
-	}
-	if setter, ok := dependencies.BuildTokenIssuer.(services.BuildTokenIssuerBackgroundContextSetter); ok {
-		setter.SetBackgroundContext(backgroundCtx)
-	}
 
 	stopBackground := func() {}
 	if opts.StartBackground != nil {
@@ -319,20 +268,7 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 		}
 	}
 
-	// So a rotated agent's deferred pod rollout (see RefreshAfterRotation)
-	// stops waiting, or aborts an in-flight roll, once shutdown starts below
-	// instead of firing an outbound update afterward.
-	agentIdentityRolloutCtx, agentIdentityRolloutCancel := context.WithCancel(backgroundCtx)
-	if setter, ok := dependencies.AgentIdentityInjectionService.(services.AgentIdentityShutdownContextSetter); ok {
-		setter.SetShutdownContext(agentIdentityRolloutCtx)
-	}
-
-	// Start monitor scheduler with background context
-	schedulerCtx, schedulerCancel := context.WithCancel(backgroundCtx)
-	if err := dependencies.MonitorScheduler.Start(schedulerCtx); err != nil {
-		slog.Error("failed to start monitor scheduler", "error", err)
-		os.Exit(1)
-	}
+	// Lite runs no evaluation monitors, so the monitor scheduler is never started.
 
 	// Start the AgentID provisioning retry reconciler, but only when provisioning
 	// is enabled — otherwise there is nothing to reconcile.
@@ -400,13 +336,6 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 		<-stopCh
 		slog.Info("Shutdown signal received, stopping services...")
 
-		// Abort any AgentID pod rollout still waiting or in flight first —
-		// this is a plain context.CancelFunc, so there is no reason to run
-		// it after any of the synchronous shutdown steps below, some of
-		// which could otherwise delay it long enough for a still-waiting
-		// rollout to fire in the meantime.
-		agentIdentityRolloutCancel()
-
 		// Single timeout context for the entire shutdown sequence
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer shutdownCancel()
@@ -425,11 +354,6 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 		}
 
 		stopBackground()
-		schedulerCancel()
-		if err := dependencies.MonitorScheduler.Stop(); err != nil {
-			slog.Error("error stopping monitor scheduler", "error", err)
-		}
-
 		agentThunderReconcilerCancel()
 		if agentThunderProvisioning != nil {
 			if err := dependencies.AgentThunderReconciler.Stop(); err != nil {
@@ -590,8 +514,8 @@ func loadBuiltInLLMTemplates(dependencies *wiring.AppParams) error {
 }
 
 // startEvents sets up the event bus, retrying until it answers, then starts
-// the publisher, the event dispatcher and the monitor alerting. A no-op
-// with events off.
+// the publisher and the event dispatcher. Lite runs no monitors, so monitor
+// alerting is not started. A no-op with events off.
 func startEvents(ctx context.Context, deps *wiring.AppParams) <-chan struct{} {
 	done := make(chan struct{})
 	if deps.EventBus == nil {
@@ -609,7 +533,6 @@ func startEvents(ctx context.Context, deps *wiring.AppParams) <-chan struct{} {
 		}{
 			{"event bus", deps.EventBus.Setup},
 			{"event dispatcher", deps.EventDispatcher.Start},
-			{"monitor alerting", deps.MonitorAlerts.Start},
 		}
 		for _, step := range steps {
 			for {
@@ -645,7 +568,7 @@ func startEvents(ctx context.Context, deps *wiring.AppParams) <-chan struct{} {
 	return done
 }
 
-// stopEvents stops the event dispatcher and the monitor alerting, flushes
+// stopEvents stops the event dispatcher, flushes
 // queued events and closes the bus.
 func stopEvents(deps *wiring.AppParams) {
 	if deps.EventBus == nil {
@@ -653,9 +576,6 @@ func stopEvents(deps *wiring.AppParams) {
 	}
 	if err := deps.EventDispatcher.Stop(); err != nil {
 		slog.Error("Failed to stop the event dispatcher", "error", err)
-	}
-	if err := deps.MonitorAlerts.Stop(); err != nil {
-		slog.Error("Failed to stop the monitor alerting", "error", err)
 	}
 	if publisher, ok := deps.EventPublisher.(*events.AsyncPublisher); ok {
 		publisher.Stop()

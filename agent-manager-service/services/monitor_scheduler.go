@@ -27,12 +27,10 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/workloadpolicy"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
-	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/orgctx"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 const (
@@ -49,7 +47,7 @@ const (
 
 	// triggerFailureBackoffCap bounds the retry delay after a failed trigger. Without a
 	// delay a permanently broken monitor is retried every tick, and each attempt costs
-	// a round of Thunder and OpenChoreo calls.
+	// a round of Thunder and platform calls.
 	triggerFailureBackoffCap = 15 * time.Minute
 )
 
@@ -60,8 +58,6 @@ type MonitorSchedulerService interface {
 }
 
 type monitorSchedulerService struct {
-	// ocClient is the system-level OC client used as fallback in non-Thunder mode.
-	ocClient    client.OpenChoreoClient
 	provisioner PublisherCredentialProvisioner
 	logger      *slog.Logger
 	executor    MonitorExecutor
@@ -73,9 +69,7 @@ type monitorSchedulerService struct {
 
 // NewMonitorSchedulerService creates a new monitor scheduler service.
 // In Thunder mode the provisioner supplies per-org OC clients (org-bound tokens).
-// In non-Thunder mode ocClient is used as the system fallback.
 func NewMonitorSchedulerService(
-	ocClient client.OpenChoreoClient,
 	provisioner PublisherCredentialProvisioner,
 	logger *slog.Logger,
 	executor MonitorExecutor,
@@ -83,7 +77,6 @@ func NewMonitorSchedulerService(
 	runObserver MonitorRunObserver,
 ) MonitorSchedulerService {
 	return &monitorSchedulerService{
-		ocClient:    ocClient,
 		provisioner: provisioner,
 		logger:      logger,
 		executor:    executor,
@@ -209,21 +202,14 @@ func (s *monitorSchedulerService) triggerMonitor(ctx context.Context, monitor *m
 	endTime := time.Now().Add(-safetyDelta)
 	nextRunTime := endTime.Add(interval)
 
-	// Carry the org the way a request would. The OpenChoreo client reads the resolved
-	// org from the context to stamp its impersonation header, and only the HTTP
-	// middleware ever sets it — so a scheduled run reaches OpenChoreo with no org at
+	// Carry the org the way a request would. Platform calls read the resolved
+	// org from the context, and only the HTTP
+	// middleware ever sets it — so a scheduled run would reach them with no org at
 	// all and endpoints that resolve one from the caller reject the request. The
 	// scheduler knows which org it is acting for, so it says so.
 	ctx = orgctx.WithResolvedOrg(ctx, orgctx.ResolvedOrg{OUID: monitor.OUID})
 
-	// Get an org-bound OC client in Thunder mode; nil in non-Thunder mode (executor falls back).
-	orgOCClient, err := s.orgOCClient(ctx, monitor.OUID)
-	if err != nil {
-		s.backOff(ctx, monitor, interval)
-		return fmt.Errorf("failed to get OC client for org %s: %w", monitor.OUID, err)
-	}
-
-	result, err := s.executor.ExecuteMonitorRun(withOCClient(ctx, orgOCClient), ExecuteMonitorRunParams{
+	result, err := s.executor.ExecuteMonitorRun(ctx, ExecuteMonitorRunParams{
 		OUID:       monitor.OUID,
 		Monitor:    monitor,
 		StartTime:  startTime,
@@ -265,7 +251,7 @@ func (s *monitorSchedulerService) triggerMonitor(ctx context.Context, monitor *m
 // backOff pushes a failed monitor's next_run_time forward so the next cycle does not
 // retry it immediately. Leaving next_run_time in the past makes every tick re-attempt
 // a monitor that is broken for a reason a minute will not fix, and each attempt costs
-// a round of Thunder and OpenChoreo calls. The delay is the monitor's own interval,
+// a round of Thunder and platform calls. The delay is the monitor's own interval,
 // which is the cadence it asked for, capped so a daily monitor is not stalled a day by
 // one transient error. Failing to record the backoff is logged, not returned: the
 // caller is already reporting the trigger failure, and the next tick retries either way.
@@ -285,7 +271,7 @@ func (s *monitorSchedulerService) backOff(ctx context.Context, monitor *models.M
 	s.logger.Info("Backed off failed monitor", "monitor", monitor.Name, "retryAt", retryAt)
 }
 
-// syncRunStatus queries OpenChoreo API for pending/running workflows and updates DB
+// syncRunStatus queries the workflow runtime for pending/running workflows and updates DB
 func (s *monitorSchedulerService) syncRunStatus(ctx context.Context) error {
 	// Replay even when no workflows remain pending/running.
 	if reconciler, ok := s.runObserver.(interface{ Reconcile(context.Context) error }); ok {
@@ -313,7 +299,7 @@ func (s *monitorSchedulerService) syncRunStatus(ctx context.Context) error {
 	return nil
 }
 
-// syncSingleRunStatus queries OpenChoreo API for a single run and updates DB
+// syncSingleRunStatus queries the workflow runtime for a single run and updates DB
 func (s *monitorSchedulerService) syncSingleRunStatus(ctx context.Context, run *models.MonitorRun) error {
 	monitor, err := s.monitorRepo.GetMonitorByID(run.MonitorID)
 	if err != nil {
@@ -324,75 +310,12 @@ func (s *monitorSchedulerService) syncSingleRunStatus(ctx context.Context, run *
 		return nil
 	}
 
-	// Same reason as triggerMonitor: the OpenChoreo call below needs the org this run
-	// belongs to, and a background context has none unless we put it there.
-	ctx = orgctx.WithResolvedOrg(ctx, orgctx.ResolvedOrg{OUID: monitor.OUID})
-
-	ocClient, err := s.orgOCClient(ctx, monitor.OUID)
-	if err != nil {
-		return fmt.Errorf("failed to get OC client for org %s: %w", monitor.OUID, err)
+	// No workflow runtime reports on runs any more; a run left pending fails once it is stale.
+	_, failErr := s.failStaleRun(ctx, monitor, run, "no workflow runtime is available to run the monitor")
+	if failErr != nil {
+		return failErr
 	}
-
-	workflowRun, err := ocClient.GetWorkflowRun(ctx, monitor.OUID, run.Name)
-	if err != nil {
-		// Only a confirmed absence means the run will never reach a terminal status on
-		// its own. Transport, authorization and server errors say nothing about the
-		// workflow, and treating them the same would mark every long-pending run failed
-		// for the duration of an OpenChoreo outage — including ones that then succeed.
-		if errors.Is(err, utils.ErrNotFound) {
-			s.logger.Warn("WorkflowRun not found", "workflowRunName", run.Name)
-			failed, failErr := s.failStaleRun(ctx, monitor, run, "workflow run no longer exists and has exceeded the run timeout")
-			if failErr != nil {
-				return failErr
-			}
-			if failed {
-				return nil
-			}
-		}
-		return fmt.Errorf("failed to get workflow run: %w", err)
-	}
-
-	s.logger.Debug("WorkflowRun status retrieved",
-		"runName", run.Name,
-		"currentDBStatus", run.Status,
-		"workflowStatus", workflowRun.Status)
-
 	updates := make(map[string]interface{})
-
-	switch workflowRun.Status {
-	case "Succeeded":
-		updates["status"] = models.RunStatusSuccess
-		updates["completed_at"] = time.Now()
-
-	case "Failed", "Error":
-		updates["status"] = models.RunStatusFailed
-		updates["completed_at"] = time.Now()
-		updates["error_message"] = "workflow completed with failure"
-
-	case "Running":
-		failed, failErr := s.failStaleRun(ctx, monitor, run, "workflow exceeded the run timeout while running")
-		if failErr != nil {
-			return failErr
-		}
-		if failed {
-			return nil
-		}
-		if run.Status != models.RunStatusRunning {
-			updates["status"] = models.RunStatusRunning
-		}
-
-	case "Pending":
-		// A workflow whose pod cannot start — most often a secret it mounts that never
-		// syncs — sits here indefinitely, and enough of them fill the capped pending
-		// query and starve real runs out of status sync.
-		_, failErr := s.failStaleRun(ctx, monitor, run, "workflow never left Pending within the run timeout")
-		return failErr
-
-	default:
-		s.logger.Warn("Unknown workflow status", "status", workflowRun.Status, "workflowRunName", run.Name)
-		_, failErr := s.failStaleRun(ctx, monitor, run, "workflow reported no terminal status within the run timeout")
-		return failErr
-	}
 
 	if len(updates) > 0 {
 		publish := func() {}
@@ -455,14 +378,6 @@ func (s *monitorSchedulerService) failStaleRun(ctx context.Context, monitor *mod
 		"runID", run.ID, "runName", run.Name, "startedAt", run.StartedAt, "reason", reason)
 	publish()
 	return true, nil
-}
-
-// orgOCClient returns a per-org OC client in Thunder mode, or the system client in non-Thunder mode.
-func (s *monitorSchedulerService) orgOCClient(ctx context.Context, ouID string) (client.OpenChoreoClient, error) {
-	if !s.provisioner.IsThunderMode() {
-		return s.ocClient, nil
-	}
-	return s.provisioner.GetOCClientForOrg(ctx, ouID)
 }
 
 // systemActorMonitorScheduler identifies the monitor scheduler in audit records

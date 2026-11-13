@@ -30,10 +30,6 @@ import (
 	"github.com/wso2/agent-manager/cli/pkg/render"
 )
 
-// defaultDeploymentPipeline is the only pipeline currently supported by the
-// platform. The CLI hard-codes it until pipeline selection becomes meaningful.
-const defaultDeploymentPipeline = "default"
-
 type CreateOptions struct {
 	IO           *iostreams.IOStreams
 	Client       func(context.Context) (*amsvc.ClientWithResponses, error)
@@ -102,9 +98,8 @@ func runCreate(ctx context.Context, o *CreateOptions) error {
 	}
 
 	body := amsvc.CreateProjectJSONRequestBody{
-		Name:               o.Name,
-		DisplayName:        o.DisplayName,
-		DeploymentPipeline: defaultDeploymentPipeline,
+		Name:        o.Name,
+		DisplayName: o.DisplayName,
 	}
 	if o.Description != "" {
 		body.Description = &o.Description

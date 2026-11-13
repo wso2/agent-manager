@@ -38,10 +38,10 @@ import (
 // rather than a sample.
 func registerAPIRoutes(rr *middleware.RouteRegistrar, params *wiring.AppParams) {
 	registerAgentRoutes(rr, params.AgentController)
-	registerAgentKindRoutes(rr, params.AgentKindController)
+	registerAgentKindRoutes(rr)
 	registerAgentTokenRoutes(rr, params.AgentTokenController)
 	registerInfraRoutes(rr, params.InfraResourceController)
-	registerRepositoryRoutes(rr, params.RepositoryController)
+	registerRepositoryRoutes(rr)
 	registerEnvironmentRoutes(rr, params.EnvironmentController)
 	RegisterGatewayRoutes(rr, params.GatewayController)
 	RegisterPlatformGatewayHealthRoutes(rr, params.GatewayController)
@@ -51,7 +51,6 @@ func registerAPIRoutes(rr *middleware.RouteRegistrar, params *wiring.AppParams) 
 	registerMonitorAlertRoutes(rr, params.MonitorAlertController)
 	registerEvaluatorRoutes(rr, params.EvaluatorController)
 	registerCatalogRoutes(rr, params.CatalogController)
-	registerAgentBuildOptionsRoutes(rr, params.AgentBuildOptionsController)
 	RegisterLLMRoutes(rr, params.LLMController)
 	RegisterLLMDeploymentRoutes(rr, params.LLMDeploymentController)
 	RegisterLLMProviderAPIKeyRoutes(rr, params.LLMProviderAPIKeyController)
@@ -61,11 +60,10 @@ func registerAPIRoutes(rr *middleware.RouteRegistrar, params *wiring.AppParams) 
 	registerA2AProxyRoutes(rr, params.A2AProxyController)
 	RegisterLLMProxyDeploymentRoutes(rr, params.LLMProxyDeploymentController)
 	RegisterMCPProxyRoutes(rr, params.MCPProxyController)
-	RegisterProjectMCPProxyRoutes(rr, params.ProjectMCPProxyController, middleware.ApplyOrgOverride(params.OUHandleLookup))
+	RegisterProjectMCPProxyRoutes(rr, middleware.ApplyOrgOverride(params.OUHandleLookup))
 	RegisterAgentConfigRoutes(rr, params.AgentConfigurationController)
 	RegisterMonitorPublisherRoutes(rr, params.MonitorScoresPublisherController)
-	RegisterBuildPublisherRoutes(rr, params.BuildPublisherController)
-	RegisterGitSecretRoutes(rr, params.GitSecretController)
+	RegisterGitSecretRoutes(rr)
 	registerIdentityRoutes(rr, params.IdentityController)
 	registerMCPProxyScopeRoutes(rr, params.MCPProxyScopeController)
 	registerAgentIdentityRoutes(rr, params.AgentIdentityController)
@@ -99,10 +97,6 @@ func MakeHTTPHandlerWithPolicy(params *wiring.AppParams, extraAPIRoutes func(*ht
 
 	// Register service-configuration discovery endpoint at root level (no authentication required)
 	registerConfigRoutes(mux)
-
-	// Register Caddy's on-demand TLS ask endpoint at root level (no authentication
-	// required — see registerThunderAskRoute's doc comment)
-	registerThunderAskRoute(mux, params.EnvironmentService)
 
 	// Register MCP at root level.
 	//

@@ -26,7 +26,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
 	"github.com/wso2/agent-manager/cli/pkg/clients/observersvc"
 	"github.com/wso2/agent-manager/cli/pkg/cmdutil"
 	"github.com/wso2/agent-manager/cli/pkg/iostreams"
@@ -48,16 +47,13 @@ const (
 type ListTracesOptions struct {
 	IO           *iostreams.IOStreams
 	TraceClient  func(context.Context) (*observersvc.Client, error)
-	AMClient     func(context.Context) (*amsvc.ClientWithResponses, error)
 	ResolveScope func(*cobra.Command, bool, bool) (string, string, error)
 	ResolveAgent func([]string) (string, []string, error)
-	ResolveEnv   func(*cobra.Command) (string, error)
-	MakeScope    func(string, string, string, string) render.Scope
+	MakeScope    func(string, string, string) render.Scope
 
 	Org       string
 	Proj      string
 	AgentName string
-	Env       string
 	Scope     render.Scope
 	StartTime string
 	EndTime   string
@@ -119,7 +115,6 @@ func listParams(o *ListTracesOptions) *observersvc.ListTracesParams {
 		Organization: o.Org,
 		Project:      o.Proj,
 		Agent:        o.AgentName,
-		Environment:  o.Env,
 		StartTime:    parseTimeOrZero(o.StartTime),
 		EndTime:      parseTimeOrZero(o.EndTime),
 		Limit:        &limit,

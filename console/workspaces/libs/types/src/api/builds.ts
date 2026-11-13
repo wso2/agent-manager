@@ -23,11 +23,6 @@ import {
   type PaginationMeta,
 } from "./common";
 
-// Requests
-export interface BuildAgentQuery {
-  commitId?: string;
-}
-
 // Responses
 export type BuildStatus =
   | "Completed"
@@ -103,16 +98,6 @@ export interface BuildDetailsResponse extends BuildResponse {
   inputInterface?: BuildInputInterface;
 }
 
-// Path/Query helpers
-export type BuildAgentPathParams = AgentPathParams;
 export type GetAgentBuildsPathParams = AgentPathParams;
 export type GetBuildPathParams = BuildPathParams;
-
 export type GetAgentBuildsQuery = ListQuery;
-
-// Re-export log types for convenience
-export type {
-  BuildLogEntry,
-  BuildLogsResponse,
-  GetBuildLogsPathParams,
-} from "./logs";

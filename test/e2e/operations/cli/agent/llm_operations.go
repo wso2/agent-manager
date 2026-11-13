@@ -62,7 +62,7 @@ type SetAgentLLMParams struct {
 
 // SetAgentLLM runs `agent llm set <agent>` (create or update) and returns the config.
 func SetAgentLLM(g Gomega, h *amctl.Harness, org, project, agent string, p SetAgentLLMParams) AgentLLMConfig {
-	args := []string{"agent", "llm", "set", agent, "--name", p.Name, "--env", p.Env, "--provider", p.Provider}
+	args := []string{"agent", "llm", "set", agent, "--name", p.Name, "--provider", p.Provider}
 	if p.URLEnv != "" {
 		args = append(args, "--url-env", p.URLEnv)
 	}

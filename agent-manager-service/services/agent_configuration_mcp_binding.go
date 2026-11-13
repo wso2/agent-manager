@@ -24,12 +24,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"gorm.io/gorm"
-
-	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
+	"gorm.io/gorm"
 )
 
 // mcpActivationCleanupTimeout bounds the rollback of a half-built MCP binding. It runs on a
@@ -311,27 +309,9 @@ func (s *agentConfigurationService) recordMCPRequestScope(
 
 	pipeline := map[uuid.UUID]struct{}{}
 	if kind == mcpScopeCreate || legacyUpdate {
-		if p, err := s.ocClient.GetProjectDeploymentPipeline(ctx, ouID, projectName); err != nil {
-			notFound := errors.Is(err, utils.ErrProjectNotFound) || errors.Is(err, utils.ErrDeploymentPipelineNotFound)
-			// Marking a legacy connection without its exclusions is exactly the widening
-			// above, so a lookup failure there fails the update rather than guessing. With no
-			// pipeline at all there is nothing to widen into: the reconcile bounds such a
-			// connection by its var rows anyway.
-			if legacyUpdate && !notFound {
-				return fmt.Errorf("failed to read deployment pipeline while recording MCP connection scope: %w", err)
-			}
-			if !notFound {
-				s.logger.Warn("Failed to read deployment pipeline while recording MCP connection scope; "+
-					"recording no exclusions for this new connection",
-					"configUUID", snapshot.UUID, "projectName", projectName, "error", err)
-			}
-		} else if p != nil {
-			for _, name := range client.PipelineEnvironments(p.PromotionPaths) {
-				if env, ok := envMap[name]; ok {
-					if envUUID, parseErr := uuid.Parse(env.UUID); parseErr == nil {
-						pipeline[envUUID] = struct{}{}
-					}
-				}
+		if env, ok := envMap[models.DefaultEnvironmentName]; ok {
+			if envUUID, parseErr := uuid.Parse(env.UUID); parseErr == nil {
+				pipeline[envUUID] = struct{}{}
 			}
 		}
 	}
@@ -410,39 +390,14 @@ func (s *agentConfigurationService) newMCPReconcileScope(ctx context.Context, ou
 	}
 }
 
-// pipelineEnvironments returns the environments projectName's deployment pipeline covers.
-// A project with no pipeline yields restrict=false, meaning candidates are not filtered by
-// it at all.
+// pipelineEnvironments returns the environments projectName deploys to: only the
+// organization's default environment.
 func (r *mcpReconcileScope) pipelineEnvironments(ctx context.Context, projectName string) (mcpPipelineEnvs, error) {
 	if cached, ok := r.pipelines[projectName]; ok {
 		return cached, nil
 	}
-	unrestricted := mcpPipelineEnvs{envs: nil, restrict: false}
 
-	pipeline, err := r.svc.ocClient.GetProjectDeploymentPipeline(ctx, r.ouID, projectName)
-	if err != nil {
-		if errors.Is(err, utils.ErrProjectNotFound) || errors.Is(err, utils.ErrDeploymentPipelineNotFound) {
-			r.pipelines[projectName] = unrestricted
-			return unrestricted, nil
-		}
-		return mcpPipelineEnvs{envs: nil, restrict: false},
-			fmt.Errorf("failed to get deployment pipeline for project %s: %w", projectName, err)
-	}
-	if pipeline == nil {
-		r.pipelines[projectName] = unrestricted
-		return unrestricted, nil
-	}
-	// A pipeline that exists and covers no environment is a definite answer — "nothing to
-	// deploy into" — not the absence of one, so it restricts to the empty set rather than
-	// waiving the filter. Treating it as unrestricted would let the scan bind, key and
-	// inject environments the project cannot deploy to at all.
-	names := client.PipelineEnvironments(pipeline.PromotionPaths)
-	if len(names) == 0 {
-		empty := mcpPipelineEnvs{envs: map[uuid.UUID]struct{}{}, restrict: true}
-		r.pipelines[projectName] = empty
-		return empty, nil
-	}
-
+	names := []string{models.DefaultEnvironmentName}
 	index, err := r.envs()
 	if err != nil {
 		return mcpPipelineEnvs{envs: nil, restrict: false}, err
@@ -512,67 +467,6 @@ func (s *agentConfigurationService) ReconcileMCPBindingsForEnvironment(ctx conte
 		}
 	}
 	return errors.Join(errs...)
-}
-
-// ReconcileMCPBindingsForAgentEnvironment binds every MCP connection of one agent in one
-// environment. Callers that know the agent and environment but not the proxy — promotion,
-// which must not refuse a target whose only problem is a binding nothing has written yet —
-// use this.
-func (s *agentConfigurationService) ReconcileMCPBindingsForAgentEnvironment(
-	ctx context.Context, agentID, ouID, projectName, environmentName string,
-) error {
-	if s.envMCPMappingRepo == nil || s.mcpProxyRepo == nil || s.agentConfigRepo == nil || s.infraResourceManager == nil {
-		return nil
-	}
-	envUUID, err := s.resolveEnvironmentUUID(ctx, ouID, environmentName)
-	if err != nil {
-		return err
-	}
-	configs, err := s.agentConfigRepo.ListMCPConfigsByAgent(ctx, ouID, projectName, agentID)
-	if err != nil {
-		return fmt.Errorf("failed to list MCP configurations for agent %s: %w", agentID, err)
-	}
-
-	scope := s.newMCPReconcileScope(ctx, ouID)
-	only := map[uuid.UUID]struct{}{envUUID: {}}
-
-	var errs []error
-	for i := range configs {
-		proxy, found, err := s.resolveConfigMCPProxy(ctx, &configs[i], ouID)
-		if err != nil {
-			errs = append(errs, err)
-			continue
-		}
-		if !found {
-			continue // no single proxy intent recorded; nothing to bind on its behalf
-		}
-		if err := s.reconcileConfigMCPBindings(ctx, scope, proxy, configs[i].UUID, only); err != nil {
-			errs = append(errs, err)
-		}
-	}
-	return errors.Join(errs...)
-}
-
-// resolveConfigMCPProxy loads the proxy a connection references, preloaded with the
-// endpoint graph a reconcile reads. found is false — without an error — when the
-// connection records no single environment-agnostic proxy, or when the proxy it named has
-// since been deleted. Neither is a failure: such a connection is only ever reconciled from
-// the proxy side, where the caller names the proxy.
-func (s *agentConfigurationService) resolveConfigMCPProxy(
-	ctx context.Context, config *models.AgentConfiguration, ouID string,
-) (proxy *models.MCPProxy, found bool, err error) {
-	proxyUUID, recorded := configMCPProxyUUID(config)
-	if !recorded {
-		return nil, false, nil
-	}
-	proxy, err = s.mcpProxyRepo.GetByUUID(ctx, proxyUUID.String(), ouID)
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, false, nil // proxy deleted; its mappings cascade away with it
-		}
-		return nil, false, fmt.Errorf("failed to load MCP proxy %s for configuration %s: %w", proxyUUID, config.UUID, err)
-	}
-	return proxy, true, nil
 }
 
 // configMCPProxyUUID returns the proxy this connection references and whether it records
@@ -807,9 +701,6 @@ func (s *agentConfigurationService) reconcileConfigMCPBindings(
 			"agentName", config.AgentID, "configName", config.Name, "environment", envName, "mcpProxyUUID", proxy.UUID)
 		boundEnvNames[envName] = struct{}{}
 	}
-	// The agent's AgentID token scopes are derived from its MCP mappings, so the bindings
-	// just created change them too.
-	s.refreshTouchedMCPEnvironments(ctx, scope.ouID, config.ProjectName, config.AgentID, boundEnvNames)
 	return errors.Join(errs...)
 }
 
@@ -931,7 +822,7 @@ func (s *agentConfigurationService) mcpActivationInputsForConfig(
 }
 
 func (s *agentConfigurationService) agentDeploymentShape(ctx context.Context, ouID, projectName, agentName string) (policy placementPolicy, firstEnvName string, err error) {
-	agentComp, err := s.ocClient.GetComponent(ctx, ouID, projectName, agentName)
+	agentComp, err := s.ocClient.GetAgent(ctx, ouID, projectName, agentName)
 	if err != nil {
 		return platformAgentPolicy, "", fmt.Errorf("failed to determine agent type for %s: %w", agentName, err)
 	}
@@ -939,59 +830,7 @@ func (s *agentConfigurationService) agentDeploymentShape(ctx context.Context, ou
 	if policy.external() {
 		return policy, "", nil
 	}
-	pipeline, err := s.ocClient.GetProjectDeploymentPipeline(ctx, ouID, projectName)
-	if err != nil {
-		// A project with no pipeline simply has no first environment; anything else is a
-		// real lookup failure and must not masquerade as one.
-		if errors.Is(err, utils.ErrProjectNotFound) || errors.Is(err, utils.ErrDeploymentPipelineNotFound) {
-			return platformAgentPolicy, "", nil
-		}
-		return platformAgentPolicy, "", fmt.Errorf("failed to get deployment pipeline for project %s: %w", projectName, err)
-	}
-	if pipeline == nil {
-		return platformAgentPolicy, "", nil
-	}
-	return platformAgentPolicy, client.FindFirstEnvironment(pipeline.PromotionPaths), nil
-}
-
-// ListUnresolvedMCPBindings returns the names of the agent's MCP connections that are
-// configured for environmentName — so their URL and API-key variables are injected into the
-// workload there — but resolve to no proxy URL, leaving those variables injected empty. An
-// agent in this state starts and runs, but every call it makes through the connection fails.
-func (s *agentConfigurationService) ListUnresolvedMCPBindings(
-	ctx context.Context, agentID, ouID, projectName, environmentName string,
-) (map[string]struct{}, error) {
-	envUUID, err := s.resolveEnvironmentUUID(ctx, ouID, environmentName)
-	if err != nil {
-		return nil, err
-	}
-	configs, err := s.agentConfigRepo.ListByAgent(ctx, ouID, projectName, agentID, agentConfigListAll, 0)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list agent configurations: %w", err)
-	}
-
-	unresolved := make(map[string]struct{}, len(configs))
-	for i := range configs {
-		config := &configs[i]
-		if config.TypeID != models.AgentConfigTypeIDMCP {
-			continue
-		}
-		vars, err := s.envVariableRepo.ListByConfigAndEnv(ctx, config.UUID, envUUID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to list env config variables for config %s: %w", config.UUID, err)
-		}
-		if len(vars) == 0 {
-			continue // not configured for this environment at all
-		}
-		urlValue, err := s.systemManagedMCPURL(ctx, config, ouID, environmentName, envUUID)
-		if err != nil {
-			return nil, err
-		}
-		if urlValue == "" {
-			unresolved[config.Name] = struct{}{}
-		}
-	}
-	return unresolved, nil
+	return platformAgentPolicy, models.DefaultEnvironmentName, nil
 }
 
 // activateMCPMappingForEnv binds config to sourceProxy in a deployable environment: it
@@ -1058,21 +897,12 @@ func (s *agentConfigurationService) activateMCPMappingForEnv(
 	}
 
 	if mcpProxyAPIKeySecurityEnabled(sourceProxy, envUUID.String()) {
-		if _, err = s.ensureMCPMappingCredentials(ctx, config, mapping, envName, ouID); err != nil {
+		if _, err = s.ensureMCPMappingCredentials(ctx, config, mapping, envName, ouID, inputs.policy); err != nil {
 			return err
 		}
 	} else if err = s.updateMCPMappingSecretReference(ctx, config.UUID, envUUID, ""); err != nil {
 		return fmt.Errorf("failed to clear MCP API key secret reference: %w", err)
 	}
 
-	if inputs.policy.external() {
-		return nil
-	}
-	// Warn-only, and deliberately not assigned to err: a failed injection leaves a valid
-	// binding the agent picks up on its next deploy, so it must not trigger the rollback.
-	if injectErr := s.injectMCPMappingEnvVars(ctx, config, mapping, sourceProxy, envName, ouID,
-		inputs.envTemplates, inputs.firstEnvName); injectErr != nil {
-		s.logger.Warn("failed to inject MCP mapping env vars", "environment", envName, "err", injectErr)
-	}
 	return nil
 }

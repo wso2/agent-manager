@@ -22,8 +22,6 @@ import (
 	"sync/atomic"
 
 	"github.com/google/uuid"
-
-	occlient "github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 )
 
 // OrgOverrideResolver decides whether a request may act on an organization
@@ -64,12 +62,15 @@ func OrgOverride(r *http.Request) (string, bool) {
 	return (*resolver)(r)
 }
 
+// HeaderImpersonateOrg names the header a platform admin uses to act on another organization.
+const HeaderImpersonateOrg = "X-Impersonate-Org"
+
 // ImpersonatedOrgHeader returns the organization UUID from the
 // X-Impersonate-Org header, if the caller sent a well-formed one. It performs
 // no authorization: an OrgOverrideResolver uses it to read the header only
 // after deciding the caller is allowed to impersonate.
 func ImpersonatedOrgHeader(r *http.Request) (string, bool) {
-	raw := strings.TrimSpace(r.Header.Get(occlient.HeaderImpersonateOrg))
+	raw := strings.TrimSpace(r.Header.Get(HeaderImpersonateOrg))
 	if raw == "" {
 		return "", false
 	}

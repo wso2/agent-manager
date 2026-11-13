@@ -22,9 +22,10 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/go-gormigrate/gormigrate/v2"
 	"gorm.io/gorm"
 
+	"github.com/go-gormigrate/gormigrate/v2"
+	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 )
 
@@ -36,54 +37,28 @@ var migrateOptions = &gormigrate.Options{
 	ValidateUnknownMigrations: true, // Controls validation of migrations that exist in the database but not in the code
 }
 
-type migration struct {
-	ID      int32
-	Migrate gormigrate.MigrateFunc
-}
-
+// Migrate brings the configured database to this build's schema: the generated baseline, then any later SQL
+// migrations for its driver.
 func Migrate() error {
-	return migrateTo(db.DB(context.Background()), latestVersion)
-}
-
-// migrateTo applies every migration up to and including version.
-func migrateTo(dbConn *gorm.DB, version int32) error {
-	successCount := 0
-	var list []*gormigrate.Migration
-	for _, m := range migrations {
-		id := generateIdStr(m.ID)
-		list = append(list, &gormigrate.Migration{
-			ID: id,
-			Migrate: func(g *gorm.DB) error {
-				slog.Info("dbmigrations:applying migration", "id", id)
-				if err := m.Migrate(g); err != nil {
-					return err
-				}
-				successCount++
-				slog.Info("dbmigrations:migration applied successfully", "id", id)
-				return nil
-			},
-		})
-	}
-	targetID := generateIdStr(version)
-	slog.Info("dbmigrations:starting migration", "latest", targetID)
-	m := gormigrate.New(dbConn, migrateOptions, list)
-	if err := m.MigrateTo(targetID); err != nil {
-		return err
-	}
-	slog.Info("dbmigrations:migration completed", "latest", targetID, "successCount", successCount)
-	return nil
+	return MigrateBaseline(db.DB(context.Background()), config.GetConfig().Database.Driver)
 }
 
 // WaitForLatest blocks until this build's latest migration is recorded, so a
 // server never starts against an older schema while a separate migration job
 // is still running. It returns ctx's error if that does not happen first.
 func WaitForLatest(ctx context.Context, interval time.Duration) error {
-	return waitFor(ctx, db.DB(ctx), latestVersion, interval)
+	list, err := sqlMigrationsFor(config.GetConfig().Database.Driver)
+	if err != nil {
+		return err
+	}
+	if len(list) == 0 {
+		return fmt.Errorf("no SQL migrations for %s", config.GetConfig().Database.Driver)
+	}
+	return waitFor(ctx, db.DB(ctx), list[len(list)-1].ID, interval)
 }
 
 // waitFor polls the migration history until version is recorded.
-func waitFor(ctx context.Context, dbConn *gorm.DB, version int32, interval time.Duration) error {
-	targetID := generateIdStr(version)
+func waitFor(ctx context.Context, dbConn *gorm.DB, targetID string, interval time.Duration) error {
 	for {
 		applied, err := isApplied(ctx, dbConn, targetID)
 		if err != nil {
@@ -121,15 +96,20 @@ func isApplied(ctx context.Context, dbConn *gorm.DB, id string) (bool, error) {
 	return count > 0, nil
 }
 
-// historyTableExists reports query errors, unlike Migrator().HasTable, which
-// returns false for them and would make a database error look like a schema
-// that has not been migrated yet.
+// historyTableExists reports query errors: Migrator().HasTable returns false for them, so a false answer is checked
+// with a ping, which would otherwise make a database error look like a schema that has not been migrated yet.
 func historyTableExists(conn *gorm.DB) (bool, error) {
-	var exists bool
-	if err := conn.Raw("SELECT to_regclass(?) IS NOT NULL", migrateOptions.TableName).Scan(&exists).Error; err != nil {
+	if conn.Migrator().HasTable(migrateOptions.TableName) {
+		return true, nil
+	}
+	sqlDB, err := conn.DB()
+	if err == nil {
+		err = sqlDB.PingContext(conn.Statement.Context)
+	}
+	if err != nil {
 		return false, fmt.Errorf("checking for migration history: %w", err)
 	}
-	return exists, nil
+	return false, nil
 }
 
 // latestApplied describes the newest recorded migration for a timeout message,
@@ -154,8 +134,4 @@ func latestApplied(dbConn *gorm.DB) string {
 		return "none"
 	}
 	return *latest
-}
-
-func generateIdStr(id int32) string {
-	return fmt.Sprintf("%04d", id)
 }

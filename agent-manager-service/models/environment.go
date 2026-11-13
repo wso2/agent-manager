@@ -18,9 +18,6 @@ package models
 
 import (
 	"time"
-
-	"github.com/google/uuid"
-	"gorm.io/gorm"
 )
 
 // GatewayEnvironmentResponse is the API response DTO
@@ -86,21 +83,6 @@ type GatewayEndpointSpec struct {
 type GatewayListenerSpec struct {
 	Port *int32  `json:"port,omitempty"`
 	Host *string `json:"host,omitempty"`
-}
-
-// Environment is the database model
-type Environment struct {
-	UUID             uuid.UUID      `gorm:"column:uuid;primaryKey"`
-	OrganizationName string         `gorm:"column:organization_name"`
-	Name             string         `gorm:"column:name"`
-	DisplayName      string         `gorm:"column:display_name"`
-	Description      string         `gorm:"column:description"`
-	DataplaneRef     string         `gorm:"column:dataplane_ref;default:'default'"`
-	DNSPrefix        string         `gorm:"column:dns_prefix;default:'default'"`
-	IsProduction     bool           `gorm:"column:is_production;default:false"`
-	CreatedAt        time.Time      `gorm:"column:created_at"`
-	UpdatedAt        time.Time      `gorm:"column:updated_at"`
-	DeletedAt        gorm.DeletedAt `gorm:"column:deleted_at"`
 }
 
 // EnvironmentListResponse is the paginated list response

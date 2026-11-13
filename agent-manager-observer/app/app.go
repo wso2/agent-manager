@@ -43,15 +43,24 @@ import (
 type Options struct{}
 
 // Run serves the observer API until SIGINT or SIGTERM, then shuts down gracefully.
-func Run(cfg *config.Config, tokenProvider observer.TokenProvider, _ Options) error {
+func Run(cfg *config.Config, _ Options) error {
 	setupLogger(cfg)
 
 	slog.Info("Starting agent-manager-observer", "port", cfg.Server.Port)
 
+	// The collector waits for the observer to be healthy, so the template is
+	// in place before it creates the first span index.
+	tmplCtx, cancelTmpl := context.WithTimeout(context.Background(), 3*time.Minute)
+	err := observer.EnsureIndexTemplate(tmplCtx, cfg.OpenSearch, 3*time.Second)
+	cancelTmpl()
+	if err != nil {
+		return err
+	}
+
 	// Create server
 	server := &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.Server.Port),
-		Handler:      newHandler(cfg, tokenProvider),
+		Handler:      newHandler(cfg),
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 30 * time.Second,
 	}
@@ -89,7 +98,7 @@ func Run(cfg *config.Config, tokenProvider observer.TokenProvider, _ Options) er
 	return nil
 }
 
-func newHandler(cfg *config.Config, tokenProvider observer.TokenProvider) http.Handler {
+func newHandler(cfg *config.Config) http.Handler {
 	// Setup routes
 	mux := http.NewServeMux()
 
@@ -107,10 +116,9 @@ func newHandler(cfg *config.Config, tokenProvider observer.TokenProvider) http.H
 	// Authenticated API routes
 	apiMux := http.NewServeMux()
 
-	// v1 routes — observer-backed
-	observerClient := observer.NewClient(cfg.Observer.BaseURL, tokenProvider, cfg.Observer.DefaultNamespace)
-	controller := controllers.NewTracingController(observerClient)
-	obsController := controllers.NewObservabilityController(observerClient)
+	traceClient := observer.NewClient(cfg.OpenSearch)
+	controller := controllers.NewTracingController(traceClient)
+	obsController := controllers.NewObservabilityController()
 	handler := handlers.NewHandler(controller, obsController)
 
 	requireTrace := middleware.RequirePermission(rbac.TraceRead)
@@ -136,7 +144,7 @@ func newHandler(cfg *config.Config, tokenProvider observer.TokenProvider) http.H
 	apiMux.Handle("/api/v1/build-logs", requireBuildLog(http.HandlerFunc(handler.GetBuildLogs)))
 	apiMux.Handle("/api/v1/metrics", requireMetric(http.HandlerFunc(handler.GetMetrics)))
 
-	slog.Info("v1 observer-backed routes registered", "observerBaseURL", cfg.Observer.BaseURL)
+	slog.Info("v1 routes registered", "openSearchAddress", cfg.OpenSearch.Address, "traceIndex", cfg.OpenSearch.TraceIndex)
 
 	// Apply JWT auth middleware to API routes
 	authenticatedHandler := middleware.JWTAuth(cfg.Auth)(apiMux)
@@ -148,8 +156,7 @@ func newHandler(cfg *config.Config, tokenProvider observer.TokenProvider) http.H
 	// its amp:observability:* scope, and publisher-audience tokens are confined
 	// to their implicit trace-read permission.
 	mcp.RegisterRoute(mux, mcp.Dependencies{
-		Tracing:       controller,
-		Observability: obsController,
+		Tracing: controller,
 	}, middleware.JWTAuthForMCP(cfg.Auth))
 	slog.Info("am-obs-mcp registered", "path", "/mcp")
 

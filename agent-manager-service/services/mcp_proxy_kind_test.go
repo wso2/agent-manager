@@ -31,6 +31,8 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
+	"github.com/wso2/agent-manager/agent-manager-service/db/dbtest"
+	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
@@ -68,6 +70,7 @@ func newMCPFixture(t *testing.T) *mcpFixture {
 	proxy.UUID = uuid.New()
 	proxy.Handle = "mcp-" + proxy.UUID.String()[:8]
 	f.env, f.artifact = uuid.New(), uuid.New()
+	dbtest.EnvironmentWithID(t, gormDB, f.sync.ouID, f.env)
 	proxy.Endpoints[0].UUID = uuid.New()
 	// A public address the placement pass's private-upstream check accepts without a DNS lookup.
 	proxy.Endpoints[0].Configuration.Upstream.URL = "https://1.1.1.1/mcp"
@@ -84,9 +87,6 @@ func newMCPFixture(t *testing.T) *mcpFixture {
 		return repositories.NewMCPProxyRepo(gormDB).Create(context.Background(), tx, proxy, proxy.Handle, proxy.Handle,
 			"v1.0", f.sync.ouID, nil, nil)
 	}))
-	t.Cleanup(func() {
-		gormDB.Exec(`DELETE FROM artifacts WHERE uuid IN (?, ?)`, proxy.UUID, f.artifact)
-	})
 	loaded, err := f.svc.repo.GetByUUID(context.Background(), proxy.UUID.String(), f.sync.ouID)
 	require.NoError(t, err)
 	f.proxy = loaded
@@ -130,16 +130,16 @@ func TestMCPScopeChangeReRendersInline(t *testing.T) {
 	gateway := f.mapGateway(t, f.env)
 	require.NoError(t, f.deploy(t))
 	before := *f.mcpRow(t, gateway).DeploymentID
-	require.NoError(t, db.GetDB().Create(&models.MCPProxyScope{
+	require.NoError(t, repositories.NewMCPProxyScopeRepository(db.GetDB()).Create(context.Background(), &models.MCPProxyScope{
 		MCPProxyUUID: f.proxy.UUID, Action: "read", Tools: []string{"get_forecast"},
-	}).Error)
+	}))
 	enabled := true
 	f.proxy.Endpoints[0].Configuration.Security = &models.SecurityConfig{
 		Enabled:  &enabled,
 		Identity: &models.IdentitySecurity{Enabled: &enabled},
 	}
-	require.NoError(t, db.GetDB().Model(&models.MCPProxyEndpoint{}).Where("uuid = ?", f.proxy.Endpoints[0].UUID).
-		Update("configuration", f.proxy.Endpoints[0].Configuration).Error)
+	require.NoError(t, db.GetDB().Model(&models.MCPProxyEndpoint{}).Where("id = ?", f.proxy.Endpoints[0].UUID).
+		Update("configuration", dbx.JSON(f.proxy.Endpoints[0].Configuration)).Error)
 
 	require.NoError(t, f.svc.RedeployMCPProxy(context.Background(), f.proxy, f.sync.ouID))
 
@@ -159,8 +159,8 @@ func TestMCPScopeChangeThatFailsToRenderReachesTheCaller(t *testing.T) {
 	before := *f.mcpRow(t, gateway).DeploymentID
 	published := len(f.hub.published)
 	f.proxy.Endpoints[0].Configuration.Upstream = nil
-	require.NoError(t, db.GetDB().Model(&models.MCPProxyEndpoint{}).Where("uuid = ?", f.proxy.Endpoints[0].UUID).
-		Update("configuration", f.proxy.Endpoints[0].Configuration).Error)
+	require.NoError(t, db.GetDB().Model(&models.MCPProxyEndpoint{}).Where("id = ?", f.proxy.Endpoints[0].UUID).
+		Update("configuration", dbx.JSON(f.proxy.Endpoints[0].Configuration)).Error)
 
 	err := f.svc.RedeployMCPProxy(context.Background(), f.proxy, f.sync.ouID)
 
@@ -206,7 +206,7 @@ func TestAgentMCPBindingTeardownDeletesInTheDeletingTransaction(t *testing.T) {
 		tx := f.hub.txs[len(f.hub.txs)-1]
 		require.NotNil(t, tx)
 		var count int64
-		require.NoError(t, tx.Raw(`SELECT count(*) FROM artifacts WHERE uuid = ?`, f.artifact).Scan(&count).Error)
+		require.NoError(t, tx.Raw(`SELECT count(*) FROM artifacts WHERE id = ?`, f.artifact).Scan(&count).Error)
 		artifactsSeen = append(artifactsSeen, count)
 	}
 	svc := &agentConfigurationService{db: db.GetDB(), mcpProxyService: f.svc, logger: slog.New(slog.DiscardHandler)}
@@ -249,11 +249,11 @@ func TestMCPSaveThatCannotRenderCommitsNothing(t *testing.T) {
 		t.Run("create "+name, func(t *testing.T) {
 			f := newMCPFixture(t)
 			env := uuid.New()
+			dbtest.EnvironmentWithID(t, db.GetDB(), f.sync.ouID, env)
 			if withGateway {
 				f.mapGateway(t, env)
 			}
 			handle := "bad-" + uuid.NewString()[:8]
-			t.Cleanup(func() { db.GetDB().Exec(`DELETE FROM artifacts WHERE handle LIKE ?`, handle+"%") })
 			published := len(f.hub.published)
 
 			_, err := f.svc.Create(context.Background(), f.sync.ouID, "me", invalidMCPRequest(handle, env))
@@ -281,7 +281,7 @@ func TestMCPSaveThatCannotRenderCommitsNothing(t *testing.T) {
 			assert.Equal(t, f.proxy.Endpoints[0].UUID, stored.Endpoints[0].UUID, "the endpoint set is not replaced")
 			var rows int64
 			require.NoError(t, db.GetDB().Model(&models.DeploymentStatusRecord{}).
-				Where("artifact_uuid = ?", f.artifact).Count(&rows).Error)
+				Where("artifact_id = ?", f.artifact).Count(&rows).Error)
 			assert.Zero(t, rows)
 			assert.Len(t, f.hub.published, published, "no event")
 		})
@@ -324,9 +324,9 @@ func (f *mcpFixture) bindingRows(t *testing.T) (environments, endpoints int64) {
 	t.Helper()
 	gormDB := db.GetDB()
 	require.NoError(t, gormDB.Table("mcp_proxy_endpoint_environments").
-		Where("artifact_uuid = ?", f.artifact).Count(&environments).Error)
+		Where("artifact_id = ?", f.artifact).Count(&environments).Error)
 	require.NoError(t, gormDB.Table("mcp_proxy_endpoints").
-		Where("uuid = ?", f.proxy.Endpoints[0].UUID).Count(&endpoints).Error)
+		Where("id = ?", f.proxy.Endpoints[0].UUID).Count(&endpoints).Error)
 	return environments, endpoints
 }
 

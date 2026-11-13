@@ -76,7 +76,8 @@ type Core struct {
 	nudge      func()
 }
 
-// NewCore registers kinds under their names and the artifact kinds they deploy.
+// NewCore registers kinds under the artifact kinds they deploy, which are their names unless they list others: two
+// kinds may share the gateway kind they deploy as, but not an artifact kind.
 func NewCore(
 	db *gorm.DB, repo repositories.DeploymentRepository, hub eventhub.EventHub, kinds Kinds, cfg Config, logger *slog.Logger,
 ) *Core {
@@ -88,7 +89,7 @@ func NewCore(
 	}
 	for _, kind := range kinds {
 		c.kinds = append(c.kinds, kind)
-		for _, name := range append([]string{kind.Name()}, artifactKindsOf(kind)...) {
+		for _, name := range artifactKindsOrName(kind) {
 			if _, taken := c.byArtifact[name]; taken {
 				panic(fmt.Sprintf("reconcile: two kinds deploy %q", name))
 			}

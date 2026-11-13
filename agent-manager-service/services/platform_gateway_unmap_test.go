@@ -21,12 +21,14 @@ package services
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
+	"github.com/wso2/agent-manager/agent-manager-service/db/dbtest"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
@@ -77,20 +79,19 @@ func (c unmapCase) unmap(t *testing.T, env uuid.UUID) error {
 
 func (c unmapCase) setRow(t *testing.T, status, desired models.DeploymentStatus) {
 	t.Helper()
-	require.NoError(t, db.GetDB().Exec(`UPDATE deployment_status SET status = ?, status_desired = ?, next_attempt_at = NULL
-		WHERE artifact_uuid = ? AND gateway_uuid = ?`, status, desired, c.artifact.ArtifactUUID, c.gateway).Error)
+	require.NoError(t, db.GetDB().Exec(`UPDATE artifact_gateway_status SET status = ?, status_desired = ?, next_attempt_at = NULL
+		WHERE artifact_id = ? AND gateway_id = ?`, status, desired, c.artifact.ArtifactUUID, c.gateway).Error)
 }
 
 func (c unmapCase) queueRedeploy(t *testing.T) {
 	t.Helper()
-	require.NoError(t, db.GetDB().Exec(`UPDATE deployment_status SET next_attempt_at = NOW()
-		WHERE artifact_uuid = ? AND gateway_uuid = ?`, c.artifact.ArtifactUUID, c.gateway).Error)
+	require.NoError(t, db.GetDB().Exec(`UPDATE artifact_gateway_status SET next_attempt_at = ?
+		WHERE artifact_id = ? AND gateway_id = ?`, time.Now().UTC(), c.artifact.ArtifactUUID, c.gateway).Error)
 }
 
 func (c unmapCase) mapTo(t *testing.T, env uuid.UUID) {
 	t.Helper()
-	require.NoError(t, db.GetDB().Exec(`INSERT INTO gateway_environment_mappings (gateway_uuid, environment_uuid) VALUES (?, ?)`,
-		c.gateway, env).Error)
+	dbtest.MapGateway(t, db.GetDB(), c.sync.ouID, c.gateway, env)
 }
 
 func (c unmapCase) mapped(t *testing.T, env uuid.UUID) bool {

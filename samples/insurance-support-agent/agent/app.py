@@ -55,7 +55,7 @@ async def lifespan(app):
 
 app = FastAPI(title="Insurance Support Agent", version="1.0.0", lifespan=lifespan)
 
-# Local only: when deployed, CORS belongs in Agent Manager — two sets of headers break browsers.
+# Leave unset behind a proxy that sends CORS headers — two sets of headers break browsers.
 _cors_origins = [o for o in os.environ.get("CORS_ALLOW_ORIGINS", "").split(",") if o]
 if _cors_origins:
     app.add_middleware(

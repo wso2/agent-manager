@@ -2,10 +2,10 @@ name: Traceloop Release Watch
 
 # Detects new traceloop-sdk (OpenLLMetry) releases on PyPI and notifies the team
 # via a labelled GitHub issue plus a Google Chat message. It does NOT bump any
-# pin -- cutting a new AMP instrumentation version stays the manual process in
-# python-instrumentation-provider/RELEASING.md.
+# pin -- cutting a new amp-instrumentation release stays a manual process
+# (libs/amp-instrumentation, released by amp_instrumentation_release.yaml).
 #
-# One-time setup (see RELEASING.md -> "Watching for OpenLLMetry releases"):
+# One-time setup:
 #   - create the `traceloop-release` issue label
 #   - set the `GCHAT_WEBHOOK_URL` repository secret
 
@@ -131,9 +131,6 @@ jobs:
           set -euo pipefail
           TITLE="Traceloop SDK ${LATEST} released — evaluate instrumentation bump"
 
-          # release-config.json pin, shown in the body for context.
-          RC_PIN=$(jq -r '.["python-instrumentation-provider"][0].traceloop_version' .github/release-config.json)
-
           cat > /tmp/issue-body.md <<EOF
           A new traceloop-sdk (OpenLLMetry) release is available.
 
@@ -141,7 +138,6 @@ jobs:
           |---|---|
           | Latest on PyPI | ${LATEST} |
           | Pinned in libs/amp-instrumentation/pyproject.toml | ${PIN} |
-          | Pinned in .github/release-config.json | ${RC_PIN} |
 
           ### Links
 
@@ -151,16 +147,16 @@ jobs:
           ### Next steps
 
           This issue only signals that a release exists. It does not bump any pin.
-          To cut a new AMP instrumentation version, follow Scenario A in
-          python-instrumentation-provider/RELEASING.md.
+          To cut a new amp-instrumentation release, bump the pin in
+          libs/amp-instrumentation/pyproject.toml, add the version to
+          test/instrumentation-matrix/matrix.yaml, and release the package.
 
           Before bumping, remember:
 
           - Frontier-framework validation is still a manual gate. Validate
             traceloop-sdk ${LATEST} against the supported frameworks first.
           - Check that the wrapt<2.0.0 constraint
-            (libs/amp-instrumentation/pyproject.toml and
-            python-instrumentation-provider/requirements.in) still holds.
+            (libs/amp-instrumentation/pyproject.toml) still holds.
 
           Filed automatically by .github/workflows/traceloop-release-watch.yaml
           EOF

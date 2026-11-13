@@ -18,7 +18,7 @@ WSO2 AI gateway's native Converse route. The default remains OpenAI.
 3. On the external agent, choose **Configure → Add LLM Configuration**, select
    this provider and save. In **Connect to LLM Provider**, copy the endpoint URL
    and one-time gateway key. The client header is `API-Key` (HTTP header names
-   are case-insensitive). Verify deployment in the same environment.
+   are case-insensitive).
 4. Verify a request without the gateway key is rejected before exposing the
    route to callers.
 

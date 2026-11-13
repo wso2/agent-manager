@@ -46,7 +46,7 @@ func Test_runSet_createsWhenAbsent(t *testing.T) {
 	defer cleanup()
 
 	opts := newSetOpts(io, client)
-	opts.Env, opts.Proxy = "dev", "github"
+	opts.Proxy = "github"
 	if err := runSet(context.Background(), opts); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -57,9 +57,9 @@ func Test_runSet_createsWhenAbsent(t *testing.T) {
 		t.Errorf("posted type = %v, want mcp", posted["type"])
 	}
 	em := envMapKeys(posted)
-	dev, ok := em["dev"].(map[string]any)
+	dev, ok := em["default"].(map[string]any)
 	if !ok {
-		t.Fatalf("envMappings.dev missing: %v", em)
+		t.Fatalf("envMappings.default missing: %v", em)
 	}
 	if dev["proxyName"] != "github" {
 		t.Errorf("dev proxyName = %v, want github", dev["proxyName"])
@@ -83,44 +83,22 @@ func Test_runSet_updatePreservesSiblingEnvs(t *testing.T) {
 	defer cleanup()
 
 	opts := newSetOpts(io, client)
-	opts.Env, opts.Proxy = "staging", "bitbucket"
+	opts.Proxy = "bitbucket"
 	if err := runSet(context.Background(), opts); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	em := envMapKeys(put)
-	for _, env := range []string{"dev", "prod", "staging"} {
+	for _, env := range []string{"dev", "prod", "default"} {
 		if _, ok := em[env]; !ok {
 			t.Errorf("PUT envMappings missing %q (read-merge-write dropped a sibling): %v", env, em)
 		}
 	}
-	if staging := em["staging"].(map[string]any); staging["proxyName"] != "bitbucket" {
+	if staging := em["default"].(map[string]any); staging["proxyName"] != "bitbucket" {
 		t.Errorf("staging proxyName = %v, want bitbucket", staging["proxyName"])
 	}
 	// Sibling proxy must be carried over from the GET response untouched.
 	if dev := em["dev"].(map[string]any); dev["proxyName"] != "github" {
 		t.Errorf("dev proxyName = %v, want github (preserved)", dev["proxyName"])
-	}
-}
-
-func Test_runSet_updateOverwritesExistingEnv(t *testing.T) {
-	io, _, _ := newTestIO(false)
-	io.SetTerminal(true, true, true)
-	var put map[string]any
-	client, cleanup := newClient(t, map[string]route{
-		listPath:                   okJSON(listResponse(mcpItem("primary", getUUID))),
-		configPath("GET", getUUID): okJSON(getResponseFixture()),
-		configPath("PUT", getUUID): {status: http.StatusOK, body: getResponseFixture(), capture: &put},
-	})
-	defer cleanup()
-
-	opts := newSetOpts(io, client)
-	opts.Env, opts.Proxy = "dev", "github-enterprise"
-	if err := runSet(context.Background(), opts); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	dev := envMapKeys(put)["dev"].(map[string]any)
-	if dev["proxyName"] != "github-enterprise" {
-		t.Errorf("dev proxyName = %v, want github-enterprise", dev["proxyName"])
 	}
 }
 
@@ -135,7 +113,7 @@ func Test_runSet_createCarriesEnvVars(t *testing.T) {
 	defer cleanup()
 
 	opts := newSetOpts(io, client)
-	opts.Env, opts.Proxy = "dev", "github"
+	opts.Proxy = "github"
 	opts.URLEnv, opts.APIKeyEnv = "MCP_URL", "MCP_KEY"
 	if err := runSet(context.Background(), opts); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -172,7 +150,7 @@ func Test_runSet_rejectsInvalidEnvVarName(t *testing.T) {
 			defer cleanup()
 
 			opts := newSetOpts(io, client)
-			opts.Env, opts.Proxy = "dev", "github"
+			opts.Proxy = "github"
 			tc.set(opts)
 			if err := runSet(context.Background(), opts); err == nil {
 				t.Fatalf("expected error for invalid %s", tc.wantArg)
@@ -193,7 +171,7 @@ func Test_runSet_createServerError(t *testing.T) {
 	defer cleanup()
 
 	opts := newSetOpts(io, client)
-	opts.Env, opts.Proxy = "dev", "github"
+	opts.Proxy = "github"
 	if err := runSet(context.Background(), opts); err == nil {
 		t.Fatal("expected error")
 	}

@@ -89,13 +89,6 @@ type AgentStatusResult struct {
 	} `json:"environments"`
 }
 
-// InternalAgentParams carries the buildpack/internal create inputs.
-type InternalAgentParams struct {
-	Org, Project, Name, DisplayName       string
-	RepoURL, RepoBranch, RepoPath         string
-	Language, LanguageVersion, RunCommand string
-}
-
 // CreateExternalAgent runs `amctl agent create --provisioning external`.
 func CreateExternalAgent(g Gomega, h *amctl.Harness, org, project, name, displayName, description string) CreateExternalResult {
 	args := []string{"agent", "create", name, "--provisioning", "external",
@@ -104,18 +97,6 @@ func CreateExternalAgent(g Gomega, h *amctl.Harness, org, project, name, display
 		args = append(args, "--description", description)
 	}
 	return amctl.DecodeData[CreateExternalResult](g, h.Run(args...))
-}
-
-// CreateInternalAgent runs `amctl agent create --provisioning internal` for a
-// buildpack chat-api. Internal create returns AgentResponse directly as data.
-func CreateInternalAgent(g Gomega, h *amctl.Harness, p InternalAgentParams) Agent {
-	args := []string{"agent", "create", p.Name, "--provisioning", "internal",
-		"--display-name", p.DisplayName, "--subtype", "chat-api",
-		"--repo-url", p.RepoURL, "--repo-branch", p.RepoBranch, "--repo-path", p.RepoPath,
-		"--build-type", "buildpack", "--language", p.Language,
-		"--language-version", p.LanguageVersion, "--run-command", p.RunCommand,
-		"--org", p.Org, "--project", p.Project, "--json"}
-	return amctl.DecodeData[Agent](g, h.Run(args...))
 }
 
 // GetAgent runs `amctl agent get`.

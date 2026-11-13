@@ -40,7 +40,7 @@ func TestParseSpans(t *testing.T) {
 				"endTime":         "2025-01-15T10:00:01.000000000Z",
 				"durationInNanos": float64(1000000000),
 				"resource": map[string]interface{}{
-					"openchoreo.dev/component-uid": "comp-1",
+					ResourceAgent: "comp-1",
 				},
 			},
 		},
@@ -1282,7 +1282,7 @@ func TestExtractSpanStatus(t *testing.T) {
 		}
 	})
 
-	t.Run("carries status message through (OpenChoreo 1.2.0+)", func(t *testing.T) {
+	t.Run("carries status message through", func(t *testing.T) {
 		status := extractSpanStatus(map[string]interface{}{"error.type": "RuntimeError"}, "error", "boom: connection refused")
 		if !status.Error {
 			t.Error("expected error=true")

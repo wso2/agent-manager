@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 // AIApplication tracks a per-agent-per-environment application record used for
@@ -27,18 +28,38 @@ import (
 // of the same agent in the same environment; all proxy API keys for that agent+env
 // are bound to it so the gateway policy engine can apply per-consumer limits.
 type AIApplication struct {
-	UUID            uuid.UUID `gorm:"column:uuid;primaryKey;type:uuid;default:gen_random_uuid()" json:"uuid"`
-	Handle          string    `gorm:"column:handle;not null" json:"handle"`
-	Name            string    `gorm:"column:name;not null" json:"name"`
-	AgentID         string    `gorm:"column:agent_id;not null" json:"agentId"`
-	ProjectName     string    `gorm:"column:project_name;not null" json:"projectName"`
-	EnvironmentName string    `gorm:"column:environment_name;not null" json:"environmentName"`
-	OUID            string    `gorm:"column:ou_id;not null" json:"-"`
-	CreatedAt       time.Time `gorm:"column:created_at" json:"createdAt"`
-	UpdatedAt       time.Time `gorm:"column:updated_at" json:"updatedAt"`
+	UUID            uuid.UUID  `gorm:"column:id;primaryKey" json:"uuid"`
+	Handle          string     `gorm:"column:handle" json:"handle"`
+	Name            string     `gorm:"column:name" json:"name"`
+	AgentUUID       *uuid.UUID `gorm:"column:agent_id" json:"-"`
+	EnvironmentUUID uuid.UUID  `gorm:"column:environment_id" json:"-"`
+	AgentID         string     `gorm:"-" json:"agentId"`
+	ProjectName     string     `gorm:"-" json:"projectName"`
+	EnvironmentName string     `gorm:"-" json:"environmentName"`
+	OUID            string     `gorm:"column:org_id" json:"-"`
+	CreatedAt       time.Time  `gorm:"column:created_at" json:"createdAt"`
+	UpdatedAt       time.Time  `gorm:"column:updated_at" json:"updatedAt"`
 }
 
 // TableName returns the table name for the AIApplication model.
 func (AIApplication) TableName() string {
 	return "ai_applications"
 }
+
+func (a *AIApplication) ref() agentRef {
+	return agentRef{&a.OUID, &a.ProjectName, &a.AgentID, &a.AgentUUID, a.EnvironmentUUID, &a.EnvironmentName}
+}
+
+// BeforeCreate resolves the agent's and environment's ids from their names.
+func (a *AIApplication) BeforeCreate(tx *gorm.DB) error {
+	if a.UUID == uuid.Nil {
+		a.UUID = uuid.Must(uuid.NewV7())
+	}
+	if err := resolveEnvironment(tx, a.OUID, a.EnvironmentName, &a.EnvironmentUUID); err != nil {
+		return err
+	}
+	return a.ref().resolve(tx)
+}
+
+// AfterFind fills the agent's and environment's names.
+func (a *AIApplication) AfterFind(tx *gorm.DB) error { return a.ref().fill(tx) }

@@ -54,33 +54,16 @@ func TestHandleCommonErrors_ValidationErrorWithSentinel_KeepsItsOwnMessage(t *te
 	assert.Equal(t, utils.ErrCodeValidation, body.Code)
 }
 
-func TestHandleCommonErrors_AgentIdentityRequiresPromotion_Is409(t *testing.T) {
+func TestHandleCommonErrors_AgentIdentityDefaultEnvironmentOnly_Is409(t *testing.T) {
 	rr := httptest.NewRecorder()
 
-	handleCommonErrors(rr, fmt.Errorf("%w: staging", services.ErrProjectAgentIdentityRequiresPromotion),
+	handleCommonErrors(rr, fmt.Errorf("%w: staging", services.ErrProjectAgentIdentityDefaultEnvironmentOnly),
 		"Failed to provision agent identity")
 
 	assert.Equal(t, http.StatusConflict, rr.Code)
 	var body spec.ErrorResponse
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
 	assert.Equal(t, utils.ErrCodeConflict, body.Code)
-}
-
-func TestHandleCommonErrors_PromotionNeedsRedeploy_Is409WithInstructions(t *testing.T) {
-	rr := httptest.NewRecorder()
-
-	handleCommonErrors(rr, fmt.Errorf("%w: deploy the agent again and promote it through to \"staging\"", utils.ErrPromotionNeedsRedeploy),
-		"Failed to promote agent")
-
-	require.Equal(t, http.StatusConflict, rr.Code)
-	var body spec.ErrorResponse
-	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
-	assert.Equal(t, utils.ErrCodeConflict, body.Code)
-	assert.Contains(t, body.Message, "deploy the agent again",
-		"the message alone tells the user how to proceed, since the console shows only the message")
-	assert.Contains(t, body.Message, "promote it up to the source environment")
-	require.NotNil(t, body.Reason)
-	assert.Contains(t, *body.Reason, "deploy the agent again", "the reason tells the user how to proceed")
 }
 
 // A fail-closed service that refuses to act unrecorded answers 503 on every route, not only the proxy's.
@@ -94,26 +77,4 @@ func TestHandleCommonErrors_AuditRecorderUnavailable_Is503(t *testing.T) {
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
 	assert.Equal(t, utils.ErrCodeServiceUnavailable, body.Code)
 	assert.Nil(t, body.Reason, "the sink's error stays in the log")
-}
-
-func TestHandleCommonErrors_DeploymentPipelineAlreadyExists_IsActionable(t *testing.T) {
-	rr := httptest.NewRecorder()
-	handleCommonErrors(rr, fmt.Errorf("%w: %w", utils.ErrDeploymentPipelineAlreadyExists, utils.ErrConflict), "Failed to create deployment pipeline")
-	require.Equal(t, http.StatusConflict, rr.Code)
-	var body spec.ErrorResponse
-	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
-	assert.Equal(t, "A deployment pipeline with this name already exists. Choose a different name.", body.Message)
-	assert.Equal(t, utils.ErrCodeConflict, body.Code)
-	assert.Nil(t, body.Reason, "the actionable message needs no internal OpenChoreo details")
-}
-
-// TestHandleCommonErrors_WorkloadSecretSyncUnconfirmed checks the partial-success response.
-func TestHandleCommonErrors_WorkloadSecretSyncUnconfirmed(t *testing.T) {
-	rr := httptest.NewRecorder()
-	err := fmt.Errorf("%w: backend diagnostic", utils.ErrWorkloadSecretSyncUnconfirmed)
-	handleCommonErrors(rr, err, "Failed to update agent configurations")
-	require.Equal(t, http.StatusServiceUnavailable, rr.Code)
-	assert.Contains(t, rr.Body.String(), "Secret values were saved")
-	assert.Contains(t, rr.Body.String(), "rollout stopped")
-	assert.NotContains(t, rr.Body.String(), "backend diagnostic")
 }

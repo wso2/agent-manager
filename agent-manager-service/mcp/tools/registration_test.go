@@ -56,7 +56,6 @@ func TestToolPermissionsMatchSpecs(t *testing.T) {
 	toolsets := &Toolsets{
 		ProjectToolset:     mock,
 		AgentToolset:       mock,
-		BuildToolset:       mock,
 		DeploymentToolset:  mock,
 		EnvironmentToolset: mock,
 		LLMProviderToolset: mock,

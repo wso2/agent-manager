@@ -1,8 +1,8 @@
 # MCP Server for Agent Manager Observer
 
 The observer exposes a Model Context Protocol (MCP) server at `/mcp` so
-MCP-capable assistants (Claude Code, etc.) can query traces, logs, and
-metrics for deployed agents directly from the developer's workflow.
+MCP-capable assistants (Claude Code, etc.) can query agent traces directly
+from the developer's workflow.
 
 The server speaks MCP over Streamable HTTP and is protected by the existing
 JWT middleware, which means every tool call goes through the standard OAuth
@@ -54,14 +54,6 @@ JWT middleware, which means every tool call goes through the standard OAuth
 | `get_traces` | Traces for an agent including full span details within a time window, with the same server-side filters as `list_traces` |
 | `get_trace_details` | Metadata plus span list for one trace |
 | `get_span_details` | Execution details for a single span (LLM call, tool invocation, retriever lookup, …) |
-
-### Logs and metrics
-
-| Tool | Purpose |
-| --- | --- |
-| `get_runtime_logs` | Runtime logs for an agent, filterable by time window, level, sort order, or text search |
-| `get_build_logs` | Step-by-step build output for a specific build of an internal agent |
-| `get_metrics` | CPU/memory usage, request and limit metrics for an agent over a time range |
 
 ## Configuration
 

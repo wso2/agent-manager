@@ -17,7 +17,7 @@
  */
 
 import { globalConfig } from "@agent-management-platform/types";
-import { getScriptRef } from "./gatewayScripts";
+import { getScriptRef } from "./releaseRef";
 
 /**
  * Base URL of the console's prompts/ directory. The guides are read by external

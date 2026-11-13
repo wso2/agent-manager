@@ -22,7 +22,6 @@ import (
 	"fmt"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
-	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -33,7 +32,7 @@ import (
 type LLMProxyAPIKeyService struct {
 	proxyRepo   repositories.LLMProxyRepository
 	apiKeyRepo  repositories.APIKeyRepository
-	ocClient    client.OpenChoreoClient
+	ocClient    repositories.PlatformRepository
 	broadcaster apiKeyBroadcaster
 }
 
@@ -43,7 +42,7 @@ func NewLLMProxyAPIKeyService(
 	gatewayRepo repositories.GatewayRepository,
 	gatewayService *GatewayEventsService,
 	apiKeyRepo repositories.APIKeyRepository,
-	ocClient client.OpenChoreoClient,
+	ocClient repositories.PlatformRepository,
 ) *LLMProxyAPIKeyService {
 	return &LLMProxyAPIKeyService{
 		proxyRepo:  proxyRepo,
@@ -59,7 +58,7 @@ func NewLLMProxyAPIKeyService(
 
 // resolveProjectScopedProxy looks up an LLM proxy and validates that it belongs
 // to the caller's project. The project name is resolved to its UUID via
-// OpenChoreo, then the proxy lookup is scoped to org + project + proxy so a
+// the platform repository, then the proxy lookup is scoped to org + project + proxy so a
 // proxy owned by a different project is reported as not found rather than being
 // treated as a wildcard match.
 func (s *LLMProxyAPIKeyService) resolveProjectScopedProxy(

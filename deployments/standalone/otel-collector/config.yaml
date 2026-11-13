@@ -1,0 +1,88 @@
+# OpenTelemetry Collector for the standalone install: OTLP/HTTP from the AI
+# Gateway's /otel API in, spans out to OpenSearch. Agent Manager headers set
+# by the gateway become resource attributes the observer filters on.
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+        include_metadata: true
+exporters:
+  prometheus:
+    endpoint: 0.0.0.0:8889
+    resource_to_telemetry_conversion:
+      enabled: true
+    metric_expiration: 90m
+  opensearch:
+    http:
+      auth:
+        authenticator: basicauth/opensearch
+      endpoint: https://opensearch:9200
+      tls:
+        insecure_skip_verify: true
+    sending_queue:
+      num_consumers: 5
+      queue_size: 1000
+      sizer: items
+    traces_index: otel-traces
+    traces_index_time_format: yyyy-MM-dd
+extensions:
+  basicauth/opensearch:
+    client_auth:
+      username: ${env:OPENSEARCH_USERNAME}
+      password: ${env:OPENSEARCH_PASSWORD}
+  health_check:
+    endpoint: 0.0.0.0:13133
+connectors:
+  count:
+    spans:
+      amp_agent_trace_spans:
+        description: Spans ingested, counted per tenant at the point of ingest.
+processors:
+  deltatocumulative: {}
+  resource:
+    attributes:
+    - key: agent-manager/organization
+      from_context: metadata.x-user-organization-name
+      action: upsert
+    - key: agent-manager/project
+      from_context: metadata.x-user-project-name
+      action: upsert
+    - key: agent-manager/agent
+      from_context: metadata.x-user-agent-name
+      action: upsert
+    - key: agent-manager/agent-uid
+      from_context: metadata.x-user-component
+      action: upsert
+    - key: agent-manager/environment-uid
+      from_context: metadata.x-user-environment
+      action: upsert
+    - key: agent-manager/project-uid
+      from_context: metadata.x-user-project
+      action: upsert
+    - key: agent-manager/namespace
+      from_context: metadata.x-user-namespace
+      action: upsert
+    - key: agent-manager/org-id
+      from_context: metadata.x-org-id
+      action: upsert
+service:
+  extensions:
+  - basicauth/opensearch
+  - health_check
+  pipelines:
+    traces:
+      receivers:
+      - otlp
+      processors:
+      - resource
+      exporters:
+      - opensearch
+      - count
+    metrics/spans:
+      receivers:
+      - count
+      processors:
+      - deltatocumulative
+      exporters:
+      - prometheus

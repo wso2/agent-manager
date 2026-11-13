@@ -1,12 +1,39 @@
 #!/bin/bash
 
 # Run tests with isolated test database
-# This script sets up test database, runs migrations, and executes tests
+# This script sets up test database, runs migrations, and executes tests.
+# The database is a fresh SQLite file unless DB_DRIVER=postgres, which uses the
+# server named in .env.test.
 
 set -e
 
 PROJECT_ROOT=$(pwd)
 ENV_TEST_FILE="$PROJECT_ROOT/.env.test"
+
+if [ "${DB_DRIVER:-sqlite}" = "sqlite" ]; then
+    mkdir -p localdata
+    LOG_FILE="$PROJECT_ROOT/localdata/test_output_isolated.log"
+    : > "$LOG_FILE"
+    exec > >(tee -a "$LOG_FILE") 2>&1
+    export DB_DRIVER=sqlite
+    export DB_PATH="$PROJECT_ROOT/localdata/integration-test.db"
+    export ENCRYPTION_KEY="${ENCRYPTION_KEY:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}"
+    export JWT_SIGNING_PRIVATE_KEY_PATH="$PROJECT_ROOT/keys/private.pem"
+    export JWT_SIGNING_PUBLIC_KEYS_CONFIG="$PROJECT_ROOT/keys/public-keys-config.json"
+    unset ENV_FILE_PATH
+    rm -f "$DB_PATH" "$DB_PATH-wal" "$DB_PATH-shm"
+    echo "Running integration tests on SQLite ($DB_PATH)"
+    bash scripts/gen_keys.sh
+    go run . -migrate -server=false
+    # One package at a time: every test binary opens the same file.
+    COVERAGE_OUT="${COVERAGE_OUT:-$PROJECT_ROOT/localdata/coverage-integration.out}"
+    go test -v --race -p 1 -tags=integration \
+        -covermode=atomic \
+        -coverpkg=./... \
+        -coverprofile="$COVERAGE_OUT" \
+        ./...
+    exit $?
+fi
 
 # Check if .env.test exists
 if [ ! -f "$ENV_TEST_FILE" ]; then

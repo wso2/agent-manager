@@ -16,7 +16,6 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { useQueries, type UseQueryOptions } from "@tanstack/react-query";
 import {
   Alert,
   Autocomplete,
@@ -36,32 +35,25 @@ import {
   DrawerWrapper,
   useFormValidation,
 } from "@agent-management-platform/views";
-import { useAuthHooks } from "@agent-management-platform/auth";
 import {
-  environmentLabel,
   useConfirmIfUnsaved,
   useUnsavedChangesGuard,
 } from "@agent-management-platform/shared-component";
 import {
-  listAgentIdentityRoles,
   useCreateMCPProxyScope,
+  useListAgentIdentityRoles,
   useUpdateAgentIdentityRole,
   useDialogAnalytics,
   useValidationErrorTracking,
 } from "@agent-management-platform/api-client";
 import {
-  type AgentIdentityRoleListResponse,
-  type Environment,
+  DEFAULT_ENVIRONMENT,
   type MCPProxyScopeResponse,
   type ThunderRole,
   INPUT_LIMITS,
 } from "@agent-management-platform/types";
 import { z } from "zod";
 
-// Stable empty-array identity for environments whose role query hasn't
-// resolved yet — a fresh `[]` literal per render would make Autocomplete
-// treat `options` as changed on every parent re-render.
-const EMPTY_ROLES: ThunderRole[] = [];
 
 interface CreateScopeFormValues {
   name: string;
@@ -99,8 +91,8 @@ interface CreateScopeDrawerProps {
   onClose: () => void;
   orgName: string;
   proxyId: string;
-  /** Environments the current endpoint is deployed to with identity security enabled. */
-  environments: Environment[];
+  /** Whether the current endpoint is deployed, so roles can be granted the scope. */
+  isDeployed: boolean;
   /** Tool identifiers discovered on the current endpoint, offered as scope bindings. */
   tools: string[];
   /**
@@ -117,25 +109,19 @@ export function CreateScopeDrawer({
   onClose,
   orgName,
   proxyId,
-  environments,
+  isDeployed,
   tools,
   blockedTools,
 }: CreateScopeDrawerProps) {
   const [formData, setFormData] = useState<CreateScopeFormValues>(DEFAULT_FORM);
   const [selectedTools, setSelectedTools] = useState<string[]>([]);
-  // Keyed by `env.name` (not position in `environments`) so a reorder or
-  // refetch of the environments list can't silently misapply a selection to
-  // the wrong environment. Roles are picked one environment at a time rather
-  // than from one combined list, since a role only ever lives in a single
-  // environment and the save step already updates them per-env.
-  const [selectedRolesByEnv, setSelectedRolesByEnv] = useState<Record<string, ThunderRole[]>>({});
+  const [selectedRoles, setSelectedRoles] = useState<ThunderRole[]>([]);
   const [isAssigningRoles, setIsAssigningRoles] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   const { errors, validateField, validateForm, clearErrors, setFieldError } =
     useFormValidation<CreateScopeFormValues>(createScopeSchema);
 
-  const { getToken } = useAuthHooks();
   const createScope = useCreateMCPProxyScope();
   // Opening reports intent; closing without markCompleted reports an
   // abandonment. Pair with amp.connections.manage-mcp-scope (the backend's own
@@ -149,7 +135,7 @@ export function CreateScopeDrawer({
     if (!open) return;
     setFormData(DEFAULT_FORM);
     setSelectedTools([]);
-    setSelectedRolesByEnv({});
+    setSelectedRoles([]);
     setSubmitError(null);
     clearErrors();
     resetCreateScope();
@@ -159,48 +145,25 @@ export function CreateScopeDrawer({
     open &&
     (JSON.stringify(formData) !== JSON.stringify(DEFAULT_FORM) ||
       selectedTools.length > 0 ||
-      Object.values(selectedRolesByEnv).some((roles) => roles.length > 0));
+      selectedRoles.length > 0);
   useUnsavedChangesGuard(isDirty);
   const confirmIfUnsaved = useConfirmIfUnsaved();
   // Backdrop and header X discard edits, so confirm first; Cancel and the
   // post-save close stay direct.
   const handleGuardedClose = () => confirmIfUnsaved(onClose, isDirty);
 
-  const roleQueries = useQueries({
-    queries: environments.map(
-      (env): UseQueryOptions<AgentIdentityRoleListResponse> => ({
-        queryKey: [
-          "agent-identity-roles",
-          { orgName, envName: env.name },
-          { offset: 0, limit: ROLES_PAGE_SIZE },
-        ],
-        queryFn: () =>
-          listAgentIdentityRoles(
-            { orgName, envName: env.name },
-            { offset: 0, limit: ROLES_PAGE_SIZE },
-            getToken,
-          ),
-        enabled: open && !!orgName && !!env.name,
-      }),
-    ),
-  });
-
-  // Assignable roles per environment, in the same order as `environments`.
-  const roleOptionsByEnv: ThunderRole[][] = useMemo(
-    () =>
-      environments.map((_env, index) => {
-        const roles = roleQueries[index]?.data?.roles ?? [];
-        return roles.filter(
-          (role) =>
-            !role.isReadOnly && role.name.trim().toLowerCase() !== NATIVE_DEFAULT_ROLE_NAME,
-        );
-      }),
-    [environments, roleQueries],
+  const rolesQuery = useListAgentIdentityRoles(
+    { orgName, envName: open && isDeployed ? DEFAULT_ENVIRONMENT : "" },
+    { offset: 0, limit: ROLES_PAGE_SIZE },
   );
-
-  const handleRolesChangeForEnv = useCallback((envName: string, roles: ThunderRole[]) => {
-    setSelectedRolesByEnv((prev) => ({ ...prev, [envName]: roles }));
-  }, []);
+  const roleOptions: ThunderRole[] = useMemo(
+    () =>
+      (rolesQuery.data?.roles ?? []).filter(
+        (role) =>
+          !role.isReadOnly && role.name.trim().toLowerCase() !== NATIVE_DEFAULT_ROLE_NAME,
+      ),
+    [rolesQuery.data],
+  );
 
   const handleFieldChange = useCallback(
     (field: keyof CreateScopeFormValues, value: string) => {
@@ -245,14 +208,7 @@ export function CreateScopeDrawer({
       // scope-creation error above.
       onClose();
 
-      const roleAssignments = environments.flatMap((env) =>
-        (selectedRolesByEnv[env.name] ?? []).map((role) => ({
-          role,
-          envName: env.name,
-        })),
-      );
-
-      if (roleAssignments.length === 0) return;
+      if (selectedRoles.length === 0) return;
 
       setIsAssigningRoles(true);
       try {
@@ -263,13 +219,13 @@ export function CreateScopeDrawer({
         // from being assigned; each mutation reports its own failure via its
         // built-in error notification.
         await Promise.allSettled(
-          roleAssignments.map(({ role, envName }) => {
+          selectedRoles.map((role) => {
             const existingScopes = role.permissions?.flatMap((p) => p.permissions) ?? [];
             const nextScopes = existingScopes.includes(created.scope)
               ? existingScopes
               : [...existingScopes, created.scope];
             return updateRole.mutateAsync({
-              params: { orgName, envName, roleId: role.id },
+              params: { orgName, envName: DEFAULT_ENVIRONMENT, roleId: role.id },
               body: { name: role.name, description: role.description, scopes: nextScopes },
             });
           }),
@@ -285,8 +241,7 @@ export function CreateScopeDrawer({
       createScope,
       orgName,
       proxyId,
-      environments,
-      selectedRolesByEnv,
+      selectedRoles,
       updateRole,
       onClose,
     ],
@@ -403,57 +358,45 @@ export function CreateScopeDrawer({
             </FormControl>
 
             <Stack spacing={1.5}>
-              <FormLabel>
-                {environments.length > 1
-                  ? "Assigned Roles for each environment"
-                  : "Assigned Roles"}
-              </FormLabel>
-              {environments.length === 0 ? (
+              <FormLabel>Assigned Roles</FormLabel>
+              {!isDeployed ? (
                 <Typography variant="body2" color="text.secondary">
-                  This endpoint isn&apos;t deployed to any environment yet.
+                  This endpoint isn&apos;t deployed yet.
                 </Typography>
               ) : (
-                environments.map((env, index) => (
-                  <FormControl fullWidth key={env.id ?? env.name}>
-                    <FormLabel sx={{ fontSize: "0.8125rem" }}>
-                      {environmentLabel(env)}
-                    </FormLabel>
-                    <Autocomplete
-                      multiple
-                      size="small"
-                      disableCloseOnSelect
-                      loading={roleQueries[index]?.isLoading}
-                      options={roleOptionsByEnv[index] ?? EMPTY_ROLES}
-                      value={selectedRolesByEnv[env.name] ?? EMPTY_ROLES}
-                      onChange={(_e, value) => handleRolesChangeForEnv(env.name, value)}
-                      getOptionLabel={(role) => role.name}
-                      isOptionEqualToValue={(option, value) => option.id === value.id}
-                      renderTags={(value, getTagProps) =>
-                        value.map((role, tagIndex) => (
-                          <Chip
-                            {...getTagProps({ index: tagIndex })}
-                            key={role.id}
-                            label={role.name}
-                            size="small"
-                          />
-                        ))
-                      }
-                      renderInput={(params) => (
-                        <TextField {...params} placeholder="Search roles..." />
-                      )}
-                      noOptionsText={
-                        roleQueries[index]?.isError
-                          ? "Failed to load roles"
-                          : "No roles available"
-                      }
-                      disabled={isSubmitting}
-                    />
-                  </FormControl>
-                ))
+                <FormControl fullWidth>
+                  <Autocomplete
+                    multiple
+                    size="small"
+                    disableCloseOnSelect
+                    loading={rolesQuery.isLoading}
+                    options={roleOptions}
+                    value={selectedRoles}
+                    onChange={(_e, value) => setSelectedRoles(value)}
+                    getOptionLabel={(role) => role.name}
+                    isOptionEqualToValue={(option, value) => option.id === value.id}
+                    renderTags={(value, getTagProps) =>
+                      value.map((role, tagIndex) => (
+                        <Chip
+                          {...getTagProps({ index: tagIndex })}
+                          key={role.id}
+                          label={role.name}
+                          size="small"
+                        />
+                      ))
+                    }
+                    renderInput={(params) => (
+                      <TextField {...params} placeholder="Search roles..." />
+                    )}
+                    noOptionsText={
+                      rolesQuery.isError ? "Failed to load roles" : "No roles available"
+                    }
+                    disabled={isSubmitting}
+                  />
+                </FormControl>
               )}
               <Typography variant="caption" color="text.secondary">
-                Roles to grant this scope to, per environment this MCP Server is
-                deployed to.
+                Roles to grant this scope to.
               </Typography>
             </Stack>
 

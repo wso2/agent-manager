@@ -171,7 +171,6 @@ type DeployResult struct {
 	Agent             string   `json:"agent"`
 	Build             string   `json:"build"`
 	ImageId           string   `json:"imageId"`
-	TargetEnvironment string   `json:"targetEnvironment"`
 	ConflictsResolved []string `json:"conflictsResolved"`
 }
 
@@ -193,7 +192,7 @@ func NewDeployCmd(f *cmdutil.Factory) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "deploy [agent]",
 		Short: "Deploy a built agent image",
-		Long: "Deploy a built agent image to the lowest environment in the deployment pipeline.\n" +
+		Long: "Deploy a built agent image.\n" +
 			"\n" +
 			"Env vars supplied via --env are merged with the agent's current configuration;\n" +
 			"conflicting values require interactive confirmation or --yes. CLI-supplied values\n" +
@@ -245,13 +244,8 @@ func runDeploy(ctx context.Context, o *DeployOptions) error {
 		return render.Error(o.IO, o.Scope, err)
 	}
 
-	targetEnv, err := cmdutil.ResolveEntryEnvironment(ctx, client, o.Org, o.Proj)
-	if err != nil {
-		return render.Error(o.IO, o.Scope, err)
-	}
-
 	cfgResp, err := client.GetAgentConfigurationsWithResponse(ctx, o.Org, o.Proj, o.AgentName,
-		&gen.GetAgentConfigurationsParams{Environment: targetEnv})
+		&gen.GetAgentConfigurationsParams{Environment: cmdutil.DefaultEnvironment})
 	if err != nil {
 		return render.Error(o.IO, o.Scope, clierr.Newf(clierr.Transport, "%v", err))
 	}
@@ -306,7 +300,7 @@ func runDeploy(ctx context.Context, o *DeployOptions) error {
 	if o.IO.JSON {
 		return render.JSONSuccess(o.IO, o.Scope, DeployResult{
 			Agent: o.AgentName, Build: build.Name, ImageId: build.ImageID,
-			TargetEnvironment: targetEnv, ConflictsResolved: conflictKeys,
+			ConflictsResolved: conflictKeys,
 		})
 	}
 	cs := o.IO.StderrColorScheme()
@@ -359,13 +353,10 @@ func resolveDeployableBuild(ctx context.Context, client *gen.ClientWithResponses
 	return deployableBuild{Name: b.BuildName, ImageID: *b.ImageId, Status: status}, nil
 }
 
-// isBuildDeployable returns true for build status strings the server actually
-// emits when an image is available. The OpenAPI spec advertises a
+// isBuildDeployable returns true for build status strings the server emits
+// when an image is available. The OpenAPI spec advertises a
 // BuildCompleted/BuildInProgress/BuildTriggered enum, but the server emits the
-// upstream WorkflowRun phase verbatim (see agent-manager-service/clients/
-// openchoreosvc/client/builds.go:677-693). "Succeeded" means image pushed but
-// workload CR not yet updated; "Completed" means both done. imageId is
-// populated in both states.
+// build workflow phase verbatim. imageId is populated in both states.
 func isBuildDeployable(status string) bool {
 	return status == "Completed" || status == "Succeeded"
 }

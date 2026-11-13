@@ -95,8 +95,9 @@ func NewManager(config ManagerConfig, hub eventhub.EventHub) *Manager {
 // Returns an error if the maximum connection limit is reached.
 //
 // Any existing connections for the same gateway are evicted first (singleton per
-// gateway). When kgateway reloads config it reconnects immediately; without eviction
-// the stale upstream lingers and receives no heartbeat pings.
+// gateway). A gateway that reconnects (for example after a proxy in front of it
+// reloads) opens a new connection at once; without eviction the stale one lingers
+// and receives no heartbeat pings.
 func (m *Manager) Register(gatewayID string, transport Transport, authToken string) (*Connection, error) {
 	// registryMu ensures the LoadAndDelete → count update → Store sequence is atomic
 	// against concurrent Register/Unregister calls for the same gateway.

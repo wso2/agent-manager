@@ -20,12 +20,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 
+	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 )
 
@@ -157,21 +158,6 @@ type AgentThunderClientRepository interface {
 	// SetLastError records a short user safe note on a binding without touching
 	// its status or attempt bookkeeping. An empty note clears it.
 	SetLastError(ctx context.Context, id uuid.UUID, note string) error
-
-	// ListHomeAgents pages through the distinct agents that have a completed
-	// binding created directly in an environment (promotion_source is empty),
-	// ordered by (org, project, agent). after is nil for the first page.
-	ListHomeAgents(ctx context.Context, after *AgentRef, limit int) ([]AgentRef, error)
-}
-
-// AgentRef identifies one agent. It doubles as the keyset cursor of ListHomeAgents.
-type AgentRef struct {
-	OUID             string
-	ProjectName      string
-	AgentName        string
-	EnvironmentName  string
-	ProvisioningType models.AgentProvisioningType
-	RequestedBy      string
 }
 
 // ReconcileCursor identifies the last row returned by a previous
@@ -212,21 +198,19 @@ func NewAgentThunderClientRepo(db *gorm.DB) AgentThunderClientRepository {
 	return &AgentThunderClientRepo{db: db}
 }
 
+// Upsert only ever writes ahead a brand new binding. If a concurrent caller already wrote one for the agent and
+// environment, overwriting it could clobber a completed identity, so a duplicate is left alone; c then does not
+// reflect a stored row.
 func (r *AgentThunderClientRepo) Upsert(ctx context.Context, c *models.AgentThunderClient) error {
-	// DoNothing (not DoUpdates): Upsert is only ever used to write-ahead a brand
-	// new binding. If a concurrent caller already wrote one for this
-	// (org,project,agent,environment) — e.g. the explicit provision endpoint
-	// racing PromoteAgent's hook — silently overwriting the winner's row would
-	// clobber an already-completed Thunder identity/secret reference back to
-	// blank, orphaning it. On conflict, GORM leaves c's fields (including ID)
-	// unpopulated from the DB; callers must treat that as "someone else owns
-	// this binding" rather than assume c now reflects a real row.
-	if err := r.db.WithContext(ctx).Select("*").Clauses(clause.OnConflict{
-		Columns: []clause.Column{
-			{Name: "ou_id"}, {Name: "project_name"}, {Name: "agent_name"}, {Name: "environment_name"},
-		},
-		DoNothing: true,
-	}).Create(c).Error; err != nil {
+	now := dbx.Now()
+	if c.ID == uuid.Nil {
+		c.ID = newID()
+	}
+	if c.Status == "" {
+		c.Status = models.AgentThunderStatusPending
+	}
+	c.CreatedAt, c.UpdatedAt = now, now
+	if _, err := dbx.InsertIfAbsent(r.db.WithContext(ctx), c); err != nil {
 		return fmt.Errorf("upsert agent thunder client: %w", err)
 	}
 	return nil
@@ -234,8 +218,8 @@ func (r *AgentThunderClientRepo) Upsert(ctx context.Context, c *models.AgentThun
 
 func (r *AgentThunderClientRepo) FindByAgent(ctx context.Context, ouID, projectName, agentName string) ([]models.AgentThunderClient, error) {
 	var rows []models.AgentThunderClient
-	if err := r.db.WithContext(ctx).Where("ou_id = ? AND project_name = ? AND agent_name = ?", ouID, projectName, agentName).
-		Order("environment_name").Find(&rows).Error; err != nil {
+	cond, args := agentCond(r.db, ouID, projectName, agentName)
+	if err := r.db.WithContext(ctx).Where(cond, args...).Order("environment_id").Find(&rows).Error; err != nil {
 		return nil, fmt.Errorf("find agent thunder clients by agent: %w", err)
 	}
 	return rows, nil
@@ -244,18 +228,23 @@ func (r *AgentThunderClientRepo) FindByAgent(ctx context.Context, ouID, projectN
 func (r *AgentThunderClientRepo) FindByOuAndEnvironment(ctx context.Context, ouID, environmentName string) ([]models.AgentThunderClient, error) {
 	var rows []models.AgentThunderClient
 	if err := r.db.WithContext(ctx).
-		Where("ou_id = ? AND environment_name = ?", ouID, environmentName).
-		Order("project_name asc, agent_name asc").
+		Where("org_id = ? AND environment_id IN (?)", ouID, models.EnvironmentIDQuery(r.db, ouID, environmentName)).
 		Find(&rows).Error; err != nil {
 		return nil, fmt.Errorf("failed to list agent thunder bindings for %s/%s: %w", ouID, environmentName, err)
 	}
+	sort.Slice(rows, func(i, j int) bool {
+		if rows[i].ProjectName != rows[j].ProjectName {
+			return rows[i].ProjectName < rows[j].ProjectName
+		}
+		return rows[i].AgentName < rows[j].AgentName
+	})
 	return rows, nil
 }
 
 func (r *AgentThunderClientRepo) Get(ctx context.Context, ouID, projectName, agentName, environmentName string) (*models.AgentThunderClient, error) {
 	var c models.AgentThunderClient
-	err := r.db.WithContext(ctx).Where("ou_id = ? AND project_name = ? AND agent_name = ? AND environment_name = ?",
-		ouID, projectName, agentName, environmentName).First(&c).Error
+	cond, args := agentEnvCond(r.db, ouID, projectName, agentName, environmentName)
+	err := r.db.WithContext(ctx).Where(cond, args...).Take(&c).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrAgentThunderClientNotFound
@@ -266,12 +255,12 @@ func (r *AgentThunderClientRepo) Get(ctx context.Context, ouID, projectName, age
 }
 
 func (r *AgentThunderClientRepo) FindDue(ctx context.Context, now time.Time, limit int) ([]models.AgentThunderClient, error) {
-	staleBefore := now.Add(-inProgressStaleThreshold)
+	now = now.UTC()
 	var rows []models.AgentThunderClient
 	if err := r.db.WithContext(ctx).Where(
-		"(status = ? AND (next_retry_at IS NULL OR next_retry_at <= ?)) OR (status = ? AND last_attempted_at <= ?)",
+		"(status = ? AND (next_retry_at IS NULL OR next_retry_at <= ?)) OR (status = ? AND claimed_until <= ?)",
 		models.AgentThunderStatusPending, now,
-		models.AgentThunderStatusInProgress, staleBefore,
+		models.AgentThunderStatusInProgress, now,
 	).
 		Order("created_at").
 		Limit(limit).
@@ -281,15 +270,16 @@ func (r *AgentThunderClientRepo) FindDue(ctx context.Context, now time.Time, lim
 	return rows, nil
 }
 
+// ClaimForAttempt leases the binding for inProgressStaleThreshold; an attempt that outlives the lease was abandoned.
 func (r *AgentThunderClientRepo) ClaimForAttempt(ctx context.Context, id uuid.UUID) (bool, error) {
-	staleBefore := time.Now().Add(-inProgressStaleThreshold)
+	now := dbx.Now()
 	result := r.db.WithContext(ctx).Model(&models.AgentThunderClient{}).
-		Where("id = ? AND (status = ? OR (status = ? AND last_attempted_at <= ?))",
-			id, models.AgentThunderStatusPending, models.AgentThunderStatusInProgress, staleBefore).
+		Where("id = ? AND (status = ? OR (status = ? AND claimed_until <= ?))",
+			id, models.AgentThunderStatusPending, models.AgentThunderStatusInProgress, now).
 		Updates(map[string]interface{}{
-			"status":            models.AgentThunderStatusInProgress,
-			"last_attempted_at": clause.Expr{SQL: "NOW()"},
-			"updated_at":        clause.Expr{SQL: "NOW()"},
+			"status":        models.AgentThunderStatusInProgress,
+			"claimed_until": now.Add(inProgressStaleThreshold),
+			"updated_at":    now,
 		})
 	if result.Error != nil {
 		return false, fmt.Errorf("claim agent thunder client for attempt: %w", result.Error)
@@ -298,15 +288,16 @@ func (r *AgentThunderClientRepo) ClaimForAttempt(ctx context.Context, id uuid.UU
 }
 
 func (r *AgentThunderClientRepo) ResetFailedForRetry(ctx context.Context, id uuid.UUID) (bool, error) {
+	now := dbx.Now()
 	result := r.db.WithContext(ctx).Model(&models.AgentThunderClient{}).
 		Where("id = ? AND status = ?", id, models.AgentThunderStatusFailed).
 		Updates(map[string]interface{}{
-			"status":            models.AgentThunderStatusPending,
-			"attempt_count":     0,
-			"last_error":        "",
-			"last_attempted_at": nil,
-			"next_retry_at":     clause.Expr{SQL: "NOW()"},
-			"updated_at":        clause.Expr{SQL: "NOW()"},
+			"status":        models.AgentThunderStatusPending,
+			"attempt_count": 0,
+			"last_error":    "",
+			"claimed_until": nil,
+			"next_retry_at": now,
+			"updated_at":    now,
 		})
 	if result.Error != nil {
 		return false, fmt.Errorf("reset failed agent thunder client for retry: %w", result.Error)
@@ -316,12 +307,12 @@ func (r *AgentThunderClientRepo) ResetFailedForRetry(ctx context.Context, id uui
 
 func (r *AgentThunderClientRepo) UpdateAfterAttempt(ctx context.Context, id uuid.UUID, f AgentThunderAttemptUpdate) error {
 	updates := map[string]interface{}{
-		"status":            f.Status,
-		"last_error":        f.LastError,
-		"next_retry_at":     f.NextRetryAt,
-		"last_attempted_at": clause.Expr{SQL: "NOW()"},
-		"attempt_count":     gorm.Expr("attempt_count + 1"),
-		"updated_at":        clause.Expr{SQL: "NOW()"},
+		"status":        f.Status,
+		"last_error":    f.LastError,
+		"next_retry_at": f.NextRetryAt,
+		"claimed_until": nil,
+		"attempt_count": gorm.Expr("attempt_count + 1"),
+		"updated_at":    dbx.Now(),
 	}
 	if f.ThunderAgentID != nil {
 		updates["thunder_agent_id"] = *f.ThunderAgentID
@@ -329,118 +320,56 @@ func (r *AgentThunderClientRepo) UpdateAfterAttempt(ctx context.Context, id uuid
 	if f.ThunderClientID != nil {
 		updates["thunder_client_id"] = *f.ThunderClientID
 	}
-	if f.SecretRefPath != nil {
-		updates["secret_ref_path"] = *f.SecretRefPath
-	}
 	if err := r.db.WithContext(ctx).Model(&models.AgentThunderClient{}).Where("id = ?", id).Updates(updates).Error; err != nil {
 		return fmt.Errorf("update agent thunder client after attempt: %w", err)
 	}
 	return nil
 }
 
-func (r *AgentThunderClientRepo) UpdateSecretRef(ctx context.Context, id uuid.UUID, secretRefPath string) error {
-	if err := r.db.WithContext(ctx).Model(&models.AgentThunderClient{}).Where("id = ?", id).
-		Updates(map[string]interface{}{
-			"secret_ref_path": secretRefPath,
-			"updated_at":      clause.Expr{SQL: "NOW()"},
-		}).Error; err != nil {
-		return fmt.Errorf("update agent thunder client secret ref: %w", err)
-	}
+// UpdateSecretRef is a no-op: Lite agents are external, so no secret reference is stored.
+func (r *AgentThunderClientRepo) UpdateSecretRef(context.Context, uuid.UUID, string) error {
 	return nil
 }
 
 func (r *AgentThunderClientRepo) DeleteByAgent(ctx context.Context, ouID, projectName, agentName string) error {
-	if err := r.db.WithContext(ctx).Where("ou_id = ? AND project_name = ? AND agent_name = ?", ouID, projectName, agentName).
-		Delete(&models.AgentThunderClient{}).Error; err != nil {
+	cond, args := agentCond(r.db, ouID, projectName, agentName)
+	if err := r.db.WithContext(ctx).Where(cond, args...).Delete(&models.AgentThunderClient{}).Error; err != nil {
 		return fmt.Errorf("delete agent thunder clients by agent: %w", err)
 	}
 	return nil
 }
 
 func (r *AgentThunderClientRepo) DeleteByIDs(ctx context.Context, ids []uuid.UUID) error {
-	if len(ids) == 0 {
-		return nil
-	}
-	if err := r.db.WithContext(ctx).Where("id IN ?", ids).Delete(&models.AgentThunderClient{}).Error; err != nil {
-		return fmt.Errorf("delete agent thunder clients by ids: %w", err)
-	}
-	return nil
-}
-
-func (r *AgentThunderClientRepo) FindRecentlyCompletedInternal(ctx context.Context, createdAfter time.Time, after *ReconcileCursor, limit int) ([]models.AgentThunderClient, error) {
-	q := r.db.WithContext(ctx).Where(
-		"status = ? AND provisioning_type = ? AND secret_ref_path != '' AND created_at >= ?",
-		models.AgentThunderStatusCompleted, models.AgentProvisioningTypeInternal, createdAfter,
-	)
-	if after != nil {
-		// (created_at, id) > (after.CreatedAt, after.ID), expressed without tuple
-		// comparison for portability: strictly later timestamp, OR the same
-		// timestamp with a strictly greater id (the deterministic tie-breaker
-		// matching the ORDER BY below).
-		q = q.Where("(created_at > ?) OR (created_at = ? AND id > ?)", after.CreatedAt, after.CreatedAt, after.ID)
-	}
-
-	var rows []models.AgentThunderClient
-	if err := q.
-		Order("created_at, id").
-		Limit(limit).
-		Find(&rows).Error; err != nil {
-		return nil, fmt.Errorf("find recently completed internal agent thunder clients: %w", err)
-	}
-	return rows, nil
-}
-
-func (r *AgentThunderClientRepo) MarkSyncAfter(ctx context.Context, ids []uuid.UUID, at time.Time) error {
-	if len(ids) == 0 {
-		return nil
-	}
-	if err := r.db.WithContext(ctx).Model(&models.AgentThunderClient{}).
-		Where("id IN ? AND promotion_source <> '' AND status IN ?", ids, []models.AgentThunderStatus{
-			models.AgentThunderStatusCompleted, models.AgentThunderStatusInProgress,
-		}).
-		Updates(map[string]interface{}{
-			"sync_after": clause.Expr{
-				SQL:  "CASE WHEN sync_after IS NULL THEN ? ELSE GREATEST(sync_after + INTERVAL '1 microsecond', ?) END",
-				Vars: []interface{}{at, at},
-			},
-			"updated_at": clause.Expr{SQL: "NOW()"},
-		}).Error; err != nil {
-		return fmt.Errorf("mark agent thunder clients for sync: %w", err)
+	for _, chunk := range dbx.Chunks(ids) {
+		if err := r.db.WithContext(ctx).Where("id IN ?", chunk).Delete(&models.AgentThunderClient{}).Error; err != nil {
+			return fmt.Errorf("delete agent thunder clients by ids: %w", err)
+		}
 	}
 	return nil
 }
 
-func (r *AgentThunderClientRepo) FindSyncDue(ctx context.Context, now time.Time, limit int) ([]models.AgentThunderClient, error) {
-	var rows []models.AgentThunderClient
-	if err := r.db.WithContext(ctx).
-		Where("status = ? AND sync_after IS NOT NULL AND sync_after <= ?", models.AgentThunderStatusCompleted, now).
-		Order("sync_after, id").
-		Limit(limit).
-		Find(&rows).Error; err != nil {
-		return nil, fmt.Errorf("find agent thunder clients due for sync: %w", err)
-	}
-	return rows, nil
+// FindRecentlyCompletedInternal finds nothing: Lite agents are all external.
+func (r *AgentThunderClientRepo) FindRecentlyCompletedInternal(context.Context, time.Time, *ReconcileCursor, int) ([]models.AgentThunderClient, error) {
+	return nil, nil
 }
 
-func (r *AgentThunderClientRepo) ClaimSync(ctx context.Context, id uuid.UUID, observed, leaseUntil time.Time) (bool, error) {
-	result := r.db.WithContext(ctx).Model(&models.AgentThunderClient{}).
-		Where("id = ? AND status = ? AND sync_after = ?", id, models.AgentThunderStatusCompleted, observed).
-		Updates(map[string]interface{}{"sync_after": leaseUntil})
-	if result.Error != nil {
-		return false, fmt.Errorf("claim agent thunder client for sync: %w", result.Error)
-	}
-	return result.RowsAffected > 0, nil
+// Lite environments have no promotion pipeline, so no binding carries an identity by promotion and there is never a
+// re-promotion to schedule or run.
+
+func (r *AgentThunderClientRepo) MarkSyncAfter(context.Context, []uuid.UUID, time.Time) error {
+	return nil
 }
 
-func (r *AgentThunderClientRepo) FinishSync(ctx context.Context, id uuid.UUID, claimed time.Time, retryAt *time.Time) (bool, error) {
-	// A nil *time.Time is stored as NULL, which clears the marker.
-	result := r.db.WithContext(ctx).Model(&models.AgentThunderClient{}).
-		Where("id = ? AND sync_after = ?", id, claimed).
-		Updates(map[string]interface{}{"sync_after": retryAt})
-	if result.Error != nil {
-		return false, fmt.Errorf("finish agent thunder client sync: %w", result.Error)
-	}
-	return result.RowsAffected > 0, nil
+func (r *AgentThunderClientRepo) FindSyncDue(context.Context, time.Time, int) ([]models.AgentThunderClient, error) {
+	return nil, nil
+}
+
+func (r *AgentThunderClientRepo) ClaimSync(context.Context, uuid.UUID, time.Time, time.Time) (bool, error) {
+	return false, nil
+}
+
+func (r *AgentThunderClientRepo) FinishSync(context.Context, uuid.UUID, time.Time, *time.Time) (bool, error) {
+	return true, nil
 }
 
 func (r *AgentThunderClientRepo) Defer(ctx context.Context, id uuid.UUID, nextRetryAt time.Time, note string) error {
@@ -460,9 +389,10 @@ func (r *AgentThunderClientRepo) setNextAttempt(ctx context.Context, id uuid.UUI
 		Where("id = ? AND status = ?", id, from).
 		Updates(map[string]interface{}{
 			"status":        models.AgentThunderStatusPending,
-			"next_retry_at": nextRetryAt,
+			"next_retry_at": nextRetryAt.UTC().Truncate(time.Microsecond),
+			"claimed_until": nil,
 			"last_error":    note,
-			"updated_at":    clause.Expr{SQL: "NOW()"},
+			"updated_at":    dbx.Now(),
 		})
 	if result.Error != nil {
 		return fmt.Errorf("set next agent thunder client attempt: %w", result.Error)
@@ -477,30 +407,9 @@ func (r *AgentThunderClientRepo) SetLastError(ctx context.Context, id uuid.UUID,
 	if err := r.db.WithContext(ctx).Model(&models.AgentThunderClient{}).Where("id = ?", id).
 		Updates(map[string]interface{}{
 			"last_error": note,
-			"updated_at": clause.Expr{SQL: "NOW()"},
+			"updated_at": dbx.Now(),
 		}).Error; err != nil {
 		return fmt.Errorf("set agent thunder client note: %w", err)
 	}
 	return nil
-}
-
-func (r *AgentThunderClientRepo) ListHomeAgents(ctx context.Context, after *AgentRef, limit int) ([]AgentRef, error) {
-	q := r.db.WithContext(ctx).Model(&models.AgentThunderClient{}).
-		Select("DISTINCT ON (ou_id, project_name, agent_name) ou_id, project_name, agent_name, environment_name, provisioning_type, requested_by").
-		Where("status = ? AND promotion_source = ''", models.AgentThunderStatusCompleted)
-	if after != nil {
-		q = q.Where("(ou_id, project_name, agent_name) > (?, ?, ?)", after.OUID, after.ProjectName, after.AgentName)
-	}
-	var rows []models.AgentThunderClient
-	if err := q.Order("ou_id, project_name, agent_name").Limit(limit).Find(&rows).Error; err != nil {
-		return nil, fmt.Errorf("list agents with a completed identity: %w", err)
-	}
-	refs := make([]AgentRef, 0, len(rows))
-	for _, row := range rows {
-		refs = append(refs, AgentRef{
-			OUID: row.OUID, ProjectName: row.ProjectName, AgentName: row.AgentName,
-			EnvironmentName: row.EnvironmentName, ProvisioningType: row.ProvisioningType, RequestedBy: row.RequestedBy,
-		})
-	}
-	return refs, nil
 }

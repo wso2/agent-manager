@@ -1,7 +1,4 @@
 {
-  "config": {
-    "charts-base-path": "deployments/helm-charts"
-  },
   "images": [
     {
       "name": "amp-console",
@@ -14,53 +11,6 @@
     {
       "name": "amp-observer",
       "dir": "agent-manager-observer"
-    },
-    {
-      "name": "amp-quick-start",
-      "dir": "deployments/quick-start",
-      "context": "."
-    },
-    {
-      "name": "amp-evaluation-monitor",
-      "dir": "evaluation-job",
-      "context": "."
     }
-  ],
-
-  "python-instrumentation-provider": [
-    {
-      "instrumentation_version": "0.3.0",
-      "traceloop_version": "0.61.0",
-      "python_versions": ["3.10", "3.11", "3.12", "3.13"]
-    },
-    {
-      "instrumentation_version": "0.4.0",
-      "traceloop_version": "0.62.1",
-      "python_versions": ["3.10", "3.11", "3.12", "3.13"]
-    },
-    {
-      "instrumentation_version": "0.4.1",
-      "traceloop_version": "0.62.3",
-      "python_versions": ["3.10", "3.11", "3.12", "3.13"]
-    },
-    {
-      "instrumentation_version": "0.4.2",
-      "traceloop_version": "0.62.4",
-      "python_versions": ["3.10", "3.11", "3.12", "3.13"]
-    },
-    {
-      "instrumentation_version": "0.5.0",
-      "traceloop_version": "0.63.0",
-      "python_versions": ["3.10", "3.11", "3.12", "3.13"]
-    }
-  ],
-
-  "charts": [
-    "wso2-agent-manager",
-    "wso2-amp-observability-extension",
-    "wso2-amp-platform-resources-extension",
-    "wso2-amp-thunder-extension",
-    "wso2-amp-evaluation-extension",
-    "wso2-amp-api-platform-gateway-extension"
   ]
 }

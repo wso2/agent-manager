@@ -342,7 +342,8 @@ func TestReportConsoleActionsSendsAsynchronously(t *testing.T) {
 
 	actions, _ := BuildConsoleActions(
 		[]ConsoleActionInput{{Action: "amp.console.navigation.page-view"}},
-		testConsoleContext(), consoleTestConfig())
+		testConsoleContext(), consoleTestConfig(),
+	)
 
 	ReportConsoleActions(context.Background(), consoleTestConfig(), "caller-jwt", actions)
 
@@ -370,7 +371,8 @@ func TestReportConsoleActionsSurvivesCancelledRequest(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	actions, _ := BuildConsoleActions(
 		[]ConsoleActionInput{{Action: "amp.console.navigation.page-view"}},
-		testConsoleContext(), consoleTestConfig())
+		testConsoleContext(), consoleTestConfig(),
+	)
 
 	ReportConsoleActions(ctx, consoleTestConfig(), "caller-jwt", actions)
 	cancel()
@@ -392,7 +394,8 @@ func TestReportConsoleActionsWithoutTokenDropsBatch(t *testing.T) {
 
 	actions, _ := BuildConsoleActions(
 		[]ConsoleActionInput{{Action: "amp.console.navigation.page-view"}},
-		testConsoleContext(), consoleTestConfig())
+		testConsoleContext(), consoleTestConfig(),
+	)
 
 	ReportConsoleActions(context.Background(), consoleTestConfig(), "", actions)
 
@@ -416,7 +419,8 @@ func TestReportConsoleActionsApplicationIDModeSendsWithoutToken(t *testing.T) {
 	ga.MoesifApplicationID = "app-id"
 	actions, _ := BuildConsoleActions(
 		[]ConsoleActionInput{{Action: "amp.console.navigation.page-view"}},
-		testConsoleContext(), ga)
+		testConsoleContext(), ga,
+	)
 
 	ReportConsoleActions(context.Background(), ga, "", actions)
 
@@ -476,7 +480,8 @@ func TestReportConsoleActionsBoundsInFlightSends(t *testing.T) {
 
 	actions, _ := BuildConsoleActions(
 		[]ConsoleActionInput{{Action: "amp.console.navigation.page-view"}},
-		testConsoleContext(), consoleTestConfig())
+		testConsoleContext(), consoleTestConfig(),
+	)
 
 	// Fill every slot and wait until each send is actually in flight.
 	for i := 0; i < maxInFlightConsoleSends; i++ {

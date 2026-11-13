@@ -30,11 +30,11 @@ import (
 )
 
 const (
-	consolePath = "/org/acme/project/triage/agents/my-agent/environment/dev/observability/traces"
+	consolePath = "/org/acme/project/triage/agents/my-agent/environment/default/observability/traces"
 	testTraceID = "4bf92f3577b34da6a3ce929d0e0e4736"
 )
 
-var traceArgs = []string{"trace", "my-agent", testTraceID, "--project", "triage", "--env", "dev"}
+var traceArgs = []string{"trace", "my-agent", testTraceID, "--project", "triage"}
 
 // emptyList answers list and export with no traces.
 var emptyList = serve(map[string]any{"traces": []any{}})
@@ -293,7 +293,7 @@ func TestFromURL_Rejects(t *testing.T) {
 // The scope repeated as it is in the URL is fine, and --limit, --sort and --since override the URL.
 func TestFromURL_FlagsOverride(t *testing.T) {
 	link := consolePath + "?limit=50&sortOrder=asc&timeRange=7d&tool=search"
-	run := mustRun(t, "traces", "my-agent", "--org", "acme", "--project", "triage", "--env", "dev",
+	run := mustRun(t, "traces", "my-agent", "--org", "acme", "--project", "triage",
 		"--from-url", link, "--limit", "25", "--sort", "desc", "--since", "3h")
 	q := run.requests[0]
 	if q.Get("limit") != "25" || q.Get("sortOrder") != "desc" || q.Get("tool") != "search" {
@@ -350,7 +350,7 @@ func TestTraceFromURL(t *testing.T) {
 		{"the agent named again", []string{"trace", "my-agent", "--from-url", link}, testTraceID},
 		{"trace ID argument", []string{"trace", "--from-url", link, "abc123"}, "abc123"},
 		{"agent and trace ID", []string{"trace", "my-agent", "abc123", "--from-url", link}, "abc123"},
-		{"query only", []string{"trace", "my-agent", "--project", "triage", "--env", "dev", "--from-url", "?selectedTrace=" + testTraceID}, testTraceID},
+		{"query only", []string{"trace", "my-agent", "--project", "triage", "--from-url", "?selectedTrace=" + testTraceID}, testTraceID},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			run := mustRun(t, tc.args...)
@@ -427,7 +427,7 @@ func TestConsoleURL_DefaultsUnchanged(t *testing.T) {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
-	want := []string{"agent", "endTime", "environment", "limit", "organization", "project", "startTime"}
+	want := []string{"agent", "endTime", "limit", "organization", "project", "startTime"}
 	if !slices.Equal(keys, want) {
 		t.Errorf("trace query keys = %v, want %v", keys, want)
 	}

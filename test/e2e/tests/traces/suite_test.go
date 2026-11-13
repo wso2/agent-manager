@@ -27,9 +27,8 @@ import (
 )
 
 var (
-	Client                *framework.AMPClient
-	Cfg                   *framework.Config
-	SharedITHelpdeskAgent *framework.SharedITHelpdeskAgent
+	Client *framework.AMPClient
+	Cfg    *framework.Config
 )
 
 func TestTraces(t *testing.T) {
@@ -37,8 +36,21 @@ func TestTraces(t *testing.T) {
 	RunSpecs(t, "Traces Suite")
 }
 
-// Under `ginkgo -p` the shared agent is provisioned once (on a single process)
-// and decoded by every process; see testsetup.SynchronizedSharedITHelpdeskAgent.
-var _ = SynchronizedBeforeSuite(
-	testsetup.SynchronizedSharedITHelpdeskAgent(&Cfg, &Client, &SharedITHelpdeskAgent),
-)
+// The shared project is created once (on a single process); each process
+// builds its own API client.
+var _ = SynchronizedBeforeSuite(func() []byte {
+	cfg := framework.LoadConfig()
+	framework.WaitForAPIReady(cfg)
+	client, err := framework.NewAMPClient(cfg)
+	Expect(err).NotTo(HaveOccurred(), "failed to create API client")
+	framework.VerifyDefaultOrg(client, cfg.DefaultOrg)
+	testsetup.EnsureProject(client, cfg, framework.E2ESharedProjectName,
+		"E2E Shared Project", "Shared project for e2e tests")
+	return nil
+}, func(_ []byte) {
+	Cfg = framework.LoadConfig()
+	framework.WaitForAPIReady(Cfg)
+	var err error
+	Client, err = framework.NewAMPClient(Cfg)
+	Expect(err).NotTo(HaveOccurred(), "failed to create API client")
+})

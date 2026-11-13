@@ -16,10 +16,9 @@ emit spans the observer can parse" — across the combinations declared in
   in an isolated venv, captures spans via an in-memory exporter with VCR
   cassettes replacing live LLM calls, and validates them against the
   JSON-schema contract.
-- **Heavy tier** (nightly / on-demand): deploys a representative subset of
-  cells against a real AMP stack on k3d and validates the spans that survive
-  the full pipeline. (Heavy-tier deploy/poll is implemented but not yet
-  validated against a live stack; see §7.)
+- **Heavy tier** (nightly / on-demand): runs a representative subset of cells
+  as external agents of a real Agent Manager stack (Docker Compose) and
+  validates the spans that survive the full pipeline; see §7.
 
 It is **not** a correctness test of the agents themselves, a load test, or a
 console/UI test — it asserts the *shape* of emitted telemetry, nothing more.
@@ -54,9 +53,8 @@ All three are edits to [`matrix.yaml`](./matrix.yaml):
   and `scripts/record_cassette.py`).
 - **New Traceloop version**: add it to `providers.traceloop.versions` **and**
   add a `providers.traceloop.instrumentationVersions["<ver>"]` entry mapping
-  it to the init-container `instrumentation_version` (needed by the heavy
-  tier — see §7). `make check-matrix-manifest` enforces that this map covers
-  every version `release-config.json` currently ships.
+  it to the `amp-instrumentation` release (`instrumentation_version`, needed by the heavy
+  tier — see §7).
 
 **Example — add a new framework (`haystack`):**
 
@@ -85,7 +83,7 @@ OPENAI_API_KEY=sk-... python scripts/record_cassette.py haystack llm
     versions: ["0.61.0", "0.62.0"]          # add the new one
     instrumentationVersions:
       "0.61.0": "0.3.0"
-      "0.62.0": "0.4.0"                      # ← the init-container instr version
+      "0.62.0": "0.4.0"                      # ← the amp-instrumentation release
 ```
 
 After any edit, sanity-check locally:
@@ -236,27 +234,30 @@ When a cell exposes a regression you can't fix immediately:
 Pair every `known-broken` entry with an `F-NNN` entry in `FINDINGS.md` so the
 "why" survives.
 
-## 7. Heavy tier (deploy contract + ops)
+## 7. Heavy tier (run contract + ops)
 
-The heavy tier (`nox -s heavy`, `heavy/driver.py`) is a **pipeline test**: it
-deploys a real agent against a real AMP stack on k3d, invokes it, polls
-`agent-manager-observer`, and checks that the spans survive the full path
-(auto-instrumentation → gateway → collector → OpenSearch → observer) and
+The heavy tier (`nox -s heavy`, `heavy/driver.py`) is a **pipeline test**: per
+cell it registers an external agent with a real Agent Manager stack, runs the
+cell's sample on the runner under `amp-instrument` from the cell's pinned
+`amp-instrumentation` release and Python (`heavy/local_agent.py`), invokes it,
+polls `agent-manager-observer`, and checks that the spans survive the full path
+(instrumentation → AI Gateway `/otel` → collector → OpenSearch → observer) and
 validate against the `traceloop/v1` contract.
 
-It has a **per-framework axis for frameworks that ship a deployable sample**.
-`harness/deployable_samples.py` maps each such framework to its sample app
-path, run command, and the span kinds the driver asserts:
+It has a **per-framework axis for frameworks that ship a runnable sample**.
+`harness/deployable_samples.py` maps each such framework to its sample
+directory, ASGI app, and the span kinds the driver asserts:
 
 - `langchain` → `samples/customer-support-agent` (LangChain/LangGraph), asserts `llm`
 - `crewai` → `samples/crewai-agent`, asserts `llm` + `agent` + `crewaitask`
 
-The driver deploys the sample matching each cell's framework and asserts that
+The driver runs the sample matching each cell's framework and asserts that
 framework's kinds (plus shape-validation of every captured span). The other two
-axes that change the deployed agent are the **instrumentation/Traceloop
-version** (the init-container image) and the **python version** (the buildpack
-interpreter). So the subset (`harness/heavy_subset.py`) is one cell per
-(Traceloop version × python) for each deployable framework, pinned to that
+axes that change the running agent are the **instrumentation/Traceloop
+version** (the `amp-instrumentation` release) and the **python version** (the
+interpreter the agent runs on; `python<X.Y>` must be on PATH, otherwise the
+cell is skipped). So the subset (`harness/heavy_subset.py`) is one cell per
+(Traceloop version × python) for each runnable framework, pinned to that
 framework's representative version and restricted to that sample's supported
 Python versions from `harness/deployable_samples.py`. CrewAI requires Python
 3.11+; the customer-support sample retains Python 3.10 coverage. With one
@@ -268,25 +269,21 @@ The nightly and manual workflows run one heavy job per Traceloop version, each o
 (seven cells). A new Traceloop release in `matrix.yaml` adds a
 parallel shard automatically; it does not lengthen the existing ones.
 
-Frameworks without a deployable sample (`langgraph`, `llama-index`,
+Frameworks without a runnable sample (`langgraph`, `llama-index`,
 `openai-direct`, `anthropic-direct`) stay emission-only — per-framework span
-*shape* for them is the emission tier's job. Adding a deployable sample under
-`samples/` plus a `DEPLOYABLE_SAMPLES` entry is what brings a framework into the
-heavy axis.
+*shape* for them is the emission tier's job. Adding a sample under `samples/`
+plus a `DEPLOYABLE_SAMPLES` entry is what brings a framework into the heavy axis.
 
 ### Bring-up: build-from-source
 
-The CI heavy job stands up AMP from the **working tree** via the dev
-`make setup` chain, wrapped in the `.github/actions/amp-dev-stack` composite:
-`setup-k3d` → `setup-openchoreo` (builds + `k3d image import`s the
-amp-observer + python-instrumentation-provider images from source) →
-`setup-platform` (agent-manager-service via docker-compose) → migrate →
-port-forward → gateway.
+The CI heavy job stands up Agent Manager with Docker Compose from the
+**working tree** through the `.github/actions/amp-dev-stack` composite
+(`deployments/standalone`, building `amp-api` and `amp-observer`), and installs
+Python 3.10–3.13 for the cell agents. Locally, `make up` (or `make dev-up`)
+does the same.
 
-This is deliberately **not** `deployments/quick-start/install.sh`, which
-deploys *released* images at a pinned `VERSION` (that's what e2e uses). The
-matrix's job is to catch regressions in the PR's observer + instrumentation
-code, so it must run the PR's images.
+The matrix's job is to catch regressions in the PR's gateway, collector,
+observer and instrumentation code, so it runs the PR's images, not a release.
 
 ### Environment
 
@@ -295,10 +292,11 @@ values the dev bring-up exposes (overridable, never required):
 
 | Variable | Kind | Default / source |
 |---|---|---|
-| `OPENAI_API_KEY` | **secret** | forwarded into each deployed agent so it can make real calls |
+| `OPENAI_API_KEY` | **secret** | passed to each local agent so it can make real calls |
 | `ANTHROPIC_API_KEY` | **secret** | for the anthropic-direct cell |
 | `AMP_API_BASE_URL` | default | `http://localhost:9000` |
 | `AM_OBSERVER_BASE_URL` | default | `http://localhost:9098` |
+| `AMP_GATEWAY_URL` | default | `http://default-default.gateway.localhost:19080` (agents export to `<url>/otel`) |
 | `IDP_TOKEN_URL` | default | `http://thunder.amp.localhost:8080/oauth2/token` |
 | `IDP_CLIENT_ID` | default | `amp-api-client` |
 | `IDP_CLIENT_SECRET` | default | `amp-api-client-secret` |
@@ -308,17 +306,17 @@ values the dev bring-up exposes (overridable, never required):
 
 Auth is OAuth2 `client_credentials` against Thunder IDP (no static admin
 token); the client fetches + refreshes a bearer token, mirroring
-`test/e2e/framework/auth.go`. Agents are created through
-`agent-manager-service`'s REST API — `test/e2e/framework/shared_agent.go` is
-the canonical reference — not raw Workload manifests.
+`test/e2e/framework/auth.go`. External agents are registered through
+`agent-manager-service`'s REST API.
 
 ### Per-cell flow
 
 ```
-reset OpenSearch indices
-deploy_agent(cell)          # create project → agent (pins instrumentationVersion +
-                            #   forwards LLM keys) → poll build → deploy → mint API key
-invoke_agent(deployed)      # POST /chat (X-API-Key), retry through warm-up
+register_external_agent()   # create project → external agent → mint its trace token
+run_local_agent(cell)       # venv on python<X.Y>: sample requirements +
+                            #   amp-instrumentation==<cell version>; start under
+                            #   amp-instrument with AMP_OTEL_ENDPOINT/AMP_AGENT_API_KEY
+invoke_agent(endpoint)      # POST /chat
 spans = poll_traces(...)    # list traces → span summaries → per-span detail
 teardown_agent(deployed)    # always (finally)
 validate(spans) + write report
@@ -365,7 +363,3 @@ regenerating, or a schema is hand-edited without a matching observer change,
 the build fails. Every deliberate concession (a relaxed `required`, a
 stringified type) is justified by an `F-NNN` entry in `FINDINGS.md`.
 
-`check-matrix-manifest` (same CI job) separately enforces that `matrix.yaml`
-covers every `(traceloop_version, instrumentation_version, python_version)`
-that `release-config.json` currently ships — the matrix may be a superset,
-but never a subset, of what AMP baselines.

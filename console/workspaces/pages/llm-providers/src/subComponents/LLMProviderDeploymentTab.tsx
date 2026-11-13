@@ -23,7 +23,7 @@ import type {
 } from "@agent-management-platform/types";
 import { useListLLMDeployments } from "@agent-management-platform/api-client";
 import {
-  EnvironmentGatewaySelector,
+  EgressGatewaySelector,
   useConfirmationDialog,
   useUnsavedChangesGuard,
 } from "@agent-management-platform/shared-component";
@@ -188,7 +188,7 @@ export function LLMProviderDeploymentTab({
 
   return (
     <Stack spacing={2}>
-      <EnvironmentGatewaySelector
+      <EgressGatewaySelector
         orgId={orgName ?? ""}
         value={selectedGatewayIds}
         onChange={setSelectedGatewayIds}

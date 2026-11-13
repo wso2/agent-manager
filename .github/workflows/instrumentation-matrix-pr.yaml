@@ -3,31 +3,25 @@ name: Instrumentation matrix tests - PR
 on:
   pull_request:
     paths:
-      - 'python-instrumentation-provider/**'
       - 'libs/amp-instrumentation/**'
       - 'samples/manual-instrumentation-agent/**'
-      - '.github/release-config.json'
       - '.github/workflows/instrumentation-matrix-pr.yaml'
       - '.github/actions/setup-go/**'
       - 'test/instrumentation-matrix/**'
       - 'agent-manager-observer/**'
       - 'scripts/check-cassettes.py'
-      - 'scripts/check-matrix-manifest.py'
       - 'scripts/check-contract-drift.sh'
       - 'Makefile'
   push:
     branches: [main]
     paths:
-      - 'python-instrumentation-provider/**'
       - 'libs/amp-instrumentation/**'
       - 'samples/manual-instrumentation-agent/**'
-      - '.github/release-config.json'
       - '.github/workflows/instrumentation-matrix-pr.yaml'
       - '.github/actions/setup-go/**'
       - 'test/instrumentation-matrix/**'
       - 'agent-manager-observer/**'
       - 'scripts/check-cassettes.py'
-      - 'scripts/check-matrix-manifest.py'
       - 'scripts/check-contract-drift.sh'
       - 'Makefile'
 
@@ -41,7 +35,7 @@ permissions:
   contents: read
 
 jobs:
-  verify-contract-and-manifest:
+  verify-contract:
     runs-on:
       - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
@@ -52,12 +46,11 @@ jobs:
           python-version: '3.11'
       - run: pip install pyyaml
       - run: make check-contract-drift
-      - run: make check-matrix-manifest
 
   default-cell-required:
     runs-on:
       - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
-    needs: verify-contract-and-manifest
+    needs: verify-contract
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
@@ -91,7 +84,7 @@ jobs:
   full-emission-matrix:
     runs-on:
       - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
-    needs: verify-contract-and-manifest
+    needs: verify-contract
     # One shard per interpreter: on a single runner the full matrix outgrew the
     # runner's lifetime and the job was killed before it could upload any
     # reports. Keep this list in sync with `python` in matrix.yaml.

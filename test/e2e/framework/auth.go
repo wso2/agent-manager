@@ -129,7 +129,7 @@ func fetchTokenOnce(ctx context.Context, cfg *Config, scope string) (string, err
 	// amp-api-client uses client_secret_basic: credentials in Authorization header.
 	req.SetBasicAuth(cfg.IDPClientID, cfg.IDPClientSecret)
 
-	// kgateway routes by Host header; ensure it reaches Thunder
+	// Send the token URL's own host so Thunder sees its public name.
 	parsedURL, err := url.Parse(cfg.IDPTokenURL)
 	if err == nil && parsedURL.Hostname() != "" {
 		req.Host = parsedURL.Host

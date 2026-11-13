@@ -28,11 +28,9 @@ func NewTracesCmd(f *cmdutil.Factory) *cobra.Command {
 	opts := &ListTracesOptions{
 		IO:           f.IOStreams,
 		TraceClient:  f.Observer,
-		AMClient:     f.AgentManager,
 		ResolveScope: f.ResolveOrgProject,
 		ResolveAgent: f.ResolveAgent,
-		ResolveEnv:   f.ResolveEnvironment,
-		MakeScope:    f.EnvScope,
+		MakeScope:    f.AgentScope,
 	}
 	var (
 		window  windowFlags
@@ -62,13 +60,13 @@ func NewTracesCmd(f *cmdutil.Factory) *cobra.Command {
 			"window, sort and filters.\n\n" +
 			"--console-url prints the console path that shows the same list; paste it after your console's host. " +
 			"--from-url takes a console URL, path or \"?...\" query and lists the same traces. Its path sets the " +
-			"org, project, agent and environment, so <agent> is optional; with no time range in the URL, the window " +
+			"org, project and agent, so <agent> is optional; with no time range in the URL, the window " +
 			"is the console's 1h. A filter can't come from both the URL and its flag; --limit, --sort, --since, " +
 			"--start and --end override the URL.\n\n" +
 			"Examples:\n" +
-			"  amctl agent traces my-agent --env dev --min-duration 5s --since 3h --console-url\n" +
+			"  amctl agent traces my-agent --min-duration 5s --since 3h --console-url\n" +
 			"  amctl agent traces --from-url 'https://console.example.com/org/acme/project/triage/agents/my-agent/" +
-			"environment/dev/observability/traces?minDurationMs=5000&timeRange=3h'",
+			"environment/default/observability/traces?minDurationMs=5000&timeRange=3h'",
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if fromURL != "" {
@@ -85,13 +83,9 @@ func NewTracesCmd(f *cmdutil.Factory) *cobra.Command {
 			if err != nil {
 				return render.Error(opts.IO, render.Scope{}, err)
 			}
-			env, err := opts.ResolveEnv(cmd)
-			if err != nil {
-				return render.Error(opts.IO, render.Scope{}, err)
-			}
 
-			scope := opts.MakeScope(org, proj, agentName, env)
-			opts.Org, opts.Proj, opts.AgentName, opts.Env, opts.Scope = org, proj, agentName, env, scope
+			scope := opts.MakeScope(org, proj, agentName)
+			opts.Org, opts.Proj, opts.AgentName, opts.Scope = org, proj, agentName, scope
 
 			opts.StartTime, opts.EndTime, err = resolveWindow(&window, cmd.Flags().Changed("since"))
 			if err != nil {
@@ -108,10 +102,6 @@ func NewTracesCmd(f *cmdutil.Factory) *cobra.Command {
 
 			applyFilterFlags(cmd.Flags().Changed, opts, &filters)
 			if err := resolveFilters(opts); err != nil {
-				return render.Error(opts.IO, scope, err)
-			}
-
-			if err := preflightEnv(cmd.Context(), opts.AMClient, org, env); err != nil {
 				return render.Error(opts.IO, scope, err)
 			}
 
@@ -135,7 +125,6 @@ func NewTracesCmd(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().IntVar(&opts.MaxTokens, "max-tokens", 10000, "Token threshold; high_token_usage matches traces above it")
 	cmd.Flags().IntVar(&opts.MaxSpans, "max-spans", 40, "Span count threshold; excessive_steps matches traces above it")
 	addConsoleFlags(cmd, &opts.ShowConsoleURL, &fromURL)
-	cmdutil.AddEnvFlag(cmd)
 	cmd.ValidArgsFunction = func(cmd *cobra.Command, args []string, _ string) ([]string, cobra.ShellCompDirective) {
 		if len(args) > 0 {
 			return nil, cobra.ShellCompDirectiveNoFileComp

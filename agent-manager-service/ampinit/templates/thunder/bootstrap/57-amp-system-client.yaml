@@ -1,0 +1,25 @@
+resource_type: application
+id: amp-system-client
+type: m2m # client_credentials only, no interactive login
+name: "AMP System Client"
+description: "System client for agent-manager to provision per-org OAuth apps"
+ouId: "01900000-0000-7000-8000-000000000001"
+inboundAuthConfig:
+  - type: oauth2
+    config:
+      clientId: {{ q .SystemClient.ID }}
+      clientSecret: {{ q .SystemClient.Secret }}
+      grantTypes: ["client_credentials"]
+      tokenEndpointAuthMethod: "client_secret_basic"
+      pkceRequired: false
+      publicClient: false
+      # "system" (not an amp: scope) grants ThunderID's own admin-API access, gated by
+      # security.HasSystemPermission reading the token's OAuth scope claim directly
+      # (backend/internal/system/security/jwt_authenticator.go + permissions.go) — a
+      # separate mechanism from the amp-resource-server role/permission model used below.
+      scopes: {{ json (clientScopes "system") }}
+      token:
+        accessToken:
+          clientConfig:
+            validityPeriod: 3600
+            attributes: ["ouId", "ouHandle"]

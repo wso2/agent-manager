@@ -19,7 +19,7 @@
 // Like agent_kind_service_unit_test.go (the reference for this package), this
 // file carries NO `//go:build integration` tag, so it runs in the fast unit
 // tier. The only external collaborator — the OpenChoreo client — is mocked with
-// clientmocks.OpenChoreoClientMock. There is no DB dependency.
+// repomocks.PlatformRepositoryMock. There is no DB dependency.
 //
 // The JWT signer needs real RSA keys on disk. The unit-test runner generates
 // them at <repo-root>/keys/private.pem + keys/public.pem with a matching
@@ -41,9 +41,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
-	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -67,7 +67,7 @@ func testJWTConfig() config.JWTSigningConfig {
 // signing config. It skips the test if the signing keys are not present (the
 // unit-test runner generates them; a bare `go test` without gen_keys.sh would
 // otherwise fail with an unrelated file-not-found).
-func newTokenManager(t *testing.T, oc *clientmocks.OpenChoreoClientMock) AgentTokenManagerService {
+func newTokenManager(t *testing.T, oc *repomocks.PlatformRepositoryMock) AgentTokenManagerService {
 	t.Helper()
 	cfg := testJWTConfig()
 	if _, err := os.Stat(cfg.PrivateKeyPath); err != nil {
@@ -83,7 +83,7 @@ func newTokenManager(t *testing.T, oc *clientmocks.OpenChoreoClientMock) AgentTo
 // -----------------------------------------------------------------------------
 
 func TestNewAgentTokenManagerService(t *testing.T) {
-	oc := &clientmocks.OpenChoreoClientMock{}
+	oc := &repomocks.PlatformRepositoryMock{}
 
 	t.Run("succeeds with valid key configuration", func(t *testing.T) {
 		cfg := testJWTConfig()
@@ -131,7 +131,7 @@ func TestNewAgentTokenManagerService(t *testing.T) {
 func TestAgentTokenManager_GenerateToken_ValidationGates(t *testing.T) {
 	t.Run("rejects empty org id with ErrInvalidInput", func(t *testing.T) {
 		// GetComponent must NOT be reached — leaving the mock unconfigured asserts that.
-		svc := newTokenManager(t, &clientmocks.OpenChoreoClientMock{})
+		svc := newTokenManager(t, &repomocks.PlatformRepositoryMock{})
 
 		_, err := svc.GenerateToken(auditableCtx(t), GenerateTokenRequest{
 			OrgName:     "acme",
@@ -142,27 +142,6 @@ func TestAgentTokenManager_GenerateToken_ValidationGates(t *testing.T) {
 		})
 
 		assert.ErrorIs(t, err, utils.ErrInvalidInput)
-	})
-
-	t.Run("rejects empty environment name", func(t *testing.T) {
-		// Org id passes; GetComponent succeeds; the empty-environment guard fires
-		// before GetEnvironment, so GetEnvironment must stay unconfigured.
-		oc := &clientmocks.OpenChoreoClientMock{
-			GetComponentFunc: func(_ context.Context, _, _, _ string) (*models.AgentResponse, error) {
-				return &models.AgentResponse{UUID: "comp-uuid", ProjectName: "proj"}, nil
-			},
-		}
-		svc := newTokenManager(t, oc)
-
-		_, err := svc.GenerateToken(auditableCtx(t), GenerateTokenRequest{
-			OrgName:     "acme",
-			ProjectName: "proj",
-			AgentName:   "agent",
-			OrgId:       "org-123",
-			// Environment intentionally empty
-		})
-
-		require.Error(t, err)
 	})
 }
 
@@ -177,8 +156,8 @@ func TestAgentTokenManager_GenerateToken_ClientErrors(t *testing.T) {
 
 	t.Run("propagates GetComponent error", func(t *testing.T) {
 		boom := errors.New("component lookup failed")
-		oc := &clientmocks.OpenChoreoClientMock{
-			GetComponentFunc: func(_ context.Context, _, _, _ string) (*models.AgentResponse, error) {
+		oc := &repomocks.PlatformRepositoryMock{
+			GetAgentFunc: func(_ context.Context, _, _, _ string) (*models.AgentResponse, error) {
 				return nil, boom
 			},
 		}
@@ -192,8 +171,8 @@ func TestAgentTokenManager_GenerateToken_ClientErrors(t *testing.T) {
 
 	t.Run("propagates GetEnvironment error", func(t *testing.T) {
 		boom := errors.New("environment lookup failed")
-		oc := &clientmocks.OpenChoreoClientMock{
-			GetComponentFunc: func(_ context.Context, _, _, _ string) (*models.AgentResponse, error) {
+		oc := &repomocks.PlatformRepositoryMock{
+			GetAgentFunc: func(_ context.Context, _, _, _ string) (*models.AgentResponse, error) {
 				return &models.AgentResponse{UUID: "comp-uuid", ProjectName: base.ProjectName}, nil
 			},
 			GetEnvironmentFunc: func(_ context.Context, _, _ string) (*models.EnvironmentResponse, error) {
@@ -215,8 +194,8 @@ func TestAgentTokenManager_GenerateToken_ClientErrors(t *testing.T) {
 		// and agent in it — it's input validation: a request path naming a project
 		// the agent doesn't belong to is malformed and must be rejected with 400,
 		// not silently corrected to the agent's real project.
-		oc := &clientmocks.OpenChoreoClientMock{
-			GetComponentFunc: func(_ context.Context, _, _, _ string) (*models.AgentResponse, error) {
+		oc := &repomocks.PlatformRepositoryMock{
+			GetAgentFunc: func(_ context.Context, _, _, _ string) (*models.AgentResponse, error) {
 				return &models.AgentResponse{UUID: "comp-uuid", ProjectName: "actual-project"}, nil
 			},
 		}
@@ -233,8 +212,8 @@ func TestAgentTokenManager_GenerateToken_ClientErrors(t *testing.T) {
 	})
 
 	t.Run("accepts a project path that matches the agent's real project (case-insensitive)", func(t *testing.T) {
-		oc := &clientmocks.OpenChoreoClientMock{
-			GetComponentFunc: func(_ context.Context, _, _, _ string) (*models.AgentResponse, error) {
+		oc := &repomocks.PlatformRepositoryMock{
+			GetAgentFunc: func(_ context.Context, _, _, _ string) (*models.AgentResponse, error) {
 				return &models.AgentResponse{UUID: "comp-uuid", ProjectName: "Proj"}, nil
 			},
 			GetEnvironmentFunc: func(_ context.Context, _, _ string) (*models.EnvironmentResponse, error) {
@@ -243,8 +222,8 @@ func TestAgentTokenManager_GenerateToken_ClientErrors(t *testing.T) {
 			GetProjectFunc: func(_ context.Context, _, _ string) (*models.ProjectResponse, error) {
 				return &models.ProjectResponse{UUID: "proj-uuid"}, nil
 			},
-			ListOrganizationsFunc: func(_ context.Context) ([]*models.OrganizationResponse, error) {
-				return []*models.OrganizationResponse{{Namespace: "acme-namespace"}}, nil
+			GetOrganizationFunc: func(_ context.Context, _ string) (*models.OrganizationResponse, error) {
+				return &models.OrganizationResponse{Handle: "acme"}, nil
 			},
 		}
 		svc := newTokenManager(t, oc)
@@ -263,8 +242,8 @@ func TestAgentTokenManager_GenerateToken_ClientErrors(t *testing.T) {
 
 	t.Run("propagates GetProject error", func(t *testing.T) {
 		boom := errors.New("project lookup failed")
-		oc := &clientmocks.OpenChoreoClientMock{
-			GetComponentFunc: func(_ context.Context, _, _, _ string) (*models.AgentResponse, error) {
+		oc := &repomocks.PlatformRepositoryMock{
+			GetAgentFunc: func(_ context.Context, _, _, _ string) (*models.AgentResponse, error) {
 				return &models.AgentResponse{UUID: "comp-uuid", ProjectName: base.ProjectName}, nil
 			},
 			GetEnvironmentFunc: func(_ context.Context, _, _ string) (*models.EnvironmentResponse, error) {
@@ -285,12 +264,12 @@ func TestAgentTokenManager_GenerateToken_ClientErrors(t *testing.T) {
 
 // fullClientMock returns a mock where all three lookups succeed with the given
 // UUIDs, used to drive the happy path and expiry-validation branches.
-func fullClientMock(compUID, envUID, projUID string) *clientmocks.OpenChoreoClientMock {
-	return &clientmocks.OpenChoreoClientMock{
+func fullClientMock(compUID, envUID, projUID string) *repomocks.PlatformRepositoryMock {
+	return &repomocks.PlatformRepositoryMock{
 		// Echoes back the requested projectName so the real-project validation in
 		// GenerateToken always passes here — this helper drives the happy-path and
 		// expiry tests, not project-mismatch behavior (see the dedicated tests for that).
-		GetComponentFunc: func(_ context.Context, _, projectName, _ string) (*models.AgentResponse, error) {
+		GetAgentFunc: func(_ context.Context, _, projectName, _ string) (*models.AgentResponse, error) {
 			return &models.AgentResponse{UUID: compUID, ProjectName: projectName}, nil
 		},
 		GetEnvironmentFunc: func(_ context.Context, _, _ string) (*models.EnvironmentResponse, error) {
@@ -299,8 +278,8 @@ func fullClientMock(compUID, envUID, projUID string) *clientmocks.OpenChoreoClie
 		GetProjectFunc: func(_ context.Context, _, _ string) (*models.ProjectResponse, error) {
 			return &models.ProjectResponse{UUID: projUID}, nil
 		},
-		ListOrganizationsFunc: func(_ context.Context) ([]*models.OrganizationResponse, error) {
-			return []*models.OrganizationResponse{{Namespace: "acme-namespace"}}, nil
+		GetOrganizationFunc: func(_ context.Context, _ string) (*models.OrganizationResponse, error) {
+			return &models.OrganizationResponse{Handle: "acme"}, nil
 		},
 	}
 }
@@ -377,7 +356,7 @@ func TestAgentTokenManager_GenerateToken_HappyPath(t *testing.T) {
 	assert.Equal(t, "env-uuid", claims.EnvironmentUid)
 	assert.Equal(t, "proj-uuid", claims.ProjectUid)
 	assert.Equal(t, "org-123", claims.OrgId)
-	assert.Equal(t, "acme-namespace", claims.Namespace, "namespace claim must come from GetOrganization, not the raw OU id")
+	assert.Equal(t, config.GetConfig().OrgNamespace, claims.Namespace, "namespace claim comes from the configured org namespace, not the raw OU id")
 	assert.Equal(t, "my-agent", claims.Subject)
 	assert.Equal(t, "agent-manager-test", claims.Issuer)
 	assert.NotEmpty(t, claims.ID, "jti claim must be set for forward-compatible revocation")
@@ -410,7 +389,7 @@ func TestAgentTokenManager_GenerateToken_DefaultExpiry(t *testing.T) {
 // -----------------------------------------------------------------------------
 
 func TestAgentTokenManager_GetJWKS(t *testing.T) {
-	svc := newTokenManager(t, &clientmocks.OpenChoreoClientMock{})
+	svc := newTokenManager(t, &repomocks.PlatformRepositoryMock{})
 
 	jwks, err := svc.GetJWKS(context.Background())
 

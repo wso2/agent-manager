@@ -37,7 +37,7 @@ type cardOutcome struct {
 	Error string `json:"error,omitempty"`
 }
 
-func runExternalPostCreate(ctx context.Context, opts *CreateOptions, agent *amsvc.AgentResponse, client *amsvc.ClientWithResponses, env string, card *cardOutcome) error {
+func runExternalPostCreate(ctx context.Context, opts *CreateOptions, agent *amsvc.AgentResponse, client *amsvc.ClientWithResponses, card *cardOutcome) error {
 	oc, err := opts.Observer(ctx)
 	if err != nil {
 		return err
@@ -46,7 +46,7 @@ func runExternalPostCreate(ctx context.Context, opts *CreateOptions, agent *amsv
 
 	expires := externalTokenExpiresIn
 	body := amsvc.TokenRequest{ExpiresIn: &expires}
-	params := &amsvc.GenerateAgentTokenParams{Environment: &env}
+	params := &amsvc.GenerateAgentTokenParams{}
 
 	tokenResp, err := client.GenerateAgentTokenWithResponse(ctx, opts.Org, opts.Proj, agent.Name, params, body)
 	if err != nil {

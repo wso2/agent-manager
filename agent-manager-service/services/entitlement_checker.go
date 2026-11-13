@@ -32,7 +32,7 @@ import "context"
 // its billing system is unreachable returns nil in that case.
 type EntitlementChecker interface {
 	// CheckCreate checks creating quantity more resources of resourceType in the
-	// organization ouID. resourceType is the OpenChoreo component type the
+	// organization ouID. resourceType is the component type the
 	// create will use, such as "proxy/agent-api".
 	CheckCreate(ctx context.Context, ouID, resourceType string, quantity int) error
 }

@@ -17,13 +17,10 @@
 package controllers
 
 import (
-	"encoding/json"
 	"errors"
-	"io"
 	"net/http"
 	"strconv"
 
-	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
@@ -34,19 +31,10 @@ import (
 
 // EnvironmentController defines the interface for environment HTTP handlers
 type EnvironmentController interface {
-	CreateEnvironment(w http.ResponseWriter, r *http.Request)
 	GetEnvironment(w http.ResponseWriter, r *http.Request)
 	ListEnvironments(w http.ResponseWriter, r *http.Request)
-	UpdateEnvironment(w http.ResponseWriter, r *http.Request)
-	DeleteEnvironment(w http.ResponseWriter, r *http.Request)
 	GetEnvironmentGateways(w http.ResponseWriter, r *http.Request)
 	ListThunderInstances(w http.ResponseWriter, r *http.Request)
-	SetThunderSystemClient(w http.ResponseWriter, r *http.Request)
-	DeleteThunderSystemClient(w http.ResponseWriter, r *http.Request)
-	SetThunderURL(w http.ResponseWriter, r *http.Request)
-	GetThunderURL(w http.ResponseWriter, r *http.Request)
-	DeleteThunderURL(w http.ResponseWriter, r *http.Request)
-	CheckThunderURLAvailability(w http.ResponseWriter, r *http.Request)
 }
 
 type environmentController struct {
@@ -66,60 +54,13 @@ func handleEnvironmentErrors(w http.ResponseWriter, err error, fallbackMsg strin
 		utils.WriteErrorResponse(w, http.StatusNotFound, "Environment not found")
 	case errors.Is(err, utils.ErrResourceBeingDeleted):
 		utils.WriteErrorResponse(w, http.StatusConflict, "An environment with this name is still being deleted, try again shortly")
-	case errors.Is(err, utils.ErrEnvironmentAlreadyExists) || errors.Is(err, utils.ErrConflict):
+	case errors.Is(err, utils.ErrConflict):
 		utils.WriteErrorResponse(w, http.StatusConflict, "Environment already exists")
-	case errors.Is(err, utils.ErrEnvironmentHasGateways):
-		utils.WriteErrorResponse(w, http.StatusConflict, "Environment has associated gateways")
-	case errors.Is(err, utils.ErrEnvironmentInUse):
-		utils.WriteErrorResponse(w, http.StatusConflict, "Environment is referenced by one or more deployment pipelines")
 	case errors.Is(err, utils.ErrInvalidInput):
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid input")
 	default:
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, fallbackMsg)
 	}
-}
-
-func (c *environmentController) CreateEnvironment(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	log := logger.GetLogger(ctx)
-
-	ouID := middleware.OUIDFromRequest(r)
-
-	var req spec.CreateEnvironmentRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		log.Error("CreateEnvironment: failed to decode request", "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
-		return
-	}
-
-	// Convert spec request to internal model
-	internalReq := &models.CreateEnvironmentRequest{
-		Name:          req.Name,
-		DisplayName:   req.DisplayName,
-		DataplaneRef:  utils.GetOrDefault(req.DataplaneRef, ""),
-		DNSPrefix:     req.DnsPrefix,
-		IsProduction:  false,
-		Gateway:       fromSpecGatewaySpec(req.Gateway),
-		IsolationTier: utils.GetOrDefault(req.IsolationTier, ""),
-	}
-
-	if req.Description != nil {
-		internalReq.Description = *req.Description
-	}
-	if req.IsProduction != nil {
-		internalReq.IsProduction = *req.IsProduction
-	}
-
-	env, err := c.environmentService.CreateEnvironment(ctx, ouID, internalReq)
-	if err != nil {
-		log.Error("CreateEnvironment: failed to create environment", "error", err)
-		handleEnvironmentErrors(w, err, "Failed to create environment")
-		return
-	}
-
-	// Convert internal response to spec response
-	response := convertToSpecEnvironmentResponse(env)
-	utils.WriteSuccessResponse(w, http.StatusCreated, response)
 }
 
 func (c *environmentController) GetEnvironment(w http.ResponseWriter, r *http.Request) {
@@ -174,60 +115,6 @@ func (c *environmentController) ListEnvironments(w http.ResponseWriter, r *http.
 	}
 
 	utils.WriteSuccessResponse(w, http.StatusOK, specEnvs)
-}
-
-func (c *environmentController) UpdateEnvironment(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	log := logger.GetLogger(ctx)
-
-	ouID := middleware.OUIDFromRequest(r)
-	envID := r.PathValue("envID")
-
-	var req spec.UpdateEnvironmentRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		log.Error("UpdateEnvironment: failed to decode request", "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
-		return
-	}
-
-	// Convert spec request to internal model
-	var description *string
-	if req.Description.IsSet() {
-		description = req.Description.Get()
-	}
-
-	internalReq := &models.UpdateEnvironmentRequest{
-		DisplayName:  req.DisplayName,
-		Description:  description,
-		IsProduction: req.IsProduction,
-		Gateway:      fromSpecGatewaySpec(req.Gateway),
-	}
-
-	env, err := c.environmentService.UpdateEnvironment(ctx, ouID, envID, internalReq)
-	if err != nil {
-		log.Error("UpdateEnvironment: failed to update environment", "error", err)
-		handleEnvironmentErrors(w, err, "Failed to update environment")
-		return
-	}
-
-	response := convertToSpecEnvironmentResponse(env)
-	utils.WriteSuccessResponse(w, http.StatusOK, response)
-}
-
-func (c *environmentController) DeleteEnvironment(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	log := logger.GetLogger(ctx)
-
-	ouID := middleware.OUIDFromRequest(r)
-	envID := r.PathValue("envID")
-
-	if err := c.environmentService.DeleteEnvironment(ctx, ouID, envID); err != nil {
-		log.Error("DeleteEnvironment: failed to delete environment", "error", err)
-		handleEnvironmentErrors(w, err, "Failed to delete environment")
-		return
-	}
-
-	utils.WriteSuccessResponse(w, http.StatusNoContent, "")
 }
 
 func (c *environmentController) GetEnvironmentGateways(w http.ResponseWriter, r *http.Request) {
@@ -294,44 +181,6 @@ func convertToSpecEnvironmentResponse(env *models.GatewayEnvironmentResponse) sp
 // deliberately omits OC-only fields (Gateway resource name/namespace, listener
 // name); the OC client constructs those at request time.
 // -----------------------------------------------------------------------------
-
-func fromSpecGatewaySpec(g *spec.GatewaySpec) *models.GatewaySpec {
-	if g == nil {
-		return nil
-	}
-	return &models.GatewaySpec{
-		Ingress: fromSpecGatewayNetworkSpec(g.Ingress),
-		Egress:  fromSpecGatewayNetworkSpec(g.Egress),
-	}
-}
-
-func fromSpecGatewayNetworkSpec(n *spec.GatewayNetworkSpec) *models.GatewayNetworkSpec {
-	if n == nil {
-		return nil
-	}
-	return &models.GatewayNetworkSpec{
-		External: fromSpecGatewayEndpointSpec(n.External),
-		Internal: fromSpecGatewayEndpointSpec(n.Internal),
-	}
-}
-
-func fromSpecGatewayEndpointSpec(e *spec.GatewayEndpointSpec) *models.GatewayEndpointSpec {
-	if e == nil {
-		return nil
-	}
-	return &models.GatewayEndpointSpec{
-		HTTP:  fromSpecGatewayListenerSpec(e.Http),
-		HTTPS: fromSpecGatewayListenerSpec(e.Https),
-		TLS:   fromSpecGatewayListenerSpec(e.Tls),
-	}
-}
-
-func fromSpecGatewayListenerSpec(l *spec.GatewayListenerSpec) *models.GatewayListenerSpec {
-	if l == nil {
-		return nil
-	}
-	return &models.GatewayListenerSpec{Port: l.Port, Host: l.Host}
-}
 
 func toSpecGatewaySpec(g *models.GatewaySpec) *spec.GatewaySpec {
 	if g == nil {
@@ -401,282 +250,4 @@ func (c *environmentController) ListThunderInstances(w http.ResponseWriter, r *h
 	}
 
 	utils.WriteSuccessResponse(w, http.StatusOK, result)
-}
-
-// SetThunderSystemClient stores an environment's env-Thunder system-client
-// credential (bootstrap-only; called by add-environment-thunder.sh).
-func (c *environmentController) SetThunderSystemClient(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	log := logger.GetLogger(ctx)
-
-	ouID := middleware.OUIDFromRequest(r)
-	envName := r.PathValue("envID")
-
-	// A trusted control-plane caller may act on a tenant's behalf (see
-	// impersonatedOUID); its override wins over the token, and the context is
-	// rewritten too. Without a deployment-installed resolver this never fires.
-	if impersonated, ok := impersonatedOUID(r); ok && impersonated != ouID {
-		log.Warn("SetThunderSystemClient: org impersonation header overrides token org",
-			"tokenOuID", ouID, "impersonatedOuID", impersonated)
-		ouID = impersonated
-		org, _ := middleware.GetResolvedOrg(ctx)
-		org.OUID = impersonated
-		ctx = middleware.WithResolvedOrg(ctx, org)
-	}
-
-	var req spec.ThunderSystemClientRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		log.Error("SetThunderSystemClient: failed to decode request", "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
-		return
-	}
-	if req.ClientId == "" || req.ClientSecret == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "clientId and clientSecret are required")
-		return
-	}
-
-	// The clientId identifies the credential; clientSecret is never passed to
-	// the recorder. Refused when unrecordable — this credential is what AMS uses
-	// to reach the environment's identity provider.
-	attempt, ok := beginAuditOrFail(
-		w, r, "SetThunderSystemClient", "Failed to store system-client credential", audit.ActionServiceAccountConfigure,
-		audit.Org(ouID),
-		audit.ResourceNamed(audit.ResourceServiceAccount, envName, envName),
-		audit.Environment(envName),
-		audit.Detail("environment", envName),
-		audit.Detail("clientId", req.ClientId),
-	)
-	if !ok {
-		return
-	}
-
-	if err := c.environmentService.SetThunderSystemClientSecret(ctx, ouID, envName, req.ClientId, req.ClientSecret); err != nil {
-		attempt.Complete(ctx, err)
-		log.Error("SetThunderSystemClient: failed to store credential", "ouID", ouID, "envName", envName, "error", err)
-		if errors.Is(err, utils.ErrInvalidInput) {
-			utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid input")
-			return
-		}
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to store system-client credential")
-		return
-	}
-	attempt.Complete(ctx, nil)
-
-	utils.WriteSuccessResponse(w, http.StatusNoContent, "")
-}
-
-// DeleteThunderSystemClient removes an environment's env-Thunder system-client
-// credential (idempotent; called by remove-environment-thunder.sh).
-func (c *environmentController) DeleteThunderSystemClient(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	log := logger.GetLogger(ctx)
-
-	ouID := middleware.OUIDFromRequest(r)
-	envName := r.PathValue("envID")
-
-	attempt, ok := beginAuditOrFail(
-		w, r, "DeleteThunderSystemClient", "Failed to delete system-client credential", audit.ActionServiceAccountRemove,
-		audit.Org(ouID),
-		audit.ResourceNamed(audit.ResourceServiceAccount, envName, envName),
-		audit.Environment(envName),
-		audit.Detail("environment", envName),
-	)
-	if !ok {
-		return
-	}
-
-	if err := c.environmentService.DeleteThunderSystemClientSecret(ctx, ouID, envName); err != nil {
-		attempt.Complete(ctx, err)
-		log.Error("DeleteThunderSystemClient: failed to delete credential", "ouID", ouID, "envName", envName, "error", err)
-		if errors.Is(err, utils.ErrInvalidInput) {
-			utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid input")
-			return
-		}
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to delete system-client credential")
-		return
-	}
-	attempt.Complete(ctx, nil)
-
-	utils.WriteSuccessResponse(w, http.StatusNoContent, "")
-}
-
-// SetThunderURL registers an environment's env-Thunder URL handle (bootstrap-only;
-// called by add-environment-thunder.sh before it provisions the Thunder instance).
-func (c *environmentController) SetThunderURL(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	log := logger.GetLogger(ctx)
-
-	ouID := middleware.OUIDFromRequest(r)
-	envName := r.PathValue("envID")
-
-	// A trusted control-plane caller may act on a tenant's behalf (see
-	// impersonatedOUID); its override wins over the token, and the context is
-	// rewritten too. Without a deployment-installed resolver this never fires.
-	if impersonated, ok := impersonatedOUID(r); ok && impersonated != ouID {
-		log.Warn("SetThunderURL: org impersonation header overrides token org",
-			"tokenOuID", ouID, "impersonatedOuID", impersonated)
-		ouID = impersonated
-		org, _ := middleware.GetResolvedOrg(ctx)
-		org.OUID = impersonated
-		ctx = middleware.WithResolvedOrg(ctx, org)
-	}
-
-	// The request body itself is optional (an empty PUT means "generate one for
-	// me"), so a missing/empty body is not a decode error — only malformed JSON is.
-	// ContentLength is -1 for chunked requests, so io.EOF checks for an empty body.
-	var req spec.ThunderUrlRequest
-	if r.ContentLength != 0 {
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil && !errors.Is(err, io.EOF) {
-			log.Error("SetThunderURL: failed to decode request", "error", err)
-			utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
-			return
-		}
-	}
-	var handle, rawURL string
-	if req.Handle != nil {
-		handle = *req.Handle
-	}
-	if req.Url != nil {
-		rawURL = *req.Url
-	}
-
-	// The resolved record (possibly server-generated handle, or the
-	// caller-supplied url normalized) is only known once the service call
-	// returns, so it's added to the record at Complete rather than here.
-	attempt, ok := beginAuditOrFail(
-		w, r, "SetThunderURL", "Failed to store thunder url", audit.ActionThunderURLSet,
-		audit.Org(ouID),
-		audit.ResourceNamed(audit.ResourceThunderURL, envName, envName),
-		audit.Environment(envName),
-	)
-	if !ok {
-		return
-	}
-
-	resolved, err := c.environmentService.SetThunderURL(ctx, ouID, envName, handle, rawURL)
-	if err != nil {
-		attempt.Complete(ctx, err)
-		log.Error("SetThunderURL: failed to store thunder url", "ouID", ouID, "envName", envName, "error", err)
-		switch {
-		case errors.Is(err, utils.ErrThunderHandleTaken), errors.Is(err, utils.ErrThunderURLTaken):
-			utils.WriteErrorResponse(w, http.StatusConflict, "Thunder URL is already in use")
-		case errors.Is(err, utils.ErrInvalidThunderHandle), errors.Is(err, utils.ErrInvalidThunderURL),
-			errors.Is(err, utils.ErrThunderHandleAndURLBothSet), errors.Is(err, utils.ErrInvalidInput):
-			utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid input")
-		default:
-			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to store thunder url")
-		}
-		return
-	}
-	attempt.Complete(ctx, nil, audit.Detail("handle", resolved.Handle), audit.Detail("url", resolved.URL))
-
-	utils.WriteSuccessResponse(w, http.StatusOK, toThunderUrlResponse(resolved))
-}
-
-// toThunderUrlResponse maps a resolved record to the wire response, omitting
-// Handle entirely (rather than an empty string) for a caller-supplied row
-// that has none — spec.ThunderUrlResponse.Handle is optional for exactly
-// this reason.
-func toThunderUrlResponse(rec models.ThunderURLRecord) spec.ThunderUrlResponse {
-	resp := spec.ThunderUrlResponse{Url: rec.URL}
-	if rec.Handle != "" {
-		resp.Handle = &rec.Handle
-	}
-	return resp
-}
-
-// GetThunderURL returns an environment's registered env-Thunder URL handle.
-// Used by add-environment.sh, after Thunder provisioning succeeds, to learn the
-// actual handle (possibly server-generated) for wiring the gateway's ThunderKeyManager.
-func (c *environmentController) GetThunderURL(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	log := logger.GetLogger(ctx)
-
-	ouID := middleware.OUIDFromRequest(r)
-	envName := r.PathValue("envID")
-
-	resolved, err := c.environmentService.GetThunderURL(ctx, ouID, envName)
-	if err != nil {
-		if errors.Is(err, utils.ErrThunderHandleNotFound) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "No thunder url registered for this environment")
-			return
-		}
-		log.Error("GetThunderURL: failed to read thunder url", "ouID", ouID, "envName", envName, "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to read thunder url")
-		return
-	}
-
-	utils.WriteSuccessResponse(w, http.StatusOK, toThunderUrlResponse(resolved))
-}
-
-// DeleteThunderURL removes an environment's env-Thunder URL handle (idempotent;
-// called by remove-environment-thunder.sh), freeing it for reuse.
-func (c *environmentController) DeleteThunderURL(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	log := logger.GetLogger(ctx)
-
-	ouID := middleware.OUIDFromRequest(r)
-	envName := r.PathValue("envID")
-
-	attempt, ok := beginAuditOrFail(
-		w, r, "DeleteThunderURL", "Failed to delete thunder url handle", audit.ActionThunderURLDelete,
-		audit.Org(ouID),
-		audit.ResourceNamed(audit.ResourceThunderURL, envName, envName),
-		audit.Environment(envName),
-	)
-	if !ok {
-		return
-	}
-
-	// Read the record being freed so the success record below names it. A
-	// genuinely missing record is not an error — Delete is idempotent — but any
-	// other read failure must abort before the delete: silently ignoring it
-	// would risk deleting a row the record can no longer identify.
-	existing, err := c.environmentService.GetThunderURL(ctx, ouID, envName)
-	if err != nil && !errors.Is(err, utils.ErrThunderHandleNotFound) {
-		attempt.Complete(ctx, err)
-		log.Error("DeleteThunderURL: failed to read thunder url before delete", "ouID", ouID, "envName", envName, "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to delete thunder url")
-		return
-	}
-
-	if err := c.environmentService.DeleteThunderURL(ctx, ouID, envName); err != nil {
-		attempt.Complete(ctx, err)
-		log.Error("DeleteThunderURL: failed to delete thunder url", "ouID", ouID, "envName", envName, "error", err)
-		if errors.Is(err, utils.ErrInvalidInput) {
-			utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid input")
-			return
-		}
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to delete thunder url")
-		return
-	}
-	attempt.Complete(ctx, nil, audit.Detail("handle", existing.Handle), audit.Detail("url", existing.URL))
-
-	utils.WriteSuccessResponse(w, http.StatusNoContent, "")
-}
-
-// CheckThunderURLAvailability reports whether a candidate env-Thunder URL
-// handle passes format validation and is not already registered to any
-// environment. Advisory only — used by the console's Create Environment
-// drawer to reject an obviously-taken handle before the user ever runs the
-// generated add-environment.sh command; SetThunderURL's atomic insert remains
-// the real enforcement.
-func (c *environmentController) CheckThunderURLAvailability(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	log := logger.GetLogger(ctx)
-
-	handle := r.URL.Query().Get("handle")
-
-	available, err := c.environmentService.IsThunderHandleAvailable(ctx, handle)
-	if err != nil {
-		if errors.Is(err, utils.ErrInvalidThunderHandle) {
-			utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		log.Error("CheckThunderURLAvailability: failed to check handle availability", "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to check thunder url handle availability")
-		return
-	}
-
-	utils.WriteSuccessResponse(w, http.StatusOK, spec.ThunderUrlAvailabilityResponse{Available: available})
 }

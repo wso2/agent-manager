@@ -25,8 +25,8 @@ namespace AmpDotnetAgent;
 /// The .NET analog of the <c>amp-instrumentation</c> package's <c>init_otel()</c>
 /// helper. It configures the global OpenTelemetry tracer provider to export spans
 /// over OTLP/HTTP to the AMP gateway, using the <c>AMP_OTEL_ENDPOINT</c> and
-/// <c>AMP_AGENT_API_KEY</c> environment variables — the same two AMP injects into
-/// platform-hosted agents.
+/// <c>AMP_AGENT_API_KEY</c> environment variables — the same two the Python
+/// <c>amp-instrument</c> CLI reads.
 ///
 /// It does <i>no</i> instrumentation itself. The agent's
 /// <c>.WithOpenTelemetry(SourceName)</c> / <c>.UseOpenTelemetry(SourceName)</c>
@@ -57,7 +57,7 @@ public static class AmpTelemetry
 
     /// <summary>
     /// Whether prompt/response content should be captured in spans. Honors
-    /// <c>AMP_TRACE_CONTENT</c> (the variable AMP's env-injection trait sets);
+    /// <c>AMP_TRACE_CONTENT</c> (the variable <c>amp-instrument</c> reads);
     /// content capture is on unless it is explicitly <c>false</c>. Maps to Agent
     /// Framework's <c>EnableSensitiveData</c> option.
     /// </summary>

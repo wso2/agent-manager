@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"sort"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -47,10 +46,9 @@ type ListOptions struct {
 	Org   string
 	Scope render.Scope
 
-	Type        string
-	Environment string
-	Limit       *int32
-	Offset      *int32
+	Type   string
+	Limit  *int32
+	Offset *int32
 }
 
 func NewListCmd(f *cmdutil.Factory) *cobra.Command {
@@ -102,9 +100,6 @@ func NewListCmd(f *cmdutil.Factory) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&opts.Type, "type", "",
 		fmt.Sprintf("Filter by placement role (%s)", strings.Join(gatewayTypes, "|")))
-	// A plain string flag, not cmdutil.AddEnvFlag: that resolver defaults from the
-	// linked project's environment, which would silently narrow an org-wide listing.
-	cmd.Flags().StringVar(&opts.Environment, "env", "", "Filter by environment name")
 	cmd.Flags().IntVar(&limit, "limit", 0, "Maximum number of results to return")
 	cmd.Flags().IntVar(&offset, "offset", 0, "Number of results to skip")
 	_ = cmd.RegisterFlagCompletionFunc("type",
@@ -139,9 +134,6 @@ func runList(ctx context.Context, o *ListOptions) error {
 		}
 		params.Type = &gatewayType
 	}
-	if o.Environment != "" {
-		params.Environment = &o.Environment
-	}
 	// Status is deliberately never filtered: the server's candidate set for
 	// placement is not liveness-filtered, so an ACTIVE-only view would offer a
 	// narrower set than the server actually accepts.
@@ -168,14 +160,13 @@ func runList(ctx context.Context, o *ListOptions) error {
 		return render.EmptyList(o.IO, o.emptyMessage())
 	}
 
-	tp := tableprinter.New(o.IO, "name", "uuid", "type", "status", "environment", "vhost")
+	tp := tableprinter.New(o.IO, "name", "uuid", "type", "status", "vhost")
 	cs := o.IO.ColorScheme()
 	for _, g := range resp.JSON200.Gateways {
 		tp.AddField(g.Name, tableprinter.WithColor(cs.Bold))
 		tp.AddField(g.Uuid)
 		tp.AddField(string(g.GatewayType))
 		tp.AddField(string(g.Status))
-		tp.AddField(environmentNames(g))
 		tp.AddField(g.Vhost, tableprinter.WithColor(cs.Gray))
 		tp.EndRow()
 	}
@@ -189,27 +180,9 @@ func (o *ListOptions) emptyMessage() string {
 	if o.Type != "" {
 		filters = append(filters, fmt.Sprintf("type %s", strings.ToUpper(o.Type)))
 	}
-	if o.Environment != "" {
-		filters = append(filters, fmt.Sprintf("environment %q", o.Environment))
-	}
 	if len(filters) == 0 {
 		return fmt.Sprintf("No gateways found in organization %q.", o.Org)
 	}
 	return fmt.Sprintf("No gateways in organization %q match %s.",
 		o.Org, strings.Join(filters, " and "))
-}
-
-// environmentNames renders the eagerly-included environment bindings as one cell.
-// A gateway with no binding cannot host an artifact, so the empty case is worth
-// showing rather than blanking.
-func environmentNames(g amsvc.GatewayResponse) string {
-	if g.Environments == nil || len(*g.Environments) == 0 {
-		return "-"
-	}
-	names := make([]string, 0, len(*g.Environments))
-	for _, env := range *g.Environments {
-		names = append(names, env.Name)
-	}
-	sort.Strings(names)
-	return strings.Join(names, ",")
 }

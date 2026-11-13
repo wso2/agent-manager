@@ -21,7 +21,9 @@ package repositories
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -29,16 +31,28 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
+	"github.com/wso2/agent-manager/agent-manager-service/db/dbtest"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 )
 
-func newTestProxy(agentName string) *models.A2AProxy {
+func newTestProxy(t *testing.T, agentName string) *models.A2AProxy {
+	t.Helper()
+	return newTestProxyIn(t, "Development", agentName)
+}
+
+// newTestProxyIn is newTestProxy in the environment named env.
+func newTestProxyIn(t *testing.T, env, agentName string) *models.A2AProxy {
+	t.Helper()
+	ou := testOrg(t)
+	ensureAgent(t, ou, "checkout", agentName)
+	envID := envOf(t, ou, env)
 	return &models.A2AProxy{
-		OUID:               "ou-" + uuid.New().String()[:8],
+		OUID:               ou,
 		ProjectName:        "checkout",
 		AgentName:          agentName,
-		EnvironmentName:    "Development",
-		EnvironmentUUID:    uuid.New(),
+		EnvironmentName:    env,
+		EnvironmentUUID:    envID,
+		ArtifactUUID:       newArtifact(t, ou, models.KindAgent, "checkout/"+agentName+"/"+envID.String()),
 		UpstreamAuthHeader: "X-Upstream-Key",
 		UpstreamAuthSecret: "c2VjcmV0",
 	}
@@ -54,7 +68,7 @@ func cleanupProxy(t *testing.T, repo A2AProxyRepository, proxy *models.A2AProxy)
 func TestA2AProxyUpsertCreatesAndUpdates(t *testing.T) {
 	repo := NewA2AProxyRepository(db.GetDB())
 	ctx := context.Background()
-	proxy := newTestProxy("upsert-" + uuid.New().String()[:8])
+	proxy := newTestProxy(t, "upsert-"+uuid.New().String()[:8])
 	cleanupProxy(t, repo, proxy)
 	require.NoError(t, repo.Upsert(ctx, proxy))
 
@@ -75,34 +89,14 @@ func TestA2AProxyUpsertCreatesAndUpdates(t *testing.T) {
 	assert.Empty(t, got.UpstreamAuthSecret, "clearing auth drops the secret")
 }
 
-// A re-created environment of the same name must not inherit the old proxy or its secret.
-func TestA2AProxyUpsertReplacesARowFromADeletedEnvironment(t *testing.T) {
-	repo := NewA2AProxyRepository(db.GetDB())
-	ctx := context.Background()
-	old := newTestProxy("recreated-" + uuid.New().String()[:8])
-	cleanupProxy(t, repo, old)
-	require.NoError(t, repo.Upsert(ctx, old))
-
-	recreated := newTestProxy(old.AgentName)
-	recreated.OUID, recreated.UpstreamAuthHeader, recreated.UpstreamAuthSecret = old.OUID, "", ""
-	require.NoError(t, repo.Upsert(ctx, recreated))
-
-	_, err := repo.GetByEnvUUID(ctx, old.OUID, old.ProjectName, old.AgentName, old.EnvironmentUUID)
-	assert.ErrorIs(t, err, ErrA2AProxyNotFound)
-	got, err := repo.Get(ctx, old.OUID, old.ProjectName, old.AgentName, "Development")
-	require.NoError(t, err)
-	assert.Equal(t, recreated.EnvironmentUUID, got.EnvironmentUUID)
-	assert.Empty(t, got.UpstreamAuthSecret)
-}
-
 func TestA2AProxyLookupsAreOrgScopedAndReportAMissingRow(t *testing.T) {
 	repo := NewA2AProxyRepository(db.GetDB())
 	ctx := context.Background()
-	proxy := newTestProxy("scoped-" + uuid.New().String()[:8])
+	proxy := newTestProxy(t, "scoped-"+uuid.New().String()[:8])
 	cleanupProxy(t, repo, proxy)
 	require.NoError(t, repo.Upsert(ctx, proxy))
 
-	_, err := repo.Get(ctx, "other-org", proxy.ProjectName, proxy.AgentName, "Development")
+	_, err := repo.Get(ctx, newOrg(t), proxy.ProjectName, proxy.AgentName, "Development")
 	assert.ErrorIs(t, err, ErrA2AProxyNotFound)
 	_, err = repo.GetByEnvUUID(ctx, proxy.OUID, proxy.ProjectName, proxy.AgentName, uuid.New())
 	assert.ErrorIs(t, err, ErrA2AProxyNotFound)
@@ -111,7 +105,7 @@ func TestA2AProxyLookupsAreOrgScopedAndReportAMissingRow(t *testing.T) {
 func TestA2AProxyDeleteReportsAMissingRow(t *testing.T) {
 	repo := NewA2AProxyRepository(db.GetDB())
 	ctx := context.Background()
-	proxy := newTestProxy("delete-" + uuid.New().String()[:8])
+	proxy := newTestProxy(t, "delete-"+uuid.New().String()[:8])
 	cleanupProxy(t, repo, proxy)
 	require.NoError(t, repo.Upsert(ctx, proxy))
 
@@ -122,9 +116,8 @@ func TestA2AProxyDeleteReportsAMissingRow(t *testing.T) {
 func TestA2AProxyDeletesForAgentAndEnvironment(t *testing.T) {
 	repo := NewA2AProxyRepository(db.GetDB())
 	ctx := context.Background()
-	dev := newTestProxy("bulk-" + uuid.New().String()[:8])
-	prod := newTestProxy(dev.AgentName)
-	prod.OUID, prod.EnvironmentName = dev.OUID, "Production"
+	dev := newTestProxy(t, "bulk-"+uuid.New().String()[:8])
+	prod := newTestProxyIn(t, "Production", dev.AgentName)
 	cleanupProxy(t, repo, dev)
 	require.NoError(t, repo.Upsert(ctx, dev))
 	require.NoError(t, repo.Upsert(ctx, prod))
@@ -143,7 +136,7 @@ func TestA2AProxyDeletesForAgentAndEnvironment(t *testing.T) {
 func TestA2AProxyWithTxRollsBack(t *testing.T) {
 	repo := NewA2AProxyRepository(db.GetDB())
 	ctx := context.Background()
-	proxy := newTestProxy("tx-" + uuid.New().String()[:8])
+	proxy := newTestProxy(t, "tx-"+uuid.New().String()[:8])
 	cleanupProxy(t, repo, proxy)
 
 	err := db.GetDB().Transaction(func(tx *gorm.DB) error {
@@ -158,36 +151,42 @@ func TestA2AProxyWithTxRollsBack(t *testing.T) {
 
 // The lock holds a second transaction on the same environment until the first ends, and only that one.
 func TestA2AProxyLockAgentEnvSerialisesOneEnvironment(t *testing.T) {
-	repo := NewA2AProxyRepository(db.GetDB())
+	gormDB := db.GetDB()
+	repo := NewA2AProxyRepository(gormDB)
 	ctx := context.Background()
-	ouID, envUUID := "ou-"+uuid.New().String()[:8], uuid.New()
+	ouID := dbtest.Org(t, gormDB)
+	dbtest.Agent(t, gormDB, ouID, dbtest.Project(t, gormDB, ouID, "checkout"), "weather")
+	envUUID := dbtest.Environment(t, gormDB, ouID)
 
-	holder := db.GetDB().Begin()
+	holder := gormDB.Begin()
 	require.NoError(t, holder.Error)
 	defer holder.Rollback()
 	require.NoError(t, repo.WithTx(holder).LockAgentEnv(ctx, ouID, "checkout", "weather", envUUID))
 
-	tryLock := func(agentName string, envUUID uuid.UUID) bool {
-		var acquired bool
-		err := db.GetDB().Transaction(func(tx *gorm.DB) error {
-			key := a2aProxyLockKey(ouID, "checkout", agentName, envUUID)
-			return tx.Raw("SELECT pg_try_advisory_xact_lock(?, hashtext(?))", a2aProxyLockNamespace, key).Scan(&acquired).Error
+	var order []string
+	var mu sync.Mutex
+	note := func(s string) { mu.Lock(); order = append(order, s); mu.Unlock() }
+	done := make(chan error, 1)
+	go func() {
+		done <- gormDB.Transaction(func(tx *gorm.DB) error {
+			if err := repo.WithTx(tx).LockAgentEnv(ctx, ouID, "checkout", "weather", envUUID); err != nil {
+				return err
+			}
+			note("second")
+			return nil
 		})
-		require.NoError(t, err)
-		return acquired
-	}
-	assert.False(t, tryLock("weather", envUUID), "the same environment waits")
-	assert.True(t, tryLock("weather", uuid.New()), "another environment does not")
-	assert.True(t, tryLock("weather-2", envUUID), "nor another agent")
-
-	require.NoError(t, holder.Rollback().Error)
-	assert.True(t, tryLock("weather", envUUID), "the lock ends with the transaction")
+	}()
+	time.Sleep(200 * time.Millisecond)
+	note("first released")
+	require.NoError(t, holder.Commit().Error)
+	require.NoError(t, <-done)
+	assert.Equal(t, []string{"first released", "second"}, order, "the second lock waits for the first")
 }
 
 func TestA2AProxyListsTheEnvironmentUUIDsUnderAName(t *testing.T) {
 	repo := NewA2AProxyRepository(db.GetDB())
 	ctx := context.Background()
-	old := newTestProxy("names-" + uuid.New().String()[:8])
+	old := newTestProxy(t, "names-"+uuid.New().String()[:8])
 	cleanupProxy(t, repo, old)
 	require.NoError(t, repo.Upsert(ctx, old))
 

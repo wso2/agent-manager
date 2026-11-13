@@ -28,7 +28,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
 	"github.com/wso2/agent-manager/agent-manager-service/eventhub"
 	"github.com/wso2/agent-manager/agent-manager-service/events"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
@@ -100,7 +99,7 @@ func newAPIKeyServiceFixture(t *testing.T, existing *models.StoredAPIKey) *apiKe
 	envUUID := "dada1090-0ddb-457a-a116-7f03d3cd0c4c"
 	gatewayUUID := uuid.MustParse("22222222-2222-2222-2222-222222222222")
 
-	oc := &clientmocks.OpenChoreoClientMock{
+	oc := &repomocks.PlatformRepositoryMock{
 		GetEnvironmentFunc: func(_ context.Context, _, _ string) (*models.EnvironmentResponse, error) {
 			return &models.EnvironmentResponse{UUID: envUUID, Name: "dev"}, nil
 		},

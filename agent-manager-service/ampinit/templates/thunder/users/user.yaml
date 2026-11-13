@@ -1,0 +1,17 @@
+# An additional user from AMP_DEFAULT_USERS. The password goes in both places:
+# attributes satisfy the user type's required-field check on create, and only
+# credentials stores a usable (hashed) password. ThunderID refuses to write a
+# credential twice (USR-1028), so the setup imports this file only until the
+# user exists; later password changes are made in ThunderID itself.
+resource_type: user
+id: {{ q (print "amp-user-" .Username) }}
+type: engineer
+ouHandle: default
+attributes:
+  username: {{ q .Username }}
+  password: {{ q .Password }}
+  email: {{ q .Email }}
+  given_name: {{ q .GivenName }}
+  family_name: {{ q .FamilyName }}
+credentials:
+  password: {{ q .Password }}

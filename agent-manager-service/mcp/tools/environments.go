@@ -46,9 +46,8 @@ type listEnvironmentsOutput struct {
 func (t *Toolsets) registerEnvironmentTools(server *gomcp.Server, reg *toolRegistry) {
 	addTool(reg, server, &gomcp.Tool{
 		Name: "list_environments",
-		Description: "List the environments configured for your organization (resolved from the caller's token). " +
-			"Use this to discover valid environment names for tools that take an `environment` argument, " +
-			"such as update_deployment_state and create_external_agent.",
+		Description: "List the environments of your organization (resolved from the caller's token). " +
+			"Every organization has a single environment named `default`.",
 		InputSchema: createSchema(map[string]any{
 			"limit":  intProperty(fmt.Sprintf("Optional. Max environments to return (default %d, min %d, max %d).", utils.DefaultLimit, utils.MinLimit, utils.MaxLimit)),
 			"offset": intProperty(fmt.Sprintf("Optional. Pagination offset (default %d, min %d).", utils.DefaultOffset, utils.MinOffset)),

@@ -18,10 +18,7 @@ package reconcile
 
 import (
 	"context"
-	"database/sql"
-	"database/sql/driver"
 	"errors"
-	"fmt"
 	"log/slog"
 	"sync"
 	"time"
@@ -49,6 +46,8 @@ const (
 type Worker struct {
 	core   *Core
 	logger *slog.Logger
+	// owner names this worker as the holder of the drift scan's lease.
+	owner string
 
 	nudgeCh  chan struct{}
 	placeCh  chan placeRequest
@@ -66,7 +65,7 @@ type placeRequest struct {
 // NewWorker makes the core's nudges reach the worker.
 func NewWorker(core *Core, logger *slog.Logger) *Worker {
 	w := &Worker{
-		core: core, logger: logger,
+		core: core, logger: logger, owner: uuid.NewString(),
 		nudgeCh: make(chan struct{}, 1), placeCh: make(chan placeRequest, placeQueue), stopCh: make(chan struct{}),
 	}
 	core.nudge = w.Nudge
@@ -269,44 +268,24 @@ func (w *Worker) driftLoop(ctx context.Context) {
 	}
 }
 
-// CheckDrift marks DEPLOYED rows whose inputs moved for a re-render, for every kind with a DriftChecker. One
-// replica scans at a time: scanned is false when another holds the scan. The scan holds a session lock on one
-// pinned connection, so no transaction stays open across the external drift calls.
+// CheckDrift runs one drift scan if no other worker holds this interval's lease. scanned is false when one does.
 func (w *Worker) CheckDrift(ctx context.Context) (scanned bool, err error) {
-	err = w.core.db.WithContext(ctx).Connection(func(conn *gorm.DB) error {
-		locked, err := repositories.TryLockDriftScan(conn)
-		if err != nil || !locked {
-			return err
-		}
-		scanned = true
-		defer w.unlockDriftScan(ctx, conn)
-		return w.scanForDrift(ctx)
-	})
-	return scanned, err
+	locked, err := repositories.TryLockDriftScan(ctx, w.core.db, w.owner)
+	if err != nil || !locked {
+		return false, err
+	}
+	defer w.unlockDriftScan(ctx)
+	return true, w.scanForDrift(ctx)
 }
 
-// unlockDriftScan ignores ctx's cancellation: a scan cut short by it must still release the lock. A lock that
-// won't release would outlive the scan on its pooled connection, so that connection is discarded.
-func (w *Worker) unlockDriftScan(ctx context.Context, conn *gorm.DB) {
+// unlockDriftScan ignores ctx's cancellation: a scan cut short by it must still release the lease. A release that
+// fails leaves the lease to run out.
+func (w *Worker) unlockDriftScan(ctx context.Context) {
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), driftUnlockTimeout)
 	defer cancel()
-	err := repositories.UnlockDriftScan(conn.WithContext(ctx))
-	if err == nil {
-		return
+	if err := repositories.UnlockDriftScan(ctx, w.core.db, w.owner); err != nil {
+		w.logger.Warn("Failed to release the drift scan lock; it is held until its lease runs out", "error", err)
 	}
-	w.logger.Warn("Failed to release the drift scan lock; discarding its connection", "error", err)
-	if err := discardConnection(conn); err != nil {
-		w.logger.Error("Failed to discard the connection holding the drift scan lock; the lock stays until it closes", "error", err)
-	}
-}
-
-// discardConnection makes database/sql close a pinned connection instead of pooling it, which ends its session.
-func discardConnection(conn *gorm.DB) error {
-	pinned, ok := conn.Statement.ConnPool.(*sql.Conn)
-	if !ok {
-		return fmt.Errorf("pinned connection is a %T, not a *sql.Conn", conn.Statement.ConnPool)
-	}
-	return pinned.Raw(func(any) error { return driver.ErrBadConn })
 }
 
 func (w *Worker) scanForDrift(ctx context.Context) error {

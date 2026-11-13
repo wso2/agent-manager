@@ -22,23 +22,23 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/wso2/agent-manager/agent-manager-service/db"
+	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 )
 
+// reconcilerOwner names this process as the reconciler lease's owner.
+var reconcilerOwner = uuid.NewString()
+
 const (
 	reconcilerTickInterval = 1 * time.Minute
-	// reconcilerLockID is a distinct PostgreSQL advisory lock ID from
-	// schedulerLockID (monitor_scheduler.go) — each background loop in this
-	// service needs its own ID so they don't block each other.
-	reconcilerLockID           = int64(739281457)
+	// reconcilerLock is the seeded singleton lease that lets one replica scan for due bindings.
+	reconcilerLock             = "agent_identity.reconciler"
 	reconcilerBatchSize        = 50
 	reconcilerConcurrencyLimit = 10
-	promotionTopologyInterval  = 5 * time.Minute
-	// promotionReconcilerLockID serializes the project promotion topology pass
-	// across replicas; distinct from reconcilerLockID and schedulerLockID.
-	promotionReconcilerLockID = int64(739281458)
 )
 
 // AgentThunderReconcilerService sweeps PENDING agent Thunder bindings whose
@@ -51,29 +51,20 @@ type AgentThunderReconcilerService interface {
 
 type agentThunderReconcilerService struct {
 	provisioning AgentThunderProvisioningService
-	// injector pushes an internal agent's credential into its live workload —
-	// held directly (not reached via the provisioning service) since this
-	// reconciler's own periodic sweep is the only caller within this service;
-	// see reconcileWorkloadInjection's doc comment for why that helper is
-	// package-level rather than a method needing to live on
-	// AgentThunderProvisioningService's interface.
-	injector AgentIdentityInjectionService
-	repo     repositories.AgentThunderClientRepository
-	logger   *slog.Logger
-	stopCh   chan struct{}
-	stopOnce sync.Once
+	repo         repositories.AgentThunderClientRepository
+	logger       *slog.Logger
+	stopCh       chan struct{}
+	stopOnce     sync.Once
 }
 
 // NewAgentThunderReconcilerService creates a new AgentThunderReconcilerService.
 func NewAgentThunderReconcilerService(
 	provisioning AgentThunderProvisioningService,
-	injector AgentIdentityInjectionService,
 	repo repositories.AgentThunderClientRepository,
 	logger *slog.Logger,
 ) AgentThunderReconcilerService {
 	return &agentThunderReconcilerService{
 		provisioning: provisioning,
-		injector:     injector,
 		repo:         repo,
 		logger:       logger,
 		stopCh:       make(chan struct{}),
@@ -85,58 +76,9 @@ func (s *agentThunderReconcilerService) Start(ctx context.Context) error {
 	// Own goroutine, independent of runLoop's ticker: a large backfill (see its
 	// own doc comment) must never delay the time-sensitive PENDING-binding
 	// retry cycle below.
-	go s.runInitialIdentityInjectionBackfill(ctx)
 	go s.runLoop(ctx)
-	if _, ok := s.provisioning.(ProjectAgentIdentityPromotionReconciler); ok {
-		go s.runPromotionTopologyLoop(ctx)
-	}
 	s.logger.Info("Agent thunder provisioning reconciler started")
 	return nil
-}
-
-func (s *agentThunderReconcilerService) runPromotionTopologyLoop(ctx context.Context) {
-	reconciler := s.provisioning.(ProjectAgentIdentityPromotionReconciler)
-	s.runPromotionTopologyCycle(ctx, reconciler)
-	ticker := time.NewTicker(promotionTopologyInterval)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ticker.C:
-			s.runPromotionTopologyCycle(ctx, reconciler)
-		case <-s.stopCh:
-			return
-		case <-ctx.Done():
-			return
-		}
-	}
-}
-
-// runPromotionTopologyCycle runs one topology pass under a PostgreSQL advisory
-// lock so only one replica backfills promotion bindings at a time, the same
-// mechanism runCycle uses. The pass is idempotent, so the lock only avoids
-// redundant pipeline reads: a replica that does not get it just skips the pass.
-func (s *agentThunderReconcilerService) runPromotionTopologyCycle(
-	ctx context.Context, reconciler ProjectAgentIdentityPromotionReconciler,
-) {
-	tx := db.GetDB().WithContext(ctx).Begin()
-	if tx.Error != nil {
-		s.logger.Error("Failed to begin transaction for promotion topology advisory lock", "error", tx.Error)
-		return
-	}
-	// The transaction-scoped lock is released by the rollback; the pass itself
-	// uses its own connections and writes nothing through tx.
-	defer tx.Rollback()
-
-	var locked bool
-	if err := tx.Raw("SELECT pg_try_advisory_xact_lock(?)", promotionReconcilerLockID).Scan(&locked).Error; err != nil {
-		s.logger.Error("Failed to try promotion topology advisory lock", "error", err)
-		return
-	}
-	if !locked {
-		s.logger.Debug("Another instance is reconciling project AgentID promotions, skipping pass")
-		return
-	}
-	reconciler.ReconcileProjectAgentIdentityPromotions(ctx)
 }
 
 func (s *agentThunderReconcilerService) Stop() error {
@@ -165,40 +107,26 @@ func (s *agentThunderReconcilerService) runLoop(ctx context.Context) {
 	}
 }
 
-// runCycle sweeps due bindings under a PostgreSQL advisory lock so only one
-// replica of this service retries a given binding at a time — mirrors
-// monitor_scheduler.go's runSchedulerCycle exactly.
+// runCycle sweeps due bindings under a singleton lease so only one replica of this service retries a given binding
+// at a time. The lease only covers the FindDue scan: ClaimForAttempt guards each binding, so the slow Thunder calls
+// below run unlocked.
 func (s *agentThunderReconcilerService) runCycle(ctx context.Context) {
-	tx := db.GetDB().WithContext(ctx).Begin()
-	if tx.Error != nil {
-		s.logger.Error("Failed to begin transaction for agent thunder reconciler advisory lock", "error", tx.Error)
-		return
-	}
-
-	var locked bool
-	if err := tx.Raw("SELECT pg_try_advisory_xact_lock(?)", reconcilerLockID).Scan(&locked).Error; err != nil {
-		s.logger.Error("Failed to try agent thunder reconciler advisory lock", "error", err)
-		tx.Rollback()
+	conn := db.GetDB()
+	locked, err := dbx.TryLock(ctx, conn, reconcilerLock, reconcilerOwner, dbx.Now(), reconcilerTickInterval)
+	if err != nil {
+		s.logger.Error("Failed to take the agent thunder reconciler lease", "error", err)
 		return
 	}
 	if !locked {
 		s.logger.Debug("Another instance is running the agent thunder reconciler, skipping cycle")
-		tx.Rollback()
 		return
 	}
-
 	due, err := s.repo.FindDue(ctx, time.Now(), reconcilerBatchSize)
+	if unlockErr := dbx.Unlock(ctx, conn, reconcilerLock, reconcilerOwner); unlockErr != nil {
+		s.logger.Error("Failed to release the agent thunder reconciler lease", "error", unlockErr)
+	}
 	if err != nil {
 		s.logger.Error("Failed to query due agent thunder bindings", "error", err)
-		tx.Rollback()
-		return
-	}
-
-	// Release the lock/connection now — ClaimForAttempt already guards each
-	// binding individually, so the lock only needs to cover the FindDue scan,
-	// not the slow Thunder/OpenBao calls below.
-	if err := tx.Commit().Error; err != nil {
-		s.logger.Error("Failed to commit agent thunder reconciler advisory lock transaction", "error", err)
 		return
 	}
 
@@ -223,80 +151,4 @@ func (s *agentThunderReconcilerService) runCycle(ctx context.Context) {
 		}(binding)
 	}
 	wg.Wait()
-
-	s.runIdentityInjectionReconcile(ctx)
-}
-
-// identityInjectionReconcileWindow bounds how far back the PERIODIC injection
-// sweep (runIdentityInjectionReconcile, every tick) looks. It only bridges the
-// gap between provisioning completing (seconds after create) and a brand-new
-// git agent's first build creating its ReleaseBinding (minutes later);
-// steady-state sync is owned by the deploy, promote, rotation, and
-// MCP-config-change paths, so the window is finite — every-tick-forever over
-// the whole table would be needless, permanent load. Bindings completed
-// before this window existed (e.g. an AMS upgrade) are still covered exactly
-// once by runInitialIdentityInjectionBackfill instead, without paying that
-// cost on every tick.
-const identityInjectionReconcileWindow = 2 * time.Hour
-
-// runIdentityInjectionReconcile reconciles recently-completed internal agents'
-// live workloads with their desired AgentID env vars, writing only when vars
-// are missing or scopes drifted (see ReconcileForEnvironment) so re-running
-// each tick never causes a needless pod rollout. Runs outside the advisory
-// lock; concurrent instances converge on the same desired state, so the worst
-// case is a duplicate content-identical write.
-func (s *agentThunderReconcilerService) runIdentityInjectionReconcile(ctx context.Context) {
-	s.pageIdentityInjectionReconcile(ctx, time.Now().Add(-identityInjectionReconcileWindow))
-}
-
-// runInitialIdentityInjectionBackfill runs once per process start (see Start)
-// and reconciles EVERY completed internal binding regardless of age — not
-// just ones within identityInjectionReconcileWindow. This covers a binding
-// whose ReleaseBinding predates this reconcile sweep and so has no AgentID
-// overrides at all: the next redeploy to the pipeline's LOWEST environment
-// writes that environment's client_id/secret into the shared Workload CR
-// (inherited by every environment lacking its own override), and an
-// untouched pre-existing staging/prod pod would otherwise silently inherit it
-// on its next restart — the same cross-environment credential leak
-// PromoteAgent's hard block prevents for new promotions, but that block only
-// covers promotions from here on, not bindings already sitting in that state.
-//
-// Not gated on a persisted "already ran" flag: an AMS process restart already
-// guarantees the full sweep runs at least once — rather than once ever, which
-// would need new schema state — and self-heals again on any later restart.
-// ReconcileForEnvironment is cheap and idempotent for anything already in
-// sync, so the real cost this design avoids is running the full-table sweep
-// on every one-minute tick forever, not just once (or a few times) per
-// restart.
-func (s *agentThunderReconcilerService) runInitialIdentityInjectionBackfill(ctx context.Context) {
-	s.pageIdentityInjectionReconcile(ctx, time.Time{})
-}
-
-// pageIdentityInjectionReconcile reconciles every COMPLETED internal binding
-// created at/after createdAfter, paging through ALL of them (not just the
-// oldest reconcilerBatchSize): FindRecentlyCompletedInternal orders by
-// (created_at, id), so re-querying with the previous page's last row as a
-// keyset cursor continues strictly past it. Without this, more than
-// reconcilerBatchSize eligible bindings existing at once would starve the
-// newest ones — the same oldest page would be reselected every call until
-// enough of them aged out of the (periodic caller's) window, and a newer
-// binding could miss its entire window without ever being reconciled.
-func (s *agentThunderReconcilerService) pageIdentityInjectionReconcile(ctx context.Context, createdAfter time.Time) {
-	var cursor *repositories.ReconcileCursor
-	for {
-		recent, err := s.repo.FindRecentlyCompletedInternal(ctx, createdAfter, cursor, reconcilerBatchSize)
-		if err != nil {
-			s.logger.Error("Failed to query recently completed internal agent thunder bindings", "error", err)
-			return
-		}
-		for _, binding := range recent {
-			bindingCtx := agentThunderBindingOrgContext(ctx, binding)
-			reconcileWorkloadInjection(bindingCtx, s.injector, binding, s.logger)
-		}
-		if len(recent) < reconcilerBatchSize {
-			return
-		}
-		last := recent[len(recent)-1]
-		cursor = &repositories.ReconcileCursor{CreatedAt: last.CreatedAt, ID: last.ID}
-	}
 }

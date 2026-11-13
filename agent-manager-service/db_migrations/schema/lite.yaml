@@ -1,0 +1,879 @@
+# AMP Lite database schema, in logical types. Source of truth for the per-database baselines:
+# edit this file, then run `make schema`. Rules and decisions: the AMP Lite schema design.
+#
+# Types: id (UUID v7 from the app), text (needs size), longtext, json, bool, int, bigint, time (UTC), binary.
+# Every column is NOT NULL unless `nullable: true`. on_delete is `cascade` or omitted (no action).
+
+tables:
+  # --- Orgs, projects, environments ---------------------------------------------------------
+
+  - name: organizations
+    columns:
+      - {name: id, type: id}
+      - {name: handle, type: text, size: 63}
+      - {name: display_name, type: text, size: 255}
+      - {name: description, type: text, size: 1000, nullable: true}
+      - {name: thunder_ou_id, type: text, size: 64, nullable: true}
+      - {name: created_by, type: text, size: 255, nullable: true}
+      - {name: created_at, type: time}
+      - {name: updated_at, type: time}
+    primary_key: [id]
+    unique: [[handle]]
+    indexes: [[thunder_ou_id]]
+
+  - name: projects
+    columns:
+      - {name: id, type: id}
+      - {name: org_id, type: id}
+      - {name: name, type: text, size: 63}
+      - {name: display_name, type: text, size: 255}
+      - {name: description, type: text, size: 1000, nullable: true}
+      - {name: created_by, type: text, size: 255, nullable: true}
+      - {name: created_at, type: time}
+      - {name: updated_at, type: time}
+    primary_key: [id]
+    unique: [[org_id, name], [org_id, id]]
+    foreign_keys:
+      - {columns: [org_id], references: organizations, ref_columns: [id]}
+
+  - name: environments
+    columns:
+      - {name: id, type: id}
+      - {name: org_id, type: id}
+      - {name: name, type: text, size: 63}
+      - {name: display_name, type: text, size: 255}
+      - {name: is_production, type: bool}
+      - {name: created_at, type: time}
+      - {name: updated_at, type: time}
+    primary_key: [id]
+    unique: [[org_id, name], [org_id, id]]
+    foreign_keys:
+      - {columns: [org_id], references: organizations, ref_columns: [id]}
+
+  # --- Agents -------------------------------------------------------------------------------
+
+  - name: agents
+    columns:
+      - {name: id, type: id}
+      - {name: org_id, type: id}
+      - {name: project_id, type: id}
+      - {name: name, type: text, size: 63}
+      - {name: display_name, type: text, size: 255}
+      - {name: description, type: text, size: 1000, nullable: true}
+      - {name: provisioning_type, type: text, size: 16}
+      - {name: agent_type, type: text, size: 32}
+      - {name: sub_type, type: text, size: 32, nullable: true}
+      - {name: created_by, type: text, size: 255, nullable: true}
+      - {name: created_at, type: time}
+      - {name: updated_at, type: time}
+    primary_key: [id]
+    unique: [[org_id, name], [org_id, id]]
+    foreign_keys:
+      - {columns: [org_id, project_id], references: projects, ref_columns: [org_id, id]}
+    checks:
+      - "provisioning_type IN ('external', 'internal')"
+    indexes: [[org_id, project_id]]
+
+  - name: agent_labels
+    columns:
+      - {name: agent_id, type: id}
+      - {name: org_id, type: id}
+      - {name: label_key, type: text, size: 63}
+      - {name: label_value, type: text, size: 63, nullable: true}
+    primary_key: [agent_id, label_key]
+    foreign_keys:
+      - {columns: [org_id, agent_id], references: agents, ref_columns: [org_id, id], on_delete: cascade}
+    indexes: [[org_id, label_key, label_value]]
+
+  - name: agent_identities
+    columns:
+      - {name: id, type: id}
+      - {name: agent_id, type: id}
+      - {name: org_id, type: id}
+      - {name: environment_id, type: id}
+      - {name: thunder_agent_id, type: text, size: 64, nullable: true}
+      - {name: thunder_client_id, type: text, size: 255, nullable: true}
+      - {name: status, type: text, size: 16}
+      - {name: attempt_count, type: int}
+      - {name: last_error, type: longtext, nullable: true}
+      - {name: next_retry_at, type: time, nullable: true}
+      - {name: claimed_by, type: text, size: 255, nullable: true}
+      - {name: claimed_until, type: time, nullable: true}
+      - {name: requested_by, type: text, size: 255, nullable: true}
+      - {name: created_at, type: time}
+      - {name: updated_at, type: time}
+    primary_key: [id]
+    unique: [[agent_id, environment_id]]
+    foreign_keys:
+      - {columns: [org_id, agent_id], references: agents, ref_columns: [org_id, id], on_delete: cascade}
+      - {columns: [org_id, environment_id], references: environments, ref_columns: [org_id, id]}
+    checks:
+      - "status IN ('pending', 'in_progress', 'completed', 'failed')"
+    indexes: [[status, next_retry_at]]
+
+  - name: agent_gateway_settings
+    columns:
+      - {name: agent_id, type: id}
+      - {name: org_id, type: id}
+      - {name: environment_id, type: id}
+      - {name: api_key_security, type: bool}
+      - {name: oauth_enabled, type: bool}
+      - {name: oauth_issuers, type: json}
+      - {name: oauth_audiences, type: json}
+      - {name: oauth_header_name, type: text, size: 255}
+      - {name: oauth_header_prefix, type: text, size: 64}
+      - {name: oauth_forward_token, type: bool}
+      - {name: cors_enabled, type: bool}
+      - {name: cors_allow_origins, type: json}
+      - {name: cors_allow_methods, type: json}
+      - {name: cors_allow_headers, type: json}
+      - {name: cors_allow_credentials, type: bool}
+      - {name: timeout_seconds, type: int, nullable: true}
+      - {name: card_cors_enabled, type: bool, nullable: true}
+      - {name: card_cors_allow_origins, type: json, nullable: true}
+      - {name: card_cors_allow_headers, type: json, nullable: true}
+      - {name: card_cors_allow_credentials, type: bool, nullable: true}
+      - {name: created_at, type: time}
+      - {name: updated_at, type: time}
+    primary_key: [agent_id, environment_id]
+    foreign_keys:
+      - {columns: [org_id, agent_id], references: agents, ref_columns: [org_id, id], on_delete: cascade}
+      - {columns: [org_id, environment_id], references: environments, ref_columns: [org_id, id]}
+
+  # --- Secrets ------------------------------------------------------------------------------
+
+  - name: secrets
+    columns:
+      - {name: id, type: id}
+      - {name: org_id, type: id}
+      - {name: owner_kind, type: text, size: 32}
+      - {name: owner_id, type: id}
+      - {name: provider, type: text, size: 16}
+      - {name: ciphertext, type: binary, nullable: true}
+      - {name: key_id, type: text, size: 64, nullable: true}
+      - {name: external_ref, type: text, size: 512, nullable: true}
+      - {name: version, type: int}
+      - {name: created_at, type: time}
+      - {name: updated_at, type: time}
+    primary_key: [id]
+    unique: [[org_id, id]]
+    foreign_keys:
+      - {columns: [org_id], references: organizations, ref_columns: [id]}
+    indexes: [[org_id, owner_kind, owner_id]]
+
+  # --- Gateways -----------------------------------------------------------------------------
+
+  - name: gateways
+    columns:
+      - {name: id, type: id}
+      - {name: org_id, type: id}
+      - {name: name, type: text, size: 255}
+      - {name: display_name, type: text, size: 255}
+      - {name: description, type: text, size: 1000, nullable: true}
+      - {name: functionality_type, type: text, size: 16}
+      - {name: hosting, type: text, size: 16}
+      - {name: vhost, type: text, size: 255}
+      - {name: runtime_url, type: text, size: 2048, nullable: true}
+      - {name: is_critical, type: bool}
+      - {name: is_active, type: bool}
+      - {name: properties, type: json}
+      - {name: manifest, type: json, nullable: true}
+      - {name: created_at, type: time}
+      - {name: updated_at, type: time}
+    primary_key: [id]
+    unique: [[org_id, name], [org_id, id]]
+    foreign_keys:
+      - {columns: [org_id], references: organizations, ref_columns: [id]}
+    checks:
+      - "functionality_type IN ('ingress', 'egress', 'both')"
+      - "hosting IN ('managed', 'self_hosted')"
+      - "hosting <> 'self_hosted' OR functionality_type = 'egress'"
+
+  - name: gateway_environments
+    columns:
+      - {name: gateway_id, type: id}
+      - {name: environment_id, type: id}
+      - {name: org_id, type: id}
+      - {name: created_at, type: time}
+    primary_key: [gateway_id, environment_id]
+    foreign_keys:
+      - {columns: [org_id, gateway_id], references: gateways, ref_columns: [org_id, id], on_delete: cascade}
+      - {columns: [org_id, environment_id], references: environments, ref_columns: [org_id, id]}
+    indexes: [[environment_id]]
+
+  - name: environment_default_gateways
+    columns:
+      - {name: environment_id, type: id}
+      - {name: role, type: text, size: 16}
+      - {name: org_id, type: id}
+      - {name: gateway_id, type: id}
+      - {name: created_at, type: time}
+      - {name: updated_at, type: time}
+    primary_key: [environment_id, role]
+    foreign_keys:
+      - {columns: [gateway_id, environment_id], references: gateway_environments, ref_columns: [gateway_id, environment_id]}
+      - {columns: [org_id, environment_id], references: environments, ref_columns: [org_id, id]}
+    checks:
+      - "role IN ('ingress', 'egress')"
+    indexes: [[gateway_id]]
+
+  - name: gateway_tokens
+    columns:
+      - {name: id, type: id}
+      - {name: org_id, type: id}
+      - {name: gateway_id, type: id}
+      - {name: token_hash, type: text, size: 255}
+      - {name: salt, type: text, size: 255}
+      - {name: token_prefix, type: text, size: 36}
+      - {name: status, type: text, size: 10}
+      - {name: created_at, type: time}
+      - {name: revoked_at, type: time, nullable: true}
+    primary_key: [id]
+    unique: [[token_prefix]]
+    foreign_keys:
+      - {columns: [org_id, gateway_id], references: gateways, ref_columns: [org_id, id], on_delete: cascade}
+    checks:
+      - "status IN ('active', 'revoked')"
+      - "revoked_at IS NULL OR status = 'revoked'"
+    indexes: [[gateway_id, status]]
+
+  - name: gateway_identity_providers
+    columns:
+      - {name: id, type: id}
+      - {name: org_id, type: id}
+      - {name: gateway_id, type: id}
+      - {name: name, type: text, size: 255}
+      - {name: issuer, type: text, size: 2048, nullable: true}
+      - {name: jwks_uri, type: text, size: 2048, nullable: true}
+      - {name: description, type: text, size: 1000, nullable: true}
+      - {name: type, type: text, size: 32}
+      - {name: jwks_skip_tls_verify, type: bool}
+      - {name: created_at, type: time}
+      - {name: updated_at, type: time}
+    primary_key: [id]
+    unique: [[gateway_id, name]]
+    foreign_keys:
+      - {columns: [org_id, gateway_id], references: gateways, ref_columns: [org_id, id], on_delete: cascade}
+
+  - name: gateway_event_states
+    columns:
+      - {name: gateway_id, type: id}
+      - {name: org_id, type: id}
+      - {name: version_id, type: text, size: 64, nullable: true}
+      - {name: seq, type: bigint}
+      - {name: updated_at, type: time}
+    primary_key: [gateway_id]
+    foreign_keys:
+      - {columns: [org_id, gateway_id], references: gateways, ref_columns: [org_id, id], on_delete: cascade}
+
+  - name: gateway_events
+    columns:
+      - {name: id, type: id}
+      - {name: org_id, type: id}
+      - {name: gateway_id, type: id}
+      - {name: seq, type: bigint}
+      - {name: entity_type, type: text, size: 64}
+      - {name: action, type: text, size: 32}
+      - {name: entity_id, type: text, size: 255}
+      - {name: event_data, type: json}
+      - {name: originated_at, type: time}
+      - {name: processed_at, type: time}
+    primary_key: [id]
+    foreign_keys:
+      - {columns: [org_id, gateway_id], references: gateways, ref_columns: [org_id, id], on_delete: cascade}
+    indexes: [[gateway_id, seq], [gateway_id, processed_at]]
+
+  # --- Artifacts and gateway deployments ------------------------------------------------------
+
+  - name: artifacts
+    columns:
+      - {name: id, type: id}
+      - {name: org_id, type: id}
+      - {name: kind, type: text, size: 20}
+      - {name: handle, type: text, size: 255}
+      - {name: name, type: text, size: 255}
+      - {name: version, type: text, size: 30}
+      - {name: in_catalog, type: bool}
+      - {name: created_at, type: time}
+      - {name: updated_at, type: time}
+    primary_key: [id]
+    unique: [[org_id, handle], [org_id, name, version], [org_id, id]]
+    foreign_keys:
+      - {columns: [org_id], references: organizations, ref_columns: [id]}
+    checks:
+      - "kind IN ('RestApi', 'WebSubAPI', 'LlmProvider', 'LlmProxy', 'Agent', 'McpProxy', 'McpProxyMapping', 'OtelIngest')"
+
+  - name: artifact_deployments
+    columns:
+      - {name: id, type: id}
+      - {name: org_id, type: id}
+      - {name: artifact_id, type: id}
+      - {name: gateway_id, type: id}
+      - {name: base_deployment_id, type: id, nullable: true}
+      - {name: name, type: text, size: 255}
+      - {name: content, type: binary}
+      - {name: metadata, type: json, nullable: true}
+      - {name: created_at, type: time}
+    primary_key: [id]
+    foreign_keys:
+      - {columns: [org_id, artifact_id], references: artifacts, ref_columns: [org_id, id], on_delete: cascade}
+      - {columns: [org_id, gateway_id], references: gateways, ref_columns: [org_id, id]}
+      - {columns: [base_deployment_id], references: artifact_deployments, ref_columns: [id]}
+    indexes: [[artifact_id, gateway_id, created_at], [gateway_id], [base_deployment_id]]
+
+  - name: artifact_gateway_status
+    columns:
+      - {name: artifact_id, type: id}
+      - {name: gateway_id, type: id}
+      - {name: org_id, type: id}
+      - {name: deployment_id, type: id, nullable: true}
+      - {name: status, type: text, size: 20}
+      - {name: status_desired, type: text, size: 20}
+      - {name: status_reason, type: longtext, nullable: true}
+      - {name: render_reason, type: longtext, nullable: true}
+      - {name: performed_at, type: time}
+      - {name: next_attempt_at, type: time, nullable: true}
+      - {name: attempt_count, type: int}
+      - {name: claimed_by, type: text, size: 255, nullable: true}
+      - {name: claimed_until, type: time, nullable: true}
+      - {name: updated_at, type: time}
+    primary_key: [artifact_id, gateway_id]
+    foreign_keys:
+      - {columns: [org_id, artifact_id], references: artifacts, ref_columns: [org_id, id], on_delete: cascade}
+      - {columns: [org_id, gateway_id], references: gateways, ref_columns: [org_id, id]}
+      - {columns: [deployment_id], references: artifact_deployments, ref_columns: [id]}
+    checks:
+      - "status IN ('PENDING', 'DEPLOYING', 'DEPLOYED', 'UNDEPLOYING', 'UNDEPLOYED', 'FAILED')"
+      - "deployment_id IS NOT NULL OR status IN ('PENDING', 'UNDEPLOYED')"
+      - "(status_desired = 'DEPLOYED' AND status IN ('PENDING', 'DEPLOYING', 'DEPLOYED', 'FAILED')) OR (status_desired = 'UNDEPLOYED' AND status IN ('UNDEPLOYING', 'UNDEPLOYED', 'FAILED'))"
+    indexes: [[gateway_id], [deployment_id], [next_attempt_at], [status]]
+
+  # --- LLM ----------------------------------------------------------------------------------
+
+  - name: llm_provider_templates
+    columns:
+      - {name: id, type: id}
+      - {name: org_id, type: id}
+      - {name: handle, type: text, size: 255}
+      - {name: name, type: text, size: 253}
+      - {name: description, type: longtext, nullable: true}
+      - {name: configuration, type: json}
+      - {name: created_by, type: text, size: 255, nullable: true}
+      - {name: created_at, type: time}
+      - {name: updated_at, type: time}
+    primary_key: [id]
+    unique: [[org_id, handle]]
+    foreign_keys:
+      - {columns: [org_id], references: organizations, ref_columns: [id]}
+
+  - name: llm_providers
+    columns:
+      - {name: id, type: id}
+      - {name: org_id, type: id}
+      - {name: description, type: longtext, nullable: true}
+      - {name: template_handle, type: text, size: 255}
+      - {name: openapi_spec, type: longtext, nullable: true}
+      - {name: model_list, type: longtext, nullable: true}
+      - {name: status, type: text, size: 20}
+      - {name: configuration, type: json}
+      - {name: upstream_secret_id, type: id, nullable: true}
+      - {name: created_by, type: text, size: 255, nullable: true}
+    primary_key: [id]
+    unique: [[org_id, id]]
+    foreign_keys:
+      - {columns: [org_id, id], references: artifacts, ref_columns: [org_id, id], on_delete: cascade}
+      - {columns: [org_id, upstream_secret_id], references: secrets, ref_columns: [org_id, id]}
+    indexes: [[template_handle], [upstream_secret_id]]
+
+  - name: llm_proxies
+    columns:
+      - {name: id, type: id}
+      - {name: org_id, type: id}
+      - {name: project_id, type: id}
+      - {name: provider_id, type: id}
+      - {name: description, type: longtext, nullable: true}
+      - {name: openapi_spec, type: longtext, nullable: true}
+      - {name: status, type: text, size: 20}
+      - {name: configuration, type: json}
+      - {name: upstream_secret_id, type: id, nullable: true}
+      - {name: created_by, type: text, size: 255, nullable: true}
+    primary_key: [id]
+    unique: [[org_id, id]]
+    foreign_keys:
+      - {columns: [org_id, id], references: artifacts, ref_columns: [org_id, id], on_delete: cascade}
+      - {columns: [org_id, project_id], references: projects, ref_columns: [org_id, id]}
+      - {columns: [org_id, provider_id], references: llm_providers, ref_columns: [org_id, id]}
+      - {columns: [org_id, upstream_secret_id], references: secrets, ref_columns: [org_id, id]}
+    indexes: [[org_id, project_id], [provider_id], [upstream_secret_id]]
+
+  # --- MCP proxies --------------------------------------------------------------------------
+
+  - name: mcp_proxies
+    columns:
+      - {name: id, type: id}
+      - {name: org_id, type: id}
+      - {name: project_id, type: id, nullable: true}
+      - {name: description, type: longtext, nullable: true}
+      - {name: status, type: text, size: 20}
+      - {name: configuration, type: json}
+      - {name: created_by, type: text, size: 255, nullable: true}
+    primary_key: [id]
+    unique: [[org_id, id]]
+    foreign_keys:
+      - {columns: [org_id, id], references: artifacts, ref_columns: [org_id, id], on_delete: cascade}
+      - {columns: [org_id, project_id], references: projects, ref_columns: [org_id, id]}
+    indexes: [[org_id, project_id]]
+
+  - name: mcp_proxy_mappings
+    columns:
+      - {name: id, type: id}
+      - {name: org_id, type: id}
+      - {name: source_mcp_proxy_id, type: id}
+      - {name: description, type: longtext, nullable: true}
+      - {name: status, type: text, size: 20}
+      - {name: configuration, type: json}
+    primary_key: [id]
+    unique: [[org_id, id]]
+    foreign_keys:
+      - {columns: [org_id, id], references: artifacts, ref_columns: [org_id, id], on_delete: cascade}
+      - {columns: [org_id, source_mcp_proxy_id], references: mcp_proxies, ref_columns: [org_id, id]}
+    indexes: [[source_mcp_proxy_id]]
+
+  - name: mcp_proxy_scopes
+    columns:
+      - {name: id, type: id}
+      - {name: org_id, type: id}
+      - {name: mcp_proxy_id, type: id}
+      - {name: action, type: text, size: 255}
+      - {name: description, type: text, size: 1000, nullable: true}
+      - {name: created_at, type: time}
+      - {name: updated_at, type: time}
+    primary_key: [id]
+    unique: [[mcp_proxy_id, action], [org_id, id]]
+    foreign_keys:
+      - {columns: [org_id, mcp_proxy_id], references: mcp_proxies, ref_columns: [org_id, id], on_delete: cascade}
+
+  - name: mcp_proxy_scope_tools
+    columns:
+      - {name: scope_id, type: id}
+      - {name: tool_name, type: text, size: 255}
+      - {name: org_id, type: id}
+    primary_key: [scope_id, tool_name]
+    foreign_keys:
+      - {columns: [org_id, scope_id], references: mcp_proxy_scopes, ref_columns: [org_id, id], on_delete: cascade}
+    indexes: [[org_id, tool_name]]
+
+  - name: mcp_proxy_endpoints
+    columns:
+      - {name: id, type: id}
+      - {name: org_id, type: id}
+      - {name: mcp_proxy_id, type: id}
+      - {name: handle, type: text, size: 255}
+      - {name: name, type: text, size: 255, nullable: true}
+      - {name: status, type: text, size: 20}
+      - {name: configuration, type: json}
+      - {name: upstream_secret_id, type: id, nullable: true}
+      - {name: created_at, type: time}
+      - {name: updated_at, type: time}
+    primary_key: [id]
+    unique: [[mcp_proxy_id, handle], [mcp_proxy_id, id]]
+    foreign_keys:
+      - {columns: [org_id, mcp_proxy_id], references: mcp_proxies, ref_columns: [org_id, id], on_delete: cascade}
+      - {columns: [org_id, upstream_secret_id], references: secrets, ref_columns: [org_id, id]}
+    indexes: [[upstream_secret_id]]
+
+  - name: mcp_proxy_endpoint_environments
+    columns:
+      - {name: endpoint_id, type: id}
+      - {name: environment_id, type: id}
+      - {name: org_id, type: id}
+      - {name: mcp_proxy_id, type: id}
+      - {name: artifact_id, type: id}
+      - {name: status, type: text, size: 20}
+      - {name: created_at, type: time}
+    primary_key: [endpoint_id, environment_id]
+    unique: [[mcp_proxy_id, environment_id], [artifact_id]]
+    foreign_keys:
+      - {columns: [mcp_proxy_id, endpoint_id], references: mcp_proxy_endpoints, ref_columns: [mcp_proxy_id, id], on_delete: cascade}
+      - {columns: [org_id, environment_id], references: environments, ref_columns: [org_id, id]}
+      - {columns: [org_id, artifact_id], references: artifacts, ref_columns: [org_id, id]}
+
+  # --- Agent model and MCP configurations -----------------------------------------------------
+
+  - name: agent_model_configs
+    columns:
+      - {name: id, type: id}
+      - {name: org_id, type: id}
+      - {name: agent_id, type: id}
+      - {name: name, type: text, size: 255}
+      - {name: description, type: longtext, nullable: true}
+      - {name: type, type: text, size: 16}
+      - {name: created_at, type: time}
+      - {name: updated_at, type: time}
+    primary_key: [id]
+    unique: [[agent_id, name], [org_id, id]]
+    foreign_keys:
+      - {columns: [org_id, agent_id], references: agents, ref_columns: [org_id, id], on_delete: cascade}
+    checks:
+      - "type IN ('llm', 'mcp', 'agent')"
+
+  - name: agent_model_config_llm
+    columns:
+      - {name: config_id, type: id}
+      - {name: environment_id, type: id}
+      - {name: org_id, type: id}
+      - {name: llm_proxy_id, type: id}
+      - {name: policy_configuration, type: json}
+      - {name: created_at, type: time}
+    primary_key: [config_id, environment_id]
+    foreign_keys:
+      - {columns: [org_id, config_id], references: agent_model_configs, ref_columns: [org_id, id], on_delete: cascade}
+      - {columns: [org_id, environment_id], references: environments, ref_columns: [org_id, id]}
+      - {columns: [org_id, llm_proxy_id], references: llm_proxies, ref_columns: [org_id, id]}
+    indexes: [[llm_proxy_id]]
+
+  - name: agent_model_config_mcp
+    columns:
+      - {name: config_id, type: id}
+      - {name: org_id, type: id}
+      - {name: mcp_proxy_id, type: id}
+      - {name: scope_recorded_at, type: time, nullable: true}
+      - {name: created_at, type: time}
+      - {name: updated_at, type: time}
+    primary_key: [config_id]
+    foreign_keys:
+      - {columns: [org_id, config_id], references: agent_model_configs, ref_columns: [org_id, id], on_delete: cascade}
+      - {columns: [org_id, mcp_proxy_id], references: mcp_proxies, ref_columns: [org_id, id]}
+    indexes: [[mcp_proxy_id]]
+
+  - name: agent_model_config_mcp_envs
+    columns:
+      - {name: config_id, type: id}
+      - {name: environment_id, type: id}
+      - {name: org_id, type: id}
+      - {name: mapping_artifact_id, type: id, nullable: true}
+      - {name: mcp_proxy_id, type: id, nullable: true}
+      - {name: excluded, type: bool}
+      - {name: created_at, type: time}
+    primary_key: [config_id, environment_id]
+    foreign_keys:
+      - {columns: [org_id, config_id], references: agent_model_configs, ref_columns: [org_id, id], on_delete: cascade}
+      - {columns: [org_id, environment_id], references: environments, ref_columns: [org_id, id]}
+      - {columns: [org_id, mapping_artifact_id], references: mcp_proxy_mappings, ref_columns: [org_id, id]}
+      - {columns: [org_id, mcp_proxy_id], references: mcp_proxies, ref_columns: [org_id, id]}
+    indexes: [[mapping_artifact_id], [mcp_proxy_id]]
+
+  - name: agent_model_config_vars
+    columns:
+      - {name: config_id, type: id}
+      - {name: environment_id, type: id}
+      - {name: variable_key, type: text, size: 255}
+      - {name: org_id, type: id}
+      - {name: variable_name, type: text, size: 255}
+      - {name: created_at, type: time}
+    primary_key: [config_id, environment_id, variable_key]
+    foreign_keys:
+      - {columns: [org_id, config_id], references: agent_model_configs, ref_columns: [org_id, id], on_delete: cascade}
+      - {columns: [org_id, environment_id], references: environments, ref_columns: [org_id, id]}
+
+  - name: ai_applications
+    columns:
+      - {name: id, type: id}
+      - {name: org_id, type: id}
+      - {name: agent_id, type: id}
+      - {name: environment_id, type: id}
+      - {name: handle, type: text, size: 255}
+      - {name: name, type: text, size: 255}
+      - {name: created_at, type: time}
+      - {name: updated_at, type: time}
+    primary_key: [id]
+    unique: [[agent_id, environment_id]]
+    foreign_keys:
+      - {columns: [org_id, agent_id], references: agents, ref_columns: [org_id, id], on_delete: cascade}
+      - {columns: [org_id, environment_id], references: environments, ref_columns: [org_id, id]}
+
+  - name: api_keys
+    columns:
+      - {name: id, type: id}
+      - {name: org_id, type: id}
+      - {name: artifact_id, type: id}
+      - {name: name, type: text, size: 255}
+      - {name: display_name, type: text, size: 255}
+      - {name: key_hash, type: text, size: 255}
+      - {name: masked_key, type: text, size: 255}
+      - {name: status, type: text, size: 16}
+      - {name: purpose, type: int}
+      - {name: expires_at, type: time, nullable: true}
+      - {name: created_at, type: time}
+      - {name: updated_at, type: time}
+    primary_key: [id]
+    unique: [[artifact_id, name]]
+    foreign_keys:
+      - {columns: [org_id, artifact_id], references: artifacts, ref_columns: [org_id, id], on_delete: cascade}
+    indexes: [[key_hash]]
+
+  # --- A2A ----------------------------------------------------------------------------------
+
+  - name: agent_exposures
+    columns:
+      - {name: id, type: id}
+      - {name: org_id, type: id}
+      - {name: agent_id, type: id}
+      - {name: environment_id, type: id}
+      - {name: protocol, type: text, size: 16}
+      - {name: artifact_id, type: id}
+      - {name: created_at, type: time}
+      - {name: updated_at, type: time}
+    primary_key: [id]
+    unique: [[agent_id, environment_id], [artifact_id]]
+    foreign_keys:
+      - {columns: [org_id, agent_id], references: agents, ref_columns: [org_id, id], on_delete: cascade}
+      - {columns: [org_id, environment_id], references: environments, ref_columns: [org_id, id]}
+      - {columns: [org_id, artifact_id], references: artifacts, ref_columns: [org_id, id]}
+    checks:
+      - "protocol IN ('a2a', 'rest')"
+
+  - name: agent_cards
+    columns:
+      - {name: id, type: id}
+      - {name: org_id, type: id}
+      - {name: agent_id, type: id}
+      - {name: environment_id, type: id}
+      - {name: source, type: text, size: 32}
+      - {name: source_url, type: text, size: 2048, nullable: true}
+      - {name: card, type: json, nullable: true}
+      - {name: card_hash, type: text, size: 64, nullable: true}
+      - {name: fetched_at, type: time, nullable: true}
+      - {name: status, type: text, size: 32}
+      - {name: attempt_count, type: int}
+      - {name: last_error, type: longtext, nullable: true}
+      - {name: next_attempt_at, type: time, nullable: true}
+      - {name: claimed_by, type: text, size: 255, nullable: true}
+      - {name: claimed_until, type: time, nullable: true}
+      - {name: created_at, type: time}
+      - {name: updated_at, type: time}
+    primary_key: [id]
+    unique: [[agent_id, environment_id]]
+    foreign_keys:
+      - {columns: [org_id, agent_id], references: agents, ref_columns: [org_id, id], on_delete: cascade}
+      - {columns: [org_id, environment_id], references: environments, ref_columns: [org_id, id]}
+    indexes: [[status, next_attempt_at]]
+
+  - name: a2a_proxies
+    columns:
+      - {name: id, type: id}
+      - {name: org_id, type: id}
+      - {name: agent_id, type: id}
+      - {name: environment_id, type: id}
+      - {name: artifact_id, type: id}
+      - {name: upstream_auth_header, type: text, size: 255, nullable: true}
+      - {name: upstream_auth_secret_id, type: id, nullable: true}
+      - {name: created_at, type: time}
+      - {name: updated_at, type: time}
+    primary_key: [id]
+    unique: [[agent_id, environment_id], [artifact_id]]
+    foreign_keys:
+      - {columns: [org_id, agent_id], references: agents, ref_columns: [org_id, id], on_delete: cascade}
+      - {columns: [org_id, environment_id], references: environments, ref_columns: [org_id, id]}
+      - {columns: [org_id, upstream_auth_secret_id], references: secrets, ref_columns: [org_id, id]}
+      - {columns: [org_id, artifact_id], references: artifacts, ref_columns: [org_id, id]}
+    indexes: [[upstream_auth_secret_id]]
+
+  # --- Events -------------------------------------------------------------------------------
+
+  - name: event_destinations
+    columns:
+      - {name: id, type: id}
+      - {name: org_id, type: id}
+      - {name: name, type: text, size: 255}
+      - {name: description, type: text, size: 1000, nullable: true}
+      - {name: kind, type: text, size: 32}
+      - {name: config, type: json}
+      - {name: secret_id, type: id, nullable: true}
+      - {name: availability, type: text, size: 16}
+      - {name: created_by, type: text, size: 255, nullable: true}
+      - {name: created_at, type: time}
+      - {name: updated_at, type: time}
+    primary_key: [id]
+    unique: [[org_id, name], [org_id, id]]
+    foreign_keys:
+      - {columns: [org_id], references: organizations, ref_columns: [id]}
+      - {columns: [org_id, secret_id], references: secrets, ref_columns: [org_id, id]}
+    checks:
+      - "availability IN ('all', 'org', 'projects')"
+    indexes: [[secret_id]]
+
+  - name: event_destination_projects
+    columns:
+      - {name: destination_id, type: id}
+      - {name: project_id, type: id}
+      - {name: org_id, type: id}
+    primary_key: [destination_id, project_id]
+    foreign_keys:
+      - {columns: [org_id, destination_id], references: event_destinations, ref_columns: [org_id, id], on_delete: cascade}
+      - {columns: [org_id, project_id], references: projects, ref_columns: [org_id, id]}
+    indexes: [[org_id, project_id]]
+
+  - name: event_subscriptions
+    columns:
+      - {name: id, type: id}
+      - {name: org_id, type: id}
+      - {name: scope, type: text, size: 16}
+      - {name: project_id, type: id, nullable: true}
+      - {name: agent_id, type: id, nullable: true}
+      - {name: name, type: text, size: 255}
+      - {name: description, type: text, size: 1000, nullable: true}
+      - {name: destination_id, type: id}
+      - {name: enabled, type: bool}
+      - {name: created_by, type: text, size: 255, nullable: true}
+      - {name: created_at, type: time}
+      - {name: updated_at, type: time}
+    primary_key: [id]
+    unique: [[org_id, id]]
+    foreign_keys:
+      - {columns: [org_id, agent_id], references: agents, ref_columns: [org_id, id], on_delete: cascade}
+      - {columns: [org_id, project_id], references: projects, ref_columns: [org_id, id]}
+      - {columns: [org_id, destination_id], references: event_destinations, ref_columns: [org_id, id]}
+    checks:
+      - "scope IN ('org', 'project', 'agent')"
+      - "(scope = 'org' AND project_id IS NULL AND agent_id IS NULL) OR (scope = 'project' AND project_id IS NOT NULL AND agent_id IS NULL) OR (scope = 'agent' AND project_id IS NOT NULL AND agent_id IS NOT NULL)"
+    indexes: [[org_id, scope, project_id, agent_id], [destination_id]]
+
+  - name: event_subscription_types
+    columns:
+      - {name: subscription_id, type: id}
+      - {name: event_type, type: text, size: 128}
+      - {name: org_id, type: id}
+    primary_key: [subscription_id, event_type]
+    foreign_keys:
+      - {columns: [org_id, subscription_id], references: event_subscriptions, ref_columns: [org_id, id], on_delete: cascade}
+    indexes: [[event_type]]
+
+  - name: event_subscription_environments
+    columns:
+      - {name: subscription_id, type: id}
+      - {name: environment_id, type: id}
+      - {name: org_id, type: id}
+    primary_key: [subscription_id, environment_id]
+    foreign_keys:
+      - {columns: [org_id, subscription_id], references: event_subscriptions, ref_columns: [org_id, id], on_delete: cascade}
+      - {columns: [org_id, environment_id], references: environments, ref_columns: [org_id, id]}
+
+  - name: event_outbox
+    columns:
+      - {name: id, type: id}
+      - {name: org_id, type: id}
+      - {name: body, type: json}
+      - {name: available_at, type: time}
+      - {name: claimed_by, type: text, size: 255, nullable: true}
+      - {name: claimed_until, type: time, nullable: true}
+    primary_key: [id]
+    foreign_keys:
+      - {columns: [org_id], references: organizations, ref_columns: [id]}
+    indexes: [[available_at, id]]
+
+  - name: event_deliveries
+    columns:
+      - {name: id, type: id}
+      - {name: org_id, type: id}
+      - {name: destination_id, type: id}
+      - {name: event_id, type: text, size: 128}
+      - {name: event_type, type: text, size: 128}
+      - {name: event_scope, type: text, size: 16, nullable: true}
+      - {name: project_id, type: id, nullable: true}
+      - {name: agent_id, type: id, nullable: true}
+      - {name: environment_id, type: id, nullable: true}
+      - {name: status, type: text, size: 16}
+      - {name: attempts, type: int}
+      - {name: response_code, type: int, nullable: true}
+      - {name: last_error, type: longtext, nullable: true}
+      - {name: delivered_at, type: time, nullable: true}
+      - {name: claimed_by, type: text, size: 255, nullable: true}
+      - {name: claimed_until, type: time, nullable: true}
+      - {name: created_at, type: time}
+      - {name: updated_at, type: time}
+    primary_key: [id]
+    unique: [[destination_id, event_id]]
+    foreign_keys:
+      - {columns: [org_id, destination_id], references: event_destinations, ref_columns: [org_id, id], on_delete: cascade}
+    indexes: [[org_id, created_at], [destination_id, created_at], [status, claimed_until]]
+
+  - name: event_delivery_subscriptions
+    columns:
+      - {name: delivery_id, type: id}
+      - {name: subscription_id, type: id}
+    primary_key: [delivery_id, subscription_id]
+    foreign_keys:
+      - {columns: [delivery_id], references: event_deliveries, ref_columns: [id], on_delete: cascade}
+    indexes: [[subscription_id]]
+
+  # --- Audit log and console usage (insert only, no foreign keys) -------------------------------
+
+  - name: audit_events
+    columns:
+      - {name: id, type: id}
+      - {name: org_id, type: id, nullable: true}
+      - {name: occurred_at, type: time}
+      - {name: schema_version, type: int}
+      - {name: action, type: text, size: 128}
+      - {name: action_class, type: text, size: 32}
+      - {name: severity, type: int}
+      - {name: outcome, type: text, size: 16}
+      - {name: actor_type, type: text, size: 16}
+      - {name: actor_id, type: text, size: 255, nullable: true}
+      - {name: actor_display, type: text, size: 255, nullable: true}
+      - {name: actor_token_id, type: text, size: 255, nullable: true}
+      - {name: on_behalf_of, type: text, size: 255, nullable: true}
+      - {name: auth_method, type: text, size: 32, nullable: true}
+      - {name: surface, type: text, size: 16}
+      - {name: source_ip, type: text, size: 45, nullable: true}
+      - {name: user_agent, type: text, size: 512, nullable: true}
+      - {name: correlation_id, type: text, size: 64, nullable: true}
+      - {name: request_method, type: text, size: 8, nullable: true}
+      - {name: request_path, type: longtext, nullable: true}
+      - {name: resource_type, type: text, size: 64, nullable: true}
+      - {name: resource_id, type: text, size: 255, nullable: true}
+      - {name: resource_name, type: text, size: 255, nullable: true}
+      - {name: project_name, type: text, size: 63, nullable: true}
+      - {name: environment_name, type: text, size: 63, nullable: true}
+      - {name: status_code, type: int, nullable: true}
+      - {name: error_code, type: text, size: 64, nullable: true}
+      - {name: error_message, type: longtext, nullable: true}
+      - {name: required_permission, type: text, size: 128, nullable: true}
+      - {name: duration_ms, type: int, nullable: true}
+      - {name: details, type: json, nullable: true}
+    primary_key: [id]
+    checks:
+      - "outcome IN ('success', 'failure', 'deny', 'unknown')"
+    indexes:
+      - [org_id, occurred_at, id]
+      - [org_id, actor_id, occurred_at]
+      - [org_id, resource_type, resource_id, occurred_at]
+      - [org_id, action, occurred_at]
+
+  - name: usage_events
+    columns:
+      - {name: id, type: id}
+      - {name: org_id, type: id, nullable: true}
+      - {name: occurred_at, type: time}
+      - {name: source, type: text, size: 16}
+      - {name: feature_code, type: text, size: 128}
+      - {name: username, type: text, size: 255, nullable: true}
+      - {name: session_id, type: text, size: 64, nullable: true}
+      - {name: status_code, type: int, nullable: true}
+      - {name: product_version, type: text, size: 32}
+      - {name: dimensions, type: json, nullable: true}
+    primary_key: [id]
+    indexes: [[org_id, occurred_at, id], [feature_code, occurred_at]]
+
+  # --- Worker leases ------------------------------------------------------------------------
+
+  - name: locks
+    columns:
+      - {name: name, type: text, size: 128}
+      - {name: owner, type: text, size: 255, nullable: true}
+      - {name: expires_at, type: time, nullable: true}
+    primary_key: [name]
+    seed:
+      - {name: agent_identity.reconciler}
+      - {name: gateway.drift_scan}

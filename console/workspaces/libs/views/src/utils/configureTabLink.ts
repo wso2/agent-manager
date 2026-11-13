@@ -19,19 +19,16 @@
 import { generatePath } from "react-router-dom";
 import { absoluteRouteMap } from "@agent-management-platform/types";
 
-/** Configure Agent tab link; mirrors CONFIGURE_TAB_PARAM/CONFIGURE_ENV_PARAM (configureTabs.ts). */
+/** Configure Agent tab link; mirrors CONFIGURE_TAB_PARAM (configureTabs.ts). */
 export function buildConfigureTabHref(
   orgId: string,
   projectId: string,
   agentId: string,
   tab: "llm" | "tools" | "a2a",
-  envName?: string,
 ): string {
   const path = generatePath(
     absoluteRouteMap.children.org.children.projects.children.agents.children.configure.path,
     { orgId, projectId, agentId },
   );
-  const query = new URLSearchParams({ tab });
-  if (envName) query.set("env", envName);
-  return `${path}?${query}`;
+  return `${path}?${new URLSearchParams({ tab })}`;
 }

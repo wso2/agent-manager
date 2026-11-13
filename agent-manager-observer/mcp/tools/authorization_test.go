@@ -17,13 +17,12 @@
 package tools
 
 import (
-	"context"
+	"net/http"
 	"testing"
 
 	"github.com/golang-jwt/jwt/v5"
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/wso2/agent-manager/agent-manager-observer/controllers"
 	"github.com/wso2/agent-manager/agent-manager-observer/rbac"
 )
 
@@ -102,41 +101,10 @@ func TestRequireToolPermission(t *testing.T) {
 	}
 }
 
-// With RBAC enabled, a tool wired with its permission must not reach the
-// upstream client for a token lacking the scope, and must for one carrying it.
-func TestObservabilityTools_ScopeEnforced(t *testing.T) {
-	input := runtimeLogsInput{
-		Organization: testOrgName,
-		Project:      testProjectName,
-		Agent:        testAgentName,
-		Environment:  testEnvName,
+func requestWithAuth(authHeader string) *gomcp.CallToolRequest {
+	req := &gomcp.CallToolRequest{Extra: &gomcp.RequestExtra{Header: http.Header{}}}
+	if authHeader != "" {
+		req.Extra.Header.Set("Authorization", authHeader)
 	}
-
-	call := func(fake *fakeObserverClient, req *gomcp.CallToolRequest) error {
-		handler := getRuntimeLogs(controllers.NewObservabilityController(fake), requireToolPermission(rbac.LogRead))
-		_, _, err := handler(context.Background(), req, input)
-		return err
-	}
-
-	t.Run("token without log-read scope rejected", func(t *testing.T) {
-		fake := newFakeObserverClient()
-		req := requestWithAuth("Bearer " + tokenWithScopes(t, "localhost", "amp:observability:trace-read"))
-		if err := call(fake, req); err == nil {
-			t.Fatal("expected scope rejection, got nil error")
-		}
-		if len(fake.calls["QueryLogs"]) != 0 {
-			t.Errorf("expected upstream QueryLogs not to be called, got %d calls", len(fake.calls["QueryLogs"]))
-		}
-	})
-
-	t.Run("token with log-read scope passes", func(t *testing.T) {
-		fake := newFakeObserverClient()
-		req := requestWithAuth("Bearer " + tokenWithScopes(t, "localhost", "amp:observability:log-read"))
-		if err := call(fake, req); err != nil {
-			t.Fatalf("expected scoped token to pass, got error: %v", err)
-		}
-		if len(fake.calls["QueryLogs"]) == 0 {
-			t.Error("expected upstream QueryLogs to be called for a scoped token")
-		}
-	})
+	return req
 }

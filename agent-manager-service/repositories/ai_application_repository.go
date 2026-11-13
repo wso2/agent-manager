@@ -20,8 +20,8 @@ import (
 	"context"
 
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 
+	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 )
 
@@ -64,22 +64,15 @@ func (r *AIApplicationRepo) Create(ctx context.Context, tx *gorm.DB, app *models
 	if db == nil {
 		db = r.db
 	}
-	result := db.WithContext(ctx).
-		Clauses(clause.OnConflict{DoNothing: true}).
-		Create(app)
-	if result.Error != nil {
-		return false, result.Error
-	}
-	return result.RowsAffected > 0, nil
+	return dbx.InsertIfAbsent(db.WithContext(ctx), app)
 }
 
 // GetByAgentEnv fetches the AIApplication for a specific agent+environment in an org.
 func (r *AIApplicationRepo) GetByAgentEnv(ctx context.Context, ouID, projectName, agentID, envName string) (*models.AIApplication, error) {
 	var app models.AIApplication
 	err := r.db.WithContext(ctx).
-		Where("ou_id = ? AND project_name = ? AND agent_id = ? AND environment_name = ?",
-			ouID, projectName, agentID, envName).
-		First(&app).Error
+		Where(appCond(r.db, ouID, projectName, agentID, envName)).
+		Take(&app).Error
 	if err != nil {
 		return nil, err
 	}
@@ -90,7 +83,7 @@ func (r *AIApplicationRepo) GetByAgentEnv(ctx context.Context, ouID, projectName
 func (r *AIApplicationRepo) ListByOrg(ctx context.Context, ouID string) ([]models.AIApplication, error) {
 	var apps []models.AIApplication
 	err := r.db.WithContext(ctx).
-		Where("ou_id = ?", ouID).
+		Where("org_id = ?", ouID).
 		Find(&apps).Error
 	return apps, err
 }
@@ -99,7 +92,7 @@ func (r *AIApplicationRepo) ListByOrg(ctx context.Context, ouID string) ([]model
 func (r *AIApplicationRepo) ListByAgent(ctx context.Context, ouID, projectName, agentID string) ([]models.AIApplication, error) {
 	var apps []models.AIApplication
 	err := r.db.WithContext(ctx).
-		Where("ou_id = ? AND project_name = ? AND agent_id = ?", ouID, projectName, agentID).
+		Where(appCond(r.db, ouID, projectName, agentID, "")).
 		Find(&apps).Error
 	return apps, err
 }
@@ -107,7 +100,7 @@ func (r *AIApplicationRepo) ListByAgent(ctx context.Context, ouID, projectName, 
 // DeleteByAgent removes all AIApplication rows for the given org+project+agent across all environments.
 func (r *AIApplicationRepo) DeleteByAgent(ctx context.Context, ouID, projectName, agentID string) error {
 	return r.db.WithContext(ctx).
-		Where("ou_id = ? AND project_name = ? AND agent_id = ?", ouID, projectName, agentID).
+		Where(appCond(r.db, ouID, projectName, agentID, "")).
 		Delete(&models.AIApplication{}).Error
 }
 
@@ -118,7 +111,16 @@ func (r *AIApplicationRepo) DeleteByAgentEnv(ctx context.Context, tx *gorm.DB, o
 		db = r.db
 	}
 	return db.WithContext(ctx).
-		Where("ou_id = ? AND project_name = ? AND agent_id = ? AND environment_name = ?",
-			ouID, projectName, agentID, envName).
+		Where(appCond(r.db, ouID, projectName, agentID, envName)).
 		Delete(&models.AIApplication{}).Error
+}
+
+// appCond matches the named agent's applications, in the named environment unless envName is empty.
+func appCond(db *gorm.DB, ouID, projectName, agentName, envName string) *gorm.DB {
+	q := db.Session(&gorm.Session{NewDB: true}).
+		Where("org_id = ? AND agent_id IN (?)", ouID, models.AgentIDQuery(db, ouID, projectName, agentName))
+	if envName != "" {
+		q = q.Where("environment_id IN (?)", models.EnvironmentIDQuery(db, ouID, envName))
+	}
+	return q
 }

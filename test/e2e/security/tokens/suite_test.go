@@ -39,7 +39,7 @@ var Cfg *framework.Config
 
 // guardedPath is the endpoint every spec drives. It needs a single scope, needs
 // no fixtures, and is side-effect free, so the only variable is the token.
-const guardedPath = "/api/v1/orgs/%s/agent-kinds"
+const guardedPath = "/api/v1/orgs/%s/projects"
 
 func TestSecurityTokens(t *testing.T) {
 	RegisterFailHandler(Fail)

@@ -17,7 +17,6 @@
 package api
 
 import (
-	"bufio"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -28,6 +27,10 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"gopkg.in/yaml.v3"
+
+	"github.com/wso2/agent-manager/agent-manager-service/ampinit"
 )
 
 // Static authorization invariants over the route table.
@@ -81,12 +84,8 @@ func (r routeRegistration) String() string {
 // and pattern: replacing an exempt route while keeping the same number of raw
 // registrations must not silently inherit the old exemption.
 var unguardedRouteAllowlist = map[routeKey]string{
-	{"registerAgentBuildOptionsRoutes", "HandleFuncWithValidation", "GET /orgs/{orgName}/agent-build-options"}: "GET /orgs/{orgName}/agent-build-options returns static build-option metadata " +
-		"(no org data). Still org-resolved via RequireOrgMatch.",
 	{"RegisterMonitorPublisherRoutes", "HandleFuncWithValidation", "POST /publisher/monitors/{monitorId}/runs/{runId}/scores"}: "POST /publisher/.../scores is guarded by jwtassertion.PublisherClientAuthMiddleware, " +
 		"which requires an amp-publisher-* audience instead of an amp: scope.",
-	{"RegisterBuildPublisherRoutes", "HandleFuncWithValidation", "POST /build-publisher/builds/{buildName}/workload"}: "POST /build-publisher/.../workload is guarded by jwtassertion.BuildClientAuthMiddleware, " +
-		"which requires a build token (issued to this service's IDP_CLIENT_ID for the token's own ouId) instead of an amp: scope.",
 	{"RegisterWebSocketRoutes", "HandleFunc", "GET /ws/gateways/connect"}: "GET /ws/gateways/connect is on internalMux and authenticates the gateway with an " +
 		"api-key header verified in the handler (gatewayService.VerifyToken), not a user JWT.",
 	{"registerJWKSRoute", "HandleFunc", "GET /auth/external/jwks.json"}: "publishes public signing keys and must be unauthenticated.",
@@ -94,8 +93,6 @@ var unguardedRouteAllowlist = map[routeKey]string{
 	{"registerTelemetryRoutes", "HandleFuncWithValidation", "POST /telemetry/console-actions"}: "lets an authenticated user report their own console UI activity under their own " +
 		"identity; any permission gating it would have to be granted to every role that can open the console, and the payload is " +
 		"validated against a server-side action allowlist rather than by RBAC.",
-	{"registerThunderAskRoute", "HandleFunc", "GET /internal/thunder-ask"}: "public Caddy on-demand TLS ask endpoint; it validates the requested environment handle, " +
-		"fails closed on lookup errors, and is rate-limited instead of using user RBAC.",
 	{"registerWellKnownRoutes", "HandleFunc", "GET /.well-known/oauth-protected-resource"}: "GET /.well-known/oauth-protected-resource is RFC 9728 resource metadata and must be " +
 		"unauthenticated so clients can discover how to authenticate.",
 	{"registerWellKnownRoutes", "HandleFunc", "GET /.well-known/oauth-protected-resource/mcp"}: "path-specific RFC 9728 metadata for the MCP resource must be unauthenticated " +
@@ -684,26 +681,27 @@ func predefinedRoleScopesByHandle(t *testing.T) map[string]map[string]bool {
 	return roles
 }
 
+// thunderBootstrap renders the ThunderID bootstrap resources the standalone
+// install generates.
+func thunderBootstrap(t *testing.T) map[string][]byte {
+	t.Helper()
+	files, err := ampinit.RenderThunder(ampinit.SampleThunderConfig())
+	if err != nil {
+		t.Fatalf("render Thunder bootstrap: %v", err)
+	}
+	return files
+}
+
 func thunderBootstrapRoleScopes(t *testing.T) map[string]map[string]bool {
 	t.Helper()
 
-	const bootstrapPath = "../../deployments/helm-charts/wso2-amp-thunder-extension/templates/amp-thunder-bootstrap.yaml"
-	source, err := os.ReadFile(bootstrapPath)
-	if err != nil {
-		t.Fatalf("read Thunder bootstrap template: %v", err)
-	}
-
 	// Each predefined role is a declarative bootstrap resource. Parse complete
-	// role file blocks rather than arbitrary scope lines so a formatting or
-	// resource-identity change fails loudly instead of producing a partial policy.
-	fileBlockPattern := regexp.MustCompile(`(?m)^  \S+\.yaml: \|\n`)
-	roleHeaderPattern := regexp.MustCompile(`^  \d+-amp-role-([a-z-]+)\.yaml: \|\n$`)
-	scopePattern := regexp.MustCompile(`(?m)^\s+- "(amp:[^"]+)"\s*$`)
-	fileBlocks := fileBlockPattern.FindAllStringIndex(string(source), -1)
+	// role documents so a format or resource-identity change fails loudly
+	// instead of producing a partial policy.
+	roleFilePattern := regexp.MustCompile(`^bootstrap/\d+-amp-role-([a-z-]+)\.yaml$`)
 	roles := map[string]map[string]bool{}
-	for index, bounds := range fileBlocks {
-		header := string(source[bounds[0]:bounds[1]])
-		match := roleHeaderPattern.FindStringSubmatch(header)
+	for name, source := range thunderBootstrap(t) {
+		match := roleFilePattern.FindStringSubmatch(name)
 		if match == nil {
 			continue
 		}
@@ -711,32 +709,34 @@ func thunderBootstrapRoleScopes(t *testing.T) map[string]map[string]bool {
 		if !containsMapValue(predefinedRoleHandles, handle) {
 			continue
 		}
-		if _, duplicate := roles[handle]; duplicate {
-			t.Fatalf("Thunder bootstrap configures predefined role %q more than once", handle)
+		var doc struct {
+			ResourceType string `yaml:"resource_type"`
+			ID           string `yaml:"id"`
+			Permissions  []struct {
+				ResourceServerID string   `yaml:"resourceServerId"`
+				Permissions      []string `yaml:"permissions"`
+			} `yaml:"permissions"`
 		}
-		blockEnd := len(source)
-		if index+1 < len(fileBlocks) {
-			blockEnd = fileBlocks[index+1][0]
+		if err := yaml.Unmarshal(source, &doc); err != nil {
+			t.Fatalf("parse Thunder bootstrap role %q: %v", handle, err)
 		}
-		block := string(source[bounds[1]:blockEnd])
-		if !strings.Contains(block, "    resource_type: role\n") ||
-			!strings.Contains(block, "    id: amp-role-"+handle+"\n") ||
-			!strings.Contains(block, "      - resourceServerId: amp-resource-server\n") {
+		if doc.ResourceType != "role" || doc.ID != "amp-role-"+handle {
 			t.Fatalf("Thunder bootstrap role %q no longer has the reviewed declarative role identity", handle)
 		}
 		// MCP resource servers intentionally repeat a role's applicable scope
 		// strings under different resourceServerId values. This invariant compares
 		// the service policy with the canonical amp-resource-server block only.
-		if mcpBlocks := strings.Index(block, "    {{- range $server := .Values.thunder.bootstrap.mcpResourceServers }}"); mcpBlocks >= 0 {
-			block = block[:mcpBlocks]
-		}
 		roles[handle] = map[string]bool{}
-		for _, scopeMatch := range scopePattern.FindAllStringSubmatch(block, -1) {
-			scope := scopeMatch[1]
-			if roles[handle][scope] {
-				t.Errorf("Thunder bootstrap role %q grants duplicate permission %q", handle, scope)
+		for _, block := range doc.Permissions {
+			if block.ResourceServerID != "amp-resource-server" {
+				continue
 			}
-			roles[handle][scope] = true
+			for _, scope := range block.Permissions {
+				if roles[handle][scope] {
+					t.Errorf("Thunder bootstrap role %q grants duplicate permission %q", handle, scope)
+				}
+				roles[handle][scope] = true
+			}
 		}
 		if len(roles[handle]) == 0 {
 			t.Fatalf("parsed zero AMP permissions for Thunder bootstrap role %q", handle)
@@ -745,47 +745,37 @@ func thunderBootstrapRoleScopes(t *testing.T) map[string]map[string]bool {
 
 	if len(roles) != len(predefinedRoleHandles) {
 		t.Fatalf("parsed %d predefined roles from Thunder bootstrap, expected %d; "+
-			"found %v — the template format or role inventory changed",
+			"found %v — the bootstrap format or role inventory changed",
 			len(roles), len(predefinedRoleHandles), sortedMapKeys(roles))
 	}
 	return roles
 }
 
+// thunderAMPScopeCatalog returns the AMP scopes registered on the bootstrap's
+// amp-api-client application, the allowlist Thunder grants tokens from.
 func thunderAMPScopeCatalog(t *testing.T) map[string]bool {
 	t.Helper()
 
-	const valuesPath = "../../deployments/helm-charts/wso2-amp-thunder-extension/values.yaml"
-	contents, err := os.ReadFile(valuesPath)
-	if err != nil {
-		t.Fatalf("read Thunder values: %v", err)
+	var app struct {
+		InboundAuthConfig []struct {
+			Config struct {
+				Scopes []string `yaml:"scopes"`
+			} `yaml:"config"`
+		} `yaml:"inboundAuthConfig"`
 	}
-
+	if err := yaml.Unmarshal(thunderBootstrap(t)["bootstrap/50-amp-api-client.yaml"], &app); err != nil {
+		t.Fatalf("parse Thunder API client: %v", err)
+	}
 	scopes := map[string]bool{}
-	inCatalog := false
-	scanner := bufio.NewScanner(strings.NewReader(string(contents)))
-	for scanner.Scan() {
-		line := scanner.Text()
-		if line == "    ampScopes:" {
-			inCatalog = true
-			continue
+	for _, cfg := range app.InboundAuthConfig {
+		for _, scope := range cfg.Config.Scopes {
+			if strings.HasPrefix(scope, "amp:") {
+				scopes[scope] = true
+			}
 		}
-		if !inCatalog {
-			continue
-		}
-		if strings.HasPrefix(line, "    ") && !strings.HasPrefix(line, "      ") && strings.TrimSpace(line) != "" {
-			break
-		}
-		trimmed := strings.TrimSpace(line)
-		if !strings.HasPrefix(trimmed, `- "amp:`) || !strings.HasSuffix(trimmed, `"`) {
-			continue
-		}
-		scopes[strings.Trim(trimmed[2:], `"`)] = true
-	}
-	if err := scanner.Err(); err != nil {
-		t.Fatalf("scan Thunder values: %v", err)
 	}
 	if len(scopes) == 0 {
-		t.Fatal("parsed zero AMP scopes from Thunder bootstrap ampScopes")
+		t.Fatal("parsed zero AMP scopes from the Thunder API client")
 	}
 	return scopes
 }

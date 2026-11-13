@@ -89,7 +89,6 @@ interface SelectPresetMonitorsProps {
   onHasLLMJudgeChange: (hasLLMJudge: boolean) => void;
   error?: string;
   llmProviderError?: string;
-  environmentName?: string;
 }
 
 export function SelectPresetMonitors({
@@ -101,7 +100,6 @@ export function SelectPresetMonitors({
   onHasLLMJudgeChange,
   error,
   llmProviderError,
-  environmentName,
 }: SelectPresetMonitorsProps) {
   const { orgId } = useParams<{ orgId: string }>();
   const [search, setSearch] = useState("");
@@ -896,7 +894,6 @@ export function SelectPresetMonitors({
         }}
         selectedProviderName={selectedProviderName}
         onProviderChange={handleProviderChange}
-        environmentName={environmentName}
       />
     </Form.Stack>
   );

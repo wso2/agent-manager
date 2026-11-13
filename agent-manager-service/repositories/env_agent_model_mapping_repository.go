@@ -53,7 +53,7 @@ type EnvAgentModelMappingRepository interface {
 	Update(ctx context.Context, tx *gorm.DB, mapping *models.EnvAgentModelMapping) error
 
 	// Delete deletes a mapping by ID (use within transaction)
-	Delete(ctx context.Context, tx *gorm.DB, mappingID uint) error
+	Delete(ctx context.Context, tx *gorm.DB, configUUID, envUUID uuid.UUID) error
 
 	// DeleteByConfig deletes all mappings for a configuration (use within transaction)
 	DeleteByConfig(ctx context.Context, tx *gorm.DB, configUUID uuid.UUID) error
@@ -76,7 +76,7 @@ func (r *envAgentModelMappingRepository) GetByConfigAndEnv(ctx context.Context, 
 	var mapping models.EnvAgentModelMapping
 	err := r.db.WithContext(ctx).
 		Preload("LLMProxy").
-		Where("config_uuid = ? AND environment_uuid = ?", configUUID, envUUID).
+		Where("config_id = ? AND environment_id = ?", configUUID, envUUID).
 		First(&mapping).Error
 	if err == nil {
 		backfillLLMProxyHandlesInMappings([]models.EnvAgentModelMapping{mapping})
@@ -88,7 +88,7 @@ func (r *envAgentModelMappingRepository) ListByConfig(ctx context.Context, confi
 	var mappings []models.EnvAgentModelMapping
 	err := r.db.WithContext(ctx).
 		Preload("LLMProxy").
-		Where("config_uuid = ?", configUUID).
+		Where("config_id = ?", configUUID).
 		Find(&mappings).Error
 	if err == nil {
 		backfillLLMProxyHandlesInMappings(mappings)
@@ -100,13 +100,14 @@ func (r *envAgentModelMappingRepository) Update(ctx context.Context, tx *gorm.DB
 	return tx.WithContext(ctx).Save(mapping).Error
 }
 
-func (r *envAgentModelMappingRepository) Delete(ctx context.Context, tx *gorm.DB, mappingID uint) error {
-	return tx.WithContext(ctx).Delete(&models.EnvAgentModelMapping{}, mappingID).Error
+func (r *envAgentModelMappingRepository) Delete(ctx context.Context, tx *gorm.DB, configUUID, envUUID uuid.UUID) error {
+	return tx.WithContext(ctx).Where("config_id = ? AND environment_id = ?", configUUID, envUUID).
+		Delete(&models.EnvAgentModelMapping{}).Error
 }
 
 func (r *envAgentModelMappingRepository) DeleteByConfig(ctx context.Context, tx *gorm.DB, configUUID uuid.UUID) error {
 	return tx.WithContext(ctx).
-		Where("config_uuid = ?", configUUID).
+		Where("config_id = ?", configUUID).
 		Delete(&models.EnvAgentModelMapping{}).Error
 }
 
@@ -119,13 +120,14 @@ func (r *envAgentModelMappingRepository) ListAgentConsumersByProxyUUIDs(ctx cont
 	// by (project_name, agent_id) — rather than including the per-env proxy handle/name in
 	// the projection — collapses those per-env rows into one consumer entry per agent.
 	err := r.db.WithContext(ctx).
-		Table("env_agent_model_mapping eam").
-		Select("MIN(a.handle) AS proxy_handle, MIN(a.name) AS proxy_name, ac.project_name, ac.agent_id").
-		Joins("JOIN llm_proxies lp ON lp.uuid = eam.llm_proxy_uuid").
-		Joins("JOIN artifacts a ON a.uuid = lp.uuid").
-		Joins("JOIN agent_configurations ac ON ac.uuid = eam.config_uuid").
-		Where("eam.llm_proxy_uuid IN ?", proxyUUIDs).
-		Group("ac.project_name, ac.agent_id").
+		Table("agent_model_config_llm eam").
+		Select("MIN(a.handle) AS proxy_handle, MIN(a.name) AS proxy_name, p.name AS project_name, ag.name AS agent_id").
+		Joins("JOIN artifacts a ON a.id = eam.llm_proxy_id").
+		Joins("JOIN agent_model_configs ac ON ac.id = eam.config_id").
+		Joins("JOIN agents ag ON ag.id = ac.agent_id").
+		Joins("JOIN projects p ON p.id = ag.project_id").
+		Where("eam.llm_proxy_id IN ?", proxyUUIDs).
+		Group("p.name, ag.name").
 		Scan(&results).Error
 	return results, err
 }

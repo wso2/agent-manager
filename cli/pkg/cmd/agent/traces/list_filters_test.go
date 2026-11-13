@@ -87,7 +87,7 @@ func runTracesCmd(t *testing.T, body any, args ...string) (*capturedRequest, err
 	cmdutil.EnableOrgOverride(root, f)
 	cmdutil.EnableProjectOverride(root, f)
 	root.AddCommand(NewTracesCmd(f))
-	root.SetArgs(append([]string{"traces", "my-agent", "--project", "triage", "--env", "dev"}, args...))
+	root.SetArgs(append([]string{"traces", "my-agent", "--project", "triage"}, args...))
 	return captured, root.Execute()
 }
 

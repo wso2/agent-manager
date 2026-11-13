@@ -23,7 +23,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
@@ -36,7 +35,7 @@ func listGatewaysRequest(
 	t *testing.T, query string, repo *repomocks.GatewayRepositoryMock,
 ) (*gatewayController, *httptest.ResponseRecorder, *http.Request) {
 	t.Helper()
-	ocClient := &clientmocks.OpenChoreoClientMock{
+	ocClient := &repomocks.PlatformRepositoryMock{
 		ListEnvironmentsFunc: func(_ context.Context, _ string) ([]*models.EnvironmentResponse, error) {
 			return []*models.EnvironmentResponse{{UUID: defaultEnvUUID, Name: "default"}}, nil
 		},

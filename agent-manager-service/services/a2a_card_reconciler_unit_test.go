@@ -31,13 +31,18 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
-	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
+
+// externalPendingCard is a pending card fetched from the agent's own origin: platform rows can no longer be fetched.
+func externalPendingCard() models.A2AAgentCard {
+	row := pendingCard(models.A2AAgentCardSourceExternal)
+	row.SourceURL = "https://agent.example/.well-known/agent-card.json"
+	return row
+}
 
 func pendingCard(source models.A2AAgentCardSource) models.A2AAgentCard {
 	return models.A2AAgentCard{
@@ -56,7 +61,7 @@ type cardReconcilerHarness struct {
 	svc      *a2aCardReconcilerService
 	repo     *repomocks.A2AAgentCardRepositoryMock
 	fetcher  *fakeA2ACardFetcher
-	ocClient *clientmocks.OpenChoreoClientMock
+	ocClient *repomocks.PlatformRepositoryMock
 	proxies  *repomocks.A2AProxyRepositoryMock
 	gateways *repomocks.GatewayRepositoryMock
 }
@@ -76,11 +81,7 @@ func newCardReconcilerHarness(vhost string) *cardReconcilerHarness {
 			return json.RawMessage(validTestCard), nil
 		},
 	}
-	oc := &clientmocks.OpenChoreoClientMock{
-		GetReleaseBindingRolloutFunc: func(context.Context, string, string, string) (client.ReleaseBindingRollout, error) {
-			return client.ReleaseBindingRollout{ReleaseName: "trip-planner-r1", Serving: true, Deployed: true}, nil
-		},
-	}
+	oc := &repomocks.PlatformRepositoryMock{}
 	proxies := &repomocks.A2AProxyRepositoryMock{
 		GetByEnvUUIDFunc: func(context.Context, string, string, string, uuid.UUID) (*models.A2AProxy, error) {
 			return nil, repositories.ErrA2AProxyNotFound
@@ -100,46 +101,8 @@ func newCardReconcilerHarness(vhost string) *cardReconcilerHarness {
 	}
 }
 
-func TestPlatformCardFetchedThroughGateway(t *testing.T) {
-	h := newCardReconcilerHarness("http://dev-org.gw.example/")
-	row := pendingCard(models.A2AAgentCardSourcePlatform)
-
-	h.svc.fetchOne(context.Background(), row)
-
-	require.Len(t, h.fetcher.calls, 1)
-	assert.Equal(t, "http://dev-org.gw.example/trip-planner/.well-known/agent-card.json", h.fetcher.calls[0].URL)
-	assert.False(t, h.fetcher.calls[0].Guarded, "platform URLs are platform-derived")
-
-	marked := h.repo.MarkFetchedCalls()
-	require.Len(t, marked, 1)
-	assert.Equal(t, row, marked[0].Read)
-	assert.JSONEq(t, validTestCard, string(marked[0].Card))
-	wantHash, err := a2aCardHash(json.RawMessage(validTestCard))
-	require.NoError(t, err)
-	assert.Equal(t, wantHash, marked[0].CardHash)
-	assert.Equal(t, h.fetcher.calls[0].URL, marked[0].FetchedURL)
-	assert.Equal(t, "trip-planner-r1", marked[0].ReleaseName, "the drift check compares against it")
-}
-
-// Mid-rollout the old pods still answer, so a fetch then would store the old release's card.
-func TestCardReconcilerWaitsForTheRolloutToFinish(t *testing.T) {
-	h := newCardReconcilerHarness("http://dev-org.gw.example/trip-planner/")
-	h.ocClient.GetReleaseBindingRolloutFunc = func(context.Context, string, string, string) (client.ReleaseBindingRollout, error) {
-		return client.ReleaseBindingRollout{ReleaseName: "trip-planner-r2", Deployed: true}, nil
-	}
-
-	h.svc.fetchOne(context.Background(), pendingCard(models.A2AAgentCardSourcePlatform))
-
-	assert.Empty(t, h.fetcher.calls)
-	assert.Empty(t, h.repo.MarkFetchedCalls())
-	failed := h.repo.MarkAttemptFailedCalls()
-	require.Len(t, failed, 1)
-	assert.Contains(t, failed[0].LastErr, "rolling out")
-}
-
 func TestCardReconcilerFetchesAnExternalCardGuarded(t *testing.T) {
 	h := newCardReconcilerHarness("")
-	h.ocClient.GetReleaseBindingRolloutFunc = nil // external rows never ask OpenChoreo
 	row := pendingCard(models.A2AAgentCardSourceExternal)
 	row.SourceURL = "https://agent.example/.well-known/agent-card.json"
 
@@ -152,39 +115,27 @@ func TestCardReconcilerFetchesAnExternalCardGuarded(t *testing.T) {
 	require.Len(t, h.repo.MarkFetchedCalls(), 1)
 }
 
-func TestCardReconcilerRetriesWhenNoEndpointIsReady(t *testing.T) {
-	h := newCardReconcilerHarness("")
-	before := time.Now()
-
-	h.svc.fetchOne(context.Background(), pendingCard(models.A2AAgentCardSourcePlatform))
-
-	assert.Empty(t, h.fetcher.calls)
-	retries := h.repo.MarkAttemptFailedCalls()
-	require.Len(t, retries, 1)
-	assert.WithinDuration(t, before.Add(5*time.Second), retries[0].NextAttemptAt, time.Second)
-}
-
 func TestCardReconcilerSkipsTheReplacementCheckOnAFailedAttempt(t *testing.T) {
 	h := newCardReconcilerHarness("")
-	row := pendingCard(models.A2AAgentCardSourcePlatform)
+	h.fetcher.FetchFunc = func(context.Context, string, bool) (json.RawMessage, error) {
+		return nil, newA2APublicError("agent card request returned HTTP 503", nil)
+	}
+	row := externalPendingCard()
 	agentUUID := uuid.New()
 	row.AgentUUID = &agentUUID
-	h.ocClient.GetComponentFunc = func(context.Context, string, string, string) (*models.AgentResponse, error) {
+	h.ocClient.GetAgentFunc = func(context.Context, string, string, string) (*models.AgentResponse, error) {
 		return &models.AgentResponse{UUID: agentUUID.String()}, nil
 	}
 
 	h.svc.fetchOne(context.Background(), row)
 
 	assert.Len(t, h.repo.MarkAttemptFailedCalls(), 1)
-	assert.Empty(t, h.ocClient.GetComponentCalls())
+	assert.Empty(t, h.ocClient.GetAgentCalls())
 }
 
 func TestCardReconcilerDropsAReplacedAgentsUndeployedCardAsReplaced(t *testing.T) {
 	h := newCardReconcilerHarness("http://dev-org.gw.example/trip-planner/")
-	h.ocClient.GetReleaseBindingRolloutFunc = func(context.Context, string, string, string) (client.ReleaseBindingRollout, error) {
-		return client.ReleaseBindingRollout{}, nil
-	}
-	h.ocClient.GetComponentFunc = func(context.Context, string, string, string) (*models.AgentResponse, error) {
+	h.ocClient.GetAgentFunc = func(context.Context, string, string, string) (*models.AgentResponse, error) {
 		return nil, utils.ErrNotFound
 	}
 	h.repo.DeleteIfUnchangedFunc = func(context.Context, models.A2AAgentCard) error { return nil }
@@ -216,7 +167,7 @@ func TestCardReconcilerGivesUpPastTheBudget(t *testing.T) {
 	h.fetcher.FetchFunc = func(context.Context, string, bool) (json.RawMessage, error) {
 		return nil, newA2APublicError("agent card request returned HTTP 503", nil)
 	}
-	row := pendingCard(models.A2AAgentCardSourcePlatform)
+	row := externalPendingCard()
 	row.AttemptCount = a2aCardAttemptBudget - 1
 
 	h.svc.fetchOne(context.Background(), row)
@@ -227,26 +178,13 @@ func TestCardReconcilerGivesUpPastTheBudget(t *testing.T) {
 	assert.Empty(t, h.repo.MarkAttemptFailedCalls())
 }
 
-func TestCardReconcilerPlatformFailuresNameTheURL(t *testing.T) {
-	h := newCardReconcilerHarness("http://gw.example/a")
-	h.fetcher.FetchFunc = func(context.Context, string, bool) (json.RawMessage, error) {
-		return nil, newA2APublicError("agent card request returned HTTP 404", nil)
-	}
-
-	h.svc.fetchOne(context.Background(), pendingCard(models.A2AAgentCardSourcePlatform))
-
-	retries := h.repo.MarkAttemptFailedCalls()
-	require.Len(t, retries, 1)
-	assert.Contains(t, retries[0].LastErr, "http://gw.example/a/trip-planner/.well-known/agent-card.json")
-}
-
 func TestCardReconcilerTreatsSupersededAsBenign(t *testing.T) {
 	h := newCardReconcilerHarness("http://gw.example/a")
 	h.repo.MarkFetchedFunc = func(context.Context, models.A2AAgentCard, json.RawMessage, string, string, string) error {
 		return repositories.ErrA2AAgentCardSuperseded
 	}
 
-	h.svc.fetchOne(context.Background(), pendingCard(models.A2AAgentCardSourcePlatform))
+	h.svc.fetchOne(context.Background(), externalPendingCard())
 
 	assert.Empty(t, h.repo.MarkAttemptFailedCalls(), "a superseded outcome is not a failure")
 	assert.Empty(t, h.repo.MarkFailedCalls())
@@ -256,7 +194,7 @@ func TestCardReconcilerRunOnceDrainsTheDueBatch(t *testing.T) {
 	h := newCardReconcilerHarness("http://gw.example/a")
 	h.repo.ClaimDueFunc = func(_ context.Context, _ time.Time, limit int) ([]models.A2AAgentCard, error) {
 		assert.Equal(t, a2aCardBatch, limit)
-		return []models.A2AAgentCard{pendingCard(models.A2AAgentCardSourcePlatform), pendingCard(models.A2AAgentCardSourcePlatform)}, nil
+		return []models.A2AAgentCard{externalPendingCard(), externalPendingCard()}, nil
 	}
 
 	h.svc.RunOnce(context.Background())
@@ -284,7 +222,7 @@ func TestCardReconcilerChargesAnAttemptWhenTheCardCannotBeStored(t *testing.T) {
 		return errors.New("ERROR: unsupported Unicode escape sequence (SQLSTATE 22P05)")
 	}
 
-	h.svc.fetchOne(context.Background(), pendingCard(models.A2AAgentCardSourcePlatform))
+	h.svc.fetchOne(context.Background(), externalPendingCard())
 
 	retries := h.repo.MarkAttemptFailedCalls()
 	require.Len(t, retries, 1)
@@ -296,7 +234,7 @@ func TestCardReconcilerFailsTheRowWhenTheLastCardCannotBeStored(t *testing.T) {
 	h.repo.MarkFetchedFunc = func(context.Context, models.A2AAgentCard, json.RawMessage, string, string, string) error {
 		return errors.New("SQLSTATE 22003")
 	}
-	row := pendingCard(models.A2AAgentCardSourcePlatform)
+	row := externalPendingCard()
 	row.AttemptCount = a2aCardAttemptBudget - 1
 
 	h.svc.fetchOne(context.Background(), row)
@@ -319,7 +257,7 @@ func TestCardReconcilerReportsAnUnstorableCard(t *testing.T) {
 				return fmt.Errorf("wrap: %w", &pgconn.PgError{Code: tt.code, Message: "unsupported Unicode escape sequence"})
 			}
 
-			h.svc.fetchOne(context.Background(), pendingCard(models.A2AAgentCardSourcePlatform))
+			h.svc.fetchOne(context.Background(), externalPendingCard())
 
 			retries := h.repo.MarkAttemptFailedCalls()
 			require.Len(t, retries, 1)
@@ -335,7 +273,7 @@ func TestCardReconcilerStoresAValidUTF8LastError(t *testing.T) {
 		return nil, newA2APublicError("agent card request returned HTTP 502 \xff\x00 from upstream", nil)
 	}
 
-	h.svc.fetchOne(context.Background(), pendingCard(models.A2AAgentCardSourcePlatform))
+	h.svc.fetchOne(context.Background(), externalPendingCard())
 
 	retries := h.repo.MarkAttemptFailedCalls()
 	require.Len(t, retries, 1)
@@ -350,7 +288,7 @@ func TestCardReconcilerCapsTheLastErrorLength(t *testing.T) {
 		return nil, newA2APublicError(strings.Repeat("é", 10*a2aLastErrorMaxRunes), nil)
 	}
 
-	h.svc.fetchOne(context.Background(), pendingCard(models.A2AAgentCardSourcePlatform))
+	h.svc.fetchOne(context.Background(), externalPendingCard())
 
 	retries := h.repo.MarkAttemptFailedCalls()
 	require.Len(t, retries, 1)
@@ -371,7 +309,7 @@ func TestCardReconcilerFallsBackWhenTheErrorCannotBeRecorded(t *testing.T) {
 		return errors.New("SQLSTATE 22021")
 	}
 
-	h.svc.fetchOne(context.Background(), pendingCard(models.A2AAgentCardSourcePlatform))
+	h.svc.fetchOne(context.Background(), externalPendingCard())
 
 	retries := h.repo.MarkAttemptFailedCalls()
 	require.Len(t, retries, 2)
@@ -387,16 +325,16 @@ func TestCardReconcilerDoesNotRetryTheRecordWhenSuperseded(t *testing.T) {
 		return repositories.ErrA2AAgentCardSuperseded
 	}
 
-	h.svc.fetchOne(context.Background(), pendingCard(models.A2AAgentCardSourcePlatform))
+	h.svc.fetchOne(context.Background(), externalPendingCard())
 
 	assert.Len(t, h.repo.MarkAttemptFailedCalls(), 1)
 }
 
-// rolloutBlocksUntilCancelled makes every OpenChoreo rollout read hang like an unresponsive server.
-func rolloutBlocksUntilCancelled(h *cardReconcilerHarness) {
-	h.ocClient.GetReleaseBindingRolloutFunc = func(ctx context.Context, _, _, _ string) (client.ReleaseBindingRollout, error) {
+// fetchBlocksUntilCancelled makes every card fetch hang like an unresponsive origin.
+func fetchBlocksUntilCancelled(h *cardReconcilerHarness) {
+	h.fetcher.FetchFunc = func(ctx context.Context, _ string, _ bool) (json.RawMessage, error) {
 		<-ctx.Done()
-		return client.ReleaseBindingRollout{}, ctx.Err()
+		return nil, ctx.Err()
 	}
 }
 
@@ -414,11 +352,11 @@ func runWithin(t *testing.T, limit time.Duration, fn func()) {
 
 func TestCardReconcilerBoundsEachAttempt(t *testing.T) {
 	h := newCardReconcilerHarness("http://gw.example/a")
-	rolloutBlocksUntilCancelled(h)
+	fetchBlocksUntilCancelled(h)
 	h.svc.attemptTimeout = 20 * time.Millisecond
 
 	runWithin(t, 2*time.Second, func() {
-		h.svc.fetchOne(context.Background(), pendingCard(models.A2AAgentCardSourcePlatform))
+		h.svc.fetchOne(context.Background(), externalPendingCard())
 	})
 
 	require.Len(t, h.repo.MarkAttemptFailedCalls(), 1, "a timed-out attempt is still charged")
@@ -427,19 +365,19 @@ func TestCardReconcilerBoundsEachAttempt(t *testing.T) {
 // Rows still running when the claim lease ends could be re-claimed and fetched twice.
 func TestCardReconcilerStopsTheBatchBeforeTheLeaseEnds(t *testing.T) {
 	h := newCardReconcilerHarness("http://gw.example/a")
-	rolloutBlocksUntilCancelled(h)
+	fetchBlocksUntilCancelled(h)
 	h.svc.batchBudget = 20 * time.Millisecond
 	h.repo.ClaimDueFunc = func(context.Context, time.Time, int) ([]models.A2AAgentCard, error) {
 		rows := make([]models.A2AAgentCard, a2aWorkerConcurrency+2)
 		for i := range rows {
-			rows[i] = pendingCard(models.A2AAgentCardSourcePlatform)
+			rows[i] = externalPendingCard()
 		}
 		return rows, nil
 	}
 
 	runWithin(t, 2*time.Second, func() { h.svc.RunOnce(context.Background()) })
 
-	assert.Len(t, h.ocClient.GetReleaseBindingRolloutCalls(), a2aWorkerConcurrency,
+	assert.Len(t, h.fetcher.calls, a2aWorkerConcurrency,
 		"rows left at the deadline wait for their lease to lapse")
 	assert.Len(t, h.repo.MarkAttemptFailedCalls(), a2aWorkerConcurrency, "only the cut-off rows are charged")
 }
@@ -457,7 +395,7 @@ func TestCardReconcilerFetchesRowsConcurrently(t *testing.T) {
 	h.repo.ClaimDueFunc = func(context.Context, time.Time, int) ([]models.A2AAgentCard, error) {
 		rows := make([]models.A2AAgentCard, a2aWorkerConcurrency)
 		for i := range rows {
-			rows[i] = pendingCard(models.A2AAgentCardSourcePlatform)
+			rows[i] = externalPendingCard()
 		}
 		return rows, nil
 	}
@@ -481,87 +419,25 @@ func TestCardReconcilerBatchFitsInsideTheClaimLease(t *testing.T) {
 	assert.Less(t, a2aCardBatchBudget, repositories.A2AAgentCardClaimLease)
 }
 
-// The drift scan compares the attempted release, so every failure path must report it.
-func TestCardReconcilerRecordsTheReleaseItTried(t *testing.T) {
-	t.Run("a failed fetch", func(t *testing.T) {
-		h := newCardReconcilerHarness("http://gw.example/a")
-		h.fetcher.FetchFunc = func(context.Context, string, bool) (json.RawMessage, error) {
-			return nil, errors.New("agent card request returned HTTP 503")
-		}
-		h.svc.fetchOne(context.Background(), pendingCard(models.A2AAgentCardSourcePlatform))
-		retries := h.repo.MarkAttemptFailedCalls()
-		require.Len(t, retries, 1)
-		assert.Equal(t, "trip-planner-r1", retries[0].ReleaseName)
-	})
-	// A release that never served was not really tried, so the drift scan must still retry it once it serves.
-	t.Run("a rollout still in progress", func(t *testing.T) {
-		h := newCardReconcilerHarness("http://gw.example/a")
-		h.ocClient.GetReleaseBindingRolloutFunc = func(context.Context, string, string, string) (client.ReleaseBindingRollout, error) {
-			return client.ReleaseBindingRollout{ReleaseName: "trip-planner-r2", Deployed: true}, nil
-		}
-		row := pendingCard(models.A2AAgentCardSourcePlatform)
-		row.AttemptCount = a2aCardAttemptBudget - 1
-		h.svc.fetchOne(context.Background(), row)
-		failed := h.repo.MarkFailedCalls()
-		require.Len(t, failed, 1)
-		assert.Empty(t, failed[0].ReleaseName)
-	})
-	t.Run("the last attempt", func(t *testing.T) {
-		h := newCardReconcilerHarness("http://gw.example/a")
-		h.fetcher.FetchFunc = func(context.Context, string, bool) (json.RawMessage, error) {
-			return nil, errors.New("agent card request returned HTTP 503")
-		}
-		row := pendingCard(models.A2AAgentCardSourcePlatform)
-		row.AttemptCount = a2aCardAttemptBudget - 1
-		h.svc.fetchOne(context.Background(), row)
-		failed := h.repo.MarkFailedCalls()
-		require.Len(t, failed, 1)
-		assert.Equal(t, "trip-planner-r1", failed[0].ReleaseName)
-	})
-	t.Run("an unreadable rollout", func(t *testing.T) {
-		h := newCardReconcilerHarness("http://gw.example/a")
-		h.ocClient.GetReleaseBindingRolloutFunc = func(context.Context, string, string, string) (client.ReleaseBindingRollout, error) {
-			return client.ReleaseBindingRollout{}, assert.AnError
-		}
-		h.svc.fetchOne(context.Background(), pendingCard(models.A2AAgentCardSourcePlatform))
-		retries := h.repo.MarkAttemptFailedCalls()
-		require.Len(t, retries, 1)
-		assert.Empty(t, retries[0].ReleaseName)
-	})
-}
-
 // An undeployed agent's platform row goes away, as undeploy itself removes it.
 func TestCardReconcilerDropsTheRowOfAnUndeployedAgent(t *testing.T) {
-	for name, rollout := range map[string]client.ReleaseBindingRollout{
-		"never deployed": {},
-		"undeployed":     {ReleaseName: "trip-planner-r1"},
-	} {
-		t.Run(name, func(t *testing.T) {
-			h := newCardReconcilerHarness("http://gw.example/a")
-			h.ocClient.GetReleaseBindingRolloutFunc = func(context.Context, string, string, string) (client.ReleaseBindingRollout, error) {
-				return rollout, nil
-			}
-			h.repo.DeleteIfUnchangedFunc = func(context.Context, models.A2AAgentCard) error { return nil }
-			row := pendingCard(models.A2AAgentCardSourcePlatform)
+	h := newCardReconcilerHarness("http://gw.example/a")
+	h.repo.DeleteIfUnchangedFunc = func(context.Context, models.A2AAgentCard) error { return nil }
+	row := pendingCard(models.A2AAgentCardSourcePlatform)
 
-			h.svc.fetchOne(context.Background(), row)
+	h.svc.fetchOne(context.Background(), row)
 
-			dropped := h.repo.DeleteIfUnchangedCalls()
-			require.Len(t, dropped, 1)
-			assert.Equal(t, row, dropped[0].Read)
-			assert.Empty(t, h.fetcher.calls)
-			assert.Empty(t, h.repo.MarkAttemptFailedCalls())
-			assert.Empty(t, h.repo.MarkFailedCalls())
-		})
-	}
+	dropped := h.repo.DeleteIfUnchangedCalls()
+	require.Len(t, dropped, 1)
+	assert.Equal(t, row, dropped[0].Read)
+	assert.Empty(t, h.fetcher.calls)
+	assert.Empty(t, h.repo.MarkAttemptFailedCalls())
+	assert.Empty(t, h.repo.MarkFailedCalls())
 }
 
 // A row re-queued meanwhile belongs to a newer deploy or refresh.
 func TestCardReconcilerKeepsAnUndeployedRowReenqueuedMeanwhile(t *testing.T) {
 	h := newCardReconcilerHarness("http://gw.example/a")
-	h.ocClient.GetReleaseBindingRolloutFunc = func(context.Context, string, string, string) (client.ReleaseBindingRollout, error) {
-		return client.ReleaseBindingRollout{}, nil
-	}
 	h.repo.DeleteIfUnchangedFunc = func(context.Context, models.A2AAgentCard) error {
 		return repositories.ErrA2AAgentCardSuperseded
 	}
@@ -575,7 +451,6 @@ func TestCardReconcilerKeepsAnUndeployedRowReenqueuedMeanwhile(t *testing.T) {
 // Only the gateway's copy of a proxied card advertises gateway URLs.
 func TestCardReconcilerFetchesAProxiedCardThroughTheGateway(t *testing.T) {
 	h := newCardReconcilerHarness("")
-	h.ocClient.GetReleaseBindingRolloutFunc = nil // external rows never ask OpenChoreo
 	var lookedUp uuid.UUID
 	h.proxies.GetByEnvUUIDFunc = func(_ context.Context, _, _, _ string, envUUID uuid.UUID) (*models.A2AProxy, error) {
 		lookedUp = envUUID
@@ -689,11 +564,11 @@ func TestCardReconcilerDropsTheCardOfAReplacedAgent(t *testing.T) {
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			h := newCardReconcilerHarness("http://dev-org.gw.example/trip-planner/")
-			h.ocClient.GetComponentFunc = func(context.Context, string, string, string) (*models.AgentResponse, error) {
+			h.ocClient.GetAgentFunc = func(context.Context, string, string, string) (*models.AgentResponse, error) {
 				return tc.component()
 			}
 			h.repo.DeleteIfUnchangedFunc = func(context.Context, models.A2AAgentCard) error { return nil }
-			row := pendingCard(models.A2AAgentCardSourcePlatform)
+			row := externalPendingCard()
 			row.AgentUUID = tc.agentUUID
 
 			h.svc.fetchOne(context.Background(), row)

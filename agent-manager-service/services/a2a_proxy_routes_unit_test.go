@@ -39,7 +39,8 @@ func a2aIface(binding, url string) map[string]any {
 }
 
 func TestDeriveA2AProxyRoutesFrontsEachBindingAtItsPath(t *testing.T) {
-	upstream, transports, err := deriveA2AProxyRoutes(originCardURL, a2aTestCard(t,
+	upstream, transports, err := deriveA2AProxyRoutes(originCardURL, a2aTestCard(
+		t,
 		a2aIface("JSONRPC", "https://agent.example/team/a2a/jsonrpc"),
 		a2aIface("HTTP+JSON", "https://agent.example/team/a2a/rest"),
 	))
@@ -79,7 +80,8 @@ func TestDeriveA2AProxyRoutesRejectsACardURLTheGatewayCannotFetch(t *testing.T) 
 
 // The a2a-sdk default serves both bindings at the root.
 func TestDeriveA2AProxyRoutesFrontsBothBindingsAtTheRoot(t *testing.T) {
-	_, transports, err := deriveA2AProxyRoutes("https://agent.example/.well-known/agent-card.json", a2aTestCard(t,
+	_, transports, err := deriveA2AProxyRoutes("https://agent.example/.well-known/agent-card.json", a2aTestCard(
+		t,
 		a2aIface("JSONRPC", "https://agent.example/"),
 		a2aIface("HTTP+JSON", "https://agent.example"),
 	))
@@ -133,7 +135,8 @@ func TestDeriveA2AProxyRoutesLeavesNonCanonicalPathsUnfronted(t *testing.T) {
 }
 
 func TestDeriveA2AProxyRoutesAcceptsUnversionedEntriesAndDefaultPorts(t *testing.T) {
-	_, transports, err := deriveA2AProxyRoutes(originCardURL, a2aTestCard(t,
+	_, transports, err := deriveA2AProxyRoutes(originCardURL, a2aTestCard(
+		t,
 		map[string]any{"protocolBinding": "JSONRPC", "url": "https://AGENT.example:443/team/rpc"},
 	))
 	require.NoError(t, err)
@@ -141,7 +144,8 @@ func TestDeriveA2AProxyRoutesAcceptsUnversionedEntriesAndDefaultPorts(t *testing
 }
 
 func TestDeriveA2AProxyRoutesIgnoresGRPC(t *testing.T) {
-	_, transports, err := deriveA2AProxyRoutes(originCardURL, a2aTestCard(t,
+	_, transports, err := deriveA2AProxyRoutes(originCardURL, a2aTestCard(
+		t,
 		a2aIface("GRPC", "https://grpc.example:50051"),
 		a2aIface("JSONRPC", "https://agent.example/team/rpc"),
 	))
@@ -158,7 +162,8 @@ func TestDeriveA2AProxyRoutesNeedsOneFrontedBinding(t *testing.T) {
 
 // The gateway's card rewrite fails the whole card on such an entry.
 func TestDeriveA2AProxyRoutesRequiresABindingOnEveryInterface(t *testing.T) {
-	_, _, err := deriveA2AProxyRoutes(originCardURL, a2aTestCard(t,
+	_, _, err := deriveA2AProxyRoutes(originCardURL, a2aTestCard(
+		t,
 		a2aIface("JSONRPC", "https://agent.example/team/rpc"),
 		map[string]any{"url": "https://agent.example/team/other"},
 	))

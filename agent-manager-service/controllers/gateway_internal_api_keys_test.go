@@ -34,6 +34,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
+	"github.com/wso2/agent-manager/agent-manager-service/db/dbtest"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
@@ -41,18 +42,10 @@ import (
 
 func TestGetAPIKeysServesBothAgentKinds(t *testing.T) {
 	gdb := db.GetDB()
-	ouID := "ou-" + uuid.NewString()[:8]
-	gatewayID, envID, otherEnvID := uuid.New(), uuid.New(), uuid.New()
-	require.NoError(t, gdb.Exec(
-		`INSERT INTO gateways (uuid, name, display_name, vhost, gateway_functionality_type, ou_id, is_active)
-		 VALUES (?, ?, ?, 'gw.example', ?, ?, TRUE)`,
-		gatewayID, "keys-gw-"+gatewayID.String()[:8], "keys gateway", models.GatewayRoleBoth, ouID).Error)
-	require.NoError(t, gdb.Exec(
-		`INSERT INTO gateway_environment_mappings (gateway_uuid, environment_uuid) VALUES (?, ?)`, gatewayID, envID).Error)
-	t.Cleanup(func() {
-		gdb.Exec(`DELETE FROM artifacts WHERE ou_id = ?`, ouID)
-		gdb.Exec(`DELETE FROM gateways WHERE uuid = ?`, gatewayID)
-	})
+	ouID := dbtest.Org(t, db.GetDB())
+	envID, otherEnvID := uuid.New(), uuid.New()
+	gatewayID := dbtest.GatewayIn(t, gdb, ouID, models.GatewayRoleBoth, envID).UUID
+	dbtest.EnvironmentWithID(t, gdb, ouID, otherEnvID)
 
 	seedKey := func(kind string, env uuid.UUID) uuid.UUID {
 		artifact := &models.Artifact{
@@ -100,20 +93,12 @@ const restAPIYAML = "kind: RestApi\nmetadata:\n  name: pulled\n"
 func newPullFixture(t *testing.T) pullFixture {
 	t.Helper()
 	gdb := db.GetDB()
-	ouID := "ou-" + uuid.NewString()[:8]
-	gatewayID, artifactID := uuid.New(), uuid.New()
-	require.NoError(t, gdb.Exec(
-		`INSERT INTO gateways (uuid, name, display_name, vhost, gateway_functionality_type, ou_id, is_active)
-		 VALUES (?, ?, ?, 'gw.example', ?, ?, TRUE)`,
-		gatewayID, "pull-gw-"+gatewayID.String()[:8], "pull gateway", models.GatewayRoleBoth, ouID).Error)
+	ouID := dbtest.Org(t, db.GetDB())
+	gatewayID, artifactID := dbtest.GatewayIn(t, gdb, ouID, models.GatewayRoleBoth).UUID, uuid.New()
 	handle := "handle-" + artifactID.String()[:8]
 	require.NoError(t, repositories.NewArtifactRepo(gdb).Create(gdb, &models.Artifact{
 		UUID: artifactID, Handle: handle, Name: handle, Version: "v1.0", Kind: models.KindRestAPI, OUID: ouID,
 	}))
-	t.Cleanup(func() {
-		gdb.Exec(`DELETE FROM artifacts WHERE uuid = ?`, artifactID)
-		gdb.Exec(`DELETE FROM gateways WHERE uuid = ?`, gatewayID)
-	})
 	placement := models.Placement{
 		ArtifactRef: models.ArtifactRef{OUID: ouID, ArtifactUUID: artifactID, Kind: models.KindRestAPI, Handle: handle},
 		GatewayUUID: gatewayID,
@@ -133,7 +118,8 @@ func newPullFixture(t *testing.T) pullFixture {
 		controller: &gatewayInternalController{
 			gatewayService: gatewayService,
 			gatewayInternalService: services.NewGatewayInternalAPIService(
-				nil, nil, deploymentRepo, nil, gatewayRepo, nil, nil, nil),
+				nil, nil, deploymentRepo, nil, gatewayRepo, nil, nil, nil,
+			),
 		},
 		token:    token.Token,
 		artifact: artifactID,

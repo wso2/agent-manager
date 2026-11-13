@@ -27,7 +27,7 @@ import (
 func NewCardCmd(f *cmdutil.Factory) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "card",
-		Short: "Manage an A2A agent's card per environment",
+		Short: "Manage an A2A agent's card",
 	}
 	cmd.AddCommand(NewSetCmd(f))
 	cmd.AddCommand(NewRefreshCmd(f))
@@ -45,9 +45,6 @@ func completeAgentArg(f *cmdutil.Factory) func(*cobra.Command, []string, string)
 	}
 }
 
-func validateTarget(agent, env string) error {
-	if err := cmdutil.ValidatePathParam("agent name", agent); err != nil {
-		return err
-	}
-	return cmdutil.ValidatePathParam("environment", env)
+func validateTarget(agent string) error {
+	return cmdutil.ValidatePathParam("agent name", agent)
 }

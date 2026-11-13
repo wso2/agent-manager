@@ -24,7 +24,7 @@ import (
 
 func registerMonitorAlertRoutes(rr *middleware.RouteRegistrar, controller controllers.MonitorAlertController) {
 	alerting := "/orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/alerting"
-	rr.HandleFuncWithValidationAndAuthz(route("GET", alerting), rbac.MonitorRead, controller.GetMonitorAlert)
-	rr.HandleFuncWithValidationAndAuthz(route("PUT", alerting), rbac.MonitorUpdate, controller.PutMonitorAlert)
-	rr.HandleFuncWithValidationAndAuthz(route("DELETE", alerting), rbac.MonitorUpdate, controller.DeleteMonitorAlert)
+	rr.HandleFuncWithValidationAndAuthz(route("GET", alerting), rbac.MonitorRead, notImplemented)
+	rr.HandleFuncWithValidationAndAuthz(route("PUT", alerting), rbac.MonitorUpdate, notImplemented)
+	rr.HandleFuncWithValidationAndAuthz(route("DELETE", alerting), rbac.MonitorUpdate, notImplemented)
 }

@@ -26,14 +26,14 @@ import (
 func registerInfraRoutes(rr *middleware.RouteRegistrar, ctrl controllers.InfraResourceController) {
 	rr.HandleFuncWithValidationAndAuthz("GET /orgs", rbac.OrgView, ctrl.ListOrganizations)
 	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}", rbac.OrgView, ctrl.GetOrganization)
-	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/data-planes", rbac.DataPlaneRead, ctrl.GetDataplanes)
-	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/deployment-pipelines", rbac.DeploymentPipelineRead, ctrl.ListOrgDeploymentPipelines)
+	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/data-planes", rbac.DataPlaneRead, notImplemented)
+	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/deployment-pipelines", rbac.DeploymentPipelineRead, notImplemented)
 	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/deployment-pipelines", rbac.DeploymentPipelineCreate,
-		growthanalytics.Track("amp.deployment-ops.deployment-pipeline", actionDims("created-deployment-pipeline"), ctrl.CreateOrgDeploymentPipeline))
+		notImplemented)
 	rr.HandleFuncWithValidationAndAuthz("PUT /orgs/{orgName}/deployment-pipelines/{pipelineName}", rbac.DeploymentPipelineUpdate,
-		growthanalytics.Track("amp.deployment-ops.deployment-pipeline", actionDims("updated-deployment-pipeline"), ctrl.UpdateOrgDeploymentPipeline))
+		notImplemented)
 	rr.HandleFuncWithValidationAndAuthz("DELETE /orgs/{orgName}/deployment-pipelines/{pipelineName}", rbac.DeploymentPipelineDelete,
-		growthanalytics.Track("amp.deployment-ops.deployment-pipeline", actionDims("deleted-deployment-pipeline"), ctrl.DeleteOrgDeploymentPipeline))
+		notImplemented)
 
 	// NOTE: /orgs/{orgName}/environments routes are now registered in environment_routes.go
 	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/projects", rbac.ProjectRead, ctrl.ListProjects)
@@ -42,7 +42,7 @@ func registerInfraRoutes(rr *middleware.RouteRegistrar, ctrl controllers.InfraRe
 	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/projects/{projName}", rbac.ProjectRead, ctrl.GetProject)
 	rr.HandleFuncWithValidationAndAuthz("PUT /orgs/{orgName}/projects/{projName}", rbac.ProjectUpdate,
 		growthanalytics.Track("amp.deployment-ops.create-project", actionDims("updated-project"), ctrl.UpdateProject))
-	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/projects/{projName}/deployment-pipeline", rbac.DeploymentPipelineRead, ctrl.GetProjectDeploymentPipeline)
+	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/projects/{projName}/deployment-pipeline", rbac.DeploymentPipelineRead, notImplemented)
 	rr.HandleFuncWithValidationAndAuthz("DELETE /orgs/{orgName}/projects/{projName}", rbac.ProjectDelete,
 		growthanalytics.Track("amp.deployment-ops.create-project", actionDims("deleted-project"), ctrl.DeleteProject))
 }

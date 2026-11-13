@@ -24,10 +24,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"gopkg.in/yaml.v3"
-	"gorm.io/gorm"
-
-	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/eventhub"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
@@ -35,6 +31,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
+	"gorm.io/gorm"
 )
 
 // a2aAgentEnv is the agent and environment a per-environment Agent artifact exposes.
@@ -45,7 +42,7 @@ type a2aAgentEnv struct {
 
 // A2AAgentKind exposes A2A agents through their environment's ingress gateway. A platform agent is recorded in
 // platform_agent_exposures, an external agent in a2a_proxies (joined to its artifact on the handle). Its Render
-// calls OpenChoreo, or fetches the external origin's card, so only the worker renders it.
+// reads the platform store, or fetches the external origin's card, so only the worker renders it.
 type A2AAgentKind struct {
 	tx              TxRunner
 	exposures       *PlatformAgentExposures
@@ -53,7 +50,7 @@ type A2AAgentKind struct {
 	cardRepo        repositories.A2AAgentCardRepository
 	deploymentRepo  repositories.DeploymentRepository
 	agentConfigRepo repositories.AgentConfigRepository
-	ocClient        client.OpenChoreoClient
+	ocClient        repositories.PlatformRepository
 	fetcher         A2ACardFetcher
 	apiKeyRepo      repositories.APIKeyRepository
 	events          *GatewayEventsService
@@ -69,7 +66,7 @@ func NewA2AAgentKind(
 	cardRepo repositories.A2AAgentCardRepository,
 	deploymentRepo repositories.DeploymentRepository,
 	agentConfigRepo repositories.AgentConfigRepository,
-	ocClient client.OpenChoreoClient,
+	ocClient repositories.PlatformRepository,
 	fetcher A2ACardFetcher,
 	apiKeyRepo repositories.APIKeyRepository,
 	events *GatewayEventsService,
@@ -284,11 +281,11 @@ func (k *A2AAgentKind) UnplacedRecords(
 ) ([]reconcile.Record, error) {
 	exposed, exposedArgs := unplacedExposureArm(models.AgentExposureProtocolA2A, ouID, env)
 	proxied, proxiedArgs := reconcile.UnplacedCondition(reconcile.RecordColumns{
-		OUID: "a.ou_id", ArtifactUUID: "a.uuid", EnvironmentUUID: "p.environment_uuid",
+		OUID: "a.org_id", ArtifactUUID: "a.id", EnvironmentUUID: "p.environment_id",
 	}, models.IngressGatewayRoles, ouID, env)
 	arms := exposed + `
 			UNION ALL
-			SELECT a.ou_id, a.uuid, a.handle, a.kind, p.environment_uuid
+			SELECT a.org_id, a.id AS artifact_id, a.handle, a.kind, p.environment_id
 			FROM a2a_proxies p ` + repositories.A2AProxyArtifactJoin + `
 			WHERE ` + proxied
 	records, err := pageUnplacedRecords(ctx, db.DB(ctx), arms, append(exposedArgs, proxiedArgs...), afterKey, limit)
@@ -302,11 +299,11 @@ func (k *A2AAgentKind) UnplacedRecords(
 func (k *A2AAgentKind) PlacedOn(ctx context.Context, tx *gorm.DB, env, gateway uuid.UUID) (bool, error) {
 	exposed, exposedArgs := placedExposureArm(models.AgentExposureProtocolA2A, env, gateway)
 	proxied, proxiedArgs := reconcile.PlacedCondition(reconcile.RecordColumns{
-		OUID: "a.ou_id", ArtifactUUID: "a.uuid", EnvironmentUUID: "p.environment_uuid",
+		OUID: "a.org_id", ArtifactUUID: "a.id", EnvironmentUUID: "p.environment_id",
 	}, env, gateway)
 	return placedOn(ctx, tx, exposed+`
 		UNION ALL
-		SELECT 1 FROM a2a_proxies p `+repositories.A2AProxyArtifactJoin+`
+		SELECT 1 AS placed FROM a2a_proxies p `+repositories.A2AProxyArtifactJoin+`
 			WHERE `+proxied, append(exposedArgs, proxiedArgs...))
 }
 
@@ -351,77 +348,8 @@ func (k *A2AAgentKind) queueCardFetch(ctx context.Context, tx *gorm.DB, p models
 	return err
 }
 
-// Drifted reports a platform agent whose release binding now serves a URL other than the one its current
-// deployment was rendered with. A new release on the same URL needs no re-render, only its card re-fetched.
-func (k *A2AAgentKind) Drifted(ctx context.Context, p models.Placement) (string, bool, error) {
-	exposure, err := k.exposures.exposure(ctx, nil, p.ArtifactRef)
-	if errors.Is(err, repositories.ErrPlatformAgentExposureNotFound) {
-		return "", false, nil
-	}
-	if err != nil {
-		return "", false, err
-	}
-	ctx = orgctx.WithResolvedOrg(ctx, orgctx.ResolvedOrg{OUID: p.OUID})
-	rollout, err := k.ocClient.GetReleaseBindingRollout(ctx, exposure.OUID, exposure.AgentName, exposure.EnvironmentName)
-	if err != nil {
-		return "", false, err
-	}
-	deployed, err := deployedUpstream(ctx, k.deploymentRepo, p, func(y A2AAgentDeploymentYAML) string {
-		return y.Spec.Upstream.URL
-	})
-	if err != nil {
-		return "", false, err
-	}
-	if rollout.ServiceURL != "" && rollout.ServiceURL != deployed {
-		return endpointChangedReason, true, nil
-	}
-	k.refetchCardOfNewRelease(ctx, exposure, rollout)
+// Drifted never reports drift: only platform-hosted agents have a release
+// binding whose endpoint can move, and there is no agent runtime.
+func (k *A2AAgentKind) Drifted(context.Context, models.Placement) (string, bool, error) {
 	return "", false, nil
-}
-
-// endpointChangedReason is why a placement is re-rendered when its release binding serves another URL.
-const endpointChangedReason = "the agent's endpoint changed"
-
-// deployedUpstream is the upstream URL the placement's current deployment was rendered with, read from its YAML
-// as T; empty when nothing is deployed.
-func deployedUpstream[T any](
-	ctx context.Context, repo repositories.DeploymentRepository, p models.Placement, upstream func(T) string,
-) (string, error) {
-	deployment, err := repo.GetPullable(ctx, p.OUID, p.ArtifactUUID, p.GatewayUUID.String())
-	if err != nil || deployment == nil {
-		return "", err
-	}
-	var content T
-	if err := yaml.Unmarshal(deployment.Content, &content); err != nil {
-		return "", fmt.Errorf("failed to read the deployed agent's upstream: %w", err)
-	}
-	return upstream(content), nil
-}
-
-func (k *A2AAgentKind) refetchCardOfNewRelease(
-	ctx context.Context, exposure *models.PlatformAgentExposure, rollout client.ReleaseBindingRollout,
-) {
-	if !rollout.Serving || rollout.ReleaseName == "" {
-		return
-	}
-	card, err := k.cardRepo.Get(ctx, exposure.OUID, exposure.ProjectName, exposure.AgentName, exposure.EnvironmentName)
-	if err != nil {
-		if !errors.Is(err, repositories.ErrA2AAgentCardNotFound) {
-			k.logger.Warn("Failed to read A2A agent card for release drift",
-				"agentName", exposure.AgentName, "environment", exposure.EnvironmentName, "error", err)
-		}
-		return
-	}
-	if card.Source != models.A2AAgentCardSourcePlatform || card.Status == models.A2AAgentCardStatusPending ||
-		card.ReleaseName == rollout.ReleaseName || card.AttemptedReleaseName == rollout.ReleaseName {
-		return
-	}
-	k.logger.Info("A2A agent serves a new release; re-fetching its card",
-		"agentName", exposure.AgentName, "environment", exposure.EnvironmentName,
-		"cardRelease", card.ReleaseName, "currentRelease", rollout.ReleaseName)
-	card.AgentUUID = exposure.AgentUUID
-	if err := k.cardRepo.Enqueue(ctx, card); err != nil {
-		k.logger.Warn("Failed to queue the card re-fetch of a new release",
-			"agentName", exposure.AgentName, "environment", exposure.EnvironmentName, "error", err)
-	}
 }

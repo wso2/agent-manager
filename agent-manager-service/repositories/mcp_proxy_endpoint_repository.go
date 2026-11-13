@@ -24,6 +24,7 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
+	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 )
 
@@ -79,12 +80,12 @@ func (r *mcpProxyEndpointRepository) UpdateEndpoint(ctx context.Context, tx *gor
 		return gorm.ErrRecordNotFound
 	}
 	result := tx.WithContext(ctx).Model(&models.MCPProxyEndpoint{}).
-		Where("uuid = ?", endpoint.UUID).
+		Where("id = ?", endpoint.UUID).
 		Updates(map[string]interface{}{
 			"handle":        endpoint.Handle,
 			"name":          endpoint.Name,
 			"status":        endpoint.Status,
-			"configuration": endpoint.Configuration,
+			"configuration": dbx.JSON(endpoint.Configuration),
 		})
 	if result.Error != nil {
 		return fmt.Errorf("failed to update MCP proxy endpoint: %w", result.Error)
@@ -96,7 +97,7 @@ func (r *mcpProxyEndpointRepository) UpdateEndpoint(ctx context.Context, tx *gor
 }
 
 func (r *mcpProxyEndpointRepository) DeleteEndpoint(ctx context.Context, tx *gorm.DB, endpointUUID uuid.UUID) error {
-	result := tx.WithContext(ctx).Where("uuid = ?", endpointUUID).Delete(&models.MCPProxyEndpoint{})
+	result := tx.WithContext(ctx).Where("id = ?", endpointUUID).Delete(&models.MCPProxyEndpoint{})
 	if result.Error != nil {
 		return fmt.Errorf("failed to delete MCP proxy endpoint: %w", result.Error)
 	}
@@ -110,7 +111,7 @@ func (r *mcpProxyEndpointRepository) GetEndpoint(ctx context.Context, endpointUU
 	var endpoint models.MCPProxyEndpoint
 	err := r.db.WithContext(ctx).
 		Preload("Environments").
-		Where("uuid = ?", endpointUUID).
+		Where("id = ?", endpointUUID).
 		First(&endpoint).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -125,7 +126,7 @@ func (r *mcpProxyEndpointRepository) ListEndpointsByProxy(ctx context.Context, p
 	var endpoints []models.MCPProxyEndpoint
 	err := r.db.WithContext(ctx).
 		Preload("Environments").
-		Where("mcp_proxy_uuid = ?", proxyUUID).
+		Where("mcp_proxy_id = ?", proxyUUID).
 		Order("created_at ASC").
 		Find(&endpoints).Error
 	if err != nil {
@@ -146,7 +147,7 @@ func (r *mcpProxyEndpointRepository) AddEndpointEnvironment(ctx context.Context,
 
 func (r *mcpProxyEndpointRepository) RemoveEndpointEnvironment(ctx context.Context, tx *gorm.DB, endpointUUID, envUUID uuid.UUID) error {
 	result := tx.WithContext(ctx).
-		Where("endpoint_uuid = ? AND environment_uuid = ?", endpointUUID, envUUID).
+		Where("endpoint_id = ? AND environment_id = ?", endpointUUID, envUUID).
 		Delete(&models.MCPProxyEndpointEnvironment{})
 	if result.Error != nil {
 		return fmt.Errorf("failed to delete MCP proxy endpoint environment: %w", result.Error)
@@ -160,7 +161,7 @@ func (r *mcpProxyEndpointRepository) RemoveEndpointEnvironment(ctx context.Conte
 func (r *mcpProxyEndpointRepository) ListEndpointEnvironments(ctx context.Context, endpointUUID uuid.UUID) ([]models.MCPProxyEndpointEnvironment, error) {
 	var envs []models.MCPProxyEndpointEnvironment
 	err := r.db.WithContext(ctx).
-		Where("endpoint_uuid = ?", endpointUUID).
+		Where("endpoint_id = ?", endpointUUID).
 		Find(&envs).Error
 	if err != nil {
 		return nil, fmt.Errorf("failed to list MCP proxy endpoint environments: %w", err)
@@ -171,7 +172,7 @@ func (r *mcpProxyEndpointRepository) ListEndpointEnvironments(ctx context.Contex
 func (r *mcpProxyEndpointRepository) GetEndpointEnvByProxyAndEnv(ctx context.Context, proxyUUID, envUUID uuid.UUID) (*models.MCPProxyEndpointEnvironment, error) {
 	var ee models.MCPProxyEndpointEnvironment
 	err := r.db.WithContext(ctx).
-		Where("mcp_proxy_uuid = ? AND environment_uuid = ?", proxyUUID, envUUID).
+		Where("mcp_proxy_id = ? AND environment_id = ?", proxyUUID, envUUID).
 		First(&ee).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -185,7 +186,7 @@ func (r *mcpProxyEndpointRepository) GetEndpointEnvByProxyAndEnv(ctx context.Con
 func (r *mcpProxyEndpointRepository) ListEndpointEnvironmentsByProxy(ctx context.Context, proxyUUID uuid.UUID) ([]models.MCPProxyEndpointEnvironment, error) {
 	var envs []models.MCPProxyEndpointEnvironment
 	err := r.db.WithContext(ctx).
-		Where("mcp_proxy_uuid = ?", proxyUUID).
+		Where("mcp_proxy_id = ?", proxyUUID).
 		Find(&envs).Error
 	if err != nil {
 		return nil, fmt.Errorf("failed to list MCP proxy endpoint environments by proxy: %w", err)

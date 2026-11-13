@@ -42,45 +42,27 @@ func (s startupComponent) Start(ctx context.Context) error { return s.start(ctx)
 func (s startupComponent) Stop() error                     { return nil }
 
 func TestEventsStartupRetriesConsumerFailures(t *testing.T) {
-	for _, failed := range []string{"dispatcher", "notifications"} {
-		t.Run(failed, func(t *testing.T) {
-			t.Parallel()
-			var setup, dispatch, notify atomic.Int32
-			deps := &wiring.AppParams{
-				EventBus: startupBus{setup: func(context.Context) error { setup.Add(1); return nil }},
-				EventDispatcher: startupComponent{start: func(ctx context.Context) error {
-					require.NoError(t, ctx.Err())
-					if dispatch.Add(1) == 1 && failed == "dispatcher" {
-						return errors.New("transient")
-					}
-					return nil
-				}},
-				MonitorAlerts: startupComponent{start: func(ctx context.Context) error {
-					require.NoError(t, ctx.Err())
-					if notify.Add(1) == 1 && failed == "notifications" {
-						return errors.New("transient")
-					}
-					return nil
-				}},
-				EventPublisher: events.NoopPublisher{},
+	var setup, dispatch atomic.Int32
+	deps := &wiring.AppParams{
+		EventBus: startupBus{setup: func(context.Context) error { setup.Add(1); return nil }},
+		EventDispatcher: startupComponent{start: func(ctx context.Context) error {
+			require.NoError(t, ctx.Err())
+			if dispatch.Add(1) == 1 {
+				return errors.New("transient")
 			}
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			defer cancel()
-			select {
-			case <-startEvents(ctx, deps):
-			case <-ctx.Done():
-				t.Fatal("startup did not retry")
-			}
-			assert.EqualValues(t, 1, setup.Load())
-			if failed == "dispatcher" {
-				assert.EqualValues(t, 2, dispatch.Load())
-				assert.EqualValues(t, 1, notify.Load())
-			} else {
-				assert.EqualValues(t, 1, dispatch.Load())
-				assert.EqualValues(t, 2, notify.Load())
-			}
-		})
+			return nil
+		}},
+		EventPublisher: events.NoopPublisher{},
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	select {
+	case <-startEvents(ctx, deps):
+	case <-ctx.Done():
+		t.Fatal("startup did not retry")
+	}
+	assert.EqualValues(t, 1, setup.Load())
+	assert.EqualValues(t, 2, dispatch.Load())
 }
 
 func TestEventsStartupCancellationStopsRetry(t *testing.T) {

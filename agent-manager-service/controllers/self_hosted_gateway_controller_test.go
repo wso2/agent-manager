@@ -31,7 +31,6 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
-	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
@@ -144,7 +143,7 @@ func TestRegisterSelfHostedGateway_AuditsTheNormalisedKindAndVhost(t *testing.T)
 		CreateEnvironmentMappingTxFunc:        func(*gorm.DB, *models.GatewayEnvironmentMapping) error { return nil },
 		GetEnvironmentMappingsByGatewayIDFunc: func(string) ([]models.GatewayEnvironmentMapping, error) { return nil, nil },
 	}
-	envs := &clientmocks.OpenChoreoClientMock{
+	envs := &repomocks.PlatformRepositoryMock{
 		ListEnvironmentsFunc: func(context.Context, string) ([]*models.EnvironmentResponse, error) {
 			return []*models.EnvironmentResponse{{UUID: uuid.NewString(), Name: "dev"}}, nil
 		},

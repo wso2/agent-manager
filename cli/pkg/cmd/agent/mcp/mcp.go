@@ -30,7 +30,7 @@ import (
 )
 
 // NewMCPCmd is the `agent mcp` command group for managing an agent's MCP
-// proxy configurations per environment, after the agent is created.
+// proxy configurations, after the agent is created.
 func NewMCPCmd(f *cmdutil.Factory) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "mcp",

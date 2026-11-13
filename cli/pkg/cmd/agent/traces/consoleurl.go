@@ -117,7 +117,7 @@ func consoleTimeRange(since string) string {
 
 // consoleLink is the console path and query for o's scope and params, plus traceID as selectedTrace.
 func consoleLink(o *ListTracesOptions, params []consoleParam, traceID string) string {
-	segments := []string{"", "org", o.Org, "project", o.Proj, "agents", o.AgentName, "environment", o.Env, "observability", "traces"}
+	segments := []string{"", "org", o.Org, "project", o.Proj, "agents", o.AgentName, "environment", cmdutil.DefaultEnvironment, "observability", "traces"}
 	for i, s := range segments {
 		segments[i] = url.PathEscape(s)
 	}
@@ -166,9 +166,9 @@ func withConsoleURL(data any, link string) (any, error) {
 
 // consoleURL is a console trace-list URL: the route's names, when it has them, and the query.
 type consoleURL struct {
-	org, proj, agent, env string
-	hasPath               bool
-	query                 url.Values
+	org, proj, agent string
+	hasPath          bool
+	query            url.Values
 }
 
 // consoleRoute is the trace list route after /org/:orgId (generated-route.map.ts).
@@ -196,7 +196,7 @@ func parseConsoleURL(raw string) (*consoleURL, error) {
 			continue
 		}
 		if names, ok := matchRoute(segments[at+1:]); ok {
-			u.org, u.proj, u.agent, u.env, u.hasPath = names[0], names[1], names[2], names[3], true
+			u.org, u.proj, u.agent, u.hasPath = names[0], names[1], names[2], true
 			return u, nil
 		}
 	}
@@ -231,7 +231,7 @@ func notTraceList() error {
 	return cmdutil.FlagErrorf("--from-url: not a console trace list URL; copy it from the agent's Traces page")
 }
 
-// applyScope sets --org, --project and --env from u's path, failing when a set flag differs.
+// applyScope sets --org and --project from u's path, failing when a set flag differs.
 func (u *consoleURL) applyScope(fs *pflag.FlagSet) error {
 	if !u.hasPath {
 		return nil
@@ -239,7 +239,6 @@ func (u *consoleURL) applyScope(fs *pflag.FlagSet) error {
 	for _, s := range []struct{ flag, name, value string }{
 		{"org", "org", u.org},
 		{"project", "project", u.proj},
-		{"env", "environment", u.env},
 	} {
 		if fs.Lookup(s.flag) == nil {
 			continue

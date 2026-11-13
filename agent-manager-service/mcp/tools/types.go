@@ -28,7 +28,6 @@ import (
 type Toolsets struct {
 	ProjectToolset     ProjectToolsetHandler
 	AgentToolset       AgentToolsetHandler
-	BuildToolset       BuildToolsetHandler
 	DeploymentToolset  DeploymentToolsetHandler
 	EnvironmentToolset EnvironmentToolsetHandler
 	LLMProviderToolset LLMProviderToolsetHandler
@@ -48,16 +47,8 @@ type AgentToolsetHandler interface {
 	CreateAgent(ctx context.Context, ouID string, projectName string, req *spec.CreateAgentRequest) error
 }
 
-type BuildToolsetHandler interface {
-	ListAgentBuilds(ctx context.Context, ouID string, projectName string, agentName string, limit int32, offset int32) ([]*models.BuildResponse, int32, error)
-	GetBuild(ctx context.Context, ouID string, projectName string, agentName string, buildName string) (*models.BuildDetailsResponse, error)
-	BuildAgent(ctx context.Context, ouID string, projectName string, agentName string, commitId string) (*models.BuildResponse, error)
-}
-
 type DeploymentToolsetHandler interface {
 	GetAgentDeployments(ctx context.Context, ouID string, projectName string, agentName string) ([]*models.DeploymentResponse, error)
-	DeployAgent(ctx context.Context, ouID string, projectName string, agentName string, req *spec.DeployAgentRequest) (string, error)
-	UpdateDeploymentState(ctx context.Context, ouID string, projectName string, agentName string, environment string, state string) error
 }
 
 type EnvironmentToolsetHandler interface {

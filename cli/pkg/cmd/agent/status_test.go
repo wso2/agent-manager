@@ -22,9 +22,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
-	"reflect"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -36,15 +34,11 @@ import (
 	"github.com/wso2/agent-manager/cli/pkg/iostreams"
 )
 
-const (
-	depsPath = "GET /orgs/acme/projects/triage/agents/order-bot/deployments"
-	pipePath = "GET /orgs/acme/projects/triage/deployment-pipeline"
-)
+const depsPath = "GET /orgs/acme/projects/triage/agents/order-bot/deployments"
 
 type statusRoute struct {
 	status       int
 	body         any
-	delay        time.Duration
 	transportErr error
 }
 
@@ -69,9 +63,6 @@ func newStatusClient(t *testing.T, routes map[string]statusRoute) (func(context.
 			}
 			_ = conn.Close()
 			return
-		}
-		if route.delay > 0 {
-			time.Sleep(route.delay)
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(route.status)
@@ -98,24 +89,6 @@ func deployment(status, lastDeployed string, endpoints ...any) map[string]any {
 	}
 }
 
-func pipeline(paths ...any) map[string]any {
-	if paths == nil {
-		paths = []any{}
-	}
-	return map[string]any{
-		"name": "default", "displayName": "Default", "description": "",
-		"orgName": "acme", "createdAt": "2026-05-21T09:00:00Z", "promotionPaths": paths,
-	}
-}
-
-func promo(src string, targets ...string) map[string]any {
-	refs := make([]any, len(targets))
-	for i, t := range targets {
-		refs[i] = map[string]any{"name": t}
-	}
-	return map[string]any{"sourceEnvironmentRef": src, "targetEnvironmentRefs": refs}
-}
-
 func endpoint(name, url, vis string) map[string]any {
 	return map[string]any{"name": name, "url": url, "visibility": vis}
 }
@@ -124,35 +97,6 @@ func newStatusOpts(io *iostreams.IOStreams, client func(context.Context) (*amsvc
 	return &StatusOptions{
 		IO: io, Client: client, Scope: baseScope(),
 		Org: "acme", Proj: "triage", AgentName: "order-bot",
-	}
-}
-
-func decodeEnvs(t *testing.T, out string) []map[string]any {
-	t.Helper()
-	raw := decodeEnvelope(t, out)["data"].(map[string]any)["environments"].([]any)
-	envs := make([]map[string]any, len(raw))
-	for i, e := range raw {
-		envs[i] = e.(map[string]any)
-	}
-	return envs
-}
-
-func envNames(envs []map[string]any) []string {
-	names := make([]string, len(envs))
-	for i, e := range envs {
-		names[i] = e["name"].(string)
-	}
-	return names
-}
-
-func devStagingProdRoutes() map[string]statusRoute {
-	return map[string]statusRoute{
-		depsPath: okJSON(map[string]any{
-			"dev":     deployment("active", "2026-05-21T09:14:00Z"),
-			"staging": deployment("in-progress", "2026-05-21T11:02:11Z"),
-			"prod":    deployment("not-deployed", "0001-01-01T00:00:00Z"),
-		}),
-		pipePath: okJSON(pipeline(promo("dev", "staging"), promo("staging", "prod"))),
 	}
 }
 
@@ -181,13 +125,15 @@ func TestNewAgentCmd_RegistersStatusAfterDeploy(t *testing.T) {
 	}
 }
 
+func decodeStatus(t *testing.T, out string) map[string]any {
+	t.Helper()
+	return decodeEnvelope(t, out)["data"].(map[string]any)
+}
+
 func Test_runStatus_json_envelope_and_shape(t *testing.T) {
 	io, out, _ := newTestIO(true)
-	dev := deployment("active", "2026-05-21T09:14:00Z")
-	dev["environmentDisplayName"] = "Development"
 	client, cleanup := newStatusClient(t, map[string]statusRoute{
-		depsPath: okJSON(map[string]any{"dev": dev}),
-		pipePath: okJSON(pipeline()),
+		depsPath: okJSON(map[string]any{"default": deployment("active", "2026-05-21T09:14:00Z")}),
 	})
 	defer cleanup()
 
@@ -198,23 +144,16 @@ func Test_runStatus_json_envelope_and_shape(t *testing.T) {
 	if env["instance"] != "default" || env["org"] != "acme" || env["project"] != "triage" {
 		t.Fatalf("unexpected envelope scope: %v", env)
 	}
-	data := env["data"].(map[string]any)
-	if data["agent"] != "order-bot" {
-		t.Fatalf("agent = %v, want order-bot", data["agent"])
+	data := decodeStatus(t, out.String())
+	if data["agent"] != "order-bot" || data["status"] != "active" {
+		t.Fatalf("data = %v, want agent order-bot, status active", data)
 	}
-	envs := decodeEnvs(t, out.String())
-	if len(envs) != 1 {
-		t.Fatalf("len(environments) = %d, want 1", len(envs))
+	if _, exists := data["environments"]; exists {
+		t.Fatalf("environments must be absent: %v", data)
 	}
-	if _, exists := envs[0]["promotionTarget"]; exists {
-		t.Fatalf("promotionTarget must be absent in v1: %v", envs[0])
-	}
-	endpoints, ok := envs[0]["endpoints"].([]any)
-	if !ok {
-		t.Fatalf("endpoints must be array, got %T", envs[0]["endpoints"])
-	}
-	if len(endpoints) != 0 {
-		t.Fatalf("endpoints = %v, want []", endpoints)
+	endpoints, ok := data["endpoints"].([]any)
+	if !ok || len(endpoints) != 0 {
+		t.Fatalf("endpoints = %v, want []", data["endpoints"])
 	}
 }
 
@@ -222,35 +161,25 @@ func Test_runStatus_serverErrors(t *testing.T) {
 	cases := []struct {
 		name       string
 		deps       statusRoute
-		pipe       statusRoute
 		wantCode   string
 		wantStatus float64
 	}{
 		{
 			name:       "agentNotFound",
 			deps:       statusRoute{status: http.StatusNotFound, body: map[string]any{"code": "AGENT_NOT_FOUND", "message": "Agent 'order-bot' not found", "reason": "not found"}},
-			pipe:       okJSON(pipeline()),
 			wantCode:   "AGENT_NOT_FOUND",
 			wantStatus: 404,
 		},
 		{
-			name:       "pipelineNotFound",
-			deps:       okJSON(map[string]any{"dev": deployment("active", "2026-05-21T09:14:00Z")}),
-			pipe:       statusRoute{status: http.StatusNotFound, body: map[string]any{"code": "PIPELINE_NOT_FOUND", "message": "Deployment pipeline not found for project 'triage'", "reason": "not found"}},
-			wantCode:   "PIPELINE_NOT_FOUND",
-			wantStatus: 404,
-		},
-		{
-			name:     "pipelineTransportFailure",
-			deps:     okJSON(map[string]any{"dev": deployment("active", "2026-05-21T09:14:00Z")}),
-			pipe:     statusRoute{transportErr: errors.New("dial tcp 127.0.0.1:443: connect: refused")},
+			name:     "transportFailure",
+			deps:     statusRoute{transportErr: errors.New("dial tcp 127.0.0.1:443: connect: refused")},
 			wantCode: clierr.Transport,
 		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			io, out, _ := newTestIO(true)
-			client, cleanup := newStatusClient(t, map[string]statusRoute{depsPath: tc.deps, pipePath: tc.pipe})
+			client, cleanup := newStatusClient(t, map[string]statusRoute{depsPath: tc.deps})
 			defer cleanup()
 			if err := runStatus(context.Background(), newStatusOpts(io, client)); err == nil {
 				t.Fatal("expected error")
@@ -266,145 +195,14 @@ func Test_runStatus_serverErrors(t *testing.T) {
 	}
 }
 
-func Test_runStatus_ordering(t *testing.T) {
-	cases := []struct {
-		name      string
-		deps      map[string]any
-		paths     []any
-		wantOrder []string
-	}{
-		{
-			name: "followsPipeline",
-			deps: map[string]any{
-				"prod":    deployment("not-deployed", "0001-01-01T00:00:00Z"),
-				"dev":     deployment("active", "2026-05-21T09:14:00Z"),
-				"staging": deployment("in-progress", "2026-05-21T10:14:00Z"),
-			},
-			paths:     []any{promo("dev", "staging"), promo("staging", "prod")},
-			wantOrder: []string{"dev", "staging", "prod"},
-		},
-		{
-			name: "envInDeploymentsButNotPipeline",
-			deps: map[string]any{
-				"dev":     deployment("active", "2026-05-21T09:14:00Z"),
-				"sandbox": deployment("failed", "2026-05-21T09:20:00Z"),
-				"qa":      deployment("suspended", "2026-05-21T09:18:00Z"),
-			},
-			paths:     []any{promo("dev")},
-			wantOrder: []string{"dev", "qa", "sandbox"},
-		},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			io, out, _ := newTestIO(true)
-			client, cleanup := newStatusClient(t, map[string]statusRoute{
-				depsPath: okJSON(tc.deps),
-				pipePath: okJSON(pipeline(tc.paths...)),
-			})
-			defer cleanup()
-			if err := runStatus(context.Background(), newStatusOpts(io, client)); err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-			if got := envNames(decodeEnvs(t, out.String())); !reflect.DeepEqual(got, tc.wantOrder) {
-				t.Fatalf("order = %v, want %v", got, tc.wantOrder)
-			}
-		})
-	}
-}
-
-func Test_runStatus_envFilter(t *testing.T) {
-	t.Run("match", func(t *testing.T) {
-		io, out, _ := newTestIO(true)
-		client, cleanup := newStatusClient(t, devStagingProdRoutes())
-		defer cleanup()
-		opts := newStatusOpts(io, client)
-		opts.Env = "staging"
-		if err := runStatus(context.Background(), opts); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		envs := decodeEnvs(t, out.String())
-		if len(envs) != 1 || envs[0]["name"] != "staging" {
-			t.Fatalf("envs = %v, want [staging]", envs)
-		}
-	})
-	t.Run("miss", func(t *testing.T) {
-		io, out, _ := newTestIO(true)
-		client, cleanup := newStatusClient(t, devStagingProdRoutes())
-		defer cleanup()
-		opts := newStatusOpts(io, client)
-		opts.Env = "nope"
-		if err := runStatus(context.Background(), opts); err == nil {
-			t.Fatal("expected error")
-		}
-		errBody := decodeEnvelope(t, out.String())["error"].(map[string]any)
-		if errBody["code"] != clierr.NotFound {
-			t.Fatalf("code = %v, want %s", errBody["code"], clierr.NotFound)
-		}
-		msg := errBody["message"].(string)
-		for _, want := range []string{"nope", "dev", "staging", "prod"} {
-			if !strings.Contains(msg, want) {
-				t.Fatalf("message %q missing %q", msg, want)
-			}
-		}
-	})
-}
-
-func Test_runStatus_callsDeploymentAndPipelineInParallel(t *testing.T) {
-	ios, _, _, _ := iostreams.Test()
-	ios.JSON = true
-
-	// Both handlers block until both have arrived. If runStatus called the
-	// endpoints serially, the second never arrives and the timeout fires.
-	var wg sync.WaitGroup
-	wg.Add(2)
-	barrier := make(chan struct{})
-	go func() { wg.Wait(); close(barrier) }()
-
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		wg.Done()
-		select {
-		case <-barrier:
-		case <-time.After(2 * time.Second):
-			t.Errorf("handler for %s did not see concurrent request within 2s", r.URL.Path)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		switch r.URL.Path {
-		case "/orgs/acme/projects/triage/agents/order-bot/deployments":
-			_ = json.NewEncoder(w).Encode(map[string]any{"dev": deployment("active", "2026-05-21T09:14:00Z")})
-		case "/orgs/acme/projects/triage/deployment-pipeline":
-			_ = json.NewEncoder(w).Encode(pipeline())
-		default:
-			t.Errorf("unexpected path %q", r.URL.Path)
-		}
-	}))
-	defer srv.Close()
-
-	client, err := amsvc.NewClientWithResponses(srv.URL)
-	if err != nil {
-		t.Fatalf("new client: %v", err)
-	}
-	clientFn := func(context.Context) (*amsvc.ClientWithResponses, error) { return client, nil }
-
-	if err := runStatus(context.Background(), newStatusOpts(ios, clientFn)); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-}
-
-func Test_runStatus_humanTable_multiEnv(t *testing.T) {
+func Test_runStatus_humanTable(t *testing.T) {
 	io, _, out, _ := iostreams.Test()
 	io.SetTerminal(true, true, true)
 	io.JSON = false
 	client, cleanup := newStatusClient(t, map[string]statusRoute{
 		depsPath: okJSON(map[string]any{
-			"dev":     deployment("active", "2026-05-21T09:14:00Z", endpoint("public", "https://dev.example.com", "Public")),
-			"staging": deployment("in-progress", "2026-05-21T11:02:11Z"),
-			"prod":    deployment("not-deployed", "0001-01-01T00:00:00Z"),
-			"archive": deployment("suspended", "2026-04-30T08:00:00Z"),
-			"qa":      deployment("mystery", "2026-05-21T12:00:00Z"),
+			"default": deployment("active", "2026-05-21T09:14:00Z", endpoint("public", "https://agent.example.com", "Public")),
 		}),
-		pipePath: okJSON(pipeline(promo("dev", "staging"), promo("staging", "prod"), promo("prod", "archive"))),
 	})
 	defer cleanup()
 
@@ -412,55 +210,31 @@ func Test_runStatus_humanTable_multiEnv(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	got := out.String()
-	for _, want := range []string{"ENV", "STATUS", "LAST DEPLOYED", "ENDPOINTS", "https://dev.example.com"} {
+	for _, want := range []string{"STATUS", "LAST DEPLOYED", "ENDPOINTS", "https://agent.example.com", "m" + "active" + "\x1b[0m"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("output missing %q in %q", want, got)
 		}
 	}
-	for _, name := range []string{"dev", "staging", "prod", "archive", "qa"} {
-		if !strings.Contains(got, name) {
-			t.Fatalf("output missing env %q in %q", name, got)
-		}
-	}
-	// Known statuses are wrapped in some SGR escape sequence; unknown is not.
-	// The byte before the status is the SGR terminator 'm' only when colorized.
-	for _, s := range []string{"active", "in-progress", "not-deployed", "suspended"} {
-		if !strings.Contains(got, "m"+s+"\x1b[0m") {
-			t.Errorf("status %q should be colorized in %q", s, got)
-		}
-	}
-	if strings.Contains(got, "mmystery\x1b[0m") {
-		t.Errorf("unknown status must be uncolored: %q", got)
-	}
-
-	prodLine := ""
-	for _, line := range strings.Split(got, "\n") {
-		if strings.Contains(line, "prod") {
-			prodLine = line
-			break
-		}
-	}
-	if prodLine == "" || !strings.Contains(prodLine, "-") {
-		t.Fatalf("prod row should render zero-time lastDeployed as '-': %q", prodLine)
+	if strings.Contains(got, "ENV") {
+		t.Errorf("output must not show an environment column: %q", got)
 	}
 }
 
-func Test_runStatus_emptyDeployments_returnsSuccess(t *testing.T) {
+func Test_runStatus_noDeployment_returnsSuccess(t *testing.T) {
 	io, out, errOut := newTestIO(true)
 	client, cleanup := newStatusClient(t, map[string]statusRoute{
 		depsPath: okJSON(map[string]any{}),
-		pipePath: okJSON(pipeline()),
 	})
 	defer cleanup()
 
 	if err := runStatus(context.Background(), newStatusOpts(io, client)); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !strings.Contains(errOut.String(), "No deployments found for this agent.") {
+	if !strings.Contains(errOut.String(), "No deployment found for this agent.") {
 		t.Fatalf("missing empty-state message: %q", errOut.String())
 	}
-	if envs := decodeEnvs(t, out.String()); len(envs) != 0 {
-		t.Fatalf("len(environments) = %d, want 0", len(envs))
+	if data := decodeStatus(t, out.String()); data["status"] != "not-deployed" {
+		t.Fatalf("status = %v, want not-deployed", data["status"])
 	}
 }
 

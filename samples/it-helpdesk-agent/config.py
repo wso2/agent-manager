@@ -70,9 +70,9 @@ class Config:
 
         # With MCP_OAUTH=true the proxy is reached with an AgentID bearer token
         # instead of an API key — for a proxy whose Security tab is set to OAuth.
-        # The AMP_AGENTID_* vars are injected by Agent Manager into every
-        # platform-hosted agent's pod; they are not validated here because
-        # provisioning finishes asynchronously after deploy.
+        # The AMP_AGENTID_* vars come from the agent's Agent ID page in the
+        # console; they are not validated here because provisioning finishes
+        # asynchronously after registration.
         mcp_oauth = _env("MCP_OAUTH", "false").lower() == "true"
 
         # Which repository holds the IT team's known-issue tracker. Without this the
@@ -100,7 +100,7 @@ class Config:
             tone=_env("TONE", "professional and helpful"),
             max_tickets_per_query=max_tickets,
             additional_guidance=_env("ADDITIONAL_GUIDANCE", ""),
-            # Echoed in /health and every chat response so a promotion or a
+            # Echoed in /health and every chat response so a rollout or a
             # rollback is visible from the outside without reading the console.
             agent_version=_env("AGENT_VERSION", "dev"),
             use_llm_provider=use_llm_provider,

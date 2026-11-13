@@ -18,7 +18,6 @@ package controllers
 
 import (
 	"fmt"
-	"math"
 	"net/http"
 	"strings"
 
@@ -360,21 +359,6 @@ func validCatalogKinds() []string {
 		models.CatalogKindMCPProxy,
 		models.CatalogKindMCPMapping,
 	}
-}
-
-// safeIntToInt32 safely converts int to int32 with validation
-// Returns (converted value, true) if valid, (0, false) if invalid
-// Rejects negative values (rate limits cannot be negative) and values exceeding int32 max
-func safeIntToInt32(val int) (int32, bool) {
-	// Rate limits must be non-negative
-	if val < 0 {
-		return 0, false
-	}
-	// Check if value exceeds int32 max
-	if val > math.MaxInt32 {
-		return 0, false
-	}
-	return int32(val), true
 }
 
 func convertDeploymentSummaries(deployments []models.DeploymentSummary) []spec.DeploymentSummary {

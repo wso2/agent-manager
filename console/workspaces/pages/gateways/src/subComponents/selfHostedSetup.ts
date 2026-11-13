@@ -18,10 +18,7 @@
 import type { GatewayTokenInfo } from "@agent-management-platform/types";
 
 const RELEASE_BASE_URL = "https://github.com/wso2/api-platform/releases/download/ai-gateway";
-const HELM_CHART_REF = "oci://ghcr.io/wso2/api-platform/helm-charts/gateway";
 const ENV_FILE = "api-platform.env";
-const ENCRYPTION_KEY_FILE = "default-aesgcm256-v1.bin";
-const ENCRYPTION_KEYS_SECRET = "gateway-encryption-keys";
 
 /** Config carries the gateway version with or without the leading "v". */
 const bareVersion = (version: string): string => version.replace(/^v/, "");
@@ -47,24 +44,6 @@ ENVFILE`,
   };
 }
 
-export interface HelmCommands {
-  createEncryptionKeySecret: string;
-  install: string;
-}
-
-export function helmCommands(version: string, cpHost: string, token: string): HelmCommands {
-  return {
-    createEncryptionKeySecret: `openssl rand 32 > ${ENCRYPTION_KEY_FILE}
-kubectl create secret generic ${ENCRYPTION_KEYS_SECRET} --from-file=${ENCRYPTION_KEY_FILE}=${ENCRYPTION_KEY_FILE}`,
-    install: `helm install gateway ${HELM_CHART_REF} --version ${bareVersion(version)} \\
-  --set gateway.controller.controlPlane.host=${cpHost} \\
-  --set gateway.controller.controlPlane.token.value=${token} \\
-  --set gateway.controller.encryptionKeys.enabled=true \\
-  --set gateway.controller.encryptionKeys.secretName=${ENCRYPTION_KEYS_SECRET}`,
-  };
-}
-
-/** The gateway dials `host[:port][/path]`, not a URL. */
 export function cpHostFromUrl(url: string): string {
   return url.trim().replace(/^https?:\/\//, "");
 }

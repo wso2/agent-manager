@@ -16,10 +16,9 @@ This repo is a **multi-aspect monorepo**. Each aspect has its own `AGENTS.md` wi
 | **Instrumentation lib** | `libs/amp-instrumentation/` | Python, OpenTelemetry / Traceloop | [`libs/amp-instrumentation/AGENTS.md`](libs/amp-instrumentation/AGENTS.md) |
 | **Evaluation lib** | `libs/amp-evaluation/` | Python, Pydantic v2 | [`libs/amp-evaluation/AGENTS.md`](libs/amp-evaluation/AGENTS.md) |
 | **Evaluation job** | `evaluation-job/` | Python (Dockerized Argo job) | [`evaluation-job/AGENTS.md`](evaluation-job/AGENTS.md) |
-| **Instrumentation init container** | `python-instrumentation-provider/` | Python + Docker (K8s init) | [`python-instrumentation-provider/AGENTS.md`](python-instrumentation-provider/AGENTS.md) |
 | **E2E tests** | `test/e2e/` | Go, Ginkgo + Gomega | [`test/e2e/AGENTS.md`](test/e2e/AGENTS.md) |
 
-Other dirs: `deployments/` (Helm charts), `samples/` (example agents), `scripts/` (dev tooling). These have no dedicated guide yet. The documentation site lives in a separate repository, [wso2/docs-agent-platform](https://github.com/wso2/docs-agent-platform).
+Other dirs: `deployments/` (Docker Compose stack in `deployments/standalone`), `samples/` (example agents), `scripts/` (dev tooling). These have no dedicated guide yet. The documentation site lives in a separate repository, [wso2/docs-agent-platform](https://github.com/wso2/docs-agent-platform).
 
 ## Task skills
 
@@ -38,8 +37,8 @@ Repeatable, error-prone procedures are captured as Claude Code skills in `.claud
 ```text
 console ──HTTP──▶ agent-manager-service ──▶ OpenChoreo / Postgres / Vault / NATS
    │                       │
-   │                       └─ orchestrates agent deploys; agents are auto-instrumented by
-   │                          python-instrumentation-provider (ships amp-instrumentation)
+   │                       └─ registers external agents; they run under amp-instrument
+   │                          (libs/amp-instrumentation) and send traces via the AI Gateway
    │                                                     │
    └──HTTP──▶ agent-manager-observer ──▶ Observer ──▶ OTel traces from instrumented agents
                                                      │
@@ -48,7 +47,7 @@ cli (amctl) ──HTTP──▶ agent-manager-service   (same API as the console
 ```
 
 - **`agent-manager-service`** is the hub — the REST/gRPC/WS API the console and CLI both call.
-- **Instrumented agents** emit OTel traces (via `amp-instrumentation`, injected by `python-instrumentation-provider`); `agent-manager-observer` serves them to the console; `evaluation-job` scores them via `amp-evaluation`.
+- **Instrumented agents** emit OTel traces (via `amp-instrumentation`, run with `amp-instrument`); `agent-manager-observer` serves them to the console; `evaluation-job` scores them via `amp-evaluation`.
 
 ## Local dev environment (from repo root)
 

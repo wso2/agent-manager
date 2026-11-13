@@ -21,11 +21,13 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sort"
 	"time"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
+	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -71,19 +73,27 @@ func (r *DeploymentRepo) StartRestore(ctx context.Context, tx *gorm.DB, p models
 	return err
 }
 
+// statusKey is the condition naming one placement's status row.
+const statusKey = "artifact_id = ? AND org_id = ? AND gateway_id = ?"
+
 // upsertStatus starts a deploy transition. With BeginUndeploy, it is one of the two writers that reset the queue.
 func (r *DeploymentRepo) upsertStatus(ctx context.Context, tx *gorm.DB, p models.Placement, deploymentID uuid.UUID) (time.Time, error) {
 	performedAt := models.NewPerformedAt(time.Now())
-	err := r.on(ctx, tx).Exec(`
-		INSERT INTO deployment_status (artifact_uuid, ou_id, gateway_uuid, deployment_id, status, status_desired,
-			status_reason, performed_at, next_attempt_at, attempt_count, render_reason, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, '', ?, NULL, 0, '', NOW())
-		ON CONFLICT (artifact_uuid, ou_id, gateway_uuid) DO UPDATE SET
-			deployment_id = EXCLUDED.deployment_id, status = EXCLUDED.status, status_desired = EXCLUDED.status_desired,
-			status_reason = '', performed_at = EXCLUDED.performed_at,
-			next_attempt_at = NULL, attempt_count = 0, render_reason = '', updated_at = NOW()`,
-		p.ArtifactUUID, p.OUID, p.GatewayUUID, deploymentID,
-		models.DeploymentStatusDeploying, models.DeploymentStatusDeployed, performedAt).Error
+	now := dbx.Now()
+	row := &models.DeploymentStatusRecord{
+		ArtifactUUID: p.ArtifactUUID, OUID: p.OUID, GatewayUUID: p.GatewayUUID, DeploymentID: &deploymentID,
+		Status: models.DeploymentStatusDeploying, StatusDesired: models.DeploymentStatusDeployed,
+		PerformedAt: performedAt, UpdatedAt: now,
+	}
+	_, err := dbx.Upsert(r.on(ctx, tx), row, func(db *gorm.DB) error {
+		return db.Model(&models.DeploymentStatusRecord{}).Where(statusKey, p.ArtifactUUID, p.OUID, p.GatewayUUID).
+			Updates(map[string]any{
+				"deployment_id": deploymentID, "status": models.DeploymentStatusDeploying,
+				"status_desired": models.DeploymentStatusDeployed, "status_reason": "", "performed_at": performedAt,
+				"next_attempt_at": nil, "attempt_count": 0, "render_reason": "", "claimed_by": nil, "claimed_until": nil,
+				"updated_at": now,
+			}).Error
+	})
 	if err != nil {
 		return time.Time{}, fmt.Errorf("failed to start deploy: %w", err)
 	}
@@ -96,26 +106,46 @@ func (r *DeploymentRepo) LockStatusRows(ctx context.Context, tx *gorm.DB, ouID s
 	if len(artifactUUIDs) == 0 {
 		return nil
 	}
-	var locked []uuid.UUID
-	if err := r.on(ctx, tx).Raw(`SELECT artifact_uuid FROM deployment_status
-		WHERE ou_id = ? AND artifact_uuid IN ?
-		ORDER BY gateway_uuid, artifact_uuid
-		FOR UPDATE`, ouID, artifactUUIDs).Scan(&locked).Error; err != nil {
-		return fmt.Errorf("failed to lock status rows: %w", err)
+	db := r.on(ctx, tx)
+	var keys []struct {
+		ArtifactID uuid.UUID
+		GatewayID  uuid.UUID
+	}
+	for _, chunk := range dbx.Chunks(artifactUUIDs) {
+		var part []struct {
+			ArtifactID uuid.UUID
+			GatewayID  uuid.UUID
+		}
+		if err := db.Model(&models.DeploymentStatusRecord{}).Select("artifact_id, gateway_id").
+			Where("org_id = ? AND artifact_id IN ?", ouID, chunk).Scan(&part).Error; err != nil {
+			return fmt.Errorf("failed to lock status rows: %w", err)
+		}
+		keys = append(keys, part...)
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		if keys[i].GatewayID != keys[j].GatewayID {
+			return keys[i].GatewayID.String() < keys[j].GatewayID.String()
+		}
+		return keys[i].ArtifactID.String() < keys[j].ArtifactID.String()
+	})
+	for _, k := range keys {
+		if _, err := dbx.LockRows(db, models.DeploymentStatusRecord{}.TableName(), "status",
+			"artifact_id = ? AND gateway_id = ?", k.ArtifactID, k.GatewayID); err != nil {
+			return fmt.Errorf("failed to lock status rows: %w", err)
+		}
 	}
 	return nil
 }
 
-// LockEnvironmentMapping holds the gateway's mapping to the environment FOR SHARE until tx commits; false when there
-// is no mapping.
+// LockEnvironmentMapping locks the gateway's mapping to the environment until tx commits; false when there is no
+// mapping.
 func (r *DeploymentRepo) LockEnvironmentMapping(ctx context.Context, tx *gorm.DB, gatewayUUID, environmentUUID uuid.UUID) (bool, error) {
-	var mapped []int
-	if err := r.on(ctx, tx).Raw(`SELECT 1 FROM gateway_environment_mappings
-		WHERE gateway_uuid = ? AND environment_uuid = ?
-		FOR SHARE`, gatewayUUID, environmentUUID).Scan(&mapped).Error; err != nil {
+	n, err := dbx.LockRows(r.on(ctx, tx), "gateway_environments", "gateway_id",
+		"gateway_id = ? AND environment_id = ?", gatewayUUID, environmentUUID)
+	if err != nil {
 		return false, fmt.Errorf("failed to lock gateway %s's mapping to environment %s: %w", gatewayUUID, environmentUUID, err)
 	}
-	return len(mapped) > 0, nil
+	return n > 0, nil
 }
 
 // finishedUndeploy is the condition, and its argument, on status rows of an undeploy the user still wants: UNDEPLOYED
@@ -129,30 +159,36 @@ func finishedUndeploy() (string, models.DeploymentStatus) {
 // undeploy (FAILED and heading for UNDEPLOYED) is re-sent the same way. A row already heading for UNDEPLOYED with a
 // deploy owed only loses its queue, with no event: the undeploy supersedes the owed deploy.
 func (r *DeploymentRepo) BeginUndeploy(ctx context.Context, tx *gorm.DB, p models.Placement) (bool, error) {
-	var statuses []models.DeploymentStatus
-	err := r.on(ctx, tx).Raw(`
-		UPDATE deployment_status SET
-			status = CASE WHEN status = ? THEN ? ELSE ? END,
-			status_desired = ?, status_reason = '', performed_at = ?,
-			next_attempt_at = NULL, attempt_count = 0, render_reason = '', updated_at = NOW()
-		WHERE artifact_uuid = ? AND ou_id = ? AND gateway_uuid = ?
-		  AND (status_desired = ? OR (status_desired = ? AND status = ?))
-		RETURNING status`,
-		models.DeploymentStatusPending, models.DeploymentStatusUndeployed, models.DeploymentStatusUndeploying,
-		models.DeploymentStatusUndeployed, models.NewPerformedAt(time.Now()),
-		p.ArtifactUUID, p.OUID, p.GatewayUUID,
-		models.DeploymentStatusDeployed, models.DeploymentStatusUndeployed, models.DeploymentStatusFailed).
-		Scan(&statuses).Error
-	if err != nil {
-		return false, fmt.Errorf("failed to begin undeploy: %w", err)
+	db := r.on(ctx, tx)
+	now := dbx.Now()
+	started := db.Model(&models.DeploymentStatusRecord{}).
+		Where(statusKey, p.ArtifactUUID, p.OUID, p.GatewayUUID).
+		Where("status_desired = ? OR (status_desired = ? AND status = ?)",
+			models.DeploymentStatusDeployed, models.DeploymentStatusUndeployed, models.DeploymentStatusFailed).
+		Updates(map[string]any{
+			"status": gorm.Expr("CASE WHEN status = ? THEN ? ELSE ? END",
+				models.DeploymentStatusPending, models.DeploymentStatusUndeployed, models.DeploymentStatusUndeploying),
+			"status_desired": models.DeploymentStatusUndeployed, "status_reason": "",
+			"performed_at": models.NewPerformedAt(time.Now()), "next_attempt_at": nil, "attempt_count": 0,
+			"render_reason": "", "claimed_by": nil, "claimed_until": nil, "updated_at": now,
+		})
+	if started.Error != nil {
+		return false, fmt.Errorf("failed to begin undeploy: %w", started.Error)
 	}
-	if len(statuses) > 0 {
-		return statuses[0] == models.DeploymentStatusUndeploying, nil
+	if started.RowsAffected > 0 {
+		var row models.DeploymentStatusRecord
+		if err := db.Select("status").Where(statusKey, p.ArtifactUUID, p.OUID, p.GatewayUUID).Take(&row).Error; err != nil {
+			return false, fmt.Errorf("failed to read the undeploy status: %w", err)
+		}
+		return row.Status == models.DeploymentStatusUndeploying, nil
 	}
-	cancelled := r.on(ctx, tx).Exec(`
-		UPDATE deployment_status SET next_attempt_at = NULL, attempt_count = 0, render_reason = '', updated_at = NOW()
-		WHERE artifact_uuid = ? AND ou_id = ? AND gateway_uuid = ? AND status_desired = ? AND next_attempt_at IS NOT NULL`,
-		p.ArtifactUUID, p.OUID, p.GatewayUUID, models.DeploymentStatusUndeployed)
+	cancelled := db.Model(&models.DeploymentStatusRecord{}).
+		Where(statusKey+" AND status_desired = ? AND next_attempt_at IS NOT NULL",
+			p.ArtifactUUID, p.OUID, p.GatewayUUID, models.DeploymentStatusUndeployed).
+		Updates(map[string]any{
+			"next_attempt_at": nil, "attempt_count": 0, "render_reason": "", "claimed_by": nil, "claimed_until": nil,
+			"updated_at": now,
+		})
 	if cancelled.Error != nil {
 		return false, fmt.Errorf("failed to cancel the owed deploy: %w", cancelled.Error)
 	}
@@ -164,8 +200,8 @@ func (r *DeploymentRepo) BeginUndeploy(ctx context.Context, tx *gorm.DB, p model
 
 // ackedRow is a status row an ack changed, joined to its artifact.
 type ackedRow struct {
-	ArtifactUUID uuid.UUID `gorm:"column:artifact_uuid"`
-	OUID         string    `gorm:"column:ou_id"`
+	ArtifactUUID uuid.UUID `gorm:"column:artifact_id"`
+	OUID         string    `gorm:"column:org_id"`
 	Kind         string    `gorm:"column:kind"`
 	Handle       string    `gorm:"column:handle"`
 	DeploymentID uuid.UUID `gorm:"column:deployment_id"`
@@ -198,16 +234,27 @@ func (r *DeploymentRepo) ApplyAck(ctx context.Context, gatewayID string, ack mod
 
 	var acked []ackedRow
 	err = r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		args := append([]any{status, reason, gatewayUUID, status, reason}, targetArgs...)
-		if err := tx.Raw(`
-			UPDATE deployment_status s SET status = ?, status_reason = ?, updated_at = NOW()
-			FROM artifacts a
-			WHERE a.uuid = s.artifact_uuid AND a.ou_id = s.ou_id AND s.gateway_uuid = ?
-			  AND (s.status <> ? OR s.status_reason <> ?)
-			  AND `+target+`
-			RETURNING s.artifact_uuid, s.ou_id, a.kind, a.handle, s.deployment_id`, args...).
-			Scan(&acked).Error; err != nil {
+		// Find the row the ack is for, then change it only if it still differs, so a repeated ack changes nothing.
+		var candidates []ackedRow
+		args := append([]any{gatewayUUID}, targetArgs...)
+		if err := tx.Table("artifact_gateway_status s").
+			Select("s.artifact_id, s.org_id, a.kind, a.handle, s.deployment_id").
+			Joins("JOIN artifacts a ON a.id = s.artifact_id").
+			Where("s.gateway_id = ? AND "+target, args...).
+			Scan(&candidates).Error; err != nil {
 			return err
+		}
+		for _, c := range candidates {
+			res := tx.Model(&models.DeploymentStatusRecord{}).
+				Where("artifact_id = ? AND gateway_id = ? AND (status <> ? OR status_reason <> ? OR status_reason IS NULL)",
+					c.ArtifactUUID, gatewayUUID, status, reason).
+				Updates(map[string]any{"status": status, "status_reason": reason, "updated_at": dbx.Now()})
+			if res.Error != nil {
+				return res.Error
+			}
+			if res.RowsAffected > 0 {
+				acked = append(acked, c)
+			}
 		}
 		if len(acked) == 0 || status != models.DeploymentStatusDeployed || afterLive == nil {
 			return nil
@@ -238,7 +285,7 @@ func ackedStatus(ack models.DeploymentAck) (models.DeploymentStatus, bool) {
 	}
 }
 
-// ackTarget is the SQL condition (over deployment_status s and artifacts a) selecting the row an ack is for. The
+// ackTarget is the SQL condition (over artifact_gateway_status s and artifacts a) selecting the row an ack is for. The
 // gateway names an LLM proxy by its handle, and every other artifact by its UUID.
 func ackTarget(ack models.DeploymentAck) (string, []any, bool) {
 	if ack.Action == models.DeploymentAckActionDeploy {
@@ -256,7 +303,7 @@ func ackTarget(ack models.DeploymentAck) (string, []any, bool) {
 	byHandle := "(a.kind = ? AND a.handle = ?)"
 	args := []any{models.DeploymentStatusUndeployed}
 	if artifactUUID, err := uuid.Parse(ack.ArtifactID); err == nil {
-		return undeploying + "(a.uuid = ? OR " + byHandle + ")",
+		return undeploying + "(a.id = ? OR " + byHandle + ")",
 			append(args, artifactUUID, models.KindLLMProxy, ack.ArtifactID), true
 	}
 	return undeploying + byHandle, append(args, models.KindLLMProxy, ack.ArtifactID), true
@@ -282,11 +329,10 @@ func runAfterLive(ctx context.Context, tx *gorm.DB, gatewayUUID uuid.UUID, row a
 // FailStaleTransitional fails every DEPLOYING or UNDEPLOYING row whose transition started before olderThan. It is
 // one guarded UPDATE: a row acked meanwhile no longer matches, so several replicas can sweep at once.
 func (r *DeploymentRepo) FailStaleTransitional(ctx context.Context, olderThan time.Time) (int64, error) {
-	result := r.db.WithContext(ctx).Exec(`
-		UPDATE deployment_status SET status = ?, status_reason = ?, updated_at = NOW()
-		WHERE status IN (?, ?) AND performed_at < ?`,
-		models.DeploymentStatusFailed, DeploymentTimeoutReason,
-		models.DeploymentStatusDeploying, models.DeploymentStatusUndeploying, olderThan)
+	result := r.db.WithContext(ctx).Model(&models.DeploymentStatusRecord{}).
+		Where("status IN ? AND performed_at < ?",
+			[]models.DeploymentStatus{models.DeploymentStatusDeploying, models.DeploymentStatusUndeploying}, olderThan.UTC()).
+		Updates(map[string]any{"status": models.DeploymentStatusFailed, "status_reason": DeploymentTimeoutReason, "updated_at": dbx.Now()})
 	if result.Error != nil {
 		return 0, fmt.Errorf("failed to time out stale deployments: %w", result.Error)
 	}
@@ -297,12 +343,12 @@ func (r *DeploymentRepo) FailStaleTransitional(ctx context.Context, olderThan ti
 // row heads for DEPLOYED, whatever its status, because the gateway pulls before it acks. Nil when there is none.
 func (r *DeploymentRepo) GetPullable(ctx context.Context, ouID string, artifactUUID uuid.UUID, gatewayID string) (*models.Deployment, error) {
 	var deployments []models.Deployment
-	err := r.db.WithContext(ctx).Table("deployment_status s").
-		Select("d.deployment_id, d.name, d.artifact_uuid, d.ou_id, d.gateway_uuid, "+
+	err := r.db.WithContext(ctx).Table("artifact_gateway_status s").
+		Select("d.id, d.name, d.artifact_id, d.org_id, d.gateway_id, "+
 			"d.base_deployment_id, d.content, d.metadata, d.created_at, "+
 			"s.status, s.updated_at AS status_updated_at").
-		Joins("INNER JOIN deployments d ON d.deployment_id = s.deployment_id").
-		Where("s.artifact_uuid = ? AND s.ou_id = ? AND s.gateway_uuid = ? AND s.status_desired = ?",
+		Joins("INNER JOIN artifact_deployments d ON d.id = s.deployment_id").
+		Where("s.artifact_id = ? AND s.org_id = ? AND s.gateway_id = ? AND s.status_desired = ?",
 			artifactUUID, ouID, gatewayID, models.DeploymentStatusDeployed).
 		Scan(&deployments).Error
 	if err != nil {
@@ -327,36 +373,55 @@ func (r *DeploymentRepo) SentGateways(ctx context.Context, ouID string, artifact
 }
 
 func (r *DeploymentRepo) DeleteEventGateways(ctx context.Context, ouID string, artifactUUID uuid.UUID) ([]string, error) {
-	var gatewayUUIDs []string
-	err := r.db.WithContext(ctx).Raw(`SELECT gateway_uuid::text FROM deployment_status
-		WHERE artifact_uuid = ? AND ou_id = ? AND deployment_id IS NOT NULL
-		UNION
-		SELECT uuid::text FROM gateways WHERE ou_id = ? AND is_active AND deleted_at IS NULL
-		ORDER BY 1`, artifactUUID, ouID, ouID).Scan(&gatewayUUIDs).Error
+	sent, err := r.SentGateways(ctx, ouID, artifactUUID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list the gateways to send the delete to: %w", err)
 	}
-	return gatewayUUIDs, nil
+	var active []uuid.UUID
+	if err := r.db.WithContext(ctx).Model(&models.Gateway{}).Where("org_id = ? AND is_active = ?", ouID, true).
+		Pluck("id", &active).Error; err != nil {
+		return nil, fmt.Errorf("failed to list the gateways to send the delete to: %w", err)
+	}
+	seen := make(map[string]bool, len(sent)+len(active))
+	out := make([]string, 0, len(sent)+len(active))
+	for _, id := range sent {
+		if !seen[id] {
+			seen[id] = true
+			out = append(out, id)
+		}
+	}
+	for _, id := range active {
+		if s := id.String(); !seen[s] {
+			seen[s] = true
+			out = append(out, s)
+		}
+	}
+	sort.Strings(out)
+	return out, nil
 }
 
 func (r *DeploymentRepo) gatewaysWhere(ctx context.Context, ouID string, artifactUUID uuid.UUID, condition string, args ...any) ([]string, error) {
-	var gatewayUUIDs []string
-	err := r.db.WithContext(ctx).Table("deployment_status").
-		Where("artifact_uuid = ? AND ou_id = ?", artifactUUID, ouID).
+	var gatewayIDs []uuid.UUID
+	err := r.db.WithContext(ctx).Model(&models.DeploymentStatusRecord{}).
+		Where("artifact_id = ? AND org_id = ?", artifactUUID, ouID).
 		Where(condition, args...).
-		Order("gateway_uuid").
-		Pluck("gateway_uuid", &gatewayUUIDs).Error
+		Order("gateway_id").
+		Pluck("gateway_id", &gatewayIDs).Error
 	if err != nil {
 		return nil, fmt.Errorf("failed to list gateways: %w", err)
 	}
-	return gatewayUUIDs, nil
+	out := make([]string, len(gatewayIDs))
+	for i, id := range gatewayIDs {
+		out[i] = id.String()
+	}
+	return out, nil
 }
 
 func (r *DeploymentRepo) StatusRecords(ctx context.Context, ouID string, artifactUUID uuid.UUID) ([]models.DeploymentStatusRecord, error) {
 	var rows []models.DeploymentStatusRecord
 	err := r.db.WithContext(ctx).
-		Where("artifact_uuid = ? AND ou_id = ?", artifactUUID, ouID).
-		Order("gateway_uuid").
+		Where("artifact_id = ? AND org_id = ?", artifactUUID, ouID).
+		Order("gateway_id").
 		Find(&rows).Error
 	if err != nil {
 		return nil, fmt.Errorf("failed to list the artifact's status rows: %w", err)
@@ -368,7 +433,7 @@ func (r *DeploymentRepo) StatusRecords(ctx context.Context, ouID string, artifac
 func (r *DeploymentRepo) GetStatusRecord(ctx context.Context, p models.Placement) (*models.DeploymentStatusRecord, error) {
 	var row models.DeploymentStatusRecord
 	err := r.db.WithContext(ctx).
-		Where("artifact_uuid = ? AND ou_id = ? AND gateway_uuid = ?", p.ArtifactUUID, p.OUID, p.GatewayUUID).
+		Where(statusKey, p.ArtifactUUID, p.OUID, p.GatewayUUID).
 		First(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		//nolint:nilnil // no row is a state of its own: nothing is placed on the gateway
@@ -380,10 +445,10 @@ func (r *DeploymentRepo) GetStatusRecord(ctx context.Context, p models.Placement
 	return &row, nil
 }
 
-// syncRow is a deployment_status row the gateway has been sent something for, joined to its artifact.
+// syncRow is a status row the gateway has been sent something for, joined to its artifact.
 type syncRow struct {
-	ArtifactUUID  uuid.UUID               `gorm:"column:artifact_uuid"`
-	OUID          string                  `gorm:"column:ou_id"`
+	ArtifactUUID  uuid.UUID               `gorm:"column:artifact_id"`
+	OUID          string                  `gorm:"column:org_id"`
 	Kind          string                  `gorm:"column:kind"`
 	Handle        string                  `gorm:"column:handle"`
 	DeploymentID  uuid.UUID               `gorm:"column:deployment_id"`
@@ -397,12 +462,11 @@ type syncRow struct {
 // fetches itself, so there is no ORDER BY.
 func (r *DeploymentRepo) ListForGatewaySync(ctx context.Context, ouID, gatewayID string) ([]models.GatewaySyncRow, error) {
 	var rows []syncRow
-	err := r.db.WithContext(ctx).Raw(`
-		SELECT s.artifact_uuid, s.ou_id, a.kind, a.handle, s.deployment_id, s.status_desired, s.performed_at
-		FROM deployment_status s
-		INNER JOIN artifacts a ON a.uuid = s.artifact_uuid AND a.ou_id = s.ou_id
-		WHERE s.gateway_uuid = ? AND s.ou_id = ? AND s.deployment_id IS NOT NULL`,
-		gatewayID, ouID).Scan(&rows).Error
+	err := r.db.WithContext(ctx).Table("artifact_gateway_status s").
+		Select("s.artifact_id, s.org_id, a.kind, a.handle, s.deployment_id, s.status_desired, s.performed_at").
+		Joins("INNER JOIN artifacts a ON a.id = s.artifact_id").
+		Where("s.gateway_id = ? AND s.org_id = ? AND s.deployment_id IS NOT NULL", gatewayID, ouID).
+		Scan(&rows).Error
 	if err != nil {
 		return nil, fmt.Errorf("failed to list deployments for gateway sync: %w", err)
 	}
@@ -429,22 +493,26 @@ func (r *DeploymentRepo) ListContentForGateway(
 	if len(deploymentIDs) == 0 {
 		return nil, nil
 	}
-	var rows []struct {
-		ArtifactUUID uuid.UUID `gorm:"column:artifact_uuid"`
-		OUID         string    `gorm:"column:ou_id"`
+	type contentRow struct {
+		ArtifactUUID uuid.UUID `gorm:"column:artifact_id"`
+		OUID         string    `gorm:"column:org_id"`
 		Kind         string    `gorm:"column:kind"`
 		Handle       string    `gorm:"column:handle"`
-		DeploymentID uuid.UUID `gorm:"column:deployment_id"`
+		DeploymentID uuid.UUID `gorm:"column:id"`
 		Content      []byte    `gorm:"column:content"`
 	}
-	err := r.db.WithContext(ctx).Raw(`
-		SELECT d.artifact_uuid, d.ou_id, a.kind, a.handle, d.deployment_id, d.content
-		FROM deployments d
-		INNER JOIN artifacts a ON a.uuid = d.artifact_uuid AND a.ou_id = d.ou_id
-		WHERE d.deployment_id IN ? AND d.ou_id = ? AND d.gateway_uuid = ?`,
-		deploymentIDs, ouID, gatewayID).Scan(&rows).Error
-	if err != nil {
-		return nil, fmt.Errorf("failed to get deployment content for gateway: %w", err)
+	var rows []contentRow
+	for _, chunk := range dbx.Chunks(deploymentIDs) {
+		var part []contentRow
+		err := r.db.WithContext(ctx).Table("artifact_deployments d").
+			Select("d.artifact_id, d.org_id, a.kind, a.handle, d.id, d.content").
+			Joins("INNER JOIN artifacts a ON a.id = d.artifact_id").
+			Where("d.id IN ? AND d.org_id = ? AND d.gateway_id = ?", chunk, ouID, gatewayID).
+			Scan(&part).Error
+		if err != nil {
+			return nil, fmt.Errorf("failed to get deployment content for gateway: %w", err)
+		}
+		rows = append(rows, part...)
 	}
 	contents := make([]models.GatewayDeploymentContent, 0, len(rows))
 	for _, row := range rows {

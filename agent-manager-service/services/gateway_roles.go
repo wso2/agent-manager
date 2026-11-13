@@ -68,7 +68,7 @@ var (
 	errPlacementFixed = errors.New("placement is fixed for this environment; delete and recreate the binding to change it")
 
 	// errSelfHostedAnchor means a platform-hosted agent's or monitor's LLM proxy, which AMS owns and serves to
-	// workloads in OpenChoreo, is placed on a self-hosted gateway (see placementPolicy). No path places their
+	// workloads, is placed on a self-hosted gateway (see placementPolicy). No path places their
 	// proxies there, so this is a backstop only. An external agent's self-hosted placement is chosen when the
 	// binding is saved (placementPolicy.providerGateway); only the placement pass (LLMProxyKind.Targets) still checks
 	// its proxies against it.
@@ -177,7 +177,7 @@ func resolveEgressGatewayFromAnchor(
 
 // anchorHosting is which gateways placedAnchor may return.
 //
-// Platform-hosted agents and monitors run in OpenChoreo and only use managed gateways (managedOnly). External
+// Platform-hosted agents and monitors run and only use managed gateways (managedOnly). External
 // agents may also use self-hosted ones, managed preferred (managedFirst). placementPolicy.providerHosting picks one.
 type anchorHosting int
 
@@ -229,25 +229,28 @@ func placedAnchor(
 
 // placedOn runs a kind's PlacedOn query, records whose artifacts PlacedCondition finds placed, through tx.
 func placedOn(ctx context.Context, tx *gorm.DB, records string, args []any) (bool, error) {
-	var placed bool
-	err := tx.WithContext(ctx).Raw(`SELECT EXISTS (`+records+`)`, args...).Scan(&placed).Error
-	return placed, err
+	var n int64
+	err := tx.WithContext(ctx).Raw(`SELECT COUNT(*) FROM (`+records+`) r`, args...).Scan(&n).Error
+	return n > 0, err
 }
 
-// pageUnplacedRecords runs a kind's UnplacedRecords query: arms are UNION ALL arms selecting ou_id, artifact_uuid,
-// handle, kind and environment_uuid, returned in artifact UUID order after afterKey.
+// pageUnplacedRecords runs a kind's UnplacedRecords query: arms are UNION ALL arms selecting org_id, artifact_id,
+// handle, kind and environment_id, returned in artifact id order after afterKey.
 func pageUnplacedRecords(
 	ctx context.Context, tx *gorm.DB, arms string, args []any, afterKey string, limit int,
 ) ([]reconcile.Record, error) {
 	var rows []struct {
-		OUID            string    `gorm:"column:ou_id"`
-		ArtifactUUID    uuid.UUID `gorm:"column:artifact_uuid"`
+		OUID            string    `gorm:"column:org_id"`
+		ArtifactUUID    uuid.UUID `gorm:"column:artifact_id"`
 		Handle          string    `gorm:"column:handle"`
 		Kind            string    `gorm:"column:kind"`
-		EnvironmentUUID uuid.UUID `gorm:"column:environment_uuid"`
+		EnvironmentUUID uuid.UUID `gorm:"column:environment_id"`
 	}
-	query := `SELECT * FROM (` + arms + `) r WHERE r.artifact_uuid::text > ? ORDER BY r.artifact_uuid::text LIMIT ?`
-	if err := tx.WithContext(ctx).Raw(query, append(args, afterKey, limit)...).Scan(&rows).Error; err != nil {
+	q := tx.WithContext(ctx).Table("(?) r", gorm.Expr(arms, args...))
+	if afterKey != "" {
+		q = q.Where("r.artifact_id > ?", afterKey)
+	}
+	if err := q.Order("r.artifact_id").Limit(limit).Scan(&rows).Error; err != nil {
 		return nil, err
 	}
 	records := make([]reconcile.Record, 0, len(rows))

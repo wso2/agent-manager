@@ -37,8 +37,9 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
-	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
+	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -69,6 +70,12 @@ type AgentTokenClaims struct {
 	ProjectUid     string `json:"project_uid,omitempty"`
 	OrgId          string `json:"org_id"`
 	Namespace      string `json:"namespace"`
+	// Organization, Project and Agent name the agent the token belongs to.
+	// The gateway stamps them on ingested spans, and the observer scopes trace
+	// queries by them.
+	Organization string `json:"organization,omitempty"`
+	Project      string `json:"project,omitempty"`
+	Agent        string `json:"agent,omitempty"`
 }
 
 // KeyPair holds a private/public RSA key pair with its metadata
@@ -80,7 +87,7 @@ type KeyPair struct {
 }
 
 type agentTokenManagerService struct {
-	ocClient client.OpenChoreoClient
+	ocClient repositories.PlatformRepository
 	config   config.JWTSigningConfig
 	logger   *slog.Logger
 
@@ -92,7 +99,7 @@ type agentTokenManagerService struct {
 
 // NewAgentTokenManagerService creates a new AgentTokenManagerService instance
 func NewAgentTokenManagerService(
-	ocClient client.OpenChoreoClient,
+	ocClient repositories.PlatformRepository,
 	cfg config.JWTSigningConfig,
 	logger *slog.Logger,
 ) (AgentTokenManagerService, error) {
@@ -257,12 +264,12 @@ func (s *agentTokenManagerService) GenerateToken(ctx context.Context, req Genera
 		return nil, fmt.Errorf("org id is required: %w", utils.ErrInvalidInput)
 	}
 
-	// Fetch component UID from OpenChoreo. Agent names are unique organization-wide,
+	// Fetch the agent. Agent names are unique organization-wide,
 	// not per-project, so this resolves by name alone regardless of req.ProjectName.
-	component, err := s.ocClient.GetComponent(ctx, req.OrgName, req.ProjectName, req.AgentName)
+	component, err := s.ocClient.GetAgent(ctx, req.OrgName, req.ProjectName, req.AgentName)
 	if err != nil {
 		s.logger.Error("Failed to get agent component", "agentName", req.AgentName, "error", err)
-		return nil, translateAgentError(err)
+		return nil, err
 	}
 
 	// The request path names both a project and an agent; reject the request if
@@ -274,16 +281,10 @@ func (s *agentTokenManagerService) GenerateToken(ctx context.Context, req Genera
 		return nil, fmt.Errorf("agent %q does not belong to project %q: %w", req.AgentName, req.ProjectName, utils.ErrInvalidInput)
 	}
 
-	// Determine which environment to use
-	environmentName := req.Environment
-	if environmentName == "" {
-		return nil, fmt.Errorf("environment name cannot be empty")
-	}
-
-	// Fetch environment UID from OpenChoreo
-	environment, err := s.ocClient.GetEnvironment(ctx, req.OrgName, environmentName)
+	// There is only the default environment; the requested name is ignored.
+	environment, err := s.ocClient.GetEnvironment(ctx, req.OrgName, models.DefaultEnvironmentName)
 	if err != nil {
-		s.logger.Error("Failed to get environment", "environment", environmentName, "error", err)
+		s.logger.Error("Failed to get environment", "error", err)
 		return nil, fmt.Errorf("failed to get environment: %w", err)
 	}
 
@@ -294,11 +295,9 @@ func (s *agentTokenManagerService) GenerateToken(ctx context.Context, req Genera
 		return nil, fmt.Errorf("failed to get project: %w", err)
 	}
 
-	// Resolve the OpenChoreo namespace for the org. Traces are stamped with this
-	// namespace at ingest (via the gateway -> collector), so the token's namespace
-	// claim must carry the OpenChoreo namespace rather than the raw OU id for the
-	// observability read path (which scopes queries by organization) to match.
-	namespace, err := ResolveNamespace(ctx, s.ocClient)
+	// Traces are stamped with this namespace at ingest (via the gateway ->
+	// collector), so the claim carries the namespace rather than the raw OU id.
+	namespace, err := ResolveNamespace(ctx)
 	if err != nil {
 		s.logger.Error("Failed to resolve namespace", "ouID", req.OrgName, "error", err)
 		return nil, err
@@ -328,6 +327,11 @@ func (s *agentTokenManagerService) GenerateToken(ctx context.Context, req Genera
 		ProjectUid:     project.UUID,
 		OrgId:          req.OrgId,
 		Namespace:      namespace,
+		Project:        project.Name,
+		Agent:          component.Name,
+	}
+	if org, orgErr := s.ocClient.GetOrganization(ctx, req.OrgName); orgErr == nil {
+		claims.Organization = org.Handle
 	}
 
 	// Get the active signing key
@@ -366,7 +370,7 @@ func (s *agentTokenManagerService) GenerateToken(ctx context.Context, req Genera
 		audit.Org(req.OrgId),
 		audit.ResourceNamed(audit.ResourceAgent, component.UUID, req.AgentName),
 		audit.Project(req.ProjectName),
-		audit.Environment(environmentName),
+		audit.Environment(environment.Name),
 		audit.Detail("agentName", req.AgentName),
 		audit.Detail("expiresIn", int64(expiryDuration.Seconds())),
 	); err != nil {

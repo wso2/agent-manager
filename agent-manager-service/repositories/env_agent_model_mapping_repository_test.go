@@ -22,11 +22,10 @@ import (
 	"context"
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
-	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
+	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 )
 
@@ -44,50 +43,13 @@ func TestEnvAgentModelMappingRepo_BackfillsLLMProxyHandle(t *testing.T) {
 	gdb := db.GetDB()
 	ctx := context.Background()
 
-	config := &models.AgentConfiguration{
-		Name:        "backfill-handle-agent-config",
-		AgentID:     "backfill-handle-agent",
-		OUID:        "test-ou-backfill-handle",
-		ProjectName: "test-proj-backfill-handle",
-	}
-	require.NoError(t, gdb.Create(config).Error)
-
-	// Seed an llm_proxies row directly, same as monitor_executor_test.go's
-	// TestExecuteMonitorRun_LLMCredentials: disable FK triggers so we don't
-	// need to also seed artifacts/llm_providers rows just to get a proxy with
-	// a Configuration.Name in place.
 	const proxyName = "backfill-handle-proxy-name"
-	proxyUUID := uuid.New()
-	require.NoError(t, gdb.Connection(func(tx *gorm.DB) error {
-		if err := tx.Exec("SET session_replication_role = 'replica'").Error; err != nil {
-			return err
-		}
-		// Restore on every exit path (including an INSERT failure) so a pooled
-		// connection is never handed back to another test stuck in 'replica'
-		// mode, which would silently skip FK/trigger checks for it too.
-		defer func() {
-			_ = tx.Exec("SET session_replication_role = 'origin'").Error
-		}()
-		return tx.Exec(
-			`INSERT INTO llm_proxies (uuid, project_uuid, provider_uuid, status, configuration)
-			 VALUES (?, ?, ?, 'deployed', ?)`,
-			proxyUUID, uuid.New(), uuid.New(), `{"name":"`+proxyName+`"}`,
-		).Error
-	}))
-
-	envUUID := uuid.New()
-	mapping := &models.EnvAgentModelMapping{
-		ConfigUUID:      config.UUID,
-		EnvironmentUUID: envUUID,
-		LLMProxyUUID:    proxyUUID,
-	}
-	require.NoError(t, gdb.Create(mapping).Error)
-
-	t.Cleanup(func() {
-		gdb.Where("config_uuid = ?", config.UUID).Delete(&models.EnvAgentModelMapping{})
-		gdb.Exec("DELETE FROM llm_proxies WHERE uuid = ?", proxyUUID)
-		gdb.Delete(config)
-	})
+	ou := newOrg(t)
+	_, proxyUUID := seedLLMProxy(t, ou)
+	require.NoError(t, gdb.Model(&models.LLMProxy{}).Where("id = ?", proxyUUID).
+		Update("configuration", dbx.JSON(map[string]string{"name": proxyName})).Error)
+	configUUID, envUUID := mapLLMProxyToAgent(t, ou, proxyUUID)
+	config := &models.AgentConfiguration{UUID: configUUID}
 
 	repo := NewEnvAgentModelMappingRepository(gdb)
 

@@ -122,50 +122,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/agent-build-options:
-    parameters:
-      - name: orgName
-        in: path
-        required: true
-        description: Organization name/handle
-        schema:
-          type: string
-          pattern: "^[a-z0-9-]+$"
-          minLength: 1
-          maxLength: 64
-
-    get:
-      tags:
-        - AgentBuildOptions
-      summary: Get agent build options
-      description: |
-        Return the option lists the create-agent form needs: the platform's
-        supported Python versions (with a default) and the effective
-        instrumentation catalog (bundled baseline plus operator extensions,
-        with a default). Operators extend the instrumentation set per install
-        via the Helm value `agentManagerService.config.otel.additionalInstrumentationVersions`.
-        Versions are returned newest-first by numeric component compare.
-      operationId: getAgentBuildOptions
-      responses:
-        "200":
-          description: Successfully retrieved agent build options
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AgentBuildOptionsResponse"
-        "401":
-          description: Unauthorized - invalid or missing authentication
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
   /orgs/{orgName}/deployment-pipelines:
     get:
       summary: List all deployment pipelines in an organization
@@ -218,6 +174,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
     post:
       summary: Create a deployment pipeline for an organization
       operationId: createDeploymentPipeline
@@ -258,6 +216,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
   /orgs/{orgName}/projects:
     post:
@@ -810,6 +770,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/resource-configs:
     get:
@@ -856,6 +818,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
     put:
       summary: Update agent resource configurations
       operationId: updateAgentResourceConfigs
@@ -912,6 +876,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
   /orgs/{orgName}/utils/generate-name:
     post:
@@ -1071,6 +1037,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
     get:
       summary: Get Builds of an Agent
       operationId: getAgentBuilds
@@ -1132,6 +1100,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/builds/{buildName}:
     get:
       summary: Get build details
@@ -1176,6 +1146,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/publish-kind:
     post:
       summary: Publish agent as an Agent Kind version
@@ -1243,6 +1215,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/deployments:
     post:
@@ -1309,6 +1283,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
     get:
       summary: List agent deployments with detailed information
@@ -1409,6 +1385,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/promote:
     post:
@@ -1482,6 +1460,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/deploy-settings:
     put:
@@ -1589,6 +1569,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/configurations:
     get:
@@ -1697,6 +1679,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
   # ============================================
   # GATEWAY ENVIRONMENT ENDPOINTS
   # ============================================
@@ -1810,6 +1794,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
   /orgs/{orgName}/environments/{envID}:
     parameters:
@@ -1913,6 +1899,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
     delete:
       tags:
@@ -1951,6 +1939,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
   /orgs/{orgName}/environments/{envID}/gateways:
     parameters:
@@ -2089,6 +2079,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
     delete:
       tags:
@@ -2122,6 +2114,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
   /orgs/{orgName}/environments/{envID}/thunder-url:
     parameters:
@@ -2183,6 +2177,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
     put:
       tags:
@@ -2270,6 +2266,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
     delete:
       tags:
@@ -2304,6 +2302,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
   /orgs/{orgName}/thunder-url-availability:
     parameters:
@@ -2372,6 +2372,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
   # ============================================
   # AI GATEWAY ENDPOINTS
@@ -3874,6 +3876,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
   /orgs/{orgName}/projects/{projName}/deployment-pipeline:
     get:
       summary: Get deployment pipeline for a project
@@ -3911,6 +3915,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
   /orgs/{orgName}/deployment-pipelines/{pipelineName}:
     put:
@@ -3961,6 +3967,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
     delete:
       summary: Delete a deployment pipeline
       description: Deletes the named deployment pipeline.
@@ -3993,6 +4001,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/token:
     post:
@@ -4119,6 +4129,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/identities:
     parameters:
@@ -5640,8 +5652,8 @@ paths:
 
         **Resource Types:**
         - LlmProvider: LLM providers marked as available in catalog (in_catalog = TRUE)
-        - agent: Agents from OpenChoreo (all agents are in catalog)
-        - mcp: MCP resources from OpenChoreo (all MCPs are in catalog)
+        - agent: Registered agents (all agents are in catalog)
+        - mcp: Registered MCP resources (all MCPs are in catalog)
 
         If kind is not specified, returns all resources in catalog.
       operationId: listCatalogResources
@@ -5797,6 +5809,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
   /orgs/{orgName}/repositories/commits:
     parameters:
@@ -5873,6 +5887,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
   # ============================================
   # LLM PROVIDER AND PROXY MANAGEMENT ENDPOINTS
@@ -7200,7 +7216,7 @@ paths:
       summary: Delete MCP proxy
       description: >-
         Deletes an MCP proxy if no agent mappings still reference it. A project proxy is refused with
-        409 PROJECT_OWNED while its project exists in OpenChoreo; once the project is gone (looked up by
+        409 PROJECT_OWNED while its project exists; once the project is gone (looked up by
         the project name stored on the proxy), this route deletes it with the same teardown.
       operationId: deleteMCPProxy
       responses:
@@ -7251,8 +7267,8 @@ paths:
         in: path
         required: true
         description: >-
-          OpenChoreo project name. Unknown project returns 404 PROJECT_NOT_FOUND, except that the GET and
-          DELETE routes of a project OpenChoreo no longer has reach the proxies it left, stored under this
+          Project name. Unknown project returns 404 PROJECT_NOT_FOUND, except that the GET and
+          DELETE routes of a project that no longer exists reach the proxies it left, stored under this
           name in the caller's org; with none stored they return 404 PROJECT_NOT_FOUND.
         schema:
           type: string
@@ -7277,7 +7293,7 @@ paths:
       summary: List the project's MCP proxies
       description: >-
         Lists proxies owned by this project. Org-level proxies and other projects' proxies are never
-        listed. Each item carries a summary per environment binding. For a project OpenChoreo no longer
+        listed. Each item carries a summary per environment binding. For a project that no longer
         has, lists the proxies it left (stored under this project name in the caller's org), or returns
         404 PROJECT_NOT_FOUND when there are none.
       operationId: listProjectMCPProxies
@@ -7337,6 +7353,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
   /orgs/{orgName}/projects/{projName}/mcp-proxies/{proxyId}:
     parameters:
@@ -7352,8 +7370,8 @@ paths:
         in: path
         required: true
         description: >-
-          OpenChoreo project name. Unknown project returns 404 PROJECT_NOT_FOUND, except that the GET and
-          DELETE routes of a project OpenChoreo no longer has reach the proxies it left, stored under this
+          Project name. Unknown project returns 404 PROJECT_NOT_FOUND, except that the GET and
+          DELETE routes of a project that no longer exists reach the proxies it left, stored under this
           name in the caller's org; with none stored they return 404 PROJECT_NOT_FOUND.
         schema:
           type: string
@@ -7396,7 +7414,7 @@ paths:
         environment. A new context that equals, contains or sits under another artifact's context on a
         gateway a binding is placed on returns 409 CONTEXT_IN_USE and nothing is stored.
 
-        A project that does not exist in OpenChoreo returns 404 PROJECT_NOT_FOUND. A project deleted and
+        A project that does not exist returns 404 PROJECT_NOT_FOUND. A project deleted and
         re-created with the same name adopts the proxies its predecessor left: a PUT of such a handle moves
         the proxy to the re-created project and applies the body as an update (200), in one transaction.
         Only a project proxy stored under this project's name is adopted, never an org-level proxy or
@@ -7461,13 +7479,15 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
     get:
       tags:
         - Project MCP Proxies
       summary: Get a project MCP proxy with its environment bindings
       description: >-
-        For a project OpenChoreo no longer has, returns the proxy it left under this project name in
+        For a project that no longer exists, returns the proxy it left under this project name in
         the caller's org.
       operationId: getProjectMCPProxy
       responses:
@@ -7501,6 +7521,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
     delete:
       tags:
@@ -7508,7 +7530,7 @@ paths:
       summary: Delete a project MCP proxy
       description: >-
         Undeploys every environment and deletes the proxy. Refuses while AM agents use the proxy as a
-        tool: 409 MCP_PROXY_IN_USE, and nothing is deleted. For a project OpenChoreo no longer has,
+        tool: 409 MCP_PROXY_IN_USE, and nothing is deleted. For a project that no longer exists,
         deletes the proxy it left under this project name in the caller's org.
       operationId: deleteProjectMCPProxy
       responses:
@@ -7544,6 +7566,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
   /orgs/{orgName}/projects/{projName}/mcp-proxies/{proxyId}/environments/{envName}:
     parameters:
@@ -7559,8 +7583,8 @@ paths:
         in: path
         required: true
         description: >-
-          OpenChoreo project name. Unknown project returns 404 PROJECT_NOT_FOUND, except that the GET and
-          DELETE routes of a project OpenChoreo no longer has reach the proxies it left, stored under this
+          Project name. Unknown project returns 404 PROJECT_NOT_FOUND, except that the GET and
+          DELETE routes of a project that no longer exists reach the proxies it left, stored under this
           name in the caller's org; with none stored they return 404 PROJECT_NOT_FOUND.
         schema:
           type: string
@@ -7678,14 +7702,16 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
     get:
       tags:
         - Project MCP Proxy Environments
       summary: Get the proxy's binding in one environment
       description: >-
-        Reads the stored binding and its deployment status; makes no call to OpenChoreo, so it is cheap to poll.
-        For a project OpenChoreo no longer has, reads the binding of the proxy it left under this project name.
+        Reads the stored binding and its deployment status; makes no external call, so it is cheap to poll.
+        For a project that no longer exists, reads the binding of the proxy it left under this project name.
       operationId: getProjectMCPProxyEnvironment
       responses:
         "200":
@@ -7718,6 +7744,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
     delete:
       tags:
@@ -7727,7 +7755,7 @@ paths:
         Deletes the binding and its gateway artifact. Returns once the transaction commits; the
         gateway removal is not awaited. Refuses with 409 MCP_PROXY_IN_USE while an AM agent is mapped
         to the proxy in this environment, as the proxy delete does; nothing is deleted. For a project
-        OpenChoreo no longer has, drops the binding of the proxy it left under this project name.
+        that no longer exists, drops the binding of the proxy it left under this project name.
       operationId: deleteProjectMCPProxyEnvironment
       responses:
         "204":
@@ -7762,6 +7790,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
 
   /orgs/{orgName}/mcp-proxies/{proxyId}/scopes:
@@ -11054,6 +11084,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
   /orgs/{orgName}/agent-kinds/{kindName}:
     get:
       summary: Get an Agent Kind
@@ -11088,6 +11120,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
     put:
       summary: Update an Agent Kind
       description: Update display name or description of an Agent Kind.
@@ -11130,6 +11164,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
     delete:
       summary: Delete an Agent Kind
       description: Deletes an Agent Kind and all its versions from the catalog. Fails with 409 if any agents are currently instantiated from this kind.
@@ -11168,6 +11204,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
   /orgs/{orgName}/agent-kinds/{kindName}/versions:
     get:
@@ -11203,6 +11241,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
     post:
       summary: Add a version to an Agent Kind
       description: Publishes a new version of an existing Agent Kind using a specific build from an agent.
@@ -11257,6 +11297,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
   /orgs/{orgName}/agent-kinds/{kindName}/versions/{versionTag}:
     get:
@@ -11299,6 +11341,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
     delete:
       summary: Delete an Agent Kind version
       operationId: deleteAgentKindVersion
@@ -11335,6 +11379,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
   /orgs/{orgName}/git-secrets:
     get:
@@ -11380,6 +11426,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
     post:
       summary: Create a git secret
       description: Creates a new git secret for authenticating with git repositories
@@ -11424,6 +11472,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
   /orgs/{orgName}/git-secrets/{secretName}:
     delete:
@@ -11463,6 +11513,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
   /orgs/{orgName}/identities/users:
     get:
@@ -13995,6 +14047,13 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
 
 components:
+  responses:
+    NotImplemented:
+      description: Not available in this version. The operation needs a hosted agent runtime, which this version does not provide.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
   securitySchemes:
     bearerAuth:
       type: http
@@ -14477,7 +14536,6 @@ components:
       type: object
       required:
         - name
-        - deploymentPipeline
         - displayName
       properties:
         name:
@@ -14664,7 +14722,7 @@ components:
       description: >-
         Optional GitHub App source binding for cloud deployments. The control
         plane consumes this metadata, persists it through the deployment-provided
-        repository source provider, and never forwards it to OpenChoreo. When
+        repository source provider, and never forwards it. When
         omitted, public-repository and PAT-backed behavior is unchanged.
       required:
         - installationId
@@ -15060,7 +15118,6 @@ components:
       required:
         - displayName
         - description
-        - deploymentPipeline
     AgentResponse:
       type: object
       properties:
@@ -17769,7 +17826,7 @@ components:
           description: Whether this is a production environment
           example: false
         gateway:
-          description: Gateway configuration with ingress and egress network specs. Sourced from the underlying OpenChoreo environment.
+          description: Gateway configuration with ingress and egress network specs.
           $ref: "#/components/schemas/GatewaySpec"
         createdAt:
           type: string
@@ -17829,7 +17886,7 @@ components:
           description: Whether this is a production environment
           example: false
         gateway:
-          description: Optional gateway configuration with ingress and egress network specs. Forwarded to the OpenChoreo CreateEnvironment call.
+          description: Optional gateway configuration with ingress and egress network specs. Environments cannot be created, so this is not used.
           $ref: "#/components/schemas/GatewaySpec"
 
     UpdateEnvironmentRequest:
@@ -19421,7 +19478,7 @@ components:
 
     MCPProxySource:
       type: object
-      description: The OpenChoreo component endpoint a project MCP proxy fronts. Fixed after create.
+      description: The hosted agent endpoint a project MCP proxy fronts. Fixed after create.
       required:
         - componentName
         - endpointName
@@ -22037,80 +22094,6 @@ components:
           description: Optional interface metadata (e.g. OpenAPI spec)
           additionalProperties: true
           nullable: true
-
-    AgentBuildOptionsResponse:
-      type: object
-      required:
-        - python
-        - instrumentation
-      properties:
-        python:
-          $ref: "#/components/schemas/AgentBuildOptionsPython"
-        instrumentation:
-          $ref: "#/components/schemas/AgentBuildOptionsInstrumentation"
-
-    AgentBuildOptionsPython:
-      type: object
-      required:
-        - defaultVersion
-        - supportedVersions
-      properties:
-        defaultVersion:
-          type: string
-          description: Bare-minor Python version pre-selected on the create-agent form.
-          example: "3.11"
-        supportedVersions:
-          type: array
-          description: Bare-minor Python versions the buildpack provider can build.
-          items:
-            type: string
-          example: ["3.10", "3.11", "3.12", "3.13"]
-
-    AgentBuildOptionsInstrumentation:
-      type: object
-      required:
-        - defaultVersion
-        - versions
-      properties:
-        defaultVersion:
-          type: string
-          description: AMP instrumentation version pre-selected on the create-agent form.
-          example: "0.2.1"
-        versions:
-          type: array
-          description: |
-            Effective instrumentation catalog: embedded baseline merged with any
-            operator-supplied extension entries, sorted newest-first by numeric
-            component compare.
-          items:
-            $ref: "#/components/schemas/AgentBuildOptionsInstrumentationEntry"
-
-    AgentBuildOptionsInstrumentationEntry:
-      type: object
-      required:
-        - version
-        - pythonVersions
-      properties:
-        version:
-          type: string
-          description: The amp-instrumentation semver.
-          example: "0.2.1"
-        traceloopSdk:
-          type: string
-          description: |
-            The bundled OpenLLMetry (Traceloop) SDK version this
-            instrumentation release ships. Optional: operator-supplied
-            extension entries may omit it.
-          example: "0.61.0"
-        pythonVersions:
-          type: array
-          description: |
-            Bare-minor Python versions this instrumentation version supports.
-            The init-container image is ABI-locked to the Python runtime, so a
-            selection outside this list will fail to pull at deploy time.
-          items:
-            type: string
-          example: ["3.10", "3.11", "3.12", "3.13"]
 
     # Identity Management Schemas
     UserResponse:

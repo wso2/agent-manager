@@ -18,248 +18,80 @@ package apitestutils
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
-	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
-	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
-// DeployableTestImages are the images the default mock reports as built by the
-// agent under test.
-var DeployableTestImages = []string{
-	"registry.example.com/myapp:v0.9.0",
-	"registry.example.com/myapp:v1.0.0",
-	"registry.example.com/myapp:v1.2.0",
-	"registry.example.com/a2a:v1.0.0",
-}
-
-// DefaultEnvironmentUUID is the id the default mock reports for every environment; a test that creates, builds,
-// deploys or promotes an API agent seeds an ingress gateway under it.
+// DefaultEnvironmentUUID is the id the default mock reports for the default
+// environment; a test that creates an API agent seeds an ingress gateway under it.
 const DefaultEnvironmentUUID = "6f1c2f64-3f7e-4a52-9c1d-0b7a8e2d4c11"
 
-// CreateMockOpenChoreoClient creates a mock OpenChoreo client with default behavior for testing
-func CreateMockOpenChoreoClient() *clientmocks.OpenChoreoClientMock {
-	return &clientmocks.OpenChoreoClientMock{
-		// Resolve the namespace the same way the real client does — from the
-		// configured default namespace — so callers (e.g. observability) get a
-		// realistic value rather than an empty string.
-		NamespaceForFunc: func(ouID string) string {
-			return config.GetConfig().OpenChoreo.DefaultNamespace
-		},
-		// DeployAgent only accepts an image the agent owns, so the agent "built"
-		// every image the API tests deploy. A test of the rejection path overrides it.
-		ListBuildsFunc: func(_ context.Context, _, _, _ string) ([]*models.BuildResponse, error) {
-			builds := make([]*models.BuildResponse, 0, len(DeployableTestImages))
-			for _, img := range DeployableTestImages {
-				builds = append(builds, &models.BuildResponse{ImageId: img})
-			}
-			return builds, nil
-		},
+// CreateMockPlatformRepository creates a platform repository mock with default
+// behavior for testing.
+func CreateMockPlatformRepository() *repomocks.PlatformRepositoryMock {
+	defaultEnv := &models.EnvironmentResponse{UUID: DefaultEnvironmentUUID, Name: models.DefaultEnvironmentName, DisplayName: "Default"}
+	return &repomocks.PlatformRepositoryMock{
 		ListOrganizationsFunc: func(_ context.Context) ([]*models.OrganizationResponse, error) {
-			return []*models.OrganizationResponse{
-				{Namespace: config.GetConfig().OpenChoreo.DefaultNamespace},
-			}, nil
+			return []*models.OrganizationResponse{{Name: "default", Handle: "default"}}, nil
 		},
-		GetOrganizationFunc: func(ctx context.Context, orgName string) (*models.OrganizationResponse, error) {
-			if orgName == "nonexistent-org" {
+		GetOrganizationFunc: func(_ context.Context, ouID string) (*models.OrganizationResponse, error) {
+			if ouID == "nonexistent-org" {
 				return nil, utils.ErrOrganizationNotFound
 			}
-			return &models.OrganizationResponse{
-				Name:        orgName,
-				DisplayName: orgName,
-				CreatedAt:   time.Now(),
-				Status:      "ACTIVE",
-			}, nil
+			return &models.OrganizationResponse{Name: ouID, DisplayName: ouID, Handle: ouID, CreatedAt: time.Now()}, nil
 		},
-		GetProjectFunc: func(ctx context.Context, namespaceName string, projectName string) (*models.ProjectResponse, error) {
+		GetProjectFunc: func(_ context.Context, ouID, projectName string) (*models.ProjectResponse, error) {
 			if strings.Contains(projectName, "nonexistent-proj") {
 				return nil, utils.ErrProjectNotFound
 			}
-			return &models.ProjectResponse{
-				Name:               projectName,
-				DisplayName:        projectName,
-				OrgName:            namespaceName,
-				DeploymentPipeline: "test-pipeline",
-				CreatedAt:          time.Now(),
+			return &models.ProjectResponse{UUID: uuid.NewString(), Name: projectName, DisplayName: projectName, OrgName: ouID, CreatedAt: time.Now()}, nil
+		},
+		CreateProjectFunc: func(_ context.Context, ouID string, in repositories.CreateProjectInput) (*models.ProjectResponse, error) {
+			return &models.ProjectResponse{UUID: uuid.NewString(), Name: in.Name, DisplayName: in.DisplayName, OrgName: ouID, CreatedAt: time.Now()}, nil
+		},
+		PatchProjectFunc:  func(context.Context, string, string, *string, *string) error { return nil },
+		DeleteProjectFunc: func(context.Context, string, string) error { return nil },
+		ListProjectsFunc: func(context.Context, string) ([]*models.ProjectResponse, error) {
+			return []*models.ProjectResponse{}, nil
+		},
+		CreateAgentFunc: func(_ context.Context, _, projectName string, in repositories.CreateAgentInput) (*models.AgentResponse, error) {
+			return &models.AgentResponse{
+				UUID: uuid.NewString(), Name: in.Name, DisplayName: in.DisplayName, ProjectName: projectName,
+				Provisioning: models.Provisioning{Type: in.ProvisioningType},
+				Type:         models.AgentType{Type: in.AgentType, SubType: in.SubType},
+				Labels:       in.Labels,
 			}, nil
 		},
-		ComponentExistsFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string) (bool, error) {
-			return false, nil
-		},
-		CreateComponentFunc: func(ctx context.Context, namespaceName string, projectName string, req client.CreateComponentRequest) error {
-			return nil
-		},
-		AttachTraitsFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, traitRequests []client.TraitRequest) error {
-			return nil
-		},
-		UpdateComponentDeploymentConfigFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, req client.ComponentDeploymentConfigRequest) error {
-			return nil
-		},
-		TriggerBuildFunc: func(_ context.Context, namespaceName string, projectName string, componentName string, commitID string, workflowRunName string, _ []client.EnvVar, _ client.BuildClientSource) (*models.BuildResponse, error) {
-			if workflowRunName == "" {
-				workflowRunName = fmt.Sprintf("%s-build-1", componentName)
-			}
-			return &models.BuildResponse{
-				UUID:        uuid.New().String(),
-				Name:        workflowRunName,
-				AgentName:   componentName,
-				ProjectName: projectName,
-				Status:      "BuildInitiated",
-				StartedAt:   time.Now(),
-				BuildParameters: models.BuildParameters{
-					CommitID: commitID,
-				},
-			}, nil
-		},
-		GetProjectDeploymentPipelineFunc: func(ctx context.Context, namespaceName string, projectName string) (*models.DeploymentPipelineResponse, error) {
-			return &models.DeploymentPipelineResponse{
-				Name:        "test-pipeline",
-				DisplayName: "test-pipeline",
-				Description: "Test deployment pipeline",
-				OrgName:     namespaceName,
-				CreatedAt:   time.Now(),
-				PromotionPaths: []models.PromotionPath{
-					{
-						SourceEnvironmentRef: "Development",
-					},
-				},
-			}, nil
-		},
-		// Project creation, deploy and promote all provision the cell namespace
-		// for the environment they touch before anything is released into it.
-		EnsureProjectReleaseBindingFunc: func(ctx context.Context, namespaceName, projectName, environmentName string) error {
-			return nil
-		},
-		GetComponentFunc: func(ctx context.Context, namespaceName, projectName, componentName string) (*models.AgentResponse, error) {
-			if strings.Contains(componentName, "nonexistent-agent") {
+		GetAgentFunc: func(_ context.Context, _, projectName, agentName string) (*models.AgentResponse, error) {
+			if strings.Contains(agentName, "nonexistent-agent") {
 				return nil, utils.ErrAgentNotFound
 			}
 			return &models.AgentResponse{
-				UUID:        "component-uid-123",
-				Name:        componentName,
-				ProjectName: projectName,
-				Provisioning: models.Provisioning{
-					Type: "internal",
-				},
+				UUID: "agent-uid-123", Name: agentName, ProjectName: projectName,
+				Provisioning: models.Provisioning{Type: "external"},
 			}, nil
 		},
-		GetEnvironmentFunc: func(ctx context.Context, namespaceName, environmentName string) (*models.EnvironmentResponse, error) {
-			return &models.EnvironmentResponse{
-				UUID: DefaultEnvironmentUUID,
-				Name: environmentName,
-			}, nil
-		},
-		// Empty by default: CreateAgent's org-wide AgentID provisioning hook calls
-		// ListEnvironments and only acts when it returns at least one environment,
-		// so tests that don't care about AgentID provisioning stay unaffected by it.
-		ListEnvironmentsFunc: func(ctx context.Context, namespaceName string) ([]*models.EnvironmentResponse, error) {
-			return []*models.EnvironmentResponse{}, nil
-		},
-		DeleteComponentFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string) error {
-			return nil
-		},
-		ListComponentsFunc: func(ctx context.Context, namespaceName string, projectName string) ([]*models.AgentResponse, error) {
+		UpdateAgentBasicInfoFunc: func(context.Context, string, string, string, string, string, *map[string]string) error { return nil },
+		DeleteAgentFunc:          func(context.Context, string, string, string) error { return nil },
+		ListAgentsFunc: func(context.Context, string, string) ([]*models.AgentResponse, error) {
 			return []*models.AgentResponse{}, nil
 		},
-		CountProjectComponentsFunc: func(ctx context.Context, namespaceName string, projectName string) (int, error) {
-			return 0, nil
+		CountProjectAgentsFunc: func(context.Context, string, string) (int, error) { return 0, nil },
+		AgentExistsFunc:        func(context.Context, string, string, string) (bool, error) { return false, nil },
+		GetEnvironmentFunc: func(context.Context, string, string) (*models.EnvironmentResponse, error) {
+			return defaultEnv, nil
 		},
-		DeleteProjectFunc: func(ctx context.Context, namespaceName string, projectName string) error {
-			return nil
-		},
-		ListDeploymentPipelinesFunc: func(ctx context.Context, namespaceName string) ([]*models.DeploymentPipelineResponse, error) {
-			return []*models.DeploymentPipelineResponse{
-				{
-					Name:        "default",
-					DisplayName: "Default Pipeline",
-					OrgName:     namespaceName,
-				},
-			}, nil
-		},
-		CreateProjectFunc: func(ctx context.Context, namespaceName string, req client.CreateProjectRequest) error {
-			return nil
-		},
-		ListProjectsFunc: func(ctx context.Context, namespaceName string) ([]*models.ProjectResponse, error) {
-			return []*models.ProjectResponse{}, nil
-		},
-		DeployFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, req client.DeployRequest) error {
-			return nil
-		},
-		IsDeploymentInProgressFunc: func(ctx context.Context, namespaceName string, componentName string, environment string) (bool, error) {
-			return false, nil
-		},
-		DeleteSecretReferenceFunc: func(ctx context.Context, namespace string, name string) error {
-			return nil
-		},
-		GetSecretReferenceFunc: func(ctx context.Context, namespace string, name string) (*client.SecretReferenceInfo, error) {
-			// Return a reference exposing an "api-key" data source so flows that resolve a
-			// secret reference (e.g. the env-injection trait's agent API key) can succeed.
-			return &client.SecretReferenceInfo{
-				Name: name,
-				Data: []client.SecretDataSourceInfo{
-					{
-						SecretKey: secretmanagersvc.SecretKeyAPIKey,
-						RemoteRef: client.RemoteRefInfo{Key: name, Property: secretmanagersvc.SecretKeyAPIKey},
-					},
-				},
-			}, nil
-		},
-		GetWorkloadSecretRefNamesFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string) ([]string, error) {
-			// Return empty list by default (no secret refs)
-			return nil, nil
-		},
-		UpdateComponentEnvVarsFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, envVars []client.EnvVar) error {
-			return nil
-		},
-		ReplaceComponentEnvVarsFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, envVars []client.EnvVar) error {
-			return nil
-		},
-		ReplaceComponentFileMountsFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, files []client.FileVar) error {
-			return nil
-		},
-		// nil means OpenChoreo can reconcile the component; deploy aborts early otherwise.
-		GetComponentReconcileBlockFunc: func(ctx context.Context, namespaceName string, componentName string) (*client.ComponentReconcileBlock, error) {
-			// A nil block is the "not blocked" signal this API defines.
-			return nil, nil
-		},
-		RemoveWorkloadEnvVarsFunc: func(ctx context.Context, namespaceName string, componentName string, envVarKeys []string) error {
-			return nil
-		},
-		ReplaceReleaseBindingEnvVarsFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, envName string, keysToRemove []string, envVarsToAdd []client.EnvVar) error {
-			return nil
-		},
-		// Deploy writes this environment's env vars and file mounts here rather
-		// than to the component-wide Workload, so every deploy path reaches it.
-		ReplaceReleaseBindingWorkloadOverridesFunc: func(ctx context.Context, ouID string, componentName string, environment string, envOverrides []client.EnvVar, fileOverrides []client.FileVar) error {
-			return nil
-		},
-		EnsureReleaseAndBindingFunc: func(ctx context.Context, ouID string, projectName string, componentName string, environment string, envOverrides []client.EnvVar, fileOverrides []client.FileVar, traitEnvConfigs map[string]interface{}, componentTypeConfigs map[string]interface{}) error {
-			return nil
-		},
-		GetComponentConfigurationsFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, environment string) ([]models.EnvVars, error) {
-			return nil, nil
-		},
-		// No agent API key seeded on the Component: an API agent's deploy looks for one when its
-		// environment has none yet.
-		GetComponentBaseEnvVarsFunc: func(ctx context.Context, ouID string, componentName string) ([]client.EnvVar, error) {
-			return []client.EnvVar{}, nil
-		},
-		GetComponentFileMountsFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, environment string) ([]models.FileMountEntry, error) {
-			return nil, nil
-		},
-		UpdateReleaseBindingTraitConfigsFunc: func(ctx context.Context, namespaceName, componentName, environment string, traitConfigs map[string]interface{}, componentTypeConfigs map[string]interface{}) error {
-			return nil
-		},
-		EnsureReleaseBindingRuntimeClassFunc: func(ctx context.Context, namespaceName, componentName, environment, desiredRuntimeClass string) error {
-			return nil
+		ListEnvironmentsFunc: func(context.Context, string) ([]*models.EnvironmentResponse, error) {
+			return []*models.EnvironmentResponse{defaultEnv}, nil
 		},
 	}
 }

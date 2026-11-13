@@ -46,8 +46,7 @@ func (s projectAgentIdentityDeletionProviderStub) DeleteAgentIdentity(ctx contex
 }
 
 // cpDeleteFixture wires a provisioning service over three bindings of one agent
-// (source "development", promoted "stage" and "production") and records every
-// external call in order.
+// and records every external call in order.
 type cpDeleteFixture struct {
 	t         *testing.T
 	events    []string
@@ -62,21 +61,20 @@ type cpDeleteFixture struct {
 
 func newCPDeleteFixture(t *testing.T, ownership models.AgentProvisioningType) *cpDeleteFixture {
 	t.Helper()
-	binding := func(env, source string) models.AgentThunderClient {
+	binding := func(env string) models.AgentThunderClient {
 		return models.AgentThunderClient{
 			ID: uuid.New(), OUID: "org-a", ProjectName: "project-a", AgentName: "agent-a",
-			EnvironmentName: env, PromotionSource: source, ProvisioningType: ownership,
+			EnvironmentName: env, ProvisioningType: ownership,
 			ThunderAgentID: "agent-id-" + env, ThunderClientID: "client-" + env, SecretRefPath: "ref-" + env,
 		}
 	}
 	return &cpDeleteFixture{
 		t:         t,
 		deleteErr: map[string]error{},
-		// The source is deliberately not first, to prove ordering is by role.
 		seed: []models.AgentThunderClient{
-			binding("stage", "development"),
-			binding("development", ""),
-			binding("production", "stage"),
+			binding("stage"),
+			binding("development"),
+			binding("production"),
 		},
 	}
 }
@@ -148,7 +146,7 @@ func (f *cpDeleteFixture) service(
 	resolver *clientmocks.EnvThunderResolverMock, mode thundersvc.IdentityManagementMode, provider ProjectAgentIdentityProvider,
 ) AgentThunderProvisioningService {
 	f.t.Helper()
-	svc := NewAgentThunderProvisioningService(f.repo(), resolver, f.store(), nil, slog.New(slog.NewTextHandler(&f.logs, nil)))
+	svc := NewAgentThunderProvisioningService(f.repo(), resolver, f.store(), slog.New(slog.NewTextHandler(&f.logs, nil)))
 	require.NoError(f.t, svc.(ProjectAgentIdentityProviderSetter).SetProjectAgentIdentityProvider(mode, provider))
 	return svc
 }
@@ -161,15 +159,15 @@ func (f *cpDeleteFixture) providerEnvs() []string {
 	return envs
 }
 
-func TestDeleteAllBindingsCPManagedDeletesSourceFirstThenPromotedInOrder(t *testing.T) {
+func TestDeleteAllBindingsCPManagedDeletesInSnapshotOrder(t *testing.T) {
 	f := newCPDeleteFixture(t, models.AgentProvisioningTypeInternal)
 	svc := f.service(f.failIfUsedResolver(), thundersvc.IdentityManagementCPManaged, f.deletionProvider())
 
 	svc.DeleteAllBindings(context.Background(), "org-a", "project-a", "agent-a")
 
-	require.Equal(t, []string{"development", "stage", "production"}, f.providerEnvs())
+	require.Equal(t, []string{"stage", "development", "production"}, f.providerEnvs())
 	for _, r := range f.requests {
-		assert.Equal(t, r.Environment == "development", r.Source, "only the source request is flagged Source: %s", r.Environment)
+		assert.True(t, r.Source, r.Environment)
 		assert.Equal(t, "org-a", r.OrganizationID)
 		assert.Equal(t, "project-a", r.ProjectID)
 		assert.Equal(t, "project-a", r.ProjectName)
@@ -180,27 +178,7 @@ func TestDeleteAllBindingsCPManagedDeletesSourceFirstThenPromotedInOrder(t *test
 	assert.Equal(t, "db-delete", f.events[0], "rows are deleted before any external call")
 }
 
-func TestDeleteAllBindingsCPManagedSourceFailureSkipsPromotedDeletions(t *testing.T) {
-	f := newCPDeleteFixture(t, models.AgentProvisioningTypeInternal)
-	f.deleteErr["development"] = errors.New("control plane unavailable")
-	svc := f.service(f.failIfUsedResolver(), thundersvc.IdentityManagementCPManaged, f.deletionProvider())
-
-	require.NotPanics(t, func() { svc.DeleteAllBindings(context.Background(), "org-a", "project-a", "agent-a") })
-
-	assert.Equal(t, []string{"development"}, f.providerEnvs(), "no promoted AgentID is removed while the source one remains")
-	assert.Contains(t, f.events, "secret-delete:stage", "secret cleanup still runs for the skipped environments")
-	assert.Contains(t, f.events, "secret-delete:production")
-
-	// One line names every AgentID left behind: the source and both skipped ones.
-	logs := f.logs.String()
-	assert.Equal(t, 1, strings.Count(logs, "need manual cleanup"), "exactly one leftover line per agent")
-	assert.Contains(t, logs, "level=ERROR")
-	for _, leftover := range []string{"development=agent-id-development", "stage=agent-id-stage", "production=agent-id-production"} {
-		assert.Contains(t, logs, leftover)
-	}
-}
-
-func TestDeleteAllBindingsCPManagedLogsPromotedDeletionFailureAsLeftover(t *testing.T) {
+func TestDeleteAllBindingsCPManagedLogsADeletionFailureAsLeftover(t *testing.T) {
 	f := newCPDeleteFixture(t, models.AgentProvisioningTypeInternal)
 	f.deleteErr["stage"] = errors.New("stage unavailable")
 	svc := f.service(f.failIfUsedResolver(), thundersvc.IdentityManagementCPManaged, f.deletionProvider())
@@ -213,14 +191,14 @@ func TestDeleteAllBindingsCPManagedLogsPromotedDeletionFailureAsLeftover(t *test
 	assert.Contains(t, logs, "stage=agent-id-stage")
 }
 
-func TestDeleteAllBindingsCPManagedPromotedFailureDoesNotStopTheRest(t *testing.T) {
+func TestDeleteAllBindingsCPManagedFailureDoesNotStopTheRest(t *testing.T) {
 	f := newCPDeleteFixture(t, models.AgentProvisioningTypeInternal)
 	f.deleteErr["stage"] = errors.New("stage unavailable")
 	svc := f.service(f.failIfUsedResolver(), thundersvc.IdentityManagementCPManaged, f.deletionProvider())
 
 	svc.DeleteAllBindings(context.Background(), "org-a", "project-a", "agent-a")
 
-	assert.Equal(t, []string{"development", "stage", "production"}, f.providerEnvs())
+	assert.Equal(t, []string{"stage", "development", "production"}, f.providerEnvs())
 }
 
 func TestDeleteAllBindingsCPManagedWithoutDeletionProviderFailsClosedButCleansSecrets(t *testing.T) {
@@ -263,7 +241,7 @@ func TestDeleteAllBindingsCPManagedExternalAgentsUseTheSameProviderPath(t *testi
 
 	svc.DeleteAllBindings(context.Background(), "org-a", "project-a", "agent-a")
 
-	assert.Equal(t, []string{"development", "stage", "production"}, f.providerEnvs())
+	assert.Equal(t, []string{"stage", "development", "production"}, f.providerEnvs())
 	assert.True(t, f.requests[0].Source)
 	for _, e := range f.events {
 		assert.NotContains(t, e, "secret-delete", "external agents store no secret, so none is deleted")

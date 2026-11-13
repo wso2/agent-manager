@@ -28,7 +28,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
 	"github.com/wso2/agent-manager/agent-manager-service/eventhub"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
@@ -91,7 +90,7 @@ func newAgentArtifactDeletionFixture(t *testing.T, artifacts map[string]uuid.UUI
 	f.hub.onPublish = func() { f.steps = append(f.steps, "broadcast") }
 
 	// OpenChoreo is not consulted: the artifacts themselves say which environments to clear.
-	oc := &clientmocks.OpenChoreoClientMock{}
+	oc := &repomocks.PlatformRepositoryMock{}
 	stored := []*models.Artifact{{UUID: uuid.New(), Handle: agentEnvAPIArtifactHandle("proj", "agent-2", "env-dev"), Kind: models.KindAgent}}
 	for env, id := range artifacts {
 		handle := agentEnvAPIArtifactHandle("proj", "agent", f.env(env).String())
@@ -186,8 +185,7 @@ func newAgentArtifactDeletionFixture(t *testing.T, artifacts map[string]uuid.UUI
 	events := NewGatewayEventsService(f.hub)
 	publisher := withA2ACore(NewA2APublisher(sentinelTx, pubRepo, proxyRepo, cardRepo, artifactRepo, deploymentRepo,
 		testLogger(), NewAgentExposurePublisher(sentinelTx, pubRepo, artifactRepo, deploymentRepo, gatewayRepo, nil, testLogger()), nil), f.hub)
-	f.svc = NewAgentManagerService(nil, oc, nil, nil, nil, nil, nil, nil, artifactRepo, nil, gatewayRepo, nil, nil, nil, nil, nil,
-		nil, publisher, cardRepo, deploymentRepo, events, publisher.exposure, nil, testLogger()).(*agentManagerService)
+	f.svc = NewAgentManagerService(nil, oc, nil, nil, nil, artifactRepo, nil, gatewayRepo, nil, nil, nil, publisher, cardRepo, deploymentRepo, events, publisher.exposure, testLogger()).(*agentManagerService)
 	return f
 }
 

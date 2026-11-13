@@ -1,64 +1,50 @@
 name: Bring up AMP dev stack (build-from-source)
 description: >
-  Stands up the full AMP platform on k3d from the working tree — building the
-  agent-manager-service, agent-manager-observer, and
-  python-instrumentation-provider images from source and loading them into
-  k3d (NOT the released images quick-start/install.sh uses). This is what
-  lets the instrumentation matrix's heavy tier validate the *current* PR's
-  observer + instrumentation changes end to end.
+  Stands up AMP Lite with Docker Compose (deployments/standalone) from the
+  working tree — building the agent-manager-service and agent-manager-observer
+  images from source (NOT released images), so jobs validate the current PR's
+  API and observer changes end to end. No Kubernetes, Helm or port-forwards:
+  the API is on :9000, the observer on :9098, ThunderID on
+  thunder.amp.localhost:8080 and the AI Gateway on :19080
+  (default-default.gateway.localhost).
 
-  Mirrors the local `make setup` chain, minus Colima (macOS-only) and the
-  console (UI, not needed by the heavy tier).
+  The console image is skipped unless `console` is true.
+inputs:
+  console:
+    description: Also build and start the console (nginx image on :3000).
+    required: false
+    default: "false"
 runs:
   using: composite
   steps:
-    - uses: ./.github/actions/setup-go
-    # setup-platform.sh gates on a minimum Node patch release, which the
-    # runner image's preinstalled Node doesn't always meet.
-    - uses: actions/setup-node@v6
-      with:
-        node-version: "26.12.1"
-    - name: Install cluster CLIs (deployments/setup/cluster-tools.env)
-      uses: ./.github/actions/setup-cluster-clis
-    - name: Install yq
-      shell: bash
-      run: |
-        curl -fsSL -o /tmp/yq https://github.com/mikefarah/yq/releases/download/v4.45.4/yq_linux_amd64
-        echo "b96de04645707e14a12f52c37e6266832e03c29e95b9b139cddcae7314466e69  /tmp/yq" | sha256sum -c -
-        sudo install /tmp/yq /usr/local/bin/yq
-    # The Dockerfiles the setup chain below builds.
+    # The Dockerfiles the stack builds.
     - name: Cache base images
       uses: ./.github/actions/cache-base-images
       with:
         dockerfiles: |
+          agent-manager-service/Dockerfile
           agent-manager-observer/Dockerfile
-          agent-manager-service/Dockerfile.dev
-          evaluation-job/Dockerfile.dev
     - name: Bring up AMP (build-from-source)
       shell: bash
+      env:
+        WITH_CONSOLE: ${{ inputs.console }}
       run: |
         set -euo pipefail
-        # k3d cluster + prerequisites (Gateway API, cert-manager, …)
-        make setup-k3d
-        # OpenChoreo + builds & loads amp-observer + instrumentation images
-        # from source into k3d.
-        make setup-openchoreo
-        # Agent Sandbox module: installs the SandboxTemplate CRDs and the
-        # openchoreo-agent-sandbox-access ClusterRole. Without it the
-        # cluster-agent-dataplane service account cannot patch the
-        # SandboxTemplate every agent deploy now renders, so every deploy
-        # 403s. Part of the local `make setup` chain; must run after
-        # setup-openchoreo (needs the openchoreo-data-plane namespace).
-        make setup-sandbox
-        # Build + start the core platform (agent-manager-service via compose).
-        # setup-platform seeds agent-manager-service/.env from the tracked
-        # example, runs DB migrations against the compose-exposed Postgres, and
-        # only then starts the service — so it boots cleanly against a migrated
-        # schema with no extra host-side migrate/restart needed here.
-        make setup-platform
-        # Expose AMP API (9000) + amp-observer (9098). Bind 0.0.0.0 so the
-        # agent-manager container can reach the forwards via the bridge gateway
-        # (a 127.0.0.1-only forward is unreachable from inside the container).
-        (cd deployments/setup && PORT_FORWARD_ADDRESS=0.0.0.0 ./port-forward.sh --platform --background)
-        make setup-gateway
-        (cd deployments/setup && PORT_FORWARD_ADDRESS=0.0.0.0 ./port-forward.sh --background)
+        cd deployments/standalone
+        cp .env.example .env
+        export COMPOSE_FILE=docker-compose.yml:docker-compose.build.yml
+        # OpenSearch refuses to start below this on Linux hosts.
+        sudo sysctl -w vm.max_map_count=262144
+        services=(amp-api amp-observer)
+        scale=(--scale amp-console=0)
+        if [ "$WITH_CONSOLE" = "true" ]; then
+          services+=(amp-console)
+          scale=()
+        fi
+        docker compose build "${services[@]}"
+        if ! docker compose up -d --wait --wait-timeout 600 "${scale[@]}"; then
+          docker compose ps -a
+          docker compose logs --tail 200
+          exit 1
+        fi
+        docker compose ps -a

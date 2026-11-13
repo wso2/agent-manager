@@ -16,22 +16,11 @@
  * under the License.
  */
 
-import { type AgentPathParams, type BuildPathParams } from "./common";
+import { type AgentPathParams } from "./common";
 import { type TraceListTimeRange } from "./traces";
 
 // Common Log Types
 export type LogLevel = "DEBUG" | "INFO" | "WARN" | "ERROR";
-
-// Build Logs
-export interface BuildLogEntry {
-  timestamp: string; // ISO date-time
-  log: string;
-  logLevel: LogLevel;
-}
-
-export interface BuildLogsResponse {
-  logs: BuildLogEntry[];
-}
 
 // Runtime Logs Request - supports either timeRange OR custom startTime/endTime
 export interface LogFilterRequest {
@@ -60,5 +49,4 @@ export interface LogsResponse {
 }
 
 // Path/Query helpers
-export type GetBuildLogsPathParams = BuildPathParams;
 export type FilterAgentRuntimeLogsPathParams = AgentPathParams;

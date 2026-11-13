@@ -24,14 +24,13 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
-	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/workloadpolicy"
 )
 
 func TestMonitorScheduler_SuspensionPreservesSchedule(t *testing.T) {
-	scheduler := NewMonitorSchedulerService(&clientmocks.OpenChoreoClientMock{}, &fakeProvisioner{}, discardLogger(), &fakeMonitorExecutor{}, &repomocks.MonitorRepositoryMock{}, NoopMonitorRunObserver{}).(*monitorSchedulerService)
+	scheduler := NewMonitorSchedulerService(&fakeProvisioner{}, discardLogger(), &fakeMonitorExecutor{}, &repomocks.MonitorRepositoryMock{}, NoopMonitorRunObserver{}).(*monitorSchedulerService)
 	due := time.Now().Add(-time.Hour)
 	interval := 15
 	monitor := &models.Monitor{OUID: "org-a", Name: "scheduled", IntervalMinutes: &interval, NextRunTime: &due}
@@ -45,14 +44,14 @@ func TestMonitorScheduler_SuspensionPreservesSchedule(t *testing.T) {
 }
 
 func TestMonitorScheduler_AdmissionFailureDoesNotRun(t *testing.T) {
-	scheduler := NewMonitorSchedulerService(&clientmocks.OpenChoreoClientMock{}, &fakeProvisioner{}, discardLogger(), &fakeMonitorExecutor{}, &repomocks.MonitorRepositoryMock{}, NoopMonitorRunObserver{}).(*monitorSchedulerService)
+	scheduler := NewMonitorSchedulerService(&fakeProvisioner{}, discardLogger(), &fakeMonitorExecutor{}, &repomocks.MonitorRepositoryMock{}, NoopMonitorRunObserver{}).(*monitorSchedulerService)
 	unavailable := errors.New("lifecycle unavailable")
 	ctx := workloadpolicy.WithGuard(context.Background(), func(context.Context, string) error { return unavailable })
 	require.ErrorIs(t, scheduler.triggerMonitor(ctx, &models.Monitor{OUID: "org-a"}), unavailable)
 }
 
 func TestMonitorExecutor_SuspensionBeforeLLMOrWorkflow(t *testing.T) {
-	executor := NewMonitorExecutor(nil, discardLogger(), nil, nil, nil, nil, nil, nil, nil, nil)
+	executor := NewMonitorExecutor(discardLogger(), nil, nil, nil, nil, nil, nil, nil, nil)
 	ctx := workloadpolicy.WithGuard(context.Background(), func(context.Context, string) error { return workloadpolicy.ErrSuspended })
 	_, err := executor.ExecuteMonitorRun(ctx, ExecuteMonitorRunParams{OUID: "org-a", Monitor: &models.Monitor{ID: uuid.New()}})
 	require.ErrorIs(t, err, workloadpolicy.ErrSuspended)

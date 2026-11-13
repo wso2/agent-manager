@@ -8,7 +8,6 @@ ARG VERSION=dev
 WORKDIR /app
 
 COPY go.mod go.sum ./
-COPY clients/openchoreosvc/auth ./clients/openchoreosvc/auth 
 
 # Get dependencies - will also be cached if we won't change mod/sum
 RUN go mod download
@@ -33,14 +32,11 @@ RUN apk add --no-cache 'ca-certificates>=20261020' 'ca-certificates-bundle>=2026
 # Create a non-root user/group (UID:GID = 1000:1000)
 RUN addgroup -g 1000 app && adduser -D -u 1000 -G app app
 
-# Create directory for schema files, keys, certificates and resources
-RUN mkdir -p /app/clients/openchoreosvc/client /app/keys /app/data/certs && chown -R 1000:1000 /app
+# Create directories for keys, certificates and the SQLite database
+RUN mkdir -p /app/keys /app/data/certs /var/lib/agent-manager && chown -R 1000:1000 /app /var/lib/agent-manager
 
 # Copy binary with ownership set
 COPY --from=builder --chown=1000:1000 /go/bin/agent-manager-service /go/bin/agent-manager-service
-
-# Copy the default OpenAPI schema file
-COPY --from=builder --chown=1000:1000 /app/clients/openchoreosvc/client/default-openapi-schema.yaml /app/clients/openchoreosvc/client/default-openapi-schema.yaml
 
 # Copy scripts for runtime key generation
 COPY --from=builder --chown=1000:1000 /app/scripts/gen_keys.sh /app/scripts/gen_keys.sh

@@ -18,7 +18,6 @@ package eventhub
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -27,6 +26,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
 	"gorm.io/gorm"
 )
 
@@ -52,23 +52,14 @@ func DefaultSQLBackendConfig() SQLBackendConfig {
 	}
 }
 
-// SQLBackend implements EventHub using SQL polling over PostgreSQL.
+// SQLBackend implements EventHub by polling the gateway_event_states and gateway_events tables.
 type SQLBackend struct {
 	gormDB *gorm.DB
-	db     *sql.DB
 	logger *slog.Logger
 	config SQLBackendConfig
 	clock  func() time.Time
 
 	registry *gatewayRegistry
-
-	stmtMu                   sync.RWMutex
-	upsertGatewayStmt        *sql.Stmt
-	getGatewayStateStmt      *sql.Stmt
-	getGatewayStatesPageStmt *sql.Stmt
-	getEventsStmt            *sql.Stmt // cold start: all events for a gateway
-	getEventsAfterCursorStmt *sql.Stmt // resume: seq > ?
-	cleanupEventsStmt        *sql.Stmt
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -77,17 +68,11 @@ type SQLBackend struct {
 
 var _ EventHub = (*SQLBackend)(nil)
 
-// NewSQLBackend creates a new SQL-backed EventHub for PostgreSQL. Publishes run on db, so a caller's GORM
-// transaction can carry them.
+// NewSQLBackend creates a new SQL-backed EventHub. Publishes run on db, so a caller's GORM transaction can carry them.
 func NewSQLBackend(db *gorm.DB, logger *slog.Logger, config SQLBackendConfig) (*SQLBackend, error) {
-	sqlDB, err := db.DB()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get the event hub's sql.DB: %w", err)
-	}
 	ctx, cancel := context.WithCancel(context.Background())
 	return &SQLBackend{
 		gormDB:   db,
-		db:       sqlDB,
 		logger:   logger,
 		config:   config,
 		clock:    time.Now,
@@ -97,102 +82,56 @@ func NewSQLBackend(db *gorm.DB, logger *slog.Logger, config SQLBackendConfig) (*
 	}, nil
 }
 
-// rebind replaces ? placeholders with $1, $2, ... for PostgreSQL.
-func rebind(query string) string {
-	var buf strings.Builder
-	n := 1
-	for i := 0; i < len(query); i++ {
-		if query[i] == '?' {
-			fmt.Fprintf(&buf, "$%d", n)
-			n++
-		} else {
-			buf.WriteByte(query[i])
-		}
-	}
-	return buf.String()
+// eventStateRow is a gateway's row in gateway_event_states.
+type eventStateRow struct {
+	GatewayID string    `gorm:"column:gateway_id;primaryKey"`
+	OrgID     string    `gorm:"column:org_id"`
+	VersionID *string   `gorm:"column:version_id"`
+	Seq       int64     `gorm:"column:seq"`
+	UpdatedAt time.Time `gorm:"column:updated_at"`
 }
 
-func (b *SQLBackend) closeStatements() {
-	for _, stmt := range []*sql.Stmt{
-		b.upsertGatewayStmt,
-		b.getGatewayStateStmt,
-		b.getGatewayStatesPageStmt,
-		b.getEventsStmt,
-		b.getEventsAfterCursorStmt,
-		b.cleanupEventsStmt,
-	} {
-		if stmt != nil {
-			_ = stmt.Close()
-		}
-	}
+func (eventStateRow) TableName() string { return "gateway_event_states" }
+
+// eventRow is one row of gateway_events.
+type eventRow struct {
+	ID           string    `gorm:"column:id;primaryKey"`
+	OrgID        string    `gorm:"column:org_id"`
+	GatewayID    string    `gorm:"column:gateway_id"`
+	Seq          int64     `gorm:"column:seq"`
+	EntityType   string    `gorm:"column:entity_type"`
+	Action       string    `gorm:"column:action"`
+	EntityID     string    `gorm:"column:entity_id"`
+	EventData    string    `gorm:"column:event_data"`
+	OriginatedAt time.Time `gorm:"column:originated_at"`
+	ProcessedAt  time.Time `gorm:"column:processed_at"`
 }
 
-func (b *SQLBackend) prepareStatements() (err error) {
-	defer func() {
-		if err != nil {
-			b.closeStatements()
-		}
-	}()
+func (eventRow) TableName() string { return "gateway_events" }
 
-	// upsertGatewayStmt ensures the gateway row exists before inserting an event.
-	// ON CONFLICT DO NOTHING is safe: if the row already exists we leave version_id
-	// untouched; the subsequent UPDATE will bump it.
-	b.upsertGatewayStmt, err = b.db.Prepare(rebind(`
-		INSERT INTO eventhub_gateway_states (gateway_id, version_id) VALUES (?, '')
-		ON CONFLICT (gateway_id) DO NOTHING`))
-	if err != nil {
-		return fmt.Errorf("prepare upsert gateway: %w", err)
+// ensureGatewayState creates the gateway's state row if it has none, taking its organization from the gateway.
+func ensureGatewayState(tx *gorm.DB, gatewayID string, now time.Time) (string, error) {
+	var gw struct{ OrgID string }
+	if err := tx.Table("gateways").Select("org_id").Where("id = ?", gatewayID).Take(&gw).Error; err != nil {
+		return "", fmt.Errorf("gateway %q: %w", gatewayID, err)
 	}
-
-	b.getGatewayStateStmt, err = b.db.Prepare(rebind(`
-		SELECT gateway_id, version_id, updated_at FROM eventhub_gateway_states WHERE gateway_id = ?`))
-	if err != nil {
-		return fmt.Errorf("prepare get gateway state: %w", err)
+	if _, err := dbx.InsertIfAbsent(tx, &eventStateRow{GatewayID: gatewayID, OrgID: gw.OrgID, UpdatedAt: now}); err != nil {
+		return "", err
 	}
+	return gw.OrgID, nil
+}
 
-	b.getGatewayStatesPageStmt, err = b.db.Prepare(rebind(`
-		SELECT gateway_id, version_id, updated_at
-		FROM eventhub_gateway_states
-		WHERE gateway_id > ?
-		ORDER BY gateway_id ASC
-		LIMIT ?`))
-	if err != nil {
-		return fmt.Errorf("prepare get gateway states page: %w", err)
+// eventUUID is the event's id as stored: the id itself when it is a UUID, else a UUID derived from it, so a
+// re-published event still deduplicates.
+func eventUUID(eventID string) string {
+	if id, err := uuid.Parse(eventID); err == nil {
+		return id.String()
 	}
-
-	b.getEventsStmt, err = b.db.Prepare(rebind(`
-		SELECT gateway_id, processed_timestamp, originated_timestamp, entity_type, action, entity_id, event_id, event_data, seq
-		FROM eventhub_events
-		WHERE gateway_id = ?
-		ORDER BY seq`))
-	if err != nil {
-		return fmt.Errorf("prepare get events: %w", err)
-	}
-
-	b.getEventsAfterCursorStmt, err = b.db.Prepare(rebind(`
-		SELECT gateway_id, processed_timestamp, originated_timestamp, entity_type, action, entity_id, event_id, event_data, seq
-		FROM eventhub_events
-		WHERE gateway_id = ? AND seq > ?
-		ORDER BY seq`))
-	if err != nil {
-		return fmt.Errorf("prepare get events after cursor: %w", err)
-	}
-
-	b.cleanupEventsStmt, err = b.db.Prepare(rebind(`
-		DELETE FROM eventhub_events WHERE processed_timestamp < ?`))
-	if err != nil {
-		return fmt.Errorf("prepare cleanup events: %w", err)
-	}
-
-	return nil
+	return uuid.NewSHA1(uuid.NameSpaceOID, []byte(eventID)).String()
 }
 
 // Initialize prepares statements and starts background goroutines.
 func (b *SQLBackend) Initialize() error {
-	if err := b.prepareStatements(); err != nil {
-		return fmt.Errorf("failed to prepare statements: %w", err)
-	}
-
 	if b.config.PollInterval <= 0 {
 		return fmt.Errorf("invalid config: poll_interval must be > 0, got %s", b.config.PollInterval)
 	}
@@ -231,7 +170,7 @@ func (b *SQLBackend) RegisterGateway(gatewayID string) error {
 		return err
 	}
 
-	if _, err := b.upsertGatewayStmt.Exec(gatewayID); err != nil {
+	if _, err := ensureGatewayState(b.gormDB.WithContext(b.ctx), gatewayID, dbx.Now()); err != nil {
 		return fmt.Errorf("failed to register gateway: %w", err)
 	}
 
@@ -273,35 +212,40 @@ func (b *SQLBackend) PublishEventTx(ctx context.Context, tx *gorm.DB, gatewayID 
 	}
 	tx = tx.WithContext(ctx)
 
+	now := dbx.Now()
+
 	// Gateways that predate the event hub, or that get events before their first connection (API keys provisioned
 	// at agent creation), have no state row yet.
-	if err := tx.Exec(`INSERT INTO eventhub_gateway_states (gateway_id, version_id) VALUES (?, '')
-		ON CONFLICT (gateway_id) DO NOTHING`, gatewayID).Error; err != nil {
+	orgID, err := ensureGatewayState(tx, gatewayID, now)
+	if err != nil {
 		return fmt.Errorf("failed to ensure gateway registered: %w", err)
 	}
 
-	// The sequence number is taken under the row lock that orders this gateway's commits, so the poller's seq
-	// cursor follows commit order whatever the clocks say.
-	var seq int64
-	bump := tx.Raw(`UPDATE eventhub_gateway_states SET seq = seq + 1, version_id = ?, updated_at = CURRENT_TIMESTAMP
-		WHERE gateway_id = ? RETURNING seq`, uuid.New().String(), gatewayID).Scan(&seq)
+	// The sequence number is taken under the row lock that this update holds until the caller commits, so the
+	// poller's seq cursor follows commit order whatever the clocks say.
+	bump := tx.Model(&eventStateRow{}).Where("gateway_id = ?", gatewayID).Updates(map[string]any{
+		"seq": gorm.Expr("seq + 1"), "version_id": uuid.New().String(), "updated_at": now,
+	})
 	if bump.Error != nil {
 		return fmt.Errorf("failed to update gateway version: %w", bump.Error)
 	}
 	if bump.RowsAffected == 0 {
 		return fmt.Errorf("gateway %q is not registered", gatewayID)
 	}
-
-	insert := tx.Exec(`INSERT INTO eventhub_events
-		(gateway_id, processed_timestamp, originated_timestamp, entity_type, action, entity_id, event_id, event_data, seq)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT (event_id) DO NOTHING`,
-		gatewayID, b.clock(), event.OriginatedTimestamp, string(event.EventType), event.Action, event.EntityID,
-		eventID, eventData, seq)
-	if insert.Error != nil {
-		return fmt.Errorf("failed to insert event: %w", insert.Error)
+	var state eventStateRow
+	if err := tx.Select("seq").Where("gateway_id = ?", gatewayID).Take(&state).Error; err != nil {
+		return fmt.Errorf("failed to read gateway sequence: %w", err)
 	}
-	if insert.RowsAffected == 0 {
+
+	inserted, err := dbx.InsertIfAbsent(tx, &eventRow{
+		ID: eventUUID(eventID), OrgID: orgID, GatewayID: gatewayID, Seq: state.Seq,
+		EntityType: string(event.EventType), Action: event.Action, EntityID: event.EntityID, EventData: eventData,
+		OriginatedAt: event.OriginatedTimestamp.UTC(), ProcessedAt: b.clock().UTC(),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to insert event: %w", err)
+	}
+	if !inserted {
 		b.logger.Info("Duplicate event, skipping publish",
 			slog.String("gateway_id", gatewayID),
 			slog.String("event_id", eventID))
@@ -434,24 +378,23 @@ func (b *SQLBackend) pollGateways() {
 }
 
 func (b *SQLBackend) getGatewayStatesPage(cursor string, limit int) ([]GatewayState, string, error) {
-	rows, err := b.getGatewayStatesPageStmt.Query(cursor, limit)
-	if err != nil {
+	q := b.gormDB.WithContext(b.ctx).Model(&eventStateRow{})
+	if cursor != "" {
+		q = q.Where("gateway_id > ?", cursor)
+	}
+	var rows []eventStateRow
+	if err := q.Order("gateway_id ASC").Limit(limit).Find(&rows).Error; err != nil {
 		return nil, "", fmt.Errorf("failed to query gateway states page: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
-
-	states := make([]GatewayState, 0, limit)
+	states := make([]GatewayState, 0, len(rows))
 	nextCursor := ""
-	for rows.Next() {
-		var state GatewayState
-		if err := rows.Scan(&state.GatewayID, &state.VersionID, &state.UpdatedAt); err != nil {
-			return nil, "", fmt.Errorf("failed to scan gateway state row: %w", err)
+	for _, r := range rows {
+		version := ""
+		if r.VersionID != nil {
+			version = *r.VersionID
 		}
-		states = append(states, state)
-		nextCursor = state.GatewayID
-	}
-	if err := rows.Err(); err != nil {
-		return nil, "", fmt.Errorf("error iterating gateway state rows: %w", err)
+		states = append(states, GatewayState{GatewayID: r.GatewayID, VersionID: version, UpdatedAt: r.UpdatedAt})
+		nextCursor = r.GatewayID
 	}
 	return states, nextCursor, nil
 }
@@ -480,41 +423,22 @@ func (b *SQLBackend) pollGatewayWithState(gw *gateway, state GatewayState) error
 	// Resume: seq > lastSeq. Sequence numbers are taken under the gateway-state
 	// row lock, so they follow commit order and a later commit never sorts before
 	// the cursor.
-	var rows *sql.Rows
-	var err error
 	resuming := lastSeq > 0
+	q := b.gormDB.WithContext(b.ctx).Where("gateway_id = ?", gw.id)
 	if resuming {
-		rows, err = b.getEventsAfterCursorStmt.Query(gw.id, lastSeq)
-	} else {
-		rows, err = b.getEventsStmt.Query(gw.id)
+		q = q.Where("seq > ?", lastSeq)
 	}
-	if err != nil {
+	var rows []eventRow
+	if err := q.Order("seq").Find(&rows).Error; err != nil {
 		return fmt.Errorf("failed to query events: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
-
-	var events []Event
-	for rows.Next() {
-		var evt Event
-		var eventType string
-		if err := rows.Scan(
-			&evt.GatewayID,
-			&evt.ProcessedTimestamp,
-			&evt.OriginatedTimestamp,
-			&eventType,
-			&evt.Action,
-			&evt.EntityID,
-			&evt.EventID,
-			&evt.EventData,
-			&evt.Seq,
-		); err != nil {
-			return fmt.Errorf("failed to scan event row: %w", err)
-		}
-		evt.EventType = EventType(eventType)
-		events = append(events, evt)
-	}
-	if err := rows.Err(); err != nil {
-		return fmt.Errorf("error iterating event rows: %w", err)
+	events := make([]Event, 0, len(rows))
+	for _, r := range rows {
+		events = append(events, Event{
+			GatewayID: r.GatewayID, ProcessedTimestamp: r.ProcessedAt, OriginatedTimestamp: r.OriginatedAt,
+			EventType: EventType(r.EntityType), Action: r.Action, EntityID: r.EntityID, EventID: r.ID,
+			EventData: r.EventData, Seq: r.Seq,
+		})
 	}
 
 	// Snapshot subscriber count under the read lock so the deduplication decision
@@ -673,12 +597,12 @@ func (b *SQLBackend) cleanupLoop() {
 // CleanUpEvents removes events older than the retention period.
 func (b *SQLBackend) CleanUpEvents() error {
 	cutoff := time.Now().Add(-b.config.RetentionPeriod)
-	result, err := b.cleanupEventsStmt.Exec(cutoff)
-	if err != nil {
-		return fmt.Errorf("failed to clean up events: %w", err)
+	result := b.gormDB.WithContext(b.ctx).Where("processed_at < ?", cutoff.UTC()).Delete(&eventRow{})
+	if result.Error != nil {
+		return fmt.Errorf("failed to clean up events: %w", result.Error)
 	}
-	if affected, _ := result.RowsAffected(); affected > 0 {
-		b.logger.Info("Cleaned up old events", slog.Int64("deleted_count", affected))
+	if result.RowsAffected > 0 {
+		b.logger.Info("Cleaned up old events", slog.Int64("deleted_count", result.RowsAffected))
 	}
 	return nil
 }
@@ -696,10 +620,6 @@ func (b *SQLBackend) Close() error {
 		gw.subscribers = nil
 	}
 	b.registry.mu.Unlock()
-
-	b.stmtMu.Lock()
-	defer b.stmtMu.Unlock()
-	b.closeStatements()
 
 	b.logger.Info("EventHub closed")
 	return nil

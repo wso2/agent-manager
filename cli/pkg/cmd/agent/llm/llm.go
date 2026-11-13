@@ -30,7 +30,7 @@ import (
 )
 
 // NewLLMCmd is the `agent llm` command group for managing an agent's LLM
-// provider configurations per environment, after the agent is created.
+// provider configurations, after the agent is created.
 func NewLLMCmd(f *cmdutil.Factory) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "llm",

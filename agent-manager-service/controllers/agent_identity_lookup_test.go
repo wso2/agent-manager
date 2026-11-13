@@ -66,7 +66,7 @@ func TestAgentRolesInAnEnvironmentWithoutAnIdentityProvider(t *testing.T) {
 	}
 	for name, test := range cases {
 		t.Run(name, func(t *testing.T) {
-			ctrl := NewAgentController(lookupAgentService{err: test.err}, nil, nil)
+			ctrl := NewAgentController(lookupAgentService{err: test.err}, nil)
 			w := httptest.NewRecorder()
 			ctrl.GetAgentRoles(w, agentLookupRequest("/orgs/o1/projects/default/agents/scout-agent/roles"))
 			assert.Equal(t, test.want, w.Code)
@@ -86,7 +86,7 @@ func TestAgentGroupsInAnEnvironmentWithoutAnIdentityProvider(t *testing.T) {
 	}
 	for name, test := range cases {
 		t.Run(name, func(t *testing.T) {
-			ctrl := NewAgentController(lookupAgentService{err: test.err}, nil, nil)
+			ctrl := NewAgentController(lookupAgentService{err: test.err}, nil)
 			w := httptest.NewRecorder()
 			ctrl.GetAgentGroups(w, agentLookupRequest("/orgs/o1/projects/default/agents/scout-agent/groups"))
 			assert.Equal(t, test.want, w.Code)

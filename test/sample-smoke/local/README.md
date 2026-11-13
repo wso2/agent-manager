@@ -2,7 +2,8 @@
 
 This suite covers CrewAI, Customer Support, .NET, Leave Assistant, and Manual
 Instrumentation. A2A, Hotel Booking, Insurance Support, and IT Helpdesk are outside
-this workflow. Existing nightly and platform workflows are unchanged.
+this workflow. Manual Instrumentation's workflow also runs its platform smoke
+(`../manual_instrumentation/`).
 
 Each check installs the sample's PR-head requirements or builds its project,
 starts the real HTTP app, checks readiness, and sends one `/chat` request through

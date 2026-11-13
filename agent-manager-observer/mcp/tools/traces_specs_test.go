@@ -29,7 +29,7 @@ import (
 
 // traceListOptionalParams are the optional inputs list_traces and get_traces share.
 var traceListOptionalParams = []string{
-	"start_time", "end_time", "limit", "sort_order",
+	"environment", "start_time", "end_time", "limit", "sort_order",
 	"status", "min_duration_ms", "min_tokens", "min_span_count", "model", "conversation_id",
 	"tool", "tool_error", "mcp_server", "missing",
 }
@@ -49,7 +49,7 @@ func tracesToolSpecs() []toolTestSpec {
 			name:                "list_traces",
 			descriptionKeywords: []string{"trace"},
 			descriptionMinLen:   20,
-			requiredParams:      []string{"organization", "project", "agent", "environment"},
+			requiredParams:      []string{"organization", "project", "agent"},
 			optionalParams:      append(slices.Clone(traceListOptionalParams), "include_models", "include_tools", "include_mcp_servers", "cursor"),
 			testArgs:            baseTraceArgs,
 		},
@@ -57,13 +57,13 @@ func tracesToolSpecs() []toolTestSpec {
 			name:                "get_traces",
 			descriptionKeywords: []string{"trace", "span"},
 			descriptionMinLen:   20,
-			requiredParams:      []string{"organization", "project", "agent", "environment"},
+			requiredParams:      []string{"organization", "project", "agent"},
 			optionalParams:      traceListOptionalParams,
 			testArgs:            baseTraceArgs,
 		},
 		{
 			// Mirrors REST GetTraceSpans: only organization + trace_id are
-			// required; project/agent/environment are optional scoping filters.
+			// required; project/agent are optional scoping filters.
 			name:                "get_trace_details",
 			descriptionKeywords: []string{"trace", "span"},
 			descriptionMinLen:   20,
@@ -267,7 +267,7 @@ func TestGetTracesLimitClamped(t *testing.T) {
 }
 
 // Verifies that get_trace_details accepts only organization + trace_id (no
-// project/agent/environment), mirroring REST GetTraceSpans, and forwards the
+// project/agent), mirroring REST GetTraceSpans, and forwards the
 // omitted scope filters to the observer as nil rather than empty strings.
 func TestGetTraceDetailsOptionalScope(t *testing.T) {
 	clientSession, fake := setupTestServer(t)
@@ -300,9 +300,11 @@ func TestGetTraceDetailsOptionalScope(t *testing.T) {
 		t.Fatalf("recorded arg has unexpected type %T", args[1])
 	}
 	scope := req.SearchScope
-	if scope.Project != nil || scope.Component != nil || scope.Environment != nil {
-		t.Errorf("expected nil project/agent/environment, got project=%v agent=%v environment=%v",
-			scope.Project, scope.Component, scope.Environment)
+	if scope.Organization != testOrgName {
+		t.Errorf("expected organization %q, got %q", testOrgName, scope.Organization)
+	}
+	if scope.Project != nil || scope.Agent != nil {
+		t.Errorf("expected nil project/agent, got project=%v agent=%v", scope.Project, scope.Agent)
 	}
 }
 

@@ -18,13 +18,13 @@
 
 import { describe, expect, it } from "vitest";
 import { buildAgentCreationPayload } from "./buildAgentPayload";
-import type { AddAgentFormValues } from "../form/schema";
+import type { ConnectAgentFormValues } from "../form/schema";
 import type { OrgProjPathParams } from "@agent-management-platform/types";
 
 const params = { orgName: "org", projName: "proj" } as OrgProjPathParams;
 
 const externalForm = (over: Record<string, unknown> = {}) =>
-  ({ deploymentType: "existing", name: "ext", displayName: "Ext", description: "", ...over } as unknown as AddAgentFormValues);
+  ({ name: "ext", displayName: "Ext", description: "", ...over } as unknown as ConnectAgentFormValues);
 
 describe("buildAgentCreationPayload for an external agent", () => {
   it("sends no subtype; A2A comes from registering a card URL later", () => {

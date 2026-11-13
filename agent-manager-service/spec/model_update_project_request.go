@@ -22,19 +22,18 @@ type UpdateProjectRequest struct {
 	// Display name of the project
 	DisplayName string `json:"displayName"`
 	// Description of the project
-	Description        string `json:"description"`
-	DeploymentPipeline string `json:"deploymentPipeline"`
+	Description        string  `json:"description"`
+	DeploymentPipeline *string `json:"deploymentPipeline,omitempty"`
 }
 
 // NewUpdateProjectRequest instantiates a new UpdateProjectRequest object
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewUpdateProjectRequest(displayName string, description string, deploymentPipeline string) *UpdateProjectRequest {
+func NewUpdateProjectRequest(displayName string, description string) *UpdateProjectRequest {
 	this := UpdateProjectRequest{}
 	this.DisplayName = displayName
 	this.Description = description
-	this.DeploymentPipeline = deploymentPipeline
 	return &this
 }
 
@@ -94,28 +93,36 @@ func (o *UpdateProjectRequest) SetDescription(v string) {
 	o.Description = v
 }
 
-// GetDeploymentPipeline returns the DeploymentPipeline field value
+// GetDeploymentPipeline returns the DeploymentPipeline field value if set, zero value otherwise.
 func (o *UpdateProjectRequest) GetDeploymentPipeline() string {
-	if o == nil {
+	if o == nil || IsNil(o.DeploymentPipeline) {
 		var ret string
 		return ret
 	}
-
-	return o.DeploymentPipeline
+	return *o.DeploymentPipeline
 }
 
-// GetDeploymentPipelineOk returns a tuple with the DeploymentPipeline field value
+// GetDeploymentPipelineOk returns a tuple with the DeploymentPipeline field value if set, nil otherwise
 // and a boolean to check if the value has been set.
 func (o *UpdateProjectRequest) GetDeploymentPipelineOk() (*string, bool) {
-	if o == nil {
+	if o == nil || IsNil(o.DeploymentPipeline) {
 		return nil, false
 	}
-	return &o.DeploymentPipeline, true
+	return o.DeploymentPipeline, true
 }
 
-// SetDeploymentPipeline sets field value
+// HasDeploymentPipeline returns a boolean if a field has been set.
+func (o *UpdateProjectRequest) HasDeploymentPipeline() bool {
+	if o != nil && !IsNil(o.DeploymentPipeline) {
+		return true
+	}
+
+	return false
+}
+
+// SetDeploymentPipeline gets a reference to the given string and assigns it to the DeploymentPipeline field.
 func (o *UpdateProjectRequest) SetDeploymentPipeline(v string) {
-	o.DeploymentPipeline = v
+	o.DeploymentPipeline = &v
 }
 
 func (o UpdateProjectRequest) MarshalJSON() ([]byte, error) {
@@ -130,7 +137,9 @@ func (o UpdateProjectRequest) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
 	toSerialize["displayName"] = o.DisplayName
 	toSerialize["description"] = o.Description
-	toSerialize["deploymentPipeline"] = o.DeploymentPipeline
+	if !IsNil(o.DeploymentPipeline) {
+		toSerialize["deploymentPipeline"] = o.DeploymentPipeline
+	}
 	return toSerialize, nil
 }
 

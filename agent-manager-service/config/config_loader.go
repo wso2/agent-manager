@@ -25,7 +25,6 @@ import (
 	"os"
 	"regexp"
 	"strings"
-	"time"
 
 	"github.com/joho/godotenv"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -78,12 +77,27 @@ func loadEnvs() {
 	config.LogLevel = r.readOptionalString("LOG_LEVEL", "INFO")
 
 	// read database configs
+	// SQLite is the shipped database; a configured DB_HOST without DB_DRIVER still means PostgreSQL, so an install
+	// that names its server is never silently moved to a new empty file.
+	defaultDriver := DBDriverSQLite
+	if strings.TrimSpace(os.Getenv("DB_HOST")) != "" {
+		defaultDriver = DBDriverPostgres
+	}
+	config.Database = DatabaseConfig{
+		Driver:     strings.ToLower(strings.TrimSpace(r.readOptionalString("DB_DRIVER", defaultDriver))),
+		SQLitePath: strings.TrimSpace(r.readOptionalString("DB_PATH", "data/agent-manager.db")),
+	}
+	// The server settings are required only when the database is a server.
+	readServerString := r.readOptionalString
+	if config.Database.Driver == DBDriverPostgres {
+		readServerString = func(key, _ string) string { return r.readRequiredString(key) }
+	}
 	config.POSTGRESQL = POSTGRESQL{
-		Host:     r.readRequiredString("DB_HOST"),
+		Host:     readServerString("DB_HOST", ""),
 		Port:     int(r.readOptionalInt64("DB_PORT", 5432)),
-		User:     r.readRequiredString("DB_USER"),
-		Password: r.readRequiredString("DB_PASSWORD"),
-		DBName:   r.readRequiredString("DB_NAME"),
+		User:     readServerString("DB_USER", ""),
+		Password: readServerString("DB_PASSWORD", ""),
+		DBName:   readServerString("DB_NAME", ""),
 		// Left empty by default so the connection string stays byte-identical to
 		// pre-DB_SSL_MODE builds: pgx applies its libpq-compatible "prefer"
 		// default and still honours PGSSLMODE/PGSSLROOTCERT from the environment.
@@ -121,19 +135,11 @@ func loadEnvs() {
 	config.PackageVersion = r.readOptionalString("AMP_VERSION", Version)
 
 	config.OTEL = OTELConfig{
-		SDKVolumeName: r.readOptionalString("OTEL_SDK_VOLUME_NAME", "otel-tracing-sdk-volume"),
-		SDKMountPath:  r.readOptionalString("OTEL_SDK_MOUNT_PATH", "/otel-tracing-sdk"),
-
-		DefaultInstrumentationVersion: r.readOptionalString("OTEL_DEFAULT_INSTRUMENTATION_VERSION", "0.5.0"),
-
-		InstrumentationExtensionPath: r.readOptionalString("INSTRUMENTATION_EXTENSION_PATH", "/etc/amp/instrumentation-extension.yaml"),
-
 		// Tracing configuration
 		IsTraceContentEnabled: r.readOptionalBool("OTEL_TRACELOOP_TRACE_CONTENT", true),
 
-		// OTLP Exporter configuration. Routed through kgateway by hostname
-		// ("<env>-<org>.gateway.localhost") like agent trace exports, so the
-		// endpoint stays independent of the gateway runtime's namespace.
+		// OTLP Exporter configuration: the AI Gateway's /otel API, addressed by
+		// its vhost ("<env>-<org>.gateway.localhost") like agent trace exports.
 		ExporterEndpoint: r.readOptionalString("OTEL_EXPORTER_OTLP_ENDPOINT", "http://default-default.gateway.localhost:19080/otel"),
 	}
 
@@ -154,6 +160,22 @@ func loadEnvs() {
 
 	config.InstrumentationURL = r.readOptionalString("INSTRUMENTATION_URL", "http://default-default.gateway.localhost:19080/otel")
 	config.DefaultGatewayPort = int(r.readOptionalInt64("DEFAULT_GATEWAY_PORT", 19080))
+	config.DefaultGateway = DefaultGatewayConfig{
+		Name:              strings.TrimSpace(r.readOptionalString("DEFAULT_GATEWAY_NAME", "")),
+		DisplayName:       r.readOptionalString("DEFAULT_GATEWAY_DISPLAY_NAME", "Default AI Gateway"),
+		Vhost:             r.readOptionalString("DEFAULT_GATEWAY_VHOST", ""),
+		FunctionalityType: r.readOptionalString("DEFAULT_GATEWAY_TYPE", "BOTH"),
+		OrgOUID:           r.readOptionalString("DEFAULT_GATEWAY_ORG_OU_ID", "01900000-0000-7000-8000-000000000001"),
+		OrgHandle:         r.readOptionalString("DEFAULT_GATEWAY_ORG_HANDLE", "default"),
+		Token:             strings.TrimSpace(r.readOptionalString("DEFAULT_GATEWAY_TOKEN", "")),
+		TokenFile:         r.readOptionalString("DEFAULT_GATEWAY_TOKEN_FILE", ""),
+	}
+	if g := config.DefaultGateway; g.Name != "" && (g.Vhost == "" || (g.Token == "" && g.TokenFile == "")) {
+		r.errors = append(r.errors, fmt.Errorf(
+			"DEFAULT_GATEWAY_NAME needs DEFAULT_GATEWAY_VHOST and DEFAULT_GATEWAY_TOKEN or DEFAULT_GATEWAY_TOKEN_FILE",
+		))
+	}
+	config.OtelIngest = OtelIngestConfig{UpstreamURL: r.readOptionalString("OTEL_INGEST_UPSTREAM_URL", "")}
 	config.A2ACardFetchDialAddr = r.readOptionalString("A2A_CARD_FETCH_DIAL_ADDR", "")
 	if addr := config.A2ACardFetchDialAddr; addr != "" {
 		if host, port, err := net.SplitHostPort(addr); err != nil {
@@ -179,8 +201,6 @@ func loadEnvs() {
 		DeploymentModel:           r.readOptionalString("AMP_DEPLOYMENT_MODEL", "on-prem"),
 		Environment:               r.readOptionalString("AMP_ENVIRONMENT", ""),
 	}
-	config.ThunderHostBaseDomain = r.readOptionalString("IDP_HOST_BASE_DOMAIN", "amp.localhost")
-	config.ThunderAskSecret = r.readOptionalString("THUNDER_ASK_SECRET", "")
 	config.OAuthAuthorizationServers = r.readOptionalStringList("OAUTH_AUTHORIZATION_SERVERS", "")
 	config.OAuthScopesSupported = r.readOptionalStringList("OAUTH_SCOPES_SUPPORTED", "")
 
@@ -206,7 +226,6 @@ func loadEnvs() {
 		Token: r.readOptionalString("GITHUB_TOKEN", ""),
 	}
 
-	config.GatewayPublicVhostFallback = r.readOptionalBool("GATEWAY_PUBLIC_VHOST_FALLBACK", false)
 	config.EvalJobsUsePublicGatewayURL = r.readOptionalBool("EVAL_JOBS_USE_PUBLIC_GATEWAY_URL", false)
 
 	// Gateway manifest cache backend. "memory" (default) is process-local and only
@@ -222,15 +241,7 @@ func loadEnvs() {
 			TLSEnabled: r.readOptionalBool("GATEWAY_MANIFEST_CACHE_REDIS_TLS_ENABLED", false),
 		},
 	}
-	config.OpenChoreo = OpenChoreoConfig{
-		BaseURL:          r.readRequiredString("OPEN_CHOREO_BASE_URL"),
-		DefaultNamespace: r.readOptionalString("OPEN_CHOREO_DEFAULT_NAMESPACE", "default"),
-		SystemLabelKeyPrefixes: r.readOptionalStringList(
-			"OPEN_CHOREO_SYSTEM_LABEL_KEY_PREFIXES", "openchoreo.dev/",
-		),
-		BuildWorkflowKind: strings.TrimSpace(r.readOptionalString("OPEN_CHOREO_BUILD_WORKFLOW_KIND", "")),
-	}
-	validateOpenChoreoBuildWorkflowKind(config, r)
+	config.OrgNamespace = r.readOptionalString("AMP_ORG_NAMESPACE", "default")
 
 	// Internal Server configuration (for WebSocket and gateway internal APIs)
 	config.InternalServer = InternalServerConfig{
@@ -252,26 +263,7 @@ func loadEnvs() {
 	}
 
 	config.SecretManager = SecretManagerConfig{
-		Provider:                           r.readOptionalString("SECRET_MANAGER_PROVIDER", "openchoreo"),
-		TargetPlaneKind:                    r.readOptionalString("SECRET_MANAGER_TARGET_PLANE_KIND", "ClusterDataPlane"),
-		TargetPlaneName:                    r.readOptionalString("SECRET_MANAGER_TARGET_PLANE_NAME", "default"),
-		RefreshInterval:                    r.readOptionalString("SECRET_MANAGER_REFRESH_INTERVAL", "1h"),
-		AgentIdentityRefreshInterval:       r.readOptionalString("AGENT_IDENTITY_REFRESH_INTERVAL", "10m"),
-		AgentIdentityForceSyncWait:         r.readOptionalString("AGENT_IDENTITY_FORCE_SYNC_WAIT", "20s"),
-		AgentIdentityForceSyncApplyTimeout: r.readOptionalString("AGENT_IDENTITY_FORCE_SYNC_APPLY_TIMEOUT", "2m"),
-	}
-
-	// OpenBao KV store configuration (data plane - for deployment secrets)
-	config.OpenBao = OpenBaoConfig{
-		URL:   r.readOptionalString("OPENBAO_URL", "http://localhost:8200"),
-		Token: r.readOptionalString("OPENBAO_TOKEN", ""),
-		Path:  r.readOptionalString("OPENBAO_PATH", "secret"),
-	}
-
-	// Workflow plane OpenBao KV store configuration (for git secrets)
-	config.WorkflowPlaneOpenBao = OpenBaoConfig{
-		URL:   r.readOptionalString("WORKFLOW_PLANE_OPENBAO_URL", "http://localhost:8200"),
-		Token: r.readOptionalString("WORKFLOW_PLANE_OPENBAO_TOKEN", ""),
+		Provider: r.readOptionalString("SECRET_MANAGER_PROVIDER", "unsupported"),
 	}
 
 	// Thunder admin API configuration for provisioning per-org OAuth apps
@@ -299,14 +291,6 @@ func loadEnvs() {
 		}
 	}
 	validateThunderConfig(config, r)
-
-	config.BuildClient = BuildClientConfig{
-		Enabled: r.readOptionalBool("AMP_BUILD_CLIENT_ENABLED", false),
-		Workflows: r.readOptionalStringList("AMP_BUILD_CLIENT_WORKFLOWS",
-			"amp-docker,amp-ballerina-buildpack,amp-google-cloud-buildpacks"),
-		SecretStore: strings.TrimSpace(r.readOptionalString("AMP_BUILD_CLIENT_SECRET_STORE", "")),
-	}
-	validateBuildClientConfig(config, r)
 
 	config.TLSConfig = TLSConfig{
 		EnableTLS: r.readOptionalBool("TLS_ENABLED", false),
@@ -339,7 +323,8 @@ func loadEnvs() {
 	config.GatewayFailureThresholdSeconds = int(r.readOptionalInt64("GATEWAY_FAILURE_THRESHOLD_SECONDS", 300))
 	if config.GatewayFailureThresholdSeconds <= 0 {
 		r.errors = append(r.errors, fmt.Errorf(
-			"GATEWAY_FAILURE_THRESHOLD_SECONDS must be greater than 0, got %d", config.GatewayFailureThresholdSeconds))
+			"GATEWAY_FAILURE_THRESHOLD_SECONDS must be greater than 0, got %d", config.GatewayFailureThresholdSeconds,
+		))
 	}
 	// 604800 = 7 days. Checked against the staleness threshold rather than only
 	// on its own: co-dependent values are validated together, and an upper bound
@@ -350,7 +335,8 @@ func loadEnvs() {
 		r.errors = append(r.errors, fmt.Errorf(
 			"GATEWAY_FAILURE_MAX_AGE_SECONDS (%d) must be greater than GATEWAY_FAILURE_THRESHOLD_SECONDS (%d), "+
 				"or no gateway can ever be reported as failed",
-			config.GatewayFailureMaxAgeSeconds, config.GatewayFailureThresholdSeconds))
+			config.GatewayFailureMaxAgeSeconds, config.GatewayFailureThresholdSeconds,
+		))
 	}
 	// Both ends are rejected rather than clamped, because either would make the
 	// health verdict a constant: at 0 an empty fleet already reports unhealthy,
@@ -368,7 +354,8 @@ func loadEnvs() {
 		config.GatewayFailurePercentageThreshold > 100 {
 		r.errors = append(r.errors, fmt.Errorf(
 			"GATEWAY_FAILURE_PERCENTAGE_THRESHOLD must be greater than 0 and at most 100, got %v",
-			config.GatewayFailurePercentageThreshold))
+			config.GatewayFailurePercentageThreshold,
+		))
 	}
 
 	// Audit defaults to on. A deployment that wants no audit trail has to say
@@ -432,6 +419,7 @@ func loadEnvs() {
 	validateGrowthAnalyticsConfig(config)
 	validateResourceLimitsConfig(config, r)
 	validateFileMountLimitsConfig(config, r)
+	validateDatabaseConfig(config, r)
 	validatePostgresTLSConfig(config, r)
 	validateSecretManagerConfig(config, r)
 	validateAgentWorkloadCORSConfig(agentWorkloadConfig, r)
@@ -467,19 +455,6 @@ var validPostgresSSLModes = map[string]struct{}{
 // agentIdentityInjectionService's own default at first use (see
 // secretSyncWaitDuration's doc comment).
 func validateSecretManagerConfig(cfg *Config, r *configReader) {
-	validatePositiveDuration(r, "AGENT_IDENTITY_REFRESH_INTERVAL", cfg.SecretManager.AgentIdentityRefreshInterval)
-	validatePositiveDuration(r, "AGENT_IDENTITY_FORCE_SYNC_WAIT", cfg.SecretManager.AgentIdentityForceSyncWait)
-	validatePositiveDuration(r, "AGENT_IDENTITY_FORCE_SYNC_APPLY_TIMEOUT", cfg.SecretManager.AgentIdentityForceSyncApplyTimeout)
-}
-
-func validatePositiveDuration(r *configReader, name, value string) {
-	d, err := time.ParseDuration(value)
-	switch {
-	case err != nil:
-		r.errors = append(r.errors, fmt.Errorf("%s %q is not a valid duration: %w", name, value, err))
-	case d <= 0:
-		r.errors = append(r.errors, fmt.Errorf("%s must be a positive duration, got %q", name, value))
-	}
 }
 
 type positiveField struct {
@@ -496,14 +471,16 @@ func requirePositive(r *configReader, fields ...positiveField) {
 }
 
 func validateDeploymentTimeoutConfig(cfg *Config, r *configReader) {
-	requirePositive(r,
+	requirePositive(
+		r,
 		positiveField{"DEPLOYMENT_TIMEOUT_SWEEP_INTERVAL_SECONDS", cfg.DeploymentTimeout.SweepIntervalSeconds},
 		positiveField{"DEPLOYMENT_TIMEOUT_SECONDS", cfg.DeploymentTimeout.TimeoutSeconds},
 	)
 }
 
 func validateReconcileConfig(cfg *Config, r *configReader) {
-	requirePositive(r,
+	requirePositive(
+		r,
 		positiveField{"RECONCILE_RENDER_INTERVAL_SECONDS", cfg.Reconcile.RenderIntervalSeconds},
 		positiveField{"RECONCILE_PLACE_INTERVAL_SECONDS", cfg.Reconcile.PlaceIntervalSeconds},
 		positiveField{"RECONCILE_DRIFT_INTERVAL_SECONDS", cfg.Reconcile.DriftIntervalSeconds},
@@ -537,6 +514,20 @@ func validateGatewayManifestCacheConfig(cfg *Config, r *configReader) {
 	if strings.TrimSpace(cfg.GatewayManifestCache.Redis.Host) == "" {
 		r.errors = append(r.errors, fmt.Errorf(
 			"GATEWAY_MANIFEST_CACHE_REDIS_HOST is required when GATEWAY_MANIFEST_CACHE_BACKEND=redis",
+		))
+	}
+}
+
+func validateDatabaseConfig(cfg *Config, r *configReader) {
+	switch cfg.Database.Driver {
+	case DBDriverPostgres:
+	case DBDriverSQLite:
+		if cfg.Database.SQLitePath == "" {
+			r.errors = append(r.errors, fmt.Errorf("DB_PATH is required when DB_DRIVER=%s", DBDriverSQLite))
+		}
+	default:
+		r.errors = append(r.errors, fmt.Errorf(
+			"DB_DRIVER %q is not supported (%s, %s)", cfg.Database.Driver, DBDriverPostgres, DBDriverSQLite,
 		))
 	}
 }
@@ -628,35 +619,6 @@ func validateThunderConfig(cfg *Config, r *configReader) {
 	}
 }
 
-// validateBuildClientConfig checks the build-token settings together. A build
-// token is minted with this service's own identity provider client on the
-// organization token endpoint derived from IDP_TOKEN_URL, so enabling it without
-// that client, or with a token URL the endpoint cannot be derived from, would make
-// every build that takes the token fail rather than the service fail at startup;
-// and an empty workflow list would leave the flag on with nothing it could ever
-// apply to.
-func validateBuildClientConfig(cfg *Config, r *configReader) {
-	if !cfg.BuildClient.Enabled {
-		return
-	}
-	if _, err := OrganizationTokenURL(cfg.IDP.TokenURL, "ou"); err != nil {
-		r.errors = append(r.errors, fmt.Errorf("AMP_BUILD_CLIENT_ENABLED requires a usable IDP_TOKEN_URL: %w", err))
-	}
-	if strings.TrimSpace(cfg.IDP.ClientID) == "" || cfg.IDP.ClientSecret == "" {
-		r.errors = append(r.errors, fmt.Errorf("AMP_BUILD_CLIENT_ENABLED requires IDP_CLIENT_ID and IDP_CLIENT_SECRET"))
-	}
-	if len(cfg.BuildClient.Workflows) == 0 {
-		r.errors = append(r.errors, fmt.Errorf("AMP_BUILD_CLIENT_ENABLED requires at least one AMP_BUILD_CLIENT_WORKFLOWS entry"))
-	}
-	if store := cfg.BuildClient.SecretStore; store != "" && !secretStoreNamePattern.MatchString(store) {
-		r.errors = append(r.errors, fmt.Errorf("AMP_BUILD_CLIENT_SECRET_STORE %q is not a valid ClusterSecretStore name", store))
-	}
-}
-
-// secretStoreNamePattern is a Kubernetes object name (RFC 1123 subdomain): what a
-// ClusterSecretStore may be called.
-var secretStoreNamePattern = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$`)
-
 // organizationTokenPathSuffix is the token endpoint path an organization token
 // endpoint is derived from.
 const organizationTokenPathSuffix = "/oauth2/token"
@@ -695,20 +657,6 @@ func OrganizationTokenURL(tokenURL, ouID string) (string, error) {
 	parsed.Path = prefix + "/ou/" + ouID + organizationTokenPathSuffix
 	parsed.RawPath = ""
 	return parsed.String(), nil
-}
-
-// validateOpenChoreoBuildWorkflowKind accepts only the kinds OpenChoreo knows, or
-// empty for "record none". A typo would otherwise reach every new Component's
-// workflow reference and fail its builds rather than the service's startup.
-func validateOpenChoreoBuildWorkflowKind(cfg *Config, r *configReader) {
-	switch cfg.OpenChoreo.BuildWorkflowKind {
-	case "", "Workflow", "ClusterWorkflow":
-	default:
-		r.errors = append(r.errors, fmt.Errorf(
-			"OPEN_CHOREO_BUILD_WORKFLOW_KIND must be empty, \"Workflow\" or \"ClusterWorkflow\", got %q",
-			cfg.OpenChoreo.BuildWorkflowKind,
-		))
-	}
 }
 
 func validateServerPublicURL(cfg *Config, r *configReader) {

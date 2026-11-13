@@ -1,4 +1,4 @@
-# CrewAI Agent - Deployment Guide
+# CrewAI Agent
 
 ## Overview
 
@@ -22,83 +22,33 @@ Python 3.11–3.13. Other samples retain their existing Python 3.10 coverage.
 
 - **OpenAI API Key**: for model inference (the agents use `gpt-4o-mini`)
 
-## Deployment Instructions
+## Register it in Agent Manager
 
-### Step 1: Access Agent Manager
+You run the agent yourself; Agent Manager registers it and issues the token its traces are sent with. Start Agent Manager with `make up` from the repository root (see [`deployments/standalone`](../../deployments/standalone/README.md)), then:
 
-1. Navigate to the **Default** project
-2. Click **"Add Agent"**
-3. Select **Platform-Hosted Agent** Card
+1. Sign in to the console at <http://localhost:3000> as `admin` (the password is `THUNDER_ADMIN_PASSWORD` in `deployments/standalone/.env`).
+2. Open the **Default** project, click **Add Agent**, and register an agent named `CrewAI Agent`.
+3. In the **Set up agent** panel that opens, choose **Python**, pick a token duration and click **Generate**. Copy the `AMP_OTEL_ENDPOINT` and `AMP_AGENT_API_KEY` values it shows.
 
-### Step 2: Configure Agent Details
+## Run it
 
-Fill in the agent creation form with these values:
-
-| Field                 | Value                                     |
-| --------------------- | ----------------------------------------- |
-| **Display Name**      | `CrewAI Agent`                            |
-| **Description**       | `Multi-agent CrewAI sample`               |
-| **GitHub Repository** | `https://github.com/wso2/agent-manager`   |
-| **Branch**            | `main`                                    |
-| **App Path**          | `samples/crewai-agent`                    |
-| **Language**          | `Python`                                  |
-| **Language Version**  | `3.11`                                    |
-| **Start Command**     | `python main.py`                          |
-| **Port**              | `8000`                                    |
-
-### Step 3: Select Agent Interface
-
-- Choose **"Chat Agent"** as the agent interface type
-
-### Step 4: Configure Environment Variables
-
-Add the following environment variables in the create form:
-
-```env
-OPENAI_API_KEY=<your-openai-api-key>
-HOME=/tmp
-CREWAI_STORAGE_DIR=/tmp/crewai
-```
-
-`HOME` and `CREWAI_STORAGE_DIR` are required. CrewAI writes files under `$HOME` when it is first imported, and with auto-instrumentation enabled that import happens at process startup — before the app runs — while the build container's default `HOME` is read-only. Pointing both at a writable path (`/tmp`) avoids a `Read-only file system: '/nonexistent'` crash and the restart loop it causes.
-
-### Step 5: Deploy the Agent
-
-1. Review all configuration details
-2. Click **"Deploy"**
-3. Wait for the build to complete
-
-## Testing Your Agent
-
-### Step 1: Navigate to Chat Interface
-
-Click on the **"Try It"** section on the left navigation.
-
-### Step 2: Test Sample Interactions
-
-Try this question in the chat interface:
-
-```text
-What is the capital of France?
-```
-
-### Step 3: Observe Traces
-
-1. Click on the **"Observability"** tab on the left navigation and select **Traces**
-2. Open a trace to see the two agents and the model call for each interaction
-
-## Run Locally
-
-Use an installed supported interpreter: replace `python3.11` below with
-`python3.12` or `python3.13` as appropriate.
+Use an installed supported interpreter: replace `python3.11` below with `python3.12` or `python3.13` as appropriate.
 
 ```bash
 cd samples/crewai-agent
 python3.11 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-export OPENAI_API_KEY=<your-openai-api-key>
-python main.py    # serves on http://localhost:8000
+pip install -r requirements.txt amp-instrumentation
+
+export AMP_OTEL_ENDPOINT="http://default-default.gateway.localhost:19080/otel"
+export AMP_AGENT_API_KEY="<key-from-the-console>"
+export OPENAI_API_KEY="<your-openai-api-key>"
+
+amp-instrument python main.py    # serves on http://localhost:8000
 ```
+
+Set these as shell variables, not in a `.env` file, so `amp-instrument` can read them. To run it without tracing, leave out `amp-instrument` and the two `AMP_*` variables.
+
+## Try it
 
 ```bash
 curl -s localhost:8000/chat \
@@ -106,8 +56,10 @@ curl -s localhost:8000/chat \
   -d '{"session_id": "s1", "message": "What is the capital of France?"}'
 ```
 
+Then open the agent in the console and go to **Observability → Traces**. Each trace shows the two agents and the model call for the request.
+
 ## Notes
 
 - Pinned to `crewai==1.15.37` for dependency compatibility.
-- Each request's `session_id` is attached to its trace as `traceloop.association.properties.session_id`, so the Traces page's Conversation column shows it and can filter on it. Local runs without the platform's instrumentation skip this.
+- Each request's `session_id` is attached to its trace as `traceloop.association.properties.session_id`, so the Traces page's Conversation column shows it and can filter on it. Runs without `amp-instrument` skip this.
 - The app disables CrewAI's hosted tracing and its interactive trace prompt so it runs non-interactively, and it uses the bundled model pricing data to avoid a network fetch on startup.

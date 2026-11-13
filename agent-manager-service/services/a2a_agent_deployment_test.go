@@ -25,7 +25,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 
-	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 )
 
@@ -36,8 +35,8 @@ func a2aInput() A2AAgentDeploymentInput {
 		AgentName:    "trip-planner",
 		UpstreamURL:  "http://trip-planner.dp-default:9099",
 		Policies: []map[string]interface{}{
-			client.CORSPolicy([]string{"*"}, []string{"GET", "POST", "OPTIONS"}, []string{"Content-Type", "A2A-Version"}, false),
-			client.APIKeyAuthPolicy(),
+			corsPolicy([]string{"*"}, []string{"GET", "POST", "OPTIONS"}, []string{"Content-Type", "A2A-Version"}, false),
+			apiKeyAuthPolicy(),
 		},
 	}
 }

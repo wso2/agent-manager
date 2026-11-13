@@ -27,7 +27,6 @@ import (
 
 	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
 	"github.com/wso2/agent-manager/cli/pkg/clierr"
-	"github.com/wso2/agent-manager/cli/pkg/cmd/agent/modelconfig"
 	"github.com/wso2/agent-manager/cli/pkg/cmdutil"
 	"github.com/wso2/agent-manager/cli/pkg/iostreams"
 	"github.com/wso2/agent-manager/cli/pkg/prompter"
@@ -48,7 +47,6 @@ type UnsetOptions struct {
 	AgentName string
 
 	Name string
-	Env  string
 	Yes  bool
 }
 
@@ -69,11 +67,10 @@ func NewUnsetCmd(f *cmdutil.Factory) *cobra.Command {
 	}
 
 	cmd := &cobra.Command{
-		Use:   "unset [agent] --name <config> [--env <env>]",
+		Use:   "unset [agent] --name <config>",
 		Short: "Remove an MCP proxy binding from an agent",
-		Long: "Without --env, deletes the whole MCP configuration. With --env, " +
-			"removes only that environment's binding and preserves the rest.",
-		Args: cobra.MaximumNArgs(1),
+		Long:  "Deletes the whole MCP configuration.",
+		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			org, proj, err := opts.ResolveScope(cmd, true, true)
 			if err != nil {
@@ -90,7 +87,6 @@ func NewUnsetCmd(f *cmdutil.Factory) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&opts.Name, "name", "", "Name of the MCP configuration (required)")
-	cmd.Flags().StringVar(&opts.Env, "env", "", "Environment binding to remove (default: remove the whole configuration)")
 	cmd.Flags().BoolVarP(&opts.Yes, "yes", "y", false, "Skip confirmation prompt")
 	_ = cmd.MarkFlagRequired("name")
 	return cmd
@@ -100,7 +96,7 @@ func runUnset(ctx context.Context, o *UnsetOptions) error {
 	if err := cmdutil.ValidatePathParam("agent name", o.AgentName); err != nil {
 		return render.Error(o.IO, o.Scope, err)
 	}
-	if o.Env == "" && !o.Yes {
+	if !o.Yes {
 		if !o.IO.CanPrompt() {
 			return render.Error(o.IO, o.Scope, clierr.New(clierr.ConfirmationRequired, "deletion requires --yes when stdin is not a terminal"))
 		}
@@ -122,10 +118,7 @@ func runUnset(ctx context.Context, o *UnsetOptions) error {
 		return render.Error(o.IO, o.Scope, clierr.Newf(clierr.NotFound, "no MCP configuration named %q for agent %q", o.Name, o.AgentName))
 	}
 
-	if o.Env == "" {
-		return runUnsetDelete(ctx, o, client, id)
-	}
-	return runUnsetEnv(ctx, o, client, id)
+	return runUnsetDelete(ctx, o, client, id)
 }
 
 func runUnsetDelete(ctx context.Context, o *UnsetOptions, client *amsvc.ClientWithResponses, id openapi_types.UUID) error {
@@ -143,43 +136,5 @@ func runUnsetDelete(ctx context.Context, o *UnsetOptions, client *amsvc.ClientWi
 	}
 	cs := o.IO.StderrColorScheme()
 	fmt.Fprintf(o.IO.ErrOut, "%s deleted MCP config %q\n", cs.SuccessIcon(), o.Name)
-	return nil
-}
-
-func runUnsetEnv(ctx context.Context, o *UnsetOptions, client *amsvc.ClientWithResponses, id openapi_types.UUID) error {
-	current, err := client.GetAgentMCPConfigWithResponse(ctx, o.Org, o.Proj, o.AgentName, id)
-	if err != nil {
-		return render.Error(o.IO, o.Scope, clierr.Newf(clierr.Transport, "%v", err))
-	}
-	if current.JSON200 == nil {
-		return render.Error(o.IO, o.Scope, cmdutil.ErrorFromServer(current.HTTPResponse,
-			cmdutil.FirstNonNil(current.JSON400, current.JSON404, current.JSON500)))
-	}
-
-	merged := modelconfig.MergeExistingEnvMappings(current.JSON200, toEnvModelConfigRequest)
-	if _, ok := merged[o.Env]; !ok {
-		return render.Error(o.IO, o.Scope, clierr.Newf(clierr.NotFound, "environment %q is not bound on MCP config %q", o.Env, o.Name))
-	}
-	if len(merged) == 1 {
-		return render.Error(o.IO, o.Scope, clierr.Newf(clierr.InvalidFlag,
-			"environment %q is the only binding on MCP config %q; drop --env to delete the whole configuration", o.Env, o.Name))
-	}
-	delete(merged, o.Env)
-
-	resp, err := client.UpdateAgentMCPConfigWithResponse(ctx, o.Org, o.Proj, o.AgentName, id,
-		amsvc.UpdateAgentModelConfigRequest{EnvMappings: &merged})
-	if err != nil {
-		return render.Error(o.IO, o.Scope, clierr.Newf(clierr.Transport, "%v", err))
-	}
-	if resp.JSON200 == nil {
-		return render.Error(o.IO, o.Scope, cmdutil.ErrorFromServer(resp.HTTPResponse,
-			cmdutil.FirstNonNil(resp.JSON400, resp.JSON404, resp.JSON500)))
-	}
-
-	if o.IO.JSON {
-		return render.JSONSuccess(o.IO, o.Scope, resp.JSON200)
-	}
-	cs := o.IO.StderrColorScheme()
-	fmt.Fprintf(o.IO.ErrOut, "%s removed environment %q from MCP config %q\n", cs.SuccessIcon(), o.Env, o.Name)
 	return nil
 }

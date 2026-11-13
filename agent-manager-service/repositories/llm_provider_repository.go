@@ -21,13 +21,12 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 
+	"github.com/wso2/agent-manager/agent-manager-service/db/dberr"
+	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -76,10 +75,14 @@ func (r *LLMProviderRepo) Create(tx *gorm.DB, p *models.LLMProvider, handle, nam
 
 	// Generate UUID if not set
 	if p.UUID == uuid.Nil {
-		p.UUID = uuid.New()
+		p.UUID = uuid.Must(uuid.NewV7())
 		slog.Info("LLMProviderRepo.Create: generated new UUID", "handle", handle, "uuid", p.UUID)
 	}
-	now := time.Now()
+	p.OrgID = orgUUID
+	if p.Status == "" {
+		p.Status = models.StatusCreated
+	}
+	now := dbx.Now()
 
 	// Insert into artifacts table first
 	slog.Info("LLMProviderRepo.Create: creating artifact", "handle", handle, "uuid", p.UUID, "kind", models.KindLLMProvider)
@@ -100,7 +103,7 @@ func (r *LLMProviderRepo) Create(tx *gorm.DB, p *models.LLMProvider, handle, nam
 
 	// Insert into llm_providers table
 	slog.Info("LLMProviderRepo.Create: inserting into llm_providers table", "handle", handle, "uuid", p.UUID)
-	if err := tx.Omit("status").Create(p).Error; err != nil {
+	if err := tx.Omit("Artifact").Create(p).Error; err != nil {
 		slog.Error("LLMProviderRepo.Create: failed to insert provider", "handle", handle, "uuid", p.UUID, "error", err)
 		return err
 	}
@@ -116,8 +119,8 @@ func (r *LLMProviderRepo) GetByUUID(providerID, orgUUID string) (*models.LLMProv
 	var provider models.LLMProvider
 	err := r.db.
 		Preload("Artifact").
-		Joins("JOIN artifacts a ON llm_providers.uuid = a.uuid").
-		Where("a.uuid = ? AND a.ou_id = ? AND a.kind = ?", providerID, orgUUID, models.KindLLMProvider).
+		Joins("JOIN artifacts a ON llm_providers.id = a.id").
+		Where("a.id = ? AND a.org_id = ? AND a.kind = ?", providerID, orgUUID, models.KindLLMProvider).
 		First(&provider).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -144,8 +147,8 @@ func (r *LLMProviderRepo) GetByHandle(handle, orgUUID string) (*models.LLMProvid
 	var provider models.LLMProvider
 	err := r.db.
 		Preload("Artifact").
-		Joins("JOIN artifacts a ON llm_providers.uuid = a.uuid").
-		Where("a.handle = ? AND a.ou_id = ? AND a.kind = ?", handle, orgUUID, models.KindLLMProvider).
+		Joins("JOIN artifacts a ON llm_providers.id = a.id").
+		Where("a.handle = ? AND a.org_id = ? AND a.kind = ?", handle, orgUUID, models.KindLLMProvider).
 		First(&provider).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -171,8 +174,8 @@ func (r *LLMProviderRepo) List(orgUUID string, limit, offset int) ([]*models.LLM
 	var providers []*models.LLMProvider
 	err := r.db.
 		Preload("Artifact").
-		Joins("JOIN artifacts a ON llm_providers.uuid = a.uuid").
-		Where("a.ou_id = ? AND a.kind = ?", orgUUID, models.KindLLMProvider).
+		Joins("JOIN artifacts a ON llm_providers.id = a.id").
+		Where("a.org_id = ? AND a.kind = ?", orgUUID, models.KindLLMProvider).
 		Order("a.created_at DESC").
 		Limit(limit).
 		Offset(offset).
@@ -213,13 +216,13 @@ func (r *LLMProviderRepo) Update(ctx context.Context, p *models.LLMProvider, pro
 		// Update llm_providers table
 		slog.Info("LLMProviderRepo.Update: updating provider fields", "handle", providerID)
 		result := tx.Model(&models.LLMProvider{}).
-			Where("uuid = ?", providerID).
+			Where("id = ?", providerID).
 			Updates(map[string]any{
 				"description":     p.Description,
 				"template_handle": p.TemplateHandle,
 				"openapi_spec":    p.OpenAPISpec,
 				"model_list":      p.ModelList,
-				"configuration":   p.Configuration,
+				"configuration":   dbx.JSON(p.Configuration),
 			})
 
 		if result.Error != nil {
@@ -254,7 +257,7 @@ func (r *LLMProviderRepo) Update(ctx context.Context, p *models.LLMProvider, pro
 // HasAssociatedProxies reports whether any LLM proxy still references the given provider.
 func (r *LLMProviderRepo) HasAssociatedProxies(ctx context.Context, providerUUID uuid.UUID) (bool, error) {
 	var count int64
-	if err := r.db.WithContext(ctx).Table("llm_proxies").Where("provider_uuid = ?", providerUUID).Count(&count).Error; err != nil {
+	if err := r.db.WithContext(ctx).Table("llm_proxies").Where("provider_id = ?", providerUUID).Count(&count).Error; err != nil {
 		slog.Error("LLMProviderRepo.HasAssociatedProxies: failed to count associated proxies", "providerUUID", providerUUID, "error", err)
 		return false, err
 	}
@@ -265,11 +268,16 @@ func (r *LLMProviderRepo) HasAssociatedProxies(ctx context.Context, providerUUID
 // on it for the lifetime of tx — see the interface doc comment for why this must run
 // inside the same transaction as the dependent insert it guards.
 func (r *LLMProviderRepo) IsDeletingForUpdate(ctx context.Context, tx *gorm.DB, providerUUID uuid.UUID) (bool, error) {
+	if err := dbx.LockRow(tx.WithContext(ctx), "llm_providers", "status", "id = ?", providerUUID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, utils.ErrLLMProviderNotFound
+		}
+		return false, err
+	}
 	var provider models.LLMProvider
 	err := tx.WithContext(ctx).
-		Clauses(clause.Locking{Strength: "UPDATE", Table: clause.Table{Name: "llm_providers"}}).
 		Select("status").
-		Where("uuid = ?", providerUUID).
+		Where("id = ?", providerUUID).
 		Take(&provider).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -288,7 +296,7 @@ func (r *LLMProviderRepo) IsDeletingForUpdate(ctx context.Context, tx *gorm.DB, 
 // instead of undeploying twice.
 func (r *LLMProviderRepo) MarkDeleting(providerUUID uuid.UUID) (bool, error) {
 	result := r.db.Model(&models.LLMProvider{}).
-		Where("uuid = ? AND status != ?", providerUUID, models.LLMProviderStatusDeleting).
+		Where("id = ? AND status != ?", providerUUID, models.LLMProviderStatusDeleting).
 		Update("status", models.LLMProviderStatusDeleting)
 	if result.Error != nil {
 		slog.Error("LLMProviderRepo.MarkDeleting: failed to mark provider deleting", "providerUUID", providerUUID, "error", result.Error)
@@ -302,7 +310,7 @@ func (r *LLMProviderRepo) MarkDeleting(providerUUID uuid.UUID) (bool, error) {
 // available again for new proxies.
 func (r *LLMProviderRepo) ClearDeleting(providerUUID uuid.UUID) error {
 	if err := r.db.Model(&models.LLMProvider{}).
-		Where("uuid = ? AND status = ?", providerUUID, models.LLMProviderStatusDeleting).
+		Where("id = ? AND status = ?", providerUUID, models.LLMProviderStatusDeleting).
 		Update("status", models.StatusCreated).Error; err != nil {
 		slog.Error("LLMProviderRepo.ClearDeleting: failed to clear deleting flag", "providerUUID", providerUUID, "error", err)
 		return err
@@ -342,10 +350,12 @@ func (r *LLMProviderRepo) DeleteTx(ctx context.Context, tx *gorm.DB, providerID,
 func (r *LLMProviderRepo) deleteIn(tx *gorm.DB, providerUUID uuid.UUID, providerID, orgUUID string) error {
 	// Verify the provider exists and belongs to the organization
 	slog.Info("LLMProviderRepo.Delete: verifying provider exists", "providerID", providerID, "uuid", providerUUID, "orgUUID", orgUUID)
-	var artifact struct{ UUID uuid.UUID }
+	var artifact struct {
+		UUID uuid.UUID `gorm:"column:id"`
+	}
 	result := tx.Table("artifacts").
-		Select("uuid").
-		Where("uuid = ? AND ou_id = ? AND kind = ?", providerUUID, orgUUID, models.KindLLMProvider).
+		Select("id").
+		Where("id = ? AND org_id = ? AND kind = ?", providerUUID, orgUUID, models.KindLLMProvider).
 		Take(&artifact)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
@@ -359,10 +369,9 @@ func (r *LLMProviderRepo) deleteIn(tx *gorm.DB, providerUUID uuid.UUID, provider
 	slog.Info("LLMProviderRepo.Delete: provider verified", "providerID", providerID, "uuid", providerUUID)
 
 	slog.Info("LLMProviderRepo.Delete: deleting from llm_providers table", "providerID", providerID, "uuid", providerUUID)
-	if err := tx.Where("uuid = ?", providerUUID).Delete(&models.LLMProvider{}).Error; err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == "23503" {
-			slog.Warn("LLMProviderRepo.Delete: provider has associated proxies", "providerID", providerID, "uuid", providerUUID, "constraint", pgErr.ConstraintName)
+	if err := tx.Where("id = ?", providerUUID).Delete(&models.LLMProvider{}).Error; err != nil {
+		if dberr.IsForeignKeyViolation(err) {
+			slog.Warn("LLMProviderRepo.Delete: provider has associated proxies", "providerID", providerID, "uuid", providerUUID, "error", err)
 			return utils.ErrLLMProviderHasProxies
 		}
 		slog.Error("LLMProviderRepo.Delete: failed to delete provider", "providerID", providerID, "uuid", providerUUID, "error", err)

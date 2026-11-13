@@ -1,4 +1,4 @@
-# Customer Support Agent - Deployment Guide
+# Customer Support Agent
 
 ## Overview
 
@@ -8,68 +8,50 @@ The Customer Support Agent is an AI-powered customer service assistant that help
 
 ## Prerequisites
 
-Before deploying this agent, ensure you have:
+You need:
 
 - **OpenAI API key** for the chat model.
+- Python 3.10 or later.
 - **Optional Tavily API key** for public web searches, such as travel advisories and destination information.
 
 Flights, hotels, rentals, excursions, and ticket operations use fictional
 in-memory data. Booking changes belong to the current chat session and reset
 when the service restarts. The app needs no database.
 
-## Deployment Instructions
+## Register it in Agent Manager
 
-### Step 1: Access Agent Manager
+You run the agent yourself; Agent Manager registers it and issues the token its traces are sent with. Start Agent Manager with `make up` from the repository root (see [`deployments/standalone`](../../deployments/standalone/README.md)), then:
 
-1. Navigate to the **Default** project
-2. Click **"Add Agent"**
-3. Select **Platform-Hosted Agent** Card
+1. Sign in to the console at <http://localhost:3000> as `admin` (the password is `THUNDER_ADMIN_PASSWORD` in `deployments/standalone/.env`).
+2. Open the **Default** project, click **Add Agent**, and register an agent named `Support Agent`.
+3. In the **Set up agent** panel that opens, choose **Python**, pick a token duration and click **Generate**. Copy the `AMP_OTEL_ENDPOINT` and `AMP_AGENT_API_KEY` values it shows.
 
-### Step 2: Configure Agent Details
+## Run it
 
-Fill in the agent creation form with these exact values:
+```bash
+cd samples/customer-support-agent
+python3.11 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt amp-instrumentation
 
-| Field                 | Value                                                   |
-| --------------------- | ------------------------------------------------------- |
-| **Display Name**      | `Support Agent`                                         |
-| **Description**       | `AI-powered customer support agent for travel services` |
-| **GitHub Repository** | `https://github.com/wso2/agent-manager`                 |
-| **Branch**            | `main`                                                  |
-| **App Path**          | `samples/customer-support-agent`                        |
-| **Language**          | `Python`                                                |
-| **Language Version**  | `3.11`                                                  |
-| **Start Command**     | `python main.py`                                        |
-| **Port**              | `8000`                                                  |
+export AMP_OTEL_ENDPOINT="http://default-default.gateway.localhost:19080/otel"
+export AMP_AGENT_API_KEY="<key-from-the-console>"
+export OPENAI_API_KEY="<your-openai-api-key>"
+export TAVILY_API_KEY="<your-tavily-api-key>"   # optional
 
-### Step 3: Select Agent Interface
-
-- Choose **"Chat Agent"** as the agent interface type
-
-### Step 4: Configure Environment Variables
-
-Add the following environment variables in the create form:
-
-```env
-OPENAI_API_KEY=<your-openai-api-key>
-# Optional
-TAVILY_API_KEY=<your-tavily-api-key>
+amp-instrument python main.py    # serves on http://localhost:8000
 ```
 
-### Step 5: Deploy the Agent
+Set these as shell variables, not in a `.env` file, so `amp-instrument` can read them. To run it without tracing, leave out `amp-instrument` and the two `AMP_*` variables.
 
-1. Review all configuration details
-2. Click **"Deploy"**
-3. Wait for the build to complete (typically 2-5 minutes)
+## Try it
 
-## Testing Your Agent
+```bash
+curl -s localhost:8000/chat \
+  -H 'content-type: application/json' \
+  -d '{"session_id": "s1", "message": "What demo flights do I have booked?"}'
+```
 
-### Step 1: Navigate to Chat Interface
-
-Click on the **"Try It"** section on the left navigation.
-
-### Step 2: Test Sample Interactions
-
-Try these sample questions in the chat interface:
+Reuse the same `session_id` for follow-ups. Other questions to try:
 
 **Flight Inquiries:**
 
@@ -92,7 +74,6 @@ Find a demo hotel in Geneva for next week.
 Search the web for current public transport options from Geneva airport to the city center.
 ```
 
-### Step 3: Observe Traces
+## Observe the traces
 
-1. Click on the **"Observability"** tab on left navigation and select **Traces**
-2. View traces
+Open the agent in the console and go to **Observability → Traces**. Each chat turn shows the LangGraph run, the model calls and the tool calls.

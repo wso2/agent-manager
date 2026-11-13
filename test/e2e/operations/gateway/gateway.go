@@ -18,7 +18,6 @@ package gateway
 
 import (
 	"fmt"
-	"net/http"
 	"time"
 
 	"github.com/onsi/ginkgo/v2"
@@ -145,16 +144,4 @@ func WaitForActiveGatewaysForEnv(client *framework.AMPClient, orgName, envName s
 	}).WithTimeout(timeout).WithPolling(10 * time.Second).Should(Succeed())
 
 	return matched
-}
-
-// ExpectGatewayNotRegistered asserts that no gateway with the given name is
-// registered in the org. The gateway chart registers a gateway on install and
-// nothing on uninstall removes it, so remove-environment.sh deregisters it; a
-// record left behind lists as Unassigned and is reused by a re-added environment.
-func ExpectGatewayNotRegistered(g Gomega, client *framework.AMPClient, orgName, gatewayName string) {
-	path := fmt.Sprintf("/api/v1/orgs/%s/gateways/%s", orgName, gatewayName)
-	resp, err := client.Get(path)
-	g.Expect(err).NotTo(HaveOccurred(), "get gateway request failed")
-	defer resp.Body.Close()
-	framework.ExpectStatus(g, resp, http.StatusNotFound)
 }

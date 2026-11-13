@@ -1,0 +1,10 @@
+# Any client_credentials request that includes an explicit OAuth scope now requires a
+# resolvable resource indicator (backend/internal/oauth/oauth2/resourceindicators),
+# failing with invalid_target otherwise. Clients across the platform (the gateway
+# registration in deployments/standalone, the e2e suites) request explicit scopes without a
+# "resource" param, so we set amp-resource-server as the server-wide default instead of
+# patching every caller.
+resource_type: server_config
+name: defaultResourceServer
+value:
+  resourceServerId: amp-resource-server

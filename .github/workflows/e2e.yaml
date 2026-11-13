@@ -2,11 +2,6 @@ name: E2E Tests
 
 on:
   workflow_dispatch:
-    inputs:
-      helm_chart_version:
-        description: "Helm chart version"
-        required: false
-        default: "0.0.0-latest-dev"
 
 permissions:
   contents: read
@@ -16,19 +11,11 @@ concurrency:
   group: e2e-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  HELM_CHART_VERSION: ${{ github.event.inputs.helm_chart_version || '0.0.0-latest-dev' }}
-  YQ_VERSION: v4.45.4
-  YQ_SHA256: b96de04645707e14a12f52c37e6266832e03c29e95b9b139cddcae7314466e69
-
 jobs:
   e2e:
     name: E2E
     runs-on: ubuntu-24.04
-    # Bumped from 60 to accommodate the reduced test parallelism below: with
-    # --procs=2 (was -p, i.e. one proc per vCPU) fewer suites run concurrently,
-    # so wall-clock grows even though each suite no longer thrashes on CPU.
-    timeout-minutes: 130
+    timeout-minutes: 90
     steps:
       - name: Clone the code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -36,100 +23,42 @@ jobs:
       - name: Setup Go
         uses: ./.github/actions/setup-go
 
-      - name: Install cluster CLIs (deployments/setup/cluster-tools.env)
-        uses: ./.github/actions/setup-cluster-clis
-
-      - name: Install yq
-        run: |
-          curl -fsSL -o /tmp/yq https://github.com/mikefarah/yq/releases/download/${{ env.YQ_VERSION }}/yq_linux_amd64
-          echo "${{ env.YQ_SHA256 }}  /tmp/yq" | sha256sum -c -
-          sudo install /tmp/yq /usr/local/bin/yq
-
+      # Docker Compose stack (deployments/standalone), built from this checkout.
       - name: Install platform
         id: install-platform
-        run: |
-          cd deployments/quick-start && VERSION=${{ env.HELM_CHART_VERSION }} bash install.sh
+        uses: ./.github/actions/amp-dev-stack
 
       - name: Run e2e tests
         env:
-          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.INSTRUMENTATION_TEST_OPENAI_API_KEY }}
-          # add-environment.sh requires CHART_VERSION; pin it to the same chart
-          # version the platform was installed with above.
-          CHART_VERSION: ${{ env.HELM_CHART_VERSION }}
         run: |
           set -o pipefail
-          # --procs=2 (was -p, which auto-picks one proc per vCPU = 4 on the
-          # ubuntu-24.04 runner). The single-node k3d cluster cannot fit 4
-          # concurrent per-environment stacks (each env = its own Thunder +
-          # isolated API Platform Gateway controller/runtime + agent runtime
-          # pods); the node ran out of CPU, leaving pods Pending
-          # ("Insufficient cpu") and gateway bootstrap Jobs timing out. Two
-          # concurrent suites keep the resource footprint within the node.
-          # --timeout raised to 70m to match the longer wall-clock at --procs=2.
-          cd test/e2e && go run github.com/onsi/ginkgo/v2/ginkgo -v --procs=2 --timeout 70m \
+          cd test/e2e && go run github.com/onsi/ginkgo/v2/ginkgo -v --procs=2 --timeout 60m \
             --poll-progress-after=600s --keep-going --junit-report=report.xml \
             ./tests/... 2>&1 | tee e2e-output.log
 
       - name: Run security conformance tests
         if: ${{ !cancelled() && steps.install-platform.outcome == 'success' }}
-        env:
-          SECURITY_PROBE_REPOSITORY_URL: ${{ format('{0}/{1}', github.server_url, github.repository) }}
-          SECURITY_PROBE_REPOSITORY_BRANCH: ${{ github.ref_name }}
         run: |
           set -o pipefail
           make security-test-live 2>&1 | tee test/e2e/security-output.log
 
-      - name: Dump pod logs on failure
+      - name: Dump service logs on failure
         if: failure()
+        working-directory: deployments/standalone
         run: |
-          mkdir -p /tmp/pod-logs
-          kubectl logs deployment/amp-api -n wso2-amp --tail=500 --all-containers=true > /tmp/pod-logs/amp-api.txt 2>&1 || true
-          kubectl logs deployment/openchoreo-api -n openchoreo-control-plane --tail=500 --all-containers=true > /tmp/pod-logs/openchoreo-api.txt 2>&1 || true
-          kubectl logs deployment/amp-observer -n openchoreo-observability-plane --tail=500 --all-containers=true > /tmp/pod-logs/amp-observer.txt 2>&1 || true
-          kubectl logs deployment/observer -n openchoreo-observability-plane --tail=500 --all-containers=true > /tmp/pod-logs/observer.txt 2>&1 || true
-          # openchoreo reconciler (drives data-plane Release/ReleaseBinding rollout)
-          kubectl logs deployment/controller-manager -n openchoreo-control-plane --tail=500 --all-containers=true > /tmp/pod-logs/openchoreo-controller-manager.txt 2>&1 || true
-          # Cluster-wide pod state, plus Warning events only (surfaces stuck data-plane agent rollouts)
-          kubectl get pods -A -o wide > /tmp/pod-logs/all-pods.txt 2>&1 || true
-          kubectl get events -A --field-selector type=Warning --sort-by=.lastTimestamp > /tmp/pod-logs/warning-events.txt 2>&1 || true
-          # Argo workflow pod logs (builds run in workflows-default namespace)
-          for pod in $(kubectl get pods -n workflows-default --no-headers -o custom-columns=":metadata.name" 2>/dev/null); do
-            kubectl logs "$pod" -n workflows-default --all-containers=true --tail=200 > "/tmp/pod-logs/wf-pod-${pod}.txt" 2>&1 || true
-          done
-          # User workload (agent runtime) pods live in per-env data-plane namespaces
-          # (dp-<org>-<project>-<env>-<hash>). These carry the actual agent invocation
-          # errors (e.g. "500 Connection error"), so capture logs for every pod in them.
-          for ns in $(kubectl get ns --no-headers -o custom-columns=":metadata.name" 2>/dev/null | grep '^dp-'); do
-            for pod in $(kubectl get pods -n "$ns" --no-headers -o custom-columns=":metadata.name" 2>/dev/null); do
-              kubectl logs "$pod" -n "$ns" --all-containers=true --tail=500 > "/tmp/pod-logs/dp-${ns}-${pod}.txt" 2>&1 || true
-            done
-          done
-          # Per-env API Platform Gateway + Thunder pods. Each environment's gateway
-          # stack lives in its own "<org>-<env>" namespace and its Thunder in
-          # "amp-thunder-<org>-<env>"; the gateway's Helm pre-install bootstrap Job
-          # runs there. Capturing these makes "failed pre-install: timed out
-          # waiting for the condition" debuggable (the bootstrap Job pod log is the
-          # only place the actual healthz/IDP/registration error appears). Also
-          # describe non-Running pods to surface exit reasons and scheduling events.
-          for ns in $(kubectl get ns --no-headers -o custom-columns=":metadata.name" 2>/dev/null \
-              | grep -E '^(default-|amp-thunder-)' || true); do
-            for pod in $(kubectl get pods -n "$ns" --no-headers -o custom-columns=":metadata.name" 2>/dev/null); do
-              kubectl logs "$pod" -n "$ns" --all-containers=true --tail=200 > "/tmp/pod-logs/ns-${ns}--${pod}.txt" 2>&1 || true
-            done
-            kubectl get pods -n "$ns" --no-headers 2>/dev/null \
-              | awk '$3 != "Running" && $3 != "Completed" { print $1 }' \
-              | while read -r p; do
-                  kubectl describe pod "$p" -n "$ns" > "/tmp/pod-logs/describe-${ns}--${p}.txt" 2>&1 || true
-                done
+          mkdir -p /tmp/service-logs
+          docker compose ps -a > /tmp/service-logs/services.txt 2>&1 || true
+          for service in $(docker compose config --services); do
+            docker compose logs --no-color --tail 500 "$service" > "/tmp/service-logs/${service}.txt" 2>&1 || true
           done
 
-      - name: Upload pod logs
+      - name: Upload service logs
         if: failure()
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
-          name: pod-logs
-          path: /tmp/pod-logs/
+          name: service-logs
+          path: /tmp/service-logs/
           retention-days: 7
 
       - name: Publish test results

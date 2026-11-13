@@ -18,27 +18,13 @@ package opensearch
 
 import "time"
 
-// TraceQueryParams holds parameters for trace queries
-type TraceQueryParams struct {
-	ComponentUid   string
-	EnvironmentUid string
-	StartTime      string
-	EndTime        string
-	Limit          int
-	Offset         int
-	SortOrder      string
-}
-
-// TraceByIdParams holds parameters for querying spans by trace IDs
-type TraceByIdParams struct {
-	TraceIDs       []string
-	ComponentUid   string
-	EnvironmentUid string
-	ParentSpan     bool
-	Limit          int
-	StartTime      string
-	EndTime        string
-}
+// Resource attributes the OTel collector stamps on every ingested span from
+// the agent's token. Trace queries are scoped by these names.
+const (
+	ResourceOrganization = "agent-manager/organization"
+	ResourceProject      = "agent-manager/project"
+	ResourceAgent        = "agent-manager/agent"
+)
 
 // Span represents a single trace span
 type Span struct {
@@ -52,7 +38,7 @@ type Span struct {
 	DurationInNanos int64                  `json:"durationInNanos"` // in nanoseconds
 	Kind            string                 `json:"kind,omitempty"`
 	Status          string                 `json:"status,omitempty"`        // OTel status code: "ok", "error", "unset"
-	StatusMessage   string                 `json:"statusMessage,omitempty"` // Developer-facing status description (OpenChoreo 1.2.0+), typically set on error
+	StatusMessage   string                 `json:"statusMessage,omitempty"` // Developer-facing status description, typically set on error
 	Attributes      map[string]interface{} `json:"attributes,omitempty"`
 	Resource        map[string]interface{} `json:"resource,omitempty"`
 	AmpAttributes   *AmpAttributes         `json:"ampAttributes,omitempty"` // Custom AMP-specific attributes
@@ -119,7 +105,7 @@ type CrewAITaskData struct {
 type SpanStatus struct {
 	Error     bool   `json:"error"`               // Whether the span has an error
 	ErrorType string `json:"errorType,omitempty"` // Error type from error.type attribute (only if error is true)
-	Message   string `json:"message,omitempty"`   // Developer-facing status message from the span's OTel status (OpenChoreo 1.2.0+), typically set on error
+	Message   string `json:"message,omitempty"`   // Developer-facing status message from the span's OTel status, typically set on error
 }
 
 // LLMTokenUsage represents token usage for a single LLM span
@@ -272,36 +258,4 @@ type SearchResponse struct {
 			Source map[string]interface{} `json:"_source"`
 		} `json:"hits"`
 	} `json:"hits"`
-}
-
-// CompositeAggregationResponse represents an OpenSearch response with composite trace aggregation results
-type CompositeAggregationResponse struct {
-	Aggregations struct {
-		TraceComposite struct {
-			AfterKey *CompositeAfterKey `json:"after_key,omitempty"`
-			Buckets  []CompositeBucket  `json:"buckets"`
-		} `json:"trace_composite"`
-	} `json:"aggregations"`
-}
-
-// CompositeBucket represents a single bucket in the composite aggregation
-type CompositeBucket struct {
-	Key struct {
-		TraceID string `json:"trace_id"`
-	} `json:"key"`
-	DocCount      int `json:"doc_count"`
-	EarliestStart struct {
-		Value float64 `json:"value"`
-	} `json:"earliest_start"`
-	SpanCount struct {
-		Value int `json:"value"`
-	} `json:"span_count"`
-	RootSpanCount struct {
-		DocCount int `json:"doc_count"`
-	} `json:"root_span_count"`
-}
-
-// CompositeAfterKey represents the after_key for composite aggregation pagination
-type CompositeAfterKey struct {
-	TraceID string `json:"trace_id"`
 }

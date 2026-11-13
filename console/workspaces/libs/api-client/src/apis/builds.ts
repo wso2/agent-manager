@@ -16,47 +16,20 @@
  * under the License.
  */
 
-import { httpGET, httpGETObserver, httpPOST, SERVICE_BASE } from "../utils";
+import { httpGET, SERVICE_BASE } from "../utils";
 import type {
-  BuildAgentPathParams,
-  BuildAgentQuery,
   BuildResponse,
   BuildsListResponse,
   GetAgentBuildsPathParams,
   GetAgentBuildsQuery,
-  GetBuildLogsPathParams,
   GetBuildPathParams,
   BuildDetailsResponse,
-  BuildLogEntry,
 } from "@agent-management-platform/types/src/api/builds";
 
-export async function buildAgent(
-  params: BuildAgentPathParams,
-  query?: BuildAgentQuery,
-  getToken?: () => Promise<string>
-): Promise<BuildResponse> {
-  const { orgName = "default", projName = "default", agentName } = params;
-  
-  if (!agentName) {
-    throw new Error("agentName is required");
-  }
-  
-  const token = getToken ? await getToken() : undefined;
-  const res = await httpPOST(
-    `${SERVICE_BASE}/orgs/${encodeURIComponent(
-      orgName
-    )}/projects/${encodeURIComponent(projName)}/agents/${encodeURIComponent(
-      agentName
-    )}/builds`,
-    {},
-    {
-      searchParams: query?.commitId ? { commitId: query.commitId } : undefined,
-      token,
-    }
-  );
-  if (!res.ok) throw await res.json();
-  return res.json();
-}
+// The service caps a builds page at MAX_BUILDS_PAGE_SIZE and defaults to 50, so a
+// single request only ever returns the newest page. Build history must show every
+// build an agent has ever run, so walk the pages until `total` is covered.
+const MAX_BUILDS_PAGE_SIZE = 100;
 
 export async function getAgentBuilds(
   params: GetAgentBuildsPathParams,
@@ -90,11 +63,6 @@ export async function getAgentBuilds(
   return res.json();
 }
 
-// The service caps a builds page at MAX_BUILDS_PAGE_SIZE and defaults to 50, so a
-// single request only ever returns the newest page. Build history must show every
-// build an agent has ever run, so walk the pages until `total` is covered.
-const MAX_BUILDS_PAGE_SIZE = 100;
-
 export async function getAllAgentBuilds(
   params: GetAgentBuildsPathParams,
   getToken?: () => Promise<string>
@@ -121,7 +89,6 @@ export async function getAllAgentBuilds(
   return { builds, total, limit: builds.length, offset: 0 };
 }
 
- 
 export async function getBuild(
   params: GetBuildPathParams,
   getToken?: () => Promise<string>
@@ -151,23 +118,4 @@ export async function getBuild(
   );
   if (!res.ok) throw await res.json();
   return res.json();
-}
-
-export async function getBuildLogs(
-  params: GetBuildLogsPathParams,
-  getToken?: () => Promise<string>
-): Promise<BuildLogEntry[]> {
-  const { orgName = "default", buildName } = params;
-
-  if (!buildName) {
-    throw new Error("buildName is required");
-  }
-
-  const token = getToken ? await getToken() : undefined;
-  const res = await httpGETObserver("/api/v1/build-logs", {
-    searchParams: { organization: orgName, buildName },
-    token,
-  });
-  const resultJson = await res.json();
-  return resultJson.logs ?? [];
 }

@@ -35,13 +35,11 @@ interface EnvConfigsSectionProps {
     orgId: string;
     projectId: string;
     agentId: string;
-    envId: string;
 }
 
 const PREVIEW_LIMIT = 3;
-// Configs are agent-wide but only some are deployed to any given environment
-// (see useEnvFilteredConfigs), so the applicable ones for this environment
-// could be anywhere in the full list — an arbitrary first-page cap risks
+// Only some configs are mapped (see useEnvFilteredConfigs), so the applicable
+// ones could be anywhere in the full list — an arbitrary first-page cap risks
 // missing them entirely if they happen to sort past it. FIRST_PAGE_LIMIT is
 // just the initial page size; useAllConfigs below escalates to fetch the
 // true total once the first page reveals it, so every config is considered
@@ -81,9 +79,7 @@ function useAllConfigs(
 }
 
 /**
- * Compact preview of the agent's Model Configs and MCP Proxies, rendered
- * right below the Invoke URL in EnvCapabilitiesSection — just enough to show
- * what's configured for this environment specifically, with a "View all"
+ * Compact preview of the agent's Model Configs and MCP Proxies, with a "View all"
  * link to the full list on the Configure Agent page.
  *
  * Each group collapses itself independently (see EnvConfigGroup) while its
@@ -92,7 +88,7 @@ function useAllConfigs(
  * slower.
  */
 export const EnvConfigsSection: React.FC<EnvConfigsSectionProps> = ({
-    orgId, projectId, agentId, envId,
+    orgId, projectId, agentId,
 }) => {
     const { data: modelData, isError: isModelListError } = useAllConfigs(
         useListAgentModelConfigs, orgId, projectId, agentId,
@@ -107,7 +103,6 @@ export const EnvConfigsSection: React.FC<EnvConfigsSectionProps> = ({
                 orgId={orgId}
                 projectId={projectId}
                 agentId={agentId}
-                envId={envId}
                 configs={modelData?.configs ?? []}
                 listError={isModelListError}
                 title="LLM Providers"
@@ -121,7 +116,6 @@ export const EnvConfigsSection: React.FC<EnvConfigsSectionProps> = ({
                 orgId={orgId}
                 projectId={projectId}
                 agentId={agentId}
-                envId={envId}
                 configs={mcpData?.configs ?? []}
                 listError={isMcpListError}
                 title="MCP Servers"

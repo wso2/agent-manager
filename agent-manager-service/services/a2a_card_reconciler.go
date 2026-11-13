@@ -28,7 +28,6 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -39,7 +38,7 @@ const (
 	a2aCardBatch        = 50
 	a2aCardBaseBackoff  = 5 * time.Second
 	a2aCardMaxBackoff   = time.Minute
-	// a2aCardAttemptTimeout bounds one row's OpenChoreo reads, DNS check and fetch.
+	// a2aCardAttemptTimeout bounds one row's platform reads, DNS check and fetch.
 	a2aCardAttemptTimeout = 30 * time.Second
 	// a2aCardBatchBudget leaves the claim lease a minute to record the last outcome.
 	a2aCardBatchBudget = repositories.A2AAgentCardClaimLease - time.Minute
@@ -50,9 +49,6 @@ const (
 	// a2aCardUnstorableError replaces a card the store refuses to take as text.
 	a2aCardUnstorableError = "the agent card contains characters that cannot be stored"
 )
-
-// errA2ACardRolloutInProgress means the agent's latest release is not serving in this environment yet.
-var errA2ACardRolloutInProgress = newA2APublicError("agent is still rolling out in this environment", nil)
 
 // errA2ACardNotDeployed means the agent has no live binding in the row's environment.
 var errA2ACardNotDeployed = errors.New("agent is not deployed in this environment")
@@ -70,7 +66,7 @@ type a2aCardReconcilerService struct {
 	proxyRepo   repositories.A2AProxyRepository
 	gatewayRepo repositories.GatewayRepository
 	fetcher     A2ACardFetcher
-	ocClient    client.OpenChoreoClient
+	ocClient    repositories.PlatformRepository
 	logger      *slog.Logger
 	stopCh      chan struct{}
 	stopOnce    sync.Once
@@ -85,7 +81,7 @@ func NewA2ACardReconcilerService(
 	proxyRepo repositories.A2AProxyRepository,
 	gatewayRepo repositories.GatewayRepository,
 	fetcher A2ACardFetcher,
-	ocClient client.OpenChoreoClient,
+	ocClient repositories.PlatformRepository,
 	logger *slog.Logger,
 ) A2ACardReconcilerService {
 	return &a2aCardReconcilerService{
@@ -193,9 +189,9 @@ func (s *a2aCardReconcilerService) agentReplaced(ctx context.Context, row models
 	if row.AgentUUID == nil {
 		return false
 	}
-	current, err := s.ocClient.GetComponent(ctx, row.OUID, row.ProjectName, row.AgentName)
+	current, err := s.ocClient.GetAgent(ctx, row.OUID, row.ProjectName, row.AgentName)
 	switch {
-	case errors.Is(err, utils.ErrNotFound):
+	case errors.Is(err, utils.ErrAgentNotFound), errors.Is(err, utils.ErrNotFound):
 		return true
 	case err != nil:
 		return false
@@ -284,19 +280,8 @@ func (s *a2aCardReconcilerService) fetchCardThroughGateway(ctx context.Context, 
 
 // fetchPlatformCard waits out a rollout first, since until it finishes the old release can still answer.
 func (s *a2aCardReconcilerService) fetchPlatformCard(ctx context.Context, row models.A2AAgentCard) (a2aCardFetch, error) {
-	rollout, err := s.ocClient.GetReleaseBindingRollout(ctx, row.OUID, row.AgentName, row.EnvironmentName)
-	if err != nil {
-		return a2aCardFetch{}, fmt.Errorf("failed to read agent rollout: %w", err)
-	}
-	if !rollout.Deployed {
-		return a2aCardFetch{}, errA2ACardNotDeployed
-	}
-	if !rollout.Serving {
-		return a2aCardFetch{}, errA2ACardRolloutInProgress
-	}
-	attempt, err := s.fetchCardThroughGateway(ctx, row)
-	attempt.releaseName = rollout.ReleaseName
-	return attempt, err
+	// Only platform-hosted agents serve a platform card, and there is no agent runtime.
+	return a2aCardFetch{}, errA2ACardNotDeployed
 }
 
 func (s *a2aCardReconcilerService) recordAttemptFailure(ctx context.Context, row models.A2AAgentCard, releaseName string, cause error) {

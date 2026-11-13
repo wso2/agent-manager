@@ -27,15 +27,10 @@ type agentGatewayShape struct {
 	Protocol     models.AgentExposureProtocol
 }
 
-var (
-	a2aAgentShape  = agentGatewayShape{ArtifactKind: models.KindAgent, Protocol: models.AgentExposureProtocolA2A}
-	restAgentShape = agentGatewayShape{ArtifactKind: models.KindRestAPI, Protocol: models.AgentExposureProtocolREST}
-)
+var a2aAgentShape = agentGatewayShape{ArtifactKind: models.KindAgent, Protocol: models.AgentExposureProtocolA2A}
 
 var agentGatewayShapes = map[utils.AgentSubType]agentGatewayShape{
-	utils.AgentSubTypeA2A:       a2aAgentShape,
-	utils.AgentSubTypeChatAPI:   restAgentShape,
-	utils.AgentSubTypeCustomAPI: restAgentShape,
+	utils.AgentSubTypeA2A: a2aAgentShape,
 }
 
 func agentGatewayShapeFor(subType string) (agentGatewayShape, bool) {

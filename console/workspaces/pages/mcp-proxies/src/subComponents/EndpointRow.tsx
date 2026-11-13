@@ -29,14 +29,12 @@ import type { EndpointDraft } from "./EndpointFormFields";
 
 interface EndpointRowProps {
   endpoint: EndpointDraft;
-  environmentLabels: Map<string, string>;
   onRemove: () => void;
   onEdit?: () => void;
 }
 
 export function EndpointRow({
   endpoint,
-  environmentLabels,
   onRemove,
   onEdit,
 }: EndpointRowProps) {
@@ -75,15 +73,6 @@ export function EndpointRow({
             >
               {endpoint.name || "Unnamed endpoint"}
             </Typography>
-            {endpoint.environments.map((envId) => (
-              <Chip
-                key={envId}
-                label={environmentLabels.get(envId) || envId}
-                size="small"
-                color="primary"
-                variant="outlined"
-              />
-            ))}
             {hasAuth ? (
               <Tooltip title={`Authenticated via ${endpoint.authHeader}`}>
                 <Chip

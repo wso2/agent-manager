@@ -30,8 +30,9 @@ import (
 
 // MockOUID is the OU ID carried by tokens minted by NewMockMiddleware. It is
 // distinct from the path org handle (as in a real token). Handlers scope org
-// data by OU ID, so tests assert against this value rather than the path org.
-const MockOUID = "mock-org-id"
+// data by OU ID, so tests assert against this value rather than the path org. An
+// OU ID is the organization's id, a UUID.
+const MockOUID = "01900000-0000-7000-8000-00000000a0c4"
 
 // mockScopes is the scope set every mocked token carries: the whole permission
 // catalog, since the Admin role is pinned to hold all of it. Handler tests are
@@ -55,7 +56,7 @@ func NewMockMiddleware(t *testing.T) Middleware {
 
 // NewMockMiddlewareWithOUID is like NewMockMiddleware but lets the caller pin
 // the token's OU ID. Use it to exercise org-scoped behaviour that depends on a
-// specific OU ID — e.g. an organization the OpenChoreo mock reports as missing.
+// specific OU ID — e.g. an organization the platform repository mock reports as missing.
 func NewMockMiddlewareWithOUID(t *testing.T, ouID string) Middleware {
 	t.Helper()
 

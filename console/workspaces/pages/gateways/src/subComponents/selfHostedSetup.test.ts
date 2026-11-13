@@ -20,7 +20,6 @@ import {
   activeTokens,
   cpHostFromUrl,
   dockerCommands,
-  helmCommands,
   isGatewayBaseUrl,
   reconfigureToken,
 } from "./selfHostedSetup";
@@ -53,32 +52,6 @@ describe("dockerCommands", () => {
 
   it("starts with docker compose up", () => {
     expect(dockerCommands("2026.09.24", HOST, TOKEN).start).toBe("docker compose up");
-  });
-});
-
-describe("helmCommands", () => {
-  it("creates the encryption key secret from a generated key", () => {
-    expect(helmCommands("2026.09.24", HOST, TOKEN).createEncryptionKeySecret).toBe(
-      "openssl rand 32 > default-aesgcm256-v1.bin\n" +
-        "kubectl create secret generic gateway-encryption-keys --from-file=default-aesgcm256-v1.bin=default-aesgcm256-v1.bin",
-    );
-  });
-
-  it.each(["2026.09.24", "v2026.09.24"])("builds the install for version %s", (version) => {
-    const { install } = helmCommands(version, HOST, TOKEN);
-    expect(install).toContain(
-      "oci://ghcr.io/wso2/api-platform/helm-charts/gateway --version 2026.09.24",
-    );
-    expect(install).toContain(`--set gateway.controller.controlPlane.host=${HOST}`);
-    expect(install).toContain(`--set gateway.controller.controlPlane.token.value=${TOKEN}`);
-    expect(install).toContain("--set gateway.controller.encryptionKeys.enabled=true");
-    expect(install).toContain(
-      "--set gateway.controller.encryptionKeys.secretName=gateway-encryption-keys",
-    );
-  });
-
-  it("does not set a control plane port", () => {
-    expect(helmCommands("2026.09.24", HOST, TOKEN).install).not.toContain("controlPlane.port");
   });
 });
 

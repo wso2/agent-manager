@@ -26,7 +26,7 @@ import (
 
 // The due-scan and the API both filter on these exact strings.
 func TestA2AAgentCardTableAndEnums(t *testing.T) {
-	assert.Equal(t, "a2a_agent_cards", models.A2AAgentCard{}.TableName())
+	assert.Equal(t, "agent_cards", models.A2AAgentCard{}.TableName())
 	assert.Equal(t, models.A2AAgentCardStatus("pending"), models.A2AAgentCardStatusPending)
 	assert.Equal(t, models.A2AAgentCardStatus("fetched"), models.A2AAgentCardStatusFetched)
 	assert.Equal(t, models.A2AAgentCardStatus("failed"), models.A2AAgentCardStatusFailed)

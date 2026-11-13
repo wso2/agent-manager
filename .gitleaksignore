@@ -7,3 +7,7 @@ b9f91c5b9244e112764fa649b42fa07c0d223e86:console/workspaces/pages/gateways/src/s
 # Standard Webhooks specification's published test vector (key and expected signature), not a credential.
 ac2019eb87004efd2034838b0c454a08dc12d232:agent-manager-service/services/eventdestinations/webhook/webhook_test.go:generic-api-key:41
 ac2019eb87004efd2034838b0c454a08dc12d232:agent-manager-service/services/eventdestinations/webhook/webhook_test.go:generic-api-key:44
+# Placeholder AMP_ENCRYPTION_KEY (0123456789abcdef repeated) in an example env file, not a credential.
+a37d7c58c02781395f57076cbbb2f71d52545e30:deployments/standalone/.env.example:generic-api-key:41
+# Base64-encoded SVG logo in the docs site, not a credential.
+9cb6dff966d4838347ddfc55c80ec7ed71334600:docs/amp-lite/src/logos.json:generic-api-key:2

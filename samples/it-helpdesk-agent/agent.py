@@ -90,7 +90,7 @@ MCP_RULES = (
 async def load_mcp_tools(cfg: Config) -> list[Any]:
     """Discover tools from the AM MCP proxy.
 
-    By default the proxy is reached with the platform-issued key in an
+    By default the proxy is reached with the Agent Manager-issued key in an
     ``X-API-Key`` header — the default for MCP proxies, and *not* the ``API-Key``
     the LLM provider uses. Each proxy's header name is a Security setting, so
     check yours if the gateway answers 401.
@@ -113,9 +113,8 @@ async def load_mcp_tools(cfg: Config) -> list[Any]:
     }
     if cfg.mcp_oauth:
         if not cfg.agentid_ready:
-            # AgentID provisioning finishes shortly after deploy, and injecting
-            # the credential rolls the pod — so start without MCP tools rather
-            # than crash-looping until it lands.
+            # AgentID provisioning finishes shortly after registration, so
+            # start without MCP tools rather than crash until it lands.
             log.warning(
                 "MCP_OAUTH is true but AgentID is not provisioned yet "
                 "(AMP_AGENTID_* unset); starting without MCP tools"

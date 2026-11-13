@@ -10,7 +10,8 @@ Registration does not deploy the application or secure its inbound endpoint.
   ECR images, register/run/stop ECS tasks, manage services, and pass the execution role.
   Commands below assume the standard `aws` partition.
 - Existing ECS cluster and private subnets with outbound HTTPS through NAT.
-  AWS VPC endpoints do not replace egress to Agent Manager SaaS, gateways, and identity endpoints.
+  The tasks must reach your Agent Manager AI Gateway and identity endpoints; AWS VPC endpoints
+  do not replace that egress.
 - A test client with private connectivity (VPN or an existing instance in the VPC).
   Permit inbound TCP 8000 to the agent task only from that client/security group.
 - A task execution role trusted by `ecs-tasks.amazonaws.com`, with
@@ -19,7 +20,7 @@ Registration does not deploy the application or secure its inbound endpoint.
   Create this in IAM using the **Elastic Container Service Task** use case if needed.
   The deployer needs `iam:PassRole` for this role. No application `taskRoleArn`
   is needed: the agent uses a gateway key, not AWS inference credentials.
-- Agent Manager SaaS organization/project/environment permissions and Bedrock
+- Agent Manager organization and project permissions, and Bedrock
   model access. Follow [BEDROCK-GATEWAY.md](BEDROCK-GATEWAY.md) for provider setup.
 
 Both images use Python 3.11. The agent pins Strands Agents 1.58.0,
@@ -217,8 +218,8 @@ For new traffic, create a **Future Traces** monitor with a five-minute interval.
    group in your VPC using HTTP port 8001, health path `/health`, and HTTP 200.
    ECS registers target IPs; do not register them manually.
 4. Create an internet-facing Application Load Balancer in two public subnets
-   in separate Availability Zones. Permit inbound HTTPS 443 from the SaaS gateway
-   egress addresses if available; otherwise permit internet HTTPS for this
+   in separate Availability Zones. Permit inbound HTTPS 443 from the Agent Manager AI
+   Gateway's egress addresses if available; otherwise permit internet HTTPS for this
    synthetic example and authenticate with the upstream secret. The MCP task
    security group permits TCP 8001 **only from the ALB security group**. Permit
    the ALB outbound access to that task port.

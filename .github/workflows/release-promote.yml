@@ -1,7 +1,7 @@
 name: WSO2 AI Agent Management Platform Release Promotion
 
 # Promotes an existing release to a new version without rebuilding it: images are
-# retagged by digest, and every version-stamped artifact (charts, install bundle) is
+# retagged by digest, and the version-stamped standalone bundle is
 # regenerated from the source release's own commit. amctl is not part of this release:
 # it ships on its own version line (.github/workflows/amctl_release.yaml). See
 # docs/superpowers/specs/2026-09-07-release-promotion-design.md.
@@ -58,7 +58,6 @@ run-name: Promote amp/v${{ inputs.source_version }} → amp/v${{ inputs.target_v
 env:
   REGISTRY: ghcr.io
   REGISTRY_ORG: wso2
-  HELM_REGISTRY: oci://ghcr.io/wso2
 
 # Default token scope is read-only; jobs that publish, push or deploy
 # request the extra scopes they need at job level.
@@ -194,10 +193,8 @@ jobs:
           fetch-depth: 0
           ref: amp/v${{ inputs.source_version }}
 
-      # The source tree predates this workflow, so it has no resolve-source-commit.sh.
-      # Tooling runs from the dispatched commit (no ref: = github.sha); the scripts that
-      # stamp the release's own content keep running from the checkout above, except
-      # update-helm-charts.sh — see the docs-version note on that step.
+      # The source tree may predate this workflow's scripts. Tooling runs from the
+      # dispatched commit (no ref: = github.sha) and edits the checkout above.
       - name: Checkout promotion tooling
         uses: actions/checkout@v6
         with:
@@ -248,55 +245,12 @@ jobs:
 
       # From the tooling checkout, not the release tree: the docs-version rule is
       # policy about the target version, and the rc's frozen copy of it would
-      # decide where this release's console doc links point. The seds still run
-      # against the release tree, which is the working directory.
-      - name: Update Helm chart versions
+      # decide where this release's console doc links point. The edits still apply
+      # to the release tree, which is the working directory.
+      - name: Stamp the standalone bundle
         run: |
-          bash .promotion-tools/.github/scripts/update-helm-charts.sh "$TARGET_VERSION"
-        env:
-          TARGET_VERSION: ${{ inputs.target_version }}
-        shell: bash
-
-      - name: Update install-helpers.sh
-        run: |
-          bash .github/scripts/update-install-helpers.sh \
-            "$TARGET_VERSION" \
-            "./deployments/quick-start/install-helpers.sh"
-        env:
-          TARGET_VERSION: ${{ inputs.target_version }}
-        shell: bash
-
-      - name: Update start.sh
-        run: |
-          bash .github/scripts/update-install-helpers.sh \
-            "$TARGET_VERSION" \
-            "./deployments/quick-start/start.sh"
-        env:
-          TARGET_VERSION: ${{ inputs.target_version }}
-        shell: bash
-
-      - name: Update the k3d installers
-        run: |
-          bash .github/scripts/update-install-helpers.sh \
-            "$TARGET_VERSION" \
-            "./deployments/quick-start/k3d-install.sh"
-          bash .github/scripts/update-install-helpers.sh \
-            "$TARGET_VERSION" \
-            "./deployments/quick-start/k3d-install-subscription.sh"
-        env:
-          TARGET_VERSION: ${{ inputs.target_version }}
-        shell: bash
-
-      # update-install-helpers.sh skips a missing file, and only replaces 0.0.0-dev, so
-      # this is a no-op on a source release cut before these installers carried it.
-      - name: Update the isolation installers
-        run: |
-          bash .github/scripts/update-install-helpers.sh \
-            "$TARGET_VERSION" \
-            "./deployments/setup/install-gvisor.sh"
-          bash .github/scripts/update-install-helpers.sh \
-            "$TARGET_VERSION" \
-            "./deployments/setup/install-kata.sh"
+          bash .promotion-tools/.github/scripts/stamp-standalone-release.sh \
+            "$TARGET_VERSION" "${REGISTRY}/${REGISTRY_ORG}"
         env:
           TARGET_VERSION: ${{ inputs.target_version }}
         shell: bash
@@ -379,7 +333,6 @@ jobs:
       - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
     outputs:
       images: ${{ steps.set-matrix.outputs.images }}
-      charts: ${{ steps.set-matrix.outputs.charts }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -390,22 +343,9 @@ jobs:
         id: set-matrix
         run: |
           CONFIG_FILE=".github/release-config.json"
-          CHARTS_BASE_PATH=$(jq -r '.config["charts-base-path"]' "$CONFIG_FILE")
-
           IMAGES=$(jq -c '[.images[] | {name: .name}]' "$CONFIG_FILE")
-
-          CHARTS=$(jq -c --arg base "$CHARTS_BASE_PATH" '[.charts[] | {
-            name: .,
-            path: ($base + "/" + .),
-            "chart-file": ($base + "/" + . + "/Chart.yaml")
-          }]' "$CONFIG_FILE")
-
           echo "images=$IMAGES" >> $GITHUB_OUTPUT
-          echo "charts=$CHARTS" >> $GITHUB_OUTPUT
-
-          echo "✅ Loaded configuration:"
-          echo "  - Images: $(echo "$IMAGES" | jq '. | length')"
-          echo "  - Charts: $(echo "$CHARTS" | jq '. | length')"
+          echo "✅ Loaded configuration: $(echo "$IMAGES" | jq '. | length') images"
         shell: bash
 
   retag-images:
@@ -456,142 +396,71 @@ jobs:
           TARGET_VERSION: ${{ inputs.target_version }}
         shell: bash
 
-  package-charts:
-    name: Package ${{ matrix.chart.name }}
-    needs: [load-config, retag-images]
-    runs-on:
-      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
-    permissions:
-      contents: read
-      packages: write
-    strategy:
-      fail-fast: true
-      matrix:
-        chart: ${{ fromJson(needs.load-config.outputs.charts) }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-        with:
-          ref: amp/v${{ inputs.target_version }}
-
-      # The target tree can predate setup-cluster-clis. Tooling runs from the
-      # dispatched commit (no ref: = github.sha).
-      - name: Checkout promotion tooling
-        uses: actions/checkout@v6
-        with:
-          path: .promotion-tools
-
-      - name: Install Helm (deployments/setup/cluster-tools.env)
-        uses: ./.promotion-tools/.github/actions/setup-cluster-clis
-        with:
-          k3d: "false"
-          kubectl: "false"
-
-      - name: Cache Helm chart dependencies
-        id: helm-cache
-        if: hashFiles(format('{0}/Chart.lock', matrix.chart.path)) != ''
-        uses: actions/cache@v5
-        with:
-          path: ${{ matrix.chart.path }}/charts
-          key: helm-charts-${{ hashFiles(format('{0}/Chart.lock', matrix.chart.path)) }}
-
-      - name: Package and push ${{ matrix.chart.name }}
-        run: |
-          bash .github/scripts/package-helm-chart.sh \
-            "$CHART_PATH" \
-            "$TARGET_RELEASE" \
-            "$HELM_REGISTRY" \
-            "$HELM_TOKEN"
-        env:
-          CHART_PATH: ${{ matrix.chart.path }}
-          TARGET_RELEASE: ${{ inputs.target_version }}
-          HELM_REGISTRY: ${{ env.HELM_REGISTRY }}
-          HELM_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        shell: bash
-
   e2e:
     name: E2E
-    needs: [retag-images, package-charts]
+    needs: [retag-images]
     runs-on: ubuntu-24.04
-    timeout-minutes: 130
+    timeout-minutes: 90
     permissions:
       contents: read
       checks: write
-    env:
-      YQ_VERSION: v4.45.4
-      YQ_SHA256: b96de04645707e14a12f52c37e6266832e03c29e95b9b139cddcae7314466e69
+      packages: read
     steps:
       - name: Clone the code
         uses: actions/checkout@v6
         with:
           ref: amp/v${{ inputs.target_version }}
 
-      # The target tree can predate setup-cluster-clis. Tooling runs from the
-      # dispatched commit (no ref: = github.sha).
-      - name: Checkout promotion tooling
-        uses: actions/checkout@v6
-        with:
-          path: .promotion-tools
-
       - name: Setup Go
         uses: ./.github/actions/setup-go
 
-      - name: Install cluster CLIs (deployments/setup/cluster-tools.env)
-        uses: ./.promotion-tools/.github/actions/setup-cluster-clis
+      - name: Log in to the container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Install yq
-        run: |
-          curl -fsSL -o /tmp/yq "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64"
-          echo "${YQ_SHA256}  /tmp/yq" | sha256sum -c -
-          sudo install /tmp/yq /usr/local/bin/yq
-
-      - name: Install platform
+      # The promotion commit pins .env.example to the retagged images.
+      - name: Start the released stack
         id: install-platform
-        env:
-          VERSION: ${{ inputs.target_version }}
+        working-directory: deployments/standalone
         run: |
-          cd deployments/quick-start && bash install.sh
+          cp .env.example .env
+          sudo sysctl -w vm.max_map_count=262144
+          docker compose up -d --wait --wait-timeout 600 --scale amp-console=0
 
       - name: Run e2e tests
         env:
-          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.INSTRUMENTATION_TEST_OPENAI_API_KEY }}
-          CHART_VERSION: ${{ inputs.target_version }}
         run: |
           set -o pipefail
-          cd test/e2e && go run github.com/onsi/ginkgo/v2/ginkgo -v --procs=2 --timeout 70m \
+          cd test/e2e && go run github.com/onsi/ginkgo/v2/ginkgo -v --procs=2 --timeout 60m \
             --poll-progress-after=600s --keep-going --junit-report=report.xml \
             ./tests/... 2>&1 | tee e2e-output.log
 
       - name: Run security conformance tests
         if: ${{ !cancelled() && steps.install-platform.outcome == 'success' }}
-        env:
-          SECURITY_PROBE_REPOSITORY_URL: ${{ format('{0}/{1}', github.server_url, github.repository) }}
-          SECURITY_PROBE_REPOSITORY_BRANCH: amp/v${{ inputs.target_version }}
         run: |
           set -o pipefail
           make security-test-live 2>&1 | tee test/e2e/security-output.log
 
-      - name: Dump pod logs on failure
+      - name: Dump service logs on failure
         if: failure()
+        working-directory: deployments/standalone
         run: |
-          mkdir -p /tmp/pod-logs
-          kubectl logs deployment/amp-api -n wso2-amp --tail=500 --all-containers=true > /tmp/pod-logs/amp-api.txt 2>&1 || true
-          kubectl logs deployment/openchoreo-api -n openchoreo-control-plane --tail=500 --all-containers=true > /tmp/pod-logs/openchoreo-api.txt 2>&1 || true
-          kubectl logs deployment/amp-observer -n openchoreo-observability-plane --tail=500 --all-containers=true > /tmp/pod-logs/amp-observer.txt 2>&1 || true
-          kubectl logs deployment/observer -n openchoreo-observability-plane --tail=500 --all-containers=true > /tmp/pod-logs/observer.txt 2>&1 || true
-          kubectl logs deployment/cluster-agent-workflowplane -n openchoreo-workflow-plane --tail=500 --all-containers=true > /tmp/pod-logs/cluster-agent-workflowplane.txt 2>&1 || true
-          for pod in $(kubectl get pods -n workflows-default --no-headers -o custom-columns=":metadata.name" 2>/dev/null); do
-            kubectl logs "$pod" -n workflows-default --all-containers=true --tail=200 > "/tmp/pod-logs/wf-pod-${pod}.txt" 2>&1 || true
+          mkdir -p /tmp/service-logs
+          docker compose ps -a > /tmp/service-logs/services.txt 2>&1 || true
+          for service in $(docker compose config --services); do
+            docker compose logs --no-color --tail 500 "$service" > "/tmp/service-logs/${service}.txt" 2>&1 || true
           done
-          kubectl get workflows -n workflows-default -o yaml > /tmp/pod-logs/argo-workflows-status.txt 2>&1 || true
 
-      - name: Upload pod logs
+      - name: Upload service logs
         if: failure()
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
-          name: pod-logs
-          path: /tmp/pod-logs/
+          name: service-logs
+          path: /tmp/service-logs/
           retention-days: 7
 
       - name: Publish test results
@@ -624,7 +493,7 @@ jobs:
     name: Create Release
     # E2E is intentionally NOT a dependency here: it runs in parallel and reports
     # red/green for the same run, but it does not gate the release.
-    needs: [prepare-promotion, retag-images, package-charts]
+    needs: [prepare-promotion, retag-images]
     runs-on:
       - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
     permissions:
@@ -653,40 +522,13 @@ jobs:
               echo "- \`${REGISTRY}/${REGISTRY_ORG}/${name}:v${VERSION}\`"
             done
 
-            jq -r '.["python-instrumentation-provider"][] | .instrumentation_version as $iv | .python_versions[] | "\($iv) \(.)"' "$CONFIG_FILE" | while read -r iv pyver; do
-              echo "- \`${REGISTRY}/${REGISTRY_ORG}/amp-python-instrumentation-provider:${iv}-python${pyver}\`"
-            done
-
             echo ""
-            echo "### Helm Charts"
-            jq -r '.charts[]' "$CONFIG_FILE" | while read -r chart; do
-              echo "- \`${HELM_REGISTRY}/${chart}:${VERSION}\`"
-            done
-
-
-            echo ""
-            echo "### Install bundle"
-            # A release promoted from a tree that predates k3d-install.sh has no such
-            # asset, because the bundle is built by that tree's own build-vm-bundle.sh.
-            HAS_K3D_INSTALL=false
-            [ -f deployments/quick-start/k3d-install.sh ] && HAS_K3D_INSTALL=true
-            if [ "$HAS_K3D_INSTALL" = true ]; then
-              ENTRY_POINTS="\`bootstrap.sh\`, \`start.sh\` and \`k3d-install.sh\` are"
-            else
-              ENTRY_POINTS="\`bootstrap.sh\` and \`start.sh\` are"
-            fi
-            echo "\`wso2-agent-manager-${VERSION}.tar.gz\` bundles both the VM and quick-start installers. ${ENTRY_POINTS} also attached standalone as the one-command entry points:"
+            echo "### Run it"
+            echo "\`wso2-agent-manager-standalone-${VERSION}.tar.gz\` is the Docker Compose bundle, pinned to the images above:"
             echo '```'
-            echo "# VM install"
-            echo "curl -fsSL https://github.com/${REPO_OWNER}/agent-manager/releases/download/amp/v${VERSION}/bootstrap.sh | sudo bash -s -- simple --host <PUBLIC_IP> --version ${VERSION}"
-            echo ""
-            echo "# Quick-start (local dev container)"
-            echo "curl -fsSL https://github.com/${REPO_OWNER}/agent-manager/releases/download/amp/v${VERSION}/start.sh -o start.sh && chmod +x start.sh && ./start.sh"
-            if [ "$HAS_K3D_INSTALL" = true ]; then
-              echo ""
-              echo "# Local k3d cluster, installed directly on the host"
-              echo "curl -fsSL https://github.com/${REPO_OWNER}/agent-manager/releases/download/amp/v${VERSION}/k3d-install.sh | bash"
-            fi
+            echo "curl -fsSLO https://github.com/${REPO_OWNER}/agent-manager/releases/download/amp/v${VERSION}/wso2-agent-manager-standalone-${VERSION}.tar.gz"
+            echo "tar xzf wso2-agent-manager-standalone-${VERSION}.tar.gz && cd standalone"
+            echo "cp .env.example .env && docker compose up -d --wait"
             echo '```'
           } > /tmp/release-body.md
 
@@ -703,9 +545,14 @@ jobs:
           REPO_OWNER: ${{ github.repository_owner }}
         shell: bash
 
-      - name: Package install bundle
+      - name: Checkout promotion tooling
+        uses: actions/checkout@v6
+        with:
+          path: .promotion-tools
+
+      - name: Package the standalone bundle
         run: |
-          bash .github/scripts/build-vm-bundle.sh \
+          bash .promotion-tools/.github/scripts/build-standalone-bundle.sh \
             "$TARGET_RELEASE" \
             dist/
         env:

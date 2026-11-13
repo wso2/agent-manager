@@ -23,8 +23,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	occlient "github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 )
 
 const testImpersonatedOUID = "01900000-0000-7000-8000-000000000002"
@@ -32,7 +30,7 @@ const testImpersonatedOUID = "01900000-0000-7000-8000-000000000002"
 func requestWithImpersonationHeader(value string) *http.Request {
 	r := httptest.NewRequest(http.MethodGet, "/api/v1/orgs/acme/gateways", nil)
 	if value != "" {
-		r.Header.Set(occlient.HeaderImpersonateOrg, value)
+		r.Header.Set(HeaderImpersonateOrg, value)
 	}
 	return r
 }

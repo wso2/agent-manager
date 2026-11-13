@@ -180,13 +180,13 @@ type AgentURL struct {
 	Status *models.UserStatus
 }
 
-// For is the URL to show: the gateway's, else openChoreoURL while direct, else "".
-func (u AgentURL) For(openChoreoURL string) string {
+// For is the URL to show: the gateway's, else directURL while direct, else "".
+func (u AgentURL) For(directURL string) string {
 	switch {
 	case u.Gateway != "":
 		return u.Gateway
 	case u.Direct:
-		return openChoreoURL
+		return directURL
 	default:
 		return ""
 	}
@@ -238,7 +238,8 @@ func (p *AgentExposurePublisher) isExposed(ctx context.Context, key agentExposur
 
 func (p *AgentExposurePublisher) statusRecords(ctx context.Context, key agentExposureKey) ([]models.DeploymentStatusRecord, error) {
 	artifact, err := agentEnvAPIArtifact(
-		p.artifactRepo, key.OUID, key.ProjectName, key.AgentName, key.EnvironmentUUID.String(), models.AgentArtifactKinds...)
+		p.artifactRepo, key.OUID, key.ProjectName, key.AgentName, key.EnvironmentUUID.String(), models.AgentArtifactKinds...,
+	)
 	switch {
 	case err == nil:
 		return p.deploymentRepo.StatusRecords(ctx, key.OUID, artifact.UUID)

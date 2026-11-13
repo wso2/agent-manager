@@ -26,13 +26,15 @@ import (
 // the proxy is. The full token scope string is "<proxy-handle>:<action>"; Tools
 // is the set of the proxy's MCP tools this scope authorizes.
 type MCPProxyScope struct {
-	UUID         uuid.UUID `gorm:"column:uuid;primaryKey;default:gen_random_uuid()" json:"uuid"`
-	MCPProxyUUID uuid.UUID `gorm:"column:mcp_proxy_uuid;not null" json:"mcpProxyUuid"`
-	Action       string    `gorm:"column:action;not null" json:"action"`
-	Description  string    `gorm:"column:description;not null;default:''" json:"description"`
-	Tools        []string  `gorm:"column:tools;type:jsonb;serializer:json" json:"tools"`
-	CreatedAt    time.Time `gorm:"column:created_at" json:"createdAt"`
-	UpdatedAt    time.Time `gorm:"column:updated_at" json:"updatedAt"`
+	UUID         uuid.UUID `gorm:"column:id;primaryKey" json:"uuid"`
+	OrgID        string    `gorm:"column:org_id" json:"-"`
+	MCPProxyUUID uuid.UUID `gorm:"column:mcp_proxy_id" json:"mcpProxyUuid"`
+	Action       string    `gorm:"column:action" json:"action"`
+	Description  string    `gorm:"column:description" json:"description"`
+	// Tools are stored in mcp_proxy_scope_tools; the scope repository reads and writes them.
+	Tools     []string  `gorm:"-" json:"tools"`
+	CreatedAt time.Time `gorm:"column:created_at" json:"createdAt"`
+	UpdatedAt time.Time `gorm:"column:updated_at" json:"updatedAt"`
 }
 
 // TableName returns the table name for the MCPProxyScope model.

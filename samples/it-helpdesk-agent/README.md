@@ -16,7 +16,7 @@ Nine in-process tools over mock JSON cover the core helpdesk flows. On top of th
 | `MCP_OAUTH` toggle for AgentID auth to that proxy | The agent mints a `client_credentials` token scoped to the proxy URL and sends it as a bearer token instead of an API key |
 | Known-issue triage rules in the system prompt | The agent checks the IT team's issue tracker before opening a ticket, and may only read it |
 | Session memory (LangGraph checkpointer) | Multi-turn "verify me, then act" flows work across turns |
-| `AGENT_VERSION` echoed in `/health` and every chat response | Makes a promotion or rollback visible from the outside |
+| `AGENT_VERSION` echoed in `/health` and every chat response | Makes a rollout or rollback visible from the outside |
 | `scripts/seed_traffic.py` | Generates enough traces for a monitor to score |
 
 With `USE_MCP=false` (the default) the agent runs entirely on its in-process tools,
@@ -35,26 +35,47 @@ All configuration is environment variables. Only the LLM credential is required.
 | `MAX_TICKETS_PER_QUERY` | `20` | Caps ticket listings |
 | `AGENT_VERSION` | `dev` | Echoed in `/health` and chat responses |
 | `USE_LLM_PROVIDER` | `false` | Route through an Agent Manager LLM Service Provider |
-| `LLM_PROVIDER_URL` / `LLM_PROVIDER_KEY` | — | Injected by Agent Manager; required when `USE_LLM_PROVIDER=true` |
+| `LLM_PROVIDER_URL` / `LLM_PROVIDER_KEY` | — | From the agent's LLM configuration in the console; required when `USE_LLM_PROVIDER=true` |
 | `USE_MCP` | `false` | Load tools from an MCP proxy in addition to the in-process ones |
-| `GITHUB_MCP_URL` / `GITHUB_MCP_API_KEY` | — | Injected by Agent Manager when the `GitHub` MCP proxy is attached (set these names under **Environment Variable Names** when attaching; the console defaults to `GITHUB_URL` / `GITHUB_API_KEY`); required when `USE_MCP=true` |
+| `GITHUB_MCP_URL` / `GITHUB_MCP_API_KEY` | — | From the agent's tool configuration for the `GitHub` MCP proxy (**Connect to MCP Server**); required when `USE_MCP=true` |
 | `MCP_OAUTH` | `false` | Authenticate to the MCP proxy with the agent's AgentID (OAuth 2.0 bearer token) instead of an API key. Use when the proxy's **Security** tab is set to **OAuth**; `GITHUB_MCP_API_KEY` is then not needed |
-| `AMP_AGENTID_CLIENT_ID` / `AMP_AGENTID_CLIENT_SECRET` / `AMP_AGENTID_TOKEN_ENDPOINT` / `AMP_AGENTID_SCOPES` | — | Injected by Agent Manager into every platform-hosted agent; used when `MCP_OAUTH=true`. If they are not set yet, the agent starts without MCP tools |
+| `AMP_AGENTID_CLIENT_ID` / `AMP_AGENTID_CLIENT_SECRET` / `AMP_AGENTID_TOKEN_ENDPOINT` / `AMP_AGENTID_SCOPES` | — | From the agent's **Agent ID → Overview** page; used when `MCP_OAUTH=true`. If they are not set, the agent starts without MCP tools |
 | `ISSUE_TRACKER_REPO` | — | `owner/repo` of the IT team's known-issue tracker. Required when `USE_MCP=true`; issue searches are scoped to it |
 
-`LLM_PROVIDER_*`, `GITHUB_*` and `AMP_AGENTID_*` are **system-managed** — Agent Manager writes them
-per environment and they are read-only in the console. You never paste an upstream
-OpenAI or GitHub credential into the agent.
+`LLM_PROVIDER_*`, `GITHUB_*` and `AMP_AGENTID_*` are issued by Agent Manager; you copy them
+from the console into the agent's environment. You never paste an upstream OpenAI or
+GitHub credential into the agent.
 
-## Run it locally
+## Register it in Agent Manager
+
+You run the agent yourself; Agent Manager registers it and issues the token its
+traces are sent with. Start Agent Manager with `make up` from the repository root
+(see [`deployments/standalone`](../../deployments/standalone/README.md)), then:
+
+1. Sign in to the console at <http://localhost:3000> as `admin` (the password is
+   `THUNDER_ADMIN_PASSWORD` in `deployments/standalone/.env`).
+2. Open the **Default** project, click **Add Agent**, and register an agent named
+   `IT Helpdesk Agent`.
+3. In the **Set up agent** panel that opens, choose **Python**, pick a token
+   duration and click **Generate**. Copy the `AMP_OTEL_ENDPOINT` and
+   `AMP_AGENT_API_KEY` values it shows.
+
+## Run it
 
 ```bash
+cd samples/it-helpdesk-agent
 python -m venv env && source env/bin/activate
-pip install -r requirements.txt
+pip install -r requirements.txt amp-instrumentation
 
+export AMP_OTEL_ENDPOINT="http://default-default.gateway.localhost:19080/otel"
+export AMP_AGENT_API_KEY="<key-from-the-console>"
 export OPENAI_API_KEY=sk-...
-python main.py
+amp-instrument python main.py
 ```
+
+Set these as shell variables, not in a `.env` file, so `amp-instrument` can read
+them. To run it without tracing, leave out `amp-instrument` and the two `AMP_*`
+variables.
 
 Then:
 
@@ -66,6 +87,8 @@ curl -s localhost:8000/chat -H 'Content-Type: application/json' -d '{
   "message": "I need my password reset. alice.chen@acmecorp.com, E-1001."
 }'
 ```
+
+Each chat turn appears under the agent's **Observability → Traces** in the console.
 
 Reuse the same `session_id` across calls to continue a conversation. Omit it and
 each request starts its own.
@@ -96,9 +119,3 @@ clients/               Mock backends behind the tools
 data/                  Mock JSON fixtures
 scripts/seed_traffic.py  Scripted conversations for seeding traces
 ```
-
-## Deploying it
-
-The tutorial series covers deployment, model governance, MCP tools, evaluation,
-and promotion to production, in that order. Start at
-[Create Your First Agent](https://wso2.com/agent-platform/docs/latest/tutorials/create-your-first-agent).

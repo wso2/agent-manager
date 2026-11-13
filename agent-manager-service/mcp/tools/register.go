@@ -44,9 +44,6 @@ func (tools *Toolsets) register(server *gomcp.Server) *toolRegistry {
 	if tools.AgentToolset != nil {
 		tools.registerAgentTools(server, reg)
 	}
-	if tools.BuildToolset != nil {
-		tools.registerBuildTools(server, reg)
-	}
 	if tools.DeploymentToolset != nil {
 		tools.registerDeploymentTools(server, reg)
 	}

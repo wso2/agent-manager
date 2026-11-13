@@ -17,8 +17,6 @@
 package app
 
 import (
-	"context"
-	"errors"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -28,35 +26,23 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 
 	"github.com/wso2/agent-manager/agent-manager-observer/config"
-	"github.com/wso2/agent-manager/agent-manager-observer/middleware"
 	"github.com/wso2/agent-manager/agent-manager-observer/rbac"
 )
 
-type requestTokenProvider struct{}
-
-func (requestTokenProvider) GetToken(ctx context.Context) (string, error) {
-	if token := middleware.BearerTokenFromContext(ctx); token != "" {
-		return token, nil
-	}
-	return "", errors.New("no bearer token in request context")
-}
-
-func (requestTokenProvider) InvalidateToken() {}
-
-func newTestHandler(t *testing.T, upstreamURL string) http.Handler {
+func newTestHandler(t *testing.T, openSearchURL string) http.Handler {
 	t.Helper()
 	cfg := &config.Config{
-		Observer: config.ObserverConfig{BaseURL: upstreamURL, DefaultNamespace: "default"},
-		Auth:     config.AuthConfig{IsLocalDevEnv: true},
+		OpenSearch: config.OpenSearchConfig{Address: openSearchURL, TraceIndex: "otel-traces-*"},
+		Auth:       config.AuthConfig{IsLocalDevEnv: true},
 	}
-	return newHandler(cfg, requestTokenProvider{})
+	return newHandler(cfg)
 }
 
-func scopedToken(t *testing.T) string {
+func scopedToken(t *testing.T, scope string) string {
 	t.Helper()
 	claims := jwt.MapClaims{
 		"sub":   "test-user",
-		"scope": rbac.TraceRead.Scope(),
+		"scope": scope,
 		"exp":   time.Now().Add(time.Hour).Unix(),
 	}
 	signed, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte("k"))
@@ -84,27 +70,38 @@ func TestNewHandler_RejectsMissingToken(t *testing.T) {
 	}
 }
 
-func TestNewHandler_ForwardsInjectedProviderToken(t *testing.T) {
-	var gotAuth string
-	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotAuth = r.Header.Get("Authorization")
+func TestNewHandler_QueriesOpenSearch(t *testing.T) {
+	var gotPath string
+	store := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"spans": []}`))
+		_, _ = w.Write([]byte(`{"hits":{"total":{"value":0},"hits":[]}}`))
 	}))
-	defer upstream.Close()
+	defer store.Close()
 
-	token := scopedToken(t)
 	r := httptest.NewRequest(http.MethodGet,
 		"/api/v1/traces/abc/spans?organization=default&startTime=2026-01-01T00:00:00Z&endTime=2026-01-02T00:00:00Z", nil)
-	r.Header.Set("Authorization", "Bearer "+token)
+	r.Header.Set("Authorization", "Bearer "+scopedToken(t, rbac.TraceRead.Scope()))
 	rec := httptest.NewRecorder()
-	newTestHandler(t, upstream.URL).ServeHTTP(rec, r)
+	newTestHandler(t, store.URL).ServeHTTP(rec, r)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d (body: %s)", rec.Code, rec.Body.String())
 	}
-	if gotAuth != "Bearer "+token {
-		t.Errorf("expected upstream Authorization to carry the caller token, got %q", gotAuth)
+	if gotPath != "/otel-traces-*/_search" {
+		t.Errorf("expected a search on the trace index, got %q", gotPath)
+	}
+}
+
+func TestNewHandler_LogsNotImplemented(t *testing.T) {
+	r := httptest.NewRequest(http.MethodGet,
+		"/api/v1/logs?organization=o&project=p&agent=a&startTime=2026-01-01T00:00:00Z&endTime=2026-01-02T00:00:00Z", nil)
+	r.Header.Set("Authorization", "Bearer "+scopedToken(t, rbac.LogRead.Scope()))
+	rec := httptest.NewRecorder()
+	newTestHandler(t, "http://unused").ServeHTTP(rec, r)
+
+	if rec.Code != http.StatusNotImplemented {
+		t.Fatalf("expected 501, got %d (body: %s)", rec.Code, rec.Body.String())
 	}
 }
 
@@ -129,12 +126,12 @@ func TestRun_ReturnsListenError(t *testing.T) {
 	defer func() { _ = ln.Close() }()
 
 	cfg := &config.Config{
-		Server:   config.ServerConfig{Port: ln.Addr().(*net.TCPAddr).Port},
-		Observer: config.ObserverConfig{BaseURL: "http://unused"},
-		Auth:     config.AuthConfig{IsLocalDevEnv: true},
+		Server:     config.ServerConfig{Port: ln.Addr().(*net.TCPAddr).Port},
+		OpenSearch: config.OpenSearchConfig{Address: "http://unused", TraceIndex: "otel-traces-*"},
+		Auth:       config.AuthConfig{IsLocalDevEnv: true},
 	}
 	done := make(chan error, 1)
-	go func() { done <- Run(cfg, requestTokenProvider{}, Options{}) }()
+	go func() { done <- Run(cfg, Options{}) }()
 
 	select {
 	case err := <-done:

@@ -95,9 +95,6 @@ func runShow(o *ShowOptions) error {
 		fmt.Fprintf(w, "\nlinked project:\n")
 		fmt.Fprintf(w, "  org:          %s\n", cs.Cyan(linked.Org))
 		fmt.Fprintf(w, "  project:      %s\n", cs.Bold(linked.Project))
-		if linked.Environment != "" {
-			fmt.Fprintf(w, "  environment:  %s\n", cs.Green(linked.Environment))
-		}
 		if linked.Agent != "" {
 			fmt.Fprintf(w, "  agent:        %s\n", cs.Yellow(linked.Agent))
 		}

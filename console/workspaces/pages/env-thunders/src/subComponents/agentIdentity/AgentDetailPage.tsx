@@ -33,7 +33,7 @@ import {
   Typography,
 } from "@wso2/oxygen-ui";
 import { Shield, Trash, Users } from "@wso2/oxygen-ui-icons-react";
-import { generatePath, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { generatePath, useNavigate, useParams } from "react-router-dom";
 import {
   useAddAgentIdentityGroupMembers,
   useAddAgentIdentityRoleAssignees,
@@ -51,12 +51,12 @@ import {
   absoluteRouteMap,
   type ThunderGroup,
   type ThunderRole,
+  DEFAULT_ENVIRONMENT
 } from "@agent-management-platform/types";
 import { EditFormSkeleton, useUnsavedChangesGuard } from "@agent-management-platform/shared-component";
 import { PageLayout } from "@agent-management-platform/views";
 import { useResourceAccess } from "@agent-management-platform/feature-management";
 import { useAssignmentDelta } from "./useAssignmentDelta";
-import { withSearchParams } from "../../utils/withSearchParams";
 
 type TabId = "roles" | "groups";
 
@@ -111,9 +111,8 @@ function AssignmentTab<T extends AssignableItem>({
       </Typography>
       {catalogTotal > CATALOG_PAGE_SIZE && (
         <Alert severity="warning" sx={{ mt: 1 }}>
-          Showing the first {CATALOG_PAGE_SIZE} of {catalogTotal} in this
-          environment. The add picker below only excludes items already
-          listed here.
+          Showing the first {CATALOG_PAGE_SIZE} of {catalogTotal}. The add picker below only
+          excludes items already listed here.
         </Alert>
       )}
 
@@ -184,8 +183,6 @@ export const AgentDetailPage: React.FC = () => {
     projectName: string;
     agentName: string;
   }>();
-  const [searchParams] = useSearchParams();
-  const envName = searchParams.get("envName") ?? "";
   const navigate = useNavigate();
   const { canWrite } = useResourceAccess("agent_identity");
   const [activeTab, setActiveTab] = useState<TabId>("roles");
@@ -196,12 +193,12 @@ export const AgentDetailPage: React.FC = () => {
   const { data: rolesData, isLoading: isLoadingRoles, error: rolesError } =
     useGetAgentRoles(
       { orgName: orgId, projName: projectName, agentName },
-      { environment: envName },
+      { environment: DEFAULT_ENVIRONMENT },
     );
   const { data: groupsData, isLoading: isLoadingGroups, error: groupsError } =
     useGetAgentGroups(
       { orgName: orgId, projName: projectName, agentName },
-      { environment: envName },
+      { environment: DEFAULT_ENVIRONMENT },
     );
   const { data: agentData, isLoading: isLoadingAgent } = useGetAgent({
     orgName: orgId,
@@ -213,15 +210,15 @@ export const AgentDetailPage: React.FC = () => {
     projName: projectName,
   });
   const { data: identityAgentsData, isLoading: isLoadingIdentityAgents } =
-    useListAgentIdentityAgents({ orgName: orgId, envName });
+    useListAgentIdentityAgents({ orgName: orgId, envName: DEFAULT_ENVIRONMENT });
   const { data: allRolesData, isLoading: isLoadingAllRoles } =
     useListAgentIdentityRoles(
-      { orgName: orgId, envName },
+      { orgName: orgId, envName: DEFAULT_ENVIRONMENT },
       { offset: 0, limit: CATALOG_PAGE_SIZE },
     );
   const { data: allGroupsData, isLoading: isLoadingAllGroups } =
     useListAgentIdentityGroups(
-      { orgName: orgId, envName },
+      { orgName: orgId, envName: DEFAULT_ENVIRONMENT },
       { offset: 0, limit: CATALOG_PAGE_SIZE },
     );
 
@@ -278,17 +275,17 @@ export const AgentDetailPage: React.FC = () => {
   );
 
   const agentsNode =
-    absoluteRouteMap.children.org.children.thunderInstances.children.agents;
+    absoluteRouteMap.children.org.children.agentIdentity.children.agents;
   const agentsPath = orgId
-    ? withSearchParams(generatePath(agentsNode.path, { orgId }), searchParams)
+    ? generatePath(agentsNode.path, { orgId })
     : "#";
 
   const handleSave = async () => {
-    if (!orgId || !envName || !thunderAgentId) return;
+    if (!orgId || !thunderAgentId) return;
     setSaveError(undefined);
     setSaveSuccess(false);
     setIsSaving(true);
-    const envParams = { orgName: orgId, envName };
+    const envParams = { orgName: orgId, envName: DEFAULT_ENVIRONMENT };
     try {
       const addRoleIds = roleDelta.pendingAdds.map((r) => r.id);
       const removeRoleIds = [...roleDelta.removedIds];
@@ -376,7 +373,7 @@ export const AgentDetailPage: React.FC = () => {
         )}
         {!hasBinding && canWrite && (
           <Alert severity="info">
-            This agent has no active identity binding in {envName}, so roles
+            This agent has no active identity binding, so roles
             and groups can&apos;t be assigned yet.
           </Alert>
         )}
@@ -397,7 +394,7 @@ export const AgentDetailPage: React.FC = () => {
             <AssignmentTab
               header="Assigned Roles"
               description={
-                <>Roles assigned to this agent&apos;s identity in {envName}.</>
+                <>Roles assigned to this agent&apos;s identity.</>
               }
               addLabel="Add role"
               addPlaceholder="Search roles..."
@@ -419,7 +416,7 @@ export const AgentDetailPage: React.FC = () => {
             <AssignmentTab
               header="Group Memberships"
               description={
-                <>Groups this agent&apos;s identity belongs to in {envName}.</>
+                <>Groups this agent&apos;s identity belongs to.</>
               }
               addLabel="Add group"
               addPlaceholder="Search groups..."

@@ -31,12 +31,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
-	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
-	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
-	"github.com/wso2/agent-manager/agent-manager-service/spec"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -46,24 +44,13 @@ const (
 	tierDevEnv  = "development"
 )
 
-// nonProductionEnvStub is the GetEnvironment stub the deploy and promote
-// fixtures need now that both paths resolve their target through requireEnvTier:
-// an ordinary non-production environment, under whatever name the path asks for.
-// A test that cares about the tier states its own environment instead — see
-// tierService below, which is the only place the production flag is interesting.
-func nonProductionEnvStub() func(ctx context.Context, ouID, envName string) (*models.EnvironmentResponse, error) {
-	return func(_ context.Context, _, envName string) (*models.EnvironmentResponse, error) {
-		return &models.EnvironmentResponse{Name: envName}, nil
-	}
-}
-
-// tierService returns a service whose only live dependency is an OpenChoreo
-// client that reports envName's production flag, plus the calls counter so a
+// tierService returns a service whose only live dependency is a platform
+// repository that reports envName's production flag, plus the calls counter so a
 // test can assert the lookup happened.
 func tierService(envs map[string]bool, lookupErr error) (*agentManagerService, *int) {
 	calls := 0
 	return &agentManagerService{
-		ocClient: &clientmocks.OpenChoreoClientMock{
+		platform: &repomocks.PlatformRepositoryMock{
 			GetEnvironmentFunc: func(_ context.Context, _, envName string) (*models.EnvironmentResponse, error) {
 				calls++
 				if lookupErr != nil {
@@ -71,7 +58,7 @@ func tierService(envs map[string]bool, lookupErr error) (*agentManagerService, *
 				}
 				isProduction, known := envs[envName]
 				if !known {
-					return nil, utils.ErrNotFound
+					return nil, utils.ErrEnvironmentNotFound
 				}
 				return &models.EnvironmentResponse{Name: envName, IsProduction: isProduction}, nil
 			},
@@ -248,71 +235,4 @@ func TestRequireEnvTier_DenialIsAudited(t *testing.T) {
 	// action reads the field, so a tier denial that omitted it would look like a
 	// token with no scopes at all rather than one missing this scope.
 	require.EqualValues(t, 1, event.Details["grantedScopes"])
-}
-
-// The config-update paths reach an environment as directly as a deploy does:
-// both rewrite what a running deployment executes with. UpdateAgentConfigurations
-// replaces the environment's entire env var and file mount set, and
-// UpdateAgentDeploySettings rewrites its trait configs, so a caller who may not
-// deploy to production must not be able to edit production either. These two
-// tests are that guarantee — the route's static floor is only half of it, since
-// the environment arrives in the request body.
-func TestUpdateAgentConfigurations_ProductionNeedsProductionScope(t *testing.T) {
-	overridesReplaced := false
-	ocClient := &clientmocks.OpenChoreoClientMock{
-		GetOrganizationFunc: func(_ context.Context, name string) (*models.OrganizationResponse, error) {
-			return &models.OrganizationResponse{Name: name}, nil
-		},
-		GetComponentFunc: func(_ context.Context, _, _, _ string) (*models.AgentResponse, error) {
-			return &models.AgentResponse{Provisioning: models.Provisioning{Type: string(utils.InternalAgent)}}, nil
-		},
-		GetEnvironmentFunc: func(_ context.Context, _, name string) (*models.EnvironmentResponse, error) {
-			return &models.EnvironmentResponse{Name: name, IsProduction: true}, nil
-		},
-		EnsureReleaseAndBindingFunc: func(context.Context, string, string, string, string, []client.EnvVar, []client.FileVar, map[string]interface{}, map[string]interface{}) error {
-			overridesReplaced = true
-			return nil
-		},
-	}
-	svc := &agentManagerService{ocClient: ocClient, logger: discardLogger()}
-
-	err := svc.UpdateAgentConfigurations(
-		tierCtx(t, rbac.AgentEnvNonProduction, rbac.AgentUpdate), tierOUID, "proj1", "my-agent",
-		&spec.UpdateAgentConfigurationsRequest{EnvironmentName: tierProdEnv},
-	)
-
-	require.ErrorIs(t, err, utils.ErrForbidden)
-	require.Contains(t, err.Error(), rbac.AgentEnvProduction.Scope())
-	require.False(t, overridesReplaced,
-		"a caller without the production grant must not rewrite a production deployment's env vars, secret refs or file mounts")
-}
-
-func TestUpdateAgentDeploySettings_ProductionNeedsProductionScope(t *testing.T) {
-	traitConfigsUpdated := false
-	ocClient := &clientmocks.OpenChoreoClientMock{
-		GetOrganizationFunc: func(_ context.Context, name string) (*models.OrganizationResponse, error) {
-			return &models.OrganizationResponse{Name: name}, nil
-		},
-		GetComponentFunc: func(_ context.Context, _, _, _ string) (*models.AgentResponse, error) {
-			return &models.AgentResponse{Type: models.AgentType{Type: string(utils.AgentTypeAPI)}}, nil
-		},
-		GetEnvironmentFunc: func(_ context.Context, _, name string) (*models.EnvironmentResponse, error) {
-			return &models.EnvironmentResponse{Name: name, IsProduction: true}, nil
-		},
-		UpdateReleaseBindingTraitConfigsFunc: func(context.Context, string, string, string, map[string]interface{}, map[string]interface{}) error {
-			traitConfigsUpdated = true
-			return nil
-		},
-	}
-	svc := &agentManagerService{ocClient: ocClient, logger: discardLogger()}
-
-	err := svc.UpdateAgentDeploySettings(
-		tierCtx(t, rbac.AgentEnvNonProduction, rbac.AgentUpdate), tierOUID, "proj1", "my-agent",
-		&spec.UpdateAgentDeploySettingsRequest{EnvironmentName: tierProdEnv},
-	)
-
-	require.ErrorIs(t, err, utils.ErrForbidden)
-	require.Contains(t, err.Error(), rbac.AgentEnvProduction.Scope())
-	require.False(t, traitConfigsUpdated,
-		"a caller without the production grant must not rewrite a production deployment's trait configs")
 }

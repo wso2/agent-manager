@@ -20,27 +20,25 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"gorm.io/gorm"
 )
 
 // Gateway represents an API Platform gateway instance within an organization
 type Gateway struct {
-	UUID                     uuid.UUID              `gorm:"column:uuid;primaryKey" json:"id"`
-	OUID                     string                 `gorm:"column:ou_id" json:"organizationId"`
+	UUID                     uuid.UUID              `gorm:"column:id;primaryKey" json:"id"`
+	OUID                     string                 `gorm:"column:org_id" json:"organizationId"`
 	Name                     string                 `gorm:"column:name" json:"name"`
 	DisplayName              string                 `gorm:"column:display_name" json:"displayName"`
 	Description              string                 `gorm:"column:description" json:"description"`
-	Properties               map[string]interface{} `gorm:"column:properties;type:jsonb;serializer:json" json:"properties,omitempty"`
-	Manifest                 map[string]interface{} `gorm:"column:manifest;type:jsonb;serializer:json" json:"manifest,omitempty"`
+	Properties               map[string]interface{} `gorm:"column:properties;serializer:json" json:"properties,omitempty"`
+	Manifest                 map[string]interface{} `gorm:"column:manifest;serializer:json" json:"manifest,omitempty"`
 	Vhost                    string                 `gorm:"column:vhost" json:"vhost"`
 	RuntimeURL               string                 `gorm:"column:runtime_url" json:"runtimeUrl,omitempty"`
 	IsCritical               bool                   `gorm:"column:is_critical" json:"isCritical"`
-	GatewayFunctionalityType string                 `gorm:"column:gateway_functionality_type" json:"functionalityType"`
+	GatewayFunctionalityType string                 `gorm:"column:functionality_type" json:"functionalityType"`
 	IsActive                 bool                   `gorm:"column:is_active" json:"isActive"`
 	Hosting                  string                 `gorm:"column:hosting;default:managed" json:"hosting"`
 	CreatedAt                time.Time              `gorm:"column:created_at" json:"createdAt"`
 	UpdatedAt                time.Time              `gorm:"column:updated_at" json:"updatedAt"`
-	DeletedAt                gorm.DeletedAt         `gorm:"column:deleted_at;index" json:"-"`
 }
 
 // TableName returns the table name for the Gateway model
@@ -96,8 +94,9 @@ func (g *Gateway) IsEgressCapable() bool {
 
 // GatewayToken represents an authentication token for an API Platform gateway
 type GatewayToken struct {
-	UUID        uuid.UUID  `gorm:"column:uuid;primaryKey" json:"id"`
-	GatewayUUID uuid.UUID  `gorm:"column:gateway_uuid" json:"gatewayId"`
+	UUID        uuid.UUID  `gorm:"column:id;primaryKey" json:"id"`
+	OrgID       uuid.UUID  `gorm:"column:org_id" json:"-"`
+	GatewayUUID uuid.UUID  `gorm:"column:gateway_id" json:"gatewayId"`
 	TokenPrefix string     `gorm:"column:token_prefix" json:"-"` // First 8 chars of plaintext token for indexed lookup
 	TokenHash   string     `gorm:"column:token_hash" json:"-"`   // Never expose in JSON responses
 	Salt        string     `gorm:"column:salt" json:"-"`         // Never expose in JSON responses
@@ -135,8 +134,9 @@ const (
 // issuer) entry. The gateway ConfigMap is the source of truth; this row is a
 // read mirror written by the gateway bootstrap and the management script.
 type GatewayIdentityProvider struct {
-	UUID              uuid.UUID `gorm:"column:uuid;primaryKey" json:"-"`
-	GatewayUUID       uuid.UUID `gorm:"column:gateway_uuid" json:"-"`
+	UUID              uuid.UUID `gorm:"column:id;primaryKey" json:"-"`
+	OrgID             uuid.UUID `gorm:"column:org_id" json:"-"`
+	GatewayUUID       uuid.UUID `gorm:"column:gateway_id" json:"-"`
 	Name              string    `gorm:"column:name" json:"name"`
 	Issuer            string    `gorm:"column:issuer" json:"issuer"`
 	JWKSUri           string    `gorm:"column:jwks_uri" json:"jwksUri"`

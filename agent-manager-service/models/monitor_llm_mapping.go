@@ -29,7 +29,7 @@ type MonitorLLMMapping struct {
 	MonitorID           uuid.UUID   `gorm:"column:monitor_id;type:uuid;not null" json:"monitorId"`
 	LLMProxyUUID        uuid.UUID   `gorm:"column:llm_proxy_uuid;type:uuid;not null" json:"llmProxyUuid"`
 	PolicyConfiguration LLMPolicies `gorm:"column:policy_configuration;type:jsonb;default:[]" json:"policyConfiguration,omitempty"`
-	// SecretKVPath holds the name of the OpenChoreo SecretReference that the
+	// SecretKVPath holds the name of the SecretReference that the
 	// evaluation workflow resolves to mount LLM_API_KEY into the evaluation pod.
 	// Rows written before the name was persisted hold the SecretReference's
 	// remoteRef.key instead, with SecretKey as its remoteRef.property.

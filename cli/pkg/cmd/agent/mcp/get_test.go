@@ -68,9 +68,9 @@ func Test_runGet_humanOutput(t *testing.T) {
 	got := out.String()
 	for _, want := range []string{
 		"primary", "mcp", "primary github binding",
-		"ENV", "PROXY", "URL", "STATUS",
-		"dev", "github", "https://dev.mcp", "active",
-		"prod", "gitlab",
+		"PROXY", "URL", "STATUS",
+		"github", "https://dev.mcp", "active",
+		"gitlab",
 		"MCP_URL", "MCP_KEY",
 	} {
 		if !strings.Contains(got, want) {

@@ -36,12 +36,13 @@ import (
 func newTestExposure(t *testing.T, ouID, agentName string, envUUID uuid.UUID) *models.PlatformAgentExposure {
 	t.Helper()
 	gdb := db.GetDB()
+	ensureAgent(t, ouID, "checkout", agentName)
+	envWithID(t, ouID, envUUID, "Development")
 	artifactUUID := uuid.New()
 	require.NoError(t, NewArtifactRepo(gdb).Create(gdb, &models.Artifact{
 		UUID: artifactUUID, Handle: "checkout/" + agentName + "/" + envUUID.String(), Name: "agent-" + artifactUUID.String()[:8],
 		Version: "v1.0", Kind: models.KindAgent, OUID: ouID,
 	}))
-	t.Cleanup(func() { gdb.Exec(`DELETE FROM artifacts WHERE uuid = ?`, artifactUUID) })
 	return &models.PlatformAgentExposure{
 		OUID:            ouID,
 		ProjectName:     "checkout",
@@ -52,12 +53,14 @@ func newTestExposure(t *testing.T, ouID, agentName string, envUUID uuid.UUID) *m
 	}
 }
 
-func testOU() string { return "ou-" + uuid.New().String()[:8] }
+func testOU(t *testing.T) string { t.Helper(); return newOrg(t) }
 
 func exposureRowsFor(t *testing.T, ouID, agentName string) []models.PlatformAgentExposure {
 	t.Helper()
 	var rows []models.PlatformAgentExposure
-	require.NoError(t, db.GetDB().Where("ou_id = ? AND agent_name = ?", ouID, agentName).Find(&rows).Error)
+	gdb := db.GetDB()
+	require.NoError(t, gdb.Where("org_id = ? AND agent_id IN (?)", ouID, models.AgentIDQuery(gdb, ouID, "checkout", agentName)).
+		Find(&rows).Error)
 	return rows
 }
 
@@ -65,43 +68,23 @@ func exposureRowsFor(t *testing.T, ouID, agentName string) []models.PlatformAgen
 func TestPlatformAgentExposureUpsertKeepsOneRowPerPair(t *testing.T) {
 	repo := NewPlatformAgentExposureRepository(db.GetDB())
 	ctx := context.Background()
-	exposure := newTestExposure(t, testOU(), "trip-planner", uuid.New())
+	exposure := newTestExposure(t, testOU(t), "trip-planner", uuid.New())
 	require.NoError(t, repo.Upsert(ctx, exposure))
 
 	again := *exposure
 	again.ID = uuid.Nil
-	agentUUID := uuid.New()
-	again.AgentUUID = &agentUUID
+	again.Protocol = models.AgentExposureProtocolREST
 	require.NoError(t, repo.Upsert(ctx, &again))
 
 	rows := exposureRowsFor(t, exposure.OUID, exposure.AgentName)
 	require.Len(t, rows, 1)
-	assert.Equal(t, models.AgentExposureProtocolA2A, rows[0].Protocol)
-	require.NotNil(t, rows[0].AgentUUID)
-	assert.Equal(t, agentUUID, *rows[0].AgentUUID, "an upsert records the current agent")
-}
-
-// A same-named environment recreated under a new UUID replaces the old one's row.
-func TestPlatformAgentExposureUpsertReplacesARowFromADeletedEnvironment(t *testing.T) {
-	repo := NewPlatformAgentExposureRepository(db.GetDB())
-	ctx := context.Background()
-	ouID := testOU()
-	old := newTestExposure(t, ouID, "recreated", uuid.New())
-	require.NoError(t, repo.Upsert(ctx, old))
-
-	recreated := newTestExposure(t, ouID, "recreated", uuid.New())
-	require.NoError(t, repo.Upsert(ctx, recreated))
-
-	rows := exposureRowsFor(t, ouID, "recreated")
-	require.Len(t, rows, 1)
-	assert.Equal(t, recreated.EnvironmentUUID, rows[0].EnvironmentUUID)
-	assert.Equal(t, recreated.ArtifactUUID, rows[0].ArtifactUUID)
+	assert.Equal(t, models.AgentExposureProtocolREST, rows[0].Protocol, "an upsert rewrites the pair's row")
 }
 
 func TestPlatformAgentExposureGetIsByEnvironmentUUID(t *testing.T) {
 	repo := NewPlatformAgentExposureRepository(db.GetDB())
 	ctx := context.Background()
-	exposure := newTestExposure(t, testOU(), "get", uuid.New())
+	exposure := newTestExposure(t, testOU(t), "get", uuid.New())
 	require.NoError(t, repo.Upsert(ctx, exposure))
 
 	got, err := repo.Get(ctx, exposure.OUID, exposure.ProjectName, exposure.AgentName, exposure.EnvironmentUUID)
@@ -115,14 +98,14 @@ func TestPlatformAgentExposureGetIsByEnvironmentUUID(t *testing.T) {
 func TestPlatformAgentExposureGetByArtifact(t *testing.T) {
 	repo := NewPlatformAgentExposureRepository(db.GetDB())
 	ctx := context.Background()
-	exposure := newTestExposure(t, testOU(), "by-artifact", uuid.New())
+	exposure := newTestExposure(t, testOU(t), "by-artifact", uuid.New())
 	require.NoError(t, repo.Upsert(ctx, exposure))
 
 	got, err := repo.GetByArtifact(ctx, exposure.OUID, exposure.ArtifactUUID)
 	require.NoError(t, err)
 	assert.Equal(t, exposure.ID, got.ID)
 
-	_, err = repo.GetByArtifact(ctx, testOU(), exposure.ArtifactUUID)
+	_, err = repo.GetByArtifact(ctx, testOU(t), exposure.ArtifactUUID)
 	assert.ErrorIs(t, err, ErrPlatformAgentExposureNotFound, "scoped to the org")
 	_, err = repo.GetByArtifact(ctx, exposure.OUID, uuid.New())
 	assert.ErrorIs(t, err, ErrPlatformAgentExposureNotFound)
@@ -132,10 +115,11 @@ func TestPlatformAgentExposureGetByArtifact(t *testing.T) {
 func TestPlatformAgentExposureGoesWithItsArtifact(t *testing.T) {
 	repo := NewPlatformAgentExposureRepository(db.GetDB())
 	ctx := context.Background()
-	exposure := newTestExposure(t, testOU(), "cascade", uuid.New())
+	exposure := newTestExposure(t, testOU(t), "cascade", uuid.New())
 	require.NoError(t, repo.Upsert(ctx, exposure))
 
-	require.NoError(t, db.GetDB().Exec(`DELETE FROM artifacts WHERE uuid = ?`, exposure.ArtifactUUID).Error)
+	gdb := db.GetDB()
+	require.NoError(t, NewArtifactRepo(gdb).Delete(gdb, exposure.ArtifactUUID.String()))
 
 	_, err := repo.GetByArtifact(ctx, exposure.OUID, exposure.ArtifactUUID)
 	assert.ErrorIs(t, err, ErrPlatformAgentExposureNotFound)
@@ -144,7 +128,8 @@ func TestPlatformAgentExposureGoesWithItsArtifact(t *testing.T) {
 func TestPlatformAgentExposureListsAndDeletesByEnvironment(t *testing.T) {
 	repo := NewPlatformAgentExposureRepository(db.GetDB())
 	ctx := context.Background()
-	ouID, prodUUID := testOU(), uuid.New()
+	ouID, prodUUID := testOU(t), uuid.New()
+	envWithID(t, ouID, prodUUID, "Production")
 	dev := newTestExposure(t, ouID, "env", uuid.New())
 	prod := newTestExposure(t, ouID, "env", prodUUID)
 	prod.EnvironmentName = "Production"
@@ -181,7 +166,7 @@ func TestPlatformAgentExposureListsAndDeletesByEnvironment(t *testing.T) {
 func TestPlatformAgentExposureDeleteForAgent(t *testing.T) {
 	repo := NewPlatformAgentExposureRepository(db.GetDB())
 	ctx := context.Background()
-	ouID := testOU()
+	ouID := testOU(t)
 	for _, exposure := range []*models.PlatformAgentExposure{
 		newTestExposure(t, ouID, "deleted", uuid.New()),
 		newTestExposure(t, ouID, "deleted", uuid.New()),
@@ -201,7 +186,7 @@ func TestPlatformAgentExposureDeleteForAgent(t *testing.T) {
 func TestPlatformAgentExposureWithTxRollsBack(t *testing.T) {
 	repo := NewPlatformAgentExposureRepository(db.GetDB())
 	ctx := context.Background()
-	exposure := newTestExposure(t, testOU(), "tx", uuid.New())
+	exposure := newTestExposure(t, testOU(t), "tx", uuid.New())
 
 	err := db.GetDB().Transaction(func(tx *gorm.DB) error {
 		require.NoError(t, repo.WithTx(tx).Upsert(ctx, exposure))

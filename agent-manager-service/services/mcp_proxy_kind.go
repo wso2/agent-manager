@@ -76,7 +76,7 @@ func NewMCPProxyKind(gatewayRepo repositories.GatewayRepository, deploymentRepo 
 func loadMCPArtifact(ctx context.Context, artifact models.ArtifactRef) (*mcpArtifact, error) {
 	tx := db.DB(ctx)
 	var binding models.MCPProxyEndpointEnvironment
-	if err := tx.Where("artifact_uuid = ?", artifact.ArtifactUUID).Take(&binding).Error; err != nil {
+	if err := tx.Where("artifact_id = ?", artifact.ArtifactUUID).Take(&binding).Error; err != nil {
 		return nil, err
 	}
 	proxy, err := repositories.NewMCPProxyRepo(tx).GetByUUID(ctx, binding.MCPProxyUUID.String(), artifact.OUID)
@@ -165,19 +165,23 @@ func (k *MCPProxyKind) UnplacedRecords(
 	ctx context.Context, ouID string, env *uuid.UUID, afterKey string, limit int,
 ) ([]reconcile.Record, error) {
 	condition, args := reconcile.UnplacedCondition(reconcile.RecordColumns{
-		OUID: "a.ou_id", ArtifactUUID: "a.uuid", EnvironmentUUID: "b.environment_uuid",
+		OUID: "a.org_id", ArtifactUUID: "a.id", EnvironmentUUID: "b.environment_id",
 	}, models.EgressGatewayRoles, ouID, env)
 	var rows []struct {
-		OUID            string    `gorm:"column:ou_id"`
-		ArtifactUUID    uuid.UUID `gorm:"column:artifact_uuid"`
+		OUID            string    `gorm:"column:org_id"`
+		ArtifactUUID    uuid.UUID `gorm:"column:artifact_id"`
 		Kind            string    `gorm:"column:kind"`
 		Handle          string    `gorm:"column:handle"`
-		EnvironmentUUID uuid.UUID `gorm:"column:environment_uuid"`
+		EnvironmentUUID uuid.UUID `gorm:"column:environment_id"`
 	}
-	err := db.DB(ctx).Raw(`SELECT a.ou_id, a.uuid AS artifact_uuid, a.kind, a.handle, b.environment_uuid
-		FROM mcp_proxy_endpoint_environments b JOIN artifacts a ON a.uuid = b.artifact_uuid
-		WHERE `+condition+` AND a.uuid::text > ?
-		ORDER BY a.uuid::text LIMIT ?`, append(args, afterKey, limit)...).Scan(&rows).Error
+	q := db.DB(ctx).Table("mcp_proxy_endpoint_environments b").
+		Select("a.org_id, a.id AS artifact_id, a.kind, a.handle, b.environment_id").
+		Joins("JOIN artifacts a ON a.id = b.artifact_id").
+		Where(condition, args...)
+	if afterKey != "" {
+		q = q.Where("a.id > ?", afterKey)
+	}
+	err := q.Order("a.id").Limit(limit).Scan(&rows).Error
 	if err != nil {
 		return nil, fmt.Errorf("failed to list unplaced MCP proxy artifacts: %w", err)
 	}
@@ -195,9 +199,9 @@ func (k *MCPProxyKind) UnplacedRecords(
 // PlacedOn: an (endpoint, environment) binding in env whose artifact is placed on gateway.
 func (k *MCPProxyKind) PlacedOn(ctx context.Context, tx *gorm.DB, env, gateway uuid.UUID) (bool, error) {
 	condition, args := reconcile.PlacedCondition(reconcile.RecordColumns{
-		OUID: "a.ou_id", ArtifactUUID: "a.uuid", EnvironmentUUID: "b.environment_uuid",
+		OUID: "a.org_id", ArtifactUUID: "a.id", EnvironmentUUID: "b.environment_id",
 	}, env, gateway)
-	return placedOn(ctx, tx, `SELECT 1 FROM mcp_proxy_endpoint_environments b JOIN artifacts a ON a.uuid = b.artifact_uuid
+	return placedOn(ctx, tx, `SELECT 1 AS placed FROM mcp_proxy_endpoint_environments b JOIN artifacts a ON a.id = b.artifact_id
 		WHERE `+condition, args)
 }
 

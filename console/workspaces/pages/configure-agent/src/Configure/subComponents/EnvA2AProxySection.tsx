@@ -34,7 +34,7 @@ import {
 } from "./a2aProxyDraft";
 
 const ProxySecurityDrawer = lazy(() =>
-  import("@agent-management-platform/deploy").then((m) => ({ default: m.ProxySecurityDrawer })),
+  import("./ProxySecurityDrawer").then((m) => ({ default: m.ProxySecurityDrawer })),
 );
 
 type ChipColor = "default" | "warning" | "success" | "error";
@@ -51,13 +51,13 @@ interface EnvA2AProxySectionProps {
   params: AgentCardPathParams;
   /** The registered card URL, which a new upstream secret requires to be https. */
   cardUrl: string;
-  /** Undefined while the environment is direct; render only once that is known. */
+  /** Undefined while the agent is direct; render only once that is known. */
   proxy?: A2AProxyResponse;
-  /** A routing save for this environment is in flight, from this section or another form. */
+  /** A routing save is in flight, from this section or another form. */
   saving?: boolean;
 }
 
-/** Stands in for the routing controls until the environment's routing is known. */
+/** Stands in for the routing controls until the routing is known. */
 export function A2AProxyUnknown({ failed }: { failed: boolean }) {
   return failed ? (
     <Typography variant="body2" color="error" sx={{ mb: 2 }}>Couldn&apos;t load gateway routing.</Typography>
@@ -66,7 +66,7 @@ export function A2AProxyUnknown({ failed }: { failed: boolean }) {
   );
 }
 
-/** The proxied environment's gateway URL once deployed, otherwise why it isn't deployed yet. */
+/** The proxy's gateway URL once deployed, otherwise why it isn't deployed yet. */
 function ProxyDetail({ proxy }: { proxy: A2AProxyResponse }) {
   if (proxy.status === "DEPLOYED" || !proxy.gatewayUrl) {
     return <GatewayUrl url={proxy.gatewayUrl} />;
@@ -101,7 +101,7 @@ function GatewayUrl({ url }: { url: string }) {
   if (!url) {
     return (
       <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-        No ingress gateway is mapped to this environment.
+        No ingress gateway is available.
       </Typography>
     );
   }
@@ -124,7 +124,7 @@ function GatewayUrl({ url }: { url: string }) {
   );
 }
 
-/** Gateway routing for one environment of an external agent that has a registered card URL. */
+/** Gateway routing for an external agent that has a registered card URL. */
 export function EnvA2AProxySection({
   params, cardUrl, proxy, saving = false,
 }: EnvA2AProxySectionProps) {
@@ -233,7 +233,6 @@ export function EnvA2AProxySection({
             orgName={params.orgName ?? ""}
             projName={params.projName ?? ""}
             agentName={params.agentName ?? ""}
-            environment={params.envId ?? ""}
           />
         </Suspense>
       )}

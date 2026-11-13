@@ -20,11 +20,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-observer/opensearch"
 )
 
-// componentUIDResourceKey is the resource attribute key used by OpenChoreo to
-// identify the component. It matches what opensearch/process.go reads when
-// building span.Service from resource attributes.
-const componentUIDResourceKey = "openchoreo.dev/component-uid"
-
 func statusCodeAndMessage(s *SpanStatus) (code, message string) {
 	if s == nil {
 		return "", ""
@@ -32,23 +27,10 @@ func statusCodeAndMessage(s *SpanStatus) (code, message string) {
 	return s.Code, s.Message
 }
 
-// ConvertSpanDetailsToSpan builds an opensearch.Span from a SpanDetailsResponse.
-// The result is ready to be passed directly to opensearch.ProcessSpan.
-//
-// Attributes: the observer service returns attributes as a map[string]interface{}
-// (JSON object) whose values are already native Go types (string, float64, bool,
-// nested maps). This matches the format expected by process.go without any
-// additional conversion.
-//
-// Service: extracted from resourceAttributes["openchoreo.dev/component-uid"].
-// Resource: set to resourceAttributes so that any existing resource-based lookups
-// in process.go continue to work.
+// ConvertSpanDetailsToSpan builds an opensearch.Span from a SpanDetailsResponse,
+// ready to be passed to opensearch.ProcessSpan.
 func ConvertSpanDetailsToSpan(traceID string, d *SpanDetailsResponse) opensearch.Span {
-	service := ""
-	if uid, ok := d.ResourceAttributes[componentUIDResourceKey].(string); ok {
-		service = uid
-	}
-
+	service := opensearch.ServiceFromResource(d.ResourceAttributes)
 	code, message := statusCodeAndMessage(d.Status)
 	return opensearch.Span{
 		TraceID:         traceID,
@@ -67,20 +49,10 @@ func ConvertSpanDetailsToSpan(traceID string, d *SpanDetailsResponse) opensearch
 	}
 }
 
-// ConvertSpanInfoToSpan builds an opensearch.Span from a SpanInfo returned by
-// the spans-query endpoint with includeAttributes=true. It mirrors
-// ConvertSpanDetailsToSpan: the spans-query response carries the same fields
-// (spanKind, status, attributes, resourceAttributes) the per-span details
-// endpoint does, so the export path needs no GetSpanDetails round-trip.
-//
-// Service is extracted from resourceAttributes["openchoreo.dev/component-uid"]
-// and Resource is set to resourceAttributes so process.go lookups keep working.
+// ConvertSpanInfoToSpan builds an opensearch.Span from a SpanInfo queried with
+// IncludeAttributes, so the export path needs no GetSpanDetails round-trip.
 func ConvertSpanInfoToSpan(traceID string, s SpanInfo) opensearch.Span {
-	service := ""
-	if uid, ok := s.ResourceAttributes[componentUIDResourceKey].(string); ok {
-		service = uid
-	}
-
+	service := opensearch.ServiceFromResource(s.ResourceAttributes)
 	code, message := statusCodeAndMessage(s.Status)
 	return opensearch.Span{
 		TraceID:         traceID,

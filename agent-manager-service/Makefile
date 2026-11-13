@@ -25,6 +25,10 @@ wire: ## Run wire code gen.
 	@(cd wiring && wire)
 	@echo "Wire code gen done"
 
+.PHONY: schema
+schema: ## Render db_migrations/schema/lite.yaml into the per-database baseline migrations.
+	@go run ./db_migrations/schema/cmd/schemagen
+
 .PHONY: codegen
 codegen: ## Run code gen.
 	@echo "Running go generate"
@@ -96,16 +100,6 @@ spec: ## Code gen type/client for openapi spec.
 # subtle param-handling changes, etc.). Bump both together.
 OAPI_CODEGEN := go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.4.1
 
-.PHONY: gen-oc-client
-gen-oc-client: ## Generate OpenChoreo API client from upstream OpenAPI spec.
-	@echo "Generating OpenChoreo client from upstream spec"
-	@curl -sL "https://raw.githubusercontent.com/openchoreo/openchoreo/v1.2.8/openapi/openchoreo-api.yaml" -o /tmp/openchoreo-api.yaml
-	@$(OAPI_CODEGEN) -config clients/openchoreosvc/gen/oapi-codegen.yaml /tmp/openchoreo-api.yaml
-	@$(OAPI_CODEGEN) -config clients/openchoreosvc/gen/oapi-codegen-client.yaml /tmp/openchoreo-api.yaml
-	@rm /tmp/openchoreo-api.yaml
-	@$(MAKE) fmt
-	@echo "OpenChoreo client generated successfully"
-
 .PHONY: gen-api-platform-client
 gen-api-platform-client: ## Generate API Platform API client from upstream OpenAPI spec.
 	@echo "Generating Gateway client"
@@ -132,10 +126,6 @@ codegenfmt-check:
       exit 1; \
     fi
 
-.PHONY: gen-instrumentation-baseline
-gen-instrumentation-baseline: ## Regenerate instrumentation/baseline.json from .github/release-config.json.
-	GOFLAGS=-mod=mod go run ./scripts/gen_instrumentation_baseline.go
-
 .PHONY: gen-evaluators-dev
 gen-evaluators-dev: ## Generate builtin evaluators using local amp-evaluation SDK
 	@echo "Generating builtin evaluators (dev mode)..."
@@ -154,7 +144,7 @@ gen-evaluators: ## Generate builtin evaluators using PyPI amp-evaluation SDK
 	@echo "✅ Generated: catalog/builtin_evaluators.go (using amp-evaluation $(AMP_EVALUATION_VERSION))"
 
 .PHONY: dev-migrate
-dev-migrate: ## Run database migrations
+dev-migrate: ## Run database migrations (in the compose container, which holds the SQLite volume)
 	@echo "🗄️  Running database migrations..."
-	@ENV_FILE_PATH=.env go run -mod=readonly . -migrate -server=false
+	@docker exec agent-manager-service sh -c 'go build -mod=readonly -o /tmp/amp-migrate . && su-exec 1000:1000 /tmp/amp-migrate -migrate -server=false'
 	@echo "✅ Migrations completed"

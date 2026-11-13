@@ -20,13 +20,13 @@ package agentid
 
 import (
 	"testing"
-	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	"github.com/wso2/agent-manager/test/e2e/framework"
 	environmentops "github.com/wso2/agent-manager/test/e2e/operations/environment"
+	"github.com/wso2/agent-manager/test/e2e/testsetup"
 )
 
 var (
@@ -52,19 +52,23 @@ var _ = BeforeSuite(func(ctx SpecContext) {
 	Expect(err).NotTo(HaveOccurred())
 	framework.VerifyDefaultOrg(adminClient, cfg.DefaultOrg)
 
+	By("Ensuring the project the agent is registered in exists")
+	testsetup.EnsureProject(adminClient, cfg, cfg.DefaultProject, "Default", "Project for the AgentID security suite")
+
 	if cfg.AgentIDTokenURL == "" {
-		By("Discovering the environment-specific Thunder token endpoint")
-		Eventually(func(g Gomega) string {
-			instances := environmentops.ListThunderInstances(ctx, g, adminClient, cfg.DefaultOrg)
-			for _, instance := range instances.ThunderInstances {
-				if instance.EnvName == cfg.DefaultEnv {
-					cfg.AgentIDTokenURL = instance.TokenURL
-					return instance.TokenURL
-				}
+		By("Resolving the Thunder token endpoint that issues AgentID credentials")
+		// An environment with its own Thunder registers it; otherwise the
+		// platform Thunder issues AgentID credentials.
+		instances := environmentops.ListThunderInstances(ctx, Default, adminClient, cfg.DefaultOrg)
+		for _, instance := range instances.ThunderInstances {
+			if instance.EnvName == cfg.DefaultEnv && instance.TokenURL != "" {
+				cfg.AgentIDTokenURL = instance.TokenURL
+				break
 			}
-			return ""
-		}).WithContext(ctx).WithTimeout(2*time.Minute).WithPolling(3*time.Second).
-			ShouldNot(BeEmpty(), "no reachable environment Thunder instance was registered for %s", cfg.DefaultEnv)
+		}
+		if cfg.AgentIDTokenURL == "" {
+			cfg.AgentIDTokenURL = cfg.IDPTokenURL
+		}
 	}
 
 	By("Creating a valid AMP token without amp:agent:update")

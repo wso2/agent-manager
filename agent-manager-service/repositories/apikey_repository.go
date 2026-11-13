@@ -22,9 +22,9 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 // APIKeyRepository defines the interface for API key persistence
@@ -63,22 +63,33 @@ func NewAPIKeyRepo(db *gorm.DB) *APIKeyRepo {
 
 // Upsert creates or updates an API key record
 func (r *APIKeyRepo) Upsert(key *models.StoredAPIKey) error {
-	return r.db.Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "artifact_uuid"}, {Name: "name"}},
-		DoUpdates: clause.AssignmentColumns([]string{"api_key_hash", "masked_api_key", "status", "updated_at", "expires_at"}),
-	}).Create(key).Error
+	if key.UUID == uuid.Nil {
+		key.UUID = uuid.Must(uuid.NewV7())
+	}
+	// A key written without a purpose is a user's, as the column's default once made it.
+	if key.Purpose == 0 {
+		key.Purpose = models.APIKeyPurposeUserManaged
+	}
+	_, err := dbx.Upsert(r.db, key, func(db *gorm.DB) error {
+		return db.Model(&models.StoredAPIKey{}).Where("artifact_id = ? AND name = ?", key.ArtifactUUID, key.Name).
+			Updates(map[string]any{
+				"key_hash": key.APIKeyHash, "masked_key": key.MaskedAPIKey, "status": key.Status,
+				"updated_at": key.UpdatedAt, "expires_at": key.ExpiresAt,
+			}).Error
+	})
+	return err
 }
 
 // Delete removes an API key by artifact UUID and key name
 func (r *APIKeyRepo) Delete(artifactUUID, name string) error {
-	return r.db.Where("artifact_uuid = ? AND name = ?", artifactUUID, name).
+	return r.db.Where("artifact_id = ? AND name = ?", artifactUUID, name).
 		Delete(&models.StoredAPIKey{}).Error
 }
 
 // ListByArtifact returns all persisted API keys for a single artifact UUID.
 func (r *APIKeyRepo) ListByArtifact(ctx context.Context, artifactUUID string) ([]models.StoredAPIKey, error) {
 	var keys []models.StoredAPIKey
-	err := r.db.WithContext(ctx).Where("artifact_uuid = ?", artifactUUID).Find(&keys).Error
+	err := r.db.WithContext(ctx).Where("artifact_id = ?", artifactUUID).Find(&keys).Error
 	return keys, err
 }
 
@@ -87,8 +98,8 @@ func (r *APIKeyRepo) ListByArtifact(ctx context.Context, artifactUUID string) ([
 func (r *APIKeyRepo) ListByArtifactKind(ouID, kind string) ([]models.StoredAPIKey, error) {
 	var keys []models.StoredAPIKey
 	err := r.db.
-		Joins("JOIN artifacts a ON api_keys.artifact_uuid = a.uuid").
-		Where("a.ou_id = ? AND a.kind = ?", ouID, kind).
+		Joins("JOIN artifacts a ON api_keys.artifact_id = a.id").
+		Where("a.org_id = ? AND a.kind = ?", ouID, kind).
 		Find(&keys).Error
 	return keys, err
 }
@@ -100,8 +111,8 @@ func (r *APIKeyRepo) ListByArtifactKindAndEnvs(ouID string, kinds []string, envU
 		return nil, nil
 	}
 	query := r.db.
-		Joins("JOIN artifacts a ON api_keys.artifact_uuid = a.uuid").
-		Where("a.ou_id = ? AND a.kind IN ?", ouID, kinds)
+		Joins("JOIN artifacts a ON api_keys.artifact_id = a.id").
+		Where("a.org_id = ? AND a.kind IN ?", ouID, kinds)
 
 	// Build OR conditions matching the environment UUID suffix in the artifact handle.
 	// Artifact handle format: "projectName/agentName/<environmentUUID>"
@@ -119,8 +130,8 @@ func (r *APIKeyRepo) ListByArtifactKindAndEnvs(ouID string, kinds []string, envU
 func (r *APIKeyRepo) ListPermanentByArtifactKinds(ouID string, kinds []string) ([]models.StoredAPIKey, error) {
 	var keys []models.StoredAPIKey
 	err := r.db.
-		Joins("JOIN artifacts a ON api_keys.artifact_uuid = a.uuid").
-		Where("a.ou_id = ? AND a.kind IN ? AND api_keys.purpose = ?",
+		Joins("JOIN artifacts a ON api_keys.artifact_id = a.id").
+		Where("a.org_id = ? AND a.kind IN ? AND api_keys.purpose = ?",
 			ouID, kinds, models.APIKeyPurposeUserManaged).
 		Find(&keys).Error
 	return keys, err
@@ -129,7 +140,7 @@ func (r *APIKeyRepo) ListPermanentByArtifactKinds(ouID string, kinds []string) (
 // GetByArtifactAndName returns gorm.ErrRecordNotFound when no row matches; other non-nil errors are real failures.
 func (r *APIKeyRepo) GetByArtifactAndName(artifactUUID, name string) (*models.StoredAPIKey, error) {
 	var key models.StoredAPIKey
-	err := r.db.Where("artifact_uuid = ? AND name = ?", artifactUUID, name).First(&key).Error
+	err := r.db.Where("artifact_id = ? AND name = ?", artifactUUID, name).First(&key).Error
 	if err != nil {
 		return nil, err
 	}
@@ -139,20 +150,23 @@ func (r *APIKeyRepo) GetByArtifactAndName(artifactUUID, name string) (*models.St
 // ListByApplicationUUID returns all API keys whose artifact_uuid matches the given AI application UUID.
 func (r *APIKeyRepo) ListByApplicationUUID(applicationUUID string) ([]models.StoredAPIKey, error) {
 	var keys []models.StoredAPIKey
-	err := r.db.Where("artifact_uuid = ?", applicationUUID).Find(&keys).Error
+	err := r.db.Where("artifact_id = ?", applicationUUID).Find(&keys).Error
 	return keys, err
 }
 
 // ListActiveByArtifactTx returns the artifact's active keys that have not expired at now, oldest first. The rows are
-// held FOR SHARE until tx commits, so a concurrent revoke waits for the keys tx publishes instead of racing them.
+// locked until tx commits, so a concurrent revoke waits for the keys tx publishes instead of racing them.
 func (r *APIKeyRepo) ListActiveByArtifactTx(
 	ctx context.Context, tx *gorm.DB, artifactUUID uuid.UUID, now time.Time,
 ) ([]models.StoredAPIKey, error) {
+	const active = "artifact_id = ? AND status = 'active' AND (expires_at IS NULL OR expires_at > ?)"
+	if _, err := dbx.LockRows(tx.WithContext(ctx), models.StoredAPIKey{}.TableName(), "status", active, artifactUUID, now); err != nil {
+		return nil, err
+	}
 	var keys []models.StoredAPIKey
 	err := tx.WithContext(ctx).
-		Clauses(clause.Locking{Strength: "SHARE"}).
-		Where("artifact_uuid = ? AND status = 'active' AND (expires_at IS NULL OR expires_at > ?)", artifactUUID, now).
-		Order("created_at, uuid").
+		Where(active, artifactUUID, now).
+		Order("created_at, id").
 		Find(&keys).Error
 	return keys, err
 }

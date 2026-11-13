@@ -24,14 +24,15 @@ import (
 
 // LLMProxy represents an LLM proxy entity
 type LLMProxy struct {
-	UUID          uuid.UUID      `gorm:"column:uuid;primaryKey" json:"uuid"`
-	ProjectUUID   uuid.UUID      `gorm:"column:project_uuid" json:"projectId"`
+	UUID          uuid.UUID      `gorm:"column:id;primaryKey" json:"uuid"`
+	OrgID         string         `gorm:"column:org_id" json:"-"`
+	ProjectUUID   uuid.UUID      `gorm:"column:project_id" json:"projectId"`
 	Description   string         `gorm:"column:description" json:"description,omitempty"`
 	CreatedBy     string         `gorm:"column:created_by" json:"createdBy,omitempty"`
-	ProviderUUID  uuid.UUID      `gorm:"column:provider_uuid" json:"providerUuid"`
-	OpenAPISpec   string         `gorm:"column:openapi_spec;type:text" json:"openapi,omitempty"`
+	ProviderUUID  uuid.UUID      `gorm:"column:provider_id" json:"providerUuid"`
+	OpenAPISpec   string         `gorm:"column:openapi_spec" json:"openapi,omitempty"`
 	Status        string         `gorm:"column:status" json:"status"`
-	Configuration LLMProxyConfig `gorm:"column:configuration;type:jsonb;serializer:json" json:"configuration"`
+	Configuration LLMProxyConfig `gorm:"column:configuration;serializer:json" json:"configuration"`
 
 	// Computed/derived fields from Artifact table (populated via joins, not stored in llm_proxies table)
 	OrganizationName string    `gorm:"-" json:"organizationName,omitempty"`

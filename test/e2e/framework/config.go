@@ -26,6 +26,7 @@ import (
 type Config struct {
 	AMPBaseURL                string
 	ObserverBaseURL           string
+	GatewayURL                string
 	IDPTokenURL               string
 	IDPClientID               string
 	IDPClientSecret           string
@@ -46,15 +47,16 @@ type Config struct {
 }
 
 // LoadConfig reads configuration from environment variables with sensible defaults
-// matching the quick-start install.sh deployment.
+// matching the deployments/standalone compose stack.
 func LoadConfig() *Config {
 	defaultOrg := envOrDefault("DEFAULT_ORG", "default")
 	defaultEnv := envOrDefault("DEFAULT_ENV", "default")
 	thunderAdminURL := envOrDefault("THUNDER_ADMIN_URL", "http://thunder.amp.localhost:8080")
 
 	return &Config{
-		AMPBaseURL:                envOrDefault("AMP_API_BASE_URL", "http://api.amp.localhost:8080"),
-		ObserverBaseURL:           envOrDefault("AM_OBSERVER_BASE_URL", "http://traces.amp.localhost:11080"),
+		AMPBaseURL:                envOrDefault("AMP_API_BASE_URL", "http://localhost:9000"),
+		ObserverBaseURL:           envOrDefault("AM_OBSERVER_BASE_URL", "http://localhost:9098"),
+		GatewayURL:                envOrDefault("AMP_GATEWAY_URL", "http://default-default.gateway.localhost:19080"),
 		IDPTokenURL:               envOrDefault("IDP_TOKEN_URL", "http://thunder.amp.localhost:8080/oauth2/token"),
 		IDPClientID:               envOrDefault("IDP_CLIENT_ID", "amp-api-client"),
 		IDPClientSecret:           envOrDefault("IDP_CLIENT_SECRET", "amp-api-client-secret"),

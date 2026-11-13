@@ -42,8 +42,7 @@ the last rebuilds them fresh.
 | Fixture | Provisioned by |
 |---------|----------------|
 | Shared project (`e2e-test-shared`) | `testsetup.EnsureProject` |
-| Single-env IT helpdesk agent | `testsetup.SetupSharedITHelpdeskAgent` |
-| Two-env promotion infra + agent | `testsetup.EnsurePromotableInfra` / `SetupSharedPromotableITHelpdeskAgent` |
+| IT helpdesk agent | `testsetup.SetupSharedITHelpdeskAgent` |
 | Catalog kind | published by the `catalog` suite |
 
 The `agent` suite is the canonical builder; other suites reuse by name. All

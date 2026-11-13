@@ -47,22 +47,16 @@ import {
   LazyAddLLMProvidersOrg,
   LazyViewMCPServerComponent,
   LazyGatewaysOrg,
-  LazyThunderInstancesOrg,
+  LazyAgentIdentityOrg,
   LazySettingsOrg,
   LazyOrgEvents,
   LazyProjectEvents,
   LazyAgentEvents,
-  LazyDeploymentPipelinesOrg,
-  LazyEnvironmentsOrg,
-  LazyCatalogOrg,
   LazyAddNewAgent,
   LazyAddNewProject,
   LazyEditProject,
   LazyEditAgent,
-  LazyBuildComponent,
   LazySecurityComponent,
-  LazyDeploymentComponent,
-  LazyPublishOrg,
   LazyTestComponent,
   LazyTracesComponent,
   LazyLogsComponent,
@@ -88,10 +82,8 @@ import {
   type ExternalPageModule,
 } from "@agent-management-platform/views";
 import {
-  useEnvironmentFeatures,
   useFeatureFlag,
   useGatewayFeatures,
-  usePipelineFeatures,
 } from "@agent-management-platform/feature-management";
 import {
   legacyOrgRedirectPath,
@@ -227,9 +219,7 @@ export function RootRouter() {
   const externalOrgPageModules = useExternalPageModules();
   // Keep the Agent ID pages unreachable by URL too, not just hidden in the nav.
   const agentIdEnabled = useFeatureFlag("enableAgentIdentity");
-  const { canView: canViewEnvironments } = useEnvironmentFeatures();
   const { canView: canViewGateways } = useGatewayFeatures();
-  const { canView: canViewPipelines } = usePipelineFeatures();
 
   const { projectPageModules, orgPageModules, componentPageModules } =
     externalOrgPageModules.reduce(
@@ -250,16 +240,12 @@ export function RootRouter() {
       },
     );
 
-  // Monitor pages live under environment/:envId/evaluation/monitor; build the
-  // shared prefix once instead of repeating the deep route chain per route.
-  const monitorRoutes =
-    relativeRouteMap.children.org.children.projects.children.agents.children
-      .environment.children.evaluation.children.monitor;
-  const monitorBase =
-    relativeRouteMap.children.org.children.projects.children.agents.children
-      .environment.children.evaluation.path +
-    "/" +
-    monitorRoutes.path;
+  // Build the shared monitor prefix once instead of repeating the deep route
+  // chain per route.
+  const agentRoutes = relativeRouteMap.children.org.children.projects.children
+    .agents.children;
+  const monitorRoutes = agentRoutes.evaluation.children.monitor;
+  const monitorBase = agentRoutes.evaluation.path + "/" + monitorRoutes.path;
 
   return (
     <BrowserRouter basename={getBasePath() || undefined}>
@@ -304,12 +290,12 @@ export function RootRouter() {
             {agentIdEnabled && (
               <Route
                 path={
-                  relativeRouteMap.children.org.children.thunderInstances.path +
+                  relativeRouteMap.children.org.children.agentIdentity.path +
                   "/*"
                 }
                 element={
                   <Suspense fallback={<LoadingFallback />}>
-                    <LazyThunderInstancesOrg />
+                    <LazyAgentIdentityOrg />
                   </Suspense>
                 }
               />
@@ -336,23 +322,6 @@ export function RootRouter() {
             />
             {/* Back-compat: identities pages moved under Settings → IDP Settings */}
             <Route path="identities/*" element={<LegacyIdentitiesRedirect />} />
-            {canViewPipelines && (
-              <Route
-                path={
-                  relativeRouteMap.children.org.children.deploymentPipelines
-                    .path + "/*"
-                }
-                element={<LazyDeploymentPipelinesOrg />}
-              />
-            )}
-            {canViewEnvironments && (
-              <Route
-                path={
-                  relativeRouteMap.children.org.children.environments.path + "/*"
-                }
-                element={<LazyEnvironmentsOrg />}
-              />
-            )}
             <Route
               path={
                 relativeRouteMap.children.org.children.llmProviders.path + "/*"
@@ -408,10 +377,6 @@ export function RootRouter() {
                   .path
               }
               element={<LazyViewEvaluatorOrg />}
-            />
-            <Route
-              path={relativeRouteMap.children.org.children.catalog.path + "/*"}
-              element={<LazyCatalogOrg />}
             />
             <Route
               path={relativeRouteMap.children.org.children.newProject.path}
@@ -618,35 +583,8 @@ export function RootRouter() {
                   }
                 />
                 <Route
-                  path={
-                    relativeRouteMap.children.org.children.projects.children
-                      .agents.children.build.path
-                  }
-                  element={<LazyBuildComponent />}
-                />
-                <Route
-                  path={
-                    relativeRouteMap.children.org.children.projects.children
-                      .agents.children.deployment.path
-                  }
-                  element={<LazyDeploymentComponent />}
-                />
-                <Route
-                  path={
-                    relativeRouteMap.children.org.children.projects.children
-                      .agents.children.environment.path +
-                    "/" +
-                    relativeRouteMap.children.org.children.projects.children
-                      .agents.children.environment.children.security.path
-                  }
+                  path={agentRoutes.security.path}
                   element={<SecurityRouteElement />}
-                />
-                <Route
-                  path={
-                    relativeRouteMap.children.org.children.projects.children
-                      .agents.children.publish.path + "/*"
-                  }
-                  element={<LazyPublishOrg />}
                 />
                 <Route
                   path={
@@ -661,85 +599,63 @@ export function RootRouter() {
                 />
                 <Route
                   path={
-                    relativeRouteMap.children.org.children.projects.children
-                      .agents.children.environment.path
+                    agentRoutes.tryOut.path + "/*"
                   }
-                >
-                  <Route
-                    path={
-                      relativeRouteMap.children.org.children.projects.children
-                        .agents.children.environment.children.tryOut.path + "/*"
-                    }
-                    element={<LazyTestComponent />}
-                  />
-                  <Route
-                    path={
-                      relativeRouteMap.children.org.children.projects.children
-                        .agents.children.environment.children.observability
-                        .path +
-                      "/" +
-                      relativeRouteMap.children.org.children.projects.children
-                        .agents.children.environment.children.observability
-                        .children.traces.path
-                    }
-                    element={<LazyTracesComponent />}
-                  />
-                  <Route
-                    path={
-                      relativeRouteMap.children.org.children.projects.children
-                        .agents.children.environment.children.observability
-                        .path +
-                      "/" +
-                      relativeRouteMap.children.org.children.projects.children
-                        .agents.children.environment.children.observability
-                        .children.logs.path
-                    }
-                    element={<LazyLogsComponent />}
-                  />
-                  <Route
-                    path={
-                      relativeRouteMap.children.org.children.projects.children
-                        .agents.children.environment.children.observability
-                        .path +
-                      "/" +
-                      relativeRouteMap.children.org.children.projects.children
-                        .agents.children.environment.children.observability
-                        .children.metrics.path
-                    }
-                    element={<LazyMetricsComponent />}
-                  />
-                  <Route
-                    path={monitorBase}
-                    element={<LazyEvalMonitorsComponent />}
-                  />
-                  <Route
-                    path={
-                      monitorBase + "/" + monitorRoutes.children.create.path
-                    }
-                    element={<LazyCreateMonitorComponent />}
-                  />
-                  <Route
-                    path={monitorBase + "/" + monitorRoutes.children.edit.path}
-                    element={<LazyEditMonitorComponent />}
-                  />
-                  <Route
-                    path={
-                      monitorBase + "/" + monitorRoutes.children.compare.path
-                    }
-                    element={<LazyCompareMonitorComponent />}
-                  />
-                  <Route
-                    path={
-                      monitorBase +
-                      "/" +
-                      monitorRoutes.children.view.path +
-                      "/*"
-                    }
-                    element={<LazyViewMonitorComponent />}
-                  />
-                  <Route path="*" element={<ErrorPages.NotFound />} />
-                </Route>
-
+                  element={<LazyTestComponent />}
+                />
+                <Route
+                  path={
+                    agentRoutes.observability.path +
+                    "/" +
+                    agentRoutes.observability.children.traces.path
+                  }
+                  element={<LazyTracesComponent />}
+                />
+                <Route
+                  path={
+                    agentRoutes.observability.path +
+                    "/" +
+                    agentRoutes.observability.children.logs.path
+                  }
+                  element={<LazyLogsComponent />}
+                />
+                <Route
+                  path={
+                    agentRoutes.observability.path +
+                    "/" +
+                    agentRoutes.observability.children.metrics.path
+                  }
+                  element={<LazyMetricsComponent />}
+                />
+                <Route
+                  path={monitorBase}
+                  element={<LazyEvalMonitorsComponent />}
+                />
+                <Route
+                  path={
+                    monitorBase + "/" + monitorRoutes.children.create.path
+                  }
+                  element={<LazyCreateMonitorComponent />}
+                />
+                <Route
+                  path={monitorBase + "/" + monitorRoutes.children.edit.path}
+                  element={<LazyEditMonitorComponent />}
+                />
+                <Route
+                  path={
+                    monitorBase + "/" + monitorRoutes.children.compare.path
+                  }
+                  element={<LazyCompareMonitorComponent />}
+                />
+                <Route
+                  path={
+                    monitorBase +
+                    "/" +
+                    monitorRoutes.children.view.path +
+                    "/*"
+                  }
+                  element={<LazyViewMonitorComponent />}
+                />
                 <Route path="*" element={<ErrorPages.NotFound />} />
               </Route>
 

@@ -54,7 +54,6 @@ func newGateway(t *testing.T, role string, active bool) *models.Gateway {
 		IsActive:                 active,
 		CreatedAt:                now,
 		UpdatedAt:                now,
-		DeletedAt:                gorm.DeletedAt{},
 	}
 }
 

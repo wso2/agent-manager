@@ -28,9 +28,9 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/gorm"
 
+	"github.com/wso2/agent-manager/agent-manager-service/db/dberr"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
@@ -405,9 +405,7 @@ func (s *LLMProviderService) insertProvider(ouID string, provider *models.LLMPro
 		return then(tx)
 	})
 	if err != nil {
-		// Check for unique constraint violation
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == "23505" { // unique_violation
+		if dberr.IsDuplicateKey(err) {
 			slog.Warn("LLMProviderService.Create: provider already exists (unique constraint)", "ouID", ouID, "handle", handle)
 			return nil, utils.ErrLLMProviderExists
 		}
@@ -659,8 +657,7 @@ func (s *LLMProviderService) Update(ctx context.Context, providerID, ouID string
 	if err := s.providerRepo.Update(ctx, updates, providerID, ouID); err != nil {
 		// Renaming updates the artifact in the same transaction. Only its
 		// name/version constraint is a caller conflict; other DB failures remain errors.
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == "23505" && pgErr.ConstraintName == "uq_artifact_name_version_ou_id" {
+		if dberr.IsDuplicateKey(err) {
 			slog.Warn("LLMProviderService.Update: provider name and version already exist", "ouID", ouID, "providerID", providerID)
 			return nil, utils.ErrLLMProviderExists
 		}
@@ -1170,7 +1167,8 @@ func (s *LLMProviderService) SyncDependentProxyAuthHeaders(
 
 		for _, proxy := range proxies {
 			changed, syncErr := s.syncProxyAuthHeader(
-				ctx, proxy, ouID, provider, upstreamHeader, proxyService, proxyDeploymentService)
+				ctx, proxy, ouID, provider, upstreamHeader, proxyService, proxyDeploymentService,
+			)
 			switch {
 			case syncErr != nil:
 				failed++
@@ -1282,7 +1280,8 @@ func (s *LLMProviderService) nextProxyUpstreamAuth(
 		if s.apiKeyService == nil {
 			return nil, fmt.Errorf(
 				"proxy %s needs an upstream credential for provider %s but no api key service is configured",
-				proxy.Handle, provider.Configuration.Handle)
+				proxy.Handle, provider.Configuration.Handle,
+			)
 		}
 		keyName := proxy.Configuration.Name
 		apiKey, err := s.apiKeyService.CreateAPIKey(ctx, ouID, provider.UUID.String(), &models.CreateAPIKeyRequest{
@@ -1308,7 +1307,8 @@ func (s *LLMProviderService) nextProxyUpstreamAuth(
 		}, nil
 	}
 	return nil, fmt.Errorf(
-		"proxy %s: upstream auth action %d does not build a credential", proxy.Handle, action)
+		"proxy %s: upstream auth action %d does not build a credential", proxy.Handle, action,
+	)
 }
 
 // syncProxyAuthHeader brings one proxy's ingress and upstream auth in line with its

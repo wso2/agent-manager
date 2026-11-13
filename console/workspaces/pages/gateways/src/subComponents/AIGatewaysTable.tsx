@@ -15,7 +15,7 @@
  * under the License.
  */
 
-import { Fragment, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Avatar,
   Box,
@@ -36,7 +36,6 @@ import { generatePath, useNavigate, useParams } from "react-router-dom";
 import {
   useDeleteGateway,
   useDeleteSelfHostedGateway,
-  useListEnvironments,
   useListGateways,
 } from "@agent-management-platform/api-client";
 import {
@@ -70,12 +69,6 @@ const ROW_HOVER_SX = {
   },
 } as const;
 
-interface EnvironmentSection {
-  key: string;
-  title: string;
-  gateways: GatewayResponse[];
-}
-
 const AVATAR_SX = {
   width: 28,
   height: 28,
@@ -104,19 +97,10 @@ export function AIGatewaysTable({ onAddGateway }: AIGatewaysTableProps) {
 
   const {
     data: gatewaysData,
-    isLoading: gatewaysLoading,
-    error: gatewaysError,
+    isLoading,
+    error,
     refetch,
   } = useListGateways({ orgName: orgId });
-
-  const {
-    data: environments,
-    isLoading: environmentsLoading,
-    error: environmentsError,
-  } = useListEnvironments({ orgName: orgId });
-
-  const isLoading = gatewaysLoading || environmentsLoading;
-  const error = gatewaysError || environmentsError;
 
   const { mutateAsync: deleteManagedGateway } = useDeleteGateway();
   const { mutateAsync: deleteSelfHostedGateway } = useDeleteSelfHostedGateway();
@@ -129,38 +113,12 @@ export function AIGatewaysTable({ onAddGateway }: AIGatewaysTableProps) {
 
   const gateways = useMemo(() => gatewaysData?.gateways ?? [], [gatewaysData]);
   const showHosting = showGatewayHosting(selfHostedEnabled, gateways);
-  const columnCount = showHosting ? 6 : 5;
 
   const filteredGateways = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     if (!query) return gateways;
     return gateways.filter((gw) => matchesQuery(gw, query));
   }, [gateways, searchQuery]);
-
-  // Gateways are owned by environments (and can be mapped to more than one),
-  // so group them per environment; environments with no gateways are omitted.
-  const sections = useMemo<EnvironmentSection[]>(() => {
-    const grouped: EnvironmentSection[] = (environments ?? [])
-      .map((env) => ({
-        key: env.name,
-        title: env.displayName || env.name,
-        gateways: filteredGateways.filter((gw) =>
-          gw.environments?.some((e) => e.name === env.name),
-        ),
-      }))
-      .filter((section) => section.gateways.length > 0);
-    const unassigned = filteredGateways.filter(
-      (gw) => !gw.environments?.length,
-    );
-    if (unassigned.length) {
-      grouped.push({
-        key: "__unassigned__",
-        title: "Unassigned",
-        gateways: unassigned,
-      });
-    }
-    return grouped;
-  }, [environments, filteredGateways]);
 
   const loadingRows = (
     <Stack spacing={1} mt={1}>
@@ -310,7 +268,7 @@ export function AIGatewaysTable({ onAddGateway }: AIGatewaysTableProps) {
       error={
         error
           ? new Error(
-              `Failed to load ${gatewaysError ? "gateways" : "environments"}. ${
+              `Failed to load gateways. ${
                 error instanceof Error ? error.message : "Please try again."
               }`,
             )
@@ -359,23 +317,7 @@ export function AIGatewaysTable({ onAddGateway }: AIGatewaysTableProps) {
           </ListingTable.Row>
         </ListingTable.Head>
         <ListingTable.Body>
-          {sections.map((section) => (
-            <Fragment key={section.key}>
-              <ListingTable.Row>
-                {/* "&&" outranks the table's descendant padding rule on
-                        .MuiTableCell-root, which beats a plain sx padding. */}
-                <ListingTable.Cell
-                  colSpan={columnCount}
-                  sx={{ "&&": { border: 0, p: 0 } }}
-                >
-                  <Typography variant="overline" color="text.secondary">
-                    {section.title}
-                  </Typography>
-                </ListingTable.Cell>
-              </ListingTable.Row>
-              {section.gateways.map(renderGatewayRow)}
-            </Fragment>
-          ))}
+          {filteredGateways.map(renderGatewayRow)}
         </ListingTable.Body>
       </ListingTable>
     </ResourceListShell>

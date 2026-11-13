@@ -31,7 +31,6 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
-	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -74,7 +73,7 @@ type a2aProxyService struct {
 	agentConfigRepo repositories.AgentConfigRepository
 	artifactRepo    repositories.ArtifactRepository
 	publisher       *A2APublisher
-	ocClient        client.OpenChoreoClient
+	ocClient        repositories.PlatformRepository
 	encryptionKey   []byte
 	logger          *slog.Logger
 }
@@ -87,7 +86,7 @@ func NewA2AProxyService(
 	agentConfigRepo repositories.AgentConfigRepository,
 	artifactRepo repositories.ArtifactRepository,
 	publisher *A2APublisher,
-	ocClient client.OpenChoreoClient,
+	ocClient repositories.PlatformRepository,
 	encryptionKey []byte,
 	logger *slog.Logger,
 ) A2AProxyService {
@@ -192,6 +191,11 @@ func (s *a2aProxyService) SetA2AProxy(
 		if attempt, err = s.beginAudit(ctx, audit.ActionAgentSetA2AProxy, t, proxy.UpstreamAuthHeader, authChanged); err != nil {
 			return err
 		}
+		artifact, err := s.ensureArtifact(tx, t)
+		if err != nil {
+			return err
+		}
+		proxy.ArtifactUUID = artifact.ArtifactUUID
 		if err := s.proxyRepo.WithTx(tx).Upsert(ctx, proxy); err != nil {
 			return fmt.Errorf("failed to save the A2A proxy: %w", err)
 		}
@@ -199,10 +203,6 @@ func (s *a2aProxyService) SetA2AProxy(
 			if err := s.switchFromDirect(ctx, tx, t); err != nil {
 				return err
 			}
-		}
-		artifact, err := s.ensureArtifact(tx, t)
-		if err != nil {
-			return err
 		}
 		return s.publisher.exposure.DeployRecord(ctx, tx, s.publisher.kind, t.key.EnvironmentUUID, artifact)
 	})
@@ -602,7 +602,8 @@ func (s *a2aProxyService) forget(ctx context.Context, t a2aProxyTarget) error {
 func (s *a2aProxyService) beginAudit(
 	ctx context.Context, action audit.Action, t a2aProxyTarget, upstreamAuthHeader string, authChanged bool,
 ) (*audit.Attempt, error) {
-	attempt, err := audit.Begin(ctx, action,
+	attempt, err := audit.Begin(
+		ctx, action,
 		audit.Org(t.key.OUID),
 		audit.ResourceNamed(audit.ResourceAgent, t.agent.UUID, t.agent.Name),
 		audit.Project(t.key.ProjectName),

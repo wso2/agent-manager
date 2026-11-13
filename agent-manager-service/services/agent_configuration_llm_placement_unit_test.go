@@ -27,7 +27,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
@@ -145,7 +144,7 @@ func TestLLMConfig_RefusesSelfHostedOnlyProvider(t *testing.T) {
 }
 
 // The per-environment steps commit one by one, so one refused environment must leave every other environment
-// unapplied. The unstubbed repositories and OpenChoreo client panic if the OK environment is touched.
+// unapplied. The unstubbed repositories panic if the OK environment is touched.
 func TestLLMConfig_RefusalAppliesNothing(t *testing.T) {
 	newFixture := func(t *testing.T) *llmPlacementFixture {
 		f := newLLMPlacementFixture(t, "ok", "bad")
@@ -162,61 +161,6 @@ func TestLLMConfig_RefusalAppliesNothing(t *testing.T) {
 			}}, "user", platformAgentPolicy)
 		require.ErrorIs(t, err, utils.ErrInvalidInput)
 		assert.ErrorContains(t, err, `LLM provider "self-p" in environment bad: `)
-	})
-
-	t.Run("update changing providers and adding an environment", func(t *testing.T) {
-		f := newFixture(t)
-		oldProvider := f.provider("old-p", models.GatewayHostingManaged)
-		f.svc.agentConfigRepo = &repomocks.AgentConfigurationRepositoryMock{
-			GetByUUIDFunc: func(_ context.Context, id uuid.UUID, ouID string) (*models.AgentConfiguration, error) {
-				return &models.AgentConfiguration{
-					UUID: id, OUID: ouID, ProjectName: "proj", AgentID: "agent", Name: "cfg",
-					EnvMappings: []models.EnvAgentModelMapping{{
-						EnvironmentUUID: f.env("ok"),
-						LLMProxy:        &models.LLMProxy{Configuration: models.LLMProxyConfig{Provider: oldProvider.UUID.String()}},
-					}},
-				}, nil
-			},
-		}
-		f.svc.ocClient = &clientmocks.OpenChoreoClientMock{
-			GetComponentFunc: func(context.Context, string, string, string) (*models.AgentResponse, error) {
-				return &models.AgentResponse{KindName: "agent-api"}, nil
-			},
-		}
-
-		_, err := f.svc.Update(context.Background(), uuid.New(), llmPlacementOU, "proj", "agent",
-			models.UpdateAgentModelConfigRequest{Name: "renamed", EnvMappings: map[string]models.EnvModelConfigRequest{
-				"ok": {ProviderName: "managed-p"}, "bad": {ProviderName: "self-p"},
-			}})
-		require.ErrorIs(t, err, utils.ErrInvalidInput)
-		assert.ErrorContains(t, err, `LLM provider "self-p" in environment bad: `)
-	})
-
-	t.Run("update changing the provider of an existing environment", func(t *testing.T) {
-		f := newFixture(t)
-		oldProvider := f.provider("old-p", models.GatewayHostingManaged)
-		f.svc.agentConfigRepo = &repomocks.AgentConfigurationRepositoryMock{
-			GetByUUIDFunc: func(_ context.Context, id uuid.UUID, ouID string) (*models.AgentConfiguration, error) {
-				return &models.AgentConfiguration{
-					UUID: id, OUID: ouID, ProjectName: "proj", AgentID: "agent", Name: "cfg",
-					EnvMappings: []models.EnvAgentModelMapping{{
-						EnvironmentUUID: f.env("bad"),
-						LLMProxy:        &models.LLMProxy{Configuration: models.LLMProxyConfig{Provider: oldProvider.UUID.String()}},
-					}},
-				}, nil
-			},
-		}
-		f.svc.ocClient = &clientmocks.OpenChoreoClientMock{
-			GetComponentFunc: func(context.Context, string, string, string) (*models.AgentResponse, error) {
-				return &models.AgentResponse{KindName: "agent-api"}, nil
-			},
-		}
-
-		_, err := f.svc.Update(context.Background(), uuid.New(), llmPlacementOU, "proj", "agent",
-			models.UpdateAgentModelConfigRequest{Name: "renamed", EnvMappings: map[string]models.EnvModelConfigRequest{
-				"bad": {ProviderName: "self-p"},
-			}})
-		require.ErrorIs(t, err, utils.ErrInvalidInput)
 	})
 }
 
@@ -293,11 +237,10 @@ func TestResolveGatewayForProvider_IgnoresSelfHostedOnlyAnchor(t *testing.T) {
 }
 
 // externalAgentComponent is an OpenChoreo client whose agent is externally provisioned.
-func externalAgentComponent() *clientmocks.OpenChoreoClientMock {
-	return &clientmocks.OpenChoreoClientMock{
-		GetComponentFunc: func(context.Context, string, string, string) (*models.AgentResponse, error) {
+func externalAgentComponent() *repomocks.PlatformRepositoryMock {
+	return &repomocks.PlatformRepositoryMock{
+		GetAgentFunc: func(context.Context, string, string, string) (*models.AgentResponse, error) {
 			return &models.AgentResponse{
-				KindName:     "agent-api",
 				Provisioning: models.Provisioning{Type: string(utils.ExternalAgent)},
 			}, nil
 		},
@@ -412,7 +355,7 @@ func TestLLMConfig_ExternalAgentNewEnvOnSelfHostedProvider(t *testing.T) {
 			return []*models.Gateway{selfHosted}, nil
 		}
 		f.svc.logger = slog.Default()
-		f.svc.ocClient = &clientmocks.OpenChoreoClientMock{
+		f.svc.ocClient = &repomocks.PlatformRepositoryMock{
 			GetProjectFunc: func(context.Context, string, string) (*models.ProjectResponse, error) {
 				return &models.ProjectResponse{UUID: uuid.NewString()}, nil
 			},
@@ -499,8 +442,8 @@ func TestExternalAgentLLMURL_AddsSchemeToBareVhost(t *testing.T) {
 
 // agent sets the agent ProviderEnvironments reads its placement policy from.
 func (f *llmPlacementFixture) agent(provisioning string) {
-	f.svc.ocClient = &clientmocks.OpenChoreoClientMock{
-		GetComponentFunc: func(context.Context, string, string, string) (*models.AgentResponse, error) {
+	f.svc.ocClient = &repomocks.PlatformRepositoryMock{
+		GetAgentFunc: func(context.Context, string, string, string) (*models.AgentResponse, error) {
 			return &models.AgentResponse{Provisioning: models.Provisioning{Type: provisioning}}, nil
 		},
 	}

@@ -26,7 +26,6 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
@@ -48,7 +47,7 @@ func TestRemoveGatewayFromEnvironment_ServedEnvironmentIsAConflict(t *testing.T)
 		DeleteEnvironmentMappingFunc: func(string, string) error { return nil },
 	}
 	repo.WithTxFunc = func(*gorm.DB) repositories.GatewayRepository { return repo }
-	ocClient := &clientmocks.OpenChoreoClientMock{
+	ocClient := &repomocks.PlatformRepositoryMock{
 		ListEnvironmentsFunc: func(context.Context, string) ([]*models.EnvironmentResponse, error) {
 			return []*models.EnvironmentResponse{{UUID: defaultEnvUUID, Name: "default"}}, nil
 		},
@@ -78,7 +77,7 @@ func TestRemoveGatewayFromEnvironment_SelfHostedIsAConflict(t *testing.T) {
 		GetByUUIDFunc: func(string) (*models.Gateway, error) { return gateway, nil },
 		// TransactionFunc left nil: the refusal must come before any mutation.
 	}
-	ocClient := &clientmocks.OpenChoreoClientMock{
+	ocClient := &repomocks.PlatformRepositoryMock{
 		ListEnvironmentsFunc: func(context.Context, string) ([]*models.EnvironmentResponse, error) {
 			return []*models.EnvironmentResponse{{UUID: defaultEnvUUID, Name: "default"}}, nil
 		},

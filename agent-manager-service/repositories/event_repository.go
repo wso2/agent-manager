@@ -18,16 +18,16 @@ package repositories
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 
+	"github.com/wso2/agent-manager/agent-manager-service/db/dberr"
+	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -173,53 +173,230 @@ func NewEventRepository(db *gorm.DB) EventRepository {
 	return &eventRepository{db: db}
 }
 
-// pgErrorCode returns the PostgreSQL error code of err, if it has one.
-func pgErrorCode(err error) string {
-	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) {
-		return pgErr.Code
-	}
-	return ""
+// Child rows: a destination's projects, a subscription's event types and environments, a delivery's subscriptions.
+
+type destinationProject struct {
+	DestinationID uuid.UUID `gorm:"column:destination_id;primaryKey"`
+	ProjectID     uuid.UUID `gorm:"column:project_id;primaryKey"`
+	OrgID         string    `gorm:"column:org_id"`
 }
 
-const (
-	pgUniqueViolation     = "23505"
-	pgForeignKeyViolation = "23503"
-)
+func (destinationProject) TableName() string { return "event_destination_projects" }
+
+type subscriptionType struct {
+	SubscriptionID uuid.UUID `gorm:"column:subscription_id;primaryKey"`
+	EventType      string    `gorm:"column:event_type;primaryKey"`
+	OrgID          string    `gorm:"column:org_id"`
+}
+
+func (subscriptionType) TableName() string { return "event_subscription_types" }
+
+type subscriptionEnvironment struct {
+	SubscriptionID uuid.UUID `gorm:"column:subscription_id;primaryKey"`
+	EnvironmentID  uuid.UUID `gorm:"column:environment_id;primaryKey"`
+	OrgID          string    `gorm:"column:org_id"`
+}
+
+func (subscriptionEnvironment) TableName() string { return "event_subscription_environments" }
+
+type deliverySubscription struct {
+	DeliveryID     uuid.UUID `gorm:"column:delivery_id;primaryKey"`
+	SubscriptionID uuid.UUID `gorm:"column:subscription_id;primaryKey"`
+}
+
+func (deliverySubscription) TableName() string { return "event_delivery_subscriptions" }
+
+// eventDestinationSecretOwner is the owner_kind of a destination's secret.
+const eventDestinationSecretOwner = "event_destination"
+
+// projectIDQuery selects the id of the project named name in ouID, for a WHERE clause.
+func projectIDQuery(db *gorm.DB, ouID, name string) *gorm.DB {
+	return db.Session(&gorm.Session{NewDB: true}).Table("projects").Select("id").Where("org_id = ? AND name = ?", ouID, name)
+}
+
+// namesByID reads the name of each id in table.
+func namesByID(db *gorm.DB, table string, ids []uuid.UUID) (map[uuid.UUID]string, error) {
+	out := make(map[uuid.UUID]string, len(ids))
+	for _, chunk := range dbx.Chunks(ids) {
+		var rows []struct {
+			ID   uuid.UUID
+			Name string
+		}
+		if err := db.Table(table).Select("id, name").Where("id IN ?", chunk).Scan(&rows).Error; err != nil {
+			return nil, err
+		}
+		for _, row := range rows {
+			out[row.ID] = row.Name
+		}
+	}
+	return out, nil
+}
+
+// idsByName reads the id of each named row of the org in table; unknown names are left out.
+func idsByName(db *gorm.DB, table, ouID string, names []string) (map[string]uuid.UUID, error) {
+	out := make(map[string]uuid.UUID, len(names))
+	for _, chunk := range dbx.Chunks(names) {
+		var rows []struct {
+			ID   uuid.UUID
+			Name string
+		}
+		if err := db.Table(table).Select("id, name").Where("org_id = ? AND name IN ?", ouID, chunk).Scan(&rows).Error; err != nil {
+			return nil, err
+		}
+		for _, row := range rows {
+			out[row.Name] = row.ID
+		}
+	}
+	return out, nil
+}
+
+// optionalID is the id named in ids, or nil.
+func optionalID(ids map[string]uuid.UUID, name string) *uuid.UUID {
+	if id, ok := ids[name]; ok && name != "" {
+		return &id
+	}
+	return nil
+}
+
+// loadDestinations fills the destinations' projects and secrets.
+func loadDestinations(db *gorm.DB, ds []models.EventDestination) error {
+	if len(ds) == 0 {
+		return nil
+	}
+	ids := make([]uuid.UUID, len(ds))
+	for i := range ds {
+		ids[i] = ds[i].ID
+	}
+	var links []destinationProject
+	for _, chunk := range dbx.Chunks(ids) {
+		var part []destinationProject
+		if err := db.Where("destination_id IN ?", chunk).Find(&part).Error; err != nil {
+			return err
+		}
+		links = append(links, part...)
+	}
+	projectIDs := make([]uuid.UUID, 0, len(links))
+	for _, l := range links {
+		projectIDs = append(projectIDs, l.ProjectID)
+	}
+	names, err := namesByID(db, "projects", projectIDs)
+	if err != nil {
+		return err
+	}
+	byDestination := make(map[uuid.UUID][]string, len(ds))
+	for _, l := range links {
+		byDestination[l.DestinationID] = append(byDestination[l.DestinationID], names[l.ProjectID])
+	}
+	for i := range ds {
+		projects := byDestination[ds[i].ID]
+		sort.Strings(projects)
+		if projects == nil {
+			projects = []string{}
+		}
+		ds[i].Projects = projects
+		secret, err := getSecret(db, ds[i].SecretID)
+		if err != nil {
+			return err
+		}
+		if secret != "" {
+			ds[i].SecretEncrypted = []byte(secret)
+		}
+	}
+	return nil
+}
+
+// saveDestinationProjects makes the destination's project rows exactly d.Projects.
+func saveDestinationProjects(tx *gorm.DB, d *models.EventDestination) error {
+	if err := tx.Where("destination_id = ?", d.ID).Delete(&destinationProject{}).Error; err != nil {
+		return err
+	}
+	ids, err := idsByName(tx, "projects", d.OUID, d.Projects)
+	if err != nil {
+		return err
+	}
+	for _, name := range d.Projects {
+		id, ok := ids[name]
+		if !ok {
+			return fmt.Errorf("%w: %s", utils.ErrProjectNotFound, name)
+		}
+		if _, err := dbx.InsertIfAbsent(tx, &destinationProject{DestinationID: d.ID, ProjectID: id, OrgID: d.OUID}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
 func (r *eventRepository) ListDestinations(ctx context.Context, ouID string) ([]models.EventDestination, error) {
 	var out []models.EventDestination
-	err := r.db.WithContext(ctx).Where("ou_id = ?", ouID).Order("lower(name) ASC").Find(&out).Error
+	db := r.db.WithContext(ctx)
+	err := db.Where("org_id = ?", ouID).Order("LOWER(name) ASC").Find(&out).Error
 	if err != nil {
 		return nil, err
 	}
-	return out, nil
+	return out, loadDestinations(db, out)
 }
 
 func (r *eventRepository) GetDestination(ctx context.Context, ouID string, id uuid.UUID) (*models.EventDestination, error) {
 	var d models.EventDestination
-	if err := r.db.WithContext(ctx).Where("ou_id = ? AND id = ?", ouID, id).First(&d).Error; err != nil {
+	db := r.db.WithContext(ctx)
+	if err := db.Where("org_id = ? AND id = ?", ouID, id).Take(&d).Error; err != nil {
 		return nil, err
 	}
-	return &d, nil
+	ds := []models.EventDestination{d}
+	if err := loadDestinations(db, ds); err != nil {
+		return nil, err
+	}
+	return &ds[0], nil
 }
 
 func (r *eventRepository) DestinationsByID(ctx context.Context, ouID string, ids []uuid.UUID) ([]models.EventDestination, error) {
 	out := []models.EventDestination{}
-	if len(ids) == 0 {
-		return out, nil
+	db := r.db.WithContext(ctx)
+	for _, chunk := range dbx.Chunks(ids) {
+		var part []models.EventDestination
+		if err := db.Where("org_id = ? AND id IN ?", ouID, chunk).Find(&part).Error; err != nil {
+			return nil, err
+		}
+		out = append(out, part...)
 	}
-	if err := r.db.WithContext(ctx).Where("ou_id = ? AND id IN ?", ouID, ids).Find(&out).Error; err != nil {
-		return nil, err
-	}
-	return out, nil
+	return out, loadDestinations(db, out)
+}
+
+// nameTaken reports whether another of the org's destinations has name, in any case.
+func nameTaken(tx *gorm.DB, d *models.EventDestination) (bool, error) {
+	var n int64
+	err := tx.Model(&models.EventDestination{}).
+		Where("org_id = ? AND LOWER(name) = LOWER(?) AND id <> ?", d.OUID, d.Name, d.ID).Count(&n).Error
+	return n > 0, err
 }
 
 func (r *eventRepository) CreateDestination(ctx context.Context, d *models.EventDestination) error {
-	now := time.Now().UTC().Truncate(time.Microsecond)
+	now := dbx.Now()
 	d.CreatedAt, d.UpdatedAt = now, now
-	err := r.db.WithContext(ctx).Create(d).Error
-	if pgErrorCode(err) == pgUniqueViolation {
+	if d.ID == uuid.Nil {
+		d.ID = newID()
+	}
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if _, err := ensureOrg(ctx, tx, d.OUID); err != nil {
+			return err
+		}
+		if taken, err := nameTaken(tx, d); err != nil || taken {
+			if taken {
+				return utils.ErrEventDestinationNameTaken
+			}
+			return err
+		}
+		secretID, err := putSecret(tx, d.OUID, eventDestinationSecretOwner, d.ID, nil, string(d.SecretEncrypted))
+		if err != nil {
+			return err
+		}
+		d.SecretID = secretID
+		if err := tx.Create(d).Error; err != nil {
+			return err
+		}
+		return saveDestinationProjects(tx, d)
+	})
+	if dberr.IsDuplicateKey(err) {
 		return utils.ErrEventDestinationNameTaken
 	}
 	return err
@@ -229,10 +406,11 @@ func (r *eventRepository) UpdateDestination(
 	ctx context.Context, d *models.EventDestination, check func(using []models.EventSubscription) error,
 ) error {
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := dbx.LockRow(tx, "event_destinations", "name", "org_id = ? AND id = ?", d.OUID, d.ID); err != nil {
+			return err
+		}
 		var locked models.EventDestination
-		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-			Where("ou_id = ? AND id = ?", d.OUID, d.ID).First(&locked).Error
-		if err != nil {
+		if err := tx.Where("org_id = ? AND id = ?", d.OUID, d.ID).Take(&locked).Error; err != nil {
 			return err
 		}
 		// The caller loaded d before this transaction. A row lock alone does
@@ -240,8 +418,8 @@ func (r *eventRepository) UpdateDestination(
 		if !locked.UpdatedAt.Equal(d.UpdatedAt) {
 			return fmt.Errorf("%w: destination changed; reload it before saving", utils.ErrConflict)
 		}
-		var using []models.EventSubscription
-		if err := tx.Where("destination_id = ?", d.ID).Order("created_at ASC").Find(&using).Error; err != nil {
+		using, err := subscriptionsUsing(tx, d.OUID, d.ID)
+		if err != nil {
 			return err
 		}
 		if check != nil {
@@ -249,28 +427,35 @@ func (r *eventRepository) UpdateDestination(
 				return err
 			}
 		}
-		projects, err := monitorProjectsUsingDestination(tx, d.OUID, d.ID)
-		if err != nil {
+		if taken, err := nameTaken(tx, d); err != nil || taken {
+			if taken {
+				return utils.ErrEventDestinationNameTaken
+			}
 			return err
 		}
-		for _, project := range projects {
-			if !d.UsableBy(models.EventScopeAgent, project) {
-				return fmt.Errorf("%w: destination is used by monitor alerting in project %s", utils.ErrEventDestinationInUse, project)
-			}
-		}
-		// PostgreSQL stores microseconds. Keep the returned revision identical
-		// to the stored one and advance it even for writes in one clock tick.
-		d.UpdatedAt = time.Now().UTC().Truncate(time.Microsecond)
+		// Keep the returned revision identical to the stored one and advance it even for writes in one clock tick.
+		d.UpdatedAt = dbx.Now()
 		if !d.UpdatedAt.After(locked.UpdatedAt) {
 			d.UpdatedAt = locked.UpdatedAt.Add(time.Microsecond)
 		}
-		// Update from the struct, not a map, so the JSON columns go through
-		// their serializers; Select also writes zero values.
-		return tx.Model(&models.EventDestination{}).Where("id = ?", d.ID).
-			Select("name", "description", "config", "secret_encrypted", "availability", "projects", "updated_at").
-			UpdateColumns(d).Error
+		secretID, err := putSecret(tx, d.OUID, eventDestinationSecretOwner, d.ID, locked.SecretID, string(d.SecretEncrypted))
+		if err != nil {
+			return err
+		}
+		d.SecretID = secretID
+		if err := tx.Model(&models.EventDestination{}).Where("id = ?", d.ID).
+			Select("name", "description", "config", "secret_id", "availability", "updated_at").
+			UpdateColumns(d).Error; err != nil {
+			return err
+		}
+		if secretID == nil {
+			if err := deleteSecret(tx, locked.SecretID); err != nil {
+				return err
+			}
+		}
+		return saveDestinationProjects(tx, d)
 	})
-	if pgErrorCode(err) == pgUniqueViolation {
+	if dberr.IsDuplicateKey(err) {
 		return utils.ErrEventDestinationNameTaken
 	}
 	return err
@@ -280,37 +465,31 @@ func (r *eventRepository) DeleteDestination(ctx context.Context, ouID string, id
 	deleted := false
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var destination models.EventDestination
-		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("ou_id = ? AND id = ?", ouID, id).First(&destination).Error
+		err := tx.Where("org_id = ? AND id = ?", ouID, id).Take(&destination).Error
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil
 		}
 		if err != nil {
 			return err
 		}
-		projects, err := monitorProjectsUsingDestination(tx, ouID, id)
-		if err != nil {
+		var using int64
+		if err := tx.Model(&models.EventSubscription{}).Where("destination_id = ?", id).Count(&using).Error; err != nil {
 			return err
 		}
-		if len(projects) > 0 {
-			return fmt.Errorf("%w: remove the destination from monitor alert settings first", utils.ErrEventDestinationInUse)
+		if using > 0 {
+			return utils.ErrEventDestinationInUse
 		}
-		res := tx.Delete(&destination)
+		res := tx.Where("id = ?", id).Delete(&models.EventDestination{})
+		if res.Error != nil {
+			return res.Error
+		}
 		deleted = res.RowsAffected > 0
-		return res.Error
+		return deleteSecret(tx, destination.SecretID)
 	})
-	if pgErrorCode(err) == pgForeignKeyViolation {
+	if dberr.IsForeignKeyViolation(err) {
 		return false, utils.ErrEventDestinationInUse
 	}
 	return deleted, err
-}
-
-// destinationStatsRow is one row of the destination stats query.
-type destinationStatsRow struct {
-	DestinationID       uuid.UUID
-	UsedBy              int
-	LastDeliveryAt      *time.Time
-	LastStatus          string
-	ConsecutiveFailures int
 }
 
 func (r *eventRepository) DestinationStats(ctx context.Context, ouID string) (map[uuid.UUID]DestinationStats, error) {
@@ -330,99 +509,242 @@ func (r *eventRepository) DestinationStatsOf(ctx context.Context, ouID string, i
 func (r *eventRepository) destinationStats(
 	ctx context.Context, ouID string, id *uuid.UUID,
 ) (map[uuid.UUID]DestinationStats, error) {
-	only := ""
-	args := []any{
-		models.EventDeliverySkipped,
-		models.EventDeliveryFailed, models.EventDeliveryPending,
-		models.EventDeliveryDelivered,
-		ouID,
-	}
+	db := r.db.WithContext(ctx)
+	q := db.Model(&models.EventDestination{}).Where("org_id = ?", ouID)
 	if id != nil {
-		only = " AND d.id = ?"
-		args = append(args, *id)
+		q = q.Where("id = ?", *id)
 	}
-	var rows []destinationStatsRow
-	err := r.db.WithContext(ctx).Raw(`
-		SELECT d.id AS destination_id,
-			COALESCE(u.used_by, 0) AS used_by,
-			l.created_at AS last_delivery_at,
-			COALESCE(l.status, '') AS last_status,
-			COALESCE(f.failures, 0) AS consecutive_failures
-		FROM event_destinations d
-		LEFT JOIN LATERAL (
-			SELECT count(*) AS used_by FROM event_subscriptions s WHERE s.destination_id = d.id
-		) u ON TRUE
-		LEFT JOIN LATERAL (
-			SELECT x.created_at, x.status FROM event_deliveries x
-			WHERE x.destination_id = d.id AND x.status <> ?
-			ORDER BY x.created_at DESC LIMIT 1
-		) l ON TRUE
-		LEFT JOIN LATERAL (
-			SELECT count(*) AS failures FROM event_deliveries x
-			WHERE x.destination_id = d.id
-				AND (x.status = ? OR (x.status = ? AND x.attempts > 0))
-				AND x.created_at > COALESCE((
-					SELECT max(y.created_at) FROM event_deliveries y
-					WHERE y.destination_id = d.id AND y.status = ?
-				), '-infinity'::timestamptz)
-		) f ON TRUE
-		WHERE d.ou_id = ?`+only,
-		args...,
-	).Scan(&rows).Error
-	if err != nil {
+	var ids []uuid.UUID
+	if err := q.Pluck("id", &ids).Error; err != nil {
 		return nil, err
 	}
-	out := make(map[uuid.UUID]DestinationStats, len(rows))
-	for _, row := range rows {
-		out[row.DestinationID] = DestinationStats{
-			UsedBy:              row.UsedBy,
-			LastDeliveryAt:      row.LastDeliveryAt,
-			LastStatus:          row.LastStatus,
-			ConsecutiveFailures: row.ConsecutiveFailures,
+	out := make(map[uuid.UUID]DestinationStats, len(ids))
+	for _, destinationID := range ids {
+		var stats DestinationStats
+		var usedBy int64
+		if err := db.Model(&models.EventSubscription{}).Where("destination_id = ?", destinationID).
+			Count(&usedBy).Error; err != nil {
+			return nil, err
 		}
+		stats.UsedBy = int(usedBy)
+
+		var last []models.EventDelivery
+		if err := db.Select("created_at, status").
+			Where("destination_id = ? AND status <> ?", destinationID, models.EventDeliverySkipped).
+			Order("created_at DESC").Limit(1).Find(&last).Error; err != nil {
+			return nil, err
+		}
+		if len(last) > 0 {
+			stats.LastDeliveryAt, stats.LastStatus = &last[0].CreatedAt, last[0].Status
+		}
+
+		// Failures, and pending deliveries being retried, since the latest delivered one.
+		failures := db.Model(&models.EventDelivery{}).
+			Where("destination_id = ? AND (status = ? OR (status = ? AND attempts > 0))",
+				destinationID, models.EventDeliveryFailed, models.EventDeliveryPending)
+		var delivered []models.EventDelivery
+		if err := db.Select("created_at").
+			Where("destination_id = ? AND status = ?", destinationID, models.EventDeliveryDelivered).
+			Order("created_at DESC").Limit(1).Find(&delivered).Error; err != nil {
+			return nil, err
+		}
+		if len(delivered) > 0 {
+			failures = failures.Where("created_at > ?", delivered[0].CreatedAt)
+		}
+		var n int64
+		if err := failures.Count(&n).Error; err != nil {
+			return nil, err
+		}
+		stats.ConsecutiveFailures = int(n)
+		out[destinationID] = stats
 	}
 	return out, nil
+}
+
+// subscriptionsUsing reads the subscriptions that send to a destination, oldest first.
+func subscriptionsUsing(db *gorm.DB, ouID string, destinationID uuid.UUID) ([]models.EventSubscription, error) {
+	var out []models.EventSubscription
+	if err := db.Where("org_id = ? AND destination_id = ?", ouID, destinationID).
+		Order("created_at ASC").Find(&out).Error; err != nil {
+		return nil, err
+	}
+	return out, loadSubscriptions(db, out)
 }
 
 func (r *eventRepository) SubscriptionsUsing(
 	ctx context.Context, ouID string, destinationID uuid.UUID,
 ) ([]models.EventSubscription, error) {
-	var out []models.EventSubscription
-	err := r.db.WithContext(ctx).Where("ou_id = ? AND destination_id = ?", ouID, destinationID).
-		Order("created_at ASC").Find(&out).Error
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
+	return subscriptionsUsing(r.db.WithContext(ctx), ouID, destinationID)
 }
 
+// RemoveProjectFromDestinations drops the project from the destinations made available to it. A destination left
+// with no project becomes org-only: available to none, rather than silently to all.
 func (r *eventRepository) RemoveProjectFromDestinations(ctx context.Context, ouID, projectName string) error {
-	selected, err := json.Marshal([]string{projectName})
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		return removeProjectFromDestinations(tx, ouID, projectName)
+	})
+}
+
+func removeProjectFromDestinations(tx *gorm.DB, ouID, projectName string) error {
+	var affected []uuid.UUID
+	if err := tx.Model(&destinationProject{}).
+		Where("org_id = ? AND project_id IN (?)", ouID, projectIDQuery(tx, ouID, projectName)).
+		Pluck("destination_id", &affected).Error; err != nil {
+		return err
+	}
+	if len(affected) == 0 {
+		return nil
+	}
+	if err := tx.Where("org_id = ? AND project_id IN (?)", ouID, projectIDQuery(tx, ouID, projectName)).
+		Delete(&destinationProject{}).Error; err != nil {
+		return err
+	}
+	now := dbx.Now()
+	for _, id := range affected {
+		var left int64
+		if err := tx.Model(&destinationProject{}).Where("destination_id = ?", id).Count(&left).Error; err != nil {
+			return err
+		}
+		updates := map[string]any{"updated_at": now}
+		if left == 0 {
+			updates["availability"] = models.DestinationAvailableOrg
+		}
+		if err := tx.Model(&models.EventDestination{}).
+			Where("id = ? AND availability = ?", id, models.DestinationAvailableProjects).
+			Updates(updates).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// loadSubscriptions fills the subscriptions' project and agent names, event types and environments.
+func loadSubscriptions(db *gorm.DB, subs []models.EventSubscription) error {
+	if len(subs) == 0 {
+		return nil
+	}
+	ids := make([]uuid.UUID, len(subs))
+	var projectIDs, agentIDs []uuid.UUID
+	for i, s := range subs {
+		ids[i] = s.ID
+		if s.ProjectID != nil {
+			projectIDs = append(projectIDs, *s.ProjectID)
+		}
+		if s.AgentUUID != nil {
+			agentIDs = append(agentIDs, *s.AgentUUID)
+		}
+	}
+	projects, err := namesByID(db, "projects", projectIDs)
 	if err != nil {
 		return err
 	}
-	// "@>" rather than the jsonb "?" operator, which gorm would read as a
-	// placeholder. A destination left with no project becomes org-only:
-	// available to none, rather than silently to all, and still valid to save
-	// unchanged.
-	return r.db.WithContext(ctx).Exec(`
-		UPDATE event_destinations
-		SET projects = projects - ?::text,
-			availability = CASE WHEN jsonb_array_length(projects - ?::text) = 0 THEN ? ELSE availability END,
-			updated_at = NOW()
-		WHERE ou_id = ? AND availability = ? AND projects @> ?::jsonb`,
-		projectName, projectName, models.DestinationAvailableOrg,
-		ouID, models.DestinationAvailableProjects, string(selected),
-	).Error
+	agents, err := namesByID(db, "agents", agentIDs)
+	if err != nil {
+		return err
+	}
+	types := make(map[uuid.UUID][]string, len(subs))
+	envs := make(map[uuid.UUID][]uuid.UUID, len(subs))
+	var envIDs []uuid.UUID
+	for _, chunk := range dbx.Chunks(ids) {
+		var ts []subscriptionType
+		if err := db.Where("subscription_id IN ?", chunk).Order("event_type").Find(&ts).Error; err != nil {
+			return err
+		}
+		for _, t := range ts {
+			types[t.SubscriptionID] = append(types[t.SubscriptionID], t.EventType)
+		}
+		var es []subscriptionEnvironment
+		if err := db.Where("subscription_id IN ?", chunk).Find(&es).Error; err != nil {
+			return err
+		}
+		for _, e := range es {
+			envs[e.SubscriptionID] = append(envs[e.SubscriptionID], e.EnvironmentID)
+			envIDs = append(envIDs, e.EnvironmentID)
+		}
+	}
+	envNames, err := namesByID(db, "environments", envIDs)
+	if err != nil {
+		return err
+	}
+	for i := range subs {
+		s := &subs[i]
+		if s.ProjectID != nil {
+			s.ProjectName = projects[*s.ProjectID]
+		}
+		if s.AgentUUID != nil {
+			s.AgentName = agents[*s.AgentUUID]
+		}
+		s.EventTypes = append([]string{}, types[s.ID]...)
+		s.Environments = []string{}
+		for _, id := range envs[s.ID] {
+			s.Environments = append(s.Environments, envNames[id])
+		}
+		sort.Strings(s.Environments)
+	}
+	return nil
+}
+
+// resolveSubscription sets the subscription's project and agent ids from its names, as its scope needs.
+func resolveSubscription(ctx context.Context, tx *gorm.DB, s *models.EventSubscription) error {
+	s.ProjectID, s.AgentUUID = nil, nil
+	switch s.Scope {
+	case models.EventScopeProject:
+		orgID, err := orgIDFor(ctx, tx, s.OUID)
+		if err != nil {
+			return err
+		}
+		id, err := projectIDFor(ctx, tx, orgID, s.ProjectName)
+		if err != nil {
+			return err
+		}
+		s.ProjectID = &id
+	case models.EventScopeAgent:
+		scope, err := agentScopeFor(ctx, tx, s.OUID, s.ProjectName, s.AgentName)
+		if err != nil {
+			return err
+		}
+		s.ProjectID, s.AgentUUID = &scope.ProjectID, &scope.AgentID
+	}
+	return nil
+}
+
+// saveSubscriptionChildren makes the subscription's event type and environment rows exactly its lists.
+func saveSubscriptionChildren(tx *gorm.DB, s *models.EventSubscription) error {
+	if err := tx.Where("subscription_id = ?", s.ID).Delete(&subscriptionType{}).Error; err != nil {
+		return err
+	}
+	if err := tx.Where("subscription_id = ?", s.ID).Delete(&subscriptionEnvironment{}).Error; err != nil {
+		return err
+	}
+	for _, t := range s.EventTypes {
+		if _, err := dbx.InsertIfAbsent(tx, &subscriptionType{SubscriptionID: s.ID, EventType: t, OrgID: s.OUID}); err != nil {
+			return err
+		}
+	}
+	envs, err := idsByName(tx, "environments", s.OUID, s.Environments)
+	if err != nil {
+		return err
+	}
+	for _, name := range s.Environments {
+		id, ok := envs[name]
+		if !ok {
+			return fmt.Errorf("%w: %s", utils.ErrEnvironmentNotFound, name)
+		}
+		if _, err := dbx.InsertIfAbsent(tx, &subscriptionEnvironment{SubscriptionID: s.ID, EnvironmentID: id, OrgID: s.OUID}); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (r *eventRepository) owned(ctx context.Context, t EventTarget) *gorm.DB {
-	q := r.db.WithContext(ctx).Where("ou_id = ? AND scope = ?", t.OUID, t.Scope)
+	db := r.db.WithContext(ctx)
+	q := db.Where("org_id = ? AND scope = ?", t.OUID, t.Scope)
 	switch t.Scope {
 	case models.EventScopeProject:
-		q = q.Where("project_name = ?", t.ProjectName)
+		q = q.Where("project_id IN (?)", projectIDQuery(db, t.OUID, t.ProjectName))
 	case models.EventScopeAgent:
-		q = q.Where("project_name = ? AND agent_name = ?", t.ProjectName, t.AgentName)
+		q = q.Where("agent_id IN (?)", models.AgentIDQuery(db, t.OUID, t.ProjectName, t.AgentName))
 	}
 	return q
 }
@@ -432,44 +754,58 @@ func (r *eventRepository) ListSubscriptions(ctx context.Context, t EventTarget) 
 	if err := r.owned(ctx, t).Order("created_at ASC").Find(&out).Error; err != nil {
 		return nil, err
 	}
-	return out, nil
+	return out, loadSubscriptions(r.db.WithContext(ctx), out)
 }
 
 func (r *eventRepository) GetSubscription(ctx context.Context, t EventTarget, id uuid.UUID) (*models.EventSubscription, error) {
 	var s models.EventSubscription
-	if err := r.owned(ctx, t).Where("id = ?", id).First(&s).Error; err != nil {
+	if err := r.owned(ctx, t).Where("id = ?", id).Take(&s).Error; err != nil {
 		return nil, err
 	}
-	return &s, nil
+	subs := []models.EventSubscription{s}
+	if err := loadSubscriptions(r.db.WithContext(ctx), subs); err != nil {
+		return nil, err
+	}
+	return &subs[0], nil
 }
 
 func (r *eventRepository) SubscriptionsByID(ctx context.Context, ouID string, ids []uuid.UUID) ([]models.EventSubscription, error) {
 	out := []models.EventSubscription{}
-	if len(ids) == 0 {
-		return out, nil
+	db := r.db.WithContext(ctx)
+	for _, chunk := range dbx.Chunks(ids) {
+		var part []models.EventSubscription
+		if err := db.Where("org_id = ? AND id IN ?", ouID, chunk).Find(&part).Error; err != nil {
+			return nil, err
+		}
+		out = append(out, part...)
 	}
-	if err := r.db.WithContext(ctx).Where("ou_id = ? AND id IN ?", ouID, ids).Find(&out).Error; err != nil {
-		return nil, err
-	}
-	return out, nil
+	return out, loadSubscriptions(db, out)
 }
 
-// withDestination runs save inside a transaction that first reads s's
-// destination with its row share-locked and passes it to check.
+// withDestination runs save inside a transaction that first locks s's destination, so its availability cannot
+// change meanwhile, and passes it to check.
 func (r *eventRepository) withDestination(
 	ctx context.Context, s *models.EventSubscription, check func(*models.EventDestination) error, save func(tx *gorm.DB) error,
 ) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := dbx.LockRow(tx, "event_destinations", "name", "org_id = ? AND id = ?", s.OUID, s.DestinationID); err != nil {
+			return err
+		}
 		var d models.EventDestination
-		err := tx.Clauses(clause.Locking{Strength: "SHARE"}).
-			Where("ou_id = ? AND id = ?", s.OUID, s.DestinationID).First(&d).Error
-		if err != nil {
+		if err := tx.Where("org_id = ? AND id = ?", s.OUID, s.DestinationID).Take(&d).Error; err != nil {
+			return err
+		}
+		ds := []models.EventDestination{d}
+		if err := loadDestinations(tx, ds); err != nil {
 			return err
 		}
 		if check != nil {
-			if err := check(&d); err != nil {
+			if err := check(&ds[0]); err != nil {
 				return err
 			}
+		}
+		if err := resolveSubscription(ctx, tx, s); err != nil {
+			return err
 		}
 		return save(tx)
 	})
@@ -479,9 +815,15 @@ func (r *eventRepository) CreateSubscription(
 	ctx context.Context, s *models.EventSubscription, check func(*models.EventDestination) error,
 ) error {
 	return r.withDestination(ctx, s, check, func(tx *gorm.DB) error {
-		now := time.Now()
+		now := dbx.Now()
 		s.CreatedAt, s.UpdatedAt = now, now
-		return tx.Create(s).Error
+		if s.ID == uuid.Nil {
+			s.ID = newID()
+		}
+		if err := tx.Create(s).Error; err != nil {
+			return err
+		}
+		return saveSubscriptionChildren(tx, s)
 	})
 }
 
@@ -489,10 +831,13 @@ func (r *eventRepository) UpdateSubscription(
 	ctx context.Context, s *models.EventSubscription, check func(*models.EventDestination) error,
 ) error {
 	return r.withDestination(ctx, s, check, func(tx *gorm.DB) error {
-		s.UpdatedAt = time.Now()
-		return tx.Model(&models.EventSubscription{}).Where("id = ?", s.ID).
-			Select("name", "description", "destination_id", "event_types", "environments", "enabled", "updated_at").
-			Updates(s).Error
+		s.UpdatedAt = dbx.Now()
+		if err := tx.Model(&models.EventSubscription{}).Where("id = ?", s.ID).
+			Select("name", "description", "destination_id", "enabled", "updated_at").
+			Updates(s).Error; err != nil {
+			return err
+		}
+		return saveSubscriptionChildren(tx, s)
 	})
 }
 
@@ -505,9 +850,12 @@ func (r *eventRepository) DeleteSubscription(ctx context.Context, t EventTarget,
 }
 
 func (r *eventRepository) DeleteSubscriptionsUnder(ctx context.Context, ouID, projectName, agentName string) error {
-	q := r.db.WithContext(ctx).Where("ou_id = ? AND project_name = ?", ouID, projectName)
+	db := r.db.WithContext(ctx)
+	q := db.Where("org_id = ?", ouID)
 	if agentName != "" {
-		q = q.Where("agent_name = ?", agentName)
+		q = q.Where("agent_id IN (?)", models.AgentIDQuery(db, ouID, projectName, agentName))
+	} else {
+		q = q.Where("project_id IN (?)", projectIDQuery(db, ouID, projectName))
 	}
 	return q.Delete(&models.EventSubscription{}).Error
 }
@@ -516,24 +864,25 @@ func (r *eventRepository) CandidateSubscriptions(
 	ctx context.Context, ouID, projectName, agentName string,
 ) ([]models.EventSubscription, error) {
 	var out []models.EventSubscription
-	err := r.db.WithContext(ctx).
-		Where("ou_id = ? AND enabled = TRUE", ouID).
-		Where(r.db.Where("scope = ?", models.EventScopeOrg).
-			Or("scope = ? AND project_name = ?", models.EventScopeProject, projectName).
-			Or("scope = ? AND project_name = ? AND agent_name = ?", models.EventScopeAgent, projectName, agentName)).
+	db := r.db.WithContext(ctx)
+	err := db.
+		Where("org_id = ? AND enabled = ?", ouID, true).
+		Where(db.Session(&gorm.Session{NewDB: true}).Where("scope = ?", models.EventScopeOrg).
+			Or("scope = ? AND project_id IN (?)", models.EventScopeProject, projectIDQuery(db, ouID, projectName)).
+			Or("scope = ? AND agent_id IN (?)", models.EventScopeAgent, models.AgentIDQuery(db, ouID, projectName, agentName))).
 		Find(&out).Error
 	if err != nil {
 		return nil, err
 	}
-	return out, nil
+	return out, loadSubscriptions(db, out)
 }
 
 // located narrows q, on event_deliveries aliased x, to loc.
-func located(q *gorm.DB, loc DeliveryLocation) *gorm.DB {
+func located(db, q *gorm.DB, ouID string, loc DeliveryLocation) *gorm.DB {
 	if loc.ProjectName != "" {
-		q = q.Where("x.project_name = ?", loc.ProjectName)
+		q = q.Where("x.project_id IN (?)", projectIDQuery(db, ouID, loc.ProjectName))
 		if loc.AgentName != "" {
-			q = q.Where("x.agent_name = ?", loc.AgentName)
+			q = q.Where("x.agent_id IN (?)", models.AgentIDQuery(db, ouID, loc.ProjectName, loc.AgentName))
 		}
 	}
 	if len(loc.EventScopes) > 0 {
@@ -544,7 +893,7 @@ func located(q *gorm.DB, loc DeliveryLocation) *gorm.DB {
 
 // subscriptionCountRow is one row of the subscription counts query.
 type subscriptionCountRow struct {
-	SubscriptionID string
+	SubscriptionID uuid.UUID
 	Status         string
 	Count          int
 }
@@ -553,100 +902,205 @@ func (r *eventRepository) SubscriptionCounts(
 	ctx context.Context, ouID string, ids []uuid.UUID, since time.Time, loc DeliveryLocation,
 ) (SubscriptionCounts, error) {
 	out := SubscriptionCounts{}
-	if len(ids) == 0 {
-		return out, nil
-	}
-	wanted := make([]string, len(ids))
-	for i, id := range ids {
-		wanted[i] = id.String()
-	}
-	q := r.db.WithContext(ctx).
-		Table("event_deliveries AS x CROSS JOIN LATERAL jsonb_array_elements_text(x.subscription_ids) AS s(sid)").
-		Select("s.sid AS subscription_id, x.status AS status, count(*) AS count").
-		Where("x.ou_id = ? AND x.created_at >= ? AND s.sid IN ?", ouID, since, wanted)
-	var rows []subscriptionCountRow
-	if err := located(q, loc).Group("s.sid, x.status").Scan(&rows).Error; err != nil {
-		return nil, err
-	}
-	for _, row := range rows {
-		id, err := uuid.Parse(row.SubscriptionID)
-		if err != nil {
-			continue
+	db := r.db.WithContext(ctx)
+	for _, chunk := range dbx.Chunks(ids) {
+		q := db.Table("event_deliveries x").
+			Joins("JOIN event_delivery_subscriptions s ON s.delivery_id = x.id").
+			Select("s.subscription_id AS subscription_id, x.status AS status, COUNT(*) AS count").
+			Where("x.org_id = ? AND x.created_at >= ? AND s.subscription_id IN ?", ouID, since.UTC(), chunk)
+		var rows []subscriptionCountRow
+		if err := located(db, q, ouID, loc).Group("s.subscription_id, x.status").Scan(&rows).Error; err != nil {
+			return nil, err
 		}
-		if out[id] == nil {
-			out[id] = map[string]int{}
+		for _, row := range rows {
+			if out[row.SubscriptionID] == nil {
+				out[row.SubscriptionID] = map[string]int{}
+			}
+			out[row.SubscriptionID][row.Status] += row.Count
 		}
-		out[id][row.Status] += row.Count
 	}
 	return out, nil
 }
 
+// resolveDelivery sets the delivery's location ids from its names; a project, agent or environment that is gone is
+// left unset.
+func resolveDelivery(tx *gorm.DB, d *models.EventDelivery) error {
+	d.ProjectID, d.AgentUUID, d.EnvironmentID = nil, nil, nil
+	if d.ProjectName != "" {
+		projects, err := idsByName(tx, "projects", d.OUID, []string{d.ProjectName})
+		if err != nil {
+			return err
+		}
+		d.ProjectID = optionalID(projects, d.ProjectName)
+		if d.AgentName != "" {
+			id, err := models.AgentIDByNames(tx, d.OUID, d.ProjectName, d.AgentName)
+			if err != nil && !errors.Is(err, models.ErrAgentRefNotFound) {
+				return err
+			}
+			if err == nil {
+				d.AgentUUID = &id
+			}
+		}
+	}
+	if d.Environment != "" {
+		envs, err := idsByName(tx, "environments", d.OUID, []string{d.Environment})
+		if err != nil {
+			return err
+		}
+		d.EnvironmentID = optionalID(envs, d.Environment)
+	}
+	return nil
+}
+
+// insertDelivery inserts the delivery and its subscription rows unless it exists, and reports whether it did.
+func insertDelivery(tx *gorm.DB, d *models.EventDelivery) (bool, error) {
+	if d.ID == uuid.Nil {
+		d.ID = newID()
+	}
+	if err := resolveDelivery(tx, d); err != nil {
+		return false, err
+	}
+	inserted, err := dbx.InsertIfAbsent(tx, d)
+	if err != nil || !inserted {
+		return inserted, err
+	}
+	for _, sid := range d.SubscriptionIDs {
+		id, err := uuid.Parse(sid)
+		if err != nil {
+			continue
+		}
+		if _, err := dbx.InsertIfAbsent(tx, &deliverySubscription{DeliveryID: d.ID, SubscriptionID: id}); err != nil {
+			return false, err
+		}
+	}
+	return true, nil
+}
+
 func (r *eventRepository) RecordQueuedDelivery(ctx context.Context, d *models.EventDelivery) error {
-	d.UpdatedAt = time.Now()
+	d.UpdatedAt = dbx.Now()
 	if d.CreatedAt.IsZero() {
 		d.CreatedAt = d.UpdatedAt
 	}
-	return r.db.WithContext(ctx).Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "destination_id"}, {Name: "event_id"}},
-		DoNothing: true,
-	}).Create(d).Error
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		_, err := insertDelivery(tx, d)
+		return err
+	})
 }
 
 func (r *eventRepository) ClaimDelivery(ctx context.Context, id uuid.UUID, lease time.Duration) (bool, error) {
-	res := r.db.WithContext(ctx).Exec(`
-  UPDATE event_deliveries SET claimed_until = NOW() + make_interval(secs => ?)
-  WHERE id = ? AND status = ? AND (claimed_until IS NULL OR claimed_until < NOW())`,
-		lease.Seconds(), id, models.EventDeliveryPending)
+	now := dbx.Now()
+	res := r.db.WithContext(ctx).Model(&models.EventDelivery{}).
+		Where("id = ? AND status = ? AND (claimed_until IS NULL OR claimed_until < ?)", id, models.EventDeliveryPending, now).
+		Update("claimed_until", now.Add(lease))
 	return res.RowsAffected == 1, res.Error
 }
 
+// RecordDelivery writes the attempt's outcome. A late worker, one whose job was redelivered say, must not turn a
+// finished delivery back into pending or failed.
 func (r *eventRepository) RecordDelivery(ctx context.Context, d *models.EventDelivery) error {
-	d.UpdatedAt = time.Now()
+	d.UpdatedAt = dbx.Now()
 	if d.CreatedAt.IsZero() {
 		d.CreatedAt = d.UpdatedAt
 	}
 	d.ClaimedUntil = nil
-	return r.db.WithContext(ctx).Clauses(clause.OnConflict{
-		Columns: []clause.Column{{Name: "destination_id"}, {Name: "event_id"}},
-		DoUpdates: clause.AssignmentColumns([]string{
-			"status", "attempts", "response_code", "last_error", "delivered_at", "claimed_until", "updated_at",
-		}),
-		// A late worker, one whose job was redelivered say, must not turn a
-		// finished delivery back into pending or failed.
-		Where: clause.Where{Exprs: []clause.Expression{clause.Expr{
-			SQL:  "event_deliveries.status NOT IN (?, ?)",
-			Vars: []any{models.EventDeliveryDelivered, models.EventDeliverySkipped},
-		}}},
-	}).Create(d).Error
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		inserted, err := insertDelivery(tx, d)
+		if err != nil || inserted {
+			return err
+		}
+		return tx.Model(&models.EventDelivery{}).
+			Where("destination_id = ? AND event_id = ? AND status NOT IN ?", d.DestinationID, d.EventID,
+				[]string{models.EventDeliveryDelivered, models.EventDeliverySkipped}).
+			Updates(map[string]any{
+				"status": d.Status, "attempts": d.Attempts, "response_code": d.ResponseCode, "last_error": d.LastError,
+				"delivered_at": d.DeliveredAt, "claimed_until": nil, "updated_at": d.UpdatedAt,
+			}).Error
+	})
+}
+
+// loadDeliveries fills the deliveries' location names and subscription ids.
+func loadDeliveries(db *gorm.DB, ds []models.EventDelivery) error {
+	if len(ds) == 0 {
+		return nil
+	}
+	ids := make([]uuid.UUID, len(ds))
+	var projectIDs, agentIDs, envIDs []uuid.UUID
+	for i, d := range ds {
+		ids[i] = d.ID
+		if d.ProjectID != nil {
+			projectIDs = append(projectIDs, *d.ProjectID)
+		}
+		if d.AgentUUID != nil {
+			agentIDs = append(agentIDs, *d.AgentUUID)
+		}
+		if d.EnvironmentID != nil {
+			envIDs = append(envIDs, *d.EnvironmentID)
+		}
+	}
+	projects, err := namesByID(db, "projects", projectIDs)
+	if err != nil {
+		return err
+	}
+	agents, err := namesByID(db, "agents", agentIDs)
+	if err != nil {
+		return err
+	}
+	envs, err := namesByID(db, "environments", envIDs)
+	if err != nil {
+		return err
+	}
+	subs := make(map[uuid.UUID][]string, len(ds))
+	for _, chunk := range dbx.Chunks(ids) {
+		var links []deliverySubscription
+		if err := db.Where("delivery_id IN ?", chunk).Find(&links).Error; err != nil {
+			return err
+		}
+		for _, l := range links {
+			subs[l.DeliveryID] = append(subs[l.DeliveryID], l.SubscriptionID.String())
+		}
+	}
+	for i := range ds {
+		d := &ds[i]
+		if d.ProjectID != nil {
+			d.ProjectName = projects[*d.ProjectID]
+		}
+		if d.AgentUUID != nil {
+			d.AgentName = agents[*d.AgentUUID]
+		}
+		if d.EnvironmentID != nil {
+			d.Environment = envs[*d.EnvironmentID]
+		}
+		d.SubscriptionIDs = append([]string{}, subs[d.ID]...)
+		sort.Strings(d.SubscriptionIDs)
+	}
+	return nil
 }
 
 func (r *eventRepository) GetDelivery(ctx context.Context, destinationID uuid.UUID, eventID string) (*models.EventDelivery, error) {
 	var d models.EventDelivery
-	err := r.db.WithContext(ctx).Where("destination_id = ? AND event_id = ?", destinationID, eventID).First(&d).Error
-	if err != nil {
+	db := r.db.WithContext(ctx)
+	if err := db.Where("destination_id = ? AND event_id = ?", destinationID, eventID).Take(&d).Error; err != nil {
 		return nil, err
 	}
-	return &d, nil
+	ds := []models.EventDelivery{d}
+	if err := loadDeliveries(db, ds); err != nil {
+		return nil, err
+	}
+	return &ds[0], nil
 }
 
 func (r *eventRepository) ListDeliveries(ctx context.Context, f DeliveryFilter) ([]models.EventDelivery, int64, error) {
-	var subscription string
-	if f.SubscriptionID != nil {
-		selected, err := json.Marshal([]string{f.SubscriptionID.String()})
-		if err != nil {
-			return nil, 0, err
-		}
-		subscription = string(selected)
-	}
+	db := r.db.WithContext(ctx)
 	// Built afresh for the count and the page: a gorm query reused after
 	// Count keeps the count's select.
 	filtered := func() *gorm.DB {
-		q := located(r.db.WithContext(ctx).Table("event_deliveries AS x").Where("x.ou_id = ?", f.OUID), f.Location)
+		q := located(db, db.Table("event_deliveries x").Where("x.org_id = ?", f.OUID), f.OUID, f.Location)
 		if f.DestinationID != nil {
 			q = q.Where("x.destination_id = ?", *f.DestinationID)
 		}
-		if subscription != "" {
-			q = q.Where("x.subscription_ids @> ?::jsonb", subscription)
+		if f.SubscriptionID != nil {
+			q = q.Where("x.id IN (?)", db.Session(&gorm.Session{NewDB: true}).Model(&deliverySubscription{}).
+				Select("delivery_id").Where("subscription_id = ?", *f.SubscriptionID))
 		}
 		if f.Status != "" {
 			q = q.Where("x.status = ?", f.Status)
@@ -662,39 +1116,28 @@ func (r *eventRepository) ListDeliveries(ctx context.Context, f DeliveryFilter) 
 	if err != nil {
 		return nil, 0, err
 	}
-	return out, total, nil
+	return out, total, loadDeliveries(db, out)
 }
 
 func (r *eventRepository) FailStaleDeliveries(ctx context.Context, cutoff time.Time, reason string) (int64, error) {
-	// created_at never follows updated_at, so it narrows the scan through
-	// its index.
-	res := r.db.WithContext(ctx).Exec(`
-  UPDATE event_deliveries SET status = ?, last_error = ?, claimed_until = NULL, updated_at = NOW()
-  WHERE status = ? AND created_at < ? AND updated_at < ? AND (claimed_until IS NULL OR claimed_until < NOW())`,
-		models.EventDeliveryFailed, reason, models.EventDeliveryPending, cutoff, cutoff)
+	now := dbx.Now()
+	cutoff = cutoff.UTC()
+	// created_at never follows updated_at, so it narrows the scan through its index.
+	res := r.db.WithContext(ctx).Model(&models.EventDelivery{}).
+		Where("status = ? AND created_at < ? AND updated_at < ? AND (claimed_until IS NULL OR claimed_until < ?)",
+			models.EventDeliveryPending, cutoff, cutoff, now).
+		Updates(map[string]any{
+			"status": models.EventDeliveryFailed, "last_error": reason, "claimed_until": nil, "updated_at": now,
+		})
 	return res.RowsAffected, res.Error
 }
 
 func (r *eventRepository) PruneDeliveries(ctx context.Context, cutoff time.Time) (int64, error) {
-	res := r.db.WithContext(ctx).Where("created_at < ?", cutoff).Delete(&models.EventDelivery{})
+	res := r.db.WithContext(ctx).Where("created_at < ?", cutoff.UTC()).Delete(&models.EventDelivery{})
 	return res.RowsAffected, res.Error
 }
 
-// MonitorAlertWants rechecks current shared settings and monitor ownership before delivery.
-func (r *eventRepository) MonitorAlertWants(ctx context.Context, ouID string, alertID, destinationID uuid.UUID, project, agent string) (bool, error) {
-	var count int64
-	err := r.db.WithContext(ctx).Table("monitor_alerts AS a").Joins("JOIN monitors m ON m.id = a.monitor_id").Where("a.id = ? AND a.ou_id = ? AND m.ou_id = ? AND m.project_name = ? AND m.agent_name = ? AND a.destination_ids @> ?::jsonb", alertID, ouID, ouID, project, agent, `[`+`"`+destinationID.String()+`"`+`]`).Count(&count).Error
-	return count > 0, err
-}
-
-// The destination row is locked by callers, serializing this check with alert saves.
-func monitorProjectsUsingDestination(tx *gorm.DB, ouID string, id uuid.UUID) ([]string, error) {
-	var projects []string
-	ids, err := json.Marshal([]string{id.String()})
-	if err != nil {
-		return nil, err
-	}
-	err = tx.Table("monitor_alerts AS a").Joins("JOIN monitors AS m ON m.id = a.monitor_id AND m.ou_id = a.ou_id").
-		Where("a.ou_id = ? AND a.destination_ids @> ?::jsonb", ouID, string(ids)).Pluck("m.project_name", &projects).Error
-	return projects, err
+// MonitorAlertWants is always false: Lite runs no monitors, so no alert sends to a destination.
+func (r *eventRepository) MonitorAlertWants(context.Context, string, uuid.UUID, uuid.UUID, string, string) (bool, error) {
+	return false, nil
 }

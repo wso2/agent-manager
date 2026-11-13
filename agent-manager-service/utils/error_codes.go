@@ -36,8 +36,6 @@ const (
 	ErrCodeMCPProxyInUse = "MCP_PROXY_IN_USE"
 	// ErrCodeUpstreamNotReady: the project MCP proxy's source component isn't deployed in the environment yet.
 	ErrCodeUpstreamNotReady = "UPSTREAM_NOT_READY"
-	// ErrCodeSourceComponentNotFound: the project MCP proxy's source component is not in the project.
-	ErrCodeSourceComponentNotFound = "SOURCE_COMPONENT_NOT_FOUND"
 	// ErrCodeContextInUse: an artifact's gateway context overlaps another artifact's on that gateway.
 	ErrCodeContextInUse = "CONTEXT_IN_USE"
 	// ErrCodeAmbiguousGateway: the binding's environment has several egress gateways and no gatewayId was given.
@@ -48,6 +46,7 @@ const (
 	// Server error codes (5xx)
 	ErrCodeInternalError      = "INTERNAL_ERROR"
 	ErrCodeServiceUnavailable = "SERVICE_UNAVAILABLE"
+	ErrCodeNotImplemented     = "NOT_IMPLEMENTED"
 
 	// Resource-specific error codes
 	ErrCodeAgentNotFound           = "AGENT_NOT_FOUND"
@@ -55,7 +54,6 @@ const (
 	ErrCodeProjectNotFound         = "PROJECT_NOT_FOUND"
 	ErrCodeProjectAlreadyExists    = "PROJECT_ALREADY_EXISTS"
 	ErrCodeOrganizationNotFound    = "ORGANIZATION_NOT_FOUND"
-	ErrCodeBuildNotFound           = "BUILD_NOT_FOUND"
 	ErrCodeEnvironmentNotFound     = "ENVIRONMENT_NOT_FOUND"
 	ErrCodeGatewayNotFound         = "GATEWAY_NOT_FOUND"
 	ErrCodeGatewayAlreadyExists    = "GATEWAY_ALREADY_EXISTS"
@@ -71,13 +69,4 @@ const (
 	ErrCodeLLMProxyNotFound        = "LLM_PROXY_NOT_FOUND"
 	ErrCodeArtifactNotFound        = "ARTIFACT_NOT_FOUND"
 	ErrCodeAgentConfigNotFound     = "AGENT_CONFIG_NOT_FOUND"
-	ErrCodeGitSecretNotFound       = "GIT_SECRET_NOT_FOUND"
-	ErrCodeGitSecretAlreadyExists  = "GIT_SECRET_ALREADY_EXISTS"
-	ErrCodeGitSecretInvalidType    = "GIT_SECRET_INVALID_TYPE"
-
-	// Build publisher error codes, answered to a build's workload step
-	ErrCodeBuildPublisherDisabled = "BUILD_PUBLISHER_DISABLED"
-	ErrCodeBuildNotAgent          = "BUILD_NOT_AGENT"
-	ErrCodeWorkflowNotEnabled     = "WORKFLOW_NOT_ENABLED"
-	ErrCodeAgentNotSourceBuilt    = "AGENT_NOT_SOURCE_BUILT"
 )

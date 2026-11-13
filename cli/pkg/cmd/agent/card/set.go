@@ -35,13 +35,11 @@ type SetOptions struct {
 	Client       func(context.Context) (*amsvc.ClientWithResponses, error)
 	ResolveScope func(*cobra.Command, bool, bool) (string, string, error)
 	ResolveAgent func([]string) (string, []string, error)
-	ResolveEnv   func(*cobra.Command) (string, error)
-	MakeScope    func(org, proj, agent, env string) render.Scope
+	MakeScope    func(org, proj, agent string) render.Scope
 
 	Org       string
 	Proj      string
 	AgentName string
-	Env       string
 	Scope     render.Scope
 
 	URL   string
@@ -55,16 +53,15 @@ func NewSetCmd(f *cmdutil.Factory) *cobra.Command {
 		Client:       f.AgentManager,
 		ResolveScope: f.ResolveOrgProject,
 		ResolveAgent: f.ResolveAgent,
-		ResolveEnv:   f.ResolveEnvironment,
-		MakeScope:    f.EnvScope,
+		MakeScope:    f.AgentScope,
 	}
 
 	cmd := &cobra.Command{
 		Use:   "set [agent] --url <card-url> [--proxy]",
-		Short: "Register an agent's card URL in an environment",
-		Long: "Register the URL the agent's A2A card is fetched from in one environment. " +
-			"With --proxy the environment is routed through its gateway. " +
-			"Callers of a proxied environment need a gateway API key, created in the console.",
+		Short: "Register an agent's card URL",
+		Long: "Register the URL the agent's A2A card is fetched from. " +
+			"With --proxy the agent is routed through its gateway. " +
+			"Callers of a proxied agent need a gateway API key, created in the console.",
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			org, proj, err := opts.ResolveScope(cmd, true, true)
@@ -75,25 +72,20 @@ func NewSetCmd(f *cmdutil.Factory) *cobra.Command {
 			if err != nil {
 				return render.Error(opts.IO, render.Scope{}, err)
 			}
-			env, err := opts.ResolveEnv(cmd)
-			if err != nil {
-				return render.Error(opts.IO, render.Scope{}, err)
-			}
-			opts.Org, opts.Proj, opts.AgentName, opts.Env = org, proj, agentName, env
-			opts.Scope = opts.MakeScope(org, proj, agentName, env)
+			opts.Org, opts.Proj, opts.AgentName = org, proj, agentName
+			opts.Scope = opts.MakeScope(org, proj, agentName)
 			return runSet(cmd.Context(), opts)
 		},
 	}
 	cmd.Flags().StringVar(&opts.URL, "url", "", "URL the agent card is served from (required)")
-	cmd.Flags().BoolVar(&opts.Proxy, "proxy", false, "Route the environment through its gateway (URL must end in /.well-known/agent-card.json)")
+	cmd.Flags().BoolVar(&opts.Proxy, "proxy", false, "Route the agent through its gateway (URL must end in /.well-known/agent-card.json)")
 	_ = cmd.MarkFlagRequired("url")
-	cmdutil.AddEnvFlag(cmd)
 	cmd.ValidArgsFunction = completeAgentArg(f)
 	return cmd
 }
 
 func runSet(ctx context.Context, o *SetOptions) error {
-	if err := validateTarget(o.AgentName, o.Env); err != nil {
+	if err := validateTarget(o.AgentName); err != nil {
 		return render.Error(o.IO, o.Scope, err)
 	}
 	if err := a2acard.CheckCardURL("--url", o.URL, o.Proxy); err != nil {
@@ -104,7 +96,7 @@ func runSet(ctx context.Context, o *SetOptions) error {
 		return render.Error(o.IO, o.Scope, err)
 	}
 
-	target := a2acard.Target{Org: o.Org, Proj: o.Proj, Agent: o.AgentName, Env: o.Env}
+	target := a2acard.Target{Org: o.Org, Proj: o.Proj, Agent: o.AgentName}
 	res, err := a2acard.ApplySource(ctx, client, target, o.URL, o.Proxy)
 	if err != nil {
 		return render.Error(o.IO, o.Scope, err)
@@ -114,7 +106,7 @@ func runSet(ctx context.Context, o *SetOptions) error {
 		return render.JSONSuccess(o.IO, o.Scope, res)
 	}
 	cs := o.IO.StderrColorScheme()
-	fmt.Fprintf(o.IO.ErrOut, "%s Registered card URL for %s (%s)\n", cs.SuccessIcon(), res.Environment, res.Routing)
-	fmt.Fprintf(o.IO.ErrOut, "  Check it with: amctl agent card get %s --env %s\n", o.AgentName, o.Env)
+	fmt.Fprintf(o.IO.ErrOut, "%s Registered card URL (%s)\n", cs.SuccessIcon(), res.Routing)
+	fmt.Fprintf(o.IO.ErrOut, "  Check it with: amctl agent card get %s\n", o.AgentName)
 	return nil
 }

@@ -15,7 +15,7 @@
 // under the License.
 
 // Package moesifcollector is a thin client for the moesif-collector-api
-// OpenChoreo proxy component: an authenticated reverse proxy in front of
+// proxy component: an authenticated reverse proxy in front of
 // Moesif's ingestion API (https://api.moesif.net). The proxy validates a
 // bearer JWT issued by platform-idp and injects the real Moesif Application
 // ID server-side, so callers never handle that credential — only the JWT.
@@ -98,7 +98,7 @@ type Client struct {
 //
 //   - baseURL is the proxy's base URL, e.g.
 //     "http://<collector-host>:<port>/<collector-path>"
-//     when reached directly inside the OpenChoreo data plane, or
+//     when reached directly inside the data plane, or
 //     "http://localhost:18080/moesif-collector" for local dev through a
 //     `kubectl port-forward` of the internal gateway.
 //   - token is the caller's bearer JWT, used only when applicationID is empty
