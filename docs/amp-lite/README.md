@@ -5,6 +5,7 @@ AMP Lite is WSO2 Agent Manager without OpenChoreo: external agents only, one hid
 | File | What it is |
 |---|---|
 | [database-schema.md](database-schema.md) | Target database schema, rules and decisions |
+| [migration.md](migration.md) | Migration tracker: how data from 1.0.0 and 2026.11.0 maps onto this schema, and a changelog per target migration |
 | [architecture.png](architecture.png) | Architecture diagram |
 | [architecture.drawio](architecture.drawio) | Same diagram, editable in draw.io / diagrams.net |
 | [architecture.html](architecture.html) | HTML render of the architecture diagram |

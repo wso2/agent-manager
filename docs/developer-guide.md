@@ -82,6 +82,8 @@ Run these in `agent-manager-service`:
 
 CI fails if generated code is out of date (`make codegenfmt-check`). Commit the generated files with your change.
 
+Every change to `lite.yaml` must also update the [migration tracker](amp-lite/migration.md) in the same pull request: add a line to its target changelog and fix each source mapping the change affects. The schema covers all three product tiers, so a feature for any tier adds its tables there rather than in a separate migration.
+
 Every route needs an RBAC permission, and operations on credentials, permissions or deletions need an audit event. The [database schema](amp-lite/database-schema.md) explains the tables and the rules they follow.
 
 ### Console
