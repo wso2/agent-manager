@@ -93,8 +93,6 @@ var unguardedRouteAllowlist = map[routeKey]string{
 	{"registerTelemetryRoutes", "HandleFuncWithValidation", "POST /telemetry/console-actions"}: "lets an authenticated user report their own console UI activity under their own " +
 		"identity; any permission gating it would have to be granted to every role that can open the console, and the payload is " +
 		"validated against a server-side action allowlist rather than by RBAC.",
-	{"registerThunderAskRoute", "HandleFunc", "GET /internal/thunder-ask"}: "public Caddy on-demand TLS ask endpoint; it validates the requested environment handle, " +
-		"fails closed on lookup errors, and is rate-limited instead of using user RBAC.",
 	{"registerWellKnownRoutes", "HandleFunc", "GET /.well-known/oauth-protected-resource"}: "GET /.well-known/oauth-protected-resource is RFC 9728 resource metadata and must be " +
 		"unauthenticated so clients can discover how to authenticate.",
 	{"registerWellKnownRoutes", "HandleFunc", "GET /.well-known/oauth-protected-resource/mcp"}: "path-specific RFC 9728 metadata for the MCP resource must be unauthenticated " +

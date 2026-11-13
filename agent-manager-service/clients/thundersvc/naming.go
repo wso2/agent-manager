@@ -132,28 +132,6 @@ func ThunderExternalJWKSURL(thunderURL string) string {
 	return thunderURL + "/oauth2/jwks"
 }
 
-// ThunderOriginFromHandle returns "<scheme>://<handle>.<baseDomain>[:8080]" for
-// an on-prem-registered instance. WRITE-TIME ONLY: called from
-// EnvironmentService.SetThunderURL to compute the value stored as
-// EnvThunderURL.ThunderURL, never by a reader — readers always use the stored
-// value directly, since one global base-domain config can't describe every
-// environment once a caller can register a URL under a different domain.
-//
-// Scheme/port must match what env-Thunder itself self-configured as its
-// issuer (see thunder-naming.sh's thunder_issuer(), which must stay in sync):
-// local dev (TLS disabled) uses plain HTTP on port 8080; TLS_ENABLED=true
-// (VM/production, fronted by Caddy) drops the port and uses HTTPS.
-func ThunderOriginFromHandle(handle string) string {
-	if handle == "" {
-		panic("thunder url handle must not be empty — callers must check for \"not provisioned\" before building a URL")
-	}
-	host := fmt.Sprintf("%s.%s", handle, config.GetConfig().ThunderHostBaseDomain)
-	if config.GetConfig().TLSConfig.EnableTLS {
-		return fmt.Sprintf("https://%s", host)
-	}
-	return fmt.Sprintf("http://%s:8080", host)
-}
-
 // ThunderIssuerURL returns the public issuer URL for the env-Thunder
 // instance — what Thunder stamps into the JWT iss claim. Currently an
 // identity function over the stored origin, kept as a distinct name so

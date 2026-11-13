@@ -365,30 +365,21 @@ func withOrgContext(ctx context.Context, ouID string) context.Context {
 // DBBackedAgentThunderProvisioning returns a constructor to be called
 // once the DB and secret management client are available (see
 // app.Options.AgentThunderProvisioning), rather than building the
-// provisioning service immediately. Used by the
-// open-source deployment, which provisions AgentIDs against per-environment
-// Thunder via env-Thunder. "DB-backed" (not "default") is the load-bearing
-// distinction: the env-Thunder system-client credential this service reads
-// (via NewEnvThunderSecretReader) is decrypted from AMS's own Postgres rather
-// than read back from a key vault — the same reason a SaaS/cloud deployment,
-// whose vault may be reveal-once, needs this same DB-backed approach rather
-// than an alternative provisioning implementation.
+// provisioning service immediately. AgentIDs are provisioned in the platform
+// Thunder, reached with the platform system client from config.
 //
 // secretMgmtClient is supplied by app.Run and used only for per-agent
-// credentials; env-Thunder's own system-client secret comes from encryptionKey
-// + NewEnvThunderSecretReader (Postgres, not a vault).
+// credentials.
 func DBBackedAgentThunderProvisioning() func(db *gorm.DB, secretMgmtClient secretmanagersvc.SecretManagementClient, platform repositories.PlatformRepository, encryptionKey []byte) AgentThunderProvisioningService {
 	// The platform repository is used only to resolve a project's ID in
 	// CP_MANAGED mode; LEGACY_DIRECT never touches it.
 	return func(db *gorm.DB, secretMgmtClient secretmanagersvc.SecretManagementClient, platform repositories.PlatformRepository, encryptionKey []byte) AgentThunderProvisioningService {
-		envThunderRepo := repositories.NewEnvThunderSystemClientRepo(db)
-		envThunderURLRepo := repositories.NewEnvThunderURLRepo(db)
 		endpointResolver := &agentThunderEndpointResolver{}
 		service := NewAgentThunderProvisioningService(
 			repositories.NewAgentThunderClientRepo(db),
 			thundersvc.NewEnvThunderResolverWithEndpoints(
-				NewEnvThunderSecretReader(envThunderRepo, encryptionKey),
-				NewEnvThunderURLReader(envThunderURLRepo),
+				NewPlatformThunderSecretReader(),
+				NewPlatformThunderURLReader(),
 				endpointResolver,
 			),
 			secretMgmtClient,

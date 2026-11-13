@@ -76,10 +76,8 @@ func InitializeAppParamsWithEnvThunderEndpoints(cfg *config.Config, db *gorm.DB,
 	apiKeyRepository := ProvideAPIKeyRepository(db)
 	infraResourceManager := services.NewInfraResourceManager(platformRepository, logger)
 	mcpProxyScopeRepository := repositories.NewMCPProxyScopeRepository(db)
-	envThunderSystemClientRepository := ProvideEnvThunderSystemClientRepository(db)
-	readSystemClientFunc := ProvideEnvThunderSecretReader(envThunderSystemClientRepository, v)
-	envThunderURLRepository := ProvideEnvThunderURLRepository(db)
-	readThunderURLFunc := ProvideEnvThunderURLReader(envThunderURLRepository)
+	readSystemClientFunc := services.NewPlatformThunderSecretReader()
+	readThunderURLFunc := services.NewPlatformThunderURLReader()
 	envThunderResolver := ProvideEnvThunderResolverWithEndpoints(readSystemClientFunc, readThunderURLFunc, endpointResolver)
 	llmProviderKind := services.NewLLMProviderKind()
 	llmProxyKind := services.NewLLMProxyKind(gatewayRepository, deploymentRepository)
@@ -130,7 +128,7 @@ func InitializeAppParamsWithEnvThunderEndpoints(cfg *config.Config, db *gorm.DB,
 	infraResourceController := controllers.NewInfraResourceController(infraResourceManager, eventSubscriptionService)
 	agentTokenController := controllers.NewAgentTokenController(agentTokenManagerService)
 	prober := thundersvc.NewProber()
-	environmentService := services.NewEnvironmentService(logger, gatewayRepository, platformRepository, prober, agentConfigurationService, envThunderSystemClientRepository, envThunderURLRepository, v, a2AAgentCardRepository, a2APublisher, agentConfigRepository)
+	environmentService := services.NewEnvironmentService(logger, gatewayRepository, platformRepository, prober)
 	environmentController := controllers.NewEnvironmentController(environmentService)
 	worker := reconcile.NewWorker(core, logger)
 	platformGatewayService := ProvidePlatformGatewayService(gatewayRepository, gatewayApplier, worker, core)
@@ -293,10 +291,8 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	apiKeyRepository := ProvideAPIKeyRepository(db)
 	infraResourceManager := services.NewInfraResourceManager(platformRepository, logger)
 	mcpProxyScopeRepository := repositories.NewMCPProxyScopeRepository(db)
-	envThunderSystemClientRepository := ProvideEnvThunderSystemClientRepository(db)
-	readSystemClientFunc := ProvideEnvThunderSecretReader(envThunderSystemClientRepository, v)
-	envThunderURLRepository := ProvideEnvThunderURLRepository(db)
-	readThunderURLFunc := ProvideEnvThunderURLReader(envThunderURLRepository)
+	readSystemClientFunc := services.NewPlatformThunderSecretReader()
+	readThunderURLFunc := services.NewPlatformThunderURLReader()
 	envThunderResolver := ProvideEnvThunderResolver(readSystemClientFunc, readThunderURLFunc)
 	llmProviderKind := services.NewLLMProviderKind()
 	llmProxyKind := services.NewLLMProxyKind(gatewayRepository, deploymentRepository)
@@ -346,7 +342,7 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	infraResourceController := controllers.NewInfraResourceController(infraResourceManager, eventSubscriptionService)
 	agentTokenController := controllers.NewAgentTokenController(agentTokenManagerService)
 	prober := thundersvc.NewProber()
-	environmentService := services.NewEnvironmentService(logger, gatewayRepository, platformRepository, prober, agentConfigurationService, envThunderSystemClientRepository, envThunderURLRepository, v, a2AAgentCardRepository, a2APublisher, agentConfigRepository)
+	environmentService := services.NewEnvironmentService(logger, gatewayRepository, platformRepository, prober)
 	environmentController := controllers.NewEnvironmentController(environmentService)
 	worker := reconcile.NewWorker(core, logger)
 	platformGatewayService := ProvidePlatformGatewayService(gatewayRepository, gatewayApplier, worker, core)
@@ -481,9 +477,7 @@ var clientProviderSet = wire.NewSet(repositories.NewPlatformRepo, ProvideSecretM
 	ProvidePublisherProvisioner,
 	ProvideIdentityClient,
 	ProvideOrgResolver,
-	ProvideOUHandleLookup, thundersvc.NewProber, ProvideEnvThunderSecretReader,
-	ProvideEnvThunderURLReader,
-	ProvideEnvThunderResolverWithEndpoints,
+	ProvideOUHandleLookup, thundersvc.NewProber, services.NewPlatformThunderSecretReader, services.NewPlatformThunderURLReader, ProvideEnvThunderResolverWithEndpoints,
 )
 
 var serviceProviderSet = wire.NewSet(services.NewAgentManagerService, services.NewInfraResourceManager, services.NewAgentTokenManagerService, services.NewMonitorExecutor, services.NewMonitorManagerService, ProvideThunderConfig, services.NewMonitorSchedulerService, services.NewAgentThunderReconcilerService, services.NewA2ACardFetcher, services.NewA2ACardReconcilerService, services.NewConfiguredDeploymentTimeoutSweeper, services.NewA2AAgentCardService, ProvideTxRunner, services.NewAgentExposurePublisher, services.NewA2APublisher, services.NewA2AProxyService, ProvideA2AProxyHooks, services.NewEvaluatorManagerService, services.NewEnvironmentService, ProvidePlatformGatewayService, services.NewLLMProviderTemplateService, services.NewLLMProviderService, services.NewLLMProxyService, services.NewLLMProviderDeploymentService, services.NewLLMProviderAPIKeyService, services.NewLLMProxyAPIKeyService, services.NewAgentAPIKeyService, services.NewLLMProxyDeploymentService, services.NewMCPProxyService, services.NewMCPProxyScopeService, wire.Bind(new(services.MCPProxyRedeployer), new(*services.MCPProxyService)), wire.Bind(new(controllers.MCPResourceServerIdentifierResolver), new(*services.MCPProxyService)), services.NewGatewayInternalAPIService, services.NewMonitorScoresService, services.NewCatalogService, services.NewLLMProxyProvisioner, services.NewAgentConfigurationService, services.NewLLMTemplateStore, services.NewAIApplicationService, ProvideEventBus,
@@ -498,9 +492,7 @@ var testClientProviderSet = wire.NewSet(
 	ProvidePublisherProvisioner,
 	ProvideIdentityClient,
 	ProvideOrgResolver,
-	ProvideTestOUHandleLookup, thundersvc.NewProber, ProvideEnvThunderSecretReader,
-	ProvideEnvThunderURLReader,
-	ProvideEnvThunderResolver,
+	ProvideTestOUHandleLookup, thundersvc.NewProber, services.NewPlatformThunderSecretReader, services.NewPlatformThunderURLReader, ProvideEnvThunderResolver,
 )
 
 // thunderProvisioningTestSet builds the provisioning service for
@@ -590,9 +582,7 @@ var repositoryProviderSet = wire.NewSet(
 	ProvideAPIKeyRepository, repositories.NewAgentConfigurationRepository, repositories.NewEnvAgentModelMappingRepository, repositories.NewEnvAgentMCPMappingRepository, repositories.NewAgentEnvConfigVariableRepository, repositories.NewMonitorLLMMappingRepository, ProvideOrgPublisherCredentialRepository,
 	ProvideOrgSchedulerCredentialRepository,
 	ProvideAIApplicationRepository,
-	ProvideAgentThunderClientRepository,
-	ProvideEnvThunderSystemClientRepository,
-	ProvideEnvThunderURLRepository, repositories.NewMCPProxyScopeRepository, repositories.NewEventRepository, repositories.NewMonitorAlertRepository,
+	ProvideAgentThunderClientRepository, repositories.NewMCPProxyScopeRepository, repositories.NewEventRepository, repositories.NewMonitorAlertRepository,
 )
 
 var reconcileProviderSet = wire.NewSet(services.NewLLMProviderKind, services.NewLLMProxyKind, services.NewMCPProxyKind, services.NewPlatformAgentExposures, services.NewA2AAgentKind, ProvideOtelIngestKind, services.NewOtelIngestPublisher, ProvideDefaultGatewaySeeder,
@@ -807,34 +797,8 @@ func ProvideAgentThunderClientRepository(db *gorm.DB) repositories.AgentThunderC
 	return repositories.NewAgentThunderClientRepo(db)
 }
 
-// ProvideEnvThunderSystemClientRepository provides the repository for
-// per-environment env-Thunder system-client credentials.
-func ProvideEnvThunderSystemClientRepository(db *gorm.DB) repositories.EnvThunderSystemClientRepository {
-	return repositories.NewEnvThunderSystemClientRepo(db)
-}
-
-// ProvideEnvThunderURLRepository provides the repository for per-environment
-// env-Thunder URL handles.
-func ProvideEnvThunderURLRepository(db *gorm.DB) repositories.EnvThunderURLRepository {
-	return repositories.NewEnvThunderURLRepo(db)
-}
-
-// ProvideEnvThunderSecretReader decrypts the env-Thunder system-client
-// credential from AMS's own Postgres — no key-vault read-back.
-func ProvideEnvThunderSecretReader(repo repositories.EnvThunderSystemClientRepository, encryptionKey []byte) thundersvc.ReadSystemClientFunc {
-	return services.NewEnvThunderSecretReader(repo, encryptionKey)
-}
-
-// ProvideEnvThunderURLReader looks up an env-Thunder's registered origin from
-// AMS's own Postgres. A missing row means not provisioned — there is no
-// fallback to a value computed from (org, env).
-func ProvideEnvThunderURLReader(repo repositories.EnvThunderURLRepository) thundersvc.ReadThunderURLFunc {
-	return services.NewEnvThunderURLReader(repo)
-}
-
-// ProvideEnvThunderResolver maps (org, environment) to an authenticated
-// ThunderClient, reading the system-client credential and registered URL via
-// the injected readers.
+// ProvideEnvThunderResolver maps the default environment to an authenticated
+// client for the platform Thunder, read through the injected readers.
 func ProvideEnvThunderResolver(readSystemClient thundersvc.ReadSystemClientFunc, readThunderURL thundersvc.ReadThunderURLFunc) thundersvc.EnvThunderResolver {
 	return thundersvc.NewEnvThunderResolver(readSystemClient, readThunderURL)
 }

@@ -64,8 +64,8 @@ var clientProviderSet = wire.NewSet(
 	// EnvThunderResolver is wired for AgentIdentityController's passthrough
 	// endpoints. AgentID provisioning itself is injected via
 	// app.Options.AgentThunderProvisioning, built with its own reader — see app.Run.
-	ProvideEnvThunderSecretReader,
-	ProvideEnvThunderURLReader,
+	services.NewPlatformThunderSecretReader,
+	services.NewPlatformThunderURLReader,
 	ProvideEnvThunderResolverWithEndpoints,
 )
 
@@ -166,8 +166,8 @@ var testClientProviderSet = wire.NewSet(
 	ProvideOrgResolver,
 	ProvideTestOUHandleLookup,
 	thundersvc.NewProber,
-	ProvideEnvThunderSecretReader,
-	ProvideEnvThunderURLReader,
+	services.NewPlatformThunderSecretReader,
+	services.NewPlatformThunderURLReader,
 	ProvideEnvThunderResolver,
 )
 
@@ -271,8 +271,6 @@ var repositoryProviderSet = wire.NewSet(
 	ProvideOrgSchedulerCredentialRepository,
 	ProvideAIApplicationRepository,
 	ProvideAgentThunderClientRepository,
-	ProvideEnvThunderSystemClientRepository,
-	ProvideEnvThunderURLRepository,
 	repositories.NewMCPProxyScopeRepository,
 	repositories.NewEventRepository,
 	repositories.NewMonitorAlertRepository,
@@ -502,34 +500,8 @@ func ProvideAgentThunderClientRepository(db *gorm.DB) repositories.AgentThunderC
 	return repositories.NewAgentThunderClientRepo(db)
 }
 
-// ProvideEnvThunderSystemClientRepository provides the repository for
-// per-environment env-Thunder system-client credentials.
-func ProvideEnvThunderSystemClientRepository(db *gorm.DB) repositories.EnvThunderSystemClientRepository {
-	return repositories.NewEnvThunderSystemClientRepo(db)
-}
-
-// ProvideEnvThunderURLRepository provides the repository for per-environment
-// env-Thunder URL handles.
-func ProvideEnvThunderURLRepository(db *gorm.DB) repositories.EnvThunderURLRepository {
-	return repositories.NewEnvThunderURLRepo(db)
-}
-
-// ProvideEnvThunderSecretReader decrypts the env-Thunder system-client
-// credential from AMS's own Postgres — no key-vault read-back.
-func ProvideEnvThunderSecretReader(repo repositories.EnvThunderSystemClientRepository, encryptionKey []byte) thundersvc.ReadSystemClientFunc {
-	return services.NewEnvThunderSecretReader(repo, encryptionKey)
-}
-
-// ProvideEnvThunderURLReader looks up an env-Thunder's registered origin from
-// AMS's own Postgres. A missing row means not provisioned — there is no
-// fallback to a value computed from (org, env).
-func ProvideEnvThunderURLReader(repo repositories.EnvThunderURLRepository) thundersvc.ReadThunderURLFunc {
-	return services.NewEnvThunderURLReader(repo)
-}
-
-// ProvideEnvThunderResolver maps (org, environment) to an authenticated
-// ThunderClient, reading the system-client credential and registered URL via
-// the injected readers.
+// ProvideEnvThunderResolver maps the default environment to an authenticated
+// client for the platform Thunder, read through the injected readers.
 func ProvideEnvThunderResolver(readSystemClient thundersvc.ReadSystemClientFunc, readThunderURL thundersvc.ReadThunderURLFunc) thundersvc.EnvThunderResolver {
 	return thundersvc.NewEnvThunderResolver(readSystemClient, readThunderURL)
 }

@@ -1,8 +1,6 @@
 # PostgreSQL-only lines per file (schema rule 10). Only ever lowered: go test ./db/dbx -update-portability
 db/dberr/dberr.go 1
 models/custom_evaluator.go 5
-models/env_thunder_system_client.go 3
-models/env_thunder_url.go 3
 models/monitor.go 13
 models/monitor_alert.go 6
 models/monitor_llm_mapping.go 2
