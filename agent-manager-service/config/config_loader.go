@@ -223,11 +223,17 @@ func loadEnvs() {
 		DefaultEnvironment:    r.readOptionalString("JWT_SIGNING_DEFAULT_ENVIRONMENT", "default"),
 	}
 
-	// Authentication mode. "file" (the default) authenticates against a YAML
-	// user file and mints tokens locally; "idp" validates tokens issued by an
-	// external identity provider and must be set explicitly by any deployment
-	// that uses one.
-	config.AuthMode = strings.ToLower(strings.TrimSpace(r.readOptionalString("AUTH_MODE", AuthModeFile)))
+	// Authentication mode. "idp" (the default) validates tokens issued by an
+	// external identity provider; "file" authenticates against a YAML user file
+	// and mints tokens locally.
+	//
+	// The default is "idp" so that a process started with no configuration
+	// behaves as it always has. File mode refuses to start without a user
+	// file — correct for a deployment that means to use it, wrong for every
+	// harness and chart that never asked for it. The standalone stack opts in
+	// explicitly (AUTH_MODE: ${AUTH_MODE:-file}), so the shipped product still
+	// defaults to file-based sign-in.
+	config.AuthMode = strings.ToLower(strings.TrimSpace(r.readOptionalString("AUTH_MODE", AuthModeIDP)))
 	switch config.AuthMode {
 	case AuthModeIDP, AuthModeFile:
 	default:

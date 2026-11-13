@@ -196,6 +196,16 @@ services:
       # generates from AMP_DEFAULT_USERS and mints its own tokens; "idp" hands
       # sign-in to ThunderID. ThunderID keeps running either way — agent
       # identity still uses it.
+      #
+      # Switching to idp means three values: AUTH_MODE=idp, plus
+      # KEY_MANAGER_JWKS_URL here and OBSERVER_JWKS_URL on amp-observer pointed
+      # back at ThunderID (both named inline).
+      #
+      # Known limitation in file mode: OAUTH_AUTHORIZATION_SERVERS above still
+      # advertises ThunderID, so amctl's discovery sends it to ThunderID's
+      # token endpoint and the token it gets back is signed by keys this API
+      # does not hold. Browser sign-in is unaffected. How non-human clients
+      # obtain a file-mode token is still an open question.
       AUTH_MODE: ${AUTH_MODE:-file}
       FILE_AUTH_USERS_PATH: /amp/fileauth/users.yaml
       # In file mode the API validates the tokens it issued itself, so the key
