@@ -268,7 +268,7 @@ export function RootRouter() {
           >
             {renderPluginRoutes(orgPluginRoutes)}
             {renderExternalModules(orgPageModules)}
-            {/* Shell pages: the Marketplace (user menu) and each module's details
+            {/* Shell pages: the AI module manager (user menu) and each module's details
                 page, only when the runtime config turns them on. */}
             {isMarketplaceEnabled() && (
               <>

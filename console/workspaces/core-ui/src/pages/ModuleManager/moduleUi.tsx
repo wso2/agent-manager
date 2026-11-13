@@ -16,7 +16,7 @@
  * under the License.
  */
 
-// Shared pieces for the module marketplace and module details pages.
+// Shared pieces for the AI module manager and module details pages.
 //
 // MOCK: install and uninstall only change in-memory state (PluginProvider);
 // nothing is deployed. Listing details (icon, category, version, publisher)
@@ -69,7 +69,7 @@ export function countLabel(count: number, singular: string) {
   return `${count} ${singular}${count === 1 ? "" : "s"}`;
 }
 
-/** Marketplace state of a module: what its card and details page show. */
+/** AI module manager state of a module: what its card and details page show. */
 export type MarketplaceState =
   | "built-in"
   | "installed"
@@ -80,7 +80,7 @@ export type MarketplaceState =
 
 export function marketplaceState(module: UIModuleStatus): MarketplaceState {
   if (module.core) return "built-in";
-  // Turned off by the deployment (public/ui-modules.js): the Marketplace must not
+  // Turned off by the deployment (public/ui-modules.js): the AI module manager must not
   // switch it back on.
   if (!module.enabled) return "turned-off";
   if (module.installPhase === "installing") return "installing";
@@ -129,7 +129,7 @@ export function useModuleInstaller() {
       addConfirmation({
         analytics: { entity: "ui-module", action: "uninstall" },
         title: `Uninstall ${module.name}?`,
-        description: `Its pages and menu items are removed from the console. You can install it again from the marketplace.`,
+        description: `Its pages and menu items are removed from the console. You can install it again from the AI module manager.`,
         confirmButtonText: "Uninstall",
         confirmButtonColor: "error",
         onConfirm: () => setInstallPhase(module.id, "not-installed"),

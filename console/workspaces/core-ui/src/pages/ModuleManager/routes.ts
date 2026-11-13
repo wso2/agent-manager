@@ -21,7 +21,7 @@ import { globalConfig } from "@agent-management-platform/types";
 // Shell-owned routes (not plugins), relative to the org route and absolute.
 
 /**
- * Whether the Marketplace and module details pages exist. Off unless the
+ * Whether the AI module manager and module details pages exist. Off unless the
  * runtime config turns it on (uiModules.marketplace), since install and
  * uninstall there are a front-end preview for now.
  */

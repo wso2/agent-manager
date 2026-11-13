@@ -342,7 +342,7 @@ export function PluginProvider({
   }, [catalog, states, installOverrides]);
 
   // What the runtime config turns off stays off for the page's lifetime; the
-  // Marketplace cannot switch it back on.
+  // AI module manager cannot switch it back on.
   const usable = useMemo(() => {
     const disabled = configDisabled();
     const list: PluginManifest[] = [];

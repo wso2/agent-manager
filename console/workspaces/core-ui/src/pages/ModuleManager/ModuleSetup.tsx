@@ -16,9 +16,9 @@
  * under the License.
  */
 
-// A module's marketplace details page (/org/:orgId/ui-modules/:moduleId):
+// A module's details page in the AI module manager (/org/:orgId/ui-modules/:moduleId):
 // what the module adds, its backend setup steps, and the same Install /
-// Uninstall action as its marketplace card, plus the module's own setup
+// Uninstall action as its card in the AI module manager, plus the module's own setup
 // content if it has any.
 //
 // MOCK: installing only changes in-memory state; see moduleUi.tsx.
@@ -149,7 +149,7 @@ export function ModuleSetup() {
       description={module.description}
       disableIcon
       backHref={generatePath(MODULE_MANAGER_ROUTE, { orgId: orgId ?? "" })}
-      backLabel="Back to Marketplace"
+      backLabel="Back to AI module manager"
       actions={<InstallButton module={module} />}
     >
       <Stack spacing={2}>

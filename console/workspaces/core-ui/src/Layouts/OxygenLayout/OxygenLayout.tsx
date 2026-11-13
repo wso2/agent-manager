@@ -168,7 +168,7 @@ export function OxygenLayout() {
                 {orgId && isMarketplaceEnabled() && (
                   <UserMenu.Item
                     icon={<Boxes />}
-                    label="Marketplace"
+                    label="AI module manager"
                     onClick={() => navigate(generatePath(MODULE_MANAGER_ROUTE, { orgId }))}
                   />
                 )}

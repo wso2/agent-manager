@@ -16,7 +16,7 @@
  * under the License.
  */
 
-// Module marketplace (/org/:orgId/ui-modules, from the user menu): every
+// AI module manager (/org/:orgId/ui-modules, from the user menu): every
 // console module as a card with an Install / Uninstall button and a link to
 // its details page.
 //
@@ -126,7 +126,7 @@ export function ModuleManager() {
 
   return (
     <PageLayout
-      title="Marketplace"
+      title="AI module manager"
       description="Add capabilities to the console. Install a module to add its pages; uninstall it to remove them."
       disableIcon
       actions={

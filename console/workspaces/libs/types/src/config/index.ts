@@ -140,7 +140,7 @@ export interface AppConfig {
   /** Console UI modules and their page plugins; see UIModuleManifest. */
   uiModules?: {
     /**
-     * Shows the Marketplace (user menu → Marketplace) and the module details
+     * Shows the AI module manager (user menu) and the module details
      * pages. Off by default: install and uninstall there are a front-end
      * preview that deploys nothing.
      */

@@ -18,7 +18,7 @@
 
 // Default console UI modules: true turns a module on, false turns it off.
 // A turned-off module's routes, menu items and panels are not registered, and
-// its page code is never loaded. The Marketplace cannot switch it back on.
+// its page code is never loaded. The AI module manager cannot switch it back on.
 //
 // To turn off a single page, add "<module>/<page>": false
 // (e.g. "ai-observability/logs": false).

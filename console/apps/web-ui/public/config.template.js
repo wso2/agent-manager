@@ -103,7 +103,7 @@ window.__RUNTIME_CONFIG__ = {
   },
   // Which UI modules are on comes from ui-modules.js, next to this file.
   uiModules: {
-    // Shows the Marketplace page (a front-end preview for now). Off by default.
+    // Shows the AI module manager page (a front-end preview for now). Off by default.
     marketplace: '$ENABLE_UI_MARKETPLACE' === 'true',
   },
   maxRequestBodyBytes: '$MAX_REQUEST_BODY_BYTES',
