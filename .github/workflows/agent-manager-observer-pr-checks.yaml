@@ -2,7 +2,7 @@ name: Agent Manager Observer
 
 on:
   pull_request:
-    branches: ["main"]
+    branches: ["main", "amp-2.x"]
     paths:
       - "agent-manager-observer/**"
       - ".github/workflows/agent-manager-observer-pr-checks.yaml"

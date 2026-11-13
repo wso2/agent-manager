@@ -2,7 +2,7 @@ name: Hotel Booking Sample PR Checks
 
 on:
   pull_request:
-    branches: ["main"]
+    branches: ["main", "amp-2.x"]
     paths:
       - "samples/hotel-booking-agent/**"
       - ".github/workflows/hotel-booking-sample-pr-checks.yaml"

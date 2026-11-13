@@ -2,7 +2,7 @@ name: Agent Manager API
 
 on:
   pull_request:
-    branches: ["main"]
+    branches: ["main", "amp-2.x"]
     paths:
       - "agent-manager-service/**"
       - ".github/workflows/agent-manager-service-pr-checks.yaml"

@@ -2,7 +2,7 @@ name: Evaluation Job
 
 on:
   pull_request:
-    branches: ["main"]
+    branches: ["main", "amp-2.x"]
     paths:
       - "evaluation-job/**"
       - ".github/workflows/evaluation-job-pr-checks.yaml"

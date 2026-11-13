@@ -2,7 +2,7 @@ name: AMP Instrumentation Package
 
 on:
   pull_request:
-    branches: ["main"]
+    branches: ["main", "amp-2.x"]
     paths:
       - "libs/amp-instrumentation/**"
       - ".github/workflows/amp-instrumentation-package-pr-checks.yaml"

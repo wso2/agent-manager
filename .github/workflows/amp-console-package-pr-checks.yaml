@@ -2,7 +2,7 @@ name: AMP Console Package
 
 on:
   pull_request:
-    branches: ["main"]
+    branches: ["main", "amp-2.x"]
     paths:
       - "console/**"
       - ".github/workflows/amp-console-package-pr-checks.yaml"
