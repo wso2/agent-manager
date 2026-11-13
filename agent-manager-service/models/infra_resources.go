@@ -31,31 +31,6 @@ type EnvironmentResponse struct {
 	CreatedAt     time.Time    `json:"createdAt"`
 }
 
-type DataPlaneResponse struct {
-	Name        string    `json:"name"`
-	OrgName     string    `json:"orgName"`
-	DisplayName string    `json:"displayName,omitempty"`
-	Description string    `json:"description,omitempty"`
-	CreatedAt   time.Time `json:"createdAt"`
-}
-
-type DeploymentPipelineResponse struct {
-	Name           string          `json:"name"`
-	DisplayName    string          `json:"displayName,omitempty"`
-	Description    string          `json:"description,omitempty"`
-	OrgName        string          `json:"orgName"`
-	CreatedAt      time.Time       `json:"createdAt"`
-	PromotionPaths []PromotionPath `json:"promotionPaths,omitempty"`
-}
-
-type PromotionPath struct {
-	SourceEnvironmentRef  string                 `json:"sourceEnvironmentRef"`
-	TargetEnvironmentRefs []TargetEnvironmentRef `json:"targetEnvironmentRefs"`
-}
-type TargetEnvironmentRef struct {
-	Name string `json:"name"`
-}
-
 type LogEntry struct {
 	Timestamp     time.Time         `json:"timestamp"`
 	Log           string            `json:"log"`

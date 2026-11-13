@@ -230,48 +230,6 @@ func ConvertToEnvironmentResponse(env *models.EnvironmentResponse) spec.Environm
 	}
 }
 
-func ConvertToDeploymentPipelinesListResponse(pipelines []*models.DeploymentPipelineResponse, total int32, limit int32, offset int32) spec.DeploymentPipelineListResponse {
-	responses := make([]spec.DeploymentPipelineResponse, len(pipelines))
-	for i, pipeline := range pipelines {
-		responses[i] = ConvertToDeploymentPipelineResponse(pipeline)
-	}
-
-	return spec.DeploymentPipelineListResponse{
-		DeploymentPipelines: responses,
-		Total:               total,
-		Limit:               limit,
-		Offset:              offset,
-	}
-}
-
-func ConvertToDeploymentPipelineResponse(pipeline *models.DeploymentPipelineResponse) spec.DeploymentPipelineResponse {
-	if pipeline == nil {
-		return spec.DeploymentPipelineResponse{}
-	}
-
-	promotionPaths := make([]spec.PromotionPath, len(pipeline.PromotionPaths))
-	for i, path := range pipeline.PromotionPaths {
-		targetRefs := make([]spec.TargetEnvironmentRef, len(path.TargetEnvironmentRefs))
-		for j, target := range path.TargetEnvironmentRefs {
-			targetRefs[j] = spec.TargetEnvironmentRef{
-				Name: target.Name,
-			}
-		}
-		promotionPaths[i] = spec.PromotionPath{
-			SourceEnvironmentRef:  path.SourceEnvironmentRef,
-			TargetEnvironmentRefs: targetRefs,
-		}
-	}
-
-	return spec.DeploymentPipelineResponse{
-		Name:           pipeline.Name,
-		DisplayName:    pipeline.DisplayName,
-		Description:    pipeline.Description,
-		CreatedAt:      pipeline.CreatedAt,
-		PromotionPaths: promotionPaths,
-	}
-}
-
 func ConvertToOrganizationResponse(org *models.OrganizationResponse) spec.OrganizationResponse {
 	if org == nil {
 		return spec.OrganizationResponse{}
@@ -366,24 +324,6 @@ func ConvertToLogsResponse(buildLogs models.LogsResponse) spec.LogsResponse {
 		Logs:       logEntries,
 		TotalCount: buildLogs.TotalCount,
 		TookMs:     buildLogs.TookMs,
-	}
-
-	return responses
-}
-
-func ConvertToDataPlaneListResponse(dataPlanes []*models.DataPlaneResponse) []spec.DataPlane {
-	if len(dataPlanes) == 0 {
-		return []spec.DataPlane{}
-	}
-
-	responses := make([]spec.DataPlane, len(dataPlanes))
-	for i, dp := range dataPlanes {
-		responses[i] = spec.DataPlane{
-			Name:        dp.Name,
-			DisplayName: dp.DisplayName,
-			Description: dp.Description,
-			CreatedAt:   dp.CreatedAt,
-		}
 	}
 
 	return responses
