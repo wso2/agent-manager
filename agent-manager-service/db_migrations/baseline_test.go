@@ -98,14 +98,14 @@ func assertBaselineKeys(t *testing.T, gormDB *gorm.DB) {
 	}
 	require.NoError(t, exec("INSERT INTO projects (id, org_id, name, display_name, created_at, updated_at) VALUES (?, ?, 'p', 'P', ?, ?)", project, orgA, now, now))
 	insertAgent := func(agentID, orgID, name string) error {
-		return exec(`INSERT INTO agents (id, org_id, project_id, name, display_name, provisioning_type, agent_type, created_at, updated_at)
-			VALUES (?, ?, ?, ?, 'A', 'external', 'external-agent-api', ?, ?)`, agentID, orgID, project, name, now, now)
+		return exec(`INSERT INTO agents (id, org_id, project_id, name, display_name, provisioning_type, created_at, updated_at)
+			VALUES (?, ?, ?, ?, 'A', 'external', ?, ?)`, agentID, orgID, project, name, now, now)
 	}
 	require.NoError(t, insertAgent(agent, orgA, "a"))
 
 	assert.True(t, dberr.IsForeignKeyViolation(insertAgent(id(), orgB, "b")), "an agent cannot sit in another org's project")
 	assert.True(t, dberr.IsDuplicateKey(insertAgent(id(), orgA, "a")), "agent names are unique per org")
-	assert.Error(t, exec("INSERT INTO agents (id, org_id, project_id, name, display_name, provisioning_type, agent_type, created_at, updated_at) VALUES (?, ?, ?, 'c', 'C', 'hosted', 'x', ?, ?)", id(), orgA, project, now, now), "check constraint")
+	assert.Error(t, exec("INSERT INTO agents (id, org_id, project_id, name, display_name, provisioning_type, created_at, updated_at) VALUES (?, ?, ?, 'c', 'C', 'hosted', ?, ?)", id(), orgA, project, now, now), "check constraint")
 
 	require.NoError(t, exec("INSERT INTO agent_labels (agent_id, org_id, label_key, label_value) VALUES (?, ?, 'team', 'core')", agent, orgA))
 	assert.True(t, dberr.IsForeignKeyViolation(exec("DELETE FROM projects WHERE id = ?", project)), "a project with agents cannot be deleted")

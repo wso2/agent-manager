@@ -454,10 +454,6 @@ func (s *agentManagerService) CreateAgent(ctx context.Context, ouID string, proj
 		Description:      utils.StrPointerAsStr(req.Description, ""),
 		ProvisioningType: req.Provisioning.Type,
 	}
-	if req.AgentType != nil {
-		in.AgentType = req.AgentType.Type
-		in.SubType = utils.StrPointerAsStr(req.AgentType.SubType, "")
-	}
 	if req.Labels != nil {
 		in.Labels = *req.Labels
 	}

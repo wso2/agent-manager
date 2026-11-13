@@ -24,7 +24,7 @@ erDiagram
         uuid id
         string name
         string display_name
-        string agent_type
+        string provisioning_type
         string description
         uuid project_id
         uuid org_id

@@ -61,8 +61,6 @@ tables:
       - {name: display_name, type: text, size: 255}
       - {name: description, type: text, size: 1000, nullable: true}
       - {name: provisioning_type, type: text, size: 16}
-      - {name: agent_type, type: text, size: 32}
-      - {name: sub_type, type: text, size: 32, nullable: true}
       - {name: created_by, type: text, size: 255, nullable: true}
       - {name: created_at, type: time}
       - {name: updated_at, type: time}

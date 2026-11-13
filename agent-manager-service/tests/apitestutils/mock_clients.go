@@ -67,7 +67,7 @@ func CreateMockPlatformRepository() *repomocks.PlatformRepositoryMock {
 			return &models.AgentResponse{
 				UUID: uuid.NewString(), Name: in.Name, DisplayName: in.DisplayName, ProjectName: projectName,
 				Provisioning: models.Provisioning{Type: in.ProvisioningType},
-				Type:         models.AgentType{Type: in.AgentType, SubType: in.SubType},
+				Type:         models.AgentType{Type: string(utils.AgentTypeForProvisioning(in.ProvisioningType))},
 				Labels:       in.Labels,
 			}, nil
 		},

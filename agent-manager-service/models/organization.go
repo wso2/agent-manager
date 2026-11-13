@@ -78,8 +78,6 @@ type Agent struct {
 	DisplayName      string       `gorm:"column:display_name"`
 	Description      *string      `gorm:"column:description"`
 	ProvisioningType string       `gorm:"column:provisioning_type"`
-	AgentType        string       `gorm:"column:agent_type"`
-	SubType          *string      `gorm:"column:sub_type"`
 	CreatedBy        *string      `gorm:"column:created_by"`
 	CreatedAt        time.Time    `gorm:"column:created_at"`
 	UpdatedAt        time.Time    `gorm:"column:updated_at"`

@@ -135,9 +135,7 @@ Lite has external agents only. Runtime tables (build settings, builds, deploymen
 | name | short text (63) | no | Unique per org (today's behaviour; gateway artifacts key on it). Immutable. |
 | display_name | short text (255) | no | |
 | description | short text (1000) | yes | |
-| provisioning_type | short text (16) | no | `external` in Lite; `internal` reserved for the full product. |
-| agent_type | short text (32) | no | e.g. `external-agent-api` |
-| sub_type | short text (32) | yes | `chat-api`, `custom-api`, `a2a-agent` |
+| provisioning_type | short text (16) | no | CHECK `external` or `internal`. `external` in Lite; `internal` reserved for the full product. The API's `agentType.type` is derived from it (`external` → `external-agent-api`, `internal` → `agent-api`) rather than stored. |
 | created_by | short text (255) | yes | |
 | created_at, updated_at | time | no | |
 

@@ -76,7 +76,7 @@ func Agent(t *testing.T, db *gorm.DB, orgID string, projectID uuid.UUID, name st
 	ts := now()
 	a := models.Agent{
 		ID: uuid.Must(uuid.NewV7()), OrgID: uuid.MustParse(orgID), ProjectID: projectID, Name: name, DisplayName: name,
-		ProvisioningType: "external", AgentType: "agent-api", CreatedAt: ts, UpdatedAt: ts,
+		ProvisioningType: "external", CreatedAt: ts, UpdatedAt: ts,
 	}
 	require.NoError(t, db.Omit("Labels").Create(&a).Error)
 	return a.ID
