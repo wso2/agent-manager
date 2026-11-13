@@ -210,7 +210,7 @@ setup-console-local-force:
 dev-up: gen-keys
 	@cd deployments/setup && ./ensure-k3d-running.sh
 	@echo "🚀 Starting Agent Manager platform..."
-	@cd deployments && docker compose up -d --build
+	@bash deployments/setup/start-dev-compose.sh
 	@$(MAKE) console BACKGROUND=true
 	@echo "✅ Platform is running!"
 	@echo "   Console: http://localhost:3000"

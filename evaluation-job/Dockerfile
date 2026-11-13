@@ -48,5 +48,8 @@ USER ampuser
 # Set Python to run in unbuffered mode for better logging
 ENV PYTHONUNBUFFERED=1
 
+# Argo tracks the evaluation job by its exit status.
+HEALTHCHECK NONE
+
 # Run the monitor job
 ENTRYPOINT ["python", "main.py"]

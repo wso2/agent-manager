@@ -46,4 +46,7 @@ ENV GODEBUG=x509negativeserial=1
 # Expose application port
 EXPOSE 9098
 
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+    CMD wget -q -T 4 -O /dev/null "http://127.0.0.1:${AM_OBSERVER_PORT:-9098}/health" || exit 1
+
 ENTRYPOINT ["/go/bin/agent-manager-observer"]

@@ -18,7 +18,12 @@ package main
 
 import (
 	"flag"
+	"log"
+	"net"
+	"net/http"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/wso2/agent-manager/agent-manager-service/app"
 	ocauth "github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/auth"
@@ -32,9 +37,29 @@ func main() {
 	serverFlag := flag.Bool("server", true, "start the http Server")
 	migrateFlag := flag.Bool("migrate", false, "migrate the database")
 	waitForMigrationsFlag := flag.Bool("wait-for-migrations", false, "wait until the database migrations are applied")
+	healthcheckFlag := flag.Bool("healthcheck", false, "check the configured HTTP health endpoint and exit")
 	flag.Parse()
 
 	cfg := config.GetConfig()
+	if *healthcheckFlag {
+		host := cfg.ServerHost
+		switch host {
+		case "", "0.0.0.0":
+			host = "127.0.0.1"
+		case "::":
+			host = "::1"
+		}
+		client := &http.Client{Timeout: 4 * time.Second}
+		response, err := client.Get("http://" + net.JoinHostPort(host, strconv.Itoa(cfg.ServerPort)) + "/healthz")
+		if err != nil {
+			log.Fatal(err)
+		}
+		_ = response.Body.Close()
+		if response.StatusCode != http.StatusOK {
+			log.Fatalf("health check returned %s", response.Status)
+		}
+		return
+	}
 
 	// Open-source: OAuth2 client credentials auth
 	authProvider := ocauth.NewAuthProvider(ocauth.Config{

@@ -50,5 +50,8 @@ USER ampuser
 ENV PYTHONUNBUFFERED=1
 ENV LOG_LEVEL=DEBUG
 
+# Argo tracks the evaluation job by its exit status.
+HEALTHCHECK NONE
+
 # Run the monitor job
 ENTRYPOINT ["python", "main.py"]

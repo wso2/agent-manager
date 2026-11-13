@@ -2250,12 +2250,6 @@
                   "title": "clientId",
                   "type": "string"
                 },
-                "clientSecret": {
-                  "default": "amp-console-client-secret",
-                  "description": "OAuth 2.0 client secret",
-                  "title": "clientSecret",
-                  "type": "string"
-                },
                 "name": {
                   "default": "AMP Console",
                   "description": "Internal name of the OAuth application",

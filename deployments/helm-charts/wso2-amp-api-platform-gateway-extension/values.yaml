@@ -31,6 +31,7 @@ agentManager:
     # When set, clientId and clientSecret above are ignored.
     existingSecret: ""
     existingSecretClientIdKey: "client-id"
+    # checkov:skip=CKV_SECRET_6:Kubernetes Secret data key
     existingSecretClientSecretKey: "client-secret"
 
 # Gateway registration configuration
