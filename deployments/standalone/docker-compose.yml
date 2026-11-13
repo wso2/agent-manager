@@ -252,8 +252,8 @@ services:
       # The observer is a second validator of the same operator tokens, so it
       # follows amp-api's key set: in file mode the issuer is amp-api, not
       # ThunderID, and a token minted there would otherwise be rejected here
-      # with nothing naming the reason. Switching AUTH_MODE to idp wants this
-      # pointed back at http://thunder:${THUNDER_PORT}/oauth2/jwks.
+      # with nothing naming the reason. Switching AUTH_MODE to idp wants
+      # OBSERVER_JWKS_URL set to http://thunder:${THUNDER_PORT}/oauth2/jwks.
       KEY_MANAGER_JWKS_URL: ${OBSERVER_JWKS_URL:-http://amp-api:8080/auth/external/jwks.json}
       # Both issuers are allowed so the observer keeps working across a mode
       # switch without a second edit; the JWKS above decides which tokens

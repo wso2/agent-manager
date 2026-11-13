@@ -50,8 +50,12 @@ import {
   User,
 } from '@wso2/oxygen-ui-icons-react';
 import { Logo } from '@agent-management-platform/views';
-import type { ReactNode } from 'react';
-import { useState, type ChangeEvent, type KeyboardEvent } from 'react';
+import {
+  useState,
+  type ChangeEvent,
+  type KeyboardEvent,
+  type ReactNode,
+} from 'react';
 
 import { useFileAuth } from '../FileAuthContext';
 

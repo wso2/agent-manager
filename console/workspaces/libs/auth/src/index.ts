@@ -16,8 +16,7 @@
  * under the License.
  */
 
-import type { AuthMode } from '@agent-management-platform/types';
-import { globalConfig } from '@agent-management-platform/types';
+import { type AuthMode, globalConfig } from '@agent-management-platform/types';
 
 import { AuthProvider as FileAuthProvider } from './file/FileAuthContext';
 import { useAuthHooks as useFileAuthHooks } from './file/hooks/authHooks';
@@ -41,6 +40,14 @@ import { useAuthHooks as useThunderIDAuthHooks } from './thunderid/hooks/authHoo
  */
 export const authMode: AuthMode = (() => {
   const configured = globalConfig?.authMode;
+  // The compose stack gives both services one AUTH_MODE, and the API spells
+  // the identity-provider mode "idp". Accepting it here keeps that single
+  // value correct for both; without it, AUTH_MODE=idp matched nothing, fell
+  // through to the default, and left the console asking for credentials the
+  // API would not accept.
+  if (configured === 'idp') {
+    return 'thunder';
+  }
   if (configured === 'file' || configured === 'none' || configured === 'thunder') {
     return configured;
   }

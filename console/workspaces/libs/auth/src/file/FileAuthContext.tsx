@@ -31,8 +31,8 @@ import type { AuthProviderProps, UserInfo } from '../types';
 import {
   clearSession,
   decodeClaims,
-  loginEndpoint,
   readSession,
+  requestLogin,
   userInfoFromClaims,
   writeSession,
 } from './session';
@@ -48,20 +48,6 @@ type FileAuthContextValue = {
 };
 
 const FileAuthContext = createContext<FileAuthContextValue | null>(null);
-
-/** Error text for a failed sign-in, by status. */
-const signInError = (status: number): string => {
-  if (status === 401) {
-    return 'Incorrect username or password.';
-  }
-  if (status === 404) {
-    return 'File-based login is not enabled on this deployment.';
-  }
-  if (status >= 500) {
-    return 'The server could not issue a token. Try again, or check the service logs.';
-  }
-  return 'Could not sign in.';
-};
 
 export const AuthProvider = ({ children }: AuthProviderProps) => {
   // undefined = the stored session has not been read yet. Collapsing it into
@@ -96,30 +82,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   }, [session]);
 
   const signIn = useCallback(async (username: string, password: string) => {
-    let response: Response;
-    try {
-      response = await fetch(loginEndpoint(), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
-      });
-    } catch {
-      throw new Error('Could not reach the server. Check that it is running.');
-    }
-
-    if (!response.ok) {
-      throw new Error(signInError(response.status));
-    }
-
-    const body = (await response.json()) as {
-      access_token?: string;
-      expires_in?: number;
-    };
-    if (!body.access_token) {
-      throw new Error('The server returned no access token.');
-    }
-
-    setSession(writeSession(body.access_token, body.expires_in ?? 0));
+    const { accessToken, expiresInSeconds } = await requestLogin(username, password);
+    setSession(writeSession(accessToken, expiresInSeconds));
   }, []);
 
   const signOut = useCallback(async () => {

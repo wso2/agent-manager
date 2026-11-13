@@ -76,11 +76,19 @@ export const readSession = (): StoredSession | null => {
     return null;
   }
 
-  let parsed: Partial<StoredSession>;
+  let parsed: Partial<StoredSession> | null;
   try {
-    parsed = JSON.parse(raw) as Partial<StoredSession>;
+    parsed = JSON.parse(raw) as Partial<StoredSession> | null;
   } catch {
     // Corrupt entry: drop it rather than leave it to fail on every read.
+    safeStorage.remove();
+    return null;
+  }
+
+  // `JSON.parse('null')` succeeds and returns null, so the reads below would
+  // throw outside the catch above and leave the provider unable to finish
+  // initialising. A stored null is just a corrupt entry: treat it as one.
+  if (parsed === null || typeof parsed !== 'object') {
     safeStorage.remove();
     return null;
   }
@@ -175,3 +183,61 @@ export const userInfoFromClaims = (
  */
 export const loginEndpoint = (): string =>
   `${(globalConfig?.apiBaseUrl ?? '').replace(/\/+$/, '')}/auth/login`;
+
+export type LoginResponse = {
+  accessToken: string;
+  expiresInSeconds: number;
+};
+
+/** Error text for a failed sign-in, by status. */
+const signInError = (status: number): string => {
+  if (status === 401) {
+    return 'Incorrect username or password.';
+  }
+  if (status === 404) {
+    return 'File-based login is not enabled on this deployment.';
+  }
+  if (status >= 500) {
+    return 'The server could not issue a token. Try again, or check the service logs.';
+  }
+  return 'Could not sign in.';
+};
+
+/**
+ * Exchanges credentials for a token.
+ *
+ * A pure function rather than a call inside the provider, so the request and
+ * its error mapping can be tested without mounting React. It lives here and
+ * not in `libs/api-client` because that package already depends on this one,
+ * and it needs no token of its own — getting one is what it is for.
+ *
+ * Throws an Error whose message is meant to be shown to the user.
+ */
+export const requestLogin = async (
+  username: string,
+  password: string,
+): Promise<LoginResponse> => {
+  let response: Response;
+  try {
+    response = await fetch(loginEndpoint(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    });
+  } catch {
+    throw new Error('Could not reach the server. Check that it is running.');
+  }
+
+  if (!response.ok) {
+    throw new Error(signInError(response.status));
+  }
+
+  const body = (await response.json()) as {
+    access_token?: string;
+    expires_in?: number;
+  };
+  if (!body.access_token) {
+    throw new Error('The server returned no access token.');
+  }
+  return { accessToken: body.access_token, expiresInSeconds: body.expires_in ?? 0 };
+};

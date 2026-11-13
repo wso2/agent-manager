@@ -261,13 +261,8 @@ func LoadFileAuthConfig() (*FileAuthConfig, error) {
 	// the users *besides* admin. Without this, a stack left on the defaults
 	// (AMP_DEFAULT_USERS is empty) would start with nobody able to sign in.
 	adminName := r.str("AMP_ADMIN_USERNAME", "admin")
-	adminPassword := r.str("AMP_ADMIN_PASSWORD", "")
-	if adminPassword == "" {
-		r.errs = append(r.errs, fmt.Errorf(
-			"AMP_ADMIN_PASSWORD is required: file-based sign-in would admit nobody"))
-	}
 	users := []User{{
-		Username: adminName, Password: adminPassword,
+		Username: adminName, Password: r.str("AMP_ADMIN_PASSWORD", ""),
 		Email: adminName + "@example.com", GivenName: adminName, Admin: true,
 	}}
 	// An explicit entry wins, so an operator can give admin a different
@@ -278,6 +273,14 @@ func LoadFileAuthConfig() (*FileAuthConfig, error) {
 			continue
 		}
 		users = append(users, u)
+	}
+	// Checked after the override, not before: an explicit admin entry supplies
+	// its own password, and refusing on the mirrored one being empty would
+	// reject a file the operator had configured correctly.
+	if users[0].Password == "" {
+		r.errs = append(r.errs, fmt.Errorf(
+			"no password for %q: set AMP_ADMIN_PASSWORD or give it an AMP_DEFAULT_USERS entry, "+
+				"otherwise file-based sign-in admits nobody", adminName))
 	}
 	cfg.Users = users
 	return cfg, r.err()

@@ -137,8 +137,8 @@ users:
 				"alg": "RS256",
 				"use": "sig",
 				"kid": "key-1",
-				"n":   base64.RawURLEncoding.EncodeToString(key.PublicKey.N.Bytes()),
-				"e":   base64.RawURLEncoding.EncodeToString(big.NewInt(int64(key.PublicKey.E)).Bytes()),
+				"n":   base64.RawURLEncoding.EncodeToString(key.N.Bytes()),
+				"e":   base64.RawURLEncoding.EncodeToString(big.NewInt(int64(key.E)).Bytes()),
 			}},
 		})
 	}))
@@ -273,7 +273,7 @@ func TestBadCredentialsAreIndistinguishable(t *testing.T) {
 			if err == nil {
 				t.Fatalf("login succeeded, want failure (token %q)", token)
 			}
-			if !strings.Contains(err.Error(), fileauth.ErrInvalidCredentials.Error()) {
+			if !errors.Is(err, fileauth.ErrInvalidCredentials) {
 				t.Errorf("error = %v, want it to wrap ErrInvalidCredentials", err)
 			}
 		})

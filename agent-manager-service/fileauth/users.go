@@ -29,6 +29,8 @@ import (
 	"os"
 	"strings"
 
+	"golang.org/x/crypto/bcrypt"
+
 	"gopkg.in/yaml.v3"
 
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
@@ -116,11 +118,17 @@ func LoadUserFile(path string) (*UserFile, error) {
 		switch {
 		case hash == "":
 			problems = append(problems, where+": passwordHash is empty")
-		case !strings.HasPrefix(hash, "$2a$") && !strings.HasPrefix(hash, "$2b$") && !strings.HasPrefix(hash, "$2y$"):
-			// A plaintext password here would be compared as a bcrypt hash and
-			// always fail, which reads like a wrong password rather than a
-			// misconfigured file.
-			problems = append(problems, fmt.Sprintf("%s: passwordHash is not a bcrypt hash (expected a $2a$/$2b$/$2y$ prefix)", where))
+		default:
+			// bcrypt.Cost parses the whole hash, not just its prefix. A
+			// truncated value like "$2a$" passes a prefix test, loads cleanly,
+			// and then rejects every password for that account — which reads as
+			// a wrong password rather than a misconfigured file, and locks
+			// everyone out when it is the only account.
+			if _, err := bcrypt.Cost([]byte(hash)); err != nil {
+				problems = append(problems, fmt.Sprintf(
+					"%s: passwordHash is not a usable bcrypt hash (%v); generate one with "+
+						`htpasswd -bnBC 12 "" 'password' | tr -d ':\n'`, where, err))
+			}
 		}
 
 		if len(u.Roles) == 0 {
