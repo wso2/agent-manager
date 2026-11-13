@@ -101,10 +101,6 @@ func handleCommonErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 		return
 	}
 	switch {
-	case errors.Is(err, utils.ErrWorkloadSecretSyncUnconfirmed):
-		utils.WriteErrorResponseWithReason(w, http.StatusServiceUnavailable,
-			"Secret values were saved, but the rollout stopped because secret sync could not be confirmed.",
-			"", utils.ErrCodeServiceUnavailable)
 	case errors.Is(err, workloadpolicy.ErrSuspended):
 		writeSubscriptionSuspended(w)
 	// A ValidationError raised below the controller (e.g. a stored agent kind
@@ -140,23 +136,9 @@ func handleCommonErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 	case errors.Is(err, utils.ErrMCPProxyNotFound):
 		utils.WriteErrorResponseWithReason(w, http.StatusNotFound,
 			"MCP proxy not found", err.Error(), utils.ErrCodeNotFound)
-	case errors.Is(err, utils.ErrBuildNotFound):
-		utils.WriteErrorResponseWithReason(w, http.StatusNotFound,
-			"Build not found", err.Error(), utils.ErrCodeBuildNotFound)
 	case errors.Is(err, utils.ErrEnvironmentNotFound):
 		utils.WriteErrorResponseWithReason(w, http.StatusNotFound,
 			"Environment not found", err.Error(), utils.ErrCodeEnvironmentNotFound)
-	case errors.Is(err, utils.ErrAgentKindNotFound):
-		utils.WriteErrorResponseWithReason(w, http.StatusNotFound,
-			"Agent kind not found", err.Error(), utils.ErrCodeNotFound)
-	case errors.Is(err, utils.ErrKindVersionNotFound):
-		utils.WriteErrorResponseWithReason(w, http.StatusNotFound,
-			"Agent kind version not found", err.Error(), utils.ErrCodeNotFound)
-	case errors.Is(err, utils.ErrSourceAgentNotFound):
-		utils.WriteErrorResponseWithReason(w, http.StatusNotFound,
-			"Source agent not found", err.Error(), utils.ErrCodeNotFound)
-
-	// Conflict errors
 	case errors.Is(err, utils.ErrAgentAlreadyExists):
 		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
 			"Agent already exists", err.Error(), utils.ErrCodeAgentAlreadyExists)
@@ -169,30 +151,9 @@ func handleCommonErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 	case errors.Is(err, utils.ErrProjectHasAssociatedAgents):
 		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
 			"Project has associated agents", err.Error(), utils.ErrCodeConflict)
-	case errors.Is(err, utils.ErrDeploymentPipelineAlreadyExists):
-		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
-			"A deployment pipeline with this name already exists. Choose a different name.", "", utils.ErrCodeConflict)
-	case errors.Is(err, utils.ErrDeploymentPipelineInUse):
-		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
-			"Deployment pipeline is referenced by one or more projects", err.Error(), utils.ErrCodeConflict)
 	case errors.Is(err, utils.ErrSecretPathConflict):
 		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
 			"Secret path conflict", err.Error(), utils.ErrCodeConflict)
-	case errors.Is(err, utils.ErrAgentKindAlreadyExists):
-		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
-			"Agent kind already exists", err.Error(), utils.ErrCodeConflict)
-	case errors.Is(err, utils.ErrKindVersionAlreadyExists):
-		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
-			"Agent kind version already exists", err.Error(), utils.ErrCodeConflict)
-	case errors.Is(err, utils.ErrKindImageAlreadyPublished):
-		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
-			"Build image already published", err.Error(), utils.ErrCodeConflict)
-	case errors.Is(err, utils.ErrAgentKindHasInstances):
-		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
-			"Agent kind has active instances", err.Error(), utils.ErrCodeConflict)
-	case errors.Is(err, utils.ErrAgentIsKindSource):
-		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
-			"Agent is the source of an agent kind", err.Error(), utils.ErrCodeConflict)
 	case errors.Is(err, utils.ErrResourceBeingDeleted):
 		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
 			"A resource with this name is still being deleted", err.Error(), utils.ErrCodeConflict)
@@ -213,27 +174,6 @@ func handleCommonErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 	case errors.Is(err, utils.ErrBadRequest):
 		utils.WriteErrorResponseWithReason(w, http.StatusBadRequest,
 			"Bad request", err.Error(), utils.ErrCodeBadRequest)
-	case errors.Is(err, utils.ErrDeploymentPipelineNotFound):
-		utils.WriteErrorResponseWithReason(w, http.StatusBadRequest,
-			"Deployment pipeline not found", err.Error(), utils.ErrCodeBadRequest)
-	case errors.Is(err, utils.ErrBuildNotComplete):
-		utils.WriteErrorResponseWithReason(w, http.StatusBadRequest,
-			"Build not complete", err.Error(), utils.ErrCodeBadRequest)
-	case errors.Is(err, utils.ErrMissingKindConfigValue):
-		utils.WriteErrorResponseWithReason(w, http.StatusBadRequest,
-			"Missing required configuration value", err.Error(), utils.ErrCodeValidation)
-	case errors.Is(err, utils.ErrDeploymentInProgress):
-		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
-			"A deployment is already in progress", err.Error(), utils.ErrCodeConflict)
-	case errors.Is(err, utils.ErrComponentNotReconcilable):
-		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
-			"Agent cannot be deployed in its current state", err.Error(), utils.ErrCodeConflict)
-	case errors.Is(err, utils.ErrPromotionNeedsRedeploy):
-		// The console's promote drawer shows only the message, so it carries the steps too.
-		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
-			"Agent must be deployed again before this promotion: deploy the agent again, promote it up to "+
-				"the source environment if that is not the first environment, then retry this promotion",
-			err.Error(), utils.ErrCodeConflict)
 	case errors.Is(err, utils.ErrEnvironmentHasNoGateway):
 		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
 			"Environment has no ingress gateway", err.Error(), utils.ErrCodeEnvironmentHasNoGateway)

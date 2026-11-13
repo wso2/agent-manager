@@ -121,38 +121,15 @@ var (
 	ErrInvalidUpstreamAuth           = errors.New("invalid upstream auth")
 	// ErrA2AProxyUpstreamAuthNeedsHTTPS keeps a stored upstream credential off an origin that would receive it in cleartext. Maps to 400.
 	ErrA2AProxyUpstreamAuthNeedsHTTPS = errors.New("the card URL must use https before an upstream credential can be stored, as the gateway would otherwise send it in cleartext")
-	ErrTraitNotFound                  = errors.New("trait not found")
 	ErrOrganizationNotFound           = errors.New("organization not found")
-	ErrBuildNotFound                  = errors.New("build not found")
 	ErrEnvironmentNotFound            = errors.New("environment not found")
 	ErrAgentIdentityNotProvisioned    = errors.New("agent identity not yet provisioned for this environment")
 	// ErrAgentIdentityRetryNotAllowed is returned when a retry is requested for
 	// a binding whose current status is not failed. Maps to 409.
-	ErrAgentIdentityRetryNotAllowed    = errors.New("agent identity binding is not in a failed state and cannot be retried")
-	ErrOrganizationAlreadyExists       = errors.New("organization already exists")
-	ErrProjectAlreadyExists            = errors.New("project already exists")
-	ErrDeploymentPipelineAlreadyExists = errors.New("deployment pipeline already exists")
-	ErrDeploymentPipelineNotFound      = errors.New("deployment pipeline not found")
-	ErrDeploymentPipelineInUse         = errors.New("deployment pipeline is referenced by one or more projects")
-	ErrDeploymentInProgress            = errors.New("a deployment is already in progress")
-	// ErrPromotionNeedsRedeploy reports that the source environment's release was built before
-	// the agent API key moved to env vars and the target has no key path of its own. Promoting
-	// it would give the target the first environment's key, so the agent has to be deployed
-	// again and promoted through to the source first. Maps to 409.
-	ErrPromotionNeedsRedeploy = errors.New("the agent must be deployed again before this promotion")
-	// ErrBuildInProgress is returned when agent configuration is created/updated
-	// while a build is running. Argo Workflows resolves workflow.parameters once
-	// at WorkflowRun submission, so a config change written to the Component CR
-	// after that point is never picked up by the in-flight build. Maps to 409.
-	ErrBuildInProgress            = errors.New("a build is already in progress for this agent")
-	ErrProjectHasAssociatedAgents = errors.New("project has associated agents")
-	// ErrComponentNotReconcilable reports that the runtime cannot reconcile the agent's Component,
-	// so a deploy or promote would be silently discarded: the writes land on the Component and
-	// Workload, but no new ComponentRelease is cut, so the pods restart on the previous snapshot
-	// with the old image and env. Both operations are refused up front rather than reporting a
-	// success that did nothing. The wording says "deployed" for both, since a promote is the
-	// deploy of an existing release into the next environment.
-	ErrComponentNotReconcilable       = errors.New("agent cannot be deployed in its current state")
+	ErrAgentIdentityRetryNotAllowed   = errors.New("agent identity binding is not in a failed state and cannot be retried")
+	ErrOrganizationAlreadyExists      = errors.New("organization already exists")
+	ErrProjectAlreadyExists           = errors.New("project already exists")
+	ErrProjectHasAssociatedAgents     = errors.New("project has associated agents")
 	ErrMonitorNotFound                = errors.New("monitor not found")
 	ErrMonitorAlreadyExists           = errors.New("monitor already exists")
 	ErrMonitorRunNotFound             = errors.New("monitor run not found")
@@ -199,9 +176,6 @@ var (
 	ErrInvalidAdapterType       = errors.New("invalid adapter type")
 	ErrGatewayUnreachable       = errors.New("gateway unreachable")
 	ErrInvalidGatewayConfig     = errors.New("invalid gateway configuration")
-	ErrEnvironmentAlreadyExists = errors.New("environment already exists")
-	ErrEnvironmentHasGateways   = errors.New("environment has associated gateways")
-	ErrEnvironmentInUse         = errors.New("environment is referenced by one or more deployment pipelines")
 
 	// ErrGatewayIngressCapExceeded is returned when assigning an ingress-capable gateway to
 	// an environment that already has one. Maps to 409.
@@ -289,23 +263,7 @@ var (
 	// agents have the platform inject them, so user-managed actions are rejected.
 	ErrAgentConfigNotExternal = errors.New("API key management is only available for external agents")
 
-	// Secret management errors
-	ErrWorkloadSecretSyncUnconfirmed = errors.New("workload secret sync could not be confirmed")
-	ErrSecretPathConflict            = errors.New("secret path is owned by another system")
-
-	// Git secret errors
-
-	// Agent Kind errors
-	ErrAgentKindNotFound         = errors.New("agent kind not found")
-	ErrAgentKindAlreadyExists    = errors.New("agent kind already exists")
-	ErrAgentKindHasInstances     = errors.New("agent kind cannot be deleted while agents are instantiated from it")
-	ErrAgentIsKindSource         = errors.New("agent cannot be deleted while it is the source of an agent kind")
-	ErrKindVersionNotFound       = errors.New("agent kind version not found")
-	ErrKindVersionAlreadyExists  = errors.New("agent kind version already exists")
-	ErrBuildNotComplete          = errors.New("build must be completed before publishing as a kind")
-	ErrMissingKindConfigValue    = errors.New("missing required configuration value for agent kind")
-	ErrKindImageAlreadyPublished = errors.New("this build image is already published as a kind version")
-	ErrSourceAgentNotFound       = errors.New("source agent not found; cannot publish a kind from a deleted agent")
+	ErrSecretPathConflict = errors.New("secret path is owned by another system")
 )
 
 // Project-scoped MCP proxy errors.
@@ -322,9 +280,6 @@ var (
 	// ErrMCPUpstreamNotReady means the proxy's source component has no reachable endpoint in the
 	// environment yet (409 UPSTREAM_NOT_READY); nothing was stored.
 	ErrMCPUpstreamNotReady = errors.New("the source component is not deployed in this environment yet")
-	// ErrMCPSourceComponentNotFound: a project MCP proxy's source component is not in the project, deleted
-	// after the proxy was created for example. It wraps ErrInvalidInput, so it is a 400.
-	ErrMCPSourceComponentNotFound = fmt.Errorf("%w: source component not found", ErrInvalidInput)
 	// ErrContextInUse means an artifact's gateway context, of any kind, equals, contains or sits under another
 	// artifact's context on the same vhost of the gateway (409 CONTEXT_IN_USE).
 	ErrContextInUse = errors.New("the context is already in use on the gateway")
