@@ -2250,9 +2250,8 @@ func findDeployedImageFromComponentRelease(release *gen.ComponentRelease) string
 // deploy: status is populated only once the binding reconciles. Callers must
 // distinguish it from an error and retry rather than publish.
 //
-// Selection: see bindingServiceURL. The URL becomes an HTTP gateway's upstream,
-// so a binding that serves no HTTP endpoint reads as not ready rather than
-// handing the gateway a URL it rejects.
+// Selection: see bindingServiceURL. A binding with no HTTP endpoint returns "",
+// the same as one that has not reconciled.
 func (c *openChoreoClient) GetReleaseBindingServiceURL(ctx context.Context, ouID, componentName, environment string) (string, error) {
 	binding, err := c.findReleaseBindingForEnv(ctx, c.NamespaceFor(ouID), componentName, environment)
 	if err != nil {
@@ -2559,15 +2558,12 @@ func agentEndpointName(componentName string) string {
 	return componentName + "-endpoint"
 }
 
-// bindingServiceURL is the in-cluster HTTP URL of the agent's own endpoint, or "" before the
-// binding reconciles one.
+// bindingServiceURL returns the in-cluster URL of the agent's HTTP endpoint, or "" when the
+// binding has none yet.
 //
-// A workload may publish endpoints beside the agent's own, such as a voice agent's WebSocket,
-// and the binding lists them in no order this repo controls. So the endpoint named after the
-// component is taken when it serves HTTP, and otherwise the first that does. An endpoint whose
-// scheme is not http or https is never taken: the URL is an HTTP upstream, and the gateway
-// refuses to deploy an API whose upstream is ws://. A missing scheme is http, since the
-// in-cluster hop to an agent's container is plain HTTP.
+// It returns the endpoint named agentEndpointName(componentName) when that endpoint serves
+// HTTP, and otherwise the first endpoint in the binding's list that does. Endpoints whose scheme
+// is not http or https are skipped. A missing scheme is treated as http.
 func bindingServiceURL(binding *gen.ReleaseBinding, componentName string) string {
 	if binding == nil || binding.Status == nil || binding.Status.Endpoints == nil {
 		return ""
