@@ -25621,7 +25621,16 @@ type GetGatewayEnvironmentsResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *struct {
-		Environments *[]GatewayEnvironmentResponse `json:"environments,omitempty"`
+		Environments []GatewayEnvironmentResponse `json:"environments"`
+
+		// Limit Maximum number of environments returned per page
+		Limit int `json:"limit"`
+
+		// Offset Number of environments skipped before this page
+		Offset int `json:"offset"`
+
+		// Total Total number of environments mapped to the gateway
+		Total int `json:"total"`
 	}
 	JSON400 *ErrorResponse
 	JSON401 *ErrorResponse
@@ -37566,7 +37575,16 @@ func ParseGetGatewayEnvironmentsResp(rsp *http.Response) (*GetGatewayEnvironment
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest struct {
-			Environments *[]GatewayEnvironmentResponse `json:"environments,omitempty"`
+			Environments []GatewayEnvironmentResponse `json:"environments"`
+
+			// Limit Maximum number of environments returned per page
+			Limit int `json:"limit"`
+
+			// Offset Number of environments skipped before this page
+			Offset int `json:"offset"`
+
+			// Total Total number of environments mapped to the gateway
+			Total int `json:"total"`
 		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err

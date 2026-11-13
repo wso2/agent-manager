@@ -655,14 +655,14 @@ func (c *gatewayController) GetGatewayEnvironments(w http.ResponseWriter, r *htt
 	ouID := middleware.OUIDFromRequest(r)
 	gatewayID := strings.TrimSpace(r.PathValue("gatewayID"))
 
-	offset := 0
+	var offset int32
 	if rawOffset := r.URL.Query().Get("offset"); rawOffset != "" {
-		var err error
-		offset, err = strconv.Atoi(rawOffset)
-		if err != nil || offset < 0 {
+		parsed, err := strconv.ParseInt(rawOffset, 10, 32)
+		if err != nil || parsed < 0 {
 			utils.WriteErrorResponse(w, http.StatusBadRequest, "offset must be a non-negative integer")
 			return
 		}
+		offset = int32(parsed)
 	}
 
 	// Get environments from DB (via OpenChoreo)
@@ -670,8 +670,8 @@ func (c *gatewayController) GetGatewayEnvironments(w http.ResponseWriter, r *htt
 	slices.SortFunc(environments, func(a, b models.GatewayEnvironmentResponse) int {
 		return cmp.Compare(a.UUID, b.UUID)
 	})
-	offset = min(offset, len(environments))
-	environments = environments[offset:]
+	total := len(environments)
+	environments = environments[min(int(offset), total):]
 	environments = environments[:min(maxGatewayEnvironments, len(environments))]
 
 	// Convert to spec responses
@@ -682,6 +682,9 @@ func (c *gatewayController) GetGatewayEnvironments(w http.ResponseWriter, r *htt
 
 	response := spec.GetGatewayEnvironments200Response{
 		Environments: specEnvs,
+		Total:        int32(total),
+		Limit:        maxGatewayEnvironments,
+		Offset:       offset,
 	}
 
 	utils.WriteSuccessResponse(w, http.StatusOK, response)

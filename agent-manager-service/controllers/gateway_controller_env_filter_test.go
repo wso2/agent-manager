@@ -61,13 +61,14 @@ func TestGetGatewayEnvironments_Pagination(t *testing.T) {
 	}
 
 	for _, tc := range []struct {
-		query     string
-		wantCount int
-		wantFirst string
+		query      string
+		wantCount  int
+		wantFirst  string
+		wantOffset int32
 	}{
-		{"", maxGatewayEnvironments, environments[len(environments)-1].UUID},
-		{fmt.Sprintf("?offset=%d", maxGatewayEnvironments), 1, environments[0].UUID},
-		{fmt.Sprintf("?offset=%d", len(environments)), 0, ""},
+		{"", maxGatewayEnvironments, environments[len(environments)-1].UUID, 0},
+		{fmt.Sprintf("?offset=%d", maxGatewayEnvironments), 1, environments[0].UUID, maxGatewayEnvironments},
+		{fmt.Sprintf("?offset=%d", len(environments)+5), 0, "", int32(len(environments) + 5)},
 	} {
 		t.Run(tc.query, func(t *testing.T) {
 			w := httptest.NewRecorder()
@@ -87,14 +88,20 @@ func TestGetGatewayEnvironments_Pagination(t *testing.T) {
 			if tc.wantCount > 0 && response.Environments[0].Id != tc.wantFirst {
 				t.Errorf("first environment = %q, want %q", response.Environments[0].Id, tc.wantFirst)
 			}
+			if response.Total != int32(len(environments)) || response.Limit != maxGatewayEnvironments || response.Offset != tc.wantOffset {
+				t.Errorf("envelope = total %d, limit %d, offset %d; want %d, %d, %d",
+					response.Total, response.Limit, response.Offset, len(environments), maxGatewayEnvironments, tc.wantOffset)
+			}
 		})
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/orgs/acme/gateways/"+gatewayID+"/environments?offset=-1", nil)
-	w := httptest.NewRecorder()
-	(&gatewayController{}).GetGatewayEnvironments(w, req)
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("negative offset status = %d, want 400", w.Code)
+	for _, offset := range []string{"-1", "2147483648", "abc"} {
+		req := httptest.NewRequest(http.MethodGet, "/orgs/acme/gateways/"+gatewayID+"/environments?offset="+offset, nil)
+		w := httptest.NewRecorder()
+		(&gatewayController{}).GetGatewayEnvironments(w, req)
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("offset=%s status = %d, want 400", offset, w.Code)
+		}
 	}
 }
 

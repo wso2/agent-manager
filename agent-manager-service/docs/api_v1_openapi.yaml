@@ -2742,6 +2742,20 @@ paths:
                     maxItems: 1000
                     items:
                       $ref: "#/components/schemas/GatewayEnvironmentResponse"
+                  total:
+                    type: integer
+                    description: Total number of environments mapped to the gateway
+                  limit:
+                    type: integer
+                    description: Maximum number of environments returned per page
+                  offset:
+                    type: integer
+                    description: Number of environments skipped before this page
+                required:
+                  - environments
+                  - total
+                  - limit
+                  - offset
         "400":
           description: Bad request - invalid parameters
           content:
