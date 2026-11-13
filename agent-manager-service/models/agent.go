@@ -22,25 +22,17 @@ import (
 )
 
 type AgentResponse struct {
-	UUID           string          `json:"uuid"`
-	Name           string          `json:"name"`
-	DisplayName    string          `json:"displayName,omitempty"`
-	Description    string          `json:"description,omitempty"`
-	ProjectName    string          `json:"projectName"`
-	CreatedAt      time.Time       `json:"createdAt"`
-	Status         string          `json:"status,omitempty"`
-	Provisioning   Provisioning    `json:"provisioning,omitempty"`
-	Type           AgentType       `json:"type,omitempty"`
-	Build          *Build          `json:"build,omitempty"`
-	InputInterface *InputInterface `json:"inputInterface,omitempty"`
-	// HealthChecks are the health checks saved in the build settings, which the
-	// next build records. Nil when none are saved.
-	HealthChecks   *HealthChecks   `json:"healthChecks,omitempty"`
-	Configurations *Configurations `json:"configurations,omitempty"`
-	KindName       string          `json:"kindName,omitempty"`
-	// KindVersion is empty for agents created before the version was recorded.
-	KindVersion string            `json:"kindVersion,omitempty"`
-	Labels      map[string]string `json:"labels,omitempty"`
+	UUID           string            `json:"uuid"`
+	Name           string            `json:"name"`
+	DisplayName    string            `json:"displayName,omitempty"`
+	Description    string            `json:"description,omitempty"`
+	ProjectName    string            `json:"projectName"`
+	CreatedAt      time.Time         `json:"createdAt"`
+	Status         string            `json:"status,omitempty"`
+	Provisioning   Provisioning      `json:"provisioning,omitempty"`
+	Type           AgentType         `json:"type,omitempty"`
+	Configurations *Configurations   `json:"configurations,omitempty"`
+	Labels         map[string]string `json:"labels,omitempty"`
 	// CreatedBy is best-effort: resolved from the audit-only requester id
 	// captured at agent-creation time (see AgentThunderClient.RequestedBy).
 	// Nil when unknown — pre-existing agents, deployments without AgentID
@@ -149,20 +141,4 @@ type Repository struct {
 	AppPath   string `json:"appPath"`
 	Branch    string `json:"branch"`
 	SecretRef string `json:"secretRef,omitempty"`
-}
-
-type Build struct {
-	Type      string           `json:"type"` // "buildpack" or "docker"
-	Buildpack *BuildpackConfig `json:"buildpack,omitempty"`
-	Docker    *DockerConfig    `json:"docker,omitempty"`
-}
-
-type BuildpackConfig struct {
-	Language        string `json:"language"`
-	LanguageVersion string `json:"languageVersion,omitempty"`
-	RunCommand      string `json:"runCommand,omitempty"`
-}
-
-type DockerConfig struct {
-	DockerfilePath string `json:"dockerfilePath"`
 }

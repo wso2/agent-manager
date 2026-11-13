@@ -211,15 +211,6 @@ type Config struct {
 	// inconsistent across replicas — set Backend to "redis" in HA deployments.
 	GatewayManifestCache GatewayManifestCacheConfig
 
-	// GatewayPublicVhostFallback hands a platform-hosted agent the gateway's
-	// public vhost for its LLM proxy URL when the gateway registered no
-	// in-cluster runtimeUrl. Off by default: on-premises gateways always
-	// register one, and an in-cluster caller sent out through the public
-	// ingress is usually blocked by its NetworkPolicy, so a missing runtimeUrl
-	// fails closed. Deployments whose gateways register only a vhost (WSO2
-	// Cloud) turn it on. GATEWAY_PUBLIC_VHOST_FALLBACK.
-	GatewayPublicVhostFallback bool
-
 	// EvalJobsUsePublicGatewayURL points scheduled evaluation jobs at the LLM
 	// proxy's public gateway vhost instead of the gateway's in-cluster address.
 	// Off by default: on-premises evaluation jobs run in the same cluster as the

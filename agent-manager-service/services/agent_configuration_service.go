@@ -34,7 +34,6 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
-	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
@@ -295,32 +294,6 @@ func buildPublicProxyURL(gateway *models.Gateway, contextPath *string) string {
 		return fmt.Sprintf("%s%s", base, *contextPath)
 	}
 	return base
-}
-
-// errGatewayRuntimeURLUnregistered means the gateway has no in-cluster address recorded, so
-// no internal caller can reach it. Falling back to the public vhost would hairpin the caller
-// out through an ingress its NetworkPolicy denies, so this fails closed unless the deployment
-// opts into the fallback (config.GatewayPublicVhostFallback).
-var errGatewayRuntimeURLUnregistered = errors.New("gateway has no runtimeUrl registered")
-
-// buildInternalProxyURL constructs the proxy base URL from the gateway's in-cluster runtime
-// address, for callers that run inside the cluster.
-//
-// A gateway with no runtimeUrl fails closed by default. When the deployment enables
-// config.GatewayPublicVhostFallback (its gateways register a vhost only, as WSO2 Cloud's do),
-// it falls back to the public vhost instead — the address the agent's MCP proxies already use.
-func buildInternalProxyURL(gateway *models.Gateway, contextPath *string) (string, error) {
-	base := strings.TrimSpace(gateway.RuntimeURL)
-	if base == "" {
-		if config.GetConfig().GatewayPublicVhostFallback {
-			return buildPublicProxyURL(gateway, contextPath), nil
-		}
-		return "", fmt.Errorf("%w: %s", errGatewayRuntimeURLUnregistered, gateway.UUID)
-	}
-	if contextPath != nil {
-		return fmt.Sprintf("%s%s", base, *contextPath), nil
-	}
-	return base, nil
 }
 
 // mcpProxyServingBase is the fully normalized public base the gateway actually
@@ -2381,43 +2354,6 @@ func (s *agentConfigurationService) updateMCPConfigEnvironmentVariableNames(
 		return fmt.Errorf("failed to update MCP environment variable names: %w", err)
 	}
 	return nil
-}
-
-// renamedMCPProxyURL resolves the gateway URL a mapping's environment serves the proxy on.
-// A mapping whose proxy no longer has an endpoint bound to that environment resolves to an
-// empty URL, the same value the environment would get on deploy or promotion; a failure to
-// look up the gateway itself is returned so the rename rolls back rather than blanking a
-// working URL.
-func (s *agentConfigurationService) renamedMCPProxyURL(
-	ctx context.Context, config *models.AgentConfiguration, mapping *models.EnvAgentMCPMapping, envName, ouID string,
-) (string, error) {
-	if mapping.MCPProxy == nil {
-		return "", fmt.Errorf("MCP proxy not found for mapping in environment %s", envName)
-	}
-	proxy := mapping.MCPProxy
-	sharedArtifactUUID := mcpProxyEnvArtifactUUID(proxy, mapping.EnvironmentUUID.String())
-	if sharedArtifactUUID == uuid.Nil && s.mcpProxyRepo != nil && mapping.MCPProxyUUID != uuid.Nil {
-		var err error
-		proxy, err = s.mcpProxyRepo.GetByUUID(ctx, mapping.MCPProxyUUID.String(), ouID)
-		if err != nil {
-			return "", fmt.Errorf("failed to resolve MCP proxy for environment %s: %w", envName, err)
-		}
-		sharedArtifactUUID = mcpProxyEnvArtifactUUID(proxy, mapping.EnvironmentUUID.String())
-	}
-	if sharedArtifactUUID == uuid.Nil {
-		s.logger.Warn("MCP proxy has no endpoint bound to environment; renamed URL env var will be empty", "environment", envName)
-		return "", nil
-	}
-	gateway, err := s.mcpArtifactGateway(ctx, platformAgentPolicy, proxy, sharedArtifactUUID, ouID, mapping.EnvironmentUUID)
-	if errors.Is(err, errMCPGatewayNotManaged) {
-		return "", nil
-	}
-	if err != nil {
-		return "", fmt.Errorf("failed to resolve MCP gateway for environment %s: %w", envName, err)
-	}
-	handle := mcpMappingProxyName(config.ProjectName, config.AgentID, config.Name, envName)
-	deployedProxy := buildAgentMCPConfigProxy(config, mapping, proxy, envName, ouID, handle)
-	return buildMCPProxyURL(gateway, deployedProxy.Configuration), nil
 }
 
 func (s *agentConfigurationService) refreshAllMCPMappings(ctx context.Context, config *models.AgentConfiguration, ouID string, uuidToEnvName map[string]string,
@@ -4959,71 +4895,6 @@ func (s *agentConfigurationService) cleanupMCPConfig(ctx context.Context, config
 	}); err != nil {
 		s.logger.Warn("failed to clean up MCP configuration", "configUUID", configUUID, "error", err)
 	}
-}
-
-// systemManagedLLMURL returns the gateway's IN-CLUSTER address for the config's LLM proxy.
-// Its only consumer builds Workload/ReleaseBinding CRs, i.e. addresses read by an agent pod.
-// Do not reuse it for an API response — see systemManagedMCPURL for the public counterpart.
-func (s *agentConfigurationService) systemManagedLLMURL(
-	ctx context.Context, config *models.AgentConfiguration, ouID, environmentName string, envUUID uuid.UUID,
-) (string, error) {
-	mapping, err := s.envMappingRepo.GetByConfigAndEnv(ctx, config.UUID, envUUID)
-	if err != nil {
-		return "", fmt.Errorf("failed to get LLM env mapping for %s: %w", environmentName, err)
-	}
-	if mapping.LLMProxy == nil {
-		return "", fmt.Errorf("LLM proxy not found for mapping in environment %s", environmentName)
-	}
-
-	proxyHandle := strings.TrimSpace(mapping.LLMProxy.Handle)
-	if proxyHandle == "" {
-		proxyHandle = strings.TrimSpace(mapping.LLMProxy.Configuration.Name)
-	}
-	if proxyHandle == "" {
-		return "", fmt.Errorf("LLM proxy handle not found for mapping in environment %s", environmentName)
-	}
-
-	gateway, err := s.llmProxyGateway(ctx, platformAgentPolicy, proxyHandle, ouID, envUUID)
-	if err != nil {
-		return "", fmt.Errorf("failed to resolve gateway for LLM proxy in %s: %w", environmentName, err)
-	}
-	return buildInternalProxyURL(gateway, mapping.LLMProxy.Configuration.Context)
-}
-
-// systemManagedMCPURL returns the PUBLIC address for the config's MCP proxy. Unlike its LLM
-// counterpart it must stay public: the same URL is the OAuth resource identifier, so an
-// in-cluster address here would put an unroutable audience in every AgentID token.
-func (s *agentConfigurationService) systemManagedMCPURL(
-	ctx context.Context, config *models.AgentConfiguration, ouID, environmentName string, envUUID uuid.UUID,
-) (string, error) {
-	mappings, err := s.envMCPMappingRepo.ListByConfig(ctx, config.UUID)
-	if err != nil {
-		return "", fmt.Errorf("failed to list MCP env mappings for config %s: %w", config.UUID, err)
-	}
-	for i := range mappings {
-		mapping := &mappings[i]
-		if mapping.EnvironmentUUID != envUUID {
-			continue
-		}
-		if mapping.MCPProxy == nil {
-			return "", fmt.Errorf("MCP proxy not found for mapping in environment %s", environmentName)
-		}
-		sharedArtifactUUID := s.resolveMCPMappingAPIID(ctx, mapping, ouID)
-		if sharedArtifactUUID == uuid.Nil {
-			return "", fmt.Errorf("MCP proxy shared artifact not found for mapping in environment %s", environmentName)
-		}
-		gateway, err := s.mcpArtifactGateway(ctx, platformAgentPolicy, mapping.MCPProxy, sharedArtifactUUID, ouID, envUUID)
-		if errors.Is(err, errMCPGatewayNotManaged) {
-			return "", nil
-		}
-		if err != nil {
-			return "", fmt.Errorf("failed to resolve gateway for MCP proxy in %s: %w", environmentName, err)
-		}
-		handle := mcpMappingProxyName(config.ProjectName, config.AgentID, config.Name, environmentName)
-		deployedProxy := buildAgentMCPConfigProxy(config, mapping, mapping.MCPProxy, environmentName, ouID, handle)
-		return buildMCPProxyURL(gateway, deployedProxy.Configuration), nil
-	}
-	return "", nil
 }
 
 // mcpProxyBindableFromProject reports whether an agent in the project with agentProjectUUID may bind

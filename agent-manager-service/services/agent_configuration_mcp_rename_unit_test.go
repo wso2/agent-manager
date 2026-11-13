@@ -80,16 +80,6 @@ func (tx *mcpRenameCommitTx) Rollback() error {
 	return nil
 }
 
-func TestRenamedMCPProxyURL_ConfirmedMissingEndpointIsEmpty(t *testing.T) {
-	f := newMCPURLTestFixture()
-	f.mapping.MCPProxy.Endpoints = nil
-	svc := f.newService()
-	svc.mcpProxyRepo = &repomocks.MCPProxyRepositoryMock{GetByUUIDFunc: func(context.Context, string, string) (*models.MCPProxy, error) { return f.mapping.MCPProxy, nil }}
-	url, err := svc.renamedMCPProxyURL(context.Background(), &models.AgentConfiguration{Name: "github"}, &f.mapping, "default", f.ouID)
-	require.NoError(t, err)
-	require.Empty(t, url)
-}
-
 func TestUpdateMCPConfigEnvironmentVariableNames_RejectsOtherConfigOwnership(t *testing.T) {
 	for _, scenario := range []string{"collision", "ownership read fails", "own names allowed"} {
 		t.Run(scenario, func(t *testing.T) {

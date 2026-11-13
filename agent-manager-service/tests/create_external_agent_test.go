@@ -186,7 +186,7 @@ func TestCreateExternalAgent(t *testing.T) {
 				},
 			},
 			wantStatus: 400,
-			wantErrMsg: "provisioning type must be either 'internal' or 'external'",
+			wantErrMsg: "provisioning type must be 'external'",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testExternalOrgName, testExternalProjName),
 			setupMock: func() *repomocks.PlatformRepositoryMock {
 				return apitestutils.CreateMockPlatformRepository()
@@ -207,7 +207,7 @@ func TestCreateExternalAgent(t *testing.T) {
 				},
 			},
 			wantStatus: 400,
-			wantErrMsg: "provisioning type must be either 'internal' or 'external'",
+			wantErrMsg: "provisioning type must be 'external'",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testExternalOrgName, testExternalProjName),
 			setupMock: func() *repomocks.PlatformRepositoryMock {
 				return apitestutils.CreateMockPlatformRepository()

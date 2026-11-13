@@ -34,7 +34,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
-	"github.com/wso2/agent-manager/agent-manager-service/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -1767,11 +1766,6 @@ func parseAgentUUID(raw string) *uuid.UUID {
 	return &id
 }
 
-// gatewayKind is the reconcile kind that renders an exposed agent.
-func (s *agentManagerService) gatewayKind() reconcile.EnvironmentKind {
-	return s.a2aPublisher.kind
-}
-
 // exposesAgent is true for an agent its environment's ingress gateway serves, on a service wired to expose it.
 func (s *agentManagerService) exposesAgent(agent *models.AgentResponse) bool {
 	_, ok := agentGatewayShapeOf(agent)
@@ -1795,38 +1789,6 @@ func (s *agentManagerService) agentEnvArtifactFunc(
 		}
 		return artifact, nil
 	}
-}
-
-// exposeAgentEnv ensures the agent's artifact, runs save (nil when there is nothing to save) and exposes the agent
-// in the environment with its render queued on the ingress gateway, all in one transaction; the worker is nudged
-// after commit. It returns the artifact it exposed.
-func (s *agentManagerService) exposeAgentEnv(
-	ctx context.Context, agent *models.AgentResponse, key agentExposureKey,
-	artifact func(tx *gorm.DB) (*models.Artifact, error), save func(tx *gorm.DB) error,
-) (models.ArtifactRef, error) {
-	shape, ok := agentGatewayShapeOf(agent)
-	if !ok {
-		return models.ArtifactRef{}, fmt.Errorf("agent %s is not served through the gateway", agent.Name)
-	}
-	var exposed models.ArtifactRef
-	err := s.exposure.tx(ctx, func(tx *gorm.DB) error {
-		a, err := artifact(tx)
-		if err != nil {
-			return err
-		}
-		if save != nil {
-			if err := save(tx); err != nil {
-				return err
-			}
-		}
-		exposed = agentArtifactRef(a)
-		return s.exposure.Publish(ctx, tx, s.gatewayKind(), key, exposed, shape.Protocol)
-	})
-	if err != nil {
-		return models.ArtifactRef{}, err
-	}
-	s.exposure.Nudge()
-	return exposed, nil
 }
 
 // saveDeploySettings saves the environment's config in one transaction with the agent's gateway exposure, so

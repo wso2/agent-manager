@@ -16,8 +16,6 @@
 
 package services
 
-import "fmt"
-
 // corsPolicy returns the gateway CORS policy with the given allowed origins,
 // methods, headers and credentials flag.
 func corsPolicy(allowedOrigins, allowedMethods, allowedHeaders []string, allowCredentials bool) map[string]interface{} {
@@ -31,11 +29,6 @@ func corsPolicy(allowedOrigins, allowedMethods, allowedHeaders []string, allowCr
 			"allowCredentials": allowCredentials,
 		},
 	}
-}
-
-// formatResilienceTimeout renders a timeout in seconds as a gateway duration.
-func formatResilienceTimeout(seconds int32) string {
-	return fmt.Sprintf("%ds", seconds)
 }
 
 // apiKeyAuthPolicy returns the gateway policy for API key authentication.

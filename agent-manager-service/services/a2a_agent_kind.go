@@ -31,7 +31,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
-	"gopkg.in/yaml.v3"
 	"gorm.io/gorm"
 )
 
@@ -353,23 +352,4 @@ func (k *A2AAgentKind) queueCardFetch(ctx context.Context, tx *gorm.DB, p models
 // binding whose endpoint can move, and there is no agent runtime.
 func (k *A2AAgentKind) Drifted(context.Context, models.Placement) (string, bool, error) {
 	return "", false, nil
-}
-
-// endpointChangedReason is why a placement is re-rendered when its release binding serves another URL.
-const endpointChangedReason = "the agent's endpoint changed"
-
-// deployedUpstream is the upstream URL the placement's current deployment was rendered with, read from its YAML
-// as T; empty when nothing is deployed.
-func deployedUpstream[T any](
-	ctx context.Context, repo repositories.DeploymentRepository, p models.Placement, upstream func(T) string,
-) (string, error) {
-	deployment, err := repo.GetPullable(ctx, p.OUID, p.ArtifactUUID, p.GatewayUUID.String())
-	if err != nil || deployment == nil {
-		return "", err
-	}
-	var content T
-	if err := yaml.Unmarshal(deployment.Content, &content); err != nil {
-		return "", fmt.Errorf("failed to read the deployed agent's upstream: %w", err)
-	}
-	return upstream(content), nil
 }

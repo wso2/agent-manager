@@ -573,22 +573,4 @@ func TestAgentMCPURLs_EmptyOnSelfHostedGateway(t *testing.T) {
 		require.NotNil(t, resp.EnvModelConfig["dev"].LLMProxy)
 		assert.Nil(t, resp.EnvModelConfig["dev"].LLMProxy.URL)
 	})
-
-	t.Run("AgentID audience", func(t *testing.T) {
-		svc := f.newService()
-		svc.envMCPMappingRepo = &repomocks.EnvAgentMCPMappingRepositoryMock{
-			ListByConfigFunc: func(context.Context, uuid.UUID) ([]models.EnvAgentMCPMapping, error) {
-				return []models.EnvAgentMCPMapping{f.mapping}, nil
-			},
-		}
-		url, err := svc.systemManagedMCPURL(ctx, config, f.ouID, "dev", f.envUUID)
-		require.NoError(t, err)
-		assert.Empty(t, url)
-	})
-
-	t.Run("renamed URL variable", func(t *testing.T) {
-		url, err := f.newService().renamedMCPProxyURL(ctx, config, &f.mapping, "dev", f.ouID)
-		require.NoError(t, err)
-		assert.Empty(t, url)
-	})
 }

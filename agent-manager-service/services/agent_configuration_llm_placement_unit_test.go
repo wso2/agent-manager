@@ -241,7 +241,6 @@ func externalAgentComponent() *repomocks.PlatformRepositoryMock {
 	return &repomocks.PlatformRepositoryMock{
 		GetAgentFunc: func(context.Context, string, string, string) (*models.AgentResponse, error) {
 			return &models.AgentResponse{
-				KindName:     "agent-api",
 				Provisioning: models.Provisioning{Type: string(utils.ExternalAgent)},
 			}, nil
 		},

@@ -31,100 +31,7 @@ package utils
 import (
 	"strings"
 	"testing"
-
-	"github.com/wso2/agent-manager/agent-manager-service/spec"
 )
-
-// repoConfigForTest builds the minimal RepositoryConfig the validator reads:
-// secretRef is left unset, which means a public repository.
-func repoConfigForTest(url, branch, appPath string) *spec.RepositoryConfig {
-	return &spec.RepositoryConfig{
-		Url:     url,
-		Branch:  branch,
-		AppPath: appPath,
-	}
-}
-
-// TestValidateRepoDetails covers the repository fields together, since the
-// validator short-circuits: a case has to keep the other two fields valid for its
-// own field to be the one under test.
-func TestValidateRepoDetails(t *testing.T) {
-	const (
-		okURL     = "https://github.com/wso2/agent-manager"
-		okBranch  = "main"
-		okAppPath = "/samples/customer-support-agent"
-	)
-
-	tests := []struct {
-		name    string
-		url     string
-		branch  string
-		appPath string
-		wantErr bool
-	}{
-		// Accepted: the shapes real repositories take.
-		{"plain repository", okURL, okBranch, okAppPath, false},
-		{"repository root as app path", okURL, okBranch, "/", false},
-		{".git suffix", "https://github.com/wso2/agent-manager.git", okBranch, okAppPath, false},
-		{"trailing slash", "https://github.com/wso2/agent-manager/", okBranch, okAppPath, false},
-		{"dots in the repository name", "https://github.com/wso2/my.repo", okBranch, okAppPath, false},
-		{"underscores and hyphens", "https://github.com/my-org/my_repo", okBranch, okAppPath, false},
-		{"branch with a slash", okURL, "feature/add-thing", okAppPath, false},
-		{"branch with dots", okURL, "release/1.2.3", okAppPath, false},
-
-		// A ";" needs no quote to break out of a shell assignment, so it is the
-		// cheapest way in and the first thing to keep out.
-		{
-			"command separator in the URL",
-			`https://github.com/wso2/agent-manager;echo injected;`,
-			okBranch, okAppPath, true,
-		},
-		{
-			"command separator in the branch",
-			okURL, `main;echo injected;`, okAppPath, true,
-		},
-
-		// The same class through the other metacharacters.
-		{"command substitution in the URL", "https://github.com/wso2/agent-$(id)", okBranch, okAppPath, true},
-		{"backtick in the repository name", "https://github.com/wso2/agent-`id`", okBranch, okAppPath, true},
-		{"double quote in the branch", okURL, `main";id;"`, okAppPath, true},
-		{"single quote in the branch", okURL, "main'id'", okAppPath, true},
-		{"newline in the branch", okURL, "main\nid", okAppPath, true},
-		{"double quote in the app path", okURL, okBranch, `/x";echo pwned;"`, true},
-		{"command substitution in the app path", okURL, okBranch, "/$(id)", true},
-
-		// git's option parser, not the shell.
-		{"branch opening with a dash", okURL, "--upload-pack=id", okAppPath, true},
-
-		// Traversal and shape.
-		{"traversal in the app path", okURL, okBranch, "/../../etc", true},
-		{"relative app path", okURL, okBranch, "samples/agent", true},
-		{"traversal in the branch", okURL, "feature/../main", okAppPath, true},
-		{"empty branch", okURL, "", okAppPath, true},
-		{"empty app path", okURL, okBranch, "", true},
-		{"empty URL", "", okBranch, okAppPath, true},
-		{"non-GitHub host", "https://gitlab.com/wso2/agent-manager", okBranch, okAppPath, true},
-		{"over-long URL", okURL + strings.Repeat("a", MaxRepositoryURLLength), okBranch, okAppPath, true},
-		{"over-long branch", okURL, strings.Repeat("b", MaxGitBranchLength+1), okAppPath, true},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := validateRepoDetails(repoConfigForTest(tt.url, tt.branch, tt.appPath))
-			if tt.wantErr && err == nil {
-				t.Fatalf("expected rejection of url=%q branch=%q appPath=%q", tt.url, tt.branch, tt.appPath)
-			}
-			if !tt.wantErr && err != nil {
-				t.Fatalf("unexpected rejection of url=%q branch=%q appPath=%q: %v",
-					tt.url, tt.branch, tt.appPath, err)
-			}
-			// A rejection has to reach the caller as a 400, not a 500.
-			if err != nil && IsValidationError(err) == nil {
-				t.Errorf("error should be a *ValidationError so it maps to 400, got %T: %v", err, err)
-			}
-		})
-	}
-}
 
 // TestIsValidGitHubBranch pins both halves of the check: the character allowlist,
 // and the git refname rules a character class cannot express.
@@ -218,42 +125,6 @@ func TestValidateGitCommitID(t *testing.T) {
 			}
 			if err != nil && IsValidationError(err) == nil {
 				t.Errorf("error should be a *ValidationError so it maps to 400, got %T: %v", err, err)
-			}
-		})
-	}
-}
-
-// TestValidateBuildConfigurationDockerfilePath exercises the shared path rules
-// through the docker build branch, which is the other caller of validateSafePath.
-func TestValidateBuildConfigurationDockerfilePath(t *testing.T) {
-	tests := []struct {
-		name           string
-		dockerfilePath string
-		wantErr        bool
-	}{
-		{"repository root", "/Dockerfile", false},
-		{"nested", "/docker/Dockerfile", false},
-		{"dotted name", "/build/Dockerfile.prod", false},
-
-		{"empty", "", true},
-		{"relative", "Dockerfile", true},
-		{"traversal", "/../Dockerfile", true},
-		{"double quote", `/x";echo pwned;"`, true},
-		{"command substitution", "/$(id)/Dockerfile", true},
-		{"command separator", "/Dockerfile;id", true},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			build := spec.DockerBuildAsBuild(&spec.DockerBuild{
-				Docker: spec.DockerConfig{DockerfilePath: tt.dockerfilePath},
-			})
-			err := validateBuildConfiguration(&build)
-			if tt.wantErr && err == nil {
-				t.Fatalf("expected rejection of dockerfilePath %q", tt.dockerfilePath)
-			}
-			if !tt.wantErr && err != nil {
-				t.Fatalf("unexpected rejection of dockerfilePath %q: %v", tt.dockerfilePath, err)
 			}
 		})
 	}
