@@ -16,59 +16,100 @@
  * under the License.
  */
 
-import { Grid, Skeleton, StatCard, CircularProgress } from "@wso2/oxygen-ui";
+import type { ReactNode } from "react";
+import {
+  Box,
+  Card,
+  CircularProgress,
+  Grid,
+  Skeleton,
+  Stack,
+  Typography,
+} from "@wso2/oxygen-ui";
 import {
   CheckCircle,
-  XCircle,
+  Hammer,
   TrendingUp,
+  XCircle,
 } from "@wso2/oxygen-ui-icons-react";
+import { IconTile, type IconTileColor } from "@agent-management-platform/views";
 import { BuildStatus } from "@agent-management-platform/types";
 import { useGetAllAgentBuilds } from "@agent-management-platform/api-client";
 import { useParams } from "react-router-dom";
 
-const getBuildIconColor = (
-  status: BuildStatus
-): "success" | "warning" | "error" | "info" => {
+/** Card height, shared with the loading skeletons so nothing shifts on load. */
+const CARD_HEIGHT = 76;
+const GRID_ITEM_SIZE = { xs: 12, sm: 6, md: 4 } as const;
+
+const getBuildStatusColor = (status: BuildStatus): IconTileColor => {
   switch (status) {
     case "Completed":
     case "Succeeded":
-      return "success"; // greenish for success
+      return "success";
     case "Pending":
-      return "warning";
     case "Running":
       return "warning";
     case "Failed":
-      return "error"; // red for failed
+      return "error";
     default:
       return "info";
   }
 };
 
-
-const getSuccessRateColor = (
-  percentage: number
-): "primary" | "success" | "warning" | "error" | "info" | "secondary" => {
-  if (isNaN(percentage)) return "warning";
-  if (percentage >= 0.9) return "success";
-  if (percentage >= 0.5) return "warning";
+const getSuccessRateColor = (rate: number): IconTileColor => {
+  if (isNaN(rate)) return "warning";
+  if (rate >= 0.9) return "success";
+  if (rate >= 0.5) return "warning";
   return "error";
 };
 
+/**
+ * A compact build stat: icon tile, label and value. Follows the organization
+ * overview's resource cards (outlined card, tinted icon tile), without their
+ * description and action footer.
+ */
+function BuildStatCard({
+  icon,
+  color,
+  label,
+  value,
+}: {
+  icon: ReactNode;
+  color: IconTileColor;
+  label: string;
+  value: string;
+}) {
+  return (
+    <Card variant="outlined" sx={{ height: CARD_HEIGHT }}>
+      <Stack direction="row" spacing={2} alignItems="center" sx={{ p: 2, height: "100%" }}>
+        <IconTile color={color} size={44}>
+          {icon}
+        </IconTile>
+        <Box sx={{ minWidth: 0 }}>
+          <Typography variant="body2" color="text.secondary" noWrap>
+            {label}
+          </Typography>
+          <Typography variant="h6" component="p" sx={{ fontWeight: 600 }} noWrap>
+            {value}
+          </Typography>
+        </Box>
+      </Stack>
+    </Card>
+  );
+}
+
 function TopCardsSkeleton() {
   return (
-    <Grid container spacing={3}>
-      <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-        <Skeleton variant="rectangular" height={120} />
-      </Grid>
-      <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-        <Skeleton variant="rectangular" height={120} />
-      </Grid>
-      <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-        <Skeleton variant="rectangular" height={120} />
-      </Grid>
+    <Grid container spacing={2}>
+      {Array.from({ length: 3 }).map((_, i) => (
+        <Grid key={i} size={GRID_ITEM_SIZE}>
+          <Skeleton variant="rounded" height={CARD_HEIGHT} />
+        </Grid>
+      ))}
     </Grid>
   );
 }
+
 export const TopCards: React.FC = () => {
   const { agentId, projectId, orgId } = useParams();
   const { data: builds, isLoading } = useGetAllAgentBuilds({
@@ -77,61 +118,58 @@ export const TopCards: React.FC = () => {
     agentName: agentId,
   });
 
-  // Latest Build
-  const latestBuild = builds?.builds[0];
-  const latestBuildStatus = latestBuild?.status ?? "";
-  // Summery
-  const successfulBuildCount =
-    builds?.builds.filter(
-      (build) =>
-        build.status === "Completed" || build.status === "Succeeded"
-    ).length ?? 0;
-  const failedBuildCount =
-    builds?.builds.filter((build) => build.status === "Failed").length ??
-    0;
-
   if (isLoading) {
     return <TopCardsSkeleton />;
   }
 
+  const latestBuild = builds?.builds[0];
+  const latestBuildStatus = (latestBuild?.status ?? "") as BuildStatus;
+  const successfulBuildCount =
+    builds?.builds.filter(
+      (build) => build.status === "Completed" || build.status === "Succeeded",
+    ).length ?? 0;
+  const failedBuildCount =
+    builds?.builds.filter((build) => build.status === "Failed").length ?? 0;
   const totalBuilds = builds?.builds.length ?? 0;
-  const successRate = successfulBuildCount / Math.max(1, successfulBuildCount + failedBuildCount);
-  
-  const isLatestBuildRunning = latestBuildStatus === "Pending" || latestBuildStatus === "Running";
+  const successRate =
+    successfulBuildCount / Math.max(1, successfulBuildCount + failedBuildCount);
+
+  const isLatestBuildRunning =
+    latestBuildStatus === "Pending" || latestBuildStatus === "Running";
   const latestBuildIcon = !latestBuild ? (
-    <XCircle size={24} />
+    <XCircle size={20} />
   ) : isLatestBuildRunning ? (
-    <CircularProgress size={24} />
+    <CircularProgress size={18} color="inherit" />
   ) : latestBuildStatus === "Failed" ? (
-    <XCircle size={24} />
+    <XCircle size={20} />
   ) : (
-    <CheckCircle size={24} />
+    <CheckCircle size={20} />
   );
 
   return (
-    <Grid container spacing={3}>
-      <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-        <StatCard
-          value={latestBuild?.status ?? "No builds"}
-          label="Latest Build Status"
+    <Grid container spacing={2}>
+      <Grid size={GRID_ITEM_SIZE}>
+        <BuildStatCard
           icon={latestBuildIcon}
-          iconColor={latestBuild ? getBuildIconColor(latestBuildStatus as BuildStatus) : "error"}
+          color={latestBuild ? getBuildStatusColor(latestBuildStatus) : "error"}
+          label="Latest build status"
+          value={latestBuild?.status ?? "No builds"}
         />
       </Grid>
-      <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-        <StatCard
+      <Grid size={GRID_ITEM_SIZE}>
+        <BuildStatCard
+          icon={<TrendingUp size={20} />}
+          color={getSuccessRateColor(successRate)}
+          label="Build success rate"
           value={`${(successRate * 100).toFixed(1)}%`}
-          label="Build Success Rate"
-          icon={<TrendingUp size={24} />}
-          iconColor={getSuccessRateColor(successRate)}
         />
       </Grid>
-      <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-        <StatCard
+      <Grid size={GRID_ITEM_SIZE}>
+        <BuildStatCard
+          icon={<Hammer size={20} />}
+          color="primary"
+          label="Total builds"
           value={totalBuilds.toString()}
-          label="Total Builds"
-          icon={<CheckCircle size={24} />}
-          iconColor="primary"
         />
       </Grid>
     </Grid>
