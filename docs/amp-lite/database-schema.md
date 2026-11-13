@@ -359,4 +359,4 @@ The schema above is the target. The migrations currently differ in these places:
 - `agent_model_config_mcp_envs` has an extra `mcp_proxy_id` column, and `a2a_proxies` an extra `artifact_id`.
 - `gateways` also enforces that a self-hosted gateway is egress only.
 - `audit_events` and `usage_events` exist, but nothing writes or reads them yet.
-- `models/` still defines tables that are not in this schema: evaluation, agent kinds, publisher and scheduler credentials, `env_thunder_*` and `rest_apis`.
+- `models/` still defines tables that are not in this schema: evaluation (monitors, monitor alerts, scores and evaluators) and `rest_apis`.
